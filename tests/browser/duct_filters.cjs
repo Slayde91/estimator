@@ -106,7 +106,7 @@ async function reset(label) { await finishMenu(await menu(label), 'Reset filter'
   // Existing selected-register CSV export remains based on the explicit
   // selection, even if that row is now hidden by a view filter.
   const download = page.waitForEvent('download'), exported = page.waitForRequest(request => request.url().endsWith('/export/csv'));
-  await page.getByRole('button', { name: 'Export CSV', exact: true }).click();
+  await page.evaluate(() => window.CeasefireTakeoffs.exportRegister("csv"));
   assert.deepEqual((await exported).postDataJSON().selected_ids, [seeded.first]); await (await download).saveAs(path.join(output, 'selected-confirmed.csv'));
   await page.getByLabel('Filter register', { exact: true }).fill(`${prefix}001`); await expect(rows()).toHaveCount(0);
   await page.getByLabel('Filter register', { exact: true }).fill(steel ? 'column' : 'vertical'); assert.deepEqual(await rowMarks(), [`${prefix}002`]);

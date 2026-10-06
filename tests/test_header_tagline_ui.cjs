@@ -21,12 +21,12 @@ const phrases = [
   "The architect drew the wall; the services drew their own conclusions.",
   "The drawing said “typical,” which was optimistic.",
   "Fire testing proves the system works; construction proves how creative people can be.",
-  "The installation was executed flawlessly; then we wrote a test report.",
-  "Give me a red bull and a cigarette and I could probably spray that.",
+  "The installation was executed flawlessly with no delays, coordination issues or late payment. Then we wrote the test report.",
+  "Give me a Red Bull and a cigarette and I could probably spray that.",
   "The defect was minor until someone photographed it.",
   "I like to think that Penetration Specialist is code for Gigolo.",
   "The system performs impeccably in ideal conditions - a fire test laboratory.",
-  "The fire was outsmarted by the concession in our performance solution.",
+  "The fire will be outsmarted by the concession in our performance solution.",
   "The building is now protected by a robust layer of professional opinion.",
   "The fire engineer has reviewed the issue and the fire is expected to cooperate.",
   "Any future flames should refer to the approved performance solution before proceeding.",
@@ -40,7 +40,7 @@ function harness({ random = 0, previous, reduced = false, blocked = false, missi
   const typed = { get textContent() { return current; }, set textContent(value) { current = value; frames.push(value); } };
   const elements = { 'header-tagline-label': label, 'header-tagline-sizer': sizer, 'header-tagline-typed': typed };
   const motion = { matches: reduced, addEventListener(name, callback) { assert.equal(name, 'change'); preference = callback; } };
-  const media = { playing: false, starts: 0, closed: false, start() { this.starts++; this.playing = !this.closed && !motion.matches; }, stop() { this.playing = false; }, close() { this.closed = true; this.playing = false; } };
+  let mediaTimer = null; const media = { playing: false, starts: 0, closed: false, start() { context.clearTimeout(mediaTimer); this.starts++; this.playing = !this.closed && !motion.matches; }, finish() { context.clearTimeout(mediaTimer); mediaTimer = context.setTimeout(() => this.stop(), 5000); }, stop() { context.clearTimeout(mediaTimer); this.playing = false; }, close() { this.closed = true; this.stop(); } };
   const context = {
     document: {
       getElementById(id) { return missing ? null : elements[id]; },
@@ -60,7 +60,7 @@ function harness({ random = 0, previous, reduced = false, blocked = false, missi
       dispatchEvent() { throw Error('Presentation must not emit input or change events'); },
     },
     Math: Object.create(Math),
-    setTimeout(callback, delay) { assert.ok(delay === 35 || delay === 1000); timers.set(++nextTimer, { callback, delay, deadline: now + delay }); return nextTimer; },
+    setTimeout(callback, delay) { assert.ok(delay === 35 || delay === 1000 || delay === 5000); timers.set(++nextTimer, { callback, delay, deadline: now + delay }); return nextTimer; },
     clearTimeout(id) { timers.delete(id); },
   };
   context.Math.random = () => random;
@@ -81,7 +81,7 @@ function harness({ random = 0, previous, reduced = false, blocked = false, missi
       assert.equal(next()?.[1].delay, 35, 'Only typing is scheduled before the final character'); tick();
     }
   };
-  const finish = () => { finishTyping(); advance(1000); };
+  const finish = () => { finishTyping(); advance(5000); };
   run();
   return { label, sizer, typed, cursor, media, frames, timers, writes, run, tick, finishTyping, finish, advance, nextPhrase() { context.window.CeasefireHeaderTagline.next(); },
     now: () => now, changeMotion(matches = true) { motion.matches = matches; preference({ matches }); }, pagehide() { pagehide(); } };
@@ -95,13 +95,14 @@ for (let index = 0; index < phrases.length; index++) {
   h.finishTyping();
   assert.equal(h.now(), (Array.from(phrase).length - 1) * 35);
   assert.equal(h.cursor.hidden, true, 'Cursor stops as soon as the final character prints');
-  assert.equal(h.media.playing, false, 'The supplied character stops with the final character');
+  assert.equal(h.media.playing, true, 'The supplied character continues after the final character');
   assert.equal(h.typed.textContent, phrase); assert.equal(h.label.textContent, phrase);
   assert.deepEqual(h.frames, ['', ...Array.from(phrase, (_, i) => Array.from(phrase).slice(0, i + 1).join(''))]);
-  assert.equal(h.timers.size, 0);
+  assert.equal(h.timers.size, 1);
   const finishedFrames = h.frames.slice();
   h.advance(999); assert.equal(h.cursor.hidden, true); assert.equal(h.typed.textContent, phrase);
-  h.advance(1); assert.equal(h.cursor.hidden, true); assert.equal(h.timers.size, 0);
+  h.advance(1); assert.equal(h.cursor.hidden, true); assert.equal(h.media.playing, true);
+  h.advance(3999); assert.equal(h.media.playing, true); h.advance(1); assert.equal(h.media.playing, false); assert.equal(h.timers.size, 0);
   h.advance(10000); assert.deepEqual(h.frames, finishedFrames); assert.deepEqual(h.sizer.children.map(line => line.textContent), phrases.map(line => line + '_'));
   passed++;
 }
@@ -133,7 +134,7 @@ for (let index = 0; index < phrases.length; index++) {
   const second = h.label.textContent; h.nextPhrase(); assert.notEqual(h.label.textContent, second);
   h.finishTyping(); const current = h.label.textContent;
   h.advance(999); assert.equal(h.typed.textContent, current); assert.equal(h.cursor.hidden, true);
-  h.advance(1); assert.equal(h.cursor.hidden, true); assert.equal(h.timers.size, 0); assert.equal(h.writes.length, 0); passed++;
+  h.advance(1); assert.equal(h.cursor.hidden, true); assert.equal(h.media.playing, true); h.advance(4000); assert.equal(h.timers.size, 0); assert.equal(h.writes.length, 0); passed++;
 }
 {
   const h = harness(); h.finish(); const first = h.label.textContent;

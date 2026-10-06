@@ -16,7 +16,7 @@ const ready = new Promise((resolve, reject) => {
   server.once('error', reject); server.once('exit', code => { clearTimeout(timer); reject(Error(`Fixture exited ${code}: ${logs}`)); });
 });
 const phrase = "I'm an expert at reading plans and looking at photos - a site visit would just be a waste of my time.";
-const newPhrase = 'The fire was outsmarted by the concession in our performance solution.';
+const newPhrase = 'The fire will be outsmarted by the concession in our performance solution.';
 const errors = [], evidence = {}, csp = [];
 const pendingRequests = new WeakMap();
 const clockOrigin = Date.parse('2026-10-04T00:00:00Z');
@@ -117,13 +117,13 @@ async function typeUntilFinished(initial, expected, samples = [initial]) {
     assert.ok(expected.startsWith(sample.typed));
     assert.ok(sample.typed.length >= samples.at(-1).typed.length);
     assert.equal(sample.accessible, expected); assert.equal(sample.cursorHidden, sample.typed === expected);
-    assert.equal(sample.mediaState, sample.typed === expected ? 'stopped' : 'playing', 'Character playback follows the same final-character boundary as every accepted phrase');
+    assert.equal(sample.mediaState, 'playing', 'Character playback continues through typing and its five-second grace period');
     samples.push(sample);
   }
   assert.equal(samples.at(-1).typed, expected, 'The production typing timers must finish the exact phrase');
   assert.ok(samples.length >= 3, 'The real DOM must show progressive typing');
   assert.equal(samples.at(-1).finished?.phrase, expected);
-  assert.equal(samples.at(-1).mediaSrc, '/header-tagline-character-still.png');
+  assert.match(samples.at(-1).mediaSrc, /^\/header-tagline-character\.gif\?play=\d+$/);
   return samples;
 }
 async function expireCursor(initial, expected) {
@@ -131,7 +131,15 @@ async function expireCursor(initial, expected) {
   assert.equal(stopped.cursorHidden, true, 'The underscore must disappear with the final character');
   assert.equal(stopped.cursorDisplay, 'none'); assert.equal(stopped.cursorAnimationCount, 0, 'Hidden cursor must have no running CSS animation');
   assert.equal(stopped.typed, expected); assert.equal(stopped.accessible, expected);
-  assert.ok(['stopped', 'reduced'].includes(stopped.mediaState)); assert.equal(stopped.mediaSrc, '/header-tagline-character-still.png');
+  if (stopped.mediaState === 'playing') {
+    const remaining = 5000 - (stopped.now - stopped.finished.at);
+    assert.ok(remaining > 0, 'The supplied GIF continues for five seconds after the final character');
+    await page.clock.runFor(Math.max(0, Math.floor(remaining) - 1));
+    const grace = await layout(); assert.equal(grace.mediaState, 'playing'); assert.equal(grace.cursorHidden, true);
+    await page.clock.runFor(2);
+  }
+  const mediaStopped = await layout();
+  assert.ok(['stopped', 'reduced'].includes(mediaStopped.mediaState)); assert.equal(mediaStopped.mediaSrc, '/header-tagline-character-still.png');
   await expect.poll(() => page.locator('#header-tagline-character').evaluate(element => element.complete && element.naturalWidth > 0)).toBe(true);
   const still = crypto.createHash('sha256').update(await page.locator('#header-tagline-character').screenshot()).digest('hex');
   await delay(750); assert.equal(crypto.createHash('sha256').update(await page.locator('#header-tagline-character').screenshot()).digest('hex'), still, 'Finished/reduced character displays an unchanged actual still frame');

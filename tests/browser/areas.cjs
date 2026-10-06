@@ -1,6 +1,6 @@
 const { chooseTakeoff } = require('./section_navigation.cjs');
 const { clickProjectControl } = require('./project_actions.cjs');
-const { renderDrawing } = require('./viewer_helpers.cjs');
+const { renderDrawing, viewRegisterItem } = require('./viewer_helpers.cjs');
 // Real pointer/keyboard area workflow on synthetic drawings and a disposable server.
 const { chromium, expect } = require('@playwright/test');
 const { editSettings } = require('./settings_helpers.cjs');
@@ -203,11 +203,11 @@ async function surface(mode, rotated = false) {
   const slab = await surface('slab', true);
   // Row navigation recovers exact document/page and shape after changing modes/pages.
   await chooseTakeoff(page, 'wall');
-  await page.locator(`tr[data-item-id="${wall.id}"] .takeoff-row-link`).click();
+  await viewRegisterItem(page, wall.id, wall.geometry);
   await expect(page.getByLabel('Page number', { exact: true })).toHaveValue('1');
   await expect(page.locator(`.takeoff-hit[data-item-id="${wall.id}"]`)).toHaveCount(1);
   await chooseTakeoff(page, 'slab');
-  await page.locator(`tr[data-item-id="${slab.id}"] .takeoff-row-link`).click();
+  await viewRegisterItem(page, slab.id, slab.geometry);
   await expect(page.getByLabel('Page number', { exact: true })).toHaveValue('2');
   await page.screenshot({ path: path.join(output, 'slab-rotated-confirmed.png'), fullPage: true });
   const save = page.waitForResponse(r => r.url().endsWith('/api/project/save-as'));
@@ -224,10 +224,10 @@ async function surface(mode, rotated = false) {
   for (const record of [wall, slab]) {
     const mode = record === wall ? 'wall' : 'slab';
     await chooseTakeoff(page, mode);
-    await page.locator(`tr[data-item-id="${record.id}"] .takeoff-row-link`).click();
+    await viewRegisterItem(page, record.id, record.geometry);
     await expect(page.locator(`tr[data-item-id="${record.id}"] .takeoff-state`)).toHaveText('Confirmed');
     for (const format of ['CSV', 'XLSX']) {
-      const download = page.waitForEvent('download'); await page.getByRole('button', { name: `Export ${format}`, exact: true }).click();
+      const download = page.waitForEvent('download'); await page.evaluate(format => window.CeasefireTakeoffs.exportRegister(format.toLowerCase()), format);
       const file = await download, target = path.join(output, `${mode}-${file.suggestedFilename()}`); await file.saveAs(target); assert.ok(fs.statSync(target).size > 100);
       if (format === 'CSV') { const text = fs.readFileSync(target, 'utf8'); assert.ok(text.includes(record.id)); assert.ok(text.includes('net_area_m2')); }
     }

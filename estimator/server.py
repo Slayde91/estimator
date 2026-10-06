@@ -51,7 +51,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
     class Handler(BaseHTTPRequestHandler):
         server_version = "CeasefireEstimator"
 
-        def send_payload(self, status, payload, content_type="application/json; charset=utf-8", headers=None):
+        def send_payload(self, status, payload, content_type="application/json; charset=utf-8", headers=None, *, content_security_policy_override=None):
             body = json.dumps(payload, ensure_ascii=False, allow_nan=False).encode("utf-8") if content_type.startswith("application/json") else payload
             self.send_response(status)
             self.send_header("Content-Type", content_type)
@@ -61,7 +61,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
             self.send_header("Cache-Control", "no-store")
             self.send_header("X-Content-Type-Options", "nosniff")
             self.send_header("Referrer-Policy", "no-referrer")
-            self.send_header("Content-Security-Policy", content_security_policy)
+            self.send_header("Content-Security-Policy", content_security_policy_override or content_security_policy)
             self.end_headers()
             if self.command != 'HEAD':
                 self.wfile.write(body)

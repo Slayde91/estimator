@@ -196,7 +196,7 @@ def verify_bundle(bundle):
     files = [path for path in bundle.rglob('*') if path.is_file()]
     for path in files:
         relative = path.relative_to(bundle).as_posix().lower()
-        if '/factory-seed/' not in relative and (path.name.lower().startswith('takeoff') or '/vendor/pdfjs/' in relative):
+        if '/factory-seed/' not in relative and (path.name.lower().startswith('takeoff') or '/vendor/pdfjs/' in relative or '/vendor/ocr/' in relative):
             raise ValueError('TAKEOFFS assets were included in the standard desktop bundle.')
     return {'files':len(files),'bytes':sum(path.stat().st_size for path in files),
         'takeoff_modules':0,'takeoff_assets':0,'module_count':len(names)}

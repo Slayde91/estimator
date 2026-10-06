@@ -134,7 +134,7 @@ GROUP_VISIBILITY = {
 SERVICE_ROUTE_GROUPS = (*PIPE_DISPLAY_GROUPS, 'Cabletrays', 'Substrate')
 LABOUR_BAND_SPECS = {
     'pipe': {'label': 'Pipe Labour', 'basis': 'Pipe diameter', 'units': 'mm',
-             'output': 'DF', 'overflow': 'manual'},
+             'output': 'DF', 'overflow': 'last'},
     'board': {'label': 'Board Task Hours', 'basis': 'Board SQM Required', 'units': 'm²',
               'output': 'DE', 'defined_name': 'board_labour', 'columns': (1, 2)},
     'mastic': {'label': 'Mastic Task Hours', 'basis': 'Mastic Qty', 'units': 'qty',

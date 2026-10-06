@@ -156,7 +156,8 @@ phrases. Yellow context and contrasting matches use separate original-coordinate
 quads. On the current page, exact match bounds come from PDF.js text-layer DOM
 Ranges mapped through the current transform. When exact glyph bounds are absent,
 the result labels its text-run context fallback; it does not invent proportional
-character geometry. Search performs no OCR or source mutation.
+character geometry. Native text indexing performs no OCR or source mutation.
+The separate local recognition path adds approximate source-bound search results.
 
 ### Call-out naming and free annotations
 
@@ -270,3 +271,66 @@ in Item Details. Ordinary physical and free-annotation edits retain their undo.
 
 AI Phases 5/6, Physical Model Lock and automatic Firestopping matching remain
 outside this increment. Release receipts establish publication and live activation.
+
+## Explicit barrier selection for additional library items
+
+In Defect Reports v2, the inspector library action resolves selected records to
+one active Defect before searching. Cross-Defect selection is rejected. The first
+dialog chooses New Barrier or Existing Barrier; existing choices show retained
+ID, barrier type, substrate and orientation. The catalogue query uses the actual
+Library facet definitions and options. The Service Plans v3 workflow keeps its
+existing explicit member association because it has no Defect parent.
+
+The atomic `import_library_item` command binds the current graph, Defect and
+chosen Barrier revision to the current library metadata. New barriers adopt only
+literal library fields; `L` supplies the retained penetration type, `P` substrate
+and `M` orientation. It creates a service only when the explicit template supplies
+one, using the existing unknown-quantity descriptor. Existing barriers retain
+every original field, marker and evidence byte. Field conflicts require an
+explicit Continue decision recorded in versioned `barrier_selection` provenance;
+Cancel returns to library search without mutating graph, IDs or assignments.
+Unknown values never establish suitability, quantity or technical approval.
+
+The import creates a draft assignment. Existing commercial preview/apply leases,
+context checks and idempotent schedule contributions remain separate. Source
+annotations are retained in original PDF coordinates. Project save, reopen and
+ordinary physical Undo preserve persistent identities and review state.
+
+The register no longer presents redundant CSV/XLSX/marked-PDF buttons or a root
+Add Defect button. Source Call-out placement creates new Defects. Delete selected
+records sits beside Bulk edit. Retained export integrations use guarded module
+APIs; pending edits, modal/busy state and changed source revisions block stale
+downloads. Item diagnostics are omitted from the settings pane while Delete,
+calibration changes, source warnings and actual editing controls remain available.
+
+An inherited new-library Barrier marker keeps the exact parent source annotation.
+Its duplicate label is omitted only when version-one New Barrier provenance
+matches the parent and the complete current marker equals the parent annotation.
+The parent summary already includes that Barrier and its services. A hidden or
+unrequested parent, moved marker or changed style restores the separate label.
+Viewer rendering and PDF export use the same conditions without changing records.
+
+## Local recognition for drawing-label search
+
+Native PDF text is indexed and published first. The checked Include drawing
+labels option then recognises drawing outlines and scans in a dedicated local
+worker. Search results identify Local OCR, approximate word bounds and confidence;
+they grant no physical, quantity, approval or calculator authority. The renderer
+retains the original PDF.js coordinate transform, including CropBox, intrinsic
+rotation and UserUnit. OCR quads are never replaced by native text-layer bounds.
+
+Tesseract.js and core 7.0.0, the full English best-int model, upstream licenses and
+official package integrity are pinned in `static/vendor/ocr/manifest.json`. Assets
+are served only from an integrity-checked local allowlist. No drawing, recognition
+text or model is sent to a remote service. Only the dedicated worker response
+permits WebAssembly compilation; main-page CSP remains unchanged. Standard edition
+excludes these assets together with Takeoffs.
+
+Recognition uses sequential overlapping tiles and four quarter-turn passes. Each
+page is bounded to 18 million pixels, 6,000 pixels per edge and 60 seconds. A search
+covers at most eight pages and 150 seconds, prioritising the captured current page.
+Partial passes, reduced resolution, skipped pages and failures are disclosed.
+Stop, query replacement and project replacement cancel pending work and terminate
+the worker. The bounded in-memory cache keys original SHA256, page, render transform
+and engine/model version; project replacement disposes it. Original PDFs, viewer
+text layers and saved projects are not modified by recognition.

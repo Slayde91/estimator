@@ -334,7 +334,7 @@
     ui.upload.addEventListener("change", () => { const files = [...ui.upload.files]; ui.upload.value = ""; void safely(() => upload(files)); });
     toolbar.append(button("Upload PDFs", () => { if (!state.busy) ui.upload.click(); }, "button primary"), ui.upload);
     ui.tools = {};
-    for (const [tool, title] of [["select", "Select"], ["pan", "Pan"], ["settings", "Settings"], ["viewport", "Viewport"], ["calibrate", "Calibrate"], ["trace", "Trace length"], ["count", "Count"], ["countLength", "Count steel lengths"], ["polygon", "Trace surface"], ["exclusion", "Add exclusion"], ["measure", "Length"]]) { const el = button(title, () => tool === "count" ? activateCountTool() : tool === "countLength" ? setTool("count") : tool === "exclusion" ? startExclusion() : tool === "settings" ? toggleSettings() : tool === "viewport" ? toggleViewportPanel() : setTool(tool)); if (!["viewport", "settings"].includes(tool)) el.dataset.tool = tool === "countLength" ? "count" : tool; else { el.setAttribute("aria-expanded", "false"); el.setAttribute("aria-controls", tool === "settings" ? "takeoff-markup-settings" : "takeoff-viewports"); } ui.tools[tool] = el; toolbar.append(el); }
+    for (const [tool, title] of [["select", "Select"], ["pan", "Pan"], ["settings", "Settings"], ["viewport", "Viewport"], ["calibrate", "Calibrate"], ["trace", "Trace length"], ["count", "Count"], ["countLength", "Count steel lengths"], ["polygon", "Trace surface"], ["exclusion", "Add exclusion"], ["measure", "Length"]]) { const el = button(title, () => tool === "count" ? activateCountTool() : tool === "countLength" ? toggleDrawingTool("count") : tool === "exclusion" ? startExclusion() : tool === "settings" ? toggleSettings() : tool === "viewport" ? toggleViewportPanel() : toggleDrawingTool(tool)); if (!["viewport", "settings"].includes(tool)) el.dataset.tool = tool === "countLength" ? "count" : tool; else { el.setAttribute("aria-expanded", "false"); el.setAttribute("aria-controls", tool === "settings" ? "takeoff-markup-settings" : "takeoff-viewports"); } ui.tools[tool] = el; toolbar.append(el); }
     ui.countAnchor = node("div", "takeoff-count-anchor"); ui.tools.count.after(ui.countAnchor); ui.countAnchor.append(ui.tools.count);
     for (const [key, title, asset, action] of [["markups", "Markups", "takeoff-colour-wheel.png", toggleThicknessColours], ["legend", "Legend", "takeoff-legend.png", toggleLegend]]) {
       const control = button(title, action), image = node("img"); image.src = `/icons/${asset}`; image.alt = ""; image.setAttribute("aria-hidden", "true"); image.width = 28; image.height = 28;
@@ -349,7 +349,7 @@
     const calloutIcon = node("img"); calloutIcon.src = "/icons/takeoff-callout.png"; calloutIcon.alt = ""; calloutIcon.width = 25; calloutIcon.height = 25; calloutIcon.setAttribute("aria-hidden", "true");
     ui.tools.callout.classList.add("icon-only", "takeoff-icon-button"); ui.tools.callout.replaceChildren(calloutIcon); ui.tools.callout.setAttribute("aria-label", "Call-out"); ui.tools.callout.title = "Call-out"; ui.tools.viewport.after(ui.tools.callout);
     const scaleAnchor = node("div", "takeoff-scale-anchor"); ui.scaleToggle = button("Scale", () => toggleScaleControls()); ui.scaleToggle.setAttribute("aria-expanded", "false"); ui.scaleToggle.setAttribute("aria-controls", "takeoff-scale-controls"); ui.scaleToggle.setAttribute("aria-describedby", "takeoff-active-scale");
-    ui.scaleStatus = node("span", "sr-only", "No Scale Selected"); ui.scaleStatus.id = "takeoff-active-scale"; scaleAnchor.append(ui.scaleToggle, ui.scaleStatus); ui.scaleAnchor = scaleAnchor;
+    ui.scaleStatus = node("span", "takeoff-active-scale", "No Scale Selected"); ui.scaleStatus.id = "takeoff-active-scale"; scaleAnchor.append(ui.scaleToggle, ui.scaleStatus); ui.scaleAnchor = scaleAnchor;
     ui.drawingPdf = button("Download PDF", () => downloadTakeoff("marked-pdf"));
     ui.calibration = select([["", "No Scale Selected"]], async value => { await chooseCalibration(value); toggleScaleControls(false); }); ui.calibration.id = "takeoff-calibration"; ui.calibration.setAttribute("aria-label", "Drawing calibration"); ui.editCalibration = button("Edit calibration", editCalibration);
     const navigation = node("div", "takeoff-navigation"); ui.navigation = navigation; navigation.setAttribute("role", "group"); navigation.setAttribute("aria-label", "Drawing navigation");
@@ -376,7 +376,9 @@
     const searchControls = node("div", "takeoff-toolbar takeoff-search-controls"); searchControls.setAttribute("role", "search"); searchControls.setAttribute("aria-label", "Drawing search"); ui.searchScope = select([["document", "This document"], ["all", "All documents"]], () => scheduleSearch()); ui.searchScope.setAttribute("aria-label", "Text search scope");
     const searchAnchor = ui.searchAnchor = node("div", "takeoff-search-anchor"); ui.searchResults = node("div", "takeoff-search-results"); ui.searchResults.id = "takeoff-text-search-results"; ui.searchResults.hidden = true; ui.searchResults.setAttribute("role", "region"); ui.searchResults.setAttribute("aria-label", "PDF text search results");
     ui.searchResults.addEventListener("keydown", event => { const buttons = [...ui.searchResults.querySelectorAll("button")], index = buttons.indexOf(document.activeElement); if (["ArrowDown", "ArrowUp"].includes(event.key) && buttons.length) { event.preventDefault(); buttons[(index + (event.key === "ArrowDown" ? 1 : -1) + buttons.length) % buttons.length].focus(); } else if (event.key === "Escape") { event.preventDefault(); hideSearchResults(); ui.search.focus(); } });
-    searchAnchor.append(ui.search, ui.searchResults); searchControls.append(searchAnchor, ui.searchScope, button("Search", runSearch), button("Stop search", () => cancelSearch(true, "Text search stopped; input, results and highlights cleared.")));
+    ui.searchOcr = node("input"); ui.searchOcr.type = "checkbox"; ui.searchOcr.checked = true; ui.searchOcr.addEventListener("change", () => scheduleSearch());
+    const ocrOption = node("label", "takeoff-search-ocr"); ocrOption.title = "Recognize drawing labels locally. Results are approximate; recognition may take up to 60 seconds per page and covers at most eight pages per search."; ocrOption.append(ui.searchOcr, node("span", "", "Include drawing labels"));
+    searchAnchor.append(ui.search, ui.searchResults); searchControls.append(searchAnchor, ui.searchScope, ocrOption, button("Search", runSearch), button("Stop search", () => cancelSearch(true, "Search stopped; input, results and highlights cleared.")));
     document.addEventListener("pointerdown", event => { if (state.active && !searchControls.contains(event.target)) hideSearchResults(); }, { capture: true });
     const viewerTop = ui.viewerTop = node("div", "takeoff-toolbar takeoff-viewer-controls takeoff-viewer-top"); viewerTop.append(scaleAnchor, navigation, searchControls);
     const scaleControls = ui.scaleControls = node("div", "takeoff-toolbar takeoff-scale-controls"); scaleControls.id = "takeoff-scale-controls"; scaleControls.hidden = true; scaleControls.setAttribute("role", "group"); scaleControls.setAttribute("aria-label", "Drawing scale"); scaleControls.append(ui.calibration, ui.tools.calibrate, ui.editCalibration); scaleAnchor.append(scaleControls);
@@ -413,7 +415,7 @@
     ui.areaNotice = node("p", "helper takeoff-area-notice", "Area records export as m². Existing steel and duct calculators do not accept surface areas. Split/merge is unavailable for surfaces; group separate physical surfaces without changing their identities.");
     const draftXlsx = button("Download XLSX", () => downloadTakeoff("schedule-xlsx"));
     draftXlsx.title = "Download XLSX of all records in this takeoff type";
-    exports.append(...ui.transferControls, button("Export CSV", () => exportRegister("csv")), button("Export XLSX", () => exportRegister("xlsx")), ui.drawingPdf, draftXlsx, ui.areaNotice);
+    exports.append(...ui.transferControls, draftXlsx, ui.areaNotice);
     ui.tableWrap = node("div", "takeoff-register-table"); ui.pagination = node("div", "takeoff-register-controls"); register.append(controls, ui.bulk, exports, ui.tableWrap, ui.pagination);
     ui.physicalContainer = node("div", "takeoff-physical-container"); ui.physicalContainer.hidden = true;
     ui.controlStatus = node("p", "helper takeoff-control-status"); ui.controlStatus.hidden = true; ui.controlStatus.setAttribute("role", "status");
@@ -603,7 +605,7 @@
     const sessionId = state.session?.session_id, scope = state.physicalScope, revision = state.session?.revision;
     const response = await fetch(`/api/takeoffs/sessions/${sessionId}/physical/export/${format}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ scope, ...(format === "pdf" ? { expected_revision: revision } : {}) }) });
     if (!response.ok) { const result = await response.json(); throw new Error(result.error || "Physical draft export failed."); }
-    if (sessionId !== state.session?.session_id || scope !== state.physicalScope || format === "pdf" && revision !== state.session?.revision) throw new Error("The project or penetration workspace changed during draft export. Export the current draft again.");
+    if (sessionId !== state.session?.session_id || scope !== state.physicalScope || revision !== state.session?.revision) throw new Error("The project or penetration workspace changed during draft export. Export the current draft again.");
     const blob = await response.blob(), url = URL.createObjectURL(blob), link = node("a"); link.href = url; link.download = format === "pdf" ? "Passive_Fire_Matrix.pdf" : `CEASEFIRE-${scope === "service_plans" ? "Service-Plans" : "Defect-Reports"}-UNAPPROVED-DRAFT.${format}`; document.body.append(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 30000);
     message(format === "pdf" ? "Downloaded Passive_Fire_Matrix from the current physical draft." : "Exported the unapproved physical draft with its retained parent and evidence identities. This is not an approved quantity export.");
   }
@@ -693,6 +695,7 @@
   }
   function activateCountTool() {
     if (state.busy || state.physicalPlacing) return;
+    if (state.tool === (state.mode === "physical" ? "count" : "count-only")) { toggleDrawingTool(state.tool); return; }
     if (state.mode === "physical" && state.physicalScope === "defect_reports") {
       ensurePhysicalUI(); toggleScaleControls(false); setTool("count");
       state.physicalPlacementTarget = { kind: "defect", sessionId: state.session?.session_id, documentId: state.document, page: state.page, controller: state.physicalUI };
@@ -1365,6 +1368,14 @@
       state.zoomTimer = setTimeout(() => { state.zoomTimer = null; if (key === pageDisplayKey() && key === state.displayKey) void safely(() => renderPage(null, { refine: true })); }, 120);
     };
     state.zoomFrame = window.requestAnimationFrame ? window.requestAnimationFrame(preview) : setTimeout(preview, 0);
+  }
+  function toggleDrawingTool(tool) {
+    if (state.busy) return;
+    if (state.tool === tool && ["trace", "measure", "count", "count-only"].includes(tool)) {
+      if (state.modal || state.countFinishing || state.physicalPlacing) throw new Error("Finish the current count or dialog first.");
+      cancelTrace(); setProgress("Drawing cancelled. Recorded items are unchanged."); return;
+    }
+    setTool(tool);
   }
   function setTool(tool, target = {}) {
     state.lastDrawingClick = null;
@@ -2826,6 +2837,22 @@
     const defect = reference.kind === "defect", menu = node("div", "takeoff-control-menu takeoff-markup-menu"); menu.setAttribute("role", "menu"); menu.setAttribute("aria-label", defect ? "Defect annotation actions" : "Barrier marker actions");
     const remove = button(defect ? "Delete" : "Remove count marker", async () => { requireFinishedEdits(); physicalMarkerTarget(reference); state.markupMenu = null; await (defect ? state.physicalUI.deleteDrawing(reference.id) : state.physicalUI.setMarker(reference.id, null)); renderOverlay(); }); remove.setAttribute("role", "menuitem"); menu.append(remove); appendPlanMenu(overlay, point, menu);
   }
+  function samePhysicalLocator(left, right) {
+    if (left === right) return true;
+    if (!left || !right || typeof left !== "object" || typeof right !== "object" || Array.isArray(left) !== Array.isArray(right)) return false;
+    const keys = Object.keys(left);
+    return keys.length === Object.keys(right).length && keys.every(key => Object.hasOwn(right, key) && samePhysicalLocator(left[key], right[key]));
+  }
+  function inheritedLibraryBarrierMarker(entity, renderedAnnotationIds) {
+    const graph = physicalGraph();
+    if (state.physicalScope !== "defect_reports" || graph?.version !== 2 || entity.deleted || !entity.marker || !renderedAnnotationIds.has(entity.defect_id)) return false;
+    const parent = graph.defects.find(value => value.id === entity.defect_id && !value.deleted);
+    if (!parent?.annotation || !samePhysicalLocator(entity.marker, parent.annotation)) return false;
+    return (snapshot()?.library_assignments?.records || []).some(record => {
+      const selection = record.barrier_selection;
+      return record.scope === "defect_reports" && selection?.version === 1 && selection.choice === "new" && selection.defect_id === parent.id && selection.barrier_id === entity.id;
+    });
+  }
   function renderPhysicalOverlay(overlay) {
     if (!state.physicalUI) return;
     const seen = new Set(), regions = [];
@@ -2851,11 +2878,14 @@
     }
     const markers = (physicalGraph()?.barriers || []).filter(entity => !entity.deleted && entity.marker?.document_id === state.document && entity.marker.page === state.page);
     const annotations = (physicalGraph()?.defects || []).filter(entity => { const locator = physicalDrawingLocator(entity); return !entity.deleted && !state.physicalHidden.has(entity.id) && (state.physicalVisible.has(entity.id) || state.physicalSelected.has(entity.id)) && locator?.document_id === state.document && locator.page === state.page; });
+    // The parent's summary already includes its imported barriers/services.
+    // Suppress only an untouched inherited copy while that parent is drawn.
+    const renderedAnnotationIds = new Set(annotations.map(entity => entity.id)), drawnMarkers = markers.filter(entity => !inheritedLibraryBarrierMarker(entity, renderedAnnotationIds));
     const selectedIds = new Set(state.physicalSelected); for (const service of physicalGraph()?.services || []) if (state.physicalSelected.has(service.id)) selectedIds.add(service.barrier_id);
-    markers.sort((a, b) => Number(selectedIds.has(a.id)) - Number(selectedIds.has(b.id)));
-    for (const entity of [...annotations, ...markers]) renderPhysicalMarker(overlay, entity, selectedIds);
+    drawnMarkers.sort((a, b) => Number(selectedIds.has(a.id)) - Number(selectedIds.has(b.id)));
+    for (const entity of [...annotations, ...drawnMarkers]) renderPhysicalMarker(overlay, entity, selectedIds);
     renderPhysicalMarkerMenu(overlay);
-    state.ui.physicalOverlayStatus.textContent = `${markers.length} barrier count markers and ${annotations.length} defect source annotations on this page. ` + (regions.length > 500 ? `Showing 500 of ${regions.length} linked source regions. Select a register record to prioritize its evidence.` : `${regions.length} linked physical source regions.`) + " These are unapproved draft associations; markers do not multiply service quantities.";
+    state.ui.physicalOverlayStatus.textContent = `${drawnMarkers.length} barrier count markers and ${annotations.length} defect source annotations on this page. ` + (regions.length > 500 ? `Showing 500 of ${regions.length} linked source regions. Select a register record to prioritize its evidence.` : `${regions.length} linked physical source regions.`) + " These are unapproved draft associations; markers do not multiply service quantities.";
   }
   function itemResult(item) { return state.resultMap.get(item.id) || {}; }
   const presentation = () => snapshot()?.drawing_presentation;
@@ -3336,7 +3366,7 @@
   }
   function renderItemSettingsActions(panel, item) {
     const result = itemResult(item), area = isSurface(item);
-    panel.replaceChildren(node("h3", "", `ITEM DETAILS · ${item.fields.mark || item.id.slice(0, 8)}`), node("p", "takeoff-identity", item.id), node("p", "helper", `${reviewStatus(item).label.toUpperCase()} · Version ${item.version} · ${item.measurement?.method === "cited" ? "Source-stated" : "Calibrated"} ${area ? "surface area" : "length"}`));
+    panel.replaceChildren();
     const sessionId = state.session?.session_id;
     const currentAction = action => async () => { await flushSettings(); requireFinishedEdits(); if (sessionId !== state.session?.session_id) throw new Error("The project changed. Choose the item again."); const current = items().find(value => value.id === item.id); if (!current) throw new Error("This item is no longer available."); return action(current); };
     if (item.purpose === "length-only") {
@@ -3349,13 +3379,9 @@
     if (area) panel.append(node("p", "helper takeoff-surface-help", surfaceHelp), node("p", "helper", "Quantity: one physical treatment surface. Other faces or levels require separate evidenced items."));
     if (item.mode === "steel") panel.append(button("Find steel section", currentAction(findProfile), "text-button"));
     if (item.mode === "duct") {
-      panel.append(node("p", "helper", "New duct records are rectangular. Calculator transfer requires one actual run per item (quantity 1)."));
       if (item.fields.shape !== "rectangular") panel.append(node("p", "takeoff-warning", `Retained ${item.fields.shape || "unspecified-shape"} duct. ${item.fields.diameter_mm != null ? `Original diameter: ${item.fields.diameter_mm} mm. ` : ""}Its original shape and dimensions are preserved; this record cannot transfer to the rectangular duct calculator.`));
       if (item.fields.shape == null || item.fields.shape === "") panel.append(button("Use rectangular duct", currentAction(useRectangularDuct)));
     }
-    if (item.member_ids?.length) { const members = node("details"); members.append(node("summary", "helper", `${item.member_ids.length} persistent physical member identities`)); for (const id of item.member_ids) members.append(node("p", "takeoff-identity", id)); panel.append(members); }
-    const formatArea = key => Number.isFinite(result[key]) ? `${units.format(result[key])} m²` : "Unresolved";
-    panel.append(node("p", "takeoff-calibration-summary", `${area ? `Gross: ${formatArea("gross_area_m2")} · Excluded: ${formatArea("excluded_area_m2")} · Net: ${formatArea("net_area_m2")}` : lengthSummary(item, result)}${item.measurement?.method === "cited" ? ` · ${item.measurement?.citation}` : ` · ${snapshot().calibrations.find(value => value.id === item.measurement?.calibration_id)?.name || "Missing calibration"}`}`));
     const actions = node("div", "actions"); actions.append(button("Delete item", currentAction(current => deleteItems([current.id]))));
     panel.append(actions); for (const issue of result.issues || []) panel.append(node("p", "takeoff-warning", issueText(issue)));
     if (!area) renderLengthAdditions(panel, item, currentAction);
@@ -3715,14 +3741,15 @@
   function searchContextKey() {
     if (!state.ui || !state.session) return "";
     const scope = state.ui.searchScope.value, docs = scope === "all" ? documents() : [currentDocument()].filter(Boolean);
-    return JSON.stringify([state.session.session_id, scope, scope === "all" ? null : state.document, docs.map(doc => [doc.id, doc.sha256, doc.pages.length])]);
+    return JSON.stringify([state.session.session_id, scope, scope === "all" ? null : state.document, !!state.ui.searchOcr.checked, docs.map(doc => [doc.id, doc.sha256, doc.pages.length])]);
   }
   function hideSearchResults(dismiss = true) { if (dismiss) state.searchDismissed = true; if (state.ui) { state.ui.searchResults.hidden = true; state.ui.search.setAttribute("aria-expanded", "false"); } }
   function showSearchResults(explicit = true) { if (explicit) state.searchDismissed = false; if (state.ui && !state.searchDismissed) { state.ui.searchResults.hidden = false; state.ui.search.setAttribute("aria-expanded", "true"); } }
   function cancelSearch(clearInput = false, notice = "") {
     clearTimeout(state.searchTimer); state.searchTimer = null; ++state.searchId;
-    const token = state.searchToken; if (token) { token.cancelled = true; void token.reader?.cancel().catch(() => {}); for (const cancel of token.waiters) cancel(); token.waiters.clear(); }
-    state.searchToken = null; state.searchPromise = null; state.searchContext = null; state.searchQuery = ""; state.searchHits = []; state.searchActiveId = null; state.searchActivePage = null; state.searchComplete = false; state.searchSummary = "";
+    const token = state.searchToken; if (token) { token.cancelled = true; token.ocrAbort?.abort(); token.nativeReady?.(); void token.cancelReader?.(); for (const cancel of token.waiters) cancel(); token.waiters.clear(); }
+    state.ocrSearch?.cancel(); if (clearInput) { state.ocrSearch?.dispose(); state.ocrSearch = null; }
+    state.searchToken = null; state.searchPromise = null; state.searchNativePromise = null; state.searchContext = null; state.searchQuery = ""; state.searchHits = []; state.searchActiveId = null; state.searchActivePage = null; state.searchComplete = false; state.searchSummary = "";
     if (state.ui) { if (clearInput) { state.ui.search.value = ""; state.searchDismissed = false; } state.ui.searchResults.replaceChildren(); hideSearchResults(false); renderOverlay(); if (notice) setProgress(notice); }
   }
   function scheduleSearch(options) {
@@ -3734,13 +3761,13 @@
   function invalidateSearchContext() {
     if (state.searchActivePage && state.searchActivePage !== state.document + ":" + state.page) { state.searchActiveId = null; state.searchActivePage = null; }
     if (!state.searchContext) return;
-    if (state.searchContext !== searchContextKey() || (state.searchToken && !state.searchToken.finished && state.searchToken.document !== state.document)) {
+    if (state.searchContext !== searchContextKey() || (state.searchToken && !state.searchToken.nativeFinished && !state.searchToken.finished && state.searchToken.document !== state.document)) {
       cancelSearch(false, "Drawing changed; the previous text search was cancelled.");
       if (state.ui?.search.value.trim()) scheduleSearch({ preserveDismissal: true });
     }
   }
   function searchCurrent(token) {
-    return !token.cancelled && token.id === state.searchId && token.context === searchContextKey() && token.query === textSearch().normalize(state.ui.search.value) && (token.finished || token.document === state.document);
+    return !token.cancelled && token.id === state.searchId && token.context === searchContextKey() && token.query === textSearch().normalize(state.ui.search.value) && (token.nativeFinished || token.finished || token.document === state.document);
   }
   function waitSearch(promise, token) {
     return new Promise((resolve, reject) => {
@@ -3752,15 +3779,30 @@
   }
   async function readSearchText(page, token, doc, pdf) {
     // Stop cancels the PDF.js text stream without destroying the viewer worker.
-    const reader = token.reader = page.streamTextContent().getReader(), content = { items: [] }; let size = 0;
+    const reader = token.reader = page.streamTextContent().getReader(), content = { items: [] }; let size = 0, drained = false, cancellation = null, released = false;
+    const release = () => { if (!released) { released = true; try { reader.releaseLock(); } catch (_) {} } };
+    // PDF.js requires an Error cancellation reason before it closes its worker
+    // stream controller. Share one cancellation across Stop, timeout and cleanup.
+    const cancelReader = token.cancelReader = () => {
+      if (drained) return Promise.resolve();
+      if (!cancellation) {
+        const reason = new Error("Text search cancelled."); reason.name = "SearchCancelled";
+        try { cancellation = Promise.resolve(reader.cancel(reason)).catch(() => {}); } catch (_) { cancellation = Promise.resolve(); }
+        void cancellation.then(release);
+      }
+      return cancellation;
+    };
     try {
       while (searchCurrent(token)) {
-        const chunk = await waitSearch(boundedPdf(reader.read(), "Searching PDF page " + page.pageNumber, () => { void reader.cancel().catch(() => {}); discardPdf(doc.id, token.session, pdf); }), token);
-        if (chunk.done) break;
+        const chunk = await waitSearch(boundedPdf(reader.read(), "Searching PDF page " + page.pageNumber, () => { void cancelReader(); discardPdf(doc.id, token.session, pdf); }), token);
+        if (chunk.done) { drained = true; break; }
         for (const item of chunk.value.items) { size += item.str?.length || 0; if (size > textSearch().MAX_PAGE_TEXT) throw new Error("PDF page text exceeds the bounded search limit; coverage is incomplete."); content.items.push(item); }
       }
       return content;
-    } finally { if (token.reader === reader) token.reader = null; void reader.cancel().catch(() => {}); }
+    } finally {
+      if (token.reader === reader) { token.reader = null; token.cancelReader = null; }
+      if (drained) release(); else void cancelReader();
+    }
   }
   function renderSearchResults() {
     if (!state.ui) return;
@@ -3769,10 +3811,11 @@
       const el = button("", () => selectSearchHit(hit, true), "takeoff-search-result");
       el.append(node("span", "", hit.document_name + " · p" + hit.page + ": "));
       for (const part of hit.textParts || [{ text: hit.text, matched: false }]) el.append(node(part.matched ? "mark" : "span", part.matched ? "takeoff-search-word" : "", part.text));
+      if (hit.source === "local-ocr") el.append(node("small", "takeoff-search-provenance", "Local OCR · approximate · confidence " + Math.round(hit.confidence) + "%"));
       el.disabled = state.busy;
       el.dataset.searchHitId = hit.id; el.setAttribute("aria-current", hit.id === state.searchActiveId ? "true" : "false"); return el;
     });
-    if (!children.length) children.push(node("p", "takeoff-search-empty", state.searchComplete ? "No searchable matches. Scanned pages require visual inspection." : "Searching PDF text…"));
+    if (!children.length) children.push(node("p", "takeoff-search-empty", state.searchComplete ? "No matches found. Drawing labels may still require visual inspection." : state.searchToken?.nativeFinished ? "Recognizing drawing labels locally…" : "Searching PDF text…"));
     state.ui.searchResults.replaceChildren(...children); showSearchResults(false);
     if (focused) children.find(el => el.dataset.searchHitId === focused)?.focus({ preventScroll: true });
   }
@@ -3793,9 +3836,11 @@
   async function updateSearchGeometry() {
     const run = state.searchId, key = state.displayKey, hits = state.searchHits.filter(hit => hit.document_id === state.document && hit.page === state.page);
     if (!hits.length || !state.viewport) return;
+    if (hits.every(hit => hit.source === "local-ocr")) { renderOverlay(); return; }
     await ensurePdfTextLayer();
     if (run !== state.searchId || key !== state.displayKey || state.pdfText?.key !== key) return;
     for (const hit of hits) {
+      if (hit.source === "local-ocr") continue;
       const context = sourceTextQuads(hit.context), matching = sourceTextQuads(hit.matching);
       if (context.length) { hit.contextQuads = context; hit.points = context.flat(); }
       hit.matchQuads = matching; hit.geometry = matching.length ? "rendered-text-bounds" : "text-run-fallback";
@@ -3810,7 +3855,7 @@
     const contextGroup = svg("g", { class: "takeoff-search-contexts" }), seenContext = new Set(); overlay.append(contextGroup);
     for (const [kind, selector] of [["context", hit => hit.contextQuads], ["match", hit => hit.matchQuads]]) for (const hit of hits) for (const points of selector(hit) || []) {
       if (kind === "context") { const key = JSON.stringify(points); if (seenContext.has(key)) continue; seenContext.add(key); }
-      const shape = svg("polygon", { points: points.map(point => G.transform(point, state.viewport.transform).join(",")).join(" "), class: "takeoff-search-" + kind + (hit.id === state.searchActiveId ? " active" : ""), "data-search-hit-id": hit.id, "data-search-geometry": hit.geometry || "text-run-fallback" });
+      const shape = svg("polygon", { points: points.map(point => G.transform(point, state.viewport.transform).join(",")).join(" "), class: "takeoff-search-" + kind + (hit.id === state.searchActiveId ? " active" : ""), "data-search-hit-id": hit.id, "data-search-geometry": hit.geometry || "text-run-fallback", "data-search-source": hit.source || "pdf-text" });
       (kind === "context" ? contextGroup : overlay).append(shape);
     }
   }
@@ -3824,19 +3869,23 @@
     const points = hit.matchQuads?.flat().length ? hit.matchQuads.flat() : hit.points;
     if (points.length) { const box = G.bounds(points.map(point => G.transform(point, state.viewport.transform))); positionPage(state.ui.viewport.clientWidth / 2 - (box[0] + box[2]) / 2, state.ui.viewport.clientHeight / 2 - (box[1] + box[3]) / 2); }
     renderOverlay(); renderSearchResults();
-    setProgress((state.searchSummary ? state.searchSummary + " " : "") + "Current-page match " + (state.searchHits.filter(value => value.document_id === state.document && value.page === state.page).indexOf(hit) + 1) + ". Search advances on this page and wraps." + (hit.geometry === "text-run-fallback" ? " Exact word bounds unavailable; yellow text-run context only." : ""));
+    setProgress((state.searchSummary ? state.searchSummary + " " : "") + "Current-page match " + (state.searchHits.filter(value => value.document_id === state.document && value.page === state.page).indexOf(hit) + 1) + ". Search advances on this page and wraps." + (hit.source === "local-ocr" ? " Local OCR: approximate word bounds, confidence " + Math.round(hit.confidence) + "%. Verify against the drawing." : hit.geometry === "text-run-fallback" ? " Exact word bounds unavailable; yellow text-run context only." : ""));
   }
   async function startSearch() {
     clearTimeout(state.searchTimer); state.searchTimer = null;
     const query = textSearch().normalize(state.ui.search.value); if (!query || !state.session) return;
     if (query.length > textSearch().MAX_QUERY) { cancelSearch(false); throw new Error("Search is limited to " + textSearch().MAX_QUERY + " characters."); }
     cancelSearch(false); state.searchQuery = query; state.searchContext = searchContextKey();
-    const token = state.searchToken = { id: state.searchId, context: state.searchContext, query, session: state.session.session_id, document: state.document, waiters: new Set(), cancelled: false, finished: false };
+    const token = state.searchToken = { id: state.searchId, context: state.searchContext, query, session: state.session.session_id, document: state.document, page: state.page, includeOcr: state.ui.searchOcr.checked, waiters: new Set(), cancelled: false, finished: false, nativeFinished: false, ocrAbort: new AbortController() };
+    state.searchNativePromise = new Promise(resolve => { token.nativeReady = resolve; });
     renderSearchResults(); state.searchPromise = searchDocuments(token); return state.searchPromise;
   }
   async function searchDocuments(token) {
     const docs = state.ui.searchScope.value === "all" ? documents() : [currentDocument()].filter(Boolean), total = docs.reduce((sum, doc) => sum + doc.pages.length, 0);
-    let checked = 0, empty = 0, failed = 0, limited = false;
+    let checked = 0, empty = 0, failed = 0, limited = false, ocrChecked = 0, ocrFailed = 0;
+    const ocrPages = [], ocrNotes = new Set(), cleanup = (page, doc, number) => {
+      if (page && !(doc.id === state.document && number === state.page) && ![...state.thumbnailPages.values()].some(active => active.document_id === doc.id && active.page === number)) page.cleanup();
+    };
     try {
       outer: for (const doc of docs) {
         let pdf;
@@ -3849,25 +3898,66 @@
             page = await waitSearch(pdfPage(pdf, doc.id, metadata.page, token.session), token); const content = await readSearchText(page, token, doc, pdf);
             if (!searchCurrent(token)) return;
             checked++; if (!content.items.some(item => item.str?.trim())) empty++;
+            if (token.includeOcr) {
+              const priority = doc.id === token.document ? metadata.page === token.page ? 0 : 1 : 2;
+              ocrPages.push({ doc, metadata, priority }); ocrPages.sort((a, b) => a.priority - b.priority);
+              if (ocrPages.length > textSearch().OCR_LIMITS.pages) ocrPages.pop();
+            }
             const index = textSearch().indexText(content.items), hits = textSearch().find(index, token.query, 500 - state.searchHits.length);
             for (const hit of hits) state.searchHits.push({ ...hit, id: doc.id + ":" + metadata.page + ":" + hit.start + ":" + hit.end, document_id: doc.id, document_name: doc.name, page: metadata.page });
             if (hits.length) { renderSearchResults(); renderOverlay(); }
           } catch (error) {
             if (!searchCurrent(token)) return;
             failed++; if (error.name === "PdfTimeoutError") { timedOut = true; failed += doc.pages.length - metadata.page; await recordPdfFailure(doc.id, metadata.page, error, token.session, false, () => searchCurrent(token)); }
-          } finally { if (page && !(doc.id === state.document && metadata.page === state.page) && ![...state.thumbnailPages.values()].some(active => active.document_id === doc.id && active.page === metadata.page)) page.cleanup(); }
+          } finally { cleanup(page, doc, metadata.page); }
           setProgress("Text search: " + checked + "/" + total + " pages inspected · " + state.searchHits.length + " matches · " + empty + " without searchable text · " + failed + " failed");
           if (state.searchHits.length >= 500) { limited = true; break outer; }
           if (timedOut) break;
         }
       }
       if (!searchCurrent(token)) return;
+      // Publish native results before loading the local recognition engine.
+      // Explicit result navigation remains available throughout the OCR pass.
+      token.nativeFinished = true; token.nativeReady();
+      state.searchSummary = "PDF text: " + checked + "/" + total + " pages inspected · " + state.searchHits.length + " matches.";
+      renderSearchResults();
+      if (token.includeOcr && !limited) {
+        state.ocrSearch ||= textSearch().createOcrSearch(); const budget = textSearch().createOcrBudget();
+        for (const { doc, metadata } of ocrPages) {
+          if (!searchCurrent(token)) return;
+          let page;
+          try {
+            const pdf = await waitSearch(pdfDocument(doc.id), token);
+            page = await waitSearch(pdfPage(pdf, doc.id, metadata.page, token.session), token);
+            const content = await readSearchText(page, token, doc, pdf);
+            const result = await waitSearch(state.ocrSearch.recognizePage(page, { sha256: doc.sha256, items: content.items, signal: token.ocrAbort.signal, budget,
+              onProgress: detail => { if (searchCurrent(token)) setProgress(state.searchSummary + " Local OCR: " + doc.name + " · p" + metadata.page + " · " + (detail.status || "recognizing drawing labels") + (Number.isFinite(detail.progress) ? " " + Math.round(detail.progress * 100) + "%" : "") + ". Results are approximate."); }
+            }), token);
+            if (!searchCurrent(token)) return;
+            ocrChecked++;
+            if (result.limitedResolution) ocrNotes.add("Recognition resolution was bounded.");
+            if (result.partial) ocrNotes.add("Some recognition passes did not finish; OCR coverage is incomplete.");
+            for (const reason of result.partialReasons || []) ocrNotes.add(reason);
+            const nativeHits = state.searchHits.filter(hit => hit.document_id === doc.id && hit.page === metadata.page && hit.source !== "local-ocr");
+            const hits = textSearch().findOcr(result, token.query, nativeHits, 500 - state.searchHits.length);
+            for (const hit of hits) state.searchHits.push({ ...hit, id: "ocr:" + doc.id + ":" + metadata.page + ":" + hit.start + ":" + hit.end, document_id: doc.id, document_name: doc.name, page: metadata.page });
+            if (hits.length) { renderSearchResults(); renderOverlay(); }
+            if (state.searchHits.length >= 500) { limited = true; break; }
+          } catch (error) {
+            if (!searchCurrent(token)) return;
+            ocrFailed++; ocrNotes.add(error.message || "Local OCR failed; coverage is incomplete.");
+            // Recognition failures are search limitations, not PDF evidence failures.
+            if (["OcrLimitError", "OcrTimeoutError", "OcrRecognitionError", "OcrBusyError"].includes(error.name)) break;
+          } finally { cleanup(page, doc, metadata.page); }
+        }
+      }
+      if (!searchCurrent(token)) return;
       token.finished = true; state.searchComplete = true; renderSearchResults(); await updateSearchGeometry();
       if (!searchCurrent(token)) return;
       const fallback = state.searchHits.filter(hit => hit.document_id === state.document && hit.page === state.page && hit.geometry === "text-run-fallback").length;
-      state.searchSummary = "Text search complete: " + checked + "/" + total + " pages inspected · " + state.searchHits.length + " matches · " + empty + " without searchable text · " + failed + " failed." + (limited ? " Stopped at 500 matches; coverage is incomplete." : "") + (fallback ? " " + fallback + " matches have text-run context only; exact word bounds unavailable." : "") + (state.searchHits.some(hit => hit.contextTruncated) ? " Long sentence context is bounded to 800 characters." : "") + " Scanned pages require visual inspection.";
+      state.searchSummary = "Text search complete: " + checked + "/" + total + " pages inspected · " + state.searchHits.length + " matches · " + empty + " without searchable text · " + failed + " failed." + (token.includeOcr ? " Local OCR: " + ocrChecked + "/" + total + " pages inspected · " + ocrFailed + " failed. Approximate recognition requires visual verification." + (ocrChecked < total ? " OCR coverage is incomplete; current-page labels are prioritized, with at most eight pages and 150 seconds per search." : "") + (ocrNotes.size ? " " + [...ocrNotes].join(" ") : "") : " Drawing-label OCR is off; scanned or outlined labels require visual inspection.") + (limited ? " Stopped at 500 matches; coverage is incomplete." : "") + (fallback ? " " + fallback + " matches have text-run context only; exact word bounds unavailable." : "") + (state.searchHits.some(hit => hit.contextTruncated) ? " Long sentence context is bounded to 800 characters." : "");
       setProgress(state.searchSummary);
-    } finally { token.finished = true; }
+    } finally { token.finished = true; token.nativeReady(); }
   }
   async function runSearch() {
     const query = textSearch().normalize(state.ui.search.value); if (!query) { cancelSearch(true); return; }
@@ -3877,10 +3967,14 @@
     // A Search button press belongs to the captured query/run/page. Native text
     // layout can outlive cancellation; it must not activate the next typed query.
     const run = state.searchId, current = () => run === state.searchId && query === textSearch().normalize(state.ui.search.value) && context === searchContextKey() && documentId === state.document && page === state.page;
-    await pending;
-    if (!current() || !state.searchComplete) return;
+    if (!state.searchNativePromise) { await pending; return; }
+    await state.searchNativePromise;
+    if (!current()) return;
+    if (!state.searchHits.some(hit => hit.document_id === documentId && hit.page === page)) await pending;
+    else void pending?.catch(error => { if (current()) message(error.message, true); });
+    if (!current() || !state.searchToken?.nativeFinished) return;
     await updateSearchGeometry();
-    if (!current() || !state.searchComplete) return;
+    if (!current() || !state.searchToken?.nativeFinished) return;
     const hits = state.searchHits.filter(hit => hit.document_id === state.document && hit.page === state.page).sort((a, b) => {
       const box = hit => G.bounds((hit.matchQuads?.flat().length ? hit.matchQuads.flat() : hit.points).map(point => G.transform(point, state.viewport?.transform || [1, 0, 0, -1, 0, 0]))), x = box(a), y = box(b);
       return x[1] - y[1] || x[0] - y[0] || a.start - b.start;
@@ -4054,5 +4148,12 @@
   window.CeasefireTakeoffs = { open, selectWorkspace, refreshNavigation, projectSnapshot, projectFingerprint, prepareProject, applyProject, prepareDefaults, markProjectSaved, hasUnsavedChanges, completeProjectSnapshot,
     hasPendingOperation: () => !!(state.busy || state.linkedRecovery),
     hasLinkedRecovery: () => !!state.linkedRecovery,
-    sessionId: () => state.session?.session_id, scheduleBindings, showSource, discardPreparedSession, calculatorDraftChanged };
+    sessionId: () => state.session?.session_id, scheduleBindings, showSource, discardPreparedSession, calculatorDraftChanged,
+    exportRegister: format => safely(() => { if (state.busy || state.modal || !state.session) throw new Error("Finish the current takeoff operation before downloading."); return exportRegister(format); }),
+    exportPhysical: format => safely(async () => {
+      if (state.busy || state.modal || !state.session || state.mode !== "physical") throw new Error("Finish the current physical operation before downloading.");
+      requireFinishedEdits(); working(true);
+      try { return await exportPhysical(format); } finally { working(false); }
+    }),
+    downloadDrawing: () => safely(() => downloadTakeoff("marked-pdf")) };
 })();

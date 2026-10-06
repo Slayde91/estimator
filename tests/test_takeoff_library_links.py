@@ -800,7 +800,7 @@ class TakeoffLibraryLinkTests(unittest.TestCase):
         self.assertEqual(imported['defect']['frl'], '120/120/120')
         self.assertEqual(imported['barrier']['substrate'], 'Concrete literal')
         self.assertEqual(imported['barrier']['orientation'], 'Horizontal')
-        self.assertNotIn('barrier_type', imported['barrier'])
+        self.assertEqual(imported['barrier']['barrier_type'], 'Penetration literal')
         self.assertEqual(imported['service']['service_type'], 'Copper service')
         self.assertEqual(imported['service']['service'], 'Category literal')
         self.assertNotEqual(imported['service']['service'], inputs['L'])

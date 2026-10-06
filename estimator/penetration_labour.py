@@ -20,7 +20,7 @@ PIPE_BANDS = ((50, .25), (100, .30), (150, .35), (200, .40), (250, .45), (300, .
 PIPE_BAND_SETTINGS = tuple((maximum, f'pipe_labour_{maximum}_hours', hours)
                            for maximum, hours in PIPE_BANDS)
 REGISTER_HOURS = .25
-PIPE_HOURS_REQUIRED = 'Enter Pipe Labour hours for the selected collar; a positive diameter up to 300 mm is required for automatic hours.'
+PIPE_HOURS_REQUIRED = 'Enter Pipe Labour hours for the selected collar; a positive finite diameter is required for automatic hours.'
 
 
 def validate_hours(value, key):
@@ -52,7 +52,7 @@ allowance is retained for a future selection.
     if (collar_selected and isinstance(diameter, (int, float)) and not isinstance(diameter, bool)
             and diameter > 0 and math.isfinite(diameter)):
         automatic_pipe = next((hours for maximum, hours in pipe_bands
-                               if diameter <= maximum), None)
+                               if diameter <= maximum), pipe_bands[-1][1])
     register = validate_hours(settings.get('register_allowance_hours', REGISTER_HOURS),
                               'register_allowance_hours')
     register = REGISTER_HOURS if register is None else register

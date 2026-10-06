@@ -113,6 +113,7 @@ async function run() {
   await page.screenshot({ path: path.join(output, 'all-documents-uploaded.png'), fullPage: true });
 
   const searchStarted = Date.now();
+  await page.getByLabel('Include drawing labels', { exact: true }).uncheck();
   await page.getByPlaceholder('Search PDF text…').fill(inputs.sentinel);
   await page.getByLabel('Text search scope', { exact: true }).selectOption('all');
   await page.getByRole('button', { name: 'Search', exact: true }).click();
@@ -120,7 +121,7 @@ async function run() {
   await expect(progress).toContainText('Text search complete: 2000/2000 pages inspected', { timeout: 120000 });
   await expect(progress).toContainText('1999 without searchable text');
   await expect(progress).toContainText('0 failed');
-  await expect(progress).toContainText('Scanned pages require visual inspection');
+  await expect(progress).toContainText('Drawing-label OCR is off; scanned or outlined labels require visual inspection.');
   await expect(page.locator('.takeoff-search-result')).toHaveCount(1);
   await expect(page.locator('.takeoff-search-result')).toContainText(`capacity-100.pdf · p20: ${inputs.sentinel}`);
   assert.equal(readDocuments.size, 100, 'All 100 source documents must have been searched');

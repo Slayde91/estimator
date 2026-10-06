@@ -84,6 +84,10 @@ async function takeoffSnapshot() { const session = await page.evaluate(() => win
   await page.screenshot({ path: path.join(output, 'technical-services.png') });
 
   await chooseLibrary(page, 'penetration'); await page.locator(`[data-library-edit="${info.item_id}"]`).first().click();
+  const librarySettings=page.locator('#library-editor-settings'),detailsTab=page.locator('#library-editor-groups').getByRole('tab',{name:'DETAILS',exact:true});
+  await expect(librarySettings).toBeVisible();await expect(detailsTab).toBeVisible();
+  const settingsBox=await librarySettings.boundingBox(),detailsBox=await detailsTab.boundingBox();assert.ok(settingsBox.x+settingsBox.width<=detailsBox.x,'Library Settings icon must be left of DETAILS');
+  const beforeSettings=await page.evaluate(()=>window.CeasefireLibraryEditor.projectFingerprint());await librarySettings.click();await expect(librarySettings).toHaveAttribute('aria-pressed','true');await detailsTab.click();await expect(librarySettings).toHaveAttribute('aria-pressed','false');assert.equal(await page.evaluate(()=>window.CeasefireLibraryEditor.projectFingerprint()),beforeSettings);evidence.librarySettings={leftOfDetails:true,nativeToggle:true,draftUnchanged:true};
   const libraryService = page.locator('[data-library-editor-field=K]'); evidence.libraryOptions = await options(libraryService, 'Copper service'); assert.equal(evidence.libraryOptions.at(-1).disabled, true);
   const libraryDraft = await page.evaluate(() => window.CeasefireLibraryEditor.projectFingerprint()); await libraryService.focus(); await libraryService.press('Tab'); assert.equal(await page.evaluate(() => window.CeasefireLibraryEditor.projectFingerprint()), libraryDraft);
   await page.screenshot({ path: path.join(output, 'library-saved-service.png') }); await page.locator('#library-editor-cancel').click();

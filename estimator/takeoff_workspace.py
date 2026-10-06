@@ -850,6 +850,8 @@ class TakeoffService:
                 raise ValidationError('Every selected item must have a current locally verified confirmation.')
 
     def command(self, session_id, request):
+        if isinstance(request, dict) and request.get('op') == 'import_library_item':
+            return self.import_library_item(session_id, request)
         with self._lock:
             session, prior = self._start(session_id, request)
             if prior:
@@ -1370,7 +1372,9 @@ class TakeoffService:
                 event = self.documents.get_blob(before['audit_head'], kind='audit')
                 if event['project_id'] != before['project_id'] or event['revision'] != before['revision']:
                     raise ValidationError('Audit history does not match this takeoff revision.')
-                if event['op'] in ('apply_library_link', 'draft_library_assignment'):
+                association_only_import = (event['op'] == 'import_library_item'
+                    and event['before'].get('physical') == event['after'].get('physical'))
+                if event['op'] in ('apply_library_link', 'draft_library_assignment') or association_only_import:
                     raise ValidationError('This retained commercial library association cannot be reversed by Takeoff-only Undo. Use Confirm link and quantity or Remove schedule link in Item Details so its contribution stays coordinated with Firestopping.')
                 if event['op'] in ('apply_transfer', 'undo', 'record_render', 'detach_transfers', 'extract_images', 'linked_delete', 'linked_undo'):
                     raise ValidationError('Schedule transfers, source-render observations and undo receipts cannot be reversed by takeoff-only undo.')
@@ -1666,6 +1670,37 @@ class TakeoffService:
         if self.libraries is None:
             raise ValidationError('The Firestopping Library is unavailable. No commercial link was changed.')
         return self.libraries.takeoff_record(library_id)
+
+    def import_library_item(self, session_id, request):
+        """Atomically append a selected literal item, never a schedule quantity."""
+        from .takeoff_library_links import prepare_library_import, create_assignment
+        with self._lock, self._library_lock():
+            fields = {'expected_revision', 'request_id', 'op', 'import'}
+            object_fields(request, fields, 'Selected library item import', fields)
+            if request['op'] != 'import_library_item':
+                raise ValidationError('Use the controlled selected-library import operation.')
+            proposed = request['import']
+            keys = {'version', 'scope', 'defect_id', 'defect_revision', 'selected_ids',
+                    'barrier_id', 'barrier_revision', 'library_id', 'library_fingerprint',
+                    'accept_mismatch', 'ids'}
+            object_fields(proposed, keys, 'Selected library import', keys)
+            if not isinstance(proposed['library_id'], str) or not 1 <= len(proposed['library_id']) <= 120:
+                raise ValidationError('Choose a valid selected library item.')
+            session, prior = self._start(session_id, request)
+            if prior is not None:
+                self._physical_gate(session_id, session['snapshot'])
+                return prior
+            before = session['snapshot']
+            self._physical_editable(before, 'defect_reports')
+            self._physical_gate(session_id, before)
+            library = self._selected_library(proposed['library_id'])
+            prepared = prepare_library_import(before, proposed, library)
+            self._validate_imported_service_quantities(prepared['commands'], before, 'defect_reports')
+            after = deepcopy(before)
+            after['physical'] = prepared['graph']
+            self._validate_physical_links(session_id, after)
+            create_assignment(after, prepared['assignment'], library, barrier_selection=prepared['barrier_selection'])
+            return self._commit(session_id, request, before, after)
 
     def _validate_imported_service_quantities(self, commands, snapshot, scope):
         if not isinstance(commands, list):

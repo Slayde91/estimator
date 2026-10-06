@@ -61,6 +61,7 @@ async function pageInputDuringZoomRefinement(value) {
   await page.addInitScript(() => { window.searchCsp = []; document.addEventListener('securitypolicyviolation', event => window.searchCsp.push(event.effectiveDirective)); });
   await page.goto(`http://127.0.0.1:${info.port}/`); await page.waitForFunction(() => window.CeasefireDesktop?.status().ready);
   await page.getByRole('button', { name: 'Takeoffs', exact: true }).click();
+  await page.getByLabel('Include drawing labels', { exact: true }).uncheck();
   await page.locator('#takeoff-upload').setInputFiles([info.fixture, info.other]);
   await expect(page.locator('.takeoff-document')).toHaveCount(2); await expect(page.locator('.takeoff-page>canvas')).toBeVisible();
   await page.getByRole('button', { name: 'Fit page', exact: true }).click();

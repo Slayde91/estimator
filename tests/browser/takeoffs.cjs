@@ -1,7 +1,7 @@
 const { chooseTakeoff } = require('./section_navigation.cjs');
 const { chooseCalculator } = require('./calculator_actions.cjs');
 const { clickProjectControl } = require('./project_actions.cjs');
-const { renderDrawing } = require('./viewer_helpers.cjs');
+const { renderDrawing, viewRegisterItem } = require('./viewer_helpers.cjs');
 // Rendered acceptance journey against a disposable production server and synthetic PDF.
 const { chromium, expect } = require('@playwright/test');
 const { openItemSettings, editSettings, settingsSettled } = require('./settings_helpers.cjs');
@@ -189,8 +189,16 @@ async function boardJourney(info) {
   await expect(page.locator(`tr[data-item-id="${citedId}"]`).getByRole('checkbox',{name:/^Select /})).toBeChecked();
   await openItemSettings(page,citedId);
   await expect(page.locator('.takeoff-markup.selected')).toHaveCount(1);
-  await expect(page.locator('.takeoff-calibration-summary')).toContainText('7.25');
-  await expect(page.locator('.takeoff-calibration-summary')).toContainText('Synthetic board drawing');
+  await expect(page.locator('#takeoff-active-scale')).toHaveText('No Scale Selected');
+  const returnedCited = await page.evaluate(itemId => window.CeasefireTakeoffs.projectSnapshot().items.find(item => item.id === itemId), citedId);
+  assert.equal(returnedCited.measurement.method, 'cited'); assert.equal(returnedCited.measurement.length_m, 7.25);
+  assert.equal(returnedCited.measurement.citation, 'Synthetic board drawing p1, BOARD-CITED: 3 separate physical members, 7.25 m EACH');
+  assert.deepEqual(returnedCited.measurement, state.snapshot.items.find(item => item.id === citedId).measurement, 'Source return preserves the exact retained cited measurement without inventing a calibration');
+  assert.deepEqual(returnedCited.geometry, state.snapshot.items.find(item => item.id === citedId).geometry, 'Source return preserves original PDF geometry');
+  await expect(page.getByLabel('Drawing document', { exact: true })).toHaveValue(returnedCited.geometry.document_id);
+  await expect(page.locator('.takeoff-document[aria-selected="true"]')).toContainText('synthetic-board.pdf');
+  await expect(page.getByLabel('Page number', { exact: true })).toHaveValue(String(returnedCited.geometry.page));
+  await expect(page.locator('.takeoff-item-actions .takeoff-identity')).toHaveCount(0);
   await screenshot('board-source-return.png');
   // A separately drawn unsupported combination must fail without changing requirements or schedules.
   await fitCurrentDrawing('synthetic-board.pdf');
@@ -340,7 +348,7 @@ async function boardJourney(info) {
   await screenshot('confirmed-duct.png');
   const board = await boardJourney(info);
   await chooseTakeoff(page, 'duct');
-  await page.locator(`tr[data-item-id=\"${ductId}\"] .takeoff-row-link`).click();
+  await viewRegisterItem(page, ductId);
   // Project Save As commits the companion bundle before the complete JSON.
   const savedResponse = page.waitForResponse(r => r.url().endsWith('/api/project/save-as'));
   await clickProjectControl(page, 'Save');
@@ -357,13 +365,14 @@ async function boardJourney(info) {
   await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   await page.getByRole('button', { name: 'Takeoffs', exact: true }).click();
   await chooseTakeoff(page, 'duct');
-  await page.locator(`tr[data-item-id=\"${ductId}\"] .takeoff-row-link`).click();
+  await viewRegisterItem(page, ductId);
   const reopenedDuct=await openItemSettings(page,ductId);await expect(reopenedDuct.getByLabel('WxH (mm)',{exact:true})).toHaveValue('600 x 400');await expect(reopenedDuct.getByLabel('Product',{exact:true})).toHaveValue('FyreWrap');await expect(reopenedDuct.getByLabel('Exposure',{exact:true})).toHaveValue('Internal');await expect(reopenedDuct.getByLabel('FRL',{exact:true})).toHaveValue('120/120/120');
   for (const format of ['CSV', 'XLSX']) {
-    const download = page.waitForEvent('download'); await page.getByRole('button', { name: `Export ${format}`, exact: true }).click();
+    const download = page.waitForEvent('download'); await page.evaluate(format => window.CeasefireTakeoffs.exportRegister(format.toLowerCase()), format);
     const file = await download; const target = path.join(output, file.suggestedFilename()); await file.saveAs(target); assert.ok(fs.statSync(target).size > 100);
   }
   // PDF search discloses complete coverage and identifies pages with no text.
+  await page.getByLabel('Include drawing labels', { exact: true }).uncheck();
   await page.getByLabel('Drawing document', { exact: true }).selectOption(await page.locator('.takeoff-document').filter({ hasText: 'synthetic-drawings.pdf' }).getAttribute('value'));
   await page.getByPlaceholder('Search PDF text…').fill('SYNTHETIC');
   await page.getByRole('button', { name: 'Search', exact: true }).click();

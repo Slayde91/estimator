@@ -3,10 +3,20 @@ const assert = require("node:assert/strict"), fs = require("node:fs"), { createH
 const { create } = require("../static/header-tagline-media.js");
 function harness(reduced = false) {
   let preference, pagehide, error;
+  let now = 0, sequence = 0; const timers = new Map();
   const element = { dataset: {}, src: "/header-tagline-character-still.png", getAttribute() { return this.src; }, setAttribute(name, value) { assert.equal(name, "src"); this.src = value; }, addEventListener(name, callback) { assert.equal(name, "error"); error = callback; } };
   const motion = { matches: reduced, addEventListener(name, callback) { assert.equal(name, "change"); preference = callback; } };
-  const host = { addEventListener(name, callback, options) { assert.equal(name, "pagehide"); assert.deepEqual(options, { once: true }); pagehide = callback; }, CeasefireProject: { changed() { throw Error("Decorative playback cannot dirty a project"); } } };
-  return { element, controller: create(element, motion, host), preference(matches) { motion.matches = matches; preference({ matches }); }, pagehide() { pagehide(); }, error() { error(); } };
+  const host = { setTimeout(callback, delay) { timers.set(++sequence, { callback, at: now + delay }); return sequence; }, clearTimeout(id) { timers.delete(id); }, addEventListener(name, callback, options) { assert.equal(name, "pagehide"); assert.deepEqual(options, { once: true }); pagehide = callback; }, CeasefireProject: { changed() { throw Error("Decorative playback cannot dirty a project"); } } };
+  return { element, timers, controller: create(element, motion, host), advance(delay) { now += delay; for (const [id, timer] of [...timers]) if (timer.at <= now) { timers.delete(id); timer.callback(); } }, preference(matches) { motion.matches = matches; preference({ matches }); }, pagehide() { pagehide(); }, error() { error(); } };
+}
+{
+  const h = harness(); h.controller.start(); h.controller.finish(); h.advance(4999);
+  assert.equal(h.element.dataset.taglineMotion, "playing"); assert.equal(h.timers.size, 1);
+  h.advance(1); assert.equal(h.element.dataset.taglineMotion, "stopped"); assert.equal(h.timers.size, 0);
+  h.controller.start(); h.controller.finish(); h.advance(4000); h.controller.start(); h.advance(1000);
+  assert.equal(h.element.dataset.taglineMotion, "playing", "Starting another phrase cancels the prior grace deadline"); assert.equal(h.timers.size, 0);
+  h.controller.finish(); h.preference(true); assert.equal(h.timers.size, 0); h.advance(5000); assert.equal(h.element.dataset.taglineMotion, "reduced");
+  h.preference(false); h.controller.start(); h.controller.finish(); h.pagehide(); assert.equal(h.timers.size, 0); assert.equal(h.element.dataset.taglineMotion, "closed");
 }
 {
   const h = harness(); assert.equal(h.element.dataset.taglineMotion, "stopped"); h.controller.start(); assert.equal(h.element.src, "/header-tagline-character.gif?play=1"); assert.equal(h.element.dataset.taglineMotion, "playing");

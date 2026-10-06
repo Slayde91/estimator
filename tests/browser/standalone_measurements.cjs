@@ -138,6 +138,12 @@ async function dialog(title, values, action) {
   await renderDrawing(page, async () => { await page.getByLabel('Page number', { exact: true }).fill('3'); await page.getByLabel('Page number', { exact: true }).press('Tab'); }, 3);
   for (const mode of ['WALLS', 'SLABS']) {
     await chooseTakeoff(page, mode); await page.getByRole('button', { name: 'Length', exact: true }).click();
+    const beforeLength = (JSON.parse(await page.evaluate(() => window.CeasefireTakeoffs.projectFingerprint()))).snapshot;
+    await page.mouse.click(...await screen([150, 200]));
+    await page.getByRole('button', { name: 'Length', exact: true }).click();
+    await expect(page.locator('.takeoff-viewport')).toHaveAttribute('data-tool', 'select');
+    assert.deepEqual(await snapshot(), beforeLength, 'Clicking active Length cancels its unfinished geometry without a record');
+    await page.getByRole('button', { name: 'Length', exact: true }).click();
     await page.mouse.click(...await screen([150, 200])); await page.mouse.click(...await screen([250, 200])); await page.locator('.takeoff-viewport').press('Enter');
     const reply = await command(() => dialog('Add length measurement', { Item: `${mode}-LENGTH`, Level: 'L01' }, 'Add measurement'), 'create_item');
     const item = reply.snapshot.items.find(item => item.fields.mark === `${mode}-LENGTH`); assert.equal(item.purpose, 'length-only'); assert.equal(item.quantity, 1); assert.equal(item.geometry.points.length, 2); assert.equal(item.measurement.method, 'calibrated');

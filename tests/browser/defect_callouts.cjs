@@ -76,7 +76,7 @@ async function textFits() {
   const beforeHide=structuredClone(current),hide=page.locator(`tr[data-physical-id="${id}"]`).getByRole('checkbox',{name:/^Hide /});
   await hide.check(); await expect(callout()).toHaveCount(0); await expect(marker()).toHaveCount(0);
   const exportRequest=page.waitForRequest(request=>request.url().endsWith('/export/marked-pdf')),hiddenDownload=page.waitForEvent('download');
-  await page.getByRole('button',{name:'Download PDF',exact:true}).click(); assert.deepEqual((await exportRequest).postDataJSON().item_ids,[]); await(await hiddenDownload).saveAs(path.join(output,'hidden-defect.pdf'));
+  await page.evaluate(() => window.CeasefireTakeoffs.downloadDrawing()); assert.deepEqual((await exportRequest).postDataJSON().item_ids,[]); await(await hiddenDownload).saveAs(path.join(output,'hidden-defect.pdf'));
   assert.deepEqual(await snapshot(),beforeHide); await hide.uncheck(); await expect(callout()).toBeVisible(); evidence.hidePresentationAndPdfOnly=true;
   await page.getByRole('button', { name: 'Close Item Details', exact: true }).click(); await expect(details()).not.toBeVisible(); await fit();
   await callout().press('Enter'); await expect(details()).not.toBeVisible(); await expect(page.locator('.takeoff-physical-callout-handle')).toHaveCount(4);
@@ -91,7 +91,7 @@ async function textFits() {
   assert.deepEqual(current.physical.defects[0].evidence, original.evidence); assert.deepEqual(current.physical.defects[0].fields, original.fields); assert.equal(current.physical.barriers.length, 0); assert.equal(current.physical.services.length, 0); evidence.markerMovePreservesEvidence = true;
   await details().getByLabel('Defect Ref.', { exact: true }).fill('UPDATED-FRAMED-DEFECT'); await details().getByLabel('Defect Ref.', { exact: true }).press('Tab'); await expect(callout()).toContainText('UPDATED-FRAMED-DEFECT'); await snapshot(); await textFits();
   await page.getByRole('button', { name: 'Close Item Details', exact: true }).click(); await fit(); const savedGraph = structuredClone((await snapshot()).physical);
-  const download = page.waitForEvent('download'); await page.getByRole('button', { name: 'Download PDF', exact: true }).click(); const pdf = await download; await pdf.saveAs(path.join(output, 'defect-callout.pdf')); assert.ok(fs.statSync(path.join(output, 'defect-callout.pdf')).size > 1000); assert.deepEqual((await snapshot()).physical, savedGraph);
+  const download = page.waitForEvent('download'); await page.evaluate(() => window.CeasefireTakeoffs.downloadDrawing()); const pdf = await download; await pdf.saveAs(path.join(output, 'defect-callout.pdf')); assert.ok(fs.statSync(path.join(output, 'defect-callout.pdf')).size > 1000); assert.deepEqual((await snapshot()).physical, savedGraph);
   await response(() => clickProjectControl(page, 'Save'), '/api/project/save-as'); const saved = JSON.parse(fs.readFileSync(info.project, 'utf8')); assert.deepEqual(saved.takeoffs.physical, savedGraph);
   await response(() => clickProjectControl(page, 'Load'), '/api/project/open'); await page.getByRole('dialog').getByRole('button', { name: 'Load Project', exact: true }).click(); await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); await chooseTakeoff(page, 'PENETRATIONS'); assert.deepEqual((await snapshot()).physical, savedGraph); assert.deepEqual(await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()), calculators);

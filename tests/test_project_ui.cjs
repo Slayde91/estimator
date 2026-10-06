@@ -342,6 +342,23 @@ async function penetrationCheck(name, fn) {
     assert.equal(h.calc.state.entries.size,3);for(const entry of h.calc.state.entries.values())assert.equal(h.calc.dirty(entry),false);
     assert.deepEqual(copy(h.app.state.configuration),shared);assert.deepEqual(copy(h.app.state.quoteConfiguration),captured.estimate.configuration);
   });
+  await check('New calculator input retires only the current Project saved notice and retains unrelated errors', async h => {
+    h.app.setRequest(async(path,options)=>{const payload=JSON.parse(options.body);return {file:{path:'C:/estimates/saved.json'},project:{...project(),estimate:payload.estimate,calculators:payload.calculators}};});
+    await h.app.saveProject();const notice=h.byId('app-message');assert.match(notice.textContent,/Project saved/);assert.equal(notice.hidden,false);
+    const entry=h.calc.current();h.calc.setInput(entry,'CALCULATOR','A9','New native input');assert.equal(notice.hidden,true);assert.equal(h.byId('project-save-state').textContent,'Unsaved changes');
+    notice.textContent='Specific unrelated error';notice.hidden=false;notice.setAttribute('role','alert');h.calc.setInput(entry,'CALCULATOR','A9','Another edit');
+    assert.equal(notice.hidden,false);assert.equal(notice.textContent,'Specific unrelated error');assert.equal(notice.getAttribute('role'),'alert');
+  });
+  await check('A late successful file response cannot revive Project saved over later dirty input or replace its error', async h => {
+    for(const laterError of [false,true]) {
+      const pending=deferred();let payload;h.app.setRequest((path,options)=>{payload=JSON.parse(options.body);return pending.promise;});
+      const saving=h.app.saveProject();await flush();h.calc.setInput(h.calc.current(),'CALCULATOR','A9',laterError?'Latest value with error':'Latest value');
+      const notice=h.byId('app-message');if(laterError){notice.textContent='Later actionable error';notice.hidden=false;notice.setAttribute('role','alert');}
+      pending.resolve({file:{path:'C:/estimates/saved.json'},project:{...project(),estimate:payload.estimate,calculators:payload.calculators}});await saving;
+      assert.equal(h.byId('project-save-state').textContent,'Unsaved changes');
+      if(laterError){assert.equal(notice.hidden,false);assert.equal(notice.textContent,'Later actionable error');}else assert.equal(notice.hidden,true);
+    }
+  });
   await check('Save without an authorized file opens the existing save dialog and preserves cancellation', async h => {
     await h.context.window.CeasefireCalculators.completeProjectSnapshot();
     const paths=[];

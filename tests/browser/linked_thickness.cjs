@@ -168,7 +168,7 @@ async function editSprayLength(binding, value) {
   await response(async () => { await page.mouse.move(box.x+10, box.y+10); await page.mouse.down(); await page.mouse.move(box.x+35, box.y+30, { steps: 5 }); await page.mouse.up(); }, '/commands');
   assert.notDeepEqual((await snapshot()).drawing_presentation.legends[0].point, beforeMove);
   await page.screenshot({ path: path.join(output, 'steel-thickness-colours-legend.png') });
-  const pdfDownload = page.waitForEvent('download'); await page.getByRole('button', { name: 'Download PDF', exact: true }).click(); await (await pdfDownload).saveAs(path.join(output, 'thickness-colours-legend.pdf'));
+  const pdfDownload = page.waitForEvent('download'); await page.evaluate(() => window.CeasefireTakeoffs.downloadDrawing()); await (await pdfDownload).saveAs(path.join(output, 'thickness-colours-legend.pdf'));
   await response(() => page.getByRole('button', { name: 'Markups', exact: true }).click(), '/commands'); await expect(painted()).toHaveAttribute('stroke', originalStroke);
   assert.deepEqual(await calculators(), beforeColourCalculators); evidence.coloursLegendRestore = { expectedColour, originalStroke, missing: 1, nativeThickness: sprayValue };
 

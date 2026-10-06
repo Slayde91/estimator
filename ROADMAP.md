@@ -1,10 +1,9 @@
 # CEASEFIRE Estimator roadmap
 
-Updated 5 October 2026. This roadmap separates implemented source behaviour,
-release verification and planned work. PR #154 carries the current controls and
-library update; its final publication and live activation are established by the
-dated release receipts, not by this document. The verified baseline for that
-release is PR #153, merge `7488b4a023562a3d4b0832d0f713b282a81e7c94`.
+Updated 7 October 2026. This roadmap separates implemented source behaviour,
+release verification and planned work. The verified baseline is PR #158,
+merge `e471a3e2f2a6d4fb59155c601c176a5d005155d6`. Publication and live
+activation of later increments are established by their dated release receipts.
 
 ## Delivered capabilities
 
@@ -18,7 +17,7 @@ release is PR #153, merge `7488b4a023562a3d4b0832d0f713b282a81e7c94`.
 | Pricing Library | Product/Service editing, supplier price, markup, calculated sell price, separate estimator-use groups, yield and complete values-only import/export. Shared catalogue updates do not rewrite frozen project pricing. |
 | Technical and Firestopping libraries | Source-bound reports, revision/page context, diagrams, configuration/substrate/service/FRL filters, manufacturer imports and duplicate-review tooling. Runtime inventory contents are private local state and require current verification. |
 | Portable projects | Validated versioned project JSON, capability-bound native saves, complete calculator drafts, library drafts, immutable companion evidence/history, explicit load validation and late-edit guards. |
-| Manual drawing Takeoffs | Original-PDF retention, text search, zoom/pan/text selection, CropBox/rotation/UserUnit handling, per-page scale, calibrated named viewports and original-coordinate markups. No OCR is implied. |
+| Manual drawing Takeoffs | Original-PDF retention, native text and local OCR search, zoom/pan/text selection, CropBox/rotation/UserUnit handling, visible per-page scale, calibrated named viewports and original-coordinate markups. OCR is an approximate search aid with disclosed limits and no quantity or approval authority. |
 | Steel and Duct Takeoffs | Traced lengths, manual source-cited lengths, steel counted lengths with persistent member IDs, standalone counts, rise/drop additions, item edits, column filters, selection/hiding, split/merge, undo/history and explicit confirmation. |
 | Walls and Slabs | Calibrated polygon area, exclusions, true-surface inputs and standalone lengths; source geometry, revisions and confirmation retained. |
 | Manual physical drafts | Defect Reports uses Defect → Barrier → Service; Service Plans uses a separate Barrier → Service graph. Persistent display IDs, explicit service quantities, source-position markers, generated call-outs and reviewed image extraction are retained. These are unapproved physical drafts. |
@@ -132,3 +131,33 @@ before guarded idempotent Firestopping Schedule contribution. Existing formulas,
 source bytes, prices, projects and physical authority boundaries remain protected.
 AI Phases 5/6, Physical Model Lock and automatic matching remain outside scope.
 Publication, actual CI/merge and activation are recorded in the release receipts.
+
+### 7 October 2026 — barrier additions, drawing search and calculator feedback
+
+Defect Reports library additions first choose a new or explicitly identified
+existing Barrier. Library search uses the actual Firestopping Library facets.
+New barriers adopt literal library penetration type, substrate and orientation;
+unknown facts stay absent. Existing barrier facts remain unchanged. Conflicts
+require Continue or Cancel; Cancel returns to search without creating records.
+Additional services retain stable IDs and unknown quantities. Commercial
+assignment confirmation remains a separate reviewed operation.
+
+Drawing labels stored as vector outlines can be searched using pinned local
+OCR assets. Original PDFs stay unchanged; recognition sends no drawing data
+to a remote service and cannot create a physical record or calculator value.
+Limits and recognition provenance remain visible in search results. Scale text
+is visible beside Scale, and clicking active Length/Count cancels the unfinished
+operation. Redundant register download controls and item diagnostic text are
+hidden; the guarded export APIs and meaningful editing actions remain.
+
+Firestopping is under Calculators while its schedule remains in Main. Home adds
+Takeoffs and Help. Clear blanks only the current calculator item; existing
+schedule, settings, prices and edit recovery remain.
+Clearing a valid schedule-edit copy also retains its stored library identity for
+an explicit Update, while a new unfinished composer loses its pending binding.
+Settings precedes Details, New item sits beside Add to Library, and schedule downloads sit beside
+Recalculate. Positive pipe diameters above the final labour band use that
+band's hours, with explicit manual overrides preserved. This application policy
+change does not modify imported workbook definitions. Saved success messages
+clear when later unsaved edits exist. The supplied header GIF continues for five
+seconds after the completed updated tagline, with reduced-motion cleanup.

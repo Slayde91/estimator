@@ -1,0 +1,11 @@
+Local drawing-label OCR uses unmodified Tesseract.js 7.0.0 worker and Tesseract.js-core 7.0.0 LSTM builds.
+Their exact upstream Apache-2.0 licenses and bundled worker dependency notices are retained alongside these assets.
+The official @tesseract.js-data/eng 1.0.0 package supplies the 4.0.0_best_int full English model.
+Its npm package declares MIT; its underlying Tesseract trained data is Apache-2.0.
+Package metadata, upstream model license and hashes are retained.
+Recognition stays on this computer and is only an approximate search aid; no physical or calculator authority.
+The pinned worker message adapter follows upstream src/createWorker.js at v7.0.0.
+https://github.com/naptha/tesseract.js/tree/v7.0.0
+https://github.com/naptha/tesseract.js-core
+https://github.com/naptha/tessdata
+https://github.com/tesseract-ocr/tessdata

@@ -54,6 +54,7 @@ jobs:
       - run: node tests/test_surface_column_filters_ui.cjs
       - run: node tests/test_takeoff_physical_ui.cjs
       - run: node tests/test_takeoff_search.cjs
+      - run: node --test tests/test_takeoff_ocr.cjs
       - run: node tests/test_takeoff_search_ui.cjs
       - run: node tests/test_takeoff_shortcuts_ui.cjs
       - run: node tests/test_takeoff_upload_ui.cjs
@@ -99,6 +100,8 @@ jobs:
       - run: npm run test:takeoffs-free-callouts
       - run: npm run test:takeoffs-viewer-shortcuts
       - run: npm run test:takeoffs-library-links
+      - run: npm run test:takeoffs-library-barriers
+      - run: npm run test:takeoffs-drawing-ocr
       - run: npm run test:takeoffs-duct-filters
       - run: npm run test:takeoffs-steel-filters
       - run: npm run test:surface-column-filters

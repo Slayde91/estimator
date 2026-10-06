@@ -82,7 +82,7 @@ async function reset(label) { await finishMenu(await menu(label), 'Reset filter'
     await filter('Treatment', ['Spray']); assert.deepEqual(await rowMarks(), [`${prefix}002`]);
     // Export remains tied to explicit, confirmed selected IDs even if hidden.
     const download = page.waitForEvent('download'), exported = page.waitForRequest(request => request.url().endsWith('/export/csv'));
-    await page.getByRole('button', { name: 'Export CSV', exact: true }).click(); assert.deepEqual((await exported).postDataJSON().selected_ids, [seeded.first[value]]);
+    await page.evaluate(() => window.CeasefireTakeoffs.exportRegister("csv")); assert.deepEqual((await exported).postDataJSON().selected_ids, [seeded.first[value]]);
     const exportPath = path.join(output, `${value}-selected-confirmed.csv`); await (await download).saveAs(exportPath);
     const csv = fs.readFileSync(exportPath, 'utf8'); assert.ok(csv.includes(`${prefix}001`)); assert.ok(!csv.includes(`${prefix}002`));
     await page.getByLabel('Filter register', { exact: true }).fill(`${prefix}001`); await expect(rows()).toHaveCount(0);

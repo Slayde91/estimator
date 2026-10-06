@@ -1,5 +1,5 @@
 const { chooseTakeoff, takeoffChoice } = require('./section_navigation.cjs');
-const { chooseNewDefect } = require('./physical_dialogs.cjs');
+const { chooseNewDefect, startDefect } = require('./physical_dialogs.cjs');
 const { clickProjectControl } = require('./project_actions.cjs');
 // Native browser gestures use synthetic PDFs and disposable projects only.
 const { chromium, expect } = require('@playwright/test');
@@ -51,7 +51,7 @@ async function dialog(title, fields, action) {
   await modal.getByRole('button', { name: action, exact: true }).click();
 }
 async function create(kind, fields, trigger) {
-  await trigger(); if (kind === 'defect') await chooseNewDefect(page); const preview = await response(() => dialog(`Create draft ${kind}`, fields, 'Preview new draft'), '/physical/preview');
+  await trigger(); if (kind === 'defect') await chooseNewDefect(page); const preview = await response(() => dialog(kind === 'defect' ? 'Add Defect' : `Create draft ${kind}`, fields, 'Preview new draft'), '/physical/preview');
   await response(() => dialog(`Create one draft ${kind}?`, {}, 'Apply draft change'), '/physical/apply'); await snapshot(); return preview.changed_ids[0];
 }
 async function scopeTab(name) {
@@ -142,9 +142,14 @@ async function compareAddServiceStyle(scope) {
     return { service: read(service), substrate: read(substrate), sharedClasses: [...substrate.classList].every(value => service.classList.contains(value)) };
   });
   let measured = await measure();
-  // Native pointer position is neutral; retain exact settled computed styles.
-  await expect.poll(async () => { measured = await measure(); return measured.service; }, { message: 'The Add service style settles to the exact register plus style' }).toEqual(measured.substrate);
-  assert.equal(measured.sharedClasses, true); assert.deepEqual(measured.service, measured.substrate, 'Add service and the register red plus have identical size, glyph, padding, border and colour');
+  // Defect Reports removes its register plus. Its shared glyph/paint remains a
+  // valid style baseline, while only visible controls have rendered geometry.
+  const paint=value=>Object.fromEntries(Object.entries(value).filter(([key])=>!['width','height','display'].includes(key)));
+  await expect.poll(async () => { measured = await measure(); return paint(measured.service); }, { message: 'The Add service glyph, padding, border and colour settle to the shared plus style' }).toEqual(paint(measured.substrate));
+  assert.equal(measured.sharedClasses, true); assert.deepEqual(paint(measured.service),paint(measured.substrate));
+  assert.equal(measured.service.width,38);assert.equal(measured.service.height,38);assert.equal(measured.service.display,'flex');assert.equal(measured.service.text,'+');
+  if(scope==='service_plans')assert.deepEqual(measured.service,measured.substrate,'Visible Add service and Add substrate retain identical geometry and style');
+  else{await expect(page.locator('.takeoff-physical-add-row')).toBeHidden();assert.equal(measured.substrate.width,0);assert.equal(measured.substrate.height,0);}
   assert.equal(measured.service.fontSize, '22px'); (evidence.addServiceStyle ||= []).push({ scope, ...measured });
 }
 async function reviewAutosaveDrag(scope, barrier, service, pageNumber) {
@@ -268,7 +273,7 @@ let currentScope = 'defect_reports';
   for (const scope of ['defect_reports', 'service_plans']) {
     currentScope = scope; await scopeTab(scope === 'service_plans' ? 'Service Plans' : 'Defect Reports');
     let defect;
-    if (scope === 'defect_reports') defect = await create('defect', { 'Defect Ref.': 'INTERACTION-A', FRL: '-/120/120' }, () => page.getByRole('button', { name: 'Add defect', exact: true }).click());
+    if (scope === 'defect_reports') defect = await create('defect', { 'Defect Ref.': 'INTERACTION-A', FRL: '-/120/120' }, () => startDefect(page));
     const barrier = await create('barrier', { Location: 'North plant room', 'Barrier type': 'Core hole', Substrate: 'Concrete/masonry wall', 'Substrate orientation': 'Vertical', ...(scope === 'service_plans' ? { FRL: '-/90/90' } : {}) }, () => page.getByRole('button', { name: scope === 'service_plans' ? 'Add substrate' : 'Add barrier to D-0001', exact: true }).click());
     await compareAddServiceStyle(scope);
     const service = await create('service', { Category: 'Mechanical', 'Explicit service quantity': 2, 'Service Size (mm)': '100' }, () => page.getByRole('button', { name: 'Add service in Item Details', exact: true }).click());

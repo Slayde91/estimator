@@ -9,7 +9,7 @@ const assert = require('node:assert/strict');
 const root = path.resolve(__dirname, '../..');
 const output = path.join(root, '.runtime/browser-qa', `calculator-navigation-${Date.now()}`);
 fs.mkdirSync(output, { recursive: true });
-const assets = ['static/app.js', 'static/calculators.js', 'static/calculators.css', 'static/index.html', 'static/styles.css'];
+const assets = ['static/app.js', 'static/calculators.js', 'static/calculators.css', 'static/index.html', 'static/styles.css', 'static/penetration.js'];
 const assetHashes = Object.fromEntries(assets.map(name => [name, crypto.createHash('sha256').update(fs.readFileSync(path.join(root, name))).digest('hex')]));
 const server = spawn(process.env.CEASEFIRE_PYTHON || 'python', [path.join(__dirname, 'fixtures.py'), '--directory', output], { cwd: root, windowsHide: true });
 let logs = '', browser, page, info;
@@ -21,7 +21,7 @@ const ready = new Promise((resolve, reject) => {
   server.once('exit', code => { clearTimeout(timer); reject(new Error(`Fixture exited ${code}: ${logs}`)); });
 });
 const errors = [], requests = [], evidence = {};
-const destinations = ['Steel (spray)', 'Steel (board)', 'Ductwork (spray/wrap)'];
+const destinations = ['Steel (spray)', 'Steel (board)', 'Ductwork (spray/wrap)', 'Firestopping'];
 function monitor(target) {
   target.setDefaultTimeout(60000); target.on('pageerror', error => errors.push(error.message));
   target.on('request', request => requests.push({ method: request.method(), path: new URL(request.url()).pathname }));
@@ -42,9 +42,10 @@ async function workbook(title) {
   const before = await snapshots(), beforeRequests = calculationRequests();
   const estimateToggle=page.getByRole('button',{name:'Estimates',exact:true}), estimates=page.getByRole('group',{name:'Choose an estimate',exact:true});
   await estimateToggle.hover();await expect(estimates).toBeVisible();
-  assert.deepEqual(await estimates.getByRole('button').allTextContents(),['Main','Firestopping']);
+  assert.deepEqual(await estimates.getByRole('button').allTextContents(),['Main']);
   assert.deepEqual(await snapshots(),before);assert.equal(calculationRequests(),beforeRequests);
-  await estimates.getByRole('button',{name:'Firestopping',exact:true}).click();await idle();
+  await chooseCalculator(page,'Firestopping');await idle();
+  await expect(page.locator('#view-calculators')).toBeVisible();await expect(page.locator('#view-estimate')).toBeHidden();
   await expect(page.locator('#estimator-penetration')).toBeVisible();await expect(page.locator('#estimator-main')).toBeHidden();
   await estimateToggle.hover();await estimates.getByRole('button',{name:'Main',exact:true}).click();await idle();
   await expect(page.locator('#estimator-main')).toBeVisible();await expect(page.locator('#estimator-penetration')).toBeHidden();
@@ -100,6 +101,37 @@ async function workbook(title) {
     await page.getByRole('button', { name: 'Home', exact: true }).click(); await expect(menu).toBeHidden();
   }
   evidence.viewports = [1600, 1146, 825, 570, 390];
+  await page.setViewportSize({width:1440,height:1000});
+  await expect(page.locator('#view-home .home-card')).toHaveCount(6);
+  await page.locator('[data-home-view="help"]').click();await expect(page.locator('#view-help')).toBeVisible();
+  await page.getByRole('button',{name:'Home',exact:true}).click();await page.locator('[data-home-view="takeoffs"]').click();await expect(page.locator('#view-takeoffs')).toBeVisible();
+  await chooseCalculator(page,'Firestopping');await idle();
+  const settings=page.locator('#penetration-settings'),details=page.locator('#penetration-input-groups [role="tab"]').first();
+  const gear=await settings.boundingBox(),tab=await details.boundingBox(),newItem=await page.locator('#penetration-new-item').boundingBox(),library=await page.locator('#penetration-add-to-library').boundingBox();
+  assert.ok(gear.x+gear.width<=tab.x,'Settings icon is left of the first Details tab');assert.ok(newItem.x+newItem.width<=library.x,'Add new item is left of Add to Library');
+  for(const id of ['penetration-item-excel','penetration-item-pdf'])assert.equal(await page.locator(`#${id}`).evaluate(el=>el.parentElement.querySelector('#penetration-estimator-schedule-recalculate')!==null),true,'Schedule downloads share the lower schedule Recalculate row');
+  const clearBefore=await snapshots(),current=clearBefore.penetration.composer.rows[0];
+  const description=page.locator('#penetration-row-fields [data-penetration-field="T"]');await description.fill('CLEAR CURRENT ITEM');await description.press('Tab');
+  await page.locator('#penetration-item-quantity [data-penetration-field="O"]').fill('3');await page.locator('#penetration-clear').click();
+  await expect(description).toHaveValue('');await expect(page.locator('#penetration-item-quantity [data-penetration-field="O"]')).toHaveValue('');
+  const cleared=await snapshots();assert.deepEqual(cleared.penetration.draft,clearBefore.penetration.draft);assert.deepEqual(cleared.penetration.composer.globals,clearBefore.penetration.composer.globals);assert.deepEqual(cleared.penetration.composer.rows,[{id:current.id,inputs:{}}]);assert.deepEqual(cleared.pricing,clearBefore.pricing);assert.deepEqual(cleared.calculators,clearBefore.calculators);
+  await page.screenshot({path:path.join(output,'firestopping-clear-controls.png'),fullPage:true});
+  evidence.commentsControls={homeTakeoffsAndHelp:true,settingsLeftOfDetails:true,newItemLeftOfLibrary:true,scheduleDownloadsBelow:true,clearAllInputsAndQuantity:true,clearPreservesScheduleSettingsPricesAndCalculators:true};
+  // Capture a real library identity, add that item to the schedule, then use
+  // the native Edit/Clear/refill/Update controls on its retained row copy.
+  await description.fill('CLEAR LINKED SCHEDULE SOURCE');await description.press('Tab');const quantity=page.locator('#penetration-item-quantity [data-penetration-field="O"]');await quantity.fill('3.123456789');await quantity.press('Tab');
+  await page.locator('#penetration-input-groups').getByRole('tab',{name:'Products and labour',exact:true}).click();const crew=page.locator('#penetration-row-fields [data-penetration-field="W"]');await crew.selectOption(await crew.locator('option').evaluateAll(options=>options.find(option=>option.value&&!option.disabled).value));
+  await page.locator('#penetration-input-groups').getByRole('tab',{name:'OTHER',exact:true}).click();const additionalLabour=page.locator('#penetration-row-fields [data-penetration-field="AH"]');await additionalLabour.fill('1');await additionalLabour.press('Tab');await page.locator('#penetration-input-groups').getByRole('tab',{name:'DETAILS',exact:true}).click();
+  const capturedReply=page.waitForResponse(reply=>new URL(reply.url()).pathname==='/api/libraries/penetration'&&reply.request().method()==='POST');capturedReply.catch(()=>{});await page.locator('#penetration-add-to-library').click();
+  await expect(dialog.getByRole('heading')).toHaveText('Are you sure you want to add this item to the Firestopping Library?');await dialog.getByRole('button',{name:'Yes',exact:true}).click();const capture=await capturedReply;assert.equal(capture.status(),200,await capture.text());const libraryItem=await capture.json();await expect(page.locator('#penetration-add-to-library')).toHaveAttribute('aria-busy','false');
+  assert.equal((await snapshots()).penetration.composer.rows[0].library_item_id,libraryItem.id);await page.locator('#penetration-add-to-schedule').click();await expect(page.locator('#penetration-add-to-schedule')).toHaveAttribute('aria-busy','false');
+  const linkedBefore=await snapshots(),linkedRow=linkedBefore.penetration.draft.rows.at(-1);assert.equal(linkedRow.library_item_id,libraryItem.id);
+  const scheduleDetails=page.locator('details[aria-labelledby="penetration-estimator-schedule-heading"]');if(!await scheduleDetails.evaluate(element=>element.open))await scheduleDetails.locator(':scope > summary').click();await page.locator(`#penetration-estimator-schedule-body [data-penetration-id="${linkedRow.id}"]`).getByRole('button',{name:`Edit firestopping item ${linkedBefore.penetration.draft.rows.length}`,exact:true}).click();
+  if(await dialog.isVisible()){await expect(dialog.getByRole('heading')).toHaveText('Edit schedule item?');await dialog.getByRole('button',{name:'Edit item',exact:true}).click();}
+  await expect(page.locator('#penetration-update-schedule')).toBeVisible();await page.locator('#penetration-clear').click();const linkedCleared=await snapshots();
+  assert.deepEqual(linkedCleared.penetration.draft,linkedBefore.penetration.draft);assert.deepEqual(linkedCleared.penetration.composer.rows,[{id:linkedRow.id,inputs:{},library_item_id:libraryItem.id}]);assert.deepEqual(linkedCleared.pricing,linkedBefore.pricing);assert.deepEqual(linkedCleared.calculators,linkedBefore.calculators);await expect(page.locator('#penetration-update-schedule')).toBeEnabled();
+  await description.fill('REFILLED LINKED SOURCE');await description.press('Tab');await quantity.fill('4.987654321');await quantity.press('Tab');await page.locator('#penetration-update-schedule').click();await expect(page.locator('#penetration-update-schedule')).toBeHidden();await expect(page.locator('#penetration-update-schedule')).toHaveAttribute('aria-busy','false');
+  const linkedUpdated=await snapshots();assert.deepEqual(linkedUpdated.penetration.draft.rows.at(-1),{id:linkedRow.id,inputs:{T:'REFILLED LINKED SOURCE',O:4.987654321},library_item_id:libraryItem.id});assert.deepEqual(linkedUpdated.penetration.draft.rows.slice(0,-1),linkedBefore.penetration.draft.rows.slice(0,-1));assert.deepEqual(linkedUpdated.penetration.draft.globals,linkedBefore.penetration.draft.globals);assert.deepEqual(linkedUpdated.pricing,linkedBefore.pricing);assert.deepEqual(linkedUpdated.calculators,linkedBefore.calculators);evidence.clearLinkedEditRetainsLibraryAndRowIdentity=true;
   const touchContext = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
   const touch = await touchContext.newPage(); await monitor(touch); await touch.goto(`http://127.0.0.1:${info.port}/`); await idle(touch);
   await touch.getByRole('button', { name: 'Calculators', exact: true }).tap();

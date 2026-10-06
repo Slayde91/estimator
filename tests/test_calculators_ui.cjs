@@ -1636,7 +1636,7 @@ let passed = 0;
   assert.deepEqual(copy(audit.projectSnapshot()),choiceDraft);delete context.window.CeasefireProposalCalculators;
   const choiceHtml=fs.readFileSync('static/index.html','utf8');
   assert.ok(!choiceHtml.includes('id="calculator-list"'));
-  for(const id of ['steel_vermiculite','steel_board','ductwork'])assert.ok(choiceHtml.includes(`data-calculator-id="${id}"`));assert.ok(!choiceHtml.includes('data-calculator-id="penetration"'));assert.ok(choiceHtml.includes('data-estimator-kind="penetration"'));passed++;
+  for(const id of ['steel_vermiculite','steel_board','ductwork','penetration'])assert.ok(choiceHtml.includes(`data-calculator-id="${id}"`));assert.ok(!choiceHtml.includes('data-estimator-kind="penetration"'));passed++;
 
   // Only Exposure input column data is normal weight; headers and diagnostics retain their source emphasis.
   for(const [id,sheet,column,firstRow,label] of [
@@ -2080,6 +2080,6 @@ let passed = 0;
   entry.scheduleRows=undefined;assert.throws(()=>takeoffBridge.readTakeoffTarget('steel_board'),/unavailable/);
   context.document.activeElement=null;passed++;
 
-  assert.match(fs.readFileSync('static/app.js', 'utf8'), /view === "calculators".*CeasefireCalculators\?\.open/);
+  assert.match(fs.readFileSync('static/app.js', 'utf8'), /view === "calculators"[\s\S]*?CeasefireCalculators\?\.open/);
   console.log(`Calculator UI checks passed: ${passed}`);
 })().catch(error => { console.error(error); process.exitCode = 1; });

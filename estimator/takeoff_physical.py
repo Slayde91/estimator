@@ -24,6 +24,10 @@ MAX_ENTITIES = 10000  # Includes tombstones, so deletion cannot evade the bound.
 MAX_EVIDENCE = 32
 MAX_REGION_VERTICES = 64
 MAX_TEXT = 2000
+# Library notes retain the eleven labelled calculator text inputs losslessly.
+# Ordinary identifiers, locations and review notes retain their smaller bound;
+# the graph-wide text budget below still includes these longer notes.
+MAX_NOTES = 128000
 MAX_TOTAL_EVIDENCE = 20000
 MAX_TOTAL_REGION_VERTICES = 100000
 MAX_TOTAL_TEXT = 4 * 1024 * 1024
@@ -257,7 +261,7 @@ def _properties(entity, kind, parents):
             if value == 0 and key != 'insulation_mm':
                 raise ValidationError('Known physical dimensions must be positive; omit an unknown dimension.')
         else:
-            _text(value, key)
+            _text(value, key, limit=MAX_NOTES if key == 'notes' else MAX_TEXT)
     _evidence(entity['evidence'], kind, parents)
     uncertainty = _object(entity['uncertainty'], {'state', 'note'}, {'state', 'note'}, 'Physical uncertainty')
     if not isinstance(uncertainty['state'], str) or uncertainty['state'] not in UNCERTAINTY_STATES:

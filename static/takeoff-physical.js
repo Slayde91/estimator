@@ -106,6 +106,7 @@
   }
   function fieldValue(kind, key, value, scope = "defect_reports") {
     if (key === "quantity") {
+      if (typeof value === "string" && !/^\d+(?:\.0+)?$/.test(value.trim())) throw new Error("Every service needs an explicit positive whole quantity.");
       const number = value === "" || value == null ? NaN : Number(value);
       if (!Number.isSafeInteger(number) || number < 1 || number > 1e12) throw new Error("Every service needs an explicit positive whole quantity.");
       return number;
@@ -118,7 +119,8 @@
       if (!Number.isFinite(number) || number > 1e12 || number < 0 || number === 0 && key !== "insulation_mm") throw new Error("Known dimensions must be positive finite numbers. Clear an unknown dimension instead of entering zero.");
       return number;
     }
-    const text = String(value).trim(); if (text.length > 2000) throw new Error("Physical text fields support at most 2,000 characters.");
+    const text = String(value).trim(), limit = key === "notes" ? 128000 : 2000;
+    if ((key === "notes" ? Array.from(text).length : text.length) > limit) throw new Error(key === "notes" ? "Physical notes support at most 128,000 characters." : "Physical text fields support at most 2,000 characters.");
     return text || undefined;
   }
   function changedFields(entry, key, value) {
@@ -413,7 +415,11 @@
       const commands=[{op:"create",kind:"defect",entity:{id:defectId,...assertion(copy(initial)),evidence:copy(evidence),...(annotation!==undefined?{annotation:copy(annotation)}:{})}},
         {op:"create",kind:"barrier",entity:{id:barrierId,defect_id:defectId,...assertion(copy(library.import_fields.barrier))}}];
       const memberIds=[defectId,barrierId];
-      if (library.import_fields.service) { commands.push({op:"create",kind:"service",entity:{id:serviceId,barrier_id:barrierId,...assertion(copy(library.import_fields.service)),quantity:null,library_quantity:{version:1,state:"unknown",library_id:library.id,metadata_sha256:library.metadata_sha256}}}); memberIds.push(serviceId); }
+      if (library.import_fields.service) {
+        const known = details.item_quantity !== undefined;
+        const quantity = known ? fieldValue("service", "quantity", details.item_quantity, scope()) : null;
+        commands.push({op:"create",kind:"service",entity:{id:serviceId,barrier_id:barrierId,...assertion(copy(library.import_fields.service)),quantity,...(!known ? {library_quantity:{version:1,state:"unknown",library_id:library.id,metadata_sha256:library.metadata_sha256}} : {})}}); memberIds.push(serviceId);
+      }
       if (!await perform(commands,"Import selected library draft",false,false,guard)) return;
       const links=root.CeasefireTakeoffLibraryLinks || require("./takeoff-library-links.js");
       displayReply(await bridge.libraryCommand("draft_library_assignment",{assignment:links.assignment(scope(),library,memberIds,null,details)}));
@@ -422,12 +428,33 @@
     async function confirmLibraryLink(value) {
       await completePendingEdits(); ensureAvailable(); ensureEditable();
       if (!bridge.libraryPreview || !bridge.libraryApply) throw new Error("The reviewed Firestopping Schedule link bridge is unavailable.");
-      const key=graphKey(), answer=await ask("Confirm link and quantity",[["quantity","Explicit installation quantity","number",value.confirmation?.quantity ?? value.draft_quantity ?? 1,true]],
-        `${value.library.library_id}: ${value.library.title}\n${value.members.length} explicitly selected physical members. ${value.installation.mode === "combined_installation" ? "One combined installation contributes exactly one quantity." : "Review the number of separate installations; member rows do not determine quantity."}\n\nExisting schedule inputs, manual quantity and frozen project prices remain intact. This confirms only the commercial association and your entered quantity, never physical approval or technical compliance.`,"Review schedule change");
+      const key=graphKey(), services=value.members.filter(member=>member.kind==="service").map(member=>state.index.get(member.id));
+      let source=value.quantity_source;
+      if (!source) {
+        if (services.length) source={version:1,kind:"services"};
+        else {
+          const links=root.CeasefireTakeoffLibraryLinks || require("./takeoff-library-links.js"), library=await links.record(value.library.id);
+          if (graphKey()!==key) throw new Error("The physical draft changed during quantity review.");
+          if (library.import_fields.service) throw new Error("This association has no explicit service members. Select the service records and choose a library item before transfer.");
+          source={version:1,kind:"blank_seals",quantity:value.confirmation?.quantity ?? value.draft_quantity ?? 1};
+        }
+      }
+      let derived;
+      if (source.kind==="services") {
+        if (!services.length || services.some(entry=>!entry || entry.entity.deleted || !Number.isSafeInteger(entry.entity.quantity) || entry.entity.quantity<1)) throw new Error("Enter an Explicit service quantity for every associated service in Item Details, then use Transfer or Update again.");
+        derived=value.installation.mode==="combined_installation"?1:services.reduce((total,entry)=>total+entry.entity.quantity,0);
+      } else derived=value.installation.mode==="combined_installation"?1:source.quantity;
+      const legacyCombinedSeal=!value.quantity_source && source.kind==="blank_seals" && value.installation.mode==="combined_installation";
+      const quantityFields=[["quantity","Explicit installation quantity","number",derived,true]];
+      if (legacyCombinedSeal) quantityFields.push(["seal_quantity","Explicit blank seal quantity","number",Number.isSafeInteger(source.quantity)?source.quantity:"",true]);
+      const answer=await ask("Confirm link and quantity",quantityFields,
+        `${value.library.library_id}\n${source.kind==="services" ? `Current explicit service counts: ${services.map(entry=>`${displayId(entry)} = ${entry.entity.quantity}`).join("; ")}. ${value.installation.mode === "combined_installation" ? "One combined installation contributes once." : "Separate installation quantities are added."}` : "Review the explicit blank seal count; no physical service is created."}\n\nExisting schedule inputs, manual quantity and frozen project prices remain intact. Review and confirmation are required before the schedule changes.`,"Review schedule change");
       if (!answer) return false; if (graphKey()!==key) throw new Error("The physical draft changed during commercial review.");
-      const quantity=Number(answer.quantity); if (!Number.isFinite(quantity) || quantity<=0) throw new Error("Enter a positive explicit installation quantity.");
+      const quantity=fieldValue("service","quantity",answer.quantity,scope());
+      if (legacyCombinedSeal) source.quantity=fieldValue("service","quantity",answer.seal_quantity,scope());
+      if (source.kind==="services" && quantity!==derived) throw new Error("The transfer quantity must match the current explicit service counts. Change the service quantity in Item Details, then review Transfer or Update again.");
       if (value.installation.mode === "combined_installation" && quantity !== 1) throw new Error("One explicitly combined installation has Item QTY 1. Review separate repeated installations for a larger quantity.");
-      const preview=await bridge.libraryPreview({assignment_id:value.id,quantity});
+      const preview=await bridge.libraryPreview({assignment_id:value.id,quantity,...(!value.quantity_source ? {quantity_source:source.kind==="blank_seals"?{...source,quantity:value.installation.mode==="combined_installation"?source.quantity:quantity}:source} : {})});
       if (graphKey()!==key) throw new Error("The physical draft changed before schedule confirmation.");
       const change=preview.change,fields=preview.library.import_fields;
       const confirmed=await bridge.confirm("Confirm link and quantity",`${preview.notice}\n\n${preview.library.library_id}: ${preview.library.title}\nCurrent library revision ${preview.library.revision}\nLibrary FRL: ${fields.defect.frl || "Unknown"}\nSubstrate: ${fields.barrier.substrate || "Unknown"}\nOrientation: ${fields.barrier.orientation || "Unknown"}\nService: ${fields.service?.service_type || "Not specified"}\nDiameter: ${fields.service?.diameter_mm ?? "Unknown"}; width: ${fields.service?.width_mm ?? "Unknown"}; height: ${fields.service?.height_mm ?? "Unknown"}\n\n${preview.overlapping_assignment_ids?.length ? "Warning: this explicit group shares physical members with another retained association. Review separate versus combined installations; no opening is inferred.\n" : ""}Explicit contribution: ${change.confirmed_contribution}\nSchedule row: ${change.row_id}\nQuantity: ${change.previous_quantity} → ${change.next_quantity}\nPrior contribution: ${change.prior_contribution}\nAll other existing row inputs and fixed charges remain unchanged.`,"Confirm link and quantity");
@@ -479,9 +506,43 @@
       const answer=await ask("Define installation membership",[["mode","Installation grouping",[["repeated_installations","Separate repeated installations"],["combined_installation","One explicitly combined installation"]],"repeated_installations",true],["note","Explicit installation/grouping description","textarea",""]],
         `${entries.length} selected physical members will retain their own IDs. A shared barrier never proves a common opening. Describe any combined installation explicitly; confirm its quantity separately. This association does not approve technical applicability.`,"Create draft association");
       if(!answer)return;if(graphKey()!==key)throw new Error("The physical draft changed while defining the installation group.");
-      if(answer.mode==="combined_installation" && selected.details?.draft_quantity!==1)throw new Error("One explicitly combined installation has Item QTY 1. Search again with Item QTY 1, or use separate repeated installations.");
       const installation={id:root.crypto.randomUUID(),mode:answer.mode,note:answer.note||""};
-      displayReply(await bridge.libraryCommand("draft_library_assignment",{assignment:links.assignment(scope(),selected.record,entries.map(entry=>entry.entity.id),installation,selected.details)}));
+      const proposal=links.assignment(scope(),selected.record,entries.map(entry=>entry.entity.id),installation,selected.details);
+      if (selected.record.import_fields.service) {
+        const services=entries.filter(entry=>entry.kind==="service");
+        if (!services.length) throw new Error("Select explicit service records before associating this service item. Item QTY cannot be assigned to a substrate.");
+        let quantities;
+        if (services.length===1) quantities=[fieldValue("service","quantity",selected.details.item_quantity,scope())];
+        else {
+          const counts=await ask("Review selected service quantities",services.map((entry,index)=>[`quantity_${index}`,`${displayId(entry)} quantity`,"number",entry.entity.quantity??"",true]),`Item QTY ${selected.details.item_quantity} is the total explicit service count. Enter the quantity for each selected service. A combined installation contributes once to the schedule.`,"Use service quantities");
+          if (!counts) return;
+          if (graphKey()!==key) throw new Error("The physical draft changed during service quantity review.");
+          quantities=services.map((_entry,index)=>fieldValue("service","quantity",counts[`quantity_${index}`],scope()));
+          if (quantities.reduce((total,count)=>total+count,0)!==selected.details.item_quantity) throw new Error("The selected service quantities must add up to Item QTY. Review the individual counts and choose the item again.");
+        }
+        proposal.service_quantities=services.map((entry,index)=>({id:entry.entity.id,revision:entry.entity.revision,quantity:quantities[index]}));
+      }
+      displayReply(await bridge.libraryCommand("draft_library_assignment",{assignment:proposal}));
+    }
+    const libraryRecords = new Map();
+    const librarySummaryNodes = new Map();
+    const librarySummaryPending = new Set();
+    function librarySummaryRecord(value, links) {
+      if (!links?.record) return null;
+      const key = `${value.library.id}/${value.library.metadata_sha256}`;
+      if (!libraryRecords.has(key)) {
+        libraryRecords.set(key, null);
+        librarySummaryPending.add(key);
+        void links.record(value.library.id).then(record => {
+          libraryRecords.set(key, links.matchingRecord(value, record) ? record : null);
+          if (!state.destroyed) for (const summary of librarySummaryNodes.get(key) || []) {
+            if (ui.inspector.contains(summary)) summary.textContent = links.description(value, libraryRecords.get(key)).split("\n").slice(1).join("\n");
+          }
+          librarySummaryNodes.delete(key);
+          librarySummaryPending.delete(key);
+        }).catch(() => { libraryRecords.delete(key); librarySummaryNodes.delete(key); librarySummaryPending.delete(key); /* A later explicit selection can retry unavailable metadata. */ });
+      }
+      return libraryRecords.get(key);
     }
     function renderLibraryAssignments(entries) {
       if(!bridge.libraryCommand||legacyReadOnly()||!entries.length||entries.some(entry=>entry.entity.deleted))return;
@@ -489,10 +550,16 @@
       ui.inspector.append(mutationButton("Choose library item for selected records",attachLibraryToSelected));
       for(const value of state.snapshot?.library_assignments?.records||[]){
         if(value.scope!==scope()||!value.members.some(member=>ids.has(member.id)))continue;
-        const card=node("section","takeoff-exclusion"),current=links?.status(state.snapshot,value)||value.state;
-        card.append(node("h4","",`${value.library.library_id} · Library association`),node("p","helper",links?.description(value)||value.library.title),node("p","helper",current==="needs_recheck"?"Physical context changed — reconfirm this commercial association. The current schedule remains intact.":current==="confirmed"?`Last confirmed schedule contribution: ${value.confirmation.quantity}. Current library metadata is checked before the next commercial change. Physical model remains an unapproved draft.`:"Not in the Firestopping Schedule until you confirm the link and quantity."),mutationButton("Confirm link and quantity",()=>confirmLibraryLink(value)));
-        if(value.schedule_binding)card.append(mutationButton("Remove schedule link",()=>unlinkLibrary(value)));
-        if(value.schedule_binding&&bridge.editLibraryRow)card.append(mutationButton("Edit linked schedule item and price",()=>bridge.editLibraryRow(value.schedule_binding.row_id,value.library.id)));
+        const card=node("section","takeoff-exclusion takeoff-library-summary"),record=librarySummaryRecord(value,links);
+        const description=links?.description(value,record) || `${value.library.library_id}\nService Type: Unknown\nPenetration Type: Unknown\nSubstrate: Unknown\nOrientation: Unknown\nService size: Unknown`;
+        const summary=node("p","helper",description.split("\n").slice(1).join("\n")),key=`${value.library.id}/${value.library.metadata_sha256}`;
+        if (librarySummaryPending.has(key)) {
+          if (!librarySummaryNodes.has(key)) librarySummaryNodes.set(key,new Set());
+          const waiting=librarySummaryNodes.get(key);
+          for (const old of waiting) if (!ui.inspector.contains(old)) waiting.delete(old);
+          waiting.add(summary);
+        }
+        card.append(node("h4","",value.library.library_id),summary);
         ui.inspector.append(card);
       }
     }
@@ -521,13 +588,18 @@
       if (!entry || entry.entity.deleted) throw new Error("This drawing record is no longer available. Select a current record.");
       return selectEntity(id, multiple, focus, true, openDetails);
     }
+    async function editEntity(id) {
+      await selectEntity(id, false, false, false, true); ensureAvailable();
+      if (state.selected.size === 1 && state.selected.has(id)) bridge.revealDrawing?.();
+    }
     async function viewEntity(id) {
-      await selectEntity(id, false, false, false, false); ensureAvailable();
+      await selectEntity(id, false, false, false, true); ensureAvailable();
       const entry = state.index.get(id); if (!entry || state.selected.size !== 1 || !state.selected.has(id)) throw new Error("The selected physical record changed before opening its source.");
       const lineage = [entry, ...ancestors(entry,state.index).reverse()];
       const reference = lineage.map(value => value.entity.annotation || value.entity.marker || value.entity.evidence?.[0]).find(Boolean);
-      if (!reference) { bridge.notify("No original source is linked to this record or its recorded physical parents.", false); return; }
-      return bridge.source(copy(reference));
+      if (!reference) { bridge.revealDrawing?.(); bridge.notify("No original source is linked to this record or its recorded physical parents.", false); return; }
+      await bridge.source(copy(reference));
+      if (state.selected.size === 1 && state.selected.has(id)) bridge.revealDrawing?.();
     }
     function selectedBarrier() {
       const selected = selectEntries(); if (selected.length !== 1 || selected[0].entity.deleted) return null;
@@ -788,7 +860,7 @@
         const checkbox = node("input"), selectCell = node("td"); checkbox.type = "checkbox"; checkbox.checked = state.selected.has(entity.id); checkbox.setAttribute("aria-label", `Select ${titles[kind]} ${entityName(row)}`); checkbox.addEventListener("change", () => void safe(() => selectEntity(entity.id, true))); selectCell.append(checkbox); line.append(selectCell);
         const hideCell = node("td"), hide = node("input"); hide.type = "checkbox"; hide.checked = state.hidden.has(entity.id); hide.setAttribute("aria-label", `Hide ${titles[kind]} ${entityName(row)} on drawing`);
         hide.addEventListener("change", () => void safe(() => { ensureAvailable(); hide.checked ? state.hidden.add(entity.id) : state.hidden.delete(entity.id); renderData(); })); hideCell.append(hide); line.append(hideCell);
-        const viewCell = node("td", "takeoff-physical-view-edit"), view = button("View", () => viewEntity(entity.id), "text-button"), edit = button("Edit", () => selectEntity(entity.id, false, false, false, true), "text-button");
+        const viewCell = node("td", "takeoff-physical-view-edit"), view = button("View", () => viewEntity(entity.id), "text-button"), edit = button("Edit", () => editEntity(entity.id), "text-button");
         view.title = `View ${displayId(row)} on its source drawing`; edit.title = `${legacy || entity.deleted ? "Inspect" : "Edit"} ${displayId(row)} in Item Details`; edit.setAttribute("aria-controls", "takeoff-physical-details"); viewCell.append(view, edit); line.append(viewCell);
         if (legacy) {
           const label = node("td"); if (row.hasChildren) label.append(disclosure(row));
@@ -823,15 +895,18 @@
       ui.pagination.replaceChildren(button("Previous 100 records", () => { ensureAvailable(); state.offset = Math.max(0, state.offset - 100); renderTable(); }), node("span", "helper", `${rows.length ? state.offset + 1 : 0}–${Math.min(state.offset + 100, rows.length)} of ${rows.length} visible hierarchy records. Ancestor context may repeat across pages.`), button("Next 100 records", () => { ensureAvailable(); if (state.offset + 100 < rows.length) state.offset += 100; renderTable(); }));
       bridge.viewChanged?.(rows.map(row => row.entity.id), [...state.selected], [...state.hidden]);
     }
+    function defectFor(entry) {
+      return entry?.kind === "defect" ? entry : entry && ancestors(entry, state.index).find(parent => parent.kind === "defect");
+    }
     function renderDetailNavigation() {
       const table = node("table", "takeoff-physical-navigation"), head = node("thead"), headers = node("tr"), body = node("tbody"), cells = node("tr");
       table.setAttribute("aria-label", "Item Details navigation");
       const inspected = inspectedEntry(), lineage = inspected ? [...ancestors(inspected, state.index), inspected] : [];
-      const editorKey = graphKey();
+      const editorKey = graphKey(), defect = defectFor(inspected);
       for (const kind of servicePlans() ? ["barrier", "service"] : kinds) {
         const header = node("th", "", titles[kind]); header.setAttribute("scope", "col"); headers.append(header);
         const cell = node("td"), control = node("select"); control.setAttribute("aria-label", `${titles[kind]} ID in Item Details`);
-        const entries = [...state.index.values()].filter(entry => entry.kind === kind && !entry.entity.deleted).sort((a, b) => displayId(a).localeCompare(displayId(b), "en-AU", { numeric: true }) || a.entity.id.localeCompare(b.entity.id));
+        const entries = [...state.index.values()].filter(entry => entry.kind === kind && !entry.entity.deleted && (servicePlans() || kind === "defect" || defect && !defect.entity.deleted && defectFor(entry)?.entity.id === defect.entity.id)).sort((a, b) => displayId(a).localeCompare(displayId(b), "en-AU", { numeric: true }) || a.entity.id.localeCompare(b.entity.id));
         const related = lineage.find(entry => entry.kind === kind && !entry.entity.deleted);
         const current = related && related.entity.id === inspected?.entity.id ? related.entity.id : "";
         populateSelect(control, entries.map(entry => [entry.entity.id, displayId(entry)]), current);
@@ -844,7 +919,7 @@
           if (hadPending) await completePendingEdits();
           ensureAvailable();
           const entry = state.index.get(id);
-          if (!hadPending && graphKey() !== editorKey || !entry || entry.kind !== kind || entry.entity.deleted) throw new Error("The physical draft changed. Choose a current record in Item Details.");
+          if (!hadPending && graphKey() !== editorKey || !entry || entry.kind !== kind || entry.entity.deleted || !entries.some(value => value.entity.id === id)) throw new Error("The physical draft changed. Choose a current record in Item Details.");
           await selectEntity(id);
         }));
         cell.append(control); cells.append(cell);
@@ -858,6 +933,11 @@
       ui.inspector.replaceChildren(); const selected = selectEntries(); ui.selection.textContent = `${selected.length} selected`;
       if (selected.length === 1) bridge.renderDrawingAppearance?.(ui.inspector, inspectedEntry().entity);
       ui.inspector.append(node("h3", "", "Item Details"));
+      if (!servicePlans()) {
+        const defects = [...new Map(selected.map(entry => defectFor(entry)).filter(Boolean).map(entry => [entry.entity.id, entry])).values()];
+        const defect = defectFor(inspectedEntry()) || (defects.length === 1 ? defects[0] : null);
+        ui.inspector.append(node("p", "takeoff-physical-defect-id", `Defect ID: ${defect ? displayId(defect) : defects.length > 1 ? "Multiple selected" : "—"}`));
+      }
       renderLibraryAssignments(selected);
       renderDetailNavigation();
       if (selected.length !== 1) { ui.inspector.append(node("p", "helper", selected.length ? "Select active records of one entity type for a counted, reversible bulk edit." : "Select a hierarchy row to inspect its parent, evidence and uncertainty."), inspectorActions()); return; }

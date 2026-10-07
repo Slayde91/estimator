@@ -1,4 +1,4 @@
-"""Explicit Item QTY/Location are retained draft metadata, never physical counts.
+"""Legacy draft-only Item QTY/Location retain their original saved semantics.
 
 Every database, selected library, source PDF and portable project is disposable.
 These regressions exercise real workspace transactions and audit validation.
@@ -191,7 +191,7 @@ class LibraryDraftDetailsTests(unittest.TestCase):
               (True, False, None, 0, -.125, float('inf'), float('-inf'), float('nan'),
                10**12 + 1, 10**400, '2.75', Decimal('2.75'), {}, [])),
             *({'draft_location': value} for value in (None, True, 42, .5, {}, [], 'x' * 2001, 'bad\0location', '\x1f')),
-            {'location': 'Unsupported request key'}, {'item_quantity': 2}, {'draft_location_extra': 'Unsupported request key'},
+            {'location': 'Unsupported request key'}, {'item_quantity_extra': 2}, {'draft_location_extra': 'Unsupported request key'},
         ]
         for details in invalid:
             with self.subTest(details=details), self.assertRaises(ValidationError):

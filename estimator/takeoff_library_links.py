@@ -55,6 +55,70 @@ def _quantity(value):
     return value
 
 
+def _physical_quantity(value):
+    if type(value) is not int or not 1 <= value <= 10**12:
+        raise ValidationError('Enter an explicit positive whole Item QTY of at most 1000000000000.')
+    return value
+
+
+def validate_quantity_source(value):
+    """An optional source distinguishes new physical-count links from old manual links."""
+    if not isinstance(value, dict):
+        raise ValidationError('The assignment quantity source must be structured.')
+    kind = value.get('kind')
+    _object(value, ('version', 'kind', 'quantity') if kind == 'blank_seals' else ('version', 'kind'))
+    if type(value['version']) is not int or value['version'] != 1 or kind not in ('services', 'blank_seals'):
+        raise ValidationError('Choose explicit service quantities or an explicit blank seal quantity.')
+    if kind == 'blank_seals':
+        _physical_quantity(value['quantity'])
+
+
+def assignment_quantity(snapshot, record):
+    """Resolve only recorded members; parents, images and markers never add counts."""
+    source = record.get('quantity_source')
+    if source is None:
+        return None  # Retain the reviewed commercial semantics of saved/manual links.
+    validate_quantity_source(source)
+    if source['kind'] == 'blank_seals':
+        return 1 if record['installation']['mode'] == 'combined_installation' else source['quantity']
+    graph = snapshot.get('physical' if record['scope'] == 'defect_reports' else 'service_plans') or {}
+    services = {entity['id']: entity for entity in graph.get('services', [])}
+    identifiers = [member['id'] for member in record['members'] if member['kind'] == 'service']
+    if not identifiers:
+        raise ValidationError('Select explicit service members; parent records do not infer descendant quantities.')
+    quantities = []
+    for identifier in identifiers:
+        entity = services.get(identifier)
+        if not entity or entity['deleted']:
+            raise ValidationError('An associated service is unavailable. Review the current physical members.')
+        if entity['quantity'] is None:
+            raise ValidationError('An associated service quantity is unknown. Enter its Explicit service quantity in View/Edit before Transfer or Update linked rows.')
+        quantities.append(_physical_quantity(entity['quantity']))
+    total = 1 if record['installation']['mode'] == 'combined_installation' else sum(quantities)
+    return _physical_quantity(total)
+
+
+def prepare_assigned_quantities(snapshot, proposed):
+    """Apply explicitly reviewed service counts and capture their association atomically."""
+    from .takeoff_physical_operations import prepare_changes
+    updates = proposed.get('service_quantities')
+    if updates is None:
+        return None
+    if proposed.get('quantity_source', {}).get('kind') != 'services':
+        raise ValidationError('Explicit service edits require a service quantity source.')
+    graph = snapshot.get('physical' if proposed['scope'] == 'defect_reports' else 'service_plans') or {}
+    entries = {entity['id']: entity for entity in graph.get('services', [])}
+    members = set(proposed['member_ids'])
+    commands = []
+    for update in updates:
+        entity = entries.get(update['id'])
+        if not entity or entity['deleted'] or entity['id'] not in members or entity['revision'] != update['revision']:
+            raise ValidationError('An explicitly selected service changed or is unavailable. Review its current quantity and revision.')
+        if entity['quantity'] != update['quantity']:
+            commands.append({'op': 'update', 'entity_id': entity['id'], 'changes': {'quantity': update['quantity']}})
+    return prepare_changes(snapshot, commands, lambda reference: None, scope=proposed['scope'])['graph'] if commands else None
+
+
 def validate_installation(value):
     _object(value, ('id', 'mode', 'note'))
     _id(value['id']); _text(value['note'])
@@ -97,7 +161,9 @@ def prepare_library_import(snapshot, proposed, library):
     from .takeoff_physical_operations import prepare_changes
     _object(proposed, ('version', 'scope', 'defect_id', 'defect_revision', 'selected_ids',
                       'barrier_id', 'barrier_revision', 'library_id', 'library_fingerprint',
-                      'accept_mismatch', 'ids') + tuple(key for key in ('draft_quantity', 'draft_location') if isinstance(proposed, dict) and key in proposed))
+                      'accept_mismatch', 'ids') + tuple(key for key in ('draft_quantity', 'draft_location', 'item_quantity') if isinstance(proposed, dict) and key in proposed))
+    if 'item_quantity' in proposed:
+        _physical_quantity(proposed['item_quantity'])
     if 'draft_quantity' in proposed:
         _quantity(proposed['draft_quantity'])
     if 'draft_location' in proposed:
@@ -176,10 +242,12 @@ def prepare_library_import(snapshot, proposed, library):
     service = library['import_fields']['service']
     if service is not None:
         _id(ids['service'])
-        commands.append({'op': 'create', 'kind': 'service', 'entity': {
-            'id': ids['service'], 'barrier_id': barrier_id, **assertion(service), 'quantity': None,
-            'library_quantity': {'version': 1, 'state': 'unknown', 'library_id': library['id'],
-                                 'metadata_sha256': library['metadata_sha256']}}})
+        entity = {'id': ids['service'], 'barrier_id': barrier_id, **assertion(service),
+                  'quantity': proposed.get('item_quantity')}
+        if 'item_quantity' not in proposed:
+            entity['library_quantity'] = {'version': 1, 'state': 'unknown', 'library_id': library['id'],
+                                         'metadata_sha256': library['metadata_sha256']}
+        commands.append({'op': 'create', 'kind': 'service', 'entity': entity})
     elif ids['service'] is not None:
         raise ValidationError('A selected Blank Seal does not create an active service or inferred opening.')
     if commands:
@@ -200,6 +268,9 @@ def prepare_library_import(snapshot, proposed, library):
     for key in ('draft_quantity', 'draft_location'):
         if key in proposed:
             assignment[key] = deepcopy(proposed[key])
+    if 'item_quantity' in proposed:
+        assignment['quantity_source'] = ({'version': 1, 'kind': 'services'} if service is not None else
+                                         {'version': 1, 'kind': 'blank_seals', 'quantity': proposed['item_quantity']})
     return {'graph': resulting_graph, 'commands': commands, 'assignment': assignment, 'barrier_selection': selection}
 
 
@@ -215,7 +286,9 @@ def validate_assignments(snapshot):
     ids = set(); installations = set(); member_sets = set()
     for record in collection['records']:
         _object(record, ('id', 'version', 'scope', 'installation', 'members', 'library', 'context_sha256', 'state', 'confirmation', 'schedule_binding')
-                + tuple(key for key in ('barrier_selection', 'draft_quantity', 'draft_location') if isinstance(record, dict) and key in record))
+                + tuple(key for key in ('barrier_selection', 'draft_quantity', 'draft_location', 'quantity_source') if isinstance(record, dict) and key in record))
+        if 'quantity_source' in record:
+            validate_quantity_source(record['quantity_source'])
         if 'draft_quantity' in record:
             _quantity(record['draft_quantity'])
         if 'draft_location' in record:
@@ -231,7 +304,7 @@ def validate_assignments(snapshot):
         _object(library, ('id', 'library_id', 'title', 'source_sha256', 'revision', 'metadata_sha256'))
         if not isinstance(library['id'], str) or not re.fullmatch('[a-z0-9][a-z0-9_-]{0,119}', library['id']):
             raise ValidationError('The selected library ID is invalid.')
-        _text(library['library_id'], 200); _text(library['title']); _revision(library['revision'])
+        _text(library['library_id'], 200); _text(library['title'], 10000); _revision(library['revision'])
         _hash(library['source_sha256']); _hash(library['metadata_sha256']); _hash(record['context_sha256'])
         if 'barrier_selection' in record:
             validate_barrier_selection(record['barrier_selection'])
@@ -249,6 +322,10 @@ def validate_assignments(snapshot):
             if member['kind'] not in ('defect', 'barrier', 'service') or member['id'] in members:
                 raise ValidationError('Assignment members must have unique typed identities.')
             members.add(member['id'])
+        if record.get('quantity_source', {}).get('kind') == 'services' and not any(member['kind'] == 'service' for member in record['members']):
+            raise ValidationError('A service quantity source requires explicit service members, not inferred descendants.')
+        if record.get('quantity_source', {}).get('kind') == 'blank_seals' and any(member['kind'] == 'service' for member in record['members']):
+            raise ValidationError('An explicit blank seal quantity cannot count associated services.')
         if 'barrier_selection' in record:
             selection = record['barrier_selection']
             captured = {member['id']: member for member in record['members']}
@@ -269,6 +346,10 @@ def validate_assignments(snapshot):
                 raise ValidationError('The confirmed association must retain its exact physical and library context fingerprints.')
             if record['installation']['mode'] == 'combined_installation' and confirmation['quantity'] != 1:
                 raise ValidationError('One explicitly combined installation contributes one quantity.')
+            if (record.get('quantity_source', {}).get('kind') == 'blank_seals'
+                    and record['installation']['mode'] == 'repeated_installations'
+                    and confirmation['quantity'] != record['quantity_source']['quantity']):
+                raise ValidationError('The retained blank seal confirmation must match its explicit seal quantity.')
         if binding is not None:
             _object(binding, ('row_id', 'quantity'))
             _text(binding['row_id'], 200); _quantity(binding['quantity'])
@@ -318,7 +399,20 @@ def member_context(snapshot, scope, identifiers, installation):
 
 def validate_proposal(proposed):
     _object(proposed, ('id', 'scope', 'library_id', 'library_fingerprint', 'member_ids', 'installation')
-            + tuple(key for key in ('draft_quantity', 'draft_location') if isinstance(proposed, dict) and key in proposed))
+            + tuple(key for key in ('draft_quantity', 'draft_location', 'quantity_source', 'service_quantities') if isinstance(proposed, dict) and key in proposed))
+    if 'quantity_source' in proposed:
+        validate_quantity_source(proposed['quantity_source'])
+    if 'service_quantities' in proposed:
+        updates = proposed['service_quantities']
+        if not isinstance(updates, list) or not 1 <= len(updates) <= MAX_MEMBERS:
+            raise ValidationError('Review one to 100 explicit service quantity edits.')
+        identifiers = set()
+        for update in updates:
+            _object(update, ('id', 'revision', 'quantity'))
+            _id(update['id']); _revision(update['revision']); _physical_quantity(update['quantity'])
+            if update['id'] in identifiers:
+                raise ValidationError('Explicit service quantity edits must have distinct identities.')
+            identifiers.add(update['id'])
     if 'draft_quantity' in proposed:
         _quantity(proposed['draft_quantity'])
     if 'draft_location' in proposed:
@@ -349,9 +443,12 @@ def create_assignment(snapshot, proposed, library, *, barrier_selection=None):
     captured = {k: deepcopy(library[k]) for k in ('id', 'library_id', 'title', 'source_sha256', 'revision', 'metadata_sha256')}
     collection['records'].append({'id': proposed['id'], 'version': 1, 'scope': proposed['scope'], 'installation': deepcopy(proposed['installation']),
         'members': members, 'library': captured, 'context_sha256': context, 'state': 'draft', 'confirmation': None, 'schedule_binding': None})
-    for key in ('draft_quantity', 'draft_location'):
+    for key in ('draft_quantity', 'draft_location', 'quantity_source'):
         if key in proposed:
             collection['records'][-1][key] = deepcopy(proposed[key])
+    source = proposed.get('quantity_source')
+    if source is not None and (source['kind'] == 'blank_seals') != (library['import_fields']['service'] is None):
+        raise ValidationError('A selected service item requires service quantities; only a selected Blank Seal can retain a blank seal count.')
     if barrier_selection is not None:
         collection['records'][-1]['barrier_selection'] = deepcopy(barrier_selection)
     validate_assignments(snapshot)
@@ -426,6 +523,15 @@ def validate_history(event):
             raise ValidationError('The original explicit barrier selection and mismatch review must remain unchanged.')
         if any(prior.get(key) != current.get(key) for key in ('draft_quantity', 'draft_location')):
             raise ValidationError('The originally entered draft item details must remain unchanged.')
+        prior_source, current_source = prior.get('quantity_source'), current.get('quantity_source')
+        if prior_source != current_source:
+            if (event['op'] != 'apply_library_link' or current_source is None
+                    or current['state'] != 'confirmed' or current['confirmation'] is None
+                    or (prior_source is not None and (prior_source['kind'] != 'blank_seals'
+                        or current_source['kind'] != prior_source['kind']))):
+                raise ValidationError('A quantity source can be adopted or its blank seal count changed only by an explicit reviewed schedule transaction.')
+            if assignment_quantity(after, current) != current['confirmation']['quantity']:
+                raise ValidationError('The reviewed quantity source must match its exact current physical contribution.')
         if prior != current and current['version'] <= prior['version']:
             raise ValidationError('Edited library assignments require an increasing retained version.')
         if event['op'] != 'apply_library_link':
@@ -434,7 +540,7 @@ def validate_history(event):
                 raise ValidationError('A commercial contribution can change only through its reviewed schedule transaction.')
 
 
-def confirmation_preview(snapshot, assignment_id, quantity, draft, library, configuration, operation='confirm'):
+def confirmation_preview(snapshot, assignment_id, quantity, draft, library, configuration, operation='confirm', quantity_source=None):
     from .penetration_calculator import normalize_draft, definition
     from .takeoff_model import digest
     _id(assignment_id)
@@ -447,6 +553,25 @@ def confirmation_preview(snapshot, assignment_id, quantity, draft, library, conf
     record = next((r for r in snapshot.get('library_assignments', {}).get('records', []) if r['id'] == assignment_id), None)
     if record is None:
         raise ValidationError('Select a retained library assignment.')
+    source = deepcopy(record.get('quantity_source'))
+    if quantity_source is not None:
+        if operation != 'confirm':
+            raise ValidationError('Unlink preserves the retained physical quantity source.')
+        validate_quantity_source(quantity_source)
+        if source is not None and source['kind'] != quantity_source['kind']:
+            raise ValidationError('The retained assignment quantity source cannot change kinds.')
+        source = deepcopy(quantity_source)
+    if source is not None and operation == 'confirm':
+        if (source['kind'] == 'blank_seals') != (library['import_fields']['service'] is None):
+            raise ValidationError('Review a service item with explicit service members, or a Blank Seal with its explicit seal count.')
+        if source['kind'] == 'blank_seals' and record['installation']['mode'] == 'repeated_installations' and quantity_source is None:
+            # The review explicitly edits this seal count; it never creates a service.
+            source['quantity'] = _physical_quantity(quantity)
+        derived = assignment_quantity(snapshot, {**record, 'quantity_source': source})
+        if quantity != derived or type(quantity) is not int:
+            raise ValidationError(f'Transfer or Update must use the current explicit physical quantity ({derived}). Review the current service or blank seal counts.')
+    else:
+        derived = None
     if operation == 'confirm' and record['installation']['mode'] == 'combined_installation' and quantity != 1:
         raise ValidationError('Review one quantity for this explicit combined installation.')
     if operation == 'confirm':
@@ -495,6 +620,8 @@ def confirmation_preview(snapshot, assignment_id, quantity, draft, library, conf
         rows.append(row); current = 0; proposed = quantity; action = 'insert'
     normalize_draft(output)
     updated = deepcopy(record)
+    if source is not None:
+        updated['quantity_source'] = source
     updated.update(version=record['version']+1, members=members, context_sha256=context, state='confirmed',
         library={k:deepcopy(library[k]) for k in record['library']},
         confirmation={'quantity':quantity, 'context_sha256':context, 'library_sha256':library['metadata_sha256']},
@@ -508,4 +635,5 @@ def confirmation_preview(snapshot, assignment_id, quantity, draft, library, conf
         if r['id'] != record['id'] and r['scope'] == record['scope'] and set(m['id'] for m in r['members']) & set(m['id'] for m in record['members'])]
     return {'assignment':updated, 'draft':output, 'base_fingerprint':digest({'draft':draft,'configuration':configuration}),
         'change':{'action':action,'operation':operation,'row_id':row['id'],'library_id':library['id'],'previous_quantity':current,'next_quantity':proposed,'prior_contribution':old,'confirmed_contribution':quantity},
-        'library':deepcopy(library), 'overlapping_assignment_ids':overlaps, 'source_sha256':definition(configuration)['source_sha256']}
+        'library':deepcopy(library), 'overlapping_assignment_ids':overlaps, 'source_sha256':definition(configuration)['source_sha256'],
+        **({'derived_quantity': derived, 'quantity_source': deepcopy(source)} if source is not None and operation == 'confirm' else {})}

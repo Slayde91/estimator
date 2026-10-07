@@ -493,6 +493,23 @@ class FirestoppingLibrary(ReferenceLibrary):
         item['fields'].insert(position, service_size_field(inputs))
 
     @staticmethod
+    def _takeoff_display_fields(item, inputs=None):
+        """Literal display projection; no title parsing or calculator changes."""
+        columns = {'service_type': 'K', 'penetration_type': 'L', 'substrate': 'P',
+                   'orientation': 'M', 'frl': 'N'}
+        if inputs is not None:
+            values = {key: inputs.get(column) for key, column in columns.items()}
+            values['service_size'] = service_size_field(inputs)['value']
+        else:
+            fields = item.get('fields', [])
+            values = {key: next((field.get('value') for field in fields
+                                if field.get('column') == column), '')
+                      for key, column in columns.items()}
+            values['service_size'] = next((field.get('value') for field in fields
+                                           if field.get('label') == FIELD_LABEL), '')
+        return {key: '' if value is None else str(value) for key, value in values.items()}
+
+    @staticmethod
     def _apply_edit(item, edit):
         inputs = edit['draft']['rows'][0]['inputs']
         presentation_inputs = dict(inputs)
@@ -643,6 +660,18 @@ class FirestoppingLibrary(ReferenceLibrary):
                     for name, count in sorted(manufacturers.items(), key=lambda entry: (
                         entry[0] == 'Not recorded', entry[0].casefold()))
                 ]
+                base = super()._load()
+                created, saved = self.edits.created(), self.edits.all()
+                for item in result['items']:
+                    own = created.get(item['id'])
+                    original = own['item'] if own else base['_records']['penetration'][item['id']]
+                    source = own['source_sha256'] if own else self._source_hash(base)
+                    edit = saved.get(item['id'])
+                    draft = (edit['draft'] if edit and edit['source_sha256'] == source else
+                             original.get('estimate', {}).get('draft', {}))
+                    rows = draft.get('rows', [])
+                    item['display_fields'] = self._takeoff_display_fields(
+                        original, rows[0].get('inputs', {}) if rows else None)
                 self._effective_prices(result['items'])
             return result
 
@@ -912,6 +941,7 @@ class FirestoppingLibrary(ReferenceLibrary):
                       'source_sha256': source['source_sha256'], 'revision': revision,
                       'inputs': inputs}
             record['metadata_sha256'] = digest(record)
+            record['display_fields'] = self._takeoff_display_fields(item, inputs)
             clean = lambda value: str(value) if value is not None else ''
             labels = {'J': 'Category', 'K': 'Service type', 'L': 'Penetration type', 'M': 'Orientation',
                       'N': 'FRL', 'P': 'Substrate', 'Q': 'Application', 'R': 'Installation',
@@ -920,8 +950,11 @@ class FirestoppingLibrary(ReferenceLibrary):
                            if field.get('column') in labels and field.get('label')})
             note = '\n'.join(f'{labels[column]}: {clean(inputs[column])}' for column in labels
                              if inputs.get(column) not in (None, ''))
-            if len(note) > 2000 or len(record['title']) > 2000:
-                raise ValidationError('The selected library description exceeds the physical draft text bound. Its original data was preserved; shorten the saved item description before importing.')
+            # Eleven calculator strings (at most 10,000 characters each), plus
+            # their bounded literal source labels, fit within physical Notes.
+            # Do not shorten supplier/saved text or change its fingerprint.
+            if len(note) > 128000 or len(record['title']) > 10000:
+                raise ValidationError('The selected library text exceeds the retained draft text limit. Its original data was preserved; no physical records were created.')
             fields = {'defect': {'label': record['library_id'], 'frl': clean(inputs.get('N')), 'notes': note},
                       'barrier': {'substrate': clean(inputs.get('P')), 'orientation': clean(inputs.get('M')), 'notes': note},
                       'service': None}

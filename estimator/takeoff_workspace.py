@@ -891,10 +891,15 @@ class TakeoffService:
             regrouped_item_ids = None
             created_annotation_id = None
             if op == 'draft_library_assignment':
-                from .takeoff_library_links import create_assignment, validate_proposal
+                from .takeoff_library_links import create_assignment, validate_proposal, prepare_assigned_quantities
                 self._physical_gate(session_id, before)
                 validate_proposal(request['assignment'])
                 library = self._selected_library(request['assignment']['library_id'])
+                prepared = prepare_assigned_quantities(before, request['assignment'])
+                if prepared is not None:
+                    self._physical_editable(before, request['assignment']['scope'])
+                    after[scope_key(request['assignment']['scope'])] = prepared
+                    self._validate_physical_links(session_id, after)
                 create_assignment(after, request['assignment'], library)
             elif op in ('create_annotation', 'update_annotation', 'delete_annotation'):
                 from .takeoff_annotations import apply_annotation
@@ -1683,7 +1688,7 @@ class TakeoffService:
             keys = {'version', 'scope', 'defect_id', 'defect_revision', 'selected_ids',
                     'barrier_id', 'barrier_revision', 'library_id', 'library_fingerprint',
                     'accept_mismatch', 'ids'}
-            object_fields(proposed, keys | {'draft_quantity', 'draft_location'}, 'Selected library import', keys)
+            object_fields(proposed, keys | {'draft_quantity', 'draft_location', 'item_quantity'}, 'Selected library import', keys)
             if not isinstance(proposed['library_id'], str) or not 1 <= len(proposed['library_id']) <= 120:
                 raise ValidationError('Choose a valid selected library item.')
             session, prior = self._start(session_id, request)
@@ -1737,11 +1742,13 @@ class TakeoffService:
         return self._selected_library(assignment['library']['id'])
 
     def preview_library_link(self, session_id, request):
-        from .takeoff_library_links import confirmation_preview
+        from .takeoff_library_links import confirmation_preview, validate_quantity_source
         from .catalog import validate_configuration
         with self._lock, self._library_lock():
             fields = {'expected_revision', 'assignment_id', 'quantity', 'draft', 'configuration'}
-            object_fields(request, fields | {'operation'}, 'Commercial library link preview', fields)
+            object_fields(request, fields | {'operation', 'quantity_source'}, 'Commercial library link preview', fields)
+            if 'quantity_source' in request:
+                validate_quantity_source(request['quantity_source'])
             snapshot = self._session(session_id)['snapshot']
             if type(request['expected_revision']) is not int or request['expected_revision'] != snapshot['revision']:
                 raise ValidationError('The takeoff draft changed before the commercial link review.')
@@ -1752,13 +1759,14 @@ class TakeoffService:
             operation = request.get('operation', 'confirm')
             library = self._library_transaction_context(assignment, operation)
             configuration = validate_configuration(request['configuration'])
-            result = confirmation_preview(snapshot, request['assignment_id'], request['quantity'], request['draft'], library, configuration, operation)
+            result = confirmation_preview(snapshot, request['assignment_id'], request['quantity'], request['draft'], library, configuration, operation, request.get('quantity_source'))
             # Fingerprint exactly what the browser captured, including prices.
             result['base_fingerprint'] = digest({'draft': request['draft'], 'configuration': request['configuration']})
             preview_id = str(uuid4())
             self._cache_payload(session_id, 'previews', preview_id,
                 {'kind': 'library', 'revision': snapshot['revision'], 'result': result,
-                 'configuration': configuration, 'quantity': request['quantity'], 'operation': operation})
+                 'configuration': configuration, 'quantity': request['quantity'], 'operation': operation,
+                 'quantity_source': deepcopy(request.get('quantity_source'))})
             session = self._session(session_id)
             if len(session['previews']) > 20:
                 session['previews'].pop(next(iter(session['previews'])))
@@ -1783,7 +1791,7 @@ class TakeoffService:
                 raise ValidationError('The Firestopping Schedule or frozen project prices changed during review. All current values were preserved; preview again.')
             before = session['snapshot']; self._physical_gate(session_id, before)
             library = self._library_transaction_context(result['assignment'], cached['operation'])
-            refreshed = confirmation_preview(before, result['assignment']['id'], cached['quantity'], request['draft'], library, cached['configuration'], cached['operation'])
+            refreshed = confirmation_preview(before, result['assignment']['id'], cached['quantity'], request['draft'], library, cached['configuration'], cached['operation'], cached.get('quantity_source'))
             refreshed['base_fingerprint'] = result['base_fingerprint']
             if digest(refreshed) != digest(result):
                 raise ValidationError('The library metadata or physical context changed. Nothing was applied; reconfirm the current association.')

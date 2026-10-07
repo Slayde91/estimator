@@ -627,6 +627,11 @@
         return window.CeasefirePenetrations.editScheduleRow(rowId, libraryId);
       },
       renderDrawingAppearance: renderPhysicalAppearance,
+      revealDrawing: () => {
+        if (state.mode !== "physical") return;
+        setPhysicalDetailsOpen(true); state.ui.physicalDetails.scrollTop = 0;
+        revealDrawingPanel(state.ui.viewport, true);
+      },
       selectionChanged: ({ selected, openDetails = true }) => { if (openDetails && state.mode === "physical") setPhysicalDetailsOpen(selected.length > 0); },
       fieldOptions: async () => {
         const configuration = clone(window.CeasefireProject?.configuration?.() || { inventory: {}, rates: {} });

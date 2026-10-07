@@ -241,16 +241,25 @@ the real refinement callback between native input and Tab to verify this orderin
 Penetrations Add Defect offers Search Item and New Item. Explicit library selection
 imports literal supported fields into ordinary unapproved Defect/Barrier/Service
 records and creates stable typed IDs. No candidate ranking or automatic matching
-is performed. Imported service quantities stay unknown under the separately
-validated version 1 `library_quantity` descriptor; ordinary manually created
-services still require an explicit positive integer. An explicit quantity edit
-removes the unknown descriptor. Neither its marker nor its library template
-creates a physical quantity or a calculator transfer.
+is performed. Item QTY is an explicit positive whole service count, stored on the
+new service rather than inferred from its template or marker. Legacy imported
+services retain their unknown version 1 `library_quantity` descriptor until an
+explicit quantity edit removes it. Blank seals have an explicit seal count and
+create no physical service. Selection alone never changes the schedule.
 The project-owned `library_assignments={version:1,records:[...]}`
 collection records explicit physical members and revisions, an installation ID
 and mode, library source/revision/metadata fingerprints, context, commercial
 confirmation and schedule binding. A shared barrier never establishes a combined
 opening; a combined assignment requires its own explicit installation description.
+New associations record a version 1 `quantity_source`: `services` sums only
+distinct explicitly associated service quantities for repeated installations;
+`blank_seals` retains its explicit whole count. Combined installations contribute
+once. Unknown service quantities must be entered before Transfer or Update.
+Saved associations without a source retain their history. The UI adopts the
+explicit source only through a reviewed schedule preview/apply transaction.
+Direct Service Plans association can atomically apply individually reviewed
+`service_quantities` bound to selected IDs and revisions; descendants are never
+inferred. Original draft item details remain historical and immutable.
 
 Only the separate commercial link/quantity confirmation writes a Firestopping
 Schedule row. Preview binds the exact Takeoffs revision, member/parent context,
@@ -267,7 +276,12 @@ Removing a confirmed link uses the same reviewed transaction and subtracts only
 its retained contribution, preserving other links and the schedule row's manual
 inputs even when the remaining quantity is zero. Takeoff-only Undo is blocked for
 commercial link transactions; coordinated reconfirmation/removal remains available
-in Item Details. Ordinary physical and free-annotation edits retain their undo.
+through the register Transfer, Update and Unlink controls. Ordinary physical and
+free-annotation edits retain their undo. Item Details presents the relevant Defect
+ID, its own Barrier/Service choices, and a concise fingerprint-matched library
+summary. Long original library descriptions remain lossless: notes allow at most
+128,000 Unicode characters, captured library titles 10,000, ordinary text fields
+2,000, while the existing aggregate text, request and saved-project limits remain.
 
 AI Phases 5/6, Physical Model Lock and automatic Firestopping matching remain
 outside this increment. Release receipts establish publication and live activation.
@@ -285,7 +299,8 @@ The atomic `import_library_item` command binds the current graph, Defect and
 chosen Barrier revision to the current library metadata. New barriers adopt only
 literal library fields; `L` supplies the retained penetration type, `P` substrate
 and `M` orientation. It creates a service only when the explicit template supplies
-one, using the existing unknown-quantity descriptor. Existing barriers retain
+one, using the explicitly entered Item QTY (legacy requests without that field
+retain the unknown-quantity descriptor). Existing barriers retain
 every original field, marker and evidence byte. Field conflicts require an
 explicit Continue decision recorded in versioned `barrier_selection` provenance;
 Cancel returns to library search without mutating graph, IDs or assignments.

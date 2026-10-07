@@ -906,7 +906,9 @@
       for (const kind of servicePlans() ? ["barrier", "service"] : kinds) {
         const header = node("th", "", titles[kind]); header.setAttribute("scope", "col"); headers.append(header);
         const cell = node("td"), control = node("select"); control.setAttribute("aria-label", `${titles[kind]} ID in Item Details`);
-        const entries = [...state.index.values()].filter(entry => entry.kind === kind && !entry.entity.deleted && (servicePlans() || kind === "defect" || defect && !defect.entity.deleted && defectFor(entry)?.entity.id === defect.entity.id)).sort((a, b) => displayId(a).localeCompare(displayId(b), "en-AU", { numeric: true }) || a.entity.id.localeCompare(b.entity.id));
+        // Legacy barriers precede defects. Keep their original read-only navigation
+        // without interpreting that retained topology as the current hierarchy.
+        const entries = [...state.index.values()].filter(entry => entry.kind === kind && !entry.entity.deleted && (legacyReadOnly() || servicePlans() || kind === "defect" || defect && !defect.entity.deleted && defectFor(entry)?.entity.id === defect.entity.id)).sort((a, b) => displayId(a).localeCompare(displayId(b), "en-AU", { numeric: true }) || a.entity.id.localeCompare(b.entity.id));
         const related = lineage.find(entry => entry.kind === kind && !entry.entity.deleted);
         const current = related && related.entity.id === inspected?.entity.id ? related.entity.id : "";
         populateSelect(control, entries.map(entry => [entry.entity.id, displayId(entry)]), current);

@@ -343,6 +343,14 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
     await h.select(3);const inspector=h.all().find(element=>element.tagName==='ASIDE');assert.deepEqual(inspector.querySelectorAll('input,select,textarea').map(control=>control.attributes['aria-label']),['Defect ID in Item Details','Barrier ID in Item Details','Service ID in Item Details']);assert.ok(inspector.textContent.includes('Opening type: Corehole'));assert.ok(!inspector.textContent.includes('Legacy opening evidence'));assert.equal(value.openings[0].evidence[0].note,'Legacy opening evidence');
     for(const label of ['Preview physical edits','Delete draft record','Change physical parent','Remove source association'])assert.ok(!h.all().some(element=>element.tagName==='BUTTON'&&(element.textContent===label||element.attributes['aria-label']===label)));
     assert.equal(h.button('Discard unfinished physical edits').parentElement.parentElement,inspector);assert.equal(h.button('Discard unfinished physical edits').disabled,false);
+    // Authentic pre-v2 records have a root Barrier and an intervening Opening.
+    // Inspecting them must stay possible without rewriting that original topology.
+    for(const [label,id] of [['Defect',2],['Barrier',1],['Service',5]]){
+      const control=h.input(`${label} ID in Item Details`);assert.equal(control.disabled,false,label);assert.ok(optionsOf(control).includes(uuid(id)),label);
+      control.value=uuid(id);control.emit('change');await flush();assert.deepEqual(h.controller.selection(),[uuid(id)]);
+      assert.deepEqual(inspector.querySelectorAll('input,select,textarea').map(field=>field.attributes['aria-label']),['Defect ID in Item Details','Barrier ID in Item Details','Service ID in Item Details']);
+      assert.deepEqual(h.current.physical,original);assert.equal(h.calls.previews.length,0);assert.equal(h.calls.applied.length,0);
+    }
     // Even a programmatically delivered event on a disabled mutation button cannot reach the bridge.
     await h.click('Add defect');assert.equal(h.calls.previews.length,0);assert.equal(h.calls.applied.length,0);assert.ok(h.calls.notifications.at(-1).text.includes('read-only'));
     assert.ok(!h.all().some(node=>node.attributes?.['aria-label']==='Export draft CSV'));assert.deepEqual(h.calls.exports,[]);assert.deepEqual(h.current.physical,original);h.controller.destroy();

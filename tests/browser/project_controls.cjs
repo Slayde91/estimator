@@ -75,7 +75,8 @@ async function drop(name,content,eventName = 'drop') {
           const button = element.getBoundingClientRect(), svg = element.querySelector('svg').getBoundingClientRect(), status = document.getElementById('project-attachment-status');
           return {width:button.width,height:button.height,text:element.textContent.trim(),svgWidth:svg.width,svgHeight:svg.height,slotWidth:element.parentElement.getBoundingClientRect().width,statusClip:getComputedStyle(status).clip,statusWidth:status.getBoundingClientRect().width,buttonRight:button.right,viewport:innerWidth,pageWidth:document.documentElement.scrollWidth};
         });
-        assert.equal(geometry.width,width <= 570 ? 44 : 48); assert.equal(geometry.height,width <= 570 ? 44 : 48); assert.equal(geometry.text,'');
+        const actionSize = width <= 420 ? 40 : width <= 570 ? 44 : 48;
+        assert.equal(geometry.width,actionSize); assert.equal(geometry.height,actionSize); assert.equal(geometry.text,'');
         assert.equal(geometry.svgWidth,24); assert.equal(geometry.svgHeight,24); assert.equal(geometry.statusWidth,1);
         assert.equal(geometry.statusClip,'rect(0px, 0px, 0px, 0px)');
         assert.ok(geometry.buttonRight <= width); assert.ok(geometry.pageWidth <= width);

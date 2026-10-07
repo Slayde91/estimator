@@ -113,7 +113,7 @@
     fields: [], currentFields: [], inputs: {}, catalog: { inventory: [], rate_groups: {} }, baseline: { inventory: [], rate_groups: {} },
     configuration: { inventory: {}, rates: {} }, draft: { inventory: {}, rates: {} },
     quote: null, quoteConfiguration: null, quoteContext: 0, quoteLoadRevision: 0, dirty: false, pricingDirty: false,
-    result: null, revision: 0, timer: null, controller: null, pricingExpanded: new Set(), legacyTitle: "",
+    result: null, revision: 0, timer: null, controller: null, pricingExpanded: new Set(), inputSections: new Map(), legacyTitle: "",
     workflow: "", defaultWorkflow: "Intumescent spray to ductwork", inputErrors: new Map(), inputDrafts: new Map(), inputRevision: 0, projectBusy: false,
     pricingScope: "library", libraryDraft: null, projectPricingDraft: null, pricingRevision: 0,
     projectFile: null, projectsRevision: 0, initialized: false, currentView: "home", projectsOffset: 0, projectsTimer: null, desktopRequests: 0,
@@ -306,6 +306,11 @@
     const status = $("project-save-state");
     status.textContent = state.projectBusy ? "Working…" : changed ? "Unsaved changes" : file ? "Saved project" : "Not saved to a file";
     status.classList.toggle("unsaved", changed || !file);
+    const projectName = $("header-project-name");
+    if (projectName) {
+      const title = typeof file?.title === "string" ? file.title.trim() : "";
+      projectName.textContent = title; projectName.title = title; projectName.hidden = !title;
+    }
     $("project-file-location").textContent = file?.path || file?.relative_path || (file ? "Imported file · choose a folder with Save" : "Choose a folder with Save");
     const savedAt = file?.modified_at ? new Date(file.modified_at) : null;
     $("project-last-saved").textContent = savedAt && !Number.isNaN(savedAt.getTime()) ? `File saved ${savedAt.toLocaleString("en-AU")}` : "File save time unavailable";
@@ -485,9 +490,11 @@
     tr.append(actions); return tr;
   }
 
-  function inputCard(title, fields, helper) {
+  function inputCard(key, title, fields, helper) {
     if (!fields.length) return null;
     const section = node("details", "card expandable-breakdown");
+    section.dataset.inputSection = key;
+    section.open = state.inputSections.get(key) ?? false;
     const heading = node("summary");
     const h2 = node("h2", "", title);
     h2.id = `section-${fields[0].cell}`;
@@ -506,6 +513,9 @@
     const after = $("adjustment-sections");
     const materials = $("material-inputs");
     const project = $("project-input-fields");
+    for (const container of [before, postMaterials, after]) {
+      for (const section of container.querySelectorAll("details[data-input-section]")) state.inputSections.set(section.dataset.inputSection, section.open);
+    }
     before.replaceChildren(); postMaterials.replaceChildren(); after.replaceChildren(); materials.replaceChildren(); project.replaceChildren();
     const job = [], labour = [], masking = [], adjustments = [], additions = [], remainder = [];
     for (const field of state.fields) {
@@ -521,20 +531,20 @@
       else remainder.push(field);
     }
     const maskingActive = String(state.inputs.D7 ?? "").trim().toLowerCase() !== "n/a";
-    for (const card of [inputCard("Access & Travel", job), inputCard("Teams/Crews", labour)]) if (card) before.append(card);
-    const maskingCard = maskingActive ? inputCard("Masking/Cleaning", masking) : null;
+    for (const card of [inputCard("access-travel", "Access & Travel", job), inputCard("teams-crews", "Teams/Crews", labour)]) if (card) before.append(card);
+    const maskingCard = maskingActive ? inputCard("masking-cleaning", "Masking/Cleaning", masking) : null;
     if (maskingCard) postMaterials.append(maskingCard);
     for (let row = 15; row <= 23; row++) {
       materials.append(renderMaterialRow(row));
       for (const item of state.workItems.filter(item => item.source_row === row)) materials.append(renderMaterialRow(row, item));
     }
     updateMaterialRowVisibility();
-    const additionCard = inputCard("Additions", additions);
+    const additionCard = inputCard("additions", "Additions", additions);
     additionCard?.querySelector(".fields").classList.add("two-columns");
     for (const card of [
-      inputCard("Global Adjustments", adjustments, "Percentage inputs are shown as percentages: enter 10 for 10%. A negative global amount deducts from the quote."),
+      inputCard("global-adjustments", "Global Adjustments", adjustments, "Percentage inputs are shown as percentages: enter 10 for 10%. A negative global amount deducts from the quote."),
       additionCard,
-      inputCard("Other estimate inputs", remainder),
+      inputCard("other-inputs", "Other estimate inputs", remainder),
     ]) if (card) after.append(card);
     validateCoverageTeams();
     if ([...state.inputErrors.values()].includes("Select Teams")) showInputProblems();
@@ -1905,7 +1915,7 @@
       state.inputErrors.clear(); state.inputDrafts.clear(); state.workItemErrors.clear(); state.workItemDrafts.clear();
       state.quote = null; state.quoteConfiguration = configuration; state.fields = fields; state.inputs = inputs;
       state.workItems = clone(estimate.work_items || []); state.nextWorkItem = state.workItems.length + 1;
-      state.projectFile = file; resetProjectPricing("project");
+      state.projectFile = { ...file, title: estimate.title }; resetProjectPricing("project");
       state.legacyTitle = [estimate.project_no, estimate.client, estimate.site_address].some(Boolean) ? "" : estimate.title || "";
       $("project-no").value = estimate.project_no || ""; $("client").value = estimate.client || ""; $("site-address").value = estimate.site_address || "";
       state.workflow = estimate.workflow; $("measurements").value = estimate.measurements || "";

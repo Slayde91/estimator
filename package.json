@@ -3,6 +3,7 @@
   "private": true,
   "scripts": {
     "test:header-controls": "node tests/browser/header_controls.cjs",
+    "test:estimator-header-state": "node tests/browser/estimator_header_state.cjs",
     "test:viewer-pan-scale": "node tests/browser/viewer_pan_scale.cjs",
     "test:calculator-navigation": "node tests/browser/calculator_navigation.cjs",
     "test:calculator-cleanup": "node tests/browser/calculator_cleanup.cjs",

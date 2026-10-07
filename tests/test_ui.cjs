@@ -13,7 +13,7 @@ function element(tag='div') {
     append(...children){this.children.push(...children);this.options=this.children;children.forEach(child=>{if(child&&typeof child==='object')child.parent=this;});},
     replaceChildren(...children){this.children=[];this.append(...children);},
     querySelector(selector){if(selector==='[data-sell-preview]'){const find=node=>node.dataset?.sellPreview?node:(node.children||[]).map(find).find(Boolean);return this.children.map(find).find(Boolean)||null;}if(!this.parts.has(selector))this.parts.set(selector,element());return this.parts.get(selector);},
-    querySelectorAll(selector){const match=selector.match(/^\[data-([a-z-]+)\]$/),key=match?.[1].replace(/-([a-z])/g,(_,letter)=>letter.toUpperCase()),found=[];const walk=node=>{if(key&&node.dataset?.[key]!==undefined)found.push(node);for(const child of node.children||[])walk(child);};for(const child of this.children)walk(child);return found;},
+    querySelectorAll(selector){const match=selector.match(/^(?:([a-z]+))?\[data-([a-z-]+)\]$/),key=match?.[2].replace(/-([a-z])/g,(_,letter)=>letter.toUpperCase()),found=[];const walk=node=>{if(key&&node.dataset?.[key]!==undefined&&(!match[1]||node.tagName===match[1]))found.push(node);for(const child of node.children||[])walk(child);};for(const child of this.children)walk(child);return found;},
     contains(target){if(this===target)return true;return this.children.some(child=>child&&typeof child==='object'&&child.contains?.(target));},
     closest(selector){for(let current=this;current;current=current.parent)if(current.tagName===selector)return current;return this.querySelector(`parent:${selector}`);},
     showModal(){assert.ok(!this.open);this.open=true;},
@@ -664,9 +664,16 @@ let passed=0;
   assert.match(html,/<dialog id="notice-dialog"[^>]*>[\s\S]*?<button id="notice-button"[^>]*>OK<\/button>[\s\S]*?<\/dialog>/);
   assert.doesNotMatch(html,/<dialog id="notice-dialog"[^>]*>[\s\S]*?notice-cancel/);
   for(const section of [...byId('input-sections').children,...byId('post-material-input-sections').children,...byId('adjustment-inputs').children]) {
-    assert.equal(section.tagName,'details');assert.equal(section.open,undefined);
+    assert.equal(section.tagName,'details');assert.equal(section.open,false);
   }
   passed++;
+
+  // Rebuilding conditional masking controls retains mixed disclosure states and exact inputs.
+  const sectionFor=key=>[...byId('input-sections').children,...byId('post-material-input-sections').children,...byId('adjustment-sections').children].find(section=>section.dataset.inputSection===key);
+  sectionFor('teams-crews').open=true;sectionFor('access-travel').open=false;
+  const exactInputs=copy(audit.state.inputs),dirtyBeforeDisclosure=audit.state.dirty,scheduledBeforeDisclosure=context.scheduled;
+  audit.renderInputs();assert.equal(sectionFor('teams-crews').open,true);assert.equal(sectionFor('access-travel').open,false);
+  assert.deepEqual(copy(audit.state.inputs),exactInputs);assert.equal(audit.state.dirty,dirtyBeforeDisclosure);assert.equal(context.scheduled,scheduledBeforeDisclosure);passed++;
 
   // Montserrat is bundled locally and all primary section cards use the red accent.
   const css=fs.readFileSync('static/styles.css','utf8');
@@ -808,7 +815,7 @@ let passed=0;
   assert.ok(actionCss.includes('.button.save-button{color:#332600;background:#ffdb66;'));
   assert.ok(actionCss.includes('.button.pdf-button{color:#fff;background:#c5221f;'));
   assert.ok(actionCss.includes('.button[aria-busy=true]::after'));
-  assert.match(actionCss,/@media\(max-width:570px\).*\.app-header nav\{display:grid;grid-template-columns:repeat\(3,minmax\(0,1fr\)\)/);
+  // Responsive geometry and reachable dropdowns are verified by the native header fixture.
   for(const state of [':hover:not(:disabled)',':focus-visible',':disabled'])assert.ok(actionCss.includes(`.button:is(.excel-button,.save-button,.pdf-button)${state}`));
   assert.doesNotMatch(markup,/id="print-quote"/);assert.doesNotMatch(source,/function printQuote|window\.print/);
   assert.match(markup,/id="new-quote"[^>]*>New<\/button>/);assert.doesNotMatch(markup,/id="edit-project-details"/);assert.match(markup,/id="load-project"[^>]*>Load<\/button>/);

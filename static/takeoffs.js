@@ -9,7 +9,7 @@
   const calloutDefaults = () => ({ stroke_color: "#FF3300", fill_color: "#FFDD33", font_color: "#000000", stroke_width: 4, fill_enabled: true, opacity: .75 });
   const state = { session: null, saved: null, opening: null, active: false, mode: "steel", document: null, page: 1,
     zoom: 1, tool: "select", points: [], countEntries: [], countGeneration: 0, countDefaultLength: null, countQueue: Promise.resolve(), countFinishing: false, countContinuation: null, countSelection: new Map(), traceCursor: null, markupMenu: null, selected: new Set(), hovered: null, hidden: new Set(), collapsed: new Set(),
-    search: "", filter: "", sort: "mark", group: "", offset: 0, calibration: "", busy: false, queue: Promise.resolve(),
+    search: "", filter: "", sort: "mark", group: "", offset: 0, calibration: "", calibrationContext: null, calibrationSelections: new Map(), busy: false, queue: Promise.resolve(),
     registerColumnFilters: new Map(), registerFilterSession: null,
     renderId: 0, searchId: 0, viewport: null, pageRotations: new Map(), pdfs: new Map(), pdfLoads: new Map(), thumbnailTasks: new Map(), thumbnailPages: new Map(), pdfWarnings: new Map(), pdfLibrary: null, resultMap: new Map(),
     formDirty: false, settingsDirty: false, settingsOpen: false, settingsEditor: null, gesture: null, controlPoint: null, controlMenu: false, planActive: false, planController: null, modal: false, issues: [], searchHits: [], pending: null, bindings: [], ui: null,
@@ -717,13 +717,25 @@
   }
   function renderCalibrations() {
     const calibrations = activePageCalibrations();
+    const context = JSON.stringify([state.session?.session_id, state.document, state.page]);
+    // The active drawing choice belongs to one document/page, rather than the
+    // last page visited. Retained calibrations themselves stay in the snapshot.
+    if (state.calibrationContext !== context) {
+      state.calibrationContext = context;
+      state.calibration = state.calibrationSelections.get(context) || "";
+      state.viewportSelection = "";
+    }
     state.ui.calibration.replaceChildren(option("", "No Scale Selected"), ...calibrations.map(calibration => option(calibration.id, `${calibration.region ? "Viewport: " : ""}${calibration.name}${calibration.scale_denominator ? ` · 1:${calibration.scale_denominator}` : ""}`)), ...scaleDenominators.map(value => option(`scale:${value}`, `1:${value}`)));
-    if (!calibrations.some(calibration => calibration.id === state.calibration)) state.calibration = "";
-    const printed = calibrations.filter(calibration => !calibration.region && calibration.printed_scale_evidence);
-    if (!state.calibration && printed.length === 1) state.calibration = printed[0].id;
+    if (state.calibration && !calibrations.some(calibration => calibration.id === state.calibration)) { state.calibration = ""; state.calibrationSelections.delete(context); }
+    // A saved/reopened drawing has no remembered UI choice. Its sole active
+    // page scale is unambiguous, whether printed, preset or manually measured.
+    // Never infer a viewport choice or choose between multiple page scales.
+    const pageScales = calibrations.filter(calibration => !calibration.region);
+    if (!state.calibration && !state.calibrationSelections.has(context) && pageScales.length === 1) state.calibration = pageScales[0].id;
+    if (state.calibration) state.calibrationSelections.set(context, state.calibration);
     state.ui.calibration.value = state.calibration;
     if (state.ui.scaleToggle) { const active = state.ui.calibration.selectedOptions[0]?.textContent || "No Scale Selected"; state.ui.scaleToggle.title = `Scale · ${active}`; state.ui.scaleStatus.textContent = active; }
-    if (calibrations.some(value => value.id === state.calibration && value.region)) state.viewportSelection = state.calibration;
+    state.viewportSelection = calibrations.some(value => value.id === state.calibration && value.region) ? state.calibration : "";
     renderViewportPanel();
   }
   async function toggleViewportPanel() {
@@ -948,6 +960,7 @@
       requireFinishedEdits(); const viewport = currentViewport(id);
       if (value === "manual") {
         state.calibration = viewport.id; state.viewportSelection = viewport.id;
+        renderCalibrations();
         setTool("calibrate", { viewportId: viewport.id });
         message(`Click both ends of a known dimension inside ${viewport.name}.`); return;
       }
@@ -975,7 +988,7 @@
   async function chooseCalibration(value, targetId = state.calibration) {
     try {
       requireFinishedEdits();
-      if (!value.startsWith("scale:")) { if (value && !activePageCalibrations().some(entry => entry.id === value)) throw new Error("Choose a current calibration for this page."); state.calibration = value; renderOverlay(); return; }
+      if (!value.startsWith("scale:")) { if (value && !activePageCalibrations().some(entry => entry.id === value)) throw new Error("Choose a current calibration for this page."); state.calibration = value; state.calibrationSelections.set(JSON.stringify([state.session?.session_id, state.document, state.page]), value); renderOverlay(); return; }
       if (!state.viewport) throw new Error("Open a successfully rendered page before applying a scale.");
       const denominator = Number(value.slice(6)), existing = activePageCalibrations().find(entry => entry.id === targetId);
       if (targetId && !existing) throw new Error("The selected calibration changed. Select its current revision.");
@@ -1019,8 +1032,8 @@
     state.ui.removeDocument.disabled = !currentDocument();
     updatePresentationTools();
   }
-  async function navigateDocument(id, page = 1) { if (state.busy || !await discardEditor()) return false; resetPlanInteraction(); state.document = id; state.page = page; state.calibration = ""; renderRail(); renderCalibrations(); await renderPage(); return true; }
-  async function navigatePage(page) { const doc = currentDocument(); if (!doc || !Number.isInteger(page) || page < 1 || page > doc.pages.length) throw new Error("Choose a page within this document."); if (!await discardEditor()) return; resetPlanInteraction(); state.page = page; state.calibration = ""; renderRail(); renderCalibrations(); await renderPage(); }
+  async function navigateDocument(id, page = 1) { if (state.busy || !await discardEditor()) return false; resetPlanInteraction(); state.document = id; state.page = page; renderRail(); renderCalibrations(); await renderPage(); return true; }
+  async function navigatePage(page) { const doc = currentDocument(); if (!doc || !Number.isInteger(page) || page < 1 || page > doc.pages.length) throw new Error("Choose a page within this document."); if (!await discardEditor()) return; resetPlanInteraction(); state.page = page; renderRail(); renderCalibrations(); await renderPage(); }
   function boundedPdf(promise, label, abort, timeout = 30000) {
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
@@ -3863,9 +3876,9 @@
     const run = state.searchId;
     if (!state.searchHits.includes(hit)) return;
     if (navigate && (state.document !== hit.document_id || state.page !== hit.page) && !await navigateDocument(hit.document_id, hit.page)) return;
-    if (run !== state.searchId || state.document !== hit.document_id || state.page !== hit.page) return;
+    if (run !== state.searchId || !state.searchHits.includes(hit) || state.document !== hit.document_id || state.page !== hit.page) return;
     state.searchActiveId = hit.id; state.searchActivePage = state.document + ":" + state.page;
-    await updateSearchGeometry(); if (run !== state.searchId || !state.viewport) return;
+    await updateSearchGeometry(); if (run !== state.searchId || !state.searchHits.includes(hit) || state.document !== hit.document_id || state.page !== hit.page || !state.viewport) return;
     const points = hit.matchQuads?.flat().length ? hit.matchQuads.flat() : hit.points;
     if (points.length) { const box = G.bounds(points.map(point => G.transform(point, state.viewport.transform))); positionPage(state.ui.viewport.clientWidth / 2 - (box[0] + box[2]) / 2, state.ui.viewport.clientHeight / 2 - (box[1] + box[3]) / 2); }
     renderOverlay(); renderSearchResults();
@@ -3930,18 +3943,31 @@
             const pdf = await waitSearch(pdfDocument(doc.id), token);
             page = await waitSearch(pdfPage(pdf, doc.id, metadata.page, token.session), token);
             const content = await readSearchText(page, token, doc, pdf);
+            const publishOcr = result => {
+              if (!searchCurrent(token)) return;
+              // Replace this page's provisional readings as later orientations
+              // improve them, retaining native matches and every other page.
+              const retained = state.searchHits.filter(hit => !(hit.document_id === doc.id && hit.page === metadata.page && hit.source === "local-ocr"));
+              const previous = state.searchHits.filter(hit => hit.document_id === doc.id && hit.page === metadata.page && hit.source === "local-ocr");
+              const nativeHits = retained.filter(hit => hit.document_id === doc.id && hit.page === metadata.page);
+              const hits = textSearch().findOcr(result, token.query, nativeHits, 500 - retained.length);
+              state.searchHits = retained;
+              const readings = hits.map(hit => ({ ...hit, id: "ocr:" + doc.id + ":" + metadata.page + ":" + JSON.stringify(hit.matchQuads), document_id: doc.id, document_name: doc.name, page: metadata.page }));
+              state.searchHits.push(...textSearch().reconcileOcrHits(previous, readings));
+              if (state.searchActiveId && !state.searchHits.some(hit => hit.id === state.searchActiveId)) { state.searchActiveId = null; state.searchActivePage = null; }
+              renderSearchResults(); renderOverlay();
+              if (result.inProgress) setProgress(state.searchSummary + " Local OCR: " + doc.name + " · p" + metadata.page + " · " + result.processedTiles + "/" + result.totalTiles + " passes inspected · " + state.searchHits.length + " matches so far. Recognition is still running; coverage is incomplete. Results are approximate.");
+            };
             const result = await waitSearch(state.ocrSearch.recognizePage(page, { sha256: doc.sha256, items: content.items, signal: token.ocrAbort.signal, budget,
-              onProgress: detail => { if (searchCurrent(token)) setProgress(state.searchSummary + " Local OCR: " + doc.name + " · p" + metadata.page + " · " + (detail.status || "recognizing drawing labels") + (Number.isFinite(detail.progress) ? " " + Math.round(detail.progress * 100) + "%" : "") + ". Results are approximate."); }
+              onProgress: detail => { if (searchCurrent(token)) setProgress(state.searchSummary + " Local OCR: " + doc.name + " · p" + metadata.page + " · " + (detail.status || "recognizing drawing labels") + (Number.isFinite(detail.progress) ? " " + Math.round(detail.progress * 100) + "%" : "") + ". Recognition is still running; coverage is incomplete. Results are approximate."); },
+              onPartial: publishOcr
             }), token);
             if (!searchCurrent(token)) return;
             ocrChecked++;
             if (result.limitedResolution) ocrNotes.add("Recognition resolution was bounded.");
             if (result.partial) ocrNotes.add("Some recognition passes did not finish; OCR coverage is incomplete.");
             for (const reason of result.partialReasons || []) ocrNotes.add(reason);
-            const nativeHits = state.searchHits.filter(hit => hit.document_id === doc.id && hit.page === metadata.page && hit.source !== "local-ocr");
-            const hits = textSearch().findOcr(result, token.query, nativeHits, 500 - state.searchHits.length);
-            for (const hit of hits) state.searchHits.push({ ...hit, id: "ocr:" + doc.id + ":" + metadata.page + ":" + hit.start + ":" + hit.end, document_id: doc.id, document_name: doc.name, page: metadata.page });
-            if (hits.length) { renderSearchResults(); renderOverlay(); }
+            publishOcr(result);
             if (state.searchHits.length >= 500) { limited = true; break; }
           } catch (error) {
             if (!searchCurrent(token)) return;
@@ -4127,7 +4153,7 @@
     cancelSelectionGesture(); state.autoScalePages?.clear(); if (state.settingsEditor) clearTimeout(state.settingsEditor.timer); state.settingsOpen = false; state.settingsDirty = false; state.settingsEditor = null;
     const physical = state.physicalUI; state.physicalUI = null; physical?.destroy(); state.physicalSelected.clear(); state.physicalVisible.clear(); state.physicalHovered = null; state.physicalPreviews.clear(); state.physicalScope = "defect_reports"; state.physicalDetailsOpen = false; state.physicalPlacing = false;
     state.generation = (state.generation || 0) + 1; state.opening = null; ++state.renderId; ++state.searchId; state.pending?.cancel?.(); void releaseDocuments();
-    state.session = null; state.railKey = null; state.pageError = null; state.saved = prepared.saved; state.document = null; state.page = 1; state.calibration = ""; state.viewportSelection = ""; state.calibrationTarget = null; state.viewportsOpen = false; state.selected.clear(); state.hidden.clear(); state.points = []; state.pendingViewport = null; state.zoomAnchor = null; state.retraceId = null; state.exclusionItemId = null; state.formDirty = false; state.tool = "select"; state.viewport = null; state.searchHits = []; state.resultMap.clear();
+    state.session = null; state.railKey = null; state.pageError = null; state.saved = prepared.saved; state.document = null; state.page = 1; state.calibration = ""; state.calibrationContext = null; state.calibrationSelections.clear(); state.viewportSelection = ""; state.calibrationTarget = null; state.viewportsOpen = false; state.selected.clear(); state.hidden.clear(); state.points = []; state.pendingViewport = null; state.zoomAnchor = null; state.retraceId = null; state.exclusionItemId = null; state.formDirty = false; state.tool = "select"; state.viewport = null; state.searchHits = []; state.resultMap.clear();
     if (prepared.session) accept(prepared.session);
     if (prior && prior !== state.session?.session_id) void discardPreparedSession(prior);
     if (state.ui) { renderData(); state.ui.pageWrap.hidden = true; state.ui.empty.hidden = false; state.ui.searchResults.replaceChildren(); }

@@ -61,9 +61,17 @@ function equalOriginalQuads(actual, expected) {
   });
   await context.addInitScript(() => {
     window.ocrCsp = []; document.addEventListener('securitypolicyviolation', event => window.ocrCsp.push({directive: event.effectiveDirective, blocked: event.blockedURI}));
-    const OriginalWorker = window.Worker; window.ocrWorkerQa = {created: 0, terminated: 0};
+    const OriginalWorker = window.Worker; window.ocrWorkerQa = {created: 0, terminated: 0, recognitions: 0, holdAfterFirst: false, held: false};
     window.Worker = class extends OriginalWorker {
       constructor(url, options) {super(url, options); this.ocrOwned = String(url).includes('/vendor/ocr/worker.min.js'); if (this.ocrOwned) window.ocrWorkerQa.created++;}
+      postMessage(message, options) {
+        if (this.ocrOwned && message.action === 'recognize' && ++window.ocrWorkerQa.recognitions === 2 && window.ocrWorkerQa.holdAfterFirst) {
+          window.ocrWorkerQa.held = true;
+          window.ocrWorkerQa.resume = () => {window.ocrWorkerQa.holdAfterFirst = false; super.postMessage(message, options);};
+          return;
+        }
+        return super.postMessage(message, options);
+      }
       terminate() {if (this.ocrOwned) window.ocrWorkerQa.terminated++; super.terminate();}
     };
   });
@@ -80,7 +88,50 @@ function equalOriginalQuads(actual, expected) {
   await expect(input()).toHaveValue(''); await expect(results()).toHaveCount(0); await expect(page.locator('.takeoff-search-context,.takeoff-search-match')).toHaveCount(0);
   await expect.poll(() => page.evaluate(() => window.ocrWorkerQa.terminated)).toBe(1);
   await held.abort().catch(() => {}); await context.unroute('**/vendor/ocr/lang/eng.traineddata.gz'); evidence.stopDuringEngineStartup = true;
-  await input().fill('Air conditioner'); await waitSearch(); await expect(results()).toHaveCount(4);
+  await page.evaluate(() => {window.ocrWorkerQa.recognitions = 0; window.ocrWorkerQa.holdAfterFirst = true;});
+  await input().fill('Air conditioner');
+  await expect.poll(() => page.evaluate(() => window.ocrWorkerQa.held), {timeout: 60000}).toBe(true);
+  await expect(results().filter({hasText: 'Local OCR'})).toHaveCount(2);
+  await expect(page.locator('.takeoff-progress')).toContainText('coverage is incomplete');
+  await expect(page.locator('.takeoff-progress')).not.toContainText('Text search complete:');
+  assert.equal(await page.evaluate(() => window.ocrWorkerQa.recognitions), 2, 'Only the first tile has completed; later recognition is deliberately held');
+  const early = results().filter({hasText: 'Local OCR'}).first(); await early.click();
+  await expect(early).toHaveAttribute('aria-current', 'true');
+  const earlyId = await early.getAttribute('data-search-hit-id');
+  evidence.progressiveRecognition = {firstTileOcrMatches: 2, heldSecondRecognition: true, completionWithheld: true, earlyResultSelectable: true, earlyId};
+  await renderDrawing(page, () => page.getByRole('button', {name: 'Page ›', exact: true}).click(), 2);
+  await input().click();
+  let earlyHeldRender = null, releaseEarlyRender;
+  const earlyRenderReleased = new Promise(resolve => {releaseEarlyRender = resolve;});
+  const holdEarlyNavigationRender = async route => {
+    const request = route.request().postDataJSON();
+    if (request?.op !== 'record_render' || request.page !== 1 || earlyHeldRender) return route.continue();
+    earlyHeldRender = await route.fetch(); await earlyRenderReleased; await route.fulfill({response: earlyHeldRender});
+  };
+  await context.route('**/commands', holdEarlyNavigationRender);
+  const earlyPreviousCanvas = await page.locator('.takeoff-page>canvas').elementHandle();
+  await results().filter({hasText: 'Local OCR'}).first().click();
+  try {
+    await expect.poll(() => earlyHeldRender?.status()).toBe(200);
+    await page.evaluate(() => window.ocrWorkerQa.resume());
+    await waitSearch(); await expect(results()).toHaveCount(4);
+    await expect(page.locator('#takeoffs-workspace')).toHaveAttribute('aria-busy', 'true');
+    const refusal = await page.evaluate(() => {try {window.CeasefireTakeoffs.projectSnapshot(); return null;} catch (error) {return error.message;}});
+    assert.match(refusal, /Finish the current takeoff operation before saving/);
+    evidence.progressiveRecognition.heldRenderSnapshotRefusal = refusal;
+    evidence.progressiveRecognition.heldRenderWhileLaterPassesComplete = true;
+  } finally {releaseEarlyRender(); await context.unroute('**/commands', holdEarlyNavigationRender);}
+  await settingsSettled(page);
+  await page.waitForFunction(old => {
+    const canvas = document.querySelector('.takeoff-page>canvas'), overlay = document.querySelector('.takeoff-overlay');
+    return canvas && overlay && canvas !== old && !old.isConnected && canvas.width > 0 && canvas.height > 0
+      && Math.abs(parseFloat(canvas.style.width) - Number(overlay.getAttribute('width'))) < .01
+      && Math.abs(parseFloat(canvas.style.height) - Number(overlay.getAttribute('height'))) < .01;
+  }, earlyPreviousCanvas);
+  await earlyPreviousCanvas.dispose();
+  await expect(page.locator(`.takeoff-search-result[data-search-hit-id=${JSON.stringify(earlyId)}]`)).toHaveAttribute('aria-current', 'true');
+  await expect(page.locator('.takeoff-progress')).toContainText(/Current-page match [1-9]\d*\./);
+  evidence.progressiveRecognition.selectionSurvivesCompletedPasses = true;
   const labels = await results().allTextContents(); assert.equal(labels.filter(label => /OCR/i.test(label)).length, 3, 'Native glyph match wins, plus three scanned labels');
   assert.ok(labels.filter(label => /OCR/i.test(label)).every(label => /\d+%/.test(label) && /approximate|search.only/i.test(label)), 'OCR results disclose confidence and approximate search-only bounds');
   const native = await page.evaluate(async () => {
@@ -129,6 +180,28 @@ function equalOriginalQuads(actual, expected) {
   await expect(page.locator('.takeoff-search-match[data-search-geometry="ocr-word-bounds"]')).toHaveCount(2);
   const rotatedQuads = await originalOcrQuads(90); equalOriginalQuads(rotatedQuads, originalQuads); evidence.originalCoordinatePreservation = {originalQuads, zoomedQuads, rotatedQuads};
   await page.screenshot({path: path.join(output, 'ocr-rotated-crop-userunit.png')});
+  await renderDrawing(page, () => page.getByRole('button', {name: 'First page', exact: true}).click(), 1);
+  await page.getByRole('button', {name: 'Stop search', exact: true}).click();
+  const holdPartialRun = async () => {
+    await page.evaluate(() => {window.ocrWorkerQa.recognitions = 0; window.ocrWorkerQa.holdAfterFirst = true; window.ocrWorkerQa.held = false;});
+    await input().fill('Air conditioner');
+    await expect.poll(() => page.evaluate(() => window.ocrWorkerQa.held), {timeout: 60000}).toBe(true);
+    await expect(results().filter({hasText: 'Local OCR'})).not.toHaveCount(0);
+  };
+  await holdPartialRun();
+  const beforePartialStop = await page.evaluate(() => window.ocrWorkerQa.terminated);
+  await page.getByRole('button', {name: 'Stop search', exact: true}).click();
+  await expect(input()).toHaveValue(''); await expect(results()).toHaveCount(0); await expect(page.locator('.takeoff-search-context,.takeoff-search-match')).toHaveCount(0);
+  await expect.poll(() => page.evaluate(() => window.ocrWorkerQa.terminated)).toBe(beforePartialStop + 1);
+  await page.evaluate(() => window.ocrWorkerQa.resume());
+  await expect(results()).toHaveCount(0); evidence.stopWithPartialMatches = true;
+  await holdPartialRun();
+  const beforePartialChange = await page.evaluate(() => window.ocrWorkerQa.terminated);
+  await input().fill('Beyond'); await waitSearch();
+  await expect(input()).toHaveValue('Beyond'); await expect(results()).toHaveCount(3);
+  assert.ok((await results().locator('mark').allTextContents()).every(text => text === 'BEYOND'), 'Only the replacement query owns the current highlighted words');
+  assert.ok(await page.evaluate(() => window.ocrWorkerQa.terminated) > beforePartialChange);
+  evidence.queryChangeWithPartialMatches = true;
   await input().fill(''); await expect(results()).toHaveCount(0); await expect(page.locator('.takeoff-search-context,.takeoff-search-match')).toHaveCount(0);
   const final = await page.evaluate(() => window.CeasefireTakeoffs.projectSnapshot());
   for (const key of ['documents', 'items', 'calibrations', 'transfers', 'physical', 'service_plans', 'annotations']) assert.deepEqual(final[key], initial[key], `OCR preserves ${key}`);

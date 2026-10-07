@@ -293,6 +293,7 @@ dialog .actions{justify-content:flex-end}
 .home-card:hover,.home-card:focus-visible{transform:translateY(-2px);border-color:#d8c7ca;box-shadow:0 10px 28px #4a142412}
 .home-card-icon{grid-row:1/3;display:grid;place-items:center;width:48px;height:48px;border-radius:50%;color:#fff;background:var(--accent);font-size:22px;font-weight:750}
 .home-card-icon svg{display:block;width:26px;height:26px}
+.home-card-icon .takeoff-navigation-image{display:block;width:26px;height:26px;object-fit:contain;filter:invert(1);mix-blend-mode:screen}
 .home-card strong{font-size:19px}
 .home-card>span:last-child{color:var(--muted);font-size:12px;line-height:1.55}
 .help-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}

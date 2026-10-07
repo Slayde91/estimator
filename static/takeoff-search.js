@@ -189,6 +189,35 @@
       }));
     })).slice(0, limit);
   }
+  function reconcileOcrHits(previous, next) {
+    // Within one retained page/query, later orientations can refine the same
+    // label. Keep that hit's object and ID so an awaited selection and keyboard
+    // focus continue to name the displayed reading. Ambiguous overlaps are new
+    // readings; they must never silently inherit another label's selection.
+    const bounds = hit => {
+      const points = hit.matchQuads?.flat();
+      if (!points?.length || points.some(point => !Array.isArray(point) || point.length !== 2 || !point.every(Number.isFinite))) return null;
+      return [Math.min(...points.map(p => p[0])), Math.min(...points.map(p => p[1])), Math.max(...points.map(p => p[0])), Math.max(...points.map(p => p[1]))];
+    };
+    const boxes = new Map([...previous, ...next].map(hit => [hit, bounds(hit)])), remaining = new Set(previous);
+    const equivalent = (a, b) => {
+      if (a.source !== "local-ocr" || b.source !== "local-ocr" || a.document_id !== b.document_id || a.page !== b.page) return false;
+      const x = boxes.get(a), y = boxes.get(b); if (!x || !y) return false;
+      const overlap = Math.max(0, Math.min(x[2], y[2]) - Math.max(x[0], y[0])) * Math.max(0, Math.min(x[3], y[3]) - Math.max(x[1], y[1]));
+      const areaX = (x[2] - x[0]) * (x[3] - x[1]), areaY = (y[2] - y[0]) * (y[3] - y[1]);
+      return areaX > 0 && areaY > 0 && overlap / Math.min(areaX, areaY) > .8 && overlap / Math.max(areaX, areaY) > .65;
+    };
+    return next.map(hit => {
+      let retained = [...remaining].find(prior => prior.id === hit.id);
+      if (!retained) {
+        const candidates = [...remaining].filter(prior => equivalent(prior, hit));
+        if (candidates.length === 1 && next.filter(value => equivalent(candidates[0], value)).length === 1) retained = candidates[0];
+      }
+      if (!retained) return hit;
+      remaining.delete(retained); const id = retained.id;
+      Object.assign(retained, hit, { id }); return retained;
+    });
+  }
   function createOcrSearch(dependencies = {}) {
     const clock = dependencies.clock || Date.now, workerFactory = dependencies.workerFactory || (url => new Worker(url));
     const canvasFactory = dependencies.canvasFactory || (() => document.createElement("canvas"));
@@ -226,7 +255,7 @@
       await rpc("setParameters", { params: { tessedit_pageseg_mode: "11", preserve_interword_spaces: "1", user_defined_dpi: "144" } }, deadline, progress);
       ready = true;
     }
-    async function recognizePage(page, { sha256, items = [], signal, budget = createOcrBudget(), onProgress } = {}) {
+    async function recognizePage(page, { sha256, items = [], signal, budget = createOcrBudget(), onProgress, onPartial } = {}) {
       if (disposed) throw ocrError("SearchCancelled", "Local OCR search is closed.");
       if (signal?.aborted) throw ocrError("SearchCancelled", "Local OCR search cancelled.");
       if (!/^[a-f0-9]{64}$/u.test(sha256 || "")) throw ocrError("OcrGeometryError", "Local OCR requires the retained PDF fingerprint.");
@@ -242,20 +271,24 @@
       budget.pages++; busy = true; clearTimeout(idle); idle = null;
       const parentSignal = signal, controller = new AbortController(), relayAbort = () => controller.abort(); signal = controller.signal;
       parentSignal?.addEventListener("abort", relayAbort, { once: true }); activeAbort = relayAbort;
-      const started = clock(), deadline = Math.min(started + OCR_LIMITS.pageMs, budget.started + OCR_LIMITS.runMs), canvas = canvasFactory(), tile = canvasFactory(); let renderTask;
-      const abort = () => { renderTask?.cancel(); destroy(); };
+      const started = clock(), deadline = Math.min(started + OCR_LIMITS.pageMs, budget.started + OCR_LIMITS.runMs), canvas = canvasFactory(), tile = canvasFactory(); let renderTask, renderFinished = false, renderCancelled = false;
+      const abort = () => { if (renderTask && !renderFinished && !renderCancelled) { renderCancelled = true; renderTask.cancel(); } destroy(); };
       signal?.addEventListener("abort", abort, { once: true });
       const check = () => { if (signal?.aborted || disposed) throw ocrError("SearchCancelled", "Local OCR search cancelled."); if (clock() >= deadline) throw ocrError("OcrTimeoutError", "Local OCR page time limit reached; coverage is incomplete."); };
       const bounded = promise => new Promise((resolve, reject) => {
-        const fail = () => reject(ocrError("SearchCancelled", "Local OCR search cancelled."));
-        const timer = setTimeout(() => { abort(); reject(ocrError("OcrTimeoutError", "Local OCR page time limit reached; coverage is incomplete.")); }, Math.max(1, deadline - clock()));
+        let settled = false;
+        const finish = (complete, value) => { if (settled) return; settled = true; clearTimeout(timer); signal?.removeEventListener("abort", fail); complete(value); };
+        const fail = () => finish(reject, ocrError("SearchCancelled", "Local OCR search cancelled."));
+        const timer = setTimeout(() => { finish(reject, ocrError("OcrTimeoutError", "Local OCR page time limit reached; coverage is incomplete.")); abort(); }, Math.max(1, deadline - clock()));
         signal?.addEventListener("abort", fail, { once: true });
-        Promise.resolve(promise).then(resolve, reject).finally(() => { clearTimeout(timer); signal?.removeEventListener("abort", fail); });
+        Promise.resolve(promise).then(value => finish(resolve, value), error => finish(reject, error));
       });
       try {
         canvas.width = width; canvas.height = height;
         const context = canvas.getContext("2d"); renderTask = page.render({ canvasContext: context, viewport, background: "#ffffff" });
-        await bounded(renderTask.promise); check();
+        // The retained PDF raster and local engine startup are independent.
+        // Both still share this page's deadline and cancellation ownership.
+        await Promise.all([bounded(renderTask.promise).then(() => { renderFinished = true; }), initialize(deadline, onProgress)]); check();
         // Native text always wins. Mask its retained run quads only on this
         // disposable recognition image, never on the viewer or original PDF.
         context.fillStyle = "#ffffff";
@@ -264,8 +297,11 @@
           const points = quad.map(point => pointTransform(point, viewport.transform)), x = Math.min(...points.map(p => p[0])) - 2, y = Math.min(...points.map(p => p[1])) - 2;
           context.fillRect(x, y, Math.max(...points.map(p => p[0])) - x + 2, Math.max(...points.map(p => p[1])) - y + 2);
         }
-        await initialize(deadline, onProgress); check();
-        const words = [], stride = OCR_LIMITS.tile - OCR_LIMITS.overlap, completedRotations = []; let partialReason = "", textSize = 0;
+        const words = [], stride = OCR_LIMITS.tile - OCR_LIMITS.overlap, completedRotations = [], totalTiles = Math.ceil(width / stride) * Math.ceil(height / stride) * 4;
+        let partialReason = "", textSize = 0, processedTiles = 0;
+        const snapshot = (partial, reasons, inProgress = false) => ({ version: 1, source: "local-ocr", engine: OCR_VERSION, sha256, page: page.pageNumber, width, height,
+          transform: [...viewport.transform], scale, limitedResolution: scale < 2, partial, partialReasons: reasons, completedRotations: [...completedRotations],
+          processedTiles, totalTiles, inProgress, words: mergeOcrWords(words), elapsedMs: clock() - started });
         try { for (const rotation of [0, 90, 180, 270]) {
         for (let y = 0; y < height; y += stride) for (let x = 0; x < width; x += stride) {
           check(); tile.width = Math.min(OCR_LIMITS.tile, width - x); tile.height = Math.min(OCR_LIMITS.tile, height - y);
@@ -288,20 +324,23 @@
             const readingBox = [Math.min(...readingQuad.map(p => p[0])), Math.min(...readingQuad.map(p => p[1])), Math.max(...readingQuad.map(p => p[0])), Math.max(...readingQuad.map(p => p[1]))];
             words.push({ text, confidence, box: bounds, readingBox, rotation, quad: renderQuad.map(point => inverseTransform(point, viewport.transform)) }); textSize += text.length + 1;
           }
+          processedTiles++;
+          // Publish already recognized labels instead of hiding them behind
+          // the remaining quarter-turn passes. These are explicitly partial
+          // snapshots; the complete result still requires all bounded passes.
+          if (onPartial && words.length) { check(); onPartial(snapshot(true, ["Recognition is still running; OCR coverage is incomplete."], true)); }
         }
         completedRotations.push(rotation);
         } } catch (error) {
           if (!words.length || !["OcrLimitError", "OcrTimeoutError"].includes(error.name)) throw error;
           partialReason = error.message; destroy(error);
         }
-        const result = { version: 1, source: "local-ocr", engine: OCR_VERSION, sha256, page: page.pageNumber, width, height,
-          transform: [...viewport.transform], scale, limitedResolution: scale < 2, partial: !!partialReason, partialReasons: partialReason ? [partialReason] : [], completedRotations,
-          words: mergeOcrWords(words), elapsedMs: clock() - started };
+        const result = snapshot(!!partialReason, partialReason ? [partialReason] : []);
         const bytes = JSON.stringify(result).length * 2;
         if (bytes <= OCR_LIMITS.cacheBytes) { cache.set(key, { result, bytes }); cacheBytes += bytes; }
         while (cache.size > OCR_LIMITS.cachePages || cacheBytes > OCR_LIMITS.cacheBytes) { const oldest = cache.keys().next().value; cacheBytes -= cache.get(oldest).bytes; cache.delete(oldest); }
         return result;
-      } catch (error) { destroy(error); throw error; }
+      } catch (error) { controller.abort(); destroy(error); throw error; }
       finally {
         signal?.removeEventListener("abort", abort); canvas.width = canvas.height = tile.width = tile.height = 1; busy = false;
         parentSignal?.removeEventListener("abort", relayAbort); if (activeAbort === relayAbort) activeAbort = null;
@@ -311,7 +350,7 @@
     return { recognizePage, cancel: () => { activeAbort?.(); destroy(); }, dispose: () => { disposed = true; activeAbort?.(); destroy(); cache.clear(); cacheBytes = 0; } };
   }
   const api = { normalize, indexText, find, choose, runQuad, MAX_PAGE_TEXT, MAX_QUERY,
-    createOcrSearch, createOcrBudget, findOcr, mergeOcrWords, rectangleQuad, OCR_LIMITS, OCR_VERSION };
+    createOcrSearch, createOcrBudget, findOcr, reconcileOcrHits, mergeOcrWords, rectangleQuad, OCR_LIMITS, OCR_VERSION };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else window.CeasefireTakeoffSearch = api;
 })();

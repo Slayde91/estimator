@@ -9,7 +9,7 @@ function harness() {
   const element = tag => ({ tag, value: '', dataset: {}, hidden: false, textContent: '', children: [], replaceChildren(...children) { this.children = children; }, append(...children) { this.children.push(...children); }, contains(value) { return !!value && this.children.includes(value); }, addEventListener() {}, setAttribute() {}, classList: { toggle() {} } });
   const context = { window: { CeasefireTakeoffSearch: S, CeasefireTakeoffGeometry: G }, document: { getElementById() {}, createElement: element }, setTimeout, clearTimeout, AbortController, Error, console };
   vm.createContext(context);
-  const source = fs.readFileSync('static/takeoffs.js', 'utf8').replace('  window.CeasefireTakeoffs = {', `  globalThis.audit={state,searchContextKey,searchCurrent,readSearchText,cancelSearch,waitSearch,invalidateSearchContext,runSearch,hideSearchResults,showSearchResults,renderSearchResults,scheduleSearch,noRender(){renderOverlay=()=>{};},geometry(fn){updateSearchGeometry=fn;},select(fn){selectSearchHit=fn;}};
+  const source = fs.readFileSync('static/takeoffs.js', 'utf8').replace('  window.CeasefireTakeoffs = {', `  globalThis.audit={state,searchContextKey,searchCurrent,readSearchText,cancelSearch,waitSearch,invalidateSearchContext,runSearch,hideSearchResults,showSearchResults,renderSearchResults,scheduleSearch,productionSelect:selectSearchHit,noRender(){renderOverlay=()=>{};},geometry(fn){updateSearchGeometry=fn;},select(fn){selectSearchHit=fn;},navigate(fn){navigateDocument=fn;},position(fn){positionPage=fn;}};
   window.CeasefireTakeoffs = {`);
   vm.runInContext(source, context);
   const { audit } = context; audit.noRender();
@@ -88,6 +88,32 @@ function harness() {
   assert.deepEqual(activated, ['native-ready'], 'Native results remain usable while local OCR is still pending');
   assert.equal(nativeFirst.state.searchComplete, false, 'Early native activation does not claim OCR completion');
   nativeFirst.audit.cancelSearch(true); ocrPending.resolve();
+  for (const keepReading of [true, false]) {
+    const progressive = harness(), navigation = deferred();
+    const reading = {id: 'early-label', source: 'local-ocr', document_id: 'doc', document_name: 'Drawing.pdf', page: 1, confidence: 70, points: [[10, 10]], matchQuads: [[[0, 0], [100, 0], [100, 10], [0, 10]]]};
+    Object.assign(progressive.state, {document: 'another-document', page: 1, searchHits: [reading], searchActiveId: null, viewport: {transform: [1, 0, 0, 1, 0, 0]}});
+    progressive.state.ui.viewport = {clientWidth: 100, clientHeight: 100}; progressive.audit.position(() => {}); progressive.audit.geometry(() => Promise.resolve());
+    progressive.audit.navigate(() => navigation.promise); const activation = progressive.audit.productionSelect(reading, true);
+    progressive.state.searchHits = keepReading ? S.reconcileOcrHits([reading], [{...reading, id: 'refined-label', confidence: 92, matchQuads: [[[1, 0], [101, 0], [101, 10], [1, 10]]]}]) : [];
+    progressive.state.document = 'doc'; navigation.resolve(true); await activation;
+    if (keepReading) {
+      assert.equal(progressive.state.searchHits[0], reading); assert.equal(progressive.state.searchActiveId, 'early-label');
+      assert.match(progressive.state.ui.progress.textContent, /Current-page match 1\./, 'Awaited navigation uses the retained object after later recognition refines it');
+    } else {
+      assert.equal(progressive.state.searchActiveId, null); assert.doesNotMatch(progressive.state.ui.progress.textContent, /Current-page match/, 'A removed provisional reading cannot be reactivated by a late navigation');
+    }
+  }
+  for (const target of ['another-document', 'another-page']) {
+    const moved = harness(), geometry = deferred(), positions = [];
+    const reading = {id: 'old-page-label', source: 'local-ocr', document_id: 'doc', document_name: 'Drawing.pdf', page: 1, confidence: 90, points: [[10, 10]], matchQuads: [[[0, 0], [100, 0], [100, 10], [0, 10]]]};
+    Object.assign(moved.state, {page: 1, searchHits: [reading], viewport: {transform: [1, 0, 0, 1, 0, 0]}});
+    moved.state.ui.viewport = {clientWidth: 100, clientHeight: 100}; moved.audit.position((...args) => positions.push(args)); moved.audit.geometry(() => geometry.promise);
+    const activation = moved.audit.productionSelect(reading);
+    if (target === 'another-document') moved.state.document = 'other'; else moved.state.page = 2;
+    geometry.resolve(); await activation;
+    assert.deepEqual(positions, [], 'An all-document search result waiting for text layout cannot reposition a different page');
+    assert.doesNotMatch(moved.state.ui.progress.textContent, /Current-page match/);
+  }
   const overlong = harness(); let overlongWorkers = 0;
   overlong.window.CeasefireTakeoffSearch = { ...S, createOcrSearch() { overlongWorkers++; throw new Error('Invalid queries must not start local OCR'); } };
   overlong.state.ui.searchOcr.checked = true; overlong.state.ui.search.value = 'x'.repeat(S.MAX_QUERY + 1);

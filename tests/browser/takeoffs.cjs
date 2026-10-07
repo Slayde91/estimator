@@ -189,7 +189,7 @@ async function boardJourney(info) {
   await expect(page.locator(`tr[data-item-id="${citedId}"]`).getByRole('checkbox',{name:/^Select /})).toBeChecked();
   await openItemSettings(page,citedId);
   await expect(page.locator('.takeoff-markup.selected')).toHaveCount(1);
-  await expect(page.locator('#takeoff-active-scale')).toHaveText('No Scale Selected');
+  await expect(page.locator('#takeoff-active-scale')).toHaveText('Synthetic board baseline');
   const returnedCited = await page.evaluate(itemId => window.CeasefireTakeoffs.projectSnapshot().items.find(item => item.id === itemId), citedId);
   assert.equal(returnedCited.measurement.method, 'cited'); assert.equal(returnedCited.measurement.length_m, 7.25);
   assert.equal(returnedCited.measurement.citation, 'Synthetic board drawing p1, BOARD-CITED: 3 separate physical members, 7.25 m EACH');

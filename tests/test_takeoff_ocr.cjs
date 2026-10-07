@@ -2,7 +2,7 @@
 const assert = require('node:assert/strict'), {test} = require('node:test');
 const S = require('../static/takeoff-search.js');
 const sha256 = 'a'.repeat(64);
-function harness({hold, clock, onMessage} = {}) {
+function harness({hold, rejectAction, clock, onMessage, renderPromise} = {}) {
   const workers = [], canvases = [], messages = []; let rendered = 0, cancelled = 0;
   const factory = url => {
     const worker = {url, terminated: 0, recognitions: 0, terminate() {this.terminated++;}, postMessage(message) {
@@ -16,7 +16,7 @@ function harness({hold, clock, onMessage} = {}) {
         {text: 'UNSAFE', confidence: 100, bbox: {x0: NaN, y0: 1, x1: 9, y1: 10}},
         {text: 'NOISY', confidence: 12, bbox: {x0: 150, y0: 60, x1: 180, y1: 75}},
       ]}]}]}]} : {blocks: []};
-      queueMicrotask(() => worker.onmessage?.({data: {workerId: message.workerId, jobId: message.jobId, status: 'resolve', data}}));
+      queueMicrotask(() => worker.onmessage?.({data: {workerId: message.workerId, jobId: message.jobId, status: message.action === rejectAction ? 'reject' : 'resolve', data}}));
     }}; workers.push(worker); return worker;
   };
   const canvasFactory = () => {
@@ -24,7 +24,7 @@ function harness({hold, clock, onMessage} = {}) {
     const canvas = {width: 0, height: 0, context, getContext() {return context;}, toBlob(callback) {queueMicrotask(() => callback(new Blob([new Uint8Array([1, 2, 3])])));}};
     canvases.push(canvas); return canvas;
   };
-  const page = number => ({pageNumber: number, getViewport({scale}) {return {width: 100 * scale, height: 60 * scale, transform: [scale, 0, 0, -scale, 20 * scale, 200 * scale]};}, render() {rendered++; return {promise: Promise.resolve(), cancel() {cancelled++;}};}});
+  const page = number => ({pageNumber: number, getViewport({scale}) {return {width: 100 * scale, height: 60 * scale, transform: [scale, 0, 0, -scale, 20 * scale, 200 * scale]};}, render() {rendered++; return {promise: renderPromise || Promise.resolve(), cancel() {cancelled++;}};}});
   const manager = S.createOcrSearch({workerFactory: factory, canvasFactory, baseUrl: 'http://127.0.0.1:12345/', ...(clock ? {clock} : {})});
   return {manager, page, workers, canvases, messages, counts: () => ({rendered, cancelled})};
 }
@@ -63,6 +63,76 @@ test('Tile overlap retains highest confidence and unrelated columns cannot creat
   assert.equal(S.findOcr({words}, 'AIR', [{contextQuads: [[[0, 0], [10, 0], [10, 10], [0, 10]]]}]).length, 0, 'Native geometry wins over overlapping OCR');
 });
 
+test('Completed tiles expose early approximate matches without claiming complete coverage or skipping rotations', async () => {
+  const h = harness(), partials = [];
+  try {
+    const result = await h.manager.recognizePage(h.page(1), {sha256, onPartial: partial => {
+      partials.push(partial);
+      assert.equal(partial.partial, true); assert.equal(partial.inProgress, true);
+      assert.match(partial.partialReasons[0], /still running.*incomplete/);
+      assert.equal(h.messages.filter(message => message.action === 'recognize').length, partial.processedTiles);
+      assert.equal(S.findOcr(partial, 'AIR CONDITIONER').length, 1);
+    }});
+    assert.equal(partials[0].processedTiles, 1, 'The first completed tile is searchable before remaining orientations');
+    assert.equal(partials[0].totalTiles, 4); assert.deepEqual(partials[0].completedRotations, []);
+    assert.equal(h.messages.filter(message => message.action === 'recognize').length, 4);
+    assert.deepEqual(result.completedRotations, [0, 90, 180, 270]);
+    assert.equal(result.processedTiles, result.totalTiles); assert.equal(result.partial, false); assert.equal(result.inProgress, false);
+    assert.deepEqual(partials[0].completedRotations, [], 'Later completion cannot mutate the earlier coverage snapshot');
+    assert.deepEqual(S.findOcr(partials[0], 'AIR CONDITIONER')[0].matchQuads, S.findOcr(result, 'AIR CONDITIONER')[0].matchQuads);
+  } finally {h.manager.dispose();}
+});
+
+test('Progressive readings preserve awaited selection objects and IDs only for one unambiguous retained label', () => {
+  const hit = (id, x = 0, confidence = 70, document_id = 'retained') => ({id, source: 'local-ocr', document_id, page: 1, confidence, matchQuads: [[[x, 0], [x + 100, 0], [x + 100, 10], [x, 10]]]});
+  const original = hit('original'), exact = S.reconcileOcrHits([original], [hit('original', 0, 80)]);
+  assert.equal(exact[0], original); assert.equal(original.confidence, 80);
+  const refined = S.reconcileOcrHits([original], [hit('refined', 1, 92)]);
+  assert.equal(refined[0], original); assert.equal(original.id, 'original'); assert.equal(original.confidence, 92);
+  const unrelated = hit('remote', 400), remote = S.reconcileOcrHits([original], [unrelated]);
+  assert.equal(remote[0], unrelated); assert.notEqual(remote[0], original);
+  const changedSource = hit('other-source', 1, 99, 'different');
+  assert.equal(S.reconcileOcrHits([original], [changedSource])[0], changedSource);
+  const ambiguous = [hit('one', 1), hit('two', 2)];
+  assert.deepEqual(S.reconcileOcrHits([original], ambiguous), ambiguous); assert.ok(ambiguous.every(value => value !== original));
+});
+
+test('Engine startup overlaps a held PDF raster, but recognition cannot begin before the raster finishes', async () => {
+  let release;
+  const renderPromise = new Promise(resolve => {release = resolve;}), h = harness({renderPromise});
+  try {
+    const pending = h.manager.recognizePage(h.page(1), {sha256});
+    while (!h.messages.some(message => message.action === 'setParameters')) await tick();
+    assert.equal(h.counts().rendered, 1); assert.equal(h.messages.filter(message => message.action === 'recognize').length, 0);
+    release(); const result = await pending;
+    assert.deepEqual(result.completedRotations, [0, 90, 180, 270]);
+  } finally {release(); h.manager.dispose();}
+});
+
+for (const failure of ['engine rejection', 'Stop']) test(`An unfinished raster is cancelled when overlapping startup ends through ${failure}`, async () => {
+  let release;
+  const renderPromise = new Promise(resolve => {release = resolve;}), controller = new AbortController();
+  const h = harness({renderPromise, ...(failure === 'engine rejection' ? {rejectAction: 'load'} : {hold: 'load'})}), partials = [];
+  const pending = h.manager.recognizePage(h.page(1), {sha256, signal: controller.signal, onPartial: partial => partials.push(partial)});
+  const rejected = assert.rejects(pending, error => error.name === (failure === 'engine rejection' ? 'OcrRecognitionError' : 'SearchCancelled'));
+  while (!h.messages.length) await tick();
+  if (failure === 'Stop') controller.abort();
+  await rejected;
+  assert.equal(h.counts().cancelled, 1); assert.equal(h.workers[0].terminated, 1);
+  assert.ok(h.canvases.every(canvas => canvas.width === 1 && canvas.height === 1));
+  release(); await tick(); assert.equal(partials.length, 0); assert.equal(h.messages.filter(message => message.action === 'recognize').length, 0);
+  h.manager.dispose();
+});
+
+test('Stop after the first partial match rejects the run and cannot publish another orientation', async () => {
+  const h = harness(), controller = new AbortController(), partials = [];
+  try {
+    await assert.rejects(h.manager.recognizePage(h.page(1), {sha256, signal: controller.signal, onPartial: partial => {partials.push(partial); controller.abort();}}), error => error.name === 'SearchCancelled');
+    assert.equal(partials.length, 1); assert.equal(h.messages.filter(message => message.action === 'recognize').length, 1);
+    assert.equal(h.workers[0].terminated, 1); assert.equal(h.counts().cancelled, 0, 'The already completed raster needs no cancellation');
+  } finally {h.manager.dispose();}
+});
+
 test('Rotation, crop translation and UserUnit are inverted without proportional glyph invention', () => {
   for (const transform of [[2, 0, 0, -2, -40, 1140], [0, 4, 4, 0, -120, -80], [-2, 0, 0, 2, 1160, -60], [0, -2, -2, 0, 1140, 1160]]) {
     const original = [[50, 100], [150, 100], [150, 140], [50, 140]];
@@ -78,7 +148,7 @@ for (const stage of ['load', 'recognize']) test(`Cancellation terminates real wo
   const pending = h.manager.recognizePage(h.page(1), {sha256, signal: controller.signal}); const rejected = assert.rejects(pending, error => error.name === 'SearchCancelled');
   while (!h.messages.some(message => message.action === stage)) await tick();
   const late = h.workers[0].onmessage, message = h.messages.at(-1); controller.abort(); await rejected;
-  assert.equal(h.workers[0].terminated, 1); assert.equal(h.counts().cancelled, 1);
+  assert.equal(h.workers[0].terminated, 1); assert.equal(h.counts().cancelled, stage === 'load' ? 1 : 0, 'Only a raster whose completion has not been observed is cancelled');
   late({data: {workerId: message.workerId, jobId: message.jobId, status: 'resolve', data: {blocks: []}}});
   assert.ok(h.canvases.every(canvas => canvas.width === 1 && canvas.height === 1)); h.manager.dispose();
 });

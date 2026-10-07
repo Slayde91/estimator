@@ -16,22 +16,59 @@ const ready = new Promise((resolve, reject) => {
   server.stdout.on('data', value => { data += value; if (data.includes('\n')) { clearTimeout(timer); resolve(JSON.parse(data.split('\n')[0])); } });
   server.once('error', reject); server.once('exit', code => { clearTimeout(timer); reject(new Error(`Fixture exited ${code}`)); });
 });
-const errors = [], evidence = { widths: [], calculators: [], libraries: [], takeoffs: [] };
+const errors = [], evidence = { widths: [], headerOnlyWidths: [320], headerGeometry: [], calculators: [], libraries: [], takeoffs: [] };
 async function idle(target = page) { await target.waitForFunction(() => { const s = window.CeasefireDesktop?.status(); return s?.ready && !s.busy; }); }
 async function snapshot() { await idle(); return page.evaluate(() => ({ calculators: window.CeasefireCalculators.projectSnapshot(), penetration: window.CeasefirePenetrations.projectSnapshot(), pricing: window.CeasefireProject.configuration(), takeoffs: window.CeasefireTakeoffs.projectSnapshot() })); }
 const box = locator => locator.boundingBox();
+async function inspectHeader(width) {
+  const longName = 'CEASEFIRE saved quote — a very long project name with <literal markup> and an unbroken reference ' + 'Q'.repeat(180);
+  const saved = await page.locator('#header-project-name').evaluate((el, name) => {
+    const before = { text: el.textContent, title: el.title, hidden: el.hidden };
+    el.textContent = name; el.title = name; el.hidden = false;
+    return before;
+  }, longName);
+  try {
+    const header = await box(page.locator('.app-header')), brand = await box(page.locator('.brand-stack')),
+      nav = await box(page.getByRole('navigation', { name: 'Main navigation' })), actions = await box(page.locator('#header-project-actions')),
+      name = await box(page.locator('#header-project-name'));
+    assert.ok(Math.abs(nav.y - brand.y) < 1, `Navigation remains top-aligned at ${width}`);
+    assert.ok(nav.x >= brand.x + brand.width && nav.x + nav.width <= actions.x + 1, `Navigation stays beside the logo at ${width}`);
+    assert.ok(actions.x + actions.width <= width + 1, `Project actions fit at ${width}`);
+    assert.ok(name.x >= brand.x && name.x + name.width <= brand.x + brand.width + 1, `Long quote name stays in its column at ${width}`);
+    await expect(page.locator('#header-project-name')).toHaveText(longName);
+    await expect(page.locator('#header-project-name')).toHaveAttribute('title', longName);
+    assert.equal(await page.locator('#header-project-name').evaluate(el => getComputedStyle(el).textOverflow), 'ellipsis');
+    const buttons = await page.locator('nav[aria-label="Main navigation"] .nav-icon').evaluateAll(nodes => nodes.map(el => {
+      const b = el.getBoundingClientRect(); return { x: b.x, y: b.y, width: b.width, height: b.height };
+    }));
+    assert.equal(buttons.length, 7);
+    for (const b of buttons) {
+      assert.ok(b.width >= 40 && b.height >= 40, `Usable navigation target at ${width}`);
+      assert.ok(b.x >= nav.x && b.x + b.width <= nav.x + nav.width + 1 && b.y >= nav.y && b.y + b.height <= nav.y + nav.height + 1, `Individual navigation button fits at ${width}`);
+    }
+    assert.ok(header.height <= (width >= 825 ? 180 : width >= 570 ? 235 : width >= 390 ? 260 : 300), `Header avoids excessive height at ${width}: ${header.height}`);
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), `Long quote name does not cause overflow at ${width}`);
+    const screenshot = path.join(output, `header-${width}-long-name.png`);
+    await page.screenshot({ path: screenshot });
+    evidence.headerGeometry.push({ width, header, brand, nav, actions, name, navigationRows: [...new Set(buttons.map(b => Math.round(b.y)))].length, screenshot });
+  } finally {
+    await page.locator('#header-project-name').evaluate((el, before) => { el.textContent = before.text; el.title = before.title; el.hidden = before.hidden; }, saved);
+  }
+}
 (async () => {
   const info = await ready; assert.notEqual(info.port, 8765);
   browser = await chromium.launch({ headless: true }); page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
   page.setDefaultTimeout(60000); page.on('pageerror', e => { errors.push(e.message); console.error('Browser error:', e.message); });
   await page.addInitScript(() => { window.qaCsp = []; document.addEventListener('securitypolicyviolation', e => window.qaCsp.push(e.effectiveDirective)); });
-  await page.goto(`http://127.0.0.1:${info.port}/`); await idle();
+  await page.goto(`http://127.0.0.1:${info.port}/`); await idle(); await page.evaluate(() => document.fonts.ready);
+  await expect(page.locator('#header-project-name')).toBeHidden();
   await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()); await idle();
   await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); await idle();
   const initial = await snapshot();
   await expect(page.locator('#calculators-heading,#libraries-heading,#takeoffs-heading,.library-choices,.takeoff-tab-panel,.takeoff-heading-controls')).toHaveCount(0);
-  for (const width of [1600, 1146, 825, 570, 390]) {
+  for (const width of [1600, 1146, 1021, 981, 825, 720, 570, 390, 320]) {
     await page.setViewportSize({ width, height: 1000 });
+    await inspectHeader(width);
     if (width >= 1146) {
       const brand=await box(page.locator('.brand-stack')), nav=await box(page.getByRole('navigation',{name:'Main navigation'})), actions=await box(page.locator('#header-project-actions'));
       assert.ok(nav.width<550,'Navigation shrinks to its buttons');
@@ -44,16 +81,25 @@ const box = locator => locator.boundingBox();
       assert.ok(bounds.x >= parent.x+parent.width-1 && bounds.x+bounds.width <= width, 'Penetrations flyout opens to the right');
       await page.mouse.move(0,0);
     }
-    for (const id of ['library', 'takeoff']) {
+    for (const id of ['estimate', 'calculator', 'library', 'takeoff']) {
       const toggle = page.locator(`#${id}-navigation-toggle`), menu = page.locator(`#${id}-navigation-menu`);
       await toggle.hover(); await expect(menu).toBeVisible();
       const bounds = await box(menu); assert.ok(bounds.x >= -1 && bounds.x + bounds.width <= width + 1, `${id} menu escaped ${width}: ${JSON.stringify(bounds)}`);
-      await expect(page.locator('#calculator-navigation-menu')).toBeHidden();
+      if (id !== 'calculator') await expect(page.locator('#calculator-navigation-menu')).toBeHidden();
+      if (id === 'takeoff') {
+        await page.locator('#penetration-navigation-toggle').hover();
+        const submenu = page.getByRole('group', { name: 'Penetration workspaces' });
+        await expect(submenu).toBeVisible(); const subBounds = await box(submenu);
+        assert.ok(subBounds.x >= -1 && subBounds.x + subBounds.width <= width + 1, `Penetration submenu fits ${width}`);
+        await toggle.hover();
+      }
       await toggle.focus(); await toggle.press('ArrowDown'); await expect(menu.getByRole('button').first()).toBeFocused();
       await page.keyboard.press('End'); await expect(menu.getByRole('button').last()).toBeFocused();
       await page.keyboard.press('ArrowDown'); await expect(menu.getByRole('button').first()).toBeFocused();
       await page.keyboard.press('Escape'); await expect(toggle).toBeFocused(); await expect(menu).toBeHidden();
     }
+    // The additional 320px case covers this header change; retained whole-workspace coverage starts at 390px.
+    if (width === 320) continue;
     for (const section of ['Home', 'Estimates', 'Calculators', 'Takeoffs', 'Libraries', 'Projects', 'Help']) {
       await page.getByRole('button', { name: section, exact: true }).click(); await idle();
       const actions = page.locator('#header-project-actions'); await expect(actions).toBeVisible();

@@ -68,7 +68,7 @@ function harness({ penetration = false } = {}) {
   appSource = appSource.replace(appEnd, `
     globalThis.appAudit = {state, saveProject, loadProject, openNativeProject, newQuote, projectStamp, saveQuote, openQuote, calculate, reportPayload, projectEstimate,
       applyProjectPricing,savePricing,switchPricingScope,useCurrentPricing,loadProjects,linkProjectFolder,openProjectFile,openProjectBrowser,loadProjectFiles,openProjectFolderFile,closeProjectBrowser,projectPricingChanged,resetProjectPricing,pricingInputProblem,updateProjectStatus,showView,requestCalculatorNavigation,uploadProjectFiles,reviewDesktopClose,
-      setRequest(fn) { request = fn; }};
+      renderInputs, setRequest(fn) { request = fn; }};
   })();`);
   vm.runInContext(appSource, context);
   const app = context.appAudit, calc = context.calcAudit, bridgeApi = context.window.CeasefireCalculators;
@@ -598,6 +598,33 @@ async function penetrationCheck(name, fn) {
     assert.match(h.byId('project-last-saved').textContent,/File saved/);assert.match(h.byId('project-pricing-source').textContent,/project snapshot/);
     h.calc.setInput(h.calc.current(),'CALCULATOR','A9','Changed calculator');
     assert.equal(h.byId('project-save-state').textContent,'Unsaved changes');
+  });
+  await check('Dynamic estimate disclosures retain logical open and closed state across masking rebuilds', async h => {
+    const containers=['input-sections','post-material-input-sections','adjustment-sections'].map(h.byId);
+    for(const container of containers)container.querySelectorAll=()=>container.children.filter(child=>child.dataset?.inputSection);
+    h.app.state.fields=[['B2','Access'],['D2','Teams'],['D7','Masking teams'],['B9','Masking percentage'],['B26','Global'],['E26','Addition'],['A50','Other']].map(([cell,label])=>({cell,label,type:cell==='D7'?'select':'number',options:cell==='D7'?['N/A','1']:undefined}));
+    h.app.state.inputs={D7:'1',B2:12.34567,B9:0.1,E26:98.76543};
+    const cards=()=>containers.flatMap(container=>container.children).filter(card=>card.dataset?.inputSection);
+    const states=()=>Object.fromEntries(cards().map(card=>[card.dataset.inputSection,card.open]));
+    h.app.renderInputs();
+    const expected={'access-travel':true,'teams-crews':true,'masking-cleaning':true,'global-adjustments':false,additions:true,'other-inputs':false};
+    for(const card of cards())card.open=expected[card.dataset.inputSection];
+    const original=copy(h.app.state.inputs);h.app.state.inputs.D7='N/A';h.app.renderInputs();
+    assert.deepEqual(states(),Object.fromEntries(Object.entries(expected).filter(([key])=>key!=='masking-cleaning')));
+    h.app.state.fields.reverse();h.app.state.inputs.D7='1';h.app.renderInputs();assert.deepEqual(states(),expected);
+    assert.deepEqual(copy(h.app.state.inputs),original,'Rendering and disclosure preferences cannot change estimate inputs or precision');
+    cards().find(card=>card.dataset.inputSection==='masking-cleaning').open=false;h.app.state.inputs.D7='N/A';h.app.renderInputs();h.app.state.inputs.D7='1';h.app.renderInputs();
+    assert.equal(states()['masking-cleaning'],false,'An explicitly closed temporarily removed section stays closed');
+  });
+  await check('Header project name keeps authoritative file title through dirty and busy state and clears on New', async h => {
+    const title='CF-7000 <saved quote> & Client';h.app.state.projectFile={title,name:'private-filename.json',path:'C:/Private/Folder/private-filename.json'};
+    const before=h.snapshot();h.app.updateProjectStatus();const name=h.byId('header-project-name');
+    assert.equal(name.textContent,title);assert.equal(name.title,title);assert.equal(name.hidden,false);assert.deepEqual(h.snapshot(),before);
+    h.byId('client').value='Later unsaved client';h.app.state.dirty=true;h.app.state.projectBusy=true;h.app.updateProjectStatus();
+    assert.equal(name.textContent,title);assert.equal(h.byId('project-save-state').textContent,'Working…');
+    h.app.state.projectBusy=false;h.app.state.projectFile=null;h.app.updateProjectStatus();assert.equal(name.textContent,'');assert.equal(name.title,'');assert.equal(name.hidden,true);
+    await h.loadAccepted();assert.equal(name.textContent,project().estimate.title);assert.equal(name.title,project().estimate.title);assert.equal(name.hidden,false);
+    assert.notEqual(name.textContent,projectFilename,'Imported project title comes from validated contents rather than its filename');
   });
   await check('Project status includes project pricing edits but excludes shared library edits', async h => {
     h.app.state.dirty=false;h.app.state.projectFile={name:'saved.json'};h.app.state.projectPricingDraft=copy(h.app.state.quoteConfiguration);

@@ -76,6 +76,7 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: node tests/browser/pdf_render_gate.cjs
       - run: npm run test:header-controls
+      - run: npm run test:estimator-header-state
       - run: npm run test:calculator-navigation
       - run: npm run test:calculator-cleanup
       - run: npm run test:page-rotation

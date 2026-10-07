@@ -2,7 +2,7 @@
 
 // Native GIF playback is presentation only. Switching to the composited first
 // frame stops it without a decoder or a wider CSP policy. After typing ends,
-// one bounded timer lets the supplied character play for five more seconds.
+// one bounded timer lets the supplied character play for two more seconds.
 (function (root) {
   function create(element, motion, host = root) {
     const animated = "/header-tagline-character.gif", still = "/header-tagline-character-still.png";
@@ -27,7 +27,7 @@
     function finish() {
       cancelFinish();
       if (closed || failed || !element || motion?.matches) { stop(); return; }
-      finishTimer = schedule(stop, 5000);
+      finishTimer = schedule(stop, 2000);
     }
     function close() { closed = true; stop(); }
     motion?.addEventListener?.("change", event => { if (event.matches) stop(); });

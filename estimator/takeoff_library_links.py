@@ -34,7 +34,8 @@ def _hash(value):
 
 
 def _text(value, limit=2000):
-    if not isinstance(value, str) or len(value) > limit or any(ord(c) < 32 and c not in '\n\r\t' for c in value):
+    if (not isinstance(value, str) or len(value) > limit
+            or any(ord(c) < 32 and c not in '\n\r\t' or 0xD800 <= ord(c) <= 0xDFFF for c in value)):
         raise ValidationError('Assignment text must be bounded literal text.')
 
 
@@ -96,7 +97,11 @@ def prepare_library_import(snapshot, proposed, library):
     from .takeoff_physical_operations import prepare_changes
     _object(proposed, ('version', 'scope', 'defect_id', 'defect_revision', 'selected_ids',
                       'barrier_id', 'barrier_revision', 'library_id', 'library_fingerprint',
-                      'accept_mismatch', 'ids'))
+                      'accept_mismatch', 'ids') + tuple(key for key in ('draft_quantity', 'draft_location') if isinstance(proposed, dict) and key in proposed))
+    if 'draft_quantity' in proposed:
+        _quantity(proposed['draft_quantity'])
+    if 'draft_location' in proposed:
+        _text(proposed['draft_location'])
     if type(proposed['version']) is not int or proposed['version'] != 1 or proposed['scope'] != 'defect_reports':
         raise ValidationError('Append an explicitly selected library item within Defect Reports.')
     _id(proposed['defect_id']); _revision(proposed['defect_revision'])
@@ -149,6 +154,8 @@ def prepare_library_import(snapshot, proposed, library):
         _id(ids['barrier'])
         barrier_id = ids['barrier']
         entity = {'id': barrier_id, 'defect_id': defect['id'], **assertion(library['import_fields']['barrier'])}
+        if proposed.get('draft_location') and not entity['fields'].get('location') and not defect['fields'].get('location'):
+            entity['fields']['location'] = proposed['draft_location']
         if 'annotation' in defect:
             entity['marker'] = deepcopy(defect['annotation'])
         commands.append({'op': 'create', 'kind': 'barrier', 'entity': entity})
@@ -190,6 +197,9 @@ def prepare_library_import(snapshot, proposed, library):
     assignment = {'id': ids['assignment'], 'scope': proposed['scope'], 'library_id': library['id'],
         'library_fingerprint': library['metadata_sha256'], 'member_ids': members,
         'installation': {'id': ids['installation'], 'mode': 'repeated_installations', 'note': ''}}
+    for key in ('draft_quantity', 'draft_location'):
+        if key in proposed:
+            assignment[key] = deepcopy(proposed[key])
     return {'graph': resulting_graph, 'commands': commands, 'assignment': assignment, 'barrier_selection': selection}
 
 
@@ -205,7 +215,11 @@ def validate_assignments(snapshot):
     ids = set(); installations = set(); member_sets = set()
     for record in collection['records']:
         _object(record, ('id', 'version', 'scope', 'installation', 'members', 'library', 'context_sha256', 'state', 'confirmation', 'schedule_binding')
-                + (('barrier_selection',) if isinstance(record, dict) and 'barrier_selection' in record else ()))
+                + tuple(key for key in ('barrier_selection', 'draft_quantity', 'draft_location') if isinstance(record, dict) and key in record))
+        if 'draft_quantity' in record:
+            _quantity(record['draft_quantity'])
+        if 'draft_location' in record:
+            _text(record['draft_location'])
         _id(record['id']); _revision(record['version'])
         if not record['version'] or record['id'] in ids:
             raise ValidationError('Assignment IDs must be unique with positive versions.')
@@ -303,7 +317,12 @@ def member_context(snapshot, scope, identifiers, installation):
 
 
 def validate_proposal(proposed):
-    _object(proposed, ('id', 'scope', 'library_id', 'library_fingerprint', 'member_ids', 'installation'))
+    _object(proposed, ('id', 'scope', 'library_id', 'library_fingerprint', 'member_ids', 'installation')
+            + tuple(key for key in ('draft_quantity', 'draft_location') if isinstance(proposed, dict) and key in proposed))
+    if 'draft_quantity' in proposed:
+        _quantity(proposed['draft_quantity'])
+    if 'draft_location' in proposed:
+        _text(proposed['draft_location'])
     _id(proposed['id']); validate_installation(proposed['installation'])
     if proposed['scope'] not in ('defect_reports', 'service_plans'):
         raise ValidationError('Choose a supported physical assignment scope.')
@@ -330,6 +349,9 @@ def create_assignment(snapshot, proposed, library, *, barrier_selection=None):
     captured = {k: deepcopy(library[k]) for k in ('id', 'library_id', 'title', 'source_sha256', 'revision', 'metadata_sha256')}
     collection['records'].append({'id': proposed['id'], 'version': 1, 'scope': proposed['scope'], 'installation': deepcopy(proposed['installation']),
         'members': members, 'library': captured, 'context_sha256': context, 'state': 'draft', 'confirmation': None, 'schedule_binding': None})
+    for key in ('draft_quantity', 'draft_location'):
+        if key in proposed:
+            collection['records'][-1][key] = deepcopy(proposed[key])
     if barrier_selection is not None:
         collection['records'][-1]['barrier_selection'] = deepcopy(barrier_selection)
     validate_assignments(snapshot)
@@ -402,6 +424,8 @@ def validate_history(event):
             raise ValidationError('Retained assignment membership, installation and library identities cannot be rewritten.')
         if prior.get('barrier_selection') != current.get('barrier_selection'):
             raise ValidationError('The original explicit barrier selection and mismatch review must remain unchanged.')
+        if any(prior.get(key) != current.get(key) for key in ('draft_quantity', 'draft_location')):
+            raise ValidationError('The originally entered draft item details must remain unchanged.')
         if prior != current and current['version'] <= prior['version']:
             raise ValidationError('Edited library assignments require an increasing retained version.')
         if event['op'] != 'apply_library_link':

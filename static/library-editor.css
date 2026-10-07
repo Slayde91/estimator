@@ -4,7 +4,8 @@
 #library-editor-price{display:block;margin:9px 0;font-size:30px;font-variant-numeric:tabular-nums}
 #library-editor-pricing-basis{margin-bottom:10px}
 .library-editor-layout{display:grid;grid-template-columns:minmax(0,2fr) minmax(280px,1fr);gap:22px;align-items:start}
-#library-editor-groups{margin-top:16px}
+.library-editor-layout>.card{min-width:0}
+#library-editor-groups{margin-top:0}
 .library-editor-diagram{margin-top:18px;padding:16px;border:1px solid var(--line);border-radius:10px;background:#fffdfd}
 .library-editor-diagram h4{margin:0 0 12px}
 .library-editor-diagram figure{margin:0 0 14px}

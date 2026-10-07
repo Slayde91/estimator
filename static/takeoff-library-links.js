@@ -16,7 +16,7 @@
     if (value.id !== id || !value.import_fields || !/^[a-f0-9]{64}$/.test(value.metadata_sha256)) throw new Error("The selected library metadata is incomplete.");
     return value;
   }
-  async function choose(bridge, onlySearch = false) {
+  async function choose(bridge, onlySearch = false, context = {}) {
     const mode = onlySearch ? {action:"search"} : await bridge.ask("Add Defect", [["action", "Choose item", [["search", "Search Item"], ["new", "New Item"]], "new", true]],
       "Search Item imports the fields of one explicitly selected Firestopping Library item into an unapproved draft. New Item creates your own physical draft. Neither action changes the Firestopping Schedule.", "Continue");
     if (!mode) return null;
@@ -33,14 +33,13 @@
           let offset=0,total=0;const filters={},facetControls=new Map();
           const renderFacets=data=>{
             const definitions=(Array.isArray(data.filters)?data.filters:[]).filter(value=>typeof value.key==="string"&&!['search','offset','limit','technical_reference'].includes(value.key));
-            definitions.push({key:"technical_reference",label:"Technical Reference",options:[{value:"linked",label:"Linked Technical References"},{value:"unlinked",label:"No Linked Technical References"}]});
             if(definitions.length>20)throw new Error("Library returned too many filter facets.");
             for(const definition of definitions){
               if(!/^[a-z][a-z0-9_]{0,79}$/.test(definition.key)||!Array.isArray(definition.options)||definition.options.length>10000)throw new Error("Library returned an invalid filter facet.");
               let field=facetControls.get(definition.key);
               if(!field){const label=doc.createElement("label"),caption=doc.createElement("span"),control=doc.createElement("select");label.className="field";caption.textContent=definition.label||definition.key;control.name=`library_filter_${definition.key}`;control.setAttribute("aria-label",definition.label||definition.key);control.dataset.libraryFilter=definition.key;label.append(caption,control);facets.append(label);field={control,stamp:null};facetControls.set(definition.key,field);control.addEventListener("change",()=>{filters[definition.key]=control.value;offset=0;void load();});}
-              const options=[{value:definition.key==="technical_reference"?"any":"",label:definition.key==="technical_reference"?"Any":`All ${definition.label||definition.key}`},...definition.options.map(option=>typeof option==="object"?option:{value:option,label:option})];
-              const selectedValue=filters[definition.key]||(definition.key==="technical_reference"?"any":"");if(selectedValue&&!options.some(option=>String(option.value)===selectedValue))options.push({value:selectedValue,label:selectedValue});
+              const options=[{value:"",label:`All ${definition.label||definition.key}`},...definition.options.map(option=>typeof option==="object"?option:{value:option,label:option})];
+              const selectedValue=filters[definition.key]||"";if(selectedValue&&!options.some(option=>String(option.value)===selectedValue))options.push({value:selectedValue,label:selectedValue});
               const stamp=JSON.stringify([options,selectedValue]);if(field.stamp!==stamp){field.stamp=stamp;field.control.replaceChildren(...options.map(option=>{const value=doc.createElement("option");value.value=String(option.value);value.textContent=String(option.label??option.value);return value;}));field.control.value=selectedValue;}
             }
           };
@@ -61,7 +60,18 @@
           select.addEventListener("change",()=>{const valid=!closed&&!select.disabled&&!!select.value&&[...select.options].some(option=>option.value===select.value);ready(valid);if(valid){const submit=select.form?.querySelector('button[type="submit"]');if(submit&&!submit.disabled)select.form.requestSubmit(submit);}});previous.addEventListener("click",()=>{offset=Math.max(0,offset-100);void load();});next.addEventListener("click",()=>{offset+=100;void load();});
           await load();
         });
-      if(!selected)return null;return {kind:"library",record:await record(selected.library_id)};
+      if(!selected)return null;
+      const library=await record(selected.library_id),knownLocation=[context.location,library.import_fields.defect?.location,library.import_fields.barrier?.location].find(value=>typeof value==="string"&&value.trim()) || "";
+      const fields=[...(!knownLocation.trim() ? [["location","Location","text","",true]] : []),["quantity","Item QTY","number","",true]];
+      const details=await bridge.ask("Complete selected item details",fields,
+        `${library.library_id || library.id}: ${library.title || "Firestopping item"}\n${knownLocation ? `Location: ${knownLocation}\n` : ""}Enter the missing item details. Item QTY is saved as the draft schedule quantity and will prefill the transfer review. Physical service counts remain separate. The Firestopping Schedule changes only after you review and confirm the transfer.`,"Use item details",controls=>{
+          for(const field of controls){if(field.control.name==="location")field.control.maxLength=2000;if(field.control.name==="quantity"){field.control.min="0";field.control.max="1000000000000";field.control.step="any";}}
+        });
+      if(!details)return null;
+      const quantity=Number(details.quantity),location=knownLocation || String(details.location || "").trim();
+      if(!Number.isFinite(quantity)||quantity<=0||quantity>1e12)throw new Error("Enter a positive finite Item QTY of at most 1000000000000.");
+      if(!location.trim()||location.length>2000)throw new Error("Enter a Location of at most 2000 characters.");
+      return {kind:"library",record:library,details:{draft_quantity:quantity,draft_location:location}};
     }finally{closed=true;++generation;controller?.abort();root.clearTimeout(timer);}
   }
   const barrierFields=["barrier_type","substrate","orientation"];
@@ -85,21 +95,21 @@
       }
     }else if(first.choice!=="new")throw new Error("Choose New Barrier or Existing Barrier.");
     for(;;){
-      const selected=await choose(bridge,true);if(!selected)return null;guard();
+      const selected=await choose(bridge,true,{location:barrier?.fields.location || context.defect.fields.location || ""});if(!selected)return null;guard();
       const differences=barrier?barrierDifferences(barrier.fields,selected.record.import_fields.barrier):[];
       if(differences.length){
         const proceed=await bridge.confirm("Library barrier mismatch",`${barrierLabel(barrier)}\n\n${differences.map(value=>`${barrierNames[value.field]}: Existing Barrier = ${value.retained||"Unknown"}; selected library = ${value.selected}`).join("\n")}\n\nContinue keeps the Existing Barrier, its ID and source location unchanged. Only the selected new service/item is added as an unapproved draft, with this explicit mismatch retained for review. No physical approval or schedule quantity is created. Cancel returns to library search without changing the project.`,"Continue");
         guard();if(!proceed)continue;
       }
       const library=selected.record,ids={barrier:barrier?null:root.crypto.randomUUID(),service:library.import_fields.service?root.crypto.randomUUID():null,assignment:root.crypto.randomUUID(),installation:root.crypto.randomUUID()};
-      const proposal={version:1,scope:context.scope,defect_id:context.defect.id,defect_revision:context.defect.revision,selected_ids:[...context.selectedIds],barrier_id:barrier?.id||null,barrier_revision:barrier?.revision??null,library_id:library.id,library_fingerprint:library.metadata_sha256,accept_mismatch:!!differences.length,ids};
+      const proposal={version:1,scope:context.scope,defect_id:context.defect.id,defect_revision:context.defect.revision,selected_ids:[...context.selectedIds],barrier_id:barrier?.id||null,barrier_revision:barrier?.revision??null,library_id:library.id,library_fingerprint:library.metadata_sha256,accept_mismatch:!!differences.length,ids,...selected.details};
       guard();const reply=await bridge.libraryCommand("import_library_item",{import:proposal});
       return {reply,selected_id:ids.service||barrier?.id||ids.barrier,assignment_id:ids.assignment};
     }
   }
-  function assignment(scope, library, memberIds, installation = null) {
+  function assignment(scope, library, memberIds, installation = null, details = {}) {
     return {id:root.crypto.randomUUID(),scope,library_id:library.id,library_fingerprint:library.metadata_sha256,
-      member_ids:[...memberIds],installation:installation || {id:root.crypto.randomUUID(),mode:"repeated_installations",note:""}};
+      member_ids:[...memberIds],installation:installation || {id:root.crypto.randomUUID(),mode:"repeated_installations",note:""},...details};
   }
   function status(snapshot, value, library = null) {
     const graph = value.scope === "service_plans" ? snapshot.service_plans || snapshot.physical : snapshot.physical;
@@ -110,7 +120,7 @@
   }
   function description(value) {
     const selection=value.barrier_selection;
-    const note=selection?`\n${selection.choice==="new"?"New Barrier adopted selected literal library properties.":"Existing Barrier retained its original properties and source position."}${selection.differences.length?` Unapproved mismatch retained for review: ${selection.differences.map(item=>`${barrierNames[item.field]} ${item.retained||"Unknown"} → library ${item.selected}`).join("; ")}.`:""}`:"";
+    const note=(value.draft_location?`\nItem Location: ${value.draft_location}`:"")+(value.draft_quantity!=null?`\nDraft Item QTY: ${value.draft_quantity}`:"")+(selection?`\n${selection.choice==="new"?"New Barrier adopted selected literal library properties.":"Existing Barrier retained its original properties and source position."}${selection.differences.length?` Unapproved mismatch retained for review: ${selection.differences.map(item=>`${barrierNames[item.field]} ${item.retained||"Unknown"} → library ${item.selected}`).join("; ")}.`:""}`:"");
     return `${value.library.library_id} · ${value.library.title}\n${value.members.length} explicit physical members · ${value.installation.mode === "combined_installation" ? "one explicitly combined installation" : "explicit repeated installations"}\nCaptured library revision ${value.library.revision} · ${value.state === "confirmed" ? "Retained commercial confirmation" : "Needs commercial review"}. Current library metadata is checked before the next commercial change. Physical draft remains unapproved.${note}`;
   }
   const api={choose,record,assignment,status,description,copy,barrierDifferences,barrierLabel,addUnderDefect};

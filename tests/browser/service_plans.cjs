@@ -119,12 +119,12 @@ async function controls() {
   }));
   assert.ok(controls.previous.includes('takeoff-register-table')); assert.ok(controls.next.includes('takeoff-register-controls'));
   assert.deepEqual(controls.names, ['Add substrate']);
-  assert.equal(await page.getByRole('button', { name: 'Delete selected records', exact: true }).evaluate(el => el.previousElementSibling.getAttribute('aria-label')), 'Bulk edit same-type records');
+  assert.equal(await page.getByRole('button', { name: 'Delete selected records', exact: true }).evaluate(el => el.previousElementSibling.textContent), 'Unconfirm');
   const trash = page.getByRole('button', { name: 'Delete selected records', exact: true }), discard = details().getByRole('button', { name: 'Discard unfinished physical edits', exact: true });
   await expect(discard).toHaveCount(1); await expect(page.getByRole('button', { name: 'Discard unfinished physical edits', exact: true })).toHaveCount(1);
   await expect(page.locator('.takeoff-physical-register').getByRole('button', { name: 'Discard unfinished physical edits', exact: true })).toHaveCount(0);
   const style = locator => locator.evaluate(el => { const css = getComputedStyle(el); return { color: css.color, background: css.backgroundColor, border: css.borderColor }; });
-  assert.deepEqual(await style(trash), await style(discard));
+  await expect(trash).toHaveText('Delete');assert.equal((await style(trash)).background,(await style(discard)).background);
   for (const name of ['Select filtered records', 'Bulk edit same-type records']) {
     const button = page.getByRole('button', { name, exact: true }); await expect(button.locator('svg')).toHaveCount(1); assert.equal((await button.innerText()).trim(), '');
   }
@@ -269,11 +269,11 @@ async function controls() {
 
   await tab('Defect Reports'); await expect(row(defect)).toBeVisible(); await expect(row(barrier)).toHaveCount(0); await expect(marker(barrier)).toHaveCount(0);
   await expect(page.getByRole('columnheader', { name: 'Defect ID', exact: true })).toBeVisible(); await snapshot(); assert.deepEqual(state.physical, reportBefore);
-  await select(reportBarrier); await details().getByRole('button', { name: 'Place count marker', exact: true }).click();
-  await response(async () => page.mouse.click(...await screen([330, 320])), '/physical/apply'); await snapshot();
-  await summaryContains(reportBarrier, 'FRL -/120/120'); await summaryContains(reportBarrier, '3 ×');
+  await select(reportBarrier);await expect(details().getByRole('button', { name: 'Place count marker', exact: true })).toHaveCount(0);await expect(details().getByRole('button', { name: 'Link original source page', exact: true })).toHaveCount(0);
+  await renderedPage(async()=>{await page.getByLabel('Page number',{exact:true}).fill('1');await page.getByLabel('Page number',{exact:true}).press('Tab');},1);await snapshot();
+  await summaryContains(defect, 'FRL -/120/120'); await summaryContains(defect, '3 ×');
   const savedReport = structuredClone(state.physical); await tab('Service Plans');
-  await expect(marker(reportBarrier)).toHaveCount(0); await expect(marker(barrier)).toBeVisible(); await expect(marker(secondBarrier)).toBeVisible();
+  await expect(marker(defect)).toHaveCount(0);await renderedPage(async()=>{await page.getByLabel('Page number',{exact:true}).fill('3');await page.getByLabel('Page number',{exact:true}).press('Tab');},3);await expect(marker(barrier)).toBeVisible(); await expect(marker(secondBarrier)).toBeVisible();
   evidence.scopedMarkers = true;
 
   const beforeRoundtrip = structuredClone(await snapshot()), saved = await saveAndLoad(info); await tab('Service Plans'); await snapshot();

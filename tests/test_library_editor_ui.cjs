@@ -14,7 +14,7 @@ function harness(){
   vm.runInContext(fs.readFileSync('static/library-editor.js','utf8').replace(/\}\)\(\);\s*$/,`globalThis.libraryAudit={state,calculate,refreshPricing,save,cancel,makeControl,renderFields,renderDiagram,queueDiagram,chooseDiagram,present,setRequest(fn){request=fn;},setProjectRequest(fn){projectRequest=fn;}};})();`),h.context);
   const audit=h.context.libraryAudit,api=h.context.window.CeasefireLibraryEditor;
   audit.setRequest(async(id,action,payload)=>{calls.push({id,action,payload:payload&&copy(payload)});return fixture(payload?.draft,{revision:action==='save'?payload.revision+1:payload?.revision||0,pricing_token:payload?.pricing_token||'workbook-token'});});
-  const control=(column,global=false)=>walk(h.byId('library-editor-fields')).find(el=>el.dataset.libraryEditorField===column&&el.dataset.libraryEditorGlobal===String(global));
+  const control=(column,global=false)=>[h.byId('library-editor-item-quantity'),h.byId('library-editor-fields')].flatMap(walk).find(el=>el.dataset.libraryEditorField===column&&el.dataset.libraryEditorGlobal===String(global));
   return{...h,projectApi:h.api,api,audit,calls,returns,control,shows:()=>shows,invalidations:()=>invalidations};
 }
 let passed=0;
@@ -239,6 +239,18 @@ async function check(name,fn){const h=harness();h.projectApi.applyProject(await 
     await h.api.open('legacy-row-4');let input=h.control('O');input.value='12.3456789012345';await input.emit('input');await input.blur();assert.equal(input.value,'12.35');await input.focus();assert.equal(input.value,'12.3456789012345');assert.equal(input.selectionEnd,input.value.length);
     h.audit.state.group='Additional Allowances';h.audit.renderFields();const percent=h.control('AG');percent.value='12.3456789012345';await percent.emit('input');await percent.blur();assert.equal(percent.value,'12.35');await percent.focus();assert.equal(percent.value,'12.3456789012345');assert.equal(h.audit.state.draft.rows[0].inputs.AG,0.123456789012345);
     h.audit.state.group='Penetration';h.audit.renderFields();input=h.control('O');input.value='1e-';await input.emit('input');h.audit.state.group='Additional Allowances';h.audit.renderFields();assert.equal(h.control('AG').value,'12.35');h.audit.state.group='Penetration';h.audit.renderFields();assert.equal(h.control('O').value,'1e-');assert.equal(h.audit.state.draft.rows[0].inputs.O,12.3456789012345);assert.equal(h.byId('library-editor-save').disabled,true);assert.equal(h.audit.state.result,null);
+  });
+  await check('Header Item QTY remains available once in every input section and Settings, without changing its source value',async h=>{
+    const metadata=allowanceDefinition(),draft=copy(metadata.defaults);draft.rows[0].inputs.O=3.123456789012345;
+    h.api.present(fixture(draft,{definition:metadata,result:allowanceResult(draft,metadata)}));
+    for(const group of metadata.groups){
+      h.audit.state.group=group;h.audit.renderFields();
+      const header=walk(h.byId('library-editor-item-quantity')).filter(el=>el.dataset.libraryEditorField==='O');
+      assert.equal(header.length,1);assert.equal(walk(h.byId('library-editor-fields')).some(el=>el.dataset.libraryEditorField==='O'),false);
+      assert.equal(h.byId('library-editor-item-quantity').hidden,false);assert.equal(h.audit.state.draft.rows[0].inputs.O,3.123456789012345);
+      await header[0].focus();assert.equal(header[0].value,'3.123456789012345');await header[0].blur();
+    }
+    assert.equal(h.api.hasUnsavedChanges(),false);assert.equal(h.calls.length,0);
   });
   await check('Calculation sends only the one-row draft, item revision and opaque pricing token',async h=>{
     await h.api.open('legacy-row-4');assert.equal(h.control('T').getAttribute('aria-label'),'Library item: Description');assert.equal(h.control('U').getAttribute('aria-label'),'Library item: System/Install Details');h.control('T').value='Exact service description';await h.control('T').emit('input');h.control('U').value='Exact installation description';await h.control('U').emit('input');h.control('O').value='1.23456789012345';await h.control('O').emit('input');await h.audit.calculate();

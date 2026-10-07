@@ -1683,7 +1683,7 @@ class TakeoffService:
             keys = {'version', 'scope', 'defect_id', 'defect_revision', 'selected_ids',
                     'barrier_id', 'barrier_revision', 'library_id', 'library_fingerprint',
                     'accept_mismatch', 'ids'}
-            object_fields(proposed, keys, 'Selected library import', keys)
+            object_fields(proposed, keys | {'draft_quantity', 'draft_location'}, 'Selected library import', keys)
             if not isinstance(proposed['library_id'], str) or not 1 <= len(proposed['library_id']) <= 120:
                 raise ValidationError('Choose a valid selected library item.')
             session, prior = self._start(session_id, request)

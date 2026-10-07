@@ -4,6 +4,32 @@ const {copy,harness}=require("./helpers/penetration_ui.cjs");
 let passed=0;
 async function test(name,fn){const h=harness();h.api.applyProject(await h.api.prepareDefaults());await fn(h);++passed;console.log(`ok - ${name}`);}
 (async()=>{
+  const links=require('../static/takeoff-library-links.js');
+  async function picker(answers,context={}){
+    const calls=[],original=global.fetch,library={id:'chosen',library_id:'L-1',title:'Selected item',metadata_sha256:'a'.repeat(64),import_fields:{defect:{frl:'-/120/120'},barrier:{substrate:'Concrete'},service:null}};
+    global.fetch=async()=>({ok:true,json:async()=>copy(library)});
+    try{const result=await links.choose({ask:async(title,fields,message,submit)=>{calls.push({title,fields,message,submit});return answers.shift();}},true,context);return {result,calls,library};}finally{global.fetch=original;}
+  }
+  await test('selected blank seal asks missing Location and draft schedule quantity without mutating library metadata',async()=>{
+    const value=await picker([{library_id:'chosen'},{location:'L02 north',quantity:'2.123456789012'}]);
+    assert.equal(value.calls[1].title,'Complete selected item details');assert.deepEqual(value.calls[1].fields.map(field=>field[1]),['Location','Item QTY']);
+    assert.deepEqual(value.result.details,{draft_quantity:2.123456789012,draft_location:'L02 north'});assert.deepEqual(value.result.record,value.library);assert.equal(value.result.record.import_fields.service,null);
+    assert.match(value.calls[1].message,/schedule changes only after you review and confirm/i);
+  });
+  await test('known physical Location is retained and only missing Item QTY is requested',async()=>{
+    const value=await picker([{library_id:'chosen'},{quantity:7.123456789}],{location:'Retained barrier location'});
+    assert.deepEqual(value.calls[1].fields.map(field=>field[1]),['Item QTY']);assert.equal(value.result.details.draft_location,'Retained barrier location');assert.equal(value.result.details.draft_quantity,7.123456789);
+  });
+  await test('whitespace-only retained Location accepts the explicitly entered missing value',async()=>{
+    const value=await picker([{library_id:'chosen'},{location:'L04 south',quantity:1}],{location:'   '});
+    assert.deepEqual(value.calls[1].fields.map(field=>field[1]),['Location','Item QTY']);assert.equal(value.result.details.draft_location,'L04 south');
+  });
+  await test('Cancel at unknown item details yields no import or draft association',async()=>{
+    const value=await picker([{library_id:'chosen'},null]);assert.equal(value.result,null);assert.equal(value.calls.length,2);
+  });
+  await test('invalid entered quantity cannot become a retained item or inferred count',async()=>{
+    for(const quantity of [0,-1,'',null,Infinity,1e13])await assert.rejects(picker([{library_id:'chosen'},{location:'Fixture',quantity}]),/positive finite Item QTY/);
+  });
   await test("commercial destination capture retains composer, manual values and frozen pricing",async h=>{
     h.audit.state.schedule.draft.rows.push({id:"line-1",library_item_id:"chosen",inputs:{O:7.123456789,T:"Manual description",J:"HVAC",W:"Installer"}});
     const before=copy(h.api.projectSnapshot()),capture=await h.api.captureTakeoffSchedule();

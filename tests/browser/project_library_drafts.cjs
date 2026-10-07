@@ -43,6 +43,24 @@ async function picture() {
   await expect(image).toBeVisible(); await expect.poll(() => image.evaluate(value => value.complete && value.naturalWidth > 0)).toBe(true);
   return image.getAttribute('src');
 }
+async function editorLayout(width, height) {
+  await page.setViewportSize({width,height});
+  const quantity=page.locator('#library-editor-item-quantity [data-library-editor-field="O"]');
+  await expect(quantity).toBeVisible();await expect(page.locator('[data-library-editor-field="O"]')).toHaveCount(1);
+  const measured=await page.evaluate(()=>{
+    const bounds=selector=>{const box=document.querySelector(selector).getBoundingClientRect();return{x:box.x,y:box.y,width:box.width,height:box.height,bottom:box.bottom};};
+    const fields=document.querySelector('#library-editor-fields'),diagram=document.querySelector('.library-editor-diagram');
+    return{settings:bounds('#library-editor-settings'),tabs:bounds('#library-editor-groups'),quantity:bounds('#library-editor-item-quantity'),fields:bounds('#library-editor-fields'),diagram:bounds('.library-editor-diagram'),diagramFollowsFields:!!(fields.compareDocumentPosition(diagram)&Node.DOCUMENT_POSITION_FOLLOWING),overflow:document.documentElement.scrollWidth-innerWidth,overflowRegions:[...document.querySelectorAll('#firestopping-library-editor *')].map(element=>({tag:element.tagName,id:element.id,className:element.className,x:element.getBoundingClientRect().x,right:element.getBoundingClientRect().right,width:element.getBoundingClientRect().width})).filter(element=>element.right>innerWidth+1)};
+  });
+  fs.writeFileSync(path.join(output,`library-editor-layout-${width}.json`),JSON.stringify(measured,null,2));
+  assert.ok(Math.abs(measured.settings.y-measured.tabs.y)<1,'Settings aligns with the input tab strip');
+  assert.ok(measured.quantity.bottom<=measured.tabs.y,'Item QTY sits above the input tabs');
+  assert.ok(measured.diagram.y>=measured.fields.bottom,'Source diagram sits below the active item inputs');
+  assert.equal(measured.diagramFollowsFields,true);assert.ok(measured.overflow<=1,`Library editor overflows at ${width}px`);
+  await page.locator('#library-editor-input-heading').scrollIntoViewIfNeeded();
+  await page.screenshot({path:path.join(output,`library-editor-layout-${width}.png`),fullPage:true});
+  return measured;
+}
 async function independentDrafts() { return page.evaluate(() => ({ calculators: window.CeasefireCalculators.projectSnapshot(), penetration: window.CeasefirePenetrations.projectSnapshot() })); }
 async function enterLibraries() { await page.getByRole('button', { name: 'Libraries', exact: true }).click(); }
 async function openProjectCopy() {
@@ -91,6 +109,9 @@ async function openProjectCopy() {
   await page.getByRole('dialog').getByRole('button', { name: 'Continue', exact: true }).click();
   await page.locator(`[data-library-edit="${info.item_id}"]`).first().click();
   await expect(page.locator('#firestopping-library-editor')).toBeVisible();
+  const layouts={};
+  for(const [width,height] of [[1146,764],[390,844]])layouts[width]=await editorLayout(width,height);
+  await page.setViewportSize({width:1440,height:1000});evidence.editorLayout=layouts;
   const description = page.locator('[data-library-editor-field="T"]'), quantity = page.locator('[data-library-editor-field="O"]');
   await description.fill('Project-only edited library item');
   await quantity.fill('2.125'); await quantity.press('Tab');

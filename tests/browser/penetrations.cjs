@@ -64,7 +64,7 @@ async function create(kind, values, trigger = `Add ${kind}`) {
   if (kind === 'defect') await chooseNewDefect(page);
   const modal=page.getByRole('dialog');await expect(modal.getByRole('heading', { name:kind === 'defect' ? 'Add Defect' : `Create draft ${kind}`,exact:true })).toBeVisible();await physicalForm(kind,modal);
   if(kind==='barrier'||kind==='service')await modal.screenshot({path:path.join(output,`create-${kind}-form.png`)});
-  const preview = await response(() => dialog(kind === 'defect' ? 'Add Defect' : `Create draft ${kind}`, { ...values, 'Uncertainty / review state': 'human_review_required' }, 'Preview new draft'), '/physical/preview');
+  const preview = await response(() => dialog(kind === 'defect' ? 'Add Defect' : `Create draft ${kind}`, { ...values, 'Confirmation': 'unconfirmed' }, 'Preview new draft'), '/physical/preview');
   assert.equal(preview.changed_ids.length, 1); await apply(`Create one draft ${kind}?`);await physicalForm(kind,page.getByRole('complementary',{name:'Item Details'}));return preview.changed_ids[0];
 }
 async function select(id) { await idle(); await page.locator(`tr[data-physical-id="${id}"] .takeoff-row-link`).click(); await idle(); }
@@ -95,7 +95,7 @@ async function showImage() {
   await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); await chooseTakeoff(page, 'physical');
   await expect(page.getByRole('button', { name: 'Confirm', exact: true })).toBeHidden(); await expect(page.getByRole('button', { name: 'Preview transfer', exact: true })).toBeHidden();
   await expect(page.getByRole('button', { name: 'Add defect', exact: true })).toHaveCount(0);
-  assert.deepEqual((await page.getByRole('table', { name: 'Draft penetration hierarchy register' }).getByRole('columnheader').allTextContents()).slice(0, 5), ['Select', 'Hide', 'Defect ID', 'Barrier ID', 'Service ID']);
+  assert.deepEqual((await page.getByRole('table', { name: 'Draft penetration hierarchy register' }).getByRole('columnheader').allTextContents()).slice(0, 7), ['Select', 'Hide', 'View/Edit', 'Defect ID', 'Barrier ID', 'Service ID', 'Confirmation']);
   for (const kind of ['barrier', 'opening', 'service']) await expect(page.getByRole('button', { name: `Add ${kind}`, exact: true })).toHaveCount(0);
   await page.locator('#takeoff-upload').setInputFiles(info.physical_v2_fixture); await expect(page.locator('.takeoff-document')).toHaveCount(1, { timeout: 60000 }); await expect(page.locator('.takeoff-viewport canvas')).toBeVisible(); await idle();
   const firstExtraction = await extract(); await expect(page.locator('details[data-image-occurrence]')).toHaveCount(3);
@@ -149,7 +149,7 @@ async function showImage() {
   await undo(); assert.equal(record(defect).fields.frl, '-/120/120');
   Object.assign(automaticFieldChecks, { mixedInputsRetained: true, mixedCanonicalUnchanged: true, mixedRequestsBlocked: true, discardRestoresBoth: true, routineFrlAutoAppliedWithoutReview: true, undoRestoresFrl: true });
   await page.getByRole('checkbox',{name:'Select all matching physical records',exact:true}).check();await page.getByRole('checkbox',{name:'Select all matching physical records',exact:true}).uncheck(); await page.getByLabel('Select Service S-0001', { exact: true }).check(); await page.getByLabel('Select Service S-0002', { exact: true }).check();
-  await page.getByRole('button', { name: 'Bulk edit same-type records', exact: true }).click();await dialog('Choose field for 2 draft records',{'Field to change':'notes'},'Continue');const bulk = await response(() => dialog('Edit 2 draft service records', { 'Notes': 'One reviewed draft edit batch' }, 'Preview bulk edit'), '/physical/preview'); assert.equal(bulk.changed_ids.length, 2);
+  await page.getByLabel('Bulk physical edit field',{exact:true}).selectOption('notes');await page.getByLabel('Bulk physical edit value',{exact:true}).fill('One reviewed draft edit batch');const bulk = await response(() => page.locator('.takeoff-physical-bulk').getByRole('button',{name:'Apply to selected',exact:true}).click(), '/physical/preview'); assert.equal(bulk.changed_ids.length, 2);
   await apply('Change 2 of 2 selected records? 0 already match and stay unchanged.'); assert.ok(activeGraph().services.every(entity => entity.fields.notes === 'One reviewed draft edit batch')); await undo(); assert.ok(activeGraph().services.every(entity => !entity.fields.notes)); assert.deepEqual(activeGraph().services.find(entity => entity.id === cable).evidence[0], evidence);
   const beforeDeleteIds = identities();
   await select(occupied); await page.getByRole('button', { name: 'Delete draft record', exact: true }).click(); const deletion = await response(() => dialog('Delete draft barrier', { 'Deletion scope': 'cascade' }, 'Preview deletion'), '/physical/preview'); assert.equal(deletion.changed_ids.length, 3); await apply('Review recoverable deletion'); assert.ok(activeGraph().services.every(entity => entity.deleted)); assert.equal(record(empty).deleted, false); assert.equal(record(otherDefect).deleted, false);
@@ -219,8 +219,8 @@ async function showImage() {
   const legacy = await response(() => clickProjectControl(page, 'Load'), '/api/project/open'); assert.deepEqual(legacy.takeoffs.physical, legacySaved.takeoffs.physical); assert.equal(legacy.takeoffs.physical.version, 1);
   await page.getByRole('dialog').getByRole('button', { name: 'Load Project', exact: true }).click(); await expect(page.locator('#project-save-state')).toHaveText('Saved project'); await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); await chooseTakeoff(page, 'physical'); await expect(page.locator('.takeoff-physical-register')).toContainText('Legacy hierarchy');
   await expect(page.locator('.takeoff-physical-register tr[data-physical-id]')).toHaveCount(4);
-  for (const label of ['Bulk edit same-type records', 'Delete selected records', 'Extract images from selected PDF page']) await expect(page.getByRole('button', { name: label, exact: true })).toBeDisabled();
   await select(legacySaved.takeoffs.physical.services[0].id);
+  for (const label of ['Bulk edit same-type records', 'Delete selected records', 'Extract images from selected PDF page']) await expect(page.getByRole('button', { name: label, exact: true })).toBeDisabled();
   for (const label of ['Preview physical edits', 'Delete draft record', 'Restore draft record', 'Change physical parent', 'Link original source page', 'Remove source association']) await expect(page.getByRole('button', { name: label, exact: true })).toHaveCount(0);
   const legacyInspector = page.getByRole('complementary', { name: 'Item Details' }), legacyNavigation = legacyInspector.getByRole('table', { name: 'Item Details navigation' });
   await expect(legacyNavigation.locator('select')).toHaveCount(3);

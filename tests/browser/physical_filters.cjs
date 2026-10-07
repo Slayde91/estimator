@@ -31,7 +31,7 @@ async function seed(scope) {
   create('barrier', entity(ids.b2, { location: 'Level02', substrate: 'Concrete/masonry floor', orientation: 'Horizontal', ...(scope === 'service_plans' ? { frl: '-/90/90' } : {}) }, parent(ids.d2)));
   create('barrier', entity(ids.b3, {}, parent(ids.d1), 'unresolved'));
   create('service', entity(ids.s1, { service: 'Mechanical', service_type: 'Plastic Pipes', size: '25' }, { barrier_id: ids.b1, quantity: 1 }));
-  create('service', entity(ids.s2, { service: 'Electrical & Communications', service_type: 'D2 Comms Cables' }, { barrier_id: ids.b1, quantity: 2 }, 'missing'));
+  create('service', entity(ids.s2, { service: 'Electrical & Communications', service_type: 'D2 Comms Cables' }, { barrier_id: ids.b1, quantity: 2, confirmation:'confirmed' }, 'missing'));
   create('service', entity(ids.s3, { service: 'Mechanical', service_type: 'Plastic Pipes' }, { barrier_id: ids.b2, quantity: 3 }));
   const session = await page.evaluate(() => window.CeasefireTakeoffs.sessionId()), before = await snapshot();
   const previewReply = await page.request.post(`${origin}/api/takeoffs/sessions/${session}/physical/preview`, { data: { scope, expected_revision: before.revision, commands } }); assert.equal(previewReply.status(), 200, await previewReply.text()); const preview = await previewReply.json();
@@ -51,7 +51,7 @@ async function matches(ids) { const expected = [...ids].sort(); await expect.pol
   const calculators = await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()); await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); await chooseTakeoff(page, 'physical'); await idle();
   for (const scope of ['defect_reports', 'service_plans']) {
     await chooseTakeoff(page, scope === 'service_plans' ? 'Service Plans' : 'Defect Reports'); await idle(); const ids = await seed(scope);
-    const cases = [['State / uncertainty', 'Unapproved draft · Missing evidence', [ids.s2]], ['Location', 'Level01', [ids.b1, ids.s1, ids.s2]], ['FRL', '-/90/90', scope === 'service_plans' ? [ids.b2, ids.s3] : [ids.d2, ids.b2, ids.s3]], ['Substrate', 'Concrete/masonry floor', [ids.b2, ids.s3]], ['Orientation', 'Vertical', [ids.b1, ids.s1, ids.s2]], ['Category', 'Mechanical', [ids.s1, ids.s3]], ['Service type', 'D2 Comms Cables', [ids.s2]]];
+    const cases = [['Confirmation', 'Confirmed', [ids.s2]], ['Location', 'Level01', [ids.b1, ids.s1, ids.s2]], ['FRL', '-/90/90', scope === 'service_plans' ? [ids.b2, ids.s3] : [ids.d2, ids.b2, ids.s3]], ['Substrate', 'Concrete/masonry floor', [ids.b2, ids.s3]], ['Orientation', 'Vertical', [ids.b1, ids.s1, ids.s2]], ['Category', 'Mechanical', [ids.s1, ids.s3]], ['Service type', 'D2 Comms Cables', [ids.s2]]];
     cases.push(['Service Size (mm)', '25', [ids.s1]]);
     const beforeHide=await snapshot(),hideAll=page.getByRole('checkbox',{name:'Hide all matching physical records',exact:true});
     await hideAll.check(); await expect(page.locator('.takeoff-register-table tbody input[aria-label^="Hide "]:checked')).toHaveCount(scope==='service_plans'?6:8);

@@ -24,7 +24,7 @@ async function command(action, op) {
   const pending = page.waitForResponse(reply => reply.url().endsWith("/commands") && reply.request().postDataJSON()?.op === op); pending.catch(() => {});
   await action(); const reply = await pending, result = await reply.json(); assert.equal(reply.status(), 200, JSON.stringify(result)); await idle(); return result;
 }
-async function applied() { await panel().getByRole("button", { name: "Apply Item Details", exact: true }).click(); await snapshot(); await page.waitForFunction(() => !JSON.parse(window.CeasefireTakeoffs.projectFingerprint()).settingsDirty); }
+async function applied() { await editor().press("Tab"); await page.waitForFunction(() => !JSON.parse(window.CeasefireTakeoffs.projectFingerprint()).settingsDirty); await snapshot(); }
 async function fit() { await renderDrawing(page, () => page.getByRole("button", { name: "Fit page", exact: true }).click(), 3); }
 async function sourcePoint([x, y]) {
   const overlay = page.locator(".takeoff-overlay"); await overlay.scrollIntoViewIfNeeded();
@@ -60,6 +60,32 @@ async function assertAnnotationView(annotation, rotation) {
   assert.equal(hit, "point", "The original source marker remains accessible when the upright Call-out box overlaps it after rotation");
   return { ...seen, scale, markerHit: hit };
 }
+async function annotationMenuPosition(id, part, keyboard = false) {
+  const target = note(id).locator(`[data-annotation-part="${part}"]`); await target.scrollIntoViewIfNeeded();
+  let bounds = await target.boundingBox(); assert.ok(bounds);
+  const chosen = [bounds.x + bounds.width * .7, bounds.y + bounds.height * .4];
+  if (keyboard) { await note(id).focus(); bounds=await target.boundingBox(); await note(id).press('Shift+F10'); }
+  else {
+    assert.equal(await page.evaluate(([x,y]) => document.elementFromPoint(x,y)?.dataset.annotationPart, chosen),part,'Native right click reaches the intended Call-out part');
+    await page.evaluate(() => document.querySelector('.takeoff-overlay').addEventListener('contextmenu',event=>{window.qaCalloutContext=[event.clientX,event.clientY];},{capture:true,once:true}));
+    await page.mouse.click(...chosen,{button:'right'});
+  }
+  const menu = page.getByRole('menu',{name:'Call-out actions',exact:true}); await expect(menu).toBeVisible();
+  const geometry = await menu.evaluate(el => {
+    const holder=el.parentElement, overlay=holder.ownerSVGElement, viewport=document.querySelector('.takeoff-viewport'), viewer=viewport.parentElement;
+    const svg=overlay.getBoundingClientRect(), frame=viewport.getBoundingClientRect(), upper=viewer.querySelector('.takeoff-viewer-top')?.getBoundingClientRect(), lower=viewer.querySelector('.takeoff-page-controls')?.getBoundingClientRect();
+    return {menu:{x:+holder.getAttribute('x'),y:+holder.getAttribute('y'),width:+holder.getAttribute('width'),height:+holder.getAttribute('height')},svg:{x:svg.x,y:svg.y,width:svg.width,height:svg.height},size:[+overlay.getAttribute('width'),+overlay.getAttribute('height')],frame:{left:frame.left,right:frame.left+viewport.clientWidth,top:Math.max(frame.top,upper?.height?upper.bottom+6:frame.top),bottom:Math.min(frame.top+viewport.clientHeight,lower?.height?lower.top-6:frame.top+viewport.clientHeight)},native:window.qaCalloutContext};
+  });
+  const anchor=keyboard?[bounds.x+bounds.width/2,bounds.y+bounds.height/2]:geometry.native;
+  const scale=geometry.size.map((size,axis)=>size/(axis?geometry.svg.height:geometry.svg.width));
+  const expected=[Math.max(0,(geometry.frame.left-geometry.svg.x)*scale[0],Math.min((anchor[0]-geometry.svg.x)*scale[0]+9,Math.min(geometry.size[0],(geometry.frame.right-geometry.svg.x)*scale[0])-geometry.menu.width)),Math.max(0,(geometry.frame.top-geometry.svg.y)*scale[1],Math.min((anchor[1]-geometry.svg.y)*scale[1]+9,Math.min(geometry.size[1],(geometry.frame.bottom-geometry.svg.y)*scale[1])-geometry.menu.height))];
+  // Native SVG rectangles have subpixel CSS quantization. Keep menu placement
+  // within 0.01 CSS px; original PDF geometry remains checked at 1e-8 above.
+  const cssError=[Math.abs(geometry.menu.x-expected[0])/scale[0],Math.abs(geometry.menu.y-expected[1])/scale[1]];
+  assert.ok(cssError.every(value=>value<.01),`Rendered menu follows the native click or keyboard label anchor, with visible-view clamping: ${JSON.stringify({geometry,anchor,expected,cssError})}`);
+  await page.keyboard.press('Escape'); await expect(menu).toHaveCount(0);
+  return {part,keyboard,anchor,menu:geometry.menu,expected,cssError};
+}
 async function download(filename) {
   const pending = page.waitForEvent("download"), request = page.waitForRequest(value => value.url().endsWith("/export/marked-pdf"));
   await page.evaluate(() => window.CeasefireTakeoffs.downloadDrawing()); const file = path.join(output, filename); await (await pending).saveAs(file); await idle(); return { file, request: (await request).postDataJSON() };
@@ -80,7 +106,8 @@ async function saveLoad(info) {
 (async () => {
   const info = await ready; assert.notEqual(info.port, 8765); const sourceHash = hash(info.fixture), iconHash = hash(path.join(root, "static/icons/takeoff-callout.png"));
   assert.equal(iconHash, "068c58a46525a2618709cb4c77056214a9b1f4ff289d4785e1db8b7f50c9c8dd");
-  browser = await chromium.launch({ headless: true }); page = await browser.newPage({ viewport: { width: 1600, height: 1100 }, deviceScaleFactor: 2 }); page.setDefaultTimeout(30000);
+  const viewport=process.env.CEASEFIRE_CALLOUT_VIEWPORT==='1146x764'?{width:1146,height:764}:{width:1600,height:1100}; evidence.nativeViewport=viewport;
+  browser = await chromium.launch({ headless: true }); page = await browser.newPage({ viewport, deviceScaleFactor: 2 }); page.setDefaultTimeout(30000);
   page.on("pageerror", error => errors.push(error.message)); page.on("request", value => { if (value.url().endsWith("/commands") || /\/physical\/(preview|apply)$/.test(value.url())) requests.push({ endpoint: new URL(value.url()).pathname, body: value.postDataJSON() }); });
   await page.addInitScript(() => { window.qaCsp = []; document.addEventListener("securitypolicyviolation", event => window.qaCsp.push(event.effectiveDirective)); });
   const response = await page.goto(`http://127.0.0.1:${info.port}/`); assert.ok(!response.headers()["content-security-policy"].includes("unsafe-inline"));
@@ -101,6 +128,7 @@ async function saveLoad(info) {
     const reply = await command(async () => page.mouse.click(...await sourcePoint([220 + index * 70, 240])), "create_annotation"), annotation = reply.snapshot.annotations.callouts.find(value => value.id === reply.created_annotation_id);
     created[mode] = annotation.id; assert.equal(annotation.mode, mode); assert.equal(annotation.source_sha256, sourceHash); assert.equal(annotation.page, 3); assert.deepEqual(annotation.appearance, savedDefault || builtIn);
     invariant(reply.snapshot, baseline); await expect(panel()).toContainText("Item Details"); await expect(panel().locator("input,select,textarea")).toHaveCount(6); await expect(page.locator("tr[data-item-id]")).toHaveCount(0);
+    for (const name of ['Apply Item Details','Discard pending edits','Hide Call-out','Delete Call-out','Undo last edit']) await expect(panel().getByRole('button',{name,exact:true})).toHaveCount(0);
     if (["steel", "duct"].includes(mode)) await expect(page.getByRole("button", { name: "Legend", exact: true })).toBeDisabled();
     await editor().fill(`NOTE-${mode}`); await editor().press("Control+a"); await panel().getByRole("button", { name: "Bold", exact: true }).click();
     await editor().press("Control+End"); await editor().press("Enter"); await panel().getByRole("button", { name: "Bullet list", exact: true }).click(); await editor().pressSequentially(`Entry-${mode}`);
@@ -130,10 +158,20 @@ async function saveLoad(info) {
   }
   assert.equal(new Set(Object.values(created)).size, 4); evidence.allModes = copy(created); evidence.richText = { bold: true, bullet: true, numberedShiftEnter: true, safePaste: true, nativeEditing: true };
   await chooseTakeoff(page, "steel"); await fit(); await select(created.steel);
+  const savedBeforeInvalid=await snapshot(), requestsBeforeInvalid=requests.length, invalidText='X'.repeat(8001);
+  await editor().fill(invalidText); await panel().getByRole('button',{name:'Close settings',exact:true}).click();
+  let invalidDialog=page.getByRole('dialog',{name:'Discard pending Call-out edits?',exact:true}); await expect(invalidDialog).toBeVisible();
+  await invalidDialog.getByRole('button',{name:'Cancel',exact:true}).click(); await expect(editor()).toHaveText(invalidText);
+  assert.equal(requests.length,requestsBeforeInvalid,'Invalid Item Details never sends an annotation command');
+  await panel().getByRole('button',{name:'Close settings',exact:true}).click(); await expect(invalidDialog).toBeVisible();
+  await invalidDialog.getByRole('button',{name:'Discard edits',exact:true}).click(); await expect(panel()).toBeHidden();
+  assert.deepEqual(await snapshot(),savedBeforeInvalid,'Discarding pending invalid text preserves the previously saved rich details and source');
+  await select(created.steel); await expect(editor()).toContainText('NOTE-steel');
+  evidence.invalidDraft={cancelKeepsPendingText:true,explicitDiscardPreservesSavedDetails:true,noAnnotationCommand:true};
   const beforeMove = (await snapshot()).annotations.callouts.find(value => value.id === created.steel);
   let moved = await command(() => drag(note(created.steel).locator('[data-annotation-part="label"]'), 25, 18), "update_annotation"), movedNote = moved.snapshot.annotations.callouts.find(value => value.id === created.steel);
   assert.deepEqual(movedNote.point, beforeMove.point); assert.notDeepEqual(movedNote.label_position, beforeMove.label_position); assert.equal(movedNote.id, beforeMove.id); invariant(moved.snapshot, baseline);
-  const undo = await command(() => panel().getByRole("button", { name: "Undo last edit", exact: true }).click(), "undo"), restored = undo.snapshot.annotations.callouts.find(value => value.id === created.steel);
+  const undo = await command(() => page.getByRole("button", { name: "Undo last edit", exact: true }).click(), "undo"), restored = undo.snapshot.annotations.callouts.find(value => value.id === created.steel);
   for (const key of Object.keys(beforeMove).filter(value => value !== "version")) assert.deepEqual(restored[key], beforeMove[key], `Undo restores annotation ${key}`); assert.ok(restored.version > beforeMove.version);
   await select(created.steel); moved = await command(() => drag(note(created.steel).locator('[data-annotation-part="point"]'), 20, 15), "update_annotation"); movedNote = moved.snapshot.annotations.callouts.find(value => value.id === created.steel);
   assert.notDeepEqual(movedNote.point, restored.point); assert.notDeepEqual(movedNote.label_position, restored.label_position); assert.equal(movedNote.id, restored.id); invariant(moved.snapshot, baseline); evidence.dragAndUndo = { sourceCoordinates: movedNote.point, stableId: movedNote.id, quantityUnchanged: true };
@@ -145,6 +183,11 @@ async function saveLoad(info) {
     await renderDrawing(page, () => page.getByRole("button", { name: "Rotate page", exact: true }).click(), 3); await fit();
     const rotation = (90 + offset) % 360, fitted = await assertAnnotationView(viewStable, rotation);
     await renderDrawing(page, () => page.getByRole("button", { name: "+", exact: true }).click(), 3); const zoomed = await assertAnnotationView(viewStable, rotation); assert.ok(zoomed.scale > fitted.scale);
+    const menuSnapshot=await snapshot(), menuCommands=requests.length, menuPositions=[];
+    for (const part of ['label','point']) menuPositions.push(await annotationMenuPosition(created.steel,part));
+    menuPositions.push(await annotationMenuPosition(created.steel,'label',true));
+    assert.deepEqual(await snapshot(),menuSnapshot); assert.equal(requests.length,menuCommands,'Opening and closing Call-out menus sends no annotation command');
+    (evidence.menuPositions ||= []).push({rotation,croppedSource:true,userUnit:2,zoomed:true,menuPositions});
     await renderDrawing(page, () => page.getByRole("button", { name: "−", exact: true }).click(), 3); await assertAnnotationView(viewStable, rotation);
     assert.deepEqual((await snapshot()).annotations.callouts.find(value => value.id === created.steel), viewStable); invariant(await snapshot(), baseline);
     if (rotation === 0) {
@@ -154,7 +197,7 @@ async function saveLoad(info) {
       // quantize the mathematically exact SVG dimensions by a small fraction.
       assert.ok(Math.abs(changed.point[0] - (viewStable.point[0] + dx / display.cssSize[0] * 780)) < 1e-8); assert.ok(Math.abs(changed.point[1] - (viewStable.point[1] - dy / display.cssSize[1] * 540)) < 1e-8);
       assert.deepEqual([changed.width, changed.height], [viewStable.width, viewStable.height]); assert.equal(changed.id, viewStable.id); invariant(pointMoved.snapshot, baseline);
-      const undone = await command(() => panel().getByRole("button", { name: "Undo last edit", exact: true }).click(), "undo"), restoredView = undone.snapshot.annotations.callouts.find(value => value.id === created.steel);
+      const undone = await command(() => page.getByRole("button", { name: "Undo last edit", exact: true }).click(), "undo"), restoredView = undone.snapshot.annotations.callouts.find(value => value.id === created.steel);
       for (const key of Object.keys(viewStable).filter(value => value !== "version")) assert.deepEqual(restoredView[key], viewStable[key], `Rotated source drag undo restores ${key}`);
       viewStable = copy(restoredView); await assertAnnotationView(viewStable, rotation); evidence.rotatedSourceDrag = { markerAccessibleThroughOverlappingBox: true, originalCoordinatesRestored: true, stableId: viewStable.id };
     }
@@ -180,7 +223,7 @@ async function saveLoad(info) {
     const result = resized.snapshot.annotations.callouts.find(value=>value.id===created.steel);
     assert.ok(result.width>previous.width && result.height>previous.height,`${corner} grows both dimensions`);
     assert.deepEqual(result.point,previous.point); assert.deepEqual(result.content,previous.content); invariant(resized.snapshot,baseline);
-    const undone=await command(()=>panel().getByRole("button",{name:"Undo last edit",exact:true}).click(),"undo");
+    const undone=await command(()=>page.getByRole("button",{name:"Undo last edit",exact:true}).click(),"undo");
     const restored=undone.snapshot.annotations.callouts.find(value=>value.id===created.steel);
     for(const key of Object.keys(previous).filter(key=>key!=="version")) assert.deepEqual(restored[key],previous[key]);
   }
@@ -192,7 +235,7 @@ async function saveLoad(info) {
     assert.ok(changed.width < previous.width && changed.height < previous.height, `${corner} shrinks both displayed dimensions after the quarter-turn`); assert.deepEqual(changed.point, previous.point); assert.deepEqual(changed.content, previous.content); invariant(resized.snapshot, baseline);
     const opposite = rectangle => [rectangle[0] + (corner.includes('w') ? rectangle[2] : 0), rectangle[1] + (corner.includes('n') ? rectangle[3] : 0)];
     opposite(after.label).forEach((coordinate, axis) => assert.ok(Math.abs(coordinate - opposite(before.label)[axis]) < 1e-8, 'Rotated corner resize keeps the opposite displayed corner fixed'));
-    const undone = await command(() => panel().getByRole('button', { name: 'Undo last edit', exact: true }).click(), 'undo'), restored = undone.snapshot.annotations.callouts.find(value => value.id === created.steel);
+    const undone = await command(() => page.getByRole('button', { name: 'Undo last edit', exact: true }).click(), 'undo'), restored = undone.snapshot.annotations.callouts.find(value => value.id === created.steel);
     for (const key of Object.keys(previous).filter(value => value !== 'version')) assert.deepEqual(restored[key], previous[key], `Rotated resize undo restores ${key}`);
     rotatedCorners.push({ corner, originalAnchorUnchanged: true, oppositeDisplayedCornerFixed: true, originalGeometryRestored: true });
   }
@@ -223,10 +266,11 @@ async function saveLoad(info) {
   await note(pastedNote.id).locator('[data-annotation-part="point"]').click({button:'right'});
   await command(()=>page.getByRole('menuitem',{name:'Delete',exact:true}).click(),'delete_annotation');
   await select(created.steel);
-  const deleteUndo=await command(()=>panel().getByRole('button',{name:'Undo last edit',exact:true}).click(),'undo');
+  const deleteUndo=await command(()=>page.getByRole('button',{name:'Undo last edit',exact:true}).click(),'undo');
   assert.ok(deleteUndo.snapshot.annotations.callouts.some(value=>value.id===pastedNote.id));
   await select(pastedNote.id);
-  await command(()=>panel().getByRole('button',{name:'Delete Call-out',exact:true}).click(),'delete_annotation');
+  await note(pastedNote.id).locator('[data-annotation-part="label"]').click({button:'right'});
+  await command(()=>page.getByRole('menuitem',{name:'Delete',exact:true}).click(),'delete_annotation');
   await select(created.steel);
   evidence.selectionCornersClipboard={singleSelect:true,doubleClickSettings:true,stationaryClicksSendNoCommand:true,rapidDifferentIdentitySelect:true,fourCorners:true,rotatedCorners,fullDetailsWidth:widths,pointerPaste:{native:nativePastePointer,stored:pastedNote.point},contextDeleteUndo:true};
   const beforeExport = await snapshot(), visible = await download("free-callouts-visible.pdf"), visiblePdf = inspectPdf(visible.file), sourcePdf = inspectPdf(info.fixture);
@@ -234,7 +278,7 @@ async function saveLoad(info) {
   assert.deepEqual(visible.request.item_ids, []); assert.deepEqual(visible.request.annotation_ids, [created.steel]); assert.ok(visibleText.includes("NOTE-steel")); assert.ok(visibleText.includes("SAFE_PASTE")); assert.ok(visibleText.includes("• Entry-steel")); assert.ok(visibleText.includes("1. Number-steel")); assert.ok(boldText.includes("NOTE-steel"), "Every NOTE heading character keeps its bold font in PDF output");
   assert.ok(visibleText.includes("1 free Call-out (drawing notes only); no measurement markups."), "Annotation-only caption counts the drawing note without inventing measurements");
   assert.equal(visiblePdf.pages, sourcePdf.pages); invariant(await snapshot(), baseline);
-  await select(created.steel); await panel().getByRole("button", { name: "Hide Call-out", exact: true }).click(); await expect(note(created.steel)).toHaveCount(0);
+  await select(created.steel); await note(created.steel).locator('[data-annotation-part="label"]').click({button:'right'}); await page.getByRole('menuitem',{name:'Hide',exact:true}).click(); await expect(note(created.steel)).toHaveCount(0);
   const hidden = await download("free-callouts-hidden.pdf"), hiddenPdf = inspectPdf(hidden.file); assert.deepEqual(hidden.request.annotation_ids, []); assert.ok(!hiddenPdf.text.replace(/[\r\n]/g, "").includes("NOTE-steel")); assert.deepEqual(hiddenPdf.geometry, visiblePdf.geometry, "Showing notes preserves the established drawing derivative geometry"); assert.deepEqual((await snapshot()).annotations, beforeExport.annotations);
   evidence.pdf = { visible: visible.file, hidden: hidden.file, noteVisibleOnlyWhenShown: true, sourceMetadata: sourcePdf.geometry, drawingDerivativeGeometry: visiblePdf.geometry, notesPreserveDerivativeGeometry: true };
   const beforeSave = await snapshot(), roundtrip = await saveLoad(info); assert.deepEqual(roundtrip.saved.takeoffs.annotations, beforeSave.annotations); assert.deepEqual(roundtrip.reopened.annotations, beforeSave.annotations); invariant(roundtrip.reopened, baseline); await expect(note(created.steel)).toBeVisible();

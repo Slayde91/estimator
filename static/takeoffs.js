@@ -269,7 +269,8 @@
     const [key, title, kind] = definition, wrapper = node("label", "field"); wrapper.append(node("span", "", title));
     const numeric = kind === "number" || Array.isArray(kind) && numericOptionFields.has(key);
     if (kind === "checkbox") wrapper.classList.add("takeoff-checkbox-field");
-    const control = Array.isArray(kind) ? select([["", "Choose…"], ...kind.map(value => Array.isArray(value) ? value : [value, value])]) : node(kind === "textarea" ? "textarea" : "input");
+    const reviewChoice = key === "confirmation" && title === "Confirmation" && Array.isArray(kind) && JSON.stringify(kind.map(value => Array.isArray(value) ? value[0] : value)) === '["unconfirmed","confirmed"]';
+    const control = Array.isArray(kind) ? select([...(reviewChoice ? [] : [["", "Choose…"]]), ...kind.map(value => Array.isArray(value) ? value : [value, value])]) : node(kind === "textarea" ? "textarea" : "input");
     if (!Array.isArray(kind) && kind !== "textarea") control.type = ["number", "color", "checkbox"].includes(kind) ? kind : "text";
     if (kind === "number") control.step = "any";
     if (Array.isArray(kind) && initial !== "" && initial != null && !kind.some(value => (Array.isArray(value) ? value[0] : value) === initial)) control.append(option(initial, `${initial} (retained)`));
@@ -2446,8 +2447,27 @@
     const annotation = annotations().find(value => value.id === selection.id);
     if (!annotation || selection.context !== pageDisplayKey() || selection.revision !== state.session?.revision) { state.markupMenu = null; return; }
     const menu = node("div", "takeoff-control-menu takeoff-markup-menu"); menu.setAttribute("role", "menu"); menu.setAttribute("aria-label", "Call-out actions");
+    const hide = button("Hide", async () => { await flushSettings(); requireFinishedEdits(); if (selection.context !== pageDisplayKey() || !annotations().some(value => value.id === selection.id)) throw new Error("Select the current Call-out again."); state.markupMenu = null; state.annotationHidden ||= new Set(); state.annotationHidden.add(selection.id); state.annotationSelected = null; state.settingsEditor = null; renderSelection(); });
     const remove = button("Delete", async () => { await flushSettings(); requireFinishedEdits(); if (selection.context !== pageDisplayKey() || !annotations().some(value => value.id === selection.id)) throw new Error("Select the current Call-out again."); state.markupMenu = null; await command("delete_annotation", { annotation_id: selection.id }); state.annotationSelected = null; state.settingsEditor = null; renderSelection(); });
-    remove.setAttribute("role", "menuitem"); menu.append(remove); appendPlanMenu(overlay, selection.point, menu);
+    hide.setAttribute("role", "menuitem"); remove.setAttribute("role", "menuitem"); menu.append(hide, remove); appendPlanMenu(overlay, selection.point, menu, 104);
+  }
+  async function openAnnotationMenu(id, sourcePoint) {
+    const context = pageDisplayKey(), mode = state.mode;
+    await flushSettings(); requireFinishedEdits();
+    if (context !== pageDisplayKey() || mode !== state.mode || state.tool !== "select" || state.busy || state.modal || !annotations().some(value => value.id === id && value.mode === mode && value.document_id === state.document && value.page === state.page)) return;
+    state.controlPoint = null; state.controlMenu = false; state.markupMenu = { annotation: { id, context, revision: state.session.revision, point: G.transform(sourcePoint, state.viewport.transform) } }; renderOverlay();
+    state.ui?.overlay?.querySelector?.('[aria-label="Call-out actions"] button:not(:disabled)')?.focus({ preventScroll: true });
+  }
+  async function closeAnnotationSettings(editor) {
+    try { await flushSettings(); }
+    catch (error) {
+      if (state.settingsEditor !== editor) throw error;
+      clearTimeout(editor.timer); editor.timer = null;
+      if (!await confirm("Discard pending Call-out edits?", `${error.message} Discard only the pending edits to close Settings? Previously saved Call-out details are retained.`, "Discard edits")) return;
+      if (state.settingsEditor !== editor || editor.sessionId !== state.session?.session_id || editor.key !== annotationSelectionKey()) throw new Error("The Call-out changed before its pending edits could be discarded.");
+      editor.touched.clear(); state.settingsDirty = false; state.settingsEditor = null; window.CeasefireProject?.changed?.();
+    }
+    await toggleSettings();
   }
   function renderAnnotationSettings(panel) {
     const annotation = selectedAnnotation(); if (!annotation) return;
@@ -2455,7 +2475,7 @@
     if (existing?.kind === "annotation" && existing.key === key && (state.settingsDirty || existing.applying || existing.revision === state.session.revision)) return;
     if (existing) clearTimeout(existing.timer);
     const editor = { kind: "annotation", key, sessionId: state.session.session_id, revision: state.session.revision, id: annotation.id, touched: new Map(), fields: [], appearance: [] }; state.settingsEditor = editor;
-    const heading = node("div", "takeoff-viewports-heading"); heading.append(button("Close settings", toggleSettings), node("h3", "", "Call-out Settings"));
+    const heading = node("div", "takeoff-viewports-heading"); heading.append(button("Close settings", () => closeAnnotationSettings(editor)), node("h3", "", "Call-out Settings"));
     const controls = node("div", "takeoff-settings-fields"); panel.replaceChildren(heading, controls); controls.append(node("h4", "", "Markup appearance"));
     for (const definition of [["stroke_color", "Line Colour", "color"], ["stroke_width", "Line Width", "number"], ["fill_color", "Fill colour", "color"], ["fill_enabled", "Fill enabled", "checkbox"], ["font_color", "Font Colour", "color"], ["opacity", "Opacity", "number"]]) {
       const field = appearanceField(definition, annotation.appearance[definition[0]]); editor.appearance.push(field); bindSetting(editor, field, `appearance:${definition[0]}`); controls.append(field.wrapper);
@@ -2464,11 +2484,6 @@
     controls.append(node("h4", "", "Item Details"));
     editor.rich = A.richEditor(annotation.content, () => markSettingsEdited(editor, "content")); controls.append(editor.rich.wrap);
     controls.append(node("p", "helper", "Free Call-outs are drawing notes. They do not add register entries or quantities."));
-    const actions = node("div", "actions");
-    actions.append(button("Apply Item Details", () => applyAnnotationSettings(editor)), button("Discard pending edits", async () => { clearTimeout(editor.timer); if (editor.applying) { try { await editor.applying; } catch { /* Retain any accepted update, discard only the pending invalid draft. */ } } if (state.settingsEditor !== editor) return; editor.touched.clear(); state.settingsDirty = false; state.settingsEditor = null; renderSettingsPanel(); window.CeasefireProject?.changed?.(); }),
-      button("Hide Call-out", async () => { await flushSettings(); state.annotationHidden ||= new Set(); state.annotationHidden.add(annotation.id); state.annotationSelected = null; state.settingsEditor = null; renderSelection(); }),
-      button("Delete Call-out", async () => { await flushSettings(); await command("delete_annotation", { annotation_id: annotation.id }); state.annotationSelected = null; state.settingsEditor = null; renderSelection(); }),
-      button("Undo last edit", undoLastEdit)); controls.append(actions);
   }
   async function applyAnnotationSettings(editor) {
     if (state.settingsEditor !== editor) return;
@@ -2520,8 +2535,8 @@
         event.stopPropagation(); const open = drawingClickOpensSettings(event, `annotation:${annotation.id}`); if (open) state.suppressSelectionClickUntil = Date.now() + 500; void safely(() => selectFreeCallout(annotation.id, open));
       };
       group.addEventListener("click", choose);
-      group.addEventListener("keydown", event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.stopPropagation(); state.lastDrawingClick = null; void safely(() => selectFreeCallout(annotation.id, event.key === "Enter")); } else if (event.key === "ContextMenu" || event.shiftKey && event.key === "F10") { event.preventDefault(); event.stopPropagation(); state.markupMenu = { annotation: { id: annotation.id, context: pageDisplayKey(), revision: state.session.revision, point } }; renderOverlay(); } });
-      group.addEventListener("contextmenu", event => { if (state.tool !== "select" || state.busy || state.modal) return; event.preventDefault(); event.stopPropagation(); void safely(async () => { await flushSettings(); requireFinishedEdits(); state.markupMenu = { annotation: { id: annotation.id, context: pageDisplayKey(), revision: state.session.revision, point } }; renderOverlay(); }); });
+      group.addEventListener("keydown", event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.stopPropagation(); state.lastDrawingClick = null; void safely(() => selectFreeCallout(annotation.id, event.key === "Enter")); } else if ((event.key === "ContextMenu" || event.shiftKey && event.key === "F10") && state.tool === "select" && !state.busy && !state.modal) { event.preventDefault(); event.stopPropagation(); const sourcePoint = G.inverse([label[0] + width * scale / 2, label[1] + height * scale / 2], state.viewport.transform); void safely(() => openAnnotationMenu(annotation.id, sourcePoint)); } });
+      group.addEventListener("contextmenu", event => { if (state.tool !== "select" || state.busy || state.modal) return; event.preventDefault(); event.stopPropagation(); const sourcePoint = drawingPoint(event); void safely(() => openAnnotationMenu(annotation.id, sourcePoint)); });
       group.addEventListener("pointerdown", event => void safely(() => beginAnnotationDrag(event, annotation)));
       if (selected && state.tool === "select") for (const [corner, x, y] of [["nw", label[0], label[1]], ["ne", label[0] + width * scale, label[1]], ["sw", label[0], label[1] + height * scale], ["se", label[0] + width * scale, label[1] + height * scale]]) group.append(svg("rect", { x: x - 5, y: y - 5, width: 10, height: 10, fill: "white", stroke: "#1264c4", "data-annotation-part": "resize", "data-corner": corner, class: "takeoff-annotation-resize", "aria-label": `Resize Call-out ${corner}` }));
       overlay.append(group);

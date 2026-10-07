@@ -10,12 +10,12 @@ function harness(reduced = false) {
   return { element, timers, controller: create(element, motion, host), advance(delay) { now += delay; for (const [id, timer] of [...timers]) if (timer.at <= now) { timers.delete(id); timer.callback(); } }, preference(matches) { motion.matches = matches; preference({ matches }); }, pagehide() { pagehide(); }, error() { error(); } };
 }
 {
-  const h = harness(); h.controller.start(); h.controller.finish(); h.advance(4999);
+  const h = harness(); h.controller.start(); h.controller.finish(); h.advance(1999);
   assert.equal(h.element.dataset.taglineMotion, "playing"); assert.equal(h.timers.size, 1);
   h.advance(1); assert.equal(h.element.dataset.taglineMotion, "stopped"); assert.equal(h.timers.size, 0);
-  h.controller.start(); h.controller.finish(); h.advance(4000); h.controller.start(); h.advance(1000);
+  h.controller.start(); h.controller.finish(); h.advance(1000); h.controller.start(); h.advance(1000);
   assert.equal(h.element.dataset.taglineMotion, "playing", "Starting another phrase cancels the prior grace deadline"); assert.equal(h.timers.size, 0);
-  h.controller.finish(); h.preference(true); assert.equal(h.timers.size, 0); h.advance(5000); assert.equal(h.element.dataset.taglineMotion, "reduced");
+  h.controller.finish(); h.preference(true); assert.equal(h.timers.size, 0); h.advance(2000); assert.equal(h.element.dataset.taglineMotion, "reduced");
   h.preference(false); h.controller.start(); h.controller.finish(); h.pagehide(); assert.equal(h.timers.size, 0); assert.equal(h.element.dataset.taglineMotion, "closed");
 }
 {

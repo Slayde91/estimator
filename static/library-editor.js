@@ -188,7 +188,7 @@
   }
   function changed() {
     state.version++; state.result = null; renderOutputs(); status(); actions.changed?.(); projectChanged();
-    for (const control of $("library-editor-fields").querySelectorAll("[data-library-editor-field]")) { control.refreshAutomatic?.(); control.refreshDimension?.(); }
+    for (const parent of [$("library-editor-item-quantity"), $("library-editor-fields")]) for (const control of parent.querySelectorAll("[data-library-editor-field]")) { control.refreshAutomatic?.(); control.refreshDimension?.(); }
   }
   function displayedInput(field, global) {
     const raw = values(global)[field.column] ?? null;
@@ -464,8 +464,12 @@
       button.addEventListener("click", () => selectGroup(group)); return button;
     }));
     $("library-editor-settings").setAttribute("aria-pressed", String(state.group === "SETTINGS"));
+    const quantityField = state.definition.row_fields.find(field => field.column === "O"), quantity = $("library-editor-item-quantity");
+    quantity.hidden = !quantityField;
+    quantity.replaceChildren(...(quantityField ? [makeControl(quantityField, false)] : []));
+    if (quantityField) quantity.children[0].className += " penetration-header-quantity";
     const fields = node("div", "library-editor-fields"), settings = state.group === "SETTINGS";
-    const visible = settings ? state.definition.global_fields || [] : state.definition.row_fields.filter(field => fieldInGroup(field, state.group));
+    const visible = settings ? state.definition.global_fields || [] : state.definition.row_fields.filter(field => field.column !== "O" && fieldInGroup(field, state.group));
     if (settings) $("library-editor-fields").replaceChildren(renderSettings(visible));
     else {
       fields.append(...visible.map(field => {
@@ -514,7 +518,7 @@
   function refreshFields() {
     if (document.activeElement?.dataset?.libraryEditorField) {
       state.pendingFields = true;
-      for (const control of $("library-editor-fields").querySelectorAll("[data-library-editor-field]")) control.refreshAutomatic?.();
+      for (const parent of [$("library-editor-item-quantity"), $("library-editor-fields")]) for (const control of parent.querySelectorAll("[data-library-editor-field]")) control.refreshAutomatic?.();
       return;
     }
     renderFields();

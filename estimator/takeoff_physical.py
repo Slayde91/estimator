@@ -7,6 +7,8 @@ an authorization token. UUIDs are supplied by the caller and never recycled.
 Version 3 uses Barrier -> Service for independent service plans.
 Version 2 uses Defect -> Barrier -> Service and assigns immutable display IDs.
 Version 1 remains a lossless legacy Barrier -> Defect -> Opening -> Service graph.
+Optional V2/V3 confirmation records manual draft review; absent means Unconfirmed.
+Fact or source changes invalidate that review without rewriting uncertainty.
 """
 
 from copy import deepcopy
@@ -48,6 +50,7 @@ DIMENSIONS = frozenset(('thickness_mm', 'width_mm', 'height_mm', 'diameter_mm',
                        'depth_mm', 'insulation_mm'))
 UNCERTAINTY_STATES = frozenset(('not_assessed', 'unresolved', 'missing',
     'conflicting', 'insufficient_evidence', 'human_review_required', 'none_reported'))
+CONFIRMATION_STATES = frozenset(('confirmed', 'unconfirmed'))
 _HASH = re.compile(r'^[0-9a-f]{64}$')
 _ENTITY_KEYS = frozenset(('id', 'revision', 'deleted', 'deleted_at_revision',
                           'fields', 'evidence', 'uncertainty'))
@@ -234,6 +237,10 @@ def _evidence(value, kind, parents):
 
 
 def _properties(entity, kind, parents):
+    if 'confirmation' in entity:
+        if (not isinstance(entity['confirmation'], str)
+                or entity['confirmation'] not in CONFIRMATION_STATES):
+            raise ValidationError('Physical confirmation must be Confirmed or Unconfirmed.')
     if 'copied_from' in entity:
         source = _object(entity['copied_from'], {'entity_id', 'revision'}, {'entity_id', 'revision'}, 'Copied physical source')
         if _id(source['entity_id']) == entity['id']:
@@ -302,6 +309,8 @@ def validate_graph(graph, *, copy_result=True):
             if kind == 'service':
                 keys |= {'quantity'}
             optional = {'copied_from'} | ({'marker'} if kind == 'barrier' and graph['version'] in (2, 3) else {'annotation'} if kind == 'defect' and graph['version'] == 2 else set())
+            if graph['version'] in (2, 3):
+                optional.add('confirmation')
             if kind == 'service' and graph['version'] in (2, 3):
                 optional.add('library_quantity')
             _object(entity, keys | optional, keys, 'Physical entity')
@@ -429,6 +438,8 @@ def _command(graph, command):
         if kind == 'service':
             keys.add('quantity')
         optional = {'copied_from'} | ({'marker'} if kind == 'barrier' and graph['version'] in (2, 3) else {'annotation'} if kind == 'defect' and graph['version'] == 2 else set())
+        if graph['version'] in (2, 3):
+            optional.add('confirmation')
         if kind == 'service' and graph['version'] in (2, 3):
             optional.add('library_quantity')
         source = _object(command['entity'], keys | optional, keys, 'New physical entity')
@@ -441,6 +452,9 @@ def _command(graph, command):
             if not original or original[0] != kind or original[1]['revision'] != source['copied_from']['revision'] or original[1]['deleted']:
                 raise ValidationError('A copied record requires its current active source of the same kind.')
         entity = deepcopy(source)
+        if 'copied_from' in entity:
+            # A copy has a new identity and has not been individually reviewed.
+            entity.pop('confirmation', None)
         if identifier in before:
             raise ValidationError('A physical ID cannot be reused, including a deleted ID.')
         entity.update(revision=1, deleted=False, deleted_at_revision=None)
@@ -461,6 +475,8 @@ def _command(graph, command):
             raise ValidationError('Restore a deleted physical entity before editing it.')
         if op == 'update':
             allowed = {'fields', 'evidence', 'uncertainty'} | ({'quantity'} if kind == 'service' else set())
+            if graph['version'] in (2, 3):
+                allowed.add('confirmation')
             if kind == 'barrier' and graph['version'] in (2, 3):
                 allowed.add('marker')
             if kind == 'defect' and graph['version'] == 2:
@@ -516,6 +532,29 @@ def _command(graph, command):
                 raise ValidationError('Every explicitly restored entity must currently be deleted.')
             for child in affected:
                 after[child][1].update(deleted=False, deleted_at_revision=None)
+        if graph['version'] in (2, 3):
+            # Manual review is independent of uncertainty and commercial links.
+            # Editing real facts also invalidates reviews of inherited context.
+            def facts(value):
+                result = {key: item for key, item in value.items()
+                          if key not in ('confirmation', 'revision')}
+                for source in ('marker', 'annotation'):
+                    if isinstance(result.get(source), dict):
+                        result[source] = {key: item for key, item in result[source].items()
+                                          if key not in ('callout', 'appearance')}
+                return result
+            facts_changed = _digest(facts(entity)) != _digest(facts(before[identifier][1]))
+            if facts_changed:
+                reset_ids = affected if op in ('delete', 'restore') else {identifier} | descendants
+                explicitly_reviewed = (op == 'update'
+                    and command['changes'].get('confirmation') == 'confirmed'
+                    and before[identifier][1].get('confirmation', 'unconfirmed') != 'confirmed')
+                for child in reset_ids:
+                    if child == identifier and explicitly_reviewed:
+                        continue
+                    if after[child][1].get('confirmation') == 'confirmed':
+                        after[child][1]['confirmation'] = 'unconfirmed'
+                        affected.add(child)
     # Validate proposed values before serialization or revision comparisons.
     # Existing entity revisions can only rise by one with this graph revision.
     validate_graph(candidate, copy_result=False)

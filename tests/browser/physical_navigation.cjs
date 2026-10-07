@@ -6,6 +6,7 @@ const { chromium, expect } = require('@playwright/test');
 const { spawn } = require('node:child_process');
 const { createHash } = require('node:crypto');
 const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
+const { retainBarrierMarker } = require('./physical_marker_fixtures.cjs');
 const root = path.resolve(__dirname, '../..'), output = path.join(root, '.runtime/browser-qa', `physical-navigation-${Date.now()}`);
 fs.mkdirSync(output, { recursive: true });
 const server = spawn(process.env.CEASEFIRE_PYTHON || 'python', [path.join(__dirname, 'fixtures.py'), '--directory', output], { cwd: root, windowsHide: true });
@@ -67,12 +68,17 @@ async function screen([x, y]) {
   assert.equal(await page.evaluate(([x, y]) => !!document.elementFromPoint(x, y)?.closest('.takeoff-overlay'), point), true, `Pointer reaches drawing at ${point}`); return point;
 }
 async function place(id, point, explicit = false) {
-  if (explicit) await details().getByRole('button', { name: 'Place count marker', exact: true }).click();
-  await expect(page.locator('.takeoff-viewport')).toHaveAttribute('data-tool', 'count');
-  await response(async () => page.mouse.click(...await screen(point)), '/physical/apply'); await snapshot(); await expect(marker(id)).toBeVisible(); await expect(marker(id)).toHaveAttribute('aria-pressed', 'true');
+  if (explicit) {
+    await expect(details().getByRole('button', { name: 'Place count marker', exact: true })).toHaveCount(0);
+    await retainBarrierMarker(page, id, point);
+    await row(id).getByRole('button', { name: 'Edit', exact: true }).click(); await idle();
+  }
+  await marker(id).dblclick({ delay: 100 }); await snapshot(); await expect(marker(id)).toBeVisible(); await expect(marker(id)).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('.takeoff-viewport')).toHaveAttribute('data-tool', 'select');
   const selectedGraph=await snapshot(),placed=[...selectedGraph.physical.barriers,...(selectedGraph.service_plans?.barriers||[])].find(value=>value.id===id);
   assert.ok(placed);assert.equal(placed.marker.appearance.marker_size,10);
+  assert.deepEqual(placed.marker.point, point);
+  (evidence.retainedBarrierMarkers ||= []).push({ id, point, removedCreationShortcutAbsent: true, nativeInspectionRetainsSource: true });
 }
 async function layout(width) {
   await page.setViewportSize({ width, height: width === 764 ? 764 : 1100 });
@@ -118,6 +124,8 @@ async function layout(width) {
   await expect(details().getByLabel('Defect Ref.', { exact: true })).toHaveValue('NAV-A'); await expect(details().getByLabel('Barrier ID in Item Details', { exact: true })).toHaveValue('');
   await expect(row(barrier).getByRole('checkbox', { name: /^Select / })).toBeChecked(); assert.equal(state.physical.barriers.length, 2); assert.equal(state.calibrations.length, 0);
   const firstMarker = structuredClone(state.physical.barriers[0].marker); assert.equal(firstMarker.document_sha256, sourceBefore); assert.equal(firstMarker.page, 1);
+  assert.ok(state.physical.defects.every(value => value.annotation?.document_sha256 === sourceBefore), 'Current toolbar creation retains a distinct original-source annotation for each Defect');
+  evidence.currentDefectToolbarSource = true;
   await navigate('Service', otherService); await expect(details().getByLabel('Defect ID in Item Details', { exact: true })).toHaveValue(''); await expect(details().getByLabel('Defect ID in Item Details', { exact: true }).locator('option').first()).toHaveText('View D-0002'); await expect(details().getByLabel('Barrier ID in Item Details', { exact: true }).locator('option').first()).toHaveText('View B-0002');
   await expect(details().getByLabel('Explicit service quantity', { exact: true })).toHaveValue('3');
   await navigate('Barrier', otherBarrier); await expect(details().getByLabel('Location', { exact: true })).toHaveValue('Second family');

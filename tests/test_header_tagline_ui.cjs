@@ -54,7 +54,7 @@ function harness({ random = 0, previous, reduced = false, blocked = false, missi
   const typed = { get textContent() { return current; }, set textContent(value) { current = value; frames.push(value); } };
   const elements = { 'header-tagline-label': label, 'header-tagline-sizer': sizer, 'header-tagline-typed': typed };
   const motion = { matches: reduced, addEventListener(name, callback) { assert.equal(name, 'change'); preference = callback; } };
-  let mediaTimer = null; const media = { playing: false, starts: 0, closed: false, start() { context.clearTimeout(mediaTimer); this.starts++; this.playing = !this.closed && !motion.matches; }, finish() { context.clearTimeout(mediaTimer); mediaTimer = context.setTimeout(() => this.stop(), 5000); }, stop() { context.clearTimeout(mediaTimer); this.playing = false; }, close() { this.closed = true; this.stop(); } };
+  let mediaTimer = null; const media = { playing: false, starts: 0, closed: false, start() { context.clearTimeout(mediaTimer); this.starts++; this.playing = !this.closed && !motion.matches; }, finish() { context.clearTimeout(mediaTimer); mediaTimer = context.setTimeout(() => this.stop(), 2000); }, stop() { context.clearTimeout(mediaTimer); this.playing = false; }, close() { this.closed = true; this.stop(); } };
   const context = {
     document: {
       getElementById(id) { return missing ? null : elements[id]; },
@@ -74,7 +74,7 @@ function harness({ random = 0, previous, reduced = false, blocked = false, missi
       dispatchEvent() { throw Error('Presentation must not emit input or change events'); },
     },
     Math: Object.create(Math),
-    setTimeout(callback, delay) { assert.ok(delay === 35 || delay === 1000 || delay === 5000); timers.set(++nextTimer, { callback, delay, deadline: now + delay }); return nextTimer; },
+    setTimeout(callback, delay) { assert.ok(delay === 35 || delay === 1000 || delay === 2000); timers.set(++nextTimer, { callback, delay, deadline: now + delay }); return nextTimer; },
     clearTimeout(id) { timers.delete(id); },
   };
   context.Math.random = () => random;
@@ -95,7 +95,7 @@ function harness({ random = 0, previous, reduced = false, blocked = false, missi
       assert.equal(next()?.[1].delay, 35, 'Only typing is scheduled before the final character'); tick();
     }
   };
-  const finish = () => { finishTyping(); advance(5000); };
+  const finish = () => { finishTyping(); advance(2000); };
   run();
   return { label, sizer, typed, cursor, media, frames, timers, writes, run, tick, finishTyping, finish, advance, nextPhrase() { context.window.CeasefireHeaderTagline.next(); },
     now: () => now, changeMotion(matches = true) { motion.matches = matches; preference({ matches }); }, pagehide() { pagehide(); } };
@@ -116,7 +116,7 @@ for (let index = 0; index < phrases.length; index++) {
   const finishedFrames = h.frames.slice();
   h.advance(999); assert.equal(h.cursor.hidden, true); assert.equal(h.typed.textContent, phrase);
   h.advance(1); assert.equal(h.cursor.hidden, true); assert.equal(h.media.playing, true);
-  h.advance(3999); assert.equal(h.media.playing, true); h.advance(1); assert.equal(h.media.playing, false); assert.equal(h.timers.size, 0);
+  h.advance(999); assert.equal(h.media.playing, true); h.advance(1); assert.equal(h.media.playing, false); assert.equal(h.timers.size, 0);
   h.advance(10000); assert.deepEqual(h.frames, finishedFrames); assert.deepEqual(h.sizer.children.map(line => line.textContent), phrases.map(line => line + '_'));
   passed++;
 }

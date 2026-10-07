@@ -4,9 +4,9 @@ const deferred = () => { let resolve; const promise = new Promise(yes => { resol
 const flush = async () => { for (let i = 0; i < 12; i++) await Promise.resolve(); };
 function harness() {
   const calls = [], content = { version: 1, blocks: [{ kind: 'paragraph', runs: [{ text: 'first' }] }] };
-  const context = { console, setTimeout, clearTimeout, window: { CeasefireTakeoffAnnotations: { layout() {} }, CeasefireProject: { changed() {} } }, document: { getElementById() {} } };
+  const context = { console, setTimeout, clearTimeout, window: { CeasefireTakeoffGeometry: { transform: ([x,y]) => [x*2+3,600-y*2] }, CeasefireTakeoffAnnotations: { layout() {} }, CeasefireProject: { changed() {} } }, document: { getElementById() {} } };
   vm.createContext(context);
-  const source = fs.readFileSync('static/takeoffs.js', 'utf8').replace('  window.CeasefireTakeoffs = {', `  globalThis.audit = {state, applyAnnotationSettings, annotationSelectionKey, command(fn){command=fn;}};
+  const source = fs.readFileSync('static/takeoffs.js', 'utf8').replace('  window.CeasefireTakeoffs = {', `  globalThis.audit = {state, applyAnnotationSettings, annotationSelectionKey, openAnnotationMenu, closeAnnotationSettings, command(fn){command=fn;}, render(fn){renderOverlay=fn;}, confirm(fn){confirm=fn;}, toggle(fn){toggleSettings=fn;}};
   window.CeasefireTakeoffs = {`);
   vm.runInContext(source, context); const { state } = context.audit;
   state.mode = 'steel'; state.document = 'd'; state.page = 1; state.annotationSelected = 'a'; state.queue = Promise.resolve();
@@ -27,4 +27,24 @@ function harness() {
   late.content.blocks[0].runs[0].text = 'newer text'; late.editor.touched.set('content', 2); first.resolve(); await updating;
   assert.deepEqual(late.calls.map(value => value.changes.content.blocks[0].runs[0].text), ['first', 'newer text']); assert.equal(late.state.settingsDirty, false);
   console.log('ok - Text edited during an annotation request is captured in the next update');
+  const menu = harness(); menu.state.viewport = { transform: [2,0,0,-2,3,600] }; let renders = 0; menu.render(() => renders++);
+  await menu.openAnnotationMenu('a',[100,200]);
+  assert.deepEqual(JSON.parse(JSON.stringify(menu.state.markupMenu.annotation.point)),[203,200]); assert.equal(menu.state.markupMenu.annotation.revision,2); assert.equal(renders,1);
+  console.log('ok - Call-out menu keeps the supplied click position after flushing pending details');
+  const stale = harness(), held = deferred(); stale.state.viewport = { transform: [2,0,0,-2,3,600] }; stale.state.queue = held.promise; stale.render(() => { throw Error('Stale menu rendered'); });
+  const opening = stale.openAnnotationMenu('a',[100,200]); await flush(); stale.state.page=2; held.resolve();
+  await assert.rejects(opening,/Call-out changed/); assert.equal(stale.state.markupMenu,null); assert.equal(stale.calls.length,0);
+  console.log('ok - A page change while a Call-out menu waits never displays a stale menu');
+  const reviewing=harness(); reviewing.state.viewport={transform:[2,0,0,-2,3,600]}; reviewing.editor.touched.clear(); reviewing.state.settingsDirty=false; reviewing.render(()=>{throw Error('Menu displayed during review');});
+  const underReview=reviewing.openAnnotationMenu('a',[100,200]); reviewing.state.modal=true; await underReview; assert.equal(reviewing.state.markupMenu,null);
+  console.log('ok - A review that starts during menu preparation prevents the menu from opening');
+  const failed = harness(), saved = JSON.parse(JSON.stringify(failed.state.session.snapshot)); let closed = 0;
+  failed.command(async () => { throw new Error('Offline'); }); failed.toggle(async () => closed++); failed.confirm(async () => false);
+  await failed.closeAnnotationSettings(failed.editor); assert.equal(closed,0); assert.equal(failed.state.settingsEditor,failed.editor); assert.equal(failed.state.settingsDirty,true); assert.equal(failed.editor.touched.size,1);
+  failed.confirm(async () => true); await failed.closeAnnotationSettings(failed.editor); assert.equal(closed,1); assert.equal(failed.state.settingsEditor,null); assert.equal(failed.state.settingsDirty,false); assert.deepEqual(JSON.parse(JSON.stringify(failed.state.session.snapshot)),saved);
+  console.log('ok - Close Settings retains failed drafts on Cancel and discards only pending edits when explicitly chosen');
+  const changing = harness(), decision = deferred(); changing.command(async () => { throw new Error('Invalid details'); }); changing.confirm(() => decision.promise); changing.toggle(async () => { throw Error('Changed selection closed'); });
+  const closing = changing.closeAnnotationSettings(changing.editor); await flush(); changing.state.annotationSelected='other'; decision.resolve(true);
+  await assert.rejects(closing,/Call-out changed/); assert.equal(changing.state.settingsEditor,changing.editor); assert.equal(changing.state.settingsDirty,true);
+  console.log('ok - A changed Call-out cannot discard a different pending draft');
 })().catch(error => { console.error(error); process.exitCode = 1; });

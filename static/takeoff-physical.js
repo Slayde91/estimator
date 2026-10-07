@@ -1,7 +1,7 @@
 "use strict";
 
-// Manual physical assertions remain a draft. This component does not confirm,
-// lock, derive quantities from images, or write directly to project state.
+// Manual record confirmation is a draft review marker, separate from technical
+// approval and commercial links. This component derives no image quantities.
 ((root) => {
   const kinds = ["defect", "barrier", "service"];
   const legacyKinds = ["barrier", "defect", "opening", "service"];
@@ -16,6 +16,9 @@
     ["conflicting", "Conflicting evidence"], ["insufficient_evidence", "Insufficient evidence"],
     ["human_review_required", "Needs review"], ["none_reported", "No uncertainty reported (unapproved draft)"],
   ];
+  const confirmationOptions = [["unconfirmed", "Unconfirmed"], ["confirmed", "Confirmed"]];
+  const recordConfirmation = entity => entity?.confirmation === "confirmed" ? "confirmed" : "unconfirmed";
+  const confirmationLabel = entity => recordConfirmation(entity) === "confirmed" ? "Confirmed" : "Unconfirmed";
   const definitions = {
     barrier: [["location", "Location"], ["barrier_type", "Barrier type", ["Empty Opening", "Core hole", "Oversized"].map(value => [value, value])], ["substrate", "Substrate"], ["orientation", "Substrate orientation"], ["notes", "Notes", "textarea"]],
     defect: [["label", "Defect Ref."], ["location", "Location"], ["frl", "FRL"], ["notes", "Notes", "textarea"]],
@@ -58,11 +61,11 @@
     }
     return result;
   }
-  const filterColumns = { state: "State / uncertainty", location: "Location", frl: "FRL", substrate: "Substrate", orientation: "Orientation", service: "Category", service_type: "Service type", size: "Service Size (mm)" };
+  const filterColumns = { state: "Confirmation", location: "Location", frl: "FRL", substrate: "Substrate", orientation: "Orientation", service: "Category", service_type: "Service type", size: "Service Size (mm)" };
   function columnValue(entry, key, index) {
     const lineage = [...ancestors(entry, index), entry], find = kind => lineage.find(value => value.kind === kind), barrier = find("barrier"), defect = find("defect");
     const fields = entry.entity.fields;
-    if (key === "state") return `${entry.entity.deleted ? "Deleted draft" : entry.legacy ? "Legacy read-only" : "Unapproved draft"} · ${uncertainty.find(([value]) => value === entry.entity.uncertainty.state)?.[1] || "Not assessed"}`;
+    if (key === "state") return confirmationLabel(entry.entity);
     if (key === "location") return String((entry.kind === "barrier" || entry.kind === "defect" ? fields.location : entry.legacy ? defect?.entity.fields.location ?? barrier?.entity.fields.location : barrier?.entity.fields.location ?? defect?.entity.fields.location) ?? "").trim();
     if (key === "frl") return String((entry.servicePlans ? barrier : defect)?.entity.fields.frl ?? "").trim();
     if (key === "substrate" || key === "orientation") return String(barrier?.entity.fields[key] ?? "").trim();
@@ -334,7 +337,7 @@
     function rebaseInputs(captured) {
       for (const control of controlsInWorkspace("[data-physical-field]")) {
         const binding = state.bindings.get(control), current = binding && state.index.get(binding.entry.entity.id); if (!current) continue;
-        const { key } = binding, canonical = key === "uncertainty_state" ? current.entity.uncertainty.state : key === "uncertainty_note" ? current.entity.uncertainty.note : key === "quantity" ? current.entity.quantity : fieldDisplay(current.entity.fields, key);
+        const { key } = binding, canonical = key === "confirmation" ? recordConfirmation(current.entity) : key === "quantity" ? current.entity.quantity : fieldDisplay(current.entity.fields, key);
         const original = String(canonical ?? ""); binding.entry = current; binding.original = original;
         if (!captured.has(control) || binding.revision === captured.get(control).revision) { if (String(control.value) !== original) control.value = canonical ?? ""; state.pending.delete(control); }
         else if (String(control.value) === original) state.pending.delete(control); else state.pending.set(control, original);
@@ -349,7 +352,7 @@
     }
     function fieldDefinitions(entry, createKind) {
       const kind = entry?.kind || createKind, entity = entry?.entity;
-      return [...fieldsFor(kind, scope()).flatMap(([key, label]) => [[key, label, fieldType(kind, key), fieldDisplay(entity?.fields, key) ?? ""], ...(kind === "service" && key === "service_type" ? [["quantity", "Explicit service quantity", "number", entity?.quantity ?? "", !entity?.library_quantity]] : [])]), ["uncertainty_state", "Uncertainty / review state", uncertainty, entity?.uncertainty.state || "not_assessed", true], ["uncertainty_note", "Uncertainty explanation", "textarea", entity?.uncertainty.note || ""]];
+      return [...fieldsFor(kind, scope()).flatMap(([key, label]) => [[key, label, fieldType(kind, key), fieldDisplay(entity?.fields, key) ?? ""], ...(kind === "service" && key === "service_type" ? [["quantity", "Explicit service quantity", "number", entity?.quantity ?? "", !entity?.library_quantity]] : [])]), ["confirmation", "Confirmation", confirmationOptions, recordConfirmation(entity), true]];
     }
     async function chooseEntity(kind, title, candidates) {
       const filter = await ask(title, [["search", `Find ${titles[kind].toLowerCase()} by label, location or ID`, "text", ""]], "Choose an existing physical parent by its persistent identity. A similar label does not establish that two objects are the same.", "Find parents");
@@ -385,7 +388,7 @@
         const choice = await libraryLinks.choose(bridge);
         if (!choice) return;
         requireSource(); if (graphKey() !== key) throw new Error("The physical draft changed during library selection. Repeat Add Defect.");
-        if (choice.kind === "library") return createLibraryDraft(choice.record, evidence, annotation, requireSource);
+        if (choice.kind === "library") return createLibraryDraft(choice.record, evidence, annotation, requireSource, choice.details);
       }
       let parent = chosenParent;
       if (parentRelations()[kind]) {
@@ -398,12 +401,12 @@
       const answer = await ask(evidence.length ? "Add Defect" : `Create draft ${kind}`, fieldDefinitions(null, kind), `${warning()}${parent ? `\n\nParent ID: ${displayId(state.index.get(parent))}` : ""}\n\nUnknown properties stay blank.${evidence.length ? `\n\nSource page ${evidence[0].page}: ${evidence[0].note}` : " Link retained source evidence after creating the draft."}`, "Preview new draft");
       if (!answer) return;
       requireSource();
-      const entity = { id: root.crypto.randomUUID(), fields: fieldsFromValues(kind, answer, {}, scope()), evidence, uncertainty: { state: answer.uncertainty_state, note: answer.uncertainty_note || "" }, ...(parent ? { [parentRelations()[kind][1]]: parent } : {}), ...(kind === "service" ? { quantity: fieldValue(kind, "quantity", answer.quantity) } : {}), ...(marker !== undefined ? { marker: copy(marker) } : {}), ...(annotation !== undefined ? { annotation: copy(annotation) } : {}) };
+      const entity = { id: root.crypto.randomUUID(), fields: fieldsFromValues(kind, answer, {}, scope()), evidence, uncertainty: { state: "not_assessed", note: "" }, ...(answer.confirmation === "confirmed" ? { confirmation: "confirmed" } : {}), ...(parent ? { [parentRelations()[kind][1]]: parent } : {}), ...(kind === "service" ? { quantity: fieldValue(kind, "quantity", answer.quantity) } : {}), ...(marker !== undefined ? { marker: copy(marker) } : {}), ...(annotation !== undefined ? { annotation: copy(annotation) } : {}) };
       if (await perform([{ op: "create", kind, entity }], `Create one draft ${kind}?`, false, true, requireSource)) { await selectEntity(entity.id, false, marker === undefined && !evidence.length); return entity.id; }
     }
-    async function createLibraryDraft(library, evidence, annotation, guard) {
+    async function createLibraryDraft(library, evidence, annotation, guard, details = {}) {
       if (typeof bridge.libraryCommand !== "function") throw new Error("The project-owned library link bridge is unavailable.");
-      const initial = library.import_fields.defect;
+      const initial = copy(library.import_fields.defect); if (details.draft_location && !initial.location) initial.location = details.draft_location;
       guard?.();
       const defectId = root.crypto.randomUUID(), barrierId = root.crypto.randomUUID(), serviceId = root.crypto.randomUUID();
       const assertion = fields => ({fields,evidence:[],uncertainty:{state:"human_review_required",note:"Manually selected library fields; verify the actual installation and technical applicability."}});
@@ -413,30 +416,50 @@
       if (library.import_fields.service) { commands.push({op:"create",kind:"service",entity:{id:serviceId,barrier_id:barrierId,...assertion(copy(library.import_fields.service)),quantity:null,library_quantity:{version:1,state:"unknown",library_id:library.id,metadata_sha256:library.metadata_sha256}}}); memberIds.push(serviceId); }
       if (!await perform(commands,"Import selected library draft",false,false,guard)) return;
       const links=root.CeasefireTakeoffLibraryLinks || require("./takeoff-library-links.js");
-      displayReply(await bridge.libraryCommand("draft_library_assignment",{assignment:links.assignment(scope(),library,memberIds)}));
+      displayReply(await bridge.libraryCommand("draft_library_assignment",{assignment:links.assignment(scope(),library,memberIds,null,details)}));
       await selectEntity(defectId,false,false); return defectId;
     }
     async function confirmLibraryLink(value) {
       await completePendingEdits(); ensureAvailable(); ensureEditable();
       if (!bridge.libraryPreview || !bridge.libraryApply) throw new Error("The reviewed Firestopping Schedule link bridge is unavailable.");
-      const key=graphKey(), answer=await ask("Confirm link and quantity",[["quantity","Explicit installation quantity","number",value.confirmation?.quantity ?? 1,true]],
+      const key=graphKey(), answer=await ask("Confirm link and quantity",[["quantity","Explicit installation quantity","number",value.confirmation?.quantity ?? value.draft_quantity ?? 1,true]],
         `${value.library.library_id}: ${value.library.title}\n${value.members.length} explicitly selected physical members. ${value.installation.mode === "combined_installation" ? "One combined installation contributes exactly one quantity." : "Review the number of separate installations; member rows do not determine quantity."}\n\nExisting schedule inputs, manual quantity and frozen project prices remain intact. This confirms only the commercial association and your entered quantity, never physical approval or technical compliance.`,"Review schedule change");
-      if (!answer) return; if (graphKey()!==key) throw new Error("The physical draft changed during commercial review.");
+      if (!answer) return false; if (graphKey()!==key) throw new Error("The physical draft changed during commercial review.");
       const quantity=Number(answer.quantity); if (!Number.isFinite(quantity) || quantity<=0) throw new Error("Enter a positive explicit installation quantity.");
+      if (value.installation.mode === "combined_installation" && quantity !== 1) throw new Error("One explicitly combined installation has Item QTY 1. Review separate repeated installations for a larger quantity.");
       const preview=await bridge.libraryPreview({assignment_id:value.id,quantity});
       if (graphKey()!==key) throw new Error("The physical draft changed before schedule confirmation.");
       const change=preview.change,fields=preview.library.import_fields;
       const confirmed=await bridge.confirm("Confirm link and quantity",`${preview.notice}\n\n${preview.library.library_id}: ${preview.library.title}\nCurrent library revision ${preview.library.revision}\nLibrary FRL: ${fields.defect.frl || "Unknown"}\nSubstrate: ${fields.barrier.substrate || "Unknown"}\nOrientation: ${fields.barrier.orientation || "Unknown"}\nService: ${fields.service?.service_type || "Not specified"}\nDiameter: ${fields.service?.diameter_mm ?? "Unknown"}; width: ${fields.service?.width_mm ?? "Unknown"}; height: ${fields.service?.height_mm ?? "Unknown"}\n\n${preview.overlapping_assignment_ids?.length ? "Warning: this explicit group shares physical members with another retained association. Review separate versus combined installations; no opening is inferred.\n" : ""}Explicit contribution: ${change.confirmed_contribution}\nSchedule row: ${change.row_id}\nQuantity: ${change.previous_quantity} → ${change.next_quantity}\nPrior contribution: ${change.prior_contribution}\nAll other existing row inputs and fixed charges remain unchanged.`,"Confirm link and quantity");
-      if (!confirmed) return; if (graphKey()!==key) throw new Error("The physical draft changed during final commercial confirmation.");
-      displayReply(await bridge.libraryApply(preview.preview_id));
+      if (!confirmed) return false; if (graphKey()!==key) throw new Error("The physical draft changed during final commercial confirmation.");
+      displayReply(await bridge.libraryApply(preview.preview_id)); return true;
     }
     async function unlinkLibrary(value) {
       await completePendingEdits();ensureAvailable();ensureEditable();
       if(!value.schedule_binding)throw new Error("This association has no schedule contribution to remove.");
       const key=graphKey(),preview=await bridge.libraryPreview({assignment_id:value.id,quantity:0,operation:"unlink"}),change=preview.change;
       const confirmed=await bridge.confirm("Remove schedule link",`${value.library.library_id}: ${value.library.title}\n\nRemoving this link subtracts only its contribution (${change.prior_contribution}). The schedule row and manual inputs remain; remove the row in Firestopping Estimator if no longer needed.\n\nQuantity: ${change.previous_quantity} → ${change.next_quantity}\nOther confirmed links, manual quantity, fixed charges and frozen prices remain intact. The retained physical draft and association IDs remain available for later review. This action does not approve the physical model.`,"Remove schedule link");
-      if(!confirmed)return;if(graphKey()!==key)throw new Error("The physical draft changed during unlink review.");
-      displayReply(await bridge.libraryApply(preview.preview_id));
+      if(!confirmed)return false;if(graphKey()!==key)throw new Error("The physical draft changed during unlink review.");
+      displayReply(await bridge.libraryApply(preview.preview_id)); return true;
+    }
+    function selectedLibraryAssignments(operation) {
+      const entries = selectEntries(), ids = new Set(entries.map(entry => entry.entity.id));
+      if (!entries.length || entries.some(entry => entry.entity.deleted)) throw new Error("Select active physical records with retained library associations first.");
+      return (state.snapshot?.library_assignments?.records || []).filter(value => value.scope === scope() && value.members.some(member => ids.has(member.id)) && (operation === "transfer" ? !value.schedule_binding : !!value.schedule_binding));
+    }
+    async function selectedLibraryAction(operation) {
+      await completePendingEdits(); ensureAvailable(); ensureEditable();
+      const assignments = selectedLibraryAssignments(operation), title = operation === "transfer" ? "Transfer to Firestopping Schedule" : operation === "update" ? "Update linked rows" : "Unlink from Firestopping Schedule";
+      if (!assignments.length) throw new Error(operation === "transfer" ? "No unlinked library association belongs to the selection. Choose a library item for the selected records first, or use Update linked rows for existing contributions." : "No linked library association belongs to the selection.");
+      const identity = `${scope()}/${state.snapshot?.project_id || ""}`, selection = [...state.selected].sort().join(","), ids = assignments.map(value => value.id);
+      if (assignments.length > 1 && !await ask(title, [], `${assignments.length} retained library associations will be reviewed separately:\n\n${assignments.map(value => `${value.library.library_id}: ${value.library.title}\n${value.members.length} explicitly recorded physical members · ${value.installation.mode === "combined_installation" ? "one combined installation" : "separate repeated installations"}`).join("\n\n")}\n\nEvery association keeps its existing membership. Each schedule change requires its own current preview and confirmation. Cancel stops the remaining reviews; already applied changes remain. Physical record confirmation does not approve technical applicability.`, "Review associations")) return;
+      for (const id of ids) {
+        ensureAvailable();
+        if (identity !== `${scope()}/${state.snapshot?.project_id || ""}` || selection !== [...state.selected].sort().join(",")) throw new Error("The physical selection changed during schedule review. Review the current selection again.");
+        const value = selectedLibraryAssignments(operation).find(entry => entry.id === id);
+        if (!value) throw new Error("A retained library association changed during schedule review. Review its current contribution again.");
+        if (!await (operation === "unlink" ? unlinkLibrary(value) : confirmLibraryLink(value))) break;
+      }
     }
     async function attachLibraryToSelected() {
       await completePendingEdits();ensureAvailable();ensureEditable();
@@ -450,13 +473,15 @@
         const result=await links.addUnderDefect(bridge,context,guard);if(!result)return;
         displayReply(result.reply);await selectEntity(result.selected_id,false,false);return;
       }
-      const selected=await links.choose(bridge,true);
+      const locations = [...new Set(entries.map(entry => columnValue(entry,"location",state.index)).filter(Boolean))];
+      const selected=await links.choose(bridge,true,{location:locations.length === 1 ? locations[0] : ""});
       if(!selected)return;if(graphKey()!==key)throw new Error("The selected physical context changed during library search.");
       const answer=await ask("Define installation membership",[["mode","Installation grouping",[["repeated_installations","Separate repeated installations"],["combined_installation","One explicitly combined installation"]],"repeated_installations",true],["note","Explicit installation/grouping description","textarea",""]],
         `${entries.length} selected physical members will retain their own IDs. A shared barrier never proves a common opening. Describe any combined installation explicitly; confirm its quantity separately. This association does not approve technical applicability.`,"Create draft association");
       if(!answer)return;if(graphKey()!==key)throw new Error("The physical draft changed while defining the installation group.");
+      if(answer.mode==="combined_installation" && selected.details?.draft_quantity!==1)throw new Error("One explicitly combined installation has Item QTY 1. Search again with Item QTY 1, or use separate repeated installations.");
       const installation={id:root.crypto.randomUUID(),mode:answer.mode,note:answer.note||""};
-      displayReply(await bridge.libraryCommand("draft_library_assignment",{assignment:links.assignment(scope(),selected.record,entries.map(entry=>entry.entity.id),installation)}));
+      displayReply(await bridge.libraryCommand("draft_library_assignment",{assignment:links.assignment(scope(),selected.record,entries.map(entry=>entry.entity.id),installation,selected.details)}));
     }
     function renderLibraryAssignments(entries) {
       if(!bridge.libraryCommand||legacyReadOnly()||!entries.length||entries.some(entry=>entry.entity.deleted))return;
@@ -495,6 +520,14 @@
       ensureAvailable(); const entry = state.index.get(id);
       if (!entry || entry.entity.deleted) throw new Error("This drawing record is no longer available. Select a current record.");
       return selectEntity(id, multiple, focus, true, openDetails);
+    }
+    async function viewEntity(id) {
+      await selectEntity(id, false, false, false, false); ensureAvailable();
+      const entry = state.index.get(id); if (!entry || state.selected.size !== 1 || !state.selected.has(id)) throw new Error("The selected physical record changed before opening its source.");
+      const lineage = [entry, ...ancestors(entry,state.index).reverse()];
+      const reference = lineage.map(value => value.entity.annotation || value.entity.marker || value.entity.evidence?.[0]).find(Boolean);
+      if (!reference) { bridge.notify("No original source is linked to this record or its recorded physical parents.", false); return; }
+      return bridge.source(copy(reference));
     }
     function selectedBarrier() {
       const selected = selectEntries(); if (selected.length !== 1 || selected[0].entity.deleted) return null;
@@ -547,7 +580,7 @@
       if (!selected.length || selected.some(entry => entry.entity.deleted) || selected.some(entry => entry.kind !== selected[0].kind)) throw new Error("Select active records of one entity type for a bulk edit.");
       if (selected.length > 100) throw new Error("A bulk operation supports at most 100 selected records. No changes have been applied.");
       const kind = selected[0].kind; await ensureFieldOptions(kind); selected.forEach(requireCurrent);
-      const options = fieldDefinitions(null, kind).filter(([key]) => !key.startsWith("uncertainty_")).map(([key, label]) => [key, label]);
+      const options = fieldDefinitions(null, kind).filter(([key]) => key !== "confirmation").map(([key, label]) => [key, label]);
       const selectedField = await ask(`Choose field for ${selected.length} draft records`, [["field", "Field to change", options, "", true]], "Choose the one property to change across the selected records.", "Continue");
       if (!selectedField) return;
       const definition = options.find(([key]) => key === selectedField.field); if (!definition) throw new Error("Choose a field belonging to this entity type.");
@@ -558,6 +591,35 @@
       const batch = bulkCommands(selected, selectedField.field, answer.value);
       if (!batch.commands.length) { bridge.notify(`All ${selected.length} selected records already have this value. No physical changes were applied.`, false); return; }
       await perform(batch.commands, `Change ${batch.commands.length} of ${selected.length} selected records? ${batch.unchanged.length} already match and stay unchanged.`);
+    }
+    async function applyBulkValue() {
+      ensureAvailable(); const selected = selectEntries();
+      if (!selected.length || selected.some(entry => entry.entity.deleted) || selected.some(entry => entry.kind !== selected[0].kind)) throw new Error("Select active records of one entity type for a bulk edit.");
+      const kind = selected[0].kind, field = ui.bulkField.value, value = ui.bulkValue.value;
+      if (!fieldsFor(kind, scope()).some(([key]) => key === field) && !(kind === "service" && field === "quantity")) throw new Error("Choose a field belonging to every selected record.");
+      selected.forEach(requireCurrent); const batch = bulkCommands(selected, field, value);
+      if (!batch.commands.length) { bridge.notify(`All ${selected.length} selected records already have this value. No physical changes were applied.`, false); return; }
+      await perform(batch.commands, `Change ${batch.commands.length} of ${selected.length} selected records? ${batch.unchanged.length} already match and stay unchanged.`);
+    }
+    function renderBulkSelection() {
+      const selected = selectEntries(), sameKind = selected.length > 0 && selected.every(entry => !entry.entity.deleted && entry.kind === selected[0].kind), current = ui.bulkField.value;
+      ui.bulk.hidden = !selected.length; ui.selection.textContent = `${selected.length} selected`;
+      const options = sameKind ? [...(selected[0].kind === "service" ? [["quantity", "Quantity"]] : []), ...fieldsFor(selected[0].kind, scope()).map(([key, label]) => [key, label])] : [];
+      ui.bulkField.replaceChildren(...options.map(([key, label]) => choice(key, label)));
+      ui.bulkField.value = options.some(([key]) => key === current) ? current : options[0]?.[0] || "";
+      for (const control of [ui.bulkField, ui.bulkValue, ui.bulkApply]) control.dataset.locked = String(!sameKind);
+      ui.bulkField.setAttribute("aria-label", "Bulk physical edit field");
+      ui.bulkValue.title = sameKind ? "New value for every selected record; blank clears an optional property." : "Select active records of one entity type to edit a shared field.";
+      for (const control of [ui.bulkConfirm, ui.bulkUnconfirm]) control.dataset.locked = String(selected.some(entry => entry.entity.deleted) || selected.length > 100 || !selected.length);
+    }
+    async function confirmSelectedRecords(confirmation) {
+      ensureAvailable(); const selected = selectEntries();
+      if (!selected.length || selected.some(entry => entry.entity.deleted)) throw new Error("Select active current draft records to review.");
+      if (selected.length > 100) throw new Error("A bulk confirmation supports at most 100 selected records. No changes have been applied.");
+      selected.forEach(requireCurrent);
+      const commands = selected.filter(entry => recordConfirmation(entry.entity) !== confirmation).map(entry => ({ op: "update", entity_id: entry.entity.id, changes: { confirmation } }));
+      if (!commands.length) { bridge.notify(`All ${selected.length} selected records are already ${confirmation === "confirmed" ? "Confirmed" : "Unconfirmed"}. No changes were applied.`, false); return; }
+      await perform(commands, `${confirmation === "confirmed" ? "Confirm" : "Unconfirm"} ${commands.length} selected draft records?`);
     }
     async function reparent(entry) {
       ensureAvailable(); requireCurrent(entry); const [kind] = parentRelations()[entry.kind] || [];
@@ -698,7 +760,7 @@
       const rows = hierarchyRows(graph(), state); state.offset = Math.max(0, Math.min(state.offset, Math.max(0, Math.floor((rows.length - 1) / 100) * 100)));
       const page = hierarchyPage(rows, state.index, state.offset), table = node("table"), head = node("thead"), header = node("tr"), body = node("tbody"); table.setAttribute("aria-label", "Draft penetration hierarchy register");
       const legacy = legacyReadOnly(), rowKinds = legacy ? legacyKinds : servicePlans() ? ["barrier", "service"] : kinds;
-      const headings = ["Select", "Hide", ...(legacy ? ["Legacy hierarchy / label"] : []), ...rowKinds.map(kind => `${titles[kind]} ID`), "State / uncertainty", "Location", "FRL", ...(legacy ? ["Opening type", "Opening size"] : []), "Substrate", "Orientation", "Category", "Service type", "Service quantity", "Service Size (mm)", "Source evidence"];
+      const headings = ["Select", "Hide", "View/Edit", ...(legacy ? ["Legacy hierarchy / label"] : []), ...rowKinds.map(kind => `${titles[kind]} ID`), "Confirmation", "Location", "FRL", ...(legacy ? ["Opening type", "Opening size"] : []), "Substrate", "Orientation", "Category", "Service type", "Service quantity", "Service Size (mm)", "Source evidence"];
       for (const label of headings) {
         const cell = node("th", "", label), filterKey = Object.keys(filterColumns).find(key => filterColumns[key] === label);
         if (filterKey) cell.append(columnFilterButton(filterKey));
@@ -726,6 +788,8 @@
         const checkbox = node("input"), selectCell = node("td"); checkbox.type = "checkbox"; checkbox.checked = state.selected.has(entity.id); checkbox.setAttribute("aria-label", `Select ${titles[kind]} ${entityName(row)}`); checkbox.addEventListener("change", () => void safe(() => selectEntity(entity.id, true))); selectCell.append(checkbox); line.append(selectCell);
         const hideCell = node("td"), hide = node("input"); hide.type = "checkbox"; hide.checked = state.hidden.has(entity.id); hide.setAttribute("aria-label", `Hide ${titles[kind]} ${entityName(row)} on drawing`);
         hide.addEventListener("change", () => void safe(() => { ensureAvailable(); hide.checked ? state.hidden.add(entity.id) : state.hidden.delete(entity.id); renderData(); })); hideCell.append(hide); line.append(hideCell);
+        const viewCell = node("td", "takeoff-physical-view-edit"), view = button("View", () => viewEntity(entity.id), "text-button"), edit = button("Edit", () => selectEntity(entity.id, false, false, false, true), "text-button");
+        view.title = `View ${displayId(row)} on its source drawing`; edit.title = `${legacy || entity.deleted ? "Inspect" : "Edit"} ${displayId(row)} in Item Details`; edit.setAttribute("aria-controls", "takeoff-physical-details"); viewCell.append(view, edit); line.append(viewCell);
         if (legacy) {
           const label = node("td"); if (row.hasChildren) label.append(disclosure(row));
           label.append(button(`${"↳ ".repeat(row.depth)}${titles[kind]}: ${entityName(row)}`, () => selectEntity(entity.id), "takeoff-row-link")); contextNote(row, label); line.append(label);
@@ -746,7 +810,7 @@
           }
           line.append(cell);
         }
-        const status = node("td"); status.append(node("span", `takeoff-state ${entity.deleted ? "blocked" : "draft"}`, entity.deleted ? "Deleted draft" : legacy ? "Legacy read-only" : "Unapproved draft"), node("p", "helper", uncertainty.find(([key]) => key === entity.uncertainty.state)?.[1] || "Not assessed")); line.append(status);
+        const status = node("td"); status.append(node("span", `takeoff-state ${recordConfirmation(entity)}`, confirmationLabel(entity))); if (entity.deleted || legacy) status.append(node("p", "helper", entity.deleted ? "Deleted draft" : "Legacy read-only")); status.title = "Manual record review only. Technical approval and schedule confirmation remain separate."; line.append(status);
         const inheritedLocation = legacy ? relation.defect?.entity.fields.location ?? relation.barrier?.entity.fields.location : relation.barrier?.entity.fields.location ?? relation.defect?.entity.fields.location;
         const location = kind === "barrier" || kind === "defect" ? editableCell(row, "location") : textCell(inheritedLocation, "Inherited parent location.");
         line.append(location, kind === (servicePlans() ? "barrier" : "defect") ? editableCell(row, "frl") : textCell((servicePlans() ? relation.barrier : relation.defect)?.entity.fields.frl, `Recorded ${servicePlans() ? "barrier" : "defect"} FRL; not a technical approval.`));
@@ -806,12 +870,14 @@
       }
       const controls = fieldDefinitions(entry).map(([key, label, type, initial, required]) => {
         const wrapper = node("label", "field"), control = node(Array.isArray(type) ? "select" : type === "textarea" ? "textarea" : "input"); wrapper.append(node("span", "", label));
-        if (Array.isArray(type)) { populateSelect(control, type, initial); if (sharedOptionKeys.has(key)) bindSharedOptions(control, key); } else if (type !== "textarea") control.type = type === "number" ? "number" : "text";
+        if (Array.isArray(type)) { if (key === "confirmation") control.replaceChildren(...type.map(([value, text]) => choice(value, text))); else populateSelect(control, type, initial); if (sharedOptionKeys.has(key)) bindSharedOptions(control, key); } else if (type !== "textarea") control.type = type === "number" ? "number" : "text";
         control.value = initial ?? ""; control.name = key; control.required = !!required; if (type === "number") control.step = key === "quantity" ? "1" : "any"; control.setAttribute("aria-label", label); track(control, initial, entry, key); wrapper.append(control); ui.inspector.append(wrapper); return control;
       });
       const editor = { controls, entry, key: editorKey };
-      editor.submit = async () => { ensureAvailable(true); await ensureFieldOptions(editor.entry.kind, true); ensureAvailable(true); if (editor.key !== graphKey()) throw new Error("The physical draft changed before the unfinished edits could be validated. Inspect the current record and try again."); requireCurrent(editor.entry); const entity = editor.entry.entity, values = Object.fromEntries(controls.map(control => [control.name, control.value])); const changes = { fields: fieldsFromValues(editor.entry.kind, values, entity.fields, scope()), uncertainty: { state: values.uncertainty_state, note: values.uncertainty_note }, ...(editor.entry.kind === "service" ? { quantity: recordedQuantity(entity, values.quantity) } : {}) }; if (Object.entries(changes).every(([key, value]) => sameValue(entity[key], value))) { resetPending(); renderData(); return true; } return perform([{ op: "update", entity_id: entity.id, changes }], "Apply physical field changes", true, false); };
+      editor.submit = async () => { ensureAvailable(true); await ensureFieldOptions(editor.entry.kind, true); ensureAvailable(true); if (editor.key !== graphKey()) throw new Error("The physical draft changed before the unfinished edits could be validated. Inspect the current record and try again."); requireCurrent(editor.entry); const entity = editor.entry.entity, values = Object.fromEntries(controls.map(control => [control.name, control.value])); const changes = { fields: fieldsFromValues(editor.entry.kind, values, entity.fields, scope()), ...(recordConfirmation(entity) !== values.confirmation ? { confirmation: values.confirmation } : {}), ...(editor.entry.kind === "service" ? { quantity: recordedQuantity(entity, values.quantity) } : {}) }; if (Object.entries(changes).every(([key, value]) => sameValue(entity[key], value))) { resetPending(); renderData(); return true; } return perform([{ op: "update", entity_id: entity.id, changes }], "Apply physical field changes", true, false); };
       state.inspectorEdit = editor;
+      ui.inspector.append(node("p", "helper", "Confirmation records your manual review of this draft's fields. It does not approve technical compliance or add schedule quantity."));
+      if (entity.uncertainty?.state !== "not_assessed" || entity.uncertainty?.note) ui.inspector.append(node("p", "helper takeoff-retained-uncertainty", `Retained uncertainty: ${uncertainty.find(([key]) => key === entity.uncertainty.state)?.[1] || entity.uncertainty.state}. ${entity.uncertainty.note || ""}`));
       const childKind = entry.kind === "defect" ? "barrier" : entry.kind === "barrier" ? "service" : null;
       if (childKind) {
         const addChild = mutationButton(childKind === "service" ? "+" : `Add ${childKind}`, async () => { await completePendingEdits(); return create(childKind, entity.id); }, childKind === "service" ? "button secondary takeoff-physical-add-child takeoff-physical-add-defect takeoff-physical-add-service" : undefined);
@@ -819,13 +885,8 @@
       }
       if (parentRelations()[entry.kind]) ui.inspector.append(button("Change physical parent", flushed => reparent(flushed ? state.index.get(entity.id) : entry)));
       if (entry.kind === "barrier" && entity.marker) ui.inspector.append(button("Open count marker", () => bridge.source(copy(entity.marker))), button("Remove count marker", () => setMarker(entity.id, null)));
-      if (entry.kind === "barrier" && !entity.marker && typeof bridge.placeMarker === "function") ui.inspector.append(mutationButton("Place count marker", flushed => {
-        ensureAvailable(); requireCurrent(flushed ? state.index.get(entity.id) : entry);
-        if (!flushed && graphKey() !== editorKey) throw new Error("The physical draft changed. Select the current barrier before placing its marker.");
-        return bridge.placeMarker(entity.id);
-      }));
       const remove = button("Delete draft record", flushed => deleteEntity(flushed ? state.index.get(entity.id) : entry), "button secondary takeoff-physical-delete-selected"); remove.setAttribute("aria-label", "Delete draft record"); remove.title = "Delete draft record"; remove.replaceChildren(deleteIcon());
-      ui.inspector.append(button("Link original source page", flushed => linkDocument(flushed ? state.index.get(entity.id) : entry)), inspectorActions(remove));
+      ui.inspector.append(inspectorActions(remove));
     }
     function inspectorActions(remove) { const actions = node("div", "takeoff-physical-inspector-actions"); if (remove) actions.append(remove); actions.append(ui.discard); return actions; }
     function renderAssociations(entry) {
@@ -884,7 +945,7 @@
       }
       ui.gallery.append(button("Previous 12 image records", () => { state.imageOffset = Math.max(0, state.imageOffset - 12); renderGallery(); }), node("span", "helper", ` ${state.images.length ? state.imageOffset + 1 : 0}–${Math.min(state.imageOffset + 12, state.images.length)} of ${state.images.length} image and coverage records `), button("Next 12 image records", () => { if (state.imageOffset + 12 < state.images.length) state.imageOffset += 12; renderGallery(); }));
     }
-    function renderData() { if (state.destroyed) return; const focused = state.autoRoutine && state.bindings.has(document.activeElement); if (!focused || !ui.table.contains(document.activeElement)) renderTable(); if (!focused || !ui.inspector.contains(document.activeElement)) renderInspector(); ui.readOnlyNotice.hidden = !legacyReadOnly(); ui.heading.textContent = `${servicePlans() ? "SERVICE PLANS" : "DEFECT REPORTS"} — PHYSICAL DRAFT`; ui.add.setAttribute("aria-label", servicePlans() ? "Add substrate" : "Add defect"); ui.add.title = servicePlans() ? "Add substrate" : "Add defect"; ui.status.textContent = `Physical revision ${graph()?.revision ?? 0} · ${state.index.size} retained identities · ${legacyReadOnly() ? "Legacy read-only" : "Unapproved draft"}`; setBusy(state.busy); }
+    function renderData() { if (state.destroyed) return; const focused = state.autoRoutine && state.bindings.has(document.activeElement); if (!focused || !ui.table.contains(document.activeElement)) renderTable(); if (!focused || !ui.inspector.contains(document.activeElement)) renderInspector(); renderBulkSelection(); ui.readOnlyNotice.hidden = !legacyReadOnly(); ui.heading.textContent = `${servicePlans() ? "SERVICE PLANS" : "DEFECT REPORTS"} — PHYSICAL DRAFT`; ui.add.setAttribute("aria-label", servicePlans() ? "Add substrate" : "Add defect"); ui.add.title = servicePlans() ? "Add substrate" : "Add defect"; ui.status.textContent = `Physical revision ${graph()?.revision ?? 0} · ${state.index.size} retained identities · ${legacyReadOnly() ? "Legacy read-only" : "Unapproved draft"}`; setBusy(state.busy); }
     function render(snapshot) {
       if (state.destroyed) return; const oldKey = graphKey(), oldProject = state.snapshot?.project_id, oldScope = state.scope; state.snapshot = snapshot; state.scope = scope(); state.index = indexGraph(snapshot?.physical); state.selected = new Set([...state.selected].filter(id => state.index.has(id)));
       state.servicesByBarrier = new Map();
@@ -951,10 +1012,15 @@
     ui.root.append(tools); const filters = node("div", "takeoff-register-controls"), search = node("input"); search.type = "search"; search.placeholder = "Filter physical records…"; search.setAttribute("aria-label", "Filter physical hierarchy"); search.addEventListener("input", () => { if (state.pending.size || state.busy) return; state.filter = search.value; state.offset = 0; renderTable(); });
     const deleted = node("label", "takeoff-check"), show = node("input"); show.type = "checkbox"; show.addEventListener("change", () => void safe(() => { ensureAvailable(); state.showDeleted = show.checked; state.offset = 0; renderTable(); })); deleted.append(show, node("span", "", "Show deleted records"));
     ui.discard = button("Discard unfinished physical edits", () => { if (state.busy) throw new Error("Finish the current review first."); resetPending(); renderData(); bridge.notify("Unfinished physical field edits discarded. Recorded draft values are unchanged.", false); }, "button secondary takeoff-physical-discard"); ui.discard.setAttribute("aria-label", "Discard unfinished physical edits"); ui.discard.title = "Discard unfinished physical edits"; ui.discard.replaceChildren(discardIcon());
-    const deleteSelection = mutationButton("Delete selected records", deleteSelected, "button secondary takeoff-physical-delete-selected"); deleteSelection.setAttribute("aria-label", "Delete selected records"); deleteSelection.title = "Delete selected records"; deleteSelection.replaceChildren(deleteIcon());
-    ui.selection = node("strong"); filters.append(search, deleted, ui.selection,
+    const deleteSelection = mutationButton("Delete", deleteSelected); deleteSelection.setAttribute("aria-label", "Delete selected records"); deleteSelection.title = "Delete selected records";
+    ui.selection = node("strong"); filters.append(search, deleted,
       ui.selectFiltered = iconAction("Select filtered records", () => { ensureAvailable(); const rows = matchingActiveRows(), deselect = rows.length > 0 && rows.every(row => state.selected.has(row.entity.id)); for (const row of rows) deselect ? state.selected.delete(row.entity.id) : state.selected.add(row.entity.id); state.inspectedId = null; renderData(); }, ["M4 3h16a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z", "m7 12 3 3 7-7"]),
-      iconAction("Bulk edit same-type records", bulkEdit, ["M9 21H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v5M2 8h18M2 14h7M8 2v19M4 5l1 1 1-2M4 11l1 1 1-2M4 17l1 1 1-2M11 5h6M11 11h2", "M21 16a5 5 0 0 0-9 0m9-4v4h-4M12 19a5 5 0 0 0 9 0m-9 4v-4h4"], true), deleteSelection); ui.root.append(filters);
+      iconAction("Bulk edit same-type records", bulkEdit, ["M9 21H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v5M2 8h18M2 14h7M8 2v19M4 5l1 1 1-2M4 11l1 1 1-2M4 17l1 1 1-2M11 5h6M11 11h2", "M21 16a5 5 0 0 0-9 0m9-4v4h-4M12 19a5 5 0 0 0 9 0m-9 4v-4h4"], true),
+      iconAction("Transfer to Firestopping Schedule", () => selectedLibraryAction("transfer"), ["M12 4v16M4 12h16"], true),
+      iconAction("Update linked rows", () => selectedLibraryAction("update"), ["M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z", "M12 6v6h6"], true),
+      iconAction("Unlink from Firestopping Schedule", () => selectedLibraryAction("unlink"), ["M9 7H7a5 5 0 0 0 0 10h2M15 7h2a5 5 0 0 1 0 10h-2"], true)); ui.root.append(filters);
+    ui.bulk = node("div", "takeoff-register-controls takeoff-bulk takeoff-physical-bulk"); ui.bulkField = node("select"); ui.bulkField.dataset.physicalMutation = "true"; ui.bulkValue = node("input"); ui.bulkValue.dataset.physicalMutation = "true"; ui.bulkValue.type = "text"; ui.bulkValue.placeholder = "New value (blank clears)"; ui.bulkValue.setAttribute("aria-label", "Bulk physical edit value");
+    ui.bulkApply = mutationButton("Apply to selected", applyBulkValue); ui.bulkConfirm = mutationButton("Confirm", () => confirmSelectedRecords("confirmed")); ui.bulkUnconfirm = mutationButton("Unconfirm", () => confirmSelectedRecords("unconfirmed")); ui.bulk.append(ui.selection, ui.bulkField, ui.bulkValue, ui.bulkApply, ui.bulkConfirm, ui.bulkUnconfirm, deleteSelection); ui.root.append(ui.bulk);
     ui.table = node("div", "takeoff-register-table"); const addRow = node("div", "takeoff-physical-add-row"); ui.add = mutationButton("+", () => create(servicePlans() ? "barrier" : "defect"), "button secondary takeoff-physical-add-child takeoff-physical-add-defect"); addRow.append(ui.add); addRow.hidden = !servicePlans();
     ui.pagination = node("div", "takeoff-register-controls"); ui.inspector = node("aside", "takeoff-inspector takeoff-physical-inspector"); ui.inspector.setAttribute("aria-label", "Item Details"); ui.gallery = node("section", "takeoff-physical-gallery"); ui.gallery.setAttribute("aria-label", "Retained image gallery"); ui.root.append(ui.table, addRow, ui.pagination); if (bridge.inspectorContainer) bridge.inspectorContainer.append(ui.inspector); else ui.root.append(ui.inspector); ui.root.append(ui.gallery); container.replaceChildren(ui.root); renderData(); renderGallery(); void safe(loadFieldOptions);
     function imageInventorySummary(images) { const count = images.filter(image => !image.coverage_only).length; return `${count} retained image occurrences; ${images.length - count} source coverage records. Image count is not physical quantity.`; }

@@ -117,7 +117,7 @@ async function typeUntilFinished(initial, expected, samples = [initial]) {
     assert.ok(expected.startsWith(sample.typed));
     assert.ok(sample.typed.length >= samples.at(-1).typed.length);
     assert.equal(sample.accessible, expected); assert.equal(sample.cursorHidden, sample.typed === expected);
-    assert.equal(sample.mediaState, 'playing', 'Character playback continues through typing and its five-second grace period');
+    assert.equal(sample.mediaState, 'playing', 'Character playback continues through typing and its two-second grace period');
     samples.push(sample);
   }
   assert.equal(samples.at(-1).typed, expected, 'The production typing timers must finish the exact phrase');
@@ -132,8 +132,8 @@ async function expireCursor(initial, expected) {
   assert.equal(stopped.cursorDisplay, 'none'); assert.equal(stopped.cursorAnimationCount, 0, 'Hidden cursor must have no running CSS animation');
   assert.equal(stopped.typed, expected); assert.equal(stopped.accessible, expected);
   if (stopped.mediaState === 'playing') {
-    const remaining = 5000 - (stopped.now - stopped.finished.at);
-    assert.ok(remaining > 0, 'The supplied GIF continues for five seconds after the final character');
+    const remaining = 2000 - (stopped.now - stopped.finished.at);
+    assert.ok(remaining > 0, 'The supplied GIF continues for two seconds after the final character');
     await page.clock.runFor(Math.max(0, Math.floor(remaining) - 1));
     const grace = await layout(); assert.equal(grace.mediaState, 'playing'); assert.equal(grace.cursorHidden, true);
     await page.clock.runFor(2);

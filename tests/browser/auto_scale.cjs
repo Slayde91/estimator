@@ -1,4 +1,5 @@
 const { clickProjectControl } = require('./project_actions.cjs');
+const { chooseTakeoff } = require('./section_navigation.cjs');
 const { renderDrawing } = require('./viewer_helpers.cjs');
 // Printed-scale acceptance uses only generated PDFs and a disposable server.
 const { chromium, expect } = require('@playwright/test');
@@ -104,13 +105,58 @@ async function saveAndReopen(info) {
     await page.screenshot({ path: path.join(output, `manual-required-page-${pageNumber}.png`) });
   }
   await response(() => page.getByRole('button', { name: 'First page', exact: true }).click(), '/commands', 'record_render');
+  await expect(page.getByLabel('Drawing calibration', { exact: true })).toHaveValue(manual.id);
+  await expect(page.locator('#takeoff-active-scale')).toHaveText('Manual correction');
   const savedSnapshot = await snapshot(); assert.deepEqual(savedSnapshot.calibrations, [calibration, manual]);
   const saved = await saveAndReopen(info); assert.deepEqual(saved.takeoffs.calibrations, savedSnapshot.calibrations);
   const reopened = await snapshot(); assert.deepEqual(reopened.calibrations, savedSnapshot.calibrations); assert.deepEqual(reopened.documents, savedSnapshot.documents);
+  await expect(page.getByLabel('Drawing calibration', { exact: true })).toHaveValue(manual.id);
+  await expect(page.locator('#takeoff-active-scale')).toHaveText('Manual correction');
   await page.locator('.takeoff-viewport').scrollIntoViewIfNeeded(); await page.screenshot({ path: path.join(output, 'manual-scale-reopened.png') });
+
+  // A manually chosen preset must return with its page, then drive the actual
+  // measurement rather than only correcting the text beside the Scale button.
+  await renderDrawing(page, () => page.locator('#takeoff-upload').setInputFiles(info.fixture), 1);
+  const presetDocument = (await snapshot()).documents.find(value => value.id !== document.id);
+  assert.ok(presetDocument); await expect(page.getByLabel('Drawing calibration', { exact: true })).toHaveValue('');
+  async function preset(denominator) {
+    if (await scale.getAttribute('aria-expanded') !== 'true') await scale.click();
+    await expect(page.getByLabel('Drawing calibration', { exact: true })).toBeVisible(); await page.getByLabel('Drawing calibration', { exact: true }).selectOption(`scale:${denominator}`);
+    return response(() => page.getByRole('dialog').getByRole('button', { name: 'Apply scale', exact: true }).click(), '/commands', 'add_calibration');
+  }
+  async function go(number) { await renderDrawing(page, async () => { await page.getByLabel('Page number', { exact: true }).fill(String(number)); await page.getByLabel('Page number', { exact: true }).press('Tab'); }, number); }
+  reply = await preset(100); const presetScale = reply.snapshot.calibrations.find(value => value.document_id === presetDocument.id && value.page === 1);
+  await expect(page.locator('#takeoff-active-scale')).toHaveText('Page 1 scale · 1:100');
+  await go(2); await expect(page.locator('#takeoff-active-scale')).toHaveText('No Scale Selected');
+  reply = await preset(50); const secondScale = reply.snapshot.calibrations.find(value => value.document_id === presetDocument.id && value.page === 2);
+  const beforeReturning = await snapshot();
+  await go(1); await expect(page.getByLabel('Drawing calibration', { exact: true })).toHaveValue(presetScale.id); await expect(page.locator('#takeoff-active-scale')).toHaveText('Page 1 scale · 1:100');
+  await go(2); await expect(page.getByLabel('Drawing calibration', { exact: true })).toHaveValue(secondScale.id); await expect(page.locator('#takeoff-active-scale')).toHaveText('Page 2 scale · 1:50');
+  await go(1); assert.deepEqual((await snapshot()).calibrations, beforeReturning.calibrations); assert.deepEqual((await snapshot()).items, beforeReturning.items, 'Navigation does not revise retained measurements or calibration history');
+  await chooseTakeoff(page, 'WALLS'); await expect(page.getByLabel('Drawing calibration', { exact: true })).toHaveValue(presetScale.id);
+  await page.getByRole('button', { name: 'Length', exact: true }).click();
+  async function presetPoint([x, y]) {
+    const overlay = page.locator('.takeoff-overlay'); await overlay.evaluate(el => window.scrollTo(0, window.scrollY + el.getBoundingClientRect().top - 180));
+    const box = await overlay.boundingBox(); const position = [box.x + x / 842 * box.width, box.y + (595 - y) / 595 * box.height];
+    assert.equal(await page.evaluate(([x, y]) => !!document.elementFromPoint(x, y)?.closest('.takeoff-viewport'), position), true); return position;
+  }
+  await page.mouse.click(...await presetPoint([100, 400])); await page.mouse.click(...await presetPoint([244, 400])); await page.locator('.takeoff-viewport').press('Enter');
+  reply = await response(() => dialog('Add length measurement', { Item: 'RESTORED-PAGE-SCALE' }, 'Add measurement'), '/commands', 'create_item');
+  const restoredItem = reply.snapshot.items.find(value => value.fields.mark === 'RESTORED-PAGE-SCALE'), restoredResult = reply.item_results.find(value => value.id === restoredItem.id);
+  assert.equal(restoredItem.measurement.calibration_id, presetScale.id); assert.equal(restoredItem.geometry.document_id, presetDocument.id); assert.equal(restoredItem.geometry.page, 1);
+  const restoredDistance = Math.hypot(restoredItem.geometry.points[1][0] - restoredItem.geometry.points[0][0], restoredItem.geometry.points[1][1] - restoredItem.geometry.points[0][1]);
+  assert.ok(Math.abs(restoredResult.length_m - restoredDistance * .0254 / 72 * 100) < 1e-12, 'Restored preset uses full original-coordinate precision');
+  assert.equal(restoredItem.confirmation, null); assert.equal(restoredItem.review, null);
+  await renderDrawing(page, () => page.getByLabel('Drawing document', { exact: true }).selectOption(document.id), 1); await expect(page.getByLabel('Drawing calibration', { exact: true })).toHaveValue(manual.id);
+  await renderDrawing(page, () => page.getByLabel('Drawing document', { exact: true }).selectOption(presetDocument.id), 1); await expect(page.getByLabel('Drawing calibration', { exact: true })).toHaveValue(presetScale.id);
+  const presetSavedSnapshot = await snapshot(), presetSaved = await saveAndReopen(info); assert.deepEqual(presetSaved.takeoffs.calibrations, presetSavedSnapshot.calibrations); assert.deepEqual((await snapshot()).items, presetSavedSnapshot.items);
+  await renderDrawing(page, () => page.getByLabel('Drawing document', { exact: true }).selectOption(presetDocument.id), 1); await expect(page.getByLabel('Drawing calibration', { exact: true })).toHaveValue(presetScale.id); await expect(page.locator('#takeoff-active-scale')).toHaveText('Page 1 scale · 1:100');
+  await go(2); await expect(page.getByLabel('Drawing calibration', { exact: true })).toHaveValue(secondScale.id); await go(1); await expect(page.getByLabel('Drawing calibration', { exact: true })).toHaveValue(presetScale.id);
+  evidence.restoredPreset = { document_id: presetDocument.id, page1: presetScale, page2: secondScale, item: restoredItem, exact_length_m: restoredResult.length_m, savedReopened: true };
+  await page.locator('.takeoff-viewport').scrollIntoViewIfNeeded(); await page.screenshot({ path: path.join(output, 'preset-scale-restored-and-reopened.png') });
   assert.deepEqual(errors, []); assert.deepEqual(await page.evaluate(() => window.qaCsp), []);
   fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ completed: true, strictCsp: true, evidence, calibration, manual, detections, errors }, null, 2));
-  console.log(`PASS: printed footer calibration, physical PDF units, manual correction, ambiguous-scale refusal, no rerender duplicates, Save As and reopen. Evidence: ${output}`);
+  console.log(`PASS: printed footer calibration, physical PDF units, manual/preset page and document restoration, exact restored measurement, ambiguous-scale refusal, no rerender duplicates, Save As and reopen. Evidence: ${output}`);
 })().catch(async error => {
   console.error(error); console.error(logs.slice(-5000));
   if (page) { await page.screenshot({ path: path.join(output, 'failure.png'), fullPage: true }).catch(() => {}); fs.writeFileSync(path.join(output, 'failure.txt'), await page.locator('body').innerText().catch(() => '')); }

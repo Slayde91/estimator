@@ -726,7 +726,9 @@
       state.viewportSelection = "";
     }
     state.ui.calibration.replaceChildren(option("", "No Scale Selected"), ...calibrations.map(calibration => option(calibration.id, `${calibration.region ? "Viewport: " : ""}${calibration.name}${calibration.scale_denominator ? ` · 1:${calibration.scale_denominator}` : ""}`)), ...scaleDenominators.map(value => option(`scale:${value}`, `1:${value}`)));
-    if (state.calibration && !calibrations.some(calibration => calibration.id === state.calibration)) { state.calibration = ""; state.calibrationSelections.delete(context); }
+    // Losing an active selection must not silently switch scope from a deleted
+    // viewport (or revised scale) to another calibration on the same page.
+    if (state.calibration && !calibrations.some(calibration => calibration.id === state.calibration)) { state.calibration = ""; state.calibrationSelections.set(context, ""); }
     // A saved/reopened drawing has no remembered UI choice. Its sole active
     // page scale is unambiguous, whether printed, preset or manually measured.
     // Never infer a viewport choice or choose between multiple page scales.

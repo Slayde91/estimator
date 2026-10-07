@@ -7,6 +7,7 @@ const { spawn } = require('node:child_process');
 const { createHash } = require('node:crypto');
 const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
 const { renderDrawing } = require('./viewer_helpers.cjs');
+const { retainBarrierMarker } = require('./physical_marker_fixtures.cjs');
 const root = path.resolve(__dirname, '../..');
 const layoutReview = process.argv.includes('--layout-review');
 const autosaveDragReview = process.argv.includes('--autosave-drag');
@@ -101,6 +102,38 @@ async function automaticField(id, label, value) {
   await response(async () => { await control.fill(value); await control.press('Tab'); }, '/physical/apply');
   await expect(page.getByRole('dialog')).toHaveCount(0); await snapshot();
   assert.equal(entity(currentScope, id).fields[label === 'Location' ? 'location' : 'notes'], value);
+}
+async function placeBarrier(scope, barrier, pageNumber) {
+  const point = pageNumber === 3 ? [410, 470] : [550, 330];
+  await selectBarrier(barrier);
+  await expect(details().getByRole('button', { name: 'Place count marker', exact: true })).toHaveCount(0);
+  await closeDetails(); await fit();
+  if (scope === 'service_plans') {
+    await page.getByRole('button', { name: 'Call-out', exact: true }).click();
+    await expect(page.locator('.takeoff-viewport')).toHaveAttribute('data-tool', 'count');
+    await page.mouse.click(...await drawingPoint(point, pageNumber));
+    await response(() => dialog('Place barrier marker', { Barrier: 'existing' }, 'Continue'), '/physical/apply');
+  } else {
+    await retainBarrierMarker(page, barrier, point, scope);
+    await row(barrier).getByRole('button', { name: 'Edit', exact: true }).click(); await idle();
+  }
+  await snapshot(); await expect(marker(barrier)).toBeVisible();
+  await expect(marker(barrier)).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('.takeoff-viewport')).toHaveAttribute('data-tool', 'select');
+  (evidence.markerPlacement ||= []).push({ scope, barrier, sourcePoint: point, currentToolbarReuse: scope === 'service_plans', retainedFixtureMarker: scope === 'defect_reports' });
+}
+async function reviewDefectSource(defect, barrier, service) {
+  await row(defect).getByRole('button', { name: 'Edit', exact: true }).click(); await idle(); await closeDetails(); await fit(); await snapshot();
+  const before = structuredClone(entity('defect_reports', defect).annotation), barrierBefore = structuredClone(entity('defect_reports', barrier)), serviceBefore = structuredClone(entity('defect_reports', service));
+  assert.ok(before?.point && !barrierBefore.marker, 'The current toolbar creates one sourced Defect without an inferred Barrier marker');
+  await response(() => drag(marker(defect), -10, 8), '/physical/apply'); await snapshot();
+  const moved = structuredClone(entity('defect_reports', defect).annotation), withoutPoint = value => { const result = structuredClone(value); delete result.point; return result; };
+  assert.notDeepEqual(moved.point, before.point); assert.deepEqual(withoutPoint(moved), withoutPoint(before));
+  await closeDetails(); await fit(); await response(() => drag(frame(defect), -10, -8), '/physical/apply'); await snapshot();
+  const next = entity('defect_reports', defect).annotation;
+  assert.deepEqual(next.point, moved.point); assert.ok(next.callout?.offset.every(Number.isFinite));
+  assert.deepEqual(entity('defect_reports', barrier), barrierBefore); assert.deepEqual(entity('defect_reports', service), serviceBefore);
+  evidence.currentDefectToolbarSource = { defect, original: before, moved, callout: structuredClone(next.callout), childrenUnchanged: true };
 }
 async function selectDrawingBehavior(scope, barrier, defect) {
   await closeDetails(); await fit();
@@ -277,12 +310,12 @@ let currentScope = 'defect_reports';
     const barrier = await create('barrier', { Location: 'North plant room', 'Barrier type': 'Core hole', Substrate: 'Concrete/masonry wall', 'Substrate orientation': 'Vertical', ...(scope === 'service_plans' ? { FRL: '-/90/90' } : {}) }, () => page.getByRole('button', { name: scope === 'service_plans' ? 'Add substrate' : 'Add barrier to D-0001', exact: true }).click());
     await compareAddServiceStyle(scope);
     const service = await create('service', { Category: 'Mechanical', 'Explicit service quantity': 2, 'Service Size (mm)': '100' }, () => page.getByRole('button', { name: 'Add service in Item Details', exact: true }).click());
+    if (defect && !layoutReview) await reviewDefectSource(defect, barrier, service);
     await selectBarrier(barrier);
     if (layoutReview) {
       const pageNumber = scope === 'service_plans' ? 3 : 1;
       if (pageNumber === 3) await renderDrawing(page, async () => { await page.getByLabel('Page number', { exact: true }).fill('3'); await page.getByLabel('Page number', { exact: true }).press('Tab'); }, 3);
-      await details().getByRole('button', { name: 'Place count marker', exact: true }).click(); await closeDetails(); await fit();
-      await response(async () => page.mouse.click(...await drawingPoint(pageNumber === 3 ? [410, 470] : [550, 330], pageNumber)), '/physical/apply'); await snapshot();
+      await placeBarrier(scope, barrier, pageNumber);
       await reviewAlignment(scope, barrier); await closeDetails(); await fit();
       await selectDrawingBehavior(scope, barrier, defect);
       evidence.scopes.push({ scope, pageNumber, rapidKeyboardAfterPointer: true });
@@ -296,9 +329,7 @@ let currentScope = 'defect_reports';
     await expect(details().getByRole('button', { name: 'Preview physical edits', exact: true })).toHaveCount(0);
     const pageNumber = scope === 'service_plans' ? 3 : 1;
     if (pageNumber === 3) await renderDrawing(page, async () => { await page.getByLabel('Page number', { exact: true }).fill('3'); await page.getByLabel('Page number', { exact: true }).press('Tab'); }, 3);
-    await selectBarrier(barrier); await details().getByRole('button', { name: 'Place count marker', exact: true }).click(); await closeDetails(); await fit();
-    await response(async () => page.mouse.click(...await drawingPoint(pageNumber === 3 ? [410, 470] : [550, 330], pageNumber)), '/physical/apply');
-    await snapshot(); await expect(marker(barrier)).toBeVisible(); await expect(marker(barrier)).toHaveAttribute('aria-pressed', 'true');
+    await placeBarrier(scope, barrier, pageNumber);
     await reviewAutosaveDrag(scope, barrier, service, pageNumber);
     if (autosaveDragReview) {
       retained.push({ scope, barrier, service, marker: structuredClone(entity(scope, barrier).marker) });

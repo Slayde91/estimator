@@ -43,7 +43,7 @@ class TakeoffLibraryLinkTests(unittest.TestCase):
         self.case.setUp()
         self.addCleanup(self.case.doCleanups)
         self.service, self.sid = self.case.service, self.case.session['session_id']
-        editable_library(self.case.root / 'library')
+        editable_library(self.case.root / 'library', complete_entries=True)
         self.library = FirestoppingLibrary(self.case.root / 'library', self.case.store)
         self.service.libraries = self.library
         self.source_bytes = (self.case.root / 'library/library.json').read_bytes()
@@ -147,6 +147,26 @@ class TakeoffLibraryLinkTests(unittest.TestCase):
         self.assertEqual(audit['op'], 'draft_library_assignment')
         self.assertEqual(audit['affected_ids']['library_assignments'], [identifier])
         self.assert_source_unchanged()
+
+    def test_new_transfer_requires_metadata_but_existing_incomplete_rows_can_be_updated(self):
+        edit = self.library.edit('pkb-001')
+        edit['draft']['rows'][0]['inputs']['J'] = None
+        saved = self.library.action('pkb-001', 'save', {
+            name: edit[name] for name in ('draft', 'revision', 'pricing_token')})
+        identifier, _, _ = self.assignment([self.member()])
+        before, draft = self.state(), deepcopy(self.draft)
+        with self.assertRaisesRegex(ValidationError, 'Complete Category before adding'):
+            self.preview(identifier, 2)
+        self.assertEqual(self.state(), before)
+        self.assertEqual(self.draft, draft)
+        self.draft['rows'] = [{'id': 'retained-row', 'library_item_id': 'pkb-001',
+                              'inputs': {**saved['draft']['rows'][0]['inputs'], 'O': 3.1234567890123}}]
+        original = deepcopy(self.draft['rows'][0]['inputs'])
+        result = self.confirm(identifier, 2)
+        row = result['penetration']['draft']['rows'][0]
+        self.assertEqual(row['id'], 'retained-row')
+        self.assertEqual(row['inputs'], {**original, 'O': 5.1234567890123})
+        self.assertIsNone(row['inputs']['J'])
 
     def test_preview_is_read_only_and_requires_reviewed_finite_positive_quantity(self):
         identifier, _, _ = self.assignment([self.member()])
@@ -818,7 +838,7 @@ class TakeoffLibraryLinkApiTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.temp = tempfile.TemporaryDirectory(); cls.root = Path(cls.temp.name)
-        editable_library(cls.root / 'library')
+        editable_library(cls.root / 'library', complete_entries=True)
         cls.server = create_server(0, cls.root / 'api.sqlite3', library_directory=cls.root / 'library')
         cls.thread = threading.Thread(target=cls.server.serve_forever, daemon=True); cls.thread.start()
 

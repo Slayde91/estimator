@@ -56,6 +56,25 @@
     for (const id of ids) { const el = $(id); el.textContent = text; el.hidden = !text; el.className = `message${error ? " error" : ""}`; }
   }
   function buttonBusy(id, value) { $(id).setAttribute("aria-busy", String(value)); }
+  const requiredItemFields = () => state.definition?.required_item_fields || [
+    { column: "J", label: "Category" }, { column: "K", label: "Service Type" }, { column: "L", label: "Penetration Type" },
+    { column: "M", label: "Substrate Orientation" }, { column: "N", label: "FRL" }, { column: "P", label: "Substrate" },
+  ];
+  const missingItemFields = (inputs = selected()?.inputs || {}) => requiredItemFields().filter(field => !entered(inputs[field.column]) || typeof inputs[field.column] === "string" && !inputs[field.column].trim());
+  const requiredItemProblem = inputs => {
+    const missing = missingItemFields(inputs);
+    return missing.length ? `Complete ${missing.map(field => field.label).join(", ")} before adding this Firestopping item.` : "";
+  };
+  async function requireItemFields() {
+    const problem = requiredItemProblem(); if (!problem) return true;
+    const detailGroup = state.definition.groups.find(group => state.definition.row_fields.some(field => field.column === "J" && field.group === group));
+    if (detailGroup) { state.group = detailGroup; renderFields(); }
+    const notice = window.CeasefirePenetrationNavigation?.notify;
+    if (notice) await notice("Complete item details", problem, "OK"); else message(problem, true);
+    const first = missingItemFields()[0];
+    if (first) document.querySelectorAll(`[data-penetration-scope="composer"][data-penetration-field="${first.column}"]`)[0]?.focus();
+    return false;
+  }
   const persisted = () => ({ draft: state.schedule.draft, composer: state.draft });
   function hasUnsavedChanges() { return !!state.draft && (stable(canonicalSnapshot(persisted())) !== state.saved || state.invalid.size > 0 || state.schedule.invalid.size > 0 || state.diagramChange !== undefined); }
   function status(text) {
@@ -65,8 +84,11 @@
     $("penetration-recalculate").disabled = blocked || state.calculating;
     for (const id of ["penetration-add", "penetration-estimator-add"]) $(id).disabled = !!state.takeoffLease || !state.draft;
     for (const id of ["penetration-new-item", "penetration-clear"]) $(id).disabled = !!state.takeoffLease || !state.draft || state.creatingLibrary || state.addingLibrary || state.addingSchedule || state.updatingSchedule;
-    $("penetration-add-to-library").disabled = blocked || state.creatingLibrary;
-    $("penetration-add-to-schedule").disabled = blocked || scheduleBlocked || state.diagramChange !== undefined || state.addingSchedule || state.schedule.draft.rows.length >= state.definition.capacity;
+    const requiredProblem = state.draft ? requiredItemProblem() : "";
+    $("penetration-required-fields").textContent = requiredProblem;
+    $("penetration-required-fields").hidden = !requiredProblem;
+    $("penetration-add-to-library").disabled = blocked || !!requiredProblem || state.creatingLibrary;
+    $("penetration-add-to-schedule").disabled = blocked || !!requiredProblem || scheduleBlocked || state.diagramChange !== undefined || state.addingSchedule || state.schedule.draft.rows.length >= state.definition.capacity;
     $("penetration-update-schedule").hidden = !state.edit;
     $("penetration-update-schedule").disabled = blocked || scheduleBlocked || state.diagramChange !== undefined || state.updatingSchedule || !validEdit();
     $("penetration-cancel-edit").hidden = !state.edit;
@@ -246,6 +268,9 @@
     control.dataset.penetrationScope = scope === state ? "composer" : "schedule";
     control.dataset.penetrationField = field.column; control.dataset.penetrationRow = rowId === null ? "" : rowId;
     control.setAttribute("aria-label", `${line}: ${label.textContent}`);
+    if (scope === state && rowId !== null && requiredItemFields().some(item => item.column === field.column)) {
+      control.required = true; control.setAttribute("aria-required", "true");
+    }
     const pending = scope.invalid.get(key), raw = inputValue(field, rowId, scope);
     const manufacturer = rowId !== null && manufacturerLabel(field, raw);
     const options = [...new Set((field.options || []).map(value => manufacturer && manufacturerLabel(field, value) === manufacturer ? raw : value))];
@@ -693,6 +718,7 @@
     assertTakeoffWritable();
     document.activeElement?.blur?.();
     if (!state.draft || state.invalid.size || state.creatingLibrary) return;
+    if (requiredItemProblem()) { await requireItemFields(); return; }
     const context = state.context, stamp = composerStamp();
     state.creatingLibrary = true; status();
     try {
@@ -722,6 +748,7 @@
   }
   function appendSchedule(inputs, libraryId) {
     assertTakeoffWritable();
+    const problem = requiredItemProblem(inputs); if (problem) throw new Error(problem);
     if (state.schedule.invalid.size) throw new Error("Correct the schedule input marked invalid before adding an item.");
     if (state.schedule.draft.rows.length >= state.definition.capacity) throw new Error("The current schedule is full. Remove a row before adding another item.");
     const row = newRow(); row.inputs = clone(inputs); if (libraryId) row.library_item_id = libraryId; state.schedule.draft.rows.push(row);
@@ -769,6 +796,7 @@
   async function addToSchedule() {
     assertTakeoffWritable();
     document.activeElement?.blur?.(); if (!state.draft || state.invalid.size || state.diagramChange !== undefined || state.addingSchedule) return;
+    if (requiredItemProblem()) { await requireItemFields(); return; }
     const context = state.context, epoch = state.composerEpoch, revision = state.revision, edit = state.edit;
     const independentCopy = !!edit && !!selected().library_item_id;
     state.addingSchedule = true; status();
@@ -778,11 +806,15 @@
         const confirmed = await confirmReplace("Add a new schedule item?", "A new item will be added to the schedule and the original will also be retained. Do you want to proceed?", "OK", true, "Cancel");
         if (!confirmed || context !== state.context || epoch !== state.composerEpoch || stamp !== composerStamp() || edit !== state.edit || !validEdit()) return;
       }
+      const stamp = composerStamp(), pricing = configStamp();
+      const validation = await request("/api/penetration/validate-item", { draft: libraryDraft(selected()), configuration: configuration() });
+      if (validation.valid !== true) throw new Error("The item details could not be validated. Nothing was added.");
+      if (context !== state.context || epoch !== state.composerEpoch || stamp !== composerStamp() || pricing !== configStamp() || edit !== state.edit) throw new Error("The current item or pricing changed while checking its details. Review it and add it again.");
       const row = appendSchedule(selected().inputs, independentCopy ? null : selected().library_item_id), receipt = await scheduleReceipt(row, "Current item", context);
       if (context === state.context && epoch === state.composerEpoch) message(receipt.message + (revision !== state.revision ? " Later edits to the current item are not included." : ""), receipt.total === null);
       return receipt;
     }
-    catch (error) { message(error.message, true); }
+    catch (error) { if (context === state.context) message(error.message, true); }
     finally { state.addingSchedule = false; status(); }
   }
   async function requestAddToSchedule() {

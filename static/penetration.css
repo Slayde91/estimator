@@ -16,6 +16,8 @@
 #penetration-settings[aria-pressed=true]{background:#fff;border-color:#dcd3d7;color:#51414a;box-shadow:inset 0 0 0 2px #51414a}
 .penetration-field-error{color:var(--error);font-size:11px;overflow-wrap:anywhere}
 .penetration-field-error[hidden]{display:none}
+.penetration-required-fields{margin:0 0 16px;color:var(--accent-dark)}
+.penetration-item-heading #penetration-add-to-library{align-self:flex-end}
 .penetration-schedule table{width:100%;min-width:960px}
 .penetration-schedule td{vertical-align:middle;max-width:300px;overflow-wrap:anywhere}
 .penetration-schedule td:nth-child(6),.penetration-schedule td:nth-child(7){text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}

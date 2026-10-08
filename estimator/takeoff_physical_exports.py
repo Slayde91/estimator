@@ -309,14 +309,19 @@ def export_matrix_pdf(graph):
     return output.getvalue(), 'application/pdf', 'Passive_Fire_Matrix.pdf'
 
 
-def export_physical_graph(graph, format, source_names=None):
+def export_physical_graph(graph, format, source_names=None, *, confirmation=None):
     """Return bytes, MIME and filename for a draft-only diagnostic register.
 
     CSV includes all retained entities. XLSX places active entities in their
     typed sheets and tombstones in Historical Entities; Evidence includes both.
+    An explicit confirmation selection exports matching active records only,
+    while retaining their exact parent references and the full graph digest.
     Source names are optional unverified display labels, never file paths to
     read. There is deliberately no approved/export-with-lock switch.
     """
+    if confirmation is not None and (format != 'xlsx' or not isinstance(confirmation, str)
+                                      or confirmation not in ('all', 'confirmed', 'unconfirmed')):
+        raise ValidationError('Choose all, confirmed or unconfirmed items for the XLSX register.')
     if not isinstance(format, str) or format not in ('csv', 'xlsx', 'pdf'):
         raise ValidationError('Choose CSV, XLSX or the matrix PDF draft physical export.')
     graph = validate_graph(graph)
@@ -333,8 +338,20 @@ def export_physical_graph(graph, format, source_names=None):
     evidence_headers = common_headers + EVIDENCE_HEADERS[len(COMMON_HEADERS):]
     names = _names(source_names)
     rows, associations, fingerprint = _rows(graph, names)
+    if confirmation is not None:
+        states = {entry['id']: entry.get('confirmation', 'unconfirmed')
+                  for collection in graph_collections(graph).values() for entry in graph[collection]}
+        rows = [{**row, 'confirmation': states[row['entity_id']]} for row in rows
+                if not row['deleted'] and (confirmation == 'all' or states[row['entity_id']] == confirmation)]
+        included = {row['entity_id'] for row in rows}
+        associations = [{**row, 'confirmation': states[row['entity_id']]} for row in associations
+                        if row['entity_id'] in included]
+        common_headers += ('confirmation',)
+        csv_headers += ('confirmation',)
+        evidence_headers += ('confirmation',)
     label = 'Service-Plans' if graph['version'] == 3 else 'Physical'
-    filename = f'CEASEFIRE-{label}-UNAPPROVED-DRAFT.{format}'
+    selection = f'-{confirmation.title()}-Items' if confirmation is not None else ''
+    filename = f'CEASEFIRE-{label}{selection}-UNAPPROVED-DRAFT.{format}'
     if format == 'csv':
         output = StringIO(newline='')
         writer = csv.writer(output)
@@ -372,7 +389,8 @@ def export_physical_graph(graph, format, source_names=None):
             ('Quantity', ('Selected-library service drafts may retain an explicitly versioned unknown quantity. Their descriptor is included in library_quantity_json; null is never an approved count.' if any('library_quantity' in entry for entry in graph['services']) else
                          'Only services carry explicit positive quantities. Empty barriers have no service row or quantity. Images and repeated views never create counts.' if current else
                           'Only services carry explicit positive quantities. Empty openings have no service row or quantity. Images and repeated views never create counts.')),
-            ('History', 'All retained entities are included. XLSX typed sheets contain active entities; Historical Entities contains tombstones. Evidence includes associations of both.'),
+            ('History', 'All retained entities are included. XLSX typed sheets contain active entities; Historical Entities contains tombstones. Evidence includes associations of both.' if confirmation is None else
+                        f'Active {confirmation} items only. Deleted records are excluded. Confirmation is each record\'s own manual draft review state; missing confirmation means unconfirmed. Parent IDs and UUIDs are preserved even when a parent is outside this selection. Evidence includes only selected records.'),
             ('Evidence associations', 'association_index identifies the retained list position, not physical quantity. Image UUID, SHA-256 and occurrence UUID remain distinct.'),
             ('Long text', 'Provenance Detail stores ordered exact text chunks identified by sheet, record ID and column. Concatenate in part order and check the recorded SHA-256.'),
             ('File metadata time', 'Fixed serialization timestamp 2000-01-01; not a source, review or export event time.'),

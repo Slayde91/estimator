@@ -234,6 +234,7 @@ function pythonJson(script, ...args) {
   reply = await technicalDetails('COUNT-A', 2); state = reply.snapshot;
   for (const item of countItems(state)) { assert.equal(item.fields.mark, 'COUNT-A'); assert.equal(item.fields.section, '100UC15'); assert.equal(item.fields.product, 'CAFCO 300'); }
   for (const item of countItems(state)) await expect(page.locator(`tr[data-item-id="${item.id}"] input[name="quantity"]`)).toBeDisabled();
+  for (const item of countItems(state)) { const row=page.locator(`tr[data-item-id="${item.id}"]`);await expect(row.getByRole('combobox',{name:'Steel section',exact:true})).toBeDisabled();await expect(row.getByRole('button',{name:'Show Steel section choices',exact:true})).toBeDisabled();await expect(row.locator('.takeoff-section-popup')).toBeHidden(); }
   await expect(page.getByLabel('Bulk edit field', { exact: true }).locator('option[value="quantity"]')).toBeDisabled();
   assert.deepEqual(await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()), calculatorBefore);
   await expect(panel).not.toContainText('All length groups in a Count share');

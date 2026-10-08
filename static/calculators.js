@@ -8,10 +8,11 @@
   const controlExactNumber = new Intl.NumberFormat("en-AU", { useGrouping: false, minimumFractionDigits: 2, maximumFractionDigits: 15 });
   const state = { list: null, listRequest: null, definitionRequests: new Map(), entries: new Map(), current: null, loadRevision: 0, requestRevision: 0, timer: null, action: false, calculating: false, optionLists: new Map(), optionKeys: new WeakMap(), nextListId: 0 };
   // Browser annotation scopes use immutable source coordinates. They change
-  // alignment/labels only; values, formulas, input keys and exports are untouched.
+  // alignment, labels and column order only; source identities stay unchanged.
   const browserPresentation = {
     steel_vermiculite: {
       START: { text: { A7: "Use SCHEDULE to enter members and SUMMARY to review product quantities. Open FACTOR CALCS for the Section Factor Helper." } },
+      SCHEDULE: { column_order: ["Z", "AA", "A", "E", "F", "C", "D", "B", "H", "I", "J", "G"] },
       CALCULATOR: { hide: ["A1"], text: { A1: "" }, center: ["A6:F24", "H6:N24"], split_status: ["H9", "H20"] }, // 4–5
       BAGS: { center: ["A6:N15", "A19:I25"] }, // Manual quantities and all six product totals
       SETTINGS: {
@@ -667,7 +668,7 @@
       const common = settingsSections.find(section => section.id === "A17");
       settingsSections = settingsSections.filter(section => section.id !== "A17").map(section => section.id === "A9" && common ? { ...section, ranges: [...section.ranges, ...common.ranges] } : section);
     }
-    return { ...metadata, omitted_rows: result?.omitted_rows || metadata.omitted_rows || [], omitted_columns: result?.omitted_columns || metadata.omitted_columns || [], omitted_ranges: omittedRanges, hidden_addresses: browserPresentation[entry.definition.id]?.[entry.sheet]?.hide || [], presentation_tables: (result?.presentation_tables || metadata.presentation_tables || []).filter(table => !spraySummary || table.title_address !== "A17"), table_layout: result?.table_layout || metadata.table_layout, display_column_order: result?.display_column_order || metadata.display_column_order || [], display_text: result?.display_text || metadata.display_text || {}, display_cells: result?.display_cells || metadata.display_cells || {}, navigation_mode: result?.navigation_mode ?? metadata.navigation_mode ?? "links", settings_sections: settingsSections, display_table_order: result?.display_table_order ?? metadata.display_table_order ?? [], schedule_heading: result?.schedule_heading ?? metadata.schedule_heading ?? "", expand_tables: result?.expand_tables ?? metadata.expand_tables ?? false };
+    return { ...metadata, omitted_rows: result?.omitted_rows || metadata.omitted_rows || [], omitted_columns: result?.omitted_columns || metadata.omitted_columns || [], omitted_ranges: omittedRanges, hidden_addresses: browserPresentation[entry.definition.id]?.[entry.sheet]?.hide || [], presentation_tables: (result?.presentation_tables || metadata.presentation_tables || []).filter(table => !spraySummary || table.title_address !== "A17"), table_layout: result?.table_layout || metadata.table_layout, display_column_order: browserPresentation[entry.definition.id]?.[entry.sheet]?.column_order || result?.display_column_order || metadata.display_column_order || [], display_text: result?.display_text || metadata.display_text || {}, display_cells: result?.display_cells || metadata.display_cells || {}, navigation_mode: result?.navigation_mode ?? metadata.navigation_mode ?? "links", settings_sections: settingsSections, display_table_order: result?.display_table_order ?? metadata.display_table_order ?? [], schedule_heading: result?.schedule_heading ?? metadata.schedule_heading ?? "", expand_tables: result?.expand_tables ?? metadata.expand_tables ?? false };
   }
 
   function omittedCell(metadata) {

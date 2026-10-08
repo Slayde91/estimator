@@ -219,6 +219,7 @@ class DesktopPackagingTests(unittest.TestCase):
         self.library.create({'idempotency_key':'desktop-seed-create-001','configuration':{},'draft':{
             'globals':{'J':'No','K':None,'L':0.125,'M':0},
             'rows':[{'id':'created-test-row','inputs':{'K':'Saved copper service','T':'65 mm copper',
+                'J':'Plumbing & Hydraulic','L':'Core Hole','M':'Vertical','N':'-/120/120','P':'Concrete/masonry wall',
                 'Q':None,'O':1,'AH':2,'AI':50,'AJ':100,'AL':65,'AO':0}}]}})
         with self.store.connect() as database:
             value=export_library_edits(database)

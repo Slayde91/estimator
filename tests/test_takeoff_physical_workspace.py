@@ -255,6 +255,18 @@ class PhysicalWorkspaceTests(unittest.TestCase):
         self.assertIn(b'UNVERIFIED ASSERTIONS', payload)
         self.assertEqual(self.state()['snapshot']['physical']['state'], 'draft')
 
+    def test_filtered_xlsx_requires_current_outer_revision_and_is_read_only(self):
+        self.apply([self.defect()])
+        before = self.state()
+        for revision in (None, True, before['revision'] - 1, before['revision'] + 1):
+            with self.subTest(revision=revision), self.assertRaises(ValidationError):
+                self.service.export_physical(self.sid, 'xlsx', expected_revision=revision, confirmation='all')
+        payload, mime, filename = self.service.export_physical(self.sid, 'xlsx', expected_revision=before['revision'], confirmation='unconfirmed')
+        self.assertTrue(payload.startswith(b'PK'))
+        self.assertIn('spreadsheetml', mime)
+        self.assertIn('Unconfirmed-Items', filename)
+        self.assertEqual(self.state(), before)
+
     def test_intact_foreign_registry_reopen_remains_diagnostic_and_can_save_as_or_reextract(self):
         from estimator.native_dialogs import SaveSelection
         from estimator.project_file import export_project

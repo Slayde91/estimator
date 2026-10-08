@@ -134,7 +134,7 @@ async function inspectHeader(width) {
     evidence.calculators.push(title);
   }
   await chooseCalculator(page, 'Steel (board)');await idle();await page.locator('#calculator-navigation-toggle').click();await expect(page.locator('#calculator-title')).toHaveText('Steel (board)');
-  for (const [id, source] of [['library','penetration-add-to-library'],['calculator','penetration-recalculate']]) {
+  for (const [id, source] of [['library','penetration-add-to-library'],['calculator','calculator-recalculate']]) {
     assert.equal(await page.locator(`#${id}-navigation-toggle svg`).getAttribute('viewBox'),await page.locator(`#${source} svg`).getAttribute('viewBox'));
     assert.equal(await page.locator(`#${id}-navigation-toggle svg`).innerHTML(),await page.locator(`#${source} svg`).innerHTML());
   }
@@ -144,6 +144,12 @@ async function inspectHeader(width) {
   await expect(page.locator('#project-attachment-zone')).toHaveAttribute('title','Drag or drop files');
   const icons=await page.locator('nav[aria-label="Main navigation"] .nav-icon>svg, nav[aria-label="Main navigation"] .nav-icon>span[aria-hidden]>svg, nav[aria-label="Main navigation"] .nav-icon>img').evaluateAll(nodes=>nodes.map(el=>({width:el.getBoundingClientRect().width,height:el.getBoundingClientRect().height,stroke:el.tagName.toLowerCase()==='svg'?el.getAttribute('stroke-width'):null})));
   assert.equal(icons.length,7);for(const icon of icons){assert.equal(icon.width,25);assert.equal(icon.height,25);if(icon.stroke!==null)assert.equal(icon.stroke,'1.8');}
+  await chooseCalculator(page,'Firestopping'); await idle();
+  await expect(page.locator('#penetration-new-item')).toBeHidden(); await expect(page.locator('#penetration-recalculate')).toBeHidden();
+  for (const [id, name] of [['penetration-clear','Clear'],['penetration-add-to-schedule','Add to Schedule'],['penetration-add-to-library','Add to Library']]) { await expect(page.locator('#'+id)).toBeVisible(); await expect(page.locator('#'+id)).toHaveAccessibleName(name); }
+  const add=await box(page.locator('#penetration-add-to-schedule')),library=await box(page.locator('#penetration-add-to-library'));
+  assert.ok(add.x+add.width<=library.x&&Math.abs(add.y-library.y)<1&&Math.abs(add.height-library.height)<1,'Library follows the current-item Schedule action on the same row');
+  evidence.firestoppingCurrentActions={topNewAndRecalculateHidden:true,visibleAccessibleActions:true,libraryFollowsSchedule:true};
   for (const kind of ['pricing', 'penetration', 'technical']) {
     await chooseLibrary(page, kind); await expect(page.locator(`#library-${kind}`)).toBeVisible();
     if(kind==='pricing'){

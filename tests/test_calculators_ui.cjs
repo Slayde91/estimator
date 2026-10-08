@@ -1120,6 +1120,28 @@ let passed = 0;
   changedDuct.display_column_order=['B','C','D','AJ','AO','AN','AN','ZZ'];await audit.calculate();ductTable=renderedTable();
   assert.deepEqual(ductTable.children[1].children[0].children.map(node=>node.textContent),[2,3,4,36,41,40,39,42,43].map(column=>ductLabels[column]));assert.equal(renderedControls().length,900);passed++;
 
+  // Spray schedule presentation moves inputs without changing their source addresses or returned workbook data.
+  entry=setup({SCHEDULE:{A10:'First member',E10:'Hp/A',G10:123.456789012345,AA1009:'Last location'}});
+  entry.definition.id='steel_vermiculite';entry.sheet='SCHEDULE';
+  const sprayColumns=Array.from({length:27},(_,index)=>index+1),sprayColumnName=column=>column===27?'AA':String.fromCharCode(64+column);
+  const sprayLabels=['Item / mark','Product','Exposure / member case','Critical temp (°C)','Input method','Section ID','Hp/A | ESA/M | web mm','Fire period (min)','Quantity','Length / member (m)','Girth override (m)','Area override (m²)',...Array.from({length:13},(_,index)=>`Output ${index+13}`),'Line','Location'];
+  entry.definition.schedule={sheet:'SCHEDULE',first_row:10,last_row:1009,header_row:9,line_id_column:'Z',columns:sprayColumns.map(column=>({column:sprayColumnName(column),label:sprayLabels[column-1],editable:column<=12||column===27}))};
+  entry.definition.sheets=[{name:'SCHEDULE',header_rows:[9],display_column_order:[26,27,...sprayColumns.slice(0,25)],omitted_columns:[22,23,24],merges:[]}];
+  entry.result=result(copy(entry.inputs),{sheet:'SCHEDULE',max_row:1009,max_column:27,visible_columns:sprayColumns,rows:[
+    {row:9,cells:sprayColumns.map(column=>({column,address:`${sprayColumnName(column)}9`,value:sprayLabels[column-1]}))},
+    ...[10,1009].map(row=>({row,cells:sprayColumns.map(column=>({column,address:`${sprayColumnName(column)}${row}`,value:entry.inputs.SCHEDULE[`${sprayColumnName(column)}${row}`]??null,editable:column<=12||column===27,type:column===7?'number':'text',calculated:column>=13&&column<=25}))}))]});
+  const spraySource=JSON.stringify(entry.result),sprayDefinition=JSON.stringify(entry.definition),sprayInputs=JSON.stringify(entry.inputs);
+  const sprayDisplayOrder=[26,27,1,5,6,3,4,2,8,9,10,7,11,12,13,14,15,16,17,18,19,20,21,25];
+  realRender(entry);audit.setRender(realRender);
+  const sprayTable=renderedTable(),sprayRows=sprayTable.children.at(-1).children;
+  assert.deepEqual(sprayTable.children[1].children[0].children.map(node=>node.textContent),sprayDisplayOrder.map(column=>sprayLabels[column-1]));
+  for(const [index,row] of [10,1009].entries()) assert.deepEqual(sprayRows[index].children.map(cell=>cell.children[0]?.dataset.calculatorCell||cell.dataset.calculatorOutput),sprayDisplayOrder.map(column=>`${sprayColumnName(column)}${row}`));
+  assert.equal(JSON.stringify(entry.result),spraySource);assert.equal(JSON.stringify(entry.definition),sprayDefinition);assert.equal(JSON.stringify(entry.inputs),sprayInputs);
+  const sprayFactor=renderedControls().find(control=>control.dataset.calculatorCell==='G10');
+  await sprayFactor.emit('focus');assert.equal(sprayFactor.value,'123.456789012345');sprayFactor.value='321.123456789012';await sprayFactor.emit('input');await sprayFactor.emit('blur');
+  assert.equal(entry.inputs.SCHEDULE.G10,321.123456789012);assert.equal(entry.inputs.SCHEDULE.AA1009,'Last location');
+  assert.equal(JSON.stringify(entry.definition),sprayDefinition);assert.equal(JSON.stringify(entry.result),spraySource);passed++;
+
   // Browser text overrides cover headers and contents, while omitted titles,
   // raw data and output-state classification stay unchanged.
   entry=setup();entry.definition.id='ductwork';entry.sheet='PRODUCT SETTINGS';

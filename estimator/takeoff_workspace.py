@@ -533,17 +533,17 @@ class TakeoffService:
             self.documents.assert_documents([document], owner=session_id)
             return self._images().rendition(descriptor, document, asset_id, owner=session_id)
 
-    def export_physical(self, session_id, format, scope='defect_reports', expected_revision=None):
+    def export_physical(self, session_id, format, scope='defect_reports', expected_revision=None, confirmation=None):
         from .takeoff_physical_exports import export_physical_graph
         with self._lock:
             snapshot = self._session(session_id)['snapshot']
             self._physical_gate(session_id, snapshot)
             if hasattr(self.documents, 'assert_image_evidence'):
                 self.documents.assert_image_evidence(snapshot, owner=session_id)
-            if format == 'pdf' and (type(expected_revision) is not int or expected_revision != snapshot['revision']):
-                raise ValidationError('The Takeoffs draft changed before the matrix export. Retry from its current state.')
+            if (format == 'pdf' or confirmation is not None) and (type(expected_revision) is not int or expected_revision != snapshot['revision']):
+                raise ValidationError('The Takeoffs draft changed before the document export. Retry from its current state.')
             return export_physical_graph(current_graph(snapshot, scope), format,
-                                         {document['id']: document['name'] for document in snapshot['documents']})
+                                         {document['id']: document['name'] for document in snapshot['documents']}, confirmation=confirmation)
 
     @staticmethod
     def _physical_editable(snapshot, scope='defect_reports'):

@@ -20,6 +20,7 @@ import re
 from PIL import Image, ImageOps, UnidentifiedImageError
 
 from .catalog import ValidationError, configuration_catalog, validate_configuration
+from .penetration_entry import validate_item_for_add
 from .penetration_calculator import (CALCULATION_POLICY_VERSION, calculate, canonical_frl,
                                      canonical_service_type, canonical_substrate, definition,
                                      engine_for_draft, normalize_draft, source_model)
@@ -850,10 +851,6 @@ class FirestoppingLibrary(ReferenceLibrary):
             token = hashlib.sha256(encoded(snapshot).encode()).hexdigest()
             request_hash = hashlib.sha256(encoded({'draft': draft, 'configuration': configuration,
                                                    'diagram_sha256': None if diagram is UNCHANGED or diagram is None else diagram['sha256']}).encode()).hexdigest()
-            result = calculate(draft, configuration)
-            if result['errors']:
-                raise ValidationError('Resolve the calculation errors before adding this item to the library.')
-            amount = price(result['rows'][0]['outputs'].get('H'), 'Library price')
             current = self._load()
             items = current['_records']['penetration'].values() if current else []
             maximum = max(USER_ID_START - 1, max((int(item['library_id'][6:]) for item in items), default=0))
@@ -861,6 +858,13 @@ class FirestoppingLibrary(ReferenceLibrary):
             bundle_ids = set(base['_records']['penetration']) if base else set()
 
             def build(number, count):
+                # An exact retry recovers its original record before this new
+                # entry guard; it cannot allocate or rewrite another item.
+                validate_item_for_add(draft)
+                result = calculate(draft, configuration)
+                if result['errors']:
+                    raise ValidationError('Resolve the calculation errors before adding this item to the library.')
+                amount = price(result['rows'][0]['outputs'].get('H'), 'Library price')
                 if len(bundle_ids) + count >= 50000:
                     raise ValidationError('The Firestopping Library has reached its item capacity.')
                 alias, key = f'FL-ID-{number:03d}', f'fl-user-{number:03d}'

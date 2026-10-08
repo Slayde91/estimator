@@ -9,9 +9,10 @@ import unittest
 from openpyxl import load_workbook
 
 from estimator import takeoff_physical as physical
+from estimator.catalog import ValidationError
 from estimator.takeoff_model import audit_affected, new_snapshot, upgrade_snapshot, validate_snapshot
 from estimator.takeoff_physical_exports import export_physical_graph
-from tests.test_takeoff_physical import uid
+from tests.test_takeoff_physical import evidence, uid
 from tests.test_takeoff_physical_exports import records
 
 
@@ -90,6 +91,67 @@ class PhysicalV2ExportTests(unittest.TestCase):
             self.assertEqual(export_physical_graph(self.graph, format)[0],
                              export_physical_graph(deepcopy(self.graph), format)[0])
         self.assertEqual(self.graph, original)
+
+    def test_selected_xlsx_uses_each_active_records_own_confirmation_in_both_workspaces(self):
+        self.add('service', 5, 2, fields={'service': 'Cable', 'notes': '=literal source text'}, quantity=3)
+        self.add('service', 6, 2, quantity=4)
+        self.change({'op': 'delete', 'entity_id': uid(6), 'cascade': False})
+        for version in (2, 3):
+            graph = deepcopy(self.graph)
+            if version == 3:
+                graph['version'] = 3
+                del graph['defects']
+                for barrier in graph['barriers']:
+                    del barrier['defect_id']
+                    barrier['fields']['frl'] = '-/120/120'
+            graph['services'][0]['confirmation'] = 'confirmed'
+            graph['services'][0]['evidence'] = [evidence(occurrence=101, page=1)]
+            graph['services'][1]['confirmation'] = 'unconfirmed'
+            graph['services'][1]['evidence'] = [evidence(occurrence=102, page=2)]
+            graph['services'][2]['confirmation'] = 'confirmed'
+            original = deepcopy(graph)
+            active = {entry['id'] for collection in physical.graph_collections(graph).values()
+                      for entry in graph[collection] if not entry['deleted']}
+            for selection, expected in (('confirmed', {uid(3)}), ('unconfirmed', active - {uid(3)}), ('all', active)):
+                with self.subTest(version=version, selection=selection):
+                    payload, mime, filename = export_physical_graph(graph, 'xlsx', confirmation=selection)
+                    self.assertIn('spreadsheetml', mime)
+                    self.assertIn(selection.title() + '-Items', filename)
+                    self.assertEqual(payload, export_physical_graph(deepcopy(graph), 'xlsx', confirmation=selection)[0])
+                    workbook = load_workbook(BytesIO(payload))
+                    try:
+                        rows = [row for collection in physical.graph_collections(graph).values()
+                                for row in records(workbook[collection.title()])]
+                        self.assertEqual({row['entity_id'] for row in rows}, expected)
+                        self.assertTrue(all(row['record_scope'] == 'active' for row in rows))
+                        if selection != 'all':
+                            self.assertTrue(all(row['confirmation'] == selection for row in rows))
+                        self.assertTrue(all(row['graph_sha256'] == physical.graph_digest(graph) for row in rows))
+                        self.assertEqual(records(workbook['Historical Entities']), [])
+                        self.assertEqual({row['entity_id'] for row in records(workbook['Evidence'])}, expected & {uid(3), uid(5)})
+                        service = next((row for row in rows if row['entity_id'] == uid(3)), None)
+                        if service:
+                            self.assertEqual((service['barrier_id'], service['parent_id'], service['quantity']), ('B-0001', uid(2), 2))
+                        self.assertFalse(any(cell.data_type == 'f' for sheet in workbook for row in sheet for cell in row))
+                        self.assertIn('Deleted records are excluded', dict(workbook['Provenance'].values)['History'])
+                    finally:
+                        workbook.close()
+            self.assertEqual(graph, original)
+
+    def test_confirmation_selection_is_validated_and_is_xlsx_only(self):
+        for selection in ('approved', '', True, [], {}):
+            with self.subTest(selection=selection), self.assertRaises(ValidationError):
+                export_physical_graph(self.graph, 'xlsx', confirmation=selection)
+        for format in ('csv', 'pdf'):
+            with self.assertRaises(ValidationError):
+                export_physical_graph(self.graph, format, confirmation='all')
+        graph = physical.new_graph(uid(1000), uid(2000), version=2)
+        workbook = load_workbook(BytesIO(export_physical_graph(graph, 'xlsx', confirmation='confirmed')[0]))
+        try:
+            self.assertEqual(records(workbook['Services']), [])
+            self.assertIn('confirmation', [cell.value for cell in workbook['Services'][1]])
+        finally:
+            workbook.close()
 
     def test_outer_snapshot_and_audit_keep_all_three_entity_kinds(self):
         before = upgrade_snapshot(new_snapshot())

@@ -1090,9 +1090,30 @@
     ui.readOnlyNotice = node("p", "takeoff-warning takeoff-physical-legacy-notice", "Legacy hierarchy — read-only until its relationships are assigned. Original records, fields and evidence are preserved for inspection and export."); ui.root.append(ui.readOnlyNotice);
     const tools = node("div", "takeoff-register-controls");
     tools.append(mutationButton("Extract images from selected PDF page", () => runBridge(async () => { const reply = await bridge.extract(); displayReply(reply); await refreshImagesAfterExtraction(); return reply; })), button("Refresh retained images", refreshImages));
-    const matrix = button("Download Passive Fire Matrix PDF", () => runBridge(() => bridge.export("pdf")), "button icon-only schedule-download-button takeoff-download-button calculator-export-pdf");
-    matrix.setAttribute("aria-label", "Download Passive Fire Matrix PDF"); matrix.title = "Download Passive Fire Matrix PDF";
-    const matrixSymbol = node("span", "download-format-icon"); matrixSymbol.setAttribute("aria-hidden", "true"); matrixSymbol.append(node("span", "download-arrow", "▤"), node("span", "download-format", "PDF")); matrix.replaceChildren(matrixSymbol); tools.append(matrix);
+    const documents = node("div", "calculator-document-menu takeoff-document-menu"), documentList = node("div", "calculator-document-actions");
+    documentList.setAttribute("role", "group"); documentList.setAttribute("aria-label", "Document actions");
+    const documentToggle = node("button", "button secondary calculator-document-toggle", "Document"); documentToggle.type = "button";
+    documentToggle.setAttribute("aria-expanded", "false"); documentList.id = `takeoff-documents-${crypto.randomUUID()}`; documentToggle.setAttribute("aria-controls", documentList.id);
+    const chevron = node("span", "calculator-document-chevron"); chevron.setAttribute("aria-hidden", "true"); chevron.append(actionIcon(["m6 9 6 6 6-6"])); documentToggle.append(chevron);
+    const closeDocuments = (restoreFocus = false) => { documentList.hidden = true; documentToggle.setAttribute("aria-expanded", "false"); if (restoreFocus) documentToggle.focus(); };
+    const openDocuments = () => { documentList.hidden = false; documentToggle.setAttribute("aria-expanded", "true"); };
+    const documentButtons = [];
+    for (const [format, confirmation, label] of [["xlsx", "confirmed", "Download confirmed items"], ["xlsx", "unconfirmed", "Download unconfirmed items"], ["xlsx", "all", "Download all items"], ["pdf", null, "Download Passive Fire Matrix PDF"]]) {
+      const control = button(label, () => { closeDocuments(true); return runBridge(() => bridge.export(format, confirmation)); }, "button secondary calculator-document-action");
+      control.setAttribute("aria-label", label); const icon = node("span", "download-format-icon"); icon.setAttribute("aria-hidden", "true"); icon.append(node("span", "download-arrow", "↓"), node("span", "download-format", format.toUpperCase())); control.replaceChildren(icon, node("span", "", label));
+      documentButtons.push(control); documentList.append(control);
+    }
+    documentToggle.addEventListener("click", () => documentList.hidden ? openDocuments() : closeDocuments());
+    documents.addEventListener("keydown", event => {
+      if (event.key === "Escape" && !documentList.hidden) { event.preventDefault(); closeDocuments(true); return; }
+      if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
+      event.preventDefault(); openDocuments(); const choices = documentButtons.filter(control => !control.disabled), index = choices.indexOf(document.activeElement);
+      if (choices.length) choices[event.key === "Home" ? 0 : event.key === "End" ? choices.length - 1 : event.key === "ArrowDown" ? (index + 1) % choices.length : (index < 0 ? choices.length - 1 : (index + choices.length - 1) % choices.length)].focus();
+    });
+    documents.addEventListener("focusout", event => { if (!documents.contains(event.relatedTarget)) closeDocuments(); });
+    const outsideDocuments = event => { if (!documents.contains(event.target)) closeDocuments(); };
+    document.body.addEventListener("pointerdown", outsideDocuments);
+    closeDocuments(); documents.append(documentToggle, documentList); tools.append(documents);
     ui.root.append(tools); const filters = node("div", "takeoff-register-controls"), search = node("input"); search.type = "search"; search.placeholder = "Filter physical records…"; search.setAttribute("aria-label", "Filter physical hierarchy"); search.addEventListener("input", () => { if (state.pending.size || state.busy) return; state.filter = search.value; state.offset = 0; renderTable(); });
     const deleted = node("label", "takeoff-check"), show = node("input"); show.type = "checkbox"; show.addEventListener("change", () => void safe(() => { ensureAvailable(); state.showDeleted = show.checked; state.offset = 0; renderTable(); })); deleted.append(show, node("span", "", "Show deleted records"));
     ui.discard = button("Discard unfinished physical edits", () => { if (state.busy) throw new Error("Finish the current review first."); resetPending(); renderData(); bridge.notify("Unfinished physical field edits discarded. Recorded draft values are unchanged.", false); }, "button secondary takeoff-physical-discard"); ui.discard.setAttribute("aria-label", "Discard unfinished physical edits"); ui.discard.title = "Discard unfinished physical edits"; ui.discard.replaceChildren(discardIcon());
@@ -1109,7 +1130,7 @@
     ui.pagination = node("div", "takeoff-register-controls"); ui.inspector = node("aside", "takeoff-inspector takeoff-physical-inspector"); ui.inspector.setAttribute("aria-label", "Item Details"); ui.gallery = node("section", "takeoff-physical-gallery"); ui.gallery.setAttribute("aria-label", "Retained image gallery"); ui.root.append(ui.table, addRow, ui.pagination); if (bridge.inspectorContainer) bridge.inspectorContainer.append(ui.inspector); else ui.root.append(ui.inspector); ui.root.append(ui.gallery); container.replaceChildren(ui.root); renderData(); renderGallery(); void safe(loadFieldOptions);
     function imageInventorySummary(images) { const count = images.filter(image => !image.coverage_only).length; return `${count} retained image occurrences; ${images.length - count} source coverage records. Image count is not physical quantity.`; }
     async function refreshImagesAfterExtraction() { await refreshImages(true); }
-    return { render, select: selectEntity, selectDrawing, clearSelection, create, createFromSelection, setMarker, setAnnotation, deleteDrawing, copyDrawing, pasteDrawing, selectedBarrier, selection: () => [...state.selected], inspectedId: () => inspectedEntry()?.entity.id || null, summary, hover, completePendingEdits, isAutoApplying: () => state.autoRoutine, editRevision: () => state.editRevision, hasUnfinishedChanges: () => !state.destroyed && (state.busy || state.pending.size > 0), destroy() { state.destroyed = true; state.busy = false; cancelAutomatic(); state.filterDialog?.close("cancel"); ++state.imageGeneration; container.replaceChildren(); if (bridge.inspectorContainer) ui.inspector.remove(); state.pending.clear(); changed(); } };
+    return { render, select: selectEntity, selectDrawing, clearSelection, create, createFromSelection, setMarker, setAnnotation, deleteDrawing, copyDrawing, pasteDrawing, selectedBarrier, selection: () => [...state.selected], inspectedId: () => inspectedEntry()?.entity.id || null, summary, hover, completePendingEdits, isAutoApplying: () => state.autoRoutine, editRevision: () => state.editRevision, hasUnfinishedChanges: () => !state.destroyed && (state.busy || state.pending.size > 0), destroy() { state.destroyed = true; state.busy = false; cancelAutomatic(); document.body.removeEventListener("pointerdown", outsideDocuments); state.filterDialog?.close("cancel"); ++state.imageGeneration; container.replaceChildren(); if (bridge.inspectorContainer) ui.inspector.remove(); state.pending.clear(); changed(); } };
   }
 
   const api = { mount, indexGraph, hierarchyRows, hierarchyPage, columnValue, fieldValue, fieldsFromValues, changedFields, bulkCommands, deletionPlan, formatDimensions, parseDimensions, imageEvidence, previewText, commandText };

@@ -110,7 +110,7 @@
     "Select": "M5 3l14 10-7 1-3 7z",
     "Select PDF text": "M6 3c4 0 6 2 6 5v8c0 3-2 5-6 5M18 3c-4 0-6 2-6 5M12 16c0 3 2 5 6 5",
     "Pan": "M8 12V5a1.5 1.5 0 0 1 3 0v6-7a1.5 1.5 0 0 1 3 0v7-5a1.5 1.5 0 0 1 3 0v6-3a1.5 1.5 0 0 1 3 0v7c0 4-3 6-7 6-3 0-4-2-6-4l-3-4a1.5 1.5 0 0 1 2-2l2 1z",
-    "Settings": "M10 2h4l1 3 3 1 3-1 2 4-2 2v3l2 2-2 4-3-1-3 1-1 3h-4l-1-3-3-1-3 1-2-4 2-2v-3L1 9l2-4 3 1 3-1zM15.5 12a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0",
+    "Settings": "M10 2h4l1 3 2.8-1.3 2.5 2.5L19 9l3 1v4l-3 1 1.3 2.8-2.5 2.5L15 19l-1 3h-4l-1-3-2.8 1.3-2.5-2.5L5 15l-3-1v-4l3-1-1.3-2.8 2.5-2.5L9 5z",
     "Close settings": "M6 9l6 6 6-6",
     "Apply item edits": "M5 3h12l3 3v15H4V3zM8 3v6h8V3M8 21v-7h8v7M10 17h4",
     "Trace length": "M1 6v12M23 6v12M4 12h16M8 8l-4 4 4 4M16 8l4 4-4 4",
@@ -155,6 +155,11 @@
       } else {
         const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg"), path = document.createElementNS("http://www.w3.org/2000/svg", "path");
         for (const [key, value] of Object.entries({ viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", "stroke-width": "1.8", "stroke-linecap": "round", "stroke-linejoin": "round", focusable: "false" })) svg.setAttribute(key, value);
+        if (iconName === "Settings") {
+          const centre = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+          for (const [key, value] of Object.entries({ cx: "12", cy: "12", r: "4.5" })) centre.setAttribute(key, value);
+          svg.append(centre); symbol.classList.add("gear-symbol");
+        }
         path.setAttribute("d", icon); svg.append(path);
         if (label === "Trace surface" || label === "Add exclusion") {
           const area = document.createElementNS("http://www.w3.org/2000/svg", "text");
@@ -276,7 +281,69 @@
     if (Array.isArray(kind) && initial !== "" && initial != null && !kind.some(value => (Array.isArray(value) ? value[0] : value) === initial)) control.append(option(initial, `${initial} (retained)`));
     control.name = key; control.value = initial ?? ""; if (kind === "checkbox") control.checked = !!initial; control.dataset.field = key; control.setAttribute("aria-label", title); wrapper.append(control);
     if (key === "duct_size") { control.placeholder = "100x100"; control.pattern = ductSizePattern; }
-    return { wrapper, control, read: () => { if (kind === "checkbox") return control.checked; if (!numeric) return Array.isArray(kind) ? control.value : control.value.trim(); if (control.validity?.badInput) throw new Error(`${title}: enter a valid number.`); if (control.value.trim() === "") return null; const value = Number(control.value); if (!Number.isFinite(value)) throw new Error(`${title}: enter a finite number.`); return value; } };
+    const field = { wrapper, control, read: () => { if (kind === "checkbox") return control.checked; if (!numeric) return Array.isArray(kind) ? control.value : control.value.trim(); if (control.validity?.badInput) throw new Error(`${title}: enter a valid number.`); if (control.value.trim() === "") return null; const value = Number(control.value); if (!Number.isFinite(value)) throw new Error(`${title}: enter a finite number.`); return value; } };
+    if (key === "section" && !Array.isArray(kind)) sectionSearch(field, initial ?? "");
+    return field;
+  }
+  function sectionSearch(field, initial) {
+    const { control, wrapper } = field, host = node("div", "takeoff-section-search"), popup = node("div", "takeoff-section-popup"), list = node("div", "takeoff-section-options"), status = node("p", "takeoff-section-status"), toggle = node("button", "takeoff-section-toggle");
+    let committed = String(initial), values = [], loaded = false, query = "", matches = [], active = -1, pendingCommit = false;
+    const normalize = value => String(value).toLocaleLowerCase("en-AU").replace(/×/g, "x").replace(/\s/g, "");
+    const listId = `takeoff-sections-${uuid()}`;
+    control.setAttribute("role", "combobox"); control.setAttribute("aria-autocomplete", "list"); control.setAttribute("aria-haspopup", "listbox"); control.setAttribute("aria-controls", listId); control.setAttribute("aria-expanded", "false"); control.autocomplete = "off";
+    list.id = listId; list.setAttribute("role", "listbox"); list.setAttribute("aria-label", "Steel section choices");
+    status.setAttribute("role", "status"); popup.hidden = true; popup.append(list, status);
+    toggle.type = "button"; toggle.tabIndex = -1; toggle.setAttribute("aria-label", "Show Steel section choices"); toggle.setAttribute("aria-controls", listId); toggle.setAttribute("aria-expanded", "false");
+    const arrow = document.createElementNS("http://www.w3.org/2000/svg", "svg"), path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    for (const [key, value] of Object.entries({ viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", "stroke-width": "1.8", "aria-hidden": "true", focusable: "false" })) arrow.setAttribute(key, value);
+    path.setAttribute("d", "m6 9 6 6 6-6"); arrow.append(path); toggle.append(arrow);
+    wrapper.append(host); host.append(control, toggle, popup);
+    const close = () => { popup.hidden = true; control.setAttribute("aria-expanded", "false"); toggle.setAttribute("aria-expanded", "false"); control.removeAttribute?.("aria-activedescendant"); active = -1; };
+    const setActive = index => {
+      active = index;
+      [...list.children].forEach((option, position) => { const current = position === index; option.setAttribute("aria-selected", String(current)); option.classList.toggle("active", current); if (current) { control.setAttribute("aria-activedescendant", option.id); option.scrollIntoView?.({ block: "nearest" }); } });
+    };
+    const choose = value => {
+      if (control.disabled || control.readOnly) return;
+      pendingCommit = false; committed = value; control.value = value; query = ""; close(); control.focus();
+      control.dispatchEvent(new Event("change", { bubbles: true }));
+    };
+    const render = () => {
+      const text = normalize(query), retained = committed && !values.includes(committed) ? [{ value: committed, label: `${committed} (retained)` }] : [];
+      const candidates = [...retained, ...values.map(value => ({ value, label: value }))].filter(option => !text || normalize(option.value).includes(text));
+      matches = candidates.slice(0, 100); active = -1; control.removeAttribute?.("aria-activedescendant");
+      list.replaceChildren(...matches.map((value, index) => {
+        const option = node("div", "takeoff-section-option", value.label); option.id = `${listId}-${index}`; option.setAttribute("role", "option"); option.setAttribute("aria-selected", "false"); option.dataset.section = value.value;
+        option.addEventListener("pointerdown", event => event.preventDefault()); option.addEventListener("click", event => { event.preventDefault(); choose(value.value); }); return option;
+      }));
+      status.textContent = !loaded ? "Loading steel sections…" : !candidates.length ? "No matching sections. Refine the search." : candidates.length > matches.length ? `Showing ${matches.length} of ${candidates.length} sections. Type to narrow the list.` : `${candidates.length} section${candidates.length === 1 ? "" : "s"}`;
+    };
+    const open = (filter = "") => { if (control.disabled || control.readOnly) return; query = filter; popup.hidden = false; control.setAttribute("aria-expanded", "true"); toggle.setAttribute("aria-expanded", "true"); render(); popup.scrollIntoView?.({ block: "nearest" }); };
+    const exact = () => { if (values.includes(control.value)) return control.value; const matches = values.filter(value => normalize(value) === normalize(control.value)); return matches.length === 1 ? matches[0] : undefined; };
+    const commitTyped = () => {
+      if (control.value === committed) { close(); return true; }
+      if (!loaded) { pendingCommit = true; close(); return false; }
+      const value = control.value.trim() === "" ? "" : exact();
+      if (value === undefined) { control.value = committed; close(); return false; }
+      committed = value; control.value = value; close(); return true;
+    };
+    control.addEventListener("input", () => { pendingCommit = false; open(control.value); });
+    control.addEventListener("click", () => { if (popup.hidden) open(); });
+    control.addEventListener("keydown", event => {
+      if (event.key === "Escape" && !popup.hidden) { event.preventDefault(); event.stopPropagation(); pendingCommit = false; control.value = committed; close(); return; }
+      if (["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
+        if (popup.hidden && ["Home", "End"].includes(event.key)) return;
+        event.preventDefault(); if (popup.hidden) open(); if (!matches.length) return;
+        setActive(event.key === "Home" ? 0 : event.key === "End" ? matches.length - 1 : event.key === "ArrowDown" ? (active + 1) % matches.length : active < 0 ? matches.length - 1 : (active + matches.length - 1) % matches.length); return;
+      }
+      if (event.key === "Enter" && !popup.hidden) { event.preventDefault(); if (active >= 0) choose(matches[active].value); else if (commitTyped()) control.dispatchEvent(new Event("change", { bubbles: true })); }
+    });
+    toggle.addEventListener("pointerdown", event => event.preventDefault()); toggle.addEventListener("click", () => { control.focus(); popup.hidden ? open() : close(); });
+    host.addEventListener("focusout", event => { if (!host.contains(event.relatedTarget)) { if (!pendingCommit) control.value = committed; close(); } });
+    const setLocked = () => { toggle.disabled = !!control.disabled || !!control.readOnly; if (toggle.disabled) close(); };
+    field.sectionSearch = { commitTyped, setLocked, setOptions(options) { values = [...new Set(options.map(String))]; loaded = true; setLocked(); if (pendingCommit) { pendingCommit = false; if (commitTyped()) field.sectionSearch.onChange?.(); } else if (!popup.hidden) render(); }, close };
+    control.addEventListener("change", () => { if (commitTyped()) field.sectionSearch.onChange?.(); });
+    field.read = () => { if (control.value === committed) return committed; const value = control.value.trim() === "" ? "" : exact(); if (value === undefined) throw new Error("Steel section: choose an exact section from the list."); committed = value; control.value = value; return value; };
   }
   function appearanceField(definition, initial) {
     const key = definition[0], field = formField(definition, key === "opacity" ? initial * 100 : initial);
@@ -602,13 +669,13 @@
     state.physicalHovered = id;
     for (const hit of state.ui?.overlay.querySelectorAll("[data-physical-id]") || []) hit.previousElementSibling?.classList.toggle("hovered", hit.dataset.physicalId === id);
   }
-  async function exportPhysical(format) {
+  async function exportPhysical(format, confirmation = null) {
     const sessionId = state.session?.session_id, scope = state.physicalScope, revision = state.session?.revision;
-    const response = await fetch(`/api/takeoffs/sessions/${sessionId}/physical/export/${format}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ scope, ...(format === "pdf" ? { expected_revision: revision } : {}) }) });
+    const response = await fetch(`/api/takeoffs/sessions/${sessionId}/physical/export/${format}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ scope, ...(format === "pdf" || confirmation !== null ? { expected_revision: revision } : {}), ...(confirmation !== null ? { confirmation } : {}) }) });
     if (!response.ok) { const result = await response.json(); throw new Error(result.error || "Physical draft export failed."); }
     if (sessionId !== state.session?.session_id || scope !== state.physicalScope || revision !== state.session?.revision) throw new Error("The project or penetration workspace changed during draft export. Export the current draft again.");
-    const blob = await response.blob(), url = URL.createObjectURL(blob), link = node("a"); link.href = url; link.download = format === "pdf" ? "Passive_Fire_Matrix.pdf" : `CEASEFIRE-${scope === "service_plans" ? "Service-Plans" : "Defect-Reports"}-UNAPPROVED-DRAFT.${format}`; document.body.append(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 30000);
-    message(format === "pdf" ? "Downloaded Passive_Fire_Matrix from the current physical draft." : "Exported the unapproved physical draft with its retained parent and evidence identities. This is not an approved quantity export.");
+    const blob = await response.blob(), url = URL.createObjectURL(blob), link = node("a"); link.href = url; link.download = format === "pdf" ? "Passive_Fire_Matrix.pdf" : `CEASEFIRE-${scope === "service_plans" ? "Service-Plans" : "Defect-Reports"}${confirmation !== null ? `-${confirmation[0].toUpperCase()}${confirmation.slice(1)}-Items` : ""}-UNAPPROVED-DRAFT.${format}`; document.body.append(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 30000);
+    message(format === "pdf" ? "Downloaded Passive_Fire_Matrix from the current physical draft." : confirmation !== null ? `Downloaded ${confirmation} active items. Confirmation records manual draft review; it does not approve technical suitability.` : "Exported the unapproved physical draft with its retained parent and evidence identities. This is not an approved quantity export.");
   }
   function ensurePhysicalUI() {
     if (state.physicalUI) return;
@@ -778,8 +845,9 @@
     return JSON.stringify([state.session?.session_id, selectedItems().flatMap(item => isCount(item) ? selectedCountMemberIds(item).map(id => `member:${id}`) : [`item:${item.id}`]).sort()]);
   }
   function bindSetting(editor, field, key) {
-    field.control.addEventListener("input", () => markSettingsEdited(editor, key));
-    field.control.addEventListener("change", () => { if (!editor.touched.has(key)) markSettingsEdited(editor, key); void safely(() => applySettings(editor)); });
+    const changed = () => { if (!editor.touched.has(key)) markSettingsEdited(editor, key); void safely(() => applySettings(editor)); };
+    if (field.sectionSearch) field.sectionSearch.onChange = changed;
+    else { field.control.addEventListener("input", () => markSettingsEdited(editor, key)); field.control.addEventListener("change", changed); }
   }
   async function flushSettings() {
     const editor = state.settingsEditor;
@@ -2010,7 +2078,8 @@
       const column = calculator === "steel_board" && field.control.name === "exposure" && choices.physical_exposure_options ? { options: choices.physical_exposure_options } : choices.columns.find(column => column.column === calculatorFieldColumns[calculator]?.[field.control.name]);
       if (!column || !field.control.isConnected) continue;
       const values = column.options || [];
-      if (field.control.tagName === "SELECT") { const current = field.control.value; field.control.replaceChildren(option("", "Choose…"), ...values.map(value => option(value))); if (current && !values.map(String).includes(current)) field.control.append(option(current, `${current} (retained)`)); field.control.value = current; }
+      if (field.sectionSearch) field.sectionSearch.setOptions(values);
+      else if (field.control.tagName === "SELECT") { const current = field.control.value; field.control.replaceChildren(option("", "Choose…"), ...values.map(value => option(value))); if (current && !values.map(String).includes(current)) field.control.append(option(current, `${current} (retained)`)); field.control.value = current; }
       else { let list = field.wrapper.querySelector("datalist"); if (!list) { list = node("datalist"); list.id = `takeoff-choices-${uuid()}`; field.wrapper.append(list); field.control.setAttribute("list", list.id); } list.replaceChildren(...values.map(value => option(value))); }
     }
   }
@@ -3367,9 +3436,9 @@
       for (const key of [...columns, ...(area ? [] : ["quantity"])]) {
         const initial = key === "quantity" ? item.quantity : key === "duct_size" ? formatDuctSize(item.fields) : item.fields[key];
         const def = key === "quantity" ? [key, "Quantity", "number"] : fields[state.mode].find(field => field[0] === key), field = formField(def, initial); rowFields.push(field);
-        if (isCount(item)) { field.control.readOnly = true; field.control.disabled = true; field.control.dataset.countReadOnly = "true"; field.control.title = key === "quantity" ? "Quantity is derived from count markers." : "Edit shared Count details using Edit item."; }
-        else field.control.addEventListener("change", () => void safely(async () => { try { await flushSettings(); requireFinishedEdits(); if (sessionId !== state.session?.session_id) throw new Error("The project changed. Choose the item again."); } catch (error) { field.control.value = initial ?? ""; throw error; } if (field.control.value === String(initial ?? "")) return; const value = field.read(); if (def[2] === "number" && value !== null && !Number.isFinite(value)) throw new Error("Enter a finite number."); await command("update_item", { item_id: item.id, changes: key === "quantity" ? { quantity: value } : { fields: key === "duct_size" ? parseDuctSize(field.control.value) : { [key]: value } } }); }));
-        const cell = node("td"); cell.append(field.control); row.append(cell);
+        if (isCount(item)) { field.control.readOnly = true; field.control.disabled = true; field.control.dataset.countReadOnly = "true"; field.control.title = key === "quantity" ? "Quantity is derived from count markers." : "Edit shared Count details using Edit item."; field.sectionSearch?.setLocked(); }
+        else field.control.addEventListener("change", () => void safely(async () => { if (field.sectionSearch && !field.sectionSearch.commitTyped()) return; try { await flushSettings(); requireFinishedEdits(); if (sessionId !== state.session?.session_id) throw new Error("The project changed. Choose the item again."); } catch (error) { field.control.value = initial ?? ""; throw error; } if (field.control.value === String(initial ?? "")) return; const value = field.read(); if (def[2] === "number" && value !== null && !Number.isFinite(value)) throw new Error("Enter a finite number."); await command("update_item", { item_id: item.id, changes: key === "quantity" ? { quantity: value } : { fields: key === "duct_size" ? parseDuctSize(field.control.value) : { [key]: value } } }); }));
+        const cell = node("td"); cell.append(field.sectionSearch ? field.wrapper : field.control); row.append(cell);
       }
       const result = itemResult(item);
       for (const key of area ? ["gross_area_m2", "excluded_area_m2", "net_area_m2"] : ["length_m", "total_length_m"]) row.append(node("td", "", area ? Number.isFinite(result[key]) ? units.format(result[key]) : "—" : formatLength(result[key])));
@@ -3412,7 +3481,6 @@
     }
     if (!item.geometry) panel.append(node("p", "takeoff-warning", "Source markup is missing. You can inspect and edit this draft, but review and confirmation remain blocked."));
     if (area) panel.append(node("p", "helper takeoff-surface-help", surfaceHelp), node("p", "helper", "Quantity: one physical treatment surface. Other faces or levels require separate evidenced items."));
-    if (item.mode === "steel") panel.append(button("Find steel section", currentAction(findProfile), "text-button"));
     if (item.mode === "duct") {
       if (item.fields.shape !== "rectangular") panel.append(node("p", "takeoff-warning", `Retained ${item.fields.shape || "unspecified-shape"} duct. ${item.fields.diameter_mm != null ? `Original diameter: ${item.fields.diameter_mm} mm. ` : ""}Its original shape and dimensions are preserved; this record cannot transfer to the rectangular duct calculator.`));
       if (item.fields.shape == null || item.fields.shape === "") panel.append(button("Use rectangular duct", currentAction(useRectangularDuct)));
@@ -3485,16 +3553,6 @@
     requireFinishedEdits(); const current = currentLengthItem(item);
     if (!await confirm("Remove riser / drop?", `${addition.kind === "riser" ? "Riser" : "Drop"}: ${addition.length_mm} mm per ${item.mode === "steel" ? "member" : "run"}. The item becomes unconfirmed and its calculated length decreases. Undo can restore this addition.`, "Remove addition")) return;
     await command("update_item", { item_id: item.id, changes: { length_additions: (current.length_additions || []).filter(value => value.id !== addition.id) } }, () => !!currentLengthItem(item));
-  }
-  async function findProfile(item) {
-    await flushSettings();
-    const editor = state.settingsEditor, calculator = state.ui.target.value;
-    if (editor?.ids.length !== 1 || editor.ids[0] !== item.id || editor.sessionId !== state.session?.session_id) throw new Error("Open this item's Settings before changing its section.");
-    const control = editor.fields.find(field => field.control.name === "section")?.control;
-    const data = await ask("Find steel section", [["search", "Section designation", "text", control?.value || item.fields.section || "", true]], "Select an exact section from the existing calculator database.", "Search"); if (!data) return;
-    const result = await api(`/profiles?calculator=${encodeURIComponent(calculator)}&search=${encodeURIComponent(data.search)}`); if (!result.items?.length) throw new Error("No exact database candidates. Refine the section search.");
-    const choice = await ask("Choose a database section", [["section", "Steel section", result.items.map(row => row.id), "", true]], `${result.total} matches. ${result.items.length} shown.`, "Use section");
-    if (choice) { if (state.settingsEditor !== editor || !control?.isConnected || state.ui.target.value !== calculator) throw new Error("Settings or the calculator destination changed. Repeat the section search."); control.value = choice.section; markSettingsEdited(editor, "fields:section"); await applySettings(editor); }
   }
   function itemCalibrations(item) {
     if (!item.geometry) throw new Error("Attach source geometry before selecting its calibration.");

@@ -2,8 +2,12 @@ const { clickProjectControl } = require('./project_actions.cjs');
 // Rendered manual-input regression. Default evidence is wholly synthetic.
 const {chromium, expect} = require('@playwright/test');
 const {spawn, spawnSync} = require('node:child_process');
-const fs = require('node:fs'), path = require('node:path'), os = require('node:os'), assert = require('node:assert/strict');
+const fs = require('node:fs'), path = require('node:path'), os = require('node:os'), crypto = require('node:crypto'), assert = require('node:assert/strict');
 const root = path.resolve(__dirname, '../..');
+const sourcePaths = ['static/calculators.js', 'data/calculators/index.json', 'data/calculators/steel_vermiculite.json.gz',
+  'estimator/workbook_calculators.py', 'estimator/excel_engine.py', 'estimator/calculator_register.py', 'estimator/schedule_workbook.py'];
+const sourceHashes = () => Object.fromEntries(sourcePaths.map(name => [name, crypto.createHash('sha256').update(fs.readFileSync(path.join(root, name))).digest('hex')]));
+const sourceBefore = sourceHashes();
 const privateEvidence = Boolean(process.env.CEASEFIRE_CALCULATOR_EVIDENCE_DIRECTORY);
 const output = path.resolve(process.env.CEASEFIRE_BROWSER_OUTPUT || path.join(privateEvidence ? os.tmpdir() : path.join(root, '.runtime/browser-qa'), `monokote-${Date.now()}`));
 function within(folder, target) {const relative=path.relative(folder,target);return relative==='' || relative!=='..' && !relative.startsWith('..'+path.sep) && !path.isAbsolute(relative);}
@@ -19,6 +23,7 @@ const ready = new Promise((resolve, reject) => {
   server.once('exit', code=>{clearTimeout(timer);reject(new Error(`Server exited ${code}: ${logs}`));});
 });
 const errors=[], journeys=[], pfcJourneys=[];
+let schedulePresentation;
 const control = (sheet,address) => page.locator(`[data-calculator-sheet="${sheet}"][data-calculator-cell="${address}"]`);
 const rendered = address => page.locator(`[data-calculator-output="${address}"]`);
 const values = result => Object.fromEntries(result.rows.flatMap(row=>row.cells.map(cell=>[cell.address,cell.value])));
@@ -62,6 +67,19 @@ async function screenshot(name,fixture) {
   const thickness=fixture.named_case_thickness;
   const products=[['MONOKOTE MK-6 HY',21.8,344],['MONOKOTE Z106',22.2,325]];
   await tab('SCHEDULE');
+  const sourceDefinition = await (await page.request.get(`http://127.0.0.1:${info.port}/api/calculators/steel_vermiculite`)).json();
+  const sourceSheet = sourceDefinition.sheets.find(sheet => sheet.name === 'SCHEDULE');
+  const sourceColumn = number => number === 27 ? 'AA' : String.fromCharCode(64 + number);
+  const displayColumns = ['Z','AA','A','E','F','C','D','B','H','I','J','G','K','L','M','N','O','P','Q','R','S','T','U','Y'];
+  const scheduleTable = page.locator('#calculator-grid .calculator-schedule-table');
+  const fieldLabels = Object.fromEntries(sourceDefinition.schedule.columns.map(field => [field.column, field.label]));
+  await expect(scheduleTable.locator('thead th')).toHaveText(['Row', ...displayColumns.map(column => fieldLabels[column])]);
+  const rowAddresses = await scheduleTable.locator('tbody tr[data-source-row="10"] td').evaluateAll(cells => cells
+    .map(cell => cell.querySelector('[data-calculator-cell]')?.dataset.calculatorCell || cell.dataset.calculatorOutput).filter(Boolean));
+  assert.deepEqual(rowAddresses, displayColumns.map(column => `${column}10`));
+  const originalOrder = sourceSheet.display_column_order.map(sourceColumn);
+  assert.deepEqual(originalOrder, ['Z','AA',...Array.from({length:25},(_,index) => sourceColumn(index+1))]);
+  schedulePresentation = {originalOrder, displayColumns, sourceWorkbook:sourceDefinition.source, sourceSchema:sourceDefinition.schedule.columns.map(({column,label,editable}) => ({column,label,editable})), rowAddresses};
   for(const [index,[product,mass,density]] of products.entries()){
     const row=index+10;if(index) await page.getByRole('button',{name:'Add row',exact:true}).click();
     await fill('SCHEDULE',{[`A${row}`]:`SYNTHETIC-${index+1}`,[`B${row}`]:product,[`C${row}`]:'Hollow - 4 sides',[`D${row}`]:550,[`E${row}`]:'Section',[`F${row}`]:'100X100X9SHS',[`H${row}`]:120,[`I${row}`]:2,[`J${row}`]:3});
@@ -137,6 +155,10 @@ async function screenshot(name,fixture) {
   const inspected=spawnSync(python,['-c','import json,sys;from openpyxl import load_workbook;w=load_workbook(sys.argv[1],data_only=False);print(json.dumps({"rows":{s.title:list(s.values) for s in w},"formulas":sum(c.data_type=="f" for s in w for row in s for c in row)}))',exported.path],{cwd:root,encoding:'utf8',windowsHide:true});
   assert.equal(inspected.status,0,inspected.stderr);const workbook=JSON.parse(inspected.stdout);
   assert.equal(workbook.formulas,0);const exportText=JSON.stringify(workbook.rows);assert.match(exportText,/FAR4856 Issue2/);assert.match(exportText,/BLOCKED - SOURCE REVIEW/);assert.match(exportText,/MONOKOTE Z106/);
+  const originalExportHeaders = ['Line','Location','Mark','Product','Section','Quantity','Length (m)','Published thickness (mm)',
+    'Estimating thickness (mm)','Spray surface (m²)','Net bags','Whole bags per line','Status'];
+  assert.ok(workbook.rows.Schedule.some(row => originalExportHeaders.every((label,index) => row[index] === label)), 'XLSX keeps its original report schema');
+  schedulePresentation.exportHeaders = originalExportHeaders;
   for(const index of [0,1]) {
     const row=workbook.rows.Schedule.find(row=>row[2]===`SYNTHETIC-${index+1}`);
     assert.ok(row);closeNumber(row[7],thickness,'exported published thickness');closeNumber(row[8],thickness,'exported estimating thickness');closeNumber(row[10],scheduled[`T${index+10}`],'exported bags');assert.match(row[12],/FAR4856 Issue2 p12 Table 4/);
@@ -145,7 +167,7 @@ async function screenshot(name,fixture) {
   for(const index of [7,8,10,11]) assert.equal(blockedRow[index],null,`blocked export column ${index}`);
   const pfcRow=workbook.rows.Schedule.find(row=>row[2]==='SYNTHETIC-PFC');assert.ok(pfcRow);
   closeNumber(pfcRow[7],19,'exported PFC published thickness');closeNumber(pfcRow[8],19,'exported PFC estimating thickness');closeNumber(pfcRow[10],scheduled.T13,'exported PFC bags');assert.match(pfcRow[12],/MK6-030521 p15/);
-  assert.deepEqual(errors,[]);assert.deepEqual(await page.evaluate(()=>window.qaCsp),[]);
-  fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({completed:true,...fixture,journeys,pfcJourneys,blockedQuantitiesWithheld:true,schedule:true,pfcSchedule:true,pfcSaveReopen:true,pfcExport:true,allSixProductTotals:true,z106SummaryCentered:true,z106SettingsLeftAligned:true,hollowAssessmentCoverage:true,pfcNamedOnlyCoverage:true,saveReopen:true,valuesOnlyExport:true,errors,csp:[]},null,2));
+  assert.deepEqual(errors,[]);assert.deepEqual(await page.evaluate(()=>window.qaCsp),[]);assert.deepEqual(sourceHashes(),sourceBefore);
+  fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({completed:true,...fixture,sourceHashes:sourceBefore,schedulePresentation,journeys,pfcJourneys,blockedQuantitiesWithheld:true,schedule:true,pfcSchedule:true,pfcSaveReopen:true,pfcExport:true,allSixProductTotals:true,z106SummaryCentered:true,z106SettingsLeftAligned:true,hollowAssessmentCoverage:true,pfcNamedOnlyCoverage:true,saveReopen:true,valuesOnlyExport:true,errors,csp:[]},null,2));
   console.log(`PASS: ${fixture.evidence_mode}; MONOKOTE hollow/PFC schedule, bags, blocked source, schedule, save/reopen and values-only XLSX. Evidence: ${output}`);
 })().catch(async error=>{console.error(error);console.error(logs.slice(-5000));if(page)await screenshot('failure.png',fixtureInfo || {synthetic:!privateEvidence}).catch(()=>{});process.exitCode=1;}).finally(async()=>{fs.writeFileSync(path.join(output,'server.log'),logs);if(browser)await browser.close();server.kill();});

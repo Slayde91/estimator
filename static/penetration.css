@@ -65,7 +65,10 @@
 #penetration-schedule-summary-notes,#penetration-schedule-message{white-space:pre-line}
 .penetration-item-heading{align-items:flex-start;flex-wrap:wrap}
 .penetration-item-heading h3{flex:1 1 300px}
-.penetration-item-heading>.actions{align-items:flex-end;flex-wrap:nowrap}
+.penetration-item-heading>.actions{align-items:flex-end;flex-wrap:wrap;max-width:100%}
+.penetration-library-actions{display:flex;align-items:flex-end;gap:10px;flex:0 0 auto}
+.penetration-item-heading .calculator-document-actions{left:0;right:auto}
+.penetration-library-actions>.button,.penetration-library-actions .calculator-document-toggle{height:48px;min-height:48px;margin:0}
 .penetration-header-quantity{width:112px;gap:4px;text-align:left}
 .penetration-header-quantity>span{font-size:11px;line-height:1.2}
 .penetration-header-quantity input{min-width:0;height:48px;min-height:48px;text-align:right;font-variant-numeric:tabular-nums}

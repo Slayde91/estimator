@@ -177,6 +177,22 @@
     el.addEventListener("click", () => void safely(fn)); return el;
   }
   function select(options, change, value) { const el = node("select"); options.forEach(([v, text]) => el.append(option(v, text))); if (value !== undefined) el.value = value; if (change) el.addEventListener("change", () => void safely(() => change(el.value))); return el; }
+  function currentVisibilityControl(kind, id) {
+    const sessionId = state.session?.session_id, mode = state.mode;
+    const hidden = () => kind === "annotation" ? state.annotationHidden ||= new Set() : state.hidden;
+    const control = button("Visibility", () => {
+      const current = kind === "annotation" ? selectedAnnotation()?.id === id : selectedItems().length === 1 && state.selected.has(id);
+      if (!current || sessionId !== state.session?.session_id || mode !== state.mode) throw new Error("The current item changed. Open its Item Details again.");
+      const values = hidden(); values.has(id) ? values.delete(id) : values.add(id);
+      control.refresh();
+      if (kind !== "annotation") renderRegister();
+      renderOverlay();
+    });
+    const eye = node("img"); eye.src = "/icons/takeoff-visibility.png"; eye.alt = ""; eye.width = 32; eye.height = 32;
+    control.replaceChildren(eye); control.classList.add("icon-only", "takeoff-icon-button"); control.setAttribute("aria-label", "Visibility");
+    control.refresh = () => { const isHidden = hidden().has(id); control.setAttribute("aria-pressed", String(isHidden)); control.title = `Visibility: ${isHidden ? "show" : "hide"} current ${kind === "annotation" ? "Call-out" : "item"}`; };
+    control.refresh(); return control;
+  }
   function message(text = "", error = false) {
     if (!state.ui) return;
     const notice = state.ui.message; notice.textContent = text; notice.hidden = !text; notice.className = `message${error ? " error" : ""}`; notice.setAttribute("role", error ? "alert" : "status");
@@ -753,6 +769,7 @@
       selection: async (ids, reference, focus, openDetails = true) => { state.physicalSelected = new Set(ids); if (openDetails && ids.length && state.mode === "physical") { setPhysicalDetailsOpen(true); state.ui.physicalDetails.scrollTop = 0; } if (reference && focus) await physicalSource(reference); else renderOverlay(); },
       hover: hoverPhysical,
       placeMarker: id => armPhysicalMarker(id),
+      drawingOwner: physicalDrawingOwner,
       viewChanged: (ids, selected, hidden) => { state.physicalVisible = new Set(ids); state.physicalSelected = new Set(selected); state.physicalHidden = new Set(hidden); if (state.mode === "physical" && state.physicalUI) renderOverlay(); },
     });
   }
@@ -870,7 +887,7 @@
     if (selectedLegend()) { renderLegendSettings(panel); return; }
     const selected = settingsSelectedItems(), key = settingsSelectionKey();
     const existing = state.settingsEditor;
-    if (existing?.key === key && (state.settingsDirty || existing.applying || existing.revision === state.session.revision)) { const sides = existing.fields.find(field => field.control.name === "sides"); if (sides) sides.wrapper.hidden = state.ui.target.value !== "steel_board"; refreshItemSettingsTools(existing); void safely(() => loadSettingsOptions(existing)); return; }
+    if (existing?.key === key && (state.settingsDirty || existing.applying || existing.revision === state.session.revision)) { const sides = existing.fields.find(field => field.control.name === "sides"); if (sides) sides.wrapper.hidden = state.ui.target.value !== "steel_board"; existing.visibility?.refresh(); refreshItemSettingsTools(existing); void safely(() => loadSettingsOptions(existing)); return; }
     const countsOnly = selected.length > 0 && selected.every(isCount);
     const heading = node("div", "takeoff-viewports-heading"); heading.append(button("Close settings", toggleSettings), node("h3", "", countsOnly ? "Count Settings" : "Settings")); panel.replaceChildren(heading);
     if (!selected.length) { state.settingsEditor = null; panel.append(node("p", "helper", "Select one or more drawing markups or register items. Settings show the first selected item; only fields you edit are applied to the selection.")); if (state.annotationHidden?.size) panel.append(button("Show hidden Call-outs", () => { state.annotationHidden.clear(); renderSettingsPanel(); renderOverlay(); })); return; }
@@ -887,6 +904,7 @@
     }
     content.append(button("Set as default", () => setMarkupDefaults(editor)));
     content.append(node("p", "helper", countsOnly ? "Marker size uses physical PDF points. Colour, shape, fill and opacity change appearance only." : "Appearance is visual only and does not approve quantities. Fill applies to closed surface or cited-region markups."), node("h4", "", "Item details"));
+    if (selectedItems().length === 1) { editor.visibility = currentVisibilityControl("item", selectedItems()[0].id); content.append(editor.visibility); }
     editor.fields = itemFields(first).map(def => { const field = formField(def, def[0] === "duct_size" ? formatDuctSize(first.fields) : first.fields[def[0]]); bindSetting(editor, field, `fields:${def[0]}`); if (def[0] === "sides") field.wrapper.hidden = state.ui.target.value !== "steel_board"; if (["product", "member_type"].includes(def[0])) field.control.addEventListener("change", () => void safely(() => loadSettingsOptions(editor))); content.append(field.wrapper); return field; });
     if (selected.some(isCount)) {
       const counted = selected.filter(item => isCount(item) && !isStandalone(item));
@@ -2546,7 +2564,7 @@
   function renderAnnotationSettings(panel) {
     const annotation = selectedAnnotation(); if (!annotation) return;
     const key = annotationSelectionKey(), existing = state.settingsEditor;
-    if (existing?.kind === "annotation" && existing.key === key && (state.settingsDirty || existing.applying || existing.revision === state.session.revision)) return;
+    if (existing?.kind === "annotation" && existing.key === key && (state.settingsDirty || existing.applying || existing.revision === state.session.revision)) { existing.visibility?.refresh(); return; }
     if (existing) clearTimeout(existing.timer);
     const editor = { kind: "annotation", key, sessionId: state.session.session_id, revision: state.session.revision, id: annotation.id, touched: new Map(), fields: [], appearance: [] }; state.settingsEditor = editor;
     const heading = node("div", "takeoff-viewports-heading"); heading.append(button("Close settings", () => closeAnnotationSettings(editor)), node("h3", "", "Call-out Settings"));
@@ -2556,6 +2574,7 @@
     }
     controls.append(button("Set as default", async () => { await applyAnnotationSettings(editor); A.setDefaults(Object.fromEntries(editor.appearance.map(field => [field.control.name, field.read()]))); message("Default appearance saved for new Call-outs in every drawing workspace."); }));
     controls.append(node("h4", "", "Item Details"));
+    editor.visibility = currentVisibilityControl("annotation", annotation.id); controls.append(editor.visibility);
     editor.rich = A.richEditor(annotation.content, () => markSettingsEdited(editor, "content")); controls.append(editor.rich.wrap);
     controls.append(node("p", "helper", "Free Call-outs are drawing notes. They do not add register entries or quantities."));
   }
@@ -2688,7 +2707,7 @@
         if (!choice) return; current(); reuse = choice.barrier === "existing";
       }
       current();
-      const id = reuse ? await controller.setMarker(selected.id, marker) && selected.id : await controller.create("barrier", selected?.defect_id || selectedDefect?.id, marker);
+      const id = reuse ? await controller.setMarker(selected.id, marker) && selected.id : await controller.create("barrier", selected?.defect_id || selectedDefect?.id, marker, undefined, current);
       if (id && controller === state.physicalUI && scope === state.physicalScope) { cancelTrace(); await controller.selectDrawing(id, false, false); setPhysicalDetailsOpen(true); renderOverlay(); }
     } finally {
       if (state.physicalPlacementTarget?.kind === "defect") { delete state.physicalPlacementTarget.pendingPoint; renderOverlay(); }
@@ -2715,6 +2734,16 @@
     if (!source) return null;
     const point = [0, 1].map(axis => source.region.reduce((total, vertex) => total + vertex[axis], 0) / source.region.length);
     return { document_id: source.document_id, document_sha256: source.document_sha256, page: source.page, point };
+  }
+  function physicalDrawingOwner(id) {
+    const graph = physicalGraph(), entries = new Map([...(graph?.defects || []), ...(graph?.barriers || []), ...(graph?.openings || []), ...(graph?.services || [])].map(entity => [entity.id, entity]));
+    const annotationOwners = new Set((graph?.defects || []).map(entity => entity.id));
+    let entity = entries.get(id);
+    for (let depth = 0; entity && !entity.deleted && depth < 4; depth++) {
+      if (physicalDrawingLocator(entity) && !inheritedLibraryBarrierMarker(entity, annotationOwners)) return entity.id;
+      entity = entries.get(entity.opening_id || entity.barrier_id || entity.defect_id);
+    }
+    return null;
   }
   function physicalDrawingEntity(id) { return [...(physicalGraph()?.barriers || []), ...(physicalGraph()?.defects || [])].find(value => value.id === id && !value.deleted); }
   function physicalMarkerReference(entity) {
@@ -2957,6 +2986,12 @@
       return record.scope === "defect_reports" && selection?.version === 1 && selection.choice === "new" && selection.defect_id === parent.id && selection.barrier_id === entity.id;
     });
   }
+  function physicalEntityHidden(entity) {
+    return state.physicalHidden.has(entity.id) || inheritedLibraryBarrierMarker(entity, state.physicalHidden);
+  }
+  function physicalPageAnnotations(includeHidden = false) {
+    return (physicalGraph()?.defects || []).filter(entity => { const locator = physicalDrawingLocator(entity); return !entity.deleted && (includeHidden || !state.physicalHidden.has(entity.id)) && (state.physicalVisible.has(entity.id) || state.physicalSelected.has(entity.id)) && locator?.document_id === state.document && locator.page === state.page; });
+  }
   function renderPhysicalOverlay(overlay) {
     if (!state.physicalUI) return;
     const seen = new Set(), regions = [];
@@ -2980,11 +3015,11 @@
       hit.addEventListener("pointerenter", () => state.physicalUI?.hover(entity.id)); hit.addEventListener("pointerleave", () => state.physicalUI?.hover(null));
       const label = svg("text", { x: first[0] + 6, y: first[1] - 7, class: "takeoff-label" }); label.textContent = `${kind}: ${entity.fields.label || entity.id.slice(0, 8)}`; overlay.append(shape, hit, label);
     }
-    const markers = (physicalGraph()?.barriers || []).filter(entity => !entity.deleted && entity.marker?.document_id === state.document && entity.marker.page === state.page);
-    const annotations = (physicalGraph()?.defects || []).filter(entity => { const locator = physicalDrawingLocator(entity); return !entity.deleted && !state.physicalHidden.has(entity.id) && (state.physicalVisible.has(entity.id) || state.physicalSelected.has(entity.id)) && locator?.document_id === state.document && locator.page === state.page; });
+    const markers = (physicalGraph()?.barriers || []).filter(entity => !entity.deleted && !physicalEntityHidden(entity) && entity.marker?.document_id === state.document && entity.marker.page === state.page);
+    const annotations = physicalPageAnnotations();
     // The parent's summary already includes its imported barriers/services.
-    // Suppress only an untouched inherited copy while that parent is drawn.
-    const renderedAnnotationIds = new Set(annotations.map(entity => entity.id)), drawnMarkers = markers.filter(entity => !inheritedLibraryBarrierMarker(entity, renderedAnnotationIds));
+    // Hiding that callout must not resurrect its untouched inherited copy.
+    const annotationOwnerIds = new Set(physicalPageAnnotations(true).map(entity => entity.id)), drawnMarkers = markers.filter(entity => !inheritedLibraryBarrierMarker(entity, annotationOwnerIds));
     const selectedIds = new Set(state.physicalSelected); for (const service of physicalGraph()?.services || []) if (state.physicalSelected.has(service.id)) selectedIds.add(service.barrier_id);
     drawnMarkers.sort((a, b) => Number(selectedIds.has(a.id)) - Number(selectedIds.has(b.id)));
     for (const entity of [...annotations, ...drawnMarkers]) renderPhysicalMarker(overlay, entity, selectedIds);
@@ -4168,7 +4203,7 @@
     if (state.busy || state.modal || !state.session) throw new Error("Finish the current takeoff operation before downloading.");
     const mode = state.mode, scope = state.physicalScope, sessionId = state.session.session_id, revision = state.session.revision, documentId = state.document;
     if (mode === "physical" && format !== "marked-pdf") throw new Error("Use the physical draft CSV/XLSX export controls for penetration records.");
-    const pdf = format === "marked-pdf", list = mode === "physical" ? state.markupsHidden ? [] : [...(physicalGraph()?.barriers || []), ...(physicalGraph()?.defects || [])].filter(entity => !entity.deleted && !state.physicalHidden.has(entity.id) && physicalDrawingLocator(entity, documentId)?.document_id === documentId) : pdf ? state.markupsHidden ? [] : visibleItems().filter(item => (item.measurement || isCount(item)) && !state.hidden.has(item.id) && item.geometry?.document_id === documentId) : items().filter(item => item.mode === mode);
+    const pdf = format === "marked-pdf", list = mode === "physical" ? state.markupsHidden ? [] : [...(physicalGraph()?.barriers || []), ...(physicalGraph()?.defects || [])].filter(entity => !entity.deleted && !physicalEntityHidden(entity) && physicalDrawingLocator(entity, documentId)?.document_id === documentId) : pdf ? state.markupsHidden ? [] : visibleItems().filter(item => (item.measurement || isCount(item)) && !state.hidden.has(item.id) && item.geometry?.document_id === documentId) : items().filter(item => item.mode === mode);
     if (pdf && !documentId) throw new Error("Open the PDF to download its visible markups.");
     if (!list.length && !pdf) throw new Error("There are no items in this takeoff type to download.");
     working(true);

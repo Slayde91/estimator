@@ -1378,7 +1378,7 @@ class TakeoffService:
                 if event['project_id'] != before['project_id'] or event['revision'] != before['revision']:
                     raise ValidationError('Audit history does not match this takeoff revision.')
                 association_only_import = (event['op'] == 'import_library_item'
-                    and event['before'].get('physical') == event['after'].get('physical'))
+                    and all(event['before'].get(key) == event['after'].get(key) for key in ('physical', 'service_plans')))
                 if event['op'] in ('apply_library_link', 'draft_library_assignment') or association_only_import:
                     raise ValidationError('This retained commercial library association cannot be reversed by Takeoff-only Undo. Use Confirm link and quantity or Remove schedule link in Item Details so its contribution stays coordinated with Firestopping.')
                 if event['op'] in ('apply_transfer', 'undo', 'record_render', 'detach_transfers', 'extract_images', 'linked_delete', 'linked_undo'):
@@ -1685,7 +1685,9 @@ class TakeoffService:
             if request['op'] != 'import_library_item':
                 raise ValidationError('Use the controlled selected-library import operation.')
             proposed = request['import']
-            keys = {'version', 'scope', 'defect_id', 'defect_revision', 'selected_ids',
+            service_plans = isinstance(proposed, dict) and proposed.get('scope') == 'service_plans'
+            owner_keys = {'context_barrier_id', 'context_barrier_revision'} if service_plans else {'defect_id', 'defect_revision'}
+            keys = {'version', 'scope', *owner_keys, 'selected_ids',
                     'barrier_id', 'barrier_revision', 'library_id', 'library_fingerprint',
                     'accept_mismatch', 'ids'}
             object_fields(proposed, keys | {'draft_quantity', 'draft_location', 'item_quantity'}, 'Selected library import', keys)
@@ -1696,13 +1698,13 @@ class TakeoffService:
                 self._physical_gate(session_id, session['snapshot'])
                 return prior
             before = session['snapshot']
-            self._physical_editable(before, 'defect_reports')
+            self._physical_editable(before, proposed['scope'])
             self._physical_gate(session_id, before)
             library = self._selected_library(proposed['library_id'])
             prepared = prepare_library_import(before, proposed, library)
-            self._validate_imported_service_quantities(prepared['commands'], before, 'defect_reports')
+            self._validate_imported_service_quantities(prepared['commands'], before, proposed['scope'])
             after = deepcopy(before)
-            after['physical'] = prepared['graph']
+            after[scope_key(proposed['scope'])] = prepared['graph']
             self._validate_physical_links(session_id, after)
             create_assignment(after, prepared['assignment'], library, barrier_selection=prepared['barrier_selection'])
             return self._commit(session_id, request, before, after)

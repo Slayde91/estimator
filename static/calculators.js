@@ -22,11 +22,13 @@
       },
     },
     steel_board: {
+      CALCULATOR: { omit_columns: ["L"] }, // Keep retained row waste in calculations and exports.
       START: { hide: ["A1"], text: { A1: "", D13: "Previously saved additional-board allowances remain included in purchasing totals.", A27: "Use START, SCHEDULE, BOARD SUMMARY and SETTINGS. Supporting reference data is retained by the application.", A31: "Saved additional-board allowances remain included in the board summary." } },
       "BOARD SUMMARY": { center: ["A11:D29", "I11:J29"], text: { A1: "SUMMARY" } }, // 22
       SETTINGS: { center: ["A5:C34", "G5:N10"], text: { Q5: "Description" }, omit: ["A1", "A3"] }, // 23–25
     },
     ductwork: {
+      CALCULATOR: { column_order: ["A", "B", "D", "E", "H", "I", "F", "G", "C"] },
       SUMMARY: { center: ["A8:J11", "A18:F26", "A30:C32", "A39:G41"], text: { A17: "PENETRATION ANGLES" } }, // 27–30
       "PRODUCT SETTINGS": {
         omit: ["A1"],
@@ -661,6 +663,9 @@
   function displayMetadata(entry, result = entry.result) {
     const metadata = sheetMetadata(entry);
     const omittedRanges = [...(result?.omitted_ranges || metadata.omitted_ranges || []), ...(browserPresentation[entry.definition.id]?.[entry.sheet]?.omit || [])];
+    const browser = browserPresentation[entry.definition.id]?.[entry.sheet] || {};
+    const omittedColumns = [...(result?.omitted_columns || metadata.omitted_columns || []), ...(browser.omit_columns || []).map(columnNumber)];
+    const columnOrder = [...(browser.column_order || []), ...(result?.display_column_order || metadata.display_column_order || [])];
     const spraySummary = entry.definition.id === "steel_vermiculite" && entry.sheet === "BAGS";
     if (spraySummary) omittedRanges.push("A17:I25");
     let settingsSections = result?.settings_sections ?? metadata.settings_sections ?? [];
@@ -668,7 +673,7 @@
       const common = settingsSections.find(section => section.id === "A17");
       settingsSections = settingsSections.filter(section => section.id !== "A17").map(section => section.id === "A9" && common ? { ...section, ranges: [...section.ranges, ...common.ranges] } : section);
     }
-    return { ...metadata, omitted_rows: result?.omitted_rows || metadata.omitted_rows || [], omitted_columns: result?.omitted_columns || metadata.omitted_columns || [], omitted_ranges: omittedRanges, hidden_addresses: browserPresentation[entry.definition.id]?.[entry.sheet]?.hide || [], presentation_tables: (result?.presentation_tables || metadata.presentation_tables || []).filter(table => !spraySummary || table.title_address !== "A17"), table_layout: result?.table_layout || metadata.table_layout, display_column_order: browserPresentation[entry.definition.id]?.[entry.sheet]?.column_order || result?.display_column_order || metadata.display_column_order || [], display_text: result?.display_text || metadata.display_text || {}, display_cells: result?.display_cells || metadata.display_cells || {}, navigation_mode: result?.navigation_mode ?? metadata.navigation_mode ?? "links", settings_sections: settingsSections, display_table_order: result?.display_table_order ?? metadata.display_table_order ?? [], schedule_heading: result?.schedule_heading ?? metadata.schedule_heading ?? "", expand_tables: result?.expand_tables ?? metadata.expand_tables ?? false };
+    return { ...metadata, omitted_rows: result?.omitted_rows || metadata.omitted_rows || [], omitted_columns: omittedColumns, omitted_ranges: omittedRanges, hidden_addresses: browserPresentation[entry.definition.id]?.[entry.sheet]?.hide || [], presentation_tables: (result?.presentation_tables || metadata.presentation_tables || []).filter(table => !spraySummary || table.title_address !== "A17"), table_layout: result?.table_layout || metadata.table_layout, display_column_order: columnOrder, display_text: result?.display_text || metadata.display_text || {}, display_cells: result?.display_cells || metadata.display_cells || {}, navigation_mode: result?.navigation_mode ?? metadata.navigation_mode ?? "links", settings_sections: settingsSections, display_table_order: result?.display_table_order ?? metadata.display_table_order ?? [], schedule_heading: result?.schedule_heading ?? metadata.schedule_heading ?? "", expand_tables: result?.expand_tables ?? metadata.expand_tables ?? false };
   }
 
   function omittedCell(metadata) {

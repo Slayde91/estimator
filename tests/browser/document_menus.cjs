@@ -33,13 +33,21 @@ async function responseTo(action, suffix) {
   await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()); await idle();
   await responseTo(() => clickProjectControl(page, 'Save'), '/api/project/save-as');
   await expect(page.locator('#project-save-state')).toHaveText('Saved project');
-  const before = await snapshot(), savedProject = fs.readFileSync(info.project);
+  // Open a values-only saved project with a precise per-row waste override.
+  const importedProject=JSON.parse(fs.readFileSync(info.project,'utf8'));importedProject.calculators.steel_board.inputs.CALCULATOR.L9=0.123456789012345;
+  fs.writeFileSync(info.project,JSON.stringify(importedProject));await clickProjectControl(page,'Load');
+  const review=page.getByRole('dialog');await expect(review.getByRole('heading')).toHaveText('Load this project?');await review.getByRole('button',{name:'Load Project',exact:true}).click();await expect(review).toBeHidden();await idle();
+  const before = await snapshot(), savedProject = fs.readFileSync(info.project);assert.equal(before.calculators.steel_board.inputs.CALCULATOR.L9,0.123456789012345);
+  evidence.importedWasteRetained=0.123456789012345;
   for (const [id, title] of [['steel_vermiculite', 'Steel (spray)'], ['steel_board', 'Steel (board)'], ['ductwork', 'Ductwork (spray/wrap)']]) {
     await chooseCalculator(page, title); await idle();
     await expect(page.locator('#calculator-title')).toHaveText(title); await expect(page.locator('#calculator-grid')).toHaveAttribute('aria-busy', 'false');
+    if(id==='steel_board'){await page.locator('#calculator-pages').getByRole('button',{name:'SCHEDULE',exact:true}).click();await expect(page.locator('#calculator-grid')).toHaveAttribute('aria-busy','false');await expect(page.locator('[data-calculator-cell="L9"]')).toHaveCount(0);assert.ok(!(await page.locator('.calculator-schedule-table').getByRole('columnheader').allTextContents()).includes('Waste (%)'));}
     const requestsBeforeMenu = calculatorRequests.length;
     const toggle = page.locator('#calculator-document-toggle'), menu = page.locator('#calculator-document-menu');
     await expect(toggle).toHaveText('Document'); await expect(toggle.locator('svg')).toBeVisible(); await expect(menu).toBeHidden();
+    const icon=toggle.locator('.calculator-document-icon');await expect(icon).toBeVisible();assert.deepEqual(await icon.evaluate(image=>[image.getAttribute('src'),image.naturalWidth,image.naturalHeight]),['/icons/document.png',512,512]);
+    assert.equal(await menu.locator('#calculator-template .download-format-icon').innerHTML(),await menu.locator('#calculator-excel .download-format-icon').innerHTML(),'Template shares the XLSX Schedule icon');
     await expect(page.locator('#calculator-reset')).toBeVisible(); await expect(page.locator('#calculator-recalculate')).toBeVisible();
     await toggle.focus(); await toggle.press('ArrowDown'); await expect(menu.locator('button').first()).toBeFocused();
     await page.keyboard.press('End'); await expect(menu.locator('button').last()).toBeFocused();

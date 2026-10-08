@@ -83,7 +83,13 @@ async function workbook(title) {
   await page.locator('#calculator-pages button').filter({ hasText: /^SCHEDULE$/ }).click(); await expect(page.locator('#calculator-grid')).toHaveAttribute('aria-busy', 'false');
   const input = page.locator('[data-calculator-sheet="SCHEDULE"][data-calculator-cell="A10"]'); await expect(input).toBeVisible(); await input.fill('MENU-DRAFT-1'); await input.press('Tab');
   await expect(page.locator('#calculator-grid')).toHaveAttribute('aria-busy', 'false'); const retained = await snapshots();
-  for (const title of ['Steel (board)', 'Ductwork (spray/wrap)']) { await chooseCalculator(page, title); await workbook(title); }
+  for (const title of ['Steel (board)', 'Ductwork (spray/wrap)']) {
+    await chooseCalculator(page, title); await workbook(title);
+    await page.locator('#calculator-pages').getByRole('button',{name:'SCHEDULE',exact:true}).click();await expect(page.locator('#calculator-grid')).toHaveAttribute('aria-busy','false');
+    const table=page.locator('.calculator-schedule-table'),headers=await table.getByRole('columnheader').allTextContents();
+    if(title==='Steel (board)'){assert.ok(!headers.includes('Waste (%)'));await expect(table.locator('[data-calculator-cell^="L"]')).toHaveCount(0);}
+    else{assert.deepEqual(headers.slice(2,10),['Duct size W x H (mm)','Length (m)','FRL — compartment / duct*','Fire exposure / FyreWrap application','Orientation','Wall penetrations','Floor penetrations','Product']);}
+  }
   await chooseCalculator(page, 'Firestopping Estimator'); await idle(); await expect(page.locator('#estimator-penetration')).toBeVisible(); await expect(page.locator('#calculator-workspace')).toBeHidden();
   await chooseCalculator(page, 'Steel (spray)'); await workbook('Steel (spray)'); await expect(page.locator('#calculator-sheet-title')).toHaveText('SCHEDULE'); await expect(input).toHaveValue('MENU-DRAFT-1');
   assert.deepEqual(await snapshots(), retained); evidence.selection = { allDestinations: true, unsavedScheduleRetained: true, pageRetained: true, unrelatedDraftsUnchanged: true };
@@ -126,17 +132,17 @@ async function workbook(title) {
   await page.getByRole('button',{name:'Home',exact:true}).click();await page.locator('[data-home-view="takeoffs"]').click();await expect(page.locator('#view-takeoffs')).toBeVisible();
   await chooseCalculator(page,'Firestopping');await idle();
   const settings=page.locator('#penetration-settings'),details=page.locator('#penetration-input-groups [role="tab"]').first();
-  const gear=await settings.boundingBox(),tab=await details.boundingBox(),add=await page.locator('#penetration-add-to-schedule').boundingBox(),library=await page.locator('#penetration-add-to-library').boundingBox();
-  assert.ok(gear.x+gear.width<=tab.x,'Settings icon is left of the first Details tab');assert.ok(add.x+add.width<=library.x,'Add to Library is immediately right of Add to Schedule');assert.ok(Math.abs(add.y-library.y)<1&&Math.abs(add.height-library.height)<1,'Current-item add actions share the same height and top alignment');
+  const gear=await settings.boundingBox(),tab=await details.boundingBox(),add=await page.locator('#penetration-add-to-schedule').boundingBox(),library=await page.locator('#penetration-add-to-library').boundingBox(),itemDocument=page.locator('.penetration-library-actions [data-document-menu-toggle]'),documentBox=await itemDocument.boundingBox();
+  assert.ok(gear.x+gear.width<=tab.x,'Settings icon is left of the first Details tab');assert.ok(add.x+add.width<=documentBox.x&&documentBox.x+documentBox.width<=library.x,'Document is between Add to Schedule and Add to Library');assert.ok(Math.abs(documentBox.y-library.y)<1&&Math.abs(documentBox.height-library.height)<1,'Document and Add to Library share the same height and top alignment');
   await expect(page.locator('#penetration-new-item')).toBeHidden();await expect(page.locator('#penetration-recalculate')).toBeHidden();
-  for(const id of ['penetration-item-excel','penetration-item-pdf'])assert.equal(await page.locator(`#${id}`).evaluate(el=>el.closest('.penetration-schedule-recalculate-tools').querySelector('#penetration-estimator-schedule-recalculate')!==null),true,'Schedule downloads share the lower schedule Recalculate row');
+  for(const id of ['penetration-item-excel','penetration-item-pdf'])assert.equal(await page.locator(`#${id}`).evaluate(el=>!!el.closest('.penetration-item-heading')),true,'Whole-schedule downloads are available in current-item controls');
   const clearBefore=await snapshots(),current=clearBefore.penetration.composer.rows[0];
   const description=page.locator('#penetration-row-fields [data-penetration-field="T"]');await description.fill('CLEAR CURRENT ITEM');await description.press('Tab');
   await page.locator('#penetration-item-quantity [data-penetration-field="O"]').fill('3');await page.locator('#penetration-clear').click();
   await expect(description).toHaveValue('');await expect(page.locator('#penetration-item-quantity [data-penetration-field="O"]')).toHaveValue('');
   const cleared=await snapshots();assert.deepEqual(cleared.penetration.draft,clearBefore.penetration.draft);assert.deepEqual(cleared.penetration.composer.globals,clearBefore.penetration.composer.globals);assert.deepEqual(cleared.penetration.composer.rows,[{id:current.id,inputs:{}}]);assert.deepEqual(cleared.pricing,clearBefore.pricing);assert.deepEqual(cleared.calculators,clearBefore.calculators);
   await page.screenshot({path:path.join(output,'firestopping-clear-controls.png'),fullPage:true});
-  evidence.commentsControls={homeTakeoffsAndHelp:true,settingsLeftOfDetails:true,libraryRightOfSchedule:true,headerNewAndRecalculateHidden:true,scheduleDownloadsBelow:true,clearAllInputsAndQuantity:true,clearPreservesScheduleSettingsPricesAndCalculators:true};
+  evidence.commentsControls={homeTakeoffsAndHelp:true,settingsLeftOfDetails:true,documentLeftOfLibrary:true,headerNewAndRecalculateHidden:true,scheduleDownloadsInItemControls:true,clearAllInputsAndQuantity:true,clearPreservesScheduleSettingsPricesAndCalculators:true};
   const requiredFields=[['J','Category','Plumbing & Hydraulic'],['K','Service Type','Copper Pipes'],['L','Penetration Type','Core Hole'],['M','Substrate Orientation','Vertical'],['N','FRL','-/120/120'],['P','Substrate','Concrete/masonry wall']];
   const field=column=>page.locator(`#penetration-row-fields [data-penetration-field="${column}"]`);
   for(const [column,,value] of requiredFields){await expect(field(column)).toHaveAttribute('aria-required','true');await field(column).selectOption(value);}
@@ -165,10 +171,13 @@ async function workbook(title) {
     if (prefix === 'penetration') { await page.getByRole('button', { name: 'Estimates', exact: true }).click(); await idle(); }
     const schedule = page.locator(`details[aria-labelledby="${headingId}"]`);
     if (!await schedule.evaluate(element => element.open)) await schedule.locator(':scope > summary').click();
-    const documentToggle = schedule.getByRole('button', { name: 'Document', exact: true }), documentActions = schedule.getByRole('group', { name: 'Document actions', exact: true });
+    const documentRoot=prefix==='penetration-item'?page.locator('.penetration-library-actions'):schedule;
+    const documentToggle = documentRoot.getByRole('button', { name: 'Document', exact: true }), documentActions = documentRoot.getByRole('group', { name: 'Document actions', exact: true });
+    await expect(documentToggle.locator('.calculator-document-icon')).toBeVisible();
     await expect(documentActions).toBeHidden(); await documentToggle.click(); await expect(documentActions).toBeVisible();
+    await expect(documentActions.getByRole('button',{name:'Download XLSX Schedule',exact:true})).toHaveCount(1);
     assert.equal(await documentActions.getByRole('button').count(), 2);
-    for (const width of [390, 1146]) {
+    for (const width of [390, 570, 825, 1146]) {
       await page.setViewportSize({ width, height: 1000 }); const bounds = await documentActions.boundingBox();
       assert.ok(bounds.x >= 0 && bounds.x + bounds.width <= width + 1, `Firestopping Document menu stays within ${width}px viewport`);
     }

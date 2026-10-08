@@ -30,7 +30,7 @@
     return value;
   }
   async function choose(bridge, onlySearch = false, context = {}) {
-    const mode = onlySearch ? {action:"search"} : await bridge.ask("Add Defect", [["action", "Choose item", [["search", "Search Item"], ["new", "New Item"]], "new", true]],
+    const mode = onlySearch ? {action:"search"} : await bridge.ask(context.title || "Add Defect", [["action", "Choose item", [["search", "Search Item"], ["new", "New Item"]], "new", true]],
       "Search Item imports the fields of one explicitly selected Firestopping Library item into an unapproved draft. New Item creates your own physical draft. Neither action changes the Firestopping Schedule.", "Continue");
     if (!mode) return null;
     if (mode.action === "new") return { kind: "new" };
@@ -90,34 +90,46 @@
   const barrierNames={barrier_type:"Barrier type (library Penetration type)",substrate:"Substrate",orientation:"Orientation"};
   function barrierDifferences(fields,selected){return barrierFields.filter(key=>selected[key]&&selected[key]!==fields[key]).map(key=>({field:key,selected:selected[key],retained:fields[key]||""}));}
   function barrierLabel(barrier){return `${barrier.display_id||barrier.id} · ${barrier.fields.barrier_type||"Unknown type"} · ${barrier.fields.substrate||"Unknown substrate"} · ${barrier.fields.orientation||"Unknown orientation"}`;}
-  async function addUnderDefect(bridge,context,guard=()=>{}){
-    if(context.scope!=="defect_reports"||!context.defect||!Array.isArray(context.barriers))throw new Error("Select records belonging to one current Defect.");
+  async function addUnderPhysical(bridge,context,guard=()=>{}){
+    const servicePlans=context.scope==="service_plans",owner=servicePlans?context.barrier:context.defect;
+    if(!owner||!Array.isArray(context.barriers)||!Array.isArray(context.selectedIds)||!context.selectedIds.length)throw new Error("Select records belonging to one current physical owner.");
+    if(servicePlans&&(context.barriers.length!==1||context.barriers[0].id!==owner.id))throw new Error("Select records belonging to one current Service Plans Barrier.");
     guard();
     const first=await bridge.ask("Choose barrier for library item",[["choice","Barrier choice",[["new","New Barrier"],["existing","Existing Barrier"]],"new",true]],
-      `Append one explicitly selected library item under ${context.defect.display_id||context.defect.id}. New Barrier adopts the selected literal library Penetration type, substrate and orientation. Existing Barrier retains all its current properties and source location. Neither action changes the schedule or approves technical applicability.`,"Continue");
+      servicePlans?`Append one explicitly selected library item in the context of ${owner.display_id||owner.id}. New Barrier creates a new unplaced root, adopts the selected literal library Penetration type, substrate, orientation, FRL and location, and copies no marker or source. Existing Barrier retains all its current properties and source location. The new service attaches to the chosen Barrier. Neither action changes the schedule or approves technical applicability.`:
+      `Append one explicitly selected library item under ${owner.display_id||owner.id}. New Barrier adopts the selected literal library Penetration type, substrate and orientation. Existing Barrier retains all its current properties and source location. Neither action changes the schedule or approves technical applicability.`,"Continue");
     if(!first)return null;guard();
     let barrier=null;
     if(first.choice==="existing"){
-      if(!context.barriers.length)throw new Error("This Defect has no active existing barrier. Choose New Barrier.");
+      if(!context.barriers.length)throw new Error("This physical owner has no active existing barrier. Choose New Barrier.");
       let offset=0;
       while(!barrier){
         const options=context.barriers.slice(offset,offset+100).map(value=>[value.id,barrierLabel(value)]);if(offset)options.unshift(["previous","Previous 100 barriers"]);if(offset+100<context.barriers.length)options.push(["next","Next 100 barriers"]);
-        const chosen=await bridge.ask("Choose Existing Barrier",[["barrier_id","Existing Barrier",options,"",true]],`Choose an explicit Barrier under ${context.defect.display_id||context.defect.id}. Showing ${offset+1}–${Math.min(offset+100,context.barriers.length)} of ${context.barriers.length} barriers.`,"Use Existing Barrier");
-        if(!chosen)return null;guard();if(chosen.barrier_id==="previous")offset-=100;else if(chosen.barrier_id==="next")offset+=100;else{barrier=context.barriers.find(value=>value.id===chosen.barrier_id);if(!barrier)throw new Error("Choose one current barrier under the selected Defect.");}
+        const chosen=await bridge.ask("Choose Existing Barrier",[["barrier_id","Existing Barrier",options,"",true]],`Choose an explicit Barrier ${servicePlans?"in the selected context":"under"} ${owner.display_id||owner.id}. Showing ${offset+1}–${Math.min(offset+100,context.barriers.length)} of ${context.barriers.length} barriers.`,"Use Existing Barrier");
+        if(!chosen)return null;guard();if(chosen.barrier_id==="previous")offset-=100;else if(chosen.barrier_id==="next")offset+=100;else{barrier=context.barriers.find(value=>value.id===chosen.barrier_id);if(!barrier)throw new Error("Choose one current barrier in the selected physical context.");}
       }
     }else if(first.choice!=="new")throw new Error("Choose New Barrier or Existing Barrier.");
     for(;;){
-      const selected=await choose(bridge,true,{location:barrier?.fields.location || context.defect.fields.location || ""});if(!selected)return null;guard();
+      const selected=await choose(bridge,true,{location:barrier?.fields.location || (!servicePlans?owner.fields.location:"") || ""});if(!selected)return null;guard();
       const differences=barrier?barrierDifferences(barrier.fields,selected.record.import_fields.barrier):[];
       if(differences.length){
         const proceed=await bridge.confirm("Library barrier mismatch",`${barrierLabel(barrier)}\n\n${differences.map(value=>`${barrierNames[value.field]}: Existing Barrier = ${value.retained||"Unknown"}; selected library = ${value.selected}`).join("\n")}\n\nContinue keeps the Existing Barrier, its ID and source location unchanged. Only the selected new service/item is added as an unapproved draft, with this explicit mismatch retained for review. No physical approval or schedule quantity is created. Cancel returns to library search without changing the project.`,"Continue");
         guard();if(!proceed)continue;
       }
       const library=selected.record,ids={barrier:barrier?null:root.crypto.randomUUID(),service:library.import_fields.service?root.crypto.randomUUID():null,assignment:root.crypto.randomUUID(),installation:root.crypto.randomUUID()};
-      const proposal={version:1,scope:context.scope,defect_id:context.defect.id,defect_revision:context.defect.revision,selected_ids:[...context.selectedIds],barrier_id:barrier?.id||null,barrier_revision:barrier?.revision??null,library_id:library.id,library_fingerprint:library.metadata_sha256,accept_mismatch:!!differences.length,ids,...selected.details};
+      const ownership=servicePlans?{context_barrier_id:owner.id,context_barrier_revision:owner.revision}:{defect_id:owner.id,defect_revision:owner.revision};
+      const proposal={version:1,scope:context.scope,...ownership,selected_ids:[...context.selectedIds],barrier_id:barrier?.id||null,barrier_revision:barrier?.revision??null,library_id:library.id,library_fingerprint:library.metadata_sha256,accept_mismatch:!!differences.length,ids,...selected.details};
       guard();const reply=await bridge.libraryCommand("import_library_item",{import:proposal});
       return {reply,selected_id:ids.service||barrier?.id||ids.barrier,assignment_id:ids.assignment};
     }
+  }
+  function addUnderDefect(bridge,context,guard){
+    if(context.scope!=="defect_reports")throw new Error("Select records belonging to one current Defect.");
+    return addUnderPhysical(bridge,context,guard);
+  }
+  function addUnderServicePlans(bridge,context,guard){
+    if(context.scope!=="service_plans")throw new Error("Select records belonging to one current Service Plans Barrier.");
+    return addUnderPhysical(bridge,context,guard);
   }
   function assignment(scope, library, memberIds, installation = null, details = {}) {
     const {item_quantity, ...retained} = details;
@@ -143,7 +155,7 @@
     return [literal(value.library.library_id) || "Unknown", ...[["service_type","Service Type"],["penetration_type","Penetration Type"],["substrate","Substrate"],["orientation","Orientation"],["service_size","Service size"]]
       .map(([key,label]) => `${label}: ${literal(fields[key]) || "Unknown"}`)].join("\n");
   }
-  const api={choose,record,assignment,status,description,matchingRecord,libraryLabel,copy,barrierDifferences,barrierLabel,addUnderDefect};
+  const api={choose,record,assignment,status,description,matchingRecord,libraryLabel,copy,barrierDifferences,barrierLabel,addUnderDefect,addUnderServicePlans};
   if (typeof module!=="undefined" && module.exports) module.exports=api;
   else root.CeasefireTakeoffLibraryLinks=api;
 })(globalThis);

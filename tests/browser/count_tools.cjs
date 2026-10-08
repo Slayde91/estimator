@@ -1,6 +1,6 @@
 const { chooseTakeoff } = require('./section_navigation.cjs');
 const { clickProjectControl } = require('./project_actions.cjs');
-const { chooseNewDefect } = require('./physical_dialogs.cjs');
+const { chooseNewDefect, chooseNewPhysicalItem } = require('./physical_dialogs.cjs');
 // Count tool availability and placed Defects on a disposable source/server.
 const { chromium, expect } = require('@playwright/test');
 const { spawn } = require('node:child_process');
@@ -125,7 +125,7 @@ async function countCursor() {
   await page.mouse.click(...await screen([400, 400])); await chooseNewDefect(page); await response(() => dialog('Add Defect', { 'Defect Ref.': 'CANCELLED-REVIEW' }, 'Preview new draft'), '/physical/preview');
   const beforeReviewCancel = structuredClone(current.physical); await dialog('Create one draft defect?', {}, 'Cancel'); await expect(page.locator('.takeoff-defect-pending')).toHaveCount(0); assert.deepEqual((await snapshot()).physical, beforeReviewCancel); evidence.reviewCancelCreatesNothing = true;
   await page.getByRole('button', { name: 'Select', exact: true }).click(); await chooseTakeoff(page, 'Service Plans'); await page.getByRole('button', { name: 'Call-out', exact: true }).click(); await countCursor();
-  await page.mouse.click(...await screen([300, 300])); await expect(page.getByRole('dialog').getByRole('heading', { name: 'Create draft barrier', exact: true })).toBeVisible(); await dialog('Create draft barrier', {}, 'Cancel'); evidence.servicePlanBarrierPlacementPreserved = true;
+  await page.mouse.click(...await screen([300, 300])); await chooseNewPhysicalItem(page,'barrier'); await expect(page.getByRole('dialog').getByRole('heading', { name: 'Create draft barrier', exact: true })).toBeVisible(); await dialog('Create draft barrier', {}, 'Cancel'); evidence.servicePlanBarrierPlacementPreserved = true;
   await page.getByRole('button', { name: 'Select', exact: true }).click(); await chooseTakeoff(page, 'Defect Reports');
   current = await snapshot(); const physicalBeforeSave = structuredClone(current.physical);
   await response(() => clickProjectControl(page, 'Save'), '/api/project/save-as'); const saved = JSON.parse(fs.readFileSync(info.project, 'utf8')); assert.deepEqual(saved.takeoffs.physical, physicalBeforeSave);

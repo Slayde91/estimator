@@ -95,6 +95,7 @@ class LibraryWorkflowIntegrationTests(unittest.TestCase):
 
     def test_schedule_entry_validation_names_missing_fields_and_writes_nothing(self):
         body = {name: self.creation()[name] for name in ('draft', 'configuration')}
+        before = self.protected()
         code, response = self.request('POST', '/api/penetration/validate-item', body)
         self.assertEqual((code, response), (200, {'valid': True}))
         for column, label in [('J', 'Category'), ('K', 'Service Type'), ('L', 'Penetration Type'),
@@ -105,11 +106,13 @@ class LibraryWorkflowIntegrationTests(unittest.TestCase):
                 code, response = self.request('POST', '/api/penetration/validate-item', invalid)
                 self.assertEqual(code, 400, response)
                 self.assertIn('Complete ' + label + ' before adding', response['error'])
+        self.assertEqual(self.request('POST', '/api/penetration/validate-item', body,
+                                     headers={'Origin': 'https://example.com'}, headers_only=True)[0], 403)
         with self.store.connect() as database:
             for table in ('firestopping_created', 'firestopping_items', 'quotes', 'calculator_states', 'app_preferences'):
                 self.assertEqual(database.execute(f'SELECT count(*) FROM {table}').fetchone()[0], 0)
-        self.assertEqual(self.request('POST', '/api/penetration/validate-item', body,
-                                     headers={'Origin': 'https://example.com'})[0], 403)
+        self.assertEqual(self.protected(), before)
+        self.assert_source_unchanged()
 
     def protected(self):
         with self.store.connect() as db:

@@ -1,5 +1,5 @@
 const { chooseTakeoff, takeoffChoice } = require('./section_navigation.cjs');
-const { chooseNewDefect, startDefect } = require('./physical_dialogs.cjs');
+const { chooseNewPhysicalItem, startDefect } = require('./physical_dialogs.cjs');
 const { clickProjectControl } = require('./project_actions.cjs');
 // Native browser gestures use synthetic PDFs and disposable projects only.
 const { chromium, expect } = require('@playwright/test');
@@ -52,7 +52,7 @@ async function dialog(title, fields, action) {
   await modal.getByRole('button', { name: action, exact: true }).click();
 }
 async function create(kind, fields, trigger) {
-  await trigger(); if (kind === 'defect') await chooseNewDefect(page); const preview = await response(() => dialog(kind === 'defect' ? 'Add Defect' : `Create draft ${kind}`, fields, 'Preview new draft'), '/physical/preview');
+  await trigger(); await chooseNewPhysicalItem(page,kind); const preview = await response(() => dialog(kind === 'defect' ? 'Add Defect' : `Create draft ${kind}`, fields, 'Preview new draft'), '/physical/preview');
   await response(() => dialog(`Create one draft ${kind}?`, {}, 'Apply draft change'), '/physical/apply'); await snapshot(); return preview.changed_ids[0];
 }
 async function scopeTab(name) {
@@ -168,22 +168,16 @@ async function selectDrawingBehavior(scope, barrier, defect) {
 }
 async function compareAddServiceStyle(scope) {
   await page.mouse.move(0, 0);
-  await expect.poll(() => details().getByRole('button', { name: 'Add service in Item Details', exact: true }).evaluate(service => service.matches(':hover') || document.querySelector('.takeoff-physical-add-row .takeoff-physical-add-defect').matches(':hover')), { message: 'Neither compact plus is hovered for the base-style comparison' }).toBe(false);
   const measure = () => details().getByRole('button', { name: 'Add service in Item Details', exact: true }).evaluate(service => {
     const substrate = document.querySelector('.takeoff-physical-add-row .takeoff-physical-add-defect');
     const read = el => { const css = getComputedStyle(el), rect = el.getBoundingClientRect(); return { text: el.textContent, width: rect.width, height: rect.height, ...Object.fromEntries(['display','alignItems','justifyContent','color','backgroundColor','fontSize','fontWeight','lineHeight','paddingTop','paddingRight','paddingBottom','paddingLeft','borderTopWidth','borderTopStyle','borderTopColor','borderRadius','boxShadow'].map(key => [key, css[key]])) }; };
-    return { service: read(service), substrate: read(substrate), sharedClasses: [...substrate.classList].every(value => service.classList.contains(value)) };
+    return { service: read(service), substrate: read(substrate), normal: read([...service.parentElement.children].find(child=>child.textContent==='Add Library Item')), paneWidth: service.parentElement.getBoundingClientRect().width, compact: service.classList.contains('takeoff-physical-add-defect') };
   });
   let measured = await measure();
-  // Defect Reports removes its register plus. Its shared glyph/paint remains a
-  // valid style baseline, while only visible controls have rendered geometry.
-  const paint=value=>Object.fromEntries(Object.entries(value).filter(([key])=>!['width','height','display'].includes(key)));
-  await expect.poll(async () => { measured = await measure(); return paint(measured.service); }, { message: 'The Add service glyph, padding, border and colour settle to the shared plus style' }).toEqual(paint(measured.substrate));
-  assert.equal(measured.sharedClasses, true); assert.deepEqual(paint(measured.service),paint(measured.substrate));
-  assert.equal(measured.service.width,38);assert.equal(measured.service.height,38);assert.equal(measured.service.display,'flex');assert.equal(measured.service.text,'+');
-  if(scope==='service_plans')assert.deepEqual(measured.service,measured.substrate,'Visible Add service and Add substrate retain identical geometry and style');
+  assert.equal(measured.compact,false);assert.equal(measured.service.text,'Add Service');assert.ok(measured.service.width>150&&measured.service.width>=measured.paneWidth-40);assert.equal(measured.service.color,measured.normal.color);assert.equal(measured.service.backgroundColor,measured.normal.backgroundColor);
+  if(scope==='service_plans'){assert.equal(measured.substrate.width,38);assert.equal(measured.substrate.height,38);assert.equal(measured.substrate.text,'+');}
   else{await expect(page.locator('.takeoff-physical-add-row')).toBeHidden();assert.equal(measured.substrate.width,0);assert.equal(measured.substrate.height,0);}
-  assert.equal(measured.service.fontSize, '22px'); (evidence.addServiceStyle ||= []).push({ scope, ...measured });
+  assert.equal(measured.service.fontSize, '11px'); (evidence.addServiceStyle ||= []).push({ scope, ...measured });
 }
 async function reviewAutosaveDrag(scope, barrier, service, pageNumber) {
   const cases = [];

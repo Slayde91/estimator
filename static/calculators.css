@@ -7,6 +7,7 @@
 .calculator-primary-actions{flex-wrap:nowrap}
 .calculator-document-menu{position:relative}
 .calculator-document-toggle{display:inline-flex;align-items:center;justify-content:center;gap:10px;min-height:48px}
+.calculator-document-icon{display:block;width:24px;height:24px;object-fit:contain;flex:0 0 24px}
 .calculator-document-chevron,.calculator-document-chevron svg{display:block;width:16px;height:16px}
 .calculator-document-toggle[aria-expanded=true] .calculator-document-chevron{transform:rotate(180deg)}
 .calculator-document-actions{position:absolute;top:calc(100% + 7px);right:0;z-index:20;display:grid;gap:4px;width:280px;max-width:calc(100vw - 40px);padding:7px;border:1px solid var(--line);border-radius:10px;background:#fff;box-shadow:0 6px 20px #17121726}

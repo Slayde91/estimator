@@ -144,6 +144,11 @@ async function saveLoad(info) {
     await expect(note(annotation.id)).toContainText(`NOTE-${mode}`); await expect(note(annotation.id).locator('tspan[font-weight="700"]')).not.toHaveCount(0);
     const textFit = await note(annotation.id).evaluate(el => { const label = el.querySelector('[data-annotation-part="label"]'), text = el.querySelector("text").getBBox(), x = +label.getAttribute("x"), y = +label.getAttribute("y"), width = +label.getAttribute("width"), height = +label.getAttribute("height"); return { fits: text.x >= x && text.y >= y && text.x + text.width <= x + width && text.y + text.height <= y + height, text: { x: text.x, y: text.y, width: text.width, height: text.height }, label: { x, y, width, height } }; });
     assert.equal(textFit.fits, true, "Actual formatted drawing text fits the Call-out box"); (evidence.textFits ||= {})[mode] = textFit;
+    const currentVisibility = panel().getByRole("button", { name: "Visibility", exact: true }), beforeVisibility = await snapshot(), visibilityRequests = requests.length, detailsBeforeVisibility = await editor().innerText();
+    await expect(currentVisibility.locator("img")).toHaveAttribute("src", "/icons/takeoff-visibility.png"); await expect(currentVisibility).toHaveAttribute("aria-pressed", "false");
+    await currentVisibility.click(); await expect(note(annotation.id)).toHaveCount(0); await expect(currentVisibility).toHaveAttribute("aria-pressed", "true"); await expect(editor()).toBeVisible(); assert.equal(await editor().innerText(), detailsBeforeVisibility);
+    await currentVisibility.click(); await expect(note(annotation.id)).toBeVisible(); await expect(currentVisibility).toHaveAttribute("aria-pressed", "false"); assert.deepEqual(await snapshot(), beforeVisibility); assert.equal(requests.length, visibilityRequests, "Current Call-out Visibility sends no canonical command");
+    (evidence.currentVisibility ||= {})[mode] = { reversible: true, detailsRemainOpen: true, sameSnapshotAndQuantities: true, noCommand: true };
     await editor().focus(); await editor().press("Control+a"); assert.ok((await page.evaluate(() => getSelection().toString())).includes(`NOTE-${mode}`)); await editor().press("Control+'"); await expect(page.locator(".takeoff-viewport")).toHaveAttribute("data-tool", "select");
     if (mode === "steel") {
       await panel().getByLabel("Line Colour", { exact: true }).fill("#00aa11"); await panel().getByLabel("Line Width", { exact: true }).fill("7"); await panel().getByLabel("Opacity", { exact: true }).fill("65"); await applied();
@@ -263,6 +268,9 @@ async function saveLoad(info) {
   await note(pastedNote.id).locator('[data-annotation-part="label"]').click(); await note(created.steel).locator('[data-annotation-part="point"]').click();
   await expect(note(created.steel)).toHaveAttribute('aria-pressed', 'true'); await expect(note(pastedNote.id)).toHaveAttribute('aria-pressed', 'false'); await expect(panel()).toBeHidden();
   assert.deepEqual(await snapshot(), fastSelectionSnapshot, 'Rapid native selection between distinct notes changes no saved records'); assert.equal(requests.length, fastSelectionCommands);
+  await select(created.steel); const siblingSnapshot = await snapshot(), siblingRequests = requests.length, visibility = panel().getByRole('button', {name:'Visibility',exact:true});
+  await visibility.click(); await expect(note(created.steel)).toHaveCount(0); await expect(note(pastedNote.id)).toBeVisible(); await expect(editor()).toBeVisible();
+  await visibility.click(); await expect(note(created.steel)).toBeVisible(); await expect(note(pastedNote.id)).toBeVisible(); assert.deepEqual(await snapshot(),siblingSnapshot); assert.equal(requests.length,siblingRequests,'Hiding one Call-out never hides or edits another'); evidence.currentVisibility.otherCalloutUnchanged=true;
   await note(pastedNote.id).locator('[data-annotation-part="point"]').click({button:'right'});
   await command(()=>page.getByRole('menuitem',{name:'Delete',exact:true}).click(),'delete_annotation');
   await select(created.steel);

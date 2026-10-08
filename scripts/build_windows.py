@@ -32,7 +32,7 @@ STATIC_FILES = (
     'header-tagline-media.js', 'header-tagline-character.gif', 'header-tagline-character-still.png',
     'fonts/Montserrat-Italic-Variable.ttf', 'fonts/Montserrat-Variable.ttf', 'fonts/OFL.txt',
     'ceasefire-app.ico', 'ceasefire-app-icon.png',
-    'icons/navigation-home.png', 'icons/navigation-help.png',
+    'icons/navigation-home.png', 'icons/navigation-help.png', 'icons/document.png',
 )
 
 

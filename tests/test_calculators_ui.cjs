@@ -612,14 +612,14 @@ let passed = 0;
   assert.equal(JSON.stringify(entry.result.rows),boardSourceRows);
   assert.equal(renderedTable().children.at(-1).children.length,1000);
   assert.deepEqual(renderedTable().children[1].children[0].children.slice(0,3).map(cell=>cell.textContent),['Line','Member mark','Location']);
-  assert.equal(renderedTable().children[0].children.length,13);
+  assert.equal(renderedTable().children[0].children.length,12);
   for(const [index,line] of [[0,'1'],[999,'1000']]){
     const row=renderedTable().children.at(-1).children[index];
     assert.equal(row.children[0].textContent,line);assert.equal(row.children[0].dataset.calculatorOutput,undefined);
     assert.equal(row.children[2].children[0].dataset.calculatorCell,`B${index+9}`);
-    assert.equal(row.children.length,13);
+    assert.equal(row.children.length,12);
   }
-  assert.equal(renderedControls().length,12000);
+  assert.equal(renderedControls().length,11000);
   assert.equal(byId('calculator-option-lists').children.length,1);
   assert.equal(byId('calculator-option-lists').children[0].children.length,553);
   const html=fs.readFileSync('static/index.html','utf8');
@@ -628,7 +628,7 @@ let passed = 0;
   assert.doesNotMatch(source,/Show advanced columns|calculator-advanced|entry\.advanced|renderedAdvanced/);
   assert.match(html,/Add or remove schedule rows as needed · Imports create their rows automatically/);assert.doesNotMatch(html,/Highlighted fields are editable/);passed++;
 
-  // A Location edit on the final row survives recalculation without rebuilding 12,000 controls.
+  // A Location edit on the final row survives recalculation without rebuilding 11,000 visible controls.
   const retainedControl=renderedControls()[0],lastBoardLocation=renderedControls().find(control=>control.dataset.calculatorCell==='B1008');
   lastBoardLocation.value=' Level 10 / final bay ';await lastBoardLocation.emit('input');
   const boardLocationInputs=copy(entry.inputs);let boardLocationRequest;
@@ -1108,7 +1108,7 @@ let passed = 0;
   entry.result=result(copy(entry.inputs),{max_row:310,max_column:43,visible_columns:ductColumns,rows:reorderedRows});
   const reorderedSource=JSON.stringify(entry.result);realRender(entry);audit.setRender(realRender);
   let ductTable=renderedTable(),firstDuctRow=ductTable.children.at(-1).children[0];
-  assert.deepEqual(ductTable.children[1].children[0].children.map(node=>node.textContent),[2,3,4,36,40,41,39,42,43].map(column=>ductLabels[column]));
+  assert.deepEqual(ductTable.children[1].children[0].children.map(node=>node.textContent),[2,4,3,36,40,41,39,42,43].map(column=>ductLabels[column]));
   assert.deepEqual(firstDuctRow.children.slice(3).map(node=>node.dataset.calculatorOutput),['AJ11','AN11','AO11','AM11','AP11','AQ11']);
   assert.equal(ductTable.children.at(-1).children.length,300);assert.equal(renderedControls().length,900);
   assert.ok(!byId('calculator-grid').querySelectorAll('[data-calculator-output]').some(node=>/^A[KL]/.test(node.dataset.calculatorOutput)));
@@ -1118,7 +1118,40 @@ let passed = 0;
   audit.setRequest(async()=>changedDuct);await audit.calculate();assert.equal(renderedControls().find(node=>node.dataset.calculatorCell==='D11'),retainedDuctLength);
   assert.equal(byId('calculator-grid').querySelectorAll('[data-calculator-output]').find(node=>node.dataset.calculatorOutput==='AN11').textContent,'0.12');
   changedDuct.display_column_order=['B','C','D','AJ','AO','AN','AN','ZZ'];await audit.calculate();ductTable=renderedTable();
-  assert.deepEqual(ductTable.children[1].children[0].children.map(node=>node.textContent),[2,3,4,36,41,40,39,42,43].map(column=>ductLabels[column]));assert.equal(renderedControls().length,900);passed++;
+  assert.deepEqual(ductTable.children[1].children[0].children.map(node=>node.textContent),[2,4,3,36,41,40,39,42,43].map(column=>ductLabels[column]));assert.equal(renderedControls().length,900);passed++;
+
+  // Duct input movement preserves original addresses and exact retained rows.
+  const retainedDuctInputs={CALCULATOR:{B11:'700x500',C11:'FyreWrap',D11:2.34567890123456,E11:'120/120/120',F11:2,G11:3,H11:'Internal',I11:'Horizontal',D1010:9.87654321098765}};
+  entry=ductSetup(retainedDuctInputs);
+  const inputColumns=Array.from({length:10},(_,index)=>index+1),inputLabels=['Line','Duct size W x H (mm)','Product','Length (m)','FRL','Wall penetrations','Floor penetrations','Fire exposure / FyreWrap application','Orientation','Status'];
+  const ductName=column=>String.fromCharCode(64+column);
+  entry.definition.schedule.columns=inputColumns.map(column=>({column:ductName(column),label:inputLabels[column-1]}));
+  entry.definition.schedule.line_id_column='A';entry.definition.schedule.last_row=1010;
+  entry.definition.sheets=[{name:'CALCULATOR',header_rows:[10],merges:[]}];
+  entry.result=result(copy(entry.inputs),{max_column:10,visible_columns:inputColumns,rows:[
+    {row:10,cells:inputColumns.map(column=>({column,address:`${ductName(column)}10`,value:inputLabels[column-1]}))},
+    ...[11,1010].map(row=>({row,cells:inputColumns.map(column=>({column,address:`${ductName(column)}${row}`,value:retainedDuctInputs.CALCULATOR[`${ductName(column)}${row}`]??null,editable:column>=2&&column<=9,type:'text',calculated:column===10}))}))]});
+  const ductInputSource=JSON.stringify(entry.result),ductInputDefinition=JSON.stringify(entry.definition),ductInputSnapshot=JSON.stringify(entry.inputs);
+  realRender(entry);const ductInputOrder=[1,2,4,5,8,9,6,7,3,10],ductInputRows=renderedTable().children.at(-1).children;
+  assert.deepEqual(renderedTable().children[1].children[0].children.map(cell=>cell.textContent),ductInputOrder.map(column=>inputLabels[column-1]));
+  for(const [index,row] of [11,1010].entries())assert.deepEqual(ductInputRows[index].children.map(cell=>cell.children[0]?.dataset.calculatorCell||cell.dataset.calculatorOutput),ductInputOrder.map(column=>`${ductName(column)}${row}`));
+  assert.equal(JSON.stringify(entry.result),ductInputSource);assert.equal(JSON.stringify(entry.definition),ductInputDefinition);assert.equal(JSON.stringify(entry.inputs),ductInputSnapshot);passed++;
+
+  // Hiding board row waste keeps precise overrides in snapshots and both export payloads.
+  const retainedWaste={CALCULATOR:{A9:'Retained member',L9:0.123456789012345,L1008:0.234567890123456},SETTINGS:{B6:0.12}};
+  entry=setup(retainedWaste);const boardWasteColumns=[1,11,12,13,14],boardWasteLabels={1:'Member mark',11:'Family (ESA input)',12:'Waste (%)',13:'Exposure layout',14:'Existing omitted column'};
+  entry.definition.schedule.columns=boardWasteColumns.map(column=>({column:String.fromCharCode(64+column),label:boardWasteLabels[column]}));
+  entry.definition.schedule.last_row=1008;entry.definition.sheets=[{name:'CALCULATOR',header_rows:[8],omitted_columns:[14],merges:[]}];
+  entry.result=result(copy(entry.inputs),{max_column:14,visible_columns:boardWasteColumns,rows:[
+    {row:8,cells:boardWasteColumns.map(column=>({column,address:`${String.fromCharCode(64+column)}8`,value:boardWasteLabels[column]}))},
+    ...[9,1008].map(row=>({row,cells:boardWasteColumns.map(column=>({column,address:`${String.fromCharCode(64+column)}${row}`,value:retainedWaste.CALCULATOR[`${String.fromCharCode(64+column)}${row}`]??null,editable:true,type:'text'}))}))]});
+  const wasteSource=JSON.stringify(entry.result),wasteDefinition=JSON.stringify(entry.definition),wasteSaved=entry.saved;
+  realRender(entry);assert.deepEqual(renderedTable().children[1].children[0].children.map(cell=>cell.textContent),['Member mark','Family (ESA input)','Exposure layout']);
+  assert.ok(renderedControls().every(control=>!/^L/.test(control.dataset.calculatorCell)));assert.equal(JSON.stringify(entry.result),wasteSource);assert.equal(JSON.stringify(entry.definition),wasteDefinition);
+  assert.deepEqual(copy(audit.projectSnapshot().steel_board.inputs),retainedWaste);assert.equal(entry.saved,wasteSaved);
+  const wasteDownloads=[];audit.setFetch(async(url,options)=>{wasteDownloads.push(JSON.parse(options.body).inputs);return fileSaved(url.endsWith('.pdf')?'APPENDIX A.pdf':'APPENDIX A.xlsx');});
+  await audit.downloadSchedulePdf();await audit.downloadExcelRegister();assert.equal(wasteDownloads.length,2);for(const captured of wasteDownloads)assert.deepEqual(captured,retainedWaste);
+  assert.deepEqual(copy(entry.inputs),retainedWaste);assert.equal(entry.saved,wasteSaved);passed++;
 
   // Spray schedule presentation moves inputs without changing their source addresses or returned workbook data.
   entry=setup({SCHEDULE:{A10:'First member',E10:'Hp/A',G10:123.456789012345,AA1009:'Last location'}});
@@ -1843,7 +1876,8 @@ let passed = 0;
     assert.match(registerMarkup,new RegExp(`id="${id}"[^>]*class="[^"]*calculator-document-action[^"]*"[^>]*aria-label="${label}"[^>]*title="${label}"`));
   }
   assert.match(registerMarkup,/id="calculator-template"[^>]*class="[^"]*excel-button[^"]*calculator-document-action[^"]*"/);
-  assert.match(registerMarkup,/id="calculator-template"[^>]*title="Export Template"[\s\S]*?<span class="download-arrow"[^>]*><svg[^>]*>[\s\S]*?<\/svg><\/span>/);
+  const xlsxIcon=id=>registerMarkup.match(new RegExp(`id="${id}"[^>]*>([\\s\\S]*?)<span>(?:Download XLSX Schedule|Export Template)<\\/span>`))[1];
+  assert.equal(xlsxIcon("calculator-template"),xlsxIcon("calculator-excel"));
   assert.match(registerMarkup,/id="calculator-reset"[^>]*class="[^"]*secondary[^"]*"[^>]*aria-label="Reset Calc"[^>]*title="Reset Calc"[\s\S]*?pricing-reset-symbol/);
   assert.match(registerMarkup,/id="calculator-recalculate"[^>]*class="[^"]*icon-only[^"]*calculator-symbol-button[^"]*"[^>]*aria-label="Recalculate"[^>]*title="Recalculate"/);
   for(const id of ['calculator-reset','calculator-recalculate'])assert.match(registerMarkup,new RegExp(`id="${id}"[^>]*class="[^"]*secondary[^"]*"`));

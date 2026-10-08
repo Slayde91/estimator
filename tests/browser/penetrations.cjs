@@ -221,7 +221,7 @@ async function showImage() {
   await expect(page.locator('.takeoff-physical-register tr[data-physical-id]')).toHaveCount(4);
   await select(legacySaved.takeoffs.physical.services[0].id);
   for (const label of ['Bulk edit same-type records', 'Delete selected records', 'Extract images from selected PDF page']) await expect(page.getByRole('button', { name: label, exact: true })).toBeDisabled();
-  for (const label of ['Preview physical edits', 'Delete draft record', 'Restore draft record', 'Change physical parent', 'Link original source page', 'Remove source association']) await expect(page.getByRole('button', { name: label, exact: true })).toHaveCount(0);
+  for (const label of ['Preview physical edits', 'Delete draft record', 'Restore draft record', 'Change Parent', 'Link original source page', 'Remove source association']) await expect(page.getByRole('button', { name: label, exact: true })).toHaveCount(0);
   const legacyInspector = page.getByRole('complementary', { name: 'Item Details' }), legacyNavigation = legacyInspector.getByRole('table', { name: 'Item Details navigation' });
   await expect(legacyNavigation.locator('select')).toHaveCount(3);
   // Navigation remains available on a legacy record; it must never expose editable fields or rewrite the retained hierarchy.

@@ -5,6 +5,12 @@ let passed=0;
 async function test(name,fn){const h=harness();h.api.applyProject(await h.api.prepareDefaults());await fn(h);++passed;console.log(`ok - ${name}`);}
 (async()=>{
   const links=require('../static/takeoff-library-links.js');
+  await test('New/Search Item chooser uses the workspace title and New Item needs no library or quantity mutation',async()=>{
+    for(const context of [{},{title:'Add Service Plan Item'}]){
+      const calls=[],choice=await links.choose({ask:async(title,fields,message)=>{calls.push({title,fields,message});return {action:'new'};}},false,context);
+      assert.deepEqual(choice,{kind:'new'});assert.equal(calls.length,1);assert.equal(calls[0].title,context.title||'Add Defect');assert.deepEqual(calls[0].fields[0][2],[['search','Search Item'],['new','New Item']]);assert.match(calls[0].message,/Neither action changes the Firestopping Schedule/);
+    }
+  });
   async function picker(answers,context={},service=null){
     const calls=[],original=global.fetch,library={id:'chosen',library_id:'L-1',title:'Selected item',metadata_sha256:'a'.repeat(64),import_fields:{defect:{frl:'-/120/120'},barrier:{substrate:'Concrete'},service}};
     global.fetch=async()=>({ok:true,json:async()=>copy(library)});
@@ -43,6 +49,44 @@ async function test(name,fn){const h=harness();h.api.applyProject(await h.api.pr
     assert.deepEqual(a.quantity_source,{version:1,kind:'services'});assert.deepEqual(b.quantity_source,{version:1,kind:'blank_seals',quantity:700});for(const value of [a,b]){assert.ok(!Object.hasOwn(value,'item_quantity'));assert.equal(value.draft_quantity,700);assert.equal(value.draft_location,'L03');}
     const legacy=links.assignment('defect_reports',service,['service-1'],null,{draft_quantity:1.123456789});assert.ok(!Object.hasOwn(legacy,'quantity_source'));assert.equal(legacy.draft_quantity,1.123456789);assert.deepEqual(details,{item_quantity:700,draft_quantity:700,draft_location:'L03'});
     assert.throws(()=>links.assignment('defect_reports',service,['service-1'],null,{item_quantity:1.5}),/positive integer/);
+  });
+  async function importPicker({servicePlans=true,existing=false,service={service_type:'Copper pipe'},decisions=[true],stale=false}={}){
+    const original=global.fetch,calls=[],commands=[],confirmed=[],owner={id:'root-barrier',display_id:'B-0001',revision:7,fields:{location:'Observed level',barrier_type:'Oversized',substrate:'Brick',orientation:'Horizontal'}},
+      defect={id:'root-defect',display_id:'D-0001',revision:3,fields:{location:'Defect level'}},library={id:'chosen',library_id:'L-1',metadata_sha256:'a'.repeat(64),import_fields:{defect:{frl:'-/120/120',location:'Literal library level'},barrier:{barrier_type:'Core Hole',substrate:'Concrete',orientation:'Vertical'},service}},
+      context={scope:servicePlans?'service_plans':'defect_reports',...(servicePlans?{barrier:owner}:{defect}),selectedIds:['selected-service'],barriers:[owner]},before=copy(context);
+    const answers=[{choice:existing?'existing':'new'},...(existing?[{barrier_id:owner.id}]:[]),{library_id:'chosen'},{quantity:'700'},...(decisions[0]===false?[{library_id:'chosen'},{quantity:'700'}]:[])];
+    let guardCalls=0;
+    global.fetch=async()=>({ok:true,json:async()=>copy(library)});
+    try{
+      const bridge={ask:async(title,fields,message)=>{calls.push({title,fields,message});return answers.shift();},confirm:async(title,message)=>{confirmed.push({title,message});return decisions.shift();},libraryCommand:async(op,payload)=>{commands.push({op,payload});return {snapshot:'retained'};}};
+      const invoke=()=>links[servicePlans?'addUnderServicePlans':'addUnderDefect'](bridge,context,()=>{if(stale&&++guardCalls>1)throw new Error('Context changed');});
+      if(stale){await assert.rejects(invoke(),/Context changed/);assert.equal(commands.length,0);return;}
+      const result=await invoke();assert.deepEqual(context,before);assert.equal(commands.length,1);return {calls,commands,confirmed,result,owner,defect,library};
+    }finally{global.fetch=original;}
+  }
+  await test('Service Plans New Barrier import pins root context and explains unplaced literal adoption without a Defect identity',async()=>{
+    const value=await importPicker(),proposal=value.commands[0].payload.import;
+    assert.equal(value.commands[0].op,'import_library_item');assert.equal(proposal.scope,'service_plans');assert.equal(proposal.context_barrier_id,value.owner.id);assert.equal(proposal.context_barrier_revision,7);
+    assert.ok(!Object.hasOwn(proposal,'defect_id'));assert.equal(proposal.barrier_id,null);assert.equal(proposal.barrier_revision,null);assert.ok(proposal.ids.barrier);assert.ok(proposal.ids.service);
+    assert.equal(proposal.item_quantity,700);assert.equal(proposal.draft_location,'Literal library level');assert.deepEqual(proposal.selected_ids,['selected-service']);
+    assert.match(value.calls[0].message,/new unplaced root/);assert.match(value.calls[0].message,/copies no marker or source/);assert.equal(value.result.selected_id,proposal.ids.service);
+  });
+  await test('Service Plans Existing Barrier retains context and explicitly reviews mismatch; cancel returns to search without commands',async()=>{
+    const value=await importPicker({existing:true,decisions:[false,true]}),proposal=value.commands[0].payload.import;
+    assert.equal(proposal.barrier_id,value.owner.id);assert.equal(proposal.barrier_revision,7);assert.equal(proposal.ids.barrier,null);assert.equal(proposal.accept_mismatch,true);assert.equal(proposal.draft_location,'Observed level');
+    assert.equal(value.confirmed.length,2);assert.equal(value.calls.filter(call=>call.title==='Search Firestopping Library').length,2);
+    assert.match(value.confirmed[0].message,/Existing Barrier = Brick; selected library = Concrete/);assert.match(value.confirmed[0].message,/source location unchanged/);
+  });
+  await test('Service Plans Blank Seal import creates no new Service and stale owner stops before command',async()=>{
+    const value=await importPicker({existing:true,service:null}),proposal=value.commands[0].payload.import;
+    assert.equal(proposal.ids.service,null);assert.equal(value.result.selected_id,value.owner.id);assert.equal(proposal.item_quantity,700);
+    await importPicker({stale:true});
+    assert.throws(()=>links.addUnderServicePlans({}, {scope:'defect_reports'}),/Service Plans Barrier/);
+  });
+  await test('Defect Reports import retains historical Defect proposal and source-adoption explanation',async()=>{
+    const value=await importPicker({servicePlans:false}),proposal=value.commands[0].payload.import;
+    assert.equal(proposal.scope,'defect_reports');assert.equal(proposal.defect_id,value.defect.id);assert.equal(proposal.defect_revision,3);assert.ok(!Object.hasOwn(proposal,'context_barrier_id'));
+    assert.equal(proposal.draft_location,'Defect level');assert.match(value.calls[0].message,/under D-0001/);
   });
   await test("commercial destination capture retains composer, manual values and frozen pricing",async h=>{
     h.audit.state.schedule.draft.rows.push({id:"line-1",library_item_id:"chosen",inputs:{O:7.123456789,T:"Manual description",J:"HVAC",W:"Installer"}});

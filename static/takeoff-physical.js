@@ -384,13 +384,14 @@
       };
       ensureEditable(); ensureAvailable(); requireSource(); const key = graphKey(); await ensureFieldOptions(kind); ensureAvailable(); requireSource();
       if (graphKey() !== key) throw new Error("The physical draft changed before this form opened. Repeat the edit.");
-      if (kind === "defect") {
+      if (kind === "defect" || servicePlans() && kind === "barrier") {
+        const title = kind === "defect" ? "Add Defect" : "Add Barrier";
         const libraryLinks = root.CeasefireTakeoffLibraryLinks || (typeof module !== "undefined" && module.exports ? require("./takeoff-library-links.js") : null);
-        if (!libraryLinks) throw new Error("The Add Defect item chooser is unavailable. Reload after preserving your project.");
-        const choice = await libraryLinks.choose(bridge);
+        if (!libraryLinks) throw new Error(`The ${title} item chooser is unavailable. Reload after preserving your project.`);
+        const choice = await libraryLinks.choose(bridge, false, { title });
         if (!choice) return;
-        requireSource(); if (graphKey() !== key) throw new Error("The physical draft changed during library selection. Repeat Add Defect.");
-        if (choice.kind === "library") return createLibraryDraft(choice.record, evidence, annotation, requireSource, choice.details);
+        requireSource(); if (graphKey() !== key) throw new Error(`The physical draft changed during library selection. Repeat ${title}.`);
+        if (choice.kind === "library") return createLibraryDraft(choice.record, evidence, annotation, requireSource, choice.details, marker);
       }
       let parent = chosenParent;
       if (parentRelations()[kind]) {
@@ -406,15 +407,17 @@
       const entity = { id: root.crypto.randomUUID(), fields: fieldsFromValues(kind, answer, {}, scope()), evidence, uncertainty: { state: "not_assessed", note: "" }, ...(answer.confirmation === "confirmed" ? { confirmation: "confirmed" } : {}), ...(parent ? { [parentRelations()[kind][1]]: parent } : {}), ...(kind === "service" ? { quantity: fieldValue(kind, "quantity", answer.quantity) } : {}), ...(marker !== undefined ? { marker: copy(marker) } : {}), ...(annotation !== undefined ? { annotation: copy(annotation) } : {}) };
       if (await perform([{ op: "create", kind, entity }], `Create one draft ${kind}?`, false, true, requireSource)) { await selectEntity(entity.id, false, marker === undefined && !evidence.length); return entity.id; }
     }
-    async function createLibraryDraft(library, evidence, annotation, guard, details = {}) {
+    async function createLibraryDraft(library, evidence, annotation, guard, details = {}, marker) {
       if (typeof bridge.libraryCommand !== "function") throw new Error("The project-owned library link bridge is unavailable.");
       const initial = copy(library.import_fields.defect); if (details.draft_location && !initial.location) initial.location = details.draft_location;
       guard?.();
       const defectId = root.crypto.randomUUID(), barrierId = root.crypto.randomUUID(), serviceId = root.crypto.randomUUID();
       const assertion = fields => ({fields,evidence:[],uncertainty:{state:"human_review_required",note:"Manually selected library fields; verify the actual installation and technical applicability."}});
-      const commands=[{op:"create",kind:"defect",entity:{id:defectId,...assertion(copy(initial)),evidence:copy(evidence),...(annotation!==undefined?{annotation:copy(annotation)}:{})}},
-        {op:"create",kind:"barrier",entity:{id:barrierId,defect_id:defectId,...assertion(copy(library.import_fields.barrier))}}];
-      const memberIds=[defectId,barrierId];
+      const barrierFields = copy(library.import_fields.barrier);
+      if (servicePlans()) { if (initial.frl) barrierFields.frl = initial.frl; if (!barrierFields.location && initial.location) barrierFields.location = initial.location; }
+      const commands=[...(!servicePlans() ? [{op:"create",kind:"defect",entity:{id:defectId,...assertion(copy(initial)),evidence:copy(evidence),...(annotation!==undefined?{annotation:copy(annotation)}:{})}}] : []),
+        {op:"create",kind:"barrier",entity:{id:barrierId,...(!servicePlans()?{defect_id:defectId}:{}),...assertion(barrierFields),...(marker!==undefined?{marker:copy(marker)}:{})}}];
+      const memberIds=servicePlans()?[barrierId]:[defectId,barrierId];
       if (library.import_fields.service) {
         const known = details.item_quantity !== undefined;
         const quantity = known ? fieldValue("service", "quantity", details.item_quantity, scope()) : null;
@@ -423,7 +426,8 @@
       if (!await perform(commands,"Import selected library draft",false,false,guard)) return;
       const links=root.CeasefireTakeoffLibraryLinks || require("./takeoff-library-links.js");
       displayReply(await bridge.libraryCommand("draft_library_assignment",{assignment:links.assignment(scope(),library,memberIds,null,details)}));
-      await selectEntity(defectId,false,false); return defectId;
+      const selectedId = servicePlans() ? barrierId : defectId;
+      await selectEntity(selectedId,false,false); return selectedId;
     }
     async function confirmLibraryLink(value) {
       await completePendingEdits(); ensureAvailable(); ensureEditable();
@@ -500,6 +504,17 @@
         const result=await links.addUnderDefect(bridge,context,guard);if(!result)return;
         displayReply(result.reply);await selectEntity(result.selected_id,false,false);return;
       }
+      const owners=entries.map(entry=>[...ancestors(entry,state.index),entry].find(value=>value.kind==="barrier"&&!value.entity.deleted));
+      if(owners.some(value=>!value)||new Set(owners.map(value=>value.entity.id)).size!==1)throw new Error("Select records under one Barrier before adding another library item; cross-Barrier selection is ambiguous.");
+      const barrier=copy(owners[0].entity),guard=()=>{ensureAvailable();if(graphKey()!==key)throw new Error("The selected physical context changed during library import. Select its current records again.");};
+      const result=await links.addUnderServicePlans(bridge,{scope:scope(),barrier,selectedIds:entries.map(entry=>entry.entity.id),barriers:[copy(barrier)]},guard);if(!result)return;
+      displayReply(result.reply);await selectEntity(result.selected_id,false,false);
+    }
+    async function associateLibraryWithSelected() {
+      await completePendingEdits();ensureAvailable();ensureEditable();
+      if(!servicePlans())throw new Error("Explicit existing-record associations belong to Service Plans.");
+      const entries=selectEntries();if(!entries.length||entries.some(entry=>entry.entity.deleted))throw new Error("Select active physical members to associate explicitly.");
+      const key=graphKey(),links=root.CeasefireTakeoffLibraryLinks || require("./takeoff-library-links.js");
       const locations = [...new Set(entries.map(entry => columnValue(entry,"location",state.index)).filter(Boolean))];
       const selected=await links.choose(bridge,true,{location:locations.length === 1 ? locations[0] : ""});
       if(!selected)return;if(graphKey()!==key)throw new Error("The selected physical context changed during library search.");
@@ -676,6 +691,7 @@
     function renderBulkSelection() {
       const selected = selectEntries(), sameKind = selected.length > 0 && selected.every(entry => !entry.entity.deleted && entry.kind === selected[0].kind), current = ui.bulkField.value;
       ui.bulk.hidden = !selected.length; ui.selection.textContent = `${selected.length} selected`;
+      ui.associate.hidden = !servicePlans() || legacyReadOnly(); ui.associate.dataset.locked = String(!canChooseLibrary(selected));
       const options = sameKind ? [...(selected[0].kind === "service" ? [["quantity", "Quantity"]] : []), ...fieldsFor(selected[0].kind, scope()).map(([key, label]) => [key, label])] : [];
       ui.bulkField.replaceChildren(...options.map(([key, label]) => choice(key, label)));
       ui.bulkField.value = options.some(([key]) => key === current) ? current : options[0]?.[0] || "";
@@ -847,6 +863,7 @@
           const matches = matchingActiveRows(), count = matches.filter(row => state.hidden.has(row.entity.id)).length, hideAll = node("input");
           hideAll.type = "checkbox"; hideAll.checked = !!matches.length && count === matches.length; hideAll.indeterminate = count > 0 && count < matches.length;
           hideAll.disabled = state.busy || !matches.length; hideAll.dataset.locked = String(!matches.length);
+          hideAll.dataset.physicalHideAll = "true";
           hideAll.setAttribute("aria-label", "Hide all matching physical records"); hideAll.title = `Hide all ${matches.length} matching active records on drawing`;
           hideAll.addEventListener("change", () => void safe(() => { ensureAvailable(); for (const row of matches) hideAll.checked ? state.hidden.add(row.entity.id) : state.hidden.delete(row.entity.id); renderData(); })); cell.append(hideAll);
         }
@@ -859,6 +876,7 @@
         const { entity, kind } = row, line = node("tr", state.selected.has(entity.id) ? "selected" : ""); line.dataset.physicalId = entity.id; line.dataset.physicalKind = kind; line.addEventListener("pointerenter", () => hover(entity.id)); line.addEventListener("pointerleave", () => hover(null));
         const checkbox = node("input"), selectCell = node("td"); checkbox.type = "checkbox"; checkbox.checked = state.selected.has(entity.id); checkbox.setAttribute("aria-label", `Select ${titles[kind]} ${entityName(row)}`); checkbox.addEventListener("change", () => void safe(() => selectEntity(entity.id, true))); selectCell.append(checkbox); line.append(selectCell);
         const hideCell = node("td"), hide = node("input"); hide.type = "checkbox"; hide.checked = state.hidden.has(entity.id); hide.setAttribute("aria-label", `Hide ${titles[kind]} ${entityName(row)} on drawing`);
+        hide.dataset.physicalHide = entity.id;
         hide.addEventListener("change", () => void safe(() => { ensureAvailable(); hide.checked ? state.hidden.add(entity.id) : state.hidden.delete(entity.id); renderData(); })); hideCell.append(hide); line.append(hideCell);
         const viewCell = node("td", "takeoff-physical-view-edit"), view = button("View", () => viewEntity(entity.id), "text-button"), edit = button("Edit", () => editEntity(entity.id), "text-button");
         view.title = `View ${displayId(row)} on its source drawing`; edit.title = `${legacy || entity.deleted ? "Inspect" : "Edit"} ${displayId(row)} in Item Details`; edit.setAttribute("aria-controls", "takeoff-physical-details"); viewCell.append(view, edit); line.append(viewCell);
@@ -934,32 +952,39 @@
       state.inspectorEdit = null;
       ui.inspector.replaceChildren(); const selected = selectEntries(); ui.selection.textContent = `${selected.length} selected`;
       if (selected.length === 1) bridge.renderDrawingAppearance?.(ui.inspector, inspectedEntry().entity);
+      const drawingOwner = selected.length === 1 && visibilityOwner(inspectedEntry());
+      if (drawingOwner) ui.inspector.append(visibilityButton(inspectedEntry(), drawingOwner));
       ui.inspector.append(node("h3", "", "Item Details"));
       if (!servicePlans()) {
         const defects = [...new Map(selected.map(entry => defectFor(entry)).filter(Boolean).map(entry => [entry.entity.id, entry])).values()];
         const defect = defectFor(inspectedEntry()) || (defects.length === 1 ? defects[0] : null);
         ui.inspector.append(node("p", "takeoff-physical-defect-id", `Defect ID: ${defect ? displayId(defect) : defects.length > 1 ? "Multiple selected" : "—"}`));
       }
-      if (canChooseLibrary(selected)) ui.inspector.append(mutationButton("Choose library item for selected records", attachLibraryToSelected));
+      const entry = inspectedEntry(), entity = entry?.entity, editorKey = graphKey();
+      if (canChooseLibrary(selected)) ui.inspector.append(mutationButton("Add Library Item", attachLibraryToSelected));
+      if (!legacyReadOnly() && selected.length && selected.every(value => !value.entity.deleted)) {
+        const addService = mutationButton("Add Service", () => createFromSelection("service"), "button secondary takeoff-physical-add-service");
+        const barrier = entry && [...ancestors(entry, state.index), entry].find(value => value.kind === "barrier");
+        addService.setAttribute("aria-label", "Add service in Item Details"); addService.title = barrier ? `Add service to ${displayId(barrier)}` : "Add service to an explicitly chosen barrier"; ui.inspector.append(addService);
+      }
+      let remove;
+      if (entry && !legacyReadOnly() && !entity.deleted) {
+        remove = button("Delete draft record", flushed => deleteEntity(flushed ? state.index.get(entity.id) : entry), "button secondary takeoff-physical-delete-selected"); remove.setAttribute("aria-label", "Delete draft record"); remove.title = "Delete draft record"; remove.replaceChildren(deleteIcon());
+      }
+      ui.inspector.append(inspectorActions(remove));
+      if (entry?.kind === "defect" && !legacyReadOnly() && !entity.deleted) {
+        const addBarrier = mutationButton("Add Barrier", () => create("barrier", entity.id));
+        addBarrier.setAttribute("aria-label", "Add barrier in Item Details"); addBarrier.title = `Add barrier to ${displayId(entry)}`; ui.inspector.append(addBarrier);
+      }
       renderDetailNavigation();
-      if (selected.length !== 1) { ui.inspector.append(inspectorActions(), node("p", "helper", selected.length ? "Select active records of one entity type for a counted, reversible bulk edit." : "Select a hierarchy row to inspect its parent, evidence and uncertainty.")); renderLibraryAssignments(selected); return; }
-      const entry = inspectedEntry(), entity = entry.entity, editorKey = graphKey();
+      if (selected.length !== 1) { ui.inspector.append(node("p", "helper", selected.length ? "Select active records of one entity type for a counted, reversible bulk edit." : "Select a hierarchy row to inspect its parent, evidence and uncertainty.")); renderLibraryAssignments(selected); return; }
       if (legacyReadOnly() || entity.deleted) {
-        ui.inspector.append(inspectorActions());
         if (!legacyReadOnly()) ui.inspector.append(mutationButton("Restore draft record", () => restore(entry)), node("p", "helper", "Original fields, evidence and parent IDs are retained. Restore previews disclose descendants and do not invent missing parents."));
         for (const [key, label] of (entry.kind === "opening" ? legacyOpeningFields : [...(retainedDefinitions[entry.kind] || []), ...fieldsFor(entry.kind, scope())])) ui.inspector.append(node("p", "helper", `${label}: ${fieldDisplay(entity.fields, key) ?? "Unknown"}`));
         if (entry.kind === "service") ui.inspector.append(node("p", "helper", entity.quantity == null ? "Service quantity unknown: enter an explicit physical count when reviewed. The commercial schedule contribution is separate." : `Explicit service quantity: ${entity.quantity}`));
         ui.inspector.append(node("p", "helper", `Uncertainty: ${entity.uncertainty.state} · ${entity.uncertainty.note || "No explanation recorded"}`)); return;
       }
-      if (parentRelations()[entry.kind]) ui.inspector.append(button("Change physical parent", flushed => reparent(flushed ? state.index.get(entity.id) : entry)));
-      const remove = button("Delete draft record", flushed => deleteEntity(flushed ? state.index.get(entity.id) : entry), "button secondary takeoff-physical-delete-selected"); remove.setAttribute("aria-label", "Delete draft record"); remove.title = "Delete draft record"; remove.replaceChildren(deleteIcon());
-      ui.inspector.append(inspectorActions(remove));
-      const childKind = entry.kind === "defect" ? "barrier" : entry.kind === "barrier" ? "service" : null;
-      if (childKind) {
-        const addChild = mutationButton(childKind === "service" ? "+" : `Add ${childKind}`, async () => { await completePendingEdits(); return create(childKind, entity.id); }, childKind === "service" ? "button secondary takeoff-physical-add-child takeoff-physical-add-defect takeoff-physical-add-service" : undefined);
-        addChild.setAttribute("aria-label", `Add ${childKind} in Item Details`); addChild.title = `Add ${childKind} to ${displayId(entry)}`; ui.inspector.append(addChild);
-      }
-      if (entry.kind === "barrier" && entity.marker) ui.inspector.append(button("Open count marker", () => bridge.source(copy(entity.marker))), button("Remove count marker", () => setMarker(entity.id, null)));
+      if (parentRelations()[entry.kind]) ui.inspector.append(button("Change Parent", flushed => reparent(flushed ? state.index.get(entity.id) : entry)));
       const controls = fieldDefinitions(entry).map(([key, label, type, initial, required]) => {
         const wrapper = node("label", "field"), control = node(Array.isArray(type) ? "select" : type === "textarea" ? "textarea" : "input"); wrapper.append(node("span", "", label));
         if (Array.isArray(type)) { if (key === "confirmation") control.replaceChildren(...type.map(([value, text]) => choice(value, text))); else populateSelect(control, type, initial); if (sharedOptionKeys.has(key)) bindSharedOptions(control, key); } else if (type !== "textarea") control.type = type === "number" ? "number" : "text";
@@ -971,6 +996,28 @@
       ui.inspector.append(node("p", "helper", "Confirmation records your manual review of this draft's fields. It does not approve technical compliance or add schedule quantity."));
       if (entity.uncertainty?.state !== "not_assessed" || entity.uncertainty?.note) ui.inspector.append(node("p", "helper takeoff-retained-uncertainty", `Retained uncertainty: ${uncertainty.find(([key]) => key === entity.uncertainty.state)?.[1] || entity.uncertainty.state}. ${entity.uncertainty.note || ""}`));
       renderLibraryAssignments(selected);
+    }
+    function visibilityOwner(entry) {
+      if (!entry || entry.entity.deleted) return null;
+      const lineage = [entry, ...ancestors(entry, state.index).reverse()];
+      if (bridge.drawingOwner) { const id = bridge.drawingOwner(entry.entity.id); return lineage.find(value => !value.entity.deleted && value.entity.id === id) || null; }
+      return lineage.find(value => !value.entity.deleted && (value.entity.marker || value.entity.annotation)) || null;
+    }
+    function visibilityButton(entry, owner) {
+      const control = node("button", "button secondary icon-only takeoff-icon-button takeoff-physical-visibility"), icon = node("img"), identity = `${scope()}/${state.snapshot?.project_id || ""}/${graph()?.id || "new"}`;
+      control.type = "button"; control.setAttribute("aria-label", "Visibility"); icon.src = "/icons/takeoff-visibility.png"; icon.alt = ""; icon.width = 32; icon.height = 32; icon.setAttribute("aria-hidden", "true"); control.append(icon);
+      const sync = () => { const hidden = state.hidden.has(owner.entity.id); control.setAttribute("aria-pressed", String(hidden)); control.title = `${hidden ? "Show" : "Hide"} callout ${displayId(owner)}`; };
+      sync();
+      control.addEventListener("click", () => void safe(() => {
+        ensureAvailable(true);
+        if (identity !== `${scope()}/${state.snapshot?.project_id || ""}/${graph()?.id || "new"}` || inspectedEntry()?.entity.id !== entry.entity.id || visibilityOwner(inspectedEntry())?.entity.id !== owner.entity.id) throw new Error("Select the current physical item again.");
+        state.hidden.has(owner.entity.id) ? state.hidden.delete(owner.entity.id) : state.hidden.add(owner.entity.id); sync();
+        for (const hide of controlsInWorkspace("[data-physical-hide]")) hide.checked = state.hidden.has(hide.dataset.physicalHide);
+        const matches = matchingActiveRows(), count = matches.filter(row => state.hidden.has(row.entity.id)).length;
+        for (const hideAll of controlsInWorkspace("[data-physical-hide-all]")) { hideAll.checked = !!matches.length && count === matches.length; hideAll.indeterminate = count > 0 && count < matches.length; }
+        bridge.viewChanged?.(hierarchyRows(graph(), state).map(row => row.entity.id), [...state.selected], [...state.hidden]);
+      }));
+      return control;
     }
     function inspectorActions(remove) { const actions = node("div", "takeoff-physical-inspector-actions"); if (remove) actions.append(remove); actions.append(ui.discard); return actions; }
     function renderAssociations(entry) {
@@ -1125,7 +1172,8 @@
       iconAction("Update linked rows", () => selectedLibraryAction("update"), ["M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z", "M12 6v6h6"], true),
       iconAction("Unlink from Firestopping Schedule", () => selectedLibraryAction("unlink"), ["M9 7H7a5 5 0 0 0 0 10h2M15 7h2a5 5 0 0 1 0 10h-2"], true)); ui.root.append(filters);
     ui.bulk = node("div", "takeoff-register-controls takeoff-bulk takeoff-physical-bulk"); ui.bulkField = node("select"); ui.bulkField.dataset.physicalMutation = "true"; ui.bulkValue = node("input"); ui.bulkValue.dataset.physicalMutation = "true"; ui.bulkValue.type = "text"; ui.bulkValue.placeholder = "New value (blank clears)"; ui.bulkValue.setAttribute("aria-label", "Bulk physical edit value");
-    ui.bulkApply = mutationButton("Apply to selected", applyBulkValue); ui.bulkConfirm = mutationButton("Confirm", () => confirmSelectedRecords("confirmed")); ui.bulkUnconfirm = mutationButton("Unconfirm", () => confirmSelectedRecords("unconfirmed")); ui.bulk.append(ui.selection, ui.bulkField, ui.bulkValue, ui.bulkApply, ui.bulkConfirm, ui.bulkUnconfirm, deleteSelection); ui.root.append(ui.bulk);
+    ui.associate = mutationButton("Associate Existing Records", associateLibraryWithSelected);
+    ui.bulkApply = mutationButton("Apply to selected", applyBulkValue); ui.bulkConfirm = mutationButton("Confirm", () => confirmSelectedRecords("confirmed")); ui.bulkUnconfirm = mutationButton("Unconfirm", () => confirmSelectedRecords("unconfirmed")); ui.bulk.append(ui.selection, ui.associate, ui.bulkField, ui.bulkValue, ui.bulkApply, ui.bulkConfirm, ui.bulkUnconfirm, deleteSelection); ui.root.append(ui.bulk);
     ui.table = node("div", "takeoff-register-table"); const addRow = node("div", "takeoff-physical-add-row"); ui.add = mutationButton("+", () => create(servicePlans() ? "barrier" : "defect"), "button secondary takeoff-physical-add-child takeoff-physical-add-defect"); addRow.append(ui.add); addRow.hidden = !servicePlans();
     ui.pagination = node("div", "takeoff-register-controls"); ui.inspector = node("aside", "takeoff-inspector takeoff-physical-inspector"); ui.inspector.setAttribute("aria-label", "Item Details"); ui.gallery = node("section", "takeoff-physical-gallery"); ui.gallery.setAttribute("aria-label", "Retained image gallery"); ui.root.append(ui.table, addRow, ui.pagination); if (bridge.inspectorContainer) bridge.inspectorContainer.append(ui.inspector); else ui.root.append(ui.inspector); ui.root.append(ui.gallery); container.replaceChildren(ui.root); renderData(); renderGallery(); void safe(loadFieldOptions);
     function imageInventorySummary(images) { const count = images.filter(image => !image.coverage_only).length; return `${count} retained image occurrences; ${images.length - count} source coverage records. Image count is not physical quantity.`; }

@@ -135,14 +135,19 @@ def barrier_differences(fields, selected):
 
 
 def validate_barrier_selection(value):
-    _object(value, ('version', 'choice', 'defect_id', 'defect_revision', 'barrier_id',
+    version = value.get('version') if isinstance(value, dict) else None
+    owner_fields = ('context_barrier_id', 'context_barrier_revision') if type(version) is int and version == 2 else ('defect_id', 'defect_revision')
+    _object(value, ('version', 'choice', *owner_fields, 'barrier_id',
                     'barrier_revision', 'source_fields', 'retained_fields', 'differences', 'mismatch_accepted'))
-    if type(value['version']) is not int or value['version'] != 1 or value['choice'] not in ('new', 'existing'):
-        raise ValidationError('Only a version-one explicit Defect barrier selection is supported.')
-    _id(value['defect_id']); _id(value['barrier_id'])
-    _revision(value['defect_revision']); _revision(value['barrier_revision'])
-    if not value['defect_revision'] or not value['barrier_revision'] or type(value['mismatch_accepted']) is not bool:
+    if type(version) is not int or version not in (1, 2) or value['choice'] not in ('new', 'existing'):
+        raise ValidationError('Only an explicit versioned physical barrier selection is supported.')
+    owner_id, owner_revision = owner_fields
+    _id(value[owner_id]); _id(value['barrier_id'])
+    _revision(value[owner_revision]); _revision(value['barrier_revision'])
+    if not value[owner_revision] or not value['barrier_revision'] or type(value['mismatch_accepted']) is not bool:
         raise ValidationError('Capture the exact physical revisions and explicit unapproved mismatch decision.')
+    if version == 2 and value['choice'] == 'existing' and (value['barrier_id'] != value[owner_id] or value['barrier_revision'] != value[owner_revision]):
+        raise ValidationError('An existing Service Plans Barrier must retain the explicitly selected root and revision.')
     for fields in (value['source_fields'], value['retained_fields']):
         if not isinstance(fields, dict) or set(fields) - set(BARRIER_FIELDS):
             raise ValidationError('Barrier selection properties must be bounded literal barrier fields.')
@@ -157,9 +162,11 @@ def validate_barrier_selection(value):
 
 
 def prepare_library_import(snapshot, proposed, library):
-    """Append one selected item under one Defect in a detached atomic graph."""
+    """Append one selected item within one explicitly pinned physical context."""
     from .takeoff_physical_operations import prepare_changes
-    _object(proposed, ('version', 'scope', 'defect_id', 'defect_revision', 'selected_ids',
+    service_plans = isinstance(proposed, dict) and proposed.get('scope') == 'service_plans'
+    owner_fields = ('context_barrier_id', 'context_barrier_revision') if service_plans else ('defect_id', 'defect_revision')
+    _object(proposed, ('version', 'scope', *owner_fields, 'selected_ids',
                       'barrier_id', 'barrier_revision', 'library_id', 'library_fingerprint',
                       'accept_mismatch', 'ids') + tuple(key for key in ('draft_quantity', 'draft_location', 'item_quantity') if isinstance(proposed, dict) and key in proposed))
     if 'item_quantity' in proposed:
@@ -168,41 +175,44 @@ def prepare_library_import(snapshot, proposed, library):
         _quantity(proposed['draft_quantity'])
     if 'draft_location' in proposed:
         _text(proposed['draft_location'])
-    if type(proposed['version']) is not int or proposed['version'] != 1 or proposed['scope'] != 'defect_reports':
-        raise ValidationError('Append an explicitly selected library item within Defect Reports.')
-    _id(proposed['defect_id']); _revision(proposed['defect_revision'])
+    if type(proposed['version']) is not int or proposed['version'] != 1 or proposed['scope'] not in ('defect_reports', 'service_plans'):
+        raise ValidationError('Append an explicitly selected library item within a supported physical scope.')
+    owner_id, owner_revision = owner_fields
+    _id(proposed[owner_id]); _revision(proposed[owner_revision])
     if type(proposed['accept_mismatch']) is not bool:
         raise ValidationError('The barrier mismatch decision must be explicit.')
     ids = proposed['ids']; _object(ids, ('barrier', 'service', 'assignment', 'installation'))
     _id(ids['assignment']); _id(ids['installation'])
     identifiers = proposed['selected_ids']
     if not isinstance(identifiers, list) or not 1 <= len(identifiers) <= MAX_MEMBERS:
-        raise ValidationError('Select bounded physical records under one Defect.')
+        raise ValidationError('Select bounded physical records under one explicit physical owner.')
     for identifier in identifiers:
         _id(identifier)
     if len(set(identifiers)) != len(identifiers):
         raise ValidationError('Selected physical identities must be distinct.')
-    graph = snapshot.get('physical')
-    if not graph or graph.get('version') != 2:
-        raise ValidationError('Only active numbered Defect Reports can receive additional library items.')
+    graph = snapshot.get('service_plans' if service_plans else 'physical')
+    if not graph or graph.get('version') != (3 if service_plans else 2):
+        raise ValidationError('Choose active records in the current numbered physical hierarchy.')
+    collections = (('barrier', 'barriers'), ('service', 'services')) if service_plans else (('defect', 'defects'), ('barrier', 'barriers'), ('service', 'services'))
     entries = {entry['id']: (kind, entry) for kind, collection in
-               (('defect', 'defects'), ('barrier', 'barriers'), ('service', 'services')) for entry in graph[collection]}
-    parent = entries.get(proposed['defect_id'])
-    if not parent or parent[0] != 'defect' or parent[1]['deleted'] or parent[1]['revision'] != proposed['defect_revision']:
-        raise ValidationError('The selected Defect changed or is unavailable. Select its current records again.')
-    defect = parent[1]
+               collections for entry in graph[collection]}
+    parent = entries.get(proposed[owner_id])
+    if not parent or parent[0] != ('barrier' if service_plans else 'defect') or parent[1]['deleted'] or parent[1]['revision'] != proposed[owner_revision]:
+        raise ValidationError('The selected physical owner changed or is unavailable. Select its current records again.')
+    context = parent[1]
     for identifier in identifiers:
         entry = entries.get(identifier)
         if not entry or entry[1]['deleted']:
             raise ValidationError('A selected physical record is unavailable.')
         kind, entity = entry
         if kind == 'service':
-            kind, entity = entries[entity['barrier_id']]
-            if entity['deleted']:
+            ancestor = entries.get(entity['barrier_id'])
+            if not ancestor or ancestor[0] != 'barrier' or ancestor[1]['deleted']:
                 raise ValidationError('A selected service belongs to a removed barrier.')
-        owner = entity['id'] if kind == 'defect' else entity['defect_id']
-        if owner != defect['id']:
-            raise ValidationError('Choose records under one Defect; cross-Defect library imports are ambiguous.')
+            kind, entity = ancestor
+        owner = entity['id'] if service_plans or kind == 'defect' else entity['defect_id']
+        if owner != context['id']:
+            raise ValidationError('Choose records under one physical owner; cross-root library imports are ambiguous.')
     validate_proposal({'id': ids['assignment'], 'scope': proposed['scope'], 'library_id': proposed['library_id'],
                       'library_fingerprint': proposed['library_fingerprint'], 'member_ids': identifiers,
                       'installation': {'id': ids['installation'], 'mode': 'repeated_installations', 'note': ''}})
@@ -219,11 +229,16 @@ def prepare_library_import(snapshot, proposed, library):
             raise ValidationError('A new barrier has no retained-barrier revision or mismatch decision.')
         _id(ids['barrier'])
         barrier_id = ids['barrier']
-        entity = {'id': barrier_id, 'defect_id': defect['id'], **assertion(library['import_fields']['barrier'])}
-        if proposed.get('draft_location') and not entity['fields'].get('location') and not defect['fields'].get('location'):
+        entity = {'id': barrier_id, **assertion(library['import_fields']['barrier'])}
+        if service_plans:
+            if library['import_fields']['defect'].get('frl'):
+                entity['fields']['frl'] = deepcopy(library['import_fields']['defect']['frl'])
+        else:
+            entity['defect_id'] = context['id']
+        if proposed.get('draft_location') and not entity['fields'].get('location') and (service_plans or not context['fields'].get('location')):
             entity['fields']['location'] = proposed['draft_location']
-        if 'annotation' in defect:
-            entity['marker'] = deepcopy(defect['annotation'])
+        if not service_plans and 'annotation' in context:
+            entity['marker'] = deepcopy(context['annotation'])
         commands.append({'op': 'create', 'kind': 'barrier', 'entity': entity})
         choice = 'new'; retained = selected_fields
     else:
@@ -232,8 +247,9 @@ def prepare_library_import(snapshot, proposed, library):
             raise ValidationError('Existing Barrier retains its identity rather than creating another barrier.')
         barrier_id = proposed['barrier_id']; entry = entries.get(barrier_id)
         if (not entry or entry[0] != 'barrier' or entry[1]['deleted']
-                or entry[1]['defect_id'] != defect['id'] or entry[1]['revision'] != proposed['barrier_revision']):
-            raise ValidationError('The explicitly selected Barrier changed or belongs to another Defect.')
+                or (entry[1]['id'] != context['id'] if service_plans else entry[1]['defect_id'] != context['id'])
+                or entry[1]['revision'] != proposed['barrier_revision']):
+            raise ValidationError('The explicitly selected Barrier changed or belongs to another physical owner.')
         retained = {key: deepcopy(entry[1]['fields'][key]) for key in BARRIER_FIELDS if key in entry[1]['fields']}
         differences = barrier_differences(retained, selected_fields)
         if bool(differences) != proposed['accept_mismatch']:
@@ -256,12 +272,12 @@ def prepare_library_import(snapshot, proposed, library):
     else:
         resulting_graph = deepcopy(graph)
     barrier = next(value for value in resulting_graph['barriers'] if value['id'] == barrier_id)
-    selection = {'version': 1, 'choice': choice, 'defect_id': defect['id'], 'defect_revision': defect['revision'],
+    selection = {'version': 2 if service_plans else 1, 'choice': choice, owner_id: context['id'], owner_revision: context['revision'],
         'barrier_id': barrier_id, 'barrier_revision': barrier['revision'], 'source_fields': selected_fields,
         'retained_fields': retained, 'differences': barrier_differences(retained, selected_fields),
         'mismatch_accepted': proposed['accept_mismatch']}
     validate_barrier_selection(selection)
-    members = [defect['id'], barrier_id] + ([ids['service']] if service is not None else [])
+    members = ([] if service_plans else [context['id']]) + [barrier_id] + ([ids['service']] if service is not None else [])
     assignment = {'id': ids['assignment'], 'scope': proposed['scope'], 'library_id': library['id'],
         'library_fingerprint': library['metadata_sha256'], 'member_ids': members,
         'installation': {'id': ids['installation'], 'mode': 'repeated_installations', 'note': ''}}
@@ -308,8 +324,9 @@ def validate_assignments(snapshot):
         _hash(library['source_sha256']); _hash(library['metadata_sha256']); _hash(record['context_sha256'])
         if 'barrier_selection' in record:
             validate_barrier_selection(record['barrier_selection'])
-            if record['scope'] != 'defect_reports':
-                raise ValidationError('A Defect barrier selection belongs to Defect Reports.')
+            expected_scope = 'defect_reports' if record['barrier_selection']['version'] == 1 else 'service_plans'
+            if record['scope'] != expected_scope:
+                raise ValidationError('The explicit barrier selection must retain its original physical scope.')
         installation_key = (record['scope'], record['installation']['id'], library['id'])
         if installation_key in installations:
             raise ValidationError('One explicit installation/library pair cannot have repeated assignments.')
@@ -329,10 +346,12 @@ def validate_assignments(snapshot):
         if 'barrier_selection' in record:
             selection = record['barrier_selection']
             captured = {member['id']: member for member in record['members']}
-            for identifier, kind, revision in ((selection['defect_id'], 'defect', selection['defect_revision']),
-                                                (selection['barrier_id'], 'barrier', selection['barrier_revision'])):
+            provenance_members = [(selection['barrier_id'], 'barrier', selection['barrier_revision'])]
+            if selection['version'] == 1:
+                provenance_members.append((selection['defect_id'], 'defect', selection['defect_revision']))
+            for identifier, kind, revision in provenance_members:
                 if identifier not in captured or captured[identifier]['kind'] != kind or captured[identifier]['revision'] < revision:
-                    raise ValidationError('Barrier selection provenance must retain its typed Defect and Barrier membership.')
+                    raise ValidationError('Barrier selection provenance must retain its typed physical membership.')
         member_key = (record['scope'], library['id'], tuple(sorted(members)))
         if member_key in member_sets:
             raise ValidationError('These exact physical members already have an assignment to this library item. Reconfirm the retained association rather than count them twice.')
@@ -491,18 +510,35 @@ def validate_history(event):
         if 'barrier_selection' not in record:
             raise ValidationError('A selected-item import must retain its explicit barrier choice.')
         selection = record['barrier_selection']
-        prior_graph, current_graph = before.get('physical'), after.get('physical')
-        if not prior_graph or prior_graph['version'] != 2 or not current_graph or current_graph['version'] != 2:
-            raise ValidationError('An additional library item must retain its existing Defect hierarchy.')
-        entities = lambda graph: {entity['id']: entity for collection in ('defects', 'barriers', 'services') for entity in graph[collection]}
+        service_plans = record['scope'] == 'service_plans'
+        key = 'service_plans' if service_plans else 'physical'
+        prior_graph, current_graph = before.get(key), after.get(key)
+        version = 3 if service_plans else 2
+        if not prior_graph or prior_graph['version'] != version or not current_graph or current_graph['version'] != version:
+            raise ValidationError('An additional library item must retain its existing physical hierarchy.')
+        other_key = 'physical' if service_plans else 'service_plans'
+        if before.get(other_key) != after.get(other_key):
+            raise ValidationError('A library import cannot change the other physical scope.')
+        collections = ('barriers', 'services') if service_plans else ('defects', 'barriers', 'services')
+        entities = lambda graph: {entity['id']: entity for collection in collections for entity in graph[collection]}
         old_entities, new_entities = entities(prior_graph), entities(current_graph)
         if any(new_entities.get(identifier) != entity for identifier, entity in old_entities.items()):
             raise ValidationError('Adding a library item cannot change retained physical fields, quantities, sources or identities.')
-        if selection['defect_id'] not in old_entities:
-            raise ValidationError('An additional library item must belong to its retained Defect.')
+        owner_id = selection['context_barrier_id'] if service_plans else selection['defect_id']
+        owner_revision = selection['context_barrier_revision'] if service_plans else selection['defect_revision']
+        owner = next((entity for entity in prior_graph['barriers' if service_plans else 'defects'] if entity['id'] == owner_id), None)
+        if not owner or owner['deleted'] or owner['revision'] != owner_revision:
+            raise ValidationError('An additional library item must retain its selected physical owner and revision.')
         barrier = new_entities.get(selection['barrier_id'])
-        if not barrier or barrier.get('defect_id') != selection['defect_id']:
-            raise ValidationError('The selected Barrier must belong to the retained Defect.')
+        if (not barrier or (barrier.get('defect_id') != owner_id if not service_plans else
+                'defect_id' in barrier or selection['choice'] == 'existing' and barrier['id'] != owner_id)):
+            raise ValidationError('The selected Barrier must retain its explicit physical ownership.')
+        if any(entity['barrier_id'] != barrier['id'] for entity in current_graph['services'] if entity['id'] not in old_entities):
+            raise ValidationError('The imported service must belong to the explicitly selected Barrier.')
+        if service_plans:
+            added_services = {entity['id'] for entity in current_graph['services'] if entity['id'] not in old_entities}
+            if len(added_services) > 1 or {member['id'] for member in record['members']} != {barrier['id']} | added_services:
+                raise ValidationError('A Service Plans import associates only its chosen Barrier and optional one new Service; retained Services and other roots cannot be added to its membership.')
         retained = {key: barrier['fields'][key] for key in BARRIER_FIELDS if key in barrier['fields']}
         if retained != selection['retained_fields'] or barrier['revision'] != selection['barrier_revision']:
             raise ValidationError('The barrier review must capture the exact imported or retained barrier fields and revision.')
@@ -511,8 +547,10 @@ def validate_history(event):
         expected = {member['id'] for member in record['members']} - old_entities.keys()
         if new_entities.keys() - old_entities.keys() != expected:
             raise ValidationError('The import may add only its explicitly associated new physical records.')
-        if selection['choice'] == 'new' and 'annotation' in old_entities[selection['defect_id']]:
-            if barrier.get('marker') != old_entities[selection['defect_id']]['annotation']:
+        if service_plans and selection['choice'] == 'new' and (barrier.get('marker') is not None or barrier['evidence']):
+            raise ValidationError('A new Service Plans library Barrier is unplaced and cannot infer a source locator.')
+        if not service_plans and selection['choice'] == 'new' and 'annotation' in owner:
+            if barrier.get('marker') != owner['annotation']:
                 raise ValidationError('A new library barrier must preserve its Defect source annotation exactly.')
     for identifier in old.keys() & new.keys():
         prior, current = old[identifier], new[identifier]

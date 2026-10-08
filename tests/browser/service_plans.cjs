@@ -1,6 +1,6 @@
 const { chooseTakeoff, takeoffChoice } = require('./section_navigation.cjs');
 const { clickProjectControl } = require('./project_actions.cjs');
-const { chooseNewDefect, startDefect } = require('./physical_dialogs.cjs');
+const { chooseNewPhysicalItem, startDefect } = require('./physical_dialogs.cjs');
 const { renderDrawing } = require('./viewer_helpers.cjs');
 // Real penetration sub-tabs, barrier markers and project round trips. Every
 // source, database and native-dialog save target belongs to this fixture.
@@ -74,7 +74,7 @@ async function apply(title) {
 }
 async function create(kind, fields, trigger) {
   if (kind === 'defect') await startDefect(page); else await page.getByRole('button', { name: trigger || `Add ${kind}`, exact: true }).click();
-  if (kind === 'defect') await chooseNewDefect(page);
+  await chooseNewPhysicalItem(page,kind);
   const preview = await response(() => dialog(kind === 'defect' ? 'Add Defect' : `Create draft ${kind}`, fields, 'Preview new draft'), '/physical/preview');
   await apply(`Create one draft ${kind}?`); return preview.changed_ids[0];
 }
@@ -180,6 +180,7 @@ async function controls() {
   await expect(page.getByRole('button', { name: 'Add defect', exact: true })).toHaveCount(0);
   await expect(page.getByRole('columnheader', { name: 'Defect ID', exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: 'Add substrate', exact: true }).click();
+  await chooseNewPhysicalItem(page,'barrier');
   const modal = page.getByRole('dialog'); await expect(modal.getByRole('heading', { name: 'Create draft barrier', exact: true })).toBeVisible();
   await expect(modal.getByLabel(/Defect/)).toHaveCount(0);
   assert.deepEqual(await modal.getByLabel('FRL', { exact: true }).locator('option').evaluateAll(options => options.map(option => option.value).filter(Boolean)), frls);
@@ -261,6 +262,7 @@ async function controls() {
   // Count on an already marked barrier creates another independent barrier;
   // it never repeats that barrier's existing service quantity.
   await page.getByRole('button', { name: 'Call-out', exact: true }).click(); await page.mouse.click(...await screen([440, 360]));
+  await chooseNewPhysicalItem(page,'barrier');
   const secondPreview = await response(() => dialog('Create draft barrier', { 'Location': 'PLAN-B', 'Barrier type': 'Empty Opening', 'FRL': '-/60/60' }, 'Preview new draft'), '/physical/preview');
   await apply('Create one draft barrier?'); const secondBarrier = secondPreview.changed_ids[0];
   assert.equal(entity(secondBarrier).display_id, 'B-0002'); assert.equal(state.service_plans.services.length, 1); await summaryContains(secondBarrier, '0 services');

@@ -303,7 +303,7 @@ class StandardHTTPTests(unittest.TestCase):
             self.assertEqual(status, 200)
             self.assertEqual(json.loads(payload)['features'], {'takeoffs': False})
             self.assertEqual(json.loads(payload)['edition'], 'standard')
-            for asset in ('header-tagline-media.js', 'header-tagline-character.gif', 'header-tagline-character-still.png'):
+            for asset in ('header-tagline-media.js', 'header-tagline-character.gif', 'header-tagline-character-still.png', 'icons/document.png'):
                 status, _, payload = self.request('GET', '/' + asset)
                 self.assertEqual(status, 200)
                 self.assertEqual(payload, (ROOT / 'static' / asset).read_bytes())

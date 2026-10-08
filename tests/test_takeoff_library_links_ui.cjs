@@ -21,7 +21,7 @@ async function test(name,fn){const h=harness();h.api.applyProject(await h.api.pr
     assert.equal(value.calls[1].title,'Complete selected item details');assert.deepEqual(value.calls[1].fields.map(field=>field[1]),['Location','Item QTY']);
     assert.deepEqual(value.result.details,{item_quantity:2,draft_quantity:2,draft_location:'L02 north'});assert.deepEqual(value.result.record,value.library);assert.equal(value.result.record.import_fields.service,null);
     assert.match(value.calls[1].message,/blank seal count/);const control=value.calls[1].controls.find(field=>field.control.name==='quantity').control;assert.equal(control.min,'1');assert.equal(control.step,'1');
-    assert.match(value.calls[1].message,/schedule changes only after you review and confirm/i);
+    assert.match(value.calls[1].message,/Confirm the physical records before transferring/i);
   });
   await test('known physical Location is retained and only missing Item QTY is requested',async()=>{
     const value=await picker([{library_id:'chosen'},{quantity:7}],{location:'Retained barrier location'});

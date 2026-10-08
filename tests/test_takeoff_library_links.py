@@ -25,7 +25,7 @@ from estimator.penetration_calculator import normalize_draft
 from estimator.server import create_server
 from estimator.takeoff_library_links import status, validate_assignments
 from estimator.takeoff_model import validate_snapshot
-from estimator.takeoff_physical import validate_graph
+from estimator.takeoff_physical import graph_collections, graph_parents, validate_graph
 from estimator.takeoff_physical_markers import service_summary
 from tests.test_firestopping_library import editable_library
 from tests.test_takeoff_physical_v2 import create
@@ -66,6 +66,30 @@ class TakeoffLibraryLinkTests(unittest.TestCase):
                    else create('defect', label='Explicit retained member'))
         self.physical([command], scope)
         return command['entity']['id']
+
+    def review_physical(self, member_ids, scope='defect_reports'):
+        """Explicit fixture review, separate from the read-only link preview."""
+        graph = self.state()['snapshot']['physical' if scope == 'defect_reports' else 'service_plans']
+        index = {entity['id']: (kind, entity) for kind, collection in graph_collections(graph).items()
+                 for entity in graph[collection]}
+        parents, reviewed, commands = graph_parents(graph), set(), []
+        for identifier in member_ids:
+            kind, entity = index[identifier]
+            while entity['id'] not in reviewed:
+                reviewed.add(entity['id'])
+                if entity.get('confirmation') != 'confirmed':
+                    commands.append({'op': 'update', 'entity_id': entity['id'],
+                                     'changes': {'confirmation': 'confirmed'}})
+                if kind not in parents:
+                    break
+                _, field = parents[kind]
+                kind, entity = index[entity[field]]
+        if commands:
+            self.physical(commands, scope)
+
+    def review_members(self, identifier):
+        record = self.record(identifier)
+        self.review_physical([member['id'] for member in record['members']], record['scope'])
 
     def assignment(self, members, mode='repeated_installations', note='', scope='defect_reports', library_id='pkb-001'):
         selected = self.library.takeoff_record(library_id)
@@ -154,6 +178,7 @@ class TakeoffLibraryLinkTests(unittest.TestCase):
         saved = self.library.action('pkb-001', 'save', {
             name: edit[name] for name in ('draft', 'revision', 'pricing_token')})
         identifier, _, _ = self.assignment([self.member()])
+        self.review_members(identifier)
         before, draft = self.state(), deepcopy(self.draft)
         with self.assertRaisesRegex(ValidationError, 'Complete Category before adding'):
             self.preview(identifier, 2)
@@ -170,6 +195,7 @@ class TakeoffLibraryLinkTests(unittest.TestCase):
 
     def test_preview_is_read_only_and_requires_reviewed_finite_positive_quantity(self):
         identifier, _, _ = self.assignment([self.member()])
+        self.review_members(identifier)
         before, schedule = self.state(), deepcopy(self.draft)
         preview = self.preview(identifier, 1.234567890123)
         self.assertEqual(preview['change']['next_quantity'], 1.234567890123)
@@ -182,6 +208,7 @@ class TakeoffLibraryLinkTests(unittest.TestCase):
 
     def test_confirmation_replay_and_reconfirmation_do_not_duplicate_contribution(self):
         identifier, _, _ = self.assignment([self.member()])
+        self.review_members(identifier)
         before = self.state()['snapshot']
         protected = self.calculator_storage()
         result, request = self.apply(self.preview(identifier, 3.123456789012))
@@ -205,6 +232,7 @@ class TakeoffLibraryLinkTests(unittest.TestCase):
 
     def test_existing_manual_quantity_globals_prices_and_other_rows_are_retained(self):
         identifier, _, _ = self.assignment([self.member()])
+        self.review_members(identifier)
         self.draft = {'globals': {'J': 'No'}, 'rows': [
             {'id': 'manual-row', 'library_item_id': 'pkb-001', 'inputs': {
                 'O': 10.125, 'AI': 123.123456789012, 'AJ': 45.987654321098,
@@ -221,7 +249,8 @@ class TakeoffLibraryLinkTests(unittest.TestCase):
 
     def test_aggregate_contributions_preserve_manual_baseline_and_reject_negative_remainder(self):
         first_member, second_member = self.member(), self.member()
-        first, _, _ = self.assignment([first_member]); second, _, _ = self.assignment([second_member])
+        first, _, _ = self.assignment([first_member]); self.review_members(first); second, _, _ = self.assignment([second_member])
+        self.review_members(second)
         self.confirm(first, 3); self.confirm(second, 4)
         self.assertEqual(self.draft['rows'][0]['inputs']['O'], 7)
         self.draft['rows'][0]['inputs']['O'] = 9.125
@@ -239,6 +268,7 @@ class TakeoffLibraryLinkTests(unittest.TestCase):
 
     def test_unchanged_decimal_contribution_preserves_exact_manual_quantity(self):
         identifier, _, _ = self.assignment([self.member()])
+        self.review_members(identifier)
         self.confirm(identifier, .1)
         self.draft['rows'][0]['inputs']['O'] = .3
         before = deepcopy(self.draft)
@@ -247,7 +277,8 @@ class TakeoffLibraryLinkTests(unittest.TestCase):
         self.assertEqual(result['penetration']['draft']['rows'][0]['inputs']['O'].hex(), (.3).hex())
 
     def test_decimal_aggregate_accepts_literal_point_three_and_rejects_true_deficit(self):
-        first, _, _ = self.assignment([self.member()]); second, _, _ = self.assignment([self.member()])
+        first, _, _ = self.assignment([self.member()]); self.review_members(first); second, _, _ = self.assignment([self.member()])
+        self.review_members(second)
         self.confirm(first, .1); self.confirm(second, .2)
         self.draft['rows'][0]['inputs']['O'] = .3
         self.draft['rows'][0]['inputs']['AI'] = 51.123456789012
@@ -265,7 +296,8 @@ class TakeoffLibraryLinkTests(unittest.TestCase):
         self.assertEqual(self.draft['rows'][0]['inputs']['AI'], 51.123456789012)
 
     def test_decimal_repeated_replacement_keeps_aggregate_reconfirmable_and_manual_prices(self):
-        first, _, _ = self.assignment([self.member()]); second, _, _ = self.assignment([self.member()])
+        first, _, _ = self.assignment([self.member()]); self.review_members(first); second, _, _ = self.assignment([self.member()])
+        self.review_members(second)
         self.confirm(first, .1); self.confirm(second, .1)
         self.draft['rows'][0]['inputs'].update(AI=123.123456789012, AJ=234.987654321098,
             T='Literal manual value stays exact')
@@ -301,8 +333,10 @@ class TakeoffLibraryLinkTests(unittest.TestCase):
         service = create('service', barrier['entity']['id'], service='Copper')
         self.physical([defect, barrier, service])
         first, _, _ = self.assignment([barrier['entity']['id']])
+        self.review_members(first)
         second, _, _ = self.assignment([barrier['entity']['id'], service['entity']['id']],
             'combined_installation', 'Explicitly reviewed one system around this service')
+        self.review_members(second)
         preview = self.preview(second, 1)
         self.assertEqual(preview['overlapping_assignment_ids'], [first])
         self.assertEqual(preview['assignment']['installation']['mode'], 'combined_installation')
@@ -317,6 +351,7 @@ class TakeoffLibraryLinkTests(unittest.TestCase):
             self.assignment(members, 'combined_installation')
         self.assertEqual(self.state(), before)
         identifier, _, _ = self.assignment(members, 'combined_installation', 'One explicitly reviewed combined installation')
+        self.review_members(identifier)
         for quantity in (.5, 2):
             with self.subTest(quantity=quantity), self.assertRaisesRegex(ValidationError, 'one quantity'):
                 self.preview(identifier, quantity)
@@ -326,6 +361,7 @@ class TakeoffLibraryLinkTests(unittest.TestCase):
 
     def test_stale_schedule_and_frozen_configuration_reject_atomically(self):
         identifier, _, _ = self.assignment([self.member()])
+        self.review_members(identifier)
         self.draft = {'globals': {'J': 'No'}, 'rows': [{'id': 'manual', 'library_item_id': 'pkb-001',
             'inputs': {'O': 10, 'AI': 50.123456789, 'AJ': 100.987654321}}]}
         preview, before = self.preview(identifier, 1), self.state()
@@ -337,6 +373,7 @@ class TakeoffLibraryLinkTests(unittest.TestCase):
 
     def test_saved_library_change_after_preview_rejects_and_repreview_captures_new_metadata(self):
         identifier, _, _ = self.assignment([self.member()])
+        self.review_members(identifier)
         preview, before = self.preview(identifier, 1), self.state()
         old = self.library.takeoff_record('pkb-001')
         self.change_library_description()
@@ -356,6 +393,7 @@ class TakeoffLibraryLinkTests(unittest.TestCase):
         barrier = create('barrier', defect['entity']['id'], substrate='Concrete')
         self.physical([defect, barrier])
         identifier, _, _ = self.assignment([barrier['entity']['id']])
+        self.review_members(identifier)
         self.confirm(identifier, 2.125)
         captured = deepcopy(self.record(identifier)); preview = self.preview(identifier, 2.125)
         self.physical([{'op': 'update', 'entity_id': defect['entity']['id'], 'changes': {'fields': {'label': 'Explicit changed parent'}}}])
@@ -368,6 +406,7 @@ class TakeoffLibraryLinkTests(unittest.TestCase):
             self.apply(preview)
         self.assertEqual(self.state(), before)
         self.assertEqual(self.draft, schedule)
+        self.review_members(identifier)
         self.confirm(identifier, 2.125)
         self.assertEqual(self.draft, schedule)
         self.assertEqual(self.record(identifier)['state'], 'confirmed')
@@ -375,6 +414,7 @@ class TakeoffLibraryLinkTests(unittest.TestCase):
 
     def test_deleted_member_and_missing_or_replaced_schedule_row_cannot_be_confirmed(self):
         member = self.member(); identifier, _, _ = self.assignment([member])
+        self.review_members(identifier)
         self.confirm(identifier, 2)
         retained = deepcopy(self.draft)
         for replacement in ([], [{**deepcopy(retained['rows'][0]), 'id': 'replacement'}]):
@@ -388,6 +428,7 @@ class TakeoffLibraryLinkTests(unittest.TestCase):
 
     def test_other_session_and_expired_replay_never_apply_cached_schedule_twice(self):
         identifier, _, _ = self.assignment([self.member()])
+        self.review_members(identifier)
         preview = self.preview(identifier, 3)
         other = self.service.open()
         self.addCleanup(self.service.close, other['session_id'])
@@ -404,7 +445,9 @@ class TakeoffLibraryLinkTests(unittest.TestCase):
         self.assertEqual(self.draft, result['penetration']['draft'])
 
     def test_ordinary_undo_cannot_discard_draft_or_confirmed_commercial_receipts(self):
-        identifier, _, _ = self.assignment([self.member()])
+        member = self.member()
+        self.review_physical([member])
+        identifier, _, _ = self.assignment([member])
         for confirmed in (False, True):
             if confirmed:
                 self.confirm(identifier, 1)
@@ -416,6 +459,7 @@ class TakeoffLibraryLinkTests(unittest.TestCase):
 
     def test_physical_edit_undo_retains_new_commercial_provenance_and_marks_recheck(self):
         member = self.member(); identifier, _, _ = self.assignment([member])
+        self.review_members(identifier)
         self.confirm(identifier, 1.25)
         retained = deepcopy(self.record(identifier)); schedule = deepcopy(self.draft)
         edited = self.physical([{'op': 'update', 'entity_id': member, 'changes': {'fields': {'label': 'Changed'}}}])
@@ -431,7 +475,8 @@ class TakeoffLibraryLinkTests(unittest.TestCase):
         self.case.documents.validate_audit(undone['snapshot'], owner=self.sid)
 
     def test_explicit_unlink_subtracts_only_retained_contribution_and_preserves_manual_row(self):
-        first, _, _ = self.assignment([self.member()]); second, _, _ = self.assignment([self.member()])
+        first, _, _ = self.assignment([self.member()]); self.review_members(first); second, _, _ = self.assignment([self.member()])
+        self.review_members(second)
         self.draft = {'globals': {'J': 'No'}, 'rows': [{'id': 'manual', 'library_item_id': 'pkb-001',
             'inputs': {'O': 10.125, 'AI': 100.123456789012, 'AJ': 200.987654321098,
                 'T': 'Retain all manual words', 'U': 'Retain system text'}}]}
@@ -460,6 +505,7 @@ class TakeoffLibraryLinkTests(unittest.TestCase):
 
     def test_unlink_deleted_member_keeps_zero_quantity_row_and_all_literal_fields(self):
         member = self.member(); identifier, _, _ = self.assignment([member])
+        self.review_members(identifier)
         self.confirm(identifier, 2)
         self.draft['rows'][0]['inputs'].update(AI=12.123456789, AJ=34.987654321, T='Keep zero row')
         original = deepcopy(self.draft)
@@ -478,6 +524,7 @@ class TakeoffLibraryLinkTests(unittest.TestCase):
 
     def test_unlink_rejects_stale_capture_invalid_new_quantity_and_negative_manual_remainder(self):
         identifier, _, _ = self.assignment([self.member()])
+        self.review_members(identifier)
         self.confirm(identifier, 2)
         preview = self.preview(identifier, 0, operation='unlink')
         edited = deepcopy(self.draft); edited['rows'][0]['inputs']['T'] = 'New human edit after review'
@@ -494,6 +541,7 @@ class TakeoffLibraryLinkTests(unittest.TestCase):
 
     def test_retained_confirmed_link_can_unlink_without_current_library_but_cannot_reconfirm(self):
         identifier, _, _ = self.assignment([self.member()])
+        self.review_members(identifier)
         self.draft = {'globals': {'J': 'No'}, 'rows': [{'id': 'manual', 'library_item_id': 'pkb-001',
             'inputs': {'O': 10.125, 'AI': 50.123456789012, 'AJ': 100.987654321098,
                 'T': 'Keep manual words even without shared library'}}]}
@@ -527,6 +575,7 @@ class TakeoffLibraryLinkTests(unittest.TestCase):
     def test_service_plan_scope_is_independent_and_does_not_populate_defect_reports(self):
         member = self.member('service_plans')
         identifier, _, _ = self.assignment([member], scope='service_plans')
+        self.review_members(identifier)
         result = self.confirm(identifier, 2)
         self.assertEqual(self.record(identifier)['scope'], 'service_plans')
         self.assertIsNone(result['snapshot']['physical'])
@@ -535,6 +584,7 @@ class TakeoffLibraryLinkTests(unittest.TestCase):
 
     def test_saved_project_reopens_exact_assignment_ids_audit_sources_and_schedule_values(self):
         identifier, _, _ = self.assignment([self.member()])
+        self.review_members(identifier)
         self.confirm(identifier, 1.234567890123)
         record, snapshot = deepcopy(self.record(identifier)), self.state()['snapshot']
         self.case.library.save_as({**deepcopy(self.case.base), 'takeoffs': snapshot,
@@ -556,7 +606,7 @@ class TakeoffLibraryLinkTests(unittest.TestCase):
         self.assert_source_unchanged()
 
     def test_forged_assignment_hashes_and_uncontrolled_audit_transitions_are_rejected(self):
-        identifier, _, _ = self.assignment([self.member()]); result = self.confirm(identifier, 1)
+        identifier, _, _ = self.assignment([self.member()]); self.review_members(identifier); result = self.confirm(identifier, 1)
         for field in ('context_sha256', 'library_sha256'):
             invalid = deepcopy(result['snapshot'])
             invalid['library_assignments']['records'][0]['confirmation'][field] = 'b' * 64
@@ -601,6 +651,7 @@ class TakeoffLibraryLinkTests(unittest.TestCase):
 
     def test_unavailable_library_preserves_all_current_state(self):
         identifier, _, _ = self.assignment([self.member()])
+        self.review_members(identifier)
         before = self.state()
         with patch.object(self.library, 'takeoff_record', side_effect=ValidationError('Selected library unavailable')):
             with self.assertRaisesRegex(ValidationError, 'unavailable'):
@@ -635,6 +686,8 @@ class TakeoffLibraryLinkTests(unittest.TestCase):
         self.assertNotIn('library_assignments', result['snapshot'])
         validate_snapshot(result['snapshot'])
         assignment, _, _ = self.assignment([command['entity']['id'] for command in commands])
+        self.review_members(assignment)
+        graph = deepcopy(self.state()['snapshot']['physical'])
         confirmed = self.confirm(assignment, 4.125)
         self.assertEqual(confirmed['snapshot']['physical'], graph)
         self.assertIsNone(confirmed['snapshot']['physical']['services'][0]['quantity'])
@@ -861,6 +914,7 @@ class TakeoffLibraryLinkApiTests(unittest.TestCase):
         self.assertEqual(code, 200)
         base = '/api/takeoffs/sessions/' + state['session_id']
         command = create('defect', label='API draft')
+        command['entity']['confirmation'] = 'confirmed'
         code, preview = self.request(base + '/physical/preview', {'expected_revision': 0, 'commands': [command]})
         self.assertEqual(code, 200, preview)
         code, state = self.request(base + '/physical/apply', {'expected_revision': 0,

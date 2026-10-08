@@ -38,7 +38,7 @@
     let generation=0,timer=null,controller=null,closed=false;
     try {
       const selected=await bridge.ask("Search Firestopping Library",[["search","Search library items","text",""],["library_id","Library item",[["","Type to search, then select an item"]],"",true]],
-        "Choose an item yourself. Selection imports its editable physical draft fields immediately. Search does not establish technical applicability or approval; the schedule stays unchanged until Confirm link and quantity.","Use selected item",async (controls,ready)=>{
+        "Choose an item yourself. Selection imports its editable physical draft fields immediately. Search does not establish technical applicability or approval; the schedule stays unchanged until the physical records are confirmed and transferred.","Use selected item",async (controls,ready)=>{
           const input=controls.find(field=>field.control.name==="search").control,select=controls.find(field=>field.control.name==="library_id").control,doc=input.ownerDocument;
           input.maxLength=200;const info=doc.createElement("p");info.className="helper";info.setAttribute("role","status");select.after(info);
           const previous=doc.createElement("button"),next=doc.createElement("button");for(const button of [previous,next]){button.type="button";button.className="button secondary";info.after(button);}previous.textContent="Previous results";next.textContent="Next results";
@@ -77,7 +77,7 @@
       const library=await record(selected.library_id),knownLocation=[context.location,library.import_fields.defect?.location,library.import_fields.barrier?.location].find(value=>typeof value==="string"&&value.trim()) || "";
       const fields=[...(!knownLocation.trim() ? [["location","Location","text","",true]] : []),["quantity","Item QTY","number","",true]];
       const details=await bridge.ask("Complete selected item details",fields,
-        `${libraryLabel(library)}\n${knownLocation ? `Location: ${knownLocation}\n` : ""}Enter the missing item details. Item QTY is the explicit positive integer ${library.import_fields.service ? "physical service count" : "blank seal count"}. Separate repeated installations use the recorded counts; one explicitly combined installation contributes 1. The Firestopping Schedule changes only after you review and confirm the transfer.`,"Use item details",controls=>{
+        `${libraryLabel(library)}\n${knownLocation ? `Location: ${knownLocation}\n` : ""}Enter the missing item details. Item QTY is the explicit positive integer ${library.import_fields.service ? "physical service count" : "blank seal count"}. Separate repeated installations use the recorded counts; one explicitly combined installation contributes 1. Confirm the physical records before transferring them to the Firestopping Schedule.`,"Use item details",controls=>{
           for(const field of controls){if(field.control.name==="location")field.control.maxLength=2000;if(field.control.name==="quantity"){field.control.min="1";field.control.max="1000000000000";field.control.step="1";}}
         });
       if(!details)return null;

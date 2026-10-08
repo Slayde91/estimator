@@ -73,16 +73,35 @@ def validate_quantity_source(value):
         _physical_quantity(value['quantity'])
 
 
-def assignment_quantity(snapshot, record):
+def _physical_context(snapshot, scope):
+    """Index one compiler-owned, immutable physical graph for this transaction."""
+    from .takeoff_physical import graph_collections, graph_parents
+    graph = snapshot.get('physical' if scope == 'defect_reports' else 'service_plans')
+    index = {entity['id']: (kind, entity) for kind, collection in graph_collections(graph).items()
+             for entity in graph[collection]}
+    return {'scope': scope, 'graph': graph, 'index': index, 'parents': graph_parents(graph),
+            'services': {identifier: entity for identifier, (kind, entity) in index.items() if kind == 'service'}}
+
+
+def _check_physical_context(snapshot, scope, context):
+    graph = snapshot.get('physical' if scope == 'defect_reports' else 'service_plans')
+    if context['scope'] != scope or context['graph'] is not graph:
+        raise ValidationError('An internal physical index must belong to this exact scope and graph transaction.')
+
+
+def assignment_quantity(snapshot, record, *, _physical=None):
     """Resolve only recorded members; parents, images and markers never add counts."""
     source = record.get('quantity_source')
+    if _physical is not None:
+        _check_physical_context(snapshot, record['scope'], _physical)
     if source is None:
         return None  # Retain the reviewed commercial semantics of saved/manual links.
     validate_quantity_source(source)
     if source['kind'] == 'blank_seals':
         return 1 if record['installation']['mode'] == 'combined_installation' else source['quantity']
     graph = snapshot.get('physical' if record['scope'] == 'defect_reports' else 'service_plans') or {}
-    services = {entity['id']: entity for entity in graph.get('services', [])}
+    services = ({entity['id']: entity for entity in graph.get('services', [])}
+                if _physical is None else _physical['services'])
     identifiers = [member['id'] for member in record['members'] if member['kind'] == 'service']
     if not identifiers:
         raise ValidationError('Select explicit service members; parent records do not infer descendant quantities.')
@@ -380,7 +399,7 @@ def validate_assignments(snapshot):
             raise ValidationError('An unconfirmed draft cannot have a schedule contribution.')
 
 
-def member_context(snapshot, scope, identifiers, installation):
+def member_context(snapshot, scope, identifiers, installation, *, _physical=None):
     from .takeoff_model import digest
     from .takeoff_physical import graph_collections, graph_parents
     if scope not in ('defect_reports', 'service_plans'):
@@ -395,7 +414,10 @@ def member_context(snapshot, scope, identifiers, installation):
         _id(identifier)
     if len(set(identifiers)) != len(identifiers):
         raise ValidationError('Select one to 100 distinct physical member IDs.')
-    index = {entity['id']: (kind, entity) for kind, collection in graph_collections(graph).items() for entity in graph[collection]}
+    if _physical is not None:
+        _check_physical_context(snapshot, scope, _physical)
+    index = ({entity['id']: (kind, entity) for kind, collection in graph_collections(graph).items() for entity in graph[collection]}
+             if _physical is None else _physical['index'])
     captured, related = [], {}
     for identifier in identifiers:
         _id(identifier)
@@ -405,7 +427,7 @@ def member_context(snapshot, scope, identifiers, installation):
         captured.append({'id': identifier, 'kind': kind, 'revision': entity['revision']})
         while entity:
             related[entity['id']] = {'kind': kind, 'entity': entity}
-            parent = graph_parents(graph).get(kind)
+            parent = (graph_parents(graph) if _physical is None else _physical['parents']).get(kind)
             if not parent:
                 break
             kind, entity = index[entity[parent[1]]]
@@ -414,6 +436,127 @@ def member_context(snapshot, scope, identifiers, installation):
     context = {'scope': scope, 'graph_id': graph['id'], 'installation': installation,
                'selected_ids': sorted(identifiers), 'related': [related[k] for k in sorted(related)]}
     return sorted(captured, key=lambda x: x['id']), digest(context)
+
+
+def assert_members_confirmed(snapshot, record, *, _physical=None):
+    """Require current manual review of explicit members and inherited context."""
+    from .takeoff_physical import graph_collections, graph_parents
+    members, context = member_context(snapshot, record['scope'],
+                                     [member['id'] for member in record['members']], record['installation'],
+                                     _physical=_physical)
+    if {(member['id'], member['kind']) for member in members} != {
+            (member['id'], member['kind']) for member in record['members']}:
+        raise ValidationError('The associated physical member types changed. Review the current library association.')
+    graph = snapshot['physical' if record['scope'] == 'defect_reports' else 'service_plans']
+    index = ({entity['id']: (kind, entity) for kind, collection in graph_collections(graph).items()
+              for entity in graph[collection]} if _physical is None else _physical['index'])
+    parents, checked = graph_parents(graph) if _physical is None else _physical['parents'], set()
+    for member in members:
+        kind, entity = index[member['id']]
+        while entity['id'] not in checked:
+            checked.add(entity['id'])
+            if entity.get('confirmation', 'unconfirmed') != 'confirmed':
+                raise ValidationError(f"Confirm {entity.get('display_id', kind)} and every associated parent, Barrier and Service before Transfer or Update linked rows.")
+            if kind not in parents:
+                break
+            parent_kind, field = parents[kind]
+            kind, entity = index[entity[field]]
+            if kind != parent_kind:
+                raise ValidationError('The associated physical parent type changed.')
+    return members, context
+
+
+def confirmed_transfer_preview(snapshot, scope, draft, library_lookup, configuration):
+    """Compile one atomic register transfer; selection and markers add no counts."""
+    from .penetration_calculator import normalize_draft, definition
+    from .takeoff_physical_operations import scope_key
+    graph = snapshot.get(scope_key(scope))
+    if not graph or graph['version'] not in (2, 3):
+        raise ValidationError('Open a current Defect Reports or Service Plans register before Transfer.')
+    validate_assignments(snapshot)
+    normalize_draft(draft)
+    after = deepcopy(snapshot)
+    physical_context = _physical_context(after, scope)
+    records = [record for record in snapshot.get('library_assignments', {}).get('records', [])
+               if record['scope'] == scope]
+    associated = {member['id'] for record in records for member in record['members']}
+    services = [entity for entity in graph.get('services', []) if not entity['deleted']]
+    service_parents = {entity['barrier_id'] for entity in services}
+    unassociated = sum(entity.get('confirmation') == 'confirmed' and entity['id'] not in associated
+                      for entity in services)
+    unassociated += sum(entity.get('confirmation') == 'confirmed' and not entity['deleted']
+                        and entity['id'] not in service_parents and entity['id'] not in associated
+                        for entity in graph.get('barriers', []))
+    skipped = {'unconfirmed': 0, 'already_linked': 0, 'unassociated': unassociated}
+    candidates, libraries = [], {}
+    for record in records:
+        if record['schedule_binding'] is not None:
+            skipped['already_linked'] += 1
+            continue
+        try:
+            assert_members_confirmed(after, record, _physical=physical_context)
+        except ValidationError:
+            skipped['unconfirmed'] += 1
+            continue
+        library_id = record['library']['id']
+        if library_id not in libraries:
+            libraries[library_id] = library_lookup(library_id)
+        library = libraries[library_id]
+        if library['metadata_sha256'] != record['library']['metadata_sha256']:
+            raise ValidationError('An associated library item changed. Review its current library link before Transfer; nothing was transferred.')
+        source = deepcopy(record.get('quantity_source'))
+        if source is None:
+            if library['import_fields']['service'] is None:
+                raise ValidationError('A Blank Seal association needs an explicit retained seal count before Transfer. Parent records and markers do not infer quantities.')
+            source = {'version': 1, 'kind': 'services'}
+        proposed = {**record, 'quantity_source': source}
+        quantity = assignment_quantity(after, proposed, _physical=physical_context)
+        candidates.append((record, library, source, quantity))
+    if not candidates:
+        raise ValidationError('No confirmed unlinked library items are ready to transfer. '
+            f"Confirm associated records ({skipped['unconfirmed']} unconfirmed assignments); add library items to unassociated records ({unassociated}). "
+            f"{skipped['already_linked']} assignments are already linked and were not counted twice.")
+    # Shared ancestors are valid: separate Services may use one Barrier. Only
+    # quantity-bearing members collide, including a previously linked member.
+    def quantity_members(record):
+        kind = record.get('quantity_source', {}).get('kind')
+        if kind is None:
+            # A historical manual link may predate physical quantity sources.
+            # Its explicit Services still occupy their identities; otherwise
+            # retain its Barrier occupancy rather than assume it adds no count.
+            member_kind = 'service' if any(member['kind'] == 'service' for member in record['members']) else 'barrier'
+        else:
+            member_kind = 'barrier' if kind == 'blank_seals' else 'service'
+        occupied_members = {member['id'] for member in record['members'] if member['kind'] == member_kind}
+        # Older explicit seal/manual associations may contain only a Defect.
+        # Its retained identity cannot disappear from collision checks merely
+        # because this layer has no Barrier or Service. No descendants are added.
+        return occupied_members or {member['id'] for member in record['members'] if member['kind'] == 'defect'}
+    occupied = {}
+    candidate_ids = {record['id'] for record, _, _, _ in candidates}
+    for record in records:
+        if record['schedule_binding'] is not None or record['id'] in candidate_ids:
+            for identifier in quantity_members(record):
+                if identifier in occupied:
+                    raise ValidationError('A physical Service or Blank Seal belongs to overlapping schedule associations. Resolve its library assignments before Transfer; nothing was transferred.')
+                occupied[identifier] = record['id']
+    output, changes, source_sha256 = deepcopy(draft), [], None
+    calculator_definition = definition(configuration)
+    for record, library, source, quantity in candidates:
+        result = confirmation_preview(after, record['id'], quantity, output, library,
+                                      configuration, quantity_source=source, _definition=calculator_definition,
+                                      _batch=True, _physical=physical_context)
+        after['library_assignments']['records'] = [result['assignment'] if entry['id'] == record['id'] else entry
+            for entry in after['library_assignments']['records']]
+        output = result['draft']
+        changes.append({**result['change'], 'assignment_id': record['id']})
+        source_sha256 = result['source_sha256']
+    # The compiler owns this draft and publishes nothing until every exact
+    # contribution succeeds. Retain full validation at both transaction bounds.
+    normalize_draft(output)
+    return {'snapshot': after, 'penetration': {'draft': output, 'source_sha256': source_sha256},
+            'library_link': {'action': 'transfer_confirmed', 'scope': scope, 'transferred': len(changes),
+                             'changes': changes, 'skipped': skipped}}
 
 
 def validate_proposal(proposed):
@@ -578,7 +721,7 @@ def validate_history(event):
                 raise ValidationError('A commercial contribution can change only through its reviewed schedule transaction.')
 
 
-def confirmation_preview(snapshot, assignment_id, quantity, draft, library, configuration, operation='confirm', quantity_source=None):
+def confirmation_preview(snapshot, assignment_id, quantity, draft, library, configuration, operation='confirm', quantity_source=None, *, _definition=None, _batch=False, _physical=None):
     from .penetration_calculator import normalize_draft, definition
     from .takeoff_model import digest
     _id(assignment_id)
@@ -605,7 +748,7 @@ def confirmation_preview(snapshot, assignment_id, quantity, draft, library, conf
         if source['kind'] == 'blank_seals' and record['installation']['mode'] == 'repeated_installations' and quantity_source is None:
             # The review explicitly edits this seal count; it never creates a service.
             source['quantity'] = _physical_quantity(quantity)
-        derived = assignment_quantity(snapshot, {**record, 'quantity_source': source})
+        derived = assignment_quantity(snapshot, {**record, 'quantity_source': source}, _physical=_physical)
         if quantity != derived or type(quantity) is not int:
             raise ValidationError(f'Transfer or Update must use the current explicit physical quantity ({derived}). Review the current service or blank seal counts.')
     else:
@@ -613,12 +756,13 @@ def confirmation_preview(snapshot, assignment_id, quantity, draft, library, conf
     if operation == 'confirm' and record['installation']['mode'] == 'combined_installation' and quantity != 1:
         raise ValidationError('Review one quantity for this explicit combined installation.')
     if operation == 'confirm':
-        members, context = member_context(snapshot, record['scope'], [m['id'] for m in record['members']], record['installation'])
+        members, context = assert_members_confirmed(snapshot, record, _physical=_physical)
     else:
         members, context = deepcopy(record['members']), record['context_sha256']
     # Validate without replacing original/manual literal values or globals.
-    normalize_draft(draft)
-    output = deepcopy(draft)
+    if not _batch:
+        normalize_draft(draft)
+    output = draft if _batch else deepcopy(draft)
     rows = output['rows']; linked = [r for r in rows if r.get('library_item_id') == library['id']]
     if len(linked) > 1:
         raise ValidationError('The schedule has duplicate rows for this library item.')
@@ -649,7 +793,7 @@ def confirmation_preview(snapshot, assignment_id, quantity, draft, library, conf
         row['inputs']['O'] = proposed
         action = 'unchanged' if proposed == current else 'update'
     else:
-        if len(rows) >= definition(configuration)['capacity']:
+        if len(rows) >= (_definition if _definition is not None else definition(configuration))['capacity']:
             raise ValidationError('The Firestopping Schedule is full.')
         used = {r['id'] for r in rows}; ordinal = 1
         while f'line-{ordinal}' in used:
@@ -658,7 +802,8 @@ def confirmation_preview(snapshot, assignment_id, quantity, draft, library, conf
         from .penetration_entry import validate_item_for_add
         validate_item_for_add({'globals': output['globals'], 'rows': [row]})
         rows.append(row); current = 0; proposed = quantity; action = 'insert'
-    normalize_draft(output)
+    if not _batch:
+        normalize_draft(output)
     updated = deepcopy(record)
     if source is not None:
         updated['quantity_source'] = source
@@ -671,9 +816,11 @@ def confirmation_preview(snapshot, assignment_id, quantity, draft, library, conf
         # Unlink changes only the reviewed contribution. Retain original metadata
         # so later re-confirmation still requires a fresh explicit review.
         updated['library'] = deepcopy(record['library'])
-    overlaps = [r['id'] for r in snapshot.get('library_assignments', {}).get('records', [])
+    overlaps = [] if _batch else [r['id'] for r in snapshot.get('library_assignments', {}).get('records', [])
         if r['id'] != record['id'] and r['scope'] == record['scope'] and set(m['id'] for m in r['members']) & set(m['id'] for m in record['members'])]
-    return {'assignment':updated, 'draft':output, 'base_fingerprint':digest({'draft':draft,'configuration':configuration}),
+    return {'assignment':updated, 'draft':output,
         'change':{'action':action,'operation':operation,'row_id':row['id'],'library_id':library['id'],'previous_quantity':current,'next_quantity':proposed,'prior_contribution':old,'confirmed_contribution':quantity},
-        'library':deepcopy(library), 'overlapping_assignment_ids':overlaps, 'source_sha256':definition(configuration)['source_sha256'],
+        **({} if _batch else {'base_fingerprint':digest({'draft':draft,'configuration':configuration}),
+                              'library':deepcopy(library), 'overlapping_assignment_ids':overlaps}),
+        'source_sha256':(_definition if _definition is not None else definition(configuration))['source_sha256'],
         **({'derived_quantity': derived, 'quantity_source': deepcopy(source)} if source is not None and operation == 'confirm' else {})}

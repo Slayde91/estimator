@@ -189,7 +189,7 @@
       renderOverlay();
     });
     const eye = node("img"); eye.src = "/icons/takeoff-visibility.png"; eye.alt = ""; eye.width = 32; eye.height = 32;
-    control.replaceChildren(eye); control.classList.add("icon-only", "takeoff-icon-button"); control.setAttribute("aria-label", "Visibility");
+    control.replaceChildren(eye); control.classList.add("icon-only", "takeoff-icon-button", "takeoff-current-visibility"); control.setAttribute("aria-label", "Visibility");
     control.refresh = () => { const isHidden = hidden().has(id); control.setAttribute("aria-pressed", String(isHidden)); control.title = `Visibility: ${isHidden ? "show" : "hide"} current ${kind === "annotation" ? "Call-out" : "item"}`; };
     control.refresh(); return control;
   }
@@ -704,6 +704,7 @@
       libraryCommand: async (op, values) => { const reply = await command(op, values); return { ...reply, snapshot: physicalSnapshot(reply.snapshot) }; },
       libraryPreview: previewLibraryLink,
       libraryApply: applyLibraryLink,
+      transferConfirmedLibraryRegister,
       editLibraryRow: async (rowId, libraryId) => {
         await flushSettings(); requireFinishedEdits();
         if (state.busy || state.linkedRecovery) throw new Error("Finish or recover the current Takeoff operation before editing linked pricing.");
@@ -3696,13 +3697,21 @@
     return reply;
   }
   function applyLibraryLink(previewId) {
-    const preview = state.libraryPreviews?.get(previewId);
+    return applyLibraryOperation(state.libraryPreviews?.get(previewId), "library/apply", { preview_id: previewId });
+  }
+  async function transferConfirmedLibraryRegister(scope) {
+    const sessionId = state.session?.session_id, revision = state.session?.revision;
+    if (scope !== state.physicalScope) throw new Error("Select the current physical register again.");
+    const capture = await window.CeasefirePenetrations.captureTakeoffSchedule();
+    return applyLibraryOperation({ capture, sessionId, revision, scope }, "library/transfer-confirmed", { scope });
+  }
+  function applyLibraryOperation(preview, endpoint, values) {
     const task = state.queue.then(async () => {
       if (!preview || preview.sessionId !== state.session?.session_id || preview.revision !== state.session?.revision || preview.scope !== state.physicalScope) throw new Error("The project or library link changed. Review it again.");
       if (state.formDirty || state.settingsDirty || state.gesture || state.points.length || state.pendingViewport || state.linkedRecovery) throw new Error("Finish the current edits before confirming the library link.");
       const bridge = window.CeasefirePenetrations;
-      const pending = { type: "library", sessionId: preview.sessionId, endpoint: "library/apply", reservation: null, lockedControls: [],
-        payload: { expected_revision: preview.revision, request_id: uuid(), preview_id: previewId, draft: preview.capture.draft, configuration: preview.capture.configuration } };
+      const pending = { type: "library", sessionId: preview.sessionId, endpoint, reservation: null, lockedControls: [],
+        payload: { expected_revision: preview.revision, request_id: uuid(), ...values, draft: preview.capture.draft, configuration: preview.capture.configuration } };
       try {
         pending.reservation = bridge.reserveTakeoffSchedule(preview.capture);
         working(true);

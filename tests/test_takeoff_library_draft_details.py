@@ -291,6 +291,8 @@ class LibraryDraftDetailsTests(unittest.TestCase):
     def test_preview_requires_explicit_quantity_and_draft_default_never_approves_or_updates_automatically(self):
         imported = self.import_item(draft_quantity=2.750000000123, draft_location='User-entered item location')['snapshot']
         record = self.record(imported)
+        self.links.review_members(record['id'])
+        imported = self.state()
         self.links.draft = {'globals': {'J': 'No'}, 'rows': [{'id': 'manual-row', 'library_item_id': 'pkb-001',
             'inputs': {'O': 10.125, 'AI': 50.123456789012, 'AJ': 100.987654321098, 'T': 'Retain manual schedule details'}}]}
         manual = deepcopy(self.links.draft)
@@ -322,6 +324,7 @@ class LibraryDraftDetailsTests(unittest.TestCase):
     def test_later_audit_cannot_rewrite_original_entered_details_or_reuse_assignment_version(self):
         imported = self.import_item(draft_quantity=2.75, draft_location='Originally entered location')['snapshot']
         original = deepcopy(self.record(imported))
+        self.links.review_members(original['id'])
         confirmed = self.links.confirm(original['id'], 3.125)['snapshot']
         record = self.record(confirmed)
         self.assertGreater(record['version'], original['version'])

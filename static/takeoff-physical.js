@@ -492,6 +492,14 @@
         if (!await (operation === "unlink" ? unlinkLibrary(value) : confirmLibraryLink(value))) break;
       }
     }
+    async function transferConfirmedRegister() {
+      await completePendingEdits(); ensureAvailable(); ensureEditable();
+      if (!bridge.transferConfirmedLibraryRegister) throw new Error("The confirmed register transfer is unavailable.");
+      const reply = await bridge.transferConfirmedLibraryRegister(scope());
+      displayReply(reply);
+      const summary = reply.library_link;
+      bridge.notify(`${summary.transferred} confirmed library item${summary.transferred === 1 ? "" : "s"} transferred. ${summary.skipped?.unconfirmed || 0} unconfirmed associations skipped; confirm their records before transfer. ${summary.skipped?.already_linked || 0} already linked. ${summary.skipped?.unassociated || 0} confirmed records need a library item.`, false);
+    }
     async function attachLibraryToSelected() {
       await completePendingEdits();ensureAvailable();ensureEditable();
       const entries=selectEntries();if(!entries.length||entries.some(entry=>entry.entity.deleted))throw new Error("Select active physical members to associate explicitly.");
@@ -661,23 +669,6 @@
       }
       try { const batch = bulkCommands([entry], key, control.value); if (!batch.commands.length) { control.value = state.bindings.get(control).original; state.pending.delete(control); } else await perform(batch.commands, `Change ${titles[entry.kind].toLowerCase()} ${key}`, true, false); }
       finally { changed(); if (!state.destroyed && !state.pending.size) renderData(); }
-    }
-    async function bulkEdit() {
-      ensureAvailable(); const selected = selectEntries();
-      if (!selected.length || selected.some(entry => entry.entity.deleted) || selected.some(entry => entry.kind !== selected[0].kind)) throw new Error("Select active records of one entity type for a bulk edit.");
-      if (selected.length > 100) throw new Error("A bulk operation supports at most 100 selected records. No changes have been applied.");
-      const kind = selected[0].kind; await ensureFieldOptions(kind); selected.forEach(requireCurrent);
-      const options = fieldDefinitions(null, kind).filter(([key]) => key !== "confirmation").map(([key, label]) => [key, label]);
-      const selectedField = await ask(`Choose field for ${selected.length} draft records`, [["field", "Field to change", options, "", true]], "Choose the one property to change across the selected records.", "Continue");
-      if (!selectedField) return;
-      const definition = options.find(([key]) => key === selectedField.field); if (!definition) throw new Error("Choose a field belonging to this entity type.");
-      const type = fieldType(kind, selectedField.field);
-      if (Array.isArray(type)) for (const entry of selected) { const value = entry.entity.fields[selectedField.field]; if (value && !type.some(([key]) => key === value)) type.push([value, `${value} (retained)`]); }
-      const answer = await ask(`Edit ${selected.length} draft ${kind} records`, [["value", definition[1], type, "", selectedField.field === "quantity"]], `All ${selected.length} selected IDs will be included, even when filtered out. Other properties and every parent link remain unchanged. Blank clears an optional property. Service quantities cannot be blank or zero. One applied batch can be undone together.`, "Preview bulk edit");
-      if (!answer) return; selected.forEach(requireCurrent);
-      const batch = bulkCommands(selected, selectedField.field, answer.value);
-      if (!batch.commands.length) { bridge.notify(`All ${selected.length} selected records already have this value. No physical changes were applied.`, false); return; }
-      await perform(batch.commands, `Change ${batch.commands.length} of ${selected.length} selected records? ${batch.unchanged.length} already match and stay unchanged.`);
     }
     async function applyBulkValue() {
       ensureAvailable(); const selected = selectEntries();
@@ -1004,7 +995,7 @@
       return lineage.find(value => !value.entity.deleted && (value.entity.marker || value.entity.annotation)) || null;
     }
     function visibilityButton(entry, owner) {
-      const control = node("button", "button secondary icon-only takeoff-icon-button takeoff-physical-visibility"), icon = node("img"), identity = `${scope()}/${state.snapshot?.project_id || ""}/${graph()?.id || "new"}`;
+      const control = node("button", "button secondary icon-only takeoff-icon-button takeoff-physical-visibility takeoff-current-visibility"), icon = node("img"), identity = `${scope()}/${state.snapshot?.project_id || ""}/${graph()?.id || "new"}`;
       control.type = "button"; control.setAttribute("aria-label", "Visibility"); icon.src = "/icons/takeoff-visibility.png"; icon.alt = ""; icon.width = 32; icon.height = 32; icon.setAttribute("aria-hidden", "true"); control.append(icon);
       const sync = () => { const hidden = state.hidden.has(owner.entity.id); control.setAttribute("aria-pressed", String(hidden)); control.title = `${hidden ? "Show" : "Hide"} callout ${displayId(owner)}`; };
       sync();
@@ -1167,8 +1158,7 @@
     const deleteSelection = mutationButton("Delete", deleteSelected); deleteSelection.setAttribute("aria-label", "Delete selected records"); deleteSelection.title = "Delete selected records";
     ui.selection = node("strong"); filters.append(search, deleted,
       ui.selectFiltered = iconAction("Select filtered records", () => { ensureAvailable(); const rows = matchingActiveRows(), deselect = rows.length > 0 && rows.every(row => state.selected.has(row.entity.id)); for (const row of rows) deselect ? state.selected.delete(row.entity.id) : state.selected.add(row.entity.id); state.inspectedId = null; renderData(); }, ["M4 3h16a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z", "m7 12 3 3 7-7"]),
-      iconAction("Bulk edit same-type records", bulkEdit, ["M9 21H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v5M2 8h18M2 14h7M8 2v19M4 5l1 1 1-2M4 11l1 1 1-2M4 17l1 1 1-2M11 5h6M11 11h2", "M21 16a5 5 0 0 0-9 0m9-4v4h-4M12 19a5 5 0 0 0 9 0m-9 4v-4h4"], true),
-      iconAction("Transfer to Firestopping Schedule", () => selectedLibraryAction("transfer"), ["M12 4v16M4 12h16"], true),
+      iconAction("Transfer to Firestopping Schedule", transferConfirmedRegister, ["M12 4v16M4 12h16"], true),
       iconAction("Update linked rows", () => selectedLibraryAction("update"), ["M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z", "M12 6v6h6"], true),
       iconAction("Unlink from Firestopping Schedule", () => selectedLibraryAction("unlink"), ["M9 7H7a5 5 0 0 0 0 10h2M15 7h2a5 5 0 0 1 0 10h-2"], true)); ui.root.append(filters);
     ui.bulk = node("div", "takeoff-register-controls takeoff-bulk takeoff-physical-bulk"); ui.bulkField = node("select"); ui.bulkField.dataset.physicalMutation = "true"; ui.bulkValue = node("input"); ui.bulkValue.dataset.physicalMutation = "true"; ui.bulkValue.type = "text"; ui.bulkValue.placeholder = "New value (blank clears)"; ui.bulkValue.setAttribute("aria-label", "Bulk physical edit value");

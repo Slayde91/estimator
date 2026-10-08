@@ -136,6 +136,7 @@ class ServiceQuantityLinkTests(unittest.TestCase):
                 result, _ = self.associate(selected, scope=scope, source={'version': 1, 'kind': 'services'})
                 record = self.record()
                 self.assertEqual(assignment_quantity(result['snapshot'], record), 7)
+                self.links.review_members(record['id'])
                 preview = self.links.preview(record['id'], 7)
                 self.assertEqual(preview['derived_quantity'], 7)
                 self.links.apply(preview)
@@ -146,7 +147,9 @@ class ServiceQuantityLinkTests(unittest.TestCase):
         _, services = self.services((3, 4))
         result, _ = self.associate([entity['id'] for entity in services], mode='combined_installation',
                                    source={'version': 1, 'kind': 'services'})
-        identifier = self.record()['id']; before = deepcopy(result['snapshot']['physical'])
+        identifier = self.record()['id']
+        self.links.review_members(identifier)
+        before = deepcopy(self.state()['physical'])
         self.assertEqual(assignment_quantity(self.state(), self.record()), 1)
         with self.assertRaises(ValidationError):
             self.links.preview(identifier, 7)
@@ -201,11 +204,14 @@ class ServiceQuantityLinkTests(unittest.TestCase):
         commands, identifier, _ = self.links.unknown_import()
         self.links.physical(commands)
         self.associate([identifier], source={'version': 1, 'kind': 'services'})
-        record = self.record(); before = deepcopy(self.state())
+        record = self.record()
+        self.links.review_members(record['id'])
+        before = deepcopy(self.state())
         with self.assertRaisesRegex(ValidationError, 'quantity is unknown.*View/Edit'):
             self.links.preview(record['id'], 1)
         self.assertEqual(self.state(), before)
         self.links.physical([{'op': 'update', 'entity_id': identifier, 'changes': {'quantity': 6}}])
+        self.links.review_members(record['id'])
         self.links.confirm(record['id'], 6)
         self.assertEqual(self.links.draft['rows'][0]['inputs']['O'], 6)
 
@@ -217,10 +223,12 @@ class ServiceQuantityLinkTests(unittest.TestCase):
         self.links.draft = {'globals': {'J': 'No'}, 'rows': [{'id': 'manual-row', 'library_item_id': 'pkb-001',
             'inputs': {'O': 10.125, 'AI': 50.123456789012, 'AJ': 100.987654321098, 'T': 'Retain exact manual text'}}]}
         original = deepcopy(self.links.draft)
+        self.links.review_members(first['id']); self.links.review_members(second['id'])
         self.links.confirm(first['id'], 3); self.links.confirm(second['id'], 4)
         self.links.physical([{'op': 'update', 'entity_id': service['id'], 'changes': {'quantity': 5}}])
         self.assertEqual(self.record(first['id'])['state'], 'needs_recheck')
         self.assertEqual(self.links.draft['rows'][0]['inputs']['O'], 17.125)
+        self.links.review_members(first['id'])
         with self.assertRaisesRegex(ValidationError, 'current explicit physical quantity'):
             self.links.preview(first['id'], 3)
         preview = self.links.preview(first['id'], 5)
@@ -236,10 +244,12 @@ class ServiceQuantityLinkTests(unittest.TestCase):
 
     def test_stale_physical_schedule_or_price_capture_never_applies_derived_contribution(self):
         self.imported(3); identifier = self.record()['id']; service = self.state()['physical']['services'][0]
+        self.links.review_members(identifier)
         preview = self.links.preview(identifier, 3)
         self.links.physical([{'op': 'update', 'entity_id': service['id'], 'changes': {'quantity': 5}}])
         with self.assertRaises(ValidationError):
             self.links.apply(preview)
+        self.links.review_members(identifier)
         preview = self.links.preview(identifier, 5); before = deepcopy(self.state())
         for override in ({'configuration': {'labour_hourly_rate': 123.45}},
                          {'draft': {'globals': {'J': 'No'}, 'rows': [{'id': 'new-manual', 'inputs': {'O': 1}}]}}):
@@ -249,6 +259,7 @@ class ServiceQuantityLinkTests(unittest.TestCase):
 
     def test_unlink_subtracts_retained_old_contribution_not_changed_physical_quantity(self):
         self.imported(3); identifier = self.record()['id']; service = self.state()['physical']['services'][0]
+        self.links.review_members(identifier)
         self.links.confirm(identifier, 3)
         self.links.draft['rows'][0]['inputs']['O'] = 4.125
         self.links.physical([{'op': 'update', 'entity_id': service['id'], 'changes': {'quantity': 9}}])
@@ -264,6 +275,7 @@ class ServiceQuantityLinkTests(unittest.TestCase):
         self.blank(); self.imported(6); identifier = self.record()['id']
         self.assertEqual(self.state()['physical']['services'], [])
         self.assertEqual(self.record()['quantity_source'], {'version': 1, 'kind': 'blank_seals', 'quantity': 6})
+        self.links.review_members(identifier)
         self.links.confirm(identifier, 6)
         self.links.confirm(identifier, 8)
         self.assertEqual(self.record()['quantity_source']['quantity'], 8)
@@ -280,11 +292,13 @@ class ServiceQuantityLinkTests(unittest.TestCase):
         imported = self.case.apply(self.case.proposal(draft_quantity=2.75))[0]['snapshot']
         record = self.record(); service = imported['physical']['services'][0]
         self.assertNotIn('quantity_source', record)
+        self.links.review_members(record['id'])
         self.links.confirm(record['id'], 2.75)
         self.assertNotIn('quantity_source', self.record())
         with self.assertRaisesRegex(ValidationError, 'quantity is unknown'):
             self.links.preview(record['id'], 1, quantity_source={'version': 1, 'kind': 'services'})
         self.links.physical([{'op': 'update', 'entity_id': service['id'], 'changes': {'quantity': 7}}])
+        self.links.review_members(record['id'])
         preview = self.links.preview(record['id'], 7, quantity_source={'version': 1, 'kind': 'services'})
         self.assertNotIn('quantity_source', self.record())  # Preview is read-only.
         self.links.apply(preview)
@@ -294,7 +308,9 @@ class ServiceQuantityLinkTests(unittest.TestCase):
 
     def test_legacy_blank_adoption_is_explicit_integer_and_kind_cannot_be_forged(self):
         self.blank(); self.case.apply(self.case.proposal(draft_quantity=.375))
-        identifier = self.record()['id']; before = deepcopy(self.state())
+        identifier = self.record()['id']
+        self.links.review_members(identifier)
+        before = deepcopy(self.state())
         with self.assertRaises(ValidationError):
             self.links.preview(identifier, 2, quantity_source={'version': 1, 'kind': 'blank_seals', 'quantity': 3})
         with self.assertRaises(ValidationError):
@@ -322,6 +338,7 @@ class ServiceQuantityLinkTests(unittest.TestCase):
 
     def test_unlink_and_deleted_member_keep_retained_counts_and_do_not_adopt_new_source(self):
         self.imported(3); identifier = self.record()['id']; service = self.state()['physical']['services'][0]
+        self.links.review_members(identifier)
         self.links.confirm(identifier, 3)
         before = deepcopy(self.state())
         with self.assertRaisesRegex(ValidationError, 'Unlink preserves'):
@@ -340,13 +357,16 @@ class ServiceQuantityLinkTests(unittest.TestCase):
         self.associate([self.case.defect['entity']['id']], mode='combined_installation',
                        source={'version': 1, 'kind': 'blank_seals', 'quantity': 8})
         identifier = self.record()['id']
+        self.links.review_members(identifier)
         self.links.confirm(identifier, 1)
         self.assertEqual(self.record()['quantity_source']['quantity'], 8)
         self.assertEqual(self.record()['schedule_binding']['quantity'], 1)
         self.assertEqual(self.state()['physical']['services'], [])
 
     def test_portable_save_reopen_and_history_retain_source_and_physical_count(self):
-        self.imported(7); identifier = self.record()['id']; self.links.confirm(identifier, 7)
+        self.imported(7); identifier = self.record()['id']
+        self.links.review_members(identifier)
+        self.links.confirm(identifier, 7)
         before = deepcopy(self.state())
         self.links.case.library.save_as({**deepcopy(self.links.case.base), 'takeoffs': before,
             'takeoffs_session_id': self.sid, 'penetration': {'draft': deepcopy(self.links.draft)}})
@@ -364,7 +384,9 @@ class ServiceQuantityLinkTests(unittest.TestCase):
         self.assertEqual(self.links.case.target.read_bytes(), payload)
 
     def test_audit_rejects_unreviewed_source_adoption_kind_switch_and_wrong_contribution(self):
-        self.imported(3); identifier = self.record()['id']; self.links.confirm(identifier, 3)
+        self.imported(3); identifier = self.record()['id']
+        self.links.review_members(identifier)
+        self.links.confirm(identifier, 3)
         event = self.links.case.documents.get_blob(self.state()['audit_head'])
         validate_history(event)
         forged = deepcopy(event)

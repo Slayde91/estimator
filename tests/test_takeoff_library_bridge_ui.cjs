@@ -19,7 +19,7 @@ function harness() {
     document: { getElementById() { return null; }, createElement: element } };
   vm.createContext(context);
   const source = fs.readFileSync("static/takeoffs.js", "utf8").replace("  window.CeasefireTakeoffs = {", `
-  globalThis.audit = { state, applyLibraryLink, recoverLinkedOperation,
+  globalThis.audit = { state, applyLibraryLink, transferConfirmedLibraryRegister, recoverLinkedOperation,
     setApi(fn) { api = fn; }, setDataRenderer(fn) { renderData = fn; } };
   window.CeasefireTakeoffs = {`);
   vm.runInContext(source, context);
@@ -42,6 +42,7 @@ function harness() {
   const calls = [], reservations = [], releases = [], applied = [];
   let lease = null, installed = copy(capture.draft), renders = 0;
   const bridge = {
+    async captureTakeoffSchedule() { return copy(capture); },
     reserveTakeoffSchedule(value) {
       assert.equal(lease, null); assert.deepEqual(copy(value), capture);
       lease = { capture: copy(value), released: false }; reservations.push(lease); return lease;
@@ -63,6 +64,31 @@ function harness() {
 let passed = 0;
 async function test(name, action) { await action(); ++passed; console.log(`ok - ${name}`); }
 (async () => {
+  await test("Confirmed register transfer captures and reserves the whole schedule without a quantity dialog or a selected-item preview", async () => {
+    const h = harness();
+    await h.transferConfirmedLibraryRegister("defect_reports");
+    assert.equal(h.calls.length, 1); assert.equal(h.calls[0].endpoint, "/sessions/session/library/transfer-confirmed");
+    assert.equal(h.calls[0].payload.scope, "defect_reports"); assert.equal(h.calls[0].payload.expected_revision, 7);
+    assert.ok(!Object.hasOwn(h.calls[0].payload, "quantity")); assert.ok(!Object.hasOwn(h.calls[0].payload, "preview_id"));
+    assert.deepEqual(h.calls[0].payload.draft, h.capture.draft); assert.deepEqual(h.calls[0].payload.configuration, h.capture.configuration);
+    assert.equal(h.reservations.length, 1); assert.equal(h.releases.length, 1); assert.equal(h.applied.length, 1);
+  });
+  await test("Changed scope or revision during schedule capture sends no confirmed-register request", async () => {
+    const h = harness();
+    await assert.rejects(h.transferConfirmedLibraryRegister("service_plans"), /current physical register/);
+    h.bridge.captureTakeoffSchedule = async () => { h.state.session.revision++; return copy(h.capture); };
+    await assert.rejects(h.transferConfirmedLibraryRegister("defect_reports"), /project or library link changed/);
+    assert.equal(h.calls.length, 0); assert.equal(h.reservations.length, 0);
+  });
+  await test("Uncertain confirmed-register response retries the same reserved request without creating a second contribution", async () => {
+    const h = harness(); let attempts = 0;
+    h.setApi(async (endpoint, payload) => { h.calls.push({ endpoint, payload: copy(payload) }); if (++attempts < 3) throw Object.assign(Error("Failed to fetch"), { uncertainOutcome: true }); return copy(h.reply); });
+    await assert.rejects(h.transferConfirmedLibraryRegister("defect_reports"), /needs a response/);
+    assert.ok(h.state.linkedRecovery); assert.deepEqual(h.calls[0], h.calls[1]); assert.equal(h.reservations.length, 1);
+    await h.recoverLinkedOperation();
+    assert.equal(h.state.linkedRecovery, null); assert.equal(h.applied.length, 1); assert.equal(h.releases.length, 1);
+    assert.deepEqual(h.calls[0], h.calls[2]);
+  });
   await test("Acquired destination reservation is released after synchronous Working display failure", async () => {
     const h = harness(), setAttribute = h.root.setAttribute;
     h.root.setAttribute = function (key, value) {

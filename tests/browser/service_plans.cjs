@@ -125,9 +125,10 @@ async function controls() {
   await expect(page.locator('.takeoff-physical-register').getByRole('button', { name: 'Discard unfinished physical edits', exact: true })).toHaveCount(0);
   const style = locator => locator.evaluate(el => { const css = getComputedStyle(el); return { color: css.color, background: css.backgroundColor, border: css.borderColor }; });
   await expect(trash).toHaveText('Delete');assert.equal((await style(trash)).background,(await style(discard)).background);
-  for (const name of ['Select filtered records', 'Bulk edit same-type records']) {
+  for (const name of ['Select filtered records']) {
     const button = page.getByRole('button', { name, exact: true }); await expect(button.locator('svg')).toHaveCount(1); assert.equal((await button.innerText()).trim(), '');
   }
+  await expect(page.getByRole('button',{name:'Bulk edit same-type records',exact:true})).toHaveCount(0);
   await expect(page.getByRole('button',{name:'Clear physical selection',exact:true})).toHaveCount(0);
   for (const format of ['CSV', 'XLSX']) {
     await expect(page.getByRole('button', { name: `Export draft ${format}`, exact: true })).toHaveCount(0);
@@ -222,6 +223,12 @@ async function controls() {
   const dx = Math.max(boxX - markerX, 0, markerX - boxX - boxWidth), dy = Math.max(boxY - markerY, 0, markerY - boxY - boxHeight);
   assert.ok(Math.hypot(dx, dy) > calloutPlacement.radius, 'The complete red marker must remain clear of callout text');
   evidence.calloutPlacement = calloutPlacement;
+  const visibility=details().getByRole('button',{name:'Visibility',exact:true}),beforeVisibility=structuredClone(state),offVisibilityColor=await visibility.evaluate(el=>getComputedStyle(el).backgroundColor);
+  await expect(visibility).toHaveAttribute('aria-pressed','false');await visibility.click();await expect(visibility).toHaveAttribute('aria-pressed','true');await expect(callout(barrier)).toHaveCount(0);
+  await expect.poll(()=>visibility.evaluate(el=>getComputedStyle(el).backgroundColor)).toBe('rgb(255, 217, 220)');await snapshot();assert.deepEqual(state,beforeVisibility);
+  await page.keyboard.press('Tab');await visibility.focus();await expect(visibility).toBeFocused();
+  assert.equal(await visibility.evaluate(el=>el.matches(':focus-visible')),true);const focusedVisibility=await visibility.evaluate(el=>({style:getComputedStyle(el).outlineStyle,width:parseFloat(getComputedStyle(el).outlineWidth)}));assert.notEqual(focusedVisibility.style,'none');assert.ok(focusedVisibility.width>=2);evidence.currentVisibilityKeyboardFocusVisible=true;
+  await page.keyboard.press('Space');await page.mouse.move(0,0);await expect(visibility).toHaveAttribute('aria-pressed','false');await expect(callout(barrier)).toBeVisible();await expect.poll(()=>visibility.evaluate(el=>getComputedStyle(el).backgroundColor)).toBe(offVisibilityColor);await snapshot();assert.deepEqual(state,beforeVisibility);evidence.currentVisibilityActiveLightRed=true;
   assert.equal(state.calibrations.length, 0, 'A barrier Count marker requires no scale'); assert.equal(state.items.length, 0, 'Barrier counts must not create steel/duct quantity rows');
   const detailBox = await page.locator('.takeoff-physical-details').boundingBox(), drawingBox = await page.locator('.takeoff-viewport').boundingBox();
   assert.ok(detailBox.x + detailBox.width <= drawingBox.x + 2, 'Item Details sits left of the PDF page');

@@ -1808,6 +1808,34 @@ class TakeoffService:
                 {'penetration': response['penetration'], 'library_link': response['library_link']})
             return response
 
+    def transfer_confirmed_library(self, session_id, request):
+        from .catalog import validate_configuration
+        from .takeoff_library_links import confirmed_transfer_preview
+        with self._lock, self._library_lock():
+            fields = {'scope', 'expected_revision', 'request_id', 'draft', 'configuration'}
+            object_fields(request, fields, 'Confirmed register transfer', fields)
+            # One controlled commercial-link receipt can contain several exact
+            # assignments. Physical review and existing contributions stay intact.
+            actual = {**request, 'op': 'apply_library_link'}
+            session, prior = self._start(session_id, actual)
+            before = session['snapshot']
+            self._physical_gate(session_id, before)
+            if prior:
+                return prior
+            configuration = validate_configuration(request['configuration'])
+            compiled = confirmed_transfer_preview(before, request['scope'], request['draft'],
+                                                   self._selected_library, configuration)
+            payload = {key: compiled[key] for key in ('penetration', 'library_link')}
+            # Fail before committing if a retry response cannot be retained.
+            if len(json.dumps(payload, ensure_ascii=False, separators=(',', ':'), allow_nan=False).encode()) > SESSION_CACHE_BYTES:
+                raise ValidationError('This register transfer exceeds the supported response memory limit. Split the project before Transfer; nothing was transferred.')
+            response = self._commit(session_id, actual, before, compiled['snapshot'])
+            response.update(deepcopy(payload))
+            session['requests'][request['request_id']].update(applied_library_link=True,
+                                                             applied_revision=response['revision'])
+            self._cache_payload(session_id, 'requests', request['request_id'], payload)
+            return response
+
     def preview_transfer(self, session_id, request):
         with self._lock:
             if not isinstance(request, dict):

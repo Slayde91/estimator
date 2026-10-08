@@ -105,6 +105,8 @@ class LibraryBarrierImportTests(unittest.TestCase):
         self.assertTrue(selection['mismatch_accepted']); self.assertTrue(selection['differences'])
         self.assertEqual(selection['retained_fields'], barrier['fields'])
         self.assertIsNone(assignment['schedule_binding']); self.assertEqual(self.fixture.draft['rows'], [])
+        self.fixture.review_members(assignment['id'])
+        barrier = deepcopy(self.state()['physical']['barriers'][0])
         self.fixture.draft = {'globals': {'J': 'No'}, 'rows': [{'id': 'manual-row', 'library_item_id': self.library['id'],
             'inputs': {'O': 3.125, 'AI': 50.123456789012, 'AJ': 100.987654321098, 'T': 'Manual fields remain'}}]}
         manual = deepcopy(self.fixture.draft)
@@ -192,6 +194,7 @@ class LibraryBarrierImportTests(unittest.TestCase):
     def test_commercial_confirmation_cannot_rewrite_original_barrier_review(self):
         imported = self.apply(self.proposal())[0]['snapshot']
         identifier = imported['library_assignments']['records'][0]['id']
+        self.fixture.review_members(identifier)
         confirmed = self.fixture.confirm(identifier, 1)['snapshot']
         event = self.fixture.case.documents.get_blob(confirmed['audit_head'])
         self.assertEqual(event['op'], 'apply_library_link')

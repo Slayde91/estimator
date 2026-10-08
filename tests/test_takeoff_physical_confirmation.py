@@ -445,11 +445,12 @@ class PhysicalConfirmationCommercialTests(unittest.TestCase):
 
     def test_review_change_cannot_add_update_or_unlink_an_existing_commercial_contribution(self):
         member = self.case.member(); identifier, _, _ = self.case.assignment([member])
+        self.case.review_members(identifier)
         self.case.confirm(identifier, 2.125)
         schedule = deepcopy(self.case.draft); protected = self.case.calculator_storage()
         contribution = deepcopy(self.case.record(identifier)['schedule_binding'])
         commercial_review = deepcopy(self.case.record(identifier)['confirmation'])
-        for confirmation in ('confirmed', 'unconfirmed'):
+        for confirmation in ('unconfirmed', 'confirmed'):
             response = self.case.physical([{'op': 'update', 'entity_id': member,
                                            'changes': {'confirmation': confirmation}}])
             record = self.case.record(identifier)

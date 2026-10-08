@@ -107,8 +107,8 @@ function retainedScopes(value) { return { pricing: value.pricing, calculators: v
   await disclosure('teams-crews', true); await page.locator('#input-D7').selectOption(inactive); await settledEstimate(); await page.locator('#input-D7').selectOption(active); await settledEstimate();
   assert.deepEqual(calculations.at(-1).inputs, preciseInputs); assert.deepEqual(await snapshot(), preciseScopes); checks.disclosures.importedFullPrecisionRetained = preciseInputs.F26;
 
-  // Native schedule edits retain full precision; button layout must match the
-  // Item QTY input on desktop and narrow viewports without horizontal overflow.
+  // Native schedule edits retain full precision. Quantity controls align with
+  // Item QTY; the Document/Library pair stays together and may wrap below it.
   await chooseCalculator(page, 'Firestopping'); await idle(); await expect(page.locator('#estimator-penetration')).toBeVisible();
   const clear = page.locator('#penetration-clear'), add = page.locator('#penetration-add-to-schedule'), library = page.locator('#penetration-add-to-library'), fresh = page.locator('#penetration-estimator-add');
   await expect(page.locator('#penetration-new-item')).toBeHidden(); await expect(page.locator('#penetration-recalculate')).toBeHidden();
@@ -121,10 +121,17 @@ function retainedScopes(value) { return { pricing: value.pricing, calculators: v
       const ids = ['penetration-clear', 'penetration-add-to-schedule', 'penetration-add-to-library'];
       const bounds = control => { const rectangle = control.getBoundingClientRect(); return { top: rectangle.top, bottom: rectangle.bottom, height: rectangle.height, left: rectangle.left, right: rectangle.right }; };
       const centres = control => { const button = control.getBoundingClientRect(), icon = control.querySelector('svg').getBoundingClientRect(); return { x: icon.x + icon.width / 2 - (button.x + button.width / 2), y: icon.y + icon.height / 2 - (button.y + button.height / 2) }; };
-      return { input: bounds(element), buttons: Object.fromEntries(ids.map(id => [id, bounds(document.getElementById(id))])), iconOffsets: Object.fromEntries(ids.map(id => [id, centres(document.getElementById(id))])), viewport: innerWidth, pageWidth: document.documentElement.scrollWidth };
+      const pair = document.querySelector('.penetration-library-actions'), documentButton = pair.querySelector('[data-document-menu-toggle]');
+      return { input: bounds(element), buttons: Object.fromEntries(ids.map(id => [id, bounds(document.getElementById(id))])), document: bounds(documentButton), pairGap: parseFloat(getComputedStyle(pair).columnGap), iconOffsets: Object.fromEntries(ids.map(id => [id, centres(document.getElementById(id))])), viewport: innerWidth, pageWidth: document.documentElement.scrollWidth };
     });
-    assert.equal(geometry.input.height, 48); for (const button of Object.values(geometry.buttons)) { assert.equal(button.height, 48); assert.ok(Math.abs(button.top - geometry.input.top) < 1); assert.ok(Math.abs(button.bottom - geometry.input.bottom) < 1); assert.ok(button.right <= width); }
-    assert.ok(geometry.buttons['penetration-add-to-schedule'].right <= geometry.buttons['penetration-add-to-library'].left, 'Library follows Add to Schedule');
+    assert.equal(geometry.input.height, 48); for (const button of [...Object.values(geometry.buttons), geometry.document]) { assert.equal(button.height, 48); assert.ok(button.left >= 0); assert.ok(button.right <= width); }
+    for (const id of ['penetration-clear', 'penetration-add-to-schedule']) { const button = geometry.buttons[id]; assert.ok(Math.abs(button.top - geometry.input.top) < 1, `${id} aligns with Item QTY at ${width}`); assert.ok(Math.abs(button.bottom - geometry.input.bottom) < 1); }
+    const libraryButton = geometry.buttons['penetration-add-to-library'];
+    assert.ok(Math.abs(libraryButton.top - geometry.document.top) < 1, `Document and Library share a row at ${width}`);
+    assert.ok(Math.abs(libraryButton.bottom - geometry.document.bottom) < 1);
+    assert.ok(Math.abs(libraryButton.left - geometry.document.right - geometry.pairGap) < 1, `Document immediately precedes Library at ${width}`);
+    if (Math.abs(geometry.document.top - geometry.input.top) < 1) assert.ok(geometry.document.left >= geometry.buttons['penetration-add-to-schedule'].right, `Document follows Add to Schedule at ${width}`);
+    else assert.ok(geometry.document.top >= geometry.input.bottom, `Document and Library wrap below the quantity controls at ${width}`);
     assert.ok(geometry.pageWidth <= width, `Firestopping escaped viewport at ${width}`);
     for (const offset of Object.values(geometry.iconOffsets)) { assert.ok(Math.abs(offset.x) < 1, `Icon is horizontally centred at ${width}`); assert.ok(Math.abs(offset.y) < 1, `Icon is vertically centred at ${width}`); }
     if ([1146, 390].includes(width)) await page.screenshot({ path: path.join(output, `firestopping-controls-${width}.png`), fullPage: true });

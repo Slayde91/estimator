@@ -119,10 +119,12 @@ function retainedScopes(value) { return { pricing: value.pricing, calculators: v
     const geometry = await page.locator('#penetration-item-quantity [data-penetration-field="O"]').evaluate(element => {
       const ids = ['penetration-clear', 'penetration-add-to-schedule'];
       const bounds = control => { const rectangle = control.getBoundingClientRect(); return { top: rectangle.top, bottom: rectangle.bottom, height: rectangle.height, right: rectangle.right }; };
-      return { input: bounds(element), buttons: Object.fromEntries(ids.map(id => [id, bounds(document.getElementById(id))])), viewport: innerWidth, pageWidth: document.documentElement.scrollWidth };
+      const centres = control => { const button = control.getBoundingClientRect(), icon = control.querySelector('svg').getBoundingClientRect(); return { x: icon.x + icon.width / 2 - (button.x + button.width / 2), y: icon.y + icon.height / 2 - (button.y + button.height / 2) }; };
+      return { input: bounds(element), buttons: Object.fromEntries(ids.map(id => [id, bounds(document.getElementById(id))])), iconOffsets: Object.fromEntries(ids.map(id => [id, centres(document.getElementById(id))])), viewport: innerWidth, pageWidth: document.documentElement.scrollWidth };
     });
     assert.equal(geometry.input.height, 48); for (const button of Object.values(geometry.buttons)) { assert.equal(button.height, 48); assert.ok(Math.abs(button.top - geometry.input.top) < 1); assert.ok(Math.abs(button.bottom - geometry.input.bottom) < 1); assert.ok(button.right <= width); }
     assert.ok(geometry.pageWidth <= width, `Firestopping escaped viewport at ${width}`);
+    for (const offset of Object.values(geometry.iconOffsets)) { assert.ok(Math.abs(offset.x) < 1, `Icon is horizontally centred at ${width}`); assert.ok(Math.abs(offset.y) < 1, `Icon is vertically centred at ${width}`); }
     if ([1146, 390].includes(width)) await page.screenshot({ path: path.join(output, `firestopping-controls-${width}.png`), fullPage: true });
     checks.firestoppingViewports.push({ width, geometry });
   }

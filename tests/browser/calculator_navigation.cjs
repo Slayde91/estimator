@@ -3,6 +3,7 @@ const { chooseLibrary } = require('./section_navigation.cjs');
 // keyboard and touch must select the existing workspaces without replacing drafts.
 const { chromium, expect } = require('@playwright/test');
 const { chooseCalculator } = require('./calculator_actions.cjs');
+const { clickProjectControl } = require('./project_actions.cjs');
 const { spawn } = require('node:child_process');
 const fs = require('node:fs'), path = require('node:path'), crypto = require('node:crypto');
 const assert = require('node:assert/strict');
@@ -38,6 +39,11 @@ async function workbook(title) {
   page = await browser.newPage({ viewport: { width: 1440, height: 1000 } }); await monitor(page);
   const response = await page.goto(`http://127.0.0.1:${info.port}/`); assert.ok(!response.headers()['content-security-policy'].includes('unsafe-inline')); await idle();
   await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()); await idle();
+  const saveReply = page.waitForResponse(reply => new URL(reply.url()).pathname === '/api/project/save-as' && reply.request().method() === 'POST');
+  await clickProjectControl(page, 'Save'); assert.equal((await saveReply).status(), 200); await idle();
+  await page.getByRole('button', { name: 'Calculators', exact: true }).click(); await workbook('Steel (spray)');
+  await page.getByRole('button', { name: 'Home', exact: true }).click();
+  evidence.initialCalculator = 'Steel (spray)';
   const calculationRequests = () => requests.filter(item => item.path.startsWith('/api/calculators/')).length;
   const before = await snapshots(), beforeRequests = calculationRequests();
   const estimateToggle=page.getByRole('button',{name:'Estimates',exact:true}), estimates=page.getByRole('group',{name:'Choose an estimate',exact:true});
@@ -68,6 +74,8 @@ async function workbook(title) {
   await toggle.press('ArrowDown'); await page.keyboard.press('ArrowDown');
   await expect(menu.getByRole('button', { name: 'Steel (board)', exact: true })).toBeFocused(); await page.keyboard.press('Enter'); await workbook('Steel (board)');
   assert.deepEqual(await snapshots(), before); evidence.keyboard = { focus: true, arrows: true, homeEnd: true, escapeReturnsFocus: true, enterSelectsCalculator: true, changedDrafts: false };
+  await page.getByRole('button', { name: 'Home', exact: true }).click(); await toggle.click(); await workbook('Steel (board)');
+  assert.deepEqual(await snapshots(), before);
 
   // Select every real calculator, then retain an edited schedule value and its
   // current page while navigating through the other workspaces.
@@ -79,6 +87,17 @@ async function workbook(title) {
   await chooseCalculator(page, 'Firestopping Estimator'); await idle(); await expect(page.locator('#estimator-penetration')).toBeVisible(); await expect(page.locator('#calculator-workspace')).toBeHidden();
   await chooseCalculator(page, 'Steel (spray)'); await workbook('Steel (spray)'); await expect(page.locator('#calculator-sheet-title')).toHaveText('SCHEDULE'); await expect(input).toHaveValue('MENU-DRAFT-1');
   assert.deepEqual(await snapshots(), retained); evidence.selection = { allDestinations: true, unsavedScheduleRetained: true, pageRetained: true, unrelatedDraftsUnchanged: true };
+  for (const title of ['Steel (spray)', 'Steel (board)', 'Ductwork (spray/wrap)', 'Firestopping']) {
+    await chooseCalculator(page, title); await idle();
+    await page.getByRole('button', { name: 'Home', exact: true }).click(); await toggle.click(); await idle();
+    if (title === 'Firestopping') { await expect(page.locator('#estimator-penetration')).toBeVisible(); await expect(page.locator('#calculator-workspace')).toBeHidden(); }
+    else await workbook(title);
+    assert.deepEqual(await snapshots(), retained);
+    await page.getByRole('button', { name: 'Home', exact: true }).click(); await page.locator('[data-home-view="calculators"]').click(); await idle();
+    if (title === 'Firestopping') await expect(page.locator('#estimator-penetration')).toBeVisible(); else await workbook(title);
+    assert.deepEqual(await snapshots(), retained);
+  }
+  evidence.lastCalculator = { headerReturnsToEveryCalculator: true, homeCardReturnsToEveryCalculator: true, draftsUnchanged: true };
 
   // Menu navigation uses the established library confirmation, including its
   // cancellation behavior. An explicit Continue retains the unsaved prices.
@@ -109,7 +128,7 @@ async function workbook(title) {
   const settings=page.locator('#penetration-settings'),details=page.locator('#penetration-input-groups [role="tab"]').first();
   const gear=await settings.boundingBox(),tab=await details.boundingBox(),newItem=await page.locator('#penetration-new-item').boundingBox(),library=await page.locator('#penetration-add-to-library').boundingBox();
   assert.ok(gear.x+gear.width<=tab.x,'Settings icon is left of the first Details tab');assert.ok(newItem.x+newItem.width<=library.x,'Add new item is left of Add to Library');
-  for(const id of ['penetration-item-excel','penetration-item-pdf'])assert.equal(await page.locator(`#${id}`).evaluate(el=>el.parentElement.querySelector('#penetration-estimator-schedule-recalculate')!==null),true,'Schedule downloads share the lower schedule Recalculate row');
+  for(const id of ['penetration-item-excel','penetration-item-pdf'])assert.equal(await page.locator(`#${id}`).evaluate(el=>el.closest('.penetration-schedule-recalculate-tools').querySelector('#penetration-estimator-schedule-recalculate')!==null),true,'Schedule downloads share the lower schedule Recalculate row');
   const clearBefore=await snapshots(),current=clearBefore.penetration.composer.rows[0];
   const description=page.locator('#penetration-row-fields [data-penetration-field="T"]');await description.fill('CLEAR CURRENT ITEM');await description.press('Tab');
   await page.locator('#penetration-item-quantity [data-penetration-field="O"]').fill('3');await page.locator('#penetration-clear').click();
@@ -132,6 +151,33 @@ async function workbook(title) {
   assert.deepEqual(linkedCleared.penetration.draft,linkedBefore.penetration.draft);assert.deepEqual(linkedCleared.penetration.composer.rows,[{id:linkedRow.id,inputs:{},library_item_id:libraryItem.id}]);assert.deepEqual(linkedCleared.pricing,linkedBefore.pricing);assert.deepEqual(linkedCleared.calculators,linkedBefore.calculators);await expect(page.locator('#penetration-update-schedule')).toBeEnabled();
   await description.fill('REFILLED LINKED SOURCE');await description.press('Tab');await quantity.fill('4.987654321');await quantity.press('Tab');await page.locator('#penetration-update-schedule').click();await expect(page.locator('#penetration-update-schedule')).toBeHidden();await expect(page.locator('#penetration-update-schedule')).toHaveAttribute('aria-busy','false');
   const linkedUpdated=await snapshots();assert.deepEqual(linkedUpdated.penetration.draft.rows.at(-1),{id:linkedRow.id,inputs:{T:'REFILLED LINKED SOURCE',O:4.987654321},library_item_id:libraryItem.id});assert.deepEqual(linkedUpdated.penetration.draft.rows.slice(0,-1),linkedBefore.penetration.draft.rows.slice(0,-1));assert.deepEqual(linkedUpdated.penetration.draft.globals,linkedBefore.penetration.draft.globals);assert.deepEqual(linkedUpdated.pricing,linkedBefore.pricing);assert.deepEqual(linkedUpdated.calculators,linkedBefore.calculators);evidence.clearLinkedEditRetainsLibraryAndRowIdentity=true;
+  evidence.firestoppingDocuments = [];
+  for (const [headingId, prefix] of [['penetration-estimator-schedule-heading', 'penetration-item'], ['penetration-schedule-heading', 'penetration']]) {
+    if (prefix === 'penetration') { await page.getByRole('button', { name: 'Estimates', exact: true }).click(); await idle(); }
+    const schedule = page.locator(`details[aria-labelledby="${headingId}"]`);
+    if (!await schedule.evaluate(element => element.open)) await schedule.locator(':scope > summary').click();
+    const documentToggle = schedule.getByRole('button', { name: 'Document', exact: true }), documentActions = schedule.getByRole('group', { name: 'Document actions', exact: true });
+    await expect(documentActions).toBeHidden(); await documentToggle.click(); await expect(documentActions).toBeVisible();
+    assert.equal(await documentActions.getByRole('button').count(), 2);
+    for (const width of [390, 1146]) {
+      await page.setViewportSize({ width, height: 1000 }); const bounds = await documentActions.boundingBox();
+      assert.ok(bounds.x >= 0 && bounds.x + bounds.width <= width + 1, `Firestopping Document menu stays within ${width}px viewport`);
+    }
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await documentToggle.press('ArrowDown'); await expect(documentActions.getByRole('button').first()).toBeFocused();
+    await page.keyboard.press('Escape'); await expect(documentToggle).toBeFocused(); await expect(documentActions).toBeHidden();
+    for (const [suffix, magic] of [['excel', 'PK'], ['pdf', '%PDF']]) {
+      await documentToggle.click(); const action = page.locator(`#${prefix}-${suffix}`); await expect(action).toBeVisible();
+      const endpoint = `/api/penetration/${suffix === 'pdf' ? 'report.pdf' : 'register.xlsx'}`;
+      const download = page.waitForResponse(reply => new URL(reply.url()).pathname === endpoint && reply.request().method() === 'POST');
+      await action.click(); const reply = await download; assert.equal(reply.status(), 200); const file = await reply.json();
+      assert.equal(file.saved, true); assert.equal(file.destination, 'project');
+      const relative = path.relative(output, file.path); assert.ok(relative && !relative.startsWith('..') && !path.isAbsolute(relative));
+      assert.equal(fs.readFileSync(file.path).subarray(0, magic.length).toString(), magic);
+      await expect(documentActions).toBeHidden(); await idle(); assert.deepEqual(await snapshots(), linkedUpdated);
+      evidence.firestoppingDocuments.push(`${prefix}-${suffix}`);
+    }
+  }
   const touchContext = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
   const touch = await touchContext.newPage(); await monitor(touch); await touch.goto(`http://127.0.0.1:${info.port}/`); await idle(touch);
   await touch.getByRole('button', { name: 'Calculators', exact: true }).tap();

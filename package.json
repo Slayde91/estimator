@@ -6,6 +6,7 @@
     "test:estimator-header-state": "node tests/browser/estimator_header_state.cjs",
     "test:viewer-pan-scale": "node tests/browser/viewer_pan_scale.cjs",
     "test:calculator-navigation": "node tests/browser/calculator_navigation.cjs",
+    "test:document-menus": "node tests/browser/document_menus.cjs",
     "test:calculator-cleanup": "node tests/browser/calculator_cleanup.cjs",
     "test:page-rotation": "node tests/browser/page_rotation.cjs",
     "test:linked-thickness": "node tests/browser/linked_thickness.cjs",

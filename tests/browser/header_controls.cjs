@@ -120,14 +120,20 @@ async function inspectHeader(width) {
     await expect(page.locator('#calculator-title')).toHaveText(title, { timeout: 60000 });
     await expect(page.locator('#calculator-grid')).toHaveAttribute('aria-busy', 'false', { timeout: 60000 });
     const heading = page.locator('.calculator-workspace-heading');
-    for (const id of ['calculator-import', 'calculator-excel', 'calculator-pdf', 'calculator-summary-pdf', 'calculator-template', 'calculator-reset', 'calculator-recalculate']) await expect(heading.locator('#' + id)).toBeVisible();
+    for (const id of ['calculator-reset', 'calculator-recalculate']) await expect(heading.locator('#' + id)).toBeVisible();
+    const documents = heading.getByRole('button', { name: 'Document', exact: true });
+    await expect(documents).toHaveAttribute('aria-expanded', 'false');
+    for (const id of ['calculator-import', 'calculator-excel', 'calculator-pdf', 'calculator-summary-pdf', 'calculator-template']) await expect(heading.locator('#' + id)).toBeHidden();
+    await documents.click();
+    for (const id of ['calculator-import', 'calculator-excel', 'calculator-pdf', 'calculator-summary-pdf', 'calculator-template']) await expect(heading.locator('#' + id)).toBeVisible();
+    await documents.press('Escape');
     const schedule = await box(heading.locator('.calculator-tools')), primary = await box(heading.locator('.calculator-primary-actions'));
     assert.ok(schedule.x + schedule.width <= primary.x && Math.abs(schedule.y - primary.y) < 2);
     await expect(page.locator('#calculator-workspace > .calculator-tools')).toHaveCount(0);
     await page.screenshot({ path: path.join(output, `${title.includes('board') ? 'board' : title.startsWith('Steel') ? 'spray' : 'duct'}-header.png`) });
     evidence.calculators.push(title);
   }
-  await chooseCalculator(page, 'Steel (board)');await idle();await page.locator('#calculator-navigation-toggle').click();await expect(page.locator('#calculator-title')).toHaveText('Steel (spray)');
+  await chooseCalculator(page, 'Steel (board)');await idle();await page.locator('#calculator-navigation-toggle').click();await expect(page.locator('#calculator-title')).toHaveText('Steel (board)');
   for (const [id, source] of [['library','penetration-add-to-library'],['calculator','penetration-recalculate']]) {
     assert.equal(await page.locator(`#${id}-navigation-toggle svg`).getAttribute('viewBox'),await page.locator(`#${source} svg`).getAttribute('viewBox'));
     assert.equal(await page.locator(`#${id}-navigation-toggle svg`).innerHTML(),await page.locator(`#${source} svg`).innerHTML());

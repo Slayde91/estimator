@@ -544,10 +544,10 @@
       }
       return libraryRecords.get(key);
     }
+    function canChooseLibrary(entries) { return !!bridge.libraryCommand && !legacyReadOnly() && entries.length > 0 && entries.every(entry => !entry.entity.deleted); }
     function renderLibraryAssignments(entries) {
-      if(!bridge.libraryCommand||legacyReadOnly()||!entries.length||entries.some(entry=>entry.entity.deleted))return;
+      if(!canChooseLibrary(entries))return;
       const ids=new Set(entries.map(entry=>entry.entity.id)),links=root.CeasefireTakeoffLibraryLinks;
-      ui.inspector.append(mutationButton("Choose library item for selected records",attachLibraryToSelected));
       for(const value of state.snapshot?.library_assignments?.records||[]){
         if(value.scope!==scope()||!value.members.some(member=>ids.has(member.id)))continue;
         const card=node("section","takeoff-exclusion takeoff-library-summary"),record=librarySummaryRecord(value,links);
@@ -940,16 +940,26 @@
         const defect = defectFor(inspectedEntry()) || (defects.length === 1 ? defects[0] : null);
         ui.inspector.append(node("p", "takeoff-physical-defect-id", `Defect ID: ${defect ? displayId(defect) : defects.length > 1 ? "Multiple selected" : "—"}`));
       }
-      renderLibraryAssignments(selected);
+      if (canChooseLibrary(selected)) ui.inspector.append(mutationButton("Choose library item for selected records", attachLibraryToSelected));
       renderDetailNavigation();
-      if (selected.length !== 1) { ui.inspector.append(node("p", "helper", selected.length ? "Select active records of one entity type for a counted, reversible bulk edit." : "Select a hierarchy row to inspect its parent, evidence and uncertainty."), inspectorActions()); return; }
+      if (selected.length !== 1) { ui.inspector.append(inspectorActions(), node("p", "helper", selected.length ? "Select active records of one entity type for a counted, reversible bulk edit." : "Select a hierarchy row to inspect its parent, evidence and uncertainty.")); renderLibraryAssignments(selected); return; }
       const entry = inspectedEntry(), entity = entry.entity, editorKey = graphKey();
       if (legacyReadOnly() || entity.deleted) {
+        ui.inspector.append(inspectorActions());
         if (!legacyReadOnly()) ui.inspector.append(mutationButton("Restore draft record", () => restore(entry)), node("p", "helper", "Original fields, evidence and parent IDs are retained. Restore previews disclose descendants and do not invent missing parents."));
         for (const [key, label] of (entry.kind === "opening" ? legacyOpeningFields : [...(retainedDefinitions[entry.kind] || []), ...fieldsFor(entry.kind, scope())])) ui.inspector.append(node("p", "helper", `${label}: ${fieldDisplay(entity.fields, key) ?? "Unknown"}`));
         if (entry.kind === "service") ui.inspector.append(node("p", "helper", entity.quantity == null ? "Service quantity unknown: enter an explicit physical count when reviewed. The commercial schedule contribution is separate." : `Explicit service quantity: ${entity.quantity}`));
-        ui.inspector.append(node("p", "helper", `Uncertainty: ${entity.uncertainty.state} · ${entity.uncertainty.note || "No explanation recorded"}`), inspectorActions()); return;
+        ui.inspector.append(node("p", "helper", `Uncertainty: ${entity.uncertainty.state} · ${entity.uncertainty.note || "No explanation recorded"}`)); return;
       }
+      if (parentRelations()[entry.kind]) ui.inspector.append(button("Change physical parent", flushed => reparent(flushed ? state.index.get(entity.id) : entry)));
+      const remove = button("Delete draft record", flushed => deleteEntity(flushed ? state.index.get(entity.id) : entry), "button secondary takeoff-physical-delete-selected"); remove.setAttribute("aria-label", "Delete draft record"); remove.title = "Delete draft record"; remove.replaceChildren(deleteIcon());
+      ui.inspector.append(inspectorActions(remove));
+      const childKind = entry.kind === "defect" ? "barrier" : entry.kind === "barrier" ? "service" : null;
+      if (childKind) {
+        const addChild = mutationButton(childKind === "service" ? "+" : `Add ${childKind}`, async () => { await completePendingEdits(); return create(childKind, entity.id); }, childKind === "service" ? "button secondary takeoff-physical-add-child takeoff-physical-add-defect takeoff-physical-add-service" : undefined);
+        addChild.setAttribute("aria-label", `Add ${childKind} in Item Details`); addChild.title = `Add ${childKind} to ${displayId(entry)}`; ui.inspector.append(addChild);
+      }
+      if (entry.kind === "barrier" && entity.marker) ui.inspector.append(button("Open count marker", () => bridge.source(copy(entity.marker))), button("Remove count marker", () => setMarker(entity.id, null)));
       const controls = fieldDefinitions(entry).map(([key, label, type, initial, required]) => {
         const wrapper = node("label", "field"), control = node(Array.isArray(type) ? "select" : type === "textarea" ? "textarea" : "input"); wrapper.append(node("span", "", label));
         if (Array.isArray(type)) { if (key === "confirmation") control.replaceChildren(...type.map(([value, text]) => choice(value, text))); else populateSelect(control, type, initial); if (sharedOptionKeys.has(key)) bindSharedOptions(control, key); } else if (type !== "textarea") control.type = type === "number" ? "number" : "text";
@@ -960,15 +970,7 @@
       state.inspectorEdit = editor;
       ui.inspector.append(node("p", "helper", "Confirmation records your manual review of this draft's fields. It does not approve technical compliance or add schedule quantity."));
       if (entity.uncertainty?.state !== "not_assessed" || entity.uncertainty?.note) ui.inspector.append(node("p", "helper takeoff-retained-uncertainty", `Retained uncertainty: ${uncertainty.find(([key]) => key === entity.uncertainty.state)?.[1] || entity.uncertainty.state}. ${entity.uncertainty.note || ""}`));
-      const childKind = entry.kind === "defect" ? "barrier" : entry.kind === "barrier" ? "service" : null;
-      if (childKind) {
-        const addChild = mutationButton(childKind === "service" ? "+" : `Add ${childKind}`, async () => { await completePendingEdits(); return create(childKind, entity.id); }, childKind === "service" ? "button secondary takeoff-physical-add-child takeoff-physical-add-defect takeoff-physical-add-service" : undefined);
-        addChild.setAttribute("aria-label", `Add ${childKind} in Item Details`); addChild.title = `Add ${childKind} to ${displayId(entry)}`; ui.inspector.append(addChild);
-      }
-      if (parentRelations()[entry.kind]) ui.inspector.append(button("Change physical parent", flushed => reparent(flushed ? state.index.get(entity.id) : entry)));
-      if (entry.kind === "barrier" && entity.marker) ui.inspector.append(button("Open count marker", () => bridge.source(copy(entity.marker))), button("Remove count marker", () => setMarker(entity.id, null)));
-      const remove = button("Delete draft record", flushed => deleteEntity(flushed ? state.index.get(entity.id) : entry), "button secondary takeoff-physical-delete-selected"); remove.setAttribute("aria-label", "Delete draft record"); remove.title = "Delete draft record"; remove.replaceChildren(deleteIcon());
-      ui.inspector.append(inspectorActions(remove));
+      renderLibraryAssignments(selected);
     }
     function inspectorActions(remove) { const actions = node("div", "takeoff-physical-inspector-actions"); if (remove) actions.append(remove); actions.append(ui.discard); return actions; }
     function renderAssociations(entry) {

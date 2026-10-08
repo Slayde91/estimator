@@ -150,12 +150,12 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
     for(const format of ['CSV','XLSX'])assert.ok(!h.all().some(node=>node.attributes?.['aria-label']===`Export draft ${format}`));
     h.controller.destroy();
   });
-  await check('View and Edit select the exact row and separately request drawing focus or Item Details',async()=>{
+  await check('View and Edit select the exact row and reveal drawing with Item Details',async()=>{
     for(const value of [graph(),servicePlanGraph()]){
       const reference={document_id:uuid(80),document_sha256:'d'.repeat(64),page:2,point:[12,34]};if(value.version===3)value.barriers[0].marker=reference;else value.defects[0].annotation=reference;
-      const changes=[],h=component(value,{selectionChanged:value=>changes.push(value)});await flush();const row=h.all().find(node=>node.dataset.physicalId===uuid(6));
-      const view=row.children[2].children[0],edit=row.children[2].children[1];assert.equal(view.textContent,'View');assert.equal(edit.textContent,'Edit');view.emit('click');await flush();assert.deepEqual(h.controller.selection(),[uuid(6)]);assert.equal(changes.at(-1).openDetails,false);assert.deepEqual(h.calls.sources,[reference]);
-      edit.emit('click');await flush();assert.equal(h.controller.inspectedId(),uuid(6));assert.equal(changes.at(-1).focus,false);assert.equal(changes.at(-1).openDetails,true);assert.equal(h.calls.previews.length,0);h.controller.destroy();
+      const changes=[],reveals=[],h=component(value,{selectionChanged:value=>changes.push(value),revealDrawing:()=>reveals.push(true)});await flush();const row=h.all().find(node=>node.dataset.physicalId===uuid(6));
+      const view=row.children[2].children[0],edit=row.children[2].children[1];assert.equal(view.textContent,'View');assert.equal(edit.textContent,'Edit');view.emit('click');await flush();assert.deepEqual(h.controller.selection(),[uuid(6)]);assert.equal(changes.at(-1).openDetails,true);assert.deepEqual(h.calls.sources,[reference]);assert.equal(reveals.length,1);
+      edit.emit('click');await flush();assert.equal(h.controller.inspectedId(),uuid(6));assert.equal(changes.at(-1).focus,false);assert.equal(changes.at(-1).openDetails,true);assert.equal(h.calls.previews.length,0);assert.equal(reveals.length,2);h.controller.destroy();
     }
   });
   await check('Record Confirmation has two independent values and retains old uncertainty and commercial state',async()=>{
@@ -170,13 +170,13 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
     await h.click('Confirm');assert.ok(h.current.physical.services.every(entry=>entry.confirmation==='confirmed'));assert.ok(h.calls.confirmations.at(-1).text.includes('unapproved draft'));h.controller.destroy();
   });
   await check('Top schedule actions review retained multi-member associations separately and preserve operation scope',async()=>{
-    const value=graph(),requests=[],applied=[],h=component(value,{libraryCommand:async()=>{},libraryPreview:async request=>{requests.push(copy(request));return {preview_id:request.assignment_id,notice:'Reviewed schedule contribution only',library:{library_id:'LIB',title:'Literal library item',revision:1,import_fields:{defect:{},barrier:{},service:{}}},change:{confirmed_contribution:request.quantity,row_id:'row-1',previous_quantity:10,next_quantity:10+request.quantity,prior_contribution:request.operation==='unlink'?2:0}};},libraryApply:async id=>{applied.push(id);const record=h.current.library_assignments.records.find(entry=>entry.id===id),request=requests.at(-1);record.schedule_binding=request.operation==='unlink'?null:{row_id:'row-1'};record.confirmation=request.operation==='unlink'?null:{quantity:request.quantity};record.state=request.operation==='unlink'?'draft':'confirmed';return {snapshot:copy(h.current)};}});await flush();
+    const value=graph();value.services[1].quantity=4;const requests=[],applied=[],h=component(value,{libraryCommand:async()=>{},libraryPreview:async request=>{requests.push(copy(request));return {preview_id:request.assignment_id,notice:'Reviewed schedule contribution only',library:{library_id:'LIB',title:'Literal library item',revision:1,import_fields:{defect:{},barrier:{},service:{}}},change:{confirmed_contribution:request.quantity,row_id:'row-1',previous_quantity:10,next_quantity:10+request.quantity,prior_contribution:request.operation==='unlink'?2:0}};},libraryApply:async id=>{applied.push(id);const record=h.current.library_assignments.records.find(entry=>entry.id===id),request=requests.at(-1);record.schedule_binding=request.operation==='unlink'?null:{row_id:'row-1'};record.confirmation=request.operation==='unlink'?null:{quantity:request.quantity};record.state=request.operation==='unlink'?'draft':'confirmed';return {snapshot:copy(h.current)};}});await flush();
     const assignment=(id,members,mode='repeated_installations')=>({id:uuid(id),scope:'defect_reports',state:'draft',library:{id:'literal-library',library_id:`LIB-${id}`,title:'Literal item'},members:members.map(id=>({id:uuid(id),kind:'service',revision:1})),installation:{mode},schedule_binding:null});h.current.library_assignments={version:1,records:[assignment(201,[5,6],'combined_installation'),assignment(202,[6])]};h.controller.render(copy(h.current));await h.controller.select(uuid(6));h.answers.push({},{quantity:1},{quantity:4});await h.click('Transfer to Firestopping Schedule');assert.deepEqual(requests.map(value=>[value.assignment_id,value.quantity]),[[uuid(201),1],[uuid(202),4]]);assert.equal(applied.length,2);assert.deepEqual(h.current.physical,value);assert.match(h.calls.asks[0].text,/retained library associations/);assert.match(h.calls.asks[0].text,/one combined installation/);
-    h.answers.push({},{quantity:3});await h.click('Update linked rows');assert.equal(requests.length,2);assert.equal(applied.length,2);assert.match(h.calls.notifications.at(-1).text,/combined installation has Item QTY 1/);
+    h.answers.push({},{quantity:3});await h.click('Update linked rows');assert.equal(requests.length,2);assert.equal(applied.length,2);assert.match(h.calls.notifications.at(-1).text,/transfer quantity must match/);
     h.answers.push({},{quantity:1},{quantity:4});await h.click('Update linked rows');assert.equal(requests.length,4);assert.equal(applied.length,4);h.answers.push({});await h.click('Unlink from Firestopping Schedule');assert.ok(requests.slice(-2).every(value=>value.operation==='unlink'&&value.quantity===0));assert.ok(h.current.library_assignments.records.every(value=>value.schedule_binding===null));assert.deepEqual(h.current.physical,value);const before=requests.length;await h.click('Update linked rows');assert.equal(requests.length,before);assert.match(h.calls.notifications.at(-1).text,/No linked/);h.controller.destroy();
   });
   await check('Cancelled or replaced schedule selection cannot apply a top transfer',async()=>{
-    let h;const requests=[],initial=graph();h=component(initial,{libraryCommand:async()=>{},libraryApply:async()=>{throw Error('No cancelled selection may apply');},libraryPreview:async value=>{requests.push(value);throw Error('A cancelled or changed selection must not preview');}});await flush();h.current.library_assignments={version:1,records:[{id:uuid(201),scope:'defect_reports',state:'draft',library:{library_id:'LIB',title:'Literal item'},members:[{id:uuid(5)}],installation:{mode:'repeated_installations'},schedule_binding:null}]};h.controller.render(copy(h.current));await h.controller.select(uuid(5));await h.click('Transfer to Firestopping Schedule');assert.equal(requests.length,0);
+    let h;const requests=[],initial=graph();h=component(initial,{libraryCommand:async()=>{},libraryApply:async()=>{throw Error('No cancelled selection may apply');},libraryPreview:async value=>{requests.push(value);throw Error('A cancelled or changed selection must not preview');}});await flush();h.current.library_assignments={version:1,records:[{id:uuid(201),scope:'defect_reports',state:'draft',library:{library_id:'LIB',title:'Literal item'},members:[{id:uuid(5),kind:'service',revision:1}],installation:{mode:'repeated_installations'},schedule_binding:null}]};h.controller.render(copy(h.current));await h.controller.select(uuid(5));await h.click('Transfer to Firestopping Schedule');assert.equal(requests.length,0);
     const asking=h.bridge.ask;h.bridge.ask=async(...args)=>{if(args[0]==='Confirm link and quantity'){const changed=copy(h.current);changed.physical.revision++;h.controller.render(changed);return {quantity:2};}return asking(...args);};await h.click('Transfer to Firestopping Schedule');assert.equal(requests.length,0);assert.match(h.calls.notifications.at(-1).text,/draft changed/);assert.deepEqual(h.current.physical,initial);h.controller.destroy();
   });
   await check('Item Details retains Discard without an inspected record and Delete uses the accessible trash icon',async()=>{
@@ -343,6 +343,14 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
     await h.select(3);const inspector=h.all().find(element=>element.tagName==='ASIDE');assert.deepEqual(inspector.querySelectorAll('input,select,textarea').map(control=>control.attributes['aria-label']),['Defect ID in Item Details','Barrier ID in Item Details','Service ID in Item Details']);assert.ok(inspector.textContent.includes('Opening type: Corehole'));assert.ok(!inspector.textContent.includes('Legacy opening evidence'));assert.equal(value.openings[0].evidence[0].note,'Legacy opening evidence');
     for(const label of ['Preview physical edits','Delete draft record','Change physical parent','Remove source association'])assert.ok(!h.all().some(element=>element.tagName==='BUTTON'&&(element.textContent===label||element.attributes['aria-label']===label)));
     assert.equal(h.button('Discard unfinished physical edits').parentElement.parentElement,inspector);assert.equal(h.button('Discard unfinished physical edits').disabled,false);
+    // Authentic pre-v2 records have a root Barrier and an intervening Opening.
+    // Inspecting them must stay possible without rewriting that original topology.
+    for(const [label,id] of [['Defect',2],['Barrier',1],['Service',5]]){
+      const control=h.input(`${label} ID in Item Details`);assert.equal(control.disabled,false,label);assert.ok(optionsOf(control).includes(uuid(id)),label);
+      control.value=uuid(id);control.emit('change');await flush();assert.deepEqual(h.controller.selection(),[uuid(id)]);
+      assert.deepEqual(inspector.querySelectorAll('input,select,textarea').map(field=>field.attributes['aria-label']),['Defect ID in Item Details','Barrier ID in Item Details','Service ID in Item Details']);
+      assert.deepEqual(h.current.physical,original);assert.equal(h.calls.previews.length,0);assert.equal(h.calls.applied.length,0);
+    }
     // Even a programmatically delivered event on a disabled mutation button cannot reach the bridge.
     await h.click('Add defect');assert.equal(h.calls.previews.length,0);assert.equal(h.calls.applied.length,0);assert.ok(h.calls.notifications.at(-1).text.includes('read-only'));
     assert.ok(!h.all().some(node=>node.attributes?.['aria-label']==='Export draft CSV'));assert.deepEqual(h.calls.exports,[]);assert.deepEqual(h.current.physical,original);h.controller.destroy();
@@ -460,13 +468,20 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
     await h.controller.completePendingEdits();h.answers.push({service:'Mechanical',service_type:'Copper pipe',quantity:2,uncertainty_state:'not_assessed'});await h.click('Add service in Item Details');const command=h.calls.previews.at(-1)[0];assert.equal(command.kind,'service');assert.equal(command.entity.barrier_id,uuid(1));assert.equal(command.entity.quantity,2);assert.equal(h.current.physical.barriers[0].fields.notes,'Pending barrier details');h.controller.destroy();
     const defect=component();await flush();await defect.controller.select(uuid(2));assert.equal(defect.button('Add barrier in Item Details').title,'Add barrier to D-0001');defect.answers.push({substrate:'Concrete',uncertainty_state:'not_assessed'});await defect.click('Add barrier in Item Details');assert.equal(defect.calls.previews.at(-1)[0].entity.defect_id,uuid(2));defect.controller.destroy();
   });
-  await check('Item Details dropdowns list all active IDs across register pages, filtering and collapsed families',async()=>{
+  await check('Item Details child dropdowns follow the selected Defect across pages and reject unrelated families',async()=>{
     const value=graph();value.defects.push(make(20,{label:'Other defect'},{display_id:'D-0002'}));value.barriers.push(make(21,{location:'Other location'},{display_id:'B-0003',defect_id:uuid(20)}));
     value.services=Array.from({length:105},(_,index)=>make(100+index,{service:'Mechanical'},{display_id:`S-${String(index+1).padStart(4,'0')}`,barrier_id:index===104?uuid(21):uuid(1),quantity:1}));value.services[3].deleted=true;
     const h=component(value);await flush();await h.click('Collapse D-0001');const filter=h.input('Filter physical hierarchy');filter.value='Other defect';filter.emit('input');await flush();
     const navigation=h.all().find(node=>node.attributes['aria-label']==='Item Details navigation');assert.deepEqual(navigation.children[0].children[0].children.map(node=>node.textContent),['Defect','Barrier','Service']);
-    assert.deepEqual(optionsOf(h.input('Defect ID in Item Details')),[uuid(2),uuid(20)]);assert.deepEqual(optionsOf(h.input('Barrier ID in Item Details')),[uuid(1),uuid(4),uuid(21)]);
-    assert.equal(optionsOf(h.input('Service ID in Item Details')).length,104);assert.ok(!optionsOf(h.input('Service ID in Item Details')).includes(uuid(103)));assert.equal(optionsOf(h.input('Service ID in Item Details')).at(-1),uuid(204));
+    assert.deepEqual(optionsOf(h.input('Defect ID in Item Details')),[uuid(2),uuid(20)]);assert.deepEqual(optionsOf(h.input('Barrier ID in Item Details')),[]);
+    assert.deepEqual(optionsOf(h.input('Service ID in Item Details')),[]);
+    await h.controller.select(uuid(2));
+    assert.deepEqual(optionsOf(h.input('Barrier ID in Item Details')),[uuid(1),uuid(4)]);
+    assert.equal(optionsOf(h.input('Service ID in Item Details')).length,103);assert.ok(!optionsOf(h.input('Service ID in Item Details')).includes(uuid(103)));assert.ok(!optionsOf(h.input('Service ID in Item Details')).includes(uuid(204)));
+    const unrelated=h.input('Service ID in Item Details');unrelated.value=uuid(204);unrelated.emit('change');await flush();assert.equal(h.controller.inspectedId(),uuid(2));
+    const defect=h.input('Defect ID in Item Details');defect.value=uuid(20);defect.emit('change');await flush();
+    assert.deepEqual(optionsOf(h.input('Barrier ID in Item Details')),[uuid(21)]);assert.deepEqual(optionsOf(h.input('Service ID in Item Details')),[uuid(204)]);
+    assert.ok(h.all().some(node=>node.textContent==='Defect ID: D-0002'));
     const control=h.input('Service ID in Item Details');control.value=uuid(204);control.emit('change');await flush();assert.deepEqual(h.controller.selection(),[uuid(204)]);assert.equal(h.controller.inspectedId(),uuid(204));assert.equal(h.input('Defect ID in Item Details').value,'');assert.equal(h.input('Defect ID in Item Details').children[0].textContent,'View D-0002');assert.equal(h.input('Barrier ID in Item Details').children[0].textContent,'View B-0003');assert.equal(h.input('Explicit service quantity').value,1);assert.equal(h.calls.previews.length,0);
     assert.ok(!h.all().some(node=>node.tagName==='BUTTON'&&/^(Defect|Barrier):/.test(node.textContent)));h.controller.destroy();
   });
@@ -673,6 +688,36 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
   await check('Removing a legacy evidence-derived callout records explicit null and preserves its original source association',async()=>{
     const value=graph(),source={document_id:uuid(80),document_sha256:'d'.repeat(64),page:1,region:[[10,20],[12,20],[12,22],[10,22]]};value.defects[0].evidence=[source];const h=component(value);await flush();const drawing=overlayHarness(value,h.controller);drawing.render();assert.equal(drawing.all().filter(el=>el.className==='takeoff-physical-callout-frame').length,1);
     await h.controller.setAnnotation(uuid(2),null);assert.equal(h.current.physical.defects[0].annotation,null);assert.deepEqual(h.calls.previews.at(-1),[{op:'update',entity_id:uuid(2),changes:{annotation:null}}]);assert.deepEqual(h.current.physical.defects[0].evidence,[source]);drawing.audit.state.session.snapshot.physical=copy(h.current.physical);drawing.render();assert.equal(drawing.all().filter(el=>el.className==='takeoff-physical-callout-frame').length,0);assert.equal(await h.controller.setAnnotation(uuid(2),null),false);assert.equal(h.calls.applied.length,1);h.controller.destroy();
+  });
+  await check('A legacy combined blank seal reviews a whole seal count while preserving its historical draft quantity',async()=>{
+    const previous=global.CeasefireTakeoffLibraryLinks,hash='a'.repeat(64),library={id:'pkb-001',library_id:'FL-ID-001',metadata_sha256:hash,title:'Blank seal',revision:1,import_fields:{defect:{},barrier:{},service:null}};let h;const requests=[];
+    try {
+      global.CeasefireTakeoffLibraryLinks={...require('../static/takeoff-library-links.js'),record:async()=>library};
+      h=component(graph(),{libraryCommand:async()=>null,libraryPreview:async request=>{requests.push(copy(request));return {preview_id:'legacy-blank',notice:'Reviewed count',library,change:{confirmed_contribution:1,row_id:'row-1',previous_quantity:0,next_quantity:1,prior_contribution:0}};},libraryApply:async()=>({snapshot:copy(h.current)})});await flush();
+      h.current.library_assignments={version:1,records:[{id:uuid(201),scope:'defect_reports',library:{id:library.id,library_id:library.library_id,metadata_sha256:hash},members:[{id:uuid(1),kind:'barrier',revision:1}],installation:{mode:'combined_installation',note:'Explicit group'},draft_quantity:.375,state:'draft',confirmation:null,schedule_binding:null}]};h.controller.render(copy(h.current));await h.controller.select(uuid(1));
+      h.answers.push({quantity:1,seal_quantity:8});await h.click('Transfer to Firestopping Schedule');
+      assert.equal(requests.length,1);assert.deepEqual(requests[0],{assignment_id:uuid(201),quantity:1,quantity_source:{version:1,kind:'blank_seals',quantity:8}});
+      assert.ok(h.calls.asks.at(-1).definitions.some(field=>field[0]==='seal_quantity'));assert.equal(h.current.library_assignments.records[0].draft_quantity,.375);assert.equal(h.current.physical.services.length,2);
+    } finally {h?.controller.destroy();global.CeasefireTakeoffLibraryLinks=previous;}
+  });
+  await check('Read-only library enrichment preserves a focused untouched editor and never adds schedule actions',async()=>{
+    const previous=global.CeasefireTakeoffLibraryLinks,pending=defer(),hash='a'.repeat(64);
+    const links=require('../static/takeoff-library-links.js');let h;
+    try {
+      global.CeasefireTakeoffLibraryLinks={...links,record:()=>pending.promise};h=component(graph(),{libraryCommand:async()=>null});await flush();
+      h.current.library_assignments={version:1,records:[{id:uuid(201),scope:'defect_reports',library:{id:'pkb-001',library_id:'FL-ID-001',metadata_sha256:hash},members:[{id:uuid(5),kind:'service',revision:1}],installation:{mode:'repeated_installations'},state:'draft',schedule_binding:null}]};h.controller.render(copy(h.current));await h.controller.select(uuid(5));
+      const notes=h.input('Notes');notes.focus();const before=copy(h.current);
+      pending.resolve({id:'pkb-001',metadata_sha256:hash,display_fields:{service_type:'Literal service',penetration_type:'Core Hole',substrate:'Concrete',orientation:'Vertical',service_size:'25 mm'}});await flush();
+      assert.equal(h.input('Notes'),notes);assert.ok(h.dom.container.contains(notes));assert.equal(h.dom.container.ownerDocument.activeElement,notes);assert.deepEqual(h.current,before);assert.equal(h.calls.previews.length,0);assert.equal(h.calls.applied.length,0);
+      const card=h.all().find(node=>node.className.includes('takeoff-library-summary'));assert.ok(card.textContent.includes('Service Type: Literal service'));assert.equal(card.children.filter(node=>node.tagName==='BUTTON').length,0);
+    } finally { h?.controller.destroy();global.CeasefireTakeoffLibraryLinks=previous; }
+  });
+  await check('Long Unicode notes use the narrow note bound while ordinary fields keep their existing bound',()=>{
+    assert.equal(physical.fieldValue('service','notes','🙂'.repeat(3000)), '🙂'.repeat(3000));
+    assert.throws(()=>physical.fieldValue('service','notes','a'.repeat(128001)),/128,000/);
+    assert.throws(()=>physical.fieldValue('service','size','a'.repeat(2001)),/2,000/);
+    assert.throws(()=>physical.fieldValue('service','quantity','999999999999.999999999999'),/whole quantity/);
+    assert.throws(()=>physical.fieldValue('service','quantity','1.000000000000000001'),/whole quantity/);
   });
   console.log(`${passed} physical draft UI checks passed.`);
 })().catch(error=>{console.error(error);process.exitCode=1;});

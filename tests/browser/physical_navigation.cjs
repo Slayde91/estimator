@@ -120,13 +120,13 @@ async function layout(width) {
   assert.equal(state.physical.barriers[1].defect_id, otherDefect); assert.equal(state.physical.services[1].barrier_id, otherBarrier); evidence.createdFromSource = { defect, barrier, service, otherDefect, otherBarrier, otherService };
   await expect(page.locator('.takeoff-physical-register')).not.toContainText('UNAPPROVED DRAFT. These are recorded physical assertions');
   await idle();
-  await navigate('Barrier', barrier); await place(barrier, [270, 300], true);
+  await navigate('Defect', defect); await navigate('Barrier', barrier); await place(barrier, [270, 300], true);
   await expect(details().getByLabel('Defect Ref.', { exact: true })).toHaveValue('NAV-A'); await expect(details().getByLabel('Barrier ID in Item Details', { exact: true })).toHaveValue('');
   await expect(row(barrier).getByRole('checkbox', { name: /^Select / })).toBeChecked(); assert.equal(state.physical.barriers.length, 2); assert.equal(state.calibrations.length, 0);
   const firstMarker = structuredClone(state.physical.barriers[0].marker); assert.equal(firstMarker.document_sha256, sourceBefore); assert.equal(firstMarker.page, 1);
   assert.ok(state.physical.defects.every(value => value.annotation?.document_sha256 === sourceBefore), 'Current toolbar creation retains a distinct original-source annotation for each Defect');
   evidence.currentDefectToolbarSource = true;
-  await navigate('Service', otherService); await expect(details().getByLabel('Defect ID in Item Details', { exact: true })).toHaveValue(''); await expect(details().getByLabel('Defect ID in Item Details', { exact: true }).locator('option').first()).toHaveText('View D-0002'); await expect(details().getByLabel('Barrier ID in Item Details', { exact: true }).locator('option').first()).toHaveText('View B-0002');
+  await navigate('Defect', otherDefect); await navigate('Service', otherService); await expect(details().getByLabel('Defect ID in Item Details', { exact: true })).toHaveValue(''); await expect(details().getByLabel('Defect ID in Item Details', { exact: true }).locator('option').first()).toHaveText('View D-0002'); await expect(details().getByLabel('Barrier ID in Item Details', { exact: true }).locator('option').first()).toHaveText('View B-0002');
   await expect(details().getByLabel('Explicit service quantity', { exact: true })).toHaveValue('3');
   await navigate('Barrier', otherBarrier); await expect(details().getByLabel('Location', { exact: true })).toHaveValue('Second family');
   await navigate('Defect', otherDefect); await expect(details().getByLabel('Defect Ref.', { exact: true })).toHaveValue('NAV-B');
@@ -138,7 +138,10 @@ async function layout(width) {
   await marker(barrier).dblclick({ delay: 100 }); await expect(details().getByLabel('Defect Ref.', { exact: true })).toHaveValue('NAV-A'); await expect(marker(barrier)).toHaveAttribute('aria-pressed', 'true');
   const navigation = details().getByRole('table', { name: 'Item Details navigation', exact: true });
   assert.deepEqual(await navigation.getByRole('columnheader').allTextContents(), ['Defect', 'Barrier', 'Service']);
-  for (const [kind, expected] of [['Defect', [defect, otherDefect]], ['Barrier', [barrier, otherBarrier, newBarrier]], ['Service', [service, otherService, newService]]]) assert.deepEqual(await navigation.getByLabel(`${kind} ID in Item Details`, { exact: true }).locator('option').evaluateAll(options => options.map(option => option.value).filter(Boolean)), expected);
+  for (const [kind, expected] of [['Defect', [defect, otherDefect]], ['Barrier', [barrier]], ['Service', [service]]]) assert.deepEqual(await navigation.getByLabel(`${kind} ID in Item Details`, { exact: true }).locator('option').evaluateAll(options => options.map(option => option.value).filter(Boolean)), expected);
+  await expect(details().locator('.takeoff-physical-defect-id')).toHaveText('Defect ID: D-0001');
+  for (const action of ['View','Edit']) { await row(service).getByRole('button',{name:action,exact:true}).click(); await idle(); const geometry=await page.evaluate(()=>({drawing:document.querySelector('.takeoff-viewport').getBoundingClientRect().top,header:document.querySelector('.app-header').getBoundingClientRect().bottom})); assert.ok(Math.abs(geometry.drawing-geometry.header-12)<3, JSON.stringify(geometry)); await expect(details()).toBeVisible(); }
+  await navigate('Defect',defect);
   const previews = requests.length; await details().getByLabel('Notes', { exact: true }).fill('Retain unfinished Defect edit');
   await response(()=>navigation.getByLabel('Service ID in Item Details', { exact: true }).selectOption(service),'/physical/apply'); await idle(); await snapshot(); assert.equal(state.physical.defects.find(entry=>entry.id===defect).fields.notes,'Retain unfinished Defect edit'); await expect(details().getByLabel('Service ID in Item Details', { exact: true })).toHaveValue(service); assert.equal(requests.length, previews+1);
   await page.locator('.takeoff-physical-details').evaluate(el => { el.scrollTop = el.scrollHeight; }); await marker(barrier).dblclick({ delay: 100 });
@@ -150,7 +153,7 @@ async function layout(width) {
   assert.equal(state.service_plans.barriers[0].id, planBarrier); assert.equal(state.service_plans.barriers[0].defect_id, undefined); assert.equal(state.service_plans.defects, undefined);
   assert.deepEqual(await details().getByRole('table', { name: 'Item Details navigation', exact: true }).getByRole('columnheader').allTextContents(), ['Barrier', 'Service']);
   await expect(details().getByLabel('Defect ID in Item Details', { exact: true })).toHaveCount(0); await expect(details().getByLabel('FRL', { exact: true })).toHaveValue('-/60/60'); evidence.servicePlanIsolation = true;
-  await chooseTakeoff(page, 'Defect Reports'); await idle(); await page.getByRole('button', { name: 'Settings', exact: true }).click(); await navigate('Barrier', barrier);
+  await chooseTakeoff(page, 'Defect Reports'); await idle(); await page.getByRole('button', { name: 'Settings', exact: true }).click(); await navigate('Defect', defect); await navigate('Barrier', barrier);
   assert.deepEqual((await snapshot()).physical.barriers[0].marker, firstMarker);
   const beforeSave = structuredClone(state); await response(() => clickProjectControl(page, 'Save'), '/api/project/save-as'); await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   const saved = JSON.parse(fs.readFileSync(info.project, 'utf8')); assert.deepEqual(saved.takeoffs.physical, beforeSave.physical); assert.deepEqual(saved.takeoffs.service_plans, beforeSave.service_plans);

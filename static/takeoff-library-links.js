@@ -4,6 +4,19 @@
 // candidates, infers shared openings, or creates a schedule quantity by drawing.
 ((root) => {
   const copy = value => JSON.parse(JSON.stringify(value));
+  const literal = value => typeof value === "string" ? value.replace(/[\r\n\t]+/g, " ").trim() : "";
+  const displayFields = record => record?.display_fields && typeof record.display_fields === "object" && !Array.isArray(record.display_fields) ? record.display_fields : {};
+  function libraryLabel(item) {
+    const fields = displayFields(item);
+    return [item.library_id || item.id, fields.penetration_type, fields.substrate, fields.orientation, fields.service_type, fields.frl]
+      .map(value => literal(value) || "Unknown").join("; ");
+  }
+  function itemQuantity(value) {
+    const scalar = typeof value === "number" || typeof value === "string" && /^\d+(?:\.0+)?$/.test(value.trim());
+    const quantity = scalar ? Number(value) : NaN;
+    if (!Number.isSafeInteger(quantity) || quantity < 1 || quantity > 1e12) throw new Error("Enter a positive integer Item QTY of at most 1000000000000.");
+    return quantity;
+  }
   async function request(url) {
     const reply = await root.fetch(url, { cache: "no-store" });
     const value = await reply.json();
@@ -52,7 +65,7 @@
               if(!response.ok)throw new Error(data.error||"Library search failed.");if(closed||token!==generation)return;
               if(!Array.isArray(data.items)||!Number.isInteger(data.total)||data.total<0)throw new Error("Library search returned invalid results.");total=data.total;renderFacets(data);
               const placeholder=doc.createElement("option");placeholder.value="";placeholder.textContent=data.items.length?"Select a library item":"No matching items";select.append(placeholder);
-              for(const item of data.items){const option=doc.createElement("option");option.value=item.id;option.textContent=`${item.library_id||item.id} · ${item.title||"Firestopping item"}`;select.append(option);}
+              for(const item of data.items){const option=doc.createElement("option");option.value=item.id;option.textContent=libraryLabel(item);select.append(option);}
               select.disabled=!data.items.length;info.textContent=data.items.length?`Showing ${offset+1}–${offset+data.items.length} of ${total} items.`:"No matching items. Refine the search or Cancel and choose New Item.";previous.disabled=offset===0;next.disabled=offset+data.items.length>=total;
             }catch(error){if(closed||token!==generation||error.name==="AbortError")return;info.textContent=error.message;select.disabled=true;ready(false);}
           };
@@ -64,14 +77,13 @@
       const library=await record(selected.library_id),knownLocation=[context.location,library.import_fields.defect?.location,library.import_fields.barrier?.location].find(value=>typeof value==="string"&&value.trim()) || "";
       const fields=[...(!knownLocation.trim() ? [["location","Location","text","",true]] : []),["quantity","Item QTY","number","",true]];
       const details=await bridge.ask("Complete selected item details",fields,
-        `${library.library_id || library.id}: ${library.title || "Firestopping item"}\n${knownLocation ? `Location: ${knownLocation}\n` : ""}Enter the missing item details. Item QTY is saved as the draft schedule quantity and will prefill the transfer review. Physical service counts remain separate. The Firestopping Schedule changes only after you review and confirm the transfer.`,"Use item details",controls=>{
-          for(const field of controls){if(field.control.name==="location")field.control.maxLength=2000;if(field.control.name==="quantity"){field.control.min="0";field.control.max="1000000000000";field.control.step="any";}}
+        `${libraryLabel(library)}\n${knownLocation ? `Location: ${knownLocation}\n` : ""}Enter the missing item details. Item QTY is the explicit positive integer ${library.import_fields.service ? "physical service count" : "blank seal count"}. Separate repeated installations use the recorded counts; one explicitly combined installation contributes 1. The Firestopping Schedule changes only after you review and confirm the transfer.`,"Use item details",controls=>{
+          for(const field of controls){if(field.control.name==="location")field.control.maxLength=2000;if(field.control.name==="quantity"){field.control.min="1";field.control.max="1000000000000";field.control.step="1";}}
         });
       if(!details)return null;
-      const quantity=Number(details.quantity),location=knownLocation || String(details.location || "").trim();
-      if(!Number.isFinite(quantity)||quantity<=0||quantity>1e12)throw new Error("Enter a positive finite Item QTY of at most 1000000000000.");
+      const quantity=itemQuantity(details.quantity),location=knownLocation || String(details.location || "").trim();
       if(!location.trim()||location.length>2000)throw new Error("Enter a Location of at most 2000 characters.");
-      return {kind:"library",record:library,details:{draft_quantity:quantity,draft_location:location}};
+      return {kind:"library",record:library,details:{item_quantity:quantity,draft_quantity:quantity,draft_location:location}};
     }finally{closed=true;++generation;controller?.abort();root.clearTimeout(timer);}
   }
   const barrierFields=["barrier_type","substrate","orientation"];
@@ -108,8 +120,13 @@
     }
   }
   function assignment(scope, library, memberIds, installation = null, details = {}) {
+    const {item_quantity, ...retained} = details;
+    const supplied = Object.prototype.hasOwnProperty.call(details, "item_quantity"), quantity = supplied ? itemQuantity(item_quantity) : null;
+    const source = supplied ? {
+      quantity_source: library.import_fields.service ? {version:1,kind:"services"} : {version:1,kind:"blank_seals",quantity}
+    } : {};
     return {id:root.crypto.randomUUID(),scope,library_id:library.id,library_fingerprint:library.metadata_sha256,
-      member_ids:[...memberIds],installation:installation || {id:root.crypto.randomUUID(),mode:"repeated_installations",note:""},...details};
+      member_ids:[...memberIds],installation:installation || {id:root.crypto.randomUUID(),mode:"repeated_installations",note:""},...retained,...source};
   }
   function status(snapshot, value, library = null) {
     const graph = value.scope === "service_plans" ? snapshot.service_plans || snapshot.physical : snapshot.physical;
@@ -118,12 +135,15 @@
     if (library && library.metadata_sha256!==value.library.metadata_sha256) return "needs_recheck";
     return value.state;
   }
-  function description(value) {
-    const selection=value.barrier_selection;
-    const note=(value.draft_location?`\nItem Location: ${value.draft_location}`:"")+(value.draft_quantity!=null?`\nDraft Item QTY: ${value.draft_quantity}`:"")+(selection?`\n${selection.choice==="new"?"New Barrier adopted selected literal library properties.":"Existing Barrier retained its original properties and source position."}${selection.differences.length?` Unapproved mismatch retained for review: ${selection.differences.map(item=>`${barrierNames[item.field]} ${item.retained||"Unknown"} → library ${item.selected}`).join("; ")}.`:""}`:"");
-    return `${value.library.library_id} · ${value.library.title}\n${value.members.length} explicit physical members · ${value.installation.mode === "combined_installation" ? "one explicitly combined installation" : "explicit repeated installations"}\nCaptured library revision ${value.library.revision} · ${value.state === "confirmed" ? "Retained commercial confirmation" : "Needs commercial review"}. Current library metadata is checked before the next commercial change. Physical draft remains unapproved.${note}`;
+  function matchingRecord(value, record) {
+    return !!record && record.id === value.library.id && record.metadata_sha256 === value.library.metadata_sha256;
   }
-  const api={choose,record,assignment,status,description,copy,barrierDifferences,barrierLabel,addUnderDefect};
+  function description(value, record = null) {
+    const fields = matchingRecord(value, record) ? displayFields(record) : {};
+    return [literal(value.library.library_id) || "Unknown", ...[["service_type","Service Type"],["penetration_type","Penetration Type"],["substrate","Substrate"],["orientation","Orientation"],["service_size","Service size"]]
+      .map(([key,label]) => `${label}: ${literal(fields[key]) || "Unknown"}`)].join("\n");
+  }
+  const api={choose,record,assignment,status,description,matchingRecord,libraryLabel,copy,barrierDifferences,barrierLabel,addUnderDefect};
   if (typeof module!=="undefined" && module.exports) module.exports=api;
   else root.CeasefireTakeoffLibraryLinks=api;
 })(globalThis);

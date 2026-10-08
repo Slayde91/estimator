@@ -38,6 +38,7 @@ jobs:
       - run: node tests/test_header_tagline_ui.cjs
       - run: node tests/test_header_tagline_media.cjs
       - run: node tests/test_takeoff_library_links_ui.cjs
+      - run: node tests/test_takeoff_library_display.cjs
       - run: node tests/test_takeoff_library_bridge_ui.cjs
       - run: node tests/test_calculators_ui.cjs
       - run: node tests/test_project_ui.cjs

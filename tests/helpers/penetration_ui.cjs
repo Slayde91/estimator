@@ -4,6 +4,9 @@ const copy = value => JSON.parse(JSON.stringify(value));
 function definition() {
   const field = (column,label,type,group,format='number',options=[]) => ({column,label,type,group,format,options,units:'',default:null});
   const metadata={id:'penetration',title:'Firestopping Estimator',source_sha256:'penetration-source',capacity:1000,
+    // Baseline component fixtures isolate the existing calculation/lifecycle
+    // behaviors. Entry-policy cases supply the server's six-field metadata.
+    required_item_fields:[],
     defaults:{globals:{J:'No',K:null,L:0,M:0},rows:[{id:'line-1',inputs:{}}]},schedule_defaults:{globals:{J:'No',K:null,L:0,M:0},rows:[]},groups:['Penetration','Products and labour','Additional Allowances','Substrate'],
     // Legacy metadata may still describe globals; current views must not render them.
     global_fields:[field('J','LAFHA','select','Global settings','text',['No','Yes']),field('L','Global Labour','number','Global settings','percent')],
@@ -31,12 +34,15 @@ function install(context) {
   const source=fs.readFileSync('static/penetration.js','utf8').replace(/\}\)\(\);\s*$/,`globalThis.penAudit={state,calculate,calculateSchedule,addToLibrary,addToSchedule,requestAddToSchedule,updateSchedule,cancelEdit,addRow,removeRow,undoRemove,selectRow,selectGroup,makeControl,renderFields,renderSchedule,renderBreakdown,render,download,changed,definitionFor,queueDiagram,setRequest(fn){request=fn;}};})();`);
   vm.runInContext(source,context);
   const audit=context.penAudit,calls=[];
+  const setRequest=audit.setRequest;let validation=async()=>({valid:true});
+  audit.setRequest=fn=>setRequest((path,payload)=>path.endsWith('/validate-item')?validation(path,payload):fn(path,payload));
+  audit.setValidationRequest=fn=>{validation=fn;};
   audit.setRequest(async(path,payload)=>{calls.push({path,payload:copy(payload)});return path.endsWith('/definition')?definition():result(payload.draft);});
   return {audit,api:context.window.CeasefirePenetrations,calls};
 }
 function harness() {
   const elements=new Map(),timers=new Map();let timerId=0;
-  const matches=(node,selector)=>selector.includes(',')?selector.split(',').some(part=>matches(node,part)):selector==='[data-penetration-field]'?node.dataset.penetrationField!==undefined:selector==='[data-penetration-service-route]'?node.dataset.penetrationServiceRoute!==undefined:selector==='[data-penetration-band]'?node.dataset.penetrationBand!==undefined:selector==='[data-library-editor-field]'?node.dataset.libraryEditorField!==undefined:selector==='[data-penetration-remove]'?node.dataset.penetrationRemove!==undefined:false;
+  const matches=(node,selector)=>selector.includes(',')?selector.split(',').some(part=>matches(node,part)):selector.startsWith('[data-penetration-scope=')?node.dataset.penetrationScope===selector.match(/scope="([^"]+)"/)[1]&&node.dataset.penetrationField===selector.match(/field="([^"]+)"/)[1]:selector==='[data-penetration-field]'?node.dataset.penetrationField!==undefined:selector==='[data-penetration-service-route]'?node.dataset.penetrationServiceRoute!==undefined:selector==='[data-penetration-band]'?node.dataset.penetrationBand!==undefined:selector==='[data-library-editor-field]'?node.dataset.libraryEditorField!==undefined:selector==='[data-penetration-remove]'?node.dataset.penetrationRemove!==undefined:false;
   const document={activeElement:null};
   function element(tagName='div') {
     const attrs=new Map();

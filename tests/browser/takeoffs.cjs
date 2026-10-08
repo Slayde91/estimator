@@ -126,13 +126,14 @@ async function boardJourney(info) {
   let state = await command(() => dialog('Add steel object', { 'Member mark': 'BOARD-MEASURED', 'Count/QTY': 2 }, 'Add item'), 'create_item');
   const measuredId = state.snapshot.items.find(item => item.fields.mark === 'BOARD-MEASURED').id;
   await openItemSettings(page,measuredId);
-  // The exact profile is selected using the same catalog dialog available to operators.
-  await page.getByRole('button', { name: 'Find steel section', exact: true }).click();
-  const profileResponse = page.waitForResponse(response => response.url().includes('/profiles?calculator=steel_board'));
-  await dialog('Find steel section', { 'Section designation': '100UC15' }, 'Search');
-  const profiles = await (await profileResponse).json();
-  assert.deepEqual(profiles.items, [{ id: '100UC15', label: '100UC15' }]);
-  await dialog('Choose a database section', { 'Steel section': '100UC15' }, 'Use section');
+  // Search is presentation-only until an exact canonical section is chosen.
+  await page.setViewportSize({width:825,height:764});await settingsSettled(page);
+  const section=page.locator('#takeoff-markup-settings').getByRole('combobox',{name:'Steel section',exact:true}),sectionBefore=await page.evaluate(()=>window.CeasefireTakeoffs.projectSnapshot());
+  await expect(page.getByRole('button',{name:'Find steel section',exact:true})).toHaveCount(0);await expect(section).not.toHaveAttribute('list',/.+/);await section.click();await expect(section).toHaveAttribute('aria-expanded','true');
+  await section.fill('100 uc');await expect(page.locator('#takeoff-markup-settings').getByRole('option',{name:'100UC15',exact:true})).toBeVisible();await page.waitForTimeout(550);assert.deepEqual(await page.evaluate(()=>window.CeasefireTakeoffs.projectSnapshot()),sectionBefore);await section.press('Escape');await expect(section).toHaveValue('');
+  await section.fill('100uc');const exactSection=page.locator('#takeoff-markup-settings').getByRole('option',{name:'100UC15',exact:true});await expect(exactSection).toBeVisible();const reach=await exactSection.evaluate(option=>{const selected=option.getBoundingClientRect(),pane=option.closest('#takeoff-markup-settings').getBoundingClientRect();return {top:selected.top,bottom:selected.bottom,left:selected.left,right:selected.right,paneTop:pane.top,paneBottom:pane.bottom,paneLeft:pane.left,paneRight:pane.right};});assert.ok(reach.top>=reach.paneTop&&reach.bottom<=reach.paneBottom&&reach.left>=reach.paneLeft&&reach.right<=reach.paneRight,JSON.stringify(reach));await exactSection.click();await settingsSettled(page);await expect(section).toHaveValue('100UC15');
+  await section.fill('100uc');await section.press('ArrowDown');await section.press('Enter');await settingsSettled(page);await expect(section).toHaveValue('100UC15');await expect(section).toHaveAttribute('aria-expanded','false');await page.setViewportSize({width:1600,height:1100});await settingsSettled(page);
+  const gear=await page.evaluate(()=>{const takeoff=document.querySelector('.takeoff-tool-rail button[aria-label="Settings"] svg'),firestop=document.querySelector('#penetration-settings svg'),shape=svg=>[...svg.children].map(child=>({tag:child.tagName,attributes:Object.fromEntries([...child.attributes].map(attr=>[attr.name,attr.value]))}));return {takeoff:shape(takeoff),firestop:shape(firestop)};});assert.deepEqual(gear.takeoff,gear.firestop);
   const supported = { 'Level': 'SYNTHETIC', 'Member type': 'Beam', 'Product': 'TRAFALGAR COREX', 'Fire period (min)': 120, 'Exposed sides': 3, 'Crit. Temp (\u00b0C)': 620, 'Exposure': 'Re-entrant - 3 sides' };
   state = await fillInspector(supported);
   const temperature = page.locator('#takeoff-markup-settings').getByLabel('Crit. Temp (\u00b0C)', {exact:true});
@@ -190,7 +191,7 @@ async function boardJourney(info) {
   await openItemSettings(page,citedId);
   await expect(page.locator('.takeoff-markup.selected')).toHaveCount(1);
   await expect(page.locator('#takeoff-active-scale')).toHaveText('Synthetic board baseline');
-  const returnedCited = await page.evaluate(itemId => window.CeasefireTakeoffs.projectSnapshot().items.find(item => item.id === itemId), citedId);
+  await settingsSettled(page);const returnedCited = await page.evaluate(itemId => window.CeasefireTakeoffs.projectSnapshot().items.find(item => item.id === itemId), citedId);
   assert.equal(returnedCited.measurement.method, 'cited'); assert.equal(returnedCited.measurement.length_m, 7.25);
   assert.equal(returnedCited.measurement.citation, 'Synthetic board drawing p1, BOARD-CITED: 3 separate physical members, 7.25 m EACH');
   assert.deepEqual(returnedCited.measurement, state.snapshot.items.find(item => item.id === citedId).measurement, 'Source return preserves the exact retained cited measurement without inventing a calibration');

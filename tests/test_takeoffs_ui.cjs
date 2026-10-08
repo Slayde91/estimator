@@ -12,7 +12,7 @@ const blank = () => ({version:1,project_id:'project',revision:0,documents:[],cal
 const response = (snapshot, session_id='session') => ({session_id,revision:snapshot.revision,snapshot:copy(snapshot),item_results:[],issues:[]});
 function harness(storage) {
   const context={window:{CeasefireTakeoffGeometry:geometry,CeasefireProject:{changed(){}}},document:{getElementById(){return null;},fonts:{load(){return Promise.resolve([]);},check(){return true;}}},crypto,
-    Intl,Number,String,JSON,Object,Set,Map,Array,Promise,Error,URL,Math,console:{...console},setTimeout,clearTimeout};
+    Intl,Number,String,JSON,Object,Set,Map,Array,Promise,Error,URL,Math,Event,console:{...console},setTimeout,clearTimeout};
   vm.createContext(context);
   if (storage !== undefined) Object.defineProperty(context.window,'localStorage',{get(){if(storage instanceof Error)throw storage;return storage;}});
   let source=fs.readFileSync('static/takeoffs.js','utf8');
@@ -37,7 +37,10 @@ function attachMinimalDom(h) {
       after(child){const siblings=this.parentNode.children,index=siblings.indexOf(this);child.parentNode=this.parentNode;child.previousElementSibling=this;siblings.splice(index+1,0,child);},
       replaceChildren(...children){this.children=[];this._text='';this.append(...children);},
       setAttribute(key,value){this.attributes[key]=String(value);if(key==='class')this.className=String(value);},
+      removeAttribute(key){delete this.attributes[key];},
       addEventListener(event,listener){this.events[event]=listener;},
+      dispatchEvent(event){this.events[event.type]?.(event);return !event.defaultPrevented;},
+      focus(){h.context.document.activeElement=this;},
       contains(value){return this===value||this.children.some(child=>child.contains?.(value));},
       querySelectorAll(selector){return this.children.flatMap(child=>[...((selector==='[data-item-id]'&&child.dataset.itemId)?[child]:[]),...child.querySelectorAll(selector)]);},
     };
@@ -808,6 +811,23 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
     assert.equal(calls[0].searchParams.get('calculator'),'steel_board');assert.equal(calls[0].searchParams.get('member_type'),'Beam');
     controls[0].control.value='PROMATECT 250';controls[0].control.events.change();await flush();assert.equal(calls.at(-1).searchParams.get('product'),'PROMATECT 250');
     controls[1].control.value='Column';controls[1].control.events.change();await flush();assert.equal(calls.at(-1).searchParams.get('member_type'),'Column');assert.equal(controls[2].control.value,'Explicit profile');
+  });
+  await check('Steel section combobox searches canonical choices without writing queries or replacing retained values',async()=>{
+    const h=harness(),value=blank(),legacy='  Historical section / unlisted  ';value.items=[{id:'steel',version:1,mode:'steel',quantity:1,fields:{section:legacy,mark:'A'},appearance:{}}];h.audit.accept(response(value));const dom=attachSettings(h,'steel_board');h.audit.state.selected=new Set(['steel']);h.audit.state.settingsOpen=true;h.audit.renderSettingsPanel();
+    const editor=h.audit.state.settingsEditor,field=editor.fields.find(field=>field.control.name==='section'),control=field.control;control.isConnected=true;h.audit.populateCalculatorOptions([field],{columns:[{column:'D',options:['100UC15','150UC23','200UB25.4']}]},'steel_board');
+    const toggle=dom.all(field.wrapper).find(node=>node.attributes['aria-label']==='Show Steel section choices'),options=()=>dom.all(field.wrapper).filter(node=>node.attributes.role==='option'),key=key=>control.events.keydown({key,preventDefault(){},stopPropagation(){}});
+    assert.equal(control.attributes.role,'combobox');assert.equal(control.attributes.list,undefined);assert.equal(field.read(),legacy);toggle.events.click();assert.equal(control.attributes['aria-expanded'],'true');assert.ok(options().some(option=>option.textContent===`${legacy} (retained)`));
+    control.value='100 uc';control.events.input();assert.deepEqual(options().map(option=>option.textContent),['100UC15']);assert.equal(h.audit.state.settingsDirty,false);assert.equal(value.items[0].fields.section,legacy);key('Escape');assert.equal(control.value,legacy);assert.equal(control.attributes['aria-expanded'],'false');
+    control.value='not a section';control.events.input();control.events.change();await flush();assert.equal(control.value,legacy);assert.equal(h.audit.state.settingsDirty,false);assert.equal(h.audit.state.session.snapshot.items[0].fields.section,legacy);
+    let sent;h.audit.setCommand(async(op,body)=>{sent={op,...copy(body)};Object.assign(h.audit.state.session.snapshot.items[0].fields,body.changes.fields);});control.value='100uc';control.events.input();h.audit.populateCalculatorOptions([field],{columns:[{column:'D',options:['100UC15','150UC23','200UB25.4']}]},'steel_board');assert.equal(control.value,'100uc');assert.equal(sent,undefined);key('ArrowDown');key('Enter');await flush();await h.audit.flushSettings();assert.deepEqual(sent,{op:'bulk_update',item_ids:['steel'],changes:{fields:{section:'100UC15'}}});assert.equal(control.value,'100UC15');assert.equal(control.attributes['aria-expanded'],'false');
+    const create=h.audit.formField(['section','Steel section','text'],'');create.control.isConnected=true;create.control.value='100 uc 15';create.control.events.input();create.control.events.change();assert.equal(create.control.value,'100 uc 15');h.audit.populateCalculatorOptions([create],{columns:[{column:'F',options:['100UC15']}]},'steel_vermiculite');assert.equal(create.read(),'100UC15');create.control.value='unlisted new value';assert.throws(()=>create.read(),/exact section/);create.control.events.keydown({key:'Escape',preventDefault(){},stopPropagation(){}});control.disabled=true;toggle.events.click();assert.equal(control.attributes['aria-expanded'],'false');
+    const ambiguous=h.audit.formField(['section','Steel section','text'],'');ambiguous.sectionSearch.setOptions(['100UC15','100 UC 15']);ambiguous.control.value='100uc15';assert.throws(()=>ambiguous.read(),/exact section/);ambiguous.control.value='100 UC 15';assert.equal(ambiguous.read(),'100 UC 15');
+    const deferred=h.audit.formField(['section','Steel section','text'],'');let deferredCommits=0;deferred.sectionSearch.onChange=()=>deferredCommits++;deferred.control.value='100UC15';deferred.control.events.input();deferred.control.events.change();deferred.control.value='150UC23';deferred.control.events.input();deferred.sectionSearch.setOptions(['100UC15','150UC23']);assert.equal(deferred.control.value,'150UC23');assert.equal(deferredCommits,0);deferred.control.events.keydown({key:'Escape',preventDefault(){},stopPropagation(){}});assert.equal(deferred.control.value,'');
+    control.disabled=true;field.sectionSearch.setLocked();assert.equal(toggle.disabled,true);toggle.events.click();assert.equal(control.attributes['aria-expanded'],'false');
+  });
+  await check('Takeoff Settings uses the existing Firestopping gear SVG',()=>{
+    const h=harness();attachMinimalDom(h);const button=h.audit.button('Settings',()=>{}),svg=button.children[0].children[0],markup=fs.readFileSync('static/index.html','utf8'),firestop=markup.match(/id="penetration-settings"[\s\S]*?<svg([^>]*)>([\s\S]*?)<\/svg>/)[0];
+    assert.equal(svg.attributes.viewBox,'0 0 24 24');assert.equal(svg.attributes['stroke-width'],'1.8');assert.deepEqual(svg.children.map(child=>child.tagName),['CIRCLE','PATH']);assert.equal(svg.children[0].attributes.r,'4.5');assert.ok(firestop.includes(`d="${svg.children[1].attributes.d}"`));assert.equal(button.attributes['aria-label'],'Settings');
   });
   await check('Direct Confirm sends one authoritative confirmation command and filters historical review states as Unconfirmed',async()=>{
     const h=harness(),value=blank();value.items=[{id:'old',mode:'steel',state:'reviewed',fields:{mark:'A'}},{id:'new',mode:'steel',state:'draft',fields:{mark:'B'}},{id:'confirmed',mode:'steel',state:'confirmed',fields:{mark:'C'}}];h.audit.accept(response(value));h.audit.state.selected.add('new');

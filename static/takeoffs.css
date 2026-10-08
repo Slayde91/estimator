@@ -74,6 +74,19 @@
 .takeoff-markup-settings .takeoff-viewports-heading .button{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;padding:6px;background:transparent;border:0;color:white}
 .takeoff-markup-settings button:focus-visible,.takeoff-markup-settings input:focus-visible,.takeoff-markup-settings select:focus-visible{outline:2px solid #71c9ff;outline-offset:2px}
 .takeoff-markup-settings [hidden]{display:none}
+.takeoff-section-search{position:relative;min-width:0;width:100%}
+.takeoff-section-search>input{padding-right:34px}
+.takeoff-section-toggle{position:absolute;top:1px;right:1px;bottom:1px;display:flex;align-items:center;justify-content:center;width:30px;padding:0;border:0;border-radius:0 6px 6px 0;background:transparent;color:#53464e}
+.takeoff-section-toggle svg{display:block;width:16px;height:16px}
+.takeoff-section-toggle[aria-expanded=true] svg{transform:rotate(180deg)}
+.takeoff-section-popup{position:absolute;top:calc(100% + 3px);left:0;z-index:40;width:100%;box-sizing:border-box;max-width:calc(100vw - 40px);border:1px solid #b9adb4;border-radius:7px;background:#fff;color:#222;box-shadow:0 4px 12px #17121733}
+.takeoff-section-popup[hidden]{display:none}
+.takeoff-section-options{max-height:220px;overflow:auto;overscroll-behavior:contain}
+.takeoff-section-option{padding:8px 10px;font-size:12px;white-space:nowrap;cursor:pointer}
+.takeoff-section-option:hover,.takeoff-section-option.active{background:#fff0e8;color:#8c101b}
+.takeoff-section-status{margin:0;padding:6px 9px;border-top:1px solid #eee7eb;font-size:10px;color:#6d5f68;white-space:normal}
+.takeoff-register td>.field:has(.takeoff-section-search){margin:0;min-width:130px}
+.takeoff-register td>.field:has(.takeoff-section-search)>span{display:none}
 .takeoff-overlay .takeoff-markup{pointer-events:none;stroke-linejoin:round;stroke-linecap:round}
 .takeoff-overlay .takeoff-markup.selected,.takeoff-overlay .takeoff-markup.hovered{filter:drop-shadow(0 0 3px #e34545)}
 .takeoff-overlay .takeoff-marquee{fill:#74c5ff35;stroke:#318ec9;stroke-width:1.5;vector-effect:non-scaling-stroke;pointer-events:none}
@@ -299,3 +312,6 @@ dialog.takeoff-column-filter{position:fixed;box-sizing:border-box;width:280px;ma
 .takeoff-overlay .takeoff-search-match.active{stroke:#173955;stroke-width:2;fill:#ff8a0059}
 .takeoff-active-scale{align-self:center;margin:0 8px;font-size:12px;font-weight:600;line-height:1.3;max-width:220px;overflow-wrap:anywhere}
 .takeoff-library-summary p { white-space: pre-line; }
+.takeoff-document-menu .calculator-document-actions{left:0;right:auto}
+.takeoff-document-menu .calculator-document-chevron svg{fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+@media(max-width:600px){.takeoff-document-menu{flex-basis:100%}}

@@ -29,6 +29,7 @@ function documentHarness(){
     remove(){if(this.parentElement)this.parentElement.children=this.parentElement.children.filter(child=>child!==this);this.parentElement=null;}
     setAttribute(key,value){this.attributes[key]=String(value);if(key==='class')this.className=String(value);}
     addEventListener(name,listener){(this.events[name]||=[]).push(listener);}
+    removeEventListener(name,listener){this.events[name]=(this.events[name]||[]).filter(value=>value!==listener);}
     getBoundingClientRect(){return {left:10,bottom:20,width:260,height:300};}
     focus(){doc.activeElement=this;}
     contains(element){return element===this||this.children.some(child=>child.contains(element));}
@@ -60,7 +61,7 @@ function component(initial=graph(),extra={}){
       for(const command of preview){current.physical.revision++;if(command.op==='create')current.physical[collections[command.kind]].push({...copy(command.entity),revision:1,deleted:false,deleted_at_revision:null});else if(command.op==='update'){const entry=physical.indexGraph(current.physical).get(command.entity_id);Object.assign(entry.entity,copy(command.changes));entry.entity.revision++;}}
       current.revision++;controller.render(copy(current));return {snapshot:copy(current)};
     },
-    notify(text,error){calls.notifications.push({text,error});},source(ref){calls.sources.push(ref);},images:async()=>[],imageUrl:()=>'/api/takeoffs/local/images/asset',extract:async()=>({snapshot:copy(current)}),export:async format=>calls.exports.push(format),undo:async()=>({snapshot:copy(current)}),changed(){calls.changed++;},...extra,
+    notify(text,error){calls.notifications.push({text,error});},source(ref){calls.sources.push(ref);},images:async()=>[],imageUrl:()=>'/api/takeoffs/local/images/asset',extract:async()=>({snapshot:copy(current)}),export:async (format,confirmation)=>calls.exports.push({format,confirmation}),undo:async()=>({snapshot:copy(current)}),changed(){calls.changed++;},...extra,
   };
   controller=physical.mount(dom.container,bridge);controller.render(copy(current));
   const all=()=>[...dom.all(dom.container),...dom.all(dom.container.ownerDocument.body),...(dom.inspectorHost?dom.all(dom.inspectorHost):[])],button=label=>{const control=all().find(element=>element.tagName==='BUTTON'&&(element.textContent===label||element.attributes['aria-label']===label));assert.ok(control,`Missing button: ${label}`);return control;};
@@ -78,6 +79,14 @@ function overlayHarness(value,controller){
 let passed=0;
 async function check(label,test){await test();passed++;console.log(`ok - ${label}`);}
 (async()=>{
+  await check('Physical Document menu exposes three scoped XLSX exports and the existing matrix PDF without mutating records',async()=>{
+    const h=component(),before=copy(h.current);await flush();const toggle=h.button('Document'),list=h.all().find(element=>element.id===toggle.attributes['aria-controls']);
+    assert.ok(list.hidden);toggle.emit('click');assert.equal(list.hidden,false);assert.equal(toggle.attributes['aria-expanded'],'true');
+    for(const [label,format,confirmation] of [['Download confirmed items','xlsx','confirmed'],['Download unconfirmed items','xlsx','unconfirmed'],['Download all items','xlsx','all'],['Download Passive Fire Matrix PDF','pdf',null]]){
+      assert.equal(h.button(label).parentElement,list);await h.click(label);assert.ok(list.hidden);assert.deepEqual(h.calls.exports.at(-1),{format,confirmation});
+    }
+    assert.deepEqual(h.current,before);assert.equal(h.calls.previews.length,0);assert.equal(h.calls.applied.length,0);h.controller.destroy();assert.equal(h.dom.container.ownerDocument.body.events.pointerdown.length,0);
+  });
   await check('Manual Defect creation first offers Search Item or New Item without consuming its field answer',async()=>{
     const h=component();await flush();h.answers.push({label:'Chooser proof',uncertainty_state:'not_assessed'});await h.click('Add defect');
     assert.equal(h.calls.choosers.length,1);assert.equal(h.calls.choosers[0].title,'Add Defect');assert.equal(h.calls.choosers[0].button,'Continue');

@@ -1,7 +1,7 @@
 const { chooseTakeoff } = require('./section_navigation.cjs');
 // Column filters and automatic editing use an isolated fixture and owned records.
 const { chromium, expect } = require('@playwright/test');
-const { spawn } = require('node:child_process');
+const { spawn, spawnSync } = require('node:child_process');
 const { randomUUID } = require('node:crypto');
 const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
 const root = path.resolve(__dirname, '../..'), output = path.join(root, '.runtime/browser-qa', `physical-filters-${Date.now()}`);
@@ -45,12 +45,42 @@ async function setFilter(label, values) { const dialog = await menu(label); awai
 async function reset(label) { const dialog = await menu(label); await dialog.getByRole('button', { name: 'Reset filter', exact: true }).click(); await expect(dialog).not.toBeVisible(); }
 async function visible() { return page.locator('.takeoff-register-table tbody tr').evaluateAll(rows => rows.map(row => ({ id: row.dataset.physicalId, context: [...row.querySelectorAll('small.helper')].some(note => note.textContent.includes('Ancestor context')) }))); }
 async function matches(ids) { const expected = [...ids].sort(); await expect.poll(async () => (await visible()).filter(row => !row.context).map(row => row.id).sort()).toEqual(expected); const all = page.getByRole('checkbox', { name: 'Select all matching physical records', exact: true }); await all.check(); await expect.poll(() => page.locator('.takeoff-register-table tbody tr').evaluateAll(rows => rows.filter(row => row.querySelector('input[type=checkbox]')?.checked).map(row => row.dataset.physicalId).sort())).toEqual(expected); await page.getByRole('button', { name: 'Select filtered records', exact: true }).click(); }
+async function checkDocuments(scope, ids) {
+  const before = await snapshot(), graph = before[scope === 'service_plans' ? 'service_plans' : 'physical'];
+  const active = [...(graph.defects || []), ...graph.barriers, ...graph.services].filter(entry => !entry.deleted).map(entry => entry.id);
+  const root = page.locator('.takeoff-physical-register'), toggle = root.getByRole('button', { name: 'Document', exact: true }), list = root.locator('.calculator-document-actions');
+  await toggle.press('ArrowDown'); await expect(list).toBeVisible(); await expect(list.getByRole('button', { name: 'Download confirmed items', exact: true })).toBeFocused();
+  await page.keyboard.press('End'); await expect(list.getByRole('button', { name: 'Download Passive Fire Matrix PDF', exact: true })).toBeFocused();
+  await page.keyboard.press('Escape'); await expect(list).toBeHidden(); await expect(toggle).toBeFocused();
+  await setFilter('Category', ['Mechanical']); // Export selection is independent of the visible register filter.
+  for (const [selection, expected] of [['confirmed', [ids.s2]], ['unconfirmed', active.filter(id => id !== ids.s2)], ['all', active]]) {
+    await toggle.click(); const action = list.getByRole('button', { name: `Download ${selection} items`, exact: true });
+    const position = await action.evaluate(el => ({ icon: el.firstElementChild.getBoundingClientRect().x, label: el.lastElementChild.getBoundingClientRect().x })); assert.ok(position.icon < position.label);
+    const downloadWait = page.waitForEvent('download'), responseWait = page.waitForResponse(reply => reply.url().endsWith('/physical/export/xlsx'));
+    await action.click(); const reply = await responseWait; assert.equal(reply.status(), 200, await reply.text()); assert.deepEqual(reply.request().postDataJSON(), { scope, expected_revision: before.revision, confirmation: selection });
+    const download = await downloadWait, filename = path.join(output, `${scope}-${download.suggestedFilename()}`); await download.saveAs(filename);
+    const parsed = spawnSync(process.env.CEASEFIRE_PYTHON || 'python', ['-c', "import json,sys\nfrom openpyxl import load_workbook\nw=load_workbook(sys.argv[1],data_only=False)\nrows=[]\nfor s in w:\n if s.title in ('Defects','Barriers','Services'):\n  v=list(s.values);rows.extend(dict(zip(v[0],r)) for r in v[1:])\nprint(json.dumps({'ids':sorted(r['entity_id'] for r in rows),'confirmation':sorted(set(r['confirmation'] for r in rows)),'formulas':[c.coordinate for s in w for r in s for c in r if c.data_type=='f']}))\nw.close()", filename], { encoding: 'utf8', windowsHide: true });
+    assert.equal(parsed.status, 0, parsed.stderr); const result = JSON.parse(parsed.stdout); assert.deepEqual(result.ids, [...expected].sort()); assert.deepEqual(result.formulas, []); if (selection !== 'all') assert.deepEqual(result.confirmation, [selection]);
+    await expect(list).toBeHidden(); await idle(); assert.deepEqual(await snapshot(), before);
+  }
+  await reset('Category'); await toggle.click(); await root.getByRole('heading', { level: 2 }).click(); await expect(list).toBeHidden();
+  const session = await page.evaluate(() => window.CeasefireTakeoffs.sessionId());
+  for (const data of [{ scope, confirmation: 'all', expected_revision: before.revision - 1 }, { scope, confirmation: 'approved', expected_revision: before.revision }, { scope, confirmation: 'all', expected_revision: true }, { scope, confirmation: 'all', expected_revision: before.revision, selected_ids: [] }]) {
+    const reply = await page.request.post(`${origin}/api/takeoffs/sessions/${session}/physical/export/xlsx`, { data }); assert.equal(reply.status(), 400);
+  }
+  assert.deepEqual(await snapshot(), before);
+  await page.setViewportSize({ width: 390, height: 764 }); await toggle.click(); await list.scrollIntoViewIfNeeded();
+  const bounds = await list.boundingBox(); assert.ok(bounds.x >= 0 && bounds.x + bounds.width <= 390 && bounds.y >= 0 && bounds.y + bounds.height <= 764);
+  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+  await page.screenshot({ path: path.join(output, `physical-document-${scope}-390.png`) }); await page.keyboard.press('Escape'); await expect(list).toBeHidden(); await page.setViewportSize({ width: 1600, height: 1100 });
+}
 (async () => {
   const info = await ready; assert.notEqual(info.port, 8765); origin = `http://127.0.0.1:${info.port}`; browser = await chromium.launch({ headless: true }); page = await browser.newPage({ viewport: { width: 1600, height: 1100 } }); page.setDefaultTimeout(30000);
   page.on('pageerror', error => errors.push(error.message)); page.on('request', request => { if (request.url().endsWith('/physical/preview')) requests.push(request.postDataJSON()); }); await page.goto(origin); await expect.poll(() => page.evaluate(() => window.CeasefireDesktop?.status().ready)).toBe(true);
   const calculators = await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()); await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); await chooseTakeoff(page, 'physical'); await idle();
   for (const scope of ['defect_reports', 'service_plans']) {
     await chooseTakeoff(page, scope === 'service_plans' ? 'Service Plans' : 'Defect Reports'); await idle(); const ids = await seed(scope);
+    await checkDocuments(scope, ids);
     const cases = [['Confirmation', 'Confirmed', [ids.s2]], ['Location', 'Level01', [ids.b1, ids.s1, ids.s2]], ['FRL', '-/90/90', scope === 'service_plans' ? [ids.b2, ids.s3] : [ids.d2, ids.b2, ids.s3]], ['Substrate', 'Concrete/masonry floor', [ids.b2, ids.s3]], ['Orientation', 'Vertical', [ids.b1, ids.s1, ids.s2]], ['Category', 'Mechanical', [ids.s1, ids.s3]], ['Service type', 'D2 Comms Cables', [ids.s2]]];
     cases.push(['Service Size (mm)', '25', [ids.s1]]);
     const beforeHide=await snapshot(),hideAll=page.getByRole('checkbox',{name:'Hide all matching physical records',exact:true});

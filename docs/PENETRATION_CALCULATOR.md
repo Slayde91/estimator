@@ -339,3 +339,17 @@ Capture creates and closes its own hidden Excel instance. It never changes the
 supplied workbook, saves the native test session or attaches to the user's Excel
 session. Source hashes are checked before and after. Runtime and CI use the
 committed evidence and do not require Excel or the source workbook.
+
+## Required details for new items
+
+Category, Service Type, Penetration Type, Substrate Orientation, FRL and Substrate
+must be filled before a current item can be added to the Firestopping Schedule
+or saved as a new Library item. The add buttons show the missing fields, and the
+server checks these fields before new Library creation or a new takeoff-linked
+schedule row. Existing saved drafts remain readable, calculable and saveable;
+this entry check does not alter workbook formulas or the validation of technical
+applicability. Exact retries recover an already-created Library item.
+
+Add to Library sits immediately after Add to Schedule beside Item QTY. The
+redundant top Add new item and Recalculate controls are hidden. Automatic
+calculation and the schedule's own row and recalculation actions remain available.

@@ -286,6 +286,7 @@ async function controls() {
 
   const viewerLines=await page.locator('.takeoff-physical-callout tspan').allTextContents();
   const csv = await exportDraft('CSV'), xlsx = await exportDraft('XLSX'), pdf = await downloadDrawing();
+  await page.locator('.takeoff-physical-register').getByRole('button',{name:'Document',exact:true}).click();
   const matrixWait=page.waitForEvent('download');await page.getByRole('button',{name:'Download Passive Fire Matrix PDF',exact:true}).click();
   const matrixDownload=await matrixWait,matrix=path.join(output,matrixDownload.suggestedFilename());await matrixDownload.saveAs(matrix);
   const csvText = fs.readFileSync(csv, 'utf8'); assert.ok(csvText.includes(barrier)); assert.ok(csvText.includes(service)); assert.ok(!csvText.includes(defect)); assert.ok(!csvText.includes(reportBarrier)); assert.ok(!csvText.split('\n')[0].includes('defect'));

@@ -25,7 +25,7 @@ from estimator.storage import Store
 from test_reference_library import sample_library
 
 
-def editable_library(root):
+def editable_library(root, *, complete_entries=False):
     data, _, _ = sample_library(root)
     diagram = BytesIO()
     Image.new('RGB', (640, 360), '#f6f0e9').save(diagram, format='PNG')
@@ -40,6 +40,10 @@ def editable_library(root):
                     price={'amount': 150, 'currency': 'AUD', 'label': 'Workbook price'},
                     estimate={'draft': {'globals': {}, 'rows': [{'id': f'row-{index}', 'inputs': {
                         'K': 'Copper service', 'V': 'Sample manufacturer', 'O': 1, 'AH': 2, 'AI': 50, 'AJ': 100}}]}})
+        if complete_entries:
+            item['estimate']['draft']['rows'][0]['inputs'].update(
+                J='Plumbing & Hydraulic', L='Core Hole', M='Vertical',
+                N='-/120/120', P='Concrete/masonry wall')
         item.setdefault('fields', []).extend([{'label': 'PKB Entry ID', 'value': 'old-id'},
             {'label': 'Service', 'value': 'Copper service', 'column': 'K'}])
     (root / 'library.json').write_text(json.dumps(data), encoding='utf-8')

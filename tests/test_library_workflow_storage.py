@@ -10,6 +10,7 @@ from pathlib import Path
 import tempfile
 import threading
 import unittest
+from unittest.mock import patch
 
 from PIL import Image
 
@@ -38,12 +39,39 @@ class LibraryWorkflowStorageTests(unittest.TestCase):
         return {'idempotency_key': key, 'configuration': {}, 'draft': {
             'globals': {'J': 'No', 'K': None, 'L': 0.125, 'M': 0},
             'rows': [{'id': 'selected-row', 'inputs': {'K': 'Unknown saved service Ø65', 'T': '65 mm copper',
+                       'J': 'Mechanical', 'L': 'Core Hole', 'M': 'Vertical', 'N': '-/120/120', 'P': 'Concrete/masonry wall',
                        'Q': None, 'O': 1, 'AH': 2, 'AI': 50.123456789, 'AJ': 100, 'AL': 65, 'AO': 0}}]}}
 
     def counts(self):
         with self.store.connect() as db:
             return tuple(db.execute('SELECT (SELECT count(*) FROM firestopping_created),'
                                     '(SELECT count(*) FROM firestopping_prices),(SELECT count(*) FROM firestopping_items)').fetchone())
+
+    def test_new_entries_require_each_descriptive_field_before_any_write(self):
+        fields = [('J', 'Category'), ('K', 'Service Type'), ('L', 'Penetration Type'),
+                  ('M', 'Substrate Orientation'), ('N', 'FRL'), ('P', 'Substrate')]
+        for column, label in fields:
+            with self.subTest(column=column):
+                request = self.body('missing-required-' + column)
+                request['draft']['rows'][0]['inputs'][column] = None
+                before = self.counts()
+                with self.assertRaisesRegex(ValidationError, 'Complete ' + label + ' before adding'):
+                    self.library.create(request)
+                self.assertEqual(self.counts(), before)
+                self.assertEqual(self.index.read_bytes(), self.source)
+
+    def test_exact_historic_retry_with_incomplete_metadata_recovers_without_new_write(self):
+        request = self.body('historic-created-request')
+        request['draft']['rows'][0]['inputs']['J'] = None
+        # Seed a record as created by the previous version, then use today's
+        # real entry guard to recover that exact request rather than add a row.
+        with patch('estimator.firestopping_library.validate_item_for_add'):
+            original = self.library.create(request)
+        before = self.counts()
+        recovered = self.library.create(request)
+        self.assertFalse(recovered['created'])
+        self.assertEqual(recovered['id'], original['id'])
+        self.assertEqual(self.counts(), before)
 
     def test_concurrent_instances_allocate_unique_monotonic_ids_and_retry_once(self):
         libraries = [FirestoppingLibrary(self.root / 'library', self.store) for _ in range(4)]

@@ -2,10 +2,42 @@ const assert=require('node:assert/strict'),fs=require('node:fs');
 const {copy,definition,result,allowanceDefinition,allowanceResult,harness}=require('./helpers/penetration_ui.cjs');
 const deferred=()=>{let resolve,reject;const promise=new Promise((yes,no)=>{resolve=yes;reject=no;});return{promise,resolve,reject};};
 const flush=async()=>{for(let i=0;i<30;i++)await Promise.resolve();};
+const entryFields=[['J','Category','HVAC'],['K','Service Type','Copper Pipes'],['L','Penetration Type','Core Hole'],['M','Substrate Orientation','Vertical'],['N','FRL','-/120/120'],['P','Substrate','Concrete/masonry wall']];
+function entryPolicy(h){
+  const metadata=definition();metadata.required_item_fields=entryFields.map(([column,label])=>({column,label}));
+  for(const [column,label,value] of entryFields)if(!metadata.row_fields.some(field=>field.column===column))metadata.row_fields.push({column,label,type:'select',group:'Penetration',format:'text',options:[value],default:null});
+  h.audit.state.definition=copy(metadata);h.audit.setRequest(async(path,payload)=>result(payload.draft,metadata));h.audit.render();return metadata;
+}
 const text=node=>[node.textContent,...node.children.map(text)].join(' ');
 let passed=0;
 async function check(name,fn){const h=harness();h.api.applyProject(await h.api.prepareDefaults());await fn(h);passed++;console.log(`ok - ${name}`);}
 (async()=>{
+  await check('Each missing required entry field disables new additions and names/focuses the first missing field without mutating either draft',async h=>{
+    entryPolicy(h);const notices=[];h.context.window.CeasefirePenetrationNavigation.notify=async(...args)=>notices.push(args);
+    for(const [column,label] of entryFields){
+      h.audit.state.draft.rows[0].inputs={...Object.fromEntries(entryFields.map(([key,,value])=>[key,value])),O:1.23456789012345,[column]:null};h.audit.render();
+      assert.equal(h.byId('penetration-add-to-schedule').disabled,true);assert.equal(h.byId('penetration-add-to-library').disabled,true);assert.match(h.byId('penetration-required-fields').textContent,new RegExp(`Complete ${label} before adding`));
+      const before=copy(h.api.projectSnapshot()),calls=h.calls.length;await h.audit.addToSchedule();await h.audit.addToLibrary();assert.deepEqual(copy(h.api.projectSnapshot()),before);assert.equal(h.calls.length,calls);
+      assert.equal(notices.at(-1)[0],'Complete item details');assert.equal(h.context.document.activeElement.dataset.penetrationField,column);assert.equal(h.control(column).required,true);assert.equal(h.control(column).getAttribute('aria-required'),'true');
+    }
+  });
+  await check('Complete entry waits for server validation, blocks duplicate clicks and preserves unrounded inputs on append',async h=>{
+    entryPolicy(h);const inputs={...Object.fromEntries(entryFields.map(([column,,value])=>[column,value])),O:1.23456789012345,AI:98.76543210987654};h.audit.state.draft.rows[0].inputs=inputs;h.audit.render();
+    const pending=deferred(),calls=[];h.audit.setValidationRequest(async(path,payload)=>{calls.push({path,payload:copy(payload)});return pending.promise;});
+    const adding=h.audit.addToSchedule();await flush();assert.equal(h.byId('penetration-add-to-schedule').disabled,true);assert.equal(h.api.projectSnapshot().draft.rows.length,0);await h.audit.addToSchedule();assert.equal(calls.length,1);assert.deepEqual(calls[0].payload.draft.rows[0].inputs,inputs);
+    pending.resolve({valid:true});await adding;assert.deepEqual(copy(h.api.projectSnapshot().draft.rows[0].inputs),inputs);
+  });
+  for(const change of ['validation rejection','composer edit','pricing edit','project replacement'])await check(`New entry validation cannot append after ${change}`,async h=>{
+    entryPolicy(h);Object.assign(h.audit.state.draft.rows[0].inputs,Object.fromEntries(entryFields.map(([column,,value])=>[column,value])),{O:2});h.audit.render();const pending=deferred();h.audit.setValidationRequest(()=>pending.promise);
+    const adding=h.audit.addToSchedule();await flush();if(change==='composer edit'){h.control('T').value='Later edit';await h.control('T').emit('input');}else if(change==='pricing edit')h.pricing.rates.original.price=2;else if(change==='project replacement')h.api.applyProject(await h.api.prepareDefaults());
+    const before=copy(h.api.projectSnapshot().draft);if(change==='validation rejection')pending.reject(new Error('Complete Category before adding this Firestopping item.'));else pending.resolve({valid:true});await adding;assert.deepEqual(copy(h.api.projectSnapshot().draft),before);assert.equal(h.audit.state.addingSchedule,false);
+  });
+  await check('Incomplete historical library rows can still increase existing quantities, while a new incomplete library row cannot be appended',async h=>{
+    const metadata=entryPolicy(h);h.audit.state.schedule.draft.rows=[{id:'legacy-row',library_item_id:'pkb-002',inputs:{T:'Historic incomplete',O:3.1234567890123}}];h.audit.state.rowEpochs.set('legacy-row',++h.audit.state.nextEpoch);
+    await h.api.addLibraryItem('pkb-002');assert.equal(h.api.projectSnapshot().draft.rows[0].inputs.O,4.1234567890123);
+    h.audit.setRequest(async(path,payload)=>path.endsWith('/edit')?{definition:metadata,library_id:'FL-ID-003',draft:{globals:{},rows:[{id:'source',inputs:{T:'Incomplete source',O:1}}]}}:result(payload.draft,metadata));
+    const before=copy(h.api.projectSnapshot().draft);await assert.rejects(()=>h.api.addLibraryItem('pkb-003'),/Complete Category/);assert.deepEqual(copy(h.api.projectSnapshot().draft),before);
+  });
   await check('Clear blanks every current item input and pending source binding while retaining schedule, master settings, prices and stable current identity',async h=>{
     const state=h.audit.state; state.draft.rows[0].inputs={T:'Precise draft',O:1.23456789012345,AL:950,W:'Installer',pipe_labour_hours:.123456789};state.draft.rows[0].library_item_id='OLD-SOURCE';
     state.schedule.draft.rows=[{id:'scheduled',inputs:{T:'Saved schedule',O:4.987654321},library_item_id:'KEEP-SOURCE'}];

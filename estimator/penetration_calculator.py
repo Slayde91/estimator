@@ -14,6 +14,7 @@ from pathlib import Path
 import re
 
 from .catalog import FIRESTOPPING_GROUPS, ValidationError, effective_catalog
+from .penetration_entry import required_item_fields
 from .library_facets import (LAGGED_PIPE_TYPES, PLASTIC_PIPE_TYPES, SERVICES,
                              UNLAGGED_PIPE_TYPES, facet_options)
 from .excel_engine import (WorkbookEngine, CellRange, FormulaError, column_name,
@@ -455,6 +456,7 @@ def definition(configuration=None, service_types=None):
         'capacity': CAPACITY, 'defaults': {'globals': deepcopy(defaults), 'rows': [{'id': 'line-1', 'inputs': deepcopy(ROW_DEFAULTS)}]},
         'schedule_defaults': {'globals': deepcopy(defaults), 'rows': []},
         'global_fields': global_fields, 'row_fields': fields, 'output_fields': output_fields,
+        'required_item_fields': required_item_fields(),
         'groups': [group for source in GROUP_COLUMNS
                    for group in (PIPE_DISPLAY_GROUPS if source == 'Pipes' else (source,))] + ['SETTINGS'],
         'group_labels': GROUP_LABELS,

@@ -83,6 +83,7 @@ class LibraryWorkflowIntegrationTests(unittest.TestCase):
         return {'draft': {'globals': {'J': 'No', 'K': 0, 'L': 0.123456789, 'M': 0.0123456789},
                          'rows': [{'id': 'unchanged-row-id', 'inputs': {
                              'K': 'Custom service / exact spelling', 'V': 'FIREFLY',
+                             'J': 'Mechanical', 'L': 'Core Hole', 'M': 'Vertical', 'N': '-/120/120', 'P': 'Concrete/masonry wall',
                              'T': 'Test service <literal>', 'U': 'Synthetic installation only.',
                              'O': 1, 'AH': 1.23456789, 'AI': 98.7654321, 'AJ': 12.3456789}}]},
                 'configuration': deepcopy(self.configuration), 'idempotency_key': key}
@@ -91,6 +92,24 @@ class LibraryWorkflowIntegrationTests(unittest.TestCase):
         status, value = self.request('POST', '/api/libraries/penetration', body or self.creation())
         self.assertEqual(status, 200, value)
         return value
+
+    def test_schedule_entry_validation_names_missing_fields_and_writes_nothing(self):
+        body = {name: self.creation()[name] for name in ('draft', 'configuration')}
+        code, response = self.request('POST', '/api/penetration/validate-item', body)
+        self.assertEqual((code, response), (200, {'valid': True}))
+        for column, label in [('J', 'Category'), ('K', 'Service Type'), ('L', 'Penetration Type'),
+                              ('M', 'Substrate Orientation'), ('N', 'FRL'), ('P', 'Substrate')]:
+            with self.subTest(column=column):
+                invalid = deepcopy(body)
+                invalid['draft']['rows'][0]['inputs'][column] = None
+                code, response = self.request('POST', '/api/penetration/validate-item', invalid)
+                self.assertEqual(code, 400, response)
+                self.assertIn('Complete ' + label + ' before adding', response['error'])
+        with self.store.connect() as database:
+            for table in ('firestopping_created', 'firestopping_items', 'quotes', 'calculator_states', 'app_preferences'):
+                self.assertEqual(database.execute(f'SELECT count(*) FROM {table}').fetchone()[0], 0)
+        self.assertEqual(self.request('POST', '/api/penetration/validate-item', body,
+                                     headers={'Origin': 'https://example.com'})[0], 403)
 
     def protected(self):
         with self.store.connect() as db:
@@ -160,7 +179,9 @@ class LibraryWorkflowIntegrationTests(unittest.TestCase):
         body = self.creation()
         worker = next(field for field in definition(self.configuration)['row_fields']
                       if field['column'] == 'W')['options'][0]
-        body['draft']['rows'][0]['inputs'] = {'K': 'Cable Trays', 'O': 1, 'W': worker, 'AH': 2}
+        body['draft']['rows'][0]['inputs'] = {'J': 'Electrical & Communications',
+            'L': 'Core Hole', 'M': 'Vertical', 'N': '-/120/120', 'P': 'Concrete/masonry wall',
+            'K': 'Cable Trays', 'O': 1, 'W': worker, 'AH': 2}
         created = self.create(body)
         changed = deepcopy(self.configuration)
         product = next(item for item in changed['catalog']['inventory'] if item['sales_description'] == worker)

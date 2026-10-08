@@ -872,3 +872,22 @@ quantity contribution. It keeps the physical identities and the existing schedul
 row, including its manual inputs and any other links. A row left at zero can be
 removed in the Firestopping Estimator. Takeoff-only Undo cannot reverse a commercial
 link transaction; use the coordinated confirmation or removal action in Item Details.
+
+## Register documents and steel section selection
+
+Defect Reports and Service Plans have a **Document** dropdown containing XLSX
+downloads for confirmed, unconfirmed, or all active items, plus the existing
+Passive Fire Matrix PDF. Each XLSX selection uses each record's own manual
+confirmation state; an absent state means unconfirmed. Deleted records are
+excluded. Register search, selection, collapsed parents and column filters do
+not restrict these document selections. Parent IDs, UUIDs, exact quantities,
+evidence associations and the full source graph fingerprint remain in the file.
+An excluded parent is still identified by the child's retained parent reference.
+These exports remain unapproved drafts. The separate diagnostic export API
+continues to include retained history when no confirmation selection is supplied.
+
+The Steel section field is a searchable dropdown using the selected calculator's
+existing section database. Type to filter, then select a row or use the arrow
+keys and Enter. Escape cancels the query. Exact typed designations can be
+committed with Tab; partial searches do not change the item. Retained legacy
+designations stay visible. Count-register cells remain locked.

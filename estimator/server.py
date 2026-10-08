@@ -247,7 +247,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                         self.send_payload(405, {'error': 'Method not allowed.'})
                         return
                     self.send_payload(200, libraries.action(route.split('/')[-2], route.split('/')[-1], body))
-                elif route in {'/api/penetration/definition', '/api/penetration/calculate', '/api/penetration/report.pdf', '/api/penetration/register.xlsx'}:
+                elif route in {'/api/penetration/definition', '/api/penetration/validate-item', '/api/penetration/calculate', '/api/penetration/report.pdf', '/api/penetration/register.xlsx'}:
                     if self.command != 'POST':
                         self.send_payload(405, {'error': 'Method not allowed.'})
                         return
@@ -261,6 +261,10 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     config = validate_configuration(body.get('configuration', store.configuration()))
                     if action == 'definition':
                         self.send_payload(200, definition(config, service_types=libraries.service_types()))
+                    elif action == 'validate-item':
+                        from .penetration_entry import validate_item_for_add
+                        validate_item_for_add(body['draft'])
+                        self.send_payload(200, {'valid': True})
                     elif action == 'calculate':
                         result = calculate_penetration(body['draft'], config)
                         result['definition'] = definition(config, service_types=libraries.service_types())

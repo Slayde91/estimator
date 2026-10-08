@@ -217,3 +217,10 @@ not presented as a public report or replaced with another product's approval.
 These links support review; they do not overwrite workbook constants or select a
 design automatically. For example, different MONOKOTE bag masses in public
 documents do not silently replace the workbook's calibrated estimating yield.
+
+## Steel (spray) schedule display order
+
+In the browser schedule, Input method and Section ID follow Item / mark,
+Product follows Critical temp, and Hp/A | ESA/M | web mm follows Length / member.
+This is a presentation projection: the controls retain their original source
+column keys, and workbook packages, formulas and XLSX export order are unchanged.

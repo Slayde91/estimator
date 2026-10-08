@@ -126,8 +126,9 @@ async function workbook(title) {
   await page.getByRole('button',{name:'Home',exact:true}).click();await page.locator('[data-home-view="takeoffs"]').click();await expect(page.locator('#view-takeoffs')).toBeVisible();
   await chooseCalculator(page,'Firestopping');await idle();
   const settings=page.locator('#penetration-settings'),details=page.locator('#penetration-input-groups [role="tab"]').first();
-  const gear=await settings.boundingBox(),tab=await details.boundingBox(),newItem=await page.locator('#penetration-new-item').boundingBox(),library=await page.locator('#penetration-add-to-library').boundingBox();
-  assert.ok(gear.x+gear.width<=tab.x,'Settings icon is left of the first Details tab');assert.ok(newItem.x+newItem.width<=library.x,'Add new item is left of Add to Library');
+  const gear=await settings.boundingBox(),tab=await details.boundingBox(),add=await page.locator('#penetration-add-to-schedule').boundingBox(),library=await page.locator('#penetration-add-to-library').boundingBox();
+  assert.ok(gear.x+gear.width<=tab.x,'Settings icon is left of the first Details tab');assert.ok(add.x+add.width<=library.x,'Add to Library is immediately right of Add to Schedule');assert.ok(Math.abs(add.y-library.y)<1&&Math.abs(add.height-library.height)<1,'Current-item add actions share the same height and top alignment');
+  await expect(page.locator('#penetration-new-item')).toBeHidden();await expect(page.locator('#penetration-recalculate')).toBeHidden();
   for(const id of ['penetration-item-excel','penetration-item-pdf'])assert.equal(await page.locator(`#${id}`).evaluate(el=>el.closest('.penetration-schedule-recalculate-tools').querySelector('#penetration-estimator-schedule-recalculate')!==null),true,'Schedule downloads share the lower schedule Recalculate row');
   const clearBefore=await snapshots(),current=clearBefore.penetration.composer.rows[0];
   const description=page.locator('#penetration-row-fields [data-penetration-field="T"]');await description.fill('CLEAR CURRENT ITEM');await description.press('Tab');
@@ -135,7 +136,15 @@ async function workbook(title) {
   await expect(description).toHaveValue('');await expect(page.locator('#penetration-item-quantity [data-penetration-field="O"]')).toHaveValue('');
   const cleared=await snapshots();assert.deepEqual(cleared.penetration.draft,clearBefore.penetration.draft);assert.deepEqual(cleared.penetration.composer.globals,clearBefore.penetration.composer.globals);assert.deepEqual(cleared.penetration.composer.rows,[{id:current.id,inputs:{}}]);assert.deepEqual(cleared.pricing,clearBefore.pricing);assert.deepEqual(cleared.calculators,clearBefore.calculators);
   await page.screenshot({path:path.join(output,'firestopping-clear-controls.png'),fullPage:true});
-  evidence.commentsControls={homeTakeoffsAndHelp:true,settingsLeftOfDetails:true,newItemLeftOfLibrary:true,scheduleDownloadsBelow:true,clearAllInputsAndQuantity:true,clearPreservesScheduleSettingsPricesAndCalculators:true};
+  evidence.commentsControls={homeTakeoffsAndHelp:true,settingsLeftOfDetails:true,libraryRightOfSchedule:true,headerNewAndRecalculateHidden:true,scheduleDownloadsBelow:true,clearAllInputsAndQuantity:true,clearPreservesScheduleSettingsPricesAndCalculators:true};
+  const requiredFields=[['J','Category','Plumbing & Hydraulic'],['K','Service Type','Copper Pipes'],['L','Penetration Type','Core Hole'],['M','Substrate Orientation','Vertical'],['N','FRL','-/120/120'],['P','Substrate','Concrete/masonry wall']];
+  const field=column=>page.locator(`#penetration-row-fields [data-penetration-field="${column}"]`);
+  for(const [column,,value] of requiredFields){await expect(field(column)).toHaveAttribute('aria-required','true');await field(column).selectOption(value);}
+  await page.locator('#penetration-item-quantity [data-penetration-field="O"]').fill('1.23456789012345');const automatic=page.waitForResponse(reply=>new URL(reply.url()).pathname==='/api/penetration/calculate'&&reply.request().method()==='POST');await description.fill('Required entry native fixture');await description.press('Tab');assert.equal((await automatic).status(),200);await idle();
+  const mutationCount=()=>requests.filter(request=>request.method==='POST'&&['/api/penetration/validate-item','/api/libraries/penetration'].includes(request.path)).length;
+  for(const [column,label,value] of requiredFields){const count=mutationCount();await field(column).selectOption('');await expect(page.locator('#penetration-add-to-schedule')).toBeDisabled();await expect(page.locator('#penetration-add-to-library')).toBeDisabled();await expect(page.locator('#penetration-required-fields')).toContainText(`Complete ${label} before adding`);assert.equal(mutationCount(),count);await field(column).selectOption(value);}
+  await expect(page.locator('#penetration-add-to-schedule')).toBeEnabled();await expect(page.locator('#penetration-add-to-library')).toBeEnabled();await expect(page.locator('#penetration-required-fields')).toBeHidden();
+  evidence.requiredFields={eachMissingFieldBlocksBothNewEntries:true,requiredSemantics:true,automaticCalculationWhileRecalculateHidden:true};
   // Capture a real library identity, add that item to the schedule, then use
   // the native Edit/Clear/refill/Update controls on its retained row copy.
   await description.fill('CLEAR LINKED SCHEDULE SOURCE');await description.press('Tab');const quantity=page.locator('#penetration-item-quantity [data-penetration-field="O"]');await quantity.fill('3.123456789');await quantity.press('Tab');

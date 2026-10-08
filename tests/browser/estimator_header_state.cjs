@@ -26,8 +26,8 @@ const errors = [], calculations = [], checks = {};
 async function idle() { await page.waitForFunction(() => { const status = window.CeasefireDesktop?.status(); return status?.ready && !status.busy; }); }
 async function settledEstimate() { await expect(page.locator('#estimator-main .summary-card')).toHaveAttribute('aria-busy', 'false'); }
 async function snapshot() { return page.evaluate(() => ({ details: window.CeasefireProject.details(), pricing: window.CeasefireProject.configuration(), calculators: window.CeasefireCalculators.projectSnapshot(), penetration: window.CeasefirePenetrations.projectSnapshot() })); }
-async function response(action, pathname) {
-  const pending = page.waitForResponse(reply => new URL(reply.url()).pathname === pathname && reply.request().method() === 'POST'); pending.catch(() => {});
+async function response(action, pathname, matches = () => true) {
+  const pending = page.waitForResponse(reply => new URL(reply.url()).pathname === pathname && reply.request().method() === 'POST' && matches(reply)); pending.catch(() => {});
   await action(); const reply = await pending; assert.equal(reply.status(), 200, await reply.text()); return reply.json();
 }
 async function disclosure(key, open) {
@@ -110,19 +110,21 @@ function retainedScopes(value) { return { pricing: value.pricing, calculators: v
   // Native schedule edits retain full precision; button layout must match the
   // Item QTY input on desktop and narrow viewports without horizontal overflow.
   await chooseCalculator(page, 'Firestopping'); await idle(); await expect(page.locator('#estimator-penetration')).toBeVisible();
-  const clear = page.locator('#penetration-clear'), add = page.locator('#penetration-add-to-schedule'), fresh = page.locator('#penetration-new-item');
-  await expect(clear).toHaveAccessibleName('Clear'); await expect(add).toHaveAccessibleName('Add to Schedule'); await expect(fresh).toHaveAccessibleName('Add new item');
+  const clear = page.locator('#penetration-clear'), add = page.locator('#penetration-add-to-schedule'), library = page.locator('#penetration-add-to-library'), fresh = page.locator('#penetration-estimator-add');
+  await expect(page.locator('#penetration-new-item')).toBeHidden(); await expect(page.locator('#penetration-recalculate')).toBeHidden();
+  for (const [control, name] of [[clear, 'Clear'], [add, 'Add to Schedule'], [library, 'Add to Library']]) { await expect(control).toBeVisible(); await expect(control).toHaveAccessibleName(name); }
   assert.equal(await clear.locator('svg path').count(), 2); assert.equal(await add.locator('svg circle').count(), 1);
   checks.firestoppingViewports = [];
   for (const width of [1146, 825, 570, 390]) {
     await page.setViewportSize({ width, height: 1100 });
     const geometry = await page.locator('#penetration-item-quantity [data-penetration-field="O"]').evaluate(element => {
-      const ids = ['penetration-clear', 'penetration-add-to-schedule'];
-      const bounds = control => { const rectangle = control.getBoundingClientRect(); return { top: rectangle.top, bottom: rectangle.bottom, height: rectangle.height, right: rectangle.right }; };
+      const ids = ['penetration-clear', 'penetration-add-to-schedule', 'penetration-add-to-library'];
+      const bounds = control => { const rectangle = control.getBoundingClientRect(); return { top: rectangle.top, bottom: rectangle.bottom, height: rectangle.height, left: rectangle.left, right: rectangle.right }; };
       const centres = control => { const button = control.getBoundingClientRect(), icon = control.querySelector('svg').getBoundingClientRect(); return { x: icon.x + icon.width / 2 - (button.x + button.width / 2), y: icon.y + icon.height / 2 - (button.y + button.height / 2) }; };
       return { input: bounds(element), buttons: Object.fromEntries(ids.map(id => [id, bounds(document.getElementById(id))])), iconOffsets: Object.fromEntries(ids.map(id => [id, centres(document.getElementById(id))])), viewport: innerWidth, pageWidth: document.documentElement.scrollWidth };
     });
     assert.equal(geometry.input.height, 48); for (const button of Object.values(geometry.buttons)) { assert.equal(button.height, 48); assert.ok(Math.abs(button.top - geometry.input.top) < 1); assert.ok(Math.abs(button.bottom - geometry.input.bottom) < 1); assert.ok(button.right <= width); }
+    assert.ok(geometry.buttons['penetration-add-to-schedule'].right <= geometry.buttons['penetration-add-to-library'].left, 'Library follows Add to Schedule');
     assert.ok(geometry.pageWidth <= width, `Firestopping escaped viewport at ${width}`);
     for (const offset of Object.values(geometry.iconOffsets)) { assert.ok(Math.abs(offset.x) < 1, `Icon is horizontally centred at ${width}`); assert.ok(Math.abs(offset.y) < 1, `Icon is vertically centred at ${width}`); }
     if ([1146, 390].includes(width)) await page.screenshot({ path: path.join(output, `firestopping-controls-${width}.png`), fullPage: true });
@@ -130,15 +132,18 @@ function retainedScopes(value) { return { pricing: value.pricing, calculators: v
   }
   await page.setViewportSize({ width: 1440, height: 1100 });
   const mainSchedule = page.locator('details[aria-labelledby="penetration-estimator-schedule-heading"]'); if (!await mainSchedule.evaluate(element => element.open)) await mainSchedule.locator(':scope > summary').click();
-  const style = element => ({ color: getComputedStyle(element).color, background: getComputedStyle(element).backgroundColor, width: element.getBoundingClientRect().width, height: element.getBoundingClientRect().height });
-  assert.deepEqual(await fresh.evaluate(style), await page.locator('#penetration-estimator-add').evaluate(style), 'New item matches the Firestopping schedule action');
+  await expect(fresh).toBeVisible(); await expect(fresh).toHaveAccessibleName('Add new item');
+  const style = element => ({ color: getComputedStyle(element).color, background: getComputedStyle(element).backgroundColor });
+  assert.deepEqual(await fresh.evaluate(style), await page.locator('#penetration-add').evaluate(style), 'Both Firestopping schedules retain the same new-item styling');
   const description = page.locator('#penetration-row-fields [data-penetration-field="T"]'), quantity = page.locator('#penetration-item-quantity [data-penetration-field="O"]');
+  for (const [column, value] of [['J', 'Plumbing & Hydraulic'], ['K', 'Copper Pipes'], ['L', 'Core Hole'], ['M', 'Vertical'], ['N', '-/120/120'], ['P', 'Concrete/masonry wall']]) await page.locator(`#penetration-row-fields [data-penetration-field="${column}"]`).selectOption(value);
   await page.locator('#penetration-input-groups').getByRole('tab', { name: 'Products and labour', exact: true }).click();
   const crew = page.locator('#penetration-row-fields [data-penetration-field="W"]'); await crew.selectOption(await crew.locator('option').evaluateAll(options => options.find(option => option.value && !option.disabled).value));
   await page.locator('#penetration-input-groups').getByRole('tab', { name: 'OTHER', exact: true }).click(); const labour = page.locator('#penetration-row-fields [data-penetration-field="AH"]'); await labour.fill('1'); await labour.press('Tab');
   await page.locator('#penetration-input-groups').getByRole('tab', { name: 'DETAILS', exact: true }).click();
-  await description.fill('Native button precision item'); await description.press('Tab'); await quantity.fill('3.123456789'); await quantity.press('Tab'); await idle();
-  const recalculate = page.locator('#penetration-recalculate'); await expect(recalculate).toBeEnabled(); const calculated = await response(() => recalculate.click(), '/api/penetration/calculate'); await expect(recalculate).toHaveAttribute('aria-busy', 'false'); await idle();
+  await description.fill('Native button precision item'); await description.press('Tab');
+  const calculated = await response(async () => { await quantity.fill('3.123456789'); await quantity.press('Tab'); }, '/api/penetration/calculate', reply => { const inputs = reply.request().postDataJSON()?.draft?.rows?.[0]?.inputs; return inputs?.O === 3.123456789 && inputs?.T === 'Native button precision item'; });
+  await expect(page.locator('#penetration-recalculate')).toHaveAttribute('aria-busy', 'false'); await idle();
   assert.deepEqual(calculated.rows[0].errors, []); assert.ok(Number.isFinite(calculated.rows[0].outputs.H)); assert.ok(calculated.rows[0].outputs.H > 0, 'The test adds a valid priced labour item');
   const beforeAdd = await snapshot(); await add.click(); await expect(add).toHaveAttribute('aria-busy', 'false'); await idle();
   const afterAdd = await snapshot(); assert.equal(afterAdd.penetration.draft.rows.length, beforeAdd.penetration.draft.rows.length + 1);
@@ -146,10 +151,10 @@ function retainedScopes(value) { return { pricing: value.pricing, calculators: v
   assert.equal(added.inputs.O, 3.123456789); assert.equal(added.inputs.T, 'Native button precision item'); assert.deepEqual(afterAdd.pricing, beforeAdd.pricing); assert.deepEqual(afterAdd.calculators, beforeAdd.calculators); assert.deepEqual(afterAdd.penetration.draft.globals, beforeAdd.penetration.draft.globals);
   await clear.click(); await expect(description).toHaveValue(''); await expect(quantity).toHaveValue(''); await idle();
   const cleared = await snapshot(); assert.deepEqual(retainedScopes(cleared), retainedScopes(afterAdd)); assert.deepEqual(cleared.penetration.composer.rows[0].inputs, {});
-  await description.fill('Pending current copy'); await description.press('Tab'); await expect(recalculate).toBeEnabled(); await response(() => recalculate.click(), '/api/penetration/calculate'); await expect(recalculate).toHaveAttribute('aria-busy', 'false'); await idle();
+  await response(async () => { await description.fill('Pending current copy'); await description.press('Tab'); }, '/api/penetration/calculate', reply => reply.request().postDataJSON()?.draft?.rows?.[0]?.inputs?.T === 'Pending current copy'); await expect(page.locator('#penetration-recalculate')).toHaveAttribute('aria-busy', 'false'); await idle();
   await fresh.click(); await page.getByRole('dialog').getByRole('button', { name: 'New item', exact: true }).click(); await expect(description).not.toHaveValue('Pending current copy'); await idle();
   const renewed = await snapshot(); assert.deepEqual(retainedScopes(renewed), retainedScopes(afterAdd)); assert.notEqual(renewed.penetration.composer.rows[0].inputs.T, 'Pending current copy');
-  checks.firestoppingActions = { addInsertsExactlyOneRow: true, scheduleQuantityPrecision: added.inputs.O, unrelatedRowsAndCalculatorsAndPricesRetained: true, clearAffectsOnlyCurrentCopy: true, newItemPreservesScheduleAndSettings: true, matchingRedNewItemActions: true };
+  checks.firestoppingActions = { addInsertsExactlyOneRow: true, scheduleQuantityPrecision: added.inputs.O, unrelatedRowsAndCalculatorsAndPricesRetained: true, clearAffectsOnlyCurrentCopy: true, newItemPreservesScheduleAndSettings: true, matchingScheduleNewItemActions: true, headerNewAndRecalculateHidden: true, requiredDetailsPresentForNewEntry: true, fieldEditCalculatesAutomatically: true };
   assert.deepEqual(errors, []); assert.deepEqual(await page.evaluate(() => window.qaCsp), []);
   for (const asset of assets) assert.equal(sha256(fs.readFileSync(path.join(root, asset))), assetHashes[asset], 'Sources stayed fixed during the full browser journey');
   fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ passed: true, port: info.port, disposable: true, assetHashes, checks, consoleErrors: errors, cspViolations: [], limits: ['Synthetic fixture only; no live application or existing project touched.', 'Held Save response verifies captured versus later edits; successful file writes use the real endpoint.'] }, null, 2));

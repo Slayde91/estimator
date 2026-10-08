@@ -1557,6 +1557,44 @@
     return downloadCalculatedFile({ action: "summary.pdf", buttonId: "calculator-summary-pdf", label: "PDF Summary", includeProjectDetails: true });
   }
 
+  // Document disclosures only change access to the existing action buttons.
+  // Their click handlers still own validation, draft capture and file saving.
+  function initializeDocumentMenus() {
+    const menus = [...document.querySelectorAll?.(".calculator-document-menu") || []].map((root) => ({
+      root, toggle: root.querySelector("[data-document-menu-toggle]"), list: root.querySelector("[data-document-menu-list]"),
+    })).filter(({ toggle, list }) => toggle && list);
+    const buttons = (menu) => [...menu.list.querySelectorAll("button")].filter((button) => !button.disabled && !button.hidden);
+    const close = (menu, restoreFocus = false) => {
+      menu.list.hidden = true; menu.toggle.setAttribute("aria-expanded", "false");
+      if (restoreFocus) menu.toggle.focus();
+    };
+    const open = (menu) => {
+      for (const other of menus) if (other !== menu) close(other);
+      menu.list.hidden = false; menu.toggle.setAttribute("aria-expanded", "true");
+    };
+    for (const menu of menus) {
+      close(menu);
+      menu.toggle.addEventListener("click", () => menu.list.hidden ? open(menu) : close(menu));
+      menu.root.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && !menu.list.hidden) { event.preventDefault(); close(menu, true); return; }
+        if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
+        event.preventDefault(); open(menu);
+        const choices = buttons(menu); if (!choices.length) return;
+        const index = choices.indexOf(document.activeElement);
+        const next = event.key === "Home" ? 0 : event.key === "End" ? choices.length - 1
+          : event.key === "ArrowDown" ? (index + 1) % choices.length : (index < 0 ? choices.length - 1 : (index + choices.length - 1) % choices.length);
+        choices[next].focus();
+      });
+      menu.list.addEventListener("click", (event) => {
+        if (event.target.closest("button")) close(menu, true);
+      });
+      menu.root.addEventListener("focusout", (event) => { if (!menu.root.contains(event.relatedTarget)) close(menu); });
+    }
+    window.addEventListener("pointerdown", (event) => { for (const menu of menus) if (!menu.root.contains(event.target)) close(menu); });
+  }
+
+  initializeDocumentMenus();
+
   $("calculator-reset").addEventListener("click", reset);
   $("calculator-recalculate").addEventListener("click", calculate);
   $("calculator-template").addEventListener("click", exportTemplate);

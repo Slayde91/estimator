@@ -1818,9 +1818,9 @@ let passed = 0;
   // Import and the four distinct exports retain their actions and requested order.
   const registerMarkup=fs.readFileSync('static/index.html','utf8');
   for(const [id,label] of [['calculator-import','Import XLSX Schedule'],['calculator-template','Export Template'],['calculator-excel','Download XLSX Schedule'],['calculator-pdf','Download PDF Schedule'],['calculator-summary-pdf','Download PDF Summary']]){
-    assert.match(registerMarkup,new RegExp(`id="${id}"[^>]*class="[^"]*icon-only[^"]*"[^>]*aria-label="${label}"[^>]*title="${label}"`));
+    assert.match(registerMarkup,new RegExp(`id="${id}"[^>]*class="[^"]*calculator-document-action[^"]*"[^>]*aria-label="${label}"[^>]*title="${label}"`));
   }
-  assert.match(registerMarkup,/id="calculator-template"[^>]*class="[^"]*excel-button[^"]*icon-only[^"]*"/);
+  assert.match(registerMarkup,/id="calculator-template"[^>]*class="[^"]*excel-button[^"]*calculator-document-action[^"]*"/);
   assert.match(registerMarkup,/id="calculator-template"[^>]*title="Export Template"[\s\S]*?<span class="download-arrow"[^>]*><svg[^>]*>[\s\S]*?<\/svg><\/span>/);
   assert.match(registerMarkup,/id="calculator-reset"[^>]*class="[^"]*secondary[^"]*"[^>]*aria-label="Reset Calc"[^>]*title="Reset Calc"[\s\S]*?pricing-reset-symbol/);
   assert.match(registerMarkup,/id="calculator-recalculate"[^>]*class="[^"]*icon-only[^"]*calculator-symbol-button[^"]*"[^>]*aria-label="Recalculate"[^>]*title="Recalculate"/);
@@ -1834,7 +1834,7 @@ let passed = 0;
     assert.ok(registerMarkup.includes(className));assert.ok(toolbarCss.includes(`.calculator-tools .${className}{background:${background};color:${color};`));
   }
   const sharedButtonCss=fs.readFileSync('static/styles.css','utf8');
-  assert.match(registerMarkup,/id="calculator-import"[^>]*class="[^"]*excel-button[^"]*icon-only[^"]*"/);
+  assert.match(registerMarkup,/id="calculator-import"[^>]*class="[^"]*excel-button[^"]*calculator-document-action[^"]*"/);
   assert.doesNotMatch(registerMarkup,/id="calculator-save"/);
   assert.ok(sharedButtonCss.includes('.button.excel-button{color:#fff;background:var(--navy);'));
   assert.ok(sharedButtonCss.includes('.button.save-button{color:#332600;background:#ffdb66;'));

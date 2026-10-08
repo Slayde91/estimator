@@ -147,6 +147,7 @@ async function penetrationCheck(name, fn) {
     h.context.document.querySelectorAll = selector => selector === '.view' ? views : selector === '[data-view]' ? buttons : [];
     h.app.state.takeoffsEnabled = true; h.app.state.libraryKind = 'technical'; h.app.state.estimatorKind = 'penetration';
     h.context.window.CeasefireCalculators.open = async () => {};
+    h.context.window.CeasefireCalculators.select = async () => {};
     h.app.setRequest(async pathname => { assert.equal(pathname,'/api/projects'); return {files:[]}; });
     const before = h.snapshot();
     for (const name of ['quotes',...names.filter(name => name !== 'quotes'),'quotes']) {

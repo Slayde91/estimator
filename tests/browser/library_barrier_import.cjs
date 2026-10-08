@@ -30,6 +30,19 @@ async function selectLibrary(command=null){
 function assertCount(index){const service=current.physical.services[index],assignment=current.library_assignments.records[index];assert.equal(service.quantity,700);assert.ok(!Object.hasOwn(service,'library_quantity'));assert.equal(assignment.draft_quantity,700);assert.deepEqual(assignment.quantity_source,{version:1,kind:'services'});assert.equal(assignment.schedule_binding,null);}
 async function appendStart(choice){await details().getByRole('button',{name:'Choose library item for selected records',exact:true}).click();await modal('Choose barrier for library item',{'Barrier choice':choice},'Continue');}
 async function inspect(kind,id){await details().getByLabel(`${kind} ID in Item Details`,{exact:true}).selectOption(id);await idle();}
+async function paneOrder(count,hasParent){
+  await expect(details().locator('.takeoff-library-summary')).toHaveCount(count);
+  const order=await details().evaluate((pane,hasParent)=>{
+    const children=[...pane.children],index=selector=>children.findIndex(child=>child.matches(selector));
+    const choose=children.findIndex(child=>child.tagName==='BUTTON'&&child.textContent==='Choose library item for selected records'),navigation=index('.takeoff-physical-navigation'),parent=children.findIndex(child=>child.tagName==='BUTTON'&&child.textContent==='Change physical parent'),actions=index('.takeoff-physical-inspector-actions'),fields=children.flatMap((child,i)=>child.matches('.field')?[i]:[]),cards=children.flatMap((child,i)=>child.matches('.takeoff-library-summary')?[i]:[]);
+    return {choose,navigation,parent,actions,fields,cards,buttons:children.flatMap((child,i)=>child.tagName==='BUTTON'&&i!==choose?[i]:[]),total:children.length,hasParent};
+  },hasParent);
+  assert.ok(order.choose>=0);assert.equal(order.navigation,order.choose+1);assert.equal(order.parent,hasParent?order.choose+2:-1);assert.equal(order.actions,order.choose+(hasParent?3:2));
+  assert.deepEqual(order.cards,Array.from({length:count},(_,i)=>order.total-count+i));assert.ok(order.fields.every(index=>index>order.actions&&index<order.cards[0]));
+  assert.ok(order.buttons.every(index=>index>order.navigation&&index<order.fields[0]));
+  await expect(details().getByRole('button',{name:'Delete draft record',exact:true})).toHaveCount(1);await expect(details().getByRole('button',{name:'Discard unfinished physical edits',exact:true})).toHaveCount(1);
+  (evidence.itemDetailsOrder||=[]).push(order);
+}
 async function facets(locator){return locator.locator('select[data-library-filter]').evaluateAll(elements=>elements.map(el=>({key:el.dataset.libraryFilter,label:el.closest('label').querySelector('span').textContent,options:[...el.options].map(option=>({value:option.value,label:option.textContent}))})));}
 (async()=>{
   info=await ready;assert.notEqual(info.port,8765);const source=path.join(output,'reference-library/library.json'),sourceHash=hash(source),pdfHash=hash(info.fixture);
@@ -44,10 +57,12 @@ async function facets(locator){return locator.locator('select[data-library-filte
   await expect(dialog().locator('select[data-library-filter="substrate"]')).toBeVisible();assert.deepEqual(await facets(dialog()),expectedFacets);evidence.sameActualLibraryFacets=true;
   await expect(dialog().getByLabel('Technical Reference',{exact:true})).toHaveCount(0);evidence.pickerTechnicalReferenceRemoved=true;
   await selectLibrary('draft_library_assignment');await snapshot();const defect=structuredClone(current.physical.defects[0]),initialBarrier=structuredClone(current.physical.barriers[0]);assertCount(0);assert.equal(defect.fields.location,'L02 fixture north');assert.equal(current.library_assignments.records[0].draft_location,'L02 fixture north');assert.deepEqual(await page.evaluate(()=>window.CeasefirePenetrations.projectSnapshot()),originalPen);evidence.explicitPhysicalCountWithoutScheduleChange=true;
+  await paneOrder(1,false);await inspect('Service',current.physical.services[0].id);await paneOrder(1,true);await inspect('Defect',defect.id);
   // First New Barrier choice; selection adds immediately with no import review.
   await appendStart('new');await selectLibrary('import_library_item');await expect(details().getByRole('button',{name:'Choose library item for selected records',exact:true})).toBeVisible();await snapshot();
   assert.equal(current.physical.defects.length,1);assert.deepEqual(current.physical.defects[0],defect);assert.equal(current.physical.barriers.length,2);assert.equal(current.physical.services.length,2);
   const addedBarrier=structuredClone(current.physical.barriers[1]),newAssignment=structuredClone(current.library_assignments.records[1]);assert.equal(addedBarrier.defect_id,defect.id);assert.equal(addedBarrier.fields.barrier_type,'Core Hole');assert.equal(addedBarrier.fields.substrate,'Concrete');assert.equal(addedBarrier.fields.orientation,'Vertical');assert.deepEqual(addedBarrier.marker,defect.annotation);assert.equal(newAssignment.barrier_selection.choice,'new');assertCount(1);assert.deepEqual(await page.evaluate(()=>window.CeasefirePenetrations.projectSnapshot()),originalPen);evidence.newBarrierSameDefectExactSource=true;
+  await paneOrder(1,true);await inspect('Defect',defect.id);await paneOrder(2,false);
   const parentLabel=page.locator(`.takeoff-physical-callout[data-physical-id="${defect.id}"]`);await expect(parentLabel).toHaveCount(1);await expect(parentLabel).toContainText(current.physical.services[1].display_id);await expect(page.locator(`.takeoff-physical-callout[data-physical-id="${addedBarrier.id}"]`)).toHaveCount(0);evidence.inheritedBarrierUsesParentLabel=true;
   // Existing matching Barrier choice explicitly names ID/type/substrate/orientation.
   await appendStart('existing');await expect(dialog().getByRole('heading',{name:'Choose Existing Barrier',exact:true})).toBeVisible();const choice=dialog().getByLabel('Existing Barrier',{exact:true});await expect(choice).toHaveValue('');await expect(choice.locator(`option[value="${addedBarrier.id}"]`)).toHaveText(`${addedBarrier.display_id} · Core Hole · Concrete · Vertical`);

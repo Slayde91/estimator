@@ -130,6 +130,7 @@ async function screenshot(name,fixture) {
   await page.getByRole('button',{name:'Calculators',exact:true}).click();await tab('SCHEDULE');
   const reopened=await recalculate('SCHEDULE');
   for(const address of ['P10','T10','P11','T11','P12','T12','V12','O13','P13','S13','T13','V13','W13','X13']) assert.deepEqual(reopened[address],scheduled[address],`reopened ${address}`);
+  await page.getByRole('button',{name:'Document',exact:true}).click();
   const exported=await apiReply(()=>page.locator('#calculator-excel').click(),'/register.xlsx');
   assert.equal(exported.saved,true);assert.equal(exported.destination,'project');
   assert.ok(within(output,path.resolve(exported.path)));

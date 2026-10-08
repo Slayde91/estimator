@@ -161,3 +161,13 @@ band's hours, with explicit manual overrides preserved. This application policy
 change does not modify imported workbook definitions. Saved success messages
 clear when later unsaved edits exist. The supplied header GIF continues for five
 seconds after the completed updated tagline, with reduced-motion cleanup.
+
+### 8 October 2026 — Item Details and calculator document controls
+
+Item Details groups navigation and physical actions below Choose library item,
+with compact library summaries after the editable fields. Calculator navigation
+starts with Steel (spray), then returns to the last calculator used in the session.
+Document menus list the existing import, template and download actions by icon
+and name across workbook calculators and both Firestopping schedule views.
+Firestopping current-item icons remain centred at narrow and desktop widths.
+Calculation rules, source definitions, prices and saved project formats are unchanged.

@@ -700,6 +700,25 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
       assert.ok(h.calls.asks.at(-1).definitions.some(field=>field[0]==='seal_quantity'));assert.equal(h.current.library_assignments.records[0].draft_quantity,.375);assert.equal(h.current.physical.services.length,2);
     } finally {h?.controller.destroy();global.CeasefireTakeoffLibraryLinks=previous;}
   });
+  await check('Item Details keeps navigation and physical actions below library choice and association summaries last',async()=>{
+    for (const scope of ['defect_reports','service_plans']) {
+      const value=scope==='service_plans'?servicePlanGraph():graph();value.barriers[0].marker={document_id:uuid(80),document_sha256:'d'.repeat(64),page:1,point:[25,30]};const before=copy(value),h=component(value,{scope:()=>scope,libraryCommand:async()=>null});await flush();
+      h.current.library_assignments={version:1,records:[201,202].map((id,index)=>({id:uuid(id),scope,library:{id:`literal-${id}`,library_id:`FL-ID-00${index+1}`,metadata_sha256:'a'.repeat(64)},members:[1,5,6,...(scope==='defect_reports'?[2]:[])].map(id=>({id:uuid(id),kind:id===2?'defect':id===1?'barrier':'service',revision:1})),installation:{mode:'repeated_installations'},state:'draft',schedule_binding:null}))};h.controller.render(copy(h.current));
+      const order=hasParent=>{
+        const inspector=h.all().find(node=>node.tagName==='ASIDE'),children=inspector.children,choose=h.button('Choose library item for selected records'),start=children.indexOf(choose);
+        assert.ok(start>=0);assert.equal(children[start+1].className,'takeoff-physical-navigation');
+        if(hasParent)assert.equal(children[start+2],h.button('Change physical parent'));
+        const actions=children[start+(hasParent?3:2)];assert.equal(actions.className,'takeoff-physical-inspector-actions');assert.ok(actions.contains(h.button('Discard unfinished physical edits')));
+        const summaries=children.filter(node=>node.className.includes('takeoff-library-summary'));assert.equal(summaries.length,2);assert.deepEqual(children.slice(-2),summaries);
+        const fields=children.filter(node=>node.className==='field');for(const field of fields)assert.ok(children.indexOf(field)>children.indexOf(actions)&&children.indexOf(field)<children.indexOf(summaries[0]));
+        for(const action of children.filter(node=>node.tagName==='BUTTON'&&node!==choose))assert.ok(children.indexOf(action)>children.indexOf(children[start+1])&&(!fields.length||children.indexOf(action)<children.indexOf(fields[0])));
+      };
+      await h.controller.select(uuid(5));order(true);assert.ok(h.button('Delete draft record').parentElement.contains(h.button('Discard unfinished physical edits')));
+      await h.controller.select(uuid(1));order(scope==='defect_reports');assert.ok(h.button('Add service in Item Details'));assert.ok(h.button('Open count marker'));assert.ok(h.button('Remove count marker'));
+      if(scope==='defect_reports'){await h.controller.select(uuid(2));order(false);}
+      await h.controller.select(uuid(5));await h.controller.select(uuid(6),true);order(false);assert.ok(!h.all().some(node=>node.attributes['aria-label']==='Delete draft record'));assert.deepEqual(h.current.physical,before);assert.equal(h.calls.previews.length,0);h.controller.destroy();
+    }
+  });
   await check('Read-only library enrichment preserves a focused untouched editor and never adds schedule actions',async()=>{
     const previous=global.CeasefireTakeoffLibraryLinks,pending=defer(),hash='a'.repeat(64);
     const links=require('../static/takeoff-library-links.js');let h;
@@ -709,7 +728,7 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
       const notes=h.input('Notes');notes.focus();const before=copy(h.current);
       pending.resolve({id:'pkb-001',metadata_sha256:hash,display_fields:{service_type:'Literal service',penetration_type:'Core Hole',substrate:'Concrete',orientation:'Vertical',service_size:'25 mm'}});await flush();
       assert.equal(h.input('Notes'),notes);assert.ok(h.dom.container.contains(notes));assert.equal(h.dom.container.ownerDocument.activeElement,notes);assert.deepEqual(h.current,before);assert.equal(h.calls.previews.length,0);assert.equal(h.calls.applied.length,0);
-      const card=h.all().find(node=>node.className.includes('takeoff-library-summary'));assert.ok(card.textContent.includes('Service Type: Literal service'));assert.equal(card.children.filter(node=>node.tagName==='BUTTON').length,0);
+      const card=h.all().find(node=>node.className.includes('takeoff-library-summary'));assert.ok(card.textContent.includes('Service Type: Literal service'));assert.equal(card.children.filter(node=>node.tagName==='BUTTON').length,0);assert.equal(card.parentElement.children.at(-1),card);
     } finally { h?.controller.destroy();global.CeasefireTakeoffLibraryLinks=previous; }
   });
   await check('Long Unicode notes use the narrow note bound while ordinary fields keep their existing bound',()=>{

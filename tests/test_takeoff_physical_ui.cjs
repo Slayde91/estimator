@@ -806,9 +806,10 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
   });
   await check('Add disclosure keyboard dismissal and rerender preserve pending fields and release outside listeners',async()=>{
     const h=component(graph(),{libraryCommand:async()=>null});await flush();await h.controller.select(uuid(2));
-    const toggle=h.button('Add'),menu=toggle.parentElement,list=menu.children[1],notes=h.input('Notes'),before=copy(h.current),doc=h.dom.container.ownerDocument;
+    const toggle=h.button('Add'),menu=toggle.parentElement,list=menu.children[1],notes=h.input('Notes'),before=copy(h.current),doc=h.dom.container.ownerDocument,reveals=[];list.scrollIntoView=options=>reveals.push(options);
     notes.value='Unfinished note stays pending';notes.emit('input');toggle.emit('click');assert.equal(list.hidden,false);assert.equal(toggle.attributes['aria-expanded'],'true');assert.equal(h.calls.previews.length,0);assert.equal(h.input('Notes'),notes);assert.equal(notes.value,'Unfinished note stays pending');assert.deepEqual(h.current,before);
     menu.emit('keydown',{key:'ArrowDown'});assert.equal(doc.activeElement,h.button('Add barrier in Item Details'));menu.emit('keydown',{key:'End'});assert.equal(doc.activeElement,h.button('Add Library Item'));menu.emit('keydown',{key:'ArrowDown'});assert.equal(doc.activeElement,h.button('Add barrier in Item Details'));menu.emit('keydown',{key:'ArrowUp'});assert.equal(doc.activeElement,h.button('Add Library Item'));menu.emit('keydown',{key:'Escape'});assert.equal(doc.activeElement,toggle);assert.equal(list.hidden,true);
+    assert.deepEqual(reveals,[{block:'nearest',inline:'nearest'}],'Reveal the complete Add popup once per opening, without repeated keyboard scrolls');
     toggle.emit('click');doc.body.emit('pointerdown',{target:doc.body});assert.equal(list.hidden,true);assert.equal(notes.value,'Unfinished note stays pending');assert.equal(h.calls.previews.length,0);
     toggle.emit('click');menu.emit('focusout',{relatedTarget:doc.body});assert.equal(list.hidden,true);
     await h.click('Discard unfinished physical edits');for(let i=0;i<5;i++)await h.controller.select(uuid(i%2?1:2));assert.equal(doc.body.events.pointerdown.length,2,'Only the current Add disclosure and persistent Document disclosure remain registered');

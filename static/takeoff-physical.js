@@ -997,7 +997,7 @@
         library.setAttribute("aria-label", "Add Library Item"); library.title = "Add Library Item"; library.replaceChildren(icon); addActions.push(library);
       }
       if (addActions.length) {
-        inspectorMenu = actionDisclosure("Add", "Add item actions", "takeoff-physical-add-menu");
+        inspectorMenu = actionDisclosure("Add", "Add item actions", "takeoff-physical-add-menu", true);
         for (const action of addActions) {
           const label = action.className.includes("takeoff-physical-add-barrier") ? "Add Barrier" : action.className.includes("takeoff-physical-add-service") ? "Add Service" : "Add Library Item";
           action.className += " calculator-document-action"; action.append(node("span", "", label)); inspectorMenu.add(action);
@@ -1174,13 +1174,17 @@
     }
     // Document and Add disclosures share view-only keyboard/dismissal behavior.
     // Existing action buttons still own pending-edit flushes and draft commands.
-    function actionDisclosure(label, accessibleName, className) {
+    function actionDisclosure(label, accessibleName, className, revealOnOpen = false) {
       const menu = node("div", `calculator-document-menu ${className}`), list = node("div", "calculator-document-actions"), toggle = node("button", "button secondary calculator-document-toggle", label), actions = [];
       list.setAttribute("role", "group"); list.setAttribute("aria-label", accessibleName); list.id = `takeoff-actions-${crypto.randomUUID()}`;
       toggle.type = "button"; toggle.setAttribute("aria-expanded", "false"); toggle.setAttribute("aria-controls", list.id);
       const chevron = node("span", "calculator-document-chevron"); chevron.setAttribute("aria-hidden", "true"); chevron.append(actionIcon(["m6 9 6 6 6-6"])); toggle.append(chevron);
       const close = (restoreFocus = false) => { list.hidden = true; toggle.setAttribute("aria-expanded", "false"); if (restoreFocus) toggle.focus(); };
-      const open = () => { list.hidden = false; toggle.setAttribute("aria-expanded", "true"); };
+      const open = () => {
+        const wasHidden = list.hidden; list.hidden = false; toggle.setAttribute("aria-expanded", "true");
+        // The inspector scrolls independently; reveal all Add choices together.
+        if (revealOnOpen && wasHidden) list.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+      };
       toggle.addEventListener("click", () => list.hidden ? open() : close());
       menu.addEventListener("keydown", event => {
         if (event.key === "Escape" && !list.hidden) { event.preventDefault(); close(true); return; }

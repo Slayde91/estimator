@@ -59,6 +59,13 @@ async function facets(locator){return locator.locator('select[data-library-filte
   await expect(dialog().locator('select[data-library-filter="substrate"]')).toBeVisible();assert.deepEqual(await facets(dialog()),expectedFacets);evidence.sameActualLibraryFacets=true;
   await expect(dialog().getByLabel('Technical Reference',{exact:true})).toHaveCount(0);evidence.pickerTechnicalReferenceRemoved=true;
   await selectLibrary('draft_library_assignment');await snapshot();const defect=structuredClone(current.physical.defects[0]),initialBarrier=structuredClone(current.physical.barriers[0]);assertCount(0);assert.equal(defect.fields.location,'L02 fixture north');assert.equal(current.library_assignments.records[0].draft_location,'L02 fixture north');assert.deepEqual(await page.evaluate(()=>window.CeasefirePenetrations.projectSnapshot()),originalPen);evidence.explicitPhysicalCountWithoutScheduleChange=true;
+  const beforeResponsive=structuredClone(current);evidence.defectThreeEntryResponsive=[];
+  for(const height of [764,900])for(const width of [1146,768,390]){
+    await page.setViewportSize({width,height});await expect(details().locator('.takeoff-settings-fields')).toHaveCount(1);await expect(details().getByLabel('Notes',{exact:true})).toHaveCount(1);await expect(details().getByLabel('Confirmation',{exact:true})).toHaveCount(1);
+    const controls=await assertParentControls(page,details(),{hasBarrier:true});await details().getByRole('button',{name:'Add',exact:true}).click();const screenshot=`defect-three-entry-${width}x${height}.png`;await page.screenshot({path:path.join(output,screenshot)});await page.keyboard.press('Escape');
+    evidence.defectThreeEntryResponsive.push({width,height,appearanceAndNotesPresent:true,controls,screenshot});
+  }
+  assert.deepEqual(await snapshot(),beforeResponsive,'Opening and fitting Add cannot alter the Defect draft');await page.setViewportSize({width:1360,height:1000});
   await paneOrder(1,false);await inspect('Service',current.physical.services[0].id);await paneOrder(1,true);await inspect('Defect',defect.id);
   // First New Barrier choice; selection adds immediately with no import review.
   await appendStart('new');await selectLibrary('import_library_item');await expect(details().getByRole('button',{name:'Add',exact:true})).toBeVisible();await expect(details().locator('.takeoff-physical-add-menu [aria-label="Add Library Item"]')).toBeHidden();await snapshot();

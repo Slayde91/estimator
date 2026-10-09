@@ -24,6 +24,21 @@ async function assertParentControls(page, pane, { hasBarrier = false, keyboard =
   await actions.scrollIntoViewIfNeeded();
   await expect(toggle).toHaveText('Add'); await expect(toggle).toHaveAttribute('aria-expanded', 'false'); await expect(list).toBeHidden();
   assert.equal(await toggle.getAttribute('aria-controls'), await list.getAttribute('id'));
+  // Mouse-open must expose every choice before keyboard focus can scroll a
+  // clipped final entry into view and accidentally conceal the regression.
+  await toggle.click();
+  const mouseOpen = await list.evaluate(el => {
+    const rect = node => { const box = node.getBoundingClientRect(); return { x: box.x, y: box.y, width: box.width, height: box.height, right: box.right, bottom: box.bottom }; };
+    const clip = el.closest('.takeoff-physical-details') || el.closest('aside');
+    return { popup: rect(el), clip: rect(clip), viewport: { width: innerWidth, height: innerHeight }, entries: [...el.querySelectorAll('button')].map(button => { const box = rect(button); return { name: button.textContent.trim(), box, centerReceivesPointer: button.contains(document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2)) }; }) };
+  });
+  assert.deepEqual(mouseOpen.entries.map(entry => entry.name), names);
+  assert.ok(mouseOpen.entries.every(entry => entry.centerReceivesPointer), `Mouse-open exposes all Add entries together: ${JSON.stringify(mouseOpen)}`);
+  assert.ok(mouseOpen.popup.x >= mouseOpen.clip.x && mouseOpen.popup.right <= mouseOpen.clip.right, 'Add popup fits the scrolling inspector width');
+  assert.ok(mouseOpen.popup.y >= mouseOpen.clip.y && mouseOpen.popup.bottom <= mouseOpen.clip.bottom, 'Add popup fits the actual scrolling inspector');
+  assert.ok(mouseOpen.popup.x >= 0 && mouseOpen.popup.right <= mouseOpen.viewport.width, 'Add popup fits the viewport width');
+  assert.ok(mouseOpen.popup.y >= 0 && mouseOpen.popup.bottom <= mouseOpen.viewport.height, 'Add popup fits the viewport');
+  await toggle.click(); await expect(list).toBeHidden();
   await toggle.focus(); await toggle.press('ArrowDown'); await expect(list.getByRole('button').first()).toBeFocused();
   await page.keyboard.press('End'); await expect(list.getByRole('button').last()).toBeFocused();
   await page.keyboard.press('ArrowDown'); await expect(list.getByRole('button').first()).toBeFocused();
@@ -80,12 +95,13 @@ async function assertParentControls(page, pane, { hasBarrier = false, keyboard =
   const recordBoxes=await pane.locator('.takeoff-physical-inspector-actions button').evaluateAll(buttons=>buttons.map(button=>{const rect=button.getBoundingClientRect();return {x:rect.x,y:rect.y,width:rect.width,height:rect.height};}));
   for(let i=0;i<recordBoxes.length;i++){assert.equal(recordBoxes[i].width,38);assert.equal(recordBoxes[i].height,38);if(i){assert.ok(Math.abs(recordBoxes[i].y-recordBoxes[0].y)<1);assert.ok(recordBoxes[i].x>recordBoxes[i-1].x+recordBoxes[i-1].width);}}
   const visibility = actions.getByRole('button', { name: 'Visibility', exact: true });
-  if (await visibility.count()) { const box = await visibility.boundingBox(), row = await actions.boundingBox(); assert.equal(box.width,38); assert.equal(box.height,38); assert.ok(Math.abs(box.y-toggleBox.y)<1); assert.ok(Math.abs(box.x+box.width-row.x-row.width)<1, 'Visibility is at the far right of Add'); }
+  let visibilityAlignment;
+  if (await visibility.count()) { const box = await visibility.boundingBox(), row = await actions.boundingBox(), currentToggleBox = await toggle.boundingBox(); assert.equal(box.width,38); assert.equal(box.height,38); assert.ok(Math.abs(box.y-currentToggleBox.y)<1); assert.ok(Math.abs(box.x+box.width-row.x-row.width)<1, 'Visibility is at the far right of Add'); visibilityAlignment = { beforeDismissalToggleY: toggleBox.y, currentToggleY: currentToggleBox.y, visibilityY: box.y }; }
   const fields = await pane.locator(':scope > label.field > span').allTextContents();
   if (fields.includes('Confirmation')) assert.equal(fields.indexOf('Confirmation')+1,fields.indexOf('Notes'),'Owning Confirmation precedes Notes');
   const appearance = pane.locator('.takeoff-settings-fields');
   if (await appearance.count()) assert.deepEqual((await appearance.locator('.field > span').allTextContents()).slice(0,4),['Fill colour','Fill enabled','Line Colour','Line Width']);
-  return { addDisclosure: true, exactOriginalAssetBytes: true, gradientLibraryBook: true, keyboardFocus: keyboard, labels, names, order };
+  return { addDisclosure: true, exactOriginalAssetBytes: true, gradientLibraryBook: true, keyboardFocus: keyboard, labels, names, order, mouseOpen, visibilityAlignment };
 }
 
 module.exports = { assertParentControls, clickInspectorAdd, originals };

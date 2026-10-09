@@ -21,7 +21,8 @@ from openpyxl.styles import Alignment, Font, PatternFill
 
 from .catalog import ValidationError
 from .pricing_workbook import _serialize_exact
-from .takeoff_physical import entity_references, graph_collections, graph_parents, graph_digest, validate_graph
+from .takeoff_physical import (confirmation_owner, effective_confirmation, entity_references,
+                              graph_collections, graph_parents, graph_digest, validate_graph)
 
 STATUS = 'UNAPPROVED DRAFT'
 SOURCE_STATUS = 'UNVERIFIED ASSERTIONS'
@@ -121,8 +122,8 @@ def _rows(graph, names):
                 if ancestor_kind not in parents:
                     break
                 ancestor_kind, ancestor = index[ancestor[parents[ancestor_kind][1]]]
-            # Exact own fields remain lossless. Service Plans additionally
-            # displays the FRL recorded by its explicit current barrier parent.
+            # Raw own fields remain lossless in fields_json; the Location
+            # display belongs to Defect Reports Defect / Service Plans Barrier.
             for key, value in entity['fields'].items():
                 row[f'{kind}_size' if key == 'size' else key] = value
             if kind == 'service':
@@ -131,6 +132,9 @@ def _rows(graph, names):
                     row['library_quantity_json'] = _json(entity['library_quantity'])
                 if graph['version'] == 3:
                     row['frl'] = index[entity['barrier_id']][1]['fields'].get('frl')
+            if current:
+                _, owner = confirmation_owner(graph, entity['id'], _index=index, active_only=False)
+                row['location'] = owner['fields'].get('location', '')
             row['marker_json'] = _json(entity.get('marker'))
             row['annotation_json'] = _json(entity.get('annotation'))
             row.update(fields_json=_json(entity['fields']), evidence_json=_json(entity['evidence']),
@@ -237,7 +241,7 @@ def matrix_rows(graph):
         if not size and sf.get('diameter_mm') is not None:
             size = sf['diameter_mm']
         rows.append([defect['display_id'] if defect else '', barrier['display_id'] if barrier else '',
-            service['display_id'] if service else '', bf.get('location') or df.get('location', ''),
+            service['display_id'] if service else '', (bf if graph['version'] == 3 else df).get('location', ''),
             (bf if graph['version'] == 3 else df).get('frl', ''), bf.get('substrate', ''),
             bf.get('orientation', ''), sf.get('service', ''), sf.get('service_type', ''),
             (service['quantity'] if service['quantity'] is not None else 'Unknown') if service else '', size or ''])
@@ -339,8 +343,9 @@ def export_physical_graph(graph, format, source_names=None, *, confirmation=None
     names = _names(source_names)
     rows, associations, fingerprint = _rows(graph, names)
     if confirmation is not None:
-        states = {entry['id']: entry.get('confirmation', 'unconfirmed')
-                  for collection in graph_collections(graph).values() for entry in graph[collection]}
+        index = {entry['id']: (kind, entry) for kind, collection in graph_collections(graph).items()
+                 for entry in graph[collection]}
+        states = {identifier: effective_confirmation(graph, identifier, _index=index) for identifier in index}
         rows = [{**row, 'confirmation': states[row['entity_id']]} for row in rows
                 if not row['deleted'] and (confirmation == 'all' or states[row['entity_id']] == confirmation)]
         included = {row['entity_id'] for row in rows}
@@ -385,12 +390,14 @@ def export_physical_graph(graph, format, source_names=None, *, confirmation=None
             ('State', 'draft'),
             ('Hierarchy', ('Barrier -> Service. FRL belongs to the Barrier; service FRL is displayed from its current parent.' if graph['version'] == 3 else 'Defect -> Barrier -> Service. Numbered IDs are project-local display IDs; entity_id, parent_id and *_uuid retain exact UUID links.' if current else
                            'Barrier -> Defect -> Opening -> Service. Typed parent and ancestor IDs are explicit links.')),
-            ('Facts', 'Exact entity facts remain in fields_json. Service Plans displays service FRL from its current Barrier; this does not copy FRL into service fields.' if graph['version'] == 3 else 'Field columns contain only the entity\'s own recorded facts. Parent facts are not copied into child fields. Exact typed fields remain in fields_json.'),
+            ('Facts', ('Exact entity facts, including legacy child Location, remain in fields_json. Location columns display the owning Barrier; Service Plans service FRL also displays its current Barrier value. Parent values are not copied into child fields.' if graph['version'] == 3 else
+                       'Exact entity facts, including legacy child Location, remain in fields_json. Location columns display the owning Defect. Parent values are not copied into child fields.' if current else
+                       'Field columns contain only the entity\'s own recorded facts. Parent facts are not copied into child fields. Exact typed fields remain in fields_json.')),
             ('Quantity', ('Selected-library service drafts may retain an explicitly versioned unknown quantity. Their descriptor is included in library_quantity_json; null is never an approved count.' if any('library_quantity' in entry for entry in graph['services']) else
                          'Only services carry explicit positive quantities. Empty barriers have no service row or quantity. Images and repeated views never create counts.' if current else
                           'Only services carry explicit positive quantities. Empty openings have no service row or quantity. Images and repeated views never create counts.')),
             ('History', 'All retained entities are included. XLSX typed sheets contain active entities; Historical Entities contains tombstones. Evidence includes associations of both.' if confirmation is None else
-                        f'Active {confirmation} items only. Deleted records are excluded. Confirmation is each record\'s own manual draft review state; missing confirmation means unconfirmed. Parent IDs and UUIDs are preserved even when a parent is outside this selection. Evidence includes only selected records.'),
+                        f'Active {confirmation} items only. Deleted records are excluded. Confirmation is inherited manual draft review: Defect owns Defect Reports; Barrier owns Service Plans. Missing owner confirmation means unconfirmed. Historical child values remain in the stored graph. Parent IDs and UUIDs are preserved even when a parent is outside this selection. Evidence includes only selected records.'),
             ('Evidence associations', 'association_index identifies the retained list position, not physical quantity. Image UUID, SHA-256 and occurrence UUID remain distinct.'),
             ('Long text', 'Provenance Detail stores ordered exact text chunks identified by sheet, record ID and column. Concatenate in part order and check the recorded SHA-256.'),
             ('File metadata time', 'Fixed serialization timestamp 2000-01-01; not a source, review or export event time.'),

@@ -7,7 +7,8 @@ from uuid import UUID, uuid4
 
 from estimator.catalog import ValidationError
 from estimator.takeoff_model import new_snapshot, upgrade_snapshot, validate_snapshot
-from estimator.takeoff_physical import (apply_change, graph_collections, graph_parents,
+from estimator.takeoff_physical import (apply_change, confirmation_owner, effective_confirmation,
+                                       graph_collections, graph_parents,
                                        new_graph, preview_change, validate_graph)
 from estimator.takeoff_physical_operations import prepare_changes
 from estimator.takeoff_annotations import DEFAULT_APPEARANCE
@@ -60,8 +61,11 @@ def graph_fixture(version, *, confirmed=True):
         definitions = [('barrier', 1, None), ('defect', 2, uid(1)),
                        ('opening', 7, uid(2)), ('service', 3, uid(7))]
     for kind, number, parent in definitions:
-        graph, _ = apply(graph, create(graph, kind, number, parent,
-                                      confirmation=confirmation))
+        graph, _ = apply(graph, create(graph, kind, number, parent))
+    if confirmation is not None:
+        for identifier in {ids['root'], ids['other_root']}:
+            graph, _ = apply(graph, {'op': 'update', 'entity_id': identifier,
+                'changes': {'confirmation': confirmation}})
     return graph, ids
 
 
@@ -158,35 +162,37 @@ class PhysicalConfirmationModelTests(unittest.TestCase):
                                            'changes': changes})
             self.assertEqual(entity(graph, ids['root'])['confirmation'], 'confirmed')
 
-    def test_changed_root_facts_reset_only_its_reviewed_subtree_with_explicit_preview_ids(self):
+    def test_changed_root_facts_reset_effective_review_without_rewriting_child_records(self):
         for version in (2, 3):
             with self.subTest(version=version):
                 graph, ids = graph_fixture(version)
                 updated, preview = apply(graph, {'op': 'update', 'entity_id': ids['root'],
                     'changes': {'fields': {'label': 'Reviewed facts changed', 'location': 'Level 2'}}})
                 subtree = {ids['root'], ids['barrier'], ids['service']}
-                self.assertEqual(set(preview['changed_ids']), subtree)
+                self.assertEqual(set(preview['changed_ids']), {ids['root']})
                 self.assertEqual(set(preview['affected_ids']), subtree)
                 for identifier in subtree:
-                    self.assertEqual(entity(updated, identifier)['confirmation'], 'unconfirmed')
-                    self.assertEqual(entity(updated, identifier)['revision'], entity(graph, identifier)['revision'] + 1)
+                    self.assertEqual(effective_confirmation(updated, identifier), 'unconfirmed')
                     self.assertEqual(entity(updated, identifier)['uncertainty'], entity(graph, identifier)['uncertainty'])
+                    if identifier != ids['root']:
+                        self.assertEqual(entity(updated, identifier), entity(graph, identifier))
+                self.assertEqual(entity(updated, ids['root'])['revision'], entity(graph, ids['root'])['revision'] + 1)
                 for identifier in {ids['other_root'], ids['other_barrier'], ids['other_service']}:
                     self.assertEqual(entity(updated, identifier), entity(graph, identifier))
                 self.assertEqual(entity(updated, ids['service'])['quantity'], 3)
                 self.assertEqual(entity(updated, ids['service'])['fields']['diameter_mm'], 12.3456789012345)
 
-    def test_barrier_fact_change_resets_child_service_but_preserves_ancestor_and_other_branch(self):
+    def test_barrier_fact_change_invalidates_defect_review_and_keeps_child_facts(self):
         graph, ids = graph_fixture(2)
         updated, preview = apply(graph, {'op': 'update', 'entity_id': ids['barrier'],
             'changes': {'fields': {'label': 'Barrier revised', 'substrate': 'Masonry'}}})
-        self.assertEqual(set(preview['changed_ids']), {ids['barrier'], ids['service']})
-        self.assertEqual(entity(updated, ids['root']), entity(graph, ids['root']))
+        self.assertEqual(set(preview['changed_ids']), {ids['root'], ids['barrier']})
+        self.assertEqual(entity(updated, ids['service']), entity(graph, ids['service']))
         self.assertEqual(entity(updated, ids['other_service']), entity(graph, ids['other_service']))
-        self.assertEqual(entity(updated, ids['barrier'])['confirmation'], 'unconfirmed')
-        self.assertEqual(entity(updated, ids['service'])['confirmation'], 'unconfirmed')
+        for identifier in (ids['root'], ids['barrier'], ids['service']):
+            self.assertEqual(effective_confirmation(updated, identifier), 'unconfirmed')
 
-    def test_service_quantity_or_evidence_change_resets_only_that_service_and_keeps_exact_facts(self):
+    def test_service_quantity_or_evidence_change_invalidates_owner_and_keeps_exact_facts(self):
         for version in (2, 3):
             graph, ids = graph_fixture(version)
             evidence = [{'document_id': uid(30), 'document_sha256': 'a' * 64, 'page': 1,
@@ -195,11 +201,13 @@ class PhysicalConfirmationModelTests(unittest.TestCase):
                 with self.subTest(version=version, changes=changes):
                     updated, preview = apply(graph, {'op': 'update', 'entity_id': ids['service'],
                                                     'changes': changes})
-                    self.assertEqual(preview['changed_ids'], [ids['service']])
-                    self.assertEqual(entity(updated, ids['service'])['confirmation'], 'unconfirmed')
+                    self.assertEqual(set(preview['changed_ids']), {ids['root'], ids['service']})
+                    self.assertEqual(effective_confirmation(updated, ids['service']), 'unconfirmed')
                     for key, value in changes.items():
                         self.assertEqual(entity(updated, ids['service'])[key], value)
-                    self.assertEqual(entity(updated, ids['barrier']), entity(graph, ids['barrier']))
+                    if ids['barrier'] != ids['root']:
+                        self.assertEqual(entity(updated, ids['barrier']), entity(graph, ids['barrier']))
+                    self.assertEqual(entity(updated, ids['other_root']), entity(graph, ids['other_root']))
 
     def test_marker_and_annotation_presentation_preserve_review_but_source_locator_changes_reset_it(self):
         for version, source_key in ((2, 'marker'), (2, 'annotation'), (3, 'marker')):
@@ -210,9 +218,8 @@ class PhysicalConfirmationModelTests(unittest.TestCase):
                           'page': 1, 'point': [50.123456789, 60.987654321]}
                 graph, _ = apply(graph, {'op': 'update', 'entity_id': target,
                                         'changes': {source_key: source}})
-                for identifier in {ids['root'], ids['barrier'], ids['service']}:
-                    graph, _ = apply(graph, {'op': 'update', 'entity_id': identifier,
-                                            'changes': {'confirmation': 'confirmed'}})
+                graph, _ = apply(graph, {'op': 'update', 'entity_id': ids['root'],
+                                        'changes': {'confirmation': 'confirmed'}})
                 presentation = {**source, 'appearance': deepcopy(DEFAULT_APPEARANCE),
                     'callout': {'offset': [12.125, -4.875], 'width': 120.5,
                                 'height': 45.5, 'appearance': deepcopy(DEFAULT_APPEARANCE)}}
@@ -220,7 +227,7 @@ class PhysicalConfirmationModelTests(unittest.TestCase):
                                                   'changes': {source_key: presentation}})
                 self.assertEqual(preview['changed_ids'], [target])
                 for identifier in {ids['root'], ids['barrier'], ids['service']}:
-                    self.assertEqual(entity(decorated, identifier)['confirmation'], 'confirmed')
+                    self.assertEqual(effective_confirmation(decorated, identifier), 'confirmed')
                     if identifier != target:
                         self.assertEqual(entity(decorated, identifier), entity(graph, identifier))
                 self.assertEqual(entity(decorated, target)[source_key], presentation)
@@ -228,23 +235,23 @@ class PhysicalConfirmationModelTests(unittest.TestCase):
                               {'page': 2}, {'document_id': uid(31)}):
                     moved, source_preview = apply(decorated, {'op': 'update', 'entity_id': target,
                         'changes': {source_key: {**presentation, **patch}}})
-                    expected = {target, ids['service']} | ({ids['barrier']} if source_key == 'annotation' else set())
+                    expected = {target, ids['root']}
                     self.assertEqual(set(source_preview['changed_ids']), expected)
                     for identifier in expected:
-                        self.assertEqual(entity(moved, identifier)['confirmation'], 'unconfirmed')
+                        self.assertEqual(effective_confirmation(moved, identifier), 'unconfirmed')
                     self.assertEqual(entity(moved, ids['service'])['quantity'], 3)
                     self.assertEqual(entity(moved, ids['service'])['fields']['diameter_mm'], 12.3456789012345)
 
-    def test_resubmitting_old_confirmed_value_with_changed_facts_cannot_keep_review(self):
+    def test_resubmitting_old_confirmed_owner_value_with_changed_facts_cannot_keep_review(self):
         for version in (2, 3):
             with self.subTest(version=version):
                 graph, ids = graph_fixture(version)
-                updated, _ = apply(graph, {'op': 'update', 'entity_id': ids['service'],
-                    'changes': {'quantity': 9, 'confirmation': 'confirmed'}})
-                self.assertEqual(entity(updated, ids['service'])['confirmation'], 'unconfirmed')
-                self.assertEqual(entity(updated, ids['service'])['quantity'], 9)
+                updated, _ = apply(graph, {'op': 'update', 'entity_id': ids['root'],
+                    'changes': {'fields': {'label': 'Changed owner facts'}, 'confirmation': 'confirmed'}})
+                self.assertEqual(effective_confirmation(updated, ids['service']), 'unconfirmed')
+                self.assertEqual(entity(updated, ids['root'])['fields']['label'], 'Changed owner facts')
 
-    def test_explicit_unconfirmed_to_confirmed_review_may_accept_new_values_without_confirming_children(self):
+    def test_explicit_owner_review_may_accept_new_values_without_rewriting_children(self):
         for version in (2, 3):
             with self.subTest(version=version):
                 graph, ids = graph_fixture(version)
@@ -255,32 +262,33 @@ class PhysicalConfirmationModelTests(unittest.TestCase):
                                 'confirmation': 'confirmed'}})
                 self.assertEqual(entity(updated, ids['root'])['confirmation'], 'confirmed')
                 for identifier in {ids['barrier'], ids['service']} - {ids['root']}:
-                    self.assertEqual(entity(updated, identifier)['confirmation'], 'unconfirmed')
-                    self.assertIn(identifier, preview['changed_ids'])
+                    self.assertEqual(effective_confirmation(updated, identifier), 'confirmed')
+                    self.assertEqual(entity(updated, identifier), entity(graph, identifier))
+                    self.assertNotIn(identifier, preview['changed_ids'])
                 self.assertEqual(entity(updated, ids['root'])['uncertainty'], entity(graph, ids['root'])['uncertainty'])
 
-    def test_reparent_resets_moved_record_and_context_descendants_without_changing_quantity_or_ids(self):
+    def test_reparent_invalidates_both_owners_without_changing_quantity_or_ids(self):
         for version in (2, 3):
             with self.subTest(version=version):
                 graph, ids = graph_fixture(version)
                 target = ids['barrier'] if version == 2 else ids['service']
                 parent = ids['other_root'] if version == 2 else ids['other_barrier']
                 updated, preview = apply(graph, {'op': 'reparent', 'entity_id': target, 'parent_id': parent})
-                moved = {ids['barrier'], ids['service']} if version == 2 else {ids['service']}
-                self.assertEqual(set(preview['changed_ids']), moved)
-                for identifier in moved:
-                    self.assertEqual(entity(updated, identifier)['confirmation'], 'unconfirmed')
+                self.assertEqual(set(preview['changed_ids']), {target, ids['root'], ids['other_root']})
+                for identifier in {ids['root'], ids['barrier'], ids['service'],
+                                   ids['other_root'], ids['other_barrier'], ids['other_service']}:
+                    self.assertEqual(effective_confirmation(updated, identifier), 'unconfirmed')
                     self.assertEqual(entity(updated, identifier)['id'], entity(graph, identifier)['id'])
                     self.assertEqual(entity(updated, identifier)['display_id'], entity(graph, identifier)['display_id'])
                 self.assertEqual(entity(updated, ids['service'])['quantity'], entity(graph, ids['service'])['quantity'])
-                self.assertEqual(entity(updated, ids['other_root']), entity(graph, ids['other_root']))
+                self.assertEqual(entity(updated, ids['other_service']), entity(graph, ids['other_service']))
 
     def test_copy_gets_new_unreviewed_identity_and_delete_restore_never_revives_review(self):
         for version in (2, 3):
             with self.subTest(version=version):
                 graph, ids = graph_fixture(version)
                 source = entity(graph, ids['service'])
-                command = create(graph, 'service', 20, source['barrier_id'], confirmation='confirmed')
+                command = create(graph, 'service', 20, source['barrier_id'])
                 command['entity'].update(fields=deepcopy(source['fields']), quantity=source['quantity'],
                     evidence=deepcopy(source['evidence']), uncertainty=deepcopy(source['uncertainty']),
                     copied_from={'entity_id': source['id'], 'revision': source['revision']})
@@ -292,11 +300,11 @@ class PhysicalConfirmationModelTests(unittest.TestCase):
                 subtree = {ids['root'], ids['barrier'], ids['service']}
                 for identifier in subtree:
                     self.assertTrue(entity(deleted, identifier)['deleted'])
-                    self.assertEqual(entity(deleted, identifier)['confirmation'], 'unconfirmed')
+                    self.assertEqual(effective_confirmation(deleted, identifier), 'unconfirmed')
                 restored, _ = apply(deleted, {'op': 'restore', 'entity_id': ids['root'], 'mode': 'same_deletion'})
                 for identifier in subtree:
                     self.assertFalse(entity(restored, identifier)['deleted'])
-                    self.assertEqual(entity(restored, identifier)['confirmation'], 'unconfirmed')
+                    self.assertEqual(effective_confirmation(restored, identifier), 'unconfirmed')
                     self.assertEqual(entity(restored, identifier)['fields'], entity(graph, identifier)['fields'])
                     self.assertEqual(entity(restored, identifier)['uncertainty'], entity(graph, identifier)['uncertainty'])
 
@@ -335,6 +343,74 @@ class PhysicalConfirmationModelTests(unittest.TestCase):
                         'changes': {'confirmation': True}}], scope=scope)
                 self.assertEqual(snapshot, original)
                 self.assertEqual(validate_snapshot(original), original)
+
+    def test_legacy_child_values_are_lossless_but_cannot_override_owner_review(self):
+        for version in (2, 3):
+            with self.subTest(version=version):
+                graph, ids = graph_fixture(version)
+                for identifier in {ids['barrier'], ids['service']} - {ids['root']}:
+                    entity(graph, identifier)['confirmation'] = 'unconfirmed'
+                encoded = json.dumps(graph, sort_keys=True)
+                self.assertEqual(validate_graph(graph), graph)
+                self.assertEqual(json.dumps(graph, sort_keys=True), encoded)
+                for identifier in {ids['root'], ids['barrier'], ids['service']}:
+                    self.assertEqual(effective_confirmation(graph, identifier), 'confirmed')
+                pending, _ = apply(graph, {'op': 'update', 'entity_id': ids['root'],
+                    'changes': {'confirmation': 'unconfirmed'}})
+                for identifier in {ids['barrier'], ids['service']} - {ids['root']}:
+                    self.assertEqual(entity(pending, identifier), entity(graph, identifier))
+                    self.assertEqual(effective_confirmation(pending, identifier), 'unconfirmed')
+                entity(pending, ids['service'])['confirmation'] = 'confirmed'
+                self.assertEqual(effective_confirmation(pending, ids['service']), 'unconfirmed')
+
+    def test_child_confirmation_commands_reject_instead_of_confirming_an_owner(self):
+        for version in (2, 3):
+            graph, ids = graph_fixture(version, confirmed=False)
+            children = {ids['barrier'], ids['service']} - {ids['root']}
+            for identifier in children:
+                for value in ('confirmed', 'unconfirmed'):
+                    with self.subTest(version=version, identifier=identifier, value=value):
+                        original = deepcopy(graph)
+                        with self.assertRaisesRegex(ValidationError, 'owning Defect or Barrier'):
+                            preview_change(graph, {'op': 'update', 'entity_id': identifier,
+                                'changes': {'confirmation': value}})
+                        command = create(graph, 'service', 20, ids['barrier'], confirmation=value)
+                        with self.assertRaisesRegex(ValidationError, 'owning Defect or Barrier'):
+                            preview_change(graph, command)
+                        self.assertEqual(graph, original)
+
+    def test_deleted_missing_or_wrongly_typed_owner_path_never_inherits_confirmation(self):
+        for version in (2, 3):
+            graph, ids = graph_fixture(version)
+            for failure in ('child_deleted', 'owner_deleted', 'owner_missing', 'wrong_type'):
+                with self.subTest(version=version, failure=failure):
+                    current = deepcopy(graph)
+                    if failure == 'child_deleted':
+                        entity(current, ids['service'])['deleted'] = True
+                    elif failure == 'owner_deleted':
+                        entity(current, ids['root'])['deleted'] = True
+                    elif failure == 'owner_missing':
+                        entity(current, ids['service'])['barrier_id'] = uid(99)
+                    else:
+                        entity(current, ids['service'])['barrier_id'] = ids['other_service']
+                    self.assertEqual(effective_confirmation(current, ids['service']), 'unconfirmed')
+                    with self.assertRaises(ValidationError):
+                        confirmation_owner(current, ids['service'])
+
+    def test_adding_child_requires_new_owner_review_and_keeps_other_root(self):
+        for version in (2, 3):
+            graph, ids = graph_fixture(version)
+            for command in ([create(graph, 'barrier', 20, ids['root'])] if version == 2 else []) + [
+                    create(graph, 'service', 21, ids['barrier'])]:
+                with self.subTest(version=version, kind=command['kind']):
+                    updated, preview = apply(graph, command)
+                    new_id = command['entity']['id']
+                    self.assertEqual(set(preview['changed_ids']), {ids['root'], new_id})
+                    self.assertEqual(effective_confirmation(updated, new_id), 'unconfirmed')
+                    self.assertEqual(effective_confirmation(updated, ids['service']), 'unconfirmed')
+                    self.assertEqual(entity(updated, ids['other_root']), entity(graph, ids['other_root']))
+                    self.assertEqual(entity(updated, ids['service']), entity(graph, ids['service']))
+
 
 
 class PhysicalConfirmationWorkspaceTests(unittest.TestCase):

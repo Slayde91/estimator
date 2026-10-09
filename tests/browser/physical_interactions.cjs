@@ -1,3 +1,4 @@
+const { assertParentControls } = require('./parent_controls_helpers.cjs');
 const { chooseTakeoff, takeoffChoice } = require('./section_navigation.cjs');
 const { chooseNewPhysicalItem, startDefect } = require('./physical_dialogs.cjs');
 const { clickProjectControl } = require('./project_actions.cjs');
@@ -60,7 +61,8 @@ async function scopeTab(name) {
 }
 async function selectBarrier(id) {
   await row(id).locator('.takeoff-row-link').click(); await idle(); await expect(details()).toBeVisible();
-  await expect(details().getByLabel('Location', { exact: true })).toBeVisible();
+  if (currentScope === 'service_plans') await expect(details().getByLabel('Location', { exact: true })).toBeVisible();
+  else await expect(details().getByLabel('Location', { exact: true })).toHaveCount(0);
 }
 async function closeDetails() {
   if (await details().isVisible()) await page.getByRole('button', { name: 'Close Item Details', exact: true }).click();
@@ -167,17 +169,11 @@ async function selectDrawingBehavior(scope, barrier, defect) {
   (evidence.selection ||= []).push({ scope, calloutPointerAndKeyboardPreservePane: true, calloutModifierDeselectionPreservesOpenPane: true, resizeHandleClickPreservesClosedPane: true, markerSingleSelectsDoubleOpens: true, selectedMarkerHalo: true, keyboardOpensModifierDeselects: true, blankPageClearsSelection: true });
 }
 async function compareAddServiceStyle(scope) {
-  await page.mouse.move(0, 0);
-  const measure = () => details().getByRole('button', { name: 'Add service in Item Details', exact: true }).evaluate(service => {
-    const substrate = document.querySelector('.takeoff-physical-add-row .takeoff-physical-add-defect');
-    const read = el => { const css = getComputedStyle(el), rect = el.getBoundingClientRect(); return { text: el.textContent, width: rect.width, height: rect.height, ...Object.fromEntries(['display','alignItems','justifyContent','color','backgroundColor','fontSize','fontWeight','lineHeight','paddingTop','paddingRight','paddingBottom','paddingLeft','borderTopWidth','borderTopStyle','borderTopColor','borderRadius','boxShadow'].map(key => [key, css[key]])) }; };
-    return { service: read(service), substrate: read(substrate), normal: read([...service.parentElement.children].find(child=>child.textContent==='Add Library Item')), paneWidth: service.parentElement.getBoundingClientRect().width, compact: service.classList.contains('takeoff-physical-add-defect') };
-  });
-  let measured = await measure();
-  assert.equal(measured.compact,false);assert.equal(measured.service.text,'Add Service');assert.ok(measured.service.width>150&&measured.service.width>=measured.paneWidth-40);assert.equal(measured.service.color,measured.normal.color);assert.equal(measured.service.backgroundColor,measured.normal.backgroundColor);
-  if(scope==='service_plans'){assert.equal(measured.substrate.width,38);assert.equal(measured.substrate.height,38);assert.equal(measured.substrate.text,'+');}
-  else{await expect(page.locator('.takeoff-physical-add-row')).toBeHidden();assert.equal(measured.substrate.width,0);assert.equal(measured.substrate.height,0);}
-  assert.equal(measured.service.fontSize, '11px'); (evidence.addServiceStyle ||= []).push({ scope, ...measured });
+  const controls = await assertParentControls(page, details());
+  const substrate = page.locator('.takeoff-physical-add-row .takeoff-physical-add-defect');
+  if (scope === 'service_plans') { const box=await substrate.boundingBox(); assert.equal(box.width,38);assert.equal(box.height,38);await expect(substrate).toHaveText('+'); }
+  else await expect(page.locator('.takeoff-physical-add-row')).toBeHidden();
+  (evidence.addServiceStyle ||= []).push({ scope, ...controls });
 }
 async function reviewAutosaveDrag(scope, barrier, service, pageNumber) {
   const cases = [];
@@ -300,8 +296,8 @@ let currentScope = 'defect_reports';
   for (const scope of ['defect_reports', 'service_plans']) {
     currentScope = scope; await scopeTab(scope === 'service_plans' ? 'Service Plans' : 'Defect Reports');
     let defect;
-    if (scope === 'defect_reports') defect = await create('defect', { 'Defect Ref.': 'INTERACTION-A', FRL: '-/120/120' }, () => startDefect(page));
-    const barrier = await create('barrier', { Location: 'North plant room', 'Barrier type': 'Core hole', Substrate: 'Concrete/masonry wall', 'Substrate orientation': 'Vertical', ...(scope === 'service_plans' ? { FRL: '-/90/90' } : {}) }, () => page.getByRole('button', { name: scope === 'service_plans' ? 'Add substrate' : 'Add barrier to D-0001', exact: true }).click());
+    if (scope === 'defect_reports') defect = await create('defect', { 'Defect Ref.': 'INTERACTION-A', Location: 'North plant room', FRL: '-/120/120' }, () => startDefect(page));
+    const barrier = await create('barrier', { 'Barrier type': 'Core hole', Substrate: 'Concrete/masonry wall', 'Substrate orientation': 'Vertical', ...(scope === 'service_plans' ? { Location: 'North plant room', FRL: '-/90/90' } : {}) }, () => page.getByRole('button', { name: scope === 'service_plans' ? 'Add substrate' : 'Add barrier to D-0001', exact: true }).click());
     await compareAddServiceStyle(scope);
     const service = await create('service', { Category: 'Mechanical', 'Explicit service quantity': 2, 'Service Size (mm)': '100' }, () => page.getByRole('button', { name: 'Add service in Item Details', exact: true }).click());
     if (defect && !layoutReview) await reviewDefectSource(defect, barrier, service);
@@ -318,7 +314,11 @@ let currentScope = 'defect_reports';
     }
     const entityBefore = structuredClone(entity(scope, barrier)), serviceBefore = structuredClone(entity(scope, service));
     const location = 'North plant room beside the long corridor with a wide beam and electrical services';
-    await automaticField(barrier, 'Location', location); assert.equal(entity(scope, barrier).defect_id, entityBefore.defect_id); assert.deepEqual(entity(scope, service), serviceBefore);
+    if (scope === 'defect_reports') {
+      await row(defect).locator('.takeoff-row-link').click(); await idle(); await automaticField(defect, 'Location', location); await selectBarrier(barrier);
+      assert.equal(entity(scope, barrier).fields.location, entityBefore.fields.location);
+    } else await automaticField(barrier, 'Location', location);
+    assert.equal(entity(scope, barrier).defect_id, entityBefore.defect_id); assert.deepEqual(entity(scope, service), serviceBefore);
     await automaticField(barrier, 'Notes', 'Automatic edit retained without a preview button.');
     await expect(details().getByRole('button', { name: 'Preview physical edits', exact: true })).toHaveCount(0);
     const pageNumber = scope === 'service_plans' ? 3 : 1;

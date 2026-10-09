@@ -7,8 +7,9 @@ an authorization token. UUIDs are supplied by the caller and never recycled.
 Version 3 uses Barrier -> Service for independent service plans.
 Version 2 uses Defect -> Barrier -> Service and assigns immutable display IDs.
 Version 1 remains a lossless legacy Barrier -> Defect -> Opening -> Service graph.
-Optional V2/V3 confirmation records manual draft review; absent means Unconfirmed.
-Fact or source changes invalidate that review without rewriting uncertainty.
+V2 Defect and V3 Barrier confirmation records manual branch review; absent
+means Unconfirmed. Child historical values remain lossless and inherit the
+owner review. Fact or source changes invalidate review without rewriting uncertainty.
 """
 
 from copy import deepcopy
@@ -73,6 +74,66 @@ def graph_parents(graph):
     """Return the explicit typed parent rules for this stored graph version."""
     graph_collections(graph)
     return dict({1: PARENTS, 2: _V2_PARENTS, 3: _V3_PARENTS}[graph['version']])
+
+
+def confirmation_owner_kind(graph):
+    """Name the manual draft-review owner without converting stored graphs."""
+    graph_collections(graph)
+    return {1: None, 2: 'defect', 3: 'barrier'}[graph['version']]
+
+
+def confirmation_owner(graph, identifier, *, _index=None, active_only=True):
+    """Resolve the explicit owning Defect/Barrier through a typed parent path.
+
+    A caller may reuse its current graph index. Deleted paths are rejected by
+    default; draft invalidation and historical exports can inspect tombstones.
+    This identifies a manual review owner, never technical approval or quantity.
+    """
+    owner_kind = confirmation_owner_kind(graph)
+    if owner_kind is None:
+        raise ValidationError('The legacy physical hierarchy has no parent confirmation owner.')
+    _id(identifier)
+    index = _index if _index is not None else {
+        entity['id']: (kind, entity) for kind, collection in graph_collections(graph).items()
+        for entity in graph[collection]}
+    parents = graph_parents(graph)
+    entry = index.get(identifier)
+    if entry is None:
+        raise ValidationError('The physical confirmation owner is unavailable.')
+    kind, entity = entry
+    for _ in range(3):
+        if active_only and entity['deleted']:
+            raise ValidationError('The physical confirmation owner or its child is deleted.')
+        if kind == owner_kind:
+            return kind, entity
+        if kind not in parents:
+            break
+        expected_kind, parent_field = parents[kind]
+        entry = index.get(entity.get(parent_field))
+        if entry is None or entry[0] != expected_kind:
+            break
+        kind, entity = entry
+    raise ValidationError('The physical confirmation owner path is unavailable or has changed type.')
+
+
+def effective_confirmation(graph, identifier, *, _index=None):
+    """Read only the active parent's review; old child values grant no review."""
+    try:
+        _, owner = confirmation_owner(graph, identifier, _index=_index)
+    except ValidationError:
+        return 'unconfirmed'
+    return 'confirmed' if owner.get('confirmation') == 'confirmed' else 'unconfirmed'
+
+
+def _review_facts(entity):
+    """Keep source identity in review facts and appearance outside it."""
+    result = {key: value for key, value in entity.items()
+              if key not in ('confirmation', 'revision')}
+    for source in ('marker', 'annotation'):
+        if isinstance(result.get(source), dict):
+            result[source] = {key: value for key, value in result[source].items()
+                              if key not in ('callout', 'appearance')}
+    return result
 
 
 def _display_number(value, kind):
@@ -451,6 +512,8 @@ def _command(graph, command):
         if kind in parents:
             _id(source[parents[kind][1]], 'Physical parent ID')
         _properties(source, kind, parents)
+        if 'confirmation' in source and kind != confirmation_owner_kind(graph):
+            raise ValidationError('Confirm the owning Defect or Barrier; child records inherit its review.')
         if 'copied_from' in source:
             original = before.get(source['copied_from']['entity_id'])
             if not original or original[0] != kind or original[1]['revision'] != source['copied_from']['revision'] or original[1]['deleted']:
@@ -486,6 +549,8 @@ def _command(graph, command):
             if kind == 'defect' and graph['version'] == 2:
                 allowed.add('annotation')
             changes = _object(command['changes'], allowed, (), 'Physical property changes')
+            if 'confirmation' in changes and kind != confirmation_owner_kind(graph):
+                raise ValidationError('Confirm the owning Defect or Barrier; child records inherit its review.')
             if not changes:
                 raise ValidationError('A physical update requires explicit changes.')
             prospective = {**entity, **changes}
@@ -536,29 +601,36 @@ def _command(graph, command):
                 raise ValidationError('Every explicitly restored entity must currently be deleted.')
             for child in affected:
                 after[child][1].update(deleted=False, deleted_at_revision=None)
-        if graph['version'] in (2, 3):
-            # Manual review is independent of uncertainty and commercial links.
-            # Editing real facts also invalidates reviews of inherited context.
-            def facts(value):
-                result = {key: item for key, item in value.items()
-                          if key not in ('confirmation', 'revision')}
-                for source in ('marker', 'annotation'):
-                    if isinstance(result.get(source), dict):
-                        result[source] = {key: item for key, item in result[source].items()
-                                          if key not in ('callout', 'appearance')}
-                return result
-            facts_changed = _digest(facts(entity)) != _digest(facts(before[identifier][1]))
-            if facts_changed:
-                reset_ids = affected if op in ('delete', 'restore') else {identifier} | descendants
-                explicitly_reviewed = (op == 'update'
-                    and command['changes'].get('confirmation') == 'confirmed'
-                    and before[identifier][1].get('confirmation', 'unconfirmed') != 'confirmed')
-                for child in reset_ids:
-                    if child == identifier and explicitly_reviewed:
-                        continue
-                    if after[child][1].get('confirmation') == 'confirmed':
-                        after[child][1]['confirmation'] = 'unconfirmed'
-                        affected.add(child)
+    if graph['version'] in (2, 3):
+        # One owner reviews all current facts in its explicit branch. Child
+        # historical confirmation remains lossless but cannot retain review.
+        after = _index(candidate)
+        facts_changed = (op == 'create' or
+            _digest(_review_facts(after[identifier][1])) !=
+            _digest(_review_facts(before[identifier][1])))
+        if facts_changed:
+            impacted = affected if op in ('delete', 'restore') else {identifier} | descendants
+            owners = set()
+            for current_graph, current_index in ((graph, before), (candidate, after)):
+                for child in impacted:
+                    if child in current_index:
+                        _, owner = confirmation_owner(current_graph, child,
+                            _index=current_index, active_only=False)
+                        owners.add(owner['id'])
+            explicitly_reviewed = (op == 'update'
+                and command['changes'].get('confirmation') == 'confirmed'
+                and before[identifier][1].get('confirmation', 'unconfirmed') != 'confirmed')
+            for owner_id in owners:
+                owner = after[owner_id][1]
+                if owner_id == identifier and (op == 'create' or explicitly_reviewed):
+                    continue
+                if owner.get('confirmation') == 'confirmed':
+                    owner['confirmation'] = 'unconfirmed'
+                    owner_children = (_descendants(before, owner_id, parents) |
+                                      _descendants(after, owner_id, parents))
+                    affected |= {owner_id} | owner_children
+                    descendants |= owner_children
+
     # Validate proposed values before serialization or revision comparisons.
     # Existing entity revisions can only rise by one with this graph revision.
     validate_graph(candidate, copy_result=False)

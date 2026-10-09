@@ -25,7 +25,7 @@ from estimator.penetration_calculator import normalize_draft
 from estimator.server import create_server
 from estimator.takeoff_library_links import status, validate_assignments
 from estimator.takeoff_model import validate_snapshot
-from estimator.takeoff_physical import graph_collections, graph_parents, validate_graph
+from estimator.takeoff_physical import confirmation_owner, graph_collections, graph_parents, validate_graph
 from estimator.takeoff_physical_markers import service_summary
 from tests.test_firestopping_library import editable_library
 from tests.test_takeoff_physical_v2 import create
@@ -72,18 +72,13 @@ class TakeoffLibraryLinkTests(unittest.TestCase):
         graph = self.state()['snapshot']['physical' if scope == 'defect_reports' else 'service_plans']
         index = {entity['id']: (kind, entity) for kind, collection in graph_collections(graph).items()
                  for entity in graph[collection]}
-        parents, reviewed, commands = graph_parents(graph), set(), []
+        reviewed, commands = set(), []
         for identifier in member_ids:
-            kind, entity = index[identifier]
-            while entity['id'] not in reviewed:
-                reviewed.add(entity['id'])
-                if entity.get('confirmation') != 'confirmed':
-                    commands.append({'op': 'update', 'entity_id': entity['id'],
-                                     'changes': {'confirmation': 'confirmed'}})
-                if kind not in parents:
-                    break
-                _, field = parents[kind]
-                kind, entity = index[entity[field]]
+            _, owner = confirmation_owner(graph, identifier, _index=index)
+            if owner['id'] not in reviewed and owner.get('confirmation') != 'confirmed':
+                commands.append({'op': 'update', 'entity_id': owner['id'],
+                                 'changes': {'confirmation': 'confirmed'}})
+            reviewed.add(owner['id'])
         if commands:
             self.physical(commands, scope)
 

@@ -49,7 +49,9 @@ def service_summary(service):
 def _barrier_lines(graph, barrier):
     fields = barrier['fields']
     parts = [barrier['display_id']]
-    for key in ('label', 'location', 'barrier_type', 'substrate', 'orientation'):
+    keys = ('label', 'barrier_type', 'substrate', 'orientation') if graph['version'] == 2 else (
+        'label', 'location', 'barrier_type', 'substrate', 'orientation')
+    for key in keys:
         value = fields.get(key) or ('Substrate not recorded' if key == 'substrate' else None)
         if value:
             parts.append(str(value))

@@ -156,7 +156,7 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
     assert.ok(!physical.hierarchyRows(value).some(row=>row.entity.id===uuid(4)));assert.ok(physical.hierarchyRows(value,{showDeleted:true}).some(row=>row.entity.id===uuid(4)&&row.entity.defect_id===uuid(2)));
   });
   await check('Unknown fields stay absent and service quantity never receives a fallback',()=>{
-    assert.deepEqual(physical.fieldsFromValues('barrier',{location:' L02 ',notes:''}),{location:'L02'});
+    assert.deepEqual(physical.fieldsFromValues('barrier',{location:' L02 ',notes:''},{},'service_plans'),{location:'L02'});
     for(const invalid of ['',null,undefined,0,-1,1.5,Infinity,'NaN'])assert.throws(()=>physical.fieldValue('service','quantity',invalid),/explicit positive/);
     assert.equal(physical.fieldValue('service','quantity','2'),2);assert.throws(()=>physical.fieldValue('barrier','frl','120'),/belonging/);
   });
@@ -209,16 +209,21 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
       edit.emit('click');await flush();assert.equal(h.controller.inspectedId(),uuid(6));assert.equal(changes.at(-1).focus,false);assert.equal(changes.at(-1).openDetails,true);assert.equal(h.calls.previews.length,0);assert.equal(reveals.length,2);h.controller.destroy();
     }
   });
-  await check('Record Confirmation has two independent values and retains old uncertainty and commercial state',async()=>{
-    const value=graph();value.services[0].uncertainty={state:'conflicting',note:'Retain exact evidence conflict.'};const h=component(value);await flush();await h.controller.select(uuid(5));const before=copy(h.current.physical.services[0].uncertainty),control=h.input('Confirmation');
-    assert.deepEqual(control.children.map(option=>option.value),['unconfirmed','confirmed']);assert.equal(control.value,'unconfirmed');assert.ok(h.all().some(node=>node.className.includes('takeoff-retained-uncertainty')&&node.textContent.includes(before.note)));assert.ok(!h.all().some(node=>node.attributes['aria-label']==='Uncertainty / review state'));
-    control.value='confirmed';control.emit('change');await flush();assert.equal(h.current.physical.services[0].confirmation,'confirmed');assert.deepEqual(h.calls.previews.at(-1)[0].changes,{fields:copy(value.services[0].fields),quantity:1,confirmation:'confirmed'});assert.deepEqual(h.current.physical.services[0].uncertainty,before);assert.equal(h.current.physical.state,'draft');assert.equal(h.current.library_assignments,undefined);
-    const previews=h.calls.previews.length;await h.click('Confirm');assert.equal(h.calls.previews.length,previews);await h.click('Unconfirm');assert.equal(h.current.physical.services[0].confirmation,'unconfirmed');assert.deepEqual(h.current.physical.services[0].uncertainty,before);h.controller.destroy();
+  await check('Confirmation is edited only on the owning root and children inherit without rewriting retained bytes',async()=>{
+    for(const scope of ['defect_reports','service_plans']){
+      const value=scope==='service_plans'?servicePlanGraph():graph(),ownerId=scope==='service_plans'?uuid(1):uuid(2);
+      value.services[0].confirmation='confirmed';value.services[0].uncertainty={state:'conflicting',note:'Retain exact evidence conflict.'};
+      const h=component(value,{scope:()=>scope});await flush();await h.controller.select(uuid(5));const child=copy(h.current.physical.services[0]);
+      assert.ok(!h.all().some(node=>node.attributes['aria-label']==='Confirmation'));assert.ok(h.all().some(node=>node.textContent.includes('Confirmation: Unconfirmed')&&node.textContent.includes('inherited from')));
+      await h.controller.select(ownerId);const control=h.input('Confirmation');assert.deepEqual(control.children.map(option=>option.value),['unconfirmed','confirmed']);control.value='confirmed';control.emit('change');await flush();
+      assert.equal(physical.effectiveConfirmation(physical.indexGraph(h.current.physical).get(uuid(5)),physical.indexGraph(h.current.physical)),'confirmed');assert.deepEqual(h.current.physical.services[0],child);assert.equal(h.current.physical.state,'draft');assert.equal(h.current.library_assignments,undefined);
+      await h.controller.select(uuid(5));await h.controller.select(uuid(6),true);const before=h.calls.previews.length;await h.click('Confirm');assert.equal(h.calls.previews.length,before);await h.click('Unconfirm');assert.deepEqual(h.calls.previews.at(-1).map(command=>command.entity_id),[ownerId]);assert.deepEqual(h.current.physical.services[0],child);h.controller.destroy();
+    }
   });
   await check('Selection bulk input reviews all selected IDs including filtered-out records and preserves unrelated values',async()=>{
     const h=component();await flush();await h.select(5);await h.select(6);const before=copy(h.current.physical.services),field=h.input('Bulk physical edit field'),value=h.input('Bulk physical edit value');field.value='quantity';value.value='7';const filter=h.input('Filter physical hierarchy');filter.value='Copper pipe';filter.emit('input');await h.click('Apply to selected');
     assert.equal(h.calls.previews.length,1);assert.deepEqual(h.calls.previews[0].map(command=>command.entity_id),[uuid(5),uuid(6)]);for(let i=0;i<2;i++){assert.equal(h.current.physical.services[i].quantity,7);assert.deepEqual(h.current.physical.services[i].fields,before[i].fields);assert.equal(h.current.physical.services[i].barrier_id,before[i].barrier_id);}assert.ok(h.calls.confirmations[0].text.includes('2 affected physical IDs'));
-    await h.click('Confirm');assert.ok(h.current.physical.services.every(entry=>entry.confirmation==='confirmed'));assert.ok(h.calls.confirmations.at(-1).text.includes('unapproved draft'));h.controller.destroy();
+    await h.click('Confirm');assert.deepEqual(h.calls.previews.at(-1).map(command=>command.entity_id),[uuid(2)]);assert.equal(h.current.physical.defects[0].confirmation,'confirmed');assert.ok(h.current.physical.services.every(entry=>entry.confirmation===undefined));assert.ok(h.calls.confirmations.at(-1).text.includes('unapproved draft'));h.controller.destroy();
   });
   await check('Top Update and Unlink actions retain separate multi-member reviews and preserve operation scope',async()=>{
     const value=graph();value.services[1].quantity=4;const requests=[],applied=[],h=component(value,{libraryCommand:async()=>{},libraryPreview:async request=>{requests.push(copy(request));return {preview_id:request.assignment_id,notice:'Reviewed schedule contribution only',library:{library_id:'LIB',title:'Literal library item',revision:1,import_fields:{defect:{},barrier:{},service:{}}},change:{confirmed_contribution:request.quantity,row_id:'row-1',previous_quantity:10,next_quantity:10+request.quantity,prior_contribution:request.operation==='unlink'?2:0}};},libraryApply:async id=>{applied.push(id);const record=h.current.library_assignments.records.find(entry=>entry.id===id),request=requests.at(-1);record.schedule_binding=request.operation==='unlink'?null:{row_id:'row-1'};record.confirmation=request.operation==='unlink'?null:{quantity:request.quantity};record.state=request.operation==='unlink'?'draft':'confirmed';return {snapshot:copy(h.current)};}});await flush();
@@ -238,7 +243,7 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
     const h=component(graph(),{transferConfirmedLibraryRegister:async()=>{throw Error('Confirm the current service before transfer');}});await flush();const before=copy(h.current);await h.click('Transfer to Firestopping Schedule');assert.deepEqual(h.current,before);assert.equal(h.calls.asks.length,0);assert.equal(h.calls.confirmations.length,0);assert.match(h.calls.notifications.at(-1).text,/Confirm the current service/);assert.equal(h.calls.notifications.at(-1).error,true);h.controller.destroy();
   });
   await check('Item Details retains Discard without an inspected record and Delete uses the accessible trash icon',async()=>{
-    const h=component(graph(),{inspectorContainer:true});await flush();const discard=h.button('Discard unfinished physical edits'),original=copy(h.current.physical);
+    const h=component(servicePlanGraph(),{scope:()=>'service_plans',inspectorContainer:true});await flush();const discard=h.button('Discard unfinished physical edits'),original=copy(h.current.physical);
     assert.equal(discard.parentElement.className,'takeoff-physical-inspector-actions');assert.equal(discard.disabled,false);
     const location=h.input('Location for Wall A');location.value='Unfinished table value';location.emit('input');assert.equal(h.controller.inspectedId(),null);await h.click('Discard unfinished physical edits');assert.equal(h.controller.hasUnfinishedChanges(),false);assert.deepEqual(h.current.physical,original);assert.equal(h.button('Discard unfinished physical edits'),discard);
     await h.controller.select(uuid(5));const remove=h.button('Delete draft record');assert.equal(remove.parentElement.className,'takeoff-physical-inspector-actions');assert.equal(remove.parentElement.children[1],discard);assert.equal(remove.textContent,'');assert.equal(remove.title,'Delete draft record');assert.equal(remove.children[0].tagName,'SVG');assert.equal(remove.children[0].attributes['aria-hidden'],'true');assert.ok(remove.children[0].children[0].attributes.d.includes('M3 6h18'));
@@ -295,14 +300,14 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
   });
   await check('Routine inspector and table edits need no confirmation while failed validation preserves unfinished input',async()=>{
     for(const mode of ['inspector','table']){
-      const h=component(graph(),{confirm:async()=>false});await flush();if(mode==='inspector')await h.select(1);const control=h.input(mode==='inspector'?'Notes':'Location for Wall A');control.value='Unsaved value';control.emit('input');
+      const h=component(servicePlanGraph(),{scope:()=>'service_plans',confirm:async()=>false});await flush();if(mode==='inspector')await h.select(1);const control=h.input(mode==='inspector'?'Notes':'Location for Wall A');control.value='Unsaved value';control.emit('input');
       await h.controller.completePendingEdits();assert.equal(h.calls.applied.length,1);assert.equal(h.calls.confirmations.length,0);assert.equal(h.controller.hasUnfinishedChanges(),false);h.controller.destroy();
     }
-    const h=component(graph(),{preview:async()=>{throw new Error('Preview unavailable');}});await flush();await h.select(1);const notes=h.input('Notes');notes.value='Keep on outage';notes.emit('input');await assert.rejects(h.controller.completePendingEdits(),/Preview unavailable/);assert.equal(notes.value,'Keep on outage');assert.equal(h.controller.hasUnfinishedChanges(),true);h.controller.destroy();
+    const h=component(servicePlanGraph(),{scope:()=>'service_plans',preview:async()=>{throw new Error('Preview unavailable');}});await flush();await h.select(1);const notes=h.input('Notes');notes.value='Keep on outage';notes.emit('input');await assert.rejects(h.controller.completePendingEdits(),/Preview unavailable/);assert.equal(notes.value,'Keep on outage');assert.equal(h.controller.hasUnfinishedChanges(),true);h.controller.destroy();
   });
   await check('Save completion rejects stale or unrelated physical pending controls before applying',async()=>{
-    const h=component();await flush();await h.select(1);const notes=h.input('Notes');notes.value='Retain stale note';notes.emit('input');const next=copy(h.current);next.physical.revision++;next.physical.barriers[0].revision++;h.controller.render(next);await assert.rejects(h.controller.completePendingEdits(),/draft changed/);assert.equal(h.calls.applied.length,0);assert.equal(notes.value,'Retain stale note');h.controller.destroy();
-    const separate=component();await flush();await separate.select(1);for(const label of ['Notes','Location for Wall A']){const control=separate.input(label);control.value='Unfinished';control.emit('input');}await assert.rejects(separate.controller.completePendingEdits(),/separate physical field edits/);assert.equal(separate.calls.previews.length,0);assert.equal(separate.controller.hasUnfinishedChanges(),true);separate.controller.destroy();
+    const h=component(servicePlanGraph(),{scope:()=>'service_plans'});await flush();await h.select(1);const notes=h.input('Notes');notes.value='Retain stale note';notes.emit('input');const next=copy(h.current);next.physical.revision++;next.physical.barriers[0].revision++;h.controller.render(next);await assert.rejects(h.controller.completePendingEdits(),/draft changed/);assert.equal(h.calls.applied.length,0);assert.equal(notes.value,'Retain stale note');h.controller.destroy();
+    const separate=component(servicePlanGraph(),{scope:()=>'service_plans'});await flush();await separate.select(1);for(const label of ['Notes','Location for Wall A']){const control=separate.input(label);control.value='Unfinished';control.emit('input');}await assert.rejects(separate.controller.completePendingEdits(),/separate physical field edits/);assert.equal(separate.calls.previews.length,0);assert.equal(separate.controller.hasUnfinishedChanges(),true);separate.controller.destroy();
   });
   await check('A replacement project with the same entity IDs cannot receive a save started in the old inspector',async()=>{
     const h=component();await flush();await h.select(1);const notes=h.input('Notes');notes.value='Old project edit';notes.emit('input');
@@ -331,16 +336,16 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
     h.controller.destroy();
   });
   await check('Hidden labels and barrier thickness survive visible-field edits and old dropdown values remain explicit',async()=>{
-    const value=graph();Object.assign(value.barriers[0].fields,{thickness_mm:175,substrate:' Historic substrate ',orientation:'Historic orientation',barrier_type:'Historic barrier',future_property:'retained barrier data'});Object.assign(value.services[0].fields,{service:'Historic category',service_type:'Historic type',future_property:'retained service data'});
+    const value=graph();Object.assign(value.barriers[0].fields,{thickness_mm:175,substrate:' Historic substrate ',orientation:'Historic orientation',barrier_type:'Historic barrier',future_property:'retained barrier data',location:'Retained old child location'});Object.assign(value.services[0].fields,{service:'Historic category',service_type:'Historic type',future_property:'retained service data'});
     const barrierBefore=copy(value.barriers[0].fields),serviceBefore=copy(value.services[0].fields);
     const h=component(value);await flush();await h.select(1);
     for(const [label,retained] of [['Barrier type','Historic barrier'],['Substrate',' Historic substrate '],['Substrate orientation','Historic orientation']]){const control=h.input(label);assert.equal(control.value,retained);assert.ok(optionsOf(control).includes(retained));assert.ok(control.children.some(option=>option.value===retained&&option.textContent.includes('retained')));}
-    const location=h.input('Location');location.value='New location';location.emit('input');await h.controller.completePendingEdits();
-    assert.deepEqual(h.current.physical.barriers[0].fields,{...barrierBefore,location:'New location'});assert.equal(h.current.physical.barriers[0].defect_id,uuid(2));
+    assert.ok(!h.all().some(node=>node.attributes['aria-label']==='Location'));const notes=h.input('Notes');notes.value='New note';notes.emit('input');await h.controller.completePendingEdits();
+    assert.deepEqual(h.current.physical.barriers[0].fields,{...barrierBefore,notes:'New note'});assert.equal(h.current.physical.barriers[0].defect_id,uuid(2));
     await h.controller.clearSelection();await h.select(5);for(const [label,retained] of [['Category','Historic category'],['Service type','Historic type']]){const control=h.input(label);assert.equal(control.value,retained);assert.ok(optionsOf(control).includes(retained));}
     const size=h.input('Service Size (mm)');size.value='32';size.emit('input');await h.controller.completePendingEdits();
     assert.deepEqual(h.current.physical.services[0].fields,{...serviceBefore,size:'32'});assert.equal(h.current.physical.services[0].quantity,1);assert.equal(h.current.physical.services[0].barrier_id,uuid(1));
-    const retained=physical.fieldsFromValues('barrier',{location:'',notes:''},barrierBefore);assert.equal(retained.label,'Wall A');assert.equal(retained.thickness_mm,175);assert.equal(retained.future_property,'retained barrier data');assert.equal(retained.location,undefined);
+    const retained=physical.fieldsFromValues('barrier',{location:'',notes:''},barrierBefore);assert.equal(retained.label,'Wall A');assert.equal(retained.thickness_mm,175);assert.equal(retained.future_property,'retained barrier data');assert.equal(retained.location,'Retained old child location');
     h.controller.destroy();
   });
   await check('Delayed catalogue choices preserve unfinished text and a failed load can retry before creation',async()=>{
@@ -425,16 +430,19 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
     await h.click('Add defect');assert.equal(h.calls.previews.length,0);assert.equal(h.calls.applied.length,0);assert.ok(h.calls.notifications.at(-1).text.includes('read-only'));
     assert.ok(!h.all().some(node=>node.attributes?.['aria-label']==='Export draft CSV'));assert.deepEqual(h.calls.exports,[]);assert.deepEqual(h.current.physical,original);h.controller.destroy();
   });
-  await check('Inherited locations follow the nearest location-bearing parent in each saved hierarchy version',async()=>{
+  await check('Legacy Barrier Item Details retains its original raw Location as read-only text',async()=>{
+    const value=legacyGraph();value.barriers[0].fields.location='Original legacy location';const before=copy(value),h=component(value);await flush();await h.controller.select(uuid(1));assert.ok(h.all().some(node=>node.tagName==='P'&&node.textContent==='Location: Original legacy location'));assert.ok(!h.all().some(node=>node.attributes['aria-label']==='Location'));assert.deepEqual(h.current.physical,before);h.controller.destroy();
+  });
+  await check('Inherited locations follow the legacy nearest parent or modern owner without child fallback',async()=>{
     for(const value of [legacyGraph(),graph()]){
       value.barriers[0].fields.location='Barrier location';value.defects[0].fields.location='Defect location';
-      const original=copy(value),h=component(value);await flush();
+      const original=copy(value),h=component(value);await flush();if(value.version===2){assert.ok(h.controller.summary(uuid(1)).includes('Defect location'));assert.ok(!h.controller.summary(uuid(1)).includes('Barrier location'));}
       const locationOf=id=>{const column=h.all().filter(element=>element.tagName==='TH').findIndex(element=>element.textContent==='Location');return h.all().find(element=>element.dataset.physicalId===uuid(id)).children[column].textContent;};
-      const ids=value.version===1?[3,5]:[5],nearest=value.version===1?'Defect location':'Barrier location';
+      const ids=value.version===1?[3,5]:[5],nearest='Defect location';
       for(const id of ids)assert.equal(locationOf(id),nearest);
       assert.deepEqual(h.current.physical,original);
-      const next=copy(h.current);delete next.physical[value.version===1?'defects':'barriers'][0].fields.location;h.controller.render(next);await flush();
-      for(const id of ids)assert.equal(locationOf(id),value.version===1?'Barrier location':'Defect location');
+      const next=copy(h.current);delete next.physical.defects[0].fields.location;h.controller.render(next);await flush();
+      for(const id of ids)assert.equal(locationOf(id),value.version===1?'Barrier location':'—');
       h.controller.destroy();
     }
   });
@@ -447,7 +455,7 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
     const next=copy(h.current);next.physical.revision++;h.controller.render(next);pending.resolve({preview_id:'stale',affected_ids:[uuid(1)],changed_ids:[uuid(1)],relationships:[]});await flush();assert.equal(h.calls.applied.length,0);assert.ok(h.calls.notifications.some(value=>value.text.includes('changed before review')));h.controller.destroy();
   });
   await check('Inline table edits cannot discard unrelated unfinished inspector values',async()=>{
-    const h=component();await flush();await h.select(1);const inspector=h.input('Substrate');inspector.value='Unfinished masonry inspection';inspector.emit('input');const table=h.input('Location for Wall A');table.value='New location';table.emit('input');table.emit('change');await flush();
+    const h=component(servicePlanGraph(),{scope:()=>'service_plans'});await flush();await h.select(1);const inspector=h.input('Substrate');inspector.value='Unfinished masonry inspection';inspector.emit('input');const table=h.input('Location for Wall A');table.value='New location';table.emit('input');table.emit('change');await flush();
     assert.equal(h.calls.previews.length,0);assert.equal(inspector.value,'Unfinished masonry inspection');assert.equal(table.value,'New location');assert.equal(h.controller.hasUnfinishedChanges(),true);assert.ok(h.calls.notifications.at(-1).text.includes('separate physical field edits'));await h.click('Discard unfinished physical edits');assert.equal(h.controller.hasUnfinishedChanges(),false);h.controller.destroy();
   });
   await check('Each later unfinished keystroke advances the project race fingerprint',async()=>{
@@ -534,7 +542,7 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
   });
   await check('Item Details creates children under its selected parent after flushing its fields',async()=>{
     const h=component(servicePlanGraph(),{scope:()=> 'service_plans',inspectorContainer:true});await flush();await h.controller.select(uuid(1));assert.equal(h.button('Add service in Item Details').title,'Add service to B-0001');
-    const notes=h.input('Notes');notes.value='Pending barrier details';notes.emit('input');await h.click('Add service in Item Details');assert.equal(h.calls.asks.length,1);assert.equal(h.current.physical.barriers[0].fields.notes,'Pending barrier details');assert.equal(h.button('Add service in Item Details').textContent,'Add Service');
+    const notes=h.input('Notes');notes.value='Pending barrier details';notes.emit('input');await h.click('Add service in Item Details');assert.equal(h.calls.asks.length,1);assert.equal(h.current.physical.barriers[0].fields.notes,'Pending barrier details');assert.equal(h.button('Add service in Item Details').children[0].src,'/icons/takeoff-add-service.png');
     await h.controller.completePendingEdits();h.answers.push({service:'Mechanical',service_type:'Copper pipe',quantity:2,uncertainty_state:'not_assessed'});await h.click('Add service in Item Details');const command=h.calls.previews.at(-1)[0];assert.equal(command.kind,'service');assert.equal(command.entity.barrier_id,uuid(1));assert.equal(command.entity.quantity,2);assert.equal(h.current.physical.barriers[0].fields.notes,'Pending barrier details');h.controller.destroy();
     const defect=component();await flush();await defect.controller.select(uuid(2));assert.equal(defect.button('Add barrier in Item Details').title,'Add barrier to D-0001');defect.answers.push({substrate:'Concrete',uncertainty_state:'not_assessed'});await defect.click('Add barrier in Item Details');assert.equal(defect.calls.previews.at(-1)[0].entity.defect_id,uuid(2));defect.controller.destroy();
   });
@@ -623,7 +631,7 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
   });
   await check('Finished inspector and table edits apply automatically while unfinished typing remains intact',async()=>{
     for(const mode of ['inspector','table']){
-      const h=component(graph(),{confirm:async()=>{throw new Error('Routine edits must not request confirmation');}});await flush();if(mode==='inspector')await h.controller.select(uuid(1));
+      const h=component(servicePlanGraph(),{scope:()=>'service_plans',confirm:async()=>{throw new Error('Routine edits must not request confirmation');}});await flush();if(mode==='inspector')await h.controller.select(uuid(1));
       assert.ok(!h.all().some(control=>control.tagName==='BUTTON'&&control.textContent==='Preview physical edits'));
       const control=h.input(mode==='inspector'?'Location':'Location for Wall A');control.value='L05';control.emit('input');await flush();assert.equal(h.calls.previews.length,0);assert.equal(control.value,'L05');
       control.emit('change');await flush();assert.equal(h.current.physical.barriers[0].fields.location,'L05');assert.equal(h.current.physical.state,'draft');assert.equal(h.calls.previews.length,1);assert.equal(h.calls.applied.length,1);assert.equal(h.calls.confirmations.length,0);assert.equal(h.controller.hasUnfinishedChanges(),false);h.controller.destroy();
@@ -650,7 +658,7 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
   });
   await check('Returning a field to its former value during an in-flight apply remains an explicit queued change',async()=>{
     for(const mode of ['inspector','table']){
-      const pending=defer(),h=component();await flush();if(mode==='inspector')await h.controller.select(uuid(1));const preview=h.bridge.preview;
+      const pending=defer(),h=component(servicePlanGraph(),{scope:()=>'service_plans'});await flush();if(mode==='inspector')await h.controller.select(uuid(1));const preview=h.bridge.preview;
       h.bridge.preview=async commands=>{const reply=await preview(commands);await pending.promise;return reply;};const control=h.input(mode==='inspector'?'Location':'Location for Wall A');control.value='Temporary';control.emit('input');control.emit('change');await flush();
       control.value='';control.emit('input');pending.resolve();await flush();await h.controller.completePendingEdits();assert.equal(h.current.physical.barriers[0].fields.location,undefined);assert.equal(h.calls.applied.length,2);assert.equal(h.calls.previews[0][0].changes.fields.location,'Temporary');assert.equal(h.calls.previews[1][0].changes.fields.location,undefined);assert.equal(h.controller.hasUnfinishedChanges(),false);h.controller.destroy();
     }
@@ -665,13 +673,13 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
   });
   await check('Physical column filters use inherited displayed values, intersect columns and retain only required ancestors',()=>{
     for(const value of [graph(),servicePlanGraph()]){
-      Object.assign(value.barriers[0].fields,{location:'L01',substrate:'Concrete',orientation:'Vertical'});Object.assign(value.services[0].fields,{service:'Mechanical',service_type:'Copper pipe'});Object.assign(value.services[1].fields,{service:'Electrical & Communications',service_type:'Cable bundle'});value.services[1].uncertainty.state='missing';value.services[1].confirmation='confirmed';
+      Object.assign(value.barriers[0].fields,{location:'L01',substrate:'Concrete',orientation:'Vertical'});Object.assign(value.services[0].fields,{service:'Mechanical',service_type:'Copper pipe'});Object.assign(value.services[1].fields,{service:'Electrical & Communications',service_type:'Cable bundle'});value.services[1].uncertainty.state='missing';value.services[1].confirmation='confirmed';(value.version===3?value.barriers[0]:value.defects[0]).confirmation='confirmed';if(value.version===2)value.defects[0].fields.location='L01';
       const index=physical.indexGraph(value),entry=index.get(uuid(5));assert.equal(physical.columnValue(entry,'location',index),'L01');assert.equal(physical.columnValue(entry,'frl',index),value.version===3?'-/90/90':'-/120/120');assert.equal(physical.columnValue(entry,'substrate',index),'Concrete');
       const filters=new Map([['location',new Set(['L01'])],['orientation',new Set(['Vertical'])],['service',new Set(['Mechanical'])]]),rows=physical.hierarchyRows(value,{columnFilters:filters,collapsed:new Set([uuid(1),uuid(2)])});
       assert.deepEqual(rows.map(row=>row.entity.id),value.version===3?[uuid(1),uuid(5)]:[uuid(2),uuid(1),uuid(5)]);assert.deepEqual(rows.filter(row=>!row.context).map(row=>row.entity.id),[uuid(5)]);
       assert.deepEqual(physical.hierarchyRows(value,{columnFilters:filters,filter:'L01'}).map(row=>row.entity.id),rows.map(row=>row.entity.id));assert.equal(physical.hierarchyRows(value,{columnFilters:filters,filter:'Cable bundle'}).length,0);
       const blank=physical.hierarchyRows(value,{columnFilters:new Map([['service',new Set([''])],['substrate',new Set([''])]])});assert.ok(blank.some(row=>row.entity.id===uuid(4)));assert.ok(!blank.some(row=>row.kind==='service'));
-      const state=physical.hierarchyRows(value,{columnFilters:new Map([['state',new Set(['Confirmed'])]])});assert.deepEqual(state.filter(row=>!row.context).map(row=>row.entity.id),[uuid(6)]);
+      const state=physical.hierarchyRows(value,{columnFilters:new Map([['state',new Set(['Confirmed'])]])});assert.deepEqual(state.filter(row=>!row.context).map(row=>row.entity.id),value.version===3?[uuid(1),uuid(5),uuid(6)]:[uuid(2),uuid(1),uuid(5),uuid(6),uuid(4)]);
     }
   });
   await check('Column filter dialogs search values, keep choices from other filters, support cancel/reset and select matching rows only',async()=>{
@@ -697,8 +705,8 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
       await h.controller.selectDrawing(uuid(1));assert.equal(changes.at(-1).openDetails,true);assert.equal(selections.at(-1)[3],true);h.controller.destroy();
     }
   });
-  await check('Item Details Add Service is a normal full-width action while register Add Substrate remains compact',async()=>{
-    const h=component(servicePlanGraph(),{scope:()=> 'service_plans',inspectorContainer:true});await flush();await h.controller.select(uuid(1));const service=h.button('Add service in Item Details'),substrate=h.button('Add substrate');assert.equal(service.textContent,'Add Service');assert.equal(substrate.textContent,'+');assert.ok(service.className.includes('button secondary'));assert.ok(!service.className.includes('takeoff-physical-add-child'));assert.ok(!service.className.includes('takeoff-physical-add-defect'));assert.ok(substrate.className.includes('takeoff-physical-add-defect'));assert.equal(service.title,'Add service to B-0001');h.controller.destroy();
+  await check('Item Details Add Service uses its accessible icon while register Add Substrate remains compact',async()=>{
+    const h=component(servicePlanGraph(),{scope:()=> 'service_plans',inspectorContainer:true});await flush();await h.controller.select(uuid(1));const service=h.button('Add service in Item Details'),substrate=h.button('Add substrate');assert.equal(service.textContent,'');assert.equal(service.children[0].tagName,'IMG');assert.equal(service.children[0].src,'/icons/takeoff-add-service.png');assert.equal(substrate.textContent,'+');assert.ok(service.className.includes('button secondary'));assert.ok(!service.className.includes('takeoff-physical-add-child'));assert.ok(!service.className.includes('takeoff-physical-add-defect'));assert.ok(substrate.className.includes('takeoff-physical-add-defect'));assert.equal(service.title,'Add service to B-0001');h.controller.destroy();
   });
   await check('Root Defect callouts use explicit linked values without aggregating quantities or child ratings',async()=>{
     const value=graph();value.defects[0].fields.location='Level 1';value.barriers[0].fields.frl='custom child rating';value.services[0].quantity=700;value.services[0].fields.service_type='Copper pipe';value.services[1].deleted=true;
@@ -774,15 +782,17 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
       assert.ok(h.calls.asks.at(-1).definitions.some(field=>field[0]==='seal_quantity'));assert.equal(h.current.library_assignments.records[0].draft_quantity,.375);assert.equal(h.current.physical.services.length,2);
     } finally {h?.controller.destroy();global.CeasefireTakeoffLibraryLinks=previous;}
   });
-  await check('Item Details places Add Service after Add Library Item and delete/discard and Add Barrier above navigation',async()=>{
+  await check('Item Details groups accessible original icons above Delete Discard and Visibility',async()=>{
     for (const scope of ['defect_reports','service_plans']) {
       const value=scope==='service_plans'?servicePlanGraph():graph();value.barriers[0].marker={document_id:uuid(80),document_sha256:'d'.repeat(64),page:1,point:[25,30]};const before=copy(value),h=component(value,{scope:()=>scope,libraryCommand:async()=>null});await flush();
       h.current.library_assignments={version:1,records:[201,202].map((id,index)=>({id:uuid(id),scope,library:{id:`literal-${id}`,library_id:`FL-ID-00${index+1}`,metadata_sha256:'a'.repeat(64)},members:[1,5,6,...(scope==='defect_reports'?[2]:[])].map(id=>({id:uuid(id),kind:id===2?'defect':id===1?'barrier':'service',revision:1})),installation:{mode:'repeated_installations'},state:'draft',schedule_binding:null}))};h.controller.render(copy(h.current));
       const order=hasParent=>{
-        const inspector=h.all().find(node=>node.tagName==='ASIDE'),children=inspector.children,choose=h.button('Add Library Item'),start=children.indexOf(choose),navigation=children.find(node=>node.className==='takeoff-physical-navigation');
-        assert.ok(start>=0);assert.equal(children[start+1],h.button('Add service in Item Details'));assert.equal(children[start+1].textContent,'Add Service');
-        const actions=children[start+2];assert.equal(actions.className,'takeoff-physical-inspector-actions');assert.ok(actions.contains(h.button('Discard unfinished physical edits')));assert.ok(children.indexOf(actions)<children.indexOf(navigation));
-        const addBarrier=children.find(node=>node.attributes['aria-label']==='Add barrier in Item Details');if(addBarrier){assert.equal(addBarrier.textContent,'Add Barrier');assert.equal(children.indexOf(addBarrier),children.indexOf(actions)+1);assert.equal(children.indexOf(navigation),children.indexOf(addBarrier)+1);}else assert.equal(children.indexOf(navigation),children.indexOf(actions)+1);
+        const inspector=h.all().find(node=>node.tagName==='ASIDE'),children=inspector.children,choose=h.button('Add Library Item'),icons=choose.parentElement,start=children.indexOf(icons),navigation=children.find(node=>node.className==='takeoff-physical-navigation');
+        assert.ok(start>=0);assert.equal(icons.className,'takeoff-physical-item-actions');assert.equal(icons.children[0],choose);assert.equal(icons.children[1],h.button('Add service in Item Details'));assert.equal(choose.children[0].tagName,'SVG');assert.equal(choose.textContent,'');
+        const actions=children[start+1];assert.equal(actions.className,'takeoff-physical-inspector-actions');assert.ok(actions.contains(h.button('Discard unfinished physical edits')));assert.ok(children.indexOf(actions)<children.indexOf(navigation));
+        const visibility=h.all().find(node=>node.attributes['aria-label']==='Visibility');if(visibility){assert.equal(visibility.parentElement,actions);assert.equal(actions.children.indexOf(visibility),actions.children.indexOf(h.button('Discard unfinished physical edits'))+1);}
+        const addBarrier=icons.children.find(node=>node.attributes['aria-label']==='Add barrier in Item Details');if(addBarrier){assert.equal(addBarrier.children[0].tagName,'IMG');assert.equal(addBarrier.children[0].src,'/icons/takeoff-add-barrier.png');}
+        assert.equal(children.indexOf(navigation),children.indexOf(actions)+1);
         if(hasParent)assert.equal(children[children.indexOf(navigation)+1],h.button('Change Parent'));
         const summaries=children.filter(node=>node.className.includes('takeoff-library-summary'));assert.equal(summaries.length,2);assert.deepEqual(children.slice(-2),summaries);
         const fields=children.filter(node=>node.className==='field');for(const field of fields)assert.ok(children.indexOf(field)>children.indexOf(actions)&&children.indexOf(field)<children.indexOf(summaries[0]));

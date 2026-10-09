@@ -349,3 +349,34 @@ Stop, query replacement and project replacement cancel pending work and terminat
 the worker. The bounded in-memory cache keys original SHA256, page, render transform
 and engine/model version; project replacement disposes it. Original PDFs, viewer
 text layers and saved projects are not modified by recognition.
+
+## Parent review and inspector controls (9 October 2026)
+
+In Defect Reports v2, the Defect owns Location and manual Confirmation for its
+Barrier and Service descendants. In Service Plans v3, the root Barrier owns both
+and its Services inherit Confirmation. Register display, filters, selected
+exports, callouts and schedule transfer resolve the same typed parent chain.
+Missing or deleted owners cannot grant confirmation. Child Confirmation editors
+and the Defect Reports Barrier Location editor are absent; historical child
+fields remain lossless in saved projects and are never migrated on load.
+
+Changing child facts, source evidence, quantity or hierarchy invalidates the
+relevant owner's review; moving a child between branches invalidates both owners.
+New library children also require fresh owner review. Appearance, callout layout
+and view-only Visibility preserve review. Bulk Confirm and Unconfirm resolve and
+deduplicate selected owners. This remains manual draft review, with no technical
+or manufacturer approval implied.
+
+Transfer to Firestopping Schedule sends all currently confirmed library
+associations in the current scope through the existing atomic commercial
+transaction, without link/quantity dialogs. It uses the recorded Service quantity
+(or the explicit retained blank-seal/combined-installation source). Current member
+revisions, library fingerprints, local confirmation authority, destination inputs
+and idempotency guards still apply. Update and Unlink retain their separate
+reviewed transactions.
+
+Item Details groups the Library book icon and supplied original Service and
+Barrier PNGs above Delete, Discard and per-item Visibility. Icons retain accessible
+names, tooltips and keyboard focus. Visibility targets the nearest active drawing
+owner and changes presentation only. Supplied raster files are stored as their
+original bytes; the existing Library SVG is reused.

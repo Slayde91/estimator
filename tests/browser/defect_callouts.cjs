@@ -1,4 +1,5 @@
 const { chooseTakeoff } = require('./section_navigation.cjs');
+const { clickInspectorAdd } = require('./parent_controls_helpers.cjs');
 const { chooseNewDefect } = require('./physical_dialogs.cjs');
 // Native Defect annotation/callout gestures on a disposable, cropped PDF.
 const { chromium, expect } = require('@playwright/test');
@@ -66,7 +67,7 @@ async function textFits() {
   assert.equal(original.annotation.document_sha256, sourceHash); assert.equal(original.annotation.page, 3); assert.equal(original.marker, undefined); assert.equal(original.quantity, undefined);
   assert.equal(original.annotation.appearance.marker_size,10);
   await expect(details().getByLabel('Marker Size',{exact:true})).toHaveValue('10');
-  assert.deepEqual(await details().locator('.takeoff-settings-fields .field>span').allTextContents(),['Line Colour','Line Width','Fill colour','Fill enabled','Marker Size','Opacity']);
+  assert.deepEqual(await details().locator('.takeoff-settings-fields .field>span').allTextContents(),['Fill colour','Fill enabled','Line Colour','Line Width','Marker Size','Opacity']);
   assert.equal(await details().evaluate(el=>el.firstElementChild.getAttribute('aria-label')),'Marker Settings');
   assert.ok(await details().getByLabel('Line Colour',{exact:true}).evaluate(el=>el.getBoundingClientRect().height>=40));
   assert.deepEqual(original.annotation.point, JSON.parse(source.note.match(/PDF point (\[[^\]]+\])/)[1])); assert.equal(current.physical.barriers.length, 0); assert.equal(current.physical.services.length, 0);
@@ -102,7 +103,7 @@ async function textFits() {
   await page.locator(`tr[data-physical-id="${id}"]`).getByRole('button', { name: 'Add barrier to D-0001', exact: true }).click();
   const barrier = await response(() => dialog('Create draft barrier', { Substrate: 'Concrete/masonry wall' }, 'Preview new draft'), '/physical/preview');
   await response(() => dialog('Create one draft barrier?', {}, 'Apply draft change'), '/physical/apply');
-  await details().getByRole('button', { name: 'Add service in Item Details', exact: true }).click();
+  await clickInspectorAdd(details(), 'Add service in Item Details');
   const service = await response(() => dialog('Create draft service', { Category: 'Mechanical', 'Service type': 'Copper Pipes', 'Explicit service quantity': 2 }, 'Preview new draft'), '/physical/preview');
   await response(() => dialog('Create one draft service?', {}, 'Apply draft change'), '/physical/apply');
   await snapshot(); for (const value of ['B-0001 · Concrete/masonry wall', 'S-0001 · 2 × · Mechanical · Copper Pipes']) await expect(callout()).toContainText(value);

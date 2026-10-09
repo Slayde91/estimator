@@ -1,4 +1,4 @@
-const { assertParentControls } = require('./parent_controls_helpers.cjs');
+const { assertParentControls, clickInspectorAdd } = require('./parent_controls_helpers.cjs');
 const { chooseTakeoff, takeoffChoice } = require('./section_navigation.cjs');
 const { chooseNewPhysicalItem, startDefect } = require('./physical_dialogs.cjs');
 const { clickProjectControl } = require('./project_actions.cjs');
@@ -297,9 +297,10 @@ let currentScope = 'defect_reports';
     currentScope = scope; await scopeTab(scope === 'service_plans' ? 'Service Plans' : 'Defect Reports');
     let defect;
     if (scope === 'defect_reports') defect = await create('defect', { 'Defect Ref.': 'INTERACTION-A', Location: 'North plant room', FRL: '-/120/120' }, () => startDefect(page));
-    const barrier = await create('barrier', { 'Barrier type': 'Core hole', Substrate: 'Concrete/masonry wall', 'Substrate orientation': 'Vertical', ...(scope === 'service_plans' ? { Location: 'North plant room', FRL: '-/90/90' } : {}) }, () => page.getByRole('button', { name: scope === 'service_plans' ? 'Add substrate' : 'Add barrier to D-0001', exact: true }).click());
+    const barrier = await create('barrier', { 'Barrier type': 'Core hole', Substrate: 'Concrete/masonry wall', 'Substrate orientation': 'Vertical', ...(scope === 'service_plans' ? { Location: 'North plant room', FRL: '-/90/90' } : {}) }, () => scope === 'service_plans' ? page.getByRole('button', { name: 'Add substrate', exact: true }).click() : clickInspectorAdd(details(), 'Add barrier in Item Details'));
+    if (defect) assert.equal(entity(scope, barrier).defect_id, defect, 'Add Barrier keeps the inspected Defect parent');
     await compareAddServiceStyle(scope);
-    const service = await create('service', { Category: 'Mechanical', 'Explicit service quantity': 2, 'Service Size (mm)': '100' }, () => page.getByRole('button', { name: 'Add service in Item Details', exact: true }).click());
+    const service = await create('service', { Category: 'Mechanical', 'Explicit service quantity': 2, 'Service Size (mm)': '100' }, () => clickInspectorAdd(details(), 'Add service in Item Details'));
     if (defect && !layoutReview) await reviewDefectSource(defect, barrier, service);
     await selectBarrier(barrier);
     if (layoutReview) {

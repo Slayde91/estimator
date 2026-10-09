@@ -1,4 +1,5 @@
 const { chooseTakeoff } = require('./section_navigation.cjs');
+const { clickInspectorAdd } = require('./parent_controls_helpers.cjs');
 const { chooseNewPhysicalItem, startDefect } = require('./physical_dialogs.cjs');
 const { clickProjectControl } = require('./project_actions.cjs');
 // Physical detail navigation and explicit marker placement use a disposable source/server only.
@@ -45,7 +46,7 @@ async function apply(title) {
 async function create(kind, fields, trigger) {
   if (!trigger) {
     if (kind === 'defect') await startDefect(page);
-    else await details().getByRole('button', { name: `Add ${kind} in Item Details`, exact: true }).click();
+    else await clickInspectorAdd(details(), `Add ${kind} in Item Details`);
   } else await trigger();
   await chooseNewPhysicalItem(page,kind);
   const preview = await response(() => dialog(kind === 'defect' ? 'Add Defect' : `Create draft ${kind}`, fields, 'Preview new draft'), '/physical/preview');

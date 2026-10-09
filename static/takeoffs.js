@@ -2773,7 +2773,7 @@
     const part = state.physicalAppearancePart || "marker", callout = part === "callout";
     const defaults = callout ? calloutDefaults() : appearanceOf({ appearance: locator.appearance });
     const appearance = { ...defaults, ...(callout ? locator.callout?.appearance : locator.appearance) }, fields = node("div", "takeoff-settings-fields"); fields.setAttribute("aria-label", callout ? "Callout Settings" : "Marker Settings"); fields.append(node("h3", "", callout ? "Callout Settings" : "Marker Settings")); container.append(fields);
-    const definitions = [["stroke_color", "Line Colour", "color"], ["stroke_width", "Line Width", "number"], ["fill_color", "Fill colour", "color"], ["fill_enabled", "Fill enabled", "checkbox"], ...(callout ? [["font_color", "Font Colour", "color"], ["opacity", "Opacity", "number"]] : [["marker_size", "Marker Size", "number"], ["opacity", "Opacity", "number"]])];
+    const definitions = [["fill_color", "Fill colour", "color"], ["fill_enabled", "Fill enabled", "checkbox"], ["stroke_color", "Line Colour", "color"], ["stroke_width", "Line Width", "number"], ...(callout ? [["font_color", "Font Colour", "color"], ["opacity", "Opacity", "number"]] : [["marker_size", "Marker Size", "number"], ["opacity", "Opacity", "number"]])];
     const styleFields = [];
     for (const def of definitions) {
       const field = appearanceField(def, appearance[def[0]]); styleFields.push(field); fields.append(field.wrapper);

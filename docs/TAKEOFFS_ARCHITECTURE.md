@@ -379,6 +379,9 @@ Item Details uses an Add disclosure with the existing Document-menu keyboard and
 dismissal behavior. Applicable entries appear as Add Barrier, Add Service, then
 Add Library Item, with icons left of their names. Barrier and Service reuse the
 supplied original PNG bytes; the existing Library book SVG uses an orange gradient.
+Automatic saves retain the same item's open Add menu and keyboard focus, and keep
+a pressed option connected until its click completes. Explicit dismissal or a
+changed workspace, selection or parent closes it; save and action authority remain unchanged.
 Per-item Visibility sits at the right of the Add row, followed by a separate Delete
 and Discard row. Visibility targets the nearest active drawing owner and changes
 presentation only. Marker and Callout settings show Fill colour/Fill enabled before

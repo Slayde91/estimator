@@ -231,7 +231,7 @@
     const document = container.ownerDocument || root.document;
     const state = { snapshot: null, index: new Map(), servicesByBarrier: new Map(), selected: new Set(), hidden: new Set(), inspectedId: null, collapsed: new Set(), filter: "", columnFilters: new Map(), filterDialog: null, offset: 0, showDeleted: false, busy: false, destroyed: false, editRevision: 0, pending: new Map(), bindings: new WeakMap(), pendingApply: new WeakMap(), autoApplyPromise: null, autoRoutine: false, autoTimer: null, pointerAction: null, inspectorEdit: null, fieldOptions: null, fieldOptionsPromise: null, images: [], extractionId: "", imageOffset: 0, imageGeneration: 0, imageInventoryKey: "", imageState: "Not loaded", imageFailures: new Set() };
     const ui = {};
-    let inspectorMenu;
+    let inspectorMenu, inspectorRefresh = false;
     const changed = () => bridge.changed?.();
     const graph = () => state.snapshot?.physical || null;
     const scope = () => bridge.scope?.() || (graph()?.version === 3 ? "service_plans" : "defect_reports");
@@ -248,14 +248,16 @@
     function button(label, action, className = "button secondary") {
       const control = node("button", className, label); control.type = "button";
       control.addEventListener("pointerdown", () => { state.pointerAction = control; cancelAutomatic(); });
-      for (const event of ["pointercancel", "pointerleave"]) control.addEventListener(event, () => { if (state.pointerAction === control) state.pointerAction = null; });
+      for (const event of ["pointercancel", "pointerleave"]) control.addEventListener(event, () => { if (state.pointerAction === control) { state.pointerAction = null; refreshPressedInspector(); } });
       control.addEventListener("click", () => void safe(async () => {
-        const identity = `${scope()}/${state.snapshot?.project_id || ""}`;
-        state.pointerAction = null;
-        const flushed = control !== ui.discard && !!(state.pending.size || state.autoApplyPromise);
-        if (flushed) await completePendingEdits();
-        if (state.destroyed || identity !== `${scope()}/${state.snapshot?.project_id || ""}`) throw new Error("The physical workspace changed before this action. Use the current workspace.");
-        return action(flushed);
+        try {
+          const identity = `${scope()}/${state.snapshot?.project_id || ""}`;
+          state.pointerAction = null;
+          const flushed = control !== ui.discard && !!(state.pending.size || state.autoApplyPromise);
+          if (flushed) await completePendingEdits();
+          if (state.destroyed || identity !== `${scope()}/${state.snapshot?.project_id || ""}`) throw new Error("The physical workspace changed before this action. Use the current workspace.");
+          return await action(flushed);
+        } finally { refreshPressedInspector(); }
       })); return control;
     }
     function mutationButton(label, action, className) { const control = button(label, flushed => { ensureEditable(); return action(flushed); }, className); control.dataset.physicalMutation = "true"; control.disabled = state.busy && !state.autoRoutine || legacyReadOnly(); return control; }
@@ -267,6 +269,14 @@
     function inspectedEntry() {
       const selected = selectEntries(); if (selected.length !== 1) return null;
       return [...ancestors(selected[0], state.index), selected[0]].find(entry => entry.entity.id === state.inspectedId) || selected[0];
+    }
+    function inspectorViewContext() {
+      const entry = inspectedEntry();
+      // Automatic field saves change revisions, but not the user's selection.
+      const identity = value => [value.entity.id, value.kind, parentId(value), value.entity.deleted];
+      return JSON.stringify([scope(), state.snapshot?.project_id, graph()?.id, graph()?.version,
+        entry ? identity(entry) : null,
+        selectEntries().map(value => [identity(value), ancestors(value, state.index).map(identity)]).sort((a, b) => a[0][0].localeCompare(b[0][0]))]);
     }
     function matchingActiveRows() { return hierarchyRows(graph(), { ...state, collapsed: new Set() }).filter(row => !row.context && !row.entity.deleted); }
     function descendants(entry) { const found = []; for (const candidate of state.index.values()) if (ancestors(candidate, state.index).some(parent => parent.entity.id === entry.entity.id)) found.push(candidate); return found; }
@@ -998,6 +1008,7 @@
       }
       if (addActions.length) {
         inspectorMenu = actionDisclosure("Add", "Add item actions", "takeoff-physical-add-menu", true);
+        inspectorMenu.context = inspectorViewContext();
         for (const action of addActions) {
           const label = action.className.includes("takeoff-physical-add-barrier") ? "Add Barrier" : action.className.includes("takeoff-physical-add-service") ? "Add Service" : "Add Library Item";
           action.className += " calculator-document-action"; action.append(node("span", "", label)); inspectorMenu.add(action);
@@ -1116,9 +1127,25 @@
       }
       ui.gallery.append(button("Previous 12 image records", () => { state.imageOffset = Math.max(0, state.imageOffset - 12); renderGallery(); }), node("span", "helper", ` ${state.images.length ? state.imageOffset + 1 : 0}–${Math.min(state.imageOffset + 12, state.images.length)} of ${state.images.length} image and coverage records `), button("Next 12 image records", () => { if (state.imageOffset + 12 < state.images.length) state.imageOffset += 12; renderGallery(); }));
     }
-    function renderData() { if (state.destroyed) return; const focused = state.autoRoutine && state.bindings.has(document.activeElement); if (!focused || !ui.table.contains(document.activeElement)) renderTable(); if (!focused || !ui.inspector.contains(document.activeElement)) renderInspector(); renderBulkSelection(); ui.readOnlyNotice.hidden = !legacyReadOnly(); ui.heading.textContent = `${servicePlans() ? "SERVICE PLANS" : "DEFECT REPORTS"} — PHYSICAL DRAFT`; ui.add.setAttribute("aria-label", servicePlans() ? "Add substrate" : "Add defect"); ui.add.title = servicePlans() ? "Add substrate" : "Add defect"; ui.status.textContent = `Physical revision ${graph()?.revision ?? 0} · ${state.index.size} retained identities · ${legacyReadOnly() ? "Legacy read-only" : "Unapproved draft"}`; setBusy(state.busy); }
+    function renderData() {
+      if (state.destroyed) return;
+      const context = inspectorViewContext(), menuView = state.autoRoutine && inspectorMenu?.context === context ? inspectorMenu.view() : null;
+      const focused = state.autoRoutine && state.bindings.has(document.activeElement);
+      // Keep a pressed Add option connected until its native click completes.
+      const pressedAdd = !!menuView && inspectorMenu.root.contains(state.pointerAction);
+      if (pressedAdd) inspectorRefresh = true;
+      if (!focused || !ui.table.contains(document.activeElement)) renderTable();
+      if (!pressedAdd && (!focused || !ui.inspector.contains(document.activeElement))) {
+        renderInspector();
+        inspectorRefresh = false;
+        if (menuView && inspectorMenu?.context === context) inspectorMenu.restore(menuView);
+      }
+      renderBulkSelection(); ui.readOnlyNotice.hidden = !legacyReadOnly(); ui.heading.textContent = `${servicePlans() ? "SERVICE PLANS" : "DEFECT REPORTS"} — PHYSICAL DRAFT`; ui.add.setAttribute("aria-label", servicePlans() ? "Add substrate" : "Add defect"); ui.add.title = servicePlans() ? "Add substrate" : "Add defect"; ui.status.textContent = `Physical revision ${graph()?.revision ?? 0} · ${state.index.size} retained identities · ${legacyReadOnly() ? "Legacy read-only" : "Unapproved draft"}`; setBusy(state.busy);
+    }
+    function refreshPressedInspector() { if (inspectorRefresh && !state.busy && !state.autoRoutine && !state.pending.size) renderData(); }
     function render(snapshot) {
       if (state.destroyed) return; const oldKey = graphKey(), oldProject = state.snapshot?.project_id, oldScope = state.scope; state.snapshot = snapshot; state.scope = scope(); state.index = indexGraph(snapshot?.physical); state.selected = new Set([...state.selected].filter(id => state.index.has(id)));
+      if (inspectorMenu?.context !== inspectorViewContext()) { inspectorMenu?.close(); inspectorRefresh = false; }
       state.servicesByBarrier = new Map();
       for (const entry of state.index.values()) if (entry.kind === "service" && !entry.entity.deleted) {
         const id = entry.entity.barrier_id || ancestors(entry, state.index).find(parent => parent.kind === "barrier")?.entity.id;
@@ -1195,7 +1222,10 @@
       menu.addEventListener("focusout", event => { if (!menu.contains(event.relatedTarget)) close(); });
       const outside = event => { if (!menu.contains(event.target)) close(); }; document.body.addEventListener("pointerdown", outside);
       close(); menu.append(toggle, list);
-      return { root: menu, toggle, list, close, add(control) { actions.push(control); list.append(control); control.addEventListener("click", () => close(true), { capture: true }); }, destroy() { document.body.removeEventListener("pointerdown", outside); close(); } };
+      return { root: menu, toggle, list, close,
+        view() { return list.hidden ? null : { toggleFocused: document.activeElement === toggle, action: actions.find(control => control === document.activeElement)?.textContent }; },
+        restore(view) { open(); const focused = view.toggleFocused ? toggle : actions.find(control => control.textContent === view.action && !control.disabled && !control.hidden); focused?.focus(); },
+        add(control) { actions.push(control); list.append(control); control.addEventListener("click", () => close(true), { capture: true }); }, destroy() { document.body.removeEventListener("pointerdown", outside); close(); } };
     }
     ui.root = node("section", "takeoff-register takeoff-physical-register"); ui.root.setAttribute("aria-label", "Manual draft penetration workspace");
     const heading = node("div", "section-heading"); ui.heading = node("h2"); heading.append(ui.heading); ui.status = node("span", "status-label"); heading.append(ui.status); ui.root.append(heading);

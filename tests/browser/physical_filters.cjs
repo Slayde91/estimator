@@ -77,6 +77,72 @@ async function checkDocuments(scope, ids) {
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
   await page.screenshot({ path: path.join(output, `physical-document-${scope}-390.png`) }); await page.keyboard.press('Escape'); await expect(list).toBeHidden(); await page.setViewportSize({ width: 1600, height: 1100 });
 }
+async function checkAutomaticMenuIntent(scope, ids) {
+  const cases = [];
+  for (const mode of ['toggle', 'action-focus', 'escape', 'outside', 'field-focus', 'selection', 'activate', 'pointer', 'pointer-cancel', 'pointer-leave']) {
+    await row(ids.b1).locator('.takeoff-row-link').click(); await idle();
+    const before = await rawSnapshot(), prior = requests.length, value = `Held Add intent: ${scope} ${mode}`;
+    let release, signal, first = true;
+    const held = new Promise(resolve => { release = resolve; }), started = new Promise(resolve => { signal = resolve; });
+    await page.route('**/physical/preview', async route => { if (first) { first = false; signal(); await held; } await route.continue(); });
+    try {
+      const notes = details().getByLabel('Notes', { exact: true }); await notes.fill(value); await notes.press('Tab'); await started;
+      const toggle = details().getByRole('button', { name: 'Add', exact: true }), list = details().getByRole('group', { name: 'Add item actions', exact: true, includeHidden: true });
+      await toggle.click(); await expect(list).toBeVisible();
+      const action = list.getByRole('button', { name: 'Add service in Item Details', exact: true });
+      let pressed, pressedBounds, pointerEvidence;
+      if (mode === 'action-focus') { await toggle.press('ArrowDown'); await expect(action).toBeFocused(); }
+      if (mode === 'escape') await toggle.press('Escape');
+      if (mode === 'outside') await details().getByRole('heading', { name: 'Item Details', exact: true }).click();
+      if (mode === 'field-focus') await notes.click();
+      if (mode === 'selection') await row(ids.b2).locator('.takeoff-row-link').click();
+      if (mode === 'activate') await action.click();
+      if (mode.startsWith('pointer')) {
+        pressed = await action.elementHandle(); pressedBounds = await action.boundingBox();
+        await page.mouse.move(pressedBounds.x + pressedBounds.width / 2, pressedBounds.y + pressedBounds.height / 2); await page.mouse.down();
+      }
+      const applied = page.waitForResponse(reply => reply.url().endsWith('/physical/apply')); release(); assert.equal((await applied).status(), 200); if (mode !== 'activate') await idle();
+      await expect.poll(async () => { const graph = (await rawSnapshot())[scope === 'service_plans' ? 'service_plans' : 'physical']; return graph.barriers.find(entity => entity.id === ids.b1).fields.notes; }).toBe(value);
+      if (mode.startsWith('pointer')) {
+        assert.equal(await pressed.evaluate(el => el.isConnected), true, 'The original pressed Add option must survive its automatic Notes response');
+        pointerEvidence = await pressed.evaluate((el, point) => { const rect = el.getBoundingClientRect(), hit = document.elementFromPoint(point[0], point[1]); return { connected: el.isConnected, point, bounds: { x: rect.x, y: rect.y, width: rect.width, height: rect.height }, originalActionAtPoint: el === hit || el.contains(hit) }; }, [pressedBounds.x + pressedBounds.width / 2, pressedBounds.y + pressedBounds.height / 2]);
+        const [x, y] = pointerEvidence.point, bounds = pointerEvidence.bounds;
+        assert.ok(x >= bounds.x && x <= bounds.x + bounds.width && y >= bounds.y && y <= bounds.y + bounds.height && pointerEvidence.originalActionAtPoint, 'The unchanged native mouse-down point must still hit the original pressed action after the save');
+        if (mode === 'pointer-cancel') await action.dispatchEvent('pointercancel', { pointerId: 1 });
+        if (mode === 'pointer-leave') { const heading = await details().getByRole('heading', { name: 'Item Details', exact: true }).boundingBox(); await page.mouse.move(heading.x + heading.width / 2, heading.y + heading.height / 2); }
+        await page.mouse.up();
+      }
+      if (['activate', 'pointer'].includes(mode)) {
+        const dialog = page.getByRole('dialog'); await expect(dialog.getByRole('heading', { name: 'Create draft service', exact: true })).toBeVisible(); await expect(dialog).toContainText('Parent ID: B-0001');
+        await expect(list).toBeHidden(); await dialog.getByRole('button', { name: 'Cancel', exact: true }).click(); await idle();
+        if (mode === 'pointer') {
+          await details().getByRole('button', { name: 'Delete draft record', exact: true }).click();
+          await expect(dialog.getByRole('heading', { name: 'Delete draft barrier', exact: true })).toBeVisible(); await dialog.getByRole('button', { name: 'Cancel', exact: true }).click(); await idle();
+          if (scope === 'defect_reports') {
+            await details().getByRole('button', { name: 'Change Parent', exact: true }).click();
+            await expect(dialog.getByRole('heading', { name: 'Change barrier parent', exact: true })).toBeVisible(); await dialog.getByRole('button', { name: 'Cancel', exact: true }).click(); await idle();
+          }
+        }
+      } else if (['toggle', 'action-focus'].includes(mode)) {
+        await expect(toggle).toHaveAttribute('aria-expanded', 'true'); await expect(list).toBeVisible();
+        await expect(mode === 'toggle' ? toggle : action).toBeFocused(); await page.keyboard.press('Escape'); await expect(list).toBeHidden();
+      } else {
+        await expect(toggle).toHaveAttribute('aria-expanded', 'false'); await expect(list).toBeHidden();
+        if (mode === 'selection') await expect(row(ids.b2).locator('input[type="checkbox"]').first()).toBeChecked();
+        if (mode.startsWith('pointer')) {
+          await expect(page.getByRole('dialog')).toHaveCount(0);
+          await details().getByRole('button', { name: 'Delete draft record', exact: true }).click();
+          const dialog = page.getByRole('dialog'); await expect(dialog.getByRole('heading', { name: 'Delete draft barrier', exact: true })).toBeVisible(); await dialog.getByRole('button', { name: 'Cancel', exact: true }).click(); await idle();
+        }
+      }
+      assert.equal(requests.length, prior + 1, 'Each held Notes value must produce exactly one preview and apply before any child command');
+      const after = await rawSnapshot(), key = scope === 'service_plans' ? 'service_plans' : 'physical';
+      assert.deepEqual(after[key].services, before[key].services); assert.deepEqual(after[key].barriers.map(entity => [entity.id, entity.defect_id]), before[key].barriers.map(entity => [entity.id, entity.defect_id]));
+      cases.push({ mode, mouseOpenedBeforeRelease: true, savedExactlyOnce: true, menuIntentPreserved: ['toggle', 'action-focus'].includes(mode), explicitDismissalRetained: !['toggle', 'action-focus', 'pointer'].includes(mode), originalPressedOptionRetained: mode.startsWith('pointer'), pointerEvidence, currentParentDialog: ['activate', 'pointer'].includes(mode), freshFirstClickDeleteAfterPointer: mode.startsWith('pointer') });
+    } finally { release(); await page.unroute('**/physical/preview'); }
+  }
+  return cases;
+}
 (async () => {
   const info = await ready; assert.notEqual(info.port, 8765); origin = `http://127.0.0.1:${info.port}`; browser = await chromium.launch({ headless: true }); page = await browser.newPage({ viewport: { width: 1600, height: 1100 } }); page.setDefaultTimeout(30000);
   page.on('pageerror', error => errors.push(error.message)); page.on('request', request => { if (request.url().endsWith('/physical/preview')) requests.push(request.postDataJSON()); }); await page.goto(origin); await expect.poll(() => page.evaluate(() => window.CeasefireDesktop?.status().ready)).toBe(true);
@@ -106,7 +172,8 @@ async function checkDocuments(scope, ids) {
     await expect.poll(async () => { const graph = (await snapshot())[scope === 'service_plans' ? 'service_plans' : 'physical']; return graph.barriers.find(value => value.id === ids.b1).fields.notes; }).toBe('Later queued value'); await page.unroute('**/physical/preview');
     assert.equal(requests.length, prior + 2); assert.deepEqual(await retained.evaluate(el => ({ connected: el.isConnected, focused: document.activeElement === el, caret: el.selectionStart, value: el.value })), { connected: true, focused: true, caret: 5, value: 'Later queued value' });
     const deletion = details().getByRole('button', { name: 'Delete draft record', exact: true }); await deletion.scrollIntoViewIfNeeded(); await notes.fill('Flush before delete review'); await deletion.click(); const review = page.getByRole('dialog'); await expect(review.getByRole('heading', { name: 'Delete draft barrier', exact: true })).toBeVisible(); const deletionGraph = (await rawSnapshot())[scope === 'service_plans' ? 'service_plans' : 'physical']; assert.equal(deletionGraph.barriers.find(value => value.id === ids.b1).fields.notes, 'Flush before delete review'); assert.equal(deletionGraph.barriers.find(value => value.id === ids.b1).deleted, false); await review.getByRole('button', { name: 'Cancel', exact: true }).click(); await idle();
-    evidence.scopes.push({ scope, eightColumns: true, andOr: true, blanks: scope==='service_plans', ownerLocationAndConfirmation: true, ancestorContext: true, matchingSelection: true, searchFiltered: true, narrowMenu: true, compactOriginalIconAddService: true, firstClickDiscard: true, firstClickAddService: true, firstClickDelete: true, inFlightTyping: true, focusedControlAndCaretRetained: true });
+    const automaticMenuIntent = await checkAutomaticMenuIntent(scope, ids);
+    evidence.scopes.push({ scope, automaticMenuIntent, eightColumns: true, andOr: true, blanks: scope==='service_plans', ownerLocationAndConfirmation: true, ancestorContext: true, matchingSelection: true, searchFiltered: true, narrowMenu: true, compactOriginalIconAddService: true, firstClickDiscard: true, firstClickAddService: true, firstClickDelete: true, inFlightTyping: true, focusedControlAndCaretRetained: true });
   }
   assert.deepEqual(await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()), calculators); assert.deepEqual(errors, []); fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ completed: true, evidence, requests, errors }, null, 2)); console.log(`PASS: Eight physical column filters, AND/OR/blanks, ancestor context, search and matching selection, responsive menus and first-click Discard/Add service in both scopes. Evidence: ${output}`);
 })().catch(async error => { console.error(error); console.error(logs.slice(-4000)); if (page) { await page.screenshot({ path: path.join(output, 'failure.png'), fullPage: true }).catch(() => {}); fs.writeFileSync(path.join(output, 'failure.txt'), await page.locator('body').innerText().catch(() => '')); } process.exitCode = 1; }).finally(async () => { fs.writeFileSync(path.join(output, 'server.log'), logs); if (browser) await browser.close(); server.kill(); });

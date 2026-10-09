@@ -815,6 +815,77 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
     await h.click('Discard unfinished physical edits');for(let i=0;i<5;i++)await h.controller.select(uuid(i%2?1:2));assert.equal(doc.body.events.pointerdown.length,2,'Only the current Add disclosure and persistent Document disclosure remain registered');
     h.controller.destroy();assert.equal(doc.body.events.pointerdown.length,0);assert.equal(h.current.physical.defects[0].fields.notes,undefined);
   });
+  await check('Automatic Notes responses preserve only the current open Add disclosure and its fresh focused action',async()=>{
+    for(const scope of ['defect_reports','service_plans'])for(const mode of ['toggle','action','escape','outside','focusout','selection']){
+      const pending=defer(),h=component(scope==='service_plans'?servicePlanGraph():graph(),{scope:()=>scope,libraryCommand:async()=>null});await flush();await h.controller.select(uuid(scope==='service_plans'?1:2));
+      const preview=h.bridge.preview;h.bridge.preview=async commands=>{const value=await preview(commands);await pending.promise;return value;};
+      const notes=h.input('Notes');notes.value=`Held ${mode}`;notes.emit('input');notes.emit('change');await flush();assert.equal(h.calls.previews.length,1);
+      const toggle=h.button('Add'),menu=toggle.parentElement,list=menu.children[1],doc=h.dom.container.ownerDocument;toggle.focus();toggle.emit('click');assert.equal(list.hidden,false);
+      if(mode==='action')menu.emit('keydown',{key:'End'});
+      if(mode==='escape')menu.emit('keydown',{key:'Escape'});
+      if(mode==='outside')doc.body.emit('pointerdown',{target:doc.body});
+      if(mode==='focusout'){notes.focus();menu.emit('focusout',{relatedTarget:notes});}
+      const selection=mode==='selection'?h.controller.select(uuid(4)):null;
+      pending.resolve();await h.controller.completePendingEdits();if(selection)await selection;await flush();
+      const current=h.button('Add'),open=['toggle','action'].includes(mode);assert.equal(current.attributes['aria-expanded'],String(open),`${scope} ${mode}`);
+      if(mode==='toggle')assert.equal(doc.activeElement,current);
+      if(mode==='action')assert.equal(doc.activeElement,h.button('Add Library Item'));
+      if(mode==='selection')assert.deepEqual(h.controller.selection(),[uuid(4)]);
+      assert.equal(h.calls.previews.length,1);assert.equal(h.calls.applied.length,1);assert.equal(h.controller.hasUnfinishedChanges(),false);
+      assert.equal((scope==='service_plans'?h.current.physical.barriers[0]:h.current.physical.defects[0]).fields.notes,`Held ${mode}`);
+      assert.equal(doc.body.events.pointerdown.length,2);h.controller.destroy();assert.equal(doc.body.events.pointerdown.length,0);
+    }
+  });
+  await check('An automatic response retains a pressed Add option, while cancelled presses release the old disclosure',async()=>{
+    for(const scope of ['defect_reports','service_plans'])for(const mode of ['click','pointercancel','pointerleave']){
+      const pending=defer(),h=component(scope==='service_plans'?servicePlanGraph():graph(),{scope:()=>scope});await flush();await h.controller.select(uuid(1));
+      const preview=h.bridge.preview;h.bridge.preview=async commands=>{const value=await preview(commands);await pending.promise;return value;};
+      const notes=h.input('Notes');notes.value=`Pressed ${mode}`;notes.emit('input');notes.emit('change');await flush();
+      const toggle=h.button('Add'),action=h.button('Add service in Item Details');toggle.focus();toggle.emit('click');action.focus();action.emit('pointerdown');
+      pending.resolve();await h.controller.completePendingEdits();await flush();
+      assert.equal(h.button('Add service in Item Details'),action);
+      if(mode!=='click')action.emit(mode);
+      assert.equal(h.button('Add service in Item Details')===action,mode==='click',`${scope} ${mode}`);assert.equal(h.button('Add').attributes['aria-expanded'],String(mode==='click'));
+      if(mode==='click'){await h.click('Add service in Item Details');assert.equal(h.calls.asks.at(-1).title,'Create draft service');assert.ok(h.calls.asks.at(-1).text.includes('B-0001'));assert.equal(h.button('Add').attributes['aria-expanded'],'false');}
+      await h.click('Delete draft record');assert.equal(h.calls.asks.at(-1).title,'Delete draft barrier');
+      if(scope==='defect_reports'){await h.click('Change Parent');assert.equal(h.calls.asks.at(-1).title,'Change barrier parent');}
+      assert.equal(h.calls.notifications.some(value=>value.error),false);
+      assert.equal(h.current.physical.barriers[0].fields.notes,`Pressed ${mode}`);assert.equal(h.calls.previews.length,1);assert.equal(h.calls.applied.length,1);assert.equal(h.controller.hasUnfinishedChanges(),false);h.controller.destroy();
+    }
+  });
+  await check('Open Add intent cannot leak into a replacement project, scope, graph or physical parent while Notes are pending',async()=>{
+    for(const mode of ['project','scope','graph','version','parent']){
+      let scope='defect_reports';const pending=defer(),h=component(graph(),{scope:()=>scope});await flush();await h.controller.select(uuid(1));
+      const preview=h.bridge.preview;h.bridge.preview=async commands=>{const value=await preview(commands);await pending.promise;return value;};
+      const notes=h.input('Notes');notes.value='Preserve unresolved original input';notes.emit('input');notes.emit('change');await flush();
+      const toggle=h.button('Add'),list=toggle.parentElement.children[1];toggle.focus();toggle.emit('click');assert.equal(list.hidden,false);
+      const replacement=copy(h.current);replacement.revision++;replacement.physical.revision++;
+      if(mode==='project'){replacement.project_id=uuid(501);replacement.physical.project_id=uuid(501);}
+      if(mode==='scope'){scope='service_plans';replacement.physical=servicePlanGraph();}
+      if(mode==='graph')replacement.physical.id=uuid(502);
+      if(mode==='version')replacement.physical.version=1;
+      if(mode==='parent')replacement.physical.barriers[0].defect_id=null;
+      h.controller.render(replacement);assert.equal(list.hidden,true,mode);pending.resolve();await flush();
+      assert.equal(h.calls.applied.length,0,mode);assert.ok(h.calls.notifications.some(value=>value.error));
+      assert.equal(h.all().some(value=>value.tagName==='BUTTON'&&value.textContent.startsWith('Add')&&value.attributes['aria-expanded']==='true'),false,mode);
+      if(['graph','version','parent'].includes(mode))assert.equal(notes.value,'Preserve unresolved original input');h.controller.destroy();
+    }
+  });
+  await check('A selected Service cannot retain Add intent after its ancestor Barrier changes parent or deletion state',async()=>{
+    for(const mode of ['service','service-defect','barrier-defect','ancestor-deleted']){
+      const pending=defer(),h=component(graph());await flush();
+      await h.controller.select(uuid(mode==='barrier-defect'?1:5),false,false,mode.endsWith('-defect'));
+      const preview=h.bridge.preview;h.bridge.preview=async commands=>{const value=await preview(commands);await pending.promise;return value;};
+      const notes=h.input('Notes');notes.value=`Retain pending ancestor input ${mode}`;notes.emit('input');notes.emit('change');await flush();
+      const toggle=h.button('Add'),list=toggle.parentElement.children[1];toggle.focus();toggle.emit('click');assert.equal(list.hidden,false);
+      const replacement=copy(h.current);replacement.revision++;replacement.physical.revision++;
+      if(mode==='ancestor-deleted')replacement.physical.barriers[0].deleted=true;
+      else {replacement.physical.defects.push(make(503,{label:'New parent'},{display_id:'D-0002'}));replacement.physical.barriers[0].defect_id=uuid(503);}
+      h.controller.render(replacement);assert.equal(list.hidden,true,mode);assert.deepEqual(h.controller.selection(),[uuid(mode==='barrier-defect'?1:5)]);
+      pending.resolve();await flush();assert.equal(h.calls.applied.length,0);assert.ok(h.calls.notifications.some(value=>value.error));
+      assert.equal(notes.value,`Retain pending ancestor input ${mode}`);assert.equal(h.all().some(value=>value.attributes['aria-expanded']==='true'&&value.attributes['aria-label']==='Add item actions'),false);h.controller.destroy();
+    }
+  });
   await check('Read-only library enrichment preserves a focused untouched editor and never adds schedule actions',async()=>{
     const previous=global.CeasefireTakeoffLibraryLinks,pending=defer(),hash='a'.repeat(64);
     const links=require('../static/takeoff-library-links.js');let h;

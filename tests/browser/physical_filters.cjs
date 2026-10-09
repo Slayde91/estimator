@@ -1,4 +1,4 @@
-const { assertParentControls } = require('./parent_controls_helpers.cjs');
+const { assertParentControls, clickInspectorAdd } = require('./parent_controls_helpers.cjs');
 const { chooseTakeoff } = require('./section_navigation.cjs');
 // Column filters and automatic editing use an isolated fixture and owned records.
 const { chromium, expect } = require('@playwright/test');
@@ -99,7 +99,7 @@ async function checkDocuments(scope, ids) {
     await row(ids.b1).locator('.takeoff-row-link').click(); await idle(); await expect(details().getByRole('button', { name: 'Preview physical edits', exact: true })).toHaveCount(0);
     await assertParentControls(page, details());
     const notes = details().getByLabel('Notes', { exact: true }), discard = details().getByRole('button', { name: 'Discard unfinished physical edits', exact: true }); await discard.scrollIntoViewIfNeeded(); const beforeDiscard = requests.length; await notes.fill('Discard this unfinished note'); await discard.click(); await expect(notes).toHaveValue(''); assert.equal(requests.length, beforeDiscard, 'The first Discard click must not apply its unfinished field');
-    await notes.fill('Flush before child creation'); await details().getByRole('button', { name: 'Add service in Item Details', exact: true }).click(); const create = page.getByRole('dialog'); await expect(create.getByRole('heading', { name: 'Create draft service', exact: true })).toBeVisible(); const graph = (await rawSnapshot())[scope === 'service_plans' ? 'service_plans' : 'physical']; assert.equal(graph.barriers.find(value => value.id === ids.b1).fields.notes, 'Flush before child creation'); await create.getByRole('button', { name: 'Cancel', exact: true }).click(); await idle();
+    await notes.fill('Flush before child creation'); await clickInspectorAdd(details(), 'Add service in Item Details'); const create = page.getByRole('dialog'); await expect(create.getByRole('heading', { name: 'Create draft service', exact: true })).toBeVisible(); const graph = (await rawSnapshot())[scope === 'service_plans' ? 'service_plans' : 'physical']; assert.equal(graph.barriers.find(value => value.id === ids.b1).fields.notes, 'Flush before child creation'); await create.getByRole('button', { name: 'Cancel', exact: true }).click(); await idle();
     let release, intercepted; const held = new Promise(resolve => { release = resolve; }), started = new Promise(resolve => { intercepted = resolve; }); let first = true;
     await page.route('**/physical/preview', async route => { if (first) { first = false; intercepted(); await held; } await route.continue(); });
     const prior = requests.length; await notes.fill('First queued value'); await notes.press('Tab'); await started; await expect(notes).toBeEnabled(); await notes.fill('Later queued value'); await notes.evaluate(el => { el.focus(); el.setSelectionRange(5, 5); }); const retained = await notes.elementHandle(); release();

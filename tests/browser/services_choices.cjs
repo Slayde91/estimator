@@ -1,4 +1,5 @@
 const { chooseTakeoff, chooseLibrary } = require('./section_navigation.cjs');
+const { clickInspectorAdd } = require('./parent_controls_helpers.cjs');
 const { chooseCalculator } = require('./calculator_actions.cjs');
 const { clickProjectControl } = require('./project_actions.cjs');
 // Public selectors and saved legacy descriptions on disposable synthetic storage.
@@ -111,7 +112,7 @@ async function takeoffSnapshot() { const session = await page.evaluate(() => win
   const previewReply = await page.request.post(`${origin}/api/takeoffs/sessions/${sid}/physical/preview`, { data: { scope: 'defect_reports', expected_revision: snapshot.revision, commands } }); assert.equal(previewReply.status(), 200, await previewReply.text()); const preview = await previewReply.json();
   const applyReply = await page.request.post(`${origin}/api/takeoffs/sessions/${sid}/physical/apply`, { data: { scope: 'defect_reports', expected_revision: preview.revision, request_id: randomUUID(), preview_id: preview.preview_id } }); assert.equal(applyReply.status(), 200, await applyReply.text()); const applied = await applyReply.json();
   await page.evaluate(async value => { const t = window.CeasefireTakeoffs; t.applyProject(await t.prepareProject(value, t.sessionId())); await t.open(); }, applied.snapshot); await chooseTakeoff(page, 'physical'); await physicalIdle();
-  await page.locator(`tr[data-physical-id="${ids.barrier}"] .takeoff-row-link`).click(); await page.getByRole('button', { name: 'Add service in Item Details', exact: true }).click();
+  await page.locator(`tr[data-physical-id="${ids.barrier}"] .takeoff-row-link`).click(); await clickInspectorAdd(page.getByRole('complementary',{name:'Item Details',exact:true}), 'Add service in Item Details');
   const modal = page.getByRole('dialog'); await expect(modal.getByRole('heading', { name: 'Create draft service', exact: true })).toBeVisible(); evidence.takeoffNewOptions = await options(modal.getByLabel('Service type', { exact: true })); await modal.getByRole('button', { name: 'Cancel', exact: true }).click();
   await page.locator(`tr[data-physical-id="${ids.service}"] .takeoff-row-link`).click(); const details = page.getByRole('complementary', { name: 'Item Details', exact: true }); evidence.takeoffSavedOptions = await options(details.getByLabel('Service type', { exact: true }), 'Plastic Pipes');
   await details.getByLabel('Notes', { exact: true }).fill('Independent service note'); await details.getByLabel('Notes', { exact: true }).press('Tab'); await expect.poll(async () => (await takeoffSnapshot()).physical.services[0].fields.notes).toBe('Independent service note');

@@ -231,6 +231,7 @@
     const document = container.ownerDocument || root.document;
     const state = { snapshot: null, index: new Map(), servicesByBarrier: new Map(), selected: new Set(), hidden: new Set(), inspectedId: null, collapsed: new Set(), filter: "", columnFilters: new Map(), filterDialog: null, offset: 0, showDeleted: false, busy: false, destroyed: false, editRevision: 0, pending: new Map(), bindings: new WeakMap(), pendingApply: new WeakMap(), autoApplyPromise: null, autoRoutine: false, autoTimer: null, pointerAction: null, inspectorEdit: null, fieldOptions: null, fieldOptionsPromise: null, images: [], extractionId: "", imageOffset: 0, imageGeneration: 0, imageInventoryKey: "", imageState: "Not loaded", imageFailures: new Set() };
     const ui = {};
+    let inspectorMenu;
     const changed = () => bridge.changed?.();
     const graph = () => state.snapshot?.physical || null;
     const scope = () => bridge.scope?.() || (graph()?.version === 3 ? "service_plans" : "defect_reports");
@@ -369,7 +370,12 @@
     }
     function fieldDefinitions(entry, createKind) {
       const kind = entry?.kind || createKind, entity = entry?.entity;
-      return [...fieldsFor(kind, scope()).flatMap(([key, label]) => [[key, label, fieldType(kind, key), fieldDisplay(entity?.fields, key) ?? ""], ...(kind === "service" && key === "service_type" ? [["quantity", "Explicit service quantity", "number", entity?.quantity ?? "", !entity?.library_quantity]] : [])]), ...(kind === (servicePlans() ? "barrier" : "defect") ? [["confirmation", "Confirmation", confirmationOptions, recordConfirmation(entity), true]] : [])];
+      const fields = fieldsFor(kind, scope()).flatMap(([key, label]) => [[key, label, fieldType(kind, key), fieldDisplay(entity?.fields, key) ?? ""], ...(kind === "service" && key === "service_type" ? [["quantity", "Explicit service quantity", "number", entity?.quantity ?? "", !entity?.library_quantity]] : [])]);
+      if (kind === (servicePlans() ? "barrier" : "defect")) {
+        const notes = fields.findIndex(([key]) => key === "notes");
+        fields.splice(notes < 0 ? fields.length : notes, 0, ["confirmation", "Confirmation", confirmationOptions, recordConfirmation(entity), true]);
+      }
+      return fields;
     }
     async function chooseEntity(kind, title, candidates) {
       const filter = await ask(title, [["search", `Find ${titles[kind].toLowerCase()} by label, location or ID`, "text", ""]], "Choose an existing physical parent by its persistent identity. A similar label does not establish that two objects are the same.", "Find parents");
@@ -959,6 +965,7 @@
       const matches = matchingActiveRows();
       ui.selectFiltered.setAttribute("aria-pressed", String(matches.length > 0 && matches.every(row => state.selected.has(row.entity.id))));
       state.inspectorEdit = null;
+      inspectorMenu?.destroy(); inspectorMenu = null;
       ui.inspector.replaceChildren(); const selected = selectEntries(); ui.selection.textContent = `${selected.length} selected`;
       if (selected.length === 1) bridge.renderDrawingAppearance?.(ui.inspector, inspectedEntry().entity);
       const drawingOwner = selected.length === 1 && visibilityOwner(inspectedEntry());
@@ -971,22 +978,39 @@
       }
       const entry = inspectedEntry(), entity = entry?.entity, editorKey = graphKey();
       const itemActions = node("div", "takeoff-physical-item-actions");
-      if (canChooseLibrary(selected)) itemActions.append(iconAction("Add Library Item", attachLibraryToSelected, ["M3 5.5c3.2-.9 6-.3 9 2v12c-3-2.3-5.8-2.9-9-2z", "M21 5.5c-3.2-.9-6-.3-9 2v12c3-2.3 5.8-2.9 9-2z"], true));
+      const addActions = [];
+      if (entry?.kind === "defect" && !legacyReadOnly() && !entity.deleted) {
+        const addBarrier = imageMutationButton("Add Barrier", () => create("barrier", entity.id), "/icons/takeoff-add-barrier.png", "takeoff-physical-add-barrier");
+        addBarrier.setAttribute("aria-label", "Add barrier in Item Details"); addBarrier.title = `Add barrier to ${displayId(entry)}`; addActions.push(addBarrier);
+      }
       if (!legacyReadOnly() && selected.length && selected.every(value => !value.entity.deleted)) {
         const addService = imageMutationButton("Add Service", () => createFromSelection("service"), "/icons/takeoff-add-service.png", "takeoff-physical-add-service");
         const barrier = entry && [...ancestors(entry, state.index), entry].find(value => value.kind === "barrier");
-        addService.setAttribute("aria-label", "Add service in Item Details"); addService.title = barrier ? `Add service to ${displayId(barrier)}` : "Add service to an explicitly chosen barrier"; itemActions.append(addService);
+        addService.setAttribute("aria-label", "Add service in Item Details"); addService.title = barrier ? `Add service to ${displayId(barrier)}` : "Add service to an explicitly chosen barrier"; addActions.push(addService);
       }
+      if (canChooseLibrary(selected)) {
+        const library = mutationButton("Add Library Item", attachLibraryToSelected), icon = actionIcon(["M3 5.5c3.2-.9 6-.3 9 2v12c-3-2.3-5.8-2.9-9-2z", "M21 5.5c-3.2-.9-6-.3-9 2v12c3-2.3 5.8-2.9 9-2z"]);
+        const defs = document.createElementNS("http://www.w3.org/2000/svg", "defs"), gradient = document.createElementNS("http://www.w3.org/2000/svg", "linearGradient"), id = `takeoff-library-${crypto.randomUUID()}`;
+        gradient.id = id; gradient.setAttribute("x1", "0%"); gradient.setAttribute("y1", "0%"); gradient.setAttribute("x2", "100%"); gradient.setAttribute("y2", "100%");
+        for (const [offset, color] of [["0%", "#ff0000"], ["50%", "#ff6600"], ["100%", "#ffa600"]]) { const stop = document.createElementNS("http://www.w3.org/2000/svg", "stop"); stop.setAttribute("offset", offset); stop.setAttribute("stop-color", color); gradient.append(stop); }
+        defs.append(gradient); icon.append(defs); for (const path of icon.querySelectorAll("path")) path.setAttribute("stroke", `url(#${id})`);
+        library.setAttribute("aria-label", "Add Library Item"); library.title = "Add Library Item"; library.replaceChildren(icon); addActions.push(library);
+      }
+      if (addActions.length) {
+        inspectorMenu = actionDisclosure("Add", "Add item actions", "takeoff-physical-add-menu");
+        for (const action of addActions) {
+          const label = action.className.includes("takeoff-physical-add-barrier") ? "Add Barrier" : action.className.includes("takeoff-physical-add-service") ? "Add Service" : "Add Library Item";
+          action.className += " calculator-document-action"; action.append(node("span", "", label)); inspectorMenu.add(action);
+        }
+        itemActions.append(inspectorMenu.root);
+      }
+      if (visibility) { itemActions.className += " with-visibility"; itemActions.append(visibility); }
       let remove;
       if (entry && !legacyReadOnly() && !entity.deleted) {
         remove = button("Delete draft record", flushed => deleteEntity(flushed ? state.index.get(entity.id) : entry), "button secondary takeoff-physical-delete-selected"); remove.setAttribute("aria-label", "Delete draft record"); remove.title = "Delete draft record"; remove.replaceChildren(deleteIcon());
       }
-      if (entry?.kind === "defect" && !legacyReadOnly() && !entity.deleted) {
-        const addBarrier = imageMutationButton("Add Barrier", () => create("barrier", entity.id), "/icons/takeoff-add-barrier.png", "takeoff-physical-add-barrier");
-        addBarrier.setAttribute("aria-label", "Add barrier in Item Details"); addBarrier.title = `Add barrier to ${displayId(entry)}`; itemActions.append(addBarrier);
-      }
       if (itemActions.children.length) ui.inspector.append(itemActions);
-      ui.inspector.append(inspectorActions(remove, visibility));
+      ui.inspector.append(inspectorActions(remove));
       renderDetailNavigation();
       if (selected.length !== 1) { ui.inspector.append(node("p", "helper", selected.length ? "Select active records of one entity type for a counted, reversible bulk edit." : "Select a hierarchy row to inspect its parent, evidence and uncertainty.")); renderLibraryAssignments(selected); return; }
       if (legacyReadOnly() || entity.deleted) {
@@ -1035,7 +1059,7 @@
       const control = mutationButton(label, action, `button secondary takeoff-physical-icon-action ${className}`), icon = node("img");
       control.setAttribute("aria-label", label); control.title = label; icon.src = src; icon.alt = ""; icon.width = 32; icon.height = 32; icon.setAttribute("aria-hidden", "true"); control.replaceChildren(icon); return control;
     }
-    function inspectorActions(remove, visibility) { const actions = node("div", "takeoff-physical-inspector-actions"); if (remove) actions.append(remove); actions.append(ui.discard); if (visibility) actions.append(visibility); return actions; }
+    function inspectorActions(remove) { const actions = node("div", "takeoff-physical-inspector-actions"); if (remove) actions.append(remove); actions.append(ui.discard); return actions; }
     function renderAssociations(entry) {
       const entity = entry.entity;
       ui.inspector.append(node("h3", "", "SOURCE ASSOCIATIONS"));
@@ -1148,35 +1172,39 @@
     function iconAction(label, action, paths, mutation = false) {
       const control = (mutation ? mutationButton : button)(label, action, "button secondary takeoff-physical-icon-action"); control.setAttribute("aria-label", label); control.title = label; control.replaceChildren(actionIcon(paths)); return control;
     }
+    // Document and Add disclosures share view-only keyboard/dismissal behavior.
+    // Existing action buttons still own pending-edit flushes and draft commands.
+    function actionDisclosure(label, accessibleName, className) {
+      const menu = node("div", `calculator-document-menu ${className}`), list = node("div", "calculator-document-actions"), toggle = node("button", "button secondary calculator-document-toggle", label), actions = [];
+      list.setAttribute("role", "group"); list.setAttribute("aria-label", accessibleName); list.id = `takeoff-actions-${crypto.randomUUID()}`;
+      toggle.type = "button"; toggle.setAttribute("aria-expanded", "false"); toggle.setAttribute("aria-controls", list.id);
+      const chevron = node("span", "calculator-document-chevron"); chevron.setAttribute("aria-hidden", "true"); chevron.append(actionIcon(["m6 9 6 6 6-6"])); toggle.append(chevron);
+      const close = (restoreFocus = false) => { list.hidden = true; toggle.setAttribute("aria-expanded", "false"); if (restoreFocus) toggle.focus(); };
+      const open = () => { list.hidden = false; toggle.setAttribute("aria-expanded", "true"); };
+      toggle.addEventListener("click", () => list.hidden ? open() : close());
+      menu.addEventListener("keydown", event => {
+        if (event.key === "Escape" && !list.hidden) { event.preventDefault(); close(true); return; }
+        if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
+        event.preventDefault(); open(); const choices = actions.filter(control => !control.disabled && !control.hidden), index = choices.indexOf(document.activeElement);
+        if (choices.length) choices[event.key === "Home" ? 0 : event.key === "End" ? choices.length - 1 : event.key === "ArrowDown" ? (index + 1) % choices.length : (index < 0 ? choices.length - 1 : (index + choices.length - 1) % choices.length)].focus();
+      });
+      menu.addEventListener("focusout", event => { if (!menu.contains(event.relatedTarget)) close(); });
+      const outside = event => { if (!menu.contains(event.target)) close(); }; document.body.addEventListener("pointerdown", outside);
+      close(); menu.append(toggle, list);
+      return { root: menu, toggle, list, close, add(control) { actions.push(control); list.append(control); control.addEventListener("click", () => close(true), { capture: true }); }, destroy() { document.body.removeEventListener("pointerdown", outside); close(); } };
+    }
     ui.root = node("section", "takeoff-register takeoff-physical-register"); ui.root.setAttribute("aria-label", "Manual draft penetration workspace");
     const heading = node("div", "section-heading"); ui.heading = node("h2"); heading.append(ui.heading); ui.status = node("span", "status-label"); heading.append(ui.status); ui.root.append(heading);
     ui.readOnlyNotice = node("p", "takeoff-warning takeoff-physical-legacy-notice", "Legacy hierarchy — read-only until its relationships are assigned. Original records, fields and evidence are preserved for inspection and export."); ui.root.append(ui.readOnlyNotice);
     const tools = node("div", "takeoff-register-controls");
     tools.append(mutationButton("Extract images from selected PDF page", () => runBridge(async () => { const reply = await bridge.extract(); displayReply(reply); await refreshImagesAfterExtraction(); return reply; })), button("Refresh retained images", refreshImages));
-    const documents = node("div", "calculator-document-menu takeoff-document-menu"), documentList = node("div", "calculator-document-actions");
-    documentList.setAttribute("role", "group"); documentList.setAttribute("aria-label", "Document actions");
-    const documentToggle = node("button", "button secondary calculator-document-toggle", "Document"); documentToggle.type = "button";
-    documentToggle.setAttribute("aria-expanded", "false"); documentList.id = `takeoff-documents-${crypto.randomUUID()}`; documentToggle.setAttribute("aria-controls", documentList.id);
-    const chevron = node("span", "calculator-document-chevron"); chevron.setAttribute("aria-hidden", "true"); chevron.append(actionIcon(["m6 9 6 6 6-6"])); documentToggle.append(chevron);
-    const closeDocuments = (restoreFocus = false) => { documentList.hidden = true; documentToggle.setAttribute("aria-expanded", "false"); if (restoreFocus) documentToggle.focus(); };
-    const openDocuments = () => { documentList.hidden = false; documentToggle.setAttribute("aria-expanded", "true"); };
-    const documentButtons = [];
+    const documents = actionDisclosure("Document", "Document actions", "takeoff-document-menu");
     for (const [format, confirmation, label] of [["xlsx", "confirmed", "Download confirmed items"], ["xlsx", "unconfirmed", "Download unconfirmed items"], ["xlsx", "all", "Download all items"], ["pdf", null, "Download Passive Fire Matrix PDF"]]) {
-      const control = button(label, () => { closeDocuments(true); return runBridge(() => bridge.export(format, confirmation)); }, "button secondary calculator-document-action");
+      const control = button(label, () => runBridge(() => bridge.export(format, confirmation)), "button secondary calculator-document-action");
       control.setAttribute("aria-label", label); const icon = node("span", "download-format-icon"); icon.setAttribute("aria-hidden", "true"); icon.append(node("span", "download-arrow", "↓"), node("span", "download-format", format.toUpperCase())); control.replaceChildren(icon, node("span", "", label));
-      documentButtons.push(control); documentList.append(control);
+      documents.add(control);
     }
-    documentToggle.addEventListener("click", () => documentList.hidden ? openDocuments() : closeDocuments());
-    documents.addEventListener("keydown", event => {
-      if (event.key === "Escape" && !documentList.hidden) { event.preventDefault(); closeDocuments(true); return; }
-      if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
-      event.preventDefault(); openDocuments(); const choices = documentButtons.filter(control => !control.disabled), index = choices.indexOf(document.activeElement);
-      if (choices.length) choices[event.key === "Home" ? 0 : event.key === "End" ? choices.length - 1 : event.key === "ArrowDown" ? (index + 1) % choices.length : (index < 0 ? choices.length - 1 : (index + choices.length - 1) % choices.length)].focus();
-    });
-    documents.addEventListener("focusout", event => { if (!documents.contains(event.relatedTarget)) closeDocuments(); });
-    const outsideDocuments = event => { if (!documents.contains(event.target)) closeDocuments(); };
-    document.body.addEventListener("pointerdown", outsideDocuments);
-    closeDocuments(); documents.append(documentToggle, documentList); tools.append(documents);
+    tools.append(documents.root);
     ui.root.append(tools); const filters = node("div", "takeoff-register-controls"), search = node("input"); search.type = "search"; search.placeholder = "Filter physical records…"; search.setAttribute("aria-label", "Filter physical hierarchy"); search.addEventListener("input", () => { if (state.pending.size || state.busy) return; state.filter = search.value; state.offset = 0; renderTable(); });
     const deleted = node("label", "takeoff-check"), show = node("input"); show.type = "checkbox"; show.addEventListener("change", () => void safe(() => { ensureAvailable(); state.showDeleted = show.checked; state.offset = 0; renderTable(); })); deleted.append(show, node("span", "", "Show deleted records"));
     ui.discard = button("Discard unfinished physical edits", () => { if (state.busy) throw new Error("Finish the current review first."); resetPending(); renderData(); bridge.notify("Unfinished physical field edits discarded. Recorded draft values are unchanged.", false); }, "button secondary takeoff-physical-discard"); ui.discard.setAttribute("aria-label", "Discard unfinished physical edits"); ui.discard.title = "Discard unfinished physical edits"; ui.discard.replaceChildren(discardIcon());
@@ -1193,7 +1221,7 @@
     ui.pagination = node("div", "takeoff-register-controls"); ui.inspector = node("aside", "takeoff-inspector takeoff-physical-inspector"); ui.inspector.setAttribute("aria-label", "Item Details"); ui.gallery = node("section", "takeoff-physical-gallery"); ui.gallery.setAttribute("aria-label", "Retained image gallery"); ui.root.append(ui.table, addRow, ui.pagination); if (bridge.inspectorContainer) bridge.inspectorContainer.append(ui.inspector); else ui.root.append(ui.inspector); ui.root.append(ui.gallery); container.replaceChildren(ui.root); renderData(); renderGallery(); void safe(loadFieldOptions);
     function imageInventorySummary(images) { const count = images.filter(image => !image.coverage_only).length; return `${count} retained image occurrences; ${images.length - count} source coverage records. Image count is not physical quantity.`; }
     async function refreshImagesAfterExtraction() { await refreshImages(true); }
-    return { render, select: selectEntity, selectDrawing, clearSelection, create, createFromSelection, setMarker, setAnnotation, deleteDrawing, copyDrawing, pasteDrawing, selectedBarrier, selection: () => [...state.selected], inspectedId: () => inspectedEntry()?.entity.id || null, summary, hover, completePendingEdits, isAutoApplying: () => state.autoRoutine, editRevision: () => state.editRevision, hasUnfinishedChanges: () => !state.destroyed && (state.busy || state.pending.size > 0), destroy() { state.destroyed = true; state.busy = false; cancelAutomatic(); document.body.removeEventListener("pointerdown", outsideDocuments); state.filterDialog?.close("cancel"); ++state.imageGeneration; container.replaceChildren(); if (bridge.inspectorContainer) ui.inspector.remove(); state.pending.clear(); changed(); } };
+    return { render, select: selectEntity, selectDrawing, clearSelection, create, createFromSelection, setMarker, setAnnotation, deleteDrawing, copyDrawing, pasteDrawing, selectedBarrier, selection: () => [...state.selected], inspectedId: () => inspectedEntry()?.entity.id || null, summary, hover, completePendingEdits, isAutoApplying: () => state.autoRoutine, editRevision: () => state.editRevision, hasUnfinishedChanges: () => !state.destroyed && (state.busy || state.pending.size > 0), destroy() { state.destroyed = true; state.busy = false; cancelAutomatic(); documents.destroy(); inspectorMenu?.destroy(); state.filterDialog?.close("cancel"); ++state.imageGeneration; container.replaceChildren(); if (bridge.inspectorContainer) ui.inspector.remove(); state.pending.clear(); changed(); } };
   }
 
   const api = { mount, confirmationOwner, effectiveConfirmation, indexGraph, hierarchyRows, hierarchyPage, columnValue, fieldValue, fieldsFromValues, changedFields, bulkCommands, deletionPlan, formatDimensions, parseDimensions, imageEvidence, previewText, commandText };

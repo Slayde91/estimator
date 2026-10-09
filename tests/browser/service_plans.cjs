@@ -2,7 +2,7 @@ const { chooseTakeoff, takeoffChoice } = require('./section_navigation.cjs');
 const { clickProjectControl } = require('./project_actions.cjs');
 const { chooseNewPhysicalItem, startDefect } = require('./physical_dialogs.cjs');
 const { renderDrawing } = require('./viewer_helpers.cjs');
-const { assertParentControls } = require('./parent_controls_helpers.cjs');
+const { assertParentControls, clickInspectorAdd } = require('./parent_controls_helpers.cjs');
 // Real penetration sub-tabs, barrier markers and project round trips. Every
 // source, database and native-dialog save target belongs to this fixture.
 const { chromium, expect } = require('@playwright/test');
@@ -74,7 +74,7 @@ async function apply(title) {
   const reply = await response(() => dialog(title, {}, 'Apply draft change'), '/physical/apply'); state = reply.snapshot; await idle(); return reply;
 }
 async function create(kind, fields, trigger) {
-  if (kind === 'defect') await startDefect(page); else await page.getByRole('button', { name: trigger || `Add ${kind}`, exact: true }).click();
+  if (kind === 'defect') await startDefect(page); else if (trigger === 'Add service in Item Details') await clickInspectorAdd(details(), trigger); else await page.getByRole('button', { name: trigger || `Add ${kind}`, exact: true }).click();
   await chooseNewPhysicalItem(page,kind);
   const preview = await response(() => dialog(kind === 'defect' ? 'Add Defect' : `Create draft ${kind}`, fields, 'Preview new draft'), '/physical/preview');
   await apply(`Create one draft ${kind}?`); return preview.changed_ids[0];

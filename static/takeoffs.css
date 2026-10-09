@@ -320,7 +320,17 @@ dialog.takeoff-column-filter{position:fixed;box-sizing:border-box;width:280px;ma
 .button.takeoff-current-visibility[aria-pressed=true]{background:#ffd9dc;color:#8c101b;border-color:#d7838b;box-shadow:inset 0 0 0 1px #d7838b}
 
 
-.takeoff-physical-item-actions{grid-column:1/-1;display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px}
-.takeoff-physical-item-actions .button{display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;min-width:38px;padding:4px}
+.takeoff-physical-item-actions{grid-column:1/-1;display:flex;align-items:center;gap:8px;min-width:0;margin-bottom:8px}
+.takeoff-physical-item-actions>.button{display:inline-flex;align-items:center;justify-content:center;flex:0 0 38px;width:38px;height:38px;min-width:38px;padding:4px;margin-left:auto}
 .takeoff-physical-item-actions img{display:block;width:30px;height:30px;object-fit:contain}
+.takeoff-physical-item-actions .takeoff-current-visibility img{width:32px;height:32px}
 .takeoff-physical-item-actions svg{display:block;width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.takeoff-physical-add-menu{flex:1;min-width:0}
+.takeoff-physical-item-actions .calculator-document-toggle{display:flex;justify-content:space-between;width:100%;min-width:0;min-height:38px;height:38px;gap:8px}
+.takeoff-physical-add-menu .calculator-document-chevron,.takeoff-physical-add-menu .calculator-document-chevron svg{flex:0 0 16px;width:16px;height:16px}
+.takeoff-physical-add-menu .calculator-document-actions{left:0;right:auto;width:100%;max-width:none;box-sizing:border-box}
+.takeoff-physical-item-actions.with-visibility .calculator-document-actions{width:calc(100% + 46px)}
+.takeoff-physical-item-actions .calculator-document-actions .button.calculator-document-action{display:flex;align-items:center;justify-content:flex-start;gap:12px;width:100%;min-width:0;min-height:44px;height:auto;padding:8px;background:#fff;color:#171217;box-sizing:border-box;text-align:left;white-space:normal}
+.takeoff-physical-add-menu .calculator-document-action img,.takeoff-physical-add-menu .calculator-document-action svg{flex:0 0 30px;width:30px;height:30px}
+.takeoff-physical-add-menu .calculator-document-action>span{min-width:0;overflow-wrap:anywhere}
+@container(max-width:800px){.takeoff-drawing-layout>.takeoff-physical-details:has(.takeoff-physical-add-menu .calculator-document-toggle[aria-expanded=true]){z-index:13}}

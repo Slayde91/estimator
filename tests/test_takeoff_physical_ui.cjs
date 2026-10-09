@@ -35,7 +35,7 @@ function documentHarness(){
     contains(element){return element===this||this.children.some(child=>child.contains(element));}
     showModal(){this.open=true;}
     close(value){this.returnValue=value;this.open=false;this.emit('close');}
-    emit(name){for(const listener of this.events[name]||[])listener({target:this});}
+    emit(name,extra={}){for(const listener of this.events[name]||[])listener({target:this,preventDefault(){},...extra});}
     querySelectorAll(selector){const matches=element=>selector.split(',').some(part=>part.startsWith('[data-')?Object.hasOwn(element.dataset,part.slice(6,-1).replace(/-([a-z])/g,(_,char)=>char.toUpperCase())):element.tagName===part.toUpperCase());return this.children.flatMap(child=>[...(matches(child)?[child]:[]),...child.querySelectorAll(selector)]);}
   }
   doc={createElement:tag=>new Element(tag),createElementNS:(_namespace,tag)=>new Element(tag)};doc.body=new Element('body');
@@ -215,7 +215,7 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
       value.services[0].confirmation='confirmed';value.services[0].uncertainty={state:'conflicting',note:'Retain exact evidence conflict.'};
       const h=component(value,{scope:()=>scope});await flush();await h.controller.select(uuid(5));const child=copy(h.current.physical.services[0]);
       assert.ok(!h.all().some(node=>node.attributes['aria-label']==='Confirmation'));assert.ok(h.all().some(node=>node.textContent.includes('Confirmation: Unconfirmed')&&node.textContent.includes('inherited from')));
-      await h.controller.select(ownerId);const control=h.input('Confirmation');assert.deepEqual(control.children.map(option=>option.value),['unconfirmed','confirmed']);control.value='confirmed';control.emit('change');await flush();
+      await h.controller.select(ownerId);const control=h.input('Confirmation');assert.deepEqual(control.children.map(option=>option.value),['unconfirmed','confirmed']);const ownerFields=control.parentElement.parentElement.children;assert.equal(ownerFields.indexOf(control.parentElement)+1,ownerFields.indexOf(h.input('Notes').parentElement));control.value='confirmed';control.emit('change');await flush();
       assert.equal(physical.effectiveConfirmation(physical.indexGraph(h.current.physical).get(uuid(5)),physical.indexGraph(h.current.physical)),'confirmed');assert.deepEqual(h.current.physical.services[0],child);assert.equal(h.current.physical.state,'draft');assert.equal(h.current.library_assignments,undefined);
       await h.controller.select(uuid(5));await h.controller.select(uuid(6),true);const before=h.calls.previews.length;await h.click('Confirm');assert.equal(h.calls.previews.length,before);await h.click('Unconfirm');assert.deepEqual(h.calls.previews.at(-1).map(command=>command.entity_id),[ownerId]);assert.deepEqual(h.current.physical.services[0],child);h.controller.destroy();
     }
@@ -705,8 +705,8 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
       await h.controller.selectDrawing(uuid(1));assert.equal(changes.at(-1).openDetails,true);assert.equal(selections.at(-1)[3],true);h.controller.destroy();
     }
   });
-  await check('Item Details Add Service uses its accessible icon while register Add Substrate remains compact',async()=>{
-    const h=component(servicePlanGraph(),{scope:()=> 'service_plans',inspectorContainer:true});await flush();await h.controller.select(uuid(1));const service=h.button('Add service in Item Details'),substrate=h.button('Add substrate');assert.equal(service.textContent,'');assert.equal(service.children[0].tagName,'IMG');assert.equal(service.children[0].src,'/icons/takeoff-add-service.png');assert.equal(substrate.textContent,'+');assert.ok(service.className.includes('button secondary'));assert.ok(!service.className.includes('takeoff-physical-add-child'));assert.ok(!service.className.includes('takeoff-physical-add-defect'));assert.ok(substrate.className.includes('takeoff-physical-add-defect'));assert.equal(service.title,'Add service to B-0001');h.controller.destroy();
+  await check('Item Details Add Service keeps its original accessible icon and visible name in Add while register Add Substrate remains compact',async()=>{
+    const h=component(servicePlanGraph(),{scope:()=> 'service_plans',inspectorContainer:true});await flush();await h.controller.select(uuid(1));const service=h.button('Add service in Item Details'),substrate=h.button('Add substrate');assert.equal(service.textContent,'Add Service');assert.equal(service.children[0].tagName,'IMG');assert.equal(service.children[0].src,'/icons/takeoff-add-service.png');assert.equal(substrate.textContent,'+');assert.ok(service.className.includes('button secondary'));assert.ok(!service.className.includes('takeoff-physical-add-child'));assert.ok(!service.className.includes('takeoff-physical-add-defect'));assert.ok(substrate.className.includes('takeoff-physical-add-defect'));assert.equal(service.title,'Add service to B-0001');assert.equal(service.parentElement.hidden,true);h.controller.destroy();
   });
   await check('Root Defect callouts use explicit linked values without aggregating quantities or child ratings',async()=>{
     const value=graph();value.defects[0].fields.location='Level 1';value.barriers[0].fields.frl='custom child rating';value.services[0].quantity=700;value.services[0].fields.service_type='Copper pipe';value.services[1].deleted=true;
@@ -782,16 +782,16 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
       assert.ok(h.calls.asks.at(-1).definitions.some(field=>field[0]==='seal_quantity'));assert.equal(h.current.library_assignments.records[0].draft_quantity,.375);assert.equal(h.current.physical.services.length,2);
     } finally {h?.controller.destroy();global.CeasefireTakeoffLibraryLinks=previous;}
   });
-  await check('Item Details groups accessible original icons above Delete Discard and Visibility',async()=>{
+  await check('Item Details Add lists Barrier Service Library above Delete Discard with Visibility at the far right of Add',async()=>{
     for (const scope of ['defect_reports','service_plans']) {
       const value=scope==='service_plans'?servicePlanGraph():graph();value.barriers[0].marker={document_id:uuid(80),document_sha256:'d'.repeat(64),page:1,point:[25,30]};const before=copy(value),h=component(value,{scope:()=>scope,libraryCommand:async()=>null});await flush();
       h.current.library_assignments={version:1,records:[201,202].map((id,index)=>({id:uuid(id),scope,library:{id:`literal-${id}`,library_id:`FL-ID-00${index+1}`,metadata_sha256:'a'.repeat(64)},members:[1,5,6,...(scope==='defect_reports'?[2]:[])].map(id=>({id:uuid(id),kind:id===2?'defect':id===1?'barrier':'service',revision:1})),installation:{mode:'repeated_installations'},state:'draft',schedule_binding:null}))};h.controller.render(copy(h.current));
       const order=hasParent=>{
-        const inspector=h.all().find(node=>node.tagName==='ASIDE'),children=inspector.children,choose=h.button('Add Library Item'),icons=choose.parentElement,start=children.indexOf(icons),navigation=children.find(node=>node.className==='takeoff-physical-navigation');
-        assert.ok(start>=0);assert.equal(icons.className,'takeoff-physical-item-actions');assert.equal(icons.children[0],choose);assert.equal(icons.children[1],h.button('Add service in Item Details'));assert.equal(choose.children[0].tagName,'SVG');assert.equal(choose.textContent,'');
+        const inspector=h.all().find(node=>node.tagName==='ASIDE'),children=inspector.children,choose=h.button('Add Library Item'),list=choose.parentElement,icons=list.parentElement.parentElement,start=children.indexOf(icons),navigation=children.find(node=>node.className==='takeoff-physical-navigation');
+        assert.ok(start>=0);assert.ok(icons.className.startsWith('takeoff-physical-item-actions'));assert.equal(icons.children[0],list.parentElement);assert.equal(list.children.at(-1),choose);assert.equal(list.children.at(-2),h.button('Add service in Item Details'));assert.equal(choose.children[0].tagName,'SVG');assert.equal(choose.textContent,'Add Library Item');assert.equal(h.button('Add').attributes['aria-expanded'],'false');assert.equal(list.hidden,true);
         const actions=children[start+1];assert.equal(actions.className,'takeoff-physical-inspector-actions');assert.ok(actions.contains(h.button('Discard unfinished physical edits')));assert.ok(children.indexOf(actions)<children.indexOf(navigation));
-        const visibility=h.all().find(node=>node.attributes['aria-label']==='Visibility');if(visibility){assert.equal(visibility.parentElement,actions);assert.equal(actions.children.indexOf(visibility),actions.children.indexOf(h.button('Discard unfinished physical edits'))+1);}
-        const addBarrier=icons.children.find(node=>node.attributes['aria-label']==='Add barrier in Item Details');if(addBarrier){assert.equal(addBarrier.children[0].tagName,'IMG');assert.equal(addBarrier.children[0].src,'/icons/takeoff-add-barrier.png');}
+        const visibility=h.all().find(node=>node.attributes['aria-label']==='Visibility');if(visibility){assert.equal(visibility.parentElement,icons);assert.equal(icons.children.at(-1),visibility);assert.ok(!actions.contains(visibility));}
+        const addBarrier=list.children.find(node=>node.attributes['aria-label']==='Add barrier in Item Details');if(addBarrier){assert.equal(list.children[0],addBarrier);assert.equal(addBarrier.children[0].tagName,'IMG');assert.equal(addBarrier.children[0].src,'/icons/takeoff-add-barrier.png');assert.equal(addBarrier.textContent,'Add Barrier');}
         assert.equal(children.indexOf(navigation),children.indexOf(actions)+1);
         if(hasParent)assert.equal(children[children.indexOf(navigation)+1],h.button('Change Parent'));
         const summaries=children.filter(node=>node.className.includes('takeoff-library-summary'));assert.equal(summaries.length,2);assert.deepEqual(children.slice(-2),summaries);
@@ -803,6 +803,16 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
       if(scope==='defect_reports'){await h.controller.select(uuid(2));order(false);}
       await h.controller.select(uuid(5));await h.controller.select(uuid(6),true);order(false);assert.ok(!h.all().some(node=>node.attributes['aria-label']==='Delete draft record'));assert.deepEqual(h.current.physical,before);assert.equal(h.calls.previews.length,0);h.controller.destroy();
     }
+  });
+  await check('Add disclosure keyboard dismissal and rerender preserve pending fields and release outside listeners',async()=>{
+    const h=component(graph(),{libraryCommand:async()=>null});await flush();await h.controller.select(uuid(2));
+    const toggle=h.button('Add'),menu=toggle.parentElement,list=menu.children[1],notes=h.input('Notes'),before=copy(h.current),doc=h.dom.container.ownerDocument;
+    notes.value='Unfinished note stays pending';notes.emit('input');toggle.emit('click');assert.equal(list.hidden,false);assert.equal(toggle.attributes['aria-expanded'],'true');assert.equal(h.calls.previews.length,0);assert.equal(h.input('Notes'),notes);assert.equal(notes.value,'Unfinished note stays pending');assert.deepEqual(h.current,before);
+    menu.emit('keydown',{key:'ArrowDown'});assert.equal(doc.activeElement,h.button('Add barrier in Item Details'));menu.emit('keydown',{key:'End'});assert.equal(doc.activeElement,h.button('Add Library Item'));menu.emit('keydown',{key:'ArrowDown'});assert.equal(doc.activeElement,h.button('Add barrier in Item Details'));menu.emit('keydown',{key:'ArrowUp'});assert.equal(doc.activeElement,h.button('Add Library Item'));menu.emit('keydown',{key:'Escape'});assert.equal(doc.activeElement,toggle);assert.equal(list.hidden,true);
+    toggle.emit('click');doc.body.emit('pointerdown',{target:doc.body});assert.equal(list.hidden,true);assert.equal(notes.value,'Unfinished note stays pending');assert.equal(h.calls.previews.length,0);
+    toggle.emit('click');menu.emit('focusout',{relatedTarget:doc.body});assert.equal(list.hidden,true);
+    await h.click('Discard unfinished physical edits');for(let i=0;i<5;i++)await h.controller.select(uuid(i%2?1:2));assert.equal(doc.body.events.pointerdown.length,2,'Only the current Add disclosure and persistent Document disclosure remain registered');
+    h.controller.destroy();assert.equal(doc.body.events.pointerdown.length,0);assert.equal(h.current.physical.defects[0].fields.notes,undefined);
   });
   await check('Read-only library enrichment preserves a focused untouched editor and never adds schedule actions',async()=>{
     const previous=global.CeasefireTakeoffLibraryLinks,pending=defer(),hash='a'.repeat(64);

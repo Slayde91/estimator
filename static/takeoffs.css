@@ -224,7 +224,7 @@ dialog.takeoff-column-filter{position:fixed;box-sizing:border-box;width:280px;ma
 .takeoff-physical-add-row{display:flex;align-items:center;gap:8px;margin:8px 0 0;min-height:38px}
 .takeoff-physical-add-row .takeoff-physical-add-defect{color:#fff;background:var(--accent);border-color:var(--accent);padding:0;text-decoration:none;box-shadow:none}
 .takeoff-physical-inspector-actions{display:flex;grid-column:1/-1;align-items:center;gap:8px;flex-wrap:wrap;margin-top:4px}
-.takeoff-physical-details .takeoff-physical-inspector>.takeoff-physical-visibility{display:inline-flex;align-items:center;justify-content:center;justify-self:start;width:38px;min-width:38px;height:38px;padding:2px}
+.takeoff-physical-details .takeoff-physical-inspector .takeoff-physical-visibility{display:inline-flex;align-items:center;justify-content:center;justify-self:start;width:38px;min-width:38px;height:38px;padding:2px}
 .takeoff-physical-visibility img{display:block;width:32px;height:32px;object-fit:contain}
 .takeoff-physical-register .takeoff-physical-disclosure{display:inline-flex;align-items:center;justify-content:center;min-width:24px;width:24px;height:28px;padding:0;margin-right:4px;font-size:18px;font-weight:600;text-decoration:none}
 .takeoff-physical-register th input[type=checkbox]{display:block;width:16px;height:16px;min-width:16px;margin:0;accent-color:var(--accent)}
@@ -318,3 +318,9 @@ dialog.takeoff-column-filter{position:fixed;box-sizing:border-box;width:280px;ma
 .takeoff-document-menu .calculator-document-chevron svg{fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 @media(max-width:600px){.takeoff-document-menu{flex-basis:100%}}
 .button.takeoff-current-visibility[aria-pressed=true]{background:#ffd9dc;color:#8c101b;border-color:#d7838b;box-shadow:inset 0 0 0 1px #d7838b}
+
+
+.takeoff-physical-item-actions{grid-column:1/-1;display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+.takeoff-physical-item-actions .button{display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;min-width:38px;padding:4px}
+.takeoff-physical-item-actions img{display:block;width:30px;height:30px;object-fit:contain}
+.takeoff-physical-item-actions svg{display:block;width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}

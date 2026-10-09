@@ -54,6 +54,7 @@ jobs:
       - run: node tests/test_takeoff_column_filters_ui.cjs
       - run: node tests/test_surface_column_filters_ui.cjs
       - run: node tests/test_takeoff_physical_ui.cjs
+      - run: node tests/test_takeoff_parent_controls.cjs
       - run: node tests/test_takeoff_search.cjs
       - run: node --test tests/test_takeoff_ocr.cjs
       - run: node tests/test_takeoff_search_ui.cjs

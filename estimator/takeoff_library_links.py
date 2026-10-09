@@ -165,7 +165,8 @@ def validate_barrier_selection(value):
     _revision(value[owner_revision]); _revision(value['barrier_revision'])
     if not value[owner_revision] or not value['barrier_revision'] or type(value['mismatch_accepted']) is not bool:
         raise ValidationError('Capture the exact physical revisions and explicit unapproved mismatch decision.')
-    if version == 2 and value['choice'] == 'existing' and (value['barrier_id'] != value[owner_id] or value['barrier_revision'] != value[owner_revision]):
+    if version == 2 and value['choice'] == 'existing' and (value['barrier_id'] != value[owner_id]
+            or value['barrier_revision'] not in (value[owner_revision], value[owner_revision] + 1)):
         raise ValidationError('An existing Service Plans Barrier must retain the explicitly selected root and revision.')
     for fields in (value['source_fields'], value['retained_fields']):
         if not isinstance(fields, dict) or set(fields) - set(BARRIER_FIELDS):
@@ -440,7 +441,7 @@ def member_context(snapshot, scope, identifiers, installation, *, _physical=None
 
 def assert_members_confirmed(snapshot, record, *, _physical=None):
     """Require current manual review of explicit members and inherited context."""
-    from .takeoff_physical import graph_collections, graph_parents
+    from .takeoff_physical import confirmation_owner, graph_collections
     members, context = member_context(snapshot, record['scope'],
                                      [member['id'] for member in record['members']], record['installation'],
                                      _physical=_physical)
@@ -450,19 +451,14 @@ def assert_members_confirmed(snapshot, record, *, _physical=None):
     graph = snapshot['physical' if record['scope'] == 'defect_reports' else 'service_plans']
     index = ({entity['id']: (kind, entity) for kind, collection in graph_collections(graph).items()
               for entity in graph[collection]} if _physical is None else _physical['index'])
-    parents, checked = graph_parents(graph) if _physical is None else _physical['parents'], set()
+    checked = set()
     for member in members:
-        kind, entity = index[member['id']]
-        while entity['id'] not in checked:
-            checked.add(entity['id'])
-            if entity.get('confirmation', 'unconfirmed') != 'confirmed':
-                raise ValidationError(f"Confirm {entity.get('display_id', kind)} and every associated parent, Barrier and Service before Transfer or Update linked rows.")
-            if kind not in parents:
-                break
-            parent_kind, field = parents[kind]
-            kind, entity = index[entity[field]]
-            if kind != parent_kind:
-                raise ValidationError('The associated physical parent type changed.')
+        kind, owner = confirmation_owner(graph, member['id'], _index=index)
+        if owner['id'] in checked:
+            continue
+        checked.add(owner['id'])
+        if owner.get('confirmation', 'unconfirmed') != 'confirmed':
+            raise ValidationError(f"Confirm {owner.get('display_id', kind)}; associated child records inherit this manual review before Transfer or Update linked rows.")
     return members, context
 
 
@@ -470,6 +466,7 @@ def confirmed_transfer_preview(snapshot, scope, draft, library_lookup, configura
     """Compile one atomic register transfer; selection and markers add no counts."""
     from .penetration_calculator import normalize_draft, definition
     from .takeoff_physical_operations import scope_key
+    from .takeoff_physical import effective_confirmation
     graph = snapshot.get(scope_key(scope))
     if not graph or graph['version'] not in (2, 3):
         raise ValidationError('Open a current Defect Reports or Service Plans register before Transfer.')
@@ -482,9 +479,11 @@ def confirmed_transfer_preview(snapshot, scope, draft, library_lookup, configura
     associated = {member['id'] for record in records for member in record['members']}
     services = [entity for entity in graph.get('services', []) if not entity['deleted']]
     service_parents = {entity['barrier_id'] for entity in services}
-    unassociated = sum(entity.get('confirmation') == 'confirmed' and entity['id'] not in associated
+    reviewed = lambda entity: effective_confirmation(graph, entity['id'],
+        _index=physical_context['index']) == 'confirmed'
+    unassociated = sum(reviewed(entity) and entity['id'] not in associated
                       for entity in services)
-    unassociated += sum(entity.get('confirmation') == 'confirmed' and not entity['deleted']
+    unassociated += sum(reviewed(entity) and not entity['deleted']
                         and entity['id'] not in service_parents and entity['id'] not in associated
                         for entity in graph.get('barriers', []))
     skipped = {'unconfirmed': 0, 'already_linked': 0, 'unassociated': unassociated}
@@ -665,13 +664,23 @@ def validate_history(event):
         collections = ('barriers', 'services') if service_plans else ('defects', 'barriers', 'services')
         entities = lambda graph: {entity['id']: entity for collection in collections for entity in graph[collection]}
         old_entities, new_entities = entities(prior_graph), entities(current_graph)
-        if any(new_entities.get(identifier) != entity for identifier, entity in old_entities.items()):
-            raise ValidationError('Adding a library item cannot change retained physical fields, quantities, sources or identities.')
         owner_id = selection['context_barrier_id'] if service_plans else selection['defect_id']
         owner_revision = selection['context_barrier_revision'] if service_plans else selection['defect_revision']
         owner = next((entity for entity in prior_graph['barriers' if service_plans else 'defects'] if entity['id'] == owner_id), None)
         if not owner or owner['deleted'] or owner['revision'] != owner_revision:
             raise ValidationError('An additional library item must retain its selected physical owner and revision.')
+        for identifier, entity in old_entities.items():
+            current = new_entities.get(identifier)
+            if current == entity:
+                continue
+            # Adding actual child facts requires fresh review of this owner.
+            # Older recorded imports that preserved its review remain readable.
+            invalidated = {**entity, 'confirmation': 'unconfirmed', 'revision': entity['revision'] + 1}
+            new_children = new_entities.keys() - old_entities.keys()
+            if (identifier != owner_id or entity.get('confirmation') != 'confirmed'
+                    or current != invalidated or not new_children
+                    or service_plans and selection['choice'] != 'existing'):
+                raise ValidationError('Adding a library item cannot change retained physical fields, quantities, sources or identities.')
         barrier = new_entities.get(selection['barrier_id'])
         if (not barrier or (barrier.get('defect_id') != owner_id if not service_plans else
                 'defect_id' in barrier or selection['choice'] == 'existing' and barrier['id'] != owner_id)):

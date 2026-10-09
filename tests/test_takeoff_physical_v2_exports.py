@@ -92,7 +92,7 @@ class PhysicalV2ExportTests(unittest.TestCase):
                              export_physical_graph(deepcopy(self.graph), format)[0])
         self.assertEqual(self.graph, original)
 
-    def test_selected_xlsx_uses_each_active_records_own_confirmation_in_both_workspaces(self):
+    def test_selected_xlsx_uses_parent_confirmation_and_keeps_child_legacy_fields_in_both_workspaces(self):
         self.add('service', 5, 2, fields={'service': 'Cable', 'notes': '=literal source text'}, quantity=3)
         self.add('service', 6, 2, quantity=4)
         self.change({'op': 'delete', 'entity_id': uid(6), 'cascade': False})
@@ -104,15 +104,17 @@ class PhysicalV2ExportTests(unittest.TestCase):
                 for barrier in graph['barriers']:
                     del barrier['defect_id']
                     barrier['fields']['frl'] = '-/120/120'
-            graph['services'][0]['confirmation'] = 'confirmed'
+            graph['services'][0]['confirmation'] = 'unconfirmed'
             graph['services'][0]['evidence'] = [evidence(occurrence=101, page=1)]
-            graph['services'][1]['confirmation'] = 'unconfirmed'
+            graph['services'][1]['confirmation'] = 'confirmed'
             graph['services'][1]['evidence'] = [evidence(occurrence=102, page=2)]
             graph['services'][2]['confirmation'] = 'confirmed'
+            graph['defects' if version == 2 else 'barriers'][0]['confirmation'] = 'confirmed'
             original = deepcopy(graph)
             active = {entry['id'] for collection in physical.graph_collections(graph).values()
                       for entry in graph[collection] if not entry['deleted']}
-            for selection, expected in (('confirmed', {uid(3)}), ('unconfirmed', active - {uid(3)}), ('all', active)):
+            reviewed = active if version == 2 else {uid(2), uid(3), uid(5)}
+            for selection, expected in (('confirmed', reviewed), ('unconfirmed', active - reviewed), ('all', active)):
                 with self.subTest(version=version, selection=selection):
                     payload, mime, filename = export_physical_graph(graph, 'xlsx', confirmation=selection)
                     self.assertIn('spreadsheetml', mime)

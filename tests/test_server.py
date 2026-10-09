@@ -123,6 +123,16 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(headers["Content-Type"], "image/png")
         self.assertEqual(body, (ROOT / "static/ceasefire-logo.png").read_bytes())
 
+    def test_parent_control_icons_are_served_as_exact_png_files(self):
+        for name in ('takeoff-add-service.png', 'takeoff-add-barrier.png'):
+            with self.subTest(name=name):
+                status, headers, body = self.request('GET', '/icons/' + name)
+                self.assertEqual(status, 200)
+                self.assertEqual(headers['Content-Type'], 'image/png')
+                self.assertEqual(body, (ROOT / 'static/icons' / name).read_bytes())
+                self.assertEqual(int(headers['Content-Length']), len(body))
+                self.assertEqual(self.request('GET', '/icons/' + name + '.bak')[0], 404)
+
     def test_current_pdf_is_downloadable_and_does_not_save_or_change_prices(self):
         quotes_before = self.request("GET", "/api/quotes")[2]
         pricing_before = self.request("GET", "/api/configuration")[2]

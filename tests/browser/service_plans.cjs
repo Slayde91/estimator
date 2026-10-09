@@ -2,6 +2,7 @@ const { chooseTakeoff, takeoffChoice } = require('./section_navigation.cjs');
 const { clickProjectControl } = require('./project_actions.cjs');
 const { chooseNewPhysicalItem, startDefect } = require('./physical_dialogs.cjs');
 const { renderDrawing } = require('./viewer_helpers.cjs');
+const { assertParentControls } = require('./parent_controls_helpers.cjs');
 // Real penetration sub-tabs, barrier markers and project round trips. Every
 // source, database and native-dialog save target belongs to this fixture.
 const { chromium, expect } = require('@playwright/test');
@@ -173,8 +174,8 @@ async function controls() {
   await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); await chooseTakeoff(page, 'physical'); await idle();
   await expect(takeoffChoice(page, 'Defect Reports')).toHaveAttribute('aria-pressed', 'true');
   await renderedPage(() => page.locator('#takeoff-upload').setInputFiles(info.fixture), 1, true);
-  const defect = await create('defect', { 'Defect Ref.': 'REPORT-A', 'FRL': '-/120/120' });
-  const reportBarrier = await create('barrier', { 'Barrier type': 'Core hole', 'Substrate': 'Concrete/masonry wall', 'Location': 'Report only' }, 'Add barrier to D-0001');
+  const defect = await create('defect', { 'Defect Ref.': 'REPORT-A', 'Location': 'Report only', 'FRL': '-/120/120' });
+  const reportBarrier = await create('barrier', { 'Barrier type': 'Core hole', 'Substrate': 'Concrete/masonry wall' }, 'Add barrier to D-0001');
   const reportService = await create('service', { 'Category': 'Mechanical', 'Explicit service quantity': 3, 'Service Size (mm)': '25' }, 'Add service to B-0001');
   const reportBefore = structuredClone(state.physical);
   await tab('Service Plans'); await expect(page.locator('tr[data-physical-id]')).toHaveCount(0);
@@ -193,7 +194,17 @@ async function controls() {
   assert.equal(entity(service).barrier_id, barrier); assert.ok(!Object.hasOwn(entity(service).fields, 'frl')); await expect(details().getByLabel('FRL', { exact: true })).toHaveCount(0);
   await expect(row(service)).toContainText('-/90/90'); await controls();
   evidence.hierarchy = { defect, reportBarrier, reportService, barrier, service, independentSequences: true, barrierFrl: true };
-  console.log('Independent hierarchies, barrier FRL and register controls passed.');
+  await expect(details().getByLabel('Confirmation',{exact:true})).toHaveCount(0);await expect(details()).toContainText('inherited from Barrier B-0001');
+  evidence.compactOriginalIconControls=await assertParentControls(page,details());
+  await select(barrier);await response(()=>details().getByLabel('Confirmation',{exact:true}).selectOption('confirmed'),'/physical/apply');await idle();await snapshot();assert.equal(entity(barrier).confirmation,'confirmed');
+  for(const id of [barrier,service])await expect(row(id).locator('.takeoff-state')).toHaveText('Confirmed');
+  await select(service);await expect(details().getByLabel('Confirmation',{exact:true})).toHaveCount(0);await expect(details()).toContainText('Confirmation: Confirmed — inherited from Barrier B-0001');
+  const priorQuantity=entity(service).quantity,priorFacts=structuredClone(entity(service).fields),priorUncertainty=structuredClone(entity(service).uncertainty);
+  await response(async()=>{const notes=details().getByLabel('Notes',{exact:true});await notes.fill('Owner review invalidated by child facts');await notes.press('Tab');},'/physical/apply');await idle();await snapshot();assert.equal(entity(barrier).confirmation,'unconfirmed');assert.equal(entity(service).quantity,priorQuantity);assert.deepEqual(entity(service).uncertainty,priorUncertainty);assert.equal(entity(service).fields.size,priorFacts.size);
+  const selectAll=page.getByRole('checkbox',{name:'Select all matching physical records',exact:true});await selectAll.check();
+  await response(()=>page.locator('.takeoff-physical-bulk').getByRole('button',{name:'Confirm',exact:true}).click(),'/physical/preview');assert.deepEqual(previews.at(-1).commands.map(command=>command.entity_id),[barrier]);await apply('Confirm 1 owning Barriers and their descendants?');await snapshot();await selectAll.uncheck();
+  evidence.ownerConfirmationInheritanceAndFactInvalidation=true;
+  console.log('Independent hierarchies, barrier FRL, owner confirmation and compact controls passed.');
   await renderedPage(async () => { await page.getByLabel('Page number', { exact: true }).fill('3'); await page.getByLabel('Page number', { exact: true }).press('Tab'); }, 3, true);
   await renderDrawing(page, () => page.getByRole('button', { name: 'Fit page', exact: true }).click());
   // A blank drawing click clears physical selection without rendering a steel/duct register.
@@ -207,7 +218,9 @@ async function controls() {
   await response(() => dialog('Place barrier marker', { 'Barrier': 'existing' }, 'Continue'), '/physical/apply'); await snapshot();
   await expect(marker(barrier)).toBeVisible(); await expect(details()).toBeVisible();
   await expect(page.locator('.takeoff-viewport')).toHaveAttribute('data-tool', 'select');
-  const originalMarker = structuredClone(entity(barrier).marker); assert.equal(originalMarker.page, 3); assert.equal(originalMarker.document_sha256, sourceBefore);
+  let originalMarker = structuredClone(entity(barrier).marker); assert.equal(originalMarker.page, 3); assert.equal(originalMarker.document_sha256, sourceBefore);
+  assert.equal(entity(barrier).confirmation,'unconfirmed','Adding source marker evidence requires fresh owning Barrier review');
+  await response(()=>details().getByLabel('Confirmation',{exact:true}).selectOption('confirmed'),'/physical/apply');await idle();await snapshot();assert.equal(entity(barrier).confirmation,'confirmed');evidence.sourceMarkerPlacementInvalidatesReview=true;
   evidence.placedMarker = originalMarker;
   const placedClick = await page.evaluate(() => window.qaDrawingEvents.filter(event => event.type === 'click').at(-1)), exactPlacedPoint = sourcePoint(placedClick);
   for (let axis = 0; axis < 2; axis++) assert.ok(Math.abs(originalMarker.point[axis] - exactPlacedPoint[axis]) < 1e-7, `Placed source coordinates ${originalMarker.point} from ${JSON.stringify(placedClick)}`);
@@ -223,6 +236,9 @@ async function controls() {
   const dx = Math.max(boxX - markerX, 0, markerX - boxX - boxWidth), dy = Math.max(boxY - markerY, 0, markerY - boxY - boxHeight);
   assert.ok(Math.hypot(dx, dy) > calloutPlacement.radius, 'The complete red marker must remain clear of callout text');
   evidence.calloutPlacement = calloutPlacement;
+  const beforeLayout=structuredClone(entity(barrier)),serviceBeforeLayout=structuredClone(entity(service)),frame=await callout(barrier).locator('.takeoff-physical-callout-frame').boundingBox();
+  await response(async()=>{const x=frame.x+frame.width/2,y=frame.y+frame.height/2;await page.mouse.move(x,y);await page.mouse.down();await page.mouse.move(x-12,y+10,{steps:8});await page.mouse.up();},'/physical/apply');await idle();await snapshot();
+  assert.equal(entity(barrier).confirmation,'confirmed');assert.notDeepEqual(entity(barrier).marker.callout,beforeLayout.marker.callout);assert.deepEqual(entity(barrier).marker.point,beforeLayout.marker.point);assert.deepEqual(entity(barrier).fields,beforeLayout.fields);assert.deepEqual(entity(barrier).evidence,beforeLayout.evidence);assert.deepEqual(entity(service),serviceBeforeLayout);originalMarker=structuredClone(entity(barrier).marker);evidence.calloutLayoutPreservesOwnerConfirmation=true;
   const visibility=details().getByRole('button',{name:'Visibility',exact:true}),beforeVisibility=structuredClone(state),offVisibilityColor=await visibility.evaluate(el=>getComputedStyle(el).backgroundColor);
   await expect(visibility).toHaveAttribute('aria-pressed','false');await visibility.click();await expect(visibility).toHaveAttribute('aria-pressed','true');await expect(callout(barrier)).toHaveCount(0);
   await expect.poll(()=>visibility.evaluate(el=>getComputedStyle(el).backgroundColor)).toBe('rgb(255, 217, 220)');await snapshot();assert.deepEqual(state,beforeVisibility);
@@ -248,6 +264,7 @@ async function controls() {
 
   await select(service);
   for (const [label,value] of Object.entries({'Explicit service quantity':5,'Service Size (mm)':'50'})) { await response(async()=>{const control=details().getByLabel(label,{exact:true});await control.fill(String(value));await control.press('Tab');},'/physical/apply');await idle();await snapshot(); }
+  assert.equal(entity(barrier).confirmation,'unconfirmed','Changing Service quantity and facts invalidates its Barrier review');
   // A scope switch flushes input without an extra field-review dialog.
   await tab('Defect Reports'); await expect(takeoffChoice(page, 'Defect Reports')).toHaveAttribute('aria-pressed','true'); await tab('Service Plans');
   for (const text of ['5 \u00d7', '50']) await summaryContains(barrier, text);

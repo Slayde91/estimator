@@ -5,7 +5,7 @@ from unittest.mock import patch
 from uuid import uuid4
 
 from estimator.catalog import ValidationError
-from estimator.takeoff_physical import graph_collections
+from estimator.takeoff_physical import confirmation_owner_kind, graph_collections
 from tests import test_takeoff_library_links as fixtures
 from tests.test_takeoff_physical_v2 import create
 from tests.test_takeoff_service_plans import create as create_plan
@@ -47,10 +47,9 @@ class ConfirmedRegisterTransferTests(unittest.TestCase):
                 'service', barrier_id, service_type='Single Cables')
             command['entity']['quantity'] = quantity
             commands.append(command); services.append(command['entity']['id'])
-        if confirmed:
-            for command in commands:
-                command['entity']['confirmation'] = 'confirmed'
         self.links.physical(commands, scope)
+        if confirmed:
+            self.links.review_physical([barrier_id, *services], scope)
         return barrier_id, services
 
     def associate(self, members, *, scope='service_plans', mode='repeated_installations', source='services', library_id='pkb-001'):
@@ -68,7 +67,7 @@ class ConfirmedRegisterTransferTests(unittest.TestCase):
     def review(self, scope='service_plans'):
         graph = self.state()['physical' if scope == 'defect_reports' else 'service_plans']
         commands = [{'op': 'update', 'entity_id': entity['id'], 'changes': {'confirmation': 'confirmed'}}
-            for collection in graph_collections(graph).values() for entity in graph[collection]
+            for entity in graph[graph_collections(graph)[confirmation_owner_kind(graph)]]
             if not entity['deleted'] and entity.get('confirmation') != 'confirmed']
         if commands:
             self.links.physical(commands, scope)
@@ -227,9 +226,8 @@ class ConfirmedRegisterTransferTests(unittest.TestCase):
         _, good = self.branch(quantities=(3,))
         self.associate(good)
         commands, unknown, _ = self.links.unknown_import('service_plans')
-        for command in commands:
-            command['entity']['confirmation'] = 'confirmed'
         self.links.physical(commands, 'service_plans')
+        self.links.review_physical([unknown], 'service_plans')
         self.associate([unknown])
         before, draft = deepcopy(self.state()), deepcopy(self.links.draft)
         with self.assertRaisesRegex(ValidationError, 'quantity is unknown'):

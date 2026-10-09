@@ -307,6 +307,15 @@ class DesktopPackagingTests(unittest.TestCase):
             self.assertIn(asset, STATIC_FILES)
         self.assertFalse(any('takeoff' in path or 'pdfjs' in path for path in (*DATA_FILES,*STATIC_FILES)))
 
+    def test_parent_control_icons_remain_full_edition_only(self):
+        # The full builder discovers all static assets. The standard bundle
+        # deliberately excludes every Takeoffs asset and implementation.
+        from estimator.edition import TAKEOFF_ASSETS
+        for name in ('takeoff-add-service.png', 'takeoff-add-barrier.png'):
+            self.assertIn('/icons/' + name, TAKEOFF_ASSETS)
+            self.assertNotIn('icons/' + name, STATIC_FILES)
+            self.assertTrue((ROOT / 'static/icons' / name).is_file())
+
     def test_native_smoke_destinations_resolve_in_the_actual_header_menu(self):
         from estimator.desktop_selftest import self_test
 

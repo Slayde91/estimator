@@ -64,7 +64,7 @@ async function create(kind, values, trigger = `Add ${kind}`) {
   if (kind === 'defect') await chooseNewDefect(page);
   const modal=page.getByRole('dialog');await expect(modal.getByRole('heading', { name:kind === 'defect' ? 'Add Defect' : `Create draft ${kind}`,exact:true })).toBeVisible();await physicalForm(kind,modal);
   if(kind==='barrier'||kind==='service')await modal.screenshot({path:path.join(output,`create-${kind}-form.png`)});
-  const preview = await response(() => dialog(kind === 'defect' ? 'Add Defect' : `Create draft ${kind}`, { ...values, 'Confirmation': 'unconfirmed' }, 'Preview new draft'), '/physical/preview');
+  const preview = await response(() => dialog(kind === 'defect' ? 'Add Defect' : `Create draft ${kind}`, { ...values, ...(kind === 'defect' ? { 'Confirmation': 'unconfirmed' } : {}) }, 'Preview new draft'), '/physical/preview');
   assert.equal(preview.changed_ids.length, 1); await apply(`Create one draft ${kind}?`);await physicalForm(kind,page.getByRole('complementary',{name:'Item Details'}));return preview.changed_ids[0];
 }
 async function select(id) { await idle(); await page.locator(`tr[data-physical-id="${id}"] .takeoff-row-link`).click(); await idle(); }
@@ -103,7 +103,7 @@ async function showImage() {
   // The UI's retained-image display is the acceptance surface; source metadata is also checked exactly below.
   let card = await showImage(); await page.screenshot({ path: path.join(output, 'retained-bitmap.png'), fullPage: true });
   const defect = await create('defect', { 'Defect Ref.': 'D-001', 'Location': 'L02 north', 'FRL': '-/120/120' }); await identifier(defect, 'D-0001');
-  const barrierFields = { 'Location': 'L02 north', 'Barrier type': 'Core hole', 'Substrate': 'Concrete/masonry wall', 'Substrate orientation': 'Vertical' };
+  const barrierFields = { 'Barrier type': 'Core hole', 'Substrate': 'Concrete/masonry wall', 'Substrate orientation': 'Vertical' };
   const empty = await create('barrier', barrierFields, 'Add barrier to D-0001'); await identifier(empty, 'B-0001');
   for(const field of ['label','thickness_mm'])assert.equal(Object.hasOwn(record(empty).fields,field),false);
   await dropdown(page.getByLabel('Substrate for B-0001',{exact:true}),physicalChoices.substrate);await dropdown(page.getByLabel('Substrate orientation for B-0001',{exact:true}),physicalChoices.orientation);

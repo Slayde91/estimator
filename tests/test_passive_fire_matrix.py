@@ -17,8 +17,10 @@ class PassiveFireMatrixTests(unittest.TestCase):
     def test_active_leaf_rows_inherit_parents_without_invented_counts(self):
         case = self.fixture()
         case.add('defect', 5, fields={'location': 'Empty defect'})
+        case.change({'op':'update','entity_id':uid(1),'changes':{'fields':{
+            **case.graph['defects'][0]['fields'], 'location':'L02'}}})
         case.change({'op':'update','entity_id':uid(2),'changes':{'fields':{
-            'location':'L02', 'substrate':'Concrete', 'orientation':'Horizontal'}}})
+            'location':'Legacy upper floor', 'substrate':'Concrete', 'orientation':'Horizontal'}}})
         case.change({'op':'update','entity_id':uid(3),'changes':{'fields':{
             'service':'Electrical & Communications','service_type':'Cable tray','size':'123.456789'},'quantity':7}})
         before = deepcopy(case.graph)
@@ -26,10 +28,12 @@ class PassiveFireMatrixTests(unittest.TestCase):
         self.assertEqual(rows[0], ['D-0001','B-0001','S-0001','L02','120/120/120',
             'Concrete','Horizontal','Electrical & Communications','Cable tray',7,'123.456789'])
         self.assertEqual(rows[1][0:3], ['D-0001','B-0002',''])
+        self.assertEqual(rows[1][3], 'L02')
         self.assertEqual(rows[1][9], '')
         self.assertEqual(rows[2][0:4], ['D-0002','','','Empty defect'])
         self.assertEqual(rows[2][9], '')
         self.assertEqual(case.graph, before)
+        self.assertEqual(case.graph['barriers'][0]['fields']['location'], 'Legacy upper floor')
         case.change({'op':'delete','entity_id':uid(2),'cascade':True})
         self.assertFalse(any('S-0001' in row or 'B-0001' in row for row in matrix_rows(case.graph)))
 

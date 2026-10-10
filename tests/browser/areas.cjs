@@ -3,7 +3,7 @@ const { clickProjectControl } = require('./project_actions.cjs');
 const { renderDrawing, viewRegisterItem } = require('./viewer_helpers.cjs');
 // Real pointer/keyboard area workflow on synthetic drawings and a disposable server.
 const { chromium, expect } = require('@playwright/test');
-const { editSettings } = require('./settings_helpers.cjs');
+const { editSettings, settingsSettled } = require('./settings_helpers.cjs');
 const { spawn } = require('node:child_process');
 const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
 const root = path.resolve(__dirname, '../..');
@@ -18,7 +18,54 @@ const ready = new Promise((resolve, reject) => {
   server.once('exit', code => { clearTimeout(timer); reject(new Error(`Server exited ${code}: ${logs}`)); });
 });
 const errors = [];
+const registerExports = [];
 async function idle() { await expect(page.locator('#takeoffs-workspace')).not.toHaveAttribute('aria-busy', 'true'); }
+async function exportArea(record, format) {
+  // View already waits for navigation. Check readiness again at each export:
+  // later rendering can start before a separate public API invocation.
+  await settingsSettled(page); await idle();
+  await expect(page.locator('dialog[open]')).toHaveCount(0);
+  const extension = format.toLowerCase();
+  const pendingResponse = page.waitForResponse(response => response.request().method() === 'POST'
+    && new URL(response.url()).pathname.endsWith(`/export/${extension}`));
+  const pendingDownload = page.waitForEvent('download');
+  pendingResponse.catch(() => {}); pendingDownload.catch(() => {});
+  // Snapshot, exact selection and the original export call share one browser
+  // turn; readiness cannot go stale between their checks and the request.
+  const invocationHandle = await page.waitForFunction(({ id, extension }) => {
+    const api = window.CeasefireTakeoffs;
+    const workspaceBusy = document.querySelector('#takeoffs-workspace').getAttribute('aria-busy') === 'true';
+    const openDialogs = document.querySelectorAll('dialog[open]').length;
+    const sessionId = api.sessionId();
+    if (workspaceBusy || openDialogs || api.hasPendingOperation() || !sessionId) return false;
+    const snapshot = api.projectSnapshot();
+    const selectedIds = [...document.querySelectorAll('#takeoffs-workspace tr[data-item-id] input[aria-label^="Select "]:checked')]
+      .map(control => control.closest('tr').dataset.itemId);
+    const item = snapshot?.items.find(value => value.id === id);
+    if (selectedIds.length !== 1 || selectedIds[0] !== id || !item?.confirmation) {
+      throw new Error('The selected confirmed surface must be settled before exporting.');
+    }
+    const evidence = { sessionId, workspaceBusy, openDialogs, selectedIds, item };
+    return api.exportRegister(extension).then(() => evidence);
+  }, { id: record.id, extension });
+  let invocation;
+  try { invocation = await invocationHandle.jsonValue(); } finally { await invocationHandle.dispose(); }
+  assert.equal(invocation.item.mode, record.mode);
+  assert.deepEqual(invocation.item.geometry, record.geometry);
+  assert.equal(invocation.item.fields.layers, 3);
+  const response = await pendingResponse;
+  assert.equal(response.status(), 200, response.status() === 200 ? `${format} export response` : await response.text());
+  assert.deepEqual(response.request().postDataJSON(), { selected_ids: [record.id] });
+  assert.ok(new URL(response.url()).pathname.endsWith(`/sessions/${invocation.sessionId}/export/${extension}`));
+  const file = await pendingDownload;
+  assert.equal(await file.failure(), null);
+  const target = path.join(output, `${record.mode}-${file.suggestedFilename()}`);
+  await file.saveAs(target); assert.ok(fs.statSync(target).size > 100);
+  const after = await page.evaluate(id => window.CeasefireTakeoffs.projectSnapshot().items.find(item => item.id === id), record.id);
+  assert.deepEqual(after, invocation.item, 'Export preserves the surface geometry, layers, receipt and identity');
+  registerExports.push({ format, target, status: response.status(), invocation });
+  return target;
+}
 async function command(action, op) {
   const pending = page.waitForResponse(r => r.url().endsWith('/commands') && r.request().postDataJSON()?.op === op);
   pending.catch(() => {}); await action(); const response = await pending, result = await response.json();
@@ -124,7 +171,7 @@ async function surface(mode, rotated = false) {
   const item = state.snapshot.items.find(item => item.id === id);
   assert.equal(item.state, 'confirmed');
   assert.equal(item.confirmation.checks.engine, 'takeoffs-area-v2');assert.equal(item.confirmation.checks.layers,3);assert.equal(item.confirmation.checks.total_area_m2,item.confirmation.checks.net_area_m2*3);
-  return { id, metrics: checkArea(state, id), geometry: item.geometry, confirmation: item.confirmation };
+  return { id, mode, metrics: checkArea(state, id), geometry: item.geometry, confirmation: item.confirmation };
 }
 (async () => {
   const info = await ready;
@@ -237,14 +284,14 @@ async function surface(mode, rotated = false) {
     await viewRegisterItem(page, record.id, record.geometry);
     await expect(page.locator(`tr[data-item-id="${record.id}"] .takeoff-state`)).toHaveText('Confirmed');
     for (const format of ['CSV', 'XLSX']) {
-      const download = page.waitForEvent('download'); await page.evaluate(format => window.CeasefireTakeoffs.exportRegister(format.toLowerCase()), format);
-      const file = await download, target = path.join(output, `${mode}-${file.suggestedFilename()}`); await file.saveAs(target); assert.ok(fs.statSync(target).size > 100);
+      const target = await exportArea(record, format);
       if (format === 'CSV') { const text = fs.readFileSync(target, 'utf8'); assert.ok(text.includes(record.id)); assert.ok(text.includes('net_area_m2'));assert.ok(text.includes('total_area_m2'));assert.ok(text.includes('layers')); }
     }
   }
   assert.deepEqual(await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()), calculatorsBefore);
   assert.deepEqual(errors, []); assert.deepEqual(await page.evaluate(() => window.qaCsp), []);
-  fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ completed:true,wall,slab,undoParity,errors,csp:[] }, null, 2));
+  assert.equal(registerExports.length, 4);
+  fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ completed:true,wall,slab,undoParity,registerExports,errors,csp:[] }, null, 2));
   console.log(`PASS: true-surface wall/slab areas, exclusions, rotated CropBox/UserUnit2/DPR2, bulk/undo, selection, confirmation, Save As/reopen, CSV/XLSX; calculators unchanged. Evidence: ${output}`);
 })().catch(async error => {
   console.error(error); console.error(logs.slice(-5000));

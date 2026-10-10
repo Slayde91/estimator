@@ -250,7 +250,7 @@ async function sequentialNativeWheel() {
   assert.deepEqual(landscape.pages[2].view, [20, 30, 800, 570]); assert.equal(landscape.pages[2].rotation, 90); assert.equal(landscape.pages[2].user_unit, 2);
   await installRenderProbe(landscape.id); const protectedBefore = await protectedState();
   assert.ok(protectedBefore.items.length && protectedBefore.results.some(value => value.length_m > 0), 'Nonempty measurements make invariant checks meaningful');
-  for (const [mode, scope] of [['Steel'], ['Duct'], ['Walls'], ['Slabs'], ['Penetrations', 'Defect Reports'], ['Penetrations', 'Service Plans']]) {
+  for (const [mode, scope] of [['Steel'], ['Duct'], ['Walls/Floors'], ['Penetrations', 'Defect Reports'], ['Penetrations', 'Service Plans']]) {
     await chooseTakeoff(page, mode.toUpperCase()); await settingsSettled(page);
     if (scope) { await chooseTakeoff(page, scope); await settingsSettled(page); }
     for (const [name, doc, number] of [['landscape', landscape, 1], ['rotated-crop-UserUnit2', landscape, 3], ['portrait-UserUnit2', portrait, 1]]) {

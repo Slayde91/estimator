@@ -229,7 +229,7 @@
   function mount(container, bridge) {
     if (!container || !bridge) throw new Error("A physical register container and application bridge are required.");
     const document = container.ownerDocument || root.document;
-    const state = { snapshot: null, index: new Map(), servicesByBarrier: new Map(), selected: new Set(), hidden: new Set(), inspectedId: null, collapsed: new Set(), filter: "", columnFilters: new Map(), filterDialog: null, offset: 0, showDeleted: false, busy: false, destroyed: false, editRevision: 0, pending: new Map(), bindings: new WeakMap(), pendingApply: new WeakMap(), autoApplyPromise: null, autoRoutine: false, autoTimer: null, pointerAction: null, inspectorEdit: null, fieldOptions: null, fieldOptionsPromise: null, images: [], extractionId: "", imageOffset: 0, imageGeneration: 0, imageInventoryKey: "", imageState: "Not loaded", imageFailures: new Set() };
+    const state = { snapshot: null, index: new Map(), servicesByBarrier: new Map(), selected: new Set(), hidden: new Set(), inspectedId: null, collapsed: new Set(), filter: "", columnFilters: new Map(), filterDialog: null, offset: 0, showDeleted: false, busy: false, destroyed: false, editRevision: 0, pending: new Map(), bindings: new WeakMap(), pendingApply: new WeakMap(), autoApplyPromise: null, autoRoutine: false, autoTimer: null, pointerAction: null, inspectorEdit: null, fieldOptions: null, fieldOptionsPromise: null };
     const ui = {};
     let inspectorMenu, inspectorRefresh = false;
     const changed = () => bridge.changed?.();
@@ -1021,20 +1021,19 @@
         remove = button("Delete draft record", flushed => deleteEntity(flushed ? state.index.get(entity.id) : entry), "button secondary takeoff-physical-delete-selected"); remove.setAttribute("aria-label", "Delete draft record"); remove.title = "Delete draft record"; remove.replaceChildren(deleteIcon());
       }
       if (itemActions.children.length) ui.inspector.append(itemActions);
-      ui.inspector.append(inspectorActions(remove));
       renderDetailNavigation();
-      if (selected.length !== 1) { ui.inspector.append(node("p", "helper", selected.length ? "Select active records of one entity type for a counted, reversible bulk edit." : "Select a hierarchy row to inspect its parent, evidence and uncertainty.")); renderLibraryAssignments(selected); return; }
+      if (selected.length !== 1) { ui.inspector.append(inspectorActions(remove), node("p", "helper", selected.length ? "Select active records of one entity type for a counted, reversible bulk edit." : "Select a hierarchy row to inspect its parent, evidence and uncertainty.")); renderLibraryAssignments(selected); return; }
       if (legacyReadOnly() || entity.deleted) {
         if (!legacyReadOnly()) ui.inspector.append(mutationButton("Restore draft record", () => restore(entry)), node("p", "helper", "Original fields, evidence and parent IDs are retained. Restore previews disclose descendants and do not invent missing parents."));
         for (const [key, label] of (entry.kind === "opening" ? legacyOpeningFields : [...(retainedDefinitions[entry.kind] || []), ...(legacyReadOnly() ? definitions[entry.kind] : fieldsFor(entry.kind, scope()))])) ui.inspector.append(node("p", "helper", `${label}: ${fieldDisplay(entity.fields, key) ?? "Unknown"}`));
         if (entry.kind === "service") ui.inspector.append(node("p", "helper", entity.quantity == null ? "Service quantity unknown: enter an explicit physical count when reviewed. The commercial schedule contribution is separate." : `Explicit service quantity: ${entity.quantity}`));
-        ui.inspector.append(node("p", "helper", `Uncertainty: ${entity.uncertainty.state} · ${entity.uncertainty.note || "No explanation recorded"}`)); return;
+        ui.inspector.append(inspectorActions(remove), node("p", "helper", `Uncertainty: ${entity.uncertainty.state} · ${entity.uncertainty.note || "No explanation recorded"}`)); return;
       }
       if (parentRelations()[entry.kind]) ui.inspector.append(button("Change Parent", flushed => reparent(flushed ? state.index.get(entity.id) : entry)));
       const controls = fieldDefinitions(entry).map(([key, label, type, initial, required]) => {
         const wrapper = node("label", "field"), control = node(Array.isArray(type) ? "select" : type === "textarea" ? "textarea" : "input"); wrapper.append(node("span", "", label));
         if (Array.isArray(type)) { if (key === "confirmation") control.replaceChildren(...type.map(([value, text]) => choice(value, text))); else populateSelect(control, type, initial); if (sharedOptionKeys.has(key)) bindSharedOptions(control, key); } else if (type !== "textarea") control.type = type === "number" ? "number" : "text";
-        control.value = initial ?? ""; control.name = key; control.required = !!required; if (type === "number") control.step = key === "quantity" ? "1" : "any"; control.setAttribute("aria-label", label); track(control, initial, entry, key); wrapper.append(control); ui.inspector.append(wrapper); return control;
+        control.value = initial ?? ""; control.name = key; control.required = !!required; if (type === "number") control.step = key === "quantity" ? "1" : "any"; control.setAttribute("aria-label", label); track(control, initial, entry, key); wrapper.append(control); ui.inspector.append(wrapper); if (key === "notes") ui.inspector.append(inspectorActions(remove)); return control;
       });
       const editor = { controls, entry, key: editorKey };
       editor.submit = async () => { ensureAvailable(true); await ensureFieldOptions(editor.entry.kind, true); ensureAvailable(true); if (editor.key !== graphKey()) throw new Error("The physical draft changed before the unfinished edits could be validated. Inspect the current record and try again."); requireCurrent(editor.entry); const entity = editor.entry.entity, values = Object.fromEntries(controls.map(control => [control.name, control.value])); const changes = { fields: fieldsFromValues(editor.entry.kind, values, entity.fields, scope()), ...(Object.hasOwn(values, "confirmation") && recordConfirmation(entity) !== values.confirmation ? { confirmation: values.confirmation } : {}), ...(editor.entry.kind === "service" ? { quantity: recordedQuantity(entity, values.quantity) } : {}) }; if (Object.entries(changes).every(([key, value]) => sameValue(entity[key], value))) { resetPending(); renderData(); return true; } return perform([{ op: "update", entity_id: entity.id, changes }], "Apply physical field changes", true, false); };
@@ -1080,52 +1079,7 @@
         if (evidence.image_id) card.append(node("p", "takeoff-identity", `Image ID: ${evidence.image_id}\nRetained display rendition SHA-256: ${evidence.image_sha256}\nOccurrence: ${evidence.occurrence_id}`));
         if (!legacyReadOnly() && !entity.deleted) card.append(button("Remove source association", () => removeEvidence(entry, position), "text-button")); ui.inspector.append(card);
       }
-      if (!entity.evidence.length) ui.inspector.append(node("p", "takeoff-warning", "No source evidence is linked. Select a retained image below or link an original page. This draft is not approved."));
-    }
-    async function refreshImages(automatic = false) {
-      if (!automatic) ensureAvailable(); const run = ++state.imageGeneration, project = state.snapshot?.project_id; state.imageState = "Loading retained image evidence…"; renderGallery();
-      try { const images = state.extractionId ? await bridge.images(state.extractionId) : []; if (state.destroyed || run !== state.imageGeneration || project !== state.snapshot?.project_id) return; if (!Array.isArray(images) || images.filter(image => !image.coverage_only).length > 512) throw new Error("The retained image inventory is incomplete or exceeds the 512-occurrence extraction limit."); state.images = images; state.imageFailures.clear(); state.imageState = state.extractionId ? imageInventorySummary(images) : "No retained extraction. Open a source PDF page and extract its embedded images."; renderGallery(); }
-      catch (error) { if (!state.destroyed && run === state.imageGeneration && project === state.snapshot?.project_id) { state.imageState = `Retained image inventory failed: ${error.message}`; renderGallery(); report(error); } }
-    }
-    function renderGallery() {
-      ui.gallery.replaceChildren(node("h3", "", "RETAINED SOURCE IMAGES"), node("p", "helper", state.imageState));
-      const selector = node("select"); selector.setAttribute("aria-label", "Retained image extraction");
-      selector.append(choice("", "Choose a retained extraction"));
-      for (const extraction of [...(state.snapshot?.image_extractions || [])].reverse()) {
-        const source = (state.snapshot?.documents || []).find(doc => doc.id === extraction.document_id), pages = extraction.pages || [];
-        selector.append(choice(extraction.id, `${source?.name || "Source PDF"} · pages ${pages.join(", ") || "unknown"} · ${extraction.id.slice(0, 8)}`));
-      }
-      selector.value = state.extractionId; selector.disabled = state.busy;
-      selector.addEventListener("change", () => void safe(async () => { ensureAvailable(); state.extractionId = selector.value; state.images = []; state.imageOffset = 0; await refreshImages(true); }));
-      ui.gallery.append(selector, node("p", "helper", "One extraction is loaded at a time (up to 25 pages and 512 image occurrences); 12 image and coverage records are displayed per page. Other retained extractions remain available in this selector."));
-      state.imageOffset = Math.max(0, Math.min(state.imageOffset, Math.max(0, Math.floor((state.images.length - 1) / 12) * 12)));
-      for (const image of state.images.slice(state.imageOffset, state.imageOffset + 12)) {
-        if (image.coverage_only) {
-          const card = node("details", "takeoff-exclusion"); card.append(node("summary", "", image.name || "Source extraction coverage"), node("p", "helper", image.coverage || "Coverage is unavailable."));
-          for (const issue of image.issues || []) card.append(node("p", "takeoff-warning", typeof issue === "string" ? issue : issue.message || issue.code || JSON.stringify(issue)));
-          if (image.document_id && image.page) card.append(button("Open original source page", () => bridge.source({ document_id: image.document_id, document_sha256: image.document_sha256, page: image.page }), "text-button"));
-          ui.gallery.append(card); continue;
-        }
-        const card = node("details", "takeoff-exclusion"), name = image.name || `${image.document_id} · p${image.page}`; card.dataset.imageOccurrence = image.occurrence_id || "unavailable"; card.append(node("summary", "", `${name} · occurrence ${image.occurrence_id || "unavailable"}`));
-        card.append(node("p", "takeoff-identity", `Image ID: ${image.id || "unavailable"}\nRetained display rendition SHA-256: ${image.sha256 || "unavailable"}\nDocument SHA-256: ${image.document_sha256 || "unavailable"}`));
-        if (image.original_sha256) card.append(node("p", "takeoff-identity", `Retained original image stream SHA-256: ${image.original_sha256}`));
-        if (image.quad_pdf) card.append(node("p", "helper", `Original PDF image placement: ${JSON.stringify(image.quad_pdf)}`));
-        if (image.region) card.append(node("p", "helper", `${image.region_clipped ? "Clipped source marker" : "Display source marker"}: ${JSON.stringify(image.region)}`));
-        for (const issue of image.issues || []) card.append(node("p", "takeoff-warning", typeof issue === "string" ? issue : issue.message || issue.code || JSON.stringify(issue)));
-        let loaded = false; card.addEventListener("toggle", () => {
-          if (!card.open || loaded) return; loaded = true;
-          try {
-            const value = bridge.imageUrl(image), url = new URL(value, root.location.href);
-            if (url.origin !== root.location.origin || !/^https?:$/.test(url.protocol)) throw new Error("Retained images must use the application's same-origin evidence route.");
-            const picture = node("img"); picture.src = url.href; picture.alt = `${name}. Retained display rendition; no inferred physical quantity.`; picture.loading = "lazy"; picture.width = 420;
-            picture.addEventListener("error", () => { state.imageFailures.add(image.occurrence_id); card.append(node("p", "takeoff-warning", "This retained image could not be displayed. Inspect the original source and resolve the evidence failure; do not rely on the missing image.")); }); card.append(picture);
-          } catch (error) { state.imageFailures.add(image.occurrence_id); card.append(node("p", "takeoff-warning", error.message)); }
-        });
-        card.append(button("Open original source page", () => bridge.source({ document_id: image.document_id, document_sha256: image.document_sha256, page: image.page, ...(image.region ? { region: image.region } : {}) }), "text-button"));
-        card.append(mutationButton("Link image to selected record", () => { const selected = selectEntries(); if (selected.length !== 1 || selected[0].entity.deleted) throw new Error("Select one active physical record to associate this image."); if (state.imageFailures.has(image.occurrence_id)) throw new Error("The retained image could not be inspected. Retry loading its evidence first."); return linkImage(selected[0], image); }, "text-button"));
-        ui.gallery.append(card);
-      }
-      ui.gallery.append(button("Previous 12 image records", () => { state.imageOffset = Math.max(0, state.imageOffset - 12); renderGallery(); }), node("span", "helper", ` ${state.images.length ? state.imageOffset + 1 : 0}–${Math.min(state.imageOffset + 12, state.images.length)} of ${state.images.length} image and coverage records `), button("Next 12 image records", () => { if (state.imageOffset + 12 < state.images.length) state.imageOffset += 12; renderGallery(); }));
+      if (!entity.evidence.length) ui.inspector.append(node("p", "takeoff-warning", "No source evidence is linked. Link an original source page. This draft is not approved."));
     }
     function renderData() {
       if (state.destroyed) return;
@@ -1152,10 +1106,7 @@
         if (!state.servicesByBarrier.has(id)) state.servicesByBarrier.set(id, []); state.servicesByBarrier.get(id).push(entry);
       }
       for (const entries of state.servicesByBarrier.values()) entries.sort((a, b) => displayId(a).localeCompare(displayId(b), "en-AU", { numeric: true }));
-      const context = bridge.imageContext?.() || {}, descriptors = snapshot?.image_extractions || [];
-      const inventoryKey = `${snapshot?.project_id || ""}/${context.document_id || ""}/${context.page || ""}/${JSON.stringify(descriptors)}`;
-      if (oldProject !== snapshot?.project_id || oldScope !== state.scope) { ++state.imageGeneration; state.selected.clear(); state.inspectedId = null; state.collapsed.clear(); state.columnFilters.clear(); state.filterDialog?.close("cancel"); state.offset = 0; state.images = []; state.imageFailures.clear(); state.imageOffset = 0; state.imageInventoryKey = ""; state.imageState = "Not loaded"; resetPending(); }
-      if (state.imageInventoryKey !== inventoryKey) { state.imageInventoryKey = inventoryKey; const newest = [...descriptors].reverse(); state.extractionId = (newest.find(value => value.document_id === context.document_id && value.pages?.includes(context.page)) || newest[0])?.id || ""; state.images = []; state.imageOffset = 0; void refreshImages(true); }
+      if (oldProject !== snapshot?.project_id || oldScope !== state.scope) { state.selected.clear(); state.inspectedId = null; state.collapsed.clear(); state.columnFilters.clear(); state.filterDialog?.close("cancel"); state.offset = 0; resetPending(); }
       if (state.pending.size && !state.busy && oldKey !== graphKey()) { bridge.notify("The physical draft changed while fields were unfinished. Applying will recheck the record revision; discard unfinished edits to show the current draft.", true); return; }
       if (!state.pending.size && !state.autoRoutine) renderData();
     }
@@ -1163,6 +1114,17 @@
       ensureAvailable(); if (confirmation && !await ask(confirmation.title, [], confirmation.text, confirmation.button)) return; setBusy(true);
       try { const reply = await action(); if (!state.destroyed) displayReply(reply); }
       finally { if (!state.destroyed) { setBusy(false); renderData(); } }
+    }
+    async function undoLastEdit() {
+      ensureEditable(); ensureAvailable();
+      if (typeof bridge.undo !== "function") throw new Error("Undo is unavailable in this physical workspace.");
+      const identity = `${scope()}/${state.snapshot?.project_id || ""}`;
+      setBusy(true);
+      try {
+        const reply = await bridge.undo();
+        if (state.destroyed || identity !== `${scope()}/${state.snapshot?.project_id || ""}`) throw new Error("The physical workspace changed while undoing. The current workspace has been preserved.");
+        displayReply(reply);
+      } finally { if (!state.destroyed) { setBusy(false); renderData(); } }
     }
     async function completePendingEdits() {
       cancelAutomatic();
@@ -1201,8 +1163,10 @@
     }
     // Document and Add disclosures share view-only keyboard/dismissal behavior.
     // Existing action buttons still own pending-edit flushes and draft commands.
-    function actionDisclosure(label, accessibleName, className, revealOnOpen = false) {
-      const menu = node("div", `calculator-document-menu ${className}`), list = node("div", "calculator-document-actions"), toggle = node("button", "button secondary calculator-document-toggle", label), actions = [];
+    function actionDisclosure(label, accessibleName, className, revealOnOpen = false, iconSrc) {
+      const menu = node("div", `calculator-document-menu ${className}`), list = node("div", "calculator-document-actions"), toggle = node("button", "button secondary calculator-document-toggle"), actions = [];
+      if (iconSrc) { const icon = node("img", "calculator-document-icon"); icon.src = iconSrc; icon.alt = ""; icon.width = 24; icon.height = 24; icon.setAttribute("aria-hidden", "true"); toggle.append(icon); }
+      toggle.append(node("span", "", label));
       list.setAttribute("role", "group"); list.setAttribute("aria-label", accessibleName); list.id = `takeoff-actions-${crypto.randomUUID()}`;
       toggle.type = "button"; toggle.setAttribute("aria-expanded", "false"); toggle.setAttribute("aria-controls", list.id);
       const chevron = node("span", "calculator-document-chevron"); chevron.setAttribute("aria-hidden", "true"); chevron.append(actionIcon(["m6 9 6 6 6-6"])); toggle.append(chevron);
@@ -1231,31 +1195,30 @@
     const heading = node("div", "section-heading"); ui.heading = node("h2"); heading.append(ui.heading); ui.status = node("span", "status-label"); heading.append(ui.status); ui.root.append(heading);
     ui.readOnlyNotice = node("p", "takeoff-warning takeoff-physical-legacy-notice", "Legacy hierarchy — read-only until its relationships are assigned. Original records, fields and evidence are preserved for inspection and export."); ui.root.append(ui.readOnlyNotice);
     const tools = node("div", "takeoff-register-controls");
-    tools.append(mutationButton("Extract images from selected PDF page", () => runBridge(async () => { const reply = await bridge.extract(); displayReply(reply); await refreshImagesAfterExtraction(); return reply; })), button("Refresh retained images", refreshImages));
-    const documents = actionDisclosure("Document", "Document actions", "takeoff-document-menu");
+    const documents = actionDisclosure("Document", "Document actions", "takeoff-document-menu", false, "/icons/document.png");
     for (const [format, confirmation, label] of [["xlsx", "confirmed", "Download confirmed items"], ["xlsx", "unconfirmed", "Download unconfirmed items"], ["xlsx", "all", "Download all items"], ["pdf", null, "Download Passive Fire Matrix PDF"]]) {
       const control = button(label, () => runBridge(() => bridge.export(format, confirmation)), "button secondary calculator-document-action");
       control.setAttribute("aria-label", label); const icon = node("span", "download-format-icon"); icon.setAttribute("aria-hidden", "true"); icon.append(node("span", "download-arrow", "↓"), node("span", "download-format", format.toUpperCase())); control.replaceChildren(icon, node("span", "", label));
       documents.add(control);
     }
     tools.append(documents.root);
-    ui.root.append(tools); const filters = node("div", "takeoff-register-controls"), search = node("input"); search.type = "search"; search.placeholder = "Filter physical records…"; search.setAttribute("aria-label", "Filter physical hierarchy"); search.addEventListener("input", () => { if (state.pending.size || state.busy) return; state.filter = search.value; state.offset = 0; renderTable(); });
+    const search = node("input"); search.type = "search"; search.placeholder = "Filter physical records…"; search.setAttribute("aria-label", "Filter physical hierarchy"); search.addEventListener("input", () => { if (state.pending.size || state.busy) return; state.filter = search.value; state.offset = 0; renderTable(); });
     const deleted = node("label", "takeoff-check"), show = node("input"); show.type = "checkbox"; show.addEventListener("change", () => void safe(() => { ensureAvailable(); state.showDeleted = show.checked; state.offset = 0; renderTable(); })); deleted.append(show, node("span", "", "Show deleted records"));
     ui.discard = button("Discard unfinished physical edits", () => { if (state.busy) throw new Error("Finish the current review first."); resetPending(); renderData(); bridge.notify("Unfinished physical field edits discarded. Recorded draft values are unchanged.", false); }, "button secondary takeoff-physical-discard"); ui.discard.setAttribute("aria-label", "Discard unfinished physical edits"); ui.discard.title = "Discard unfinished physical edits"; ui.discard.replaceChildren(discardIcon());
     const deleteSelection = mutationButton("Delete", deleteSelected); deleteSelection.setAttribute("aria-label", "Delete selected records"); deleteSelection.title = "Delete selected records";
-    ui.selection = node("strong"); filters.append(search, deleted,
+    const transfer = imageMutationButton("Transfer to Firestopping Schedule", transferConfirmedRegister, "/icons/takeoff-transfer.png", "takeoff-physical-transfer"); transfer.children[0].className = "takeoff-transfer-icon"; transfer.children[0].width = 24; transfer.children[0].height = 24;
+    ui.selection = node("strong"); tools.append(search, deleted,
       ui.selectFiltered = iconAction("Select filtered records", () => { ensureAvailable(); const rows = matchingActiveRows(), deselect = rows.length > 0 && rows.every(row => state.selected.has(row.entity.id)); for (const row of rows) deselect ? state.selected.delete(row.entity.id) : state.selected.add(row.entity.id); state.inspectedId = null; renderData(); }, ["M4 3h16a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z", "m7 12 3 3 7-7"]),
-      iconAction("Transfer to Firestopping Schedule", transferConfirmedRegister, ["M12 4v16M4 12h16"], true),
+      transfer,
       iconAction("Update linked rows", () => selectedLibraryAction("update"), ["M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z", "M12 6v6h6"], true),
-      iconAction("Unlink from Firestopping Schedule", () => selectedLibraryAction("unlink"), ["M9 7H7a5 5 0 0 0 0 10h2M15 7h2a5 5 0 0 1 0 10h-2"], true)); ui.root.append(filters);
+      iconAction("Unlink from Firestopping Schedule", () => selectedLibraryAction("unlink"), ["M9 7H7a5 5 0 0 0 0 10h2M15 7h2a5 5 0 0 1 0 10h-2"], true));
+    ui.undo = iconAction("Undo last edit", undoLastEdit, ["M9 4 4 9l5 5", "M4 9h9a7 7 0 0 1 7 7v4"], true); ui.undo.className += " takeoff-undo-button"; ui.undo.dataset.locked = String(typeof bridge.undo !== "function"); tools.append(ui.undo); ui.root.append(tools);
     ui.bulk = node("div", "takeoff-register-controls takeoff-bulk takeoff-physical-bulk"); ui.bulkField = node("select"); ui.bulkField.dataset.physicalMutation = "true"; ui.bulkValue = node("input"); ui.bulkValue.dataset.physicalMutation = "true"; ui.bulkValue.type = "text"; ui.bulkValue.placeholder = "New value (blank clears)"; ui.bulkValue.setAttribute("aria-label", "Bulk physical edit value");
     ui.associate = mutationButton("Associate Existing Records", associateLibraryWithSelected);
     ui.bulkApply = mutationButton("Apply to selected", applyBulkValue); ui.bulkConfirm = mutationButton("Confirm", () => confirmSelectedRecords("confirmed")); ui.bulkUnconfirm = mutationButton("Unconfirm", () => confirmSelectedRecords("unconfirmed")); ui.bulk.append(ui.selection, ui.associate, ui.bulkField, ui.bulkValue, ui.bulkApply, ui.bulkConfirm, ui.bulkUnconfirm, deleteSelection); ui.root.append(ui.bulk);
     ui.table = node("div", "takeoff-register-table"); const addRow = node("div", "takeoff-physical-add-row"); ui.add = mutationButton("+", () => create(servicePlans() ? "barrier" : "defect"), "button secondary takeoff-physical-add-child takeoff-physical-add-defect"); addRow.append(ui.add); addRow.hidden = !servicePlans();
-    ui.pagination = node("div", "takeoff-register-controls"); ui.inspector = node("aside", "takeoff-inspector takeoff-physical-inspector"); ui.inspector.setAttribute("aria-label", "Item Details"); ui.gallery = node("section", "takeoff-physical-gallery"); ui.gallery.setAttribute("aria-label", "Retained image gallery"); ui.root.append(ui.table, addRow, ui.pagination); if (bridge.inspectorContainer) bridge.inspectorContainer.append(ui.inspector); else ui.root.append(ui.inspector); ui.root.append(ui.gallery); container.replaceChildren(ui.root); renderData(); renderGallery(); void safe(loadFieldOptions);
-    function imageInventorySummary(images) { const count = images.filter(image => !image.coverage_only).length; return `${count} retained image occurrences; ${images.length - count} source coverage records. Image count is not physical quantity.`; }
-    async function refreshImagesAfterExtraction() { await refreshImages(true); }
-    return { render, select: selectEntity, selectDrawing, clearSelection, create, createFromSelection, setMarker, setAnnotation, deleteDrawing, copyDrawing, pasteDrawing, selectedBarrier, selection: () => [...state.selected], inspectedId: () => inspectedEntry()?.entity.id || null, summary, hover, completePendingEdits, isAutoApplying: () => state.autoRoutine, editRevision: () => state.editRevision, hasUnfinishedChanges: () => !state.destroyed && (state.busy || state.pending.size > 0), destroy() { state.destroyed = true; state.busy = false; cancelAutomatic(); documents.destroy(); inspectorMenu?.destroy(); state.filterDialog?.close("cancel"); ++state.imageGeneration; container.replaceChildren(); if (bridge.inspectorContainer) ui.inspector.remove(); state.pending.clear(); changed(); } };
+    ui.pagination = node("div", "takeoff-register-controls"); ui.inspector = node("aside", "takeoff-inspector takeoff-physical-inspector"); ui.inspector.setAttribute("aria-label", "Item Details"); ui.root.append(ui.table, addRow, ui.pagination); if (bridge.inspectorContainer) bridge.inspectorContainer.append(ui.inspector); else ui.root.append(ui.inspector); container.replaceChildren(ui.root); renderData(); void safe(loadFieldOptions);
+    return { render, select: selectEntity, selectDrawing, clearSelection, create, createFromSelection, setMarker, setAnnotation, deleteDrawing, copyDrawing, pasteDrawing, selectedBarrier, selection: () => [...state.selected], inspectedId: () => inspectedEntry()?.entity.id || null, summary, hover, completePendingEdits, isAutoApplying: () => state.autoRoutine, editRevision: () => state.editRevision, hasUnfinishedChanges: () => !state.destroyed && (state.busy || state.pending.size > 0), destroy() { state.destroyed = true; state.busy = false; cancelAutomatic(); documents.destroy(); inspectorMenu?.destroy(); state.filterDialog?.close("cancel"); container.replaceChildren(); if (bridge.inspectorContainer) ui.inspector.remove(); state.pending.clear(); changed(); } };
   }
 
   const api = { mount, confirmationOwner, effectiveConfirmation, indexGraph, hierarchyRows, hierarchyPage, columnValue, fieldValue, fieldsFromValues, changedFields, bulkCommands, deletionPlan, formatDimensions, parseDimensions, imageEvidence, previewText, commandText };

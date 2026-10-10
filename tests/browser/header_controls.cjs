@@ -160,7 +160,7 @@ async function inspectHeader(width) {
     if(kind==='technical')await expect(page.locator('[data-library-summary="technical"]')).toBeVisible();
     evidence.libraries.push(kind);
   }
-  for (const name of ['Steel', 'Duct', 'Walls', 'Slabs', 'Defect Reports', 'Service Plans']) {
+  for (const name of ['Steel', 'Duct', 'Walls/Floors', 'Defect Reports', 'Service Plans']) {
     await chooseTakeoff(page, name); await idle();
     const visibility=page.getByRole('button',{name:'Visibility',exact:true});await expect(visibility).toBeVisible();assert.ok(await visibility.locator('img').evaluate(img=>img.complete && img.naturalWidth>0));
     await expect(page.locator('.takeoff-workspace-title')).toHaveText(name==='Duct'?'Ductwork':name);

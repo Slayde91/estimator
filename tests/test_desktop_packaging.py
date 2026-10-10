@@ -311,7 +311,7 @@ class DesktopPackagingTests(unittest.TestCase):
         # The full builder discovers all static assets. The standard bundle
         # deliberately excludes every Takeoffs asset and implementation.
         from estimator.edition import TAKEOFF_ASSETS
-        for name in ('takeoff-add-service.png', 'takeoff-add-barrier.png'):
+        for name in ('takeoff-add-service.png', 'takeoff-add-barrier.png', 'takeoff-transfer.png'):
             self.assertIn('/icons/' + name, TAKEOFF_ASSETS)
             self.assertNotIn('icons/' + name, STATIC_FILES)
             self.assertTrue((ROOT / 'static/icons' / name).is_file())

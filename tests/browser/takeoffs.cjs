@@ -23,6 +23,14 @@ const ready = new Promise((resolve, reject) => {
 let browser, page;
 const errors = [], violations = [], requests = [];
 async function workspaceIdle() { await expect(page.locator('#takeoffs-workspace')).not.toHaveAttribute('aria-busy', 'true'); }
+async function retainedLineageOperation(op, values) {
+  await workspaceIdle();
+  return command(() => page.evaluate(async ({op,values}) => {
+    const takeoffs=window.CeasefireTakeoffs, snapshot=await takeoffs.completeProjectSnapshot(),sid=takeoffs.sessionId();
+    if(op==='split_item'){const item=snapshot.items.find(item=>item.id===values.item_id);values.parts=window.CeasefireTakeoffGeometry.split(item.geometry.points,.5).map(points=>({mode:item.mode,geometry:{...item.geometry,points},measurement:item.measurement,quantity:item.quantity,fields:item.fields,evidence:item.evidence}));}
+    const response=await fetch(`/api/takeoffs/sessions/${sid}/commands`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_revision:snapshot.revision,request_id:crypto.randomUUID(),op,...values})}),body=await response.json();if(!response.ok)throw new Error(JSON.stringify(body));takeoffs.applyProject(await takeoffs.prepareProject(body.snapshot,sid));
+  },{op,values}),op);
+}
 async function command(action, op) {
   const pending = page.waitForResponse(r => r.url().endsWith('/commands') && r.request().postDataJSON()?.op === op);
   pending.catch(() => {}); await action(); const response = await pending; const body = await response.json();
@@ -324,13 +332,14 @@ async function boardJourney(info) {
   await page.locator('.takeoff-viewport').press('Enter');
   let extra = await command(() => dialog('Add duct object', { 'Item': 'QA-SPLIT', 'Count/QTY': 1 }, 'Add item'), 'create_item');
   const originalRun = extra.snapshot.items.find(i => i.fields.mark === 'QA-SPLIT').id;
-  await page.getByRole('button', { name: 'Split', exact: true }).click();
-  extra = await command(() => dialog('Split this physical run', { 'Split position (% of traced length)': 50 }, 'Split run'), 'split_item');
+  await expect(page.getByRole('button', { name: 'Split', exact: true })).toHaveCount(0);
+  extra = await retainedLineageOperation('split_item',{item_id:originalRun});
   const splitRuns = extra.snapshot.items.filter(i => i.predecessor_ids.includes(originalRun)); assert.equal(splitRuns.length, 2);
   await page.getByLabel('Filter register', { exact: true }).fill('QA-SPLIT');
   await page.getByRole('checkbox', { name: 'Select all matching items', exact: true }).check();
-  await page.getByRole('button', { name: 'Merge', exact: true }).click();
-  extra = await command(() => dialog('Merge one physical object?', {}, 'Merge segments'), 'merge_items');
+  await expect(page.getByRole('button', { name: 'Merge', exact: true })).toHaveCount(0);
+  const [left,right]=splitRuns;
+  extra = await retainedLineageOperation('merge_items',{item_ids:splitRuns.map(item=>item.id),item:{mode:left.mode,geometry:{...left.geometry,points:[...left.geometry.points,...right.geometry.points.slice(1)]},measurement:left.measurement,quantity:left.quantity,fields:left.fields,evidence:[...left.evidence,...right.evidence]}});
   const mergedRun = extra.snapshot.items.find(i => i.fields.mark === 'QA-SPLIT'); assert.deepEqual(new Set(mergedRun.predecessor_ids), new Set([originalRun, ...splitRuns.map(i => i.id)]));
   await page.locator(`tr[data-item-id=\"${mergedRun.id}\"] .takeoff-row-link`).click();
   await page.getByRole('button', { name: 'Delete', exact: true }).click();

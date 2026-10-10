@@ -18,7 +18,7 @@ const ready = new Promise((resolve, reject) => {
   server.stdout.on('data', value => { stdout += value; if (stdout.includes('\n')) { clearTimeout(timer); try { resolve(JSON.parse(stdout.split('\n')[0])); } catch (error) { reject(error); } } });
   server.once('exit', code => { clearTimeout(timer); reject(new Error(`Server exited ${code}: ${logs}`)); });
 });
-const evidence = {}, errors = [], requests = [], csp = [], desired = { stroke_color: '#A020F0', stroke_width: 3.75, fill_color: '#00CC88', fill_enabled: true, opacity: .45, display_values: false };
+const evidence = {}, errors = [], requests = [], csp = [], pointerTargets = [], nativeFirst = {}, desired = { stroke_color: '#A020F0', stroke_width: 3.75, fill_color: '#00CC88', fill_enabled: true, opacity: .45, display_values: false };
 const defaultKey = 'ceasefire.takeoff-markup-defaults.v2';
 const runtimeHashes = () => Object.fromEntries(['takeoffs.js','takeoff-physical.js','takeoffs.css'].map(name => [name,createHash('sha256').update(fs.readFileSync(path.join(root,'static',name))).digest('hex')]));
 const panel = () => page.locator('#takeoff-markup-settings');
@@ -38,9 +38,14 @@ async function screen([x, y]) {
   await page.locator('.takeoff-viewport').evaluate(el => window.scrollTo(0, window.scrollY + el.getBoundingClientRect().top - 190));
   const box = await overlay.boundingBox(); return [box.x + x / 842 * box.width, box.y + (1 - y / 595) * box.height];
 }
-async function click(point, modifiers = []) {
+async function click(point, modifiers = [], expectedId) {
   // Existing pointer-capture echo suppression expires before a new gesture.
   await page.waitForTimeout(550); const target = await screen(point);
+  if (expectedId) {
+    const hitId = await page.evaluate(([x,y]) => document.elementFromPoint(x,y)?.closest('.takeoff-hit')?.dataset.itemId, target);
+    assert.equal(hitId, expectedId, 'The real pointer coordinate must hit its intended native markup before clicking');
+    pointerTargets.push({ itemId: expectedId, pdfPoint: point, screenPoint: target, actualHitId: hitId });
+  }
   for (const modifier of modifiers) await page.keyboard.down(modifier);
   try { await page.mouse.click(...target); } finally { for (const modifier of modifiers.reverse()) await page.keyboard.up(modifier); }
   await idle();
@@ -127,11 +132,15 @@ function watch(current) {
   const originalDocuments = (await snapshot()).documents, originalCalibrations = (await snapshot()).calibrations;
   for (const mode of ['steel','duct','wall','slab']) {
     await chooseTakeoff(page, mode); await renderDrawing(page, () => page.getByRole('button', { name: 'Fit page', exact: true }).click(), 1);
-    const first = await draw(mode, `${mode}-A`), area = ['wall','slab'].includes(mode), bodyPoint = area ? [160,170] : [190,400];
+    // Wall and Floor now share one drawing. Distinct synthetic planes preserve
+    // genuine pointer coverage instead of assuming the other plane is hidden.
+    const origin = mode === 'slab' ? 400 : 100, area = ['wall','slab'].includes(mode);
+    const first = await draw(mode, `${mode}-A`, origin), bodyPoint = area ? [origin+60,170] : [190,400];
+    nativeFirst[mode] = first.id;
     let oldSecond;
     if (mode === 'steel') oldSecond = await draw(mode, 'steel-OLD', 400); else assert.deepEqual(first.appearance, {...desired,marker_size:25});
     if (await panel().isVisible()) await panel().getByRole('button', { name: 'Close settings', exact: true }).click();
-    await click(bodyPoint); await expect(panel()).toBeHidden(); await expect(body(first.id)).toHaveAttribute('aria-pressed', 'true');
+    await click(bodyPoint, [], first.id); await expect(panel()).toBeHidden(); await expect(body(first.id)).toHaveAttribute('aria-pressed', 'true');
     await openDrawingSettings(bodyPoint); await expect(panel()).toBeVisible();
     await panel().getByRole('button', { name: 'Close settings', exact: true }).click(); await expect(panel()).toBeHidden();
     await page.waitForTimeout(550); const handle = page.locator(`.takeoff-control-point[data-control-item-id="${first.id}"][data-point-index="0"][data-exclusion-id=""]`);
@@ -160,6 +169,15 @@ function watch(current) {
     await page.screenshot({ path:path.join(output,`${mode}-settings-selection.png`) });
     evidence[mode]={singleClickSelectsWithoutOpening:true,nativeDoubleClickOpens:true,selectedBodyDoubleClickReopensClosedPane:true,controlClickSilent:true,controlDragSilent:true,blankClearsAndHides:true,pendingEditPreserved:true,heldSaveBlankClearsWithoutLoss:true,sourceEvidenceAndQuantityPreserved:true,newAppearance:mode==='steel'?desired:first.appearance};
   }
+  const beforeMixed = await snapshot(), mixedCommands = requests.length;
+  await click([750,500]);await body(nativeFirst.wall).press('Enter');await body(nativeFirst.slab).press('Shift+Space');
+  for(const id of [nativeFirst.wall,nativeFirst.slab])await expect(body(id)).toHaveAttribute('aria-pressed','true');
+  await expect(panel()).toBeVisible();await expect(panel().getByText('Surface type: Wall / Floor',{exact:true})).toBeVisible();
+  await expect(panel().getByLabel('Surface basis',{exact:true})).toHaveCount(0);
+  assert.deepEqual(await snapshot(),beforeMixed,'Mixed native keyboard selection changes no item, source, measurement, quantity or appearance');
+  assert.equal(requests.length,mixedCommands,'Mixed native keyboard selection sends no mutation');
+  await page.screenshot({path:path.join(output,'combined-native-keyboard-selection.png')});await click([750,500]);
+  evidence.combined={nativeItemIds:[nativeFirst.wall,nativeFirst.slab],bothNativePathsVisible:true,keyboardEnterAndAdditiveSpace:true,noMutation:true,mixedBasisNotEditable:true};
   const counted = await drawCount('DUCT-COUNT-DEFAULT'); assert.deepEqual(counted.appearance,{...desired,marker_size:25}); assert.equal(counted.quantity,2);
   await chooseTakeoff(page, 'wall'); await page.getByRole('button',{name:'Length',exact:true}).click();
   for(const point of [[400,300],[600,320]])await page.mouse.click(...await screen(point)); await page.locator('.takeoff-viewport').press('Enter');
@@ -175,6 +193,6 @@ function watch(current) {
   await chooseTakeoff(page, 'duct');const baseline=await draw('duct','BLOCKED-OLD');assert.deepEqual(baseline.appearance,{stroke_width:5,fill_enabled:true,marker_size:25,display_values:false});await openDrawingSettings([190,400]);await setDefault();await expect(page.locator('#takeoffs-workspace [role="status"]').filter({hasText:'Browser storage is unavailable'})).toBeVisible();const fallback=await drawCount('BLOCKED-NEW');assert.deepEqual(fallback.appearance,{...desired,marker_size:25});evidence.blockedStorageInWindow=true;csp.push(...await page.evaluate(()=>window.qaCsp));
   assert.deepEqual(errors,[]);assert.deepEqual(csp,[]);
   const runtimeAfter=runtimeHashes();
-  fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({completed:true,fixturePort:info.port,evidence,errors,csp,requests,savedItems:saved.items,calculatorInputsUnchanged:true,sourceDocumentsAndCalibrationUnchanged:true,runtimeBefore,runtimeAfter,runtimeSourceSha256:runtimeAfter['takeoffs.js'],limits:['Disposable fixture only; no live8765 interaction.','Copied or continued existing groups retain their original style; fresh drawings/counts/cited items use the browser visual preference.']},null,2));
+  fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({completed:true,fixturePort:info.port,evidence,pointerTargets,errors,csp,requests,savedItems:saved.items,calculatorInputsUnchanged:true,sourceDocumentsAndCalibrationUnchanged:true,runtimeBefore,runtimeAfter,runtimeSourceSha256:runtimeAfter['takeoffs.js'],limits:['Disposable fixture only; no live8765 interaction.','Copied or continued existing groups retain their original style; fresh drawings/counts/cited items use the browser visual preference.']},null,2));
   console.log(`PASS: four-mode body/blank/control-point selection, automatic edit flush, visual defaults and persistence/fallback, new counts/lengths, saved item/source/calculator preservation. Evidence: ${output}`);
 })().catch(async error=>{console.error(error);console.error(logs.slice(-3000));if(page){await page.screenshot({path:path.join(output,'failure.png'),fullPage:true}).catch(()=>{});fs.writeFileSync(path.join(output,'failure.txt'),await page.locator('body').innerText().catch(()=>''));fs.writeFileSync(path.join(output,'failure.json'),JSON.stringify({error:String(error),errors,csp,status:await page.evaluate(()=>window.CeasefireDesktop?.status()).catch(()=>null),evidence},null,2));}process.exitCode=1;}).finally(async()=>{fs.writeFileSync(path.join(output,'server.log'),logs);fs.writeFileSync(path.join(output,'requests.json'),JSON.stringify(requests,null,2));if(browser)await browser.close();server.kill();});

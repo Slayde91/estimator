@@ -2,10 +2,11 @@ const { chooseTakeoff } = require('./section_navigation.cjs');
 const { chooseNewDefect, startDefect } = require('./physical_dialogs.cjs');
 const { clickProjectControl } = require('./project_actions.cjs');
 const { renderDrawing } = require('./viewer_helpers.cjs');
-// Rendered manual topology and retained-image workflow. All sources and storage are disposable.
+// Rendered manual topology and retained-image API compatibility. All sources and storage are disposable.
 const { chromium, expect } = require('@playwright/test');
 const { spawn } = require('node:child_process');
 const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
+const { createHash, randomUUID } = require('node:crypto');
 const root = path.resolve(__dirname, '../..'), output = path.join(root, '.runtime', 'browser-qa', `penetrations-${Date.now()}`);
 fs.mkdirSync(output, { recursive: true });
 const server = spawn(process.env.CEASEFIRE_PYTHON || 'python', [path.join(__dirname, 'fixtures.py'), '--directory', output, '--physical-legacy'], { cwd: root, windowsHide: true });
@@ -16,7 +17,7 @@ const ready = new Promise((resolve, reject) => {
   server.stdout.on('data', data => { stdout += data; if (stdout.includes('\n')) { clearTimeout(timer); try { resolve(JSON.parse(stdout.split('\n')[0])); } catch (error) { reject(error); } } });
   server.once('exit', code => { clearTimeout(timer); reject(new Error(`Server exited ${code}: ${logs}`)); });
 });
-const errors = [], inventoryRequests = [], physicalRequests = [], automaticFieldChecks = {};
+const errors = [], inventoryRequests = [], physicalRequests = [], automaticFieldChecks = {}, retainedEvidenceChecks = {};
 const activeGraph = () => state.snapshot.physical;
 const records = () => ['defects', 'barriers', 'services'].flatMap(kind => activeGraph()[kind]);
 const record = id => records().find(entity => entity.id === id);
@@ -68,19 +69,51 @@ async function create(kind, values, trigger = `Add ${kind}`) {
   assert.equal(preview.changed_ids.length, 1); await apply(`Create one draft ${kind}?`);await physicalForm(kind,page.getByRole('complementary',{name:'Item Details'}));return preview.changed_ids[0];
 }
 async function select(id) { await idle(); await page.locator(`tr[data-physical-id="${id}"] .takeoff-row-link`).click(); await idle(); }
-// Undo remains an API compatibility operation after its physical toolbar shortcut is removed.
+// Exercise the visible shortcut, including the real global undo command.
 async function undo() {
-  state = await page.evaluate(async () => {
-    const takeoffs=window.CeasefireTakeoffs, session=takeoffs.sessionId(), current=takeoffs.projectSnapshot();
-    const reply=await fetch(`/api/takeoffs/sessions/${session}/commands`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_revision:current.revision,request_id:crypto.randomUUID(),op:'undo'})});
-    const result=await reply.json();if(!reply.ok)throw new Error(JSON.stringify(result));
-    takeoffs.applyProject(await takeoffs.prepareProject(result.snapshot,session));await takeoffs.open();return result;
-  }); await idle();
+  state = await response(() => page.getByRole('button', { name: 'Undo last edit', exact: true }).click(), '/commands'); await idle();
 }
-async function extract() { state = await response(() => page.getByRole('button', { name: 'Extract images from selected PDF page', exact: true }).click(), '/images/extract'); await idle(); return state.extraction_id; }
-async function showImage() {
-  const card = page.locator('details[data-image-occurrence]').first(); await card.locator('summary').click();
-  await expect(card.locator('img')).toBeVisible(); await expect.poll(() => card.locator('img').evaluate(image => image.complete && image.naturalWidth)).toBeGreaterThan(0); return card;
+async function acceptReply(reply) {
+  state = reply;
+  await page.evaluate(async snapshot => { const takeoffs = window.CeasefireTakeoffs; takeoffs.applyProject(await takeoffs.prepareProject(snapshot, takeoffs.sessionId())); await takeoffs.open(); }, reply.snapshot);
+  await idle();
+}
+async function sessionBase() { return page.evaluate(() => `${location.origin}/api/takeoffs/sessions/${window.CeasefireTakeoffs.sessionId()}`); }
+async function extract(first_page) {
+  const before = await canonicalState(), base = await sessionBase();
+  const reply = await page.request.post(`${base}/images/extract`, { data: { expected_revision: before.revision, request_id: randomUUID(), document_id: before.snapshot.documents[0].id, first_page, page_count: 1 } });
+  assert.equal(reply.status(), 200, await reply.text()); await acceptReply(await reply.json());
+  assert.equal(state.snapshot.version, 2);
+  assert.deepEqual(state.snapshot.physical, before.snapshot.physical ?? null, 'Extraction retains the hierarchy; an empty v1 session gains only the explicit v2 null graph');
+  return state.extraction_id;
+}
+async function imageInventory(extraction_id) {
+  const reply = await page.request.get(`${await sessionBase()}/images?extraction_id=${extraction_id}&offset=0&limit=100`);
+  assert.equal(reply.status(), 200, await reply.text()); const inventory = await reply.json();
+  assert.equal(inventory.extraction_id, extraction_id); assert.equal(inventory.offset, 0); assert.equal(inventory.total, inventory.items.length); assert.equal(inventory.has_more, false);
+  inventoryRequests.push({ extraction: extraction_id, limit: '100', total: inventory.total }); return inventory;
+}
+async function retainedBitmap(image, save = false) {
+  const route = `${await sessionBase()}/images/${image.extraction_id}/${image.asset_id}/file`, reply = await page.request.get(route);
+  assert.equal(reply.status(), 200); assert.equal(reply.headers()['content-type'], 'image/png'); assert.equal(reply.headers()['x-content-type-options'], 'nosniff'); assert.equal(reply.headers()['cache-control'], 'no-store');
+  const bytes = await reply.body(); assert.equal(createHash('sha256').update(bytes).digest('hex'), image.image_sha256);
+  const decoded = await page.evaluate(src => new Promise((resolve, reject) => { const image = new Image(); image.onload = () => resolve({ width: image.naturalWidth, height: image.naturalHeight }); image.onerror = () => reject(new Error('Retained bitmap cannot be decoded')); image.src = src; }), route);
+  assert.ok(decoded.width > 0 && decoded.height > 0);
+  if (save) fs.writeFileSync(path.join(output, 'retained-bitmap.png'), bytes);
+  return { sha256: image.image_sha256, ...decoded };
+}
+async function associateImage(id, image) {
+  const reference = await page.evaluate(image => window.CeasefireTakeoffPhysical.imageEvidence({ ...image, id: image.image_id, sha256: image.image_sha256 }, 'Synthetic repeated view: cables belong to B-0002; three cables are explicitly recorded, not counted from photographs.', 'service_type'), image);
+  const before = await canonicalState(), base = await sessionBase();
+  const previewReply = await page.request.post(`${base}/physical/preview`, { data: { expected_revision: before.revision, commands: [{ op: 'update', entity_id: id, changes: { evidence: [...record(id).evidence, reference] } }] } });
+  assert.equal(previewReply.status(), 200, await previewReply.text()); const preview = await previewReply.json(); assert.deepEqual(preview.changed_ids, [id]);
+  const applyReply = await page.request.post(`${base}/physical/apply`, { data: { expected_revision: preview.revision, request_id: randomUUID(), preview_id: preview.preview_id } });
+  assert.equal(applyReply.status(), 200, await applyReply.text()); await acceptReply(await applyReply.json());
+  for (const kind of ['defects', 'barriers', 'services']) {
+    assert.deepEqual(activeGraph()[kind].map(({ evidence, revision, ...value }) => value), before.snapshot.physical[kind].map(({ evidence, revision, ...value }) => value), 'Evidence associations preserve identities, quantities, parents and fields');
+    for (const entity of activeGraph()[kind]) assert.equal(entity.revision, before.snapshot.physical[kind].find(value => value.id === entity.id).revision + (entity.id === id ? 1 : 0), 'Only the associated record advances its evidence revision');
+  }
+  return record(id).evidence[0];
 }
 (async () => {
   const info = await ready; assert.notEqual(info.port, 8765, 'Browser QA must use disposable storage and a random port'); browser = await chromium.launch({ headless: true });
@@ -98,10 +131,13 @@ async function showImage() {
   assert.deepEqual((await page.getByRole('table', { name: 'Draft penetration hierarchy register' }).getByRole('columnheader').allTextContents()).slice(0, 7), ['Select', 'Hide', 'View/Edit', 'Defect ID', 'Barrier ID', 'Service ID', 'Confirmation']);
   for (const kind of ['barrier', 'opening', 'service']) await expect(page.getByRole('button', { name: `Add ${kind}`, exact: true })).toHaveCount(0);
   await page.locator('#takeoff-upload').setInputFiles(info.physical_v2_fixture); await expect(page.locator('.takeoff-document')).toHaveCount(1, { timeout: 60000 }); await expect(page.locator('.takeoff-viewport canvas')).toBeVisible(); await idle();
-  const firstExtraction = await extract(); await expect(page.locator('details[data-image-occurrence]')).toHaveCount(3);
+  for (const label of ['Extract images from selected PDF page', 'Refresh retained images']) await expect(page.getByRole('button', { name: label, exact: true })).toHaveCount(0);
+  await expect(page.getByRole('region', { name: 'Retained image gallery', exact: true })).toHaveCount(0);
+  const firstExtraction = await extract(1), firstInventory = await imageInventory(firstExtraction); assert.equal(firstInventory.total, 3);
+  assert.equal(new Set(firstInventory.items.map(image => image.occurrence_id)).size, 3, 'Repeated views retain distinct occurrence identities');
+  for (const image of firstInventory.items) { assert.equal(image.document_sha256, state.snapshot.documents[0].sha256); assert.equal(image.page, 1); }
   assert.equal(state.snapshot.physical, null);
-  // The UI's retained-image display is the acceptance surface; source metadata is also checked exactly below.
-  let card = await showImage(); await page.screenshot({ path: path.join(output, 'retained-bitmap.png'), fullPage: true });
+  retainedEvidenceChecks.originalBitmap = await retainedBitmap(firstInventory.items[0], true); retainedEvidenceChecks.galleryAbsent = true;
   const defect = await create('defect', { 'Defect Ref.': 'D-001', 'Location': 'L02 north', 'FRL': '-/120/120' }); await identifier(defect, 'D-0001');
   const barrierFields = { 'Barrier type': 'Core hole', 'Substrate': 'Concrete/masonry wall', 'Substrate orientation': 'Vertical' };
   const empty = await create('barrier', barrierFields, 'Add barrier to D-0001'); await identifier(empty, 'B-0001');
@@ -121,9 +157,8 @@ async function showImage() {
   assert.equal(activeGraph().version, 2); assert.equal(activeGraph().barriers.length, 2); assert.equal(activeGraph().defects.length, 2); assert.equal(activeGraph().services.length, 2); assert.equal(activeGraph().services.reduce((sum, entity) => sum + entity.quantity, 0), 4);
   assert.ok(!Object.hasOwn(activeGraph(), 'openings')); assert.ok(activeGraph().services.every(entity => entity.barrier_id === occupied && !Object.hasOwn(entity, 'opening_id')));
   await expect(page.locator('.takeoff-physical-register')).not.toContainText('Opening');
-  card = page.locator('details[data-image-occurrence]').first(); await card.getByRole('button', { name: 'Link image to selected record', exact: true }).click();
-  await response(() => dialog('Associate retained image evidence', { 'Supported field': 'service_type', 'Evidence note / source interpretation': 'Synthetic repeated view: cables belong to B-0002; three cables are explicitly recorded, not counted from photographs.' }, 'Preview evidence link'), '/physical/preview');
-  await apply('Link retained image to draft record?'); const evidence = activeGraph().services.find(entity => entity.id === cable).evidence[0]; assert.match(evidence.image_sha256, /^[a-f0-9]{64}$/); assert.equal(evidence.document_sha256, state.snapshot.documents[0].sha256); assert.equal(evidence.region.length, 4);
+  const evidence = await associateImage(cable, firstInventory.items[0]); assert.match(evidence.image_sha256, /^[a-f0-9]{64}$/); assert.equal(evidence.document_sha256, state.snapshot.documents[0].sha256); assert.equal(evidence.region.length, 4);
+  retainedEvidenceChecks.associationRetainsHierarchyAndQuantity = true;
   await select(cable); await expect(page.locator(`.takeoff-hit[data-physical-id="${cable}"]`)).toHaveCount(1);
   await page.locator(`tr[data-physical-id="${cable}"] .takeoff-row-link`).hover(); await expect(page.locator('.takeoff-physical-shape')).toHaveClass(/hovered/);
   await renderDrawing(page, () => page.getByRole('button', { name: 'Fit page', exact: true }).click()); await idle();
@@ -161,8 +196,8 @@ async function showImage() {
   await page.getByRole('button', { name: 'Delete draft record', exact: true }).click(); await response(() => dialog('Delete draft service', { 'Deletion scope': 'only' }, 'Preview deletion'), '/physical/preview'); await apply('Review recoverable deletion'); assert.equal(record(deleted).deleted, true);
   const savedIdentities = identities(); await expect(page.locator('.takeoff-physical-register tr[data-physical-id]')).toHaveCount(6);
   await select(cable); for(const label of ['Physical / takeoff audit history','Undo physical / takeoff edit'])await expect(page.getByRole('button',{name:label,exact:true})).toHaveCount(0); const historyReply=await page.request.post(await page.evaluate(()=>`${location.origin}/api/takeoffs/sessions/${window.CeasefireTakeoffs.sessionId()}/history`),{data:{offset:0,limit:100}});assert.equal(historyReply.status(),200);assert.ok(JSON.stringify(await historyReply.json()).includes(occupied),'Audit identity remains available after toolbar removal'); await page.screenshot({ path: path.join(output, 'physical-hierarchy.png'), fullPage: true });
-  state = await response(() => page.getByRole('button', { name: 'Page ›', exact: true }).click(), '/commands'); await idle(); const emptyExtraction = await extract(); assert.notEqual(emptyExtraction, firstExtraction); await expect(page.locator('details[data-image-occurrence]')).toHaveCount(0); await expect(page.getByRole('region', { name: 'Retained image gallery' })).toContainText('0 retained image occurrences');
-  await page.getByLabel('Retained image extraction', { exact: true }).selectOption(firstExtraction); await expect(page.locator('details[data-image-occurrence]')).toHaveCount(3); await showImage();
+  state = await response(() => page.getByRole('button', { name: 'Page ›', exact: true }).click(), '/commands'); await idle(); const emptyExtraction = await extract(2); assert.notEqual(emptyExtraction, firstExtraction); assert.equal((await imageInventory(emptyExtraction)).total, 0);
+  assert.deepEqual((await imageInventory(firstExtraction)).items, firstInventory.items); await retainedBitmap(firstInventory.items[0]);
   const save = await response(() => clickProjectControl(page, 'Save'), '/api/project/save-as'); assert.ok(save); await expect(page.locator('#project-save-state')).toHaveText('Saved project'); const saved = JSON.parse(fs.readFileSync(info.project)); assert.equal(saved.version, 2); assert.equal(saved.takeoffs.version, 2); assert.equal(saved.takeoffs.items.length, 0); assert.equal(saved.takeoffs.image_extractions.length, 2); assert.deepEqual(saved.takeoffs.physical, activeGraph());
   // A later keystroke in an already-dirty form must defeat a delayed native load.
   await select(cable); let releaseRead, readReady;
@@ -204,7 +239,9 @@ async function showImage() {
     Object.assign(automaticFieldChecks, { delayedLoadRejectsLaterDirtyRevision: true, invalidQuantityPreservesCanonical: true, latestInvalidPendingNoteRetained: true, correctedQuantityAutoSavesLatestNoteWithoutReview: true });
   } finally { releaseRead(); await Promise.all([...activeRoutes]); await page.unroute('**/api/project/open', delayRead); }
   const reopened = await response(() => clickProjectControl(page, 'Load'), '/api/project/open'); assert.deepEqual(reopened.takeoffs.physical, saved.takeoffs.physical);
-  await page.getByRole('dialog').getByRole('button', { name: 'Load Project', exact: true }).click(); await expect(page.locator('#project-save-state')).toHaveText('Saved project'); await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); await chooseTakeoff(page, 'physical'); await expect(page.locator('.takeoff-physical-register tr[data-physical-id]')).toHaveCount(6); await select(cable); await page.getByLabel('Retained image extraction', { exact: true }).selectOption(firstExtraction); await expect(page.locator('details[data-image-occurrence]')).toHaveCount(3); await showImage();
+  await page.getByRole('dialog').getByRole('button', { name: 'Load Project', exact: true }).click(); await expect(page.locator('#project-save-state')).toHaveText('Saved project'); await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); await chooseTakeoff(page, 'physical'); await expect(page.locator('.takeoff-physical-register tr[data-physical-id]')).toHaveCount(6); await select(cable);
+  assert.deepEqual((await imageInventory(firstExtraction)).items, firstInventory.items); retainedEvidenceChecks.reopenedBitmap = await retainedBitmap(firstInventory.items[0]);
+  assert.deepEqual(retainedEvidenceChecks.reopenedBitmap, retainedEvidenceChecks.originalBitmap); assert.deepEqual((await canonicalState()).snapshot.image_extractions, saved.takeoffs.image_extractions);
   const afterReopen = await create('service', serviceFields, 'Add service to B-0001'); await identifier(afterReopen, 'S-0005'); await undo(); assert.equal(record(afterReopen).deleted, true); assert.deepEqual(identities().filter(entity => entity.id !== afterReopen), savedIdentities);
   await select(cable); assert.deepEqual(record(cable).evidence[0], evidence);
   for (const format of ['CSV', 'XLSX']) { const download = page.waitForEvent('download'); await page.evaluate(format => window.CeasefireTakeoffs.exportPhysical(format.toLowerCase()), format); const file = await download; assert.ok(file.suggestedFilename().includes('UNAPPROVED-DRAFT')); const filename = path.join(output, file.suggestedFilename()); await file.saveAs(filename); assert.ok(fs.statSync(filename).size > 100); if (format === 'CSV') { const csv = fs.readFileSync(filename, 'utf8'); for (const value of [defect, otherDefect, empty, occupied, pipe, cable, 'D-0001', 'D-0002', 'B-0001', 'B-0002', 'S-0001', 'S-0005', evidence.image_sha256, 'UNAPPROVED DRAFT']) assert.ok(csv.includes(value), value); assert.ok(!/opening/i.test(csv), 'New exports must omit Opening fields and relationships'); } await idle(); }
@@ -221,7 +258,9 @@ async function showImage() {
   await expect(page.locator('.takeoff-physical-register tr[data-physical-id]')).toHaveCount(4);
   await select(legacySaved.takeoffs.physical.services[0].id);
   await expect(page.getByRole('button',{name:'Bulk edit same-type records',exact:true})).toHaveCount(0);
-  for (const label of ['Delete selected records', 'Extract images from selected PDF page']) await expect(page.getByRole('button', { name: label, exact: true })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Delete selected records', exact: true })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Extract images from selected PDF page', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Undo last edit', exact: true })).toBeDisabled();
   for (const label of ['Preview physical edits', 'Delete draft record', 'Restore draft record', 'Change Parent', 'Link original source page', 'Remove source association']) await expect(page.getByRole('button', { name: label, exact: true })).toHaveCount(0);
   const legacyInspector = page.getByRole('complementary', { name: 'Item Details' }), legacyNavigation = legacyInspector.getByRole('table', { name: 'Item Details navigation' });
   await expect(legacyNavigation.locator('select')).toHaveCount(3);
@@ -238,7 +277,7 @@ async function showImage() {
   const legacyCsv = fs.readFileSync(legacyFilename, 'utf8'); for (const value of ['opening_id', 'LEGACY-OPENING', 'Legacy 100 mm', ...['barriers', 'defects', 'openings', 'services'].flatMap(key => legacySaved.takeoffs.physical[key].map(entity => entity.id))]) assert.ok(legacyCsv.includes(value), value);
   assert.deepEqual(fs.readFileSync(info.legacy_project), legacyBytes); assert.deepEqual(fs.readFileSync(info.project), legacyBytes);
   await page.screenshot({ path: path.join(output, 'legacy-read-only.png'), fullPage: true }); await page.getByRole('table', { name: 'Draft penetration hierarchy register' }).screenshot({ path: path.join(output, 'legacy-table.png') }); assert.deepEqual(errors, []); assert.deepEqual(await page.evaluate(() => window.qaCsp), []);
-  fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ completed: true, ids: { defect, otherDefect, empty, occupied, pipe, cable, undone, deleted, afterReopen }, savedIdentities, evidence, firstExtraction, emptyExtraction, inventoryRequests, physicalRequests, automaticFieldChecks, errors, csp: [], contextual_child_creation: true, stable_serials_after_undo_delete_reopen: true, legacy_read_only_preserved: true, unfinished_edit_preserved: true, delayed_load_race_rejected: true }, null, 2));
+  fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ completed: true, ids: { defect, otherDefect, empty, occupied, pipe, cable, undone, deleted, afterReopen }, savedIdentities, evidence, firstExtraction, emptyExtraction, inventoryRequests, physicalRequests, automaticFieldChecks, retainedEvidenceChecks, errors, csp: [], contextual_child_creation: true, stable_serials_after_undo_delete_reopen: true, legacy_read_only_preserved: true, unfinished_edit_preserved: true, delayed_load_race_rejected: true }, null, 2));
   console.log(`PASS: numbered Defect → Barrier → Service hierarchy, contextual child creation, serials preserved across Undo/deletion/reopen, legacy v1 read-only/export, retained repeated bitmap, exact evidence, hover/filter, bulk/undo, cascade/restore, Save As/reopen and unapproved CSV/XLSX; calculators unchanged. Evidence: ${output}`);
 })().catch(async error => { console.error(error); console.error(logs.slice(-5000)); if (page) { await page.screenshot({ path: path.join(output, 'failure.png'), fullPage: true }).catch(() => {}); fs.writeFileSync(path.join(output, 'failure.txt'), await page.locator('body').innerText().catch(() => '')); } process.exitCode = 1;
 }).finally(async () => { fs.writeFileSync(path.join(output, 'server.log'), logs); if (browser) await browser.close(); server.kill(); });

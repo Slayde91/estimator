@@ -8,7 +8,7 @@ for source behaviour, model boundaries and release gates.
 TAKEOFFS adds a drawing and evidence register to the existing project. It does
 not change calculator formulas, shared pricing or frozen project prices.
 Explicit confirmed commercial library links can update the Firestopping Schedule;
-free drawing Call-outs never affect the priced quote. Steel, Duct, Walls, Slabs and a manual Penetrations draft workspace
+free drawing Call-outs never affect the priced quote. Steel, Duct, Walls/Floors and a manual Penetrations draft workspace
 are available. AI proposals, independent visual validation and Physical Model
 Locks are not part of this increment.
 
@@ -57,7 +57,7 @@ undo and browser navigation retain their existing keys.
 
 ## Free Call-outs
 
-In Steel, Duct, Walls or Slabs, choose **Call-out** and click the drawing.
+In Steel, Duct or Walls/Floors, choose **Call-out** and click the drawing.
 **Item Details** contains rich text with bold, italic, underline and bullet/number
 lists. Paste inserts plain text. Shared appearance controls and **Set as default**
 apply to new free and physical Call-outs; existing saved styles remain intact.
@@ -101,7 +101,8 @@ text retained. Resize the box or edit that text before exporting.
    edits** keeps the changes; **Discard edits** restores the stored values. There
    is no separate Item Inspector. Filtering, sorting and grouping
    retain item IDs. Bulk changes show the affected count and form one undoable
-   edit. Split and merge create successors with predecessor IDs and invalidate
+   edit. The register no longer shows Split and Merge buttons. Retained split and
+   merge operations create successors with predecessor IDs and invalidate
    confirmation. Delete is recoverable through Undo and retained history.
    For Steel, split partitions an explicit repeated-member quantity while keeping
    the original member identities and per-member length. Merge reunites compatible
@@ -246,7 +247,7 @@ a marker reduces only that count. Steel's standalone **Count** creation button
 is hidden; saved standalone Steel counts retain their register, editing,
 continuation, history and export behavior. **Count steel lengths** remains available.
 
-In Walls and Slabs, **Length** below **Add exclusion** measures a calibrated
+In Walls/Floors, **Length** below **Add exclusion** measures a calibrated
 polyline in metres. Enter its Item and Level. If its calibration is removed,
 attach a current calibration to calculate the length again.
 
@@ -345,9 +346,16 @@ unmeasured riser from being duplicated across successor runs. Compatible Steel
 group operations retain the same per-member additions. Surface and physical-draft
 records have no length additions.
 
-## Walls and Slabs
+## Walls/Floors
 
-Choose WALLS or SLABS, calibrate the applicable page scale, then **Trace surface**.
+Choose **Walls/Floors**, select **Wall** or **Floor** as the surface type for new
+records, calibrate the applicable page scale, then **Trace surface**. The combined
+register and drawing show both types. Existing wall and slab records retain their
+original types, identities, geometry, source references and calculated areas.
+Use the **Surface type** column filter to show Wall, Floor or both. Where their
+drawing polygons overlap, filtering lets you choose the intended surface. A
+mixed selection can edit shared fields without changing either native type or
+assigning a wall-only basis to a floor.
 Click the boundary vertices in order and finish the trace; closure is automatic.
 Identify the actual treated surface, its source reference, substrate, nominated
 treatment and FRL. A wall polygon must depict a true wall face, such as an
@@ -453,13 +461,14 @@ existing reviewed cascade choice and retains its marker in the tombstone for
 restoration. Drawing PDF downloads include the selected sub-tab's markers and
 derived descriptions; original PDF bytes are preserved.
 
-The red **+** and trash icons sit directly below the register, above pagination.
-In Item Details, Add service uses the same compact red **+** button class and
-styling as Add Substrate beneath the register, and discard sits beside
-trash at the bottom of the pane. Selection and clear-selection use checked and unchecked box
-icons; the bulk-edit icon opens the existing same-type edit review. CSV and XLSX
-use the standard dark download buttons. Icon-only actions retain accessible
-names and hover descriptions.
+The red **+** sits directly below the Service Plans register, above pagination.
+In Item Details, the **Add** menu groups Barrier, Service and Library actions;
+Visibility sits beside that menu. Delete and Discard sit below Notes. Selection
+uses a checked box icon; the bulk-edit controls retain the existing same-type
+review. The register tools row groups **Document**, search, Show deleted,
+selection, transfer and **Undo last edit**. Undo first saves valid unfinished
+physical field edits, then reverses the last takeoff edit. Icon-only actions
+retain accessible names and hover descriptions.
 
 Each record retains a UUID and receives a visible sequential ID: **D-0001**,
 **B-0001** or **S-0001**. The server assigns each type's sequence independently
@@ -486,12 +495,11 @@ reopen and export. New relationships must be assigned explicitly before those
 graphs can use the new workflow; there is no migration or relationship-assignment
 UI yet. Opening records are never silently removed or converted.
 
-Use **Extract images from selected PDF page** to retain the actual embedded
-image evidence. The gallery identifies source, page, extraction and image
-occurrence. Repeated views remain separate provenance occurrences but never
-create physical records or quantities. Link an image to the specific defect,
-barrier or service it supports; one image may support several records.
-The original source page remains available for text and surrounding context.
+The retained-image gallery and its Extract/Refresh controls are removed from
+the register. Existing image evidence, extraction records and source associations
+remain in saved projects and exports. Repeated occurrences never create physical
+records or quantities. The original source page remains available for text and
+surrounding context.
 
 The original encoded PDF image stream and typed PDF metadata are retained
 separately from the PNG display derivative. Inline images retain their exact
@@ -694,10 +702,13 @@ calibration or quantities. Length traces have no filled interior or red glow.
 Use Escape or right-click to cancel an unfinished trace; there is no Cancel trace
 toolbar button.
 
-Download XLSX copies the entire current Takeoffs type, including hidden and
-unconfirmed items. It retains numeric precision with two-decimal length display,
-labels drafts explicitly and leaves unknown values blank. Existing confirmed
-CSV/XLSX register exports remain available separately.
+The register **Document** menu offers **Download confirmed items**, **Download
+unconfirmed items** and **Download all items** as XLSX files. These include hidden
+rows in the selected category, retain numeric precision with two-decimal length
+display, label drafts explicitly and leave unknown values blank. Measurement
+register categories use current locally registered confirmations, not a browser
+label. Walls/Floors downloads contain both native wall and slab records. Existing
+confirmed CSV/XLSX register exports remain available separately.
 
 For Defect Reports and Service Plans, **Download PDF** creates a static copy
 of the source drawing with the visible callouts as shown in the viewer, including
@@ -715,7 +726,7 @@ draft revision and remains an unapproved draft. Historical width, height, diamet
 and insulation values remain in saved records; their inspector fields are hidden
 and Service Size is the visible size input.
 
-For Steel, Duct, Walls and Slabs, Download PDF creates a static, compressed copy
+For Steel, Duct and Walls/Floors, Download PDF creates a static, compressed copy
 of the current source PDF with visible markups of the active Takeoffs type. Each source page has a CEASEFIRE
 legend identifying the marks, steel sections or duct dimensions and total
 lengths; overflow legends continue on additional labelled pages. Drawing content
@@ -877,8 +888,10 @@ link transaction; use the coordinated confirmation or removal action in Item Det
 
 Defect Reports and Service Plans have a **Document** dropdown containing XLSX
 downloads for confirmed, unconfirmed, or all active items, plus the existing
-Passive Fire Matrix PDF. Each XLSX selection uses each record's own manual
-confirmation state; an absent state means unconfirmed. Deleted records are
+Passive Fire Matrix PDF. Each XLSX selection uses its effective manual
+confirmation state: Defect Reports children inherit their Defect's state, and
+Service Plans services inherit their Barrier's state. An absent state means
+unconfirmed. Deleted records are
 excluded. Register search, selection, collapsed parents and column filters do
 not restrict these document selections. Parent IDs, UUIDs, exact quantities,
 evidence associations and the full source graph fingerprint remain in the file.

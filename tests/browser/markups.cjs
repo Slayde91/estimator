@@ -27,7 +27,7 @@ async function download(label){
   // failure capture, rather than terminate Node through an unhandled waiter.
   const pending=page.waitForEvent('download');pending.catch(()=>{});
   const responseWait=page.waitForResponse(r=>r.url().endsWith(label==='Download PDF'?'/export/marked-pdf':'/export/schedule-xlsx'));responseWait.catch(()=>{});
-  const [response]=await Promise.all([responseWait,label === 'Download PDF' ? page.evaluate(() => window.CeasefireTakeoffs.downloadDrawing()) : page.getByRole('button',{name:label,exact:true}).click()]);
+  const [response]=await Promise.all([responseWait,label === 'Download PDF' ? page.evaluate(() => window.CeasefireTakeoffs.downloadDrawing()) : (async()=>{await page.getByRole('button',{name:'Takeoff register document actions',exact:true}).click();await page.getByRole('button',{name:'Download all items',exact:true}).click();})()]);
   if(!response.ok()){const current=await page.evaluate(async()=>{const id=window.CeasefireTakeoffs.sessionId();return(await fetch('/api/takeoffs/sessions/'+id)).json();});throw new Error(JSON.stringify({export:response.request().postDataJSON(),error:await response.json(),currentRevision:current.revision,localRevision:await page.evaluate(()=>window.CeasefireTakeoffs.projectSnapshot().revision)}));}
   const result=await pending,target=path.join(output,result.suggestedFilename());await result.saveAs(target);return {path:target,request:response.request().postDataJSON()};
 }

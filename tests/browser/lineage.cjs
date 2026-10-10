@@ -27,6 +27,15 @@ async function command(action, op) {
   pending.catch(() => {}); await action(); const response = await pending; const body = await response.json();
   assert.equal(response.status(), 200, JSON.stringify(body)); await workspaceIdle(); return body;
 }
+async function retainedOperation(op, values) {
+  await workspaceIdle();
+  return command(() => page.evaluate(async ({op,values}) => {
+    const takeoffs=window.CeasefireTakeoffs, snapshot=await takeoffs.completeProjectSnapshot(), sid=takeoffs.sessionId();
+    if(op==='split_item') { const item=snapshot.items.find(item=>item.id===values.item_id);values.parts=window.CeasefireTakeoffGeometry.split(item.geometry.points,.5).map(points=>({mode:item.mode,geometry:{...item.geometry,points},measurement:item.measurement,quantity:item.quantity,fields:item.fields,evidence:item.evidence})); }
+    const response=await fetch(`/api/takeoffs/sessions/${sid}/commands`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_revision:snapshot.revision,request_id:crypto.randomUUID(),op,...values})}), body=await response.json();
+    if(!response.ok)throw new Error(JSON.stringify(body));takeoffs.applyProject(await takeoffs.prepareProject(body.snapshot,sid));await takeoffs.open();
+  },{op,values}),op);
+}
 async function dialog(title, values, button) {
   const modal = page.getByRole('dialog'); await expect(modal.getByRole('heading', { name: title, exact: true })).toBeVisible({timeout:30000});
   for (const [label, value] of Object.entries(values)) {
@@ -116,8 +125,8 @@ async function fitCurrentDrawing(name) {
   let state = await command(() => dialog('Add steel object', { 'Member mark': 'STEEL-REPEATED', 'Count/QTY': 3 }, 'Add item'), 'create_item');
   await fillInspector({ 'Level': 'SYNTHETIC', 'Member type': 'Beam', 'Steel section': '100UC15', 'Product': 'CAFCO 300', 'Fire period (min)': 120, 'Crit. Temp (\u00b0C)': 550, 'Exposure': 'Re-entrant - 3 sides' });
   state = await reviewConfirm(); const steel = state.snapshot.items.find(item => item.mode === 'steel');
-  await page.getByRole('button', { name: 'Split', exact: true }).click();
-  state = await command(() => dialog('Partition repeated steel members', { 'Physical members in the first group': 1 }, 'Partition members'), 'split_steel_group');
+  await expect(page.getByRole('button', { name: 'Split', exact: true })).toHaveCount(0);
+  state = await retainedOperation('split_steel_group',{item_id:steel.id,quantities:[1,2]});
   const groups = state.snapshot.items.filter(item => item.predecessor_ids.includes(steel.id));
   assert.deepEqual(groups.map(item => item.quantity).sort(), [1, 2]);
   assert.deepEqual(groups.flatMap(item => item.member_ids).sort(), [...steel.member_ids].sort());
@@ -130,8 +139,8 @@ async function fitCurrentDrawing(name) {
   await page.getByLabel('Filter register', { exact: true }).fill('STEEL-REPEATED');
   await page.getByRole('checkbox', { name: 'Select all matching items', exact: true }).check();
   await screenshot('partitioned-steel-members.png');
-  await page.getByRole('button', { name: 'Merge', exact: true }).click();
-  state = await command(() => dialog('Merge repeated-member groups?', {}, 'Merge steel groups'), 'merge_steel_groups');
+  await expect(page.getByRole('button', { name: 'Merge', exact: true })).toHaveCount(0);
+  state = await retainedOperation('merge_steel_groups',{item_ids:groups.map(item=>item.id)});
   const merged = state.snapshot.items.find(item => item.mode === 'steel');
   assert.equal(merged.quantity, 3); assert.equal(merged.state, 'draft'); assert.equal(merged.confirmation, null);
   assert.deepEqual([...merged.member_ids].sort(), [...steel.member_ids].sort());
@@ -150,8 +159,7 @@ async function fitCurrentDrawing(name) {
   await fillInspector({ 'Level': 'SYNTHETIC', 'WxH (mm)': '600x400', 'Product': 'FyreWrap', 'Exposure': 'Internal', 'FRL': '120/120/120', 'Orientation': 'Horizontal', 'Wall penetrations': 0, 'Floor penetrations': 0 });
   await reviewConfirm(); let transferred = await transfer(); const ancestorBinding = transferred.state.snapshot.transfers[0];
   assert.ok(Math.abs(transferred.preview.inputs.CALCULATOR['D' + ancestorBinding.row] - 10) < .02);
-  await page.getByRole('button', { name: 'Split', exact: true }).click();
-  state = await command(() => dialog('Split this physical run', { 'Split position (% of traced length)': 50 }, 'Split run'), 'split_item');
+  state = await retainedOperation('split_item',{item_id:originalRun});
   const runs = state.snapshot.items.filter(item => item.predecessor_ids.includes(originalRun)); assert.equal(runs.length, 2);
   await page.getByLabel('Filter register', { exact: true }).fill('LINEAGE-DUCT');
   await page.getByRole('checkbox', { name: 'Select all matching items', exact: true }).check(); await reviewConfirm(2);

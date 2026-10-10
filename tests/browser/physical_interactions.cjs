@@ -1,4 +1,4 @@
-const { assertParentControls, clickInspectorAdd } = require('./parent_controls_helpers.cjs');
+const { assertParentControls, assertTransferIcon, clickInspectorAdd } = require('./parent_controls_helpers.cjs');
 const { chooseTakeoff, takeoffChoice } = require('./section_navigation.cjs');
 const { chooseNewPhysicalItem, startDefect } = require('./physical_dialogs.cjs');
 const { clickProjectControl } = require('./project_actions.cjs');
@@ -295,6 +295,7 @@ let currentScope = 'defect_reports';
   const retained = [];
   for (const scope of ['defect_reports', 'service_plans']) {
     currentScope = scope; await scopeTab(scope === 'service_plans' ? 'Service Plans' : 'Defect Reports');
+    evidence.transferIcons ||= []; evidence.transferIcons.push({ scope, ...await assertTransferIcon(page) });
     let defect;
     if (scope === 'defect_reports') defect = await create('defect', { 'Defect Ref.': 'INTERACTION-A', Location: 'North plant room', FRL: '-/120/120' }, () => startDefect(page));
     const barrier = await create('barrier', { 'Barrier type': 'Core hole', Substrate: 'Concrete/masonry wall', 'Substrate orientation': 'Vertical', ...(scope === 'service_plans' ? { Location: 'North plant room', FRL: '-/90/90' } : {}) }, () => scope === 'service_plans' ? page.getByRole('button', { name: 'Add substrate', exact: true }).click() : clickInspectorAdd(details(), 'Add barrier in Item Details'));

@@ -28,6 +28,8 @@ function harness(storage) {
   source=source.replace('setApi(fn){api=fn;}', 'renderMeasurementValues,renderValueLabel,drawingClickOpensSettings,selectDrawingItem,setApi(fn){api=fn;}');
   source=source.replace('setApi(fn){api=fn;}', 'renderCalibrations,chooseCalibration,changeViewportScale,navigatePage,navigateDocument,activePageCalibrations,setPageRenderer(fn){renderPage=fn;},setRailRenderer(fn){renderRail=fn;},setApi(fn){api=fn;}');
   source=source.replace('setApi(fn){api=fn;}', 'currentVisibilityControl,physicalDrawingOwner,setRegisterRenderer(fn){renderRegister=fn;},setApi(fn){api=fn;}');
+  source=source.replace('setApi(fn){api=fn;}', 'workspaceMode,inWorkspace,selectedItems,registerFilters,registerColumnValues,registerFilterValue,registerDocumentMenu,changeSurfaceType,setDiscardEditor(fn){discardEditor=fn;},setApi(fn){api=fn;}');
+  source=source.replace('setApi(fn){api=fn;}', 'selectedAnnotation,selectFreeCallout,openAnnotationMenu,setApi(fn){api=fn;}');
   vm.runInContext(source,context);
   return {context,audit:context.audit,api:context.window.CeasefireTakeoffs};
 }
@@ -50,6 +52,7 @@ function attachMinimalDom(h) {
     return el;
   }
   h.context.document.createElement=element;h.context.document.createElementNS=(_,tag)=>element(tag);
+  h.context.document.body=element('body');
   const documentEvents=[];h.context.document.addEventListener=(type,listener,options)=>documentEvents.push({type,listener,options});
   const ui={};for(const key of ['split','merge','bulk','selectionCount','tableWrap','pagination','overlay','message','selectFiltered'])ui[key]=element();ui.bulkField={value:'mark',querySelector(){return null;}};ui.statusFilter={value:''};h.audit.state.ui=ui;
   return {ui,element,documentEvents,all(root){return root.children.flatMap(child=>[child,...this.all(child)]);}};
@@ -504,7 +507,8 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
   await check('Surface registers ignore hidden legacy sorting and combine search with column filters while preserving selected identities',()=>{
     const h=harness(),value=blank();value.items=[{id:'wall-large',mode:'wall',fields:{mark:'W1',treatment:'Board'},state:'draft',version:1},{id:'wall-small',mode:'wall',fields:{mark:'W2',treatment:'Spray'},state:'draft',version:1},{id:'slab',mode:'slab',fields:{mark:'S1'},state:'draft',version:1}];
     h.audit.accept({...response(value),item_results:[{id:'wall-large',net_area_m2:72},{id:'wall-small',net_area_m2:18},{id:'slab',net_area_m2:5}]});h.audit.state.mode='wall';h.audit.state.sort='area';h.audit.state.selected.add('wall-large');
-    assert.deepEqual(copy(h.audit.visibleItems()).map(value=>value.id),['wall-large','wall-small']);
+    assert.deepEqual(copy(h.audit.visibleItems()).map(value=>value.id),['slab','wall-large','wall-small']);
+    h.audit.registerFilters().set('surface_type',new Set(['Wall']));assert.deepEqual(copy(h.audit.visibleItems()).map(value=>value.id),['wall-large','wall-small']);
     h.audit.state.filter='spray';assert.deepEqual(copy(h.audit.visibleItems()).map(value=>value.id),['wall-small']);assert.ok(h.audit.state.selected.has('wall-large'));
     h.audit.registerFilters().set('treatment',new Set(['Board']));assert.deepEqual(copy(h.audit.visibleItems()).map(value=>value.id),[]);h.audit.state.filter='';assert.deepEqual(copy(h.audit.visibleItems()).map(value=>value.id),['wall-large']);
     assert.equal(h.audit.state.resultMap.get('wall-large').net_area_m2,72);assert.equal(h.audit.state.resultMap.get('wall-small').net_area_m2,18);
@@ -617,7 +621,7 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
     }
   });
   await check('Header select and hide actions cover every filtered match beyond pagination and preserve other modes',async()=>{
-    const h=harness(),value=blank();value.items=Array.from({length:101},(_,n)=>({id:`wall-${n}`,mode:'wall',version:1,state:'draft',quantity:1,fields:{mark:`W${n}`,level:n%2?'ODD':'EVEN'},geometry:null,measurement:null,evidence:[],member_ids:[]}));value.items.push({id:'other-mode',mode:'slab',fields:{mark:'Other'}});h.audit.accept(response(value));h.audit.state.mode='wall';h.audit.state.selected.add('other-mode');h.audit.state.selected.add('wall-0');const dom=attachMinimalDom(h);
+    const h=harness(),value=blank();value.items=Array.from({length:101},(_,n)=>({id:`wall-${n}`,mode:'wall',version:1,state:'draft',quantity:1,fields:{mark:`W${n}`,level:n%2?'ODD':'EVEN'},geometry:null,measurement:null,evidence:[],member_ids:[]}));value.items.push({id:'other-mode',mode:'duct',fields:{mark:'Other'}});h.audit.accept(response(value));h.audit.state.mode='wall';h.audit.state.selected.add('other-mode');h.audit.state.selected.add('wall-0');const dom=attachMinimalDom(h);
     const control=label=>dom.all(dom.ui.tableWrap).find(node=>node.attributes['aria-label']===label),toggle=async(label,checked)=>{const node=control(label);node.checked=checked;node.events.change();await flush();};
     h.audit.renderRegister();assert.equal(dom.ui.tableWrap.querySelectorAll('[data-item-id]').length,100);assert.equal(control('Select all matching items').indeterminate,true);
     await toggle('Select all matching items',true);assert.equal(h.audit.state.selected.size,102);assert.ok(h.audit.state.selected.has('wall-100'));assert.equal(control('Select all matching items').checked,true);
@@ -781,11 +785,11 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
     assert.equal(h.audit.reviewStatus({...item,state:'reviewed'}).label,'Unconfirmed');
     assert.equal(item.state,'confirmed');
   });
-  await check('Icon actions keep original accessible names/tooltips, the Add to Schedule plus glyph and the linked-row clock',async()=>{
+  await check('Icon actions retain accessible names with the original supplied transfer image and compact undo glyph',async()=>{
     const h=harness(),dom=attachMinimalDom(h);
     for(const label of ['‹ Page','Page ›','Select','Pan','Trace length','Fit page','Upload PDFs','Search','Stop search','Preview transfer','Update linked rows','Detach links']){
       const control=h.audit.button(label,()=>{});assert.equal(control.attributes['aria-label'],label);assert.equal(control.title,label);assert.ok(control.classList.contains('icon-only'));assert.equal(control.children.at(-1).textContent,label);assert.ok(control.children.at(-1).classList.contains('sr-only'));
-      if(label==='Preview transfer')assert.equal(control.children[0].textContent,'+');else assert.equal(dom.all(control).filter(node=>node.tagName==='SVG').length,1);
+      if(label==='Preview transfer'){const image=dom.all(control).find(node=>node.tagName==='IMG');assert.equal(image.src,'/icons/takeoff-transfer.png');assert.ok(image.classList.contains('takeoff-transfer-icon'));}else assert.equal(dom.all(control).filter(node=>node.tagName==='SVG').length,1);
     }
     let updates=0;const update=h.audit.button('Update linked rows',()=>{updates++;});const clock=dom.all(update).find(node=>node.tagName==='SVG');
     assert.equal(clock.children.length,1);assert.equal(clock.children[0].attributes.d,'M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z M12 6v6h6');
@@ -793,6 +797,40 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
     update.events.click();await flush();assert.equal(updates,1);
     assert.equal(dom.all(h.audit.button('Detach links',()=>{})).find(node=>node.tagName==='PATH').attributes.d,'M15 7h2a5 5 0 0 1 0 10h-2M9 17H7A5 5 0 0 1 7 7h2');
     const ordinary=h.audit.button('Confirm',()=>{});assert.equal(ordinary.textContent,'Confirm');assert.ok(!ordinary.classList.contains('icon-only'));
+    const undo=h.audit.button('Undo last edit',()=>{});assert.equal(undo.attributes['aria-label'],'Undo last edit');assert.ok(undo.classList.contains('takeoff-undo-button'));assert.equal(dom.all(undo).find(node=>node.tagName==='PATH').attributes.d,'M9 4 4 9l5 5M4 9h9a7 7 0 0 1 7 7v4');
+  });
+  await check('Register Document provides three ordered XLSX actions and keyboard/focus dismissal without changing records',()=>{
+    const h=harness(),dom=attachMinimalDom(h),before=copy(h.audit.state.session),menu=h.audit.registerDocumentMenu(),names=menu.list.children.map(control=>control.children[1].textContent);
+    assert.deepEqual(names,['Download confirmed items','Download unconfirmed items','Download all items']);assert.equal(menu.toggle.children[0].src,'/icons/document.png');assert.ok(menu.toggle.children[0].classList.contains('calculator-document-icon'));assert.equal(menu.toggle.children.at(-1).tagName,'SVG');
+    assert.ok(menu.list.hidden);for(const control of menu.list.children){assert.equal(control.children[0].children[1].textContent,'XLSX');assert.equal(control.children[0].attributes['aria-hidden'],'true');}
+    const key=value=>menu.root.events.keydown({key:value,preventDefault(){}});menu.toggle.focus();key('ArrowUp');assert.equal(h.context.document.activeElement,menu.list.children[2]);assert.equal(menu.toggle.attributes['aria-expanded'],'true');key('Home');assert.equal(h.context.document.activeElement,menu.list.children[0]);key('End');assert.equal(h.context.document.activeElement,menu.list.children[2]);key('Escape');assert.equal(h.context.document.activeElement,menu.toggle);assert.ok(menu.list.hidden);
+    menu.toggle.events.click();menu.root.events.focusout({relatedTarget:dom.element()});assert.ok(menu.list.hidden);menu.toggle.events.click();h.context.document.body.events.pointerdown({target:dom.element()});assert.ok(menu.list.hidden);assert.deepEqual(copy(h.audit.state.session),before);
+  });
+  await check('Combined surfaces retain IDs and native row bases, share selection/filter state and omit incompatible mixed basis edits',()=>{
+    const h=harness(),value=blank();value.items=[{id:'wall',mode:'wall',fields:{mark:'W',surface_basis:'wall-face'},quantity:1},{id:'slab',mode:'slab',fields:{mark:'S',surface_basis:'slab-top'},quantity:1}];h.audit.accept(response(value));const dom=attachSettings(h);h.audit.state.mode='slab';h.audit.state.selected=new Set(['wall','slab']);h.audit.state.settingsOpen=true;const before=copy(h.audit.state.session.snapshot);h.audit.renderSettingsPanel();
+    assert.equal(h.audit.workspaceMode(),'walls_floors');assert.deepEqual(copy(h.audit.selectedItems()).map(item=>item.id),['wall','slab']);assert.ok(!h.audit.bulkSelectionFields().some(field=>field[0]==='surface_basis'));assert.ok(!h.audit.state.settingsEditor.fields.some(field=>field.control.name==='surface_basis'));assert.match(dom.ui.settingsPanel.textContent,/Wall \/ Floor/);
+    h.audit.renderRegister();const bases=dom.all(dom.ui.tableWrap).filter(node=>node.attributes['aria-label']==='Surface basis');assert.equal(bases.length,2);assert.deepEqual(bases[0].children.map(option=>option.value),['','slab-soffit','slab-top']);assert.deepEqual(bases[1].children.map(option=>option.value),['','wall-face']);
+    const filters=h.audit.registerFilters();filters.set('surface_type',new Set(['Floor']));h.audit.state.mode='wall';assert.equal(h.audit.registerFilters(),filters);assert.deepEqual(copy(h.audit.visibleItems()).map(item=>item.id),['slab']);assert.deepEqual(copy(h.audit.state.session.snapshot),before);
+  });
+  await check('Filtered XLSX requests include every native record in the combined view and delegate status classification to the server',async()=>{
+    const h=harness(),value=blank();value.items=[{id:'wall',mode:'wall',fields:{mark:'W'}},{id:'slab',mode:'slab',fields:{mark:'S'}}];h.audit.accept(response(value));h.audit.state.mode='slab';h.audit.state.hidden.add('wall');h.audit.state.filter='S';let sent;h.context.fetch=async(_url,options)=>{sent=JSON.parse(options.body);throw new Error('Captured export');};
+    for(const confirmation of ['confirmed','unconfirmed','all']){await assert.rejects(h.audit.downloadTakeoff('schedule-xlsx',confirmation),/Captured export/);assert.equal(sent.mode,'walls_floors');assert.equal(sent.confirmation,confirmation);assert.deepEqual(sent.item_ids,['wall','slab']);}
+    await assert.rejects(h.audit.downloadTakeoff('schedule-xlsx','unsupported'),/Choose confirmed/);h.audit.state.settingsDirty=true;await assert.rejects(h.audit.downloadTakeoff('schedule-xlsx','all'),/unfinished/);
+  });
+  await check('New surface type restores its truthful native value on declined, busy, modal or stale-context switches',async()=>{
+    const h=harness();h.audit.accept(response(blank()));const dom=attachMinimalDom(h);dom.ui.surfaceType=dom.element('select');dom.ui.viewport=dom.element();h.audit.setOverlayRenderer(()=>{});h.audit.state.mode='wall';h.audit.setDataRenderer(()=>{});let discards=0;h.audit.setDiscardEditor(async()=>{discards++;return false;});dom.ui.surfaceType.value='slab';assert.equal(await h.audit.changeSurfaceType('slab'),false);assert.equal(dom.ui.surfaceType.value,'wall');assert.equal(h.audit.state.mode,'wall');assert.equal(discards,1);
+    for(const flag of ['busy','modal','navigationBusy','physicalPlacing']){h.audit.state[flag]=true;dom.ui.surfaceType.value='slab';assert.equal(await h.audit.changeSurfaceType('slab'),false);assert.equal(dom.ui.surfaceType.value,'wall');assert.equal(h.audit.state.mode,'wall');assert.equal(discards,1);h.audit.state[flag]=false;}
+    h.audit.setDiscardEditor(async()=>{h.audit.state.session.session_id='replacement';return true;});assert.equal(await h.audit.changeSurfaceType('slab'),false);assert.equal(dom.ui.surfaceType.value,'wall');h.audit.setDiscardEditor(async()=>true);assert.equal(await h.audit.changeSurfaceType('slab'),true);assert.equal(h.audit.state.mode,'slab');assert.equal(dom.ui.surfaceType.value,'slab');assert.equal(h.audit.state.session.snapshot.items.length,0);
+    h.audit.state.busy=true;h.api.refreshNavigation();assert.equal(dom.ui.surfaceType.disabled,true);
+  });
+  await check('The combined navigation alias preserves the last explicit native floor type and legacy callers retain their type',async()=>{
+    const h=harness();h.audit.accept(response(blank()));const dom=attachMinimalDom(h);dom.ui.viewport=dom.element();h.audit.setOverlayRenderer(()=>{});h.audit.state.mode='slab';h.audit.setDataRenderer(()=>{});h.audit.setDiscardEditor(async()=>true);const before=copy(h.audit.state.session.snapshot);
+    assert.equal(await h.api.selectWorkspace('walls_floors'),true);assert.equal(h.audit.state.mode,'slab');assert.equal(await h.api.selectWorkspace('wall'),true);assert.equal(h.audit.state.mode,'wall');assert.equal(await h.api.selectWorkspace('slab'),true);assert.equal(h.audit.state.mode,'slab');assert.deepEqual(copy(h.audit.state.session.snapshot),before);
+  });
+  await check('Wall and floor free Call-outs remain selectable, actionable and present in combined marked-PDF requests',async()=>{
+    const h=harness(),value=blank();value.documents=[{id:'doc',pages:[{page:1,view:[0,0,200,200]}]}];value.annotations={version:1,callouts:[{id:'wall-note',mode:'wall',document_id:'doc',page:1},{id:'floor-note',mode:'slab',document_id:'doc',page:1}]};h.audit.accept(response(value));const dom=attachMinimalDom(h);Object.assign(h.audit.state,{mode:'wall',document:'doc',page:1,tool:'select',viewport:{transform:[1,0,0,1,0,0]}});h.audit.setOverlayRenderer(()=>{});h.audit.setSelectionRenderer(()=>{});const before=copy(h.audit.state.session.snapshot);
+    await h.audit.selectFreeCallout('floor-note');assert.equal(h.audit.selectedAnnotation().id,'floor-note');await h.audit.openAnnotationMenu('floor-note',[20,30]);assert.equal(h.audit.state.markupMenu.annotation.id,'floor-note');h.audit.state.markupMenu=null;
+    h.audit.state.ui=null;let sent;h.context.fetch=async(_url,options)=>{sent=JSON.parse(options.body);throw new Error('Captured drawing');};await assert.rejects(h.audit.downloadTakeoff('marked-pdf'),/Captured drawing/);assert.equal(sent.mode,'walls_floors');assert.deepEqual(sent.annotation_ids,['wall-note','floor-note']);assert.ok(!Object.hasOwn(sent,'confirmation'));assert.deepEqual(copy(h.audit.state.session.snapshot),before);
   });
   await check('Steel creation includes destination fields and new ducts default rectangular without replacing legacy shape data',async()=>{
     const h=harness(),value=blank();h.audit.accept(response(value));const definitions=copy(h.audit.creationFields('steel'));

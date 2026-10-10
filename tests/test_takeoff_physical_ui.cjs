@@ -81,6 +81,8 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
 (async()=>{
   await check('Physical Document menu exposes three scoped XLSX exports and the existing matrix PDF without mutating records',async()=>{
     const h=component(),before=copy(h.current);await flush();const toggle=h.button('Document'),list=h.all().find(element=>element.id===toggle.attributes['aria-controls']);
+    const icon=toggle.children[0];assert.equal(icon.tagName,'IMG');assert.equal(icon.src,'/icons/document.png');assert.equal(icon.alt,'');assert.equal(icon.attributes['aria-hidden'],'true');
+    const tools=toggle.parentElement.parentElement;assert.equal(h.input('Filter physical hierarchy').parentElement,tools);assert.equal(h.button('Select filtered records').parentElement,tools);assert.equal(h.button('Undo last edit').parentElement,tools);assert.ok(tools.children.some(control=>control.tagName==='LABEL'&&control.textContent==='Show deleted records'));
     assert.ok(list.hidden);toggle.emit('click');assert.equal(list.hidden,false);assert.equal(toggle.attributes['aria-expanded'],'true');
     for(const [label,format,confirmation] of [['Download confirmed items','xlsx','confirmed'],['Download unconfirmed items','xlsx','unconfirmed'],['Download all items','xlsx','all'],['Download Passive Fire Matrix PDF','pdf',null]]){
       assert.equal(h.button(label).parentElement,list);await h.click(label);assert.ok(list.hidden);assert.deepEqual(h.calls.exports.at(-1),{format,confirmation});
@@ -194,7 +196,8 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
     for(const label of ['Undo physical / takeoff edit','Physical / takeoff audit history'])assert.ok(!h.all().some(node=>node.tagName==='BUTTON'&&node.textContent===label));
     const table=h.all().find(node=>node.className==='takeoff-register-table'),siblings=table.parentElement.children,index=siblings.indexOf(table);assert.equal(siblings[index+1].className,'takeoff-physical-add-row');assert.equal(siblings[index+1].children[0],h.button('Add defect'));assert.ok(h.button('Add defect').className.includes('takeoff-physical-add-child'));assert.equal(h.button('Add defect').textContent,'+');assert.equal(h.button('Add defect').attributes['aria-label'],'Add defect');assert.equal(h.button('Add defect').title,'Add defect');assert.equal(siblings[index+2].className,'takeoff-register-controls');
     const disclosure=h.button('Collapse D-0001');assert.equal(disclosure.textContent,'<');assert.equal(disclosure.attributes['aria-expanded'],'true');await h.click('Collapse D-0001');assert.equal(h.button('Expand D-0001').textContent,'>');assert.equal(h.button('Expand D-0001').attributes['aria-expanded'],'false');
-    for(const label of ['Discard unfinished physical edits','Select filtered records','Transfer to Firestopping Schedule','Update linked rows','Unlink from Firestopping Schedule']){const button=h.button(label);assert.equal(button.textContent,'');assert.equal(button.children[0].tagName,'SVG');assert.equal(button.children[0].attributes['aria-hidden'],'true');assert.equal(button.attributes['aria-label'],label);}
+    for(const label of ['Discard unfinished physical edits','Select filtered records','Update linked rows','Unlink from Firestopping Schedule','Undo last edit']){const button=h.button(label);assert.equal(button.textContent,'');assert.equal(button.children[0].tagName,'SVG');assert.equal(button.children[0].attributes['aria-hidden'],'true');assert.equal(button.attributes['aria-label'],label);}
+    const transfer=h.button('Transfer to Firestopping Schedule');assert.equal(transfer.textContent,'');assert.equal(transfer.children[0].tagName,'IMG');assert.equal(transfer.children[0].src,'/icons/takeoff-transfer.png');assert.equal(transfer.children[0].className,'takeoff-transfer-icon');assert.equal(transfer.children[0].alt,'');assert.equal(transfer.title,'Transfer to Firestopping Schedule');assert.equal(transfer.children[0].attributes['aria-hidden'],'true');assert.ok(h.button('Undo last edit').className.includes('takeoff-undo-button'));
     assert.ok(!h.all().some(node=>node.attributes['aria-label']==='Bulk edit same-type records'));
     assert.equal(siblings[index+1].hidden,true);assert.deepEqual(siblings[index+1].children,[h.button('Add defect')]);const bulk=h.button('Delete selected records').parentElement;assert.ok(bulk.className.includes('takeoff-physical-bulk'));assert.equal(bulk.hidden,true);assert.equal(h.button('Delete selected records').textContent,'Delete');await h.controller.select(uuid(5));assert.equal(bulk.hidden,false);assert.equal(h.input('Bulk physical edit field').value,'quantity');
     assert.equal(h.button('Discard unfinished physical edits').parentElement.className,'takeoff-physical-inspector-actions');
@@ -249,6 +252,32 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
     await h.controller.select(uuid(5));const remove=h.button('Delete draft record');assert.equal(remove.parentElement.className,'takeoff-physical-inspector-actions');assert.equal(remove.parentElement.children[1],discard);assert.equal(remove.textContent,'');assert.equal(remove.title,'Delete draft record');assert.equal(remove.children[0].tagName,'SVG');assert.equal(remove.children[0].attributes['aria-hidden'],'true');assert.ok(remove.children[0].children[0].attributes.d.includes('M3 6h18'));
     await h.controller.select(uuid(1),true);assert.equal(h.controller.inspectedId(),null);assert.equal(h.button('Discard unfinished physical edits'),discard);assert.equal(discard.parentElement.className,'takeoff-physical-inspector-actions');
     await h.controller.clearSelection();const deleted=copy(h.current);deleted.physical.services[0].deleted=true;h.controller.render(deleted);await h.controller.select(uuid(5));assert.equal(h.button('Discard unfinished physical edits'),discard);assert.ok(!h.all().some(control=>control.attributes['aria-label']==='Delete draft record'));h.controller.destroy();
+  });
+  await check('Delete and Discard follow Notes for Defect, Barrier and Service while Visibility stays beside Add',async()=>{
+    for(const [value,scope,ids] of [[graph(),'defect_reports',[2,1,5]],[servicePlanGraph(),'service_plans',[1,5]]]){
+      const owner=scope==='service_plans'?value.barriers[0]:value.defects[0];owner.marker={document_id:uuid(80),document_sha256:'d'.repeat(64),page:1,point:[10,20]};
+      const h=component(value,{scope:()=>scope,inspectorContainer:true});await flush();
+      for(const id of ids){await h.controller.select(uuid(id));const notes=h.input('Notes').parentElement,actions=h.button('Delete draft record').parentElement,siblings=notes.parentElement.children;
+        assert.equal(siblings[siblings.indexOf(notes)+1],actions);assert.equal(actions.children[1],h.button('Discard unfinished physical edits'));assert.equal(h.button('Visibility').parentElement,h.button('Add').parentElement.parentElement);assert.ok(!actions.children.includes(h.button('Visibility')));
+      }
+      h.controller.destroy();
+    }
+  });
+  await check('Undo flushes pending fields once, locks concurrent actions and preserves toolbar focus and record selection',async()=>{
+    const pending=defer(),seen=[];let h;h=component(graph(),{undo:async()=>{seen.push(copy(h.current));await pending.promise;Object.assign(h.current,copy(before));return {snapshot:copy(h.current)};}});await flush();const before=copy(h.current);await h.controller.select(uuid(5));
+    const notes=h.input('Notes'),undo=h.button('Undo last edit'),changed=h.calls.changed;notes.focus();notes.value='Undo this local edit';notes.emit('input');undo.emit('pointerdown');undo.focus();undo.emit('click');await flush();
+    assert.equal(seen.length,1);assert.equal(seen[0].physical.services[0].fields.notes,'Undo this local edit');assert.equal(h.calls.previews.length,1);assert.equal(h.calls.applied.length,1);assert.equal(undo.disabled,true);assert.equal(h.input('Notes').disabled,true);assert.equal(h.controller.hasUnfinishedChanges(),true);
+    undo.emit('click');await flush();assert.equal(seen.length,1);pending.resolve();await flush();assert.deepEqual(h.current,before);assert.deepEqual(h.controller.selection(),[uuid(5)]);assert.equal(h.dom.container.ownerDocument.activeElement,undo);assert.equal(undo.disabled,false);assert.equal(h.controller.hasUnfinishedChanges(),false);assert.ok(h.calls.changed>changed);assert.equal(h.calls.asks.length,0);assert.equal(h.calls.confirmations.length,0);h.controller.destroy();
+  });
+  await check('Undo validation failures preserve unfinished input and do not call undo',async()=>{
+    let undone=0;const h=component(graph(),{undo:async()=>{undone++;throw Error('Must not run');}});await flush();await h.controller.select(uuid(5));const quantity=h.input('Explicit service quantity'),before=copy(h.current);quantity.value='-1';quantity.emit('input');h.button('Undo last edit').emit('pointerdown');await h.click('Undo last edit');
+    assert.equal(undone,0);assert.deepEqual(h.current,before);assert.equal(quantity.value,'-1');assert.equal(h.controller.hasUnfinishedChanges(),true);assert.equal(h.calls.notifications.at(-1).error,true);h.controller.destroy();
+  });
+  await check('Undo failures release busy state, reject late replies from another project and allow returning to an empty draft',async()=>{
+    const h=component(graph(),{undo:async()=>{throw Error('Nothing to undo');}});await flush();const before=copy(h.current);await h.click('Undo last edit');assert.deepEqual(h.current,before);assert.equal(h.button('Undo last edit').disabled,false);assert.equal(h.controller.hasUnfinishedChanges(),false);assert.match(h.calls.notifications.at(-1).text,/Nothing to undo/);
+    const pending=defer();h.bridge.undo=()=>pending.promise;h.button('Undo last edit').emit('click');await flush();const next=copy(h.current);next.project_id=uuid(501);next.physical.services[0].fields.label='New project pipe';h.controller.render(next);pending.resolve({snapshot:copy(before)});await flush();assert.ok(h.dom.container.textContent.includes('New project pipe'));assert.deepEqual(h.controller.selection(),[]);assert.match(h.calls.notifications.at(-1).text,/current workspace has been preserved/);h.controller.destroy();
+    const empty=component();await flush();await empty.controller.select(uuid(5));empty.bridge.undo=async()=>({snapshot:{...copy(empty.current),physical:null}});await empty.click('Undo last edit');assert.deepEqual(empty.controller.selection(),[]);assert.equal(empty.controller.inspectedId(),null);assert.equal(empty.calls.notifications.length,0);empty.controller.destroy();
+    const unavailable=component(graph(),{undo:undefined});await flush();assert.equal(unavailable.button('Undo last edit').disabled,true);unavailable.controller.destroy();
   });
   await check('Select-all spans collapsed pages, excludes deleted and ancestor-context rows, and preserves other selections',async()=>{
     const value=graph();value.services=Array.from({length:205},(_,index)=>make(100+index,{service:index<2?'Needle':'Other'},{display_id:`S-${String(index+1).padStart(4,'0')}`,barrier_id:uuid(1),quantity:1}));value.services[204].deleted=true;value.services[204].deleted_at_revision=1;
@@ -377,7 +406,7 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
   });
   await check('Mounted register leads with three serial ID columns, contextual creation and no Opening fields',async()=>{
     const h=component();await flush();const text=h.dom.container.textContent;
-    for(const phrase of ['Defect ID','Barrier ID','Service ID','0 services','Unapproved draft','Image count is not physical quantity'])assert.ok(text.includes(phrase),phrase);
+    for(const phrase of ['Defect ID','Barrier ID','Service ID','0 services','Unapproved draft'])assert.ok(text.includes(phrase),phrase);
     assert.ok(!text.includes('UNAPPROVED DRAFT. These are recorded physical assertions'));
     assert.deepEqual(h.all().filter(element=>element.tagName==='TH').slice(0,7).map(element=>element.textContent),['Select','Hide','View/Edit','Defect ID','Barrier ID','Service ID','Confirmation']);
     assert.ok(!text.includes('Opening'));assert.ok(!h.all().some(element=>element.tagName==='BUTTON'&&['Add barrier','Add service','Add opening'].includes(element.textContent)));
@@ -413,7 +442,7 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
     const value=legacyGraph();value.openings[0].evidence=[{document_id:uuid(80),document_sha256:'d'.repeat(64),page:1,note:'Legacy opening evidence'}];const original=copy(value),h=component(value);await flush();
     assert.deepEqual(physical.hierarchyRows(value).filter(row=>!row.context).map(row=>row.kind),['barrier','defect','opening','service','service','opening']);
     assert.ok(h.dom.container.textContent.includes('Legacy hierarchy — read-only'));assert.ok(h.dom.container.textContent.includes('Opening ID'));
-    for(const label of ['Add defect','Delete selected records','Extract images from selected PDF page'])assert.equal(h.button(label).disabled,true,label);assert.ok(!h.all().some(node=>node.attributes['aria-label']==='Bulk edit same-type records'));
+    for(const label of ['Add defect','Delete selected records','Undo last edit'])assert.equal(h.button(label).disabled,true,label);assert.ok(!h.all().some(node=>node.attributes['aria-label']==='Bulk edit same-type records'));
     for(const label of ['Undo physical / takeoff edit','Physical / takeoff audit history'])assert.ok(!h.all().some(element=>element.tagName==='BUTTON'&&element.textContent===label));
     await h.select(3);const inspector=h.all().find(element=>element.tagName==='ASIDE');assert.deepEqual(inspector.querySelectorAll('input,select,textarea').map(control=>control.attributes['aria-label']),['Defect ID in Item Details','Barrier ID in Item Details','Service ID in Item Details']);assert.ok(inspector.textContent.includes('Opening type: Corehole'));assert.ok(!inspector.textContent.includes('Legacy opening evidence'));assert.equal(value.openings[0].evidence[0].note,'Legacy opening evidence');
     for(const label of ['Preview physical edits','Delete draft record','Change Parent','Remove source association'])assert.ok(!h.all().some(element=>element.tagName==='BUTTON'&&(element.textContent===label||element.attributes['aria-label']===label)));
@@ -476,32 +505,22 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
     assert.ok(h.dom.container.textContent.includes('Retain original inspection'));assert.ok(!h.dom.container.textContent.includes('Original source'));assert.equal(value.barriers[0].evidence[0].note,'Original source');assert.ok(!h.all().some(element=>element.tagName==='BUTTON'&&element.textContent==='Remove source association'));
     h.answers.push({mode:'selected',entity_ids:`${uuid(1)}\n${uuid(2)}`});await h.click('Restore draft record');assert.deepEqual(h.calls.previews[0],[{op:'restore',entity_id:uuid(1),mode:'selected',entity_ids:[uuid(1),uuid(2)]}]);h.controller.destroy();
   });
-  await check('Unchanged inspector values avoid a no-op command and image inventory cannot leak across replacement projects',async()=>{
-    const first=defer(),second=defer();let count=0;const h=component(graph(),{images:()=>++count===1?first.promise:second.promise});await h.select(1);await h.controller.completePendingEdits();assert.equal(h.calls.previews.length,0);
-    const next=copy(h.current);next.project_id=uuid(500);h.controller.render(next);first.resolve([{name:'Old project image'}]);second.resolve([]);await flush();assert.ok(!h.dom.container.textContent.includes('Old project image'));assert.ok(h.dom.container.textContent.includes('0 selected'));h.controller.destroy();
-  });
-  await check('Closing a component while evidence inventory is pending prevents late rendering',async()=>{
-    const pending=defer(),h=component(graph(),{images:()=>pending.promise});h.controller.destroy();pending.resolve([{name:'Late evidence'}]);await flush();assert.equal(h.dom.container.children.length,0);assert.equal(h.controller.hasUnfinishedChanges(),false);
+  await check('Unchanged inspector values avoid a no-op command and replacement projects clear selection without fetching images',async()=>{
+    let count=0;const h=component(graph(),{images:async()=>{count++;return [];}});await h.select(1);await h.controller.completePendingEdits();assert.equal(h.calls.previews.length,0);
+    const next=copy(h.current);next.project_id=uuid(500);h.controller.render(next);await flush();assert.equal(count,0);assert.ok(h.dom.container.textContent.includes('0 selected'));h.controller.destroy();
   });
   await check('Closing a component during automatic validation prevents application and clears unfinished state',async()=>{
     const pending=defer(),h=component(graph(),{preview:()=>pending.promise});await flush();const control=h.input('Substrate for Wall A');control.value='Masonry';control.emit('input');control.emit('change');await flush();assert.equal(h.controller.hasUnfinishedChanges(),true);h.controller.destroy();pending.resolve({preview_id:'closed',affected_ids:[],changed_ids:[],relationships:[]});await flush();assert.equal(h.calls.applied.length,0);assert.equal(h.controller.hasUnfinishedChanges(),false);assert.equal(h.dom.container.children.length,0);
   });
-  await check('Actual image gallery rejects arbitrary remote URLs before creating an image element',async()=>{
-    const prior=global.location;global.location={href:'http://127.0.0.1:8765/',origin:'http://127.0.0.1:8765'};
-    try{const image={id:uuid(70),occurrence_id:uuid(71),sha256:'a'.repeat(64),document_id:uuid(80),document_sha256:'d'.repeat(64),page:1,name:'Photo'},h=component(graph(),{images:async()=>[image],imageUrl:()=> 'https://example.invalid/photo.png'});await flush();const card=h.all().find(node=>node.tagName==='DETAILS');card.open=true;card.emit('toggle');assert.equal(h.all().filter(node=>node.tagName==='IMG').length,0);assert.ok(card.textContent.includes('same-origin evidence route'));h.controller.destroy();}finally{global.location=prior;}
+  await check('Removing the gallery and extract controls preserves retained source identities and never invokes image APIs',async()=>{
+    const value=graph(),evidence={document_id:uuid(80),document_sha256:'d'.repeat(64),page:1,image_id:uuid(70),image_sha256:'a'.repeat(64),occurrence_id:uuid(71),note:'Retained source interpretation'};value.services[0].evidence=[evidence];
+    let images=0,extracts=0;const h=component(value,{images:async()=>{images++;throw Error('Hidden gallery must not load');},extract:async()=>{extracts++;throw Error('Hidden gallery must not extract');}}),before=copy(h.current);await flush();
+    for(const label of ['Extract images from selected PDF page','Refresh retained images','Retained image gallery','Retained image extraction'])assert.ok(!h.all().some(control=>control.attributes['aria-label']===label||control.textContent===label),label);
+    assert.ok(!h.dom.container.textContent.includes('RETAINED SOURCE IMAGES'));await h.controller.select(uuid(5));const next=copy(h.current);next.image_extractions.push({id:uuid(91),document_id:uuid(80),pages:[2]});h.controller.render(next);await flush();
+    assert.equal(images,0);assert.equal(extracts,0);assert.deepEqual(h.current,before);assert.deepEqual(h.current.physical.services[0].evidence,[evidence]);assert.equal(h.calls.previews.length,0);assert.equal(h.calls.applied.length,0);h.controller.destroy();
   });
   await check('Removed draft export buttons cannot invoke commercial or physical mutations',async()=>{
     const h=component();await flush();for(const label of ['Export draft CSV','Export draft XLSX','Download PDF'])assert.ok(!h.all().some(node=>node.attributes?.['aria-label']===label));assert.deepEqual(h.calls.exports,[]);assert.equal(h.calls.previews.length,0);assert.equal(h.calls.applied.length,0);h.controller.destroy();
-  });
-  await check('Gallery scopes each fetch to one extraction and changes default with the selected source page',async()=>{
-    const loaded=[];let sourcePage=1;const h=component(graph(),{images:async id=>{loaded.push(id);return [];},imageContext:()=>({document_id:uuid(80),page:sourcePage})});await flush();assert.deepEqual(loaded,[uuid(90)]);
-    h.current.image_extractions.push({id:uuid(91),document_id:uuid(80),pages:[2]});h.controller.render(copy(h.current));await flush();assert.equal(loaded.at(-1),uuid(90));
-    sourcePage=2;h.controller.render(copy(h.current));await flush();assert.equal(loaded.at(-1),uuid(91));const selector=h.input('Retained image extraction');selector.value=uuid(90);selector.emit('change');await flush();assert.equal(loaded.at(-1),uuid(90));h.controller.render(copy(h.current));await flush();assert.equal(h.input('Retained image extraction').value,uuid(90));
-    h.current.image_extractions=[];h.controller.render(copy(h.current));await flush();assert.equal(loaded.length,4);assert.ok(h.dom.container.textContent.includes('No retained extraction'));h.controller.destroy();
-  });
-  await check('Gallery displays twelve records at a time and refuses oversized extraction inventories',async()=>{
-    const images=Array.from({length:512},(_,index)=>({name:`Source ${index}`,occurrence_id:uuid(1000+index)})),h=component(graph(),{images:async()=>images});await flush();assert.equal(h.all().filter(node=>node.tagName==='DETAILS').length,12);await h.click('Next 12 image records');assert.ok(h.dom.container.textContent.includes('Source 12'));assert.ok(!h.dom.container.textContent.includes('Source 0 ·'));
-    h.bridge.images=async()=>[...images,{name:'Excess'}];await h.click('Refresh retained images');assert.ok(h.calls.notifications.at(-1).text.includes('512-occurrence'));h.controller.destroy();
   });
   await check('Service Plans starts at Barrier with no defect columns, root parents or defect create flow',async()=>{
     const value=servicePlanGraph(),original=copy(value),rows=physical.hierarchyRows(value),index=physical.indexGraph(value);
@@ -782,20 +801,19 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
       assert.ok(h.calls.asks.at(-1).definitions.some(field=>field[0]==='seal_quantity'));assert.equal(h.current.library_assignments.records[0].draft_quantity,.375);assert.equal(h.current.physical.services.length,2);
     } finally {h?.controller.destroy();global.CeasefireTakeoffLibraryLinks=previous;}
   });
-  await check('Item Details Add lists Barrier Service Library above Delete Discard with Visibility at the far right of Add',async()=>{
+  await check('Item Details keeps Barrier Service Library in Add, Visibility beside it and Delete Discard below the fields',async()=>{
     for (const scope of ['defect_reports','service_plans']) {
       const value=scope==='service_plans'?servicePlanGraph():graph();value.barriers[0].marker={document_id:uuid(80),document_sha256:'d'.repeat(64),page:1,point:[25,30]};const before=copy(value),h=component(value,{scope:()=>scope,libraryCommand:async()=>null});await flush();
       h.current.library_assignments={version:1,records:[201,202].map((id,index)=>({id:uuid(id),scope,library:{id:`literal-${id}`,library_id:`FL-ID-00${index+1}`,metadata_sha256:'a'.repeat(64)},members:[1,5,6,...(scope==='defect_reports'?[2]:[])].map(id=>({id:uuid(id),kind:id===2?'defect':id===1?'barrier':'service',revision:1})),installation:{mode:'repeated_installations'},state:'draft',schedule_binding:null}))};h.controller.render(copy(h.current));
       const order=hasParent=>{
         const inspector=h.all().find(node=>node.tagName==='ASIDE'),children=inspector.children,choose=h.button('Add Library Item'),list=choose.parentElement,icons=list.parentElement.parentElement,start=children.indexOf(icons),navigation=children.find(node=>node.className==='takeoff-physical-navigation');
         assert.ok(start>=0);assert.ok(icons.className.startsWith('takeoff-physical-item-actions'));assert.equal(icons.children[0],list.parentElement);assert.equal(list.children.at(-1),choose);assert.equal(list.children.at(-2),h.button('Add service in Item Details'));assert.equal(choose.children[0].tagName,'SVG');assert.equal(choose.textContent,'Add Library Item');assert.equal(h.button('Add').attributes['aria-expanded'],'false');assert.equal(list.hidden,true);
-        const actions=children[start+1];assert.equal(actions.className,'takeoff-physical-inspector-actions');assert.ok(actions.contains(h.button('Discard unfinished physical edits')));assert.ok(children.indexOf(actions)<children.indexOf(navigation));
+        const actions=h.button('Discard unfinished physical edits').parentElement;assert.equal(actions.className,'takeoff-physical-inspector-actions');assert.equal(children[start+1],navigation);assert.ok(children.indexOf(actions)>children.indexOf(navigation));
         const visibility=h.all().find(node=>node.attributes['aria-label']==='Visibility');if(visibility){assert.equal(visibility.parentElement,icons);assert.equal(icons.children.at(-1),visibility);assert.ok(!actions.contains(visibility));}
         const addBarrier=list.children.find(node=>node.attributes['aria-label']==='Add barrier in Item Details');if(addBarrier){assert.equal(list.children[0],addBarrier);assert.equal(addBarrier.children[0].tagName,'IMG');assert.equal(addBarrier.children[0].src,'/icons/takeoff-add-barrier.png');assert.equal(addBarrier.textContent,'Add Barrier');}
-        assert.equal(children.indexOf(navigation),children.indexOf(actions)+1);
         if(hasParent)assert.equal(children[children.indexOf(navigation)+1],h.button('Change Parent'));
         const summaries=children.filter(node=>node.className.includes('takeoff-library-summary'));assert.equal(summaries.length,2);assert.deepEqual(children.slice(-2),summaries);
-        const fields=children.filter(node=>node.className==='field');for(const field of fields)assert.ok(children.indexOf(field)>children.indexOf(actions)&&children.indexOf(field)<children.indexOf(summaries[0]));
+        const fields=children.filter(node=>node.className==='field');for(const field of fields)assert.ok(children.indexOf(field)>children.indexOf(navigation)&&children.indexOf(field)<children.indexOf(actions));if(fields.length)assert.equal(children[children.indexOf(fields.at(-1))+1],actions);
         for(const action of children.filter(node=>node.tagName==='BUTTON'))assert.ok(!fields.length||children.indexOf(action)<children.indexOf(fields[0]));
       };
       await h.controller.select(uuid(5));order(true);assert.ok(h.button('Delete draft record').parentElement.contains(h.button('Discard unfinished physical edits')));

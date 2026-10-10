@@ -102,7 +102,7 @@ def export_marked_pdf(document, items, results, confirmations, linked, documents
         spec['annotations'] = []
         for annotation in annotations:
             validate_annotation(annotation, snapshot)
-            if annotation['mode'] != mode or annotation['document_id'] != document['id']:
+            if annotation['mode'] not in (('wall', 'slab') if mode == 'walls_floors' else (mode,)) or annotation['document_id'] != document['id']:
                 raise ValidationError('Every free call-out must belong to the selected mode and exact source drawing.')
             spec['annotations'].append({**annotation, 'appearance': annotation_appearance(annotation['appearance'])})
         if physical_rows is not None:

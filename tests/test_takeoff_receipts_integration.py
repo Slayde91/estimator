@@ -75,7 +75,7 @@ class TakeoffReceiptIntegrationTests(unittest.TestCase):
                              'preview_id': preview['preview_id'], **deepcopy(original)}
             state = service.apply_transfer(session_id, apply_request)
             calculators['steel_vermiculite'] = {key: state['calculator'][key] for key in ('inputs', 'schedule_rows')}
-            target = root / 'project.json'; dialogs.selection = SaveSelection(str(target), None)
+            target = root / 'project.cf.json'; dialogs.selection = SaveSelection(str(target), None)
             library.save_as({'estimate': baseline['estimate'], 'calculators': calculators,
                              'takeoffs': state['snapshot'], 'takeoffs_session_id': session_id})
             saved = json.loads(target.read_bytes())

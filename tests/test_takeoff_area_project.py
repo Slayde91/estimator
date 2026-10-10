@@ -55,7 +55,7 @@ class TakeoffAreaProjectTests(unittest.TestCase):
         reopened = case.library.open_file()
         self.assertEqual(reopened['takeoffs_issues'], [])
         self.assertEqual(reopened['takeoffs']['items'][0], original)
-        second = case.root / 'copy' / 'renamed.json'; second.parent.mkdir()
+        second = case.root / 'copy' / 'renamed.cf.json'; second.parent.mkdir()
         case.dialogs.selection = SaveSelection(str(second), None)
         case.library.save_as({**deepcopy(case.base), 'takeoffs': reopened['takeoffs'], 'takeoffs_session_id': reopened['takeoffs_session_id']})
         self.assertEqual(case.target.read_bytes(), first_bytes)
@@ -100,7 +100,7 @@ class TakeoffAreaProjectTests(unittest.TestCase):
         reopened = case.library.open_file()
         self.assertEqual(reopened['takeoffs_issues'], [])
         self.assertEqual(reopened['takeoffs']['items'][0], original)
-        second = case.root / 'layers-copy' / 'renamed.json'; second.parent.mkdir()
+        second = case.root / 'layers-copy' / 'renamed.cf.json'; second.parent.mkdir()
         case.dialogs.selection = SaveSelection(str(second), None)
         case.library.save_as({**deepcopy(case.base), 'takeoffs': reopened['takeoffs'],
                               'takeoffs_session_id': reopened['takeoffs_session_id']})

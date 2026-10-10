@@ -57,8 +57,8 @@ async function worksheetReady(title, label) {
   // native Load captures the draft stamp.
   await page.waitForFunction(() => { const status = window.CeasefireDesktop?.status(); return status?.ready && !status.busy; });
   await load('legacy');
-  const original = JSON.parse(fs.readFileSync(path.join(output,'legacy-v1.json')));
-  await reply(() => page.locator('#project-import-file').setInputFiles(path.join(output,'legacy-v1.json')), '/api/project/import');
+  const original = JSON.parse(fs.readFileSync(path.join(output,'legacy-v1.cf.json')));
+  await reply(() => page.locator('#project-import-file').setInputFiles(path.join(output,'legacy-v1.cf.json')), '/api/project/import');
   await page.getByRole('dialog').getByRole('button',{name:'Load Project',exact:true}).click();
   await page.waitForFunction(()=>!window.CeasefireDesktop.status().busy);
   const calculators = await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot());
@@ -68,7 +68,7 @@ async function worksheetReady(title, label) {
   const savedReply = await reply(() => clickProjectControl(page, 'Save'), '/api/project/save-as');
   assert.equal(savedReply.status,200,JSON.stringify(savedReply.body));
   await expect(page.locator('#project-save-state')).toHaveText('Saved project');
-  const saved = JSON.parse(fs.readFileSync(path.join(output,'standard-project.json')));
+  const saved = JSON.parse(fs.readFileSync(path.join(output,'standard-project.cf.json')));
   assert.equal(saved.version,1); assert.equal('takeoffs' in saved,false);
   assert.deepEqual(saved.estimate.configuration,original.estimate.configuration);
   assert.deepEqual(saved.calculators,original.calculators);
@@ -77,7 +77,7 @@ async function worksheetReady(title, label) {
   await expect(page.getByLabel('Client', {exact:true})).toHaveValue('Offline Windows acceptance');
   assert.deepEqual(await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()),calculators);
   await page.screenshot({path:path.join(output,'saved-legacy-project.png'),fullPage:true});
-  const protectedBefore = fs.readFileSync(path.join(output,'protected-v2.json'));
+  const protectedBefore = fs.readFileSync(path.join(output,'protected-v2.cf.json'));
   choose({open:'takeoffs'});
   const rejected = await reply(() => clickProjectControl(page, 'Load'),'/api/project/open');
   assert.equal(rejected.status,400); assert.match(JSON.stringify(rejected.body), /TAKEOFFS/i);
@@ -87,13 +87,13 @@ async function worksheetReady(title, label) {
   choose({save:'takeoffs'});
   const currentSave = await reply(() => clickProjectControl(page, 'Save'),'/api/project/save');
   assert.equal(currentSave.status,200,'Save updates the existing file without using the dialog choice');
-  await reply(() => page.locator('#project-import-file').setInputFiles(path.join(output,'standard-project.json')), '/api/project/import');
+  await reply(() => page.locator('#project-import-file').setInputFiles(path.join(output,'standard-project.cf.json')), '/api/project/import');
   await page.getByRole('dialog').getByRole('button',{name:'Load Project',exact:true}).click();
   await page.waitForFunction(()=>!window.CeasefireDesktop.status().busy);
   const overwrite = await reply(() => clickProjectControl(page, 'Save'),'/api/project/save-as');
   assert.equal(overwrite.status,400); assert.match(JSON.stringify(overwrite.body), /TAKEOFFS/i);
-  assert.deepEqual(fs.readFileSync(path.join(output,'protected-v2.json')),protectedBefore);
-  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(output,'standard-project.json'))),saved);
+  assert.deepEqual(fs.readFileSync(path.join(output,'protected-v2.cf.json')),protectedBefore);
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(output,'standard-project.cf.json'))),saved);
   await page.getByRole('button',{name:'Calculators',exact:true}).click();
   await expect(page.getByRole('button',{name:'Takeoffs',exact:true})).toHaveCount(0);
   await page.screenshot({path:path.join(output,'standard-calculators.png'),fullPage:true});

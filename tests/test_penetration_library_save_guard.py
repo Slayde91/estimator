@@ -26,7 +26,7 @@ class PenetrationLibrarySaveGuardTests(unittest.TestCase):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)
-        self.path = self.root / 'project.json'
+        self.path = self.root / 'project.cf.json'
         self.globals = {'J': 'No', 'K': None, 'L': 0, 'M': 0}
         self.row = {'id': 'line-1', 'inputs': {'T': 'Keep Ø65 原文', 'O': 2.1234567890123, 'AJ': 25},
                     'library_item_id': 'pkb-row-4'}

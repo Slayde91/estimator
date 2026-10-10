@@ -233,7 +233,7 @@ class EstimateCompositionTests(unittest.TestCase):
         from test_project_library import Chooser, database_rows
         snapshot = self.historical_project()
         payload = json.dumps(snapshot).encode()
-        path = Path(self.temporary.name) / 'historical.json'
+        path = Path(self.temporary.name) / 'historical.cf.json'
         path.write_bytes(payload)
         dialogs = Chooser()
         dialogs.opened = str(path)

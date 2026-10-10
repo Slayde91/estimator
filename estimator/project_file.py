@@ -24,7 +24,8 @@ from .edition import require_project_edition, validate_edition
 PROJECT_FORMAT = "ceasefire-project"
 PROJECT_VERSION = 1
 TAKEOFF_PROJECT_VERSION = 2
-PROJECT_FILENAME = "CEASEFIRE-Project.json"
+PROJECT_EXTENSION = ".cf.json"
+PROJECT_FILENAME = "CEASEFIRE-Project" + PROJECT_EXTENSION
 MAX_PROJECT_FILE = 16 * 1_048_576
 CALCULATOR_IDS = ("steel_vermiculite", "steel_board", "ductwork")
 ESTIMATE_REQUIRED_FIELDS = {"title", "workflow", "measurements", "inputs", "configuration", *QUOTE_DETAIL_LIMITS}
@@ -41,7 +42,12 @@ def project_filename(title):
         name = "Untitled quote"
     if re.fullmatch(r"(?i)(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\..*)?", name):
         name = "_" + name
-    return name + ".json"
+    return name + PROJECT_EXTENSION
+
+
+def is_project_filename(filename):
+    """Keep file selection separate from validation of the snapshot contents."""
+    return isinstance(filename, str) and filename.lower().endswith(PROJECT_EXTENSION)
 
 
 def has_project_identity(payload, *, previously_recognized=False):
@@ -244,10 +250,10 @@ def export_project(store, request, *, edition='full'):
 def import_project(store, filename, content_base64, *, edition='full'):
     """Validate the entire file and return drafts, leaving all local saves intact."""
     validate_edition(edition)
-    # Browsers add collision suffixes before .json (for example "project (1)").
-    # The internal format/version, not a user-controlled filename, identifies it.
-    if not isinstance(filename, str) or len(filename) > 255 or not filename.lower().endswith(".json"):
-        raise ValidationError("Choose a project JSON file.")
+    # The extension selects project files; the internal format/version still
+    # validates their contents. Renamed legacy snapshots retain their data.
+    if not is_project_filename(filename) or len(filename) > 255:
+        raise ValidationError("Choose a .cf.json project file.")
     if not isinstance(content_base64, str) or len(content_base64) > ((MAX_PROJECT_FILE + 2) // 3) * 4:
         raise ValidationError("The project file must be at most 16 MB.")
     try:

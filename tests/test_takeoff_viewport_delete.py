@@ -241,7 +241,7 @@ class TakeoffViewportDeleteProjectTests(unittest.TestCase):
         self.assertEqual(item_digest(opened['takeoffs']['items'][0], opened['takeoffs']),
                          item_digest(snapshot['items'][0], snapshot))
         self.assertIsNone(item_result(opened['takeoffs']['items'][0], opened['takeoffs'])['length_m'])
-        second = case.root / 'copied' / 'copy.json'; second.parent.mkdir()
+        second = case.root / 'copied' / 'copy.cf.json'; second.parent.mkdir()
         case.dialogs.selection = SaveSelection(str(second), None)
         case.library.save_as({**deepcopy(case.base), 'takeoffs': opened['takeoffs'], 'takeoffs_session_id': opened['takeoffs_session_id']})
         self.assertEqual(case.target.read_bytes(), original_bytes)

@@ -90,7 +90,7 @@ try {
     } elseif ($request.kind -eq 'open') {
         $dialog = New-Object System.Windows.Forms.OpenFileDialog
         $dialog.Title = 'Load Project'
-        $dialog.Filter = 'Ceasefire project (*.json)|*.json'
+        $dialog.Filter = 'Ceasefire project (*.cf.json)|*.cf.json'
         $dialog.CheckFileExists = $true
         $dialog.Multiselect = $false
         if ($request.directory) { $dialog.InitialDirectory = $request.directory }
@@ -100,8 +100,8 @@ try {
     } else {
         $dialog = New-Object System.Windows.Forms.SaveFileDialog
         $dialog.Title = 'Save As'
-        $dialog.Filter = 'Ceasefire project (*.json)|*.json'
-        $dialog.DefaultExt = 'json'
+        $dialog.Filter = 'Ceasefire project (*.cf.json)|*.cf.json'
+        $dialog.DefaultExt = 'cf.json'
         $dialog.AddExtension = $true
         $dialog.CheckPathExists = $true
         $dialog.OverwritePrompt = $true
@@ -145,12 +145,12 @@ try:
         result = {'path': path} if path else None
     elif request['kind'] == 'open':
         path = filedialog.askopenfilename(parent=root, title='Load Project', initialdir=request.get('directory') or None,
-            filetypes=[('Ceasefire project', '*.json')])
+            filetypes=[('Ceasefire project', '*.cf.json')])
         result = {'path': path} if path else None
     else:
         path = filedialog.asksaveasfilename(parent=root, title='Save As', initialdir=request.get('directory') or None,
-            initialfile=request['filename'], defaultextension='.json',
-            filetypes=[('Ceasefire project', '*.json')])
+            initialfile=request['filename'], defaultextension='.cf.json',
+            filetypes=[('Ceasefire project', '*.cf.json')])
         result = None
         if path:
             fingerprint = None

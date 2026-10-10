@@ -1,5 +1,19 @@
 # Project state
 
+## 11 October 2026: dedicated project filenames
+
+Project Save As names, native file dialogs, browser import and linked-folder
+discovery now use `.cf.json`. The scanner ignores other file types before
+stat, reading or validation while continuing through real subfolders. A
+case-insensitive extension selects candidates; the existing snapshot format,
+calculator versions, pricing and evidence validation still govern their contents.
+Existing project files are not renamed or modified. To open an earlier `.json`
+project, manually rename a copy to `.cf.json`. Attachment collision names retain
+the complete extension, for example `Quote (1).cf.json`.
+
+The checkpoints below describe earlier behavior; exact tests, publication and
+live activation are established separately by current release receipts.
+
 ## 5 October 2026: controls and libraries checkpoint
 
 PR #154 implements the original 26 browser comments: top-left Scale, active rail

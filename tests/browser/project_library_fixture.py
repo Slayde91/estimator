@@ -54,8 +54,8 @@ def main():
     store = Store(folder / 'qa.sqlite3')
     composer = definition()['defaults']
     composer['rows'][0]['inputs'].update(T='Unscheduled composer retained', O=3)
-    project = folder / 'project.json'
-    seed = folder / 'seed.json'
+    project = folder / 'project.cf.json'
+    seed = folder / 'seed.cf.json'
     seed.write_bytes(export_project(store, {'estimate': {'project_no': 'PROJECT-LIBRARY-QA', 'client': 'Synthetic client', 'measurements': 'Quote notes retained'}, 'calculators': {}, 'penetration': {'composer': composer, 'draft': {'globals': {}, 'rows': []}}}))
     fixture = folder / 'drawing.pdf'
     make_pdf(fixture)

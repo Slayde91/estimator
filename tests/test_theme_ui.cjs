@@ -47,7 +47,7 @@ test('initializing twice never registers a second activation or touches domain s
 test('pages without the theme control remain untouched', () => { assert.doesNotThrow(() => harness({ absent: true })); });
 function luminance(hex) { if(hex.length===4) hex='#'+[...hex.slice(1)].map(v=>v+v).join(''); const components = hex.match(/[a-f\d]{2}/gi).map(v => parseInt(v,16)/255).map(v => v <= .04045 ? v/12.92 : ((v+.055)/1.055)**2.4); return .2126*components[0]+.7152*components[1]+.0722*components[2]; }
 function contrast(a,b) { const x=luminance(a),y=luminance(b); return (Math.max(x,y)+.05)/(Math.min(x,y)+.05); }
-test('theme button colors and standard text meet 4.5:1 contrast, without image or canvas filters', () => {
+test('theme button colors and standard text meet 4.5:1 contrast, with filters scoped to chrome artwork', () => {
   assert.ok(contrast('#b90a15','#ffffff') >= 4.5);
   for (const id of ['midnight','ocean','forest','slate']) {
     const block = css.match(new RegExp(`:root\\[data-theme="${id}"\\] \\{([^}]+)\\}`))[1];
@@ -58,7 +58,11 @@ test('theme button colors and standard text meet 4.5:1 contrast, without image o
     assert.ok(contrast(value('accent'),value('paper')) >= 4.5, id+' links');
     assert.ok(contrast(value('theme-border'),value('theme-input')) >= 3, id+' input boundary');
   }
-  assert.doesNotMatch(css, /(?:filter|mix-blend-mode)\s*:/); assert.doesNotMatch(css, /(?:canvas|img)\s*\{/);
+  for(const rule of css.matchAll(/([^{}]+)\{([^{}]+)\}/g)) {
+    if(!/(?:filter|mix-blend-mode)\s*:/.test(rule[2]))continue;
+    assert.match(rule[1], /\.brand-logo|\.header-tagline-character|\.takeoff-icon-button|\.takeoff-transfer-icon|\.calculator-document-icon/, 'filters belong only to application artwork');
+    assert.doesNotMatch(rule[1], /(?:\.takeoff-(?:viewer|overlay|page)|\bcanvas\b)/, 'drawing pixels are not filtered');
+  }
 });
 test('control is native, outside navigation/project actions and independent of Takeoffs edition blocks', () => {
   const html = fs.readFileSync(path.join(root,'static/index.html'),'utf8');

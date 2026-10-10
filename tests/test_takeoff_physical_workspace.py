@@ -290,7 +290,7 @@ class PhysicalWorkspaceTests(unittest.TestCase):
             descriptor = state['snapshot']['image_extractions'][0]
             dialogs = Dialogs(); library = ProjectLibrary(self.case.store, dialogs, takeoffs=service)
             resources.callback(library.close)
-            target = root/'original.json'; dialogs.selection = SaveSelection(str(target), None)
+            target = root/'original.cf.json'; dialogs.selection = SaveSelection(str(target), None)
             baseline = json.loads(export_project(self.case.store, {'estimate': {'title': 'Synthetic portable image test'}}))
             calculators = {key: {field: value[field] for field in ('inputs', 'schedule_rows')} for key, value in baseline['calculators'].items()}
             library.save_as({'estimate': baseline['estimate'], 'calculators': calculators,
@@ -306,7 +306,7 @@ class PhysicalWorkspaceTests(unittest.TestCase):
             foreign.capture(foreign_sid, reopened['snapshot'])
             foreign_dialogs = Dialogs(); foreign_library = ProjectLibrary(foreign_store, foreign_dialogs, takeoffs=foreign)
             resources.callback(foreign_library.close)
-            destination = root/'copied.json'; foreign_dialogs.selection = SaveSelection(str(destination), None)
+            destination = root/'copied.cf.json'; foreign_dialogs.selection = SaveSelection(str(destination), None)
             result = foreign_library.save_as({'estimate': baseline['estimate'], 'calculators': calculators,
                 'takeoffs': reopened['snapshot'], 'takeoffs_session_id': foreign_sid})
             self.assertFalse(result['cancelled']); self.assertTrue(destination.exists())

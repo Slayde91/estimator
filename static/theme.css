@@ -1,4 +1,6 @@
-/* Theme colors apply to application chrome, never drawing/image pixels or data. */
+/* Theme colors apply to application chrome, never drawing/source-image pixels or data. */
+.header-artwork-filters { position:absolute; width:0; height:0; overflow:hidden; pointer-events:none; }
+.header-tagline-character { filter:url(#header-character-ink); }
 :root {
   --theme-button: #b90a15;
   --theme-button-hover: #920711;
@@ -89,11 +91,11 @@
   :root[data-theme]:not([data-theme="ceasefire"]) :is(.takeoff-register,.takeoff-toolbar,.takeoff-viewer-toolbar,.takeoff-document-controls,.takeoff-search,.takeoff-modal,.takeoff-annotation-panel) { background:var(--theme-surface); color:var(--ink); border-color:var(--line); }
   :root[data-theme]:not([data-theme="ceasefire"]) :is(.takeoff-register th,.takeoff-column-filter-menu) { background:var(--theme-soft); color:var(--ink); }
   :root[data-theme="midnight"] :is(.gear-symbol,.calculator-symbol-button,.penetration-group,.library-summary-table th,.library-summary-table td) { color:var(--ink); }
-  :root[data-theme="midnight"] :is(.brand,.header-tagline-character) { background:#fff; border-radius:6px; }
+  :root[data-theme="midnight"] .brand-logo { filter:brightness(0) invert(1); }
+  :root[data-theme="midnight"] .header-tagline-character { filter:url(#header-character-white); }
   :root[data-theme="midnight"] footer { color:var(--muted); }
-  /* Original black document/transfer artwork needs a light control surface. */
-  :root[data-theme="midnight"] :is(.button.calculator-document-toggle:has(img[src="/icons/document.png"]),.button:has(.takeoff-transfer-icon)) { background:#fff; color:#17202d; border-color:var(--theme-edge); }
-  :root[data-theme="midnight"] :is(.button.calculator-document-toggle:has(img[src="/icons/document.png"]),.button:has(.takeoff-transfer-icon)):hover:not(:disabled) { background:#eef4fc; color:#17202d; border-color:var(--theme-focus); }
+  /* Tint only application controls; retained drawing pixels and artwork bytes stay unchanged. */
+  :root[data-theme="midnight"] :is(.takeoff-icon-button img,.takeoff-transfer-icon,.calculator-document-icon) { filter:brightness(0) invert(1); }
   :root[data-theme="midnight"] :is(input,select)[aria-invalid=true] { background:#fff2f2; color:#7d1019; border-color:#a20b16; }
   :root[data-theme="midnight"] :is(.calculator-error,.penetration-field-error) { color:#ffb4be; }
   :root[data-theme="midnight"] :is(.button.excel-button,.button.pdf-button,.button.save-button,.button.recalculate-button,.button.link-action-button,.button.library-edit-button,.button.library-delete-button):focus-visible { outline-color:var(--theme-focus); }

@@ -125,9 +125,10 @@ are materialized, including unopened calculators, without replacing open edits.
 Reset Calc restores the application examples/defaults as a draft and requires
 Save Project to persist.
 
-Save Project opens a native Save As dialog with a quote-derived `Quote name.json`
-filename and automatic `.json` extension. Earlier `.ceasefire-project.json`
-filenames remain supported. The Windows dialog uses foreground window ownership
+Save Project opens a native Save As dialog with a quote-derived `Quote name.cf.json`
+filename and automatic `.cf.json` extension. Projects only discovers and loads
+this file type. Earlier project contents remain supported after manually renaming
+a copy to `.cf.json`; no existing files are changed automatically. The Windows dialog uses foreground window ownership
 and raises the actual dialog and overwrite prompts; native helper compilation
 was checked, but visual foreground verification remains a manual check after a
 desktop automation initialization failure.

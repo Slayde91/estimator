@@ -304,7 +304,7 @@ class TakeoffViewportProjectTests(unittest.TestCase):
         self.assertEqual(opened['takeoffs']['items'], snapshot['items'])
         self.assertEqual(opened['takeoffs']['calibrations'], snapshot['calibrations'])
         self.assertEqual(opened['takeoffs']['audit_head'], snapshot['audit_head'])
-        second = case.root / 'copied' / 'copy.json'; second.parent.mkdir()
+        second = case.root / 'copied' / 'copy.cf.json'; second.parent.mkdir()
         case.dialogs.selection = SaveSelection(str(second), None)
         case.library.save_as({**deepcopy(case.base), 'takeoffs': opened['takeoffs'], 'takeoffs_session_id': opened['takeoffs_session_id']})
         case.dialogs.opened = str(second); final = case.library.open_file()

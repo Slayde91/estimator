@@ -180,7 +180,7 @@ class StandardProjectTests(unittest.TestCase):
                     for action in (
                             lambda: load_project_bytes(self.store, payload, edition='standard'),
                             lambda: project_summary(payload, edition='standard'),
-                            lambda: import_project(self.store, 'project.json', base64.b64encode(payload).decode(), edition='standard')):
+                            lambda: import_project(self.store, 'project.cf.json', base64.b64encode(payload).decode(), edition='standard')):
                         with self.assertRaisesRegex(ValidationError, 'TAKEOFFS'):
                             action()
         self.assertEqual(database_rows(self.store), before)
@@ -198,7 +198,7 @@ class StandardProjectTests(unittest.TestCase):
         self.assertEqual(database_rows(self.store), before)
 
     def test_native_open_and_folder_listing_never_authorize_incompatible_projects(self):
-        path = self.root / 'Takeoff.json'
+        path = self.root / 'Takeoff.cf.json'
         path.write_bytes(takeoff_project(self.payload, 2))
         self.store.set_project_folder(self.root)
         before = database_rows(self.store)
@@ -219,7 +219,7 @@ class StandardProjectTests(unittest.TestCase):
         self.assertEqual(database_rows(self.store), before)
 
     def test_save_as_and_save_cannot_erase_actual_takeoff_target_or_companion(self):
-        path = self.root / 'Protected.json'
+        path = self.root / 'Protected.cf.json'
         companion = self.root / '.ceasefire-evidence' / 'retained.bin'
         companion.parent.mkdir()
         companion.write_bytes(b'preserve all original evidence')
@@ -244,7 +244,7 @@ class StandardProjectTests(unittest.TestCase):
     def test_existing_full_edition_preservation_and_standard_ordinary_save_remain(self):
         require_project_edition({'version': 2, 'takeoffs': {}}, 'full')
         assert_project_overwrite(takeoff_project(self.payload, 2), edition='full')
-        path = self.root / 'Ordinary.json'
+        path = self.root / 'Ordinary.cf.json'
         self.dialogs.selection = SaveSelection(str(path), None)
         with no_takeoff_imports():
             saved = self.library.save_as(deepcopy(self.request))
@@ -320,7 +320,7 @@ class StandardHTTPTests(unittest.TestCase):
             status, _, payload = self.request('POST', '/api/project/export', {'estimate': {'title': 'Normal'}})
             self.assertEqual(status, 200)
             status, _, loaded = self.request('POST', '/api/project/import', {
-                'filename': 'project.json', 'content_base64': base64.b64encode(payload).decode()})
+                'filename': 'project.cf.json', 'content_base64': base64.b64encode(payload).decode()})
             self.assertEqual(status, 200)
             self.assertNotIn('takeoffs', json.loads(loaded))
         self.assertEqual(database_rows(self.store), before)
@@ -333,7 +333,7 @@ class StandardHTTPTests(unittest.TestCase):
                 self.assertEqual(status, 400)
                 self.assertEqual(json.loads(payload)['error'], TAKEOFF_PROJECT_ERROR)
             status, _, payload = self.request('POST', '/api/project/import', {
-                'filename': 'project.json', 'content_base64': base64.b64encode(b'{"version":2}').decode()})
+                'filename': 'project.cf.json', 'content_base64': base64.b64encode(b'{"version":2}').decode()})
             self.assertEqual(status, 400)
             self.assertEqual(json.loads(payload)['error'], TAKEOFF_PROJECT_ERROR)
         self.assertEqual(self.dialogs.calls, [])

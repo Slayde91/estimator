@@ -198,14 +198,23 @@ class ProjectFileTests(unittest.TestCase):
             with self.assertRaises(ValidationError):
                 export_project(self.sender, {"estimate": {}})
 
-    def test_valid_project_can_be_renamed_or_have_a_browser_download_suffix(self):
+    def test_valid_project_can_be_renamed_with_the_project_extension(self):
         encoded = upload(self.original)["content_base64"]
         before = stored_rows(self.receiver)
-        for filename in ("CEASEFIRE-Project.ceasefire-project (1).json", "Colleague project.json", "PROJECT.JSON"):
+        for filename in ("CEASEFIRE-Project (1).cf.json", "Colleague project.cf.json", "PROJECT.CF.JSON"):
             with self.subTest(filename=filename):
                 imported = import_project(self.receiver, filename, encoded)
                 self.assertEqual(imported["project_details"]["project_no"], "CF-1000")
                 self.assertIsNone(imported["estimate"]["id"])
+        self.assertEqual(stored_rows(self.receiver), before)
+
+    def test_import_rejects_other_extensions_before_decoding_and_preserves_legacy_content(self):
+        before = stored_rows(self.receiver)
+        for filename in ("Project.json", "Project.ceasefire-project.json", "Project.cf.json.backup", "Project.cf (1).json", "Project.xlsx"):
+            with self.subTest(filename=filename), self.assertRaisesRegex(ValidationError, r"\.cf\.json"):
+                import_project(self.receiver, filename, "not base64")
+        imported = import_project(self.receiver, "Renamed legacy.cf.json", upload(self.original)["content_base64"])
+        self.assertEqual(imported["project_details"]["project_no"], "CF-1000")
         self.assertEqual(stored_rows(self.receiver), before)
 
     def test_portable_reference_policy_accepts_source_and_reviewed_but_not_saved_exceptions(self):
@@ -278,7 +287,7 @@ class ProjectFileApiTests(unittest.TestCase):
         before = stored_rows(self.store)
         status, headers, payload = self.request("/api/project/export", {"estimate": {"project_no": "Project 17"}})
         self.assertEqual(status, 200)
-        self.assertIn('filename="Project 17.json"', headers["Content-Disposition"])
+        self.assertIn('filename="Project 17.cf.json"', headers["Content-Disposition"])
         status, _, loaded = self.request("/api/project/import", upload(payload))
         self.assertEqual(status, 200, loaded)
         self.assertEqual(json.loads(loaded)["estimate"]["project_no"], "Project 17")

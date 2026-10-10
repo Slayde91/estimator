@@ -91,7 +91,7 @@ class PenetrationIntegrationTests(unittest.TestCase):
                 load_project_bytes(self.store, json.dumps(invalid).encode())
 
     def test_older_browser_cannot_silently_drop_saved_penetration_inputs(self):
-        target = self.root / 'penetration-project.json'
+        target = self.root / 'penetration-project.cf.json'
         class Dialogs:
             def choose_save(self, folder, filename):
                 return SaveSelection(str(target), file_fingerprint(target))
@@ -160,7 +160,7 @@ class PenetrationIntegrationTests(unittest.TestCase):
     def test_penetration_downloads_use_project_folder_or_standard_downloads(self):
         folder = self.root / 'export-project'
         folder.mkdir(exist_ok=True)
-        project_path = folder / 'estimate.json'
+        project_path = folder / 'estimate.cf.json'
         class Dialogs:
             def choose_save(self, initial, filename):
                 return SaveSelection(str(project_path), None)

@@ -60,7 +60,7 @@ class DownloadDestinationTests(unittest.TestCase):
         self.addCleanup(self.library.close)
 
     def authorize(self, folder=None):
-        self.dialogs.selection = SaveSelection(str((folder or self.folder) / 'Project.json'), None)
+        self.dialogs.selection = SaveSelection(str((folder or self.folder) / 'Project.cf.json'), None)
         return self.library.save_as(self.project_request)
 
     def test_null_project_uses_standard_downloads_even_when_a_different_folder_is_linked(self):
@@ -252,7 +252,7 @@ class DownloadApiTests(unittest.TestCase):
         self.assertEqual(stored_rows(store), before)
 
     def test_project_folder_is_captured_before_report_render_and_survives_concurrent_save(self):
-        self.dialogs.selection = SaveSelection(str(self.folder / 'Captured project.json'), None)
+        self.dialogs.selection = SaveSelection(str(self.folder / 'Captured project.cf.json'), None)
         status, _, raw = self.request('/api/project/save-as', {'estimate': {'title': 'Capture before rendering'}})
         self.assertEqual(status, 200, raw[:500])
         saved = json.loads(raw)

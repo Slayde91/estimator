@@ -56,8 +56,37 @@ class TakeoffProjectTests(unittest.TestCase):
         document = self.documents.finish_upload(self.session['session_id'], upload['upload_id'])
         self.session = self.service.add_document(self.session['session_id'], document, 0)
         self.request = {**deepcopy(self.base), 'takeoffs': self.session['snapshot'], 'takeoffs_session_id': self.session['session_id']}
-        self.target = self.root / 'project.json'
+        self.target = self.root / 'project.cf.json'
         self.dialogs.selection = SaveSelection(str(self.target), None)
+
+    def test_wrong_project_extension_is_rejected_before_overwrite_reads_or_evidence_publication(self):
+        target = self.root / 'legacy.json'
+        target.write_bytes(self.legacy)
+        self.dialogs.selection = SaveSelection(str(target), file_fingerprint(target))
+        before = {path.relative_to(self.root).as_posix() for path in self.root.rglob('*')}
+        with patch.object(self.library, '_preserve_takeoffs', side_effect=AssertionError('Legacy file was inspected')), \
+                patch.object(self.library, '_publish_takeoffs', side_effect=AssertionError('Evidence was published')), \
+                self.assertRaisesRegex(ValidationError, r'\.cf\.json'):
+            self.library.save_as(self.request)
+        self.assertEqual(target.read_bytes(), self.legacy)
+        self.assertEqual({path.relative_to(self.root).as_posix() for path in self.root.rglob('*')}, before)
+        self.assertFalse(self.target.exists())
+        self.assertIsNone(self.store.project_folder())
+
+    def test_cached_legacy_save_target_is_rejected_before_fingerprint_or_evidence_publication(self):
+        saved = self.library.save_as(self.request)
+        token = saved['file']['save_token']
+        target = self.root / 'legacy.json'
+        target.write_bytes(self.legacy)
+        self.library._save_targets[token] = SaveSelection(str(target), file_fingerprint(target))
+        before = {path.relative_to(self.root).as_posix() for path in self.root.rglob('*')}
+        with patch('estimator.project_library.file_fingerprint', side_effect=AssertionError('Legacy file was inspected')), \
+                patch.object(self.library, '_preserve_takeoffs', side_effect=AssertionError('Legacy evidence was inspected')), \
+                patch.object(self.library, '_publish_takeoffs', side_effect=AssertionError('Evidence was published')), \
+                self.assertRaisesRegex(ValidationError, r'\.cf\.json'):
+            self.library.save({**self.request, 'save_token': token})
+        self.assertEqual(target.read_bytes(), self.legacy)
+        self.assertEqual({path.relative_to(self.root).as_posix() for path in self.root.rglob('*')}, before)
 
     def test_save_reopen_and_save_as_keep_originals_and_legacy_inputs(self):
         saved = self.library.save_as(self.request)
@@ -74,7 +103,7 @@ class TakeoffProjectTests(unittest.TestCase):
         reopened = self.library.open_file()
         self.assertEqual(reopened['takeoffs']['project_id'], value['takeoffs']['project_id'])
         self.assertEqual(reopened['takeoffs_issues'], [])
-        target2 = self.root / 'copied' / 'copy.json'; target2.parent.mkdir()
+        target2 = self.root / 'copied' / 'copy.cf.json'; target2.parent.mkdir()
         self.dialogs.selection = SaveSelection(str(target2), None)
         request = {**deepcopy(self.base), 'takeoffs': reopened['takeoffs'], 'takeoffs_session_id': reopened['takeoffs_session_id']}
         self.library.save_as(request)

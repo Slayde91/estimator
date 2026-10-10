@@ -8,6 +8,7 @@ const { clickProjectControl } = require('./project_actions.cjs');
 const { spawn } = require('node:child_process');
 const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
 const { createHash } = require('node:crypto');
+const geometry = require('../../static/takeoff-geometry.js');
 const root = path.resolve(__dirname, '../..'), output = path.join(root, '.runtime/browser-qa', `appearance-values-${Date.now()}`);
 fs.mkdirSync(output, { recursive: true });
 const server = spawn(process.env.CEASEFIRE_PYTHON || 'python', [path.join(__dirname, 'fixtures.py'), '--directory', output], { cwd: root, windowsHide: true });
@@ -50,9 +51,9 @@ async function draw(mode, mark, x = 100) {
   const area = ['wall', 'slab'].includes(mode), points = area ? [[x,100],[x+120,100],[x+120,240],[x,240]] : [[x,400],[x+120,400],[x+120,470]];
   await page.getByRole('button', { name: area ? 'Trace surface' : 'Trace length', exact: true }).click();
   for (const point of points) await page.mouse.click(...await screen(point)); await page.locator('.takeoff-viewport').press('Enter');
-  const fields = area ? { 'Surface Type': mode, 'Surface ID': mark, 'Number of layers': 1 } : { [mode === 'steel' ? 'Member mark' : 'Item']: mark, 'Count/QTY': 1 };
+  const fields = area ? { 'Surface Type': mode, 'Surface ID': mark, 'Number of layers': 3 } : { [mode === 'steel' ? 'Member mark' : 'Item']: mark, 'Count/QTY': 1 };
   const reply = await command(() => modal(area ? 'Add surface' : `Add ${mode} object`, fields, area ? 'Add surface' : 'Add item'), 'create_item');
-  const item = reply.snapshot.items.find(value => value.fields.mark === mark); assert.equal(item.mode,mode); if(area)assert.equal(item.fields.layers,1); await select(item); return item;
+  const item = reply.snapshot.items.find(value => value.fields.mark === mark); assert.equal(item.mode,mode); if(area)assert.equal(item.fields.layers,3); await select(item); return item;
 }
 function preserved(before, after) {
   for (const key of ['geometry','measurement','fields','quantity','member_ids','evidence','confirmation','state']) assert.deepEqual(after[key], before[key], `${key} must survive a visual edit`);
@@ -70,7 +71,11 @@ async function assertLabels(item, state) {
   actual.forEach((entry,index) => { assert.equal(entry.value,expected[index]); assert.equal(entry.text,`${new Intl.NumberFormat('en-AU',{minimumFractionDigits:2,maximumFractionDigits:2}).format(expected[index])} mm`); assert.equal(entry.pointer,'none'); });
   if (['wall','slab'].includes(item.mode)) {
     const reply = await page.request.get(`/api/takeoffs/sessions/${await page.evaluate(() => window.CeasefireTakeoffs.sessionId())}`), result = (await reply.json()).item_results.find(value => value.id === item.id);
-    await expect(page.locator(`[data-area-item-id="${item.id}"]`)).toHaveText(`${new Intl.NumberFormat('en-AU',{minimumFractionDigits:2,maximumFractionDigits:2}).format(result.net_area_m2)} m²`);
+    const label=page.locator(`[data-area-item-id="${item.id}"]`);await expect(label).toHaveText(`${new Intl.NumberFormat('en-AU',{minimumFractionDigits:2,maximumFractionDigits:2}).format(result.net_area_m2)} Sqm`);
+    assert.equal(Number(await label.getAttribute('data-area-value')),result.net_area_m2);assert.equal(await label.getAttribute('data-area-basis'),'measured-net');assert.equal(result.total_area_m2,result.net_area_m2*3);assert.notEqual(Number(await label.getAttribute('data-area-value')),result.total_area_m2);
+    const sourceCentre=geometry.surfaceMetrics(item.geometry).label,expectedCentre=await screen(sourceCentre),actualCentre=await label.evaluate(el=>{const point=new DOMPoint(el.x.baseVal[0].value,el.y.baseVal[0].value).matrixTransform(el.getScreenCTM()),style=getComputedStyle(el);return {point:[point.x,point.y],anchor:style.textAnchor,baseline:style.dominantBaseline,pointer:style.pointerEvents};});
+    for(let axis=0;axis<2;axis++)assert.ok(Math.abs(actualCentre.point[axis]-expectedCentre[axis])<.01,`Area anchor is centred in the actual retained polygon: ${JSON.stringify({actualCentre,expectedCentre})}`);assert.equal(actualCentre.anchor,'middle');assert.equal(actualCentre.baseline,'middle');assert.equal(actualCentre.pointer,'none');
+    evidence[item.mode]={...(evidence[item.mode]||{}),area:{net:result.net_area_m2,total:result.total_area_m2,layers:3,sourceCentre,actualCentre,expectedCentre}};
   }
   return actual;
 }
@@ -86,7 +91,9 @@ async function assertLabels(item, state) {
   const runtimeBefore = runtimeHashes(), initial = await snapshot(), calculators = await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot());
   const items = [];
   for (const mode of ['steel','duct','wall','slab']) {
-    const before = await draw(mode,`VALUE-${mode}`); items.push(before); await expect(panel().getByLabel('Display Values',{exact:true})).not.toBeChecked();
+    const before = await draw(mode,`VALUE-${mode}`); items.push(before);
+    if(['wall','slab'].includes(mode)){await expect(panel().getByLabel('Display Values',{exact:true})).toBeChecked();await assertLabels(before,await snapshot());await command(()=>panel().getByLabel('Display Values',{exact:true}).uncheck());}
+    await expect(panel().getByLabel('Display Values',{exact:true})).not.toBeChecked();
     await expect(page.locator(`[data-value-item-id="${before.id}"]`)).toHaveCount(0); await expect(page.locator(`[data-area-item-id="${before.id}"]`)).toHaveCount(0);
     const reply = await command(() => panel().getByLabel('Display Values',{exact:true}).check()), enabled = reply.snapshot.items.find(value => value.id === before.id); preserved(before,enabled);
     const labels = await assertLabels(enabled,reply.snapshot);
@@ -106,9 +113,9 @@ async function assertLabels(item, state) {
     }
     await page.locator('.takeoff-viewport').scrollIntoViewIfNeeded(); await page.screenshot({path:path.join(output,`${mode}-display-values.png`)});
     await command(() => panel().getByLabel('Display Values',{exact:true}).uncheck()); await expect(page.locator(`[data-value-item-id="${before.id}"]`)).toHaveCount(0); await expect(page.locator(`[data-area-item-id="${before.id}"]`)).toHaveCount(0);
-    evidence[mode] = { labels, minimumAndMaximum:true, canonicalPercent:true, optIn:true, removal:true, technicalDataUnchanged:true };
+    evidence[mode] = { ...evidence[mode],labels, minimumAndMaximum:true, canonicalPercent:true, optIn:true, newSurfaceDefaultVisible:['wall','slab'].includes(mode),removal:true, technicalDataUnchanged:true };
   }
-  // Saved appearance defaults never enable values on fresh items or rewrite old items.
+  // Saved visual defaults do not enable values on fresh Duct items or rewrite old items.
   await chooseTakeoff(page, 'steel'); await select(items[0]); await command(() => panel().getByLabel('Display Values',{exact:true}).check());
   const beforeDefault = await snapshot(), requestCount = requests.length; await panel().getByRole('button',{name:'Set as default',exact:true}).click(); await settingsSettled(page);
   assert.deepEqual(await snapshot(),beforeDefault); assert.equal(requests.length,requestCount);
@@ -135,5 +142,5 @@ async function assertLabels(item, state) {
   assert.deepEqual(errors,[]); assert.deepEqual(await page.evaluate(() => window.qaCsp),[]);
   const runtimeAfter = runtimeHashes(); assert.deepEqual(runtimeAfter,runtimeBefore,'The fixture ran against stable runtime bytes');
   fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({completed:true,port:info.port,evidence,errors,requests,preference,count:{id:count.id,length_m:count.measurement.length_m,quantity:count.quantity},saveReopenExact:true,sourceAndCalculatorUnchanged:true,runtimeBefore,runtimeAfter},null,2));
-  console.log(`PASS: native four-mode values, percentage/width bounds, exact opacity retention, values disabled on creation, counted cited lengths and Save/Load. ${output}`);
+  console.log(`PASS: native four-mode values, percentage/width bounds, exact opacity retention, new surfaces show centred net Sqm before layers with reversible Display Values, counted cited lengths and Save/Load. ${output}`);
 })().catch(async error => { console.error(error); console.error(logs.slice(-3000)); if(page) { await page.screenshot({path:path.join(output,'failure.png'),fullPage:true}).catch(()=>{}); fs.writeFileSync(path.join(output,'failure.json'),JSON.stringify({error:String(error),errors,evidence,status:await page.evaluate(()=>window.CeasefireDesktop?.status()).catch(()=>null)},null,2)); } process.exitCode=1; }).finally(async () => { fs.writeFileSync(path.join(output,'server.log'),logs); if(browser)await browser.close(); server.kill(); });

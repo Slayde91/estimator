@@ -138,7 +138,7 @@ function watch(current) {
     const first = await draw(mode, `${mode}-A`, origin), bodyPoint = area ? [origin+60,170] : [190,400];
     nativeFirst[mode] = first.id;
     let oldSecond;
-    if (mode === 'steel') oldSecond = await draw(mode, 'steel-OLD', 400); else assert.deepEqual(first.appearance, {...desired,marker_size:25});
+    if (mode === 'steel') oldSecond = await draw(mode, 'steel-OLD', 400); else assert.deepEqual(first.appearance, {...desired,marker_size:25,display_values:['wall','slab'].includes(mode)});
     if (await panel().isVisible()) await panel().getByRole('button', { name: 'Close settings', exact: true }).click();
     await click(bodyPoint, [], first.id); await expect(panel()).toBeHidden(); await expect(body(first.id)).toHaveAttribute('aria-pressed', 'true');
     await openDrawingSettings(bodyPoint); await expect(panel()).toBeVisible();

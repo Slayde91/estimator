@@ -6,6 +6,7 @@ const { chromium, expect } = require('@playwright/test');
 const { editSettings, settingsSettled } = require('./settings_helpers.cjs');
 const { spawn } = require('node:child_process');
 const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
+const geometry = require('../../static/takeoff-geometry.js');
 const root = path.resolve(__dirname, '../..');
 const output = path.join(root, '.runtime', 'browser-qa', `areas-${Date.now()}`);
 fs.mkdirSync(output, { recursive: true });
@@ -19,6 +20,38 @@ const ready = new Promise((resolve, reject) => {
 });
 const errors = [];
 const registerExports = [];
+const undoParity=[];
+const surfaceLabels=[];
+let steelVisibilitySize;
+async function assertRegisterUndoSizes(){
+  for(const width of [390,752,1146]){
+    await page.setViewportSize({width,height:764});
+    for(const theme of ['ceasefire','midnight','ocean','forest','slate']){
+      await expect(page.locator('html')).toHaveAttribute('data-theme',theme);
+      for(const mode of ['steel','duct','wall','Defect Reports','Service Plans']){
+        await chooseTakeoff(page,mode);await idle();
+        const register=page.locator(['Defect Reports','Service Plans'].includes(mode)?'.takeoff-physical-register':'.takeoff-workspace-split .takeoff-register');
+        const measured=await register.evaluate(el=>{
+          const undo=el.querySelector('[aria-label="Undo last edit"]'),left=undo.previousElementSibling,style=control=>{const css=getComputedStyle(control),rect=control.getBoundingClientRect();return {width:css.width,height:css.height,rectWidth:rect.width,rectHeight:rect.height};};
+          return {undo:style(undo),left:style(left),leftLabel:left.getAttribute('aria-label'),glyph:undo.querySelector('.button-symbol').textContent,disabled:undo.disabled};
+        });
+        assert.ok(['Select filtered items','Select filtered records'].includes(measured.leftLabel));assert.deepEqual(measured.undo,measured.left);assert.deepEqual(measured.undo,{width:'38px',height:'38px',rectWidth:38,rectHeight:38});assert.equal(measured.glyph,'↶');undoParity.push({width,theme,mode,...measured});
+        if(mode==='steel'&&width===1146&&theme==='ceasefire')steelVisibilitySize=await page.locator('.takeoff-tool-rail [aria-label="Visibility"]').evaluate(el=>{const box=el.getBoundingClientRect();return {width:box.width,height:box.height};});
+      }
+      await page.locator('#theme-toggle').click();
+    }
+  }
+  await page.setViewportSize({width:1600,height:1100});await chooseTakeoff(page,'steel');
+}
+async function assertSurfaceLabel(state,id,rotated){
+  const item=state.snapshot.items.find(item=>item.id===id),result=state.item_results.find(item=>item.id===id),label=page.locator(`[data-area-item-id="${id}"]`),source=geometry.surfaceMetrics(item.geometry).label;
+  assert.equal(item.appearance.display_values,true);assert.equal(item.fields.layers,3);await expect(label).toHaveText(`${new Intl.NumberFormat('en-AU',{minimumFractionDigits:2,maximumFractionDigits:2}).format(result.net_area_m2)} Sqm`);assert.equal(Number(await label.getAttribute('data-area-value')),result.net_area_m2);assert.notEqual(Number(await label.getAttribute('data-area-value')),result.total_area_m2);
+  const box=await page.locator('.takeoff-overlay').boundingBox(),[u,v]=rotated?[(source[1]-30)/540,(source[0]-20)/780]:[source[0]/842,1-source[1]/595],expected=[box.x+u*box.width,box.y+v*box.height];
+  const actual=await label.evaluate(el=>{const point=new DOMPoint(el.x.baseVal[0].value,el.y.baseVal[0].value).matrixTransform(el.getScreenCTM()),css=getComputedStyle(el);return {point:[point.x,point.y],anchor:css.textAnchor,baseline:css.dominantBaseline};});for(let axis=0;axis<2;axis++)assert.ok(Math.abs(actual.point[axis]-expected[axis])<.01,JSON.stringify({actual,expected,source,rotated}));assert.equal(actual.anchor,'middle');assert.equal(actual.baseline,'middle');
+  await expect(page.locator('#takeoff-markup-settings').getByLabel('True-surface source citation',{exact:true})).toHaveCount(0);
+  const visibility=await page.locator('#takeoff-markup-settings [aria-label="Visibility"]').evaluate(el=>{const box=el.getBoundingClientRect(),css=getComputedStyle(el);return {width:box.width,height:box.height,justifySelf:css.justifySelf};});assert.deepEqual({width:visibility.width,height:visibility.height},steelVisibilitySize);assert.deepEqual(steelVisibilitySize,{width:38,height:38});assert.equal(visibility.justifySelf,'start');
+  surfaceLabels.push({mode:item.mode,net:result.net_area_m2,total:result.total_area_m2,layers:3,source,actual,expected,rotated,visibility});
+}
 async function idle() { await expect(page.locator('#takeoffs-workspace')).not.toHaveAttribute('aria-busy', 'true'); }
 async function exportArea(record, format) {
   // View already waits for navigation. Check readiness again at each export:
@@ -171,6 +204,7 @@ async function surface(mode, rotated = false) {
   const item = state.snapshot.items.find(item => item.id === id);
   assert.equal(item.state, 'confirmed');
   assert.equal(item.confirmation.checks.engine, 'takeoffs-area-v2');assert.equal(item.confirmation.checks.layers,3);assert.equal(item.confirmation.checks.total_area_m2,item.confirmation.checks.net_area_m2*3);
+  await assertSurfaceLabel(state,id,rotated);
   return { id, mode, metrics: checkArea(state, id), geometry: item.geometry, confirmation: item.confirmation };
 }
 (async () => {
@@ -186,12 +220,7 @@ async function surface(mode, rotated = false) {
   const calculatorsBefore = await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot());
   await page.waitForFunction(()=>window.CeasefireDesktop?.status().ready);
   await page.getByRole('button',{name:'Takeoffs',exact:true}).click();
-  const undoParity=await page.evaluate(()=>{
-    const undo=document.querySelector('.takeoff-workspace-split .takeoff-register [aria-label="Undo last edit"]'),reference=document.querySelector('#penetration-undo');
-    const style=control=>Object.fromEntries(['display','alignItems','justifyItems','width','height','paddingTop','paddingRight','paddingBottom','paddingLeft','borderTopWidth','borderTopColor','borderTopLeftRadius','color','backgroundColor','fontSize','fontWeight','boxShadow'].map(key=>[key,getComputedStyle(control)[key]]));
-    const glyph=control=>Object.fromEntries(['fontFamily','fontSize','fontWeight','lineHeight','color'].map(key=>[key,getComputedStyle(control.querySelector('.button-symbol'))[key]]));
-    return {undo:style(undo),reference:style(reference),glyph:glyph(undo),referenceGlyph:glyph(reference),text:undo.querySelector('.button-symbol').textContent};
-  });assert.deepEqual(undoParity.undo,undoParity.reference);assert.deepEqual(undoParity.glyph,undoParity.referenceGlyph);assert.equal(undoParity.text,'↶');
+  await assertRegisterUndoSizes();
   await page.locator('#takeoff-upload').setInputFiles(info.area_fixture);
   await expect(page.locator('.takeoff-document')).toHaveCount(1, { timeout: 60000 });
   await expect(page.locator('.takeoff-viewport canvas')).toBeVisible();
@@ -291,7 +320,7 @@ async function surface(mode, rotated = false) {
   assert.deepEqual(await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()), calculatorsBefore);
   assert.deepEqual(errors, []); assert.deepEqual(await page.evaluate(() => window.qaCsp), []);
   assert.equal(registerExports.length, 4);
-  fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ completed:true,wall,slab,undoParity,registerExports,errors,csp:[] }, null, 2));
+  fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ completed:true,wall,slab,undoParity,surfaceLabels,registerExports,errors,csp:[] }, null, 2));
   console.log(`PASS: true-surface wall/slab areas, exclusions, rotated CropBox/UserUnit2/DPR2, bulk/undo, selection, confirmation, Save As/reopen, CSV/XLSX; calculators unchanged. Evidence: ${output}`);
 })().catch(async error => {
   console.error(error); console.error(logs.slice(-5000));

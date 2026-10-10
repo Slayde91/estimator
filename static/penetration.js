@@ -6,8 +6,8 @@
     revision: 0, context: 0, requestRevision: 0, invalid: new Map(), removed: [], timer: null,
     loading: false, calculating: false, downloading: false, downloadKind: null, page: 0, pendingFields: false,
     creatingLibrary: false, addingLibrary: false, addingSchedule: false, updatingSchedule: false, libraryCapture: null, edit: null, composerEpoch: 0,
-    tabAdvisoryAcknowledgement: null, additionalLabourAdvisory: false, openSettingsBand: "pipe",
-    diagramChange: undefined, diagramRead: 0, diagramVersion: 0, takeoffLease: null, takeoffApplying: false,
+    tabAdvisoryAcknowledgement: null, additionalLabourAdvisory: false, openSettingsBand: null,
+    diagramChange: undefined, diagramRead: 0, diagramReading: null, diagramVersion: 0, takeoffLease: null, takeoffApplying: false,
     schedule: { draft: null, result: null, revision: 0, requestRevision: 0, invalid: new Map(), timer: null, calculating: false }, rowEpochs: new Map(), nextEpoch: 0 };
   const definitions = new Map(), diagramVersions = new Map(), pageSize = 50;
   let controlSequence = 0;
@@ -93,7 +93,8 @@
     $("penetration-update-schedule").disabled = blocked || scheduleBlocked || state.diagramChange !== undefined || state.updatingSchedule || !validEdit();
     $("penetration-cancel-edit").hidden = !state.edit;
     for (const id of ["penetration-schedule-recalculate", "penetration-estimator-schedule-recalculate"]) $(id).disabled = scheduleBlocked || state.schedule.calculating || state.downloading;
-    for (const id of ["penetration-pdf", "penetration-item-pdf", "penetration-excel", "penetration-item-excel"]) $(id).disabled = scheduleBlocked || state.downloading;
+    for (const id of ["penetration-pdf", "penetration-excel"]) $(id).disabled = scheduleBlocked || state.downloading;
+    for (const id of ["penetration-item-pdf", "penetration-item-excel"]) $(id).disabled = blocked || state.downloading || state.loading || state.diagramReading !== null || state.creatingLibrary || state.addingLibrary || state.addingSchedule || state.updatingSchedule;
     buttonBusy("penetration-recalculate", state.calculating);
     buttonBusy("penetration-add-to-library", state.creatingLibrary);
     buttonBusy("penetration-add-to-schedule", state.addingSchedule);
@@ -152,7 +153,7 @@
     ++state.context; ++state.requestRevision; ++state.composerEpoch; clearTimeout(state.timer); clearTimeout(state.schedule.timer);
     const composer = clone(prepared.composer || prepared.definition.defaults);
     Object.assign(state, { definition: prepared.definition, draft: composer, saved: prepared.saved || stable(canonicalSnapshot({ draft: prepared.draft, composer }, prepared.definition)),
-      selected: composer.rows[0].id, group: prepared.definition.groups[0], result: null, edit: null, diagramChange: undefined, diagramRead: state.diagramRead + 1, diagramVersion: 0,
+      selected: composer.rows[0].id, group: prepared.definition.groups[0], result: null, edit: null, diagramChange: undefined, diagramRead: state.diagramRead + 1, diagramReading: null, diagramVersion: 0,
       revision: 0, invalid: new Map(), removed: [], page: 0, pendingFields: false, calculating: false, rowEpochs: new Map(), tabAdvisoryAcknowledgement: null, additionalLabourAdvisory: false });
     Object.assign(state.schedule, { draft: clone(prepared.draft), result: null, revision: 0, requestRevision: state.schedule.requestRevision + 1, invalid: new Map(), calculating: false });
     for (const row of state.schedule.draft.rows) state.rowEpochs.set(row.id, ++state.nextEpoch);
@@ -398,9 +399,13 @@
     assertTakeoffWritable();
     if (!file) return;
     if (file.size > 15 * 1_048_576) throw new Error("The source diagram must be no larger than 15 MB.");
-    const context = state.context, read = ++state.diagramRead, content = await fileBase64(file);
-    if (!state.draft || context !== state.context || read !== state.diagramRead) return;
-    queueDiagram(file.name, content); message("The source diagram is ready. Add this item to the Firestopping Library to save it.");
+    const context = state.context, read = ++state.diagramRead;
+    state.diagramReading = read; status();
+    try {
+      const content = await fileBase64(file);
+      if (!state.draft || context !== state.context || read !== state.diagramRead) return;
+      queueDiagram(file.name, content); message("The source diagram is ready. Add this item to the Firestopping Library to save it.");
+    } finally { if (state.diagramReading === read) { state.diagramReading = null; status(); } }
   }
   function fieldsActive() { return !!document.activeElement?.dataset?.penetrationField; }
   function visibleGroups(inputs) {
@@ -531,7 +536,12 @@
     section.append(heading);
     for (const definition of state.definition.settings?.labour_bands || []) {
       const rows = state.schedule.draft.globals.labour_bands?.[definition.key] || [], details = node("details", "penetration-band-settings");
-      details.open = state.openSettingsBand === definition.key; details.addEventListener("toggle", () => { if (details.open) state.openSettingsBand = definition.key; });
+      details.open = state.openSettingsBand === definition.key;
+      details.addEventListener("toggle", () => {
+        if (!details.isConnected) return;
+        if (details.open) state.openSettingsBand = definition.key;
+        else if (state.openSettingsBand === definition.key) state.openSettingsBand = null;
+      });
       const summary = node("summary"); summary.append(node("strong", "", definition.label), node("span", "status-label", `${rows.length} ${rows.length === 1 ? "band" : "bands"}`)); details.append(summary);
       const context = node("p", "helper", `${definition.basis}. ${definition.overflow === "manual" ? "Values above the final band require manual Pipe Labour hours." : "Values above the final band use its hours."}`); details.append(context);
       const scroll = node("div", "table-scroll"), table = node("table", "penetration-settings-table penetration-band-table"), head = node("thead"), header = node("tr");
@@ -652,7 +662,7 @@
   function replaceComposer(draft, invalid = new Map(), diagramChange = undefined) {
     assertTakeoffWritable();
     ++state.composerEpoch; ++state.requestRevision; clearTimeout(state.timer);
-    state.draft = clone(draft); state.invalid = new Map(invalid); state.selected = draft.rows[0].id; state.diagramChange = cloneOptional(diagramChange); state.diagramRead++; state.diagramVersion++;
+    state.draft = clone(draft); state.invalid = new Map(invalid); state.selected = draft.rows[0].id; state.diagramChange = cloneOptional(diagramChange); state.diagramRead++; state.diagramReading = null; state.diagramVersion++;
     state.revision++; state.result = null; state.calculating = false; state.additionalLabourAdvisory = false;
     renderFields(); renderSummary(); renderBreakdown(); renderSchedule(); status();
   }
@@ -1038,7 +1048,7 @@
       if (scope === state.schedule) { $("penetration-schedule-workspace").hidden = false; $("penetration-schedule-breakdown-card").hidden = false; }
       message(error.message, true, scope);
     }
-    finally { state.loading = false; }
+    finally { state.loading = false; status(); }
   }
   function open() { return openScope(state); }
   function openSchedule() { return openScope(state.schedule); }
@@ -1056,6 +1066,24 @@
     } catch (error) { message(`The schedule file was not saved. ${error.message}`, true, state.schedule); }
     finally { state.downloading = false; state.downloadKind = null; status(); }
   }
+  async function downloadItem(kind) {
+    if (state.downloading) return;
+    document.activeElement?.blur?.();
+    try {
+      if (!state.draft || state.invalid.size || state.takeoffLease || state.loading || state.diagramReading !== null || state.creatingLibrary || state.addingLibrary || state.addingSchedule || state.updatingSchedule) throw new Error("Finish the current item input or operation before downloading.");
+      const item = selected();
+      if (!item || state.draft.rows.length !== 1) throw new Error("Choose exactly one current Firestopping item.");
+      const payload = { item: clone(item), globals: clone(state.draft.globals), configuration: configuration(),
+        ...(state.diagramChange === undefined ? {} : { diagram: clone(state.diagramChange) }) };
+      const captured = stable(payload);
+      state.downloading = true; state.downloadKind = kind; status();
+      const saved = await window.CeasefireDownloads.save(`/api/penetration/item.${kind}`, payload);
+      const current = { item: selected(), globals: state.draft?.globals, configuration: configuration(),
+        ...(state.diagramChange === undefined ? {} : { diagram: state.diagramChange }) };
+      message(`File saved to ${saved.path}.${captured !== stable(current) ? " It uses the item, source diagram and prices captured when you clicked Download; later changes are not included." : ""}`);
+    } catch (error) { message(`The current item file was not saved. ${error.message}`, true); }
+    finally { state.downloading = false; state.downloadKind = null; status(); }
+  }
   for (const id of ["penetration-add", "penetration-estimator-add"]) $(id).addEventListener("click", addRow);
   for (const id of ["penetration-undo", "penetration-estimator-undo"]) $(id).addEventListener("click", undoRemove);
   $("penetration-add-to-library").addEventListener("click", addToLibrary);
@@ -1069,14 +1097,16 @@
   });
   $("penetration-diagram-remove").addEventListener("click", () => {
     if (state.diagramChange === undefined) return;
-    state.diagramChange = undefined; state.diagramRead++; state.diagramVersion++; renderDiagram(); message("The pending source diagram was discarded."); status();
+    state.diagramChange = undefined; state.diagramRead++; state.diagramReading = null; state.diagramVersion++; renderDiagram(); message("The pending source diagram was discarded."); status();
   });
   for (const id of ["penetration-schedule-recalculate", "penetration-estimator-schedule-recalculate"]) $(id).addEventListener("click", calculateSchedule);
   $("penetration-add-to-schedule").addEventListener("click", requestAddToSchedule);
   $("penetration-update-schedule").addEventListener("click", updateSchedule);
   $("penetration-cancel-edit").addEventListener("click", cancelEdit);
-  for (const id of ["penetration-pdf", "penetration-item-pdf"]) $(id).addEventListener("click", () => download("pdf"));
-  for (const id of ["penetration-excel", "penetration-item-excel"]) $(id).addEventListener("click", () => download("xlsx"));
+  $("penetration-pdf").addEventListener("click", () => download("pdf"));
+  $("penetration-excel").addEventListener("click", () => download("xlsx"));
+  $("penetration-item-pdf").addEventListener("click", () => downloadItem("pdf"));
+  $("penetration-item-excel").addEventListener("click", () => downloadItem("xlsx"));
   function assertTakeoffWritable() {
     if (state.takeoffLease && !state.takeoffApplying) throw new Error("A confirmed Takeoff library link is still applying. Recover its outcome before editing, saving or replacing the Firestopping Schedule.");
   }

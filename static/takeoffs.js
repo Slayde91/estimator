@@ -104,7 +104,7 @@
     } catch { return null; }
   }
   let markupDefaults = readMarkupDefaults();
-  const newMarkupAppearance = () => ({ stroke_width: 5, fill_enabled: true, marker_size: 25, ...markupDefaults, display_values: false });
+  const newMarkupAppearance = (mode = null) => ({ stroke_width: 5, fill_enabled: true, marker_size: 25, ...markupDefaults, display_values: isArea(mode) });
   const uuid = () => crypto.randomUUID();
   const snapshotKey = value => { if (!value) return null; const copy = clone(value); delete copy.companion_folder; return JSON.stringify(copy); };
   function node(tag, className = "", text) { const el = document.createElement(tag); if (className) el.className = className; if (text !== undefined) el.textContent = String(text); return el; }
@@ -942,7 +942,9 @@
     content.append(node("h4", "", "Item details"));
     if (selectedItems().length === 1) { editor.visibility = currentVisibilityControl("item", selectedItems()[0].id); content.append(editor.visibility); }
     if (isArea()) content.append(node("p", "helper", `Surface type: ${[...new Set(selected.map(surfaceType))].join(" / ")}`));
-    editor.fields = commonItemFields(selected, itemFields).map(def => { const field = formField(def, def[0] === "duct_size" ? formatDuctSize(first.fields) : (def[0] === "layers" ? first.fields.layers ?? 1 : first.fields[def[0]])); bindSetting(editor, field, `fields:${def[0]}`); if (def[0] === "sides") field.wrapper.hidden = state.ui.target.value !== "steel_board"; if (["product", "member_type"].includes(def[0])) field.control.addEventListener("change", () => void safely(() => loadSettingsOptions(editor))); content.append(field.wrapper); return field; });
+    // Hide this legacy source field only in the inspector. Untouched citations
+    // remain in the item and its evidence; unrelated edits send touched fields only.
+    editor.fields = commonItemFields(selected, itemFields).filter(([key]) => key !== "surface_citation").map(def => { const field = formField(def, def[0] === "duct_size" ? formatDuctSize(first.fields) : (def[0] === "layers" ? first.fields.layers ?? 1 : first.fields[def[0]])); bindSetting(editor, field, `fields:${def[0]}`); if (def[0] === "sides") field.wrapper.hidden = state.ui.target.value !== "steel_board"; if (["product", "member_type"].includes(def[0])) field.control.addEventListener("change", () => void safely(() => loadSettingsOptions(editor))); content.append(field.wrapper); return field; });
     if (selected.some(isCount)) {
       const counted = selected.filter(item => isCount(item) && !isStandalone(item));
       counted.forEach((item, index) => {
@@ -2100,7 +2102,7 @@
       if (!isArea(mode)) throw new Error("Choose Wall or Floor for Surface Type.");
       if (!Number.isSafeInteger(enteredFields.layers) || enteredFields.layers < 1 || enteredFields.layers > 1e12) throw new Error("Number of layers: enter a positive whole number.");
       const id = uuid();
-      await command("create_item", { item: { id, mode, geometry, measurement, quantity: 1, fields: enteredFields, evidence, appearance: newMarkupAppearance() } });
+      await command("create_item", { item: { id, mode, geometry, measurement, quantity: 1, fields: enteredFields, evidence, appearance: newMarkupAppearance(mode) } });
       state.selected = new Set([id]); cancelTrace(); state.settingsOpen = true; renderSelection(); return;
     }
     const mode = state.mode, calculator = state.ui.target.value;
@@ -2357,7 +2359,9 @@
     if (!Number.isFinite(area) || !preview.label) return;
     const point = G.transform(preview.label, state.viewport.transform), label = svg("text", { x: point[0], y: point[1], class: options.preview ? "takeoff-area-preview" : "takeoff-area-label" });
     if (options.itemId) label.dataset.areaItemId = options.itemId;
-    label.textContent = `${displayValues.format(area)} m²${options.excluded ? " excluded" : ""}${options.preview ? " · Preview" : ""}`;
+    label.dataset.areaValue = area;
+    label.dataset.areaBasis = options.excluded ? "excluded" : "measured-net";
+    label.textContent = `${displayValues.format(area)} Sqm${options.excluded ? " excluded" : ""}${options.preview ? " · Preview" : ""}`;
     overlay.append(label);
   }
   function renderValueLabel(overlay, point, value, unit, itemId, options = {}) {

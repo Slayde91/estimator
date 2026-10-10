@@ -341,7 +341,17 @@ async function check(name,fn){const h=harness();h.api.applyProject(await h.api.p
     for(const key of ['waste_unlagged_pipes','waste_lagged_pipes','waste_plastic_pipes','waste_bundles'])assert.ok(h.control(key,null));
     waste.value='12.5';await waste.emit('input');assert.equal(h.audit.state.schedule.draft.globals.waste_lagged_pipes,.125);assert.equal(h.audit.state.draft.globals.waste_lagged_pipes,.125);
     register.value='.15';await register.emit('input');assert.equal(h.audit.state.schedule.draft.globals.register_allowance_hours,.15);assert.equal(h.audit.state.draft.globals.register_allowance_hours,.15);
-    const root=h.byId('penetration-row-fields'),routeEditors=root.querySelectorAll('[data-penetration-service-route]'),bandEditors=root.querySelectorAll('[data-penetration-band]');assert.equal(routeEditors.length,2);assert.equal(bandEditors.length,12);assert.match(text(root),/Service Tab.*Service Types.*UNLAGGED PIPES.*LAGGED PIPES/);
+    const root=h.byId('penetration-row-fields');let routeEditors=root.querySelectorAll('[data-penetration-service-route]'),bandEditors=root.querySelectorAll('[data-penetration-band]');assert.equal(routeEditors.length,2);assert.equal(bandEditors.length,12);assert.match(text(root),/Service Tab.*Service Types.*UNLAGGED PIPES.*LAGGED PIPES/);
+    const detailsIn=node=>[node,...node.children.flatMap(detailsIn)].filter(node=>node.tagName==='details');
+    let pipe=detailsIn(root).find(node=>/Pipe Labour/.test(text(node)));
+    assert.equal(pipe.open,false,'Pipe Labour is initially collapsed');
+    const unchangedBands=copy(h.audit.state.schedule.draft.globals.labour_bands);
+    pipe.open=true;await pipe.emit('toggle');h.audit.renderFields();
+    pipe=detailsIn(root).find(node=>/Pipe Labour/.test(text(node)));assert.equal(pipe.open,true,'Explicit expansion survives rerender');
+    pipe.open=false;await pipe.emit('toggle');h.audit.renderFields();
+    assert.equal(detailsIn(root).find(node=>/Pipe Labour/.test(text(node))).open,false,'Explicit collapse survives rerender');
+    assert.deepEqual(copy(h.audit.state.schedule.draft.globals.labour_bands),unchangedBands,'View toggles do not alter band calculation inputs');
+    routeEditors=root.querySelectorAll('[data-penetration-service-route]');bandEditors=root.querySelectorAll('[data-penetration-band]');
     const laggedRoute=routeEditors.find(editor=>editor.dataset.penetrationServiceRoute==='Lagged Pipes');laggedRoute.value='Lagged Pipes; Insulated Pipes';await laggedRoute.emit('input');assert.deepEqual(copy(h.audit.state.schedule.draft.globals.service_routes['Lagged Pipes']),['Lagged Pipes','Insulated Pipes']);assert.deepEqual(copy(h.audit.state.draft.globals.service_routes['Lagged Pipes']),['Lagged Pipes','Insulated Pipes']);
     const maximum=bandEditors.find(editor=>editor.dataset.penetrationBand==='labour_bands.pipe.0.maximum'),hours=bandEditors.find(editor=>editor.dataset.penetrationBand==='labour_bands.pipe.0.hours');maximum.value='60';await maximum.emit('input');hours.value='.4';await hours.emit('input');assert.deepEqual(copy(h.audit.state.schedule.draft.globals.labour_bands.pipe[0]),{maximum:60,hours:.4});assert.deepEqual(copy(h.audit.state.draft.globals.labour_bands.pipe[0]),{maximum:60,hours:.4});
     maximum.value='101';await maximum.emit('input');assert.match(h.api.inputProblem(),/invalid/);assert.equal(h.byId('penetration-recalculate').disabled,true);assert.equal(h.byId('penetration-schedule-recalculate').disabled,true);assert.equal(h.audit.state.schedule.draft.globals.labour_bands.pipe[0].maximum,60);maximum.value='60';await maximum.emit('input');assert.equal(h.api.inputProblem(),'');
@@ -501,6 +511,48 @@ async function check(name,fn){const h=harness();h.api.applyProject(await h.api.p
     assert.equal(h.byId(`penetration-${kind==='pdf'?'pdf':'excel'}`).getAttribute('aria-busy'),'true');assert.equal(h.byId(`penetration-${kind==='pdf'?'excel':'pdf'}`).getAttribute('aria-busy'),'false');
     assert.equal(sent.body.draft.rows[0].inputs.O,123.456789012345);assert.equal(sent.body.composer,undefined);assert.equal(sent.body.download.project_token,'original-token');assert.equal(sent.body.project_details.client,'Original client');h.target.project_token='later';h.details.client='Later';h.pricing.rates.original.price=99;h.api.applyProject(await h.api.prepareDefaults());
     pending.resolve({ok:true,headers:{get:()=> 'application/json'},json:async()=>({saved:true,path:`C:/Original/report.${kind}`,filename:`report.${kind}`,destination:'project'})});await saving;assert.match(h.byId('penetration-schedule-message').textContent,/C:\/Original\/report/);assert.match(h.byId('penetration-schedule-message').textContent,/later changes are not included/);
+  });
+  for(const kind of ['pdf','xlsx'])await check(`Current Item ${kind.toUpperCase()} captures only the unsaved composer and diagram, never Schedule rows`,async h=>{
+    h.audit.state.draft.rows[0].inputs.T='SCHEDULE ONLY';await h.audit.addToSchedule();
+    h.audit.state.draft.rows[0].inputs.T='CURRENT UNSAVED ONLY';h.audit.queueDiagram('current.png','aW1hZ2U=');
+    const before=copy(h.api.projectSnapshot()),pending=deferred();let captured;
+    h.context.fetch=async(path,options)=>{captured={path,body:JSON.parse(options.body)};return pending.promise;};
+    const saving=h.audit.downloadItem(kind);await flush();
+    assert.equal(captured.path,`/api/penetration/item.${kind}`);assert.equal(captured.body.item.inputs.T,'CURRENT UNSAVED ONLY');
+    assert.equal(captured.body.draft,undefined);assert.equal(captured.body.rows,undefined);assert.equal(captured.body.item.id,before.composer.rows[0].id);
+    assert.deepEqual(captured.body.diagram,{filename:'current.png',content_base64:'aW1hZ2U='});
+    assert.deepEqual(copy(h.api.projectSnapshot()),before,'Export launch does not alter composer/Schedule/project state');
+    h.audit.state.draft.rows[0].inputs.T='LATER ITEM';h.pricing.rates.original.price=2;
+    pending.resolve({ok:true,headers:{get:()=> 'application/json'},json:async()=>({saved:true,path:`C:/Original/item.${kind}`,filename:`item.${kind}`,destination:'project'})});
+    await saving;assert.match(h.byId('penetration-message').textContent,/later changes are not included/);
+    assert.equal(h.audit.state.schedule.draft.rows[0].inputs.T,'SCHEDULE ONLY');assert.equal(h.audit.state.diagramChange.filename,'current.png');
+  });
+  await check('Current-item export validity is independent of Schedule invalid fields',async h=>{
+    h.audit.state.schedule.invalid.set('schedule-only','invalid');h.audit.render();
+    assert.equal(h.byId('penetration-pdf').disabled,true);assert.equal(h.byId('penetration-item-pdf').disabled,false);
+    h.audit.state.invalid.set('composer-only','invalid');h.audit.render();assert.equal(h.byId('penetration-item-pdf').disabled,true);
+    let calls=0;h.context.fetch=async()=>{calls++;throw new Error('must not export');};await h.audit.downloadItem('pdf');
+    assert.equal(calls,0);assert.match(h.byId('penetration-message').textContent,/Finish the current item input/);
+  });
+  await check('A newly chosen image blocks both item downloads until its actual FileReader completes',async h=>{
+    let reader,captured;
+    h.context.FileReader=class{constructor(){reader=this;}readAsDataURL(){}};
+    h.audit.queueDiagram('previous.png','b2xk');
+    const reading=h.audit.chooseDiagram({name:'new.png',size:3});await flush();
+    assert.equal(h.byId('penetration-item-pdf').disabled,true);assert.equal(h.byId('penetration-item-excel').disabled,true);
+    let calls=0;h.context.fetch=async(path,options)=>{calls++;captured=JSON.parse(options.body);return {ok:true,headers:{get:()=> 'application/json'},json:async()=>({saved:true,path:'C:/Original/item.pdf',filename:'item.pdf',destination:'project'})};};
+    await h.audit.downloadItem('pdf');assert.equal(calls,0);assert.equal(h.audit.state.diagramChange.filename,'previous.png');
+    reader.result='data:image/png;base64,bmV3';reader.onload();await reading;
+    assert.equal(h.byId('penetration-item-pdf').disabled,false);assert.equal(h.byId('penetration-item-excel').disabled,false);
+    await h.audit.downloadItem('pdf');assert.equal(calls,1);assert.deepEqual(captured.diagram,{filename:'new.png',content_base64:'bmV3'});
+  });
+  await check('An obsolete image reader cannot overwrite a replacement composer or keep downloads blocked',async h=>{
+    let reader;h.context.FileReader=class{constructor(){reader=this;}readAsDataURL(){}};
+    const reading=h.audit.chooseDiagram({name:'obsolete.png',size:3});await flush();
+    h.api.applyProject(await h.api.prepareDefaults());
+    assert.equal(h.audit.state.diagramReading,null);assert.equal(h.byId('penetration-item-pdf').disabled,false);
+    reader.result='data:image/png;base64,b2xk';reader.onload();await reading;
+    assert.equal(h.audit.state.diagramChange,undefined);assert.equal(h.audit.state.diagramReading,null);
   });
   await check('Unconfirmed downloads preserve drafts and disclose an actionable error',async h=>{
     const before=h.api.projectSnapshot();h.context.fetch=async()=>({ok:true,headers:{get:()=> 'application/json'},json:async()=>({saved:false})});await h.audit.download('pdf');assert.match(h.byId('penetration-schedule-message').textContent,/did not confirm/);assert.deepEqual(copy(h.api.projectSnapshot()),copy(before));

@@ -54,7 +54,7 @@ const squareMetres = geometry => {
 };
 async function checkAreaLabel(state, id) {
   const expected = squareMetres(item(state, id).geometry); assert.ok(Math.abs(result(state, id).net_area_m2 - expected) < 1e-9);
-  const label = page.locator(`.takeoff-area-label[data-area-item-id="${id}"]`); await expect(label).toContainText('m²');
+  const label = page.locator(`.takeoff-area-label[data-area-item-id="${id}"]`); await expect(label).toContainText('Sqm');
   const numeric = Number((await label.textContent()).replace(/,/g, '').match(/\d+(?:\.\d+)?/)[0]); assert.ok(Math.abs(numeric - expected) <= .0051, JSON.stringify({ numeric, expected }));
   return expected;
 }
@@ -114,12 +114,14 @@ async function layout(width) {
   const areaRecords = [];
   for (const mode of ['wall', 'slab']) {
     await chooseTakeoff(page, mode); await fit(); await page.getByRole('button', { name: 'Trace surface', exact: true }).click(); await points([[100, 100], [400, 100], [400, 400], [100, 400]]);
-    const previewLabel = page.locator('.takeoff-area-preview'); await expect(previewLabel).toContainText('m²'); const previewArea = Number((await previewLabel.textContent()).replace(/,/g, '').match(/\d+(?:\.\d+)?/)[0]);
+    const previewLabel = page.locator('.takeoff-area-preview'); await expect(previewLabel).toContainText('Sqm'); const previewArea = Number((await previewLabel.textContent()).replace(/,/g, '').match(/\d+(?:\.\d+)?/)[0]);
     const outline = page.locator('polygon.takeoff-pending,path.takeoff-pending,polyline.takeoff-pending'); const closed = await outline.evaluate(el => el.tagName.toLowerCase() === 'polygon' || /z\s*$/i.test(el.getAttribute('d') || '') || el.points?.numberOfItems > 3 && el.points.getItem(0).x === el.points.getItem(el.points.numberOfItems - 1).x && el.points.getItem(0).y === el.points.getItem(el.points.numberOfItems - 1).y); assert.equal(closed, true, 'Live surface preview must include its closing boundary');
     const previewBox = await previewLabel.boundingBox(), outlineBox = await outline.boundingBox(); assert.ok(previewBox.x >= outlineBox.x && previewBox.y >= outlineBox.y && previewBox.x + previewBox.width <= outlineBox.x + outlineBox.width && previewBox.y + previewBox.height <= outlineBox.y + outlineBox.height, 'Area preview stays inside the traced rectangle');
     await page.screenshot({ path: path.join(output, `${mode}-live-preview.png`) }); await finish();
     state = await command(() => dialog('Add surface', { 'Surface Type': mode, 'Surface ID': `DRAG-${mode.toUpperCase()}`, 'Number of layers': 1 }, 'Add surface'), 'create_item');
     const area = state.snapshot.items.find(value => value.mode === mode);assert.equal(area.fields.layers,1); await select(area.id);
+    await expect(page.locator('#takeoff-markup-settings').getByLabel('Display Values', { exact: true })).toBeChecked();
+    await command(() => page.locator('#takeoff-markup-settings').getByLabel('Display Values', { exact: true }).uncheck(), 'bulk_update');
     state = await command(() => page.locator('#takeoff-markup-settings').getByLabel('Display Values', { exact: true }).check(), 'bulk_update');
     const committedArea = await checkAreaLabel(state, area.id); assert.ok(Math.abs(previewArea - committedArea) <= .0051); evidence[`${mode}Preview`] = { previewArea, committedArea };
     state = await command(() => drag(area.id, 1, [450, 120], '', async midway => { await expect(page.locator('.takeoff-area-preview')).toContainText('Preview'); const current = await page.evaluate(() => window.CeasefireTakeoffs.projectFingerprint()); assert.notEqual(current, midway, 'Every changed pending point position changes the project fingerprint'); assert.deepEqual(JSON.parse(current).snapshot.items.find(value => value.id === area.id).geometry, area.geometry); }), 'update_item'); assert.deepEqual(item(state, area.id).geometry.points[0], area.geometry.points[0]); await checkAreaLabel(state, area.id);

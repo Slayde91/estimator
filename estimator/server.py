@@ -247,6 +247,17 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                         self.send_payload(405, {'error': 'Method not allowed.'})
                         return
                     self.send_payload(200, libraries.action(route.split('/')[-2], route.split('/')[-1], body))
+                elif route in {'/api/penetration/item.pdf', '/api/penetration/item.xlsx'}:
+                    if self.command != 'POST':
+                        self.send_payload(405, {'error': 'Method not allowed.'})
+                        return
+                    from .penetration_item_exports import prepare_item_snapshot, render_item_pdf, build_item_xlsx
+                    snapshot = prepare_item_snapshot(body, library=libraries, default_configuration=store.configuration(), require_diagram=route.endswith('.pdf'))
+                    destination = projects.capture_download(body['download']) if 'download' in body else None
+                    if route.endswith('.pdf'):
+                        self.send_download(render_item_pdf(snapshot), 'application/pdf', 'CEASEFIRE-Firestopping-Item.pdf', destination)
+                    else:
+                        self.send_download(build_item_xlsx(snapshot), 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'CEASEFIRE-Firestopping-Item.xlsx', destination)
                 elif route in {'/api/penetration/definition', '/api/penetration/validate-item', '/api/penetration/calculate', '/api/penetration/report.pdf', '/api/penetration/register.xlsx'}:
                     if self.command != 'POST':
                         self.send_payload(405, {'error': 'Method not allowed.'})

@@ -4,7 +4,7 @@ const { chooseLibrary } = require('./section_navigation.cjs');
 const { chromium, expect } = require('@playwright/test');
 const { chooseCalculator } = require('./calculator_actions.cjs');
 const { clickProjectControl } = require('./project_actions.cjs');
-const { spawn } = require('node:child_process');
+const { spawn, spawnSync } = require('node:child_process');
 const fs = require('node:fs'), path = require('node:path'), crypto = require('node:crypto');
 const assert = require('node:assert/strict');
 const root = path.resolve(__dirname, '../..');
@@ -135,14 +135,14 @@ async function workbook(title) {
   const gear=await settings.boundingBox(),tab=await details.boundingBox(),add=await page.locator('#penetration-add-to-schedule').boundingBox(),library=await page.locator('#penetration-add-to-library').boundingBox(),itemDocument=page.locator('.penetration-library-actions [data-document-menu-toggle]'),documentBox=await itemDocument.boundingBox();
   assert.ok(gear.x+gear.width<=tab.x,'Settings icon is left of the first Details tab');assert.ok(add.x+add.width<=documentBox.x&&documentBox.x+documentBox.width<=library.x,'Document is between Add to Schedule and Add to Library');assert.ok(Math.abs(documentBox.y-library.y)<1&&Math.abs(documentBox.height-library.height)<1,'Document and Add to Library share the same height and top alignment');
   await expect(page.locator('#penetration-new-item')).toBeHidden();await expect(page.locator('#penetration-recalculate')).toBeHidden();
-  for(const id of ['penetration-item-excel','penetration-item-pdf'])assert.equal(await page.locator(`#${id}`).evaluate(el=>!!el.closest('.penetration-item-heading')),true,'Whole-schedule downloads are available in current-item controls');
+  for(const id of ['penetration-item-excel','penetration-item-pdf'])assert.equal(await page.locator(`#${id}`).evaluate(el=>!!el.closest('.penetration-item-heading')),true,'Current-item downloads are available in current-item controls');
   const clearBefore=await snapshots(),current=clearBefore.penetration.composer.rows[0];
   const description=page.locator('#penetration-row-fields [data-penetration-field="T"]');await description.fill('CLEAR CURRENT ITEM');await description.press('Tab');
   await page.locator('#penetration-item-quantity [data-penetration-field="O"]').fill('3');await page.locator('#penetration-clear').click();
   await expect(description).toHaveValue('');await expect(page.locator('#penetration-item-quantity [data-penetration-field="O"]')).toHaveValue('');
   const cleared=await snapshots();assert.deepEqual(cleared.penetration.draft,clearBefore.penetration.draft);assert.deepEqual(cleared.penetration.composer.globals,clearBefore.penetration.composer.globals);assert.deepEqual(cleared.penetration.composer.rows,[{id:current.id,inputs:{}}]);assert.deepEqual(cleared.pricing,clearBefore.pricing);assert.deepEqual(cleared.calculators,clearBefore.calculators);
   await page.screenshot({path:path.join(output,'firestopping-clear-controls.png'),fullPage:true});
-  evidence.commentsControls={homeTakeoffsAndHelp:true,settingsLeftOfDetails:true,documentLeftOfLibrary:true,headerNewAndRecalculateHidden:true,scheduleDownloadsInItemControls:true,clearAllInputsAndQuantity:true,clearPreservesScheduleSettingsPricesAndCalculators:true};
+  evidence.commentsControls={homeTakeoffsAndHelp:true,settingsLeftOfDetails:true,documentLeftOfLibrary:true,headerNewAndRecalculateHidden:true,currentItemDownloadsInItemControls:true,clearAllInputsAndQuantity:true,clearPreservesScheduleSettingsPricesAndCalculators:true};
   const requiredFields=[['J','Category','Plumbing & Hydraulic'],['K','Service Type','Copper Pipes'],['L','Penetration Type','Core Hole'],['M','Substrate Orientation','Vertical'],['N','FRL','-/120/120'],['P','Substrate','Concrete/masonry wall']];
   const field=column=>page.locator(`#penetration-row-fields [data-penetration-field="${column}"]`);
   for(const [column,,value] of requiredFields){await expect(field(column)).toHaveAttribute('aria-required','true');await field(column).selectOption(value);}
@@ -156,8 +156,16 @@ async function workbook(title) {
   await description.fill('CLEAR LINKED SCHEDULE SOURCE');await description.press('Tab');const quantity=page.locator('#penetration-item-quantity [data-penetration-field="O"]');await quantity.fill('3.123456789');await quantity.press('Tab');
   await page.locator('#penetration-input-groups').getByRole('tab',{name:'Products and labour',exact:true}).click();const crew=page.locator('#penetration-row-fields [data-penetration-field="W"]');await crew.selectOption(await crew.locator('option').evaluateAll(options=>options.find(option=>option.value&&!option.disabled).value));
   await page.locator('#penetration-input-groups').getByRole('tab',{name:'OTHER',exact:true}).click();const additionalLabour=page.locator('#penetration-row-fields [data-penetration-field="AH"]');await additionalLabour.fill('1');await additionalLabour.press('Tab');await page.locator('#penetration-input-groups').getByRole('tab',{name:'DETAILS',exact:true}).click();
+  // The linked item must have a real retained source image before its current
+  // PDF is downloaded. Missing managed images remain a production error.
+  const generated=spawnSync(process.env.CEASEFIRE_PYTHON||'python',['-c',"from PIL import Image; import sys; im=Image.new('RGB',(320,160),'white'); im.paste((180,25,20),(40,25,150,110)); im.save(sys.stdout.buffer,format='PNG')"],{cwd:root,windowsHide:true});assert.equal(generated.status,0,generated.stderr.toString());
+  await page.locator('#penetration-diagram-file').setInputFiles({name:'Synthetic navigation source.png',mimeType:'image/png',buffer:generated.stdout});
+  await expect(page.locator('#penetration-diagram-remove')).toBeVisible();await expect(page.locator('#penetration-item-pdf')).toBeEnabled();
   const capturedReply=page.waitForResponse(reply=>new URL(reply.url()).pathname==='/api/libraries/penetration'&&reply.request().method()==='POST');capturedReply.catch(()=>{});await page.locator('#penetration-add-to-library').click();
   await expect(dialog.getByRole('heading')).toHaveText('Are you sure you want to add this item to the Firestopping Library?');await dialog.getByRole('button',{name:'Yes',exact:true}).click();const capture=await capturedReply;assert.equal(capture.status(),200,await capture.text());const libraryItem=await capture.json();await expect(page.locator('#penetration-add-to-library')).toHaveAttribute('aria-busy','false');
+  assert.equal(capture.request().postDataJSON().diagram.content_base64,generated.stdout.toString('base64'));
+  const managedImage=await page.request.get(`http://127.0.0.1:${info.port}/api/libraries/penetration/${libraryItem.id}/image`);assert.equal(managedImage.status(),200);assert.match(managedImage.headers()['content-type'],/^image\/jpeg/);
+  evidence.retainedSourceDiagram={libraryItemId:libraryItem.id,uploadSha256:crypto.createHash('sha256').update(generated.stdout).digest('hex'),managedImageSha256:crypto.createHash('sha256').update(await managedImage.body()).digest('hex')};
   assert.equal((await snapshots()).penetration.composer.rows[0].library_item_id,libraryItem.id);await page.locator('#penetration-add-to-schedule').click();await expect(page.locator('#penetration-add-to-schedule')).toHaveAttribute('aria-busy','false');
   const linkedBefore=await snapshots(),linkedRow=linkedBefore.penetration.draft.rows.at(-1);assert.equal(linkedRow.library_item_id,libraryItem.id);
   const scheduleDetails=page.locator('details[aria-labelledby="penetration-estimator-schedule-heading"]');if(!await scheduleDetails.evaluate(element=>element.open))await scheduleDetails.locator(':scope > summary').click();await page.locator(`#penetration-estimator-schedule-body [data-penetration-id="${linkedRow.id}"]`).getByRole('button',{name:`Edit firestopping item ${linkedBefore.penetration.draft.rows.length}`,exact:true}).click();
@@ -171,11 +179,13 @@ async function workbook(title) {
     if (prefix === 'penetration') { await page.getByRole('button', { name: 'Estimates', exact: true }).click(); await idle(); }
     const schedule = page.locator(`details[aria-labelledby="${headingId}"]`);
     if (!await schedule.evaluate(element => element.open)) await schedule.locator(':scope > summary').click();
-    const documentRoot=prefix==='penetration-item'?page.locator('.penetration-library-actions'):schedule;
-    const documentToggle = documentRoot.getByRole('button', { name: 'Document', exact: true }), documentActions = documentRoot.getByRole('group', { name: 'Document actions', exact: true });
+    const itemOnly=prefix==='penetration-item',actionsId=itemOnly?'firestopping-item-document-actions':'firestopping-document-actions';
+    const documentToggle=page.locator(`[aria-controls="${actionsId}"]`),documentActions=page.locator(`#${actionsId}`);
+    if(!itemOnly){assert.equal(await documentToggle.evaluate(el=>!!el.closest('.page-heading')?.querySelector('#download-quote-pdf')),true,'Schedule Document shares the Main heading with Estimate PDF');assert.equal(await schedule.locator('.calculator-document-menu').count(),0);assert.equal(await page.locator('.penetration-schedule-recalculate-tools .calculator-document-menu').count(),0);}
     await expect(documentToggle.locator('.calculator-document-icon')).toBeVisible();
     await expect(documentActions).toBeHidden(); await documentToggle.click(); await expect(documentActions).toBeVisible();
-    await expect(documentActions.getByRole('button',{name:'Download XLSX Schedule',exact:true})).toHaveCount(1);
+    await expect(documentActions.getByRole('button',{name:itemOnly?'Download Current Item':'Download Firestopping Schedule',exact:true})).toHaveCount(2);
+    await expect(documentActions.locator('.download-format')).toHaveText(['XLSX','PDF']);
     assert.equal(await documentActions.getByRole('button').count(), 2);
     for (const width of [390, 570, 825, 1146]) {
       await page.setViewportSize({ width, height: 1000 }); const bounds = await documentActions.boundingBox();
@@ -186,9 +196,13 @@ async function workbook(title) {
     await page.keyboard.press('Escape'); await expect(documentToggle).toBeFocused(); await expect(documentActions).toBeHidden();
     for (const [suffix, magic] of [['excel', 'PK'], ['pdf', '%PDF']]) {
       await documentToggle.click(); const action = page.locator(`#${prefix}-${suffix}`); await expect(action).toBeVisible();
-      const endpoint = `/api/penetration/${suffix === 'pdf' ? 'report.pdf' : 'register.xlsx'}`;
+      const endpoint = `/api/penetration/${itemOnly?(suffix==='pdf'?'item.pdf':'item.xlsx'):(suffix==='pdf'?'report.pdf':'register.xlsx')}`;
       const download = page.waitForResponse(reply => new URL(reply.url()).pathname === endpoint && reply.request().method() === 'POST');
       await action.click(); const reply = await download; assert.equal(reply.status(), 200); const file = await reply.json();
+      const downloaded=reply.request().postDataJSON();
+      if(itemOnly){assert.deepEqual(downloaded.item,linkedUpdated.penetration.composer.rows[0]);assert.deepEqual(downloaded.globals,linkedUpdated.penetration.composer.globals);assert.equal(downloaded.draft,undefined);assert.equal(downloaded.rows,undefined);assert.equal(downloaded.diagram,undefined);assert.equal(file.filename,`CEASEFIRE-Firestopping-Item.${suffix==='pdf'?'pdf':'xlsx'}`);}
+      else{assert.deepEqual(downloaded.draft,linkedUpdated.penetration.draft);assert.equal(downloaded.item,undefined);assert.equal(file.filename,suffix==='pdf'?'CEASEFIRE-Firestopping-Estimate.pdf':'CEASEFIRE-Firestopping-Schedule.xlsx');}
+      assert.deepEqual(downloaded.configuration,linkedUpdated.pricing);
       assert.equal(file.saved, true); assert.equal(file.destination, 'project');
       const relative = path.relative(output, file.path); assert.ok(relative && !relative.startsWith('..') && !path.isAbsolute(relative));
       assert.equal(fs.readFileSync(file.path).subarray(0, magic.length).toString(), magic);
@@ -204,6 +218,7 @@ async function workbook(title) {
   evidence.touch = { disclosureTap: true, chosenCalculator: 'Steel (board)' };
   assert.deepEqual(await touch.evaluate(() => window.qaCsp), []); await touchContext.close();
   assert.deepEqual(errors, []); assert.deepEqual(await page.evaluate(() => window.qaCsp), []);
+  for(const [name,hash] of Object.entries(assetHashes))assert.equal(crypto.createHash('sha256').update(fs.readFileSync(path.join(root,name))).digest('hex'),hash,`Production source remained fixed: ${name}`);
   fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ passed: true, assetHashes, evidence, errors, csp: [] }, null, 2));
   console.log(`PASS: native calculator menu hover, keyboard, touch, all destinations, draft preservation and Pricing Library guard. Evidence: ${output}`);
 })().catch(async error => {

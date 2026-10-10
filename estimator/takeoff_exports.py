@@ -396,7 +396,7 @@ def export_workspace(snapshot, request, format, *, documents, store):
             raise ValidationError('The Takeoffs draft changed before export. Retry from its current state.')
         from .takeoff_physical_markers import export_physical_pdf
         return export_physical_pdf(snapshot, request, documents)
-    allowed = {'expected_revision', 'mode', 'item_ids', 'calculator_drafts'} | ({'document_id', 'annotation_ids'} if format == 'marked-pdf' else {'confirmation'})
+    allowed = {'expected_revision', 'mode', 'item_ids', 'calculator_drafts'} | ({'document_id', 'annotation_ids', 'signature_ids'} if format == 'marked-pdf' else {'confirmation'})
     required = {'expected_revision', 'mode'} | ({'document_id', 'item_ids'} if format == 'marked-pdf' else set())
     object_fields(request, allowed, 'Current Takeoffs export', required)
     if type(request['expected_revision']) is not int or request['expected_revision'] != snapshot['revision']:
@@ -433,6 +433,8 @@ def export_workspace(snapshot, request, format, *, documents, store):
                 or len(annotation_ids) != len(set(annotation_ids)) or set(annotation_ids) - active_annotations.keys()):
             raise ValidationError('Export call-out IDs must identify distinct free call-outs in the selected mode and original PDF.')
         annotations = [active_annotations[identifier] for identifier in annotation_ids]
+        from .takeoff_signatures import export_signatures
+        signatures = export_signatures(snapshot, request, document['id'], modes)
     approvals, binding_registry = _local_authority(snapshot, store)
     results = {item['id']: item_result(item, snapshot) for item in selected}
     confirmations = {item['id']: _confirmed(item, snapshot, results[item['id']], approvals) for item in selected}
@@ -447,4 +449,4 @@ def export_workspace(snapshot, request, format, *, documents, store):
     from .takeoff_markup_pdf import export_marked_pdf
     return export_marked_pdf(document, selected, results, confirmations, linked, documents,
                              project_id=snapshot['project_id'], revision=snapshot['revision'], mode=request['mode'], snapshot=snapshot,
-                             annotations=annotations)
+                             annotations=annotations, signatures=signatures)

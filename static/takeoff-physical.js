@@ -1015,7 +1015,7 @@
         }
         itemActions.append(inspectorMenu.root);
       }
-      if (visibility) { itemActions.className += " with-visibility"; itemActions.append(visibility); }
+      if (visibility) { const appearanceActions = ui.inspector.querySelector(".takeoff-appearance-actions"); if (appearanceActions) appearanceActions.append(visibility); else { itemActions.className += " with-visibility"; itemActions.append(visibility); } }
       let remove;
       if (entry && !legacyReadOnly() && !entity.deleted) {
         remove = button("Delete draft record", flushed => deleteEntity(flushed ? state.index.get(entity.id) : entry), "button secondary takeoff-physical-delete-selected"); remove.setAttribute("aria-label", "Delete draft record"); remove.title = "Delete draft record"; remove.replaceChildren(deleteIcon());
@@ -1049,8 +1049,8 @@
       return lineage.find(value => !value.entity.deleted && (value.entity.marker || value.entity.annotation)) || null;
     }
     function visibilityButton(entry, owner) {
-      const control = node("button", "button secondary icon-only takeoff-icon-button takeoff-physical-visibility takeoff-current-visibility"), icon = node("img"), identity = `${scope()}/${state.snapshot?.project_id || ""}/${graph()?.id || "new"}`;
-      control.type = "button"; control.setAttribute("aria-label", "Visibility"); icon.src = "/icons/takeoff-visibility.png"; icon.alt = ""; icon.width = 32; icon.height = 32; icon.setAttribute("aria-hidden", "true"); control.append(icon);
+      const control = node("button", "button secondary icon-only takeoff-icon-button takeoff-physical-visibility takeoff-current-visibility takeoff-visibility-button"), icon = node("img"), identity = `${scope()}/${state.snapshot?.project_id || ""}/${graph()?.id || "new"}`;
+      control.type = "button"; control.setAttribute("aria-label", "Visibility"); icon.src = "/icons/takeoff-visibility.png"; icon.alt = ""; icon.width = 24; icon.height = 24; icon.setAttribute("aria-hidden", "true"); control.append(icon);
       const sync = () => { const hidden = state.hidden.has(owner.entity.id); control.setAttribute("aria-pressed", String(hidden)); control.title = `${hidden ? "Show" : "Hide"} callout ${displayId(owner)}`; };
       sync();
       control.addEventListener("click", () => void safe(() => {
@@ -1218,7 +1218,7 @@
     ui.bulkApply = mutationButton("Apply to selected", applyBulkValue); ui.bulkConfirm = mutationButton("Confirm", () => confirmSelectedRecords("confirmed")); ui.bulkUnconfirm = mutationButton("Unconfirm", () => confirmSelectedRecords("unconfirmed")); ui.bulk.append(ui.selection, ui.associate, ui.bulkField, ui.bulkValue, ui.bulkApply, ui.bulkConfirm, ui.bulkUnconfirm, deleteSelection); ui.root.append(ui.bulk);
     ui.table = node("div", "takeoff-register-table"); const addRow = node("div", "takeoff-physical-add-row"); ui.add = mutationButton("+", () => create(servicePlans() ? "barrier" : "defect"), "button secondary takeoff-physical-add-child takeoff-physical-add-defect"); addRow.append(ui.add); addRow.hidden = !servicePlans();
     ui.pagination = node("div", "takeoff-register-controls"); ui.inspector = node("aside", "takeoff-inspector takeoff-physical-inspector"); ui.inspector.setAttribute("aria-label", "Item Details"); ui.root.append(ui.table, addRow, ui.pagination); if (bridge.inspectorContainer) bridge.inspectorContainer.append(ui.inspector); else ui.root.append(ui.inspector); container.replaceChildren(ui.root); renderData(); void safe(loadFieldOptions);
-    return { render, select: selectEntity, selectDrawing, clearSelection, create, createFromSelection, setMarker, setAnnotation, deleteDrawing, copyDrawing, pasteDrawing, selectedBarrier, selection: () => [...state.selected], inspectedId: () => inspectedEntry()?.entity.id || null, summary, hover, completePendingEdits, isAutoApplying: () => state.autoRoutine, editRevision: () => state.editRevision, hasUnfinishedChanges: () => !state.destroyed && (state.busy || state.pending.size > 0), destroy() { state.destroyed = true; state.busy = false; cancelAutomatic(); documents.destroy(); inspectorMenu?.destroy(); state.filterDialog?.close("cancel"); container.replaceChildren(); if (bridge.inspectorContainer) ui.inspector.remove(); state.pending.clear(); changed(); } };
+    return { render, restoreHidden() { state.hidden.clear(); renderData(); bridge.viewChanged?.(hierarchyRows(graph(), state).map(row => row.entity.id), [...state.selected], []); }, select: selectEntity, selectDrawing, clearSelection, create, createFromSelection, setMarker, setAnnotation, deleteDrawing, copyDrawing, pasteDrawing, selectedBarrier, selection: () => [...state.selected], inspectedId: () => inspectedEntry()?.entity.id || null, summary, hover, completePendingEdits, isAutoApplying: () => state.autoRoutine, editRevision: () => state.editRevision, hasUnfinishedChanges: () => !state.destroyed && (state.busy || state.pending.size > 0), destroy() { state.destroyed = true; state.busy = false; cancelAutomatic(); documents.destroy(); inspectorMenu?.destroy(); state.filterDialog?.close("cancel"); container.replaceChildren(); if (bridge.inspectorContainer) ui.inspector.remove(); state.pending.clear(); changed(); } };
   }
 
   const api = { mount, confirmationOwner, effectiveConfirmation, indexGraph, hierarchyRows, hierarchyPage, columnValue, fieldValue, fieldsFromValues, changedFields, bulkCommands, deletionPlan, formatDimensions, parseDimensions, imageEvidence, previewText, commandText };

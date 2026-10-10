@@ -121,7 +121,7 @@ def inherited_library_barrier_parent(snapshot, graph, barrier):
 
 def export_physical_pdf(snapshot, request, documents):
     required = {'expected_revision', 'mode', 'physical_scope', 'document_id', 'item_ids'}
-    object_fields(request, required | {'rendering'}, 'Penetration drawing export', required)
+    object_fields(request, required | {'rendering', 'signature_ids'}, 'Penetration drawing export', required)
     graph = current_graph(snapshot, request['physical_scope'])
     if graph['version'] not in (2, 3):
         raise ValidationError('Legacy physical hierarchies cannot have barrier count markers.')
@@ -169,6 +169,8 @@ def export_physical_pdf(snapshot, request, documents):
             'callout': marker.get('callout'),
             'confirmed': False})
     from .takeoff_markup_pdf import export_marked_pdf
+    from .takeoff_signatures import export_signatures
+    signatures = export_signatures(snapshot, request, document['id'], (request['physical_scope'],))
     return export_marked_pdf(document, [], {}, {}, {}, documents, project_id=snapshot['project_id'],
         revision=snapshot['revision'], mode=request['physical_scope'].replace('_', ' '), physical_rows=rows,
-        physical_rendering=rendering)
+        physical_rendering=rendering, snapshot=snapshot, signatures=signatures)

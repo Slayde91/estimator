@@ -70,7 +70,7 @@ def surface_label_point(geometry):
     return None
 
 
-def export_marked_pdf(document, items, results, confirmations, linked, documents, *, project_id, revision, mode, physical_rows=None, snapshot=None, physical_rendering=None, annotations=()):
+def export_marked_pdf(document, items, results, confirmations, linked, documents, *, project_id, revision, mode, physical_rows=None, snapshot=None, physical_rendering=None, annotations=(), signatures=()):
     from .takeoff_exports import linked_result_text
     from .takeoff_presentation import effective_appearance, legend_rows
     if not _SLOTS.acquire(blocking=False):
@@ -106,6 +106,18 @@ def export_marked_pdf(document, items, results, confirmations, linked, documents
             if annotation['mode'] not in (('wall', 'slab') if mode == 'walls_floors' else (mode,)) or annotation['document_id'] != document['id']:
                 raise ValidationError('Every free call-out must belong to the selected mode and exact source drawing.')
             spec['annotations'].append({**annotation, 'appearance': annotation_appearance(annotation['appearance'])})
+        from .takeoff_signatures import validate_signature
+        spec['signatures'] = []
+        signature_modes = (('wall', 'slab') if mode == 'walls_floors' else
+                           (mode.replace(' ', '_'),) if physical_rows is not None else (mode,))
+        for signature in signatures:
+            validate_signature(signature, snapshot)
+            if signature['mode'] not in signature_modes or signature['document_id'] != document['id']:
+                raise ValidationError('Every signature must belong to the selected workspace and exact source drawing.')
+            vertices += sum(len(stroke) for stroke in signature['strokes'])
+            if vertices > 200000:
+                raise ValidationError('The visible markup geometry exceeds the PDF export limit. Export a smaller visible selection.')
+            spec['signatures'].append(signature)
         if physical_rows is not None:
             spec.update(physical_drawing=True, physical_rendering=physical_rendering or {'zoom':1,'rotations':{}})
         if snapshot:

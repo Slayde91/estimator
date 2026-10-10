@@ -225,7 +225,6 @@ dialog.takeoff-column-filter{position:fixed;box-sizing:border-box;width:280px;ma
 .takeoff-physical-add-row .takeoff-physical-add-defect{color:#fff;background:var(--accent);border-color:var(--accent);padding:0;text-decoration:none;box-shadow:none}
 .takeoff-physical-inspector-actions{display:flex;grid-column:1/-1;align-items:center;gap:8px;flex-wrap:wrap;margin-top:4px}
 .takeoff-physical-details .takeoff-physical-inspector .takeoff-physical-visibility{display:inline-flex;align-items:center;justify-content:center;justify-self:start;width:38px;min-width:38px;height:38px;padding:2px}
-.takeoff-physical-visibility img{display:block;width:32px;height:32px;object-fit:contain}
 .takeoff-physical-register .takeoff-physical-disclosure{display:inline-flex;align-items:center;justify-content:center;min-width:24px;width:24px;height:28px;padding:0;margin-right:4px;font-size:18px;font-weight:600;text-decoration:none}
 .takeoff-physical-register th input[type=checkbox]{display:block;width:16px;height:16px;min-width:16px;margin:0;accent-color:var(--accent)}
 .takeoff-physical-register .takeoff-physical-discard,.takeoff-physical-register .takeoff-physical-delete-selected,.takeoff-physical-register .takeoff-physical-icon-action,.takeoff-physical-details .takeoff-physical-discard,.takeoff-physical-details .takeoff-physical-delete-selected{display:inline-flex;align-items:center;justify-content:center;width:38px;min-width:38px;height:38px;padding:8px;border:1px solid var(--line);border-radius:9px;background:#fff;color:#584b53;box-shadow:none}
@@ -334,7 +333,6 @@ dialog.takeoff-column-filter{position:fixed;box-sizing:border-box;width:280px;ma
 .takeoff-physical-item-actions{grid-column:1/-1;display:flex;align-items:center;gap:8px;min-width:0;margin-bottom:8px}
 .takeoff-physical-item-actions>.button{display:inline-flex;align-items:center;justify-content:center;flex:0 0 38px;width:38px;height:38px;min-width:38px;padding:4px;margin-left:auto}
 .takeoff-physical-item-actions img{display:block;width:30px;height:30px;object-fit:contain}
-.takeoff-physical-item-actions .takeoff-current-visibility img{width:32px;height:32px}
 .takeoff-physical-item-actions svg{display:block;width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .takeoff-physical-add-menu{flex:1;min-width:0}
 .takeoff-physical-item-actions .calculator-document-toggle{display:flex;justify-content:space-between;width:100%;min-width:0;min-height:38px;height:38px;gap:8px}
@@ -345,3 +343,17 @@ dialog.takeoff-column-filter{position:fixed;box-sizing:border-box;width:280px;ma
 .takeoff-physical-add-menu .calculator-document-action img,.takeoff-physical-add-menu .calculator-document-action svg{flex:0 0 30px;width:30px;height:30px}
 .takeoff-physical-add-menu .calculator-document-action>span{min-width:0;overflow-wrap:anywhere}
 @container(max-width:800px){.takeoff-drawing-layout>.takeoff-physical-details:has(.takeoff-physical-add-menu .calculator-document-toggle[aria-expanded=true]){z-index:13}}
+
+/* Appearance actions share a compact control and one visual icon scale. */
+.takeoff-appearance-actions{grid-column:1/-1;display:flex;align-items:center;justify-content:flex-start;gap:8px;flex-wrap:wrap;min-width:0}
+.button:is(.takeoff-visibility-button,.takeoff-default-button,.takeoff-signature-button),:is(.takeoff-tool-rail,.takeoff-markup-settings,.takeoff-physical-details) .button:is(.takeoff-visibility-button,.takeoff-default-button,.takeoff-signature-button){display:inline-flex;align-items:center;justify-content:center;flex:0 0 38px;width:38px;min-width:38px;max-width:38px;height:38px;min-height:38px;padding:6px;box-sizing:border-box}
+.takeoff-icon-button img[src="/icons/takeoff-visibility.png"],.takeoff-physical-item-actions .takeoff-current-visibility img{display:block;width:24px;height:24px;object-fit:contain;flex:0 0 24px}
+.takeoff-action-icon{display:block;flex:0 0 24px;width:24px;height:24px;background-color:currentColor;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;-webkit-mask-position:center;mask-position:center;-webkit-mask-size:contain;mask-size:contain}
+.takeoff-default-icon{-webkit-mask-image:url('/icons/default-memory.svg');mask-image:url('/icons/default-memory.svg')}
+.takeoff-signature-icon{-webkit-mask-image:url('/icons/signature.svg');mask-image:url('/icons/signature.svg')}
+.takeoff-signature-pad{display:block;width:100%;height:210px;box-sizing:border-box;border:1px solid var(--line);border-radius:6px;background:#fff;color:#17202d;touch-action:none;cursor:crosshair}
+.takeoff-signature-pad:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.takeoff-viewport[data-tool=signature]{cursor:crosshair}
+.takeoff-signature{cursor:move}.takeoff-signature-resize{cursor:nwse-resize}
+.takeoff-signature-dialog{width:min(680px,calc(100vw - 32px))}
+.takeoff-signature-preview{display:block;max-width:100%;color:var(--text)}

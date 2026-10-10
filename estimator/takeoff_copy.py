@@ -1,18 +1,19 @@
-"""Copy traced lengths as new physical objects without copying their authority."""
+"""Copy traced lengths and surfaces without copying their review authority."""
 
 from copy import deepcopy
 from uuid import uuid4
 
 from .catalog import ValidationError
+from .takeoff_area import validate_polygon
 from .takeoff_model import (MAX_ITEMS, active_calibrations, identity, item_references,
-                           number, object_fields, page_metadata, points, polyline_length)
+                           is_area_item, number, object_fields, page_metadata, points, polyline_length)
 
 
 def duplicate_length_proposals(snapshot, request):
-    """Anchor the first line's first point at the destination in PDF coordinates."""
+    """Keep the existing command helper; anchor its first vertex in PDF space."""
     sources = request['sources']
     if not isinstance(sources, list) or not 1 <= len(sources) <= MAX_ITEMS:
-        raise ValidationError('Copy a nonempty bounded selection of traced lengths.')
+        raise ValidationError('Copy a nonempty bounded selection of traced lengths or surfaces.')
     by_id = {item['id']: item for item in snapshot['items']}
     selected = []
     seen = set()
@@ -28,13 +29,19 @@ def duplicate_length_proposals(snapshot, request):
         if item is None or item['version'] != version:
             raise ValidationError('A copied markup changed or was deleted. Select and copy it again.')
         geometry, measurement = item['geometry'], item['measurement']
-        if (item['mode'] not in ('steel', 'duct') or not geometry or geometry.get('kind') is not None
-                or not measurement or measurement.get('method') != 'calibrated'):
-            raise ValidationError('Copy and paste supports calibrated Steel or Duct Length markups.')
-        polyline_length(geometry['points'])
-        key = (item['mode'], geometry['document_id'], geometry['page'])
+        area = is_area_item(item)
+        if (not geometry or not measurement or measurement.get('method') != 'calibrated'
+                or (geometry.get('kind') != 'polygon' if area
+                    else item['mode'] not in ('steel', 'duct') or geometry.get('kind') is not None)):
+            raise ValidationError('Copy and paste supports calibrated Steel/Duct Length or Wall/Floor surface markups.')
+        if area:
+            _, original_page = page_metadata(snapshot, geometry['document_id'], geometry['page'])
+            validate_polygon(geometry, original_page)
+        else:
+            polyline_length(geometry['points'])
+        key = ('walls_floors' if area else item['mode'], geometry['document_id'], geometry['page'])
         if source_page is not None and key != source_page:
-            raise ValidationError('Copy traced lengths from one takeoff type and source page at a time.')
+            raise ValidationError('Copy one takeoff type from one source page at a time; Wall/Floor surfaces may be selected together.')
         source_page = key
         selected.append(item)
     if len(snapshot['items']) + len(selected) > MAX_ITEMS:
@@ -53,9 +60,16 @@ def duplicate_length_proposals(snapshot, request):
     proposals = []
     retained_sources = {destination_id}
     for item in selected:
-        geometry = {'document_id': destination_id, 'page': destination_page,
-                    'points': [[x + dx, y + dy] for x, y in item['geometry']['points']]}
-        points(geometry['points'], 'Pasted markup', page, minimum=2)
+        geometry = deepcopy(item['geometry'])
+        geometry.update(document_id=destination_id, page=destination_page,
+                        points=[[x + dx, y + dy] for x, y in geometry['points']])
+        if is_area_item(item):
+            for exclusion in geometry['exclusions']:
+                exclusion['id'] = str(uuid4())
+                exclusion['points'] = [[x + dx, y + dy] for x, y in exclusion['points']]
+            validate_polygon(geometry, page)
+        else:
+            points(geometry['points'], 'Pasted markup', page, minimum=2)
         proposed = {key: deepcopy(item[key]) for key in ('mode', 'quantity', 'fields', 'evidence')}
         proposed.update(geometry=geometry, measurement={'method': 'calibrated', 'calibration_id': calibration_id})
         if 'appearance' in item:
@@ -68,7 +82,7 @@ def duplicate_length_proposals(snapshot, request):
                     addition.update(document_id=destination_id, page=destination_page)
                     addition['anchor']['point'] = deepcopy(geometry['points'][addition['anchor']['point_index']])
         # Citations remain pinned to the original evidence. Only the copied
-        # line and its explicit point anchors move to the new source position.
+        # geometry and its explicit point anchors move to the new position.
         retained_sources.update(reference['document_id'] for reference in item_references(item))
         proposals.append((proposed, {'item_id': item['id'], 'version': item['version']}))
     return proposals, retained_sources

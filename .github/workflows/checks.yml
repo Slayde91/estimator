@@ -28,6 +28,9 @@ jobs:
       - run: node --check static/takeoff-geometry.js
       - run: node --check static/takeoff-physical.js
       - run: node --check static/takeoff-annotations.js
+      - run: node --check static/takeoff-signatures.js
+      - run: node --check static/help-glossary.js
+      - run: node --test tests/test_help_glossary.cjs tests/test_takeoff_signatures.cjs tests/test_takeoff_area_copy_visibility_ui.cjs
       - run: node --check static/takeoff-library-links.js
       - run: node --check static/header-tagline-media.js
       - run: node --check static/takeoff-search.js
@@ -81,6 +84,11 @@ jobs:
       - run: node tests/browser/pdf_render_gate.cjs
       - run: node tests/browser/header_artwork.cjs
       - run: npm run test:themes-browser
+      - run: npm run test:help-glossary
+      - run: npm run test:help-glossary -- --standard
+      - run: npm run test:takeoffs-icons
+      - run: npm run test:takeoffs-signatures
+      - run: npm run test:takeoffs-area-copy-visibility
       - run: npm run test:header-controls
       - run: npm run test:estimator-header-state
       - run: npm run test:calculator-navigation

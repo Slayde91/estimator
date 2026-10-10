@@ -144,20 +144,23 @@ def _paint_legend(pdf, rows, width, height, spec, page_number, *, continuation=F
     pdf.setStrokeColor(HexColor('#C62828')); pdf.setLineWidth(1); pdf.line(18, separator, width-18, separator)
     y = separator-10
     annotation_count = sum(annotation['page'] == page_number for annotation in spec.get('annotations', []))
+    signature_count = sum(signature['page'] == page_number for signature in spec.get('signatures', []))
     has_marks = any(item['geometry']['page'] == page_number for item in spec['items'])
     annotation_label = f"{annotation_count} free Call-out{'s' if annotation_count != 1 else ''} (drawing notes only)"
+    signature_label = f"{signature_count} signature{'s' if signature_count != 1 else ''} (visual marks only)"
+    visual_label = '; '.join(label for count, label in ((annotation_count, annotation_label), (signature_count, signature_label)) if count)
     if not rows:
         pdf.drawString(20, y-10, 'Markup details continue on the following legend page.' if has_marks
-                       else annotation_label + '; no measurement markups.' if annotation_count
+                       else visual_label + '; no measurement markups.' if visual_label
                        else 'No visible markups of the selected takeoff type on this page.')
     for item, paragraph, row_height in rows:
         color = HexColor(item['appearance']['stroke_color']); pdf.setStrokeColor(color); pdf.setLineWidth(3)
         pdf.line(20, y-8, 34, y-8)
         paragraph.drawOn(pdf, 42, y-(row_height-12))
         y -= row_height
-    if annotation_count and has_marks:
+    if visual_label and has_marks:
         pdf.setFont('ExportVera', 7); pdf.setFillColor(HexColor('#202831'))
-        pdf.drawString(18, 26, annotation_label + '; excluded from measurement register.')
+        pdf.drawString(18, 26, visual_label + '; excluded from measurement register.')
     pdf.setFont('ExportVera', 6); pdf.setFillColor(Color(.32, .36, .4))
     pdf.drawString(18, 14, 'Derived marked drawing. Original PDF retained unchanged. Unconfirmed marks are drafts; technical suitability requires separate assessment.')
 
@@ -387,6 +390,31 @@ def _paint_annotations(pdf, annotations, matrix, bounds):
         pdf.restoreState()
 
 
+def _paint_signatures(pdf, signatures, matrix):
+    """Project original-PDF quad axes; source/view rotation never moves ink."""
+    from reportlab.lib.colors import HexColor
+    for signature in signatures:
+        q0, q1, _, q3 = signature['quad_pdf']
+        style = signature['appearance']
+        pdf.saveState()
+        pdf.setStrokeColor(HexColor(style['stroke_color']))
+        pdf.setFillColor(HexColor(style['stroke_color']))
+        pdf.setLineWidth(style['stroke_width'])
+        pdf.setStrokeAlpha(style['opacity']); pdf.setFillAlpha(style['opacity'])
+        pdf.setLineCap(1); pdf.setLineJoin(1)
+        for stroke in signature['strokes']:
+            placed = [transform([q0[axis] + x * (q1[axis] - q0[axis]) + y * (q3[axis] - q0[axis])
+                                 for axis in (0, 1)], matrix) for x, y in stroke]
+            if len(placed) == 1:
+                pdf.circle(*placed[0], style['stroke_width'] / 2, stroke=0, fill=1)
+                continue
+            path = pdf.beginPath(); path.moveTo(*placed[0])
+            for point in placed[1:]:
+                path.lineTo(*point)
+            pdf.drawPath(path, stroke=1, fill=0)
+        pdf.restoreState()
+
+
 def _paint_markups(pdf, items, matrix, drawing_bounds=None, physical_zoom=None):
     from reportlab.lib.colors import HexColor
     for item in items:
@@ -596,6 +624,7 @@ def render_document(source, spec, output):
         _paint_drawing_legends(pdf, [legend for legend in spec.get('drawing_legends', []) if legend['page'] == index+1], matrix)
         _paint_annotations(pdf, [annotation for annotation in spec.get('annotations', []) if annotation['page'] == index+1], matrix,
                            (drawing_left, legend_height, drawing_left+drawing_width, height))
+        _paint_signatures(pdf, [signature for signature in spec.get('signatures', []) if signature['page'] == index+1], matrix)
         if not physical:
             _paint_legend(pdf, first_rows, width, legend_height, spec, index+1)
         # Blank physical pages still need one overlay page after legends are removed.

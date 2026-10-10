@@ -301,12 +301,12 @@ def linked_result_text(results):
     return ' | '.join(sections) or 'Unavailable (no current linked calculator result)'
 
 
-def _schedule_xlsx(snapshot, selected, results, confirmations, linked):
-    """Current mode register, including unresolved drafts, with literal provenance."""
+def _schedule_xlsx(snapshot, selected, results, confirmations, linked, *, mode, confirmation_filter):
+    """Current register category, with locally verified status and literal provenance."""
     documents = {doc['id']: doc for doc in snapshot['documents']}
     headers = ['Item ID', 'Item version', 'Mode', 'Confirmation', 'Mark / Run ID', 'Member type', 'Section',
                'Shape', 'Width mm', 'Height mm', 'Diameter mm', 'Quantity', 'Length per item m', 'Total length m',
-               'Net area m2', 'Product', 'FRL', 'Fire period min', 'Exposed sides', 'Critical temperature C',
+               *(['Gross area m2', 'Excluded area m2'] if mode == 'walls_floors' else []), 'Net area m2', 'Product', 'FRL', 'Fire period min', 'Exposed sides', 'Critical temperature C',
                'Exposure', 'Orientation', 'Level', 'Zone', 'Group', 'Notes', 'Source document', 'Source page',
                'Source SHA-256', 'Linked calculator result', 'Issues', 'Confirmation ID', 'Confirmation digest',
                'Geometry', 'Measurement basis', 'All item properties', 'Supporting evidence', 'Riser/drop additions',
@@ -328,7 +328,8 @@ def _schedule_xlsx(snapshot, selected, results, confirmations, linked):
         additions = [bound_reference(reference) for reference in item.get('length_additions', [])]
         row = [item['id'], item['version'], item['mode'], 'Confirmed' if confirmation else 'Unconfirmed',
                *(field.get(key) for key in ('mark', 'member_type', 'section', 'shape', 'width_mm', 'height_mm', 'diameter_mm')),
-               item['quantity'], result.get('length_m'), result.get('total_length_m'), result.get('net_area_m2'),
+               item['quantity'], result.get('length_m'), result.get('total_length_m'),
+               *([result.get('gross_area_m2'), result.get('excluded_area_m2')] if mode == 'walls_floors' else []), result.get('net_area_m2'),
                *(field.get(key) for key in ('product', 'frl', 'fire_period_min', 'sides', 'critical_temperature', 'exposure',
                                           'orientation', 'level', 'zone', 'group', 'notes')),
                doc['name'] if doc else None, geometry['page'] if geometry else None, doc['sha256'] if doc else None,
@@ -351,7 +352,8 @@ def _schedule_xlsx(snapshot, selected, results, confirmations, linked):
         for row in details: detail.append(row)
     info = workbook.create_sheet('Export scope')
     for row in [('Project ID', snapshot['project_id']), ('Takeoff revision', snapshot['revision']),
-                ('Audit SHA-256', snapshot['audit_head']), ('Scope', 'All items in the active Takeoffs mode, including hidden and unconfirmed items.'),
+                ('Audit SHA-256', snapshot['audit_head']), ('Register', mode), ('Confirmation category', confirmation_filter),
+                ('Scope', 'All items in the selected register and confirmation category, including hidden rows. Wall and slab records retain their original measurement types.'),
                 ('Approval', 'Unconfirmed items are drafts. Unknown quantities remain blank. Export does not confirm an item or authorize technical suitability.'),
                 ('Linked results', 'Only locally registered current confirmations and exact current calculator row inputs permit a linked steel result. Missing or stale results are unavailable.'),
                 ('Precision', 'Stored numeric values retain full precision. Cell display rounding does not change quantities.')]:
@@ -365,11 +367,13 @@ def _schedule_xlsx(snapshot, selected, results, confirmations, linked):
                 if cell.row == 1:
                     cell.font = Font(bold=True, color='FFFFFF'); cell.fill = PatternFill('solid', fgColor='1F2937')
                 elif isinstance(cell.value, (float, int)):
-                    measurement_headers = {'Width mm', 'Height mm', 'Diameter mm', 'Length per item m', 'Total length m', 'Net area m2'}
+                    measurement_headers = {'Width mm', 'Height mm', 'Diameter mm', 'Length per item m', 'Total length m', 'Gross area m2', 'Excluded area m2', 'Net area m2'}
                     cell.number_format = '0.00' if table.title == 'Current Takeoffs' and headers[cell.column-1] in measurement_headers else '0'
         for column in table.columns: table.column_dimensions[column[0].column_letter].width = 24
     payload = _serialize_exact(workbook); workbook.close()
-    return payload, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', f'CEASEFIRE-{selected[0]["mode"].title()}-Takeoffs.xlsx'
+    label = 'Walls-Floors' if mode == 'walls_floors' else mode.title()
+    suffix = '' if confirmation_filter == 'all' else f'-{confirmation_filter.title()}'
+    return payload, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', f'CEASEFIRE-{label}{suffix}-Takeoffs.xlsx'
 
 
 def export_workspace(snapshot, request, format, *, documents, store):
@@ -381,14 +385,18 @@ def export_workspace(snapshot, request, format, *, documents, store):
             raise ValidationError('The Takeoffs draft changed before export. Retry from its current state.')
         from .takeoff_physical_markers import export_physical_pdf
         return export_physical_pdf(snapshot, request, documents)
-    allowed = {'expected_revision', 'mode', 'item_ids', 'calculator_drafts'} | ({'document_id', 'annotation_ids'} if format == 'marked-pdf' else set())
+    allowed = {'expected_revision', 'mode', 'item_ids', 'calculator_drafts'} | ({'document_id', 'annotation_ids'} if format == 'marked-pdf' else {'confirmation'})
     required = {'expected_revision', 'mode'} | ({'document_id', 'item_ids'} if format == 'marked-pdf' else set())
     object_fields(request, allowed, 'Current Takeoffs export', required)
     if type(request['expected_revision']) is not int or request['expected_revision'] != snapshot['revision']:
         raise ValidationError('The Takeoffs draft changed before export. Retry from its current state.')
-    if request['mode'] not in ('steel', 'duct', 'wall', 'slab'):
-        raise ValidationError('Choose the active Steel, Duct, Walls or Slabs register.')
-    active = sorted((item for item in snapshot['items'] if item['mode'] == request['mode']), key=is_standalone_count)
+    if request['mode'] not in ('steel', 'duct', 'wall', 'slab', 'walls_floors'):
+        raise ValidationError('Choose the active Steel, Duct or Walls/Floors register.')
+    modes = ('wall', 'slab') if request['mode'] == 'walls_floors' else (request['mode'],)
+    active = sorted((item for item in snapshot['items'] if item['mode'] in modes), key=is_standalone_count)
+    confirmation_filter = request.get('confirmation', 'all')
+    if not isinstance(confirmation_filter, str) or confirmation_filter not in ('confirmed', 'unconfirmed', 'all'):
+        raise ValidationError('Choose confirmed, unconfirmed or all items for the XLSX download.')
     ids = request.get('item_ids', [item['id'] for item in active])
     if (not isinstance(ids, list) or len(ids) > 10000 or any(not isinstance(value, str) for value in ids)
             or len(ids) != len(set(ids)) or set(ids) - {item['id'] for item in active}):
@@ -407,7 +415,7 @@ def export_workspace(snapshot, request, format, *, documents, store):
         if any(not item['geometry'] or item['geometry']['document_id'] != document['id'] for item in selected):
             raise ValidationError('Every exported markup must belong to the selected original PDF.')
         active_annotations = {value['id']: value for value in snapshot.get('annotations', {}).get('callouts', [])
-                              if value['mode'] == request['mode'] and value['document_id'] == document['id']}
+                              if value['mode'] in modes and value['document_id'] == document['id']}
         annotation_ids = request.get('annotation_ids', list(active_annotations))
         if (not isinstance(annotation_ids, list) or len(annotation_ids) > 1000
                 or any(not isinstance(value, str) for value in annotation_ids)
@@ -417,10 +425,14 @@ def export_workspace(snapshot, request, format, *, documents, store):
     approvals, binding_registry = _local_authority(snapshot, store)
     results = {item['id']: item_result(item, snapshot) for item in selected}
     confirmations = {item['id']: _confirmed(item, snapshot, results[item['id']], approvals) for item in selected}
+    if format == 'schedule-xlsx' and confirmation_filter != 'all':
+        selected = [item for item in selected if confirmations[item['id']] == (confirmation_filter == 'confirmed')]
+        if not selected:
+            raise ValidationError(f'There are no {confirmation_filter} items in this Takeoffs register to export.')
     drafts = _calculator_drafts(request.get('calculator_drafts', {}))
     linked = _linked_results(snapshot, selected, confirmations, binding_registry, drafts)
     if format == 'schedule-xlsx':
-        return _schedule_xlsx(snapshot, selected, results, confirmations, linked)
+        return _schedule_xlsx(snapshot, selected, results, confirmations, linked, mode=request['mode'], confirmation_filter=confirmation_filter)
     from .takeoff_markup_pdf import export_marked_pdf
     return export_marked_pdf(document, selected, results, confirmations, linked, documents,
                              project_id=snapshot['project_id'], revision=snapshot['revision'], mode=request['mode'], snapshot=snapshot,

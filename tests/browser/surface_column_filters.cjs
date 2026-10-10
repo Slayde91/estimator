@@ -1,8 +1,9 @@
 const { chooseTakeoff } = require('./section_navigation.cjs');
-// Real nine-column Wall/Slab filters against disposable source-backed projects.
+// Real combined Wall/Floor filters and classified exports against disposable source-backed projects.
 const { chromium, expect } = require('@playwright/test');
 const { spawn } = require('node:child_process');
 const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
+const { createHash } = require('node:crypto');
 const root = path.resolve(__dirname, '../..'), output = path.join(root, '.runtime/browser-qa', `surface-filters-${Date.now()}`);
 fs.mkdirSync(output, { recursive: true });
 const server = spawn(process.env.CEASEFIRE_PYTHON || 'python', [path.join(__dirname, 'fixtures.py'), '--directory', output], { cwd: root, windowsHide: true });
@@ -14,11 +15,11 @@ const ready = new Promise((resolve, reject) => {
   server.once('error', error => { clearTimeout(timer); reject(error); });
   server.once('exit', code => { clearTimeout(timer); reject(new Error(`Fixture exited ${code}: ${logs}`)); });
 });
-const errors = [], commands = [], evidence = {};
-const labels = mode => ['Confirmation', mode === 'wall' ? 'Wall ID' : 'Slab / zone ID', 'Level', 'Surface basis', 'Substrate', 'Treatment', 'Protection system', 'Protection product', 'FRL / fire rating'];
-const register = () => page.getByRole('table', { name: `${currentMode === 'wall' ? 'Walls' : 'Slabs'} editable takeoff register`, exact: true });
+const errors = [], commands = [], evidence = {}, assets = {}, assetTasks = [];
+const labels = () => ['Confirmation', 'Surface ID', 'Surface type', 'Level', 'Surface basis', 'Substrate', 'Treatment', 'Protection system', 'Protection product', 'FRL / fire rating'];
+const register = () => page.getByRole('table', { name: 'Walls/Floors editable takeoff register', exact: true });
 const rows = () => register().locator('tbody tr[data-item-id]');
-const rowMarks = () => rows().getByLabel(labels(currentMode)[1], { exact: true }).evaluateAll(fields => fields.map(field => field.value));
+const rowMarks = () => rows().getByLabel(/^(Wall ID|Slab \/ zone ID)$/).evaluateAll(fields => fields.map(field => field.value));
 const panel = () => page.locator('.takeoff-column-filter');
 async function mode(value) { currentMode = value; await chooseTakeoff(page, value === 'wall' ? 'WALLS' : 'SLABS'); }
 async function menu(label) { await register().getByRole('button', { name: `Filter ${label}`, exact: true }).click(); await expect(panel()).toBeVisible(); return panel(); }
@@ -37,6 +38,7 @@ async function reset(label) { await finishMenu(await menu(label), 'Reset filter'
   const info = await ready; assert.notEqual(info.port, 8765);
   browser = await chromium.launch({ headless: true }); page = await browser.newPage({ viewport: { width: 1146, height: 764 } }); page.setDefaultTimeout(30000);
   page.on('pageerror', error => errors.push(error.message)); page.on('request', request => { if (request.url().endsWith('/commands')) commands.push(request.postDataJSON()); });
+  page.on('response', response => { const pathname = new URL(response.url()).pathname; if (['/takeoffs.js', '/takeoffs.css', '/icons/document.png', '/icons/takeoff-transfer.png'].includes(pathname)) assetTasks.push(response.body().then(bytes => { assets[pathname] = { bytes: bytes.length, sha256: createHash('sha256').update(bytes).digest('hex') }; })); });
   await page.addInitScript(() => { window.qaCsp = []; document.addEventListener('securitypolicyviolation', event => window.qaCsp.push(event.effectiveDirective)); });
   await page.goto(`http://127.0.0.1:${info.port}/`); await page.waitForFunction(() => window.CeasefireDesktop?.status().ready);
   await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); await page.locator('#takeoff-upload').setInputFiles(info.area_fixture);
@@ -66,11 +68,44 @@ async function reset(label) { await finishMenu(await menu(label), 'Reset filter'
       }
       await command('confirm_items', { item_ids: [first[mode]] });
     }
-    takeoffs.applyProject(await takeoffs.prepareProject(current, sid)); return { first, snapshot: current };
+    const results=(await(await fetch(`/api/takeoffs/sessions/${sid}`)).json()).item_results;
+    takeoffs.applyProject(await takeoffs.prepareProject(current, sid)); return { first, snapshot: current, results };
   });
   const baselineCommands = commands.length, baselineCalculators = await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot());
+  await mode('slab');await expect(page.getByLabel('New surface type',{exact:true})).toHaveValue('slab');await expect(page.getByText('1–100 of 204 matching items',{exact:true})).toBeVisible();
+  assert.deepEqual(await register().locator('tbody tr[data-item-id] td:nth-child(6)').evaluateAll(cells=>[...new Set(cells.map(cell=>cell.textContent))]),['Floor']);
+  await page.getByRole('button',{name:'Next 100',exact:true}).click();assert.deepEqual(await register().locator('tbody tr[data-item-id] td:nth-child(6)').evaluateAll(cells=>[...new Set(cells.map(cell=>cell.textContent))]),['Floor','Wall']);
+  const documentMenu=page.locator('.takeoff-register .takeoff-document-menu'),documentToggle=documentMenu.getByRole('button',{name:'Takeoff register document actions',exact:true});
+  const documentLayout=[];
+  for(const width of [1146,764]) {
+    await page.setViewportSize({width,height:764});await documentToggle.scrollIntoViewIfNeeded();
+    await documentToggle.evaluate(el=>window.scrollTo(0,window.scrollY+el.getBoundingClientRect().top-170));
+    await documentToggle.click();const actions=documentMenu.locator('.calculator-document-actions button');
+    assert.deepEqual(await actions.allTextContents(),['⇩XLSXDownload confirmed items','⇩XLSXDownload unconfirmed items','⇩XLSXDownload all items']);
+    assert.ok(await documentToggle.locator('img').evaluate(img=>img.complete&&img.naturalWidth>0));
+    const geometry=await actions.evaluateAll(buttons=>buttons.map(button=>{const r=button.getBoundingClientRect(),hit=document.elementFromPoint(r.x+r.width/2,r.y+r.height/2);return{x:r.x,y:r.y,width:r.width,height:r.height,hit:button===hit||button.contains(hit)};}));
+    assert.ok(geometry.every(box=>box.x>=0&&box.y>=0&&box.x+box.width<=width&&box.y+box.height<=764&&box.hit),JSON.stringify({width,geometry}));
+    await page.screenshot({path:path.join(output,`document-menu-${width}.png`)});
+    await documentToggle.press('ArrowUp');await expect(documentMenu.getByRole('button',{name:'Download all items',exact:true})).toBeFocused();
+    await documentMenu.getByRole('button',{name:'Download all items',exact:true}).press('Home');await expect(documentMenu.getByRole('button',{name:'Download confirmed items',exact:true})).toBeFocused();
+    await documentMenu.getByRole('button',{name:'Download confirmed items',exact:true}).press('End');await expect(documentMenu.getByRole('button',{name:'Download all items',exact:true})).toBeFocused();
+    await documentMenu.getByRole('button',{name:'Download all items',exact:true}).press('Escape');await expect(documentToggle).toBeFocused();await expect(documentMenu.locator('.calculator-document-actions')).toBeHidden();
+    await documentToggle.click();await page.locator('.takeoff-register h2').click();await expect(documentMenu.locator('.calculator-document-actions')).toBeHidden();
+    documentLayout.push({width,geometry,iconLoaded:true,keyboardHomeEndEscape:true,outsideDismissal:true});
+  }
+  await page.setViewportSize({width:1146,height:764});
+  const downloadResults={};
+  for(const [category,count] of [['confirmed',2],['unconfirmed',202],['all',204]]) {
+    await documentToggle.click();const requested=page.waitForRequest(request=>request.url().endsWith('/export/schedule-xlsx')),download=page.waitForEvent('download');
+    await documentMenu.getByRole('button',{name:`Download ${category==='all'?'all':category} items`,exact:true}).click();const body=(await requested).postDataJSON();assert.equal(body.mode,'walls_floors');assert.equal(body.confirmation,category);assert.equal(body.item_ids.length,204);
+    const target=path.join(output,`${category}-walls-floors.xlsx`);await(await download).saveAs(target);
+    const result=require('node:child_process').spawnSync(process.env.CEASEFIRE_PYTHON||'python',['-B','-c',"import json,sys\nfrom openpyxl import load_workbook\nw=load_workbook(sys.argv[1]);r=list(w['Current Takeoffs'].values);print(json.dumps([dict(zip(r[0],v)) for v in r[1:]]))",target],{cwd:root,windowsHide:true,encoding:'utf8'});assert.equal(result.status,0,result.stderr);const exported=JSON.parse(result.stdout);assert.equal(exported.length,count);assert.deepEqual([...new Set(exported.map(row=>row.Mode))],['wall','slab']);
+    for(const row of exported){const original=seeded.snapshot.items.find(item=>item.id===row['Item ID']),native=seeded.results.find(result=>result.id===original.id);assert.deepEqual(JSON.parse(row.Geometry),original.geometry);assert.deepEqual(JSON.parse(row['All item properties']),original.fields);assert.equal(row['Net area m2'],native.net_area_m2);assert.equal(row['Gross area m2'],native.gross_area_m2);assert.equal(row['Excluded area m2'],native.excluded_area_m2);if(category!=='all')assert.equal(row.Confirmation,category==='confirmed'?'Confirmed':'Unconfirmed');}
+    downloadResults[category]={count,path:target};
+  }
   for (const value of ['wall', 'slab']) {
     await mode(value); const prefix = value === 'wall' ? 'W' : 'S', markLabel = labels(value)[1], basis = value === 'wall' ? 'Wall face (true elevation)' : 'Slab top';
+    for(const label of labels())await reset(label);await filter('Surface type',[value==='wall'?'Wall':'Floor']);
     await expect(rows()).toHaveCount(100); await expect(page.getByText('1–100 of 102 matching items', { exact: true })).toBeVisible();
     for (const label of ['Filter confirmation state', 'Sort register', 'Group register']) await expect(page.getByLabel(label, { exact: true })).toBeHidden();
     assert.deepEqual(await register().locator('.takeoff-column-filter-button').evaluateAll(controls => controls.map(control => control.getAttribute('aria-label'))), labels(value).map(label => `Filter ${label}`));
@@ -91,8 +126,8 @@ async function reset(label) { await finishMenu(await menu(label), 'Reset filter'
     for (const [label, values] of [['Confirmation', ['Confirmed']], [markLabel, [`${prefix}001`, `${prefix}002`]], ['Surface basis', [basis]], ['Substrate', ['Concrete']], ['Treatment', ['Board', 'Spray']], ['Protection system', ['System A']], ['Protection product', ['Product A']], ['FRL / fire rating', ['120/120/120']]]) {
       await filter(label, values); assert.deepEqual(await rowMarks(), [`${prefix}001`]);
     }
-    assert.equal(await register().locator('.takeoff-column-filter-button[aria-pressed="true"]').count(), 9);
-    for (const label of labels(value)) await reset(label);
+    assert.equal(await register().locator('.takeoff-column-filter-button[aria-pressed="true"]').count(), 10);
+    for (const label of labels(value).filter(label=>label!=='Surface type')) await reset(label);
     for (const label of ['Level', 'Surface basis', 'Substrate', 'Treatment', 'Protection system', 'Protection product', 'FRL / fire rating']) {
       await filter(label, ['(Blanks)']); assert.deepEqual(await rowMarks(), [`${prefix}004`]); await reset(label);
     }
@@ -108,8 +143,8 @@ async function reset(label) { await finishMenu(await menu(label), 'Reset filter'
     dialog = await menu(markLabel); await dialog.getByRole('checkbox', { name: `${prefix}001`, exact: true }).check(); await finishMenu(dialog, 'Escape'); assert.deepEqual(await rowMarks(), [`${prefix}100`, `${prefix}101`, `${prefix}102`]);
     await register().scrollIntoViewIfNeeded(); await page.screenshot({ path: path.join(output, `${value}-filter-active-register.png`) });
   }
-  await mode('wall'); assert.deepEqual(await rowMarks(), ['W100', 'W101', 'W102']); await reset('Wall ID'); await filter('Level', ['L1']);
-  await mode('slab'); assert.deepEqual(await rowMarks(), ['S100', 'S101', 'S102']); await mode('wall'); assert.deepEqual(await rowMarks(), ['W001', 'W002']);
+  await mode('wall'); assert.deepEqual(await rowMarks(), ['S100', 'S101', 'S102'],'Creation type does not reset shared view filters');await reset('Surface ID');await reset('Surface type');await filter('Level',['L1']);
+  await mode('slab'); assert.deepEqual(await rowMarks(), ['S001','S002','W001','W002']);await mode('wall');assert.deepEqual(await rowMarks(),['S001','S002','W001','W002']);
   await page.setViewportSize({ width: 764, height: 764 }); let dialog = await menu('Protection product');
   const box = await dialog.boundingBox(); assert.ok(box.x >= 0 && box.y >= 0 && box.x + box.width <= 764 && box.y + box.height <= 764);
   await page.screenshot({ path: path.join(output, 'surface-filter-menu-narrow.png') }); await finishMenu(dialog, 'Cancel');
@@ -117,6 +152,7 @@ async function reset(label) { await finishMenu(await menu(label), 'Reset filter'
   assert.deepEqual(await page.evaluate(() => window.CeasefireTakeoffs.projectSnapshot()), seeded.snapshot, 'Source identities, geometry, calibration, review and quantities remain unchanged');
   assert.deepEqual(await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()), baselineCalculators, 'Area view filters never alter calculator schedules');
   assert.deepEqual(errors, []); assert.deepEqual(await page.evaluate(() => window.qaCsp), []);
-  Object.assign(evidence, { passed: true, wallItems: 102, slabItems: 102, allNineColumns: true, multiFilterIntersection: true, displayedBasisLabels: true, blanksAndCustomValues: true, independentModeState: true, paginationReset: true, selectedExportUnchanged: true, sourceSnapshotUnchanged: true, calculatorsUnchanged: true, narrowDialogInViewport: true, nativeDialogCompletionVerified: true });
+  await Promise.all(assetTasks);
+  Object.assign(evidence, { passed: true, wallItems: 102, slabItems: 102, allTenColumns: true, multiFilterIntersection: true, displayedBasisLabels: true, blanksAndCustomValues: true, combinedModeState: true, documentLayout, assets, downloadResults, paginationReset: true, selectedExportUnchanged: true, sourceSnapshotUnchanged: true, calculatorsUnchanged: true, narrowDialogInViewport: true, nativeDialogCompletionVerified: true });
   fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify(evidence, null, 2)); console.log(JSON.stringify({ output, ...evidence }, null, 2));
 })().catch(async error => { console.error(error); if (page) await page.screenshot({ path: path.join(output, 'failure.png'), fullPage: true }).catch(() => {}); process.exitCode = 1; }).finally(async () => { if (browser) await browser.close(); server.kill(); fs.writeFileSync(path.join(output, 'server.log'), logs); });

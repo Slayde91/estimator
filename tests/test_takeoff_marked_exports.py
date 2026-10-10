@@ -35,6 +35,39 @@ class TakeoffCurrentExportTests(unittest.TestCase):
         rows = list(workbook['Current Takeoffs'].values)
         return [dict(zip(rows[0], row)) for row in rows[1:]]
 
+    def test_confirmation_categories_use_local_receipts_and_include_hidden_register_items(self):
+        confirmed = self.case.create(); draft = self.case.create(quantity=None, measurement=None)
+        self.case.confirm(confirmed); before = deepcopy(self.case.state['snapshot'])
+        self.assertEqual([row['Item ID'] for row in self.rows(self.export(confirmation='confirmed')[0])], [confirmed])
+        self.assertEqual([row['Item ID'] for row in self.rows(self.export(confirmation='unconfirmed')[0])], [draft])
+        self.assertEqual([row['Item ID'] for row in self.rows(self.export(confirmation='all')[0])], [confirmed, draft])
+        self.assertEqual(self.export(confirmation='confirmed')[2], 'CEASEFIRE-Steel-Confirmed-Takeoffs.xlsx')
+        self.assertEqual(self.export()[2], 'CEASEFIRE-Steel-Takeoffs.xlsx')
+        for kind in ('forged', 'stale'):
+            state = deepcopy(before)
+            if kind == 'forged': state['items'][0]['confirmation']['id'] = str(uuid4())
+            else: state['items'][0]['fields']['mark'] = 'Changed after confirmation'
+            request = {'expected_revision': state['revision'], 'mode': 'steel', 'confirmation': 'unconfirmed'}
+            rows = self.rows(export_workspace(state, request, 'schedule-xlsx', documents=self.case.documents, store=self.case.store)[0])
+            self.assertEqual([row['Item ID'] for row in rows], [confirmed, draft])
+            self.assertTrue(all(row['Confirmation'] == 'Unconfirmed' and row['Confirmation ID'] is None for row in rows))
+            with self.assertRaisesRegex(ValidationError, 'no confirmed items'):
+                export_workspace(state, {**request, 'confirmation': 'confirmed'}, 'schedule-xlsx', documents=self.case.documents, store=self.case.store)
+        self.assertEqual(self.case.service.get(self.case.sid)['snapshot'], before)
+
+    def test_confirmation_selector_and_register_membership_fail_closed(self):
+        identifier = self.case.create()
+        for value in (None, True, False, 0, [], {}, 'Confirmed', '', 'deleted'):
+            with self.subTest(value=value), self.assertRaisesRegex(ValidationError, 'Choose confirmed'):
+                self.export(confirmation=value)
+        with self.assertRaisesRegex(ValidationError, 'every item'):
+            self.export(confirmation='unconfirmed', item_ids=[])
+        with self.assertRaisesRegex(ValidationError, 'no confirmed items'):
+            self.export(confirmation='confirmed')
+        snapshot = self.case.state['snapshot']
+        with self.assertRaisesRegex(ValidationError, 'unsupported'):
+            self.case.service.export_workspace(self.case.sid, 'marked-pdf', {'expected_revision': snapshot['revision'], 'mode': 'steel', 'document_id': self.case.doc['id'], 'item_ids': [identifier], 'confirmation': 'all'})
+
     def test_all_current_items_include_drafts_literal_text_unknowns_and_complete_properties(self):
         first = self.case.create(); second = self.case.create(quantity=None, measurement=None)
         self.case.command('update_item', item_id=first, changes={'fields': {'mark': '=2+2', 'notes': 'Retained notes', 'zone': 'Z9'}})
@@ -216,6 +249,23 @@ class TakeoffMarkedPDFTests(unittest.TestCase):
         return case.service.export_workspace(case.session['session_id'], 'marked-pdf', {
             'expected_revision': case.session['revision'], 'mode': 'steel', 'document_id': self.document['id'],
             'item_ids': ids, **changes})
+
+    def test_combined_surface_drawing_includes_both_native_free_callouts_without_retyping_notes(self):
+        self.command('record_render', document_id=self.document['id'], page=1, success=True, warnings=[])
+        identities = {}
+        for mode, text in [('wall', 'WALL ORIGINAL NOTE'), ('slab', 'FLOOR ORIGINAL NOTE')]:
+            reply = self.command('create_annotation', annotation={'mode': mode, 'document_id': self.document['id'], 'source_sha256': self.document['sha256'],
+                'page': 1, 'point': [25.1234567890123, 35.2345678901234], 'label_position': [40, 70], 'width': 100, 'height': 30, 'appearance': {},
+                'content': {'version': 1, 'blocks': [{'kind': 'paragraph', 'runs': [{'text': text}]}]}})
+            identities[mode] = reply['created_annotation_id']
+        before = deepcopy(self.case.session['snapshot'])
+        text = '\n'.join(page.extract_text() for page in PdfReader(BytesIO(self.export([], mode='walls_floors', annotation_ids=list(identities.values()))[0])).pages)
+        self.assertIn('WALLORIGINALNOTE', ''.join(text.split())); self.assertIn('FLOORORIGINALNOTE', ''.join(text.split()))
+        legacy = '\n'.join(page.extract_text() for page in PdfReader(BytesIO(self.export([], mode='wall', annotation_ids=[identities['wall']])[0])).pages)
+        self.assertIn('WALLORIGINALNOTE', ''.join(legacy.split())); self.assertNotIn('FLOORORIGINALNOTE', ''.join(legacy.split()))
+        with self.assertRaisesRegex(ValidationError, 'selected mode'):
+            self.export([], mode='wall', annotation_ids=[identities['slab']])
+        self.assertEqual(self.case.service.get(self.case.session['session_id'])['snapshot'], before)
 
     def test_source_drawings_rotation_crop_userunit_styles_and_readable_legend_survive(self):
         ids = self.create_marks(); before = deepcopy(self.case.session['snapshot'])

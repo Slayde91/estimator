@@ -23,6 +23,16 @@ const panel = () => page.locator('#takeoff-markup-settings');
 const hit = id => page.locator(`.takeoff-area-hit[data-item-id="${id}"]`);
 const idle = () => expect(page.locator('#takeoffs-workspace')).not.toHaveAttribute('aria-busy', 'true');
 const snapshot = () => page.evaluate(() => window.CeasefireTakeoffs.projectSnapshot());
+async function surfaceFilter(type) {
+  await page.getByRole('table', { name: 'Walls/Floors editable takeoff register', exact: true }).getByRole('button', { name: 'Filter Surface type', exact: true }).click();
+  const dialog = page.locator('.takeoff-column-filter'); await expect(dialog).toBeVisible();
+  if (type) {
+    await dialog.getByRole('checkbox', { name: 'Select all values', exact: true }).uncheck();
+    await dialog.getByRole('checkbox', { name: type, exact: true }).check();
+    await dialog.getByRole('button', { name: 'Apply filter', exact: true }).click();
+  } else await dialog.getByRole('button', { name: 'Reset filter', exact: true }).click();
+  await dialog.waitFor({ state: 'detached' });
+}
 async function command(action, op) {
   const pending = page.waitForResponse(response => response.url().endsWith('/commands') && response.request().postDataJSON()?.op === op); pending.catch(() => {});
   await action(); const response = await pending, value = await response.json(); assert.equal(response.status(), 200, JSON.stringify(value)); await idle(); return value;
@@ -75,6 +85,9 @@ async function drawSurface(mode, mark, startX) {
     const first = await drawSurface(mode, `${mode.toUpperCase()}-A`, 100);
     await expect(panel()).toBeVisible(); await expect(panel().getByRole('heading', { name: 'Item details', exact: true })).toBeVisible();
     const second = await drawSurface(mode, `${mode.toUpperCase()}-B`, 400);
+    // These native pointer cases deliberately share source coordinates. The
+    // combined workspace needs the explicit type filter to isolate that plane.
+    await surfaceFilter(mode === 'wall' ? 'Wall' : 'Floor');
     await clickPoint([700,450]); await expect(panel()).toBeHidden(); await selected(second.id, false);
     const beforeSelection = await snapshot(), beforeCommandCount = commands.length;
     await clickPoint([160,170]); await selected(first.id, true); await expect(panel()).toBeHidden();
@@ -134,6 +147,16 @@ async function drawSurface(mode, mark, startX) {
     await clickPoint([700,450]); await expect(panel()).toBeHidden();
     evidence[mode] = { firstId: first.id, secondId: second.id, singleSelectsDoubleOpens: true, blankClickCloses: true, keyboardEnterAndSpace: true, modifierSelectionRetained: true, pendingEditSavedBeforeClose: true, moveDelta: delta, sourceEvidenceUnchanged: true, quantityUnchanged: true };
   }
+  await surfaceFilter();
+  const beforeMixed = await snapshot(), beforeMixedCommands = commands.length;
+  for (const id of [evidence.wall.firstId, evidence.slab.firstId]) await page.locator(`tr[data-item-id="${id}"]`).getByRole('checkbox', { name: /^Select / }).check();
+  await selected(evidence.wall.firstId, true); await selected(evidence.slab.firstId, true);
+  await expect(panel()).toBeVisible(); await expect(panel().getByText('Surface type: Wall / Floor', { exact: true })).toBeVisible();
+  await expect(panel().getByLabel('Surface basis', { exact: true })).toHaveCount(0);
+  assert.deepEqual(await snapshot(), beforeMixed, 'Mixed native selection retains every original geometry, source identity, field and quantity');
+  assert.equal(commands.length, beforeMixedCommands, 'Mixed native selection is presentation only');
+  await page.screenshot({ path: path.join(output, 'mixed-wall-floor-selected-details.png') });
+  evidence.combined = { selectedIds: [evidence.wall.firstId, evidence.slab.firstId], nativeModesPreserved: true, mixedBasisNotEditable: true, noMutationOnSelection: true };
   assert.deepEqual(await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()), originalCalculators);
   const beforeSave = await snapshot(), saving = page.waitForResponse(response => response.url().endsWith('/api/project/save-as'));
   await clickProjectControl(page, 'Save'); assert.equal((await saving).status(), 200); await expect(page.locator('#project-save-state')).toHaveText('Saved project');

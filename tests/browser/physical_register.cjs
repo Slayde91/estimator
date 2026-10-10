@@ -1,4 +1,4 @@
-const { assertParentControls } = require('./parent_controls_helpers.cjs');
+const { assertParentControls, assertTransferIcon } = require('./parent_controls_helpers.cjs');
 const { chooseTakeoff } = require('./section_navigation.cjs');
 const { chooseNewDefect, startDefect } = require('./physical_dialogs.cjs');
 const { clickProjectControl } = require('./project_actions.cjs');
@@ -57,12 +57,20 @@ async function restore(id,kind){await select(id);await page.getByRole('button',{
  const definitionReply=await page.request.post(`${origin}/api/penetration/definition`,{data:{configuration:await page.evaluate(()=>window.CeasefireProject.configuration())}});assert.equal(definitionReply.status(),200);const definition=await definitionReply.json(),frls=definition.row_fields.find(field=>field.column==='N').options;
  await page.getByRole('button',{name:'Takeoffs',exact:true}).click();await chooseTakeoff(page, 'physical');await idle();
  for(const name of ['Undo physical / takeoff edit','Physical / takeoff audit history','Add barrier','Add service'])await expect(page.getByRole('button',{name,exact:true})).toHaveCount(0);
+ const register=page.locator('.takeoff-physical-register'),undo=register.getByRole('button',{name:'Undo last edit',exact:true});
+ await expect(register.locator('.takeoff-physical-gallery')).toHaveCount(0);for(const name of ['Extract images from selected PDF page','Refresh retained images'])await expect(register.getByRole('button',{name,exact:true})).toHaveCount(0);
+ await expect(register.getByRole('button',{name:'Document',exact:true}).locator('img')).toHaveAttribute('src','/icons/document.png');await expect(register.getByRole('button',{name:'Transfer to Firestopping Schedule',exact:true}).locator('img')).toHaveAttribute('src','/icons/takeoff-transfer.png');
+ checks.transfer_original=await assertTransferIcon(page);
+ assert.equal(await register.evaluate(el=>{const filter=el.querySelector('input[type=search]'),tools=filter.parentElement;return tools.contains(el.querySelector('.takeoff-document-menu'))&&tools.contains(el.querySelector('.takeoff-undo-button'))&&tools.contains(el.querySelector('[aria-label="Select filtered records"]'))&&tools.contains([...el.querySelectorAll('label')].find(label=>label.textContent==='Show deleted records'));}),true);checks.combined_tools_and_preserved_evidence_ui=true;
  await expect(all()).toBeDisabled();
  await page.locator('#takeoff-upload').setInputFiles(info.fixture);await expect(page.locator('.takeoff-viewport canvas')).toBeVisible();await idle();
  await startDefect(page);await chooseNewDefect(page);await expect(page.getByRole('heading',{name:'Add Defect',exact:true})).toBeVisible();await expect(page.getByRole('dialog').getByLabel('Defect label',{exact:true})).toHaveCount(0);await choices(page.getByRole('dialog').getByLabel('FRL',{exact:true}),frls);
  const created=await response(()=>dialog('Add Defect',{'Defect Ref.':'REFERENCE-1','FRL':'-/120/120'},'Preview new draft'),'/physical/preview');await apply('Create one draft defect?');const defect=created.changed_ids[0];assert.equal(record(defect).fields.label,'REFERENCE-1');await choices(inspector().getByLabel('FRL',{exact:true}),frls);await choices(page.getByLabel('FRL for REFERENCE-1',{exact:true}),frls);
  const barrier=await create('barrier',{'Barrier type':'Core hole'},'Add barrier to D-0001');
  const service=await create('service',{'Category':'Mechanical','Service type':definition.row_fields.find(field=>field.column==='K').options[0],'Explicit service quantity':2,'Service Size (mm)':'100 x 75'},'Add service to B-0001');
+ for(const id of [defect,barrier,service]){await select(id);assert.equal(await inspector().getByRole('button',{name:'Delete draft record',exact:true}).evaluate(el=>el.parentElement.previousElementSibling.querySelector('textarea')?.getAttribute('aria-label')),'Notes');}
+ await select(service);const beforeUndo=structuredClone(physical());await edit({'Notes':'Undo this physical note'});state=await response(()=>undo.click(),'/commands');await idle();
+ for(const prior of [...beforeUndo.defects,...beforeUndo.barriers,...beforeUndo.services])for(const key of ['id','display_id','defect_id','barrier_id','fields','evidence','quantity'])assert.deepEqual(record(prior.id)[key],prior[key]);await expect(inspector().getByLabel('Notes',{exact:true})).toHaveValue('');await expect(page.getByRole('dialog')).toHaveCount(0);checks.undo_last_physical_edit=true;
  assert.equal(record(service).fields.size,'100 x 75');assert.ok(!Object.hasOwn(record(service).fields,'width_height_mm'));
  for(const label of ['Width (mm)','Height (mm)','Diameter (mm)'])await expect(inspector().getByLabel(label,{exact:true})).toHaveCount(0);
  await expect(page.locator('.takeoff-physical-add-row')).toBeHidden();

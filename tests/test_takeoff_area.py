@@ -236,6 +236,38 @@ class TakeoffAreaTests(unittest.TestCase):
         self.assertEqual(set(previous['checks']), {'engine', 'quantity', 'length_m', 'total_length_m', 'evidence_verified', 'issues'})
         validate_snapshot(self.case.state['snapshot'])
 
+    def test_combined_register_exports_native_types_status_and_exact_source_area_without_changing_legacy_schema(self):
+        wall = self.create(); proposed = self.proposal('slab')
+        proposed['geometry']['points'][1][0] = 120.1234567890123
+        proposed['geometry']['points'][2][0] = 120.1234567890123
+        floor = self.create(proposed); self.case.confirm(wall)
+        before = deepcopy(self.case.state['snapshot'])
+        def export(mode, confirmation='all'):
+            payload, _, name = self.case.service.export_workspace(self.case.sid, 'schedule-xlsx', {'expected_revision': before['revision'], 'mode': mode, 'confirmation': confirmation})
+            workbook = load_workbook(BytesIO(payload)); self.addCleanup(workbook.close)
+            values = list(workbook['Current Takeoffs'].values)
+            return [dict(zip(values[0], row)) for row in values[1:]], values[0], name
+        rows, headers, name = export('walls_floors')
+        self.assertEqual(name, 'CEASEFIRE-Walls-Floors-Takeoffs.xlsx')
+        self.assertEqual([row['Item ID'] for row in rows], [wall, floor])
+        self.assertEqual([row['Mode'] for row in rows], ['wall', 'slab'])
+        self.assertEqual([row['Confirmation'] for row in rows], ['Confirmed', 'Unconfirmed'])
+        for row in rows:
+            item = self.current(row['Item ID']); result = item_result(item, before)
+            for column, key in [('Gross area m2', 'gross_area_m2'), ('Excluded area m2', 'excluded_area_m2'), ('Net area m2', 'net_area_m2')]:
+                self.assertEqual(row[column], result[key])
+            self.assertEqual(json.loads(row['Geometry']), item['geometry'])
+            self.assertEqual(json.loads(row['All item properties']), item['fields'])
+            self.assertEqual(row['Source SHA-256'], self.case.doc['sha256'])
+        self.assertEqual([row['Item ID'] for row in export('walls_floors', 'confirmed')[0]], [wall])
+        self.assertEqual([row['Item ID'] for row in export('walls_floors', 'unconfirmed')[0]], [floor])
+        for mode, identity in [('wall', wall), ('slab', floor)]:
+            legacy, legacy_headers, legacy_name = export(mode)
+            self.assertEqual([row['Item ID'] for row in legacy], [identity])
+            self.assertNotIn('Gross area m2', legacy_headers); self.assertNotIn('Excluded area m2', legacy_headers)
+            self.assertEqual(legacy_name, f'CEASEFIRE-{mode.title()}-Takeoffs.xlsx')
+        self.assertEqual(self.case.service.get(self.case.sid)['snapshot'], before)
+
 
 if __name__ == '__main__':
     unittest.main()

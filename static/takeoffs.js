@@ -19,9 +19,13 @@
   const lengthUnits = new Intl.NumberFormat("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   // Presentation only: snapshots, evidence digests and calculator inputs retain full precision.
   const formatLength = value => Number.isFinite(value) ? lengthUnits.format(value) : "—";
-  const labels = { steel: "Steel", duct: "Duct", wall: "Walls", slab: "Slabs", physical: "Penetrations" };
+  const labels = { steel: "Steel", duct: "Duct", wall: "Walls/Floors", slab: "Walls/Floors", walls_floors: "Walls/Floors", physical: "Penetrations" };
   const physicalUnfinished = () => !!state.physicalUI?.hasUnfinishedChanges();
   const isArea = (mode = state.mode) => mode === "wall" || mode === "slab";
+  // The combined workspace never changes a stored wall/slab measurement type.
+  const workspaceMode = (mode = state.mode) => isArea(mode) ? "walls_floors" : mode;
+  const inWorkspace = (mode, current = state.mode) => workspaceMode(mode) === workspaceMode(current);
+  const surfaceType = item => item.mode === "wall" ? "Wall" : "Floor";
   const areaFields = [["level", "Level"], ["substrate", "Substrate"], ["treatment", "Treatment"], ["system", "Protection system"], ["product", "Protection product"], ["frl", "FRL / fire rating"], ["surface_citation", "True-surface source citation", "textarea"]];
   const surfaceHelp = "Trace one actual treatment surface in true projection. A wall plan footprint is not its wall-face surface. No height, second face or multiplier is inferred. Use elevations for wall faces and a stated soffit/top view for slabs. Distorted or perspective views cannot establish calibrated surface areas.";
   const fields = {
@@ -47,11 +51,11 @@
   const documents = () => snapshot()?.documents || [];
   const items = () => snapshot()?.items || [];
   const annotations = () => snapshot()?.annotations?.callouts || [];
-  const selectedAnnotation = () => annotations().find(value => value.id === state.annotationSelected && value.mode === state.mode && value.document_id === state.document && value.page === state.page);
+  const selectedAnnotation = () => annotations().find(value => value.id === state.annotationSelected && inWorkspace(value.mode) && value.document_id === state.document && value.page === state.page);
   const documentById = id => documents().find(doc => doc.id === id);
   const currentDocument = () => documentById(state.document);
   const pageMetadata = () => currentDocument()?.pages?.find(page => page.page === state.page);
-  const selectedItems = () => items().filter(item => state.selected.has(item.id) && item.mode === state.mode);
+  const selectedItems = () => items().filter(item => state.selected.has(item.id) && inWorkspace(item.mode));
   const editableFields = (mode, calculator = state.ui?.target?.value) => (fields[mode] || []).filter(([key]) => !["zone", "group", "notes"].includes(key) && (key !== "sides" || calculator === "steel_board"));
   const isStandalone = item => ["count-only", "length-only"].includes(item?.purpose);
   const isSurface = item => isArea(item?.mode) && !isStandalone(item);
@@ -62,10 +66,11 @@
   // only named physical members of that row. Length groups are not move groups.
   const selectedCountMemberIds = item => !isCount(item) || !state.selected.has(item.id) ? [] : item.member_ids.filter(id => !state.countSelection.has(item.id) || state.countSelection.get(item.id).has(id));
   const countBatchItems = item => isStandalone(item) ? [item] : items().filter(value => isCount(value) && !isStandalone(value) && value.count_id === item.count_id);
-  const settingsSelectedItems = () => { const selected = [...state.selected].map(id => items().find(item => item.id === id && item.mode === state.mode)).filter(Boolean); const batches = new Set(selected.filter(item => isCount(item) && !isStandalone(item)).map(item => item.count_id)); return selected.concat(items().filter(item => !selected.includes(item) && isCount(item) && batches.has(item.count_id))); };
+  const settingsSelectedItems = () => { const selected = [...state.selected].map(id => items().find(item => item.id === id && inWorkspace(item.mode))).filter(Boolean); const batches = new Set(selected.filter(item => isCount(item) && !isStandalone(item)).map(item => item.count_id)); return selected.concat(items().filter(item => !selected.includes(item) && isCount(item) && batches.has(item.count_id))); };
+  const commonItemFields = (selected, definitions) => definitions(selected[0]).filter(([key]) => selected.every(item => definitions(item).some(([name]) => name === key)) && !(key === "surface_basis" && new Set(selected.map(item => item.mode)).size > 1));
   function bulkSelectionFields(selected = settingsSelectedItems()) {
     const definitions = item => isStandalone(item) ? standaloneFields : editableFields(item.mode);
-    const choices = selected.length ? definitions(selected[0]).filter(([key]) => selected.every(item => definitions(item).some(([name]) => name === key))) : editableFields(state.mode);
+    const choices = selected.length ? commonItemFields(selected, definitions) : editableFields(state.mode);
     return [...(!isArea() && !selected.some(isStandalone) ? [["quantity", "Quantity", "number"]] : []), ...choices];
   }
   function syncBulkFields() {
@@ -107,6 +112,7 @@
   const buttonIcons = {
     "First page": "M4 5v14M17 5l-7 7 7 7", "‹ Page": "M15 5l-7 7 7 7", "Page ›": "M9 5l7 7-7 7", "Last page": "M20 5v14M7 5l7 7-7 7",
     "Discard item edits": "M20 7a8 8 0 0 0-13-2L3 9m0-6v6h6M4 17a8 8 0 0 0 13 2l4-4m0 6v-6h-6",
+    "Undo last edit": "M9 4 4 9l5 5M4 9h9a7 7 0 0 1 7 7v4",
     "Select": "M5 3l14 10-7 1-3 7z",
     "Select PDF text": "M6 3c4 0 6 2 6 5v8c0 3-2 5-6 5M18 3c-4 0-6 2-6 5M12 16c0 3 2 5 6 5",
     "Pan": "M8 12V5a1.5 1.5 0 0 1 3 0v6-7a1.5 1.5 0 0 1 3 0v7-5a1.5 1.5 0 0 1 3 0v6-3a1.5 1.5 0 0 1 3 0v7c0 4-3 6-7 6-3 0-4-2-6-4l-3-4a1.5 1.5 0 0 1 2-2l2 1z",
@@ -148,10 +154,10 @@
     } else if (icon || schedule) {
       el.classList.add("icon-only", "takeoff-icon-button"); el.title = label; el.setAttribute("aria-label", label);
       if (label === "Apply item edits") el.classList.add("save-button");
+      if (label === "Undo last edit") el.classList.add("takeoff-undo-button");
       const symbol = node("span", "button-symbol takeoff-button-symbol"); symbol.setAttribute("aria-hidden", "true");
       if (schedule) {
-        // Match the existing Add to Schedule control's exact plus glyph.
-        symbol.textContent = "+"; el.classList.add("takeoff-add-schedule");
+        const image = node("img", "takeoff-transfer-icon"); image.src = "/icons/takeoff-transfer.png"; image.alt = ""; image.setAttribute("aria-hidden", "true"); symbol.append(image);
       } else {
         const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg"), path = document.createElementNS("http://www.w3.org/2000/svg", "path");
         for (const [key, value] of Object.entries({ viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", "stroke-width": "1.8", "stroke-linecap": "round", "stroke-linejoin": "round", focusable: "false" })) svg.setAttribute(key, value);
@@ -177,6 +183,29 @@
     el.addEventListener("click", () => void safely(fn)); return el;
   }
   function select(options, change, value) { const el = node("select"); options.forEach(([v, text]) => el.append(option(v, text))); if (value !== undefined) el.value = value; if (change) el.addEventListener("change", () => void safely(() => change(el.value))); return el; }
+  function registerDocumentMenu() {
+    const root = node("div", "calculator-document-menu takeoff-document-menu"), toggle = node("button", "button secondary calculator-document-toggle"), list = node("div", "calculator-document-actions");
+    toggle.type = "button"; toggle.setAttribute("aria-label", "Takeoff register document actions"); toggle.setAttribute("aria-expanded", "false"); toggle.setAttribute("aria-controls", "takeoff-register-document-actions");
+    const image = node("img", "calculator-document-icon"); image.src = "/icons/document.png"; image.alt = ""; image.setAttribute("aria-hidden", "true");
+    const chevron = document.createElementNS("http://www.w3.org/2000/svg", "svg"), path = document.createElementNS("http://www.w3.org/2000/svg", "path"); chevron.setAttribute("class", "calculator-document-chevron"); chevron.setAttribute("viewBox", "0 0 24 24"); chevron.setAttribute("aria-hidden", "true"); path.setAttribute("d", "m6 9 6 6 6-6"); path.setAttribute("fill", "none"); path.setAttribute("stroke", "currentColor"); path.setAttribute("stroke-width", "2"); chevron.append(path); toggle.append(image, node("span", "", "Document"), chevron);
+    list.id = "takeoff-register-document-actions"; list.hidden = true; list.setAttribute("role", "group"); list.setAttribute("aria-label", "Takeoff register document actions"); root.append(toggle, list);
+    const close = focus => { list.hidden = true; toggle.setAttribute("aria-expanded", "false"); if (focus) toggle.focus(); };
+    const choices = () => [...list.children].filter(control => !control.disabled && !control.hidden);
+    const open = () => { if (toggle.disabled) return; list.hidden = false; toggle.setAttribute("aria-expanded", "true"); };
+    toggle.addEventListener("click", () => list.hidden ? open() : close(false));
+    root.addEventListener("keydown", event => {
+      if (event.key === "Escape") { event.preventDefault(); close(true); return; }
+      if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
+      event.preventDefault(); open(); const controls = choices(); if (!controls.length) return;
+      const index = controls.indexOf(document.activeElement), next = event.key === "Home" ? 0 : event.key === "End" ? controls.length - 1 : event.key === "ArrowDown" ? (index + 1) % controls.length : index < 0 ? controls.length - 1 : (index - 1 + controls.length) % controls.length; controls[next].focus();
+    });
+    root.addEventListener("focusout", event => { if (!root.contains(event.relatedTarget)) close(false); });
+    document.body.addEventListener("pointerdown", event => { if (!root.contains(event.target)) close(false); });
+    for (const [confirmation, label] of [["confirmed", "Download confirmed items"], ["unconfirmed", "Download unconfirmed items"], ["all", "Download all items"]]) {
+      const action = button(label, () => { close(false); return downloadTakeoff("schedule-xlsx", confirmation); }, "button secondary calculator-document-action"), symbol = node("span", "download-format-icon"); symbol.setAttribute("aria-hidden", "true"); symbol.append(node("span", "download-arrow", "⇩"), node("span", "download-format", "XLSX")); action.replaceChildren(symbol, node("span", "", label)); list.append(action);
+    }
+    return { root, toggle, list, close };
+  }
   function currentVisibilityControl(kind, id) {
     const sessionId = state.session?.session_id, mode = state.mode;
     const hidden = () => kind === "annotation" ? state.annotationHidden ||= new Set() : state.hidden;
@@ -493,13 +522,16 @@
     ui.registerExtraControls = [ui.statusFilter, ui.sort, ui.group, ui.selectFiltered, button("Undo last edit", () => undoLastEdit())];
     controls.append(ui.filter, ...ui.registerExtraControls);
     ui.bulk = node("div", "takeoff-bulk"); ui.bulk.hidden = true; ui.selectionCount = node("strong"); ui.bulkField = select([]); ui.bulkField.setAttribute("aria-label", "Bulk edit field"); ui.bulkValue = node("input"); ui.bulkValue.setAttribute("aria-label", "Bulk edit value"); ui.bulkValue.placeholder = "New value (blank clears)";
-    ui.bulk.append(ui.selectionCount, ui.bulkField, ui.bulkValue, button("Apply to selected", bulkEdit), button("Confirm", confirmSelected), button("Unconfirm", () => selectedCommand("unconfirm_items")), button("Delete", deleteSelected), ui.split = button("Split", splitSelected), ui.merge = button("Merge", mergeSelected));
+    ui.bulk.append(ui.selectionCount, ui.bulkField, ui.bulkValue, button("Apply to selected", bulkEdit), button("Confirm", confirmSelected), button("Unconfirm", () => selectedCommand("unconfirm_items")), button("Delete", deleteSelected));
+    // Historical operations remain available to integrations, outside this toolbar.
+    ui.split = button("Split", splitSelected); ui.merge = button("Merge", mergeSelected);
     const exports = node("div", "takeoff-register-controls"); ui.target = select([["steel_vermiculite", "Steel Spray Schedule"], ["steel_board", "Steel Board Schedule"]], refreshRegisterOptions); ui.target.setAttribute("aria-label", "Destination schedule");
     ui.transferControls = [ui.target, button("Preview transfer", () => transfer(false)), button("Update linked rows", () => transfer(true)), button("Detach links", detachSelected)];
     ui.areaNotice = node("p", "helper takeoff-area-notice", "Area records export as m². Existing steel and duct calculators do not accept surface areas. Split/merge is unavailable for surfaces; group separate physical surfaces without changing their identities.");
-    const draftXlsx = button("Download XLSX", () => downloadTakeoff("schedule-xlsx"));
-    draftXlsx.title = "Download XLSX of all records in this takeoff type";
-    exports.append(...ui.transferControls, draftXlsx, ui.areaNotice);
+    ui.surfaceType = select([["wall", "Wall"], ["slab", "Floor"]], changeSurfaceType); ui.surfaceType.setAttribute("aria-label", "New surface type");
+    ui.surfaceTypeField = node("label", "field takeoff-new-surface-type"); ui.surfaceTypeField.append(node("span", "", "New surface type"), ui.surfaceType);
+    ui.documentMenu = registerDocumentMenu();
+    exports.append(...ui.transferControls, ui.surfaceTypeField, ui.documentMenu.root, ui.areaNotice);
     ui.tableWrap = node("div", "takeoff-register-table"); ui.pagination = node("div", "takeoff-register-controls"); register.append(controls, ui.bulk, exports, ui.tableWrap, ui.pagination);
     ui.physicalContainer = node("div", "takeoff-physical-container"); ui.physicalContainer.hidden = true;
     ui.controlStatus = node("p", "helper takeoff-control-status"); ui.controlStatus.hidden = true; ui.controlStatus.setAttribute("role", "status");
@@ -547,12 +579,23 @@
   }
   async function open() { build(); state.active = true; await ensureSession(); renderData(); scheduleLinkedThickness(true); if (state.document) await renderPage(); }
   function refreshNavigation() {
+    if (state.ui?.surfaceType) state.ui.surfaceType.disabled = !!(state.busy || state.modal || state.navigationBusy || !isArea());
     for (const choice of $("takeoff-navigation-menu")?.querySelectorAll("[data-mode]") || []) {
       choice.disabled = !!(state.busy || state.physicalPlacing || state.navigationBusy || !labels[choice.dataset.mode]);
-      choice.setAttribute("aria-pressed", String(choice.dataset.mode === state.mode && (!choice.dataset.physicalScope || choice.dataset.physicalScope === state.physicalScope)));
+      choice.setAttribute("aria-pressed", String(inWorkspace(choice.dataset.mode) && (!choice.dataset.physicalScope || choice.dataset.physicalScope === state.physicalScope)));
     }
   }
+  async function changeSurfaceType(value) {
+    const sessionId = state.session?.session_id, mode = state.mode;
+    try {
+      if (!sessionId || !isArea(mode) || !isArea(value) || state.busy || state.modal || state.navigationBusy || state.physicalPlacing) return false;
+      if (!await discardEditor()) return false;
+      if (sessionId !== state.session?.session_id || mode !== state.mode || state.busy || state.modal || state.navigationBusy || state.physicalPlacing) return false;
+      cancelTrace(); state.mode = value; renderData(); return true;
+    } finally { if (state.ui?.surfaceType) state.ui.surfaceType.value = state.mode; refreshNavigation(); }
+  }
   async function selectWorkspace(mode, scope) {
+    if (mode === "walls_floors") mode = isArea() ? state.mode : "wall";
     if (!labels[mode] || scope && (mode !== "physical" || !["defect_reports", "service_plans"].includes(scope)) || state.busy || state.physicalPlacing || state.navigationBusy) return false;
     state.navigationBusy = true; refreshNavigation();
     try {
@@ -564,7 +607,7 @@
         state.physicalUI?.destroy(); state.physicalUI = null;
         state.physicalScope = scope; state.physicalSelected.clear(); state.physicalVisible.clear(); state.physicalHovered = null; state.physicalPreviews.clear(); state.physicalDetailsOpen = false;
       }
-      state.mode = mode; state.offset = 0; state.selected.clear(); syncSurfaceDetailsSelection(); renderData();
+      state.ui.documentMenu?.close(false); state.mode = mode; state.offset = 0; state.selected.clear(); syncSurfaceDetailsSelection(); renderData();
       return true;
     } finally { state.navigationBusy = false; refreshNavigation(); }
   }
@@ -619,6 +662,7 @@
     const area = isArea();
     for (const control of state.ui.transferControls) { control.hidden = area; control.disabled = area; }
     state.ui.areaNotice.hidden = !area;
+    if (state.ui.surfaceTypeField) { state.ui.surfaceTypeField.hidden = !area; state.ui.surfaceType.value = state.mode; }
     state.ui.tools.trace.hidden = area;
     state.ui.tools.count.hidden = state.mode !== "duct"; state.ui.countAnchor.hidden = state.mode !== "duct"; state.ui.tools.countLength.hidden = state.mode !== "steel"; state.ui.tools.measure.hidden = !area;
     for (const tool of ["polygon", "exclusion"]) state.ui.tools[tool].hidden = !area;
@@ -906,7 +950,8 @@
     content.append(button("Set as default", () => setMarkupDefaults(editor)));
     content.append(node("p", "helper", countsOnly ? "Marker size uses physical PDF points. Colour, shape, fill and opacity change appearance only." : "Appearance is visual only and does not approve quantities. Fill applies to closed surface or cited-region markups."), node("h4", "", "Item details"));
     if (selectedItems().length === 1) { editor.visibility = currentVisibilityControl("item", selectedItems()[0].id); content.append(editor.visibility); }
-    editor.fields = itemFields(first).map(def => { const field = formField(def, def[0] === "duct_size" ? formatDuctSize(first.fields) : first.fields[def[0]]); bindSetting(editor, field, `fields:${def[0]}`); if (def[0] === "sides") field.wrapper.hidden = state.ui.target.value !== "steel_board"; if (["product", "member_type"].includes(def[0])) field.control.addEventListener("change", () => void safely(() => loadSettingsOptions(editor))); content.append(field.wrapper); return field; });
+    if (isArea()) content.append(node("p", "helper", `Surface type: ${[...new Set(selected.map(surfaceType))].join(" / ")}`));
+    editor.fields = commonItemFields(selected, itemFields).map(def => { const field = formField(def, def[0] === "duct_size" ? formatDuctSize(first.fields) : first.fields[def[0]]); bindSetting(editor, field, `fields:${def[0]}`); if (def[0] === "sides") field.wrapper.hidden = state.ui.target.value !== "steel_board"; if (["product", "member_type"].includes(def[0])) field.control.addEventListener("change", () => void safely(() => loadSettingsOptions(editor))); content.append(field.wrapper); return field; });
     if (selected.some(isCount)) {
       const counted = selected.filter(item => isCount(item) && !isStandalone(item));
       counted.forEach((item, index) => {
@@ -2504,7 +2549,7 @@
   function annotationSelectionKey() { return JSON.stringify([state.session?.session_id, state.mode, state.document, state.page, selectedAnnotation()?.id]); }
   async function selectFreeCallout(id, openSettings = false) {
     if (state.tool !== "select" || !await discardEditor()) return;
-    const annotation = annotations().find(value => value.id === id && value.mode === state.mode && value.document_id === state.document && value.page === state.page);
+    const annotation = annotations().find(value => value.id === id && inWorkspace(value.mode) && value.document_id === state.document && value.page === state.page);
     if (!annotation) return;
     state.selected.clear(); state.countSelection.clear(); state.legendSelected = null; state.markupMenu = null; state.annotationSelected = id; state.settingsOpen = openSettings || state.settingsOpen; state.settingsEditor = null; state.viewportsOpen = false; renderViewportPanel(); renderSelection();
   }
@@ -2547,7 +2592,7 @@
   async function openAnnotationMenu(id, sourcePoint) {
     const context = pageDisplayKey(), mode = state.mode;
     await flushSettings(); requireFinishedEdits();
-    if (context !== pageDisplayKey() || mode !== state.mode || state.tool !== "select" || state.busy || state.modal || !annotations().some(value => value.id === id && value.mode === mode && value.document_id === state.document && value.page === state.page)) return;
+    if (context !== pageDisplayKey() || mode !== state.mode || state.tool !== "select" || state.busy || state.modal || !annotations().some(value => value.id === id && inWorkspace(value.mode, mode) && value.document_id === state.document && value.page === state.page)) return;
     state.controlPoint = null; state.controlMenu = false; state.markupMenu = { annotation: { id, context, revision: state.session.revision, point: G.transform(sourcePoint, state.viewport.transform) } }; renderOverlay();
     state.ui?.overlay?.querySelector?.('[aria-label="Call-out actions"] button:not(:disabled)')?.focus({ preventScroll: true });
   }
@@ -2601,7 +2646,7 @@
   function renderFreeCallouts(overlay) {
     if (state.mode === "physical" || !A) return;
     const scale = Math.hypot(state.viewport.transform[0], state.viewport.transform[1]);
-    for (const annotation of annotations().filter(value => value.mode === state.mode && value.document_id === state.document && value.page === state.page && !state.annotationHidden?.has(value.id))) {
+    for (const annotation of annotations().filter(value => inWorkspace(value.mode) && value.document_id === state.document && value.page === state.page && !state.annotationHidden?.has(value.id))) {
       const gesture = state.gesture?.kind === "annotation" && state.gesture.id === annotation.id ? state.gesture : null;
       const point = G.transform(gesture?.point || annotation.point, state.viewport.transform), rawLabel = G.transform(gesture?.label || annotation.label_position, state.viewport.transform), appearance = annotation.appearance;
       const width = gesture?.width || annotation.width, height = gesture?.height || annotation.height;
@@ -3259,17 +3304,19 @@
   const registerFilterColumns = {
     steel: { confirmation: "Confirmation", mark: "Member mark", level: "Level", member_type: "Member type", section: "Steel section", fire_period_min: "Fire period (min)", thickness: "Thickness (mm)" },
     duct: { confirmation: "Confirmation", mark: "Item", level: "Level", duct_size: "WxH (mm)", frl: "FRL", orientation: "Orientation", thickness: "Thickness (mm)" },
-    wall: { confirmation: "Confirmation", mark: "Wall ID", level: "Level", surface_basis: "Surface basis", substrate: "Substrate", treatment: "Treatment", system: "Protection system", product: "Protection product", frl: "FRL / fire rating" },
-    slab: { confirmation: "Confirmation", mark: "Slab / zone ID", level: "Level", surface_basis: "Surface basis", substrate: "Substrate", treatment: "Treatment", system: "Protection system", product: "Protection product", frl: "FRL / fire rating" },
+    wall: { confirmation: "Confirmation", mark: "Surface ID", surface_type: "Surface type", level: "Level", surface_basis: "Surface basis", substrate: "Substrate", treatment: "Treatment", system: "Protection system", product: "Protection product", frl: "FRL / fire rating" },
+    slab: { confirmation: "Confirmation", mark: "Surface ID", surface_type: "Surface type", level: "Level", surface_basis: "Surface basis", substrate: "Substrate", treatment: "Treatment", system: "Protection system", product: "Protection product", frl: "FRL / fire rating" },
   };
   const usesColumnFilters = () => Object.hasOwn(registerFilterColumns, state.mode);
   function registerFilters() {
     const sessionId = state.session?.session_id || null;
     if (state.registerFilterSession !== sessionId) { state.registerColumnFilters.clear(); state.registerFilterSession = sessionId; }
-    if (!state.registerColumnFilters.has(state.mode)) state.registerColumnFilters.set(state.mode, new Map());
-    return state.registerColumnFilters.get(state.mode);
+    const mode = workspaceMode();
+    if (!state.registerColumnFilters.has(mode)) state.registerColumnFilters.set(mode, new Map());
+    return state.registerColumnFilters.get(mode);
   }
   function registerFilterValue(item, key) {
+    if (key === "surface_type") return surfaceType(item);
     if (key === "thickness") return linkedThicknessFor(item).filter;
     if (key === "surface_basis") {
       const value = String(item.fields?.[key] ?? "").trim(), choices = fields[item.mode]?.find(field => field[0] === key)?.[2];
@@ -3280,7 +3327,7 @@
   function registerColumnValues(key) {
     // Stable choices across other column filters and register searches; selected
     // values remain available to clear even after an item is edited or deleted.
-    return [...new Set([...items().filter(item => item.mode === state.mode).map(item => registerFilterValue(item, key)), ...(registerFilters().get(key) || [])])]
+    return [...new Set([...items().filter(item => inWorkspace(item.mode)).map(item => registerFilterValue(item, key)), ...(registerFilters().get(key) || [])])]
       .sort((a, b) => a.localeCompare(b, "en-AU", { numeric: true }));
   }
   function setRegisterColumnFilter(key, selected, allValues = registerColumnValues(key)) {
@@ -3335,7 +3382,7 @@
     return control;
   }
   function visibleItems() {
-    const result = items().filter(item => item.mode === state.mode && (!state.filter || [item.id, ...Object.values(item.fields || {})].join(" ").toLowerCase().includes(state.filter)));
+    const result = items().filter(item => inWorkspace(item.mode) && (!state.filter || [item.id, ...(isArea(item.mode) ? [surfaceType(item)] : []), ...Object.values(item.fields || {})].join(" ").toLowerCase().includes(state.filter)));
     if (usesColumnFilters()) {
       const filters = registerFilters();
       return result.filter(item => [...filters].every(([key, values]) => values.has(registerFilterValue(item, key))))
@@ -3443,8 +3490,8 @@
     state.ui.merge.title = isArea() ? "Surface merging is unavailable. Group separate physical surfaces without changing their identities." : state.mode === "steel" ? "Combine compatible repeated-member groups while retaining every physical member identity." : "Merge adjoining measured segments of one individual duct run.";
     state.ui.bulk.hidden = !selected.length; state.ui.selectionCount.textContent = `${selected.length} selected`;
     const table = node("table"), head = node("thead"), header = node("tr"), body = node("tbody"); table.setAttribute("aria-label", `${labels[state.mode]} editable takeoff register`);
-    const area = isArea(), columns = area ? ["mark", "level", "surface_basis", "substrate", "treatment", "system", "product", "frl"] : state.mode === "steel" ? ["mark", "level", "member_type", "section", "fire_period_min", ...(state.ui.target?.value === "steel_board" ? ["sides"] : [])] : ["mark", "level", "duct_size", "frl", "orientation"];
-    const headings = ["Select", "Hide", "View/Edit", "Confirmation", ...columns.map(key => fields[state.mode].find(field => field[0] === key)?.[1] || key), ...(area ? ["Gross (m²)", "Excluded (m²)", "Net (m²)"] : ["Qty", "Length each (m)", "Total (m)"]), ...(["steel", "duct"].includes(state.mode) ? ["Thickness (mm)"] : []), "Evidence / issues"];
+    const area = isArea(), columns = area ? ["mark", "surface_type", "level", "surface_basis", "substrate", "treatment", "system", "product", "frl"] : state.mode === "steel" ? ["mark", "level", "member_type", "section", "fire_period_min", ...(state.ui.target?.value === "steel_board" ? ["sides"] : [])] : ["mark", "level", "duct_size", "frl", "orientation"];
+    const headings = ["Select", "Hide", "View/Edit", "Confirmation", ...columns.map(key => area && key === "mark" ? "Surface ID" : key === "surface_type" ? "Surface type" : fields[state.mode].find(field => field[0] === key)?.[1] || key), ...(area ? ["Gross (m²)", "Excluded (m²)", "Net (m²)"] : ["Qty", "Length each (m)", "Total (m)"]), ...(["steel", "duct"].includes(state.mode) ? ["Thickness (mm)"] : []), "Evidence / issues"];
     for (const title of headings) {
       const cell = node("th", "", title);
       if (usesColumnFilters()) { const filterColumns = registerFilterColumns[state.mode], key = Object.keys(filterColumns).find(key => filterColumns[key] === title); if (key) cell.append(registerColumnFilterButton(key)); }
@@ -3470,8 +3517,9 @@
       linkCell.append(button("View", () => viewItem(item), "takeoff-row-link"), edit); const reviewCell = node("td"); reviewCell.append(node("span", `takeoff-state ${reviewStatus(item).key}`, reviewStatus(item).label)); row.append(checkCell, showCell, linkCell, reviewCell);
       const rowFields = [];
       for (const key of [...columns, ...(area ? [] : ["quantity"])]) {
+        if (key === "surface_type") { row.append(node("td", "", surfaceType(item))); continue; }
         const initial = key === "quantity" ? item.quantity : key === "duct_size" ? formatDuctSize(item.fields) : item.fields[key];
-        const def = key === "quantity" ? [key, "Quantity", "number"] : fields[state.mode].find(field => field[0] === key), field = formField(def, initial); rowFields.push(field);
+        const def = key === "quantity" ? [key, "Quantity", "number"] : fields[item.mode].find(field => field[0] === key), field = formField(def, initial); rowFields.push(field);
         if (isCount(item)) { field.control.readOnly = true; field.control.disabled = true; field.control.dataset.countReadOnly = "true"; field.control.title = key === "quantity" ? "Quantity is derived from count markers." : "Edit shared Count details using Edit item."; field.sectionSearch?.setLocked(); }
         else field.control.addEventListener("change", () => void safely(async () => { if (field.sectionSearch && !field.sectionSearch.commitTyped()) return; try { await flushSettings(); requireFinishedEdits(); if (sessionId !== state.session?.session_id) throw new Error("The project changed. Choose the item again."); } catch (error) { field.control.value = initial ?? ""; throw error; } if (field.control.value === String(initial ?? "")) return; const value = field.read(); if (def[2] === "number" && value !== null && !Number.isFinite(value)) throw new Error("Enter a finite number."); await command("update_item", { item_id: item.id, changes: key === "quantity" ? { quantity: value } : { fields: key === "duct_size" ? parseDuctSize(field.control.value) : { [key]: value } } }); }));
         const cell = node("td"); cell.append(field.sectionSearch ? field.wrapper : field.control); row.append(cell);
@@ -4207,12 +4255,13 @@
     if (!response.ok) { const result = await response.json(); throw new Error(result.error || "Register export failed."); }
     const blob = await response.blob(), url = URL.createObjectURL(blob), link = node("a"); link.href = url; link.download = `CEASEFIRE-${labels[state.mode]}-Takeoff.${format}`; document.body.append(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 30000); message(`Exported ${ids.length} selected confirmed items with their source identities.`);
   }
-  async function downloadTakeoff(format) {
+  async function downloadTakeoff(format, confirmation = "all") {
+    if (!["confirmed", "unconfirmed", "all"].includes(confirmation)) throw new Error("Choose confirmed, unconfirmed or all takeoff items.");
     requireFinishedEdits();
     if (state.busy || state.modal || !state.session) throw new Error("Finish the current takeoff operation before downloading.");
     const mode = state.mode, scope = state.physicalScope, sessionId = state.session.session_id, revision = state.session.revision, documentId = state.document;
     if (mode === "physical" && format !== "marked-pdf") throw new Error("Use the physical draft CSV/XLSX export controls for penetration records.");
-    const pdf = format === "marked-pdf", list = mode === "physical" ? state.markupsHidden ? [] : [...(physicalGraph()?.barriers || []), ...(physicalGraph()?.defects || [])].filter(entity => !entity.deleted && !physicalEntityHidden(entity) && physicalDrawingLocator(entity, documentId)?.document_id === documentId) : pdf ? state.markupsHidden ? [] : visibleItems().filter(item => (item.measurement || isCount(item)) && !state.hidden.has(item.id) && item.geometry?.document_id === documentId) : items().filter(item => item.mode === mode);
+    const pdf = format === "marked-pdf", list = mode === "physical" ? state.markupsHidden ? [] : [...(physicalGraph()?.barriers || []), ...(physicalGraph()?.defects || [])].filter(entity => !entity.deleted && !physicalEntityHidden(entity) && physicalDrawingLocator(entity, documentId)?.document_id === documentId) : pdf ? state.markupsHidden ? [] : visibleItems().filter(item => (item.measurement || isCount(item)) && !state.hidden.has(item.id) && item.geometry?.document_id === documentId) : items().filter(item => inWorkspace(item.mode, mode));
     if (pdf && !documentId) throw new Error("Open the PDF to download its visible markups.");
     if (!list.length && !pdf) throw new Error("There are no items in this takeoff type to download.");
     working(true);
@@ -4230,14 +4279,14 @@
       assertCalculatorDrafts();
       if (state.session?.session_id !== sessionId || state.session.revision !== revision || mode === "physical" && scope !== state.physicalScope) throw new Error("The project changed while preparing the download. Export the current draft again.");
       const rendering = { zoom: state.zoom, rotations: Object.fromEntries((documentById(documentId)?.pages || []).map((_, index) => [String(index+1), state.pageRotations.get(JSON.stringify([sessionId,documentId,index+1])) || 0])) };
-      const annotationIds = state.markupsHidden ? [] : annotations().filter(value => value.document_id === documentId && value.mode === mode && !state.annotationHidden?.has(value.id)).map(value => value.id);
-      const response = await fetch(`/api/takeoffs/sessions/${sessionId}/export/${format}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ expected_revision: revision, mode: mode === "physical" ? "penetrations" : mode, item_ids: list.map(item => item.id), ...(pdf ? { document_id: documentId, ...(mode !== "physical" ? { annotation_ids: annotationIds } : {}) } : {}), ...(mode === "physical" ? { physical_scope: scope, rendering } : { calculator_drafts: calculatorDrafts }) }) });
+      const annotationIds = state.markupsHidden ? [] : annotations().filter(value => value.document_id === documentId && inWorkspace(value.mode, mode) && !state.annotationHidden?.has(value.id)).map(value => value.id);
+      const response = await fetch(`/api/takeoffs/sessions/${sessionId}/export/${format}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ expected_revision: revision, mode: mode === "physical" ? "penetrations" : workspaceMode(mode), item_ids: list.map(item => item.id), ...(pdf ? { document_id: documentId, ...(mode !== "physical" ? { annotation_ids: annotationIds } : {}) } : { confirmation }), ...(mode === "physical" ? { physical_scope: scope, rendering } : { calculator_drafts: calculatorDrafts }) }) });
       if (!response.ok) { const result = await response.json(); throw new Error(result.error || "Takeoff download failed."); }
       const blob = await response.blob();
       if (state.session?.session_id !== sessionId || state.session.revision !== revision || mode === "physical" && scope !== state.physicalScope) throw new Error("The project changed during the download. Export the current draft again.");
       assertCalculatorDrafts();
-      const url = URL.createObjectURL(blob), link = node("a"); link.href = url; link.download = `CEASEFIRE-${mode === "physical" ? scope === "service_plans" ? "Service-Plans" : "Defect-Reports" : labels[mode]}-${pdf ? "Marked-drawing.pdf" : "Takeoff-schedule.xlsx"}`; document.body.append(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 30000);
-      message(mode === "physical" ? `Downloaded the original PDF with ${list.length} source annotations and current draft callouts. The exported records remain an unapproved draft.` : pdf ? `Downloaded the current PDF with ${list.length} visible ${labels[mode].toLowerCase()} measurement markups and ${annotationIds.length} free Call-outs across its pages. Unavailable calculator coating/layers are labelled explicitly.` : `Downloaded all ${list.length} ${labels[mode].toLowerCase()} items, including hidden and unconfirmed records, with confirmation status.`);
+      const url = URL.createObjectURL(blob), link = node("a"); link.href = url; link.download = `CEASEFIRE-${mode === "physical" ? scope === "service_plans" ? "Service-Plans" : "Defect-Reports" : labels[mode].replaceAll("/", "-")}-${pdf ? "Marked-drawing.pdf" : `${confirmation}-Takeoff-schedule.xlsx`}`; document.body.append(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 30000);
+      message(mode === "physical" ? `Downloaded the original PDF with ${list.length} source annotations and current draft callouts. The exported records remain an unapproved draft.` : pdf ? `Downloaded the current PDF with ${list.length} visible ${labels[mode].toLowerCase()} measurement markups and ${annotationIds.length} free Call-outs across its pages. Unavailable calculator coating/layers are labelled explicitly.` : `Downloaded ${confirmation} ${labels[mode].toLowerCase()} items using their current local confirmation status, including hidden rows in that category.`);
     } finally { working(false); }
   }
   async function showAudit() {
@@ -4265,6 +4314,7 @@
   async function prepareDefaults() { requireSettledLinkedChange(); if (state.busy) throw new Error("Wait for the takeoff operation to finish."); return { session: null, saved: null }; }
   async function prepareProject(value, sessionId) { requireSettledLinkedChange(); if (state.busy) throw new Error("Wait for the takeoff operation to finish."); if (!value) return prepareDefaults(); if (!sessionId) throw new Error("This project has takeoffs but no authorised evidence session. Reopen the project from its companion folder."); const session = await api(`/sessions/${sessionId}`); return { session, saved: snapshotKey(session.snapshot) }; }
   function applyProject(prepared) {
+    state.ui?.documentMenu?.close(false);
     requireSettledLinkedChange();
     state.annotationHidden = new Set(); state.annotationSelected = null;
     cancelSearch(true);

@@ -39,12 +39,12 @@ function harness() {
 let passed = 0;
 async function check(label, test) { await test(); passed++; console.log(`ok - ${label}`); }
 (async () => {
-  await check('Each surface register exposes exactly the nine requested accessible column filters', () => {
+  await check('Both legacy surface callers expose the same ten accessible combined register filters', () => {
     const h = harness();
-    for (const [mode, mark] of [['wall', 'Wall ID'], ['slab', 'Slab / zone ID']]) {
+    for (const mode of ['wall', 'slab']) {
       h.state.mode = mode; h.audit.renderRegister();
       const controls = h.all(h.ui.tableWrap).filter(el => el.className.includes('takeoff-column-filter-button'));
-      assert.deepEqual(controls.map(el => el.attributes['aria-label']), ['Confirmation', mark, 'Level', 'Surface basis', 'Substrate', 'Treatment', 'Protection system', 'Protection product', 'FRL / fire rating'].map(label => `Filter ${label}`));
+      assert.deepEqual(controls.map(el => el.attributes['aria-label']), ['Confirmation', 'Surface ID', 'Surface type', 'Level', 'Surface basis', 'Substrate', 'Treatment', 'Protection system', 'Protection product', 'FRL / fire rating'].map(label => `Filter ${label}`));
       assert.ok(controls.every(el => el.attributes['aria-haspopup'] === 'dialog' && el.attributes['aria-pressed'] === 'false'));
       assert.equal(h.all(h.ui.tableWrap).filter(el => el.className.includes('takeoff-group-row')).length, 0);
     }
@@ -56,19 +56,21 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
     filters.delete('confirmation'); filters.set('frl', new Set(['120/120/120', '60/60/60'])); assert.deepEqual(h.ids(), ['W1', 'W2', 'W5']);
   });
   await check('Surface basis labels match the register and unknown values remain exact; blanks are selectable', () => {
-    const h = harness(); assert.deepEqual(Array.from(h.audit.registerColumnValues('surface_basis')), ['', 'Retained custom plane', 'Wall face (true elevation)']);
+    const h = harness(); assert.deepEqual(Array.from(h.audit.registerColumnValues('surface_basis')), ['', 'Retained custom plane', 'Slab soffit', 'Slab top', 'Wall face (true elevation)']);
     h.audit.registerFilters().set('substrate', new Set([''])); assert.deepEqual(h.ids(), ['W4']);
     h.audit.registerFilters().clear(); h.audit.registerFilters().set('surface_basis', new Set(['Retained custom plane'])); assert.deepEqual(h.ids(), ['W3']);
-    h.state.mode = 'slab'; assert.deepEqual(Array.from(h.audit.registerColumnValues('surface_basis')), ['Slab soffit', 'Slab top']);
+    h.state.mode = 'slab'; assert.deepEqual(Array.from(h.audit.registerColumnValues('surface_basis')), ['', 'Retained custom plane', 'Slab soffit', 'Slab top', 'Wall face (true elevation)']);
     assert.equal(h.audit.registerFilterValue({ mode: 'slab', fields: { surface_basis: ' Retained custom plane ' } }, 'surface_basis'), 'Retained custom plane');
   });
-  await check('Wall and Slab filter states stay independent and ignore hidden legacy dropdowns', () => {
-    const h = harness(); h.audit.registerFilters().set('level', new Set(['L1'])); assert.deepEqual(h.ids(), ['W1', 'W2', 'W5']);
-    h.state.mode = 'slab'; h.audit.registerFilters().set('surface_basis', new Set(['Slab top'])); assert.deepEqual(h.ids(), ['S2']);
-    h.state.mode = 'wall'; assert.deepEqual(h.ids(), ['W1', 'W2', 'W5']); h.state.mode = 'slab'; assert.deepEqual(h.ids(), ['S2']);
+  await check('Walls/Floors share filters while native type remains explicitly filterable and legacy dropdowns remain ignored', () => {
+    const h = harness(); h.audit.registerFilters().set('level', new Set(['L1'])); assert.deepEqual(h.ids(), ['S1', 'W1', 'W2', 'W5']);
+    h.state.mode = 'slab'; assert.deepEqual(h.ids(), ['S1', 'W1', 'W2', 'W5']);
+    h.audit.registerFilters().clear(); h.audit.registerFilters().set('surface_type', new Set(['Floor'])); assert.deepEqual(h.ids(), ['S1','S2']);
+    h.audit.registerFilters().set('surface_basis', new Set(['Slab top'])); assert.deepEqual(h.ids(), ['S2']);
+    h.state.mode = 'wall'; assert.deepEqual(h.ids(), ['S2']); h.state.mode = 'slab'; assert.deepEqual(h.ids(), ['S2']);
     assert.equal(h.audit.itemGroup(h.state.session.snapshot.items.at(-1)), null);
     h.state.session.revision++; h.state.session.snapshot = copy(h.state.session.snapshot); assert.deepEqual(h.ids(), ['S2']);
-    h.state.session.session_id = 'replacement'; assert.deepEqual(h.ids(), ['S1', 'S2']); h.state.mode = 'wall'; assert.equal(h.audit.registerFilters().size, 0);
+    h.state.session.session_id = 'replacement'; assert.deepEqual(h.ids(), ['S1', 'S2','W1','W2','W3','W4','W5']); h.state.mode = 'wall'; assert.equal(h.audit.registerFilters().size, 0);
   });
   await check('Search and filters combine, resetting pagination without changing selected export IDs or source records', () => {
     const h = harness(); h.audit.stubRenderers(); h.state.offset = 100; h.state.selected.add('W1'); h.state.selected.add('W3');
@@ -76,7 +78,7 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
     h.audit.setRegisterColumnFilter('level', new Set(['L1'])); assert.equal(h.state.offset, 0); h.state.filter = 'spray'; assert.deepEqual(h.ids(), ['W2']);
     assert.deepEqual(Array.from(h.audit.selectedItems(), item => item.id), ['W1', 'W3']);
     assert.deepEqual(Array.from(h.audit.registerColumnValues('level')), ['', 'L1', 'L2']);
-    h.audit.setRegisterColumnFilter('level', new Set()); assert.deepEqual(h.ids(), []); h.audit.setRegisterColumnFilter('level', null); assert.deepEqual(h.ids(), ['W2']);
+    h.audit.setRegisterColumnFilter('level', new Set()); assert.deepEqual(h.ids(), []); h.audit.setRegisterColumnFilter('level', null); assert.deepEqual(h.ids(), ['S2','W2']);
     assert.deepEqual(copy(h.state.session.snapshot), before); assert.equal(h.audit.projectFingerprint(), fingerprint);
   });
   await check('Custom value checklists support apply/cancel/reset and cannot cross project or surface mode boundaries', async () => {

@@ -7,7 +7,18 @@ const assert = require('node:assert/strict');
 const originals = {
   '/icons/takeoff-add-service.png': { bytes: 101430, sha256: '65fed5b7670ec4b0a32712449e7dd456a7f05694e493b3c5dbf57eaac394a091' },
   '/icons/takeoff-add-barrier.png': { bytes: 99940, sha256: 'bcf83c1ae1debaf4d4cf28fdba74c782760d32a7f1a5d61a013b8ee3ebb39d58' },
+  '/icons/takeoff-transfer.png': { bytes: 21575, sha256: '1b5552f06a1cb61d246e969f70a5243883a8ba6b1ddaa5392ddd737d802f1d1b' },
 };
+
+async function assertTransferIcon(page) {
+  const button = page.locator('.takeoff-physical-register').getByRole('button', { name: 'Transfer to Firestopping Schedule', exact: true }), img = button.locator('img'), source = '/icons/takeoff-transfer.png', original = originals[source];
+  await expect(img).toHaveAttribute('src', source);
+  const reply = await page.request.get(new URL(source, page.url()).href); assert.equal(reply.status(), 200, 'The accepted Transfer PNG must be served');
+  const body = await reply.body(); assert.equal(body.length, original.bytes); assert.equal(createHash('sha256').update(body).digest('hex'), original.sha256);
+  await expect.poll(() => img.evaluate(el => el.complete && el.naturalWidth)).toBe(512);
+  assert.deepEqual(await img.evaluate(el => ({ width: el.getBoundingClientRect().width, height: el.getBoundingClientRect().height, naturalHeight: el.naturalHeight, decorative: el.getAttribute('aria-hidden') })), { width: 24, height: 24, naturalHeight: 512, decorative: 'true' });
+  return { exactOriginalTransferBytes: true, loadedTransferIcon: true };
+}
 
 async function clickInspectorAdd(pane, label) {
   const toggle = pane.getByRole('button', { name: 'Add', exact: true });
@@ -88,9 +99,9 @@ async function assertParentControls(page, pane, { hasBarrier = false, keyboard =
     const children = [...el.children], index = selector => children.findIndex(child => child.matches(selector));
     const actionRow = el.querySelector('.takeoff-physical-inspector-actions');
     const itemRow = el.querySelector('.takeoff-physical-item-actions'), visibility = itemRow.querySelector('[aria-label="Visibility"]');
-    return { add: index('.takeoff-physical-item-actions'), records: index('.takeoff-physical-inspector-actions'), navigation: index('.takeoff-physical-navigation'), labels: [...actionRow.querySelectorAll('button')].map(button => button.getAttribute('aria-label')), visibilityAtEnd: !visibility || visibility === itemRow.lastElementChild };
+    return { add: index('.takeoff-physical-item-actions'), records: index('.takeoff-physical-inspector-actions'), navigation: index('.takeoff-physical-navigation'), notes: children.findIndex(child => child.querySelector('[aria-label="Notes"]')), labels: [...actionRow.querySelectorAll('button')].map(button => button.getAttribute('aria-label')), visibilityAtEnd: !visibility || visibility === itemRow.lastElementChild };
   });
-  assert.ok(order.add >= 0 && order.add < order.records && order.records < order.navigation, JSON.stringify(order));
+  assert.ok(order.add >= 0 && order.add < order.navigation && order.navigation < order.notes && order.records === order.notes + 1, JSON.stringify(order));
   assert.deepEqual(order.labels, ['Delete draft record', 'Discard unfinished physical edits']); assert.equal(order.visibilityAtEnd, true);
   const recordBoxes=await pane.locator('.takeoff-physical-inspector-actions button').evaluateAll(buttons=>buttons.map(button=>{const rect=button.getBoundingClientRect();return {x:rect.x,y:rect.y,width:rect.width,height:rect.height};}));
   for(let i=0;i<recordBoxes.length;i++){assert.equal(recordBoxes[i].width,38);assert.equal(recordBoxes[i].height,38);if(i){assert.ok(Math.abs(recordBoxes[i].y-recordBoxes[0].y)<1);assert.ok(recordBoxes[i].x>recordBoxes[i-1].x+recordBoxes[i-1].width);}}
@@ -104,4 +115,4 @@ async function assertParentControls(page, pane, { hasBarrier = false, keyboard =
   return { addDisclosure: true, exactOriginalAssetBytes: true, gradientLibraryBook: true, keyboardFocus: keyboard, labels, names, order, mouseOpen, visibilityAlignment };
 }
 
-module.exports = { assertParentControls, clickInspectorAdd, originals };
+module.exports = { assertParentControls, assertTransferIcon, clickInspectorAdd, originals };

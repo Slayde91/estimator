@@ -114,8 +114,8 @@ async function surface(mode, rotated = false) {
   await expect(actions.getByRole('button')).toHaveCount(1); await expect(actions.getByRole('button', { name: 'Delete item', exact: true })).toBeVisible();
   assert.equal(state.snapshot.items.find(item => item.id === id).quantity, 1);
   assert.equal(state.snapshot.items.find(item => item.id === id).member_ids.length, 1);
-  await expect(page.getByRole('button', { name: 'Split', exact: true })).toBeDisabled();
-  await expect(page.getByRole('button', { name: 'Merge', exact: true })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Split', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Merge', exact: true })).toHaveCount(0);
   state = await confirm();
   const item = state.snapshot.items.find(item => item.id === id);
   assert.equal(item.state, 'confirmed');

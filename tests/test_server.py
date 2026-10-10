@@ -124,7 +124,7 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(body, (ROOT / "static/ceasefire-logo.png").read_bytes())
 
     def test_parent_control_icons_are_served_as_exact_png_files(self):
-        for name in ('takeoff-add-service.png', 'takeoff-add-barrier.png'):
+        for name in ('takeoff-add-service.png', 'takeoff-add-barrier.png', 'takeoff-transfer.png'):
             with self.subTest(name=name):
                 status, headers, body = self.request('GET', '/icons/' + name)
                 self.assertEqual(status, 200)

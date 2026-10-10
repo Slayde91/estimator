@@ -62,8 +62,8 @@ function setup(inputs = {}) {
   audit.state.entries.set('steel_board', entry);
   context.document.activeElement = null;
   byId('calculator-confirm-dialog').open = false;
-  byId('calculator-pdf').setAttribute('aria-label','Download PDF Schedule');byId('calculator-excel').setAttribute('aria-label','Download XLSX Schedule');
-  byId('calculator-summary-pdf').setAttribute('aria-label','Download PDF Summary');
+  byId('calculator-pdf').setAttribute('aria-label','Steel Schedule PDF');byId('calculator-excel').setAttribute('aria-label','Steel Schedule XLSX');
+  byId('calculator-summary-pdf').setAttribute('aria-label','Product Summary PDF');
   audit.setRender(() => {});
   return entry;
 }
@@ -568,7 +568,7 @@ let passed = 0;
   entry.definition.id='steel_vermiculite';entry.sheet='CALCULATOR';
   assert.equal(audit.sourceDisplayText('Edit the blue cells. Check the result.',entry,'A20'),'Edit the input fields. Check the result.');
   assert.equal(audit.sourceDisplayText('Edit the blue cells. Check the result.',entry,'A21'),'Edit the blue cells. Check the result.');
-  entry.sheet='SCHEDULE';assert.match(audit.sourceDisplayText('INPUTS  |  Paste your steel schedule here; blue cells are editable.',entry,'A8'),/use Import XLSX Schedule/);passed++;
+  entry.sheet='SCHEDULE';assert.match(audit.sourceDisplayText('INPUTS  |  Paste your steel schedule here; blue cells are editable.',entry,'A8'),/use Import Schedule/);passed++;
 
   // A zero or negative source width is hidden even without an explicit hidden flag.
   assert.deepEqual([...audit.hiddenColumns({hidden_columns:[3],column_widths:{1:12,2:0,4:-1,5:9}})].sort(),[2,3,4]);passed++;
@@ -1747,7 +1747,7 @@ let passed = 0;
     assert.equal(audit.state.action,true);assert.equal(byId('calculator-summary-pdf').disabled,true);
     assert.equal(byId('calculator-pdf').disabled,true);assert.equal(byId('calculator-excel').disabled,true);
     assert.equal(byId('calculator-summary-pdf').getAttribute('aria-busy'),'true');
-    assert.equal(byId('calculator-summary-pdf').getAttribute('aria-label'),'Preparing PDF Summary…');
+    assert.equal(byId('calculator-summary-pdf').getAttribute('aria-label'),'Preparing Product Summary PDF…');
     audit.setInput(entry,'CALCULATOR','B9',9.87654321);
     pending.resolve(fileSaved(`ceasefire-${id}-materials-summary.pdf`));await run;
     assert.equal(path,`/api/calculators/${id}/summary.pdf`);assert.equal(headers.Accept,'application/json');
@@ -1755,7 +1755,7 @@ let passed = 0;
     assert.ok(byId('calculator-message').textContent.includes(`saved to C:/Downloads/ceasefire-${id}-materials-summary.pdf`));
     assert.equal(entry.inputs.CALCULATOR.B9,9.87654321);assert.equal(JSON.parse(entry.saved).CALCULATOR.B9,2.3456789);
     assert.equal(audit.state.action,false);assert.equal(byId('calculator-summary-pdf').disabled,false);
-    assert.equal(byId('calculator-summary-pdf').getAttribute('aria-label'),'Download PDF Summary');
+    assert.equal(byId('calculator-summary-pdf').getAttribute('aria-label'),'Product Summary PDF');
     assert.equal(byId('calculator-summary-pdf').getAttribute('aria-busy'),undefined);
     assert.match(byId('calculator-message').textContent,/later edits are not included/);
   }passed++;
@@ -1768,7 +1768,7 @@ let passed = 0;
     audit.setFetch((path,options)=>{registerPath=path;registerBody=JSON.parse(options.body);registerHeaders=options.headers;return pendingRegister.promise;});
     const registerRun=audit.downloadExcelRegister();
     assert.equal(audit.state.action,true);assert.equal(byId('calculator-excel').disabled,true);assert.equal(byId('calculator-pdf').disabled,true);assert.equal(byId('calculator-template').disabled,true);
-    assert.equal(byId('calculator-excel').getAttribute('aria-busy'),'true');assert.equal(byId('calculator-excel').getAttribute('aria-label'),'Preparing XLSX Schedule…');
+    assert.equal(byId('calculator-excel').getAttribute('aria-busy'),'true');assert.equal(byId('calculator-excel').getAttribute('aria-label'),`Preparing ${id==='ductwork'?'Duct':'Steel'} Schedule XLSX…`);
     audit.setInput(entry,'CALCULATOR','B9',9.87654321);
     pendingRegister.resolve(fileSaved('APPENDIX A.xlsx'));await registerRun;
     assert.equal(registerPath,`/api/calculators/${id}/register.xlsx`);assert.equal(registerHeaders.Accept,'application/json');
@@ -1776,7 +1776,7 @@ let passed = 0;
     assert.match(byId('calculator-message').textContent,/saved to C:\/Downloads\/APPENDIX A.xlsx/);
     assert.equal(entry.inputs.CALCULATOR.B9,9.87654321);assert.equal(JSON.parse(entry.saved).CALCULATOR.B9,2.3456789);
     assert.equal(audit.state.action,false);assert.equal(byId('calculator-excel').disabled,false);assert.equal(byId('calculator-pdf').disabled,false);
-    assert.equal(byId('calculator-excel').getAttribute('aria-busy'),undefined);assert.equal(byId('calculator-excel').getAttribute('aria-label'),'Download XLSX Schedule');
+    assert.equal(byId('calculator-excel').getAttribute('aria-busy'),undefined);assert.equal(byId('calculator-excel').getAttribute('aria-label'),`${id==='ductwork'?'Duct':'Steel'} Schedule XLSX`);
   }passed++;
 
   // Focused numeric edits are validated before either export and retain exact draft precision.
@@ -1844,7 +1844,7 @@ let passed = 0;
 
   // Generation/network failures, wrong MIME and invalid save receipts never
   // claim a saved file or leave either button busy.
-  for(const [download,mime,buttonId,label] of [[audit.downloadExcelRegister,registerMime,'calculator-excel','Download XLSX Schedule'],[audit.downloadSchedulePdf,'application/pdf','calculator-pdf','Download PDF Schedule'],[audit.downloadMaterialsSummaryPdf,'application/pdf','calculator-summary-pdf','Download PDF Summary']]) {
+  for(const [download,mime,buttonId,label] of [[audit.downloadExcelRegister,registerMime,'calculator-excel','Steel Schedule XLSX'],[audit.downloadSchedulePdf,'application/pdf','calculator-pdf','Steel Schedule PDF'],[audit.downloadMaterialsSummaryPdf,'application/pdf','calculator-summary-pdf','Product Summary PDF']]) {
     const failures=[
       {response:{ok:false,status:400,headers:{get:()=> 'application/json'},json:async()=>({error:'Source validation detail'})},message:/Source validation detail/},
       {response:{ok:false,status:500,headers:{get:()=> 'text/html'},json:async()=>{throw new Error('Must not parse HTML');}},message:/\(500\)/},
@@ -1872,11 +1872,11 @@ let passed = 0;
 
   // Import and the four distinct exports retain their actions and requested order.
   const registerMarkup=fs.readFileSync('static/index.html','utf8');
-  for(const [id,label] of [['calculator-import','Import XLSX Schedule'],['calculator-template','Export Template'],['calculator-excel','Download XLSX Schedule'],['calculator-pdf','Download PDF Schedule'],['calculator-summary-pdf','Download PDF Summary']]){
+  for(const [id,label] of [['calculator-import','Import Schedule'],['calculator-template','Export Template'],['calculator-excel','Steel Schedule XLSX'],['calculator-pdf','Steel Schedule PDF'],['calculator-summary-pdf','Product Summary PDF']]){
     assert.match(registerMarkup,new RegExp(`id="${id}"[^>]*class="[^"]*calculator-document-action[^"]*"[^>]*aria-label="${label}"[^>]*title="${label}"`));
   }
   assert.match(registerMarkup,/id="calculator-template"[^>]*class="[^"]*excel-button[^"]*calculator-document-action[^"]*"/);
-  const xlsxIcon=id=>registerMarkup.match(new RegExp(`id="${id}"[^>]*>([\\s\\S]*?)<span>(?:Download XLSX Schedule|Export Template)<\\/span>`))[1];
+  const xlsxIcon=id=>registerMarkup.match(new RegExp(`id="${id}"[^>]*>([\\s\\S]*?)<span>(?:Steel Schedule XLSX|Export Template)<\\/span>`))[1];
   assert.equal(xlsxIcon("calculator-template"),xlsxIcon("calculator-excel"));
   assert.match(registerMarkup,/id="calculator-reset"[^>]*class="[^"]*secondary[^"]*"[^>]*aria-label="Reset Calc"[^>]*title="Reset Calc"[\s\S]*?pricing-reset-symbol/);
   assert.match(registerMarkup,/id="calculator-recalculate"[^>]*class="[^"]*icon-only[^"]*calculator-symbol-button[^"]*"[^>]*aria-label="Recalculate"[^>]*title="Recalculate"/);

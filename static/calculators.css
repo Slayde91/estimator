@@ -216,7 +216,7 @@
 .calculator-grid .calculator-align-left,.calculator-grid .calculator-align-left :is(input,select,textarea){text-align:left!important}
 .calculator-grid .calculator-align-left select{text-align-last:left}
 .calculator-grid .calculator-centered-data-table :is(th,td){text-align:center!important}
-.calculator-grid .calculator-schedule-table td.calculator-line-number{background:#fff!important}
+.calculator-grid .calculator-schedule-table td.calculator-line-number{background:#fff!important;color:#171217!important}
 .calculator-schedule-tools{display:flex;align-items:center;flex-wrap:wrap;gap:10px;padding:14px 20px;background:#fffaf2;border-block:1px solid #d8c9bc}
 .calculator-schedule-tools button{white-space:nowrap}
 .calculator-schedule-tools :is([data-schedule-add],[data-schedule-undo]){width:48px;min-width:48px;height:48px;padding:0}

@@ -1,0 +1,18 @@
+.takeoff-pdf-tools-dialog { width: min(750px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); overflow: auto; }
+.takeoff-pdf-tools-dialog h2 { margin-top: 0; }
+.takeoff-pdf-tools-workspace { display: grid; gap: 12px; }
+.takeoff-pdf-tools-workspace > .button { justify-self: start; }
+.takeoff-pdf-tools-order { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+.takeoff-pdf-tools-order > li { display: flex; align-items: center; justify-content: space-between; gap: 12px; border: 1px solid var(--border, #d6ccd1); border-radius: 8px; padding: 8px 12px; }
+.takeoff-pdf-tools-order label { display: flex; align-items: center; gap: 10px; min-width: 0; overflow-wrap: anywhere; }
+.takeoff-pdf-tools-row-actions, .takeoff-pdf-tools-pagination { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.takeoff-pdf-tools-row-actions { flex-shrink: 0; }
+.takeoff-pdf-tools-row-actions .button { min-width: 36px; min-height: 36px; padding: 4px 8px; }
+.takeoff-pdf-tools-status { min-height: 1.4em; color: var(--text, #27242e); }
+.takeoff-pdf-tools-dialog > .field { margin: 16px 0; }
+.takeoff-pdf-tools-summary { font-weight: 600; }
+@media (max-width: 520px) {
+  .takeoff-pdf-tools-dialog { width: calc(100vw - 20px); padding: 16px; }
+  .takeoff-pdf-tools-order > li { align-items: flex-start; flex-wrap: wrap; }
+  .takeoff-pdf-tools-row-actions { margin-left: auto; }
+}

@@ -93,14 +93,14 @@
     $("penetration-update-schedule").disabled = blocked || scheduleBlocked || state.diagramChange !== undefined || state.updatingSchedule || !validEdit();
     $("penetration-cancel-edit").hidden = !state.edit;
     for (const id of ["penetration-schedule-recalculate", "penetration-estimator-schedule-recalculate"]) $(id).disabled = scheduleBlocked || state.schedule.calculating || state.downloading;
-    for (const id of ["penetration-pdf", "penetration-excel"]) $(id).disabled = scheduleBlocked || state.downloading;
+    for (const id of ["penetration-pdf", "penetration-excel", "penetration-item-schedule-pdf"]) $(id).disabled = scheduleBlocked || state.downloading;
     for (const id of ["penetration-item-pdf", "penetration-item-excel"]) $(id).disabled = blocked || state.downloading || state.loading || state.diagramReading !== null || state.creatingLibrary || state.addingLibrary || state.addingSchedule || state.updatingSchedule;
     buttonBusy("penetration-recalculate", state.calculating);
     buttonBusy("penetration-add-to-library", state.creatingLibrary);
     buttonBusy("penetration-add-to-schedule", state.addingSchedule);
     buttonBusy("penetration-update-schedule", state.updatingSchedule);
     for (const id of ["penetration-schedule-recalculate", "penetration-estimator-schedule-recalculate"]) buttonBusy(id, state.schedule.calculating);
-    for (const id of ["penetration-pdf", "penetration-item-pdf"]) buttonBusy(id, state.downloading && state.downloadKind === "pdf");
+    for (const id of ["penetration-pdf", "penetration-item-pdf", "penetration-item-schedule-pdf"]) buttonBusy(id, state.downloading && state.downloadKind === "pdf");
     for (const id of ["penetration-excel", "penetration-item-excel"]) buttonBusy(id, state.downloading && state.downloadKind === "xlsx");
     for (const id of ["penetration-undo", "penetration-estimator-undo"]) $(id).disabled = scheduleBlocked || !state.removed.length;
     for (const id of ["penetration-schedule-body", "penetration-estimator-schedule-body"]) for (const button of $(id).querySelectorAll("[data-penetration-remove]")) button.disabled = scheduleBlocked;
@@ -1106,6 +1106,7 @@
   $("penetration-pdf").addEventListener("click", () => download("pdf"));
   $("penetration-excel").addEventListener("click", () => download("xlsx"));
   $("penetration-item-pdf").addEventListener("click", () => downloadItem("pdf"));
+  $("penetration-item-schedule-pdf").addEventListener("click", () => download("pdf"));
   $("penetration-item-excel").addEventListener("click", () => downloadItem("xlsx"));
   function assertTakeoffWritable() {
     if (state.takeoffLease && !state.takeoffApplying) throw new Error("A confirmed Takeoff library link is still applying. Recover its outcome before editing, saving or replacing the Firestopping Schedule.");

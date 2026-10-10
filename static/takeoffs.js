@@ -5,6 +5,7 @@
   const G = window.CeasefireTakeoffGeometry;
   const A = window.CeasefireTakeoffAnnotations;
   const S = window.CeasefireTakeoffSignatures;
+  const X = window.CeasefireTakeoffGraphics;
   // Historical implicit appearance retains the delivered defaults; new notes
   // capture the shared chosen defaults explicitly when they are created.
   const calloutDefaults = () => ({ stroke_color: "#FF3300", fill_color: "#FFDD33", font_color: "#000000", stroke_width: 4, fill_enabled: true, opacity: .75 });
@@ -60,6 +61,7 @@
   const documentById = id => documents().find(doc => doc.id === id);
   const currentDocument = () => documentById(state.document);
   const pageMetadata = () => currentDocument()?.pages?.find(page => page.page === state.page);
+  const graphicsUI = X && window.CeasefireTakeoffGraphicsUI({ state, G, X, node, svg, button, clone, snapshot, documents, pageMetadata, currentDocument, pageDisplayKey, signatureMode, signatureInWorkspace, selectedSignature, selectedAnnotation, command, safely, message, renderSelection, renderOverlay, flushSettings, requireFinishedEdits, cancelTrace, setTool, ask, drawingPoint, drawingClickOpensSettings, bindSetting, appearanceField, formField, currentVisibilityControl, renderPhysicalDetails, renderViewportPanel, toggleSettings });
   const selectedItems = () => items().filter(item => state.selected.has(item.id) && inWorkspace(item.mode));
   const editableFields = (mode, calculator = state.ui?.target?.value) => (fields[mode] || []).filter(([key]) => !["zone", "group", "notes"].includes(key) && (key !== "sides" || calculator === "steel_board"));
   const isStandalone = item => ["count-only", "length-only"].includes(item?.purpose);
@@ -221,9 +223,9 @@
   }
   function currentVisibilityControl(kind, id) {
     const sessionId = state.session?.session_id, mode = state.mode;
-    const hidden = () => kind === "annotation" ? state.annotationHidden ||= new Set() : kind === "signature" ? state.signatureHidden ||= new Set() : state.hidden;
+    const hidden = () => kind === "graphic" ? state.graphicHidden ||= new Set() : kind === "annotation" ? state.annotationHidden ||= new Set() : kind === "signature" ? state.signatureHidden ||= new Set() : state.hidden;
     const control = button("Visibility", () => {
-      const current = kind === "annotation" ? selectedAnnotation()?.id === id : kind === "signature" ? selectedSignature()?.id === id : selectedItems().length === 1 && state.selected.has(id);
+      const current = kind === "graphic" ? graphicsUI.selected()?.id === id : kind === "annotation" ? selectedAnnotation()?.id === id : kind === "signature" ? selectedSignature()?.id === id : selectedItems().length === 1 && state.selected.has(id);
       if (!current || sessionId !== state.session?.session_id || mode !== state.mode) throw new Error("The current item changed. Open its Item Details again.");
       const values = hidden(); values.has(id) ? values.delete(id) : values.add(id);
       control.refresh();
@@ -455,6 +457,7 @@
     const root = $("takeoffs-workspace"); if (!root) return;
     const ui = state.ui = { root };
     ui.title = node("h1", "takeoff-workspace-title", "Steel");
+    ui.heading = node("div", "takeoff-workspace-heading"); ui.heading.append(ui.title, buildPDFToolsMenu());
     ui.message = node("div", "message"); ui.message.hidden = true;
     const toolbar = node("div", "takeoff-toolbar takeoff-tool-rail"); ui.toolRail = toolbar; toolbar.setAttribute("role", "toolbar"); toolbar.setAttribute("aria-label", "Drawing tools"); toolbar.setAttribute("aria-orientation", "vertical");
     ui.upload = node("input"); ui.upload.type = "file"; ui.upload.accept = ".pdf,application/pdf"; ui.upload.multiple = true; ui.upload.hidden = true; ui.upload.id = "takeoff-upload";
@@ -472,7 +475,7 @@
     const eye = node("img"); eye.src = "/icons/takeoff-visibility.png"; eye.alt = ""; eye.width = 24; eye.height = 24;
     visibility.replaceChildren(eye); visibility.classList.add("icon-only", "takeoff-icon-button", "takeoff-visibility-button"); visibility.setAttribute("aria-label", "Visibility"); visibility.title = "Visibility: show or hide all markups; double-click restores individually hidden items"; visibility.setAttribute("aria-pressed", "false");
     visibility.addEventListener("dblclick", event => {
-      event.preventDefault(); state.hidden.clear(); state.annotationHidden?.clear(); state.signatureHidden?.clear();
+      event.preventDefault(); state.hidden.clear(); state.annotationHidden?.clear(); state.signatureHidden?.clear(); state.graphicHidden?.clear();
       state.physicalHidden.clear(); state.physicalUI?.restoreHidden?.(); state.markupsHidden = false; visibility.setAttribute("aria-pressed", "false");
       renderRegister(); renderSettingsPanel(); renderOverlay(); message("Restored individually hidden drawing items.");
     });
@@ -481,6 +484,9 @@
     const calloutIcon = node("img"); calloutIcon.src = "/icons/takeoff-callout.png"; calloutIcon.alt = ""; calloutIcon.width = 25; calloutIcon.height = 25; calloutIcon.setAttribute("aria-hidden", "true");
     ui.tools.callout.classList.add("icon-only", "takeoff-icon-button"); ui.tools.callout.replaceChildren(calloutIcon); ui.tools.callout.setAttribute("aria-label", "Call-out"); ui.tools.callout.title = "Call-out"; ui.tools.viewport.after(ui.tools.callout);
     ui.tools.signature = button("Signatures", armSignature); ui.tools.signature.dataset.tool = "signature"; ui.tools.callout.after(ui.tools.signature);
+    if (X && graphicsUI) for (const kind of ["cloud", "textbox", "stamp", "polyline", "arrow", "rectangle", "circle", "polygon"]) {
+      const control = button(X.labels[kind], () => graphicsUI.activate(kind)); control.classList.add("icon-only", "takeoff-icon-button", "takeoff-graphic-tool"); control.dataset.tool = `graphic-${kind}`; control.replaceChildren(X.icon(kind)); control.title = X.labels[kind]; control.setAttribute("aria-label", X.labels[kind]); ui.tools[`graphic-${kind}`] = control; toolbar.append(control);
+    }
     const scaleAnchor = node("div", "takeoff-scale-anchor"); ui.scaleToggle = button("Scale", () => toggleScaleControls()); ui.scaleToggle.setAttribute("aria-expanded", "false"); ui.scaleToggle.setAttribute("aria-controls", "takeoff-scale-controls"); ui.scaleToggle.setAttribute("aria-describedby", "takeoff-active-scale");
     ui.scaleStatus = node("span", "takeoff-active-scale", "No Scale Selected"); ui.scaleStatus.id = "takeoff-active-scale"; scaleAnchor.append(ui.scaleToggle, ui.scaleStatus); ui.scaleAnchor = scaleAnchor;
     ui.drawingPdf = button("Download PDF", () => downloadTakeoff("marked-pdf"));
@@ -556,7 +562,7 @@
     const bottomControls = node("div", "takeoff-viewer-bottom"); bottomControls.append(pageControls);
     const viewer = node("div", "takeoff-viewer"); viewer.append(ui.viewport, viewerTop, bottomControls);
     drawingPane.append(viewer, ui.progress, ui.controlStatus, ui.physicalOverlayStatus);
-    workspace.append(layout, register); root.append(ui.title, ui.message, workspace, ui.physicalContainer);
+    workspace.append(layout, register); root.append(ui.heading, ui.message, workspace, ui.physicalContainer);
     if (typeof ResizeObserver === "function") {
       ui.topControlsObserver = new ResizeObserver(() => layout.style.setProperty("--takeoff-top-controls-height", `${viewerTop.offsetHeight}px`));
       ui.topControlsObserver.observe(viewerTop);
@@ -579,7 +585,7 @@
     }, { capture: true });
     ui.viewport.addEventListener("pointerdown", activatePlan, { capture: true }); ui.viewport.addEventListener("focusin", activatePlan);
     ui.overlay.addEventListener("click", drawingPointer); ui.viewport.addEventListener("pointerdown", beginPan); ui.overlay.addEventListener("pointerdown", event => void safely(() => beginSelectionGesture(event)));
-    ui.overlay.addEventListener("click", event => { if (state.tool === "signature") { event.stopImmediatePropagation(); drawingPointer(event); } }, { capture: true });
+    ui.overlay.addEventListener("click", event => { if (graphicsUI?.isTool()) { event.stopImmediatePropagation(); void safely(() => graphicsUI.point(event)); } else if (state.tool === "signature") { event.stopImmediatePropagation(); drawingPointer(event); } }, { capture: true });
     ui.overlay.addEventListener("dblclick", event => void safely(() => finishTraceFromDoubleClick(event)));
     ui.viewport.addEventListener("contextmenu", planContextMenu);
     ui.overlay.addEventListener("pointermove", tracePointerMove);
@@ -595,6 +601,34 @@
     ui.viewport.addEventListener("click", event => {
       if ([ui.viewport, ui.panSpace, ui.pageWrap, ui.canvas, ui.overlay].includes(event.target) && !event.ctrlKey && !event.metaKey && !event.shiftKey && Date.now() >= (state.suppressSelectionClickUntil || 0)) void safely(clearDrawingSelection);
     });
+  }
+  function buildPDFToolsMenu() {
+    const root = node("div", "calculator-document-menu takeoff-pdf-tools-menu"), toggle = button("Tools", () => close(!list.hidden)), list = node("div", "calculator-document-actions");
+    const arrow = node("span", "", "⌄"); arrow.setAttribute("aria-hidden", "true"); toggle.append(arrow); toggle.setAttribute("aria-expanded", "false"); toggle.setAttribute("aria-controls", "takeoff-pdf-tools-actions"); list.id = "takeoff-pdf-tools-actions"; list.hidden = true; list.setAttribute("role", "group"); list.setAttribute("aria-label", "PDF Tools"); root.append(toggle, list);
+    function close(hide = true) { list.hidden = hide; toggle.setAttribute("aria-expanded", String(!hide)); }
+    for (const [operation, label] of [["merge", "Merge PDF Files"], ["organise", "Organise Pages"], ["extract", "Extract Pages"]]) list.append(button(label, () => { close(); return openPDFTools(operation); }, "button secondary calculator-document-action"));
+    root.addEventListener("keydown", event => { if (event.key === "Escape") { event.preventDefault(); close(); toggle.focus(); } });
+    root.addEventListener("focusout", event => { if (!root.contains(event.relatedTarget)) close(); }); document.addEventListener("pointerdown", event => { if (!root.contains(event.target)) close(); });
+    return root;
+  }
+  async function openPDFTools(operation) {
+    await flushSettings(); requireFinishedEdits(); await ensureSession();
+    if (!documents().length) throw new Error("Upload source PDFs before opening Tools.");
+    const sessionId = state.session.session_id, revision = state.session.revision; let result;
+    state.modal = true;
+    try {
+      await window.CeasefireTakeoffPDFTools.open({ operation, documents: clone(documents()), expectedRevision: revision, defaultAction: "download",
+        requestPDF: async payload => {
+          if (sessionId !== state.session?.session_id || revision !== state.session.revision) throw new Error("The project changed. Open Tools again.");
+          const response = await fetch(`/api/takeoffs/sessions/${sessionId}/pdf-tools`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+          if (!response.ok) { const error = await response.json(); throw new Error(error.error || "PDF Tools could not prepare this file."); }
+          const filename = response.headers.get("Content-Disposition")?.match(/filename="([^"]+)"/)?.[1] || `ceasefire-${operation}.pdf`; return { blob: await response.blob(), filename };
+        }, onResult: value => { result = value; } });
+    } finally { state.modal = false; window.CeasefireProject?.changed?.(); }
+    if (!result) return;
+    if (sessionId !== state.session?.session_id || revision !== state.session.revision) throw new Error("The project changed. Open Tools again.");
+    if (result.action === "add-source") { await upload([new File([result.blob], result.filename, { type: "application/pdf" })]); }
+    else { const url = URL.createObjectURL(result.blob), link = node("a"); link.href = url; link.download = result.filename; document.body.append(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 60000); message("PDF copy downloaded."); }
   }
   async function open() { build(); state.active = true; await ensureSession(); renderData(); scheduleLinkedThickness(true); if (state.document) await renderPage(); }
   function refreshNavigation() {
@@ -630,7 +664,7 @@
     if (!state.ui?.physicalDetails) return;
     const open = state.mode === "physical" && state.physicalDetailsOpen;
     state.ui.physicalDetails.hidden = !open; state.ui.layout.classList.toggle("with-physical-details", open);
-    if (state.mode === "physical" && !selectedSignature()) { state.ui.tools.settings.setAttribute("aria-controls", "takeoff-physical-details"); state.ui.tools.settings.setAttribute("aria-expanded", String(open)); state.ui.tools.settings.classList.toggle("takeoff-tool-active", open); }
+    if (state.mode === "physical" && !selectedSignature() && !graphicsUI?.selected()) { state.ui.tools.settings.setAttribute("aria-controls", "takeoff-physical-details"); state.ui.tools.settings.setAttribute("aria-expanded", String(open)); state.ui.tools.settings.classList.toggle("takeoff-tool-active", open); }
     else state.ui.tools.settings.setAttribute("aria-controls", "takeoff-markup-settings");
   }
   function requireFinishedEdits() { if (physicalUnfinished() || state.physicalPlacing) throw new Error("Apply or discard unfinished physical edits and finish their review first."); if (state.formDirty || state.settingsDirty || state.gesture || state.points.length || state.pendingViewport) throw new Error("Apply or discard the unfinished item/settings edits and finish or cancel the current drawing operation first."); if (state.calibrationTarget) cancelTrace(); }
@@ -652,7 +686,7 @@
     if (physical) { const image = node("img"); image.src = "/icons/takeoff-callout.png"; image.alt = ""; image.width = 25; image.height = 25; image.setAttribute("aria-hidden", "true"); state.ui.tools.count.replaceChildren(image); }
     else if (state.ui.tools.count.querySelector("img")) { const replacement = button("Count", activateCountTool); state.ui.tools.count.replaceChildren(...replacement.childNodes); }
     if (state.ui.tools.settings) state.ui.tools.settings.hidden = false;
-    if (physical && !selectedSignature()) { state.settingsOpen = false; state.settingsEditor = null; } renderSettingsPanel();
+    if (physical && !selectedSignature() && !graphicsUI?.selected()) { state.settingsOpen = false; state.settingsEditor = null; } renderSettingsPanel();
     renderPhysicalDetails();
     state.ui.physicalContainer.hidden = !physical; state.ui.physicalOverlayStatus.hidden = true; state.ui.register.hidden = physical;
     state.ui.workspace.classList.toggle("beside", !physical && state.ui.registerLayout.value === "beside");
@@ -819,7 +853,7 @@
       },
       drawingPdf: () => button("Download PDF", () => downloadTakeoff("marked-pdf")),
       export: exportPhysical, undo: async () => { const reply = await command("undo"); return { ...reply, snapshot: physicalSnapshot(reply.snapshot) }; }, history: showAudit,
-      selection: async (ids, reference, focus, openDetails = true) => { state.physicalSelected = new Set(ids); if (ids.length) { state.signatureSelected = null; state.settingsOpen = false; state.settingsEditor = null; renderSettingsPanel(); } if (openDetails && ids.length && state.mode === "physical") { setPhysicalDetailsOpen(true); state.ui.physicalDetails.scrollTop = 0; } if (reference && focus) await physicalSource(reference); else renderOverlay(); },
+      selection: async (ids, reference, focus, openDetails = true) => { state.physicalSelected = new Set(ids); if (ids.length) { state.signatureSelected = null; state.graphicSelected = null; state.settingsOpen = false; state.settingsEditor = null; renderSettingsPanel(); } if (openDetails && ids.length && state.mode === "physical") { setPhysicalDetailsOpen(true); state.ui.physicalDetails.scrollTop = 0; } if (reference && focus) await physicalSource(reference); else renderOverlay(); },
       hover: hoverPhysical,
       placeMarker: id => armPhysicalMarker(id),
       drawingOwner: physicalDrawingOwner,
@@ -890,7 +924,7 @@
   }
   async function toggleSettings() {
     state.lastDrawingClick = null;
-    if (state.mode === "physical" && !selectedSignature()) { ensurePhysicalUI(); setPhysicalDetailsOpen(!state.physicalDetailsOpen); return; }
+    if (state.mode === "physical" && !selectedSignature() && !graphicsUI?.selected()) { ensurePhysicalUI(); setPhysicalDetailsOpen(!state.physicalDetailsOpen); return; }
     if (!await discardEditor()) return;
     state.settingsOpen = !state.settingsOpen; state.settingsEditor = null; state.viewportsOpen = false;
     renderViewportPanel(); renderRegister(); renderSettingsPanel();
@@ -936,6 +970,7 @@
     panel.hidden = !state.settingsOpen; state.ui.layout.classList.toggle("with-settings", !!state.settingsOpen);
     state.ui.tools.settings.setAttribute("aria-expanded", String(!!state.settingsOpen)); state.ui.tools.settings.classList.toggle("takeoff-tool-active", !!state.settingsOpen);
     if (!state.settingsOpen) return;
+    if (graphicsUI?.selected()) { graphicsUI.settings(panel); return; }
     if (selectedSignature()) { renderSignatureSettings(panel); return; }
     if (selectedAnnotation()) { renderAnnotationSettings(panel); return; }
     if (selectedLegend()) { renderLegendSettings(panel); return; }
@@ -1001,6 +1036,7 @@
     message(stored ? "Default appearance saved for new measurements." : "Default appearance set for new measurements in this window. Browser storage is unavailable.");
   }
   async function applySettings(editor) {
+    if (editor?.kind === "graphic") return graphicsUI.apply(editor);
     if (editor?.kind === "signature") return applySignatureSettings(editor);
     if (editor?.kind === "annotation") return applyAnnotationSettings(editor);
     if (!editor || state.settingsEditor !== editor) return;
@@ -1556,7 +1592,7 @@
     if (state.gesture) throw new Error("Finish or cancel the current selection or move first.");
     if (!state.viewport && tool !== "select" && tool !== "pan") throw new Error("Open a successfully rendered page first.");
     if (state.points.length) throw new Error("Finish or cancel the current trace first.");
-    if (state.mode === "physical" && !["select", "pan", "text", "calibrate", "viewport", "count", "signature"].includes(tool)) throw new Error("Physical drafts use count markers and retained source regions. Length and area measurement tools belong to the other takeoff modes.");
+    if (state.mode === "physical" && !["select", "pan", "text", "calibrate", "viewport", "count", "signature"].includes(tool) && !(tool.startsWith("graphic-") && X?.kinds.includes(tool.slice(8)))) throw new Error("Physical drafts use count markers and retained source regions. Length and area measurement tools belong to the other takeoff modes.");
     if (isArea() && ["trace", "cite"].includes(tool) || !isArea() && ["polygon", "exclusion"].includes(tool)) throw new Error("Choose a drawing tool for the current takeoff mode.");
     if (!["select", "pan", "text"].includes(tool) && (state.formDirty || state.settingsDirty)) throw new Error("Apply or discard the unfinished item edits or settings before using a drawing tool.");
     if (["trace", "measure", "polygon"].includes(tool) && !state.calibration && !activePageCalibrations().length) throw new Error("Choose or create the applicable calibration before tracing.");
@@ -1675,6 +1711,7 @@
     else if (state.points.length === 2 && state.tool === "cite") void safely(finishCitation);
   }
   async function finishTraceFromDoubleClick(event) {
+    if (graphicsUI?.isTool()) { event.preventDefault(); if (!state.busy && !state.modal && state.points.length > 1) await graphicsUI.finish(); return; }
     if (state.mode === "physical" && state.tool === "count") return;
     if (state.tool === "count-only") {
       event.preventDefault(); if (state.busy || state.modal || state.countFinishing) return;
@@ -1722,9 +1759,9 @@
   async function clearDrawingSelection() {
     state.lastDrawingClick = null;
     const savingSettings = state.mode !== "physical" && state.settingsEditor?.applying;
-    if (state.tool !== "select" || state.busy && !savingSettings || state.modal || state.gesture || state.physicalPlacing || !(state.selected.size || state.physicalSelected.size || state.legendSelected || state.annotationSelected || state.signatureSelected || state.settingsOpen)) return;
+    if (state.tool !== "select" || state.busy && !savingSettings || state.modal || state.gesture || state.physicalPlacing || !(state.selected.size || state.physicalSelected.size || state.legendSelected || state.annotationSelected || state.signatureSelected || state.graphicSelected || state.settingsOpen)) return;
     if (!await discardEditor()) return;
-    state.selected.clear(); state.countSelection.clear(); state.legendSelected = null; state.annotationSelected = null; state.signatureSelected = null; state.controlPoint = null; state.controlMenu = false; state.markupMenu = null; state.hovered = null;
+    state.selected.clear(); state.countSelection.clear(); state.legendSelected = null; state.annotationSelected = null; state.graphicSelected = null; state.signatureSelected = null; state.graphicSelected = null; state.controlPoint = null; state.controlMenu = false; state.markupMenu = null; state.hovered = null;
     if (state.mode === "physical") { await state.physicalUI?.clearSelection(); state.physicalHovered = null; }
     renderSelection();
   }
@@ -1733,6 +1770,7 @@
     return G.inverse([(event.clientX - rect.left) * state.viewport.width / rect.width, (event.clientY - rect.top) * state.viewport.height / rect.height], state.viewport.transform);
   }
   function tracePointerMove(event) {
+    if (graphicsUI?.isTool()) { if (state.viewport && !state.busy && !state.modal && !state.gesture && state.points.length) { state.traceCursor = drawingPoint(event); renderOverlay(); } return; }
     if (!state.viewport || state.busy || state.modal || state.gesture || !state.points.length || !["polygon", "exclusion", "trace", "measure", "viewport"].includes(state.tool)) return;
     const point = drawingPoint(event), view = pageMetadata()?.view;
     if (view && (point[0] < view[0] || point[1] < view[1] || point[0] > view[2] || point[1] > view[3])) { if (state.tool === "viewport") { state.traceCursor = null; renderOverlay(); } return; }
@@ -1783,7 +1821,7 @@
   }
   function resetPlanInteraction() {
     if (["annotation", "signature"].includes(state.gesture?.kind)) { state.gesture.cleanup?.(); state.gesture = null; }
-    state.annotationSelected = null; state.signatureSelected = null;
+    state.annotationSelected = null; state.graphicSelected = null; state.signatureSelected = null; state.graphicSelected = null;
     state.lastDrawingClick = null;
     state.physicalPlacementTarget = null;
     state.panCleanup?.();
@@ -1986,6 +2024,9 @@
       if (key === "v" && state.lengthClipboard) { event.preventDefault(); if (!state.busy && !state.modal) void safely(pasteLengthMarkups); return; }
     }
     const undoPoint = (event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey && event.key.toLowerCase() === "z";
+    if (["Delete", "Backspace"].includes(event.key) && graphicsUI?.selected() && state.tool === "select" && !state.points.length) { event.preventDefault(); if (!state.busy && !state.modal) void safely(graphicsUI.remove); return; }
+    if (undoPoint && graphicsUI?.selected() && !state.points.length) { event.preventDefault(); if (!state.busy && !state.modal) void safely(undoLastEdit); return; }
+    if (event.key === "Enter" && graphicsUI?.isTool()) { event.preventDefault(); void safely(graphicsUI.finish); return; }
     if (["Delete", "Backspace"].includes(event.key) && selectedSignature() && state.tool === "select" && !state.points.length) { event.preventDefault(); if (!state.busy && !state.modal) void safely(deleteSignature); return; }
     if (undoPoint) {
       // Native undo can restore an earlier page-number edit even while the
@@ -2422,7 +2463,7 @@
     // Keep the existing hint and its exact height until pointer capture ends:
     // collapsing it mid-gesture moves the canvas under the pointer.
     if (state.ui.controlStatus && !state.gesture) state.ui.controlStatus.hidden = true;
-    if (state.mode === "physical") { renderPhysicalOverlay(overlay); renderSignatures(overlay); renderPendingTrace(overlay); return; }
+    if (state.mode === "physical") { renderPhysicalOverlay(overlay); renderSignatures(overlay); graphicsUI?.paint(overlay); renderPendingTrace(overlay); return; }
     for (const item of drawableItems()) {
       const pointDrag = state.gesture?.kind === "point" && state.gesture.moved && state.gesture.reference.itemId === item.id;
       let geometry = pointDrag ? state.gesture.geometry : state.gesture?.kind === "move" && state.gesture.moved && state.gesture.ids.includes(item.id) ? G.translateGeometry(item.geometry, state.gesture.delta) : item.geometry;
@@ -2450,7 +2491,7 @@
     }
     renderPendingTrace(overlay);
     renderFreeCallouts(overlay);
-    renderSignatures(overlay);
+    renderSignatures(overlay); graphicsUI?.paint(overlay);
     if (state.gesture?.kind === "marquee" && state.gesture.moved) { const box = G.bounds([state.gesture.initial, state.gesture.current].map(convert)); overlay.append(svg("rect", { x: box[0], y: box[1], width: box[2] - box[0], height: box[3] - box[1], class: "takeoff-marquee" })); }
     renderControlPoints(overlay);
     renderMarkupMenu(overlay);
@@ -2566,7 +2607,7 @@
     const annotation = { mode: state.mode, document_id: source.id, source_sha256: source.sha256, page: state.page, point: [...point], label_position, width, height, appearance: A.defaults(), content: { version: 1, blocks: [{ kind: "paragraph", runs: [{ text: "" }] }] } };
     const reply = await command("create_annotation", { annotation }, () => context === JSON.stringify([state.session?.session_id, state.mode, state.document, state.page]));
     if (!reply) return;
-    cancelTrace(); state.selected.clear(); state.signatureSelected = null; state.annotationSelected = reply.created_annotation_id; state.settingsOpen = true; state.settingsEditor = null; state.viewportsOpen = false; renderViewportPanel(); renderSelection();
+    cancelTrace(); state.selected.clear(); state.signatureSelected = null; state.graphicSelected = null; state.annotationSelected = reply.created_annotation_id; state.settingsOpen = true; state.settingsEditor = null; state.viewportsOpen = false; renderViewportPanel(); renderSelection();
     state.ui.settingsPanel.querySelector("[contenteditable]")?.focus();
   }
   function annotationSelectionKey() { return JSON.stringify([state.session?.session_id, state.mode, state.document, state.page, selectedAnnotation()?.id]); }
@@ -2574,7 +2615,7 @@
     if (state.tool !== "select" || !await discardEditor()) return;
     const annotation = annotations().find(value => value.id === id && inWorkspace(value.mode) && value.document_id === state.document && value.page === state.page);
     if (!annotation) return;
-    state.selected.clear(); state.countSelection.clear(); state.legendSelected = null; state.markupMenu = null; state.signatureSelected = null; state.annotationSelected = id; state.settingsOpen = openSettings || state.settingsOpen; state.settingsEditor = null; state.viewportsOpen = false; renderViewportPanel(); renderSelection();
+    state.selected.clear(); state.countSelection.clear(); state.legendSelected = null; state.markupMenu = null; state.signatureSelected = null; state.graphicSelected = null; state.annotationSelected = id; state.settingsOpen = openSettings || state.settingsOpen; state.settingsEditor = null; state.viewportsOpen = false; renderViewportPanel(); renderSelection();
   }
   async function copyFreeCallout() {
     await flushSettings(); requireFinishedEdits();
@@ -2600,7 +2641,7 @@
     delete annotation.id; delete annotation.version;
     const context = pageDisplayKey(), revision = state.session.revision;
     const reply = await command("create_annotation", { annotation }, () => context === pageDisplayKey() && revision === state.session?.revision);
-    if (reply) { state.signatureSelected = null; state.annotationSelected = reply.created_annotation_id; state.settingsEditor = null; state.settingsOpen = false; renderSelection(); message("Pasted an independent Call-out with a new identity."); }
+    if (reply) { state.signatureSelected = null; state.graphicSelected = null; state.annotationSelected = reply.created_annotation_id; state.settingsEditor = null; state.settingsOpen = false; renderSelection(); message("Pasted an independent Call-out with a new identity."); }
   }
   function renderAnnotationMenu(overlay) {
     const selection = state.markupMenu?.annotation;
@@ -2608,8 +2649,8 @@
     const annotation = annotations().find(value => value.id === selection.id);
     if (!annotation || selection.context !== pageDisplayKey() || selection.revision !== state.session?.revision) { state.markupMenu = null; return; }
     const menu = node("div", "takeoff-control-menu takeoff-markup-menu"); menu.setAttribute("role", "menu"); menu.setAttribute("aria-label", "Call-out actions");
-    const hide = button("Hide", async () => { await flushSettings(); requireFinishedEdits(); if (selection.context !== pageDisplayKey() || !annotations().some(value => value.id === selection.id)) throw new Error("Select the current Call-out again."); state.markupMenu = null; state.annotationHidden ||= new Set(); state.annotationHidden.add(selection.id); state.annotationSelected = null; state.signatureSelected = null; state.settingsEditor = null; renderSelection(); });
-    const remove = button("Delete", async () => { await flushSettings(); requireFinishedEdits(); if (selection.context !== pageDisplayKey() || !annotations().some(value => value.id === selection.id)) throw new Error("Select the current Call-out again."); state.markupMenu = null; await command("delete_annotation", { annotation_id: selection.id }); state.annotationSelected = null; state.signatureSelected = null; state.settingsEditor = null; renderSelection(); });
+    const hide = button("Hide", async () => { await flushSettings(); requireFinishedEdits(); if (selection.context !== pageDisplayKey() || !annotations().some(value => value.id === selection.id)) throw new Error("Select the current Call-out again."); state.markupMenu = null; state.annotationHidden ||= new Set(); state.annotationHidden.add(selection.id); state.annotationSelected = null; state.graphicSelected = null; state.signatureSelected = null; state.graphicSelected = null; state.settingsEditor = null; renderSelection(); });
+    const remove = button("Delete", async () => { await flushSettings(); requireFinishedEdits(); if (selection.context !== pageDisplayKey() || !annotations().some(value => value.id === selection.id)) throw new Error("Select the current Call-out again."); state.markupMenu = null; await command("delete_annotation", { annotation_id: selection.id }); state.annotationSelected = null; state.graphicSelected = null; state.signatureSelected = null; state.graphicSelected = null; state.settingsEditor = null; renderSelection(); });
     hide.setAttribute("role", "menuitem"); remove.setAttribute("role", "menuitem"); menu.append(hide, remove); appendPlanMenu(overlay, selection.point, menu, 104);
   }
   async function openAnnotationMenu(id, sourcePoint) {
@@ -2694,7 +2735,7 @@
     const signature = { mode, document_id: state.document, source_sha256: currentDocument().sha256, page: state.page, quad_pdf: quad, strokes: clone(draft.strokes), appearance: { stroke_color: "#000000", stroke_width: 2, opacity: 1 } };
     const reply = await command("create_signature", { signature }, () => context === pageDisplayKey() && mode === signatureMode() && state.signatureDraft === draft && state.tool === "signature");
     if (!reply) return;
-    cancelTrace(); state.selected.clear(); state.countSelection.clear(); state.annotationSelected = null; state.legendSelected = null; await state.physicalUI?.clearSelection?.(); state.physicalDetailsOpen = false;
+    cancelTrace(); state.selected.clear(); state.countSelection.clear(); state.annotationSelected = null; state.graphicSelected = null; state.legendSelected = null; await state.physicalUI?.clearSelection?.(); state.physicalDetailsOpen = false;
     state.signatureSelected = reply.created_signature_id; state.settingsOpen = true; state.settingsEditor = null; state.viewportsOpen = false; renderViewportPanel(); renderPhysicalDetails(); renderSelection();
     message("Signature placed. Drag it to move, use the corner to resize, or edit it in Settings.");
   }
@@ -2703,7 +2744,7 @@
     await flushSettings(); requireFinishedEdits();
     const signature = signatures().find(value => value.id === id && signatureInWorkspace(value) && value.document_id === state.document && value.page === state.page);
     if (!signature) throw new Error("Select a current signature on this page.");
-    state.selected.clear(); state.countSelection.clear(); state.annotationSelected = null; state.legendSelected = null; state.controlPoint = null; state.markupMenu = null; await state.physicalUI?.clearSelection?.();
+    state.selected.clear(); state.countSelection.clear(); state.annotationSelected = null; state.graphicSelected = null; state.legendSelected = null; state.controlPoint = null; state.markupMenu = null; await state.physicalUI?.clearSelection?.();
     state.signatureSelected = id; state.physicalDetailsOpen = false; state.settingsOpen = openSettings || state.settingsOpen; state.settingsEditor = null; renderPhysicalDetails(); renderSelection();
     if (!openSettings) state.ui.viewport.focus();
   }
@@ -2754,7 +2795,7 @@
   }
   async function deleteSignature() {
     await flushSettings(); requireFinishedEdits(); const signature = selectedSignature(); if (!signature) return;
-    await command("delete_signature", { signature_id: signature.id }); state.signatureSelected = null; state.settingsEditor = null; renderSelection(); message("Signature deleted. Undo last edit restores it.");
+    await command("delete_signature", { signature_id: signature.id }); state.signatureSelected = null; state.graphicSelected = null; state.settingsEditor = null; renderSelection(); message("Signature deleted. Undo last edit restores it.");
   }
   function renderSignatures(overlay) {
     if (!S) return;
@@ -3563,7 +3604,7 @@
   function groupedItems(list = visibleItems()) { const standard = list.filter(item => !isStandalone(item)), standalone = list.filter(isStandalone); return [...(!usesColumnFilters() && state.group ? standard.sort((a, b) => String(itemGroup(a)).localeCompare(String(itemGroup(b)))) : standard), ...standalone]; }
   function syncSurfaceDetailsSelection() {
     if (state.mode === "physical") return;
-    if (!selectedItems().length && !selectedAnnotation() && !selectedSignature() && !selectedLegend()) state.settingsOpen = false;
+    if (!selectedItems().length && !selectedAnnotation() && !selectedSignature() && !selectedLegend() && !graphicsUI?.selected()) state.settingsOpen = false;
     if (state.settingsOpen) state.viewportsOpen = false;
     else { if (state.settingsEditor) clearTimeout(state.settingsEditor.timer); state.settingsEditor = null; }
     renderViewportPanel();
@@ -3592,7 +3633,7 @@
   }
   async function selectItem(id, multiple = false, focus = true, fromDrawing = false, openSettings = true) {
     if (!await discardEditor()) return;
-    state.annotationSelected = null; state.signatureSelected = null;
+    state.annotationSelected = null; state.graphicSelected = null; state.signatureSelected = null; state.graphicSelected = null;
     state.legendSelected = null; state.controlPoint = null; state.controlMenu = false; state.markupMenu = null;
     const item = items().find(value => value.id === id); if (!item) return;
     const modeChanged = state.mode !== item.mode;
@@ -4448,7 +4489,7 @@
       const rendering = { zoom: state.zoom, rotations: Object.fromEntries((documentById(documentId)?.pages || []).map((_, index) => [String(index+1), state.pageRotations.get(JSON.stringify([sessionId,documentId,index+1])) || 0])) };
       const annotationIds = state.markupsHidden ? [] : annotations().filter(value => value.document_id === documentId && inWorkspace(value.mode, mode) && !state.annotationHidden?.has(value.id)).map(value => value.id);
       const signatureIds = state.markupsHidden ? [] : signatures().filter(value => value.document_id === documentId && signatureInWorkspace(value, mode, scope) && !state.signatureHidden?.has(value.id)).map(value => value.id);
-      const response = await fetch(`/api/takeoffs/sessions/${sessionId}/export/${format}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ expected_revision: revision, mode: mode === "physical" ? "penetrations" : workspaceMode(mode), item_ids: list.map(item => item.id), ...(pdf ? { document_id: documentId, signature_ids: signatureIds, ...(mode !== "physical" ? { annotation_ids: annotationIds } : {}) } : { confirmation }), ...(mode === "physical" ? { physical_scope: scope, rendering } : { calculator_drafts: calculatorDrafts }) }) });
+      const response = await fetch(`/api/takeoffs/sessions/${sessionId}/export/${format}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ expected_revision: revision, mode: mode === "physical" ? "penetrations" : workspaceMode(mode), item_ids: list.map(item => item.id), ...(pdf ? { document_id: documentId, signature_ids: signatureIds, graphic_ids: state.markupsHidden ? [] : (graphicsUI?.records() || []).filter(value => value.document_id === documentId && signatureInWorkspace(value, mode, scope) && !state.graphicHidden?.has(value.id)).map(value => value.id), ...(mode !== "physical" ? { annotation_ids: annotationIds } : {}) } : { confirmation }), ...(mode === "physical" ? { physical_scope: scope, rendering } : { calculator_drafts: calculatorDrafts }) }) });
       if (!response.ok) { const result = await response.json(); throw new Error(result.error || "Takeoff download failed."); }
       const blob = await response.blob();
       if (state.session?.session_id !== sessionId || state.session.revision !== revision || mode === "physical" && scope !== state.physicalScope) throw new Error("The project changed during the download. Export the current draft again.");
@@ -4484,7 +4525,7 @@
   function applyProject(prepared) {
     state.ui?.documentMenu?.close(false);
     requireSettledLinkedChange();
-    state.signatureHidden = new Set(); state.signatureDraft = null; state.annotationHidden = new Set(); state.annotationSelected = null; state.signatureSelected = null;
+    state.graphicHidden = new Set(); state.signatureHidden = new Set(); state.signatureDraft = null; state.annotationHidden = new Set(); state.annotationSelected = null; state.graphicSelected = null; state.signatureSelected = null; state.graphicSelected = null;
     cancelSearch(true);
     invalidateLinkedThickness();
     state.thicknessFilterNeedsRender = false; state.thicknessFilterEditor = null;

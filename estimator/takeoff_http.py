@@ -230,6 +230,12 @@ class TakeoffHTTP:
             payload, kind, filename = self.service.export_workspace(session_id, action.rsplit('/', 1)[1], body)
             handler.send_download(payload, kind, filename)
             return True
+        elif action == 'pdf-tools':
+            if query:
+                raise ValidationError('PDF Tools accept a structured request only.')
+            payload, kind, filename = self.service.export_pdf_tools(session_id, body)
+            handler.send_download(payload, kind, filename)
+            return True
         else:
             handler.send_payload(404, {'error': 'Unknown takeoff operation.'})
             return True

@@ -70,7 +70,7 @@ def surface_label_point(geometry):
     return None
 
 
-def export_marked_pdf(document, items, results, confirmations, linked, documents, *, project_id, revision, mode, physical_rows=None, snapshot=None, physical_rendering=None, annotations=(), signatures=()):
+def export_marked_pdf(document, items, results, confirmations, linked, documents, *, project_id, revision, mode, physical_rows=None, snapshot=None, physical_rendering=None, annotations=(), signatures=(), graphics=()):
     from .takeoff_exports import linked_result_text
     from .takeoff_presentation import effective_appearance, legend_rows
     if not _SLOTS.acquire(blocking=False):
@@ -118,6 +118,16 @@ def export_marked_pdf(document, items, results, confirmations, linked, documents
             if vertices > 200000:
                 raise ValidationError('The visible markup geometry exceeds the PDF export limit. Export a smaller visible selection.')
             spec['signatures'].append(signature)
+        from .takeoff_graphics import graphic_geometry_cost, validate_graphic
+        spec['graphics'] = []
+        for graphic in graphics:
+            validate_graphic(graphic, snapshot)
+            if graphic['mode'] not in signature_modes or graphic['document_id'] != document['id']:
+                raise ValidationError('Every PDF markup must belong to the selected workspace and exact source drawing.')
+            vertices += graphic_geometry_cost(graphic)
+            if vertices > 200000:
+                raise ValidationError('The visible markup geometry exceeds the PDF export limit. Export a smaller visible selection.')
+            spec['graphics'].append(graphic)
         if physical_rows is not None:
             spec.update(physical_drawing=True, physical_rendering=physical_rendering or {'zoom':1,'rotations':{}})
         if snapshot:

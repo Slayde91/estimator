@@ -2116,12 +2116,12 @@
       const saved = await window.CeasefireDownloads.save(reportPath, savedReportId ? {} : payload);
       const estimateChanged = quoteContext !== state.quoteContext || capturedPayload !== JSON.stringify(reportPayload()) || window.CeasefirePenetrations?.quoteFingerprint?.() !== penetrationStamp;
       message(estimateChanged
-        ? `PDF saved to ${saved.path} for “${payload.title}” using ${savedReportId ? "its saved result and pricing snapshot" : "the inputs and pricing captured when you clicked Download Estimate Summary"}. Later edits are not included.`
+        ? `PDF saved to ${saved.path} for “${payload.title}” using ${savedReportId ? "its saved result and pricing snapshot" : "the inputs and pricing captured when you clicked Estimate Summary"}. Later edits are not included.`
         : `PDF saved to ${saved.path} for “${payload.title}”.`);
     } catch (error) { message(`PDF for “${payload.title}” was not downloaded. ${error.message}`, true); }
     finally {
       button.disabled = false;
-      button.setAttribute("aria-label", "Download Estimate Summary");
+      button.setAttribute("aria-label", "Estimate Summary");
       button.removeAttribute("aria-busy");
     }
   }

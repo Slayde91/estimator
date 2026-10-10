@@ -16,7 +16,7 @@ const ready = new Promise((resolve, reject) => {
 });
 const errors = [], calculatorRequests = [], evidence = { calculators: [], viewports: [1440, 825, 390] };
 const actionIds = ['calculator-import', 'calculator-excel', 'calculator-pdf', 'calculator-summary-pdf', 'calculator-template'];
-const actionNames = ['Import XLSX Schedule', 'Download XLSX Schedule', 'Download PDF Schedule', 'Download PDF Summary', 'Export Template'];
+const actionNames = ['Import Schedule', 'Steel Schedule XLSX', 'Steel Schedule PDF', 'Product Summary PDF', 'Export Template'];
 async function idle() { await page.waitForFunction(() => { const status = window.CeasefireDesktop?.status(); return status?.ready && !status.busy; }); }
 async function snapshot() { await idle(); return page.evaluate(() => ({ calculators: window.CeasefireCalculators.projectSnapshot(), penetration: window.CeasefirePenetrations.projectSnapshot(), pricing: window.CeasefireProject.configuration(), details: window.CeasefireProject.details() })); }
 async function responseTo(action, suffix) {
@@ -59,8 +59,8 @@ async function responseTo(action, suffix) {
       await page.setViewportSize({ width, height: 1000 }); await toggle.click();
       await expect(menu.getByRole('button')).toHaveCount(5);
       for (const [index, actionId] of actionIds.entries()) {
-        const action = menu.locator(`#${actionId}`); await expect(action).toBeVisible(); await expect(action).toHaveAccessibleName(actionNames[index]);
-        await expect(action.locator('span').last()).toHaveText(actionNames[index]);
+        const action = menu.locator(`#${actionId}`); await expect(action).toBeVisible(); await expect(action).toHaveAccessibleName(actionNames[index].replace("Steel Schedule", id === "ductwork" ? "Duct Schedule" : "Steel Schedule"));
+        await expect(action.locator('span').last()).toHaveText(actionNames[index].replace("Steel Schedule", id === "ductwork" ? "Duct Schedule" : "Steel Schedule"));
         const metrics = await action.evaluate(button => { const icon = button.querySelector('.download-format-icon').getBoundingClientRect(), text = button.lastElementChild.getBoundingClientRect(), box = button.getBoundingClientRect(); return { iconRight: icon.right, textLeft: text.left, iconY: icon.y + icon.height / 2, textY: text.y + text.height / 2, left: box.left, right: box.right }; });
         assert.ok(metrics.iconRight < metrics.textLeft, `${title}/${width}: icon precedes the visible action name`);
         assert.ok(Math.abs(metrics.iconY - metrics.textY) < 1, `${title}/${width}: icon and text share their vertical centre`);
@@ -88,6 +88,28 @@ async function responseTo(action, suffix) {
         await dialog.getByRole('button', { name: 'Keep editing', exact: true }).click(); await idle(); await expect(menu).toBeHidden();
       }
     }
+    // The source line column intentionally remains white. Verify the actual
+    // rendered foreground/background pair rather than theme CSS text.
+    await page.locator('#calculator-pages').getByRole('button',{name:'SCHEDULE',exact:true}).click();await idle();
+    const themeChecks=[];
+    for(const theme of ['ceasefire','midnight','ocean','forest','slate']) {
+      await expect(page.locator('html')).toHaveAttribute('data-theme',theme);
+      for(const width of [1146,390]) {
+        await page.setViewportSize({width,height:1000});
+        const line=page.locator('.calculator-schedule-table td.calculator-line-number').first();await expect(line).toBeVisible();
+        const styles=await line.evaluate(cell=>{const css=getComputedStyle(cell),box=cell.getBoundingClientRect();return{text:cell.textContent.trim(),foreground:css.color,background:css.backgroundColor,width:box.width,height:box.height};});
+        assert.match(styles.text,/^\d+$/);assert.equal(styles.foreground,'rgb(23, 18, 23)');assert.equal(styles.background,'rgb(255, 255, 255)');assert.ok(styles.width>0&&styles.height>0);
+        const attachment=page.locator('#project-attachment-zone');await expect(attachment).toBeVisible();
+        const colors=await attachment.evaluate(button=>{const css=getComputedStyle(button);return{foreground:css.color,background:css.backgroundColor,icon:getComputedStyle(button.querySelector('svg')).color};});
+        assert.deepEqual(colors,{foreground:'rgb(255, 255, 255)',background:'rgb(20, 108, 67)',icon:'rgb(255, 255, 255)'});
+        await toggle.click();const action=menu.locator('#calculator-pdf');await expect(action).toBeVisible();
+        assert.deepEqual(await action.evaluate(button=>({foreground:getComputedStyle(button).color,background:getComputedStyle(button).backgroundColor})),{foreground:'rgb(23, 18, 23)',background:'rgb(255, 255, 255)'});
+        await page.keyboard.press('Escape');themeChecks.push({theme,width,line:styles,projectFiles:colors});
+        await page.screenshot({path:path.join(output,`${id}-${theme}-${width}-contrast.png`)});
+      }
+      await page.locator('#theme-toggle').click();
+    }
+    evidence.calculatorThemeChecks ||= [];evidence.calculatorThemeChecks.push({id,checks:themeChecks});
     assert.deepEqual(await snapshot(), before, `${title}: document access, generated files and cancelled import preserve all calculator drafts and prices`);
     evidence.calculators.push({ id, title, keyboard: true, outsideDismissal: true, menuRequestedCalculation: false, downloads, importTemplateCancelled: true });
   }

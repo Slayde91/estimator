@@ -206,7 +206,7 @@ let passed=0;
     assert.deepEqual(copy(audit.state.quoteConfiguration||audit.state.configuration),beforeConfig);assert.equal(audit.state.dirty,true);
     assert.match(byId('app-message').textContent,/Later edits are not included/);
     assert.equal(byId('download-quote-pdf').disabled,false);assert.equal(byId('download-quote-pdf').getAttribute('aria-busy'),undefined);
-    assert.equal(byId('download-quote-pdf').getAttribute('aria-label'),'Download Estimate Summary');
+    assert.equal(byId('download-quote-pdf').getAttribute('aria-label'),'Estimate Summary');
   }passed++;
 
   // Failed writes never claim success or mutate the current draft, and release
@@ -811,8 +811,8 @@ let passed=0;
   const actionCss=fs.readFileSync('static/styles.css','utf8');
   assert.doesNotMatch(markup,/id="save-quote"/);assert.doesNotMatch(markup,/id="save-project"/);
   assert.match(markup,/id="save-current-project"[^>]*class="button save-button icon-only"[^>]*aria-label="Save"[^>]*title="Save"/);
-  assert.match(markup,/id="firestopping-document-actions"[^>]*>[\s\S]*?id="download-quote-pdf"[^>]*class="[^"]*pdf-button[^"]*calculator-document-action[^"]*"[^>]*aria-label="Download Estimate Summary"[^>]*title="Download Estimate Summary"/);
-  assert.match(markup,/<span>Download Estimate Summary<\/span>/);
+  assert.match(markup,/id="firestopping-document-actions"[^>]*>[\s\S]*?id="download-quote-pdf"[^>]*class="[^"]*pdf-button[^"]*calculator-document-action[^"]*"[^>]*aria-label="Estimate Summary"[^>]*title="Estimate Summary"/);
+  assert.match(markup,/<span>Estimate Summary<\/span>/);
   assert.match(markup,/id="download-quote-pdf"[\s\S]*?<span class="download-arrow">Σ<\/span>/);
   assert.ok(actionCss.includes('.button.save-button{color:#332600;background:#ffdb66;'));
   assert.ok(actionCss.includes('.button.pdf-button{color:#fff;background:#c5221f;'));
@@ -837,7 +837,7 @@ let passed=0;
   assert.match(markup,/aria-controls="pricing-document-actions"[\s\S]*id="pricing-document-actions"[\s\S]*id="export-pricing"[\s\S]*id="import-pricing"[\s\S]*id="discard-pricing"/);
   assert.ok(markup.indexOf('id="add-pricing-item"')>markup.indexOf('id="pricing-body"'));
   assert.match(markup,/id="penetration-undo"[^>]*class="button secondary icon-only"[^>]*aria-label="Undo remove"[^>]*title="Undo remove"/);
-  for(const [id,format,label] of [['penetration-excel','excel','Download Firestopping Schedule'],['penetration-pdf','pdf','Download Firestopping Schedule'],['penetration-item-excel','excel','Download Current Item'],['penetration-item-pdf','pdf','Download Current Item']])assert.match(markup,new RegExp(`id="${id}"[^>]*class="button ${format}-button calculator-document-action"[^>]*aria-label="${label}"[^>]*title="${label}"[\\s\\S]*?<span class="download-arrow">⇩<\\/span>`));
+  for(const [id,format,label] of [['penetration-excel','excel','Download Firestopping Schedule'],['penetration-pdf','pdf','Download Firestopping Schedule'],['penetration-item-excel','excel','Item Details'],['penetration-item-pdf','pdf','Item Details']])assert.match(markup,new RegExp(`id="${id}"[^>]*class="button ${format}-button calculator-document-action"[^>]*aria-label="${label}"[^>]*title="${label}"[\\s\\S]*?<span class="download-arrow">⇩<\\/span>`));
   const estimateHeading=markup.match(/<div class="page-heading">[^\n]*id="download-quote-pdf"[^\n]*<\/div>/)?.[0];
   assert.ok(estimateHeading,'Main heading contains the estimate PDF control');
   assert.match(estimateHeading,/aria-controls="firestopping-document-actions"[\s\S]*id="firestopping-document-actions"[\s\S]*id="download-quote-pdf"[\s\S]*id="penetration-excel"[\s\S]*id="penetration-pdf"/);

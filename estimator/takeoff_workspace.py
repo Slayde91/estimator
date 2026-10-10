@@ -885,6 +885,8 @@ class TakeoffService:
                      'create_annotation': {'annotation'}, 'update_annotation': {'annotation_id', 'changes'},
                      'create_signature': {'signature'}, 'update_signature': {'signature_id', 'changes'},
                      'delete_signature': {'signature_id'},
+                     'create_graphic': {'graphic'}, 'update_graphic': {'graphic_id', 'changes'},
+                     'delete_graphic': {'graphic_id'},
                      'draft_library_assignment': {'assignment'},
                      'delete_annotation': {'annotation_id'}}
             if not isinstance(op, str) or op not in specs:
@@ -896,6 +898,7 @@ class TakeoffService:
             regrouped_item_ids = None
             created_annotation_id = None
             created_signature_id = None
+            created_graphic_id = None
             if op == 'draft_library_assignment':
                 from .takeoff_library_links import create_assignment, validate_proposal, prepare_assigned_quantities
                 self._physical_gate(session_id, before)
@@ -913,6 +916,9 @@ class TakeoffService:
             elif op in ('create_signature', 'update_signature', 'delete_signature'):
                 from .takeoff_signatures import apply_signature
                 created_signature_id = apply_signature(after, request)
+            elif op in ('create_graphic', 'update_graphic', 'delete_graphic'):
+                from .takeoff_graphics import apply_graphic
+                created_graphic_id = apply_graphic(after, request)
             elif op in ('toggle_thickness_colours', 'set_legend'):
                 from .takeoff_presentation import apply_presentation
                 linked = None
@@ -1353,6 +1359,8 @@ class TakeoffService:
                     raise ValidationError('Remove free call-outs before deleting their source document.')
                 if any(value['document_id'] == document_id for value in after.get('signatures', {}).get('records', [])):
                     raise ValidationError('Remove signatures before deleting their source document.')
+                if any(value['document_id'] == document_id for value in after.get('graphics', {}).get('records', [])):
+                    raise ValidationError('Remove PDF markups before deleting their source document.')
                 if any(value['document_id'] == document_id for value in after.get('image_extractions', [])):
                     raise ValidationError('A source document with retained image extraction history cannot be deleted.')
                 if any(reference['document_id'] == document_id
@@ -1401,7 +1409,9 @@ class TakeoffService:
                 undo_annotations(before, after)
                 from .takeoff_signatures import undo_signatures
                 undo_signatures(before, after)
-                if before['version'] == 2 and event['op'] not in ('create_annotation', 'update_annotation', 'delete_annotation', 'create_signature', 'update_signature', 'delete_signature'):
+                from .takeoff_graphics import undo_graphics
+                undo_graphics(before, after)
+                if before['version'] == 2 and event['op'] not in ('create_annotation', 'update_annotation', 'delete_annotation', 'create_signature', 'update_signature', 'delete_signature', 'create_graphic', 'update_graphic', 'delete_graphic'):
                     self._physical_gate(session_id, before)
                     after = self._undo_physical(session_id, before, after)
                 originals = {i['id']: i for i in before['items']}
@@ -1487,6 +1497,9 @@ class TakeoffService:
             if created_signature_id is not None:
                 response['created_signature_id'] = created_signature_id
                 session['requests'][request['request_id']].setdefault('metadata', {})['created_signature_id'] = created_signature_id
+            if created_graphic_id is not None:
+                response['created_graphic_id'] = created_graphic_id
+                session['requests'][request['request_id']].setdefault('metadata', {})['created_graphic_id'] = created_graphic_id
             if revised_calibration_id:
                 response['revised_calibration_id'] = revised_calibration_id
                 session['requests'][request['request_id']]['metadata'] = {'revised_calibration_id': revised_calibration_id}
@@ -1941,3 +1954,21 @@ class TakeoffService:
             if request.get('mode') == 'penetrations':
                 self._validate_physical_links(session_id, snapshot)
             return export_workspace(snapshot, request, format, documents=self.documents, store=self.store)
+
+    def export_pdf_tools(self, session_id, request):
+        """Derive a PDF copy from one captured revision without editing sources."""
+        from .takeoff_pdf_tools import build_pdf
+        with self._lock:
+            snapshot = self._session(session_id)['snapshot']
+            if (not isinstance(request, dict) or type(request.get('expected_revision')) is not int
+                    or request['expected_revision'] != snapshot['revision']):
+                raise ValidationError('The takeoff draft changed. Open PDF Tools again.')
+            self._session_evidence(session_id)
+            self.documents.assert_documents(snapshot['documents'], owner=session_id)
+            self._verify_audit_head(snapshot, owner=session_id)
+            captured = deepcopy(snapshot)
+        result = build_pdf(captured, request, self.documents)
+        with self._lock:
+            if self._session(session_id)['snapshot']['revision'] != captured['revision']:
+                raise ValidationError('The takeoff draft changed while preparing this PDF. Open PDF Tools again.')
+        return result

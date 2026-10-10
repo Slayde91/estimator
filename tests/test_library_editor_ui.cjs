@@ -6,12 +6,12 @@ const flush=async()=>{for(let i=0;i<30;i++)await Promise.resolve();};
 const walk=node=>[node,...node.children.flatMap(walk)],text=node=>walk(node).map(el=>el.textContent).join(' ');
 const fixture=(draft=definition().defaults,extra={})=>({id:'legacy-row-4',library_id:'FL-ID-001',title:'FL-ID-001 — Synthetic item',revision:0,
   source_price:{amount:123.456789,currency:'AUD',label:'Workbook price'},price:{amount:123.456789,currency:'AUD',label:'Library price'},
-  draft:copy(draft),definition:definition(),result:result(draft),pricing_token:'workbook-token',pricing_basis:'workbook',pricing_label:'Original workbook rates',diagram:{available:true,custom:false,url:'/api/libraries/penetration/legacy-row-4/image',thumbnail_url:'/api/libraries/penetration/legacy-row-4/thumbnail'},...extra});
+  draft:copy(draft),definition:definition(),result:result(draft),pricing_token:'workbook-token',pricing_basis:'workbook',pricing_label:'Original workbook rates',configuration:{inventory:{},rates:{frozen:{price:12.3456789012345}}},diagram:{available:true,custom:false,url:'/api/libraries/penetration/legacy-row-4/image',thumbnail_url:'/api/libraries/penetration/legacy-row-4/thumbnail'},...extra});
 function harness(){
   const h=projectHarness(),calls=[],returns=[];let shows=0,invalidations=0;
   h.context.window.CeasefireLibraryEditorNavigation={show(){shows++;},returnToLibrary(id){returns.push(id);}};
   h.context.window.CeasefireLibraries={invalidate(){invalidations++;}};
-  vm.runInContext(fs.readFileSync('static/library-editor.js','utf8').replace(/\}\)\(\);\s*$/,`globalThis.libraryAudit={state,calculate,refreshPricing,save,cancel,makeControl,renderFields,renderDiagram,queueDiagram,chooseDiagram,present,setRequest(fn){request=fn;},setProjectRequest(fn){projectRequest=fn;}};})();`),h.context);
+  vm.runInContext(fs.readFileSync('static/library-editor.js','utf8').replace(/\}\)\(\);\s*$/,`globalThis.libraryAudit={state,calculate,refreshPricing,save,cancel,downloadItem,makeControl,renderFields,renderDiagram,queueDiagram,chooseDiagram,present,setRequest(fn){request=fn;},setProjectRequest(fn){projectRequest=fn;}};})();`),h.context);
   const audit=h.context.libraryAudit,api=h.context.window.CeasefireLibraryEditor;
   audit.setRequest(async(id,action,payload)=>{calls.push({id,action,payload:payload&&copy(payload)});return fixture(payload?.draft,{revision:action==='save'?payload.revision+1:payload?.revision||0,pricing_token:payload?.pricing_token||'workbook-token'});});
   const control=(column,global=false)=>[h.byId('library-editor-item-quantity'),h.byId('library-editor-fields')].flatMap(walk).find(el=>el.dataset.libraryEditorField===column&&el.dataset.libraryEditorGlobal===String(global));
@@ -331,6 +331,54 @@ async function check(name,fn){const h=harness();h.projectApi.applyProject(await 
       h.control('T').value='Independent description';await h.control('T').emit('input');let captured;h.audit.setRequest(async(id,action,payload)=>{captured=copy(payload.draft);return fixture(payload.draft,{definition:item.definition});});await h.audit.calculate();assert.equal(captured.rows[0].inputs.K,raw);assert.equal(h.audit.state.draft.rows[0].inputs.K,raw);
       const current=h.control('K');current.value='HDPE pipe';await current.emit('change');assert.equal(h.api.inputProblem(),'');assert.equal(h.audit.state.draft.rows[0].inputs.K,'HDPE pipe');
     }
+  });
+  for (const kind of ['pdf','xlsx']) await check(`Library Item Details ${kind} captures unsaved fields, frozen prices and pending diagram without saving`,async h=>{
+    h.api.present(fixture()); h.control('O').value='2.123456789012345'; await h.control('O').emit('input');
+    h.control('T').value='EDITOR ONLY UNSAVED'; await h.control('T').emit('input');
+    h.audit.queueDiagram('editor.png','cGVuZGluZw==');
+    const before={draft:copy(h.audit.state.draft),baseline:h.audit.state.baseline,record:copy(h.audit.state.record),diagram:copy(h.audit.state.diagramChange),project:copy(h.projectApi.projectSnapshot())};
+    const pending=deferred();let captured;h.context.window.CeasefireDownloads.save=(path,payload)=>{captured={path,payload:copy(payload)};return pending.promise;};
+    const downloading=h.audit.downloadItem(kind);await flush();
+    assert.equal(captured.path,`/api/penetration/item.${kind}`); assert.equal(captured.payload.item.inputs.O,2.123456789012345);
+    assert.equal(captured.payload.item.inputs.T,'EDITOR ONLY UNSAVED'); assert.equal(captured.payload.item.library_item_id,'legacy-row-4');
+    assert.deepEqual(captured.payload.configuration,before.record.configuration); assert.notDeepEqual(captured.payload.configuration,h.pricing);
+    assert.deepEqual(captured.payload.diagram,before.diagram);assert.deepEqual(captured.payload.globals,before.draft.globals);
+    assert.equal(captured.payload.draft,undefined);assert.equal(captured.payload.revision,undefined);assert.equal(captured.payload.pricing_token,undefined);
+    assert.equal(h.byId(`library-editor-item-${kind==='pdf'?'pdf':'excel'}`).getAttribute('aria-busy'),'true');
+    assert.equal(h.byId('library-editor-save').disabled,true);assert.equal(h.byId('library-editor-refresh-pricing').disabled,true);
+    pending.resolve({path:`C:/Fixture/editor.${kind}`});await downloading;
+    assert.deepEqual(copy(h.audit.state.draft),before.draft);assert.deepEqual(copy(h.audit.state.record),before.record);
+    assert.deepEqual(copy(h.audit.state.diagramChange),before.diagram);assert.equal(h.audit.state.baseline,before.baseline);
+    assert.deepEqual(copy(h.projectApi.projectSnapshot()),before.project);assert.equal(h.calls.length,0);assert.equal(h.invalidations(),0);
+    assert.equal(h.api.hasUnsavedChanges(),true);assert.equal(h.audit.state.busy,false);assert.equal(h.byId('library-editor-item-pdf').disabled,false);
+  });
+  await check('Library exports bind retained shared images and portable project images independently',async h=>{
+    const captures=[];h.context.window.CeasefireDownloads.save=async(path,payload)=>{captures.push(copy(payload));return{path:'C:/Fixture/item.pdf'};};
+    h.api.present(fixture());await h.audit.downloadItem('pdf');assert.equal(captures[0].item.library_item_id,'legacy-row-4');assert.equal(Object.hasOwn(captures[0],'diagram'),false);
+    h.api.present(fixture(undefined,{diagram:{available:false}}));await h.audit.downloadItem('pdf');assert.equal(captures[1].diagram,null);
+    const diagram={filename:'portable.png',content_base64:'cG9ydGFibGU='};
+    h.api.present(fixture(undefined,{id:'project-only',project_local:true,portable:{diagram},diagram:{available:true}}));await h.audit.downloadItem('pdf');
+    assert.deepEqual(captures[2].diagram,diagram);assert.equal(captures[2].item.library_item_id,undefined);
+    h.audit.state.diagramChange=null;await h.audit.downloadItem('pdf');assert.equal(captures[3].diagram,null);
+    assert.equal(h.calls.length,0);
+  });
+  await check('Library export receipts retain later edits and cannot alter a replacement editor',async h=>{
+    h.api.present(fixture());const pending=deferred();let captured;h.context.window.CeasefireDownloads.save=async(path,payload)=>{captured=copy(payload);return pending.promise;};
+    const downloading=h.audit.downloadItem('pdf');h.control('T').value='LATER UNSAVED';await h.control('T').emit('input');
+    pending.resolve({path:'C:/Fixture/captured.pdf'});await downloading;assert.equal(captured.item.inputs.T,undefined);
+    assert.equal(h.audit.state.draft.rows[0].inputs.T,'LATER UNSAVED');assert.match(h.byId('library-editor-message').textContent,/later edits/);assert.ok(h.timers.size>0);
+    const delayed=deferred();h.context.window.CeasefireDownloads.save=()=>delayed.promise;const old=h.audit.downloadItem('pdf');
+    h.api.present(fixture(undefined,{id:'new-session'}));h.byId('library-editor-message').textContent='New editor notice';
+    delayed.resolve({path:'C:/Fixture/old.pdf'});await old;assert.equal(h.audit.state.record.id,'new-session');assert.equal(h.byId('library-editor-message').textContent,'New editor notice');assert.equal(h.audit.state.busy,false);
+  });
+  await check('Invalid input, active operations and missing frozen prices refuse Library exports; failures retain drafts',async h=>{
+    h.api.present(fixture());let count=0;h.context.window.CeasefireDownloads.save=async()=>{count++;throw new Error('Fixture failure');};
+    h.audit.state.invalid.set('row:O','Invalid');await h.audit.downloadItem('pdf');assert.equal(count,0);h.audit.state.invalid.clear();
+    h.audit.state.diagramReading={};await h.audit.downloadItem('pdf');assert.equal(count,0);h.audit.state.diagramReading=null;
+    h.audit.state.busy=true;await h.audit.downloadItem('pdf');assert.equal(count,0);h.audit.state.busy=false;
+    delete h.audit.state.record.configuration;await h.audit.downloadItem('pdf');assert.equal(count,0);assert.match(h.byId('library-editor-message').textContent,/captured pricing/);
+    h.api.present(fixture());const before=copy(h.audit.state.draft);await h.byId('library-editor-item-pdf').emit('click');assert.equal(count,1);
+    assert.deepEqual(copy(h.audit.state.draft),before);assert.match(h.byId('library-editor-message').textContent,/Fixture failure/);assert.equal(h.audit.state.busy,false);assert.equal(h.calls.length,0);
   });
   console.log(`${passed} library editor UI regression checks passed.`);
 })().catch(error=>{console.error(error);process.exitCode=1;});

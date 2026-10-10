@@ -13,7 +13,7 @@ test('documented tool shortcuts come from the actual dispatch registry', () => {
   }
   const signature = rows.find(row => row.name === 'Signatures');
   assert.deepEqual(signature.keys, [], 'Signatures has no invented shortcut');
-  assert.ok(rows.find(row => row.name === 'Download Estimate Summary'));
+  assert.ok(rows.find(row => row.name === 'Estimate Summary'));
 });
 
 test('Standard Help omits unsupported tools and icons', () => {
@@ -21,7 +21,24 @@ test('Standard Help omits unsupported tools and icons', () => {
   assert.ok(rows.length > 25);
   assert.ok(!rows.some(row => ['Drawing tools', 'Drawing view', 'Register and selection'].includes(row.group)));
   assert.ok(!rows.some(row => row.icon.asset?.startsWith('takeoff') || row.icon.mask));
+  assert.ok(!rows.some(row => row.icon.graphic || ['Tools','Merge PDF Files','Organise Pages','Extract Pages'].includes(row.name)));
   assert.ok(rows.some(row => row.name === 'Save'));
+});
+
+test('PDF graphics and page tools are documented without invented shortcuts', () => {
+  const rows = glossary.catalogue(registry), graphics = require('../static/takeoff-graphics.js');
+  for (const kind of ['cloud','textbox','stamp','polyline','arrow','rectangle','circle','polygon']) {
+    const row = rows.find(row => row.icon.graphic === kind);
+    assert.equal(row.name, graphics.labels[kind]);
+    assert.deepEqual(row.keys, []);
+    assert.match(row.description, /Click/);
+  }
+  for (const name of ['Tools','Merge PDF Files','Organise Pages','Extract Pages']) {
+    const row = rows.find(row => row.name === name);
+    assert.equal(row.group, 'Drawing view');
+    assert.deepEqual(row.keys, []);
+    assert.match(row.description, /PDF/);
+  }
 });
 
 test('search finds functions and shortcuts, combines words and honors section', () => {

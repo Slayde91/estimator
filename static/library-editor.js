@@ -2,7 +2,7 @@
   "use strict";
   const $ = id => document.getElementById(id), clone = value => JSON.parse(JSON.stringify(value));
   const state = { record: null, draft: null, definition: null, result: null, group: null, baseline: null,
-    invalid: new Map(), session: 0, version: 0, busy: false, pendingFields: false, open: false, requestRevision: 0, opening: 0, timer: null,
+    invalid: new Map(), session: 0, version: 0, busy: false, downloadKind: null, pendingFields: false, open: false, requestRevision: 0, opening: 0, timer: null,
     diagramChange: undefined, diagramRead: 0, diagramReading: null, calculation: null, openSettingsBand: null, tabAdvisoryAcknowledgement: null, additionalLabourAdvisory: false };
   let actions = {};
   const project = { value: undefined, records: new Map(), saved: undefined, generation: 0, prepared: null };
@@ -185,6 +185,10 @@
     $("library-editor-diagram-file").disabled = state.busy;
     $("library-editor-diagram-remove").disabled = state.busy || !!state.diagramReading;
     $("library-editor-settings").disabled = !state.record || state.busy;
+    for (const [id, kind] of [["library-editor-item-excel", "xlsx"], ["library-editor-item-pdf", "pdf"]]) {
+      $(id).disabled = !state.record || state.busy || !!state.diagramReading || state.invalid.size > 0;
+      $(id).setAttribute("aria-busy", String(state.busy && state.downloadKind === kind));
+    }
   }
   function changed() {
     state.version++; state.result = null; renderOutputs(); status(); actions.changed?.(); projectChanged();
@@ -492,7 +496,7 @@
   function present(record, handlers = {}) {
     if (!record?.draft || !record.definition || record.draft.rows?.length !== 1) throw new Error("The library item does not contain one editable source row.");
     state.session++; Object.assign(state, { record: clone(record), draft: clone(record.draft), definition: clone(record.definition), result: clone(record.result || null),
-      group: record.definition.groups?.[0], baseline: stamp(record.draft, record.pricing_token), invalid: new Map(), version: 0, busy: false, pendingFields: false, open: true, diagramChange: undefined, diagramReading: null, calculation: null, openSettingsBand: null, tabAdvisoryAcknowledgement: null, additionalLabourAdvisory: false });
+      group: record.definition.groups?.[0], baseline: stamp(record.draft, record.pricing_token), invalid: new Map(), version: 0, busy: false, downloadKind: null, pendingFields: false, open: true, diagramChange: undefined, diagramReading: null, calculation: null, openSettingsBand: null, tabAdvisoryAcknowledgement: null, additionalLabourAdvisory: false });
     clearTimeout(state.timer); state.requestRevision++;
     actions = { changed: scheduleCalculation, calculate, refreshPricing, save, cancel, ...handlers };
     $("library-editor-identity").textContent = record.title || record.library_id || record.id;
@@ -504,7 +508,7 @@
   }
   function close() {
     state.session++; state.requestRevision++; state.opening++; clearTimeout(state.timer);
-    Object.assign(state, { open: false, record: null, draft: null, result: null, baseline: null, busy: false, invalid: new Map(), diagramChange: undefined, diagramReading: null, calculation: null, openSettingsBand: null, tabAdvisoryAcknowledgement: null, additionalLabourAdvisory: false });
+    Object.assign(state, { open: false, record: null, draft: null, result: null, baseline: null, busy: false, downloadKind: null, invalid: new Map(), diagramChange: undefined, diagramReading: null, calculation: null, openSettingsBand: null, tabAdvisoryAcknowledgement: null, additionalLabourAdvisory: false });
     $("firestopping-library-editor").hidden = true; $("firestopping-project-workspace").hidden = false;
     projectChanged();
   }
@@ -602,10 +606,44 @@
     } catch (error) { if (current(captured) && revision === state.requestRevision) message(`Library item was not saved. ${error.message}`, true); }
     finally { if (current(captured) && revision === state.requestRevision) { state.busy = false; status(); if (reschedule) scheduleCalculation(); } }
   }
+  async function downloadItem(kind) {
+    document.activeElement?.blur?.();
+    if (!state.open || !state.record || state.busy || state.diagramReading || state.invalid.size) return;
+    if (!state.record.configuration || !state.draft?.rows || state.draft.rows.length !== 1) {
+      message("This library item has no captured pricing configuration to export.", true); return;
+    }
+    clearTimeout(state.timer);
+    const captured = snapshot(true), item = clone(state.draft.rows[0]);
+    // Shared items resolve their retained source image by this record's identity.
+    // Project copies carry their own image bytes and never read a shared image.
+    if (!state.record.project_local) item.library_item_id = captured.id;
+    const payload = { item, globals: clone(state.draft.globals), configuration: clone(state.record.configuration) };
+    if (state.diagramChange !== undefined) payload.diagram = clone(state.diagramChange);
+    else if (state.record.project_local) payload.diagram = clone(state.record.portable?.diagram ?? null);
+    else if (!state.record.diagram?.available) payload.diagram = null;
+    const capturedStamp = stamp(), capturedDiagram = JSON.stringify(state.diagramChange);
+    state.busy = true; state.downloadKind = kind; status(`Preparing Item Details ${kind.toUpperCase()}…`);
+    try {
+      const saved = await window.CeasefireDownloads.save(`/api/penetration/item.${kind}`, payload);
+      if (!current(captured)) return;
+      const later = state.version !== captured.version || JSON.stringify(state.record.configuration) !== JSON.stringify(payload.configuration)
+        || state.invalid.size > 0 || stamp() !== capturedStamp || JSON.stringify(state.diagramChange) !== capturedDiagram;
+      message(`Item Details ${kind.toUpperCase()} saved to ${saved.path} using the fields, prices and source diagram captured when you clicked.${later ? " Your later edits are still here and are not included." : ""}`);
+    } catch (error) {
+      if (current(captured)) message(`Item Details were not downloaded. ${error.message}`, true);
+    } finally {
+      if (current(captured)) {
+        state.busy = false; state.downloadKind = null; status();
+        if (!state.result || state.version !== captured.version) scheduleCalculation();
+      }
+    }
+  }
   function cancel() {
     if (!state.open || state.busy || state.diagramReading) return;
     const id = state.record.id; close(); window.CeasefireLibraryEditorNavigation?.returnToLibrary(id);
   }
+  $("library-editor-item-excel").addEventListener("click", () => downloadItem("xlsx"));
+  $("library-editor-item-pdf").addEventListener("click", () => downloadItem("pdf"));
   $("library-editor-recalculate").addEventListener("click", () => actions.calculate?.());
   $("library-editor-refresh-pricing").addEventListener("click", () => actions.refreshPricing?.());
   $("library-editor-settings").addEventListener("click", () => selectGroup("SETTINGS"));

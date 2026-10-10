@@ -67,6 +67,40 @@ class TakeoffHTTPTests(unittest.TestCase):
             self.assertIn(temperature, field['options'])
             self.assertNotIn(550 if temperature == 620 else 620, field['options'])
 
+    def test_pdf_tools_downloads_captured_pages_without_changing_session(self):
+        from pypdf import PdfReader
+        _, _, payload = self.request('POST', '/api/takeoffs/sessions', {})
+        session = json.loads(payload); base = '/api/takeoffs/sessions/' + session['session_id']
+        for name in ('first.pdf', 'second.pdf'):
+            stream = BytesIO(); pdf = canvas.Canvas(stream, invariant=1)
+            for number in range(1, 4):
+                pdf.drawString(40, 500, f'{name} page {number}'); pdf.showPage()
+            pdf.save(); source = stream.getvalue()
+            status, _, payload = self.request('POST', base+'/uploads', {'filename': name, 'size': len(source)})
+            self.assertEqual(status, 200, payload)
+            endpoint = base+'/uploads/'+json.loads(payload)['upload_id']
+            self.assertEqual(self.request('PUT', endpoint+'?offset=0', source, {'Content-Type': 'application/octet-stream'})[0], 200)
+            status, _, payload = self.request('POST', endpoint+'/complete', {'expected_revision': session['revision']})
+            self.assertEqual(status, 200, payload); session = json.loads(payload)
+        ids = [value['id'] for value in session['snapshot']['documents']]
+        before = self.request('GET', base)[2]
+        cases = [('merge', ids[::-1], None, ['second.pdf page 1', 'second.pdf page 2', 'second.pdf page 3', 'first.pdf page 1', 'first.pdf page 2', 'first.pdf page 3']),
+                 ('organise', [ids[0]], [3, 1], ['first.pdf page 3', 'first.pdf page 1']),
+                 ('extract', [ids[1]], [2], ['second.pdf page 2'])]
+        for operation, documents, pages, text in cases:
+            request = {'expected_revision': session['revision'], 'operation': operation, 'document_ids': documents}
+            if pages is not None: request['page_order'] = pages
+            status, headers, payload = self.request('POST', base+'/pdf-tools', request)
+            self.assertEqual(status, 200, payload); self.assertEqual(headers['Content-Type'], 'application/pdf')
+            self.assertEqual([page.extract_text().strip() for page in PdfReader(BytesIO(payload)).pages], text)
+            self.assertEqual(self.request('GET', base)[2], before)
+        request = {'expected_revision': session['revision'], 'operation': 'extract', 'document_ids': [ids[0]], 'page_order': [1]}
+        for invalid in ({**request, 'expected_revision': 0}, {**request, 'document_ids': [str(uuid4())]}, {**request, 'page_order': [4]}, {**request, 'path': 'C:/private.pdf'}):
+            self.assertEqual(self.request('POST', base+'/pdf-tools', invalid)[0], 400)
+        self.assertEqual(self.request('POST', base+'/pdf-tools?path=private.pdf', request)[0], 400)
+        self.assertEqual(self.request('POST', base+'/pdf-tools', request, {'Origin': 'https://attacker.invalid'})[0], 403)
+        self.assertEqual(self.request('GET', base)[2], before)
+
     def test_auto_calibration_reads_retained_source_and_returns_audited_preset(self):
         stream = BytesIO(); pdf = canvas.Canvas(stream, pagesize=(600, 800))
         pdf.drawString(400, 35, 'SCALE 1:100'); pdf.save(); source = stream.getvalue()

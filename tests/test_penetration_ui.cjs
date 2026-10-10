@@ -512,6 +512,16 @@ async function check(name,fn){const h=harness();h.api.applyProject(await h.api.p
     assert.equal(sent.body.draft.rows[0].inputs.O,123.456789012345);assert.equal(sent.body.composer,undefined);assert.equal(sent.body.download.project_token,'original-token');assert.equal(sent.body.project_details.client,'Original client');h.target.project_token='later';h.details.client='Later';h.pricing.rates.original.price=99;h.api.applyProject(await h.api.prepareDefaults());
     pending.resolve({ok:true,headers:{get:()=> 'application/json'},json:async()=>({saved:true,path:`C:/Original/report.${kind}`,filename:`report.${kind}`,destination:'project'})});await saving;assert.match(h.byId('penetration-schedule-message').textContent,/C:\/Original\/report/);assert.match(h.byId('penetration-schedule-message').textContent,/later changes are not included/);
   });
+  await check('The composer Firestopping Schedule action exports the independent schedule even with invalid composer fields',async h=>{
+    h.audit.state.draft.rows[0].inputs.T='SCHEDULE ONLY';h.audit.state.draft.rows[0].inputs.O=4.123456789012345;await h.audit.addToSchedule();
+    h.audit.state.draft.rows[0].inputs.T='COMPOSER ONLY';h.audit.state.invalid.set('composer-only','invalid');h.audit.queueDiagram('composer.png','Y29tcG9zZXI=');h.audit.render();
+    assert.equal(h.byId('penetration-item-pdf').disabled,true);assert.equal(h.byId('penetration-item-schedule-pdf').disabled,false);
+    const before=copy(h.api.projectSnapshot());let sent;h.context.fetch=async(path,options)=>{sent={path,body:JSON.parse(options.body)};return{ok:true,headers:{get:()=> 'application/json'},json:async()=>({saved:true,path:'C:/Fixture/schedule.pdf',filename:'schedule.pdf',destination:'project'})};};
+    await h.byId('penetration-item-schedule-pdf').emit('click');assert.equal(sent.path,'/api/penetration/report.pdf');
+    assert.deepEqual(sent.body.draft,before.draft);assert.equal(sent.body.draft.rows[0].inputs.O,4.123456789012345);assert.equal(sent.body.item,undefined);assert.equal(sent.body.diagram,undefined);
+    assert.deepEqual(sent.body.configuration,h.pricing);assert.deepEqual(copy(h.api.projectSnapshot()),before);assert.equal(h.audit.state.invalid.size,1);
+    h.audit.state.schedule.invalid.set(JSON.stringify([h.audit.state.schedule.draft.rows[0].id,'O']),'invalid');h.audit.render();assert.equal(h.byId('penetration-item-schedule-pdf').disabled,true);
+  });
   for(const kind of ['pdf','xlsx'])await check(`Current Item ${kind.toUpperCase()} captures only the unsaved composer and diagram, never Schedule rows`,async h=>{
     h.audit.state.draft.rows[0].inputs.T='SCHEDULE ONLY';await h.audit.addToSchedule();
     h.audit.state.draft.rows[0].inputs.T='CURRENT UNSAVED ONLY';h.audit.queueDiagram('current.png','aW1hZ2U=');

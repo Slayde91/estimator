@@ -145,10 +145,12 @@ def _paint_legend(pdf, rows, width, height, spec, page_number, *, continuation=F
     y = separator-10
     annotation_count = sum(annotation['page'] == page_number for annotation in spec.get('annotations', []))
     signature_count = sum(signature['page'] == page_number for signature in spec.get('signatures', []))
+    graphic_count = sum(graphic['page'] == page_number for graphic in spec.get('graphics', []))
     has_marks = any(item['geometry']['page'] == page_number for item in spec['items'])
     annotation_label = f"{annotation_count} free Call-out{'s' if annotation_count != 1 else ''} (drawing notes only)"
     signature_label = f"{signature_count} signature{'s' if signature_count != 1 else ''} (visual marks only)"
-    visual_label = '; '.join(label for count, label in ((annotation_count, annotation_label), (signature_count, signature_label)) if count)
+    graphic_label = f"{graphic_count} PDF markup{'s' if graphic_count != 1 else ''} (visual marks only)"
+    visual_label = '; '.join(label for count, label in ((annotation_count, annotation_label), (signature_count, signature_label), (graphic_count, graphic_label)) if count)
     if not rows:
         pdf.drawString(20, y-10, 'Markup details continue on the following legend page.' if has_marks
                        else visual_label + '; no measurement markups.' if visual_label
@@ -415,6 +417,111 @@ def _paint_signatures(pdf, signatures, matrix):
         pdf.restoreState()
 
 
+def _graphic_text_lines(value, font, size, width):
+    """Literal Unicode through the bundled font; no HTML interpretation or loss."""
+    from reportlab.pdfbase.pdfmetrics import getFont, stringWidth
+    lines, line, used = [], '', 0
+    for character in value.replace('\r\n', '\n').replace('\r', '\n').replace('\t', '    '):
+        if character == '\n':
+            lines.append(line); line, used = '', 0
+            continue
+        if ord(character) not in getFont(font).face.charToGlyph:
+            raise ValueError('A PDF markup contains a character unsupported by the drawing PDF font. Edit that character before exporting; its original text is retained.')
+        advance = stringWidth(character, font, size)
+        if advance > width:
+            raise ValueError('A PDF markup box is too narrow for its text. Enlarge it or reduce the font size.')
+        if line and used + advance > width:
+            lines.append(line); line, used = '', 0
+        line += character; used += advance
+    return lines + [line]
+
+
+def _cloud_path(pdf, width, height):
+    # Lobes stay inside the supplied quad and have at most 256 cubic segments.
+    radius = min(8, width/8, height/8)
+    corners = [(radius, radius), (width-radius, radius),
+               (width-radius, height-radius), (radius, height-radius)]
+    path = pdf.beginPath(); path.moveTo(*corners[0])
+    for a, b in zip(corners, corners[1:] + corners[:1]):
+        dx, dy = b[0]-a[0], b[1]-a[1]
+        length = math.hypot(dx, dy)
+        count = max(1, min(64, math.ceil(length / (2*radius))))
+        outward = (dy / length * radius, -dx / length * radius)
+        for index in range(count):
+            start, end = index/count, (index+1)/count
+            p0 = (a[0]+dx*start, a[1]+dy*start)
+            p2 = (a[0]+dx*end, a[1]+dy*end)
+            control = (a[0]+dx*(start+end)/2+outward[0], a[1]+dy*(start+end)/2+outward[1])
+            # Exact quadratic-to-cubic conversion matches the browser SVG Q.
+            path.curveTo(p0[0]+2*(control[0]-p0[0])/3, p0[1]+2*(control[1]-p0[1])/3,
+                         p2[0]+2*(control[0]-p2[0])/3, p2[1]+2*(control[1]-p2[1])/3,
+                         *p2)
+    path.close()
+    return path
+
+
+def _paint_graphics(pdf, graphics, matrix, bounds):
+    """Paint independent drawing notes in source geometry, never measurement rows."""
+    from reportlab.lib.colors import HexColor
+    left, bottom, right, top = bounds
+    for graphic in graphics:
+        style, kind, geometry = graphic['appearance'], graphic['kind'], graphic['geometry']
+        pdf.saveState()
+        clip = pdf.beginPath(); clip.rect(left, bottom, right-left, top-bottom)
+        pdf.clipPath(clip, stroke=0, fill=0)
+        pdf.setStrokeColor(HexColor(style['stroke_color'])); pdf.setFillColor(HexColor(style['fill_color']))
+        pdf.setLineWidth(style['stroke_width']); pdf.setLineCap(1); pdf.setLineJoin(1)
+        pdf.setStrokeAlpha(style['opacity']); pdf.setFillAlpha(style['opacity'])
+        if 'quad_pdf' in geometry:
+            q0, q1, _, q3 = [transform(point, matrix) for point in geometry['quad_pdf']]
+            width, height = math.dist(q0, q1), math.dist(q0, q3)
+            # Local x follows TL->TR; local y points upward from BL. This keeps
+            # text aligned with its semantic quad even on rotated/CropBox pages.
+            pdf.transform((q1[0]-q0[0])/width, (q1[1]-q0[1])/width,
+                          (q0[0]-q3[0])/height, (q0[1]-q3[1])/height, q3[0], q3[1])
+            if kind == 'cloud':
+                pdf.drawPath(_cloud_path(pdf, width, height), stroke=1, fill=int(style['fill_enabled']))
+            elif kind == 'circle':
+                pdf.ellipse(0, 0, width, height, stroke=1, fill=int(style['fill_enabled']))
+            elif kind == 'stamp':
+                pdf.roundRect(0, 0, width, height, 3, stroke=1, fill=int(style['fill_enabled']))
+            else:
+                pdf.rect(0, 0, width, height, stroke=1, fill=int(style['fill_enabled']))
+            if kind in ('textbox', 'stamp'):
+                padding = min(6, width/8, height/8)
+                font = 'ExportVeraBold' if kind == 'stamp' else 'ExportVera'
+                size = style['font_size']
+                lines = _graphic_text_lines(graphic['text'], font, size, width-2*padding)
+                if kind == 'stamp' and len(lines) != 1:
+                    raise ValueError('A Stamp must fit on one line. Enlarge its box, reduce the font size or shorten the text before exporting.')
+                if len(lines) * size * 1.25 > height-2*padding:
+                    raise ValueError('A PDF markup contains more text than its box can display. Enlarge the box, reduce the font size or shorten the text before exporting.')
+                pdf.setFont(font, size); pdf.setFillColor(HexColor(style['font_color']))
+                for index, line in enumerate(lines):
+                    y = height-padding-size-index*size*1.25
+                    if kind == 'stamp':
+                        pdf.drawCentredString(width/2, y, line)
+                    else:
+                        pdf.drawString(padding, y, line)
+        else:
+            placed = [transform(point, matrix) for point in geometry['points']]
+            path = pdf.beginPath(); path.moveTo(*placed[0])
+            for point in placed[1:]:
+                path.lineTo(*point)
+            if kind == 'polygon': path.close()
+            pdf.drawPath(path, stroke=1, fill=int(kind == 'polygon' and style['fill_enabled']))
+            if kind == 'arrow':
+                a, tip = placed
+                length = math.dist(a, tip); ux, uy = (tip[0]-a[0])/length, (tip[1]-a[1])/length
+                size = min(length/3, max(8, style['stroke_width']*4))
+                head = pdf.beginPath()
+                head.moveTo(tip[0]-size*ux-size*.5*uy, tip[1]-size*uy+size*.5*ux)
+                head.lineTo(*tip)
+                head.lineTo(tip[0]-size*ux+size*.5*uy, tip[1]-size*uy-size*.5*ux)
+                pdf.drawPath(head, stroke=1, fill=0)
+        pdf.restoreState()
+
+
 def _paint_markups(pdf, items, matrix, drawing_bounds=None, physical_zoom=None):
     from reportlab.lib.colors import HexColor
     for item in items:
@@ -625,6 +732,8 @@ def render_document(source, spec, output):
         _paint_annotations(pdf, [annotation for annotation in spec.get('annotations', []) if annotation['page'] == index+1], matrix,
                            (drawing_left, legend_height, drawing_left+drawing_width, height))
         _paint_signatures(pdf, [signature for signature in spec.get('signatures', []) if signature['page'] == index+1], matrix)
+        _paint_graphics(pdf, [graphic for graphic in spec.get('graphics', []) if graphic['page'] == index+1], matrix,
+                        (drawing_left, legend_height, drawing_left+drawing_width, height))
         if not physical:
             _paint_legend(pdf, first_rows, width, legend_height, spec, index+1)
         # Blank physical pages still need one overlay page after legends are removed.

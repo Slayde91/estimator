@@ -357,3 +357,11 @@ dialog.takeoff-column-filter{position:fixed;box-sizing:border-box;width:280px;ma
 .takeoff-signature{cursor:move}.takeoff-signature-resize{cursor:nwse-resize}
 .takeoff-signature-dialog{width:min(680px,calc(100vw - 32px))}
 .takeoff-signature-preview{display:block;max-width:100%;color:var(--text)}
+.takeoff-workspace-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 20px; }
+.takeoff-workspace-heading .takeoff-workspace-title { margin: 0; }
+.takeoff-pdf-tools-menu > button { display: inline-flex; align-items: center; justify-content: space-between; gap: 24px; }
+.takeoff-pdf-tools-menu .calculator-document-actions { left: auto; right: 0; min-width: 230px; }
+.takeoff-graphic-tool svg { width: 24px; height: 24px; }
+.takeoff-graphic { cursor: pointer; }
+.takeoff-graphic-text { grid-column: 1 / -1; }
+.takeoff-graphic-text textarea { min-height: 100px; }

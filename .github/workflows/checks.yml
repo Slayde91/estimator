@@ -32,7 +32,7 @@ jobs:
       - run: node --check static/takeoff-graphics.js
       - run: node --check static/takeoff-graphics-ui.js
       - run: node --check static/takeoff-pdf-tools.js
-      - run: node --test tests/test_takeoff_graphics.cjs tests/test_takeoff_pdf_tools.cjs
+      - run: node --test tests/test_takeoff_graphics.cjs tests/test_takeoff_graphics_ui.cjs tests/test_takeoff_pdf_tools.cjs
       - run: node --check static/help-glossary.js
       - run: node --test tests/test_help_glossary.cjs tests/test_takeoff_signatures.cjs tests/test_takeoff_area_copy_visibility_ui.cjs
       - run: node --check static/takeoff-library-links.js

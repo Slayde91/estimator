@@ -88,7 +88,10 @@ async function saveLoad(info) {
   assert.deepEqual(JSON.parse(fs.readFileSync(info.project,"utf8")).takeoffs.graphics,before.graphics);
   const opening=page.waitForResponse(v=>v.url().endsWith("/api/project/open"));opening.catch(()=>{});await clickProjectControl(page,"Load");assert.equal((await opening).status(),200);
   await page.getByRole("dialog").getByRole("button",{name:"Load Project",exact:true}).click();await expect(page.locator("#project-save-state")).toHaveText("Saved project");
-  await page.getByRole("button",{name:"Takeoffs",exact:true}).click();await chooseTakeoff(page,"wall");const after=await snapshot();assert.deepEqual(after.graphics,before.graphics);invariant(after,before);return after;
+  await renderDrawing(page,async()=>{await page.getByRole("button",{name:"Takeoffs",exact:true}).click();await chooseTakeoff(page,"wall");},1);
+  const after=await snapshot();assert.deepEqual(after.graphics,before.graphics);invariant(after,before);
+  const visible=after.graphics.records.filter(value=>["wall","slab"].includes(value.mode)&&value.page===1);
+  await expect(page.locator(".takeoff-graphic")).toHaveCount(visible.length);for(const value of visible)await expect(graphic(value.id)).toBeVisible();return after;
 }
 async function unfinishedGuards() {
   const before=await snapshot(), count=requests.length, writes=projectWrites.length;

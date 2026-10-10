@@ -8,10 +8,19 @@ window.CeasefireTakeoffGraphicsUI = function (host) {
   const selected = () => records().find(value => value.id === state.graphicSelected && signatureInWorkspace(value) && value.document_id === state.document && value.page === state.page);
   const key = () => JSON.stringify([pageDisplayKey(), signatureMode(), selected()?.id]);
   const isTool = () => state.tool.startsWith("graphic-");
+  let activationGeneration = 0;
+  const activationKey = () => JSON.stringify([pageDisplayKey(), signatureMode(), state.session?.revision, currentDocument()?.sha256, state.active, state.tool, state.graphicSelected, state.annotationSelected, state.signatureSelected, state.legendSelected, [...state.selected], [...state.countSelection], [...state.physicalSelected], state.physicalDetailsOpen, state.settingsOpen, state.viewportsOpen, state.calibrationTarget, state.retraceId, state.exclusionItemId, state.pendingViewport, state.signatureDraft]);
   async function activate(kind) {
-    await flushSettings(); requireFinishedEdits();
+    const generation = ++activationGeneration;
+    if (!X.kinds.includes(kind)) throw new Error("Choose a supported PDF markup tool.");
+    await flushSettings();
+    if (generation !== activationGeneration) throw new Error("A newer PDF markup tool was selected.");
+    requireFinishedEdits();
     if (!state.viewport || !currentDocument()) throw new Error("Open a PDF page before adding a markup.");
+    const context = activationKey();
     await Promise.all([document.fonts.load("12px CeasefireDrawing"), document.fonts.load("700 12px CeasefireDrawing")]);
+    if (generation !== activationGeneration || context !== activationKey() || state.busy || state.modal || state.navigationBusy || !state.viewport) throw new Error("The drawing changed while loading the markup font. Select the tool again.");
+    requireFinishedEdits();
     cancelTrace(); state.settingsOpen = false; state.settingsEditor = null; state.graphicSelected = null; state.selected.clear(); state.annotationSelected = null; state.signatureSelected = null;
     setTool(`graphic-${kind}`); renderSelection();
     message(X.boxes.has(kind) ? `${X.labels[kind]}: click two opposite corners. Escape cancels.` : `${X.labels[kind]}: click each point, then press Enter or double-click to finish. Escape cancels.`);

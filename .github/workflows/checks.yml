@@ -84,6 +84,9 @@ jobs:
       - run: npm run test:estimator-header-state
       - run: npm run test:calculator-navigation
       - run: npm run test:document-menus
+      - run: npm run test:library-documents
+      - run: npm run test:library-link-picker
+      - run: npm run test:penetration-item-exports
       - run: npm run test:calculator-cleanup
       - run: npm run test:page-rotation
       - run: npm run test:viewer-pan-scale

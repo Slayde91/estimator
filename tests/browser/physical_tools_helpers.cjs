@@ -2,8 +2,8 @@
 const assert = require('node:assert/strict');
 const { expect } = require('@playwright/test');
 
-// Read rendered controls in a disposable fixture; retain the real Schedule as
-// the visual reference rather than inventing a separate expected Undo style.
+// Read rendered controls in a disposable fixture. Undo size follows its actual
+// left-hand selection icon; its existing Schedule glyph/style remains intact.
 async function assertPhysicalTools(page) {
   assert.notEqual(new URL(page.url()).port, '8765');
   await page.mouse.move(0, 0);
@@ -16,7 +16,7 @@ async function assertPhysicalTools(page) {
     const filter = el.querySelector('input[type=search]'), first = filter.parentElement;
     const actions = el.querySelector('.takeoff-physical-actions-row');
     const button = label => el.querySelector(`[aria-label="${label}"]`);
-    const undo = button('Undo last edit'), reference = document.querySelector('#penetration-undo');
+    const undo = button('Undo last edit'), reference = document.querySelector('#penetration-undo'), selection = button('Select filtered records');
     const box = control => { const r = control.getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height, right: r.right, bottom: r.bottom }; };
     const style = control => Object.fromEntries(['display','alignItems','justifyItems','width','height','paddingTop','paddingRight','paddingBottom','paddingLeft','borderTopWidth','borderTopColor','borderTopLeftRadius','color','backgroundColor','fontSize','fontWeight','boxShadow'].map(key => [key, getComputedStyle(control)[key]]));
     const glyph = control => Object.fromEntries(['fontFamily','fontSize','fontWeight','lineHeight','color'].map(key => [key, getComputedStyle(control.querySelector('.button-symbol'))[key]]));
@@ -28,6 +28,7 @@ async function assertPhysicalTools(page) {
       firstRowOwnsFilterSelectionUndo: first.classList.contains('takeoff-physical-filter-row') && undo.parentElement === first && button('Select filtered records').parentElement === first && [...first.querySelectorAll('label')].some(label => label.textContent === 'Show deleted records'),
       adjacentRows: first.nextElementSibling === actions,
       undo: { box: box(undo), style: style(undo), glyph: glyph(undo) },
+      selection: { box: box(selection), directlyBeforeUndo: undo.previousElementSibling === selection },
       scheduleUndo: { style: style(reference), glyph: glyph(reference), text: reference.querySelector('.button-symbol').textContent },
     };
   });
@@ -40,9 +41,9 @@ async function assertPhysicalTools(page) {
     assert.ok(Math.abs(measured.controls[index].x - measured.controls[index - 1].right - 8) < 1, 'Each action follows its neighbour, with Document immediately after Unlink');
   }
   assert.ok(measured.controls.at(-1).right <= measured.register.right + 1, 'The action row fits the register');
-  assert.equal(measured.undo.box.width, 48); assert.equal(measured.undo.box.height, 48);
+  assert.equal(measured.selection.directlyBeforeUndo,true);assert.equal(measured.undo.box.width,measured.selection.box.width);assert.equal(measured.undo.box.height,measured.selection.box.height);assert.equal(measured.undo.box.width,38);assert.equal(measured.undo.box.height,38);
   assert.equal(measured.scheduleUndo.text, '↶');
-  assert.deepEqual(measured.undo.style, measured.scheduleUndo.style, 'Physical Undo matches the actual Firestopping Schedule button');
+  assert.deepEqual(measured.undo.style, {...measured.scheduleUndo.style,width:measured.selection.box.width+'px',height:measured.selection.box.height+'px'}, 'Physical Undo retains its Schedule styling with the requested adjacent-icon dimensions');
   assert.deepEqual(measured.undo.glyph, measured.scheduleUndo.glyph, 'Undo uses the same Schedule symbol font and colour');
   return measured;
 }

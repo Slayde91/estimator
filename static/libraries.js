@@ -22,6 +22,7 @@
   const diagramCaption = (kind, caption) => (kind === "penetration" ? String(caption || "").replace(/(?:^|\s+|\s*[·|—–-]\s*)(?:'?CALC'?!\$?[A-Z]{1,3}\$?\d+(?::\$?[A-Z]{1,3}\$?\d+)?|CALC\s+row\s+\d+)\s*$/i, "").trim() : caption) || "Source diagram";
   const validId = value => typeof value === "string" && value.length > 0;
   const validAssetId = value => typeof value === "string" && /^[A-Za-z0-9_-]+$/.test(value);
+  const linkFacets = [["report", "Report"], ["substrate", "Substrate"], ["orientation", "Orientation"], ["manufacturer", "Manufacturer"], ["category", "Category"], ["services", "Services"], ["frl", "FRL"]];
   const validDiagramUrl = value => typeof value === "string" && /^\/api\/libraries\/penetration\/[a-z0-9][a-z0-9_-]{0,119}\/image$/.test(value);
   const integer = (value, fallback = 0) => Number.isSafeInteger(value) && value >= 0 ? value : fallback;
   const valueText = value => value === null || value === undefined || value === "" ? "Not recorded" : typeof value === "object" ? JSON.stringify(value, null, 2) : String(value);
@@ -181,9 +182,9 @@
     const actions = node("div", "library-item-actions");
     if (item.editable) { const edit = button("Edit", () => editItem(pane, item.id), "button library-edit-button"); edit.dataset.libraryEdit = item.id; actions.append(edit); }
     const link = symbolButton("🔗︎", "Link Library Item", () => openLinkPicker(pane, item, link)); link.className += " link-action-button"; link.dataset.libraryLink = item.id;
-    const add = button("", () => addToSchedule(pane, item.id), "button primary penetration-add-action");
-    const plus = node("span", "", "+"); plus.setAttribute("aria-hidden", "true");
-    add.append(plus, node("span", "sr-only", "Add to Schedule"));
+    const add = button("", () => addToSchedule(pane, item.id), "button secondary takeoff-physical-icon-action library-add-transfer");
+    const transfer = node("img", "takeoff-transfer-icon"); transfer.src = "/icons/takeoff-transfer.png"; transfer.alt = ""; transfer.width = transfer.height = 24; transfer.setAttribute("aria-hidden", "true");
+    add.append(transfer, node("span", "sr-only", "Add to Schedule"));
     add.dataset.libraryAdd = item.id; add.title = "Add to Schedule"; add.setAttribute("aria-label", "Add to Schedule");
     const status = node("p", "message error library-action-message", pane.addErrors.get(item.id) || ""); status.hidden = !status.textContent; status.setAttribute("role", "status");
     const remove = button("", () => deleteItem(pane, item), "button library-delete library-delete-button");
@@ -257,11 +258,41 @@
   function updateLinkSave(session) {
     const count = session.selected.size;
     session.save.textContent = count ? `Save links (${count})` : "Save links";
-    session.save.disabled = !count || session.busy || session.saving;
+    session.save.disabled = !count || session.busy || session.saving || !session.available;
+    session.selectionCount.textContent = `${count} selected ${count === 1 ? "reference" : "references"}. Selections are kept across search, filters and pages.`;
+  }
+  function renderLinkFilters(pane, session, filters) {
+    // Use the same server-owned definitions as Technical Library discovery.
+    // A missing/malformed facet stays unavailable; no fact or rating is inferred.
+    session.filterDefinitions = filters;
+    const definitions = new Map();
+    for (const filter of Array.isArray(filters) ? filters : []) {
+      if (!filter || !linkFacets.some(([key]) => key === filter.key) || !Array.isArray(filter.options)) continue;
+      if (definitions.has(filter.key)) { definitions.set(filter.key, null); continue; }
+      definitions.set(filter.key, filter);
+    }
+    session.filterInputs = [];
+    session.filterControls.replaceChildren(...linkFacets.map(([key, title]) => {
+      const definition = definitions.get(key), label = node("label", "field"), control = node("select"), all = node("option", "", definition ? `All ${title}` : `${title} unavailable`); all.value = "";
+      control.dataset.libraryLinkFilter = key; control.append(all); control.disabled = !definition || session.saving;
+      for (const option of definition?.options || []) {
+        const value = option && typeof option === "object" ? option.value : option, text = option && typeof option === "object" ? option.label : option;
+        if (typeof value !== "string" || !value.trim() || !["string", "undefined"].includes(typeof text) || [...control.children].some(item => item.value === value)) continue;
+        const entry = node("option", "", text ?? value); entry.value = value; control.append(entry);
+      }
+      const selected = session.filters[key] || "";
+      if (selected && ![...control.children].some(item => item.value === selected)) { const retained = node("option", "", selected); retained.value = selected; control.append(retained); }
+      control.value = selected;
+      control.addEventListener("change", () => {
+        if (pane.linkSession !== session || session.saving || control.disabled) return;
+        session.filters[key] = control.value; session.offset = 0; loadLinkResults(pane, session);
+      });
+      session.filterInputs.push(control); label.append(node("span", "", title), control); return label;
+    }));
   }
   function openLinkPicker(pane, item, opener) {
     closeLinkPicker(pane); invalidateList(pane); message(pane);
-    const session = { id: item.id, search: "", offset: 0, limit: 20, total: 0, selected: new Set(), revision: 0, abort: null, timer: null, busy: false, saving: false, choices: [] };
+    const session = { id: item.id, search: "", filters: {}, offset: 0, limit: 20, total: 0, selected: new Set(), revision: 0, abort: null, timer: null, busy: false, saving: false, available: false, choices: [], filterInputs: [] };
     pane.linkSession = session; pane.list.hidden = pane.detailPanel.hidden = true; pane.linkPanel.hidden = false;
     const heading = node("h3", "", "Link Library Item"); heading.id = "library-link-heading"; heading.tabIndex = -1; pane.linkPanel.setAttribute("aria-labelledby", heading.id);
     const cancel = button("Cancel", async () => {
@@ -272,14 +303,18 @@
     const controls = node("div", "library-controls"), label = node("label", "field library-search"); session.searchInput = node("input"); session.searchInput.type = "search"; session.searchInput.maxLength = 400; session.searchInput.dataset.libraryLinkSearch = "";
     label.append(node("span", "", "Search Technical Library"), session.searchInput);
     session.refresh = button("Search", () => loadLinkResults(pane, session)); controls.append(label, session.refresh);
+    session.clear = button("Clear filters", () => { if (pane.linkSession !== session || session.saving) return; session.search = ""; session.searchInput.value = ""; session.filters = {}; session.offset = 0; loadLinkResults(pane, session); }); session.clear.dataset.libraryLinkClear = ""; controls.append(session.clear);
+    session.filterControls = node("div", "library-filters library-link-filters");
     session.message = node("div", "message"); session.message.hidden = true; session.message.setAttribute("role", "status");
     session.count = node("p", "helper"); session.count.setAttribute("role", "status"); session.results = node("div", "library-link-results");
-    session.previous = button("Previous", () => { session.offset = Math.max(0, session.offset - session.limit); loadLinkResults(pane, session); });
-    session.next = button("Next", () => { session.offset += session.limit; loadLinkResults(pane, session); });
+    session.selectionCount = node("p", "helper library-link-selection"); session.selectionCount.setAttribute("role", "status");
+    session.previous = button("Previous", () => { if (session.busy || session.saving || pane.linkSession !== session) return; session.offset = Math.max(0, session.offset - session.limit); loadLinkResults(pane, session); });
+    session.next = button("Next", () => { if (session.busy || session.saving || pane.linkSession !== session) return; session.offset += session.limit; loadLinkResults(pane, session); });
     session.save = button("Save links", () => saveLink(pane, session), "button link-action-button"); session.save.dataset.libraryLinkSave = ""; session.save.disabled = true;
     const pages = node("nav", "library-pagination"); pages.setAttribute("aria-label", "Technical reference choices"); pages.append(session.previous, session.next);
     const actions = node("div", "library-item-actions"); actions.append(session.save, cancel);
-    pane.linkPanel.replaceChildren(heading, node("p", "library-subtitle", item.title || item.id), node("p", "helper", "Choose one or more Technical Library items to link."), controls, session.message, session.count, session.results, pages, actions);
+    pane.linkPanel.replaceChildren(heading, node("p", "library-subtitle", item.title || item.id), node("p", "helper", "Choose one or more Technical Library items to link."), controls, session.filterControls, session.message, session.count, session.selectionCount, session.results, pages, actions);
+    renderLinkFilters(pane, session, state.metadata?.libraries?.find(library => library.id === "technical")?.filters); updateLinkSave(session);
     session.searchInput.addEventListener("input", () => {
       if (session.saving || pane.linkSession !== session) return;
       session.search = session.searchInput.value.trim(); session.offset = 0; session.busy = true; ++session.revision; session.abort?.abort(); clearTimeout(session.timer); session.save.disabled = session.previous.disabled = session.next.disabled = true; session.count.textContent = "Searching…";
@@ -290,19 +325,25 @@
   async function loadLinkResults(pane, session) {
     if (pane.linkSession !== session || session.saving) return;
     clearTimeout(session.timer); session.abort?.abort(); session.abort = new AbortController(); const revision = ++session.revision;
-    session.busy = true; session.save.disabled = session.previous.disabled = session.next.disabled = true;
+    session.busy = true; session.available = false; session.save.disabled = session.previous.disabled = session.next.disabled = true;
     session.choices = []; session.results.replaceChildren(); session.results.setAttribute("aria-busy", "true"); session.count.textContent = "Searching…"; linkMessage(session);
     const query = new URLSearchParams({ search: session.search, offset: String(session.offset), limit: String(session.limit) });
+    for (const [key] of linkFacets) if (session.filters[key]) query.set(key, session.filters[key]);
     try {
       const data = await request(`/api/libraries/technical?${query}`, session.abort.signal);
       if (pane.linkSession !== session || revision !== session.revision) return;
+      if (!data || !Array.isArray(data.items) || !Number.isSafeInteger(data.total) || data.total < 0 || !Number.isSafeInteger(data.offset) || data.offset < 0 || data.items.some(item => !item || !validId(item.id)) || new Set(data.items.map(item => item.id)).size !== data.items.length) throw new Error("The Technical Library returned an invalid result page.");
+      if (data.offset !== session.offset || data.items.length > session.limit) throw new Error("The Technical Library returned an unexpected result page.");
+      if (!data.items.length && data.total > 0 && session.offset >= data.total) { session.offset = Math.floor((data.total - 1) / session.limit) * session.limit; await loadLinkResults(pane, session); return; }
+      if (data.items.length && data.offset + data.items.length > data.total) throw new Error("The Technical Library returned an inconsistent result count.");
       session.total = integer(data.total); session.offset = integer(data.offset, session.offset);
+      session.available = true; renderLinkFilters(pane, session, data.filters);
       const items = Array.isArray(data.items) ? data.items : [];
       session.count.textContent = session.total ? `Showing ${session.offset + 1}–${session.offset + items.length} of ${session.total} technical records` : "No matching technical records.";
       session.results.replaceChildren(...items.map(item => {
         const choice = node("label", "library-link-choice"), input = node("input"), description = node("span"); input.type = "checkbox"; input.value = item.id; input.checked = session.selected.has(item.id); input.dataset.libraryLinkChoice = item.id;
         description.append(node("strong", "", item.title || item.id)); if (item.subtitle) description.append(node("span", "helper", item.subtitle)); if (item.source_label) description.append(node("span", "helper", item.source_label));
-        input.addEventListener("change", () => { if (pane.linkSession !== session || session.busy || session.saving) return; if (input.checked) session.selected.add(item.id); else session.selected.delete(item.id); updateLinkSave(session); }); session.choices.push(input); choice.append(input, description); return choice;
+        input.addEventListener("change", () => { if (pane.linkSession !== session || revision !== session.revision || session.busy || session.saving) return; if (input.checked) session.selected.add(item.id); else session.selected.delete(item.id); updateLinkSave(session); }); session.choices.push(input); choice.append(input, description); return choice;
       }));
     } catch (error) { if (pane.linkSession === session && revision === session.revision && error.name !== "AbortError") { session.total = 0; session.count.textContent = "Technical records unavailable."; linkMessage(session, `${error.message} Use Search to retry.`, true); } }
     finally {
@@ -310,8 +351,9 @@
     }
   }
   async function saveLink(pane, session) {
-    if (pane.linkSession !== session || session.saving || session.busy || !session.selected.size) return;
-    const technicalIds = [...session.selected]; session.saving = true; session.save.disabled = session.cancel.disabled = session.searchInput.disabled = session.refresh.disabled = session.previous.disabled = session.next.disabled = true; linkMessage(session, "Saving links…");
+    if (pane.linkSession !== session || session.saving || session.busy || !session.available || !session.selected.size) return;
+    const technicalIds = [...session.selected]; session.saving = true; session.save.disabled = session.cancel.disabled = session.searchInput.disabled = session.refresh.disabled = session.clear.disabled = session.previous.disabled = session.next.disabled = true; linkMessage(session, "Saving links…");
+    for (const control of session.filterInputs) control.disabled = true;
     for (const choice of session.choices) choice.disabled = true;
     try {
       const receipt = await request(`/api/libraries/penetration/${encodeURIComponent(session.id)}/links`, null, { technical_ids: technicalIds });
@@ -325,7 +367,7 @@
       }
     } catch (error) { if (pane.linkSession === session) linkMessage(session, `Saving the reference links was not confirmed. ${error.message} Retry to check the same links.`, true); }
     finally {
-      if (pane.linkSession === session) { session.saving = false; session.cancel.disabled = session.searchInput.disabled = session.refresh.disabled = false; for (const choice of session.choices) choice.disabled = false; updateLinkSave(session); session.previous.disabled = session.offset === 0; session.next.disabled = session.offset + session.limit >= session.total; }
+      if (pane.linkSession === session) { session.saving = false; session.cancel.disabled = session.searchInput.disabled = session.refresh.disabled = session.clear.disabled = false; renderLinkFilters(pane, session, session.filterDefinitions); for (const choice of session.choices) choice.disabled = false; updateLinkSave(session); session.previous.disabled = session.offset === 0; session.next.disabled = session.offset + session.limit >= session.total; }
     }
   }
   async function unlinkReference(pane, item, link) {

@@ -6,6 +6,24 @@ They share project details and one effective pricing snapshot. Schedule material
 labour costs and days are included once in the main quote summary and quote PDF.
 The independent current item contributes only after it is added to the schedule.
 
+The Current item Document menu downloads only the captured, potentially unsaved
+composer item as PDF or XLSX; adding it to the Schedule is not required. The PDF
+includes its descriptive inputs, calculated costs and bounded source diagram.
+XLSX retains every raw/effective item field, source column, settings and source
+identity as values, with no formulas or other schedule rows. A pending local
+PNG/JPEG/WebP image is rendered through the existing bounded image renderer;
+otherwise a linked managed Library image is used. An unavailable explicit link
+blocks PDF with a clear error; XLSX still retains the item fields and records
+the unavailable diagram identity. An item with no diagram is clearly labelled. These read-only routes
+(`/api/penetration/item.pdf` and `/api/penetration/item.xlsx`) accept one `item`,
+`globals`, `configuration` and optional `diagram`/download destination. Schedule
+collections, attachment lists, source paths and remote URLs are rejected.
+
+Pipe Labour's SETTINGS task-hour panel starts collapsed. Explicit expansion or
+collapse is preserved across rerenders as view state, without changing bands,
+hours, project fields, pricing or the calculation engine. Schedule Document
+actions remain separate and continue to download the complete schedule.
+
 The visible name is Firestopping Estimator. Source filenames, the internal
 `penetration` project key and `/api/penetration` routes remain unchanged for
 compatibility. The Firestopping Library uses a separate single-item editor with

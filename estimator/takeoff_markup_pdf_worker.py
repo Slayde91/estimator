@@ -86,6 +86,9 @@ def _legend_rows(items, width, style):
             quantity = f"{item['quantity']} markers counted"
         if item['mode'] in ('wall', 'slab') and item.get('purpose') != 'length-only':
             value = item.get('net_area_m2'); quantity = f'{value:.2f} m2 net' if isinstance(value, (int, float)) and math.isfinite(value) else 'Net area unavailable'
+            if 'layers' in item:
+                total = item.get('total_area_m2')
+                quantity += f" x {item['layers']} layers; " + (f'{total:.2f} m2 total' if isinstance(total, (int, float)) and math.isfinite(total) else 'Total area unavailable')
         text = (f"<b>{item['legend_number']}. {_text(item['mark'])}</b> | {_text(detail)} | {quantity} | "
                 + ('Confirmed' if item['confirmed'] else '<b>Unconfirmed</b>')
                 + f"<br/>{_text(item['linked_result'])}<br/><font size='6'>{item['id']}</font>")

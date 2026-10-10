@@ -126,6 +126,27 @@ class TakeoffDisplayValuePDFTests(unittest.TestCase):
         self.assertEqual(result['net_area_m2'], 50)
         self.assertEqual(case.case.service.get(case.case.session['session_id'])['snapshot'], before)
 
+    def test_real_layered_surface_pdf_separates_measured_net_from_multiplied_total(self):
+        case = self.case; case.create_marks(); snapshot = case.case.session['snapshot']
+        source = case.case.documents.document_path(case.document)
+        original_source = sha256(source.read_bytes()).hexdigest()
+        calibration = snapshot['calibrations'][0]['id']
+        case.command('create_item', item={'mode': 'slab', 'quantity': 1,
+            'geometry': {'kind': 'polygon', 'document_id': case.document['id'], 'page': 1,
+                         'points': [[20, 30], [120, 30], [120, 80], [20, 80]], 'exclusions': []},
+            'measurement': {'method': 'calibrated', 'calibration_id': calibration},
+            'fields': {'mark': 'F-LAYERS', 'layers': 3, 'substrate': 'Concrete', 'frl': '120/120/120'},
+            'evidence': [], 'appearance': {'display_values': True}})
+        identifier = case.case.session['snapshot']['items'][-1]['id']
+        before = deepcopy(case.case.session['snapshot'])
+        result = next(value for value in case.case.session['item_results'] if value['id'] == identifier)
+        text = '\n'.join(page.extract_text() for page in PdfReader(BytesIO(case.export([identifier], mode='walls_floors')[0])).pages)
+        self.assertIn('50.00 m2 net x 3 layers; 150.00 m2 total', text)
+        self.assertIn('50.00 m²', text)
+        self.assertEqual((result['net_area_m2'], result['layers'], result['total_area_m2']), (50, 3, 150))
+        self.assertEqual(sha256(source.read_bytes()).hexdigest(), original_source)
+        self.assertEqual(case.case.service.get(case.case.session['session_id'])['snapshot'], before)
+
     def test_real_count_pdf_rounds_only_display_and_labels_each_entered_member_length(self):
         case = self.case; case.create_marks()
         reply = case.command('add_count_items', document_id=case.document['id'], page=2,

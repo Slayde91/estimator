@@ -1,0 +1,100 @@
+/* Theme colors apply to application chrome, never drawing/image pixels or data. */
+:root {
+  --theme-button: #b90a15;
+  --theme-button-hover: #920711;
+  --theme-focus: #b90a15;
+}
+.header-tools { display:flex; align-items:flex-start; gap:9px; margin-top:3.5px; }
+.header-tools .header-project-actions { margin-top:0; }
+.button.theme-toggle { display:grid; place-items:center; width:48px; min-width:48px; height:48px; min-height:48px; padding:10px; color:#fff; background:var(--theme-button); border:1px solid var(--theme-button); }
+.theme-toggle svg { width:25px; height:25px; }
+.button.theme-toggle:hover { background:var(--theme-button-hover); border-color:var(--theme-button-hover); }
+.button.theme-toggle:focus-visible { outline:3px solid var(--theme-focus); outline-offset:4px; }
+@media(max-width:880px) { .header-tools { flex-direction:column; align-items:flex-end; gap:6px; } }
+@media(max-width:570px) { .button.theme-toggle { width:44px; min-width:44px; height:44px; min-height:44px; padding:9px; } }
+@media(max-width:420px) { .header-tools { margin-top:0; } .button.theme-toggle { width:40px; min-width:40px; height:40px; min-height:40px; padding:7px; } }
+
+/* The default deliberately keeps the existing Ceasefire palette. */
+:root[data-theme="midnight"] {
+  color-scheme:dark;
+  --accent:#9bc9ff; --accent-dark:#c6dfff; --ink:#eef2f7; --muted:#b9c4d2;
+  --line:#40516a; --paper:#192433; --canvas:#101823; --navy:#17202d;
+  --theme-button:#244a75; --theme-button-hover:#2c5c93; --theme-focus:#9bc9ff;
+  --theme-surface:#192433; --theme-raised:#223147; --theme-soft:#23364c;
+  --theme-header:#151e2cf5; --theme-input:#111d2b; --theme-border:#60738c;
+  --theme-edge:#739dce; --theme-navigation:#0b121c; --theme-section:#29405c;
+}
+:root[data-theme="ocean"] {
+  color-scheme:light;
+  --accent:#155e75; --accent-dark:#164e63; --ink:#18323e; --muted:#486572;
+  --line:#ccdfe7; --paper:#fff; --canvas:#eff7fa; --navy:#173b4c;
+  --theme-button:#155e75; --theme-button-hover:#164e63; --theme-focus:#155e75;
+  --theme-surface:#fff; --theme-raised:#f4fafc; --theme-soft:#e5f2f7;
+  --theme-header:#f6fbfdf5; --theme-input:#fff; --theme-border:#718e9a;
+  --theme-edge:#155e75; --theme-navigation:#102f3e; --theme-section:#155e75;
+}
+:root[data-theme="forest"] {
+  color-scheme:light;
+  --accent:#166534; --accent-dark:#14532d; --ink:#20382a; --muted:#506758;
+  --line:#cedfd2; --paper:#fff; --canvas:#f0f7f2; --navy:#1a3d29;
+  --theme-button:#166534; --theme-button-hover:#14532d; --theme-focus:#166534;
+  --theme-surface:#fff; --theme-raised:#f5faf6; --theme-soft:#e6f2e9;
+  --theme-header:#f7fbf8f5; --theme-input:#fff; --theme-border:#738c7a;
+  --theme-edge:#166534; --theme-navigation:#142f20; --theme-section:#166534;
+}
+:root[data-theme="slate"] {
+  color-scheme:light;
+  --accent:#334155; --accent-dark:#1e293b; --ink:#243044; --muted:#526177;
+  --line:#d3dce8; --paper:#fff; --canvas:#f1f5f9; --navy:#263549;
+  --theme-button:#334155; --theme-button-hover:#1e293b; --theme-focus:#334155;
+  --theme-surface:#fff; --theme-raised:#f7f9fc; --theme-soft:#e7edf5;
+  --theme-header:#f8fafcf5; --theme-input:#fff; --theme-border:#7a899d;
+  --theme-edge:#334155; --theme-navigation:#1e293b; --theme-section:#334155;
+}
+
+/* Explicit surfaces avoid filters, canvas/image overrides and semantic status colors. */
+@media screen {
+  :root[data-theme]:not([data-theme="ceasefire"]) body { background:var(--canvas); }
+  :root[data-theme]:not([data-theme="ceasefire"]) .app-header { background:var(--theme-header); border-color:var(--line); }
+  :root[data-theme]:not([data-theme="ceasefire"]) .app-header::before { background:var(--theme-edge); }
+  :root[data-theme]:not([data-theme="ceasefire"]) :is(.app-header nav,.section-navigation-menu,.section-navigation-subgroup,.calculator-navigation-menu) { background:var(--theme-navigation); }
+  :root[data-theme]:not([data-theme="ceasefire"]) .nav-button.active { background:var(--theme-button); }
+  :root[data-theme]:not([data-theme="ceasefire"]) :is(.section-navigation-choice[aria-pressed=true],.calculator-navigation-choice[aria-pressed=true]) { background:var(--theme-button); color:#fff; }
+  :root[data-theme]:not([data-theme="ceasefire"]) :is(.card,.summary-card,.home-card,.project-tools,.estimator-choice,.project-browser-entry,dialog,.library-summary-table,.library-editor-diagram,.library-result) { background:var(--theme-surface); color:var(--ink); border-color:var(--line); }
+  :root[data-theme]:not([data-theme="ceasefire"]) :is(.card,.summary-card,.home-card,.project-tools) { border-top-color:var(--theme-edge); }
+  :root[data-theme]:not([data-theme="ceasefire"]) :is(.home-card,.estimator-choice,.project-browser-entry):hover { background:var(--theme-raised); border-color:var(--theme-border); }
+  :root[data-theme]:not([data-theme="ceasefire"]) .estimator-choice[aria-pressed=true] { background:var(--theme-soft); box-shadow:inset 3px 0 0 var(--theme-edge); }
+  :root[data-theme]:not([data-theme="ceasefire"]) :is(.primary,.home-card-icon) { background:var(--theme-button); color:#fff; border-color:var(--theme-button); }
+  :root[data-theme]:not([data-theme="ceasefire"]) .primary:hover { background:var(--theme-button-hover); border-color:var(--theme-button-hover); }
+  :root[data-theme]:not([data-theme="ceasefire"]) :is(.secondary,.recalculate-button,.link-action-button,.library-edit-button,.library-delete-button,.penetration-header-action) { background:var(--theme-surface); color:var(--ink); border-color:var(--theme-border); }
+  :root[data-theme]:not([data-theme="ceasefire"]) :is(.secondary,.recalculate-button,.link-action-button,.library-edit-button,.library-delete-button,.penetration-header-action):hover { background:var(--theme-soft); color:var(--accent); }
+  :root[data-theme]:not([data-theme="ceasefire"]) :is(input,select,textarea):not([aria-invalid=true]) { background:var(--theme-input); color:var(--ink); border-color:var(--theme-border); }
+  :root[data-theme]:not([data-theme="ceasefire"]) :is(input,select,textarea)[readonly] { background:var(--theme-soft); }
+  :root[data-theme]:not([data-theme="ceasefire"]) :is(input,select,textarea)::placeholder { color:var(--muted); opacity:1; }
+  :root[data-theme]:not([data-theme="ceasefire"]) :is(.field>span:first-child,.help-card p,.help-card li,.work-summary) { color:var(--ink); }
+  :root[data-theme]:not([data-theme="ceasefire"]) :is(th,.work-summary-panel,.tabs,.tab.active,.penetration-group[aria-pressed=true],.penetration-group[aria-selected=true]) { background:var(--theme-soft); color:var(--ink); border-color:var(--line); }
+  :root[data-theme]:not([data-theme="ceasefire"]) :is(td,.workflow-section) { border-color:var(--line); }
+  :root[data-theme]:not([data-theme="ceasefire"]) tbody tr:hover { background:var(--theme-raised); }
+  :root[data-theme]:not([data-theme="ceasefire"]) .grand-total { background:var(--theme-button); }
+  :root[data-theme]:not([data-theme="ceasefire"]) :is(.grand-total>span,.grand-total .currency-note) { color:#fff; }
+  :root[data-theme]:not([data-theme="ceasefire"]) :is(.calculator-workspace,.calculator-tools,.calculator-sheet-heading,.calculator-sheet-footer,.calculator-pages,.calculator-settings-chooser,.calculator-page,.calculator-settings-choice,.calculator-grid,.calculator-overview,.calculator-overview-metric,.calculator-summary-metric,.calculator-contents,.calculator-contents a,.calculator-document-card,.calculator-document-card.calculator-document-request,.calculator-projected-note,.calculator-schedule-tools) { background:var(--theme-surface); color:var(--ink); border-color:var(--theme-border); }
+  :root[data-theme]:not([data-theme="ceasefire"]) .calculator-grid { --calculator-section-bg:var(--theme-section); --calculator-section-ink:#fff; }
+  :root[data-theme]:not([data-theme="ceasefire"]) .calculator-grid [class*="calculator-section-theme-"] { --section-ink:var(--ink); --section-bg:var(--theme-surface); --section-edge:var(--theme-edge); }
+  :root[data-theme]:not([data-theme="ceasefire"]) .calculator-grid :is(.calculator-row-label,.calculator-source-heading,.calculator-role-column_header,.calculator-comparison-table th) { background:var(--theme-section); color:#fff; }
+  :root[data-theme]:not([data-theme="ceasefire"]) .calculator-grid :is(td.calculator-role-label,td.calculator-role-note,td.calculator-editable,td.calculator-role-spacer,.calculator-value-present,.calculator-value-empty,.calculator-value-present.calculator-published-thickness) { background:var(--theme-surface)!important; color:var(--ink); }
+  :root[data-theme]:not([data-theme="ceasefire"]) .calculator-grid :is(input,select,textarea):not([aria-invalid=true]) { background:var(--theme-input); color:var(--ink); border-color:var(--theme-border); }
+  :root[data-theme]:not([data-theme="ceasefire"]) :is(.calculator-contents-title,.calculator-overview-label,.calculator-summary-metric span,.calculator-overview p,.calculator-overview-full>p,.calculator-product-totals>p,.calculator-documents summary,.calculator-document-group h4,.calculator-document-meta,.calculator-document-coverage,.calculator-document-notes) { color:var(--ink); }
+  :root[data-theme]:not([data-theme="ceasefire"]) :is(.calculator-summary-metric strong,.calculator-grid .calculator-product-totals .calculator-number) { color:var(--accent); }
+  :root[data-theme]:not([data-theme="ceasefire"]) .calculator-grid td.calculator-editable { box-shadow:inset 4px 0 0 var(--theme-edge); }
+  :root[data-theme]:not([data-theme="ceasefire"]) :is(.takeoff-register,.takeoff-toolbar,.takeoff-viewer-toolbar,.takeoff-document-controls,.takeoff-search,.takeoff-modal,.takeoff-annotation-panel) { background:var(--theme-surface); color:var(--ink); border-color:var(--line); }
+  :root[data-theme]:not([data-theme="ceasefire"]) :is(.takeoff-register th,.takeoff-column-filter-menu) { background:var(--theme-soft); color:var(--ink); }
+  :root[data-theme="midnight"] :is(.gear-symbol,.calculator-symbol-button,.penetration-group,.library-summary-table th,.library-summary-table td) { color:var(--ink); }
+  :root[data-theme="midnight"] :is(.brand,.header-tagline-character) { background:#fff; border-radius:6px; }
+  :root[data-theme="midnight"] :is(input,select)[aria-invalid=true] { background:#fff2f2; color:#7d1019; border-color:#a20b16; }
+  :root[data-theme="midnight"] :is(.calculator-error,.penetration-field-error) { color:#ffb4be; }
+  :root[data-theme="midnight"] :is(.button.excel-button,.button.pdf-button,.button.save-button,.button.recalculate-button,.button.link-action-button,.button.library-edit-button,.button.library-delete-button):focus-visible { outline-color:var(--theme-focus); }
+}
+@media print {
+  :root[data-theme] { color-scheme:light; --accent:#b90a15; --accent-dark:#920711; --ink:#2b252a; --muted:#70676d; --line:#e8e2e3; --paper:#fff; --canvas:#f8f6f5; --navy:#2b2228; }
+  .header-tools { display:none!important; }
+}

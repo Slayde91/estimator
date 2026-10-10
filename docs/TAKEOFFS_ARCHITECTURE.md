@@ -71,6 +71,19 @@ its own revision. Crossing incompatible scales is rejected. A changed calibratio
 invalidates dependent confirmation and transfer links without rewriting calculator
 values. True-surface area and exclusions use validated geometry and scale squared.
 
+Wall/Floor surfaces may retain an explicit positive whole `fields.layers` value.
+Absent layers mean one without inserting a property into saved records. Each
+polygon still has physical quantity one and one member identity; gross, excluded
+and net areas remain the original calibrated measurements. `total_area_m2` is
+net area multiplied by layers, with full numeric precision. Explicit layers select
+the simplified Surface ID/substrate/FRL confirmation contract and
+`takeoffs-area-v2` receipts binding both layers and total area. Untouched records
+keep their original fields, `takeoffs-area-v1` receipts and validation rules.
+Layer edits invalidate confirmation; exported totals grant no calculator transfer
+or technical-suitability authority. Historical treatment, surface basis and source
+citation values remain intact. Drawing edge and net-area labels stay geometric;
+the marked-PDF register separately states net area, layers and total area.
+
 Count markers retain persistent physical member IDs. Steel counted lengths have
 explicit manual per-member lengths, with quantity derived from marker identities.
 Standalone counts/lengths cannot transfer to calculators. Split/merge, geometry

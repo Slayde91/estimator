@@ -28,7 +28,7 @@ function harness(storage) {
   source=source.replace('setApi(fn){api=fn;}', 'renderMeasurementValues,renderValueLabel,drawingClickOpensSettings,selectDrawingItem,setApi(fn){api=fn;}');
   source=source.replace('setApi(fn){api=fn;}', 'renderCalibrations,chooseCalibration,changeViewportScale,navigatePage,navigateDocument,activePageCalibrations,setPageRenderer(fn){renderPage=fn;},setRailRenderer(fn){renderRail=fn;},setApi(fn){api=fn;}');
   source=source.replace('setApi(fn){api=fn;}', 'currentVisibilityControl,physicalDrawingOwner,setRegisterRenderer(fn){renderRegister=fn;},setApi(fn){api=fn;}');
-  source=source.replace('setApi(fn){api=fn;}', 'workspaceMode,inWorkspace,selectedItems,registerFilters,registerColumnValues,registerFilterValue,registerDocumentMenu,changeSurfaceType,setDiscardEditor(fn){discardEditor=fn;},setApi(fn){api=fn;}');
+  source=source.replace('setApi(fn){api=fn;}', 'workspaceMode,inWorkspace,selectedItems,registerFilters,registerColumnValues,registerFilterValue,registerDocumentMenu,setDiscardEditor(fn){discardEditor=fn;},setApi(fn){api=fn;}');
   source=source.replace('setApi(fn){api=fn;}', 'selectedAnnotation,selectFreeCallout,openAnnotationMenu,setApi(fn){api=fn;}');
   vm.runInContext(source,context);
   return {context,audit:context.audit,api:context.window.CeasefireTakeoffs};
@@ -144,7 +144,7 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
     for(const mode of ['steel','duct','wall','slab']){
       const h=harness({getItem(){return JSON.stringify({version:1,appearance:{marker_size:25,...desired,display_values:false}});}}),value=blank();value.items=[{id:'old',mode,quantity:1,fields:{mark:'Old'},appearance:{stroke_color:'#CC0000'}}];h.audit.accept(response(value));const dom=attachMinimalDom(h);dom.ui.target={value:mode==='duct'?'ductwork':'steel_vermiculite'};dom.ui.viewport={dataset:{}};h.audit.state.mode=mode;h.audit.setSelectionRenderer(()=>{});
       const geometry={kind:['wall','slab'].includes(mode)?'polygon':'polyline',document_id:'retained-doc',page:3,points:[[1.123456789,2],[20,2],[20,30]],...(['wall','slab'].includes(mode)?{exclusions:[]}:{})},measurement={method:'cited',length_m:6.123456789,citation:'Exact source dimension'},evidence=[{document_id:'retained-doc',page:3,note:'Exact source'}];let created;
-      h.audit.setAsk(async()=>({mark:'New',quantity:['wall','slab'].includes(mode)?'1':1}));h.audit.setCommand(async(op,body)=>{assert.equal(op,'create_item');created=copy(body.item);});await h.audit.createDrawnItem(measurement,geometry,evidence);
+      h.audit.setAsk(async()=>({mark:'New',...(['wall','slab'].includes(mode)?{surface_type:mode,layers:1}:{quantity:1})}));h.audit.setCommand(async(op,body)=>{assert.equal(op,'create_item');created=copy(body.item);});await h.audit.createDrawnItem(measurement,geometry,evidence);
       assert.deepEqual(created.appearance,{marker_size:25,...desired,display_values:false});assert.deepEqual(created.geometry,geometry);assert.deepEqual(created.measurement,measurement);assert.deepEqual(created.evidence,evidence);assert.deepEqual(copy(h.audit.state.session.snapshot),value);assert.deepEqual(copy(h.audit.appearanceOf(value.items[0])).stroke_color,'#CC0000');
     }
   });
@@ -797,7 +797,7 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
     update.events.click();await flush();assert.equal(updates,1);
     assert.equal(dom.all(h.audit.button('Detach links',()=>{})).find(node=>node.tagName==='PATH').attributes.d,'M15 7h2a5 5 0 0 1 0 10h-2M9 17H7A5 5 0 0 1 7 7h2');
     const ordinary=h.audit.button('Confirm',()=>{});assert.equal(ordinary.textContent,'Confirm');assert.ok(!ordinary.classList.contains('icon-only'));
-    const undo=h.audit.button('Undo last edit',()=>{});assert.equal(undo.attributes['aria-label'],'Undo last edit');assert.ok(undo.classList.contains('takeoff-undo-button'));assert.equal(dom.all(undo).find(node=>node.tagName==='PATH').attributes.d,'M9 4 4 9l5 5M4 9h9a7 7 0 0 1 7 7v4');
+    const undo=h.audit.button('Undo last edit',()=>{});assert.equal(undo.attributes['aria-label'],'Undo last edit');assert.ok(undo.classList.contains('takeoff-undo-button'));assert.equal(undo.children[0].textContent,'↶');assert.ok(undo.children[0].classList.contains('button-symbol'));assert.equal(dom.all(undo).filter(node=>node.tagName==='SVG').length,0);
   });
   await check('Register Document provides three ordered XLSX actions and keyboard/focus dismissal without changing records',()=>{
     const h=harness(),dom=attachMinimalDom(h),before=copy(h.audit.state.session),menu=h.audit.registerDocumentMenu(),names=menu.list.children.map(control=>control.children[1].textContent);
@@ -817,11 +817,11 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
     for(const confirmation of ['confirmed','unconfirmed','all']){await assert.rejects(h.audit.downloadTakeoff('schedule-xlsx',confirmation),/Captured export/);assert.equal(sent.mode,'walls_floors');assert.equal(sent.confirmation,confirmation);assert.deepEqual(sent.item_ids,['wall','slab']);}
     await assert.rejects(h.audit.downloadTakeoff('schedule-xlsx','unsupported'),/Choose confirmed/);h.audit.state.settingsDirty=true;await assert.rejects(h.audit.downloadTakeoff('schedule-xlsx','all'),/unfinished/);
   });
-  await check('New surface type restores its truthful native value on declined, busy, modal or stale-context switches',async()=>{
-    const h=harness();h.audit.accept(response(blank()));const dom=attachMinimalDom(h);dom.ui.surfaceType=dom.element('select');dom.ui.viewport=dom.element();h.audit.setOverlayRenderer(()=>{});h.audit.state.mode='wall';h.audit.setDataRenderer(()=>{});let discards=0;h.audit.setDiscardEditor(async()=>{discards++;return false;});dom.ui.surfaceType.value='slab';assert.equal(await h.audit.changeSurfaceType('slab'),false);assert.equal(dom.ui.surfaceType.value,'wall');assert.equal(h.audit.state.mode,'wall');assert.equal(discards,1);
-    for(const flag of ['busy','modal','navigationBusy','physicalPlacing']){h.audit.state[flag]=true;dom.ui.surfaceType.value='slab';assert.equal(await h.audit.changeSurfaceType('slab'),false);assert.equal(dom.ui.surfaceType.value,'wall');assert.equal(h.audit.state.mode,'wall');assert.equal(discards,1);h.audit.state[flag]=false;}
-    h.audit.setDiscardEditor(async()=>{h.audit.state.session.session_id='replacement';return true;});assert.equal(await h.audit.changeSurfaceType('slab'),false);assert.equal(dom.ui.surfaceType.value,'wall');h.audit.setDiscardEditor(async()=>true);assert.equal(await h.audit.changeSurfaceType('slab'),true);assert.equal(h.audit.state.mode,'slab');assert.equal(dom.ui.surfaceType.value,'slab');assert.equal(h.audit.state.session.snapshot.items.length,0);
-    h.audit.state.busy=true;h.api.refreshNavigation();assert.equal(dom.ui.surfaceType.disabled,true);
+  await check('Cancelling the unified surface dialog leaves mode, snapshot and geometry unchanged',async()=>{
+    const h=harness();h.audit.accept(response(blank()));const dom=attachMinimalDom(h);dom.ui.viewport=dom.element();h.audit.setOverlayRenderer(()=>{});h.audit.state.mode='slab';h.audit.setSelectionRenderer(()=>{});const before=copy(h.audit.state.session.snapshot);let calls=0;
+    h.audit.setAsk(async(title,defs)=>{assert.equal(title,'Add surface');assert.equal(defs[0][3],'slab');return null;});h.audit.setCommand(async()=>{calls++;});
+    await h.audit.createDrawnItem({method:'calibrated',calibration_id:'scale'},{kind:'polygon',points:[[0,0],[1,0],[0,1]]});assert.equal(calls,0);assert.equal(h.audit.state.mode,'slab');assert.deepEqual(copy(h.audit.state.session.snapshot),before);
+    assert.ok(!fs.readFileSync('static/takeoffs.js','utf8').includes('New surface type'));
   });
   await check('The combined navigation alias preserves the last explicit native floor type and legacy callers retain their type',async()=>{
     const h=harness();h.audit.accept(response(blank()));const dom=attachMinimalDom(h);dom.ui.viewport=dom.element();h.audit.setOverlayRenderer(()=>{});h.audit.state.mode='slab';h.audit.setDataRenderer(()=>{});h.audit.setDiscardEditor(async()=>true);const before=copy(h.audit.state.session.snapshot);
@@ -843,23 +843,27 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
     h.audit.setAsk(async()=>({mark:'D1',quantity:1}));h.audit.setCommand(async(op,payload)=>{assert.equal(op,'create_item');created=copy(payload.item);});
     await h.audit.createDrawnItem({method:'cited',length_m:2,citation:'Dimension'},null,[]);assert.equal(created.fields.shape,'rectangular');assert.equal(created.quantity,1);assert.equal(created.fields.diameter_mm,undefined);
   });
-  await check('Wall and slab creation retain all entered Item Details with exact source geometry and single-surface evidence',async()=>{
+  await check('One surface dialog selects Wall or Floor and retains exact geometry with an explicit layer multiplier',async()=>{
     for(const mode of ['wall','slab']){
-      const h=harness();h.audit.accept(response(blank()));const dom=attachMinimalDom(h);dom.ui.viewport={dataset:{}};h.audit.state.mode=mode;
-      const entered={mark:mode==='wall'?'W-02':'S-04',surface_basis:mode==='wall'?'wall-face':'slab-soffit',level:'L03',substrate:'Concrete 180 mm',treatment:'Fire protection',system:'Specified system',product:'Specified product',frl:'-/120/120',surface_citation:'Elevation A-301, true projection'},geometry={kind:'polygon',document_id:'original-doc',page:3,points:[[1.123456789,2],[20,2],[20,30]],exclusions:[]},measurement={method:'calibrated',calibration_id:'retained-scale'},evidence=[{document_id:'original-doc',page:3,note:'Retained source citation'}];let created;
+      const h=harness();h.audit.accept(response(blank()));const dom=attachMinimalDom(h);dom.ui.viewport={dataset:{}};h.audit.state.mode='wall';
+      const entered={mark:mode==='wall'?'W-02':'F-04',layers:3,level:'L03',substrate:'Concrete 180 mm',system:'Specified system',product:'Specified product',frl:'-/120/120'},geometry={kind:'polygon',document_id:'original-doc',page:3,points:[[1.123456789,2],[20,2],[20,30]],exclusions:[]},measurement={method:'calibrated',calibration_id:'retained-scale'},evidence=[{document_id:'original-doc',page:3,note:'Retained source citation'}];let created;
       h.audit.setAsk(async(title,definitions,detail,submit)=>{
-        assert.equal(title,`Add ${mode} surface`);assert.equal(submit,'Add surface');assert.match(detail,/true projection/);assert.match(detail,/No height, second face or multiplier is inferred/);
-        assert.deepEqual(copy(definitions.map(field=>field[0])),[...Object.keys(entered),'quantity']);
-        for(const key of ['mark','surface_basis','surface_citation','quantity'])assert.equal(definitions.find(field=>field[0]===key)[4],true,key);
-        for(const key of ['level','substrate','treatment','system','product','frl'])assert.equal(definitions.find(field=>field[0]===key)[4],false,key);
-        assert.deepEqual(copy(definitions.find(field=>field[0]==='quantity').slice(2)),[[['1','One physical treatment surface']],'',true]);
-        assert.deepEqual(copy(definitions.find(field=>field[0]==='surface_basis')[2]),mode==='wall'?[['wall-face','Wall face (true elevation)']]:[['slab-soffit','Slab soffit'],['slab-top','Slab top']]);
-        return {...entered,quantity:'1'};
+        assert.equal(title,'Add surface');assert.equal(submit,'Add surface');assert.equal(detail,'');assert.deepEqual(copy(definitions.map(field=>field[0])),['surface_type',...Object.keys(entered)]);
+        assert.deepEqual(copy(definitions[0]),['surface_type','Surface Type',[['wall','Wall'],['slab','Floor']],'wall',true]);assert.equal(definitions[1][1],'Surface ID');assert.deepEqual(copy(definitions[2]),['layers','Number of layers','number',1,true]);
+        for(const key of ['surface_type','mark','layers'])assert.equal(definitions.find(field=>field[0]===key)[4],true,key);
+        for(const key of ['level','substrate','system','product','frl'])assert.equal(definitions.find(field=>field[0]===key)[4],false,key);
+        return {...entered,surface_type:mode};
       });
       h.audit.setCommand(async(op,payload)=>{assert.equal(op,'create_item');created=copy(payload.item);});await h.audit.createDrawnItem(measurement,geometry,evidence);
-      assert.deepEqual(created.fields,entered);assert.equal(created.mode,mode);assert.equal(created.quantity,1);assert.deepEqual(created.geometry,geometry);assert.deepEqual(created.measurement,measurement);assert.deepEqual(created.evidence,evidence);assert.ok(h.audit.state.selected.has(created.id));
-      for(const quantity of ['',null,1,'2']){h.audit.setAsk(async()=>({...entered,quantity}));h.audit.setCommand(async()=>{throw new Error('Invalid physical quantity must not create an item');});await assert.rejects(h.audit.createDrawnItem(measurement,geometry,evidence),/Identify one physical treatment surface/);}
+      assert.deepEqual(created.fields,entered);assert.equal(created.mode,mode);assert.equal(created.quantity,1);assert.deepEqual(created.geometry,geometry);assert.deepEqual(created.measurement,measurement);assert.deepEqual(created.evidence,evidence);assert.ok(h.audit.state.selected.has(created.id));assert.equal(h.audit.state.mode,'wall');
+      for(const layers of ['',null,0,-1,1.5,NaN,Infinity,1e12+1,Number.MAX_SAFE_INTEGER+1]){h.audit.setAsk(async()=>({...entered,surface_type:mode,layers}));h.audit.setCommand(async()=>{throw new Error('Invalid layers must not create an item');});await assert.rejects(h.audit.createDrawnItem(measurement,geometry,evidence),/positive whole number/);}
+      h.audit.setAsk(async()=>({...entered,surface_type:'invalid'}));await assert.rejects(h.audit.createDrawnItem(measurement,geometry,evidence),/Choose Wall or Floor/);
     }
+  });
+  await check('Number of layers uses positive whole numbers and does not insert defaults into historical records',()=>{
+    const h=harness(),value=blank();value.items=[{id:'wall',mode:'wall',fields:{mark:'old',surface_basis:'wall-face'},quantity:1}];h.audit.accept(response(value));const before=copy(h.audit.state.session.snapshot),dom=attachSettings(h);h.audit.state.mode='wall';h.audit.state.selected.add('wall');h.audit.state.settingsOpen=true;h.audit.renderSettingsPanel();
+    const field=h.audit.state.settingsEditor.fields.find(field=>field.control.name==='layers');assert.equal(Number(field.control.value),1);assert.equal(field.control.min,'1');assert.equal(field.control.step,'1');assert.deepEqual(copy(h.audit.state.session.snapshot),before);
+    for(const invalid of ['', '0', '-1', '1.5', 'Infinity']){field.control.value=invalid;assert.throws(()=>field.read(),/positive whole number|finite number/);}field.control.value='4';assert.equal(field.read(),4);
   });
   await check('Steel creation reloads exact calculator options for chosen product/member and never rewrites entered profile',async()=>{
     const h=harness();h.audit.accept(response(blank()));const controls=['product','member_type','section'].map(name=>({control:{name,value:name==='member_type'?'Beam':name==='section'?'Explicit profile':'',isConnected:false,events:{},addEventListener(event,fn){this.events[event]=fn;}}})),calls=[];

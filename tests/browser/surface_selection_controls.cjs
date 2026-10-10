@@ -62,15 +62,16 @@ async function drawSurface(mode, mark, startX) {
   await page.getByRole('button', { name: 'Trace surface', exact: true }).click();
   for (const point of [[startX,100],[startX+120,100],[startX+120,240],[startX,240]]) await page.mouse.click(...await screen(point));
   await page.locator('.takeoff-viewport').press('Enter');
-  const value = await command(() => dialog(`Add ${mode} surface`, {
-    [mode === 'wall' ? 'Wall ID' : 'Slab / zone ID']: mark,
-    'Explicit physical quantity': 1, 'Surface basis': mode === 'wall' ? 'wall-face' : 'slab-soffit',
-    'True-surface source citation': `Synthetic true ${mode} surface; not real design evidence`
+  const value = await command(() => dialog('Add surface', {
+    'Surface Type': mode, 'Surface ID': mark, 'Number of layers': 1
   }, 'Add surface'), 'create_item');
-  return value.snapshot.items.find(item => item.mode === mode && item.fields.mark === mark);
+  const item = value.snapshot.items.find(item => item.mode === mode && item.fields.mark === mark);
+  assert.ok(item, 'The unified surface dialog preserves the chosen native surface type');
+  assert.equal(item.fields.layers, 1, 'The explicit default layer count is stored without changing geometric area');
+  return item;
 }
 (async () => {
-  const info = await ready; browser = await chromium.launch({ headless: true }); page = await browser.newPage({ viewport: { width: 1600, height: 1100 } }); page.setDefaultTimeout(30000);
+  const info = await ready; assert.notEqual(info.port, 8765, 'This fixture must use its disposable server'); browser = await chromium.launch({ headless: true }); page = await browser.newPage({ viewport: { width: 1600, height: 1100 } }); page.setDefaultTimeout(30000);
   page.on('pageerror', error => errors.push(error.message)); page.on('request', request => { if (request.url().endsWith('/commands')) commands.push(request.postDataJSON()); });
   page.on('response', response => { const pathname = new URL(response.url()).pathname; if (['/takeoffs.js','/takeoffs.css'].includes(pathname)) assetTasks.push(response.body().then(bytes => { assets[pathname] = { sha256: createHash('sha256').update(bytes).digest('hex'), bytes: bytes.length }; })); });
   await page.goto(`http://127.0.0.1:${info.port}/`); await page.waitForFunction(() => window.CeasefireDesktop?.status().ready);
@@ -92,7 +93,7 @@ async function drawSurface(mode, mark, startX) {
     const beforeSelection = await snapshot(), beforeCommandCount = commands.length;
     await clickPoint([160,170]); await selected(first.id, true); await expect(panel()).toBeHidden();
     await doublePoint([160,170]); await selected(first.id, true); await expect(panel()).toBeVisible();
-    await expect(panel().getByLabel(mode === 'wall' ? 'Wall ID' : 'Slab / zone ID', { exact: true })).toHaveValue(first.fields.mark);
+    await expect(panel().getByLabel('Surface ID', { exact: true })).toHaveValue(first.fields.mark);
     await clickPoint([160,170]); await selected(first.id, true); await expect(panel()).toBeVisible();
     await clickPoint([160,170], ['Control']); await selected(first.id, false); await expect(panel()).toBeHidden();
     await hit(first.id).press('Enter'); await selected(first.id, true); await expect(panel()).toBeVisible();

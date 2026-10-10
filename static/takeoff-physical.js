@@ -1194,25 +1194,26 @@
     ui.root = node("section", "takeoff-register takeoff-physical-register"); ui.root.setAttribute("aria-label", "Manual draft penetration workspace");
     const heading = node("div", "section-heading"); ui.heading = node("h2"); heading.append(ui.heading); ui.status = node("span", "status-label"); heading.append(ui.status); ui.root.append(heading);
     ui.readOnlyNotice = node("p", "takeoff-warning takeoff-physical-legacy-notice", "Legacy hierarchy — read-only until its relationships are assigned. Original records, fields and evidence are preserved for inspection and export."); ui.root.append(ui.readOnlyNotice);
-    const tools = node("div", "takeoff-register-controls");
+    const tools = node("div", "takeoff-register-controls takeoff-physical-filter-row"), actions = node("div", "takeoff-register-controls takeoff-physical-actions-row");
     const documents = actionDisclosure("Document", "Document actions", "takeoff-document-menu", false, "/icons/document.png");
     for (const [format, confirmation, label] of [["xlsx", "confirmed", "Download confirmed items"], ["xlsx", "unconfirmed", "Download unconfirmed items"], ["xlsx", "all", "Download all items"], ["pdf", null, "Download Passive Fire Matrix PDF"]]) {
       const control = button(label, () => runBridge(() => bridge.export(format, confirmation)), "button secondary calculator-document-action");
       control.setAttribute("aria-label", label); const icon = node("span", "download-format-icon"); icon.setAttribute("aria-hidden", "true"); icon.append(node("span", "download-arrow", "↓"), node("span", "download-format", format.toUpperCase())); control.replaceChildren(icon, node("span", "", label));
       documents.add(control);
     }
-    tools.append(documents.root);
     const search = node("input"); search.type = "search"; search.placeholder = "Filter physical records…"; search.setAttribute("aria-label", "Filter physical hierarchy"); search.addEventListener("input", () => { if (state.pending.size || state.busy) return; state.filter = search.value; state.offset = 0; renderTable(); });
     const deleted = node("label", "takeoff-check"), show = node("input"); show.type = "checkbox"; show.addEventListener("change", () => void safe(() => { ensureAvailable(); state.showDeleted = show.checked; state.offset = 0; renderTable(); })); deleted.append(show, node("span", "", "Show deleted records"));
     ui.discard = button("Discard unfinished physical edits", () => { if (state.busy) throw new Error("Finish the current review first."); resetPending(); renderData(); bridge.notify("Unfinished physical field edits discarded. Recorded draft values are unchanged.", false); }, "button secondary takeoff-physical-discard"); ui.discard.setAttribute("aria-label", "Discard unfinished physical edits"); ui.discard.title = "Discard unfinished physical edits"; ui.discard.replaceChildren(discardIcon());
     const deleteSelection = mutationButton("Delete", deleteSelected); deleteSelection.setAttribute("aria-label", "Delete selected records"); deleteSelection.title = "Delete selected records";
     const transfer = imageMutationButton("Transfer to Firestopping Schedule", transferConfirmedRegister, "/icons/takeoff-transfer.png", "takeoff-physical-transfer"); transfer.children[0].className = "takeoff-transfer-icon"; transfer.children[0].width = 24; transfer.children[0].height = 24;
     ui.selection = node("strong"); tools.append(search, deleted,
-      ui.selectFiltered = iconAction("Select filtered records", () => { ensureAvailable(); const rows = matchingActiveRows(), deselect = rows.length > 0 && rows.every(row => state.selected.has(row.entity.id)); for (const row of rows) deselect ? state.selected.delete(row.entity.id) : state.selected.add(row.entity.id); state.inspectedId = null; renderData(); }, ["M4 3h16a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z", "m7 12 3 3 7-7"]),
-      transfer,
+      ui.selectFiltered = iconAction("Select filtered records", () => { ensureAvailable(); const rows = matchingActiveRows(), deselect = rows.length > 0 && rows.every(row => state.selected.has(row.entity.id)); for (const row of rows) deselect ? state.selected.delete(row.entity.id) : state.selected.add(row.entity.id); state.inspectedId = null; renderData(); }, ["M4 3h16a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z", "m7 12 3 3 7-7"]));
+    actions.append(transfer,
       iconAction("Update linked rows", () => selectedLibraryAction("update"), ["M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z", "M12 6v6h6"], true),
-      iconAction("Unlink from Firestopping Schedule", () => selectedLibraryAction("unlink"), ["M9 7H7a5 5 0 0 0 0 10h2M15 7h2a5 5 0 0 1 0 10h-2"], true));
-    ui.undo = iconAction("Undo last edit", undoLastEdit, ["M9 4 4 9l5 5", "M4 9h9a7 7 0 0 1 7 7v4"], true); ui.undo.className += " takeoff-undo-button"; ui.undo.dataset.locked = String(typeof bridge.undo !== "function"); tools.append(ui.undo); ui.root.append(tools);
+      iconAction("Unlink from Firestopping Schedule", () => selectedLibraryAction("unlink"), ["M9 7H7a5 5 0 0 0 0 10h2M15 7h2a5 5 0 0 1 0 10h-2"], true), documents.root);
+    ui.undo = mutationButton("Undo last edit", undoLastEdit, "button secondary icon-only takeoff-undo-button"); ui.undo.setAttribute("aria-label", "Undo last edit"); ui.undo.title = "Undo last edit";
+    const undoSymbol = node("span", "button-symbol", "↶"); undoSymbol.setAttribute("aria-hidden", "true"); ui.undo.replaceChildren(undoSymbol, node("span", "sr-only", "Undo last edit"));
+    ui.undo.dataset.locked = String(typeof bridge.undo !== "function"); tools.append(ui.undo); ui.root.append(tools, actions);
     ui.bulk = node("div", "takeoff-register-controls takeoff-bulk takeoff-physical-bulk"); ui.bulkField = node("select"); ui.bulkField.dataset.physicalMutation = "true"; ui.bulkValue = node("input"); ui.bulkValue.dataset.physicalMutation = "true"; ui.bulkValue.type = "text"; ui.bulkValue.placeholder = "New value (blank clears)"; ui.bulkValue.setAttribute("aria-label", "Bulk physical edit value");
     ui.associate = mutationButton("Associate Existing Records", associateLibraryWithSelected);
     ui.bulkApply = mutationButton("Apply to selected", applyBulkValue); ui.bulkConfirm = mutationButton("Confirm", () => confirmSelectedRecords("confirmed")); ui.bulkUnconfirm = mutationButton("Unconfirm", () => confirmSelectedRecords("unconfirmed")); ui.bulk.append(ui.selection, ui.associate, ui.bulkField, ui.bulkValue, ui.bulkApply, ui.bulkConfirm, ui.bulkUnconfirm, deleteSelection); ui.root.append(ui.bulk);

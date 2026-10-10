@@ -1,4 +1,5 @@
 const { assertParentControls, assertTransferIcon } = require('./parent_controls_helpers.cjs');
+const { assertPhysicalTools } = require('./physical_tools_helpers.cjs');
 const { chooseTakeoff } = require('./section_navigation.cjs');
 const { chooseNewDefect, startDefect } = require('./physical_dialogs.cjs');
 const { clickProjectControl } = require('./project_actions.cjs');
@@ -61,7 +62,7 @@ async function restore(id,kind){await select(id);await page.getByRole('button',{
  await expect(register.locator('.takeoff-physical-gallery')).toHaveCount(0);for(const name of ['Extract images from selected PDF page','Refresh retained images'])await expect(register.getByRole('button',{name,exact:true})).toHaveCount(0);
  await expect(register.getByRole('button',{name:'Document',exact:true}).locator('img')).toHaveAttribute('src','/icons/document.png');await expect(register.getByRole('button',{name:'Transfer to Firestopping Schedule',exact:true}).locator('img')).toHaveAttribute('src','/icons/takeoff-transfer.png');
  checks.transfer_original=await assertTransferIcon(page);
- assert.equal(await register.evaluate(el=>{const filter=el.querySelector('input[type=search]'),tools=filter.parentElement;return tools.contains(el.querySelector('.takeoff-document-menu'))&&tools.contains(el.querySelector('.takeoff-undo-button'))&&tools.contains(el.querySelector('[aria-label="Select filtered records"]'))&&tools.contains([...el.querySelectorAll('label')].find(label=>label.textContent==='Show deleted records'));}),true);checks.combined_tools_and_preserved_evidence_ui=true;
+ checks.physical_tools_rows=await assertPhysicalTools(page);checks.preserved_evidence_ui=true;
  await expect(all()).toBeDisabled();
  await page.locator('#takeoff-upload').setInputFiles(info.fixture);await expect(page.locator('.takeoff-viewport canvas')).toBeVisible();await idle();
  await startDefect(page);await chooseNewDefect(page);await expect(page.getByRole('heading',{name:'Add Defect',exact:true})).toBeVisible();await expect(page.getByRole('dialog').getByLabel('Defect label',{exact:true})).toHaveCount(0);await choices(page.getByRole('dialog').getByLabel('FRL',{exact:true}),frls);

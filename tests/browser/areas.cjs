@@ -73,6 +73,7 @@ function checkArea(state, id, expected = 56) {
   assert.ok(Math.abs(value.net_area_m2 - (gross - excluded)) < 1e-8, 'Net area subtracts the retained source exclusions');
   assert.ok(Math.abs(value.net_area_m2 - expected) < .2, JSON.stringify(value));
   assert.ok(Math.abs(value.gross_area_m2 - 60) < .2, JSON.stringify(value));
+  assert.equal(value.layers,item.fields.layers);assert.equal(value.total_area_m2,value.net_area_m2*item.fields.layers);
   assert.equal(Object.hasOwn(value, 'length_m'), false);
   return value;
 }
@@ -88,18 +89,21 @@ async function surface(mode, rotated = false) {
   await command(() => dialog('Calibrate this drawing', { 'Calibration name': `${mode} baseline`, 'Known real distance (metres)': 10, 'Uniform scale confirmed': 'Yes — the drawing has the same horizontal and vertical scale' }, 'Create calibration'), 'add_calibration');
   await page.getByRole('button', { name: 'Trace surface', exact: true }).click();
   await draw([[100, 200], [500, 200], [500, 440], [100, 440]], rotated, true);
-  let state = await command(() => dialog(`Add ${mode} surface`, {
-    [mode === 'wall' ? 'Wall ID' : 'Slab / zone ID']: `${mode.toUpperCase()}-01`,
-    'Explicit physical quantity': '1', 'Surface basis': mode === 'wall' ? 'wall-face' : 'slab-soffit',
-    'Level': 'L01', 'Substrate': 'Concrete', 'Treatment': 'Nominated surface treatment',
+  const creation=page.getByRole('dialog');await expect(creation.getByRole('heading',{name:'Add surface',exact:true})).toBeVisible();
+  await expect(creation.getByLabel('Surface Type',{exact:true})).toHaveCount(1);await expect(creation.getByLabel('Number of layers',{exact:true})).toHaveAttribute('type','number');
+  for(const removed of ['Surface basis','Treatment','True-surface source citation','Explicit physical quantity'])await expect(creation.getByLabel(removed,{exact:true})).toHaveCount(0);
+  await expect(page.getByLabel('New surface type',{exact:true})).toHaveCount(0);
+  let state = await command(() => dialog('Add surface', {
+    'Surface Type':mode,'Surface ID':`${mode.toUpperCase()}-01`,
+    'Number of layers':3,
+    'Level': 'L01', 'Substrate': 'Concrete',
     'Protection system': 'Synthetic evidenced system', 'Protection product': 'Synthetic evidenced product', 'FRL / fire rating': '90/90/90',
-    'True-surface source citation': `Synthetic ${mode} true-plane view, one surface, 10 x 6 m`,
   }, 'Add surface'), 'create_item');
   const id = state.snapshot.items.find(item => item.mode === mode).id;
   assert.deepEqual(state.snapshot.items.find(item => item.id === id).fields, {
-    mark: `${mode.toUpperCase()}-01`, surface_basis: mode === 'wall' ? 'wall-face' : 'slab-soffit',
-    level: 'L01', substrate: 'Concrete', treatment: 'Nominated surface treatment', system: 'Synthetic evidenced system',
-    product: 'Synthetic evidenced product', frl: '90/90/90', surface_citation: `Synthetic ${mode} true-plane view, one surface, 10 x 6 m`,
+    mark:`${mode.toUpperCase()}-01`,layers:3,
+    level: 'L01', substrate: 'Concrete', system: 'Synthetic evidenced system',
+    product: 'Synthetic evidenced product', frl:'90/90/90',
   }, 'Every surface detail entered at creation is retained in the authoritative record');
   assert.equal(state.snapshot.items.find(item => item.id === id).geometry.points.length, 4, 'Polygon double-click preserves exactly four distinct vertices');
   // Adding a hole focuses the object; fit only after entering the exclusion tool.
@@ -109,7 +113,7 @@ async function surface(mode, rotated = false) {
   state = await command(() => dialog('Add excluded opening', { 'Exclusion source / reason': 'Synthetic 2 x 2 m opening' }, 'Add exclusion'), 'update_item');
   assert.equal(state.snapshot.items.find(item => item.id === id).geometry.exclusions[0].points.length, 4, 'Exclusion double-click preserves exactly four distinct vertices');
   checkArea(state, id);
-  state = await edit({ 'Level': 'L02', 'Substrate': 'Concrete', 'Treatment': 'Nominated board treatment', 'FRL / fire rating': '120/120/120' });
+  state = await edit({ 'Level': 'L02', 'Substrate': 'Concrete', 'FRL / fire rating': '120/120/120' });
   const actions = page.locator('#takeoff-markup-settings .takeoff-settings-tools > .actions');
   await expect(actions.getByRole('button')).toHaveCount(1); await expect(actions.getByRole('button', { name: 'Delete item', exact: true })).toBeVisible();
   assert.equal(state.snapshot.items.find(item => item.id === id).quantity, 1);
@@ -119,7 +123,7 @@ async function surface(mode, rotated = false) {
   state = await confirm();
   const item = state.snapshot.items.find(item => item.id === id);
   assert.equal(item.state, 'confirmed');
-  assert.equal(item.confirmation.checks.engine, 'takeoffs-area-v1');
+  assert.equal(item.confirmation.checks.engine, 'takeoffs-area-v2');assert.equal(item.confirmation.checks.layers,3);assert.equal(item.confirmation.checks.total_area_m2,item.confirmation.checks.net_area_m2*3);
   return { id, metrics: checkArea(state, id), geometry: item.geometry, confirmation: item.confirmation };
 }
 (async () => {
@@ -135,6 +139,12 @@ async function surface(mode, rotated = false) {
   const calculatorsBefore = await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot());
   await page.waitForFunction(()=>window.CeasefireDesktop?.status().ready);
   await page.getByRole('button',{name:'Takeoffs',exact:true}).click();
+  const undoParity=await page.evaluate(()=>{
+    const undo=document.querySelector('.takeoff-workspace-split .takeoff-register [aria-label="Undo last edit"]'),reference=document.querySelector('#penetration-undo');
+    const style=control=>Object.fromEntries(['display','alignItems','justifyItems','width','height','paddingTop','paddingRight','paddingBottom','paddingLeft','borderTopWidth','borderTopColor','borderTopLeftRadius','color','backgroundColor','fontSize','fontWeight','boxShadow'].map(key=>[key,getComputedStyle(control)[key]]));
+    const glyph=control=>Object.fromEntries(['fontFamily','fontSize','fontWeight','lineHeight','color'].map(key=>[key,getComputedStyle(control.querySelector('.button-symbol'))[key]]));
+    return {undo:style(undo),reference:style(reference),glyph:glyph(undo),referenceGlyph:glyph(reference),text:undo.querySelector('.button-symbol').textContent};
+  });assert.deepEqual(undoParity.undo,undoParity.reference);assert.deepEqual(undoParity.glyph,undoParity.referenceGlyph);assert.equal(undoParity.text,'↶');
   await page.locator('#takeoff-upload').setInputFiles(info.area_fixture);
   await expect(page.locator('.takeoff-document')).toHaveCount(1, { timeout: 60000 });
   await expect(page.locator('.takeoff-viewport canvas')).toBeVisible();
@@ -163,7 +173,7 @@ async function surface(mode, rotated = false) {
   await page.getByRole('button', { name: 'Trace surface', exact: true }).click();
   await draw([[300, 300], [400, 300], [400, 400]]);
   await page.locator('.takeoff-viewport').press('Enter');
-  await dialog('Add wall surface', {}, 'Cancel');
+  await dialog('Add surface', {}, 'Cancel');
   await page.locator('.takeoff-viewport').press('Escape');
   assert.deepEqual(await page.evaluate(id => window.CeasefireTakeoffs.projectSnapshot().items.find(item => item.id === id).geometry, wall.id), wall.geometry);
   // A bulk edit invalidates confirmation; one undo restores identities and evidence.
@@ -215,7 +225,7 @@ async function surface(mode, rotated = false) {
   assert.equal((await save).status(), 200);
   await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   const saved = JSON.parse(fs.readFileSync(info.project));
-  assert.equal(saved.version, 2); assert.equal(saved.takeoffs.items.length, 2);
+  assert.equal(saved.version, 2); assert.equal(saved.takeoffs.items.length, 2);assert.ok(saved.takeoffs.items.every(item=>item.fields.layers===3&&item.quantity===1&&item.member_ids.length===1));
   const load = page.waitForResponse(r => r.url().endsWith('/api/project/open'));
   await clickProjectControl(page, 'Load'); assert.equal((await load).status(), 200);
   await page.getByRole('dialog').getByRole('button', { name: 'Load Project', exact: true }).click();
@@ -229,12 +239,12 @@ async function surface(mode, rotated = false) {
     for (const format of ['CSV', 'XLSX']) {
       const download = page.waitForEvent('download'); await page.evaluate(format => window.CeasefireTakeoffs.exportRegister(format.toLowerCase()), format);
       const file = await download, target = path.join(output, `${mode}-${file.suggestedFilename()}`); await file.saveAs(target); assert.ok(fs.statSync(target).size > 100);
-      if (format === 'CSV') { const text = fs.readFileSync(target, 'utf8'); assert.ok(text.includes(record.id)); assert.ok(text.includes('net_area_m2')); }
+      if (format === 'CSV') { const text = fs.readFileSync(target, 'utf8'); assert.ok(text.includes(record.id)); assert.ok(text.includes('net_area_m2'));assert.ok(text.includes('total_area_m2'));assert.ok(text.includes('layers')); }
     }
   }
   assert.deepEqual(await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()), calculatorsBefore);
   assert.deepEqual(errors, []); assert.deepEqual(await page.evaluate(() => window.qaCsp), []);
-  fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ completed: true, wall, slab, errors, csp: [] }, null, 2));
+  fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ completed:true,wall,slab,undoParity,errors,csp:[] }, null, 2));
   console.log(`PASS: true-surface wall/slab areas, exclusions, rotated CropBox/UserUnit2/DPR2, bulk/undo, selection, confirmation, Save As/reopen, CSV/XLSX; calculators unchanged. Evidence: ${output}`);
 })().catch(async error => {
   console.error(error); console.error(logs.slice(-5000));

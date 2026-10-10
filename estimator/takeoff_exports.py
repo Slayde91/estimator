@@ -11,7 +11,7 @@ from openpyxl.styles import Alignment, Font, PatternFill
 
 from .catalog import ValidationError
 from .takeoff_area import measured_area
-from .takeoff_model import (base_length, item_digest, length_additions, measured_length, is_area_item, is_standalone_count,
+from .takeoff_model import (area_layers, base_length, has_explicit_area_layers, item_digest, length_additions, measured_length, is_area_item, is_standalone_count,
                            validate_measurement_scope, digest, item_result, object_fields)
 from .pricing_workbook import _serialize_exact
 
@@ -28,7 +28,7 @@ HEADERS = ('Item ID', 'Item version', 'Mode', 'Mark / run', 'Level', 'Zone', 'Gr
            'Base length per item m', 'Riser/drop additions per item m', 'Riser/drop source dimensions', 'Count ID', 'Purpose')
 
 
-def register_rows(snapshot, items):
+def register_rows(snapshot, items, *, include_layers=False):
     documents = {d['id']: d for d in snapshot['documents']}
     rows = []
     for item in sorted(items, key=is_standalone_count):
@@ -70,6 +70,9 @@ def register_rows(snapshot, items):
                     length_additions(item, snapshot) if area is None and not is_standalone_count(item) else None,
                     json.dumps(additions, ensure_ascii=False, sort_keys=True) if area is None else None,
                     item.get('count_id'), item.get('purpose')])
+        if include_layers:
+            row.extend([area_layers(item) if area else None,
+                        item_result(item, snapshot)['total_area_m2'] if area else None])
         rows.append(row)
     return rows
 
@@ -77,11 +80,13 @@ def register_rows(snapshot, items):
 def export_register(snapshot, items, format):
     if format not in ('csv', 'xlsx'):
         raise ValidationError('Choose CSV or XLSX register export.')
-    rows = register_rows(snapshot, items)
+    include_layers = any(has_explicit_area_layers(item) for item in items)
+    headers = HEADERS + (('Number of layers', 'Total area m2') if include_layers else ())
+    rows = register_rows(snapshot, items, include_layers=include_layers)
     if format == 'csv':
         output = StringIO(newline='')
         writer = csv.writer(output)
-        writer.writerow(HEADERS)
+        writer.writerow(headers)
         for row in rows:
             # Spreadsheet importers interpret leading formula characters even in
             # quoted CSV fields. A leading apostrophe intentionally marks text.
@@ -90,14 +95,14 @@ def export_register(snapshot, items, format):
     workbook = Workbook()
     sheet = workbook.active; sheet.title = 'Confirmed Takeoffs'
     details = []
-    for row_number, row in enumerate([HEADERS, *rows], 1):
+    for row_number, row in enumerate([headers, *rows], 1):
         for column, value in enumerate(row, 1):
             if row_number > 1 and isinstance(value, str) and len(value.encode('utf-16-le')) > 60000:
                 # Excel cells are limited to 32,767 characters. openpyxl would
                 # silently truncate geometry/member/evidence JSON otherwise.
                 parts = [value[start:start+15000] for start in range(0, len(value), 15000)]
-                details.extend([[row[0], HEADERS[column-1], index+1, len(parts), part] for index, part in enumerate(parts)])
-                value = f'See Provenance Detail: {row[0]} / {HEADERS[column-1]} ({len(parts)} ordered parts)'
+                details.extend([[row[0], headers[column-1], index+1, len(parts), part] for index, part in enumerate(parts)])
+                value = f'See Provenance Detail: {row[0]} / {headers[column-1]} ({len(parts)} ordered parts)'
             cell = sheet.cell(row_number, column, value)
             if isinstance(value, str):
                 cell.data_type = 's'  # Exact literal content, including =, +, - and @.
@@ -126,8 +131,8 @@ def export_register(snapshot, items, format):
                 ('Audit head SHA-256', snapshot['audit_head']),
                 ('Scope', 'Confirmed takeoff records. Technical suitability requires separate assessment.'),
                 ('Coordinates', 'Unrotated source PDF coordinates. Traces use the retained calibration or cited dimension; Steel counts retain independent member markers and an explicitly entered manual length, without requiring a scale.'),
-                ('Quantity', 'Explicit physical quantity; never inferred from photographs. Steel count quantity is derived from its retained member markers, with ordered point/member-ID correspondence. Linear total length is quantity times the sum of base length and each explicitly entered riser/drop addition per member. A wall/slab polygon is one distinct treatment surface; net area is gross area less its explicit exclusions, with no inferred face multiplier.'),
-                ('Surface basis', 'Wall polygons represent true wall faces, not plan footprints. Slab polygons identify top or soffit surfaces. Calibration scale is squared for area. Printed presets include PDF UserUnit once; manual known-distance calibration is direct. Rendering zoom and rotation do not change quantities.'),
+                ('Quantity', 'Explicit physical quantity; never inferred from photographs. Steel count quantity is derived from its retained member markers, with ordered point/member-ID correspondence. Linear total length is quantity times the sum of base length and each explicitly entered riser/drop addition per member. A wall/slab polygon remains one physical surface; net area is gross area less explicit exclusions. Number of layers is an explicit positive whole number, defaulting to one when absent; total area is net area times layers. No additional face or physical member is inferred.'),
+                ('Surface basis', 'Polygon areas use the traced source projection. Historical surface basis, treatment and citation properties remain as entered. Calibration scale is squared for area. Printed presets include PDF UserUnit once; manual known-distance calibration is direct. Rendering zoom and rotation do not change quantities.'),
                 ('Calculator links', 'Transfer statuses describe retained receipts. This register export does not recheck the current calculator draft; stale/conflicting links do not become current by exporting.'),
                 ('Source links', 'Document IDs, page numbers and hashes identify the retained source originals.')]:
         info.append(row)
@@ -304,6 +309,7 @@ def linked_result_text(results):
 def _schedule_xlsx(snapshot, selected, results, confirmations, linked, *, mode, confirmation_filter):
     """Current register category, with locally verified status and literal provenance."""
     documents = {doc['id']: doc for doc in snapshot['documents']}
+    include_layers = any(has_explicit_area_layers(item) for item in selected)
     headers = ['Item ID', 'Item version', 'Mode', 'Confirmation', 'Mark / Run ID', 'Member type', 'Section',
                'Shape', 'Width mm', 'Height mm', 'Diameter mm', 'Quantity', 'Length per item m', 'Total length m',
                *(['Gross area m2', 'Excluded area m2'] if mode == 'walls_floors' else []), 'Net area m2', 'Product', 'FRL', 'Fire period min', 'Exposed sides', 'Critical temperature C',
@@ -311,6 +317,8 @@ def _schedule_xlsx(snapshot, selected, results, confirmations, linked, *, mode, 
                'Source SHA-256', 'Linked calculator result', 'Issues', 'Confirmation ID', 'Confirmation digest',
                'Geometry', 'Measurement basis', 'All item properties', 'Supporting evidence', 'Riser/drop additions',
                'Calculator result provenance', 'Appearance', 'Physical member IDs', 'Source page metadata', 'Confirmation receipt', 'Count ID', 'Purpose']
+    if include_layers:
+        headers.extend(['Number of layers', 'Total area m2'])
     workbook = Workbook(); sheet = workbook.active; sheet.title = 'Current Takeoffs'
     sheet.append(headers); details = []
     for item in selected:
@@ -340,6 +348,8 @@ def _schedule_xlsx(snapshot, selected, results, confirmations, linked, *, mode, 
                                  linked[item['id']], item.get('appearance'), item['member_ids'],
                                  doc['pages'][geometry['page']-1] if doc else None, confirmation))
         row.extend([item.get('count_id'), item.get('purpose')])
+        if include_layers:
+            row.extend([result.get('layers'), result.get('total_area_m2')])
         for index, value in enumerate(row):
             if isinstance(value, str) and len(value.encode('utf-16-le')) > 60000:
                 parts = [value[start:start+15000] for start in range(0, len(value), 15000)]
@@ -355,6 +365,7 @@ def _schedule_xlsx(snapshot, selected, results, confirmations, linked, *, mode, 
                 ('Audit SHA-256', snapshot['audit_head']), ('Register', mode), ('Confirmation category', confirmation_filter),
                 ('Scope', 'All items in the selected register and confirmation category, including hidden rows. Wall and slab records retain their original measurement types.'),
                 ('Approval', 'Unconfirmed items are drafts. Unknown quantities remain blank. Export does not confirm an item or authorize technical suitability.'),
+                ('Surface layers', 'Physical surface quantity remains one. Total area equals net measured area times the explicitly entered number of layers, defaulting to one when absent. Gross, excluded and net areas are unchanged; extra faces are not inferred.'),
                 ('Linked results', 'Only locally registered current confirmations and exact current calculator row inputs permit a linked steel result. Missing or stale results are unavailable.'),
                 ('Precision', 'Stored numeric values retain full precision. Cell display rounding does not change quantities.')]:
         info.append(row)
@@ -367,7 +378,7 @@ def _schedule_xlsx(snapshot, selected, results, confirmations, linked, *, mode, 
                 if cell.row == 1:
                     cell.font = Font(bold=True, color='FFFFFF'); cell.fill = PatternFill('solid', fgColor='1F2937')
                 elif isinstance(cell.value, (float, int)):
-                    measurement_headers = {'Width mm', 'Height mm', 'Diameter mm', 'Length per item m', 'Total length m', 'Gross area m2', 'Excluded area m2', 'Net area m2'}
+                    measurement_headers = {'Width mm', 'Height mm', 'Diameter mm', 'Length per item m', 'Total length m', 'Gross area m2', 'Excluded area m2', 'Net area m2', 'Total area m2'}
                     cell.number_format = '0.00' if table.title == 'Current Takeoffs' and headers[cell.column-1] in measurement_headers else '0'
         for column in table.columns: table.column_dimensions[column[0].column_letter].width = 24
     payload = _serialize_exact(workbook); workbook.close()

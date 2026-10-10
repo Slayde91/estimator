@@ -47,7 +47,8 @@ class TakeoffAreaTests(unittest.TestCase):
         for mode in ('wall', 'slab'):
             identity = self.create(self.proposal(mode))
             result = next(value for value in self.case.state['item_results'] if value['id'] == identity)
-            self.assertEqual(result, {'id': identity, 'gross_area_m2': 50, 'excluded_area_m2': 2, 'net_area_m2': 48, 'issues': []})
+            self.assertEqual(result, {'id': identity, 'gross_area_m2': 50, 'excluded_area_m2': 2, 'net_area_m2': 48,
+                                      'layers': 1, 'total_area_m2': 48, 'issues': []})
             original = deepcopy(self.case.state['snapshot'])
             for rotation in (0, 90, 180, 270):
                 for user_unit in (1, 2, 5):

@@ -70,9 +70,9 @@ async function draw(mode, mark, x = 100) {
   await page.getByRole('button', { name: area ? 'Trace surface' : 'Trace length', exact: true }).click();
   for (const point of points) await page.mouse.click(...await screen(point));
   await page.locator('.takeoff-viewport').press('Enter');
-  const fields = area ? { [mode === 'wall' ? 'Wall ID' : 'Slab / zone ID']: mark, 'Surface basis': mode === 'wall' ? 'wall-face' : 'slab-soffit', 'Explicit physical quantity': 1, 'True-surface source citation': `Synthetic true ${mode} plane; not real design evidence` } : { [mode === 'steel' ? 'Member mark' : 'Item']: mark, 'Count/QTY': 1 };
-  const reply = await command(() => dialog(area ? `Add ${mode} surface` : `Add ${mode} object`, fields, area ? 'Add surface' : 'Add item'), 'create_item');
-  return reply.snapshot.items.find(item => item.fields.mark === mark);
+  const fields = area ? { 'Surface Type': mode, 'Surface ID': mark, 'Number of layers': 1 } : { [mode === 'steel' ? 'Member mark' : 'Item']: mark, 'Count/QTY': 1 };
+  const reply = await command(() => dialog(area ? 'Add surface' : `Add ${mode} object`, fields, area ? 'Add surface' : 'Add item'), 'create_item');
+  const item=reply.snapshot.items.find(item => item.fields.mark === mark);assert.equal(item.mode,mode);if(area)assert.equal(item.fields.layers,1);return item;
 }
 async function setDefault() {
   for (const [label, value] of [['Line Colour', desired.stroke_color], ['Line Width', desired.stroke_width], ['Fill colour', desired.fill_color], ['Opacity', desired.opacity * 100]]) { await panel().getByLabel(label, { exact: true }).fill(String(value)); await panel().getByLabel(label, { exact: true }).press('Tab'); await settingsSettled(page); }

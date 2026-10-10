@@ -12,13 +12,7 @@ async function chooseTakeoff(page, name, { waitForSelection = true } = {}) {
   await choice.click();
   if (waitForSelection) await expect(choice).toHaveAttribute('aria-pressed', 'true', { timeout: 60000 });
   await expect(page.locator('#takeoff-navigation-menu')).toBeHidden();
-  // Legacy test callers retain their explicit new-record type in the shared view.
-  const native = String(name).toLowerCase();
-  if (waitForSelection && ['wall','walls','slab','slabs'].includes(native)) {
-    const value = ['slab','slabs'].includes(native) ? 'slab' : 'wall', control = page.getByLabel('New surface type', { exact: true });
-    await expect(control).toBeVisible(); if (await control.inputValue() !== value) await control.selectOption(value);
-    await expect(control).toHaveValue(value);
-  }
+
 }
 async function chooseLibrary(page, kind) {
   await page.locator('#library-navigation-toggle').hover();

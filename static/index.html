@@ -14,6 +14,8 @@
   <!-- TAKEOFFS:START -->
   <link rel="stylesheet" href="/takeoffs.css">
   <!-- TAKEOFFS:END -->
+  <link rel="stylesheet" href="/theme.css">
+  <script src="/theme.js" defer></script>
   <script src="/downloads.js" defer></script>
   <script src="/header-tagline-media.js" defer></script>
   <script src="/app.js" defer></script>
@@ -85,9 +87,13 @@
     </nav>
     <p id="header-tagline" class="header-tagline"><img id="header-tagline-character" class="header-tagline-character" src="/header-tagline-character-still.png" width="32" height="48" alt="" aria-hidden="true"><span id="header-tagline-label" class="sr-only">Built on caffeine and the audacity of 'Do your best, mastic the rest.'</span><span id="header-tagline-sizer" class="header-tagline-sizer" aria-hidden="true">Built on caffeine and the audacity of 'Do your best, mastic the rest.'_</span><span class="header-tagline-visual" aria-hidden="true"><span id="header-tagline-typed">Built on caffeine and the audacity of 'Do your best, mastic the rest.'</span><span class="header-tagline-cursor">_</span></span></p>
     </div>
+    <div class="header-tools">
     <div id="header-project-actions" class="actions header-project-actions" role="group" aria-label="Project actions" hidden>
       <span class="project-save-actions"><button id="save-current-project" type="button" class="button save-button icon-only" aria-label="Save" title="Save"><span class="button-symbol save-symbol" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="M5 3h12l3 3v15H4V3z"></path><path d="M8 3v6h8V3M8 21v-7h8v7M10 17h4"></path></svg></span><span class="sr-only">Save</span></button></span>
       <div class="project-attachments"><button id="project-attachment-zone" type="button" class="button secondary icon-only project-attachment-zone" aria-label="Project files" title="Drag or drop files" aria-describedby="project-attachment-status"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M14 3H5v18h14V8l-5-5zm0 0v5h5M12 18v-7m-3 3 3-3 3 3"></path></svg></button><small id="project-attachment-status" class="sr-only" role="status">Files save beside the current project.</small></div><input id="project-attachment-input" type="file" multiple hidden>
+    </div>
+    <button id="theme-toggle" type="button" class="button theme-toggle" aria-label="Theme: Ceasefire. Next theme: Midnight." title="Theme: Ceasefire. Next theme: Midnight."><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 3a9 9 0 1 0 0 18h1.2a2.3 2.3 0 0 0 1.6-3.9 1.5 1.5 0 0 1 1.1-2.6h1.4A3.7 3.7 0 0 0 21 10.8 8 8 0 0 0 12 3Z"></path><circle cx="7.5" cy="9" r=".8"></circle><circle cx="12" cy="6.8" r=".8"></circle><circle cx="16.5" cy="9" r=".8"></circle><circle cx="7.5" cy="14" r=".8"></circle></svg></button>
+    <span id="theme-status" class="sr-only" role="status" aria-live="polite"></span>
     </div>
   </header>
   <main id="main" tabindex="-1">

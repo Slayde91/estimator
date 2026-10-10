@@ -321,8 +321,12 @@ dialog.takeoff-column-filter{position:fixed;box-sizing:border-box;width:280px;ma
 .takeoff-document-menu .calculator-document-actions{width:min(310px,calc(100vw - 70px));max-width:none}
 .takeoff-document-menu .calculator-document-action{white-space:normal;text-align:left;gap:12px;min-height:44px}
 .takeoff-transfer-icon{display:block;width:24px;height:24px;object-fit:contain}
-.takeoff-register-controls .takeoff-undo-button{color:var(--muted)}
-@media(max-width:600px){.takeoff-document-menu{flex-basis:100%}}
+.takeoff-register-controls .takeoff-undo-button{display:inline-grid;place-items:center;width:48px;min-width:48px;height:48px;padding:0;font-size:12px;border:1px solid #dcd3d7;border-radius:8px;background:#fff;color:#51414a;box-shadow:none}
+.takeoff-register-controls .takeoff-undo-button:hover:not(:disabled){color:var(--accent);background:#fff7f5;border-color:#ddabad}
+.takeoff-physical-actions-row{flex-wrap:nowrap;justify-content:flex-start}
+.takeoff-physical-actions-row .takeoff-document-menu{flex-basis:auto}
+.takeoff-physical-actions-row .calculator-document-actions{left:auto;right:0}
+@media(max-width:600px){.takeoff-document-menu{flex-basis:100%}.takeoff-physical-actions-row{position:relative}.takeoff-physical-actions-row .takeoff-document-menu{position:static}.takeoff-physical-actions-row .calculator-document-actions{left:0;right:auto}}
 .button.takeoff-current-visibility[aria-pressed=true]{background:#ffd9dc;color:#8c101b;border-color:#d7838b;box-shadow:inset 0 0 0 1px #d7838b}
 
 

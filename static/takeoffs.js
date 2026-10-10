@@ -31,8 +31,8 @@
   const fields = {
     steel: [["mark", "Member mark"], ["level", "Level"], ["member_type", "Member type", ["Beam", "Column"]], ["section", "Steel section"], ["product", "Product", []], ["fire_period_min", "Fire period (min)", []], ["sides", "Exposed sides", "number"], ["critical_temperature", "Crit. Temp (°C)", []], ["exposure", "Exposure", []], ["zone", "Zone"], ["group", "Group"], ["notes", "Notes"]],
     duct: [["mark", "Item"], ["level", "Level"], ["duct_size", "WxH (mm)"], ["product", "Product", []], ["exposure", "Exposure", []], ["frl", "FRL", []], ["orientation", "Orientation", ["Horizontal", "Vertical", "Both"]], ["wall_penetrations", "Wall penetrations", "number"], ["floor_penetrations", "Floor penetrations", "number"], ["zone", "Zone"], ["group", "Group"], ["notes", "Notes"]],
-    wall: [["mark", "Wall ID"], ["surface_basis", "Surface basis", [["wall-face", "Wall face (true elevation)"]]], ...areaFields],
-    slab: [["mark", "Slab / zone ID"], ["surface_basis", "Surface basis", [["slab-soffit", "Slab soffit"], ["slab-top", "Slab top"]]], ...areaFields],
+    wall: [["mark", "Surface ID"], ["layers", "Number of layers", "number"], ["surface_basis", "Surface basis", [["wall-face", "Wall face (true elevation)"]]], ...areaFields],
+    slab: [["mark", "Surface ID"], ["layers", "Number of layers", "number"], ["surface_basis", "Surface basis", [["slab-soffit", "Slab soffit"], ["slab-top", "Slab top"]]], ...areaFields],
   };
   const numericOptionFields = new Set(["fire_period_min", "critical_temperature"]);
   const ductSizePattern = "\\s*(?:\\d+(?:\\.\\d*)?|\\.\\d+)\\s*[xX×]\\s*(?:\\d+(?:\\.\\d*)?|\\.\\d+)\\s*";
@@ -158,6 +158,8 @@
       const symbol = node("span", "button-symbol takeoff-button-symbol"); symbol.setAttribute("aria-hidden", "true");
       if (schedule) {
         const image = node("img", "takeoff-transfer-icon"); image.src = "/icons/takeoff-transfer.png"; image.alt = ""; image.setAttribute("aria-hidden", "true"); symbol.append(image);
+      } else if (label === "Undo last edit") {
+        symbol.textContent = "↶";
       } else {
         const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg"), path = document.createElementNS("http://www.w3.org/2000/svg", "path");
         for (const [key, value] of Object.entries({ viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", "stroke-width": "1.8", "stroke-linecap": "round", "stroke-linejoin": "round", focusable: "false" })) svg.setAttribute(key, value);
@@ -323,10 +325,11 @@
     const control = Array.isArray(kind) ? select([...(reviewChoice ? [] : [["", "Choose…"]]), ...kind.map(value => Array.isArray(value) ? value : [value, value])]) : node(kind === "textarea" ? "textarea" : "input");
     if (!Array.isArray(kind) && kind !== "textarea") control.type = ["number", "color", "checkbox"].includes(kind) ? kind : "text";
     if (kind === "number") control.step = "any";
+    if (key === "layers") { control.min = "1"; control.max = "1000000000000"; control.step = "1"; }
     if (Array.isArray(kind) && initial !== "" && initial != null && !kind.some(value => (Array.isArray(value) ? value[0] : value) === initial)) control.append(option(initial, `${initial} (retained)`));
     control.name = key; control.value = initial ?? ""; if (kind === "checkbox") control.checked = !!initial; control.dataset.field = key; control.setAttribute("aria-label", title); wrapper.append(control);
     if (key === "duct_size") { control.placeholder = "100x100"; control.pattern = ductSizePattern; }
-    const field = { wrapper, control, read: () => { if (kind === "checkbox") return control.checked; if (!numeric) return Array.isArray(kind) ? control.value : control.value.trim(); if (control.validity?.badInput) throw new Error(`${title}: enter a valid number.`); if (control.value.trim() === "") return null; const value = Number(control.value); if (!Number.isFinite(value)) throw new Error(`${title}: enter a finite number.`); return value; } };
+    const field = { wrapper, control, read: () => { if (kind === "checkbox") return control.checked; if (!numeric) return Array.isArray(kind) ? control.value : control.value.trim(); if (control.validity?.badInput) throw new Error(`${title}: enter a valid number.`); if (control.value.trim() === "") { if (key === "layers") throw new Error("Number of layers: enter a positive whole number."); return null; } const value = Number(control.value); if (!Number.isFinite(value)) throw new Error(`${title}: enter a finite number.`); if (key === "layers" && (!Number.isSafeInteger(value) || value < 1 || value > 1e12)) throw new Error("Number of layers: enter a positive whole number."); return value; } };
     if (key === "section" && !Array.isArray(kind)) sectionSearch(field, initial ?? "");
     return field;
   }
@@ -528,10 +531,8 @@
     const exports = node("div", "takeoff-register-controls"); ui.target = select([["steel_vermiculite", "Steel Spray Schedule"], ["steel_board", "Steel Board Schedule"]], refreshRegisterOptions); ui.target.setAttribute("aria-label", "Destination schedule");
     ui.transferControls = [ui.target, button("Preview transfer", () => transfer(false)), button("Update linked rows", () => transfer(true)), button("Detach links", detachSelected)];
     ui.areaNotice = node("p", "helper takeoff-area-notice", "Area records export as m². Existing steel and duct calculators do not accept surface areas. Split/merge is unavailable for surfaces; group separate physical surfaces without changing their identities.");
-    ui.surfaceType = select([["wall", "Wall"], ["slab", "Floor"]], changeSurfaceType); ui.surfaceType.setAttribute("aria-label", "New surface type");
-    ui.surfaceTypeField = node("label", "field takeoff-new-surface-type"); ui.surfaceTypeField.append(node("span", "", "New surface type"), ui.surfaceType);
     ui.documentMenu = registerDocumentMenu();
-    exports.append(...ui.transferControls, ui.surfaceTypeField, ui.documentMenu.root, ui.areaNotice);
+    exports.append(...ui.transferControls, ui.documentMenu.root, ui.areaNotice);
     ui.tableWrap = node("div", "takeoff-register-table"); ui.pagination = node("div", "takeoff-register-controls"); register.append(controls, ui.bulk, exports, ui.tableWrap, ui.pagination);
     ui.physicalContainer = node("div", "takeoff-physical-container"); ui.physicalContainer.hidden = true;
     ui.controlStatus = node("p", "helper takeoff-control-status"); ui.controlStatus.hidden = true; ui.controlStatus.setAttribute("role", "status");
@@ -579,20 +580,10 @@
   }
   async function open() { build(); state.active = true; await ensureSession(); renderData(); scheduleLinkedThickness(true); if (state.document) await renderPage(); }
   function refreshNavigation() {
-    if (state.ui?.surfaceType) state.ui.surfaceType.disabled = !!(state.busy || state.modal || state.navigationBusy || !isArea());
     for (const choice of $("takeoff-navigation-menu")?.querySelectorAll("[data-mode]") || []) {
       choice.disabled = !!(state.busy || state.physicalPlacing || state.navigationBusy || !labels[choice.dataset.mode]);
       choice.setAttribute("aria-pressed", String(inWorkspace(choice.dataset.mode) && (!choice.dataset.physicalScope || choice.dataset.physicalScope === state.physicalScope)));
     }
-  }
-  async function changeSurfaceType(value) {
-    const sessionId = state.session?.session_id, mode = state.mode;
-    try {
-      if (!sessionId || !isArea(mode) || !isArea(value) || state.busy || state.modal || state.navigationBusy || state.physicalPlacing) return false;
-      if (!await discardEditor()) return false;
-      if (sessionId !== state.session?.session_id || mode !== state.mode || state.busy || state.modal || state.navigationBusy || state.physicalPlacing) return false;
-      cancelTrace(); state.mode = value; renderData(); return true;
-    } finally { if (state.ui?.surfaceType) state.ui.surfaceType.value = state.mode; refreshNavigation(); }
   }
   async function selectWorkspace(mode, scope) {
     if (mode === "walls_floors") mode = isArea() ? state.mode : "wall";
@@ -662,11 +653,10 @@
     const area = isArea();
     for (const control of state.ui.transferControls) { control.hidden = area; control.disabled = area; }
     state.ui.areaNotice.hidden = !area;
-    if (state.ui.surfaceTypeField) { state.ui.surfaceTypeField.hidden = !area; state.ui.surfaceType.value = state.mode; }
     state.ui.tools.trace.hidden = area;
     state.ui.tools.count.hidden = state.mode !== "duct"; state.ui.countAnchor.hidden = state.mode !== "duct"; state.ui.tools.countLength.hidden = state.mode !== "steel"; state.ui.tools.measure.hidden = !area;
     for (const tool of ["polygon", "exclusion"]) state.ui.tools[tool].hidden = !area;
-    const sortChoices = [["mark", "Sort: Mark"], ["level", "Sort: Level"], [area ? "area" : "length", area ? "Sort: Net area" : "Sort: Length"], ["state", "Sort: Confirmation"]];
+    const sortChoices = [["mark", "Sort: Mark"], ["level", "Sort: Level"], [area ? "area" : "length", area ? "Sort: Total area" : "Sort: Length"], ["state", "Sort: Confirmation"]];
     if (!sortChoices.some(([key]) => key === state.sort)) state.sort = "mark";
     state.ui.sort.replaceChildren(...sortChoices.map(([key, label]) => option(key, label))); state.ui.sort.value = state.sort;
     const targets = area ? [] : state.mode === "steel" ? [["steel_vermiculite", "Steel Spray Schedule"], ["steel_board", "Steel Board Schedule"]] : [["ductwork", "Ductwork Schedule"]];
@@ -948,10 +938,11 @@
       bindSetting(editor, field, `appearance:${def[0]}`); editor.appearance.push(field); content.append(field.wrapper);
     }
     content.append(button("Set as default", () => setMarkupDefaults(editor)));
-    content.append(node("p", "helper", countsOnly ? "Marker size uses physical PDF points. Colour, shape, fill and opacity change appearance only." : "Appearance is visual only and does not approve quantities. Fill applies to closed surface or cited-region markups."), node("h4", "", "Item details"));
+    if (countsOnly) content.append(node("p", "helper", "Marker size uses physical PDF points. Colour, shape, fill and opacity change appearance only."));
+    content.append(node("h4", "", "Item details"));
     if (selectedItems().length === 1) { editor.visibility = currentVisibilityControl("item", selectedItems()[0].id); content.append(editor.visibility); }
     if (isArea()) content.append(node("p", "helper", `Surface type: ${[...new Set(selected.map(surfaceType))].join(" / ")}`));
-    editor.fields = commonItemFields(selected, itemFields).map(def => { const field = formField(def, def[0] === "duct_size" ? formatDuctSize(first.fields) : first.fields[def[0]]); bindSetting(editor, field, `fields:${def[0]}`); if (def[0] === "sides") field.wrapper.hidden = state.ui.target.value !== "steel_board"; if (["product", "member_type"].includes(def[0])) field.control.addEventListener("change", () => void safely(() => loadSettingsOptions(editor))); content.append(field.wrapper); return field; });
+    editor.fields = commonItemFields(selected, itemFields).map(def => { const field = formField(def, def[0] === "duct_size" ? formatDuctSize(first.fields) : (def[0] === "layers" ? first.fields.layers ?? 1 : first.fields[def[0]])); bindSetting(editor, field, `fields:${def[0]}`); if (def[0] === "sides") field.wrapper.hidden = state.ui.target.value !== "steel_board"; if (["product", "member_type"].includes(def[0])) field.control.addEventListener("change", () => void safely(() => loadSettingsOptions(editor))); content.append(field.wrapper); return field; });
     if (selected.some(isCount)) {
       const counted = selected.filter(item => isCount(item) && !isStandalone(item));
       counted.forEach((item, index) => {
@@ -2103,11 +2094,11 @@
   }
   async function createDrawnItem(measurement, geometry, evidence = []) {
     if (isArea()) {
-      const mode = state.mode;
-      const details = await ask(`Add ${mode === "wall" ? "wall" : "slab"} surface`, [...editableFields(mode).map(([key, label, type]) => [key, label, type || "text", "", ["mark", "surface_basis", "surface_citation"].includes(key)]), ["quantity", "Explicit physical quantity", [["1", "One physical treatment surface"]], "", true]], surfaceHelp, "Add surface");
+      const details = await ask("Add surface", [["surface_type", "Surface Type", [["wall", "Wall"], ["slab", "Floor"]], state.mode, true], ...editableFields(state.mode).filter(([key]) => !["surface_basis", "treatment", "surface_citation"].includes(key)).map(([key, label, type]) => [key, label, type || "text", key === "layers" ? 1 : "", ["mark", "layers"].includes(key)])], "", "Add surface");
       if (!details) return cancelTrace();
-      if (details.quantity !== "1") throw new Error("Identify one physical treatment surface. Separate surfaces need separate items.");
-      const { quantity, ...enteredFields } = details;
+      const { surface_type: mode, ...enteredFields } = details;
+      if (!isArea(mode)) throw new Error("Choose Wall or Floor for Surface Type.");
+      if (!Number.isSafeInteger(enteredFields.layers) || enteredFields.layers < 1 || enteredFields.layers > 1e12) throw new Error("Number of layers: enter a positive whole number.");
       const id = uuid();
       await command("create_item", { item: { id, mode, geometry, measurement, quantity: 1, fields: enteredFields, evidence, appearance: newMarkupAppearance() } });
       state.selected = new Set([id]); cancelTrace(); state.settingsOpen = true; renderSelection(); return;
@@ -3389,7 +3380,7 @@
         .sort((a, b) => String(a.fields?.mark || "").localeCompare(String(b.fields?.mark || ""), "en-AU", { numeric: true }));
     }
     const filter = state.ui?.statusFilter.value;
-    return result.filter(item => !filter || reviewStatus(item).key === filter).sort((a, b) => ["length", "area"].includes(state.sort) ? (itemResult(a)[state.sort === "area" ? "net_area_m2" : "length_m"] || 0) - (itemResult(b)[state.sort === "area" ? "net_area_m2" : "length_m"] || 0) : String(state.sort === "state" ? reviewStatus(a).label : a.fields[state.sort] || "").localeCompare(String(state.sort === "state" ? reviewStatus(b).label : b.fields[state.sort] || ""), "en-AU", { numeric: true }));
+    return result.filter(item => !filter || reviewStatus(item).key === filter).sort((a, b) => ["length", "area"].includes(state.sort) ? (itemResult(a)[state.sort === "area" ? "total_area_m2" : "length_m"] || 0) - (itemResult(b)[state.sort === "area" ? "total_area_m2" : "length_m"] || 0) : String(state.sort === "state" ? reviewStatus(a).label : a.fields[state.sort] || "").localeCompare(String(state.sort === "state" ? reviewStatus(b).label : b.fields[state.sort] || ""), "en-AU", { numeric: true }));
   }
   function itemGroup(item) { if (isStandalone(item)) return null; return !usesColumnFilters() && state.group ? (state.group === "state" ? reviewStatus(item).label : item.fields[state.group] || "Ungrouped") : null; }
   function groupedItems(list = visibleItems()) { const standard = list.filter(item => !isStandalone(item)), standalone = list.filter(isStandalone); return [...(!usesColumnFilters() && state.group ? standard.sort((a, b) => String(itemGroup(a)).localeCompare(String(itemGroup(b)))) : standard), ...standalone]; }
@@ -3490,8 +3481,8 @@
     state.ui.merge.title = isArea() ? "Surface merging is unavailable. Group separate physical surfaces without changing their identities." : state.mode === "steel" ? "Combine compatible repeated-member groups while retaining every physical member identity." : "Merge adjoining measured segments of one individual duct run.";
     state.ui.bulk.hidden = !selected.length; state.ui.selectionCount.textContent = `${selected.length} selected`;
     const table = node("table"), head = node("thead"), header = node("tr"), body = node("tbody"); table.setAttribute("aria-label", `${labels[state.mode]} editable takeoff register`);
-    const area = isArea(), columns = area ? ["mark", "surface_type", "level", "surface_basis", "substrate", "treatment", "system", "product", "frl"] : state.mode === "steel" ? ["mark", "level", "member_type", "section", "fire_period_min", ...(state.ui.target?.value === "steel_board" ? ["sides"] : [])] : ["mark", "level", "duct_size", "frl", "orientation"];
-    const headings = ["Select", "Hide", "View/Edit", "Confirmation", ...columns.map(key => area && key === "mark" ? "Surface ID" : key === "surface_type" ? "Surface type" : fields[state.mode].find(field => field[0] === key)?.[1] || key), ...(area ? ["Gross (m²)", "Excluded (m²)", "Net (m²)"] : ["Qty", "Length each (m)", "Total (m)"]), ...(["steel", "duct"].includes(state.mode) ? ["Thickness (mm)"] : []), "Evidence / issues"];
+    const area = isArea(), columns = area ? ["mark", "surface_type", "level", "surface_basis", "substrate", "treatment", "system", "product", "frl", "layers"] : state.mode === "steel" ? ["mark", "level", "member_type", "section", "fire_period_min", ...(state.ui.target?.value === "steel_board" ? ["sides"] : [])] : ["mark", "level", "duct_size", "frl", "orientation"];
+    const headings = ["Select", "Hide", "View/Edit", "Confirmation", ...columns.map(key => area && key === "mark" ? "Surface ID" : key === "surface_type" ? "Surface type" : fields[state.mode].find(field => field[0] === key)?.[1] || key), ...(area ? ["Gross (m²)", "Excluded (m²)", "Net (m²)", "Total (m²)"] : ["Qty", "Length each (m)", "Total (m)"]), ...(["steel", "duct"].includes(state.mode) ? ["Thickness (mm)"] : []), "Evidence / issues"];
     for (const title of headings) {
       const cell = node("th", "", title);
       if (usesColumnFilters()) { const filterColumns = registerFilterColumns[state.mode], key = Object.keys(filterColumns).find(key => filterColumns[key] === title); if (key) cell.append(registerColumnFilterButton(key)); }
@@ -3518,14 +3509,14 @@
       const rowFields = [];
       for (const key of [...columns, ...(area ? [] : ["quantity"])]) {
         if (key === "surface_type") { row.append(node("td", "", surfaceType(item))); continue; }
-        const initial = key === "quantity" ? item.quantity : key === "duct_size" ? formatDuctSize(item.fields) : item.fields[key];
+        const initial = key === "quantity" ? item.quantity : key === "duct_size" ? formatDuctSize(item.fields) : key === "layers" ? item.fields.layers ?? 1 : item.fields[key];
         const def = key === "quantity" ? [key, "Quantity", "number"] : fields[item.mode].find(field => field[0] === key), field = formField(def, initial); rowFields.push(field);
         if (isCount(item)) { field.control.readOnly = true; field.control.disabled = true; field.control.dataset.countReadOnly = "true"; field.control.title = key === "quantity" ? "Quantity is derived from count markers." : "Edit shared Count details using Edit item."; field.sectionSearch?.setLocked(); }
         else field.control.addEventListener("change", () => void safely(async () => { if (field.sectionSearch && !field.sectionSearch.commitTyped()) return; try { await flushSettings(); requireFinishedEdits(); if (sessionId !== state.session?.session_id) throw new Error("The project changed. Choose the item again."); } catch (error) { field.control.value = initial ?? ""; throw error; } if (field.control.value === String(initial ?? "")) return; const value = field.read(); if (def[2] === "number" && value !== null && !Number.isFinite(value)) throw new Error("Enter a finite number."); await command("update_item", { item_id: item.id, changes: key === "quantity" ? { quantity: value } : { fields: key === "duct_size" ? parseDuctSize(field.control.value) : { [key]: value } } }); }));
         const cell = node("td"); cell.append(field.sectionSearch ? field.wrapper : field.control); row.append(cell);
       }
       const result = itemResult(item);
-      for (const key of area ? ["gross_area_m2", "excluded_area_m2", "net_area_m2"] : ["length_m", "total_length_m"]) row.append(node("td", "", area ? Number.isFinite(result[key]) ? units.format(result[key]) : "—" : formatLength(result[key])));
+      for (const key of area ? ["gross_area_m2", "excluded_area_m2", "net_area_m2", "total_area_m2"] : ["length_m", "total_length_m"]) row.append(node("td", "", area ? Number.isFinite(result[key]) ? units.format(result[key]) : "—" : formatLength(result[key])));
       if (["steel", "duct"].includes(state.mode)) {
         const cell = node("td", "takeoff-linked-thickness"); cell.dataset.thicknessItemId = item.id;
         updateLinkedThicknessCell(cell, item); row.append(cell);
@@ -3564,7 +3555,6 @@
       return;
     }
     if (!item.geometry) panel.append(node("p", "takeoff-warning", "Source markup is missing. You can inspect and edit this draft, but review and confirmation remain blocked."));
-    if (area) panel.append(node("p", "helper takeoff-surface-help", surfaceHelp), node("p", "helper", "Quantity: one physical treatment surface. Other faces or levels require separate evidenced items."));
     if (item.mode === "duct") {
       if (item.fields.shape !== "rectangular") panel.append(node("p", "takeoff-warning", `Retained ${item.fields.shape || "unspecified-shape"} duct. ${item.fields.diameter_mm != null ? `Original diameter: ${item.fields.diameter_mm} mm. ` : ""}Its original shape and dimensions are preserved; this record cannot transfer to the rectangular duct calculator.`));
       if (item.fields.shape == null || item.fields.shape === "") panel.append(button("Use rectangular duct", currentAction(useRectangularDuct)));

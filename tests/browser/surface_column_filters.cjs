@@ -19,7 +19,7 @@ const errors = [], commands = [], evidence = {}, assets = {}, assetTasks = [];
 const labels = () => ['Confirmation', 'Surface ID', 'Surface type', 'Level', 'Surface basis', 'Substrate', 'Treatment', 'Protection system', 'Protection product', 'FRL / fire rating'];
 const register = () => page.getByRole('table', { name: 'Walls/Floors editable takeoff register', exact: true });
 const rows = () => register().locator('tbody tr[data-item-id]');
-const rowMarks = () => rows().getByLabel(/^(Wall ID|Slab \/ zone ID)$/).evaluateAll(fields => fields.map(field => field.value));
+const rowMarks = () => rows().getByLabel('Surface ID',{exact:true}).evaluateAll(fields => fields.map(field => field.value));
 const panel = () => page.locator('.takeoff-column-filter');
 async function mode(value) { currentMode = value; await chooseTakeoff(page, value === 'wall' ? 'WALLS' : 'SLABS'); }
 async function menu(label) { await register().getByRole('button', { name: `Filter ${label}`, exact: true }).click(); await expect(panel()).toBeVisible(); return panel(); }
@@ -72,7 +72,7 @@ async function reset(label) { await finishMenu(await menu(label), 'Reset filter'
     takeoffs.applyProject(await takeoffs.prepareProject(current, sid)); return { first, snapshot: current, results };
   });
   const baselineCommands = commands.length, baselineCalculators = await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot());
-  await mode('slab');await expect(page.getByLabel('New surface type',{exact:true})).toHaveValue('slab');await expect(page.getByText('1–100 of 204 matching items',{exact:true})).toBeVisible();
+  await mode('slab');await expect(page.getByLabel('New surface type',{exact:true})).toHaveCount(0);await expect(page.getByText('1–100 of 204 matching items',{exact:true})).toBeVisible();
   assert.deepEqual(await register().locator('tbody tr[data-item-id] td:nth-child(6)').evaluateAll(cells=>[...new Set(cells.map(cell=>cell.textContent))]),['Floor']);
   await page.getByRole('button',{name:'Next 100',exact:true}).click();assert.deepEqual(await register().locator('tbody tr[data-item-id] td:nth-child(6)').evaluateAll(cells=>[...new Set(cells.map(cell=>cell.textContent))]),['Floor','Wall']);
   const documentMenu=page.locator('.takeoff-register .takeoff-document-menu'),documentToggle=documentMenu.getByRole('button',{name:'Takeoff register document actions',exact:true});

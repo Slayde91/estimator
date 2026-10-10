@@ -81,6 +81,35 @@ class TakeoffAreaProjectTests(unittest.TestCase):
         with self.assertRaises(ValidationError):
             case.service.export(reopened['takeoffs_session_id'], 'csv', [self.item_id])
 
+    def test_layered_area_real_save_reopen_and_save_as_retain_source_and_v2_authority(self):
+        case = self.case
+        self.command('update_item', item_id=self.item_id, changes={'fields': {'layers': 3}})
+        self.command('confirm_items', item_ids=[self.item_id])
+        original = deepcopy(case.session['snapshot']['items'][0])
+        self.assertEqual(original['quantity'], 1)
+        self.assertEqual(len(original['member_ids']), 1)
+        checks = original['confirmation']['checks']
+        self.assertEqual((checks['engine'], checks['layers'], checks['net_area_m2'], checks['total_area_m2']),
+                         ('takeoffs-area-v2', 3, 46, 138))
+        case.library.save_as(case.request)
+        first_bytes = case.target.read_bytes()
+        first = json.loads(first_bytes)
+        for key in ('estimate', 'calculators'):
+            self.assertEqual(first[key], json.loads(case.legacy)[key])
+        case.dialogs.opened = str(case.target)
+        reopened = case.library.open_file()
+        self.assertEqual(reopened['takeoffs_issues'], [])
+        self.assertEqual(reopened['takeoffs']['items'][0], original)
+        second = case.root / 'layers-copy' / 'renamed.json'; second.parent.mkdir()
+        case.dialogs.selection = SaveSelection(str(second), None)
+        case.library.save_as({**deepcopy(case.base), 'takeoffs': reopened['takeoffs'],
+                              'takeoffs_session_id': reopened['takeoffs_session_id']})
+        case.dialogs.opened = str(second)
+        final = case.library.open_file()
+        self.assertEqual(final['takeoffs_issues'], [])
+        self.assertEqual(final['takeoffs']['items'][0], original)
+        self.assertEqual(case.target.read_bytes(), first_bytes)
+
 
 if __name__ == '__main__':
     unittest.main()

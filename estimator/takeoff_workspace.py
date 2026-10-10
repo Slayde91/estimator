@@ -16,7 +16,7 @@ from uuid import uuid4
 from .catalog import ValidationError
 from .takeoff_area import AREA_MODES
 from .takeoff_model import (MAX_ITEMS, audit_affected, audit_state_digest, digest, identity, is_count_item,
-                           is_area_item, is_marker_item, is_standalone_count, is_standalone_length, is_standalone_item, item_digest, item_result,
+                           has_explicit_area_layers, is_area_item, is_marker_item, is_standalone_count, is_standalone_length, is_standalone_item, item_digest, item_result,
     new_snapshot, object_fields, page_metadata, text, validate_calibration, validate_item, validate_snapshot)
 from .takeoff_model import (active_calibrations, item_references, markup_appearance, number, preset_distance, validate_appearance,
                            validate_calibration_revisions, validate_measurement_scope, polyline_length, points)
@@ -162,12 +162,15 @@ class TakeoffService:
 
     def _receipt(self, snapshot, item, session_id):
         result = item_result(item, snapshot)
+        layered_area = has_explicit_area_layers(item)
         measurements = ({key: result[key] for key in ('gross_area_m2', 'excluded_area_m2', 'net_area_m2')}
                         if is_area_item(item) else {'total_count': result['total_count']} if is_standalone_count(item)
                         else {key: result[key] for key in ('length_m', 'total_length_m')})
+        if layered_area:
+            measurements.update({key: result[key] for key in ('layers', 'total_area_m2')})
         return {'id': str(uuid4()), 'digest': item_digest(item, snapshot), 'at': timestamp(),
                 'actor': {'kind': 'local-session', 'session_id': session_id},
-                'checks': {'engine': ('takeoffs-area-v1' if is_area_item(item) else 'takeoffs-count-v1' if is_standalone_count(item)
+                'checks': {'engine': ('takeoffs-area-v2' if layered_area else 'takeoffs-area-v1' if is_area_item(item) else 'takeoffs-count-v1' if is_standalone_count(item)
                                      else 'takeoffs-length-v1' if is_standalone_length(item) else 'takeoffs-v1'),
                            'quantity': item['quantity'], **measurements,
                            'evidence_verified': True, 'issues': deepcopy(result['issues'])}}

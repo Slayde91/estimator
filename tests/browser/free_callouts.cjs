@@ -122,7 +122,16 @@ async function saveLoad(info) {
   const created = {}, builtIn = { stroke_color: "#FF3300", fill_enabled: true, fill_color: "#FFDD33", font_color: "#000000", stroke_width: 4, opacity: .75 };
   let savedDefault;
   for (const [index, mode] of ["steel", "duct", "wall", "slab"].entries()) {
-    await chooseTakeoff(page, mode); await fit(); await expect(page.getByRole("button", { name: "Call-out", exact: true })).toHaveAttribute("title", "Call-out (Ctrl+')");
+    await chooseTakeoff(page, mode);
+    if (mode === "slab") {
+      // The visible navigation is shared. Establish the preserved native Slab
+      // compatibility context explicitly; clicking Walls/Floors retains Wall.
+      const beforeLegacyMode = await snapshot(), previousRequests = requests.length;
+      assert.equal(await page.evaluate(() => window.CeasefireTakeoffs.selectWorkspace("slab")), true);
+      assert.deepEqual(await snapshot(), beforeLegacyMode); assert.equal(requests.length, previousRequests);
+      evidence.legacyNativeSlabSetup = { existingCompatibilityAPI: true, noCanonicalMutation: true };
+    }
+    await fit(); await expect(page.getByRole("button", { name: "Call-out", exact: true })).toHaveAttribute("title", "Call-out (Ctrl+')");
     await expect(page.getByRole("button", { name: "Call-out", exact: true }).locator("img")).toHaveAttribute("src", "/icons/takeoff-callout.png");
     await page.locator(".takeoff-viewport").focus(); await page.keyboard.press("Control+'"); await expect(page.locator(".takeoff-viewport")).toHaveAttribute("data-tool", "callout");
     const reply = await command(async () => page.mouse.click(...await sourcePoint([220 + index * 70, 240])), "create_annotation"), annotation = reply.snapshot.annotations.callouts.find(value => value.id === reply.created_annotation_id);
@@ -162,6 +171,27 @@ async function saveLoad(info) {
     }
   }
   assert.equal(new Set(Object.values(created)).size, 4); evidence.allModes = copy(created); evidence.richText = { bold: true, bullet: true, numberedShiftEnter: true, safePaste: true, nativeEditing: true };
+  // Native shared navigation must retain access to both original note types,
+  // without rewriting the Slab annotation as Wall or inventing register items.
+  await chooseTakeoff(page, "steel"); await fit();
+  const combinedBefore = await snapshot(), combinedCommands = requests.length;
+  await chooseTakeoff(page, "Walls/Floors");
+  await expect(note(created.wall)).toBeVisible(); await expect(note(created.slab)).toBeVisible();
+  for (const mode of ["wall", "slab"]) {
+    await select(created[mode]); await expect(editor()).toContainText(`NOTE-${mode}`);
+    assert.equal((await snapshot()).annotations.callouts.find(value => value.id === created[mode]).mode, mode);
+  }
+  assert.deepEqual(await snapshot(), combinedBefore); assert.equal(requests.length, combinedCommands, "Shared native navigation and note selection send no annotation command");
+  const combined = await download("free-callouts-walls-floors.pdf"), combinedPdf = inspectPdf(combined.file), combinedText = combinedPdf.text.replace(/[\r\n]/g, "");
+  assert.equal(combined.request.mode, "walls_floors"); assert.deepEqual(combined.request.item_ids, []);
+  assert.deepEqual(combined.request.annotation_ids, [created.wall, created.slab]);
+  for (const mode of ["wall", "slab"]) { assert.ok(combinedText.includes(`NOTE-${mode}`)); assert.ok(combinedText.includes(`Entry-${mode}`)); }
+  assert.ok(!combinedText.includes("NOTE-steel") && !combinedText.includes("NOTE-duct"));
+  assert.ok(combinedText.includes("2 free Call-outs (drawing notes only); no measurement markups."));
+  assert.deepEqual(await snapshot(), combinedBefore, "Combined PDF export preserves every saved note identity, native mode, rich text and source geometry"); invariant(await snapshot(), baseline);
+  assert.deepEqual(await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()), calculators); assert.equal(hash(info.fixture), sourceHash);
+  evidence.combinedSurfaceFreeCallouts = { nativeNavigation: true, selectedOriginalWallAndSlab: true, annotationIds: combined.request.annotation_ids, nativeModesUnchanged: true, fullSnapshotUnchanged: true, noMeasurementOrQuantity: true, originalSourceHash: sourceHash, pdf: combined.file, bothTextsExported: true, otherModesExcluded: true, geometry: combinedPdf.geometry };
+  await page.screenshot({ path: path.join(output, "combined-walls-floors-notes.png"), fullPage: true });
   await chooseTakeoff(page, "steel"); await fit(); await select(created.steel);
   const savedBeforeInvalid=await snapshot(), requestsBeforeInvalid=requests.length, invalidText='X'.repeat(8001);
   await editor().fill(invalidText); await panel().getByRole('button',{name:'Close settings',exact:true}).click();
@@ -285,7 +315,7 @@ async function saveLoad(info) {
   const visibleText = visiblePdf.text.replace(/[\r\n]/g, ""), boldText = visiblePdf.segments.filter(value => /Bold/.test(value.font)).map(value => value.text).join("").replace(/[\r\n]/g, "");
   assert.deepEqual(visible.request.item_ids, []); assert.deepEqual(visible.request.annotation_ids, [created.steel]); assert.ok(visibleText.includes("NOTE-steel")); assert.ok(visibleText.includes("SAFE_PASTE")); assert.ok(visibleText.includes("• Entry-steel")); assert.ok(visibleText.includes("1. Number-steel")); assert.ok(boldText.includes("NOTE-steel"), "Every NOTE heading character keeps its bold font in PDF output");
   assert.ok(visibleText.includes("1 free Call-out (drawing notes only); no measurement markups."), "Annotation-only caption counts the drawing note without inventing measurements");
-  assert.equal(visiblePdf.pages, sourcePdf.pages); invariant(await snapshot(), baseline);
+  assert.equal(visiblePdf.pages, sourcePdf.pages); assert.equal(combinedPdf.pages, sourcePdf.pages); assert.deepEqual(combinedPdf.geometry, visiblePdf.geometry, "Combined notes preserve the same original drawing derivative geometry as native Steel notes"); invariant(await snapshot(), baseline);
   await select(created.steel); await note(created.steel).locator('[data-annotation-part="label"]').click({button:'right'}); await page.getByRole('menuitem',{name:'Hide',exact:true}).click(); await expect(note(created.steel)).toHaveCount(0);
   const hidden = await download("free-callouts-hidden.pdf"), hiddenPdf = inspectPdf(hidden.file); assert.deepEqual(hidden.request.annotation_ids, []); assert.ok(!hiddenPdf.text.replace(/[\r\n]/g, "").includes("NOTE-steel")); assert.deepEqual(hiddenPdf.geometry, visiblePdf.geometry, "Showing notes preserves the established drawing derivative geometry"); assert.deepEqual((await snapshot()).annotations, beforeExport.annotations);
   evidence.pdf = { visible: visible.file, hidden: hidden.file, noteVisibleOnlyWhenShown: true, sourceMetadata: sourcePdf.geometry, drawingDerivativeGeometry: visiblePdf.geometry, notesPreserveDerivativeGeometry: true };

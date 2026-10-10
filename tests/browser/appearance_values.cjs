@@ -50,9 +50,9 @@ async function draw(mode, mark, x = 100) {
   const area = ['wall', 'slab'].includes(mode), points = area ? [[x,100],[x+120,100],[x+120,240],[x,240]] : [[x,400],[x+120,400],[x+120,470]];
   await page.getByRole('button', { name: area ? 'Trace surface' : 'Trace length', exact: true }).click();
   for (const point of points) await page.mouse.click(...await screen(point)); await page.locator('.takeoff-viewport').press('Enter');
-  const fields = area ? { [mode === 'wall' ? 'Wall ID' : 'Slab / zone ID']: mark, 'Surface basis': mode === 'wall' ? 'wall-face' : 'slab-soffit', 'Explicit physical quantity': 1, 'True-surface source citation': 'Synthetic source plane for value test' } : { [mode === 'steel' ? 'Member mark' : 'Item']: mark, 'Count/QTY': 1 };
-  const reply = await command(() => modal(area ? `Add ${mode} surface` : `Add ${mode} object`, fields, area ? 'Add surface' : 'Add item'), 'create_item');
-  const item = reply.snapshot.items.find(value => value.fields.mark === mark); await select(item); return item;
+  const fields = area ? { 'Surface Type': mode, 'Surface ID': mark, 'Number of layers': 1 } : { [mode === 'steel' ? 'Member mark' : 'Item']: mark, 'Count/QTY': 1 };
+  const reply = await command(() => modal(area ? 'Add surface' : `Add ${mode} object`, fields, area ? 'Add surface' : 'Add item'), 'create_item');
+  const item = reply.snapshot.items.find(value => value.fields.mark === mark); assert.equal(item.mode,mode); if(area)assert.equal(item.fields.layers,1); await select(item); return item;
 }
 function preserved(before, after) {
   for (const key of ['geometry','measurement','fields','quantity','member_ids','evidence','confirmation','state']) assert.deepEqual(after[key], before[key], `${key} must survive a visual edit`);

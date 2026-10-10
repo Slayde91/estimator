@@ -1,4 +1,5 @@
 const { assertParentControls, assertTransferIcon, clickInspectorAdd } = require('./parent_controls_helpers.cjs');
+const { assertPhysicalTools } = require('./physical_tools_helpers.cjs');
 const { chooseTakeoff, takeoffChoice } = require('./section_navigation.cjs');
 const { chooseNewPhysicalItem, startDefect } = require('./physical_dialogs.cjs');
 const { clickProjectControl } = require('./project_actions.cjs');
@@ -242,7 +243,7 @@ async function reviewAutosaveDrag(scope, barrier, service, pageNumber) {
   console.log(`PASS: ${scope} fast marker/callout drag, corner resize, cancel and click with a held automatic save.`);
 }
 async function reviewAlignment(scope, barrier) {
-  for (const width of [764, 1146]) {
+  for (const width of [752, 1146]) {
     await page.setViewportSize({ width, height: 764 });
     for (const open of [false, true]) {
       if (open) await selectBarrier(barrier); else await closeDetails();
@@ -259,6 +260,7 @@ async function reviewAlignment(scope, barrier) {
       assert.ok(measured.documents.x >= measured.layout.x && measured.documents.x + measured.documents.width <= measured.layout.x + measured.layout.width + 1, 'Source dropdown remains in the drawing overlay with Item Details open or closed');
       assert.equal(measured.scopesInMenu, true); assert.equal(measured.oldPanelCount, 0);
       assert.deepEqual(measured.selectedStyle, measured.calculatorStyle, 'Takeoffs selection matches the existing Calculators dropdown style');
+      measured.physicalTools = await assertPhysicalTools(page);
       await page.mouse.move(0, 0);
       await page.screenshot({ path: path.join(output, `${scope}-${width}-details-${open ? 'open' : 'closed'}-alignment.png`), fullPage: true });
       (evidence.alignment ||= []).push({ scope, width, detailsOpen: open, ...measured });

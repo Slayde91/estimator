@@ -2,6 +2,8 @@
   "name": "ceasefire-estimator-browser-tests",
   "private": true,
   "scripts": {
+    "test:themes": "node --test tests/test_theme_ui.cjs",
+    "test:themes-browser": "node tests/browser/themes.cjs",
     "test:header-controls": "node tests/browser/header_controls.cjs",
     "test:estimator-header-state": "node tests/browser/estimator_header_state.cjs",
     "test:viewer-pan-scale": "node tests/browser/viewer_pan_scale.cjs",

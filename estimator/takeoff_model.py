@@ -28,11 +28,11 @@ FIELDS = frozenset(('mark', 'level', 'zone', 'group', 'member_type', 'section',
     'exposure_layout', 'partial_depth_mm', 'layer_preference', 'thickness_lookup',
     'installation_detail', 'depth_mm', 'steel_area_cm2', 'steel_mass_kg_m',
     'added_girth_m', 'design_reference', 'classification', 'riser', 'substrate',
-    'treatment', 'surface_basis', 'surface_citation'))
+    'treatment', 'surface_basis', 'surface_citation', 'layers'))
 NUMERIC_FIELDS = frozenset(('critical_temperature', 'fire_period_min', 'sides',
     'width_mm', 'height_mm', 'diameter_mm', 'wall_penetrations', 'floor_penetrations',
     'factor', 'girth_override_m', 'area_override_m2', 'waste_fraction',
-    'partial_depth_mm', 'depth_mm', 'steel_area_cm2', 'steel_mass_kg_m', 'added_girth_m'))
+    'partial_depth_mm', 'depth_mm', 'steel_area_cm2', 'steel_mass_kg_m', 'added_girth_m', 'layers'))
 COMMON_EVIDENCE_FIELDS = frozenset(('mark', 'level', 'zone', 'group', 'notes', 'product',
                                     'exposure', 'system', 'classification', 'quantity', 'length_m'))
 EVIDENCE_FIELDS = {
@@ -47,7 +47,8 @@ EVIDENCE_FIELDS = {
 for _mode in AREA_MODES:
     EVIDENCE_FIELDS[_mode] = frozenset(('mark', 'level', 'zone', 'group', 'notes', 'product',
         'system', 'classification', 'quantity', 'frl', 'substrate', 'treatment',
-        'surface_basis', 'surface_citation', 'gross_area_m2', 'excluded_area_m2', 'net_area_m2'))
+        'surface_basis', 'surface_citation', 'gross_area_m2', 'excluded_area_m2', 'net_area_m2',
+        'layers', 'total_area_m2'))
 HASH = re.compile(r'^[0-9a-f]{64}$')
 APPEARANCE_FIELDS = frozenset(('stroke_color', 'fill_enabled', 'fill_color', 'font_color', 'stroke_width', 'opacity',
                              'marker_shape', 'marker_size', 'display_values'))
@@ -77,6 +78,18 @@ def is_marker_item(item):
 
 def is_area_item(item):
     return item['mode'] in AREA_MODES and not is_standalone_length(item)
+
+
+def area_layers(item):
+    """An absent layer field means one layer without changing historical records."""
+    if not is_area_item(item):
+        raise ValidationError('Number of layers belongs to a traced Wall/Floor surface.')
+    return number(item['fields'].get('layers', 1), 'Number of layers', positive=True, integer=True)
+
+
+def has_explicit_area_layers(item):
+    """Explicit layers select the simplified surface contract and area-v2 receipt."""
+    return is_area_item(item) and 'layers' in item['fields']
 
 
 def validate_appearance(value):
@@ -564,6 +577,8 @@ def validate_item(value, snapshot, *, copy_result=True):
                 raise ValidationError('Riser must be true or false.')
         else:
             text(field, key)
+    if 'layers' in value['fields']:
+        area_layers(value)
     geometry = value['geometry']
     if geometry is not None:
         if not isinstance(geometry, dict) or not {'document_id', 'page'} <= geometry.keys():
@@ -659,11 +674,13 @@ def validate_item(value, snapshot, *, copy_result=True):
                     raise ValidationError('Receipt actor must identify its local review session.')
                 identity(actor['session_id'], 'Receipt actor session ID')
                 area, count = is_area_item(value), is_standalone_count(value)
-                measurement_fields = (('gross_area_m2', 'excluded_area_m2', 'net_area_m2') if area else
+                layered_area = has_explicit_area_layers(value)
+                measurement_fields = (('gross_area_m2', 'excluded_area_m2', 'net_area_m2',
+                                       *(('total_area_m2',) if layered_area else ())) if area else
                                       ('total_count',) if count else ('length_m', 'total_length_m'))
-                fields = {'engine', 'quantity', *measurement_fields, 'evidence_verified', 'issues'}
+                fields = {'engine', 'quantity', *measurement_fields, 'evidence_verified', 'issues'} | ({'layers'} if layered_area else set())
                 checks = object_fields(receipt.get('checks'), fields, 'Receipt checks', fields)
-                engine = ('takeoffs-area-v1' if area else 'takeoffs-count-v1' if count else
+                engine = ('takeoffs-area-v2' if layered_area else 'takeoffs-area-v1' if area else 'takeoffs-count-v1' if count else
                           'takeoffs-length-v1' if is_standalone_length(value) else 'takeoffs-v1')
                 if checks['engine'] != engine or checks['evidence_verified'] is not True:
                     raise ValidationError('Receipt checks must identify verified takeoff evidence and the check engine.')
@@ -672,6 +689,10 @@ def validate_item(value, snapshot, *, copy_result=True):
                         number(checks[field], 'Receipt '+field, positive=True, integer=field == 'quantity')
                 if area and checks['quantity'] != 1:
                     raise ValidationError('Area receipt quantity must identify one treatment surface.')
+                if layered_area:
+                    number(checks['layers'], 'Receipt number of layers', positive=True, integer=True)
+                    if checks['layers'] != area_layers(value):
+                        raise ValidationError('Area receipt layers must equal the explicitly recorded number of layers.')
                 for field in measurement_fields if area or count else ('total_length_m',):
                     total = checks[field]
                     if total is not None and (type(total) not in (int, float) or not 0 <= total <= 1e16 or not math.isfinite(total)
@@ -682,6 +703,8 @@ def validate_item(value, snapshot, *, copy_result=True):
                 if area and all(checks[field] is not None for field in measurement_fields):
                     if checks['net_area_m2'] != checks['gross_area_m2'] - checks['excluded_area_m2']:
                         raise ValidationError('Area receipt net area must exactly equal gross area less exclusions.')
+                    if layered_area and checks['total_area_m2'] != checks['net_area_m2'] * checks['layers']:
+                        raise ValidationError('Area receipt total area must exactly equal net area times number of layers.')
                 if not isinstance(checks['issues'], list) or len(checks['issues']) > 256:
                     raise ValidationError('Receipt checks require a bounded issue list.')
                 for issue in checks['issues']:
@@ -743,11 +766,16 @@ def item_result(item, snapshot):
         issues.append({'item_id': item['id'], 'code': code, 'message': message})
     length = None
     base = added = None
-    area = {key: None for key in ('gross_area_m2', 'excluded_area_m2', 'net_area_m2')}
+    area = {key: None for key in ('gross_area_m2', 'excluded_area_m2', 'net_area_m2', 'layers', 'total_area_m2')}
     try:
         if is_area_item(item):
+            area['layers'] = area_layers(item)
             validate_measurement_scope(item, snapshot)
-            area = measured_area(item, snapshot)
+            area.update(measured_area(item, snapshot))
+            total = area['net_area_m2'] * area['layers']
+            if not math.isfinite(total) or not 0 < total <= 1e16:
+                raise ValidationError('Total surface area must be finite, positive and within the supported area range.')
+            area['total_area_m2'] = total
         elif is_standalone_count(item):
             pass
         else:
@@ -774,13 +802,14 @@ def item_result(item, snapshot):
         for name in ('width_mm', 'height_mm'):
             if fields.get(name) is not None and fields[name] <= 0:
                 add('INVALID_DIMENSION', f'Enter a positive {name.replace("_", " ")} or leave it blank.')
-    required = (() if is_standalone_item(item) else ('mark', 'treatment', 'substrate', 'frl', 'surface_basis', 'surface_citation') if is_area_item(item)
+    required = (() if is_standalone_item(item) else ('mark', 'substrate', 'frl') if has_explicit_area_layers(item)
+                else ('mark', 'treatment', 'substrate', 'frl', 'surface_basis', 'surface_citation') if is_area_item(item)
                 else ('section', 'member_type', 'exposure', 'fire_period_min') if item['mode'] == 'steel'
                 else ('shape', 'frl', 'orientation'))
     for name in required:
         if fields.get(name) in (None, '') or item['mode'] in AREA_MODES and isinstance(fields.get(name), str) and not fields[name].strip():
             add('MISSING_FIELD', f'Enter {name.replace("_", " ")}.')
-    if is_area_item(item):
+    if is_area_item(item) and not has_explicit_area_layers(item):
         bases = ('wall-face',) if item['mode'] == 'wall' else ('slab-soffit', 'slab-top')
         if fields.get('surface_basis') not in bases:
             add('INVALID_SURFACE_BASIS', 'Identify the actual treated surface. A wall footprint is not a wall-face area.')

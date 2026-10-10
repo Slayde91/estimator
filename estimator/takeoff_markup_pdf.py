@@ -91,7 +91,8 @@ def export_marked_pdf(document, items, results, confirmations, linked, documents
                          'manual_length_m': item['measurement']['length_m'] if geometry.get('kind') == 'count' else None,
                          'additions_length_m': result.get('additions_length_m', 0),
                          'length_additions': item.get('length_additions', []),
-                         'total_length_m': result.get('total_length_m'), 'net_area_m2': result.get('net_area_m2'),
+                          'total_length_m': result.get('total_length_m'), 'net_area_m2': result.get('net_area_m2'),
+                          **({'layers': result['layers'], 'total_area_m2': result['total_area_m2']} if 'layers' in fields else {}),
                          'value_labels': measurement_value_labels(item, snapshot, result),
                          'confirmed': confirmations[item['id']], 'linked_result': linked_result_text(linked[item['id']])})
         if vertices > 200000:

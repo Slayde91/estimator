@@ -122,7 +122,7 @@ class TakeoffGeometryEditingTests(unittest.TestCase):
         before = deepcopy(self.item(identifier))
         self.move_point(identifier, 2, [140, 100])
         self.assertEqual(self.result(identifier), {'id': identifier, 'gross_area_m2': 65,
-            'excluded_area_m2': 2, 'net_area_m2': 63, 'issues': []})
+            'excluded_area_m2': 2, 'net_area_m2': 63, 'layers': 1, 'total_area_m2': 63, 'issues': []})
         current = self.item(identifier)
         self.assertEqual(current['geometry']['exclusions'], before['geometry']['exclusions'])
         for key in ('id', 'measurement', 'quantity', 'member_ids', 'fields', 'evidence', 'appearance'):
@@ -138,7 +138,7 @@ class TakeoffGeometryEditingTests(unittest.TestCase):
         original = deepcopy(self.item(identifier))
         self.move_point(identifier, 2, [70, 60], exclusion=0)
         self.assertEqual(self.result(identifier), {'id': identifier, 'gross_area_m2': 50,
-            'excluded_area_m2': 3.5, 'net_area_m2': 46.5, 'issues': []})
+            'excluded_area_m2': 3.5, 'net_area_m2': 46.5, 'layers': 1, 'total_area_m2': 46.5, 'issues': []})
         current = self.item(identifier)
         self.assertEqual(current['geometry']['points'], original['geometry']['points'])
         for key in ('id', 'note'):

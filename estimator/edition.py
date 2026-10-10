@@ -18,7 +18,8 @@ TAKEOFF_PROJECT_ERROR = (
 TAKEOFF_ASSETS = frozenset({
     '/takeoffs.js', '/takeoffs.css', '/takeoff-geometry.js',
     '/takeoff-physical.js', '/takeoff-pdf-worker.mjs',
-    '/takeoff-annotations.js', '/takeoff-search.js', '/takeoff-shortcuts.js',
+    '/takeoff-annotations.js', '/takeoff-signatures.js', '/takeoff-search.js', '/takeoff-shortcuts.js',
+    '/icons/default-memory.svg', '/icons/signature.svg',
     '/icons/takeoff-colour-wheel.png', '/icons/takeoff-legend.png', '/icons/takeoff-visibility.jpg',
     '/icons/navigation-takeoffs.png',
     '/icons/takeoff-callout.png',

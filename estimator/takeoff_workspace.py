@@ -883,6 +883,8 @@ class TakeoffService:
                      'toggle_thickness_colours': {'document_id', 'calculator_id', 'calculator_drafts'},
                      'set_legend': {'legend'},
                      'create_annotation': {'annotation'}, 'update_annotation': {'annotation_id', 'changes'},
+                     'create_signature': {'signature'}, 'update_signature': {'signature_id', 'changes'},
+                     'delete_signature': {'signature_id'},
                      'draft_library_assignment': {'assignment'},
                      'delete_annotation': {'annotation_id'}}
             if not isinstance(op, str) or op not in specs:
@@ -893,6 +895,7 @@ class TakeoffService:
             created_item_ids = None
             regrouped_item_ids = None
             created_annotation_id = None
+            created_signature_id = None
             if op == 'draft_library_assignment':
                 from .takeoff_library_links import create_assignment, validate_proposal, prepare_assigned_quantities
                 self._physical_gate(session_id, before)
@@ -907,6 +910,9 @@ class TakeoffService:
             elif op in ('create_annotation', 'update_annotation', 'delete_annotation'):
                 from .takeoff_annotations import apply_annotation
                 created_annotation_id = apply_annotation(after, request)
+            elif op in ('create_signature', 'update_signature', 'delete_signature'):
+                from .takeoff_signatures import apply_signature
+                created_signature_id = apply_signature(after, request)
             elif op in ('toggle_thickness_colours', 'set_legend'):
                 from .takeoff_presentation import apply_presentation
                 linked = None
@@ -1345,6 +1351,8 @@ class TakeoffService:
                         raise ValidationError('Remove or reassign all linked items before deleting their source document.')
                 if any(value['document_id'] == document_id for value in after.get('annotations', {}).get('callouts', [])):
                     raise ValidationError('Remove free call-outs before deleting their source document.')
+                if any(value['document_id'] == document_id for value in after.get('signatures', {}).get('records', [])):
+                    raise ValidationError('Remove signatures before deleting their source document.')
                 if any(value['document_id'] == document_id for value in after.get('image_extractions', [])):
                     raise ValidationError('A source document with retained image extraction history cannot be deleted.')
                 if any(reference['document_id'] == document_id
@@ -1391,7 +1399,9 @@ class TakeoffService:
                     after['library_assignments'] = deepcopy(before['library_assignments'])
                 from .takeoff_annotations import undo_annotations
                 undo_annotations(before, after)
-                if before['version'] == 2 and event['op'] not in ('create_annotation', 'update_annotation', 'delete_annotation'):
+                from .takeoff_signatures import undo_signatures
+                undo_signatures(before, after)
+                if before['version'] == 2 and event['op'] not in ('create_annotation', 'update_annotation', 'delete_annotation', 'create_signature', 'update_signature', 'delete_signature'):
                     self._physical_gate(session_id, before)
                     after = self._undo_physical(session_id, before, after)
                 originals = {i['id']: i for i in before['items']}
@@ -1474,6 +1484,9 @@ class TakeoffService:
             if created_annotation_id is not None:
                 response['created_annotation_id'] = created_annotation_id
                 session['requests'][request['request_id']].setdefault('metadata', {})['created_annotation_id'] = created_annotation_id
+            if created_signature_id is not None:
+                response['created_signature_id'] = created_signature_id
+                session['requests'][request['request_id']].setdefault('metadata', {})['created_signature_id'] = created_signature_id
             if revised_calibration_id:
                 response['revised_calibration_id'] = revised_calibration_id
                 session['requests'][request['request_id']]['metadata'] = {'revised_calibration_id': revised_calibration_id}

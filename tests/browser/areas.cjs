@@ -49,7 +49,15 @@ async function assertSurfaceLabel(state,id,rotated){
   const box=await page.locator('.takeoff-overlay').boundingBox(),[u,v]=rotated?[(source[1]-30)/540,(source[0]-20)/780]:[source[0]/842,1-source[1]/595],expected=[box.x+u*box.width,box.y+v*box.height];
   const actual=await label.evaluate(el=>{const point=new DOMPoint(el.x.baseVal[0].value,el.y.baseVal[0].value).matrixTransform(el.getScreenCTM()),css=getComputedStyle(el);return {point:[point.x,point.y],anchor:css.textAnchor,baseline:css.dominantBaseline};});for(let axis=0;axis<2;axis++)assert.ok(Math.abs(actual.point[axis]-expected[axis])<.01,JSON.stringify({actual,expected,source,rotated}));assert.equal(actual.anchor,'middle');assert.equal(actual.baseline,'middle');
   await expect(page.locator('#takeoff-markup-settings').getByLabel('True-surface source citation',{exact:true})).toHaveCount(0);
-  const visibility=await page.locator('#takeoff-markup-settings [aria-label="Visibility"]').evaluate(el=>{const box=el.getBoundingClientRect(),css=getComputedStyle(el);return {width:box.width,height:box.height,justifySelf:css.justifySelf};});assert.deepEqual({width:visibility.width,height:visibility.height},steelVisibilitySize);assert.deepEqual(steelVisibilitySize,{width:38,height:38});assert.equal(visibility.justifySelf,'start');
+  const visibility=await page.locator('#takeoff-markup-settings [aria-label="Visibility"]').evaluate(el=>{
+    const box=el.getBoundingClientRect(),defaults=el.parentElement.querySelector('[aria-label="Set as default"]');
+    if(!defaults)throw new Error('Surface Visibility must share its action row with Set as default');
+    const defaultBox=defaults.getBoundingClientRect();
+    return {width:box.width,height:box.height,besideDefault:{sameParent:defaults.parentElement===el.parentElement,defaultWidth:defaultBox.width,defaultHeight:defaultBox.height,horizontalGap:box.left-defaultBox.right,verticalOffset:box.top-defaultBox.top}};
+  });
+  assert.deepEqual({width:visibility.width,height:visibility.height},steelVisibilitySize);assert.deepEqual(steelVisibilitySize,{width:38,height:38});
+  assert.equal(visibility.besideDefault.sameParent,true);assert.equal(visibility.besideDefault.defaultWidth,38);assert.equal(visibility.besideDefault.defaultHeight,38);
+  assert.ok(Math.abs(visibility.besideDefault.horizontalGap-8)<.01,JSON.stringify(visibility));assert.ok(Math.abs(visibility.besideDefault.verticalOffset)<.01,JSON.stringify(visibility));
   surfaceLabels.push({mode:item.mode,net:result.net_area_m2,total:result.total_area_m2,layers:3,source,actual,expected,rotated,visibility});
 }
 async function idle() { await expect(page.locator('#takeoffs-workspace')).not.toHaveAttribute('aria-busy', 'true'); }

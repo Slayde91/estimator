@@ -311,15 +311,22 @@ are rectangular and have no Shape
 or Diameter input. Older circular records keep their original values and remain
 ineligible for rectangular calculator transfer; opening them never converts them.
 
-With the drawing focused, select calibrated Steel or Duct Length markups and use
+With the drawing focused, select calibrated Steel/Duct Length markups or
+Wall/Floor surfaces and use
 **Ctrl/Cmd+C**, move the pointer onto the drawing, then **Ctrl/Cmd+V**. The first
-copied line's first point lands at the pointer; other selected lines keep their
+copied markup's first vertex lands at the pointer; other selected markups keep their
 relative positions. Copies keep their entered details, explicit quantities,
 appearance and supporting citations, but receive new identities and start
 unconfirmed without calculator links. The destination page/viewport calibration
-recalculates their lengths. A stale copied source, ambiguous scale, out-of-page
+recalculates their lengths or areas. Surface copies retain Number of layers and
+all exclusion shapes/notes, with fresh exclusion IDs; each pasted surface is a
+separate register item with its own physical identity and quantity 1. Their net
+area is measured at the destination scale, and total area is net area times layers.
+Select one source page and takeoff type at a time; Walls and Floors may be copied
+together. A stale copied source, ambiguous scale, out-of-page
 placement or viewport crossing is rejected without creating partial copies.
-Count markers, cited dimensions and surfaces are not Length copies. Text fields
+Count markers, cited dimensions and standalone length measurements are not copied
+by this action. Text fields
 retain ordinary copy/paste. Clicking empty drawing space clears selection in
 both the drawing and register without deleting any objects.
 
@@ -904,3 +911,33 @@ existing section database. Type to filter, then select a row or use the arrow
 keys and Enter. Escape cancels the query. Exact typed designations can be
 committed with Tab; partial searches do not change the item. Retained legacy
 designations stay visible. Count-register cells remain locked.
+
+## Signatures and drawing controls
+
+The **Signatures** rail button opens a drawing pad. Draw your own signature or
+reuse the last signature saved on this computer, then click a rendered PDF page
+to place it. Escape cancels placement. Saving or leaving the page asks you to
+finish or discard an armed placement. Select the signature to move it; use its
+corner to resize, or Settings to change ink, redraw, hide or delete it. Undo
+restores a deleted signature. Redraw fits new ink inside the existing rectangle
+without stretching its proportions.
+
+Signatures are bounded vector notes in an optional, independently versioned
+collection. They retain the exact source PDF hash, page, original coordinate
+rectangle and strokes through Save/Load and audited edits. Visible signatures
+are included in marked PDF downloads for their own drawing group and document;
+Wall and Floor share the combined view, while Defect Reports and Service Plans
+remain separate. A signature adds no register row, quantity, confirmation,
+calculator input or technical approval. Legacy projects without signatures
+retain their original snapshot structure.
+
+Visibility controls use the same eye size throughout the drawing workspace.
+The item eye sits beside the memory icon for **Set as default**. A single click
+on the main eye shows or hides all markups; a double-click restores items hidden
+individually and shows the drawing. The selected surface sidebar omits Surface
+basis and source citation while preserving existing saved values and evidence.
+
+**Help** includes a searchable button-symbol glossary with functions and actual
+keyboard shortcuts. Controls without a keyboard shortcut are identified as
+button-only actions. Main's existing PDF summary export is now **Download
+Estimate Summary** in its Document menu.

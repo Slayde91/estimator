@@ -2110,18 +2110,18 @@
     const savedReportId = state.quote && !state.dirty ? state.quote.id : null;
     const reportPath = savedReportId ? `/api/quotes/${encodeURIComponent(savedReportId)}/report.pdf` : "/api/quote-report";
     button.disabled = true;
-    button.setAttribute("aria-label", "Preparing PDF Estimate…");
+    button.setAttribute("aria-label", "Preparing Estimate Summary…");
     button.setAttribute("aria-busy", "true");
     try {
       const saved = await window.CeasefireDownloads.save(reportPath, savedReportId ? {} : payload);
       const estimateChanged = quoteContext !== state.quoteContext || capturedPayload !== JSON.stringify(reportPayload()) || window.CeasefirePenetrations?.quoteFingerprint?.() !== penetrationStamp;
       message(estimateChanged
-        ? `PDF saved to ${saved.path} for “${payload.title}” using ${savedReportId ? "its saved result and pricing snapshot" : "the inputs and pricing captured when you clicked Download PDF"}. Later edits are not included.`
+        ? `PDF saved to ${saved.path} for “${payload.title}” using ${savedReportId ? "its saved result and pricing snapshot" : "the inputs and pricing captured when you clicked Download Estimate Summary"}. Later edits are not included.`
         : `PDF saved to ${saved.path} for “${payload.title}”.`);
     } catch (error) { message(`PDF for “${payload.title}” was not downloaded. ${error.message}`, true); }
     finally {
       button.disabled = false;
-      button.setAttribute("aria-label", "Download PDF Estimate");
+      button.setAttribute("aria-label", "Download Estimate Summary");
       button.removeAttribute("aria-busy");
     }
   }

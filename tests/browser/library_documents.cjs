@@ -70,10 +70,10 @@ async function snapshot() { await idle(); return page.evaluate(() => ({ calculat
   await page.locator('#estimate-navigation-toggle').click(); await expect(page.locator('#view-estimate')).toBeVisible();
   const scheduleMenu=page.locator('#firestopping-document-actions'), scheduleToggle=page.locator('[aria-controls="firestopping-document-actions"]');
   assert.equal(await scheduleToggle.evaluate(e=>e.closest('.page-heading')?.querySelector('#download-quote-pdf')!==null),true);
-  const headingOrder=await scheduleToggle.evaluate(e=>!!(document.querySelector('#download-quote-pdf').compareDocumentPosition(e)&Node.DOCUMENT_POSITION_FOLLOWING)); assert.equal(headingOrder,true);
+  assert.equal(await scheduleToggle.evaluate(e=>document.querySelector('#download-quote-pdf').parentElement===document.getElementById(e.getAttribute('aria-controls'))),true,'Estimate Summary belongs to the existing Document list');
   await scheduleToggle.click();
   await expect(scheduleMenu.getByRole('button',{name:'Download Firestopping Schedule',exact:true})).toHaveCount(2);
-  await expect(scheduleMenu.locator('.download-format')).toHaveText(['XLSX','PDF']);
+  await expect(scheduleMenu.locator('.download-format')).toHaveText(['PDF','XLSX','PDF']);
   await page.keyboard.press('Escape'); await expect(scheduleMenu).toBeHidden();
   assert.equal(await page.locator('.penetration-schedule-recalculate-tools .calculator-document-menu').count(),0);
   assert.deepEqual(fs.readFileSync(info.project),projectBytes,'Document access never rewrites the saved project'); assert.deepEqual(errors,[]);

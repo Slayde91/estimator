@@ -96,6 +96,7 @@
   :root[data-theme="midnight"] footer { color:var(--muted); }
   /* Tint only application controls; retained drawing pixels and artwork bytes stay unchanged. */
   :root[data-theme="midnight"] :is(.takeoff-icon-button img,.takeoff-transfer-icon,.calculator-document-icon) { filter:brightness(0) invert(1); }
+  :root[data-theme="midnight"] .takeoff-action-icon { color:#fff; }
   :root[data-theme="midnight"] :is(input,select)[aria-invalid=true] { background:#fff2f2; color:#7d1019; border-color:#a20b16; }
   :root[data-theme="midnight"] :is(.calculator-error,.penetration-field-error) { color:#ffb4be; }
   :root[data-theme="midnight"] :is(.button.excel-button,.button.pdf-button,.button.save-button,.button.recalculate-button,.button.link-action-button,.button.library-edit-button,.button.library-delete-button):focus-visible { outline-color:var(--theme-focus); }

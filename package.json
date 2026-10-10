@@ -2,6 +2,10 @@
   "name": "ceasefire-estimator-browser-tests",
   "private": true,
   "scripts": {
+    "test:help-glossary": "node tests/browser/help_glossary.cjs",
+    "test:takeoffs-signatures": "node tests/browser/signatures.cjs",
+    "test:takeoffs-area-copy-visibility": "node tests/browser/area_copy_visibility.cjs",
+    "test:takeoffs-icons": "node tests/browser/takeoff_icon_contract.cjs",
     "test:themes": "node --test tests/test_theme_ui.cjs",
     "test:themes-browser": "node tests/browser/themes.cjs",
     "test:header-controls": "node tests/browser/header_controls.cjs",

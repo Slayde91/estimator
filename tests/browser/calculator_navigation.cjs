@@ -185,8 +185,8 @@ async function workbook(title) {
     await expect(documentToggle.locator('.calculator-document-icon')).toBeVisible();
     await expect(documentActions).toBeHidden(); await documentToggle.click(); await expect(documentActions).toBeVisible();
     await expect(documentActions.getByRole('button',{name:itemOnly?'Download Current Item':'Download Firestopping Schedule',exact:true})).toHaveCount(2);
-    await expect(documentActions.locator('.download-format')).toHaveText(['XLSX','PDF']);
-    assert.equal(await documentActions.getByRole('button').count(), 2);
+    await expect(documentActions.locator('.download-format')).toHaveText(itemOnly?['XLSX','PDF']:['PDF','XLSX','PDF']);
+    assert.equal(await documentActions.getByRole('button').count(), itemOnly?2:3);
     for (const width of [390, 570, 825, 1146]) {
       await page.setViewportSize({ width, height: 1000 }); const bounds = await documentActions.boundingBox();
       assert.ok(bounds.x >= 0 && bounds.x + bounds.width <= width + 1, `Firestopping Document menu stays within ${width}px viewport`);

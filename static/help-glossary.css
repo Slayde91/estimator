@@ -1,0 +1,32 @@
+.help-glossary { margin-bottom:24px; }
+.help-glossary h2 { margin-bottom:12px; }
+.help-glossary-intro { max-width:85ch; color:var(--muted); font-size:13px; line-height:1.7; }
+.help-glossary-controls { display:grid; grid-template-columns:minmax(0,2fr) minmax(180px,1fr) auto; align-items:end; gap:12px; margin-top:18px; }
+.help-glossary-controls .field { min-width:0; }
+.help-glossary-status { font-size:12px; color:var(--muted); margin:14px 0; }
+.help-glossary-group { margin-top:22px; }
+.help-glossary-group h3 { font-size:16px; margin:0 0 10px; }
+.help-glossary-list { list-style:none; padding:0; margin:0; }
+.help-glossary-entry { display:grid; grid-template-columns:72px minmax(0,1fr) minmax(140px,200px); gap:14px; align-items:center; padding:14px 0; border-top:1px solid var(--line); }
+.help-glossary-entry[hidden],.help-glossary-group[hidden] { display:none; }
+.help-glossary-symbol { display:flex; justify-content:center; align-items:center; min-height:40px; font-size:16px; font-weight:600; color:var(--ink); overflow-wrap:anywhere; text-align:center; }
+.help-glossary-symbol :is(svg,img) { width:28px; height:28px; object-fit:contain; }
+.help-glossary-symbol .button-symbol { display:flex; align-items:center; justify-content:center; font-size:25px; }
+.help-glossary-symbol .download-format-icon { gap:4px; flex-wrap:wrap; justify-content:center; }
+.help-glossary-symbol .download-format { font-size:8px; }
+.help-glossary-copy h4 { margin:0 0 5px; font-size:13px; line-height:1.5; }
+.help-glossary-copy p { margin:0; font-size:12px; line-height:1.7; color:var(--muted); }
+.help-glossary-keys { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+.help-glossary-keys kbd { font-family:inherit; font-size:11px; line-height:1.5; border:1px solid var(--line); border-radius:4px; padding:3px 6px; color:var(--ink); background:var(--canvas); overflow-wrap:anywhere; }
+.help-glossary-keys .helper { font-size:11px; }
+.help-glossary-symbol.help-signature-symbol::before,.help-glossary-symbol.help-default-symbol::before { content:""; width:28px; height:28px; background:currentColor; mask-repeat:no-repeat; mask-position:center; mask-size:contain; }
+.help-signature-symbol::before { mask-image:url('/icons/signature.svg'); }
+.help-default-symbol::before { mask-image:url('/icons/default-memory.svg'); }
+:root[data-theme="midnight"] .help-glossary-symbol .help-monochrome-icon { filter:brightness(0) invert(1); }
+@media(max-width:700px) {
+  .help-glossary-controls { grid-template-columns:minmax(0,1fr); }
+  .help-glossary-controls .button { justify-self:start; }
+  .help-glossary-entry { grid-template-columns:48px minmax(0,1fr); gap:10px; }
+  .help-glossary-keys { grid-column:2; }
+}
+@media print { .help-glossary-controls { display:none; } .help-glossary-entry { break-inside:avoid; } }

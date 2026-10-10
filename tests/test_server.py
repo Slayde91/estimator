@@ -117,6 +117,20 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(body, (ROOT / "static/library-detail-text.js").read_bytes())
 
+    def test_help_and_signature_assets_have_exact_bytes_and_content_types(self):
+        for path, content_type in (
+            ('/help-glossary.js', 'text/javascript; charset=utf-8'),
+            ('/help-glossary.css', 'text/css; charset=utf-8'),
+            ('/takeoff-signatures.js', 'text/javascript; charset=utf-8'),
+            ('/icons/default-memory.svg', 'image/svg+xml'),
+            ('/icons/signature.svg', 'image/svg+xml'),
+        ):
+            with self.subTest(path=path):
+                status, headers, body = self.request('GET', path)
+                self.assertEqual(status, 200)
+                self.assertEqual(headers['Content-Type'], content_type)
+                self.assertEqual(body, (ROOT / 'static' / path.lstrip('/')).read_bytes())
+
     def test_official_logo_is_served_unchanged_with_image_content_type(self):
         status, headers, body = self.request("GET", "/ceasefire-logo.png")
         self.assertEqual(status, 200)

@@ -100,7 +100,7 @@ function retainedScopes(value) { return { pricing: value.pricing, calculators: v
 
   // Saved workbook inputs can retain more precision than the native entry
   // display. Load that legitimate state, then prove UI rebuilds preserve it.
-  const preciseProject = JSON.parse(fs.readFileSync(info.project)), preciseFile = path.join(output, 'precise-synthetic-project.json');
+  const preciseProject = JSON.parse(fs.readFileSync(info.project)), preciseFile = path.join(output, 'precise-synthetic-project.cf.json');
   preciseProject.estimate.inputs.F26 = 1.234567891; fs.writeFileSync(preciseFile, JSON.stringify(preciseProject));
   await response(() => page.locator('#project-import-file').setInputFiles(preciseFile), '/api/project/import'); await page.getByRole('dialog').getByRole('button', { name: 'Load Project', exact: true }).click(); await idle(); await settledEstimate();
   await headerTitle(captured.estimate.title); const preciseInputs = calculations.at(-1).inputs, preciseScopes = await snapshot(); assert.equal(preciseInputs.F26, 1.234567891);

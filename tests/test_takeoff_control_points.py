@@ -262,7 +262,7 @@ class TakeoffControlPointProjectTests(unittest.TestCase):
         self.assertEqual(item['member_ids'], old['member_ids']); self.assertIsNone(item['confirmation'])
         self.assertEqual(item_digest(item, opened['takeoffs']), expected_digest)
         self.assertEqual(item_result(item, opened['takeoffs']), expected_result)
-        second = case.root / 'second' / 'copy.json'; second.parent.mkdir()
+        second = case.root / 'second' / 'copy.cf.json'; second.parent.mkdir()
         case.dialogs.selection = SaveSelection(str(second), None)
         case.library.save_as({**deepcopy(case.base), 'takeoffs': opened['takeoffs'], 'takeoffs_session_id': opened['takeoffs_session_id']})
         case.dialogs.opened = str(second); copied = case.library.open_file()

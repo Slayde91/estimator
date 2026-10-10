@@ -256,7 +256,7 @@ class PhysicalV2ProjectTests(unittest.TestCase):
         self.assertEqual(state['snapshot']['physical']['services'][-1]['display_id'], 'S-0002')
         self.assertEqual(state['snapshot']['physical']['defects'][0]['display_id'], 'D-0001')
         self.assertEqual(state['snapshot']['physical']['barriers'][0], graph['barriers'][0])
-        second_target = case.root / 'continued.json'
+        second_target = case.root / 'continued.cf.json'
         case.dialogs.selection = SaveSelection(str(second_target), None)
         case.library.save_as({**deepcopy(case.base), 'takeoffs': state['snapshot'], 'takeoffs_session_id': sid})
         final_file = json.loads(second_target.read_bytes())

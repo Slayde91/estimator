@@ -73,9 +73,11 @@ async function checkDocuments(scope, ids) {
   }
   assert.deepEqual(await snapshot(), before);
   await page.setViewportSize({ width: 390, height: 764 }); await toggle.click(); await list.scrollIntoViewIfNeeded();
-  const bounds = await list.boundingBox(); assert.ok(bounds.x >= 0 && bounds.x + bounds.width <= 390 && bounds.y >= 0 && bounds.y + bounds.height <= 764);
+  const bounds = await list.boundingBox(), layout = await list.evaluate(el => { const r=el.getBoundingClientRect(),toggle=el.previousElementSibling.getBoundingClientRect(),css=getComputedStyle(el);return {bounds:{x:r.x,y:r.y,width:r.width,height:r.height},toggle:{x:toggle.x,y:toggle.y,width:toggle.width,height:toggle.height},boxSizing:css.boxSizing,cssWidth:css.width,padding:css.padding,border:css.borderWidth,viewport:{width:innerWidth,height:innerHeight},scrollWidth:document.documentElement.scrollWidth}; });
+  (evidence.documentMenus||=[]).push({scope,...layout});await page.screenshot({ path: path.join(output, `physical-document-${scope}-390.png`) });
+  assert.ok(bounds.x >= 0 && bounds.x + bounds.width <= 390 && bounds.y >= 0 && bounds.y + bounds.height <= 764,JSON.stringify(layout));
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
-  await page.screenshot({ path: path.join(output, `physical-document-${scope}-390.png`) }); await page.keyboard.press('Escape'); await expect(list).toBeHidden(); await page.setViewportSize({ width: 1600, height: 1100 });
+  await page.keyboard.press('Escape'); await expect(list).toBeHidden(); await page.setViewportSize({ width: 1600, height: 1100 });
 }
 async function checkAutomaticMenuIntent(scope, ids) {
   const cases = [];
@@ -176,4 +178,4 @@ async function checkAutomaticMenuIntent(scope, ids) {
     evidence.scopes.push({ scope, automaticMenuIntent, eightColumns: true, andOr: true, blanks: scope==='service_plans', ownerLocationAndConfirmation: true, ancestorContext: true, matchingSelection: true, searchFiltered: true, narrowMenu: true, compactOriginalIconAddService: true, firstClickDiscard: true, firstClickAddService: true, firstClickDelete: true, inFlightTyping: true, focusedControlAndCaretRetained: true });
   }
   assert.deepEqual(await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()), calculators); assert.deepEqual(errors, []); fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ completed: true, evidence, requests, errors }, null, 2)); console.log(`PASS: Eight physical column filters, AND/OR/blanks, ancestor context, search and matching selection, responsive menus and first-click Discard/Add service in both scopes. Evidence: ${output}`);
-})().catch(async error => { console.error(error); console.error(logs.slice(-4000)); if (page) { await page.screenshot({ path: path.join(output, 'failure.png'), fullPage: true }).catch(() => {}); fs.writeFileSync(path.join(output, 'failure.txt'), await page.locator('body').innerText().catch(() => '')); } process.exitCode = 1; }).finally(async () => { fs.writeFileSync(path.join(output, 'server.log'), logs); if (browser) await browser.close(); server.kill(); });
+})().catch(async error => { console.error(error); console.error(logs.slice(-4000)); fs.writeFileSync(path.join(output,'failure-evidence.json'),JSON.stringify({error:error.message,evidence,errors},null,2));if (page) { await page.screenshot({ path: path.join(output, 'failure.png'), fullPage: true }).catch(() => {}); fs.writeFileSync(path.join(output, 'failure.txt'), await page.locator('body').innerText().catch(() => '')); } process.exitCode = 1; }).finally(async () => { fs.writeFileSync(path.join(output, 'server.log'), logs); if (browser) await browser.close(); server.kill(); });

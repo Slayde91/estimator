@@ -6,7 +6,7 @@ const { spawn } = require('node:child_process');
 const fs = require('node:fs'), path = require('node:path'), crypto = require('node:crypto'), assert = require('node:assert/strict');
 const root = path.resolve(__dirname, '../..'), output = path.join(root, '.runtime/browser-qa', `themes-${Date.now()}`);
 fs.mkdirSync(output, { recursive:true });
-const assets = ['tests/browser/themes.cjs','static/theme.js','static/theme.css','static/index.html','static/app.js','static/calculators.js','static/ceasefire-logo.png'];
+const assets = ['tests/browser/themes.cjs','static/theme.js','static/theme.css','static/index.html','static/app.js','static/calculators.js','static/takeoffs.js','static/takeoff-physical.js','static/takeoffs.css','static/icons/document.png','static/icons/takeoff-transfer.png','static/ceasefire-logo.png'];
 const hashes = () => Object.fromEntries(assets.map(name => [name,crypto.createHash('sha256').update(fs.readFileSync(path.join(root,name))).digest('hex')]));
 const assetHashes = hashes();
 const server = spawn(process.env.CEASEFIRE_PYTHON || 'python', [path.join(__dirname,'fixtures.py'),'--directory',output], { cwd:root, windowsHide:true });
@@ -18,7 +18,7 @@ const ready = new Promise((resolve,reject) => {
   server.stdout.on('data', value => { text+=value; if(text.includes('\n')) { clearTimeout(timer); try { resolve(JSON.parse(text.split('\n')[0])); } catch(error) { reject(error); } } });
   server.once('error',reject); server.once('exit',code => { clearTimeout(timer); reject(Error(`Fixture exited ${code}: ${logs}`)); });
 });
-const errors=[], networkFailures=[], evidence={ themes:[], layouts:[], keyboard:false, persistence:false, deniedStorage:false, calculator:false, drawings:false }, mutationRequests=[];
+const errors=[], networkFailures=[], evidence={ themes:[], layouts:[], iconToolbars:[], keyboard:false, persistence:false, deniedStorage:false, calculator:false, drawings:false }, mutationRequests=[];
 async function idle() { await page.waitForFunction(() => { const s=window.CeasefireDesktop?.status(); return s?.ready&&!s.busy; }); }
 async function snapshot() {
   return page.evaluate(() => ({ calculators:window.CeasefireCalculators.projectSnapshot(), penetration:window.CeasefirePenetrations.projectSnapshot(), pricing:window.CeasefireProject.configuration(), takeoffs:window.CeasefireTakeoffs.projectSnapshot(), dirty:window.CeasefireDesktop.status().dirty,
@@ -29,6 +29,26 @@ async function theme(id) { for(let i=0;i<5 && await page.locator('html').getAttr
 function luminance(rgb) { const c=rgb.match(/[\d.]+/g).slice(0,3).map(Number).map(v => v/255).map(v => v<=.04045?v/12.92:((v+.055)/1.055)**2.4); return .2126*c[0]+.7152*c[1]+.0722*c[2]; }
 function contrast(a,b) { const x=luminance(a),y=luminance(b); return (Math.max(x,y)+.05)/(Math.min(x,y)+.05); }
 async function colors(selector) { return page.locator(selector).first().evaluate(el => { const s=getComputedStyle(el); return { color:s.color,background:s.backgroundColor,border:s.borderColor }; }); }
+async function controlAppearance(control) {
+  return control.evaluate(button => {
+    const css=getComputedStyle(button), image=button.querySelector('img'), svg=button.querySelector('svg');
+    const value={color:css.color,background:css.backgroundColor,disabled:button.disabled,filter:css.filter,opacity:css.opacity,svgStroke:svg?getComputedStyle(svg).stroke:null};
+    if(image) {
+      const canvas=document.createElement('canvas');canvas.width=image.naturalWidth;canvas.height=image.naturalHeight;const context=canvas.getContext('2d');context.drawImage(image,0,0);
+      const pixels=context.getImageData(0,0,canvas.width,canvas.height).data;let opaque=0,nonBlackOpaque=0;
+      for(let i=0;i<pixels.length;i+=4)if(pixels[i+3]===255){opaque++;if(pixels[i]||pixels[i+1]||pixels[i+2])nonBlackOpaque++;}
+      value.image={src:image.getAttribute('src'),width:image.naturalWidth,height:image.naturalHeight,filter:getComputedStyle(image).filter,opaque,nonBlackOpaque};
+    }
+    return value;
+  });
+}
+async function readableOriginalIcon(control) {
+  await expect(control).toBeVisible();await expect(control.locator('img')).toHaveJSProperty('complete',true);
+  const value=await controlAppearance(control);assert.equal(value.image.width,512);assert.equal(value.image.height,512);assert.ok(value.image.opaque>0);assert.equal(value.image.nonBlackOpaque,0);
+  assert.equal(value.filter,'none');assert.equal(value.image.filter,'none');assert.ok(contrast('rgb(0,0,0)',value.background)>=3,'original opaque black icon must contrast with its control');assert.ok(contrast(value.color,value.background)>=4.5,'control text must remain readable');
+  await control.hover();const hover=await controlAppearance(control);assert.ok(contrast('rgb(0,0,0)',hover.background)>=3,'hover must preserve original icon contrast');assert.ok(contrast(hover.color,hover.background)>=4.5);
+  await page.mouse.move(1,1);return {normal:value,hover};
+}
 (async () => {
   const fixture=await ready; assert.notEqual(fixture.port,8765);
   browser=await chromium.launch({ headless:true });
@@ -41,7 +61,7 @@ async function colors(selector) { return page.locator(selector).first().evaluate
   await expect(page.locator('#project-no')).toBeVisible();
   await page.locator('#project-no').fill('THEME-DRAFT-UNCHANGED'); await page.locator('#measurements').fill('Pending notes are preserved across every theme.');
   await page.locator('#measurements').press('Tab'); await idle(); await page.waitForLoadState('networkidle');
-  const before=await snapshot(), requestCount=mutationRequests.length, buttonColors=new Set();
+  const before=await snapshot(), requestCount=mutationRequests.length, buttonColors=new Set(), footerText=await page.locator('footer').innerText();
   for(const id of ['ceasefire','midnight','ocean','forest','slate']) {
     await theme(id); const button=await colors('#theme-toggle'), card=await colors('#view-estimate .card'), input=await colors('#project-no'), text=await colors('#view-estimate .card .helper');
     assert.ok(contrast(button.color,button.background)>=4.5,id+' button contrast'); assert.ok(contrast(card.color,card.background)>=4.5,id+' card contrast'); assert.ok(contrast(input.color,input.background)>=4.5,id+' input contrast'); assert.ok(contrast(text.color,card.background)>=4.5,id+' helper contrast'); buttonColors.add(button.background);
@@ -52,11 +72,17 @@ async function colors(selector) { return page.locator(selector).first().evaluate
       assert.ok(geometry.overflow<=1,`${id}/${width} page overflow`); assert.ok(geometry.nav.right<=geometry.tools.x+1,`${id}/${width} header collision`); assert.ok(geometry.theme.width>=40&&geometry.theme.height>=40); assert.ok(geometry.theme.right<=width&&geometry.theme.bottom<=geometry.header.bottom);
       const screenshot=path.join(output,`${id}-${width}.png`); await page.screenshot({path:screenshot}); evidence.layouts.push({id,width,geometry,screenshot});
     }
-    evidence.themes.push({id,button,card,input,helper:text});
+    const footer=await page.locator('footer').evaluate(el => {
+      let background=getComputedStyle(el).backgroundColor,parent=el;
+      while(['rgba(0, 0, 0, 0)','transparent'].includes(background)&&parent.parentElement){parent=parent.parentElement;background=getComputedStyle(parent).backgroundColor;}
+      return {color:getComputedStyle(el).color,noticeColor:getComputedStyle(el.querySelector('.estimating-notice')).color,background};
+    });
+    assert.ok(contrast(footer.color,footer.background)>=4.5,id+' footer contrast');assert.ok(contrast(footer.noticeColor,footer.background)>=4.5,id+' estimating notice contrast');assert.equal(await page.locator('footer').innerText(),footerText,'Themes preserve the disclaimer wording');
+    evidence.themes.push({id,button,card,input,helper:text,footer});
     assert.deepEqual(await snapshot(),before,id+' must preserve draft/project/calculator snapshots');
   }
   assert.equal(buttonColors.size,5); assert.equal(mutationRequests.length,requestCount,'Theme changes must not send mutation requests');
-  await theme('midnight'); await page.emulateMedia({media:'print'}); const print=await colors('#view-estimate .card'); assert.equal(print.background,'rgb(255, 255, 255)'); assert.equal(print.color,'rgb(43, 37, 42)'); await expect(page.locator('#theme-toggle')).toBeHidden(); await page.emulateMedia({media:'screen'}); evidence.print=print;
+  await theme('midnight'); await page.emulateMedia({media:'print'}); const print=await colors('#view-estimate .card'); assert.equal(print.background,'rgb(255, 255, 255)'); assert.equal(print.color,'rgb(43, 37, 42)'); await expect(page.locator('#theme-toggle')).toBeHidden();await expect(page.locator('footer')).toBeHidden(); await page.emulateMedia({media:'screen'}); evidence.print=print;
   await theme('slate');
   await page.locator('#theme-toggle').focus(); await page.keyboard.press('Enter'); await expect(page.locator('html')).toHaveAttribute('data-theme','ceasefire'); await expect(page.locator('#theme-toggle')).toBeFocused();
   await page.keyboard.press('Space'); await expect(page.locator('html')).toHaveAttribute('data-theme','midnight'); evidence.keyboard=true;
@@ -66,7 +92,32 @@ async function colors(selector) { return page.locator(selector).first().evaluate
   await page.locator('#calculator-pages').getByRole('button',{name:'SCHEDULE',exact:true}).click(); await idle(); await expect(page.locator('#calculator-grid')).toHaveAttribute('aria-busy','false');
   const calculatorInput=page.locator('.calculator-grid input:not([readonly])').first();
   await calculatorInput.evaluate(el=>el.setAttribute('aria-invalid','true')); const invalid=await colors('.calculator-grid input[aria-invalid=true]'); assert.ok(contrast(invalid.color,invalid.background)>=4.5); assert.equal(invalid.background,'rgb(255, 242, 242)'); await calculatorInput.evaluate(el=>el.removeAttribute('aria-invalid')); evidence.calculator.invalid=invalid;
+  evidence.calculator.document=await readableOriginalIcon(page.locator('#calculator-document-toggle'));
+  const scheduleUndo=await controlAppearance(page.locator('[data-schedule-undo]').filter({visible:true}).first());
   await chooseTakeoff(page,'Steel'); await idle();
+  for(const view of ['Steel','Walls/Floors','Defect Reports','Service Plans']) {
+    await chooseTakeoff(page,view);await idle();
+    for(const width of [1146,764]) {
+      await page.setViewportSize({width,height:1000});
+      const physical=view==='Defect Reports'||view==='Service Plans',register=page.locator(physical?'.takeoff-physical-register':'.takeoff-register').filter({visible:true}).first();
+      const documentControl=register.getByRole('button',{name:physical?'Document':'Takeoff register document actions',exact:true});
+      await documentControl.scrollIntoViewIfNeeded();const document=await readableOriginalIcon(documentControl);
+      const transfer=register.getByRole('button',{name:physical?'Transfer to Firestopping Schedule':'Preview transfer',exact:true});
+      const transferAppearance=await transfer.isVisible()?await readableOriginalIcon(transfer):null;
+      // Undo shares Schedule's glyph colors; adjacent physical SVGs follow ink.
+      const undo=await controlAppearance(register.getByRole('button',{name:'Undo last edit',exact:true}));
+      assert.equal(undo.background,scheduleUndo.background);assert.equal(undo.color,scheduleUndo.color);
+      const adjacent=[];
+      if(physical)for(const name of ['Update linked rows','Unlink from Firestopping Schedule']) {
+        const value=await controlAppearance(register.getByRole('button',{name,exact:true}));assert.ok(contrast(value.svgStroke,value.background)>=3,name+' SVG contrast');adjacent.push({name,...value});
+      }
+      const beforeDocument=await snapshot(),beforeRequests=mutationRequests.length;
+      await documentControl.focus();await page.keyboard.press('ArrowDown');await expect(documentControl).toHaveAttribute('aria-expanded','true');await page.keyboard.press('Escape');await expect(documentControl).toHaveAttribute('aria-expanded','false');await expect(documentControl).toBeFocused();
+      assert.deepEqual(await snapshot(),beforeDocument,'Document open/dismiss preserves project/draft');assert.equal(mutationRequests.length,beforeRequests);
+      const screenshot=path.join(output,'midnight-'+view.toLowerCase().replace(/[^a-z]+/g,'-')+'-'+width+'.png');await page.screenshot({path:screenshot});
+      evidence.iconToolbars.push({view,width,document,transfer:transferAppearance,undo,adjacent,screenshot});
+    }
+  }
   // Source-image semantics are fixed rules; theme CSS never filters or colors pixels.
   const pageStyles=await page.locator('.takeoff-viewer').evaluate(el => ({filter:getComputedStyle(el).filter})); assert.equal(pageStyles.filter,'none'); evidence.drawings=pageStyles;
   // Like retained header-controls acceptance, 320px covers the header rather

@@ -69,7 +69,19 @@ async function restore(id,kind){await select(id);await page.getByRole('button',{
  const created=await response(()=>dialog('Add Defect',{'Defect Ref.':'REFERENCE-1','FRL':'-/120/120'},'Preview new draft'),'/physical/preview');await apply('Create one draft defect?');const defect=created.changed_ids[0];assert.equal(record(defect).fields.label,'REFERENCE-1');await choices(inspector().getByLabel('FRL',{exact:true}),frls);await choices(page.getByLabel('FRL for REFERENCE-1',{exact:true}),frls);
  const barrier=await create('barrier',{'Barrier type':'Core hole'},'Add barrier to D-0001');
  const service=await create('service',{'Category':'Mechanical','Service type':definition.row_fields.find(field=>field.column==='K').options[0],'Explicit service quantity':2,'Service Size (mm)':'100 x 75'},'Add service to B-0001');
- for(const id of [defect,barrier,service]){await select(id);assert.equal(await inspector().getByRole('button',{name:'Delete draft record',exact:true}).evaluate(el=>el.parentElement.previousElementSibling.querySelector('textarea')?.getAttribute('aria-label')),'Notes');}
+ checks.inspector_actions_below_notes=[];
+ for(const [kind,id] of [['Defect',defect],['Barrier',barrier],['Service',service]]){
+  await select(id);await expect(inspector().getByLabel(`${kind} ID in Item Details`,{exact:true})).toHaveValue(id);
+  // Read the current pane atomically: automatic inspector refreshes can detach
+  // a previously resolved button without changing the visible field order.
+  const order=await inspector().evaluate(pane=>{
+   const children=[...pane.children],notes=children.findIndex(child=>child.matches('.field')&&child.querySelector('textarea[aria-label="Notes"]'));
+   const actions=children.findIndex(child=>child.matches('.takeoff-physical-inspector-actions')),row=children[actions];
+   return {connected:pane.isConnected,notes,actions,labels:row?[...row.querySelectorAll('button')].map(button=>button.getAttribute('aria-label')):[],directChildren:row?[...row.children].every(child=>child.tagName==='BUTTON'):false};
+  });
+  assert.equal(order.connected,true);assert.ok(order.notes>=0,`${kind} has its editable Notes field`);assert.equal(order.actions,order.notes+1,`${kind} actions immediately follow Notes`);
+  assert.deepEqual(order.labels,['Delete draft record','Discard unfinished physical edits']);assert.equal(order.directChildren,true);checks.inspector_actions_below_notes.push({kind,id,...order});
+ }
  await select(service);const beforeUndo=structuredClone(physical());await edit({'Notes':'Undo this physical note'});state=await response(()=>undo.click(),'/commands');await idle();
  for(const prior of [...beforeUndo.defects,...beforeUndo.barriers,...beforeUndo.services])for(const key of ['id','display_id','defect_id','barrier_id','fields','evidence','quantity'])assert.deepEqual(record(prior.id)[key],prior[key]);await expect(inspector().getByLabel('Notes',{exact:true})).toHaveValue('');await expect(page.getByRole('dialog')).toHaveCount(0);checks.undo_last_physical_edit=true;
  assert.equal(record(service).fields.size,'100 x 75');assert.ok(!Object.hasOwn(record(service).fields,'width_height_mm'));

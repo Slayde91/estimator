@@ -90,6 +90,10 @@
   :root[data-theme]:not([data-theme="ceasefire"]) :is(.takeoff-register th,.takeoff-column-filter-menu) { background:var(--theme-soft); color:var(--ink); }
   :root[data-theme="midnight"] :is(.gear-symbol,.calculator-symbol-button,.penetration-group,.library-summary-table th,.library-summary-table td) { color:var(--ink); }
   :root[data-theme="midnight"] :is(.brand,.header-tagline-character) { background:#fff; border-radius:6px; }
+  :root[data-theme="midnight"] footer { color:var(--muted); }
+  /* Original black document/transfer artwork needs a light control surface. */
+  :root[data-theme="midnight"] :is(.button.calculator-document-toggle:has(img[src="/icons/document.png"]),.button:has(.takeoff-transfer-icon)) { background:#fff; color:#17202d; border-color:var(--theme-edge); }
+  :root[data-theme="midnight"] :is(.button.calculator-document-toggle:has(img[src="/icons/document.png"]),.button:has(.takeoff-transfer-icon)):hover:not(:disabled) { background:#eef4fc; color:#17202d; border-color:var(--theme-focus); }
   :root[data-theme="midnight"] :is(input,select)[aria-invalid=true] { background:#fff2f2; color:#7d1019; border-color:#a20b16; }
   :root[data-theme="midnight"] :is(.calculator-error,.penetration-field-error) { color:#ffb4be; }
   :root[data-theme="midnight"] :is(.button.excel-button,.button.pdf-button,.button.save-button,.button.recalculate-button,.button.link-action-button,.button.library-edit-button,.button.library-delete-button):focus-visible { outline-color:var(--theme-focus); }

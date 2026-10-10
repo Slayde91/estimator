@@ -6,7 +6,7 @@ const { spawn } = require('node:child_process');
 const fs = require('node:fs'), path = require('node:path'), crypto = require('node:crypto'), assert = require('node:assert/strict');
 const root = path.resolve(__dirname, '../..'), output = path.join(root, '.runtime/browser-qa', `themes-${Date.now()}`);
 fs.mkdirSync(output, { recursive:true });
-const assets = ['tests/browser/themes.cjs','static/theme.js','static/theme.css','static/index.html','static/app.js','static/calculators.js','static/takeoffs.js','static/takeoff-physical.js','static/takeoffs.css','static/icons/document.png','static/icons/takeoff-transfer.png','static/ceasefire-logo.png'];
+const assets = ['tests/browser/themes.cjs','static/theme.js','static/theme.css','static/index.html','static/app.js','static/calculators.js','static/takeoffs.js','static/takeoff-physical.js','static/takeoffs.css','static/icons/document.png','static/icons/takeoff-transfer.png','static/icons/takeoff-visibility.png','static/icons/takeoff-callout.png','static/icons/takeoff-legend.png','static/icons/takeoff-colour-wheel.png','static/ceasefire-logo.png'];
 const hashes = () => Object.fromEntries(assets.map(name => [name,crypto.createHash('sha256').update(fs.readFileSync(path.join(root,name))).digest('hex')]));
 const assetHashes = hashes();
 const server = spawn(process.env.CEASEFIRE_PYTHON || 'python', [path.join(__dirname,'fixtures.py'),'--directory',output], { cwd:root, windowsHide:true });
@@ -42,11 +42,11 @@ async function controlAppearance(control) {
     return value;
   });
 }
-async function readableOriginalIcon(control) {
+async function readableMidnightIcon(control) {
   await expect(control).toBeVisible();await expect(control.locator('img')).toHaveJSProperty('complete',true);
   const value=await controlAppearance(control);assert.equal(value.image.width,512);assert.equal(value.image.height,512);assert.ok(value.image.opaque>0);assert.equal(value.image.nonBlackOpaque,0);
-  assert.equal(value.filter,'none');assert.equal(value.image.filter,'none');assert.ok(contrast('rgb(0,0,0)',value.background)>=3,'original opaque black icon must contrast with its control');assert.ok(contrast(value.color,value.background)>=4.5,'control text must remain readable');
-  await control.hover();const hover=await controlAppearance(control);assert.ok(contrast('rgb(0,0,0)',hover.background)>=3,'hover must preserve original icon contrast');assert.ok(contrast(hover.color,hover.background)>=4.5);
+  assert.equal(value.filter,'none');assert.equal(value.image.filter,'brightness(0) invert(1)');assert.ok(contrast('rgb(255,255,255)',value.background)>=3,'white icon must contrast with its dark control');assert.ok(contrast(value.color,value.background)>=4.5,'control text must remain readable');
+  await control.hover();const hover=await controlAppearance(control);assert.equal(hover.image.filter,'brightness(0) invert(1)');assert.ok(contrast('rgb(255,255,255)',hover.background)>=3,'hover must preserve white icon contrast');assert.ok(contrast(hover.color,hover.background)>=4.5);
   await page.mouse.move(1,1);return {normal:value,hover};
 }
 (async () => {
@@ -92,7 +92,7 @@ async function readableOriginalIcon(control) {
   await page.locator('#calculator-pages').getByRole('button',{name:'SCHEDULE',exact:true}).click(); await idle(); await expect(page.locator('#calculator-grid')).toHaveAttribute('aria-busy','false');
   const calculatorInput=page.locator('.calculator-grid input:not([readonly])').first();
   await calculatorInput.evaluate(el=>el.setAttribute('aria-invalid','true')); const invalid=await colors('.calculator-grid input[aria-invalid=true]'); assert.ok(contrast(invalid.color,invalid.background)>=4.5); assert.equal(invalid.background,'rgb(255, 242, 242)'); await calculatorInput.evaluate(el=>el.removeAttribute('aria-invalid')); evidence.calculator.invalid=invalid;
-  evidence.calculator.document=await readableOriginalIcon(page.locator('#calculator-document-toggle'));
+  evidence.calculator.document=await readableMidnightIcon(page.locator('#calculator-document-toggle'));
   const scheduleUndo=await controlAppearance(page.locator('[data-schedule-undo]').filter({visible:true}).first());
   await chooseTakeoff(page,'Steel'); await idle();
   for(const view of ['Steel','Walls/Floors','Defect Reports','Service Plans']) {
@@ -101,25 +101,42 @@ async function readableOriginalIcon(control) {
       await page.setViewportSize({width,height:1000});
       const physical=view==='Defect Reports'||view==='Service Plans',register=page.locator(physical?'.takeoff-physical-register':'.takeoff-register').filter({visible:true}).first();
       const documentControl=register.getByRole('button',{name:physical?'Document':'Takeoff register document actions',exact:true});
-      await documentControl.scrollIntoViewIfNeeded();const document=await readableOriginalIcon(documentControl);
+      await documentControl.scrollIntoViewIfNeeded();const document=await readableMidnightIcon(documentControl);
       const transfer=register.getByRole('button',{name:physical?'Transfer to Firestopping Schedule':'Preview transfer',exact:true});
-      const transferAppearance=await transfer.isVisible()?await readableOriginalIcon(transfer):null;
+      const transferAppearance=await transfer.isVisible()?await readableMidnightIcon(transfer):null;
       // Undo shares Schedule's glyph colors; adjacent physical SVGs follow ink.
       const undo=await controlAppearance(register.getByRole('button',{name:'Undo last edit',exact:true}));
       assert.equal(undo.background,scheduleUndo.background);assert.equal(undo.color,scheduleUndo.color);
       const adjacent=[];
-      if(physical)for(const name of ['Update linked rows','Unlink from Firestopping Schedule']) {
-        const value=await controlAppearance(register.getByRole('button',{name,exact:true}));assert.ok(contrast(value.svgStroke,value.background)>=3,name+' SVG contrast');adjacent.push({name,...value});
+      for(const name of ['Update linked rows',physical?'Unlink from Firestopping Schedule':'Detach links']) {
+        const control=register.getByRole('button',{name,exact:true,includeHidden:true});if(!await control.isVisible())continue;
+        const value=await controlAppearance(control);assert.ok(contrast(value.svgStroke,value.background)>=3,name+' SVG contrast');adjacent.push({name,...value});
       }
+      for(const value of adjacent) {
+        assert.equal(document.normal.background,value.background,'Document shares adjacent control surface');assert.equal(document.normal.color,value.color,'Document shares adjacent control text color');
+        if(transferAppearance){assert.equal(transferAppearance.normal.background,value.background,'Transfer shares adjacent control surface');assert.equal(transferAppearance.normal.color,value.color,'Transfer shares adjacent control text color');}
+      }
+      const rail=[];
+      for(const control of await page.locator('.takeoff-tool-rail button').all()) {
+        if(!await control.isVisible()) continue;
+        const image=control.locator('img');if(await image.count())await expect(image).toHaveJSProperty('complete',true);
+        const value=await controlAppearance(control);const name=await control.getAttribute('aria-label');
+        if(value.image){assert.equal(value.image.filter,'brightness(0) invert(1)',name+' white raster icon');assert.ok(contrast('rgb(255,255,255)',value.background)>=3,name+' icon contrast');}
+        if(value.svgStroke)assert.ok(contrast(value.svgStroke,value.background)>=3,name+' SVG contrast');
+        rail.push({name,...value});
+      }
+      const railScreenshot=path.join(output,'midnight-'+view.toLowerCase().replace(/[^a-z]+/g,'-')+'-rail-'+width+'.png');await page.locator('.takeoff-tool-rail').screenshot({path:railScreenshot});
       const beforeDocument=await snapshot(),beforeRequests=mutationRequests.length;
       await documentControl.focus();await page.keyboard.press('ArrowDown');await expect(documentControl).toHaveAttribute('aria-expanded','true');await page.keyboard.press('Escape');await expect(documentControl).toHaveAttribute('aria-expanded','false');await expect(documentControl).toBeFocused();
       assert.deepEqual(await snapshot(),beforeDocument,'Document open/dismiss preserves project/draft');assert.equal(mutationRequests.length,beforeRequests);
       const screenshot=path.join(output,'midnight-'+view.toLowerCase().replace(/[^a-z]+/g,'-')+'-'+width+'.png');await page.screenshot({path:screenshot});
-      evidence.iconToolbars.push({view,width,document,transfer:transferAppearance,undo,adjacent,screenshot});
+      evidence.iconToolbars.push({view,width,document,transfer:transferAppearance,undo,adjacent,rail,railScreenshot,screenshot});
     }
   }
-  // Source-image semantics are fixed rules; theme CSS never filters or colors pixels.
-  const pageStyles=await page.locator('.takeoff-viewer').evaluate(el => ({filter:getComputedStyle(el).filter})); assert.equal(pageStyles.filter,'none'); evidence.drawings=pageStyles;
+  // Only chrome artwork is tinted; the retained drawing canvas and overlay stay unfiltered.
+  const pageStyles=await page.locator('.takeoff-viewer').evaluate(el => ({filter:getComputedStyle(el).filter,drawingFilters:[...el.querySelectorAll('canvas,.takeoff-overlay,.takeoff-page img')].map(child=>getComputedStyle(child).filter)})); assert.equal(pageStyles.filter,'none');assert.ok(pageStyles.drawingFilters.every(value=>value==='none')); evidence.drawings=pageStyles;
+  await theme('ocean');
+  const lightFilters=await page.locator('.takeoff-tool-rail img,.takeoff-document-menu .calculator-document-icon').evaluateAll(images=>images.map(image=>getComputedStyle(image).filter));assert.ok(lightFilters.length>0);assert.ok(lightFilters.every(value=>value==='none'),'light themes retain original icon colors');await theme('midnight');evidence.lightIconFilters=lightFilters;
   // Like retained header-controls acceptance, 320px covers the header rather
   // than forcing a data register's minimum workspace width into that viewport.
   await page.getByRole('button',{name:'Home',exact:true}).click(); await idle();

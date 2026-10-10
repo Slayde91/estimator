@@ -102,7 +102,7 @@ def self_test(data_directory, output_report):
         if seed.exists():
             raise ValueError('The synthetic seed diagnostic path already exists.')
         synthetic_seed(seed)
-    project = directory / 'native-project.json'
+    project = directory / 'native-project.cf.json'
     report = {'completed': False, 'renderer': 'edgechromium', 'edition': 'standard', 'checks': [], 'errors': []}
     done = threading.Event()
     def checkpoint(stage):

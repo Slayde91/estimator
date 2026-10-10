@@ -25,10 +25,10 @@ def main():
     legacy = export_project(store, {'estimate': {'project_no': 'STANDARD-FIXTURE',
                             'client': 'Synthetic acceptance', 'measurements': 'Frozen legacy project'},
                             'calculators': {}}, edition='standard')
-    (folder / 'legacy-v1.json').write_bytes(legacy)
+    (folder / 'legacy-v1.cf.json').write_bytes(legacy)
     protected = json.loads(legacy)
     protected.update(version=2, takeoffs={'evidence': 'Must remain untouched'})
-    (folder / 'protected-v2.json').write_text(json.dumps(protected), encoding='utf-8')
+    (folder / 'protected-v2.cf.json').write_text(json.dumps(protected), encoding='utf-8')
     store.save_configuration({'rates': {rate: {'price': 123.45}}})
     control = folder / 'dialog-mode.json'
     control.write_text('{}', encoding='utf-8')
@@ -37,10 +37,10 @@ def main():
         def mode(self):
             return json.loads(control.read_text(encoding='utf-8'))
         def choose_open(self, initial_directory):
-            return str(folder / {'saved': 'standard-project.json', 'takeoffs': 'protected-v2.json'}
-                       .get(self.mode().get('open'), 'legacy-v1.json'))
+            return str(folder / {'saved': 'standard-project.cf.json', 'takeoffs': 'protected-v2.cf.json'}
+                       .get(self.mode().get('open'), 'legacy-v1.cf.json'))
         def choose_save(self, initial_directory, filename):
-            target = folder / ('protected-v2.json' if self.mode().get('save') == 'takeoffs' else 'standard-project.json')
+            target = folder / ('protected-v2.cf.json' if self.mode().get('save') == 'takeoffs' else 'standard-project.cf.json')
             return SaveSelection(str(target), file_fingerprint(target))
         def choose_folder(self, initial_directory):
             return str(folder)

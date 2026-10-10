@@ -79,6 +79,7 @@ jobs:
       - run: npm ci
       - run: npx playwright install --with-deps chromium
       - run: node tests/browser/pdf_render_gate.cjs
+      - run: node tests/browser/header_artwork.cjs
       - run: npm run test:themes-browser
       - run: npm run test:header-controls
       - run: npm run test:estimator-header-state

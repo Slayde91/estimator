@@ -87,7 +87,7 @@ class PhysicalProjectTests(unittest.TestCase):
             case.service.preview_physical(reopened['takeoffs_session_id'], {
                 'expected_revision': reopened['takeoffs']['revision'],
                 'commands': [{'op': 'delete', 'entity_id': self.ids[0], 'cascade': True}]})
-        second = case.root / 'other' / 'renamed.json'; second.parent.mkdir()
+        second = case.root / 'other' / 'renamed.cf.json'; second.parent.mkdir()
         case.dialogs.selection = SaveSelection(str(second), None)
         case.library.save_as({**deepcopy(case.base), 'takeoffs': reopened['takeoffs'],
                               'takeoffs_session_id': reopened['takeoffs_session_id']})
@@ -143,7 +143,7 @@ class PhysicalProjectTests(unittest.TestCase):
         first = case.documents.publish(after, case.target)
         owner = str(uuid4())
         case.documents.bind_source(owner, first, case.target)
-        other = case.root / 'copy' / 'project.json'; other.parent.mkdir()
+        other = case.root / 'copy' / 'project.cf.json'; other.parent.mkdir()
         second = case.documents.publish(after, other)
         case.documents.bind_source(owner, second, other)
         folder = other.parent / second['companion_folder']

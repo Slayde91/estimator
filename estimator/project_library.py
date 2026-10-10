@@ -21,7 +21,7 @@ import time
 from .catalog import ValidationError
 from .edition import require_project_edition, validate_edition
 from .native_dialogs import NativeDialogs, SaveSelection
-from .project_file import CALCULATOR_IDS, ESTIMATE_FIELDS, ESTIMATE_REQUIRED_FIELDS, MAX_PROJECT_FILE, assert_project_overwrite, export_project, has_project_identity, load_project_bytes, project_filename, project_summary
+from .project_file import CALCULATOR_IDS, ESTIMATE_FIELDS, ESTIMATE_REQUIRED_FIELDS, MAX_PROJECT_FILE, PROJECT_EXTENSION, assert_project_overwrite, export_project, has_project_identity, is_project_filename, load_project_bytes, project_filename, project_summary
 
 
 MAX_PROJECT_FILES = 200
@@ -205,12 +205,17 @@ def _dialog():
         _DIALOG_LOCK.release()
 
 
-def _atomic_write(selection, payload):
+def _project_save_path(selection):
     if not isinstance(selection, SaveSelection) or not isinstance(selection.path, str):
         raise ValidationError("The native file dialog returned an invalid selection.")
     path = Path(selection.path)
-    if not path.is_absolute() or not path.name.lower().endswith(".json") or ".." in path.parts:
-        raise ValidationError("Save the project as a JSON file in an existing folder.")
+    if not path.is_absolute() or not is_project_filename(path.name) or ".." in path.parts:
+        raise ValidationError("Save the project as a .cf.json file in an existing folder.")
+    return path
+
+
+def _atomic_write(selection, payload):
+    path = _project_save_path(selection)
     folder = _directory(path.parent)
     path = folder / path.name
     expected = selection.fingerprint
@@ -342,7 +347,7 @@ class ProjectLibrary:
             path = scan["deferred"]
             if path is not None:
                 # Consume before inspecting: a file can become a directory,
-                # link or non-JSON entry between continuation requests.
+                # link or non-project entry between continuation requests.
                 scan["deferred"] = None
                 inspected += 1
             if path is None:
@@ -375,6 +380,15 @@ class ProjectLibrary:
                 path = Path(entry.path)
                 inspected += 1
                 scan["entries"] += 1
+                # Ignore every other file type before stat, reading or project
+                # validation. Real directories are retained for traversal;
+                # unrelated files and links cannot flood the project errors.
+                if not is_project_filename(entry.name):
+                    try:
+                        if not entry.is_dir(follow_symlinks=False):
+                            continue
+                    except OSError:
+                        continue
             relative = path.relative_to(scan["folder"]).as_posix()
             try:
                 info = path.lstat()
@@ -383,7 +397,7 @@ class ProjectLibrary:
                 if stat.S_ISDIR(info.st_mode):
                     scan["directories"].append(path)
                     continue
-                if not path.name.lower().endswith(".json"):
+                if not is_project_filename(path.name):
                     continue
                 if not stat.S_ISREG(info.st_mode):
                     raise ValidationError("Project files must be regular files, not links.")
@@ -634,7 +648,10 @@ class ProjectLibrary:
             if file_fingerprint(selection.path) != selection.fingerprint:
                 raise ValidationError('The project file changed or was removed. Reload it or use Save As before uploading files.')
             folder = _directory(Path(selection.path).parent)
-            stem, suffix = Path(filename).stem, Path(filename).suffix
+            if is_project_filename(filename):
+                stem, suffix = filename[:-len(PROJECT_EXTENSION)], filename[-len(PROJECT_EXTENSION):]
+            else:
+                stem, suffix = Path(filename).stem, Path(filename).suffix
             path, identity = None, None
             try:
                 for number in range(10000):
@@ -682,8 +699,8 @@ class ProjectLibrary:
             if selected is None:
                 return {"cancelled": True}
             path = Path(selected)
-            if not path.is_absolute() or ".." in path.parts or not path.name.lower().endswith(".json"):
-                raise ValidationError("Choose a project JSON file in an accessible folder.")
+            if not path.is_absolute() or ".." in path.parts or not is_project_filename(path.name):
+                raise ValidationError("Choose a .cf.json project file in an accessible folder.")
             payload, info = _read_file(path)
             project = load_project_bytes(self.store, payload, edition=self.edition)
             project = self._restore_takeoffs(project, path)
@@ -712,6 +729,7 @@ class ProjectLibrary:
             selection = self._save_targets.get(token)
             if selection is None:
                 raise ValidationError('This project selection is no longer available. Use Load Project or "Save As".')
+            selected_path = _project_save_path(selection)
         captured = self._capture_takeoffs({key: request[key] for key in ("estimate", "calculators", "penetration", "takeoffs", "takeoffs_session_id", "library_drafts") if key in request})
         payload = export_project(self.store, captured, edition=self.edition)
         project = load_project_bytes(self.store, payload, edition=self.edition)
@@ -720,7 +738,7 @@ class ProjectLibrary:
         with self._lock:
             if self._save_targets.get(token) is not selection:
                 raise ValidationError('The project was already saved by another request. Reload it or use "Save As".')
-            path = Path(selection.path)
+            path = selected_path
             if file_fingerprint(path) != selection.fingerprint:
                 raise ValidationError('The project file changed or was removed outside this window. Reload it or use "Save As".')
             _preserve_penetration_inputs(path, request)
@@ -763,13 +781,14 @@ class ProjectLibrary:
             selection = self.dialogs.choose_save(selected_folder, project_filename(project["estimate"]["title"]))
             if selection is None:
                 return {"cancelled": True}
+            selected_path = _project_save_path(selection)
             with self._lock:
                 if isinstance(selection, SaveSelection) and selection.fingerprint is not None:
-                    _preserve_penetration_inputs(Path(selection.path), request)
-                    _preserve_library_drafts(Path(selection.path), request)
-                    self._preserve_takeoffs(Path(selection.path), request)
+                    _preserve_penetration_inputs(selected_path, request)
+                    _preserve_library_drafts(selected_path, request)
+                    self._preserve_takeoffs(selected_path, request)
                 if 'takeoffs' in captured:
-                    captured = self._publish_takeoffs(captured, Path(selection.path))
+                    captured = self._publish_takeoffs(captured, selected_path)
                     payload = export_project(self.store, captured, edition=self.edition)
                     project = load_project_bytes(self.store, payload, edition=self.edition)
                 path, saved_info = _atomic_write(selection, payload)

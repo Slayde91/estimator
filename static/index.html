@@ -36,6 +36,24 @@
   <script src="/library-editor.js" defer></script>
 </head>
 <body>
+  <!-- Derive the supplied grayscale character's alpha at render time. The
+       original GIF frames, timing and stopped frame remain unchanged. -->
+  <svg class="header-artwork-filters" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
+    <defs>
+      <filter id="header-character-ink" color-interpolation-filters="sRGB">
+        <feColorMatrix in="SourceGraphic" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  -1 0 0 0 1" result="ink-alpha"/>
+        <feComposite in="ink-alpha" in2="SourceAlpha" operator="in" result="ink-alpha"/>
+        <feFlood flood-color="#000"/>
+        <feComposite in2="ink-alpha" operator="in"/>
+      </filter>
+      <filter id="header-character-white" color-interpolation-filters="sRGB">
+        <feColorMatrix in="SourceGraphic" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  -1 0 0 0 1" result="ink-alpha"/>
+        <feComposite in="ink-alpha" in2="SourceAlpha" operator="in" result="ink-alpha"/>
+        <feFlood flood-color="#fff"/>
+        <feComposite in2="ink-alpha" operator="in"/>
+      </filter>
+    </defs>
+  </svg>
   <a class="skip-link" href="#main">Skip to content</a>
   <header class="app-header">
     <div class="brand-stack"><a class="brand" href="/" aria-label="Ceasefire Estimator home"><img class="brand-logo" src="/ceasefire-logo.png" alt="Ceasefire" width="5375" height="1790"></a><span id="header-project-name" class="header-project-name" hidden></span><span id="project-save-state" class="status-label unsaved" role="status">Not saved to a file</span></div>
@@ -207,7 +225,7 @@
     </section>
     <!-- TAKEOFFS:END -->
     <section id="view-quotes" class="view" aria-labelledby="quotes-heading" hidden>
-      <div class="page-heading"><div><p class="eyebrow">WORKSPACE</p><h1 id="quotes-heading">Projects</h1><p class="subtitle">Open a complete estimate, its original prices and all three calculators.</p></div><div class="actions project-workspace-actions"><span class="project-edit-actions"><button id="new-quote" type="button" class="button secondary">New</button></span><button id="load-project" type="button" class="button secondary">Load</button><input id="project-import-file" type="file" accept=".json,application/json" hidden><button id="link-project-folder" type="button" class="button icon-only link-action-button" aria-label="Link Project Folder" title="Link Project Folder"><span class="button-symbol" aria-hidden="true">🔗︎</span><span class="sr-only">Link Project Folder</span></button><button id="refresh-quotes" type="button" class="button secondary refresh-button icon-only" aria-label="Refresh" title="Refresh"><span class="button-symbol" aria-hidden="true">↻</span><span class="sr-only">Refresh</span></button></div></div>
+      <div class="page-heading"><div><p class="eyebrow">WORKSPACE</p><h1 id="quotes-heading">Projects</h1><p class="subtitle">Open a complete estimate, its original prices and all three calculators.</p></div><div class="actions project-workspace-actions"><span class="project-edit-actions"><button id="new-quote" type="button" class="button secondary">New</button></span><button id="load-project" type="button" class="button secondary">Load</button><input id="project-import-file" type="file" accept=".cf.json" hidden><button id="link-project-folder" type="button" class="button icon-only link-action-button" aria-label="Link Project Folder" title="Link Project Folder"><span class="button-symbol" aria-hidden="true">🔗︎</span><span class="sr-only">Link Project Folder</span></button><button id="refresh-quotes" type="button" class="button secondary refresh-button icon-only" aria-label="Refresh" title="Refresh"><span class="button-symbol" aria-hidden="true">↻</span><span class="sr-only">Refresh</span></button></div></div>
       <p id="project-folder" class="message info"></p>
       <section id="project-list-card" class="card">
         <div class="project-list-controls"><label class="field project-search-field"><span>Search projects</span><input id="project-search" type="search" placeholder="Project, client, address or folder…" maxlength="400"></label><label class="field"><span>Sort by</span><select id="project-sort"><option value="modified_desc">Most recently saved</option><option value="modified_asc">Oldest saved first</option><option value="name_asc">Project name A–Z</option><option value="name_desc">Project name Z–A</option></select></label></div>

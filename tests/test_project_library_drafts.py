@@ -89,7 +89,7 @@ class ProjectLibraryDraftTests(unittest.TestCase):
         before = self.database()
         for _ in range(3):
             payload = export_project(self.store, self.request(snapshot))
-            loaded = import_project(self.store, 'Project.json', base64.b64encode(payload).decode('ascii'))
+            loaded = import_project(self.store, 'Project.cf.json', base64.b64encode(payload).decode('ascii'))
             prepared = prepare_library_drafts(loaded['library_drafts'])
             snapshot = prepared['library_drafts']
             self.assertEqual(snapshot, original)
@@ -198,7 +198,7 @@ class ProjectLibraryDraftTests(unittest.TestCase):
         chooser = Chooser()
         projects = ProjectLibrary(self.store, chooser)
         self.addCleanup(projects.close)
-        target = self.root / 'Project.json'
+        target = self.root / 'Project.cf.json'
         request = self.request(self.snapshot())
         chooser.selection = SaveSelection(str(target), None)
         saved = projects.save_as(request)
@@ -224,7 +224,7 @@ class ProjectLibraryDraftTests(unittest.TestCase):
         chooser = Chooser()
         projects = ProjectLibrary(self.store, chooser)
         self.addCleanup(projects.close)
-        target = self.root / 'Project.json'
+        target = self.root / 'Project.cf.json'
         request = self.request(self.snapshot())
         chooser.selection = SaveSelection(str(target), None)
         saved = projects.save_as(request)

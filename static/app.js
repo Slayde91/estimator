@@ -1846,7 +1846,7 @@
     if (!file || state.projectBusy) return;
     projectBusy(true, "load-project");
     try {
-      if (!/\.json$/i.test(file.name) || !file.size || file.size > 16 * 1024 * 1024) throw new Error("Choose a project JSON file up to 16 MB.");
+      if (!/\.cf\.json$/i.test(file.name) || !file.size || file.size > 16 * 1024 * 1024) throw new Error("Choose a .cf.json project file up to 16 MB.");
       const captured = projectStamp();
       const content_base64 = await fileBase64(file);
       const project = await request("/api/project/import", { method: "POST", body: JSON.stringify({ filename: file.name, content_base64 }) });

@@ -216,7 +216,7 @@ def make_legacy_physical_project(folder, pdf):
     from estimator.takeoff_physical import new_graph
     from estimator.takeoff_physical_operations import prepare_changes
     from estimator.takeoff_workspace import TakeoffService
-    project = folder / 'legacy-physical-project.json'
+    project = folder / 'legacy-physical-project.cf.json'
     store = Store(folder / 'legacy-fixture.sqlite3')
     documents = TakeoffDocuments(folder / 'legacy-staging')
     service = TakeoffService(store, documents)
@@ -279,7 +279,7 @@ if __name__ == '__main__':
         physical_fixture = folder / 'synthetic-physical-report.pdf'; make_physical_pdf(physical_fixture)
         physical_v2_fixture = folder / 'synthetic-physical-v2-report.pdf'; make_physical_pdf(physical_v2_fixture, version=2)
         legacy_project = make_legacy_physical_project(folder, physical_fixture) if args.physical_legacy else None
-        project = folder / 'browser-project.json'
+        project = folder / 'browser-project.cf.json'
         class Dialogs:
             def choose_save(self, initial_directory, filename):
                 return SaveSelection(str(project), file_fingerprint(project))

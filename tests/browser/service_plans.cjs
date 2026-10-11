@@ -287,7 +287,8 @@ async function controls() {
   // it never repeats that barrier's existing service quantity.
   await page.getByRole('button', { name: 'Call-out', exact: true }).click(); await page.mouse.click(...await screen([440, 360]));
   await chooseNewPhysicalItem(page,'barrier');
-  const secondPreview = await response(() => dialog('Create draft barrier', { 'Location': 'PLAN-B', 'Barrier type': 'Empty Opening', 'FRL': '-/60/60' }, 'Preview new draft'), '/physical/preview');
+  // A formula-looking location must remain literal in the public XLSX register.
+  const secondPreview = await response(() => dialog('Create draft barrier', { 'Location': '=PLAN-B', 'Barrier type': 'Empty Opening', 'FRL': '-/60/60' }, 'Preview new draft'), '/physical/preview');
   await apply('Create one draft barrier?'); const secondBarrier = secondPreview.changed_ids[0];
   assert.equal(entity(secondBarrier).display_id, 'B-0002'); assert.equal(state.service_plans.services.length, 1); await summaryContains(secondBarrier, '0 services');
   assert.deepEqual(state.physical, reportBefore); evidence.countCreatesIndependentBarrier = secondBarrier;
@@ -316,8 +317,21 @@ async function controls() {
   const matrixWait=page.waitForEvent('download');await page.getByRole('button',{name:'Download Passive Fire Matrix PDF',exact:true}).click();
   const matrixDownload=await matrixWait,matrix=path.join(output,matrixDownload.suggestedFilename());await matrixDownload.saveAs(matrix);
   const csvText = fs.readFileSync(csv, 'utf8'); assert.ok(csvText.includes(barrier)); assert.ok(csvText.includes(service)); assert.ok(!csvText.includes(defect)); assert.ok(!csvText.includes(reportBarrier)); assert.ok(!csvText.split('\n')[0].includes('defect'));
-  const workbook = pythonJson("import json,sys\nfrom openpyxl import load_workbook\nw=load_workbook(sys.argv[1],data_only=False)\nprint(json.dumps({'sheets':w.sheetnames,'formulas':[c.coordinate for s in w for r in s for c in r if c.data_type=='f']}))", xlsx);
-  assert.ok(workbook.sheets.includes('Barriers')); assert.ok(workbook.sheets.includes('Services')); assert.ok(!workbook.sheets.includes('Defects')); assert.deepEqual(workbook.formulas, []);
+  const workbook = pythonJson("import json,sys\nfrom openpyxl import load_workbook\nw=load_workbook(sys.argv[1],data_only=False)\ns=w.active;v=list(s.values)\nprint(json.dumps({'sheets':w.sheetnames,'headers':v[0],'rows':v[1:],'string_cells':[{'coordinate':c.coordinate,'value':c.value,'type':c.data_type} for sh in w for r in sh for c in r if isinstance(c.value,str)],'formulas':[c.coordinate for sh in w for r in sh for c in r if c.data_type=='f']}))\nw.close()", xlsx);
+  const registerHeaders = ['Barrier ID', 'Service ID', 'Confirmation', 'Location', 'FRL', 'Substrate', 'Orientation', 'Category', 'Service type', 'Service quantity', 'Service Size (mm)', 'Source evidence'];
+  const visibleHeaders = await page.locator('.takeoff-physical-register thead th').evaluateAll(cells => cells.map(cell => [...cell.childNodes].filter(child => child.nodeType === Node.TEXT_NODE).map(child => child.textContent).join('').trim()));
+  assert.deepEqual(visibleHeaders, ['Select', 'Hide', 'View/Edit', ...registerHeaders]);
+  assert.deepEqual(workbook.sheets, ['Service Plans']); assert.deepEqual(workbook.headers, registerHeaders); assert.deepEqual(workbook.formulas, []);
+  const first = entity(barrier), child = entity(service), second = entity(secondBarrier), blank = value => value == null || value === '' ? null : value;
+  assert.equal(first.confirmation, 'unconfirmed'); assert.equal(child.barrier_id, first.id);
+  for (const id of [barrier, service, secondBarrier]) await expect(row(id).locator('.takeoff-state')).toHaveText('Unconfirmed');
+  assert.deepEqual(workbook.rows, [
+    [first.display_id, null, 'Unconfirmed', first.fields.location, first.fields.frl, blank(first.fields.substrate), blank(first.fields.orientation), null, null, null, null, `${first.evidence.length} source associations`],
+    [first.display_id, child.display_id, 'Unconfirmed', first.fields.location, first.fields.frl, blank(first.fields.substrate), blank(first.fields.orientation), blank(child.fields.service), blank(child.fields.service_type), child.quantity, blank(child.fields.size), `${child.evidence.length} source associations`],
+    [second.display_id, null, 'Unconfirmed', second.fields.location, second.fields.frl, blank(second.fields.substrate), blank(second.fields.orientation), null, null, null, null, `${second.evidence.length} source associations`],
+  ], 'Public register keeps parent-before-child order, inherited barrier facts and exact service quantity/size without Defect Reports rows.');
+  assert.ok(workbook.string_cells.length > 0); assert.ok(workbook.string_cells.every(cell => cell.type === 's'));
+  assert.deepEqual(workbook.string_cells.find(cell => cell.value === '=PLAN-B'), { coordinate: 'D4', value: '=PLAN-B', type: 's' });
   const pdfText = pythonJson("import json,sys\nfrom pypdf import PdfReader\nr=PdfReader(sys.argv[1]);print(json.dumps({'text':'\\n'.join(p.extract_text() or '' for p in r.pages),'pages':len(r.pages)}))", pdf);
   for (const text of ['PLAN-A', 'PLAN-B', 'B-0001', 'S-0001', '-/90/90']) assert.ok(pdfText.text.includes(text), text);
   for(const line of viewerLines)assert.ok(pdfText.text.includes(line),`Viewer line missing from drawing PDF: ${line}`);

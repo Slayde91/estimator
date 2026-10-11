@@ -3,10 +3,11 @@ const { chromium } = require('@playwright/test');
 const assert = require('node:assert/strict'), fs = require('node:fs'), path = require('node:path'), http = require('node:http'), crypto = require('node:crypto');
 const root = path.resolve(__dirname, '../..'), out = path.join(root, '.runtime/browser-qa', `takeoff-icon-contract-${Date.now()}`);
 fs.mkdirSync(out, { recursive:true });
-const names = ['static/styles.css','static/takeoffs.css','static/theme.css','static/icons/takeoff-visibility.png','static/icons/default-memory.svg','static/icons/signature.svg','tests/browser/takeoff_icon_contract.cjs'];
+const names = ['static/styles.css','static/takeoffs.css','static/theme.css','static/icons/takeoff-visibility.png','static/icons/takeoff-set-default.png','static/icons/signature.svg','tests/browser/takeoff_icon_contract.cjs'];
 const sha = bytes => crypto.createHash('sha256').update(bytes).digest('hex');
 const hashes = () => Object.fromEntries(names.map(name => [name,sha(fs.readFileSync(path.join(root,name)))]));
 const before = hashes(), evidence = [], errors = [], requests = [];
+assert.equal(before['static/icons/takeoff-set-default.png'],'dc8c0ba65090852527ecbe104cf56c82b8875729c8c0b4da092e28e4a0fec01f','The supplied Set as default icon is preserved byte for byte');
 const resources = new Map(names.filter(name => name.startsWith('static/')).map(name => ['/' + name.slice(7),fs.readFileSync(path.join(root,name))]));
 for (const name of ['Montserrat-Variable.ttf','Montserrat-Italic-Variable.ttf','Vera.ttf','VeraBd.ttf']) resources.set('/fonts/'+name,fs.readFileSync(path.join(root,'static/fonts',name)));
 const eye = '<button class="button secondary icon-only takeoff-icon-button takeoff-current-visibility takeoff-visibility-button" aria-label="Visibility"><img src="/icons/takeoff-visibility.png" width="32" height="32" alt=""></button>';
@@ -40,12 +41,13 @@ let browser;
       let opaque=0,transparent=0;for(let i=3;i<data.length;i+=4){if(data[i]>230)opaque++;if(data[i]<10)transparent++;}
       return {data:[...data],opaque,transparent};
     };
-    const memory=await inspect('/icons/default-memory.svg',24,24), signature=await inspect('/icons/signature.svg',33,24);
+    const suppliedIcon=await inspect('/icons/takeoff-set-default.png',512,512), signature=await inspect('/icons/signature.svg',33,24);
     const alpha=(pixels,x,y,width) => pixels[(y*width+x)*4+3];
     let runs=0,ink=false;for(let x=0;x<33;x++){const next=alpha(signature.data,x,22,33)>10;if(next&&!ink)runs++;ink=next;}
-    return {memory:{opaque:memory.opaque,transparent:memory.transparent,arrowHoleAlpha:alpha(memory.data,5,8,24),headAlpha:alpha(memory.data,8,8,24),outerAlpha:alpha(memory.data,23,0,24)},signature:{opaque:signature.opaque,transparent:signature.transparent,baselineDotRuns:runs}};
+    let visible=0,nonBlack=0;for(let i=0;i<suppliedIcon.data.length;i+=4){if(suppliedIcon.data[i+3]){visible++;if(suppliedIcon.data[i]||suppliedIcon.data[i+1]||suppliedIcon.data[i+2])nonBlack++;}}
+    return {suppliedIcon:{opaque:suppliedIcon.opaque,transparent:suppliedIcon.transparent,visible,nonBlack,outerAlpha:alpha(suppliedIcon.data,0,0,512)},signature:{opaque:signature.opaque,transparent:signature.transparent,baselineDotRuns:runs}};
   });
-  assert.ok(artwork.memory.opaque>200);assert.ok(artwork.memory.transparent>100);assert.equal(artwork.memory.outerAlpha,0);assert.equal(artwork.memory.arrowHoleAlpha,0);assert.equal(artwork.memory.headAlpha,255);
+  assert.equal(artwork.suppliedIcon.visible,62291);assert.equal(artwork.suppliedIcon.nonBlack,0);assert.ok(artwork.suppliedIcon.transparent>190000);assert.equal(artwork.suppliedIcon.outerAlpha,0);
   assert.ok(artwork.signature.opaque>20);assert.ok(artwork.signature.transparent>400);assert.equal(artwork.signature.baselineDotRuns,8);
   for(const theme of ['ceasefire','midnight','ocean','forest','slate']) {
     await page.locator('html').evaluate((html,theme) => html.dataset.theme=theme,theme);
@@ -53,14 +55,23 @@ let browser;
       const box=button.getBoundingClientRect(),icon=button.querySelector('img,span'),r=icon.getBoundingClientRect(),css=getComputedStyle(icon);
       return {label:button.getAttribute('aria-label'),width:box.width,height:box.height,iconWidth:r.width,iconHeight:r.height,iconFilter:css.filter,iconColor:css.color,maskImage:css.maskImage,iconBackground:css.backgroundColor};
     }));
-    for(const control of geometry){assert.equal(control.width,38);assert.equal(control.height,38);assert.equal(control.iconWidth,24);assert.equal(control.iconHeight,24);if(control.label!=='Visibility'){assert.equal(control.iconFilter,'none');assert.ok(control.maskImage.includes(control.label==='Signature'?'signature.svg':'default-memory.svg'));if(theme==='midnight')assert.equal(control.iconBackground,'rgb(255, 255, 255)');}}
+    for(const control of geometry){assert.equal(control.width,38);assert.equal(control.height,38);assert.equal(control.iconWidth,24);assert.equal(control.iconHeight,24);if(control.label!=='Visibility'){assert.equal(control.iconFilter,'none');assert.ok(control.maskImage.includes(control.label==='Signature'?'signature.svg':'takeoff-set-default.png'));if(theme==='midnight')assert.equal(control.iconBackground,'rgb(255, 255, 255)');}}
     const adjacency=await page.locator('.takeoff-appearance-actions').evaluateAll(rows => rows.map(row => {const buttons=[...row.children].map(el=>el.getBoundingClientRect());return {sameTop:buttons.every(box=>box.top===buttons[0].top),gap:buttons[1].left-buttons[0].right};}));
     for(const row of adjacency){assert.equal(row.sameTop,true);assert.equal(row.gap,8);}
     const pad=await page.locator('.takeoff-signature-pad').evaluate(el => {const css=getComputedStyle(el);return {filter:css.filter,background:css.backgroundColor,color:css.color,touchAction:css.touchAction};});
     assert.equal(pad.filter,'none');assert.equal(pad.background,'rgb(255, 255, 255)');assert.equal(pad.color,'rgb(23, 32, 45)');assert.equal(pad.touchAction,'none');
     const screenshot=path.join(out,theme+'.png');await page.screenshot({path:screenshot});evidence.push({theme,geometry,adjacency,pad,screenshot});
   }
+  const cursors=await page.evaluate(() => {
+    const viewport=document.createElement('div');viewport.className='takeoff-viewport';viewport.innerHTML='<div class="takeoff-page"><canvas></canvas><svg class="takeoff-overlay"><g class="takeoff-graphic takeoff-graphic-selected"><rect class="takeoff-physical-marker-hit"></rect><text class="takeoff-label">Fixture</text><circle class="takeoff-graphic-handle"></circle></g></svg></div>';document.body.append(viewport);
+    const elements=[viewport,...viewport.querySelectorAll('.takeoff-page,canvas,.takeoff-overlay,.takeoff-overlay *')];
+    return ['select','signature','initial-pages','graphic-cloud','graphic-textbox','graphic-callout','graphic-stamp'].map(tool=>{viewport.dataset.tool=tool;return {tool,values:elements.map(el=>({tag:el.tagName,classes:el.className.baseVal??el.className,cursor:getComputedStyle(el).cursor}))};});
+  });
+  for(const state of cursors){if(state.tool==='select')assert.ok(state.values.some(value=>value.cursor!=='crosshair'),'Selection retains its existing cursors');else for(const value of state.values)assert.equal(value.cursor,'crosshair',`${state.tool}: ${value.tag} ${value.classes}`);}
+  await page.evaluate(()=>{const img=document.createElement('img');img.src='/icons/takeoff-set-default.png';img.width=256;img.height=256;img.style.background='white';img.setAttribute('aria-label','Original supplied Set as default icon on white');document.body.prepend(img);});
+  await page.getByRole('img',{name:'Original supplied Set as default icon on white'}).evaluate(async img=>img.decode());
+  const originalPreview=path.join(out,'original-supplied-set-default-on-white.png');await page.getByRole('img',{name:'Original supplied Set as default icon on white'}).screenshot({path:originalPreview});
   assert.deepEqual(hashes(),before);assert.equal(errors.length,0);assert.ok(requests.every(request=>['GET','HEAD'].includes(request.method)));
-  fs.writeFileSync(path.join(out,'result.json'),JSON.stringify({passed:true,assetHashes:before,artwork,evidence,errors,staticFixture:true,browserVersion:browser.version(),port:server.address().port,requests},null,2));
+  fs.writeFileSync(path.join(out,'result.json'),JSON.stringify({passed:true,assetHashes:before,artwork,evidence,cursors,originalPreview,errors,staticFixture:true,browserVersion:browser.version(),port:server.address().port,requests},null,2));
   console.log(JSON.stringify({passed:true,output:out,themes:5,controls:10,browserVersion:browser.version(),errors:0}));
 })().catch(error => { fs.writeFileSync(path.join(out,'result.json'),JSON.stringify({passed:false,error:String(error.stack||error),assetHashes:before,evidence,errors},null,2));console.error(error);process.exitCode=1; }).finally(async () => { if(browser)await browser.close();await new Promise(resolve=>server.close(resolve)); });

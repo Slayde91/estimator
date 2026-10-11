@@ -1,7 +1,7 @@
 "use strict";
 
-// PDF-only marks use literal text and bounded numeric geometry. No supplied SVG,
-// HTML, URLs or image bytes enter this renderer.
+// PDF-only marks use literal text, bounded geometry and validated embedded PNGs.
+// Supplied SVG, HTML and external image URLs never enter this renderer.
 (function (root) {
   const kinds = Object.freeze(["cloud", "textbox", "stamp", "line", "polyline", "arrow", "rectangle", "circle", "polygon"]);
   const boxes = new Set(["cloud", "textbox", "stamp", "rectangle", "circle"]);
@@ -13,6 +13,68 @@
     return { quad_pdf: [[x, y], [x+w, y], [x+w, y+h], [x, y+h]].map(inverse) };
   }
   function coordinates(graphic) { return graphic.geometry.quad_pdf || graphic.geometry.points; }
+  const imageByteLimit = 2 * 1024 * 1024;
+  function imageSize(width, height) {
+    if (![width, height].every(n => Number.isInteger(n) && n >= 1 && n <= 4096) || width * height > 4000000) throw new Error("Choose an image up to 4,096 pixels per side and 4 million pixels in total.");
+    return { width, height };
+  }
+  function stampImageHeader(bytes) {
+    if (!(bytes instanceof Uint8Array) || !bytes.length || bytes.length > imageByteLimit) throw new Error("Choose a PNG or JPEG image up to 2 MiB.");
+    if ([137,80,78,71,13,10,26,10].every((n,i) => bytes[i] === n)) {
+      const data = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+      if (bytes.length < 33 || data.getUint32(8) !== 13 || String.fromCharCode(...bytes.slice(12,16)) !== "IHDR") throw new Error("Choose a valid PNG image.");
+      const size = imageSize(data.getUint32(16), data.getUint32(20));
+      for (let offset = 8; offset + 12 <= bytes.length;) {
+        const length = data.getUint32(offset), end = offset + length + 12;
+        if (end > bytes.length) throw new Error("Choose a complete PNG image.");
+        if (String.fromCharCode(...bytes.slice(offset+4,offset+8)) === "acTL") throw new Error("Choose a single-frame PNG image.");
+        offset = end;
+      }
+      return { mime_type: "image/png", ...size };
+    }
+    if (bytes[0] === 255 && bytes[1] === 216) {
+      for (let offset = 2; offset < bytes.length;) {
+        if (bytes[offset++] !== 255) throw new Error("Choose a valid JPEG image.");
+        while (bytes[offset] === 255) offset++;
+        const marker = bytes[offset++];
+        if (marker === 217 || marker === 218) break;
+        if (marker === 1 || marker >= 208 && marker <= 215) continue;
+        if (offset + 2 > bytes.length) break;
+        const length = bytes[offset] * 256 + bytes[offset+1];
+        if (length < 2 || offset + length > bytes.length) break;
+        if (marker >= 192 && marker <= 207 && ![196,200,204].includes(marker)) {
+          if (length < 8) break;
+          return { mime_type:"image/jpeg", ...imageSize(bytes[offset+5]*256+bytes[offset+6], bytes[offset+3]*256+bytes[offset+4]) };
+        }
+        offset += length;
+      }
+    }
+    throw new Error("Choose a valid PNG or JPEG image; SVG and other formats are not supported.");
+  }
+  async function stampImage(file, decode = value => root.createImageBitmap(value)) {
+    if (!file || !Number.isInteger(file.size) || file.size < 1 || file.size > imageByteLimit) throw new Error("Choose a PNG or JPEG image up to 2 MiB.");
+    const bytes = new Uint8Array(await file.arrayBuffer()), header = stampImageHeader(bytes);
+    if (file.type && file.type !== header.mime_type) throw new Error("The image file type does not match its bytes.");
+    const bitmap = await decode(file);
+    try { imageSize(bitmap.width, bitmap.height); } finally { bitmap.close?.(); }
+    let binary = "";
+    for (let offset = 0; offset < bytes.length; offset += 8192) binary += String.fromCharCode(...bytes.subarray(offset, offset+8192));
+    return { mime_type:header.mime_type, content_base64:btoa(binary) };
+  }
+  function stampDataUrl(image) {
+    if (!image || image.version !== 1 || image.mime_type !== "image/png" || !/^[0-9a-f]{64}$/.test(image.sha256) || typeof image.content_base64 !== "string" || image.content_base64.length > Math.ceil(imageByteLimit/3)*4 || image.content_base64.length % 4 || !/^[A-Za-z0-9+/]+={0,2}$/.test(image.content_base64)) throw new Error("The stored stamp image is invalid.");
+    imageSize(image.width,image.height);
+    const bytes = image.content_base64.length / 4 * 3 - (image.content_base64.endsWith("==") ? 2 : image.content_base64.endsWith("=") ? 1 : 0);
+    if (bytes < 1 || bytes > imageByteLimit) throw new Error("The stored stamp image exceeds 2 MiB.");
+    return `data:image/png;base64,${image.content_base64}`;
+  }
+  function stampAt(geometry, center, view) {
+    const quad = geometry?.quad_pdf;
+    if (!Array.isArray(quad) || quad.length !== 4 || quad.some(p=>!Array.isArray(p)||p.length!==2) || !Array.isArray(center) || center.length !== 2 || !Array.isArray(view) || view.length !== 4 || [...quad.flat(),...center,...view].some(n => typeof n !== "number" || !Number.isFinite(n))) throw new Error("Choose a valid stamp position on the current PDF page.");
+    const prior = [0,1].map(axis => quad.reduce((sum,p) => sum+p[axis],0)/4), placed = quad.map(p => p.map((n,axis) => n+center[axis]-prior[axis]));
+    if (placed.some(p => p.some((n,axis) => n < view[axis] || n > view[axis+2]))) throw new Error("Place the whole stamp inside the PDF page.");
+    return { quad_pdf:placed };
+  }
   function icon(kind, doc = root.document) {
     const el = doc.createElementNS("http://www.w3.org/2000/svg", "svg"), path = doc.createElementNS(el.namespaceURI, "path");
     for (const [key, value] of Object.entries({ viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", "stroke-width": "1.8", "stroke-linecap": "round", "stroke-linejoin": "round", "aria-hidden": "true", width: 24, height: 24 })) el.setAttribute(key, value);
@@ -67,7 +129,10 @@
         }
         local.append(make("path", { ...ink, d: path+" Z" }));
       } else local.append(make("rect", { ...ink, width, height, rx: graphic.kind === "stamp" ? 3*scale : 0 }));
-      if (["textbox", "stamp"].includes(graphic.kind)) {
+      if (graphic.kind === "stamp" && graphic.stamp_image) {
+        const padding = Math.min(6*scale,width/8,height/8);
+        local.append(make("image",{x:padding,y:padding,width:width-2*padding,height:height-2*padding,href:stampDataUrl(graphic.stamp_image),preserveAspectRatio:"xMidYMid meet",opacity:style.opacity}));
+      } else if (["textbox", "stamp"].includes(graphic.kind)) {
         const padding = Math.min(6*scale, width/8, height/8), size = style.font_size*scale, rich = graphic.kind === "textbox" && graphic.text_content, lines = rich ? richTextLines(rich,width-2*padding,size,context) : textLines(graphic.text, width-2*padding, size, graphic.kind === "stamp", context);
         lines.forEach((line,index) => { const text=make("text", { x: graphic.kind === "stamp" ? width/2 : padding, y: padding+size+index*size*1.25, fill: style.font_color, opacity: style.opacity, "font-family": "CeasefireDrawing", "font-kerning": "none", "font-variant-ligatures": "none", "font-size": size, "font-weight": graphic.kind === "stamp" ? "bold" : "normal", "text-anchor": graphic.kind === "stamp" ? "middle" : "start" });
           if(rich) for(const run of line) { const span=make("tspan",{x:padding+run.x,"font-weight":run.bold?"bold":"normal","font-style":run.italic?"italic":"normal","text-decoration":run.underline?"underline":"none"});span.textContent=run.text;text.append(span); }
@@ -79,7 +144,7 @@
     }
     return group;
   }
-  const api = Object.freeze({ kinds, boxes, labels, defaults, box, coordinates, icon, paint, textLines, richTextLines });
+  const api = Object.freeze({ kinds, boxes, labels, defaults, box, coordinates, icon, paint, textLines, richTextLines, imageByteLimit, stampImageHeader, stampImage, stampDataUrl, stampAt });
   if (typeof module === "object" && module.exports) module.exports = api;
   if (root) root.CeasefireTakeoffGraphics = api;
 })(typeof window === "object" ? window : null);

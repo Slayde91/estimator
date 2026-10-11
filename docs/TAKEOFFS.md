@@ -916,7 +916,8 @@ designations stay visible. Count-register cells remain locked.
 
 The **Signatures** rail button opens a drawing pad. Draw your own signature or
 reuse the last signature saved on this computer, then click a rendered PDF page
-to place it. Escape cancels placement. Saving or leaving the page asks you to
+to place it. Escape, right-clicking in the viewer or clicking the active button
+again cancels placement. Saving or leaving the page asks you to
 finish or discard an armed placement. Select the signature to move it; use its
 corner to resize, or Settings to change ink, redraw, hide or delete it. Undo
 restores a deleted signature. Redraw fits new ink inside the existing rectangle
@@ -931,8 +932,25 @@ remain separate. A signature adds no register row, quantity, confirmation,
 calculator input or technical approval. Legacy projects without signatures
 retain their original snapshot structure.
 
+**Stamp** first asks you to drag a rectangle, then choose one-line text or a
+local PNG/JPEG image. After creation, left-click to repeat that stamp. Right-click
+in the viewer or click Stamp again to stop. A fresh activation asks for a new
+stamp. Images retain normalized, bounded PNG pixels in the saved project;
+original image metadata, remote URLs and file paths are not retained.
+
+**Tools → Initial Pages** asks you to drag a rectangle on the current PDF page.
+Enter a name or initials, draw a signature, or use both, then click **OK**. The
+contents fit in the equivalent area on every page of that document, including
+pages with different sizes or rotations. Both fields place ink above the name.
+If the area is too small, enlarge it or shorten the name. This is one atomic
+edit: Undo last edit removes the whole placement. It adds only PDF text and
+signature records, without register items, quantities or approval authority.
+
+Drawing tools show a crosshair while active. Right-click anywhere in the PDF
+viewer or click the active tool again to cancel the current operation.
+
 Visibility controls use the same eye size throughout the drawing workspace.
-The item eye sits beside the memory icon for **Set as default**. A single click
+The item eye sits beside the supplied icon for **Set as default**. A single click
 on the main eye shows or hides all markups; a double-click restores items hidden
 individually and shows the drawing. The selected surface sidebar omits Surface
 basis and source citation while preserving existing saved values and evidence.

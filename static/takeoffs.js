@@ -62,6 +62,7 @@
   const currentDocument = () => documentById(state.document);
   const pageMetadata = () => currentDocument()?.pages?.find(page => page.page === state.page);
   const graphicsUI = X && window.CeasefireTakeoffGraphicsUI({ state, G, X, node, svg, button, clone, snapshot, documents, pageMetadata, currentDocument, pageDisplayKey, signatureMode, signatureInWorkspace, selectedSignature, selectedAnnotation, command, safely, message, renderSelection, renderOverlay, flushSettings, requireFinishedEdits, cancelTrace, setTool, ask, drawingPoint, drawingClickOpensSettings, bindSetting, markSettingsEdited, appearanceField, formField, currentVisibilityControl, renderPhysicalDetails, renderViewportPanel, toggleSettings });
+  const initialPagesUI = window.CeasefireTakeoffInitialPages?.({ state, G, S, svg, snapshot, currentDocument, pageMetadata, pageRotation, pageDisplayKey, signatureMode, drawingPoint, flushSettings, requireFinishedEdits, cancelTrace, setTool, command, safely, message, renderOverlay, renderSelection });
   const selectedItems = () => items().filter(item => state.selected.has(item.id) && inWorkspace(item.mode));
   const editableFields = (mode, calculator = state.ui?.target?.value) => (fields[mode] || []).filter(([key]) => !["zone", "group", "notes"].includes(key) && (key !== "sides" || calculator === "steel_board"));
   const isStandalone = item => ["count-only", "length-only"].includes(item?.purpose);
@@ -488,7 +489,7 @@
       renderRegister(); renderSettingsPanel(); renderOverlay(); message("Restored individually hidden drawing items.");
     });
     ui.tools.visibility = visibility; ui.tools.settings.after(visibility);
-    ui.tools.callout = button("Call-out", () => setTool("callout")); ui.tools.callout.dataset.tool = "callout";
+    ui.tools.callout = button("Call-out", () => toggleDrawingTool("callout")); ui.tools.callout.dataset.tool = "callout";
     const calloutIcon = node("img"); calloutIcon.src = "/icons/takeoff-callout.png"; calloutIcon.alt = ""; calloutIcon.width = 25; calloutIcon.height = 25; calloutIcon.setAttribute("aria-hidden", "true");
     ui.tools.callout.classList.add("icon-only", "takeoff-icon-button"); ui.tools.callout.replaceChildren(calloutIcon); ui.tools.callout.setAttribute("aria-label", "Call-out"); ui.tools.callout.title = "Call-out"; markupRail.append(ui.tools.callout);
     ui.tools.signature = button("Signatures", armSignature); ui.tools.signature.dataset.tool = "signature"; markupRail.append(ui.tools.signature);
@@ -594,7 +595,8 @@
     ui.overlay.addEventListener("click", drawingPointer); ui.viewport.addEventListener("pointerdown", beginPan); ui.overlay.addEventListener("pointerdown", event => void safely(() => beginSelectionGesture(event)));
     ui.overlay.addEventListener("click", event => { if (graphicsUI?.isTool()) { event.stopImmediatePropagation(); void safely(() => graphicsUI.point(event)); } else if (state.tool === "signature") { event.stopImmediatePropagation(); drawingPointer(event); } }, { capture: true });
     ui.overlay.addEventListener("dblclick", event => void safely(() => finishTraceFromDoubleClick(event)));
-    ui.viewport.addEventListener("contextmenu", planContextMenu);
+    ui.overlay.addEventListener("pointerdown", event => { void safely(() => { if (initialPagesUI?.begin(event)) return; graphicsUI?.beginStampBox?.(event); }); }, { capture: true });
+    ui.viewport.addEventListener("contextmenu", planContextMenu, { capture: true });
     ui.overlay.addEventListener("pointermove", tracePointerMove);
     ui.viewport.addEventListener("pointermove", event => { state.pastePointer = { key: pageDisplayKey(), client: [event.clientX, event.clientY] }; });
     ui.viewport.addEventListener("pointerleave", () => { state.pastePointer = null; });
@@ -614,6 +616,7 @@
     toggle.replaceChildren(node("span", "", "Tools"), documentChevron()); toggle.setAttribute("aria-expanded", "false"); toggle.setAttribute("aria-controls", "takeoff-pdf-tools-actions"); list.id = "takeoff-pdf-tools-actions"; list.hidden = true; list.setAttribute("role", "group"); list.setAttribute("aria-label", "PDF Tools"); root.append(toggle, list);
     function close(hide = true) { list.hidden = hide; toggle.setAttribute("aria-expanded", String(!hide)); }
     for (const [operation, label] of [["merge", "Merge PDF Files"], ["organise", "Organise Pages"], ["extract", "Extract Pages"]]) list.append(button(label, () => { close(); return openPDFTools(operation); }, "button secondary calculator-document-action"));
+    if (initialPagesUI) { const initial = button("Initial Pages", () => { close(); return initialPagesUI.activate(); }, "button secondary calculator-document-action"); initial.dataset.tool = "initial-pages"; list.append(initial); }
     root.addEventListener("keydown", event => {
       if (event.key === "Escape") { event.preventDefault(); close(); toggle.focus(); return; }
       if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key) || toggle.disabled) return;
@@ -1589,7 +1592,7 @@
   }
   function toggleDrawingTool(tool) {
     if (state.busy) return;
-    if (state.tool === tool && ["trace", "measure", "count", "count-only"].includes(tool)) {
+    if (state.tool === tool && !["select", "pan", "text"].includes(tool)) {
       if (state.modal || state.countFinishing || state.physicalPlacing) throw new Error("Finish the current count or dialog first.");
       cancelTrace(); setProgress("Drawing cancelled. Recorded items are unchanged."); return;
     }
@@ -1606,7 +1609,7 @@
     if (state.gesture) throw new Error("Finish or cancel the current selection or move first.");
     if (!state.viewport && tool !== "select" && tool !== "pan") throw new Error("Open a successfully rendered page first.");
     if (state.points.length) throw new Error("Finish or cancel the current trace first.");
-    if (state.mode === "physical" && !["select", "pan", "text", "calibrate", "viewport", "count", "signature"].includes(tool) && !(tool.startsWith("graphic-") && X?.kinds.includes(tool.slice(8)))) throw new Error("Physical drafts use count markers and retained source regions. Length and area measurement tools belong to the other takeoff modes.");
+    if (state.mode === "physical" && !["select", "pan", "text", "calibrate", "viewport", "count", "signature", "initial-pages"].includes(tool) && !(tool.startsWith("graphic-") && X?.kinds.includes(tool.slice(8)))) throw new Error("Physical drafts use count markers and retained source regions. Length and area measurement tools belong to the other takeoff modes.");
     if (isArea() && ["trace", "cite"].includes(tool) || !isArea() && ["polygon", "exclusion"].includes(tool)) throw new Error("Choose a drawing tool for the current takeoff mode.");
     if (!["select", "pan", "text"].includes(tool) && (state.formDirty || state.settingsDirty)) throw new Error("Apply or discard the unfinished item edits or settings before using a drawing tool.");
     if (["trace", "measure", "polygon"].includes(tool) && !state.calibration && !activePageCalibrations().length) throw new Error("Choose or create the applicable calibration before tracing.");
@@ -1626,7 +1629,7 @@
     if (tool === "callout") setProgress("Click the drawing to add a free Call-out, then type its Item Details. It does not add a register item or quantity.");
     if (tool === "text") void ensurePdfTextLayer();
   }
-  function cancelTrace() { state.signatureDraft = null; clearPdfTextSelection(); state.physicalPlacementTarget = null; cancelSelectionGesture(); resetCountDraft(); state.pendingViewport = null; state.calibrationTarget = null; state.retraceId = null; state.exclusionItemId = null; state.points = []; state.traceCursor = null; state.markupMenu = null; state.doubleClickEndpointValid = false; state.tool = "select"; if (state.ui) { state.ui.viewport.dataset.tool = "select"; for (const el of state.ui.root?.querySelectorAll("button[data-tool]") || []) el.classList.toggle("takeoff-tool-active", el.dataset.tool === "select"); renderOverlay(); } window.CeasefireProject?.changed?.(); }
+  function cancelTrace() { graphicsUI?.cancel?.(true); initialPagesUI?.cancel(); state.signatureDraft = null; clearPdfTextSelection(); state.physicalPlacementTarget = null; cancelSelectionGesture(); resetCountDraft(); state.pendingViewport = null; state.calibrationTarget = null; state.retraceId = null; state.exclusionItemId = null; state.points = []; state.traceCursor = null; state.markupMenu = null; state.doubleClickEndpointValid = false; state.tool = "select"; if (state.ui) { state.ui.viewport.dataset.tool = "select"; for (const el of state.ui.root?.querySelectorAll("button[data-tool]") || []) el.classList.toggle("takeoff-tool-active", el.dataset.tool === "select"); renderOverlay(); } window.CeasefireProject?.changed?.(); }
   function resetCountDraft() {
     for (const entry of state.countEntries) clearTimeout(entry.timer);
     state.countGeneration++; state.countEntries = []; state.countDefaultLength = null; state.countLastClick = null; state.countFinishing = false; state.countQueue = Promise.resolve(); state.countContinuation = null;
@@ -1839,7 +1842,7 @@
     state.lastDrawingClick = null;
     state.physicalPlacementTarget = null;
     state.panCleanup?.();
-    if (state.signatureDraft || state.tool === "signature") cancelTrace();
+    if (state.signatureDraft || ["signature", "initial-pages"].includes(state.tool)) cancelTrace();
     if (state.countContinuation) cancelTrace();
     deactivatePlan(); state.controlPoint = null; state.controlMenu = false; state.markupMenu = null; state.traceCursor = null;
     state.planContextKey = JSON.stringify([state.session?.session_id, state.document, state.page, state.mode, pageRotation()]);
@@ -2017,7 +2020,7 @@
     message(`Pasted ${reply.created_item_ids.length} new unconfirmed ${copied.area ? "surface" : "Length"} markup${reply.created_item_ids.length === 1 ? "" : "s"} as separate register items. The register now uses the destination drawing scale.`);
   }
   function planContextMenu(event) {
-    if (state.points.length || !["select", "pan", "text"].includes(state.tool)) { event.preventDefault(); cancelTrace(); }
+    if (state.points.length || !["select", "pan", "text"].includes(state.tool)) { event.preventDefault(); event.stopImmediatePropagation(); cancelTrace(); }
   }
   function planKeydown(event) {
     if (event.target?.isContentEditable || event.target?.closest?.("input,textarea,select,[contenteditable=true]")) return;
@@ -2577,6 +2580,7 @@
     }
   }
   function renderPendingTrace(overlay) {
+    initialPagesUI?.paint(overlay);
     if (state.mode === "physical" && state.physicalPlacementTarget?.pendingPoint) {
       const point = G.transform(state.physicalPlacementTarget.pendingPoint, state.viewport.transform);
       overlay.append(svg("circle", { cx: point[0], cy: point[1], r: 5, class: "takeoff-pending takeoff-defect-pending", "aria-label": "Pending defect source location" }));
@@ -2726,6 +2730,7 @@
   // while remaining independent of register quantities and manual review.
   const signatureSelectionKey = () => JSON.stringify([pageDisplayKey(), signatureMode(), selectedSignature()?.id]);
   async function armSignature() {
+    if (state.tool === "signature") { if (state.busy || state.modal) return; cancelTrace(); message("Signature placement cancelled."); return; }
     await flushSettings(); requireFinishedEdits();
     if (!S || !state.viewport || !currentDocument()) throw new Error("Open a rendered PDF page before inserting a signature.");
     const context = signatureSelectionKey(); let chosen;

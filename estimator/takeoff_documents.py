@@ -758,6 +758,8 @@ class TakeoffDocuments:
         signature_identities = validate_signature_history(event)
         from .takeoff_graphics import validate_history as validate_graphic_history
         graphic_identities = validate_graphic_history(event)
+        from .takeoff_initial_pages import validate_initial_pages_history
+        validate_initial_pages_history(event)
         old_annotations = {value['id']: value for value in event['before'].get('annotations', {}).get('callouts', [])}
         new_annotations = {value['id']: value for value in event['after'].get('annotations', {}).get('callouts', [])}
         if event['before']['revision'] == 0 and old_annotations:

@@ -21,6 +21,9 @@ const ready = new Promise((resolve, reject) => {
 });
 const errors = [], requests = [], evidence = {};
 const hash = file => createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+const themeSourcePaths = ['static/styles.css','static/theme.css','static/takeoffs.css','static/takeoffs.js','static/icons/takeoff-set-default.png','tests/browser/defect_callouts.cjs'];
+const themeSourceHashes = () => Object.fromEntries(themeSourcePaths.map(name => [name,hash(path.join(root,name))]));
+const themeSourcesBefore = themeSourceHashes();
 const details = () => page.getByRole('complementary', { name: 'Item Details', exact: true });
 const callout = () => page.locator(`.takeoff-physical-callout[data-physical-id="${id}"]`);
 const marker = () => page.locator(`.takeoff-physical-marker-hit[data-physical-id="${id}"]`);
@@ -50,6 +53,30 @@ async function textFits() {
   const value = await callout().evaluate(el => { const rect = el.querySelector('rect'), box = el.querySelector('text').getBBox(); const x = +rect.getAttribute('x'), y = +rect.getAttribute('y'), width = +rect.getAttribute('width'), height = +rect.getAttribute('height'); return { fits: box.x >= x && box.y >= y && box.x + box.width <= x + width && box.y + box.height <= y + height, lines: el.querySelectorAll('tspan').length, width, height }; });
   assert.equal(value.fits, true, 'Actual SVG text fits the framed callout'); assert.ok(value.lines >= 2); return value;
 }
+async function physicalThemeLabels(kind) {
+  const labels = kind === 'Marker' ? ['Fill Colour','Fill Enabled','Line Colour','Line Width','Marker Size','Opacity'] : ['Fill Colour','Fill Enabled','Line Colour','Line Width','Font Colour','Opacity'];
+  const draftBefore = structuredClone(await snapshot()), calculatorsBefore = await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()), requestCount = requests.length;
+  const initialTheme = await page.locator('html').getAttribute('data-theme'), results = [];
+  async function setTheme(theme) { for(let attempt=0;attempt<5 && await page.locator('html').getAttribute('data-theme')!==theme;attempt++) await page.locator('#theme-toggle').click(); await expect(page.locator('html')).toHaveAttribute('data-theme',theme); }
+  for(const theme of ['ceasefire','midnight','ocean','forest','slate']) {
+    await setTheme(theme); await expect(details().getByRole('heading',{name:`${kind} Settings`,exact:true})).toBeVisible();
+    assert.deepEqual(await details().locator('.takeoff-settings-fields .field>span:first-child').allTextContents(),labels);
+    for(const label of labels) await expect(details().getByLabel(label,{exact:true})).toBeVisible();
+    const colours = await details().locator('.takeoff-settings-fields .field>span:first-child,.takeoff-settings-fields>h3').evaluateAll(elements => elements.map(el => {
+      const css=getComputedStyle(el);let parent=el,background='';while(parent){const value=getComputedStyle(parent).backgroundColor;if(value!=='rgba(0, 0, 0, 0)' && value!=='transparent'){background=value;break;}parent=parent.parentElement;}
+      const channels=value=>value.match(/[\d.]+/g).slice(0,3).map(Number), luminance=value=>channels(value).map(x=>{x/=255;return x<=.04045?x/12.92:((x+.055)/1.055)**2.4;}).reduce((sum,x,i)=>sum+x*[.2126,.7152,.0722][i],0), fg=luminance(css.color),bg=luminance(background);
+      return {label:el.textContent,color:css.color,background,contrast:(Math.max(fg,bg)+.05)/(Math.min(fg,bg)+.05)};
+    }));
+    for(const value of colours){assert.equal(value.color,'rgb(255, 255, 255)',`${theme} ${kind} ${value.label}`);assert.ok(value.contrast>=4.5,`${theme} ${kind} ${value.label}: ${value.contrast}`);}
+    if(kind==='Callout') {
+      const icon=details().getByRole('button',{name:'Set as default',exact:true}).locator('.takeoff-default-icon');
+      assert.ok((await icon.evaluate(el=>getComputedStyle(el).maskImage)).includes('takeoff-set-default.png'));
+    }
+    const screenshot=path.join(output,`physical-${kind.toLowerCase()}-${theme}.png`);await details().screenshot({path:screenshot});results.push({theme,kind,colours,screenshot});
+  }
+  await setTheme(initialTheme);assert.deepEqual(await snapshot(),draftBefore);assert.deepEqual(await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()),calculatorsBefore);assert.equal(requests.length,requestCount,'Theme checks do not mutate physical records');
+  evidence[`${kind.toLowerCase()}SettingsThemes`] = results;
+}
 (async () => {
   const info = await ready; assert.notEqual(info.port, 8765); const sourceHash = hash(info.fixture);
   browser = await chromium.launch({ headless: true }); page = await browser.newPage({ viewport: { width: 1146, height: 900 } }); page.setDefaultTimeout(30000);
@@ -70,6 +97,7 @@ async function textFits() {
   assert.deepEqual(await details().locator('.takeoff-settings-fields .field>span').allTextContents(),['Fill Colour','Fill Enabled','Line Colour','Line Width','Marker Size','Opacity']);
   assert.equal(await details().evaluate(el=>el.firstElementChild.getAttribute('aria-label')),'Marker Settings');
   assert.ok(await details().getByLabel('Line Colour',{exact:true}).evaluate(el=>el.getBoundingClientRect().height>=40));
+  await physicalThemeLabels('Marker');
   assert.deepEqual(original.annotation.point, JSON.parse(source.note.match(/PDF point (\[[^\]]+\])/)[1])); assert.equal(current.physical.barriers.length, 0); assert.equal(current.physical.services.length, 0);
   await expect(callout()).toContainText('D-0001'); await expect(callout()).toContainText('FRAMED-DEFECT'); await expect(callout()).toContainText('0 substrates · 0 services');
   await expect(page.locator('.takeoff-overlay .takeoff-label')).toHaveCount(0); evidence.initialFrame = await textFits();
@@ -113,6 +141,7 @@ async function textFits() {
   await textFits(); await page.screenshot({ path: path.join(output, 'defect-linked-values.png') }); evidence.linkedValuesDisplayed = true;
   await page.waitForTimeout(550); await callout().dblclick({ delay: 100 }); await expect(details()).toBeVisible();
   await expect(details()).toContainText('Callout Settings'); await expect(details()).not.toContainText('Automatic callout'); await expect(details()).not.toContainText('SOURCE ASSOCIATIONS');
+  await physicalThemeLabels('Callout');
   await response(async () => { await details().getByLabel('Font Colour', { exact: true }).fill('#008000'); await details().getByLabel('Font Colour', { exact: true }).press('Tab'); }, '/physical/apply');
   await response(async () => { await details().getByLabel('Fill Colour', { exact: true }).fill('#fff1dd'); await details().getByLabel('Fill Colour', { exact: true }).press('Tab'); }, '/physical/apply');
   await snapshot(); const calloutAppearance = structuredClone(current.physical.defects[0].annotation.callout.appearance);
@@ -136,5 +165,6 @@ async function textFits() {
   assert.equal(current.physical.defects.find(value => value.id === id).deleted, false); assert.deepEqual(await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()), calculators);
   evidence.independentStylesCopyCascade = { created: pasted.changed_ids, retainedTombstones: 3 };
   assert.equal(hash(info.fixture), sourceHash); assert.deepEqual(errors, []); evidence.annotation = savedGraph.defects[0].annotation; evidence.sourceUnchanged = true;
-  fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ completed: true, disposablePort: info.port, evidence, requests, errors }, null, 2)); console.log(`Defect callout acceptance passed: ${output}`);
+  assert.deepEqual(themeSourceHashes(),themeSourcesBefore,'Physical theme source and original gear are unchanged during the journey');
+  fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ completed: true, disposablePort: info.port, evidence, requests, errors, themeSourceHashes:themeSourcesBefore }, null, 2)); console.log(`Defect callout acceptance passed: ${output}`);
 })().catch(async error => { console.error(error); console.error(logs.slice(-2500)); if (page) { await page.screenshot({ path: path.join(output, 'failure.png') }).catch(() => {}); fs.writeFileSync(path.join(output, 'failure.txt'), await page.locator('body').innerText().catch(() => '')); } fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ completed: false, evidence, requests, errors, error: String(error) }, null, 2)); process.exitCode = 1; }).finally(async () => { fs.writeFileSync(path.join(output, 'server.log'), logs); await browser?.close(); server.kill(); });

@@ -31,8 +31,9 @@ jobs:
       - run: node --check static/takeoff-signatures.js
       - run: node --check static/takeoff-graphics.js
       - run: node --check static/takeoff-graphics-ui.js
+      - run: node --check static/takeoff-initial-pages.js
       - run: node --check static/takeoff-pdf-tools.js
-      - run: node --test tests/test_takeoff_graphics.cjs tests/test_takeoff_graphics_ui.cjs tests/test_takeoff_pdf_tools.cjs
+      - run: node --test tests/test_takeoff_graphics.cjs tests/test_takeoff_graphics_ui.cjs tests/test_takeoff_initial_pages.cjs tests/test_takeoff_pdf_tools.cjs
       - run: node --check static/help-glossary.js
       - run: node --test tests/test_help_glossary.cjs tests/test_takeoff_signatures.cjs tests/test_takeoff_area_copy_visibility_ui.cjs
       - run: node --check static/takeoff-library-links.js
@@ -93,6 +94,7 @@ jobs:
       - run: npm run test:takeoffs-icons
       - run: npm run test:takeoffs-signatures
       - run: npm run test:takeoffs-graphics
+      - run: npm run test:takeoffs-initial-pages
       - run: npm run test:pdf-markup-ui
       - run: npm run test:pdf-tools
       - run: npm run test:takeoffs-area-copy-visibility

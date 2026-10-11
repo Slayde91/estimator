@@ -12,9 +12,9 @@ GRAPHIC_MODES = ('steel', 'duct', 'wall', 'slab', 'defect_reports', 'service_pla
 BOX_KINDS = ('cloud', 'textbox', 'stamp', 'rectangle', 'circle')
 POINT_KINDS = ('line', 'polyline', 'arrow', 'polygon')
 GRAPHIC_FIELDS = {'id', 'version', 'mode', 'document_id', 'source_sha256', 'page',
-                  'kind', 'geometry', 'text', 'appearance', 'text_content'}
-REQUIRED_GRAPHIC_FIELDS = GRAPHIC_FIELDS - {'text_content'}
-EDIT_FIELDS = {'geometry', 'text', 'appearance', 'text_content'}
+                  'kind', 'geometry', 'text', 'appearance', 'text_content', 'stamp_image'}
+REQUIRED_GRAPHIC_FIELDS = GRAPHIC_FIELDS - {'text_content', 'stamp_image'}
+EDIT_FIELDS = {'geometry', 'text', 'appearance', 'text_content', 'stamp_image'}
 APPEARANCE_FIELDS = {'stroke_color', 'stroke_width', 'opacity', 'fill_enabled',
                      'fill_color', 'font_color', 'font_size'}
 DEFAULT_APPEARANCE = {'stroke_color': '#FF0000', 'stroke_width': 2, 'opacity': 1,
@@ -45,7 +45,7 @@ def _validate_box(value, page):
         raise ValidationError('PDF markup boxes must be affine rectangles with perpendicular edges.')
 
 
-def validate_graphic(value, snapshot):
+def validate_graphic(value, snapshot, *, verified_stamp_images=None):
     object_fields(value, GRAPHIC_FIELDS, 'PDF markup', REQUIRED_GRAPHIC_FIELDS)
     identity(value['id'], 'PDF markup ID')
     number(value['version'], 'PDF markup version', positive=True, integer=True)
@@ -74,7 +74,24 @@ def validate_graphic(value, snapshot):
     if any(ord(character) in (0x007F, 0x061C, 0x200E, 0x200F, *range(0x202A, 0x202F), *range(0x2066, 0x206A))
            for character in value['text']):
         raise ValidationError('PDF markup text cannot contain invisible direction or delete controls.')
-    if kind in ('textbox', 'stamp'):
+    if 'stamp_image' in value:
+        if kind != 'stamp' or value['text'] != '':
+            raise ValidationError('Only an image Stamp with empty text may retain a Stamp image.')
+        from .takeoff_stamp_images import validate_stamp_image
+        image = value['stamp_image']
+        if not isinstance(image, dict):
+            validate_stamp_image(image)
+        # Cache only inside this validation, binding every metadata and byte field.
+        # A matching SHA alone never skips dimensions, schema or payload checks.
+        binding = tuple((type(image.get(key)), image.get(key))
+                        for key in ('version', 'mime_type', 'width', 'height', 'sha256', 'content_base64'))
+        image_sha = image.get('sha256')
+        cached = verified_stamp_images.get(image_sha) if verified_stamp_images is not None and isinstance(image_sha, str) else None
+        if cached != (set(image), binding):
+            validate_stamp_image(image)
+            if verified_stamp_images is not None:
+                verified_stamp_images[image['sha256']] = (set(image), binding)
+    elif kind in ('textbox', 'stamp'):
         if not value['text'].strip() or kind == 'stamp' and any(character in '\n\r\t' for character in value['text']):
             raise ValidationError('Enter nonblank PDF markup text; a Stamp requires one line.')
     elif value['text'] != '':
@@ -106,6 +123,10 @@ def validate_graphics(snapshot):
         raise ValidationError('This PDF markup collection version is not supported.')
     if not isinstance(collection['records'], list) or visual_record_count(snapshot) > MAX_VISUAL_RECORDS:
         raise ValidationError(f'A project supports at most {MAX_VISUAL_RECORDS} PDF markups, signatures and free call-outs combined.')
+    from .takeoff_stamp_images import validate_stamp_image_budget
+    # Admit the aggregate pixel work before opening/decompressing any image.
+    validate_stamp_image_budget(collection['records'])
+    verified_stamp_images = {}
     seen = {value['id'] for key in ('items', 'documents', 'calibrations', 'transfers', 'image_extractions')
             for value in snapshot.get(key, [])}
     seen.update(value['id'] for value in snapshot.get('annotations', {}).get('callouts', []))
@@ -122,7 +143,7 @@ def validate_graphics(snapshot):
             seen.add(graph['id'])
             seen.update(entity['id'] for name in graph_collections(graph).values() for entity in graph[name])
     for record in collection['records']:
-        validate_graphic(record, snapshot)
+        validate_graphic(record, snapshot, verified_stamp_images=verified_stamp_images)
         if record['id'] in seen:
             raise ValidationError('PDF markup IDs must be unique and separate from all drawing, member or register identities.')
         seen.add(record['id'])
@@ -133,6 +154,9 @@ def apply_graphic(snapshot, request):
         proposal = object_fields(request['graphic'], GRAPHIC_FIELDS - {'id', 'version'}, 'New PDF markup', REQUIRED_GRAPHIC_FIELDS - {'id', 'version'})
         record = {'id': str(uuid4()), 'version': 1, **deepcopy(proposal)}
         record['appearance'] = graphic_appearance(record['appearance'])
+        if 'stamp_image' in record:
+            from .takeoff_stamp_images import normalize_stamp_image
+            record['stamp_image'] = normalize_stamp_image(record['stamp_image'])
         validate_graphic(record, snapshot)
         if visual_record_count(snapshot) >= MAX_VISUAL_RECORDS:
             raise ValidationError(f'A project supports at most {MAX_VISUAL_RECORDS} PDF markups, signatures and free call-outs combined.')
@@ -150,6 +174,13 @@ def apply_graphic(snapshot, request):
         if not changes:
             raise ValidationError('Choose a PDF markup property to edit.')
         for key, value in changes.items():
+            if key == 'stamp_image':
+                if value is None:
+                    record.pop(key, None)
+                else:
+                    from .takeoff_stamp_images import normalize_stamp_image
+                    record[key] = normalize_stamp_image(value)
+                continue
             record[key] = ({**record['appearance'], **deepcopy(value)}
                            if key == 'appearance' and isinstance(value, dict) else deepcopy(value))
         record['version'] += 1
@@ -174,16 +205,17 @@ def validate_history(event):
     new = {record['id']: record for record in event['after'].get('graphics', {}).get('records', [])}
     if event['before']['revision'] == 0 and old:
         raise ValidationError('The initial audit state cannot contain unrecorded PDF markups.')
-    controlled = ('create_graphic', 'update_graphic', 'delete_graphic')
+    controlled = ('create_graphic', 'update_graphic', 'delete_graphic', 'initial_pages')
     if event['op'] in controlled:
-        projection = lambda state: {key: value for key, value in state.items() if key not in ('graphics', 'revision')}
+        ignored = ('graphics', 'signatures', 'revision') if event['op'] == 'initial_pages' else ('graphics', 'revision')
+        projection = lambda state: {key: value for key, value in state.items() if key not in ignored}
         if projection(event['before']) != projection(event['after']):
             raise ValidationError('A PDF markup operation cannot change measurements, physical records, source state or transfers.')
     if old != new and event['op'] not in (*controlled, 'undo'):
         raise ValidationError('PDF markups changed outside a controlled markup operation.')
     added, removed = new.keys() - old.keys(), old.keys() - new.keys()
     changed = {identifier for identifier in old.keys() & new.keys() if old[identifier] != new[identifier]}
-    if added and event['op'] not in ('create_graphic', 'undo'):
+    if added and event['op'] not in ('create_graphic', 'initial_pages', 'undo'):
         raise ValidationError('PDF markup identities may only be created or restored by Undo.')
     if event['op'] == 'create_graphic' and (len(added) != 1 or removed or changed or any(new[i]['version'] != 1 for i in added)):
         raise ValidationError('A PDF markup must begin with one new identity and version one.')

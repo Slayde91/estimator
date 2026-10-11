@@ -487,7 +487,17 @@ def _paint_graphics(pdf, graphics, matrix, bounds):
                 pdf.roundRect(0, 0, width, height, 3, stroke=1, fill=int(style['fill_enabled']))
             else:
                 pdf.rect(0, 0, width, height, stroke=1, fill=int(style['fill_enabled']))
-            if kind in ('textbox', 'stamp'):
+            if kind == 'stamp' and 'stamp_image' in graphic:
+                import base64
+                from reportlab.lib.utils import ImageReader
+                image = graphic['stamp_image']
+                padding = min(6, width/8, height/8)
+                ratio = min((width-2*padding)/image['width'], (height-2*padding)/image['height'])
+                image_width, image_height = image['width']*ratio, image['height']*ratio
+                pdf.drawImage(ImageReader(BytesIO(base64.b64decode(image['content_base64'], validate=True))),
+                              (width-image_width)/2, (height-image_height)/2,
+                              width=image_width, height=image_height, mask='auto')
+            elif kind in ('textbox', 'stamp'):
                 padding = min(6, width/8, height/8)
                 font = 'ExportVeraBold' if kind == 'stamp' else 'ExportVera'
                 size = style['font_size']

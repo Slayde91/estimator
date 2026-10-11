@@ -32,3 +32,44 @@ test("Textbox rich runs keep explicit marks, list numbering and fixed physical f
   const tree=X.paint(value,p=>p,.5,make,measure), text=tree.children[0].children.find(child=>child.tag==="text"), first=text.children[0];
   assert.equal(text.attributes["font-size"],6);assert.equal(first.attributes["font-weight"],"bold");assert.equal(first.attributes["font-style"],"italic");assert.equal(first.attributes["text-decoration"],"underline");assert.equal(first.textContent,"L");assert.equal(JSON.stringify(value),before);
 });
+
+test("Reusable stamps translate the same affine PDF box to the exact clicked centre",()=>{
+  for(const matrix of [[1,0,0,-1,0,800],[0,2,2,0,-40,-20],[-.7,0,0,.7,420,-30],[0,-.5,-.5,0,400,300]]){
+    const geometry=X.box([[100,200],[220,260]],p=>G.transform(p,matrix),p=>G.inverse(p,matrix)), prior=structuredClone(geometry);
+    const placed=X.stampAt(geometry,[300.25,400.75],[0,0,600,800]);
+    assert.deepEqual(geometry,prior);
+    for(const axis of [0,1])assert.ok(Math.abs(placed.quad_pdf.reduce((sum,p)=>sum+p[axis],0)/4-[300.25,400.75][axis])<1e-10);
+    for(const i of [1,2,3])for(const axis of [0,1])assert.ok(Math.abs((placed.quad_pdf[i][axis]-placed.quad_pdf[0][axis])-(geometry.quad_pdf[i][axis]-geometry.quad_pdf[0][axis]))<1e-10);
+    assert.throws(()=>X.stampAt(geometry,[1,1],[0,0,600,800]),/whole stamp/);
+  }
+  assert.throws(()=>X.stampAt({quad_pdf:[[0,0],null,[2,2],[0,2]]},[1,1],[0,0,2,2]),/valid stamp/);
+});
+
+const png=Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aK3cAAAAASUVORK5CYII=","base64");
+const storedImage={version:1,mime_type:"image/png",content_base64:png.toString("base64"),width:1,height:1,sha256:require("node:crypto").createHash("sha256").update(png).digest("hex")};
+test("Bounded PNG/JPEG headers reject spoofed, animated and oversized image content",()=>{
+  assert.deepEqual(X.stampImageHeader(png),{mime_type:"image/png",width:1,height:1});
+  const jpeg=Uint8Array.from([255,216,255,192,0,8,8,0,2,0,3,1,255,217]);
+  assert.deepEqual(X.stampImageHeader(jpeg),{mime_type:"image/jpeg",width:3,height:2});
+  assert.throws(()=>X.stampImageHeader(Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"/>')),/PNG or JPEG/);
+  const huge=Buffer.from(png);huge.writeUInt32BE(4097,16);assert.throws(()=>X.stampImageHeader(huge),/4,096/);
+  const bomb=Buffer.from(png);bomb.writeUInt32BE(3000,16);bomb.writeUInt32BE(3000,20);assert.throws(()=>X.stampImageHeader(bomb),/4 million/);
+  const animated=Buffer.from(png);animated.write("acTL",37);assert.throws(()=>X.stampImageHeader(animated),/single-frame/);
+  assert.throws(()=>X.stampImageHeader(new Uint8Array(X.imageByteLimit+1)),/2 MiB/);
+});
+test("Stamp file checking binds actual bytes, checks decode and releases the bitmap",async()=>{
+  let closed=0;const file={size:png.length,type:"image/png",arrayBuffer:async()=>png.buffer.slice(png.byteOffset,png.byteOffset+png.length)};
+  assert.deepEqual(await X.stampImage(file,async()=>({width:1,height:1,close(){closed++;}})),{mime_type:"image/png",content_base64:png.toString("base64")});assert.equal(closed,1);
+  await assert.rejects(X.stampImage({...file,type:"image/jpeg"},async()=>{throw new Error("should not decode spoof");}),/does not match/);
+  await assert.rejects(X.stampImage(file,async()=>{throw new Error("invalid image decode");}),/invalid image decode/);
+  await assert.rejects(X.stampImage(file,async()=>({width:4097,height:1,close(){closed++;}})),/4,096/);assert.equal(closed,2);
+});
+test("Image Stamp uses only validated embedded PNG inside its padded affine box",()=>{
+  const make=(tag,attributes)=>({tag,attributes,children:[],append(...nodes){this.children.push(...nodes);}});
+  const value={kind:"stamp",geometry:{quad_pdf:[[10,10],[110,10],[110,70],[10,70]]},text:"",stamp_image:storedImage,appearance:X.defaults()}, before=structuredClone(value);
+  const tree=X.paint(value,p=>p,1,make,{}), image=tree.children[0].children.find(x=>x.tag==="image");
+  assert.equal(image.attributes.href,`data:image/png;base64,${storedImage.content_base64}`);assert.equal(image.attributes.preserveAspectRatio,"xMidYMid meet");assert.deepEqual([image.attributes.x,image.attributes.y,image.attributes.width,image.attributes.height],[6,6,88,48]);assert.ok(!tree.children[0].children.some(x=>x.tag==="text"));assert.deepEqual(value,before);
+  for(const change of [{mime_type:"image/svg+xml"},{content_base64:"https://example.test/image.png"},{content_base64:"abc"},{width:5000},{sha256:"not-a-hash"}])assert.throws(()=>X.stampDataUrl({...storedImage,...change}),/invalid|4,096/);
+  const atLimit={...storedImage,content_base64:Buffer.alloc(X.imageByteLimit).toString("base64")};assert.ok(X.stampDataUrl(atLimit).startsWith("data:image/png;base64,"));
+  assert.throws(()=>X.stampDataUrl({...storedImage,content_base64:Buffer.alloc(X.imageByteLimit+1).toString("base64")}),/exceeds 2 MiB|invalid/);
+});

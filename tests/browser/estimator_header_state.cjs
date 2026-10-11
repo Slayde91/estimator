@@ -11,7 +11,7 @@ const output = path.join(root, '.runtime/browser-qa', `estimator-header-state-${
 fs.mkdirSync(output, { recursive: true });
 const sha256 = value => crypto.createHash('sha256').update(value).digest('hex');
 const deferred = () => { let resolve; const promise = new Promise(yes => { resolve = yes; }); return { promise, resolve }; };
-const assets = ['static/app.js', 'static/index.html', 'static/styles.css', 'static/penetration.js', 'static/penetration.css', 'static/calculators.js'];
+const assets = ['static/app.js', 'static/index.html', 'static/styles.css', 'static/penetration.js', 'static/penetration.css', 'static/calculators.js', 'static/icons/schedule-add.png', 'static/icons/takeoff-transfer.png'];
 const assetHashes = Object.fromEntries(assets.map(name => [name, sha256(fs.readFileSync(path.join(root, name)))]));
 const server = spawn(process.env.CEASEFIRE_PYTHON || 'python', [path.join(__dirname, 'fixtures.py'), '--directory', output], { cwd: root, windowsHide: true });
 let logs = '', browser, page, info, releaseHeld;
@@ -50,7 +50,7 @@ function retainedScopes(value) { return { pricing: value.pricing, calculators: v
   await page.addInitScript(() => { window.qaCsp = []; document.addEventListener('securitypolicyviolation', event => window.qaCsp.push({ directive: event.effectiveDirective, blocked: event.blockedURI })); });
   const initial = await page.goto(`http://127.0.0.1:${info.port}/`); assert.ok(!initial.headers()['content-security-policy'].includes('unsafe-inline')); await idle();
   for (const asset of assets) {
-    const served = await page.request.get(`http://127.0.0.1:${info.port}/${asset === 'static/index.html' ? '' : path.basename(asset)}`);
+    const served = await page.request.get(`http://127.0.0.1:${info.port}/${asset === 'static/index.html' ? '' : asset.slice('static/'.length)}`);
     assert.equal(served.status(), 200); assert.equal(sha256(await served.body()), assetHashes[asset]);
   }
   await headerTitle(''); await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()); await idle();
@@ -113,18 +113,26 @@ function retainedScopes(value) { return { pricing: value.pricing, calculators: v
   const clear = page.locator('#penetration-clear'), add = page.locator('#penetration-add-to-schedule'), library = page.locator('#penetration-add-to-library'), fresh = page.locator('#penetration-estimator-add');
   await expect(page.locator('#penetration-new-item')).toBeHidden(); await expect(page.locator('#penetration-recalculate')).toBeHidden();
   for (const [control, name] of [[clear, 'Clear'], [add, 'Add to Schedule'], [library, 'Add to Library']]) { await expect(control).toBeVisible(); await expect(control).toHaveAccessibleName(name); }
-  assert.equal(await clear.locator('svg path').count(), 2); assert.equal(await add.locator('svg circle').count(), 1);
+  assert.equal(await clear.locator('svg path').count(), 2);
+  const addIcon = add.locator('img'), originalIcon = fs.readFileSync(path.join(root, 'static/icons/takeoff-transfer.png'));
+  await expect(addIcon).toHaveAttribute('src', '/icons/schedule-add.png'); await expect(addIcon).toHaveAttribute('aria-hidden', 'true');
+  await expect(addIcon).toHaveJSProperty('complete', true); await expect(addIcon).toHaveJSProperty('naturalWidth', 512); await expect(addIcon).toHaveJSProperty('naturalHeight', 512);
+  assert.equal(sha256(originalIcon), '1b5552f06a1cb61d246e969f70a5243883a8ba6b1ddaa5392ddd737d802f1d1b');
+  assert.deepEqual(fs.readFileSync(path.join(root, 'static/icons/schedule-add.png')), originalIcon);
+  const servedIcon = await page.request.get(new URL('/icons/schedule-add.png', page.url()).href); assert.equal(servedIcon.status(), 200); assert.deepEqual(await servedIcon.body(), originalIcon);
+  checks.firestoppingAddIcon = { source: '/icons/schedule-add.png', sha256: sha256(originalIcon), originalLibraryBytes: true, decoded: true };
   checks.firestoppingViewports = [];
   for (const width of [1146, 825, 570, 390]) {
     await page.setViewportSize({ width, height: 1100 });
     const geometry = await page.locator('#penetration-item-quantity [data-penetration-field="O"]').evaluate(element => {
       const ids = ['penetration-clear', 'penetration-add-to-schedule', 'penetration-add-to-library'];
       const bounds = control => { const rectangle = control.getBoundingClientRect(); return { top: rectangle.top, bottom: rectangle.bottom, height: rectangle.height, left: rectangle.left, right: rectangle.right }; };
-      const centres = control => { const button = control.getBoundingClientRect(), icon = control.querySelector('svg').getBoundingClientRect(); return { x: icon.x + icon.width / 2 - (button.x + button.width / 2), y: icon.y + icon.height / 2 - (button.y + button.height / 2) }; };
+      const centres = control => { const button = control.getBoundingClientRect(), icon = control.querySelector(control.id === 'penetration-add-to-schedule' ? 'img' : 'svg').getBoundingClientRect(); return { x: icon.x + icon.width / 2 - (button.x + button.width / 2), y: icon.y + icon.height / 2 - (button.y + button.height / 2) }; };
       const pair = document.querySelector('.penetration-library-actions'), documentButton = pair.querySelector('[data-document-menu-toggle]');
-      return { input: bounds(element), buttons: Object.fromEntries(ids.map(id => [id, bounds(document.getElementById(id))])), document: bounds(documentButton), pairGap: parseFloat(getComputedStyle(pair).columnGap), iconOffsets: Object.fromEntries(ids.map(id => [id, centres(document.getElementById(id))])), viewport: innerWidth, pageWidth: document.documentElement.scrollWidth };
+      return { input: bounds(element), buttons: Object.fromEntries(ids.map(id => [id, bounds(document.getElementById(id))])), addIcon: bounds(document.querySelector('#penetration-add-to-schedule img')), document: bounds(documentButton), pairGap: parseFloat(getComputedStyle(pair).columnGap), iconOffsets: Object.fromEntries(ids.map(id => [id, centres(document.getElementById(id))])), viewport: innerWidth, pageWidth: document.documentElement.scrollWidth };
     });
     assert.equal(geometry.input.height, 48); for (const button of [...Object.values(geometry.buttons), geometry.document]) { assert.equal(button.height, 48); assert.ok(button.left >= 0); assert.ok(button.right <= width); }
+    assert.equal(geometry.buttons['penetration-add-to-schedule'].right - geometry.buttons['penetration-add-to-schedule'].left, 48); assert.equal(geometry.addIcon.right - geometry.addIcon.left, 24); assert.equal(geometry.addIcon.height, 24);
     for (const id of ['penetration-clear', 'penetration-add-to-schedule']) { const button = geometry.buttons[id]; assert.ok(Math.abs(button.top - geometry.input.top) < 1, `${id} aligns with Item QTY at ${width}`); assert.ok(Math.abs(button.bottom - geometry.input.bottom) < 1); }
     const libraryButton = geometry.buttons['penetration-add-to-library'];
     assert.ok(Math.abs(libraryButton.top - geometry.document.top) < 1, `Document and Library share a row at ${width}`);

@@ -5,7 +5,7 @@ const { renderDrawing, viewRegisterItem } = require('./viewer_helpers.cjs');
 // Rendered acceptance journey against a disposable production server and synthetic PDF.
 const { chromium, expect } = require('@playwright/test');
 const { openItemSettings, editSettings, settingsSettled } = require('./settings_helpers.cjs');
-const { spawn } = require('node:child_process');
+const { spawn, spawnSync } = require('node:child_process');
 const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
 const root = path.resolve(__dirname, '../..');
 const output = path.join(root, '.runtime', 'browser-qa', `journey-${Date.now()}`);
@@ -22,6 +22,30 @@ const ready = new Promise((resolve, reject) => {
 });
 let browser, page;
 const errors = [], violations = [], requests = [];
+const exportReadiness = [], exportRequests = [], pendingTakeoffRequests = new Map();
+async function captureExportReadiness(stage, format) {
+  const lifecycle = await page.evaluate(() => {
+    const takeoffs = window.CeasefireTakeoffs, fingerprint = JSON.parse(takeoffs.projectFingerprint());
+    const canvas = document.querySelector('.takeoff-viewport canvas');
+    return { sessionId: takeoffs.sessionId(), busy: fingerprint.busy, modal: fingerprint.modal,
+      settingsDirty: fingerprint.settingsDirty, settingsRevision: fingerprint.settingsRevision,
+      formDirty: fingerprint.formDirty, revision: fingerprint.snapshot.revision,
+      ariaBusy: document.querySelector('#takeoffs-workspace').getAttribute('aria-busy'),
+      canvasVisible: !!canvas?.getClientRects().length, progress: document.querySelector('.takeoff-progress').textContent,
+      selectedIds: [...document.querySelectorAll('tr[data-item-id] input[type=checkbox]:first-child:checked')].map(input => input.closest('tr').dataset.itemId),
+      dialogs: document.querySelectorAll('dialog[open], [role=dialog][aria-modal=true]').length,
+      settingsVisible: !document.querySelector('#takeoff-markup-settings').hidden };
+  });
+  const entry = { stage, format, ...lifecycle, pendingRequests: [...pendingTakeoffRequests.values()] };
+  exportReadiness.push(entry);
+  fs.writeFileSync(path.join(output, 'export-readiness.json'), JSON.stringify(exportReadiness, null, 2));
+  return entry;
+}
+async function bounded(promise, description) {
+  let timer;
+  try { return await Promise.race([promise, new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(`${description} did not occur within 30 seconds`)), 30000); })]); }
+  finally { clearTimeout(timer); }
+}
 async function workspaceIdle() { await expect(page.locator('#takeoffs-workspace')).not.toHaveAttribute('aria-busy', 'true'); }
 async function retainedLineageOperation(op, values) {
   await workspaceIdle();
@@ -248,6 +272,16 @@ async function boardJourney(info) {
   page.on('pageerror', error => errors.push(error.message));
   page.on('requestfailed', request => requests.push({ url: request.url(), failure: request.failure()?.errorText }));
   page.on('response', r => { if (r.status() >= 400) requests.push({ url: r.url(), status: r.status() }); });
+  page.on('request', request => {
+    const pathname = new URL(request.url()).pathname;
+    if (/\/api\/takeoffs\/.*\/(?:commands|auto-calibrate)$/.test(pathname) || pathname === '/api/takeoffs/options') {
+      const body = request.method() === 'POST' ? request.postDataJSON() : null;
+      pendingTakeoffRequests.set(request, { path: pathname, op: body?.op || null, expectedRevision: body?.expected_revision ?? null });
+    }
+    if (/\/export\/(?:csv|xlsx)$/.test(pathname)) exportRequests.push({ path: pathname, body: request.postDataJSON() });
+  });
+  page.on('requestfinished', request => pendingTakeoffRequests.delete(request));
+  page.on('requestfailed', request => pendingTakeoffRequests.delete(request));
   await page.addInitScript(() => { window.qaCsp = []; document.addEventListener('securitypolicyviolation', e => window.qaCsp.push({ directive: e.effectiveDirective, blocked: e.blockedURI })); });
   const response = await page.goto(`http://127.0.0.1:${info.port}/`);
   assert.ok(!response.headers()['content-security-policy'].includes('unsafe-inline'));
@@ -373,14 +407,104 @@ async function boardJourney(info) {
   const loaded = await loadedResponse; assert.equal(loaded.status(), 200, await loaded.text());
   await page.getByRole('dialog').getByRole('button', { name: 'Load Project', exact: true }).click();
   await expect(page.locator('#project-save-state')).toHaveText('Saved project');
-  await page.getByRole('button', { name: 'Takeoffs', exact: true }).click();
-  await chooseTakeoff(page, 'duct');
-  await viewRegisterItem(page, ductId);
-  const reopenedDuct=await openItemSettings(page,ductId);await expect(reopenedDuct.getByLabel('WxH (mm)',{exact:true})).toHaveValue('600 x 400');await expect(reopenedDuct.getByLabel('Product',{exact:true})).toHaveValue('FyreWrap');await expect(reopenedDuct.getByLabel('Exposure',{exact:true})).toHaveValue('Internal');await expect(reopenedDuct.getByLabel('FRL',{exact:true})).toHaveValue('120/120/120');
-  for (const format of ['CSV', 'XLSX']) {
-    const download = page.waitForEvent('download'); await page.evaluate(format => window.CeasefireTakeoffs.exportRegister(format.toLowerCase()), format);
-    const file = await download; const target = path.join(output, file.suggestedFilename()); await file.saveAs(target); assert.ok(fs.statSync(target).size > 100);
+  // Make the late post-reopen proof deterministic. The previous canvas remains
+  // in the DOM while this new session's source loads, but it is hidden. Legacy
+  // focus/dimension/idle checks can pass before record_render even starts.
+  const sourceId = savedJson.takeoffs.items.find(item => item.id === ductId).geometry.document_id;
+  const sourceRoute = new RegExp(`/api/takeoffs/sessions/[^/]+/documents/${sourceId}/file$`);
+  const commandRoute = /\/api\/takeoffs\/sessions\/[^/]+\/commands$/;
+  let releaseSource, releaseProof, sourceReached, proofReached, proofRejected, sourceHeld = false, proofHeld = false, viewingComplete = false;
+  const routeTasks = [];
+  const sourceGate = new Promise(resolve => { releaseSource = resolve; });
+  const proofGate = new Promise(resolve => { releaseProof = resolve; });
+  const sourceStarted = new Promise(resolve => { sourceReached = resolve; });
+  const proofStarted = new Promise((resolve, reject) => { proofReached = resolve; proofRejected = reject; }); proofStarted.catch(() => {});
+  const trackRoute = action => route => {
+    const task = action(route); routeTasks.push(task);
+    return task.catch(async error => { proofRejected(error); await route.abort().catch(() => {}); });
+  };
+  const holdSource = trackRoute(async route => {
+    if (sourceHeld) return route.continue();
+    sourceHeld = true; sourceReached(); await sourceGate; await route.continue();
+  });
+  const holdProof = trackRoute(async route => {
+    const body = route.request().postDataJSON();
+    if (proofHeld || body?.op !== 'record_render' || body.document_id !== sourceId || body.page !== 1) return route.continue();
+    proofHeld = true;
+    const response = await route.fetch(); assert.equal(response.status(), 200, await response.text());
+    proofReached(body); await proofGate; await route.fulfill({ response });
+  });
+  await page.route(sourceRoute, holdSource); await page.route(commandRoute, holdProof);
+  let viewing;
+  try {
+    await page.getByRole('button', { name: 'Takeoffs', exact: true }).click();
+    await bounded(sourceStarted, 'Reopened source request');
+    await chooseTakeoff(page, 'duct');
+    viewing = viewRegisterItem(page, ductId).then(() => { viewingComplete = true; }); viewing.catch(() => {});
+    // Establish every former readiness condition while the source is held.
+    await expect(page.locator('.takeoff-viewport')).toBeFocused();
+    await page.waitForFunction(() => {
+      const canvas = document.querySelector('.takeoff-viewport canvas'), overlay = document.querySelector('.takeoff-overlay');
+      return canvas && overlay && canvas.width > 0 && canvas.height > 0
+        && Math.abs(parseFloat(canvas.style.width) - Number(overlay.getAttribute('width'))) < .01
+        && Math.abs(parseFloat(canvas.style.height) - Number(overlay.getAttribute('height'))) < .01;
+    });
+    await settingsSettled(page);
+    await openItemSettings(page, ductId);
+    const retainedCanvas = await captureExportReadiness('retained-canvas', null);
+    assert.equal(retainedCanvas.busy, false); assert.equal(retainedCanvas.modal, false); assert.ok(retainedCanvas.sessionId);
+    assert.equal(retainedCanvas.canvasVisible, false, 'The retained canvas is not the reopened drawing');
+    assert.equal(viewingComplete, false, 'View readiness must wait for the current displayed source');
+    releaseSource();
+    const heldCommand = await bounded(proofStarted, 'Late reopened record_render response');
+    assert.equal(heldCommand.success, true);
+    const exportsBeforeGuard = exportRequests.length;
+    let guardedDownloads = 0; const watchDownload = () => { guardedDownloads++; }; page.on('download', watchDownload);
+    try {
+      for (const format of ['CSV', 'XLSX']) {
+        const guarded = await captureExportReadiness('held-render-proof', format);
+        assert.equal(guarded.busy, true); assert.equal(guarded.ariaBusy, 'true'); assert.equal(guarded.modal, false);
+        assert.ok(guarded.sessionId); assert.equal(guarded.settingsDirty, false); assert.equal(guarded.canvasVisible, true);
+        assert.ok(guarded.pendingRequests.some(request => request.op === 'record_render'));
+        await page.evaluate(format => window.CeasefireTakeoffs.exportRegister(format.toLowerCase()), format);
+        await expect(page.locator('#takeoffs-workspace [role="alert"]')).toContainText('Finish the current takeoff operation before downloading.');
+        guarded.rejectedMessage = await page.locator('#takeoffs-workspace [role="alert"]').innerText();
+        guarded.exportRequestsIssued = exportRequests.length - exportsBeforeGuard; guarded.downloadsIssued = guardedDownloads;
+        fs.writeFileSync(path.join(output, 'export-readiness.json'), JSON.stringify(exportReadiness, null, 2));
+      }
+      assert.equal(exportRequests.length, exportsBeforeGuard, 'Busy exports issue no export requests');
+      assert.equal(guardedDownloads, 0, 'Busy exports produce no download');
+      assert.equal(viewingComplete, false, 'Visible bitmap readiness must also await its retained proof');
+    } finally { page.off('download', watchDownload); }
+    releaseProof(); await viewing; await settingsSettled(page);
+    await screenshot('reopened-duct-export-guard.png');
+  } finally {
+    releaseSource(); releaseProof();
+    await page.unroute(sourceRoute, holdSource); await page.unroute(commandRoute, holdProof);
+    await Promise.allSettled(routeTasks);
   }
+  const reopenedDuct=await openItemSettings(page,ductId);await expect(reopenedDuct.getByLabel('WxH (mm)',{exact:true})).toHaveValue('600 x 400');await expect(reopenedDuct.getByLabel('Product',{exact:true})).toHaveValue('FyreWrap');await expect(reopenedDuct.getByLabel('Exposure',{exact:true})).toHaveValue('Internal');await expect(reopenedDuct.getByLabel('FRL',{exact:true})).toHaveValue('120/120/120');
+  const beforeExports = await page.evaluate(() => ({ takeoffs: window.CeasefireTakeoffs.projectSnapshot(), calculators: window.CeasefireCalculators.projectSnapshot() }));
+  const exportFiles = [];
+  for (const format of ['CSV', 'XLSX']) {
+    await settingsSettled(page);
+    const settled = await captureExportReadiness('settled-export', format);
+    assert.equal(settled.busy, false); assert.equal(settled.modal, false); assert.equal(settled.settingsDirty, false);
+    const download = page.waitForEvent('download'), exported = page.waitForResponse(response => response.url().endsWith(`/export/${format.toLowerCase()}`));
+    download.catch(() => {}); exported.catch(() => {});
+    await page.evaluate(format => window.CeasefireTakeoffs.exportRegister(format.toLowerCase()), format);
+    const response = await exported; assert.equal(response.status(), 200); assert.deepEqual(response.request().postDataJSON().selected_ids, [ductId]);
+    const file = await download; const target = path.join(output, file.suggestedFilename()); await file.saveAs(target); assert.ok(fs.statSync(target).size > 100);
+    exportFiles.push(target);
+  }
+  const expectedExport = path.join(output, 'expected-duct-export.json');
+  fs.writeFileSync(expectedExport, JSON.stringify({ snapshot: beforeExports.takeoffs, itemId: ductId }));
+  const checkedExports = spawnSync(process.env.CEASEFIRE_PYTHON || 'python', [path.join(__dirname, 'assert_duct_exports.py'), expectedExport, ...exportFiles], { encoding: 'utf8', windowsHide: true });
+  assert.equal(checkedExports.status, 0, `${checkedExports.stdout}\n${checkedExports.stderr}`);
+  const exportContent = JSON.parse(checkedExports.stdout); fs.writeFileSync(path.join(output, 'export-content.json'), JSON.stringify(exportContent, null, 2));
+  const afterExports = await page.evaluate(() => ({ takeoffs: window.CeasefireTakeoffs.projectSnapshot(), calculators: window.CeasefireCalculators.projectSnapshot() }));
+  assert.deepEqual(afterExports, beforeExports, 'Exports preserve takeoff evidence, identities and calculator drafts');
+  console.log('PASS: retained canvas cannot establish reopened readiness; held late record_render blocks CSV/XLSX, then settled exports retain exact Duct fields and source identities.');
   // PDF search discloses complete coverage and identifies pages with no text.
   await page.getByLabel('Include drawing labels', { exact: true }).uncheck();
   await page.getByLabel('Drawing document', { exact: true }).selectOption(await page.locator('.takeoff-document').filter({ hasText: 'synthetic-drawings.pdf' }).getAttribute('value'));
@@ -400,7 +524,7 @@ async function boardJourney(info) {
   });
   assert.deepEqual(await page.evaluate(() => window.CeasefireTakeoffs.projectSnapshot().items.map(item => item.state)), Array(5).fill('confirmed'));
   await screenshot('failed-content-blocked.png');
-  fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ completed: true, stage: 'save-reopen-export', project: info.project, steelId, ductId, board, errors, requests, violations: await page.evaluate(() => window.qaCsp) }, null, 2));
+  fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ completed: true, stage: 'save-reopen-export', project: info.project, steelId, ductId, board, exportReadiness, exportContent, errors, requests, violations: await page.evaluate(() => window.qaCsp) }, null, 2));
   assert.deepEqual(errors, []); assert.deepEqual(await page.evaluate(() => window.qaCsp), []);
   console.log(`PASS: rendered upload, calibration, trace/cite, automatic settings, compound duct dimensions, bulk/undo, confirmation, three calculator destinations, Board native-design rejection, source links, transfer/repeat/update, save/reopen and CSV/XLSX export. Evidence: ${output}`);
 })().catch(async error => {

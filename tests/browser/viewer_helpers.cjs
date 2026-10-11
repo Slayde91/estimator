@@ -22,11 +22,16 @@ async function renderDrawing(page, action, pageNumber) {
 }
 
 // View selects the row before asynchronously navigating and fitting its source.
-// Its final viewport focus happens after both renders and their retained proofs.
+// A concurrent post-reopen render can still be loading when View focuses.
 async function viewRegisterItem(page, id, source) {
   const row = page.locator(`tr[data-item-id="${id}"]`);
   await row.locator('.takeoff-row-link').click();
   await expect(page.locator('.takeoff-viewport')).toBeFocused();
+  // Reopening retains the previous canvas while the new PDF worker loads.
+  // Focus and matching old canvas dimensions can therefore precede both the
+  // current bitmap and its record_render command. Wait for the displayed page
+  // before checking settlement, so a late render proof cannot overtake export.
+  await expect(page.locator('.takeoff-viewport canvas')).toBeVisible();
   await page.waitForFunction(() => {
     const canvas = document.querySelector('.takeoff-viewport canvas'), overlay = document.querySelector('.takeoff-overlay');
     return canvas && overlay && canvas.width > 0 && canvas.height > 0

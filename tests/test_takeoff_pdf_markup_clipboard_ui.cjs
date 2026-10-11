@@ -114,6 +114,15 @@ test("Canonical image content is retained literally without identity metadata", 
   assert.equal(f.calls.commands[0].graphic.initial_pages, undefined);
 });
 
+test("Copy/paste resized Textbox and text Stamp retain the exact local text scale and rich content",async()=>{
+  for(const kind of ["textbox","stamp"]){
+    const f=fixture({kind,transform:[0,2,2,0,-40,-20]});f.record.geometry.text_scale=1.4266428448773703;const before=clone(f.snapshot);
+    await f.copyPdfMarkup();await f.pastePdfMarkup();const graphic=f.calls.commands[0].graphic;
+    assert.equal(graphic.geometry.text_scale,f.record.geometry.text_scale);assert.deepEqual(graphic.appearance,f.record.appearance);assert.equal(graphic.text,f.record.text);
+    if(kind==="textbox")assert.deepEqual(graphic.text_content,f.record.text_content);assert.equal(graphic.initial_pages,undefined);assert.deepEqual(clone(f.snapshot),before);
+  }
+});
+
 test("Copy flushes edited content and exclusively replaces prior clipboard families", async () => {
   const f = fixture(); f.state.annotationClipboard = {}; f.state.lengthClipboard = {}; f.state.physicalClipboard = {};
   f.setFlush(async () => { f.record.text = "Latest committed settings"; f.record.version++; f.state.session.revision++; });

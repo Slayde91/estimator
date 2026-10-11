@@ -57,6 +57,7 @@
 .penetration-output-group .cost-list>div{gap:24px}
 .penetration-source{padding:5px 2px;color:var(--muted)}
 .penetration-source summary{cursor:pointer;font-size:12px}
+.penetration-diagram figcaption{color:var(--muted)}
 .penetration-source p{margin-top:10px}
 @media(max-width:1050px){.penetration-layout{grid-template-columns:1fr}.penetration-summary{position:static}.penetration-fields{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:580px){.penetration-fields{grid-template-columns:1fr}.penetration-group{padding:9px 10px;font-size:11px}.penetration-row-tools{gap:9px}}

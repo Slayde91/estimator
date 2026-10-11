@@ -14,7 +14,7 @@ window.CeasefireTakeoffGraphicsUI = function (host) {
     if (!state.calibration || !currentCalibrations().some(value => value.id === state.calibration)) throw new Error("Choose a current drawing calibration before using Measure.");
     return state.calibration;
   }
-  let activationGeneration = 0, stampGeneration = 0, stampPending = false, stampReleaseClick = null, measureControl = null;
+  let activationGeneration = 0, stampGeneration = 0, stampPending = false, measureControl = null;
   const stampKey = () => JSON.stringify([state.session?.session_id,state.document,currentDocument()?.sha256,state.page,signatureMode()]);
   function hasStampTemplate() {
     if (state.stampTemplate && state.stampTemplate.key !== stampKey()) state.stampTemplate = null;
@@ -23,28 +23,7 @@ window.CeasefireTakeoffGraphicsUI = function (host) {
   function cancel(forgetTemplate = true) {
     stampGeneration++;
     measureControl = null;
-    stampReleaseClick?.clear();
-    if (state.gesture?.kind === "stamp-box") { const gesture = state.gesture; gesture.cleanup(); state.gesture = null; state.points = []; state.traceCursor = null; }
     if (forgetTemplate) state.stampTemplate = null;
-  }
-  function suppressStampReleaseClick(pointerId) {
-    stampReleaseClick?.clear();
-    const element = state.ui.viewport;
-    // Consume only the click produced by this drag release. A new pointerdown
-    // starts a genuine click, even when it follows the drag immediately.
-    const pending = { clear() {
-      element.removeEventListener("click",click,true);
-      element.removeEventListener("pointerdown",clear,true);
-      if(stampReleaseClick === pending) stampReleaseClick = null;
-    } };
-    const clear = () => pending.clear();
-    const click = event => {
-      if(event.button !== 0 || !(event.detail > 0) || (event.pointerId !== undefined && event.pointerId !== pointerId)) return;
-      pending.clear(); event.preventDefault(); event.stopImmediatePropagation();
-    };
-    stampReleaseClick = pending;
-    element.addEventListener("click",click,true);
-    element.addEventListener("pointerdown",clear,true);
   }
   const activationKey = () => JSON.stringify([pageDisplayKey(), signatureMode(), state.session?.revision, currentDocument()?.sha256, state.active, state.tool, state.graphicSelected, state.annotationSelected, state.signatureSelected, state.legendSelected, [...state.selected], [...state.countSelection], [...state.physicalSelected], state.physicalDetailsOpen, state.settingsOpen, state.viewportsOpen, state.calibrationTarget, state.retraceId, state.exclusionItemId, state.pendingViewport, state.signatureDraft]);
   async function activate(kind) {
@@ -68,37 +47,12 @@ window.CeasefireTakeoffGraphicsUI = function (host) {
     // Preserve a changed deadline while settings or fonts were pending.
     if (priorSelectionClickUntil > 0 && state.suppressSelectionClickUntil === priorSelectionClickUntil) state.suppressSelectionClickUntil = 0;
     renderSelection();
-    message(kind === "stamp" ? hasStampTemplate() ? "Stamp: click to place another copy. Right-click or select Stamp again to stop." : "Stamp: drag a box, then choose text or a PNG/JPEG image. Right-click cancels." : kind === "textbox" ? "Textbox: click its position, then enter formatted text. Escape cancels." : X.boxes.has(kind) ? `${X.labels[kind]}: click two opposite corners. Escape cancels.` : `${X.labels[kind]}: click each point, then press Enter or double-click to finish. Escape cancels.`);
+    message(kind === "stamp" ? hasStampTemplate() ? "Stamp: click to place another copy. Right-click or select Stamp again to stop." : "Stamp: click its position, then choose text or a PNG/JPEG image. Right-click cancels." : kind === "textbox" ? "Textbox: click its position, then enter formatted text. Escape cancels." : X.boxes.has(kind) ? `${X.labels[kind]}: click two opposite corners. Escape cancels.` : `${X.labels[kind]}: click each point, then press Enter or double-click to finish. Escape cancels.`);
   }
-  function beginStampBox(event) {
-    if (state.tool !== "graphic-stamp" || hasStampTemplate() || stampPending || event.button !== 0 || state.busy || state.modal || state.navigationBusy || state.gesture || state.points.length || state.formDirty || state.settingsDirty || !state.viewport) return false;
-    const first = drawingPoint(event), view = pageMetadata()?.view;
-    if (!view || first.some((n,axis) => n < view[axis] || n > view[axis+2])) return false;
-    requireFinishedEdits();
-    event.preventDefault(); event.stopImmediatePropagation();
-    const element = state.ui.viewport, context = stampKey(), revision = state.session.revision, transform = JSON.stringify(state.viewport.transform);
-    const gesture = {kind:"stamp-box",moved:false}; state.gesture = gesture; state.points = [first]; state.traceCursor = null;
-    const valid = () => state.gesture === gesture && state.tool === "graphic-stamp" && context === stampKey() && revision === state.session?.revision && transform === JSON.stringify(state.viewport?.transform);
-    const move = next => {
-      if (next.pointerId !== event.pointerId || !valid()) return;
-      const point = drawingPoint(next);
-      if (point.some((n,axis) => n < view[axis] || n > view[axis+2])) return;
-      if (Math.hypot(next.clientX-event.clientX,next.clientY-event.clientY) >= 4) gesture.moved = true;
-      state.traceCursor = point; next.preventDefault(); renderOverlay(); window.CeasefireProject?.changed?.();
-    };
-    const cleanup = gesture.cleanup = () => { element.removeEventListener("pointermove",move); element.removeEventListener("pointerup",release); element.removeEventListener("pointercancel",abort); element.removeEventListener("lostpointercapture",abort); if(element.hasPointerCapture?.(event.pointerId)) element.releasePointerCapture(event.pointerId); };
-    const abort = () => { const current = state.gesture === gesture; cleanup(); if(current) { state.gesture=null; state.points=[]; state.traceCursor=null; renderOverlay(); window.CeasefireProject?.changed?.(); } };
-    const release = next => {
-      if(next.pointerId !== event.pointerId) return;
-      move(next); const current=valid(), last=state.traceCursor, owned=state.gesture===gesture;
-      if(owned)state.gesture=null; cleanup();
-      if(!current) { if(owned && state.points.length===1 && state.points[0]===first){state.points=[];state.traceCursor=null;renderOverlay();}return; }
-      suppressStampReleaseClick(event.pointerId);
-      if(gesture.moved && last) { state.points=[first,last]; state.traceCursor=null; void safely(finish); }
-      else { state.points=[]; state.traceCursor=null; renderOverlay(); }
-    };
-    element.addEventListener("pointermove",move); element.addEventListener("pointerup",release); element.addEventListener("pointercancel",abort); element.addEventListener("lostpointercapture",abort); element.setPointerCapture?.(event.pointerId); renderOverlay(); window.CeasefireProject?.changed?.();
-    return true;
+  function beginStampBox() {
+    // Stamp creation begins on the normal single click, like Textbox. Retain
+    // this host hook so existing pointer routing does not start a box gesture.
+    return false;
   }
   async function chooseStamp() {
     let image = null, imageGeneration = 0;
@@ -139,14 +93,14 @@ window.CeasefireTakeoffGraphicsUI = function (host) {
     if (state.points.length && Math.hypot(...p.map((value,axis)=>value-state.points.at(-1)[axis])) < 1e-8) return;
     state.points.push(p); state.traceCursor = null; renderOverlay(); window.CeasefireProject?.changed?.();
     const kind = state.tool.slice(8);
-    if (kind === "textbox" || state.points.length === 2 && (X.boxes.has(kind) || kind === "arrow")) await finish();
+    if (["textbox","stamp"].includes(kind) || state.points.length === 2 && (X.boxes.has(kind) || kind === "arrow")) await finish();
   }
   async function finish() {
     if (state.formDirty || state.settingsDirty || state.gesture || state.physicalPlacing || state.physicalUI?.hasUnfinishedChanges()) throw new Error("Apply or discard unfinished item edits before finishing the markup.");
     const tool = state.tool, kind = tool.slice(8);
-    if (!isTool() || state.points.length < (kind === "textbox" ? 1 : 2)) throw new Error("Choose at least two distinct PDF markup points.");
+    if (!isTool() || state.points.length < (["textbox","stamp"].includes(kind) ? 1 : 2)) throw new Error("Choose at least two distinct PDF markup points.");
     const context = pageDisplayKey(), mode = signatureMode(), revision = state.session.revision, points = clone(state.points), documentId=state.document, sourceSha=currentDocument().sha256, generation=stampGeneration, displayRotation=host.displayRotation?.() ?? state.viewport.rotation ?? pageMetadata()?.rotation ?? 0, calibration=kind === "measure" ? measureCalibration() : null;
-    const geometry = kind === "textbox" ? null : X.boxes.has(kind) ? X.box(points, p=>G.transform(p,state.viewport.transform), p=>G.inverse(p,state.viewport.transform)) : {points};
+    const geometry = ["textbox","stamp"].includes(kind) ? null : X.boxes.has(kind) ? X.box(points, p=>G.transform(p,state.viewport.transform), p=>G.inverse(p,state.viewport.transform)) : {points};
     if (kind === "polygon" && points.length < 3) throw new Error("Choose at least three vertices for a polygon.");
     if (geometry?.quad_pdf && [1,3].some(i=>Math.hypot(...geometry.quad_pdf[i].map((n,axis)=>n-geometry.quad_pdf[0][axis])) < 10)) throw new Error("Choose a larger rectangle (at least 10 PDF points on each side).");
     let text = "", textContent=null, stampContent=null;
@@ -166,10 +120,12 @@ window.CeasefireTakeoffGraphicsUI = function (host) {
     const sameIntent = () => context === pageDisplayKey() && mode === signatureMode() && tool === state.tool && JSON.stringify(points) === JSON.stringify(state.points) && (!["stamp","textbox"].includes(kind) || generation === stampGeneration) && (kind !== "measure" || calibration === state.calibration);
     const reply = kind === "textbox"
       ? await command("create_textbox", {textbox:{mode,document_id:documentId,source_sha256:sourceSha,page:state.page,anchor_pdf:points[0],display_rotation:displayRotation,text,text_content:textContent,appearance:graphic.appearance}}, () => sameIntent() && revision === state.session.revision)
+      : kind === "stamp"
+      ? await command("create_stamp", {stamp:{mode,document_id:documentId,source_sha256:sourceSha,page:state.page,anchor_pdf:points[0],display_rotation:displayRotation,text,appearance:graphic.appearance,...(stampContent.stamp_image?{stamp_image:stampContent.stamp_image}:{})}}, () => sameIntent() && revision === state.session.revision)
       : await command("create_graphic", {graphic}, () => sameIntent() && revision === state.session.revision);
     if (!reply) throw new Error("The drawing changed. Place the markup again.");
     if (kind === "textbox" && !sameIntent()) return;
-    if(kind === "stamp") { if(generation!==stampGeneration || context!==pageDisplayKey() || mode!==signatureMode() || tool!==state.tool) return;const stored=records().find(value=>value.id===reply.created_graphic_id) || graphic;state.stampTemplate={key:stampKey(),geometry:clone(geometry),text:stored.text,appearance:clone(stored.appearance),...(stored.stamp_image?{stamp_image:clone(stored.stamp_image)}:{})};state.points=[];state.traceCursor=null;state.graphicSelected=null;renderSelection();message("Stamp placed. Click for another copy; right-click or select Stamp again to stop.");return; }
+    if(kind === "stamp") { if(generation!==stampGeneration || context!==pageDisplayKey() || mode!==signatureMode() || tool!==state.tool) return;const stored=records().find(value=>value.id===reply.created_graphic_id);if(!stored)throw new Error("The created Stamp is unavailable. Select Stamp again.");state.stampTemplate={key:stampKey(),geometry:clone(stored.geometry),text:stored.text,appearance:clone(stored.appearance),...(stored.stamp_image?{stamp_image:clone(stored.stamp_image)}:{})};state.points=[];state.traceCursor=null;state.graphicSelected=null;renderSelection();message("Stamp placed. Click for another copy; right-click or select Stamp again to stop.");return; }
     cancelTrace(); await select(reply.created_graphic_id, true); message(`${X.labels[graphic.kind]} placed. Drag to move, resize its handles, or edit it in Settings.`);
   }
   async function select(id, openSettings = true) {
@@ -309,7 +265,7 @@ window.CeasefireTakeoffGraphicsUI = function (host) {
     const move=next=>{if(next.pointerId!==event.pointerId||!valid())return;if(!gesture.moved&&Math.hypot(next.clientX-event.clientX,next.clientY-event.clientY)<4)return;gesture.moved=true;gesture.current=drawingPoint(next);let points,source=original.quad_pdf||original.points;
       if(part!=="move"&&part!==undefined) { if(original.quad_pdf) { const u=source[1].map((n,i)=>n-source[0][i]),v=source[3].map((n,i)=>n-source[0][i]),d=gesture.current.map((n,i)=>n-source[0][i]),ul=Math.hypot(...u),vl=Math.hypot(...v),a=Math.max(10/ul,d.reduce((sum,n,i)=>sum+n*u[i],0)/ul**2),b=Math.max(10/vl,d.reduce((sum,n,i)=>sum+n*v[i],0)/vl**2);points=[[0,0],[a,0],[a,b],[0,b]].map(([x,y])=>source[0].map((n,i)=>n+x*u[i]+y*v[i])); } else points=source.map((p,index)=>index===Number(part)?gesture.current:p); }
       else { const dx=Math.max(view[0]-Math.min(...source.map(p=>p[0])),Math.min(view[2]-Math.max(...source.map(p=>p[0])),gesture.current[0]-initial[0])),dy=Math.max(view[1]-Math.min(...source.map(p=>p[1])),Math.min(view[3]-Math.max(...source.map(p=>p[1])),gesture.current[1]-initial[1]));points=source.map(([x,y])=>[x+dx,y+dy]); }
-      if(points.every(([x,y])=>x>=view[0]&&y>=view[1]&&x<=view[2]&&y<=view[3]))gesture.geometry=original.quad_pdf?{quad_pdf:points}:{points};next.preventDefault();renderOverlay();window.CeasefireProject?.changed?.();};
+      if(points.every(([x,y])=>x>=view[0]&&y>=view[1]&&x<=view[2]&&y<=view[3])) { const geometry=original.quad_pdf?{...original,quad_pdf:points}:{points};gesture.geometry=original.quad_pdf && part!=="move" && part!==undefined ? X.resizedTextBox(value,geometry,pageMetadata().user_unit) : geometry; } next.preventDefault();renderOverlay();window.CeasefireProject?.changed?.();};
     const finish=next=>{if(next.pointerId!==event.pointerId)return;const current=valid();cleanup();state.gesture=null;state.suppressSelectionClickUntil=Date.now()+500;if(!gesture.moved&&current){if(value.kind==="measure"&&part!==undefined&&part!=="move")void safely(()=>selectMeasurePoint(value.id,Number(part)));else void safely(()=>select(value.id,drawingClickOpensSettings(next,`graphic:${value.id}`)));}else if(current&&JSON.stringify(original)!==JSON.stringify(gesture.geometry)){void safely(()=>command("update_graphic",{graphic_id:value.id,changes:{geometry:gesture.geometry}},()=>selectionKey===key()&&revision===state.session?.revision));}renderOverlay();window.CeasefireProject?.changed?.();};
     const cancel=()=>{cleanup();if(state.gesture===gesture)state.gesture=null;renderOverlay();window.CeasefireProject?.changed?.();};
     const cleanup=gesture.cleanup=()=>{element.removeEventListener("pointermove",move);element.removeEventListener("pointerup",finish);element.removeEventListener("pointercancel",cancel);element.removeEventListener("lostpointercapture",cancel);if(element.hasPointerCapture?.(event.pointerId))element.releasePointerCapture(event.pointerId);};

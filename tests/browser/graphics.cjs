@@ -8,7 +8,7 @@ const { spawn, spawnSync } = require("node:child_process");
 const fs = require("node:fs"), path = require("node:path"), crypto = require("node:crypto"), assert = require("node:assert/strict");
 const root = path.resolve(__dirname, "../.."), output = path.join(root, ".runtime/browser-qa", `graphics-${Date.now()}`), python = process.env.CEASEFIRE_PYTHON || "python";
 fs.mkdirSync(output, { recursive: true });
-const assets = ["static/takeoffs.js", "static/takeoff-annotations.js", "static/takeoff-graphics.js", "static/takeoff-graphics-ui.js", "static/takeoffs.css", "estimator/takeoff_graphics.py", "estimator/takeoff_markup_pdf_worker.py", "tests/browser/graphics.cjs", "tests/browser/graphics_export_content.py"];
+const assets = ["static/takeoffs.js", "static/takeoff-annotations.js", "static/takeoff-graphics.js", "static/takeoff-graphics-ui.js", "static/takeoffs.css", "static/icons/takeoff-measure.avif", "estimator/takeoff_graphics.py", "estimator/takeoff_stamp_layout.py", "estimator/takeoff_textbox_layout.py", "estimator/takeoff_initial_links.py", "estimator/takeoff_workspace.py", "estimator/takeoff_markup_pdf_worker.py", "tests/browser/graphics.cjs", "tests/browser/graphics_export_content.py"];
 const hash = file => crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex");
 const hashes = () => Object.fromEntries(assets.map(name => [name, hash(path.join(root, name))]));
 const sourceBefore = hashes(), checks = [], errors = [], requests = [], projectWrites = [], pdfExports = [];
@@ -53,12 +53,11 @@ async function insert(kind, points, options = {}) {
   const button = page.locator(".takeoff-markup-rail").getByRole("button", { name: labels[kind], exact: true }); await button.click();
   const tool = kind === "line" ? "polyline" : kind; await expect(page.locator(".takeoff-viewport")).toHaveAttribute("data-tool", `graphic-${tool}`);
   const draw = async () => {
-    if(kind === "stamp") { const first=await screen(points[0],options.view,options.rotation),last=await screen(points[1],options.view,options.rotation);await page.mouse.move(...first);await page.mouse.down();await page.mouse.move(...last,{steps:8});await page.mouse.up(); }
-    else for (const p of (kind === "textbox" ? points.slice(0,1) : points)) await page.mouse.click(...await screen(p, options.view, options.rotation));
+    for (const p of (["textbox","stamp"].includes(kind) ? points.slice(0,1) : points)) await page.mouse.click(...await screen(p, options.view, options.rotation));
     if (["line","polyline","polygon"].includes(kind)) await page.locator(".takeoff-viewport").press("Enter");
     if (["textbox","stamp"].includes(kind)) await dialog(labels[kind], {[`${labels[kind]} text`]: options.text || (kind === "stamp" ? "REVIEWED" : "Literal <b>note</b> é")}, kind === "stamp" ? "Create stamp" : "Place markup");
   };
-  const result = await command(draw, kind === "textbox" ? "create_textbox" : "create_graphic"), record = result.snapshot.graphics.records.find(v=>v.id===result.created_graphic_id);
+  const result = await command(draw, kind === "textbox" ? "create_textbox" : kind === "stamp" ? "create_stamp" : "create_graphic"), record = result.snapshot.graphics.records.find(v=>v.id===result.created_graphic_id);
   assert.equal(record.kind, kind); assert.equal(record.source_sha256, result.snapshot.documents.find(v=>v.id===record.document_id).sha256);
   assert.equal(record.version, 1); await expect(graphic(record.id)).toBeVisible();
   if(kind === "stamp") { await expect(page.locator(".takeoff-viewport")).toHaveAttribute("data-tool","graphic-stamp");await select(record.id); }
@@ -67,7 +66,8 @@ async function insert(kind, points, options = {}) {
     const payload=requests.at(-1).textbox; for(const key of ["mode","document_id","source_sha256","page","text","appearance"])assert.deepEqual(payload[key],record[key]);
     assert.deepEqual(payload.anchor_pdf,record.geometry.quad_pdf[0],"Single native click remains the retained PDF anchor");assert.equal(payload.geometry,undefined,"Creation sends no fabricated box");
     assert.equal(payload.display_rotation,options.rotation||0);assert.equal(record.appearance.font_size,12,"Automatic sizing preserves requested font size");assert.ok(result.textbox_layout.width_pt>0&&result.textbox_layout.height_pt>0&&result.textbox_layout.line_count>=1);
-  } else { const payload=requests.at(-1).graphic;for(const key of ["kind","mode","document_id","source_sha256","page","geometry","text","appearance"])assert.deepEqual(payload[key],record[key]); }
+  } else if(kind === "stamp") {const payload=requests.at(-1).stamp;for(const key of ["mode","document_id","source_sha256","page","text","appearance"])assert.deepEqual(payload[key],record[key]);assert.equal(payload.geometry,undefined);for(const axis of [0,1])assert.ok(Math.abs(record.geometry.quad_pdf.reduce((n,p)=>n+p[axis],0)/4-payload.anchor_pdf[axis])<1e-8);assert.ok(result.stamp_layout.width_pt>0&&result.stamp_layout.height_pt>0);}
+  else { const payload=requests.at(-1).graphic;for(const key of ["kind","mode","document_id","source_sha256","page","geometry","text","appearance"])assert.deepEqual(payload[key],record[key]); }
   return {record,result};
 }
 async function select(id) {
@@ -148,9 +148,11 @@ async function unfinishedGuards() {
   await select(records.textbox.id);
   const originalTextbox=(await snapshot()).graphics.records.find(v=>v.id===records.textbox.id),resizeTarget=await screen([480,450]),resizeBox=await graphic(records.textbox.id).locator('[data-graphic-part="2"]').boundingBox();
   reply=await command(()=>drag(graphic(records.textbox.id).locator('[data-graphic-part="2"]'),resizeTarget[0]-resizeBox.x-resizeBox.width/2,resizeTarget[1]-resizeBox.y-resizeBox.height/2,records.textbox.id),"update_graphic");
-  const expandedTextbox=reply.snapshot.graphics.records.find(v=>v.id===records.textbox.id);assert.deepEqual(expandedTextbox.geometry.quad_pdf[0],originalTextbox.geometry.quad_pdf[0]);assert.notDeepEqual(expandedTextbox.geometry.quad_pdf[2],originalTextbox.geometry.quad_pdf[2]);invariant(reply.snapshot,baseline);
+  const expandedTextbox=reply.snapshot.graphics.records.find(v=>v.id===records.textbox.id);assert.deepEqual(expandedTextbox.geometry.quad_pdf[0],originalTextbox.geometry.quad_pdf[0]);assert.notDeepEqual(expandedTextbox.geometry.quad_pdf[2],originalTextbox.geometry.quad_pdf[2]);assert.deepEqual(expandedTextbox.appearance,originalTextbox.appearance);assert.ok(expandedTextbox.geometry.text_scale>1);invariant(reply.snapshot,baseline);
   reply=await command(async()=>{await panel().getByLabel("Textbox text",{exact:true}).fill("Edited literal <b>note</b> é");await panel().getByLabel("Textbox text",{exact:true}).press("Tab");},"update_graphic");assert.equal(reply.snapshot.graphics.records.find(v=>v.id===records.textbox.id).text,"Edited literal <b>note</b> é");
-  await command(async()=>{await panel().getByLabel("Font Size",{exact:true}).fill("10");await panel().getByLabel("Font Size",{exact:true}).press("Tab");},"update_graphic");
+  // This box now scales its font with resizing. Use a base nine-point edit so
+  // all later bold/italic/list content fits the effective scaled font intact.
+  await command(async()=>{await panel().getByLabel("Font Size",{exact:true}).fill("9");await panel().getByLabel("Font Size",{exact:true}).press("Tab");},"update_graphic");
   const rich=()=>panel().getByRole("textbox",{name:"Textbox text",exact:true});
   for(const mark of ["Bold","Italic","Underline"]) {
     reply=await command(async()=>{await rich().press("Control+a");await panel().getByRole("button",{name:mark,exact:true}).click();},"update_graphic");

@@ -65,6 +65,11 @@
 .library-detail-navigation{margin:0 0 22px}
 .library-detail>h3{font-size:23px;overflow-wrap:anywhere;scroll-margin-top:120px}
 .library-detail>.library-record-heading>h3{font-size:23px;overflow-wrap:anywhere;scroll-margin-top:120px}
+.library-technical-heading{flex-wrap:wrap;align-items:center}
+.library-technical-heading>h3{flex:1 1 280px;margin:0}
+.library-technical-heading>.library-document-menu{flex:none;max-width:100%}
+.library-document-menu .calculator-document-actions{max-width:calc(100vw - 70px)}
+@media(max-width:580px){.library-document-menu .calculator-document-actions{left:0;right:auto}}
 .library-record-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 24px;margin:22px 0}
 .library-record-field{padding:13px 0;border-bottom:1px solid var(--line);min-width:0}
 .library-record-field dt{font-size:11px;font-weight:650;color:var(--muted);margin-bottom:5px}

@@ -111,6 +111,8 @@
 .takeoff-tool-rail{display:flex;flex-direction:column;flex-wrap:nowrap;align-items:center;align-self:start;gap:8px;padding:8px;margin:0;min-width:0}
 .takeoff-tool-rail .takeoff-icon-button{width:38px;min-width:38px;height:38px;padding:8px;box-sizing:border-box}
 .takeoff-tool-rail .takeoff-icon-button img{display:block;width:22px;height:22px;object-fit:contain}
+.takeoff-tool-rail .takeoff-icon-button .takeoff-measure-icon{filter:none;mix-blend-mode:multiply}
+:root[data-theme="midnight"] .takeoff-tool-rail .takeoff-icon-button .takeoff-measure-icon{filter:invert(1);mix-blend-mode:screen}
 .takeoff-workspace-title{font-size:28px;margin:0 0 16px}
 .takeoff-drawing-pane{display:flex;flex-direction:column;gap:10px;min-width:0}
 .takeoff-navigation{display:flex;flex:1 1 210px;margin:0;align-items:center;min-width:0}

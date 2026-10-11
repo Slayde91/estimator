@@ -466,6 +466,7 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
     h.context.window.CeasefireCalculators={captureTakeoffTarget:async()=>({inputs:{},schedule_rows:1,fingerprint}),projectFingerprint:()=>fingerprint};
     h.context.fetch=async()=>{fetches++;return{ok:true,blob:()=>body.promise};};
     h.context.URL={createObjectURL(){downloads++;return'blob:unused';}};
+    const dom=attachMinimalDom(h);dom.ui.target={value:'steel_vermiculite'};dom.ui.root=dom.element();dom.ui.status=dom.element();
     const pending=h.audit.downloadTakeoff('schedule-xlsx');await flush();assert.equal(fetches,1);fingerprint='manual-edit';body.resolve({});
     await assert.rejects(pending,/calculator draft changed during export/);assert.equal(downloads,0);assert.equal(h.audit.state.busy,false);
   });

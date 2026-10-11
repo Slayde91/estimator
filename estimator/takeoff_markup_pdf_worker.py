@@ -500,7 +500,8 @@ def _paint_graphics(pdf, graphics, matrix, bounds):
             elif kind in ('textbox', 'stamp'):
                 padding = min(6, width/8, height/8)
                 font = 'ExportVeraBold' if kind == 'stamp' else 'ExportVera'
-                size = style['font_size']
+                # This worker also runs as an isolated standalone script.
+                size = style['font_size'] * graphic['geometry'].get('text_scale', 1)
                 rich = kind == 'textbox' and 'text_content' in graphic
                 lines = (_annotation_lines(graphic['text_content'], width-2*padding, size, 'PDF markup')
                          if rich else _graphic_text_lines(graphic['text'], font, size, width-2*padding))

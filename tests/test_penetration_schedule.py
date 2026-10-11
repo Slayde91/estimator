@@ -114,6 +114,51 @@ class PenetrationScheduleTests(unittest.TestCase):
         self.assertIn('Source image', '\n'.join(page.extract_text()
             for page in PdfReader(BytesIO(missing)).pages))
 
+    def test_schedule_page_breaks_have_one_header_with_body_and_preserve_long_rows(self):
+        spec = {'row_fields': [{'column': column} for column in ('K', 'O', 'P')],
+                'output_fields': [{'column': column, 'format': 'currency'} for column in ('F', 'G', 'H')]}
+        source = BytesIO()
+        PILImage.new('RGB', (320, 180), '#c62828').save(source, format='PNG')
+
+        class Library:
+            def __init__(self):
+                self.calls = []
+
+            def diagram_asset(self, key, thumbnail):
+                self.calls.append((key, thumbnail))
+                return source.getvalue(), 'image/png', 'source.png'
+
+        for long_lines in (12, 70):
+            rows, draft_rows = [], []
+            for index, lines in enumerate((1, 1, long_lines), 1):
+                service = '\n'.join(f'ROW{index}-TOKEN{line}-DETAILS' for line in range(lines))
+                rows.append({'id': str(index), 'inputs': {'K': service, 'O': 1.234567890123,
+                            'P': 'Concrete wall'}, 'outputs': {'F': 1.234567890123,
+                            'G': 2.345678901234, 'H': 3.456789012345}})
+                draft_rows.append({'id': str(index), 'library_item_id': f'source-{index}'})
+            result = {'summary': {'labour': 3.456789012345, 'materials': 7.036,
+                      'grand_total': 10.493, 'total_days': .012345678901},
+                      'rows': rows, 'draft': {'rows': draft_rows}, 'errors': []}
+            before = deepcopy(result)
+            library = Library()
+            with self.subTest(long_lines=long_lines):
+                pdf = PdfReader(BytesIO(render_penetration_pdf(result, spec, {}, library=library)))
+                texts = [page.extract_text() for page in pdf.pages]
+                self.assertGreater(len(texts), 1)
+                for text in texts:
+                    self.assertEqual(sum(line.strip() == 'Line' for line in text.splitlines()), 1)
+                    self.assertIn('ROW', text)
+                compact = ''.join(''.join(texts).split())
+                for index, lines in enumerate((1, 1, long_lines), 1):
+                    for line in range(lines):
+                        self.assertEqual(compact.count(f'ROW{index}-TOKEN{line}-DETAILS'), 1)
+                self.assertEqual(library.calls, [(f'source-{index}', True) for index in range(1, 4)])
+                images = [asset.get_object() for page in pdf.pages
+                          for asset in page['/Resources']['/XObject'].values()]
+                self.assertTrue(any(image.get('/Subtype') == '/Image' and image.get('/Width') == 320
+                                    and image.get('/Height') == 180 for image in images))
+                self.assertEqual(result, before)
+
     def test_composer_and_schedule_defaults_are_independent(self):
         spec = definition({})
         self.assertEqual(spec['schedule_defaults']['rows'], [])

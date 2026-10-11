@@ -81,6 +81,13 @@
   :root[data-theme]:not([data-theme="ceasefire"]) :is(th,.work-summary-panel,.tabs,.tab.active,.penetration-group[aria-pressed=true],.penetration-group[aria-selected=true]) { background:var(--theme-soft); color:var(--ink); border-color:var(--line); }
   :root[data-theme]:not([data-theme="ceasefire"]) :is(td,.workflow-section) { border-color:var(--line); }
   :root[data-theme]:not([data-theme="ceasefire"]) tbody tr:hover { background:var(--theme-raised); }
+  :root[data-theme]:not([data-theme="ceasefire"]) :is(.library-source,.library-related-record,.library-image,.penetration-diagram) { background:var(--theme-raised); color:var(--ink); border-color:var(--line); }
+  :root[data-theme]:not([data-theme="ceasefire"]) :is(.library-related-notice,.library-record-notice) { background:var(--theme-soft); color:var(--ink); border-color:var(--theme-border); }
+  :root[data-theme]:not([data-theme="ceasefire"]) :is(.library-source,.library-related-record,.library-image,.penetration-diagram) .helper { color:var(--muted); }
+  :root[data-theme]:not([data-theme="ceasefire"]) .library-item-actions .library-add-transfer,
+  :root[data-theme]:not([data-theme="ceasefire"]) #penetration-add-to-schedule { background:var(--theme-surface); color:var(--ink); border-color:var(--theme-border); }
+  :root[data-theme]:not([data-theme="ceasefire"]) .library-item-actions .library-add-transfer:hover:not(:disabled),
+  :root[data-theme]:not([data-theme="ceasefire"]) #penetration-add-to-schedule:hover:not(:disabled) { background:var(--theme-soft); color:var(--accent); }
   :root[data-theme]:not([data-theme="ceasefire"]) .grand-total { background:var(--theme-button); }
   :root[data-theme]:not([data-theme="ceasefire"]) :is(.grand-total>span,.grand-total .currency-note) { color:#fff; }
   :root[data-theme]:not([data-theme="ceasefire"]) :is(.calculator-workspace,.calculator-tools,.calculator-sheet-heading,.calculator-sheet-footer,.calculator-pages,.calculator-settings-chooser,.calculator-page,.calculator-settings-choice,.calculator-grid,.calculator-overview,.calculator-overview-metric,.calculator-summary-metric,.calculator-contents,.calculator-contents a,.calculator-document-card,.calculator-document-card.calculator-document-request,.calculator-projected-note,.calculator-schedule-tools) { background:var(--theme-surface); color:var(--ink); border-color:var(--theme-border); }

@@ -77,7 +77,8 @@ def validate_text_fit(record, snapshot):
     q0, q1, _, q3 = record['geometry']['quad_pdf']
     width, height = math.dist(q0, q1)*page['user_unit'], math.dist(q0, q3)*page['user_unit']
     padding = min(6, width/8, height/8)
-    size = record['appearance']['font_size']
+    from .takeoff_graphics import graphic_font_size
+    size = graphic_font_size(record)
     try:
         lines = (_annotation_lines(record['text_content'], width-2*padding, size, 'linked Initial Pages Textbox')
                  if 'text_content' in record else _graphic_text_lines(record['text'], 'ExportVera', size, width-2*padding))

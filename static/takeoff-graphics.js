@@ -8,6 +8,17 @@
   const labels = Object.freeze({ cloud: "Cloud", textbox: "Textbox", stamp: "Stamp", line: "Line", polyline: "Line/Polyline", arrow: "Arrow", rectangle: "Rectangle", circle: "Circle", polygon: "Polygon", measure: "Measure" });
   const icons = Object.freeze({ cloud: "M6 18a4 4 0 0 1-2-7 5 5 0 0 1 9-5 4 4 0 0 1 6 5 4 4 0 0 1-1 7Z", textbox: "M3 4h18v16H3ZM7 8h10m-5 0v8m-3 0h6", stamp: "M4 17h16v4H4Zm2 0v-4h12v4M9 13V6a3 3 0 0 1 6 0v7", polyline: "M3 18l6-12 6 12 6-12", arrow: "M3 21 21 3m-9 0h9v9", rectangle: "M3 5h18v14H3Z", circle: "M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0", polygon: "M12 2 22 9 18 22 5 20 2 8Z", measure: "M3 8h18v8H3ZM7 8v4M11 8v3M15 8v4M19 8v3" });
   const defaults = () => ({ stroke_color: "#FF0000", stroke_width: 2, opacity: 1, fill_enabled: false, fill_color: "#FFFFFF", font_color: "#000000", font_size: 12 });
+  const fontSize = graphic => graphic.appearance.font_size * (graphic.geometry.text_scale ?? 1);
+  function resizedTextBox(graphic, geometry, userUnit = 1) {
+    if (!["textbox", "stamp"].includes(graphic.kind) || graphic.stamp_image) return geometry;
+    const inner = quad => {
+      const width = Math.hypot(...quad[1].map((n,i)=>n-quad[0][i]))*userUnit, height = Math.hypot(...quad[3].map((n,i)=>n-quad[0][i]))*userUnit;
+      const padding = Math.min(6,width/8,height/8);
+      return [width-2*padding,height-2*padding];
+    };
+    const before=inner(graphic.geometry.quad_pdf), after=inner(geometry.quad_pdf);
+    return {...geometry,text_scale:(graphic.geometry.text_scale ?? 1)*Math.min(after[0]/before[0],after[1]/before[1])};
+  }
   function box(points, transform, inverse) {
     const [a, b] = points.map(transform), x = Math.min(a[0], b[0]), y = Math.min(a[1], b[1]), w = Math.abs(a[0] - b[0]), h = Math.abs(a[1] - b[1]);
     return { quad_pdf: [[x, y], [x+w, y], [x+w, y+h], [x, y+h]].map(inverse) };
@@ -73,7 +84,7 @@
     if (!Array.isArray(quad) || quad.length !== 4 || quad.some(p=>!Array.isArray(p)||p.length!==2) || !Array.isArray(center) || center.length !== 2 || !Array.isArray(view) || view.length !== 4 || [...quad.flat(),...center,...view].some(n => typeof n !== "number" || !Number.isFinite(n))) throw new Error("Choose a valid stamp position on the current PDF page.");
     const prior = [0,1].map(axis => quad.reduce((sum,p) => sum+p[axis],0)/4), placed = quad.map(p => p.map((n,axis) => n+center[axis]-prior[axis]));
     if (placed.some(p => p.some((n,axis) => n < view[axis] || n > view[axis+2]))) throw new Error("Place the whole stamp inside the PDF page.");
-    return { quad_pdf:placed };
+    return { ...geometry, quad_pdf:placed };
   }
   function icon(kind, doc = root.document) {
     const el = doc.createElementNS("http://www.w3.org/2000/svg", "svg"), path = doc.createElementNS(el.namespaceURI, "path");
@@ -133,7 +144,7 @@
         const padding = Math.min(6*scale,width/8,height/8);
         local.append(make("image",{x:padding,y:padding,width:width-2*padding,height:height-2*padding,href:stampDataUrl(graphic.stamp_image),preserveAspectRatio:"xMidYMid meet",opacity:style.opacity}));
       } else if (["textbox", "stamp"].includes(graphic.kind)) {
-        const padding = Math.min(6*scale, width/8, height/8), size = style.font_size*scale, rich = graphic.kind === "textbox" && graphic.text_content, lines = rich ? richTextLines(rich,width-2*padding,size,context) : textLines(graphic.text, width-2*padding, size, graphic.kind === "stamp", context);
+        const padding = Math.min(6*scale, width/8, height/8), size = fontSize(graphic)*scale, rich = graphic.kind === "textbox" && graphic.text_content, lines = rich ? richTextLines(rich,width-2*padding,size,context) : textLines(graphic.text, width-2*padding, size, graphic.kind === "stamp", context);
         lines.forEach((line,index) => { const text=make("text", { x: graphic.kind === "stamp" ? width/2 : padding, y: padding+size+index*size*1.25, fill: style.font_color, opacity: style.opacity, "font-family": "CeasefireDrawing", "font-kerning": "none", "font-variant-ligatures": "none", "font-size": size, "font-weight": graphic.kind === "stamp" ? "bold" : "normal", "text-anchor": graphic.kind === "stamp" ? "middle" : "start" });
           if(rich) for(const run of line) { const span=make("tspan",{x:padding+run.x,"font-weight":run.bold?"bold":"normal","font-style":run.italic?"italic":"normal","text-decoration":run.underline?"underline":"none"});span.textContent=run.text;text.append(span); }
           else text.textContent=line; local.append(text); });
@@ -148,7 +159,7 @@
     }
     return group;
   }
-  const api = Object.freeze({ kinds, boxes, labels, defaults, box, coordinates, icon, paint, textLines, richTextLines, imageByteLimit, stampImageHeader, stampImage, stampDataUrl, stampAt });
+  const api = Object.freeze({ kinds, boxes, labels, defaults, box, coordinates, icon, paint, textLines, richTextLines, fontSize, resizedTextBox, imageByteLimit, stampImageHeader, stampImage, stampDataUrl, stampAt });
   if (typeof module === "object" && module.exports) module.exports = api;
   if (root) root.CeasefireTakeoffGraphics = api;
 })(typeof window === "object" ? window : null);

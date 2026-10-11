@@ -33,6 +33,18 @@ test("Textbox rich runs keep explicit marks, list numbering and fixed physical f
   assert.equal(text.attributes["font-size"],6);assert.equal(first.attributes["font-weight"],"bold");assert.equal(first.attributes["font-style"],"italic");assert.equal(first.attributes["text-decoration"],"underline");assert.equal(first.textContent,"L");assert.equal(JSON.stringify(value),before);
 });
 
+test("Text resize scales physical ink locally and leaves shared rich appearance unchanged",()=>{
+  for(const kind of ["textbox","stamp"]){
+    const value={kind,geometry:{quad_pdf:[[10,20],[110,20],[110,80],[10,80]]},text:"NOTE",appearance:{...X.defaults(),font_size:11.54321}},prior=structuredClone(value);
+    const expanded={quad_pdf:[[10,20],[210,20],[210,140],[10,140]]},geometry=X.resizedTextBox(value,expanded,2);
+    assert.ok(geometry.text_scale>2);assert.equal(X.fontSize({...value,geometry}),value.appearance.font_size*geometry.text_scale);assert.deepEqual(value,prior);
+    const translated=X.stampAt(geometry,[300,400],[0,0,600,800]);assert.equal(translated.text_scale,geometry.text_scale);
+    const make=(tag,attributes)=>({tag,attributes,children:[],append(...nodes){this.children.push(...nodes);}});
+    const tree=X.paint({...value,geometry},p=>p,.5,make,{measureText:()=>({width:4})}),text=tree.children[0].children.find(n=>n.tag==="text");assert.equal(text.attributes["font-size"],X.fontSize({...value,geometry})*.5);
+  }
+  const image={kind:"stamp",geometry:{quad_pdf:[[0,0],[100,0],[100,60],[0,60]]},stamp_image:{},appearance:X.defaults()},next={quad_pdf:[[0,0],[200,0],[200,120],[0,120]]};assert.equal(X.resizedTextBox(image,next),next);assert.equal(next.text_scale,undefined);
+});
+
 test("Reusable stamps translate the same affine PDF box to the exact clicked centre",()=>{
   for(const matrix of [[1,0,0,-1,0,800],[0,2,2,0,-40,-20],[-.7,0,0,.7,420,-30],[0,-.5,-.5,0,400,300]]){
     const geometry=X.box([[100,200],[220,260]],p=>G.transform(p,matrix),p=>G.inverse(p,matrix)), prior=structuredClone(geometry);

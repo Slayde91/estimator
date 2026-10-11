@@ -389,14 +389,17 @@ def _schedule_xlsx(snapshot, selected, results, confirmations, linked, *, mode, 
 
 def export_workspace(snapshot, request, format, *, documents, store):
     """Read-only current-register/drawing exports after service evidence gates."""
-    if format not in ('schedule-xlsx', 'marked-pdf'):
+    if format not in ('schedule-xlsx', 'register-xlsx', 'marked-pdf'):
         raise ValidationError('Choose the current schedule XLSX or marked drawing PDF export.')
     if request.get('mode') == 'penetrations' and format == 'marked-pdf':
         if type(request.get('expected_revision')) is not int or request['expected_revision'] != snapshot['revision']:
             raise ValidationError('The Takeoffs draft changed before export. Retry from its current state.')
         from .takeoff_physical_markers import export_physical_pdf
         return export_physical_pdf(snapshot, request, documents)
+    spreadsheet = format in ('schedule-xlsx', 'register-xlsx')
     allowed = {'expected_revision', 'mode', 'item_ids', 'calculator_drafts'} | ({'document_id', 'annotation_ids', 'signature_ids', 'graphic_ids'} if format == 'marked-pdf' else {'confirmation'})
+    if format == 'register-xlsx':
+        allowed.add('target')
     required = {'expected_revision', 'mode'} | ({'document_id', 'item_ids'} if format == 'marked-pdf' else set())
     object_fields(request, allowed, 'Current Takeoffs export', required)
     if type(request['expected_revision']) is not int or request['expected_revision'] != snapshot['revision']:
@@ -404,6 +407,9 @@ def export_workspace(snapshot, request, format, *, documents, store):
     if request['mode'] not in ('steel', 'duct', 'wall', 'slab', 'walls_floors'):
         raise ValidationError('Choose the active Steel, Duct or Walls/Floors register.')
     modes = ('wall', 'slab') if request['mode'] == 'walls_floors' else (request['mode'],)
+    target = request.get('target', 'steel_vermiculite' if request['mode'] == 'steel' else 'ductwork' if request['mode'] == 'duct' else None)
+    if format == 'register-xlsx' and (not (target is None or isinstance(target, str)) or target not in ({'steel_vermiculite', 'steel_board'} if request['mode'] == 'steel' else {'ductwork'} if request['mode'] == 'duct' else {None})):
+        raise ValidationError('Choose the current register calculator target for this download.')
     active = sorted((item for item in snapshot['items'] if item['mode'] in modes), key=is_standalone_count)
     confirmation_filter = request.get('confirmation', 'all')
     if not isinstance(confirmation_filter, str) or confirmation_filter not in ('confirmed', 'unconfirmed', 'all'):
@@ -412,7 +418,7 @@ def export_workspace(snapshot, request, format, *, documents, store):
     if (not isinstance(ids, list) or len(ids) > 10000 or any(not isinstance(value, str) for value in ids)
             or len(ids) != len(set(ids)) or set(ids) - {item['id'] for item in active}):
         raise ValidationError('Export item IDs must be distinct existing items in the selected Takeoffs mode.')
-    if format == 'schedule-xlsx':
+    if spreadsheet:
         if set(ids) != {item['id'] for item in active}:
             raise ValidationError('Download XLSX includes every item in the current mode, including hidden rows.')
         if not active:
@@ -440,12 +446,16 @@ def export_workspace(snapshot, request, format, *, documents, store):
     approvals, binding_registry = _local_authority(snapshot, store)
     results = {item['id']: item_result(item, snapshot) for item in selected}
     confirmations = {item['id']: _confirmed(item, snapshot, results[item['id']], approvals) for item in selected}
-    if format == 'schedule-xlsx' and confirmation_filter != 'all':
+    if spreadsheet and confirmation_filter != 'all':
         selected = [item for item in selected if confirmations[item['id']] == (confirmation_filter == 'confirmed')]
         if not selected:
             raise ValidationError(f'There are no {confirmation_filter} items in this Takeoffs register to export.')
     drafts = _calculator_drafts(request.get('calculator_drafts', {}))
     linked = _linked_results(snapshot, selected, confirmations, binding_registry, drafts)
+    if format == 'register-xlsx':
+        from .takeoff_register_xlsx import export_current_register
+        return export_current_register(snapshot, selected, results, confirmations, linked,
+            mode=request['mode'], target=target, confirmation=confirmation_filter)
     if format == 'schedule-xlsx':
         return _schedule_xlsx(snapshot, selected, results, confirmations, linked, mode=request['mode'], confirmation_filter=confirmation_filter)
     from .takeoff_markup_pdf import export_marked_pdf

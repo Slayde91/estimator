@@ -26,7 +26,7 @@ async function download(label){
   // Attach rejection handlers immediately: a missing request must reach the outer
   // failure capture, rather than terminate Node through an unhandled waiter.
   const pending=page.waitForEvent('download');pending.catch(()=>{});
-  const responseWait=page.waitForResponse(r=>r.url().endsWith(label==='Download PDF'?'/export/marked-pdf':'/export/schedule-xlsx'));responseWait.catch(()=>{});
+  const responseWait=page.waitForResponse(r=>r.url().endsWith(label==='Download PDF'?'/export/marked-pdf':'/export/register-xlsx'));responseWait.catch(()=>{});
   const [response]=await Promise.all([responseWait,label === 'Download PDF' ? page.evaluate(() => window.CeasefireTakeoffs.downloadDrawing()) : (async()=>{await page.getByRole('button',{name:'Takeoff register document actions',exact:true}).click();await page.getByRole('button',{name:'Download all items',exact:true}).click();})()]);
   if(!response.ok()){const current=await page.evaluate(async()=>{const id=window.CeasefireTakeoffs.sessionId();return(await fetch('/api/takeoffs/sessions/'+id)).json();});throw new Error(JSON.stringify({export:response.request().postDataJSON(),error:await response.json(),currentRevision:current.revision,localRevision:await page.evaluate(()=>window.CeasefireTakeoffs.projectSnapshot().revision)}));}
   const result=await pending,target=path.join(output,result.suggestedFilename());await result.saveAs(target);return {path:target,request:response.request().postDataJSON()};
@@ -99,7 +99,9 @@ async function load(){const pending=page.waitForResponse(r=>r.url().endsWith('/a
   await page.getByLabel('Filter register',{exact:true}).fill('QA-MATCH-');
   await page.locator(`tr[data-item-id="${b.id}"]`).getByRole('checkbox',{name:/^Hide /}).check();
   const {path:xlsx}=await download('Download XLSX');evidence.xlsx=xlsx;
-  const check=spawnSync(python,['-c',"import json,sys\nfrom openpyxl import load_workbook\nw=load_workbook(sys.argv[1],data_only=False)\nprint(json.dumps({**{s.title:list(s.values) for s in w},'__formulas__':[c.coordinate for s in w for row in s for c in row if c.data_type=='f']}))",xlsx],{cwd:root,windowsHide:true,encoding:'utf8'});assert.equal(check.status,0,check.stderr);const workbook=JSON.parse(check.stdout),text=JSON.stringify(workbook);assert.deepEqual(workbook.__formulas__,[]);for(const item of[a,b,c]){assert.ok(text.includes(item.id));assert.ok(text.includes(item.fields.notes));assert.ok(text.includes(item.fields.zone));}assert.ok(text.toLowerCase().includes('unconfirmed'));evidence.xlsxSheets=Object.keys(workbook);
+  const check=spawnSync(python,['-c',"import json,sys\nfrom openpyxl import load_workbook\nw=load_workbook(sys.argv[1],data_only=False)\ns=w.active;r=list(s.values)\nprint(json.dumps({'sheets':w.sheetnames,'headers':r[0],'rows':[dict(zip(r[0],v)) for v in r[1:]],'formulas':[c.coordinate for s in w for row in s for c in row if c.data_type=='f']}))",xlsx],{cwd:root,windowsHide:true,encoding:'utf8'});assert.equal(check.status,0,check.stderr);const workbook=JSON.parse(check.stdout);assert.deepEqual(workbook.formulas,[]);assert.deepEqual(workbook.sheets,['Current Takeoffs']);
+  assert.deepEqual(workbook.headers,(await page.locator('.takeoff-register:not(.takeoff-physical-register) table').first().getByRole('columnheader').allTextContents()).slice(3).map(value=>value.trim()));
+  for(const item of[a,b,c]){const row=workbook.rows.find(row=>row['Member mark']===item.fields.mark);assert.ok(row);assert.equal(row.Qty,item.quantity);assert.equal(row.Confirmation,'Unconfirmed');assert.ok(!Object.hasOwn(row,'Geometry'));}evidence.xlsxSheets=workbook.sheets;
   let releaseRender;
   const renderHeld=new Promise(resolve=>{releaseRender=resolve;});
   let renderCaptured=false,renderHeldReady=false,focusComplete=false;

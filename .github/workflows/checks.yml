@@ -95,6 +95,7 @@ jobs:
       - run: npm run test:help-glossary
       - run: npm run test:help-glossary -- --standard
       - run: npm run test:takeoffs-icons
+      - run: npm run test:takeoffs-measure-icon
       - run: npm run test:takeoffs-signatures
       - run: node tests/browser/signature_chooser_layout.cjs
       - run: npm run test:takeoffs-graphics
@@ -110,6 +111,7 @@ jobs:
       - run: npm run test:library-documents
       - run: npm run test:library-link-picker
       - run: npm run test:penetration-item-exports
+      - run: npm run test:technical-item-documents
       - run: npm run test:calculator-cleanup
       - run: npm run test:page-rotation
       - run: npm run test:viewer-pan-scale

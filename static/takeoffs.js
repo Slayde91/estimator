@@ -484,7 +484,8 @@
     ui.tools.countLength.after(ui.tools.markups, ui.tools.legend);
     if (X && graphicsUI) {
       const measure = button("Measure", () => graphicsUI.activate("measure")); measure.dataset.tool = "graphic-measure";
-      measure.classList.add("icon-only", "takeoff-icon-button", "takeoff-graphic-tool"); measure.replaceChildren(X.icon("measure"));
+      const measureIcon = node("img", "takeoff-measure-icon"); measureIcon.src = "/icons/takeoff-measure.avif"; measureIcon.alt = ""; measureIcon.setAttribute("aria-hidden", "true"); measureIcon.width = 28; measureIcon.height = 28;
+      measure.classList.add("icon-only", "takeoff-icon-button", "takeoff-graphic-tool"); measure.replaceChildren(measureIcon);
       measure.setAttribute("aria-label", "Measure"); measure.title = "Measure length on the PDF"; ui.tools["graphic-measure"] = measure;
       ui.tools.trace.after(measure);
     }
@@ -737,7 +738,7 @@
     for (const control of state.ui.transferControls) { control.hidden = area; control.disabled = area; }
     state.ui.areaNotice.hidden = !area;
     state.ui.tools.trace.hidden = area;
-    state.ui.tools.count.hidden = state.mode !== "duct"; state.ui.countAnchor.hidden = state.mode !== "duct"; state.ui.tools.countLength.hidden = state.mode !== "steel"; state.ui.tools.measure.hidden = !area;
+    state.ui.tools.count.hidden = state.mode !== "duct"; state.ui.countAnchor.hidden = state.mode !== "duct"; state.ui.tools.countLength.hidden = state.mode !== "steel"; state.ui.tools.measure.hidden = true;
     for (const tool of ["polygon", "exclusion"]) state.ui.tools[tool].hidden = !area;
     const sortChoices = [["mark", "Sort: Mark"], ["level", "Sort: Level"], [area ? "area" : "length", area ? "Sort: Total area" : "Sort: Length"], ["state", "Sort: Confirmation"]];
     if (!sortChoices.some(([key]) => key === state.sort)) state.sort = "mark";
@@ -804,7 +805,7 @@
   }
   async function exportPhysical(format, confirmation = null) {
     const sessionId = state.session?.session_id, scope = state.physicalScope, revision = state.session?.revision;
-    const response = await fetch(`/api/takeoffs/sessions/${sessionId}/physical/export/${format}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ scope, ...(format === "pdf" || confirmation !== null ? { expected_revision: revision } : {}), ...(confirmation !== null ? { confirmation } : {}) }) });
+    const response = await fetch(`/api/takeoffs/sessions/${sessionId}/physical/export/${format === "xlsx" ? "register-xlsx" : format}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ scope, ...(format === "pdf" || format === "xlsx" || confirmation !== null ? { expected_revision: revision } : {}), ...(confirmation !== null ? { confirmation } : {}) }) });
     if (!response.ok) { const result = await response.json(); throw new Error(result.error || "Physical draft export failed."); }
     if (sessionId !== state.session?.session_id || scope !== state.physicalScope || revision !== state.session?.revision) throw new Error("The project or penetration workspace changed during draft export. Export the current draft again.");
     const blob = await response.blob(), url = URL.createObjectURL(blob), link = node("a"); link.href = url; link.download = format === "pdf" ? "Passive_Fire_Matrix.pdf" : `CEASEFIRE-${scope === "service_plans" ? "Service-Plans" : "Defect-Reports"}${confirmation !== null ? `-${confirmation[0].toUpperCase()}${confirmation.slice(1)}-Items` : ""}-UNAPPROVED-DRAFT.${format}`; document.body.append(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 30000);
@@ -2060,7 +2061,7 @@
     // Explicit content allowlist: new copies never carry identity or Initial Pages links.
     const value={mode:copied.mode,document_id:source.id,source_sha256:source.sha256,page:state.page,appearance:clone(old.appearance)};
     if(copied.kind==="signature") {value.quad_pdf=translated;value.strokes=clone(old.strokes);}
-    else {value.kind=old.kind;value.geometry=old.geometry.quad_pdf?{quad_pdf:translated}:{points:translated};value.text=old.text;if(old.text_content)value.text_content=clone(old.text_content);if(old.stamp_image)value.stamp_image=clone(old.stamp_image);}
+    else {value.kind=old.kind;value.geometry=old.geometry.quad_pdf?{...clone(old.geometry),quad_pdf:translated}:{points:translated};value.text=old.text;if(old.text_content)value.text_content=clone(old.text_content);if(old.stamp_image)value.stamp_image=clone(old.stamp_image);}
     if (value.kind === "measure") {
       if (!activePageCalibrations().some(calibration => calibration.id === state.calibration)) throw new Error("Choose the current page's scale before pasting a Measure.");
       value.calibration_id = state.calibration;
@@ -4630,7 +4631,7 @@
       const rendering = { zoom: state.zoom, rotations: Object.fromEntries((documentById(documentId)?.pages || []).map((_, index) => [String(index+1), state.pageRotations.get(JSON.stringify([sessionId,documentId,index+1])) || 0])) };
       const annotationIds = state.markupsHidden ? [] : annotations().filter(value => value.document_id === documentId && inWorkspace(value.mode, mode) && !state.annotationHidden?.has(value.id)).map(value => value.id);
       const signatureIds = state.markupsHidden ? [] : signatures().filter(value => value.document_id === documentId && signatureInWorkspace(value, mode, scope) && !state.signatureHidden?.has(value.id)).map(value => value.id);
-      const response = await fetch(`/api/takeoffs/sessions/${sessionId}/export/${format}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ expected_revision: revision, mode: mode === "physical" ? "penetrations" : workspaceMode(mode), item_ids: list.map(item => item.id), ...(pdf ? { document_id: documentId, signature_ids: signatureIds, graphic_ids: state.markupsHidden ? [] : (graphicsUI?.records() || []).filter(value => value.document_id === documentId && signatureInWorkspace(value, mode, scope) && !state.graphicHidden?.has(value.id)).map(value => value.id), ...(mode !== "physical" ? { annotation_ids: annotationIds } : {}) } : { confirmation }), ...(mode === "physical" ? { physical_scope: scope, rendering } : { calculator_drafts: calculatorDrafts }) }) });
+      const response = await fetch(`/api/takeoffs/sessions/${sessionId}/export/${pdf ? format : "register-xlsx"}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ expected_revision: revision, mode: mode === "physical" ? "penetrations" : workspaceMode(mode), item_ids: list.map(item => item.id), ...(pdf ? { document_id: documentId, signature_ids: signatureIds, graphic_ids: state.markupsHidden ? [] : (graphicsUI?.records() || []).filter(value => value.document_id === documentId && signatureInWorkspace(value, mode, scope) && !state.graphicHidden?.has(value.id)).map(value => value.id), ...(mode !== "physical" ? { annotation_ids: annotationIds } : {}) } : { confirmation, target: isArea(mode) ? null : state.ui.target.value }), ...(mode === "physical" ? { physical_scope: scope, rendering } : { calculator_drafts: calculatorDrafts }) }) });
       if (!response.ok) { const result = await response.json(); throw new Error(result.error || "Takeoff download failed."); }
       const blob = await response.blob();
       if (state.session?.session_id !== sessionId || state.session.revision !== revision || mode === "physical" && scope !== state.physicalScope) throw new Error("The project changed during the download. Export the current draft again.");

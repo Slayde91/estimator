@@ -32,6 +32,11 @@ def graphic_appearance(value):
     return {**DEFAULT_APPEARANCE, **value}
 
 
+def graphic_font_size(record):
+    """A local box resize scales ink without rewriting shared appearance."""
+    return record['appearance']['font_size'] * record['geometry'].get('text_scale', 1)
+
+
 def _validate_box(value, page):
     quad = points(value, 'PDF markup box', page, 4, 4)
     q0, q1, q2, q3 = quad
@@ -56,8 +61,14 @@ def validate_graphic(value, snapshot, *, verified_stamp_images=None):
         raise ValidationError('A PDF markup must identify its exact retained source PDF.')
     kind, geometry = value['kind'], value['geometry']
     if kind in BOX_KINDS:
-        object_fields(geometry, {'quad_pdf'}, 'PDF markup box geometry', {'quad_pdf'})
+        object_fields(geometry, {'quad_pdf', 'text_scale'}, 'PDF markup box geometry', {'quad_pdf'})
         _validate_box(geometry['quad_pdf'], page)
+        if 'text_scale' in geometry:
+            if kind not in ('textbox', 'stamp') or 'stamp_image' in value:
+                raise ValidationError('Only a Textbox or text Stamp can retain a text resize scale.')
+            number(geometry['text_scale'], 'PDF markup text resize scale', positive=True)
+            if not .001 <= geometry['text_scale'] <= 1000:
+                raise ValidationError('PDF markup text resize scale must be between 0.001 and 1,000.')
     elif kind in POINT_KINDS:
         object_fields(geometry, {'points'}, 'PDF markup path geometry', {'points'})
         path = points(geometry['points'], 'PDF markup path', page,
@@ -228,7 +239,7 @@ def validate_history(event, *, load_event=None):
     new = {record['id']: record for record in event['after'].get('graphics', {}).get('records', [])}
     if event['before']['revision'] == 0 and old:
         raise ValidationError('The initial audit state cannot contain unrecorded PDF markups.')
-    controlled = ('create_graphic', 'create_textbox', 'update_graphic', 'delete_graphic', 'initial_pages')
+    controlled = ('create_graphic', 'create_textbox', 'create_stamp', 'update_graphic', 'delete_graphic', 'initial_pages')
     if event['op'] in controlled:
         ignored = ('graphics', 'signatures', 'revision') if event['op'] == 'initial_pages' else ('graphics', 'revision')
         projection = lambda state: {key: value for key, value in state.items() if key not in ignored}
@@ -238,9 +249,9 @@ def validate_history(event, *, load_event=None):
         raise ValidationError('PDF markups changed outside a controlled markup operation.')
     added, removed = new.keys() - old.keys(), old.keys() - new.keys()
     changed = {identifier for identifier in old.keys() & new.keys() if old[identifier] != new[identifier]}
-    if added and event['op'] not in ('create_graphic', 'create_textbox', 'initial_pages', 'undo'):
+    if added and event['op'] not in ('create_graphic', 'create_textbox', 'create_stamp', 'initial_pages', 'undo'):
         raise ValidationError('PDF markup identities may only be created or restored by Undo.')
-    if event['op'] in ('create_graphic', 'create_textbox') and (len(added) != 1 or removed or changed or any(new[i]['version'] != 1 for i in added)):
+    if event['op'] in ('create_graphic', 'create_textbox', 'create_stamp') and (len(added) != 1 or removed or changed or any(new[i]['version'] != 1 for i in added)):
         raise ValidationError('A PDF markup must begin with one new identity and version one.')
     if event['op'] == 'create_textbox':
         if any(new[identifier]['kind'] != 'textbox' for identifier in added):
@@ -248,6 +259,12 @@ def validate_history(event, *, load_event=None):
         from .takeoff_textbox_layout import validate_textbox_fit
         for identifier in added:
             validate_textbox_fit(new[identifier], event['after'])
+    if event['op'] == 'create_stamp':
+        if any(new[identifier]['kind'] != 'stamp' for identifier in added):
+            raise ValidationError('An automatic Stamp operation must create one Stamp.')
+        from .takeoff_stamp_layout import validate_stamp_fit
+        for identifier in added:
+            validate_stamp_fit(new[identifier], event['after'])
     if event['op'] == 'update_graphic':
         if added or removed:
             raise ValidationError('A PDF markup edit must retain its existing identities.')

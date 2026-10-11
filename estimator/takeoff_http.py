@@ -194,9 +194,9 @@ class TakeoffHTTP:
             result = self.service.transfer_confirmed_library(session_id, body)
         elif action == 'images/extract':
             result = self.service.extract_images(session_id, body)
-        elif action in {'physical/export/csv', 'physical/export/xlsx', 'physical/export/pdf'}:
+        elif action in {'physical/export/csv', 'physical/export/xlsx', 'physical/export/register-xlsx', 'physical/export/pdf'}:
             format = action.rsplit('/', 1)[1]
-            allowed = {'scope', 'expected_revision', 'confirmation'} if format == 'xlsx' else ({'scope', 'expected_revision'} if format == 'pdf' else {'scope'})
+            allowed = {'scope', 'expected_revision', 'confirmation'} if format in ('xlsx', 'register-xlsx') else ({'scope', 'expected_revision'} if format == 'pdf' else {'scope'})
             if not isinstance(body, dict) or set(body) - allowed:
                 raise ValidationError('Draft physical export accepts only its workspace scope and supported document selection.')
             payload, kind, filename = self.service.export_physical(session_id, format, body.get('scope', 'defect_reports'), body.get('expected_revision'), body.get('confirmation'))
@@ -229,7 +229,7 @@ class TakeoffHTTP:
             payload, kind, filename = self.service.export(session_id, action.rsplit('/', 1)[1], body.get('selected_ids'))
             handler.send_download(payload, kind, filename)
             return True
-        elif action in {'export/schedule-xlsx', 'export/marked-pdf'}:
+        elif action in {'export/schedule-xlsx', 'export/register-xlsx', 'export/marked-pdf'}:
             if query:
                 raise ValidationError('Current Takeoffs exports accept a structured request only.')
             payload, kind, filename = self.service.export_workspace(session_id, action.rsplit('/', 1)[1], body)

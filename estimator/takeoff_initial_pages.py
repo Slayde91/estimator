@@ -127,6 +127,7 @@ def apply_initial_pages(snapshot, value):
     ink_style = signature_appearance(value['signature_appearance'])
     x, y, width, height = natural_box(source_page, box, value['display_rotation'])
     graphics, signatures = [], []
+    group_id = str(uuid4())
     for page in document['pages']:
         page_width, page_height = visible_size(page)
         binding = {'id': str(uuid4()), 'version': 1, 'mode': value['mode'], 'document_id': document['id'],
@@ -136,14 +137,16 @@ def apply_initial_pages(snapshot, value):
             style = deepcopy(text_style)
             style['font_size'] = _fit_text(name, text_box[2]*page_width, text_box[3]*page_height, min(12, style['font_size']))
             record = {**binding, 'kind': 'textbox', 'geometry': {'quad_pdf': box_quad(page, text_box)},
-                      'text': name, 'appearance': style}
+                      'text': name, 'appearance': style,
+                      'initial_pages': {'version': 1, 'group_id': group_id, 'role': 'text'}}
             validate_graphic(record, snapshot)
             graphics.append(record)
         if has_signature:
             ink_box = [x, y, width, height*.7] if has_text else [x, y, width, height]
             fitted = fitted_signature_box(page, ink_box, ratio, ink_style['stroke_width'])
             record = {**binding, 'id': str(uuid4()), 'quad_pdf': box_quad(page, fitted),
-                      'strokes': deepcopy(value['strokes']), 'appearance': deepcopy(ink_style)}
+                      'strokes': deepcopy(value['strokes']), 'appearance': deepcopy(ink_style),
+                      'initial_pages': {'version': 1, 'group_id': group_id, 'role': 'signature'}}
             validate_signature(record, snapshot)
             signatures.append(record)
     # Publish the fully validated lists together; the workspace owns one audit/revision.
@@ -196,6 +199,17 @@ def validate_initial_pages_history(event):
             batches.append(added)
     if not batches:
         raise ValidationError('Initial Pages must create a bounded text or signature batch.')
+    links = [record.get('initial_pages') for batch in batches for record in batch]
+    if any(link is not None for link in links):
+        from .takeoff_initial_links import validate_link
+        for batch in batches:
+            for record in batch:
+                validate_link(record, 'graphics' if 'kind' in record else 'signatures')
+        group_id = next(link['group_id'] for link in links if link is not None)
+        existing_groups = {record['initial_pages']['group_id'] for key in ('graphics', 'signatures')
+                           for record in before.get(key, {}).get('records', []) if 'initial_pages' in record}
+        if group_id in existing_groups or any(link is None or link['group_id'] != group_id for link in links):
+            raise ValidationError('Initial Pages must create one fresh group shared by its complete birth batch.')
     first = batches[0][0]
     document, _ = page_metadata(after, first['document_id'], first['page'])
     binding = (first['mode'], first['document_id'], first['source_sha256'])

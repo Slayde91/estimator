@@ -997,6 +997,8 @@ def validate_snapshot(value, *, copy_result=True):
     validate_signatures(value)
     from .takeoff_graphics import validate_graphics
     validate_graphics(value)
+    from .takeoff_initial_links import validate_links
+    validate_links(value)
     from .takeoff_library_links import validate_assignments
     validate_assignments(value)
     digest(value)

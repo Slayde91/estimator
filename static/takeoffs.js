@@ -61,7 +61,7 @@
   const documentById = id => documents().find(doc => doc.id === id);
   const currentDocument = () => documentById(state.document);
   const pageMetadata = () => currentDocument()?.pages?.find(page => page.page === state.page);
-  const graphicsUI = X && window.CeasefireTakeoffGraphicsUI({ state, G, X, node, svg, button, clone, snapshot, documents, pageMetadata, currentDocument, pageDisplayKey, signatureMode, signatureInWorkspace, selectedSignature, selectedAnnotation, command, safely, message, renderSelection, renderOverlay, flushSettings, requireFinishedEdits, cancelTrace, setTool, ask, drawingPoint, drawingClickOpensSettings, bindSetting, markSettingsEdited, appearanceField, formField, currentVisibilityControl, renderPhysicalDetails, renderViewportPanel, toggleSettings });
+  const graphicsUI = X && window.CeasefireTakeoffGraphicsUI({ state, G, X, node, svg, button, clone, snapshot, documents, pageMetadata, currentDocument, pageDisplayKey, signatureMode, signatureInWorkspace, selectedSignature, selectedAnnotation, command, safely, message, renderSelection, renderOverlay, flushSettings, requireFinishedEdits, cancelTrace, setTool, ask, drawingPoint, drawingClickOpensSettings, bindSetting, markSettingsEdited, appearanceField, formField, currentVisibilityControl, renderPhysicalDetails, renderViewportPanel, toggleSettings, openStampMenu });
   const initialPagesUI = window.CeasefireTakeoffInitialPages?.({ state, G, S, svg, snapshot, currentDocument, pageMetadata, pageRotation, pageDisplayKey, signatureMode, drawingPoint, flushSettings, requireFinishedEdits, cancelTrace, setTool, command, safely, message, renderOverlay, renderSelection });
   const selectedItems = () => items().filter(item => state.selected.has(item.id) && inWorkspace(item.mode));
   const editableFields = (mode, calculator = state.ui?.target?.value) => (fields[mode] || []).filter(([key]) => !["zone", "group", "notes"].includes(key) && (key !== "sides" || calculator === "steel_board"));
@@ -130,6 +130,7 @@
     "Trace length": "M1 6v12M23 6v12M4 12h16M8 8l-4 4 4 4M16 8l4 4-4 4",
     "Re-trace geometry": "M1 6v12M23 6v12M4 12h16M8 8l-4 4 4 4M16 8l4 4-4 4",
     "Delete item": "M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7",
+    "Delete signature": "M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7",
     "Count": "M5 3v18M10 3v18M15 3v18M20 3v18M2 7l21 10",
     "Count steel lengths": "M5 3v18M10 3v18M15 3v18M20 3v18M2 7l21 10",
     "Length": "M1 6v12M23 6v12M4 12h16M8 8l-4 4 4 4M16 8l4 4-4 4",
@@ -159,8 +160,8 @@
     if (download) {
       const format = label.split(" ").at(-1), symbol = node("span", "download-format-icon"); symbol.setAttribute("aria-hidden", "true"); symbol.append(node("span", "download-arrow", "⇩"), node("span", "download-format", format));
       el.className = `button icon-only schedule-download-button takeoff-download-button ${format === "PDF" ? "calculator-export-pdf" : "calculator-export-excel"}`; el.title = label; el.setAttribute("aria-label", label); el.append(symbol, node("span", "sr-only", label));
-    } else if (["Set as default", "Signatures"].includes(label)) {
-      const kind = label === "Signatures" ? "signature" : "default";
+    } else if (["Set as default", "Signatures", "Redraw signature"].includes(label)) {
+      const kind = label === "Set as default" ? "default" : "signature";
       el.classList.add("icon-only", "takeoff-icon-button", `takeoff-${kind}-button`);
       el.title = label; el.setAttribute("aria-label", label);
       const symbol = node("span", `takeoff-action-icon takeoff-${kind}-icon`); symbol.setAttribute("aria-hidden", "true");
@@ -1775,10 +1776,12 @@
   }
   async function clearDrawingSelection() {
     state.lastDrawingClick = null;
-    const savingSettings = state.mode !== "physical" && state.settingsEditor?.applying;
+    const savingSettings = state.settingsEditor?.applying;
     if (state.tool !== "select" || state.busy && !savingSettings || state.modal || state.gesture || state.physicalPlacing || !(state.selected.size || state.physicalSelected.size || state.legendSelected || state.annotationSelected || state.signatureSelected || state.graphicSelected || state.settingsOpen)) return;
-    if (!await discardEditor()) return;
+    const intent = () => JSON.stringify([pageDisplayKey(),signatureMode(),state.tool,state.graphicSelected,state.signatureSelected,state.annotationSelected,state.legendSelected,[...state.selected],[...state.physicalSelected],state.settingsOpen,state.settingsEditor?.key]), before=intent();
+    if (!await discardEditor() || before!==intent()) return;
     state.selected.clear(); state.countSelection.clear(); state.legendSelected = null; state.annotationSelected = null; state.graphicSelected = null; state.signatureSelected = null; state.graphicSelected = null; state.controlPoint = null; state.controlMenu = false; state.markupMenu = null; state.hovered = null;
+    state.settingsOpen = false; state.settingsEditor = null;
     if (state.mode === "physical") { await state.physicalUI?.clearSelection(); state.physicalHovered = null; }
     renderSelection();
   }
@@ -1966,7 +1969,7 @@
     menu.addEventListener("pointerdown", event => event.stopPropagation()); menu.addEventListener("click", event => event.stopPropagation()); container.append(menu); overlay.append(container);
   }
   function renderMarkupMenu(overlay) {
-    if (!state.markupMenu || state.markupMenu.annotation || state.markupMenu.physical || state.gesture) return;
+    if (!state.markupMenu || state.markupMenu.annotation || state.markupMenu.physical || state.markupMenu.pdf || state.gesture) return;
     const { reference, point } = state.markupMenu;
     try { markupTarget(reference); } catch { state.markupMenu = null; return; }
     const menu = node("div", "takeoff-control-menu takeoff-markup-menu"); menu.setAttribute("role", "menu"); menu.setAttribute("aria-label", "Markup actions");
@@ -1989,6 +1992,7 @@
     return item;
   }
   function copyLengthMarkups() {
+    state.pdfMarkupClipboard = null;
     state.annotationClipboard = null;
     state.physicalClipboard = null;
     requireFinishedEdits();
@@ -2019,12 +2023,66 @@
     state.selected = new Set(reply.created_item_ids); state.countSelection.clear(); state.controlPoint = null; state.controlMenu = false; state.markupMenu = null; state.settingsEditor = null; renderSelection();
     message(`Pasted ${reply.created_item_ids.length} new unconfirmed ${copied.area ? "surface" : "Length"} markup${reply.created_item_ids.length === 1 ? "" : "s"} as separate register items. The register now uses the destination drawing scale.`);
   }
+  const pdfPasteContext = () => JSON.stringify([pageDisplayKey(),signatureMode(),currentDocument()?.sha256,state.viewport?.transform,state.renderId,state.tool]);
+  const pdfSelectionIntent = () => JSON.stringify([state.graphicSelected,state.signatureSelected,state.annotationSelected,state.legendSelected,[...state.selected],[...state.physicalSelected],state.settingsOpen,state.settingsEditor?.key]);
+  const clipboardIntent = () => [state.pdfMarkupClipboard,state.annotationClipboard,state.physicalClipboard,state.lengthClipboard];
+  async function copyPdfMarkup() {
+    const before=pdfPasteContext(), previousClipboard=clipboardIntent(), id=graphicsUI?.selected()?.id || selectedSignature()?.id;
+    await flushSettings(); requireFinishedEdits();
+    const graphic=graphicsUI?.selected(), signature=selectedSignature(), record=graphic || signature;
+    if(!record || record.id!==id || before!==pdfPasteContext() || previousClipboard.some((value,index)=>value!==clipboardIntent()[index]) || state.tool!=="select" || state.markupsHidden || (graphic?state.graphicHidden:state.signatureHidden)?.has(id)) throw new Error("Select a visible PDF markup on this page to copy.");
+    state.annotationClipboard=null;state.lengthClipboard=null;state.physicalClipboard=null;
+    state.pdfMarkupClipboard={sessionId:state.session.session_id,mode:signatureMode(),kind:graphic?"graphic":"signature",record:clone(record)};
+    message("PDF markup copied. Move the pointer onto the drawing and press Ctrl+V.");
+  }
+  async function pastePdfMarkup() {
+    const copied=state.pdfMarkupClipboard, before=pdfPasteContext(), pointer=state.pastePointer, selection=pdfSelectionIntent();
+    await flushSettings();requireFinishedEdits();
+    if(!copied || copied!==state.pdfMarkupClipboard || copied.sessionId!==state.session?.session_id || copied.mode!==signatureMode() || before!==pdfPasteContext() || selection!==pdfSelectionIntent() || state.tool!=="select" || !state.viewport || pointer?.key!==pageDisplayKey()) throw new Error("Copy a PDF markup here and move the pointer onto the current drawing first.");
+    const source=currentDocument(), old=copied.record, view=pageMetadata()?.view;
+    if(!source || !documents().some(value=>value.id===old.document_id && value.sha256===old.source_sha256) || !view) throw new Error("The copied markup's original PDF is unavailable. Copy it again.");
+    const point=drawingPoint({clientX:pointer.client[0],clientY:pointer.client[1]}), points=copied.kind==="signature"?old.quad_pdf:X.coordinates(old), bounds=G.bounds(points), center=[(bounds[0]+bounds[2])/2,(bounds[1]+bounds[3])/2];
+    const translated=points.map(p=>p.map((n,axis)=>n+point[axis]-center[axis]));
+    if(translated.some(p=>p.some((n,axis)=>!Number.isFinite(n) || n<view[axis] || n>view[axis+2]))) throw new Error("Place the whole copied markup inside the PDF page.");
+    // Explicit content allowlist: new copies never carry identity or Initial Pages links.
+    const value={mode:copied.mode,document_id:source.id,source_sha256:source.sha256,page:state.page,appearance:clone(old.appearance)};
+    if(copied.kind==="signature") {value.quad_pdf=translated;value.strokes=clone(old.strokes);}
+    else {value.kind=old.kind;value.geometry=old.geometry.quad_pdf?{quad_pdf:translated}:{points:translated};value.text=old.text;if(old.text_content)value.text_content=clone(old.text_content);if(old.stamp_image)value.stamp_image=clone(old.stamp_image);}
+    const revision=state.session.revision;
+    const reply=await command(copied.kind==="signature"?"create_signature":"create_graphic",{[copied.kind]:value},()=>{requireFinishedEdits();return copied===state.pdfMarkupClipboard && before===pdfPasteContext() && revision===state.session?.revision && state.pastePointer===pointer && selection===pdfSelectionIntent();});
+    if(!reply || before!==pdfPasteContext() || copied!==state.pdfMarkupClipboard || selection!==pdfSelectionIntent() || state.settingsDirty || state.formDirty) return;
+    state.selected.clear();state.countSelection.clear();state.annotationSelected=null;state.legendSelected=null;state.graphicSelected=null;state.signatureSelected=null;state.settingsOpen=false;state.settingsEditor=null;
+    const emptySelection=pdfSelectionIntent();await state.physicalUI?.clearSelection?.();
+    if(before!==pdfPasteContext() || emptySelection!==pdfSelectionIntent() || state.settingsDirty || state.formDirty) return;
+    if(copied.kind==="signature")state.signatureSelected=reply.created_signature_id;else state.graphicSelected=reply.created_graphic_id;
+    renderSelection();message("Pasted an independent PDF markup with a new identity.");
+  }
+  async function openStampMenu(id, point) {
+    const before=pdfPasteContext();await flushSettings();requireFinishedEdits();
+    if(before!==pdfPasteContext() || state.tool!=="select") return;
+    const value=graphicsUI?.records().find(v=>v.id===id && v.kind==="stamp" && signatureInWorkspace(v) && v.document_id===state.document && v.page===state.page);
+    if(!value) return;
+    state.controlPoint=null;state.controlMenu=false;state.markupMenu={pdf:{id,context:before,revision:state.session.revision,version:value.version,point:G.transform(point,state.viewport.transform)}};renderOverlay();
+    state.ui.overlay.querySelector('[aria-label="Stamp actions"] button')?.focus({preventScroll:true});
+  }
+  function renderStampMenu(overlay) {
+    const reference=state.markupMenu?.pdf;if(!reference || state.gesture)return;
+    const valid=()=>reference.context===pdfPasteContext() && reference.revision===state.session?.revision && graphicsUI?.records().some(v=>v.id===reference.id && v.kind==="stamp" && v.version===reference.version && signatureInWorkspace(v) && v.document_id===state.document && v.page===state.page);
+    if(!valid()){state.markupMenu=null;return;}
+    const menu=node("div","takeoff-control-menu takeoff-markup-menu");menu.setAttribute("role","menu");menu.setAttribute("aria-label","Stamp actions");
+    const resume=button("Continue Stamp",async()=>{if(!valid())throw new Error("The Stamp changed. Open its menu again.");state.markupMenu=null;await graphicsUI.continueStamp(reference.id);});resume.setAttribute("role","menuitem");menu.append(resume);appendPlanMenu(overlay,reference.point,menu,170);
+  }
   function planContextMenu(event) {
     if (state.points.length || !["select", "pan", "text"].includes(state.tool)) { event.preventDefault(); event.stopImmediatePropagation(); cancelTrace(); }
   }
   function planKeydown(event) {
     if (event.target?.isContentEditable || event.target?.closest?.("input,textarea,select,[contenteditable=true]")) return;
     if (event.key === "Escape") { event.preventDefault(); cancelTrace(); resetPlanInteraction(); renderOverlay(); return; }
+    if ((event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey && !event.repeat && !event.isComposing && state.tool === "select") {
+      const key = event.key.toLowerCase();
+      if (key === "c" && (graphicsUI?.selected() || selectedSignature())) { event.preventDefault(); if (!state.busy && !state.modal) void safely(copyPdfMarkup); return; }
+      if (key === "v" && state.pdfMarkupClipboard) { event.preventDefault(); if (!state.busy && !state.modal) void safely(pastePdfMarkup); return; }
+    }
     if ((event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey && !event.repeat && !event.isComposing && state.tool === "select" && state.mode !== "physical") {
       const key = event.key.toLowerCase();
       if (key === "c" && selectedAnnotation()) { event.preventDefault(); if (!state.busy && !state.modal) void safely(copyFreeCallout); return; }
@@ -2480,7 +2538,7 @@
     // Keep the existing hint and its exact height until pointer capture ends:
     // collapsing it mid-gesture moves the canvas under the pointer.
     if (state.ui.controlStatus && !state.gesture) state.ui.controlStatus.hidden = true;
-    if (state.mode === "physical") { renderPhysicalOverlay(overlay); renderSignatures(overlay); graphicsUI?.paint(overlay); renderPendingTrace(overlay); return; }
+    if (state.mode === "physical") { renderPhysicalOverlay(overlay); renderSignatures(overlay); graphicsUI?.paint(overlay); renderPendingTrace(overlay); renderStampMenu(overlay); return; }
     for (const item of drawableItems()) {
       const pointDrag = state.gesture?.kind === "point" && state.gesture.moved && state.gesture.reference.itemId === item.id;
       let geometry = pointDrag ? state.gesture.geometry : state.gesture?.kind === "move" && state.gesture.moved && state.gesture.ids.includes(item.id) ? G.translateGeometry(item.geometry, state.gesture.delta) : item.geometry;
@@ -2511,7 +2569,7 @@
     renderSignatures(overlay); graphicsUI?.paint(overlay);
     if (state.gesture?.kind === "marquee" && state.gesture.moved) { const box = G.bounds([state.gesture.initial, state.gesture.current].map(convert)); overlay.append(svg("rect", { x: box[0], y: box[1], width: box[2] - box[0], height: box[3] - box[1], class: "takeoff-marquee" })); }
     renderControlPoints(overlay);
-    renderMarkupMenu(overlay);
+    renderMarkupMenu(overlay); renderStampMenu(overlay);
     renderDrawingLegend(overlay);
   }
   function renderLengthAdditionMarkers(overlay, item, geometry) {
@@ -2639,6 +2697,7 @@
     await flushSettings(); requireFinishedEdits();
     const annotation = selectedAnnotation(); if (!annotation) throw new Error("Select a Call-out to copy.");
     state.lengthClipboard = null;
+    state.pdfMarkupClipboard = null; state.physicalClipboard = null;
     state.annotationClipboard = { sessionId: state.session.session_id, mode: state.mode, annotation: clone(annotation) };
     message("Call-out copied. Move the pointer onto the drawing and press Ctrl+V.");
   }
@@ -2789,7 +2848,7 @@
         await state.queue;
         if (editor.sessionId !== state.session?.session_id || editor.key !== signatureSelectionKey()) throw new Error("The signature changed. Select it again.");
         if (state.modal || state.gesture || state.points.length) throw new Error("Finish the drawing operation before editing the signature.");
-        const touched = new Map(editor.touched), appearance = { ...selectedSignature().appearance };
+        const touched = new Map(editor.touched), appearance = {};
         for (const field of editor.appearance) if (touched.has(`appearance:${field.control.name}`)) appearance[field.control.name] = field.read();
         const reply = await command("update_signature", { signature_id: editor.id, changes: { appearance } }, () => state.settingsEditor === editor && editor.key === signatureSelectionKey());
         if (!reply) return;
@@ -3072,6 +3131,7 @@
     const copied = state.physicalUI.copyDrawing(id), root = copied.records[0].entity;
     if (!root.marker && !root.annotation) root.annotation = clone(locator);
     if (!root.marker?.callout?.offset && !root.annotation?.callout?.offset) (root.marker || root.annotation).callout = { ...(root.marker || root.annotation).callout, offset: G.inverse([box.x, box.y], state.viewport.transform).map((value, axis) => value-locator.point[axis]), width: box.width/scale, height: box.height/scale };
+    state.pdfMarkupClipboard = null; state.annotationClipboard = null; state.lengthClipboard = null;
     state.physicalClipboard = { sessionId: state.session.session_id, copied, offset: G.inverse([box.x, box.y], state.viewport.transform).map((value, axis) => value-locator.point[axis]) };
     message("Callout and linked records copied. Move the pointer onto the drawing and press Ctrl+V.");
   }
@@ -4550,7 +4610,7 @@
     state.thicknessFilterNeedsRender = false; state.thicknessFilterEditor = null;
     const prior = state.session?.session_id;
     resetCountDraft();
-    state.lengthClipboard = null; state.pastePointer = null;
+    state.lengthClipboard = null; state.pdfMarkupClipboard = null; state.annotationClipboard = null; state.physicalClipboard = null; state.pastePointer = null;
     resetPlanInteraction();
     cancelSelectionGesture(); state.autoScalePages?.clear(); if (state.settingsEditor) clearTimeout(state.settingsEditor.timer); state.settingsOpen = false; state.settingsDirty = false; state.settingsEditor = null;
     const physical = state.physicalUI; state.physicalUI = null; physical?.destroy(); state.physicalSelected.clear(); state.physicalVisible.clear(); state.physicalHovered = null; state.physicalPreviews.clear(); state.physicalScope = "defect_reports"; state.physicalDetailsOpen = false; state.physicalPlacing = false;

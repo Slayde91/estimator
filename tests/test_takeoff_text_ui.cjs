@@ -61,15 +61,15 @@ async function check(label, fn) { await fn(); passed++; console.log(`ok - ${labe
     h.state.tool = 'select'; h.audit.planKeydown({ key: 'c', ctrlKey: true, preventDefault() { prevented = true; } }); await flush(); assert.equal(prevented, true); assert.equal(h.copied.length, 1);
   });
   await check('Text right-click preserves the native Copy menu and selection while drawing right-click still cancels', async () => {
-    const h = harness(), selectedText = {}; let cancelled = 0, prevented = false;
+    const h = harness(), selectedText = {}; let cancelled = 0, prevented = false, stopped = false;
     h.selection.anchorNode = h.selection.focusNode = selectedText;
     h.audit.cancel(() => { cancelled++; h.selection.removeAllRanges(); h.state.tool = 'select'; });
-    const event = { preventDefault() { prevented = true; } };
+    const event = { preventDefault() { prevented = true; }, stopImmediatePropagation() { stopped = true; } };
     h.audit.planContextMenu(event);
-    assert.equal(prevented, false); assert.equal(cancelled, 0); assert.equal(h.state.tool, 'text');
+    assert.equal(prevented, false); assert.equal(stopped, false); assert.equal(cancelled, 0); assert.equal(h.state.tool, 'text');
     assert.equal(h.selection.anchorNode, selectedText); assert.equal(h.selection.focusNode, selectedText); assert.equal(h.state.selected.size, 1);
     h.state.tool = 'trace'; h.state.points = [[10, 10]]; h.audit.planContextMenu(event);
-    assert.equal(prevented, true); assert.equal(cancelled, 1); assert.equal(h.state.tool, 'select');
+    assert.equal(prevented, true); assert.equal(stopped, true); assert.equal(cancelled, 1); assert.equal(h.state.tool, 'select');
   });
   await check('Selection cleanup leaves text selected outside the drawing alone', async () => {
     const h = harness(), outside = {}; h.state.pdfText = { container: { contains: value => value === 'pdf' } };

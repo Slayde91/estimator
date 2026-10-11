@@ -134,13 +134,20 @@ window.CeasefireTakeoffGraphicsUI = function (host) {
     const geometry = X.boxes.has(kind) ? X.box(points, p=>G.transform(p,state.viewport.transform), p=>G.inverse(p,state.viewport.transform)) : {points};
     if (kind === "polygon" && points.length < 3) throw new Error("Choose at least three vertices for a polygon.");
     if (geometry.quad_pdf && [1,3].some(i=>Math.hypot(...geometry.quad_pdf[i].map((n,axis)=>n-geometry.quad_pdf[0][axis])) < 10)) throw new Error("Choose a larger rectangle (at least 10 PDF points on each side).");
-    let text = "", stampContent=null;
+    let text = "", textContent=null, stampContent=null;
     if(kind === "stamp") { stampContent=await chooseStamp();if(!stampContent){if(generation===stampGeneration && context===pageDisplayKey() && mode===signatureMode() && tool===state.tool)cancelTrace();return;}text=stampContent.text; }
     else if (kind === "textbox") {
-      const answer = await ask(X.labels[kind], [["text","Textbox text","textarea","",true]], "This text is a drawing note.", "Place markup", controls=>{ controls[0].control.maxLength=4000; });
-      if (!answer) { cancelTrace(); return; } text = answer.text;
+      const A=window.CeasefireTakeoffAnnotations;
+      const answer = await ask(X.labels[kind], [["text","Textbox text","textarea","",true]], "This text is a drawing note.", "Place markup", (controls,ready)=>{
+        const field=controls[0], wrapper=node("div","field takeoff-graphic-text"), status=node("p","helper"); status.setAttribute("role","status");
+        const refresh=()=>{try {ready(!!A.text(rich.read()).trim());status.textContent="";}catch(error){ready(false);status.textContent=error.message;}};
+        const rich=A.richEditor({version:1,blocks:[{kind:"paragraph",runs:[{text:""}]}]},refresh,{label:"Textbox text",maxLength:4000});
+        field.read=()=>{textContent=rich.read();const value=A.text(textContent);if(!value.trim())throw new Error("Enter nonblank markup text.");return value;};
+        wrapper.append(node("span","","Textbox text"),rich.wrap,status);field.wrapper.replaceWith(wrapper);refresh();rich.editor.focus();
+      });
+      if (!answer) { if(context===pageDisplayKey() && mode===signatureMode() && tool===state.tool)cancelTrace(); return; } text = answer.text;
     }
-    const graphic = { mode, document_id: documentId, source_sha256: sourceSha, page: state.page, kind: kind === "polyline" && points.length === 2 ? "line" : kind, geometry, text, appearance: X.defaults(), ...(stampContent?.stamp_image?{stamp_image:stampContent.stamp_image}:{}) };
+    const graphic = { mode, document_id: documentId, source_sha256: sourceSha, page: state.page, kind: kind === "polyline" && points.length === 2 ? "line" : kind, geometry, text, ...(textContent?{text_content:textContent}:{}), appearance: X.defaults(), ...(stampContent?.stamp_image?{stamp_image:stampContent.stamp_image}:{}) };
     const reply = await command("create_graphic", {graphic}, ()=>context === pageDisplayKey() && mode === signatureMode() && revision === state.session.revision && tool === state.tool && JSON.stringify(points) === JSON.stringify(state.points) && (kind !== "stamp" || generation===stampGeneration));
     if (!reply) throw new Error("The drawing changed. Place the markup again.");
     if(kind === "stamp") { if(generation!==stampGeneration || context!==pageDisplayKey() || mode!==signatureMode() || tool!==state.tool) return;const stored=records().find(value=>value.id===reply.created_graphic_id) || graphic;state.stampTemplate={key:stampKey(),geometry:clone(geometry),text:stored.text,appearance:clone(stored.appearance),...(stored.stamp_image?{stamp_image:clone(stored.stamp_image)}:{})};state.points=[];state.traceCursor=null;state.graphicSelected=null;renderSelection();message("Stamp placed. Click for another copy; right-click or select Stamp again to stop.");return; }
@@ -167,7 +174,7 @@ window.CeasefireTakeoffGraphicsUI = function (host) {
     const editor = {kind:"graphic", key:selectionKey, sessionId:state.session.session_id, revision:state.session.revision, id:value.id, touched:new Map(), appearance:[]}; state.settingsEditor=editor;
     const heading=node("div","takeoff-viewports-heading"), controls=node("div","takeoff-settings-fields"); heading.append(button("Close settings",host.toggleSettings),node("h3","",`${X.labels[value.kind]} Settings`)); panel.replaceChildren(heading,controls);
     const textAppearance = ["textbox","stamp"].includes(value.kind) && !value.stamp_image;
-    const definitions = [["stroke_color","Line Colour","color"],["stroke_width","Line Width","number"],["fill_color","Fill Colour","color"],["fill_enabled","Fill Enabled","checkbox"],...(textAppearance ? [["font_color","Font Colour","color"]] : []),["opacity","Opacity","number"],...(textAppearance ? [["font_size","Font Size","number"]] : [])];
+    const definitions = [["stroke_color","Line Colour","color"],["stroke_width","Line Width","number"],["fill_color","Fill Colour","color"],["fill_enabled","Fill Enabled","checkbox"],...(textAppearance ? [["font_color","Font Colour","color"],["font_size","Font Size","number"]] : []),["opacity","Opacity","number"]];
     for(const def of definitions) { const field=def[0] === "font_size" ? host.formField(def,value.appearance[def[0]]) : appearanceField(def,value.appearance[def[0]]); if(def[0] === "font_size") {field.control.min="4";field.control.max="144";} editor.appearance.push(field); bindSetting(editor,field,`appearance:${def[0]}`); controls.append(field.wrapper); }
     if(value.kind === "textbox") {
       const A=window.CeasefireTakeoffAnnotations, wrapper=node("div","field takeoff-graphic-text"), content=value.text_content || {version:1,blocks:[{kind:"paragraph",runs:[{text:value.text}]}]};
@@ -184,7 +191,7 @@ window.CeasefireTakeoffGraphicsUI = function (host) {
     const task=Promise.resolve().then(async()=>{while(state.settingsEditor===editor && editor.touched.size) {
       await state.queue; if(editor.sessionId !== state.session?.session_id || editor.key !== key()) throw new Error("The selected PDF markup changed. Select it again.");
       if(state.modal || state.gesture || state.points.length) throw new Error("Finish the drawing operation before editing the markup.");
-      const captured=new Map(editor.touched), appearance={...selected().appearance}, changes={};
+      const captured=new Map(editor.touched), appearance={}, changes={};
       for(const field of editor.appearance) if(captured.has(`appearance:${field.control.name}`)) appearance[field.control.name]=field.read();
       if([...captured.keys()].some(name=>name.startsWith("appearance:"))) changes.appearance=appearance;
       if(captured.has("text")) { if(editor.rich) { changes.text_content=editor.rich.read();changes.text=window.CeasefireTakeoffAnnotations.text(changes.text_content);if(!changes.text.trim()) throw new Error("Enter nonblank markup text."); } else changes.text=editor.text.read(); }
@@ -205,6 +212,7 @@ window.CeasefireTakeoffGraphicsUI = function (host) {
       if(active) { const bounds=G.bounds(points);group.append(svg("rect",{x:bounds[0]-3,y:bounds[1]-3,width:bounds[2]-bounds[0]+6,height:bounds[3]-bounds[1]+6,fill:"none",stroke:"#1264c4","stroke-width":1.5,"pointer-events":"none"})); if(state.tool==="select") { const handles=graphic.geometry.quad_pdf ? [[2,points[2]]] : points.map((p,index)=>[index,p]); for(const[index,p]of handles)group.append(svg("rect",{x:p[0]-5,y:p[1]-5,width:10,height:10,fill:"white",stroke:"#1264c4","data-graphic-part":String(index),"aria-label":"Resize markup"})); } }
       group.addEventListener("click",event=>{event.stopPropagation();if(state.tool==="select"&&Date.now()>=(state.suppressSelectionClickUntil||0))void safely(()=>select(value.id,drawingClickOpensSettings(event,`graphic:${value.id}`)));});
       group.addEventListener("keydown",event=>{if(["Enter"," "].includes(event.key)){event.preventDefault();event.stopPropagation();void safely(()=>select(value.id));}});
+      if(value.kind==="stamp") group.addEventListener("contextmenu",event=>{if(state.tool!=="select"||state.busy||state.modal)return;event.preventDefault();event.stopPropagation();void safely(()=>host.openStampMenu(value.id,drawingPoint(event)));});
       group.addEventListener("pointerdown",event=>void safely(()=>drag(event,value))); overlay.append(group);
     }
     if(isTool()&&state.points.length) {
@@ -228,5 +236,18 @@ window.CeasefireTakeoffGraphicsUI = function (host) {
     const cleanup=gesture.cleanup=()=>{element.removeEventListener("pointermove",move);element.removeEventListener("pointerup",finish);element.removeEventListener("pointercancel",cancel);element.removeEventListener("lostpointercapture",cancel);if(element.hasPointerCapture?.(event.pointerId))element.releasePointerCapture(event.pointerId);};
     element.addEventListener("pointermove",move);element.addEventListener("pointerup",finish);element.addEventListener("pointercancel",cancel);element.addEventListener("lostpointercapture",cancel);element.setPointerCapture?.(event.pointerId);event.preventDefault();
   }
-  return Object.freeze({records,selected,isTool,activate,point,finish,select,remove,settings,apply,paint,beginStampBox,hasStampTemplate,cancel});
+  async function continueStamp(id) {
+    const intent=()=>JSON.stringify([stampKey(),state.tool,state.graphicSelected,state.signatureSelected,state.annotationSelected,[...state.selected],[...state.physicalSelected],state.settingsOpen,state.settingsEditor?.key]), before=intent();
+    await flushSettings();requireFinishedEdits();
+    if(before!==intent()) throw new Error("The drawing or selection changed. Select the Stamp again.");
+    const value=records().find(v=>v.id===id && v.kind==="stamp" && signatureInWorkspace(v) && v.document_id===state.document && v.page===state.page);
+    if(!value || state.tool!=="select") throw new Error("Select a current Stamp to continue.");
+    const context=stampKey(), version=value.version;
+    await activate("stamp");
+    const current=records().find(v=>v.id===id);
+    if(context!==stampKey() || state.tool!=="graphic-stamp" || current?.version!==version) throw new Error("The Stamp changed. Select it again.");
+    state.stampTemplate={key:context,geometry:clone(current.geometry),text:current.text,appearance:clone(current.appearance),...(current.stamp_image?{stamp_image:clone(current.stamp_image)}:{})};
+    renderSelection();message("Continue Stamp: click to place copies using its latest settings. Right-click stops.");
+  }
+  return Object.freeze({records,selected,isTool,activate,point,finish,select,remove,settings,apply,paint,beginStampBox,hasStampTemplate,cancel,continueStamp});
 };

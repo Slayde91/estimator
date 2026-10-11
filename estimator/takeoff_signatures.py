@@ -13,7 +13,8 @@ SIGNATURE_MODES = ('steel', 'duct', 'wall', 'slab', 'defect_reports', 'service_p
 APPEARANCE_FIELDS = {'stroke_color', 'stroke_width', 'opacity'}
 DEFAULT_APPEARANCE = {'stroke_color': '#000000', 'stroke_width': 2, 'opacity': 1}
 SIGNATURE_FIELDS = {'id', 'version', 'mode', 'document_id', 'source_sha256', 'page',
-                    'quad_pdf', 'strokes', 'appearance'}
+                    'quad_pdf', 'strokes', 'appearance', 'initial_pages'}
+REQUIRED_SIGNATURE_FIELDS = SIGNATURE_FIELDS - {'initial_pages'}
 EDIT_FIELDS = {'quad_pdf', 'strokes', 'appearance'}
 
 
@@ -59,7 +60,7 @@ def validate_quad(value, page):
 
 
 def validate_signature(value, snapshot):
-    object_fields(value, SIGNATURE_FIELDS, 'Signature', SIGNATURE_FIELDS)
+    object_fields(value, SIGNATURE_FIELDS, 'Signature', REQUIRED_SIGNATURE_FIELDS)
     identity(value['id'], 'Signature ID')
     number(value['version'], 'Signature version', positive=True, integer=True)
     if value['mode'] not in SIGNATURE_MODES:
@@ -71,6 +72,8 @@ def validate_signature(value, snapshot):
     validate_strokes(value['strokes'])
     object_fields(value['appearance'], APPEARANCE_FIELDS, 'Stored signature appearance', APPEARANCE_FIELDS)
     signature_appearance(value['appearance'])
+    from .takeoff_initial_links import validate_link
+    validate_link(value, 'signatures')
     return value
 
 
@@ -101,12 +104,12 @@ def validate_signatures(snapshot):
         seen.add(record['id'])
 
 
-def apply_signature(snapshot, request):
+def apply_signature(snapshot, request, *, load_event=None):
     """Edit this optional collection through the ordinary audited revision path."""
     op = request['op']
     if op == 'create_signature':
-        proposal = object_fields(request['signature'], SIGNATURE_FIELDS - {'id', 'version'},
-                                 'New signature', SIGNATURE_FIELDS - {'id', 'version'})
+        proposal = object_fields(request['signature'], REQUIRED_SIGNATURE_FIELDS - {'id', 'version'},
+                                 'New signature', REQUIRED_SIGNATURE_FIELDS - {'id', 'version'})
         record = {'id': str(uuid4()), 'version': 1, **deepcopy(proposal)}
         record['appearance'] = signature_appearance(record['appearance'])
         validate_signature(record, snapshot)
@@ -126,11 +129,8 @@ def apply_signature(snapshot, request):
         changes = object_fields(request['changes'], EDIT_FIELDS, 'Signature edit')
         if not changes:
             raise ValidationError('Choose a signature property to edit.')
-        for key, value in changes.items():
-            record[key] = ({**record['appearance'], **deepcopy(value)}
-                           if key == 'appearance' and isinstance(value, dict) else deepcopy(value))
-        record['version'] += 1
-        validate_signature(record, snapshot)
+        from .takeoff_initial_links import apply_linked_edit
+        apply_linked_edit(snapshot, record, 'signatures', changes, validate_signature, load_event)
     return None
 
 
@@ -143,10 +143,11 @@ def undo_signatures(before, restored):
 
 
 def signature_binding(record):
-    return (record['mode'], record['document_id'], record['source_sha256'], record['page'])
+    from .takeoff_initial_links import link_binding
+    return (record['mode'], record['document_id'], record['source_sha256'], record['page'], link_binding(record))
 
 
-def validate_history(event):
+def validate_history(event, *, load_event=None):
     old = {record['id']: record for record in event['before'].get('signatures', {}).get('records', [])}
     new = {record['id']: record for record in event['after'].get('signatures', {}).get('records', [])}
     if event['before']['revision'] == 0 and old:
@@ -166,8 +167,11 @@ def validate_history(event):
     if event['op'] == 'create_signature' and (len(added) != 1 or removed or changed
             or any(new[identifier]['version'] != 1 for identifier in added)):
         raise ValidationError('A signature must begin with one new identity and version one.')
-    if event['op'] == 'update_signature' and (added or removed or len(changed) != 1):
-        raise ValidationError('A signature edit must update exactly one retained identity.')
+    if event['op'] == 'update_signature':
+        if added or removed:
+            raise ValidationError('A signature edit must retain its existing identities.')
+        from .takeoff_initial_links import validate_linked_history
+        validate_linked_history(event, 'signatures', changed, load_event)
     if event['op'] == 'delete_signature' and (added or changed or len(removed) != 1):
         raise ValidationError('A signature deletion must remove exactly one retained identity.')
     for identifier in old.keys() & new.keys():

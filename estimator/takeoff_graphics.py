@@ -12,8 +12,8 @@ GRAPHIC_MODES = ('steel', 'duct', 'wall', 'slab', 'defect_reports', 'service_pla
 BOX_KINDS = ('cloud', 'textbox', 'stamp', 'rectangle', 'circle')
 POINT_KINDS = ('line', 'polyline', 'arrow', 'polygon')
 GRAPHIC_FIELDS = {'id', 'version', 'mode', 'document_id', 'source_sha256', 'page',
-                  'kind', 'geometry', 'text', 'appearance', 'text_content', 'stamp_image'}
-REQUIRED_GRAPHIC_FIELDS = GRAPHIC_FIELDS - {'text_content', 'stamp_image'}
+                  'kind', 'geometry', 'text', 'appearance', 'text_content', 'stamp_image', 'initial_pages'}
+REQUIRED_GRAPHIC_FIELDS = GRAPHIC_FIELDS - {'text_content', 'stamp_image', 'initial_pages'}
 EDIT_FIELDS = {'geometry', 'text', 'appearance', 'text_content', 'stamp_image'}
 APPEARANCE_FIELDS = {'stroke_color', 'stroke_width', 'opacity', 'fill_enabled',
                      'fill_color', 'font_color', 'font_size'}
@@ -106,6 +106,8 @@ def validate_graphic(value, snapshot, *, verified_stamp_images=None):
             raise ValidationError('Textbox text must exactly match its formatted text blocks.')
     object_fields(value['appearance'], APPEARANCE_FIELDS, 'Stored PDF markup appearance', APPEARANCE_FIELDS)
     graphic_appearance(value['appearance'])
+    from .takeoff_initial_links import validate_link
+    validate_link(value, 'graphics')
     return value
 
 
@@ -149,9 +151,9 @@ def validate_graphics(snapshot):
         seen.add(record['id'])
 
 
-def apply_graphic(snapshot, request):
+def apply_graphic(snapshot, request, *, load_event=None):
     if request['op'] == 'create_graphic':
-        proposal = object_fields(request['graphic'], GRAPHIC_FIELDS - {'id', 'version'}, 'New PDF markup', REQUIRED_GRAPHIC_FIELDS - {'id', 'version'})
+        proposal = object_fields(request['graphic'], GRAPHIC_FIELDS - {'id', 'version', 'initial_pages'}, 'New PDF markup', REQUIRED_GRAPHIC_FIELDS - {'id', 'version'})
         record = {'id': str(uuid4()), 'version': 1, **deepcopy(proposal)}
         record['appearance'] = graphic_appearance(record['appearance'])
         if 'stamp_image' in record:
@@ -173,6 +175,10 @@ def apply_graphic(snapshot, request):
         changes = object_fields(request['changes'], EDIT_FIELDS, 'PDF markup edit')
         if not changes:
             raise ValidationError('Choose a PDF markup property to edit.')
+        from .takeoff_initial_links import apply_linked_edit
+        if record['kind'] == 'textbox':
+            apply_linked_edit(snapshot, record, 'graphics', changes, validate_graphic, load_event)
+            return None
         for key, value in changes.items():
             if key == 'stamp_image':
                 if value is None:
@@ -197,10 +203,11 @@ def undo_graphics(before, restored):
 
 
 def graphic_binding(record):
-    return (record['mode'], record['document_id'], record['source_sha256'], record['page'], record['kind'])
+    from .takeoff_initial_links import link_binding
+    return (record['mode'], record['document_id'], record['source_sha256'], record['page'], record['kind'], link_binding(record))
 
 
-def validate_history(event):
+def validate_history(event, *, load_event=None):
     old = {record['id']: record for record in event['before'].get('graphics', {}).get('records', [])}
     new = {record['id']: record for record in event['after'].get('graphics', {}).get('records', [])}
     if event['before']['revision'] == 0 and old:
@@ -219,8 +226,11 @@ def validate_history(event):
         raise ValidationError('PDF markup identities may only be created or restored by Undo.')
     if event['op'] == 'create_graphic' and (len(added) != 1 or removed or changed or any(new[i]['version'] != 1 for i in added)):
         raise ValidationError('A PDF markup must begin with one new identity and version one.')
-    if event['op'] == 'update_graphic' and (added or removed or len(changed) != 1):
-        raise ValidationError('A PDF markup edit must update exactly one retained identity.')
+    if event['op'] == 'update_graphic':
+        if added or removed:
+            raise ValidationError('A PDF markup edit must retain its existing identities.')
+        from .takeoff_initial_links import validate_linked_history
+        validate_linked_history(event, 'graphics', changed, load_event)
     if event['op'] == 'delete_graphic' and (added or changed or len(removed) != 1):
         raise ValidationError('A PDF markup deletion must remove exactly one retained identity.')
     for identifier in old.keys() & new.keys():

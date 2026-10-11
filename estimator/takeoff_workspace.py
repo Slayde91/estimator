@@ -920,10 +920,10 @@ class TakeoffService:
                 created_annotation_id = apply_annotation(after, request)
             elif op in ('create_signature', 'update_signature', 'delete_signature'):
                 from .takeoff_signatures import apply_signature
-                created_signature_id = apply_signature(after, request)
+                created_signature_id = apply_signature(after, request, load_event=getattr(self.documents, 'initial_pages_origin', self.documents.get_blob))
             elif op in ('create_graphic', 'update_graphic', 'delete_graphic'):
                 from .takeoff_graphics import apply_graphic
-                created_graphic_id = apply_graphic(after, request)
+                created_graphic_id = apply_graphic(after, request, load_event=getattr(self.documents, 'initial_pages_origin', self.documents.get_blob))
             elif op in ('toggle_thickness_colours', 'set_legend'):
                 from .takeoff_presentation import apply_presentation
                 linked = None

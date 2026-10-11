@@ -746,6 +746,8 @@ class TakeoffDocuments:
             validate_signatures(state)
             from .takeoff_graphics import validate_graphics
             validate_graphics(state)
+            from .takeoff_initial_links import validate_links
+            validate_links(state)
             for descriptor in state.get('image_extractions', []):
                 prior = images.get(descriptor['id'])
                 if prior is not None and prior != descriptor:
@@ -755,9 +757,11 @@ class TakeoffDocuments:
         from .takeoff_library_links import validate_history as validate_library_history
         validate_library_history(event)
         from .takeoff_signatures import validate_history as validate_signature_history
-        signature_identities = validate_signature_history(event)
+        signature_identities = validate_signature_history(event, load_event=self.initial_pages_origin)
         from .takeoff_graphics import validate_history as validate_graphic_history
-        graphic_identities = validate_graphic_history(event)
+        graphic_identities = validate_graphic_history(event, load_event=self.initial_pages_origin)
+        from .takeoff_initial_links import validate_link_creation
+        validate_link_creation(event)
         from .takeoff_initial_pages import validate_initial_pages_history
         validate_initial_pages_history(event)
         old_annotations = {value['id']: value for value in event['before'].get('annotations', {}).get('callouts', [])}
@@ -819,15 +823,21 @@ class TakeoffDocuments:
             if event["affected_ids"] != audit_affected(event["before"], event["after"]):
                 raise ValidationError("The audit affected IDs do not match its retained state changes.")
         retained = tuple(documents.values())
+        born = {}
+        for key, bindings in (('graphics', graphic_identities), ('signatures', signature_identities)):
+            old_ids = {row['id'] for row in event['before'].get(key, {}).get('records', [])}
+            born[key] = {row['id']: bindings[row['id']] for row in event['after'].get(key, {}).get('records', [])
+                         if row['id'] not in old_ids}
         # Count repeated metadata conservatively, even though records share it.
         weight = (512 + len(_canonical([entry.metadata for entry in retained])) + len(_canonical(list(images.values())))
                   + len(_canonical(annotation_identities)) + len(_canonical(signature_identities))
-                  + len(_canonical(graphic_identities)))
+                  + len(_canonical(graphic_identities)) + len(_canonical(born)) + len(event['op']))
         record = {"project_id": event["project_id"], "revision": event["revision"], "previous": event["previous"],
                   "before": audit_state_digest(event["before"]), "after": audit_state_digest(event["after"]),
                   "documents": retained, 'images': tuple(images.values()), 'annotations': annotation_identities,
                   'signatures': signature_identities,
                   'graphics': graphic_identities,
+                  'initial_pages_origin': {'op': event['op'], 'born': born},
                   "size": len(_canonical(event)), "weight": weight}
         if weight <= MAX_AUDIT_CACHE_BYTES:
             with self._lock:
@@ -841,8 +851,30 @@ class TakeoffDocuments:
                     self._audit_cache_bytes -= removed["weight"]
         return record
 
+    def initial_pages_origin(self, digest):
+        """Reuse validated summaries while freshly rechecking their actual bytes.
+
+        A cache miss returns canonical hash-verified raw history for the bounded
+        resolver to inspect. It does not recursively validate another graph.
+        """
+        digest = _digest(digest)
+        with self._lock:
+            record = self._audit_records.get(digest)
+            if record is not None:
+                self._audit_records.move_to_end(digest)
+        if record is None:
+            return self.get_blob(digest)
+        _verified(self.root / 'audit' / (digest + '.json'), digest, MAX_AUDIT_BLOB)
+        from .takeoff_initial_links import OriginSummary
+        origin = record['initial_pages_origin']
+        return OriginSummary(record['project_id'], record['revision'], record['previous'],
+                             record['before'], record['after'], record['size'], origin['op'],
+                             tuple((key, dict(value)) for key, value in origin['born'].items()))
+
     def _graph(self, snapshot, loader):
         documents, images, annotation_identities, signature_identities, graphic_identities = {}, {}, {}, {}, {}
+        from .takeoff_initial_links import remember_group_identity
+        initial_groups, initial_born_ids, initial_births = {}, set(), {}
         from .takeoff_model import validate_physical_extension
         validate_physical_extension(snapshot)
         from .takeoff_annotations import annotation_binding, validate_annotations
@@ -853,10 +885,14 @@ class TakeoffDocuments:
         validate_signatures(snapshot)
         for value in snapshot.get('signatures', {}).get('records', []):
             signature_identities[value['id']] = signature_binding(value)
+            remember_group_identity(value['id'], signature_identities[value['id']], initial_groups)
         from .takeoff_graphics import graphic_binding, validate_graphics
         validate_graphics(snapshot)
+        from .takeoff_initial_links import validate_links
+        validate_links(snapshot)
         for value in snapshot.get('graphics', {}).get('records', []):
             graphic_identities[value['id']] = graphic_binding(value)
+            remember_group_identity(value['id'], graphic_identities[value['id']], initial_groups)
         for descriptor in snapshot.get('image_extractions', []):
             images[descriptor['id']] = descriptor
         current = snapshot.get("documents", [])
@@ -885,6 +921,16 @@ class TakeoffDocuments:
                 raise ValidationError("The audit history is cyclic or exceeds its review limit.")
             seen.add(head)
             record = loader(head)
+            origin = record.get('initial_pages_origin', {})
+            if origin.get('op') == 'initial_pages':
+                initial_born_ids.update(identifier for values in origin['born'].values()
+                                        for identifier, binding in values.items() if binding[-1] is not None)
+                born_groups = {binding[-1][1] for values in origin['born'].values()
+                               for binding in values.values() if binding[-1] is not None}
+                for group_id in born_groups:
+                    if group_id in initial_births:
+                        raise ValidationError('An Initial Pages group must have exactly one retained creation event.')
+                    initial_births[group_id] = head
             audit_bytes += record["size"]
             if audit_bytes > MAX_AUDIT_BYTES:
                 raise ValidationError("The retained audit history exceeds its 256 MiB read budget.")
@@ -916,6 +962,7 @@ class TakeoffDocuments:
                 if len(annotation_identities) > 10000:
                     raise ValidationError('The project retains too many free call-out identities, including history.')
             for identifier, binding in record.get('signatures', {}).items():
+                remember_group_identity(identifier, binding, initial_groups)
                 previous = signature_identities.get(identifier)
                 if previous is not None and previous != binding:
                     raise ValidationError('A retained signature source identity was rewritten.')
@@ -923,6 +970,7 @@ class TakeoffDocuments:
                 if len(signature_identities) > 10000:
                     raise ValidationError('The project retains too many signature identities, including history.')
             for identifier, binding in record.get('graphics', {}).items():
+                remember_group_identity(identifier, binding, initial_groups)
                 previous = graphic_identities.get(identifier)
                 if previous is not None and previous != binding:
                     raise ValidationError('A retained PDF markup source or tool identity was rewritten.')
@@ -936,6 +984,9 @@ class TakeoffDocuments:
             head = record["previous"]
         if expected_revision != 0:
             raise ValidationError("The audit history does not reach its initial revision.")
+        linked_ids = {identifier for group in initial_groups.values() for identifier in group['slots'].values()}
+        if linked_ids - initial_born_ids:
+            raise ValidationError('Every linked visual identity requires its complete retained Initial Pages creation event.')
         if sum(len(document["pages"]) for document in documents.values()) > MAX_PROJECT_PAGES:
             raise ValidationError("A project supports at most 2,000 retained PDF pages, including history.")
         if sum(image['total_bytes'] for image in images.values()) > 4 * 1024**3:

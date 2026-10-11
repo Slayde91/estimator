@@ -10,9 +10,10 @@ const { spawn } = require("node:child_process");
 const fs = require("node:fs"), path = require("node:path"), crypto = require("node:crypto"), assert = require("node:assert/strict");
 const root = path.resolve(__dirname, "../.."), output = path.join(root, ".runtime/browser-qa", `area-copy-visibility-${Date.now()}`);
 fs.mkdirSync(output, { recursive: true });
-const assets = ["static/takeoffs.js", "static/takeoffs.css", "static/takeoff-physical.js", "static/theme.css", "static/icons/default-memory.svg", "estimator/takeoff_copy.py", "tests/browser/area_copy_visibility.cjs"];
+const assets = ["static/takeoffs.js", "static/takeoffs.css", "static/takeoff-physical.js", "static/theme.css", "static/icons/takeoff-set-default.png", "estimator/takeoff_copy.py", "tests/browser/area_copy_visibility.cjs"];
 const hashes = () => Object.fromEntries(assets.map(name => [name, crypto.createHash("sha256").update(fs.readFileSync(path.join(root, name))).digest("hex")]));
 const sourceBefore = hashes(), checks = [], errors = [], requests = [];
+assert.equal(sourceBefore["static/icons/takeoff-set-default.png"],"dc8c0ba65090852527ecbe104cf56c82b8875729c8c0b4da092e28e4a0fec01f","Default action retains the exact supplied image bytes");
 const server = spawn(process.env.CEASEFIRE_PYTHON || "python", [path.join(__dirname, "fixtures.py"), "--directory", output], { cwd: root, windowsHide: true });
 let browser, page, logs = "";
 server.stderr.on("data", value => { logs += value; });
@@ -173,7 +174,7 @@ async function saveLoad(info) {
   }));
   assert.equal(sizes.length, 3); for (const size of sizes) { assert.equal(size.width, 38); assert.equal(size.height, 38); assert.equal(size.iconWidth, 24); assert.equal(size.iconHeight, 24); }
   const memory = sizes.find(value => value.label === "Set as default"), itemSize = sizes.filter(value => value.label === "Visibility").at(-1);
-  assert.match(memory.mask, /\/icons\/default-memory\.svg/); assert.equal(memory.top, itemSize.top); assert.equal(Math.abs(memory.left - itemSize.left), 46);
+  assert.match(memory.mask, /\/icons\/takeoff-set-default\.png/); assert.equal(memory.top, itemSize.top); assert.equal(Math.abs(memory.left - itemSize.left), 46);
   await defaultControl.click(); await expect(page.locator("#takeoffs-workspace .message")).toContainText("Default appearance saved");
   const styled = (await snapshot()).items.find(item => item.id === wall.id);
   checks.push("real default/selected-item controls sit together with shared 38px buttons and 24px icons; memory icon saves appearance defaults");

@@ -47,7 +47,7 @@ function fixture(initial = {}, commandOverride) {
     assert.equal(fonts.length,before+2,"Activation reaches both delayed drawing-font loads");
     return { pending, complete() { fonts.slice(before,before+2).forEach(value=>value.resolve([])); }, fail() { fonts[before].reject(new Error("Drawing font unavailable")); fonts[before+1].resolve([]); } };
   }
-  return {state,calls,snapshot,start,ui,listeners,listenerOptions,clock};
+  return {state,calls,snapshot,start,ui,listeners,listenerOptions,clock,fonts};
 }
 
 test("Unchanged graphic activation waits for fonts and only arms a drawing tool", async()=>{
@@ -117,6 +117,12 @@ test("Textbox formatting edited during a queued update remains atomic and keeps 
 });
 
 const pointer=(pdf,extra={})=>({button:0,detail:1,pdf,preventDefault(){this.prevented=true;},stopImmediatePropagation(){this.stopped=true;},pointerId:11,clientX:pdf[0],clientY:pdf[1],...extra});
+test("Editing one graphic appearance field sends only that field, retaining other pages' fitted font sizes and untouched precision",async()=>{
+  const writes=[],f=fixture({graphicSelected:"textbox",settingsDirty:true,queue:Promise.resolve()},async(op,body,guard)=>{assert.equal(op,"update_graphic");assert.equal(guard(),true);writes.push(structuredClone(body));return{revision:++f.state.session.revision};});
+  f.snapshot.graphics.records.push({id:"textbox",mode:"wall",document_id:"document-A",page:1,appearance:{...X.defaults(),font_size:11.54321,opacity:.756789123}});
+  const editor={kind:"graphic",id:"textbox",sessionId:"session-A",key:JSON.stringify([JSON.stringify(["session-A","document-A",1,"wall"]),"wall","textbox"]),appearance:[{control:{name:"font_color"},read:()=>"#112233"},{control:{name:"font_size"},read:()=>{throw new Error("Untouched font size must not be read");}}],touched:new Map([["appearance:font_color",1]])};f.state.settingsEditor=editor;
+  await f.ui.apply(editor);assert.deepEqual(writes[0].changes,{appearance:{font_color:"#112233"}});assert.equal(f.state.settingsDirty,false);
+});
 function stampFixture(initial={}) {
   const writes=[];let f;
   f=fixture(initial,async(op,body,guard)=>{
@@ -131,6 +137,21 @@ async function configureTextStamp(f) {
   const activation=await f.start("stamp");activation.complete();await activation.pending;
   f.state.points=[[100,200],[220,260]];await f.ui.finish();
 }
+test("Continue Stamp uses the current saved size, text, image and appearance without carrying linked identities",async()=>{
+  for(const image of [false,true]) {
+    const f=stampFixture({graphicSelected:"existing"}), original={id:"existing",version:4,mode:"wall",document_id:"document-A",source_sha256:"a".repeat(64),page:1,kind:"stamp",geometry:{quad_pdf:[[40,50],[160,50],[160,90],[40,90]]},text:image?"":"LATEST",appearance:{...X.defaults(),opacity:.61,font_color:"#123456"},initial_pages:{version:1,group_id:"group",role:"text"},...(image?{stamp_image:{version:1,mime_type:"image/png",width:1,height:1,data_base64:"canonical"}}:{})};
+    f.snapshot.graphics.records.push(original);
+    const pending=f.ui.continueStamp(original.id);for(let i=0;i<12;i++)await Promise.resolve();f.fonts.forEach(value=>value.resolve([]));await pending;
+    assert.equal(f.calls.command,0,"Resuming only arms the tool");assert.equal(f.state.tool,"graphic-stamp");
+    await f.ui.point(pointer([300,400]));await f.ui.point(pointer([400,500]));
+    assert.equal(f.writes.length,2);for(const {graphic}of f.writes){assert.equal(graphic.text,original.text);assert.deepEqual(graphic.appearance,original.appearance);assert.equal(graphic.initial_pages,undefined);assert.equal(graphic.id,undefined);if(image)assert.deepEqual(graphic.stamp_image,original.stamp_image);}
+    assert.deepEqual(original.geometry,{quad_pdf:[[40,50],[160,50],[160,90],[40,90]]});
+  }
+});
+test("Continue Stamp cannot replace a newer selection while its fonts load",async()=>{
+  const f=fixture({graphicSelected:"existing"});f.snapshot.graphics.records.push({id:"existing",version:1,mode:"wall",document_id:"document-A",page:1,kind:"stamp",geometry:{quad_pdf:[[40,50],[160,50],[160,90],[40,90]]},text:"ST",appearance:X.defaults()});
+  const pending=f.ui.continueStamp("existing");for(let i=0;i<12;i++)await Promise.resolve();f.state.graphicSelected="newer";const retained=structuredClone(f.state);f.fonts.forEach(value=>value.resolve([]));await assert.rejects(pending,/drawing changed/);assert.deepEqual(f.state,retained);assert.equal(f.calls.command,0);
+});
 async function dragTextStamp(f) {
   assert.equal(f.ui.beginStampBox(pointer([100,200])),true);
   f.listeners.get('pointermove')(pointer([220,260]));f.listeners.get('pointerup')(pointer([220,260]));

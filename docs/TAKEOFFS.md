@@ -946,6 +946,32 @@ If the area is too small, enlarge it or shorten the name. This is one atomic
 edit: Undo last edit removes the whole placement. It adds only PDF text and
 signature records, without register items, quantities or approval authority.
 
+Initial Pages links its textboxes and signatures across that exact document.
+Changing a textbox's text, formatting or appearance updates the surviving
+textboxes in the same placement; changing signature ink or appearance updates
+its surviving signatures. Text changes must fit every linked box or the entire
+edit is rejected. Moving, resizing or deleting a mark affects only that selected
+mark. Each settings edit is one audited revision and Undo restores the whole
+edit. Copies have fresh identities and are independent of the original group.
+The links survive Save/Load. Older Initial Pages placements use their retained,
+validated creation audit to identify their original members; equal text or
+nearby marks never establish a link, and no group metadata is retrofitted into
+legacy saved records.
+
+Ordinary Textbox creation provides bold, italic, underline, bulleted lists and
+numbered lists in its bounded structured editor. The 4,000-character limit and
+literal saved text apply to both the drawing and its marked PDF.
+
+Select a PDF markup or signature in the viewer, then use **Ctrl+C** and
+**Ctrl+V** to place an independent copy centered at the pointer on the PDF page.
+The copy has a fresh identity and no Initial Pages link. Native text editing
+keeps its own copy and paste behavior; the documented free Call-out and physical
+clipboard behavior remains available.
+
+Right-click an existing Stamp and choose **Continue Stamp** to repeat its latest
+saved text or image, size and appearance. Clicking a blank part of the PDF
+deselects the current mark and closes Settings.
+
 Drawing tools show a crosshair while active. Right-click anywhere in the PDF
 viewer or click the active tool again to cancel the current operation.
 

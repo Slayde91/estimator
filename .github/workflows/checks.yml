@@ -31,6 +31,8 @@ jobs:
       - run: node --check static/takeoff-signatures.js
       - run: node --check static/takeoff-graphics.js
       - run: node --check static/takeoff-graphics-ui.js
+      - run: node --check static/takeoff-pane-resize.js
+      - run: node --test tests/test_takeoff_pane_resize.cjs
       - run: node --check static/takeoff-initial-pages.js
       - run: node --check static/takeoff-pdf-tools.js
       - run: node --test tests/test_takeoff_graphics.cjs tests/test_takeoff_graphics_ui.cjs tests/test_takeoff_initial_pages.cjs tests/test_takeoff_pdf_tools.cjs

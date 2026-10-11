@@ -20,12 +20,14 @@ async function assertPhysicalTools(page) {
     const box = control => { const r = control.getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height, right: r.right, bottom: r.bottom }; };
     const style = control => Object.fromEntries(['display','alignItems','justifyItems','width','height','paddingTop','paddingRight','paddingBottom','paddingLeft','borderTopWidth','borderTopColor','borderTopLeftRadius','color','backgroundColor','fontSize','fontWeight','boxShadow'].map(key => [key, getComputedStyle(control)[key]]));
     const glyph = control => Object.fromEntries(['fontFamily','fontSize','fontWeight','lineHeight','color'].map(key => [key, getComputedStyle(control.querySelector('.button-symbol'))[key]]));
-    const transfer = button('Transfer to Firestopping Schedule'), update = button('Update linked rows'), unlink = button('Unlink from Firestopping Schedule'), documentMenu = el.querySelector('.takeoff-document-menu');
+    const transfer = button('Transfer to Firestopping Schedule'), update = button('Update linked rows'), unlink = button('Unlink from Firestopping Schedule');
+    const documentMenu = document.querySelector('.takeoff-workspace-heading .takeoff-physical-document-host .takeoff-document-menu'), documentHost = documentMenu.parentElement, tools = document.querySelector('.takeoff-workspace-heading .takeoff-pdf-tools-menu');
     return {
       firstRow: box(first), actionsRow: box(actions), register: box(el),
-      controls: [transfer, update, unlink, documentMenu].map(box),
+      controls: [transfer, update, unlink].map(box),
+      document: { box: box(documentMenu), tools: box(tools), directlyBeforeTools: documentHost.nextElementSibling === tools, absentFromRegister: !el.querySelector('.takeoff-document-menu') },
       actionsOrder: [...actions.children].map(control => control.getAttribute('aria-label') || control.className),
-      firstRowOwnsFilterSelectionUndo: first.classList.contains('takeoff-physical-filter-row') && undo.parentElement === first && button('Select filtered records').parentElement === first && [...first.querySelectorAll('label')].some(label => label.textContent === 'Show deleted records'),
+      firstRowOwnsFilterSelectionUndo: first.classList.contains('takeoff-physical-filter-row') && undo.parentElement === first && button('Select filtered records').parentElement === first && [...first.querySelectorAll('label')].some(label => label.textContent === 'Show deleted records' && label === undo.nextElementSibling),
       adjacentRows: first.nextElementSibling === actions,
       undo: { box: box(undo), style: style(undo), glyph: glyph(undo) },
       selection: { box: box(selection), directlyBeforeUndo: undo.previousElementSibling === selection },
@@ -34,11 +36,13 @@ async function assertPhysicalTools(page) {
   });
   assert.equal(measured.firstRowOwnsFilterSelectionUndo, true);
   assert.equal(measured.adjacentRows, true);
-  assert.deepEqual(measured.actionsOrder, ['Transfer to Firestopping Schedule', 'Update linked rows', 'Unlink from Firestopping Schedule', 'calculator-document-menu takeoff-document-menu']);
+  assert.deepEqual(measured.actionsOrder, ['Transfer to Firestopping Schedule', 'Update linked rows', 'Unlink from Firestopping Schedule']);
+  assert.equal(measured.document.directlyBeforeTools, true);assert.equal(measured.document.absentFromRegister, true);
+  assert.ok(measured.document.box.right <= measured.document.tools.x + 1 && Math.abs(measured.document.box.y - measured.document.tools.y) < 1, 'Physical Document immediately precedes Tools on the heading row');
   assert.ok(measured.actionsRow.y >= measured.firstRow.bottom, 'Schedule actions occupy the following row');
   assert.ok(Math.abs(measured.controls[0].x - measured.actionsRow.x) < 1, 'Transfer starts at the left of its row');
   for (let index = 1; index < measured.controls.length; index++) {
-    assert.ok(Math.abs(measured.controls[index].x - measured.controls[index - 1].right - 8) < 1, 'Each action follows its neighbour, with Document immediately after Unlink');
+    assert.ok(Math.abs(measured.controls[index].x - measured.controls[index - 1].right - 8) < 1, 'Each Schedule action follows its neighbour');
   }
   assert.ok(measured.controls.at(-1).right <= measured.register.right + 1, 'The action row fits the register');
   assert.equal(measured.selection.directlyBeforeUndo,true);assert.equal(measured.undo.box.width,measured.selection.box.width);assert.equal(measured.undo.box.height,measured.selection.box.height);assert.equal(measured.undo.box.width,38);assert.equal(measured.undo.box.height,38);

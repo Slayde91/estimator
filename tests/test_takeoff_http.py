@@ -133,6 +133,70 @@ class TakeoffHTTPTests(unittest.TestCase):
             self.assertEqual(self.request('GET',route)[0],404)
         self.assertEqual(self.request('POST','/api/takeoffs/sessions',{}, {'Origin':'https://attacker.invalid'})[0],403)
 
+    def _uploaded_workspace(self):
+        status, _, payload = self.request('POST', '/api/takeoffs/sessions', {})
+        self.assertEqual(status, 200, payload)
+        session = json.loads(payload); base = '/api/takeoffs/sessions/' + session['session_id']
+        status, _, payload = self.request('POST', base+'/uploads', {'filename': 'disposable.pdf', 'size': len(self.pdf)})
+        self.assertEqual(status, 200, payload)
+        upload = base+'/uploads/'+json.loads(payload)['upload_id']
+        self.assertEqual(self.request('PUT', upload+'?offset=0', self.pdf, {'Content-Type': 'application/octet-stream'})[0], 200)
+        status, _, payload = self.request('POST', upload+'/complete', {'expected_revision': 0})
+        self.assertEqual(status, 200, payload)
+        return base, json.loads(payload)
+
+    def test_textbox_layout_http_is_read_only_guarded_and_atomic_creation_matches(self):
+        base, session = self._uploaded_workspace(); document = session['snapshot']['documents'][0]
+        value = {'mode': 'steel', 'document_id': document['id'], 'source_sha256': document['sha256'],
+                 'page': 1, 'anchor_pdf': [40, 500], 'display_rotation': 0,
+                 'text': 'HTTP fixed-font Textbox', 'appearance': {'font_size': 18}}
+        request = {'expected_revision': session['revision'], **value}
+        before = self.request('GET', base)[2]
+        status, _, payload = self.request('POST', base+'/textbox-layout', request)
+        self.assertEqual(status, 200, payload); preview = json.loads(payload)
+        self.assertEqual(preview['graphic']['geometry']['quad_pdf'][0], value['anchor_pdf'])
+        self.assertEqual(self.request('GET', base)[2], before)
+        for invalid in ({**request, 'expected_revision': 0}, {**request, 'source_sha256': 'b'*64},
+                        {**request, 'path': 'C:/private.pdf'}, {**request, 'anchor_pdf': [0, -10]}):
+            self.assertEqual(self.request('POST', base+'/textbox-layout', invalid)[0], 400)
+        self.assertEqual(self.request('POST', base+'/textbox-layout?path=private.pdf', request)[0], 400)
+        self.assertEqual(self.request('POST', base+'/textbox-layout', request, {'Origin': 'https://attacker.invalid'})[0], 403)
+        self.assertEqual(self.request('GET', base+'/textbox-layout')[0], 405)
+        self.assertEqual(self.request('GET', base)[2], before)
+        command = {'op': 'create_textbox', 'expected_revision': session['revision'], 'request_id': str(uuid4()), 'textbox': value}
+        status, _, payload = self.request('POST', base+'/commands', command)
+        self.assertEqual(status, 200, payload); created = json.loads(payload)
+        self.assertEqual(created['snapshot']['graphics']['records'][0]['geometry'], preview['graphic']['geometry'])
+        self.assertEqual(created['snapshot']['items'], session['snapshot']['items'])
+        self.assertEqual(created['snapshot']['transfers'], session['snapshot']['transfers'])
+        self.assertEqual(self.request('POST', base+'/commands', command)[2], payload)
+
+    def test_deleted_items_http_query_never_restores_authority_and_rejects_stale_or_cross_origin(self):
+        base, session = self._uploaded_workspace(); document = session['snapshot']['documents'][0]
+        def command(op, **values):
+            nonlocal session
+            status, _, payload = self.request('POST', base+'/commands', {'op': op, 'expected_revision': session['revision'],
+                'request_id': str(uuid4()), **values})
+            self.assertEqual(status, 200, payload); session = json.loads(payload)
+        command('create_item', item={'mode': 'steel', 'quantity': 1, 'fields': {'mark': 'Deleted HTTP row'},
+            'geometry': {'document_id': document['id'], 'page': 1, 'points': [[40, 500], [100, 500]]},
+            'measurement': {'method': 'cited', 'length_m': 8.35, 'citation': 'Disposable source dimension'}})
+        original = session['snapshot']['items'][0]; command('delete_items', item_ids=[original['id']])
+        request = {'expected_revision': session['revision'], 'mode': 'steel', 'query': 'HTTP', 'offset': 0, 'limit': 1}
+        before = self.request('GET', base)[2]
+        status, _, payload = self.request('POST', base+'/deleted-items', request)
+        self.assertEqual(status, 200, payload); result = json.loads(payload)
+        self.assertEqual(result['total'], 1); self.assertTrue(result['read_only'])
+        self.assertEqual(result['records'][0]['item'], original)
+        self.assertEqual(self.request('GET', base)[2], before)
+        for invalid in ({**request, 'expected_revision': 0}, {**request, 'limit': 101},
+                        {**request, 'mode': 'defect_reports'}, {**request, 'restore': True}):
+            self.assertEqual(self.request('POST', base+'/deleted-items', invalid)[0], 400)
+        self.assertEqual(self.request('POST', base+'/deleted-items?restore=true', request)[0], 400)
+        self.assertEqual(self.request('POST', base+'/deleted-items', request, {'Origin': 'https://attacker.invalid'})[0], 403)
+        self.assertEqual(self.request('GET', base+'/deleted-items')[0], 405)
+        self.assertEqual(self.request('GET', base)[2], before)
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -4,13 +4,16 @@ const fs = require("node:fs"), path = require("node:path"), vm = require("node:v
 const source = path.resolve(__dirname, "../static/takeoff-graphics-ui.js");
 const code = fs.readFileSync(source, "utf8");
 const X = require("../static/takeoff-graphics.js"), G = require("../static/takeoff-geometry.js");
+function dom(tag="div",className="",text="") {
+  return {tagName:tag.toUpperCase(),className,textContent:text,children:[],attributes:{},listeners:new Map(),classList:{add(){}},append(...children){this.children.push(...children);},replaceWith(){},replaceChildren(...children){this.children=children;},setAttribute(name,value){this.attributes[name]=String(value);},addEventListener(name,fn){this.listeners.set(name,fn);},focus(){}};
+}
 
 // Only the bridge runs: fonts are controlled promises and the host contains no
 // network, browser, storage, calculator, or persisted Takeoff implementation.
 function fixture(initial = {}, commandOverride) {
   const fonts = [], calls = { cancel: 0, render: 0, command: 0, messages: [], ask:0, answer:{stamp_type:"text",text:"APPROVED"} };
   const clock={now:1000}, listeners=new Map(), listenerOptions=new Map();
-  const element={addEventListener(name,fn,capture=false){listeners.set(name,fn);listenerOptions.set(name,capture);},removeEventListener(name,fn,capture=false){if(listeners.get(name)===fn&&listenerOptions.get(name)===capture){listeners.delete(name);listenerOptions.delete(name);}},setPointerCapture(){},hasPointerCapture(){return false;}};
+  const element={addEventListener(name,fn,capture=false){listeners.set(name,fn);listenerOptions.set(name,capture);},removeEventListener(name,fn,capture=false){if(listeners.get(name)===fn&&listenerOptions.get(name)===capture){listeners.delete(name);listenerOptions.delete(name);}},setPointerCapture(){},hasPointerCapture(){return false;},focus(){calls.focus=(calls.focus||0)+1;}};
   const state = { active: true, busy: false, modal: false, navigationBusy: false,
     viewport: { transform: [1,0,0,-1,0,800] }, document: "document-A", page: 1, mode: "wall", physicalScope: "defect_reports",
     tool: "select", points: [], selected: new Set(), countSelection: new Set(), physicalSelected: new Set(),
@@ -24,7 +27,7 @@ function fixture(initial = {}, commandOverride) {
   const snapshot = { graphics: { version:1, records:[] }, items:[], calibrations:[], transfers:[] };
   const document = { fonts: { load() { let resolve, reject; const promise = new Promise((yes,no) => { resolve=yes; reject=no; }); fonts.push({promise,resolve,reject}); return promise; } },
     createElement(tag) { assert.equal(tag,"canvas"); return { getContext() { return {}; } }; } };
-  const context = { window: {CeasefireTakeoffAnnotations:{text:value=>value.blocks.map(block=>block.runs.map(run=>run.text).join("")).join("\n")}}, document, Date:{now:()=>clock.now}, setTimeout, clearTimeout }; vm.createContext(context); vm.runInContext(code, context, {filename:source});
+  const context = { window: {CeasefireTakeoffAnnotations:{text:value=>value.blocks.map(block=>block.runs.map(run=>run.text).join("")).join("\n"),richEditor(){return {read:()=>structuredClone(calls.richContent || {version:1,blocks:[{kind:"paragraph",runs:[{text:"TEXT"}]}]}),wrap:dom(),editor:dom()};}}}, document, Date:{now:()=>clock.now}, setTimeout, clearTimeout }; vm.createContext(context); vm.runInContext(code, context, {filename:source});
   const host = { state, X, G, clone:structuredClone,
     snapshot:()=>snapshot, documents:()=>originals, currentDocument:()=>originals.find(v=>v.id===state.document),
     pageDisplayKey:()=>JSON.stringify([state.session?.session_id,state.document,state.page,state.mode]),
@@ -36,8 +39,11 @@ function fixture(initial = {}, commandOverride) {
     }, cancelTrace() { calls.cancel++; ui.cancel(true); state.points=[]; state.tool="select"; },
     setTool(tool) { if(calls.setToolError) throw calls.setToolError; if(state.busy||state.modal||state.navigationBusy) throw new Error("Finish the current operation first."); state.tool=tool; },
     command(...args) { calls.command++; if(commandOverride) return commandOverride(...args); throw new Error("Activation must not issue a persisted command."); },
-    pageMetadata:()=>({view:[0,0,600,800]}),drawingPoint:event=>event.pdf,
-    ask:async()=>{calls.ask++;if(calls.answerPromise)return calls.answerPromise;return calls.answer;},
+    pageMetadata:()=>({view:[0,0,600,800],rotation:0,user_unit:1}),drawingPoint:event=>event.pdf,drawingClickOpensSettings:()=>false,
+    activePageCalibrations:()=>snapshot.calibrations,displayRotation:()=>state.viewport?.rotation || 0,
+    node:dom,svg:(tag,attrs)=>Object.assign(dom(tag),{attributes:attrs}),button:(text,action)=>Object.assign(dom("button","",text),{action}),
+    renderPhysicalDetails(){},renderViewportPanel(){},
+    ask:async(title,fields,helper,action,setup)=>{calls.ask++;let controls;if(title==="Textbox"&&setup){controls=[{wrapper:dom(),control:dom("textarea")}];setup(controls,ready=>{calls.ready=ready;});}const answer=calls.answerPromise?await calls.answerPromise:calls.answer;return answer&&controls?{...answer,text:controls[0].read()}:answer;},
     safely:async fn=>{try{return await fn();}catch(error){calls.error=error;throw error;}},
     renderOverlay(){calls.render++;},renderSelection() { calls.render++; }, message(value) { calls.messages.push(value); } };
   const ui = context.window.CeasefireTakeoffGraphicsUI(host);
@@ -302,4 +308,96 @@ test("A late repeated Stamp result cannot clear a newer page draft",async()=>{
 test("An invalidated initial Stamp drag releases only its own listeners",()=>{
   const f=stampFixture({tool:"graphic-stamp"});f.ui.beginStampBox(pointer([100,200]));const release=f.listeners.get('pointerup');f.state.page=2;f.state.tool="polygon";f.state.points=[[9,9]];f.state.gesture={kind:"new-draft"};const retained=structuredClone(f.state);
   release(pointer([220,260]));assert.deepEqual(f.state,retained);assert.equal(f.listeners.size,0);assert.equal(f.calls.command,0);
+});
+
+function drawingFixture(initial={}) {
+  const writes=[];let f;
+  f=fixture(initial,async(op,body,guard)=>{
+    if(!guard())return null;
+    writes.push({op,body:structuredClone(body)});
+    const id=`graphic-${writes.length}`, graphic=op==="create_textbox"?{...body.textbox,kind:"textbox",geometry:{quad_pdf:[[100,200],[160,200],[160,170],[100,170]]}}:body.graphic;
+    f.snapshot.graphics.records.push({id,version:1,...structuredClone(graphic)});f.state.session.revision++;
+    return {created_graphic_id:id};
+  });
+  return {...f,writes};
+}
+test("One Textbox point opens the rich dialog and sends only the exact source anchor to atomic PDF sizing",async()=>{
+  const f=drawingFixture();f.state.viewport.rotation=90;f.calls.answer={text:"ignored form placeholder"};
+  f.calls.richContent={version:1,blocks:[{kind:"bullet",runs:[{text:"RICH",bold:true,italic:true,underline:true}]},{kind:"number",runs:[{text:"NOTE"}]}]};
+  const before=structuredClone(f.snapshot), activation=await f.start("textbox");activation.complete();await activation.pending;
+  await f.ui.point(pointer([100,200]));assert.equal(f.calls.ask,1);assert.equal(f.writes.length,1);
+  const sent=f.writes[0];assert.equal(sent.op,"create_textbox");assert.deepEqual(sent.body.textbox,{mode:"wall",document_id:"document-A",source_sha256:"a".repeat(64),page:1,anchor_pdf:[100,200],display_rotation:90,text:"RICH\nNOTE",text_content:f.calls.richContent,appearance:X.defaults()});
+  assert.equal(sent.body.textbox.geometry,undefined,"Browser never fabricates the PDF text box");assert.equal(f.state.tool,"select");assert.equal(f.state.graphicSelected,"graphic-1");
+  for(const key of ["items","calibrations","transfers"])assert.deepEqual(f.snapshot[key],before[key]);
+});
+for(const[name,transition]of[["page",s=>{s.page=2;s.points=[[9,9]];}],["source",s=>s.document="document-B"],["revision",s=>s.session.revision++],["physical scope",s=>{s.mode="physical";s.physicalScope="service_plans";}],["new drawing",s=>{s.tool="graphic-circle";s.points=[[9,9]];}]])test(`A late one-click Textbox dialog cannot write or clear a newer ${name}`,async()=>{
+  const f=drawingFixture();let release;f.calls.answerPromise=new Promise(resolve=>release=resolve);
+  const activation=await f.start("textbox");activation.complete();await activation.pending;const pending=f.ui.point(pointer([100,200]));pending.catch(()=>{});await Promise.resolve();transition(f.state);const retained=structuredClone(f.state);release({text:"old"});
+  await assert.rejects(pending,/drawing changed/);assert.deepEqual(f.state,retained);assert.equal(f.writes.length,0);
+});
+test("Cancelling a stale one-click Textbox dialog preserves a newer draft",async()=>{
+  const f=drawingFixture();let release;f.calls.answerPromise=new Promise(resolve=>release=resolve);
+  const activation=await f.start("textbox");activation.complete();await activation.pending;const pending=f.ui.point(pointer([100,200]));await Promise.resolve();f.state.page=2;f.state.tool="polygon";f.state.points=[[9,9]];const retained=structuredClone(f.state);release(null);await pending;assert.deepEqual(f.state,retained);assert.equal(f.writes.length,0);
+});
+test("A late accepted Textbox response cannot select or cancel a newer drawing",async()=>{
+  let release;const held=new Promise(resolve=>release=resolve),f=fixture({},async(op,body,guard)=>{assert.equal(op,"create_textbox");assert.equal(guard(),true);await held;return{created_graphic_id:"old"};});
+  const activation=await f.start("textbox");activation.complete();await activation.pending;const pending=f.ui.point(pointer([100,200]));for(let i=0;i<12&&f.calls.command===0;i++)await Promise.resolve();assert.equal(f.calls.command,1);f.state.page=2;f.state.tool="polygon";f.state.points=[[9,9]];const retained=structuredClone(f.state);release();await pending;assert.deepEqual(f.state,retained);
+});
+test("Measure requires a current calibration before arming and preserves all records on rejection",async()=>{
+  const f=fixture(),retained=structuredClone(f.state);await assert.rejects(f.ui.activate("measure"),/current drawing calibration/);assert.deepEqual(f.state,retained);assert.equal(f.fonts.length,0);assert.equal(f.calls.command,0);
+});
+test("Measure calibration changes during font loading cannot arm a stale source basis",async()=>{
+  const f=fixture({calibration:"scale-A"});f.snapshot.calibrations.push({id:"scale-A"},{id:"scale-B"});const activation=await f.start("measure");f.state.calibration="scale-B";const retained=structuredClone(f.state);activation.complete();await assert.rejects(activation.pending,/calibration changed/);assert.deepEqual(f.state,retained);assert.equal(f.calls.command,0);
+});
+test("Measure creates a PDF graphic with original multi-point geometry and calibration, without any item or quantity command",async()=>{
+  const f=drawingFixture({calibration:"scale-A"});f.snapshot.calibrations.push({id:"scale-A"});const before=structuredClone(f.snapshot),activation=await f.start("measure");activation.complete();await activation.pending;
+  for(const p of [[100,200],[220,260],[300,400]])await f.ui.point(pointer(p));assert.equal(f.writes.length,0);await f.ui.finish();assert.equal(f.writes.length,1);const sent=f.writes[0];assert.equal(sent.op,"create_graphic");assert.equal(sent.body.graphic.kind,"measure");assert.equal(sent.body.graphic.text,"");assert.equal(sent.body.graphic.calibration_id,"scale-A");assert.deepEqual(sent.body.graphic.geometry.points,[[100,200],[220,260],[300,400]]);assert.equal(sent.body.graphic.quantity,undefined);
+  for(const key of ["items","calibrations","transfers"])assert.deepEqual(f.snapshot[key],before[key]);
+});
+function pointFixture(points=[[100,200],[220,260],[300,400]]) {
+  const writes=[];let f;
+  f=fixture({graphicSelected:"measure"},async(op,body,guard)=>{assert.equal(guard(),true);writes.push(structuredClone(body));assert.equal(op,"update_graphic");const value=f.snapshot.graphics.records[0];value.geometry=structuredClone(body.changes.geometry);value.version++;f.state.session.revision++;return {revision:f.state.session.revision};});
+  f.snapshot.graphics.records.push({id:"measure",version:1,kind:"measure",mode:"wall",document_id:"document-A",page:1,geometry:{points},appearance:X.defaults(),text:"",calibration_id:"scale-A"});return {...f,writes};
+}
+test("Measure point deletion and midpoint insertion preserve record identity and issue geometry-only guarded edits",async()=>{
+  const f=pointFixture(),before=structuredClone(f.snapshot.graphics.records[0]);f.ui.selectMeasurePoint("measure",1);await f.ui.editMeasurePoint();assert.equal(f.writes.length,1);assert.deepEqual(f.writes[0],{graphic_id:"measure",changes:{geometry:{points:[[100,200],[300,400]]}}});
+  f.ui.selectMeasurePoint("measure",0);await f.ui.editMeasurePoint(true);assert.deepEqual(f.writes[1].changes.geometry.points,[[100,200],[200,300],[300,400]]);const final=f.snapshot.graphics.records[0];for(const key of ["id","kind","mode","document_id","page","text","calibration_id","appearance"])assert.deepEqual(final[key],before[key]);
+});
+test("Measure point deletion fails closed at the two-point minimum",async()=>{
+  const f=pointFixture([[100,200],[300,400]]);f.ui.selectMeasurePoint("measure",0);const before=structuredClone(f.snapshot);await assert.rejects(f.ui.editMeasurePoint(),/at least two/);assert.deepEqual(f.snapshot,before);assert.equal(f.writes.length,0);
+});
+test("A stale Measure control point cannot edit a revised record",async()=>{
+  const f=pointFixture();f.ui.selectMeasurePoint("measure",1);f.snapshot.graphics.records[0].version++;const before=structuredClone(f.snapshot);await assert.rejects(f.ui.editMeasurePoint(),/current Measure/);assert.deepEqual(f.snapshot,before);assert.equal(f.writes.length,0);
+});
+function pressMeasureHandle(f,index=1){
+  const overlay=dom("svg");f.ui.paint(overlay);const group=overlay.children.find(n=>n.attributes?.["data-graphic-id"]==="measure");assert.ok(group);
+  group.listeners.get("pointerdown")({button:0,pointerId:42,pdf:[220,260],clientX:220,clientY:260,target:{dataset:{graphicPart:String(index)}},stopPropagation(){},preventDefault(){}});
+}
+test("Stationary captured Measure handle release selects its point for real Ctrl+Z without whole-record Undo",async()=>{
+  const f=pointFixture();pressMeasureHandle(f);assert.equal(f.state.gesture.kind,"graphic");f.listeners.get("pointerup")({pointerId:42,pdf:[220,260],clientX:220,clientY:260});for(let i=0;i<12;i++)await Promise.resolve();assert.equal(f.state.gesture,null);assert.equal(f.writes.length,0);assert.equal(f.calls.focus,1);
+  const event={key:"z",ctrlKey:true,target:{closest:()=>false},preventDefault(){},stopPropagation(){}};assert.equal(f.ui.handleKeydown(event),true);for(let i=0;i<12&&!f.writes.length;i++)await Promise.resolve();assert.equal(f.writes.length,1);assert.deepEqual(f.writes[0].changes.geometry.points,[[100,200],[300,400]]);
+});
+test("A changed source during a captured Measure handle press cannot select or edit that old point",async()=>{
+  const f=pointFixture();pressMeasureHandle(f);f.state.page=2;f.listeners.get("pointerup")({pointerId:42,pdf:[220,260],clientX:220,clientY:260});for(let i=0;i<12;i++)await Promise.resolve();assert.equal(f.state.gesture,null);assert.equal(f.calls.focus,undefined);assert.equal(f.writes.length,0);assert.equal(f.ui.handleKeydown({key:"z",ctrlKey:true,target:{closest:()=>false}}),false);
+});
+test("Measure point shortcuts ignore Alt, repeated and composing key events",async()=>{
+  const f=pointFixture();f.ui.selectMeasurePoint("measure",1);
+  for(const guard of ["altKey","repeat","isComposing"]){const event={key:"z",ctrlKey:true,[guard]:true,target:{closest:()=>false},preventDefault(){throw new Error("Excluded key must remain native");},stopPropagation(){}};assert.equal(f.ui.handleKeydown(event),false);}
+  assert.equal(f.writes.length,0);
+});
+test("Measure Ctrl+Z handles only an active control point and ignores native text editing",async()=>{
+  const f=pointFixture();const event={key:"z",ctrlKey:true,target:{closest:()=>true},preventDefault(){this.prevented=true;},stopPropagation(){}};assert.equal(f.ui.handleKeydown(event),false);f.ui.selectMeasurePoint("measure",1);assert.equal(f.ui.handleKeydown(event),false);event.target.closest=()=>false;assert.equal(f.ui.handleKeydown(event),true);for(let i=0;i<12&&!f.writes.length;i++)await Promise.resolve();assert.equal(f.writes.length,1);assert.equal(event.prevented,true);
+});
+test("Measure labels render only a current result for the exact record version",()=>{
+  const value={kind:"measure",version:4,geometry:{points:[[10,20],[30,40]]},appearance:X.defaults()};
+  const make=(tag,attrs)=>Object.assign(dom(tag),{attributes:attrs});
+  const draw=result=>X.paint(value,p=>p,1,make,{},result);
+  for(const result of [null,{status:"needs_review",version:4,length_m:12.345},{status:"current",version:3,length_m:12.345},{status:"current",version:4,length_m:null}])assert.equal(draw(result).children.length,1,"Unreviewed or mismatched results never display a numeric length");
+  const current=draw({status:"current",version:4,length_m:12.345});assert.equal(current.children.length,2);assert.equal(current.children[1].textContent,"12.35 m");assert.equal(value.length_m,undefined);
+});
+test("Measure point edit rechecks retained version after delayed Settings flush",async()=>{
+  const f=pointFixture();f.ui.selectMeasurePoint("measure",1);let release;f.calls.flushPromise=new Promise(resolve=>release=resolve);const pending=f.ui.editMeasurePoint();pending.catch(()=>{});await Promise.resolve();f.snapshot.graphics.records[0].version++;const retained=structuredClone(f.snapshot);release();await assert.rejects(pending,/Measure changed/);assert.deepEqual(f.snapshot,retained);assert.equal(f.writes.length,0);
+});
+test("A cancelled old Textbox dialog cannot clear a newly armed same-page Textbox draft",async()=>{
+  const f=drawingFixture();let release;f.calls.answerPromise=new Promise(resolve=>release=resolve);const activation=await f.start("textbox");activation.complete();await activation.pending;const pending=f.ui.point(pointer([100,200]));await Promise.resolve();f.ui.cancel();f.state.points=[[100,200]];const retained=structuredClone(f.state);release(null);await pending;assert.deepEqual(f.state,retained);assert.equal(f.writes.length,0);
 });

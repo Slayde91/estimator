@@ -96,7 +96,7 @@ async function dialog(title, values, action) {
     await expect(page.locator('.takeoff-count-pending')).toHaveCount(2);
     finishedDraftPoints = await renderedMarkerPoints('.takeoff-count-pending');
     await page.locator('.takeoff-viewport').press('Enter');
-    await command(() => dialog('Add count', { Item: `${mode}-ONLY`, Level: 'L01', 'WxH (mm)': '100x200', FRL: '120/120/120', Orientation: 'Horizontal' }, 'Add count'), 'add_standalone_count');
+    await command(() => dialog('Add count', { Item: `${mode}-ONLY`, Level: 'L01', 'WxH (mm)': '100x200', FRL: '-/120/120', Orientation: 'Horizontal' }, 'Add count'), 'add_standalone_count');
     }
     let current = await snapshot(), count = current.items.find(item => item.fields.mark === `${mode}-ONLY`);
     assert.equal(count.purpose, 'count-only'); assert.equal(count.quantity, 2); assert.equal(count.measurement, null); assert.equal(count.geometry.kind, 'count-only'); assert.equal(count.geometry.points.length, 2);
@@ -154,7 +154,9 @@ async function dialog(title, values, action) {
     await page.getByRole('button', { name: 'Settings', exact: true }).click();
   }
   // Retiring an inset must not silently restore a different page-scale basis.
-  // Repair the retained source lines through the real calibrated-only UI.
+  // The requested sidebar calibration button is absent. Keep the retired inset
+  // fail-closed check, then test explicit repair through the guarded command API
+  // and public restore path; this positive is API coverage, not native UI.
   const beforeRepair = await snapshot(), lengthIds = ['WALLS', 'SLABS'].map(mode => evidence[mode].id);
   await page.evaluate(async identifiers => {
     const takeoffs = window.CeasefireTakeoffs, sid = takeoffs.sessionId(); let current = takeoffs.projectSnapshot();
@@ -171,26 +173,47 @@ async function dialog(title, values, action) {
     for (const id of identifiers) if (current.items.find(item => item.id === id).measurement !== null) throw new Error('A retired inset must require explicit recalibration');
     takeoffs.applyProject(await takeoffs.prepareProject(current, sid));
   }, lengthIds);
+  // Complete the same public restore/open lifecycle used when Takeoffs reopens.
+  await renderDrawing(page, () => page.evaluate(() => window.CeasefireTakeoffs.open()), 1);
   await chooseTakeoff(page, 'WALLS');
-  await page.getByLabel('Page number',{exact:true}).fill('1').then(()=>page.getByLabel('Page number',{exact:true}).press('Tab')); await idle();
   await renderDrawing(page, async () => { await page.getByLabel('Page number', { exact: true }).fill('3'); await page.getByLabel('Page number', { exact: true }).press('Tab'); }, 3);
   await renderDrawing(page, () => page.getByRole('button', { name: 'Fit page', exact: true }).click());
   for (const mode of ['WALLS', 'SLABS']) {
     await chooseTakeoff(page, mode);
     const original = beforeRepair.items.find(item => item.id === evidence[mode].id);
     await page.locator(`.takeoff-standalone-register tr[data-item-id="${original.id}"]`).getByRole('button', { name: 'Edit item', exact: true }).click();
-    const repair = page.locator('.takeoff-settings-tools').getByRole('button', { name: 'Attach length calibration', exact: true }); await expect(repair).toBeVisible(); await repair.click();
-    const response = await command(() => dialog('Change length calibration', { 'Source page calibration': original.measurement.calibration_id }, 'Apply calibration'), 'update_item');
+    await expect(page.locator('.takeoff-settings-tools').getByRole('button', { name: /^(Attach|Change) length calibration$/ })).toHaveCount(0);
+    const retained = (await snapshot()).items.find(item => item.id === original.id);
+    assert.equal(retained.measurement, null, 'Opening native settings must not automatically restore a retired inset basis');
+    assert.deepEqual(retained.geometry, original.geometry); assert.deepEqual(retained.member_ids, original.member_ids); assert.deepEqual(retained.fields, original.fields); assert.equal(retained.quantity, original.quantity);
+    const response = await command(() => page.evaluate(async ({ itemId, calibrationId }) => {
+      const takeoffs = window.CeasefireTakeoffs, current = takeoffs.projectSnapshot(), sid = takeoffs.sessionId();
+      const reply = await fetch(`/api/takeoffs/sessions/${sid}/commands`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'update_item', request_id: crypto.randomUUID(), expected_revision: current.revision, item_id: itemId, changes: { measurement: { method: 'calibrated', calibration_id: calibrationId } } }) });
+      if (!reply.ok) throw new Error(await reply.text());
+      const updated = await reply.json(); takeoffs.applyProject(await takeoffs.prepareProject(updated.snapshot, sid));
+    }, { itemId: original.id, calibrationId: original.measurement.calibration_id }), 'update_item');
+    await renderDrawing(page, () => page.evaluate(() => window.CeasefireTakeoffs.open()), 1);
     const repaired = response.snapshot.items.find(item => item.id === original.id);
     assert.deepEqual(repaired.geometry, original.geometry); assert.deepEqual(repaired.member_ids, original.member_ids); assert.deepEqual(repaired.fields, original.fields); assert.deepEqual(repaired.measurement, original.measurement); assert.equal(repaired.purpose, 'length-only');
     assert.equal(response.item_results.find(item => item.id === original.id).length_m, evidence[mode].length_m);
     evidence[mode].repaired_calibration = repaired.measurement.calibration_id;
-    await expect(page.locator('.takeoff-settings-tools').getByRole('button', { name: 'Change length calibration', exact: true })).toBeVisible();
+    evidence[mode].removedCalibrationButtonAbsent = true; evidence[mode].retiredInsetNotAutomaticallyRepaired = true;
+    evidence[mode].calibrationRepairPath = 'explicit guarded command API plus public prepareProject/applyProject/open; not native UI';
+    await expect(page.locator('.takeoff-settings-tools').getByRole('button', { name: /^(Attach|Change) length calibration$/ })).toHaveCount(0);
     await page.getByRole('button', { name: 'Settings', exact: true }).click();
   }
   // A deliberately slow options request must never delay the duct form itself.
-  await chooseTakeoff(page, 'DUCT'); await page.getByRole('button', { name: 'Trace length', exact: true }).click();
+  await chooseTakeoff(page, 'DUCT');
+  const traceSource = beforeRepair.items.find(item => item.id === evidence.WALLS.id);
+  await expect(page.getByLabel('Drawing document', { exact: true })).toHaveValue(traceSource.geometry.document_id);
+  await renderDrawing(page, async () => { await page.getByLabel('Page number', { exact: true }).fill(String(traceSource.geometry.page)); await page.getByLabel('Page number', { exact: true }).press('Tab'); }, traceSource.geometry.page);
   await renderDrawing(page, () => page.getByRole('button', { name: 'Fit page', exact: true }).click());
+  const drawingCalibration = traceSource.measurement.calibration_id;
+  await page.getByRole('button', { name: 'Scale', exact: true }).click();
+  await page.getByLabel('Drawing calibration', { exact: true }).selectOption(drawingCalibration);
+  await expect(page.getByLabel('Drawing calibration', { exact: true })).toHaveValue(drawingCalibration); await idle();
+  evidence.explicitDrawingCalibrationSelected = drawingCalibration;
+  await page.getByRole('button', { name: 'Trace length', exact: true }).click();
   await page.mouse.click(...await screen([350, 200])); await page.mouse.click(...await screen([450, 200]));
   let release; const gate = new Promise(resolve => { release = resolve; });
   await page.route('**/api/takeoffs/options?**', async route => { await gate; await route.continue(); });

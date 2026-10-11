@@ -547,6 +547,27 @@ def _paint_graphics(pdf, graphics, matrix, bounds):
                 head.lineTo(*tip)
                 head.lineTo(tip[0]-size*ux+size*.5*uy, tip[1]-size*uy-size*.5*ux)
                 pdf.drawPath(head, stroke=1, fill=0)
+            elif kind == 'measure':
+                from decimal import Decimal, localcontext, ROUND_HALF_UP
+                from reportlab.pdfbase.pdfmetrics import stringWidth
+                result = graphic['pdf_measure_result']
+                if result['status'] == 'current':
+                    value = Decimal(str(result['length_m']))
+                    with localcontext() as context:
+                        context.prec = max(28, value.adjusted()+8)
+                        label = format(value.quantize(Decimal('.01'), rounding=ROUND_HALF_UP), ',f') + ' m'
+                else:
+                    label = 'Scale needs review'
+                x, y = placed[len(placed)//2]
+                size = style['font_size']; label_width = stringWidth(label, 'ExportVera', size)
+                if label_width+4 > right-left or size+4 > top-bottom:
+                    raise ValueError('The PDF Measure label does not fit the source page at the selected font size.')
+                x = max(left+2, min(x-label_width/2, right-label_width-2))
+                y = max(bottom+2, min(y+size*.5, top-size-2))
+                pdf.setFillColor(HexColor('#FFFFFF')); pdf.setFillAlpha(1)
+                pdf.rect(x-2, y-2, label_width+4, size+4, stroke=0, fill=1)
+                pdf.setFillColor(HexColor(style['font_color'])); pdf.setFillAlpha(style['opacity']); pdf.setFont('ExportVera', size)
+                pdf.drawString(x, y, label)
         pdf.restoreState()
 
 
@@ -693,20 +714,25 @@ def _invisible_link(annotation):
     return isinstance(width, (int, float)) and width == 0
 
 
-def render_document(source, spec, output):
-    from pypdf import PdfReader, PdfWriter
-    from pypdf.generic import NameObject, RectangleObject
+def register_drawing_fonts(physical=False):
+    """The identical layout/export glyph contract, without reading a PDF."""
     import reportlab
     from reportlab.pdfbase import pdfmetrics
     from reportlab.pdfbase.ttfonts import TTFont
-    from reportlab.pdfgen import canvas
-    from reportlab.lib.styles import ParagraphStyle
-    from reportlab.lib.colors import HexColor
-    physical = bool(spec.get('physical_drawing'))
     font_dir = Path(__file__).resolve().parent.parent / 'static' / 'fonts' if physical else Path(reportlab.__file__).resolve().parent / 'fonts'
     for name, filename in (('ExportVera', 'Vera.ttf'), ('ExportVeraBold', 'VeraBd.ttf')):
         if name not in pdfmetrics.getRegisteredFontNames(): pdfmetrics.registerFont(TTFont(name, str(font_dir / filename)))
     pdfmetrics.registerFontFamily('ExportVera', normal='ExportVera', bold='ExportVeraBold')
+
+
+def render_document(source, spec, output):
+    from pypdf import PdfReader, PdfWriter
+    from pypdf.generic import NameObject, RectangleObject
+    from reportlab.pdfgen import canvas
+    from reportlab.lib.styles import ParagraphStyle
+    from reportlab.lib.colors import HexColor
+    physical = bool(spec.get('physical_drawing'))
+    register_drawing_fonts(physical)
     style = ParagraphStyle('Legend', fontName='ExportVera', fontSize=8, leading=10, textColor=HexColor('#202831'))
     reader = PdfReader(source, strict=True); writer = PdfWriter(); total_content = 0
     if reader.is_encrypted: raise ValueError('Encrypted source PDFs cannot be exported.')

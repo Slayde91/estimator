@@ -135,3 +135,4 @@
 .penetration-image-field{max-width:620px}
 .penetration-diagram .actions{margin-top:10px}
 @media(max-width:580px){.penetration-settings{gap:18px}.penetration-band-settings{padding-inline:12px}}
+#penetration-add-to-schedule{width:48px;min-width:48px;height:48px;min-height:48px;padding:8px;border:1px solid var(--line);border-radius:9px;background:#fff;color:var(--text);box-sizing:border-box}

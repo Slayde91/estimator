@@ -76,7 +76,7 @@ async function countCursor() {
   assert.deepEqual(await snapshot(), ductBefore, 'Cancelling Count discards its unfinished markers only');
   await page.getByRole('button', { name: 'Count', exact: true }).click(); await countCursor();
   await page.mouse.click(...await screen([150, 200])); await page.locator('.takeoff-viewport').press('Enter');
-  const ductReply = await response(() => dialog('Add count', { Item: 'DUCT-CROSSHAIR', Level: 'L01', 'WxH (mm)': '100x200', FRL: '120/120/120', Orientation: 'Horizontal' }, 'Add count'), '/commands');
+  const ductReply = await response(() => dialog('Add count', { Item: 'DUCT-CROSSHAIR', Level: 'L01', 'WxH (mm)': '100x200', FRL: '-/120/120', Orientation: 'Horizontal' }, 'Add count'), '/commands');
   const duct = ductReply.snapshot.items.find(value => value.fields.mark === 'DUCT-CROSSHAIR'); assert.equal(duct.purpose, 'count-only'); assert.equal(duct.quantity, 1); assert.equal(duct.measurement, null);
   await page.getByRole('button', { name: 'Count', exact: true }).click(); await countCursor(); await page.mouse.click(...await screen([500, 400]), { button: 'right' }); evidence.ductCrosshairOverSavedMarker = true;
   await chooseTakeoff(page, 'PENETRATIONS'); await idle();

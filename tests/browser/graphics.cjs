@@ -54,16 +54,20 @@ async function insert(kind, points, options = {}) {
   const tool = kind === "line" ? "polyline" : kind; await expect(page.locator(".takeoff-viewport")).toHaveAttribute("data-tool", `graphic-${tool}`);
   const draw = async () => {
     if(kind === "stamp") { const first=await screen(points[0],options.view,options.rotation),last=await screen(points[1],options.view,options.rotation);await page.mouse.move(...first);await page.mouse.down();await page.mouse.move(...last,{steps:8});await page.mouse.up(); }
-    else for (const p of points) await page.mouse.click(...await screen(p, options.view, options.rotation));
+    else for (const p of (kind === "textbox" ? points.slice(0,1) : points)) await page.mouse.click(...await screen(p, options.view, options.rotation));
     if (["line","polyline","polygon"].includes(kind)) await page.locator(".takeoff-viewport").press("Enter");
     if (["textbox","stamp"].includes(kind)) await dialog(labels[kind], {[`${labels[kind]} text`]: options.text || (kind === "stamp" ? "REVIEWED" : "Literal <b>note</b> é")}, kind === "stamp" ? "Create stamp" : "Place markup");
   };
-  const result = await command(draw, "create_graphic"), record = result.snapshot.graphics.records.find(v=>v.id===result.created_graphic_id);
+  const result = await command(draw, kind === "textbox" ? "create_textbox" : "create_graphic"), record = result.snapshot.graphics.records.find(v=>v.id===result.created_graphic_id);
   assert.equal(record.kind, kind); assert.equal(record.source_sha256, result.snapshot.documents.find(v=>v.id===record.document_id).sha256);
   assert.equal(record.version, 1); await expect(graphic(record.id)).toBeVisible();
   if(kind === "stamp") { await expect(page.locator(".takeoff-viewport")).toHaveAttribute("data-tool","graphic-stamp");await select(record.id); }
   await expect(panel().getByRole("heading", {name:`${kind === "line" ? "Line" : labels[kind]} Settings`,exact:true})).toBeVisible();
-  const payload = requests.at(-1).graphic; for (const key of ["kind","mode","document_id","source_sha256","page","geometry","text","appearance"]) assert.deepEqual(payload[key],record[key]);
+  if (kind === "textbox") {
+    const payload=requests.at(-1).textbox; for(const key of ["mode","document_id","source_sha256","page","text","appearance"])assert.deepEqual(payload[key],record[key]);
+    assert.deepEqual(payload.anchor_pdf,record.geometry.quad_pdf[0],"Single native click remains the retained PDF anchor");assert.equal(payload.geometry,undefined,"Creation sends no fabricated box");
+    assert.equal(payload.display_rotation,options.rotation||0);assert.equal(record.appearance.font_size,12,"Automatic sizing preserves requested font size");assert.ok(result.textbox_layout.width_pt>0&&result.textbox_layout.height_pt>0&&result.textbox_layout.line_count>=1);
+  } else { const payload=requests.at(-1).graphic;for(const key of ["kind","mode","document_id","source_sha256","page","geometry","text","appearance"])assert.deepEqual(payload[key],record[key]); }
   return {record,result};
 }
 async function select(id) {
@@ -141,7 +145,11 @@ async function unfinishedGuards() {
   let resized=reply.snapshot.graphics.records.find(v=>v.id===records.rectangle.id);assert.deepEqual(resized.geometry.quad_pdf[0],moved.geometry.quad_pdf[0]);assert.notDeepEqual(resized.geometry.quad_pdf[2],moved.geometry.quad_pdf[2]);invariant(reply.snapshot,baseline);
   await select(records.line.id);reply=await command(()=>drag(graphic(records.line.id).locator('[data-graphic-part="1"]'),10,8,records.line.id),"update_graphic");assert.deepEqual(reply.snapshot.graphics.records.find(v=>v.id===records.line.id).geometry.points[0],records.line.geometry.points[0]);invariant(reply.snapshot,baseline);
   check("native move, affine corner resize and path endpoint edit retain graphic identity and leave the measured surface unchanged");
-  await select(records.textbox.id);reply=await command(async()=>{await panel().getByLabel("Textbox text",{exact:true}).fill("Edited literal <b>note</b> é");await panel().getByLabel("Textbox text",{exact:true}).press("Tab");},"update_graphic");assert.equal(reply.snapshot.graphics.records.find(v=>v.id===records.textbox.id).text,"Edited literal <b>note</b> é");
+  await select(records.textbox.id);
+  const originalTextbox=(await snapshot()).graphics.records.find(v=>v.id===records.textbox.id),resizeTarget=await screen([480,450]),resizeBox=await graphic(records.textbox.id).locator('[data-graphic-part="2"]').boundingBox();
+  reply=await command(()=>drag(graphic(records.textbox.id).locator('[data-graphic-part="2"]'),resizeTarget[0]-resizeBox.x-resizeBox.width/2,resizeTarget[1]-resizeBox.y-resizeBox.height/2,records.textbox.id),"update_graphic");
+  const expandedTextbox=reply.snapshot.graphics.records.find(v=>v.id===records.textbox.id);assert.deepEqual(expandedTextbox.geometry.quad_pdf[0],originalTextbox.geometry.quad_pdf[0]);assert.notDeepEqual(expandedTextbox.geometry.quad_pdf[2],originalTextbox.geometry.quad_pdf[2]);invariant(reply.snapshot,baseline);
+  reply=await command(async()=>{await panel().getByLabel("Textbox text",{exact:true}).fill("Edited literal <b>note</b> é");await panel().getByLabel("Textbox text",{exact:true}).press("Tab");},"update_graphic");assert.equal(reply.snapshot.graphics.records.find(v=>v.id===records.textbox.id).text,"Edited literal <b>note</b> é");
   await command(async()=>{await panel().getByLabel("Font Size",{exact:true}).fill("10");await panel().getByLabel("Font Size",{exact:true}).press("Tab");},"update_graphic");
   const rich=()=>panel().getByRole("textbox",{name:"Textbox text",exact:true});
   for(const mark of ["Bold","Italic","Underline"]) {

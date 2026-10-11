@@ -172,7 +172,7 @@ function watch(current) {
   const beforeMixed = await snapshot(), mixedCommands = requests.length;
   await click([750,500]);await body(nativeFirst.wall).press('Enter');await body(nativeFirst.slab).press('Shift+Space');
   for(const id of [nativeFirst.wall,nativeFirst.slab])await expect(body(id)).toHaveAttribute('aria-pressed','true');
-  await expect(panel()).toBeVisible();await expect(panel().getByText('Surface type: Wall / Floor',{exact:true})).toBeVisible();
+  await expect(panel()).toBeVisible();await expect(panel().getByText('Surface type: Wall / Floor',{exact:true})).toHaveCount(0);
   await expect(panel().getByLabel('Surface basis',{exact:true})).toHaveCount(0);
   assert.deepEqual(await snapshot(),beforeMixed,'Mixed native keyboard selection changes no item, source, measurement, quantity or appearance');
   assert.equal(requests.length,mixedCommands,'Mixed native keyboard selection sends no mutation');

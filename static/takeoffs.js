@@ -11,7 +11,7 @@
   const calloutDefaults = () => ({ stroke_color: "#FF3300", fill_color: "#FFDD33", font_color: "#000000", stroke_width: 4, fill_enabled: true, opacity: .75 });
   const state = { session: null, saved: null, opening: null, active: false, mode: "steel", document: null, page: 1,
     zoom: 1, tool: "select", points: [], countEntries: [], countGeneration: 0, countDefaultLength: null, countQueue: Promise.resolve(), countFinishing: false, countContinuation: null, countSelection: new Map(), traceCursor: null, markupMenu: null, selected: new Set(), hovered: null, hidden: new Set(), collapsed: new Set(),
-    search: "", filter: "", sort: "mark", group: "", offset: 0, calibration: "", calibrationContext: null, calibrationSelections: new Map(), busy: false, queue: Promise.resolve(),
+    search: "", filter: "", sort: "mark", group: "", offset: 0, showDeleted: false, deletedOffset: 0, deletedHistory: null, calibration: "", calibrationContext: null, calibrationSelections: new Map(), busy: false, queue: Promise.resolve(),
     registerColumnFilters: new Map(), registerFilterSession: null,
     renderId: 0, searchId: 0, viewport: null, pageRotations: new Map(), pdfs: new Map(), pdfLoads: new Map(), thumbnailTasks: new Map(), thumbnailPages: new Map(), pdfWarnings: new Map(), pdfLibrary: null, resultMap: new Map(),
     formDirty: false, settingsDirty: false, settingsOpen: false, settingsEditor: null, gesture: null, controlPoint: null, controlMenu: false, planActive: false, planController: null, modal: false, issues: [], searchHits: [], pending: null, bindings: [], ui: null,
@@ -61,7 +61,7 @@
   const documentById = id => documents().find(doc => doc.id === id);
   const currentDocument = () => documentById(state.document);
   const pageMetadata = () => currentDocument()?.pages?.find(page => page.page === state.page);
-  const graphicsUI = X && window.CeasefireTakeoffGraphicsUI({ state, G, X, node, svg, button, clone, snapshot, documents, pageMetadata, currentDocument, pageDisplayKey, signatureMode, signatureInWorkspace, selectedSignature, selectedAnnotation, command, safely, message, renderSelection, renderOverlay, flushSettings, requireFinishedEdits, cancelTrace, setTool, ask, drawingPoint, drawingClickOpensSettings, bindSetting, markSettingsEdited, appearanceField, formField, currentVisibilityControl, renderPhysicalDetails, renderViewportPanel, toggleSettings, openStampMenu });
+  const graphicsUI = X && window.CeasefireTakeoffGraphicsUI({ state, G, X, node, svg, button, clone, snapshot, documents, pageMetadata, currentDocument, pageDisplayKey, signatureMode, signatureInWorkspace, selectedSignature, selectedAnnotation, command, safely, message, renderSelection, renderOverlay, flushSettings, requireFinishedEdits, cancelTrace, setTool, ask, drawingPoint, drawingClickOpensSettings, bindSetting, markSettingsEdited, appearanceField, formField, currentVisibilityControl, renderPhysicalDetails, renderViewportPanel, toggleSettings, openStampMenu, activePageCalibrations, displayRotation: () => state.viewport?.rotation || 0, pdfMeasureResult: id => (state.session?.pdf_measure_results || []).find(result => result.id === id), formatLength });
   const initialPagesUI = window.CeasefireTakeoffInitialPages?.({ state, G, S, svg, snapshot, currentDocument, pageMetadata, pageRotation, pageDisplayKey, signatureMode, drawingPoint, flushSettings, requireFinishedEdits, cancelTrace, setTool, command, safely, message, renderOverlay, renderSelection });
   const selectedItems = () => items().filter(item => state.selected.has(item.id) && inWorkspace(item.mode));
   const editableFields = (mode, calculator = state.ui?.target?.value) => (fields[mode] || []).filter(([key]) => !["zone", "group", "notes"].includes(key) && (key !== "sides" || calculator === "steel_board"));
@@ -465,7 +465,8 @@
     const ui = state.ui = { root };
     ui.title = node("h1", "takeoff-workspace-title", "Steel");
     ui.documentMenu = registerDocumentMenu();
-    const headingActions = node("div", "actions takeoff-document-tools"); headingActions.append(ui.documentMenu.root, buildPDFToolsMenu());
+    ui.physicalDocumentHost = node("div", "takeoff-physical-document-host"); ui.physicalDocumentHost.hidden = true;
+    const headingActions = node("div", "actions takeoff-document-tools"); headingActions.append(ui.documentMenu.root, ui.physicalDocumentHost, buildPDFToolsMenu());
     ui.heading = node("div", "takeoff-workspace-heading"); ui.heading.append(ui.title, headingActions);
     ui.message = node("div", "message"); ui.message.hidden = true;
     const toolbar = node("div", "takeoff-toolbar takeoff-tool-rail"); ui.toolRail = toolbar; toolbar.setAttribute("role", "toolbar"); toolbar.setAttribute("aria-label", "Drawing tools"); toolbar.setAttribute("aria-orientation", "vertical");
@@ -481,6 +482,12 @@
       control.classList.add("icon-only", "takeoff-icon-button"); control.replaceChildren(image); control.setAttribute("aria-label", title); control.title = title; control.setAttribute("aria-pressed", "false"); ui.tools[key] = control;
     }
     ui.tools.countLength.after(ui.tools.markups, ui.tools.legend);
+    if (X && graphicsUI) {
+      const measure = button("Measure", () => graphicsUI.activate("measure")); measure.dataset.tool = "graphic-measure";
+      measure.classList.add("icon-only", "takeoff-icon-button", "takeoff-graphic-tool"); measure.replaceChildren(X.icon("measure"));
+      measure.setAttribute("aria-label", "Measure"); measure.title = "Measure length on the PDF"; ui.tools["graphic-measure"] = measure;
+      ui.tools.trace.after(measure);
+    }
     const visibility = button("Visibility", () => { state.markupsHidden = !state.markupsHidden; visibility.setAttribute("aria-pressed", String(state.markupsHidden)); renderOverlay(); });
     const eye = node("img"); eye.src = "/icons/takeoff-visibility.png"; eye.alt = ""; eye.width = 24; eye.height = 24;
     visibility.replaceChildren(eye); visibility.classList.add("icon-only", "takeoff-icon-button", "takeoff-visibility-button"); visibility.setAttribute("aria-label", "Visibility"); visibility.title = "Visibility: show or hide all markups; double-click restores individually hidden items"; visibility.setAttribute("aria-pressed", "false");
@@ -555,7 +562,11 @@
       renderSelection();
     });
     ui.selectFiltered.setAttribute("aria-pressed", "false");
-    ui.registerExtraControls = [ui.statusFilter, ui.sort, ui.group, ui.selectFiltered, button("Undo last edit", () => undoLastEdit())];
+    const showDeleted = node("label", "takeoff-check"), deletedCheck = node("input"); deletedCheck.type = "checkbox"; deletedCheck.checked = false;
+    deletedCheck.setAttribute("aria-label", "Show deleted records");
+    deletedCheck.addEventListener("change", () => { state.showDeleted = deletedCheck.checked; state.deletedOffset = 0; renderRegister(); });
+    showDeleted.append(deletedCheck, node("span", "", "Show deleted records")); ui.showDeleted = deletedCheck;
+    ui.registerExtraControls = [ui.statusFilter, ui.sort, ui.group, ui.selectFiltered, button("Undo last edit", () => undoLastEdit()), showDeleted];
     controls.append(ui.filter, ...ui.registerExtraControls);
     ui.bulk = node("div", "takeoff-bulk"); ui.bulk.hidden = true; ui.selectionCount = node("strong"); ui.bulkField = select([]); ui.bulkField.setAttribute("aria-label", "Bulk edit field"); ui.bulkValue = node("input"); ui.bulkValue.setAttribute("aria-label", "Bulk edit value"); ui.bulkValue.placeholder = "New value (blank clears)";
     ui.bulk.append(ui.selectionCount, ui.bulkField, ui.bulkValue, button("Apply to selected", bulkEdit), button("Confirm", confirmSelected), button("Unconfirm", () => selectedCommand("unconfirm_items")), button("Delete", deleteSelected));
@@ -565,13 +576,14 @@
     ui.transferControls = [ui.target, button("Preview transfer", () => transfer(false)), button("Update linked rows", () => transfer(true)), button("Detach links", detachSelected)];
     ui.areaNotice = node("p", "helper takeoff-area-notice", "Area records export as m². Existing steel and duct calculators do not accept surface areas. Split/merge is unavailable for surfaces; group separate physical surfaces without changing their identities.");
     exports.append(...ui.transferControls, ui.areaNotice);
-    ui.tableWrap = node("div", "takeoff-register-table"); ui.pagination = node("div", "takeoff-register-controls"); register.append(controls, ui.bulk, exports, ui.tableWrap, ui.pagination);
+    ui.tableWrap = node("div", "takeoff-register-table"); ui.pagination = node("div", "takeoff-register-controls"); ui.deletedRecords = node("section", "takeoff-deleted-records"); ui.deletedRecords.hidden = true; register.append(controls, ui.bulk, exports, ui.tableWrap, ui.pagination, ui.deletedRecords);
     ui.physicalContainer = node("div", "takeoff-physical-container"); ui.physicalContainer.hidden = true;
     ui.controlStatus = node("p", "helper takeoff-control-status"); ui.controlStatus.hidden = true; ui.controlStatus.setAttribute("role", "status");
     const bottomControls = node("div", "takeoff-viewer-bottom"); bottomControls.append(pageControls);
     const viewer = node("div", "takeoff-viewer"); viewer.append(ui.viewport, viewerTop, bottomControls);
     drawingPane.append(viewer, ui.progress, ui.controlStatus, ui.physicalOverlayStatus);
     workspace.append(layout, register); root.append(ui.heading, ui.message, workspace, ui.physicalContainer);
+    ui.paneResize = window.CeasefireTakeoffPaneResize?.mount(layout, [ui.viewportPanel, ui.settingsPanel, ui.physicalDetails]);
     if (typeof ResizeObserver === "function") {
       ui.topControlsObserver = new ResizeObserver(() => layout.style.setProperty("--takeoff-top-controls-height", `${viewerTop.offsetHeight}px`));
       ui.topControlsObserver.observe(viewerTop);
@@ -691,6 +703,7 @@
     refreshNavigation();
     const physical = state.mode === "physical";
     state.ui.documentMenu.root.hidden = physical;
+    state.ui.physicalDocumentHost.hidden = !physical;
     if (physical) state.ui.documentMenu.close(false);
     state.ui.title.textContent = physical ? state.physicalScope === "service_plans" ? "Service Plans" : "Defect Reports" : state.mode === "duct" ? "Ductwork" : labels[state.mode];
     state.ui.tools.markups.hidden = state.mode !== "steel";
@@ -804,7 +817,7 @@
     const scope = state.physicalScope;
     state.physicalUI = window.CeasefireTakeoffPhysical.mount(state.ui.physicalContainer, {
       ask, confirm, notify: message, changed: () => window.CeasefireProject?.changed?.(), source: physicalSource,
-      scope: () => scope, inspectorContainer: state.ui.physicalDetails,
+      scope: () => scope, inspectorContainer: state.ui.physicalDetails, documentMenuContainer: state.ui.physicalDocumentHost,
       libraryCommand: async (op, values) => { const reply = await command(op, values); return { ...reply, snapshot: physicalSnapshot(reply.snapshot) }; },
       libraryPreview: previewLibraryLink,
       libraryApply: applyLibraryLink,
@@ -976,8 +989,8 @@
     if (editor && (editor.touched.size || editor.applying)) await applySettings(editor);
   }
   async function loadSettingsOptions(editor) {
-    const item = settingsSelectedItems()[0]; if (!item || isSurface(item) || item.purpose === "length-only") return;
-    const calculator = isStandalone(item) ? "ductwork" : state.ui.target.value, request = editor.optionRequest = (editor.optionRequest || 0) + 1;
+    const item = settingsSelectedItems()[0]; if (!item || isSurface(item)) return;
+    const calculator = isStandalone(item) ? "firestopping" : state.ui.target.value, request = editor.optionRequest = (editor.optionRequest || 0) + 1;
     const product = editor.fields.find(field => field.control.name === "product")?.control.value || "", member = editor.fields.find(field => field.control.name === "member_type")?.control.value || "";
     const choices = await loadCalculatorOptions(calculator, product, member);
     if (state.settingsEditor !== editor || request !== editor.optionRequest || (!isStandalone(item) && calculator !== state.ui.target.value)) return;
@@ -1015,7 +1028,6 @@
     content.append(appearanceActions);
     if (countsOnly) content.append(node("p", "helper", "Marker size uses physical PDF points. Colour, shape, fill and opacity change appearance only."));
     content.append(node("h4", "", "Item details"));
-    if (isArea()) content.append(node("p", "helper", `Surface type: ${[...new Set(selected.map(surfaceType))].join(" / ")}`));
     // Hide this legacy source field only in the inspector. Untouched citations
     // remain in the item and its evidence; unrelated edits send touched fields only.
     editor.fields = commonItemFields(selected, itemFields).filter(([key]) => !["surface_citation", "surface_basis"].includes(key)).map(def => { const field = formField(def, def[0] === "duct_size" ? formatDuctSize(first.fields) : (def[0] === "layers" ? first.fields.layers ?? 1 : first.fields[def[0]])); bindSetting(editor, field, `fields:${def[0]}`); if (def[0] === "sides") field.wrapper.hidden = state.ui.target.value !== "steel_board"; if (["product", "member_type"].includes(def[0])) field.control.addEventListener("change", () => void safely(() => loadSettingsOptions(editor))); content.append(field.wrapper); return field; });
@@ -1034,7 +1046,8 @@
     if (isStandalone(first)) {
       const total = selected.reduce((sum, item) => sum + item.quantity, 0), row = node("div", "takeoff-standalone-settings");
       const quantity = formField(["total_count", first.purpose === "count-only" ? "Total Count/QTY" : "Length (m)", "number"], first.purpose === "count-only" ? total : itemResult(first).length_m); quantity.control.readOnly = true;
-      row.append(quantity.wrapper, node("p", "helper", first.purpose === "count-only" ? "The total counts markers on the PDF. Add or remove a marker to change it." : "Length follows the calibrated source points."), button("Delete item", async () => { await flushSettings(); await deleteItems(selected.map(item => item.id)); })); content.append(row);
+      if (first.purpose === "length-only") quantity.control.value = Number.isFinite(itemResult(first).length_m) ? itemResult(first).length_m.toFixed(2) : "";
+      row.append(quantity.wrapper); if (first.purpose === "count-only") row.append(node("p", "helper", "The total counts markers on the PDF. Add or remove a marker to change it.")); row.append(button("Delete item", async () => { await flushSettings(); await deleteItems(selected.map(item => item.id)); })); content.append(row);
     } else if (!isCount(first) && !isSurface(first)) { editor.quantity = formField(["quantity", "Count/QTY", "number"], first.quantity); bindSetting(editor, editor.quantity, "quantity"); content.append(editor.quantity.wrapper); }
     if (selected.length === 1 && !isCount(first)) renderItemSettingsTools(content, first, editor);
     void safely(() => loadSettingsOptions(editor));
@@ -2048,8 +2061,12 @@
     const value={mode:copied.mode,document_id:source.id,source_sha256:source.sha256,page:state.page,appearance:clone(old.appearance)};
     if(copied.kind==="signature") {value.quad_pdf=translated;value.strokes=clone(old.strokes);}
     else {value.kind=old.kind;value.geometry=old.geometry.quad_pdf?{quad_pdf:translated}:{points:translated};value.text=old.text;if(old.text_content)value.text_content=clone(old.text_content);if(old.stamp_image)value.stamp_image=clone(old.stamp_image);}
+    if (value.kind === "measure") {
+      if (!activePageCalibrations().some(calibration => calibration.id === state.calibration)) throw new Error("Choose the current page's scale before pasting a Measure.");
+      value.calibration_id = state.calibration;
+    }
     const revision=state.session.revision;
-    const reply=await command(copied.kind==="signature"?"create_signature":"create_graphic",{[copied.kind]:value},()=>{requireFinishedEdits();return copied===state.pdfMarkupClipboard && before===pdfPasteContext() && revision===state.session?.revision && state.pastePointer===pointer && selection===pdfSelectionIntent();});
+    const reply=await command(copied.kind==="signature"?"create_signature":"create_graphic",{[copied.kind]:value},()=>{requireFinishedEdits();return copied===state.pdfMarkupClipboard && before===pdfPasteContext() && revision===state.session?.revision && state.pastePointer===pointer && selection===pdfSelectionIntent() && (value.kind !== "measure" || value.calibration_id === state.calibration);});
     if(!reply || before!==pdfPasteContext() || copied!==state.pdfMarkupClipboard || selection!==pdfSelectionIntent() || state.settingsDirty || state.formDirty) return;
     state.selected.clear();state.countSelection.clear();state.annotationSelected=null;state.legendSelected=null;state.graphicSelected=null;state.signatureSelected=null;state.settingsOpen=false;state.settingsEditor=null;
     const emptySelection=pdfSelectionIntent();await state.physicalUI?.clearSelection?.();
@@ -2077,6 +2094,7 @@
   }
   function planKeydown(event) {
     if (event.target?.isContentEditable || event.target?.closest?.("input,textarea,select,[contenteditable=true]")) return;
+    if (graphicsUI?.handleKeydown?.(event)) return;
     if (event.key === "Escape") { event.preventDefault(); cancelTrace(); resetPlanInteraction(); renderOverlay(); return; }
     if ((event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey && !event.repeat && !event.isComposing && state.tool === "select") {
       const key = event.key.toLowerCase();
@@ -2215,7 +2233,7 @@
     if (continuation) continuationTarget(continuation);
     state.countFinishing = true;
     try {
-      const details = continuation ? null : await ask("Add count", [...standaloneFields.map(def => [def[0], def[1], def[2] || "text", "", def[0] === "mark"])], "Count/QTY is the number of markers on this page.", "Add count", (controls, ready) => configureSteelCreation(controls, "ductwork", ready));
+      const details = continuation ? null : await ask("Add count", [...standaloneFields.map(def => [def[0], def[1], def[2] || "text", "", def[0] === "mark"])], "Count/QTY is the number of markers on this page.", "Add count", (controls, ready) => configureSteelCreation(controls, "firestopping", ready));
       if (!continuation && !details) return cancelTrace();
       const values = details ? { ...details, ...parseDuctSize(details.duct_size) } : null; if (values) delete values.duct_size;
       const reply = continuation ? await command("continue_standalone_count", { item_id: continuation.itemId, markers }, () => !!continuationTarget(continuation)) : await command("add_standalone_count", { mode: state.mode, document_id: state.document, page: state.page, markers, fields: values, appearance: newMarkupAppearance() });
@@ -2233,7 +2251,7 @@
       const controls = [];
       for (const def of standaloneFields) { const field = formField(def, def[0] === "duct_size" ? formatDuctSize(item.fields) : item.fields[def[0]]); controls.push(field); field.control.addEventListener("change", () => void safely(async () => { await flushSettings(); requireFinishedEdits(); await command("update_item", { item_id: item.id, changes: { fields: def[0] === "duct_size" ? parseDuctSize(field.read()) : { [def[0]]: field.read() } } }); })); const cell = node("td"); cell.append(field.control); row.append(cell); }
       row.append(node("td", "", item.purpose === "count-only" ? String(item.quantity) : formatLength(itemResult(item).length_m))); body.append(row);
-      const sessionId = state.session?.session_id; void loadCalculatorOptions("ductwork").then(choices => { if (table.isConnected && sessionId === state.session?.session_id) populateCalculatorOptions(controls, choices, "ductwork"); }).catch(error => { if (table.isConnected) message(error.message, true); });
+      const sessionId = state.session?.session_id; void loadCalculatorOptions("firestopping").then(choices => { if (table.isConnected && sessionId === state.session?.session_id) populateCalculatorOptions(controls, choices, "firestopping"); }).catch(error => { if (table.isConnected) message(error.message, true); });
     }
     container.append(node("h3", "", isArea() ? "Length measurements" : "Counts"), table);
   }
@@ -2262,8 +2280,15 @@
       return [name, key === "product" ? "Product" : label, type || "text", "", key === "mark"];
     }), ["quantity", "Count/QTY", "number", "", true]];
   }
-  const calculatorFieldColumns = { steel_vermiculite: { product: "B", exposure: "C", critical_temperature: "D", section: "F", fire_period_min: "H" }, steel_board: { product: "C", section: "D", sides: "G", fire_period_min: "H", member_type: "I", critical_temperature: "J" }, ductwork: { product: "C", frl: "E", exposure: "H", orientation: "I" } };
+  const calculatorFieldColumns = { firestopping: { frl: "N" }, steel_vermiculite: { product: "B", exposure: "C", critical_temperature: "D", section: "F", fire_period_min: "H" }, steel_board: { product: "C", section: "D", sides: "G", fire_period_min: "H", member_type: "I", critical_temperature: "J" }, ductwork: { product: "C", frl: "E", exposure: "H", orientation: "I" } };
   async function loadCalculatorOptions(calculator, product = "", member = "") {
+    if (calculator === "firestopping") {
+      const configuration = clone(window.CeasefireProject?.configuration?.() || { inventory: {}, rates: {} });
+      const response = await fetch("/api/penetration/definition", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ configuration }) });
+      const definition = await response.json(), field = definition.row_fields?.find(value => value.column === "N");
+      if (!response.ok || field?.type !== "select" || !Array.isArray(field.options) || !field.options.length || field.options.some(value => typeof value !== "string")) throw new Error(definition.error || "The Firestopping FRL choices could not be loaded.");
+      return { columns: [field] };
+    }
     const requested = api(`/options?calculator=${encodeURIComponent(calculator)}&product=${encodeURIComponent(product)}&member_type=${encodeURIComponent(member)}`);
     if (calculator !== "steel_board") return requested;
     // Physical steel exposure remains required by takeoff review. Board's
@@ -3762,6 +3787,43 @@
     state.ui.settingsPanel.setAttribute("tabindex", "-1");
     revealDrawingPanel(state.ui.settingsPanel, true);
   }
+  function renderDeletedHistory() {
+    const container = state.ui.deletedRecords; container.hidden = !state.showDeleted;
+    if (!state.showDeleted || !state.session) return;
+    const filterContext = JSON.stringify([state.session.session_id, state.session.revision, workspaceMode(), state.filter]);
+    if (state.deletedFilterContext !== filterContext) { state.deletedFilterContext = filterContext; state.deletedOffset = 0; }
+    const context = { sessionId: state.session.session_id, revision: state.session.revision, mode: workspaceMode(), query: state.filter, offset: state.deletedOffset };
+    const key = JSON.stringify(context), current = () => state.showDeleted && key === JSON.stringify({ sessionId: state.session?.session_id, revision: state.session?.revision, mode: workspaceMode(), query: state.filter, offset: state.deletedOffset });
+    const draw = reply => {
+      if (!current()) return;
+      const heading = node("h3", "", "Deleted records"), notice = node("p", "helper", "Read-only history. Deleted records do not contribute to quantities or schedules.");
+      const table = node("table"), head = node("thead"), row = node("tr"), body = node("tbody");
+      for (const title of ["Retained ID", "Item", "Level", "Details", "Deleted at revision"]) row.append(node("th", "", title));
+      head.append(row); table.append(head, body);
+      for (const record of reply.records || []) {
+        const item = record.item, fields = item.fields || {}, line = node("tr", "takeoff-deleted-record"); line.dataset.deletedItemId = item.id;
+        for (const value of [item.id, fields.mark || "", fields.level || "", Object.entries(fields).filter(([name]) => !["mark", "level"].includes(name)).map(([name, value]) => `${name.replaceAll("_", " ")}: ${value ?? ""}`).join("\n"), record.deletion_revision]) line.append(node("td", "", String(value ?? "")));
+        body.append(line);
+      }
+      const total = reply.total || 0, paging = node("div", "takeoff-register-controls");
+      const previous = button("Previous deleted records", () => { state.deletedOffset = Math.max(0, state.deletedOffset - 100); renderDeletedHistory(); }); previous.disabled = !context.offset;
+      const next = button("Next deleted records", () => { state.deletedOffset += 100; renderDeletedHistory(); }); next.disabled = context.offset + 100 >= total;
+      paging.append(previous, node("span", "helper", `${total ? context.offset + 1 : 0}–${Math.min(context.offset + 100, total)} of ${total} deleted records`), next);
+      container.replaceChildren(heading, notice, table, paging);
+      if (!total) container.append(node("p", "helper", "No deleted records match this workspace and filter."));
+    };
+    if (state.deletedHistory?.key === key) { if (state.deletedHistory.reply) draw(state.deletedHistory.reply); return; }
+    const request = state.deletedHistory = { key };
+    container.replaceChildren(node("p", "helper", "Loading deleted records…"));
+    void api(`/sessions/${context.sessionId}/deleted-items`, { expected_revision: context.revision, mode: context.mode, query: context.query, offset: context.offset, limit: 100 }).then(reply => {
+      if (state.deletedHistory !== request || !current()) return;
+      if (reply.revision !== context.revision || reply.mode !== context.mode || reply.read_only !== true || !Array.isArray(reply.records) || reply.records.length > 100 || !Number.isSafeInteger(reply.total) || reply.total < reply.records.length || reply.records.some(record => record.read_only !== true || !record.item?.id)) throw new Error("The deleted-record history response is incomplete. Reload the current records.");
+      request.reply = reply; draw(reply);
+    }).catch(error => {
+      if (state.deletedHistory !== request || !current()) return;
+      state.deletedHistory = null; container.replaceChildren(node("p", "takeoff-warning", error.message));
+    });
+  }
   function renderRegister() {
     if (!state.ui || state.mode === "physical") return;
     const matches = visibleItems();
@@ -3830,6 +3892,7 @@
     const standaloneRows = grouped.slice(state.offset, state.offset + 100).filter(isStandalone);
     if (standaloneRows.length) renderStandaloneRegister(standaloneRows, state.ui.tableWrap);
     if (!list.length) state.ui.tableWrap.append(node("p", "takeoff-register-empty", area ? `No matching surfaces. Calibrate the applicable drawing scale, then Trace surface. ${surfaceHelp}` : "No matching items. Calibrate and trace a member/run, or cite a source-stated length."));
+    renderDeletedHistory();
   }
   function renderItemSettingsTools(content, item, editor) {
     editor.tools = node("section", "takeoff-settings-tools"); content.append(editor.tools);
@@ -3846,8 +3909,7 @@
     const sessionId = state.session?.session_id;
     const currentAction = action => async () => { await flushSettings(); requireFinishedEdits(); if (sessionId !== state.session?.session_id) throw new Error("The project changed. Choose the item again."); const current = items().find(value => value.id === item.id); if (!current) throw new Error("This item is no longer available."); return action(current); };
     if (item.purpose === "length-only") {
-      panel.append(node("p", "takeoff-calibration-summary", `Length: ${formatLength(result.length_m)} m · ${snapshot().calibrations.find(value => value.id === item.measurement?.calibration_id)?.name || "Missing calibration"}`),
-        button(item.measurement ? "Change length calibration" : "Attach length calibration", currentAction(changeLength)));
+      panel.append(node("p", "takeoff-calibration-summary", `Length: ${formatLength(result.length_m)} m · ${snapshot().calibrations.find(value => value.id === item.measurement?.calibration_id)?.name || "Missing calibration"}`));
       for (const issue of result.issues || []) panel.append(node("p", "takeoff-warning", issueText(issue)));
       return;
     }
@@ -4603,6 +4665,8 @@
   async function prepareProject(value, sessionId) { requireSettledLinkedChange(); if (state.busy) throw new Error("Wait for the takeoff operation to finish."); if (!value) return prepareDefaults(); if (!sessionId) throw new Error("This project has takeoffs but no authorised evidence session. Reopen the project from its companion folder."); const session = await api(`/sessions/${sessionId}`); return { session, saved: snapshotKey(session.snapshot) }; }
   function applyProject(prepared) {
     state.ui?.documentMenu?.close(false);
+    state.showDeleted = false; state.deletedOffset = 0; state.deletedHistory = null; state.deletedFilterContext = null;
+    if (state.ui?.showDeleted) state.ui.showDeleted.checked = false;
     requireSettledLinkedChange();
     state.graphicHidden = new Set(); state.signatureHidden = new Set(); state.signatureDraft = null; state.annotationHidden = new Set(); state.annotationSelected = null; state.graphicSelected = null; state.signatureSelected = null; state.graphicSelected = null;
     cancelSearch(true);

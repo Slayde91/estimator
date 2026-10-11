@@ -38,7 +38,7 @@ function fixture({ mode = "steel", kind = "textbox", signature = false, transfor
   const record = signature ? { ...common, quad_pdf: points, strokes: [[[.1, .2], [.4, .6]]] }
     : { ...common, kind, geometry: X.boxes.has(kind) ? { quad_pdf: points } : { points: points.slice(0, kind === "line" || kind === "arrow" ? 2 : 4) },
       text: ["textbox", "stamp"].includes(kind) ? "Literal drawing text" : "",
-      ...(kind === "textbox" ? { text_content: { version: 1, blocks: [{ kind: "paragraph", runs: [{ text: "Literal drawing text", bold: true }] }] } } : {}) };
+      ...(kind === "textbox" ? { text_content: { version: 1, blocks: [{ kind: "paragraph", runs: [{ text: "Literal drawing text", bold: true }] }] } } : {}), ...(kind === "measure" ? {calibration_id:"original-measure-scale"} : {}) };
   const snapshot = { documents: ["A", "B"].map((suffix, index) => ({ id: `doc-${suffix}`, sha256: (index ? "b" : "a").repeat(64), pages: [1, 2].map(page => ({ page, rotation: 0, view: [10, 20, 610, 820] })) })),
     graphics: { version: 1, records: signature ? [] : [record] }, signatures: { version: 1, records: signature ? [record] : [] }, annotations: { callouts: [] },
     items: [{ id: "measured-retained", quantity: 2.125, fields: { exact: 17.000000004 } }], calibrations: [{ id: "retained-scale" }], transfers: [{ id: "retained-transfer", quantity: 9.333333333333 }], physical: { barriers: [{ id: "retained-barrier" }] } };
@@ -47,6 +47,7 @@ function fixture({ mode = "steel", kind = "textbox", signature = false, transfor
     graphicSelected: signature ? null : record.id, signatureSelected: signature ? record.id : null,
     ui: { message: element(), overlay: { getBoundingClientRect: () => ({ left: 32, top: 44, width: 300, height: 400 }) } } });
   h.setRenderers(() => calls.renders++);
+  if (kind === "measure") { snapshot.calibrations.push({id:"target-measure-scale",document_id:"doc-A",page:1}); h.state.calibration="target-measure-scale"; }
   h.setFlush(async () => { calls.flushes++; }); h.setDiscard(async () => true);
   h.setCommand(async (op, body, guard) => {
     if (guard && !guard()) return null;
@@ -65,13 +66,38 @@ for (const kind of X.kinds) test(`Copy/paste ${kind} preserves full-precision co
   const f = fixture({ kind, transform: [0, 2, 2, 0, -40, -20] }), before = clone(f.snapshot), pointer = [200.125, 300.375];
   f.pointer(pointer); await f.copyPdfMarkup(); await f.pastePdfMarkup();
   assert.equal(f.calls.commands.length, 1); const { op, graphic } = f.calls.commands[0]; assert.equal(op, "create_graphic");
-  assert.deepEqual(Object.keys(graphic).sort(), ["appearance", "document_id", "geometry", "kind", "mode", "page", "source_sha256", "text", ...(kind === "textbox" ? ["text_content"] : [])].sort());
+  assert.deepEqual(Object.keys(graphic).sort(), ["appearance", "document_id", "geometry", "kind", "mode", "page", "source_sha256", "text", ...(kind === "textbox" ? ["text_content"] : []), ...(kind === "measure" ? ["calibration_id"] : [])].sort());
+  if (kind === "measure") assert.equal(graphic.calibration_id, "target-measure-scale");
   assert.deepEqual(graphic.appearance, before.graphics.records[0].appearance); assert.equal(graphic.text, f.record.text);
   if (kind === "textbox") assert.deepEqual(graphic.text_content, f.record.text_content);
   const oldPoints = X.coordinates(f.record), bounds = G.bounds(oldPoints), center = [(bounds[0] + bounds[2]) / 2, (bounds[1] + bounds[3]) / 2];
   assert.deepEqual(graphic.geometry.quad_pdf || graphic.geometry.points, oldPoints.map(p => p.map((n, axis) => n + pointer[axis] - center[axis])));
   assert.equal(f.state.graphicSelected, "independent-graphic"); assert.equal(f.state.settingsOpen, false);
   assert.deepEqual(clone(f.snapshot), before, "Clipboard does not change quantities, transfers, originals or source records");
+});
+
+test("Measure paste requires a current target-page scale and does not borrow the copied basis", async () => {
+  for (const invalid of ["", "missing", "retired", "wrong-page"]) {
+    const f=fixture({kind:"measure"}); await f.copyPdfMarkup();
+    f.snapshot.calibrations.push({id:"retired",document_id:"doc-A",page:1,deleted:true},{id:"wrong-page",document_id:"doc-A",page:2});
+    f.state.calibration=invalid;
+    await assert.rejects(f.pastePdfMarkup(), /current page's scale/); assert.equal(f.calls.commands.length,0);
+  }
+  const f=fixture({kind:"measure"}); await f.copyPdfMarkup();
+  f.state.document="doc-B"; f.state.page=2; f.state.graphicSelected=null;
+  f.snapshot.calibrations.push({id:"destination-scale",document_id:"doc-B",page:2}); f.state.calibration="destination-scale";
+  f.pointer(); await f.pastePdfMarkup();
+  const graphic=f.calls.commands[0].graphic;
+  assert.equal(graphic.document_id,"doc-B"); assert.equal(graphic.page,2); assert.equal(graphic.source_sha256,"b".repeat(64));
+  assert.equal(graphic.calibration_id,"destination-scale"); assert.equal(f.record.calibration_id,"original-measure-scale");
+});
+
+test("A queued Measure paste cannot use a scale selection changed after its proposal", async () => {
+  const f=fixture({kind:"measure"}), held=deferred(); await f.copyPdfMarkup();
+  f.setCommand(async (op,body,guard)=>{ await held.promise; if(guard && !guard())return null;f.calls.commands.push({op,...clone(body)});return {created_graphic_id:"unexpected"}; });
+  const pending=f.pastePdfMarkup(); await settle();
+  f.snapshot.calibrations.push({id:"new-choice",document_id:"doc-A",page:1}); f.state.calibration="new-choice";
+  held.resolve(); await pending; assert.equal(f.calls.commands.length,0); assert.equal(f.state.graphicSelected,f.record.id);
 });
 
 for (const mode of ["steel", "duct", "wall", "slab", "physical"]) test(`Signature copy in ${mode} uses independent PDF-only create without measured/physical graph commands`, async () => {

@@ -184,6 +184,7 @@ class TakeoffService:
                      json.dumps(receipt, sort_keys=True)))
 
     def _response(self, session_id, *, evidence=False):
+        from .takeoff_pdf_measure import measure_results
         session = self._session(session_id)
         state = session['snapshot']
         undo, _ = self._linked_delete_context(state)
@@ -193,7 +194,8 @@ class TakeoffService:
                     'cleared_rows': [{'calculator_id': calculator_id, 'row': row['row'], 'input_hash': row['cleared_hash']}
                                      for calculator_id in sorted(undo) for row in undo[calculator_id]['rows']]}
                                 if undo else None),
-                'item_results': [item_result(item, state) for item in state['items']]}
+                'item_results': [item_result(item, state) for item in state['items']],
+                'pdf_measure_results': measure_results(state)}
 
     def _linked_delete_context(self, snapshot):
         # Page rendering is an observation, not an intervening item edit. Its
@@ -885,7 +887,7 @@ class TakeoffService:
                      'create_annotation': {'annotation'}, 'update_annotation': {'annotation_id', 'changes'},
                      'create_signature': {'signature'}, 'update_signature': {'signature_id', 'changes'},
                      'delete_signature': {'signature_id'},
-                     'create_graphic': {'graphic'}, 'update_graphic': {'graphic_id', 'changes'},
+                     'create_graphic': {'graphic'}, 'create_textbox': {'textbox'}, 'update_graphic': {'graphic_id', 'changes'},
                      'delete_graphic': {'graphic_id'},
                      'initial_pages': {'initials'},
                      'draft_library_assignment': {'assignment'},
@@ -900,6 +902,7 @@ class TakeoffService:
             created_annotation_id = None
             created_signature_id = None
             created_graphic_id = None
+            textbox_layout_metadata = None
             initial_pages_metadata = None
             if op == 'draft_library_assignment':
                 from .takeoff_library_links import create_assignment, validate_proposal, prepare_assigned_quantities
@@ -924,6 +927,12 @@ class TakeoffService:
             elif op in ('create_graphic', 'update_graphic', 'delete_graphic'):
                 from .takeoff_graphics import apply_graphic
                 created_graphic_id = apply_graphic(after, request, load_event=getattr(self.documents, 'initial_pages_origin', self.documents.get_blob))
+            elif op == 'create_textbox':
+                from .takeoff_textbox_layout import textbox_layout
+                from .takeoff_graphics import apply_graphic
+                prepared = textbox_layout(after, request['textbox'])
+                textbox_layout_metadata = prepared['layout']
+                created_graphic_id = apply_graphic(after, {'op': 'create_graphic', 'graphic': prepared['graphic']})
             elif op in ('toggle_thickness_colours', 'set_legend'):
                 from .takeoff_presentation import apply_presentation
                 linked = None
@@ -1416,7 +1425,7 @@ class TakeoffService:
                 undo_signatures(before, after)
                 from .takeoff_graphics import undo_graphics
                 undo_graphics(before, after)
-                if before['version'] == 2 and event['op'] not in ('create_annotation', 'update_annotation', 'delete_annotation', 'create_signature', 'update_signature', 'delete_signature', 'create_graphic', 'update_graphic', 'delete_graphic', 'initial_pages'):
+                if before['version'] == 2 and event['op'] not in ('create_annotation', 'update_annotation', 'delete_annotation', 'create_signature', 'update_signature', 'delete_signature', 'create_graphic', 'create_textbox', 'update_graphic', 'delete_graphic', 'initial_pages'):
                     self._physical_gate(session_id, before)
                     after = self._undo_physical(session_id, before, after)
                 originals = {i['id']: i for i in before['items']}
@@ -1508,6 +1517,9 @@ class TakeoffService:
             if created_graphic_id is not None:
                 response['created_graphic_id'] = created_graphic_id
                 session['requests'][request['request_id']].setdefault('metadata', {})['created_graphic_id'] = created_graphic_id
+            if textbox_layout_metadata is not None:
+                response['textbox_layout'] = textbox_layout_metadata
+                session['requests'][request['request_id']].setdefault('metadata', {})['textbox_layout'] = textbox_layout_metadata
             if revised_calibration_id:
                 response['revised_calibration_id'] = revised_calibration_id
                 session['requests'][request['request_id']]['metadata'] = {'revised_calibration_id': revised_calibration_id}
@@ -1611,6 +1623,25 @@ class TakeoffService:
             after['documents'].append(deepcopy(document))
             request = {'request_id': str(uuid4()), 'expected_revision': expected_revision, 'op': 'add_document'}
             return self._commit(session_id, request, before, after)
+
+    def textbox_layout(self, session_id, request):
+        with self._lock:
+            snapshot = self._session(session_id)['snapshot']
+            from .takeoff_textbox_layout import FIELDS, textbox_layout
+            object_fields(request, {'expected_revision', *FIELDS}, 'Textbox layout request', {'expected_revision', *(FIELDS-{'text_content'})})
+            if type(request['expected_revision']) is not int or request['expected_revision'] != snapshot['revision']:
+                raise ValidationError('The drawing changed before Textbox layout. Choose the current page again.')
+            return {'revision': snapshot['revision'], **textbox_layout(snapshot, {key: value for key, value in request.items() if key != 'expected_revision'})}
+
+    def deleted_items(self, session_id, request):
+        with self._lock:
+            snapshot = self._session(session_id)['snapshot']
+            object_fields(request, {'expected_revision', 'mode', 'query', 'offset', 'limit'}, 'Deleted-item history request', {'expected_revision', 'mode'})
+            if type(request['expected_revision']) is not int or request['expected_revision'] != snapshot['revision']:
+                raise ValidationError('The register changed before deleted-item history. Retry from its current revision.')
+            self._verify_audit_head(snapshot, owner=session_id)
+            from .takeoff_deleted_items import deleted_items
+            return deleted_items(snapshot, self.documents.get_blob, **{key: value for key, value in request.items() if key != 'expected_revision'})
 
     def history(self, session_id, offset=0, limit=50):
         with self._lock:

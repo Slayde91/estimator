@@ -39,7 +39,11 @@ def prepare_item_snapshot(body, *, library, default_configuration, require_diagr
     metadata = definition(configuration)
     diagram = None
     identity = {'kind': 'none', 'library_item_id': draft['rows'][0].get('library_item_id')}
-    if 'diagram' in body:
+    if 'diagram' in body and body['diagram'] is None:
+        # Explicit editor removal belongs to this unsaved capture. Do not reload
+        # the retained library image into a download of the edited item.
+        identity['kind'] = 'current item without image'
+    elif 'diagram' in body:
         upload = body['diagram']
         if not isinstance(upload, dict) or not isinstance(upload.get('filename'), str) or re.search(r'[\\/:]', upload['filename']):
             raise ValidationError('The source diagram must contain image bytes and a plain image filename, never a path or URL.')

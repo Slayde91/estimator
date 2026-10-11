@@ -319,7 +319,8 @@ class DesktopPackagingTests(unittest.TestCase):
 
     def test_signature_and_default_icons_remain_full_edition_only(self):
         from estimator.edition import TAKEOFF_ASSETS
-        for asset in ('takeoff-signatures.js', 'icons/default-memory.svg', 'icons/signature.svg'):
+        for asset in ('takeoff-signatures.js', 'takeoff-graphics.js', 'takeoff-graphics-ui.js',
+                      'takeoff-pdf-tools.js', 'takeoff-pdf-tools.css', 'icons/default-memory.svg', 'icons/signature.svg'):
             self.assertIn('/' + asset, TAKEOFF_ASSETS)
             self.assertNotIn(asset, STATIC_FILES)
             self.assertTrue((ROOT / 'static' / asset).is_file())

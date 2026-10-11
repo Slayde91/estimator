@@ -99,7 +99,7 @@
     },
     steel_vermiculite: {
       CALCULATOR: { A20: [["Edit the blue cells.", "Edit the input fields."]] },
-      SCHEDULE: { A3: [["filter or sort the complete table", "all rows are available on this page"]], A8: [["Paste your steel schedule here; blue cells are editable.", "Enter the schedule inputs, or use Import XLSX Schedule."]] },
+      SCHEDULE: { A3: [["filter or sort the complete table", "all rows are available on this page"]], A8: [["Paste your steel schedule here; blue cells are editable.", "Enter the schedule inputs, or use Import Schedule."]] },
       BAGS: { A27: [["The factor helper is also there.", "Open FACTOR CALCS for factor helpers."], ["Hidden reference sheets support the calculations and must not be deleted.", "Retained reference data supports the calculations."]] },
       SETTINGS: {
         A3: [["blue cells are editable", "input fields are editable"]],
@@ -385,10 +385,25 @@
     if (id === "steel_board" && position && ((entry.sheet === schedule?.sheet && position.column === 35 && position.row >= schedule.first_row && position.row <= schedule.last_row) || (entry.sheet === "SETTINGS" && position.column === 17 && position.row >= 6 && position.row <= 51))) replacements = boardStatusDirections;
     return replacements.reduce((text, [from, to]) => text.split(from).join(to), value);
   }
+  function documentLabels(entry = current()) {
+    const schedule = entry?.definition.id === "ductwork" ? "Duct Schedule" : "Steel Schedule";
+    return { "calculator-import": "Import Schedule", "calculator-excel": `${schedule} XLSX`,
+      "calculator-pdf": `${schedule} PDF`, "calculator-summary-pdf": "Product Summary PDF", "calculator-template": "Export Template" };
+  }
+  function renderDocumentLabels(entry = current()) {
+    for (const [id, label] of Object.entries(documentLabels(entry))) {
+      const button = $(id);
+      button.title = label;
+      if (button.getAttribute("aria-busy") !== "true") button.setAttribute("aria-label", label);
+      const text = button.lastElementChild;
+      if (text) text.textContent = label;
+    }
+  }
   function updateStatus(entry = current()) {
     window.CeasefireTakeoffs?.calculatorDraftChanged?.();
     window.CeasefireProject?.changed?.();
     if (!entry || entry !== current()) return;
+    renderDocumentLabels(entry);
     $("calculator-save-status").textContent = dirty(entry) ? "Unsaved calculator changes · use Save" : "Project calculator inputs · use Save to save all calculators";
     const hasErrors = entry.invalid.size > 0;
     $("calculator-recalculate").disabled = state.calculating || hasErrors;
@@ -1526,7 +1541,7 @@
     state.action = true; updateStatus();
     try {
       const saved = await window.CeasefireDownloads.save(endpoint(entry.definition.id, "template"));
-      message(`Schedule template saved to ${saved.path}. Complete its input columns, then use Import XLSX Schedule.`);
+      message(`Schedule template saved to ${saved.path}. Complete its input columns, then use Import Schedule.`);
     } catch (error) { message(`Could not export the template. ${error.message}`, true); }
     finally { state.action = false; updateStatus(); }
   }
@@ -1552,15 +1567,15 @@
   }
 
   function downloadSchedulePdf() {
-    return downloadCalculatedFile({ action: "report.pdf", buttonId: "calculator-pdf", label: "PDF Schedule", includeProjectDetails: true });
+    return downloadCalculatedFile({ action: "report.pdf", buttonId: "calculator-pdf", label: documentLabels()["calculator-pdf"], includeProjectDetails: true });
   }
 
   function downloadExcelRegister() {
-    return downloadCalculatedFile({ action: "register.xlsx", buttonId: "calculator-excel", label: "XLSX Schedule" });
+    return downloadCalculatedFile({ action: "register.xlsx", buttonId: "calculator-excel", label: documentLabels()["calculator-excel"] });
   }
 
   function downloadMaterialsSummaryPdf() {
-    return downloadCalculatedFile({ action: "summary.pdf", buttonId: "calculator-summary-pdf", label: "PDF Summary", includeProjectDetails: true });
+    return downloadCalculatedFile({ action: "summary.pdf", buttonId: "calculator-summary-pdf", label: documentLabels()["calculator-summary-pdf"], includeProjectDetails: true });
   }
 
   // Document disclosures only change access to the existing action buttons.

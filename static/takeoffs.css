@@ -337,7 +337,8 @@ dialog.takeoff-column-filter{position:fixed;box-sizing:border-box;width:280px;ma
 .takeoff-physical-add-menu{flex:1;min-width:0}
 .takeoff-physical-item-actions .calculator-document-toggle{display:flex;justify-content:space-between;width:100%;min-width:0;min-height:38px;height:38px;gap:8px}
 .takeoff-physical-add-menu .calculator-document-chevron,.takeoff-physical-add-menu .calculator-document-chevron svg{flex:0 0 16px;width:16px;height:16px}
-.takeoff-physical-add-menu .calculator-document-actions{left:0;right:auto;width:100%;max-width:none;box-sizing:border-box}
+/* Leave room at both scroll boundaries, including fractional viewport rounding. */
+.takeoff-physical-add-menu .calculator-document-actions{left:0;right:auto;width:100%;max-width:none;box-sizing:border-box;scroll-margin-block:8px}
 .takeoff-physical-item-actions.with-visibility .calculator-document-actions{width:calc(100% + 46px)}
 .takeoff-physical-item-actions .calculator-document-actions .button.calculator-document-action{display:flex;align-items:center;justify-content:flex-start;gap:12px;width:100%;min-width:0;min-height:44px;height:auto;padding:8px;background:#fff;color:#171217;box-sizing:border-box;text-align:left;white-space:normal}
 .takeoff-physical-add-menu .calculator-document-action img,.takeoff-physical-add-menu .calculator-document-action svg{flex:0 0 30px;width:30px;height:30px}
@@ -357,3 +358,11 @@ dialog.takeoff-column-filter{position:fixed;box-sizing:border-box;width:280px;ma
 .takeoff-signature{cursor:move}.takeoff-signature-resize{cursor:nwse-resize}
 .takeoff-signature-dialog{width:min(680px,calc(100vw - 32px))}
 .takeoff-signature-preview{display:block;max-width:100%;color:var(--text)}
+.takeoff-workspace-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 20px; }
+.takeoff-workspace-heading .takeoff-workspace-title { margin: 0; }
+.takeoff-pdf-tools-menu > button { display: inline-flex; align-items: center; justify-content: space-between; gap: 24px; }
+.takeoff-pdf-tools-menu .calculator-document-actions { left: auto; right: 0; min-width: 230px; }
+.takeoff-graphic-tool svg { width: 24px; height: 24px; }
+.takeoff-graphic { cursor: pointer; }
+.takeoff-graphic-text { grid-column: 1 / -1; }
+.takeoff-graphic-text textarea { min-height: 100px; }

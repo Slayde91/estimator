@@ -49,10 +49,18 @@ async function theme(id) { for (let index = 0; index < 5 && await page.locator('
     await search.fill('net sqm'); await expect(visibleRows()).toHaveCount(1);
     await search.fill('Signatures'); await expect(visibleRows()).toHaveCount(1); await expect(visibleRows().locator('.helper')).toHaveText('Button only');
     assert.equal(await visibleRows().locator('.help-signature-symbol').evaluate(el => getComputedStyle(el, '::before').maskImage.includes('signature.svg')), true);
+    const graphics=[['Cloud','cloud'],['Textbox','textbox'],['Stamp','stamp'],['Line/Polyline','polyline'],['Arrow','arrow'],['Rectangle','rectangle'],['Circle','circle'],['Polygon','polygon']];
+    for(const [label,kind] of graphics) {
+      const row=glossary.locator(`.help-glossary-entry[data-glossary-name="${label}"]`);await expect(row).toHaveCount(1);await expect(row.locator('kbd')).toHaveCount(0);
+      assert.equal(await row.locator('.help-glossary-symbol svg path').getAttribute('d'),await page.evaluate(kind=>window.CeasefireTakeoffGraphics.icon(kind,document).querySelector('path').getAttribute('d'),kind),'Help uses the actual PDF graphic glyph');
+    }
+    for(const label of ['Tools','Merge PDF Files','Organise Pages','Extract Pages']) {const row=glossary.locator(`.help-glossary-entry[data-glossary-name="${label}"]`);await expect(row).toHaveCount(1);await expect(row.locator('kbd')).toHaveCount(0);}
+    evidence.pdfGraphicsAndPageTools={graphics:8,pageTools:3,actualGlyphs:true,noInventedShortcuts:true};
     await glossary.screenshot({ path: path.join(output, 'signature-reference.png') });
   } else {
     assert.equal(await category.locator('option').filter({ hasText: 'Drawing tools' }).count(), 0);
     assert.equal(await glossary.locator('.help-signature-symbol').count(), 0);
+    for(const label of ["Cloud","Textbox","Stamp","Line/Polyline","Arrow","Rectangle","Circle","Polygon","Tools","Merge PDF Files","Organise Pages","Extract Pages"]) await expect(glossary.locator(`.help-glossary-entry[data-glossary-name="${label}"]`)).toHaveCount(0);
   }
   await search.fill('download'); await category.selectOption('Documents'); assert.ok(await visibleRows().count() >= 4);
   await search.fill('<script>'); await expect(visibleRows()).toHaveCount(0); await expect(page.locator('#help-glossary-status')).toContainText('No matching controls');
@@ -66,8 +74,8 @@ async function theme(id) { for (let index = 0; index < 5 && await page.locator('
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `${themeId}/${width}: Help stays within viewport`);
       await page.getByRole('button', { name: 'Estimates', exact: true }).click(); await idle();
       const menuRequestCount = requests.length;
-      await toggle.focus(); await toggle.press('ArrowDown'); await expect(summary).toBeFocused(); await expect(summary).toHaveAccessibleName('Download Estimate Summary');
-      await expect(menu.getByRole('button')).toHaveCount(3); await expect(summary.locator('span').last()).toHaveText('Download Estimate Summary');
+      await toggle.focus(); await toggle.press('ArrowDown'); await expect(summary).toBeFocused(); await expect(summary).toHaveAccessibleName('Estimate Summary');
+      await expect(menu.getByRole('button')).toHaveCount(3); await expect(summary.locator('span').last()).toHaveText('Estimate Summary');
       const styles = await menu.locator('.calculator-document-action').evaluateAll(actions => actions.map(el => { const s = getComputedStyle(el); return { color: s.color, background: s.backgroundColor }; }));
       assert.deepEqual(styles[0], styles[1], 'Estimate Summary shares the existing menu-entry presentation'); assert.equal(styles[0].background, 'rgb(255, 255, 255)');
       const bounds = await menu.boundingBox(); assert.ok(bounds.x >= -1 && bounds.x + bounds.width <= width + 1, `${themeId}/${width}: Document stays within viewport`);
@@ -87,7 +95,7 @@ async function theme(id) { for (let index = 0; index < 5 && await page.locator('
   await summary.click(); const response = await download; assert.equal(response.status(), 200); const file = await response.json();
   assert.equal(file.saved, true); assert.equal(file.destination, 'project');
   const relative = path.relative(output, file.path); assert.ok(relative && !relative.startsWith('..') && !path.isAbsolute(relative));
-  assert.equal(fs.readFileSync(file.path).subarray(0, 5).toString(), '%PDF-'); await idle(); await expect(menu).toBeHidden(); await expect(summary).toHaveAttribute('aria-label', 'Download Estimate Summary');
+  assert.equal(fs.readFileSync(file.path).subarray(0, 5).toString(), '%PDF-'); await idle(); await expect(menu).toBeHidden(); await expect(summary).toHaveAttribute('aria-label', 'Estimate Summary');
   assert.deepEqual(await snapshot(), before, 'Real summary download preserves current drafts and pricing'); assert.deepEqual(fs.readFileSync(projectFile), savedBytes, 'Download leaves the saved project untouched');
   evidence.summaryExport = { endpoint: new URL(response.url()).pathname, filename: file.filename, pdf: true };
   csp.push(...await page.evaluate(() => window.qaCsp)); assert.deepEqual(errors, []); assert.deepEqual(failed, []); assert.deepEqual(csp, []);

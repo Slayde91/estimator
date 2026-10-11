@@ -47,11 +47,11 @@
     add("Projects and files", "Previous / Next / Continue folder scan", "Move between project results or continue a bounded folder scan.", { text: "Next" });
     add("Projects and files", "Folder breadcrumbs / Back to Projects", "Browse attached folders and return to the project list.", { text: "Back" });
     add("Documents", "Document", "Open the imports, templates and downloads available in the current workspace.", { asset: "document.png" }, { keys: ["↑ / ↓", "Home / End", "Esc"] });
-    add("Documents", "Download Estimate Summary", "Save the Main estimate PDF using the inputs and prices captured when you click.", { format: "PDF", symbol: "Σ" });
+    add("Documents", "Estimate Summary", "Download the Main estimate PDF using the inputs and prices captured when you click.", { format: "PDF", symbol: "Σ" });
     add("Documents", "Download Firestopping Schedule", "Save the complete current Firestopping Schedule as XLSX or PDF.", { format: "XLSX / PDF" });
-    add("Documents", "Download Current Item", "Save the current Firestopping item's relevant fields as XLSX or PDF; the PDF includes its attached source diagram.", { format: "XLSX / PDF" });
-    add("Documents", "Download schedule / summary", "Save the selected calculator's schedule or PDF summary.", { format: "XLSX / PDF" });
-    add("Documents", "Import XLSX Schedule / Export Template", "Use the supported calculator template. Review the confirmation before replacing a schedule draft.", { format: "XLSX", symbol: "⇧ / ⇩" });
+    add("Documents", "Item Details", "Download the current Firestopping composer or Library Editor item's captured fields and prices as XLSX or PDF; the PDF includes its source diagram.", { format: "XLSX / PDF" });
+    add("Documents", "Steel / Duct Schedule and Product Summary", "Download the selected calculator's schedule as XLSX or PDF, or its Product Summary PDF.", { format: "XLSX / PDF" });
+    add("Documents", "Import Schedule / Export Template", "Use the supported calculator template. Review the confirmation before replacing a schedule draft.", { format: "XLSX", symbol: "⇧ / ⇩" });
     add("Documents", "Export Excel / Import Excel", "Export the whole pricing draft, or import a complete pricing workbook for review.", { format: "XLSX", symbol: "⇩ / ⇧" });
     add("Estimating and libraries", "Recalculate", "Calculate the current workbook or schedule from its valid inputs.", { selector: "#calculator-recalculate" });
     add("Estimating and libraries", "Settings", "Open the current calculator or Firestopping settings.", { path: "settings" });
@@ -85,10 +85,23 @@
       tool("Visibility", "visibility", "Click to show or hide all drawing markups. Double-click restores individually hidden items and shows all markups. The eye beside an item changes only that item's visibility.", { asset: "takeoff-visibility.png" });
       tool("Call-out", "callout", "Place a text Call-out. In Penetrations, place a physical item Call-out from the current draft.", { asset: "takeoff-callout.png" });
       tool("Signatures", "signature", "Draw a signature or reuse the last one, then place it on the PDF. Select it to move, resize or delete it.", { asset: "signature.svg", mask: true });
+      const graphic = (name, kind, detail) => add("Drawing tools", name, detail, { graphic: kind });
+      graphic("Cloud", "cloud", "Click two opposite corners to surround a drawing region with a revision cloud. Select it to move, resize or edit its appearance.");
+      graphic("Textbox", "textbox", "Click two opposite corners, then enter a text note. Select it to move, resize or edit its text and appearance.");
+      graphic("Stamp", "stamp", "Click two opposite corners, then enter the stamp text. Select it to move, resize or edit its text and appearance.");
+      graphic("Line/Polyline", "polyline", "Click each point, then press Enter or double-click to finish. Two points make a line; more points make a polyline.");
+      graphic("Arrow", "arrow", "Click the start and end points to place an arrow. Select it to move its endpoints or edit its appearance.");
+      graphic("Rectangle", "rectangle", "Click two opposite corners to place a rectangle. Select it to move, resize or edit its line and fill.");
+      graphic("Circle", "circle", "Click two opposite corners to place a circle or ellipse within that box. Select it to move, resize or edit its line and fill.");
+      graphic("Polygon", "polygon", "Click at least three boundary points, then press Enter or double-click to finish a closed drawing polygon. This PDF markup adds no surface quantity.");
       add("Drawing tools", "Set as default", "Remember the current appearance for new markups of that kind.", { asset: "default-memory.svg", mask: true });
       add("Drawing tools", "Display Values", "Show or hide measured values on the drawing. New Wall/Floor surfaces start with values visible.", { text: "✓" });
       add("Drawing tools", "Re-trace geometry / Exclusions", "Replace a selected surface boundary, or edit or remove one of its exclusions.", { path: "area" });
       add("Drawing view", "Upload PDFs", "Add source PDF documents to the current project.", { selector: "#project-attachment-zone" });
+      add("Drawing view", "Tools", "Download a new PDF copy. Merge and Extract can also add it as another Source Document.", { text: "Tools" });
+      add("Drawing view", "Merge PDF Files", "Choose at least two retained PDFs and arrange their order to create one new PDF copy.", { text: "Merge" });
+      add("Drawing view", "Organise Pages", "Reorder or remove pages from one retained PDF, keeping at least one page, then download the edited copy.", { text: "Pages" });
+      add("Drawing view", "Extract Pages", "Choose existing page numbers or ranges in the required order to create a new PDF copy.", { text: "Extract" });
       add("Drawing view", "Document / Remove document", "Choose an uploaded PDF, or remove the current source after confirmation.", { path: "bin" });
       add("Drawing view", "Scale / Edit calibration", "Choose or edit the applicable page or viewport calibration.", { path: "scale" });
       add("Drawing view", "Search / Stop search", "Search PDF text and optional drawing labels in this document or all documents. Stop clears the search and highlights.", { path: "search" }, { keys: ["Enter", "↓", "Esc"] });
@@ -119,7 +132,7 @@
       add("Drawing tools", "Continue count / Delete count marker", "Resume a count from its marker's context menu, or remove that individual marker.", { path: "count" });
       add("Drawing tools", "Call-out formatting", "Use Bold, Italic, Underline and bullet or numbered list buttons in Call-out Settings.", { text: "B I U" });
       add("Keyboard and mouse", "Finish / Cancel drawing", "With drawing focus, Enter finishes a trace; Escape or right-click cancels the active drawing operation.", { text: "Enter" }, { keys: ["Enter", "Esc", "Right-click"] });
-      add("Keyboard and mouse", "Undo drawing point", "Backspace removes the last unfinished trace point. Ctrl/Cmd+Z also removes a chosen control point, or undoes a supported count, Call-out or signature edit.", { text: "↶" }, { keys: ["Backspace", "Ctrl / Cmd+Z"] });
+      add("Keyboard and mouse", "Undo drawing point", "Backspace removes the last unfinished trace point. Ctrl/Cmd+Z also removes a chosen control point, or undoes a supported count, Call-out, signature or PDF graphic edit.", { text: "↶" }, { keys: ["Backspace", "Ctrl / Cmd+Z"] });
       add("Keyboard and mouse", "Copy / Paste drawing selection", "With Select active, copy and paste free or physical Call-outs, Steel/Duct Length markups or Wall/Floor surfaces. Copies are separate records; pasted quantity items start unconfirmed and use the destination drawing position and calibration.", { text: "Copy / Paste" }, { keys: ["Ctrl / Cmd+C", "Ctrl / Cmd+V"], id: "drawing-copy" });
       add("Keyboard and mouse", "Multiple selection", "Hold Ctrl, Cmd or Shift when choosing drawing items to extend or toggle the selection.", { path: "checked" }, { keys: ["Ctrl / Cmd / Shift+click"] });
       add("Keyboard and mouse", "Drawing context actions", "Open actions for a focused markup, Call-out or control point.", { text: "⋯" }, { keys: ["Right-click", "Shift+F10", "Menu key"] });
@@ -147,6 +160,8 @@
       const artwork = source?.querySelector("svg, .button-symbol, .download-format-icon, img");
       if (artwork) {
         const copy = artwork.cloneNode(true); copy.removeAttribute("id"); copy.removeAttribute("tabindex"); copy.setAttribute("aria-hidden", "true"); symbol.append(copy);
+      } else if (definition.graphic && root.CeasefireTakeoffGraphics) {
+        symbol.append(root.CeasefireTakeoffGraphics.icon(definition.graphic, document));
       } else if (definition.path) {
         const svg = svgNode("svg"), path = svgNode("path");
         for (const [name, value] of Object.entries({ viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", "stroke-width": "1.8", "stroke-linecap": "round", "stroke-linejoin": "round", focusable: "false" })) svg.setAttribute(name, value);

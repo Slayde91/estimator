@@ -107,6 +107,31 @@ class CurrentItemExportTests(unittest.TestCase):
         with self.assertRaises(ValidationError):
             self.snapshot(value, DiagramLibrary(b'%PDF-1.7 invalid image'))
 
+    def test_explicit_null_diagram_captures_removal_without_any_managed_lookup(self):
+        for linked in (False, True):
+            with self.subTest(linked=linked):
+                value = body()
+                if linked:
+                    value['item']['library_item_id'] = 'pfp-retained-image'
+                value['diagram'] = None
+                before = deepcopy(value)
+                library = DiagramLibrary(png())
+                snapshot = self.snapshot(value, library)
+                self.assertEqual(library.calls, [])
+                self.assertIsNone(snapshot['diagram'])
+                self.assertEqual(snapshot['diagram_identity']['kind'], 'current item without image')
+                self.assertEqual(snapshot['result'], calculate(
+                    {'globals': value['globals'], 'rows': [value['item']]}, value['configuration']))
+                reader = PdfReader(BytesIO(render_item_pdf(snapshot)))
+                text = '\n'.join(page.extract_text() for page in reader.pages)
+                self.assertIn('No source diagram is attached to this current item.', text)
+                self.assertTrue(all(image.image.size != (320, 160)
+                                    for page in reader.pages for image in page.images))
+                workbook = load_workbook(BytesIO(build_item_xlsx(snapshot)), data_only=False)
+                self.assertEqual(workbook['Item']['B5'].value, value['item']['id'])
+                self.assertEqual(value, before)
+                self.assertEqual(library.calls, [])
+
     def test_xlsx_all_raw_and_effective_fields_exact_no_formula_or_other_item(self):
         value = body()
         value['item']['inputs']['T'] = '=HYPERLINK("https://example.invalid","not executable")'

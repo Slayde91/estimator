@@ -206,6 +206,10 @@ def audit_affected(before, after):
         def signature_entries(state):
             return entries({'signatures': state.get('signatures', {}).get('records', [])}, 'signatures', 1000)
         affected['signatures'] = sorted(changed(signature_entries(before), signature_entries(after)))
+    if 'graphics' in before or 'graphics' in after:
+        def graphic_entries(state):
+            return entries({'graphics': state.get('graphics', {}).get('records', [])}, 'graphics', 1000)
+        affected['graphics'] = sorted(changed(graphic_entries(before), graphic_entries(after)))
     if 'library_assignments' in before or 'library_assignments' in after:
         def assignment_entries(state):
             return entries({'library_assignments': state.get('library_assignments', {}).get('records', [])}, 'library_assignments', 1000)
@@ -848,7 +852,7 @@ def validate_snapshot(value, *, copy_result=True):
     keys = set(new_snapshot())
     if isinstance(value, dict) and type(value.get('version')) is int and value['version'] == 2:
         keys.update(('physical', 'image_extractions'))
-    optional = {'drawing_presentation', 'annotations', 'signatures', 'library_assignments'} | ({'service_plans'} if isinstance(value, dict) and value.get('version') == 2 else set())
+    optional = {'drawing_presentation', 'annotations', 'signatures', 'graphics', 'library_assignments'} | ({'service_plans'} if isinstance(value, dict) and value.get('version') == 2 else set())
     object_fields(value, {*keys, 'companion_folder', *optional}, 'Takeoff snapshot', keys)
     if 'companion_folder' in value:
         text(value['companion_folder'], 'Evidence companion folder', 255)
@@ -991,6 +995,8 @@ def validate_snapshot(value, *, copy_result=True):
     validate_annotations(value)
     from .takeoff_signatures import validate_signatures
     validate_signatures(value)
+    from .takeoff_graphics import validate_graphics
+    validate_graphics(value)
     from .takeoff_library_links import validate_assignments
     validate_assignments(value)
     digest(value)

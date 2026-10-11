@@ -122,6 +122,10 @@ class ServerTests(unittest.TestCase):
             ('/help-glossary.js', 'text/javascript; charset=utf-8'),
             ('/help-glossary.css', 'text/css; charset=utf-8'),
             ('/takeoff-signatures.js', 'text/javascript; charset=utf-8'),
+            ('/takeoff-graphics.js', 'text/javascript; charset=utf-8'),
+            ('/takeoff-graphics-ui.js', 'text/javascript; charset=utf-8'),
+            ('/takeoff-pdf-tools.js', 'text/javascript; charset=utf-8'),
+            ('/takeoff-pdf-tools.css', 'text/css; charset=utf-8'),
             ('/icons/default-memory.svg', 'image/svg+xml'),
             ('/icons/signature.svg', 'image/svg+xml'),
         ):

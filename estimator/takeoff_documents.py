@@ -689,6 +689,8 @@ class TakeoffDocuments:
                 limits['annotations'] = 2000
             if any(isinstance(event[side], dict) and 'signatures' in event[side] for side in ('before', 'after')):
                 limits['signatures'] = 2000
+            if any(isinstance(event[side], dict) and 'graphics' in event[side] for side in ('before', 'after')):
+                limits['graphics'] = 2000
             if any(isinstance(event[side], dict) and 'library_assignments' in event[side] for side in ('before', 'after')):
                 limits['library_assignments'] = 2000
             if event['version'] == 2:
@@ -742,6 +744,8 @@ class TakeoffDocuments:
             validate_annotations(state)
             from .takeoff_signatures import validate_signatures
             validate_signatures(state)
+            from .takeoff_graphics import validate_graphics
+            validate_graphics(state)
             for descriptor in state.get('image_extractions', []):
                 prior = images.get(descriptor['id'])
                 if prior is not None and prior != descriptor:
@@ -752,6 +756,8 @@ class TakeoffDocuments:
         validate_library_history(event)
         from .takeoff_signatures import validate_history as validate_signature_history
         signature_identities = validate_signature_history(event)
+        from .takeoff_graphics import validate_history as validate_graphic_history
+        graphic_identities = validate_graphic_history(event)
         old_annotations = {value['id']: value for value in event['before'].get('annotations', {}).get('callouts', [])}
         new_annotations = {value['id']: value for value in event['after'].get('annotations', {}).get('callouts', [])}
         if event['before']['revision'] == 0 and old_annotations:
@@ -813,11 +819,13 @@ class TakeoffDocuments:
         retained = tuple(documents.values())
         # Count repeated metadata conservatively, even though records share it.
         weight = (512 + len(_canonical([entry.metadata for entry in retained])) + len(_canonical(list(images.values())))
-                  + len(_canonical(annotation_identities)) + len(_canonical(signature_identities)))
+                  + len(_canonical(annotation_identities)) + len(_canonical(signature_identities))
+                  + len(_canonical(graphic_identities)))
         record = {"project_id": event["project_id"], "revision": event["revision"], "previous": event["previous"],
                   "before": audit_state_digest(event["before"]), "after": audit_state_digest(event["after"]),
                   "documents": retained, 'images': tuple(images.values()), 'annotations': annotation_identities,
                   'signatures': signature_identities,
+                  'graphics': graphic_identities,
                   "size": len(_canonical(event)), "weight": weight}
         if weight <= MAX_AUDIT_CACHE_BYTES:
             with self._lock:
@@ -832,7 +840,7 @@ class TakeoffDocuments:
         return record
 
     def _graph(self, snapshot, loader):
-        documents, images, annotation_identities, signature_identities = {}, {}, {}, {}
+        documents, images, annotation_identities, signature_identities, graphic_identities = {}, {}, {}, {}, {}
         from .takeoff_model import validate_physical_extension
         validate_physical_extension(snapshot)
         from .takeoff_annotations import annotation_binding, validate_annotations
@@ -843,6 +851,10 @@ class TakeoffDocuments:
         validate_signatures(snapshot)
         for value in snapshot.get('signatures', {}).get('records', []):
             signature_identities[value['id']] = signature_binding(value)
+        from .takeoff_graphics import graphic_binding, validate_graphics
+        validate_graphics(snapshot)
+        for value in snapshot.get('graphics', {}).get('records', []):
+            graphic_identities[value['id']] = graphic_binding(value)
         for descriptor in snapshot.get('image_extractions', []):
             images[descriptor['id']] = descriptor
         current = snapshot.get("documents", [])
@@ -863,6 +875,8 @@ class TakeoffDocuments:
             raise ValidationError('Free call-outs require their retained creation history.')
         if expected_revision == 0 and signature_identities:
             raise ValidationError('Signatures require their retained creation history.')
+        if expected_revision == 0 and graphic_identities:
+            raise ValidationError('PDF markups require their retained creation history.')
         while head is not None:
             _digest(head)
             if head in seen or len(seen) >= MAX_AUDIT_EVENTS:
@@ -906,6 +920,13 @@ class TakeoffDocuments:
                 signature_identities[identifier] = binding
                 if len(signature_identities) > 10000:
                     raise ValidationError('The project retains too many signature identities, including history.')
+            for identifier, binding in record.get('graphics', {}).items():
+                previous = graphic_identities.get(identifier)
+                if previous is not None and previous != binding:
+                    raise ValidationError('A retained PDF markup source or tool identity was rewritten.')
+                graphic_identities[identifier] = binding
+                if len(graphic_identities) > 10000:
+                    raise ValidationError('The project retains too many PDF markup identities, including history.')
             if expected_after is not None and record["after"] != expected_after:
                 raise ValidationError("The audit history contains an unrecorded physical-state change.")
             expected_after = record["before"]

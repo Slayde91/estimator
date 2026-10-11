@@ -48,7 +48,7 @@ async function assertParentControls(page, pane, { hasBarrier = false, keyboard =
   assert.ok(mouseOpen.popup.x >= mouseOpen.clip.x && mouseOpen.popup.right <= mouseOpen.clip.right, 'Add popup fits the scrolling inspector width');
   assert.ok(mouseOpen.popup.y >= mouseOpen.clip.y && mouseOpen.popup.bottom <= mouseOpen.clip.bottom, 'Add popup fits the actual scrolling inspector');
   assert.ok(mouseOpen.popup.x >= 0 && mouseOpen.popup.right <= mouseOpen.viewport.width, 'Add popup fits the viewport width');
-  assert.ok(mouseOpen.popup.y >= 0 && mouseOpen.popup.bottom <= mouseOpen.viewport.height, 'Add popup fits the viewport');
+  assert.ok(mouseOpen.popup.y >= 0 && mouseOpen.popup.bottom <= mouseOpen.viewport.height, `Add popup fits the viewport: ${JSON.stringify(mouseOpen)}`);
   await toggle.click(); await expect(list).toBeHidden();
   await toggle.focus(); await toggle.press('ArrowDown'); await expect(list.getByRole('button').first()).toBeFocused();
   await page.keyboard.press('End'); await expect(list.getByRole('button').last()).toBeFocused();

@@ -62,6 +62,26 @@ async function editorLayout(width, height) {
   return measured;
 }
 async function independentDrafts() { return page.evaluate(() => ({ calculators: window.CeasefireCalculators.projectSnapshot(), penetration: window.CeasefirePenetrations.projectSnapshot() })); }
+async function editorSnapshot() { await libraryIdle(); return page.evaluate(()=>({library:window.CeasefireLibraryEditor.projectFingerprint(),dirty:window.CeasefireLibraryEditor.hasUnsavedChanges(),calculators:window.CeasefireCalculators.projectSnapshot(),penetration:window.CeasefirePenetrations.projectSnapshot(),pricing:window.CeasefireProject.configuration(),details:window.CeasefireProject.details()})); }
+async function editorExport(kind,scope,configuration,diagram) {
+  const before=await editorSnapshot(),savedProject=fs.readFileSync(info.project),database=sharedDatabase(),requestIndex=requests.length;
+  const toggle=page.locator('[aria-controls="library-editor-document-actions"]'),menu=page.locator('#library-editor-document-actions');
+  await toggle.click();await expect(menu.getByRole('button',{name:'Item Details',exact:true})).toHaveCount(2);
+  const id=kind==='pdf'?'library-editor-item-pdf':'library-editor-item-excel',pending=page.waitForResponse(reply=>new URL(reply.url()).pathname===`/api/penetration/item.${kind}`&&reply.request().method()==='POST');
+  await page.locator(`#${id}`).click();const reply=await pending;assert.equal(reply.status(),200,await reply.text());
+  const capture=reply.request().postDataJSON(),saved=await reply.json();assert.equal(saved.saved,true);
+  assert.deepEqual(capture.configuration,configuration,'Library exports retain their captured prices');assert.deepEqual(capture.diagram,diagram);
+  assert.equal(capture.draft,undefined);assert.equal(capture.item.inputs.T,'Project-only edited library item');assert.equal(capture.item.inputs.O,2.125);
+  const relative=path.relative(output,saved.path);assert.ok(relative&&!relative.startsWith('..')&&!path.isAbsolute(relative));
+  const target=path.join(output,`${scope}-item.${kind}`),capturePath=path.join(output,`${scope}-item-${kind}-capture.json`);
+  fs.copyFileSync(saved.path,target);fs.writeFileSync(capturePath,JSON.stringify(capture,null,2));
+  const content=spawnSync(python,[path.join(__dirname,'library_item_export_content.py'),'--capture',capturePath,'--file',target],{cwd:root,windowsHide:true,encoding:'utf8'});assert.equal(content.status,0,`${content.stdout}\n${content.stderr}`);
+  await expect(menu).toBeHidden();await expect(page.locator(`#${id}`)).toHaveAttribute('aria-busy','false');
+  assert.deepEqual(await editorSnapshot(),before,'Exports preserve unsaved library/editor, composer, calculator and pricing drafts');
+  assert.deepEqual(fs.readFileSync(info.project),savedProject);assert.deepEqual(sharedDatabase(),database);
+  assert.equal(requests.slice(requestIndex).some(request=>request.method==='POST'&&/\/(save|refresh-pricing|project-draft)$/.test(request.path)),false);
+  (evidence.itemExports ||= []).push({scope,kind,capture,content:JSON.parse(content.stdout),draftsUnchanged:true,sharedDatabaseUnchanged:true,savedProjectUnchanged:true});
+}
 async function enterLibraries() { await page.getByRole('button', { name: 'Libraries', exact: true }).click(); }
 async function openProjectCopy() {
   await enterLibraries(); await chooseLibrary(page, 'penetration');
@@ -119,6 +139,20 @@ async function openProjectCopy() {
   await libraryIdle(); await picture();
   await page.locator('#library-editor-heading').scrollIntoViewIfNeeded();
   await page.screenshot({ path: path.join(output, 'library-edits-before-project-save.png') });
+  const pendingDiagram={filename:'project-diagram.png',content_base64:fs.readFileSync(uploadPath).toString('base64')};
+  for(const kind of ['pdf','xlsx'])await editorExport(kind,'shared-unsaved',sharedBefore.configuration,pendingDiagram);
+  const editorToggle=page.locator('[aria-controls="library-editor-document-actions"]'),editorMenu=page.locator('#library-editor-document-actions');
+  for(const theme of ['ceasefire','midnight','ocean','forest','slate']) {
+    await expect(page.locator('html')).toHaveAttribute('data-theme',theme);
+    for(const width of [1146,390]) {
+      await page.setViewportSize({width,height:1000});await editorToggle.click();await expect(editorMenu).toBeVisible();
+      const bounds=await editorMenu.boundingBox();assert.ok(bounds.x>=0&&bounds.x+bounds.width<=width+1,'Library item Document menu remains within the viewport');
+      await expect(editorMenu.getByRole('button',{name:'Item Details',exact:true})).toHaveCount(2);
+      await page.screenshot({path:path.join(output,`library-item-documents-${theme}-${width}.png`)});await page.keyboard.press('Escape');
+    }
+    await page.locator('#theme-toggle').click();
+  }
+  await page.setViewportSize({width:1440,height:1000});
   choose({});
   // Save immediately after a fresh edit: no Recalculate button or manual delay
   // is required to collect the pending library draft.
@@ -152,6 +186,11 @@ async function openProjectCopy() {
   assert.deepEqual(await api(`/api/libraries/penetration/${info.item_id}/edit`), sharedBefore);
   await page.locator('#library-editor-save').click(); await expect(page.locator('#firestopping-library-editor')).toBeHidden();
   await openProjectCopy(); await picture();
+  await description.fill('Project-only edited library item');await quantity.fill('2.125');await quantity.press('Tab');await libraryIdle();
+  for(const kind of ['pdf','xlsx'])await editorExport(kind,'portable-unsaved',second.library_drafts.records[0].configuration,second.library_drafts.records[0].diagram);
+  await page.locator('#library-editor-diagram-remove').click();await libraryIdle();
+  await editorExport('pdf','portable-removed-diagram',second.library_drafts.records[0].configuration,null);
+  await page.locator('#library-editor-diagram-remove').click();await libraryIdle();
   await page.screenshot({ path: path.join(output, 'project-library-copy-saved.png') });
   await page.locator('#library-editor-cancel').click();
 

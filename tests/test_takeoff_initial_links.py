@@ -312,6 +312,22 @@ class InitialPagesLinkTests(unittest.TestCase):
             path.write_bytes(original)
         case.documents.validate_audit(case.session['snapshot'])
 
+    def test_existing_repository_adapter_without_optional_cache_uses_verified_raw_origin(self):
+        self.batch(legacy=True); case = self.case; original = deepcopy(case.session['snapshot'])
+        class ExistingAdapter:
+            def __getattr__(self, name):
+                if name == 'initial_pages_origin':
+                    raise AttributeError(name)
+                return getattr(case.documents, name)
+        case.service.documents = ExistingAdapter()
+        self.command('update_graphic', graphic_id=self.rows()[0]['id'], changes={'text': 'RAW'})
+        self.assertEqual({row['text'] for row in self.rows()}, {'RAW'})
+        self.command('update_signature', signature_id=self.rows('signatures')[0]['id'], changes={'strokes': [[[0, 1], [1, 0]]]})
+        self.assertTrue(all(row['strokes'] == [[[0, 1], [1, 0]]] for row in self.rows('signatures')))
+        self.assertTrue(all('initial_pages' not in row for row in self.rows()+self.rows('signatures')))
+        self.assert_authorities_same(original, case.session['snapshot'])
+        case.documents.validate_audit(case.session['snapshot'])
+
     def test_legacy_origin_missing_broken_join_or_budget_never_infers_copy_or_siblings(self):
         self.batch(legacy=True); snapshot = deepcopy(self.case.session['snapshot']); row = snapshot['graphics']['records'][0]
         self.assertEqual(linked_members(snapshot, row, 'graphics'), [row])

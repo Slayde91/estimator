@@ -134,25 +134,29 @@ async function saveAndReopen(info) {
   await go(2); await expect(page.getByLabel('Drawing calibration', { exact: true })).toHaveValue(secondScale.id); await expect(page.locator('#takeoff-active-scale')).toHaveText('Page 2 scale · 1:50');
   await go(1); assert.deepEqual((await snapshot()).calibrations, beforeReturning.calibrations); assert.deepEqual((await snapshot()).items, beforeReturning.items, 'Navigation does not revise retained measurements or calibration history');
   await chooseTakeoff(page, 'WALLS'); await expect(page.getByLabel('Drawing calibration', { exact: true })).toHaveValue(presetScale.id);
-  await page.getByRole('button', { name: 'Length', exact: true }).click();
-  async function presetPoint([x, y]) {
-    const overlay = page.locator('.takeoff-overlay'); await overlay.evaluate(el => window.scrollTo(0, window.scrollY + el.getBoundingClientRect().top - 180));
-    const box = await overlay.boundingBox(); const position = [box.x + x / 842 * box.width, box.y + (595 - y) / 595 * box.height];
-    assert.equal(await page.evaluate(([x, y]) => !!document.elementFromPoint(x, y)?.closest('.takeoff-viewport'), position), true); return position;
-  }
-  await page.mouse.click(...await presetPoint([100, 400])); await page.mouse.click(...await presetPoint([244, 400])); await page.locator('.takeoff-viewport').press('Enter');
-  reply = await response(() => dialog('Add length measurement', { Item: 'RESTORED-PAGE-SCALE' }, 'Add measurement'), '/commands', 'create_item');
+  await expect(page.getByRole('button', { name: 'Length', exact: true })).toHaveCount(0); await expect(page.getByRole('button', { name: 'Measure', exact: true })).toBeVisible();
+  // Retained Length records remain supported by the API; the creation rail is
+  // retired. The earlier Steel path retains native trace and pointer coverage.
+  reply = await response(() => page.evaluate(async ({documentId,calibrationId}) => {
+    const takeoffs=window.CeasefireTakeoffs,current=takeoffs.projectSnapshot(),sid=takeoffs.sessionId();
+    if(!current.documents.some(value=>value.id===documentId)||!current.calibrations.some(value=>value.id===calibrationId&&value.document_id===documentId&&value.page===1))throw new Error('Missing restored source calibration');
+    const result=await fetch(`/api/takeoffs/sessions/${sid}/commands`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({op:'create_item',request_id:crypto.randomUUID(),expected_revision:current.revision,item:{mode:'wall',purpose:'length-only',geometry:{document_id:documentId,page:1,points:[[100,400],[244,400]]},measurement:{method:'calibrated',calibration_id:calibrationId},quantity:1,fields:{mark:'RESTORED-PAGE-SCALE'}}})});
+    if(!result.ok)throw new Error(await result.text());const updated=await result.json();takeoffs.applyProject(await takeoffs.prepareProject(updated.snapshot,sid));await takeoffs.open();
+  }, {documentId:presetDocument.id,calibrationId:presetScale.id}), '/commands', 'create_item');
   const restoredItem = reply.snapshot.items.find(value => value.fields.mark === 'RESTORED-PAGE-SCALE'), restoredResult = reply.item_results.find(value => value.id === restoredItem.id);
   assert.equal(restoredItem.measurement.calibration_id, presetScale.id); assert.equal(restoredItem.geometry.document_id, presetDocument.id); assert.equal(restoredItem.geometry.page, 1);
   const restoredDistance = Math.hypot(restoredItem.geometry.points[1][0] - restoredItem.geometry.points[0][0], restoredItem.geometry.points[1][1] - restoredItem.geometry.points[0][1]);
   assert.ok(Math.abs(restoredResult.length_m - restoredDistance * .0254 / 72 * 100) < 1e-12, 'Restored preset uses full original-coordinate precision');
   assert.equal(restoredItem.confirmation, null); assert.equal(restoredItem.review, null);
+  // Public API restore returns to the first document; explicitly restore this
+  // source page before verifying the original native document roundtrip.
+  await renderDrawing(page, () => page.getByLabel('Drawing document', { exact: true }).selectOption(presetDocument.id), 1); await expect(page.getByLabel('Drawing calibration', { exact: true })).toHaveValue(presetScale.id);
   await renderDrawing(page, () => page.getByLabel('Drawing document', { exact: true }).selectOption(document.id), 1); await expect(page.getByLabel('Drawing calibration', { exact: true })).toHaveValue(manual.id);
   await renderDrawing(page, () => page.getByLabel('Drawing document', { exact: true }).selectOption(presetDocument.id), 1); await expect(page.getByLabel('Drawing calibration', { exact: true })).toHaveValue(presetScale.id);
   const presetSavedSnapshot = await snapshot(), presetSaved = await saveAndReopen(info); assert.deepEqual(presetSaved.takeoffs.calibrations, presetSavedSnapshot.calibrations); assert.deepEqual((await snapshot()).items, presetSavedSnapshot.items);
   await renderDrawing(page, () => page.getByLabel('Drawing document', { exact: true }).selectOption(presetDocument.id), 1); await expect(page.getByLabel('Drawing calibration', { exact: true })).toHaveValue(presetScale.id); await expect(page.locator('#takeoff-active-scale')).toHaveText('Page 1 scale · 1:100');
   await go(2); await expect(page.getByLabel('Drawing calibration', { exact: true })).toHaveValue(secondScale.id); await go(1); await expect(page.getByLabel('Drawing calibration', { exact: true })).toHaveValue(presetScale.id);
-  evidence.restoredPreset = { document_id: presetDocument.id, page1: presetScale, page2: secondScale, item: restoredItem, exact_length_m: restoredResult.length_m, savedReopened: true };
+  evidence.restoredPreset = { document_id: presetDocument.id, page1: presetScale, page2: secondScale, item: restoredItem, exact_length_m: restoredResult.length_m, savedReopened: true, creation_coverage:'guarded API legacy fixture', length_tool_hidden:true, pdf_measure_visible:true };
   await page.locator('.takeoff-viewport').scrollIntoViewIfNeeded(); await page.screenshot({ path: path.join(output, 'preset-scale-restored-and-reopened.png') });
   assert.deepEqual(errors, []); assert.deepEqual(await page.evaluate(() => window.qaCsp), []);
   fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ completed: true, strictCsp: true, evidence, calibration, manual, detections, errors }, null, 2));

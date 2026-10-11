@@ -302,10 +302,15 @@ class _ScheduleReport(_Report):
                                      [_CONTENT * .20, _CONTENT * .80]))
         self.story.append(Spacer(1, 10))
         if materials:
-            self.story += [self.p('Material quantities and summary', 'section'), self.p(data['basis'])]
-        coverage = ('Review the schedule PDF for individual items and their statuses.' if materials else
-                    'Every used item remains in this report.')
-        self.story.append(self.p(f"{len(data['rows'])} used schedule items. {data['incomplete_rows']} item(s) have incomplete or unavailable primary quantities. {coverage}", 'alert' if data['incomplete_rows'] else 'body'))
+            basis = data['basis']
+            if data['id'] == 'steel_vermiculite':
+                basis = basis.replace('Published thickness and usable estimating thickness are reported separately.',
+                                      'Material quantities retain the source estimating thickness.')
+            self.story += [self.p('Material quantities and summary', 'section'), self.p(basis)]
+        if not (materials and data['id'] in {'steel_board', 'steel_vermiculite'}):
+            coverage = ('Review the schedule PDF for individual items and their statuses.' if materials else
+                        'Every used item remains in this report.')
+            self.story.append(self.p(f"{len(data['rows'])} used schedule items. {data['incomplete_rows']} item(s) have incomplete or unavailable primary quantities. {coverage}", 'alert' if data['incomplete_rows'] else 'body'))
         if data.get('assessment_scope') and not materials:
             self.story.append(self.p(data['assessment_scope'], 'small'))
         if data.get('assessment_receipt'):
@@ -343,12 +348,12 @@ class _ScheduleReport(_Report):
                     self.numeric('N/A' if item['wrap'] else v['M']), self.numeric(v['N'] if item['wrap'] else 'N/A'),
                     self.numeric(v['O'] if item['wrap'] else 'N/A'), self.p(v['J'] or 'No calculated status returned', 'cell')])
             elif data['id'] == 'steel_vermiculite':
-                rows.append([self.p(identity, 'cell'), self.p(v['AA'], 'cell'), self.p(v['A'], 'cell'), self.detail(v['B'] or 'Product missing', v['F']),
-                    self.p(self.display(v['I']) + ' x ' + self.display(v['J']) + ' m', 'numeric'),
-                    self.numeric(v['O']), self.numeric(v['P']), self.numeric(v['R']), self.numeric(v['T']), self.numeric(v['U']),
-                    self.p('\n'.join(str(value) for value in (v['V'], v['W'], item.get('assessment_reference') or item.get('source_reference')) if _has_value(value)) or 'No calculated status returned', 'cell')])
+                rows.append([self.p(identity, 'cell'), self.p(v['AA'], 'cell'), self.p(v['A'], 'cell'),
+                    self.p(v['B'] or 'Product missing', 'cell'), self.p(v['F'], 'cell'),
+                    self.numeric(v['I']), self.numeric(v['J']), self.numeric(v['O'])])
             else:
-                rows.append([self.p(identity, 'cell'), self.p(v['A'], 'cell'), self.p(v['B'], 'cell'), self.detail(v['C'] or 'Product missing', v['D']),
+                rows.append([self.p(identity, 'cell'), self.p(v['A'], 'cell'), self.p(v['B'], 'cell'),
+                    self.p(v['C'] or 'Product missing', 'cell'), self.p(v['D'], 'cell'),
                     self.p(self.display(v['AN']) + ' / ' + self.display(v['AO']), 'numeric'), self.p(self.display(v['Z']), 'cell'),
                     self.numeric(v['AB']), self.numeric(v['AD']), self.numeric(v['AE']), self.numeric(v['AF']), self.numeric(v['AG']),
                     self.p('\n'.join(str(value) for value in (v['AR'], v['AS']) if _has_value(value)) or 'No calculated status returned', 'cell')])
@@ -356,11 +361,11 @@ class _ScheduleReport(_Report):
             heads = ['Line', 'Product / duct mm', 'Length m', 'FRL', 'Thickness mm', 'Duct m²', 'Net spray bags', 'Wrap m²', 'Roll eq.', 'Status']
             fractions = [.05, .16, .065, .085, .08, .085, .085, .085, .075, .23]
         elif data['id'] == 'steel_vermiculite':
-            heads = ['Line', 'Location', 'Item / mark', 'Product / section', 'Quantity x length', 'Published mm', 'Estimate mm', 'Spray m²', 'Net bags', 'Whole bags / line', 'Status']
-            fractions = [.055, .09, .095, .13, .085, .07, .07, .08, .075, .085, .165]
+            heads = ['Line', 'Location', 'Item / mark', 'Product', 'Section', 'Quantity', 'Length (m)', 'Thickness (mm)']
+            fractions = [.06, .15, .13, .17, .18, .08, .10, .13]
         else:
-            heads = ['Line', 'Item / mark', 'Location', 'Product / section', 'Design min / °C', 'Board stack mm', 'Total thickness mm', 'Box ref. m²', 'Net board m²', 'With waste m²', 'Sheets / line', 'Status']
-            fractions = [.055, .065, .08, .125, .065, .07, .08, .07, .075, .075, .075, .165]
+            heads = ['Line', 'Item / mark', 'Location', 'Product', 'Section', 'Design min / °C', 'Board stack mm', 'Total thickness mm', 'Box ref. m²', 'Net board m²', 'With waste m²', 'Sheets / line', 'Status']
+            fractions = [.055, .075, .08, .10, .07, .07, .075, .08, .065, .07, .07, .065, .125]
         table = self.table(heads, rows, [_CONTENT * size for size in fractions], compact=True)
         # Allow long cells to split, but require space for a body line with its
         # padding. A one-point fragment can otherwise leave a header alone at
@@ -374,6 +379,15 @@ class _ScheduleReport(_Report):
                    for index, cell in enumerate(row)):
                 table.setStyle(TableStyle([('VALIGN', (0, row_index), (-1, row_index), 'TOP')]))
         self.story.append(table)
+        if data['id'] == 'steel_vermiculite':
+            references = {}
+            for item in data['rows']:
+                reference = item.get('assessment_reference') or item.get('source_reference')
+                if reference:
+                    references.setdefault(reference, []).append(str(item['line']))
+            for reference, lines in references.items():
+                self.story.append(self.p('Thickness source for schedule lines ' +
+                                         ', '.join(lines) + ': ' + reference, 'small'))
 
     def extras(self):
         data = self.data
@@ -422,9 +436,13 @@ class _ScheduleReport(_Report):
                 note.keepWithNext = True
                 self.story.append(note)
             columns, labels = summary_display_columns(data, summary)
+            if data['id'] == 'steel_vermiculite':
+                # PDF presentation only: the raw projection and the shared
+                # Excel export retain every source quantity and order field.
+                columns = [column for column in columns if column not in 'BFGHI']
             fractions = ([.17, .065, .085, .085, .09, .07, .09, .065, .065, .095, .105, .11]
                          if data['id'] == 'steel_board' else
-                         [.20, .07, .10, .10, .09, .07, .10, .08, .19] if data['id'] == 'steel_vermiculite' else
+                         [.40, .20, .20, .20] if data['id'] == 'steel_vermiculite' else
                          [.16, .045, .09, .085, .08, .075, .095, .08, .14, .15] if len(columns) == 10 else
                          [.16, .12, .13, .15, .18, .26] if len(columns) == 6 else
                          [.095, .10, .10, .10, .10, .10, .11, .11, .185])

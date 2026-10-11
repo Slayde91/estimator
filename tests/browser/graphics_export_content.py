@@ -9,6 +9,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 from pypdf import PdfReader
 from pypdf.generic import ContentStream
+from reportlab.lib.rl_accel import fp_str
 from estimator.takeoff_markup_pdf_worker import page_transform, transform
 
 
@@ -28,7 +29,7 @@ def inspect(pdf_path, specification):
         bottom = 0 if specification['physical'] else float(page.mediabox.height)-height
         matrix, _, _ = page_transform(metadata, bottom, (float(page.mediabox.width)-width)/2)
         operations = ContentStream(page.get_contents(), reader).operations
-        style = graphic['appearance']
+        style = {**graphic['appearance'], 'font_size': graphic['appearance']['font_size'] * graphic['geometry'].get('text_scale', 1)}
         rgb = [int(style['stroke_color'][i:i+2], 16)/255 for i in (1, 3, 5)]
         starts = [index for index, (args, op) in enumerate(operations) if op == b'RG' and near(args, rgb)]
         assert starts, 'Markup stroke colour absent from actual PDF'
@@ -62,7 +63,11 @@ def inspect(pdf_path, specification):
                 compact = ''.join(content.split())
                 segments = []
                 page.extract_text(visitor_text=lambda value, cm, tm, font, size: segments.append((value, font, size)))
-                bold = ''.join(value for value, font, size in segments if font and 'Bold' in font.get('/BaseFont', '') and abs(float(size)-style['font_size']) < 1e-6)
+                # ReportLab serializes fractional physical font sizes through
+                # fp_str. Check that exact emitted size instead of rejecting
+                # valid scaled fonts for the PDF token's decimal rounding.
+                emitted_size = float(fp_str(style['font_size']))
+                bold = ''.join(value for value, font, size in segments if font and 'Bold' in font.get('/BaseFont', '') and float(size) == emitted_size)
                 numbered = 0
                 italic_count = underline_count = 0
                 for block in graphic['text_content']['blocks']:

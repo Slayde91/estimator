@@ -1,6 +1,6 @@
 const { chooseTakeoff } = require('./section_navigation.cjs');
 const { clickProjectControl } = require('./project_actions.cjs');
-// Real count-only/length-only tools; disposable data and original rotated PDF.
+// Native counts and retained legacy length-only editing; disposable rotated PDF.
 const { chromium, expect } = require('@playwright/test');
 const { renderDrawing } = require('./viewer_helpers.cjs');
 const { spawn } = require('node:child_process');
@@ -137,21 +137,26 @@ async function dialog(title, values, action) {
   await page.getByLabel('Page number',{exact:true}).fill('1').then(()=>page.getByLabel('Page number',{exact:true}).press('Tab')); await idle();
   await renderDrawing(page, async () => { await page.getByLabel('Page number', { exact: true }).fill('3'); await page.getByLabel('Page number', { exact: true }).press('Tab'); }, 3);
   for (const mode of ['WALLS', 'SLABS']) {
-    await chooseTakeoff(page, mode); await page.getByRole('button', { name: 'Length', exact: true }).click();
-    const beforeLength = (JSON.parse(await page.evaluate(() => window.CeasefireTakeoffs.projectFingerprint()))).snapshot;
-    await page.mouse.click(...await screen([150, 200]));
-    await page.getByRole('button', { name: 'Length', exact: true }).click();
-    await expect(page.locator('.takeoff-viewport')).toHaveAttribute('data-tool', 'select');
-    assert.deepEqual(await snapshot(), beforeLength, 'Clicking active Length cancels its unfinished geometry without a record');
-    await page.getByRole('button', { name: 'Length', exact: true }).click();
-    await page.mouse.click(...await screen([150, 200])); await page.mouse.click(...await screen([250, 200])); await page.locator('.takeoff-viewport').press('Enter');
-    const reply = await command(() => dialog('Add length measurement', { Item: `${mode}-LENGTH`, Level: 'L01' }, 'Add measurement'), 'create_item');
+    await chooseTakeoff(page, mode); await expect(page.getByRole('button', { name: 'Length', exact: true })).toBeHidden();
+    await expect(page.getByRole('button', { name: 'Measure', exact: true })).toBeVisible();
+    // The Length tool has retired from Walls/Floors. Explicitly seed a legacy
+    // record via the guarded API so its geometry/precision/editing regression
+    // remains exercised without claiming native creation coverage.
+    let seeded;
+    await command(async () => { seeded = await page.evaluate(async name => {
+      const takeoffs = window.CeasefireTakeoffs, sid = takeoffs.sessionId(), current = takeoffs.projectSnapshot(), doc = current.documents[0];
+      const basis = current.calibrations.find(value => value.document_id === doc.id && value.page === 3 && value.name === 'Synthetic precise scale');
+      if (!basis) throw new Error('Explicit legacy Length fixture requires its precise source calibration');
+      const response = await fetch(`/api/takeoffs/sessions/${sid}/commands`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'create_item', request_id: crypto.randomUUID(), expected_revision: current.revision, item: { mode: name === 'WALLS' ? 'wall' : 'slab', purpose: 'length-only', geometry: { document_id: doc.id, page: 3, points: [[150, 200], [250, 200]] }, measurement: { method: 'calibrated', calibration_id: basis.id }, quantity: 1, fields: { mark: `${name}-LENGTH`, level: 'L01' } } }) });
+      if (!response.ok) throw new Error(await response.text()); const reply = await response.json(); takeoffs.applyProject(await takeoffs.prepareProject(reply.snapshot, sid)); await takeoffs.open(); return reply;
+    }, mode); }, 'create_item');
+    const reply = seeded;
     const item = reply.snapshot.items.find(item => item.fields.mark === `${mode}-LENGTH`); assert.equal(item.purpose, 'length-only'); assert.equal(item.quantity, 1); assert.equal(item.geometry.points.length, 2); assert.equal(item.measurement.method, 'calibrated');
     const result = reply.item_results.find(row => row.id === item.id), [a, b] = item.geometry.points;
     const sourceLength = Math.hypot(a[0] - b[0], a[1] - b[1]) * .1;
-    assert.ok(Math.abs(result.length_m - sourceLength) < 1e-12, 'Server preserves the actual pointer geometry precision');
-    assert.ok(result.length_m > 0, 'The actual traced source line has a measured length'); evidence[mode] = { id: item.id, length_m: result.length_m, points: item.geometry.points };
-    await page.getByRole('button', { name: 'Settings', exact: true }).click();
+    assert.ok(Math.abs(result.length_m - sourceLength) < 1e-12, 'Server preserves retained legacy geometry precision');
+    assert.ok(result.length_m > 0, 'The retained legacy source line has a measured length'); evidence[mode] = { id: item.id, length_m: result.length_m, points: item.geometry.points, creation_coverage: 'guarded API legacy fixture', length_tool_hidden: true, pdf_measure_visible: true };
+    await chooseTakeoff(page, mode);
   }
   // Retiring an inset must not silently restore a different page-scale basis.
   // The requested sidebar calibration button is absent. Keep the retired inset

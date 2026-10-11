@@ -215,16 +215,15 @@ class CalculatorReportTests(unittest.TestCase):
                                     'Confirm penetration steel sizes and layout'):
                         self.assertNotIn(removed, summary)
                 elif identity == 'steel_vermiculite':
-                    self.assertIn('430.73', text)
-                    self.assertIn('218.38', text)
-                    self.assertIn('219.00', text)
+                    for retained in ('165.00', '2.00', '26.00'):
+                        self.assertIn(retained, text)
                     self.assertNotIn('Product order totals', text)
                     self.assertNotIn('Product order totals', summary)
                     for removed in ('Totals use available source results', 'Display rounding is limited',
                                     'Whole bags per product are pooled from net bags'):
                         self.assertNotIn(removed, summary)
-                    for retained in ('CAFCO 300', 'Order status'):
-                        self.assertIn(retained, summary)
+                    self.assertIn('CAFCO 300', summary)
+                    self.assertNotIn('Order status', summary)
                     for unused in ('MONOKOTE MK-6 HY', 'MANDOLITE CP2', 'FENDOLITE MII', 'PERLIFOC HP ECO+'):
                         self.assertNotIn(unused, summary)
                 else:
@@ -259,7 +258,9 @@ class CalculatorReportTests(unittest.TestCase):
                     self.assertIn('Board stock totals by product and thickness', normalized)
                 else:
                     self.assertNotIn('Board stock totals by product and thickness', normalized)
-                self.assertIn('incomplete or unavailable primary quantities', normalized)
+                self.assertNotIn('used schedule items.', normalized)
+                if data['incomplete_rows']:
+                    self.assertIn('Unresolved material requirements:', normalized)
                 self.assertNotIn('Overall schedule totals', normalized)
                 for item in data['extra_rows']:
                     self.assertIn(f"Extra-board item {item['line']}", text)
@@ -281,6 +282,70 @@ class CalculatorReportTests(unittest.TestCase):
                     build_calculator_summary_report(identity))).pages)
             self.assertNotIn('Overall schedule totals', text)
             self.assertEqual(data, before)
+
+    def test_spray_schedule_has_separate_source_columns_and_only_requested_thickness(self):
+        data = deepcopy(default_projection('steel_vermiculite'))
+        data['rows'] = data['rows'][:1]
+        values = data['rows'][0]['values']
+        values.update(B='PDF-PRODUCT', F='PDF-SECTION', I=123.456789, J=9.87654321,
+                      O=26.123456, P=93.876543, R=94.876543, T=95.876543, U=96.876543,
+                      V='PDF-THICKNESS-STATUS', W='PDF-QUANTITY-STATUS')
+        before = deepcopy(data)
+        with patch('estimator.calculator_report.project_calculator_report', return_value=data):
+            text = ' '.join(page.extract_text() for page in PdfReader(BytesIO(
+                build_calculator_report('steel_vermiculite'))).pages)
+        normalized = ' '.join(text.split())
+        for retained in ('Product', 'Section', 'Quantity', 'Length (m)', 'Thickness (mm)',
+                         'PDF-PRODUCT', 'PDF-SECTION', '123.46', '9.88', '26.12'):
+            self.assertIn(retained, normalized)
+        for removed in ('Product / section', 'Quantity x length', 'Published mm', 'Estimate mm',
+                        'Spray m²', 'Net bags', 'Whole bags / line', 'Status', '93.88', '94.88',
+                        '95.88', '96.88', 'PDF-THICKNESS-STATUS', 'PDF-QUANTITY-STATUS'):
+            self.assertNotIn(removed, normalized)
+        self.assertEqual(data, before)
+
+    def test_steel_material_pdfs_omit_requested_fields_and_keep_unresolved_warning(self):
+        for identity, product_column, product in [('steel_vermiculite', 'B', 'MANDOLITE CP2'),
+                                                   ('steel_board', 'C', 'PROMATECT 100')]:
+            inputs = cleared_inputs(identity)
+            schedule = source_model(identity)['schedule']
+            inputs[schedule['sheet']][product_column + str(schedule['first_row'])] = product
+            data = project_calculator_report(identity, inputs)
+            before = deepcopy(data)
+            with self.subTest(identity=identity), patch(
+                    'estimator.calculator_report.project_calculator_report', return_value=data):
+                text = ' '.join(page.extract_text() for page in PdfReader(BytesIO(
+                    build_calculator_summary_report(identity))).pages)
+            normalized = ' '.join(text.split())
+            for removed in ('used schedule items.', 'Review the schedule PDF for individual items and their statuses.',
+                            'Whole bags / product', 'Incomplete rows', 'Order status', 'Schedule lines'):
+                self.assertNotIn(removed, normalized)
+            if identity == 'steel_vermiculite':
+                self.assertNotIn('Waste', normalized)
+                self.assertNotIn('estimating thickness are reported separately.', normalized)
+                self.assertIn('Material quantities retain the source estimating thickness.', normalized)
+                for retained in ('Product', 'Area entered (m²)', 'Volume quantified (m³)', 'Net bags'):
+                    self.assertIn(retained, normalized)
+            self.assertIn('Unresolved material requirements:', normalized)
+            self.assertIn(product + ' (1 schedule item(s))', normalized)
+            self.assertEqual(data, before)
+
+    def test_board_schedule_separates_product_and_section_without_losing_identifiers(self):
+        data = deepcopy(default_projection('steel_board'))
+        data['rows'] = data['rows'][:1]
+        data['rows'][0]['values'].update(C='PDF-BOARD-PRODUCT', D='SECTION-123.456789')
+        before = deepcopy(data)
+        with patch('estimator.calculator_report.project_calculator_report', return_value=data):
+            pdf = PdfReader(BytesIO(build_calculator_report('steel_board')))
+        text = '\n'.join(page.extract_text() for page in pdf.pages)
+        extracted_lines = [line.strip() for line in text.splitlines()]
+        self.assertIn('Product', extracted_lines)
+        self.assertIn('Section', extracted_lines)
+        self.assertNotIn('Product / section', text)
+        compact = ''.join(text.split())
+        self.assertIn('PDF-BOARD-PRODUCT', compact)
+        self.assertIn('SECTION-123.456789', compact)
+        self.assertEqual(data, before)
 
     def test_schedule_header_stays_with_body_when_a_long_cell_spans_pages(self):
         data = deepcopy(default_projection('ductwork'))
@@ -431,7 +496,10 @@ class CalculatorReportTests(unittest.TestCase):
             text = '\n'.join(page.extract_text() for page in PdfReader(BytesIO(build_calculator_report(identity, cleared_inputs(identity)))).pages)
             self.assertIn('No schedule inputs are entered.', text)
             summary = '\n'.join(page.extract_text() for page in PdfReader(BytesIO(build_calculator_summary_report(identity, cleared_inputs(identity)))).pages)
-            self.assertIn('0 used schedule items. 0 item(s)', ' '.join(summary.split()))
+            if identity == 'ductwork':
+                self.assertIn('0 used schedule items. 0 item(s)', ' '.join(summary.split()))
+            else:
+                self.assertNotIn('used schedule items.', summary)
             self.assertNotIn('Overall schedule totals', summary)
             self.assertNotIn('Full schedule', summary)
 

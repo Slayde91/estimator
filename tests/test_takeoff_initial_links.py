@@ -93,6 +93,24 @@ class InitialPagesLinkTests(unittest.TestCase):
             self.assertEqual({key: value for key, value in new.items() if key != 'version'},
                              {key: value for key, value in old.items() if key != 'version'})
             self.assertEqual(new['version'], 3)
+
+    def test_local_text_resize_scales_only_its_ink_then_shared_colour_still_fans_out(self):
+        self.batch(); before = deepcopy(self.case.session['snapshot'])
+        selected = before['graphics']['records'][0]; quad = selected['geometry']['quad_pdf']; origin = quad[0]
+        geometry = {'quad_pdf': [[origin[i]+(p[i]-origin[i])*1.2 for i in (0, 1)] for p in quad], 'text_scale': 1.2}
+        self.command('update_graphic', graphic_id=selected['id'], changes={'geometry': geometry})
+        after = deepcopy(self.case.session['snapshot'])
+        for old, new in zip(before['graphics']['records'], after['graphics']['records']):
+            self.assertEqual(new['appearance'], old['appearance']); self.assertEqual(new['text'], old['text'])
+            self.assertEqual(new['initial_pages'], old['initial_pages'])
+            self.assertEqual(new['geometry'], geometry if new['id'] == selected['id'] else old['geometry'])
+        self.assert_authorities_same(before, after)
+        self.command('update_graphic', graphic_id=selected['id'], changes={'appearance': {'font_color': '#123456'}})
+        for old, new in zip(after['graphics']['records'], self.rows()):
+            self.assertEqual(new['geometry'], old['geometry']); self.assertEqual(new['appearance']['font_size'], old['appearance']['font_size'])
+            self.assertEqual(new['appearance']['font_color'], '#123456')
+        self.case.documents.validate_audit(self.case.session['snapshot'])
+        self.assertEqual(len(PdfReader(BytesIO(self.export())).pages), len(self.document['pages']))
         self.case.documents.validate_audit(self.case.session['snapshot'])
 
     def test_local_geometry_and_selected_delete_do_not_move_or_remove_siblings(self):

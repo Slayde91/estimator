@@ -59,17 +59,19 @@ async function checkDocuments(scope, ids) {
   for (const [selection, expected] of [['confirmed', confirmed], ['unconfirmed', active.filter(id => !confirmed.includes(id))], ['all', active]]) {
     await toggle.click(); const action = list.getByRole('button', { name: `Download ${selection} items`, exact: true });
     const position = await action.evaluate(el => ({ icon: el.firstElementChild.getBoundingClientRect().x, label: el.lastElementChild.getBoundingClientRect().x })); assert.ok(position.icon < position.label);
-    const downloadWait = page.waitForEvent('download'), responseWait = page.waitForResponse(reply => reply.url().endsWith('/physical/export/xlsx'));
+    const downloadWait = page.waitForEvent('download'), responseWait = page.waitForResponse(reply => reply.url().endsWith('/physical/export/register-xlsx'));
     await action.click(); const reply = await responseWait; assert.equal(reply.status(), 200, await reply.text()); assert.deepEqual(reply.request().postDataJSON(), { scope, expected_revision: before.revision, confirmation: selection });
     const download = await downloadWait, filename = path.join(output, `${scope}-${download.suggestedFilename()}`); await download.saveAs(filename);
-    const parsed = spawnSync(process.env.CEASEFIRE_PYTHON || 'python', ['-c', "import json,sys\nfrom openpyxl import load_workbook\nw=load_workbook(sys.argv[1],data_only=False)\nrows=[]\nfor s in w:\n if s.title in ('Defects','Barriers','Services'):\n  v=list(s.values);rows.extend(dict(zip(v[0],r)) for r in v[1:])\nprint(json.dumps({'ids':sorted(r['entity_id'] for r in rows),'confirmation':sorted(set(r['confirmation'] for r in rows)),'formulas':[c.coordinate for s in w for r in s for c in r if c.data_type=='f']}))\nw.close()", filename], { encoding: 'utf8', windowsHide: true });
-    assert.equal(parsed.status, 0, parsed.stderr); const result = JSON.parse(parsed.stdout); assert.deepEqual(result.ids, [...expected].sort()); assert.deepEqual(result.formulas, []); if (selection !== 'all') assert.deepEqual(result.confirmation, [selection]);
+    const parsed = spawnSync(process.env.CEASEFIRE_PYTHON || 'python', ['-c', "import json,sys\nfrom openpyxl import load_workbook\nw=load_workbook(sys.argv[1],data_only=False)\ns=w.active;v=list(s.values);rows=[dict(zip(v[0],r)) for r in v[1:]]\nprint(json.dumps({'sheets':w.sheetnames,'headers':v[0],'ids':sorted(r.get('Service ID') or r.get('Barrier ID') or r.get('Defect ID') for r in rows),'confirmation':sorted(set(r['Confirmation'] for r in rows)),'formulas':[c.coordinate for s in w for r in s for c in r if c.data_type=='f']}))\nw.close()", filename], { encoding: 'utf8', windowsHide: true });
+    assert.equal(parsed.status, 0, parsed.stderr); const result = JSON.parse(parsed.stdout);
+    const entries=[...(graph.defects||[]),...graph.barriers,...graph.services];assert.deepEqual(result.ids,expected.map(id=>entries.find(entry=>entry.id===id).display_id).sort());assert.equal(result.sheets.length,1);assert.deepEqual(result.formulas,[]);if(selection!=='all')assert.deepEqual(result.confirmation,[selection==='confirmed'?'Confirmed':'Unconfirmed']);
+    assert.deepEqual(result.headers,(await root.getByRole('columnheader').allTextContents()).slice(3).map(value=>value.trim()));
     await expect(list).toBeHidden(); await idle(); assert.deepEqual(await snapshot(), before);
   }
   await reset('Category'); await toggle.click(); await root.getByRole('heading', { level: 2 }).click(); await expect(list).toBeHidden();
   const session = await page.evaluate(() => window.CeasefireTakeoffs.sessionId());
   for (const data of [{ scope, confirmation: 'all', expected_revision: before.revision - 1 }, { scope, confirmation: 'approved', expected_revision: before.revision }, { scope, confirmation: 'all', expected_revision: true }, { scope, confirmation: 'all', expected_revision: before.revision, selected_ids: [] }]) {
-    const reply = await page.request.post(`${origin}/api/takeoffs/sessions/${session}/physical/export/xlsx`, { data }); assert.equal(reply.status(), 400);
+    const reply = await page.request.post(`${origin}/api/takeoffs/sessions/${session}/physical/export/register-xlsx`, { data }); assert.equal(reply.status(), 400);
   }
   assert.deepEqual(await snapshot(), before);
   await page.setViewportSize({ width: 390, height: 764 }); await toggle.click(); await list.scrollIntoViewIfNeeded();

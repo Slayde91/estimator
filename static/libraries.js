@@ -60,7 +60,7 @@
     const pane = { kind, search: "", filters: {}, offset: 0, limit: 50, data: null, dataQuery: null, detail: null, selected: null,
       listRevision: 0, detailRevision: 0, openRevision: 0, listAbort: null, detailAbort: null, timer: null, filterStamp: null, busy: false,
       linkSession: null, addPending: new Map(), addErrors: new Map(), deletePending: new Set(), deleteButtons: new Map(), unlinkPending: new Set(), unlinkButtons: new Map(),
-      scheduleButtons: new Map(), actionMessages: new Map(), quantityBadges: new Map() };
+      scheduleButtons: new Map(), actionMessages: new Map(), quantityBadges: new Map(), documentCleanup: null, documentPending: null, documentControls: [] };
     const root = $(kind + "-library-workspace");
     pane.message = node("div", "message"); pane.message.hidden = true; pane.message.setAttribute("role", "status");
     pane.notice = node("p", "helper library-notice"); pane.notice.hidden = true;
@@ -437,6 +437,7 @@
     window.CeasefireLibraryNavigation.open(target.kind, target.id || { list: true });
   }
   function showList(pane) {
+    pane.documentCleanup?.();
     closeLinkPicker(pane);
     ++pane.detailRevision; pane.detailAbort?.abort(); pane.selected = null; pane.detail = null;
     pane.detailPanel.hidden = true; pane.list.hidden = false; message(pane); updateNotice(pane);
@@ -580,14 +581,77 @@
     if (state.history.length) { const previous = button("Back to previous item", back); previous.dataset.libraryBack = pane.kind; nav.append(previous); }
     return nav;
   }
+  function technicalDocumentMenu(pane, data) {
+    const wrapper = node("div", "calculator-document-menu library-document-menu");
+    const toggle = button("", () => { if (!toggle.disabled) setOpen(list.hidden); }, "button secondary calculator-document-toggle");
+    const icon = node("img", "calculator-document-icon"); icon.src = "/icons/document.png"; icon.alt = ""; icon.width = icon.height = 24;
+    const chevron = node("span", "calculator-document-chevron"); chevron.setAttribute("aria-hidden", "true");
+    chevron.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="m6 9 6 6 6-6"></path></svg>';
+    toggle.append(icon, node("span", "", "Document"), chevron);
+    const list = node("div", "calculator-document-actions"); list.id = "technical-item-document-actions"; list.hidden = true;
+    list.setAttribute("role", "group"); list.setAttribute("aria-label", "Technical item downloads");
+    toggle.setAttribute("aria-controls", list.id); toggle.setAttribute("aria-expanded", "false");
+    const revision = pane.detailRevision, id = data.id, actions = [];
+    const current = () => state.current === "technical" && pane.selected === id && pane.detailRevision === revision && !pane.detailPanel.hidden;
+    function setOpen(open, focus = false) {
+      list.hidden = !open; toggle.setAttribute("aria-expanded", String(open));
+      if (focus) toggle.focus();
+    }
+    async function download(format) {
+      if (!current() || pane.documentPending) return;
+      setOpen(false);
+      const token = { id, revision }; pane.documentPending = token;
+      for (const control of pane.documentControls) control.disabled = true;
+      try {
+        if (!window.CeasefireDownloads?.save) throw new Error("Document downloads are unavailable. Reopen the application and try again.");
+        const result = await window.CeasefireDownloads.save(`/api/technical/item.${format}`, { id });
+        if (current()) message(pane, `Item Details saved: ${result.filename}`);
+      } catch (error) {
+        if (current()) message(pane, `Item Details were not downloaded. ${error.message}`, true);
+      } finally {
+        if (pane.documentPending === token) {
+          pane.documentPending = null;
+          for (const control of pane.documentControls) control.disabled = false;
+        }
+      }
+    }
+    for (const format of ["pdf", "xlsx"]) {
+      const action = button("", () => download(format), `button ${format === "pdf" ? "pdf" : "excel"}-button calculator-document-action`);
+      action.setAttribute("aria-label", `Download Item Details ${format.toUpperCase()}`);
+      const mark = node("span", "download-format-icon"); mark.setAttribute("aria-hidden", "true");
+      mark.append(node("span", "download-arrow", "⇩"), node("span", "download-format", format.toUpperCase()));
+      action.append(mark, node("span", "", "Item Details")); actions.push(action); list.append(action);
+    }
+    pane.documentControls = [toggle, ...actions];
+    for (const control of pane.documentControls) control.disabled = !!pane.documentPending;
+    wrapper.append(toggle, list);
+    wrapper.addEventListener("keydown", event => {
+      if (!["ArrowDown", "ArrowUp", "Home", "End", "Escape"].includes(event.key) || toggle.disabled) return;
+      event.preventDefault(); event.stopPropagation();
+      if (event.key === "Escape") { setOpen(false, true); return; }
+      const index = actions.indexOf(document.activeElement);
+      setOpen(true);
+      const next = event.key === "Home" ? 0 : event.key === "End" ? actions.length - 1
+        : event.key === "ArrowDown" ? (index + 1) % actions.length : index < 0 ? actions.length - 1 : (index + actions.length - 1) % actions.length;
+      actions[next].focus();
+    });
+    const outside = event => { if (!wrapper.contains(event.target)) setOpen(false); };
+    document.addEventListener("pointerdown", outside); document.addEventListener("focusin", outside);
+    pane.documentCleanup = () => {
+      setOpen(false); document.removeEventListener("pointerdown", outside); document.removeEventListener("focusin", outside);
+      pane.documentCleanup = null;
+    };
+    return wrapper;
+  }
   function renderDetail(pane) {
+    pane.documentCleanup?.();
     const data = pane.detail, heading = node("h3", "", data.title || data.id);
     // Legacy Firefly report imports predate the Manufacturer field.
     const firefly = /^fas19023[456]-/i.test(String(data.id)) || (data.fields || []).some(field => String(field.label).trim().toLowerCase() === "manufacturer" && /\bfirefly\b/i.test(String(field.value)));
     heading.id = `${pane.kind}-library-detail-heading`; heading.tabIndex = -1; pane.detailPanel.setAttribute("aria-labelledby", heading.id);
     for (const key of pane.quantityBadges.keys()) if (key.startsWith("detail:")) pane.quantityBadges.delete(key);
-    const title = pane.kind === "penetration" ? node("div", "library-record-heading") : heading;
-    if (pane.kind === "penetration") title.append(heading, quantityBadge(pane, data.id, "detail"));
+    const title = node("div", `library-record-heading${pane.kind === "technical" ? " library-technical-heading" : ""}`);
+    title.append(heading, pane.kind === "penetration" ? quantityBadge(pane, data.id, "detail") : technicalDocumentMenu(pane, data));
     const content = [detailNavigation(pane), title];
     if (data.subtitle) content.push(node("p", "library-subtitle", data.subtitle));
     for (const key of pane.scheduleButtons.keys()) if (key.startsWith("detail:")) { pane.scheduleButtons.delete(key); pane.actionMessages.delete(key); }
@@ -694,6 +758,7 @@
     }
   }
   async function loadDetail(pane, id) {
+    pane.documentCleanup?.();
     clearTimeout(pane.timer); invalidateList(pane);
     pane.selected = id; pane.detailAbort?.abort(); const revision = ++pane.detailRevision;
     pane.detailAbort = new AbortController(); pane.list.hidden = true; pane.detailPanel.hidden = false; message(pane);
@@ -709,7 +774,7 @@
   }
   async function open(kind, selection) {
     if (!kinds.includes(kind)) return;
-    for (const existing of state.panes.values()) closeLinkPicker(existing);
+    for (const existing of state.panes.values()) { closeLinkPicker(existing); existing.documentCleanup?.(); }
     state.current = kind; const pane = paneFor(kind), revision = ++pane.openRevision;
     renderProjectDrafts(pane);
     if (kind === "penetration" && validId(selection) && window.CeasefireLibraryEditor?.projectRecords?.().some(record => record.id === selection)) {
@@ -740,6 +805,7 @@
   }
   function invalidate() {
     state.metadata = null; state.metadataRequest = null;
+    for (const pane of state.panes.values()) pane.documentCleanup?.();
     for (const pane of state.panes.values()) { invalidateList(pane); ++pane.detailRevision; pane.detailAbort?.abort(); pane.data = null; pane.dataQuery = null; pane.detail = null; }
   }
   function renderProjectDrafts(pane) {

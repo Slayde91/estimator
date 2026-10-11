@@ -545,8 +545,11 @@ class TakeoffService:
             self._physical_gate(session_id, snapshot)
             if hasattr(self.documents, 'assert_image_evidence'):
                 self.documents.assert_image_evidence(snapshot, owner=session_id)
-            if (format == 'pdf' or confirmation is not None) and (type(expected_revision) is not int or expected_revision != snapshot['revision']):
+            if (format in ('pdf', 'register-xlsx') or confirmation is not None) and (type(expected_revision) is not int or expected_revision != snapshot['revision']):
                 raise ValidationError('The Takeoffs draft changed before the document export. Retry from its current state.')
+            if format == 'register-xlsx':
+                from .takeoff_register_xlsx import export_physical_register
+                return export_physical_register(current_graph(snapshot, scope), confirmation='all' if confirmation is None else confirmation)
             return export_physical_graph(current_graph(snapshot, scope), format,
                                          {document['id']: document['name'] for document in snapshot['documents']}, confirmation=confirmation)
 
@@ -887,7 +890,7 @@ class TakeoffService:
                      'create_annotation': {'annotation'}, 'update_annotation': {'annotation_id', 'changes'},
                      'create_signature': {'signature'}, 'update_signature': {'signature_id', 'changes'},
                      'delete_signature': {'signature_id'},
-                     'create_graphic': {'graphic'}, 'create_textbox': {'textbox'}, 'update_graphic': {'graphic_id', 'changes'},
+                     'create_graphic': {'graphic'}, 'create_textbox': {'textbox'}, 'create_stamp': {'stamp'}, 'update_graphic': {'graphic_id', 'changes'},
                      'delete_graphic': {'graphic_id'},
                      'initial_pages': {'initials'},
                      'draft_library_assignment': {'assignment'},
@@ -903,6 +906,7 @@ class TakeoffService:
             created_signature_id = None
             created_graphic_id = None
             textbox_layout_metadata = None
+            stamp_layout_metadata = None
             initial_pages_metadata = None
             if op == 'draft_library_assignment':
                 from .takeoff_library_links import create_assignment, validate_proposal, prepare_assigned_quantities
@@ -932,6 +936,12 @@ class TakeoffService:
                 from .takeoff_graphics import apply_graphic
                 prepared = textbox_layout(after, request['textbox'])
                 textbox_layout_metadata = prepared['layout']
+                created_graphic_id = apply_graphic(after, {'op': 'create_graphic', 'graphic': prepared['graphic']})
+            elif op == 'create_stamp':
+                from .takeoff_stamp_layout import stamp_layout
+                from .takeoff_graphics import apply_graphic
+                prepared = stamp_layout(after, request['stamp'])
+                stamp_layout_metadata = prepared['layout']
                 created_graphic_id = apply_graphic(after, {'op': 'create_graphic', 'graphic': prepared['graphic']})
             elif op in ('toggle_thickness_colours', 'set_legend'):
                 from .takeoff_presentation import apply_presentation
@@ -1425,7 +1435,7 @@ class TakeoffService:
                 undo_signatures(before, after)
                 from .takeoff_graphics import undo_graphics
                 undo_graphics(before, after)
-                if before['version'] == 2 and event['op'] not in ('create_annotation', 'update_annotation', 'delete_annotation', 'create_signature', 'update_signature', 'delete_signature', 'create_graphic', 'create_textbox', 'update_graphic', 'delete_graphic', 'initial_pages'):
+                if before['version'] == 2 and event['op'] not in ('create_annotation', 'update_annotation', 'delete_annotation', 'create_signature', 'update_signature', 'delete_signature', 'create_graphic', 'create_textbox', 'create_stamp', 'update_graphic', 'delete_graphic', 'initial_pages'):
                     self._physical_gate(session_id, before)
                     after = self._undo_physical(session_id, before, after)
                 originals = {i['id']: i for i in before['items']}
@@ -1520,6 +1530,9 @@ class TakeoffService:
             if textbox_layout_metadata is not None:
                 response['textbox_layout'] = textbox_layout_metadata
                 session['requests'][request['request_id']].setdefault('metadata', {})['textbox_layout'] = textbox_layout_metadata
+            if stamp_layout_metadata is not None:
+                response['stamp_layout'] = stamp_layout_metadata
+                session['requests'][request['request_id']].setdefault('metadata', {})['stamp_layout'] = stamp_layout_metadata
             if revised_calibration_id:
                 response['revised_calibration_id'] = revised_calibration_id
                 session['requests'][request['request_id']]['metadata'] = {'revised_calibration_id': revised_calibration_id}

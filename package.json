@@ -10,6 +10,7 @@
     "test:takeoffs-signatures": "node tests/browser/signatures.cjs",
     "test:takeoffs-area-copy-visibility": "node tests/browser/area_copy_visibility.cjs",
     "test:takeoffs-icons": "node tests/browser/takeoff_icon_contract.cjs",
+    "test:takeoffs-measure-icon": "node tests/browser/measure_icon.cjs",
     "test:themes": "node --test tests/test_theme_ui.cjs",
     "test:themes-browser": "node tests/browser/themes.cjs",
     "test:header-controls": "node tests/browser/header_controls.cjs",
@@ -67,7 +68,8 @@
     "test:takeoffs-drawing-ocr": "node tests/browser/drawing_ocr.cjs",
     "test:library-documents": "node tests/browser/library_documents.cjs",
     "test:library-link-picker": "node tests/browser/library_link_picker.cjs",
-    "test:penetration-item-exports": "node tests/browser/penetration_item_exports.cjs"
+    "test:penetration-item-exports": "node tests/browser/penetration_item_exports.cjs",
+    "test:technical-item-documents": "node tests/browser/technical_item_documents.cjs"
   },
   "devDependencies": {
     "@playwright/test": "1.63.0"

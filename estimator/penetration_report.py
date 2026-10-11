@@ -5,7 +5,7 @@ from io import BytesIO
 from openpyxl import Workbook
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.utils import ImageReader
-from reportlab.platypus import Image, SimpleDocTemplate, Spacer
+from reportlab.platypus import Image, SimpleDocTemplate, Spacer, TableStyle
 
 from .calculator_register import _sheet, _table
 from .pricing_workbook import _serialize_exact
@@ -141,8 +141,20 @@ def render_penetration_pdf(result, definition, project_details, *, library=None)
                 pass
         schedule_rows.append([report.p(str(index), 'cell'), thumbnail] +
             [report.p(_display(_value(row, col), fields_by_column[col]), 'cell') for _, col in SCHEDULE])
-    report.story.append(report.table(['Line', 'Source image'] + [label for label, _ in SCHEDULE],
-                                     schedule_rows, widths, compact=True))
+    schedule_table = report.table(['Line', 'Source image'] + [label for label, _ in SCHEDULE],
+                                  schedule_rows, widths, compact=True)
+    # Split a long row within the first page fragment instead of adding a
+    # second repeated header below the preceding complete rows on that page.
+    # Require room for a body line and padding beneath every header.
+    schedule_table.splitByRow = 0
+    schedule_table.splitInRow = 20
+    for row_index, row in enumerate(schedule_rows, 1):
+        if any(cell.wrap(widths[index] - 12, height)[1] > height - 160
+               for index, cell in enumerate(row)):
+            # Middle alignment can carry large blank margins into fragments
+            # when a cell is taller than a full page. Ordinary rows stay centred.
+            schedule_table.setStyle(TableStyle([('VALIGN', (0, row_index), (-1, row_index), 'TOP')]))
+    report.story.append(schedule_table)
     for index, row in enumerate(result['rows'], 1):
         for error in row.get('errors', []):
             report.story.append(report.p(f"Line {index} · {error['cell']}: {error['message']}", 'alert'))

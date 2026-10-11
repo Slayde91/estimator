@@ -41,10 +41,10 @@ async function paneOrder(count,hasParent){
     const children=[...pane.children],index=selector=>children.findIndex(child=>child.matches(selector));
     return {navigation:index('.takeoff-physical-navigation'),parent:children.findIndex(child=>child.tagName==='BUTTON'&&child.textContent==='Change Parent'),notes:children.findIndex(child=>child.matches('.field')&&child.querySelector('[aria-label="Notes"]')),actions:index('.takeoff-physical-inspector-actions'),fields:children.flatMap((child,i)=>child.matches('.field')?[i]:[]),cards:children.flatMap((child,i)=>child.matches('.takeoff-library-summary')?[i]:[]),total:children.length};
   });
-  // Recorded actions follow Notes; hierarchy navigation and the optional parent
-  // precede the editable fields, while retained library evidence stays last.
-  assert.ok(order.navigation>=0&&order.navigation<order.notes);assert.equal(order.actions,order.notes+1);assert.equal(order.parent,hasParent?order.navigation+1:-1);
-  assert.equal(order.notes,order.fields.at(-1));assert.ok(order.fields.every(index=>index>(hasParent?order.parent:order.navigation)&&index<order.actions));
+  // Change Parent sits immediately above the hierarchy table. Editable fields
+  // follow navigation, actions follow Notes, and retained library evidence stays last.
+  assert.ok(order.navigation>=0&&order.navigation<order.notes);assert.equal(order.actions,order.notes+1);assert.equal(order.parent,hasParent?order.navigation-1:-1);
+  assert.equal(order.notes,order.fields.at(-1));assert.ok(order.fields.every(index=>index>order.navigation&&index<order.actions));
   assert.deepEqual(order.cards,Array.from({length:count},(_,i)=>order.total-count+i));assert.ok(order.cards.every(index=>index>order.actions));
   (evidence.itemDetailsOrder||=[]).push({...order,controls});
 }

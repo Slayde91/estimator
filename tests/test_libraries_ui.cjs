@@ -5,6 +5,9 @@ const deferred=()=>{let resolve,reject;const promise=new Promise((yes,no)=>{reso
 const flush=async()=>{for(let i=0;i<30;i++)await Promise.resolve();};
 const walk=node=>[node,...node.children.flatMap(walk)];
 const text=node=>walk(node).map(el=>el.textContent).join(' ');
+const documentChevron='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="m6 9 6 6 6-6"></path></svg>';
+const sourceImages=nodes=>nodes.filter(node=>node.tagName==='img'&&!(node.className==='calculator-document-icon'&&node.src==='/icons/document.png'&&node.alt===''));
+function assertSourceHtmlSafe(nodes){for(const node of nodes)if(node.innerHTML!==undefined){assert.equal(node.className,'calculator-document-chevron');assert.equal(node.innerHTML,documentChevron);}}
 const meta=()=>({notice:'Synthetic local reference library.',libraries:['penetration','technical'].map(id=>({id,title:id,available:true,count:2}))});
 const filters=[{key:'category',label:'Category',options:[{value:'sample & test',label:'Sample & test'}]}];
 const records=kind=>({items:[{id:kind+'-1',title:'Synthetic '+kind+' record',subtitle:'Source row 10',summary:'Synthetic summary',source_label:'Synthetic source',related_count:1}],offset:0,limit:50,total:1,filters});
@@ -17,12 +20,12 @@ function harness(){
     const attributes=new Map();
     return{tagName,children:[],dataset:{},style:{},listeners:{},textContent:'',value:'',hidden:false,disabled:false,
       append(...children){this.children.push(...children);},replaceChildren(...children){this.children=[];this.append(...children);},
-      addEventListener(name,fn){(this.listeners[name]||=[]).push(fn);},async emit(name,options={}){const event={target:this,defaultPrevented:false,preventDefault(){this.defaultPrevented=true;},...options};for(const fn of this.listeners[name]||[])await fn(event);return event;},
+      addEventListener(name,fn){(this.listeners[name]||=[]).push(fn);},removeEventListener(name,fn){this.listeners[name]=(this.listeners[name]||[]).filter(listener=>listener!==fn);},contains(target){return walk(this).includes(target);},async emit(name,options={}){const event={target:this,defaultPrevented:false,propagationStopped:false,preventDefault(){this.defaultPrevented=true;},stopPropagation(){this.propagationStopped=true;},...options};for(const fn of [...this.listeners[name]||[]])await fn(event);return event;},
       setAttribute(name,value){attributes.set(name,String(value));},getAttribute(name){return attributes.get(name);},focus(options){this.focused=true;this.focusOptions=options;context.document.activeElement=this;},scrollIntoView(options){this.scrolled=true;this.scrollOptions=options;},getBoundingClientRect(){return this.rect||{bottom:96};}};
   }
   const byId=id=>{if(!elements.has(id))elements.set(id,element());return elements.get(id);};
   let route=path=>{if(path==='/api/libraries')return meta();const [, , ,kind,id]=path.split('/');return id?detail(kind,decodeURIComponent(id)):records(kind.split('?')[0]);};
-  const context={document:{getElementById:byId,createElement:element,querySelector:selector=>selector==='.app-header'?byId('synthetic-header'):null},window:{},URL,URLSearchParams,AbortController,Map,Set,JSON,Number,String,Object,Array,Promise,Error,console,
+  const context={document:{...element('document'),getElementById:byId,createElement:element,querySelector:selector=>selector==='.app-header'?byId('synthetic-header'):null},window:{},URL,URLSearchParams,AbortController,Map,Set,JSON,Number,String,Object,Array,Promise,Error,console,
     setTimeout(fn){timers.set(++timerId,fn);return timerId;},clearTimeout(id){timers.delete(id);},fetch:async(path,options)=>{calls.push({path,options});const data=await route(path,options);return{ok:!data?.error,status:data?.error?400:200,json:async()=>data};}};
   vm.createContext(context);vm.runInContext(fs.readFileSync('static/library-detail-text.js','utf8'),context);
   vm.runInContext(fs.readFileSync('static/libraries.js','utf8').replace(/\}\)\(\);\s*$/,`globalThis.audit={state,paneFor,loadList,loadDetail,navigate,back,refresh,showList,renderDetail};})();`),context);
@@ -82,12 +85,12 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     assert.match(text(pane.detailPanel),/<img src=x onerror=alert\(1\)>/);assert.match(text(pane.detailPanel),/Literal second line/);assert.doesNotMatch(text(pane.detailPanel),/Not recorded/);assert.match(text(pane.detailPanel),/Zero 0/);
     assert.equal(nodes.filter(node=>node.tagName==='a'&&node.href.includes('documents/')).length,0);
     const sourceCard=nodes.find(node=>node.className==='library-source');assert.equal(sourceCard.children.length,1);assert.equal(sourceCard.children[0].textContent,'Synthetic source reference');assert.equal(sourceCard.children[0].tagName,'span');assert.equal(walk(sourceCard).filter(node=>['a','dl','dt','dd','button'].includes(node.tagName)).length,0);assert.doesNotMatch(text(sourceCard),/Open PDF|synthetic\.pdf|Synthetic sheet/);
-    const image=nodes.find(node=>node.tagName==='img');assert.equal(image.loading,'lazy');assert.equal(image.src,'/api/libraries/images/synthetic_image-1');assert.equal(image.alt,'Synthetic diagram');
+    const image=nodes.find(node=>node.tagName==='img'&&node.src==='/api/libraries/images/synthetic_image-1');assert.equal(image.loading,'lazy');assert.equal(image.alt,'Synthetic diagram');
     const children=pane.detailPanel.children,fields=children.find(node=>node.tagName==='dl'),gallery=children.find(node=>node.getAttribute('aria-label')==='Source diagrams');
     const sections=children.filter(node=>node.className==='library-detail-section');
     assert.ok(children.indexOf(fields)<children.indexOf(gallery));assert.ok(children.indexOf(gallery)<children.indexOf(sections[0]));
     assert.match(text(sections[0]),/Related firestopping records/);assert.match(text(sections[1]),/Source information/);
-    assert.ok(nodes.every(node=>node.innerHTML===undefined));assert.doesNotMatch(text(pane.detailPanel),/Source fingerprint|synthetic-hash/);assert.match(text(pane.detailPanel),/Related firestopping records/);
+    assertSourceHtmlSafe(nodes);assert.equal(nodes.filter(node=>node.innerHTML!==undefined).length,1);assert.doesNotMatch(text(pane.detailPanel),/Source fingerprint|synthetic-hash/);assert.match(text(pane.detailPanel),/Related firestopping records/);
     const heading=nodes.find(node=>node.tagName==='h3');assert.equal(heading.focusOptions.preventScroll,true);assert.equal(pane.detailPanel.scrolled,true);assert.equal(heading.scrolled,undefined,'Keep Back navigation above the heading inside the scrolled view.');
     assert.equal(pane.detailPanel.children.filter(node=>node.textContent==='Record-specific source qualification.').length,1);assert.doesNotMatch(pane.notice.textContent,/Record-specific/);assert.match(pane.notice.textContent,/Synthetic local reference library/);
   });
@@ -125,7 +128,7 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
   });
   await check('Untrusted asset IDs never become fetchable links; unavailable relationship text remains visible',async h=>{
     h.setRoute(path=>path==='/api/libraries'?meta():({...detail('technical','technical-1'),diagram:{custom:true,url:'https://remote/image'},sources:[{filename:'Unavailable report',document_id:'../../private',page:-1}],images:[{id:'https://remote/image'},{id:'../private'}],links:[{title:'Unresolved original reference',relationship:'Ambiguous source association'}]}));
-    await h.api.open('technical','technical-1');const nodes=walk(h.pane('technical').detailPanel);assert.equal(nodes.filter(node=>node.tagName==='img'||node.tagName==='a').length,0);assert.match(text(h.pane('technical').detailPanel),/Unresolved original reference.*Ambiguous source association/);
+    await h.api.open('technical','technical-1');const nodes=walk(h.pane('technical').detailPanel);assert.equal(sourceImages(nodes).length,0);assert.equal(nodes.filter(node=>node.tagName==='a').length,0);assert.match(text(h.pane('technical').detailPanel),/Unresolved original reference.*Ambiguous source association/);
   });
   await check('Structured source fields keep exact text and validated diagrams inside their field',async h=>{
     h.setRoute(path=>path==='/api/libraries'?meta():({...detail('technical','technical-1'),images:[],fields:[
@@ -134,7 +137,7 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     ]}));
     await h.api.open('technical','technical-1');const nodes=walk(h.pane('technical').detailPanel),fields=nodes.filter(node=>node.className==='library-record-field');
     assert.equal(fields.length,2);assert.match(text(fields[0]),/Installation concept Exact source cell text/);
-    const images=nodes.filter(node=>node.tagName==='img');assert.equal(images.length,2);assert.equal(images[0].src,'/api/libraries/images/source_cell-12');assert.equal(images[0].loading,'lazy');assert.equal(images[0].alt,'Source installation diagram');
+    const images=sourceImages(nodes);assert.equal(images.length,2);assert.equal(images[0].src,'/api/libraries/images/source_cell-12');assert.equal(images[0].loading,'lazy');assert.equal(images[0].alt,'Source installation diagram');
     assert.ok(walk(fields[0].children[1]).includes(images[0]));assert.ok(walk(fields[1].children[1]).includes(images[1]));assert.doesNotMatch(text(fields[1]),/Not recorded/);
     const full=walk(fields[0]).find(node=>node.tagName==='a');assert.equal(full.target,'_blank');assert.equal(full.rel,'noopener noreferrer');
   });
@@ -169,7 +172,7 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     await h.api.open('technical','technical-1');const nodes=walk(h.pane('technical').detailPanel),tables=nodes.filter(node=>node.tagName==='table');assert.equal(tables.length,2);
     const headings=walk(tables[0]).filter(node=>node.tagName==='th');assert.deepEqual(headings.map(node=>node.textContent),['Service','Wrap length','FRL']);assert.ok(headings.every(node=>node.getAttribute('scope')==='col'));
     const body=tables[0].children.find(node=>node.tagName==='tbody');assert.deepEqual(copy(body.children.map(row=>row.children.map(cell=>cell.textContent))),paired);
-    assert.equal(nodes.filter(node=>node.textContent==='Common source condition').length,1);assert.equal(nodes.filter(node=>node.textContent==='Service B <script>').length,1);assert.ok(nodes.every(node=>node.innerHTML===undefined));
+    assert.equal(nodes.filter(node=>node.textContent==='Common source condition').length,1);assert.equal(nodes.filter(node=>node.textContent==='Service B <script>').length,1);assertSourceHtmlSafe(nodes);
     const scroll=nodes.filter(node=>node.className==='library-field-table-scroll');assert.equal(scroll[0].tabIndex,0);assert.equal(scroll[0].getAttribute('role'),'region');assert.equal(scroll[0].getAttribute('aria-label'),'Service options table');assert.doesNotMatch(text(scroll[1]),/Not recorded/);
   });
   await check('Configuration links preserve target indices with concise table names and retained source metadata',async h=>{
@@ -184,7 +187,7 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     assert.deepEqual(links.map(n=>n.href),['#'+tables[1].id,'#'+tables[0].id,'#'+tables[1].id]);
     assert.equal(tables[0].getAttribute('aria-label'),'Service Size / Configuration table 1');assert.equal(tables[1].getAttribute('aria-label'),'Service Size / Configuration table 2');
     assert.ok(tables.every(n=>/^library-table-technical-[a-z0-9-]+$/.test(n.id)));assert.notEqual(tables[0].id,tables[1].id);
-    assert.equal(nodes.filter(n=>n.tagName==='caption').length,0);assert.doesNotMatch(text(h.pane('technical').detailPanel),/Source A|Source B/);assert.ok(nodes.every(n=>n.innerHTML===undefined));
+    assert.equal(nodes.filter(n=>n.tagName==='caption').length,0);assert.doesNotMatch(text(h.pane('technical').detailPanel),/Source A|Source B/);assertSourceHtmlSafe(nodes);
     const wrap=nodes.find(n=>n.className==='library-record-field'&&n.children[0].textContent==='Service Wrap');assert.doesNotMatch(text(wrap),/Not recorded|Service B|120/);
     assert.match(text(h.pane('technical').detailPanel),/See the rating for the matching configuration/);assert.deepEqual(source,before);
   });
@@ -206,7 +209,7 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
       await links[0].emit('click',{detail:0});assert.equal(h.context.document.activeElement,tables[0]);
     }
     assert.doesNotMatch(text(panel),/Source option|Source Configuration|private-option|retained for audit/);
-    assert.ok(nodes.every(n=>n.innerHTML===undefined));assert.deepEqual(source,before);
+    assertSourceHtmlSafe(nodes);assert.deepEqual(source,before);
   });
   await check('Configuration links use native keyboard activation, focus the table and clear the sticky header',async h=>{
     h.setRoute(path=>path==='/api/libraries'?meta():({...detail('technical','focus'),images:[],fields:[
@@ -352,7 +355,7 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     const fields=[{label:'Manufacturer',value:'TBA FIREFLY'},{label:'Service Wrap',value:'1. Wrap the service.\n2. Secure both ends.'},{label:'Service Size / Configuration',value:'First line of\na service description.'},{label:'Diagrams & Figures',value:'Reference figures: 1, 2, 3',images:[{id:'figure-1',role:'Reference figure',caption:'Refer Figure - PDF page 12'}]}],before=copy(fields);
     h.setRoute(path=>path==='/api/libraries'?meta():({...detail('technical','firefly'),fields,images:[]}));await h.api.open('technical','firefly');let nodes=walk(h.pane('technical').detailPanel);
     assert.equal(nodes.filter(n=>n.className==='library-detail-text').length,2);assert.equal(nodes.filter(n=>n.tagName==='li').length,2);assert.equal(nodes.filter(n=>n.tagName==='figcaption').length,0);
-    assert.doesNotMatch(text(h.pane('technical').detailPanel),/Reference figures:|Refer Figure/);assert.equal(nodes.find(n=>n.tagName==='img').src,'/api/libraries/images/figure-1');assert.match(nodes.find(n=>n.tagName==='img').alt,/Reference figure/);assert.deepEqual(fields,before);
+    assert.doesNotMatch(text(h.pane('technical').detailPanel),/Reference figures:|Refer Figure/);assert.equal(sourceImages(nodes)[0].src,'/api/libraries/images/figure-1');assert.match(sourceImages(nodes)[0].alt,/Reference figure/);assert.deepEqual(fields,before);
     fields[0].value='';h.pane('technical').detail.id='fas190235-system-synthetic';h.context.audit.renderDetail(h.pane('technical'));nodes=walk(h.pane('technical').detailPanel);assert.equal(nodes.filter(n=>n.className==='library-detail-text').length,2);assert.equal(nodes.filter(n=>n.tagName==='figcaption').length,0);
     h.pane('technical').detail.id='other-system';fields[0].value='Other manufacturer';h.context.audit.renderDetail(h.pane('technical'));nodes=walk(h.pane('technical').detailPanel);assert.equal(nodes.filter(n=>n.className==='library-detail-text').length,0);assert.equal(nodes.filter(n=>n.tagName==='figcaption').length,1);assert.match(text(h.pane('technical').detailPanel),/Reference figures: 1, 2, 3/);
   });
@@ -559,7 +562,7 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     assert.equal(nodes.filter(node=>node.tagName==='table').length,2);assert.match(display,/up to NB50/);assert.match(display,/up to NB100/);
     assert.equal(nodes.filter(node=>node.textContent==='One source page is available.').length,1);
     assert(nodes.some(node=>node.tagName==='img'&&node.alt==='Installation concept — Figure A'));
-    assert(nodes.filter(node=>node.tagName==='img'&&node.getAttribute('aria-hidden')!=='true').every(node=>node.src==='/api/libraries/images/synthetic_image-1'));
+    assert(sourceImages(nodes).filter(node=>node.getAttribute('aria-hidden')!=='true').every(node=>node.src==='/api/libraries/images/synthetic_image-1'));
   });
   await check('Report Number links use validated report metadata and unsafe links remain plain text',async h=>{
     const urls=['https://media.promat.com/example.pdf','https://etex.azureedge.net/example.pdf?brand=sample',
@@ -594,6 +597,26 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     const pane=h.pane('technical');pane.filters.services='Plastic Pipes';await h.api.open('technical');
     const control=walk(pane.filterControls).find(el=>el.tagName==='select');assert.equal(control.value,'Plastic Pipes');assert.deepEqual(control.children.slice(1,-1).map(el=>el.value),choices);assert.equal(control.children.at(-1).value,'Plastic Pipes');assert.match(h.calls.at(-1).path,/services=Plastic\+Pipes/);
     control.value='HDPE pipe';await control.emit('change');await flush();assert.equal(pane.filters.services,'HDPE pipe');assert.match(h.calls.at(-1).path,/services=HDPE\+pipe/);
+  });
+  await check('Technical Document menu handles inside/outside events and keyboard focus, then removes obsolete document listeners',async h=>{
+    await h.api.open('technical','technical-1');const pane=h.pane('technical'),doc=h.context.document;
+    const menu=()=>walk(pane.detailPanel).find(node=>node.className==='calculator-document-menu library-document-menu');
+    const wrapper=menu(),toggle=wrapper.children[0],list=wrapper.children[1],actions=list.children;
+    assert.equal(doc.listeners.pointerdown.length,1);assert.equal(doc.listeners.focusin.length,1);assert.equal(list.hidden,true);
+    await toggle.emit('click');assert.equal(toggle.getAttribute('aria-expanded'),'true');assert.equal(list.hidden,false);
+    await doc.emit('pointerdown',{target:actions[0]});assert.equal(list.hidden,false,'A pointer inside the menu keeps it open.');
+    await doc.emit('focusin',{target:actions[1]});assert.equal(list.hidden,false,'Focus inside the menu keeps it open.');
+    await doc.emit('pointerdown',{target:h.byId('outside-menu')});assert.equal(list.hidden,true);
+    const down=await wrapper.emit('keydown',{key:'ArrowDown'});assert.equal(down.defaultPrevented,true);assert.equal(down.propagationStopped,true);assert.equal(doc.activeElement,actions[0]);assert.equal(list.hidden,false);
+    await wrapper.emit('keydown',{key:'End'});assert.equal(doc.activeElement,actions[1]);
+    await wrapper.emit('keydown',{key:'ArrowDown'});assert.equal(doc.activeElement,actions[0]);
+    await wrapper.emit('keydown',{key:'ArrowUp'});assert.equal(doc.activeElement,actions[1]);
+    await wrapper.emit('keydown',{key:'Escape'});assert.equal(list.hidden,true);assert.equal(doc.activeElement,toggle);
+    await toggle.emit('click');await doc.emit('focusin',{target:h.byId('outside-menu')});assert.equal(list.hidden,true);
+    const oldPointer=doc.listeners.pointerdown[0],oldFocus=doc.listeners.focusin[0];
+    await h.api.open('technical','technical-2');assert.notEqual(menu(),wrapper);assert.equal(doc.listeners.pointerdown.length,1);assert.equal(doc.listeners.focusin.length,1);assert.ok(!doc.listeners.pointerdown.includes(oldPointer));assert.ok(!doc.listeners.focusin.includes(oldFocus));
+    const next=menu();await next.children[0].emit('click');assert.equal(next.children[1].hidden,false);
+    await h.context.audit.showList(pane);assert.equal(next.children[1].hidden,true);assert.equal(doc.listeners.pointerdown.length,0);assert.equal(doc.listeners.focusin.length,0);assert.equal(pane.documentCleanup,null);
   });
   console.log(`${passed} library UI regression checks passed.`);
 })().catch(error=>{console.error(error);process.exitCode=1;});

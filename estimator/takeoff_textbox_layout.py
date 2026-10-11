@@ -4,7 +4,7 @@ import math
 
 from .catalog import ValidationError
 from .takeoff_annotations import validate_content
-from .takeoff_graphics import GRAPHIC_MODES, graphic_appearance, validate_graphic
+from .takeoff_graphics import GRAPHIC_MODES, graphic_appearance, graphic_font_size, validate_graphic
 from .takeoff_model import object_fields, page_metadata, points, text
 
 FIELDS = {'mode', 'document_id', 'source_sha256', 'page', 'anchor_pdf',
@@ -116,7 +116,7 @@ def validate_textbox_fit(record, snapshot):
     _, page = page_metadata(snapshot, record['document_id'], record['page'])
     quad = record['geometry']['quad_pdf']
     width, height = math.dist(quad[0], quad[1])*page['user_unit'], math.dist(quad[0], quad[3])*page['user_unit']
-    size = record['appearance']['font_size']
+    size = graphic_font_size(record)
     padding = min(6, width/8, height/8)
     content = _content(record)
     lines = _lines(content, width-2*padding, size, record['mode'] in ('defect_reports', 'service_plans'))

@@ -176,15 +176,16 @@ function stampFixture(initial={}) {
   const writes=[];let f;
   f=fixture(initial,async(op,body,guard)=>{
     if(!guard())return null;
-    assert.equal(op,"create_graphic");writes.push(structuredClone(body));
-    const id=`stamp-${writes.length}`;f.snapshot.graphics.records.push({id,version:1,...structuredClone(body.graphic)});f.state.session.revision++;
+    assert.ok(["create_graphic","create_stamp"].includes(op));writes.push(structuredClone(body));
+    const graphic=op==="create_stamp"?{mode:body.stamp.mode,document_id:body.stamp.document_id,source_sha256:body.stamp.source_sha256,page:body.stamp.page,kind:"stamp",text:body.stamp.text,appearance:body.stamp.appearance,geometry:{quad_pdf:[[60,220],[140,220],[140,180],[60,180]]}}:body.graphic;
+    const id=`stamp-${writes.length}`;f.snapshot.graphics.records.push({id,version:1,...structuredClone(graphic)});f.state.session.revision++;
     return {created_graphic_id:id};
   });
   return {...f,writes};
 }
 async function configureTextStamp(f) {
   const activation=await f.start("stamp");activation.complete();await activation.pending;
-  f.state.points=[[100,200],[220,260]];await f.ui.finish();
+  await f.ui.point(pointer([100,200]));
 }
 test("Continue Stamp uses the current saved size, text, image and appearance without carrying linked identities",async()=>{
   for(const image of [false,true]) {
@@ -201,12 +202,6 @@ test("Continue Stamp cannot replace a newer selection while its fonts load",asyn
   const f=fixture({graphicSelected:"existing"});f.snapshot.graphics.records.push({id:"existing",version:1,mode:"wall",document_id:"document-A",page:1,kind:"stamp",geometry:{quad_pdf:[[40,50],[160,50],[160,90],[40,90]]},text:"ST",appearance:X.defaults()});
   const pending=f.ui.continueStamp("existing");for(let i=0;i<12;i++)await Promise.resolve();f.state.graphicSelected="newer";const retained=structuredClone(f.state);f.fonts.forEach(value=>value.resolve([]));await assert.rejects(pending,/drawing changed/);assert.deepEqual(f.state,retained);assert.equal(f.calls.command,0);
 });
-async function dragTextStamp(f) {
-  assert.equal(f.ui.beginStampBox(pointer([100,200])),true);
-  f.listeners.get('pointermove')(pointer([220,260]));f.listeners.get('pointerup')(pointer([220,260]));
-  for(let i=0;i<24&&!f.state.stampTemplate;i++)await Promise.resolve();
-  assert.equal(f.calls.error,undefined);assert.equal(f.writes.length,1);assert.equal(f.ui.hasStampTemplate(),true);
-}
 async function capturedClick(f,pdf,extra={}) {
   const event=pointer(pdf,{type:'click',...extra});f.listeners.get('click')?.(event);
   event.captureSuppressed=event.stopped===true;
@@ -220,7 +215,8 @@ async function freshClick(f,pdf,extra={}) {
 test("First Stamp configures once and left clicks create independent same-size PDF-only copies",async()=>{
   const f=stampFixture(), baseline=structuredClone(f.snapshot);await configureTextStamp(f);
   assert.equal(f.state.tool,"graphic-stamp");assert.equal(f.state.graphicSelected,null);assert.equal(f.state.settingsOpen,false);assert.equal(f.calls.ask,1);assert.equal(f.ui.hasStampTemplate(),true);
-  const first=structuredClone(f.writes[0].graphic);
+  const first=structuredClone(f.snapshot.graphics.records[0]);
+  assert.deepEqual(f.writes[0].stamp.anchor_pdf,[100,200]);assert.equal(f.writes[0].stamp.geometry,undefined);assert.equal(f.writes[0].stamp.display_rotation,0);
   for(const p of [[300,400],[450,600]])await f.ui.point(pointer(p));
   assert.equal(f.writes.length,3);assert.equal(f.calls.ask,1);assert.equal(new Set(f.snapshot.graphics.records.map(v=>v.id)).size,3);assert.equal(f.state.tool,"graphic-stamp");
   for(const value of f.writes.slice(1).map(v=>v.graphic)){
@@ -258,45 +254,15 @@ test("Cancelling a stale Stamp dialog cannot clear a newer drawing",async()=>{
   const pending=f.ui.finish();await Promise.resolve();f.state.page=2;f.state.tool="polygon";f.state.points=[[9,9]];const retained=structuredClone(f.state);release(null);await pending;
   assert.deepEqual(f.state,retained);assert.equal(f.writes.length,0);
 });
-test("Initial Stamp drag captures its two PDF corners and cancelling releases its listeners",async()=>{
-  const f=stampFixture({tool:"graphic-stamp"});assert.equal(f.ui.beginStampBox(pointer([100,200])),true);assert.equal(f.state.gesture.kind,"stamp-box");assert.equal(f.listeners.size,4);
-  f.listeners.get('pointermove')(pointer([220,260]));assert.deepEqual(Array.from(f.state.traceCursor),[220,260]);f.ui.cancel();assert.equal(f.state.gesture,null);assert.equal(f.state.points.length,0);assert.equal(f.listeners.size,0);assert.equal(f.writes.length,0);
-  assert.equal(f.ui.beginStampBox(pointer([100,200],{button:2})),false);assert.equal(f.writes.length,0);
+test("Single-click Stamp starts its dialog without capturing a drag or manufacturing geometry",async()=>{
+  const f=stampFixture({tool:"graphic-stamp"});assert.equal(f.ui.beginStampBox(pointer([100,200])),false);assert.equal(f.listeners.size,0);
+  await f.ui.point(pointer([100,200]));assert.equal(f.calls.ask,1);assert.equal(f.writes.length,1);assert.deepEqual(f.writes[0].stamp.anchor_pdf,[100,200]);assert.equal(f.writes[0].stamp.geometry,undefined);
+  assert.deepEqual(f.state.stampTemplate.geometry,f.snapshot.graphics.records[0].geometry,"Repeats use the authoritative server box");
+  await freshClick(f,[300,400]);assert.equal(f.writes.length,2);assert.equal(f.listeners.size,0);f.ui.cancel();assert.equal(f.ui.hasStampTemplate(),false);
 });
-test("Completed initial Stamp drag consumes its release click and immediately accepts the next genuine click",async()=>{
-  const f=stampFixture({tool:"graphic-stamp"});await dragTextStamp(f);
-  assert.equal(f.calls.ask,1);assert.equal(f.state.tool,"graphic-stamp");assert.equal(f.state.points.length,0);assert.equal(f.state.gesture,null);
-  assert.deepEqual([...f.listeners.keys()].sort(),['click','pointerdown']);
-  assert.equal(f.listenerOptions.get('click'),true);assert.equal(f.listenerOptions.get('pointerdown'),true);
-  assert.equal(f.listeners.has('lostpointercapture'),false,"Normal capture cleanup leaves the release-click guard active");
-  assert.deepEqual(f.writes[0].graphic.geometry,X.box([[100,200],[220,260]],p=>G.transform(p,f.state.viewport.transform),p=>G.inverse(p,f.state.viewport.transform)));
-  const bounced=await capturedClick(f,[220,260]);assert.equal(bounced.stopped,true);assert.equal(bounced.prevented,true);assert.equal(f.writes.length,1);assert.equal(f.listeners.size,0);
-  const next=await freshClick(f,[300,400]);assert.equal(next.captureSuppressed,false);assert.equal(f.writes.length,2);
-  assert.equal(f.clock.now,1000,"No time elapses between release and genuine placement");assert.equal(f.state.suppressSelectionClickUntil,undefined);
-});
-test("A new pointerdown clears an unreceived Stamp release click before immediate repeated placement",async()=>{
-  const f=stampFixture({tool:"graphic-stamp"});await dragTextStamp(f);
-  const next=await freshClick(f,[300,400]);assert.equal(next.captureSuppressed,false);assert.equal(f.writes.length,2);assert.equal(f.listeners.size,0);assert.equal(f.clock.now,1000);
-});
-for(const[name,extra]of[['keyboard activation',{detail:0,pointerId:-1}],['another pointer',{pointerId:12}]])test(`A pending Stamp release click allows ${name} and still consumes its own pointer click`,async()=>{
-  const f=stampFixture({tool:"graphic-stamp"});await dragTextStamp(f);
-  const unrelated=await capturedClick(f,[300,400],extra);assert.equal(unrelated.captureSuppressed,false);assert.equal(f.writes.length,2);assert.equal(f.listeners.size,2);
-  const bounced=await capturedClick(f,[220,260]);assert.equal(bounced.stopped,true);assert.equal(f.writes.length,2);assert.equal(f.listeners.size,0);
-});
-test("A legacy mouse release click without pointerId consumes only the pending Stamp bounce",async()=>{
-  const f=stampFixture({tool:"graphic-stamp"});await dragTextStamp(f);
-  const bounced=await capturedClick(f,[220,260],{pointerId:undefined});assert.equal(bounced.stopped,true);assert.equal(f.writes.length,1);assert.equal(f.listeners.size,0);
-  await freshClick(f,[300,400]);assert.equal(f.writes.length,2);
-});
-test("Explicit Stamp cancellation removes both pending release-click handlers",async()=>{
-  const f=stampFixture({tool:"graphic-stamp"});await dragTextStamp(f);f.ui.cancel();
-  assert.equal(f.listeners.size,0);assert.equal(f.ui.hasStampTemplate(),false);assert.equal(f.writes.length,1);
-});
-test("Stamp release-click cleanup preserves an unrelated selection-gesture time guard",async()=>{
-  const f=stampFixture({tool:"graphic-stamp",suppressSelectionClickUntil:1500});await dragTextStamp(f);
-  const bounced=await capturedClick(f,[220,260]);assert.equal(bounced.stopped,true);
-  await freshClick(f,[300,400]);assert.equal(f.writes.length,1);assert.equal(f.state.suppressSelectionClickUntil,1500);
-  f.clock.now=1500;await freshClick(f,[300,400]);assert.equal(f.writes.length,2);assert.equal(f.state.suppressSelectionClickUntil,1500);
+test("A Stamp single click preserves an unrelated selection-gesture time guard",async()=>{
+  const f=stampFixture({tool:"graphic-stamp",suppressSelectionClickUntil:1500});await freshClick(f,[100,200]);assert.equal(f.writes.length,0);assert.equal(f.calls.ask,0);
+  f.clock.now=1500;await freshClick(f,[100,200]);assert.equal(f.writes.length,1);assert.equal(f.state.suppressSelectionClickUntil,1500);
 });
 test("A late repeated Stamp result cannot clear a newer page draft",async()=>{
   let release;const held=new Promise(resolve=>release=resolve);
@@ -304,10 +270,6 @@ test("A late repeated Stamp result cannot clear a newer page draft",async()=>{
   f.state.stampTemplate={key:JSON.stringify(['session-A','document-A','a'.repeat(64),1,'wall']),geometry:{quad_pdf:[[100,200],[220,200],[220,260],[100,260]]},text:"REVIEWED",appearance:X.defaults()};
   const pending=f.ui.point(pointer([300,400]));await Promise.resolve();f.state.page=2;f.state.tool="polygon";f.state.points=[[9,9]];const retained=structuredClone(f.state);release();await pending;
   assert.deepEqual(f.state,retained);assert.equal(f.calls.render,0);assert.equal(f.calls.command,1);
-});
-test("An invalidated initial Stamp drag releases only its own listeners",()=>{
-  const f=stampFixture({tool:"graphic-stamp"});f.ui.beginStampBox(pointer([100,200]));const release=f.listeners.get('pointerup');f.state.page=2;f.state.tool="polygon";f.state.points=[[9,9]];f.state.gesture={kind:"new-draft"};const retained=structuredClone(f.state);
-  release(pointer([220,260]));assert.deepEqual(f.state,retained);assert.equal(f.listeners.size,0);assert.equal(f.calls.command,0);
 });
 
 function drawingFixture(initial={}) {

@@ -9,7 +9,8 @@ const X = require("../static/takeoff-graphics.js"), G = require("../static/takeo
 // network, browser, storage, calculator, or persisted Takeoff implementation.
 function fixture(initial = {}, commandOverride) {
   const fonts = [], calls = { cancel: 0, render: 0, command: 0, messages: [], ask:0, answer:{stamp_type:"text",text:"APPROVED"} };
-  const listeners=new Map(), element={addEventListener(name,fn){listeners.set(name,fn);},removeEventListener(name,fn){if(listeners.get(name)===fn)listeners.delete(name);},setPointerCapture(){},hasPointerCapture(){return false;}};
+  const clock={now:1000}, listeners=new Map(), listenerOptions=new Map();
+  const element={addEventListener(name,fn,capture=false){listeners.set(name,fn);listenerOptions.set(name,capture);},removeEventListener(name,fn,capture=false){if(listeners.get(name)===fn&&listenerOptions.get(name)===capture){listeners.delete(name);listenerOptions.delete(name);}},setPointerCapture(){},hasPointerCapture(){return false;}};
   const state = { active: true, busy: false, modal: false, navigationBusy: false,
     viewport: { transform: [1,0,0,-1,0,800] }, document: "document-A", page: 1, mode: "wall", physicalScope: "defect_reports",
     tool: "select", points: [], selected: new Set(), countSelection: new Set(), physicalSelected: new Set(),
@@ -23,7 +24,7 @@ function fixture(initial = {}, commandOverride) {
   const snapshot = { graphics: { version:1, records:[] }, items:[], calibrations:[], transfers:[] };
   const document = { fonts: { load() { let resolve, reject; const promise = new Promise((yes,no) => { resolve=yes; reject=no; }); fonts.push({promise,resolve,reject}); return promise; } },
     createElement(tag) { assert.equal(tag,"canvas"); return { getContext() { return {}; } }; } };
-  const context = { window: {CeasefireTakeoffAnnotations:{text:value=>value.blocks.map(block=>block.runs.map(run=>run.text).join("")).join("\n")}}, document, setTimeout, clearTimeout }; vm.createContext(context); vm.runInContext(code, context, {filename:source});
+  const context = { window: {CeasefireTakeoffAnnotations:{text:value=>value.blocks.map(block=>block.runs.map(run=>run.text).join("")).join("\n")}}, document, Date:{now:()=>clock.now}, setTimeout, clearTimeout }; vm.createContext(context); vm.runInContext(code, context, {filename:source});
   const host = { state, X, G, clone:structuredClone,
     snapshot:()=>snapshot, documents:()=>originals, currentDocument:()=>originals.find(v=>v.id===state.document),
     pageDisplayKey:()=>JSON.stringify([state.session?.session_id,state.document,state.page,state.mode]),
@@ -46,7 +47,7 @@ function fixture(initial = {}, commandOverride) {
     assert.equal(fonts.length,before+2,"Activation reaches both delayed drawing-font loads");
     return { pending, complete() { fonts.slice(before,before+2).forEach(value=>value.resolve([])); }, fail() { fonts[before].reject(new Error("Drawing font unavailable")); fonts[before+1].resolve([]); } };
   }
-  return {state,calls,snapshot,start,ui,listeners};
+  return {state,calls,snapshot,start,ui,listeners,listenerOptions,clock};
 }
 
 test("Unchanged graphic activation waits for fonts and only arms a drawing tool", async()=>{
@@ -115,7 +116,7 @@ test("Textbox formatting edited during a queued update remains atomic and keeps 
   assert.equal(writes.length,2);assert.equal(writes[0].changes.text,"literal");assert.equal(writes[0].changes.text_content.blocks[0].runs[0].italic,undefined);assert.equal(writes[1].changes.text_content.blocks[0].runs[0].italic,true);assert.equal(f.state.settingsDirty,false);
 });
 
-const pointer=(pdf,extra={})=>({button:0,detail:1,pdf,preventDefault(){},stopImmediatePropagation(){},pointerId:11,clientX:pdf[0],clientY:pdf[1],...extra});
+const pointer=(pdf,extra={})=>({button:0,detail:1,pdf,preventDefault(){this.prevented=true;},stopImmediatePropagation(){this.stopped=true;},pointerId:11,clientX:pdf[0],clientY:pdf[1],...extra});
 function stampFixture(initial={}) {
   const writes=[];let f;
   f=fixture(initial,async(op,body,guard)=>{
@@ -129,6 +130,22 @@ function stampFixture(initial={}) {
 async function configureTextStamp(f) {
   const activation=await f.start("stamp");activation.complete();await activation.pending;
   f.state.points=[[100,200],[220,260]];await f.ui.finish();
+}
+async function dragTextStamp(f) {
+  assert.equal(f.ui.beginStampBox(pointer([100,200])),true);
+  f.listeners.get('pointermove')(pointer([220,260]));f.listeners.get('pointerup')(pointer([220,260]));
+  for(let i=0;i<24&&!f.state.stampTemplate;i++)await Promise.resolve();
+  assert.equal(f.calls.error,undefined);assert.equal(f.writes.length,1);assert.equal(f.ui.hasStampTemplate(),true);
+}
+async function capturedClick(f,pdf,extra={}) {
+  const event=pointer(pdf,{type:'click',...extra});f.listeners.get('click')?.(event);
+  event.captureSuppressed=event.stopped===true;
+  if(!event.captureSuppressed)await f.ui.point(event);
+  return event;
+}
+async function freshClick(f,pdf,extra={}) {
+  f.listeners.get('pointerdown')?.(pointer(pdf,{type:'pointerdown',...extra}));
+  return capturedClick(f,pdf,extra);
 }
 test("First Stamp configures once and left clicks create independent same-size PDF-only copies",async()=>{
   const f=stampFixture(), baseline=structuredClone(f.snapshot);await configureTextStamp(f);
@@ -176,13 +193,40 @@ test("Initial Stamp drag captures its two PDF corners and cancelling releases it
   f.listeners.get('pointermove')(pointer([220,260]));assert.deepEqual(Array.from(f.state.traceCursor),[220,260]);f.ui.cancel();assert.equal(f.state.gesture,null);assert.equal(f.state.points.length,0);assert.equal(f.listeners.size,0);assert.equal(f.writes.length,0);
   assert.equal(f.ui.beginStampBox(pointer([100,200],{button:2})),false);assert.equal(f.writes.length,0);
 });
-test("Completed initial Stamp drag creates its box and keeps repeated placement active",async()=>{
-  const f=stampFixture({tool:"graphic-stamp"});f.ui.beginStampBox(pointer([100,200]));f.listeners.get('pointermove')(pointer([220,260]));f.listeners.get('pointerup')(pointer([220,260]));
-  for(let i=0;i<24&&!f.state.stampTemplate;i++)await Promise.resolve();
-  assert.equal(f.calls.error,undefined);assert.equal(f.writes.length,1);assert.equal(f.calls.ask,1);assert.equal(f.state.tool,"graphic-stamp");assert.equal(f.state.points.length,0);assert.equal(f.state.gesture,null);assert.equal(f.listeners.size,0);
+test("Completed initial Stamp drag consumes its release click and immediately accepts the next genuine click",async()=>{
+  const f=stampFixture({tool:"graphic-stamp"});await dragTextStamp(f);
+  assert.equal(f.calls.ask,1);assert.equal(f.state.tool,"graphic-stamp");assert.equal(f.state.points.length,0);assert.equal(f.state.gesture,null);
+  assert.deepEqual([...f.listeners.keys()].sort(),['click','pointerdown']);
+  assert.equal(f.listenerOptions.get('click'),true);assert.equal(f.listenerOptions.get('pointerdown'),true);
+  assert.equal(f.listeners.has('lostpointercapture'),false,"Normal capture cleanup leaves the release-click guard active");
   assert.deepEqual(f.writes[0].graphic.geometry,X.box([[100,200],[220,260]],p=>G.transform(p,f.state.viewport.transform),p=>G.inverse(p,f.state.viewport.transform)));
-  await f.ui.point(pointer([300,400]));assert.equal(f.writes.length,1,"The initial drag-generated click is suppressed");
-  f.state.suppressSelectionClickUntil=0;await f.ui.point(pointer([300,400]));assert.equal(f.writes.length,2);
+  const bounced=await capturedClick(f,[220,260]);assert.equal(bounced.stopped,true);assert.equal(bounced.prevented,true);assert.equal(f.writes.length,1);assert.equal(f.listeners.size,0);
+  const next=await freshClick(f,[300,400]);assert.equal(next.captureSuppressed,false);assert.equal(f.writes.length,2);
+  assert.equal(f.clock.now,1000,"No time elapses between release and genuine placement");assert.equal(f.state.suppressSelectionClickUntil,undefined);
+});
+test("A new pointerdown clears an unreceived Stamp release click before immediate repeated placement",async()=>{
+  const f=stampFixture({tool:"graphic-stamp"});await dragTextStamp(f);
+  const next=await freshClick(f,[300,400]);assert.equal(next.captureSuppressed,false);assert.equal(f.writes.length,2);assert.equal(f.listeners.size,0);assert.equal(f.clock.now,1000);
+});
+for(const[name,extra]of[['keyboard activation',{detail:0,pointerId:-1}],['another pointer',{pointerId:12}]])test(`A pending Stamp release click allows ${name} and still consumes its own pointer click`,async()=>{
+  const f=stampFixture({tool:"graphic-stamp"});await dragTextStamp(f);
+  const unrelated=await capturedClick(f,[300,400],extra);assert.equal(unrelated.captureSuppressed,false);assert.equal(f.writes.length,2);assert.equal(f.listeners.size,2);
+  const bounced=await capturedClick(f,[220,260]);assert.equal(bounced.stopped,true);assert.equal(f.writes.length,2);assert.equal(f.listeners.size,0);
+});
+test("A legacy mouse release click without pointerId consumes only the pending Stamp bounce",async()=>{
+  const f=stampFixture({tool:"graphic-stamp"});await dragTextStamp(f);
+  const bounced=await capturedClick(f,[220,260],{pointerId:undefined});assert.equal(bounced.stopped,true);assert.equal(f.writes.length,1);assert.equal(f.listeners.size,0);
+  await freshClick(f,[300,400]);assert.equal(f.writes.length,2);
+});
+test("Explicit Stamp cancellation removes both pending release-click handlers",async()=>{
+  const f=stampFixture({tool:"graphic-stamp"});await dragTextStamp(f);f.ui.cancel();
+  assert.equal(f.listeners.size,0);assert.equal(f.ui.hasStampTemplate(),false);assert.equal(f.writes.length,1);
+});
+test("Stamp release-click cleanup preserves an unrelated selection-gesture time guard",async()=>{
+  const f=stampFixture({tool:"graphic-stamp",suppressSelectionClickUntil:1500});await dragTextStamp(f);
+  const bounced=await capturedClick(f,[220,260]);assert.equal(bounced.stopped,true);
+  await freshClick(f,[300,400]);assert.equal(f.writes.length,1);assert.equal(f.state.suppressSelectionClickUntil,1500);
+  f.clock.now=1500;await freshClick(f,[300,400]);assert.equal(f.writes.length,2);assert.equal(f.state.suppressSelectionClickUntil,1500);
 });
 test("A late repeated Stamp result cannot clear a newer page draft",async()=>{
   let release;const held=new Promise(resolve=>release=resolve);

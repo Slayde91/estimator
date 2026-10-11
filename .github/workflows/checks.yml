@@ -93,6 +93,7 @@ jobs:
       - run: npm run test:takeoffs-icons
       - run: npm run test:takeoffs-signatures
       - run: npm run test:takeoffs-graphics
+      - run: npm run test:pdf-markup-ui
       - run: npm run test:pdf-tools
       - run: npm run test:takeoffs-area-copy-visibility
       - run: npm run test:header-controls

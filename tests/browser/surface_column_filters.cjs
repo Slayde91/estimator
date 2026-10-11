@@ -75,7 +75,7 @@ async function reset(label) { await finishMenu(await menu(label), 'Reset filter'
   await mode('slab');await expect(page.getByLabel('New surface type',{exact:true})).toHaveCount(0);await expect(page.getByText('1–100 of 204 matching items',{exact:true})).toBeVisible();
   assert.deepEqual(await register().locator('tbody tr[data-item-id] td:nth-child(6)').evaluateAll(cells=>[...new Set(cells.map(cell=>cell.textContent))]),['Floor']);
   await page.getByRole('button',{name:'Next 100',exact:true}).click();assert.deepEqual(await register().locator('tbody tr[data-item-id] td:nth-child(6)').evaluateAll(cells=>[...new Set(cells.map(cell=>cell.textContent))]),['Floor','Wall']);
-  const documentMenu=page.locator('.takeoff-register .takeoff-document-menu'),documentToggle=documentMenu.getByRole('button',{name:'Takeoff register document actions',exact:true});
+  const documentMenu=page.locator('.takeoff-workspace-heading .takeoff-document-menu'),documentToggle=documentMenu.getByRole('button',{name:'Takeoff register document actions',exact:true});
   const documentLayout=[];
   for(const width of [1146,764]) {
     await page.setViewportSize({width,height:764});await documentToggle.scrollIntoViewIfNeeded();

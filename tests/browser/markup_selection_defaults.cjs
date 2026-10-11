@@ -75,8 +75,8 @@ async function draw(mode, mark, x = 100) {
   const item=reply.snapshot.items.find(item => item.fields.mark === mark);assert.equal(item.mode,mode);if(area)assert.equal(item.fields.layers,1);return item;
 }
 async function setDefault() {
-  for (const [label, value] of [['Line Colour', desired.stroke_color], ['Line Width', desired.stroke_width], ['Fill colour', desired.fill_color], ['Opacity', desired.opacity * 100]]) { await panel().getByLabel(label, { exact: true }).fill(String(value)); await panel().getByLabel(label, { exact: true }).press('Tab'); await settingsSettled(page); }
-  await panel().getByLabel('Fill enabled', { exact: true }).setChecked(desired.fill_enabled); await settingsSettled(page);
+  for (const [label, value] of [['Line Colour', desired.stroke_color], ['Line Width', desired.stroke_width], ['Fill Colour', desired.fill_color], ['Opacity', desired.opacity * 100]]) { await panel().getByLabel(label, { exact: true }).fill(String(value)); await panel().getByLabel(label, { exact: true }).press('Tab'); await settingsSettled(page); }
+  await panel().getByLabel('Fill Enabled', { exact: true }).setChecked(desired.fill_enabled); await settingsSettled(page);
   const before = await snapshot(), mutations = requests.length;
   await panel().getByRole('button', { name: 'Set as default', exact: true }).click(); await settingsSettled(page);
   assert.deepEqual(await snapshot(), before, 'Saving a visual preference sends no item change'); assert.equal(requests.length, mutations);

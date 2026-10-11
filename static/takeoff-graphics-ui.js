@@ -74,10 +74,16 @@ window.CeasefireTakeoffGraphicsUI = function (host) {
     if(prior) clearTimeout(prior.timer);
     const editor = {kind:"graphic", key:selectionKey, sessionId:state.session.session_id, revision:state.session.revision, id:value.id, touched:new Map(), appearance:[]}; state.settingsEditor=editor;
     const heading=node("div","takeoff-viewports-heading"), controls=node("div","takeoff-settings-fields"); heading.append(button("Close settings",host.toggleSettings),node("h3","",`${X.labels[value.kind]} Settings`)); panel.replaceChildren(heading,controls);
-    const definitions = [["stroke_color","Line Colour","color"],["stroke_width","Line Width","number"],["fill_color","Fill colour","color"],["fill_enabled","Fill enabled","checkbox"],["opacity","Opacity","number"],...(["textbox","stamp"].includes(value.kind) ? [["font_color","Font Colour","color"],["font_size","Font Size","number"]] : [])];
+    const definitions = [["stroke_color","Line Colour","color"],["stroke_width","Line Width","number"],["fill_color","Fill Colour","color"],["fill_enabled","Fill Enabled","checkbox"],...(["textbox","stamp"].includes(value.kind) ? [["font_color","Font Colour","color"]] : []),["opacity","Opacity","number"],...(["textbox","stamp"].includes(value.kind) ? [["font_size","Font Size","number"]] : [])];
     for(const def of definitions) { const field=def[0] === "font_size" ? host.formField(def,value.appearance[def[0]]) : appearanceField(def,value.appearance[def[0]]); if(def[0] === "font_size") {field.control.min="4";field.control.max="144";} editor.appearance.push(field); bindSetting(editor,field,`appearance:${def[0]}`); controls.append(field.wrapper); }
-    if(["textbox","stamp"].includes(value.kind)) { const wrapper=node("label","field takeoff-graphic-text"), control=node(value.kind === "stamp" ? "input" : "textarea"); control.name="text";control.value=value.text;control.maxLength=value.kind === "stamp" ? 80 : 4000;control.required=true;control.setAttribute("aria-label",`${X.labels[value.kind]} text`);wrapper.append(node("span","","Text"),control);editor.text={control,read:()=>{if(!control.value.trim()) throw new Error("Enter nonblank markup text.");return control.value;}};bindSetting(editor,editor.text,"text");controls.append(wrapper); }
-    const actions=node("div","actions takeoff-appearance-actions"); editor.visibility=currentVisibilityControl("graphic",value.id);actions.append(editor.visibility,button("Delete markup",remove));controls.append(actions,node("p","helper","PDF drawing mark only."));
+    if(value.kind === "textbox") {
+      const A=window.CeasefireTakeoffAnnotations, wrapper=node("div","field takeoff-graphic-text"), content=value.text_content || {version:1,blocks:[{kind:"paragraph",runs:[{text:value.text}]}]};
+      editor.rich=A.richEditor(content,()=>host.markSettingsEdited(editor,"text"),{label:"Textbox text",maxLength:4000});
+      wrapper.append(node("span","","Textbox text"),editor.rich.wrap); controls.append(wrapper);
+    } else if(value.kind === "stamp") { const wrapper=node("label","field takeoff-graphic-text"), control=node("input"); control.name="text";control.value=value.text;control.maxLength=80;control.required=true;control.setAttribute("aria-label","Stamp text");wrapper.append(node("span","","Stamp text"),control);editor.text={control,read:()=>{if(!control.value.trim()) throw new Error("Enter nonblank markup text.");return control.value;}};bindSetting(editor,editor.text,"text");controls.append(wrapper); }
+    const actions=node("div","actions takeoff-appearance-actions"), removeButton=button("Delete markup",remove); removeButton.classList.add("takeoff-markup-delete");removeButton.title="Delete markup";removeButton.setAttribute("aria-label","Delete markup");
+    const trash=svg("svg",{viewBox:"0 0 24 24",width:20,height:20,fill:"none",stroke:"currentColor","stroke-width":1.8,"stroke-linecap":"round","stroke-linejoin":"round","aria-hidden":"true"});trash.append(svg("path",{d:"M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"}));removeButton.replaceChildren(trash);
+    editor.visibility=currentVisibilityControl("graphic",value.id);actions.append(editor.visibility,removeButton);controls.append(actions,node("p","helper","PDF drawing mark only."));
   }
   async function apply(editor) {
     if(state.settingsEditor !== editor) return; clearTimeout(editor.timer);editor.timer=null;if(editor.applying) return editor.applying;
@@ -87,7 +93,7 @@ window.CeasefireTakeoffGraphicsUI = function (host) {
       const captured=new Map(editor.touched), appearance={...selected().appearance}, changes={};
       for(const field of editor.appearance) if(captured.has(`appearance:${field.control.name}`)) appearance[field.control.name]=field.read();
       if([...captured.keys()].some(name=>name.startsWith("appearance:"))) changes.appearance=appearance;
-      if(captured.has("text")) changes.text=editor.text.read();
+      if(captured.has("text")) { if(editor.rich) { changes.text_content=editor.rich.read();changes.text=window.CeasefireTakeoffAnnotations.text(changes.text_content);if(!changes.text.trim()) throw new Error("Enter nonblank markup text."); } else changes.text=editor.text.read(); }
       const reply=await command("update_graphic",{graphic_id:editor.id,changes},()=>state.settingsEditor===editor && editor.key===key()); if(!reply) return;
       for(const[name,rev]of captured) if(editor.touched.get(name)===rev)editor.touched.delete(name);
       editor.revision=reply.revision;state.settingsDirty=editor.touched.size>0;

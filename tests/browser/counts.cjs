@@ -362,7 +362,7 @@ function pythonJson(script, ...args) {
       await assertSelectedMarkers([memberId]);
     }
     await fill(panel, 'Marker shape', shape); await fill(panel, 'Marker Size', 18);
-    await fill(panel, 'Line Colour', '#1a2b3c'); await panel.getByLabel('Fill enabled', { exact: true }).check(); await fill(panel, 'Fill colour', '#4f6e8d'); await fill(panel, 'Opacity', 65);
+    await fill(panel, 'Line Colour', '#1a2b3c'); await panel.getByLabel('Fill Enabled', { exact: true }).check(); await fill(panel, 'Fill Colour', '#4f6e8d'); await fill(panel, 'Opacity', 65);
     reply = await applySettings(panel, 2); state = reply.snapshot;
     if (shape === 'circle') await assertSelectedMarkers([firstCount[0].member_ids[0]]);
     for (const item of state.items.filter(item => item.count_id === countId)) {

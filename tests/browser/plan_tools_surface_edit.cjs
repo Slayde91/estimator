@@ -62,20 +62,34 @@ async function edit(values) { return editSettings(page, values); }
 async function confirm() { await page.getByRole('button', { name: 'Confirm', exact: true }).click(); return command(() => dialog('Confirm 1 items?', {}, 'Confirm items'), 'confirm_items'); }
 async function layout(width) {
   await page.setViewportSize({ width, height: 1100 }); await page.evaluate(() => window.scrollTo(0, 0));
-  const rail = page.getByRole('toolbar', { name: 'Drawing tools', exact: true }), navigation = page.getByLabel('Drawing navigation', { exact: true });
+  const rail = page.getByRole('toolbar', { name: 'Drawing tools', exact: true }), markupRail = page.getByRole('toolbar', { name: 'PDF markup tools', exact: true }), navigation = page.getByLabel('Drawing navigation', { exact: true });
   const scale = page.getByRole('button', { name: 'Scale', exact: true });
-  const boxes = { rail: await rail.boundingBox(), plan: await page.locator('.takeoff-viewport').boundingBox(), navigation: await navigation.boundingBox(), top: await page.locator('.takeoff-viewer-top').boundingBox(), bottom: await page.locator('.takeoff-page-controls').boundingBox(), scale: await scale.boundingBox(), sources: await page.locator('.takeoff-source-documents').boundingBox(), register: await page.locator('.takeoff-register').boundingBox() };
+  const boxes = { rail: await rail.boundingBox(), markupRail: await markupRail.boundingBox(), plan: await page.locator('.takeoff-viewport').boundingBox(), navigation: await navigation.boundingBox(), top: await page.locator('.takeoff-viewer-top').boundingBox(), bottom: await page.locator('.takeoff-page-controls').boundingBox(), scale: await scale.boundingBox(), sources: await page.locator('.takeoff-source-documents').boundingBox(), register: await page.locator('.takeoff-register').boundingBox() };
   assert.ok(boxes.rail.x + boxes.rail.width <= boxes.plan.x + 1, JSON.stringify(boxes)); assert.ok(boxes.rail.width < 120);
+  assert.ok(boxes.markupRail.x >= boxes.plan.x + boxes.plan.width && boxes.markupRail.width < 120 && Math.abs(boxes.markupRail.y - boxes.plan.y) < 2 && boxes.markupRail.height <= boxes.plan.height, JSON.stringify({ width, boxes }));
   for (const key of ['top','bottom','scale']) { const box = boxes[key]; assert.ok(box.x >= boxes.plan.x && box.y >= boxes.plan.y && box.x + box.width <= boxes.plan.x + boxes.plan.width && box.y + box.height <= boxes.plan.y + boxes.plan.height, JSON.stringify(boxes)); }
   assert.ok(Math.abs(boxes.top.x + boxes.top.width / 2 - boxes.plan.x - boxes.plan.width / 2) < 1, JSON.stringify(boxes));
   assert.ok(boxes.scale.y + boxes.scale.height < boxes.bottom.y, 'Scale stays above the page controls');
   assert.ok(boxes.scale.x < boxes.plan.x + boxes.plan.width / 2 && boxes.scale.y < boxes.plan.y + boxes.plan.height / 2, 'Scale stays in the top-left of the viewer');
-  assert.ok(boxes.scale.x + boxes.scale.width <= boxes.sources.x, 'Scale precedes the source selector');
+  const sameRow = boxes.scale.y < boxes.sources.y + boxes.sources.height && boxes.sources.y < boxes.scale.y + boxes.scale.height;
+  assert.ok(sameRow ? boxes.scale.x + boxes.scale.width < boxes.sources.x : boxes.scale.y + boxes.scale.height < boxes.sources.y, `Scale precedes the source selector without overlap: ${JSON.stringify({ width, sameRow, boxes })}`);
   await expect(rail.getByRole('button', { name: 'Scale', exact: true })).toHaveCount(0);
   assert.equal(await scale.evaluate(el => !!el.closest('.takeoff-viewer')), true);
   assert.ok(boxes.navigation.y >= boxes.top.y && boxes.navigation.y + boxes.navigation.height <= boxes.top.y + boxes.top.height, JSON.stringify(boxes)); assert.ok(boxes.sources.y >= boxes.plan.y && boxes.sources.y + boxes.sources.height <= boxes.top.y + boxes.top.height + 1, JSON.stringify(boxes)); assert.ok(Math.abs(boxes.rail.y - boxes.plan.y) < 2, JSON.stringify(boxes)); assert.ok(boxes.register.y >= boxes.plan.y + boxes.plan.height - 1, JSON.stringify(boxes));
   await expect(rail.getByRole('button', { name: 'Select', exact: true })).toHaveCount(0); await expect(rail.getByRole('button', { name: 'Pan', exact: true })).toHaveCount(0); for (const name of ['Select','Pan']) await expect(page.locator('.takeoff-page-controls').getByRole('button', { name, exact: true })).toBeVisible(); await expect(page.getByLabel('Drawing document',{exact:true}).locator('option')).toHaveCount(2); await expect(page.locator('.takeoff-rail,.takeoff-thumbnail')).toHaveCount(0);
-  evidence[`layout${width}`] = boxes;
+  const pointerTargets = [];
+  for (const control of [scale, page.getByLabel('Drawing document', { exact: true }), ...await markupRail.getByRole('button').all()]) {
+    await control.scrollIntoViewIfNeeded(); await expect(control).toBeVisible();
+    const box = await control.boundingBox(), target = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    await page.mouse.move(target.x, target.y);
+    assert.equal(await control.evaluate((el, point) => { const hit = document.elementFromPoint(point.x, point.y); return hit === el || el.contains(hit); }, target), true, `Native pointer target is unobscured: ${await control.getAttribute('aria-label') || await control.textContent()} at ${width}px`);
+    pointerTargets.push({ name: await control.getAttribute('aria-label') || await control.textContent(), ...target });
+  }
+  await expect(markupRail.getByRole('button')).toHaveCount(10);
+  await scale.click(); await expect(scale).toHaveAttribute('aria-expanded', 'true');
+  await scale.click(); await expect(scale).toHaveAttribute('aria-expanded', 'false');
+  await page.getByLabel('Drawing document', { exact: true }).click(); await page.getByLabel('Drawing document', { exact: true }).press('Escape');
+  evidence[`layout${width}`] = { ...boxes, scaleSourceOrder: sameRow ? 'same-row' : 'wrapped-row', pointerTargets };
 }
 (async () => {
   const info = await ready; browser = await chromium.launch({ headless: true }); page = await browser.newPage({ viewport: { width: 1600, height: 1100 }, deviceScaleFactor: 2 }); page.setDefaultTimeout(30000);

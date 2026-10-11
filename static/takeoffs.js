@@ -61,7 +61,7 @@
   const documentById = id => documents().find(doc => doc.id === id);
   const currentDocument = () => documentById(state.document);
   const pageMetadata = () => currentDocument()?.pages?.find(page => page.page === state.page);
-  const graphicsUI = X && window.CeasefireTakeoffGraphicsUI({ state, G, X, node, svg, button, clone, snapshot, documents, pageMetadata, currentDocument, pageDisplayKey, signatureMode, signatureInWorkspace, selectedSignature, selectedAnnotation, command, safely, message, renderSelection, renderOverlay, flushSettings, requireFinishedEdits, cancelTrace, setTool, ask, drawingPoint, drawingClickOpensSettings, bindSetting, appearanceField, formField, currentVisibilityControl, renderPhysicalDetails, renderViewportPanel, toggleSettings });
+  const graphicsUI = X && window.CeasefireTakeoffGraphicsUI({ state, G, X, node, svg, button, clone, snapshot, documents, pageMetadata, currentDocument, pageDisplayKey, signatureMode, signatureInWorkspace, selectedSignature, selectedAnnotation, command, safely, message, renderSelection, renderOverlay, flushSettings, requireFinishedEdits, cancelTrace, setTool, ask, drawingPoint, drawingClickOpensSettings, bindSetting, markSettingsEdited, appearanceField, formField, currentVisibilityControl, renderPhysicalDetails, renderViewportPanel, toggleSettings });
   const selectedItems = () => items().filter(item => state.selected.has(item.id) && inWorkspace(item.mode));
   const editableFields = (mode, calculator = state.ui?.target?.value) => (fields[mode] || []).filter(([key]) => !["zone", "group", "notes"].includes(key) && (key !== "sides" || calculator === "steel_board"));
   const isStandalone = item => ["count-only", "length-only"].includes(item?.purpose);
@@ -198,11 +198,16 @@
     el.addEventListener("click", () => void safely(fn)); return el;
   }
   function select(options, change, value) { const el = node("select"); options.forEach(([v, text]) => el.append(option(v, text))); if (value !== undefined) el.value = value; if (change) el.addEventListener("change", () => void safely(() => change(el.value))); return el; }
+  function documentChevron() {
+    const wrapper = node("span", "calculator-document-chevron"); wrapper.setAttribute("aria-hidden", "true");
+    const chevron = svg("svg", {viewBox:"0 0 24 24", fill:"none", stroke:"currentColor", "stroke-width":1.8, "stroke-linecap":"round", "stroke-linejoin":"round", focusable:"false"});
+    chevron.append(svg("path", {d:"m6 9 6 6 6-6"})); wrapper.append(chevron); return wrapper;
+  }
   function registerDocumentMenu() {
     const root = node("div", "calculator-document-menu takeoff-document-menu"), toggle = node("button", "button secondary calculator-document-toggle"), list = node("div", "calculator-document-actions");
     toggle.type = "button"; toggle.setAttribute("aria-label", "Takeoff register document actions"); toggle.setAttribute("aria-expanded", "false"); toggle.setAttribute("aria-controls", "takeoff-register-document-actions");
     const image = node("img", "calculator-document-icon"); image.src = "/icons/document.png"; image.alt = ""; image.setAttribute("aria-hidden", "true");
-    const chevron = document.createElementNS("http://www.w3.org/2000/svg", "svg"), path = document.createElementNS("http://www.w3.org/2000/svg", "path"); chevron.setAttribute("class", "calculator-document-chevron"); chevron.setAttribute("viewBox", "0 0 24 24"); chevron.setAttribute("aria-hidden", "true"); path.setAttribute("d", "m6 9 6 6 6-6"); path.setAttribute("fill", "none"); path.setAttribute("stroke", "currentColor"); path.setAttribute("stroke-width", "2"); chevron.append(path); toggle.append(image, node("span", "", "Document"), chevron);
+    toggle.append(image, node("span", "", "Document"), documentChevron());
     list.id = "takeoff-register-document-actions"; list.hidden = true; list.setAttribute("role", "group"); list.setAttribute("aria-label", "Takeoff register document actions"); root.append(toggle, list);
     const close = focus => { list.hidden = true; toggle.setAttribute("aria-expanded", "false"); if (focus) toggle.focus(); };
     const choices = () => [...list.children].filter(control => !control.disabled && !control.hidden);
@@ -457,9 +462,12 @@
     const root = $("takeoffs-workspace"); if (!root) return;
     const ui = state.ui = { root };
     ui.title = node("h1", "takeoff-workspace-title", "Steel");
-    ui.heading = node("div", "takeoff-workspace-heading"); ui.heading.append(ui.title, buildPDFToolsMenu());
+    ui.documentMenu = registerDocumentMenu();
+    const headingActions = node("div", "actions takeoff-document-tools"); headingActions.append(ui.documentMenu.root, buildPDFToolsMenu());
+    ui.heading = node("div", "takeoff-workspace-heading"); ui.heading.append(ui.title, headingActions);
     ui.message = node("div", "message"); ui.message.hidden = true;
     const toolbar = node("div", "takeoff-toolbar takeoff-tool-rail"); ui.toolRail = toolbar; toolbar.setAttribute("role", "toolbar"); toolbar.setAttribute("aria-label", "Drawing tools"); toolbar.setAttribute("aria-orientation", "vertical");
+    const markupRail = node("aside", "takeoff-toolbar takeoff-markup-rail"); ui.markupRail = markupRail; markupRail.setAttribute("role", "toolbar"); markupRail.setAttribute("aria-label", "PDF markup tools"); markupRail.setAttribute("aria-orientation", "vertical");
     ui.upload = node("input"); ui.upload.type = "file"; ui.upload.accept = ".pdf,application/pdf"; ui.upload.multiple = true; ui.upload.hidden = true; ui.upload.id = "takeoff-upload";
     ui.upload.addEventListener("change", () => { const files = [...ui.upload.files]; ui.upload.value = ""; void safely(() => upload(files)); });
     toolbar.append(button("Upload PDFs", () => { if (!state.busy) ui.upload.click(); }, "button primary"), ui.upload);
@@ -482,10 +490,10 @@
     ui.tools.visibility = visibility; ui.tools.settings.after(visibility);
     ui.tools.callout = button("Call-out", () => setTool("callout")); ui.tools.callout.dataset.tool = "callout";
     const calloutIcon = node("img"); calloutIcon.src = "/icons/takeoff-callout.png"; calloutIcon.alt = ""; calloutIcon.width = 25; calloutIcon.height = 25; calloutIcon.setAttribute("aria-hidden", "true");
-    ui.tools.callout.classList.add("icon-only", "takeoff-icon-button"); ui.tools.callout.replaceChildren(calloutIcon); ui.tools.callout.setAttribute("aria-label", "Call-out"); ui.tools.callout.title = "Call-out"; ui.tools.viewport.after(ui.tools.callout);
-    ui.tools.signature = button("Signatures", armSignature); ui.tools.signature.dataset.tool = "signature"; ui.tools.callout.after(ui.tools.signature);
+    ui.tools.callout.classList.add("icon-only", "takeoff-icon-button"); ui.tools.callout.replaceChildren(calloutIcon); ui.tools.callout.setAttribute("aria-label", "Call-out"); ui.tools.callout.title = "Call-out"; markupRail.append(ui.tools.callout);
+    ui.tools.signature = button("Signatures", armSignature); ui.tools.signature.dataset.tool = "signature"; markupRail.append(ui.tools.signature);
     if (X && graphicsUI) for (const kind of ["cloud", "textbox", "stamp", "polyline", "arrow", "rectangle", "circle", "polygon"]) {
-      const control = button(X.labels[kind], () => graphicsUI.activate(kind)); control.classList.add("icon-only", "takeoff-icon-button", "takeoff-graphic-tool"); control.dataset.tool = `graphic-${kind}`; control.replaceChildren(X.icon(kind)); control.title = X.labels[kind]; control.setAttribute("aria-label", X.labels[kind]); ui.tools[`graphic-${kind}`] = control; toolbar.append(control);
+      const control = button(X.labels[kind], () => graphicsUI.activate(kind)); control.classList.add("icon-only", "takeoff-icon-button", "takeoff-graphic-tool"); control.dataset.tool = `graphic-${kind}`; control.replaceChildren(X.icon(kind)); control.title = X.labels[kind]; control.setAttribute("aria-label", X.labels[kind]); ui.tools[`graphic-${kind}`] = control; markupRail.append(control);
     }
     const scaleAnchor = node("div", "takeoff-scale-anchor"); ui.scaleToggle = button("Scale", () => toggleScaleControls()); ui.scaleToggle.setAttribute("aria-expanded", "false"); ui.scaleToggle.setAttribute("aria-controls", "takeoff-scale-controls"); ui.scaleToggle.setAttribute("aria-describedby", "takeoff-active-scale");
     ui.scaleStatus = node("span", "takeoff-active-scale", "No Scale Selected"); ui.scaleStatus.id = "takeoff-active-scale"; scaleAnchor.append(ui.scaleToggle, ui.scaleStatus); ui.scaleAnchor = scaleAnchor;
@@ -532,7 +540,7 @@
     ui.settingsPanel = node("aside", "takeoff-markup-settings"); ui.settingsPanel.id = "takeoff-markup-settings"; ui.settingsPanel.hidden = true; ui.settingsPanel.setAttribute("aria-label", "Markup settings");
     ui.physicalDetails = node("div", "takeoff-physical-details"); ui.physicalDetails.id = "takeoff-physical-details"; ui.physicalDetails.hidden = true;
     ui.physicalDetails.append(button("Close Item Details", () => setPhysicalDetailsOpen(false), "button secondary", "Close settings"));
-    layout.append(toolbar, ui.viewportPanel, ui.settingsPanel, ui.physicalDetails, drawingPane);
+    layout.append(toolbar, ui.viewportPanel, ui.settingsPanel, ui.physicalDetails, drawingPane, markupRail);
     const register = node("section", "takeoff-register"); ui.register = register; const heading = node("div", "section-heading"); ui.registerTitle = node("h2", "", "Steel register"); ui.status = node("span", "status-label", "Ready"); ui.registerLayout = select([["below", "Register below drawing"], ["beside", "Register beside drawing"]], value => { workspace.classList.toggle("beside", value === "beside"); }); ui.registerLayout.setAttribute("aria-label", "Register position"); heading.append(ui.registerTitle, ui.status, ui.registerLayout); register.append(heading);
     const controls = node("div", "takeoff-register-controls"); ui.filter = node("input"); ui.filter.type = "search"; ui.filter.placeholder = "Filter register…"; ui.filter.setAttribute("aria-label", "Filter register"); ui.filter.addEventListener("input", () => { state.filter = ui.filter.value.toLowerCase(); state.offset = 0; renderRegister(); renderOverlay(); });
     ui.statusFilter = select([["", "All confirmation states"], ["unconfirmed", "Unconfirmed"], ["confirmed", "Confirmed"]], () => { renderRegister(); renderOverlay(); }); ui.statusFilter.setAttribute("aria-label", "Filter confirmation state");
@@ -554,8 +562,7 @@
     const exports = node("div", "takeoff-register-controls"); ui.target = select([["steel_vermiculite", "Steel Spray Schedule"], ["steel_board", "Steel Board Schedule"]], refreshRegisterOptions); ui.target.setAttribute("aria-label", "Destination schedule");
     ui.transferControls = [ui.target, button("Preview transfer", () => transfer(false)), button("Update linked rows", () => transfer(true)), button("Detach links", detachSelected)];
     ui.areaNotice = node("p", "helper takeoff-area-notice", "Area records export as m². Existing steel and duct calculators do not accept surface areas. Split/merge is unavailable for surfaces; group separate physical surfaces without changing their identities.");
-    ui.documentMenu = registerDocumentMenu();
-    exports.append(...ui.transferControls, ui.documentMenu.root, ui.areaNotice);
+    exports.append(...ui.transferControls, ui.areaNotice);
     ui.tableWrap = node("div", "takeoff-register-table"); ui.pagination = node("div", "takeoff-register-controls"); register.append(controls, ui.bulk, exports, ui.tableWrap, ui.pagination);
     ui.physicalContainer = node("div", "takeoff-physical-container"); ui.physicalContainer.hidden = true;
     ui.controlStatus = node("p", "helper takeoff-control-status"); ui.controlStatus.hidden = true; ui.controlStatus.setAttribute("role", "status");
@@ -603,11 +610,16 @@
     });
   }
   function buildPDFToolsMenu() {
-    const root = node("div", "calculator-document-menu takeoff-pdf-tools-menu"), toggle = button("Tools", () => close(!list.hidden)), list = node("div", "calculator-document-actions");
-    const arrow = node("span", "", "⌄"); arrow.setAttribute("aria-hidden", "true"); toggle.append(arrow); toggle.setAttribute("aria-expanded", "false"); toggle.setAttribute("aria-controls", "takeoff-pdf-tools-actions"); list.id = "takeoff-pdf-tools-actions"; list.hidden = true; list.setAttribute("role", "group"); list.setAttribute("aria-label", "PDF Tools"); root.append(toggle, list);
+    const root = node("div", "calculator-document-menu takeoff-pdf-tools-menu"), toggle = button("Tools", () => close(!list.hidden), "button secondary calculator-document-toggle"), list = node("div", "calculator-document-actions");
+    toggle.replaceChildren(node("span", "", "Tools"), documentChevron()); toggle.setAttribute("aria-expanded", "false"); toggle.setAttribute("aria-controls", "takeoff-pdf-tools-actions"); list.id = "takeoff-pdf-tools-actions"; list.hidden = true; list.setAttribute("role", "group"); list.setAttribute("aria-label", "PDF Tools"); root.append(toggle, list);
     function close(hide = true) { list.hidden = hide; toggle.setAttribute("aria-expanded", String(!hide)); }
     for (const [operation, label] of [["merge", "Merge PDF Files"], ["organise", "Organise Pages"], ["extract", "Extract Pages"]]) list.append(button(label, () => { close(); return openPDFTools(operation); }, "button secondary calculator-document-action"));
-    root.addEventListener("keydown", event => { if (event.key === "Escape") { event.preventDefault(); close(); toggle.focus(); } });
+    root.addEventListener("keydown", event => {
+      if (event.key === "Escape") { event.preventDefault(); close(); toggle.focus(); return; }
+      if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key) || toggle.disabled) return;
+      event.preventDefault(); close(false); const controls = [...list.children].filter(control => !control.disabled && !control.hidden); if (!controls.length) return;
+      const index = controls.indexOf(document.activeElement), next = event.key === "Home" ? 0 : event.key === "End" ? controls.length - 1 : event.key === "ArrowDown" ? (index + 1) % controls.length : index < 0 ? controls.length - 1 : (index - 1 + controls.length) % controls.length; controls[next].focus();
+    });
     root.addEventListener("focusout", event => { if (!root.contains(event.relatedTarget)) close(); }); document.addEventListener("pointerdown", event => { if (!root.contains(event.target)) close(); });
     return root;
   }
@@ -674,6 +686,8 @@
     scheduleLinkedThickness();
     refreshNavigation();
     const physical = state.mode === "physical";
+    state.ui.documentMenu.root.hidden = physical;
+    if (physical) state.ui.documentMenu.close(false);
     state.ui.title.textContent = physical ? state.physicalScope === "service_plans" ? "Service Plans" : "Defect Reports" : state.mode === "duct" ? "Ductwork" : labels[state.mode];
     state.ui.tools.markups.hidden = state.mode !== "steel";
     state.ui.tools.legend.hidden = !["steel", "duct"].includes(state.mode);
@@ -987,7 +1001,7 @@
     const content = node("div", "takeoff-settings-fields"); panel.append(content);
     content.append(node("h4", "", "Markup appearance"));
     const appearance = appearanceOf(first);
-    for (const def of [...(countsOnly ? [["marker_shape", "Marker shape", ["circle", "square", "triangle", "diamond"]], ["marker_size", "Marker Size", "number"]] : []), ["stroke_color", "Line Colour", "color"], ["stroke_width", "Line Width", "number"], ["fill_color", "Fill colour", "color"], ["fill_enabled", "Fill enabled", "checkbox"], ["opacity", "Opacity", "number"], ["display_values", "Display Values", "checkbox"]]) {
+    for (const def of [...(countsOnly ? [["marker_shape", "Marker shape", ["circle", "square", "triangle", "diamond"]], ["marker_size", "Marker Size", "number"]] : []), ["stroke_color", "Line Colour", "color"], ["stroke_width", "Line Width", "number"], ["fill_color", "Fill Colour", "color"], ["fill_enabled", "Fill Enabled", "checkbox"], ["opacity", "Opacity", "number"], ["display_values", "Display Values", "checkbox"]]) {
       const field = appearanceField(def, appearance[def[0]]); field.control.required = def[2] !== "checkbox";
       bindSetting(editor, field, `appearance:${def[0]}`); editor.appearance.push(field); content.append(field.wrapper);
     }
@@ -2679,7 +2693,7 @@
     const editor = { kind: "annotation", key, sessionId: state.session.session_id, revision: state.session.revision, id: annotation.id, touched: new Map(), fields: [], appearance: [] }; state.settingsEditor = editor;
     const heading = node("div", "takeoff-viewports-heading"); heading.append(button("Close settings", () => closeAnnotationSettings(editor)), node("h3", "", "Call-out Settings"));
     const controls = node("div", "takeoff-settings-fields"); panel.replaceChildren(heading, controls); controls.append(node("h4", "", "Markup appearance"));
-    for (const definition of [["stroke_color", "Line Colour", "color"], ["stroke_width", "Line Width", "number"], ["fill_color", "Fill colour", "color"], ["fill_enabled", "Fill enabled", "checkbox"], ["font_color", "Font Colour", "color"], ["opacity", "Opacity", "number"]]) {
+    for (const definition of [["stroke_color", "Line Colour", "color"], ["stroke_width", "Line Width", "number"], ["fill_color", "Fill Colour", "color"], ["fill_enabled", "Fill Enabled", "checkbox"], ["font_color", "Font Colour", "color"], ["opacity", "Opacity", "number"]]) {
       const field = appearanceField(definition, annotation.appearance[definition[0]]); editor.appearance.push(field); bindSetting(editor, field, `appearance:${definition[0]}`); controls.append(field.wrapper);
     }
     const actions = node("div", "actions takeoff-appearance-actions");
@@ -3027,7 +3041,7 @@
     const part = state.physicalAppearancePart || "marker", callout = part === "callout";
     const defaults = callout ? calloutDefaults() : appearanceOf({ appearance: locator.appearance });
     const appearance = { ...defaults, ...(callout ? locator.callout?.appearance : locator.appearance) }, fields = node("div", "takeoff-settings-fields"); fields.setAttribute("aria-label", callout ? "Callout Settings" : "Marker Settings"); fields.append(node("h3", "", callout ? "Callout Settings" : "Marker Settings")); container.append(fields);
-    const definitions = [["fill_color", "Fill colour", "color"], ["fill_enabled", "Fill enabled", "checkbox"], ["stroke_color", "Line Colour", "color"], ["stroke_width", "Line Width", "number"], ...(callout ? [["font_color", "Font Colour", "color"], ["opacity", "Opacity", "number"]] : [["marker_size", "Marker Size", "number"], ["opacity", "Opacity", "number"]])];
+    const definitions = [["fill_color", "Fill Colour", "color"], ["fill_enabled", "Fill Enabled", "checkbox"], ["stroke_color", "Line Colour", "color"], ["stroke_width", "Line Width", "number"], ...(callout ? [["font_color", "Font Colour", "color"], ["opacity", "Opacity", "number"]] : [["marker_size", "Marker Size", "number"], ["opacity", "Opacity", "number"]])];
     const styleFields = [];
     for (const def of definitions) {
       const field = appearanceField(def, appearance[def[0]]); styleFields.push(field); fields.append(field.wrapper);
@@ -3405,7 +3419,7 @@
   function renderLegendSettings(panel) {
     const legend = selectedLegend(), context = pageDisplayKey(), heading = node("div", "takeoff-viewports-heading"); heading.append(button("Close settings", toggleSettings), node("h3", "", "Legend Settings")); panel.replaceChildren(heading);
     const fields = node("div", "takeoff-settings-fields"); panel.append(fields);
-    for (const def of [["stroke_color", "Line Colour", "color"], ["stroke_width", "Line Width", "number"], ["fill_color", "Fill colour", "color"], ["fill_enabled", "Fill enabled", "checkbox"], ["font_color", "Font Colour", "color"], ["opacity", "Opacity", "number"]]) {
+    for (const def of [["stroke_color", "Line Colour", "color"], ["stroke_width", "Line Width", "number"], ["fill_color", "Fill Colour", "color"], ["fill_enabled", "Fill Enabled", "checkbox"], ["font_color", "Font Colour", "color"], ["opacity", "Opacity", "number"]]) {
       const field = appearanceField(def, ({ opacity: .94, ...legend.appearance })[def[0]]); fields.append(field.wrapper);
       field.control.addEventListener("change", () => void safely(async () => { requireFinishedEdits(); const current = selectedLegend(); if (context !== pageDisplayKey() || !current || current.id !== legend.id) throw new Error("Select the current legend again."); const value = field.read(); await command("set_legend", { legend: { ...clone(current), appearance: { ...current.appearance, [def[0]]: value } } }, () => { if (context !== pageDisplayKey() || selectedLegend()?.id !== legend.id) throw new Error("Select the current legend again."); return true; }); }));
     }

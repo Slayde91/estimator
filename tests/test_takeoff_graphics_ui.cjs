@@ -6,7 +6,7 @@ const code = fs.readFileSync(source, "utf8");
 
 // Only the bridge runs: fonts are controlled promises and the host contains no
 // network, browser, storage, calculator, or persisted Takeoff implementation.
-function fixture(initial = {}) {
+function fixture(initial = {}, commandOverride) {
   const fonts = [], calls = { cancel: 0, render: 0, command: 0, messages: [] };
   const state = { active: true, busy: false, modal: false, navigationBusy: false,
     viewport: { transform: [1,0,0,-1,0,800] }, document: "document-A", page: 1, mode: "wall", physicalScope: "defect_reports",
@@ -19,7 +19,7 @@ function fixture(initial = {}) {
   const snapshot = { graphics: { version:1, records:[] }, items:[], calibrations:[], transfers:[] };
   const document = { fonts: { load() { let resolve, reject; const promise = new Promise((yes,no) => { resolve=yes; reject=no; }); fonts.push({promise,resolve,reject}); return promise; } },
     createElement(tag) { assert.equal(tag,"canvas"); return { getContext() { return {}; } }; } };
-  const context = { window: {}, document, setTimeout, clearTimeout }; vm.createContext(context); vm.runInContext(code, context, {filename:source});
+  const context = { window: {CeasefireTakeoffAnnotations:{text:value=>value.blocks.map(block=>block.runs.map(run=>run.text).join("")).join("\n")}}, document, setTimeout, clearTimeout }; vm.createContext(context); vm.runInContext(code, context, {filename:source});
   const host = { state, X: { kinds:["rectangle","circle"], boxes:new Set(["rectangle","circle"]), labels:{rectangle:"Rectangle",circle:"Circle"} },
     snapshot:()=>snapshot, documents:()=>originals, currentDocument:()=>originals.find(v=>v.id===state.document),
     pageDisplayKey:()=>JSON.stringify([state.session?.session_id,state.document,state.page,state.mode]),
@@ -30,7 +30,7 @@ function fixture(initial = {}) {
       if(state.formDirty||state.settingsDirty||state.gesture||state.points.length||state.pendingViewport||state.physicalPlacing||state.physicalUI?.hasUnfinishedChanges()) throw new Error("Finish the newer edit first.");
     }, cancelTrace() { calls.cancel++; state.points=[]; state.tool="select"; },
     setTool(tool) { if(state.busy||state.modal||state.navigationBusy) throw new Error("Finish the current operation first."); state.tool=tool; },
-    command() { calls.command++; throw new Error("Activation must not issue a persisted command."); },
+    command(...args) { calls.command++; if(commandOverride) return commandOverride(...args); throw new Error("Activation must not issue a persisted command."); },
     renderSelection() { calls.render++; }, message(value) { calls.messages.push(value); } };
   const ui = context.window.CeasefireTakeoffGraphicsUI(host);
   async function start(kind="rectangle") {
@@ -39,7 +39,7 @@ function fixture(initial = {}) {
     assert.equal(fonts.length,before+2,"Activation reaches both delayed drawing-font loads");
     return { pending, complete() { fonts.slice(before,before+2).forEach(value=>value.resolve([])); }, fail() { fonts[before].reject(new Error("Drawing font unavailable")); fonts[before+1].resolve([]); } };
   }
-  return {state,calls,snapshot,start};
+  return {state,calls,snapshot,start,ui};
 }
 
 test("Unchanged graphic activation waits for fonts and only arms a drawing tool", async()=>{
@@ -91,4 +91,19 @@ test("A rejected font load preserves the current drawing and selection", async()
   const f=fixture({annotationSelected:"retained-callout"}), activation=await f.start(), retained=structuredClone(f.state);
   activation.fail(); await assert.rejects(activation.pending,/font unavailable/);
   assert.deepEqual(f.state,retained); assert.equal(f.calls.cancel,0); assert.equal(f.calls.command,0);
+});
+
+test("Textbox formatting edited during a queued update remains atomic and keeps the next draft", async()=>{
+  let release, first=true; const held=new Promise(resolve=>{release=resolve;}), writes=[];
+  const f=fixture({graphicSelected:"textbox",settingsDirty:true,queue:Promise.resolve()},async(op,body,guard)=>{
+    assert.equal(op,"update_graphic"); assert.equal(guard(),true); writes.push(structuredClone(body));
+    if(first){first=false;await held;} return {revision:++f.state.session.revision};
+  });
+  f.snapshot.graphics.records.push({id:"textbox",mode:"wall",document_id:"document-A",page:1,appearance:{}});
+  let content={version:1,blocks:[{kind:"paragraph",runs:[{text:"literal",bold:true}]}]};
+  const editor={kind:"graphic",id:"textbox",sessionId:"session-A",key:JSON.stringify([JSON.stringify(["session-A","document-A",1,"wall"]),"wall","textbox"]),appearance:[],touched:new Map([["text",1]]),rich:{read:()=>structuredClone(content)}};
+  f.state.settingsEditor=editor;
+  const pending=f.ui.apply(editor);for(let i=0;i<12;i++)await Promise.resolve();
+  assert.equal(writes.length,1);content.blocks[0].runs[0].italic=true;editor.touched.set("text",2);release();await pending;
+  assert.equal(writes.length,2);assert.equal(writes[0].changes.text,"literal");assert.equal(writes[0].changes.text_content.blocks[0].runs[0].italic,undefined);assert.equal(writes[1].changes.text_content.blocks[0].runs[0].italic,true);assert.equal(f.state.settingsDirty,false);
 });

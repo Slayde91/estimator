@@ -32,6 +32,25 @@
     }
     return lines;
   }
+  function richTextLines(content, width, size, context) {
+    const lines = []; let number = 0;
+    context.fontKerning = "none";
+    for (const block of content.blocks) {
+      number = block.kind === "number" ? number + 1 : 0;
+      const prefix = block.kind === "bullet" ? "• " : number ? `${number}. ` : "";
+      let line = [], used = 0;
+      for (const run of [...(prefix ? [{text:prefix}] : []), ...block.runs]) {
+        context.font = `${run.italic ? "italic " : ""}${run.bold ? "bold " : ""}${size}px CeasefireDrawing`;
+        for (const character of run.text.replace(/\r\n?/g,"\n").replace(/\t/g,"    ")) {
+          const advance = context.measureText(character).width;
+          if (character === "\n" || used && used + advance > width) { lines.push(line); line=[]; used=0; if(character === "\n") continue; }
+          line.push({...run,text:character,x:used}); used += advance;
+        }
+      }
+      lines.push(line);
+    }
+    return lines;
+  }
   function paint(graphic, transform, scale, make, context) {
     const group = make("g", { "pointer-events": "none" }), style = graphic.appearance, points = coordinates(graphic).map(transform), closed = boxes.has(graphic.kind) || graphic.kind === "polygon";
     const ink = { stroke: style.stroke_color, "stroke-width": style.stroke_width * scale, fill: closed && style.fill_enabled ? style.fill_color : "none", opacity: style.opacity, "stroke-linejoin": "round", "stroke-linecap": "round" };
@@ -49,8 +68,10 @@
         local.append(make("path", { ...ink, d: path+" Z" }));
       } else local.append(make("rect", { ...ink, width, height, rx: graphic.kind === "stamp" ? 3*scale : 0 }));
       if (["textbox", "stamp"].includes(graphic.kind)) {
-        const padding = Math.min(6*scale, width/8, height/8), size = style.font_size*scale, lines = textLines(graphic.text, width-2*padding, size, graphic.kind === "stamp", context);
-        lines.forEach((line,index) => { const text=make("text", { x: graphic.kind === "stamp" ? width/2 : padding, y: padding+size+index*size*1.25, fill: style.font_color, opacity: style.opacity, "font-family": "CeasefireDrawing", "font-kerning": "none", "font-variant-ligatures": "none", "font-size": size, "font-weight": graphic.kind === "stamp" ? "bold" : "normal", "text-anchor": graphic.kind === "stamp" ? "middle" : "start" }); text.textContent=line; local.append(text); });
+        const padding = Math.min(6*scale, width/8, height/8), size = style.font_size*scale, rich = graphic.kind === "textbox" && graphic.text_content, lines = rich ? richTextLines(rich,width-2*padding,size,context) : textLines(graphic.text, width-2*padding, size, graphic.kind === "stamp", context);
+        lines.forEach((line,index) => { const text=make("text", { x: graphic.kind === "stamp" ? width/2 : padding, y: padding+size+index*size*1.25, fill: style.font_color, opacity: style.opacity, "font-family": "CeasefireDrawing", "font-kerning": "none", "font-variant-ligatures": "none", "font-size": size, "font-weight": graphic.kind === "stamp" ? "bold" : "normal", "text-anchor": graphic.kind === "stamp" ? "middle" : "start" });
+          if(rich) for(const run of line) { const span=make("tspan",{x:padding+run.x,"font-weight":run.bold?"bold":"normal","font-style":run.italic?"italic":"normal","text-decoration":run.underline?"underline":"none"});span.textContent=run.text;text.append(span); }
+          else text.textContent=line; local.append(text); });
       }
     } else {
       group.append(make(graphic.kind === "polygon" ? "polygon" : "polyline", { ...ink, points: points.map(p=>p.join(",")).join(" ") }));
@@ -58,7 +79,7 @@
     }
     return group;
   }
-  const api = Object.freeze({ kinds, boxes, labels, defaults, box, coordinates, icon, paint, textLines });
+  const api = Object.freeze({ kinds, boxes, labels, defaults, box, coordinates, icon, paint, textLines, richTextLines });
   if (typeof module === "object" && module.exports) module.exports = api;
   if (root) root.CeasefireTakeoffGraphics = api;
 })(typeof window === "object" ? window : null);

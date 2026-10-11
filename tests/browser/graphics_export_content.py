@@ -58,8 +58,33 @@ def inspect(pdf_path, specification):
         assert matched, f"Actual PDF geometry does not match source coordinates for {graphic['kind']}"
         if graphic['kind'] in ('textbox', 'stamp'):
             content = page.extract_text()
-            assert graphic['text'].replace('\n', '') in content.replace('\n', ''), 'Literal drawing note absent from actual PDF'
-        proof.append({'id': graphic['id'], 'kind': graphic['kind'], 'page': graphic['page'], 'vector_geometry': True})
+            if 'text_content' in graphic:
+                compact = ''.join(content.split())
+                segments = []
+                page.extract_text(visitor_text=lambda value, cm, tm, font, size: segments.append((value, font, size)))
+                bold = ''.join(value for value, font, size in segments if font and 'Bold' in font.get('/BaseFont', '') and abs(float(size)-style['font_size']) < 1e-6)
+                numbered = 0
+                italic_count = underline_count = 0
+                for block in graphic['text_content']['blocks']:
+                    numbered = numbered+1 if block['kind'] == 'number' else 0
+                    prefix = '• ' if block['kind'] == 'bullet' else f'{numbered}. ' if numbered else ''
+                    literal = prefix+''.join(run['text'] for run in block['runs'])
+                    assert ''.join(literal.split()) in compact, 'Rich textbox literal block/list marker absent from actual PDF'
+                    for run in block['runs']:
+                        if run.get('bold'):
+                            assert ''.join(run['text'].split()) in ''.join(bold.split()), 'Saved bold textbox run absent from actual PDF font'
+                        count = len(run['text'].replace('\r\n', '\n').replace('\r', '\n').replace('\t', '    ').replace('\n', ''))
+                        italic_count += count if run.get('italic') else 0
+                        underline_count += count if run.get('underline') else 0
+                # ReportLab combines the glyph translation and shear in one cm.
+                assert sum(op == b'cm' and near(args[:4], [1, 0, .18, 1]) for args, op in operations) >= italic_count, 'Saved italic textbox glyph transforms absent'
+                assert sum(op == b'l' for _, op in operations) >= underline_count, 'Saved underline textbox strokes absent'
+            else:
+                assert graphic['text'].replace('\n', '') in content.replace('\n', ''), 'Literal drawing note absent from actual PDF'
+        proof.append({'id': graphic['id'], 'kind': graphic['kind'], 'page': graphic['page'], 'vector_geometry': True,
+                      **({'rich_text': True, 'font_size': style['font_size'], 'italic_glyphs': italic_count,
+                          'underline_glyphs': underline_count, 'literal_blocks_and_lists': True}
+                         if 'text_content' in graphic else {})})
     return {'pages': len(reader.pages), 'matches': proof, 'sha256': hashlib.sha256(Path(pdf_path).read_bytes()).hexdigest()}
 
 

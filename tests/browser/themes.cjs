@@ -100,7 +100,7 @@ async function readableMidnightIcon(control) {
     for(const width of [1146,764]) {
       await page.setViewportSize({width,height:1000});
       const physical=view==='Defect Reports'||view==='Service Plans',register=page.locator(physical?'.takeoff-physical-register':'.takeoff-register').filter({visible:true}).first();
-      const documentControl=register.getByRole('button',{name:physical?'Document':'Takeoff register document actions',exact:true});
+      const documentControl=(physical?register:page.locator('.takeoff-workspace-heading')).getByRole('button',{name:physical?'Document':'Takeoff register document actions',exact:true});
       await documentControl.scrollIntoViewIfNeeded();const document=await readableMidnightIcon(documentControl);
       const transfer=register.getByRole('button',{name:physical?'Transfer to Firestopping Schedule':'Preview transfer',exact:true});
       const transferAppearance=await transfer.isVisible()?await readableMidnightIcon(transfer):null;
@@ -117,7 +117,7 @@ async function readableMidnightIcon(control) {
         if(transferAppearance){assert.equal(transferAppearance.normal.background,value.background,'Transfer shares adjacent control surface');assert.equal(transferAppearance.normal.color,value.color,'Transfer shares adjacent control text color');}
       }
       const rail=[];
-      for(const control of await page.locator('.takeoff-tool-rail button').all()) {
+      for(const control of await page.locator('.takeoff-tool-rail button,.takeoff-markup-rail button').all()) {
         if(!await control.isVisible()) continue;
         const image=control.locator('img');if(await image.count())await expect(image).toHaveJSProperty('complete',true);
         const value=await controlAppearance(control);const name=await control.getAttribute('aria-label');
@@ -126,17 +126,18 @@ async function readableMidnightIcon(control) {
         rail.push({name,...value});
       }
       const railScreenshot=path.join(output,'midnight-'+view.toLowerCase().replace(/[^a-z]+/g,'-')+'-rail-'+width+'.png');await page.locator('.takeoff-tool-rail').screenshot({path:railScreenshot});
+      const markupRailScreenshot=path.join(output,'midnight-'+view.toLowerCase().replace(/[^a-z]+/g,'-')+'-markup-rail-'+width+'.png');await page.locator('.takeoff-markup-rail').screenshot({path:markupRailScreenshot});
       const beforeDocument=await snapshot(),beforeRequests=mutationRequests.length;
       await documentControl.focus();await page.keyboard.press('ArrowDown');await expect(documentControl).toHaveAttribute('aria-expanded','true');await page.keyboard.press('Escape');await expect(documentControl).toHaveAttribute('aria-expanded','false');await expect(documentControl).toBeFocused();
       assert.deepEqual(await snapshot(),beforeDocument,'Document open/dismiss preserves project/draft');assert.equal(mutationRequests.length,beforeRequests);
       const screenshot=path.join(output,'midnight-'+view.toLowerCase().replace(/[^a-z]+/g,'-')+'-'+width+'.png');await page.screenshot({path:screenshot});
-      evidence.iconToolbars.push({view,width,document,transfer:transferAppearance,undo,adjacent,rail,railScreenshot,screenshot});
+      evidence.iconToolbars.push({view,width,document,transfer:transferAppearance,undo,adjacent,rail,railScreenshot,markupRailScreenshot,screenshot});
     }
   }
   // Only chrome artwork is tinted; the retained drawing canvas and overlay stay unfiltered.
   const pageStyles=await page.locator('.takeoff-viewer').evaluate(el => ({filter:getComputedStyle(el).filter,drawingFilters:[...el.querySelectorAll('canvas,.takeoff-overlay,.takeoff-page img')].map(child=>getComputedStyle(child).filter)})); assert.equal(pageStyles.filter,'none');assert.ok(pageStyles.drawingFilters.every(value=>value==='none')); evidence.drawings=pageStyles;
   await theme('ocean');
-  const lightFilters=await page.locator('.takeoff-tool-rail img,.takeoff-document-menu .calculator-document-icon').evaluateAll(images=>images.map(image=>getComputedStyle(image).filter));assert.ok(lightFilters.length>0);assert.ok(lightFilters.every(value=>value==='none'),'light themes retain original icon colors');await theme('midnight');evidence.lightIconFilters=lightFilters;
+  const lightFilters=await page.locator('.takeoff-tool-rail img,.takeoff-markup-rail img,.takeoff-document-menu .calculator-document-icon').evaluateAll(images=>images.map(image=>getComputedStyle(image).filter));assert.ok(lightFilters.length>0);assert.ok(lightFilters.every(value=>value==='none'),'light themes retain original icon colors');await theme('midnight');evidence.lightIconFilters=lightFilters;
   // Like retained header-controls acceptance, 320px covers the header rather
   // than forcing a data register's minimum workspace width into that viewport.
   await page.getByRole('button',{name:'Home',exact:true}).click(); await idle();

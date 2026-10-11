@@ -6,9 +6,11 @@ const { spawn } = require('node:child_process');
 const fs = require('node:fs'), path = require('node:path'), crypto = require('node:crypto'), assert = require('node:assert/strict');
 const root = path.resolve(__dirname, '../..'), output = path.join(root, '.runtime/browser-qa', `themes-${Date.now()}`);
 fs.mkdirSync(output, { recursive:true });
-const assets = ['tests/browser/themes.cjs','static/theme.js','static/theme.css','static/index.html','static/app.js','static/calculators.js','static/takeoffs.js','static/takeoff-physical.js','static/takeoffs.css','static/icons/document.png','static/icons/takeoff-transfer.png','static/icons/takeoff-visibility.png','static/icons/takeoff-callout.png','static/icons/takeoff-legend.png','static/icons/takeoff-colour-wheel.png','static/ceasefire-logo.png'];
+const measureAsset='static/icons/takeoff-measure.avif',measureSha256='0219605c691155ba6d4fc628d3320e61161d7a8263f1b1c546f62e6ec3defc94';
+const assets = ['tests/browser/themes.cjs','static/theme.js','static/theme.css','static/index.html','static/app.js','static/calculators.js','static/takeoffs.js','static/takeoff-physical.js','static/takeoffs.css','static/icons/document.png','static/icons/takeoff-transfer.png','static/icons/takeoff-visibility.png','static/icons/takeoff-callout.png','static/icons/takeoff-legend.png','static/icons/takeoff-colour-wheel.png','static/ceasefire-logo.png',measureAsset];
 const hashes = () => Object.fromEntries(assets.map(name => [name,crypto.createHash('sha256').update(fs.readFileSync(path.join(root,name))).digest('hex')]));
 const assetHashes = hashes();
+assert.equal(assetHashes[measureAsset],measureSha256,'Measure retains the exact original user image bytes');
 const server = spawn(process.env.CEASEFIRE_PYTHON || 'python', [path.join(__dirname,'fixtures.py'),'--directory',output], { cwd:root, windowsHide:true });
 let logs='', browser, page, serverExit=null;
 server.once('exit',(code,signal) => { serverExit={code,signal}; });
@@ -37,7 +39,7 @@ async function controlAppearance(control) {
       const canvas=document.createElement('canvas');canvas.width=image.naturalWidth;canvas.height=image.naturalHeight;const context=canvas.getContext('2d');context.drawImage(image,0,0);
       const pixels=context.getImageData(0,0,canvas.width,canvas.height).data;let opaque=0,nonBlackOpaque=0;
       for(let i=0;i<pixels.length;i+=4)if(pixels[i+3]===255){opaque++;if(pixels[i]||pixels[i+1]||pixels[i+2])nonBlackOpaque++;}
-      value.image={src:image.getAttribute('src'),width:image.naturalWidth,height:image.naturalHeight,filter:getComputedStyle(image).filter,opaque,nonBlackOpaque};
+      value.image={src:image.getAttribute('src'),width:image.naturalWidth,height:image.naturalHeight,filter:getComputedStyle(image).filter,blend:getComputedStyle(image).mixBlendMode,opaque,nonBlackOpaque};
     }
     return value;
   });
@@ -121,7 +123,12 @@ async function readableMidnightIcon(control) {
         if(!await control.isVisible()) continue;
         const image=control.locator('img');if(await image.count())await expect(image).toHaveJSProperty('complete',true);
         const value=await controlAppearance(control);const name=await control.getAttribute('aria-label');
-        if(value.image){assert.equal(value.image.filter,'brightness(0) invert(1)',name+' white raster icon');assert.ok(contrast('rgb(255,255,255)',value.background)>=3,name+' icon contrast');}
+        if(value.image){
+          const measure=value.image.src==='/icons/takeoff-measure.avif';
+          assert.equal(value.image.filter,measure?'invert(1)':'brightness(0) invert(1)',name+' white raster icon');
+          if(measure){assert.equal(name,'Measure');assert.equal(value.image.blend,'screen');assert.equal(value.image.width,626);assert.equal(value.image.height,563);assert.ok(value.image.opaque>0);assert.ok(value.image.nonBlackOpaque>0,'Original opaque white background is retained and blended with the control');}
+          assert.ok(contrast('rgb(255,255,255)',value.background)>=3,name+' icon contrast');
+        }
         if(value.svgStroke)assert.ok(contrast(value.svgStroke,value.background)>=3,name+' SVG contrast');
         rail.push({name,...value});
       }

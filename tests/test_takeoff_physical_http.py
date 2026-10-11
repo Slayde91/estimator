@@ -56,6 +56,27 @@ class PhysicalHTTPTests(unittest.TestCase):
             state = self.json_request('POST', endpoint+'/complete', {'expected_revision': 0})
         return base, state
 
+    def test_current_physical_register_route_rejects_query_and_stale_requests_without_mutation(self):
+        base, state = self.session(upload=False)
+        route = base + '/physical/export/register-xlsx'
+        for scope, title in (('defect_reports', 'Defect Reports'), ('service_plans', 'Service Plans')):
+            body = {'scope': scope, 'expected_revision': state['revision'], 'confirmation': 'all'}
+            status, headers, payload = self.request('POST', route, body)
+            self.assertEqual(status, 200, payload)
+            self.assertIn('UNAPPROVED-DRAFT', headers['Content-Disposition'])
+            workbook = load_workbook(BytesIO(payload))
+            try:
+                self.assertEqual(workbook.sheetnames, [title])
+                self.assertEqual(workbook.active.max_row, 1)
+            finally: workbook.close()
+            self.assertEqual(self.request('POST', route + '?approved=true', body)[0], 400)
+            self.assertEqual(self.request('POST', route, {**body, 'expected_revision': True})[0], 400)
+            self.assertEqual(self.request('POST', route, {**body, 'expected_revision': state['revision'] + 1})[0], 400)
+            self.assertEqual(self.request('POST', route, {**body, 'confirmation': 'approved'})[0], 400)
+            self.assertEqual(self.request('POST', route, {**body, 'approved': True})[0], 400)
+        self.assertEqual(self.request('GET', route)[0], 405)
+        self.assertEqual(self.json_request('GET', base), state)
+
     def test_real_image_extract_associate_export_and_same_origin_file(self):
         base, state = self.session()
         document = state['snapshot']['documents'][0]

@@ -47,9 +47,9 @@ def register_workbook(tables, title='Current Takeoffs', *, subject='Current regi
     sheet.page_setup.fitToHeight = 0
     sheet.freeze_panes = 'C2'
     sheet.print_title_rows = '1:1'
-    numeric_headers = {'Qty', 'Service quantity', 'Total Count/QTY', 'Number of layers', 'Exposed sides',
-                       'Fire period (min)', *LENGTH[1:4], *AREA[:4], 'Length (m)'}
-    whole = {'Qty', 'Number of layers', 'Exposed sides', 'Fire period (min)', 'Total Count/QTY'}
+    numeric_headers = {'Qty', 'Service quantity', 'Total Count/QTY', 'Number of layers',
+                       *LENGTH[1:4], *AREA[:4], 'Length (m)'}
+    whole = {'Qty', 'Number of layers', 'Total Count/QTY'}
     try:
         for table_index, (headers, rows) in enumerate(tables):
             if table_index:
@@ -178,7 +178,7 @@ def export_physical_register(graph, *, confirmation='all'):
             fields, barrier = entity['fields'], relation.get('barrier', {}).get('fields', {})
             ids = [relation.get(key, {}).get('display_id', relation.get(key, {}).get('id', '')) for key in kinds]
             service = fields if kind == 'service' else {}
-            size = service.get('size') or _size(service) or service.get('diameter_mm') or ''
+            size = service.get('size')
             row = ([f'{kind.title()}: {fields.get("label") or entity["id"]}'] if legacy else []) + ids
             row += [state.title(), owner.get('fields', {}).get('location'), owner.get('fields', {}).get('frl')]
             if legacy:

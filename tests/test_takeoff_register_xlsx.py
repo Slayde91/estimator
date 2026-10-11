@@ -20,12 +20,13 @@ def read(payload):
     return workbook, sheet, list(sheet.values)
 
 
-def presentation_fixture(mode, target=None):
+def presentation_fixture(mode, target=None, *, recorded_fields=None):
     area = mode == 'walls_floors'
     fields = {'mark': '=literal identifier', 'level': 'Level 1', 'member_type': 'Beam', 'section': '410UB54',
               'fire_period_min': 120, 'sides': 3, 'width_mm': 600, 'height_mm': 400, 'shape': 'rectangular',
               'frl': '-/120/120', 'orientation': 'Horizontal', 'surface_basis': 'wall-face',
               'substrate': 'Concrete wall', 'treatment': 'Spray', 'system': 'System A', 'product': 'CAFCO 300', 'layers': 2}
+    fields.update(recorded_fields or {})
     item = {'id': 'one', 'mode': 'wall' if area else mode, 'fields': fields, 'quantity': 2,
             'geometry': {'document_id': 'drawing', 'page': 1}}
     snapshot = {'documents': [{'id': 'drawing', 'name': 'Drawing 001.pdf'}]}
@@ -92,6 +93,20 @@ class RegisterCopyTests(unittest.TestCase):
         with self.assertRaises(ValidationError): export()
         self.assertEqual(case.state['snapshot'], original)
 
+    def test_retained_fractional_fire_period_and_exposed_sides_display_without_rounding(self):
+        for target in ('steel_vermiculite', 'steel_board'):
+            workbook, sheet, rows = read(presentation_fixture('steel', target,
+                recorded_fields={'fire_period_min': 45.5, 'sides': 2.5})[0])
+            try:
+                fields = [('Fire period (min)', 45.5)]
+                if target == 'steel_board': fields.append(('Exposed sides', 2.5))
+                for label, value in fields:
+                    cell = sheet.cell(2, rows[0].index(label) + 1)
+                    self.assertEqual(cell.value, value)
+                    self.assertEqual(cell.number_format, 'General')
+                self.assertEqual(sheet.cell(2, rows[0].index('Qty') + 1).number_format, '#,##0')
+            finally: workbook.close()
+
     def test_physical_hierarchy_columns_order_ancestry_and_inherited_review(self):
         case = physical_fixtures.PhysicalV2ExportTests(); case.setUp()
         case.graph['defects'][0]['confirmation'] = 'confirmed'
@@ -120,6 +135,20 @@ class RegisterCopyTests(unittest.TestCase):
             self.assertEqual(len(rows), 1)
             self.assertEqual(sheet.auto_filter.ref, 'A1:M1')
         finally: workbook.close()
+
+    def test_service_size_does_not_infer_a_blank_display_field_from_dimensions(self):
+        case = physical_fixtures.PhysicalV2ExportTests(); case.setUp()
+        case.change({'op': 'update', 'entity_id': uid(3), 'changes': {'fields': {
+            'service': 'Pipe', 'width_mm': 25.123456789, 'height_mm': 40, 'diameter_mm': 20}}})
+        original = deepcopy(case.graph)
+        self.assertNotIn('size', original['services'][0]['fields'])
+        workbook, sheet, rows = read(export_physical_register(case.graph)[0])
+        try:
+            service = next(row for row in rows[1:] if row[2] == 'S-0001')
+            self.assertIsNone(service[rows[0].index('Service Size (mm)')])
+            self.assertEqual(service[rows[0].index('Service quantity')], 2)
+        finally: workbook.close()
+        self.assertEqual(case.graph, original)
 
     def test_single_sheet_count_table_long_wrapping_and_cell_limit(self):
         payload = register_workbook([(STEEL + LENGTH, []), (('Item', 'Notes'), [['C1', 'A long recorded note. ' * 30]])])

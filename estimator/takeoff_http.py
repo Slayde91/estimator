@@ -196,6 +196,8 @@ class TakeoffHTTP:
             result = self.service.extract_images(session_id, body)
         elif action in {'physical/export/csv', 'physical/export/xlsx', 'physical/export/register-xlsx', 'physical/export/pdf'}:
             format = action.rsplit('/', 1)[1]
+            if format == 'register-xlsx' and query:
+                raise ValidationError('Current physical register exports accept a structured request only.')
             allowed = {'scope', 'expected_revision', 'confirmation'} if format in ('xlsx', 'register-xlsx') else ({'scope', 'expected_revision'} if format == 'pdf' else {'scope'})
             if not isinstance(body, dict) or set(body) - allowed:
                 raise ValidationError('Draft physical export accepts only its workspace scope and supported document selection.')

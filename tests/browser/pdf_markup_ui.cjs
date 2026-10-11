@@ -120,7 +120,7 @@ async function makeTextbox() {
 }
 async function textSettings(width, currentTheme) {
   const labels = await panel().locator(".takeoff-settings-fields > .field > span:first-child").allTextContents();
-  assert.deepEqual(labels.slice(0, 7), ["Line Colour", "Line Width", "Fill Colour", "Fill Enabled", "Font Colour", "Opacity", "Font Size"]);
+  assert.deepEqual(labels.slice(0, 7), ["Line Colour", "Line Width", "Fill Colour", "Fill Enabled", "Font Colour", "Font Size", "Opacity"]);
   for (const name of labels.slice(0, 7)) await expect(panel().getByLabel(name, { exact: true })).toBeVisible();
   const colours = await panel().locator(".field > span:first-child").evaluateAll(elements => elements.map(el => getComputedStyle(el).color));
   assert.ok(colours.every(colour => colour === "rgb(255, 255, 255)"), `Dark settings labels remain white in ${currentTheme}: ${JSON.stringify(colours)}`);

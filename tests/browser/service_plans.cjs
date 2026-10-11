@@ -312,7 +312,7 @@ async function controls() {
 
   const viewerLines=await page.locator('.takeoff-physical-callout tspan').allTextContents();
   const csv = await exportDraft('CSV'), xlsx = await exportDraft('XLSX'), pdf = await downloadDrawing();
-  await page.locator('.takeoff-physical-register').getByRole('button',{name:'Document',exact:true}).click();
+  await page.locator('.takeoff-workspace-heading .takeoff-physical-document-host').getByRole('button',{name:'Document',exact:true}).click();
   const matrixWait=page.waitForEvent('download');await page.getByRole('button',{name:'Download Passive Fire Matrix PDF',exact:true}).click();
   const matrixDownload=await matrixWait,matrix=path.join(output,matrixDownload.suggestedFilename());await matrixDownload.saveAs(matrix);
   const csvText = fs.readFileSync(csv, 'utf8'); assert.ok(csvText.includes(barrier)); assert.ok(csvText.includes(service)); assert.ok(!csvText.includes(defect)); assert.ok(!csvText.includes(reportBarrier)); assert.ok(!csvText.split('\n')[0].includes('defect'));
@@ -342,7 +342,7 @@ async function controls() {
   await details().getByRole('button', { name: 'Delete draft record', exact: true }).click();
   await response(() => dialog('Delete draft barrier', { 'Deletion scope': 'only' }, 'Preview deletion'), '/physical/preview'); await apply('Review recoverable deletion');
   assert.equal(entity(secondBarrier).deleted, true); assert.deepEqual(entity(secondBarrier).marker, secondBeforeDelete.marker); await expect(marker(secondBarrier)).toHaveCount(0);
-  await page.getByLabel('Show deleted records', { exact: true }).check(); await select(secondBarrier);
+  await page.locator('.takeoff-physical-register').getByLabel('Show deleted records', { exact: true }).check(); await select(secondBarrier);
   await details().getByRole('button', { name: 'Restore draft record', exact: true }).click();
   await response(() => dialog('Restore draft barrier', { 'Restore scope': 'same_deletion' }, 'Preview restoration'), '/physical/preview'); await apply('Review retained identities to restore');
   assert.equal(entity(secondBarrier).deleted, false); assert.deepEqual(entity(secondBarrier).marker, secondBeforeDelete.marker); await expect(marker(secondBarrier)).toBeVisible();

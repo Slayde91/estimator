@@ -50,7 +50,7 @@ async function matches(ids) { const expected = [...ids].sort(); await expect.pol
 async function checkDocuments(scope, ids) {
   const before = await snapshot(), graph = before[scope === 'service_plans' ? 'service_plans' : 'physical'];
   const active = [...(graph.defects || []), ...graph.barriers, ...graph.services].filter(entry => !entry.deleted).map(entry => entry.id);
-  const root = page.locator('.takeoff-physical-register'), toggle = root.getByRole('button', { name: 'Document', exact: true }), list = root.locator('.calculator-document-actions');
+  const root = page.locator('.takeoff-physical-register'), documentMenu = page.locator('.takeoff-workspace-heading .takeoff-physical-document-host'), toggle = documentMenu.getByRole('button', { name: 'Document', exact: true }), list = documentMenu.locator('.calculator-document-actions');
   await toggle.press('ArrowDown'); await expect(list).toBeVisible(); await expect(list.getByRole('button', { name: 'Download confirmed items', exact: true })).toBeFocused();
   await page.keyboard.press('End'); await expect(list.getByRole('button', { name: 'Download Passive Fire Matrix PDF', exact: true })).toBeFocused();
   await page.keyboard.press('Escape'); await expect(list).toBeHidden(); await expect(toggle).toBeFocused();

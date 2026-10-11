@@ -100,7 +100,7 @@ async function readableMidnightIcon(control) {
     for(const width of [1146,764]) {
       await page.setViewportSize({width,height:1000});
       const physical=view==='Defect Reports'||view==='Service Plans',register=page.locator(physical?'.takeoff-physical-register':'.takeoff-register').filter({visible:true}).first();
-      const documentControl=(physical?register:page.locator('.takeoff-workspace-heading')).getByRole('button',{name:physical?'Document':'Takeoff register document actions',exact:true});
+      const documentControl=page.locator(physical?'.takeoff-workspace-heading .takeoff-physical-document-host':'.takeoff-workspace-heading').getByRole('button',{name:physical?'Document':'Takeoff register document actions',exact:true});
       await documentControl.scrollIntoViewIfNeeded();const document=await readableMidnightIcon(documentControl);
       const transfer=register.getByRole('button',{name:physical?'Transfer to Firestopping Schedule':'Preview transfer',exact:true});
       const transferAppearance=await transfer.isVisible()?await readableMidnightIcon(transfer):null;

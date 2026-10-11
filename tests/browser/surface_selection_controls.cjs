@@ -152,7 +152,7 @@ async function drawSurface(mode, mark, startX) {
   const beforeMixed = await snapshot(), beforeMixedCommands = commands.length;
   for (const id of [evidence.wall.firstId, evidence.slab.firstId]) await page.locator(`tr[data-item-id="${id}"]`).getByRole('checkbox', { name: /^Select / }).check();
   await selected(evidence.wall.firstId, true); await selected(evidence.slab.firstId, true);
-  await expect(panel()).toBeVisible(); await expect(panel().getByText('Surface type: Wall / Floor', { exact: true })).toBeVisible();
+  await expect(panel()).toBeVisible(); await expect(panel().getByText('Surface type: Wall / Floor', { exact: true })).toHaveCount(0);
   await expect(panel().getByLabel('Surface basis', { exact: true })).toHaveCount(0);
   assert.deepEqual(await snapshot(), beforeMixed, 'Mixed native selection retains every original geometry, source identity, field and quantity');
   assert.equal(commands.length, beforeMixedCommands, 'Mixed native selection is presentation only');

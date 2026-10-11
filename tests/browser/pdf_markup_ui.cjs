@@ -10,7 +10,7 @@ const fs = require("node:fs"), path = require("node:path"), crypto = require("no
 
 const root = path.resolve(__dirname, "../.."), output = path.join(root, ".runtime/browser-qa", `pdf-markup-ui-${Date.now()}`);
 const python = process.env.CEASEFIRE_PYTHON || "python";
-const assets = ["static/app.js", "static/takeoffs.js", "static/takeoffs.css", "static/takeoff-graphics.js", "static/takeoff-graphics-ui.js", "static/takeoff-annotations.js", "static/libraries.css", "static/index.html", "static/styles.css", "static/theme.css", "tests/browser/pdf_markup_ui.cjs"];
+const assets = ["static/app.js", "static/takeoffs.js", "static/takeoffs.css", "static/takeoff-pane-resize.js", "static/takeoff-graphics.js", "static/takeoff-graphics-ui.js", "static/takeoff-physical.js", "static/takeoff-annotations.js", "static/penetration.js", "static/penetration.css", "static/libraries.css", "static/index.html", "static/styles.css", "static/theme.css", "static/icons/takeoff-transfer.png", "static/icons/schedule-add.png", "estimator/takeoff_pdf_measure.py", "estimator/takeoff_textbox_layout.py", "estimator/takeoff_deleted_items.py", "estimator/takeoff_graphics.py", "estimator/takeoff_workspace.py", "estimator/takeoff_http.py", "estimator/takeoff_markup_pdf.py", "estimator/takeoff_markup_pdf_worker.py", "tests/browser/pdf_markup_ui.cjs"];
 const hash = file => crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex");
 const hashes = () => Object.fromEntries(assets.map(file => [file, hash(path.join(root, file))]));
 const sourceBefore = hashes(), evidence = { layouts: [], menus: [], heights: [], textSettings: [], library: [], pointerTargets: [] }, errors = [], csp = [], requests = [], networkFailures = [];
@@ -60,14 +60,21 @@ async function menuKeys(toggle, list, label) {
   evidence.menus.push({ label, width, bounds });
 }
 async function headingMenus(width, physical = false) {
-  const heading = page.locator(".takeoff-workspace-heading"), documentMenu = heading.locator(".takeoff-document-menu"), toolsMenu = heading.locator(".takeoff-pdf-tools-menu");
+  const heading = page.locator(".takeoff-workspace-heading"), documentMenu = heading.locator(".takeoff-document-menu:not(.takeoff-physical-document-menu)"), toolsMenu = heading.locator(".takeoff-pdf-tools-menu");
   await expect(documentMenu).toHaveCount(1); await expect(toolsMenu).toHaveCount(1);
   if (physical) {
     await expect(documentMenu).toBeHidden(); await expect(documentMenu.locator(".calculator-document-actions")).toBeHidden();
     await menuKeys(toolsMenu.locator("button").first(), page.locator("#takeoff-pdf-tools-actions"), "Physical PDF Tools");
-    const physicalMenu = page.locator(".takeoff-physical-register .takeoff-document-menu");
+    const physicalMenu = heading.locator(".takeoff-physical-document-menu");
     await expect(physicalMenu).toBeVisible();
+    await expect(page.locator(".takeoff-physical-register .takeoff-document-menu")).toHaveCount(0);
+    const doc = await box(physicalMenu), tools = await box(toolsMenu);
+    assert.ok(doc.x + doc.width <= tools.x + .1 && Math.abs(doc.y - tools.y) < .1, "Physical Document immediately precedes Tools on the same row");
     await menuKeys(physicalMenu.locator("button").first(), physicalMenu.locator(".calculator-document-actions"), "Physical Document");
+    const physicalControls = page.locator(".takeoff-physical-filter-row"), undo = physicalControls.getByRole("button", { name: "Undo last edit", exact: true }), deleted = physicalControls.getByRole("checkbox", { name: "Show deleted records", exact: true });
+    assert.equal(await undo.locator("..").evaluate((el) => el.querySelector(".takeoff-undo-button").nextElementSibling?.querySelector("input")?.type), "checkbox", "Show deleted immediately follows Undo in DOM reading order");
+    const undoBox = await box(undo), deletedBox = await box(deleted);
+    assert.ok(deletedBox.x > undoBox.x + undoBox.width, "Show deleted is to the right of Undo");
     evidence.layouts.push({ width, physical: true, heading: await box(heading), tools: await box(toolsMenu), measurementDocumentHidden: true, physicalDocument: await box(physicalMenu) });
     return;
   }
@@ -103,20 +110,27 @@ async function rowHeights(width) {
   await heights(`drawing source/search ${width}`, [page.getByLabel("Drawing document", { exact: true }), page.getByLabel("Search original document text", { exact: true }), page.getByLabel("Text search scope", { exact: true }), page.getByRole("button", { name: "Search", exact: true }), page.getByRole("button", { name: "Remove document", exact: true })]);
 }
 async function makeTextbox() {
+  const documentId = (await snapshot()).documents[0].id;
+  await expect(page.getByLabel("Drawing document", { exact: true })).toHaveValue(documentId);
+  await renderDrawing(page, () => page.getByRole("button", { name: "Fit page", exact: true }).click(), 1);
   await rail().getByRole("button", { name: "Textbox", exact: true }).click();
   const overlay = page.locator(".takeoff-overlay"); await overlay.scrollIntoViewIfNeeded();
   await overlay.evaluate(el => window.scrollTo(0, window.scrollY + el.getBoundingClientRect().top - 195));
   const bounds = await box(overlay);
-  // A box in the lower half leaves the native pointer clear of top controls.
-  const points = [[.2, .55], [.65, .78]].map(([x,y]) => [bounds.x + bounds.width*x, bounds.y + bounds.height*y]);
-  for (const point of points) assert.equal(await page.evaluate(([x,y]) => !!document.elementFromPoint(x,y)?.closest(".takeoff-overlay"), point), true);
-  const response = page.waitForResponse(reply => reply.url().endsWith("/commands") && reply.request().postDataJSON()?.op === "create_graphic"); response.catch(() => {});
-  for (const point of points) await page.mouse.click(...point);
+  // One native click anchors the automatically fitted text box.
+  const point = [bounds.x + bounds.width*.2, bounds.y + bounds.height*.55];
+  assert.equal(await page.evaluate(([x,y]) => !!document.elementFromPoint(x,y)?.closest(".takeoff-overlay"), point), true);
+  const response = page.waitForResponse(reply => reply.url().endsWith("/commands") && reply.request().postDataJSON()?.op === "create_textbox"); response.catch(() => {});
+  await page.mouse.click(...point);
   const dialog = page.getByRole("dialog"); await expect(dialog.getByRole("heading", { name: "Textbox", exact: true })).toBeVisible();
   await dialog.getByLabel("Textbox text", { exact: true }).fill("Synthetic rich textbox layout note");
   await dialog.getByRole("button", { name: "Place markup", exact: true }).click();
-  assert.equal((await response).status(), 200); await settingsSettled(page);
+  const created = await response; assert.equal(created.status(), 200); const request = created.request().postDataJSON(), reply = await created.json(), graphic = reply.snapshot.graphics.records.find(value => value.id === reply.created_graphic_id);
+  assert.equal(request.textbox.appearance.font_size, 12); assert.equal(graphic.appearance.font_size, 12); assert.deepEqual(graphic.geometry.quad_pdf[0], request.textbox.anchor_pdf, "Automatic layout retains the exact clicked anchor");
+  assert.ok(Math.abs(request.textbox.anchor_pdf[0] - 842*.2) < 2 && Math.abs(request.textbox.anchor_pdf[1] - 595*.45) < 2, "Native clicked location maps to the original unrotated PDF coordinates");
+  await settingsSettled(page);
   await expect(panel().getByRole("heading", { name: "Textbox Settings", exact: true })).toBeVisible();
+  evidence.textboxCreation = { id: graphic.id, command: request.op, anchor_pdf: request.textbox.anchor_pdf, font_size: graphic.appearance.font_size, geometry: graphic.geometry };
 }
 async function textSettings(width, currentTheme) {
   const labels = await panel().locator(".takeoff-settings-fields > .field > span:first-child").allTextContents();
@@ -150,6 +164,84 @@ async function textSettings(width, currentTheme) {
   await page.screenshot({ path: path.join(output, `textbox-${currentTheme}-${width}.png`), fullPage: true });
   evidence.textSettings.push({ width, theme: currentTheme, labels, colours, settings: p, rightRail: r, trash: t, contents });
 }
+async function resizePane(target, family, width) {
+  await page.setViewportSize({ width, height: 764 }); await expect(target).toBeVisible();
+  const before = await snapshot(), handle = page.getByRole("separator", { name: "Resize settings pane", exact: true }); await expect(handle).toBeVisible();
+  const values = async () => handle.evaluate(el => Object.fromEntries(["min", "max", "now"].map(key => [key, Number(el.getAttribute(`aria-value${key}`))])));
+  const boundedWidth = async () => { const v = await values(), b = await box(target); assert.ok(v.min <= v.now && v.now <= v.max); assert.ok(Math.abs(b.width - v.now) < 1, `${family} actual width matches accessible resize value`); return { ...v, box: b }; };
+  await handle.focus(); await handle.press("Home"); const minimum = await boundedWidth(); assert.equal(minimum.now, minimum.min);
+  await handle.press("Shift+ArrowRight"); const keyboard = await boundedWidth(); assert.equal(keyboard.now, Math.min(minimum.max, minimum.min + 40));
+  await handle.scrollIntoViewIfNeeded(); const h = await box(handle), point = [h.x + h.width/2, h.y + Math.min(h.height/2, 100)];
+  assert.equal(await handle.evaluate((el, p) => document.elementFromPoint(...p) === el, point), true, `${family} native resize target is reachable`);
+  await page.mouse.move(...point); await page.mouse.down(); await page.mouse.move(point[0] - 20, point[1]); await page.mouse.up(); const dragged = await boundedWidth(); assert.equal(dragged.now, Math.max(keyboard.min, keyboard.now - 20));
+  await handle.focus(); await handle.press("End"); const maximum = await boundedWidth(); assert.equal(maximum.now, maximum.max);
+  await handle.press("Home"); await noOverflow(`${width}/${family} resized pane`); assert.deepEqual(await snapshot(), before, "Pane keyboard and native pointer resizing preserve all draft source coordinates and authority");
+  await page.screenshot({ path: path.join(output, `resize-${family}-${width}.png`), fullPage: true }); (evidence.paneResize ||= []).push({ family, width, minimum, keyboard, dragged, maximum });
+}
+async function standaloneFrlAndDeletedHistory() {
+  await page.setViewportSize({ width: 1384, height: 764 }); await chooseTakeoff(page, "duct");
+  await renderDrawing(page, () => page.getByRole("button", { name: "Fit page", exact: true }).click(), 1);
+  await page.getByRole("button", { name: "Count", exact: true }).click();
+  const overlay = page.locator(".takeoff-overlay"); await overlay.scrollIntoViewIfNeeded(); const b = await box(overlay), point = [b.x + b.width*.5, b.y + b.height*.5];
+  assert.equal(await page.evaluate(p => !!document.elementFromPoint(...p)?.closest(".takeoff-overlay"), point), true);
+  await page.mouse.click(...point); await page.locator(".takeoff-viewport").press("Enter");
+  const modal = page.getByRole("dialog"); await expect(modal.getByRole("heading", { name: "Add count", exact: true })).toBeVisible();
+  const choices = await page.evaluate(async () => { const response = await fetch("/api/penetration/definition", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ configuration: window.CeasefireProject.configuration() }) }); if (!response.ok) throw Error("Fixture Firestopping definition failed"); return (await response.json()).row_fields.find(field => field.column === "N").options; });
+  const selectValues = locator => locator.locator("option").evaluateAll(elements => elements.map(el => el.value).filter(Boolean));
+  await expect.poll(() => selectValues(modal.getByLabel("FRL", { exact: true }))).toEqual(choices);
+  await modal.getByLabel("Item", { exact: true }).fill("FRL-HISTORY-PROOF"); await modal.getByLabel("FRL", { exact: true }).selectOption("-/120/120");
+  const created = page.waitForResponse(response => response.url().endsWith("/commands") && response.request().postDataJSON()?.op === "add_standalone_count"); created.catch(() => {}); await modal.getByRole("button", { name: "Add count", exact: true }).click(); assert.equal((await created).status(), 200);
+  const current = await snapshot(), item = current.items.find(value => value.fields.mark === "FRL-HISTORY-PROOF"), legacy = "Legacy bespoke FRL";
+  await page.evaluate(async ({ id, legacy }) => { const takeoffs = window.CeasefireTakeoffs, sessionId = takeoffs.sessionId(), value = takeoffs.projectSnapshot(); const response = await fetch(`/api/takeoffs/sessions/${sessionId}/commands`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ expected_revision: value.revision, request_id: crypto.randomUUID(), op: "update_item", item_id: id, changes: { fields: { frl: legacy } } }) }); if (!response.ok) throw Error(`Disposable historical FRL fixture update failed: ${await response.text()}`); const reply = await response.json(); takeoffs.applyProject(await takeoffs.prepareProject(reply.snapshot, sessionId)); }, { id: item.id, legacy });
+  await chooseTakeoff(page, "duct"); const row = page.locator(`.takeoff-standalone-register tr[data-item-id="${item.id}"]`); await row.getByRole("button", { name: "Edit item", exact: true }).click();
+  const frl = panel().getByLabel("FRL", { exact: true }); await expect(frl).toHaveValue(legacy); await expect.poll(() => selectValues(frl)).toEqual([...choices, legacy]); await expect(frl.locator("option:checked")).toContainText("retained");
+  await panel().getByLabel("Line Colour", { exact: true }).fill("#123456"); await frl.focus(); await settingsSettled(page); const retained = await snapshot(); const kept = retained.items.find(value => value.id === item.id); assert.equal(kept.fields.frl, legacy); assert.deepEqual(kept.geometry, item.geometry); assert.equal(kept.quantity, item.quantity);
+  await panel().getByRole("button", { name: "Delete item", exact: true }).click(); const confirm = page.getByRole("dialog"); await expect(confirm.getByRole("heading", { name: "Delete item?", exact: true })).toBeVisible(); const deleted = page.waitForResponse(response => response.url().endsWith("/commands") && response.request().postDataJSON()?.op === "delete_items"); deleted.catch(() => {}); await confirm.getByRole("button", { name: "Delete item", exact: true }).click(); assert.equal((await deleted).status(), 200);
+  const afterDelete = await snapshot(); assert.ok(!afterDelete.items.some(value => value.id === item.id)); const toggle = page.locator(".takeoff-register:not(.takeoff-physical-register)").getByRole("checkbox", { name: "Show deleted records", exact: true });
+  const history = page.waitForResponse(response => response.url().endsWith("/deleted-items")); history.catch(() => {}); await toggle.check(); const historyResponse = await history; assert.equal(historyResponse.status(), 200); const historyBody = await historyResponse.json(); await expect(page.locator(`tr[data-deleted-item-id="${item.id}"]`)).toContainText(legacy); assert.equal(historyBody.records.find(record => record.item.id === item.id).item.quantity, 1); assert.deepEqual(await snapshot(), afterDelete, "Inspecting deleted history cannot restore register quantities or mutate the draft");
+  await toggle.uncheck(); await expect(page.locator(".takeoff-deleted-records")).toBeHidden(); assert.deepEqual(await snapshot(), afterDelete); evidence.standaloneFrl = { choices, retained: legacy, item_id: item.id, quantity: item.quantity, deleted_history_read_only: true }; await chooseTakeoff(page, "steel");
+}
+async function historicalLengthPrecision() {
+  const seed = await page.evaluate(async () => {
+    const takeoffs = window.CeasefireTakeoffs, sessionId = takeoffs.sessionId(), doc = takeoffs.projectSnapshot().documents[0], calibrationId = crypto.randomUUID(), distance = 1.234567891234;
+    const command = async payload => { const current = await (await fetch(`/api/takeoffs/sessions/${sessionId}`)).json(); const response = await fetch(`/api/takeoffs/sessions/${sessionId}/commands`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ expected_revision: current.revision, request_id: crypto.randomUUID(), ...payload }) }); if (!response.ok) throw Error(`Historical Length fixture rejected: ${await response.text()}`); return response.json(); };
+    await command({ op: "add_calibration", calibration: { id: calibrationId, document_id: doc.id, page: 1, name: "Full precision display proof", points: [[20, 40], [120, 40]], distance_m: distance, uniform_scale: true } });
+    const reply = await command({ op: "create_item", item: { mode: "wall", purpose: "length-only", geometry: { document_id: doc.id, page: 1, points: [[20, 60], [120, 60]] }, measurement: { method: "calibrated", calibration_id: calibrationId }, quantity: 1, fields: { mark: "LEGACY-LENGTH-PRECISION" } } });
+    const item = reply.snapshot.items.find(value => value.fields.mark === "LEGACY-LENGTH-PRECISION"), result = reply.item_results.find(value => value.id === item.id);
+    takeoffs.applyProject(await takeoffs.prepareProject(reply.snapshot, sessionId)); return { item, result, calibrationId, distance };
+  });
+  await chooseTakeoff(page, "wall"); await page.locator(`.takeoff-standalone-register tr[data-item-id="${seed.item.id}"]`).getByRole("button", { name: "Edit item", exact: true }).click();
+  const length = panel().getByLabel("Length (m)", { exact: true }); await expect(length).toHaveAttribute("readonly", ""); await expect(length).toHaveValue(seed.result.length_m.toFixed(2)); assert.notEqual(seed.result.length_m, Number(await length.inputValue()), "Stored derived Length retains precision beyond displayed two decimals");
+  await expect(panel().getByRole("button", { name: /(?:Change|Attach) length calibration/ })).toHaveCount(0); assert.ok(!(await panel().innerText()).includes("Length follows the calibrated source points.")); assert.ok(!(await panel().innerText()).includes("Surface type:"));
+  await panel().getByLabel("Line Colour", { exact: true }).fill("#654321"); await length.focus(); await settingsSettled(page);
+  const after = await snapshot(), retained = after.items.find(value => value.id === seed.item.id), current = await page.evaluate(async () => (await fetch(`/api/takeoffs/sessions/${window.CeasefireTakeoffs.sessionId()}`)).json());
+  assert.deepEqual(retained.geometry, seed.item.geometry); assert.deepEqual(retained.measurement, seed.item.measurement); assert.deepEqual(retained.fields, seed.item.fields); assert.equal(retained.quantity, 1); assert.equal(after.calibrations.find(value => value.id === seed.calibrationId).distance_m, seed.distance); assert.equal(current.item_results.find(value => value.id === seed.item.id).length_m, seed.result.length_m);
+  evidence.historicalLength = { id: seed.item.id, calibration_id: seed.calibrationId, stored_distance: seed.distance, derived_length: seed.result.length_m, displayed_length: await length.inputValue(), unrelated_edit_preserves_precision: true }; await chooseTakeoff(page, "steel");
+}
+async function standardCalculatorButton() {
+  const source = "import json,sys;from pathlib import Path;from estimator.server import create_server;s=create_server(0,Path(sys.argv[1]),library_directory=Path(sys.argv[2]),edition='standard');print(json.dumps({'port':s.server_port}),flush=True);s.serve_forever()";
+  const standard = spawn(python, ["-c", source, path.join(output, "standard-qa.sqlite3"), info.library], { cwd: root, windowsHide: true }); let standardPage, stderr = "";
+  standard.stderr.on("data", value => { stderr += value; });
+  try {
+    const selected = await new Promise((resolve, reject) => {
+      let data = ""; const timer = setTimeout(() => reject(Error(`Standard fixture startup timeout: ${stderr}`)), 120000);
+      standard.stdout.on("data", value => { data += value; if (data.includes("\n")) { clearTimeout(timer); try { resolve(JSON.parse(data.split("\n")[0])); } catch (error) { reject(error); } } });
+      standard.once("error", error => { clearTimeout(timer); reject(error); }); standard.once("exit", code => { clearTimeout(timer); reject(Error(`Standard fixture exited${code}: ${stderr}`)); });
+    });
+    assert.notEqual(selected.port, 8765); assert.notEqual(selected.port, info.port);
+    standardPage = await browser.newPage({ viewport: { width: 1384, height: 764 } }); standardPage.setDefaultTimeout(30000);
+    standardPage.on("pageerror", error => errors.push(`standard: ${error.message}`)); standardPage.on("console", value => { if (value.type() === "error") errors.push(`standard: ${value.text()}`); });
+    await standardPage.addInitScript(() => { window.uiCsp = []; document.addEventListener("securitypolicyviolation", event => window.uiCsp.push(event.effectiveDirective)); });
+    await standardPage.goto(`http://127.0.0.1:${selected.port}/`); await standardPage.waitForFunction(() => window.CeasefireDesktop?.status().ready && !window.CeasefireDesktop.status().busy);
+    assert.equal(await standardPage.evaluate(() => typeof window.CeasefireTakeoffs), "undefined"); await expect(standardPage.locator('link[href="/takeoffs.css"]')).toHaveCount(0);
+    await standardPage.locator("#calculator-navigation-toggle").hover(); await standardPage.locator('#calculator-navigation-menu [data-calculator-id="penetration"]').click();
+    const add = standardPage.locator("#penetration-add-to-schedule"), image = add.locator("img"); await expect(add).toBeVisible(); await expect(add).toHaveAccessibleName("Add to Schedule");
+    const response = await standardPage.request.get(`http://127.0.0.1:${selected.port}/icons/schedule-add.png`); assert.equal(response.status(), 200); assert.equal(crypto.createHash("sha256").update(await response.body()).digest("hex"), hash(path.join(root, "static/icons/takeoff-transfer.png")));
+    for (const width of [1384, 390]) { await standardPage.setViewportSize({ width, height: 764 }); const b = await add.boundingBox(), i = await image.boundingBox(); assert.equal(b.width, 48); assert.equal(b.height, 48); assert.equal(i.width, 24); assert.equal(i.height, 24); assert.ok(await standardPage.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)); await standardPage.screenshot({ path: path.join(output, `standard-calculator-${width}.png`), fullPage: true }); (evidence.standardCalculator ||= []).push({ port: selected.port, width, button: b, icon: i, takeoffs_assets_absent: true }); }
+    assert.deepEqual(await standardPage.evaluate(() => window.uiCsp), []);
+  } catch (error) { await standardPage?.screenshot({ path: path.join(output, "standard-failure.png"), fullPage: true }).catch(() => {}); throw error; }
+  finally { fs.writeFileSync(path.join(output, "standard-server.log"), stderr); await standardPage?.close(); standard.kill(); }
+}
 
 (async () => {
   info = await ready; assert.notEqual(info.port, 8765); assert.equal(path.resolve(info.directory), output);
@@ -175,14 +267,21 @@ async function textSettings(width, currentTheme) {
     await page.setViewportSize({ width, height: 764 }); await headingMenus(width); await rowHeights(width); await rightRail(width, "steel"); await noOverflow(`${width}/Steel`);
   }
   assert.deepEqual(await snapshot(), uploaded, "Layout, keyboard menus and rail scrolling preserve the Takeoffs draft");
+  stage = "Standalone FRL and deleted history"; await standaloneFrlAndDeletedHistory();
+  stage = "Historical Length display precision"; await historicalLengthPrecision();
   stage = "create Textbox"; await page.setViewportSize({ width: 1384, height: 764 }); await makeTextbox(); const textbox = await snapshot();
   for (const currentTheme of ["ceasefire", "midnight"]) {
     stage = `Textbox settings ${currentTheme}`; await theme(currentTheme);
     for (const width of [1384, 1146, 390]) { await page.setViewportSize({ width, height: 764 }); await textSettings(width, currentTheme); await rightRail(width, "steel"); }
   }
   assert.deepEqual(await snapshot(), textbox, "Inspecting rich settings and changing theme/width sends no markup edit");
+  for (const width of [1384, 390]) { stage = `Markup settings resize ${width}`; await resizePane(panel(), "markup-settings", width); }
+  await page.getByRole("button", { name: "Viewport", exact: true }).click();
+  for (const width of [1384, 390]) { stage = `Viewport resize ${width}`; await resizePane(page.locator("#takeoff-viewports"), "viewport", width); }
+  await page.getByRole("button", { name: "Viewport", exact: true }).click();
   for (const mode of ["duct", "wall", "Defect Reports", "Service Plans"]) {
     stage = `workspace ${mode}`; await page.setViewportSize({ width: 1146, height: 764 }); await chooseTakeoff(page, mode); await settingsSettled(page); await headingMenus(1146, ["Defect Reports", "Service Plans"].includes(mode)); await rightRail(1146, mode); await noOverflow(`1146/${mode}`);
+    if (mode === "Defect Reports") { await page.getByRole("button", { name: "Settings", exact: true }).click(); for (const width of [1384, 390]) { stage = `Item Details resize ${width}`; await resizePane(page.locator("#takeoff-physical-details"), "item-details", width); } await page.getByRole("button", { name: "Close Item Details", exact: true }).click(); }
   }
   stage = "Pricing Library"; await chooseLibrary(page, "pricing");
   const pricing = page.locator(".pricing-document-menu .calculator-document-toggle"), pricingArrow = pricing.locator(".calculator-document-chevron svg");
@@ -196,6 +295,15 @@ async function textSettings(width, currentTheme) {
     for (const control of await actions.getByRole("button").all()) assert.equal((await box(control)).height, 48, "Library action row has uniform heights");
     evidence.library.push({ width, add: b }); await noOverflow(`${width}/Firestopping Library`);
   }
+  stage = "Firestopping calculator Add to Schedule";
+  const libraryIcon = await actions.getByRole("button", { name: "Add to Schedule", exact: true }).locator("img").getAttribute("src");
+  await page.locator("#calculator-navigation-toggle").hover();
+  await page.locator('#calculator-navigation-menu [data-calculator-id="penetration"]').click();
+  const calculatorAdd = page.locator("#penetration-add-to-schedule"), icon = calculatorAdd.locator("img");
+  await expect(calculatorAdd).toBeVisible(); await expect(calculatorAdd).toHaveAccessibleName("Add to Schedule");
+  assert.equal(await icon.getAttribute("src"), "/icons/schedule-add.png"); assert.equal(await icon.getAttribute("aria-hidden"), "true"); const libraryImage = await page.request.get(new URL(libraryIcon, page.url()).href), calculatorImage = await page.request.get(new URL("/icons/schedule-add.png", page.url()).href); assert.equal(libraryImage.status(), 200); assert.equal(calculatorImage.status(), 200); assert.deepEqual(await calculatorImage.body(), await libraryImage.body(), "Calculator and Library use exactly the same original transfer icon bytes");
+  for (const width of [1384, 1146, 390]) { await page.setViewportSize({ width, height: 764 }); const b = await box(calculatorAdd), i = await box(icon); assert.equal(b.width, 48); assert.equal(b.height, 48); assert.equal(i.width, 24); assert.equal(i.height, 24); evidence.heights.push({ name: "Calculator Add to Schedule", width, button: b, icon: i }); await noOverflow(`${width}/Firestopping calculator`); }
+  stage = "Standard-edition calculator button"; await standardCalculatorButton();
   assert.equal(hash(pdf), pdfBefore); assert.deepEqual(await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()), calculators);
   assert.deepEqual(errors, []);
   // Both requests own explicit AbortControllers: the debounced estimate replaces

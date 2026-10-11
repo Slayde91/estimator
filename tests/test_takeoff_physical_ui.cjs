@@ -45,6 +45,7 @@ function documentHarness(){
 function component(initial=graph(),extra={}){
   const dom=documentHarness(),calls={previews:[],applied:[],notifications:[],asks:[],choosers:[],confirmations:[],sources:[],exports:[],changed:0},answers=[],current=snapshot(initial);let controller,preview;
   if(extra.inspectorContainer===true){extra={...extra,inspectorContainer:dom.container.ownerDocument.createElement('div')};dom.inspectorHost=extra.inspectorContainer;dom.closeButton=dom.container.ownerDocument.createElement('button');dom.closeButton.textContent='Close Item Details';dom.inspectorHost.append(dom.closeButton);}
+  if(extra.documentMenuContainer===true){extra={...extra,documentMenuContainer:dom.container.ownerDocument.createElement('div')};dom.documentHost=extra.documentMenuContainer;}
   const bridge={
     fieldOptions:async()=>copy(fieldChoices),
     async ask(title,definitions,text,button){if(definitions.some(([key])=>key==='action')){calls.choosers.push({title,definitions,text,button});return {action:'new'};}calls.asks.push({title,definitions,text,button});return answers.shift()??null;},
@@ -65,7 +66,7 @@ function component(initial=graph(),extra={}){
     notify(text,error){calls.notifications.push({text,error});},source(ref){calls.sources.push(ref);},images:async()=>[],imageUrl:()=>'/api/takeoffs/local/images/asset',extract:async()=>({snapshot:copy(current)}),export:async (format,confirmation)=>calls.exports.push({format,confirmation}),undo:async()=>({snapshot:copy(current)}),changed(){calls.changed++;},...extra,
   };
   controller=physical.mount(dom.container,bridge);controller.render(copy(current));
-  const all=()=>[...dom.all(dom.container),...dom.all(dom.container.ownerDocument.body),...(dom.inspectorHost?dom.all(dom.inspectorHost):[])],button=label=>{const control=all().find(element=>element.tagName==='BUTTON'&&(element.textContent===label||element.attributes['aria-label']===label));assert.ok(control,`Missing button: ${label}`);return control;};
+  const all=()=>[...dom.all(dom.container),...dom.all(dom.container.ownerDocument.body),...(dom.inspectorHost?dom.all(dom.inspectorHost):[]),...(dom.documentHost?dom.all(dom.documentHost):[])],button=label=>{const control=all().find(element=>element.tagName==='BUTTON'&&(element.textContent===label||element.attributes['aria-label']===label));assert.ok(control,`Missing button: ${label}`);return control;};
   return {dom,controller,calls,answers,current,bridge,all,button,async click(label){button(label).emit('click');await flush();},async select(id){const row=all().find(element=>element.dataset.physicalId===uuid(id));assert.ok(row);row.children[0].children[0].emit('change');await flush();},input(label){const control=all().find(element=>element.attributes['aria-label']===label);assert.ok(control,`Missing field: ${label}`);return control;}};
 }
 function overlayHarness(value,controller){
@@ -83,12 +84,25 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
   await check('Physical Document menu exposes three scoped XLSX exports and the existing matrix PDF without mutating records',async()=>{
     const h=component(),before=copy(h.current);await flush();const toggle=h.button('Document'),list=h.all().find(element=>element.id===toggle.attributes['aria-controls']);
     const icon=toggle.children[0];assert.equal(icon.tagName,'IMG');assert.equal(icon.src,'/icons/document.png');assert.equal(icon.alt,'');assert.equal(icon.attributes['aria-hidden'],'true');
-    const tools=h.input('Filter physical hierarchy').parentElement,actions=toggle.parentElement.parentElement;assert.notEqual(actions,tools);assert.equal(h.button('Select filtered records').parentElement,tools);assert.equal(h.button('Undo last edit').parentElement,tools);assert.ok(tools.children.some(control=>control.tagName==='LABEL'&&control.textContent==='Show deleted records'));assert.equal(tools.parentElement.children[tools.parentElement.children.indexOf(tools)+1],actions);assert.deepEqual(actions.children.map(control=>control.attributes['aria-label']||control.className),['Transfer to Firestopping Schedule','Update linked rows','Unlink from Firestopping Schedule','calculator-document-menu takeoff-document-menu']);
+    const tools=h.input('Filter physical hierarchy').parentElement,actions=toggle.parentElement.parentElement;assert.notEqual(actions,tools);assert.equal(h.button('Select filtered records').parentElement,tools);assert.equal(h.button('Undo last edit').parentElement,tools);assert.equal(tools.children[tools.children.indexOf(h.button('Undo last edit'))+1].textContent,'Show deleted records');assert.equal(tools.parentElement.children[tools.parentElement.children.indexOf(tools)+1],actions);assert.deepEqual(actions.children.map(control=>control.attributes['aria-label']||control.className),['Transfer to Firestopping Schedule','Update linked rows','Unlink from Firestopping Schedule','calculator-document-menu takeoff-document-menu takeoff-physical-document-menu']);
     assert.ok(list.hidden);toggle.emit('click');assert.equal(list.hidden,false);assert.equal(toggle.attributes['aria-expanded'],'true');
     for(const [label,format,confirmation] of [['Download confirmed items','xlsx','confirmed'],['Download unconfirmed items','xlsx','unconfirmed'],['Download all items','xlsx','all'],['Download Passive Fire Matrix PDF','pdf',null]]){
       assert.equal(h.button(label).parentElement,list);await h.click(label);assert.ok(list.hidden);assert.deepEqual(h.calls.exports.at(-1),{format,confirmation});
     }
     assert.deepEqual(h.current,before);assert.equal(h.calls.previews.length,0);assert.equal(h.calls.applied.length,0);h.controller.destroy();assert.equal(h.dom.container.ownerDocument.body.events.pointerdown.length,0);
+  });
+  await check('Physical Document in a separate heading closes on graph changes and removes its node and listener on destroy',async()=>{
+    const h=component(graph(),{documentMenuContainer:true});await flush();const toggle=h.button('Document'),menu=toggle.parentElement,list=h.all().find(element=>element.id===toggle.attributes['aria-controls']);
+    assert.equal(menu.parentElement,h.dom.documentHost);assert.equal(h.dom.container.querySelectorAll('.takeoff-physical-document-menu').length,0);assert.equal(h.dom.documentHost.children.length,1);
+    toggle.emit('click');assert.equal(list.hidden,false);h.current.physical.revision++;h.controller.render(copy(h.current));assert.equal(list.hidden,true);assert.equal(toggle.attributes['aria-expanded'],'false');
+    h.controller.destroy();assert.equal(h.dom.documentHost.children.length,0);assert.equal(h.dom.container.ownerDocument.body.events.pointerdown.length,0);assert.equal(h.calls.exports.length,0);assert.equal(h.calls.previews.length,0);assert.equal(h.calls.applied.length,0);
+  });
+  await check('Relocated physical Document participates in busy locking and its existing export guard prevents a second request',async()=>{
+    const pending=defer(),requests=[],h=component(graph(),{documentMenuContainer:true,export:async(format,confirmation)=>{requests.push({format,confirmation});return pending.promise;}});await flush();const before=copy(h.current),toggle=h.button('Document');
+    await h.click('Download confirmed items');assert.deepEqual(requests,[{format:'xlsx',confirmation:'confirmed'}]);assert.equal(toggle.disabled,true);assert.equal(toggle.parentElement.attributes['aria-busy'],'true');for(const name of ['Download confirmed items','Download unconfirmed items','Download all items','Download Passive Fire Matrix PDF'])assert.equal(h.button(name).disabled,true);
+    // A scripted invocation still cannot bypass the component's settled-work guard.
+    await h.click('Download all items');assert.equal(requests.length,1);assert.match(h.calls.notifications.at(-1).text,/Finish the current physical edit first/);
+    pending.resolve();await flush();assert.equal(toggle.disabled,false);assert.equal(toggle.parentElement.attributes['aria-busy'],'false');assert.deepEqual(h.current,before);assert.equal(h.calls.previews.length,0);assert.equal(h.calls.applied.length,0);h.controller.destroy();
   });
   await check('Manual Defect creation first offers Search Item or New Item without consuming its field answer',async()=>{
     const h=component();await flush();h.answers.push({label:'Chooser proof',uncertainty_state:'not_assessed'});await h.click('Add defect');
@@ -811,10 +825,10 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
       const order=hasParent=>{
         const inspector=h.all().find(node=>node.tagName==='ASIDE'),children=inspector.children,choose=h.button('Add Library Item'),list=choose.parentElement,icons=list.parentElement.parentElement,start=children.indexOf(icons),navigation=children.find(node=>node.className==='takeoff-physical-navigation');
         assert.ok(start>=0);assert.ok(icons.className.startsWith('takeoff-physical-item-actions'));assert.equal(icons.children[0],list.parentElement);assert.equal(list.children.at(-1),choose);assert.equal(list.children.at(-2),h.button('Add service in Item Details'));assert.equal(choose.children[0].tagName,'SVG');assert.equal(choose.textContent,'Add Library Item');assert.equal(h.button('Add').attributes['aria-expanded'],'false');assert.equal(list.hidden,true);
-        const actions=h.button('Discard unfinished physical edits').parentElement;assert.equal(actions.className,'takeoff-physical-inspector-actions');assert.equal(children[start+1],navigation);assert.ok(children.indexOf(actions)>children.indexOf(navigation));
+        const actions=h.button('Discard unfinished physical edits').parentElement;assert.equal(actions.className,'takeoff-physical-inspector-actions');assert.equal(children[start+1+(hasParent?1:0)],navigation);assert.ok(children.indexOf(actions)>children.indexOf(navigation));
         const visibility=h.all().find(node=>node.attributes['aria-label']==='Visibility');if(visibility){assert.equal(visibility.parentElement,icons);assert.equal(icons.children.at(-1),visibility);assert.ok(!actions.contains(visibility));}
         const addBarrier=list.children.find(node=>node.attributes['aria-label']==='Add barrier in Item Details');if(addBarrier){assert.equal(list.children[0],addBarrier);assert.equal(addBarrier.children[0].tagName,'IMG');assert.equal(addBarrier.children[0].src,'/icons/takeoff-add-barrier.png');assert.equal(addBarrier.textContent,'Add Barrier');}
-        if(hasParent)assert.equal(children[children.indexOf(navigation)+1],h.button('Change Parent'));
+        if(hasParent)assert.equal(children[children.indexOf(navigation)-1],h.button('Change Parent'));
         const summaries=children.filter(node=>node.className.includes('takeoff-library-summary'));assert.equal(summaries.length,2);assert.deepEqual(children.slice(-2),summaries);
         const fields=children.filter(node=>node.className==='field');for(const field of fields)assert.ok(children.indexOf(field)>children.indexOf(navigation)&&children.indexOf(field)<children.indexOf(actions));if(fields.length)assert.equal(children[children.indexOf(fields.at(-1))+1],actions);
         for(const action of children.filter(node=>node.tagName==='BUTTON'))assert.ok(!fields.length||children.indexOf(action)<children.indexOf(fields[0]));

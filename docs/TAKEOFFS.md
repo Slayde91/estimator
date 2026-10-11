@@ -472,8 +472,8 @@ The red **+** sits directly below the Service Plans register, above pagination.
 In Item Details, the **Add** menu groups Barrier, Service and Library actions;
 Visibility sits beside that menu. Delete and Discard sit below Notes. Selection
 uses a checked box icon; the bulk-edit controls retain the existing same-type
-review. The register tools row groups **Document**, search, Show deleted,
-selection, transfer and **Undo last edit**. Undo first saves valid unfinished
+review. **Document** sits beside **Tools** above the drawing. The register row
+places **Show deleted records** immediately after **Undo last edit**. Undo first saves valid unfinished
 physical field edits, then reverses the last takeoff edit. Icon-only actions
 retain accessible names and hover descriptions.
 
@@ -961,6 +961,31 @@ legacy saved records.
 Ordinary Textbox creation provides bold, italic, underline, bulleted lists and
 numbered lists in its bounded structured editor. The 4,000-character limit and
 literal saved text apply to both the drawing and its marked PDF.
+
+Choose **Textbox**, click once at its top-left location on the displayed PDF,
+then enter the note. The bordered box automatically fits the selected font and
+formatted text. Text wraps within the remaining page width; a note that cannot
+fit below that point is rejected before placement. No font size or anchor is
+silently changed.
+
+**Measure** on the left drawing rail records a calibrated PDF-only polyline.
+Click points and finish with Enter or a double-click. Select and drag its control
+points; right-click a point to insert a midpoint or remove it while retaining at
+least two points. Its displayed length uses two decimals; the derived value
+retains full precision. A revised or deleted scale displays **Scale needs review**
+until an active scale is explicitly selected in its settings. Measure never adds
+a register row, quantity, confirmation or calculator link. Clipboard copies use
+the target page's chosen scale and receive independent identities.
+
+Drag the right edge of Settings, Item Details or Viewports to resize the pane.
+The keyboard separator also supports arrow keys, Home and End. Pane resizing
+retains the current zoom and never changes source geometry or calibration.
+
+All registers include **Show deleted records** beside Undo. Nonphysical registers
+show validated deletion history as read-only rows; those rows never contribute
+to quantities, exports or schedules. The filter searches their retained fields.
+Standalone FRL choices match the Firestopping calculator while unknown saved
+choices remain visible as retained values.
 
 Select a PDF markup or signature in the viewer, then use **Ctrl+C** and
 **Ctrl+V** to place an independent copy centered at the pointer on the PDF page.

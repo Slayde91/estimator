@@ -87,7 +87,8 @@
       tool("Signatures", "signature", "Draw a signature or reuse the last one, then place it on the PDF. Select it to move, resize or delete it.", { asset: "signature.svg", mask: true });
       const graphic = (name, kind, detail) => add("Drawing tools", name, detail, { graphic: kind });
       graphic("Cloud", "cloud", "Click two opposite corners to surround a drawing region with a revision cloud. Select it to move, resize or edit its appearance.");
-      graphic("Textbox", "textbox", "Click two opposite corners, then enter a text note. Select it to move, resize or edit its text and appearance.");
+      graphic("Textbox", "textbox", "Click once on the PDF, then enter a formatted text note. Its bordered box fits the text at that point. Select it to move, resize or edit its text and appearance.");
+      graphic("Measure", "measure", "Measure calibrated length on the PDF without a register record or quantity. Click control points and finish with Enter or a double-click; select its points to edit the line.");
       graphic("Stamp", "stamp", "Click two opposite corners, then enter the stamp text. Select it to move, resize or edit its text and appearance.");
       graphic("Line/Polyline", "polyline", "Click each point, then press Enter or double-click to finish. Two points make a line; more points make a polyline.");
       graphic("Arrow", "arrow", "Click the start and end points to place an arrow. Select it to move its endpoints or edit its appearance.");

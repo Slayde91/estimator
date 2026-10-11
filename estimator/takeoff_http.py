@@ -218,6 +218,11 @@ class TakeoffHTTP:
             if set(body) - {'offset', 'limit'}:
                 raise ValidationError('History accepts a page offset and limit only.')
             result = self.service.history(session_id, **body)
+        elif action in ('deleted-items', 'textbox-layout'):
+            if query:
+                raise ValidationError('PDF markup layout and deleted-item history accept structured requests only.')
+            result = (self.service.deleted_items(session_id, body) if action == 'deleted-items'
+                      else self.service.textbox_layout(session_id, body))
         elif action in {'export/csv', 'export/xlsx'}:
             if set(body) - {'selected_ids'}:
                 raise ValidationError('Choose the confirmed items to export.')

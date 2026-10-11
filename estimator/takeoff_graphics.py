@@ -10,11 +10,11 @@ MAX_VISUAL_RECORDS = 1000
 MAX_GRAPHIC_POINTS = 1000
 GRAPHIC_MODES = ('steel', 'duct', 'wall', 'slab', 'defect_reports', 'service_plans')
 BOX_KINDS = ('cloud', 'textbox', 'stamp', 'rectangle', 'circle')
-POINT_KINDS = ('line', 'polyline', 'arrow', 'polygon')
+POINT_KINDS = ('line', 'polyline', 'arrow', 'polygon', 'measure')
 GRAPHIC_FIELDS = {'id', 'version', 'mode', 'document_id', 'source_sha256', 'page',
-                  'kind', 'geometry', 'text', 'appearance', 'text_content', 'stamp_image', 'initial_pages'}
-REQUIRED_GRAPHIC_FIELDS = GRAPHIC_FIELDS - {'text_content', 'stamp_image', 'initial_pages'}
-EDIT_FIELDS = {'geometry', 'text', 'appearance', 'text_content', 'stamp_image'}
+                  'kind', 'geometry', 'text', 'appearance', 'text_content', 'stamp_image', 'initial_pages', 'calibration_id'}
+REQUIRED_GRAPHIC_FIELDS = GRAPHIC_FIELDS - {'text_content', 'stamp_image', 'initial_pages', 'calibration_id'}
+EDIT_FIELDS = {'geometry', 'text', 'appearance', 'text_content', 'stamp_image', 'calibration_id'}
 APPEARANCE_FIELDS = {'stroke_color', 'stroke_width', 'opacity', 'fill_enabled',
                      'fill_color', 'font_color', 'font_size'}
 DEFAULT_APPEARANCE = {'stroke_color': '#FF0000', 'stroke_width': 2, 'opacity': 1,
@@ -69,7 +69,17 @@ def validate_graphic(value, snapshot, *, verified_stamp_images=None):
             validate_polygon({'kind': 'polygon', 'document_id': value['document_id'], 'page': value['page'],
                               'points': path, 'exclusions': []}, page)
     else:
-        raise ValidationError('Choose Cloud, Textbox, Stamp, Line, Polyline, Arrow, Rectangle, Circle or Polygon.')
+        raise ValidationError('Choose Cloud, Textbox, Stamp, Line, Polyline, Arrow, Rectangle, Circle, Polygon or Measure.')
+    if kind == 'measure':
+        if 'calibration_id' not in value:
+            raise ValidationError('PDF Measure requires an explicit source-page calibration.')
+        from .takeoff_pdf_measure import measure_calibration
+        measure_calibration(value, snapshot)
+        polyline = geometry['points']
+        from .takeoff_model import polyline_length
+        polyline_length(polyline)
+    elif 'calibration_id' in value:
+        raise ValidationError('Only PDF Measure markups retain a calibration ID.')
     text(value['text'], 'PDF markup text', 80 if kind == 'stamp' else 4000)
     if any(ord(character) in (0x007F, 0x061C, 0x200E, 0x200F, *range(0x202A, 0x202F), *range(0x2066, 0x206A))
            for character in value['text']):
@@ -160,6 +170,9 @@ def apply_graphic(snapshot, request, *, load_event=None):
             from .takeoff_stamp_images import normalize_stamp_image
             record['stamp_image'] = normalize_stamp_image(record['stamp_image'])
         validate_graphic(record, snapshot)
+        if record['kind'] == 'measure':
+            from .takeoff_pdf_measure import validate_measure_scope
+            validate_measure_scope(record, snapshot)
         if visual_record_count(snapshot) >= MAX_VISUAL_RECORDS:
             raise ValidationError(f'A project supports at most {MAX_VISUAL_RECORDS} PDF markups, signatures and free call-outs combined.')
         snapshot.setdefault('graphics', {'version': 1, 'records': []})['records'].append(record)
@@ -191,6 +204,9 @@ def apply_graphic(snapshot, request, *, load_event=None):
                            if key == 'appearance' and isinstance(value, dict) else deepcopy(value))
         record['version'] += 1
         validate_graphic(record, snapshot)
+        if record['kind'] == 'measure' and {'geometry', 'calibration_id'} & changes.keys():
+            from .takeoff_pdf_measure import validate_measure_scope
+            validate_measure_scope(record, snapshot)
     return None
 
 
@@ -212,7 +228,7 @@ def validate_history(event, *, load_event=None):
     new = {record['id']: record for record in event['after'].get('graphics', {}).get('records', [])}
     if event['before']['revision'] == 0 and old:
         raise ValidationError('The initial audit state cannot contain unrecorded PDF markups.')
-    controlled = ('create_graphic', 'update_graphic', 'delete_graphic', 'initial_pages')
+    controlled = ('create_graphic', 'create_textbox', 'update_graphic', 'delete_graphic', 'initial_pages')
     if event['op'] in controlled:
         ignored = ('graphics', 'signatures', 'revision') if event['op'] == 'initial_pages' else ('graphics', 'revision')
         projection = lambda state: {key: value for key, value in state.items() if key not in ignored}
@@ -222,10 +238,16 @@ def validate_history(event, *, load_event=None):
         raise ValidationError('PDF markups changed outside a controlled markup operation.')
     added, removed = new.keys() - old.keys(), old.keys() - new.keys()
     changed = {identifier for identifier in old.keys() & new.keys() if old[identifier] != new[identifier]}
-    if added and event['op'] not in ('create_graphic', 'initial_pages', 'undo'):
+    if added and event['op'] not in ('create_graphic', 'create_textbox', 'initial_pages', 'undo'):
         raise ValidationError('PDF markup identities may only be created or restored by Undo.')
-    if event['op'] == 'create_graphic' and (len(added) != 1 or removed or changed or any(new[i]['version'] != 1 for i in added)):
+    if event['op'] in ('create_graphic', 'create_textbox') and (len(added) != 1 or removed or changed or any(new[i]['version'] != 1 for i in added)):
         raise ValidationError('A PDF markup must begin with one new identity and version one.')
+    if event['op'] == 'create_textbox':
+        if any(new[identifier]['kind'] != 'textbox' for identifier in added):
+            raise ValidationError('An automatic Textbox operation must create one Textbox.')
+        from .takeoff_textbox_layout import validate_textbox_fit
+        for identifier in added:
+            validate_textbox_fit(new[identifier], event['after'])
     if event['op'] == 'update_graphic':
         if added or removed:
             raise ValidationError('A PDF markup edit must retain its existing identities.')
@@ -238,6 +260,12 @@ def validate_history(event, *, load_event=None):
             raise ValidationError('A PDF markup source or tool identity cannot be rewritten in audit history.')
         if old[identifier] != new[identifier] and new[identifier]['version'] <= old[identifier]['version']:
             raise ValidationError('Edited PDF markups require a fresh increasing version.')
+    if event['op'] in ('create_graphic', 'update_graphic'):
+        from .takeoff_pdf_measure import validate_measure_scope
+        for identifier in added | changed:
+            record = new[identifier]
+            if record['kind'] == 'measure' and (identifier in added or any(record[key] != old[identifier][key] for key in ('geometry', 'calibration_id'))):
+                validate_measure_scope(record, event['after'])
     return {identifier: graphic_binding(record) for identifier, record in {**old, **new}.items()}
 
 

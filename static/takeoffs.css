@@ -397,7 +397,7 @@ dialog.takeoff-column-filter{position:fixed;box-sizing:border-box;width:280px;ma
   .takeoff-drawing-layout > :is(.takeoff-markup-settings,.takeoff-viewports,.takeoff-physical-details) {
     position:absolute; left:66px; top:calc(var(--takeoff-top-controls-height,150px) + 20px);
     width:min(300px,calc(100% - 132px)); max-height:calc(var(--takeoff-viewer-height) - var(--takeoff-top-controls-height,150px) - 20px);
-    grid-column:1/-1; grid-row:1; z-index:8; box-shadow:3px 3px 12px #0003;
+    grid-column:1/-1; grid-row:1; z-index:13; box-shadow:3px 3px 12px #0003;
   }
 }
 

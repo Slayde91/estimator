@@ -686,6 +686,8 @@
     scheduleLinkedThickness();
     refreshNavigation();
     const physical = state.mode === "physical";
+    state.ui.documentMenu.root.hidden = physical;
+    if (physical) state.ui.documentMenu.close(false);
     state.ui.title.textContent = physical ? state.physicalScope === "service_plans" ? "Service Plans" : "Defect Reports" : state.mode === "duct" ? "Ductwork" : labels[state.mode];
     state.ui.tools.markups.hidden = state.mode !== "steel";
     state.ui.tools.legend.hidden = !["steel", "duct"].includes(state.mode);

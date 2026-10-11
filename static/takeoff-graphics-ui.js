@@ -8,7 +8,7 @@ window.CeasefireTakeoffGraphicsUI = function (host) {
   const selected = () => records().find(value => value.id === state.graphicSelected && signatureInWorkspace(value) && value.document_id === state.document && value.page === state.page);
   const key = () => JSON.stringify([pageDisplayKey(), signatureMode(), selected()?.id]);
   const isTool = () => state.tool.startsWith("graphic-");
-  let activationGeneration = 0, stampGeneration = 0, stampPending = false;
+  let activationGeneration = 0, stampGeneration = 0, stampPending = false, stampReleaseClick = null;
   const stampKey = () => JSON.stringify([state.session?.session_id,state.document,currentDocument()?.sha256,state.page,signatureMode()]);
   function hasStampTemplate() {
     if (state.stampTemplate && state.stampTemplate.key !== stampKey()) state.stampTemplate = null;
@@ -16,8 +16,28 @@ window.CeasefireTakeoffGraphicsUI = function (host) {
   }
   function cancel(forgetTemplate = true) {
     stampGeneration++;
+    stampReleaseClick?.clear();
     if (state.gesture?.kind === "stamp-box") { const gesture = state.gesture; gesture.cleanup(); state.gesture = null; state.points = []; state.traceCursor = null; }
     if (forgetTemplate) state.stampTemplate = null;
+  }
+  function suppressStampReleaseClick(pointerId) {
+    stampReleaseClick?.clear();
+    const element = state.ui.viewport;
+    // Consume only the click produced by this drag release. A new pointerdown
+    // starts a genuine click, even when it follows the drag immediately.
+    const pending = { clear() {
+      element.removeEventListener("click",click,true);
+      element.removeEventListener("pointerdown",clear,true);
+      if(stampReleaseClick === pending) stampReleaseClick = null;
+    } };
+    const clear = () => pending.clear();
+    const click = event => {
+      if(event.button !== 0 || !(event.detail > 0) || (event.pointerId !== undefined && event.pointerId !== pointerId)) return;
+      pending.clear(); event.preventDefault(); event.stopImmediatePropagation();
+    };
+    stampReleaseClick = pending;
+    element.addEventListener("click",click,true);
+    element.addEventListener("pointerdown",clear,true);
   }
   const activationKey = () => JSON.stringify([pageDisplayKey(), signatureMode(), state.session?.revision, currentDocument()?.sha256, state.active, state.tool, state.graphicSelected, state.annotationSelected, state.signatureSelected, state.legendSelected, [...state.selected], [...state.countSelection], [...state.physicalSelected], state.physicalDetailsOpen, state.settingsOpen, state.viewportsOpen, state.calibrationTarget, state.retraceId, state.exclusionItemId, state.pendingViewport, state.signatureDraft]);
   async function activate(kind) {
@@ -59,7 +79,7 @@ window.CeasefireTakeoffGraphicsUI = function (host) {
       move(next); const current=valid(), last=state.traceCursor, owned=state.gesture===gesture;
       if(owned)state.gesture=null; cleanup();
       if(!current) { if(owned && state.points.length===1 && state.points[0]===first){state.points=[];state.traceCursor=null;renderOverlay();}return; }
-      state.suppressSelectionClickUntil=Date.now()+500;
+      suppressStampReleaseClick(event.pointerId);
       if(gesture.moved && last) { state.points=[first,last]; state.traceCursor=null; void safely(finish); }
       else { state.points=[]; state.traceCursor=null; renderOverlay(); }
     };

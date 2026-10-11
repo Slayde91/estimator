@@ -132,6 +132,90 @@ class TakeoffGraphicTests(unittest.TestCase):
         self.assertEqual(event['affected_ids']['graphics'], [identifier])
         self.case.documents.validate_audit(self.case.session['snapshot'])
 
+    def test_rich_textbox_content_is_optional_bounded_literal_and_consistent(self):
+        legacy = self.create('textbox')
+        self.assertNotIn('text_content', self.record(legacy))
+        formatted = {'version': 1, 'blocks': [
+            {'kind': 'paragraph', 'runs': [{'text': 'Literal <b>note</b>', 'bold': True, 'italic': True, 'underline': True}]},
+            {'kind': 'bullet', 'runs': [{'text': 'Bullet é'}]},
+            {'kind': 'number', 'runs': [{'text': 'Number one'}]},
+            {'kind': 'number', 'runs': [{'text': 'Number two'}]}]}
+        plain = 'Literal <b>note</b>\nBullet é\nNumber one\nNumber two'
+        before = deepcopy(self.case.session['snapshot'])
+        identifier = self.create('textbox', text=plain, text_content=formatted)
+        self.assertEqual(self.record(identifier)['text_content'], formatted)
+        for key in ('items', 'calibrations', 'transfers', 'documents', 'render_checks'):
+            self.assertEqual(self.case.session['snapshot'][key], before[key])
+        before = deepcopy(self.case.session['snapshot'])
+        invalid = [({'text': 'divergent', 'text_content': formatted}, 'textbox'), ({'text_content': None}, 'textbox'),
+                   ({'text_content': {**formatted, 'html': '<b>bad</b>'}}, 'textbox'),
+                   ({'text_content': content('note', bold='yes'), 'text': 'note'}, 'textbox'),
+                   ({'text_content': content('x'*4001), 'text': 'x'*4001}, 'textbox'),
+                   ({'text_content': content('note'), 'text': 'note'}, 'stamp'),
+                   ({'text_content': content(''), 'text': ''}, 'rectangle')]
+        for values, kind in invalid:
+            with self.subTest(values=values, kind=kind), self.assertRaises(ValidationError):
+                self.create(kind, **values)
+            self.assertEqual(self.case.service.get(self.case.session['session_id'])['snapshot'], before)
+        with self.assertRaisesRegex(ValidationError, 'exactly match'):
+            self.command('update_graphic', graphic_id=identifier, changes={'text': 'lost formatting'})
+        self.assertEqual(self.case.service.get(self.case.session['session_id'])['snapshot'], before)
+        edited = deepcopy(formatted); edited['blocks'][0]['runs'][0]['bold'] = False
+        self.command('update_graphic', graphic_id=identifier, changes={'text_content': edited, 'text': plain})
+        self.assertEqual(self.record(identifier)['id'], identifier)
+        self.assertEqual(self.record(identifier)['version'], 2)
+        self.command('undo')
+        self.assertEqual(self.record(identifier)['text_content'], formatted)
+        self.case.documents.validate_audit(self.case.session['snapshot'])
+        self.assertNotIn('text_content', self.record(legacy))
+
+    def test_rich_textbox_save_reopen_preserves_source_ids_and_markup_only_authority(self):
+        formatted = content('Saved literal <script>note</script>', bold=True, italic=True, underline=True)
+        identifier = self.create('textbox', text='Saved literal <script>note</script>', text_content=formatted)
+        before = deepcopy(self.case.session['snapshot'])
+        self.case.request.update(takeoffs=before)
+        self.case.library.save_as(self.case.request)
+        stored = json.loads(self.case.target.read_bytes())
+        self.case.dialogs.opened = str(self.case.target)
+        reopened = self.case.library.open_file()
+        self.assertEqual(reopened['takeoffs']['graphics'], before['graphics'])
+        self.assertEqual(stored['takeoffs']['graphics'], before['graphics'])
+        for key in ('items', 'calibrations', 'transfers', 'documents', 'render_checks'):
+            self.assertEqual(reopened['takeoffs'][key], before[key])
+        self.assertEqual(reopened['takeoffs']['graphics']['records'][0]['id'], identifier)
+        self.assertEqual(sha256(self.case.documents.document_path(self.document).read_bytes()).hexdigest(), self.document['sha256'])
+
+    def test_rich_textbox_actual_pdf_retains_style_lists_font_size_and_fails_closed(self):
+        formatted = {'version': 1, 'blocks': [
+            {'kind': 'paragraph', 'runs': [{'text': 'Bold literal', 'bold': True, 'italic': True, 'underline': True}]},
+            {'kind': 'bullet', 'runs': [{'text': 'Bullet'}]},
+            {'kind': 'number', 'runs': [{'text': 'First'}]},
+            {'kind': 'number', 'runs': [{'text': 'Second'}]}]}
+        plain = 'Bold literal\nBullet\nFirst\nSecond'
+        identifier = self.create('textbox', text=plain, text_content=formatted, appearance={'font_size': 10, 'stroke_color': '#13579B'})
+        before = deepcopy(self.case.session['snapshot'])
+        page = PdfReader(BytesIO(self.export()[0])).pages[0]
+        compact = ''.join(page.extract_text().split())
+        self.assertIn('Boldliteral•Bullet1.First2.Second', compact)
+        segments = []
+        page.extract_text(visitor_text=lambda value, cm, tm, font, size: segments.append((value, cm, font, size)))
+        bold = ''.join(value for value, _, font, _ in segments if font and 'Bold' in font.get('/BaseFont', '')).replace('\n', '')
+        self.assertIn('Bold literal', bold)
+        self.assertTrue(any(abs(float(cm[2])-.18) < 1e-6 and float(size) == 10 for value, cm, _, size in segments if value.strip()), 'Italic has its own glyph transform at the requested font size.')
+        ops = page.get_contents().operations
+        # First line baseline is 70-6-10=54; underline is exactly 1.2pt below it.
+        self.assertEqual(sum(op == b'l' and abs(float(args[1])-52.8) < 1e-5 for args, op in ops), len('Bold literal'))
+        self.assertEqual(self.case.service.get(self.case.session['session_id'])['snapshot'], before)
+        oversized = content('Many characters '*30, bold=True)
+        self.command('update_graphic', graphic_id=identifier, changes={'text': 'Many characters '*30, 'text_content': oversized})
+        before = deepcopy(self.case.session['snapshot'])
+        with self.assertRaisesRegex(ValidationError, 'more text than its box'): self.export()
+        self.assertEqual(self.case.service.get(self.case.session['session_id'])['snapshot'], before)
+        self.command('update_graphic', graphic_id=identifier, changes={'text': 'Unmapped \U0001f600', 'text_content': content('Unmapped \U0001f600', italic=True)})
+        before = deepcopy(self.case.session['snapshot'])
+        with self.assertRaisesRegex(ValidationError, 'unsupported by the drawing PDF font'): self.export()
+        self.assertEqual(self.case.service.get(self.case.session['session_id'])['snapshot'], before)
+
     def test_hostile_fields_text_geometry_sources_and_nonfinite_coordinates_fail_atomically(self):
         before = deepcopy(self.case.session['snapshot'])
         bad = [

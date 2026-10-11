@@ -157,7 +157,7 @@ async function editSprayLength(binding, value) {
   await expect(page.locator('.takeoff-legend-handle')).toHaveCount(4);
   const settings = page.locator('#takeoff-markup-settings');
   await response(async () => { await settings.getByLabel('Line Colour', { exact: true }).fill('#123456'); await settings.getByLabel('Line Colour', { exact: true }).press('Tab'); }, '/commands');
-  await response(async () => { await settings.getByLabel('Fill colour', { exact: true }).fill('#fff1dd'); await settings.getByLabel('Fill colour', { exact: true }).press('Tab'); }, '/commands');
+  await response(async () => { await settings.getByLabel('Fill Colour', { exact: true }).fill('#fff1dd'); await settings.getByLabel('Fill Colour', { exact: true }).press('Tab'); }, '/commands');
   await settings.getByRole('button', { name: 'Close settings', exact: true }).click();
   for (const corner of ['nw', 'ne', 'sw', 'se']) {
     const handle = page.getByRole('button', { name: `Resize legend ${corner}`, exact: true }); let box; await expect.poll(async () => !!(box = await handle.boundingBox())).toBe(true);

@@ -366,3 +366,68 @@ dialog.takeoff-column-filter{position:fixed;box-sizing:border-box;width:280px;ma
 .takeoff-graphic { cursor: pointer; }
 .takeoff-graphic-text { grid-column: 1 / -1; }
 .takeoff-graphic-text textarea { min-height: 100px; }
+
+/* Measurement tools and PDF-only notes have their own sides of the drawing. */
+.takeoff-drawing-layout,
+.takeoff-workspace-split.beside > .takeoff-drawing-layout {
+  grid-template-columns:56px minmax(0,1fr) 56px;
+}
+.takeoff-drawing-layout:is(.with-settings,.with-viewports,.with-physical-details),
+.takeoff-workspace-split.beside > .takeoff-drawing-layout:is(.with-settings,.with-viewports,.with-physical-details) {
+  grid-template-columns:56px minmax(0,300px) minmax(0,1fr) 56px;
+}
+.takeoff-drawing-layout > .takeoff-markup-rail { grid-column:-2/-1; grid-row:1; }
+.takeoff-markup-rail {
+  display:flex; flex-direction:column; flex-wrap:nowrap; align-items:center;
+  align-self:start; gap:8px; padding:8px 0; margin:0; min-width:0;
+  max-height:var(--takeoff-viewer-height); overflow-y:auto; overflow-x:hidden;
+  scrollbar-width:thin; overscroll-behavior:contain;
+}
+.takeoff-markup-rail .takeoff-icon-button {
+  flex:0 0 38px; width:38px; min-width:38px; height:38px; min-height:38px;
+  padding:6px; box-sizing:border-box;
+}
+.takeoff-markup-rail .takeoff-icon-button img { display:block; width:24px; height:24px; object-fit:contain; }
+.takeoff-markup-rail .button:is(.takeoff-tool-active,[aria-pressed=true],[aria-expanded=true]) {
+  background:#ffd9dc; color:#8c101b; border-color:#d7838b;
+  outline:none; box-shadow:inset 0 0 0 1px #d7838b;
+}
+@container(max-width:700px) {
+  .takeoff-drawing-layout:is(.with-settings,.with-viewports,.with-physical-details) > .takeoff-drawing-pane { grid-column:2/-2; }
+  .takeoff-drawing-layout > :is(.takeoff-markup-settings,.takeoff-viewports,.takeoff-physical-details) {
+    position:absolute; left:66px; top:calc(var(--takeoff-top-controls-height,150px) + 20px);
+    width:min(300px,calc(100% - 132px)); max-height:calc(var(--takeoff-viewer-height) - var(--takeoff-top-controls-height,150px) - 20px);
+    grid-column:1/-1; grid-row:1; z-index:8; box-shadow:3px 3px 12px #0003;
+  }
+}
+
+/* Controls sharing a row use the same outer height, including native selects. */
+.takeoff-toolbar :is(button,input:not([type=checkbox]),select),
+.takeoff-register-controls :is(button,input:not([type=checkbox]),select) {
+  height:38px; min-height:38px; box-sizing:border-box;
+}
+.takeoff-register-controls .takeoff-icon-button { width:38px; min-width:38px; padding:6px; }
+.takeoff-document-tools { position:relative; display:flex; align-items:center; justify-content:flex-end; gap:8px; flex-wrap:wrap; margin:0 0 0 auto; }
+.takeoff-document-tools .calculator-document-toggle { height:48px; min-height:48px; }
+.takeoff-document-tools .takeoff-document-menu { position:static; flex-basis:auto; }
+.takeoff-document-tools .takeoff-document-menu .calculator-document-actions { left:auto; right:0; }
+.takeoff-workspace-heading { flex-wrap:wrap; }
+.takeoff-markup-settings :is(input:not([type=checkbox]),select) { height:38px; min-height:38px; box-sizing:border-box; }
+:root[data-theme] :is(#takeoff-markup-settings,.takeoff-physical-details) .field > span:first-child {
+  color:#fff; font-weight:600; line-height:1.35;
+}
+.takeoff-markup-delete { display:inline-flex; align-items:center; justify-content:center; flex:0 0 38px; width:38px; height:38px; min-width:38px; min-height:38px; padding:6px; }
+.takeoff-markup-delete svg { display:block; width:24px; height:24px; }
+.takeoff-graphic-text .takeoff-rich-details { min-width:0; width:100%; }
+.takeoff-markup-settings .takeoff-rich-toolbar { gap:6px; margin:0 0 8px; }
+.takeoff-markup-settings .takeoff-rich-toolbar button { display:inline-flex; align-items:center; justify-content:center; width:38px; height:38px; min-width:38px; min-height:38px; padding:6px; }
+.takeoff-markup-settings .takeoff-rich-editor { background:#fff; color:#171717; border-color:#777; }
+.takeoff-rich-editor:focus-visible { outline:2px solid #71c9ff; outline-offset:2px; }
+:root[data-theme="midnight"] .takeoff-rich-toolbar button img { filter:brightness(0) invert(1); }
+@container(max-width:450px) {
+  .takeoff-viewer-top .takeoff-navigation { flex-basis:100%; }
+  .takeoff-viewer-top .takeoff-search-controls { flex-wrap:wrap; flex-basis:100%; }
+  .takeoff-viewer-top .takeoff-search-anchor { flex-basis:100%; }
+  .takeoff-viewer-top .takeoff-search-ocr { flex:1 1 78px; }
+  .takeoff-viewer-top .takeoff-search-controls select { flex:1; min-width:0; }
+}

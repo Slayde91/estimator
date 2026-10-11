@@ -67,7 +67,7 @@ async function textFits() {
   assert.equal(original.annotation.document_sha256, sourceHash); assert.equal(original.annotation.page, 3); assert.equal(original.marker, undefined); assert.equal(original.quantity, undefined);
   assert.equal(original.annotation.appearance.marker_size,10);
   await expect(details().getByLabel('Marker Size',{exact:true})).toHaveValue('10');
-  assert.deepEqual(await details().locator('.takeoff-settings-fields .field>span').allTextContents(),['Fill colour','Fill enabled','Line Colour','Line Width','Marker Size','Opacity']);
+  assert.deepEqual(await details().locator('.takeoff-settings-fields .field>span').allTextContents(),['Fill Colour','Fill Enabled','Line Colour','Line Width','Marker Size','Opacity']);
   assert.equal(await details().evaluate(el=>el.firstElementChild.getAttribute('aria-label')),'Marker Settings');
   assert.ok(await details().getByLabel('Line Colour',{exact:true}).evaluate(el=>el.getBoundingClientRect().height>=40));
   assert.deepEqual(original.annotation.point, JSON.parse(source.note.match(/PDF point (\[[^\]]+\])/)[1])); assert.equal(current.physical.barriers.length, 0); assert.equal(current.physical.services.length, 0);
@@ -114,7 +114,7 @@ async function textFits() {
   await page.waitForTimeout(550); await callout().dblclick({ delay: 100 }); await expect(details()).toBeVisible();
   await expect(details()).toContainText('Callout Settings'); await expect(details()).not.toContainText('Automatic callout'); await expect(details()).not.toContainText('SOURCE ASSOCIATIONS');
   await response(async () => { await details().getByLabel('Font Colour', { exact: true }).fill('#008000'); await details().getByLabel('Font Colour', { exact: true }).press('Tab'); }, '/physical/apply');
-  await response(async () => { await details().getByLabel('Fill colour', { exact: true }).fill('#fff1dd'); await details().getByLabel('Fill colour', { exact: true }).press('Tab'); }, '/physical/apply');
+  await response(async () => { await details().getByLabel('Fill Colour', { exact: true }).fill('#fff1dd'); await details().getByLabel('Fill Colour', { exact: true }).press('Tab'); }, '/physical/apply');
   await snapshot(); const calloutAppearance = structuredClone(current.physical.defects[0].annotation.callout.appearance);
   assert.equal(calloutAppearance.font_color, '#008000'); assert.equal(calloutAppearance.fill_color, '#fff1dd'); assert.deepEqual(current.physical.defects[0].annotation.appearance, {marker_size:10});
   await page.getByRole('button', { name: 'Close Item Details', exact: true }).click(); await fit(); await page.waitForTimeout(550); await marker().dblclick({ delay: 100 });

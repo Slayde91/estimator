@@ -8,7 +8,7 @@ const { spawn, spawnSync } = require("node:child_process");
 const fs = require("node:fs"), path = require("node:path"), crypto = require("node:crypto"), assert = require("node:assert/strict");
 const root = path.resolve(__dirname, "../.."), output = path.join(root, ".runtime/browser-qa", `graphics-${Date.now()}`), python = process.env.CEASEFIRE_PYTHON || "python";
 fs.mkdirSync(output, { recursive: true });
-const assets = ["static/takeoffs.js", "static/takeoff-graphics.js", "static/takeoff-graphics-ui.js", "static/takeoffs.css", "estimator/takeoff_graphics.py", "estimator/takeoff_markup_pdf_worker.py", "tests/browser/graphics.cjs", "tests/browser/graphics_export_content.py"];
+const assets = ["static/takeoffs.js", "static/takeoff-annotations.js", "static/takeoff-graphics.js", "static/takeoff-graphics-ui.js", "static/takeoffs.css", "estimator/takeoff_graphics.py", "estimator/takeoff_markup_pdf_worker.py", "tests/browser/graphics.cjs", "tests/browser/graphics_export_content.py"];
 const hash = file => crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex");
 const hashes = () => Object.fromEntries(assets.map(name => [name, hash(path.join(root, name))]));
 const sourceBefore = hashes(), checks = [], errors = [], requests = [], projectWrites = [], pdfExports = [];
@@ -50,7 +50,7 @@ async function dialog(title, values, submit) {
 }
 const labels = {cloud:"Cloud",textbox:"Textbox",stamp:"Stamp",line:"Line/Polyline",polyline:"Line/Polyline",arrow:"Arrow",rectangle:"Rectangle",circle:"Circle",polygon:"Polygon"};
 async function insert(kind, points, options = {}) {
-  const button = page.locator(".takeoff-tool-rail").getByRole("button", { name: labels[kind], exact: true }); await button.click();
+  const button = page.locator(".takeoff-markup-rail").getByRole("button", { name: labels[kind], exact: true }); await button.click();
   const tool = kind === "line" ? "polyline" : kind; await expect(page.locator(".takeoff-viewport")).toHaveAttribute("data-tool", `graphic-${tool}`);
   const draw = async () => {
     for (const p of points) await page.mouse.click(...await screen(p, options.view, options.rotation));
@@ -95,7 +95,7 @@ async function saveLoad(info) {
 }
 async function unfinishedGuards() {
   const before=await snapshot(), count=requests.length, writes=projectWrites.length;
-  await page.locator(".takeoff-tool-rail").getByRole("button",{name:"Polygon",exact:true}).click();await page.mouse.click(...await screen([60,170]));
+  await page.locator(".takeoff-markup-rail").getByRole("button",{name:"Polygon",exact:true}).click();await page.mouse.click(...await screen([60,170]));
   const retained=await page.evaluate(()=>JSON.parse(window.CeasefireTakeoffs.projectFingerprint()));
   const guard=await page.evaluate(()=>{try{window.CeasefireTakeoffs.projectSnapshot();return false;}catch(e){return e.message;}});assert.match(guard,/unfinished.*drawing.*before saving/);
   await clickProjectControl(page,"Save");await expect(page.getByRole("button",{name:"Save",exact:true})).toBeEnabled({timeout:30000});await expect(page.locator("#app-message")).toContainText("Project was not saved.");assert.equal(projectWrites.length,writes);
@@ -141,6 +141,18 @@ async function unfinishedGuards() {
   check("native move, affine corner resize and path endpoint edit retain graphic identity and leave the measured surface unchanged");
   await select(records.textbox.id);reply=await command(async()=>{await panel().getByLabel("Textbox text",{exact:true}).fill("Edited literal <b>note</b> é");await panel().getByLabel("Textbox text",{exact:true}).press("Tab");},"update_graphic");assert.equal(reply.snapshot.graphics.records.find(v=>v.id===records.textbox.id).text,"Edited literal <b>note</b> é");
   await command(async()=>{await panel().getByLabel("Font Size",{exact:true}).fill("10");await panel().getByLabel("Font Size",{exact:true}).press("Tab");},"update_graphic");
+  const rich=()=>panel().getByRole("textbox",{name:"Textbox text",exact:true});
+  for(const mark of ["Bold","Italic","Underline"]) {
+    reply=await command(async()=>{await rich().press("Control+a");await panel().getByRole("button",{name:mark,exact:true}).click();},"update_graphic");
+    const edited=reply.snapshot.graphics.records.find(v=>v.id===records.textbox.id);assert.equal(edited.id,records.textbox.id);assert.equal(edited.text_content.blocks[0].runs[0][mark.toLowerCase()],true);invariant(reply.snapshot,baseline);
+  }
+  await command(async()=>{await rich().press("Control+End");await rich().press("Enter");await panel().getByRole("button",{name:"Bullet list",exact:true}).click();await rich().pressSequentially("Bullet textbox");},"update_graphic");
+  await command(async()=>{await rich().press("Control+End");await rich().press("Enter");await rich().press("Enter");await panel().getByRole("button",{name:"Numbered list",exact:true}).click();await rich().pressSequentially("Number textbox");},"update_graphic");
+  const richRecord=(await snapshot()).graphics.records.find(v=>v.id===records.textbox.id);
+  assert.ok(richRecord.text_content.blocks.some(v=>v.kind==="bullet"&&v.runs.some(r=>r.text.includes("Bullet textbox"))));
+  assert.ok(richRecord.text_content.blocks.some(v=>v.kind==="number"&&v.runs.some(r=>r.text.includes("Number textbox"))));
+  await expect(graphic(records.textbox.id).locator('tspan[font-weight="bold"]').first()).toBeVisible();await expect(graphic(records.textbox.id).locator('tspan[font-style="italic"]').first()).toBeVisible();await expect(graphic(records.textbox.id).locator('tspan[text-decoration="underline"]').first()).toBeVisible();
+  check("native Bold, Italic, Underline, Bullet list and Numbered list controls retain bounded literal textbox runs and render saved marks without quantity authority");
   const beforeHidden=await snapshot();await panel().getByRole("button",{name:"Visibility",exact:true}).click();await expect(graphic(records.textbox.id)).toHaveCount(0);assert.deepEqual(await snapshot(),beforeHidden);
   const remaining=(await snapshot()).graphics.records.filter(v=>v.id!==records.textbox.id).map(v=>v.id);await download("visible-graphics.pdf",remaining,"walls_floors");
   await page.locator(".takeoff-tool-rail").getByRole("button",{name:"Visibility",exact:true}).dblclick();await expect(graphic(records.textbox.id)).toBeVisible();assert.deepEqual(await snapshot(),beforeHidden);
@@ -170,7 +182,10 @@ async function unfinishedGuards() {
   assert.equal(await page.evaluate(()=>window.CeasefireTakeoffs.selectWorkspace("slab")),true);await fit();const floor=await insert("circle",[[580,170],[710,100]]);assert.equal(floor.record.mode,"slab");
   await chooseTakeoff(page,"wall");await fit();await expect(graphic(floor.record.id)).toBeVisible();
   const reopened=await saveLoad(info);assert.equal(reopened.graphics.records.length,15);assert.equal(reopened.items.length,1);assert.deepEqual(await page.evaluate(()=>window.CeasefireCalculators.completeProjectSnapshot()),calculators);assert.equal(hash(info.area_fixture),originalHash);
+  assert.deepEqual(reopened.graphics.records.find(v=>v.id===records.textbox.id).text_content,richRecord.text_content);await select(records.textbox.id);await expect(rich().locator("strong").first()).toBeVisible();await expect(rich().locator("em").first()).toBeVisible();await expect(rich().locator("u").first()).toBeVisible();await expect(rich().locator("ul").first()).toBeVisible();await expect(rich().locator("ol").first()).toBeVisible();
+  await download("reopened-rich-textbox.pdf",reopened.graphics.records.filter(v=>["wall","slab"].includes(v.mode)).map(v=>v.id),"walls_floors");
   assert.deepEqual(errors,[]);assert.deepEqual(await page.evaluate(()=>window.qaCsp),[]);await page.screenshot({path:path.join(output,"graphics.png"),fullPage:true});
   check("Save/Load restores all fifteen markups across six scopes, source bytes and calculator inputs exactly with zero page or CSP errors");
+  assert.deepEqual(hashes(),sourceBefore,"Graphics acceptance must use unchanged candidate source bytes throughout the run");
   fs.writeFileSync(path.join(output,"result.json"),JSON.stringify({completed:true,check_count:checks.length,checks,graphic_count:15,item_count:1,fixture_port:info.port,browser_version:browser.version(),original_source_sha256:originalHash,source_before_sha256:sourceBefore,source_after_sha256:hashes(),errors,csp:await page.evaluate(()=>window.qaCsp),requests,projectWrites,pdfExports},null,2));console.log(`PASS: ${checks.length} graphics acceptance checks. Evidence: ${output}`);
 })().catch(async error=>{console.error(error);process.exitCode=1;if(page){await page.screenshot({path:path.join(output,"failure.png"),fullPage:true}).catch(()=>{});fs.writeFileSync(path.join(output,"failure.txt"),await page.locator("body").innerText().catch(()=>""));}fs.writeFileSync(path.join(output,"failure.json"),JSON.stringify({completed:false,checks,errors,requests,projectWrites,pdfExports,error:String(error),source_before_sha256:sourceBefore,source_after_sha256:hashes()},null,2));}).finally(async()=>{fs.writeFileSync(path.join(output,"server.log"),logs);await browser?.close();server.kill();});

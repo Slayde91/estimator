@@ -313,7 +313,7 @@ def _paint_physical_callout(pdf, item, point, center, matrix, bounds, zoom):
         pdf.drawString(x+padding,y+height-padding-font_size-index*font_size*1.3,line)
 
 
-def _annotation_lines(content, width, font_size):
+def _annotation_lines(content, width, font_size, label='free call-out'):
     """Wrap every literal character and retain supported marks without HTML."""
     from reportlab.pdfbase.pdfmetrics import getFont, stringWidth
     lines, widths, numbered = [], {}, 0
@@ -331,7 +331,7 @@ def _annotation_lines(content, width, font_size):
                 continue
             font = 'ExportVeraBold' if bold else 'ExportVera'
             if ord(character) not in getFont(font).face.charToGlyph:
-                raise ValueError('A free call-out contains a character unsupported by the drawing PDF font. Edit that character before exporting; its original text is retained.')
+                raise ValueError(f'A {label} contains a character unsupported by the drawing PDF font. Edit that character before exporting; its original text is retained.')
             key = (character, font)
             advance = widths.setdefault(key, stringWidth(character, font, font_size))
             if advance > width:
@@ -491,7 +491,11 @@ def _paint_graphics(pdf, graphics, matrix, bounds):
                 padding = min(6, width/8, height/8)
                 font = 'ExportVeraBold' if kind == 'stamp' else 'ExportVera'
                 size = style['font_size']
-                lines = _graphic_text_lines(graphic['text'], font, size, width-2*padding)
+                rich = kind == 'textbox' and 'text_content' in graphic
+                lines = (_annotation_lines(graphic['text_content'], width-2*padding, size, 'PDF markup')
+                         if rich else _graphic_text_lines(graphic['text'], font, size, width-2*padding))
+                if lines is None:
+                    raise ValueError('A PDF markup box is too narrow for its text. Enlarge it or reduce the font size.')
                 if kind == 'stamp' and len(lines) != 1:
                     raise ValueError('A Stamp must fit on one line. Enlarge its box, reduce the font size or shorten the text before exporting.')
                 if len(lines) * size * 1.25 > height-2*padding:
@@ -499,7 +503,21 @@ def _paint_graphics(pdf, graphics, matrix, bounds):
                 pdf.setFont(font, size); pdf.setFillColor(HexColor(style['font_color']))
                 for index, line in enumerate(lines):
                     y = height-padding-size-index*size*1.25
-                    if kind == 'stamp':
+                    if rich:
+                        cursor = padding
+                        for character, run_font, italic, underline, advance in line:
+                            pdf.saveState(); pdf.setFont(run_font, size)
+                            if italic:
+                                pdf.translate(cursor, y); pdf.transform(1, 0, .18, 1, 0, 0)
+                                pdf.drawString(0, 0, character)
+                            else:
+                                pdf.drawString(cursor, y, character)
+                            pdf.restoreState()
+                            if underline:
+                                pdf.setStrokeColor(HexColor(style['font_color'])); pdf.setLineWidth(max(.25, size/18))
+                                pdf.line(cursor, y-size*.12, cursor+advance, y-size*.12)
+                            cursor += advance
+                    elif kind == 'stamp':
                         pdf.drawCentredString(width/2, y, line)
                     else:
                         pdf.drawString(padding, y, line)

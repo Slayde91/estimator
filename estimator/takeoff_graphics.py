@@ -12,8 +12,9 @@ GRAPHIC_MODES = ('steel', 'duct', 'wall', 'slab', 'defect_reports', 'service_pla
 BOX_KINDS = ('cloud', 'textbox', 'stamp', 'rectangle', 'circle')
 POINT_KINDS = ('line', 'polyline', 'arrow', 'polygon')
 GRAPHIC_FIELDS = {'id', 'version', 'mode', 'document_id', 'source_sha256', 'page',
-                  'kind', 'geometry', 'text', 'appearance'}
-EDIT_FIELDS = {'geometry', 'text', 'appearance'}
+                  'kind', 'geometry', 'text', 'appearance', 'text_content'}
+REQUIRED_GRAPHIC_FIELDS = GRAPHIC_FIELDS - {'text_content'}
+EDIT_FIELDS = {'geometry', 'text', 'appearance', 'text_content'}
 APPEARANCE_FIELDS = {'stroke_color', 'stroke_width', 'opacity', 'fill_enabled',
                      'fill_color', 'font_color', 'font_size'}
 DEFAULT_APPEARANCE = {'stroke_color': '#FF0000', 'stroke_width': 2, 'opacity': 1,
@@ -45,7 +46,7 @@ def _validate_box(value, page):
 
 
 def validate_graphic(value, snapshot):
-    object_fields(value, GRAPHIC_FIELDS, 'PDF markup', GRAPHIC_FIELDS)
+    object_fields(value, GRAPHIC_FIELDS, 'PDF markup', REQUIRED_GRAPHIC_FIELDS)
     identity(value['id'], 'PDF markup ID')
     number(value['version'], 'PDF markup version', positive=True, integer=True)
     if value['mode'] not in GRAPHIC_MODES:
@@ -78,6 +79,14 @@ def validate_graphic(value, snapshot):
             raise ValidationError('Enter nonblank PDF markup text; a Stamp requires one line.')
     elif value['text'] != '':
         raise ValidationError('Only Textbox and Stamp markups retain text.')
+    if 'text_content' in value:
+        if kind != 'textbox':
+            raise ValidationError('Only Textbox markups support formatted text.')
+        from .takeoff_annotations import validate_content
+        content = validate_content(value['text_content'])
+        plain = '\n'.join(''.join(run['text'] for run in block['runs']) for block in content['blocks'])
+        if plain != value['text']:
+            raise ValidationError('Textbox text must exactly match its formatted text blocks.')
     object_fields(value['appearance'], APPEARANCE_FIELDS, 'Stored PDF markup appearance', APPEARANCE_FIELDS)
     graphic_appearance(value['appearance'])
     return value
@@ -121,7 +130,7 @@ def validate_graphics(snapshot):
 
 def apply_graphic(snapshot, request):
     if request['op'] == 'create_graphic':
-        proposal = object_fields(request['graphic'], GRAPHIC_FIELDS - {'id', 'version'}, 'New PDF markup', GRAPHIC_FIELDS - {'id', 'version'})
+        proposal = object_fields(request['graphic'], GRAPHIC_FIELDS - {'id', 'version'}, 'New PDF markup', REQUIRED_GRAPHIC_FIELDS - {'id', 'version'})
         record = {'id': str(uuid4()), 'version': 1, **deepcopy(proposal)}
         record['appearance'] = graphic_appearance(record['appearance'])
         validate_graphic(record, snapshot)

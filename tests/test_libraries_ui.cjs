@@ -529,7 +529,7 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
   await check('Add to Schedule uses the exact original Transfer PNG bytes and the existing button visual contract',async h=>{
     const icon=fs.readFileSync('static/icons/takeoff-transfer.png');assert.equal(require('node:crypto').createHash('sha256').update(icon).digest('hex'),'1b5552f06a1cb61d246e969f70a5243883a8ba6b1ddaa5392ddd737d802f1d1b');assert.equal(icon.readUInt32BE(16),512);assert.equal(icon.readUInt32BE(20),512);
     await h.api.open('penetration');const add=walk(h.pane('penetration').results).find(n=>n.dataset.libraryAdd);assert.equal(add.children[0].src,'/icons/takeoff-transfer.png');assert.match(add.className,/button secondary takeoff-physical-icon-action/);assert.doesNotMatch(add.className,/primary|penetration-add-action/);
-    const css=fs.readFileSync('static/libraries.css','utf8');assert.match(css,/\.library-item-actions \.library-add-transfer\{[^}]*width:38px;[^}]*height:38px;[^}]*border-radius:9px;[^}]*background:#fff/);
+    const css=fs.readFileSync('static/libraries.css','utf8');assert.match(css,/\.library-item-actions \.library-add-transfer\{[^}]*width:48px;[^}]*height:48px;[^}]*border-radius:9px;[^}]*background:#fff/);
   });
   await check('Schedule quantities update card and detail badges without replacing results, controls, pagination or scroll',async h=>{
     const quantities=new Map();h.context.window.CeasefirePenetrations={libraryQuantity:id=>quantities.get(id)};await h.api.open('penetration');const pane=h.pane('penetration'),card=pane.results.children[0],search=pane.searchInput,listBadge=walk(card).find(node=>node.dataset.libraryQuantity==='penetration-1'),calls=h.calls.length;

@@ -78,10 +78,10 @@
     for (const block of blocks) if (!block.runs.length) block.runs.push({ text: "" });
     return validateContent({ version: 1, blocks });
   }
-  function richEditor(content, changed) {
+  function richEditor(content, changed, {label = "Item Details", maxLength} = {}) {
     const wrap = document.createElement("div"), toolbar = document.createElement("div"), editor = document.createElement("div");
-    wrap.className = "takeoff-rich-details"; toolbar.className = "takeoff-rich-toolbar"; toolbar.setAttribute("role", "toolbar"); toolbar.setAttribute("aria-label", "Item Details formatting");
-    editor.className = "takeoff-rich-editor"; editor.contentEditable = "true"; editor.setAttribute("role", "textbox"); editor.setAttribute("aria-label", "Item Details"); editor.setAttribute("aria-multiline", "true"); populate(editor, content);
+    wrap.className = "takeoff-rich-details"; toolbar.className = "takeoff-rich-toolbar"; toolbar.setAttribute("role", "toolbar"); toolbar.setAttribute("aria-label", `${label} formatting`);
+    editor.className = "takeoff-rich-editor"; editor.contentEditable = "true"; editor.setAttribute("role", "textbox"); editor.setAttribute("aria-label", label); editor.setAttribute("aria-multiline", "true"); populate(editor, content);
     for (const [label, command, symbol] of [["Bold", "bold", "B"], ["Italic", "italic", "I"], ["Underline", "underline", "U"], ["Bullet list", "insertUnorderedList", "•"], ["Numbered list", "insertOrderedList", "1."]]) {
       const button = document.createElement("button"); button.type = "button"; button.className = "button secondary"; button.textContent = symbol; button.title = label; button.setAttribute("aria-label", label);
       if (["insertUnorderedList", "insertOrderedList"].includes(command)) { const icon = document.createElement("img"); icon.src = command === "insertUnorderedList" ? "/icons/takeoff-bullet-list.png" : "/icons/takeoff-numbered-list.png"; icon.alt = ""; icon.width = 20; icon.height = 20; button.replaceChildren(icon); }
@@ -91,12 +91,12 @@
     editor.addEventListener("input", changed);
     editor.addEventListener("paste", event => {
       event.preventDefault(); const value = event.clipboardData?.getData("text/plain") || "";
-      if (value.length > 8000) return;
+      if (value.length > (maxLength ?? 8000)) return;
       // Fixed insertText command preserves native editing undo; pasted HTML is discarded.
       document.execCommand("insertText", false, value); changed();
     });
     editor.addEventListener("drop", event => event.preventDefault());
-    wrap.append(toolbar, editor); return { wrap, editor, read: () => capture(editor) };
+    wrap.append(toolbar, editor); return { wrap, editor, read: () => { const value = capture(editor); if(maxLength !== undefined && text(value).length > maxLength) throw new Error(`${label} supports up to ${maxLength.toLocaleString("en-US")} characters.`); return value; } };
   }
   let measure;
   function layout(content, width, height) {

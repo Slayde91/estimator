@@ -31,10 +31,10 @@ function fixture(initial = {}, commandOverride) {
     signatureMode:()=>state.mode==="physical"?state.physicalScope:state.mode,
     signatureInWorkspace:value=>value.mode===(state.mode==="physical"?state.physicalScope:state.mode),
     selectedSignature:()=>null, selectedAnnotation:()=>null,
-    flushSettings:async()=>{}, requireFinishedEdits() {
+    flushSettings:async()=>{ if(calls.flushPromise) await calls.flushPromise; }, requireFinishedEdits() {
       if(state.formDirty||state.settingsDirty||state.gesture||state.points.length||state.pendingViewport||state.physicalPlacing||state.physicalUI?.hasUnfinishedChanges()) throw new Error("Finish the newer edit first.");
     }, cancelTrace() { calls.cancel++; ui.cancel(true); state.points=[]; state.tool="select"; },
-    setTool(tool) { if(state.busy||state.modal||state.navigationBusy) throw new Error("Finish the current operation first."); state.tool=tool; },
+    setTool(tool) { if(calls.setToolError) throw calls.setToolError; if(state.busy||state.modal||state.navigationBusy) throw new Error("Finish the current operation first."); state.tool=tool; },
     command(...args) { calls.command++; if(commandOverride) return commandOverride(...args); throw new Error("Activation must not issue a persisted command."); },
     pageMetadata:()=>({view:[0,0,600,800]}),drawingPoint:event=>event.pdf,
     ask:async()=>{calls.ask++;if(calls.answerPromise)return calls.answerPromise;return calls.answer;},
@@ -117,6 +117,49 @@ test("Textbox formatting edited during a queued update remains atomic and keeps 
 });
 
 const pointer=(pdf,extra={})=>({button:0,detail:1,pdf,preventDefault(){this.prevented=true;},stopImmediatePropagation(){this.stopped=true;},pointerId:11,clientX:pdf[0],clientY:pdf[1],...extra});
+test("Explicit Rectangle activation accepts its first fresh point before the inherited Select deadline",async()=>{
+  const f=fixture({suppressSelectionClickUntil:1500}), retained=structuredClone(f.snapshot), activation=await f.start();
+  activation.complete();await activation.pending;const event=pointer([100,200]);await f.ui.point(event);
+  assert.equal(f.clock.now,1000,"No delay or deadline expiry makes the first click work");
+  assert.deepEqual(Array.from(f.state.points,point=>Array.from(point)),[[100,200]]);
+  assert.equal(event.prevented,true);assert.equal(event.stopped,true);assert.equal(f.calls.command,0);assert.deepEqual(f.snapshot,retained);
+});
+test("A failed drawing-font load preserves the inherited Select deadline",async()=>{
+  const f=fixture({suppressSelectionClickUntil:1500}), retained=structuredClone(f.state), activation=await f.start();
+  activation.fail();await assert.rejects(activation.pending,/Drawing font unavailable/);
+  assert.deepEqual(f.state,retained);assert.equal(f.calls.cancel,0);assert.equal(f.calls.command,0);
+});
+test("A failed host tool switch preserves the inherited Select deadline",async()=>{
+  const f=fixture({suppressSelectionClickUntil:1500}), activation=await f.start();f.calls.setToolError=new Error("Tool switch rejected");
+  activation.complete();await assert.rejects(activation.pending,/Tool switch rejected/);
+  assert.equal(f.state.suppressSelectionClickUntil,1500);assert.equal(f.state.tool,"select");assert.equal(f.calls.command,0);
+});
+test("A stale source during drawing-font loading preserves the inherited Select deadline",async()=>{
+  const f=fixture({suppressSelectionClickUntil:1500}), activation=await f.start();f.state.document="document-B";const retained=structuredClone(f.state);
+  activation.complete();await assert.rejects(activation.pending,/drawing changed/);
+  assert.deepEqual(f.state,retained);assert.equal(f.calls.cancel,0);assert.equal(f.calls.command,0);
+});
+test("A newer Select deadline created during settings flush still rejects a fresh graphic point",async()=>{
+  const f=fixture({suppressSelectionClickUntil:1500});let release;f.calls.flushPromise=new Promise(resolve=>{release=resolve;});
+  const pending=f.ui.activate("rectangle");pending.catch(()=>{});await Promise.resolve();assert.equal(f.fonts.length,0);
+  f.state.suppressSelectionClickUntil=1600;release();for(let i=0;i<12&&f.fonts.length<2;i++)await Promise.resolve();
+  assert.equal(f.fonts.length,2);f.fonts.forEach(value=>value.resolve([]));await pending;await f.ui.point(pointer([100,200]));
+  assert.equal(f.state.tool,"graphic-rectangle");assert.equal(f.state.suppressSelectionClickUntil,1600);assert.equal(f.state.points.length,0);assert.equal(f.calls.command,0);assert.equal(f.clock.now,1000);
+});
+test("A newer Select deadline created during drawing-font loading is not retired",async()=>{
+  const f=fixture({suppressSelectionClickUntil:1500}), activation=await f.start();f.state.suppressSelectionClickUntil=1600;
+  activation.complete();await activation.pending;await f.ui.point(pointer([100,200]));
+  assert.equal(f.state.tool,"graphic-rectangle");assert.equal(f.state.suppressSelectionClickUntil,1600);assert.equal(f.state.points.length,0);assert.equal(f.calls.command,0);
+});
+test("Toggling an already active graphic tool off retains its Select deadline",async()=>{
+  const f=fixture({tool:"graphic-rectangle",suppressSelectionClickUntil:1500});await f.ui.activate("rectangle");
+  assert.equal(f.state.tool,"select");assert.equal(f.state.suppressSelectionClickUntil,1500);assert.equal(f.fonts.length,0);assert.equal(f.calls.command,0);
+});
+test("Unfinished Settings prevent activation and retain the inherited Select deadline",async()=>{
+  const f=fixture({settingsDirty:true,suppressSelectionClickUntil:1500}), retained=structuredClone(f.state);
+  await assert.rejects(f.ui.activate("rectangle"),/Finish the newer edit/);
+  assert.deepEqual(f.state,retained);assert.equal(f.fonts.length,0);assert.equal(f.calls.cancel,0);assert.equal(f.calls.command,0);
+});
 test("Editing one graphic appearance field sends only that field, retaining other pages' fitted font sizes and untouched precision",async()=>{
   const writes=[],f=fixture({graphicSelected:"textbox",settingsDirty:true,queue:Promise.resolve()},async(op,body,guard)=>{assert.equal(op,"update_graphic");assert.equal(guard(),true);writes.push(structuredClone(body));return{revision:++f.state.session.revision};});
   f.snapshot.graphics.records.push({id:"textbox",mode:"wall",document_id:"document-A",page:1,appearance:{...X.defaults(),font_size:11.54321,opacity:.756789123}});

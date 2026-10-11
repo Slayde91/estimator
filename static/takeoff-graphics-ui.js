@@ -44,6 +44,7 @@ window.CeasefireTakeoffGraphicsUI = function (host) {
     const generation = ++activationGeneration;
     if (!X.kinds.includes(kind)) throw new Error("Choose a supported PDF markup tool.");
     if (state.tool === `graphic-${kind}` && !state.busy && !state.modal && !state.navigationBusy) { if(kind==="stamp")cancel(true); cancelTrace(); renderSelection(); message(`${X.labels[kind]} cancelled.`); return; }
+    const priorSelectionClickUntil = state.suppressSelectionClickUntil;
     await flushSettings();
     if (generation !== activationGeneration) throw new Error("A newer PDF markup tool was selected.");
     requireFinishedEdits();
@@ -53,7 +54,11 @@ window.CeasefireTakeoffGraphicsUI = function (host) {
     if (generation !== activationGeneration || context !== activationKey() || state.busy || state.modal || state.navigationBusy || !state.viewport) throw new Error("The drawing changed while loading the markup font. Select the tool again.");
     requireFinishedEdits();
     cancelTrace(); state.settingsOpen = false; state.settingsEditor = null; state.graphicSelected = null; state.selected.clear(); state.annotationSelected = null; state.signatureSelected = null;
-    setTool(`graphic-${kind}`); renderSelection();
+    setTool(`graphic-${kind}`);
+    // A successful explicit tool choice retires its prior Select release guard.
+    // Preserve a changed deadline while settings or fonts were pending.
+    if (priorSelectionClickUntil > 0 && state.suppressSelectionClickUntil === priorSelectionClickUntil) state.suppressSelectionClickUntil = 0;
+    renderSelection();
     message(kind === "stamp" ? hasStampTemplate() ? "Stamp: click to place another copy. Right-click or select Stamp again to stop." : "Stamp: drag a box, then choose text or a PNG/JPEG image. Right-click cancels." : X.boxes.has(kind) ? `${X.labels[kind]}: click two opposite corners. Escape cancels.` : `${X.labels[kind]}: click each point, then press Enter or double-click to finish. Escape cancels.`);
   }
   function beginStampBox(event) {

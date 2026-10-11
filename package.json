@@ -2,6 +2,7 @@
   "name": "ceasefire-estimator-browser-tests",
   "private": true,
   "scripts": {
+    "test:takeoffs-initial-pages": "node tests/browser/initial_pages.cjs",
     "test:pdf-markup-ui": "node tests/browser/pdf_markup_ui.cjs",
     "test:takeoffs-graphics": "node tests/browser/graphics.cjs",
     "test:pdf-tools": "node tests/browser/pdf_tools.cjs",

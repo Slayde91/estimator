@@ -887,6 +887,7 @@ class TakeoffService:
                      'delete_signature': {'signature_id'},
                      'create_graphic': {'graphic'}, 'update_graphic': {'graphic_id', 'changes'},
                      'delete_graphic': {'graphic_id'},
+                     'initial_pages': {'initials'},
                      'draft_library_assignment': {'assignment'},
                      'delete_annotation': {'annotation_id'}}
             if not isinstance(op, str) or op not in specs:
@@ -899,6 +900,7 @@ class TakeoffService:
             created_annotation_id = None
             created_signature_id = None
             created_graphic_id = None
+            initial_pages_metadata = None
             if op == 'draft_library_assignment':
                 from .takeoff_library_links import create_assignment, validate_proposal, prepare_assigned_quantities
                 self._physical_gate(session_id, before)
@@ -910,6 +912,9 @@ class TakeoffService:
                     after[scope_key(request['assignment']['scope'])] = prepared
                     self._validate_physical_links(session_id, after)
                 create_assignment(after, request['assignment'], library)
+            elif op == 'initial_pages':
+                from .takeoff_initial_pages import apply_initial_pages
+                initial_pages_metadata = apply_initial_pages(after, request['initials'])
             elif op in ('create_annotation', 'update_annotation', 'delete_annotation'):
                 from .takeoff_annotations import apply_annotation
                 created_annotation_id = apply_annotation(after, request)
@@ -1411,7 +1416,7 @@ class TakeoffService:
                 undo_signatures(before, after)
                 from .takeoff_graphics import undo_graphics
                 undo_graphics(before, after)
-                if before['version'] == 2 and event['op'] not in ('create_annotation', 'update_annotation', 'delete_annotation', 'create_signature', 'update_signature', 'delete_signature', 'create_graphic', 'update_graphic', 'delete_graphic'):
+                if before['version'] == 2 and event['op'] not in ('create_annotation', 'update_annotation', 'delete_annotation', 'create_signature', 'update_signature', 'delete_signature', 'create_graphic', 'update_graphic', 'delete_graphic', 'initial_pages'):
                     self._physical_gate(session_id, before)
                     after = self._undo_physical(session_id, before, after)
                 originals = {i['id']: i for i in before['items']}
@@ -1491,6 +1496,9 @@ class TakeoffService:
                 self._create_item(after, proposed, self._predecessors(originals))
                 self._remove(after, originals)
             response = self._commit(session_id, request, before, after, approvals)
+            if initial_pages_metadata is not None:
+                response.update(initial_pages_metadata)
+                session['requests'][request['request_id']].setdefault('metadata', {}).update(initial_pages_metadata)
             if created_annotation_id is not None:
                 response['created_annotation_id'] = created_annotation_id
                 session['requests'][request['request_id']].setdefault('metadata', {})['created_annotation_id'] = created_annotation_id

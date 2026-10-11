@@ -36,10 +36,11 @@
     return template({ version: 1, ratio: Math.max(.1, Math.min(20, dx * width / (dy * height))), strokes: strokes.map(stroke => stroke.map(([x, y]) => [(x - left) / dx, (y - top) / dy])) });
   }
   function saved() { try { return template(JSON.parse(root.localStorage.getItem(storageKey))); } catch { return null; } }
-  async function choose(initial = null) {
+  async function choose(initial = null, initialPages = false) {
     const doc = root.document, dialog = doc.createElement("dialog"), title = doc.createElement("h2"), intro = doc.createElement("p"), pad = doc.createElement("canvas"), status = doc.createElement("p"), actions = doc.createElement("div");
-    dialog.className = "modal takeoff-signature-dialog"; title.id = "takeoff-signature-title"; title.textContent = "Signatures"; dialog.setAttribute("aria-labelledby", title.id);
-    intro.textContent = "Draw your signature, then click the drawing to place it."; pad.width = 620; pad.height = 210; pad.className = "takeoff-signature-pad"; pad.setAttribute("aria-label", "Signature drawing pad");
+    dialog.className = "modal takeoff-signature-dialog"; title.id = "takeoff-signature-title"; title.textContent = initialPages ? "Initial Pages" : "Signatures"; dialog.setAttribute("aria-labelledby", title.id);
+    intro.textContent = initialPages ? "Enter your name or initials, draw a signature, or use both. They will fit inside the selected area on every page of this document." : "Draw your signature, then click the drawing to place it."; pad.width = 620; pad.height = 210; pad.className = "takeoff-signature-pad"; pad.setAttribute("aria-label", "Signature drawing pad");
+    const name = doc.createElement("input"), nameLabel = doc.createElement("label"); name.type = "text"; name.maxLength = 80; name.setAttribute("aria-label", "Name or initials"); nameLabel.className = "field"; nameLabel.append(doc.createTextNode("Name or initials"), name);
     status.className = "helper"; status.setAttribute("role", "status"); actions.className = "actions";
     const remember = doc.createElement("input"), rememberLabel = doc.createElement("label"); remember.type = "checkbox"; remember.checked = true; rememberLabel.append(remember, doc.createTextNode(" Remember this signature on this computer"));
     const make = (label, fn, primary = false) => { const control = doc.createElement("button"); control.type = "button"; control.className = "button " + (primary ? "primary" : "secondary"); control.textContent = label; control.addEventListener("click", fn); return control; };
@@ -51,10 +52,10 @@
         ctx.beginPath(); stroke.forEach(([x, y], index) => index ? ctx.lineTo(x * pad.width, y * pad.height) : ctx.moveTo(x * pad.width, y * pad.height)); ctx.stroke();
         if (stroke.length === 1) { ctx.beginPath(); ctx.arc(stroke[0][0] * pad.width, stroke[0][1] * pad.height, 1, 0, 2 * Math.PI); ctx.fill(); }
       }
-      insert.disabled = invalid || !strokes.length;
+      insert.disabled = invalid || pointer !== null || (!strokes.length && (!initialPages || !name.value.trim()));
     }
-    const finish = value => { result = JSON.parse(JSON.stringify(value)); if (remember.checked) { try { root.localStorage.setItem(storageKey, JSON.stringify(result)); } catch { /* Placement still works if browser storage is unavailable. */ } } dialog.close("insert"); };
-    const insert = make("Insert signature", () => { try { const rect = pad.getBoundingClientRect(); finish(crop(strokes, rect.width, rect.height)); } catch (error) { status.textContent = error.message; } }, true);
+    const finish = value => { result = JSON.parse(JSON.stringify(initialPages ? { name: name.value.trim(), signature: value } : value)); if (value && remember.checked) { try { root.localStorage.setItem(storageKey, JSON.stringify(value)); } catch { /* Placement still works if browser storage is unavailable. */ } } dialog.close("insert"); };
+    const insert = make(initialPages ? "OK" : "Insert signature", () => { try { if (invalid || pointer !== null) throw new Error("Finish drawing or clear the signature pad."); if (!strokes.length && (!initialPages || !name.value.trim())) throw new Error("Enter a name or initials, or draw a signature."); const rect = pad.getBoundingClientRect(); finish(strokes.length ? crop(strokes, rect.width, rect.height) : null); } catch (error) { status.textContent = error.message; } }, true);
     const clear = make("Clear pad", () => { if (pointer !== null && pad.hasPointerCapture(pointer)) pad.releasePointerCapture(pointer); pointer = null; active = null; invalid = false; strokes.length = 0; status.textContent = ""; paint(); });
     const cancel = make("Cancel", () => dialog.close("cancel")); actions.append(clear, insert, cancel); insert.disabled = true;
     if (prior) {
@@ -62,7 +63,12 @@
       for (const stroke of prior.strokes) {
         const path = doc.createElementNS(preview.namespaceURI, "path"); path.setAttribute("d", stroke.map(([x, y], index) => `${index ? "L" : "M"}${x * 200 * prior.ratio},${y * 200}`).join(" ") + (stroke.length === 1 ? " l.01 .01" : "")); path.setAttribute("fill", "none"); path.setAttribute("stroke", "currentColor"); path.setAttribute("stroke-width", "3"); path.setAttribute("stroke-linecap", "round"); preview.append(path);
       }
-      dialog.append(preview); actions.prepend(make("Use saved signature", () => finish(prior), true));
+      dialog.append(preview); actions.prepend(make("Use saved signature", () => {
+        if (!initialPages) { finish(prior); return; }
+        if (pointer !== null) return;
+        const width = Math.min(.9, .8 * pad.height * prior.ratio / pad.width), height = width * pad.width / (prior.ratio * pad.height);
+        strokes.splice(0, strokes.length, ...prior.strokes.map(stroke => stroke.map(([x,y]) => [(1-width)/2+x*width, (1-height)/2+y*height]))); invalid = false; status.textContent = "Saved signature selected. Click OK to initial all pages."; paint();
+      }, true));
     }
     function add(event) {
       const rect = pad.getBoundingClientRect(), point = [Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width)), Math.max(0, Math.min(1, (event.clientY - rect.top) / rect.height))];
@@ -72,13 +78,14 @@
     }
     pad.addEventListener("pointerdown", event => { if (event.button !== 0 || pointer !== null || invalid) return; if (strokes.length >= 100) { invalid = true; status.textContent = "Signature stroke limit reached. Clear the pad and draw a simpler signature."; paint(); return; } event.preventDefault(); pointer = event.pointerId; active = []; strokes.push(active); pad.setPointerCapture(pointer); add(event); });
     pad.addEventListener("pointermove", event => { if (pointer === event.pointerId && active) { event.preventDefault(); add(event); } });
-    const release = event => { if (pointer !== event.pointerId) return; if (event.type === "pointerup") add(event); if (pad.hasPointerCapture(pointer)) pad.releasePointerCapture(pointer); pointer = null; active = null; };
+    const release = event => { if (pointer !== event.pointerId) return; if (event.type === "pointerup") add(event); const released = pointer; pointer = null; active = null; if (pad.hasPointerCapture(released)) pad.releasePointerCapture(released); paint(); };
     pad.addEventListener("pointerup", release); pad.addEventListener("pointercancel", release); pad.addEventListener("lostpointercapture", release);
     dialog.addEventListener("cancel", event => { event.preventDefault(); dialog.close("cancel"); });
-    dialog.prepend(title, intro); dialog.append(pad, status, rememberLabel, actions); doc.body.append(dialog);
+    name.addEventListener("input", paint);
+    dialog.prepend(title, intro); if (initialPages) { const signatureLabel = doc.createElement("p"); signatureLabel.textContent = "Signature"; dialog.append(nameLabel, signatureLabel); } dialog.append(pad, status, rememberLabel, actions); doc.body.append(dialog);
     try { dialog.showModal(); await new Promise(resolve => dialog.addEventListener("close", resolve, { once: true })); return result; } finally { dialog.remove(); }
   }
-  const api = Object.freeze({ validateStrokes, template, project, crop, choose });
+  const api = Object.freeze({ validateStrokes, template, project, crop, choose, chooseInitial: () => choose(null, true) });
   if (typeof module === "object" && module.exports) module.exports = api;
   if (root) root.CeasefireTakeoffSignatures = api;
 })(typeof window === "object" ? window : null);

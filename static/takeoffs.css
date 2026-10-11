@@ -350,11 +350,13 @@ dialog.takeoff-column-filter{position:fixed;box-sizing:border-box;width:280px;ma
 .button:is(.takeoff-visibility-button,.takeoff-default-button,.takeoff-signature-button),:is(.takeoff-tool-rail,.takeoff-markup-settings,.takeoff-physical-details) .button:is(.takeoff-visibility-button,.takeoff-default-button,.takeoff-signature-button){display:inline-flex;align-items:center;justify-content:center;flex:0 0 38px;width:38px;min-width:38px;max-width:38px;height:38px;min-height:38px;padding:6px;box-sizing:border-box}
 .takeoff-icon-button img[src="/icons/takeoff-visibility.png"],.takeoff-physical-item-actions .takeoff-current-visibility img{display:block;width:24px;height:24px;object-fit:contain;flex:0 0 24px}
 .takeoff-action-icon{display:block;flex:0 0 24px;width:24px;height:24px;background-color:currentColor;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;-webkit-mask-position:center;mask-position:center;-webkit-mask-size:contain;mask-size:contain}
-.takeoff-default-icon{-webkit-mask-image:url('/icons/default-memory.svg');mask-image:url('/icons/default-memory.svg')}
+.takeoff-default-icon{-webkit-mask-image:url('/icons/takeoff-set-default.png');mask-image:url('/icons/takeoff-set-default.png')}
 .takeoff-signature-icon{-webkit-mask-image:url('/icons/signature.svg');mask-image:url('/icons/signature.svg')}
 .takeoff-signature-pad{display:block;width:100%;height:210px;box-sizing:border-box;border:1px solid var(--line);border-radius:6px;background:#fff;color:#17202d;touch-action:none;cursor:crosshair}
 .takeoff-signature-pad:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .takeoff-viewport[data-tool=signature]{cursor:crosshair}
+.takeoff-viewport:is([data-tool=signature],[data-tool=initial-pages],[data-tool^="graphic-"]),
+.takeoff-viewport:is([data-tool=signature],[data-tool=initial-pages],[data-tool^="graphic-"]) :is(.takeoff-page,.takeoff-page>canvas,.takeoff-overlay,.takeoff-overlay *){cursor:crosshair}
 .takeoff-signature{cursor:move}.takeoff-signature-resize{cursor:nwse-resize}
 .takeoff-signature-dialog{width:min(680px,calc(100vw - 32px))}
 .takeoff-signature-preview{display:block;max-width:100%;color:var(--text)}

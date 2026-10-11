@@ -53,13 +53,15 @@ async function insert(kind, points, options = {}) {
   const button = page.locator(".takeoff-markup-rail").getByRole("button", { name: labels[kind], exact: true }); await button.click();
   const tool = kind === "line" ? "polyline" : kind; await expect(page.locator(".takeoff-viewport")).toHaveAttribute("data-tool", `graphic-${tool}`);
   const draw = async () => {
-    for (const p of points) await page.mouse.click(...await screen(p, options.view, options.rotation));
+    if(kind === "stamp") { const first=await screen(points[0],options.view,options.rotation),last=await screen(points[1],options.view,options.rotation);await page.mouse.move(...first);await page.mouse.down();await page.mouse.move(...last,{steps:8});await page.mouse.up(); }
+    else for (const p of points) await page.mouse.click(...await screen(p, options.view, options.rotation));
     if (["line","polyline","polygon"].includes(kind)) await page.locator(".takeoff-viewport").press("Enter");
-    if (["textbox","stamp"].includes(kind)) await dialog(labels[kind], {[`${labels[kind]} text`]: options.text || (kind === "stamp" ? "REVIEWED" : "Literal <b>note</b> é")}, "Place markup");
+    if (["textbox","stamp"].includes(kind)) await dialog(labels[kind], {[`${labels[kind]} text`]: options.text || (kind === "stamp" ? "REVIEWED" : "Literal <b>note</b> é")}, kind === "stamp" ? "Create stamp" : "Place markup");
   };
   const result = await command(draw, "create_graphic"), record = result.snapshot.graphics.records.find(v=>v.id===result.created_graphic_id);
   assert.equal(record.kind, kind); assert.equal(record.source_sha256, result.snapshot.documents.find(v=>v.id===record.document_id).sha256);
   assert.equal(record.version, 1); await expect(graphic(record.id)).toBeVisible();
+  if(kind === "stamp") { await expect(page.locator(".takeoff-viewport")).toHaveAttribute("data-tool","graphic-stamp");await select(record.id); }
   await expect(panel().getByRole("heading", {name:`${kind === "line" ? "Line" : labels[kind]} Settings`,exact:true})).toBeVisible();
   const payload = requests.at(-1).graphic; for (const key of ["kind","mode","document_id","source_sha256","page","geometry","text","appearance"]) assert.deepEqual(payload[key],record[key]);
   return {record,result};

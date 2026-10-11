@@ -151,16 +151,17 @@ def validate_history(event):
     new = {record['id']: record for record in event['after'].get('signatures', {}).get('records', [])}
     if event['before']['revision'] == 0 and old:
         raise ValidationError('The initial audit state cannot contain unrecorded signatures.')
-    controlled = ('create_signature', 'update_signature', 'delete_signature')
+    controlled = ('create_signature', 'update_signature', 'delete_signature', 'initial_pages')
     if event['op'] in controlled:
-        projection = lambda state: {key: value for key, value in state.items() if key not in ('signatures', 'revision')}
+        ignored = ('graphics', 'signatures', 'revision') if event['op'] == 'initial_pages' else ('signatures', 'revision')
+        projection = lambda state: {key: value for key, value in state.items() if key not in ignored}
         if projection(event['before']) != projection(event['after']):
             raise ValidationError('A signature operation cannot change measurements, physical records, source state or transfers.')
     if old != new and event['op'] not in (*controlled, 'undo'):
         raise ValidationError('Signatures changed outside a controlled signature operation.')
     added, removed = new.keys() - old.keys(), old.keys() - new.keys()
     changed = {identifier for identifier in old.keys() & new.keys() if old[identifier] != new[identifier]}
-    if added and event['op'] not in ('create_signature', 'undo'):
+    if added and event['op'] not in ('create_signature', 'initial_pages', 'undo'):
         raise ValidationError('Signature identities may only be created or restored by Undo.')
     if event['op'] == 'create_signature' and (len(added) != 1 or removed or changed
             or any(new[identifier]['version'] != 1 for identifier in added)):

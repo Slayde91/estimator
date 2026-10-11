@@ -158,6 +158,8 @@ jobs:
           path: |
             .runtime/browser-qa/**/*.png
             .runtime/browser-qa/**/result.json
+            .runtime/browser-qa/**/export-readiness.json
+            .runtime/browser-qa/**/export-content.json
             .runtime/browser-qa/pdf-render-gate.json
           retention-days: 7
   windows-desktop:

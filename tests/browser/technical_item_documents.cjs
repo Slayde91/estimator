@@ -16,7 +16,7 @@ const ready = new Promise((resolve,reject)=>{
   server.stdout.on('data',value=>{data+=value;if(data.includes('\n')){clearTimeout(timer);resolve(JSON.parse(data.split('\n')[0]));}});
   server.once('error',reject);server.once('exit',code=>{clearTimeout(timer);reject(new Error(`Fixture exited ${code}: ${logs}`));});
 });
-const errors=[], csp=[], layouts=[], checks=[];
+const errors=[], csp=[], layouts=[], scheduleContrast=[], checks=[];
 const hash=file=>crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
 function inventory(folder){const result={};for(const entry of fs.readdirSync(folder,{withFileTypes:true})){const file=path.join(folder,entry.name);if(entry.isDirectory())for(const [name,value] of Object.entries(inventory(file)))result[`${entry.name}/${name}`]=value;else result[entry.name]=hash(file);}return result;}
 function database(file){const child=spawnSync(python,['-B',fixture,'--snapshot-database',file],{cwd:root,encoding:'utf8',windowsHide:true});assert.equal(child.status,0,child.stderr);return JSON.parse(child.stdout);}
@@ -40,7 +40,7 @@ async function exported(extension){
 }
 (async()=>{
   const info=await ready;assert.notEqual(info.port,8765);
-  browser=await chromium.launch({headless:true});page=await browser.newPage({viewport:{width:1146,height:900}});
+  browser=await chromium.launch({headless:true});page=await browser.newPage({viewport:{width:1146,height:900},reducedMotion:'reduce'});
   page.on('pageerror',error=>errors.push(error.message));
   await page.addInitScript(()=>document.addEventListener('securitypolicyviolation',e=>{window.__technicalCsp??=[];window.__technicalCsp.push({directive:e.violatedDirective,blocked:e.blockedURI});}));
   await page.goto(`http://127.0.0.1:${info.port}/`);await idle();
@@ -90,6 +90,7 @@ async function exported(extension){
     const add=fireDetail.getByRole('button',{name:'Add to Schedule',exact:true});
     await add.scrollIntoViewIfNeeded();const box=await add.boundingBox();assert.equal(box.width,48);assert.equal(box.height,48);
     const colors=await contrast('[data-library-detail="penetration"] .library-add-transfer');assert.ok(colors.ratio>=4.5,`${theme} library schedule control contrast`);
+    scheduleContrast.push({theme,control:'library',...colors});
     await page.screenshot({path:path.join(output,`firestopping-library-${theme}.png`)});await page.locator('#theme-toggle').click();
   }
   await chooseCalculator(page,'Firestopping');await expect(page.locator('#penetration-add-to-schedule')).toBeVisible();
@@ -98,13 +99,14 @@ async function exported(extension){
     const add=page.locator('#penetration-add-to-schedule');await add.scrollIntoViewIfNeeded();const box=await add.boundingBox();assert.equal(box.width,48);assert.equal(box.height,48);
     const colors=await contrast('#penetration-add-to-schedule');assert.ok(colors.ratio>=4.5,`${theme} composer schedule control contrast`);
     const source=await contrast('#penetration-diagram-empty');assert.ok(source.ratio>=4.5,`${theme} Source diagram text contrast`);
+    scheduleContrast.push({theme,control:'composer',...colors},{theme,control:'source diagram',...source});
     await page.locator('#penetration-diagram').scrollIntoViewIfNeeded();await page.screenshot({path:path.join(output,`firestopping-diagram-${theme}.png`)});await page.locator('#theme-toggle').click();
   }
   checks.push('five-theme library and composer schedule/source contrast');
   assert.deepEqual(await snapshot(),before,'Exports and menu access preserve calculator/composer/pricing/project drafts');
   assert.equal(hash(info.project),projectHash,'Exports do not rewrite saved project');assert.deepEqual(inventory(info.library),libraryBefore,'Canonical library bytes preserved');assert.deepEqual(database(info.database),databaseBefore,'Read-only documents preserve logical database including preferences');
   csp.push(...await page.evaluate(()=>window.__technicalCsp||[]));assert.deepEqual(errors,[]);assert.deepEqual(csp,[]);checks.push('drafts saved project library and database preserved');
-  fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,checks,layouts,artifacts,projectHash,libraryBefore,databasePreserved:true,errors,csp},null,2));
+  fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,checks,layouts,scheduleContrast,artifacts,projectHash,libraryBefore,databasePreserved:true,errors,csp},null,2));
   console.log(`PASS Technical Item Details PDF/XLSX, report links/source pixels, guarded native menu and ten responsive layouts; five-theme library/composer contrast and protected fixture state. Evidence: ${output}`);
 })().catch(async error=>{console.error(error);console.error(logs.slice(-4000));if(page)await page.screenshot({path:path.join(output,'failure.png'),fullPage:true}).catch(()=>{});fs.writeFileSync(path.join(output,'failure.json'),JSON.stringify({checks,layouts,errors,csp,error:String(error)},null,2));process.exitCode=1;})
 .finally(async()=>{releaseHeld?.();fs.writeFileSync(path.join(output,'server.log'),logs);if(browser)await browser.close();server.kill();});

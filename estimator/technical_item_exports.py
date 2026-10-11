@@ -135,21 +135,46 @@ def _field_rows(snapshot):
 
 
 def _new_sheet(workbook, name, title, widths):
+    _xlsx_cells([title, _NOTE])
     sheet = _sheet(workbook, name, title, widths)
     sheet.cell(2, 1).value = _NOTE
     return sheet
 
 
+def _xlsx_cells(values):
+    for value in values:
+        if isinstance(value, str) and len(value.encode('utf-16-le')) // 2 > 32767:
+            raise ValidationError('A technical item cell exceeds Excel\'s 32,767-character limit. Download the PDF or consult the original source instead; no source text was shortened.')
+
+
+def _xlsx_table(sheet, row, columns, records, widths):
+    _xlsx_cells(columns)
+    for values in records:
+        _xlsx_cells(values)
+    return _table(sheet, row, columns, records, widths)
+
+
 def build_technical_item_xlsx(snapshot):
+    record = snapshot['record']
+    intro = [[name.title(), record[name]] for name in ('id', 'title', 'subtitle', 'notice', 'diagram_status') if record[name]]
+    rows = list(_field_rows(snapshot))
+    # Preflight the actual emitted cell text before constructing any workbook.
+    # Report-number fields may split into several cells; the PDF snapshot keeps
+    # its existing capacity and is never restricted by Excel's per-cell bound.
+    for values in intro + [[label, value] for label, value, _ in rows] + snapshot['sources'] + snapshot['related']:
+        _xlsx_cells(values)
+    for table in snapshot['tables']:
+        _xlsx_cells([table['label'], table['caption'], *table['columns']])
+        for values in table['rows']:
+            _xlsx_cells(values)
+    for image in snapshot['images']:
+        _xlsx_cells([image['caption'], image['filename'], image['source_sha256']])
     workbook = Workbook()
     workbook.remove(workbook.active)
     workbook.properties.creator = 'Ceasefire'
     workbook.properties.title = 'Technical Library Item Details'
     sheet = _new_sheet(workbook, 'Item Details', 'TECHNICAL LIBRARY ITEM DETAILS', [32, 82])
-    record = snapshot['record']
-    intro = [[name.title(), record[name]] for name in ('id', 'title', 'subtitle', 'notice', 'diagram_status') if record[name]]
-    rows = list(_field_rows(snapshot))
-    _table(sheet, 4, ['Field', 'Value'], intro + [[label, value] for label, value, _ in rows], [32, 82])
+    _xlsx_table(sheet, 4, ['Field', 'Value'], intro + [[label, value] for label, value, _ in rows], [32, 82])
     for index, (_, _, url) in enumerate(rows, 5 + len(intro)):
         if url:
             cell = sheet.cell(index, 2)
@@ -160,20 +185,21 @@ def build_technical_item_xlsx(snapshot):
         widths = [max(16, 114 / len(table['columns']))] * len(table['columns'])
         target = _new_sheet(workbook, f'Source Table {ordinal}', table['label'], widths)
         if table['caption']:
+            _xlsx_cells([table['caption']])
             target.cell(3, 1).value = table['caption']
             target.cell(3, 1).data_type = 's'
-        _table(target, 5 if table['caption'] else 4, table['columns'], table['rows'], widths)
+        _xlsx_table(target, 5 if table['caption'] else 4, table['columns'], table['rows'], widths)
     provenance = _new_sheet(workbook, 'Source Information', 'SOURCE INFORMATION', [32, 38, 24, 10, 14, 10])
-    _table(provenance, 4, ['Source', 'Filename', 'Document ID', 'Page', 'Sheet', 'Row'], snapshot['sources'], [32, 38, 24, 10, 14, 10])
+    _xlsx_table(provenance, 4, ['Source', 'Filename', 'Document ID', 'Page', 'Sheet', 'Row'], snapshot['sources'], [32, 38, 24, 10, 14, 10])
     if snapshot['related']:
         related = _new_sheet(workbook, 'Related Records', 'RELATED FIRESTOPPING RECORDS', [30, 24, 55, 45])
-        _table(related, 4, ['Title', 'ID', 'Relationship', 'Notice'], snapshot['related'], [30, 24, 55, 45])
+        _xlsx_table(related, 4, ['Title', 'ID', 'Relationship', 'Notice'], snapshot['related'], [30, 24, 55, 45])
     diagrams = _new_sheet(workbook, 'Source Diagrams', 'SOURCE DIAGRAMS', [32, 82])
     row = 4
     if not snapshot['images']:
-        _table(diagrams, row, ['Source diagram', 'Status'], [['Source diagram', record['diagram_status'] or 'No source diagram is recorded.']], [32, 82])
+        _xlsx_table(diagrams, row, ['Source diagram', 'Status'], [['Source diagram', record['diagram_status'] or 'No source diagram is recorded.']], [32, 82])
     for image in snapshot['images']:
-        row = _table(diagrams, row, ['Source diagram', 'Original identity'], [[image['caption'], image['filename']], ['Source SHA256', image['source_sha256']]], [32, 82])
+        row = _xlsx_table(diagrams, row, ['Source diagram', 'Original identity'], [[image['caption'], image['filename']], ['Source SHA256', image['source_sha256']]], [32, 82])
         drawing = ExcelImage(BytesIO(image['image_data']))
         ratio = min(760 / drawing.width, 320 / drawing.height, 1)
         drawing.width *= ratio

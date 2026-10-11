@@ -128,6 +128,44 @@ class TechnicalItemExportsTests(unittest.TestCase):
         workbook = load_workbook(BytesIO(build_technical_item_xlsx(snapshot)))
         self.assertEqual(len(workbook['Source Diagrams']._images), 0)
 
+    def test_oversized_canonical_xlsx_cells_fail_before_workbook_assignment(self):
+        canonical = self.library.detail('technical', 'report-a-v2')
+        canonical['fields'][0]['value'] = 'A' * 40000
+        with patch.object(self.library, 'detail', return_value=canonical):
+            snapshot = self.capture({'id': 'report-a-v2'})
+        self.assertEqual(snapshot['fields'][0]['value'], 'A' * 40000)
+        with patch('estimator.technical_item_exports.Workbook') as workbook:
+            with self.assertRaisesRegex(ValidationError, '32,767.*PDF.*original source'):
+                build_technical_item_xlsx(snapshot)
+            workbook.assert_not_called()
+        for slot in ('title', 'caption', 'column', 'table_cell', 'diagram_caption'):
+            with self.subTest(slot=slot):
+                value = self.capture()
+                if slot == 'title': value['tables'][0]['label'] = 'A' * 40000
+                elif slot == 'caption': value['tables'][0]['caption'] = 'A' * 40000
+                elif slot == 'column': value['tables'][0]['columns'][0] = 'A' * 40000
+                elif slot == 'table_cell': value['tables'][0]['rows'][0][0] = 'A' * 40000
+                else: value['images'][0]['caption'] = 'A' * 40000
+                with patch('estimator.technical_item_exports.Workbook') as workbook, self.assertRaises(ValidationError):
+                    build_technical_item_xlsx(value)
+                workbook.assert_not_called()
+
+    def test_xlsx_cell_utf16_boundary_and_long_literal_text_round_trip_exactly(self):
+        for text in ('=' + 'A' * 32766, '\U0001f4cb' * 16383 + 'x'):
+            with self.subTest(utf16_units=len(text.encode('utf-16-le')) // 2):
+                snapshot = self.capture({'id': 'report-a-v2'})
+                snapshot['fields'][0]['value'] = text
+                workbook = load_workbook(BytesIO(build_technical_item_xlsx(snapshot)))
+                try:
+                    cells = [cell for sheet in workbook for row in sheet for cell in row if cell.value == text]
+                    self.assertEqual(len(cells), 1)
+                    self.assertEqual(cells[0].data_type, 's')
+                finally: workbook.close()
+        snapshot['fields'][0]['value'] = '\U0001f4cb' * 16384
+        with patch('estimator.technical_item_exports.Workbook') as workbook, self.assertRaises(ValidationError):
+            build_technical_item_xlsx(snapshot)
+        workbook.assert_not_called()
+
 
 class TechnicalItemHTTPTests(unittest.TestCase):
     @classmethod

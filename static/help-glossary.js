@@ -98,9 +98,9 @@
       add("Drawing tools", "Display Values", "Show or hide measured values on the drawing. New Wall/Floor surfaces start with values visible.", { text: "✓" });
       add("Drawing tools", "Re-trace geometry / Exclusions", "Replace a selected surface boundary, or edit or remove one of its exclusions.", { path: "area" });
       add("Drawing view", "Upload PDFs", "Add source PDF documents to the current project.", { selector: "#project-attachment-zone" });
-      add("Drawing view", "Tools", "Open the PDF page tools for retained Source Documents. Download the new PDF copy or add it as another Source Document.", { text: "Tools" });
+      add("Drawing view", "Tools", "Download a new PDF copy. Merge and Extract can also add it as another Source Document.", { text: "Tools" });
       add("Drawing view", "Merge PDF Files", "Choose at least two retained PDFs and arrange their order to create one new PDF copy.", { text: "Merge" });
-      add("Drawing view", "Organise Pages", "Reorder or remove pages from one retained PDF to create a new copy, keeping at least one page.", { text: "Pages" });
+      add("Drawing view", "Organise Pages", "Reorder or remove pages from one retained PDF, keeping at least one page, then download the edited copy.", { text: "Pages" });
       add("Drawing view", "Extract Pages", "Choose existing page numbers or ranges in the required order to create a new PDF copy.", { text: "Extract" });
       add("Drawing view", "Document / Remove document", "Choose an uploaded PDF, or remove the current source after confirmation.", { path: "bin" });
       add("Drawing view", "Scale / Edit calibration", "Choose or edit the applicable page or viewport calibration.", { path: "scale" });

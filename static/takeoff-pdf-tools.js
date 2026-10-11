@@ -77,9 +77,11 @@
     const workspace = node("div", "takeoff-pdf-tools-workspace"), output = node("label", "field"), outputSelect = node("select");
     outputSelect.setAttribute("aria-label", "New PDF output"); output.append(node("span", "", "New PDF output"), outputSelect);
     for (const [value, label] of [["download", "Download new PDF"], ["add-source", "Add as new Source Document"]]) {
+      if (operation === "organise" && value === "add-source") continue;
       const option = node("option", "", label); option.value = value; option.disabled = value === "add-source" && typeof onResult !== "function"; outputSelect.append(option);
     }
-    outputSelect.value = options.defaultAction === "add-source" && typeof onResult === "function" ? "add-source" : "download";
+    outputSelect.value = operation !== "organise" && options.defaultAction === "add-source" && typeof onResult === "function" ? "add-source" : "download";
+    outputSelect.disabled = operation === "organise";
     const summary = node("p", "helper takeoff-pdf-tools-summary"), controls = node("div", "actions");
     let sourceId = options.initialDocumentId && documents.some(value => value.id === options.initialDocumentId) ? options.initialDocumentId : documents[0].id;
     let order = [], mergeOrder = documents.map(value => value.id), included = new Set(mergeOrder), previewOffset = 0, prepared = null, result = null;
@@ -146,7 +148,7 @@
       try {
         // Typed page order must be applied as part of this one explicit command.
         if (operation !== "merge") { order = parsePages(orderText.value, source().pages.length); renderPages(); }
-        const body = payload(), fingerprint = JSON.stringify(body), action = outputSelect.value;
+        const body = payload(), fingerprint = JSON.stringify(body), action = operation === "organise" ? "download" : outputSelect.value;
         pending = true; for (const control of dialog.querySelectorAll("button,input,select")) { disabled.set(control,control.disabled); control.disabled = true; } dialog.setAttribute("aria-busy", "true"); status.textContent = "Preparing the new PDF…";
         if (!prepared || prepared.fingerprint !== fingerprint) prepared = { ...await checkedResult(await requestPDF(body), operation), fingerprint };
         result = { blob:prepared.blob, filename:prepared.filename, action };

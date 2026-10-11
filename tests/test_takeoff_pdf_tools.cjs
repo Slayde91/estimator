@@ -61,6 +61,19 @@ test("Organise defaults to download, applies ranges/deletion and never mutates s
   assert.deepEqual(requests,[{expected_revision:7,operation:"organise",document_ids:["alpha"],page_order:[4,1]}]);
   assert.equal(outputs[0].filename,"CEASEFIRE-Organised-Pages.pdf");assert.deepEqual(documents,before);assert.equal(h.api.hasOpenDialog(),false);
 });
+test("Organise is download-only despite add-source defaults or programmatically altered output", async () => {
+  const h=harness(),outputs=[],promise=open(h,"organise",{defaultAction:"add-source",onResult:async value=>outputs.push(value)});
+  assert.equal(h.output().value,"download");assert.equal(h.output().disabled,true);
+  assert.deepEqual(h.output().children.map(option=>option.value),["download"]);
+  h.output().value="add-source";await h.dispatch(h.button("Create PDF"));const result=await promise;
+  assert.equal(result.action,"download");assert.equal(outputs.length,1);assert.equal(outputs[0].action,"download");
+});
+test("Merge and Extract retain explicit add-source selection and caller defaults", async () => {
+  for(const operation of ["merge","extract"]){const h=harness(),outputs=[],promise=open(h,operation,{defaultAction:"add-source",onResult:async value=>outputs.push(value)});
+    assert.deepEqual(h.output().children.map(option=>option.value),["download","add-source"]);assert.equal(h.output().disabled,false);
+    assert.equal(h.output().value,"add-source");await h.dispatch(h.button("Create PDF"));assert.equal((await promise).action,"add-source");assert.equal(outputs[0].action,"add-source");
+  }
+});
 test("Delete all pages is refused and invalid typed order survives a failed Create without request", async () => {
   const h=harness(),requests=[],promise=open(h,"organise",{requestPDF:async body=>{requests.push(body);return pdf();}});
   h.input("Pages to delete").value="1-4";await h.dispatch(h.button("Delete selected pages"));assert.match(h.status().textContent,/Keep at least one/);

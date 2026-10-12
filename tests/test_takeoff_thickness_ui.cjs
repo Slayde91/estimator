@@ -57,6 +57,28 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
     assert.equal(h.audit.visibleItems().length, 1); h.state.registerColumnFilters.get('steel').get('thickness').clear(); assert.equal(h.audit.visibleItems().length, 0);
     assert.deepEqual(copy(h.state.session), before);
   });
+  await check('Duct surface stays blank until linked and reads its own native output even when thickness is unavailable', async () => {
+    const h = harness(); h.state.mode = h.item.mode = 'duct'; h.state.ui.target.value = 'ductwork';
+    Object.assign(h.binding, { calculator_id: 'ductwork', sheet: 'CALCULATOR' });
+    Object.assign(h.record, { calculator_id: 'ductwork', sheet: 'CALCULATOR', status: 'Unavailable', duct_surface_status: 'Current', duct_surface_m2: 20.123456789, duct_thickness_mm: null });
+    h.item.fields.duct_surface_m2 = 999; const before = copy(h.state.session);
+    h.state.session.snapshot.transfers = []; assert.equal(h.audit.linkedThicknessFor(h.item, 'duct_surface').text, '');
+    h.state.session.snapshot.transfers = [h.binding]; await h.start(); h.finish(); await waitFor(() => !h.audit.cache().pending);
+    const result = h.audit.linkedThicknessFor(h.item, 'duct_surface');
+    assert.equal(result.value, 20.123456789); assert.equal(result.text, '20.12'); assert.equal(result.filter, '20.123456789');
+    assert.match(result.detail, /CALCULATOR row 10.*Duct surface/); assert.equal(h.audit.linkedThicknessFor(h.item).text, 'Unavailable');
+    assert.equal(h.audit.registerFilterValue(h.item, 'duct_surface'), '20.123456789'); assert.deepEqual(copy(h.state.session), before);
+    for (const value of [null, 0, -1, '20', Infinity, NaN]) { h.audit.cache().results[h.item.id][0].duct_surface_m2 = value; assert.equal(h.audit.linkedThicknessFor(h.item, 'duct_surface').text, 'Unavailable'); }
+    h.audit.cache().results[h.item.id][0].duct_surface_m2 = 20.123456789;
+    for (const fault of ['source', 'draft', 'status', 'version', 'confirmation', 'binding']) {
+      const record = h.audit.cache().results[h.item.id][0]; Object.assign(record, { calculator_source_sha256: h.binding.source_sha256, calculator_draft_sha256: 'b'.repeat(64), duct_surface_status: 'Current' });
+      h.binding.status = 'current'; h.item.version = 4; h.item.state = 'confirmed';
+      if (fault === 'source') record.calculator_source_sha256 = 'c'.repeat(64); if (fault === 'draft') record.calculator_draft_sha256 = '';
+      if (fault === 'status') record.duct_surface_status = 'Unavailable'; if (fault === 'version') h.item.version++;
+      if (fault === 'confirmation') h.item.state = 'draft'; if (fault === 'binding') h.binding.status = 'stale';
+      assert.equal(h.audit.linkedThicknessFor(h.item, 'duct_surface').text, 'Unavailable', fault);
+    }
+  });
   await check('Destination switch never combines spray and board results, and board uses native total', async () => {
     const h = harness(); await h.start(); h.finish(); await waitFor(() => !h.audit.cache().pending);
     h.state.ui.target.value = 'steel_board'; assert.equal(h.audit.linkedThicknessFor(h.item).text, '—');

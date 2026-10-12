@@ -5,6 +5,7 @@
     "test:takeoffs-initial-pages": "node tests/browser/initial_pages.cjs",
     "test:pdf-markup-ui": "node tests/browser/pdf_markup_ui.cjs",
     "test:takeoffs-graphics": "node tests/browser/graphics.cjs",
+    "test:takeoffs-pdf-area": "node tests/browser/pdf_area_tools.cjs",
     "test:pdf-tools": "node tests/browser/pdf_tools.cjs",
     "test:help-glossary": "node tests/browser/help_glossary.cjs",
     "test:takeoffs-signatures": "node tests/browser/signatures.cjs",

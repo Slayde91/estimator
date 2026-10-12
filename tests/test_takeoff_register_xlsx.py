@@ -7,7 +7,7 @@ import unittest
 from openpyxl import load_workbook
 
 from estimator.catalog import ValidationError
-from estimator.takeoff_register_xlsx import (AREA, DUCT, LENGTH, STEEL, SURFACE,
+from estimator.takeoff_register_xlsx import (AREA, DUCT, DUCT_LENGTH, LENGTH, STEEL, SURFACE,
     export_current_register, export_physical_register, register_workbook)
 from tests import test_takeoff_workspace as workspace_fixtures
 from tests import test_takeoff_physical_v2_exports as physical_fixtures
@@ -23,7 +23,8 @@ def read(payload):
 def presentation_fixture(mode, target=None, *, recorded_fields=None):
     area = mode == 'walls_floors'
     fields = {'mark': '=literal identifier', 'level': 'Level 1', 'member_type': 'Beam', 'section': '410UB54',
-              'fire_period_min': 120, 'sides': 3, 'width_mm': 600, 'height_mm': 400, 'shape': 'rectangular',
+              'fire_period_min': 120, 'sides': 3, 'critical_temperature': 620.123456789,
+              'exposure': 'Both', 'width_mm': 600, 'height_mm': 400, 'shape': 'rectangular',
               'frl': '-/120/120', 'orientation': 'Horizontal', 'surface_basis': 'wall-face',
               'substrate': 'Concrete wall', 'treatment': 'Spray', 'system': 'System A', 'product': 'CAFCO 300', 'layers': 2}
     fields.update(recorded_fields or {})
@@ -34,16 +35,22 @@ def presentation_fixture(mode, target=None, *, recorded_fields=None):
                        'gross_area_m2': 32.54, 'excluded_area_m2': 2.21, 'net_area_m2': 30.33,
                        'total_area_m2': 60.66, 'issues': []}}
     linked = {'one': [] if area else [{'calculator_id': target, 'status': 'Current',
-        'estimating_thickness_mm': 28.123456789, 'total_thickness_mm': 50, 'duct_thickness_mm': 38}]}
+        'estimating_thickness_mm': 28.123456789, 'total_thickness_mm': 50, 'duct_thickness_mm': 38,
+        'duct_surface_status': 'Current', 'duct_surface_m2': 31.123456789012345}]}
     return export_current_register(snapshot, [item], results, {'one': False}, linked,
         mode=mode, target=target, confirmation='all')
 
 
 class RegisterCopyTests(unittest.TestCase):
     def test_each_register_has_exact_data_headers_and_one_sheet(self):
-        cases = [('steel', 'steel_vermiculite', STEEL + LENGTH),
-                 ('steel', 'steel_board', STEEL + ('Exposed sides',) + LENGTH),
-                 ('duct', 'ductwork', DUCT + LENGTH), ('walls_floors', None, SURFACE + AREA)]
+        steel = ('Confirmation', 'Member mark', 'Level', 'Member type', 'Steel section', 'Product',
+                 'Fire period (min)', 'Crit. Temp (°C)', 'Exposure')
+        length = ('Qty', 'Length each (m)', 'Total (m)', 'Thickness (mm)', 'Evidence / issues')
+        duct = ('Confirmation', 'Item', 'Level', 'WxH (mm)', 'FRL', 'Orientation', 'Product',
+                'Qty', 'Length each (m)', 'Total (m)', 'Duct surface (m²)', 'Thickness (mm)', 'Evidence / issues')
+        cases = [('steel', 'steel_vermiculite', steel + length),
+                 ('steel', 'steel_board', steel + ('Exposed sides',) + length),
+                 ('duct', 'ductwork', duct), ('walls_floors', None, SURFACE + AREA)]
         for mode, target, expected in cases:
             with self.subTest(mode=mode, target=target):
                 workbook, sheet, rows = read(presentation_fixture(mode, target)[0])
@@ -66,8 +73,68 @@ class RegisterCopyTests(unittest.TestCase):
                         index = rows[0].index('Length each (m)')
                         self.assertEqual(rows[1][index], 7.123456789012345)
                         self.assertEqual(sheet.cell(2, index+1).number_format, '#,##0.00')
+                        self.assertEqual(rows[1][rows[0].index('Product')], 'CAFCO 300')
+                        if mode == 'steel':
+                            self.assertEqual(rows[1][rows[0].index('Crit. Temp (°C)')], 620.123456789)
+                            self.assertEqual(rows[1][rows[0].index('Exposure')], 'Both')
+                        else:
+                            index = rows[0].index('Duct surface (m²)')
+                            self.assertEqual(rows[1][index], 31.123456789012345)
+                            self.assertEqual(sheet.cell(2, index+1).number_format, '#,##0.00')
                 finally:
                     workbook.close()
+
+    def test_manual_and_legacy_count_rows_use_main_columns_without_invented_length(self):
+        for mode, target in [('steel', 'steel_vermiculite'), ('duct', 'ductwork')]:
+            quantity = 3 if mode == 'steel' else 1
+            total = 3.703703673702 if mode == 'steel' else 1.234567891234
+            manual = {'id': 'manual', 'mode': mode, 'count_id': 'retained-batch',
+                      'fields': {'mark': 'Manual Count', 'product': 'MONOKOTE'}, 'quantity': quantity,
+                      'geometry': {'kind': 'count', 'document_id': 'drawing', 'page': 1}}
+            legacy = {'id': 'legacy', 'mode': mode, 'purpose': 'count-only',
+                      'count_id': 'old-batch', 'fields': {'mark': 'Legacy Count'}, 'quantity': 4,
+                      'geometry': {'kind': 'count', 'document_id': 'drawing', 'page': 2}}
+            selected = [manual, legacy]
+            snapshot = {'documents': [{'id': 'drawing', 'name': 'Original.pdf'}]}
+            results = {'manual': {'length_m': 1.234567891234, 'total_length_m': total, 'issues': []},
+                       'legacy': {'length_m': None, 'total_length_m': None, 'issues': []}}
+            before = deepcopy((snapshot, selected, results))
+            payload = export_current_register(snapshot, selected, results,
+                {'manual': False, 'legacy': False}, {'manual': [], 'legacy': []},
+                mode=mode, target=target, confirmation='all')[0]
+            workbook, sheet, rows = read(payload)
+            try:
+                self.assertEqual(workbook.sheetnames, ['Current Takeoffs'])
+                self.assertEqual(len(rows), 3, 'Count rows share the single main header; no Counts section')
+                self.assertEqual([row[1] for row in rows[1:]], ['Manual Count', 'Legacy Count'])
+                self.assertEqual(rows[1][rows[0].index('Qty')], quantity)
+                self.assertEqual(rows[2][rows[0].index('Qty')], 4)
+                self.assertEqual(rows[1][rows[0].index('Length each (m)')], 1.234567891234)
+                self.assertEqual(rows[1][rows[0].index('Total (m)')], total)
+                for label in ['Length each (m)', 'Total (m)', 'Thickness (mm)']:
+                    self.assertIsNone(rows[2][rows[0].index(label)])
+                self.assertIn('Original.pdf · p2', rows[2][rows[0].index('Evidence / issues')])
+                self.assertNotIn('non-rectangular duct', rows[2][rows[0].index('Evidence / issues')])
+                self.assertFalse(any(cell.data_type == 'f' for row in sheet for cell in row))
+            finally:
+                workbook.close()
+            self.assertEqual((snapshot, selected, results), before)
+
+    def test_current_duct_surface_does_not_require_an_available_thickness(self):
+        item = {'id': 'one', 'mode': 'duct', 'fields': {'mark': 'D1'}, 'quantity': 1,
+                'geometry': {'document_id': 'drawing', 'page': 1}}
+        snapshot = {'documents': [{'id': 'drawing', 'name': 'Original.pdf'}]}
+        results = {'one': {'length_m': 4.567891234567, 'total_length_m': 4.567891234567, 'issues': []}}
+        for status, expected in [('Current', 9.135782469134), ('Unavailable', None)]:
+            linked = {'one': [{'calculator_id': 'ductwork', 'status': 'Unavailable',
+                'duct_surface_status': status, 'duct_surface_m2': 9.135782469134, 'duct_thickness_mm': None}]}
+            workbook, sheet, rows = read(export_current_register(snapshot, [item], results,
+                {'one': True}, linked, mode='duct', target='ductwork', confirmation='all')[0])
+            try:
+                self.assertEqual(rows[1][rows[0].index('Duct surface (m²)')], expected)
+                self.assertIsNone(rows[1][rows[0].index('Thickness (mm)')])
+            finally:
+                workbook.close()
 
     def test_real_service_receipts_filter_and_source_revision_gates(self):
         case = workspace_fixtures.TakeoffWorkspaceTests(); case.setUp(); self.addCleanup(case.doCleanups)

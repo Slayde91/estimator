@@ -52,9 +52,10 @@ async function place(point, length, reuse, pendingCount) {
   await page.mouse.click(...await screen(point));
   if (length != null) {
     const modal = page.getByRole('dialog'); await expect(modal.getByRole('heading', { name: 'Counted member length', exact: true })).toBeVisible();
-    const checkbox = await modal.getByLabel('Use this length for additional counts', { exact: true }).boundingBox(), field = await modal.getByLabel('Length per member (m)', { exact: true }).boundingBox();
+    const checkbox = await modal.getByLabel('Use this length for additional counts', { exact: true }).boundingBox(), field = await modal.getByLabel('Manual Length (mm)', { exact: true }).boundingBox();
     assert.ok(checkbox.width < 30 && Math.abs(checkbox.x - field.x) < 18, 'The reuse checkbox stays at the left edge of the length form');
-    await fill(modal, 'Length per member (m)', length);
+    if (await modal.getByLabel('Member mark', { exact: true }).count()) await fill(modal, 'Member mark', 'Counted members');
+    await fill(modal, 'Manual Length (mm)', length * 1000);
     await modal.getByLabel('Use this length for additional counts', { exact: true }).setChecked(reuse);
     await modal.getByRole('button', { name: 'Place marker', exact: true }).click();
   }
@@ -230,7 +231,7 @@ function pythonJson(script, ...args) {
   const pointPairs = firstCount.flatMap(item => item.geometry.points); [[150, 140], [250, 140], [350, 140]].forEach((expected, index) => expected.forEach((value, axis) => assert.ok(Math.abs(pointPairs[index][axis] - value) < 1.5, JSON.stringify(pointPairs[index]))));
   let panel = page.locator('.takeoff-markup-settings'); await expect(panel.getByLabel('Count/QTY', { exact: true })).toHaveCount(2); assert.deepEqual(await panel.getByLabel('Count/QTY', { exact: true }).evaluateAll(fields => fields.map(field => field.value)), ['1', '2']);
   assert.equal(await panel.getByLabel('Count/QTY', { exact: true }).first().evaluate(el => el.readOnly || el.disabled), true);
-  await expect(panel.getByLabel('Length (m)', { exact: true })).toHaveCount(2); await expect(panel.getByRole('button', { name: /Change length for group|Apply settings|Discard settings/ })).toHaveCount(0);
+  await expect(panel.getByLabel('Manual Length (mm)', { exact: true })).toHaveCount(2); await expect(panel.getByRole('button', { name: /Change length for group|Apply settings|Discard settings/ })).toHaveCount(0);
   reply = await technicalDetails('COUNT-A', 2); state = reply.snapshot;
   for (const item of countItems(state)) { assert.equal(item.fields.mark, 'COUNT-A'); assert.equal(item.fields.section, '100UC15'); assert.equal(item.fields.product, 'CAFCO 300'); }
   for (const item of countItems(state)) await expect(page.locator(`tr[data-item-id="${item.id}"] input[name="quantity"]`)).toBeDisabled();
@@ -251,7 +252,7 @@ function pythonJson(script, ...args) {
   await page.screenshot({ path: path.join(output, 'compact-count-settings.png') });
   await page.setViewportSize({ width: 1600, height: 1100 }); await idle();
   const beforeLength = stable(state);
-  reply = await command(async () => { await panel.getByLabel('Length (m)', { exact: true }).first().fill('3.375'); await panel.getByLabel('Length (m)', { exact: true }).first().press('Tab'); }, 'update_count_lengths'); state = reply.snapshot;
+  reply = await command(async () => { await panel.getByLabel('Manual Length (mm)', { exact: true }).first().fill('3375'); await panel.getByLabel('Manual Length (mm)', { exact: true }).first().press('Tab'); }, 'update_count_lengths'); state = reply.snapshot;
   const changedLength = state.items.find(item => item.id === firstCount[0].id);
   assert.equal(changedLength.measurement.length_m, 3.375); assert.deepEqual(changedLength.member_ids, firstCount[0].member_ids); assert.equal(changedLength.quantity, 1);
   assert.deepEqual(stable(state).find(item => item.id === firstCount[1].id), beforeLength.find(item => item.id === firstCount[1].id));

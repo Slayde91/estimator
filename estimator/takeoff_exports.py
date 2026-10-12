@@ -208,6 +208,7 @@ def _linked_results(snapshot, selected, confirmations, registered_bindings, draf
                       'published_thickness_mm': None, 'estimating_thickness_mm': None,
                       'board_stack_mm': None, 'board_layers': None, 'total_thickness_mm': None,
                       'duct_thickness_mm': None, 'duct_thickness_basis': None,
+                      'duct_surface_m2': None, 'duct_surface_status': 'Unavailable',
                       'wrap_layers': None, 'wrap_layer_thickness_mm': None}
             results.append(result)
             if (not confirmations[item['id']] or binding['status'] != 'current'
@@ -242,6 +243,14 @@ def _linked_results(snapshot, selected, confirmations, registered_bindings, draf
                         result.update(board_stack_mm=stack, total_thickness_mm=total,
                                       board_layers=layers if number(layers) else None)
                     else:
+                        # K is the native duct-body surface result. Its geometric
+                        # availability is independent of the body coating result;
+                        # the same exact receipt/input/source gates above apply.
+                        surface = value('K')
+                        if number(surface) and surface > 0:
+                            result.update(duct_surface_m2=surface, duct_surface_status='Current',
+                                          calculator_source_sha256=model['source']['sha256'],
+                                          calculator_draft_sha256=draft['fingerprint'])
                         spray, layers = value('L'), value('R')
                         if value('CB') != 1:
                             result['reason'] = str(value('J') or 'The Ductwork calculator has no usable body result.')

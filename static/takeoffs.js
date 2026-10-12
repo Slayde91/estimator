@@ -10,7 +10,7 @@
   // capture the shared chosen defaults explicitly when they are created.
   const calloutDefaults = () => ({ stroke_color: "#FF3300", fill_color: "#FFDD33", font_color: "#000000", stroke_width: 4, fill_enabled: true, opacity: .75 });
   const state = { session: null, saved: null, opening: null, active: false, mode: "steel", document: null, page: 1,
-    zoom: 1, tool: "select", points: [], countEntries: [], countGeneration: 0, countDefaultLength: null, countQueue: Promise.resolve(), countFinishing: false, countContinuation: null, countSelection: new Map(), traceCursor: null, markupMenu: null, selected: new Set(), hovered: null, hidden: new Set(), collapsed: new Set(),
+    zoom: 1, tool: "select", points: [], countEntries: [], countGeneration: 0, countDefaultLength: null, countFields: null, countQueue: Promise.resolve(), countFinishing: false, countContinuation: null, countSelection: new Map(), traceCursor: null, markupMenu: null, selected: new Set(), hovered: null, hidden: new Set(), collapsed: new Set(),
     search: "", filter: "", sort: "mark", group: "", offset: 0, showDeleted: false, deletedOffset: 0, deletedHistory: null, calibration: "", calibrationContext: null, calibrationSelections: new Map(), busy: false, queue: Promise.resolve(),
     registerColumnFilters: new Map(), registerFilterSession: null,
     renderId: 0, searchId: 0, viewport: null, pageRotations: new Map(), pdfs: new Map(), pdfLoads: new Map(), thumbnailTasks: new Map(), thumbnailPages: new Map(), pdfWarnings: new Map(), pdfLibrary: null, resultMap: new Map(),
@@ -487,7 +487,12 @@
       const measureIcon = node("img", "takeoff-measure-icon"); measureIcon.src = "/icons/takeoff-measure.avif"; measureIcon.alt = ""; measureIcon.setAttribute("aria-hidden", "true"); measureIcon.width = 28; measureIcon.height = 28;
       measure.classList.add("icon-only", "takeoff-icon-button", "takeoff-graphic-tool"); measure.replaceChildren(measureIcon);
       measure.setAttribute("aria-label", "Measure"); measure.title = "Measure length on the PDF"; ui.tools["graphic-measure"] = measure;
-      ui.tools.trace.after(measure);
+      ui.tools.viewport.after(measure);
+      for (const [kind, label] of [["area", "Area"], ["area-exclusion", "Area exclusion"]]) {
+        const control = button(label, () => graphicsUI.activate(kind)); control.dataset.tool = `graphic-${kind}`;
+        control.classList.add("icon-only", "takeoff-icon-button", "takeoff-graphic-tool"); control.replaceChildren(X.icon(kind));
+        control.setAttribute("aria-label", label); control.title = label; ui.tools[`graphic-${kind}`] = control; toolbar.append(control);
+      }
     }
     const visibility = button("Visibility", () => { state.markupsHidden = !state.markupsHidden; visibility.setAttribute("aria-pressed", String(state.markupsHidden)); renderOverlay(); });
     const eye = node("img"); eye.src = "/icons/takeoff-visibility.png"; eye.alt = ""; eye.width = 24; eye.height = 24;
@@ -727,7 +732,7 @@
     for (const control of [state.ui.calibration, state.ui.editCalibration, state.ui.cancelTrace, state.ui.tools.calibrate, state.ui.tools.viewport]) if (control) control.hidden = false;
     if (physical) {
       for (const tool of ["trace", "countLength", "measure", "polygon", "exclusion"]) state.ui.tools[tool].hidden = true;
-      state.ui.tools.count.hidden = false; state.ui.countAnchor.hidden = false; state.ui.tools.viewport.after(state.ui.countAnchor);
+      state.ui.tools.count.hidden = false; state.ui.countAnchor.hidden = false; (state.ui.tools["graphic-measure"] || state.ui.tools.viewport).after(state.ui.countAnchor);
       ensurePhysicalUI(); state.physicalUI.render(physicalSnapshot()); renderRail(); renderCalibrations(); renderOverlay(); working(state.busy); return;
     }
     state.ui.tools.trace.after(state.ui.countAnchor);
@@ -1036,8 +1041,8 @@
       const counted = selected.filter(item => isCount(item) && !isStandalone(item));
       counted.forEach((item, index) => {
         if (counted.length > 1) content.append(node("h4", "", `Length group ${index + 1}`));
-        const quantity = formField(["count_quantity", "Count/QTY", "number"], item.quantity), length = formField(["length_m", "Length (m)", "number"], item.measurement.length_m);
-        quantity.control.readOnly = true; length.control.required = true; length.control.min = "0.000000001"; length.control.max = "1000000000000";
+        const quantity = formField(["count_quantity", "Count/QTY", "number"], item.quantity), length = formField(["length_mm", "Manual Length (mm)", "number"], item.measurement.length_m * 1000);
+        quantity.control.readOnly = true; length.control.required = true; length.control.min = "0.000001"; length.control.max = "1000000000000000";
         const entry = { key: `length:${item.id}`, memberIds: [...item.member_ids], field: length, quantity, itemId: item.id }; editor.lengths.push(entry); bindSetting(editor, length, entry.key);
         content.append(quantity.wrapper, length.wrapper);
         const row = node("div", "takeoff-count-length"), result = itemResult(item); row.dataset.itemId = item.id;
@@ -1048,7 +1053,7 @@
       const total = selected.reduce((sum, item) => sum + item.quantity, 0), row = node("div", "takeoff-standalone-settings");
       const quantity = formField(["total_count", first.purpose === "count-only" ? "Total Count/QTY" : "Length (m)", "number"], first.purpose === "count-only" ? total : itemResult(first).length_m); quantity.control.readOnly = true;
       if (first.purpose === "length-only") quantity.control.value = Number.isFinite(itemResult(first).length_m) ? itemResult(first).length_m.toFixed(2) : "";
-      row.append(quantity.wrapper); if (first.purpose === "count-only") row.append(node("p", "helper", "The total counts markers on the PDF. Add or remove a marker to change it.")); row.append(button("Delete item", async () => { await flushSettings(); await deleteItems(selected.map(item => item.id)); })); content.append(row);
+      row.append(quantity.wrapper); const remove = button("Delete item", async () => { await flushSettings(); await deleteItems(selected.map(item => item.id)); }); remove.classList.add("takeoff-delete-left"); row.append(remove); content.append(row);
     } else if (!isCount(first) && !isSurface(first)) { editor.quantity = formField(["quantity", "Count/QTY", "number"], first.quantity); bindSetting(editor, editor.quantity, "quantity"); content.append(editor.quantity.wrapper); }
     if (selected.length === 1 && !isCount(first)) renderItemSettingsTools(content, first, editor);
     void safely(() => loadSettingsOptions(editor));
@@ -1092,8 +1097,8 @@
         }
         if (captured.has("quantity")) { const value = editor.quantity.read(); if (selected.some(item => item.quantity !== value)) changes.quantity = value; }
         for (const entry of editor.lengths || []) if (captured.has(entry.key)) {
-          const length = entry.field.read();
-          if (!(length > 0) || length > 1e12) throw new Error("Length per member (m): enter a positive finite length.");
+          const entered = entry.field.read(), length = entered / 1000;
+          if (!(entered > 0) || !Number.isFinite(entered) || entered > 1e15) throw new Error("Manual Length (mm): enter a positive finite length.");
           const current = items().filter(item => isCount(item) && item.member_ids.some(id => entry.memberIds.includes(id)));
           if (entry.memberIds.some(id => !current.some(item => item.member_ids.includes(id)))) throw new Error("A count member changed. Select its current row again.");
           if (current.some(item => item.measurement.length_m !== length)) lengthChanges.push({ member_ids: [...entry.memberIds], length_m: length });
@@ -1139,11 +1144,11 @@
     requireFinishedEdits(); const current = items().find(value => value.id === item.id);
     if (!isCount(current)) throw new Error("This count group changed. Select its current row.");
     const revision = state.session.revision;
-    const data = await ask("Change counted member length", [["length_m", "Length per member (m)", "number", current.measurement.length_m, true]], "This changes every marker in this length group. Equal lengths in this Count combine into one row. Review and existing calculator links become stale; calculator inputs are preserved until an explicit update.", "Apply length", controls => { controls[0].control.min = "0.000000001"; controls[0].control.max = "1000000000000"; });
+    const data = await ask("Change counted member length", [["length_mm", "Manual Length (mm)", "number", current.measurement.length_m * 1000, true]], "This changes every marker in this row. Review and existing calculator links become stale; calculator inputs are preserved until an explicit update.", "Apply length", controls => { controls[0].control.min = "0.000001"; controls[0].control.max = "1000000000000000"; });
     if (!data) return;
     if (state.session.revision !== revision || !items().some(value => value.id === item.id)) throw new Error("The count changed during length review. Repeat the change.");
-    if (!(data.length_m > 0) || data.length_m > 1e12) throw new Error("Enter a positive finite manual length.");
-    await command("update_item", { item_id: item.id, changes: { measurement: { method: "manual", length_m: data.length_m } } });
+    if (!(data.length_mm > 0) || !Number.isFinite(data.length_mm) || data.length_mm > 1e15) throw new Error("Enter a positive finite manual length.");
+    await command("update_item", { item_id: item.id, changes: { measurement: { method: "manual", length_m: data.length_mm / 1000 } } });
     state.settingsEditor = null; renderSelection();
   }
   function renderViewportPanel() {
@@ -1619,12 +1624,12 @@
     if (state.modal || state.countFinishing || state.physicalPlacing) throw new Error("Finish the current count or dialog first.");
     if (tool === "count-only" && !["steel", "duct"].includes(state.mode)) throw new Error("Count-only items belong to Steel or Duct.");
     if (tool === "measure" && !isArea()) throw new Error("Length measurements belong to Walls or Slabs.");
-    if (tool === "count" && !["steel", "physical"].includes(state.mode)) throw new Error("Count is available for steel members and penetration barriers.");
+    if (tool === "count" && !["steel", "duct", "physical"].includes(state.mode)) throw new Error("Count is available for steel members, duct runs and penetration barriers.");
     if (tool === "count" && state.mode === "physical") { if (physicalGraph()?.version === 1) throw new Error("Legacy physical records remain read-only. Use Service Plans for new barrier markers."); if (physicalUnfinished()) throw new Error("Apply or discard unfinished physical edits before placing a marker."); }
     if (state.gesture) throw new Error("Finish or cancel the current selection or move first.");
     if (!state.viewport && tool !== "select" && tool !== "pan") throw new Error("Open a successfully rendered page first.");
     if (state.points.length) throw new Error("Finish or cancel the current trace first.");
-    if (state.mode === "physical" && !["select", "pan", "text", "calibrate", "viewport", "count", "signature", "initial-pages"].includes(tool) && !(tool.startsWith("graphic-") && X?.kinds.includes(tool.slice(8)))) throw new Error("Physical drafts use count markers and retained source regions. Length and area measurement tools belong to the other takeoff modes.");
+    if (state.mode === "physical" && !["select", "pan", "text", "calibrate", "viewport", "count", "signature", "initial-pages"].includes(tool) && !(tool.startsWith("graphic-") && (X?.tools || X?.kinds)?.includes(tool.slice(8)))) throw new Error("Choose a source annotation or PDF markup tool for this physical draft.");
     if (isArea() && ["trace", "cite"].includes(tool) || !isArea() && ["polygon", "exclusion"].includes(tool)) throw new Error("Choose a drawing tool for the current takeoff mode.");
     if (!["select", "pan", "text"].includes(tool) && (state.formDirty || state.settingsDirty)) throw new Error("Apply or discard the unfinished item edits or settings before using a drawing tool.");
     if (["trace", "measure", "polygon"].includes(tool) && !state.calibration && !activePageCalibrations().length) throw new Error("Choose or create the applicable calibration before tracing.");
@@ -1647,7 +1652,7 @@
   function cancelTrace() { graphicsUI?.cancel?.(true); initialPagesUI?.cancel(); state.signatureDraft = null; clearPdfTextSelection(); state.physicalPlacementTarget = null; cancelSelectionGesture(); resetCountDraft(); state.pendingViewport = null; state.calibrationTarget = null; state.retraceId = null; state.exclusionItemId = null; state.points = []; state.traceCursor = null; state.markupMenu = null; state.doubleClickEndpointValid = false; state.tool = "select"; if (state.ui) { state.ui.viewport.dataset.tool = "select"; for (const el of state.ui.root?.querySelectorAll("button[data-tool]") || []) el.classList.toggle("takeoff-tool-active", el.dataset.tool === "select"); renderOverlay(); } window.CeasefireProject?.changed?.(); }
   function resetCountDraft() {
     for (const entry of state.countEntries) clearTimeout(entry.timer);
-    state.countGeneration++; state.countEntries = []; state.countDefaultLength = null; state.countLastClick = null; state.countFinishing = false; state.countQueue = Promise.resolve(); state.countContinuation = null;
+    state.countGeneration++; state.countEntries = []; state.countDefaultLength = null; state.countFields = null; state.countLastClick = null; state.countFinishing = false; state.countQueue = Promise.resolve(); state.countContinuation = null;
   }
   function refreshCountDraft() { state.points = state.countEntries.map(entry => entry.point); renderOverlay(); window.CeasefireProject?.changed?.(); }
   function removePendingCount(entry) {
@@ -1662,12 +1667,14 @@
       if (!currentCountEntry(entry) || entry.length_m != null) return;
       if (state.countDefaultLength != null) { entry.length_m = state.countDefaultLength; refreshCountDraft(); return; }
       const revision = state.session?.revision;
-      const data = await ask("Counted member length", [["length_m", "Length per member (m)", "number", "", true], ["reuse", "Use this length for additional counts", "checkbox", false]], "Enter the real member length. Marker positions and drawing scale never calculate this length.", "Place marker", controls => { controls[0].control.min = "0.000000001"; controls[0].control.max = "1000000000000"; });
+      const creation = !state.countFields && !state.countContinuation, calculator = state.ui.target.value;
+      const data = await ask("Counted member length", [...(creation ? creationFields(state.mode).filter(([key]) => key !== "quantity") : []), ["length_mm", "Manual Length (mm)", "number", "", true], ["reuse", "Use this length for additional counts", "checkbox", false]], "Enter the real length. Marker positions and drawing scale never calculate this length.", "Place marker", async (controls, ready) => { const length = controls.find(field => field.control.name === "length_mm").control; length.min = "0.000001"; length.max = "1000000000000000"; if (creation) await configureSteelCreation(controls, calculator, ready); });
       if (!currentCountEntry(entry)) return;
       if (revision !== state.session?.revision) throw new Error("The count changed during length entry. Cancel and restart this count.");
       if (!data) { removePendingCount(entry); return; }
-      if (!(data.length_m > 0) || data.length_m > 1e12) throw new Error("Enter a positive finite length no greater than 1,000,000,000,000 metres.");
-      entry.length_m = data.length_m; state.countDefaultLength = data.reuse ? data.length_m : null; refreshCountDraft();
+      if (!(data.length_mm > 0) || !Number.isFinite(data.length_mm) || data.length_mm > 1e15) throw new Error("Manual Length (mm): enter a positive finite length no greater than 1,000,000,000,000,000 mm.");
+      if (creation) { const { length_mm, reuse, duct_size, ...values } = data; state.countFields = { ...values, ...(state.mode === "duct" ? { ...parseDuctSize(duct_size), shape: "rectangular" } : {}) }; }
+      entry.length_m = data.length_mm / 1000; state.countDefaultLength = data.reuse ? entry.length_m : null; refreshCountDraft();
     });
     state.countQueue = task.catch(error => { message(error.message, true); }); return task;
   }
@@ -1691,11 +1698,16 @@
       if (markers.some(entry => !(entry.length_m > 0) || !Number.isFinite(entry.length_m))) throw new Error("Every count marker requires a positive manual length.");
       const continuation = state.countContinuation;
       if (continuation) continuationTarget(continuation);
+      const sessionId = state.session.session_id, revision = state.session.revision, mode = state.mode, documentId = state.document, page = state.page, sourceHash = currentDocument()?.sha256;
+      const fields = clone(state.countFields || {}), draft = JSON.stringify([state.countEntries, state.countFields]);
+      const current = () => generation === state.countGeneration && sessionId === state.session?.session_id && mode === state.mode && documentId === state.document && page === state.page && sourceHash === currentDocument()?.sha256 && state.tool === "count";
+      const createGuard = () => { if (!current() || revision !== state.session.revision || state.formDirty || state.settingsDirty || draft !== JSON.stringify([state.countEntries, state.countFields])) throw new Error("The count or source changed before it could finish. Start the count again."); return true; };
       const reply = continuation
         ? await command("continue_count", { item_id: continuation.itemId, markers }, () => { if (state.formDirty || state.settingsDirty || generation !== state.countGeneration) throw new Error("The count changed before it could finish."); continuationTarget(continuation); return true; })
-        : await command("add_count_items", { document_id: state.document, page: state.page, markers, fields: {}, appearance: newMarkupAppearance() });
+        : await command("add_count_items", { mode, document_id: documentId, page, markers, fields, appearance: newMarkupAppearance() }, createGuard);
+      if (!reply || !current()) return;
       cancelTrace(); state.countSelection.clear(); state.selected = new Set(reply.regrouped_item_ids || reply.created_item_ids); state.settingsOpen = true; state.settingsEditor = null; state.viewportsOpen = false; renderViewportPanel(); renderSelection();
-      message(continuation ? "Count continued with the same details. Added markers are grouped by their manually entered lengths. Confirm changed rows before updating their linked schedules." : "Count recorded. Set the shared steel and fire-protection details in the panel. Different lengths have separate rows; marker quantity cannot be typed.");
+      message(continuation ? "Count continued with the same details. Confirm changed rows before updating their linked schedules." : "Count recorded in the main register. Marker quantity cannot be typed.");
     } finally { if (generation === state.countGeneration) state.countFinishing = false; }
   }
   function drawingPointer(event) {
@@ -2062,12 +2074,17 @@
     const value={mode:copied.mode,document_id:source.id,source_sha256:source.sha256,page:state.page,appearance:clone(old.appearance)};
     if(copied.kind==="signature") {value.quad_pdf=translated;value.strokes=clone(old.strokes);}
     else {value.kind=old.kind;value.geometry=old.geometry.quad_pdf?{...clone(old.geometry),quad_pdf:translated}:{points:translated};value.text=old.text;if(old.text_content)value.text_content=clone(old.text_content);if(old.stamp_image)value.stamp_image=clone(old.stamp_image);}
-    if (value.kind === "measure") {
-      if (!activePageCalibrations().some(calibration => calibration.id === state.calibration)) throw new Error("Choose the current page's scale before pasting a Measure.");
+    if (value.kind === "area") {
+      const delta = point.map((n, axis) => n - center[axis]);
+      value.geometry.exclusions = (old.geometry.exclusions || []).map(exclusion => ({ ...clone(exclusion), id: uuid(), points: exclusion.points.map(p => p.map((n, axis) => n + delta[axis])) }));
+      if (value.geometry.exclusions.some(exclusion => exclusion.points.some(p => p.some((n, axis) => !Number.isFinite(n) || n < view[axis] || n > view[axis + 2])))) throw new Error("Place the whole copied Area inside the PDF page.");
+    }
+    if (["measure", "area"].includes(value.kind)) {
+      if (!activePageCalibrations().some(calibration => calibration.id === state.calibration && (value.kind !== "area" || calibration.uniform_scale === true))) throw new Error(`Choose the current page's ${value.kind === "area" ? "uniform " : ""}scale before pasting ${value.kind === "area" ? "an Area" : "a Measure"}.`);
       value.calibration_id = state.calibration;
     }
     const revision=state.session.revision;
-    const reply=await command(copied.kind==="signature"?"create_signature":"create_graphic",{[copied.kind]:value},()=>{requireFinishedEdits();return copied===state.pdfMarkupClipboard && before===pdfPasteContext() && revision===state.session?.revision && state.pastePointer===pointer && selection===pdfSelectionIntent() && (value.kind !== "measure" || value.calibration_id === state.calibration);});
+    const reply=await command(copied.kind==="signature"?"create_signature":"create_graphic",{[copied.kind]:value},()=>{requireFinishedEdits();return copied===state.pdfMarkupClipboard && before===pdfPasteContext() && revision===state.session?.revision && state.pastePointer===pointer && selection===pdfSelectionIntent() && (!["measure", "area"].includes(value.kind) || value.calibration_id === state.calibration);});
     if(!reply || before!==pdfPasteContext() || copied!==state.pdfMarkupClipboard || selection!==pdfSelectionIntent() || state.settingsDirty || state.formDirty) return;
     state.selected.clear();state.countSelection.clear();state.annotationSelected=null;state.legendSelected=null;state.graphicSelected=null;state.signatureSelected=null;state.settingsOpen=false;state.settingsEditor=null;
     const emptySelection=pdfSelectionIntent();await state.physicalUI?.clearSelection?.();
@@ -2231,15 +2248,20 @@
     if (state.countFinishing || state.busy || state.modal || state.tool !== "count-only") return;
     if (!state.points.length) return cancelTrace();
     const markers = state.points.map(point => ({ point: [...point] })), continuation = state.countContinuation;
+    const generation = state.countGeneration, revision = state.session.revision, sessionId = state.session.session_id, mode = state.mode, documentId = state.document, page = state.page, sourceHash = currentDocument()?.sha256, draft = JSON.stringify(state.points);
     if (continuation) continuationTarget(continuation);
     state.countFinishing = true;
     try {
-      const details = continuation ? null : await ask("Add count", [...standaloneFields.map(def => [def[0], def[1], def[2] || "text", "", def[0] === "mark"])], "Count/QTY is the number of markers on this page.", "Add count", (controls, ready) => configureSteelCreation(controls, "firestopping", ready));
+      const details = continuation ? null : await ask("Add count", [...creationFields(mode).filter(([key]) => key !== "quantity"), ["length_mm", "Manual Length (mm)", "number", "", true]], "", "Add count", async (controls, ready) => { const length = controls.find(field => field.control.name === "length_mm").control; length.min = "0.000001"; length.max = "1000000000000000"; await configureSteelCreation(controls, state.ui.target.value, ready); });
       if (!continuation && !details) return cancelTrace();
-      const values = details ? { ...details, ...parseDuctSize(details.duct_size) } : null; if (values) delete values.duct_size;
-      const reply = continuation ? await command("continue_standalone_count", { item_id: continuation.itemId, markers }, () => !!continuationTarget(continuation)) : await command("add_standalone_count", { mode: state.mode, document_id: state.document, page: state.page, markers, fields: values, appearance: newMarkupAppearance() });
+      if (details && (!(details.length_mm > 0) || !Number.isFinite(details.length_mm) || details.length_mm > 1e15)) throw new Error("Manual Length (mm): enter a positive finite length no greater than 1,000,000,000,000,000 mm.");
+      const values = details ? { ...details, ...(mode === "duct" ? { ...parseDuctSize(details.duct_size), shape: "rectangular" } : {}) } : null; if (values) { delete values.duct_size; delete values.length_mm; }
+      const current = () => generation === state.countGeneration && sessionId === state.session?.session_id && mode === state.mode && documentId === state.document && page === state.page && sourceHash === currentDocument()?.sha256 && state.tool === "count-only";
+      const guard = () => { if (!current() || revision !== state.session.revision || draft !== JSON.stringify(state.points) || state.formDirty || state.settingsDirty) throw new Error("The count or source changed. Start the count again."); return true; };
+      const reply = continuation ? await command("continue_standalone_count", { item_id: continuation.itemId, markers }, () => !!continuationTarget(continuation)) : await command("add_count_items", { mode, document_id: documentId, page, markers: markers.map(marker => ({ ...marker, length_m: details.length_mm / 1000 })), fields: values, appearance: newMarkupAppearance() }, guard);
+      if (!reply || !current()) return;
       const ids = continuation ? [continuation.itemId] : reply.created_item_ids; cancelTrace(); state.selected = new Set(ids); state.settingsOpen = true; state.settingsEditor = null; renderSelection();
-    } finally { state.countFinishing = false; }
+    } finally { if (generation === state.countGeneration) state.countFinishing = false; }
   }
   function renderStandaloneRegister(list, container) {
     const table = node("table", "takeoff-standalone-register"), head = node("thead"), heading = node("tr"), body = node("tbody");
@@ -2254,7 +2276,7 @@
       row.append(node("td", "", item.purpose === "count-only" ? String(item.quantity) : formatLength(itemResult(item).length_m))); body.append(row);
       const sessionId = state.session?.session_id; void loadCalculatorOptions("firestopping").then(choices => { if (table.isConnected && sessionId === state.session?.session_id) populateCalculatorOptions(controls, choices, "firestopping"); }).catch(error => { if (table.isConnected) message(error.message, true); });
     }
-    container.append(node("h3", "", isArea() ? "Length measurements" : "Counts"), table);
+    container.append(node("h3", "", "Length measurements"), table);
   }
   async function createDrawnItem(measurement, geometry, evidence = []) {
     if (isArea()) {
@@ -3570,34 +3592,42 @@
     }
     return { value: null };
   }
-  function linkedThicknessFor(item) {
+  function linkedThicknessFor(item, metric = "thickness") {
+    const surface = metric === "duct_surface";
     const calculatorId = state.ui?.target?.value, binding = (snapshot()?.transfers || []).find(value => value.item_id === item.id && value.calculator_id === calculatorId);
-    if (!binding) return { text: "—", filter: "", detail: `No linked ${calculatorName(calculatorId)} schedule row. Transfer this confirmed item to obtain its calculated thickness.` };
+    if (!binding) return { text: surface ? "" : "—", filter: "", detail: `No linked ${calculatorName(calculatorId)} schedule row. Transfer this confirmed item to obtain its calculated ${surface ? "duct surface" : "thickness"}.` };
     const unavailable = reason => ({ text: "Unavailable", filter: "", detail: `${calculatorName(calculatorId)} · ${binding.sheet} row ${binding.row}: ${reason}` });
     if (binding.status !== "current" || binding.item_version !== item.version || reviewStatus(item).key !== "confirmed") return unavailable("The source link needs confirmation and an explicit linked-row update.");
     const context = thicknessContext();
     if (!context || linkedThickness?.key !== context.key || linkedThickness.pending) return { text: "Checking…", filter: "", detail: "Checking the current calculator draft and source link." };
     if (linkedThickness.error) return unavailable(linkedThickness.error);
     const records = linkedThickness.results[item.id], result = Array.isArray(records) ? records.find(value => value.calculator_id === calculatorId && value.binding_id === binding.id && value.row === binding.row && value.sheet === binding.sheet) : null;
-    const value = calculatorId === "steel_vermiculite" ? result?.estimating_thickness_mm : calculatorId === "ductwork" ? result?.duct_thickness_mm : result?.total_thickness_mm;
-    if (result?.status !== "Current" || !Number.isFinite(value) || value <= 0 || result.calculator_source_sha256 !== binding.source_sha256 || !/^[0-9a-f]{64}$/.test(result.calculator_draft_sha256 || "")) return unavailable(result?.reason || "The existing calculator has no usable thickness result.");
+    const value = surface ? result?.duct_surface_m2 : calculatorId === "steel_vermiculite" ? result?.estimating_thickness_mm : calculatorId === "ductwork" ? result?.duct_thickness_mm : result?.total_thickness_mm;
+    if ((surface ? result?.duct_surface_status : result?.status) !== "Current" || !Number.isFinite(value) || value <= 0 || result.calculator_source_sha256 !== binding.source_sha256 || !/^[0-9a-f]{64}$/.test(result.calculator_draft_sha256 || "")) return unavailable(result?.reason || `The existing calculator has no usable ${surface ? "duct surface" : "thickness"} result.`);
     // Keep the native numeric result; this is not a new thickness calculation.
-    const basis = calculatorId === "steel_vermiculite" ? `Estimating thickness. Published thickness: ${result.published_thickness_mm ?? "unavailable"} mm.` : calculatorId === "ductwork" ? result.duct_thickness_basis : `Total board thickness. Stack: ${result.board_stack_mm}; layers: ${result.board_layers ?? "unavailable"}.`;
-    return { value, text: String(value), filter: String(value), detail: `${calculatorName(calculatorId)} · ${binding.sheet} row ${binding.row}. ${basis} Calculator source SHA-256: ${result.calculator_source_sha256}. Current draft SHA-256: ${result.calculator_draft_sha256}.` };
+    const basis = surface ? "Duct surface from the current Ductwork calculator row." : calculatorId === "steel_vermiculite" ? `Estimating thickness. Published thickness: ${result.published_thickness_mm ?? "unavailable"} mm.` : calculatorId === "ductwork" ? result.duct_thickness_basis : `Total board thickness. Stack: ${result.board_stack_mm}; layers: ${result.board_layers ?? "unavailable"}.`;
+    return { value, text: surface ? formatLength(value) : String(value), filter: String(value), detail: `${calculatorName(calculatorId)} · ${binding.sheet} row ${binding.row}. ${basis} Calculator source SHA-256: ${result.calculator_source_sha256}. Current draft SHA-256: ${result.calculator_draft_sha256}.` };
   }
   function updateLinkedThicknessCell(cell, item) {
     const thickness = linkedThicknessFor(item); cell.textContent = thickness.text; cell.title = thickness.detail;
     cell.setAttribute("aria-label", `Thickness (mm): ${thickness.text}. ${thickness.detail}`);
   }
+  function updateLinkedDuctSurfaceCell(cell, item) {
+    const surface = linkedThicknessFor(item, "duct_surface"); cell.textContent = surface.text; cell.title = surface.detail;
+    cell.setAttribute("aria-label", `Duct surface (m²): ${surface.text}. ${surface.detail}`);
+  }
   function updateLinkedThicknessPresentation() {
     if (!["steel", "duct"].includes(state.mode) || !state.ui || state.ui.root.closest?.("[hidden]")) return;
     const active = document.activeElement, editing = ["INPUT", "SELECT", "TEXTAREA"].includes(active?.tagName) && state.ui.tableWrap?.contains?.(active);
-    const filtered = registerFilters().has("thickness");
+    const filtered = ["thickness", "duct_surface"].some(key => registerFilters().has(key));
     if (!filtered) state.thicknessFilterNeedsRender = false;
     if (filtered && !editing && !state.busy) { state.thicknessFilterNeedsRender = false; renderRegister(); return; }
     // An async derived result must not replace an input the user is typing in.
     for (const cell of state.ui.tableWrap?.querySelectorAll("[data-thickness-item-id]") || []) {
       const item = items().find(value => value.id === cell.dataset.thicknessItemId); if (item) updateLinkedThicknessCell(cell, item);
+    }
+    for (const cell of state.ui.tableWrap?.querySelectorAll("[data-duct-surface-item-id]") || []) {
+      const item = items().find(value => value.id === cell.dataset.ductSurfaceItemId); if (item) updateLinkedDuctSurfaceCell(cell, item);
     }
     if (filtered) {
       state.thicknessFilterNeedsRender = true;
@@ -3616,8 +3646,8 @@
   }
   function issueText(value) { return typeof value === "string" ? value : value?.message || value?.detail || value?.code || JSON.stringify(value); }
   const registerFilterColumns = {
-    steel: { confirmation: "Confirmation", mark: "Member mark", level: "Level", member_type: "Member type", section: "Steel section", fire_period_min: "Fire period (min)", thickness: "Thickness (mm)" },
-    duct: { confirmation: "Confirmation", mark: "Item", level: "Level", duct_size: "WxH (mm)", frl: "FRL", orientation: "Orientation", thickness: "Thickness (mm)" },
+    steel: { confirmation: "Confirmation", mark: "Member mark", level: "Level", member_type: "Member type", section: "Steel section", product: "Product", fire_period_min: "Fire period (min)", critical_temperature: "Crit. Temp (°C)", exposure: "Exposure", thickness: "Thickness (mm)" },
+    duct: { confirmation: "Confirmation", mark: "Item", level: "Level", duct_size: "WxH (mm)", frl: "FRL", orientation: "Orientation", product: "Product", duct_surface: "Duct surface (m²)", thickness: "Thickness (mm)" },
     wall: { confirmation: "Confirmation", mark: "Surface ID", surface_type: "Surface type", level: "Level", surface_basis: "Surface basis", substrate: "Substrate", treatment: "Treatment", system: "Protection system", product: "Protection product", frl: "FRL / fire rating" },
     slab: { confirmation: "Confirmation", mark: "Surface ID", surface_type: "Surface type", level: "Level", surface_basis: "Surface basis", substrate: "Substrate", treatment: "Treatment", system: "Protection system", product: "Protection product", frl: "FRL / fire rating" },
   };
@@ -3632,6 +3662,7 @@
   function registerFilterValue(item, key) {
     if (key === "surface_type") return surfaceType(item);
     if (key === "thickness") return linkedThicknessFor(item).filter;
+    if (key === "duct_surface") return linkedThicknessFor(item, "duct_surface").filter;
     if (key === "surface_basis") {
       const value = String(item.fields?.[key] ?? "").trim(), choices = fields[item.mode]?.find(field => field[0] === key)?.[2];
       return Array.isArray(choices) ? choices.find(choice => choice[0] === value)?.[1] || value : value;
@@ -3841,8 +3872,8 @@
     state.ui.merge.title = isArea() ? "Surface merging is unavailable. Group separate physical surfaces without changing their identities." : state.mode === "steel" ? "Combine compatible repeated-member groups while retaining every physical member identity." : "Merge adjoining measured segments of one individual duct run.";
     state.ui.bulk.hidden = !selected.length; state.ui.selectionCount.textContent = `${selected.length} selected`;
     const table = node("table"), head = node("thead"), header = node("tr"), body = node("tbody"); table.setAttribute("aria-label", `${labels[state.mode]} editable takeoff register`);
-    const area = isArea(), columns = area ? ["mark", "surface_type", "level", "surface_basis", "substrate", "treatment", "system", "product", "frl", "layers"] : state.mode === "steel" ? ["mark", "level", "member_type", "section", "fire_period_min", ...(state.ui.target?.value === "steel_board" ? ["sides"] : [])] : ["mark", "level", "duct_size", "frl", "orientation"];
-    const headings = ["Select", "Hide", "View/Edit", "Confirmation", ...columns.map(key => area && key === "mark" ? "Surface ID" : key === "surface_type" ? "Surface type" : fields[state.mode].find(field => field[0] === key)?.[1] || key), ...(area ? ["Gross (m²)", "Excluded (m²)", "Net (m²)", "Total (m²)"] : ["Qty", "Length each (m)", "Total (m)"]), ...(["steel", "duct"].includes(state.mode) ? ["Thickness (mm)"] : []), "Evidence / issues"];
+    const area = isArea(), columns = area ? ["mark", "surface_type", "level", "surface_basis", "substrate", "treatment", "system", "product", "frl", "layers"] : state.mode === "steel" ? ["mark", "level", "member_type", "section", "product", "fire_period_min", "critical_temperature", "exposure", ...(state.ui.target?.value === "steel_board" ? ["sides"] : [])] : ["mark", "level", "duct_size", "frl", "orientation", "product"];
+    const headings = ["Select", "Hide", "View/Edit", "Confirmation", ...columns.map(key => area && key === "mark" ? "Surface ID" : key === "surface_type" ? "Surface type" : fields[state.mode].find(field => field[0] === key)?.[1] || key), ...(area ? ["Gross (m²)", "Excluded (m²)", "Net (m²)", "Total (m²)"] : ["Qty", "Length each (m)", "Total (m)"]), ...(state.mode === "duct" ? ["Duct surface (m²)"] : []), ...(["steel", "duct"].includes(state.mode) ? ["Thickness (mm)"] : []), "Evidence / issues"];
     for (const title of headings) {
       const cell = node("th", "", title);
       if (usesColumnFilters()) { const filterColumns = registerFilterColumns[state.mode], key = Object.keys(filterColumns).find(key => filterColumns[key] === title); if (key) cell.append(registerColumnFilterButton(key)); }
@@ -3857,11 +3888,12 @@
     const optionRequests = new Map(), calculator = state.ui.target?.value, sessionId = state.session?.session_id;
     const grouped = groupedItems(list);
     state.offset = Math.max(0, Math.min(state.offset, Math.max(0, Math.floor((grouped.length - 1) / 100) * 100)));
-    for (const item of grouped.slice(state.offset, state.offset + 100).filter(item => !isStandalone(item))) {
+    for (const item of grouped.slice(state.offset, state.offset + 100).filter(item => item.purpose !== "length-only")) {
       const group = itemGroup(item);
       if (group !== null && group !== lastGroup) { const row = node("tr", "takeoff-group-row"), cell = node("td"); cell.colSpan = headings.length; cell.append(button(`${state.collapsed.has(group) ? "▸" : "▾"} ${group}`, () => { state.collapsed.has(group) ? state.collapsed.delete(group) : state.collapsed.add(group); renderRegister(); }, "takeoff-group-toggle")); row.append(cell); body.append(row); lastGroup = group; }
       if (group && state.collapsed.has(group)) continue;
       const row = node("tr", state.selected.has(item.id) ? "selected" : ""); row.dataset.itemId = item.id; row.addEventListener("pointerenter", () => hover(item.id)); row.addEventListener("pointerleave", () => hover(null));
+      if (item.purpose) row.dataset.purpose = item.purpose;
       const checkCell = node("td"), check = node("input"); check.type = "checkbox"; check.checked = state.selected.has(item.id); check.setAttribute("aria-label", `Select ${item.fields.mark || item.id}`); check.addEventListener("change", () => void safely(async () => { await selectItem(item.id, true, false); check.checked = state.selected.has(item.id); })); checkCell.append(check);
       const showCell = node("td"), show = node("input"); show.type = "checkbox"; show.checked = state.hidden.has(item.id); show.setAttribute("aria-label", `Hide ${item.fields.mark || item.id} on drawing`); show.addEventListener("change", () => { show.checked ? state.hidden.add(item.id) : state.hidden.delete(item.id); renderRegister(); renderOverlay(); }); showCell.append(show);
       const linkCell = node("td"), edit = button("Edit item", () => openItemSettings(item), "text-button"); edit.setAttribute("aria-controls", "takeoff-markup-settings");
@@ -3878,10 +3910,11 @@
       const result = itemResult(item);
       for (const key of area ? ["gross_area_m2", "excluded_area_m2", "net_area_m2", "total_area_m2"] : ["length_m", "total_length_m"]) row.append(node("td", "", area ? Number.isFinite(result[key]) ? units.format(result[key]) : "—" : formatLength(result[key])));
       if (["steel", "duct"].includes(state.mode)) {
+        if (state.mode === "duct") { const surface = node("td", "takeoff-linked-duct-surface"); surface.dataset.ductSurfaceItemId = item.id; updateLinkedDuctSurfaceCell(surface, item); row.append(surface); }
         const cell = node("td", "takeoff-linked-thickness"); cell.dataset.thicknessItemId = item.id;
         updateLinkedThicknessCell(cell, item); row.append(cell);
       }
-      const evidence = node("td"); evidence.append(node("span", "", item.geometry ? `${documentById(item.geometry.document_id)?.name || "Missing document"} · p${item.geometry.page}` : "Source markup missing")); if (item.mode === "duct" && item.fields.shape !== "rectangular") evidence.append(node("span", "takeoff-row-issue", "Retained non-rectangular duct; calculator transfer unavailable.")); for (const issue of result.issues || []) evidence.append(node("span", "takeoff-row-issue", issueText(issue))); row.append(evidence); body.append(row);
+      const evidence = node("td"); evidence.append(node("span", "", item.geometry ? `${documentById(item.geometry.document_id)?.name || "Missing document"} · p${item.geometry.page}` : "Source markup missing")); if (!isStandalone(item) && item.mode === "duct" && item.fields.shape !== "rectangular") evidence.append(node("span", "takeoff-row-issue", "Retained non-rectangular duct; calculator transfer unavailable.")); for (const issue of result.issues || []) evidence.append(node("span", "takeoff-row-issue", issueText(issue))); row.append(evidence); body.append(row);
       if (!area && calculator && rowFields.some(field => field.control.tagName === "SELECT" && ["frl", "fire_period_min"].includes(field.control.name))) {
         const url = `/options?calculator=${encodeURIComponent(calculator)}&product=${encodeURIComponent(item.fields.product || "")}&member_type=${encodeURIComponent(item.fields.member_type || "")}`;
         if (!optionRequests.has(url)) optionRequests.set(url, loadCalculatorOptions(calculator, item.fields.product || "", item.fields.member_type || ""));
@@ -3890,7 +3923,7 @@
     }
     state.ui.pagination.replaceChildren(button("Previous 100", () => { state.offset = Math.max(0, state.offset - 100); renderRegister(); }), node("span", "helper", `${list.length ? state.offset + 1 : 0}–${Math.min(state.offset + 100, list.length)} of ${list.length} matching items`), button("Next 100", () => { if (state.offset + 100 < list.length) state.offset += 100; renderRegister(); }));
     state.ui.tableWrap.replaceChildren(table);
-    const standaloneRows = grouped.slice(state.offset, state.offset + 100).filter(isStandalone);
+    const standaloneRows = grouped.slice(state.offset, state.offset + 100).filter(item => item.purpose === "length-only");
     if (standaloneRows.length) renderStandaloneRegister(standaloneRows, state.ui.tableWrap);
     if (!list.length) state.ui.tableWrap.append(node("p", "takeoff-register-empty", area ? `No matching surfaces. Calibrate the applicable drawing scale, then Trace surface. ${surfaceHelp}` : "No matching items. Calibrate and trace a member/run, or cite a source-stated length."));
     renderDeletedHistory();
@@ -3941,7 +3974,7 @@
   }
   function renderLengthAdditions(panel, item, currentAction) {
     const additions = item.length_additions || [], section = node("section", "takeoff-length-additions");
-    section.append(node("h3", "", "RISES / DROPS"), node("p", "helper", `Each addition applies to each ${item.mode === "steel" ? "member" : "run"}. The total includes quantity × (base length + all additions). Right-click a control point to insert a manually entered Rise or Drop.`));
+    section.append(node("h3", "", "RISES / DROPS"));
     for (const addition of additions) {
       const card = node("div", "takeoff-exclusion");
       card.append(node("strong", "", `${addition.kind === "riser" ? "Rise" : "Drop"} · ${formatLength(addition.length_mm)} mm each`));

@@ -1,4 +1,4 @@
-"""Derived PDF-only lengths; these records never become takeoff items."""
+"""Derived PDF-only lengths and net areas, without takeoff-item authority."""
 import math
 
 from .catalog import ValidationError
@@ -17,12 +17,21 @@ def validate_measure_scope(record, snapshot):
     measure_calibration(record, snapshot)
     # The scope helper needs only source/path/basis; this temporary shape is
     # never stored, returned as an item, reviewed, confirmed or transferred.
-    validate_measurement_scope({'mode': 'steel', 'geometry': {'document_id': record['document_id'],
-        'page': record['page'], 'points': record['geometry']['points']},
-        'measurement': {'method': 'calibrated', 'calibration_id': record['calibration_id']}}, snapshot)
+    validate_measurement_scope(_measurement_shape(record), snapshot)
+
+
+def _measurement_shape(record):
+    area = record['kind'] == 'area'
+    return {'mode': 'wall' if area else 'steel',
+            'geometry': {'document_id': record['document_id'], 'page': record['page'],
+                         'points': record['geometry']['points'],
+                         **({'kind': 'polygon', 'exclusions': record['geometry']['exclusions']} if area else {})},
+            'measurement': {'method': 'calibrated', 'calibration_id': record['calibration_id']}}
 
 
 def measure_result(record, snapshot):
+    if record['kind'] == 'area':
+        return area_result(record, snapshot)
     result = {'id': record['id'], 'version': record['version'], 'status': 'needs_review',
               'length_m': None, 'segments_m': [], 'issues': []}
     try:
@@ -39,6 +48,20 @@ def measure_result(record, snapshot):
     return result
 
 
+def area_result(record, snapshot):
+    result = {'id': record['id'], 'version': record['version'], 'status': 'needs_review',
+              'gross_area_m2': None, 'excluded_area_m2': None, 'net_area_m2': None, 'label_point_pdf': None, 'issues': []}
+    try:
+        validate_measure_scope(record, snapshot)
+        from .takeoff_area import measured_area
+        from .takeoff_markup_pdf import surface_label_point
+        result.update(status='current', **measured_area(_measurement_shape(record), snapshot),
+                      label_point_pdf=surface_label_point(record['geometry']))
+    except ValidationError as error:
+        result['issues'].append({'code': 'PDF_AREA_SCALE_REVIEW', 'message': str(error)})
+    return result
+
+
 def measure_results(snapshot):
     return [measure_result(record, snapshot) for record in snapshot.get('graphics', {}).get('records', [])
-            if record['kind'] == 'measure']
+            if record['kind'] in ('measure', 'area')]

@@ -1,7 +1,10 @@
 """Thickness is a read-only projection of current, receipt-bound native cells."""
 from copy import deepcopy
+from io import BytesIO
 import unittest
 from uuid import uuid4
+
+from openpyxl import load_workbook
 
 from estimator.catalog import ROOT, ValidationError
 from estimator.takeoff_exports import linked_register_results
@@ -80,11 +83,70 @@ class TakeoffLinkedResultTests(unittest.TestCase):
         _, engine, lock = calculator_session('ductwork', drafts['ductwork']['inputs'])
         with lock:
             expected = engine.value('CALCULATOR', f"R{binding['row']}") * engine.value('PRODUCT SETTINGS', 'B96') * 1000
+            expected_surface = engine.value('CALCULATOR', f"K{binding['row']}")
         self.assertEqual(result['status'], 'Current'); self.assertEqual(result['duct_thickness_mm'], expected)
+        self.assertEqual(result['duct_surface_status'], 'Current')
+        self.assertEqual(result['duct_surface_m2'], expected_surface)
         self.assertIn('local penetration layers excluded', result['duct_thickness_basis'])
         drafts['ductwork']['inputs']['CALCULATOR'][f"D{binding['row']}"] += .25
         stale = self.read(drafts)['linked_results'][identifier][0]
         self.assertEqual(stale['status'], 'Unavailable'); self.assertIsNone(stale['duct_thickness_mm'])
+        self.assertEqual(stale['duct_surface_status'], 'Unavailable')
+        self.assertIsNone(stale['duct_surface_m2'])
+
+    def test_duct_native_surface_remains_current_when_body_thickness_is_unsupported(self):
+        identifier = self.case.create('duct', quantity=1)
+        self.case.command('update_item', item_id=identifier, changes={'fields': {
+            'product': 'CAFCO 300', 'frl': '240/240/180', 'exposure': 'External'}})
+        self.case.confirm(identifier)
+        self.case.apply(self.case.preview(identifier, 'ductwork'))
+        native = self.case.state['calculator']
+        drafts = {'ductwork': {key: deepcopy(native[key]) for key in ('inputs', 'schedule_rows')}}
+        before = deepcopy(self.case.state['snapshot']); original = deepcopy(drafts)
+        result = self.read(drafts)['linked_results'][identifier][0]
+        binding = before['transfers'][0]
+        _, engine, lock = calculator_session('ductwork', drafts['ductwork']['inputs'])
+        with lock:
+            self.assertEqual(result['duct_surface_m2'], engine.value('CALCULATOR', f"K{binding['row']}"))
+            self.assertEqual(engine.value('CALCULATOR', f"CB{binding['row']}"), 0)
+        self.assertEqual(result['duct_surface_status'], 'Current')
+        self.assertEqual(result['status'], 'Unavailable')
+        self.assertIsNone(result['duct_thickness_mm'])
+        self.assertEqual(result['calculator_source_sha256'], binding['source_sha256'])
+        self.assertRegex(result['calculator_draft_sha256'], r'^[0-9a-f]{64}$')
+        payload = self.case.service.export_workspace(self.case.sid, 'register-xlsx', {
+            'expected_revision': before['revision'], 'mode': 'duct', 'target': 'ductwork',
+            'calculator_drafts': drafts})[0]
+        workbook = load_workbook(BytesIO(payload))
+        try:
+            rows = list(workbook.active.values)
+            self.assertEqual(workbook.sheetnames, ['Current Takeoffs'])
+            self.assertEqual(rows[1][rows[0].index('Duct surface (m²)')], result['duct_surface_m2'])
+            self.assertIsNone(rows[1][rows[0].index('Thickness (mm)')])
+            self.assertFalse(any(cell.data_type == 'f' for row in workbook.active for cell in row))
+        finally:
+            workbook.close()
+        self.assertEqual(self.case.service.get(self.case.sid)['snapshot'], before)
+        self.assertEqual(drafts, original)
+
+    def test_duct_surface_requires_the_same_current_local_receipt_and_draft(self):
+        identifier = self.case.create('duct', quantity=1)
+        self.case.confirm(identifier); self.case.apply(self.case.preview(identifier, 'ductwork'))
+        native = self.case.state['calculator']
+        drafts = {'ductwork': {key: deepcopy(native[key]) for key in ('inputs', 'schedule_rows')}}
+        snapshot = deepcopy(self.case.state['snapshot'])
+        self.assertEqual(self.read()['linked_results'][identifier][0]['duct_surface_status'], 'Unavailable')
+        for changes in ({'id': str(uuid4())}, {'source_sha256': 'b' * 64},
+                        {'item_version': 999}, {'input_hash': 'c' * 64}, {'status': 'conflict'}):
+            forged = deepcopy(snapshot); forged['transfers'][0].update(changes)
+            with self.subTest(changes=changes):
+                record = linked_register_results(forged, self.request(drafts), store=self.case.store)['linked_results'][identifier][0]
+                self.assertEqual(record['duct_surface_status'], 'Unavailable')
+                self.assertIsNone(record['duct_surface_m2'])
+        self.case.command('update_item', item_id=identifier, changes={'fields': {'mark': 'REVISED'}})
+        record = self.read(drafts)['linked_results'][identifier][0]
+        self.assertEqual(record['duct_surface_status'], 'Unavailable')
+        self.assertIsNone(record['duct_surface_m2'])
 
     def test_missing_or_other_schedule_draft_withholds_the_linked_thickness(self):
         identifier, _ = self.linked()

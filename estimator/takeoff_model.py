@@ -554,7 +554,7 @@ def validate_item(value, snapshot, *, copy_result=True):
     if is_count_item(value):
         identity(value.get('count_id'), 'Count ID')
     elif 'count_id' in value:
-        raise ValidationError('Only Steel count markers may retain a Count ID.')
+        raise ValidationError('Only transferable count markers may retain a Count ID.')
     number(value['version'], 'Item version', positive=True, integer=True)
     if value['mode'] not in MODES or value['state'] not in ('draft', 'reviewed', 'confirmed'):
         raise ValidationError('Choose a supported takeoff mode and review state.')
@@ -595,8 +595,10 @@ def validate_item(value, snapshot, *, copy_result=True):
         if is_marker_item(value):
             object_fields(geometry, {'kind', 'document_id', 'page', 'points'}, 'Count geometry',
                           {'kind', 'document_id', 'page', 'points'})
-            if is_count_item(value) and value['mode'] != 'steel':
-                raise ValidationError('Count markers are supported only for Steel.')
+            if is_count_item(value) and value['mode'] not in ('steel', 'duct'):
+                raise ValidationError('Transferable count markers belong to Steel or Duct.')
+            if is_count_item(value) and value['mode'] == 'duct' and value['quantity'] != 1:
+                raise ValidationError('Each counted duct run must retain its own item with quantity 1.')
             expected_kind = 'count-only' if is_standalone_count(value) else 'count'
             if geometry['kind'] != expected_kind:
                 raise ValidationError('Count-only geometry must retain its distinct standalone purpose.')
@@ -619,8 +621,8 @@ def validate_item(value, snapshot, *, copy_result=True):
             if calibration is None or geometry is None or (calibration['document_id'], calibration['page']) != (geometry['document_id'], geometry['page']):
                 raise ValidationError('A calibrated measurement must use a calibration on its own source page.')
         elif measurement.get('method') == 'manual':
-            if not is_count_item(value) or value['mode'] != 'steel':
-                raise ValidationError('Manual length is supported only for Steel count markers.')
+            if not is_count_item(value) or value['mode'] not in ('steel', 'duct'):
+                raise ValidationError('Manual length is supported only for Steel or Duct count markers.')
             object_fields(measurement, {'method', 'length_m'}, 'Manual count length', {'method', 'length_m'})
             number(measurement['length_m'], 'Manual length per member', positive=True)
         elif measurement.get('method') == 'cited':
@@ -632,7 +634,7 @@ def validate_item(value, snapshot, *, copy_result=True):
         else:
             raise ValidationError('Choose calibrated or source-cited measurement.')
     if is_count_item(value) and (not measurement or measurement.get('method') != 'manual'):
-        raise ValidationError('Every Steel count marker requires an explicit manual length per member.')
+        raise ValidationError('Every transferable count marker requires an explicit manual length per member.')
     if is_standalone_count(value) and (geometry is None or measurement is not None):
         raise ValidationError('Count-only items require retained markers and have no length or area measurement.')
     if is_standalone_length(value):
@@ -752,8 +754,8 @@ def base_length(item, snapshot):
     if not measurement:
         raise ValidationError('Choose a calibrated or source-cited length.')
     if measurement['method'] == 'manual':
-        if not is_count_item(item) or item['mode'] != 'steel':
-            raise ValidationError('Manual length is supported only for Steel count markers.')
+        if not is_count_item(item) or item['mode'] not in ('steel', 'duct'):
+            raise ValidationError('Manual length is supported only for Steel or Duct count markers.')
         return number(measurement['length_m'], 'Manual length per member', positive=True)
     if measurement['method'] == 'cited':
         if not measurement['citation'].strip():
@@ -922,12 +924,12 @@ def validate_snapshot(value, *, copy_result=True):
                 if is_count_item(entry):
                     count = counts.setdefault(entry['count_id'], {'item': entry, 'lengths': set()})
                     first = count['item']
-                    if (entry['fields'] != first['fields'] or markup_appearance(entry) != markup_appearance(first)
+                    if (entry['mode'] != first['mode'] or entry['fields'] != first['fields'] or markup_appearance(entry) != markup_appearance(first)
                             or any(entry['geometry'][name] != first['geometry'][name] for name in ('document_id', 'page'))
                             or entry.get('length_additions', []) != first.get('length_additions', [])):
                         raise ValidationError('Every row in one count must keep the same source, details and appearance. Start a different count for different details.')
                     length = entry['measurement']['length_m']
-                    if length in count['lengths']:
+                    if entry['mode'] == 'steel' and length in count['lengths']:
                         raise ValidationError('One count must group markers with the same manual length into one row.')
                     count['lengths'].add(length)
                 if physical_ids.intersection(entry['member_ids']):

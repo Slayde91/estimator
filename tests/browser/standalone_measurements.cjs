@@ -1,6 +1,6 @@
 const { chooseTakeoff } = require('./section_navigation.cjs');
 const { clickProjectControl } = require('./project_actions.cjs');
-// Native counts and retained legacy length-only editing; disposable rotated PDF.
+// Retained legacy count-only and length-only editing; disposable rotated PDF.
 const { chromium, expect } = require('@playwright/test');
 const { renderDrawing } = require('./viewer_helpers.cjs');
 const { spawn } = require('node:child_process');
@@ -48,6 +48,30 @@ async function dialog(title, values, action) {
   for (const [label, value] of Object.entries(values)) { const field = modal.getByLabel(label, { exact: true }); if (await field.evaluate(el => el.tagName) === 'SELECT') { await expect.poll(() => field.locator('option').evaluateAll(options => options.map(option => option.value))).toContain(value); await field.selectOption(value); } else await field.fill(value); }
   await modal.getByRole('button', { name: action, exact: true }).click(); await modal.waitFor({ state: 'detached' });
 }
+async function assertDeleteFarLeft(mode) {
+  const originalViewport = page.viewportSize(), panel = page.locator('#takeoff-markup-settings');
+  const measurements = [];
+  for (const width of [1384, 957]) {
+    await page.setViewportSize({ width, height: 764 });
+    const separator = page.getByRole('separator', { name: 'Resize settings pane', exact: true });
+    await separator.focus(); await separator.press('End');
+    const remove = panel.getByRole('button', { name: 'Delete item', exact: true });
+    await remove.scrollIntoViewIfNeeded();
+    const itemBounds = await panel.getByLabel('Item', { exact: true }).boundingBox(), removeBounds = await remove.boundingBox();
+    assert.ok(itemBounds && removeBounds, `${mode} settings controls have actual bounds at ${width}px`);
+    assert.ok(Math.abs(removeBounds.x - itemBounds.x) < 1, `${mode} Delete starts at the leftmost Item column at ${width}px`);
+    assert.deepEqual(await remove.evaluate(button => ({ start: getComputedStyle(button).gridColumnStart, end: getComputedStyle(button).gridColumnEnd })), { start: '1', end: '-1' }, 'Delete spans the settings grid after the wrapper is flattened');
+    await expect(panel).not.toContainText('The total counts markers on the PDF.');
+    measurements.push({ viewportWidth: width, paneWidth: Number(await separator.getAttribute('aria-valuenow')), itemX: itemBounds.x, deleteX: removeBounds.x });
+    await page.screenshot({ path: path.join(output, `${mode.toLowerCase()}-delete-left-${width}.png`) });
+  }
+  await page.setViewportSize(originalViewport);
+  const separator = page.getByRole('separator', { name: 'Resize settings pane', exact: true });
+  await separator.focus(); await separator.press('Home');
+  for (let index = 0; index < 8; index++) await separator.press('ArrowRight');
+  await expect(separator).toHaveAttribute('aria-valuenow', '300'); await idle();
+  return measurements;
+}
 (async () => {
   const info = await ready; assert.notEqual(info.port, 8765);
   browser = await chromium.launch({ headless: true }); page = await browser.newPage({ viewport: { width: 1146, height: 764 } }); page.setDefaultTimeout(30000);
@@ -62,45 +86,28 @@ async function dialog(title, values, action) {
   const before = await snapshot(), calculators = await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot());
   for (const mode of ['STEEL', 'DUCT']) {
     await chooseTakeoff(page, mode);
-    let finishedDraftPoints;
+    const finishedDraftPoints = [[150, 200], [230, 230]];
     if (mode === 'STEEL') {
       await expect(page.getByRole('button', { name: 'Count', exact: true })).toHaveCount(0);
       await expect(page.getByRole('button', { name: 'Count steel lengths', exact: true })).toBeVisible();
-      // A retained standalone Steel count remains editable and extendable even
-      // though its creation button has been removed. Seed the historical server
-      // format; the public restore path renders the same saved record.
-      finishedDraftPoints = [[150, 200], [230, 230]];
-      await page.evaluate(async points => {
-        const takeoffs = window.CeasefireTakeoffs, current = takeoffs.projectSnapshot(), sid = takeoffs.sessionId(), doc = current.documents[0];
-        const response = await fetch(`/api/takeoffs/sessions/${sid}/commands`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'add_standalone_count', request_id: crypto.randomUUID(), expected_revision: current.revision, document_id: doc.id, page: 3, mode: 'steel', markers: points.map(point => ({ point })), fields: { mark: 'STEEL-ONLY', level: 'L01', width_mm: 100, height_mm: 200, frl: '120/120/120', orientation: 'Horizontal' }, appearance: {} }) });
-        if (!response.ok) throw new Error(await response.text()); const reply = await response.json(); takeoffs.applyProject(await takeoffs.prepareProject(reply.snapshot, sid));
-      }, finishedDraftPoints);
-      await renderDrawing(page, () => page.getByLabel('Page number',{exact:true}).fill('1').then(()=>page.getByLabel('Page number',{exact:true}).press('Tab')), 1); await idle();
-      await renderDrawing(page, async () => { await page.getByLabel('Page number', { exact: true }).fill('3'); await page.getByLabel('Page number', { exact: true }).press('Tab'); }, 3);
-      await renderDrawing(page, () => page.getByRole('button', { name: 'Fit page', exact: true }).click(), 3);
-      await page.locator('.takeoff-standalone-register tr[data-item-id]').getByRole('button', { name: 'Edit item', exact: true }).click();
     } else {
-    await page.getByRole('button', { name: 'Count', exact: true }).click();
-    await page.mouse.click(...await screen([150, 200])); await page.mouse.click(...await screen([230, 230]));
-    await expect(page.locator('.takeoff-count-pending')).toHaveCount(2);
-    const firstDraftPoint = (await renderedMarkerPoints('.takeoff-count-pending'))[0];
-    await page.locator('.takeoff-viewport').press('Control+z');
-    await expect(page.locator('.takeoff-count-pending')).toHaveCount(1);
-    assertSamePoints(await renderedMarkerPoints('.takeoff-count-pending'), [firstDraftPoint], `${mode} Ctrl+Z removes the last preview marker`);
-    await page.mouse.click(...await screen([280, 260]));
-    await expect(page.locator('.takeoff-count-pending')).toHaveCount(2);
-    await page.locator('.takeoff-viewport').press('Backspace');
-    await expect(page.locator('.takeoff-count-pending')).toHaveCount(1);
-    assertSamePoints(await renderedMarkerPoints('.takeoff-count-pending'), [firstDraftPoint], `${mode} Backspace removes the replacement preview marker`);
-    await page.mouse.click(...await screen([230, 230]));
-    await expect(page.locator('.takeoff-count-pending')).toHaveCount(2);
-    finishedDraftPoints = await renderedMarkerPoints('.takeoff-count-pending');
-    await page.locator('.takeoff-viewport').press('Enter');
-    await command(() => dialog('Add count', { Item: `${mode}-ONLY`, Level: 'L01', 'WxH (mm)': '100x200', FRL: '-/120/120', Orientation: 'Horizontal' }, 'Add count'), 'add_standalone_count');
+      await expect(page.getByRole('button', { name: 'Count', exact: true })).toBeVisible();
     }
+    // Both historical formats remain editable and extendable. Their missing
+    // length is preserved; current Count creation is covered separately by
+    // count_tools.cjs using the required manual millimetre field.
+    await command(() => page.evaluate(async ({ mode, points }) => {
+      const takeoffs = window.CeasefireTakeoffs, current = takeoffs.projectSnapshot(), sid = takeoffs.sessionId(), doc = current.documents[0];
+      const response = await fetch(`/api/takeoffs/sessions/${sid}/commands`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'add_standalone_count', request_id: crypto.randomUUID(), expected_revision: current.revision, document_id: doc.id, page: 3, mode: mode.toLowerCase(), markers: points.map(point => ({ point })), fields: { mark: `${mode}-ONLY`, level: 'L01', width_mm: 100, height_mm: 200, frl: '120/120/120', orientation: 'Horizontal' }, appearance: {} }) });
+      if (!response.ok) throw new Error(await response.text()); const reply = await response.json(); takeoffs.applyProject(await takeoffs.prepareProject(reply.snapshot, sid));
+    }, { mode, points: finishedDraftPoints }), 'add_standalone_count');
+    await renderDrawing(page, () => page.getByLabel('Page number',{exact:true}).fill('1').then(()=>page.getByLabel('Page number',{exact:true}).press('Tab')), 1); await idle();
+    await renderDrawing(page, async () => { await page.getByLabel('Page number', { exact: true }).fill('3'); await page.getByLabel('Page number', { exact: true }).press('Tab'); }, 3);
+    await renderDrawing(page, () => page.getByRole('button', { name: 'Fit page', exact: true }).click(), 3);
     let current = await snapshot(), count = current.items.find(item => item.fields.mark === `${mode}-ONLY`);
+    await page.locator(`.takeoff-register-table tr[data-item-id="${count.id}"]`).getByRole('button', { name: 'Edit item', exact: true }).click();
     assert.equal(count.purpose, 'count-only'); assert.equal(count.quantity, 2); assert.equal(count.measurement, null); assert.equal(count.geometry.kind, 'count-only'); assert.equal(count.geometry.points.length, 2);
-    assertSamePoints(count.geometry.points, finishedDraftPoints, `${mode} saved geometry matches the post-undo draft`);
+    assertSamePoints(count.geometry.points, finishedDraftPoints, `${mode} saved legacy geometry keeps exact source coordinates`);
     await expect(page.locator('.takeoff-count-pending')).toHaveCount(0);
     await expect(page.locator('.takeoff-count-hit')).toHaveCount(2);
     assertSamePoints(await renderedMarkerPoints('.takeoff-count-hit'), count.geometry.points, `${mode} saved markers match the post-undo geometry`);
@@ -108,23 +115,39 @@ async function dialog(title, values, action) {
     await expect(page.locator('.takeoff-settings-fields').getByLabel('Total Count/QTY', { exact: true })).toHaveValue('2');
     const changed = page.locator('.takeoff-settings-fields').getByLabel('Item', { exact: true }); await changed.fill(`${mode}-EDITED`); await changed.press('Tab');
     await expect.poll(async () => (await snapshot()).items.find(item => item.id === count.id).fields.mark).toBe(`${mode}-EDITED`);
-    await expect(page.locator('.takeoff-standalone-register tr[data-item-id]')).toHaveCount(1);
+    await expect(page.locator(`.takeoff-register-table tr[data-item-id="${count.id}"]`)).toHaveCount(1);
+    if (mode === 'DUCT') {
+      assert.equal(count.fields.shape, undefined, 'A retained count does not acquire an inferred duct shape');
+      await expect(page.locator(`.takeoff-register-table tr[data-item-id="${count.id}"]`)).not.toContainText('Retained non-rectangular duct');
+    }
+    await expect(page.locator('.takeoff-standalone-register')).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'Counts', exact: true })).toHaveCount(0);
+    await expect(page.locator('.takeoff-settings-fields')).not.toContainText('The total counts markers on the PDF.');
+    const deleteLeft = await assertDeleteFarLeft(mode);
     const originalMembers = [...count.member_ids];
     const marker = page.locator(`.takeoff-count-hit[data-count-member-id="${originalMembers[0]}"]`);
     await marker.scrollIntoViewIfNeeded(); await marker.click({ button: 'right' });
     await page.getByRole('menuitem', { name: 'Continue count', exact: true }).click();
     await expect(page.locator('.takeoff-viewport')).toHaveAttribute('data-tool', 'count-only');
     await page.mouse.click(...await screen([280, 210]));
+    const firstDraftPoint = (await renderedMarkerPoints('.takeoff-count-pending'))[0];
+    await page.mouse.click(...await screen([300, 250])); await expect(page.locator('.takeoff-count-pending')).toHaveCount(2);
+    await page.locator('.takeoff-viewport').press('Control+z'); await expect(page.locator('.takeoff-count-pending')).toHaveCount(1);
+    assertSamePoints(await renderedMarkerPoints('.takeoff-count-pending'), [firstDraftPoint], `${mode} Ctrl+Z removes only the last continuation preview marker`);
+    await page.mouse.click(...await screen([300, 260])); await expect(page.locator('.takeoff-count-pending')).toHaveCount(2);
+    await page.locator('.takeoff-viewport').press('Backspace'); await expect(page.locator('.takeoff-count-pending')).toHaveCount(1);
+    assertSamePoints(await renderedMarkerPoints('.takeoff-count-pending'), [firstDraftPoint], `${mode} Backspace removes only the replacement preview marker`);
     await command(() => page.locator('.takeoff-viewport').press('Enter'), 'continue_standalone_count');
     count = (await snapshot()).items.find(item => item.id === count.id);
     assert.equal(count.quantity, 3); assert.deepEqual(count.member_ids.slice(0, 2), originalMembers);
+    assertSamePoints([count.geometry.points[2]], [firstDraftPoint], `${mode} saved continuation matches the post-undo preview`);
     const added = page.locator(`.takeoff-count-hit[data-count-member-id="${count.member_ids[2]}"]`);
     await added.scrollIntoViewIfNeeded(); await added.click({ button: 'right' });
     await command(() => page.getByRole('menuitem', { name: 'Delete count marker', exact: true }).click(), 'delete_count_marker');
     count = (await snapshot()).items.find(item => item.id === count.id);
     assert.equal(count.quantity, 2); assert.deepEqual(count.member_ids, originalMembers); assert.equal(count.measurement, null);
     await expect(page.locator('.takeoff-count-hit')).toHaveCount(2);
-    evidence[mode] = { id: count.id, quantity: count.quantity, points: count.geometry.points, ...(mode === 'STEEL' ? { retainedHistoricalCount: true, creationButtonRemoved: true } : { draftUndo: { keys: ['Control+z', 'Backspace'], previewPoints: finishedDraftPoints, savedPoints: count.geometry.points } }) };
+    evidence[mode] = { id: count.id, quantity: count.quantity, points: count.geometry.points, retainedHistoricalCount: true, creationCoverage: 'guarded legacy API fixture', mainRegisterRow: true, countsSectionRemoved: true, noInferredLength: true, deleteFarLeft: deleteLeft, totalCountHelperRemoved: true, ...(mode === 'STEEL' ? { creationButtonRemoved: true } : {}), draftUndo: { keys: ['Control+z', 'Backspace'], previewPoints: [firstDraftPoint], savedContinuationPoint: firstDraftPoint } };
     await page.getByRole('button', { name: 'Settings', exact: true }).click();
   }
   // Seed the exact page calibration independently of any calculator values.
@@ -240,7 +263,7 @@ async function dialog(title, values, action) {
   await response(() => clickProjectControl(page, 'Load'), '/api/project/open');
   await page.getByRole('dialog').getByRole('button', { name: 'Load Project', exact: true }).click(); await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); assert.deepEqual((await snapshot()).items, current.items); assert.deepEqual(await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()), calculators);
-  await chooseTakeoff(page, 'STEEL'); await expect(page.getByRole('button', { name: 'Count', exact: true })).toHaveCount(0); await expect(page.locator('.takeoff-standalone-register tr[data-item-id]')).toHaveCount(1); evidence.retainedCountsSavedReopened = true;
-  await page.setViewportSize({ width: 764, height: 764 }); await page.locator('.takeoff-standalone-register').scrollIntoViewIfNeeded(); await page.screenshot({ path: path.join(output, 'counts-narrow.png') });
+  await chooseTakeoff(page, 'STEEL'); await expect(page.getByRole('button', { name: 'Count', exact: true })).toHaveCount(0); await expect(page.locator(`.takeoff-register-table tr[data-item-id="${evidence.STEEL.id}"]`)).toHaveCount(1); await expect(page.locator('.takeoff-standalone-register')).toHaveCount(0); evidence.retainedCountsSavedReopened = true;
+  await page.setViewportSize({ width: 764, height: 764 }); await page.locator(`.takeoff-register-table tr[data-item-id="${evidence.STEEL.id}"]`).scrollIntoViewIfNeeded(); await page.screenshot({ path: path.join(output, 'counts-narrow.png') });
   fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ ok: true, evidence, operations, errors }, null, 2)); console.log(`Standalone measurements browser acceptance passed: ${output}`);
 })().catch(async error => { console.error(error); console.error(logs); if (page) await page.screenshot({ path: path.join(output, 'failure.png') }).catch(() => {}); process.exitCode = 1; }).finally(async () => { await browser?.close(); server.kill(); });

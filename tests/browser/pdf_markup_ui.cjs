@@ -178,28 +178,35 @@ async function resizePane(target, family, width) {
   await handle.press("Home"); await noOverflow(`${width}/${family} resized pane`); assert.deepEqual(await snapshot(), before, "Pane keyboard and native pointer resizing preserve all draft source coordinates and authority");
   await page.screenshot({ path: path.join(output, `resize-${family}-${width}.png`), fullPage: true }); (evidence.paneResize ||= []).push({ family, width, minimum, keyboard, dragged, maximum });
 }
-async function standaloneFrlAndDeletedHistory() {
+async function legacyCountFrlAndDeletedHistory() {
   await page.setViewportSize({ width: 1384, height: 764 }); await chooseTakeoff(page, "duct");
   await renderDrawing(page, () => page.getByRole("button", { name: "Fit page", exact: true }).click(), 1);
-  await page.getByRole("button", { name: "Count", exact: true }).click();
-  const overlay = page.locator(".takeoff-overlay"); await overlay.scrollIntoViewIfNeeded(); const b = await box(overlay), point = [b.x + b.width*.5, b.y + b.height*.5];
-  assert.equal(await page.evaluate(p => !!document.elementFromPoint(...p)?.closest(".takeoff-overlay"), point), true);
-  await page.mouse.click(...point); await page.locator(".takeoff-viewport").press("Enter");
-  const modal = page.getByRole("dialog"); await expect(modal.getByRole("heading", { name: "Add count", exact: true })).toBeVisible();
+  // Current Count creates Length-field items; retain the historical count-only
+  // format through its guarded disposable API without inventing manual length.
+  const seed = await page.evaluate(async () => {
+    const takeoffs = window.CeasefireTakeoffs, sessionId = takeoffs.sessionId(), current = takeoffs.projectSnapshot(), doc = current.documents[0], view = doc.pages.find(value => value.page === 1).view;
+    const point = [(view[0] + view[2])/2, (view[1] + view[3])/2];
+    const response = await fetch(`/api/takeoffs/sessions/${sessionId}/commands`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ expected_revision: current.revision, request_id: crypto.randomUUID(), op: "add_standalone_count", mode: "duct", document_id: doc.id, page: 1, markers: [{ point }], fields: { mark: "FRL-HISTORY-PROOF", frl: "-/120/120" }, appearance: {} }) });
+    if (!response.ok) throw Error(`Disposable legacy Count fixture rejected: ${await response.text()}`);
+    const reply = await response.json(); takeoffs.applyProject(await takeoffs.prepareProject(reply.snapshot, sessionId));
+    return { status: response.status, point, document_id: doc.id, source_sha256: doc.sha256, item: reply.snapshot.items.find(value => value.fields.mark === "FRL-HISTORY-PROOF") };
+  });
+  const item = seed.item, legacy = "Legacy bespoke FRL";
+  assert.equal(seed.status, 200); assert.equal(item.purpose, "count-only"); assert.equal(item.geometry.kind, "count-only"); assert.equal(item.mode, "duct"); assert.equal(item.measurement, null); assert.equal(item.quantity, 1);
+  assert.equal(item.geometry.document_id, seed.document_id); assert.equal(item.geometry.page, 1); assert.deepEqual(item.geometry.points, [seed.point]); assert.equal(Object.hasOwn(item.fields, "length_m"), false); assert.equal(Object.hasOwn(item.fields, "length_mm"), false);
+  assert.equal((await snapshot()).documents.find(value => value.id === seed.document_id).sha256, seed.source_sha256);
   const choices = await page.evaluate(async () => { const response = await fetch("/api/penetration/definition", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ configuration: window.CeasefireProject.configuration() }) }); if (!response.ok) throw Error("Fixture Firestopping definition failed"); return (await response.json()).row_fields.find(field => field.column === "N").options; });
   const selectValues = locator => locator.locator("option").evaluateAll(elements => elements.map(el => el.value).filter(Boolean));
-  await expect.poll(() => selectValues(modal.getByLabel("FRL", { exact: true }))).toEqual(choices);
-  await modal.getByLabel("Item", { exact: true }).fill("FRL-HISTORY-PROOF"); await modal.getByLabel("FRL", { exact: true }).selectOption("-/120/120");
-  const created = page.waitForResponse(response => response.url().endsWith("/commands") && response.request().postDataJSON()?.op === "add_standalone_count"); created.catch(() => {}); await modal.getByRole("button", { name: "Add count", exact: true }).click(); assert.equal((await created).status(), 200);
-  const current = await snapshot(), item = current.items.find(value => value.fields.mark === "FRL-HISTORY-PROOF"), legacy = "Legacy bespoke FRL";
+  await chooseTakeoff(page, "duct"); await page.locator(`.takeoff-register-table tr[data-item-id="${item.id}"]`).getByRole("button", { name: "Edit item", exact: true }).click();
+  const originalFrl = panel().getByLabel("FRL", { exact: true }); await expect(originalFrl).toHaveValue("-/120/120"); await expect.poll(() => selectValues(originalFrl)).toEqual(choices); await settingsSettled(page);
   await page.evaluate(async ({ id, legacy }) => { const takeoffs = window.CeasefireTakeoffs, sessionId = takeoffs.sessionId(), value = takeoffs.projectSnapshot(); const response = await fetch(`/api/takeoffs/sessions/${sessionId}/commands`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ expected_revision: value.revision, request_id: crypto.randomUUID(), op: "update_item", item_id: id, changes: { fields: { frl: legacy } } }) }); if (!response.ok) throw Error(`Disposable historical FRL fixture update failed: ${await response.text()}`); const reply = await response.json(); takeoffs.applyProject(await takeoffs.prepareProject(reply.snapshot, sessionId)); }, { id: item.id, legacy });
-  await chooseTakeoff(page, "duct"); const row = page.locator(`.takeoff-standalone-register tr[data-item-id="${item.id}"]`); await row.getByRole("button", { name: "Edit item", exact: true }).click();
+  await chooseTakeoff(page, "duct"); const row = page.locator(`.takeoff-register-table tr[data-item-id="${item.id}"]`); await row.getByRole("button", { name: "Edit item", exact: true }).click();
   const frl = panel().getByLabel("FRL", { exact: true }); await expect(frl).toHaveValue(legacy); await expect.poll(() => selectValues(frl)).toEqual([...choices, legacy]); await expect(frl.locator("option:checked")).toContainText("retained");
   await panel().getByLabel("Line Colour", { exact: true }).fill("#123456"); await frl.focus(); await settingsSettled(page); const retained = await snapshot(); const kept = retained.items.find(value => value.id === item.id); assert.equal(kept.fields.frl, legacy); assert.deepEqual(kept.geometry, item.geometry); assert.equal(kept.quantity, item.quantity);
   await panel().getByRole("button", { name: "Delete item", exact: true }).click(); const confirm = page.getByRole("dialog"); await expect(confirm.getByRole("heading", { name: "Delete item?", exact: true })).toBeVisible(); const deleted = page.waitForResponse(response => response.url().endsWith("/commands") && response.request().postDataJSON()?.op === "delete_items"); deleted.catch(() => {}); await confirm.getByRole("button", { name: "Delete item", exact: true }).click(); assert.equal((await deleted).status(), 200);
   const afterDelete = await snapshot(); assert.ok(!afterDelete.items.some(value => value.id === item.id)); const toggle = page.locator(".takeoff-register:not(.takeoff-physical-register)").getByRole("checkbox", { name: "Show deleted records", exact: true });
   const history = page.waitForResponse(response => response.url().endsWith("/deleted-items")); history.catch(() => {}); await toggle.check(); const historyResponse = await history; assert.equal(historyResponse.status(), 200); const historyBody = await historyResponse.json(); await expect(page.locator(`tr[data-deleted-item-id="${item.id}"]`)).toContainText(legacy); assert.equal(historyBody.records.find(record => record.item.id === item.id).item.quantity, 1); assert.deepEqual(await snapshot(), afterDelete, "Inspecting deleted history cannot restore register quantities or mutate the draft");
-  await toggle.uncheck(); await expect(page.locator(".takeoff-deleted-records")).toBeHidden(); assert.deepEqual(await snapshot(), afterDelete); evidence.standaloneFrl = { choices, retained: legacy, item_id: item.id, quantity: item.quantity, deleted_history_read_only: true }; await chooseTakeoff(page, "steel");
+  await toggle.uncheck(); await expect(page.locator(".takeoff-deleted-records")).toBeHidden(); assert.deepEqual(await snapshot(), afterDelete); evidence.legacyCountFrl = { choices, retained: legacy, item_id: item.id, document_id: seed.document_id, source_sha256: seed.source_sha256, source_point: seed.point, quantity: item.quantity, measurement: item.measurement, no_inferred_manual_length: true, deleted_history_read_only: true }; await chooseTakeoff(page, "steel");
 }
 async function historicalLengthPrecision() {
   const seed = await page.evaluate(async () => {
@@ -267,7 +274,7 @@ async function standardCalculatorButton() {
     await page.setViewportSize({ width, height: 764 }); await headingMenus(width); await rowHeights(width); await rightRail(width, "steel"); await noOverflow(`${width}/Steel`);
   }
   assert.deepEqual(await snapshot(), uploaded, "Layout, keyboard menus and rail scrolling preserve the Takeoffs draft");
-  stage = "Standalone FRL and deleted history"; await standaloneFrlAndDeletedHistory();
+  stage = "Legacy Count FRL and deleted history"; await legacyCountFrlAndDeletedHistory();
   stage = "Historical Length display precision"; await historicalLengthPrecision();
   stage = "create Textbox"; await page.setViewportSize({ width: 1384, height: 764 }); await makeTextbox(); const textbox = await snapshot();
   for (const currentTheme of ["ceasefire", "midnight"]) {

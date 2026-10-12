@@ -537,8 +537,14 @@ def _paint_graphics(pdf, graphics, matrix, bounds):
             path = pdf.beginPath(); path.moveTo(*placed[0])
             for point in placed[1:]:
                 path.lineTo(*point)
-            if kind == 'polygon': path.close()
-            pdf.drawPath(path, stroke=1, fill=int(kind == 'polygon' and style['fill_enabled']))
+            if kind in ('polygon', 'area'): path.close()
+            for hole in geometry.get('exclusions', []):
+                ring = [transform(point, matrix) for point in hole['points']]
+                path.moveTo(*ring[0])
+                for point in ring[1:]: path.lineTo(*point)
+                path.close()
+            # Even-odd fill removes explicit holes regardless of ring winding.
+            pdf.drawPath(path, stroke=1, fill=int(kind in ('polygon', 'area') and style['fill_enabled']), fillMode=0)
             if kind == 'arrow':
                 a, tip = placed
                 length = math.dist(a, tip); ux, uy = (tip[0]-a[0])/length, (tip[1]-a[1])/length
@@ -548,21 +554,21 @@ def _paint_graphics(pdf, graphics, matrix, bounds):
                 head.lineTo(*tip)
                 head.lineTo(tip[0]-size*ux+size*.5*uy, tip[1]-size*uy-size*.5*ux)
                 pdf.drawPath(head, stroke=1, fill=0)
-            elif kind == 'measure':
+            elif kind in ('measure', 'area') and (kind == 'measure' or graphic['pdf_measure_result']['status'] != 'current' or graphic['pdf_measure_result']['label_point_pdf'] is not None):
                 from decimal import Decimal, localcontext, ROUND_HALF_UP
                 from reportlab.pdfbase.pdfmetrics import stringWidth
                 result = graphic['pdf_measure_result']
                 if result['status'] == 'current':
-                    value = Decimal(str(result['length_m']))
+                    value = Decimal(str(result['net_area_m2'] if kind == 'area' else result['length_m']))
                     with localcontext() as context:
                         context.prec = max(28, value.adjusted()+8)
-                        label = format(value.quantize(Decimal('.01'), rounding=ROUND_HALF_UP), ',f') + ' m'
+                        label = format(value.quantize(Decimal('.01'), rounding=ROUND_HALF_UP), ',f') + (' m²' if kind == 'area' else ' m')
                 else:
                     label = 'Scale needs review'
-                x, y = placed[len(placed)//2]
+                x, y = transform(result['label_point_pdf'], matrix) if kind == 'area' and result['label_point_pdf'] is not None else placed[len(placed)//2]
                 size = style['font_size']; label_width = stringWidth(label, 'ExportVera', size)
                 if label_width+4 > right-left or size+4 > top-bottom:
-                    raise ValueError('The PDF Measure label does not fit the source page at the selected font size.')
+                    raise ValueError('The PDF measurement label does not fit the source page at the selected font size.')
                 x = max(left+2, min(x-label_width/2, right-label_width-2))
                 y = max(bottom+2, min(y+size*.5, top-size-2))
                 pdf.setFillColor(HexColor('#FFFFFF')); pdf.setFillAlpha(1)

@@ -35,6 +35,7 @@ async function snapshot() {
 const calculators = () => page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot());
 const row = id => page.locator(`tr[data-item-id="${id}"]`);
 const thickness = id => page.locator(`td[data-thickness-item-id="${id}"]`);
+const ductSurface = id => page.locator(`td[data-duct-surface-item-id="${id}"]`);
 async function response(action, suffix) {
   const pending = page.waitForResponse(value => value.url().endsWith(suffix)); pending.catch(() => {});
   await action(); const result = await pending, body = await result.json(); assert.equal(result.status(), 200, JSON.stringify(body)); await idle(); return body;
@@ -181,8 +182,15 @@ async function editSprayLength(binding, value) {
       fields: { mark: 'DUCT-LEGEND', shape: 'rectangular', width_mm: 250, height_mm: 250, product: 'FyreWrap', frl: '120/120/120', exposure: 'Internal', orientation: 'Both', wall_penetrations: 0, floor_penetrations: 0 }, evidence: [{ document_id: doc.id, page: 1, note: 'Synthetic duct legend acceptance' }] } });
     const id = current.items.at(-1).id; await command('review_items', { item_ids: [id] }); await command('confirm_items', { item_ids: [id] }); takeoffs.applyProject(await takeoffs.prepareProject(current, session)); await takeoffs.open(); return id;
   });
-  await chooseTakeoff(page, 'duct'); await idle(); const ductTransferred = await transfer(ductId, 'ductwork'), ductBinding = ductTransferred.snapshot.transfers.find(value => value.item_id === ductId);
+  await chooseTakeoff(page, 'duct'); await idle(); await expect(ductSurface(ductId)).toHaveText('');
+  const ductHeaders = await page.getByRole('table', {name:'Duct editable takeoff register',exact:true}).locator('thead th').allTextContents();
+  assert.equal(ductHeaders.findIndex(value=>value.startsWith('Product')), ductHeaders.findIndex(value=>value==='Qty')-1);
+  assert.equal(ductHeaders.findIndex(value=>value.startsWith('Duct surface (m²)')), ductHeaders.findIndex(value=>value.startsWith('Thickness (mm)'))-1);
+  const ductTransferred = await transfer(ductId, 'ductwork'), ductBinding = ductTransferred.snapshot.transfers.find(value => value.item_id === ductId);
   const nativeLayers = await nativeOutput('ductwork', ductBinding, 'R'); assert.equal(nativeLayers, 1); await expect(thickness(ductId)).toHaveText('38');
+  const nativeSurface = await nativeOutput('ductwork', ductBinding, 'K'); assert.ok(Number.isFinite(nativeSurface) && nativeSurface > 0);
+  await expect(ductSurface(ductId)).toHaveText(nativeSurface.toFixed(2)); await expect(ductSurface(ductId)).toHaveAttribute('title', /Duct surface.*Calculator source SHA-256/);
+  assert.equal(await ductSurface(ductId).locator('input').count(), 0); evidence.ductNativeSurface = nativeSurface;
   await response(() => page.getByRole('button', { name: 'Legend', exact: true }).click(), '/commands');
   const ductLegend = page.getByRole('button', { name: 'Duct Legend', exact: true }); await expect(ductLegend).toContainText('250 x 250 mm'); await expect(ductLegend).toContainText('10.00 m'); await expect(ductLegend).toContainText(/38\s*mm/);
   await page.screenshot({ path: path.join(output, 'duct-thickness-legend.png') }); evidence.ductNativeThickness = 38;

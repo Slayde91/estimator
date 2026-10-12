@@ -744,7 +744,7 @@ class TakeoffService:
     def _create_item(self, snapshot, proposed, predecessors=None, *, allow_count=False, copied_from=None):
         object_fields(proposed, {'id', 'mode', 'geometry', 'measurement', 'quantity', 'fields', 'evidence', 'member_ids', 'length_additions', 'appearance', 'count_id', 'purpose'}, 'New takeoff item', {'mode'})
         if is_marker_item(proposed) and not allow_count:
-            raise ValidationError('Create Steel count markers with the controlled count operation.')
+            raise ValidationError('Create count markers with the controlled count operation.')
         if is_standalone_length(proposed) and not proposed.get('measurement'):
             raise ValidationError('Choose a calibration before creating a standalone length measurement.')
         item = {'id': proposed.get('id', str(uuid4())), 'version': 1, 'mode': proposed['mode'], 'state': 'draft',
@@ -808,7 +808,7 @@ class TakeoffService:
         """Merge equal-length rows within their existing count, preserving members."""
         groups = {}
         for item in list(snapshot['items']):
-            if not is_count_item(item) or item['count_id'] not in count_ids:
+            if not is_count_item(item) or item['mode'] != 'steel' or item['count_id'] not in count_ids:
                 continue
             key = (item['count_id'], item['measurement']['length_m'])
             if key not in groups:
@@ -897,7 +897,8 @@ class TakeoffService:
                      'delete_annotation': {'annotation_id'}}
             if not isinstance(op, str) or op not in specs:
                 raise ValidationError('This takeoff operation is not supported.')
-            object_fields(request, {'expected_revision', 'request_id', 'op'} | specs[op], 'Takeoff operation',
+            optional = {'mode'} if op == 'add_count_items' else set()
+            object_fields(request, {'expected_revision', 'request_id', 'op'} | specs[op] | optional, 'Takeoff operation',
                           {'expected_revision', 'request_id', 'op'} | specs[op])
             revised_calibration_id = None
             created_item_ids = None
@@ -996,13 +997,21 @@ class TakeoffService:
                 # One batch has common fields, appearance and source. Partition
                 # only by exact entered length, preserving first-seen order.
                 # No fuzzy grouping or cross-batch identity replacement occurs.
+                mode = request.get('mode', 'steel')
+                if mode not in ('steel', 'duct'):
+                    raise ValidationError('Manual counts belong to Steel or Duct.')
                 validate_appearance(request['appearance'])
                 grouped = self._count_locations(after, request['document_id'], request['page'], request['markers'])
                 created_item_ids = []
                 count_id = str(uuid4())
-                for length, locations in grouped.items():
+                # A native duct row represents one physical run. Sharing its
+                # quantity would change overlap/strip results, so every marker
+                # remains a separate transferable row even for equal lengths.
+                groups = (grouped.items() if mode == 'steel' else
+                          ((marker['length_m'], [deepcopy(marker['point'])]) for marker in request['markers']))
+                for length, locations in groups:
                     item = self._create_item(after, {
-                        'mode': 'steel', 'count_id': count_id, 'fields': request['fields'], 'appearance': request['appearance'],
+                        'mode': mode, 'count_id': count_id, 'fields': request['fields'], 'appearance': request['appearance'],
                         'geometry': {'kind': 'count', 'document_id': request['document_id'],
                                      'page': request['page'], 'points': locations},
                         'measurement': {'method': 'manual', 'length_m': length},
@@ -1011,14 +1020,16 @@ class TakeoffService:
             elif op == 'continue_count':
                 original = self._items(after, [request['item_id']])[0]
                 if not is_count_item(original):
-                    raise ValidationError('Choose an existing Steel count to continue.')
+                    raise ValidationError('Choose an existing transferable count to continue.')
                 geometry = original['geometry']
                 grouped = self._count_locations(after, geometry['document_id'], geometry['page'], request['markers'])
                 existing = {item['measurement']['length_m']: item for item in after['items']
                             if item.get('count_id') == original['count_id']}
                 created_item_ids = []
-                for length, locations in grouped.items():
-                    if length in existing:
+                groups = (grouped.items() if original['mode'] == 'steel' else
+                          ((marker['length_m'], [deepcopy(marker['point'])]) for marker in request['markers']))
+                for length, locations in groups:
+                    if original['mode'] == 'steel' and length in existing:
                         # Append to its stable row instead of replacing or
                         # merging rows, retaining evidence and linked identities.
                         item = existing[length]
@@ -1130,7 +1141,7 @@ class TakeoffService:
             elif op == 'delete_count_marker':
                 item = self._items(after, [request['item_id']])[0]
                 if not is_marker_item(item):
-                    raise ValidationError('Choose a Steel count marker to delete.')
+                    raise ValidationError('Choose a count marker to delete.')
                 member_id = identity(request['member_id'], 'Count member ID')
                 if member_id not in item['member_ids']:
                     raise ValidationError('The selected count marker no longer exists in this group.')

@@ -126,7 +126,7 @@ async function assertLabels(item, state) {
   await assertLabels(enabledFresh.snapshot.items.find(value => value.id === fresh.id),enabledFresh.snapshot);
   // Counted Steel uses each explicit member length, even with no inferred scale for a count.
   await chooseTakeoff(page, 'steel'); await page.getByRole('button',{name:'Count steel lengths',exact:true}).click();
-  for (const point of [[450,300],[550,300]]) { await page.mouse.click(...await screen(point)); await modal('Counted member length',{'Length per member (m)':6.123456789},'Place marker'); }
+  for (const [index, point] of [[450,300],[550,300]].entries()) { await page.mouse.click(...await screen(point)); await modal('Counted member length',{...(index === 0 ? {'Member mark':'COUNT-VALUES'} : {}),'Manual Length (mm)':6.123456789 * 1000},'Place marker'); }
   await expect(page.locator('.takeoff-count-pending')).toHaveCount(2);
   const counted = await command(async () => page.mouse.dblclick(...await screen([650,300])),'add_count_items'), count = counted.snapshot.items.find(value => value.geometry?.kind === 'count');
   assert.equal(count.quantity,2); assert.equal(count.measurement.length_m,6.123456789); assert.equal(count.appearance.display_values,false);

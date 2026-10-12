@@ -172,8 +172,17 @@ async function resizePane(target, family, width) {
   const boundedWidth = async () => { const v = await values(), b = await box(target); assert.ok(v.min <= v.now && v.now <= v.max); assert.ok(Math.abs(b.width - v.now) < 1, `${family} actual width matches accessible resize value`); return { ...v, box: b }; };
   await handle.focus(); await handle.press("Home"); const minimum = await boundedWidth(); assert.equal(minimum.now, minimum.min);
   await handle.press("Shift+ArrowRight"); const keyboard = await boundedWidth(); assert.equal(keyboard.now, Math.min(minimum.max, minimum.min + 40));
-  await handle.scrollIntoViewIfNeeded(); const h = await box(handle), point = [h.x + h.width/2, h.y + Math.min(h.height/2, 100)];
-  assert.equal(await handle.evaluate((el, p) => document.elementFromPoint(...p) === el, point), true, `${family} native resize target is reachable`);
+  await handle.scrollIntoViewIfNeeded();
+  // Returning from Settings can retain a different scroll offset. Drag the
+  // visible part of this tall handle below the sticky application header.
+  const pointer = await handle.evaluate(el => {
+    const h = el.getBoundingClientRect(), header = document.querySelector('.app-header').getBoundingClientRect();
+    const top = Math.max(h.top, header.bottom + 8), bottom = Math.min(h.bottom, window.innerHeight - 8);
+    const point = [h.x + h.width / 2, (top + bottom) / 2], hit = document.elementFromPoint(...point);
+    return { point, reachable: bottom > top && hit === el, hit: hit?.outerHTML.slice(0, 160) };
+  });
+  const { point } = pointer;
+  assert.equal(pointer.reachable, true, `${family} native resize target is reachable: ${JSON.stringify(pointer)}`);
   await page.mouse.move(...point); await page.mouse.down(); await page.mouse.move(point[0] - 20, point[1]); await page.mouse.up(); const dragged = await boundedWidth(); assert.equal(dragged.now, Math.max(keyboard.min, keyboard.now - 20));
   await handle.focus(); await handle.press("End"); const maximum = await boundedWidth(); assert.equal(maximum.now, maximum.max);
   await handle.press("Home"); await noOverflow(`${width}/${family} resized pane`); assert.deepEqual(await snapshot(), before, "Pane keyboard and native pointer resizing preserve all draft source coordinates and authority");

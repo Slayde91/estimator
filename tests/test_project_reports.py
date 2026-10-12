@@ -43,6 +43,10 @@ class ProjectReportTests(unittest.TestCase):
                 for page in reader.pages:
                     self.assertIn('Combined Fixture', page.extract_text())
                     self.assertIn('combined@example.test', page.extract_text())
+                    body = []
+                    page.extract_text(visitor_text=lambda text, cm, tm, font, size: body.append(text)
+                                      if 43 < tm[4] * cm[1] + tm[5] * cm[3] + cm[5] < 500 else None)
+                    self.assertTrue(''.join(body).strip(), 'Every combined PDF page includes report content')
                 self.assertIn('FULL-TEST', text)
                 self.assertIn('Firestopping product summary' if materials else 'Firestopping estimate', text)
                 self.assertEqual((calculators, fire), before)

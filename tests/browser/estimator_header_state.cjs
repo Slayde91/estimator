@@ -164,7 +164,8 @@ function retainedScopes(value) { return { pricing: value.pricing, calculators: v
   const afterAdd = await snapshot(); assert.equal(afterAdd.penetration.draft.rows.length, beforeAdd.penetration.draft.rows.length + 1);
   assert.deepEqual(afterAdd.penetration.draft.rows.slice(0, -1), beforeAdd.penetration.draft.rows); const added = afterAdd.penetration.draft.rows.at(-1);
   assert.equal(added.inputs.O, 3.123456789); assert.equal(added.inputs.T, 'Native button precision item'); assert.deepEqual(afterAdd.pricing, beforeAdd.pricing); assert.deepEqual(afterAdd.calculators, beforeAdd.calculators); assert.deepEqual(afterAdd.penetration.draft.globals, beforeAdd.penetration.draft.globals);
-  await clear.click(); await expect(description).toHaveValue(''); await expect(quantity).toHaveValue(''); await idle();
+  await clear.click(); await page.getByRole('dialog').getByRole('button', { name: 'Yes', exact: true }).click();
+  await expect(description).toHaveValue(''); await expect(quantity).toHaveValue(''); await idle();
   const cleared = await snapshot(); assert.deepEqual(retainedScopes(cleared), retainedScopes(afterAdd)); assert.deepEqual(cleared.penetration.composer.rows[0].inputs, {});
   await response(async () => { await description.fill('Pending current copy'); await description.press('Tab'); }, '/api/penetration/calculate', reply => reply.request().postDataJSON()?.draft?.rows?.[0]?.inputs?.T === 'Pending current copy'); await expect(page.locator('#penetration-recalculate')).toHaveAttribute('aria-busy', 'false'); await idle();
   await fresh.click(); await page.getByRole('dialog').getByRole('button', { name: 'New item', exact: true }).click(); await expect(description).not.toHaveValue('Pending current copy'); await idle();

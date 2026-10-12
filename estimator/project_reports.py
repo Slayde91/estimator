@@ -1,0 +1,45 @@
+"""Combined project PDFs from captured drafts, using the existing report engines."""
+
+from io import BytesIO
+
+from pypdf import PdfReader, PdfWriter
+
+from .calculator_report import build_calculator_report, build_calculator_summary_report
+from .catalog import ValidationError
+from .penetration_calculator import calculate as calculate_penetration, definition
+from .penetration_report import render_penetration_pdf, render_penetration_summary_pdf
+from .schedule_rows import blank_schedule_defaults, populated_schedule_rows
+from .workbook_calculators import validate_calculator_edits
+
+
+CALCULATORS = ('steel_vermiculite', 'steel_board', 'ductwork')
+TITLES = ('Steel spray', 'Steel board', 'Ductwork')
+
+
+def build_project_report(calculators, penetration, configuration, project_details, *, materials=False, library=None, company=None, saved_calculators=None):
+    """Include entered schedules, even partial ones; never include source examples."""
+    if not isinstance(calculators, dict) or set(calculators) - set(CALCULATORS):
+        raise ValidationError('Choose the available project calculators.')
+    parts = []
+    builder = build_calculator_summary_report if materials else build_calculator_report
+    for key, title in zip(CALCULATORS, TITLES):
+        supplied = calculators.get(key, {})
+        if not isinstance(supplied, dict) or set(supplied) - {'inputs'}:
+            raise ValidationError('Include only the calculator input snapshots.')
+        inputs = validate_calculator_edits(key, blank_schedule_defaults(key, supplied.get('inputs', {})), (saved_calculators or {}).get(key, {}))
+        if populated_schedule_rows(key, inputs):
+            parts.append((title, builder(key, inputs, project_details=project_details, company=company)))
+    if penetration is not None:
+        result = calculate_penetration(penetration, configuration)
+        if result['rows']:
+            fire_builder = render_penetration_summary_pdf if materials else render_penetration_pdf
+            parts.append(('Firestopping', fire_builder(result, definition(configuration), project_details, library=library, company=company)))
+    if not parts:
+        raise ValidationError('Enter at least one schedule row before downloading this report.')
+    writer = PdfWriter()
+    for title, payload in parts:
+        writer.append(PdfReader(BytesIO(payload)), outline_item=title)
+    writer.add_metadata({'/Title': 'Full Product Summary' if materials else 'Full Schedule', '/Author': 'Ceasefire'})
+    output = BytesIO()
+    writer.write(output)
+    return output.getvalue()

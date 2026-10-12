@@ -216,7 +216,19 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
             elif self.command in {"POST", "PUT"}:
                 body = self.read_json()
                 calculator_route = re.fullmatch(r'/api/calculators/([a-z_]+)/(calculate|worksheet|report\.pdf|summary\.pdf|register\.xlsx|state|template|import)', route)
-                if route == '/api/company-settings':
+                if route in {'/api/project/full-schedule.pdf', '/api/project/full-product-summary.pdf'} and self.command == 'POST':
+                    from .project_file import project_details
+                    from .project_reports import build_project_report
+                    if set(body) - {'calculators', 'penetration', 'configuration', 'project_details', 'download'}:
+                        raise ValidationError('Include the project schedule snapshots only.')
+                    destination = projects.capture_download(body['download']) if 'download' in body else None
+                    materials = route.endswith('full-product-summary.pdf')
+                    report = build_project_report(body.get('calculators', {}), body.get('penetration'),
+                        validate_configuration(body.get('configuration', store.configuration())), project_details(body.get('project_details')),
+                        materials=materials, library=libraries, company=store.company_settings(),
+                        saved_calculators={key: store.calculator_state(key)['inputs'] for key in ('steel_vermiculite', 'steel_board', 'ductwork')})
+                    self.send_download(report, 'application/pdf', 'CEASEFIRE-Full-Product-Summary.pdf' if materials else 'CEASEFIRE-Full-Schedule.pdf', destination)
+                elif route == '/api/company-settings':
                     self.send_payload(200, store.save_company_settings(body))
                 elif route == '/api/libraries/penetration':
                     if self.command != 'POST':

@@ -500,6 +500,10 @@ def _build_calculator_pdf(calculator_id, inputs, *, materials, project_details=N
         report.extras()
     else:
         report.schedule()
+    # A final spacer can overflow an otherwise complete summary onto a page
+    # containing only its header and footer. It carries no report content.
+    while report.story and isinstance(report.story[-1], Spacer):
+        report.story.pop()
     report_title = 'Material quantities and summary' if materials else 'Full schedule'
     output = BytesIO()
     document = SimpleDocTemplate(output, pagesize=landscape(A4), leftMargin=_MARGIN, rightMargin=_MARGIN,

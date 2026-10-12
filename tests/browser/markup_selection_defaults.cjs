@@ -85,7 +85,7 @@ async function drawCount(mark) {
   await chooseTakeoff(page, 'duct'); await page.getByRole('button', { name: 'Count', exact: true }).click();
   for (const point of [[500,250],[550,280]]) await page.mouse.click(...await screen(point));
   await page.locator('.takeoff-viewport').press('Enter');
-  const manualMm = 2123.456789, reply = await command(() => dialog('Add count', { Item: mark, 'Manual Length (mm)': manualMm }, 'Add count'), 'add_count_items');
+  const manualMm = 2123.456789, reply = await command(() => dialog('Add count', { Item: mark, Level: 'L01', 'Manual Length (mm)': manualMm }, 'Add count'), 'add_count_items');
   const rows = reply.snapshot.items.filter(item => reply.created_item_ids.includes(item.id));
   assert.equal(rows.length, 2); assert.equal(new Set(rows.map(item => item.id)).size, 2); assert.equal(new Set(rows.map(item => item.count_id)).size, 1);
   for (const item of rows) {

@@ -108,6 +108,7 @@ jobs:
       - run: npm run test:takeoffs-area-copy-visibility
       - run: npm run test:header-controls
       - run: npm run test:company-firestopping-settings
+      - run: node tests/browser/project_reports.cjs
       - run: npm run test:estimator-header-state
       - run: npm run test:calculator-navigation
       - run: npm run test:document-menus

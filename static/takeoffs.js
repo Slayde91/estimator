@@ -481,7 +481,9 @@
       const control = button(title, action), image = node("img"); image.src = `/icons/${asset}`; image.alt = ""; image.setAttribute("aria-hidden", "true"); image.width = 28; image.height = 28;
       control.classList.add("icon-only", "takeoff-icon-button"); control.replaceChildren(image); control.setAttribute("aria-label", title); control.title = title; control.setAttribute("aria-pressed", "false"); ui.tools[key] = control;
     }
-    ui.tools.countLength.after(ui.tools.markups, ui.tools.legend);
+    ui.presentationTools = node("div", "takeoff-toolbar takeoff-presentation-tools");
+    ui.presentationTools.setAttribute("role", "group"); ui.presentationTools.setAttribute("aria-label", "Colour and legend controls");
+    ui.presentationTools.append(ui.tools.markups, ui.tools.legend);
     if (X && graphicsUI) {
       const measure = button("Measure", () => graphicsUI.activate("measure")); measure.dataset.tool = "graphic-measure";
       const measureIcon = node("img", "takeoff-measure-icon"); measureIcon.src = "/icons/takeoff-measure.avif"; measureIcon.alt = ""; measureIcon.setAttribute("aria-hidden", "true"); measureIcon.width = 28; measureIcon.height = 28;
@@ -489,8 +491,8 @@
       measure.setAttribute("aria-label", "Measure"); measure.title = "Measure length on the PDF"; ui.tools["graphic-measure"] = measure;
       ui.tools.viewport.after(measure);
       for (const [kind, label] of [["area", "Area"], ["area-exclusion", "Area exclusion"]]) {
-        const control = button(label, () => graphicsUI.activate(kind)); control.dataset.tool = `graphic-${kind}`;
-        control.classList.add("icon-only", "takeoff-icon-button", "takeoff-graphic-tool"); control.replaceChildren(X.icon(kind));
+        const control = button(kind === "area" ? "Trace surface" : "Add exclusion", () => graphicsUI.activate(kind)); control.dataset.tool = `graphic-${kind}`;
+        control.classList.add("icon-only", "takeoff-icon-button", "takeoff-graphic-tool");
         control.setAttribute("aria-label", label); control.title = label; ui.tools[`graphic-${kind}`] = control; toolbar.append(control);
       }
     }
@@ -585,7 +587,7 @@
     ui.tableWrap = node("div", "takeoff-register-table"); ui.pagination = node("div", "takeoff-register-controls"); ui.deletedRecords = node("section", "takeoff-deleted-records"); ui.deletedRecords.hidden = true; register.append(controls, ui.bulk, exports, ui.tableWrap, ui.pagination, ui.deletedRecords);
     ui.physicalContainer = node("div", "takeoff-physical-container"); ui.physicalContainer.hidden = true;
     ui.controlStatus = node("p", "helper takeoff-control-status"); ui.controlStatus.hidden = true; ui.controlStatus.setAttribute("role", "status");
-    const bottomControls = node("div", "takeoff-viewer-bottom"); bottomControls.append(pageControls);
+    const bottomControls = node("div", "takeoff-viewer-bottom"); bottomControls.append(pageControls, ui.presentationTools);
     const viewer = node("div", "takeoff-viewer"); viewer.append(ui.viewport, viewerTop, bottomControls);
     drawingPane.append(viewer, ui.progress, ui.controlStatus, ui.physicalOverlayStatus);
     workspace.append(layout, register); root.append(ui.heading, ui.message, workspace, ui.physicalContainer);
@@ -714,7 +716,8 @@
     state.ui.title.textContent = physical ? state.physicalScope === "service_plans" ? "Service Plans" : "Defect Reports" : state.mode === "duct" ? "Ductwork" : labels[state.mode];
     state.ui.tools.markups.hidden = state.mode !== "steel";
     state.ui.tools.legend.hidden = !["steel", "duct"].includes(state.mode);
-    (state.mode === "duct" ? state.ui.countAnchor : state.ui.tools.countLength).after(state.ui.tools.markups, state.ui.tools.legend);
+    state.ui.presentationTools.hidden = !["steel", "duct"].includes(state.mode);
+    for (const tool of ["graphic-area", "graphic-area-exclusion"]) if (state.ui.tools[tool]) state.ui.tools[tool].hidden = isArea();
     updatePresentationTools();
     state.ui.tools.count.dataset.tool = physical ? "count" : "count-only";
     state.ui.tools.callout.hidden = physical;
@@ -2252,13 +2255,14 @@
     if (continuation) continuationTarget(continuation);
     state.countFinishing = true;
     try {
-      const details = continuation ? null : await ask("Add count", [...creationFields(mode).filter(([key]) => key !== "quantity"), ["length_mm", "Manual Length (mm)", "number", "", true]], "", "Add count", async (controls, ready) => { const length = controls.find(field => field.control.name === "length_mm").control; length.min = "0.000001"; length.max = "1000000000000000"; await configureSteelCreation(controls, state.ui.target.value, ready); });
+      const details = continuation ? null : await ask("Add count", [...creationFields(mode).filter(([key]) => key !== "quantity").map(field => [...field.slice(0, 4), ["mark", "level"].includes(field[0])]), ["length_mm", "Manual Length (mm)", "number", "", false]], "", "Add count", async (controls, ready) => { const length = controls.find(field => field.control.name === "length_mm").control; length.min = "0.000001"; length.max = "1000000000000000"; await configureSteelCreation(controls, state.ui.target.value, ready); });
       if (!continuation && !details) return cancelTrace();
-      if (details && (!(details.length_mm > 0) || !Number.isFinite(details.length_mm) || details.length_mm > 1e15)) throw new Error("Manual Length (mm): enter a positive finite length no greater than 1,000,000,000,000,000 mm.");
+      const hasLength = details?.length_mm != null && details.length_mm !== "";
+      if (hasLength && (!(details.length_mm > 0) || !Number.isFinite(details.length_mm) || details.length_mm > 1e15)) throw new Error("Manual Length (mm): enter a positive finite length no greater than 1,000,000,000,000,000 mm.");
       const values = details ? { ...details, ...(mode === "duct" ? { ...parseDuctSize(details.duct_size), shape: "rectangular" } : {}) } : null; if (values) { delete values.duct_size; delete values.length_mm; }
       const current = () => generation === state.countGeneration && sessionId === state.session?.session_id && mode === state.mode && documentId === state.document && page === state.page && sourceHash === currentDocument()?.sha256 && state.tool === "count-only";
       const guard = () => { if (!current() || revision !== state.session.revision || draft !== JSON.stringify(state.points) || state.formDirty || state.settingsDirty) throw new Error("The count or source changed. Start the count again."); return true; };
-      const reply = continuation ? await command("continue_standalone_count", { item_id: continuation.itemId, markers }, () => !!continuationTarget(continuation)) : await command("add_count_items", { mode, document_id: documentId, page, markers: markers.map(marker => ({ ...marker, length_m: details.length_mm / 1000 })), fields: values, appearance: newMarkupAppearance() }, guard);
+      const reply = continuation ? await command("continue_standalone_count", { item_id: continuation.itemId, markers }, () => !!continuationTarget(continuation)) : await command(hasLength ? "add_count_items" : "add_standalone_count", { mode, document_id: documentId, page, markers: hasLength ? markers.map(marker => ({ ...marker, length_m: details.length_mm / 1000 })) : markers, fields: values, appearance: newMarkupAppearance() }, guard);
       if (!reply || !current()) return;
       const ids = continuation ? [continuation.itemId] : reply.created_item_ids; cancelTrace(); state.selected = new Set(ids); state.settingsOpen = true; state.settingsEditor = null; renderSelection();
     } finally { if (generation === state.countGeneration) state.countFinishing = false; }

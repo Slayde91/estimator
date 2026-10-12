@@ -2102,6 +2102,22 @@
     return loadProjectFiles({ id: file.id, title: file.title || file.name, name: file.name }, "");
   }
 
+  async function downloadFullReport(materials, button) {
+    if (button.disabled || state.projectBusy) return;
+    const context = state.quoteContext;
+    button.disabled = true; button.setAttribute("aria-busy", "true");
+    try {
+      await Promise.all([window.CeasefireCalculators.completeProjectSnapshot(), window.CeasefirePenetrations.completeProjectSnapshot()]);
+      if (context !== state.quoteContext) throw new Error("The project changed. Download the report again.");
+      const calculators = Object.fromEntries(Object.entries(window.CeasefireCalculators.projectSnapshot()).map(([id, value]) => [id, { inputs: value.inputs }]));
+      const payload = { calculators, penetration: window.CeasefirePenetrations.projectSnapshot().draft,
+        configuration: clone(state.quoteConfiguration || state.configuration), project_details: quoteDetails() };
+      const saved = await window.CeasefireDownloads.save(`/api/project/${materials ? "full-product-summary" : "full-schedule"}.pdf`, payload);
+      message(`PDF saved to ${saved.path}. It includes the schedule inputs captured when the download was prepared.`);
+    } catch (error) { message(error.message, true); }
+    finally { button.disabled = false; button.removeAttribute("aria-busy"); }
+  }
+
   async function downloadQuotePdf() {
     if (inputProblem()) { message(inputProblem(), true); return; }
     const button = $("download-quote-pdf");
@@ -2137,6 +2153,13 @@
   $("measurements").addEventListener("input", () => updateDirty());
   $("new-quote").addEventListener("click", async () => { if (await confirmLeavePricingLibrary()) newQuote(); });
   $("download-quote-pdf").addEventListener("click", downloadQuotePdf);
+  for (const [id, label, materials] of [["download-full-schedule", "Download Full Schedule", false], ["download-full-product-summary", "Download Full Product Summary", true]]) {
+    const button = node("button", "button pdf-button calculator-document-action"); button.id = id; button.type = "button";
+    const icon = node("span", "download-format-icon"); icon.setAttribute("aria-hidden", "true");
+    icon.append(node("span", "download-arrow", "⇩"), node("span", "download-format", "PDF"));
+    button.append(icon, node("span", "", label)); button.addEventListener("click", () => downloadFullReport(materials, button));
+    $("firestopping-document-actions").append(button);
+  }
   $("save-current-project").addEventListener("click", saveProject);
   $("load-project").addEventListener("click", async () => { if (await confirmLeavePricingLibrary()) openNativeProject(); });
   $("project-import-file").addEventListener("change", loadProject);

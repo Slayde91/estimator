@@ -80,6 +80,10 @@
   :root[data-theme]:not([data-theme="ceasefire"]) :is(.field>span:first-child,.help-card p,.help-card li,.work-summary) { color:var(--ink); }
   :root[data-theme]:not([data-theme="ceasefire"]) :is(th,.work-summary-panel,.tabs,.tab.active,.penetration-group[aria-pressed=true],.penetration-group[aria-selected=true]) { background:var(--theme-soft); color:var(--ink); border-color:var(--line); }
   :root[data-theme]:not([data-theme="ceasefire"]) :is(td,.workflow-section) { border-color:var(--line); }
+  :root[data-theme]:not([data-theme="ceasefire"]) .library-summary-table tbody td { background:var(--theme-surface); color:var(--ink); }
+  :root[data-theme]:not([data-theme="ceasefire"]) .library-summary-table .library-summary-total>* { background:var(--theme-button); color:#fff; border-color:var(--theme-border); }
+  :root[data-theme]:not([data-theme="ceasefire"]) .library-summary-table .library-summary-related>* { background:var(--theme-soft); color:var(--ink); }
+  :root[data-theme]:not([data-theme="ceasefire"]) .pricing-table .pricing-availability { background:var(--theme-surface); }
   :root[data-theme]:not([data-theme="ceasefire"]) tbody tr:hover { background:var(--theme-raised); }
   :root[data-theme]:not([data-theme="ceasefire"]) :is(.library-source,.library-related-record,.library-image,.penetration-diagram) { background:var(--theme-raised); color:var(--ink); border-color:var(--line); }
   :root[data-theme]:not([data-theme="ceasefire"]) :is(.library-related-notice,.library-record-notice) { background:var(--theme-soft); color:var(--ink); border-color:var(--theme-border); }

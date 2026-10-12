@@ -822,7 +822,7 @@
     const totals = (board ? result.board_product_totals : result?.product_totals) || [];
     container.hidden = !totals.length;
     if (!totals.length) { container.replaceChildren(); return; }
-    const heading = node("h4", "", board ? "CALCULATED SUMMARY" : "PRODUCT SUMMARY"), note = node("p", "", board ? "Box reference area measures the enclosure used for the board takeoff. Net board area and whole sheets include valid additional boards. Review products with incomplete rows." : "Whole bags use each product’s combined order quantity, including its configured waste. A blank total remains withheld; review the order status.");
+    const heading = node("h4", "", board ? "CALCULATED SUMMARY" : "PRODUCT SUMMARY"), note = board ? node("p", "", "Box reference area measures the enclosure used for the board takeoff. Net board area and whole sheets include valid additional boards. Review products with incomplete rows.") : null;
     const scroll = node("div", "calculator-product-totals-scroll"), table = node("table", "calculator-centered-data-table"), head = node("thead"), body = node("tbody"), headers = node("tr");
     for (const label of board ? ["Product", "Box reference area (m²)", "Net board area (m²)", "Whole sheets", "Order status"] : ["Product", "Net bags", "Whole bags", "Order status"]) { const cell = node("th", "", label); cell.scope = "col"; headers.append(cell); }
     head.append(headers);
@@ -838,7 +838,7 @@
     for (const total of result?.spray_schedule_totals || []) {
       const card = node("div", "calculator-summary-metric"), output = node("strong"); output.dataset.calculatorValue = "true"; updateOutputCell(output, { value: total.value }); card.append(node("span", "", total.label), output); cards.append(card);
     }
-    container.replaceChildren(heading, ...(cards.children.length ? [cards] : []), ...(overview ? [overview] : []), note, scroll);
+    container.replaceChildren(heading, ...(cards.children.length ? [cards] : []), ...(overview ? [overview] : []), ...(note ? [note] : []), scroll);
   }
 
   function sectionDetails(entry, result, metadata) {
@@ -1461,6 +1461,7 @@
       retainPage(current());
       state.current = id; ++state.requestRevision; clearTimeout(state.timer);
       $("calculator-workspace").hidden = false; $("calculator-title").textContent = entry.definition.title;
+      $("calculator-workspace").querySelector(".eyebrow").textContent = entry.definition.id === "ductwork" ? "DUCTWORK CALCULATOR" : "STEEL CALCULATOR";
       $("calculator-sheet-title").textContent = pageDefinition(entry).label;
       renderChoices(); renderPages(entry); renderDocuments(entry); updateStatus(entry); message();
       await navigateWorksheet(entry);

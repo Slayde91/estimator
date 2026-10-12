@@ -22,6 +22,18 @@ FIELDS = {'mark': 'Ceiling grilles', 'level': 'Level 1', 'width_mm': 600, 'heigh
 
 
 class StandaloneTests(unittest.TestCase):
+    def test_optional_count_properties_are_retained_without_gaining_length_or_transfer(self):
+        fields = {**FIELDS, 'product': 'FyreWrap', 'exposure': 'Internal', 'shape': 'rectangular',
+                  'wall_penetrations': 0, 'floor_penetrations': None}
+        identifier = self.case.command('add_standalone_count', mode='duct', document_id=self.case.doc['id'], page=1,
+            markers=[{'point': [30, 40]}], fields=fields, appearance={})['created_item_ids'][0]
+        item = self.item(identifier)
+        self.assertEqual(item['fields'], fields)
+        self.assertIsNone(item['measurement'])
+        self.assertEqual(item_result(item, self.case.state['snapshot'])['total_count'], 1)
+        with self.assertRaisesRegex(ValidationError, 'cannot be transferred'):
+            mapped_values(item, self.case.state['snapshot'], 'ductwork', 11)
+
     def setUp(self):
         self.case = fixtures.TakeoffWorkspaceTests(); self.case.setUp()
         self.addCleanup(self.case.doCleanups)
@@ -84,7 +96,7 @@ class StandaloneTests(unittest.TestCase):
         for markers in ([], [{'point': [0, 0]}], [{'point': [30, 40], 'length_m': 3}], [{'point': [True, 40]}]):
             self.rejected('continue_standalone_count', item_id=identifier, markers=markers)
         for changes in ({'quantity': 3}, {'measurement': {'method': 'manual', 'length_m': 5}},
-                        {'fields': {'product': 'FyreWrap'}}, {'length_additions': [{'id': str(uuid4())}]},
+                        {'fields': {'product': True}}, {'length_additions': [{'id': str(uuid4())}]},
                         {'geometry': {**self.item(identifier)['geometry'], 'kind': 'count'}}):
             self.rejected('update_item', item_id=identifier, changes=changes)
         self.rejected('continue_count', item_id=identifier, markers=[{'point': [80, 60], 'length_m': 3}])

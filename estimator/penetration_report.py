@@ -183,6 +183,49 @@ def render_penetration_pdf(result, definition, project_details, *, library=None,
     return output.getvalue()
 
 
+def render_penetration_summary_pdf(result, definition, project_details, *, library=None, company=None):
+    """Use the canonical product totals, preserving captured rates and units."""
+    _register_fonts()
+    report = _Report({})
+    width, height = landscape(A4)
+    margin, content = 32, width - 64
+    logo = company_logo(company)
+    report.story.append(report.p('Firestopping product summary', 'title'))
+    report.story.append(report.table(['Project details', 'Value'], [
+        [report.p(label, 'cell'), report.p(project_details.get(key, ''), 'cell')]
+        for label, key in [('Project No.', 'project_no'), ('Client', 'client'), ('Site Address', 'site_address')]
+    ], [content * .25, content * .75]))
+    report.story.append(Spacer(1, 12))
+    rows = []
+    for item in result['material_breakdown']:
+        def show(value, currency=False):
+            return 'Check schedule' if isinstance(value, str) and value.startswith('#') else _display(value, {'format': 'currency' if currency else 'number'})
+        rows.append([report.p(str(item['name']), 'cell'), report.p(item.get('context', ''), 'cell'),
+                     report.p(show(item['quantity']), 'numeric'), report.p(item.get('units', ''), 'cell'),
+                     report.p(show(item['price'], True), 'numeric'), report.p(show(item['total'], True), 'numeric')])
+    report.story.append(report.table(['Product', 'Use', 'Quantity', 'Unit', 'Unit price', 'Material total'], rows,
+                                    [content * part for part in (.26, .20, .12, .12, .15, .15)], compact=True))
+    if result.get('errors'):
+        report.story.append(report.p('Some quantities are unavailable. Correct the affected schedule inputs before ordering.', 'alert'))
+    output = BytesIO()
+    document = SimpleDocTemplate(output, pagesize=landscape(A4), leftMargin=margin, rightMargin=margin,
+        topMargin=91, bottomMargin=43, title='Ceasefire - Firestopping product summary', author='Ceasefire')
+
+    def decorate(canvas, doc):
+        canvas.saveState()
+        _company_header(canvas, logo, width, height, margin, 'FIRESTOPPING | PRODUCT SUMMARY', label_below_logo=True, company=company)
+        canvas.setStrokeColor(_LINE)
+        canvas.line(margin, 32, width - margin, 32)
+        canvas.setFont('CeasefireVera', 7)
+        canvas.setFillColor(_MUTED)
+        canvas.drawString(margin, 20, 'Ceasefire ESTIMATOR | Firestopping')
+        canvas.drawRightString(width - margin, 20, f'Page {doc.page}')
+        canvas.restoreState()
+
+    document.build(report.story, onFirstPage=decorate, onLaterPages=decorate)
+    return output.getvalue()
+
+
 def build_penetration_register(result, definition, project_details):
     """Values-only Excel export; user text cannot become formulas or links."""
     workbook = Workbook()

@@ -574,7 +574,8 @@ def validate_item(value, snapshot, *, copy_result=True):
         validate_appearance(value['appearance'])
     object_fields(value['fields'], FIELDS, 'Takeoff fields')
     if is_standalone_item(value):
-        object_fields(value['fields'], STANDALONE_FIELDS, 'Standalone item fields')
+        allowed = STANDALONE_FIELDS | (EVIDENCE_FIELDS[value['mode']] & FIELDS if is_standalone_count(value) else set())
+        object_fields(value['fields'], allowed, 'Standalone item fields')
     for key, field in value['fields'].items():
         if field is None:
             continue
@@ -649,7 +650,7 @@ def validate_item(value, snapshot, *, copy_result=True):
         _, page = page_metadata(snapshot, reference['document_id'], reference['page'])
         text(reference.get('note', ''), 'Evidence note')
         supported_fields = reference.get('fields', [])
-        evidence_fields = (STANDALONE_FIELDS | {'quantity'} | ({'length_m'} if is_standalone_length(value) else set())
+        evidence_fields = (STANDALONE_FIELDS | {'quantity'} | ({'length_m'} if is_standalone_length(value) else EVIDENCE_FIELDS[value['mode']])
                            if is_standalone_item(value) else EVIDENCE_FIELDS[value['mode']])
         if (not isinstance(supported_fields, list) or len(supported_fields) > 32
                 or any(not isinstance(field, str) or field not in evidence_fields for field in supported_fields)

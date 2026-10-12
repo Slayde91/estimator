@@ -54,8 +54,13 @@ async function tools() {
   await renderDrawing(page, () => page.getByRole("button", { name: "Fit page", exact: true }).click(), 1); await settingsSettled(page);
   const baseline = await snapshot(), calculators = await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()), ids = [], netAreas = [];
   for (const workspace of ["steel", "duct", "Walls/Floors", "Defect Reports", "Service Plans"]) {
-    await chooseTakeoff(page, workspace); await settingsSettled(page); await tools();
-    if (workspace === "Walls/Floors") await expect(rail().getByRole("button", { name: "Length", exact: true })).toBeHidden();
+    await chooseTakeoff(page, workspace); await settingsSettled(page);
+    if (workspace === "Walls/Floors") {
+      for (const name of ["Area", "Area exclusion", "Length"]) await expect(rail().getByRole("button", { name, exact: true })).toBeHidden();
+      for (const name of ["Trace surface", "Add exclusion"]) await expect(rail().getByRole("button", { name, exact: true })).toBeVisible();
+      check("Walls/Floors retains surface tools without duplicate PDF Area buttons"); continue;
+    }
+    await tools();
     await rail().getByRole("button", { name: "Area", exact: true }).click();
     let placed; const created = await command(async () => { placed = await trace([[100,100],[300,100],[300,300],[100,300]]); }, "create_graphic"), id = created.created_graphic_id; ids.push(id);
     let record = created.snapshot.graphics.records.find(value => value.id === id), result = created.pdf_measure_results.find(value => value.id === id);

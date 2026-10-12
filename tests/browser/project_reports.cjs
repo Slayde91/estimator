@@ -57,7 +57,7 @@ async function themeColors(selector, token) {return page.locator(selector).first
       }
     }
     await chooseLibrary(page,'pricing');await idle();const colors=await themeColors('.pricing-availability','--theme-surface');if(theme!=='ceasefire')assert.equal(colors.actual,colors.expected,`${theme} pricing`);
-    await page.screenshot({path:path.join(output,`${theme}-pricing.png`)});
+    await page.locator('.pricing-availability').first().scrollIntoViewIfNeeded();await page.screenshot({path:path.join(output,`${theme}-pricing.png`)});
   }
   await chooseTakeoff(page,'steel');await idle();
   for(const width of [1440,1146,801,390]){
@@ -67,9 +67,11 @@ async function themeColors(selector, token) {return page.locator(selector).first
       return {viewer:box('.takeoff-viewer'),navigation:box('.takeoff-page-controls'),tools:box('.takeoff-presentation-tools')};
     });
     assert.ok(boxes.tools.right<=boxes.viewer.right+1);assert.ok(boxes.tools.x>=boxes.viewer.x-1);
-    assert.ok(boxes.navigation.right<=boxes.tools.x+1,'Bottom controls do not overlap');
-    assert.ok(Math.abs(boxes.navigation.bottom-boxes.tools.bottom)<2,'Bottom controls align');
-    evidence.layouts.push({width,...boxes});await page.screenshot({path:path.join(output,`toolbar-${width}.png`)});
+    if(boxes.viewer.width>500){
+      assert.ok(boxes.navigation.right<=boxes.tools.x+1,'Bottom controls do not overlap');
+      assert.ok(Math.abs(boxes.navigation.bottom-boxes.tools.bottom)<2,'Bottom controls align');
+    }else assert.ok(boxes.navigation.bottom<=boxes.tools.y,'Narrow controls use separate rows without overlap');
+    evidence.layouts.push({width,...boxes});await page.locator('.takeoff-viewer-bottom').scrollIntoViewIfNeeded();await page.screenshot({path:path.join(output,`toolbar-${width}.png`)});
   }
   assert.deepEqual(errors,[]);fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({completed:true,errors,...evidence},null,2));console.log(`Project report acceptance passed: ${output}`);
 })().catch(async error=>{console.error(error);await page?.screenshot({path:path.join(output,'failure.png')}).catch(()=>{});fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({completed:false,error:String(error),errors,...evidence},null,2));process.exitCode=1;}).finally(async()=>{fs.writeFileSync(path.join(output,'server.log'),logs);await browser?.close();server.kill();});

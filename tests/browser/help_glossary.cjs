@@ -76,7 +76,8 @@ async function theme(id) { for (let index = 0; index < 5 && await page.locator('
       await page.getByRole('button', { name: 'Estimates', exact: true }).click(); await idle();
       const menuRequestCount = requests.length;
       await toggle.focus(); await toggle.press('ArrowDown'); await expect(summary).toBeFocused(); await expect(summary).toHaveAccessibleName('Estimate Summary');
-      await expect(menu.getByRole('button')).toHaveCount(3); await expect(summary.locator('span').last()).toHaveText('Estimate Summary');
+      await expect(menu.getByRole('button')).toHaveCount(5); await expect(summary.locator('span').last()).toHaveText('Estimate Summary');
+      for (const label of ['Download Full Schedule', 'Download Full Product Summary']) await expect(menu.getByRole('button', { name: label, exact: true })).toBeVisible();
       const styles = await menu.locator('.calculator-document-action').evaluateAll(actions => actions.map(el => { const s = getComputedStyle(el); return { color: s.color, background: s.backgroundColor }; }));
       assert.deepEqual(styles[0], styles[1], 'Estimate Summary shares the existing menu-entry presentation'); assert.equal(styles[0].background, 'rgb(255, 255, 255)');
       const bounds = await menu.boundingBox(); assert.ok(bounds.x >= -1 && bounds.x + bounds.width <= width + 1, `${themeId}/${width}: Document stays within viewport`);

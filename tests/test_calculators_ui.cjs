@@ -12,6 +12,7 @@ function element(tag = 'div') {
     setAttribute(name, value) { attributes.set(name, value); }, removeAttribute(name) { attributes.delete(name); }, getAttribute(name) { return attributes.get(name); },
     append(...items) { this.children.push(...items); this.options = this.children; },
     replaceChildren(...items) { this.children = items; this.options = items; },
+    querySelector(selector) { return selector === '.eyebrow' ? this.children.find(node => node.className === 'eyebrow') || null : this.querySelectorAll(selector)[0] || null; },
     querySelectorAll(selector) { const found=[]; const match=selector.match(/^\[data-([a-z-]+)\]$/),key=match?.[1].replace(/-([a-z])/g,(_,letter)=>letter.toUpperCase());const walk=node=>{if(key&&node.dataset?.[key]!==undefined)found.push(node);for(const child of node.children||[])walk(child);};this.children.forEach(walk);return found; },
     select() { this.selectionStart=0;this.selectionEnd=String(this.value).length; },
     blur() { this.blurred=true;return this.emit('blur'); },
@@ -23,6 +24,7 @@ function element(tag = 'div') {
   };
 }
 const byId = id => { if (!elements.has(id)) elements.set(id, element()); return elements.get(id); };
+byId('calculator-workspace').append(Object.assign(element('p'), {className: 'eyebrow'}));
 const context = {
   document: { getElementById: byId, createElement: element, body: element(), activeElement: null },
   window: { addEventListener() {}, location: { origin: 'http://127.0.0.1:8765' } },
@@ -335,6 +337,7 @@ let passed = 0;
   assert.equal(loads,1);firstDefinition.resolve(sourceDefinition);await Promise.all([firstOpen,secondOpen]);
   const retained = audit.current(); audit.setInput(retained, 'CALCULATOR', 'B9', 33);
   assert.equal(firstWorksheets,1);assert.equal(audit.state.definitionRequests.size,0);
+  assert.equal(byId('calculator-workspace').querySelector('.eyebrow').textContent, 'STEEL CALCULATOR');
   assert.equal(audit.current(), retained);assert.equal(audit.current().inputs.CALCULATOR.B9,33);assert.equal(sourceDefinition.inputs.CALCULATOR.B9,2);passed++;
 
   // Concurrent section opens coalesce list and definition requests; only the newest navigates.

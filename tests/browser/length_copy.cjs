@@ -181,7 +181,7 @@ async function saveLoad(info) {
   console.log('Steel/Duct paste, repeated identities, cross-page scale, native text clipboard and stale-source rejection passed.');
   await chooseTakeoff(page, 'steel');
   await page.getByRole('button', { name: 'Count steel lengths', exact: true }).click(); await page.mouse.click(...await screen([550, 220]));
-  await dialog('Counted member length', { 'Length per member (m)': 4.25 }, 'Place marker');
+  await dialog('Counted member length', { 'Member mark': 'COPY-COUNT', 'Manual Length (mm)': 4.25 * 1000 }, 'Place marker');
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await page.waitForFunction(() => { const value = JSON.parse(window.CeasefireTakeoffs.projectFingerprint()); return !value.modal && value.countEntries.length === 1 && value.countEntries[0].length_m === 4.25; });
   reply = await command(() => page.locator('.takeoff-viewport').press('Enter'), 'add_count_items');

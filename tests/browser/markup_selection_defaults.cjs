@@ -85,8 +85,17 @@ async function drawCount(mark) {
   await chooseTakeoff(page, 'duct'); await page.getByRole('button', { name: 'Count', exact: true }).click();
   for (const point of [[500,250],[550,280]]) await page.mouse.click(...await screen(point));
   await page.locator('.takeoff-viewport').press('Enter');
-  const reply = await command(() => dialog('Add count', { Item: mark }, 'Add count'), 'add_standalone_count');
-  return reply.snapshot.items.find(item => item.fields.mark === mark);
+  const manualMm = 2123.456789, reply = await command(() => dialog('Add count', { Item: mark, 'Manual Length (mm)': manualMm }, 'Add count'), 'add_count_items');
+  const rows = reply.snapshot.items.filter(item => reply.created_item_ids.includes(item.id));
+  assert.equal(rows.length, 2); assert.equal(new Set(rows.map(item => item.id)).size, 2); assert.equal(new Set(rows.map(item => item.count_id)).size, 1);
+  for (const item of rows) {
+    assert.equal(item.mode, 'duct'); assert.equal(item.purpose, undefined); assert.equal(item.fields.mark, mark); assert.equal(item.quantity, 1);
+    assert.equal(item.geometry.kind, 'count'); assert.equal(item.geometry.points.length, 1); assert.equal(item.member_ids.length, 1);
+    assert.deepEqual(item.measurement, { method: 'manual', length_m: manualMm / 1000 });
+  }
+  assert.equal(new Set(rows.flatMap(item => item.member_ids)).size, 2);
+  (evidence.manualDuctCounts ||= []).push({ mark, ids: rows.map(item => item.id), manual_length_mm: manualMm, stored_length_m: manualMm / 1000, quantities: rows.map(item => item.quantity), independent_native_runs: true });
+  return rows;
 }
 async function blankDuringHeldSettings(mode, item) {
   const before = await snapshot(), blank = await screen([750,500]);
@@ -178,7 +187,7 @@ function watch(current) {
   assert.equal(requests.length,mixedCommands,'Mixed native keyboard selection sends no mutation');
   await page.screenshot({path:path.join(output,'combined-native-keyboard-selection.png')});await click([750,500]);
   evidence.combined={nativeItemIds:[nativeFirst.wall,nativeFirst.slab],bothNativePathsVisible:true,keyboardEnterAndAdditiveSpace:true,noMutation:true,mixedBasisNotEditable:true};
-  const counted = await drawCount('DUCT-COUNT-DEFAULT'); assert.deepEqual(counted.appearance,{...desired,marker_size:25}); assert.equal(counted.quantity,2);
+  const counted = await drawCount('DUCT-COUNT-DEFAULT'); for(const item of counted) assert.deepEqual(item.appearance,{...desired,marker_size:25});
   await chooseTakeoff(page, 'wall'); await expect(page.getByRole('button',{name:'Length',exact:true})).toHaveCount(0); await expect(page.getByRole('button',{name:'Measure',exact:true})).toBeVisible();
   // Seed the retained legacy Length record through its guarded API because its
   // creation rail is retired. Fresh native drawings/counts already cover defaults.
@@ -195,11 +204,11 @@ function watch(current) {
   const saved=await snapshot(),saveWait=page.waitForResponse(response=>response.url().endsWith('/api/project/save-as')); await clickProjectControl(page,'Save'); assert.equal((await saveWait).status(),200); await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   const openWait=page.waitForResponse(response=>response.url().endsWith('/api/project/open')); await clickProjectControl(page,'Load'); assert.equal((await openWait).status(),200); await page.getByRole('dialog').getByRole('button',{name:'Load Project',exact:true}).click(); await page.getByRole('button',{name:'Takeoffs',exact:true}).click(); assert.deepEqual((await snapshot()).items,saved.items); assert.deepEqual(await page.evaluate(()=>window.CeasefireCalculators.completeProjectSnapshot()),calculators);
   // A new launch keeps the browser preference without putting it in the project.
-  assert.equal(Object.hasOwn(saved,'markup_defaults'),false); await enterWorkspace(info,false); const reloaded=await drawCount('AFTER-RELOAD'); assert.deepEqual(reloaded.appearance,{...desired,marker_size:25}); evidence.reloadPersisted=true;
+  assert.equal(Object.hasOwn(saved,'markup_defaults'),false); await enterWorkspace(info,false); const reloaded=await drawCount('AFTER-RELOAD'); for(const item of reloaded) assert.deepEqual(item.appearance,{...desired,marker_size:25}); evidence.reloadPersisted=true;
   csp.push(...await page.evaluate(()=>window.qaCsp)); await context.close();
   const blocked=await browser.newContext({viewport:{width:1146,height:900}}); await blocked.addInitScript(()=>{window.qaCsp=[];document.addEventListener('securitypolicyviolation',event=>window.qaCsp.push(event.violatedDirective));Object.defineProperty(window,'localStorage',{get(){throw new DOMException('Blocked','SecurityError');}});});
   page=await blocked.newPage();page.setDefaultTimeout(30000);watch(page);await enterWorkspace(info);
-  await chooseTakeoff(page, 'duct');const baseline=await draw('duct','BLOCKED-OLD');assert.deepEqual(baseline.appearance,{stroke_width:5,fill_enabled:true,marker_size:25,display_values:false});await openDrawingSettings([190,400]);await setDefault();await expect(page.locator('#takeoffs-workspace [role="status"]').filter({hasText:'Browser storage is unavailable'})).toBeVisible();const fallback=await drawCount('BLOCKED-NEW');assert.deepEqual(fallback.appearance,{...desired,marker_size:25});evidence.blockedStorageInWindow=true;csp.push(...await page.evaluate(()=>window.qaCsp));
+  await chooseTakeoff(page, 'duct');const baseline=await draw('duct','BLOCKED-OLD');assert.deepEqual(baseline.appearance,{stroke_width:5,fill_enabled:true,marker_size:25,display_values:false});await openDrawingSettings([190,400]);await setDefault();await expect(page.locator('#takeoffs-workspace [role="status"]').filter({hasText:'Browser storage is unavailable'})).toBeVisible();const fallback=await drawCount('BLOCKED-NEW');for(const item of fallback) assert.deepEqual(item.appearance,{...desired,marker_size:25});evidence.blockedStorageInWindow=true;csp.push(...await page.evaluate(()=>window.qaCsp));
   assert.deepEqual(errors,[]);assert.deepEqual(csp,[]);
   const runtimeAfter=runtimeHashes();
   fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({completed:true,fixturePort:info.port,evidence,pointerTargets,errors,csp,requests,savedItems:saved.items,calculatorInputsUnchanged:true,sourceDocumentsAndCalibrationUnchanged:true,runtimeBefore,runtimeAfter,runtimeSourceSha256:runtimeAfter['takeoffs.js'],limits:['Disposable fixture only; no live8765 interaction.','Copied or continued existing groups retain their original style; fresh drawings/counts/cited items use the browser visual preference.']},null,2));

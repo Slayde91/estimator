@@ -36,6 +36,17 @@ const field=column=>page.locator(`#penetration-row-fields [data-penetration-fiel
     return {orientation:box('M'),substrate:box('P'),manufacturer:box('V'),frl:box('N')};
   });
   assert.equal(paired.orientation.y,paired.substrate.y);assert.ok(Math.abs(paired.orientation.width-paired.substrate.width)<2);assert.equal(paired.manufacturer.y,paired.frl.y);
+  evidence.pairedWidths=[];
+  for(const width of [1440,390]) {
+    await page.setViewportSize({width,height:900});
+    const pair=await page.locator('#penetration-row-fields').evaluate(el=>['M','P'].map(column=>{
+      const b=el.querySelector(`[data-penetration-field="${column}"]`).getBoundingClientRect();return {x:b.x,y:b.y,width:b.width};
+    }));
+    assert.equal(pair[0].y,pair[1].y,'Paired input edges stay aligned when a label wraps');
+    assert.ok(pair[1].x>pair[0].x);assert.ok(Math.abs(pair[0].width-pair[1].width)<2);
+    evidence.pairedWidths.push({width,pair});
+  }
+  await page.setViewportSize({width:1028,height:900});
   await field('M').selectOption({label:'Vertical'});
   let snapshot=await page.evaluate(()=>window.CeasefirePenetrations.projectSnapshot());assert.equal(snapshot.composer.rows[0].inputs.AN,2);assert.equal(snapshot.composer.rows[0].inputs.AT,2);assert.equal(snapshot.composer.rows[0].inputs.AY,2);assert.equal(snapshot.composer.rows[0].inputs.BE,2);
   await page.locator('#penetration-settings').click();

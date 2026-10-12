@@ -122,7 +122,7 @@ def _filename_heading(spec, width):
 
 
 def _paint_legend(pdf, rows, width, height, spec, page_number, *, continuation=False):
-    from reportlab.lib.colors import HexColor, Color
+    from reportlab.lib.colors import HexColor
     from reportlab.lib.utils import ImageReader
     logo = spec.get('_logo_image')
     if logo is None:
@@ -169,7 +169,7 @@ def _paint_legend(pdf, rows, width, height, spec, page_number, *, continuation=F
     if visual_label and has_marks:
         pdf.setFont('ExportVera', 7); pdf.setFillColor(HexColor('#151515'))
         pdf.drawString(18, 26, visual_label + '; excluded from measurement register.')
-    pdf.setFont('ExportVera', 6); pdf.setFillColor(Color(.32, .36, .4))
+    pdf.setFont('ExportVera', 6); pdf.setFillColor(HexColor('#555555'))
     pdf.drawString(18, 14, 'Derived marked drawing. Original PDF retained unchanged. Unconfirmed marks are drafts; technical suitability requires separate assessment.')
 
 

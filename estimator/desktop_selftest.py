@@ -198,11 +198,20 @@ def self_test(data_directory, output_report):
                 assert probe.script('!!document.querySelector("[data-view=takeoffs]") || typeof window.CeasefireTakeoffs !== "undefined"') is False
                 assert probe.script('document.querySelector("#view-home").hidden') is False
                 report['checks'].append('Native standard UI rendered without TAKEOFFS')
-                navigation_icons = probe.wait('(() => { const icons=[...document.querySelectorAll(".app-header nav .nav-icon svg")]; return icons.length === 6 && icons.map(icon=>({width:icon.getBoundingClientRect().width,height:icon.getBoundingClientRect().height,stroke:icon.getAttribute("stroke-width")})); })()')
+                navigation_icons = probe.wait('(() => { const icons=[...document.querySelectorAll(".app-header nav .nav-icon svg")]; return icons.length === 7 && icons.map(icon=>({width:icon.getBoundingClientRect().width,height:icon.getBoundingClientRect().height,stroke:icon.getAttribute("stroke-width")})); })()')
                 assert all(icon['width'] == 25 and icon['height'] == 25 and icon['stroke'] == '1.8' for icon in navigation_icons)
                 report['navigation_icons'] = navigation_icons
                 report['checks'].append('Native navigation icons rendered at equal size and stroke weight')
                 probe.script('window.nativeQaCsp=[]; document.addEventListener("securitypolicyviolation",event=>window.nativeQaCsp.push(event.effectiveDirective));')
+                probe.click('[data-view="settings"]')
+                probe.wait('!document.querySelector("#view-settings").hidden && !document.querySelector("#company-settings-save").disabled && document.querySelector("#company-settings-status").textContent === "Saved" && document.querySelector("#theme-toggle").dataset.themeReady === "true"')
+                assert probe.script('!!document.querySelector("#company-name").value')
+                probe.click('#theme-toggle')
+                probe.wait('document.documentElement.dataset.theme === "midnight"')
+                for _ in range(4):
+                    probe.click('#theme-toggle')
+                probe.wait('document.documentElement.dataset.theme === "ceasefire"')
+                report['checks'].append('Native company settings loaded and packaged themes switched correctly')
                 probe.click('[data-view="estimate"]')
                 # The complete private catalogue performs its deterministic cold
                 # validation here. Give first-launch readiness a separate bound;

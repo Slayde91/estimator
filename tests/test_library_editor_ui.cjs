@@ -193,7 +193,7 @@ async function check(name,fn){const h=harness();h.projectApi.applyProject(await 
     for(const group of item.definition.groups){h.audit.state.group=group;h.audit.renderFields();assert.ok(walk(h.byId('library-editor-fields')).filter(node=>node.dataset.libraryEditorField).every(control=>control.dataset.libraryEditorGlobal==='false'));assert.equal(h.control('L',true),undefined);}
     const nodes=walk(h.byId('library-editor-breakdown')),table=nodes.find(node=>node.tagName==='table');assert.ok(table);
     assert.match(text(table),/Unit Prices.*Material Quantities.*Material Costs.*Labour Costs.*Task Hours/);
-    assert.match(text(table),/Pipes.*0.*#VALUE!/);assert.match(text(table),/Subtotal.*65\.43.*58\.02.*#VALUE!/);
+    assert.match(text(table),/Pipes.*0.*Check inputs/);assert.match(text(table),/Subtotal.*65\.43.*58\.02.*Check inputs/);assert.doesNotMatch(text(table),/#VALUE!/);
     assert.doesNotMatch(text(h.byId('library-editor-summary')),/Labour hours/);
     h.audit.state.group='Penetration';h.audit.renderFields();h.control('T').value='Edited row only';await h.control('T').emit('input');await h.audit.calculate();assert.deepEqual(h.calls.at(-1).payload.draft.globals,original);await h.audit.save();const saved=copy(h.calls.at(-1).payload.draft);assert.deepEqual(saved.globals,original);h.api.present(fixture(saved));assert.deepEqual(copy(h.audit.state.draft.globals),original);
     const html=fs.readFileSync('static/index.html','utf8');for(const id of ['library-editor-project-allowances','library-editor-globals'])assert.ok(!html.includes(`id="${id}"`),`${id} must not remain in HTML`);

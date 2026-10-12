@@ -1,3 +1,4 @@
+const { cycleTheme } = require('./theme_navigation.cjs');
 const { chooseTakeoff } = require('./section_navigation.cjs');
 const { clickProjectControl } = require('./project_actions.cjs');
 const { renderDrawing, viewRegisterItem } = require('./viewer_helpers.cjs');
@@ -38,7 +39,7 @@ async function assertRegisterUndoSizes(){
         assert.ok(['Select filtered items','Select filtered records'].includes(measured.leftLabel));assert.deepEqual(measured.undo,measured.left);assert.deepEqual(measured.undo,{width:'38px',height:'38px',rectWidth:38,rectHeight:38});assert.equal(measured.glyph,'↶');undoParity.push({width,theme,mode,...measured});
         if(mode==='steel'&&width===1146&&theme==='ceasefire')steelVisibilitySize=await page.locator('.takeoff-tool-rail [aria-label="Visibility"]').evaluate(el=>{const box=el.getBoundingClientRect();return {width:box.width,height:box.height};});
       }
-      await page.locator('#theme-toggle').click();
+      await cycleTheme(page);
     }
   }
   await page.setViewportSize({width:1600,height:1100});await chooseTakeoff(page,'steel');

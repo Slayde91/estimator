@@ -1,3 +1,4 @@
+const { cycleTheme } = require('./theme_navigation.cjs');
 // Help and Main document access run against disposable production data only.
 const { chromium, expect } = require('@playwright/test');
 const { spawn } = require('node:child_process');
@@ -21,7 +22,7 @@ async function snapshot() { await idle(); return page.evaluate(() => ({
   pricing: window.CeasefireProject.configuration(), details: window.CeasefireProject.details(),
   takeoffs: window.CeasefireTakeoffs?.projectSnapshot() || null, dirty: window.CeasefireDesktop.status().dirty,
 })); }
-async function theme(id) { for (let index = 0; index < 5 && await page.locator('html').getAttribute('data-theme') !== id; index++) await page.locator('#theme-toggle').click(); await expect(page.locator('html')).toHaveAttribute('data-theme', id); }
+async function theme(id) { for (let index = 0; index < 5 && await page.locator('html').getAttribute('data-theme') !== id; index++) await cycleTheme(page); await expect(page.locator('html')).toHaveAttribute('data-theme', id); }
 (async () => {
   const info = await ready; assert.notEqual(info.port, 8765);
   browser = await chromium.launch({ headless: true }); page = await browser.newPage({ viewport: { width: 1440, height: 1000 }, reducedMotion: 'reduce' });

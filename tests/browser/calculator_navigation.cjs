@@ -139,6 +139,7 @@ async function workbook(title) {
   const clearBefore=await snapshots(),current=clearBefore.penetration.composer.rows[0];
   const description=page.locator('#penetration-row-fields [data-penetration-field="T"]');await description.fill('CLEAR CURRENT ITEM');await description.press('Tab');
   await page.locator('#penetration-item-quantity [data-penetration-field="O"]').fill('3');await page.locator('#penetration-clear').click();
+  await page.getByRole('dialog').getByRole('button',{name:'Yes',exact:true}).click();
   await expect(description).toHaveValue('');await expect(page.locator('#penetration-item-quantity [data-penetration-field="O"]')).toHaveValue('');
   const cleared=await snapshots();assert.deepEqual(cleared.penetration.draft,clearBefore.penetration.draft);assert.deepEqual(cleared.penetration.composer.globals,clearBefore.penetration.composer.globals);assert.deepEqual(cleared.penetration.composer.rows,[{id:current.id,inputs:{}}]);assert.deepEqual(cleared.pricing,clearBefore.pricing);assert.deepEqual(cleared.calculators,clearBefore.calculators);
   await page.screenshot({path:path.join(output,'firestopping-clear-controls.png'),fullPage:true});
@@ -170,7 +171,10 @@ async function workbook(title) {
   const linkedBefore=await snapshots(),linkedRow=linkedBefore.penetration.draft.rows.at(-1);assert.equal(linkedRow.library_item_id,libraryItem.id);
   const scheduleDetails=page.locator('details[aria-labelledby="penetration-estimator-schedule-heading"]');if(!await scheduleDetails.evaluate(element=>element.open))await scheduleDetails.locator(':scope > summary').click();await page.locator(`#penetration-estimator-schedule-body [data-penetration-id="${linkedRow.id}"]`).getByRole('button',{name:`Edit firestopping item ${linkedBefore.penetration.draft.rows.length}`,exact:true}).click();
   if(await dialog.isVisible()){await expect(dialog.getByRole('heading')).toHaveText('Edit schedule item?');await dialog.getByRole('button',{name:'Edit item',exact:true}).click();}
-  await expect(page.locator('#penetration-update-schedule')).toBeVisible();await page.locator('#penetration-clear').click();const linkedCleared=await snapshots();
+  await expect(page.locator('#penetration-update-schedule')).toBeVisible();await page.locator('#penetration-clear').click();
+  await page.getByRole('dialog').getByRole('button',{name:'Yes',exact:true}).click();
+  await expect(description).toHaveValue('');await expect(quantity).toHaveValue('');
+  const linkedCleared=await snapshots();
   assert.deepEqual(linkedCleared.penetration.draft,linkedBefore.penetration.draft);assert.deepEqual(linkedCleared.penetration.composer.rows,[{id:linkedRow.id,inputs:{},library_item_id:libraryItem.id}]);assert.deepEqual(linkedCleared.pricing,linkedBefore.pricing);assert.deepEqual(linkedCleared.calculators,linkedBefore.calculators);await expect(page.locator('#penetration-update-schedule')).toBeEnabled();
   await description.fill('REFILLED LINKED SOURCE');await description.press('Tab');await quantity.fill('4.987654321');await quantity.press('Tab');await page.locator('#penetration-update-schedule').click();await expect(page.locator('#penetration-update-schedule')).toBeHidden();await expect(page.locator('#penetration-update-schedule')).toHaveAttribute('aria-busy','false');
   const linkedUpdated=await snapshots();assert.deepEqual(linkedUpdated.penetration.draft.rows.at(-1),{id:linkedRow.id,inputs:{T:'REFILLED LINKED SOURCE',O:4.987654321},library_item_id:libraryItem.id});assert.deepEqual(linkedUpdated.penetration.draft.rows.slice(0,-1),linkedBefore.penetration.draft.rows.slice(0,-1));assert.deepEqual(linkedUpdated.penetration.draft.globals,linkedBefore.penetration.draft.globals);assert.deepEqual(linkedUpdated.pricing,linkedBefore.pricing);assert.deepEqual(linkedUpdated.calculators,linkedBefore.calculators);evidence.clearLinkedEditRetainsLibraryAndRowIdentity=true;

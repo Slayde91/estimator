@@ -154,7 +154,7 @@ async function layout(width) {
   assert.equal(state.service_plans.barriers[0].id, planBarrier); assert.equal(state.service_plans.barriers[0].defect_id, undefined); assert.equal(state.service_plans.defects, undefined);
   assert.deepEqual(await details().getByRole('table', { name: 'Item Details navigation', exact: true }).getByRole('columnheader').allTextContents(), ['Barrier', 'Service']);
   await expect(details().getByLabel('Defect ID in Item Details', { exact: true })).toHaveCount(0); await expect(details().getByLabel('FRL', { exact: true })).toHaveValue('-/60/60'); evidence.servicePlanIsolation = true;
-  await chooseTakeoff(page, 'Defect Reports'); await idle(); await page.getByRole('button', { name: 'Settings', exact: true }).click(); await navigate('Defect', defect); await navigate('Barrier', barrier);
+  await chooseTakeoff(page, 'Defect Reports'); await idle(); await page.locator('#view-takeoffs').getByRole('button', { name: 'Settings', exact: true }).click(); await navigate('Defect', defect); await navigate('Barrier', barrier);
   assert.deepEqual((await snapshot()).physical.barriers[0].marker, firstMarker);
   const beforeSave = structuredClone(state); await response(() => clickProjectControl(page, 'Save'), '/api/project/save-as'); await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   const saved = JSON.parse(fs.readFileSync(info.project, 'utf8')); assert.deepEqual(saved.takeoffs.physical, beforeSave.physical); assert.deepEqual(saved.takeoffs.service_plans, beforeSave.service_plans);

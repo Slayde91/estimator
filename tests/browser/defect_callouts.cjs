@@ -1,3 +1,4 @@
+const { cycleTheme } = require('./theme_navigation.cjs');
 const { chooseTakeoff } = require('./section_navigation.cjs');
 const { clickInspectorAdd } = require('./parent_controls_helpers.cjs');
 const { chooseNewDefect } = require('./physical_dialogs.cjs');
@@ -57,7 +58,7 @@ async function physicalThemeLabels(kind) {
   const labels = kind === 'Marker' ? ['Fill Colour','Fill Enabled','Line Colour','Line Width','Marker Size','Opacity'] : ['Fill Colour','Fill Enabled','Line Colour','Line Width','Font Colour','Opacity'];
   const draftBefore = structuredClone(await snapshot()), calculatorsBefore = await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()), requestCount = requests.length;
   const initialTheme = await page.locator('html').getAttribute('data-theme'), results = [];
-  async function setTheme(theme) { for(let attempt=0;attempt<5 && await page.locator('html').getAttribute('data-theme')!==theme;attempt++) await page.locator('#theme-toggle').click(); await expect(page.locator('html')).toHaveAttribute('data-theme',theme); }
+  async function setTheme(theme) { for(let attempt=0;attempt<5 && await page.locator('html').getAttribute('data-theme')!==theme;attempt++) await cycleTheme(page); await expect(page.locator('html')).toHaveAttribute('data-theme',theme); }
   for(const theme of ['ceasefire','midnight','ocean','forest','slate']) {
     await setTheme(theme); await expect(details().getByRole('heading',{name:`${kind} Settings`,exact:true})).toBeVisible();
     assert.deepEqual(await details().locator('.takeoff-settings-fields .field>span:first-child').allTextContents(),labels);

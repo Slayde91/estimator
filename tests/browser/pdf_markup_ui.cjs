@@ -1,3 +1,4 @@
+const { cycleTheme } = require('./theme_navigation.cjs');
 "use strict";
 // Layout/keyboard checks use a synthetic library, PDF, browser and random-port
 // server. No request, draft or writable path belongs to the live application.
@@ -39,7 +40,7 @@ async function navigationState() {
   }));
 }
 async function theme(id) {
-  for (let i = 0; i < 5 && await page.locator("html").getAttribute("data-theme") !== id; i++) await page.locator("#theme-toggle").click();
+  for (let i = 0; i < 5 && await page.locator("html").getAttribute("data-theme") !== id; i++) await cycleTheme(page);
   await expect(page.locator("html")).toHaveAttribute("data-theme", id);
 }
 async function noOverflow(label) { assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), `No horizontal page overflow: ${label}`); }
@@ -171,8 +172,17 @@ async function resizePane(target, family, width) {
   const boundedWidth = async () => { const v = await values(), b = await box(target); assert.ok(v.min <= v.now && v.now <= v.max); assert.ok(Math.abs(b.width - v.now) < 1, `${family} actual width matches accessible resize value`); return { ...v, box: b }; };
   await handle.focus(); await handle.press("Home"); const minimum = await boundedWidth(); assert.equal(minimum.now, minimum.min);
   await handle.press("Shift+ArrowRight"); const keyboard = await boundedWidth(); assert.equal(keyboard.now, Math.min(minimum.max, minimum.min + 40));
-  await handle.scrollIntoViewIfNeeded(); const h = await box(handle), point = [h.x + h.width/2, h.y + Math.min(h.height/2, 100)];
-  assert.equal(await handle.evaluate((el, p) => document.elementFromPoint(...p) === el, point), true, `${family} native resize target is reachable`);
+  await handle.scrollIntoViewIfNeeded();
+  // Returning from Settings can retain a different scroll offset. Drag the
+  // visible part of this tall handle below the sticky application header.
+  const pointer = await handle.evaluate(el => {
+    const h = el.getBoundingClientRect(), header = document.querySelector('.app-header').getBoundingClientRect();
+    const top = Math.max(h.top, header.bottom + 8), bottom = Math.min(h.bottom, window.innerHeight - 8);
+    const point = [h.x + h.width / 2, (top + bottom) / 2], hit = document.elementFromPoint(...point);
+    return { point, reachable: bottom > top && hit === el, hit: hit?.outerHTML.slice(0, 160) };
+  });
+  const { point } = pointer;
+  assert.equal(pointer.reachable, true, `${family} native resize target is reachable: ${JSON.stringify(pointer)}`);
   await page.mouse.move(...point); await page.mouse.down(); await page.mouse.move(point[0] - 20, point[1]); await page.mouse.up(); const dragged = await boundedWidth(); assert.equal(dragged.now, Math.max(keyboard.min, keyboard.now - 20));
   await handle.focus(); await handle.press("End"); const maximum = await boundedWidth(); assert.equal(maximum.now, maximum.max);
   await handle.press("Home"); await noOverflow(`${width}/${family} resized pane`); assert.deepEqual(await snapshot(), before, "Pane keyboard and native pointer resizing preserve all draft source coordinates and authority");
@@ -288,7 +298,7 @@ async function standardCalculatorButton() {
   await page.getByRole("button", { name: "Viewport", exact: true }).click();
   for (const mode of ["duct", "wall", "Defect Reports", "Service Plans"]) {
     stage = `workspace ${mode}`; await page.setViewportSize({ width: 1146, height: 764 }); await chooseTakeoff(page, mode); await settingsSettled(page); await headingMenus(1146, ["Defect Reports", "Service Plans"].includes(mode)); await rightRail(1146, mode); await noOverflow(`1146/${mode}`);
-    if (mode === "Defect Reports") { await page.getByRole("button", { name: "Settings", exact: true }).click(); for (const width of [1384, 390]) { stage = `Item Details resize ${width}`; await resizePane(page.locator("#takeoff-physical-details"), "item-details", width); } await page.getByRole("button", { name: "Close Item Details", exact: true }).click(); }
+    if (mode === "Defect Reports") { await page.locator("#view-takeoffs").getByRole("button", { name: "Settings", exact: true }).click(); for (const width of [1384, 390]) { stage = `Item Details resize ${width}`; await resizePane(page.locator("#takeoff-physical-details"), "item-details", width); } await page.getByRole("button", { name: "Close Item Details", exact: true }).click(); }
   }
   stage = "Pricing Library"; await chooseLibrary(page, "pricing");
   const pricing = page.locator(".pricing-document-menu .calculator-document-toggle"), pricingArrow = pricing.locator(".calculator-document-chevron svg");

@@ -80,7 +80,7 @@ class EffectiveFirestoppingPolicyTests(unittest.TestCase):
         self.assertEqual(len(spec['global_fields']), 10)
         self.assertTrue(all(field['group'] == 'SETTINGS' for field in spec['global_fields']))
         self.assertEqual(spec['settings']['structured_global_keys'],
-                         ['service_routes', 'labour_bands'])
+                         ['service_routes', 'labour_bands', 'detail_options'])
 
     def test_project_roundtrip_preserves_inactive_values_without_restoring_effects(self):
         with tempfile.TemporaryDirectory() as temporary:

@@ -56,7 +56,9 @@ def main():
     composer['rows'][0]['inputs'].update(T='Unscheduled composer retained', O=3)
     project = folder / 'project.cf.json'
     seed = folder / 'seed.cf.json'
-    seed.write_bytes(export_project(store, {'estimate': {'project_no': 'PROJECT-LIBRARY-QA', 'client': 'Synthetic client', 'measurements': 'Quote notes retained'}, 'calculators': {}, 'penetration': {'composer': composer, 'draft': {'globals': {}, 'rows': []}}}))
+    # A fresh project shares its settings between schedule and composer. Empty
+    # historical globals intentionally retain the old zero-waste interpretation.
+    seed.write_bytes(export_project(store, {'estimate': {'project_no': 'PROJECT-LIBRARY-QA', 'client': 'Synthetic client', 'measurements': 'Quote notes retained'}, 'calculators': {}, 'penetration': {'composer': composer, 'draft': {'globals': composer['globals'], 'rows': []}}}))
     fixture = folder / 'drawing.pdf'
     make_pdf(fixture)
     control = folder / 'dialog-mode.json'

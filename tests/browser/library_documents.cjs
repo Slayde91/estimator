@@ -1,3 +1,4 @@
+const { cycleTheme } = require('./theme_navigation.cjs');
 // Document controls exercise real handlers against fixture-owned project/storage.
 const { chromium, expect } = require('@playwright/test');
 const { chooseLibrary } = require('./section_navigation.cjs');
@@ -55,7 +56,7 @@ async function snapshot() { await idle(); return page.evaluate(() => ({ calculat
       evidence.push({theme,width,...layout});
       await page.locator('#library-pricing .page-heading').click(); await expect(menu).toBeHidden();
     }
-    await page.locator('#theme-toggle').click();
+    await cycleTheme(page);
   }
   await page.setViewportSize({width:1146,height:900});
   await toggle.click();

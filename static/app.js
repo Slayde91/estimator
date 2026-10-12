@@ -1310,6 +1310,9 @@
       });
     });
     $("pricing-search").value = ""; $("rate-group").value = ""; renderPricing();
+    const addedRow = $("pricing-body").querySelector(`[data-price-id="${id}"]`);
+    addedRow?.scrollIntoView?.({ block: "center", behavior: "instant" });
+    const firstInput = addedRow?.querySelector("input,textarea,select"); firstInput?.focus({ preventScroll: true }); firstInput?.select?.();
     message("New pricing item added to the draft. Complete its details and estimator groups, then save pricing.");
   }
   async function removePricingItem(record) {

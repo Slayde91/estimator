@@ -1,3 +1,4 @@
+const { cycleTheme } = require('./theme_navigation.cjs');
 // Real document actions use a disposable server and a synthetic saved project.
 const { chromium, expect } = require('@playwright/test');
 const { chooseCalculator } = require('./calculator_actions.cjs');
@@ -107,7 +108,7 @@ async function responseTo(action, suffix) {
         await page.keyboard.press('Escape');themeChecks.push({theme,width,line:styles,projectFiles:colors});
         await page.screenshot({path:path.join(output,`${id}-${theme}-${width}-contrast.png`)});
       }
-      await page.locator('#theme-toggle').click();
+      await cycleTheme(page);
     }
     evidence.calculatorThemeChecks ||= [];evidence.calculatorThemeChecks.push({id,checks:themeChecks});
     assert.deepEqual(await snapshot(), before, `${title}: document access, generated files and cancelled import preserve all calculator drafts and prices`);

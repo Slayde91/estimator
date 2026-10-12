@@ -238,7 +238,8 @@ class PenetrationCalculationTests(unittest.TestCase):
     def test_new_row_defaults_and_descriptive_choices_preserve_existing_inputs(self):
         spec = definition(service_types=['Saved custom service'])
         fields = {field['column']: field for field in spec['row_fields']}
-        self.assertEqual(spec['defaults']['rows'][0]['inputs'], {})
+        self.assertEqual(spec['defaults']['rows'][0]['inputs'], {'AY': 2, 'BE': 2})
+        self.assertTrue(all(spec['defaults']['globals'][key] == .3 for key in WASTE_SETTINGS))
         self.assertNotIn('Q', fields)
         self.assertNotIn('R', fields)
         settings = {field['column']: field for field in spec['global_fields']}

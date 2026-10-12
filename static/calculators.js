@@ -404,7 +404,7 @@
     window.CeasefireProject?.changed?.();
     if (!entry || entry !== current()) return;
     renderDocumentLabels(entry);
-    $("calculator-save-status").textContent = dirty(entry) ? "Unsaved calculator changes · use Save" : "Project calculator inputs · use Save to save all calculators";
+    $("calculator-save-status").textContent = entry.invalid.size ? "Check input" : dirty(entry) ? "Unsaved changes" : "Saved";
     const hasErrors = entry.invalid.size > 0;
     $("calculator-recalculate").disabled = state.calculating || hasErrors;
     $("calculator-recalculate").setAttribute("aria-busy", String(state.calculating));

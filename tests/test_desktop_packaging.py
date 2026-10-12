@@ -317,6 +317,24 @@ class DesktopPackagingTests(unittest.TestCase):
             self.assertNotIn('icons/' + name, STATIC_FILES)
             self.assertTrue((ROOT / 'static/icons' / name).is_file())
 
+    def test_standard_page_scripts_and_styles_are_packaged(self):
+        from estimator.edition import render_index
+
+        class Assets(HTMLParser):
+            def __init__(self): super().__init__(); self.paths = set()
+            def handle_starttag(self, tag, attributes):
+                attributes = dict(attributes)
+                path = attributes.get('src') if tag == 'script' else attributes.get('href') if tag == 'link' and attributes.get('rel') == 'stylesheet' else None
+                if path and path.startswith('/'):
+                    self.paths.add(path.lstrip('/'))
+
+        page = Assets()
+        page.feed(render_index((ROOT / 'static/index.html').read_bytes(), 'standard').decode('utf-8'))
+        self.assertTrue(page.paths)
+        self.assertEqual(page.paths - set(STATIC_FILES), set())
+        for asset in page.paths:
+            self.assertTrue((ROOT / 'static' / asset).is_file(), asset)
+
     def test_signature_and_default_icons_remain_full_edition_only(self):
         from estimator.edition import TAKEOFF_ASSETS
         for asset in ('takeoff-signatures.js', 'takeoff-graphics.js', 'takeoff-graphics-ui.js',

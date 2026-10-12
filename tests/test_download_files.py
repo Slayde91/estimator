@@ -259,7 +259,8 @@ class DownloadApiTests(unittest.TestCase):
         project = saved['project']
         request = {'save_token': saved['file']['save_token'], 'estimate': {key: project['estimate'][key] for key in ('title', 'workflow', 'measurements', 'inputs', 'configuration', 'project_no', 'client', 'site_address')},
                    'calculators': {key: {'inputs': value['inputs'], 'schedule_rows': value['schedule_rows']} for key, value in project['calculators'].items()}}
-        def render(_):
+        def render(_, *, company):
+            self.assertEqual(company['email'], 'sales@ceasefire.com.au')
             status, _, payload = self.request('/api/project/save', request)
             self.assertEqual(status, 200, payload[:500])
             return b'bytes rendered after token rotation'

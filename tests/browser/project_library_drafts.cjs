@@ -1,3 +1,4 @@
+const { cycleTheme } = require('./theme_navigation.cjs');
 const { chooseLibrary } = require('./section_navigation.cjs');
 const { clickProjectControl } = require('./project_actions.cjs');
 // Rendered project-only library preservation. Every file, database and dialog
@@ -150,7 +151,7 @@ async function openProjectCopy() {
       await expect(editorMenu.getByRole('button',{name:'Item Details',exact:true})).toHaveCount(2);
       await page.screenshot({path:path.join(output,`library-item-documents-${theme}-${width}.png`)});await page.keyboard.press('Escape');
     }
-    await page.locator('#theme-toggle').click();
+    await cycleTheme(page);
   }
   await page.setViewportSize({width:1440,height:1000});
   choose({});

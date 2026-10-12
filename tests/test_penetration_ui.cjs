@@ -114,7 +114,7 @@ async function check(name,fn){const h=harness();h.api.applyProject(await h.api.p
     const service=h.control('K');service.value='Plastic Pipes';await service.emit('change');assert.match(text(h.byId('penetration-input-groups')),/Plastic Pipes/);assert.doesNotMatch(text(h.byId('penetration-input-groups')),/Unlagged Pipes/);
     h.audit.state.group='Plastic Pipes';h.audit.renderFields();assert.ok(h.control('AL'));assert.ok(h.control('AN'));assert.equal(h.control('AN').parentNode.children[0].textContent,'Collar Multiplier');assert.equal(h.control('AM'),undefined);
     h.audit.state.group='Penetration';h.audit.renderFields();const lagged=h.control('K');lagged.value='Lagged Pipes';await lagged.emit('change');assert.match(text(h.byId('penetration-input-groups')),/Lagged Pipes/);assert.doesNotMatch(text(h.byId('penetration-input-groups')),/Unlagged Pipes/);
-    h.audit.state.group='Lagged Pipes';h.audit.renderFields();assert.ok(h.control('AL'));assert.ok(h.control('AM'));assert.ok(h.control('AN'));assert.equal(h.control('AN').parentNode.children[0].textContent,'Wrap Multiplier');
+    h.audit.state.group='Lagged Pipes';h.audit.renderFields();assert.ok(h.control('AL'));assert.ok(h.control('AM'));assert.ok(h.control('AN'));assert.equal(h.control('AN').parentNode.children[0].textContent,'Multiplier');
     h.audit.state.draft.rows[0].inputs={J:'Bulkheads',K:'Cable Bundles'};h.audit.renderFields();assert.match(text(h.byId('penetration-input-groups')),/BUNDLES.*Bulkhead/);
     h.audit.state.draft.rows[0].inputs={J:'Electrical',K:'D1 Power Cables'};h.audit.renderFields();assert.match(text(h.byId('penetration-input-groups')),/BUNDLES.*CABLE TRAYS/);
     assert.doesNotMatch(text(h.byId('penetration-input-groups')),/Substrate/);const penetrationType=h.control('L');penetrationType.value='Oversized';await penetrationType.emit('change');assert.match(text(h.byId('penetration-input-groups')),/Substrate/);
@@ -232,7 +232,7 @@ async function check(name,fn){const h=harness();h.api.applyProject(await h.api.p
   await check('The shared breakdown exposes source errors, distinguishes zero and blank, and retains literal labels',async h=>{
     const row={errors:[{cell:'F4',message:'#VALUE!'}],breakdown:{rows:[{label:'<img src=x>',unit_prices:[{value:0}],material_quantities:[],material_costs:0,labour_costs:null,task_hours:'#DIV/0!'}],totals:{material_costs:0,labour_costs:'#VALUE!',task_hours:null}}};
     const rendered=h.context.window.CeasefirePenetrationBreakdown.render(definition(),row),content=text(rendered);
-    assert.match(content,/F4: #VALUE!/);assert.match(content,/<img src=x>/);assert.match(content,/\$0\.00/);assert.match(content,/#DIV\/0!/);assert.match(content,/—/);
+    assert.doesNotMatch(content,/F4|#VALUE!/);assert.match(content,/Enter Item QTY, Teams\/Crews/);assert.match(content,/<img src=x>/);assert.match(content,/\$0\.00/);assert.doesNotMatch(content,/#DIV\/0!/);assert.match(content,/Check inputs/);assert.match(content,/—/);
     const table=rendered.children[1].children[0],line=table.children[2].children[0];assert.equal(line.children[0].children.length,0);assert.equal(line.children[3].textContent,'$0.00');assert.equal(line.children[4].textContent,'—');
     assert.match(text(h.context.window.CeasefirePenetrationBreakdown.render(definition(),{outputs:{},errors:[]})),/unavailable/);
   });
@@ -335,7 +335,7 @@ async function check(name,fn){const h=harness();h.api.applyProject(await h.api.p
     const settingsRoot=h.byId('penetration-row-fields');
     assert.match(text(settingsRoot),/Setting.*Applies to.*Value.*Labour allowances.*Every Firestopping item.*Material waste.*SERVICE-TAB ROUTING.*PRECALCULATED TASK-HOUR BANDS.*Board Task Hours.*Wrap Task Hours/);
     assert.doesNotMatch(text(settingsRoot),/Separate service types with semicolons|Edit both thresholds and hours/);
-    const settingNodes=node=>[node,...node.children.flatMap(settingNodes)],settingsHeadings=settingNodes(settingsRoot).filter(node=>node.className==='penetration-settings-subheading');assert.deepEqual(settingsHeadings.map(node=>node.textContent),['SERVICE-TAB ROUTING','PRECALCULATED TASK-HOUR BANDS']);
+    const settingNodes=node=>[node,...node.children.flatMap(settingNodes)],settingsHeadings=settingNodes(settingsRoot).filter(node=>node.className==='penetration-settings-subheading');assert.deepEqual(settingsHeadings.map(node=>node.textContent),['DETAILS DROPDOWN VALUES','SERVICE-TAB ROUTING','PRECALCULATED TASK-HOUR BANDS']);
     const settingsCss=fs.readFileSync('static/penetration.css','utf8');assert.match(settingsCss,/\.penetration-settings-subheading\{[^}]*background:#fff0e7[^}]*text-transform:uppercase/);assert.match(settingsCss,/\.penetration-settings-table\{[^}]*min-width:0[^}]*table-layout:fixed/);
     const waste=h.control('waste_lagged_pipes',null),register=h.control('register_allowance_hours',null);assert.ok(waste&&register);assert.equal(waste.parentNode.children[0].textContent,'Waste (%)');assert.match(waste.title,/Lagged Pipes/);assert.equal(register.parentNode.children[0].textContent,'Register Allowance (hrs)');
     for(const key of ['waste_unlagged_pipes','waste_lagged_pipes','waste_plastic_pipes','waste_bundles'])assert.ok(h.control(key,null));
@@ -569,7 +569,7 @@ async function check(name,fn){const h=harness();h.api.applyProject(await h.api.p
   });
   await check('Aggregate renderer retains server totals while omitting redundant Summary, allowance and Multiplier outputs',async h=>{
     const projection={rows:[{label:'<Wrap>',unit_prices:[{label:'Line 1 Product A',value:12.3,format:'currency'},{label:'Line 2 Product B',value:99,format:'currency'}],material_quantities:[{label:'Line 1 Pipes',value:0,units:'m²'}],material_costs:888.12,labour_costs:'#VALUE!',task_hours:0}],totals:{material_costs:777.65,labour_costs:'#VALUE!',task_hours:0},source_groups:[{label:'Summary',rows:[{row_id:'line-1',label:'Line 1',values:[{column:'B',label:'Substrate cost',value:41.23,format:'currency'},{column:'H',label:'Item total',value:123.456789,format:'currency'}]}]},{label:'Multipliers',rows:[{row_id:'line-2',label:'Line 2',values:[{column:'BJ',label:'Access',value:.125,format:'percent'}]}]}]};
-    const output={schedule_breakdown:projection,errors:[]},original=copy(output);const rendered=h.context.window.CeasefirePenetrationBreakdown.renderSchedule(definition(),output),content=text(rendered);assert.match(content,/<Wrap>/);assert.match(content,/777\.65/);assert.match(content,/#VALUE!/);assert.doesNotMatch(content,/Summary|Item total|123\.46|Multipliers|Access|12\.50%|Substrate cost|41\.23/);assert.deepEqual(copy(output),original);
+    const output={schedule_breakdown:projection,errors:[]},original=copy(output);const rendered=h.context.window.CeasefirePenetrationBreakdown.renderSchedule(definition(),output),content=text(rendered);assert.match(content,/<Wrap>/);assert.match(content,/777\.65/);assert.doesNotMatch(content,/#VALUE!/);assert.match(content,/Check inputs/);assert.doesNotMatch(content,/Summary|Item total|123\.46|Multipliers|Access|12\.50%|Substrate cost|41\.23/);assert.deepEqual(copy(output),original);
   });
   await check('Pending composer Add appends once, disables its action, and shows recalculated feedback in the current item view',async h=>{
     const pending=deferred(),calls=[];h.audit.setRequest(async(path,payload)=>{calls.push(copy(payload));return pending.promise;});
@@ -626,7 +626,7 @@ async function check(name,fn){const h=harness();h.api.applyProject(await h.api.p
     h.audit.state.schedule.draft.rows.reverse();assert.notEqual(h.api.projectFingerprint(),stamp);assert.notEqual(h.api.projectSnapshot().draft.rows[0].id,captured.draft.rows[0].id);
   });
   await check('Repeated library Add retains one row and increments quantity using current schedule prices',async h=>{
-    let reads=0;const item={library_id:'FL-ID-002',definition:definition(),draft:{globals:{L:.9},rows:[{id:'source',inputs:{T:'Library pipe',O:8,AC:.5}}]}};
+    let reads=0;const item={library_id:'FL-ID-002',definition:definition(),draft:{globals:{L:.9},rows:[{id:'source',inputs:{T:'Library pipe',O:8,AB:'Fixture Mastic',AC:.5}}]}};
     h.audit.state.schedule.draft.globals.L=.17;
     h.audit.setRequest(async(path,payload)=>{if(path.endsWith('/edit')){reads++;return copy(item);}const response=result(payload.draft);response.rows[0].outputs.H=payload.draft.rows[0].inputs.O*10;return response;});
     assert.equal(h.api.libraryQuantity('pkb-002'),undefined);

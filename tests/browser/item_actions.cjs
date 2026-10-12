@@ -136,7 +136,7 @@ function clearedExpected(original, bindings) {
   console.log('Rise/Drop simplified fields, anchored-point protection and anchor movement passed.');
   const panel = await editItem(id);
   for (const name of ['Add rise / drop', 'Clone', 'New draft', 'Replace source on current page']) await expect(panel.getByRole('button', { name, exact: true })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Settings', exact: true }).locator('svg')).toHaveCount(1);
+  await expect(page.locator('#view-takeoffs').getByRole('button', { name: 'Settings', exact: true }).locator('svg')).toHaveCount(1);
   await confirmItem(); await transfer();
   await page.getByLabel('Destination schedule', { exact: true }).selectOption('steel_board');
   await editSettings(page, {'Product':'TRAFALGAR COREX','Crit. Temp (\u00b0C)':620,'Exposed sides':3}); await confirmItem(); await transfer();

@@ -30,22 +30,23 @@ from reportlab.platypus import (
 
 from .calculator import masking_breakdown
 from .presentation import calculation_error_details
+from .company_settings import company_logo, contact_lines, DEFAULTS as COMPANY_DEFAULTS
 
 
 ROOT = Path(__file__).resolve().parent.parent
 _FONT_LOCK = Lock()
-_RED = colors.HexColor("#C62828")
-_INK = colors.HexColor("#202831")
-_MUTED = colors.HexColor("#5B6570")
-_LINE = colors.HexColor("#D8DEE4")
-_LIGHT = colors.HexColor("#F3F5F7")
+_RED = colors.HexColor("#BD0018")
+_INK = colors.HexColor("#151515")
+_MUTED = colors.HexColor("#555555")
+_LINE = colors.HexColor("#DDDDDD")
+_LIGHT = colors.HexColor("#F5F5F5")
 _PALE_RED = colors.HexColor("#FFF1F0")
 _PAGE_WIDTH, _PAGE_HEIGHT = A4
 _MARGIN = 36
 _WIDTH = _PAGE_WIDTH - 2 * _MARGIN
 
 
-def _company_header(canvas, logo, page_width, page_height, margin, report_label, *, label_below_logo=False):
+def _company_header(canvas, logo, page_width, page_height, margin, report_label, *, label_below_logo=False, company=None):
     """Draw the same contact header within the reserved space on every PDF page."""
     logo_width, logo_height = logo.getSize()
     scale = min(146 / logo_width, 35 / logo_height)
@@ -57,11 +58,13 @@ def _company_header(canvas, logo, page_width, page_height, margin, report_label,
         canvas.drawString(margin, page_height - 69, report_label)
     else:
         canvas.drawRightString(page_width - margin, page_height - 27, report_label)
-    for offset, text in (
-        (40, "ABN: 50 612 231 562"),
-        (51, "Phone: 1300 92 62 88"),
-        (62, "Email: sales@ceasefire.com.au"),
-    ):
+    value = company or COMPANY_DEFAULTS
+    name = value.get('name', '')
+    canvas.setFont("CeasefireVera", min(7.5, (page_width * .5 - margin) / max(1, pdfmetrics.stringWidth(name, "CeasefireVera", 1))))
+    canvas.drawRightString(page_width - margin, page_height - 15, name)
+    for offset, text in zip((40, 51, 62), contact_lines(value)):
+        size = min(7.5, (page_width * .5 - margin) / max(1, pdfmetrics.stringWidth(text, "CeasefireVera", 1)))
+        canvas.setFont("CeasefireVera", size)
         canvas.drawRightString(page_width - margin, page_height - offset, text)
     canvas.setStrokeColor(_RED)
     canvas.setLineWidth(1.1)
@@ -368,7 +371,7 @@ class _Report:
         total_table = self.table(["Quote amount", "Amount ($)"], rows, [_WIDTH * .68, _WIDTH * .32])
         grand_row = len(rows)
         total_table.setStyle(TableStyle([
-            ("BACKGROUND", (0, grand_row), (-1, grand_row), colors.HexColor("#E8EEF0")),
+            ("BACKGROUND", (0, grand_row), (-1, grand_row), colors.HexColor("#F0F0F0")),
             ("LINEABOVE", (0, grand_row), (-1, grand_row), 1, _RED),
         ]))
         # This is a fixed-size financial summary, so its grand total stays on
@@ -608,7 +611,7 @@ class _Report:
             "Later pricing-library changes do not alter a saved quote's report.", "small"))
 
 
-def render_quote_pdf(quote: dict) -> bytes:
+def render_quote_pdf(quote: dict, *, company=None) -> bytes:
     """Return a branded A4 report of authoritative snapshot results as PDF bytes."""
     if not isinstance(quote, dict) or not isinstance(quote.get("result"), dict):
         raise ValueError("A prepared quote with calculated results is required for its PDF report.")
@@ -616,7 +619,7 @@ def render_quote_pdf(quote: dict) -> bytes:
     logo_path = ROOT / "static" / "ceasefire-logo.png"
     if not logo_path.is_file():
         raise FileNotFoundError("The official Ceasefire logo is missing from static/ceasefire-logo.png.")
-    logo = ImageReader(str(logo_path))
+    logo = company_logo(company)
     logo_width, logo_height = logo.getSize()
     if not logo_width or not logo_height:
         raise ValueError("The official Ceasefire logo has invalid dimensions.")
@@ -637,7 +640,7 @@ def render_quote_pdf(quote: dict) -> bytes:
     def decorate(canvas, doc):
         canvas.saveState()
         _company_header(canvas, logo, _PAGE_WIDTH, _PAGE_HEIGHT, _MARGIN,
-                        "ESTIMATE | COMPLETE BREAKDOWN")
+                        "ESTIMATE | COMPLETE BREAKDOWN", company=company)
         canvas.setStrokeColor(_LINE)
         canvas.setLineWidth(.5)
         canvas.line(_MARGIN, 34, _PAGE_WIDTH - _MARGIN, 34)

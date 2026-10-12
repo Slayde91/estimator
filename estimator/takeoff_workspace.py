@@ -551,7 +551,7 @@ class TakeoffService:
                 from .takeoff_register_xlsx import export_physical_register
                 return export_physical_register(current_graph(snapshot, scope), confirmation='all' if confirmation is None else confirmation)
             return export_physical_graph(current_graph(snapshot, scope), format,
-                                         {document['id']: document['name'] for document in snapshot['documents']}, confirmation=confirmation)
+                                         {document['id']: document['name'] for document in snapshot['documents']}, confirmation=confirmation, company=self.store.company_settings())
 
     @staticmethod
     def _physical_editable(snapshot, scope='defect_reports'):

@@ -114,34 +114,40 @@ def _legend_rows(items, width, style):
 def _filename_heading(spec, width):
     from reportlab.platypus import Paragraph
     from reportlab.lib.styles import ParagraphStyle
-    paragraph = Paragraph(_text(spec['document']['name']), ParagraphStyle('Source', fontName='ExportVera', fontSize=7, leading=9))
+    company = spec.get('company') or {'name': 'CEASEFIRE', 'abn': '50 612 231 562', 'phone': '1300 92 62 88', 'email': 'sales@ceasefire.com.au'}
+    contacts = ' | '.join([company.get('name', '')] + [f'{label}: {company[key]}' for key, label in (('abn', 'ABN'), ('phone', 'Phone'), ('email', 'Email')) if company.get(key)])
+    paragraph = Paragraph(_text(spec['document']['name']) + '<br/>' + _text(contacts), ParagraphStyle('Source', fontName='ExportVera', fontSize=7, leading=9))
     _, height = paragraph.wrap(width-36, 1000)
     return paragraph, height
 
 
 def _paint_legend(pdf, rows, width, height, spec, page_number, *, continuation=False):
-    from reportlab.lib.colors import HexColor, Color
+    from reportlab.lib.colors import HexColor
     from reportlab.lib.utils import ImageReader
     logo = spec.get('_logo_image')
     if logo is None:
         from PIL import Image
         # This fixed branding asset is rendered at print resolution, once. No
         # source PDF images are resized, and the installed logo stays untouched.
-        with Image.open(spec['logo']) as original_logo:
+        import base64
+        from io import BytesIO
+        company_logo = (spec.get('company') or {}).get('logo')
+        source = BytesIO(base64.b64decode(company_logo.split(',', 1)[1])) if company_logo else spec['logo']
+        with Image.open(source) as original_logo:
             rendered_logo = original_logo.convert('RGBA')
         rendered_logo.thumbnail((500, 167), Image.Resampling.LANCZOS)
         logo = spec['_logo_image'] = ImageReader(rendered_logo)
     lw, lh = logo.getSize(); ratio = min(120/lw, 28/lh)
     pdf.setFillColor(HexColor('#FFFFFF')); pdf.rect(0, 0, width, height, stroke=0, fill=1)
     pdf.drawImage(logo, 18, height-40, width=lw*ratio, height=lh*ratio, mask='auto')
-    pdf.setFont('ExportVeraBold', 9); pdf.setFillColor(HexColor('#202831'))
+    pdf.setFont('ExportVeraBold', 9); pdf.setFillColor(HexColor('#151515'))
     pdf.drawString(155, height-22, 'TAKEOFF LEGEND' + (' - CONTINUED' if continuation else ''))
     pdf.setFont('ExportVera', 7)
     pdf.drawString(155, height-35, f"Source page {page_number} of {len(spec['document']['pages'])} | {spec['mode'].title()} | Revision {spec['revision']}")
     filename, heading_height = _filename_heading(spec, width)
     filename.drawOn(pdf, 18, height-45-heading_height)
     separator = height-53-heading_height
-    pdf.setStrokeColor(HexColor('#C62828')); pdf.setLineWidth(1); pdf.line(18, separator, width-18, separator)
+    pdf.setStrokeColor(HexColor('#BD0018')); pdf.setLineWidth(1); pdf.line(18, separator, width-18, separator)
     y = separator-10
     annotation_count = sum(annotation['page'] == page_number for annotation in spec.get('annotations', []))
     signature_count = sum(signature['page'] == page_number for signature in spec.get('signatures', []))
@@ -161,9 +167,9 @@ def _paint_legend(pdf, rows, width, height, spec, page_number, *, continuation=F
         paragraph.drawOn(pdf, 42, y-(row_height-12))
         y -= row_height
     if visual_label and has_marks:
-        pdf.setFont('ExportVera', 7); pdf.setFillColor(HexColor('#202831'))
+        pdf.setFont('ExportVera', 7); pdf.setFillColor(HexColor('#151515'))
         pdf.drawString(18, 26, visual_label + '; excluded from measurement register.')
-    pdf.setFont('ExportVera', 6); pdf.setFillColor(Color(.32, .36, .4))
+    pdf.setFont('ExportVera', 6); pdf.setFillColor(HexColor('#555555'))
     pdf.drawString(18, 14, 'Derived marked drawing. Original PDF retained unchanged. Unconfirmed marks are drafts; technical suitability requires separate assessment.')
 
 
@@ -740,7 +746,7 @@ def render_document(source, spec, output):
     from reportlab.lib.colors import HexColor
     physical = bool(spec.get('physical_drawing'))
     register_drawing_fonts(physical)
-    style = ParagraphStyle('Legend', fontName='ExportVera', fontSize=8, leading=10, textColor=HexColor('#202831'))
+    style = ParagraphStyle('Legend', fontName='ExportVera', fontSize=8, leading=10, textColor=HexColor('#151515'))
     reader = PdfReader(source, strict=True); writer = PdfWriter(); total_content = 0
     if reader.is_encrypted: raise ValueError('Encrypted source PDFs cannot be exported.')
     if len(reader.pages) != len(spec['document']['pages']): raise ValueError('Source PDF page count changed.')

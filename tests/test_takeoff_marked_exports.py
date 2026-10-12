@@ -214,6 +214,25 @@ def drawing_fixture(annotations=False, layers=False):
 
 
 class TakeoffMarkedPDFTests(unittest.TestCase):
+    def test_saved_company_details_and_logo_reach_the_pdf_worker_without_changing_marks(self):
+        import base64
+        from PIL import Image
+        from estimator.company_settings import DEFAULTS
+        image = BytesIO(); Image.new('RGB', (20, 10), 'red').save(image, 'PNG')
+        company = {**DEFAULTS, 'name': 'Drawing Fixture', 'email': 'drawing@example.test',
+                   'logo': 'data:image/png;base64,' + base64.b64encode(image.getvalue()).decode()}
+        self.case.store.save_company_settings(company)
+        identifiers = self.create_marks()
+        before = deepcopy(self.case.session['snapshot'])
+        reader = PdfReader(BytesIO(self.export(identifiers)[0]))
+        legends = [page for page in reader.pages if 'TAKEOFF LEGEND' in page.extract_text()]
+        self.assertGreaterEqual(len(legends), 4)
+        for page in legends:
+            self.assertIn(company['name'], page.extract_text())
+            self.assertIn(company['email'], page.extract_text())
+            self.assertRegex(page.get_contents().get_data(), rb'0?\.741176 0 0?\.094118 RG')
+        self.assertEqual(self.case.service.get(self.case.session['session_id'])['snapshot'], before)
+
     @classmethod
     def setUpClass(cls): project_fixtures.TakeoffProjectTests.setUpClass()
 

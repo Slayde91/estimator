@@ -148,7 +148,7 @@ async function assertDeleteFarLeft(mode) {
     assert.equal(count.quantity, 2); assert.deepEqual(count.member_ids, originalMembers); assert.equal(count.measurement, null);
     await expect(page.locator('.takeoff-count-hit')).toHaveCount(2);
     evidence[mode] = { id: count.id, quantity: count.quantity, points: count.geometry.points, retainedHistoricalCount: true, creationCoverage: 'guarded legacy API fixture', mainRegisterRow: true, countsSectionRemoved: true, noInferredLength: true, deleteFarLeft: deleteLeft, totalCountHelperRemoved: true, ...(mode === 'STEEL' ? { creationButtonRemoved: true } : {}), draftUndo: { keys: ['Control+z', 'Backspace'], previewPoints: [firstDraftPoint], savedContinuationPoint: firstDraftPoint } };
-    await page.getByRole('button', { name: 'Settings', exact: true }).click();
+    await page.locator('#view-takeoffs').getByRole('button', { name: 'Settings', exact: true }).click();
   }
   // Seed the exact page calibration independently of any calculator values.
   await page.evaluate(async () => {
@@ -228,7 +228,7 @@ async function assertDeleteFarLeft(mode) {
     evidence[mode].removedCalibrationButtonAbsent = true; evidence[mode].retiredInsetNotAutomaticallyRepaired = true;
     evidence[mode].calibrationRepairPath = 'explicit guarded command API plus public prepareProject/applyProject/open; not native UI';
     await expect(page.locator('.takeoff-settings-tools').getByRole('button', { name: /^(Attach|Change) length calibration$/ })).toHaveCount(0);
-    await page.getByRole('button', { name: 'Settings', exact: true }).click();
+    await page.locator('#view-takeoffs').getByRole('button', { name: 'Settings', exact: true }).click();
   }
   // A deliberately slow options request must never delay the duct form itself.
   await chooseTakeoff(page, 'DUCT');

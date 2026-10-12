@@ -9,6 +9,7 @@ from copy import deepcopy
 from hashlib import sha256
 from html import escape
 from io import BytesIO
+from .company_settings import company_logo
 import json
 
 from openpyxl import Workbook
@@ -16,7 +17,6 @@ from openpyxl.drawing.image import Image as ExcelImage
 from openpyxl.styles import Alignment, Font
 from PIL import Image as PillowImage
 from reportlab.lib.pagesizes import A4
-from reportlab.lib.utils import ImageReader
 from reportlab.platypus import Image, KeepTogether, SimpleDocTemplate, Spacer
 
 from .calculator_register import _sheet, _table
@@ -25,7 +25,7 @@ from .firestopping_library import MAX_DIAGRAM_BYTES, _render_diagram
 from .library_report_links import validate_report_links
 from .pricing_workbook import _serialize_exact
 from .reference_library import identifier
-from .report import ROOT, _Report, _company_header, _escaped, _register_fonts, _LINE, _MUTED
+from .report import _Report, _company_header, _escaped, _register_fonts, _LINE, _MUTED
 from .technical_fields import is_hidden_technical_label
 
 _NOTE = 'Technical Library record snapshot. Retain the original report, diagram and all source conditions.'
@@ -218,7 +218,7 @@ def build_technical_item_xlsx(snapshot):
     return _serialize_exact(workbook)
 
 
-def render_technical_item_pdf(snapshot):
+def render_technical_item_pdf(snapshot, *, company=None):
     _register_fonts()
     report = _Report({})
     width, height = A4
@@ -232,7 +232,7 @@ def render_technical_item_pdf(snapshot):
         report.story.append(report.p(record['notice']))
     rows = []
     for label, value, url in _field_rows(snapshot):
-        cell = report.rich(f'<link href="{escape(url, quote=True)}" color="#0563C1"><u>{_escaped(value)}</u></link>') if url else report.p(value, 'cell')
+        cell = report.rich(f'<link href="{escape(url, quote=True)}" color="#BD0018"><u>{_escaped(value)}</u></link>') if url else report.p(value, 'cell')
         rows.append([report.p(label, 'cell'), cell])
     if rows:
         report.story.append(report.table(['Field', 'Value'], rows, [content * .3, content * .7]))
@@ -263,14 +263,14 @@ def render_technical_item_pdf(snapshot):
     report.story.append(report.p('Source information', 'subheading'))
     for label, filename, document_id, page, sheet, row in snapshot['sources']:
         report.story.append(report.p('\n'.join(value for value in [label, filename, ' | '.join(value for value in [document_id, 'Page ' + page if page else '', 'Sheet ' + sheet if sheet else '', 'Row ' + row if row else ''] if value)] if value)))
-    logo = ImageReader(str(ROOT / 'static' / 'ceasefire-logo.png'))
+    logo = company_logo(company)
     output = BytesIO()
     document = SimpleDocTemplate(output, pagesize=A4, leftMargin=margin, rightMargin=margin, topMargin=91, bottomMargin=43,
                                  pageCompression=1, title='Ceasefire - Technical Library Item Details', author='Ceasefire')
 
     def decorate(canvas, doc):
         canvas.saveState()
-        _company_header(canvas, logo, width, height, margin, 'TECHNICAL ITEM', label_below_logo=True)
+        _company_header(canvas, logo, width, height, margin, 'TECHNICAL ITEM', label_below_logo=True, company=company)
         canvas.setStrokeColor(_LINE)
         canvas.line(margin, 32, width - margin, 32)
         canvas.setFont('CeasefireVera', 7)

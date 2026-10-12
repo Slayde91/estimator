@@ -20,7 +20,8 @@
   const fieldLabel = field => field.column === "J" || field.label === "Type" ? "Category"
     : field.column === "T" || ["Item(s)", "Items/Services"].includes(field.label) ? "Description"
     : ["System", "System/Install"].includes(field.label) ? "System/Install Details"
-    : field.column === "AN" && ["Multiplier", "Wrap Multiplier"].includes(field.label) ? state.group === "Plastic Pipes" ? "Collar Multiplier" : "Wrap Multiplier"
+    : ["AN", "AT"].includes(field.column) ? field.column === "AN" && state.group === "Plastic Pipes" ? "Collar Multiplier" : "Multiplier"
+    : ["AM", "AS"].includes(field.column) ? "Total Wrap Req"
     : field.column === "X" && field.label === "Board or Batt Type" ? "Board/Batt Type"
     : field.column === "Z" && field.label === "Frame Type" ? "Framing Type" : field.label;
   const manufacturerLabel = (field, value) => field.column === "V" ? String(value).toLowerCase() === "firefly" ? "Firefly" : String(value).toLowerCase() === "trafalgar" ? "Trafalgar" : undefined : undefined;
@@ -44,6 +45,7 @@
   function shiftDecimal(value, places) { const [coefficient, exponent = "0"] = String(value).split(/e/i); return Number(`${coefficient}e${Number(exponent) + places}`); }
   function display(value, format = "number") {
     if (value === null || value === undefined || value === "") return "—";
+    if (typeof value === "string" && /^#(?:VALUE!|REF!|NUM!|DIV\/0!|N\/A|NAME\?|NULL!|CALC!)/.test(value)) return "Check inputs";
     if (!numeric(value)) return String(value);
     return format === "currency" ? currency.format(value) : format === "percent" ? `${number.format(shiftDecimal(value, 2))}%` : number.format(value);
   }
@@ -61,9 +63,14 @@
     { column: "M", label: "Substrate Orientation" }, { column: "N", label: "FRL" }, { column: "P", label: "Substrate" },
   ];
   const missingItemFields = (inputs = selected()?.inputs || {}) => requiredItemFields().filter(field => !entered(inputs[field.column]) || typeof inputs[field.column] === "string" && !inputs[field.column].trim());
-  const requiredItemProblem = inputs => {
+  const masticProblem = inputs => inputs.AB && !(numeric(inputs.AC) && inputs.AC > 0)
+    ? "Enter a Mastic Qty greater than zero for the selected Mastic Type."
+    : entered(inputs.AC) && inputs.AC !== 0 && !inputs.AB ? "Choose a Mastic Type for the entered Mastic Qty." : "";
+  const requiredItemProblem = (inputs = selected()?.inputs || {}) => {
+    if (masticProblem(inputs)) return masticProblem(inputs);
     const missing = missingItemFields(inputs);
-    return missing.length ? `Complete ${missing.map(field => field.label).join(", ")} before adding this Firestopping item.` : "";
+    if (missing.length) return `Complete ${missing.map(field => field.label).join(", ")} before adding this Firestopping item.`;
+    return "";
   };
   async function requireItemFields() {
     const problem = requiredItemProblem(); if (!problem) return true;
@@ -137,7 +144,7 @@
     for (const field of (definition.global_fields || []).filter(field => field.group === "SETTINGS")) {
       const legacy = field.legacy_column && [...draft.rows, ...composer.rows]
         .map(row => row.inputs?.[field.legacy_column]).find(value => value !== null && value !== undefined && value !== "");
-      draft.globals[field.column] = draft.globals[field.column] ?? legacy ?? field.default;
+      draft.globals[field.column] = draft.globals[field.column] ?? legacy ?? (snapshot && field.column.startsWith("waste_") ? 0 : field.default);
       composer.globals[field.column] = draft.globals[field.column];
     }
     for (const key of definition.settings?.structured_global_keys || []) {
@@ -169,8 +176,8 @@
   function projectSnapshot() { return state.draft ? canonicalSnapshot(persisted()) : undefined; }
   function quoteSnapshot() { return state.schedule.draft ? { draft: canonicalDraft(state.schedule.draft) } : undefined; }
   function quoteFingerprint() { return stable({ context: state.context, ...quoteSnapshot(), invalid: [...state.schedule.invalid] }); }
-  function scheduleProblem() { return state.schedule.invalid.size ? "Correct the firestopping schedule input marked invalid before calculating the quote." : ""; }
-  function inputProblem() { return state.diagramChange !== undefined ? "Add the selected source diagram to the Firestopping Library or discard it before saving the project." : state.invalid.size || state.schedule.invalid.size ? "Correct the firestopping input marked invalid before saving." : ""; }
+  function scheduleProblem() { return state.schedule.invalid.size ? "Correct the firestopping schedule input marked invalid before calculating the quote." : (state.schedule.draft?.rows || []).map(row => masticProblem(row.inputs)).find(Boolean) || ""; }
+  function inputProblem() { return state.diagramChange !== undefined ? "Add the selected source diagram to the Firestopping Library or discard it before saving the project." : state.invalid.size || state.schedule.invalid.size ? "Correct the firestopping input marked invalid before saving." : masticProblem(selected()?.inputs || {}) || scheduleProblem(); }
   function projectFingerprint() { return stable({ context: state.context, ...canonicalSnapshot(persisted()), invalid: [...state.invalid].sort(([a], [b]) => a.localeCompare(b)), scheduleInvalid: [...state.schedule.invalid].sort(([a], [b]) => a.localeCompare(b)), edit: state.edit && { id: state.edit.id, epoch: state.edit.epoch }, composerEpoch: state.composerEpoch, pendingDiagram: state.diagramChange === undefined ? null : { filename: state.diagramChange.filename, version: state.diagramVersion } }); }
   async function completeProjectSnapshot() { assertTakeoffWritable(); await initialize(); if (inputProblem()) throw new Error(inputProblem()); return projectSnapshot(); }
   function acceptDraft(scope, draft, captured) {
@@ -262,7 +269,10 @@
     const current = () => context === state.context && (scope === state ? epoch === state.composerEpoch : rowId === null || epoch === state.rowEpochs.get(rowId));
     const key = keyFor(rowId, field.column), wrapper = node(field.automatic_default ? "div" : "label", "field"), label = node("span", "", fieldLabel(field) + (field.units ? ` (${field.units})` : field.format === "percent" ? " (%)" : ""));
     const control = node(field.type === "select" ? "select" : "input"), problem = node("small", "penetration-field-error");
-    const help = field.help || "";
+    const help = ["AN", "AT"].includes(field.column) ? "Enter multiplier for wrap lengths or collars."
+      : ["AM", "AS"].includes(field.column) ? "Total wrap length required per side in mm, e.g. 300 (mm)."
+      : field.column === "AL" ? state.group === "Lagged Pipes" ? "Enter total outer diameter of the lagged pipe or total bundle." : "Enter total outer diameter of the pipe or bundle."
+      : field.help || "";
     if (help) { wrapper.title = help; label.title = help; control.title = help; }
     if (compact) { wrapper.className += " penetration-schedule-quantity"; label.className = "sr-only"; control.dataset.penetrationScheduleQuantity = rowId; }
     const line = rowId === null ? (scope === state ? "Current item" : "Schedule") : `Item ${scope.draft.rows.findIndex(row => row.id === rowId) + 1}`;
@@ -274,7 +284,7 @@
     }
     const pending = scope.invalid.get(key), raw = inputValue(field, rowId, scope);
     const manufacturer = rowId !== null && manufacturerLabel(field, raw);
-    const options = [...new Set((field.options || []).map(value => manufacturer && manufacturerLabel(field, value) === manufacturer ? raw : value))];
+    const options = [...new Set((scope.draft.globals.detail_options?.[field.column] ?? field.options ?? []).map(value => manufacturer && manufacturerLabel(field, value) === manufacturer ? raw : value))];
     if (field.type === "select") {
       const empty = node("option", "", "Choose…"); empty.value = ""; control.append(empty);
       for (const value of options) { const option = node("option", "", manufacturerLabel(field, value) || value); option.value = String(value); control.append(option); }
@@ -322,6 +332,11 @@
       }
       if (error) scope.invalid.set(key, { value: control.value, error });
       else { scope.invalid.delete(key); (rowId === null ? scope.draft.globals : rowById(rowId, scope).inputs)[field.column] = value; }
+      if (!error && field.column === "M" && rowId !== null) {
+        const inputs = rowById(rowId, scope).inputs;
+        const multiplier = /^vertical$/i.test(value || "") ? 2 : /^horizontal$/i.test(value || "") ? 1 : null;
+        if (multiplier !== null) for (const column of ["AN", "AT"]) if (!entered(inputs[column])) inputs[column] = multiplier;
+      }
       showProblem(error); changed(rowId, scope);
       if (!error && scope === state && ["AH", "W"].includes(field.column)) warnAdditionalLabour(rowId, scope);
       if (!error && rowId === null && field.group === "SETTINGS" && scope === state.schedule) {
@@ -498,6 +513,28 @@
     state.schedule.draft.globals[key] = clone(value); state.draft.globals[key] = clone(value);
     changed(null, state.schedule); changed(null, state);
   }
+  function renderDetailOptions() {
+    const section = node("section", "penetration-settings-section");
+    section.append(node("h4", "penetration-settings-subheading", "DETAILS DROPDOWN VALUES"), node("p", "helper", "Separate values with a semicolon, e.g. Core hole; Oversized. Saved item values are retained."));
+    for (const column of state.definition.settings?.detail_option_columns || []) {
+      const field = state.definition.row_fields.find(value => value.column === column);
+      if (!field) continue;
+      const label = node("label", "field"), control = node("textarea"), problem = node("small", "penetration-field-error");
+      const setting = `detail_options.${column}`, pending = state.schedule.invalid.get(structuredSettingKey(setting));
+      control.value = pending?.value ?? (state.schedule.draft.globals.detail_options?.[column] ?? field.options ?? []).join("; ");
+      control.rows = 2; control.maxLength = 24400; control.dataset.penetrationDetailOptions = column;
+      problem.hidden = !pending; problem.textContent = pending?.error || "";
+      control.addEventListener("change", () => {
+        if (state.takeoffLease) return;
+        const values = [...new Set(control.value.split(";").map(value => value.trim()).filter(Boolean))];
+        const error = values.length > 200 || values.some(value => value.length > 120 || /[\x00-\x1f]/.test(value)) ? "Use up to 200 values of at most 120 characters each." : "";
+        structuredProblem(setting, control.value, error, control, problem);
+        if (!error) updateStructuredSetting("detail_options", { ...state.schedule.draft.globals.detail_options, [column]: values });
+      });
+      label.append(node("span", "", fieldLabel(field)), control, problem); section.append(label);
+    }
+    return section;
+  }
   function renderServiceRoutes() {
     const section = node("section", "penetration-settings-section"), heading = node("h4", "penetration-settings-subheading", "SERVICE-TAB ROUTING");
     const scroll = node("div", "table-scroll"), table = node("table", "penetration-settings-table penetration-route-table"), head = node("thead"), header = node("tr");
@@ -600,7 +637,7 @@
       }
       table.append(body);
     }
-    scroll.append(table); root.append(intro, scroll, renderServiceRoutes(), renderLabourBands()); return root;
+    scroll.append(table); root.append(intro, scroll, renderDetailOptions(), renderServiceRoutes(), renderLabourBands()); return root;
   }
   function renderFields() {
     if (!state.draft) return;
@@ -624,9 +661,21 @@
     if (settings) $("penetration-row-fields").replaceChildren(renderSettings(visible));
     else {
       const fields = node("div", "penetration-fields");
-      for (const field of visible) {
+      const grouped = new Set();
+      for (let field of visible) {
+        if (grouped.has(field.column)) continue;
+        if (["M", "AB"].includes(field.column)) {
+          const partner = visible.find(value => value.column === (field.column === "M" ? "P" : "AC"));
+          if (partner) {
+            const pair = node("div", "penetration-field-pair" + (field.column === "AB" ? " penetration-mastic-pair" : ""));
+            pair.append(makeControl(field, row.id), makeControl(partner, row.id)); fields.append(pair); grouped.add(partner.column); continue;
+          }
+        }
+        if (field.column === "V" && visible.some(value => value.column === "P")) continue;
+        if (field.column === "P" && grouped.has("P")) continue;
         const paired = field.paired_column && state.definition.row_fields.find(candidate => candidate.column === field.paired_column);
         fields.append(paired ? makeDimensionControl(field, paired, row.id) : makeControl(field, row.id));
+        if (field.column === "N") { const manufacturer = visible.find(value => value.column === "V"); if (manufacturer) fields.append(makeControl(manufacturer, row.id)); }
       }
       $("penetration-row-fields").replaceChildren(fields);
     }
@@ -691,10 +740,13 @@
     if (context !== state.context || stamp !== composerStamp()) return;
     state.edit = null; replaceComposer(defaultComposer()); message(); window.CeasefirePenetrationNavigation?.show?.(); await calculate();
   }
-  function clearCurrentItem() {
+  async function clearCurrentItem() {
     assertTakeoffWritable();
     if (!state.draft || state.creatingLibrary || state.addingLibrary || state.addingSchedule || state.updatingSchedule) return;
     document.activeElement?.blur?.();
+    const context = state.context, stamp = composerStamp();
+    if (!await confirmReplace("Clear calculator?", "Clear everything from the current item calculator?", "Yes", true, "Cancel")) return;
+    if (context !== state.context || stamp !== composerStamp()) return;
     const row = selected();
     // Only the current copy is cleared. Its identity and edit recovery stay
     // intact; project settings, schedule rows and their source bindings remain.
@@ -848,6 +900,7 @@
   async function updateSchedule() {
     assertTakeoffWritable();
     document.activeElement?.blur?.(); if (!validEdit() || state.invalid.size || state.schedule.invalid.size || state.updatingSchedule) return;
+    if (masticProblem(selected().inputs)) { message(masticProblem(selected().inputs), true); return; }
     const context = state.context, epoch = state.composerEpoch, edit = state.edit, row = scheduleRow(edit.id); row.inputs = clone(selected().inputs);
     if (selected().library_item_id) row.library_item_id = selected().library_item_id; else delete row.library_item_id;
     state.updatingSchedule = true;
@@ -1057,6 +1110,7 @@
     document.activeElement?.blur?.();
     try {
       if (!state.schedule.draft || state.schedule.invalid.size) throw new Error("Correct the schedule input marked invalid before downloading.");
+      if (scheduleProblem()) throw new Error(scheduleProblem());
       const snapshot = projectSnapshot();
       const pricing = configuration(), details = clone(window.CeasefireProject?.details?.() || {}), captured = projectFingerprint(), pricingKey = JSON.stringify(pricing);
       state.downloading = true; state.downloadKind = kind; status();
@@ -1073,6 +1127,7 @@
       if (!state.draft || state.invalid.size || state.takeoffLease || state.loading || state.diagramReading !== null || state.creatingLibrary || state.addingLibrary || state.addingSchedule || state.updatingSchedule) throw new Error("Finish the current item input or operation before downloading.");
       const item = selected();
       if (!item || state.draft.rows.length !== 1) throw new Error("Choose exactly one current Firestopping item.");
+      if (masticProblem(item.inputs)) throw new Error(masticProblem(item.inputs));
       const payload = { item: clone(item), globals: clone(state.draft.globals), configuration: configuration(),
         ...(state.diagramChange === undefined ? {} : { diagram: clone(state.diagramChange) }) };
       const captured = stable(payload);

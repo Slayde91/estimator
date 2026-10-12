@@ -1,3 +1,4 @@
+const { cycleTheme } = require('./theme_navigation.cjs');
 // Native Technical Library documents and contrast against disposable evidence only.
 const {chromium, expect} = require('@playwright/test');
 const {chooseLibrary} = require('./section_navigation.cjs');
@@ -71,7 +72,7 @@ async function exported(extension){
       await detail.locator('.library-related-record').scrollIntoViewIfNeeded();await page.screenshot({path:path.join(output,`technical-source-${theme}-${width}.png`)});
       layouts.push({theme,width,geometry,contrast:values});
     }
-    await page.locator('#theme-toggle').click();
+    await cycleTheme(page);
   }
   await page.setViewportSize({width:1146,height:900});await toggle.scrollIntoViewIfNeeded();
   const pdf=await exported('pdf'),xlsx=await exported('xlsx');
@@ -91,7 +92,7 @@ async function exported(extension){
     await add.scrollIntoViewIfNeeded();const box=await add.boundingBox();assert.equal(box.width,48);assert.equal(box.height,48);
     const colors=await contrast('[data-library-detail="penetration"] .library-add-transfer');assert.ok(colors.ratio>=4.5,`${theme} library schedule control contrast`);
     scheduleContrast.push({theme,control:'library',...colors});
-    await page.screenshot({path:path.join(output,`firestopping-library-${theme}.png`)});await page.locator('#theme-toggle').click();
+    await page.screenshot({path:path.join(output,`firestopping-library-${theme}.png`)});await cycleTheme(page);
   }
   await chooseCalculator(page,'Firestopping');await expect(page.locator('#penetration-add-to-schedule')).toBeVisible();
   for(const theme of ['ceasefire','midnight','ocean','forest','slate']){
@@ -100,7 +101,7 @@ async function exported(extension){
     const colors=await contrast('#penetration-add-to-schedule');assert.ok(colors.ratio>=4.5,`${theme} composer schedule control contrast`);
     const source=await contrast('#penetration-diagram-empty');assert.ok(source.ratio>=4.5,`${theme} Source diagram text contrast`);
     scheduleContrast.push({theme,control:'composer',...colors},{theme,control:'source diagram',...source});
-    await page.locator('#penetration-diagram').scrollIntoViewIfNeeded();await page.screenshot({path:path.join(output,`firestopping-diagram-${theme}.png`)});await page.locator('#theme-toggle').click();
+    await page.locator('#penetration-diagram').scrollIntoViewIfNeeded();await page.screenshot({path:path.join(output,`firestopping-diagram-${theme}.png`)});await cycleTheme(page);
   }
   checks.push('five-theme library and composer schedule/source contrast');
   assert.deepEqual(await snapshot(),before,'Exports and menu access preserve calculator/composer/pricing/project drafts');

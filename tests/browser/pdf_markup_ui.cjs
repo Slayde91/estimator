@@ -1,3 +1,4 @@
+const { cycleTheme } = require('./theme_navigation.cjs');
 "use strict";
 // Layout/keyboard checks use a synthetic library, PDF, browser and random-port
 // server. No request, draft or writable path belongs to the live application.
@@ -39,7 +40,7 @@ async function navigationState() {
   }));
 }
 async function theme(id) {
-  for (let i = 0; i < 5 && await page.locator("html").getAttribute("data-theme") !== id; i++) await page.locator("#theme-toggle").click();
+  for (let i = 0; i < 5 && await page.locator("html").getAttribute("data-theme") !== id; i++) await cycleTheme(page);
   await expect(page.locator("html")).toHaveAttribute("data-theme", id);
 }
 async function noOverflow(label) { assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), `No horizontal page overflow: ${label}`); }
@@ -288,7 +289,7 @@ async function standardCalculatorButton() {
   await page.getByRole("button", { name: "Viewport", exact: true }).click();
   for (const mode of ["duct", "wall", "Defect Reports", "Service Plans"]) {
     stage = `workspace ${mode}`; await page.setViewportSize({ width: 1146, height: 764 }); await chooseTakeoff(page, mode); await settingsSettled(page); await headingMenus(1146, ["Defect Reports", "Service Plans"].includes(mode)); await rightRail(1146, mode); await noOverflow(`1146/${mode}`);
-    if (mode === "Defect Reports") { await page.getByRole("button", { name: "Settings", exact: true }).click(); for (const width of [1384, 390]) { stage = `Item Details resize ${width}`; await resizePane(page.locator("#takeoff-physical-details"), "item-details", width); } await page.getByRole("button", { name: "Close Item Details", exact: true }).click(); }
+    if (mode === "Defect Reports") { await page.locator("#view-takeoffs").getByRole("button", { name: "Settings", exact: true }).click(); for (const width of [1384, 390]) { stage = `Item Details resize ${width}`; await resizePane(page.locator("#takeoff-physical-details"), "item-details", width); } await page.getByRole("button", { name: "Close Item Details", exact: true }).click(); }
   }
   stage = "Pricing Library"; await chooseLibrary(page, "pricing");
   const pricing = page.locator(".pricing-document-menu .calculator-document-toggle"), pricingArrow = pricing.locator(".calculator-document-chevron svg");

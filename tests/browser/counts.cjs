@@ -74,7 +74,7 @@ async function selectedCount(ids) {
   await page.getByRole('checkbox', { name: 'Select all matching items', exact: true }).uncheck();
   for (const id of ids) await page.locator(`tr[data-item-id="${id}"]`).getByRole('checkbox', { name: /^Select / }).check();
   const panel = page.locator('.takeoff-markup-settings');
-  if (!await panel.isVisible()) await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  if (!await panel.isVisible()) await page.locator('#view-takeoffs').getByRole('button', { name: 'Settings', exact: true }).click();
   await expect(panel.getByRole('heading', { name: 'Count Settings', exact: true })).toBeVisible(); return panel;
 }
 async function applySettings(panel) {

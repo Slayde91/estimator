@@ -8,14 +8,14 @@ Only explicitly named display totals sum already-calculated numeric outputs.
 from copy import deepcopy
 from decimal import Decimal, ROUND_HALF_UP, localcontext
 from io import BytesIO
+from .company_settings import company_logo
 import re
 
 from reportlab.lib.pagesizes import A4, landscape
-from reportlab.lib.utils import ImageReader
 from reportlab.platypus import PageBreak, SimpleDocTemplate, Spacer, TableStyle
 
 from .excel_engine import column_name
-from .report import ROOT, _Report, _company_header, _register_fonts, _number, _numeric, _text, _LINE, _MUTED
+from .report import _Report, _company_header, _register_fonts, _number, _numeric, _text, _LINE, _MUTED
 from .workbook_calculators import (FYREWRAP_DIRECTION_NOTE, calculator_engine,
                                    normalize_calculator_inputs, source_model)
 from .board_steel_area import board_net_steel_areas, steel_area_display
@@ -474,20 +474,20 @@ class _ScheduleReport(_Report):
         if not data.get('board_net_steel_areas'):
             self.story.append(self.p(f"{data['incomplete_rows']} schedule item(s) have incomplete or unavailable primary quantities. Displayed product quantities retain the source workbook's exclusions; review the item statuses in the calculator before ordering.", 'small'))
 
-def build_calculator_report(calculator_id, inputs=None, *, project_details=None):
+def build_calculator_report(calculator_id, inputs=None, *, project_details=None, company=None):
     """Return the full schedule only; reading a draft never saves it."""
-    return _build_calculator_pdf(calculator_id, inputs, materials=False, project_details=project_details)
+    return _build_calculator_pdf(calculator_id, inputs, materials=False, project_details=project_details, company=company)
 
 
-def build_calculator_summary_report(calculator_id, inputs=None, *, project_details=None):
+def build_calculator_summary_report(calculator_id, inputs=None, *, project_details=None, company=None):
     """Return material quantities, pooled summaries and extra-board allowances."""
-    return _build_calculator_pdf(calculator_id, inputs, materials=True, project_details=project_details)
+    return _build_calculator_pdf(calculator_id, inputs, materials=True, project_details=project_details, company=company)
 
 
-def _build_calculator_pdf(calculator_id, inputs, *, materials, project_details=None):
+def _build_calculator_pdf(calculator_id, inputs, *, materials, project_details=None, company=None):
     data = project_calculator_report(calculator_id, inputs)
     _register_fonts()
-    logo = ImageReader(str(ROOT / 'static' / 'ceasefire-logo.png'))
+    logo = company_logo(company)
     report = _ScheduleReport(data, project_details)
     report.overview(materials=materials)
     if data.get('assessment_notes'):
@@ -510,7 +510,7 @@ def _build_calculator_pdf(calculator_id, inputs, *, materials, project_details=N
         canvas.saveState()
         _company_header(canvas, logo, _WIDTH, _HEIGHT, _MARGIN,
                         'CALCULATORS | ' + ('MATERIALS & SUMMARY' if materials else 'FULL SCHEDULE'),
-                        label_below_logo=True)
+                        label_below_logo=True, company=company)
         canvas.setStrokeColor(_LINE)
         canvas.line(_MARGIN, 32, _WIDTH - _MARGIN, 32)
         canvas.setFont('CeasefireVera', 7)

@@ -1,6 +1,7 @@
 """Penetration exports project one calculated snapshot, never recalculate totals."""
 
 from io import BytesIO
+from .company_settings import company_logo
 
 from openpyxl import Workbook
 from reportlab.lib.pagesizes import A4, landscape
@@ -9,7 +10,7 @@ from reportlab.platypus import Image, SimpleDocTemplate, Spacer, TableStyle
 
 from .calculator_register import _sheet, _table
 from .pricing_workbook import _serialize_exact
-from .report import ROOT, _Report, _company_header, _register_fonts, _number, _numeric, _LINE, _MUTED
+from .report import _Report, _company_header, _register_fonts, _number, _numeric, _LINE, _MUTED
 from .reference_library import ReferenceNotFound
 
 
@@ -92,7 +93,7 @@ def _excel_format(field):
     return {'percent': '0.00%', 'currency': '$#,##0.00'}.get(field.get('format'), '#,##0.00')
 
 
-def render_penetration_pdf(result, definition, project_details, *, library=None):
+def render_penetration_pdf(result, definition, project_details, *, library=None, company=None):
     """Show project details, totals and the compact calculated schedule."""
     _register_fonts()
     report = _Report({})
@@ -103,7 +104,7 @@ def render_penetration_pdf(result, definition, project_details, *, library=None)
     width, height = landscape(A4)
     margin = 32
     content = width - 2 * margin
-    logo = ImageReader(str(ROOT / 'static' / 'ceasefire-logo.png'))
+    logo = company_logo(company)
     report.story.append(report.p('Firestopping estimate', 'title'))
     details = [('Project No.', project_details.get('project_no', '')),
                ('Client', project_details.get('client', '')),
@@ -169,7 +170,7 @@ def render_penetration_pdf(result, definition, project_details, *, library=None)
 
     def decorate(canvas, doc):
         canvas.saveState()
-        _company_header(canvas, logo, width, height, margin, 'FIRESTOPPING ESTIMATE', label_below_logo=True)
+        _company_header(canvas, logo, width, height, margin, 'FIRESTOPPING ESTIMATE', label_below_logo=True, company=company)
         canvas.setStrokeColor(_LINE)
         canvas.line(margin, 32, width - margin, 32)
         canvas.setFont('CeasefireVera', 7)

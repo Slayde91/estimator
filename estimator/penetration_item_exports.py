@@ -9,12 +9,12 @@ from copy import deepcopy
 import base64
 from hashlib import sha256
 from io import BytesIO
+from .company_settings import company_logo
 import json
 import re
 
 from openpyxl import Workbook
 from reportlab.lib.pagesizes import A4
-from reportlab.lib.utils import ImageReader
 from reportlab.platypus import Image, SimpleDocTemplate, Spacer
 
 from .catalog import ValidationError, validate_configuration
@@ -24,7 +24,7 @@ from .penetration_calculator import calculate, definition, normalize_composer
 from .penetration_report import _display, _excel_format, _input_basis, _input_value, _visible_outputs
 from .pricing_workbook import _serialize_exact
 from .reference_library import ReferenceNotFound
-from .report import ROOT, _Report, _company_header, _register_fonts, _LINE, _MUTED
+from .report import _Report, _company_header, _register_fonts, _LINE, _MUTED
 
 
 def prepare_item_snapshot(body, *, library, default_configuration, require_diagram=True):
@@ -115,7 +115,7 @@ def build_item_xlsx(snapshot):
     return _serialize_exact(workbook)
 
 
-def render_item_pdf(snapshot):
+def render_item_pdf(snapshot, *, company=None):
     """Current item details and its explicit source image, never a schedule."""
     if snapshot['diagram_identity'].get('status') == 'unavailable':
         raise ValidationError('The linked current item source diagram is unavailable. Choose a retained diagram before downloading this item PDF.')
@@ -157,7 +157,7 @@ def render_item_pdf(snapshot):
         report.story.append(report.p('Review calculation', 'subheading'))
         for error in result['errors']:
             report.story.append(report.p(f"{error['cell']}: {error['message']}", 'alert'))
-    logo = ImageReader(str(ROOT / 'static' / 'ceasefire-logo.png'))
+    logo = company_logo(company)
     output = BytesIO()
     document = SimpleDocTemplate(
         output, pagesize=A4, leftMargin=margin, rightMargin=margin, topMargin=91, bottomMargin=43,
@@ -165,7 +165,7 @@ def render_item_pdf(snapshot):
 
     def decorate(canvas, doc):
         canvas.saveState()
-        _company_header(canvas, logo, width, height, margin, 'FIRESTOPPING ITEM', label_below_logo=True)
+        _company_header(canvas, logo, width, height, margin, 'FIRESTOPPING ITEM', label_below_logo=True, company=company)
         canvas.setStrokeColor(_LINE)
         canvas.line(margin, 32, width - margin, 32)
         canvas.setFont('CeasefireVera', 7)

@@ -1,3 +1,4 @@
+const { cycleTheme } = require('./theme_navigation.cjs');
 "use strict";
 // Exact user-supplied image in every theme; disposable server and browser only.
 const {chromium,expect}=require("@playwright/test"),{chooseTakeoff}=require("./section_navigation.cjs");
@@ -20,7 +21,7 @@ const evidence=[],errors=[];
     assert.equal(appearance.filter,theme==="midnight"?"invert(1)":"none");assert.equal(appearance.blend,theme==="midnight"?"screen":"multiply");assert.equal(appearance.src,"/icons/takeoff-measure.avif");
     const file=path.join(output,`measure-${theme}.png`);await image.screenshot({path:file});
     const proof=spawnSync(python,["-B","-c","from PIL import Image; import json,sys; p=list(Image.open(sys.argv[1]).convert('RGB').getdata()); lo=min(sum(v)/3 for v in p); hi=max(sum(v)/3 for v in p); assert hi-lo>100, (lo,hi); print(json.dumps({'minimum':lo,'maximum':hi,'contrast_range':hi-lo}))",file],{encoding:"utf8",windowsHide:true});assert.equal(proof.status,0,proof.stderr);evidence.push({theme,...appearance,pixel_contrast:JSON.parse(proof.stdout),screenshot:file});
-    assert.equal(await page.evaluate(()=>window.CeasefireTakeoffs.projectFingerprint()),fingerprint,"Theme/icon checks preserve drawing draft");await page.locator("#theme-toggle").click();
+    assert.equal(await page.evaluate(()=>window.CeasefireTakeoffs.projectFingerprint()),fingerprint,"Theme/icon checks preserve drawing draft");await cycleTheme(page);
   }
   assert.deepEqual(errors,[]);assert.deepEqual(hashes(),before,"All icon/theme/source bytes remain exact during the native journey");fs.writeFileSync(path.join(output,"result.json"),JSON.stringify({passed:true,fixture_port:info.port,original_sha256:expected,served_sha256:expected,evidence,errors,source_before:before,source_after:hashes()},null,2));console.log(`PASS: exact Measure original loaded and visibly contrasted in five themes. Evidence: ${output}`);
 })().catch(async error=>{console.error(error);process.exitCode=1;if(page)await page.screenshot({path:path.join(output,"failure.png"),fullPage:true}).catch(()=>{});fs.writeFileSync(path.join(output,"failure.json"),JSON.stringify({passed:false,error:String(error),evidence,errors},null,2));}).finally(async()=>{fs.writeFileSync(path.join(output,"server.log"),logs);await browser?.close();server.kill();});

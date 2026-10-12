@@ -13,7 +13,7 @@ async function openItemSettings(page, id) {
   if (id) {
     await page.locator(`tr[data-item-id="${id}"]`).getByRole('button', { name: 'Edit item', exact: true }).click();
   } else if (!await page.locator('#takeoff-markup-settings').isVisible()) {
-    await page.getByRole('button', { name: 'Settings', exact: true }).click();
+    await page.locator('#view-takeoffs').getByRole('button', { name: 'Settings', exact: true }).click();
   }
   const panel = page.locator('#takeoff-markup-settings');
   await expect(panel).toBeVisible();

@@ -43,7 +43,7 @@ async function select(item) {
   await page.getByRole('checkbox', { name: 'Select all matching items', exact: true }).check();
   await page.getByRole('checkbox', { name: 'Select all matching items', exact: true }).uncheck();
   await page.locator(`tr[data-item-id="${item.id}"]`).getByRole('checkbox', { name: /^Select / }).check();
-  if (!await panel().isVisible()) await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  if (!await panel().isVisible()) await page.locator('#view-takeoffs').getByRole('button', { name: 'Settings', exact: true }).click();
   await expect(panel()).toBeVisible();
 }
 async function draw(mode, mark, x = 100) {

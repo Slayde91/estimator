@@ -6,6 +6,7 @@
   const node = (tag, className = "", text) => { const element = document.createElement(tag); if (className) element.className = className; if (text !== undefined) element.textContent = String(text); return element; };
   function display(value, format) {
     if (value === null || value === undefined || value === "") return "—";
+    if (typeof value === "string" && /^#(?:VALUE!|REF!|NUM!|DIV\/0!|N\/A|NAME\?|NULL!|CALC!)/.test(value)) return "Check inputs";
     if (typeof value !== "number" || !Number.isFinite(value)) return String(value);
     return format === "currency" ? currency.format(value) : format === "percent" ? percent.format(value) : number.format(value);
   }
@@ -41,10 +42,19 @@
   function render(definition, row, schedule = false) {
     const container = node("div", "penetration-breakdown-content");
     if (!row) { container.append(node("p", "helper", schedule ? "Recalculate to see the schedule output." : "Recalculate to see this item's output.")); return container; }
-    if (row.errors?.length) container.append(node("p", "message error", row.errors.map(error => {
-      const label = definition?.row_fields?.find(field => field.column === error.cell)?.label || error.cell;
-      return `${label}: ${error.message}`;
-    }).join("\n")));
+    if (row.errors?.length) {
+      const messages = row.errors.filter(error => !String(error.message).startsWith("#"))
+        .map(error => String(error.message).replace(/#(?:VALUE!|REF!|NUM!|DIV\/0!|N\/A|NAME\?|NULL!|CALC!)/g, "an unavailable calculation value"));
+      if (!messages.length) {
+        const inputs = row.inputs || {}, required = [];
+        if (!(inputs.O > 0)) required.push("Item QTY");
+        if (!inputs.W) required.push("Teams/Crews");
+        if (inputs.Y && !(inputs.AL > 0) && !(inputs.pipe_labour_hours > 0)) required.push("Diameter or Pipe Labour hours");
+        if ((inputs.Y || inputs.AA) && !(inputs.AN > 0)) required.push("Multiplier");
+        messages.push(required.length ? `Enter ${required.join(", ")}.` : "Check the item inputs and selected products, then recalculate.");
+      }
+      container.append(node("p", "message error", [...new Set(messages)].join("\n")));
+    }
     const breakdown = row.breakdown;
     if (!breakdown || !Array.isArray(breakdown.rows)) { container.append(node("p", "helper", "The item breakdown is unavailable.")); sourceGroups(container, definition, row); return container; }
     const scroll = node("div", "table-scroll penetration-breakdown-scroll"), table = node("table", "penetration-breakdown-table");

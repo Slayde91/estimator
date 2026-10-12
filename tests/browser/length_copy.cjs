@@ -162,7 +162,7 @@ async function saveLoad(info) {
   await filter.fill('native-clipboard'); await filter.press('Control+a'); await filter.press('Control+c'); await filter.fill(''); await filter.press('Control+v');
   await expect(filter).toHaveValue('native-clipboard'); assert.equal((await snapshot()).items.length, countBeforeText); await filter.fill('');
   evidence.nativeTextClipboard = true;
-  await select(steel.id); if (!await page.locator('.takeoff-markup-settings').isVisible()) await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await select(steel.id); if (!await page.locator('.takeoff-markup-settings').isVisible()) await page.locator('#view-takeoffs').getByRole('button', { name: 'Settings', exact: true }).click();
   const settings = page.locator('.takeoff-markup-settings');
   await command(async () => { await settings.getByLabel('Level', { exact: true }).fill('L-CHANGED'); await settings.getByLabel('Level', { exact: true }).press('Tab'); }, 'bulk_update');
   await settings.getByRole('button', { name: 'Close settings', exact: true }).click();

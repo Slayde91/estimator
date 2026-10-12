@@ -272,7 +272,7 @@ def matrix_rows(graph):
     return rows
 
 
-def export_matrix_pdf(graph):
+def export_matrix_pdf(graph, *, company=None):
     from html import escape
     import re
     from reportlab.lib import colors
@@ -280,10 +280,14 @@ def export_matrix_pdf(graph):
     from reportlab.lib.styles import ParagraphStyle
     from reportlab.platypus import SimpleDocTemplate, Paragraph, LongTable, TableStyle, Spacer
 
+    from .report import _company_header, _register_fonts, _RED, _LINE, _LIGHT, _MUTED
+    from .company_settings import company_logo
+    _register_fonts()
+    logo = company_logo(company)
     rows = matrix_rows(graph)
     output = BytesIO()
     document = SimpleDocTemplate(output, pagesize=landscape(A3), leftMargin=30,
-        rightMargin=30, topMargin=30, bottomMargin=36, title='Passive_Fire_Matrix',
+        rightMargin=30, topMargin=92, bottomMargin=36, title='Passive_Fire_Matrix',
         author='CEASEFIRE ESTIMATOR', invariant=True)
     cell_style = ParagraphStyle('MatrixCell', fontName='Helvetica', fontSize=8, leading=10)
     header_style = ParagraphStyle('MatrixHeader', parent=cell_style, fontName='Helvetica-Bold', textColor=colors.white)
@@ -296,16 +300,18 @@ def export_matrix_pdf(graph):
     table = LongTable([[cell(value, True) for value in MATRIX_HEADERS]] +
                       [[cell(value) for value in row] for row in rows],
                       colWidths=[65,65,65,125,65,125,85,120,155,90,100], repeatRows=1)
-    table.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,0),colors.HexColor('#841824')),
-        ('GRID',(0,0),(-1,-1),.35,colors.HexColor('#D4C8CA')),
+    table.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,0),_RED),
+        ('GRID',(0,0),(-1,-1),.35,_LINE),
         ('VALIGN',(0,0),(-1,-1),'TOP'),('LEFTPADDING',(0,0),(-1,-1),6),
         ('RIGHTPADDING',(0,0),(-1,-1),6),('TOPPADDING',(0,0),(-1,-1),7),
         ('BOTTOMPADDING',(0,0),(-1,-1),7),
-        ('ROWBACKGROUNDS',(0,1),(-1,-1),[colors.white,colors.HexColor('#F8F5F5')])]))
+        ('ROWBACKGROUNDS',(0,1),(-1,-1),[colors.white,_LIGHT])]))
     title = Paragraph('Passive_Fire_Matrix', ParagraphStyle('MatrixTitle',fontName='Helvetica-Bold',fontSize=18,leading=22))
     def footer(canvas, doc):
-        canvas.saveState(); canvas.setFont('Helvetica',7)
-        canvas.setFillColor(colors.HexColor('#63575B'))
+        canvas.saveState()
+        _company_header(canvas, logo, *doc.pagesize, 30, 'PASSIVE FIRE MATRIX', company=company)
+        canvas.setFont('Helvetica',7)
+        canvas.setFillColor(_MUTED)
         canvas.drawString(30,18,f"UNAPPROVED DRAFT | {('Service Plans' if graph['version'] == 3 else 'Defect Reports')} | Physical revision {graph['revision']}")
         canvas.drawRightString(doc.pagesize[0]-30,18,f'Page {doc.page}')
         canvas.restoreState()
@@ -313,7 +319,7 @@ def export_matrix_pdf(graph):
     return output.getvalue(), 'application/pdf', 'Passive_Fire_Matrix.pdf'
 
 
-def export_physical_graph(graph, format, source_names=None, *, confirmation=None):
+def export_physical_graph(graph, format, source_names=None, *, confirmation=None, company=None):
     """Return bytes, MIME and filename for a draft-only diagnostic register.
 
     CSV includes all retained entities. XLSX places active entities in their
@@ -330,7 +336,7 @@ def export_physical_graph(graph, format, source_names=None, *, confirmation=None
         raise ValidationError('Choose CSV, XLSX or the matrix PDF draft physical export.')
     graph = validate_graph(graph)
     if format == 'pdf':
-        return export_matrix_pdf(graph)
+        return export_matrix_pdf(graph, company=company)
     current = graph['version'] in (2, 3)
     common_headers = {1: COMMON_HEADERS, 2: V2_COMMON_HEADERS, 3: V3_COMMON_HEADERS}[graph['version']]
     details_headers = DETAIL_HEADERS + (('marker_json',) if graph['version'] == 3 or any('marker' in entry for entry in graph['barriers']) else ())

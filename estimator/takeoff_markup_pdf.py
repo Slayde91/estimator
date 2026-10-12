@@ -70,7 +70,7 @@ def surface_label_point(geometry):
     return None
 
 
-def export_marked_pdf(document, items, results, confirmations, linked, documents, *, project_id, revision, mode, physical_rows=None, snapshot=None, physical_rendering=None, annotations=(), signatures=(), graphics=()):
+def export_marked_pdf(document, items, results, confirmations, linked, documents, *, project_id, revision, mode, physical_rows=None, snapshot=None, physical_rendering=None, annotations=(), signatures=(), graphics=(), company=None):
     from .takeoff_exports import linked_result_text
     from .takeoff_presentation import effective_appearance, legend_rows
     if not _SLOTS.acquire(blocking=False):
@@ -98,7 +98,7 @@ def export_marked_pdf(document, items, results, confirmations, linked, documents
         if vertices > 200000:
             raise ValidationError('The visible markup geometry exceeds the PDF export limit. Export a smaller visible selection.')
         spec = {'document': document, 'items': rows, 'project_id': project_id, 'revision': revision, 'mode': mode,
-                'logo': str(ROOT / 'static' / 'ceasefire-logo.png')}
+                'logo': str(ROOT / 'static' / 'ceasefire-logo.png'), 'company': company}
         from .takeoff_annotations import annotation_appearance, validate_annotation
         spec['annotations'] = []
         for annotation in annotations:

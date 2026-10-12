@@ -41,7 +41,7 @@ async function inspectHeader(width) {
     const buttons = await page.locator('nav[aria-label="Main navigation"] .nav-icon').evaluateAll(nodes => nodes.map(el => {
       const b = el.getBoundingClientRect(); return { x: b.x, y: b.y, width: b.width, height: b.height };
     }));
-    assert.equal(buttons.length, 7);
+    assert.equal(buttons.length, 8);
     for (const b of buttons) {
       assert.ok(b.width >= 40 && b.height >= 40, `Usable navigation target at ${width}`);
       assert.ok(b.x >= nav.x && b.x + b.width <= nav.x + nav.width + 1 && b.y >= nav.y && b.y + b.height <= nav.y + nav.height + 1, `Individual navigation button fits at ${width}`);
@@ -138,12 +138,12 @@ async function inspectHeader(width) {
     assert.equal(await page.locator(`#${id}-navigation-toggle svg`).getAttribute('viewBox'),await page.locator(`#${source} svg`).getAttribute('viewBox'));
     assert.equal(await page.locator(`#${id}-navigation-toggle svg`).innerHTML(),await page.locator(`#${source} svg`).innerHTML());
   }
-  await expect(page.locator('#takeoff-navigation-toggle img')).toHaveAttribute('src','/icons/navigation-takeoffs.png');
+  await expect(page.locator('#takeoff-navigation-toggle img')).toHaveAttribute('src','/icons/navigation-takeoffs.svg');
   assert.ok(await page.locator('#takeoff-navigation-toggle img').evaluate(img=>img.complete&&img.naturalWidth>0));
   await expect(page.getByRole('button',{name:'Save As',exact:true})).toHaveCount(0);
   await expect(page.locator('#project-attachment-zone')).toHaveAttribute('title','Drag or drop files');
   const icons=await page.locator('nav[aria-label="Main navigation"] .nav-icon>svg, nav[aria-label="Main navigation"] .nav-icon>span[aria-hidden]>svg, nav[aria-label="Main navigation"] .nav-icon>img').evaluateAll(nodes=>nodes.map(el=>({width:el.getBoundingClientRect().width,height:el.getBoundingClientRect().height,stroke:el.tagName.toLowerCase()==='svg'?el.getAttribute('stroke-width'):null})));
-  assert.equal(icons.length,7);for(const icon of icons){assert.equal(icon.width,25);assert.equal(icon.height,25);if(icon.stroke!==null)assert.equal(icon.stroke,'1.8');}
+  assert.equal(icons.length,8);for(const icon of icons){assert.equal(icon.width,25);assert.equal(icon.height,25);if(icon.stroke!==null)assert.equal(icon.stroke,'1.8');}
   await chooseCalculator(page,'Firestopping'); await idle();
   await expect(page.locator('#penetration-new-item')).toBeHidden(); await expect(page.locator('#penetration-recalculate')).toBeHidden();
   for (const [id, name] of [['penetration-clear','Clear'],['penetration-add-to-schedule','Add to Schedule'],['penetration-add-to-library','Add to Library']]) { await expect(page.locator('#'+id)).toBeVisible(); await expect(page.locator('#'+id)).toHaveAccessibleName(name); }
@@ -164,7 +164,7 @@ async function inspectHeader(width) {
     await chooseTakeoff(page, name); await idle();
     const visibility=page.getByRole('button',{name:'Visibility',exact:true});await expect(visibility).toBeVisible();assert.ok(await visibility.locator('img').evaluate(img=>img.complete && img.naturalWidth>0));
     await expect(page.locator('.takeoff-workspace-title')).toHaveText(name==='Duct'?'Ductwork':name);
-    const reference=await page.getByRole('button',{name:'Settings',exact:true}).boundingBox();
+    const reference=await page.locator('#view-takeoffs').getByRole('button', { name: 'Settings', exact: true }).boundingBox();
     for(const tool of ['Visibility',...name==='Steel'?['Markups','Legend']:name==='Duct'?['Legend']:[]]){const b=await page.getByRole('button',{name:tool,exact:true}).boundingBox();assert.equal(b.width,reference.width);assert.equal(b.height,reference.height);}
     const documents=await page.locator('.takeoff-source-documents').boundingBox(),search=await page.locator('.takeoff-search-controls').boundingBox();assert.ok(documents.x<search.x||documents.y<search.y);await expect(page.locator('.takeoff-drawing-layout>.takeoff-source-documents')).toHaveCount(0);
     const register = page.locator(['Defect Reports', 'Service Plans'].includes(name) ? '.takeoff-physical-register' : '.takeoff-register').filter({ visible: true });

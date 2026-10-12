@@ -90,7 +90,7 @@ async function fitPageMatrix() {
   const protectedBefore = await snapshot();
   const calculatorsBefore = await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot());
   const fit = page.getByRole('button', { name: 'Fit page', exact: true });
-  const settings = page.getByRole('button', { name: 'Settings', exact: true });
+  const settings = page.locator('#view-takeoffs').getByRole('button', { name: 'Settings', exact: true });
   const metrics = () => page.evaluate(() => {
     const frame = document.querySelector('.takeoff-viewport'), canvas = frame.querySelector('canvas');
     const bounds = frame.getBoundingClientRect(), paper = canvas.getBoundingClientRect(), header = document.querySelector('.app-header').getBoundingClientRect();
@@ -198,7 +198,7 @@ async function fitPageMatrix() {
   await page.mouse.dblclick(...await sourcePoint([550, 400]));
   let reply = await command(() => dialog('Add steel object', { 'Member mark': 'TOOLBAR-STEEL', 'Count/QTY': 2 }, 'Add item'), 'create_item');
   const item = reply.snapshot.items[0];
-  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await page.locator('#view-takeoffs').getByRole('button', { name: 'Settings', exact: true }).click();
   for (const width of [1800, 1146, 764, 500]) await inspectLeftPanel(width);
   await inspectLeftPanel(1146, 'beside');
   await page.getByLabel('Register position', { exact: true }).selectOption('below');

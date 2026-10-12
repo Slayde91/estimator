@@ -25,4 +25,9 @@ def validate_item_for_add(draft):
     if missing:
         raise ValidationError('Complete ' + ', '.join(missing)
                               + ' before adding this Firestopping item.')
+    mastic_type, mastic_qty = inputs.get('AB'), inputs.get('AC')
+    if mastic_type and not (isinstance(mastic_qty, (int, float)) and mastic_qty > 0):
+        raise ValidationError('Enter a Mastic Qty greater than zero for the selected Mastic Type.')
+    if mastic_qty not in (None, '', 0) and not mastic_type:
+        raise ValidationError('Choose a Mastic Type for the entered Mastic Qty.')
     return normalized

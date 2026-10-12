@@ -15,6 +15,7 @@
     "test:themes": "node --test tests/test_theme_ui.cjs",
     "test:themes-browser": "node tests/browser/themes.cjs",
     "test:header-controls": "node tests/browser/header_controls.cjs",
+    "test:company-firestopping-settings": "node tests/browser/company_firestopping_settings.cjs",
     "test:estimator-header-state": "node tests/browser/estimator_header_state.cjs",
     "test:viewer-pan-scale": "node tests/browser/viewer_pan_scale.cjs",
     "test:calculator-navigation": "node tests/browser/calculator_navigation.cjs",

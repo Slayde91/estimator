@@ -16,6 +16,7 @@ jobs:
       - run: python -m pip install -r requirements-dev.txt
       - run: python -m unittest discover -s tests -v
       - run: node --check static/theme.js
+      - run: node --check static/company-settings.js
       - run: node --check static/app.js
       - run: node --check static/calculators.js
       - run: node --check static/downloads.js
@@ -106,6 +107,7 @@ jobs:
       - run: npm run test:pdf-tools
       - run: npm run test:takeoffs-area-copy-visibility
       - run: npm run test:header-controls
+      - run: npm run test:company-firestopping-settings
       - run: npm run test:estimator-header-state
       - run: npm run test:calculator-navigation
       - run: npm run test:document-menus

@@ -95,7 +95,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
 
         def send_report(self, quote, report_kind, destination=None):
             from .report import render_quote_pdf
-            report = render_quote_pdf({**quote, "report_kind": report_kind})
+            report = render_quote_pdf({**quote, "report_kind": report_kind}, company=store.company_settings())
             self.send_download(report, "application/pdf", "CEASEFIRE-Estimate.pdf", destination)
 
         def send_quote(self, status, quote):
@@ -146,7 +146,9 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
             if takeoff_http is not None and takeoff_http.dispatch(self, route):
                 return
             if self.command == "GET":
-                if route == '/api/libraries':
+                if route == '/api/company-settings':
+                    self.send_payload(200, store.company_settings())
+                elif route == '/api/libraries':
                     self.send_payload(200, libraries.overview())
                 elif route in {'/api/libraries/penetration', '/api/libraries/technical'}:
                     query = parse_qs(urlsplit(self.path).query, keep_blank_values=True)
@@ -201,7 +203,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     self.send_report(store.quote(route[len("/api/quotes/"):-len("/report.pdf")]), "Saved quote")
                 elif route.startswith("/api/quotes/"):
                     self.send_quote(200, store.quote(route.removeprefix("/api/quotes/")))
-                elif route in {"/", "/index.html", "/theme.js", "/theme.css", "/app.js", "/downloads.js", "/styles.css", "/calculators.js", "/calculators.css", "/penetration-breakdown.js", "/penetration.js", "/penetration.css", "/libraries.js", "/library-detail-text.js", "/libraries.css", "/library-editor.js", "/library-editor.css", "/icons/navigation-home.png", "/icons/document.png", "/icons/schedule-add.png", "/icons/navigation-help.png", "/icons/navigation-takeoffs.png", "/icons/takeoff-visibility.jpg", "/icons/takeoff-colour-wheel.png", "/icons/takeoff-legend.png", "/ceasefire-logo.png", "/ceasefire-app.ico", "/fonts/Montserrat-Variable.ttf", "/fonts/Vera.ttf", "/fonts/VeraBd.ttf", "/fonts/Montserrat-Italic-Variable.ttf", "/takeoffs.js", "/takeoffs.css", "/takeoff-geometry.js", "/takeoff-physical.js", "/takeoff-annotations.js", "/takeoff-signatures.js", "/takeoff-graphics.js", "/takeoff-graphics-ui.js", "/takeoff-pane-resize.js", "/takeoff-initial-pages.js", "/takeoff-pdf-tools.js", "/takeoff-pdf-tools.css", "/icons/default-memory.svg", "/icons/takeoff-set-default.png", "/icons/signature.svg", "/help-glossary.js", "/help-glossary.css", "/takeoff-search.js", "/takeoff-shortcuts.js", "/icons/takeoff-callout.png", "/takeoff-pdf-worker.mjs", "/takeoff-library-links.js", "/icons/takeoff-visibility.png", "/icons/takeoff-bullet-list.png", "/icons/takeoff-numbered-list.png", "/icons/takeoff-add-service.png", "/icons/takeoff-add-barrier.png", "/icons/takeoff-transfer.png", "/icons/takeoff-measure.avif", "/header-tagline-media.js", "/header-tagline-character.gif", "/header-tagline-character-still.png"}:
+                elif route in {"/", "/index.html", "/company-settings.js", "/icons/navigation-takeoffs.svg", "/theme.js", "/theme.css", "/app.js", "/downloads.js", "/styles.css", "/calculators.js", "/calculators.css", "/penetration-breakdown.js", "/penetration.js", "/penetration.css", "/libraries.js", "/library-detail-text.js", "/libraries.css", "/library-editor.js", "/library-editor.css", "/icons/navigation-home.png", "/icons/document.png", "/icons/schedule-add.png", "/icons/navigation-help.png", "/icons/navigation-takeoffs.png", "/icons/takeoff-visibility.jpg", "/icons/takeoff-colour-wheel.png", "/icons/takeoff-legend.png", "/ceasefire-logo.png", "/ceasefire-app.ico", "/fonts/Montserrat-Variable.ttf", "/fonts/Vera.ttf", "/fonts/VeraBd.ttf", "/fonts/Montserrat-Italic-Variable.ttf", "/takeoffs.js", "/takeoffs.css", "/takeoff-geometry.js", "/takeoff-physical.js", "/takeoff-annotations.js", "/takeoff-signatures.js", "/takeoff-graphics.js", "/takeoff-graphics-ui.js", "/takeoff-pane-resize.js", "/takeoff-initial-pages.js", "/takeoff-pdf-tools.js", "/takeoff-pdf-tools.css", "/icons/default-memory.svg", "/icons/takeoff-set-default.png", "/icons/signature.svg", "/help-glossary.js", "/help-glossary.css", "/takeoff-search.js", "/takeoff-shortcuts.js", "/icons/takeoff-callout.png", "/takeoff-pdf-worker.mjs", "/takeoff-library-links.js", "/icons/takeoff-visibility.png", "/icons/takeoff-bullet-list.png", "/icons/takeoff-numbered-list.png", "/icons/takeoff-add-service.png", "/icons/takeoff-add-barrier.png", "/icons/takeoff-transfer.png", "/icons/takeoff-measure.avif", "/header-tagline-media.js", "/header-tagline-character.gif", "/header-tagline-character-still.png"}:
                     name = "index.html" if route == "/" else route[1:]
                     path = ROOT / "static" / name
                     kind = {".js": "text/javascript; charset=utf-8", ".mjs": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".html": "text/html; charset=utf-8", ".png": "image/png", ".svg": "image/svg+xml", ".jpg": "image/jpeg", ".gif": "image/gif", ".avif": "image/avif", ".ico": "image/x-icon", ".ttf": "font/ttf"}[path.suffix]
@@ -214,7 +216,9 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
             elif self.command in {"POST", "PUT"}:
                 body = self.read_json()
                 calculator_route = re.fullmatch(r'/api/calculators/([a-z_]+)/(calculate|worksheet|report\.pdf|summary\.pdf|register\.xlsx|state|template|import)', route)
-                if route == '/api/libraries/penetration':
+                if route == '/api/company-settings':
+                    self.send_payload(200, store.save_company_settings(body))
+                elif route == '/api/libraries/penetration':
                     if self.command != 'POST':
                         self.send_payload(405, {'error': 'Method not allowed.'})
                         return
@@ -257,7 +261,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     snapshot = prepare_technical_item(body, library=libraries)
                     destination = projects.capture_download(body['download']) if 'download' in body else None
                     if route.endswith('.pdf'):
-                        self.send_download(render_technical_item_pdf(snapshot), 'application/pdf', 'CEASEFIRE-Technical-Item.pdf', destination)
+                        self.send_download(render_technical_item_pdf(snapshot, company=store.company_settings()), 'application/pdf', 'CEASEFIRE-Technical-Item.pdf', destination)
                     else:
                         self.send_download(build_technical_item_xlsx(snapshot), 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'CEASEFIRE-Technical-Item.xlsx', destination)
                 elif route in {'/api/penetration/item.pdf', '/api/penetration/item.xlsx'}:
@@ -268,7 +272,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     snapshot = prepare_item_snapshot(body, library=libraries, default_configuration=store.configuration(), require_diagram=route.endswith('.pdf'))
                     destination = projects.capture_download(body['download']) if 'download' in body else None
                     if route.endswith('.pdf'):
-                        self.send_download(render_item_pdf(snapshot), 'application/pdf', 'CEASEFIRE-Firestopping-Item.pdf', destination)
+                        self.send_download(render_item_pdf(snapshot, company=store.company_settings()), 'application/pdf', 'CEASEFIRE-Firestopping-Item.pdf', destination)
                     else:
                         self.send_download(build_item_xlsx(snapshot), 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'CEASEFIRE-Firestopping-Item.xlsx', destination)
                 elif route in {'/api/penetration/definition', '/api/penetration/validate-item', '/api/penetration/calculate', '/api/penetration/report.pdf', '/api/penetration/register.xlsx'}:
@@ -300,7 +304,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                         details = project_details(body.get('project_details'))
                         result = calculate_penetration(body['draft'], config)
                         if action == 'report.pdf':
-                            report = render_penetration_pdf(result, definition(config), details, library=libraries)
+                            report = render_penetration_pdf(result, definition(config), details, library=libraries, company=store.company_settings())
                             self.send_download(report, 'application/pdf', 'CEASEFIRE-Firestopping-Estimate.pdf', destination)
                         else:
                             report = build_penetration_register(result, definition(config), details)
@@ -381,7 +385,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                         from .calculator_report import build_calculator_report, build_calculator_summary_report
                         from .project_file import project_details
                         builder = build_calculator_report if action == 'report.pdf' else build_calculator_summary_report
-                        report = builder(calculator_id, inputs, project_details=project_details(body.get('project_details')))
+                        report = builder(calculator_id, inputs, project_details=project_details(body.get('project_details')), company=store.company_settings())
                         filename = 'APPENDIX A.pdf' if action == 'report.pdf' else f'ceasefire-{calculator_id}-materials-summary.pdf'
                         self.send_download(report, 'application/pdf', filename, destination)
                     elif action == 'register.xlsx':

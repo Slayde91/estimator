@@ -234,7 +234,7 @@ def default_labour_bands():
 def draft_global_defaults():
     return {**GLOBAL_DEFAULTS, **SCALAR_SETTING_DEFAULTS,
             'service_routes': default_service_routes(),
-            'labour_bands': default_labour_bands()}
+            'labour_bands': default_labour_bands(), 'detail_options': {}}
 
 
 def settings_schema():
@@ -249,7 +249,8 @@ def settings_schema():
                             if name in ('label', 'basis', 'units', 'overflow')}}
             for key, spec in LABOUR_BAND_SPECS.items()
         ],
-        'structured_global_keys': ['service_routes', 'labour_bands'],
+        'structured_global_keys': ['service_routes', 'labour_bands', 'detail_options'],
+        'detail_option_columns': ['J', 'K', 'L', 'M', 'N', 'P', 'V'],
     }
 
 
@@ -447,13 +448,14 @@ def definition(configuration=None, service_types=None):
     }]
     global_fields.extend({
         'column': key, 'address': None, 'label': 'Waste', 'type': 'number',
-        'options': [], 'group': 'SETTINGS', 'default': 0, 'format': 'percent',
+        'options': [], 'group': 'SETTINGS', 'default': .3, 'format': 'percent',
         'units': '%', 'min': 0, 'step': 1, 'source': 'application',
         'help': f'Applies to {context}.', 'legacy_column': column,
     } for key, (column, context) in WASTE_SETTINGS.items())
     defaults = draft_global_defaults()
+    defaults.update({key: .3 for key in WASTE_SETTINGS})
     return {'id': 'penetration', 'title': 'Firestopping Estimator', 'source_sha256': source_model()['source']['sha256'],
-        'capacity': CAPACITY, 'defaults': {'globals': deepcopy(defaults), 'rows': [{'id': 'line-1', 'inputs': deepcopy(ROW_DEFAULTS)}]},
+        'capacity': CAPACITY, 'defaults': {'globals': deepcopy(defaults), 'rows': [{'id': 'line-1', 'inputs': {**deepcopy(ROW_DEFAULTS), 'AY': 2, 'BE': 2}}]},
         'schedule_defaults': {'globals': deepcopy(defaults), 'rows': []},
         'global_fields': global_fields, 'row_fields': fields, 'output_fields': output_fields,
         'required_item_fields': required_item_fields(),
@@ -538,6 +540,23 @@ def _normalized_labour_bands(value, legacy=None):
     return result
 
 
+def normalize_detail_options(value):
+    if not isinstance(value, dict) or set(value) - {'J', 'K', 'L', 'M', 'N', 'P', 'V'}:
+        raise ValidationError('Unknown Details dropdown setting.')
+    result = {}
+    for column, options in value.items():
+        if not isinstance(options, list) or len(options) > 200:
+            raise ValidationError('Each Details dropdown allows up to 200 values.')
+        clean = []
+        for option in options:
+            if not isinstance(option, str) or not option.strip() or len(option) > 120 or ';' in option or any(ord(char) < 32 for char in option):
+                raise ValidationError('Dropdown values must be nonempty text, at most 120 characters each, separated by semicolons.')
+            if option.strip() not in clean:
+                clean.append(option.strip())
+        result[column] = clean
+    return result
+
+
 def normalize_draft(draft):
     if draft is None:
         draft = {'globals': {}, 'rows': [{'id': 'line-1', 'inputs': {}}]}
@@ -566,11 +585,12 @@ def normalize_draft(draft):
 
     globals_out = deepcopy(defaults)
     for col, value in globals_in.items():
-        if (col in ('service_routes', 'labour_bands', LEGACY_PIPE_WASTE_SETTING)
+        if (col in ('service_routes', 'labour_bands', 'detail_options', LEGACY_PIPE_WASTE_SETTING)
                 or col in legacy_pipe_settings):
             continue
         normalized_value = checked(value, col == 'J', col + '2')
         globals_out[col] = SCALAR_SETTING_DEFAULTS[col] if col in SCALAR_SETTING_DEFAULTS and normalized_value is None else normalized_value
+    globals_out['detail_options'] = normalize_detail_options(globals_in.get('detail_options', {}))
     globals_out['service_routes'] = _normalized_service_routes(globals_in.get('service_routes'))
     globals_out['labour_bands'] = _normalized_labour_bands(globals_in.get('labour_bands'), globals_in)
     if globals_out['J'] not in ('Yes', 'No', None):

@@ -248,10 +248,10 @@ async function controls() {
   assert.equal(state.calibrations.length, 0, 'A barrier Count marker requires no scale'); assert.equal(state.items.length, 0, 'Barrier counts must not create steel/duct quantity rows');
   const detailBox = await page.locator('.takeoff-physical-details').boundingBox(), drawingBox = await page.locator('.takeoff-viewport').boundingBox();
   assert.ok(detailBox.x + detailBox.width <= drawingBox.x + 2, 'Item Details sits left of the PDF page');
-  await page.getByRole('button', { name: 'Settings', exact: true }).click(); await expect(details()).toBeHidden();
+  await page.locator('#view-takeoffs').getByRole('button', { name: 'Settings', exact: true }).click(); await expect(details()).toBeHidden();
   await marker(barrier).click(); await expect(details()).toBeHidden(); await marker(barrier).dblclick({ delay: 100 }); await expect(details()).toBeVisible();
-  await page.getByRole('button', { name: 'Settings', exact: true }).click(); await expect(details()).toBeHidden();
-  await page.getByRole('button', { name: 'Settings', exact: true }).click(); await expect(details()).toBeVisible();
+  await page.locator('#view-takeoffs').getByRole('button', { name: 'Settings', exact: true }).click(); await expect(details()).toBeHidden();
+  await page.locator('#view-takeoffs').getByRole('button', { name: 'Settings', exact: true }).click(); await expect(details()).toBeVisible();
   evidence.countPlacement = { marker: originalMarker, derivedCallout: true, noScaleRequired: true, paneOnSelectionAndSettings: true };
   console.log('Count placement, exact rotated coordinates, automatic callout and Item Details passed.');
   await page.locator('.takeoff-physical-details').evaluate(el => { el.scrollTop = 0; });

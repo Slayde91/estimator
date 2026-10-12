@@ -1,3 +1,4 @@
+const { cycleTheme } = require('./theme_navigation.cjs');
 // Render the original artwork under the real CSP on a disposable app only.
 const { chromium, expect } = require('@playwright/test');
 const { spawn, spawnSync } = require('node:child_process');
@@ -56,7 +57,7 @@ print(json.dumps({'size':[w,h],'corner':corner,'passed':True}))
   await page.goto(`http://127.0.0.1:${fixture.port}/`, { waitUntil: 'networkidle' });
   await page.waitForFunction(() => window.CeasefireDesktop?.status()?.ready);
   for (const theme of ['ocean', 'midnight', 'forest', 'slate']) {
-    for (let n = 0; n < 5 && await page.locator('html').getAttribute('data-theme') !== theme; n++) await page.locator('#theme-toggle').click();
+    for (let n = 0; n < 5 && await page.locator('html').getAttribute('data-theme') !== theme; n++) await cycleTheme(page);
     await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
     await page.evaluate(() => window.CeasefireHeaderTaglineMedia.stop());
     await shot('.brand-logo', theme + '-logo', theme === 'midnight', true);

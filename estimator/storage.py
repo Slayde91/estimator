@@ -51,6 +51,20 @@ class Store:
             row = db.execute("SELECT data FROM settings WHERE id=1").fetchone()
         return json.loads(row[0]) if row else {"inventory": {}, "rates": {}}
 
+    def company_settings(self):
+        from .company_settings import DEFAULTS
+        with self.connect() as db:
+            row = db.execute("SELECT value FROM app_preferences WHERE key='company_settings'").fetchone()
+        return json.loads(row[0]) if row else dict(DEFAULTS)
+
+    def save_company_settings(self, value):
+        from .company_settings import validate_company_settings
+        value = validate_company_settings(value)
+        with self.connect() as db:
+            db.execute("INSERT INTO app_preferences(key,value) VALUES('company_settings',?) "
+                       "ON CONFLICT(key) DO UPDATE SET value=excluded.value", (json.dumps(value),))
+        return value
+
     def project_folder(self):
         with self.connect() as db:
             row = db.execute("SELECT value FROM app_preferences WHERE key='project_folder'").fetchone()

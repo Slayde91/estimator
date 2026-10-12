@@ -470,4 +470,4 @@ def export_workspace(snapshot, request, format, *, documents, store):
     from .takeoff_markup_pdf import export_marked_pdf
     return export_marked_pdf(document, selected, results, confirmations, linked, documents,
                              project_id=snapshot['project_id'], revision=snapshot['revision'], mode=request['mode'], snapshot=snapshot,
-                             annotations=annotations, signatures=signatures, graphics=graphics)
+                             annotations=annotations, signatures=signatures, graphics=graphics, company=store.company_settings())

@@ -74,7 +74,7 @@ async function scaleGeometry(mode, width) {
       }
     }
     await chooseTakeoff(page, 'STEEL');
-    await page.getByRole('button', { name: 'Settings', exact: true }).click(); await scaleGeometry('STEEL/settings', width);
+    await page.locator('#view-takeoffs').getByRole('button', { name: 'Settings', exact: true }).click(); await scaleGeometry('STEEL/settings', width);
     await page.getByRole('button', { name: 'Close settings', exact: true }).click();
     await page.screenshot({ path: path.join(output, `scale-overlay-${width}.png`) });
   }

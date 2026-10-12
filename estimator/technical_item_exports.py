@@ -232,7 +232,7 @@ def render_technical_item_pdf(snapshot, *, company=None):
         report.story.append(report.p(record['notice']))
     rows = []
     for label, value, url in _field_rows(snapshot):
-        cell = report.rich(f'<link href="{escape(url, quote=True)}" color="#0563C1"><u>{_escaped(value)}</u></link>') if url else report.p(value, 'cell')
+        cell = report.rich(f'<link href="{escape(url, quote=True)}" color="#BD0018"><u>{_escaped(value)}</u></link>') if url else report.p(value, 'cell')
         rows.append([report.p(label, 'cell'), cell])
     if rows:
         report.story.append(report.table(['Field', 'Value'], rows, [content * .3, content * .7]))

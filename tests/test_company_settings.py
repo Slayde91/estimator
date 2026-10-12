@@ -56,6 +56,7 @@ class CompanySettingsTests(unittest.TestCase):
                     self.assertIn(company['email'], page.extract_text())
                     self.assertNotIn(DEFAULTS['email'], page.extract_text())
                     self.assertIn(b'.741176 0 .094118 RG', page.get_contents().get_data())
+                    self.assertNotIn(b'.019608 .388235 .756863 rg', page.get_contents().get_data())
 
     def test_save_reopen_valid_logo_and_contact_header(self):
         image = BytesIO(); Image.new('RGB', (20, 10), 'red').save(image, 'PNG')

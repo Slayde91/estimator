@@ -1,4 +1,4 @@
-"""Manual Steel counts preserve physical identities and native calculator inputs."""
+"""Manual Steel/Duct counts preserve physical identities and native calculator inputs."""
 from copy import deepcopy
 from hashlib import sha256
 from io import BytesIO
@@ -114,7 +114,7 @@ class TakeoffCountTests(unittest.TestCase):
 
     def test_snapshot_rejects_forged_counts_and_manual_measurements_on_traces(self):
         identifier = self.add((3.5,))[0]; original = deepcopy(self.case.state['snapshot'])
-        for changes in ({'quantity': 2}, {'count_id': None}, {'measurement': None}, {'mode': 'duct'},
+        for changes in ({'quantity': 2}, {'count_id': None}, {'measurement': None}, {'mode': 'wall'},
                         {'geometry': {key: value for key, value in self.item(identifier)['geometry'].items() if key != 'kind'}}):
             value = deepcopy(original); value['items'][0].update(changes)
             with self.subTest(changes=changes), self.assertRaises(ValidationError): validate_snapshot(value)

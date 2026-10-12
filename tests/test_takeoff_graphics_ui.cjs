@@ -27,7 +27,7 @@ function fixture(initial = {}, commandOverride) {
   const snapshot = { graphics: { version:1, records:[] }, items:[], calibrations:[], transfers:[] };
   const document = { fonts: { load() { let resolve, reject; const promise = new Promise((yes,no) => { resolve=yes; reject=no; }); fonts.push({promise,resolve,reject}); return promise; } },
     createElement(tag) { assert.equal(tag,"canvas"); return { getContext() { return {}; } }; } };
-  const context = { window: {CeasefireTakeoffAnnotations:{text:value=>value.blocks.map(block=>block.runs.map(run=>run.text).join("")).join("\n"),richEditor(){return {read:()=>structuredClone(calls.richContent || {version:1,blocks:[{kind:"paragraph",runs:[{text:"TEXT"}]}]}),wrap:dom(),editor:dom()};}}}, document, Date:{now:()=>clock.now}, setTimeout, clearTimeout }; vm.createContext(context); vm.runInContext(code, context, {filename:source});
+  const context = { window: {crypto:require("node:crypto"),CeasefireTakeoffAnnotations:{text:value=>value.blocks.map(block=>block.runs.map(run=>run.text).join("")).join("\n"),richEditor(){return {read:()=>structuredClone(calls.richContent || {version:1,blocks:[{kind:"paragraph",runs:[{text:"TEXT"}]}]}),wrap:dom(),editor:dom()};}}}, document, Date:{now:()=>clock.now}, setTimeout, clearTimeout }; vm.createContext(context); vm.runInContext(code, context, {filename:source});
   const host = { state, X, G, clone:structuredClone,
     snapshot:()=>snapshot, documents:()=>originals, currentDocument:()=>originals.find(v=>v.id===state.document),
     pageDisplayKey:()=>JSON.stringify([state.session?.session_id,state.document,state.page,state.mode]),
@@ -42,6 +42,9 @@ function fixture(initial = {}, commandOverride) {
     pageMetadata:()=>({view:[0,0,600,800],rotation:0,user_unit:1}),drawingPoint:event=>event.pdf,drawingClickOpensSettings:()=>false,
     activePageCalibrations:()=>snapshot.calibrations,displayRotation:()=>state.viewport?.rotation || 0,
     node:dom,svg:(tag,attrs)=>Object.assign(dom(tag),{attributes:attrs}),button:(text,action)=>Object.assign(dom("button","",text),{action}),
+    formField:(definition,value)=>{const wrapper=dom("label"),control=dom(Array.isArray(definition[2])?"select":"input");control.name=definition[0];control.value=value;wrapper.append(control);return {wrapper,control,definition,read:()=>control.value};},
+    appearanceField:(definition,value)=>{const wrapper=dom("label"),control=dom("input");control.name=definition[0];control.value=value;wrapper.append(control);return {wrapper,control,read:()=>control.value};},
+    bindSetting(){},currentVisibilityControl:()=>Object.assign(dom("button"),{refresh(){}}),toggleSettings(){},
     renderPhysicalDetails(){},renderViewportPanel(){},
     ask:async(title,fields,helper,action,setup)=>{calls.ask++;let controls;if(title==="Textbox"&&setup){controls=[{wrapper:dom(),control:dom("textarea")}];setup(controls,ready=>{calls.ready=ready;});}const answer=calls.answerPromise?await calls.answerPromise:calls.answer;return answer&&controls?{...answer,text:controls[0].read()}:answer;},
     safely:async fn=>{try{return await fn();}catch(error){calls.error=error;throw error;}},
@@ -362,4 +365,97 @@ test("Measure point edit rechecks retained version after delayed Settings flush"
 });
 test("A cancelled old Textbox dialog cannot clear a newly armed same-page Textbox draft",async()=>{
   const f=drawingFixture();let release;f.calls.answerPromise=new Promise(resolve=>release=resolve);const activation=await f.start("textbox");activation.complete();await activation.pending;const pending=f.ui.point(pointer([100,200]));await Promise.resolve();f.ui.cancel();f.state.points=[[100,200]];const retained=structuredClone(f.state);release(null);await pending;assert.deepEqual(f.state,retained);assert.equal(f.writes.length,0);
+});
+
+for(const mode of ["steel","duct","wall","slab","defect_reports","service_plans"])test(`PDF-only Area creates a graphic and no item or quantity in ${mode}`,async()=>{
+  const initial=["defect_reports","service_plans"].includes(mode)?{mode:"physical",physicalScope:mode}:{mode};
+  const f=drawingFixture({...initial,calibration:"scale-A"});f.snapshot.calibrations.push({id:"scale-A",uniform_scale:true});const before=structuredClone(f.snapshot),activation=await f.start("area");activation.complete();await activation.pending;
+  await f.ui.point(pointer([100,200]));await f.ui.point(pointer([300,200]));await assert.rejects(f.ui.finish(),/three vertices/);assert.equal(f.writes.length,0);
+  await f.ui.point(pointer([300,400]));await f.ui.point(pointer([100,400]));await f.ui.finish();assert.equal(f.writes.length,1);
+  const sent=f.writes[0];assert.equal(sent.op,"create_graphic");assert.equal(sent.body.graphic.kind,"area");assert.equal(sent.body.graphic.mode,mode);assert.equal(sent.body.graphic.calibration_id,"scale-A");assert.equal(sent.body.graphic.quantity,undefined);assert.equal(sent.body.graphic.fields,undefined);
+  assert.deepEqual(sent.body.graphic.geometry,{points:[[100,200],[300,200],[300,400],[100,400]],exclusions:[]});
+  for(const key of ["items","calibrations","transfers"])assert.deepEqual(f.snapshot[key],before[key]);assert.equal(f.state.graphicSelected,"graphic-1");assert.equal(f.state.tool,"select");
+});
+
+test("Area requires a current uniform source calibration before loading fonts",async()=>{
+  for(const scale of [null,{id:"scale-A",uniform_scale:false}]){const f=fixture({calibration:"scale-A"});if(scale)f.snapshot.calibrations.push(scale);const before=structuredClone(f.state);await assert.rejects(f.ui.activate("area"),/drawing calibration/);assert.deepEqual(f.state,before);assert.equal(f.fonts.length,0);assert.equal(f.calls.command,0);}
+});
+
+function areaFixture(initial={}) {
+  const writes=[];let f;
+  f=fixture({calibration:"other-scale",graphicSelected:"area",...initial},async(op,body,guard)=>{
+    if(!guard())return null;
+    assert.equal(op,"update_graphic");writes.push(structuredClone(body));const area=f.snapshot.graphics.records[0];area.geometry=structuredClone(body.changes.geometry);area.version++;f.state.session.revision++;
+    f.state.session.pdf_measure_results=[{id:area.id,version:area.version,status:"current",gross_area_m2:100,excluded_area_m2:5,net_area_m2:95,label_point_pdf:[150,250]}];return {revision:f.state.session.revision};
+  });
+  f.snapshot.calibrations.push({id:"scale-A",uniform_scale:true},{id:"other-scale",uniform_scale:true});
+  f.snapshot.graphics.records.push({id:"area",version:3,kind:"area",mode:f.state.mode==="physical"?f.state.physicalScope:f.state.mode,document_id:"document-A",source_sha256:"a".repeat(64),page:1,text:"",appearance:X.defaults(),calibration_id:"scale-A",geometry:{points:[[100,200],[300,200],[300,400],[100,400]],exclusions:[{id:"hole",points:[[150,250],[200,250],[200,300],[150,300]],note:"Existing opening"}]}});
+  f.state.session.pdf_measure_results=[{id:"area",version:3,status:"current",gross_area_m2:100,excluded_area_m2:5,net_area_m2:95,label_point_pdf:[150,250]}];return {...f,writes};
+}
+
+test("Area exclusion edits only the selected graphic and inherits its own scale, preserving all authorities",async()=>{
+  const f=areaFixture(),before=structuredClone(f.snapshot),activation=await f.start("area-exclusion");activation.complete();await activation.pending;
+  assert.equal(f.state.tool,"graphic-area-exclusion");assert.equal(f.state.graphicSelected,"area");assert.equal(f.calls.command,0);
+  for(const point of [[220,320],[240,320],[240,340]])await f.ui.point(pointer(point));await f.ui.finish();assert.equal(f.writes.length,1);const update=f.writes[0];assert.equal(update.graphic_id,"area");assert.deepEqual(update.changes.geometry.points,before.graphics.records[0].geometry.points);assert.equal(update.changes.geometry.exclusions.length,2);
+  const hole=update.changes.geometry.exclusions[1];assert.match(hole.id,/^[0-9a-f-]{36}$/);assert.deepEqual(hole.points,[[220,320],[240,320],[240,340]]);assert.equal(hole.note,"");assert.equal(f.snapshot.graphics.records[0].calibration_id,"scale-A");assert.equal(f.calls.ask,0);
+  for(const key of ["items","calibrations","transfers"])assert.deepEqual(f.snapshot[key],before[key]);assert.equal(f.snapshot.graphics.records.length,1);assert.equal(f.state.tool,"select");
+});
+
+test("An exclusion cannot be armed without a current selected Area or against a retired basis",async()=>{
+  for(const change of [f=>f.state.graphicSelected=null,f=>f.snapshot.graphics.records[0].kind="polygon",f=>f.state.session.pdf_measure_results[0].status="needs_review",f=>f.state.session.pdf_measure_results[0].version=2,f=>f.snapshot.calibrations=[]]){
+    const f=areaFixture();change(f);const before=structuredClone(f.state);await assert.rejects(f.ui.activateExclusion(),/current calibrated PDF Area/);assert.deepEqual(f.state,before);assert.equal(f.fonts.length,0);assert.equal(f.writes.length,0);
+  }
+});
+
+test("Area exclusion rechecks selected identity and version after drawing fonts finish",async()=>{
+  const f=areaFixture(),activation=await f.start("area-exclusion");f.snapshot.graphics.records[0].version++;const before=structuredClone(f.state);activation.complete();await assert.rejects(activation.pending,/Area changed/);assert.deepEqual(f.state,before);assert.equal(f.writes.length,0);
+});
+
+test("Changed Area or calibration rejects a pending exclusion without clearing the points",async()=>{
+  for(const change of [f=>f.snapshot.graphics.records[0].version++,f=>f.snapshot.calibrations=[]]){
+    const f=areaFixture(),activation=await f.start("area-exclusion");activation.complete();await activation.pending;for(const point of [[220,320],[240,320],[240,340]])await f.ui.point(pointer(point));change(f);const before=structuredClone(f.state);await assert.rejects(f.ui.finish(),/Area or calibration changed/);assert.deepEqual(f.state,before);assert.equal(f.writes.length,0);
+  }
+});
+
+test("Cancelling an exclusion forgets the original Area association",async()=>{
+  const f=areaFixture(),activation=await f.start("area-exclusion");activation.complete();await activation.pending;f.ui.cancel();f.state.points=[[220,320],[240,320],[240,340]];await assert.rejects(f.ui.finish(),/Area or calibration changed/);assert.equal(f.writes.length,0);
+});
+
+test("Area vertex deletion and closing-edge insertion keep exclusions intact, and holes have the same guarded controls",async()=>{
+  const f=areaFixture(),original=structuredClone(f.snapshot.graphics.records[0]);f.ui.selectMeasurePoint("area",3);await f.ui.editMeasurePoint(true);
+  assert.deepEqual(f.writes[0].changes.geometry.points,[[100,200],[300,200],[300,400],[100,400],[100,300]]);assert.deepEqual(f.writes[0].changes.geometry.exclusions,original.geometry.exclusions);
+  f.ui.selectMeasurePoint("area",4);await f.ui.editMeasurePoint();assert.deepEqual(f.snapshot.graphics.records[0].geometry.points,original.geometry.points);
+  f.ui.selectMeasurePoint("area",1,false,"hole");await f.ui.editMeasurePoint();assert.equal(f.snapshot.graphics.records[0].geometry.exclusions[0].points.length,3);assert.equal(f.snapshot.graphics.records[0].geometry.exclusions[0].id,"hole");assert.equal(f.snapshot.graphics.records[0].geometry.exclusions[0].note,"Existing opening");
+  f.ui.selectMeasurePoint("area",0,false,"hole");await assert.rejects(f.ui.editMeasurePoint(),/at least three/);assert.equal(f.writes.length,3);
+});
+
+function pressAreaPart(f,part,point){
+  const overlay=dom("svg");f.ui.paint(overlay);const group=overlay.children.find(n=>n.attributes?.["data-graphic-id"]==="area");assert.ok(group);
+  group.listeners.get("pointerdown")({button:0,pointerId:42,pdf:point,clientX:point[0],clientY:point[1],target:{dataset:{graphicPart:part}},stopPropagation(){},preventDefault(){}});
+}
+async function dragAreaPart(f,part,start,end){
+  pressAreaPart(f,part,start);f.listeners.get("pointermove")({pointerId:42,pdf:end,clientX:end[0],clientY:end[1],preventDefault(){}});f.listeners.get("pointerup")({pointerId:42,pdf:end,clientX:end[0],clientY:end[1]});for(let i=0;i<12;i++)await Promise.resolve();
+}
+test("Moving a PDF Area translates its exclusions together without changing identities or calculated authority",async()=>{
+  const f=areaFixture(),before=structuredClone(f.snapshot.graphics.records[0]);await dragAreaPart(f,"move",[100,200],[120,230]);assert.equal(f.writes.length,1);const after=f.snapshot.graphics.records[0];
+  for(const ring of ["points"]){assert.deepEqual(after.geometry[ring],before.geometry[ring].map(([x,y])=>[x+20,y+30]));}
+  assert.deepEqual(after.geometry.exclusions[0].points,before.geometry.exclusions[0].points.map(([x,y])=>[x+20,y+30]));assert.equal(after.geometry.exclusions[0].id,before.geometry.exclusions[0].id);assert.equal(after.id,before.id);
+  assert.deepEqual(f.snapshot.items,[]);assert.deepEqual(f.snapshot.transfers,[]);
+});
+test("An Area exclusion handle edits one hole vertex and retains the outer ring and other hole fields",async()=>{
+  const f=areaFixture(),before=structuredClone(f.snapshot.graphics.records[0]);await dragAreaPart(f,"hole:hole:1",[200,250],[210,255]);assert.equal(f.writes.length,1);
+  assert.deepEqual(f.snapshot.graphics.records[0].geometry.points,before.geometry.points);assert.deepEqual(f.snapshot.graphics.records[0].geometry.exclusions[0],{...before.geometry.exclusions[0],points:[[150,250],[210,255],[200,300],[150,300]]});
+});
+test("Removing and editing an exclusion uses only a guarded geometry command",async()=>{
+  const f=areaFixture(),before=structuredClone(f.snapshot.graphics.records[0]);f.calls.answer={note:"Revised opening"};await f.ui.editExclusion("hole");assert.equal(f.snapshot.graphics.records[0].geometry.exclusions[0].note,"Revised opening");assert.deepEqual(f.snapshot.graphics.records[0].geometry.points,before.geometry.points);
+  await f.ui.editExclusion("hole",true);assert.deepEqual(f.snapshot.graphics.records[0].geometry.exclusions,[]);assert.equal(f.writes.length,2);assert.equal(f.snapshot.graphics.records.length,1);
+});
+test("A late exclusion note dialog cannot overwrite a newer area",async()=>{
+  const f=areaFixture();let release;f.calls.answerPromise=new Promise(resolve=>release=resolve);const pending=f.ui.editExclusion("hole");pending.catch(()=>{});for(let i=0;i<12&&!f.calls.ask;i++)await Promise.resolve();assert.equal(f.calls.ask,1);f.snapshot.graphics.records[0].version++;const before=structuredClone(f.snapshot);release({note:"Old dialog"});await assert.rejects(pending,/Area changed/);assert.deepEqual(f.snapshot,before);assert.equal(f.writes.length,0);
+});
+test("Area settings show gross, excluded and net quantities read-only to two decimals",()=>{
+  const f=areaFixture(),panel=dom("aside");f.state.session.pdf_measure_results[0].net_area_m2=95.12345678;f.ui.settings(panel);
+  const fields=panel.children[1].children.filter(value=>value.tagName==="LABEL").flatMap(wrapper=>wrapper.children).filter(value=>value.name);
+  for(const name of ["gross_area_m2","excluded_area_m2","net_area_m2"]){const field=fields.find(value=>value.name===name);assert.ok(field);assert.equal(field.readOnly,true);assert.match(String(field.value),/^\d+\.\d{2}$/);}
+  assert.equal(fields.find(value=>value.name==="net_area_m2").value,"95.12");assert.equal(f.state.session.pdf_measure_results[0].net_area_m2,95.12345678);
 });

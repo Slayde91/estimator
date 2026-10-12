@@ -9,11 +9,13 @@ from .catalog import ValidationError
 from .pricing_workbook import _serialize_exact
 
 MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-STEEL = ('Confirmation', 'Member mark', 'Level', 'Member type', 'Steel section', 'Fire period (min)')
-DUCT = ('Confirmation', 'Item', 'Level', 'WxH (mm)', 'FRL', 'Orientation')
+STEEL = ('Confirmation', 'Member mark', 'Level', 'Member type', 'Steel section', 'Product',
+         'Fire period (min)', 'Crit. Temp (°C)', 'Exposure')
+DUCT = ('Confirmation', 'Item', 'Level', 'WxH (mm)', 'FRL', 'Orientation', 'Product')
 SURFACE = ('Confirmation', 'Surface ID', 'Surface type', 'Level', 'Surface basis', 'Substrate',
            'Treatment', 'Protection system', 'Protection product', 'FRL / fire rating', 'Number of layers')
 LENGTH = ('Qty', 'Length each (m)', 'Total (m)', 'Thickness (mm)', 'Evidence / issues')
+DUCT_LENGTH = LENGTH[:3] + ('Duct surface (m²)',) + LENGTH[3:]
 AREA = ('Gross (m²)', 'Excluded (m²)', 'Net (m²)', 'Total (m²)', 'Evidence / issues')
 STANDALONE = ('Confirmation', 'Item', 'Level', 'WxH (mm)', 'FRL', 'Orientation')
 
@@ -27,7 +29,7 @@ def _width(header):
 
 
 def register_workbook(tables, title='Current Takeoffs', *, subject='Current register copy'):
-    """One sheet containing the main register and, when present, its Count table.
+    """One presentation sheet with the exact current register columns.
 
     Values stay typed and exact; number formats only control their display.
     Literal text cannot become a formula. Oversized cells fail instead of losing
@@ -48,7 +50,7 @@ def register_workbook(tables, title='Current Takeoffs', *, subject='Current regi
     sheet.freeze_panes = 'C2'
     sheet.print_title_rows = '1:1'
     numeric_headers = {'Qty', 'Service quantity', 'Total Count/QTY', 'Number of layers',
-                       *LENGTH[1:4], *AREA[:4], 'Length (m)'}
+                       *LENGTH[1:4], 'Duct surface (m²)', *AREA[:4], 'Length (m)'}
     whole = {'Qty', 'Number of layers', 'Total Count/QTY'}
     try:
         for table_index, (headers, rows) in enumerate(tables):
@@ -104,12 +106,12 @@ def _size(fields):
 
 def export_current_register(snapshot, selected, results, confirmations, linked, *, mode, target, confirmation):
     area = mode in ('wall', 'slab', 'walls_floors')
-    main = [item for item in selected if item.get('purpose') not in ('count-only', 'length-only')]
-    counts = [item for item in selected if item.get('purpose') in ('count-only', 'length-only')]
+    main = [item for item in selected if not (area and item.get('purpose') == 'length-only')]
+    lengths = [item for item in selected if area and item.get('purpose') == 'length-only']
     if mode == 'steel':
         headers = STEEL + (('Exposed sides',) if target == 'steel_board' else ()) + LENGTH
     else:
-        headers = SURFACE + AREA if area else DUCT + LENGTH
+        headers = SURFACE + AREA if area else DUCT + DUCT_LENGTH
     documents = {doc['id']: doc for doc in snapshot['documents']}
     rows = []
     for item in main:
@@ -122,26 +124,28 @@ def export_current_register(snapshot, selected, results, confirmations, linked, 
             row[4] = {'wall-face': 'Wall face (true elevation)', 'slab-soffit': 'Slab soffit', 'slab-top': 'Slab top'}.get(fields.get('surface_basis'), fields.get('surface_basis'))
         else:
             row = [review, *[fields.get(key) for key in ('mark', 'level')]]
-            row += [fields.get('member_type'), fields.get('section'), fields.get('fire_period_min')] if mode == 'steel' else [_size(fields), fields.get('frl'), fields.get('orientation')]
+            row += [fields.get(key) for key in ('member_type', 'section', 'product', 'fire_period_min', 'critical_temperature', 'exposure')] if mode == 'steel' else [_size(fields), fields.get('frl'), fields.get('orientation'), fields.get('product')]
             if mode == 'steel' and target == 'steel_board':
                 row.append(fields.get('sides'))
             row += [item['quantity'], result.get('length_m'), result.get('total_length_m')]
             record = next((value for value in linked[item['id']] if value['calculator_id'] == target), None)
+            if mode == 'duct':
+                row.append(record.get('duct_surface_m2') if record and record.get('duct_surface_status') == 'Current' else None)
             key = {'steel_vermiculite': 'estimating_thickness_mm', 'steel_board': 'total_thickness_mm', 'ductwork': 'duct_thickness_mm'}[target]
             row.append(record.get(key) if record and record['status'] == 'Current' else None)
         geometry = item['geometry']
         evidence = f'{documents[geometry["document_id"]]["name"]} · p{geometry["page"]}' if geometry else 'Source markup missing'
-        if item['mode'] == 'duct' and fields.get('shape') != 'rectangular':
+        if item['mode'] == 'duct' and item.get('purpose') != 'count-only' and fields.get('shape') != 'rectangular':
             evidence += '\nRetained non-rectangular duct; calculator transfer unavailable.'
         row.append('\n'.join([evidence, *[issue['message'] for issue in result['issues']]]))
         rows.append(row)
     tables = [(headers, rows)]
-    if counts:
+    if lengths:
         tables.append((STANDALONE + (('Length (m)',) if area else ('Total Count/QTY',)), [
             ['Confirmed' if confirmations[item['id']] else 'Unconfirmed', item['fields'].get('mark'), item['fields'].get('level'),
              _size(item['fields']), item['fields'].get('frl'), item['fields'].get('orientation'),
              item['quantity'] if item['purpose'] == 'count-only' else results[item['id']].get('length_m')]
-            for item in counts]))
+            for item in lengths]))
     payload = register_workbook(tables)
     label = 'Walls-Floors' if area else mode.title()
     suffix = '' if confirmation == 'all' else f'-{confirmation.title()}'

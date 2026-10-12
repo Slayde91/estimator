@@ -84,10 +84,33 @@ or technical-suitability authority. Historical treatment, surface basis and sour
 citation values remain intact. Drawing edge and net-area labels stay geometric;
 the marked-PDF register separately states net area, layers and total area.
 
-Count markers retain persistent physical member IDs. Steel counted lengths have
-explicit manual per-member lengths, with quantity derived from marker identities.
-Standalone counts/lengths cannot transfer to calculators. Split/merge, geometry
-edits and undo preserve history and demand fresh confirmation where required.
+Count markers retain persistent physical member IDs and explicit manual lengths.
+Creation uses the Length tool's native calculator fields and a manual length in
+millimetres, converted once to stored metres. Marker identities determine quantity.
+Steel keeps equal-length groups; each counted Duct run is its own quantity-one
+record and native schedule row. Both appear in the main register. Historical
+count-only records also appear there, retain their original data and IDs, and
+remain non-transferable with no inferred length. Retained standalone lengths keep
+their separate legacy table. Split/merge, geometry edits and undo preserve history
+and demand fresh confirmation where required.
+
+The Steel register exposes Product, critical temperature and Exposure using the
+existing destination choices. Duct exposes Product and reads Duct surface from
+the linked native calculator's column K, independently of usable coating thickness.
+Receipt, source, current input, item version and confirmation gates remain required.
+An unlinked area cell is blank; unavailable or stale links never display an old
+number. Register Excel downloads use these same data columns and order.
+
+PDF-only Measure, Area and Area exclusion live in the shared drawing rail in all
+workspaces. Measure is immediately below Viewport. An Area is a graphic with an
+explicit uniform page/viewport calibration and validated outer ring plus nested
+exclusions. Holes stay strictly inside the boundary without touching or overlap;
+gross, excluded and net square metres use the existing polygon measurement rules.
+Editing, moving, undo, save/reopen and marked-PDF exports retain original coordinates.
+Area clipboard copies have fresh markup/hole IDs and require an explicit current
+uniform destination scale. These graphics never create register records, physical
+quantities, confirmations or calculator transfers. A retired scale withholds the
+derived area and marks exported labels as needing scale review.
 
 Width and Marker edits use 1–100 physical PDF points; opacity editing uses 1–100
 percent and stores a fraction. Shared new call-out defaults are stroke `#FF3300`,

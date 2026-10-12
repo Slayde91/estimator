@@ -85,3 +85,14 @@ test("Image Stamp uses only validated embedded PNG inside its padded affine box"
   const atLimit={...storedImage,content_base64:Buffer.alloc(X.imageByteLimit).toString("base64")};assert.ok(X.stampDataUrl(atLimit).startsWith("data:image/png;base64,"));
   assert.throws(()=>X.stampDataUrl({...storedImage,content_base64:Buffer.alloc(X.imageByteLimit+1).toString("base64")}),/exceeds 2 MiB|invalid/);
 });
+
+test("PDF Area paints all explicit rings with even-odd holes and an exact-version interior m² label",()=>{
+  const make=(tag,attributes)=>({tag,attributes,children:[],append(...nodes){this.children.push(...nodes);}});
+  const value={kind:"area",version:4,geometry:{points:[[10,20],[110,20],[110,80],[10,80]],exclusions:[{id:"hole",note:"Opening",points:[[30,30],[50,30],[50,40],[30,40]]}]},appearance:{...X.defaults(),fill_enabled:true}},before=structuredClone(value);
+  const result={version:4,status:"current",net_area_m2:12.3456789,label_point_pdf:[75,50]},tree=X.paint(value,p=>p.map(n=>n*2),2,make,{},result);
+  assert.equal(tree.children[0].tag,"path");assert.equal(tree.children[0].attributes["fill-rule"],"evenodd");
+  assert.equal(tree.children[0].attributes.d,"M 20 40 L 220 40 L 220 160 L 20 160 Z M 60 60 L 100 60 L 100 80 L 60 80 Z");
+  assert.equal(tree.children[1].textContent,"12.35 m²");assert.equal(tree.children[1].attributes.x,150);assert.equal(tree.children[1].attributes.y,100);
+  for(const change of [{version:3},{status:"needs_review"},{net_area_m2:null},{label_point_pdf:null}])assert.equal(X.paint(value,p=>p,1,make,{}, {...result,...change}).children.length,1);
+  assert.deepEqual(value,before,"Neither stored geometry nor full precision is rounded by rendering");
+});

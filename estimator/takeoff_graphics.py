@@ -10,7 +10,7 @@ MAX_VISUAL_RECORDS = 1000
 MAX_GRAPHIC_POINTS = 1000
 GRAPHIC_MODES = ('steel', 'duct', 'wall', 'slab', 'defect_reports', 'service_plans')
 BOX_KINDS = ('cloud', 'textbox', 'stamp', 'rectangle', 'circle')
-POINT_KINDS = ('line', 'polyline', 'arrow', 'polygon', 'measure')
+POINT_KINDS = ('line', 'polyline', 'arrow', 'polygon', 'measure', 'area')
 GRAPHIC_FIELDS = {'id', 'version', 'mode', 'document_id', 'source_sha256', 'page',
                   'kind', 'geometry', 'text', 'appearance', 'text_content', 'stamp_image', 'initial_pages', 'calibration_id'}
 REQUIRED_GRAPHIC_FIELDS = GRAPHIC_FIELDS - {'text_content', 'stamp_image', 'initial_pages', 'calibration_id'}
@@ -70,27 +70,30 @@ def validate_graphic(value, snapshot, *, verified_stamp_images=None):
             if not .001 <= geometry['text_scale'] <= 1000:
                 raise ValidationError('PDF markup text resize scale must be between 0.001 and 1,000.')
     elif kind in POINT_KINDS:
-        object_fields(geometry, {'points'}, 'PDF markup path geometry', {'points'})
+        geometry_fields = {'points', 'exclusions'} if kind == 'area' else {'points'}
+        object_fields(geometry, geometry_fields, 'PDF markup path geometry', geometry_fields)
         path = points(geometry['points'], 'PDF markup path', page,
-                      3 if kind == 'polygon' else 2, 2 if kind in ('line', 'arrow') else MAX_GRAPHIC_POINTS)
+                      3 if kind in ('polygon', 'area') else 2, 2 if kind in ('line', 'arrow') else MAX_GRAPHIC_POINTS)
         if any(a == b for a, b in zip(path, path[1:])):
             raise ValidationError('Adjacent PDF markup points must be distinct.')
-        if kind == 'polygon':
+        if kind in ('polygon', 'area'):
             from .takeoff_area import validate_polygon
             validate_polygon({'kind': 'polygon', 'document_id': value['document_id'], 'page': value['page'],
-                              'points': path, 'exclusions': []}, page)
+                              'points': path, 'exclusions': geometry.get('exclusions', [])}, page)
     else:
-        raise ValidationError('Choose Cloud, Textbox, Stamp, Line, Polyline, Arrow, Rectangle, Circle, Polygon or Measure.')
-    if kind == 'measure':
+        raise ValidationError('Choose Cloud, Textbox, Stamp, Line, Polyline, Arrow, Rectangle, Circle, Polygon, Measure or Area.')
+    if kind in ('measure', 'area'):
         if 'calibration_id' not in value:
-            raise ValidationError('PDF Measure requires an explicit source-page calibration.')
+            raise ValidationError('PDF Measure and Area require an explicit source-page calibration.')
         from .takeoff_pdf_measure import measure_calibration
-        measure_calibration(value, snapshot)
-        polyline = geometry['points']
-        from .takeoff_model import polyline_length
-        polyline_length(polyline)
+        calibration = measure_calibration(value, snapshot)
+        if kind == 'area' and calibration['uniform_scale'] is not True:
+            raise ValidationError('PDF Area requires a uniform calibration on its own source page.')
+        if kind == 'measure':
+            from .takeoff_model import polyline_length
+            polyline_length(geometry['points'])
     elif 'calibration_id' in value:
-        raise ValidationError('Only PDF Measure markups retain a calibration ID.')
+        raise ValidationError('Only PDF Measure and Area markups retain a calibration ID.')
     text(value['text'], 'PDF markup text', 80 if kind == 'stamp' else 4000)
     if any(ord(character) in (0x007F, 0x061C, 0x200E, 0x200F, *range(0x202A, 0x202F), *range(0x2066, 0x206A))
            for character in value['text']):
@@ -170,6 +173,10 @@ def validate_graphics(snapshot):
         if record['id'] in seen:
             raise ValidationError('PDF markup IDs must be unique and separate from all drawing, member or register identities.')
         seen.add(record['id'])
+        for hole in record['geometry'].get('exclusions', []):
+            if hole['id'] in seen:
+                raise ValidationError('PDF Area exclusion IDs must be unique and separate from all drawing, member or register identities.')
+            seen.add(hole['id'])
 
 
 def apply_graphic(snapshot, request, *, load_event=None):
@@ -181,7 +188,7 @@ def apply_graphic(snapshot, request, *, load_event=None):
             from .takeoff_stamp_images import normalize_stamp_image
             record['stamp_image'] = normalize_stamp_image(record['stamp_image'])
         validate_graphic(record, snapshot)
-        if record['kind'] == 'measure':
+        if record['kind'] in ('measure', 'area'):
             from .takeoff_pdf_measure import validate_measure_scope
             validate_measure_scope(record, snapshot)
         if visual_record_count(snapshot) >= MAX_VISUAL_RECORDS:
@@ -215,7 +222,7 @@ def apply_graphic(snapshot, request, *, load_event=None):
                            if key == 'appearance' and isinstance(value, dict) else deepcopy(value))
         record['version'] += 1
         validate_graphic(record, snapshot)
-        if record['kind'] == 'measure' and {'geometry', 'calibration_id'} & changes.keys():
+        if record['kind'] in ('measure', 'area') and {'geometry', 'calibration_id'} & changes.keys():
             from .takeoff_pdf_measure import validate_measure_scope
             validate_measure_scope(record, snapshot)
     return None
@@ -281,7 +288,7 @@ def validate_history(event, *, load_event=None):
         from .takeoff_pdf_measure import validate_measure_scope
         for identifier in added | changed:
             record = new[identifier]
-            if record['kind'] == 'measure' and (identifier in added or any(record[key] != old[identifier][key] for key in ('geometry', 'calibration_id'))):
+            if record['kind'] in ('measure', 'area') and (identifier in added or any(record[key] != old[identifier][key] for key in ('geometry', 'calibration_id'))):
                 validate_measure_scope(record, event['after'])
     return {identifier: graphic_binding(record) for identifier, record in {**old, **new}.items()}
 
@@ -301,4 +308,5 @@ def graphic_geometry_cost(record):
     # Count derived cloud/ellipse/arrow control points conservatively before
     # admitting the bounded worker; a box cloud can have at most 256 lobes.
     return {'cloud': 772, 'circle': 16, 'arrow': 5}.get(record['kind'],
-        len(record['geometry'].get('points', record['geometry'].get('quad_pdf', []))))
+        len(record['geometry'].get('points', record['geometry'].get('quad_pdf', [])))) + sum(
+            len(hole['points']) for hole in record['geometry'].get('exclusions', []))

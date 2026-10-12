@@ -330,6 +330,8 @@ dialog.takeoff-column-filter{position:fixed;box-sizing:border-box;width:280px;ma
 @media(max-width:600px){.takeoff-document-menu{flex-basis:100%}.takeoff-physical-actions-row{position:relative}.takeoff-physical-actions-row .takeoff-document-menu{position:static}.takeoff-physical-actions-row .calculator-document-actions{left:0;right:auto}}
 .button.takeoff-current-visibility[aria-pressed=true]{background:#ffd9dc;color:#8c101b;border-color:#d7838b;box-shadow:inset 0 0 0 1px #d7838b}
 .takeoff-settings-fields>.takeoff-current-visibility{display:inline-flex;align-items:center;justify-content:center;justify-self:start;width:38px;min-width:38px;max-width:38px;height:38px;padding:2px;box-sizing:border-box}
+.takeoff-standalone-settings:has(.takeoff-delete-left){display:contents}
+.takeoff-settings-fields .takeoff-delete-left{grid-column:1/-1;justify-self:start}
 
 
 .takeoff-physical-item-actions{grid-column:1/-1;display:flex;align-items:center;gap:8px;min-width:0;margin-bottom:8px}

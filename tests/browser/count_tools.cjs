@@ -18,7 +18,7 @@ const ready = new Promise((resolve, reject) => {
   server.once('error', error => { clearTimeout(timer); reject(error); });
   server.once('exit', code => { clearTimeout(timer); reject(new Error(`Fixture exited ${code}: ${logs}`)); });
 });
-const errors = [], physicalRequests = [], evidence = {};
+const errors = [], physicalRequests = [], countRequests = [], evidence = {};
 const hash = file => createHash('sha256').update(fs.readFileSync(file)).digest('hex');
 const runtimeHashes = () => Object.fromEntries(['static/takeoffs.js', 'static/takeoff-physical.js', 'static/takeoffs.css'].map(file => [file, hash(path.join(root, file))]));
 const idle = () => expect(page.locator('#takeoffs-workspace')).not.toHaveAttribute('aria-busy', 'true');
@@ -29,7 +29,8 @@ async function response(action, suffix) {
 }
 async function dialog(title, fields, action) {
   const modal = page.getByRole('dialog'); await expect(modal.getByRole('heading', { name: title, exact: true })).toBeVisible();
-  for (const [label, value] of Object.entries(fields)) { const control = modal.getByLabel(label, { exact: true }); if (await control.evaluate(el => el.tagName) === 'SELECT') await control.selectOption(String(value)); else await control.fill(String(value)); }
+  for (const [label, value] of Object.entries(fields)) { const control = modal.getByLabel(label, { exact: true }); if (await control.evaluate(el => el.tagName) === 'SELECT') { await expect.poll(() => control.locator('option').evaluateAll(options => options.map(option => option.value))).toContain(String(value)); await control.selectOption(String(value)); } else await control.fill(String(value)); }
+  await expect(modal.getByRole('button', { name: action, exact: true })).toBeEnabled();
   await modal.getByRole('button', { name: action, exact: true }).click();
 }
 // Original PDF page 3: CropBox [20,30,800,570], rotation 90, UserUnit 2.
@@ -53,7 +54,7 @@ async function countCursor() {
 (async () => {
   const info = await ready; assert.notEqual(info.port, 8765, 'Never use the live app'); const sourceHash = hash(info.fixture), runtimeBefore = runtimeHashes();
   browser = await chromium.launch({ headless: true }); page = await browser.newPage({ viewport: { width: 1146, height: 900 } }); page.setDefaultTimeout(30000);
-  page.on('pageerror', error => errors.push(error.message)); page.on('request', request => { if (/\/physical\/(preview|apply)$/.test(request.url())) physicalRequests.push({ endpoint: new URL(request.url()).pathname, body: request.postDataJSON() }); });
+  page.on('pageerror', error => errors.push(error.message)); page.on('request', request => { if (/\/physical\/(preview|apply)$/.test(request.url())) physicalRequests.push({ endpoint: new URL(request.url()).pathname, body: request.postDataJSON() }); if (request.url().endsWith('/commands') && request.postDataJSON()?.op === 'add_count_items') countRequests.push(request.postDataJSON()); });
   await page.goto(`http://127.0.0.1:${info.port}/`); await page.waitForFunction(() => { const value = window.CeasefireDesktop?.status(); return value?.ready && !value.busy; });
   await page.getByRole('button', { name: 'Takeoffs', exact: true }).click();
   await renderDrawing(page, () => page.locator('#takeoff-upload').setInputFiles(info.fixture), 1);
@@ -76,8 +77,25 @@ async function countCursor() {
   assert.deepEqual(await snapshot(), ductBefore, 'Cancelling Count discards its unfinished markers only');
   await page.getByRole('button', { name: 'Count', exact: true }).click(); await countCursor();
   await page.mouse.click(...await screen([150, 200])); await page.locator('.takeoff-viewport').press('Enter');
-  const ductReply = await response(() => dialog('Add count', { Item: 'DUCT-CROSSHAIR', Level: 'L01', 'WxH (mm)': '100x200', FRL: '-/120/120', Orientation: 'Horizontal' }, 'Add count'), '/commands');
-  const duct = ductReply.snapshot.items.find(value => value.fields.mark === 'DUCT-CROSSHAIR'); assert.equal(duct.purpose, 'count-only'); assert.equal(duct.quantity, 1); assert.equal(duct.measurement, null);
+  const countModal = page.getByRole('dialog'); await expect(countModal.getByRole('heading', { name: 'Add count', exact: true })).toBeVisible();
+  for (const label of ['Item', 'Level', 'WxH (mm)', 'FRL', 'Orientation', 'Product', 'Exposure', 'Wall penetrations', 'Floor penetrations', 'Manual Length (mm)']) await expect(countModal.getByLabel(label, { exact: true })).toBeVisible();
+  const manualLength = countModal.getByLabel('Manual Length (mm)', { exact: true }), beforeInvalid = countRequests.length;
+  await countModal.getByLabel('Item', { exact: true }).fill('DUCT-CROSSHAIR');
+  await expect(countModal.getByRole('button', { name: 'Add count', exact: true })).toBeEnabled();
+  assert.equal(await manualLength.evaluate(input => input.required && !input.checkValidity()), true, 'Missing manual length is invalid');
+  await countModal.getByRole('button', { name: 'Add count', exact: true }).click();
+  await expect(countModal).toBeVisible(); assert.equal(countRequests.length, beforeInvalid); assert.deepEqual(JSON.parse(await page.evaluate(() => window.CeasefireTakeoffs.projectFingerprint())).snapshot, ductBefore);
+  await manualLength.fill('0'); assert.equal(await manualLength.evaluate(input => input.checkValidity()), false, 'Zero manual length is invalid');
+  await countModal.getByRole('button', { name: 'Add count', exact: true }).click();
+  await expect(countModal).toBeVisible(); assert.equal(countRequests.length, beforeInvalid); assert.deepEqual(JSON.parse(await page.evaluate(() => window.CeasefireTakeoffs.projectFingerprint())).snapshot, ductBefore);
+  const manualMm = '1123.4567890123';
+  const ductReply = await response(() => dialog('Add count', { Item: 'DUCT-CROSSHAIR', Level: 'L01', 'WxH (mm)': '100x200', Product: 'FyreWrap', Exposure: 'Internal', FRL: '120/120/120', Orientation: 'Horizontal', 'Wall penetrations': '0', 'Floor penetrations': '0', 'Manual Length (mm)': manualMm }, 'Add count'), '/commands');
+  const duct = ductReply.snapshot.items.find(value => value.fields.mark === 'DUCT-CROSSHAIR'); assert.equal(duct.purpose, undefined); assert.equal(duct.geometry.kind, 'count'); assert.equal(duct.quantity, 1); assert.deepEqual(duct.measurement, { method: 'manual', length_m: Number(manualMm) / 1000 });
+  assert.deepEqual(countRequests.at(-1).markers.map(marker => marker.length_m), [Number(manualMm) / 1000]); assert.equal(countRequests.at(-1).mode, 'duct');
+  for (const [field, value] of Object.entries({ mark: 'DUCT-CROSSHAIR', level: 'L01', width_mm: 100, height_mm: 200, shape: 'rectangular', product: 'FyreWrap', exposure: 'Internal', frl: '120/120/120', orientation: 'Horizontal', wall_penetrations: 0, floor_penetrations: 0 })) assert.equal(duct.fields[field], value, field);
+  await expect(page.locator(`.takeoff-register-table tr[data-item-id="${duct.id}"]`)).toHaveCount(1);
+  await expect(page.getByRole('heading', { name: 'Counts', exact: true })).toHaveCount(0); await expect(page.locator('.takeoff-standalone-register')).toHaveCount(0);
+  evidence.ductManualCount = { id: duct.id, manualLengthMm: manualMm, storedLengthM: duct.measurement.length_m, fullLengthFields: true, missingAndZeroLengthCreateNothing: true, mainRegisterRow: true, countsSectionRemoved: true };
   await page.getByRole('button', { name: 'Count', exact: true }).click(); await countCursor(); await page.mouse.click(...await screen([500, 400]), { button: 'right' }); evidence.ductCrosshairOverSavedMarker = true;
   await chooseTakeoff(page, 'PENETRATIONS'); await idle();
   const initial = await snapshot(), requestCount = physicalRequests.length;
@@ -135,5 +153,5 @@ async function countCursor() {
   await renderDrawing(page, () => page.getByRole('button', { name: 'Fit page', exact: true }).click(), 3); await page.setViewportSize({ width: 764, height: 764 }); await page.locator('.takeoff-viewer').scrollIntoViewIfNeeded();
   await page.screenshot({ path: path.join(output, 'retained-defect-source-location-764.png') }); evidence.savedReopened = true;
   assert.equal(hash(info.fixture), sourceHash); assert.deepEqual(errors, []);
-  fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ completed: true, disposablePort: info.port, evidence, physicalRequests, errors, runtimeBefore, runtimeAfter: runtimeHashes() }, null, 2)); console.log(`Count tools and placed Defect acceptance passed: ${output}`);
-})().catch(async error => { console.error(error); console.error(logs.slice(-3000)); if (page) { await page.screenshot({ path: path.join(output, 'failure.png') }).catch(() => {}); fs.writeFileSync(path.join(output, 'failure.txt'), await page.locator('body').innerText().catch(() => '')); } fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ completed: false, evidence, physicalRequests, errors, error: String(error) }, null, 2)); process.exitCode = 1; }).finally(async () => { fs.writeFileSync(path.join(output, 'server.log'), logs); await browser?.close(); server.kill(); });
+  fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ completed: true, disposablePort: info.port, evidence, physicalRequests, countRequests, errors, runtimeBefore, runtimeAfter: runtimeHashes() }, null, 2)); console.log(`Count tools and placed Defect acceptance passed: ${output}`);
+})().catch(async error => { console.error(error); console.error(logs.slice(-3000)); if (page) { await page.screenshot({ path: path.join(output, 'failure.png') }).catch(() => {}); fs.writeFileSync(path.join(output, 'failure.txt'), await page.locator('body').innerText().catch(() => '')); } fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ completed: false, evidence, physicalRequests, countRequests, errors, error: String(error) }, null, 2)); process.exitCode = 1; }).finally(async () => { fs.writeFileSync(path.join(output, 'server.log'), logs); await browser?.close(); server.kill(); });

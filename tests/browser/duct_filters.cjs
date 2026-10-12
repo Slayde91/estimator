@@ -6,8 +6,8 @@ const fs = require('node:fs'), path = require('node:path'), assert = require('no
 const mode = process.argv[2] === 'steel' ? 'steel' : 'duct', steel = mode === 'steel', title = steel ? 'Steel' : 'Duct', prefix = steel ? 'S' : 'D';
 const markLabel = steel ? 'Member mark' : 'Item', sizeLabel = steel ? 'Steel section' : 'WxH (mm)', ratingLabel = steel ? 'Fire period (min)' : 'FRL', typeLabel = steel ? 'Member type' : 'Orientation';
 const expectedFilterColumns = {
-  duct: ['Confirmation', 'Item', 'Level', 'WxH (mm)', 'FRL', 'Orientation', 'Thickness (mm)'],
-  steel: ['Confirmation', 'Member mark', 'Level', 'Member type', 'Steel section', 'Fire period (min)', 'Thickness (mm)'],
+  duct: ['Confirmation', 'Item', 'Level', 'WxH (mm)', 'FRL', 'Orientation', 'Product', 'Duct surface (m²)', 'Thickness (mm)'],
+  steel: ['Confirmation', 'Member mark', 'Level', 'Member type', 'Steel section', 'Product', 'Fire period (min)', 'Crit. Temp (°C)', 'Exposure', 'Thickness (mm)'],
 };
 const root = path.resolve(__dirname, '../..'), output = path.join(root, '.runtime/browser-qa', `${mode}-filters-${Date.now()}`);
 fs.mkdirSync(output, { recursive: true });
@@ -71,9 +71,9 @@ async function reset(label) { await finishMenu(await menu(label), 'Reset filter'
     for (let index = 1; index <= 102; index++) {
       const level = index <= 2 ? 'L1' : index === 4 ? '' : 'L2';
       const fields = { mark: `${prefix}${String(index).padStart(3, '0')}`, level, shape: 'rectangular', width_mm: index <= 2 ? 100 : 300, height_mm: index <= 2 ? 200 : 400,
-        frl: index === 2 ? '60/60/60' : '120/120/120', orientation: index === 2 ? 'Vertical' : index === 3 ? 'Both' : 'Horizontal', product: 'FyreWrap', exposure: 'Internal', wall_penetrations: 0, floor_penetrations: 0 };
+        frl: index === 2 ? '60/60/60' : '120/120/120', orientation: index === 2 ? 'Vertical' : index === 3 ? 'Both' : 'Horizontal', product: index === 2 ? 'CAFCO 300' : 'FyreWrap', exposure: 'Internal', wall_penetrations: 0, floor_penetrations: 0 };
       if (index === 4) { delete fields.width_mm; delete fields.height_mm; fields.frl = ''; fields.orientation = ''; }
-      if (steel) { Object.assign(fields, { member_type: index === 2 ? 'Column' : 'Beam', section: index <= 2 ? '100UC15' : '150UC23', fire_period_min: index === 2 ? 60 : 120, critical_temperature: 550, product: 'CAFCO 300', exposure: 'Re-entrant - 3 sides' }); for (const key of ['shape', 'width_mm', 'height_mm', 'frl', 'orientation', 'wall_penetrations', 'floor_penetrations']) delete fields[key]; if (index === 4) for (const key of ['member_type', 'section', 'fire_period_min']) delete fields[key]; }
+      if (steel) { Object.assign(fields, { member_type: index === 2 ? 'Column' : 'Beam', section: index <= 2 ? '100UC15' : '150UC23', fire_period_min: index === 2 ? 60 : 120, critical_temperature: index === 2 ? 620 : 550, product: index === 2 ? 'MONOKOTE MK-6 HY' : 'CAFCO 300', exposure: index === 2 ? 'Re-entrant - 4 sides' : 'Re-entrant - 3 sides' }); for (const key of ['shape', 'width_mm', 'height_mm', 'frl', 'orientation', 'wall_penetrations', 'floor_penetrations']) delete fields[key]; if (index === 4) for (const key of ['member_type', 'section', 'fire_period_min']) delete fields[key]; }
       await command('create_item', { item: { mode, quantity: 1, fields, geometry: { document_id: doc.id, page: 1, points }, measurement: { method: 'calibrated', calibration_id: calibration }, evidence: [{ document_id: doc.id, page: 1, note: 'Synthetic column-filter record' }] } });
     }
     await command('confirm_items', { item_ids: [current.items[0].id] });
@@ -116,6 +116,15 @@ async function reset(label) { await finishMenu(await menu(label), 'Reset filter'
   await filter(sizeLabel, [steel ? '150UC23' : '300 x 400']); await expect(rows()).toHaveCount(0); await reset('Level'); assert.equal((await rowMarks()).length, 99);
   await filter(markLabel, [`${prefix}003`, `${prefix}005`]); assert.deepEqual(await rowMarks(), [`${prefix}003`, `${prefix}005`]);
   await reset(markLabel); await reset(sizeLabel); await filter('Level', ['(Blanks)']); assert.deepEqual(await rowMarks(), [`${prefix}004`]); await reset('Level');
+  await filter('Product', [steel ? 'MONOKOTE MK-6 HY' : 'CAFCO 300']); assert.deepEqual(await rowMarks(), [`${prefix}002`]); await reset('Product');
+  if (steel) {
+    await filter('Crit. Temp (°C)', ['620']); assert.deepEqual(await rowMarks(), ['S002']); await reset('Crit. Temp (°C)');
+    await filter('Exposure', ['Re-entrant - 4 sides']); assert.deepEqual(await rowMarks(), ['S002']); await reset('Exposure');
+  } else {
+    const surfaceMenu = await menu('Duct surface (m²)');
+    assert.deepEqual(await surfaceMenu.getByRole('group', { name: 'Duct surface (m²) values', exact: true }).getByRole('checkbox').evaluateAll(controls => controls.map(control => control.parentElement.textContent)), ['(Blanks)']);
+    await finishMenu(surfaceMenu, 'Cancel');
+  }
   let dialog = await menu(markLabel); await dialog.getByRole('checkbox', { name: 'Select all values', exact: true }).uncheck();
   await dialog.getByLabel(`Search ${markLabel} values`, { exact: true }).fill(`${prefix}10`);
   await expect(dialog.getByRole('group', { name: `${markLabel} values`, exact: true }).getByRole('checkbox')).toHaveCount(3);
@@ -136,6 +145,6 @@ async function reset(label) { await finishMenu(await menu(label), 'Reset filter'
   assert.equal(commands.length, baselineCommands, `Filters, search, pagination and export sent no item or calibration command: ${JSON.stringify(commands.slice(baselineCommands))}`);
   assert.deepEqual(await page.evaluate(() => window.CeasefireTakeoffs.projectSnapshot()), seeded.snapshot, 'Snapshot and calculation inputs remain unchanged');
   assert.deepEqual(errors, []); assert.deepEqual(await page.evaluate(() => window.qaCsp), []);
-  Object.assign(evidence, { passed: true, mode, itemCount: 102, legacySixColumnsExercised: true, renderedFilterColumns: expectedFilterColumns[mode], crossModeFilterColumns: expectedFilterColumns[alternateMode], thicknessFilterRenderingOnly: true, paginationReset: true, andOrBlankSearch: true, nativeDialogCompletionVerified: true, narrowMenuInViewport: true, snapshotUnchanged: true, selectedExportUnchanged: true });
+  Object.assign(evidence, { passed: true, mode, itemCount: 102, legacySixColumnsExercised: true, newProductFilterExercised: true, criticalTemperatureAndExposureExercised: steel, unlinkedDuctSurfaceOnlyBlank: !steel, renderedFilterColumns: expectedFilterColumns[mode], crossModeFilterColumns: expectedFilterColumns[alternateMode], thicknessFilterRenderingOnly: true, paginationReset: true, andOrBlankSearch: true, nativeDialogCompletionVerified: true, narrowMenuInViewport: true, snapshotUnchanged: true, selectedExportUnchanged: true });
   fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify(evidence, null, 2)); console.log(JSON.stringify({ output, ...evidence }, null, 2));
 })().catch(async error => { console.error(error); fs.writeFileSync(path.join(output, 'commands.json'), JSON.stringify(commands, null, 2)); if (page) await page.screenshot({ path: path.join(output, 'failure.png'), fullPage: true }).catch(() => {}); process.exitCode = 1; }).finally(async () => { if (browser) await browser.close(); server.kill(); fs.writeFileSync(path.join(output, 'server.log'), logs); });

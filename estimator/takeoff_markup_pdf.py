@@ -127,7 +127,7 @@ def export_marked_pdf(document, items, results, confirmations, linked, documents
             vertices += graphic_geometry_cost(graphic)
             if vertices > 200000:
                 raise ValidationError('The visible markup geometry exceeds the PDF export limit. Export a smaller visible selection.')
-            if graphic['kind'] == 'measure':
+            if graphic['kind'] in ('measure', 'area'):
                 from .takeoff_pdf_measure import measure_result
                 graphic = {**graphic, 'pdf_measure_result': measure_result(graphic, snapshot)}
             spec['graphics'].append(graphic)

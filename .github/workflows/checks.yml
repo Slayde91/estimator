@@ -99,6 +99,7 @@ jobs:
       - run: npm run test:takeoffs-signatures
       - run: node tests/browser/signature_chooser_layout.cjs
       - run: npm run test:takeoffs-graphics
+      - run: npm run test:takeoffs-pdf-area
       - run: npm run test:takeoffs-initial-pages
       - run: node tests/browser/pdf_markup_clipboard.cjs
       - run: npm run test:pdf-markup-ui

@@ -3,9 +3,12 @@
 // PDF-only marks use literal text, bounded geometry and validated embedded PNGs.
 // Supplied SVG, HTML and external image URLs never enter this renderer.
 (function (root) {
-  const kinds = Object.freeze(["cloud", "textbox", "stamp", "line", "polyline", "arrow", "rectangle", "circle", "polygon", "measure"]);
+  // Area exclusion is a drawing gesture that edits its selected Area, never a
+  // separately persisted mark or register record.
+  const kinds = Object.freeze(["cloud", "textbox", "stamp", "line", "polyline", "arrow", "rectangle", "circle", "polygon", "measure", "area"]);
+  const tools = Object.freeze([...kinds, "area-exclusion"]);
   const boxes = new Set(["cloud", "textbox", "stamp", "rectangle", "circle"]);
-  const labels = Object.freeze({ cloud: "Cloud", textbox: "Textbox", stamp: "Stamp", line: "Line", polyline: "Line/Polyline", arrow: "Arrow", rectangle: "Rectangle", circle: "Circle", polygon: "Polygon", measure: "Measure" });
+  const labels = Object.freeze({ cloud: "Cloud", textbox: "Textbox", stamp: "Stamp", line: "Line", polyline: "Line/Polyline", arrow: "Arrow", rectangle: "Rectangle", circle: "Circle", polygon: "Polygon", measure: "Measure", area: "Area", "area-exclusion": "Area exclusion" });
   const icons = Object.freeze({ cloud: "M6 18a4 4 0 0 1-2-7 5 5 0 0 1 9-5 4 4 0 0 1 6 5 4 4 0 0 1-1 7Z", textbox: "M3 4h18v16H3ZM7 8h10m-5 0v8m-3 0h6", stamp: "M4 17h16v4H4Zm2 0v-4h12v4M9 13V6a3 3 0 0 1 6 0v7", polyline: "M3 18l6-12 6 12 6-12", arrow: "M3 21 21 3m-9 0h9v9", rectangle: "M3 5h18v14H3Z", circle: "M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0", polygon: "M12 2 22 9 18 22 5 20 2 8Z", measure: "M3 8h18v8H3ZM7 8v4M11 8v3M15 8v4M19 8v3" });
   const defaults = () => ({ stroke_color: "#FF0000", stroke_width: 2, opacity: 1, fill_enabled: false, fill_color: "#FFFFFF", font_color: "#000000", font_size: 12 });
   const fontSize = graphic => graphic.appearance.font_size * (graphic.geometry.text_scale ?? 1);
@@ -89,7 +92,7 @@
   function icon(kind, doc = root.document) {
     const el = doc.createElementNS("http://www.w3.org/2000/svg", "svg"), path = doc.createElementNS(el.namespaceURI, "path");
     for (const [key, value] of Object.entries({ viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", "stroke-width": "1.8", "stroke-linecap": "round", "stroke-linejoin": "round", "aria-hidden": "true", width: 24, height: 24 })) el.setAttribute(key, value);
-    path.setAttribute("d", icons[kind]); el.append(path); return el;
+    path.setAttribute("d", kind === "area" ? "M3 3h18v18H3ZM7 7h10v10H7" : kind === "area-exclusion" ? "M3 3h18v18H3ZM8 12h8" : icons[kind]); el.append(path); return el;
   }
   function textLines(text, width, size, bold, context) {
     context.font = `${bold ? "bold " : ""}${size}px CeasefireDrawing`; context.fontKerning = "none";
@@ -125,7 +128,7 @@
     return lines;
   }
   function paint(graphic, transform, scale, make, context, measureResult = null, formatLength = value => value.toFixed(2)) {
-    const group = make("g", { "pointer-events": "none" }), style = graphic.appearance, points = coordinates(graphic).map(transform), closed = boxes.has(graphic.kind) || graphic.kind === "polygon";
+    const group = make("g", { "pointer-events": "none" }), style = graphic.appearance, points = coordinates(graphic).map(transform), area = ["area", "area-exclusion"].includes(graphic.kind), closed = boxes.has(graphic.kind) || graphic.kind === "polygon" || area;
     const ink = { stroke: style.stroke_color, "stroke-width": style.stroke_width * scale, fill: closed && style.fill_enabled ? style.fill_color : "none", opacity: style.opacity, "stroke-linejoin": "round", "stroke-linecap": "round" };
     if (graphic.geometry.quad_pdf) {
       const [a, b, , d] = points, width = Math.hypot(b[0]-a[0], b[1]-a[1]), height = Math.hypot(d[0]-a[0], d[1]-a[1]);
@@ -150,16 +153,20 @@
           else text.textContent=line; local.append(text); });
       }
     } else {
-      group.append(make(graphic.kind === "polygon" ? "polygon" : "polyline", { ...ink, points: points.map(p=>p.join(",")).join(" ") }));
-      if (graphic.kind === "measure" && measureResult?.status === "current" && measureResult.version === graphic.version && Number.isFinite(measureResult.length_m)) {
-        const anchor = points[Math.floor((points.length - 1) / 2)], text = make("text", { x: anchor[0] + 6, y: anchor[1] - 8, fill: style.font_color, opacity: style.opacity, class: "takeoff-value-label", "pointer-events": "none" });
-        text.textContent = `${formatLength(measureResult.length_m)} m`; group.append(text);
+      if (area) {
+        const rings=[points,...(graphic.geometry.exclusions || []).map(hole=>hole.points.map(transform))];
+        group.append(make("path",{...ink,"fill-rule":"evenodd",d:rings.map(ring=>`M ${ring.map(p=>p.join(" ")).join(" L ")} Z`).join(" ")}));
+      } else group.append(make(graphic.kind === "polygon" ? "polygon" : "polyline", { ...ink, points: points.map(p=>p.join(",")).join(" ") }));
+      const amount=area ? measureResult?.net_area_m2 : measureResult?.length_m;
+      if (["measure","area"].includes(graphic.kind) && measureResult?.status === "current" && measureResult.version === graphic.version && Number.isFinite(amount) && (!area || measureResult.label_point_pdf)) {
+        const anchor = area ? transform(measureResult.label_point_pdf) : points[Math.floor((points.length - 1) / 2)], text = make("text", { x: anchor[0] + (area ? 0 : 6), y: anchor[1] + (area ? 0 : -8), ...(area ? {"text-anchor":"middle"} : {}), fill: style.font_color, opacity: style.opacity, class: "takeoff-value-label", "pointer-events": "none" });
+        text.textContent = `${formatLength(amount)} ${area ? "m²" : "m"}`; group.append(text);
       }
       if (graphic.kind === "arrow") { const [a,b]=points, dx=b[0]-a[0], dy=b[1]-a[1], length=Math.hypot(dx,dy), head=Math.min(length/3, Math.max(8, style.stroke_width*4)*scale), ux=dx/length, uy=dy/length; group.append(make("polyline", { ...ink, fill:"none", points: [[b[0]-head*ux-head*.5*uy,b[1]-head*uy+head*.5*ux],b,[b[0]-head*ux+head*.5*uy,b[1]-head*uy-head*.5*ux]].map(p=>p.join(",")).join(" ") })); }
     }
     return group;
   }
-  const api = Object.freeze({ kinds, boxes, labels, defaults, box, coordinates, icon, paint, textLines, richTextLines, fontSize, resizedTextBox, imageByteLimit, stampImageHeader, stampImage, stampDataUrl, stampAt });
+  const api = Object.freeze({ kinds, tools, boxes, labels, defaults, box, coordinates, icon, paint, textLines, richTextLines, fontSize, resizedTextBox, imageByteLimit, stampImageHeader, stampImage, stampDataUrl, stampAt });
   if (typeof module === "object" && module.exports) module.exports = api;
   if (root) root.CeasefireTakeoffGraphics = api;
 })(typeof window === "object" ? window : null);

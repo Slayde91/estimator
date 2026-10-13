@@ -90,6 +90,7 @@ jobs:
       - run: python -m pip install -r requirements-dev.txt
       - run: npm ci
       - run: npx playwright install --with-deps chromium
+      - run: npm run test:project-library-drafts
       - run: node tests/browser/pdf_render_gate.cjs
       - run: node tests/browser/header_artwork.cjs
       - run: npm run test:themes-browser
@@ -160,7 +161,6 @@ jobs:
       - run: npm run test:service-plans
       - run: npm run test:physical-navigation
       - run: npm run test:physical-filters
-      - run: npm run test:project-library-drafts
       - run: npm run test:takeoffs-counts
       - run: npm run test:takeoffs-viewer-controls
       - run: npm run test:takeoffs-transfer-skip

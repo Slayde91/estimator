@@ -1765,7 +1765,7 @@
     if (state.tool === "signature") { void safely(() => createSignature(p)); return; }
     if (state.tool === "count-only") { state.points.push(p); state.countEntries.push({ point: [...p] }); state.countLastClick = { timeStamp: event.timeStamp, client: [event.clientX, event.clientY] }; renderOverlay(); window.CeasefireProject?.changed?.(); return; }
     if (state.tool === "count") { void safely(() => state.mode === "physical" ? placePhysicalMarker(p) : stageCountMarker(p, event)); return; }
-    if (state.tool === "pdf-count") { stageCountMarker(p, event); return; }
+    if (state.tool === "pdf-count") { void safely(() => stageCountMarker(p, event)); return; }
     if (state.pendingViewport && !inViewport(p, state.pendingViewport.region)) { message("Both calibration points must be inside the viewport.", true); return; }
     if (state.calibrationTarget) { const target = activePageCalibrations().find(value => value.id === state.calibrationTarget); if (!target?.region || !inViewport(p, target.region)) { message("Both calibration points must be inside the selected viewport.", true); return; } }
     if (state.tool === "viewport") {

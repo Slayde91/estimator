@@ -226,6 +226,13 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
       h.audit.resetCountDraft();
     }
   });
+  await check('Drawing-only Count reports its marker limit without losing the existing draft or raising a page error',async()=>{
+    const h=countHarness(),state=h.audit.state;state.tool='pdf-count';state.countEntries=Array.from({length:10000},()=>({point:[10,10],length_m:2}));
+    const draft=copy(state.countEntries),snapshot=copy(state.session.snapshot);
+    assert.doesNotThrow(()=>h.audit.drawingPointer({detail:1,button:0,clientX:100,clientY:120,timeStamp:100,preventDefault(){}}));await flush();
+    assert.match(h.dom.ui.message.textContent,/at most 10,000 markers/);assert.equal(h.dom.ui.message.attributes.role,'alert');
+    assert.deepEqual(copy(state.countEntries),draft);assert.deepEqual(copy(state.session.snapshot),snapshot);assert.equal(h.timers.size,0);
+  });
   await check('Count double-click finish consumes detail-two clicks without relying on a replaced SVG target dblclick',async()=>{
     const h=countHarness();h.audit.state.countDefaultLength=6.123456789;const retained=h.stage([10,10],1);await h.audit.queueCountLength(retained);let sent,calls=0;h.audit.setAsk(async()=>{throw new Error('Finishing must not ask for an extra marker length');});
     h.audit.setCommand(async(op,body)=>{calls++;sent={op,...copy(body)};return {created_item_ids:['created']};});

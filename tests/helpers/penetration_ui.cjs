@@ -30,6 +30,7 @@ function allowanceResult(draft,metadata=allowanceDefinition(),defaults={register
   const response=result(draft,metadata);for(const row of response.rows)row.input_defaults=copy(defaults);return response;
 }
 function install(context) {
+  vm.runInContext(fs.readFileSync('static/calculation-queue.js','utf8'),context);
   vm.runInContext(fs.readFileSync("static/penetration-presentation.js","utf8"),context);
   vm.runInContext(fs.readFileSync('static/penetration-breakdown.js','utf8'),context);
   const source=fs.readFileSync('static/penetration.js','utf8').replace(/\}\)\(\);\s*$/,`globalThis.penAudit={state,calculate,calculateSchedule,addToLibrary,addToSchedule,requestAddToSchedule,updateSchedule,cancelEdit,addRow,removeRow,undoRemove,selectRow,selectGroup,makeControl,renderFields,renderSchedule,renderBreakdown,render,download,downloadItem,changed,definitionFor,queueDiagram,chooseDiagram,setRequest(fn){request=fn;}};})();`);

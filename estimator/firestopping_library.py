@@ -20,6 +20,7 @@ import re
 from PIL import Image, ImageOps, UnidentifiedImageError
 
 from .catalog import ValidationError, configuration_catalog, validate_configuration
+from .calculation_work import calculation_work
 from .penetration_entry import validate_item_for_add
 from .penetration_calculator import (CALCULATION_POLICY_VERSION, calculate, canonical_frl,
                                      canonical_service_type, canonical_substrate, definition,
@@ -571,6 +572,7 @@ class FirestoppingLibrary(ReferenceLibrary):
         token = hashlib.sha256(encoded(snapshot).encode()).hexdigest()
         return item, source, saved, snapshot, token
 
+    @calculation_work()
     def _effective_prices(self, items):
         """Price only the requested page against each item's frozen snapshot.
 

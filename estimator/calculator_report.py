@@ -6,6 +6,7 @@ Only explicitly named display totals sum already-calculated numeric outputs.
 """
 
 from copy import deepcopy
+from .calculation_work import calculation_work
 from decimal import Decimal, ROUND_HALF_UP, localcontext
 from io import BytesIO
 from .company_settings import company_logo
@@ -143,6 +144,7 @@ def _material_rows(identity, summary):
     return retained
 
 
+@calculation_work()
 def project_calculator_report(calculator_id, inputs=None):
     """Prepare testable raw report data without display rounding or persistence."""
     model = source_model(calculator_id)

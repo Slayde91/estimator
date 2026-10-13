@@ -351,6 +351,30 @@ def criteria_matches(value, criterion):
             '>': difference > 0, '<=': difference <= 0, '>=': difference >= 0}[operator]
 
 
+@lru_cache(maxsize=8192, typed=True)
+def _cached_scalar_criteria(value, criterion):
+    # Pure scalar comparison only: no workbook, price, assessment or cell state.
+    return criteria_matches(value, criterion)
+
+
+def steel_criteria_matches(value, criterion):
+    value, criterion = scalar(value), scalar(criterion)
+    for item in (value, criterion):
+        kind = type(item)
+        if kind is str:
+            if len(item) > 128:
+                return criteria_matches(value, criterion)
+        elif kind is int:
+            if item.bit_length() > 64:
+                return criteria_matches(value, criterion)
+        elif kind is float:
+            if not math.isfinite(item):
+                return criteria_matches(value, criterion)
+        elif kind not in (bool, type(None)):
+            return criteria_matches(value, criterion)
+    return _cached_scalar_criteria(value, criterion)
+
+
 class WorkbookEngine:
     """One immutable source model and one set of input overlays per evaluation."""
 
@@ -365,6 +389,7 @@ class WorkbookEngine:
         self.lookup_cache = {}
         self.lookup_indexes = {}
         self.evaluated_count = 0
+        self.criteria_matcher = criteria_matches
 
     def cell(self, sheet, row, column):
         sheet = self.sheet_names.get(sheet.casefold(), sheet)
@@ -610,7 +635,7 @@ class WorkbookEngine:
                             value = rng.at(r, c)
                         except FormulaError as error:
                             value = error.code
-                        if not criteria_matches(value, criterion):
+                        if not self.criteria_matcher(value, criterion):
                             matches = False
                             break
                     if matches:

@@ -23,6 +23,14 @@ from estimator.storage import Store
 
 
 class PenetrationIntegrationTests(unittest.TestCase):
+    def test_saturated_calculation_has_retryable_status_without_partial_result(self):
+        from estimator.calculation_work import CalculationBusy
+        with patch('estimator.penetration_calculator.calculate', side_effect=CalculationBusy('Capacity fixture')):
+            status, headers, payload = self.request('POST', '/api/penetration/calculate', {'draft': self.draft()})
+        self.assertEqual(status, 503)
+        self.assertEqual(headers['Retry-After'], '2')
+        self.assertEqual(json.loads(payload), {'error': 'Capacity fixture'})
+
     @classmethod
     def setUpClass(cls):
         cls.temp = tempfile.TemporaryDirectory()

@@ -6,12 +6,12 @@ from hashlib import sha256
 import json
 import math
 import re
-from threading import RLock
+from .calculation_work import EvaluationLock
 
 from openpyxl.formula.translate import Translator
 
 from .catalog import ROOT, ValidationError
-from .excel_engine import WorkbookEngine, FormulaError, CellRange, coordinates, column_name, column_number, parse_formula, relative_formula
+from .excel_engine import WorkbookEngine, FormulaError, CellRange, coordinates, column_name, column_number, parse_formula, relative_formula, steel_criteria_matches
 from .workbook_runtime import _application_catalog, list_application_catalogs, application_editable_cells as editable_cells
 from .calculator_defaults import default_calculator_inputs, yield_review
 from .ductwork_policy import canonical_ductwork_value, normalize_schedule_choices
@@ -499,14 +499,18 @@ def calculator_engine(calculator_id, normalized_inputs, *, assessment=None):
     overrides = approved_formula_overrides(calculator_id)
     if calculator_id == 'steel_vermiculite':
         from .monokote_hollow import MonokoteHollowEngine, load_assessment
-        return MonokoteHollowEngine(model, normalized_inputs, overrides,
+        engine = MonokoteHollowEngine(model, normalized_inputs, overrides,
                                     assessment=load_assessment() if assessment is None else assessment)
-    return WorkbookEngine(model, normalized_inputs, overrides)
+    else:
+        engine = WorkbookEngine(model, normalized_inputs, overrides)
+    if calculator_id in ('steel_vermiculite', 'steel_board'):
+        engine.criteria_matcher = steel_criteria_matches
+    return engine
 
 
 @lru_cache(maxsize=6)
 def _session(calculator_id, serialized_inputs, assessment=None):
-    return calculator_engine(calculator_id, json.loads(serialized_inputs), assessment=assessment), RLock()
+    return calculator_engine(calculator_id, json.loads(serialized_inputs), assessment=assessment), EvaluationLock()
 
 
 def calculator_session(calculator_id, inputs):

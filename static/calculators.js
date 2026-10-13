@@ -2,6 +2,7 @@
 
 (() => {
   const $ = (id) => document.getElementById(id);
+  const calculationQueue = window.CeasefireCalculationQueue.create();
   const clone = (value) => JSON.parse(JSON.stringify(value));
   const number = new Intl.NumberFormat("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const controlNumber = new Intl.NumberFormat("en-AU", { useGrouping: false, minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -1372,8 +1373,11 @@
     $("calculator-grid").setAttribute("aria-busy", "true");
     try {
       const schedule = scheduleFor(entry);
-      const result = await request(endpoint(entry.definition.id, "worksheet"), { method: "POST", body: JSON.stringify({ inputs: clone(entry.inputs), sheet, include_advanced: false,
-        ...(schedule ? { schedule_view: { ...(Array.isArray(entry.scheduleRows) ? { rows: [...entry.scheduleRows] } : {}), offset: entry.scheduleViewport?.offset || 0, limit: scheduleWindowSize } } : {}) }) });
+      const body = JSON.stringify({ inputs: clone(entry.inputs), sheet, include_advanced: false,
+        ...(schedule ? { schedule_view: { ...(Array.isArray(entry.scheduleRows) ? { rows: [...entry.scheduleRows] } : {}), offset: entry.scheduleViewport?.offset || 0, limit: scheduleWindowSize } } : {}) });
+      const result = await calculationQueue.run(() => request(endpoint(entry.definition.id, "worksheet"), { method: "POST", body }),
+        () => current() === entry && serial === state.requestRevision && revision === entry.revision && sheet === entry.sheet && page === currentPage(entry) && !entry.invalid.size);
+      if (!result) return;
       if (current() !== entry || serial !== state.requestRevision || revision !== entry.revision || sheet !== entry.sheet || page !== currentPage(entry)) return;
       if (result.inputs) entry.inputs = clone(result.inputs);
       if (result.schedule_view) {

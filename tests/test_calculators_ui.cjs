@@ -33,7 +33,8 @@ const context = {
   FileReader: class { readAsDataURL() { this.result = 'data:application/octet-stream;base64,AAAA'; queueMicrotask(() => this.onload()); } },
 };
 vm.createContext(context);
-vm.runInContext(fs.readFileSync('static/downloads.js','utf8'),context);
+vm.runInContext(fs.readFileSync('static/calculation-queue.js','utf8'),context);
+  vm.runInContext(fs.readFileSync('static/downloads.js','utf8'),context);
 let source = fs.readFileSync('static/calculators.js', 'utf8');
 source = source.replace('  window.CeasefireCalculators = { open, projectSnapshot, projectFingerprint, prepareProject, applyProject };', `
   globalThis.audit = {state,current,dirty,displayValue,numericInputValue,makeControl,setInput,calculate,save,reset,importSchedule,open,
@@ -71,6 +72,7 @@ function setup(inputs = {}) {
 }
 const result = (inputs = {}, values = {}) => ({ inputs, sheet: 'CALCULATOR', start_row: 1, end_row: 25, max_row: 208, max_column: 3, rows: [], ...values });
 let passed = 0;
+const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled after ${passed} cases`); process.exitCode = 1; }, 30000);
 (async () => {
   // Focus/blur formatting cannot turn precise source defaults into overrides.
   let entry = setup();
@@ -305,6 +307,14 @@ let passed = 0;
   const run = audit.calculate(); audit.setInput(entry, 'CALCULATOR', 'B9', 3.12345);
   pending.resolve(result({ CALCULATOR: { B9: 2 } })); await run;
   assert.equal(entry.inputs.CALCULATOR.B9, 3.12345); assert.equal(entry.result, null); passed++;
+
+  // Calculations leave a focused control in place; a later edit invalidates its pending render.
+  entry=setup({CALCULATOR:{B9:1}});const burst=deferred(),burstCalls=[];
+  audit.setRequest((path,options)=>{const body=JSON.parse(options.body);burstCalls.push(body);return burstCalls.length===1?burst.promise:Promise.resolve(result(body.inputs));});
+  const activeBurst=audit.calculate();audit.setInput(entry,'CALCULATOR','B9',2);const obsoleteBurst=audit.calculate();
+  audit.setInput(entry,'CALCULATOR','B9',3.123456789);const newestBurst=audit.calculate();
+  assert.equal(burstCalls.length,1);await obsoleteBurst;burst.resolve(result({CALCULATOR:{B9:1}}));await Promise.all([activeBurst,newestBurst]);
+  assert.equal(burstCalls.length,2);assert.equal(burstCalls[1].inputs.CALCULATOR.B9,3.123456789);assert.equal(entry.result.inputs.CALCULATOR.B9,3.123456789);assert.equal(audit.state.calculating,false);passed++;
 
   // Calculations leave a focused control in place; a later edit invalidates its pending render.
   entry = setup(); const active = element('input'); active.dataset = { calculatorCell: 'B9', calculatorSheet: 'CALCULATOR' };
@@ -1577,13 +1587,15 @@ let passed = 0;
   entry.navigationCache=null;
   const oldVirtual=deferred();let virtualCalls=0;
   audit.setRequest(async(path,options)=>{const body=JSON.parse(options.body);assert.equal(body.sheet,'SETTINGS');return ++virtualCalls===1?oldVirtual.promise:virtualResult(body.inputs);});
-  const oldVirtualRun=audit.selectPage('SETTINGS');await audit.selectPage('FACTOR CALCS');
-  const freshVirtualResult=entry.result;oldVirtual.resolve(virtualResult({SETTINGS:{D10:-99}}));await oldVirtualRun;
+  const oldVirtualRun=audit.selectPage('SETTINGS'), newestVirtualRun=audit.selectPage('FACTOR CALCS');
+  assert.equal(virtualCalls,1);oldVirtual.resolve(virtualResult({SETTINGS:{D10:-99}}));await Promise.all([oldVirtualRun,newestVirtualRun]);
+  assert.equal(virtualCalls,2);const freshVirtualResult=entry.result;
   assert.equal(entry.page,'FACTOR CALCS');assert.equal(entry.renderedPage,'FACTOR CALCS');assert.equal(entry.result,freshVirtualResult);assert.equal(virtualButtons().length,3);assert.equal(entry.inputs.SETTINGS.D10,3.45678912);
   const oldVirtualError=deferred();virtualCalls=0;
   entry.navigationCache=null;
   audit.setRequest(async(path,options)=>++virtualCalls===1?oldVirtualError.promise:virtualResult(JSON.parse(options.body).inputs));
-  const oldFailure=audit.selectPage('START');await audit.selectPage('SETTINGS');oldVirtualError.reject(new Error('Obsolete START failure'));await oldFailure;
+  const oldFailure=audit.selectPage('START'), newestAfterFailure=audit.selectPage('SETTINGS');
+  assert.equal(virtualCalls,1);oldVirtualError.reject(new Error('Obsolete START failure'));await Promise.all([oldFailure,newestAfterFailure]);assert.equal(virtualCalls,2);
   assert.equal(entry.page,'SETTINGS');assert.ok(!byId('calculator-message').textContent.includes('Obsolete START failure'));assert.equal(virtualButtons().length,6);passed++;
 
   // Saving, both downloads and reset from a virtual tab still use the complete source-keyed calculator draft.
@@ -2141,4 +2153,4 @@ let passed = 0;
 
   assert.match(fs.readFileSync('static/app.js', 'utf8'), /view === "calculators"[\s\S]*?CeasefireCalculators\?\.open/);
   console.log(`Calculator UI checks passed: ${passed}`);
-})().catch(error => { console.error(error); process.exitCode = 1; });
+})().catch(error => { console.error(error); process.exitCode = 1; }).finally(() => clearTimeout(deadline));

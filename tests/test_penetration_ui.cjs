@@ -12,6 +12,20 @@ const text=node=>[node.textContent,...node.children.map(text)].join(' ');
 let passed=0;
 async function check(name,fn){const h=harness();h.api.applyProject(await h.api.prepareDefaults());await fn(h);passed++;console.log(`ok - ${name}`);}
 (async()=>{
+  await check('Rapid calculations retain only the newest pending exact draft and recover after the active failure',async h=>{
+    const held=deferred(),calls=[];h.audit.setRequest((path,payload)=>{calls.push(copy(payload));return calls.length===1?held.promise:Promise.resolve(result(payload.draft));});
+    h.audit.state.draft.rows[0].inputs.O=1;const active=h.audit.calculate();await flush();
+    h.audit.state.draft.rows[0].inputs.O=2;h.audit.state.revision++;const obsolete=h.audit.calculate();await flush();
+    h.audit.state.draft.rows[0].inputs.O=3.123456789;h.audit.state.revision++;const latest=h.audit.calculate();await flush();
+    assert.equal(calls.length,1);await obsolete;held.reject(Error('obsolete failure'));await Promise.all([active,latest]);
+    assert.equal(calls.length,2);assert.equal(calls[1].draft.rows[0].inputs.O,3.123456789);assert.equal(h.audit.state.result.draft.rows[0].inputs.O,3.123456789);assert.equal(h.audit.state.calculating,false);
+  });
+  await check('Project replacement drops a queued Firestopping request before the server sees it',async h=>{
+    const held=deferred();let calls=0;h.audit.setRequest(()=>{calls++;return held.promise;});
+    const active=h.audit.calculate();await flush();h.audit.state.revision++;const pending=h.audit.calculate();await flush();
+    h.api.applyProject({definition:definition(),draft:copy(definition().schedule_defaults),composer:copy(definition().defaults)});
+    held.resolve(result({globals:{},rows:[]}));await Promise.all([active,pending]);assert.equal(calls,1);assert.equal(h.audit.state.result,null);assert.equal(h.audit.state.calculating,false);
+  });
   await check('Each missing required entry field disables new additions and names/focuses the first missing field without mutating either draft',async h=>{
     entryPolicy(h);const notices=[];h.context.window.CeasefirePenetrationNavigation.notify=async(...args)=>notices.push(args);
     for(const [column,label] of entryFields){

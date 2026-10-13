@@ -29,6 +29,7 @@ const context = {
   FileReader:class { readAsDataURL(){this.result='data:application/octet-stream;base64,AAAA';queueMicrotask(()=>this.onload());} },
 };
 vm.createContext(context);
+vm.runInContext(fs.readFileSync('static/calculation-queue.js','utf8'),context);
 vm.runInContext(fs.readFileSync('static/downloads.js','utf8'),context);
 let source=fs.readFileSync('static/app.js','utf8');
 source=source.replace(/  bootstrap\(\);\s*\}\)\(\);\s*$/, `
@@ -708,7 +709,8 @@ let passed=0;
   audit.setRequest(()=>++labourRequests===1?olderLabour.promise:newerLabour.promise);
   const olderLabourRun=audit.calculate();assert.equal(labourRows()[0].children[0].textContent,'Calculating…');assert.equal(byId('labour-breakdown').getAttribute('aria-busy'),'true');
   const newerLabourRun=audit.calculate();const newerLabourResult=copy(labourResult);newerLabourResult.labour.total_days=22.5;newerLabourResult.summary.days=22.5;
-  newerLabour.resolve(newerLabourResult);await newerLabourRun;olderLabour.resolve(labourResult);await olderLabourRun;
+  assert.equal(labourRequests,1);olderLabour.resolve(labourResult);await olderLabourRun;
+  assert.equal(labourRequests,2);newerLabour.resolve(newerLabourResult);await newerLabourRun;
   assert.equal(labourRows().at(-1).children[1].textContent,'22.50');assert.equal(audit.state.result.labour.total_days,22.5);assert.equal(byId('labour-breakdown').getAttribute('aria-busy'),'false');
   audit.setRequest(async()=>{throw new Error('Calculation offline');});await audit.calculate();assert.equal(labourRows().length,1);assert.equal(labourRows()[0].children[0].textContent,'No current calculation is available.');assert.equal(byId('labour-breakdown').getAttribute('aria-busy'),'false');passed++;
 

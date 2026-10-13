@@ -109,11 +109,12 @@
 
 (() => {
   const $ = (id) => document.getElementById(id);
+  const calculationQueue = window.CeasefireCalculationQueue.create();
   const state = {
     fields: [], currentFields: [], inputs: {}, catalog: { inventory: [], rate_groups: {} }, baseline: { inventory: [], rate_groups: {} },
     configuration: { inventory: {}, rates: {} }, draft: { inventory: {}, rates: {} },
     quote: null, quoteConfiguration: null, quoteContext: 0, quoteLoadRevision: 0, dirty: false, pricingDirty: false,
-    result: null, revision: 0, timer: null, controller: null, pricingExpanded: new Set(), inputSections: new Map(), legacyTitle: "",
+    result: null, revision: 0, timer: null, pricingExpanded: new Set(), inputSections: new Map(), legacyTitle: "",
     workflow: "", defaultWorkflow: "Intumescent spray to ductwork", inputErrors: new Map(), inputDrafts: new Map(), inputRevision: 0, projectBusy: false,
     pricingScope: "library", libraryDraft: null, projectPricingDraft: null, pricingRevision: 0,
     projectFile: null, projectsRevision: 0, initialized: false, currentView: "home", projectsOffset: 0, projectsTimer: null, desktopRequests: 0,
@@ -572,7 +573,6 @@
     state.revision++;
     state.result = null;
     clearTimeout(state.timer);
-    if (state.controller) state.controller.abort();
     if (inputProblem()) { showInputProblems(); return; }
     clearResults("Calculating…");
     state.timer = setTimeout(() => { calculate(); }, 180);
@@ -581,16 +581,13 @@
   async function calculate() {
     clearTimeout(state.timer);
     const revision = ++state.revision;
-    if (state.controller) state.controller.abort();
     if (inputProblem()) { showInputProblems(); return null; }
-    state.controller = new AbortController();
     clearResults("Calculating…");
     try {
-      const result = await request("/api/calculate", {
-        method: "POST", signal: state.controller.signal,
-        body: JSON.stringify({ inputs: state.inputs, work_items: state.workItems, configuration: state.quoteConfiguration || state.configuration, workflow: state.workflow, ...(window.CeasefirePenetrations?.quoteSnapshot?.() ? { penetration: window.CeasefirePenetrations.quoteSnapshot() } : {}) }),
-      });
-      if (revision !== state.revision) return null;
+      const body = JSON.stringify({ inputs: state.inputs, work_items: state.workItems, configuration: state.quoteConfiguration || state.configuration, workflow: state.workflow, ...(window.CeasefirePenetrations?.quoteSnapshot?.() ? { penetration: window.CeasefirePenetrations.quoteSnapshot() } : {}) });
+      const result = await calculationQueue.run(() => request("/api/calculate", { method: "POST", body }),
+        () => revision === state.revision && !inputProblem());
+      if (!result || revision !== state.revision) return null;
       state.result = result;
       renderResults(result);
       return result;

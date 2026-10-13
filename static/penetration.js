@@ -10,6 +10,7 @@
     diagramChange: undefined, diagramRead: 0, diagramReading: null, diagramVersion: 0, takeoffLease: null, takeoffApplying: false,
     schedule: { draft: null, result: null, revision: 0, requestRevision: 0, invalid: new Map(), timer: null, calculating: false }, rowEpochs: new Map(), nextEpoch: 0 };
   const definitions = new Map(), diagramVersions = new Map(), pageSize = 50;
+  const calculationQueues = new Map([state, state.schedule].map(scope => [scope, window.CeasefireCalculationQueue.create()]));
   let controlSequence = 0;
   const number = new Intl.NumberFormat("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const currency = new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" });
@@ -1073,7 +1074,9 @@
     const pricing = configuration(), pricingKey = JSON.stringify(pricing), draft = clone(scope.draft);
     scope.calculating = true; status();
     try {
-      const data = await request("/api/penetration/calculate", { draft, configuration: pricing });
+      const data = await calculationQueues.get(scope).run(() => request("/api/penetration/calculate", { draft, configuration: pricing }),
+        () => context === state.context && revision === scope.revision && requestRevision === scope.requestRevision && pricingKey === configStamp() && !scope.invalid.size && !state.takeoffLease);
+      if (!data) return;
       if (context !== state.context || revision !== scope.revision || requestRevision !== scope.requestRevision || pricingKey !== configStamp() || scope.invalid.size) return;
       const fieldsChanged = JSON.stringify([state.definition.row_fields, state.definition.global_fields, state.definition.settings]) !== JSON.stringify([data.definition?.row_fields || state.definition.row_fields, data.definition?.global_fields || state.definition.global_fields, data.definition?.settings || state.definition.settings]);
       if (data.draft) acceptDraft(scope, data.draft, draft);

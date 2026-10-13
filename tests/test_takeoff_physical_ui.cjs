@@ -39,7 +39,7 @@ function documentHarness(){
     querySelector(selector){return this.querySelectorAll(selector)[0]||null;}
     querySelectorAll(selector){const matches=element=>selector.split(',').some(part=>part.startsWith('[data-')?Object.hasOwn(element.dataset,part.slice(6,-1).replace(/-([a-z])/g,(_,char)=>char.toUpperCase())):part.startsWith('.')?element.className.split(/\s+/).includes(part.slice(1)):element.tagName===part.toUpperCase());return this.children.flatMap(child=>[...(matches(child)?[child]:[]),...child.querySelectorAll(selector)]);}
   }
-  doc={createElement:tag=>new Element(tag),createElementNS:(_namespace,tag)=>new Element(tag)};doc.body=new Element('body');
+  doc={createElement:tag=>new Element(tag),createElementNS:(_namespace,tag)=>new Element(tag)};doc.body=new Element('body');doc.querySelector=selector=>doc.body.querySelector(selector);
   return {container:new Element('div'),all(root){return root.children.flatMap(child=>[child,...this.all(child)]);}};
 }
 function component(initial=graph(),extra={}){

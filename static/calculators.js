@@ -1340,11 +1340,13 @@
     // Cached navigation must invalidate earlier requests just like a new request.
     ++state.requestRevision; clearTimeout(state.timer);
     if (entry.invalid.size && entry.result) {
+      state.calculating = false;
       renderGrid(entry); $("calculator-grid").setAttribute("aria-busy", "false"); updateStatus(entry); return;
     }
     const cache = navigationCache(entry), page = currentPage(entry), view = cache?.pages.get(page), result = cache?.sheets.get(entry.sheet);
     entry.pendingResult = null; entry.needsRender = true;
     if (result) {
+      state.calculating = false;
       entry.result = result; latestCells(entry, result);
       if (view && view.result === result) {
         const grid = $("calculator-grid"); grid.replaceChildren(...view.nodes);

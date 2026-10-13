@@ -445,10 +445,12 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
   const lateNavigation=deferred();audit.setRequest(()=>lateNavigation.promise);
   const pendingNavigation=audit.selectPage('SUMMARY');await audit.selectPage('CALCULATOR');const cachedNavigationResult=entry.result;
   lateNavigation.resolve(navigationResult({CALCULATOR:{B9:-99}},'SUMMARY'));await pendingNavigation;
+  assert.equal(audit.state.calculating,false);assert.equal(byId('calculator-recalculate').disabled,false);
   assert.equal(entry.result,cachedNavigationResult);assert.equal(entry.inputs.CALCULATOR.B9,1.23456789123);assert.equal(entry.sheet,'CALCULATOR');
   const lateNavigationError=deferred();audit.setRequest(()=>lateNavigationError.promise);
   const pendingNavigationError=audit.selectPage('SUMMARY');await audit.selectPage('SETTINGS');
   lateNavigationError.reject(new Error('Obsolete navigation failure'));await pendingNavigationError;
+  assert.equal(audit.state.calculating,false);assert.equal(byId('calculator-recalculate').disabled,false);
   assert.equal(entry.sheet,'SETTINGS');assert.ok(!byId('calculator-message').textContent.includes('Obsolete navigation failure'));assert.equal(byId('calculator-grid').getAttribute('aria-busy'),'false');passed++;
 
   // Normalized/replaced inputs also invalidate even if their revision number was unchanged.

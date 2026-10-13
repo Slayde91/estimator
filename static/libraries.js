@@ -33,10 +33,13 @@
     el.append(icon); el.title = label; el.setAttribute("aria-label", label); return el;
   };
   async function request(path, signal, payload) {
+    const endActivity = window.CeasefireActivity?.begin();
+    try {
     const response = await fetch(path, { headers: { Accept: "application/json", ...(payload ? { "Content-Type": "application/json" } : {}) }, ...(signal ? { signal } : {}), ...(payload ? { method: "POST", body: JSON.stringify(payload) } : {}) });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || `The library could not be read (${response.status}).`);
     return data;
+    } finally { endActivity?.(); }
   }
   async function metadata(refresh = false) {
     if (refresh) { state.metadata = null; state.metadataRequest = null; }
@@ -116,7 +119,7 @@
       control.dataset.libraryFilter = filter.key; control.append(all);
       for (const option of filter.options || []) {
         const value = typeof option === "object" ? option.value : option, text = typeof option === "object" ? option.label : option;
-        const el = node("option", "", text ?? value); el.value = String(value); control.append(el);
+        const el = node("option", "", window.CeasefirePenetrationPresentation?.serviceLabel(text ?? value) ?? text ?? value); el.value = String(value); control.append(el);
       }
       const selected = pane.filters[filter.key] || (reference ? "any" : "");
       if (selected && ![...control.children].some(option => option.value === selected)) { const el = node("option", "", selected); el.value = selected; control.append(el); }
@@ -278,7 +281,7 @@
       for (const option of definition?.options || []) {
         const value = option && typeof option === "object" ? option.value : option, text = option && typeof option === "object" ? option.label : option;
         if (typeof value !== "string" || !value.trim() || !["string", "undefined"].includes(typeof text) || [...control.children].some(item => item.value === value)) continue;
-        const entry = node("option", "", text ?? value); entry.value = value; control.append(entry);
+        const entry = node("option", "", window.CeasefirePenetrationPresentation?.serviceLabel(text ?? value) ?? text ?? value); entry.value = value; control.append(entry);
       }
       const selected = session.filters[key] || "";
       if (selected && ![...control.children].some(item => item.value === selected)) { const retained = node("option", "", selected); retained.value = selected; control.append(retained); }

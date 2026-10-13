@@ -8,7 +8,7 @@
   const X = window.CeasefireTakeoffGraphics;
   // Historical implicit appearance retains the delivered defaults; new notes
   // capture the shared chosen defaults explicitly when they are created.
-  const calloutDefaults = () => ({ stroke_color: "#FF3300", fill_color: "#FFDD33", font_color: "#000000", stroke_width: 4, fill_enabled: true, opacity: .75 });
+  const calloutDefaults = () => ({ stroke_enabled: true, stroke_color: "#FF3300", fill_color: "#FFDD33", font_color: "#000000", stroke_width: 4, fill_enabled: true, opacity: .75 });
   const state = { session: null, saved: null, opening: null, active: false, mode: "steel", document: null, page: 1,
     zoom: 1, tool: "select", points: [], countEntries: [], countGeneration: 0, countDefaultLength: null, countFields: null, countQueue: Promise.resolve(), countFinishing: false, countContinuation: null, countSelection: new Map(), traceCursor: null, markupMenu: null, selected: new Set(), hovered: null, hidden: new Set(), collapsed: new Set(),
     search: "", filter: "", sort: "mark", group: "", offset: 0, showDeleted: false, deletedOffset: 0, deletedHistory: null, calibration: "", calibrationContext: null, calibrationSelections: new Map(), busy: false, queue: Promise.resolve(),
@@ -96,11 +96,11 @@
     return appearance;
   }
   const markupDefaultsKey = "ceasefire.takeoff-markup-defaults.v2";
-  const markupDefaultFields = ["stroke_color", "stroke_width", "fill_color", "fill_enabled", "opacity", "display_values"];
+  const markupDefaultFields = ["stroke_enabled", "stroke_color", "stroke_width", "fill_color", "fill_enabled", "opacity", "display_values"];
   function validatedMarkupDefaults(value) {
     if (!value || typeof value !== "object" || Array.isArray(value)) return null;
     if (!["stroke_color", "fill_color"].every(key => typeof value[key] === "string" && /^#[0-9a-f]{6}$/i.test(value[key]))) return null;
-    if (typeof value.fill_enabled !== "boolean" || !Number.isFinite(value.stroke_width) || value.stroke_width < 0.25 || value.stroke_width > 100 || !Number.isFinite(value.opacity) || value.opacity < 0 || value.opacity > 1 || (value.display_values !== undefined && typeof value.display_values !== "boolean")) return null;
+    if ((value.stroke_enabled !== undefined && typeof value.stroke_enabled !== "boolean") || typeof value.fill_enabled !== "boolean" || !Number.isFinite(value.stroke_width) || value.stroke_width < 0.25 || value.stroke_width > 100 || !Number.isFinite(value.opacity) || value.opacity < 0 || value.opacity > 1 || (value.display_values !== undefined && typeof value.display_values !== "boolean")) return null;
     return Object.fromEntries(markupDefaultFields.filter(key => value[key] !== undefined).map(key => [key, key.endsWith("color") ? value[key].toUpperCase() : value[key]]));
   }
   function readMarkupDefaults() {
@@ -140,6 +140,7 @@
     "Viewport": "M7 3H3v4M17 3h4v4M3 17v4h4M21 17v4h-4M7 7h10v10H7z",
     "Add viewport": "M12 4v16M4 12h16",
     "Delete viewport": "M4 6h16M9 6V3h6v3M6 6l1 15h10l1-15M10 10v7M14 10v7",
+    "Remove exclusion": "M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7",
     "Remove document": "M4 6h16M9 6V3h6v3M6 6l1 15h10l1-15M10 10v7M14 10v7",
     "Close viewports": "M6 9l6 6 6-6",
     "Update linked rows": "M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z M12 6v6h6",
@@ -269,10 +270,13 @@
   }
   async function safely(fn) { try { return await fn(); } catch (error) { message(error.message || String(error), true); } }
   async function api(path, data, method = data === undefined ? "GET" : "POST") {
+    const endActivity = window.CeasefireActivity?.begin();
+    try {
     const response = await fetch(`/api/takeoffs${path}`, { method, ...(data === undefined ? {} : { headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) }) });
     let result; try { result = await response.json(); } catch { const error = new Error(`The takeoff server returned an unreadable response (${response.status}).`); error.uncertainOutcome = true; throw error; }
     if (!response.ok) throw new Error(result.error || `Takeoff request failed (${response.status}).`);
     return result;
+    } finally { endActivity?.(); }
   }
   function accept(reply) {
     if (!reply?.session_id || !reply.snapshot || !Number.isInteger(reply.revision)) throw new Error("The takeoff response is incomplete.");
@@ -294,6 +298,7 @@
     window.CeasefireProject?.changed?.();
   }
   function working(value) {
+    window.CeasefireActivity?.set("takeoff-operation", value);
     state.busy = value;
     if (state.ui) {
       state.ui.root.setAttribute("aria-busy", String(value));
@@ -414,6 +419,7 @@
     field.read = () => { if (control.value === committed) return committed; const value = control.value.trim() === "" ? "" : exact(); if (value === undefined) throw new Error("Steel section: choose an exact section from the list."); committed = value; control.value = value; return value; };
   }
   function appearanceField(definition, initial) {
+    if (definition[0] === "stroke_enabled") initial = initial !== false;
     const key = definition[0], field = formField(definition, key === "opacity" ? initial * 100 : initial);
     if (["stroke_width", "marker_size", "opacity"].includes(key)) {
       field.control.min = "1"; field.control.max = "100"; field.control.step = "any"; field.control.required = true;
@@ -435,8 +441,10 @@
     const heading = node("h2", "", title); heading.id = `takeoff-dialog-${uuid()}`; dialog.setAttribute("aria-labelledby", heading.id); form.append(heading, node("p", "helper", detail));
     const controls = definitions.map(def => { const field = formField(def, def[3]); if (def[4]) field.control.required = true; form.append(field.wrapper); return field; });
     if (splitFields) {
-      const choices = controls.filter(field => field.control.tagName === "SELECT" || field.control.getAttribute("role") === "combobox");
+      const choices = controls.filter(field => field.control.name !== "section" && (field.control.tagName === "SELECT" || field.control.getAttribute("role") === "combobox"));
       const entries = controls.filter(field => !choices.includes(field));
+      const section = entries.find(field => field.control.name === "section"), mark = entries.find(field => field.control.name === "mark");
+      if (section && mark) { entries.splice(entries.indexOf(section), 1); entries.splice(entries.indexOf(mark) + 1, 0, section); }
       if (choices.length) {
         dialog.classList.add("takeoff-dialog-columns");
         const grid = node("div", "takeoff-entry-grid");
@@ -472,7 +480,8 @@
     const registry = window.CeasefireTakeoffShortcuts, tools = state.ui?.tools;
     if (!registry || !tools) return {};
     const drawingOnly = state.mode === "physical" || isArea();
-    const controls = { ...tools, trace: drawingOnly ? tools.pdfTrace : tools.trace, count: drawingOnly ? tools.pdfCount : tools.count, callout: state.mode === "physical" ? tools.count : tools.callout };
+    const controls = { ...tools, trace: drawingOnly ? tools.pdfTrace : tools.trace, count: drawingOnly ? tools.pdfCount : state.mode === "steel" ? tools.countLength : tools.count, callout: state.mode === "physical" ? tools.count : tools.callout,
+      measure: tools["graphic-measure"], polygon: isArea() ? tools.polygon : tools["graphic-area"], exclusion: isArea() ? tools.exclusion : tools["graphic-area-exclusion"] };
     for (const name of Object.keys(registry.actions)) registry.decorate(controls[name], name);
     return controls;
   }
@@ -632,7 +641,7 @@
       }
     }, { capture: true });
     syncToolShortcuts();
-    root.addEventListener("keydown", event => {
+    layout.addEventListener("keydown", event => {
       window.CeasefireTakeoffShortcuts?.dispatch(event, syncToolShortcuts(), !state.active || state.busy || state.modal || state.countFinishing || state.physicalPlacing || state.navigationBusy || !!document.querySelector?.("dialog[open], [role=dialog][aria-modal=true]"));
     }, { capture: true });
     ui.viewport.addEventListener("pointerdown", activatePlan, { capture: true }); ui.viewport.addEventListener("focusin", activatePlan);
@@ -661,6 +670,11 @@
     function close(hide = true) { list.hidden = hide; toggle.setAttribute("aria-expanded", String(!hide)); }
     for (const [operation, label] of [["merge", "Merge PDF Files"], ["organise", "Organise Pages"], ["extract", "Extract Pages"]]) list.append(button(label, () => { close(); return openPDFTools(operation); }, "button secondary calculator-document-action"));
     if (initialPagesUI) { const initial = button("Initial Pages", () => { close(); return initialPagesUI.activate(); }, "button secondary calculator-document-action"); initial.dataset.tool = "initial-pages"; list.append(initial); }
+    const paths = ["M3 3h7v9H3zM14 3h7v9h-7zM7 16h10v6H7zM6 12v3h6m6-3v3h-6v1", "M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z", "M13 3H4v18h13M13 3v5h5M14 14h8m-3-3 3 3-3 3", "M14 3H5v18h14V8l-5-5zM14 3v5h5M8 16c2-7 3-7 2 0 3-4 3-4 2 0l4-2"];
+    [...list.children].forEach((control, index) => {
+      const icon = svg("svg", {viewBox:"0 0 24 24", width:24, height:24, fill:"none", stroke:"currentColor", "stroke-width":1.8, "stroke-linecap":"round", "stroke-linejoin":"round", "aria-hidden":"true"});
+      icon.append(svg("path", {d:paths[index]})); control.replaceChildren(icon, node("span", "", control.textContent));
+    });
     root.addEventListener("keydown", event => {
       if (event.key === "Escape") { event.preventDefault(); close(); toggle.focus(); return; }
       if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key) || toggle.disabled) return;
@@ -1053,7 +1067,7 @@
     const content = node("div", "takeoff-settings-fields"); panel.append(content);
     content.append(node("h4", "", "Markup appearance"));
     const appearance = appearanceOf(first);
-    for (const def of [...(countsOnly ? [["marker_shape", "Marker shape", ["circle", "square", "triangle", "diamond"]], ["marker_size", "Marker Size", "number"]] : []), ["stroke_color", "Line Colour", "color"], ["stroke_width", "Line Width", "number"], ["fill_color", "Fill Colour", "color"], ["fill_enabled", "Fill Enabled", "checkbox"], ["opacity", "Opacity", "number"], ["display_values", "Display Values", "checkbox"]]) {
+    for (const def of [...(countsOnly ? [["marker_shape", "Marker shape", ["circle", "square", "triangle", "diamond"]], ["marker_size", "Marker Size", "number"]] : []), ["stroke_enabled", "Line Enabled", "checkbox"], ["stroke_color", "Line Colour", "color"], ["stroke_width", "Line Width", "number"], ["fill_color", "Fill Colour", "color"], ["fill_enabled", "Fill Enabled", "checkbox"], ["opacity", "Opacity", "number"], ["display_values", "Display Values", "checkbox"]]) {
       const field = appearanceField(def, appearance[def[0]]); field.control.required = def[2] !== "checkbox";
       bindSetting(editor, field, `appearance:${def[0]}`); editor.appearance.push(field); content.append(field.wrapper);
     }
@@ -1520,6 +1534,8 @@
     return text.promise;
   }
   async function renderPage(anchor = null, { refine = false } = {}) {
+    const endActivity = window.CeasefireActivity?.begin();
+    try {
     invalidateSearchContext();
     cancelQueuedZoom();
     if (!state.ui || !state.document) { clearPdfTextLayer(); ++state.renderId; state.pending?.cancel?.(); state.pending = null; state.displayPage = null; state.displayKey = null; state.viewport = null; if (state.ui) { state.ui.pageWrap.hidden = true; state.ui.empty.hidden = false; } return; }
@@ -1570,6 +1586,7 @@
       if (renderId !== state.renderId || error.name === "RenderingCancelledException") return;
       await recordPdfFailure(docId, pageNumber, error, sessionId, true, () => renderId === state.renderId);
     } finally { if (renderId === state.renderId) { state.pending = null; state.zoomAnchor = null; } }
+    } finally { endActivity?.(); }
   }
   async function renderThumbnails(pdf, renderId, docId) {
     const sessionId = state.session?.session_id, buttons = [...state.ui.thumbnails?.querySelectorAll("[data-page]") || []];
@@ -1698,7 +1715,7 @@
       if (state.countDefaultLength != null) { entry.length_m = state.countDefaultLength; refreshCountDraft(); return; }
       const revision = state.session?.revision;
       const creation = state.tool !== "pdf-count" && !state.countFields && !state.countContinuation, calculator = state.ui.target.value;
-      const data = await ask("Counted member length", [...(creation ? creationFields(state.mode).filter(([key]) => key !== "quantity") : []), ["length_mm", "Manual Length (mm)", "number", "", true], ["reuse", "Use this length for additional counts", "checkbox", false]], "Enter the real length. Marker positions and drawing scale never calculate this length.", "Place marker", async (controls, ready) => { const length = controls.find(field => field.control.name === "length_mm").control; length.min = "0.000001"; length.max = "1000000000000000"; if (creation) await configureSteelCreation(controls, calculator, ready); }, state.mode === "steel");
+      const data = await ask("Counted member length", [...(creation ? creationFields(state.mode).filter(([key]) => key !== "quantity") : []), ["length_mm", "Manual Length (mm)", "number", "", true], ["reuse", "Use this length for additional counts", "checkbox", false]], "Enter the real length. Marker positions and drawing scale never calculate this length.", "Place marker", async (controls, ready) => { const length = controls.find(field => field.control.name === "length_mm").control; length.min = "0.000001"; length.max = "1000000000000000"; if (creation) await configureSteelCreation(controls, calculator, ready); }, ["steel", "duct"].includes(state.mode));
       if (!currentCountEntry(entry)) return;
       if (revision !== state.session?.revision) throw new Error("The count changed during length entry. Cancel and restart this count.");
       if (!data) { removePendingCount(entry); return; }
@@ -2292,7 +2309,7 @@
     if (continuation) continuationTarget(continuation);
     state.countFinishing = true;
     try {
-      const details = continuation ? null : await ask("Add count", [...creationFields(mode).filter(([key]) => key !== "quantity").map(field => [...field.slice(0, 4), ["mark", "level"].includes(field[0])]), ["length_mm", "Manual Length (mm)", "number", "", false]], "", "Add count", async (controls, ready) => { const length = controls.find(field => field.control.name === "length_mm").control; length.min = "0.000001"; length.max = "1000000000000000"; await configureSteelCreation(controls, state.ui.target.value, ready); });
+      const details = continuation ? null : await ask("Add count", [...creationFields(mode).filter(([key]) => key !== "quantity").map(field => [...field.slice(0, 4), ["mark", "level"].includes(field[0])]), ["length_mm", "Manual Length (mm)", "number", "", false]], "", "Add count", async (controls, ready) => { const length = controls.find(field => field.control.name === "length_mm").control; length.min = "0.000001"; length.max = "1000000000000000"; await configureSteelCreation(controls, state.ui.target.value, ready); }, ["steel", "duct"].includes(mode));
       if (!continuation && !details) return cancelTrace();
       const hasLength = details?.length_mm != null && details.length_mm !== "";
       if (hasLength && (!(details.length_mm > 0) || !Number.isFinite(details.length_mm) || details.length_mm > 1e15)) throw new Error("Manual Length (mm): enter a positive finite length no greater than 1,000,000,000,000,000 mm.");
@@ -2331,7 +2348,7 @@
       state.selected = new Set([id]); cancelTrace(); state.settingsOpen = true; renderSelection(); return;
     }
     const mode = state.mode, calculator = state.ui.target.value;
-    const details = await ask(`Add ${labels[mode].toLowerCase()} object`, creationFields(mode), `One trace represents one physical object. A repeated quantity must be explicitly supported by the source. New items are unconfirmed. Choices come from ${calculatorName(calculator)}. Unknown properties may stay blank until confirmation; calculator transfer requires exact supported values.${mode === "duct" ? " New duct runs are rectangular." : ""}`, "Add item", (controls, ready) => configureSteelCreation(controls, calculator, ready), mode === "steel");
+    const details = await ask(`Add ${labels[mode].toLowerCase()} object`, creationFields(mode), `One trace represents one physical object. A repeated quantity must be explicitly supported by the source. New items are unconfirmed. Choices come from ${calculatorName(calculator)}. Unknown properties may stay blank until confirmation; calculator transfer requires exact supported values.${mode === "duct" ? " New duct runs are rectangular." : ""}`, "Add item", (controls, ready) => configureSteelCreation(controls, calculator, ready), ["steel", "duct"].includes(mode));
     if (!details) return cancelTrace(); if (!Number.isInteger(details.quantity) || details.quantity < 1) throw new Error("Enter an explicit positive whole quantity.");
     const { quantity, duct_size, ...enteredFields } = details;
     if (mode === "duct") Object.assign(enteredFields, parseDuctSize(duct_size));
@@ -2540,7 +2557,7 @@
     geometry.points.forEach((source, index) => {
       const point = G.transform(source, state.viewport.transform), memberId = item.member_ids[index];
       const chosen = selectedMembers.has(memberId);
-      const shape = countSymbol(point, appearance, { class: `takeoff-markup takeoff-count-marker${chosen ? " selected" : ""}${state.hovered === item.id ? " hovered" : ""}`, stroke: appearance.stroke_color, "stroke-width": appearance.stroke_width * scale, fill: appearance.fill_enabled ? appearance.fill_color : "none", opacity: appearance.opacity });
+      const shape = countSymbol(point, appearance, { class: `takeoff-markup takeoff-count-marker${chosen ? " selected" : ""}${state.hovered === item.id ? " hovered" : ""}`, stroke: appearance.stroke_enabled === false ? "none" : appearance.stroke_color, "data-line-enabled": appearance.stroke_enabled !== false, "stroke-width": appearance.stroke_width * scale, fill: appearance.fill_enabled ? appearance.fill_color : "none", opacity: appearance.opacity });
       if (chosen) {
         const radius = Math.max(6, appearance.marker_size * scale / 2) + 5;
         const attrs = { x: point[0] - radius, y: point[1] - radius, width: radius * 2, height: radius * 2, rx: 3, "pointer-events": "none", "aria-hidden": "true" };
@@ -2639,7 +2656,7 @@
       const points = geometry.points.map(convert), className = `takeoff-markup ${reviewStatus(item).key}${state.selected.has(item.id) ? " selected" : ""}${state.hovered === item.id ? " hovered" : ""}`, appearance = appearanceOf(item);
       // PDF.js' transform includes UserUnit. Stored widths are physical PDF points.
       const pixelWidth = appearance.stroke_width * Math.hypot(state.viewport.transform[0], state.viewport.transform[1]) / (pageMetadata()?.user_unit || 1);
-      const attributes = { class: className, stroke: appearance.stroke_color, "stroke-width": pixelWidth, opacity: appearance.opacity, fill: appearance.fill_enabled && (geometry.kind === "polygon" || item.measurement?.method === "cited") ? appearance.fill_color : "none", "fill-opacity": 0.12 };
+      const attributes = { class: className, stroke: appearance.stroke_enabled === false ? "none" : appearance.stroke_color, "data-line-enabled": appearance.stroke_enabled !== false, "stroke-width": pixelWidth, opacity: appearance.opacity, fill: appearance.fill_enabled && (geometry.kind === "polygon" || item.measurement?.method === "cited") ? appearance.fill_color : "none", "fill-opacity": 0.12 };
       let shape, hit; if (geometry.kind === "polygon") { const path = pointDrag ? [geometry.points, ...geometry.exclusions.map(value => value.points)].map(ring => ring.map(convert).map((p, index) => `${index ? "L" : "M"}${p[0]},${p[1]}`).join(" ") + " Z").join(" ") : G.polygonPath(geometry, state.viewport.transform); const attrs = { d: path, "fill-rule": "evenodd", "clip-rule": "evenodd" }; shape = svg("path", { ...attrs, ...attributes }); hit = svg("path", { ...attrs, class: "takeoff-hit takeoff-area-hit" }); }
       else if (item.measurement?.method === "cited") { const box = G.region(points[0], points[points.length - 1]); const attrs = { x: box[0], y: box[1], width: box[2], height: box[3] }; shape = svg("rect", { ...attrs, ...attributes }); hit = svg("rect", { ...attrs, class: "takeoff-hit takeoff-area-hit" }); }
       else { const coords = points.map(p => p.join(",")).join(" "); shape = svg("polyline", { points: coords, ...attributes, class: `${className} takeoff-length-markup` }); hit = svg("polyline", { points: coords, class: "takeoff-hit" }); }
@@ -2651,7 +2668,7 @@
       const label = svg("text", { x: points[0][0] + 6, y: points[0][1] - 7, class: "takeoff-label" }); label.textContent = item.fields.mark || item.id.slice(0, 8); overlay.append(shape, hit, label);
       renderLengthAdditionMarkers(overlay, item, geometry);
       renderMeasurementValues(overlay, item, geometry);
-      if (geometry.kind === "polygon" && appearance.display_values) renderSurfaceLabel(overlay, geometry, item.measurement?.calibration_id, { area: itemResult(item).net_area_m2, itemId: item.id, preview: pointDrag });
+      if (geometry.kind === "polygon") renderSurfaceLabel(overlay, geometry, item.measurement?.calibration_id, { area: itemResult(item).net_area_m2, itemId: item.id, preview: pointDrag });
     }
     renderPendingTrace(overlay);
     renderFreeCallouts(overlay);
@@ -2845,7 +2862,7 @@
     const editor = { kind: "annotation", key, sessionId: state.session.session_id, revision: state.session.revision, id: annotation.id, touched: new Map(), fields: [], appearance: [] }; state.settingsEditor = editor;
     const heading = node("div", "takeoff-viewports-heading"); heading.append(button("Close settings", () => closeAnnotationSettings(editor)), node("h3", "", "Call-out Settings"));
     const controls = node("div", "takeoff-settings-fields"); panel.replaceChildren(heading, controls); controls.append(node("h4", "", "Markup appearance"));
-    for (const definition of [["stroke_color", "Line Colour", "color"], ["stroke_width", "Line Width", "number"], ["fill_color", "Fill Colour", "color"], ["fill_enabled", "Fill Enabled", "checkbox"], ["font_color", "Font Colour", "color"], ["opacity", "Opacity", "number"]]) {
+    for (const definition of [["stroke_enabled", "Line Enabled", "checkbox"], ["stroke_color", "Line Colour", "color"], ["stroke_width", "Line Width", "number"], ["fill_color", "Fill Colour", "color"], ["fill_enabled", "Fill Enabled", "checkbox"], ["font_color", "Font Colour", "color"], ["opacity", "Opacity", "number"]]) {
       const field = appearanceField(definition, annotation.appearance[definition[0]]); editor.appearance.push(field); bindSetting(editor, field, `appearance:${definition[0]}`); controls.append(field.wrapper);
     }
     const actions = node("div", "actions takeoff-appearance-actions");
@@ -3028,8 +3045,8 @@
       const width = gesture?.width || annotation.width, height = gesture?.height || annotation.height;
       const label = [Math.max(0, Math.min(state.viewport.width - width * scale, rawLabel[0])), Math.max(0, Math.min(state.viewport.height - height * scale, rawLabel[1]))];
       const selected = state.annotationSelected === annotation.id, group = svg("g", { class: `takeoff-free-callout${selected ? " selected" : ""}`, "data-annotation-id": annotation.id, role: "button", tabindex: 0, "aria-label": `Call-out · ${A.text(annotation.content) || "Empty Item Details"}`, "aria-pressed": String(selected) });
-      group.append(svg("line", { x1: point[0], y1: point[1], x2: Math.max(label[0], Math.min(point[0], label[0] + width * scale)), y2: Math.max(label[1], Math.min(point[1], label[1] + height * scale)), stroke: appearance.stroke_color, "stroke-width": appearance.stroke_width * scale / (pageMetadata()?.user_unit || 1), "pointer-events": "none" }));
-      group.append(svg("rect", { x: label[0], y: label[1], width: width * scale, height: height * scale, rx: Math.min(3 * scale, height * scale / 8), fill: appearance.fill_enabled ? appearance.fill_color : "transparent", "fill-opacity": appearance.opacity, stroke: appearance.stroke_color, "stroke-width": appearance.stroke_width * scale / (pageMetadata()?.user_unit || 1), "data-annotation-part": "label" }));
+      group.append(svg("line", { x1: point[0], y1: point[1], x2: Math.max(label[0], Math.min(point[0], label[0] + width * scale)), y2: Math.max(label[1], Math.min(point[1], label[1] + height * scale)), stroke: appearance.stroke_enabled === false ? "none" : appearance.stroke_color, "data-line-enabled": appearance.stroke_enabled !== false, "stroke-width": appearance.stroke_width * scale / (pageMetadata()?.user_unit || 1), "pointer-events": "none" }));
+      group.append(svg("rect", { x: label[0], y: label[1], width: width * scale, height: height * scale, rx: Math.min(3 * scale, height * scale / 8), fill: appearance.fill_enabled ? appearance.fill_color : "transparent", "fill-opacity": appearance.opacity, stroke: appearance.stroke_enabled === false ? "none" : appearance.stroke_color, "data-line-enabled": appearance.stroke_enabled !== false, "stroke-width": appearance.stroke_width * scale / (pageMetadata()?.user_unit || 1), "data-annotation-part": "label", "pointer-events": "all" }));
       try {
         const layout = A.layout(annotation.content, width, height), text = svg("text", { "font-family": "CeasefireDrawing", "font-size": layout.size * scale, fill: appearance.font_color, "pointer-events": "none" });
         layout.lines.forEach((line, index) => { for (const run of line) { const span = svg("tspan", { x: label[0] + (layout.padding + run.x) * scale, y: label[1] + (layout.padding + layout.size + index * layout.size * 1.3) * scale, "font-weight": run.bold ? "700" : "400", "font-style": run.italic ? "italic" : "normal", "text-decoration": run.underline ? "underline" : "none" }); span.textContent = run.text; text.append(span); } }); group.append(text);
@@ -3194,7 +3211,7 @@
     const part = state.physicalAppearancePart || "marker", callout = part === "callout";
     const defaults = callout ? calloutDefaults() : appearanceOf({ appearance: locator.appearance });
     const appearance = { ...defaults, ...(callout ? locator.callout?.appearance : locator.appearance) }, fields = node("div", "takeoff-settings-fields"); fields.setAttribute("aria-label", callout ? "Callout Settings" : "Marker Settings"); fields.append(node("h3", "", callout ? "Callout Settings" : "Marker Settings")); container.append(fields);
-    const definitions = [["fill_color", "Fill Colour", "color"], ["fill_enabled", "Fill Enabled", "checkbox"], ["stroke_color", "Line Colour", "color"], ["stroke_width", "Line Width", "number"], ...(callout ? [["font_color", "Font Colour", "color"], ["opacity", "Opacity", "number"]] : [["marker_size", "Marker Size", "number"], ["opacity", "Opacity", "number"]])];
+    const definitions = [["fill_color", "Fill Colour", "color"], ["fill_enabled", "Fill Enabled", "checkbox"], ["stroke_enabled", "Line Enabled", "checkbox"], ["stroke_color", "Line Colour", "color"], ["stroke_width", "Line Width", "number"], ...(callout ? [["font_color", "Font Colour", "color"], ["opacity", "Opacity", "number"]] : [["marker_size", "Marker Size", "number"], ["opacity", "Opacity", "number"]])];
     const styleFields = [];
     for (const def of definitions) {
       const field = appearanceField(def, appearance[def[0]]); styleFields.push(field); fields.append(field.wrapper);
@@ -3361,12 +3378,12 @@
     let fontSize = 9 * scale, lines = physicalCalloutLines(summary, width - 2 * padding, fontSize);
     for (let step = 0; step < 30 && lines.length * fontSize * 1.3 > height - 2 * padding; step++) { fontSize *= 0.9; lines = physicalCalloutLines(summary, width - 2 * padding, fontSize); }
     const lineHeight = fontSize * 1.3;
-    const leader = svg("path", { d: `M${point[0]} ${point[1]}L${Math.max(x, Math.min(point[0], x + width))} ${Math.max(y, Math.min(point[1], y + height))}`, stroke: calloutAppearance.stroke_color, "stroke-width": calloutAppearance.stroke_width * markerScale, fill: "none", "pointer-events": "none" });
+    const leader = svg("path", { d: `M${point[0]} ${point[1]}L${Math.max(x, Math.min(point[0], x + width))} ${Math.max(y, Math.min(point[1], y + height))}`, stroke: calloutAppearance.stroke_enabled === false ? "none" : calloutAppearance.stroke_color, "data-line-enabled": calloutAppearance.stroke_enabled !== false, "stroke-width": calloutAppearance.stroke_width * markerScale, fill: "none", "pointer-events": "none" });
     const callout = svg("g", { class: `takeoff-physical-callout${selected ? " selected" : ""}`, "data-physical-id": entity.id, role: "button", tabindex: 0, "aria-pressed": String(selected), "aria-label": `Callout ${entity.display_id} · ${summary}` });
-    callout.append(svg("rect", { class: "takeoff-physical-callout-frame", x, y, width, height, rx: 3 * scale, fill: calloutAppearance.fill_enabled ? calloutAppearance.fill_color : "none", "fill-opacity": calloutAppearance.opacity, stroke: calloutAppearance.stroke_color, "stroke-width": calloutAppearance.stroke_width * markerScale }));
+    callout.append(svg("rect", { class: "takeoff-physical-callout-frame", "pointer-events": "all", x, y, width, height, rx: 3 * scale, fill: calloutAppearance.fill_enabled ? calloutAppearance.fill_color : "none", "fill-opacity": calloutAppearance.opacity, stroke: calloutAppearance.stroke_enabled === false ? "none" : calloutAppearance.stroke_color, "data-line-enabled": calloutAppearance.stroke_enabled !== false, "stroke-width": calloutAppearance.stroke_width * markerScale }));
     const text = svg("text", { fill: calloutAppearance.font_color, "font-family": "CeasefireDrawing", "font-kerning": "none", "font-size": fontSize });
     lines.forEach((line, index) => { const span = svg("tspan", { x: x + padding, y: y + padding + fontSize + index * lineHeight, "font-weight": index === 0 ? "700" : "400" }); span.textContent = line; text.append(span); }); callout.append(text);
-    const shape = svg("circle", { cx: point[0], cy: point[1], r: radius, class: `takeoff-physical-marker${selected ? " selected" : ""}`, fill: markerAppearance.fill_enabled ? markerAppearance.fill_color : "none", stroke: markerAppearance.stroke_color, opacity: markerAppearance.opacity, "stroke-width": markerAppearance.stroke_width * markerScale, "pointer-events": "none" });
+    const shape = svg("circle", { cx: point[0], cy: point[1], r: radius, class: `takeoff-physical-marker${selected ? " selected" : ""}`, fill: markerAppearance.fill_enabled ? markerAppearance.fill_color : "none", stroke: markerAppearance.stroke_enabled === false ? "none" : markerAppearance.stroke_color, "data-line-enabled": markerAppearance.stroke_enabled !== false, opacity: markerAppearance.opacity, "stroke-width": markerAppearance.stroke_width * markerScale, "pointer-events": "none" });
     if (selected) {
       const halo = { cx: point[0], cy: point[1], r: radius + 5, "pointer-events": "none", "aria-hidden": "true", "data-selected-physical-id": entity.id };
       overlay.append(svg("circle", { ...halo, class: "takeoff-physical-selection-underlay" }), svg("circle", { ...halo, class: "takeoff-physical-selection" }));
@@ -3529,7 +3546,7 @@
     const original = { x: origin[0], y: origin[1], width: legend.width*scale, height: legend.height*scale }, box = state.gesture?.kind === "legend" ? state.gesture.box : original;
     const { x, y, width, height } = box, style = legend.appearance, selected = selectedLegend(), rows = drawingLegendRows(legend);
     const group = svg("g", { class: "takeoff-drawing-legend", role: "button", tabindex: 0, "aria-label": `${labels[legend.mode]} Legend`, "aria-pressed": String(!!selected), "data-legend-id": legend.id });
-    group.append(svg("rect", { x, y, width, height, fill: style.fill_enabled ? style.fill_color : "none", "fill-opacity": style.opacity, stroke: style.stroke_color, "stroke-width": style.stroke_width*scale }));
+    group.append(svg("rect", { x, y, width, height, fill: style.fill_enabled ? style.fill_color : "none", "fill-opacity": style.opacity, stroke: style.stroke_enabled === false ? "none" : style.stroke_color, "data-line-enabled": style.stroke_enabled !== false, "stroke-width": style.stroke_width*scale }));
     let font = 11*scale, wrapped;
     for (let attempt = 0; attempt < 45; attempt++) { wrapped = rows.map(row => ({ ...row, lines: physicalCalloutLines(row.text, Math.max(10, width-30*scale), font, "Arial, sans-serif") })); if ((wrapped.reduce((sum, row) => sum+row.lines.length, 0)+3)*font*1.3 < height-12*scale) break; font *= .9; }
     const heading = svg("text", { x: x+8*scale, y: y+8*scale+font, fill: style.font_color || "#202020", "font-size": font, "font-family": "Arial, sans-serif", "font-weight": "700", "pointer-events": "none" }); heading.textContent = `${labels[legend.mode]} Legend`; group.append(heading);
@@ -3573,7 +3590,7 @@
   function renderLegendSettings(panel) {
     const legend = selectedLegend(), context = pageDisplayKey(), heading = node("div", "takeoff-viewports-heading"); heading.append(button("Close settings", toggleSettings), node("h3", "", "Legend Settings")); panel.replaceChildren(heading);
     const fields = node("div", "takeoff-settings-fields"); panel.append(fields);
-    for (const def of [["stroke_color", "Line Colour", "color"], ["stroke_width", "Line Width", "number"], ["fill_color", "Fill Colour", "color"], ["fill_enabled", "Fill Enabled", "checkbox"], ["font_color", "Font Colour", "color"], ["opacity", "Opacity", "number"]]) {
+    for (const def of [["stroke_enabled", "Line Enabled", "checkbox"], ["stroke_color", "Line Colour", "color"], ["stroke_width", "Line Width", "number"], ["fill_color", "Fill Colour", "color"], ["fill_enabled", "Fill Enabled", "checkbox"], ["font_color", "Font Colour", "color"], ["opacity", "Opacity", "number"]]) {
       const field = appearanceField(def, ({ opacity: .94, ...legend.appearance })[def[0]]); fields.append(field.wrapper);
       field.control.addEventListener("change", () => void safely(async () => { requireFinishedEdits(); const current = selectedLegend(); if (context !== pageDisplayKey() || !current || current.id !== legend.id) throw new Error("Select the current legend again."); const value = field.read(); await command("set_legend", { legend: { ...clone(current), appearance: { ...current.appearance, [def[0]]: value } } }, () => { if (context !== pageDisplayKey() || selectedLegend()?.id !== legend.id) throw new Error("Select the current legend again."); return true; }); }));
     }

@@ -58,6 +58,38 @@ class TakeoffGraphicTests(unittest.TestCase):
     def record(self, identifier):
         return next(value for value in self.case.session['snapshot']['graphics']['records'] if value['id'] == identifier)
 
+    def test_line_enabled_roundtrip_legacy_records_and_strict_boolean(self):
+        identifier = self.create(appearance={'stroke_enabled': False})
+        saved = deepcopy(self.case.session['snapshot'])
+        self.assertIs(self.record(identifier)['appearance']['stroke_enabled'], False)
+        reopened = self.case.service.open(saved)['snapshot']
+        self.assertEqual(reopened, saved)
+        legacy = deepcopy(saved)
+        del legacy['graphics']['records'][0]['appearance']['stroke_enabled']
+        before = json.dumps(legacy, sort_keys=True)
+        validate_snapshot(legacy)
+        self.assertEqual(json.dumps(legacy, sort_keys=True), before)
+        for invalid in (0, 1, 'false', None):
+            with self.assertRaises(ValidationError):
+                self.create(appearance={'stroke_enabled': invalid})
+
+    def test_pdf_disabled_borders_are_unstroked_not_zero_width_hairlines(self):
+        from reportlab.pdfgen.canvas import Canvas
+        from estimator.takeoff_markup_pdf_worker import _paint_graphics
+        from estimator.takeoff_graphics import graphic_appearance
+        for kind in ('rectangle', 'circle', 'cloud', 'polygon', 'arrow'):
+            for enabled in (True, False):
+                graphic = proposal(self.document, kind)
+                graphic['appearance'] = graphic_appearance({'stroke_enabled': enabled, 'fill_enabled': True})
+                stream = BytesIO()
+                pdf = Canvas(stream, pagesize=(300, 300), invariant=1)
+                _paint_graphics(pdf, [graphic], [1, 0, 0, 1, 0, 0], (0, 0, 300, 300))
+                pdf.save()
+                operations = PdfReader(BytesIO(stream.getvalue())).pages[0].get_contents().operations
+                painted = [operator for _, operator in operations if operator in (b'S', b's', b'B', b'B*', b'b', b'b*')]
+                self.assertEqual(bool(painted), enabled, (kind, enabled))
+                self.assertFalse(any(operator == b'w' and operands == [0] for operands, operator in operations))
+
     def export(self, **values):
         return self.case.service.export_workspace(self.case.session['session_id'], 'marked-pdf', {
             'expected_revision': self.case.session['revision'], 'mode': 'steel', 'document_id': self.document['id'],
@@ -112,7 +144,7 @@ class TakeoffGraphicTests(unittest.TestCase):
         for identifier in ids:
             record = self.record(identifier)
             self.assertEqual(record['version'], 1)
-            self.assertEqual(set(record['appearance']), {'stroke_color', 'stroke_width', 'opacity', 'fill_enabled', 'fill_color', 'font_color', 'font_size'})
+            self.assertEqual(set(record['appearance']), {'stroke_enabled', 'stroke_color', 'stroke_width', 'opacity', 'fill_enabled', 'fill_color', 'font_color', 'font_size'})
             self.assertNotIn('quantity', record); self.assertNotIn('review', record); self.assertNotIn('confirmation', record)
             with self.assertRaisesRegex(ValidationError, 'no longer exists'):
                 self.command('confirm_items', item_ids=[identifier])

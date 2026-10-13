@@ -9,10 +9,10 @@ test('documented tool shortcuts come from the actual dispatch registry', () => {
   for (const [action, value] of Object.entries(registry.actions)) {
     const row = rows.find(row => row.action === action);
     assert.ok(row, `Help covers ${action}`);
-    assert.deepEqual(row.keys, [`Ctrl+${value.key}`]);
+    assert.deepEqual(row.keys, [registry.shortcut(value)]);
   }
   const signature = rows.find(row => row.name === 'Signatures');
-  assert.deepEqual(signature.keys, [], 'Signatures has no invented shortcut');
+  assert.deepEqual(signature.keys, ['Ctrl+Shift+S']);
   assert.ok(rows.find(row => row.name === 'Estimate Summary'));
 });
 
@@ -30,7 +30,7 @@ test('PDF graphics and page tools are documented without invented shortcuts', ()
   for (const kind of ['cloud','textbox','stamp','polyline','arrow','rectangle','circle','polygon']) {
     const row = rows.find(row => row.icon.graphic === kind);
     assert.equal(row.name, graphics.labels[kind]);
-    assert.deepEqual(row.keys, []);
+    assert.deepEqual(row.keys, kind === 'textbox' ? [] : [registry.shortcut(registry.actions[`graphic-${kind}`])]);
     assert.match(row.description, /Click/);
   }
   for (const name of ['Tools','Merge PDF Files','Organise Pages','Extract Pages']) {
@@ -45,11 +45,11 @@ test('search finds functions and shortcuts, combines words and honors section', 
   const rows = glossary.catalogue(registry);
   const find = (query, category = '') => rows.filter(row => glossary.matches(row, query, category));
   assert.ok(find('  NET   sqm ').some(row => row.name === 'Trace surface'));
-  assert.deepEqual(find('ctrl+F8').map(row => row.name), ['Trace surface']);
+  assert.deepEqual(find('shift+a').map(row => row.name), ['Trace surface']);
   assert.ok(find('Ctrl+C').some(row => row.id === 'drawing-copy'));
   assert.ok(find('Cmd+V').some(row => row.id === 'drawing-copy'));
   assert.ok(find('download', 'Documents').length >= 4);
-  assert.deepEqual(find('ctrl+F8', 'Projects and files'), []);
+  assert.deepEqual(find('shift+a', 'Projects and files'), []);
   assert.deepEqual(find('<script>'), [], 'search text never becomes HTML');
 });
 

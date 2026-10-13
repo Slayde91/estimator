@@ -18,6 +18,8 @@ jobs:
       - run: node --check static/theme.js
       - run: node --check static/company-settings.js
       - run: node --check static/app.js
+      - run: node --check static/activity.js && node --check static/searchable-choice.js && node --check static/penetration-presentation.js
+      - run: node --test tests/test_annotation_controls.cjs
       - run: node --check static/calculators.js
       - run: node --check static/downloads.js
       - run: node --check static/penetration.js
@@ -108,6 +110,7 @@ jobs:
       - run: node tests/browser/pdf_markup_clipboard.cjs
       - run: npm run test:pdf-markup-ui
       - run: npm run test:pdf-tools
+      - run: npm run test:annotation-controls
       - run: npm run test:takeoffs-area-copy-visibility
       - run: npm run test:header-controls
       - run: npm run test:company-firestopping-settings

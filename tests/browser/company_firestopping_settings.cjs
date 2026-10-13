@@ -33,13 +33,13 @@ const field=column=>page.locator(`#penetration-row-fields [data-penetration-fiel
   await chooseCalculator(page,'Firestopping');await idle();await expect(field('J')).toBeVisible();
   const paired=await page.locator('#penetration-row-fields').evaluate(el=>{
     const box=column=>{const b=el.querySelector(`[data-penetration-field="${column}"]`).getBoundingClientRect();return {x:b.x,y:b.y,width:b.width};};
-    return {orientation:box('M'),substrate:box('P'),manufacturer:box('V'),frl:box('N')};
+    return {orientation:box('M'),substrate:box('P'),type:box('L'),frl:box('N')};
   });
-  assert.equal(paired.orientation.y,paired.substrate.y);assert.ok(Math.abs(paired.orientation.width-paired.substrate.width)<2);assert.equal(paired.manufacturer.y,paired.frl.y);
+  assert.equal(paired.orientation.y,paired.substrate.y);assert.ok(Math.abs(paired.orientation.width-paired.substrate.width)<2);assert.equal(paired.type.y,paired.frl.y);
   evidence.pairedWidths=[];
   for(const width of [1440,390]) {
     await page.setViewportSize({width,height:900});
-    const pair=await page.locator('#penetration-row-fields').evaluate(el=>['M','P'].map(column=>{
+    const pair=await page.locator('#penetration-row-fields').evaluate(el=>['P','M'].map(column=>{
       const b=el.querySelector(`[data-penetration-field="${column}"]`).getBoundingClientRect();return {x:b.x,y:b.y,width:b.width};
     }));
     assert.equal(pair[0].y,pair[1].y,'Paired input edges stay aligned when a label wraps');

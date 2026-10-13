@@ -126,6 +126,14 @@ class TakeoffDisplayValuePDFTests(unittest.TestCase):
         self.assertEqual(result['net_area_m2'], 50)
         self.assertEqual(case.case.service.get(case.case.session['session_id'])['snapshot'], before)
 
+        case.command('update_item', item_id=identifier, changes={'appearance': {'display_values': False, 'stroke_enabled': False}})
+        before = deepcopy(case.case.session['snapshot'])
+        text = PdfReader(BytesIO(case.export([identifier], mode='wall')[0])).pages[0].extract_text()
+        self.assertIn('50.00 m²', text)
+        self.assertNotIn('10,000.00 mm', text)
+        self.assertNotIn('5,000.00 mm', text)
+        self.assertEqual(case.case.service.get(case.case.session['session_id'])['snapshot'], before)
+
     def test_real_layered_surface_pdf_separates_measured_net_from_multiplied_total(self):
         case = self.case; case.create_marks(); snapshot = case.case.session['snapshot']
         source = case.case.documents.document_path(case.document)

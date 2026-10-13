@@ -131,9 +131,9 @@ async function saveLoad(info) {
       assert.deepEqual(await snapshot(), beforeLegacyMode); assert.equal(requests.length, previousRequests);
       evidence.legacyNativeSlabSetup = { existingCompatibilityAPI: true, noCanonicalMutation: true };
     }
-    await fit(); await expect(page.getByRole("button", { name: "Call-out", exact: true })).toHaveAttribute("title", "Call-out (Ctrl+')");
+    await fit(); await expect(page.getByRole("button", { name: "Call-out", exact: true })).toHaveAttribute("title", "Call-out (Q)");
     await expect(page.getByRole("button", { name: "Call-out", exact: true }).locator("img")).toHaveAttribute("src", "/icons/takeoff-callout.png");
-    await page.locator(".takeoff-viewport").focus(); await page.keyboard.press("Control+'"); await expect(page.locator(".takeoff-viewport")).toHaveAttribute("data-tool", "callout");
+    await page.locator(".takeoff-viewport").focus(); await page.keyboard.press("q"); await expect(page.locator(".takeoff-viewport")).toHaveAttribute("data-tool", "callout");
     const reply = await command(async () => page.mouse.click(...await sourcePoint([220 + index * 70, 240])), "create_annotation"), annotation = reply.snapshot.annotations.callouts.find(value => value.id === reply.created_annotation_id);
     created[mode] = annotation.id; assert.equal(annotation.mode, mode); assert.equal(annotation.source_sha256, sourceHash); assert.equal(annotation.page, 3); assert.deepEqual(annotation.appearance, savedDefault || builtIn);
     invariant(reply.snapshot, baseline); await expect(panel()).toContainText("Item Details"); await expect(panel().locator("input,select,textarea")).toHaveCount(6); await expect(page.locator("tr[data-item-id]")).toHaveCount(0);
@@ -158,7 +158,7 @@ async function saveLoad(info) {
     await currentVisibility.click(); await expect(note(annotation.id)).toHaveCount(0); await expect(currentVisibility).toHaveAttribute("aria-pressed", "true"); await expect(editor()).toBeVisible(); assert.equal(await editor().innerText(), detailsBeforeVisibility);
     await currentVisibility.click(); await expect(note(annotation.id)).toBeVisible(); await expect(currentVisibility).toHaveAttribute("aria-pressed", "false"); assert.deepEqual(await snapshot(), beforeVisibility); assert.equal(requests.length, visibilityRequests, "Current Call-out Visibility sends no canonical command");
     (evidence.currentVisibility ||= {})[mode] = { reversible: true, detailsRemainOpen: true, sameSnapshotAndQuantities: true, noCommand: true };
-    await editor().focus(); await editor().press("Control+a"); assert.ok((await page.evaluate(() => getSelection().toString())).includes(`NOTE-${mode}`)); await editor().press("Control+'"); await expect(page.locator(".takeoff-viewport")).toHaveAttribute("data-tool", "select");
+    await editor().focus(); await editor().press("Control+a"); assert.ok((await page.evaluate(() => getSelection().toString())).includes(`NOTE-${mode}`)); await editor().press("q"); await expect(page.locator(".takeoff-viewport")).toHaveAttribute("data-tool", "select");
     if (mode === "steel") {
       await panel().getByLabel("Line Colour", { exact: true }).fill("#00aa11"); await panel().getByLabel("Line Width", { exact: true }).fill("7"); await panel().getByLabel("Opacity", { exact: true }).fill("65"); await applied();
       await panel().getByRole("button", { name: "Set as default", exact: true }).click(); savedDefault = { ...builtIn, stroke_color: "#00aa11", fill_color: "#ffdd33", stroke_width: 7, opacity: .65 };
@@ -166,8 +166,8 @@ async function saveLoad(info) {
     }
     await panel().getByRole("button", { name: "Close settings", exact: true }).click();
     if (mode === "duct") {
-      await page.locator(".takeoff-viewport").focus(); await page.keyboard.press("Control+F3"); await expect(page.locator(".takeoff-viewport")).toHaveAttribute("data-tool", "count-only");
-      await page.keyboard.press("Control+;"); await expect(page.locator(".takeoff-viewport")).toHaveAttribute("data-tool", "select");
+      await page.locator(".takeoff-viewport").focus(); await page.keyboard.press("Shift+C"); await expect(page.locator(".takeoff-viewport")).toHaveAttribute("data-tool", "count-only");
+      await page.keyboard.press("h"); await expect(page.locator(".takeoff-viewport")).toHaveAttribute("data-tool", "select");
     }
   }
   assert.equal(new Set(Object.values(created)).size, 4); evidence.allModes = copy(created); evidence.richText = { bold: true, bullet: true, numberedShiftEnter: true, safePaste: true, nativeEditing: true };
@@ -322,8 +322,8 @@ async function saveLoad(info) {
   const beforeSave = await snapshot(), roundtrip = await saveLoad(info); assert.deepEqual(roundtrip.saved.takeoffs.annotations, beforeSave.annotations); assert.deepEqual(roundtrip.reopened.annotations, beforeSave.annotations); invariant(roundtrip.reopened, baseline); await expect(note(created.steel)).toBeVisible();
   assert.deepEqual(await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()), calculators); assert.equal(hash(info.fixture), sourceHash); evidence.saveReopen = { sameIdsAndRichText: true, sourceHash, calculatorStateUnchanged: true };
   for (const section of ["Defect Reports", "Service Plans"]) {
-    await chooseTakeoff(page, section); const control = page.getByRole("button", { name: "Call-out", exact: true }); await expect(control).toHaveAttribute("title", "Call-out (Ctrl+')"); await expect(control.locator("img")).toHaveAttribute("src", "/icons/takeoff-callout.png"); await expect(page.getByRole("button", { name: "Count", exact: true })).toHaveCount(1);
-    await page.locator(".takeoff-viewport").focus(); await page.keyboard.press("Control+F3"); await expect(page.locator(".takeoff-viewport")).toHaveAttribute("data-tool", "pdf-count"); await page.keyboard.press("Escape"); await page.keyboard.press("Control+'"); await expect(page.locator(".takeoff-viewport")).toHaveAttribute("data-tool", "count"); await page.keyboard.press("Control+;"); await expect(page.locator(".takeoff-viewport")).toHaveAttribute("data-tool", "select");
+    await chooseTakeoff(page, section); const control = page.getByRole("button", { name: "Call-out", exact: true }); await expect(control).toHaveAttribute("title", "Call-out (Q)"); await expect(control.locator("img")).toHaveAttribute("src", "/icons/takeoff-callout.png"); await expect(page.getByRole("button", { name: "Count", exact: true })).toHaveCount(1);
+    await page.locator(".takeoff-viewport").focus(); await page.keyboard.press("Shift+C"); await expect(page.locator(".takeoff-viewport")).toHaveAttribute("data-tool", "pdf-count"); await page.keyboard.press("Escape"); await page.keyboard.press("q"); await expect(page.locator(".takeoff-viewport")).toHaveAttribute("data-tool", "count"); await page.keyboard.press("h"); await expect(page.locator(".takeoff-viewport")).toHaveAttribute("data-tool", "select");
   }
   assert.ok(requests.every(value => !/\/physical\/(preview|apply)$/.test(value.endpoint)), "Free notes and physical tool activation never issue physical approvals"); evidence.physical = { nameAndOriginalIcon: true, distinctShortcut: true, noPhysicalMutation: true, iconHash };
   assert.deepEqual(errors, []); assert.deepEqual(await page.evaluate(() => window.qaCsp), []); await page.screenshot({ path: path.join(output, "completed.png"), fullPage: true });

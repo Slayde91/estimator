@@ -52,6 +52,13 @@ async function draw(mode, mark, x = 100) {
   await page.getByRole('button', { name: area ? 'Trace surface' : 'Trace length', exact: true }).click();
   for (const point of points) await page.mouse.click(...await screen(point)); await page.locator('.takeoff-viewport').press('Enter');
   const fields = area ? { 'Surface Type': mode, 'Surface ID': mark, 'Number of layers': 3 } : { [mode === 'steel' ? 'Member mark' : 'Item']: mark, 'Count/QTY': 1 };
+  if (!area) {
+    const dialog=page.getByRole('dialog'); await expect(dialog).toHaveClass(/takeoff-dialog-columns/);
+    const columns=await dialog.locator('.takeoff-entry-grid').evaluate(grid=>[...grid.children].map(el=>{const input=el.querySelector('input,select');return input?{name:input.name,tag:input.tagName,x:el.getBoundingClientRect().x,y:el.getBoundingClientRect().y}:null;}));
+    const mark=columns.find(field=>field?.name==='mark');
+    if(mode==='steel'){const section=columns.find(field=>field?.name==='section');assert.equal(section.x,mark.x);assert.ok(section.y>mark.y);}
+    assert.ok(columns.filter(field=>field?.tag==='SELECT').every(field=>field.x>mark.x));evidence[mode]={creationColumns:true};
+  }
   const reply = await command(() => modal(area ? 'Add surface' : `Add ${mode} object`, fields, area ? 'Add surface' : 'Add item'), 'create_item');
   const item = reply.snapshot.items.find(value => value.fields.mark === mark); assert.equal(item.mode,mode); if(area)assert.equal(item.fields.layers,3); await select(item); return item;
 }
@@ -94,7 +101,7 @@ async function assertLabels(item, state) {
     const before = await draw(mode,`VALUE-${mode}`); items.push(before);
     if(['wall','slab'].includes(mode)){await expect(panel().getByLabel('Display Values',{exact:true})).toBeChecked();await assertLabels(before,await snapshot());await command(()=>panel().getByLabel('Display Values',{exact:true}).uncheck());}
     await expect(panel().getByLabel('Display Values',{exact:true})).not.toBeChecked();
-    await expect(page.locator(`[data-value-item-id="${before.id}"]`)).toHaveCount(0); await expect(page.locator(`[data-area-item-id="${before.id}"]`)).toHaveCount(0);
+    await expect(page.locator(`[data-value-item-id="${before.id}"]`)).toHaveCount(0); await expect(page.locator(`[data-area-item-id="${before.id}"]`)).toHaveCount(["wall","slab"].includes(mode)?1:0);
     const reply = await command(() => panel().getByLabel('Display Values',{exact:true}).check()), enabled = reply.snapshot.items.find(value => value.id === before.id); preserved(before,enabled);
     const labels = await assertLabels(enabled,reply.snapshot);
     const width = panel().getByLabel('Line Width',{exact:true}), opacity = panel().getByLabel('Opacity',{exact:true});
@@ -112,7 +119,7 @@ async function assertLabels(item, state) {
       assert.equal((await snapshot()).items.find(value => value.id === before.id).appearance.opacity,exact,'Unrelated edits do not round stored opacity');
     }
     await page.locator('.takeoff-viewport').scrollIntoViewIfNeeded(); await page.screenshot({path:path.join(output,`${mode}-display-values.png`)});
-    await command(() => panel().getByLabel('Display Values',{exact:true}).uncheck()); await expect(page.locator(`[data-value-item-id="${before.id}"]`)).toHaveCount(0); await expect(page.locator(`[data-area-item-id="${before.id}"]`)).toHaveCount(0);
+    await command(() => panel().getByLabel('Display Values',{exact:true}).uncheck()); await expect(page.locator(`[data-value-item-id="${before.id}"]`)).toHaveCount(0); await expect(page.locator(`[data-area-item-id="${before.id}"]`)).toHaveCount(["wall","slab"].includes(mode)?1:0);
     evidence[mode] = { ...evidence[mode],labels, minimumAndMaximum:true, canonicalPercent:true, optIn:true, newSurfaceDefaultVisible:['wall','slab'].includes(mode),removal:true, technicalDataUnchanged:true };
   }
   // Saved visual defaults do not enable values on fresh Duct items or rewrite old items.
@@ -135,6 +142,12 @@ async function assertLabels(item, state) {
   await expect(page.locator(`[data-value-item-id="${count.id}"]`)).toHaveCount(2);
   assert.deepEqual(await page.locator(`[data-value-item-id="${count.id}"]`).evaluateAll(elements => elements.map(el => Number(el.dataset.value))),[6123.456789,6123.456789]);
   await page.screenshot({path:path.join(output,'steel-count-cited-values.png')});
+  await require('./theme_navigation.cjs').cycleTheme(page);
+  await expect(page.locator('html')).toHaveAttribute('data-theme','midnight');
+  const colors=await page.locator('.takeoff-bulk,.takeoff-register tr.selected td').evaluateAll(nodes=>nodes.map(el=>{const css=getComputedStyle(el);return{color:css.color,background:css.backgroundColor};}));
+  const luminance=color=>{const rgb=color.match(/[\d.]+/g).slice(0,3).map(Number).map(value=>{value/=255;return value<=.04045?value/12.92:((value+.055)/1.055)**2.4;});return .2126*rgb[0]+.7152*rgb[1]+.0722*rgb[2];};
+  assert.ok(colors.length>2);for(const value of colors){const light=luminance(value.color),dark=luminance(value.background);assert.ok((Math.max(light,dark)+.05)/(Math.min(light,dark)+.05)>=4.5,JSON.stringify(value));}
+  evidence.midnightContrast=colors;await page.locator('.takeoff-bulk').scrollIntoViewIfNeeded();await page.screenshot({path:path.join(output,'midnight-selected-register.png')});
   const saved = await snapshot(), saving = page.waitForResponse(value => value.url().endsWith('/api/project/save-as')); await clickProjectControl(page,'Save'); assert.equal((await saving).status(),200);
   const opening = page.waitForResponse(value => value.url().endsWith('/api/project/open')); await clickProjectControl(page,'Load'); assert.equal((await opening).status(),200); await page.getByRole('dialog').getByRole('button',{name:'Load Project',exact:true}).click(); await page.getByRole('button',{name:'Takeoffs',exact:true}).click(); await idle();
   const reopened = await snapshot(); assert.deepEqual(reopened.items,saved.items); assert.deepEqual(JSON.parse(fs.readFileSync(info.project)).takeoffs.items,saved.items);

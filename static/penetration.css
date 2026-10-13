@@ -20,7 +20,7 @@
 .penetration-item-heading #penetration-add-to-library{align-self:flex-end}
 .penetration-schedule table{width:100%;min-width:960px}
 .penetration-schedule td{vertical-align:middle;max-width:300px;overflow-wrap:anywhere}
-.penetration-schedule td:nth-child(6),.penetration-schedule td:nth-child(7){text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.penetration-schedule td:nth-child(7),.penetration-schedule td:nth-child(8){text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
 .penetration-schedule-diagram{width:92px;min-width:92px;text-align:center}
 .penetration-schedule-diagram img{display:block;width:80px;height:58px;margin:auto;border:1px solid var(--line);border-radius:7px;background:#fff;object-fit:contain}
 .penetration-schedule-diagram .helper{font-size:10px;white-space:normal}
@@ -142,3 +142,5 @@
 .penetration-field-pair{display:grid;grid-template-columns:1fr 1fr;gap:16px;min-width:0;align-items:end}
 .penetration-mastic-pair{grid-template-columns:minmax(0,3fr) minmax(70px,1fr);align-items:start}
 .penetration-field-pair>.field{min-width:0}
+
+.penetration-fields textarea{min-height:46px;resize:vertical;overflow-y:auto}

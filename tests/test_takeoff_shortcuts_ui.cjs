@@ -3,7 +3,7 @@ const assert = require("node:assert/strict"), fs = require("node:fs"), vm = requ
 const shortcuts = require("../static/takeoff-shortcuts.js"), geometry = require("../static/takeoff-geometry.js");
 const copy = value => JSON.parse(JSON.stringify(value));
 function control() { return { attributes: {}, dataset: {}, clicks: 0, disabled: false, hidden: false, classList: { toggle() {} }, setAttribute(key, value) { this.attributes[key] = String(value); }, closest() { return this.ancestorHidden || null; }, matches() { return !!this.fieldsetDisabled; }, click() { this.clicks++; } }; }
-function keyEvent(key, changes = {}) { return { key, ctrlKey: true, target: { closest() { return null; } }, preventDefault() { this.prevented = true; }, stopPropagation() { this.stopped = true; }, ...changes }; }
+function keyEvent(key, changes = {}) { return { key, ctrlKey: false, target: { closest() { return null; } }, preventDefault() { this.prevented = true; }, stopPropagation() { this.stopped = true; }, ...changes }; }
 function harness() {
   const window = { CeasefireTakeoffGeometry: geometry, CeasefireTakeoffShortcuts: shortcuts };
   const context = { window, document: { createElement() { return { getContext() { return { measureText(value) { return { width: value.length * 6 }; } }; } }; } }, crypto, console, setTimeout, clearTimeout };
@@ -13,7 +13,7 @@ function harness() {
   const state = context.audit.state;
   state.active = true; state.document = "doc"; state.viewport = { transform: [1, 0, 0, 1, 0, 0], width: 600, height: 800 };
   state.ui = { tools: Object.fromEntries(Object.keys(shortcuts.actions).map(name => [name, control()])), target: { value: "steel_vermiculite" } };
-  Object.assign(state.ui.tools, { pdfTrace: control(), pdfCount: control() });
+  Object.assign(state.ui.tools, { pdfTrace: control(), pdfCount: control(), countLength: control(), markups: control(), legend: control(), "graphic-area": control(), "graphic-area-exclusion": control(), "graphic-measure": control() });
   state.session = { session_id: "session", snapshot: { documents: [{ id: "doc", pages: [{ page: 1 }] }, { id: "other", pages: [{ page: 1 }] }], items: [], transfers: [] } };
   context.audit.setRenderer(() => {});
   return { ...context.audit, context, snapshot: state.session.snapshot };
@@ -23,47 +23,47 @@ let passed = 0;
 async function check(label, run) { await run(); passed++; console.log(`ok - ${label}`); }
 (async () => {
   await check("Every shared action has one unique shortcut while editing and browser letters/digits keep their bindings", () => {
-    const keys = Object.values(shortcuts.actions).map(value => value.key.toLowerCase());
+    const keys = Object.values(shortcuts.actions).map(value => shortcuts.shortcut(value).toLowerCase());
     assert.equal(new Set(keys).size, keys.length); assert.notEqual(shortcuts.actions.count.key, shortcuts.actions.callout.key);
-    assert.equal(shortcuts.actions.upload, undefined); assert.equal(shortcuts.actions.viewport.key, "\\");
+    assert.equal(shortcuts.actions.upload, undefined); assert.equal(shortcuts.actions.viewport.key, "V");
     const controls = Object.fromEntries(Object.keys(shortcuts.actions).map(name => [name, control()]));
     for (const [name, action] of Object.entries(shortcuts.actions)) {
-      shortcuts.decorate(controls[name], name); assert.equal(controls[name].title, `${action.label} (Ctrl+${action.key})`); assert.equal(controls[name].attributes["aria-keyshortcuts"], `Control+${action.key}`);
-      const event = keyEvent(action.key); assert.equal(shortcuts.dispatch(event, controls), true); assert.equal(controls[name].clicks, 1); assert.ok(event.prevented && event.stopped);
+      shortcuts.decorate(controls[name], name); assert.equal(controls[name].title, `${action.label} (${shortcuts.shortcut(action)})`); assert.equal(controls[name].attributes["aria-keyshortcuts"], shortcuts.shortcut(action, true));
+      const event = keyEvent(action.key, { ctrlKey: !!action.ctrl, shiftKey: !!action.shift }); assert.equal(shortcuts.dispatch(event, controls), true); assert.equal(controls[name].clicks, 1); assert.ok(event.prevented && event.stopped);
     }
-    for (const key of "abcdefghijklmnopqrstuvwxyz0123456789+-") { const event = keyEvent(key); assert.equal(shortcuts.dispatch(event, controls), false); assert.equal(event.prevented, undefined); }
+    for (const key of "abcdefghijklmnopqrstuvwxyz0123456789+-") { const event = keyEvent(key, {ctrlKey:true}); assert.equal(shortcuts.dispatch(event, controls), false); assert.equal(event.prevented, undefined); }
   });
   await check("Native fields, rich text, composition, modal operations and unavailable controls cannot trigger tools", () => {
     const button = control(), controls = { callout: button }, key = shortcuts.actions.callout.key;
-    for (const changes of [{ ctrlKey: false }, { metaKey: true }, { shiftKey: true }, { altKey: true }, { repeat: true }, { isComposing: true }, { keyCode: 229 }, { defaultPrevented: true }, { target: { isContentEditable: true } }, { target: { closest() { return {}; } } }]) assert.equal(shortcuts.dispatch(keyEvent(key, changes), controls), false);
+    for (const changes of [{ ctrlKey: true }, { metaKey: true }, { shiftKey: true }, { altKey: true }, { repeat: true }, { isComposing: true }, { keyCode: 229 }, { defaultPrevented: true }, { target: { isContentEditable: true } }, { target: { closest() { return {}; } } }]) assert.equal(shortcuts.dispatch(keyEvent(key, changes), controls), false);
     assert.equal(shortcuts.dispatch(keyEvent(key), controls, true), false);
     for (const property of ["disabled", "hidden", "ancestorHidden", "fieldsetDisabled"]) { button[property] = true; assert.equal(shortcuts.dispatch(keyEvent(key), controls), false); button[property] = false; }
     assert.equal(button.clicks, 0); assert.equal(shortcuts.dispatch(keyEvent(key), controls), true); assert.equal(button.clicks, 1);
   });
   await check("Viewer rotation/page/zoom keys are distinct, scoped callbacks and preserve native editing/composition guards", () => {
-    const tools = Object.values(shortcuts.actions).map(action => action.key.toLowerCase()), viewer = Object.values(shortcuts.viewerActions).map(action => action.key.toLowerCase());
+    const tools = Object.values(shortcuts.actions).map(action => shortcuts.shortcut(action).toLowerCase()), viewer = Object.values(shortcuts.viewerActions).map(action => shortcuts.shortcut(action).toLowerCase());
     assert.equal(new Set([...tools, ...viewer]).size, tools.length + viewer.length);
     const calls = [], callbacks = Object.fromEntries(Object.keys(shortcuts.viewerActions).map(name => [name, () => calls.push(name)]));
     for (const [name, definition] of Object.entries(shortcuts.viewerActions)) {
-      const event = keyEvent(definition.key); assert.equal(shortcuts.dispatchViewer(event, callbacks), true); assert.equal(calls.at(-1), name); assert.ok(event.prevented && event.stopped);
+      const event = keyEvent(definition.key, {ctrlKey:true}); assert.equal(shortcuts.dispatchViewer(event, callbacks), true); assert.equal(calls.at(-1), name); assert.ok(event.prevented && event.stopped);
     }
-    for (const event of [keyEvent('=', { shiftKey: true }), keyEvent('+', { shiftKey: true }), keyEvent('=')]) { assert.equal(shortcuts.dispatchViewer(event, callbacks), true); assert.equal(calls.at(-1), 'zoomIn'); }
+    for (const event of [keyEvent('=', {ctrlKey:true, shiftKey:true}), keyEvent('+', {ctrlKey:true, shiftKey:true}), keyEvent('=', {ctrlKey:true})]) { assert.equal(shortcuts.dispatchViewer(event, callbacks), true); assert.equal(calls.at(-1), 'zoomIn'); }
     const count = calls.length;
-    for (const changes of [{ ctrlKey: false }, { metaKey: true }, { shiftKey: true }, { altKey: true }, { repeat: true }, { isComposing: true }, { keyCode: 229 }, { defaultPrevented: true }, { target: { isContentEditable: true } }, { target: { closest() { return {}; } } }]) assert.equal(shortcuts.dispatchViewer(keyEvent('ArrowUp', changes), callbacks), false);
-    assert.equal(shortcuts.dispatchViewer(keyEvent('ArrowUp'), callbacks, true), false);
-    assert.equal(shortcuts.dispatchViewer(keyEvent('ArrowLeft'), { previousPage: null }), false, 'Unavailable boundary navigation keeps its guard');
-    assert.equal(shortcuts.dispatchViewer(keyEvent('ArrowUp'), {}), false, 'No callbacks outside the viewer');
+    for (const changes of [{ ctrlKey: false }, { metaKey: true }, { shiftKey: true }, { altKey: true }, { repeat: true }, { isComposing: true }, { keyCode: 229 }, { defaultPrevented: true }, { target: { isContentEditable: true } }, { target: { closest() { return {}; } } }]) assert.equal(shortcuts.dispatchViewer(keyEvent('ArrowUp', {ctrlKey:true, ...changes}), callbacks), false);
+    assert.equal(shortcuts.dispatchViewer(keyEvent('ArrowUp', {ctrlKey:true}), callbacks, true), false);
+    assert.equal(shortcuts.dispatchViewer(keyEvent('ArrowLeft', {ctrlKey:true}), { previousPage: null }), false, 'Unavailable boundary navigation keeps its guard');
+    assert.equal(shortcuts.dispatchViewer(keyEvent('ArrowUp', {ctrlKey:true}), {}), false, 'No callbacks outside the viewer');
     assert.equal(calls.length, count);
   });
   await check("Drawing-only Trace and Count keep distinct Call-out bindings and switching back restores register tools", () => {
     const h = harness(), count = h.state.ui.tools.count, free = h.state.ui.tools.callout, pdfCount = h.state.ui.tools.pdfCount, pdfTrace = h.state.ui.tools.pdfTrace;
-    let controls = h.syncToolShortcuts(); assert.equal(controls.count, count); assert.equal(controls.callout, free); assert.equal(count.title, "Count (Ctrl+F3)");
+    let controls = h.syncToolShortcuts(); assert.equal(controls.count, h.state.ui.tools.countLength); assert.equal(controls.callout, free); assert.equal(controls.count.title, "Count (Shift+C)");
     for (const mode of ["physical", "wall", "slab"]) {
       h.state.mode = mode; controls = h.syncToolShortcuts(); assert.equal(controls.count, pdfCount); assert.equal(controls.trace, pdfTrace); assert.equal(controls.callout, mode === "physical" ? count : free);
-      assert.equal(shortcuts.dispatch(keyEvent("F3"), controls), true); assert.equal(shortcuts.dispatch(keyEvent(shortcuts.actions.trace.key), controls), true); assert.equal(shortcuts.dispatch(keyEvent("'"), controls), true);
+      assert.equal(shortcuts.dispatch(keyEvent("C", {shiftKey:true}), controls), true); assert.equal(shortcuts.dispatch(keyEvent(shortcuts.actions.trace.key, {shiftKey:true}), controls), true); assert.equal(shortcuts.dispatch(keyEvent("q"), controls), true);
     }
     assert.equal(pdfCount.clicks, 3); assert.equal(pdfTrace.clicks, 3); assert.equal(count.clicks, 1); assert.equal(free.clicks, 2);
-    h.state.mode = "duct"; controls = h.syncToolShortcuts(); assert.equal(controls.count, count); assert.equal(controls.trace, h.state.ui.tools.trace); assert.equal(count.title, "Count (Ctrl+F3)");
+    h.state.mode = "duct"; controls = h.syncToolShortcuts(); assert.equal(controls.count, count); assert.equal(controls.trace, h.state.ui.tools.trace); assert.equal(count.title, "Count (Shift+C)");
   });
   await check("Legend creation requires a current visible supported Length or Count and refreshes on page/document/hide changes", () => {
     const h = harness(), item = line(); h.snapshot.items = [item]; const before = copy(h.snapshot);

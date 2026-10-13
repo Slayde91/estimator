@@ -50,7 +50,7 @@ for _mode in AREA_MODES:
         'surface_basis', 'surface_citation', 'gross_area_m2', 'excluded_area_m2', 'net_area_m2',
         'layers', 'total_area_m2'))
 HASH = re.compile(r'^[0-9a-f]{64}$')
-APPEARANCE_FIELDS = frozenset(('stroke_color', 'fill_enabled', 'fill_color', 'font_color', 'stroke_width', 'opacity',
+APPEARANCE_FIELDS = frozenset(('stroke_enabled', 'stroke_color', 'fill_enabled', 'fill_color', 'font_color', 'stroke_width', 'opacity',
                              'marker_shape', 'marker_size', 'display_values'))
 STANDALONE_FIELDS = frozenset(('mark', 'level', 'width_mm', 'height_mm', 'frl', 'orientation', 'notes'))
 
@@ -98,6 +98,8 @@ def validate_appearance(value):
     for key in ('stroke_color', 'fill_color', 'font_color'):
         if key in value and (not isinstance(value[key], str) or not re.fullmatch(r'#[0-9a-fA-F]{6}', value[key])):
             raise ValidationError('Markup colours must be six-digit hexadecimal colours.')
+    if 'stroke_enabled' in value and type(value['stroke_enabled']) is not bool:
+        raise ValidationError('Markup Line Enabled must be true or false.')
     if 'fill_enabled' in value and type(value['fill_enabled']) is not bool:
         raise ValidationError('Markup fill must be true or false.')
     if 'display_values' in value and type(value['display_values']) is not bool:
@@ -114,7 +116,7 @@ def validate_appearance(value):
 
 def markup_appearance(item):
     """Shared physical-PDF-point defaults for browser and drawing exports."""
-    return {'stroke_color': '#FF0000', 'fill_enabled': True,
+    return {'stroke_enabled': True, 'stroke_color': '#FF0000', 'fill_enabled': True,
             'fill_color': '#FF0000', 'stroke_width': 5, 'opacity': 1, 'display_values': False,
             **({'marker_shape': 'circle', 'marker_size': 25} if is_marker_item(item) else {}),
             **validate_appearance(item.get('appearance', {}))}

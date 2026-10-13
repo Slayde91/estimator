@@ -207,14 +207,14 @@ let passed = 0;
   warningNative.value=warningNative.children.find(option=>option.textContent==='Enter custom value…').value;await warningNative.emit('change');
   assert.equal(warningCustom.hidden,false);warningCustom.value='Another custom';await warningCustom.emit('input');assert.equal(entry.inputs.SCHEDULE.F11,'Another custom');assert.equal(entry.invalid.size,0);passed++;
 
-  // Quick steel section uses the same native list without changing its canonical input or period choices.
+  // A searchable schedule section commits exact choices only; an unrecognised
+  // query cannot replace the retained section or touch neighbouring inputs.
   entry=setup({CALCULATOR:{D10:sectionOptions[100],D12:45}});
   entry.definition.sheets=[{name:'CALCULATOR',display_cells:{D10:{control:'select'}}}];
   entry.result={option_sets:{section_list:sectionOptions}};
-  const quickSection=audit.makeControl({column:4,address:'D10',type:'select',value:sectionOptions[100],options_ref:'section_list',allow_other:false,error_style:'stop'},10,entry,'Steel section ID');
-  assert.equal(quickSection.tagName,'select');assert.equal(quickSection.value,sectionOptions[100]);assert.equal(quickSection.getAttribute('aria-label'),'Steel section ID');
-  await quickSection.emit('focus');assert.equal(quickSection.children.length,554);assert.equal(quickSection.children[0].value,'');
-  assert.deepEqual(quickSection.children.slice(1).map(option=>option.value),sectionOptions);
+  const quickSection=audit.makeControl({column:4,address:'D10',type:'select',value:sectionOptions[100],options_ref:'section_list',allow_other:false,error_style:'stop'},10,entry,'Steel section ID').children[0];
+  assert.equal(quickSection.tagName,'input');assert.equal(quickSection.value,sectionOptions[100]);assert.equal(quickSection.getAttribute('aria-label'),'Steel section ID');
+  quickSection.value='No such section';await quickSection.emit('change');assert.equal(entry.inputs.CALCULATOR.D10,sectionOptions[100]);
   quickSection.value=sectionOptions[552];await quickSection.emit('change');assert.equal(entry.inputs.CALCULATOR.D10,sectionOptions[552]);assert.equal(entry.inputs.CALCULATOR.D12,45);
   const quickPeriod=audit.makeControl({column:4,address:'D12',type:'select',value:45,options:[15,30,45,60,90,120,180,240]},12,entry,'Fire period');
   assert.ok(quickPeriod.children.some(option=>option.value==='15'));assert.ok(quickPeriod.children.some(option=>option.value==='45'));
@@ -248,7 +248,7 @@ let passed = 0;
   }passed++;
 
   // Native mixed/custom values retain types, fractional percentages and literal action-looking values.
-  entry=setup();entry.definition.sheets[0].display_cells={B9:{control:'select'},C9:{control:'select'},D9:{control:'select'}};
+  entry=setup();entry.definition.sheets[0].display_cells={B9:{control:'select'},C9:{control:'select'},D9:{control:'select'},E9:{control:'select'}};
   const [mixedChoice,mixedEditor]=audit.makeControl({column:2,type:'select',value:'Legacy FRL',options:[60,90,'60/60/60'],allow_other:true},9,entry,'Fire rating').children;
   mixedChoice.value='90';await mixedChoice.emit('change');assert.equal(entry.inputs.CALCULATOR.B9,90);
   mixedChoice.value='60/60/60';await mixedChoice.emit('change');assert.equal(entry.inputs.CALCULATOR.B9,'60/60/60');
@@ -256,8 +256,8 @@ let passed = 0;
   const [customPercent,percentEditor]=audit.makeControl({column:3,type:'select',value:.123456789,options:[.1,.2],number_format:'0%',allow_other:true},9,entry,'Waste').children;
   customPercent.value='0.123456789';await customPercent.emit('change');assert.equal(entry.inputs.CALCULATOR.C9,.123456789);
   customPercent.value=customPercent.children.find(option=>option.textContent==='Enter custom value…').value;await customPercent.emit('change');percentEditor.value='13.456789';await percentEditor.emit('input');assert.equal(entry.inputs.CALCULATOR.C9,.13456789);
-  const actionLiteral='__calculator_custom_value__',literalSelect=audit.makeControl({column:4,type:'select',value:actionLiteral,options:['Listed'],allow_other:true},9,entry,'Item').children[0];
-  assert.notEqual(literalSelect.children.find(option=>option.textContent==='Enter custom value…').value,actionLiteral);literalSelect.value=actionLiteral;await literalSelect.emit('change');assert.equal(entry.inputs.CALCULATOR.D9,actionLiteral);passed++;
+  const actionLiteral='__calculator_custom_value__',literalSelect=audit.makeControl({column:5,type:'select',value:actionLiteral,options:['Listed'],allow_other:true},9,entry,'Item').children[0];
+  assert.notEqual(literalSelect.children.find(option=>option.textContent==='Enter custom value…').value,actionLiteral);literalSelect.value=actionLiteral;await literalSelect.emit('change');assert.equal(entry.inputs.CALCULATOR.E9,actionLiteral);passed++;
 
   // Focused custom editors survive dependent-choice responses, then submit exact source-keyed drafts to save and downloads.
   entry=setup({SETTINGS:{B6:8.7654321}});entry.definition.sheets[0].display_cells={B9:{control:'select'}};
@@ -1135,7 +1135,7 @@ let passed = 0;
     {row:10,cells:inputColumns.map(column=>({column,address:`${ductName(column)}10`,value:inputLabels[column-1]}))},
     ...[11,1010].map(row=>({row,cells:inputColumns.map(column=>({column,address:`${ductName(column)}${row}`,value:retainedDuctInputs.CALCULATOR[`${ductName(column)}${row}`]??null,editable:column>=2&&column<=9,type:'text',calculated:column===10}))}))]});
   const ductInputSource=JSON.stringify(entry.result),ductInputDefinition=JSON.stringify(entry.definition),ductInputSnapshot=JSON.stringify(entry.inputs);
-  realRender(entry);const ductInputOrder=[1,2,4,5,8,9,6,7,3,10],ductInputRows=renderedTable().children.at(-1).children;
+  realRender(entry);const ductInputOrder=[1,2,4,5,8,9,3,6,7,10],ductInputRows=renderedTable().children.at(-1).children;
   assert.deepEqual(renderedTable().children[1].children[0].children.map(cell=>cell.textContent),ductInputOrder.map(column=>inputLabels[column-1]));
   for(const [index,row] of [11,1010].entries())assert.deepEqual(ductInputRows[index].children.map(cell=>cell.children[0]?.dataset.calculatorCell||cell.dataset.calculatorOutput),ductInputOrder.map(column=>`${ductName(column)}${row}`));
   assert.equal(JSON.stringify(entry.result),ductInputSource);assert.equal(JSON.stringify(entry.definition),ductInputDefinition);assert.equal(JSON.stringify(entry.inputs),ductInputSnapshot);passed++;

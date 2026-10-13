@@ -21,10 +21,9 @@ _SLOTS = BoundedSemaphore(1)
 
 def measurement_value_labels(item, snapshot, result):
     """Presentation labels use explicit cited lengths or the exact page calibration."""
-    if not markup_appearance(item)['display_values']:
-        return []
+    show_dimensions = markup_appearance(item)['display_values']
     geometry, measurement = item.get('geometry'), item.get('measurement')
-    if not geometry or not measurement:
+    if not geometry or not measurement or (not show_dimensions and geometry.get('kind') != 'polygon'):
         return []
     if geometry.get('kind') == 'count' and item['mode'] == 'steel':
         return [{'point': point, 'value': measurement['length_m'] * 1000, 'unit': 'mm', 'kind': 'cited-count'}
@@ -40,7 +39,7 @@ def measurement_value_labels(item, snapshot, result):
     polygon = geometry.get('kind') == 'polygon'
     rings = [geometry['points']] + ([value['points'] for value in geometry.get('exclusions', [])] if polygon else [])
     labels = []
-    for ring in rings:
+    for ring in rings if show_dimensions else []:
         points = ring + [ring[0]] if polygon else ring
         for a, b in zip(points, points[1:]):
             labels.append({'point': [(a[0]+b[0])/2, (a[1]+b[1])/2],

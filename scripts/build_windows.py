@@ -26,7 +26,8 @@ DATA_FILES = (
     'calculators/steel_board.json.gz', 'calculators/steel_vermiculite.json.gz',
 )
 STATIC_FILES = (
-    'app.js', 'calculators.css', 'calculators.js', 'ceasefire-logo.png', 'downloads.js',
+    'app.js', 'activity.js', 'searchable-choice.js', 'penetration-presentation.js',
+    'calculators.css', 'calculators.js', 'ceasefire-logo.png', 'downloads.js',
     'index.html', 'libraries.css', 'libraries.js', 'library-detail-text.js', 'library-editor.css',
     'library-editor.js', 'penetration-breakdown.js', 'penetration.css', 'penetration.js', 'styles.css',
     'header-tagline-media.js', 'header-tagline-character.gif', 'header-tagline-character-still.png',

@@ -6,6 +6,7 @@ All prices are computed by the existing workbook calculator on the server.
 """
 
 from collections import OrderedDict
+from contextlib import nullcontext
 from copy import deepcopy
 from datetime import datetime, timezone
 import base64
@@ -830,7 +831,9 @@ class FirestoppingLibrary(ReferenceLibrary):
             return {'unlinked': True, 'penetration_id': key, 'technical_id': right}
 
     def create(self, body):
-        with self._lock:
+        # Acquire after the library lock, before writes, and retain admission
+        # through the saved response so overload cannot masquerade as a failure.
+        with self._lock, calculation_work():
             required = {'draft', 'configuration', 'idempotency_key'}
             if not isinstance(body, dict) or not required.issubset(body) or set(body) - (required | {'diagram'}):
                 raise ValidationError('Include one item draft, its pricing configuration, an idempotency key and an optional source diagram only.')
@@ -994,7 +997,9 @@ class FirestoppingLibrary(ReferenceLibrary):
             raise ValidationError('This item cannot be displayed in the library. Shorten its description or selection text before saving; nothing has been saved.') from exc
 
     def action(self, key, action, body):
-        with self._lock:
+        # A pricing capture/save and its response share one reservation. Delete
+        # is lightweight and must remain available when calculations are busy.
+        with self._lock, (nullcontext() if action == 'delete' else calculation_work()):
             if action not in {'calculate', 'refresh-pricing', 'save', 'delete'}:
                 raise ReferenceNotFound()
             if action == 'delete':

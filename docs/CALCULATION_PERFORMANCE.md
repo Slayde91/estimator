@@ -29,6 +29,12 @@ no partial result is published. Ordinary Main calculations without schedules
 remain outside the heavy gate. Save/export callers retain their exact snapshot
 and are never replaced by the automatic client queue.
 
+Library creation, saves and pricing refreshes acquire admission after their
+existing library lock and retain it through persistence and the final response.
+An overloaded request therefore cannot write a pricing snapshot or save an item
+and then fail while acquiring admission for its response. Delete does not need
+calculation admission. Database transactions never wait for this admission.
+
 Running work is allowed to finish. Aborting fetch does not establish server
 cancellation, so automatic edits no longer use that as a CPU scheduling policy.
 Cooperative cancellation would require separate validation of interrupted

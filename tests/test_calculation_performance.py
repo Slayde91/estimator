@@ -2,6 +2,8 @@
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 import math
+from pathlib import Path
+import tempfile
 import threading
 import time
 import unittest
@@ -10,7 +12,10 @@ from unittest.mock import patch
 from estimator import excel_engine as excel
 from estimator import penetration_calculator as penetration
 from estimator.calculation_work import CalculationBusy, CalculationGate, EvaluationLock
+from estimator.firestopping_library import FirestoppingLibrary
+from estimator.storage import Store
 from estimator.workbook_calculators import calculator_engine
+from tests.test_firestopping_library import editable_library
 from tests.test_penetration_calculator import source_example
 
 
@@ -98,3 +103,80 @@ class FirestoppingReuseTests(unittest.TestCase):
     def test_invalid_draft_precedes_inventory_work(self):
         with patch.object(penetration,'inventory_lists',side_effect=AssertionError('inventory must not be reached')):
             with self.assertRaises(penetration.ValidationError):penetration.calculate({'rows':'invalid'})
+
+
+class LibraryAdmissionTests(unittest.TestCase):
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        root = Path(temporary.name)
+        editable_library(root / 'library')
+        self.store = Store(root / 'test.sqlite3')
+        self.library = FirestoppingLibrary(root / 'library', self.store)
+        self.opened = self.library.edit('pkb-001')
+
+    def body(self):
+        return {key: deepcopy(self.opened[key]) for key in ('draft', 'revision', 'pricing_token')}
+
+    def create_body(self):
+        body = {'idempotency_key': 'admission-fixture-0001', 'configuration': {},
+                'draft': deepcopy(self.opened['draft'])}
+        body['draft']['rows'][0]['inputs'].update(
+            J='Mechanical', L='Core Hole', M='Vertical', N='-/120/120',
+            P='Concrete/masonry wall', O=1)
+        return body
+
+    def dump(self):
+        with self.store.connect() as database:
+            return list(database.iterdump())
+
+    def test_saturated_mutations_leave_all_persisted_state_unchanged(self):
+        with patch('estimator.calculation_work.evaluation_gate') as gate:
+            gate.__enter__.side_effect = CalculationBusy('fixture capacity')
+            for action in ('save', 'refresh-pricing', 'create'):
+                with self.subTest(action=action):
+                    before = self.dump()
+                    with self.assertRaises(CalculationBusy):
+                        if action == 'create':
+                            self.library.create(self.create_body())
+                        else:
+                            self.library.action('pkb-001', action, self.body())
+                    self.assertEqual(self.dump(), before)
+
+    def test_mutations_keep_admission_until_persisted_response_is_complete(self):
+        class OneAdmissionGate(CalculationGate):
+            """Model other requests filling capacity after the first admission."""
+            admissions = 0
+
+            def __enter__(self):
+                if self.owner is None:
+                    if self.admissions:
+                        raise CalculationBusy('fixture capacity filled after first calculation')
+                    self.admissions += 1
+                return super().__enter__()
+
+        for action in ('save', 'refresh-pricing', 'create'):
+            with self.subTest(action=action):
+                self.opened = self.library.edit('pkb-001')
+                gate = OneAdmissionGate()
+                with patch('estimator.calculation_work.evaluation_gate', gate):
+                    if action == 'create':
+                        response = self.library.create(self.create_body())
+                        self.assertTrue(response['created'])
+                    else:
+                        response = self.library.action('pkb-001', action, self.body())
+                self.assertEqual(gate.admissions, 1)
+                self.assertIsNone(gate.owner)
+                self.assertEqual(gate.depth, 0)
+                reopened = self.library.edit(response['id'])
+                if action != 'refresh-pricing':
+                    self.assertEqual(reopened['revision'], response['revision'])
+                    self.assertEqual(reopened['result'], response['result'])
+                else:
+                    self.assertEqual(self.library.edits.snapshot(response['pricing_token'])['basis'], 'shared')
+
+    def test_delete_does_not_require_calculation_admission(self):
+        with patch('estimator.calculation_work.evaluation_gate') as gate:
+            gate.__enter__.side_effect = CalculationBusy('fixture capacity')
+            self.assertTrue(self.library.action('pkb-001', 'delete', {})['deleted'])
+            gate.__enter__.assert_not_called()

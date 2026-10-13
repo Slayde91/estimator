@@ -14,7 +14,7 @@ from pathlib import Path
 import re
 import unittest
 
-from estimator.excel_engine import WorkbookEngine
+from estimator.excel_engine import WorkbookEngine, steel_criteria_matches
 from estimator.workbook_calculators import approved_formula_overrides, source_model
 from estimator.workbook_catalog import column_name, column_number, load_workbook_catalog
 
@@ -123,6 +123,8 @@ class NativeExcelParityTests(unittest.TestCase):
         for scenario in fixture["scenarios"]:
             with self.subTest(calculator=identifier, fixture=kind, scenario=scenario["id"]):
                 engine = WorkbookEngine(model, scenario_inputs(scenario), scenario.get("formula_overrides"))
+                if identifier in ('steel_board', 'steel_vermiculite'):
+                    engine.criteria_matcher = steel_criteria_matches
                 mismatches = []
                 for sheet, cells in scenario["expected"].items():
                     for address, expected in cells.items():

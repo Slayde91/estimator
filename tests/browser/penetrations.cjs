@@ -256,6 +256,7 @@ async function associateImage(id, image) {
   const legacy = await response(() => clickProjectControl(page, 'Load'), '/api/project/open'); assert.deepEqual(legacy.takeoffs.physical, legacySaved.takeoffs.physical); assert.equal(legacy.takeoffs.physical.version, 1);
   await page.getByRole('dialog').getByRole('button', { name: 'Load Project', exact: true }).click(); await expect(page.locator('#project-save-state')).toHaveText('Saved project'); await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); await chooseTakeoff(page, 'physical'); await expect(page.locator('.takeoff-physical-register')).toContainText('Legacy hierarchy');
   await expect(page.locator('.takeoff-physical-register tr[data-physical-id]')).toHaveCount(4);
+  await page.waitForFunction(() => !window.CeasefireActivity.active);
   await select(legacySaved.takeoffs.physical.services[0].id);
   await expect(page.getByRole('button',{name:'Bulk edit same-type records',exact:true})).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Delete selected records', exact: true })).toBeDisabled();
@@ -267,9 +268,14 @@ async function associateImage(id, image) {
   // Navigation remains available on a legacy record; it must never expose editable fields or rewrite the retained hierarchy.
   for (const [kind, label] of [['defects', 'Defect'], ['barriers', 'Barrier'], ['services', 'Service']]) {
     const target = legacySaved.takeoffs.physical[kind][0].id, control = legacyNavigation.getByLabel(`${label} ID in Item Details`, { exact: true });
-    // Selection updates before the source render and its proof command finish.
-    // Wait for that drawing before reading the guarded project snapshot.
-    await renderDrawing(page, () => control.selectOption(target)); await idle(); await expect(control).toHaveValue(target);
+    // The preceding selection can show its bitmap before record_render settles.
+    // Finish that operation before selecting another source: the live guard
+    // correctly refuses navigation while its proof command is still active.
+    await page.waitForFunction(() => !window.CeasefireActivity.active);
+    await idle();
+    await renderDrawing(page, () => control.selectOption(target));
+    await page.waitForFunction(() => !window.CeasefireActivity.active);
+    await idle(); await expect(control).toHaveValue(target);
     await expect(legacyInspector.locator('input, textarea, select:not(.takeoff-physical-navigation select)')).toHaveCount(0);
     assert.deepEqual(await page.evaluate(() => window.CeasefireTakeoffs.projectSnapshot().physical), legacySaved.takeoffs.physical);
   }

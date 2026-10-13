@@ -264,6 +264,13 @@ async function assertDeleteFarLeft(mode) {
   await page.getByRole('dialog').getByRole('button', { name: 'Load Project', exact: true }).click(); await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); assert.deepEqual((await snapshot()).items, current.items); assert.deepEqual(await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()), calculators);
   await chooseTakeoff(page, 'STEEL'); await expect(page.getByRole('button', { name: 'Count', exact: true })).toHaveCount(0); await expect(page.locator(`.takeoff-register-table tr[data-item-id="${evidence.STEEL.id}"]`)).toHaveCount(1); await expect(page.locator('.takeoff-standalone-register')).toHaveCount(0); evidence.retainedCountsSavedReopened = true;
-  await page.setViewportSize({ width: 764, height: 764 }); await page.locator(`.takeoff-register-table tr[data-item-id="${evidence.STEEL.id}"]`).scrollIntoViewIfNeeded(); await page.screenshot({ path: path.join(output, 'counts-narrow.png') });
+  // Reopening can finish its PDF proof after the register is already visible.
+  // That proof rebuilds rows; settle it before scrolling a narrow-screen row.
+  await page.waitForFunction(() => !window.CeasefireActivity.active);
+  await page.setViewportSize({ width: 764, height: 764 });
+  const retainedRow = page.locator(`.takeoff-register-table tr[data-item-id="${evidence.STEEL.id}"]`);
+  await retainedRow.scrollIntoViewIfNeeded(); await expect(retainedRow).toBeInViewport();
+  assert.deepEqual((await snapshot()).items, current.items);
+  await page.screenshot({ path: path.join(output, 'counts-narrow.png') });
   fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ ok: true, evidence, operations, errors }, null, 2)); console.log(`Standalone measurements browser acceptance passed: ${output}`);
 })().catch(async error => { console.error(error); console.error(logs); if (page) await page.screenshot({ path: path.join(output, 'failure.png') }).catch(() => {}); process.exitCode = 1; }).finally(async () => { await browser?.close(); server.kill(); });

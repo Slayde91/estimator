@@ -50,6 +50,7 @@ function harness({ penetration = false } = {}) {
     FileReader: class { readAsDataURL() { this.result = 'data:application/octet-stream;base64,QUFBQQ=='; queueMicrotask(() => this.onload()); } },
   };
   vm.createContext(context);
+  vm.runInContext(fs.readFileSync('static/calculation-queue.js','utf8'),context);
   vm.runInContext(fs.readFileSync('static/downloads.js','utf8'),context);
   let calculatorSource = fs.readFileSync('static/calculators.js', 'utf8');
   const bridge = '  window.CeasefireCalculators = { open, projectSnapshot, projectFingerprint, prepareProject, applyProject };';

@@ -20,6 +20,7 @@ jobs:
       - run: node --check static/app.js
       - run: node --check static/activity.js && node --check static/searchable-choice.js && node --check static/penetration-presentation.js
       - run: node --test tests/test_annotation_controls.cjs
+      - run: node --check static/calculation-queue.js && node --test tests/test_calculation_queue.cjs
       - run: node --check static/calculators.js
       - run: node --check static/downloads.js
       - run: node --check static/penetration.js
@@ -92,6 +93,7 @@ jobs:
       - run: python -m pip install -r requirements-dev.txt
       - run: npm ci
       - run: npx playwright install --with-deps chromium
+      - run: node tests/browser/calculation_queue.cjs
       - run: npm run test:project-library-drafts
       - run: node tests/browser/pdf_render_gate.cjs
       - run: node tests/browser/header_artwork.cjs

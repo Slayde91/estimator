@@ -370,7 +370,11 @@ def visibility_definition(group, rule):
 
 
 def definition(configuration=None, service_types=None):
-    _, selections = inventory_lists(configuration)
+    return _definition(inventory_lists(configuration), service_types)
+
+
+def _definition(inventory, service_types=None):
+    _, selections = inventory
     calc = _sheet('CALC')['cells']
     fields = []
     descriptions = {
@@ -813,11 +817,15 @@ def _apply_custom_task_bands(engine, draft):
 
 def engine_for_draft(draft, configuration=None, *, effective=True):
     draft = normalize_draft(draft)
+    return _engine_for_draft(draft, inventory_lists(configuration), effective=effective)
+
+
+def _engine_for_draft(draft, inventory, *, effective=True, labour_results=None):
     model = dict(source_model())
     model['sheets'] = [dict(s, cells=dict(s['cells'])) if s['name'] == 'CALC' else s for s in model['sheets']]
     calc = next(s for s in model['sheets'] if s['name'] == 'CALC')['cells']
     formulas = {a: c for a, c in calc.items() if a.endswith('4') and 'formula' in c}
-    overlays, _ = inventory_lists(configuration)
+    overlays, _ = inventory
     globals_ = EFFECTIVE_GLOBALS if effective else {
         key: draft['globals'][key] for key in GLOBAL_DEFAULTS}
     inputs = {'LISTS': overlays, 'CALC': {col + '2': value for col, value in globals_.items()}}
@@ -855,6 +863,8 @@ def engine_for_draft(draft, configuration=None, *, effective=True):
                 calc[address[:-1] + str(index)] = dict(cell, formula=_copy_row_formula(cell['formula'], index))
         if effective:
             labour = resolve_labour(row['inputs'], draft['globals'])
+            if labour_results is not None:
+                labour_results.append(labour)
             if labour['errors']:
                 # A formula error propagates through DK/F/H and each summary;
                 # a literal error-looking string would be silently zeroed by N.
@@ -875,13 +885,24 @@ def engine_for_draft(draft, configuration=None, *, effective=True):
     return engine, draft
 
 
-def calculate(draft, configuration=None):
-    engine, draft = engine_for_draft(draft, configuration)
-    spec = definition(configuration)
+def calculate(draft, configuration=None, *, service_types=None):
+    from .calculation_work import calculation_work
+    with calculation_work():
+        return _calculate(draft, configuration, service_types=service_types)
+
+
+def _calculate(draft, configuration, *, service_types=None):
+    draft = normalize_draft(draft)
+    inventory = inventory_lists(configuration)
+    labour_results = []
+    engine, draft = _engine_for_draft(draft, inventory, labour_results=labour_results)
+    spec = _definition(inventory, service_types)
+    option_sets = {field['column']: frozenset(value.casefold() for value in field['options'])
+                   for field in spec['row_fields']}
     rows, errors = [], []
     for index, row in enumerate(draft['rows'], 4):
         output, row_errors = {}, []
-        labour = resolve_labour(row['inputs'], draft['globals'])
+        labour = labour_results[index - 4]
         row_errors.extend(deepcopy(labour['errors']))
         for field in spec['output_fields']:
             address = field['column'] + str(index)
@@ -892,9 +913,8 @@ def calculate(draft, configuration=None):
                 row_errors.append({'cell': address, 'message': error.code})
         for col in (*PRICE_COLUMNS, *(col for col in CHOICE_NAMES if col not in ('Q', 'R'))):
             value = row['inputs'].get(col)
-            options = next(f['options'] for f in spec['row_fields'] if f['column'] == col)
             compared = canonical_substrate(value) if col == 'P' else value
-            if value and compared.casefold() not in {v.casefold() for v in options}:
+            if value and compared.casefold() not in option_sets[col]:
                 message = 'Selected product or labour option is absent from this pricing snapshot.' if col in PRICE_COLUMNS else 'Selected option is absent from the workbook choices.'
                 row_errors.append({'cell': col + str(index), 'message': message})
         errors.extend(dict(error, row_id=row['id']) for error in row_errors)

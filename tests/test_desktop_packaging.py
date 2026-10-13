@@ -302,6 +302,7 @@ class DesktopPackagingTests(unittest.TestCase):
         self.assertIn('ceasefire-app.ico',STATIC_FILES)
         self.assertIn('icons/navigation-home.png',STATIC_FILES)
         self.assertIn('icons/navigation-help.png',STATIC_FILES)
+        self.assertIn('icons/navigation-help.jpg',STATIC_FILES)
         self.assertIn('icons/document.png',STATIC_FILES)
         for asset in ('header-tagline-media.js', 'header-tagline-character.gif', 'header-tagline-character-still.png',
                       'help-glossary.js', 'help-glossary.css'):

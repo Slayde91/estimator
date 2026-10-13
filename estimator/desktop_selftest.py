@@ -198,7 +198,7 @@ def self_test(data_directory, output_report):
                 assert probe.script('!!document.querySelector("[data-view=takeoffs]") || typeof window.CeasefireTakeoffs !== "undefined"') is False
                 assert probe.script('document.querySelector("#view-home").hidden') is False
                 report['checks'].append('Native standard UI rendered without TAKEOFFS')
-                navigation_icons = probe.wait('(() => { const icons=[...document.querySelectorAll(".app-header nav .nav-icon > svg, .app-header nav .nav-icon > img")]; return icons.length === 7 && icons.every(icon=>icon.tagName !== "IMG" || icon.complete && icon.naturalWidth > 0) && icons.map(icon=>({width:icon.getBoundingClientRect().width,height:icon.getBoundingClientRect().height,stroke:icon.getAttribute("stroke-width"),src:icon.getAttribute("src"),naturalWidth:icon.naturalWidth || 0})); })()')
+                navigation_icons = probe.wait('(() => { const icons=[...document.querySelectorAll(".app-header nav .nav-icon svg, .app-header nav .nav-icon img")]; return icons.length === 7 && icons.every(icon=>icon.tagName !== "IMG" || icon.complete && icon.naturalWidth > 0) && icons.map(icon=>({width:icon.getBoundingClientRect().width,height:icon.getBoundingClientRect().height,stroke:icon.getAttribute("stroke-width"),src:icon.getAttribute("src"),naturalWidth:icon.naturalWidth || 0})); })()')
                 assert all(icon['width'] == 25 and icon['height'] == 25 for icon in navigation_icons)
                 vectors = [icon for icon in navigation_icons if icon['src'] is None]
                 images = [icon for icon in navigation_icons if icon['src'] is not None]

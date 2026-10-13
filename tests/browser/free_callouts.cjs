@@ -119,7 +119,7 @@ async function saveLoad(info) {
   await page.locator(".takeoff-viewport").focus(); await page.keyboard.press("Control+Backslash"); await expect(page.getByRole("button", { name: "Viewport", exact: true })).toHaveAttribute("aria-expanded", "false");
   await renderDrawing(page, () => page.locator(".takeoff-viewport").press("Control+0"), 3); await expect(page.getByRole("button", { name: "Viewport", exact: true })).toHaveAttribute("aria-expanded", "false");
   const baseline = await snapshot(), calculators = await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()); assert.equal(baseline.annotations, undefined);
-  const created = {}, builtIn = { stroke_color: "#FF3300", fill_enabled: true, fill_color: "#FFDD33", font_color: "#000000", stroke_width: 4, opacity: .75 };
+  const created = {}, builtIn = { stroke_enabled: true, stroke_color: "#FF3300", fill_enabled: true, fill_color: "#FFDD33", font_color: "#000000", stroke_width: 4, opacity: .75 };
   let savedDefault;
   for (const [index, mode] of ["steel", "duct", "wall", "slab"].entries()) {
     await chooseTakeoff(page, mode);

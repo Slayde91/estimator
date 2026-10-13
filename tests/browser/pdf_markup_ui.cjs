@@ -135,8 +135,8 @@ async function makeTextbox() {
 }
 async function textSettings(width, currentTheme) {
   const labels = await panel().locator(".takeoff-settings-fields > .field > span:first-child").allTextContents();
-  assert.deepEqual(labels.slice(0, 7), ["Line Colour", "Line Width", "Fill Colour", "Fill Enabled", "Font Colour", "Font Size", "Opacity"]);
-  for (const name of labels.slice(0, 7)) await expect(panel().getByLabel(name, { exact: true })).toBeVisible();
+  assert.deepEqual(labels.slice(0, 8), ["Line Enabled", "Line Colour", "Line Width", "Fill Colour", "Fill Enabled", "Font Colour", "Font Size", "Opacity"]);
+  for (const name of labels.slice(0, 8)) await expect(panel().getByLabel(name, { exact: true })).toBeVisible();
   const colours = await panel().locator(".field > span:first-child").evaluateAll(elements => elements.map(el => getComputedStyle(el).color));
   assert.ok(colours.every(colour => colour === "rgb(255, 255, 255)"), `Dark settings labels remain white in ${currentTheme}: ${JSON.stringify(colours)}`);
   const toolbar = panel().getByRole("toolbar", { name: "Textbox text formatting", exact: true }), editor = panel().getByRole("textbox", { name: "Textbox text", exact: true });

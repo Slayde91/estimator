@@ -55,7 +55,7 @@ async function textFits() {
   assert.equal(value.fits, true, 'Actual SVG text fits the framed callout'); assert.ok(value.lines >= 2); return value;
 }
 async function physicalThemeLabels(kind) {
-  const labels = kind === 'Marker' ? ['Fill Colour','Fill Enabled','Line Colour','Line Width','Marker Size','Opacity'] : ['Fill Colour','Fill Enabled','Line Colour','Line Width','Font Colour','Opacity'];
+  const labels = kind === 'Marker' ? ['Fill Colour','Fill Enabled','Line Enabled','Line Colour','Line Width','Marker Size','Opacity'] : ['Fill Colour','Fill Enabled','Line Enabled','Line Colour','Line Width','Font Colour','Opacity'];
   const draftBefore = structuredClone(await snapshot()), calculatorsBefore = await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()), requestCount = requests.length;
   const initialTheme = await page.locator('html').getAttribute('data-theme'), results = [];
   async function setTheme(theme) { for(let attempt=0;attempt<5 && await page.locator('html').getAttribute('data-theme')!==theme;attempt++) await cycleTheme(page); await expect(page.locator('html')).toHaveAttribute('data-theme',theme); }
@@ -95,7 +95,7 @@ async function physicalThemeLabels(kind) {
   assert.equal(original.annotation.document_sha256, sourceHash); assert.equal(original.annotation.page, 3); assert.equal(original.marker, undefined); assert.equal(original.quantity, undefined);
   assert.equal(original.annotation.appearance.marker_size,10);
   await expect(details().getByLabel('Marker Size',{exact:true})).toHaveValue('10');
-  assert.deepEqual(await details().locator('.takeoff-settings-fields .field>span').allTextContents(),['Fill Colour','Fill Enabled','Line Colour','Line Width','Marker Size','Opacity']);
+  assert.deepEqual(await details().locator('.takeoff-settings-fields .field>span').allTextContents(),['Fill Colour','Fill Enabled','Line Enabled','Line Colour','Line Width','Marker Size','Opacity']);
   assert.equal(await details().evaluate(el=>el.firstElementChild.getAttribute('aria-label')),'Marker Settings');
   assert.ok(await details().getByLabel('Line Colour',{exact:true}).evaluate(el=>el.getBoundingClientRect().height>=40));
   await physicalThemeLabels('Marker');

@@ -115,8 +115,8 @@ async function saveLoad(info) {
   await page.waitForFunction(() => window.CeasefireDesktop?.status().ready); await page.getByRole("button", { name: "Takeoffs", exact: true }).click();
   await renderDrawing(page, () => page.locator("#takeoff-upload").setInputFiles(info.fixture), 1);
   await renderDrawing(page, async () => { await page.getByLabel("Page number", { exact: true }).fill("3"); await page.getByLabel("Page number", { exact: true }).press("Tab"); }, 3); await fit();
-  await page.locator(".takeoff-viewport").focus(); await page.keyboard.press("Control+Backslash"); await expect(page.getByRole("button", { name: "Viewport", exact: true })).toHaveAttribute("aria-expanded", "true");
-  await page.locator(".takeoff-viewport").focus(); await page.keyboard.press("Control+Backslash"); await expect(page.getByRole("button", { name: "Viewport", exact: true })).toHaveAttribute("aria-expanded", "false");
+  await page.locator(".takeoff-viewport").focus(); await page.keyboard.press("Shift+V"); await expect(page.getByRole("button", { name: "Viewport", exact: true })).toHaveAttribute("aria-expanded", "true");
+  await page.locator(".takeoff-viewport").focus(); await page.keyboard.press("Shift+V"); await expect(page.getByRole("button", { name: "Viewport", exact: true })).toHaveAttribute("aria-expanded", "false");
   await renderDrawing(page, () => page.locator(".takeoff-viewport").press("Control+0"), 3); await expect(page.getByRole("button", { name: "Viewport", exact: true })).toHaveAttribute("aria-expanded", "false");
   const baseline = await snapshot(), calculators = await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()); assert.equal(baseline.annotations, undefined);
   const created = {}, builtIn = { stroke_enabled: true, stroke_color: "#FF3300", fill_enabled: true, fill_color: "#FFDD33", font_color: "#000000", stroke_width: 4, opacity: .75 };
@@ -136,7 +136,7 @@ async function saveLoad(info) {
     await page.locator(".takeoff-viewport").focus(); await page.keyboard.press("q"); await expect(page.locator(".takeoff-viewport")).toHaveAttribute("data-tool", "callout");
     const reply = await command(async () => page.mouse.click(...await sourcePoint([220 + index * 70, 240])), "create_annotation"), annotation = reply.snapshot.annotations.callouts.find(value => value.id === reply.created_annotation_id);
     created[mode] = annotation.id; assert.equal(annotation.mode, mode); assert.equal(annotation.source_sha256, sourceHash); assert.equal(annotation.page, 3); assert.deepEqual(annotation.appearance, savedDefault || builtIn);
-    invariant(reply.snapshot, baseline); await expect(panel()).toContainText("Item Details"); await expect(panel().locator("input,select,textarea")).toHaveCount(6); await expect(page.locator("tr[data-item-id]")).toHaveCount(0);
+    invariant(reply.snapshot, baseline); await expect(panel()).toContainText("Item Details"); await expect(panel().locator("input,select,textarea")).toHaveCount(7); await expect(panel().getByLabel("Line Enabled", {exact:true})).toBeChecked(); await expect(page.locator("tr[data-item-id]")).toHaveCount(0);
     for (const name of ['Apply Item Details','Discard pending edits','Hide Call-out','Delete Call-out','Undo last edit']) await expect(panel().getByRole('button',{name,exact:true})).toHaveCount(0);
     if (["steel", "duct"].includes(mode)) await expect(page.getByRole("button", { name: "Legend", exact: true })).toBeDisabled();
     await editor().fill(`NOTE-${mode}`); await editor().press("Control+a"); await panel().getByRole("button", { name: "Bold", exact: true }).click();
@@ -158,7 +158,9 @@ async function saveLoad(info) {
     await currentVisibility.click(); await expect(note(annotation.id)).toHaveCount(0); await expect(currentVisibility).toHaveAttribute("aria-pressed", "true"); await expect(editor()).toBeVisible(); assert.equal(await editor().innerText(), detailsBeforeVisibility);
     await currentVisibility.click(); await expect(note(annotation.id)).toBeVisible(); await expect(currentVisibility).toHaveAttribute("aria-pressed", "false"); assert.deepEqual(await snapshot(), beforeVisibility); assert.equal(requests.length, visibilityRequests, "Current Call-out Visibility sends no canonical command");
     (evidence.currentVisibility ||= {})[mode] = { reversible: true, detailsRemainOpen: true, sameSnapshotAndQuantities: true, noCommand: true };
-    await editor().focus(); await editor().press("Control+a"); assert.ok((await page.evaluate(() => getSelection().toString())).includes(`NOTE-${mode}`)); await editor().press("q"); await expect(page.locator(".takeoff-viewport")).toHaveAttribute("data-tool", "select");
+    await editor().focus(); await editor().press("Control+a"); assert.ok((await page.evaluate(() => getSelection().toString())).includes(`NOTE-${mode}`));
+    await editor().press("Control+End"); await editor().press("q"); await expect(page.locator(".takeoff-viewport")).toHaveAttribute("data-tool", "select");
+    assert.ok((await editor().innerText()).endsWith("q"), "Q remains native text input inside the editor"); await editor().press("Backspace"); assert.equal(await editor().innerText(), detailsBeforeVisibility); await applied();
     if (mode === "steel") {
       await panel().getByLabel("Line Colour", { exact: true }).fill("#00aa11"); await panel().getByLabel("Line Width", { exact: true }).fill("7"); await panel().getByLabel("Opacity", { exact: true }).fill("65"); await applied();
       await panel().getByRole("button", { name: "Set as default", exact: true }).click(); savedDefault = { ...builtIn, stroke_color: "#00aa11", fill_color: "#ffdd33", stroke_width: 7, opacity: .65 };

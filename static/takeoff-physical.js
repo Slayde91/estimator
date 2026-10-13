@@ -1174,7 +1174,16 @@
       const open = () => {
         const wasHidden = list.hidden; list.hidden = false; toggle.setAttribute("aria-expanded", "true");
         // The inspector scrolls independently; reveal all Add choices together.
-        if (revealOnOpen && wasHidden) list.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+        if (revealOnOpen && wasHidden) {
+          list.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+          // Native scrolling fits the inspector and viewport but does not account
+          // for the sticky application header, which can cover the first choices.
+          const header = document.querySelector(".app-header");
+          if (header) {
+            const covered = header.getBoundingClientRect().bottom + 8 - list.getBoundingClientRect().top;
+            if (covered > 0) root.scrollBy?.({ top: -covered, behavior: "instant" });
+          }
+        }
       };
       toggle.addEventListener("click", () => list.hidden ? open() : close());
       menu.addEventListener("keydown", event => {

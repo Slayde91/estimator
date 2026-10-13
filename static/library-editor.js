@@ -107,7 +107,10 @@
     project.prepared = null; projectChanged();
   }
   async function calculateProjectDraft(keep = false) {
-    document.activeElement?.blur?.(); clearTimeout(state.timer);
+    // Automatic recalculation must not take focus from an open Document menu
+    // (or a field the user is still editing). Explicit Keep still commits blur.
+    if (keep) document.activeElement?.blur?.();
+    clearTimeout(state.timer);
     if (!state.open || state.busy || state.diagramReading || inputProblem()) return;
     const fingerprint = projectFingerprint(), id = state.record.id, session = state.session, version = state.version, value = projectSnapshot();
     state.busy = true; status(keep ? "Keeping project library draft…" : "Calculating…");

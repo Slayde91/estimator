@@ -21,7 +21,7 @@ const ready = new Promise((resolve, reject) => {
 });
 const errors = [], requests = [], evidence = {}, exportReadiness = [];
 async function captureExportReadiness(phase,kind,scope) {
-  const state=await page.evaluate(()=>({pending:window.CeasefireLibraryEditor?.hasPendingOperation(),problem:window.CeasefireLibraryEditor?.inputProblem(),active:document.activeElement?.outerHTML,status:document.querySelector('#library-editor-status')?.textContent,message:document.querySelector('#library-editor-message')?.textContent,menu:document.querySelector('#library-editor-document-actions')?.outerHTML,events:window.libraryExportEvents}));
+  const state=await page.evaluate(()=>({pending:window.CeasefireLibraryEditor?.hasPendingOperation(),problem:window.CeasefireLibraryEditor?.inputProblem(),active:{tag:document.activeElement?.tagName,id:document.activeElement?.id},status:document.querySelector('#library-editor-status')?.textContent,message:document.querySelector('#library-editor-message')?.textContent,menu:document.querySelector('#library-editor-document-actions')?.outerHTML,events:window.libraryExportEvents}));
   exportReadiness.push({phase,kind,scope,state,requests:requests.slice(-15)});
   fs.writeFileSync(path.join(output,'export-readiness.json'),JSON.stringify(exportReadiness,null,2));
 }
@@ -74,6 +74,23 @@ async function editorExport(kind,scope,configuration,diagram) {
   await captureExportReadiness('before-menu',kind,scope);
   const toggle=page.locator('[aria-controls="library-editor-document-actions"]'),menu=page.locator('#library-editor-document-actions');
   await toggle.click();await expect(menu.getByRole('button',{name:'Item Details',exact:true})).toHaveCount(2);
+  if(scope==='portable-unsaved'&&kind==='pdf') {
+    await libraryIdle();
+    let release;
+    const held=new Promise(resolve=>{release=resolve;});
+    const endpoint='**/api/project/library-drafts/prepare';
+    await page.route(endpoint,async route=>{await held;await route.continue();});
+    const started=page.waitForRequest(request=>new URL(request.url()).pathname==='/api/project/library-drafts/prepare');started.catch(()=>{});
+    try {
+      // Invoke the same calculation handler as the debounce timer without a
+      // pointer focus change. Hold its response to inspect the busy menu.
+      await page.evaluate(()=>document.getElementById('library-editor-recalculate').click());
+      await started;await expect(menu).toBeVisible();await expect(toggle).toBeFocused();
+      await expect(page.locator('#library-editor-item-pdf')).toBeDisabled();
+    } finally {release();await page.unrouteAll({behavior:'wait'});}
+    await libraryIdle();await expect(menu).toBeVisible();await expect(toggle).toBeFocused();
+    evidence.recalculationKeepsDocumentMenuOpen=true;
+  }
   await captureExportReadiness('before-click',kind,scope);
   const id=kind==='pdf'?'library-editor-item-pdf':'library-editor-item-excel',pending=page.waitForResponse(reply=>new URL(reply.url()).pathname===`/api/penetration/item.${kind}`&&reply.request().method()==='POST');
   pending.catch(()=>{}); // Preserve the click failure and its diagnostic capture if no request is sent.
@@ -242,7 +259,7 @@ async function openProjectCopy() {
 })().catch(async error => {
   console.error(error); console.error(logs.slice(-5000));
   if (page) {
-    const readiness=await page.evaluate(()=>({pending:window.CeasefireLibraryEditor?.hasPendingOperation(),active:document.activeElement?.outerHTML,status:document.querySelector('#library-editor-status')?.textContent,message:document.querySelector('#library-editor-message')?.textContent,menu:document.querySelector('#library-editor-document-actions')?.outerHTML})).catch(()=>null);
+    const readiness=await page.evaluate(()=>({pending:window.CeasefireLibraryEditor?.hasPendingOperation(),active:{tag:document.activeElement?.tagName,id:document.activeElement?.id},status:document.querySelector('#library-editor-status')?.textContent,message:document.querySelector('#library-editor-message')?.textContent,menu:document.querySelector('#library-editor-document-actions')?.outerHTML})).catch(()=>null);
     fs.writeFileSync(path.join(output,'export-readiness.json'),JSON.stringify({error:String(error),readiness,exportReadiness,errors,requests},null,2));
     await page.screenshot({ path: path.join(output, 'failure.png'), fullPage: true }).catch(() => {}); fs.writeFileSync(path.join(output, 'failure.txt'), await page.locator('body').innerText().catch(() => ''));
   }

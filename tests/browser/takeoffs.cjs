@@ -1,4 +1,5 @@
 const { chooseTakeoff } = require('./section_navigation.cjs');
+const { checkSteelDialog } = require('./steel_dialog_layout.cjs');
 const { chooseCalculator } = require('./calculator_actions.cjs');
 const { clickProjectControl } = require('./project_actions.cjs');
 const { renderDrawing, viewRegisterItem } = require('./viewer_helpers.cjs');
@@ -62,6 +63,7 @@ async function command(action, op) {
 }
 async function dialog(title, values, button) {
   const modal = page.getByRole('dialog'); await expect(modal.getByRole('heading', { name: title, exact: true })).toBeVisible({timeout:30000});
+  await checkSteelDialog(page, modal, output, title);
   for (const [label, value] of Object.entries(values)) {
     const field = modal.getByLabel(label, { exact: true });
     if (await field.evaluate(el => el.tagName) === 'SELECT') await field.selectOption(String(value)); else await field.fill(String(value));

@@ -79,8 +79,17 @@ class TechnicalItemExportsTests(unittest.TestCase):
             self.assertIn('ABN: 50 612 231 562', page.extract_text())
             self.assertIn('TECHNICAL ITEM', page.extract_text())
         text = '\n'.join(page.extract_text() for page in reader.pages)
-        for value in ('SYN-123', 'Unlinked source report', '=Literal source text', 'Copper pipe 25 mm', 'Source information', snapshot['images'][0]['source_sha256']):
+        for value in ('SYN-123', 'Unlinked source report', '=Literal source text', 'Copper pipe 25 mm', 'Source information'):
             self.assertIn(value, text)
+        for value in ('Item ID: ', 'Source SHA256:', snapshot['images'][0]['source_sha256'],
+                      snapshot['images'][0]['filename'], snapshot['images'][0]['caption'],
+                      'Retain the original report, diagram and all source conditions.'):
+            self.assertNotIn(value, text)
+        self.assertTrue(any(cell.value == snapshot['images'][0]['source_sha256'] for cell in cells))
+        self.assertIn(snapshot['record']['notice'], text)
+        for label, filename, document_id, page, sheet, row in snapshot['sources']:
+            if label:
+                self.assertIn(label, text)
         uris = [annotation.get_object()['/A']['/URI'] for page in reader.pages for annotation in page.get('/Annots', []) if '/A' in annotation.get_object() and '/URI' in annotation.get_object()['/A']]
         self.assertEqual(uris, [REPORT_URL])
         source_images = [image.image for page in reader.pages for image in page.images if image.image.size == (640, 360)]

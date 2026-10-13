@@ -280,7 +280,7 @@ def export_matrix_pdf(graph, *, company=None):
     from reportlab.lib.styles import ParagraphStyle
     from reportlab.platypus import SimpleDocTemplate, Paragraph, LongTable, TableStyle, Spacer
 
-    from .report import _company_header, _register_fonts, _RED, _LINE, _LIGHT, _MUTED
+    from .report import _company_header, _register_fonts, _table_branding, _INK, _MUTED
     from .company_settings import company_logo
     _register_fonts()
     logo = company_logo(company)
@@ -300,12 +300,11 @@ def export_matrix_pdf(graph, *, company=None):
     table = LongTable([[cell(value, True) for value in MATRIX_HEADERS]] +
                       [[cell(value) for value in row] for row in rows],
                       colWidths=[65,65,65,125,65,125,85,120,155,90,100], repeatRows=1)
-    table.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,0),_RED),
-        ('GRID',(0,0),(-1,-1),.35,_LINE),
+    table.setStyle(TableStyle(_table_branding() + [
+        ('GRID',(0,0),(-1,-1),.35,_INK),
         ('VALIGN',(0,0),(-1,-1),'TOP'),('LEFTPADDING',(0,0),(-1,-1),6),
         ('RIGHTPADDING',(0,0),(-1,-1),6),('TOPPADDING',(0,0),(-1,-1),7),
-        ('BOTTOMPADDING',(0,0),(-1,-1),7),
-        ('ROWBACKGROUNDS',(0,1),(-1,-1),[colors.white,_LIGHT])]))
+        ('BOTTOMPADDING',(0,0),(-1,-1),7)]))
     title = Paragraph('Passive_Fire_Matrix', ParagraphStyle('MatrixTitle',fontName='Helvetica-Bold',fontSize=18,leading=22))
     def footer(canvas, doc):
         canvas.saveState()

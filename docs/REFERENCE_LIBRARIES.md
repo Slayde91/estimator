@@ -377,6 +377,13 @@ local batt infill explicitly included in a core-hole detail; a missing service
 reference is left unresolved when the current report cannot support the stored
 service. Related current details carry any material differences in their link
 text and do not silently revise the item's calculation or price.
+Technical Item Details PDFs show the title, technical fields, conditions,
+diagrams, report links and human-readable source labels. They omit the duplicate
+subtitle and introductory snapshot note, internal item ID, diagram captions,
+filenames, hashes and raw source-location metadata. The source snapshot and XLSX
+export retain that provenance. Generated PDF tables use fixed Ceasefire red
+headers with white text, white body cells and black text/rules across all app
+themes; original evidence images and PDFs retain their source colours.
 Fields with embedded source tables use
 `table: {columns: [string], rows: [[string]]}`. Rows preserve column pairing and
 source order. A nonempty `value` retains common text outside the nested table;

@@ -10,7 +10,7 @@ MAX_VISUAL_RECORDS = 1000
 MAX_GRAPHIC_POINTS = 1000
 GRAPHIC_MODES = ('steel', 'duct', 'wall', 'slab', 'defect_reports', 'service_plans')
 BOX_KINDS = ('cloud', 'textbox', 'stamp', 'rectangle', 'circle')
-POINT_KINDS = ('line', 'polyline', 'arrow', 'polygon', 'measure', 'area')
+POINT_KINDS = ('line', 'polyline', 'arrow', 'polygon', 'measure', 'area', 'count')
 GRAPHIC_FIELDS = {'id', 'version', 'mode', 'document_id', 'source_sha256', 'page',
                   'kind', 'geometry', 'text', 'appearance', 'text_content', 'stamp_image', 'initial_pages', 'calibration_id'}
 REQUIRED_GRAPHIC_FIELDS = GRAPHIC_FIELDS - {'text_content', 'stamp_image', 'initial_pages', 'calibration_id'}
@@ -70,18 +70,27 @@ def validate_graphic(value, snapshot, *, verified_stamp_images=None):
             if not .001 <= geometry['text_scale'] <= 1000:
                 raise ValidationError('PDF markup text resize scale must be between 0.001 and 1,000.')
     elif kind in POINT_KINDS:
-        geometry_fields = {'points', 'exclusions'} if kind == 'area' else {'points'}
+        geometry_fields = {'points', 'exclusions'} if kind == 'area' else {'points', 'lengths_m'} if kind == 'count' else {'points'}
         object_fields(geometry, geometry_fields, 'PDF markup path geometry', geometry_fields)
         path = points(geometry['points'], 'PDF markup path', page,
-                      3 if kind in ('polygon', 'area') else 2, 2 if kind in ('line', 'arrow') else MAX_GRAPHIC_POINTS)
-        if any(a == b for a, b in zip(path, path[1:])):
+                      1 if kind == 'count' else 3 if kind in ('polygon', 'area') else 2,
+                      10000 if kind == 'count' else 2 if kind in ('line', 'arrow') else MAX_GRAPHIC_POINTS)
+        if kind == 'count':
+            lengths = geometry['lengths_m']
+            if not isinstance(lengths, list) or len(lengths) != len(path):
+                raise ValidationError('Every PDF Count marker requires its own manual length.')
+            for length in lengths:
+                number(length, 'PDF Count manual length', positive=True)
+                if length > 1e12:
+                    raise ValidationError('PDF Count manual length cannot exceed 1,000,000,000,000 metres.')
+        elif any(a == b for a, b in zip(path, path[1:])):
             raise ValidationError('Adjacent PDF markup points must be distinct.')
         if kind in ('polygon', 'area'):
             from .takeoff_area import validate_polygon
             validate_polygon({'kind': 'polygon', 'document_id': value['document_id'], 'page': value['page'],
                               'points': path, 'exclusions': geometry.get('exclusions', [])}, page)
     else:
-        raise ValidationError('Choose Cloud, Textbox, Stamp, Line, Polyline, Arrow, Rectangle, Circle, Polygon, Measure or Area.')
+        raise ValidationError('Choose Cloud, Textbox, Stamp, Line, Polyline, Arrow, Rectangle, Circle, Polygon, Measure, Area or Count.')
     if kind in ('measure', 'area'):
         if 'calibration_id' not in value:
             raise ValidationError('PDF Measure and Area require an explicit source-page calibration.')

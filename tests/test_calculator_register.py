@@ -28,8 +28,7 @@ SCHEDULE_COLUMNS = {
                  'FRL': 'E', 'Duct surface (m²)': 'K'},
     'steel_vermiculite': {'Location': 'AA', 'Mark': 'A', 'Product': 'B', 'Section': 'F', 'Quantity': 'I',
                          'Length (m)': 'J', 'Published thickness (mm)': 'O',
-                         'Estimating thickness (mm)': 'P', 'Spray surface (m²)': 'R',
-                         'Net bags': 'T', 'Whole bags per line': 'U'},
+                         'Spray surface (m²)': 'R'},
     'steel_board': {'Mark': 'A', 'Location': 'B', 'Product': 'C', 'Section': 'D', 'Design period (min)': 'AN',
                     'Critical temperature (°C)': 'AO', 'Board stack (mm)': 'Z',
                     'Total thickness (mm)': 'AB', 'Box reference area (m²)': 'AD',
@@ -71,6 +70,9 @@ class CalculatorRegisterTests(unittest.TestCase):
     def assert_schedule(self, identity, data, workbook, native):
         sheet = workbook['Schedule']
         headers = {cell.value: cell.column for cell in sheet[5]}
+        if identity == 'steel_vermiculite':
+            self.assertEqual(set(headers), {'Line', 'Location', 'Mark', 'Product', 'Section', 'Quantity',
+                                           'Length (m)', 'Published thickness (mm)', 'Spray surface (m²)', 'Status'})
         self.assertEqual(sheet.max_row, 5 + len(data['rows']))
         comparisons = 0
         for target_row, item in enumerate(data['rows'], 6):
@@ -106,6 +108,14 @@ class CalculatorRegisterTests(unittest.TestCase):
                 status = '\n'.join(str(item['values'][column]) for column in columns
                                    if item['values'][column] not in (None, '')) or 'No calculated status returned'
             self.assert_cell_value(sheet.cell(target_row, headers['Status']), status)
+            if identity == 'steel_vermiculite':
+                # Removing presentation columns must not alter their underlying
+                # calculation or the product totals still exported in Summary.
+                for column in ('P', 'T', 'U'):
+                    address = column + str(item['row'])
+                    if address in native.get(data['sheet'], {}):
+                        self.assertTrue(excel_equal(item['values'][column], native[data['sheet']][address]))
+                        comparisons += 1
         self.assertGreaterEqual(comparisons, 5)
 
     def assert_summaries(self, identity, data, workbook, native):

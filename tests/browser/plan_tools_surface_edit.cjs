@@ -78,14 +78,18 @@ async function layout(width) {
   assert.ok(boxes.navigation.y >= boxes.top.y && boxes.navigation.y + boxes.navigation.height <= boxes.top.y + boxes.top.height, JSON.stringify(boxes)); assert.ok(boxes.sources.y >= boxes.plan.y && boxes.sources.y + boxes.sources.height <= boxes.top.y + boxes.top.height + 1, JSON.stringify(boxes)); assert.ok(Math.abs(boxes.rail.y - boxes.plan.y) < 2, JSON.stringify(boxes)); assert.ok(boxes.register.y >= boxes.plan.y + boxes.plan.height - 1, JSON.stringify(boxes));
   await expect(rail.getByRole('button', { name: 'Select', exact: true })).toHaveCount(0); await expect(rail.getByRole('button', { name: 'Pan', exact: true })).toHaveCount(0); for (const name of ['Select','Pan']) await expect(page.locator('.takeoff-page-controls').getByRole('button', { name, exact: true })).toBeVisible(); await expect(page.getByLabel('Drawing document',{exact:true}).locator('option')).toHaveCount(2); await expect(page.locator('.takeoff-rail,.takeoff-thumbnail')).toHaveCount(0);
   const pointerTargets = [];
-  for (const control of [scale, page.getByLabel('Drawing document', { exact: true }), ...await markupRail.getByRole('button').all()]) {
+  for (const control of [scale, page.getByLabel('Drawing document', { exact: true }), rail.getByRole('button', { name: 'Call-out', exact: true }), ...await markupRail.getByRole('button').all()]) {
     await control.scrollIntoViewIfNeeded(); await expect(control).toBeVisible();
     const box = await control.boundingBox(), target = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
     await page.mouse.move(target.x, target.y);
     assert.equal(await control.evaluate((el, point) => { const hit = document.elementFromPoint(point.x, point.y); return hit === el || el.contains(hit); }, target), true, `Native pointer target is unobscured: ${await control.getAttribute('aria-label') || await control.textContent()} at ${width}px`);
     pointerTargets.push({ name: await control.getAttribute('aria-label') || await control.textContent(), ...target });
   }
-  await expect(markupRail.getByRole('button')).toHaveCount(10);
+  await expect(markupRail.getByRole('button')).toHaveCount(9);
+  await expect(markupRail.getByRole('button', { name: 'Call-out', exact: true })).toHaveCount(0);
+  const leftTools = await rail.getByRole('button').evaluateAll(buttons => buttons.filter(button => button.getClientRects().length).map(button => button.getAttribute('aria-label')));
+  const countIndex = leftTools.findIndex(label => label === 'Count' || label === 'Count steel lengths');
+  assert.ok(countIndex >= 0); assert.equal(leftTools[countIndex + 1], 'Call-out');
   await scale.click(); await expect(scale).toHaveAttribute('aria-expanded', 'true');
   await scale.click(); await expect(scale).toHaveAttribute('aria-expanded', 'false');
   await page.getByLabel('Drawing document', { exact: true }).click(); await page.getByLabel('Drawing document', { exact: true }).press('Escape');

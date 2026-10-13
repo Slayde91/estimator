@@ -19,7 +19,12 @@ const ready = new Promise((resolve, reject) => {
   server.once('error', error => { clearTimeout(timer); reject(error); });
   server.once('exit', code => { clearTimeout(timer); reject(new Error(`Fixture exited ${code}: ${logs}`)); });
 });
-const errors = [], requests = [], evidence = {};
+const errors = [], requests = [], evidence = {}, exportReadiness = [];
+async function captureExportReadiness(phase,kind,scope) {
+  const state=await page.evaluate(()=>({pending:window.CeasefireLibraryEditor?.hasPendingOperation(),problem:window.CeasefireLibraryEditor?.inputProblem(),active:{tag:document.activeElement?.tagName,id:document.activeElement?.id},status:document.querySelector('#library-editor-status')?.textContent,message:document.querySelector('#library-editor-message')?.textContent,menu:document.querySelector('#library-editor-document-actions')?.outerHTML,events:window.libraryExportEvents}));
+  exportReadiness.push({phase,kind,scope,state,requests:requests.slice(-15)});
+  fs.writeFileSync(path.join(output,'export-readiness.json'),JSON.stringify(exportReadiness,null,2));
+}
 function choose(mode) { fs.writeFileSync(path.join(output, 'dialog-mode.json'), JSON.stringify(mode)); }
 function sharedDatabase() {
   const result = spawnSync(python, [fixture, '--snapshot-database', info.database], { cwd: root, windowsHide: true, encoding: 'utf8' });
@@ -66,10 +71,30 @@ async function independentDrafts() { return page.evaluate(() => ({ calculators: 
 async function editorSnapshot() { await libraryIdle(); return page.evaluate(()=>({library:window.CeasefireLibraryEditor.projectFingerprint(),dirty:window.CeasefireLibraryEditor.hasUnsavedChanges(),calculators:window.CeasefireCalculators.projectSnapshot(),penetration:window.CeasefirePenetrations.projectSnapshot(),pricing:window.CeasefireProject.configuration(),details:window.CeasefireProject.details()})); }
 async function editorExport(kind,scope,configuration,diagram) {
   const before=await editorSnapshot(),savedProject=fs.readFileSync(info.project),database=sharedDatabase(),requestIndex=requests.length;
+  await captureExportReadiness('before-menu',kind,scope);
   const toggle=page.locator('[aria-controls="library-editor-document-actions"]'),menu=page.locator('#library-editor-document-actions');
   await toggle.click();await expect(menu.getByRole('button',{name:'Item Details',exact:true})).toHaveCount(2);
+  if(scope==='portable-unsaved'&&kind==='pdf') {
+    await libraryIdle();
+    let release;
+    const held=new Promise(resolve=>{release=resolve;});
+    const endpoint='**/api/project/library-drafts/prepare';
+    await page.route(endpoint,async route=>{await held;await route.continue();});
+    const started=page.waitForRequest(request=>new URL(request.url()).pathname==='/api/project/library-drafts/prepare');started.catch(()=>{});
+    try {
+      // Invoke the same calculation handler as the debounce timer without a
+      // pointer focus change. Hold its response to inspect the busy menu.
+      await page.evaluate(()=>document.getElementById('library-editor-recalculate').click());
+      await started;await expect(menu).toBeVisible();await expect(toggle).toBeFocused();
+      await expect(page.locator('#library-editor-item-pdf')).toBeDisabled();
+    } finally {release();await page.unrouteAll({behavior:'wait'});}
+    await libraryIdle();await expect(menu).toBeVisible();await expect(toggle).toBeFocused();
+    evidence.recalculationKeepsDocumentMenuOpen=true;
+  }
+  await captureExportReadiness('before-click',kind,scope);
   const id=kind==='pdf'?'library-editor-item-pdf':'library-editor-item-excel',pending=page.waitForResponse(reply=>new URL(reply.url()).pathname===`/api/penetration/item.${kind}`&&reply.request().method()==='POST');
-  await page.locator(`#${id}`).click();const reply=await pending;assert.equal(reply.status(),200,await reply.text());
+  pending.catch(()=>{}); // Preserve the click failure and its diagnostic capture if no request is sent.
+  await page.locator(`#${id}`).click();await captureExportReadiness('after-click',kind,scope);const reply=await pending;assert.equal(reply.status(),200,await reply.text());
   const capture=reply.request().postDataJSON(),saved=await reply.json();assert.equal(saved.saved,true);
   assert.deepEqual(capture.configuration,configuration,'Library exports retain their captured prices');assert.deepEqual(capture.diagram,diagram);
   assert.equal(capture.draft,undefined);assert.equal(capture.item.inputs.T,'Project-only edited library item');assert.equal(capture.item.inputs.O,2.125);
@@ -101,7 +126,15 @@ async function openProjectCopy() {
   page = await browser.newPage({ viewport: { width: 1440, height: 1000 }, deviceScaleFactor: 1 }); page.setDefaultTimeout(60000);
   page.on('pageerror', error => errors.push(error.message));
   page.on('request', request => requests.push({ method: request.method(), path: new URL(request.url()).pathname }));
-  await page.addInitScript(() => { window.qaCsp = []; document.addEventListener('securitypolicyviolation', event => window.qaCsp.push({ directive: event.effectiveDirective, blocked: event.blockedURI })); });
+  await page.addInitScript(() => {
+    window.qaCsp = []; document.addEventListener('securitypolicyviolation', event => window.qaCsp.push({ directive: event.effectiveDirective, blocked: event.blockedURI }));
+    window.libraryExportEvents=[];
+    for(const type of ['pointerdown','mousedown','mouseup','click','focusin','focusout'])document.addEventListener(type,event=>{
+      if(!event.target.closest?.('.library-editor-document-menu'))return;
+      window.libraryExportEvents.push({type,time:performance.now(),target:event.target.closest('button')?.id,pending:window.CeasefireLibraryEditor?.hasPendingOperation(),menuHidden:document.querySelector('#library-editor-document-actions')?.hidden});
+      if(window.libraryExportEvents.length>100)window.libraryExportEvents.shift();
+    },true);
+  });
   const initial = await page.goto(`http://127.0.0.1:${info.port}/`);
   assert.ok(!initial.headers()['content-security-policy'].includes('unsafe-inline'));
   await page.waitForFunction(() => window.CeasefireDesktop?.status().ready);
@@ -225,6 +258,10 @@ async function openProjectCopy() {
   console.log(`PASS: rendered project library capture, pricing isolation, second Save, orphan reopen and image preservation. Evidence: ${output}`);
 })().catch(async error => {
   console.error(error); console.error(logs.slice(-5000));
-  if (page) { await page.screenshot({ path: path.join(output, 'failure.png'), fullPage: true }).catch(() => {}); fs.writeFileSync(path.join(output, 'failure.txt'), await page.locator('body').innerText().catch(() => '')); }
+  if (page) {
+    const readiness=await page.evaluate(()=>({pending:window.CeasefireLibraryEditor?.hasPendingOperation(),active:{tag:document.activeElement?.tagName,id:document.activeElement?.id},status:document.querySelector('#library-editor-status')?.textContent,message:document.querySelector('#library-editor-message')?.textContent,menu:document.querySelector('#library-editor-document-actions')?.outerHTML})).catch(()=>null);
+    fs.writeFileSync(path.join(output,'export-readiness.json'),JSON.stringify({error:String(error),readiness,exportReadiness,errors,requests},null,2));
+    await page.screenshot({ path: path.join(output, 'failure.png'), fullPage: true }).catch(() => {}); fs.writeFileSync(path.join(output, 'failure.txt'), await page.locator('body').innerText().catch(() => ''));
+  }
   process.exitCode = 1;
 }).finally(async () => { fs.writeFileSync(path.join(output, 'server.log'), logs); if (browser) await browser.close(); server.kill(); });

@@ -23,6 +23,19 @@ async function check(name,fn){const h=harness();h.projectApi.applyProject(await 
   const portable = (draft = definition().defaults, diagram = null) => ({id:'orphan-item',library_id:'FL-PROJECT',title:'Project copy',source_sha256:'library-source',draft:copy(draft),configuration:{inventory:{},rates:{}},diagram});
   const bundle = record => ({version:1,source_sha256:'calculator-source',records:[record]});
   const prepared = value => ({library_drafts:copy(value),records:value.records.map(record=>fixture(record.draft,{id:record.id,title:record.title,library_id:record.library_id,project_local:true,configuration:record.configuration,diagram:{available:!!record.diagram,url:record.diagram ? `data:image/png;base64,${record.diagram.content_base64}` : undefined}}))});
+  await check('Scheduled project calculation preserves menu focus and exact edited values', async h => {
+    h.api.applyProject(prepared(bundle(portable())));await h.api.open('orphan-item');
+    const pending=deferred();let captured;
+    h.audit.setProjectRequest(value=>{captured=copy(value);return pending.promise;});
+    h.control('O').value='2.123456789012345';await h.control('O').emit('input');
+    const menu=h.byId('library-editor-document-toggle');await menu.focus();
+    const calculating=h.timers.get(h.audit.state.timer)();await flush();
+    assert.equal(h.api.hasPendingOperation(),true);assert.equal(h.context.document.activeElement,menu);
+    assert.equal(captured.records[0].draft.rows[0].inputs.O,2.123456789012345);
+    pending.resolve(prepared(captured));await calculating;
+    assert.equal(h.context.document.activeElement,menu);assert.equal(h.api.hasPendingOperation(),false);
+    assert.equal(h.audit.state.draft.rows[0].inputs.O,2.123456789012345);
+  });
   await check('An empty project library bridge does not make initial application bootstrap dirty', async h => {
     assert.equal(h.api.projectSnapshot(),undefined); assert.equal(h.api.hasProjectChanges(),false);
     h.api.applyProject(await h.api.prepareProject()); assert.equal(h.api.hasProjectChanges(),false); assert.deepEqual(copy(h.api.projectRecords()),[]);

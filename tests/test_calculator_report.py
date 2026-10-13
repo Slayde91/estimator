@@ -176,14 +176,10 @@ class CalculatorReportTests(unittest.TestCase):
                         self.assertLess(label[1], contact[1])
                         self.assertGreater(contact[0], float(page.mediabox.width) / 2)
                     self.assertIn('Current calculator snapshot', text)
-                    abbreviated_summary = identity in {'steel_board', 'steel_vermiculite'} and builder is build_calculator_summary_report
                     for removed in ('Report generated from the complete', 'Authoritative workbook',
                                     'Source SHA-256', source_model(identity)['source']['sha256']):
                         self.assertNotIn(removed, text)
-                    if abbreviated_summary or (identity == 'ductwork' and builder is build_calculator_report):
-                        self.assertNotIn('Display rounding is limited', text)
-                    else:
-                        self.assertIn('Display rounding is limited', text)
+                    self.assertNotIn('Display rounding is limited', text)
                     for heading in REMOVED_SECTIONS:
                         self.assertNotIn(heading, text)
                     self.assertNotIn('Schedule item 1', text)

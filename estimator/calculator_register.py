@@ -104,9 +104,9 @@ def _schedule(data, workbook):
                    for item in data['rows'] for v in [item['values']]]
     elif identity == 'steel_vermiculite':
         labels = ['Line', 'Location', 'Mark', 'Product', 'Section', 'Quantity', 'Length (m)', 'Published thickness (mm)',
-                  'Estimating thickness (mm)', 'Spray surface (m²)', 'Net bags', 'Whole bags per line', 'Status']
-        widths = [9, 28, 25, 26, 24, 14, 16, 21, 21, 19, 18, 18, 65]
-        records = [[item['line'], v['AA'], v['A'], v['B'], v['F'], v['I'], v['J'], v['O'], v['P'], v['R'], v['T'], v['U'],
+                  'Spray surface (m²)', 'Status']
+        widths = [9, 28, 25, 26, 24, 14, 16, 21, 19, 65]
+        records = [[item['line'], v['AA'], v['A'], v['B'], v['F'], v['I'], v['J'], v['O'], v['R'],
                     '\n'.join(str(value) for value in (v['V'], v['W'], item.get('assessment_source') or item.get('source_reference')) if value not in (None, '')) or 'No calculated status returned']
                    for item in data['rows'] for v in [item['values']]]
     else:

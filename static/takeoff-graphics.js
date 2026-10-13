@@ -5,10 +5,10 @@
 (function (root) {
   // Area exclusion is a drawing gesture that edits its selected Area, never a
   // separately persisted mark or register record.
-  const kinds = Object.freeze(["cloud", "textbox", "stamp", "line", "polyline", "arrow", "rectangle", "circle", "polygon", "measure", "area"]);
-  const tools = Object.freeze([...kinds, "area-exclusion"]);
+  const kinds = Object.freeze(["cloud", "textbox", "stamp", "line", "polyline", "arrow", "rectangle", "circle", "polygon", "measure", "area", "count"]);
+  const tools = Object.freeze([...kinds.filter(kind => kind !== "count"), "area-exclusion"]);
   const boxes = new Set(["cloud", "textbox", "stamp", "rectangle", "circle"]);
-  const labels = Object.freeze({ cloud: "Cloud", textbox: "Textbox", stamp: "Stamp", line: "Line", polyline: "Line/Polyline", arrow: "Arrow", rectangle: "Rectangle", circle: "Circle", polygon: "Polygon", measure: "Measure", area: "Area", "area-exclusion": "Area exclusion" });
+  const labels = Object.freeze({ cloud: "Cloud", textbox: "Textbox", stamp: "Stamp", line: "Line", polyline: "Line/Polyline", arrow: "Arrow", rectangle: "Rectangle", circle: "Circle", polygon: "Polygon", measure: "Measure", area: "Area", count: "Count", "area-exclusion": "Area exclusion" });
   const icons = Object.freeze({ cloud: "M6 18a4 4 0 0 1-2-7 5 5 0 0 1 9-5 4 4 0 0 1 6 5 4 4 0 0 1-1 7Z", textbox: "M3 4h18v16H3ZM7 8h10m-5 0v8m-3 0h6", stamp: "M4 17h16v4H4Zm2 0v-4h12v4M9 13V6a3 3 0 0 1 6 0v7", polyline: "M3 18l6-12 6 12 6-12", arrow: "M3 21 21 3m-9 0h9v9", rectangle: "M3 5h18v14H3Z", circle: "M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0", polygon: "M12 2 22 9 18 22 5 20 2 8Z", measure: "M3 8h18v8H3ZM7 8v4M11 8v3M15 8v4M19 8v3" });
   const defaults = () => ({ stroke_color: "#FF0000", stroke_width: 2, opacity: 1, fill_enabled: false, fill_color: "#FFFFFF", font_color: "#000000", font_size: 12 });
   const fontSize = graphic => graphic.appearance.font_size * (graphic.geometry.text_scale ?? 1);
@@ -130,6 +130,14 @@
   function paint(graphic, transform, scale, make, context, measureResult = null, formatLength = value => value.toFixed(2)) {
     const group = make("g", { "pointer-events": "none" }), style = graphic.appearance, points = coordinates(graphic).map(transform), area = ["area", "area-exclusion"].includes(graphic.kind), closed = boxes.has(graphic.kind) || graphic.kind === "polygon" || area;
     const ink = { stroke: style.stroke_color, "stroke-width": style.stroke_width * scale, fill: closed && style.fill_enabled ? style.fill_color : "none", opacity: style.opacity, "stroke-linejoin": "round", "stroke-linecap": "round" };
+    if (graphic.kind === "count") {
+      points.forEach(([x,y], index) => {
+        group.append(make("circle", {...ink, cx:x, cy:y, r:5*scale, fill:style.fill_enabled ? style.fill_color : "none"}));
+        const label = make("text", {x:x+7*scale,y:y-7*scale,fill:style.font_color,opacity:style.opacity,class:"takeoff-value-label","pointer-events":"none"});
+        label.textContent = `${index+1} · ${formatLength(graphic.geometry.lengths_m[index])} m`; group.append(label);
+      });
+      return group;
+    }
     if (graphic.geometry.quad_pdf) {
       const [a, b, , d] = points, width = Math.hypot(b[0]-a[0], b[1]-a[1]), height = Math.hypot(d[0]-a[0], d[1]-a[1]);
       const local = make("g", { transform: `matrix(${(b[0]-a[0])/width} ${(b[1]-a[1])/width} ${(d[0]-a[0])/height} ${(d[1]-a[1])/height} ${a[0]} ${a[1]})` }); group.append(local);

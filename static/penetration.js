@@ -17,13 +17,13 @@
   const configuration = () => clone(window.CeasefireProject?.configuration?.() || { inventory: {}, rates: {} });
   const configStamp = () => JSON.stringify(configuration());
   const keyFor = (rowId, column) => JSON.stringify([rowId, column]);
-  const fieldLabel = field => field.column === "J" || field.label === "Type" ? "Category"
+  const fieldLabel = field => window.CeasefirePenetrationPresentation?.labels[field.column] || (field.column === "J" || field.label === "Type" ? "Category"
     : field.column === "T" || ["Item(s)", "Items/Services"].includes(field.label) ? "Description"
     : ["System", "System/Install"].includes(field.label) ? "System/Install Details"
     : ["AN", "AT"].includes(field.column) ? field.column === "AN" && state.group === "Plastic Pipes" ? "Collar Multiplier" : "Multiplier"
     : ["AM", "AS"].includes(field.column) ? "Total Wrap Req"
     : field.column === "X" && field.label === "Board or Batt Type" ? "Board/Batt Type"
-    : field.column === "Z" && field.label === "Frame Type" ? "Framing Type" : field.label;
+    : field.column === "Z" && field.label === "Frame Type" ? "Framing Type" : field.label);
   const manufacturerLabel = (field, value) => field.column === "V" ? String(value).toLowerCase() === "firefly" ? "Firefly" : String(value).toLowerCase() === "trafalgar" ? "Trafalgar" : undefined : undefined;
   const rowById = (id, scope = state) => scope.draft?.rows.find(row => row.id === id);
   const scheduleRow = id => rowById(id, state.schedule);
@@ -50,8 +50,11 @@
     return format === "currency" ? currency.format(value) : format === "percent" ? `${number.format(shiftDecimal(value, 2))}%` : number.format(value);
   }
   async function request(path, payload) {
+    const endActivity = window.CeasefireActivity?.begin();
+    try {
     const response = await fetch(path, payload === undefined ? { headers: { Accept: "application/json" } } : { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
     const data = await response.json(); if (!response.ok) throw new Error(data.error || `Request failed (${response.status}).`); return data;
+    } finally { endActivity?.(); }
   }
   function message(text = "", error = false, scope = state) {
     const ids = scope === state ? ["penetration-message"] : ["penetration-schedule-message", "penetration-estimator-schedule-message"];
@@ -268,8 +271,9 @@
     const context = state.context, epoch = scope === state ? state.composerEpoch : state.rowEpochs.get(rowId);
     const current = () => context === state.context && (scope === state ? epoch === state.composerEpoch : rowId === null || epoch === state.rowEpochs.get(rowId));
     const key = keyFor(rowId, field.column), wrapper = node(field.automatic_default ? "div" : "label", "field"), label = node("span", "", fieldLabel(field) + (field.units ? ` (${field.units})` : field.format === "percent" ? " (%)" : ""));
-    const control = node(field.type === "select" ? "select" : "input"), problem = node("small", "penetration-field-error");
-    const help = ["AN", "AT"].includes(field.column) ? "Enter multiplier for wrap lengths or collars."
+    const long = field.type === "text" && ["T", "U"].includes(field.column);
+    const control = node(field.type === "select" ? "select" : long ? "textarea" : "input"), problem = node("small", "penetration-field-error");
+    const help = field.column === "M" ? "Substrate Orientation" : ["AN", "AT"].includes(field.column) ? "Enter multiplier for wrap lengths or collars."
       : ["AM", "AS"].includes(field.column) ? "Total wrap length required per side in mm, e.g. 300 (mm)."
       : field.column === "AL" ? state.group === "Lagged Pipes" ? "Enter total outer diameter of the lagged pipe or total bundle." : "Enter total outer diameter of the pipe or bundle."
       : field.help || "";
@@ -287,7 +291,7 @@
     const options = [...new Set((scope.draft.globals.detail_options?.[field.column] ?? field.options ?? []).map(value => manufacturer && manufacturerLabel(field, value) === manufacturer ? raw : value))];
     if (field.type === "select") {
       const empty = node("option", "", "Choose…"); empty.value = ""; control.append(empty);
-      for (const value of options) { const option = node("option", "", manufacturerLabel(field, value) || value); option.value = String(value); control.append(option); }
+      for (const value of options) { const option = node("option", "", manufacturerLabel(field, value) || window.CeasefirePenetrationPresentation?.optionLabel(field, value) || value); option.value = String(value); control.append(option); }
       if (raw !== null && raw !== "" && !options.some(value => String(value) === String(raw))) {
         const option = node("option", "", manufacturer || `Saved value: ${raw} (choose a listed value)`); option.value = String(raw); option.disabled = true; control.append(option);
       }
@@ -295,9 +299,10 @@
       if (field.type === "number") {
         control.type = "number"; control.step = String(field.step ?? "any");
         control.inputMode = "decimal"; control.autocomplete = "off";
-      } else { control.type = "text"; control.maxLength = 2000; }
+      } else { if (!long) control.type = "text"; control.maxLength = 2000; }
     }
     control.value = pending ? pending.value : controlText(field, displayedInput(field, rowId, scope));
+    if (long) window.CeasefirePenetrationPresentation?.growTextarea(control);
     if (field.enabled_when) {
       const inputs = rowById(rowId, scope)?.inputs || {};
       control.disabled = field.enabled_when.nonblank && [null, undefined, ""].includes(inputs[field.enabled_when.column]);
@@ -332,6 +337,10 @@
       }
       if (error) scope.invalid.set(key, { value: control.value, error });
       else { scope.invalid.delete(key); (rowId === null ? scope.draft.globals : rowById(rowId, scope).inputs)[field.column] = value; }
+      if (!error && field.column === "P" && rowId !== null) {
+        const orientation = window.CeasefirePenetrationPresentation?.orientation(value);
+        if (orientation) rowById(rowId, scope).inputs.M = orientation;
+      }
       if (!error && field.column === "M" && rowId !== null) {
         const inputs = rowById(rowId, scope).inputs;
         const multiplier = /^vertical$/i.test(value || "") ? 2 : /^horizontal$/i.test(value || "") ? 1 : null;
@@ -342,7 +351,7 @@
       if (!error && rowId === null && field.group === "SETTINGS" && scope === state.schedule) {
         state.draft.globals[field.column] = value; changed(null, state);
       }
-      if (scope === state && !error && ["J", "K", "L", "Y"].includes(field.column)) renderFields();
+      if (scope === state && !error && ["J", "K", "L", "Y", "P"].includes(field.column)) renderFields();
     };
     control.addEventListener(field.type === "select" ? "change" : "input", apply);
     control.addEventListener("blur", () => {
@@ -470,6 +479,13 @@
   }
   async function selectGroup(group) {
     assertTakeoffWritable();
+    // The missing products/crew notice must never prevent reaching its fields.
+    if (group === "Products and labour") {
+      state.tabAdvisoryAcknowledgement = null; state.group = group; renderFields();
+      const inputs = selected()?.inputs || {}, first = ["W", "X", "Z"].find(column => !entered(inputs[column]));
+      if (first) document.querySelectorAll('[data-penetration-scope="composer"][data-penetration-field="' + first + '"]')[0]?.focus();
+      return;
+    }
     const warning = tabExitWarning(group);
     if (warning && (warning.blocking || state.tabAdvisoryAcknowledgement !== warning.key)) {
       const context = state.context, stamp = composerStamp(), current = state.group;
@@ -661,21 +677,13 @@
     if (settings) $("penetration-row-fields").replaceChildren(renderSettings(visible));
     else {
       const fields = node("div", "penetration-fields");
-      const grouped = new Set();
-      for (let field of visible) {
-        if (grouped.has(field.column)) continue;
-        if (["M", "AB"].includes(field.column)) {
-          const partner = visible.find(value => value.column === (field.column === "M" ? "P" : "AC"));
-          if (partner) {
-            const pair = node("div", "penetration-field-pair" + (field.column === "AB" ? " penetration-mastic-pair" : ""));
-            pair.append(makeControl(field, row.id), makeControl(partner, row.id)); fields.append(pair); grouped.add(partner.column); continue;
-          }
+      for (const group of window.CeasefirePenetrationPresentation.fieldGroups(visible)) {
+        const host = group.length > 1 ? node("div", "penetration-field-pair" + (group[0].column === "AB" ? " penetration-mastic-pair" : "")) : fields;
+        for (const field of group) {
+          const paired = field.paired_column && state.definition.row_fields.find(candidate => candidate.column === field.paired_column);
+          host.append(paired ? makeDimensionControl(field, paired, row.id) : makeControl(field, row.id));
         }
-        if (field.column === "V" && visible.some(value => value.column === "P")) continue;
-        if (field.column === "P" && grouped.has("P")) continue;
-        const paired = field.paired_column && state.definition.row_fields.find(candidate => candidate.column === field.paired_column);
-        fields.append(paired ? makeDimensionControl(field, paired, row.id) : makeControl(field, row.id));
-        if (field.column === "N") { const manufacturer = visible.find(value => value.column === "V"); if (manufacturer) fields.append(makeControl(manufacturer, row.id)); }
+        if (host !== fields) fields.append(host);
       }
       $("penetration-row-fields").replaceChildren(fields);
     }
@@ -966,11 +974,11 @@
       tr.className = row.id === state.edit?.id ? "penetration-selected-row" : "";
       const invalid = [...state.schedule.invalid.keys()].some(key => JSON.parse(key)[0] === row.id);
       if (!tr.children.length) {
-        for (let column = 0; column < 8; column++) tr.append(node("td"));
-        tr.children[7].className = "penetration-schedule-diagram";
-        if (quantityField) tr.children[5].append(makeControl(quantityField, row.id, true, state.schedule));
+        for (let column = 0; column < 9; column++) tr.append(node("td"));
+        tr.children[8].className = "penetration-schedule-diagram";
+        if (quantityField) tr.children[6].append(makeControl(quantityField, row.id, true, state.schedule));
       }
-      const diagramCell = tr.children[7], diagramId = row.library_item_id, diagramVersion = diagramId ? diagramVersions.get(diagramId) || 0 : 0;
+      const diagramCell = tr.children[8], diagramId = row.library_item_id, diagramVersion = diagramId ? diagramVersions.get(diagramId) || 0 : 0;
       const diagramStamp = diagramId ? `${diagramId}:${diagramVersion}` : "";
       if (diagramCell.dataset.libraryDiagram !== diagramStamp) {
         diagramCell.dataset.libraryDiagram = diagramStamp;
@@ -980,16 +988,16 @@
           diagramCell.replaceChildren(image);
         } else diagramCell.replaceChildren(node("span", "helper", "—"));
       }
-      const values = [line, row.inputs.K || "—", row.inputs.L || "—", row.inputs.M || "—", row.inputs.N || "—", null, display(result?.outputs.H, "currency"), null];
-      values.forEach((value, column) => { if (column !== 5 && column !== 7) tr.children[column].textContent = String(value); });
-      if (!quantityField) tr.children[5].textContent = display(row.inputs.O);
-      for (const control of tr.children[5].querySelectorAll("[data-penetration-field]")) control.setAttribute("aria-label", `Item ${line}: ${fieldLabel(quantityField)}`);
+      const values = [line, window.CeasefirePenetrationPresentation.serviceLabel(row.inputs.K) || "—", window.CeasefirePenetrationPresentation.serviceSize(row.inputs), row.inputs.L || "—", row.inputs.M || "—", row.inputs.N || "—", null, display(result?.outputs.H, "currency"), null];
+      values.forEach((value, column) => { if (column !== 6 && column !== 8) tr.children[column].textContent = String(value); });
+      if (!quantityField) tr.children[6].textContent = display(row.inputs.O);
+      for (const control of tr.children[6].querySelectorAll("[data-penetration-field]")) control.setAttribute("aria-label", `Item ${line}: ${fieldLabel(quantityField)}`);
       const actions = node("td", "penetration-item-actions"), edit = node("button", "button secondary", "Edit"); edit.type = "button"; edit.setAttribute("aria-label", `Edit firestopping item ${line}`); edit.addEventListener("click", () => selectRow(row.id));
       const remove = node("button", "button secondary penetration-remove"), icon = node("span"); icon.setAttribute("aria-hidden", "true");
       icon.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="M3 6h18M9 6V4h6v2M5 6l1 14h12l1-14M10 10v6M14 10v6"/></svg>';
       remove.append(icon); remove.type = "button"; remove.dataset.penetrationRemove = row.id; remove.title = `Remove item ${line}`; remove.setAttribute("aria-label", `Remove firestopping item ${line}`); remove.disabled = state.schedule.invalid.size > 0; remove.addEventListener("click", () => removeRow(row.id));
       actions.append(edit, remove);
-      if (tr.children[8]) tr.children[8].replaceChildren(edit, remove); else tr.append(actions);
+      if (tr.children[9]) tr.children[9].replaceChildren(edit, remove); else tr.append(actions);
       return tr;
     });
     // Keeping unchanged rows attached preserves the active quantity editor and

@@ -291,7 +291,7 @@
     }
     function displayReply(reply) { const value = reply?.snapshot || (reply?.documents && "physical" in reply ? reply : null); if (value) render(value); }
     function fieldType(kind, key) {
-      if (sharedOptionKeys.has(key)) return (state.fieldOptions?.[key] || []).map(value => [value, value]);
+      if (sharedOptionKeys.has(key)) return (state.fieldOptions?.[key] || []).map(value => [value, key === "service_type" ? root.CeasefirePenetrationPresentation?.serviceLabel(value) || value : value]);
       const type = key === "quantity" ? "number" : fieldsFor(kind, scope()).find(definition => definition[0] === key)?.[2] || "text";
       return Array.isArray(type) ? copy(type) : type;
     }
@@ -432,7 +432,7 @@
         if (!parent) return;
         const entry = state.index.get(parent); if (!entry || entry.kind !== parentKind || entry.entity.deleted) throw new Error("The selected physical parent is unavailable.");
       } else parent = null;
-      const answer = await ask(evidence.length ? "Add Defect" : `Create draft ${kind}`, fieldDefinitions(null, kind), `${warning()}${parent ? `\n\nParent ID: ${displayId(state.index.get(parent))}` : ""}\n\nUnknown properties stay blank.${evidence.length ? `\n\nSource page ${evidence[0].page}: ${evidence[0].note}` : " Link retained source evidence after creating the draft."}`, "Preview new draft");
+      const answer = await ask(evidence.length ? "Add Defect" : `Create draft ${kind}`, fieldDefinitions(null, kind), parent ? `Parent ID: ${displayId(state.index.get(parent))}` : "", "Preview new draft");
       if (!answer) return;
       requireSource();
       const entity = { id: root.crypto.randomUUID(), fields: fieldsFromValues(kind, answer, {}, scope()), evidence, uncertainty: { state: "not_assessed", note: "" }, ...(kind === (servicePlans() ? "barrier" : "defect") && answer.confirmation === "confirmed" ? { confirmation: "confirmed" } : {}), ...(parent ? { [parentRelations()[kind][1]]: parent } : {}), ...(kind === "service" ? { quantity: fieldValue(kind, "quantity", answer.quantity) } : {}), ...(marker !== undefined ? { marker: copy(marker) } : {}), ...(annotation !== undefined ? { annotation: copy(annotation) } : {}) };
@@ -1174,7 +1174,16 @@
       const open = () => {
         const wasHidden = list.hidden; list.hidden = false; toggle.setAttribute("aria-expanded", "true");
         // The inspector scrolls independently; reveal all Add choices together.
-        if (revealOnOpen && wasHidden) list.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+        if (revealOnOpen && wasHidden) {
+          list.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+          // Native scrolling fits the inspector and viewport but does not account
+          // for the sticky application header, which can cover the first choices.
+          const header = document.querySelector(".app-header");
+          if (header) {
+            const covered = header.getBoundingClientRect().bottom + 8 - list.getBoundingClientRect().top;
+            if (covered > 0) root.scrollBy?.({ top: -covered, behavior: "instant" });
+          }
+        }
       };
       toggle.addEventListener("click", () => list.hidden ? open() : close());
       menu.addEventListener("keydown", event => {

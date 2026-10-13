@@ -180,9 +180,9 @@ def _paint_count_marker(pdf, center, style):
     fill = int(style['fill_enabled'])
     shape = style['marker_shape']
     if shape == 'circle':
-        pdf.circle(x, y, radius, stroke=1, fill=fill)
+        pdf.circle(x, y, radius, stroke=int(style.get('stroke_enabled', True)), fill=fill)
     elif shape == 'square':
-        pdf.rect(x-radius, y-radius, 2*radius, 2*radius, stroke=1, fill=fill)
+        pdf.rect(x-radius, y-radius, 2*radius, 2*radius, stroke=int(style.get('stroke_enabled', True)), fill=fill)
     else:
         vertices = ([(x, y+radius), (x+radius, y-radius), (x-radius, y-radius)] if shape == 'triangle'
                     else [(x, y+radius), (x+radius, y), (x, y-radius), (x-radius, y)])
@@ -190,7 +190,7 @@ def _paint_count_marker(pdf, center, style):
         for index, vertex in enumerate(vertices):
             path.moveTo(*vertex) if index == 0 else path.lineTo(*vertex)
         path.close()
-        pdf.drawPath(path, stroke=1, fill=fill)
+        pdf.drawPath(path, stroke=int(style.get('stroke_enabled', True)), fill=fill)
 
 
 def _paint_length_additions(pdf, item, matrix, drawing_bounds):
@@ -231,7 +231,7 @@ def _paint_drawing_legends(pdf, legends, matrix):
                  'fill_enabled': True, 'stroke_width': 1, 'opacity': .94, **legend['appearance']}
         pdf.saveState(); pdf.setStrokeColor(HexColor(style['stroke_color']))
         pdf.setLineWidth(style['stroke_width']); pdf.setFillColor(HexColor(style['fill_color']))
-        pdf.setFillAlpha(style['opacity']); pdf.rect(x, top-height, width, height, stroke=1, fill=int(style['fill_enabled']))
+        pdf.setFillAlpha(style['opacity']); pdf.rect(x, top-height, width, height, stroke=int(style.get('stroke_enabled', True)), fill=int(style['fill_enabled']))
         groups = {}
         for row in legend['rows']:
             groups.setdefault(row['colour'], []).append(row['text'])
@@ -310,9 +310,10 @@ def _paint_physical_callout(pdf, item, point, center, matrix, bounds, zoom):
         raise ValueError('The automatic physical call-out cannot display every line within the source drawing. Reduce its displayed details before exporting.')
     pdf.setStrokeAlpha(1);pdf.setFillAlpha(1)
     pdf.setStrokeColor(HexColor(style['stroke_color']));pdf.setLineWidth(style['stroke_width'])
-    pdf.line(center[0],center[1],max(x,min(center[0],x+width)),max(y,min(center[1],y+height)))
+    if style.get('stroke_enabled', True):
+        pdf.line(center[0],center[1],max(x,min(center[0],x+width)),max(y,min(center[1],y+height)))
     pdf.setFillColor(HexColor(style['fill_color']));pdf.setFillAlpha(style['opacity'])
-    pdf.roundRect(x,y,width,height,3*factor,stroke=1,fill=int(style['fill_enabled']))
+    pdf.roundRect(x,y,width,height,3*factor,stroke=int(style.get('stroke_enabled', True)),fill=int(style['fill_enabled']))
     pdf.setFillAlpha(1);pdf.setFillColor(HexColor(style['font_color']))
     for index,line in enumerate(lines):
         pdf.setFont('ExportVeraBold' if index == 0 else 'ExportVera',font_size)
@@ -375,9 +376,10 @@ def _paint_annotations(pdf, annotations, matrix, bounds):
         pdf.setStrokeColor(HexColor(style['stroke_color'])); pdf.setLineWidth(style['stroke_width'])
         pdf.setStrokeAlpha(1); pdf.setFillAlpha(1)
         center = transform(annotation['point'], matrix)
-        pdf.line(center[0], center[1], max(x, min(center[0], x+width)), max(y, min(center[1], y+height)))
+        if style.get('stroke_enabled', True):
+            pdf.line(center[0], center[1], max(x, min(center[0], x+width)), max(y, min(center[1], y+height)))
         pdf.setFillColor(HexColor(style['fill_color'])); pdf.setFillAlpha(style['opacity'])
-        pdf.roundRect(x, y, width, height, min(3*scale, height/8), stroke=1, fill=int(style['fill_enabled']))
+        pdf.roundRect(x, y, width, height, min(3*scale, height/8), stroke=int(style.get('stroke_enabled', True)), fill=int(style['fill_enabled']))
         pdf.setFillAlpha(1); pdf.setFillColor(HexColor(style['font_color']))
         for index, line in enumerate(lines):
             cursor, baseline = x+padding, y+height-padding-font_size-index*font_size*1.3
@@ -486,13 +488,13 @@ def _paint_graphics(pdf, graphics, matrix, bounds):
             pdf.transform((q1[0]-q0[0])/width, (q1[1]-q0[1])/width,
                           (q0[0]-q3[0])/height, (q0[1]-q3[1])/height, q3[0], q3[1])
             if kind == 'cloud':
-                pdf.drawPath(_cloud_path(pdf, width, height), stroke=1, fill=int(style['fill_enabled']))
+                pdf.drawPath(_cloud_path(pdf, width, height), stroke=int(style.get('stroke_enabled', True)), fill=int(style['fill_enabled']))
             elif kind == 'circle':
-                pdf.ellipse(0, 0, width, height, stroke=1, fill=int(style['fill_enabled']))
+                pdf.ellipse(0, 0, width, height, stroke=int(style.get('stroke_enabled', True)), fill=int(style['fill_enabled']))
             elif kind == 'stamp':
-                pdf.roundRect(0, 0, width, height, 3, stroke=1, fill=int(style['fill_enabled']))
+                pdf.roundRect(0, 0, width, height, 3, stroke=int(style.get('stroke_enabled', True)), fill=int(style['fill_enabled']))
             else:
-                pdf.rect(0, 0, width, height, stroke=1, fill=int(style['fill_enabled']))
+                pdf.rect(0, 0, width, height, stroke=int(style.get('stroke_enabled', True)), fill=int(style['fill_enabled']))
             if kind == 'stamp' and 'stamp_image' in graphic:
                 import base64
                 from reportlab.lib.utils import ImageReader
@@ -543,7 +545,7 @@ def _paint_graphics(pdf, graphics, matrix, bounds):
             for index, (point, length) in enumerate(zip(geometry['points'], geometry['lengths_m']), 1):
                 x, y = transform(point, matrix)
                 pdf.setFillColor(HexColor(style['fill_color']))
-                pdf.circle(x, y, 5, stroke=1, fill=int(style['fill_enabled']))
+                pdf.circle(x, y, 5, stroke=int(style.get('stroke_enabled', True)), fill=int(style['fill_enabled']))
                 pdf.setFillColor(HexColor(style['font_color']))
                 pdf.drawString(x+7, y+7, f'{index} · {length:,.2f} m')
         else:
@@ -558,7 +560,7 @@ def _paint_graphics(pdf, graphics, matrix, bounds):
                 for point in ring[1:]: path.lineTo(*point)
                 path.close()
             # Even-odd fill removes explicit holes regardless of ring winding.
-            pdf.drawPath(path, stroke=1, fill=int(kind in ('polygon', 'area') and style['fill_enabled']), fillMode=0)
+            pdf.drawPath(path, stroke=int(style.get('stroke_enabled', True)), fill=int(kind in ('polygon', 'area') and style['fill_enabled']), fillMode=0)
             if kind == 'arrow':
                 a, tip = placed
                 length = math.dist(a, tip); ux, uy = (tip[0]-a[0])/length, (tip[1]-a[1])/length
@@ -567,7 +569,7 @@ def _paint_graphics(pdf, graphics, matrix, bounds):
                 head.moveTo(tip[0]-size*ux-size*.5*uy, tip[1]-size*uy+size*.5*ux)
                 head.lineTo(*tip)
                 head.lineTo(tip[0]-size*ux+size*.5*uy, tip[1]-size*uy-size*.5*ux)
-                pdf.drawPath(head, stroke=1, fill=0)
+                pdf.drawPath(head, stroke=int(style.get('stroke_enabled', True)), fill=0)
             elif kind in ('measure', 'area') and (kind == 'measure' or graphic['pdf_measure_result']['status'] != 'current' or graphic['pdf_measure_result']['label_point_pdf'] is not None):
                 from decimal import Decimal, localcontext, ROUND_HALF_UP
                 from reportlab.pdfbase.pdfmetrics import stringWidth
@@ -653,9 +655,10 @@ def _paint_markups(pdf, items, matrix, drawing_bounds=None, physical_zoom=None):
                             font_size *= .75
                         pdf.setStrokeColor(HexColor(callout_style['stroke_color'])); pdf.setLineWidth(callout_style['stroke_width'])
                         pdf.setFillColor(HexColor(callout_style['fill_color'])); pdf.setFillAlpha(callout_style['opacity'])
-                        pdf.roundRect(x, y, width, height, min(3, width/8, height/8), stroke=1, fill=int(callout_style['fill_enabled']))
+                        pdf.roundRect(x, y, width, height, min(3, width/8, height/8), stroke=int(callout_style.get('stroke_enabled', True)), fill=int(callout_style['fill_enabled']))
                         pdf.setFillAlpha(style['opacity'])
-                        pdf.line(center[0], center[1], x, y+height)
+                        if callout_style.get('stroke_enabled', True):
+                            pdf.line(center[0], center[1], x, y+height)
                         paragraph.drawOn(pdf, x+padding, y+height-padding-needed)
                         pdf.setFillColor(HexColor(style['fill_color']))
                         continue
@@ -689,7 +692,7 @@ def _paint_markups(pdf, items, matrix, drawing_bounds=None, physical_zoom=None):
                 for index, point in enumerate(exclusion['points']):
                     xy = transform(point, matrix); path.moveTo(*xy) if index == 0 else path.lineTo(*xy)
                 path.close()
-        pdf.drawPath(path, stroke=1, fill=int(area and style['fill_enabled']), fillMode=0)
+        pdf.drawPath(path, stroke=int(style.get('stroke_enabled', True)), fill=int(area and style['fill_enabled']), fillMode=0)
         x, y = transform(points[0], matrix)
         pdf.setFillAlpha(style['opacity']); pdf.setFillColor(HexColor(style['stroke_color'])); pdf.setFont('ExportVeraBold', 8)
         # The complete human identifier remains in the wrapped legend. A compact

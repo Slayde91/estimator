@@ -12,12 +12,12 @@
   const numeric = value => typeof value === "number" && Number.isFinite(value);
   const shiftDecimal = (value, places) => { const [coefficient, exponent = "0"] = String(value).split(/e/i); return Number(`${coefficient}e${Number(exponent) + places}`); };
   const keyFor = (global, column) => `${global ? "global" : "row"}:${column}`;
-  const fieldLabel = field => field.column === "J" || field.label === "Type" ? "Category"
+  const fieldLabel = field => window.CeasefirePenetrationPresentation?.labels[field.column] || (field.column === "J" || field.label === "Type" ? "Category"
     : field.column === "T" || ["Item(s)", "Items/Services"].includes(field.label) ? "Description"
     : ["System", "System/Install"].includes(field.label) ? "System/Install Details"
     : field.column === "AN" && ["Multiplier", "Wrap Multiplier"].includes(field.label) ? state.group === "Plastic Pipes" ? "Collar Multiplier" : "Wrap Multiplier"
     : field.column === "X" && field.label === "Board or Batt Type" ? "Board/Batt Type"
-    : field.column === "Z" && field.label === "Frame Type" ? "Framing Type" : field.label;
+    : field.column === "Z" && field.label === "Frame Type" ? "Framing Type" : field.label);
   const manufacturerLabel = (field, value) => field.column === "V" ? String(value).toLowerCase() === "firefly" ? "Firefly" : String(value).toLowerCase() === "trafalgar" ? "Trafalgar" : undefined : undefined;
   const values = global => global ? state.draft.globals : state.draft.rows[0].inputs;
   const fieldGroups = () => (state.definition.groups || [...new Set(state.definition.row_fields.map(field => field.group))]).filter(group => {
@@ -33,14 +33,20 @@
   const stamp = (draft = state.draft, token = state.record?.pricing_token) => JSON.stringify({ draft, pricing_token: token });
   const hasUnsavedChanges = () => state.open && !!state.record && (stamp() !== state.baseline || state.invalid.size > 0 || state.diagramChange !== undefined);
   async function request(id, action, payload) {
+    const endActivity = window.CeasefireActivity?.begin();
+    try {
     const response = await fetch(`/api/libraries/penetration/${encodeURIComponent(id)}/${action}`, payload ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) } : { headers: { Accept: "application/json" } });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || `The library item request failed (${response.status}).`);
     return data;
+    } finally { endActivity?.(); }
   }
   async function projectRequest(value) {
+    const endActivity = window.CeasefireActivity?.begin();
+    try {
     const response = await fetch("/api/project/library-drafts/prepare", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ library_drafts: value }) });
     const data = await response.json(); if (!response.ok) throw new Error(data.error || "Project library drafts could not be prepared."); return data;
+    } finally { endActivity?.(); }
   }
   function portableCurrent() {
     if (!state.open || !state.record?.project_local) return null;
@@ -247,11 +253,11 @@
     const long = field.type === "text" && ["T", "U"].includes(field.column);
     const wrapper = node(field.automatic_default ? "div" : "label", `field${long ? " library-editor-long-text" : ""}`), label = fieldLabel(field) + (field.units ? ` (${field.units})` : field.format === "percent" ? " (%)" : "");
     const control = node(field.type === "select" ? "select" : long ? "textarea" : "input"), problem = node("small", "penetration-field-error");
-    if (field.help) { wrapper.title = field.help; control.title = field.help; }
+    if (field.help || field.column === "M") { wrapper.title = control.title = field.column === "M" ? "Substrate Orientation" : field.help; }
     control.dataset.libraryEditorField = field.column; control.dataset.libraryEditorGlobal = String(global); control.setAttribute("aria-label", `${global ? "Item allowance" : "Library item"}: ${label}`);
     if (field.type === "select") {
       const empty = node("option", "", "Choose…"); empty.value = ""; control.append(empty);
-      for (const value of options) { const option = node("option", "", manufacturerLabel(field, value) || value); option.value = String(value); control.append(option); }
+      for (const value of options) { const option = node("option", "", manufacturerLabel(field, value) || window.CeasefirePenetrationPresentation?.optionLabel(field, value) || value); option.value = String(value); control.append(option); }
       if (raw !== null && raw !== "" && !options.some(value => String(value) === String(raw))) { const saved = node("option", "", manufacturer || `Saved value: ${raw} (choose a listed value)`); saved.value = String(raw); saved.disabled = true; control.append(saved); }
     } else {
       if (long) { control.rows = 3; control.maxLength = 2000; }
@@ -261,6 +267,7 @@
       } else { control.type = "text"; control.maxLength = 2000; }
     }
     const pending = state.invalid.get(key); control.value = pending ? pending.value : controlText(field, displayedInput(field, global));
+    if (long) window.CeasefirePenetrationPresentation?.growTextarea(control);
     if (field.enabled_when) control.disabled = field.enabled_when.nonblank && [null, undefined, ""].includes(state.draft.rows[0].inputs[field.enabled_when.column]);
     const showProblem = text => { control.setAttribute("aria-invalid", String(!!text)); problem.textContent = text || ""; problem.hidden = !text; };
     showProblem(pending?.error);
@@ -278,9 +285,13 @@
         if (value === undefined) error = "Choose a listed value.";
       }
       if (error) state.invalid.set(key, { value: control.value, error }); else { state.invalid.delete(key); values(global)[field.column] = value; }
+      if (!error && !global && field.column === "P") {
+        const orientation = window.CeasefirePenetrationPresentation?.orientation(value);
+        if (orientation) values(false).M = orientation;
+      }
       showProblem(error); changed();
       if (!error && !global && ["AH", "W"].includes(field.column)) warnAdditionalLabour();
-      if (!error && ["J", "K", "Y"].includes(field.column)) renderFields();
+      if (!error && ["J", "K", "Y", "P"].includes(field.column)) renderFields();
     });
     control.addEventListener("blur", () => {
       if (session !== state.session) return;
@@ -337,6 +348,13 @@
     return null;
   }
   async function selectGroup(group) {
+    // The missing products/crew notice must never prevent reaching its fields.
+    if (group === "Products and labour") {
+      state.tabAdvisoryAcknowledgement = null; state.group = group; renderFields();
+      const inputs = state.draft.rows[0].inputs, first = ["W", "X", "Z"].find(column => !entered(inputs[column]));
+      if (first) document.querySelectorAll('[data-library-editor-field="' + first + '"]')[0]?.focus();
+      return;
+    }
     const warning = tabExitWarning(group);
     if (warning && (warning.blocking || state.tabAdvisoryAcknowledgement !== warning.key)) {
       const session = state.session, version = state.version, current = state.group;

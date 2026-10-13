@@ -18,7 +18,7 @@ const ready = new Promise((resolve, reject) => {
   server.stdout.on('data', value => { stdout += value; if (stdout.includes('\n')) { clearTimeout(timer); try { resolve(JSON.parse(stdout.split('\n')[0])); } catch (error) { reject(error); } } });
   server.once('exit', code => { clearTimeout(timer); reject(new Error(`Server exited ${code}: ${logs}`)); });
 });
-const evidence = {}, errors = [], requests = [], csp = [], pointerTargets = [], nativeFirst = {}, desired = { stroke_color: '#A020F0', stroke_width: 3.75, fill_color: '#00CC88', fill_enabled: true, opacity: .45, display_values: false };
+const evidence = {}, errors = [], requests = [], csp = [], pointerTargets = [], nativeFirst = {}, desired = { stroke_enabled: true, stroke_color: '#A020F0', stroke_width: 3.75, fill_color: '#00CC88', fill_enabled: true, opacity: .45, display_values: false };
 const defaultKey = 'ceasefire.takeoff-markup-defaults.v2';
 const runtimeHashes = () => Object.fromEntries(['takeoffs.js','takeoff-physical.js','takeoffs.css'].map(name => [name,createHash('sha256').update(fs.readFileSync(path.join(root,'static',name))).digest('hex')]));
 const panel = () => page.locator('#takeoff-markup-settings');

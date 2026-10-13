@@ -140,7 +140,7 @@ async function countCursor() {
   const { callout: savedCallout, ...retainedAnnotation } = defect.annotation;
   assert.deepEqual(retainedAnnotation, { document_id: reference.document_id, document_sha256: sourceHash, page: 3, point: retainedPoint, appearance: { marker_size: 10 } });
   assert.deepEqual(Object.keys(savedCallout), ['appearance'], 'New shared style keeps automatic layout until an explicit move or resize');
-  assert.deepEqual(savedCallout.appearance, { stroke_color: '#FF3300', fill_color: '#FFDD33', font_color: '#000000', stroke_width: 4, fill_enabled: true, opacity: .75 });
+  assert.deepEqual(savedCallout.appearance, { stroke_enabled: true, stroke_color: '#FF3300', fill_color: '#FFDD33', font_color: '#000000', stroke_width: 4, fill_enabled: true, opacity: .75 });
   const renderedSourcePoint = await sourceMarker.evaluate(marker => {
     const [, , width, height] = marker.ownerSVGElement.getAttribute('viewBox').split(/\s+/).map(Number);
     return [20 + Number(marker.getAttribute('cy')) / height * 780, 30 + Number(marker.getAttribute('cx')) / width * 540];

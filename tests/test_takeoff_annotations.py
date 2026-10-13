@@ -39,6 +39,17 @@ class TakeoffAnnotationTests(unittest.TestCase):
             'op': op, 'request_id': str(uuid4()), 'expected_revision': case.session['revision'], **values})
         return case.session
 
+    def test_line_enabled_is_optional_in_legacy_records_and_roundtrips_false(self):
+        reply = self.command('create_annotation', annotation=self.proposal(appearance={'stroke_enabled': False}))
+        saved = deepcopy(reply['snapshot'])
+        self.assertIs(saved['annotations']['callouts'][0]['appearance']['stroke_enabled'], False)
+        self.assertEqual(self.case.service.open(saved)['snapshot'], saved)
+        legacy = deepcopy(saved)
+        del legacy['annotations']['callouts'][0]['appearance']['stroke_enabled']
+        before = json.dumps(legacy, sort_keys=True)
+        validate_snapshot(legacy)
+        self.assertEqual(json.dumps(legacy, sort_keys=True), before)
+
     def proposal(self, **values):
         return {'mode': 'steel', 'document_id': self.document['id'], 'source_sha256': self.document['sha256'],
                 'page': 1, 'point': [70.1234567890123, 200.2345678901234], 'label_position': [110, 330],

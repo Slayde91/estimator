@@ -76,27 +76,27 @@
       tool("Calibrate", "calibrate", "Mark a known distance and enter its real length to establish scale.", { path: "scale" });
       tool("Trace length", "trace", "Click points along a Steel or Duct run, then finish the trace.", { path: "length" });
       tool("Count", "count", "Place count markers. Penetration workspaces use their Call-out action for physical items.", { path: "count" });
-      tool("Count steel lengths", "countLength", "Place markers for repeated steel members with a stated length each.", { path: "count" });
-      tool("Trace surface", "polygon", "Trace a closed Wall/Floor surface. Display Values shows measured net Sqm before Number of layers multiplies it.", { path: "area" });
+      tool("Count steel lengths", "count", "Place markers for repeated steel members with a stated length each.", { path: "count" });
+      tool("Trace surface", "polygon", "Trace a closed Wall/Floor surface. Centred net Sqm stays visible; Display Values controls boundary dimensions.", { path: "area" });
       tool("Add exclusion", "exclusion", "Trace an excluded area within the selected Wall/Floor surface.", { path: "area", cross: true });
-      tool("Length", "measure", "Measure a standalone calibrated length on the drawing.", { path: "length" });
+      tool("Length", "length", "Measure a standalone calibrated length on the drawing.", { path: "length" });
       tool("Markups", "markups", "Turn thickness-based colours on or off for Steel drawing markups.", { asset: "takeoff-colour-wheel.png", colour: true });
       tool("Legend", "legend", "Show a drawing legend; select it to change its position, size or settings.", { asset: "takeoff-legend.png" });
       tool("Visibility", "visibility", "Click to show or hide all drawing markups. Double-click restores individually hidden items and shows all markups. The eye beside an item changes only that item's visibility.", { asset: "takeoff-visibility.png" });
       tool("Call-out", "callout", "Place a text Call-out. In Penetrations, place a physical item Call-out from the current draft.", { asset: "takeoff-callout.png" });
       tool("Signatures", "signature", "Draw a signature or reuse the last one, then place it on the PDF. Select it to move, resize or delete it.", { asset: "signature.svg", mask: true });
-      const graphic = (name, kind, detail) => add("Drawing tools", name, detail, { graphic: kind });
+      const graphic = (name, kind, detail) => add("Drawing tools", name, detail, { graphic: kind }, { action: kind === "measure" ? "measure" : `graphic-${kind}` });
       graphic("Cloud", "cloud", "Click two opposite corners to surround a drawing region with a revision cloud. Select it to move, resize or edit its appearance.");
       graphic("Textbox", "textbox", "Click once on the PDF, then enter a formatted text note. Its bordered box fits the text at that point. Select it to move, resize or edit its text and appearance.");
       graphic("Measure", "measure", "Measure calibrated length on the PDF without a register record or quantity. Click control points and finish with Enter or a double-click; select its points to edit the line.");
-      graphic("Stamp", "stamp", "Click two opposite corners, then enter the stamp text. Select it to move, resize or edit its text and appearance.");
+      graphic("Stamp", "stamp", "Click to choose stamp text or an image, then click to place copies. Select it to move, resize or edit its text and appearance.");
       graphic("Line/Polyline", "polyline", "Click each point, then press Enter or double-click to finish. Two points make a line; more points make a polyline.");
       graphic("Arrow", "arrow", "Click the start and end points to place an arrow. Select it to move its endpoints or edit its appearance.");
       graphic("Rectangle", "rectangle", "Click two opposite corners to place a rectangle. Select it to move, resize or edit its line and fill.");
       graphic("Circle", "circle", "Click two opposite corners to place a circle or ellipse within that box. Select it to move, resize or edit its line and fill.");
       graphic("Polygon", "polygon", "Click at least three boundary points, then press Enter or double-click to finish a closed drawing polygon. This PDF markup adds no surface quantity.");
       add("Drawing tools", "Set as default", "Remember the current appearance for new markups of that kind.", { asset: "default-memory.svg", mask: true });
-      add("Drawing tools", "Display Values", "Show or hide measured values on the drawing. New Wall/Floor surfaces start with values visible.", { text: "✓" });
+      add("Drawing tools", "Display Values", "Show or hide boundary dimensions. The centred net Sqm of a surface stays visible.", { text: "✓" });
       add("Drawing tools", "Re-trace geometry / Exclusions", "Replace a selected surface boundary, or edit or remove one of its exclusions.", { path: "area" });
       add("Drawing view", "Upload PDFs", "Add source PDF documents to the current project.", { selector: "#project-attachment-zone" });
       add("Drawing view", "Tools", "Download a new PDF copy. Merge and Extract can also add it as another Source Document.", { text: "Tools" });
@@ -106,7 +106,7 @@
       add("Drawing view", "Document / Remove document", "Choose an uploaded PDF, or remove the current source after confirmation.", { path: "bin" });
       add("Drawing view", "Scale / Edit calibration", "Choose or edit the applicable page or viewport calibration.", { path: "scale" });
       add("Drawing view", "Search / Stop search", "Search PDF text and optional drawing labels in this document or all documents. Stop clears the search and highlights.", { path: "search" }, { keys: ["Enter", "↓", "Esc"] });
-      add("Drawing view", "Select PDF text", "Drag over embedded PDF text and copy the selection.", { path: "text" }, { keys: ["Ctrl / Cmd+C"] });
+      add("Drawing view", "Select PDF text", "Drag over embedded PDF text and copy the selection.", { path: "text" }, { action: "text" });
       add("Drawing view", "First / Previous / Next / Last page", "Move through the PDF, or enter its page number.", { path: "previous" }, { keys: ["Ctrl+← / →"] });
       add("Drawing view", "Rotate page", "Rotate the displayed page 90 degrees left or right.", { path: "rotate" }, { keys: ["Ctrl+↑ / ↓"] });
       add("Drawing view", "Fit page", "Fit the complete drawing in the viewer.", { path: "fit" }, { keys: ["Ctrl+0"] });
@@ -141,7 +141,7 @@
     }
     add("Keyboard and mouse", "Move focus / Activate", "Tab and Shift+Tab move through controls. Enter or Space activates a focused button.", { text: "Tab" }, { keys: ["Tab / Shift+Tab", "Enter / Space"] });
     add("Keyboard and mouse", "Navigate a menu", "Use arrows to move through navigation or Document choices, Home/End for first/last, and Escape to close. In the Firestopping navigation branch, Right opens and Left returns.", { text: "↑ ↓" }, { keys: ["↑ / ↓", "Home / End", "Esc", "← / →"] });
-    return rows.map(row => ({ ...row, keys: row.action && registry?.actions?.[row.action] ? [`Ctrl+${registry.actions[row.action].key}`] : row.keys || [] }));
+    return rows.map(row => ({ ...row, keys: row.action && registry?.actions?.[row.action] ? [registry.shortcut(registry.actions[row.action])] : row.keys || [] }));
   }
   function matches(row, query, group = "") {
     const words = String(query || "").trim().toLowerCase().split(/\s+/).filter(Boolean);

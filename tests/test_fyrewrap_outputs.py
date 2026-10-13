@@ -51,13 +51,20 @@ class FyreWrapOutputTests(unittest.TestCase):
         self.assertAlmostEqual(rows[4]['values']['N'], 20.636, places=8)
         self.assertTrue(rows[4]['complete'])
 
-    def test_both_pdf_types_disclose_directional_ratings_and_withheld_totals(self):
+    def test_schedule_discloses_directional_ratings_and_summary_retains_withheld_totals(self):
         before = deepcopy(self.data)
         for builder in (build_calculator_report, build_calculator_summary_report):
             with self.subTest(builder=builder.__name__), patch('estimator.calculator_report.project_calculator_report', return_value=self.data):
                 payload = builder('ductwork', self.inputs)
                 reader = PdfReader(BytesIO(payload))
                 text = ' '.join(' '.join(page.extract_text().split()) for page in reader.pages)
+                if builder is build_calculator_summary_report:
+                    self.assertNotIn('FyreWrap application notes', text)
+                    self.assertIn('1 item(s) have incomplete or unavailable primary quantities.', text)
+                    self.assertIn('Unresolved material requirements: FyreWrap (1 schedule item(s)).', text)
+                    self.assertIn('Primary qty withheld', text)
+                    self.assertIn('91.08', text)
+                    continue
                 self.assertIn('FyreWrap application notes', text)
                 self.assertEqual(text.count(' '.join(FYREWRAP_DIRECTION_NOTE.split())), 1)
                 for note in self.data['application_notes']:

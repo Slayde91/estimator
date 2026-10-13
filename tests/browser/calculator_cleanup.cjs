@@ -35,7 +35,12 @@ async function tab(name){await page.locator('#calculator-pages').getByRole('butt
  // Enter a new board schedule using public controls, including blank custom design selectors.
  await tab('SCHEDULE');
  for(const [cell,value] of [['C9','PROMATECT-XS'],['D9','200UC46'],['G9','4'],['H9','120'],['I9','Column'],['J9','550']]) {
-   const control=page.locator(`select[data-calculator-cell="${cell}"]`);
+   const control=page.locator(`[data-calculator-cell="${cell}"]`);
+   if(cell==='D9') {
+     await expect(control).toHaveAttribute('role','combobox');
+     await control.fill(value); await control.press('ArrowDown'); await control.press('Enter');
+     await expect(control).toHaveValue(value); await idle(); continue;
+   }
    await control.focus(); // Large retained choice lists populate on first focus.
    const choices=await control.locator('option').evaluateAll(options=>options.map(option=>option.value));
    if(choices.includes(value)) await control.selectOption(value);

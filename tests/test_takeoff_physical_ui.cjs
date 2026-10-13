@@ -39,7 +39,7 @@ function documentHarness(){
     querySelector(selector){return this.querySelectorAll(selector)[0]||null;}
     querySelectorAll(selector){const matches=element=>selector.split(',').some(part=>part.startsWith('[data-')?Object.hasOwn(element.dataset,part.slice(6,-1).replace(/-([a-z])/g,(_,char)=>char.toUpperCase())):part.startsWith('.')?element.className.split(/\s+/).includes(part.slice(1)):element.tagName===part.toUpperCase());return this.children.flatMap(child=>[...(matches(child)?[child]:[]),...child.querySelectorAll(selector)]);}
   }
-  doc={createElement:tag=>new Element(tag),createElementNS:(_namespace,tag)=>new Element(tag)};doc.body=new Element('body');
+  doc={createElement:tag=>new Element(tag),createElementNS:(_namespace,tag)=>new Element(tag)};doc.body=new Element('body');doc.querySelector=selector=>doc.body.querySelector(selector);
   return {container:new Element('div'),all(root){return root.children.flatMap(child=>[child,...this.all(child)]);}};
 }
 function component(initial=graph(),extra={}){
@@ -632,7 +632,7 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
     const h=component();await flush();const reference={document_id:uuid(80),document_sha256:'d'.repeat(64),page:2,region:[[10,20],[11,20],[11,21],[10,21]],note:'Defect source-location annotation at PDF point [10.5,20.5].'},before=copy(h.current.physical);
     const annotation={document_id:reference.document_id,document_sha256:reference.document_sha256,page:2,point:[10.123456789,20.987654321]},originalAnnotation=copy(annotation);
     h.answers.push({label:'Placed defect',uncertainty_state:'not_assessed'});const work=h.controller.create('defect',undefined,undefined,reference,undefined,annotation);reference.note='Caller changed';annotation.point[0]=99;const id=await work;
-    const created=h.current.physical.defects.find(entity=>entity.id===id);assert.equal(created.evidence.length,1);assert.notEqual(created.evidence[0].note,reference.note);assert.deepEqual(created.evidence[0].region,reference.region);assert.deepEqual(created.annotation,originalAnnotation);assert.equal(created.marker,undefined);assert.equal(created.quantity,undefined);assert.deepEqual(h.current.physical.barriers,before.barriers);assert.deepEqual(h.current.physical.services,before.services);assert.match(h.calls.asks[0].text,/Source page 2/);assert.equal(h.calls.previews.length,1);assert.equal(h.calls.applied.length,1);h.controller.destroy();
+    const created=h.current.physical.defects.find(entity=>entity.id===id);assert.equal(created.evidence.length,1);assert.notEqual(created.evidence[0].note,reference.note);assert.deepEqual(created.evidence[0].region,reference.region);assert.deepEqual(created.annotation,originalAnnotation);assert.equal(created.marker,undefined);assert.equal(created.quantity,undefined);assert.deepEqual(h.current.physical.barriers,before.barriers);assert.deepEqual(h.current.physical.services,before.services);assert.equal(h.calls.asks[0].text, "");assert.equal(h.calls.previews.length,1);assert.equal(h.calls.applied.length,1);h.controller.destroy();
   });
   await check('Defect source changes during its form or review prevent physical apply',async()=>{
     for(const stage of ['form','preview','review']){

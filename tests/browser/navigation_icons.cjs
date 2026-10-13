@@ -29,7 +29,7 @@ const evidence=[],errors=[];
         if(state==='hover'||state==='active-hover')await control.hover();
         if(state==='active'){await control.click();await control.press('Escape');await page.mouse.move(0,0);await expect(control).toHaveClass(/\bactive\b/);}
         const appearance=await image.evaluate(el=>({filter:getComputedStyle(el).filter,blend:getComputedStyle(el).mixBlendMode,width:el.getBoundingClientRect().width,height:el.getBoundingClientRect().height}));
-        assert.equal(appearance.width,25);assert.equal(appearance.height,25);
+        assert.equal(appearance.width,26);assert.equal(appearance.height,26);
         assert.equal(appearance.filter,state==='hover'?'none':'invert(1)');
         assert.equal(appearance.blend,state==='hover'?'multiply':'screen');
         const screenshot=path.join(output,`${theme}-${name}-${state}.png`);await image.screenshot({path:screenshot});

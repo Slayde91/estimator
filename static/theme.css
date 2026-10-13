@@ -120,3 +120,6 @@
   :root[data-theme] { color-scheme:light; --accent:#b90a15; --accent-dark:#920711; --ink:#2b252a; --muted:#70676d; --line:#e8e2e3; --paper:#fff; --canvas:#f8f6f5; --navy:#2b2228; }
   .header-tools { display:none!important; }
 }
+
+:root[data-theme="midnight"] :is(.takeoff-bulk,.takeoff-register tr.selected td){background:var(--theme-soft);color:var(--ink)}
+:root[data-theme="midnight"] .takeoff-register .takeoff-state{background:var(--theme-soft);color:var(--ink)}

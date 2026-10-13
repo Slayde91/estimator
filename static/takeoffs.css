@@ -456,3 +456,5 @@ dialog.takeoff-column-filter{position:fixed;box-sizing:border-box;width:280px;ma
   .takeoff-viewer-top .takeoff-search-ocr { flex:1 1 78px; }
   .takeoff-viewer-top .takeoff-search-controls select { flex:1; min-width:0; }
 }
+
+.takeoff-overlay [data-line-enabled="false"]{stroke:none!important}

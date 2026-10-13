@@ -383,7 +383,7 @@ class CalculatorPresentationApiTests(unittest.TestCase):
                         else:
                             self.assertNotIn("Full schedule", text)
                             self.assertNotIn("".join(marker.split()), compact_text)
-                            self.assertIn("Material quantities and summary", text)
+                            (self.assertNotIn if identity == "ductwork" else self.assertIn)("Material quantities and summary", text)
                             if identity == "steel_vermiculite":
                                 self.assertNotIn("Final product and material summary", text)
                                 self.assertNotIn("Product order totals", text)

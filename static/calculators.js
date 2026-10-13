@@ -289,12 +289,15 @@
   }
 
   async function request(path, options = {}) {
+    const endActivity = window.CeasefireActivity?.begin();
+    try {
     const response = await fetch(path, { ...options, headers: { "Content-Type": "application/json", ...options.headers } });
     let data;
     try { data = await response.json(); }
     catch { throw new Error(`The server returned an unreadable response (${response.status}).`); }
     if (!response.ok) throw new Error(data.error || `Request failed (${response.status}).`);
     return data;
+    } finally { endActivity?.(); }
   }
 
   async function calculatorList() {
@@ -469,6 +472,9 @@
       && [3, 5, 8, 9].includes(coordinates.column);
     const closedDuctSetting = cell.type === "select" && entry.definition.id === "ductwork" && entry.sheet === "PRODUCT SETTINGS"
       && ["B35", "B65", "B73"].includes(address);
+    const searchableSteel = cell.type === "select" && options.some(option => typeof option === "string") && schedule && coordinates && entry.sheet === schedule.sheet
+      && coordinates.row >= schedule.first_row && coordinates.row <= schedule.last_row
+      && (entry.definition.id === "steel_vermiculite" && coordinates.column === 6 || entry.definition.id === "steel_board" && coordinates.column === 4);
     const listedChoice = listedDuctChoice || closedDuctSetting;
     const allowOther = !listedChoice && (cell.allow_other || ["warning", "information"].includes(cell.error_style || cell.validation?.error_style || cell.validation?.errorStyle));
     // A dropdown may mix numbers and text (60 and "60/60/60"). Its current
@@ -479,7 +485,7 @@
     const numeric = boardDesignNumber || cell.type === "number" || (cell.type === "select" && options.length > 0 && options.every(isNumber)) || (cell.type !== "select" && isNumber(value) && cell.type !== "text");
     const numericOptions = options.some(isNumber);
     const display = (entry.result?.display_cells || sheetMetadata(entry).display_cells || {})[address];
-    const select = cell.type === "select" && (listedChoice || display?.control === "select" || !allowOther && options.length <= 40);
+    const select = !searchableSteel && cell.type === "select" && (listedChoice || display?.control === "select" || !allowOther && options.length <= 40);
     const customAllowed = select && allowOther;
     const multiline = Boolean(cell.multiline);
     const control = node(select ? "select" : multiline ? "textarea" : "input", numeric ? "calculator-number" : "");
@@ -553,7 +559,7 @@
         }
         focusedValue = editor.value;
       });
-      editor.addEventListener(isChoice ? "change" : "input", () => {
+      editor.addEventListener(isChoice || searchableSteel ? "change" : "input", () => {
         if (isChoice && custom && editor.value === customToken) {
           customMode = true; custom.hidden = false;
           custom.value = entry.invalid.has(key) ? entry.invalid.get(key) : numericInputValue(rawValue(), cell, true);
@@ -563,7 +569,7 @@
         let next = editor.value;
         const optionText = (option) => String(!isChoice && isNumber(option) && percent(cell) ? decimalShift(option, 2) : option);
         const optionIndex = options.findIndex((option) => optionText(option) === next);
-        if (listedChoice && next !== "" && optionIndex < 0) {
+        if ((listedChoice || searchableSteel && !allowOther && next !== String(rawValue() ?? "")) && next !== "" && optionIndex < 0) {
           editor.value = String(rawValue() ?? "");
           calculationStatus("Choose a value from the available list."); return;
         }
@@ -620,6 +626,7 @@
       }
       const wrapper = node("div", "calculator-native-custom"); wrapper.append(control, custom); return wrapper;
     }
+    if (searchableSteel && window.CeasefireSearchableChoice) return window.CeasefireSearchableChoice(control, options);
     if (!select && options.length) {
       control.setAttribute("list", sharedOptionList(options, cell));
       const wrapper = node("div"); wrapper.append(control); return wrapper;
@@ -920,6 +927,9 @@
     const visibleRows = result.rows.filter((row) => !omittedRows.has(row.row)).map((row) => ({ ...row, cells: row.cells.filter((cell) => !isOmitted(row.row, cell.column)) }));
     let columns = (result.visible_columns || Array.from({ length: result.max_column }, (_, index) => index + 1).filter((column) => !hidden.has(column))).filter((column) => !omittedColumns.has(column));
     columns = [...new Set([...metadata.display_column_order.map(columnNumber).filter((column) => columns.includes(column)), ...columns])];
+    if (entry.definition.id === "ductwork" && entry.sheet === entry.definition.schedule?.sheet && columns.includes(3) && columns.includes(9)) {
+      columns = columns.filter(column => column !== 3); columns.splice(columns.indexOf(9) + 1, 0, 3);
+    }
     const labels = headerLabels(entry, result);
     const schedule = entry.definition.schedule?.sheet === entry.sheet ? entry.definition.schedule : entry.sheet === "EXTRA BOARDS" ? { first_row: 6, last_row: 45, header_row: 5 } : null;
     const scheduleView = scheduleFor(entry) && result.schedule_view;
@@ -1502,8 +1512,7 @@
     const entry = current(); if (!entry || state.action) return;
     state.action = true; updateStatus(); const revision = entry.revision;
     try {
-      const defaultsDetail = entry.definition.defaults?.SETTINGS ? "user-selected material settings and one blank schedule row" : "supplied workbook settings and one blank schedule row";
-      if (!await confirmReplace("Reset calculator defaults?", `This replaces this calculator's draft schedule and settings with the ${defaultsDetail}. Click Save to keep the reset.`, "Reset draft")) return;
+      if (!await confirmReplace("Reset calculator defaults?", "This clears all rows and resets the schedule.", "Reset")) return;
       if (current() !== entry || entry.revision !== revision) { message("The calculator changed while the confirmation was open. Review the latest draft and try again.", true); return; }
       entry.inputs = clone(entry.definition.defaults || {}); entry.invalid.clear(); entry.revision++; entry.pendingResult = null; entry.navigationCache = null; entry.needsRender = true;
       if (entry.definition.schedule) entry.scheduleRows = [entry.definition.schedule.first_row];

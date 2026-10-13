@@ -15,9 +15,9 @@ GRAPHIC_FIELDS = {'id', 'version', 'mode', 'document_id', 'source_sha256', 'page
                   'kind', 'geometry', 'text', 'appearance', 'text_content', 'stamp_image', 'initial_pages', 'calibration_id'}
 REQUIRED_GRAPHIC_FIELDS = GRAPHIC_FIELDS - {'text_content', 'stamp_image', 'initial_pages', 'calibration_id'}
 EDIT_FIELDS = {'geometry', 'text', 'appearance', 'text_content', 'stamp_image', 'calibration_id'}
-APPEARANCE_FIELDS = {'stroke_color', 'stroke_width', 'opacity', 'fill_enabled',
+APPEARANCE_FIELDS = {'stroke_enabled', 'stroke_color', 'stroke_width', 'opacity', 'fill_enabled',
                      'fill_color', 'font_color', 'font_size'}
-DEFAULT_APPEARANCE = {'stroke_color': '#FF0000', 'stroke_width': 2, 'opacity': 1,
+DEFAULT_APPEARANCE = {'stroke_enabled': True, 'stroke_color': '#FF0000', 'stroke_width': 2, 'opacity': 1,
                       'fill_enabled': False, 'fill_color': '#FFFFFF',
                       'font_color': '#000000', 'font_size': 12}
 
@@ -137,7 +137,7 @@ def validate_graphic(value, snapshot, *, verified_stamp_images=None):
         plain = '\n'.join(''.join(run['text'] for run in block['runs']) for block in content['blocks'])
         if plain != value['text']:
             raise ValidationError('Textbox text must exactly match its formatted text blocks.')
-    object_fields(value['appearance'], APPEARANCE_FIELDS, 'Stored PDF markup appearance', APPEARANCE_FIELDS)
+    object_fields(value['appearance'], APPEARANCE_FIELDS, 'Stored PDF markup appearance', APPEARANCE_FIELDS - {'stroke_enabled'})
     graphic_appearance(value['appearance'])
     from .takeoff_initial_links import validate_link
     validate_link(value, 'graphics')

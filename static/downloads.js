@@ -2,6 +2,8 @@
   "use strict";
 
   async function save(path, payload = {}) {
+    const endActivity = window.CeasefireActivity?.begin();
+    try {
     // Capture the destination with the clicked draft. Later Save As, New or
     // Open actions must not redirect a file that is already being prepared.
     const download = window.CeasefireProject?.downloadTarget?.() || { project_token: null };
@@ -18,6 +20,7 @@
       throw new Error("The server did not confirm that the file was saved.");
     }
     return result;
+    } finally { endActivity?.(); }
   }
 
   window.CeasefireDownloads = { save };

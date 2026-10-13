@@ -272,6 +272,8 @@
   }
 
   async function request(path, options = {}) {
+    const endActivity = window.CeasefireActivity?.begin();
+    try {
     state.desktopRequests++;
     try {
     const response = await fetch(path, {
@@ -287,6 +289,7 @@
     }
     return data;
     } finally { state.desktopRequests--; }
+    } finally { endActivity?.(); }
   }
 
   function updateDirty(value = true) {
@@ -1709,6 +1712,8 @@
   }
 
   async function bootstrap() {
+    const endActivity = window.CeasefireActivity?.begin();
+    try {
     try {
       const data = await request("/api/bootstrap");
       state.takeoffsEnabled = data.features?.takeoffs !== false;
@@ -1729,6 +1734,7 @@
       showView("home");
       state.initialized = true;
     } catch (error) { $("loading-state").textContent = "The estimator could not be loaded. Reload after the local server is available."; message(error.message, true); }
+    } finally { endActivity?.(); }
   }
 
   function reportPayload() {

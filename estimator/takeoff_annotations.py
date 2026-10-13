@@ -10,8 +10,8 @@ MAX_ANNOTATIONS = 1000
 MAX_BLOCKS = 64
 MAX_RUNS = 256
 MAX_CONTENT_CHARACTERS = 8000
-APPEARANCE_FIELDS = {'stroke_color', 'fill_enabled', 'fill_color', 'font_color', 'stroke_width', 'opacity'}
-DEFAULT_APPEARANCE = {'stroke_color': '#FF3300', 'fill_enabled': True, 'fill_color': '#FFDD33',
+APPEARANCE_FIELDS = {'stroke_enabled', 'stroke_color', 'fill_enabled', 'fill_color', 'font_color', 'stroke_width', 'opacity'}
+DEFAULT_APPEARANCE = {'stroke_enabled': True, 'stroke_color': '#FF3300', 'fill_enabled': True, 'fill_color': '#FFDD33',
                       'font_color': '#000000', 'stroke_width': 4, 'opacity': .75}
 ANNOTATION_FIELDS = {'id', 'version', 'mode', 'document_id', 'source_sha256', 'page', 'point',
                      'label_position', 'width', 'height', 'content', 'appearance'}
@@ -70,7 +70,7 @@ def validate_annotation(value, snapshot):
             raise ValidationError('Call-out dimensions must be between 10 and 10,000 PDF points.')
     # Boxes are upright in the viewer/PDF derivative. Anchors are original PDF
     # coordinates; source rotation changes their projection, never their data.
-    object_fields(value['appearance'], APPEARANCE_FIELDS, 'Stored call-out appearance', APPEARANCE_FIELDS)
+    object_fields(value['appearance'], APPEARANCE_FIELDS, 'Stored call-out appearance', APPEARANCE_FIELDS - {'stroke_enabled'})
     annotation_appearance(value['appearance'])
     validate_content(value['content'])
     return value

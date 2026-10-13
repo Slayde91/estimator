@@ -372,3 +372,20 @@ dialog .actions{justify-content:flex-end}
 #company-logo-preview{width:200px;height:80px;object-fit:contain;background:#fff}
 #company-settings-form{max-width:850px}
 [data-price-id]{scroll-margin-top:200px}
+
+html.app-busy,html.app-busy *{cursor:progress!important}
+.app-header .nav-icon{--nav-art-size:26px}
+.app-header .nav-icon>span:not(.sr-only),.app-header .nav-icon svg,.app-header .nav-icon img{width:var(--nav-art-size);height:var(--nav-art-size)}
+.app-header .nav-icon svg{stroke-width:1.8}
+.searchable-choice{position:relative;min-width:140px}
+.searchable-choice>input{padding-right:32px}
+.searchable-choice-toggle{position:absolute;right:1px;top:1px;bottom:1px;width:30px;padding:0;background:transparent;color:inherit}
+.searchable-choice-popup{position:absolute;left:0;top:100%;min-width:100%;width:max-content;max-width:350px;z-index:15;padding:6px;background:var(--theme-surface,#fff);color:var(--ink);border:1px solid var(--line);border-radius:8px;box-shadow:0 4px 14px #0003}
+.searchable-choice-list{max-height:220px;overflow:auto}
+.searchable-choice-list [role=option]{padding:7px 10px;cursor:pointer}
+.searchable-choice-list [role=option]:hover,.searchable-choice-list [aria-selected=true]{background:var(--theme-soft,#fff2ea)}
+.takeoff-pdf-tools-menu .calculator-document-action>svg{flex:none}
+
+.project-fields .project-notes{grid-column:span 2}
+.project-fields .project-notes textarea{min-height:46px;resize:vertical}
+@media(max-width:1020px){.project-fields .project-notes{grid-column:auto}}

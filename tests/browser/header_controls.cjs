@@ -143,7 +143,7 @@ async function inspectHeader(width) {
   await expect(page.getByRole('button',{name:'Save As',exact:true})).toHaveCount(0);
   await expect(page.locator('#project-attachment-zone')).toHaveAttribute('title','Drag or drop files');
   const icons=await page.locator('nav[aria-label="Main navigation"] .nav-icon>svg, nav[aria-label="Main navigation"] .nav-icon>span[aria-hidden]>svg, nav[aria-label="Main navigation"] .nav-icon>img').evaluateAll(nodes=>nodes.map(el=>({width:el.getBoundingClientRect().width,height:el.getBoundingClientRect().height,stroke:el.tagName.toLowerCase()==='svg'?el.getAttribute('stroke-width'):null})));
-  assert.equal(icons.length,8);for(const icon of icons){assert.equal(icon.width,25);assert.equal(icon.height,25);if(icon.stroke!==null)assert.equal(icon.stroke,'1.8');}
+  assert.equal(icons.length,8);for(const icon of icons){assert.equal(icon.width,26);assert.equal(icon.height,26);if(icon.stroke!==null)assert.equal(icon.stroke,'1.8');}
   await chooseCalculator(page,'Firestopping'); await idle();
   await expect(page.locator('#penetration-new-item')).toBeHidden(); await expect(page.locator('#penetration-recalculate')).toBeHidden();
   for (const [id, name] of [['penetration-clear','Clear'],['penetration-add-to-schedule','Add to Schedule'],['penetration-add-to-library','Add to Library']]) { await expect(page.locator('#'+id)).toBeVisible(); await expect(page.locator('#'+id)).toHaveAccessibleName(name); }

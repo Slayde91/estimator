@@ -2,12 +2,12 @@
 
 // Presentation text is structured data. Imported HTML is never rendered or stored.
 (() => {
-  const fallback = Object.freeze({ stroke_color: "#FF3300", fill_color: "#FFDD33", font_color: "#000000", stroke_width: 4, fill_enabled: true, opacity: .75 });
+  const fallback = Object.freeze({ stroke_enabled: true, stroke_color: "#FF3300", fill_color: "#FFDD33", font_color: "#000000", stroke_width: 4, fill_enabled: true, opacity: .75 });
   const defaultsKey = "ceasefire.takeoff-callout-defaults.v1";
   function validAppearance(value) {
     return value && typeof value === "object" && !Array.isArray(value) &&
       ["stroke_color", "fill_color", "font_color"].every(key => /^#[0-9a-f]{6}$/i.test(value[key])) &&
-      typeof value.fill_enabled === "boolean" && Number.isFinite(value.stroke_width) && value.stroke_width >= 1 && value.stroke_width <= 100 &&
+      (value.stroke_enabled === undefined || typeof value.stroke_enabled === "boolean") && typeof value.fill_enabled === "boolean" && Number.isFinite(value.stroke_width) && value.stroke_width >= 1 && value.stroke_width <= 100 &&
       Number.isFinite(value.opacity) && value.opacity >= .01 && value.opacity <= 1;
   }
   let chosen;

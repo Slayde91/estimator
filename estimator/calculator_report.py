@@ -302,7 +302,7 @@ class _ScheduleReport(_Report):
             self.story.append(self.table(['Project details', 'Recorded value'], details,
                                          [_CONTENT * .20, _CONTENT * .80]))
             self.story.append(Spacer(1, 10))
-        if materials:
+        if materials and data['id'] != 'ductwork':
             basis = data['basis']
             if data['id'] == 'steel_vermiculite':
                 basis = basis.replace('Published thickness and usable estimating thickness are reported separately.',
@@ -319,14 +319,14 @@ class _ScheduleReport(_Report):
         if data.get('assessment_notes'):
             self.story.append(self.p('Monokote hollow-column assessment basis', 'subheading'))
             self.story.extend(self.p(note, 'small') for note in data['assessment_notes'])
-        if data.get('application_notes'):
+        if data.get('application_notes') and not materials:
             heading = self.p('FyreWrap application notes', 'subheading')
             heading.keepWithNext = True
             self.story.append(heading)
             if data.get('application_summary_note'):
                 self.story.append(self.p(data['application_summary_note'], 'small'))
             self.story.extend(self.p(note, 'small') for note in data['application_notes'])
-        if materials and data['id'] != 'steel_vermiculite':
+        if materials and data['id'] not in {'steel_vermiculite', 'ductwork'}:
             self.story.append(self.p('Totals use available source results and can exclude unresolved quantities. Read each item status and the product order summary before ordering.', 'small'))
 
     def schedule(self):
@@ -399,7 +399,9 @@ class _ScheduleReport(_Report):
     def product_totals(self):
         data = self.data
         summaries = [(summary, _material_rows(data['id'], summary)) for summary in data['summaries']
-                     if not (data['id'] == 'ductwork' and summary['title'] == 'Working spray yields')]
+                     if not (data['id'] == 'ductwork' and summary['title'] in {
+                         'Working spray yields', 'Penetration angles by size and location',
+                         'Maxilite 60 mm boards and cut strips'})]
         summaries = [(summary, rows) for summary, rows in summaries if rows]
         if summaries and data['id'] != 'steel_vermiculite':
             heading = self.p('Final product and material summary', 'section')

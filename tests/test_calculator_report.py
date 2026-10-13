@@ -190,7 +190,7 @@ class CalculatorReportTests(unittest.TestCase):
                 self.assertIn('Full schedule', text)
                 self.assertNotIn('Full schedule', summary)
                 self.assertNotIn('Material quantities and summary', text)
-                self.assertIn('Material quantities and summary', summary)
+                (self.assertNotIn if identity == 'ductwork' else self.assertIn)('Material quantities and summary', summary)
                 self.assertNotIn('Overall schedule totals', summary)
                 self.assertNotIn('Final product and material summary', text)
                 if identity == 'steel_vermiculite':
@@ -205,8 +205,8 @@ class CalculatorReportTests(unittest.TestCase):
                     for heading in ('Product totals', 'Penetration angles by size and location',
                                     'Maxilite 60 mm boards and cut strips'):
                         self.assertNotIn(heading, text)
-                        self.assertIn(heading, summary)
-                    for removed in ('Working spray yields', 'Calibrated estimate', 'Original example: 11.7 bags',
+                        (self.assertIn if heading == 'Product totals' else self.assertNotIn)(heading, summary)
+                    for removed in ('Material quantities and summary', 'FyreWrap application notes', 'Totals use available source results', 'Working spray yields', 'Calibrated estimate', 'Original example: 11.7 bags',
                                     'Based on duct use', 'Duct use sets the full-length layers',
                                     'Confirm penetration steel sizes and layout'):
                         self.assertNotIn(removed, summary)
@@ -399,8 +399,7 @@ class CalculatorReportTests(unittest.TestCase):
     def test_material_summary_preserves_tiny_negative_and_unknown_demand(self):
         # Distinct names prove the PDF includes each row, even though a normal
         # two-decimal display could have hidden a small quantity as zero.
-        cases = [('steel_vermiculite', 0, 'E'), ('steel_board', 0, 'F'),
-                 ('ductwork', 0, 'D'), ('ductwork', 1, 'D'), ('ductwork', 3, 'G')]
+        cases = [('steel_vermiculite', 0, 'E'), ('steel_board', 0, 'F'), ('ductwork', 0, 'D')]
         for identity, table_index, column in cases:
             for demand in (0.0000001, -0.0000001, '#N/A', None):
                 data = deepcopy(blank_projection(identity))

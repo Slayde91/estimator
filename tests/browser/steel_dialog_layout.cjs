@@ -20,15 +20,18 @@ async function checkSteelDialog(page, modal, output, title) {
         dialog:{left:dialog.getBoundingClientRect().left,right:dialog.getBoundingClientRect().right},
         fields:[...grid.querySelectorAll('input,select,textarea')].map(el => ({
           name:el.name,choice:el.tagName==='SELECT'||el.getAttribute('role')==='combobox',
-          x:el.getBoundingClientRect().left-rect.left,width:el.getBoundingClientRect().width,
+          x:el.getBoundingClientRect().left-rect.left,y:el.getBoundingClientRect().top,width:el.getBoundingClientRect().width,
         })),width:rect.width};
     });
     assert.equal(geometry.columns,width>600?2:1);
     assert.ok(geometry.dialog.left>=0&&geometry.dialog.right<=width+1,'Dialog fits the screen');
     for(const field of geometry.fields) {
       assert.ok(field.width>0&&field.x+field.width<=geometry.width+1,JSON.stringify(field));
-      if(width>600) assert.equal(field.x>geometry.width/2,field.choice,`${field.name} belongs in the ${field.choice?'right':'left'} column`);
+      const right=field.choice&&field.name!=='section';
+      if(width>600) assert.equal(field.x>geometry.width/2,right,`${field.name} belongs in the ${right?'right':'left'} column`);
     }
+    const section=geometry.fields.find(field=>field.name==='section'),mark=geometry.fields.find(field=>field.name==='mark');
+    if(section&&mark){assert.ok(Math.abs(section.x-mark.x)<1);assert.ok(section.y>mark.y,'Steel section sits below Member mark');}
     assert.deepEqual(await values(),before,'Responsive layout preserves entered values');
     await page.screenshot({path:path.join(output,`${key.replaceAll(' ','-')}-${width}.png`)});
   }

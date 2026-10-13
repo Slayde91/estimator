@@ -26,7 +26,7 @@ async function snapshot(){return page.evaluate(()=>window.CeasefireCalculators.p
   }
   await page.goto(base,{waitUntil:'networkidle'});
   for(const [id,title,first,column] of [['steel_vermiculite','Steel (spray)',10,'A'],['steel_board','Steel (board)',9,'A'],['ductwork','Ductwork (spray/wrap)',11,'B']]){
-    await chooseCalculator(page,title);await idle();
+    await chooseCalculator(page,title);await expect(page.locator('#calculator-title')).toHaveText(title);await idle();
     const schedule=page.getByRole('button',{name:'SCHEDULE',exact:true});if(await schedule.count())await schedule.click();await idle();
     const before=await snapshot();
     for(const width of [1146,390]){

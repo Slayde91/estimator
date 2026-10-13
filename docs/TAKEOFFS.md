@@ -1010,3 +1010,14 @@ basis and source citation while preserving existing saved values and evidence.
 keyboard shortcuts. Controls without a keyboard shortcut are identified as
 button-only actions. Main's existing PDF summary export is now **Download
 Estimate Summary** in its Document menu.
+
+The Call-out control sits immediately below Count on the left drawing rail.
+Walls/Floors and both Penetrations workspaces also provide **Trace length** and
+**Count** immediately below Measure. These tools create PDF drawing marks only:
+they never add physical records, register rows or calculator inputs. Trace length
+uses the existing calibrated PDF Measure path. Count uses the Steel counting
+gesture and asks for each marker's manual length, with optional reuse for the
+remaining markers. Enter or double-click finishes; Escape cancels unfinished
+markers. Marker positions and drawing scale never determine manual lengths.
+Count Settings can edit a marker's length or remove a marker. Marks retain their
+exact values through project save/reopen and appear in drawing PDF downloads.

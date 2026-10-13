@@ -180,6 +180,11 @@ window.CeasefireTakeoffGraphicsUI = function (host) {
       wrapper.append(node("span","","Textbox text"),editor.rich.wrap); controls.append(wrapper);
     } else if(value.kind === "stamp" && !value.stamp_image) { const wrapper=node("label","field takeoff-graphic-text"), control=node("input"); control.name="text";control.value=value.text;control.maxLength=80;control.required=true;control.setAttribute("aria-label","Stamp text");wrapper.append(node("span","","Stamp text"),control);editor.text={control,read:()=>{if(!control.value.trim()) throw new Error("Enter nonblank markup text.");return control.value;}};bindSetting(editor,editor.text,"text");controls.append(wrapper); }
     else if(value.stamp_image) controls.append(node("p","helper",`Stamp image: ${value.stamp_image.width} × ${value.stamp_image.height} pixels.`));
+    if(value.kind === "count") {
+      const actions=node("div","actions takeoff-appearance-actions"), count=value.geometry.points.length;
+      actions.append(button("Edit marker length", () => editCount(false)), button("Remove marker", () => editCount(true)));
+      controls.append(node("p", "helper", `${count} ${count===1 ? "marker" : "markers"} · ${host.formatLength(value.geometry.lengths_m.reduce((sum, length) => sum + length, 0))} m total manual length`),actions);
+    }
     if(["measure","area"].includes(value.kind)) {
       const result=measureResult(value), definitions=value.kind === "area" ? [["gross_area_m2","Gross area (m²)"],["excluded_area_m2","Excluded area (m²)"],["net_area_m2","Area (m²)"]] : [["length_m","Length (m)"]];
       for(const [name,label] of definitions) { const field=host.formField([name,label,"number"],result?.status==="current" && result.version===value.version && Number.isFinite(result[name]) ? result[name].toFixed(2) : "");field.control.readOnly=true;controls.append(field.wrapper); }
@@ -213,6 +218,25 @@ window.CeasefireTakeoffGraphicsUI = function (host) {
     else geometry.exclusions.find(value=>value.id===id).note=answer.note;
     const reply=await command("update_graphic",{graphic_id:area.id,changes:{geometry}},current);
     if(reply && selectionKey===key()){measureControl=null;state.settingsEditor=null;renderSelection();message(removeHole ? "Area exclusion removed. Undo last edit restores it." : "Area exclusion note updated.");}
+  }
+  async function editCount(removeMarker) {
+    await flushSettings(); requireFinishedEdits();
+    const value=selected(), selectionKey=key(), revision=state.session?.revision;
+    if(value?.kind!=="count" || state.tool!=="select")throw new Error("Select a PDF Count first.");
+    const fields=[["marker","Marker number","number",1,true], ...(!removeMarker ? [["length_mm","Manual Length (mm)","number",value.geometry.lengths_m[0]*1000,true]] : [])];
+    const answer=await ask(removeMarker ? "Remove marker" : "Edit marker length", fields, "Marker positions and drawing scale do not change manual lengths.", removeMarker ? "Remove marker" : "Apply length", controls=>{
+      const marker=controls[0].control;marker.min="1";marker.max=String(value.geometry.points.length);marker.step="1";
+      if(controls[1]) {const length=controls[1].control;length.min="0.000001";length.max="1000000000000000";marker.addEventListener("change",()=>{const index=Number(marker.value)-1;if(Number.isInteger(index)&&index>=0&&index<value.geometry.points.length)length.value=String(value.geometry.lengths_m[index]*1000);});}
+    });
+    if(!answer)return;
+    const index=answer.marker-1;
+    if(!Number.isInteger(index)||index<0||index>=value.geometry.points.length)throw new Error("Choose an existing marker number.");
+    if(!removeMarker && (!(answer.length_mm>0)||!Number.isFinite(answer.length_mm)||answer.length_mm>1e15))throw new Error("Enter a positive finite manual length.");
+    const geometry=clone(value.geometry);
+    if(removeMarker){geometry.points.splice(index,1);geometry.lengths_m.splice(index,1);}else geometry.lengths_m[index]=answer.length_mm/1000;
+    const guard=()=>selected()===value && key()===selectionKey && state.session?.revision===revision && state.tool==="select";
+    const reply=await command(geometry.points.length ? "update_graphic" : "delete_graphic", {graphic_id:value.id,...(geometry.points.length?{changes:{geometry}}:{})},guard);
+    if(reply){if(!geometry.points.length)state.graphicSelected=null;state.settingsEditor=null;renderSelection();}
   }
   async function apply(editor) {
     if(state.settingsEditor !== editor) return; clearTimeout(editor.timer);editor.timer=null;if(editor.applying) return editor.applying;
@@ -273,7 +297,8 @@ window.CeasefireTakeoffGraphicsUI = function (host) {
       const group=svg("g",{class:`takeoff-graphic${active?" selected":""}`,"data-graphic-id":value.id,role:"button",tabindex:0,"aria-label":X.labels[value.kind],"aria-pressed":String(active)});
       group.append(X.paint(graphic,transform,scale,svg,measure,gesture ? null : measureResult(value),host.formatLength));
       const closed=graphic.geometry.quad_pdf || ["polygon","area"].includes(value.kind);
-      group.append(svg(closed ? "polygon" : "polyline",{points:points.map(p=>p.join(",")).join(" "),fill:closed ? "transparent":"none",stroke:"transparent","stroke-width":Math.max(12,graphic.appearance.stroke_width*scale),"pointer-events":"all","data-graphic-part":"move"}));
+      if(value.kind === "count") points.forEach(([cx,cy])=>group.append(svg("circle",{cx,cy,r:Math.max(8,7*scale),fill:"transparent","pointer-events":"all","data-graphic-part":"move"})));
+      else group.append(svg(closed ? "polygon" : "polyline",{points:points.map(p=>p.join(",")).join(" "),fill:closed ? "transparent":"none",stroke:"transparent","stroke-width":Math.max(12,graphic.appearance.stroke_width*scale),"pointer-events":"all","data-graphic-part":"move"}));
       if(active) { const bounds=G.bounds(points);group.append(svg("rect",{x:bounds[0]-3,y:bounds[1]-3,width:bounds[2]-bounds[0]+6,height:bounds[3]-bounds[1]+6,fill:"none",stroke:"#1264c4","stroke-width":1.5,"pointer-events":"none"})); if(state.tool==="select") { const handles=graphic.geometry.quad_pdf ? [[2,points[2],null]] : [...points.map((p,index)=>[index,p,null]),...(graphic.geometry.exclusions || []).flatMap(hole=>hole.points.map((p,index)=>[index,transform(p),hole.id]))]; for(const[index,p,exclusionId]of handles) {
         const measured=["measure","area"].includes(value.kind), label=`${exclusionId ? "Area exclusion" : X.labels[value.kind]} control point ${index+1}`;
         const handle=svg("rect",{x:p[0]-5,y:p[1]-5,width:10,height:10,fill:"white",stroke:"#1264c4","data-graphic-part":exclusionId ? `hole:${exclusionId}:${index}` : String(index),"aria-label":measured ? label : "Resize markup"});

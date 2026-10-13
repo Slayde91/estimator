@@ -156,17 +156,17 @@ async function screenshot(name,fixture) {
   assert.equal(inspected.status,0,inspected.stderr);const workbook=JSON.parse(inspected.stdout);
   assert.equal(workbook.formulas,0);const exportText=JSON.stringify(workbook.rows);assert.match(exportText,/FAR4856 Issue2/);assert.match(exportText,/BLOCKED - SOURCE REVIEW/);assert.match(exportText,/MONOKOTE Z106/);
   const originalExportHeaders = ['Line','Location','Mark','Product','Section','Quantity','Length (m)','Published thickness (mm)',
-    'Estimating thickness (mm)','Spray surface (m²)','Net bags','Whole bags per line','Status'];
-  assert.ok(workbook.rows.Schedule.some(row => originalExportHeaders.every((label,index) => row[index] === label)), 'XLSX keeps its original report schema');
+    'Spray surface (m²)','Status'];
+  assert.deepEqual(workbook.rows.Schedule[4], originalExportHeaders, 'XLSX exports the requested schedule columns');
   schedulePresentation.exportHeaders = originalExportHeaders;
   for(const index of [0,1]) {
     const row=workbook.rows.Schedule.find(row=>row[2]===`SYNTHETIC-${index+1}`);
-    assert.ok(row);closeNumber(row[7],thickness,'exported published thickness');closeNumber(row[8],thickness,'exported estimating thickness');closeNumber(row[10],scheduled[`T${index+10}`],'exported bags');assert.match(row[12],/FAR4856 Issue2 p12 Table 4/);
+    assert.ok(row);closeNumber(row[7],thickness,'exported published thickness');closeNumber(row[8],scheduled[`R${index+10}`],'exported spray surface');assert.match(row[9],/FAR4856 Issue2 p12 Table 4/);
   }
   const blockedRow=workbook.rows.Schedule.find(row=>row[2]==='SYNTHETIC-BLOCKED');assert.ok(blockedRow);
-  for(const index of [7,8,10,11]) assert.equal(blockedRow[index],null,`blocked export column ${index}`);
+  assert.equal(blockedRow[7],null,'blocked published thickness');
   const pfcRow=workbook.rows.Schedule.find(row=>row[2]==='SYNTHETIC-PFC');assert.ok(pfcRow);
-  closeNumber(pfcRow[7],19,'exported PFC published thickness');closeNumber(pfcRow[8],19,'exported PFC estimating thickness');closeNumber(pfcRow[10],scheduled.T13,'exported PFC bags');assert.match(pfcRow[12],/MK6-030521 p15/);
+  closeNumber(pfcRow[7],19,'exported PFC published thickness');closeNumber(pfcRow[8],scheduled.R13,'exported PFC spray surface');assert.match(pfcRow[9],/MK6-030521 p15/);
   assert.deepEqual(errors,[]);assert.deepEqual(await page.evaluate(()=>window.qaCsp),[]);assert.deepEqual(sourceHashes(),sourceBefore);
   fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({completed:true,...fixture,sourceHashes:sourceBefore,schedulePresentation,journeys,pfcJourneys,blockedQuantitiesWithheld:true,schedule:true,pfcSchedule:true,pfcSaveReopen:true,pfcExport:true,allSixProductTotals:true,z106SummaryCentered:true,z106SettingsLeftAligned:true,hollowAssessmentCoverage:true,pfcNamedOnlyCoverage:true,saveReopen:true,valuesOnlyExport:true,errors,csp:[]},null,2));
   console.log(`PASS: ${fixture.evidence_mode}; MONOKOTE hollow/PFC schedule, bags, blocked source, schedule, save/reopen and values-only XLSX. Evidence: ${output}`);

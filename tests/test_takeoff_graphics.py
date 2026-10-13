@@ -81,6 +81,26 @@ class TakeoffGraphicTests(unittest.TestCase):
         self.assertEqual(loaded['takeoffs'], stored['takeoffs'])
         self.assertEqual(sha256(self.case.documents.document_path(self.document).read_bytes()).hexdigest(), self.document['sha256'])
 
+    def test_pdf_count_retains_manual_lengths_without_register_or_calibration_effects(self):
+        before = deepcopy(self.case.session['snapshot'])
+        geometry = {'points': [[30, 90], [100, 50]], 'lengths_m': [1.23456789012345, 4.5]}
+        identifier = self.create('count', geometry=geometry)
+        record = self.record(identifier)
+        self.assertEqual(record['geometry'], geometry)
+        for key in ('items', 'calibrations', 'transfers', 'documents', 'render_checks'):
+            self.assertEqual(self.case.session['snapshot'][key], before[key])
+        reopened = self.case.service.open(deepcopy(self.case.session['snapshot']))
+        self.assertEqual(reopened['snapshot']['graphics']['records'][-1], record)
+        moved = deepcopy(geometry); moved['points'][0] = [40, 80]
+        self.command('update_graphic', graphic_id=identifier, changes={'geometry': moved})
+        self.assertEqual(self.record(identifier)['geometry']['lengths_m'], geometry['lengths_m'])
+        for lengths in ([], [1], [True, 4], [0, 4], [-1, 4], [float('inf'), 4], [1e13, 4]):
+            with self.subTest(lengths=lengths), self.assertRaises(ValidationError):
+                validate_graphic({**record, 'geometry': {**geometry, 'lengths_m': lengths}}, self.case.session['snapshot'])
+        # A single marker is valid and still does not derive length from scale.
+        single = self.create('count', geometry={'points': [[30, 90]], 'lengths_m': [2]})
+        self.assertEqual(self.record(single)['geometry']['lengths_m'], [2])
+
     def test_all_tools_have_separate_ids_bounded_styles_and_no_measurement_or_review_effect(self):
         before = deepcopy(self.case.session['snapshot'])
         ids = [self.create(kind) for kind in KINDS]

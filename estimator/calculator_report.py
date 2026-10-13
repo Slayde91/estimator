@@ -328,9 +328,6 @@ class _ScheduleReport(_Report):
             self.story.extend(self.p(note, 'small') for note in data['application_notes'])
         if materials and data['id'] != 'steel_vermiculite':
             self.story.append(self.p('Totals use available source results and can exclude unresolved quantities. Read each item status and the product order summary before ordering.', 'small'))
-        if not ((materials and data['id'] in {'steel_board', 'steel_vermiculite'}) or
-                (not materials and data['id'] == 'ductwork')):
-            self.story.append(self.p('Display rounding is limited to two decimal places; stored inputs and calculations retain their full precision.', 'small'))
 
     def schedule(self):
         data = self.data

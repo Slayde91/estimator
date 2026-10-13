@@ -471,7 +471,8 @@
   function syncToolShortcuts() {
     const registry = window.CeasefireTakeoffShortcuts, tools = state.ui?.tools;
     if (!registry || !tools) return {};
-    const controls = { ...tools, count: state.mode === "physical" ? null : tools.count, callout: state.mode === "physical" ? tools.count : tools.callout };
+    const drawingOnly = state.mode === "physical" || isArea();
+    const controls = { ...tools, trace: drawingOnly ? tools.pdfTrace : tools.trace, count: drawingOnly ? tools.pdfCount : tools.count, callout: state.mode === "physical" ? tools.count : tools.callout };
     for (const name of Object.keys(registry.actions)) registry.decorate(controls[name], name);
     return controls;
   }
@@ -506,6 +507,12 @@
       measure.classList.add("icon-only", "takeoff-icon-button", "takeoff-graphic-tool"); measure.replaceChildren(measureIcon);
       measure.setAttribute("aria-label", "Measure"); measure.title = "Measure length on the PDF"; ui.tools["graphic-measure"] = measure;
       ui.tools.viewport.after(measure);
+      ui.tools.pdfTrace = button("Trace length", () => graphicsUI.activate("measure"));
+      ui.tools.pdfTrace.dataset.tool = "graphic-measure";
+      ui.tools.pdfCount = button("Count steel lengths", () => toggleDrawingTool("pdf-count"));
+      ui.tools.pdfCount.setAttribute("aria-label", "Count"); ui.tools.pdfCount.title = "Count";
+      ui.tools.pdfCount.dataset.tool = "pdf-count";
+      measure.after(ui.tools.pdfTrace, ui.tools.pdfCount);
       for (const [kind, label] of [["area", "Area"], ["area-exclusion", "Area exclusion"]]) {
         const control = button(kind === "area" ? "Trace surface" : "Add exclusion", () => graphicsUI.activate(kind)); control.dataset.tool = `graphic-${kind}`;
         control.classList.add("icon-only", "takeoff-icon-button", "takeoff-graphic-tool");
@@ -737,6 +744,8 @@
     updatePresentationTools();
     state.ui.tools.count.dataset.tool = physical ? "count" : "count-only";
     state.ui.tools.callout.hidden = physical;
+    const drawingOnly = physical || isArea();
+    for (const key of ["pdfTrace", "pdfCount"]) if (state.ui.tools[key]) state.ui.tools[key].hidden = !drawingOnly;
     const countLabel = physical ? "Call-out" : "Count";
     state.ui.tools.count.setAttribute("aria-label", countLabel); state.ui.tools.count.title = countLabel;
     if (physical) { const image = node("img"); image.src = "/icons/takeoff-callout.png"; image.alt = ""; image.width = 25; image.height = 25; image.setAttribute("aria-hidden", "true"); state.ui.tools.count.replaceChildren(image); }
@@ -751,7 +760,7 @@
     for (const control of [state.ui.calibration, state.ui.editCalibration, state.ui.cancelTrace, state.ui.tools.calibrate, state.ui.tools.viewport]) if (control) control.hidden = false;
     if (physical) {
       for (const tool of ["trace", "countLength", "measure", "polygon", "exclusion"]) state.ui.tools[tool].hidden = true;
-      state.ui.tools.count.hidden = false; state.ui.countAnchor.hidden = false; (state.ui.tools["graphic-measure"] || state.ui.tools.viewport).after(state.ui.countAnchor);
+      state.ui.tools.count.hidden = false; state.ui.countAnchor.hidden = false; (state.ui.tools.pdfCount || state.ui.tools["graphic-measure"] || state.ui.tools.viewport).after(state.ui.countAnchor);
       ensurePhysicalUI(); state.physicalUI.render(physicalSnapshot()); renderRail(); renderCalibrations(); renderOverlay(); working(state.busy); return;
     }
     state.ui.tools.trace.after(state.ui.countAnchor);
@@ -763,6 +772,7 @@
     state.ui.areaNotice.hidden = !area;
     state.ui.tools.trace.hidden = area;
     state.ui.tools.count.hidden = state.mode !== "duct"; state.ui.countAnchor.hidden = state.mode !== "duct"; state.ui.tools.countLength.hidden = state.mode !== "steel"; state.ui.tools.measure.hidden = true;
+    (area ? state.ui.tools.pdfCount : state.mode === "steel" ? state.ui.tools.countLength : state.ui.countAnchor).after(state.ui.tools.callout);
     for (const tool of ["polygon", "exclusion"]) state.ui.tools[tool].hidden = !area;
     const sortChoices = [["mark", "Sort: Mark"], ["level", "Sort: Level"], [area ? "area" : "length", area ? "Sort: Total area" : "Sort: Length"], ["state", "Sort: Confirmation"]];
     if (!sortChoices.some(([key]) => key === state.sort)) state.sort = "mark";
@@ -1648,7 +1658,7 @@
     if (state.gesture) throw new Error("Finish or cancel the current selection or move first.");
     if (!state.viewport && tool !== "select" && tool !== "pan") throw new Error("Open a successfully rendered page first.");
     if (state.points.length) throw new Error("Finish or cancel the current trace first.");
-    if (state.mode === "physical" && !["select", "pan", "text", "calibrate", "viewport", "count", "signature", "initial-pages"].includes(tool) && !(tool.startsWith("graphic-") && (X?.tools || X?.kinds)?.includes(tool.slice(8)))) throw new Error("Choose a source annotation or PDF markup tool for this physical draft.");
+    if (state.mode === "physical" && !["select", "pan", "text", "calibrate", "viewport", "count", "pdf-count", "signature", "initial-pages"].includes(tool) && !(tool.startsWith("graphic-") && (X?.tools || X?.kinds)?.includes(tool.slice(8)))) throw new Error("Choose a source annotation or PDF markup tool for this physical draft.");
     if (isArea() && ["trace", "cite"].includes(tool) || !isArea() && ["polygon", "exclusion"].includes(tool)) throw new Error("Choose a drawing tool for the current takeoff mode.");
     if (!["select", "pan", "text"].includes(tool) && (state.formDirty || state.settingsDirty)) throw new Error("Apply or discard the unfinished item edits or settings before using a drawing tool.");
     if (["trace", "measure", "polygon"].includes(tool) && !state.calibration && !activePageCalibrations().length) throw new Error("Choose or create the applicable calibration before tracing.");
@@ -1658,7 +1668,7 @@
     if (tool !== "text") clearPdfTextSelection();
     state.physicalPlacementTarget = null; state.tool = tool; if (tool !== "signature") state.signatureDraft = null; state.doubleClickEndpointValid = false; state.ui.viewport.dataset.tool = tool;
     if (tool === "calibrate" && state.ui.scaleControls) toggleScaleControls(false);
-    if (["count", "count-only"].includes(tool)) { resetCountDraft(); state.settingsOpen = false; state.settingsEditor = null; state.viewportsOpen = false; renderSettingsPanel(); renderViewportPanel(); }
+    if (["count", "count-only", "pdf-count"].includes(tool)) { resetCountDraft(); state.settingsOpen = false; state.settingsEditor = null; state.viewportsOpen = false; renderSettingsPanel(); renderViewportPanel(); }
     for (const el of state.ui.root.querySelectorAll("[data-tool]")) if (el.tagName === "BUTTON") el.classList.toggle("takeoff-tool-active", el.dataset.tool === tool);
     // Select-only handles must not intercept the first pan or trace pointer.
     renderOverlay();
@@ -1666,6 +1676,7 @@
     setProgress(({ "count-only": "Click once for each item. Double-click or Enter finishes the count. These counts stay in this register.", measure: "Click along the length, then double-click or Enter to finish the measurement.", count: "Click once for each steel member and enter its length manually. Double-click or Enter finishes without adding a marker. All members in this count share the same details; start another Count for different details. Right-click cancels the unfinished count.", viewport: "Click the first corner, then double-click the opposite corner to finish a rectangular viewport and choose its scale. A single click adjusts the opposite corner; Enter finishes two chosen corners. Right-click cancels; Backspace removes the last corner.", calibrate: state.pendingViewport || state.calibrationTarget ? "Click both endpoints of a known dimension inside the selected viewport." : "Click the two endpoints of a known distance on this drawing.", trace: "Click each vertex along one object. Double-click or Enter completes it. Right-click cancels; Backspace removes the last point.", polygon: `${surfaceHelp} Click each boundary vertex, then double-click or Enter. The final edge closes automatically.`, exclusion: "Trace the excluded opening strictly inside the selected surface. Double-click or Enter closes the boundary.", cite: "Click opposite corners around the source dimension or schedule entry. Enter its stated length next.", pan: "Drag the drawing to pan.", select: "Select a markup or register row to view its source and edit it in the register." })[tool] || "");
     if (tool === "count" && state.mode === "physical") setProgress("Click the drawing to place one barrier marker. Enter or select its substrate details, then add its services in Item Details. Each marker's callout updates from those records; drawing scale does not change service quantities.");
     if (tool === "callout") setProgress("Click the drawing to add a free Call-out, then type its Item Details. It does not add a register item or quantity.");
+    if (tool === "pdf-count") setProgress("Click each marker and enter its length manually. Enter or double-click finishes the count. These marks stay on the PDF and do not add register rows.");
     if (tool === "text") void ensurePdfTextLayer();
   }
   function cancelTrace() { graphicsUI?.cancel?.(true); initialPagesUI?.cancel(); state.signatureDraft = null; clearPdfTextSelection(); state.physicalPlacementTarget = null; cancelSelectionGesture(); resetCountDraft(); state.pendingViewport = null; state.calibrationTarget = null; state.retraceId = null; state.exclusionItemId = null; state.points = []; state.traceCursor = null; state.markupMenu = null; state.doubleClickEndpointValid = false; state.tool = "select"; if (state.ui) { state.ui.viewport.dataset.tool = "select"; for (const el of state.ui.root?.querySelectorAll("button[data-tool]") || []) el.classList.toggle("takeoff-tool-active", el.dataset.tool === "select"); renderOverlay(); } window.CeasefireProject?.changed?.(); }
@@ -1679,14 +1690,14 @@
     if (state.tool === "count-only") { state.countLastClick = null; state.traceCursor = null; state.doubleClickEndpointValid = false; }
     refreshCountDraft();
   }
-  function currentCountEntry(entry) { return entry.generation === state.countGeneration && state.tool === "count" && entry.sessionId === state.session?.session_id && entry.documentId === state.document && entry.page === state.page && state.countEntries.includes(entry); }
+  function currentCountEntry(entry) { return entry.generation === state.countGeneration && ["count", "pdf-count"].includes(state.tool) && entry.sessionId === state.session?.session_id && entry.documentId === state.document && entry.page === state.page && state.countEntries.includes(entry); }
   function queueCountLength(entry) {
     clearTimeout(entry.timer);
     const task = state.countQueue.then(async () => {
       if (!currentCountEntry(entry) || entry.length_m != null) return;
       if (state.countDefaultLength != null) { entry.length_m = state.countDefaultLength; refreshCountDraft(); return; }
       const revision = state.session?.revision;
-      const creation = !state.countFields && !state.countContinuation, calculator = state.ui.target.value;
+      const creation = state.tool !== "pdf-count" && !state.countFields && !state.countContinuation, calculator = state.ui.target.value;
       const data = await ask("Counted member length", [...(creation ? creationFields(state.mode).filter(([key]) => key !== "quantity") : []), ["length_mm", "Manual Length (mm)", "number", "", true], ["reuse", "Use this length for additional counts", "checkbox", false]], "Enter the real length. Marker positions and drawing scale never calculate this length.", "Place marker", async (controls, ready) => { const length = controls.find(field => field.control.name === "length_mm").control; length.min = "0.000001"; length.max = "1000000000000000"; if (creation) await configureSteelCreation(controls, calculator, ready); }, state.mode === "steel");
       if (!currentCountEntry(entry)) return;
       if (revision !== state.session?.revision) throw new Error("The count changed during length entry. Cancel and restart this count.");
@@ -1707,11 +1718,11 @@
     entry.timer = setTimeout(() => { if (currentCountEntry(entry)) void safely(() => queueCountLength(entry)); }, 500);
   }
   async function finishCount() {
-    if (state.countFinishing || state.busy || state.modal || state.tool !== "count") return;
-    const generation = state.countGeneration; state.countFinishing = true;
+    if (state.countFinishing || state.busy || state.modal || !["count", "pdf-count"].includes(state.tool)) return;
+    const generation = state.countGeneration, tool = state.tool; state.countFinishing = true;
     try {
       for (const entry of [...state.countEntries]) await queueCountLength(entry);
-      if (generation !== state.countGeneration || state.tool !== "count") return;
+      if (generation !== state.countGeneration || state.tool !== tool) return;
       if (!state.countEntries.length) { cancelTrace(); return; }
       const markers = state.countEntries.map(entry => ({ point: [...entry.point], length_m: entry.length_m }));
       if (markers.some(entry => !(entry.length_m > 0) || !Number.isFinite(entry.length_m))) throw new Error("Every count marker requires a positive manual length.");
@@ -1719,8 +1730,17 @@
       if (continuation) continuationTarget(continuation);
       const sessionId = state.session.session_id, revision = state.session.revision, mode = state.mode, documentId = state.document, page = state.page, sourceHash = currentDocument()?.sha256;
       const fields = clone(state.countFields || {}), draft = JSON.stringify([state.countEntries, state.countFields]);
-      const current = () => generation === state.countGeneration && sessionId === state.session?.session_id && mode === state.mode && documentId === state.document && page === state.page && sourceHash === currentDocument()?.sha256 && state.tool === "count";
+      const current = () => generation === state.countGeneration && sessionId === state.session?.session_id && mode === state.mode && documentId === state.document && page === state.page && sourceHash === currentDocument()?.sha256 && state.tool === tool;
       const createGuard = () => { if (!current() || revision !== state.session.revision || state.formDirty || state.settingsDirty || draft !== JSON.stringify([state.countEntries, state.countFields])) throw new Error("The count or source changed before it could finish. Start the count again."); return true; };
+      if (tool === "pdf-count") {
+        const graphic = { mode: signatureMode(), document_id: documentId, source_sha256: sourceHash, page,
+          kind: "count", geometry: { points: markers.map(marker => marker.point), lengths_m: markers.map(marker => marker.length_m) }, text: "", appearance: X.defaults() };
+        const reply = await command("create_graphic", { graphic }, createGuard);
+        if (!reply || !current()) return;
+        cancelTrace(); state.selected.clear(); state.countSelection.clear();
+        await graphicsUI.select(reply.created_graphic_id, true);
+        message("Count placed on the PDF. No register rows were added."); return;
+      }
       const reply = continuation
         ? await command("continue_count", { item_id: continuation.itemId, markers }, () => { if (state.formDirty || state.settingsDirty || generation !== state.countGeneration) throw new Error("The count changed before it could finish."); continuationTarget(continuation); return true; })
         : await command("add_count_items", { mode, document_id: documentId, page, markers, fields, appearance: newMarkupAppearance() }, createGuard);
@@ -1733,10 +1753,10 @@
     if (state.mode === "physical" && state.tool === "count" && event.detail > 1) return;
     // Re-rendering a hit shape after the first click can suppress the browser's
     // dblclick event. Its second click still carries detail=2 on the overlay.
-    if (["count", "count-only", "viewport"].includes(state.tool) && event.detail === 2) { void safely(() => finishTraceFromDoubleClick(event)); return; }
+    if (["count", "pdf-count", "count-only", "viewport"].includes(state.tool) && event.detail === 2) { void safely(() => finishTraceFromDoubleClick(event)); return; }
     if (event.detail > 1) return;
     state.doubleClickEndpointValid = false;
-    if (state.busy || state.modal || state.countFinishing || state.physicalPlacing || !state.viewport || !["calibrate", "trace", "measure", "count-only", "count", "cite", "polygon", "exclusion", "viewport", "callout", "signature"].includes(state.tool) || event.button !== 0) return;
+    if (state.busy || state.modal || state.countFinishing || state.physicalPlacing || !state.viewport || !["calibrate", "trace", "measure", "count-only", "count", "pdf-count", "cite", "polygon", "exclusion", "viewport", "callout", "signature"].includes(state.tool) || event.button !== 0) return;
     if (state.formDirty || state.settingsDirty) { message("Apply or discard the unfinished item edits or settings before continuing the drawing tool.", true); return; }
     if (["polygon", "exclusion"].includes(state.tool) && state.points.length >= areaTraceLimit()) { message("A surface supports at most 1,000 total vertices across its outer boundary and all exclusions. Finish or cancel this trace.", true); return; }
     event.preventDefault(); const rect = state.ui.overlay.getBoundingClientRect(); const p = G.inverse([(event.clientX - rect.left) * state.viewport.width / rect.width, (event.clientY - rect.top) * state.viewport.height / rect.height], state.viewport.transform);
@@ -1745,6 +1765,7 @@
     if (state.tool === "signature") { void safely(() => createSignature(p)); return; }
     if (state.tool === "count-only") { state.points.push(p); state.countEntries.push({ point: [...p] }); state.countLastClick = { timeStamp: event.timeStamp, client: [event.clientX, event.clientY] }; renderOverlay(); window.CeasefireProject?.changed?.(); return; }
     if (state.tool === "count") { void safely(() => state.mode === "physical" ? placePhysicalMarker(p) : stageCountMarker(p, event)); return; }
+    if (state.tool === "pdf-count") { stageCountMarker(p, event); return; }
     if (state.pendingViewport && !inViewport(p, state.pendingViewport.region)) { message("Both calibration points must be inside the viewport.", true); return; }
     if (state.calibrationTarget) { const target = activePageCalibrations().find(value => value.id === state.calibrationTarget); if (!target?.region || !inViewport(p, target.region)) { message("Both calibration points must be inside the selected viewport.", true); return; } }
     if (state.tool === "viewport") {
@@ -1781,7 +1802,7 @@
       const entry = state.countLastClick; if (entry && event.timeStamp - entry.timeStamp <= 700 && Math.hypot(event.clientX - entry.client[0], event.clientY - entry.client[1]) < 5) { state.points.pop(); state.countEntries.pop(); }
       state.countLastClick = null; await finishStandaloneCount(); return;
     }
-    if (state.tool === "count") {
+    if (["count", "pdf-count"].includes(state.tool)) {
       event.preventDefault(); if (state.busy || state.modal || state.countFinishing) return;
       const entry = state.countLastClick;
       if (entry && currentCountEntry(entry) && event.timeStamp - entry.timeStamp <= 700 && Math.hypot(event.clientX - entry.client[0], event.clientY - entry.client[1]) < 5) removePendingCount(entry);
@@ -2165,7 +2186,7 @@
       if ((selectedAnnotation() || selectedSignature()) && !state.points.length) { if (!state.busy && !state.modal) void safely(undoLastEdit); return; }
       if (state.points.length) {
         if (state.busy || state.modal || state.countFinishing || state.formDirty || state.settingsDirty) { message("Apply or discard unfinished edits before changing the trace.", true); return; }
-        if (["count", "count-only"].includes(state.tool)) { removePendingCount(state.countEntries.at(-1)); return; }
+        if (["count", "count-only", "pdf-count"].includes(state.tool)) { removePendingCount(state.countEntries.at(-1)); return; }
         state.points.pop(); state.traceCursor = null; state.doubleClickEndpointValid = false; renderOverlay(); window.CeasefireProject?.changed?.(); return;
       }
       if (state.tool !== "select" || state.mode === "physical") return;
@@ -2175,8 +2196,8 @@
       if (!reference) { if (selected.length > 1) message("Choose one control point before deleting from multiple selected markups."); return; }
       void safely(() => removeControlPoint(reference)); return;
     }
-    if (event.key === "Enter" && ["trace", "measure", "count-only", "count", "polygon", "exclusion", "viewport"].includes(state.tool)) { event.preventDefault(); void safely(finishTrace); }
-    if (event.key === "Backspace" && state.points.length) { event.preventDefault(); if (state.busy || state.modal || state.countFinishing || state.formDirty || state.settingsDirty) return; if (["count", "count-only"].includes(state.tool)) { removePendingCount(state.countEntries.at(-1)); return; } state.points.pop(); state.traceCursor = null; state.doubleClickEndpointValid = false; renderOverlay(); window.CeasefireProject?.changed?.(); }
+    if (event.key === "Enter" && ["trace", "measure", "count-only", "count", "pdf-count", "polygon", "exclusion", "viewport"].includes(state.tool)) { event.preventDefault(); void safely(finishTrace); }
+    if (event.key === "Backspace" && state.points.length) { event.preventDefault(); if (state.busy || state.modal || state.countFinishing || state.formDirty || state.settingsDirty) return; if (["count", "count-only", "pdf-count"].includes(state.tool)) { removePendingCount(state.countEntries.at(-1)); return; } state.points.pop(); state.traceCursor = null; state.doubleClickEndpointValid = false; renderOverlay(); window.CeasefireProject?.changed?.(); }
   }
   function cancelSelectionGesture() {
     const gesture = state.gesture; if (!gesture) return;
@@ -2367,7 +2388,7 @@
     if (state.mode === "physical" && state.tool === "count") { cancelTrace(); return; }
     if (state.formDirty || state.settingsDirty) throw new Error("Apply or discard the unfinished item edits or settings before completing the trace.");
     if (state.tool === "count-only") return finishStandaloneCount();
-    if (state.tool === "count") return finishCount();
+    if (["count", "pdf-count"].includes(state.tool)) return finishCount();
     if (state.tool === "viewport") return createViewport();
     if (["polygon", "exclusion"].includes(state.tool)) return finishAreaTrace();
     if (!["trace", "measure"].includes(state.tool) || state.points.length < 2 || !G.length(state.points)) throw new Error("Trace at least two distinct points along one object.");
@@ -2713,7 +2734,7 @@
       return;
     }
     if (!state.points.length) return;
-    if (["count", "count-only"].includes(state.tool)) {
+    if (["count", "count-only", "pdf-count"].includes(state.tool)) {
       const appearance = appearanceOf({ geometry: { kind: "count" } });
       for (const entry of state.countEntries) overlay.append(countSymbol(G.transform(entry.point, state.viewport.transform), appearance, { class: "takeoff-count-pending", stroke: state.tool !== "count-only" && entry.length_m == null ? "#b46812" : appearance.stroke_color, "stroke-width": 2, fill: state.tool !== "count-only" && entry.length_m == null ? "#fff" : appearance.fill_color, opacity: 0.65 }));
       return;

@@ -538,6 +538,14 @@ def _paint_graphics(pdf, graphics, matrix, bounds):
                         pdf.drawCentredString(width/2, y, line)
                     else:
                         pdf.drawString(padding, y, line)
+        elif kind == 'count':
+            pdf.setFont('ExportVera', style['font_size'])
+            for index, (point, length) in enumerate(zip(geometry['points'], geometry['lengths_m']), 1):
+                x, y = transform(point, matrix)
+                pdf.setFillColor(HexColor(style['fill_color']))
+                pdf.circle(x, y, 5, stroke=1, fill=int(style['fill_enabled']))
+                pdf.setFillColor(HexColor(style['font_color']))
+                pdf.drawString(x+7, y+7, f'{index} · {length:,.2f} m')
         else:
             placed = [transform(point, matrix) for point in geometry['points']]
             path = pdf.beginPath(); path.moveTo(*placed[0])

@@ -13,6 +13,7 @@ function harness() {
   const state = context.audit.state;
   state.active = true; state.document = "doc"; state.viewport = { transform: [1, 0, 0, 1, 0, 0], width: 600, height: 800 };
   state.ui = { tools: Object.fromEntries(Object.keys(shortcuts.actions).map(name => [name, control()])), target: { value: "steel_vermiculite" } };
+  Object.assign(state.ui.tools, { pdfTrace: control(), pdfCount: control() });
   state.session = { session_id: "session", snapshot: { documents: [{ id: "doc", pages: [{ page: 1 }] }, { id: "other", pages: [{ page: 1 }] }], items: [], transfers: [] } };
   context.audit.setRenderer(() => {});
   return { ...context.audit, context, snapshot: state.session.snapshot };
@@ -54,11 +55,15 @@ async function check(label, run) { await run(); passed++; console.log(`ok - ${la
     assert.equal(shortcuts.dispatchViewer(keyEvent('ArrowUp'), {}), false, 'No callbacks outside the viewer');
     assert.equal(calls.length, count);
   });
-  await check("Physical Call-out uses its distinct binding and switching back restores Count tooltip", () => {
-    const h = harness(), count = h.state.ui.tools.count, free = h.state.ui.tools.callout;
+  await check("Drawing-only Trace and Count keep distinct Call-out bindings and switching back restores register tools", () => {
+    const h = harness(), count = h.state.ui.tools.count, free = h.state.ui.tools.callout, pdfCount = h.state.ui.tools.pdfCount, pdfTrace = h.state.ui.tools.pdfTrace;
     let controls = h.syncToolShortcuts(); assert.equal(controls.count, count); assert.equal(controls.callout, free); assert.equal(count.title, "Count (Ctrl+F3)");
-    h.state.mode = "physical"; controls = h.syncToolShortcuts(); assert.equal(controls.count, null); assert.equal(controls.callout, count); assert.equal(count.title, "Call-out (Ctrl+')"); assert.equal(shortcuts.dispatch(keyEvent("F3"), controls), false); assert.equal(shortcuts.dispatch(keyEvent("'"), controls), true);
-    h.state.mode = "duct"; h.syncToolShortcuts(); assert.equal(count.title, "Count (Ctrl+F3)");
+    for (const mode of ["physical", "wall", "slab"]) {
+      h.state.mode = mode; controls = h.syncToolShortcuts(); assert.equal(controls.count, pdfCount); assert.equal(controls.trace, pdfTrace); assert.equal(controls.callout, mode === "physical" ? count : free);
+      assert.equal(shortcuts.dispatch(keyEvent("F3"), controls), true); assert.equal(shortcuts.dispatch(keyEvent(shortcuts.actions.trace.key), controls), true); assert.equal(shortcuts.dispatch(keyEvent("'"), controls), true);
+    }
+    assert.equal(pdfCount.clicks, 3); assert.equal(pdfTrace.clicks, 3); assert.equal(count.clicks, 1); assert.equal(free.clicks, 2);
+    h.state.mode = "duct"; controls = h.syncToolShortcuts(); assert.equal(controls.count, count); assert.equal(controls.trace, h.state.ui.tools.trace); assert.equal(count.title, "Count (Ctrl+F3)");
   });
   await check("Legend creation requires a current visible supported Length or Count and refreshes on page/document/hide changes", () => {
     const h = harness(), item = line(); h.snapshot.items = [item]; const before = copy(h.snapshot);

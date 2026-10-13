@@ -11,6 +11,9 @@ async function chooseTakeoff(page, name, { waitForSelection = true } = {}) {
   await expect(choice).toBeVisible();
   await choice.click();
   if (waitForSelection) await expect(choice).toHaveAttribute('aria-pressed', 'true', { timeout: 60000 });
+  // Workspace/scroll restoration can reopen a hover menu under a stationary
+  // pointer. Leave the menu before asserting that it has closed.
+  await page.mouse.move(0, 0);
   await expect(page.locator('#takeoff-navigation-menu')).toBeHidden();
 
 }

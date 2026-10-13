@@ -28,12 +28,14 @@ def build_project_report(calculators, penetration, configuration, project_detail
             raise ValidationError('Include only the calculator input snapshots.')
         inputs = validate_calculator_edits(key, blank_schedule_defaults(key, supplied.get('inputs', {})), (saved_calculators or {}).get(key, {}))
         if populated_schedule_rows(key, inputs):
-            parts.append((title, builder(key, inputs, project_details=project_details, company=company)))
+            options = {} if materials else {'include_project_details': not parts}
+            parts.append((title, builder(key, inputs, project_details=project_details, company=company, **options)))
     if penetration is not None:
         result = calculate_penetration(penetration, configuration)
         if result['rows']:
             fire_builder = render_penetration_summary_pdf if materials else render_penetration_pdf
-            parts.append(('Firestopping', fire_builder(result, definition(configuration), project_details, library=library, company=company)))
+            options = {} if materials else {'include_project_details': not parts}
+            parts.append(('Firestopping', fire_builder(result, definition(configuration), project_details, library=library, company=company, **options)))
     if not parts:
         raise ValidationError('Enter at least one schedule row before downloading this report.')
     writer = PdfWriter()

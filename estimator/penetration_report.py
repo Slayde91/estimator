@@ -12,26 +12,24 @@ from .calculator_register import _sheet, _table
 from .pricing_workbook import _serialize_exact
 from .report import _Report, _company_header, _register_fonts, _number, _numeric, _LINE, _MUTED
 from .reference_library import ReferenceNotFound
+from .service_dimensions import service_size_evidence
 
 
-SUMMARY = (
-    ('Labour', 'labour'), ('Materials', 'materials'),
-    ('Grand total', 'grand_total'),
-    ('Total days', 'total_days'),
-)
 SCHEDULE = (
-    ('Service', 'K'), ('Quantity', 'O'), ('Substrate', 'P'),
-    ('Labour', 'F'), ('Materials', 'G'), ('Item total', 'H'),
+    ('Service', 'K'), ('Quantity', 'O'), ('FRL', 'N'),
+    ('Service size', 'service_size'), ('Orientation', 'M'), ('Substrate', 'P'),
 )
 LABOUR_INPUTS = {'pipe_labour_hours': 'pipe_hours'}
 
 
 def _visible_outputs(definition):
     return [field for field in definition['output_fields']
-            if field['column'] not in ('B', 'C', 'D', 'E', 'BI', 'BJ', 'BK')]
+            if field.get('format') != 'currency' and field['column'] not in ('BI', 'BJ', 'BK')]
 
 
 def _value(row, column):
+    if column == 'service_size':
+        return service_size_evidence(row['inputs'])['value']
     return row['outputs'].get(column, row['inputs'].get(column))
 
 
@@ -93,8 +91,8 @@ def _excel_format(field):
     return {'percent': '0.00%', 'currency': '$#,##0.00'}.get(field.get('format'), '#,##0.00')
 
 
-def render_penetration_pdf(result, definition, project_details, *, library=None, company=None):
-    """Show project details, totals and the compact calculated schedule."""
+def render_penetration_pdf(result, definition, project_details, *, library=None, company=None, include_project_details=True):
+    """Show the technical schedule without prices, using captured inputs."""
     _register_fonts()
     report = _Report({})
     # Let long schedule tables split on the current page. Keeping an entire
@@ -105,24 +103,21 @@ def render_penetration_pdf(result, definition, project_details, *, library=None,
     margin = 32
     content = width - 2 * margin
     logo = company_logo(company)
-    report.story.append(report.p('Firestopping estimate', 'title'))
+    report.story.append(report.p('Firestopping schedule', 'title'))
     details = [('Project No.', project_details.get('project_no', '')),
                ('Client', project_details.get('client', '')),
                ('Site Address', project_details.get('site_address', ''))]
-    report.story.append(report.table(['Project details', 'Value'],
-        [[report.p(label, 'cell'), report.p(value, 'cell')] for label, value in details],
-        [content * .25, content * .75]))
-    report.story.append(Spacer(1, 12))
-    report.story.append(report.table(['Estimate', 'Amount / quantity'], [
-        [report.p(label, 'cell'), report.p(_display(result['summary'].get(key),
-            {'format': 'currency' if key != 'total_days' else 'number'}), 'numeric')]
-        for label, key in SUMMARY], [content * .65, content * .35]))
+    if include_project_details:
+        report.story.append(report.table(['Project details', 'Value'],
+            [[report.p(label, 'cell'), report.p(value, 'cell')] for label, value in details],
+            [content * .25, content * .75]))
+        report.story.append(Spacer(1, 12))
     if result.get('errors'):
         report.story.append(report.p('Some workbook results are unavailable. Review the calculation errors below.', 'alert'))
     report.story.append(report.p('Schedule', 'subheading'))
     fields_by_column = {field['column']: field for field in definition['row_fields'] + definition['output_fields']}
     source_rows = {row['id']: row for row in result.get('draft', {}).get('rows', [])}
-    widths = [content * part for part in (.045, .10, .19, .09, .16, .14, .14, .135)]
+    widths = [content * part for part in (.045, .10, .18, .07, .11, .17, .13, .195)]
     schedule_rows = []
     for index, row in enumerate(result['rows'], 1):
         thumbnail = report.p('', 'cell')
@@ -141,7 +136,7 @@ def render_penetration_pdf(result, definition, project_details, *, library=None,
                 # the calculated schedule from being downloaded.
                 pass
         schedule_rows.append([report.p(str(index), 'cell'), thumbnail] +
-            [report.p(_display(_value(row, col), fields_by_column[col]), 'cell') for _, col in SCHEDULE])
+            [report.p(_display(_value(row, col), fields_by_column.get(col)), 'cell') for _, col in SCHEDULE])
     schedule_table = report.table(['Line', 'Source image'] + [label for label, _ in SCHEDULE],
                                   schedule_rows, widths, compact=True)
     # Split a long row within the first page fragment instead of adding a
@@ -166,11 +161,11 @@ def render_penetration_pdf(result, definition, project_details, *, library=None,
     output = BytesIO()
     document = SimpleDocTemplate(output, pagesize=landscape(A4), leftMargin=margin, rightMargin=margin,
         topMargin=91, bottomMargin=43, pageCompression=1,
-        title='Ceasefire - Firestopping estimate', author='Ceasefire')
+        title='Ceasefire - Firestopping schedule', author='Ceasefire')
 
     def decorate(canvas, doc):
         canvas.saveState()
-        _company_header(canvas, logo, width, height, margin, 'FIRESTOPPING ESTIMATE', label_below_logo=True, company=company)
+        _company_header(canvas, logo, width, height, margin, 'FIRESTOPPING SCHEDULE', label_below_logo=True, company=company)
         canvas.setStrokeColor(_LINE)
         canvas.line(margin, 32, width - margin, 32)
         canvas.setFont('CeasefireVera', 7)
@@ -231,23 +226,18 @@ def build_penetration_register(result, definition, project_details):
     workbook = Workbook()
     workbook.remove(workbook.active)
     workbook.properties.creator = 'Ceasefire'
-    workbook.properties.title = 'Firestopping estimate'
-    summary = _sheet(workbook, 'Summary', 'FIRESTOPPING ESTIMATE', [36, 64])
+    workbook.properties.title = 'Firestopping schedule'
+    summary = _sheet(workbook, 'Summary', 'FIRESTOPPING SCHEDULE', [36, 64])
     row = _table(summary, 4, ['Project details', 'Value'],
                  [[label, project_details.get(key, '')] for label, key in
                   [('Project No.', 'project_no'), ('Client', 'client'), ('Site Address', 'site_address')]], [36, 64])
-    first = row + 1
-    row = _table(summary, row, ['Estimate', 'Amount / quantity'],
-                 [[label, result['summary'].get(key)] for label, key in SUMMARY], [36, 64])
-    for offset, (_, key) in enumerate(SUMMARY):
-        summary.cell(first + offset, 2).number_format = _excel_format({'format': 'number' if key == 'total_days' else 'currency'})
-    widths = [9, 35, 14, 28, 20, 20, 22]
+    widths = [9, 35, 14, 22, 36, 24, 28]
     schedule = _sheet(workbook, 'Schedule', 'PENETRATION SCHEDULE', widths)
     fields_by_column = {field['column']: field for field in definition['row_fields'] + definition['output_fields']}
     _table(schedule, 4, ['Line'] + [label for label, _ in SCHEDULE],
            [[index] + [_value(row, column) for _, column in SCHEDULE]
             for index, row in enumerate(result['rows'], 1)], widths,
-           formats={index: _excel_format(fields_by_column[column]) for index, (_, column) in enumerate(SCHEDULE, 2)}, filtered=True)
+           formats={index: _excel_format(fields_by_column.get(column, {})) for index, (_, column) in enumerate(SCHEDULE, 2)}, filtered=True)
     settings_fields, settings_schema = definition.get('global_fields', []), definition.get('settings', {})
     if settings_fields or settings_schema:
         settings = _sheet(workbook, 'Settings', 'FIRESTOPPING SETTINGS', [36, 70, 18, 18])
@@ -272,7 +262,7 @@ def build_penetration_register(result, definition, project_details):
             for offset in range(first_band, first_band + len(band_rows)):
                 settings.cell(offset, 2).number_format = '#,##0.###############'
                 settings.cell(offset, 4).number_format = '#,##0.###############'
-    for title, fields, key in [('Inputs', definition['row_fields'], 'inputs'),
+    for title, fields, key in [('Inputs', [field for field in definition['row_fields'] if field.get('format') != 'currency'], 'inputs'),
                                ('Calculated detail', _visible_outputs(definition), 'outputs')]:
         widths = [9, 42, 85, 20] + ([36] if key == 'inputs' else [])
         sheet = _sheet(workbook, title, title.upper(), widths)

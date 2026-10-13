@@ -48,8 +48,23 @@ class ProjectReportTests(unittest.TestCase):
                                       if 43 < tm[4] * cm[1] + tm[5] * cm[3] + cm[5] < 500 else None)
                     self.assertTrue(''.join(body).strip(), 'Every combined PDF page includes report content')
                 self.assertIn('FULL-TEST', text)
-                self.assertIn('Firestopping product summary' if materials else 'Firestopping estimate', text)
+                self.assertIn('Firestopping product summary' if materials else 'Firestopping schedule', text)
+                if not materials:
+                    self.assertEqual(text.count('FULL-TEST'), 1)
+                    self.assertEqual(text.count('Project details'), 1)
+                    for pricing in ('$', 'Grand total', 'Item total', 'Amount / quantity', 'Unit price'):
+                        self.assertNotIn(pricing, text)
                 self.assertEqual((calculators, fire), before)
+
+    def test_first_nonempty_section_owns_the_only_project_details(self):
+        for calculators, fire in (
+                ({'steel_board': {'inputs': {'CALCULATOR': {'A9': 'Partial board'}}}}, draft()),
+                ({}, draft())):
+            with self.subTest(calculators=calculators):
+                reader = PdfReader(BytesIO(build_project_report(calculators, fire, {}, {'client': 'ONCE-CLIENT'})))
+                texts = [page.extract_text() for page in reader.pages]
+                self.assertIn('ONCE-CLIENT', texts[0])
+                self.assertEqual('\n'.join(texts).count('ONCE-CLIENT'), 1)
 
     def test_untrusted_calculated_cells_and_unknown_calculators_are_rejected(self):
         for calculators in ({'unknown': {}}, {'steel_board': {'inputs': {'CALCULATOR': {'AR9': 2}}}}):

@@ -111,6 +111,7 @@ jobs:
       - run: node tests/browser/project_reports.cjs
       - run: npm run test:estimator-header-state
       - run: npm run test:calculator-navigation
+      - run: node tests/browser/calculator_schedule_scroll.cjs
       - run: npm run test:document-menus
       - run: npm run test:library-documents
       - run: npm run test:library-link-picker

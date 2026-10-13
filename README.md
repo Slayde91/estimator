@@ -299,7 +299,9 @@ Calculator numbers display two decimals at rest. Selecting a numeric input revea
 
 **Download PDF Schedule** creates a branded **Full schedule** named **APPENDIX A.pdf** for any of the three calculators, from the current draft without saving it. It contains every populated main-schedule item, with thicknesses, protection/material areas, applicable bag, sheet or wrap quantities and main statuses. Unused blank slots are omitted; incomplete entries stay visible.
 
-The main **Document** menu also provides **Download Full Schedule** and **Download Full Product Summary**. These combine the current Steel spray, Steel board, Ductwork and Firestopping schedules or product summaries into one PDF with section bookmarks. Schedules with no entered rows are skipped; partially entered rows remain visible. Downloads retain the captured project prices and company PDF header and do not save the drafts.
+The main **Document** menu also provides **Download Full Schedule** and **Download Full Product Summary**. These combine the current Steel spray, Steel board, Ductwork and Firestopping schedules or product summaries into one PDF with section bookmarks. Schedules with no entered rows are skipped; partially entered rows remain visible. The Full Schedule shows project details once at the start and contains no pricing. Both separate Firestopping schedule formats (PDF and XLSX) also omit pricing and include FRL, entered service size and orientation. Product summaries retain the captured project prices. Downloads use the company PDF header and do not save the drafts.
+
+Large calculator schedules scroll inside the schedule table and load rows as needed, up to all 1,000 rows. Scrolling preserves entered values and line numbers; only the visible group of rows has live controls.
 
 For a Duct **Count**, only Item and Level are required. A blank Manual Length creates a count-only record with no length or calculator quantity. Entering a positive length creates the existing measured count records; zero and negative lengths remain invalid.
 

@@ -137,14 +137,14 @@ class PenetrationIntegrationTests(unittest.TestCase):
             if route.endswith('.pdf'):
                 text = '\n'.join(page.extract_text() for page in PdfReader(BytesIO(content)).pages)
                 self.assertIn('TEST-PEN', text)
-                self.assertIn('Firestopping estimate', text)
+                self.assertIn('Firestopping schedule', text)
                 self.assertIn('Schedule', text)
                 for removed in ('Literal text', 'Description', 'System/Install Details', 'Settings', 'Calculated detail'):
                     self.assertNotIn(removed, text)
             else:
                 workbook = load_workbook(BytesIO(content))
                 totals = {row[0].value: row[1].value for row in workbook['Summary'] if row[0].value is not None}
-                self.assertEqual(totals['Grand total'], result['summary']['grand_total'])
+                self.assertNotIn('Grand total', totals)
                 for row in workbook['Summary']:
                     if row[0].value in {field['label'] for field in definition({})['global_fields'] if field['format'] == 'percent'}:
                         self.assertEqual(row[1].number_format, '0.00%')

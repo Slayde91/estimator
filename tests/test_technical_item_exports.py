@@ -212,11 +212,11 @@ class TechnicalItemHTTPTests(unittest.TestCase):
             with self.subTest(route=route, method=method):
                 self.assertEqual(self.request(route, body, method, headers)[0], expected)
 
-    def test_measure_icon_route_returns_exact_retained_asset_with_avif_mime(self):
-        status, mime, _, payload = self.request('/icons/takeoff-measure.avif', {}, method='GET')
+    def test_measure_icon_route_returns_exact_supplied_asset_with_png_mime(self):
+        status, mime, _, payload = self.request('/icons/takeoff-measure.png', {}, method='GET')
         self.assertEqual(status, 200)
-        self.assertEqual(mime, 'image/avif')
-        self.assertEqual(payload, (Path(__file__).resolve().parents[1] / 'static/icons/takeoff-measure.avif').read_bytes())
+        self.assertEqual(mime, 'image/png')
+        self.assertEqual(payload, (Path(__file__).resolve().parents[1] / 'static/icons/takeoff-measure.png').read_bytes())
 
 
 if __name__ == '__main__':

@@ -306,13 +306,17 @@ project pricing or selects Use current pricing. Editing the shared library does
 not change a saved project's original snapshot. Price changes recalculate both
 estimates independently while preserving their entered quantities.
 
-Schedule PDF and XLSX exports calculate only the captured schedule and its pricing once. The
-compact PDF includes project details, totals, the schedule and any calculation
-errors; it omits Settings, Line Inputs and Calculated detail. The XLSX register
-retains scalar settings, semicolon-separated routing lists, every task-hour band,
-inputs and calculated detail as literal values, not executable formulas or
-links, and preserves numeric precision. Downloads use the opened/saved project
-folder, or the standard Downloads folder if no project is selected.
+Schedule PDF and XLSX exports calculate the captured schedule once and omit
+pricing. Both include FRL, entered service size and orientation. Service size
+comes from the numeric diameter or cable-tray dimensions, never from interpreting
+the service description. The compact PDF includes project details, the schedule
+and any calculation errors; it omits Settings, Line Inputs and Calculated detail.
+The XLSX register retains scalar settings, semicolon-separated routing lists,
+every task-hour band and non-pricing inputs and calculated detail as literal
+values, preserving numeric precision. The combined Full Schedule PDF shows
+project details once, before its first populated schedule. Quote and product
+summary pricing is unchanged. Downloads use the opened/saved project folder,
+or the standard Downloads folder if no project is selected.
 
 ## Verification
 

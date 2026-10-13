@@ -72,18 +72,42 @@ class PenetrationScheduleTests(unittest.TestCase):
         self.assertIsNone(engine.value('CALC', 'T4'))
         self.assertEqual(source_model(), before_source)
 
-    def test_empty_exports_have_zero_summary_and_no_invented_line(self):
+    def test_empty_exports_have_no_pricing_or_invented_line(self):
         result = calculate({'globals': {'J': 'Yes', 'K': 10}, 'rows': []})
         workbook = load_workbook(BytesIO(build_penetration_register(result, result['definition'], {})))
         self.assertFalse(any(row[0].value for row in workbook['Schedule'].iter_rows(min_row=5)))
         summary_values = {row[0].value: row[1].value for row in workbook['Summary'].iter_rows()}
         for name in ('Labour', 'Materials', 'Grand total'):
-            self.assertEqual(summary_values[name], 0)
+            self.assertNotIn(name, summary_values)
         pdf = PdfReader(BytesIO(render_penetration_pdf(result, result['definition'], {})))
         text = '\n'.join(page.extract_text() for page in pdf.pages)
         self.assertIn('Schedule', text)
         self.assertNotIn('Line 1', text)
         self.assertNotIn('Pair Coil Bundle', text)
+
+    def test_pdf_and_excel_schedules_include_entered_dimensions_frl_orientation_without_prices(self):
+        source = self.mixed_schedule()
+        source['rows'][0]['inputs'].update({'M': 'Wall', 'N': '-/120/120', 'AI': 9876.54, 'AJ': 8765.43})
+        source['rows'][1]['inputs'].update({'M': 'Floor', 'N': '-/60/60', 'AL': None, 'AQ': 450, 'AR': 100})
+        result = calculate(source)
+        before = deepcopy(result)
+        pdf = PdfReader(BytesIO(render_penetration_pdf(result, result['definition'], {})))
+        text = '\n'.join(page.extract_text() for page in pdf.pages)
+        for value in ('Service size', 'Orientation', 'FRL', '65 mm', '450 mm wide', '100 mm deep', 'Wall', 'Floor', '-/120/120', '-/60/60'):
+            self.assertIn(value, text)
+        for value in ('$', 'Grand total', 'Item total', '9876.54', '8765.43'):
+            self.assertNotIn(value, text)
+        workbook = load_workbook(BytesIO(build_penetration_register(result, result['definition'], {})))
+        headers = [cell.value for cell in workbook['Schedule'][4]]
+        self.assertEqual(headers, ['Line', 'Service', 'Quantity', 'FRL', 'Service size', 'Orientation', 'Substrate'])
+        self.assertEqual(workbook['Schedule']['E5'].value, '65 mm')
+        self.assertEqual(workbook['Schedule']['F6'].value, 'Floor')
+        for sheet in workbook:
+            for row in sheet:
+                for cell in row:
+                    self.assertNotIn('$', cell.number_format)
+                    self.assertNotIn(cell.value, (9876.54, 8765.43, 'Grand total', 'ITEM TOTAL', 'Labour Price ($)'))
+        self.assertEqual(result, before)
 
     def test_pdf_schedule_embeds_linked_source_thumbnail_and_tolerates_missing_images(self):
         result = calculate(self.mixed_schedule())
@@ -128,7 +152,7 @@ class PenetrationScheduleTests(unittest.TestCase):
                 self.calls.append((key, thumbnail))
                 return source.getvalue(), 'image/png', 'source.png'
 
-        for long_lines in (12, 70):
+        for long_lines in (28, 70):
             rows, draft_rows = [], []
             for index, lines in enumerate((1, 1, long_lines), 1):
                 service = '\n'.join(f'ROW{index}-TOKEN{line}-DETAILS' for line in range(lines))

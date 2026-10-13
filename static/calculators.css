@@ -226,6 +226,9 @@
 .calculator-row-action button{padding:8px;font-size:11px;min-height:36px}
 .calculator-row-action .calculator-remove-row{display:inline-flex;align-items:center;justify-content:center;width:44px;min-height:44px}
 .calculator-trash-icon,.calculator-trash-icon svg{display:block;width:20px;height:20px}
+/* The virtual renderer observes this element's vertical scroll position. Keep
+   a bounded viewport so later batches replace the first 60 rows as you scroll. */
+.calculator-grid .calculator-table-scroll[data-schedule-viewport]:has(>.calculator-virtual-schedule){max-height:min(70vh,720px);overflow-y:auto}
 .calculator-grid .calculator-virtual-schedule tbody tr:not(.calculator-virtual-spacer){height:96px}
 .calculator-grid .calculator-virtual-schedule tbody td{height:96px;box-sizing:border-box;padding-block:7px;overflow:hidden}
 .calculator-virtual-output{max-height:80px;overflow:auto;scrollbar-width:thin;white-space:pre-wrap;overflow-wrap:anywhere}

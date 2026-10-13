@@ -486,7 +486,7 @@
     ui.presentationTools.append(ui.tools.markups, ui.tools.legend);
     if (X && graphicsUI) {
       const measure = button("Measure", () => graphicsUI.activate("measure")); measure.dataset.tool = "graphic-measure";
-      const measureIcon = node("img", "takeoff-measure-icon"); measureIcon.src = "/icons/takeoff-measure.avif"; measureIcon.alt = ""; measureIcon.setAttribute("aria-hidden", "true"); measureIcon.width = 28; measureIcon.height = 28;
+      const measureIcon = node("img", "takeoff-measure-icon"); measureIcon.src = "/icons/takeoff-measure.png"; measureIcon.alt = ""; measureIcon.setAttribute("aria-hidden", "true"); measureIcon.width = 28; measureIcon.height = 28;
       measure.classList.add("icon-only", "takeoff-icon-button", "takeoff-graphic-tool"); measure.replaceChildren(measureIcon);
       measure.setAttribute("aria-label", "Measure"); measure.title = "Measure length on the PDF"; ui.tools["graphic-measure"] = measure;
       ui.tools.viewport.after(measure);

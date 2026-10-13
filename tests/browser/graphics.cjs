@@ -8,7 +8,7 @@ const { spawn, spawnSync } = require("node:child_process");
 const fs = require("node:fs"), path = require("node:path"), crypto = require("node:crypto"), assert = require("node:assert/strict");
 const root = path.resolve(__dirname, "../.."), output = path.join(root, ".runtime/browser-qa", `graphics-${Date.now()}`), python = process.env.CEASEFIRE_PYTHON || "python";
 fs.mkdirSync(output, { recursive: true });
-const assets = ["static/takeoffs.js", "static/takeoff-annotations.js", "static/takeoff-graphics.js", "static/takeoff-graphics-ui.js", "static/takeoffs.css", "static/icons/takeoff-measure.avif", "estimator/takeoff_graphics.py", "estimator/takeoff_stamp_layout.py", "estimator/takeoff_textbox_layout.py", "estimator/takeoff_initial_links.py", "estimator/takeoff_workspace.py", "estimator/takeoff_markup_pdf_worker.py", "tests/browser/graphics.cjs", "tests/browser/graphics_export_content.py"];
+const assets = ["static/takeoffs.js", "static/takeoff-annotations.js", "static/takeoff-graphics.js", "static/takeoff-graphics-ui.js", "static/takeoffs.css", "static/icons/takeoff-measure.png", "estimator/takeoff_graphics.py", "estimator/takeoff_stamp_layout.py", "estimator/takeoff_textbox_layout.py", "estimator/takeoff_initial_links.py", "estimator/takeoff_workspace.py", "estimator/takeoff_markup_pdf_worker.py", "tests/browser/graphics.cjs", "tests/browser/graphics_export_content.py"];
 const hash = file => crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex");
 const hashes = () => Object.fromEntries(assets.map(name => [name, hash(path.join(root, name))]));
 const sourceBefore = hashes(), checks = [], errors = [], requests = [], projectWrites = [], pdfExports = [];

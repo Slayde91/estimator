@@ -50,8 +50,12 @@ class ThemeAssetTests(unittest.TestCase):
         before = {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in self.folder.glob('*.sqlite3')}
         for edition in self.servers:
             with self.subTest(edition=edition):
-                for name, mime in [('theme.js', 'text/javascript; charset=utf-8'), ('theme.css', 'text/css; charset=utf-8')]:
+                for name, mime in [('theme.js', 'text/javascript; charset=utf-8'), ('theme.css', 'text/css; charset=utf-8'),
+                                   ('icons/navigation-help.jpg', 'image/jpeg'), ('icons/navigation-takeoffs.jpg', 'image/jpeg')]:
                     status, headers, payload = self.get(edition, '/' + name)
+                    if edition == 'standard' and name == 'icons/navigation-takeoffs.jpg':
+                        self.assertEqual(status, 404)
+                        continue
                     self.assertEqual(status, 200)
                     self.assertEqual(payload, (ROOT / 'static' / name).read_bytes())
                     self.assertEqual(headers['Content-Type'], mime)

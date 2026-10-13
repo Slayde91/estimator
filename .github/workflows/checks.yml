@@ -97,6 +97,7 @@ jobs:
       - run: npm run test:help-glossary -- --standard
       - run: npm run test:takeoffs-icons
       - run: npm run test:takeoffs-measure-icon
+      - run: node tests/browser/navigation_icons.cjs
       - run: npm run test:takeoffs-signatures
       - run: node tests/browser/signature_chooser_layout.cjs
       - run: npm run test:takeoffs-graphics

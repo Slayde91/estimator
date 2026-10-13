@@ -50,6 +50,7 @@ class CompanySettingsTests(unittest.TestCase):
                 'matrix': export_matrix_pdf(new_graph(uid(1000), uid(2000), version=2), company=company)[0],
             }
         for kind, payload in reports.items():
+            painted_rectangles = []
             for page in PdfReader(BytesIO(payload)).pages:
                 with self.subTest(report=kind):
                     self.assertIn(company['name'], page.extract_text())
@@ -57,6 +58,22 @@ class CompanySettingsTests(unittest.TestCase):
                     self.assertNotIn(DEFAULTS['email'], page.extract_text())
                     self.assertIn(b'.741176 0 .094118 RG', page.get_contents().get_data())
                     self.assertNotIn(b'.019608 .388235 .756863 rg', page.get_contents().get_data())
+                    # Inspect painted cells rather than style declarations. Source
+                    # images remain their original colours and are not recoloured.
+                    fill, stack, rectangle = (0., 0., 0.), [], False
+                    for operands, operator in page.get_contents().operations:
+                        if operator == b'q': stack.append(fill)
+                        elif operator == b'Q': fill = stack.pop()
+                        elif operator == b'rg': fill = tuple(round(float(v), 5) for v in operands)
+                        elif operator == b'g': fill = (round(float(operands[0]), 5),) * 3
+                        elif operator == b're': rectangle = True
+                        elif operator in (b'f', b'f*', b'B', b'B*'):
+                            if rectangle: painted_rectangles.append(fill)
+                            rectangle = False
+                        elif operator in (b'S', b's', b'n'): rectangle = False
+            with self.subTest(report=kind, property='table palette'):
+                self.assertIn((.74118, 0., .09412), painted_rectangles)
+                self.assertTrue(set(painted_rectangles) <= {(1., 1., 1.), (0., 0., 0.), (.74118, 0., .09412)}, painted_rectangles)
 
     def test_save_reopen_valid_logo_and_contact_header(self):
         image = BytesIO(); Image.new('RGB', (20, 10), 'red').save(image, 'PNG')

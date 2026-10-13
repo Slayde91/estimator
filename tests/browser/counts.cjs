@@ -1,4 +1,5 @@
 const { clickProjectControl } = require('./project_actions.cjs');
+const { checkSteelDialog } = require('./steel_dialog_layout.cjs');
 const { renderDrawing } = require('./viewer_helpers.cjs');
 // Rendered manual Steel counts on original PDF points and a disposable database.
 const { chromium, expect } = require('@playwright/test');
@@ -52,6 +53,7 @@ async function place(point, length, reuse, pendingCount) {
   await page.mouse.click(...await screen(point));
   if (length != null) {
     const modal = page.getByRole('dialog'); await expect(modal.getByRole('heading', { name: 'Counted member length', exact: true })).toBeVisible();
+    await checkSteelDialog(page, modal, output, 'Counted member length');
     const checkbox = await modal.getByLabel('Use this length for additional counts', { exact: true }).boundingBox(), field = await modal.getByLabel('Manual Length (mm)', { exact: true }).boundingBox();
     assert.ok(checkbox.width < 30 && Math.abs(checkbox.x - field.x) < 18, 'The reuse checkbox stays at the left edge of the length form');
     if (await modal.getByLabel('Member mark', { exact: true }).count()) await fill(modal, 'Member mark', 'Counted members');

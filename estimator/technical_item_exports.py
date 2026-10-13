@@ -224,10 +224,7 @@ def render_technical_item_pdf(snapshot, *, company=None):
     width, height = A4
     margin, content = 32, width - 64
     record = snapshot['record']
-    report.story.extend([report.p(record['title'] or record['id'], 'subheading'), report.p('Item ID: ' + record['id'], 'small')])
-    if record['subtitle']:
-        report.story.append(report.p(record['subtitle']))
-    report.story.append(report.p(_NOTE, 'small'))
+    report.story.append(report.p(record['title'] or record['id'], 'subheading'))
     if record['notice']:
         report.story.append(report.p(record['notice']))
     rows = []
@@ -254,15 +251,17 @@ def render_technical_item_pdf(snapshot, *, company=None):
         report.story.extend([report.p('Source diagram', 'subheading'), report.p(record['diagram_status'] or 'No source diagram is recorded.')])
     for index, image in enumerate(snapshot['images']):
         scale = min(content / image['width'], 330 / image['height'])
-        diagram = ([report.p('Source diagram', 'subheading')] if index == 0 else []) + [report.p(image['caption'], 'small'), Image(BytesIO(image['image_data']), width=image['width'] * scale, height=image['height'] * scale),
-                  report.p(image['filename'], 'small'), report.p('Source SHA256: ' + image['source_sha256'], 'small'), Spacer(1, 10)]
+        diagram = ([report.p('Source diagram', 'subheading')] if index == 0 else []) + [
+            Image(BytesIO(image['image_data']), width=image['width'] * scale, height=image['height'] * scale), Spacer(1, 10)]
         report.story.append(KeepTogether(diagram))
     if snapshot['related']:
         report.story.append(report.p('Related firestopping records', 'subheading'))
         report.story.append(report.table(['Record', 'Relationship / source notice'], [[report.p(row[0] + '\n' + row[1], 'cell'), report.p('\n'.join(row[2:]), 'cell')] for row in snapshot['related']], [content * .3, content * .7]))
-    report.story.append(report.p('Source information', 'subheading'))
-    for label, filename, document_id, page, sheet, row in snapshot['sources']:
-        report.story.append(report.p('\n'.join(value for value in [label, filename, ' | '.join(value for value in [document_id, 'Page ' + page if page else '', 'Sheet ' + sheet if sheet else '', 'Row ' + row if row else ''] if value)] if value)))
+    source_labels = [source[0] for source in snapshot['sources'] if source[0]]
+    if source_labels:
+        report.story.append(report.p('Source information', 'subheading'))
+        for label in source_labels:
+            report.story.append(report.p(label))
     logo = company_logo(company)
     output = BytesIO()
     document = SimpleDocTemplate(output, pagesize=A4, leftMargin=margin, rightMargin=margin, topMargin=91, bottomMargin=43,

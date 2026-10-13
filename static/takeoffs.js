@@ -428,12 +428,28 @@
     }
     return field;
   }
-  async function ask(title, definitions, detail = "", action = "Apply", setup) {
+  async function ask(title, definitions, detail = "", action = "Apply", setup, splitFields = false) {
     if (state.modal) throw new Error("Finish the current review first.");
     state.modal = true; const sessionId = state.session?.session_id;
     const dialog = node("dialog", "takeoff-dialog"), form = node("form"); form.method = "dialog";
     const heading = node("h2", "", title); heading.id = `takeoff-dialog-${uuid()}`; dialog.setAttribute("aria-labelledby", heading.id); form.append(heading, node("p", "helper", detail));
     const controls = definitions.map(def => { const field = formField(def, def[3]); if (def[4]) field.control.required = true; form.append(field.wrapper); return field; });
+    if (splitFields) {
+      const choices = controls.filter(field => field.control.tagName === "SELECT" || field.control.getAttribute("role") === "combobox");
+      const entries = controls.filter(field => !choices.includes(field));
+      if (choices.length) {
+        dialog.classList.add("takeoff-dialog-columns");
+        const grid = node("div", "takeoff-entry-grid");
+        for (let row = 0; row < Math.max(entries.length, choices.length); row++) {
+          for (const column of [entries, choices]) {
+            const field = column[row]?.wrapper || node("div", "takeoff-entry-gap");
+            if (!column[row]) field.setAttribute("aria-hidden", "true");
+            grid.append(field);
+          }
+        }
+        form.append(grid);
+      }
+    }
     const actions = node("div", "actions"), cancel = node("button", "button secondary", "Cancel"), apply = node("button", "button primary", action); cancel.type = "button"; cancel.addEventListener("click", () => dialog.close("cancel")); apply.type = "submit"; apply.value = "confirm"; actions.append(cancel, apply); form.append(actions); dialog.append(form); document.body.append(dialog);
     try {
       // Show the form immediately. Exact calculator choices load separately;
@@ -1671,7 +1687,7 @@
       if (state.countDefaultLength != null) { entry.length_m = state.countDefaultLength; refreshCountDraft(); return; }
       const revision = state.session?.revision;
       const creation = !state.countFields && !state.countContinuation, calculator = state.ui.target.value;
-      const data = await ask("Counted member length", [...(creation ? creationFields(state.mode).filter(([key]) => key !== "quantity") : []), ["length_mm", "Manual Length (mm)", "number", "", true], ["reuse", "Use this length for additional counts", "checkbox", false]], "Enter the real length. Marker positions and drawing scale never calculate this length.", "Place marker", async (controls, ready) => { const length = controls.find(field => field.control.name === "length_mm").control; length.min = "0.000001"; length.max = "1000000000000000"; if (creation) await configureSteelCreation(controls, calculator, ready); });
+      const data = await ask("Counted member length", [...(creation ? creationFields(state.mode).filter(([key]) => key !== "quantity") : []), ["length_mm", "Manual Length (mm)", "number", "", true], ["reuse", "Use this length for additional counts", "checkbox", false]], "Enter the real length. Marker positions and drawing scale never calculate this length.", "Place marker", async (controls, ready) => { const length = controls.find(field => field.control.name === "length_mm").control; length.min = "0.000001"; length.max = "1000000000000000"; if (creation) await configureSteelCreation(controls, calculator, ready); }, state.mode === "steel");
       if (!currentCountEntry(entry)) return;
       if (revision !== state.session?.revision) throw new Error("The count changed during length entry. Cancel and restart this count.");
       if (!data) { removePendingCount(entry); return; }
@@ -2294,7 +2310,7 @@
       state.selected = new Set([id]); cancelTrace(); state.settingsOpen = true; renderSelection(); return;
     }
     const mode = state.mode, calculator = state.ui.target.value;
-    const details = await ask(`Add ${labels[mode].toLowerCase()} object`, creationFields(mode), `One trace represents one physical object. A repeated quantity must be explicitly supported by the source. New items are unconfirmed. Choices come from ${calculatorName(calculator)}. Unknown properties may stay blank until confirmation; calculator transfer requires exact supported values.${mode === "duct" ? " New duct runs are rectangular." : ""}`, "Add item", (controls, ready) => configureSteelCreation(controls, calculator, ready));
+    const details = await ask(`Add ${labels[mode].toLowerCase()} object`, creationFields(mode), `One trace represents one physical object. A repeated quantity must be explicitly supported by the source. New items are unconfirmed. Choices come from ${calculatorName(calculator)}. Unknown properties may stay blank until confirmation; calculator transfer requires exact supported values.${mode === "duct" ? " New duct runs are rectangular." : ""}`, "Add item", (controls, ready) => configureSteelCreation(controls, calculator, ready), mode === "steel");
     if (!details) return cancelTrace(); if (!Number.isInteger(details.quantity) || details.quantity < 1) throw new Error("Enter an explicit positive whole quantity.");
     const { quantity, duct_size, ...enteredFields } = details;
     if (mode === "duct") Object.assign(enteredFields, parseDuctSize(duct_size));

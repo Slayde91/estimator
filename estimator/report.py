@@ -36,11 +36,9 @@ from .company_settings import company_logo, contact_lines, DEFAULTS as COMPANY_D
 ROOT = Path(__file__).resolve().parent.parent
 _FONT_LOCK = Lock()
 _RED = colors.HexColor("#BD0018")
-_INK = colors.HexColor("#151515")
+_INK = colors.black
 _MUTED = colors.HexColor("#555555")
 _LINE = colors.HexColor("#DDDDDD")
-_LIGHT = colors.HexColor("#F5F5F5")
-_PALE_RED = colors.HexColor("#FFF1F0")
 _PAGE_WIDTH, _PAGE_HEIGHT = A4
 _MARGIN = 36
 _WIDTH = _PAGE_WIDTH - 2 * _MARGIN
@@ -161,6 +159,16 @@ def _date(value):
         return _text(value)
 
 
+def _table_branding():
+    """Fixed Ceasefire colours for generated PDF tables, independent of UI theme."""
+    return [
+        ("BACKGROUND", (0, 0), (-1, 0), _RED),
+        ("BACKGROUND", (0, 1), (-1, -1), colors.white),
+        ("LINEBELOW", (0, 0), (-1, 0), .5, _INK),
+        ("LINEBELOW", (0, 1), (-1, -1), .35, _INK),
+    ]
+
+
 def _styles():
     base = dict(fontName="CeasefireVera", textColor=_INK, leading=12, splitLongWords=1)
     return {
@@ -251,21 +259,17 @@ class _Report:
         data = [[self.p(heading, "head") for heading in headings]] + fitted_rows
         table = LongTable(data, colWidths=widths, repeatRows=1, hAlign="LEFT", splitInRow=1)
         padding = 4 if compact else 6
-        styles = [
-            ("BACKGROUND", (0, 0), (-1, 0), _INK),
+        styles = _table_branding() + [
             ("ALIGN", (0, 0), (-1, -1), "CENTER"),
             ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
             ("LEFTPADDING", (0, 0), (-1, -1), 6),
             ("RIGHTPADDING", (0, 0), (-1, -1), 6),
             ("TOPPADDING", (0, 0), (-1, -1), padding),
             ("BOTTOMPADDING", (0, 0), (-1, -1), padding),
-            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, _LIGHT]),
-            ("LINEBELOW", (0, 0), (-1, 0), 0.5, _INK),
-            ("LINEBELOW", (0, 1), (-1, -1), 0.35, _LINE),
         ]
         if total_rows:
             styles.extend([
-                ("BACKGROUND", (0, -total_rows), (-1, -1), _PALE_RED),
+                ("BACKGROUND", (0, -total_rows), (-1, -1), colors.white),
                 ("LINEABOVE", (0, -total_rows), (-1, -total_rows), 0.8, _RED),
             ])
         table.setStyle(TableStyle(styles))
@@ -343,7 +347,7 @@ class _Report:
                 "The complete error list is in the quote notes section.", "body")]],
                 colWidths=[_WIDTH])
             alert.setStyle(TableStyle([
-                ("BACKGROUND", (0, 0), (-1, -1), _PALE_RED),
+                ("BACKGROUND", (0, 0), (-1, -1), colors.white),
                 ("BOX", (0, 0), (-1, -1), .6, _RED),
                 ("LEFTPADDING", (0, 0), (-1, -1), 10),
                 ("RIGHTPADDING", (0, 0), (-1, -1), 10),
@@ -371,7 +375,7 @@ class _Report:
         total_table = self.table(["Quote amount", "Amount ($)"], rows, [_WIDTH * .68, _WIDTH * .32])
         grand_row = len(rows)
         total_table.setStyle(TableStyle([
-            ("BACKGROUND", (0, grand_row), (-1, grand_row), colors.HexColor("#F0F0F0")),
+            ("BACKGROUND", (0, grand_row), (-1, grand_row), colors.white),
             ("LINEABOVE", (0, grand_row), (-1, grand_row), 1, _RED),
         ]))
         # This is a fixed-size financial summary, so its grand total stays on

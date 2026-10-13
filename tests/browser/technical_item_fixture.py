@@ -32,7 +32,8 @@ def inspect(pdf, xlsx):
     checks = {
         'pdf_source_image': any(image.image.size == (640, 360) for page in reader.pages for image in page.images),
         'pdf_report_hyperlink': uris == [REPORT_URL],
-        'pdf_canonical_id': 'report-a-v1' in text,
+        'pdf_display_metadata_removed': 'Item ID:' not in text and 'Source SHA256:' not in text,
+        'xlsx_canonical_id_retained': any(cell.value == 'report-a-v1' for cell in cells),
         'pdf_source_conditions': 'Retain original conditions.' in text,
         'pdf_source_table': 'Copper pipe 25 mm' in text,
         'xlsx_report_hyperlink': links == [('SYN-123', REPORT_URL)],

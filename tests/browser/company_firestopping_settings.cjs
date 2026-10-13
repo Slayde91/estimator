@@ -16,7 +16,7 @@ const field=column=>page.locator(`#penetration-row-fields [data-penetration-fiel
   browser=await chromium.launch({headless:true});page=await browser.newPage({viewport:{width:1028,height:900}});page.setDefaultTimeout(45000);
   page.on('pageerror',error=>errors.push(error.message));
   await page.goto(`http://127.0.0.1:${fixture.port}/`,{waitUntil:'networkidle'});await idle();
-  await expect(page.locator('#takeoff-navigation-toggle img')).toHaveAttribute('src','/icons/navigation-takeoffs.svg');
+  await expect(page.locator('#takeoff-navigation-toggle img')).toHaveAttribute('src','/icons/navigation-takeoffs.jpg');
   await page.getByRole('button',{name:'Settings',exact:true}).click();
   await expect(page.locator('#company-settings-save')).toBeEnabled();
   await expect(page.locator('#theme-toggle')).toBeVisible();

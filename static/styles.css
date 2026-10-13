@@ -61,9 +61,10 @@ a{color:inherit}
 .nav-icon{display:flex;align-items:center;justify-content:center;width:45px;height:45px;padding:8px;font-size:25px;line-height:1}
 .nav-icon img{display:block;width:25px;height:25px;object-fit:contain;filter:invert(1)}
 .nav-icon:hover img{filter:none}
+.nav-icon.active img,.nav-icon.active:hover img{filter:invert(1);mix-blend-mode:screen}
 .nav-icon>span:not(.sr-only){display:flex;align-items:center;justify-content:center;width:25px;height:25px}.nav-icon svg{display:block;width:25px;height:25px;flex-shrink:0}
-.nav-icon .takeoff-navigation-image{mix-blend-mode:screen}
-.nav-icon:hover .takeoff-navigation-image{mix-blend-mode:multiply}
+.nav-icon .takeoff-navigation-image,.nav-icon .help-navigation-image{mix-blend-mode:screen}
+.nav-icon:hover .takeoff-navigation-image,.nav-icon:hover .help-navigation-image{mix-blend-mode:multiply}
 .calculator-navigation-menu{position:absolute;top:100%;left:0;z-index:21;width:265px;max-width:calc(100vw - 28px);padding:7px;background:#111;color:#fff;border:1px solid #3b3238;border-radius:0 0 11px 11px;box-shadow:0 8px 22px #0003}
 .calculator-navigation-menu[hidden]{display:none}
 .calculator-navigation-choice{display:block;width:100%;padding:11px 12px;text-align:left;color:#fff;background:transparent;border-radius:7px;font-size:13px;font-weight:600}
@@ -295,7 +296,7 @@ dialog .actions{justify-content:flex-end}
 .home-card:hover,.home-card:focus-visible{transform:translateY(-2px);border-color:#d8c7ca;box-shadow:0 10px 28px #4a142412}
 .home-card-icon{grid-row:1/3;display:grid;place-items:center;width:48px;height:48px;border-radius:50%;color:#fff;background:var(--accent);font-size:22px;font-weight:750}
 .home-card-icon svg{display:block;width:26px;height:26px}
-.home-card-icon .takeoff-navigation-image{display:block;width:26px;height:26px;object-fit:contain;filter:invert(1);mix-blend-mode:screen}
+.home-card-icon .takeoff-navigation-image,.home-card-icon .help-navigation-image{display:block;width:26px;height:26px;object-fit:contain;filter:invert(1);mix-blend-mode:screen}
 .home-card strong{font-size:19px}
 .home-card>span:last-child{color:var(--muted);font-size:12px;line-height:1.55}
 .help-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}

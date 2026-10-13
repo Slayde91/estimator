@@ -198,10 +198,14 @@ def self_test(data_directory, output_report):
                 assert probe.script('!!document.querySelector("[data-view=takeoffs]") || typeof window.CeasefireTakeoffs !== "undefined"') is False
                 assert probe.script('document.querySelector("#view-home").hidden') is False
                 report['checks'].append('Native standard UI rendered without TAKEOFFS')
-                navigation_icons = probe.wait('(() => { const icons=[...document.querySelectorAll(".app-header nav .nav-icon svg")]; return icons.length === 7 && icons.map(icon=>({width:icon.getBoundingClientRect().width,height:icon.getBoundingClientRect().height,stroke:icon.getAttribute("stroke-width")})); })()')
-                assert all(icon['width'] == 25 and icon['height'] == 25 and icon['stroke'] == '1.8' for icon in navigation_icons)
+                navigation_icons = probe.wait('(() => { const icons=[...document.querySelectorAll(".app-header nav .nav-icon > svg, .app-header nav .nav-icon > img")]; return icons.length === 7 && icons.every(icon=>icon.tagName !== "IMG" || icon.complete && icon.naturalWidth > 0) && icons.map(icon=>({width:icon.getBoundingClientRect().width,height:icon.getBoundingClientRect().height,stroke:icon.getAttribute("stroke-width"),src:icon.getAttribute("src"),naturalWidth:icon.naturalWidth || 0})); })()')
+                assert all(icon['width'] == 25 and icon['height'] == 25 for icon in navigation_icons)
+                vectors = [icon for icon in navigation_icons if icon['src'] is None]
+                images = [icon for icon in navigation_icons if icon['src'] is not None]
+                assert len(vectors) == 6 and all(icon['stroke'] == '1.8' for icon in vectors)
+                assert len(images) == 1 and images[0]['src'] == '/icons/navigation-help.jpg' and images[0]['naturalWidth'] == 5000
                 report['navigation_icons'] = navigation_icons
-                report['checks'].append('Native navigation icons rendered at equal size and stroke weight')
+                report['checks'].append('Native navigation icons rendered at equal size with the supplied Help image and consistent vector strokes')
                 probe.script('window.nativeQaCsp=[]; document.addEventListener("securitypolicyviolation",event=>window.nativeQaCsp.push(event.effectiveDirective));')
                 probe.click('[data-view="settings"]')
                 probe.wait('!document.querySelector("#view-settings").hidden && !document.querySelector("#company-settings-save").disabled && document.querySelector("#company-settings-status").textContent === "Saved" && document.querySelector("#theme-toggle").dataset.themeReady === "true"')

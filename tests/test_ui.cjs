@@ -34,7 +34,7 @@ vm.runInContext(fs.readFileSync('static/downloads.js','utf8'),context);
 let source=fs.readFileSync('static/app.js','utf8');
 source=source.replace(/  bootstrap\(\);\s*\}\)\(\);\s*$/, `
   globalThis.audit={state,savePricing,requestSavePricing,saveQuote,openQuote,newQuote,confirmReplace,confirmLeavePricingLibrary,requestViewNavigation,requestLibraryNavigation,requestPricingScopeSwitch,importPricing,exportPricing,makeControl,priceInput,
-    quoteDetails,updateQuoteTitle,reportPayload,downloadQuotePdf,controlValue,formatNumber,formatMoney,calculate,renderInputs,renderResults,showView,bootstrap,renderPricing,refreshPricingCatalog,projectStamp,addWorkItem,removeWorkItem,
+    quoteDetails,updateQuoteTitle,reportPayload,downloadQuotePdf,controlValue,formatNumber,formatMoney,calculate,renderInputs,selectMainSection,renderMainSectionTabs,renderResults,showView,notify,bootstrap,renderPricing,refreshPricingCatalog,projectStamp,addWorkItem,removeWorkItem,
     setRequest(fn){request=fn;}, setFetch(fn){globalThis.fetch=fn;},setRenderPricing(fn){renderPricing=fn;},setRenderInputs(fn){renderInputs=fn;}};
   renderInputs=()=>{}; renderPricing=()=>{state.pricingDirty=JSON.stringify(state.draft)!==JSON.stringify(state.configuration);};
   globalThis.scheduled=0; scheduleCalculation=()=>{globalThis.scheduled++;};
@@ -108,6 +108,13 @@ let passed=0;
   assert.equal(dialog.querySelector('h2').textContent,'Second action');
   assert.equal(dialog.querySelector('[value="cancel"]').textContent,'Keep editing');
   await dialog.close('confirm');assert.equal(await second,true);passed++;
+
+  // Informational notices announce at the top and never enter the confirmation queue.
+  await audit.notify('Selection required','Enter the diameter and multiplier.');
+  assert.equal(byId('app-message').textContent,'Enter the diameter and multiplier.');assert.equal(byId('app-message').getAttribute('role'),'alert');assert.equal(byId('app-message').hidden,false);assert.equal(dialog.open,false);
+  const noticeDuringConfirm=audit.confirmReplace('Keep this confirmation','Independent decision','Yes','Cancel');await flush();
+  await audit.notify('Selection required','Top notification remains nonmodal.');assert.equal(dialog.open,true);assert.equal(dialog.querySelector('h2').textContent,'Keep this confirmation');
+  await dialog.close('cancel');assert.equal(await noticeDuringConfirm,false);passed++;
 
   // Shared pricing asks before navigation, keeps the draft on Cancel and uses
   // the exact requested choices before continuing.
@@ -629,15 +636,12 @@ let passed=0;
   assert.ok(html.indexOf('id="penetration-schedule-heading"')<html.indexOf('id="penetration-schedule-recalculate"'));assert.ok(html.indexOf('id="penetration-schedule-recalculate"')<html.indexOf('<div class="table-scroll"><table><thead><tr><th scope="col">Item</th>'));
   assert.match(html,/<th scope="col">Total<\/th><th scope="col">Diagram<\/th><th scope="col">Actions<\/th>/);
   assert.doesNotMatch(html,/<th scope="col">Status<\/th>/);
-  assert.match(html,/<details class="card expandable-breakdown firestopping-breakdown"[^>]*>\s*<summary><h2>Firestopping Breakdown<\/h2><\/summary>/);
-  assert.doesNotMatch(html,/<details class="card expandable-breakdown firestopping-breakdown"[^>]*\sopen>/);
+  assert.match(html,/<section class="card firestopping-breakdown"[^>]*>\s*<div class="section-heading"><h2>Firestopping Breakdown<\/h2><\/div>/);
   assert.doesNotMatch(html,/firestopping-breakdown-part|Schedule breakdown/);
-  assert.match(html,/<details class="card expandable-breakdown material-breakdown-section"[^>]*><summary><h2 id="breakdown-heading">Material Breakdown<\/h2><\/summary>/);
-  assert.doesNotMatch(html,/<details class="card expandable-breakdown material-breakdown-section"[^>]*\sopen>/);
-  assert.match(html,/<details class="card expandable-breakdown labour-breakdown-section" id="labour-breakdown"[^>]*><summary><h2 id="labour-heading">Labour Breakdown<\/h2><\/summary>/);
-  assert.doesNotMatch(html,/<details class="card expandable-breakdown labour-breakdown-section"[^>]*\sopen>/);
+  assert.match(html,/<section id="main-panel-material-breakdown"[^>]*>\s*<div class="section-heading"><h2 id="breakdown-heading">Material Breakdown<\/h2><\/div>/);
+  assert.match(html,/<section class="card labour-breakdown-section" id="labour-breakdown"[^>]*><div class="section-heading"><h2 id="labour-heading">Labour Breakdown<\/h2><\/div>/);
   assert.ok(html.indexOf('id="penetration-schedule-breakdown-card"')<html.indexOf('id="breakdown-heading"'));
-  assert.match(html,/id="penetration-schedule-breakdown-card"[^>]*>\s*<summary><h2>Firestopping Breakdown<\/h2><\/summary>\s*<div id="penetration-schedule-breakdown"/);
+  assert.match(html,/id="penetration-schedule-breakdown-card"[^>]*>\s*<div class="section-heading"><h2>Firestopping Breakdown<\/h2><\/div>\s*<div id="penetration-schedule-breakdown"/);
   assert.match(html,/<section class="penetration-schedule-summary-section"[^>]*>\s*<h3[^>]*>Summary<\/h3>/);
   assert.doesNotMatch(html,/<summary><h3[^>]*>Summary<\/h3><\/summary>/);
   assert.match(html,/<details class="card expandable-breakdown penetration-item-breakdown"[^>]*>\s*<summary><h3[^>]*>Item Breakdown<\/h3><\/summary>/);
@@ -659,23 +663,28 @@ let passed=0;
   const removeAction=inputDescendants(duplicateRow).find(node=>node.title==='Remove Primer duplicated work item');
   await removeAction.emit('click');assert.equal(audit.state.workItems.length,1);passed++;
 
-  // Main Estimator sections from Access & Travel onwards are expandable and closed by default.
-  assert.match(html,/<details class="card expandable-breakdown" aria-labelledby="materials-heading">\s*<summary><h2 id="materials-heading">Material Requirements &amp; Output<\/h2><\/summary>/);
-  assert.match(html,/<details class="card expandable-breakdown penetration-schedule" aria-labelledby="penetration-schedule-heading">\s*<summary><h2 id="penetration-schedule-heading">Firestopping Schedule<\/h2>/);
-  assert.doesNotMatch(html,/<details class="card expandable-breakdown(?: penetration-schedule)?"[^>]*\sopen/);
-  assert.match(html,/<dialog id="notice-dialog"[^>]*>[\s\S]*?<button id="notice-button"[^>]*>OK<\/button>[\s\S]*?<\/dialog>/);
-  assert.doesNotMatch(html,/<dialog id="notice-dialog"[^>]*>[\s\S]*?notice-cancel/);
-  for(const section of [...byId('input-sections').children,...byId('post-material-input-sections').children,...byId('adjustment-inputs').children]) {
-    assert.equal(section.tagName,'details');assert.equal(section.open,false);
+  // Main section tabs change visibility only; every original control keeps its identity.
+  assert.match(html,/id="main-section-tabs"[^>]*role="tablist"[^>]*aria-label="Main estimate sections"/);
+  const mainHtml=html.slice(html.indexOf('<div class="estimate-main">'),html.indexOf('<aside class="summary-card"'));
+  assert.doesNotMatch(mainHtml,/<details|<summary/);
+  assert.ok(mainHtml.indexOf('id="project-heading"')<mainHtml.indexOf('id="main-section-tabs"'));
+  assert.match(mainHtml,/id="main-panel-materials"[^>]*data-main-section="materials"/);
+  assert.match(mainHtml,/id="main-panel-firestopping-schedule"[^>]*data-main-section="firestopping-schedule"/);
+  for(const section of [...byId('input-sections').children,...byId('post-material-input-sections').children,...byId('adjustment-sections').children]) {
+    assert.equal(section.tagName,'section');assert.equal(section.getAttribute('role'),'tabpanel');
+    assert.equal(section.getAttribute('aria-labelledby'),`main-tab-${section.dataset.mainSection}`);
   }
   passed++;
 
-  // Rebuilding conditional masking controls retains mixed disclosure states and exact inputs.
+  // Tab changes retain exact input values, errors, drafts, controls and calculation triggers.
   const sectionFor=key=>[...byId('input-sections').children,...byId('post-material-input-sections').children,...byId('adjustment-sections').children].find(section=>section.dataset.inputSection===key);
-  sectionFor('teams-crews').open=true;sectionFor('access-travel').open=false;
-  const exactInputs=copy(audit.state.inputs),dirtyBeforeDisclosure=audit.state.dirty,scheduledBeforeDisclosure=context.scheduled;
-  audit.renderInputs();assert.equal(sectionFor('teams-crews').open,true);assert.equal(sectionFor('access-travel').open,false);
-  assert.deepEqual(copy(audit.state.inputs),exactInputs);assert.equal(audit.state.dirty,dirtyBeforeDisclosure);assert.equal(context.scheduled,scheduledBeforeDisclosure);passed++;
+  const exactInputs=copy(audit.state.inputs),dirtyBeforeTabs=audit.state.dirty,scheduledBeforeTabs=context.scheduled;
+  const originalTeams=sectionFor('teams-crews');
+  audit.selectMainSection('teams-crews');assert.equal(audit.state.mainSection,'teams-crews');assert.equal(originalTeams.hidden,false);assert.equal(sectionFor('access-travel').hidden,true);
+  audit.selectMainSection('additions');assert.equal(sectionFor('additions').hidden,false);assert.equal(originalTeams.hidden,true);
+  assert.ok(sectionFor('teams-crews')===originalTeams,'Switching tabs retains the original controls');
+  audit.renderInputs();assert.equal(audit.state.mainSection,'additions');assert.equal(sectionFor('additions').hidden,false);
+  assert.deepEqual(copy(audit.state.inputs),exactInputs);assert.equal(audit.state.dirty,dirtyBeforeTabs);assert.equal(context.scheduled,scheduledBeforeTabs);passed++;
 
   // Montserrat is bundled locally and all primary section cards use the red accent.
   const css=fs.readFileSync('static/styles.css','utf8');

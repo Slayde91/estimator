@@ -10,8 +10,9 @@ function element(tag = 'div') {
     scrollLeft: 0, scrollTop: 0, options: [],
     classList: { add(...items) { items.forEach(item => classes.add(item)); }, contains(item) { return classes.has(item); }, toggle(item, force) { if (force ?? !classes.has(item)) classes.add(item); else classes.delete(item); } },
     setAttribute(name, value) { attributes.set(name, value); }, removeAttribute(name) { attributes.delete(name); }, getAttribute(name) { return attributes.get(name); },
-    append(...items) { this.children.push(...items); this.options = this.children; },
-    replaceChildren(...items) { this.children = items; this.options = items; },
+    append(...items) { this.children.push(...items); this.options = this.children;for(const child of items)if(child&&typeof child==='object')child.parent=this; },
+    replaceChildren(...items) { this.children = [];this.append(...items); },
+    replaceWith(replacement){const parent=this.parent;if(!parent)return;const index=parent.children.indexOf(this);if(index<0)return;parent.children[index]=replacement;replacement.parent=parent;parent.options=parent.children;this.parent=null;},
     querySelector(selector) { return selector === '.eyebrow' ? this.children.find(node => node.className === 'eyebrow') || null : this.querySelectorAll(selector)[0] || null; },
     querySelectorAll(selector) { const found=[]; const match=selector.match(/^\[data-([a-z-]+)\]$/),key=match?.[1].replace(/-([a-z])/g,(_,letter)=>letter.toUpperCase());const walk=node=>{if(key&&node.dataset?.[key]!==undefined)found.push(node);for(const child of node.children||[])walk(child);};this.children.forEach(walk);return found; },
     select() { this.selectionStart=0;this.selectionEnd=String(this.value).length; },
@@ -38,7 +39,7 @@ vm.runInContext(fs.readFileSync('static/calculation-queue.js','utf8'),context);
 let source = fs.readFileSync('static/calculators.js', 'utf8');
 source = source.replace('  window.CeasefireCalculators = { open, projectSnapshot, projectFingerprint, prepareProject, applyProject };', `
   globalThis.audit = {state,current,dirty,displayValue,numericInputValue,makeControl,setInput,calculate,save,reset,importSchedule,open,
-     addScheduleRow,removeScheduleRow,undoScheduleRemove,projectSnapshot,projectFingerprint,prepareDefaults,markProjectSaved,choiceSignature,
+     addScheduleRow,removeScheduleRow,requestRemoveScheduleRow,refreshScheduleDeleteControls,undoScheduleRemove,projectSnapshot,projectFingerprint,prepareDefaults,markProjectSaved,choiceSignature,
      exportTemplate,downloadSchedulePdf,downloadExcelRegister,downloadMaterialsSummaryPdf,selectCalculator,selectPage,prepareProject,applyProject,headerLabels,safeDocumentUrl,renderGrid,renderOverview,renderProductTotals,outputState,updateOutputCell,renderDocuments,renderChoices,sourceDisplayText,hiddenColumns,
     setRequest(fn){request=fn;},setFetch(fn){globalThis.fetch=fn;},setRender(fn){renderGrid=fn;}};
   window.CeasefireCalculators = { open };`);
@@ -1989,12 +1990,63 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
   entry=dynamicSetup([9,10],{CALCULATOR:{A9:'Original',B9:7.123456789012345,M9:'Optional exact',A10:'Keep',B10:2},SETTINGS:{B6:0.123456789012345}});await audit.calculate();
   const removeButton=byId('calculator-grid').querySelectorAll('[data-schedule-remove]')[0];
   assert.equal(removeButton.tagName,'button');assert.equal(removeButton.type,'button');
-  assert.equal(removeButton.getAttribute('aria-label'),'Remove line 1');assert.equal(removeButton.title,'Remove line 1');
+  assert.equal(removeButton.getAttribute('aria-label'),'Delete line 1');assert.equal(removeButton.title,'Delete line 1');
   assert.equal(removeButton.children[0].getAttribute('aria-hidden'),'true');
-  const beforeRemove=JSON.stringify(entry.inputs);await removeButton.emit('click');
+  const beforeRemove=JSON.stringify(entry.inputs),removing=removeButton.emit('click');await flush();
+  assert.equal(byId('calculator-confirm-detail').textContent,'Are you sure you want to delete this item?');assert.equal(byId('calculator-confirm-button').textContent,'Yes');assert.equal(byId('calculator-confirm-cancel').textContent,'Cancel');
+  assert.equal(JSON.stringify(entry.inputs),beforeRemove);await byId('calculator-confirm-dialog').close('confirm');await removing;
   assert.deepEqual(copy(entry.scheduleRows),[10]);for(const cell of ['A9','B9','M9'])assert.equal(entry.inputs.CALCULATOR[cell],null);
   assert.equal(entry.inputs.CALCULATOR.A10,'Keep');assert.equal(entry.inputs.SETTINGS.B6,0.123456789012345);
   await byId('calculator-grid').querySelectorAll('[data-schedule-undo]')[0].emit('click');assert.deepEqual(copy(entry.scheduleRows),[9,10]);assert.equal(JSON.stringify(entry.inputs),beforeRemove);assert.equal(audit.dirty(entry),false);passed++;
+
+  // Cancel and stale review responses retain all row values, prices, settings and Undo state.
+  entry=dynamicSetup([9,10],{CALCULATOR:{A9:'Review target',B9:7.123456789012345,A10:'Keep'},SETTINGS:{B6:.123456789}});await audit.calculate();
+  const deleteHead=renderedTable().children.find(node=>node.tagName==='thead').children[0];assert.equal(deleteHead.children.at(-1).textContent,'Delete');
+  const firstRendered=renderedTable().children.find(node=>node.tagName==='tbody').children[0];assert.equal(firstRendered.children[0].children[0].textContent,'Line 1');assert.ok(firstRendered.children.at(-1).children.some(node=>node.dataset.scheduleRemove==='9'));
+  assert.equal(firstRendered.children[0].children.some(node=>node.dataset.scheduleRemove),false);
+  const cancelledInputs=JSON.stringify(entry.inputs),cancelledRows=JSON.stringify(entry.scheduleRows),cancelledDirty=audit.dirty(entry);
+  const cancelledDelete=audit.requestRemoveScheduleRow(9);await flush();await byId('calculator-confirm-dialog').close('cancel');await cancelledDelete;
+  assert.equal(JSON.stringify(entry.inputs),cancelledInputs);assert.equal(JSON.stringify(entry.scheduleRows),cancelledRows);assert.equal(audit.dirty(entry),cancelledDirty);assert.equal(entry.removedRows,undefined);passed++;
+  for(const mutation of ['input','row-list','project-replaced','source-bindings','saved-target']){
+    entry=dynamicSetup([9,10],{CALCULATOR:{A9:'Review target',B9:7.123456789012345,A10:'Keep'}});await audit.calculate();
+    let sourceBindings=[],target={project_token:'original'};context.window.CeasefireTakeoffs={scheduleBindings:()=>sourceBindings};context.window.CeasefireProject={downloadTarget:()=>target};
+    const reviewed=audit.requestRemoveScheduleRow(9);await flush();
+    if(mutation==='input')audit.setInput(entry,'CALCULATOR','A9','Later precise edit');
+    if(mutation==='row-list')entry.scheduleRows=[9];
+    if(mutation==='project-replaced')audit.state.loadRevision++;
+    if(mutation==='source-bindings')sourceBindings=[{item_id:'later-source'}];
+    if(mutation==='saved-target')target={project_token:'replacement'};
+    const latest=JSON.stringify(entry.inputs),latestRows=JSON.stringify(entry.scheduleRows);
+    await byId('calculator-confirm-dialog').close('confirm');await reviewed;
+    assert.equal(JSON.stringify(entry.inputs),latest);assert.equal(JSON.stringify(entry.scheduleRows),latestRows);assert.equal(entry.removedRows,undefined);assert.match(byId('calculator-message').textContent,/changed.*Nothing was deleted/);passed++;
+  }
+  delete context.window.CeasefireTakeoffs;delete context.window.CeasefireProject;
+  // Detached row controls belong to the rendered row generation, even when its values return after Undo.
+  for(const mutation of ['row-reused','same-entry-project-load','pending-input']){
+    entry=dynamicSetup([9,10],{CALCULATOR:{A9:'Original rendered row',B9:7.123456789012345,A10:'Keep'}});await audit.calculate();
+    const obsolete=byId('calculator-grid').querySelectorAll('[data-schedule-remove]')[0];let blurred=0;context.document.activeElement={blur(){blurred++;}};
+    if(mutation==='row-reused'){await audit.removeScheduleRow(9);await audit.undoScheduleRemove();}
+    if(mutation==='same-entry-project-load'){audit.state.loadRevision++;entry.revision=0;await audit.calculate();}
+    if(mutation==='pending-input')audit.setInput(entry,'CALCULATOR','B9',9.987654321012345);
+    const before=JSON.stringify(entry.inputs),rows=JSON.stringify(entry.scheduleRows),undo=JSON.stringify(entry.removedRows);
+    await obsolete.emit('click');assert.equal(byId('calculator-confirm-dialog').open,false,'Stale controls never open a fresh valid confirmation');assert.equal(blurred,0,'Stale controls reject before blurring a pending field');
+    assert.equal(JSON.stringify(entry.inputs),before);assert.equal(JSON.stringify(entry.scheduleRows),rows);assert.equal(JSON.stringify(entry.removedRows),undo);assert.match(byId('calculator-message').textContent,/displayed item changed.*Nothing was deleted/);context.document.activeElement=null;passed++;
+  }
+  // Cached page adoption renews only Delete controls; detached controls keep their old generation.
+  entry=dynamicSetup([9,10],{CALCULATOR:{A9:'Cached item',B9:7.123456789012345,A10:'Keep'}});await audit.calculate();
+  const cachedControls=renderedControls(),cachedTable=renderedTable(),oldDelete=byId('calculator-grid').querySelectorAll('[data-schedule-remove]')[0];
+  audit.state.loadRevision++;audit.refreshScheduleDeleteControls(entry);const currentDelete=byId('calculator-grid').querySelectorAll('[data-schedule-remove]')[0];
+  assert.ok(currentDelete!==oldDelete);assert.ok(renderedTable()===cachedTable);assert.deepEqual(renderedControls(),cachedControls,'Cached calculator input controls are retained');
+  await oldDelete.emit('click');assert.equal(byId('calculator-confirm-dialog').open,false);
+  const currentReview=currentDelete.emit('click');await flush();assert.equal(byId('calculator-confirm-dialog').open,true);await byId('calculator-confirm-dialog').close('cancel');await currentReview;assert.equal(entry.inputs.CALCULATOR.B9,7.123456789012345);passed++;
+  // Reset renders during the action lease, then releases it without making current Delete controls stale.
+  entry=dynamicSetup([9,10],{CALCULATOR:{A9:'Reset target',B9:7.123456789012345}});await audit.calculate();
+  const resettingDeletes=audit.reset();await flush();await byId('calculator-confirm-dialog').close('confirm');await resettingDeletes;
+  const postResetDelete=byId('calculator-grid').querySelectorAll('[data-schedule-remove]')[0],resetReview=postResetDelete.emit('click');await flush();assert.equal(byId('calculator-confirm-dialog').open,true);await byId('calculator-confirm-dialog').close('cancel');await resetReview;assert.deepEqual(copy(entry.scheduleRows),[9]);passed++;
+  // The production shared confirmation receives the same exact question and choices.
+  entry=dynamicSetup([9,10],{CALCULATOR:{A9:'Shared review',B9:1.234567891234567}});await audit.calculate();let sharedChoices;
+  context.window.CeasefireDialogs={confirm:async(...args)=>{sharedChoices=args;return false;}};await audit.requestRemoveScheduleRow(9);
+  assert.deepEqual(sharedChoices,['Delete item?','Are you sure you want to delete this item?','Yes','Cancel']);assert.equal(entry.inputs.CALCULATOR.B9,1.234567891234567);assert.deepEqual(copy(entry.scheduleRows),[9,10]);delete context.window.CeasefireDialogs;passed++;
 
   // The final row remains an empty placeholder; Undo must never overwrite a
   // new value subsequently entered into that same physical row.

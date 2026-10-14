@@ -6,7 +6,7 @@
     revision: 0, context: 0, requestRevision: 0, invalid: new Map(), removed: [], timer: null,
     loading: false, calculating: false, downloading: false, downloadKind: null, page: 0, pendingFields: false,
     creatingLibrary: false, addingLibrary: false, addingSchedule: false, updatingSchedule: false, libraryCapture: null, edit: null, composerEpoch: 0,
-    tabAdvisoryAcknowledgement: null, additionalLabourAdvisory: false, openSettingsBand: null,
+    tabAdvisoryAcknowledgement: null, additionalLabourAdvisory: false, openSettingsBand: null, multiplierDefaults: new Map(), pendingDeletes: new Set(),
     diagramChange: undefined, diagramRead: 0, diagramReading: null, diagramVersion: 0, takeoffLease: null, takeoffApplying: false,
     schedule: { draft: null, result: null, revision: 0, requestRevision: 0, invalid: new Map(), timer: null, calculating: false }, rowEpochs: new Map(), nextEpoch: 0 };
   const definitions = new Map(), diagramVersions = new Map(), pageSize = 50;
@@ -57,7 +57,11 @@
     const data = await response.json(); if (!response.ok) throw new Error(data.error || `Request failed (${response.status}).`); return data;
     } finally { endActivity?.(); }
   }
-  function message(text = "", error = false, scope = state) {
+  function message(text = "", error = false, scope = state, top = true) {
+    if (window.CeasefirePenetrationNavigation?.message) {
+      if (top) window.CeasefirePenetrationNavigation.message(text, error);
+      return;
+    }
     const ids = scope === state ? ["penetration-message"] : ["penetration-schedule-message", "penetration-estimator-schedule-message"];
     for (const id of ids) { const el = $(id); el.textContent = text; el.hidden = !text; el.className = `message${error ? " error" : ""}`; }
   }
@@ -114,7 +118,10 @@
     for (const id of ["penetration-pdf", "penetration-item-pdf", "penetration-item-schedule-pdf"]) buttonBusy(id, state.downloading && state.downloadKind === "pdf");
     for (const id of ["penetration-excel", "penetration-item-excel"]) buttonBusy(id, state.downloading && state.downloadKind === "xlsx");
     for (const id of ["penetration-undo", "penetration-estimator-undo"]) $(id).disabled = scheduleBlocked || !state.removed.length;
-    for (const id of ["penetration-schedule-body", "penetration-estimator-schedule-body"]) for (const button of $(id).querySelectorAll("[data-penetration-remove]")) button.disabled = scheduleBlocked;
+    for (const id of ["penetration-schedule-body", "penetration-estimator-schedule-body"]) for (const button of $(id).querySelectorAll("[data-penetration-remove]")) {
+      const reviewing = state.pendingDeletes.has(button.dataset.penetrationRemove);
+      button.disabled = scheduleBlocked || reviewing; button.setAttribute("aria-busy", String(reviewing));
+    }
     if ($("penetration-diagram-file")) $("penetration-diagram-file").disabled = state.creatingLibrary;
     if ($("penetration-diagram-remove")) $("penetration-diagram-remove").disabled = state.creatingLibrary;
     if (state.takeoffLease) for (const control of document.querySelectorAll('[data-penetration-field],[data-penetration-band],[data-penetration-service-route]')) control.disabled = true;
@@ -165,7 +172,7 @@
     const composer = clone(prepared.composer || prepared.definition.defaults);
     Object.assign(state, { definition: prepared.definition, draft: composer, saved: prepared.saved || stable(canonicalSnapshot({ draft: prepared.draft, composer }, prepared.definition)),
       selected: composer.rows[0].id, group: prepared.definition.groups[0], result: null, edit: null, diagramChange: undefined, diagramRead: state.diagramRead + 1, diagramReading: null, diagramVersion: 0,
-      revision: 0, invalid: new Map(), removed: [], page: 0, pendingFields: false, calculating: false, rowEpochs: new Map(), tabAdvisoryAcknowledgement: null, additionalLabourAdvisory: false });
+      revision: 0, invalid: new Map(), removed: [], page: 0, pendingFields: false, calculating: false, rowEpochs: new Map(), tabAdvisoryAcknowledgement: null, additionalLabourAdvisory: false, multiplierDefaults: new Map(), pendingDeletes: new Set() });
     Object.assign(state.schedule, { draft: clone(prepared.draft), result: null, revision: 0, requestRevision: state.schedule.requestRevision + 1, invalid: new Map(), calculating: false });
     for (const row of state.schedule.draft.rows) state.rowEpochs.set(row.id, ++state.nextEpoch);
     render(); message(); message("", false, state.schedule);
@@ -322,6 +329,9 @@
       if (state.takeoffLease) return;
       if (!current()) return;
       if (rowId !== null && !rowById(rowId, scope)) return;
+      // An explicit edit takes ownership even when it repeats the default or
+      // leaves a blank. Default tracking is never written into saved projects.
+      if (scope === state && rowId !== null && ["AN", "AT", "AY", "BE"].includes(field.column)) state.multiplierDefaults.delete(key);
       let value = control.value, error = "";
       if (field.type === "number") {
         const text = value.trim();
@@ -342,11 +352,7 @@
         const orientation = window.CeasefirePenetrationPresentation?.orientation(value);
         if (orientation) rowById(rowId, scope).inputs.M = orientation;
       }
-      if (!error && field.column === "M" && rowId !== null) {
-        const inputs = rowById(rowId, scope).inputs;
-        const multiplier = /^vertical$/i.test(value || "") ? 2 : /^horizontal$/i.test(value || "") ? 1 : null;
-        if (multiplier !== null) for (const column of ["AN", "AT"]) if (!entered(inputs[column])) inputs[column] = multiplier;
-      }
+      if (!error && rowId !== null && ["J", "K", "L", "M", "P"].includes(field.column)) applyMultiplierDefaults(rowId, scope);
       showProblem(error); changed(rowId, scope);
       if (!error && scope === state && ["AH", "W"].includes(field.column)) warnAdditionalLabour(rowId, scope);
       if (!error && rowId === null && field.group === "SETTINGS" && scope === state.schedule) {
@@ -448,6 +454,25 @@
     return !field.hidden && (field.display_groups || [field.group]).includes(group);
   }
   const entered = value => value !== null && value !== undefined && value !== "";
+  function applyMultiplierDefaults(rowId, scope = state) {
+    if (scope !== state) return;
+    const inputs = rowById(rowId, scope)?.inputs;
+    if (!inputs) return;
+    const groups = visibleGroups(inputs), orientation = /^vertical$/i.test(inputs.M || "") ? 2 : /^horizontal$/i.test(inputs.M || "") ? 1 : null;
+    const candidates = { AN: groups.some(group => ["Unlagged Pipes", "Lagged Pipes", "Plastic Pipes", "Cables/Bundles"].includes(group)) ? orientation : null,
+      AT: groups.includes("Cabletrays") ? orientation : null, AY: groups.includes("Substrate") ? 2 : null, BE: groups.includes("Bulkhead") ? 2 : null };
+    for (const [column, value] of Object.entries(candidates)) {
+      if (!state.definition.row_fields.some(field => field.column === column)) continue;
+      const key = keyFor(rowId, column), tracked = state.multiplierDefaults.has(key), previous = state.multiplierDefaults.get(key);
+      if (tracked && inputs[column] !== previous) state.multiplierDefaults.delete(key);
+      const owned = state.multiplierDefaults.has(key);
+      if (value === null) {
+        if (owned) { delete inputs[column]; state.multiplierDefaults.delete(key); }
+      } else if (owned || !entered(inputs[column])) {
+        inputs[column] = value; state.multiplierDefaults.set(key, value);
+      }
+    }
+  }
   function warnAdditionalLabour(rowId, scope = state) {
     if (scope !== state || !rowId) return;
     const inputs = rowById(rowId, scope)?.inputs || {};
@@ -464,10 +489,10 @@
     if (state.group === "Bulkhead" && ["BB", "BC", "BD", "BE"].some(column => entered(inputs[column]))) {
       const missing = [["W", "Teams/Crews"], ["X", "Board/Batt Type"], ["Z", "Framing Type"]]
         .filter(([column]) => !entered(inputs[column])).map(([, label]) => `[${label}]`);
-      if (missing.length) return { message: `Please select ${missing.join("; ")} under Products and Labour.`, blocking: true };
+      if (missing.length) return { message: `Please select ${missing.join("; ")} under Products and Labour.`, key: stable(["bulkhead", ...missing]) };
     }
     if (state.group === "Plastic Pipes" && entered(inputs.Y) && (!entered(inputs.AL) || !entered(inputs.AN))) {
-      return { message: "Please enter collar Diameter and Multiplier", blocking: true };
+      return { message: "Please enter collar Diameter and Multiplier", key: stable(["collar", inputs.AL ?? null, inputs.AN ?? null]) };
     }
     if (state.group === "Additional Allowances" && entered(inputs.AH) && !entered(inputs.W) && !state.additionalLabourAdvisory) {
       return { message: "Please select Teams/Crews under Products and Labour", key: stable(["additional-labour", inputs.AH]) };
@@ -488,17 +513,13 @@
       return;
     }
     const warning = tabExitWarning(group);
-    if (warning && (warning.blocking || state.tabAdvisoryAcknowledgement !== warning.key)) {
-      const context = state.context, stamp = composerStamp(), current = state.group;
+    state.group = group; renderFields();
+    if (warning && state.tabAdvisoryAcknowledgement !== warning.key) {
+      state.tabAdvisoryAcknowledgement = warning.key;
       if (window.CeasefirePenetrationNavigation?.notify) {
-        await window.CeasefirePenetrationNavigation.notify("Selection required", warning.message, "OK");
+        void window.CeasefirePenetrationNavigation.notify("Selection required", warning.message, "OK");
       } else message(warning.message, true);
-      if (context === state.context && stamp === composerStamp() && current === state.group && !warning.blocking) {
-        state.tabAdvisoryAcknowledgement = warning.key;
-      }
-      return;
-    }
-    state.tabAdvisoryAcknowledgement = null; state.group = group; renderFields();
+    } else if (!warning) state.tabAdvisoryAcknowledgement = null;
   }
   function settingCategory(field) {
     return field.column === "register_allowance_hours" ? "Labour allowances" : field.column.startsWith("pipe_labour_") ? "Pipe labour" : "Material waste";
@@ -717,10 +738,11 @@
     draft.rows[0].inputs = { ...newRow(state).inputs, ...draft.rows[0].inputs }; return draft;
   }
   function composerChanged() { return state.invalid.size > 0 || state.diagramChange !== undefined || draftStamp(state.draft) !== draftStamp(defaultComposer()); }
-  function replaceComposer(draft, invalid = new Map(), diagramChange = undefined) {
+  function replaceComposer(draft, invalid = new Map(), diagramChange = undefined, multiplierDefaults = []) {
     assertTakeoffWritable();
     ++state.composerEpoch; ++state.requestRevision; clearTimeout(state.timer);
     state.draft = clone(draft); state.invalid = new Map(invalid); state.selected = draft.rows[0].id; state.diagramChange = cloneOptional(diagramChange); state.diagramRead++; state.diagramReading = null; state.diagramVersion++;
+    state.multiplierDefaults = new Map(multiplierDefaults);
     state.revision++; state.result = null; state.calculating = false; state.additionalLabourAdvisory = false;
     renderFields(); renderSummary(); renderBreakdown(); renderSchedule(); status();
   }
@@ -731,7 +753,7 @@
     const context = state.context, stamp = composerStamp(), epoch = state.rowEpochs.get(id), target = rowStamp(scheduleRow(id));
     const confirmed = await confirmReplace("Edit schedule item?", "Your current item will be kept so Cancel edit can restore it.", "Edit item", composerChanged());
     if (!confirmed || context !== state.context || stamp !== composerStamp() || epoch !== state.rowEpochs.get(id) || target !== rowStamp(scheduleRow(id))) return;
-    const before = state.edit?.before || { draft: clone(state.draft), invalid: [...state.invalid], diagramChange: cloneOptional(state.diagramChange) };
+    const before = state.edit?.before || { draft: clone(state.draft), invalid: [...state.invalid], diagramChange: cloneOptional(state.diagramChange), multiplierDefaults: [...state.multiplierDefaults] };
     const draft = { globals: clone(state.schedule.draft.globals), rows: [clone(scheduleRow(id))] };
     state.edit = { id, epoch, before, baseline: draftStamp(draft), target };
     replaceComposer(draft); window.CeasefirePenetrationNavigation?.show?.(); await calculate();
@@ -770,7 +792,7 @@
     const context = state.context, stamp = composerStamp(), edit = state.edit;
     if (!await confirmReplace("Cancel schedule edit?", "Changes to this copy will be discarded and your previous current item restored.", "Cancel edit", state.invalid.size > 0 || draftStamp(state.draft) !== edit.baseline)) return;
     if (context !== state.context || stamp !== composerStamp() || edit !== state.edit) return;
-    state.edit = null; replaceComposer(edit.before.draft, edit.before.invalid, edit.before.diagramChange); message(); await calculate();
+    state.edit = null; replaceComposer(edit.before.draft, edit.before.invalid, edit.before.diagramChange, edit.before.multiplierDefaults); message(); await calculate();
   }
   function renderScheduleGlobals() {
     // Old saved global inputs remain portable; the current policy excludes them.
@@ -956,6 +978,28 @@
     state.page = Math.min(state.page, Math.max(0, Math.ceil(scope.draft.rows.length / pageSize) - 1));
     changed(null, scope); calculate(scope);
   }
+  async function requestRemoveRow(id, renderedContext, renderedEpoch, renderedRow) {
+    const pending = state.pendingDeletes;
+    if (pending.has(id)) return;
+    try {
+      const requireRendered = () => {
+        if (renderedContext !== state.context || renderedEpoch !== state.rowEpochs.get(id) || renderedRow !== rowStamp(scheduleRow(id))) throw new Error("This Firestopping row was replaced or edited. Review its current Delete button. Nothing was deleted.");
+      };
+      assertTakeoffWritable(); requireRendered(); document.activeElement?.blur?.(); requireRendered();
+      if (state.schedule.invalid.size || !scheduleRow(id)) return;
+      const context = state.context, epoch = state.rowEpochs.get(id), row = rowStamp(scheduleRow(id)), draft = draftStamp(state.schedule.draft), pricing = configStamp();
+      const confirm = window.CeasefirePenetrationNavigation?.confirmDelete;
+      if (!confirm) throw new Error("Item deletion confirmation is unavailable. Nothing was deleted.");
+      pending.add(id); status();
+      if (!await confirm()) return;
+      assertTakeoffWritable();
+      if (context !== state.context || state.rowEpochs.get(id) !== epoch || rowStamp(scheduleRow(id)) !== row || draftStamp(state.schedule.draft) !== draft || pricing !== configStamp() || state.schedule.invalid.size) {
+        throw new Error("The Firestopping Schedule or prices changed while reviewing deletion. Review the current item and try again. Nothing was deleted.");
+      }
+      removeRow(id);
+    } catch (error) { message(error.message, true, state.schedule); }
+    finally { pending.delete(id); status(); }
+  }
   function undoRemove() {
     assertTakeoffWritable();
     const scope = state.schedule;
@@ -996,9 +1040,12 @@
       const actions = node("td", "penetration-item-actions"), edit = node("button", "button secondary", "Edit"); edit.type = "button"; edit.setAttribute("aria-label", `Edit firestopping item ${line}`); edit.addEventListener("click", () => selectRow(row.id));
       const remove = node("button", "button secondary penetration-remove"), icon = node("span"); icon.setAttribute("aria-hidden", "true");
       icon.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="M3 6h18M9 6V4h6v2M5 6l1 14h12l1-14M10 10v6M14 10v6"/></svg>';
-      remove.append(icon); remove.type = "button"; remove.dataset.penetrationRemove = row.id; remove.title = `Remove item ${line}`; remove.setAttribute("aria-label", `Remove firestopping item ${line}`); remove.disabled = state.schedule.invalid.size > 0; remove.addEventListener("click", () => removeRow(row.id));
-      actions.append(edit, remove);
-      if (tr.children[9]) tr.children[9].replaceChildren(edit, remove); else tr.append(actions);
+      const deletion = node("td", "penetration-item-actions penetration-item-delete");
+      const deleteContext = state.context, deleteEpoch = state.rowEpochs.get(row.id), deleteRow = rowStamp(row);
+      remove.append(icon); remove.type = "button"; remove.dataset.penetrationRemove = row.id; remove.title = `Delete item ${line}`; remove.setAttribute("aria-label", `Delete firestopping item ${line}`); remove.disabled = !!state.takeoffLease || state.schedule.invalid.size > 0 || state.pendingDeletes.has(row.id); remove.setAttribute("aria-busy", String(state.pendingDeletes.has(row.id))); remove.addEventListener("click", () => requestRemoveRow(row.id, deleteContext, deleteEpoch, deleteRow));
+      actions.append(edit); deletion.append(remove);
+      if (tr.children[9]) tr.children[9].replaceChildren(edit); else tr.append(actions);
+      if (tr.children[10]) tr.children[10].replaceChildren(remove); else tr.append(deletion);
       return tr;
     });
     // Keeping unchanged rows attached preserves the active quantity editor and
@@ -1083,7 +1130,9 @@
       state.definition = data.definition || state.definition; scope.result = data; scope.calculating = false;
       renderSchedule(); renderSummary(scope); renderBreakdown(scope);
       if (fieldsChanged && fieldsActive()) state.pendingFields = true; else if (fieldsChanged) { renderFields(); renderScheduleGlobals(); } else refreshControls();
-      status(); message("", false, scope);
+      // A response finishing in the background must not dismiss an advisory
+      // just displayed by tab navigation or another application operation.
+      status(); message("", false, scope, false);
     } catch (error) {
       if (context === state.context && revision === scope.revision && requestRevision === scope.requestRevision) { scope.result = null; renderSchedule(); renderSummary(scope); renderBreakdown(scope); message(error.message, true, scope); }
     } finally { if (context === state.context && requestRevision === scope.requestRevision) { scope.calculating = false; status(); } }

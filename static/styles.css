@@ -389,3 +389,15 @@ html.app-busy,html.app-busy *{cursor:progress!important}
 .project-fields .project-notes{grid-column:span 2}
 .project-fields .project-notes textarea{min-height:46px;resize:vertical}
 @media(max-width:1020px){.project-fields .project-notes{grid-column:auto}}
+
+/* Main uses the same white, black and red section header as the calculators. */
+.main-section-workspace{min-width:0}
+.main-section-tabs{display:flex;gap:5px;overflow-x:auto;padding:18px 0 0;border-bottom:1px solid var(--line);scrollbar-width:thin;background:#fff;color:#171217}
+.main-section-tab{flex-shrink:0;padding:11px 15px;border:1px solid transparent;border-bottom:3px solid transparent;background:#fff;color:#171217;font-size:11px;font-weight:700;letter-spacing:.35px;border-radius:7px 7px 0 0;text-transform:uppercase}
+.main-section-tab:hover{color:var(--red)}
+.main-section-tab[aria-selected=true]{border-color:#171217;border-bottom-color:var(--red);color:var(--red)}
+.main-section-tab:focus-visible{outline:2px solid var(--red);outline-offset:-4px}
+.main-section-panel{margin-top:20px;min-width:0}
+.main-section-panel[hidden]{display:none}
+.main-section-panel:not(.card)>.card{margin-bottom:0}
+@media print{.main-section-tabs{display:none!important}.main-section-panel[hidden]{display:block!important}.main-section-panel{margin-top:0}}

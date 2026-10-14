@@ -297,6 +297,11 @@
     state.physicalUI?.render(physicalSnapshot());
     window.CeasefireProject?.changed?.();
   }
+  function syncRegisterDeleteControls() {
+    for (const host of new Set([state.ui?.tableWrap, state.ui?.deletedRecords].filter(Boolean)))
+      for (const control of host.querySelectorAll("[data-takeoff-delete-item]")) control.disabled = state.busy || state.modal || control.dataset.locked === "true";
+  }
+  function setModal(value) { state.modal = value; syncRegisterDeleteControls(); }
   function working(value) {
     window.CeasefireActivity?.set("takeoff-operation", value);
     state.busy = value;
@@ -310,6 +315,7 @@
       for (const control of state.ui.searchResults?.querySelectorAll("button") || []) control.disabled = value;
       if (state.ui.documentSelect) state.ui.documentSelect.disabled = value || !documents().length;
       for (const control of state.ui.tableWrap?.querySelectorAll("input,select") || []) if (!control.closest(".takeoff-register-editor")) control.disabled = value || control.dataset.countReadOnly === "true";
+      syncRegisterDeleteControls();
       state.ui.status.textContent = value ? "Working…" : `${items().length} items · ${documents().length} documents · Revision ${state.session?.revision || 0}`;
       renderViewportPanel();
       updatePresentationTools();
@@ -453,7 +459,7 @@
   }
   async function ask(title, definitions, detail = "", action = "Apply", setup, splitFields = false) {
     if (state.modal) throw new Error("Finish the current review first.");
-    state.modal = true; const sessionId = state.session?.session_id;
+    setModal(true); const sessionId = state.session?.session_id;
     const dialog = node("dialog", "takeoff-dialog"), form = node("form"); form.method = "dialog";
     const heading = node("h2", "", title); heading.id = `takeoff-dialog-${uuid()}`; dialog.setAttribute("aria-labelledby", heading.id); form.append(heading, node("p", "helper", detail));
     const controls = definitions.map(def => { const field = formField(def, def[3]); if (def[4]) field.control.required = true; form.append(field.wrapper); return field; });
@@ -490,7 +496,7 @@
       const result = accepted ? Object.fromEntries(controls.map(field => [field.control.name, field.read()])) : null;
       if (result && sessionId !== state.session?.session_id) throw new Error("The project changed during review. Repeat the action.");
       return result;
-    } finally { state.modal = false; dialog.remove(); }
+    } finally { setModal(false); dialog.remove(); }
   }
   async function confirm(title, detail, action) { return (await ask(title, [], detail, action)) !== null; }
   function syncToolShortcuts() {
@@ -705,7 +711,7 @@
     await flushSettings(); requireFinishedEdits(); await ensureSession();
     if (!documents().length) throw new Error("Upload source PDFs before opening Tools.");
     const sessionId = state.session.session_id, revision = state.session.revision; let result;
-    state.modal = true;
+    setModal(true);
     try {
       await window.CeasefireTakeoffPDFTools.open({ operation, documents: clone(documents()), expectedRevision: revision, defaultAction: "download",
         requestPDF: async payload => {
@@ -714,7 +720,7 @@
           if (!response.ok) { const error = await response.json(); throw new Error(error.error || "PDF Tools could not prepare this file."); }
           const filename = response.headers.get("Content-Disposition")?.match(/filename="([^"]+)"/)?.[1] || `ceasefire-${operation}.pdf`; return { blob: await response.blob(), filename };
         }, onResult: value => { result = value; } });
-    } finally { state.modal = false; window.CeasefireProject?.changed?.(); }
+    } finally { setModal(false); window.CeasefireProject?.changed?.(); }
     if (!result) return;
     if (sessionId !== state.session?.session_id || revision !== state.session.revision) throw new Error("The project changed. Open Tools again.");
     if (result.action === "add-source") { await upload([new File([result.blob], result.filename, { type: "application/pdf" })]); }
@@ -2341,7 +2347,7 @@
   }
   function renderStandaloneRegister(list, container) {
     const table = node("table", "takeoff-standalone-register"), head = node("thead"), heading = node("tr"), body = node("tbody");
-    for (const label of ["Select", "Hide", "View/Edit", "Confirmation", ...standaloneFields.map(def => def[1]), isArea() ? "Length (m)" : "Total Count/QTY"]) heading.append(node("th", "", label));
+    for (const label of ["Select", "Hide", "View/Edit", "Confirmation", ...standaloneFields.map(def => def[1]), isArea() ? "Length (m)" : "Total Count/QTY", "Delete"]) heading.append(node("th", "", label));
     head.append(heading); table.append(head, body);
     for (const item of list) {
       const row = node("tr", state.selected.has(item.id) ? "selected" : ""); row.dataset.itemId = item.id; row.dataset.purpose = item.purpose;
@@ -2349,7 +2355,7 @@
       const actions = node("td"); actions.append(button("View", () => viewItem(item), "takeoff-row-link"), button("Edit item", () => openItemSettings(item), "text-button")); row.append(actions, node("td", "", reviewStatus(item).label));
       const controls = [];
       for (const def of standaloneFields) { const field = formField(def, def[0] === "duct_size" ? formatDuctSize(item.fields) : item.fields[def[0]]); controls.push(field); field.control.addEventListener("change", () => void safely(async () => { await flushSettings(); requireFinishedEdits(); await command("update_item", { item_id: item.id, changes: { fields: def[0] === "duct_size" ? parseDuctSize(field.read()) : { [def[0]]: field.read() } } }); })); const cell = node("td"); cell.append(field.control); row.append(cell); }
-      row.append(node("td", "", item.purpose === "count-only" ? String(item.quantity) : formatLength(itemResult(item).length_m))); body.append(row);
+      row.append(node("td", "", item.purpose === "count-only" ? String(item.quantity) : formatLength(itemResult(item).length_m)), registerDeleteCell(item)); body.append(row);
       const sessionId = state.session?.session_id; void loadCalculatorOptions("firestopping").then(choices => { if (table.isConnected && sessionId === state.session?.session_id) populateCalculatorOptions(controls, choices, "firestopping"); }).catch(error => { if (table.isConnected) message(error.message, true); });
     }
     container.append(node("h3", "", "Length measurements"), table);
@@ -2918,8 +2924,8 @@
     await flushSettings(); requireFinishedEdits();
     if (!S || !state.viewport || !currentDocument()) throw new Error("Open a rendered PDF page before inserting a signature.");
     const context = signatureSelectionKey(); let chosen;
-    state.modal = true;
-    try { chosen = await S.choose(); } finally { state.modal = false; }
+    setModal(true);
+    try { chosen = await S.choose(); } finally { setModal(false); }
     if (!chosen) return;
     if (context !== signatureSelectionKey()) throw new Error("The drawing changed. Choose Signatures again.");
     setTool("signature"); state.signatureDraft = clone(chosen); window.CeasefireProject?.changed?.();
@@ -2988,7 +2994,7 @@
     await flushSettings(); requireFinishedEdits(); const signature = selectedSignature(); if (!signature) return;
     const key = signatureSelectionKey(), revision = state.session.revision, quad = signature.quad_pdf;
     const ratio = Math.hypot(...quad[1].map((n, axis) => n - quad[0][axis])) / Math.hypot(...quad[3].map((n, axis) => n - quad[0][axis]));
-    let chosen; state.modal = true; try { chosen = await S.choose({ version: 1, ratio: Math.max(.1, Math.min(20, ratio)), strokes: signature.strokes }); } finally { state.modal = false; }
+    let chosen; setModal(true); try { chosen = await S.choose({ version: 1, ratio: Math.max(.1, Math.min(20, ratio)), strokes: signature.strokes }); } finally { setModal(false); }
     if (!chosen) return;
     if (revision !== state.session?.revision || key !== signatureSelectionKey()) throw new Error("The signature changed while the pad was open. Select it again.");
     // Fit the replacement ink inside the retained source rectangle, adding
@@ -3787,7 +3793,7 @@
     const actions = node("div", "takeoff-column-filter-actions");
     actions.append(button("Apply filter", () => dialog.close("apply"), "button primary"), button("Reset filter", () => dialog.close("reset")), button("Cancel", () => dialog.close("cancel")));
     dialog.append(heading, search, allLabel, choices, actions); renderChoices();
-    state.modal = true; anchor.setAttribute("aria-expanded", "true"); document.body.append(dialog);
+    setModal(true); anchor.setAttribute("aria-expanded", "true"); document.body.append(dialog);
     try {
       const result = await new Promise(resolve => {
         dialog.addEventListener("close", () => resolve(dialog.returnValue), { once: true }); dialog.showModal();
@@ -3797,7 +3803,7 @@
         search.focus();
       });
       if (["apply", "reset"].includes(result) && sessionId === state.session?.session_id && state.mode === mode) setRegisterColumnFilter(key, result === "reset" ? null : selected, values);
-    } finally { state.modal = false; anchor.setAttribute("aria-expanded", "false"); dialog.remove(); }
+    } finally { setModal(false); anchor.setAttribute("aria-expanded", "false"); dialog.remove(); }
   }
   function registerColumnFilterButton(key) {
     const active = registerFilters().has(key), label = registerFilterColumns[state.mode][key];
@@ -3910,12 +3916,12 @@
       if (!current()) return;
       const heading = node("h3", "", "Deleted records"), notice = node("p", "helper", "Read-only history. Deleted records do not contribute to quantities or schedules.");
       const table = node("table"), head = node("thead"), row = node("tr"), body = node("tbody");
-      for (const title of ["Retained ID", "Item", "Level", "Details", "Deleted at revision"]) row.append(node("th", "", title));
+      for (const title of ["Retained ID", "Item", "Level", "Details", "Deleted at revision", "Delete"]) row.append(node("th", "", title));
       head.append(row); table.append(head, body);
       for (const record of reply.records || []) {
         const item = record.item, fields = item.fields || {}, line = node("tr", "takeoff-deleted-record"); line.dataset.deletedItemId = item.id;
         for (const value of [item.id, fields.mark || "", fields.level || "", Object.entries(fields).filter(([name]) => !["mark", "level"].includes(name)).map(([name, value]) => `${name.replaceAll("_", " ")}: ${value ?? ""}`).join("\n"), record.deletion_revision]) line.append(node("td", "", String(value ?? "")));
-        body.append(line);
+        line.append(registerDeleteCell(item, true)); body.append(line);
       }
       const total = reply.total || 0, paging = node("div", "takeoff-register-controls");
       const previous = button("Previous deleted records", () => { state.deletedOffset = Math.max(0, state.deletedOffset - 100); renderDeletedHistory(); }); previous.disabled = !context.offset;
@@ -3936,6 +3942,21 @@
       state.deletedHistory = null; container.replaceChildren(node("p", "takeoff-warning", error.message));
     });
   }
+  function registerDeleteCell(item, retainedHistory = false) {
+    const cell = node("td", "takeoff-row-delete"), label = `Delete ${item.fields?.mark || item.id}`;
+    const sessionId = state.session?.session_id, projectId = snapshot()?.project_id, revision = state.session?.revision, stamp = JSON.stringify(item);
+    const guard = () => {
+      if (retainedHistory || sessionId !== state.session?.session_id || projectId !== snapshot()?.project_id || revision !== state.session?.revision || stamp !== JSON.stringify(items().find(current => current.id === item.id))) throw new Error("The takeoff row changed. Review its current Delete button again.");
+      return true;
+    };
+    const control = button(label, () => deleteItems([item.id], { title: "Are you sure you want to delete this item?", action: "Yes", guard }), "button secondary icon-only takeoff-row-delete-button");
+    const icon = node("span"); icon.setAttribute("aria-hidden", "true");
+    icon.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="M3 6h18M9 6V4h6v2M5 6l1 14h12l1-14M10 10v6M14 10v6"/></svg>';
+    control.replaceChildren(icon); control.setAttribute("aria-label", label); control.title = retainedHistory ? "Deleted records are retained read-only; Undo restores the original item." : label;
+    control.dataset.takeoffDeleteItem = item.id; control.dataset.locked = String(retainedHistory);
+    control.disabled = retainedHistory || state.busy || state.modal;
+    cell.append(control); return cell;
+  }
   function renderRegister() {
     if (!state.ui || state.mode === "physical") return;
     const matches = visibleItems();
@@ -3953,7 +3974,7 @@
     state.ui.bulk.hidden = !selected.length; state.ui.selectionCount.textContent = `${selected.length} selected`;
     const table = node("table"), head = node("thead"), header = node("tr"), body = node("tbody"); table.setAttribute("aria-label", `${labels[state.mode]} editable takeoff register`);
     const area = isArea(), columns = area ? ["mark", "surface_type", "level", "surface_basis", "substrate", "treatment", "system", "product", "frl", "layers"] : state.mode === "steel" ? ["mark", "level", "member_type", "section", "product", "fire_period_min", "critical_temperature", "exposure", ...(state.ui.target?.value === "steel_board" ? ["sides"] : [])] : ["mark", "level", "duct_size", "frl", "orientation", "product"];
-    const headings = ["Select", "Hide", "View/Edit", "Confirmation", ...columns.map(key => area && key === "mark" ? "Surface ID" : key === "surface_type" ? "Surface type" : fields[state.mode].find(field => field[0] === key)?.[1] || key), ...(area ? ["Gross (m²)", "Excluded (m²)", "Net (m²)", "Total (m²)"] : ["Qty", "Length each (m)", "Total (m)"]), ...(state.mode === "duct" ? ["Duct surface (m²)"] : []), ...(["steel", "duct"].includes(state.mode) ? ["Thickness (mm)"] : []), "Evidence / issues"];
+    const headings = ["Select", "Hide", "View/Edit", "Confirmation", ...columns.map(key => area && key === "mark" ? "Surface ID" : key === "surface_type" ? "Surface type" : fields[state.mode].find(field => field[0] === key)?.[1] || key), ...(area ? ["Gross (m²)", "Excluded (m²)", "Net (m²)", "Total (m²)"] : ["Qty", "Length each (m)", "Total (m)"]), ...(state.mode === "duct" ? ["Duct surface (m²)"] : []), ...(["steel", "duct"].includes(state.mode) ? ["Thickness (mm)"] : []), "Evidence / issues", "Delete"];
     for (const title of headings) {
       const cell = node("th", "", title);
       if (usesColumnFilters()) { const filterColumns = registerFilterColumns[state.mode], key = Object.keys(filterColumns).find(key => filterColumns[key] === title); if (key) cell.append(registerColumnFilterButton(key)); }
@@ -3994,7 +4015,7 @@
         const cell = node("td", "takeoff-linked-thickness"); cell.dataset.thicknessItemId = item.id;
         updateLinkedThicknessCell(cell, item); row.append(cell);
       }
-      const evidence = node("td"); evidence.append(node("span", "", item.geometry ? `${documentById(item.geometry.document_id)?.name || "Missing document"} · p${item.geometry.page}` : "Source markup missing")); if (!isStandalone(item) && item.mode === "duct" && item.fields.shape !== "rectangular") evidence.append(node("span", "takeoff-row-issue", "Retained non-rectangular duct; calculator transfer unavailable.")); for (const issue of result.issues || []) evidence.append(node("span", "takeoff-row-issue", issueText(issue))); row.append(evidence); body.append(row);
+      const evidence = node("td"); evidence.append(node("span", "", item.geometry ? `${documentById(item.geometry.document_id)?.name || "Missing document"} · p${item.geometry.page}` : "Source markup missing")); if (!isStandalone(item) && item.mode === "duct" && item.fields.shape !== "rectangular") evidence.append(node("span", "takeoff-row-issue", "Retained non-rectangular duct; calculator transfer unavailable.")); for (const issue of result.issues || []) evidence.append(node("span", "takeoff-row-issue", issueText(issue))); row.append(evidence, registerDeleteCell(item)); body.append(row);
       if (!area && calculator && rowFields.some(field => field.control.tagName === "SELECT" && ["frl", "fire_period_min"].includes(field.control.name))) {
         const url = `/options?calculator=${encodeURIComponent(calculator)}&product=${encodeURIComponent(item.fields.product || "")}&member_type=${encodeURIComponent(item.fields.member_type || "")}`;
         if (!optionRequests.has(url)) optionRequests.set(url, loadCalculatorOptions(calculator, item.fields.product || "", item.fields.member_type || ""));
@@ -4296,7 +4317,9 @@
     state.queue = task.catch(() => {}); return task;
   }
   async function deleteItems(ids, options = {}) {
+    options.guard?.();
     await flushSettings();
+    options.guard?.();
     requireFinishedEdits();
     if (state.busy || state.modal) throw new Error("Finish the current operation before deleting an item.");
     const selected = ids.map(id => items().find(item => item.id === id));

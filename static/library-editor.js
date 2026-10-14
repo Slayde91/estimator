@@ -142,7 +142,15 @@
     const adjusted = field.format === "percent" ? shiftDecimal(value, 2) : value;
     return precise ? String(adjusted) : number.format(adjusted).replace(/,/g, "");
   }
-  function message(text = "", error = false) { const element = $("library-editor-message"); element.textContent = text; element.hidden = !text; element.className = `message${error ? " error" : ""}`; }
+  function message(text = "", error = false) {
+    const element = $("library-editor-message");
+    if (window.CeasefirePenetrationNavigation?.message) {
+      element.hidden = true;
+      if (text) window.CeasefirePenetrationNavigation.message(text, error);
+      return;
+    }
+    element.textContent = text; element.hidden = !text; element.className = `message${error ? " error" : ""}`;
+  }
   const diagramMime = filename => /\.png$/i.test(filename) ? "image/png" : /\.webp$/i.test(filename) ? "image/webp" : "image/jpeg";
   function renderDiagram() {
     const preview = $("library-editor-diagram-preview"), image = $("library-editor-diagram-image"), caption = $("library-editor-diagram-caption"), empty = $("library-editor-diagram-empty"), remove = $("library-editor-diagram-remove");
@@ -333,10 +341,10 @@
     if (state.group === "Bulkhead" && ["BB", "BC", "BD", "BE"].some(column => entered(inputs[column]))) {
       const missing = [["W", "Teams/Crews"], ["X", "Board/Batt Type"], ["Z", "Framing Type"]]
         .filter(([column]) => !entered(inputs[column])).map(([, label]) => `[${label}]`);
-      if (missing.length) return { message: `Please select ${missing.join("; ")} under Products and Labour.`, blocking: true };
+      if (missing.length) return { message: `Please select ${missing.join("; ")} under Products and Labour.`, key: JSON.stringify(["bulkhead", ...missing]) };
     }
     if (state.group === "Plastic Pipes" && entered(inputs.Y) && (!entered(inputs.AL) || !entered(inputs.AN))) {
-      return { message: "Please enter collar Diameter and Multiplier", blocking: true };
+      return { message: "Please enter collar Diameter and Multiplier", key: JSON.stringify(["collar", inputs.AL ?? null, inputs.AN ?? null]) };
     }
     if (state.group === "Additional Allowances" && entered(inputs.AH) && !entered(inputs.W) && !state.additionalLabourAdvisory) {
       return { message: "Please select Teams/Crews under Products and Labour", key: JSON.stringify(["additional-labour", inputs.AH]) };
@@ -356,14 +364,12 @@
       return;
     }
     const warning = tabExitWarning(group);
-    if (warning && (warning.blocking || state.tabAdvisoryAcknowledgement !== warning.key)) {
-      const session = state.session, version = state.version, current = state.group;
-      if (window.CeasefirePenetrationNavigation?.notify) await window.CeasefirePenetrationNavigation.notify("Selection required", warning.message, "OK");
+    state.group = group; renderFields();
+    if (warning && state.tabAdvisoryAcknowledgement !== warning.key) {
+      state.tabAdvisoryAcknowledgement = warning.key;
+      if (window.CeasefirePenetrationNavigation?.notify) void window.CeasefirePenetrationNavigation.notify("Selection required", warning.message, "OK");
       else message(warning.message, true);
-      if (state.open && session === state.session && version === state.version && current === state.group && !warning.blocking) state.tabAdvisoryAcknowledgement = warning.key;
-      return;
-    }
-    state.tabAdvisoryAcknowledgement = null; state.group = group; renderFields();
+    } else if (!warning) state.tabAdvisoryAcknowledgement = null;
   }
   function settingCategory(field) {
     return field.column === "register_allowance_hours" ? "Labour allowances" : field.column.startsWith("pipe_labour_") ? "Pipe labour" : "Material waste";

@@ -245,12 +245,13 @@
     const choice = (value, label = value) => { const element = node("option", "", label); element.value = value; return element; };
     function report(error) { bridge.notify(error.message || String(error), true); }
     async function safe(action) { try { await action(); } catch (error) { if (!state.destroyed) report(error); } }
-    function button(label, action, className = "button secondary") {
+    function button(label, action, className = "button secondary", beforeFlush) {
       const control = node("button", className, label); control.type = "button";
       control.addEventListener("pointerdown", () => { state.pointerAction = control; cancelAutomatic(); });
       for (const event of ["pointercancel", "pointerleave"]) control.addEventListener(event, () => { if (state.pointerAction === control) { state.pointerAction = null; refreshPressedInspector(); } });
       control.addEventListener("click", () => void safe(async () => {
         try {
+          beforeFlush?.();
           const identity = `${scope()}/${state.snapshot?.project_id || ""}`;
           state.pointerAction = null;
           const flushed = control !== ui.discard && !!(state.pending.size || state.autoApplyPromise);
@@ -260,7 +261,7 @@
         } finally { refreshPressedInspector(); }
       })); return control;
     }
-    function mutationButton(label, action, className) { const control = button(label, flushed => { ensureEditable(); return action(flushed); }, className); control.dataset.physicalMutation = "true"; control.disabled = state.busy && !state.autoRoutine || legacyReadOnly(); return control; }
+    function mutationButton(label, action, className, beforeFlush) { const control = button(label, flushed => { ensureEditable(); return action(flushed); }, className, beforeFlush); control.dataset.physicalMutation = "true"; control.disabled = state.busy && !state.autoRoutine || legacyReadOnly(); return control; }
     const controlsInWorkspace = selector => [...new Set([...ui.root.querySelectorAll(selector), ...(bridge.inspectorContainer ? ui.inspector.querySelectorAll(selector) : []), ...(bridge.documentMenuContainer ? documents.root.querySelectorAll(selector) : [])])];
     function setBusy(value) { state.busy = value; ui.root.setAttribute("aria-busy", String(value)); ui.inspector?.setAttribute("aria-busy", String(value)); documents.root.setAttribute("aria-busy", String(value)); for (const control of controlsInWorkspace("button,input,select,textarea")) control.disabled = value && !state.autoRoutine || control.dataset.locked === "true" || legacyReadOnly() && control.dataset.physicalMutation === "true"; changed(); }
     function ensureAvailable(allowPending = false) { if (state.destroyed) throw new Error("The physical workspace was closed."); if (state.busy) throw new Error("Finish the current physical edit first."); if (!allowPending && state.pending.size) throw new Error("Apply or discard unfinished physical field edits first."); }
@@ -330,18 +331,18 @@
       try { await loadFieldOptions(); if (state.destroyed || graphKey() !== key) throw new Error("The physical draft changed while its field choices loaded. Retry the edit."); }
       finally { if (!state.destroyed) setBusy(false); }
     }
-    async function reviewPreview(title, preview, commands) {
+    async function reviewPreview(title, preview, commands, action = "Apply draft change") {
       let offset = 0;
       const changes = commandText(commands, state.index, preview.relationships);
-      if (preview.relationships.length <= 100) return bridge.confirm(title, `${changes}\n\n${previewText(preview, state.index)}`, "Apply draft change");
+      if (preview.relationships.length <= 100) return bridge.confirm(title, `${changes}\n\n${previewText(preview, state.index)}`, action);
       for (;;) {
         const options = [...(offset ? [["previous", "Previous 100 impacts"]] : []), ...(offset + 100 < preview.relationships.length ? [["next", "Next 100 impacts"]] : []), ["apply", `Apply all ${preview.changed_ids.length} draft changes`]];
-        const answer = await bridge.ask(title, [["action", "Review navigation", options, "", true]], `${changes}\n\n${previewText(preview, state.index, offset)}`, "Continue");
+        const answer = await bridge.ask(title, [["action", "Review navigation", options, "", true]], `${changes}\n\n${previewText(preview, state.index, offset)}`, action === "Yes" ? "Yes" : "Continue");
         if (!answer) return false; if (answer.action === "apply") return true;
         offset = Math.max(0, Math.min(Math.max(0, preview.relationships.length - 1), offset + (answer.action === "previous" ? -100 : 100)));
       }
     }
-    async function perform(commands, title, allowPending = false, review = true, requireSource) {
+    async function perform(commands, title, allowPending = false, review = true, requireSource, reviewAction) {
       ensureEditable(); ensureAvailable(allowPending); const key = graphKey(), identity = `${scope()}/${state.snapshot?.project_id || ""}`, captured = new Map(controlsInWorkspace("[data-physical-field]").map(control => [control, { value: String(control.value), revision: state.bindings.get(control)?.revision }])); setBusy(true);
       try {
         requireSource?.();
@@ -349,7 +350,7 @@
         if (state.destroyed || graphKey() !== key) throw new Error("The physical draft changed before review. Preview the edit again.");
         requireSource?.();
         previewText(preview, state.index);
-        if (review && !await reviewPreview(title, preview, commands)) return false;
+        if (review && !await reviewPreview(title, preview, commands, reviewAction)) return false;
         if (state.destroyed || graphKey() !== key) throw new Error("The physical draft changed during review. Preview the edit again.");
         requireSource?.();
         const reply = await bridge.apply(preview.preview_id);
@@ -754,6 +755,13 @@
       const answer = await ask(`Delete draft ${entry.kind}`, [["scope", "Deletion scope", [["only", "Only this entity (requires no active descendants)"], ["cascade", `This entity and ${active.length} active descendants`]], "", true]], `ID: ${displayId(entry)}\n${active.length} active descendants are linked below this entity. Reparent them first or explicitly include them. Tombstones and original identities are retained.`, "Preview deletion");
       if (answer) { requireCurrent(entry); await perform([{ op: "delete", entity_id: entry.entity.id, cascade: answer.scope === "cascade" }], "Review recoverable deletion"); }
     }
+    async function deleteRegisterEntity(entry, requireSource) {
+      ensureEditable(); ensureAvailable(); requireCurrent(entry);
+      const plan = deletionPlan([entry], state.index, true);
+      // The current preview lists the exact subtree. Yes approves those
+      // recoverable tombstones; original identities and source evidence stay.
+      return perform(plan.commands, "Are you sure you want to delete this item?", false, true, () => { requireSource?.(); requireCurrent(entry); }, "Yes");
+    }
     async function deleteDrawing(id) {
       await completePendingEdits(); ensureEditable(); ensureAvailable(); const entry = state.index.get(id); requireCurrent(entry);
       return perform([{ op: "delete", entity_id: id, cascade: true }], "Delete this record and its linked barriers/services?");
@@ -882,7 +890,7 @@
       const rows = hierarchyRows(graph(), state); state.offset = Math.max(0, Math.min(state.offset, Math.max(0, Math.floor((rows.length - 1) / 100) * 100)));
       const page = hierarchyPage(rows, state.index, state.offset), table = node("table"), head = node("thead"), header = node("tr"), body = node("tbody"); table.setAttribute("aria-label", "Draft penetration hierarchy register");
       const legacy = legacyReadOnly(), rowKinds = legacy ? legacyKinds : servicePlans() ? ["barrier", "service"] : kinds;
-      const headings = ["Select", "Hide", "View/Edit", ...(legacy ? ["Legacy hierarchy / label"] : []), ...rowKinds.map(kind => `${titles[kind]} ID`), "Confirmation", "Location", "FRL", ...(legacy ? ["Opening type", "Opening size"] : []), "Substrate", "Orientation", "Category", "Service type", "Service quantity", "Service Size (mm)", "Source evidence"];
+      const headings = ["Select", "Hide", "View/Edit", ...(legacy ? ["Legacy hierarchy / label"] : []), ...rowKinds.map(kind => `${titles[kind]} ID`), "Confirmation", "Location", "FRL", ...(legacy ? ["Opening type", "Opening size"] : []), "Substrate", "Orientation", "Category", "Service type", "Service quantity", "Service Size (mm)", "Source evidence", "Delete"];
       for (const label of headings) {
         const cell = node("th", "", label), filterKey = Object.keys(filterColumns).find(key => filterColumns[key] === label);
         if (filterKey) cell.append(columnFilterButton(filterKey));
@@ -941,7 +949,31 @@
         if (legacy) line.append(textCell(relation.opening?.entity.fields.opening_type), textCell(relation.opening?.entity.fields.size));
         line.append(kind === "barrier" ? editableCell(row, "substrate") : textCell(relation.barrier?.entity.fields.substrate), kind === "barrier" ? editableCell(row, "orientation") : textCell(relation.barrier?.entity.fields.orientation));
         for (const field of ["service", "service_type", "quantity", "size"]) line.append(kind === "service" ? editableCell(row, field) : textCell(null, "Only a service record has this property."));
-        const evidence = node("td"); evidence.append(node("span", "helper", `${entity.evidence.length} source associations`)); if (entity.evidence[0]) evidence.append(button("Open source", () => bridge.source(copy(entity.evidence[0])), "text-button")); line.append(evidence); body.append(line);
+        const evidence = node("td"); evidence.append(node("span", "helper", `${entity.evidence.length} source associations`)); if (entity.evidence[0]) evidence.append(button("Open source", () => bridge.source(copy(entity.evidence[0])), "text-button"));
+        const sourceIdentity = () => JSON.stringify([scope(), state.snapshot?.project_id, graph()?.id, graph()?.version]);
+        const deleteSource = { key: graphKey(), identity: sourceIdentity(), entry: row, stamp: copy(entity) };
+        const requireDeleteSource = () => {
+          const current = state.index.get(entity.id);
+          if (state.destroyed || graphKey() !== deleteSource.key || sourceIdentity() !== deleteSource.identity
+              || !current || current.kind !== row.kind || !sameValue(current.entity, deleteSource.stamp))
+            throw new Error("The physical draft changed. Use the current row to delete this item.");
+        };
+        const removeCell = node("td", "takeoff-row-delete"), remove = mutationButton(`Delete ${displayId(row)}`, flushed => {
+          if (flushed) {
+            // The button validated its rendered source before flushing. Its
+            // own validated field save may advance revisions in this graph.
+            if (sourceIdentity() !== deleteSource.identity) throw new Error("The physical workspace changed before deletion. Use the current row.");
+            deleteSource.entry = state.index.get(entity.id); deleteSource.key = graphKey();
+            if (!deleteSource.entry) throw new Error("The physical record changed before deletion. Use the current row.");
+            deleteSource.stamp = copy(deleteSource.entry.entity);
+          }
+          requireDeleteSource(); return deleteRegisterEntity(deleteSource.entry, requireDeleteSource);
+        }, "button secondary icon-only takeoff-row-delete-button", requireDeleteSource), icon = deleteIcon();
+        icon.setAttribute("fill", "none"); icon.setAttribute("stroke", "currentColor"); icon.setAttribute("stroke-width", "1.8"); icon.setAttribute("stroke-linecap", "round"); icon.setAttribute("stroke-linejoin", "round");
+        remove.replaceChildren(icon); remove.setAttribute("aria-label", `Delete ${displayId(row)}`); remove.dataset.physicalDeleteId = entity.id;
+        remove.dataset.locked = String(legacy || entity.deleted || row.context); remove.disabled = state.busy || legacy || entity.deleted || row.context;
+        remove.title = legacy || entity.deleted ? "Retained read-only record; deletion is unavailable." : row.context ? "Ancestor context; adjust the filter to delete this item." : `Delete ${displayId(row)}`;
+        removeCell.append(remove); line.append(evidence, removeCell); body.append(line);
       }
       ui.table.replaceChildren(table); if (!rows.length) ui.table.append(node("p", "takeoff-register-empty", graph() ? "No matching physical records. Adjust the filter or create an explicitly linked draft record." : `Create ${servicePlans() ? "a substrate" : "a defect"} to begin the physical hierarchy. Uploaded images never create physical records automatically.`));
       ui.pagination.replaceChildren(button("Previous 100 records", () => { ensureAvailable(); state.offset = Math.max(0, state.offset - 100); renderTable(); }), node("span", "helper", `${rows.length ? state.offset + 1 : 0}–${Math.min(state.offset + 100, rows.length)} of ${rows.length} visible hierarchy records. Ancestor context may repeat across pages.`), button("Next 100 records", () => { ensureAvailable(); if (state.offset + 100 < rows.length) state.offset += 100; renderTable(); }));

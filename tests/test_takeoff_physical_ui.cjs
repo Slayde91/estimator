@@ -988,5 +988,47 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
     assert.throws(()=>physical.fieldValue('service','quantity','999999999999.999999999999'),/whole quantity/);
     assert.throws(()=>physical.fieldValue('service','quantity','1.000000000000000001'),/whole quantity/);
   });
+  await check('Every modern and legacy physical register ends in accessible locked Delete buttons',async()=>{
+    for(const [value,scope]of [[graph(),'defect_reports'],[servicePlanGraph(),'service_plans'],[legacyGraph(),'defect_reports']]){
+      const h=component(value,{scope:()=>scope});await flush();
+      const table=h.all().find(node=>node.tagName==='TABLE'&&node.attributes['aria-label']==='Draft penetration hierarchy register');
+      assert.equal(table.children[0].children[0].children.at(-1).textContent,'Delete');
+      const rows=table.children[1].children;
+      for(const row of rows){const remove=row.children.at(-1).children[0];assert.equal(remove.dataset.physicalDeleteId,row.dataset.physicalId);assert.ok(remove.attributes['aria-label'].startsWith('Delete '));assert.equal(remove.children[0].tagName,'SVG');assert.equal(remove.children[0].attributes['aria-hidden'],'true');assert.equal(remove.disabled,value.version===1);}
+      h.controller.destroy();
+    }
+    const value=graph();value.services[0].deleted=true;value.services[0].deleted_at_revision=1;const h=component(value);await flush();
+    const show=h.all().find(node=>node.tagName==='LABEL'&&node.textContent==='Show deleted records').children[0];show.checked=true;show.emit('change');await flush();assert.equal(h.button('Delete S-0001').disabled,true);h.controller.destroy();
+    const context=component();await flush();const filter=context.input('Filter physical hierarchy');filter.value='S-0001';filter.emit('input');await flush();assert.equal(context.button('Delete D-0001').disabled,true);assert.equal(context.button('Delete B-0001').disabled,true);assert.equal(context.button('Delete S-0001').disabled,false);context.controller.destroy();
+  });
+  await check('Physical row Delete uses exact question and Yes with recoverable leaf or parent commands; Cancel applies nothing',async()=>{
+    for(const [value,scope,label,id,cascade]of [[graph(),'defect_reports','S-0001',uuid(5),true],[graph(),'defect_reports','D-0001',uuid(2),true],[servicePlanGraph(),'service_plans','B-0001',uuid(1),true]]){
+      const h=component(value,{scope:()=>scope});await flush();await h.click(`Delete ${label}`);
+      assert.deepEqual(h.calls.previews[0],[{op:'delete',entity_id:id,cascade}]);
+      assert.equal(h.calls.confirmations[0].title,'Are you sure you want to delete this item?');assert.equal(h.calls.confirmations[0].button,'Yes');assert.match(h.calls.confirmations[0].text,/IDs are retained/);assert.equal(h.calls.applied.length,1);h.controller.destroy();
+    }
+    const cancelled=component(graph(),{confirm:async()=>false});await flush();const before=copy(cancelled.current);await cancelled.click('Delete S-0001');assert.equal(cancelled.calls.previews.length,1);assert.equal(cancelled.calls.applied.length,0);assert.deepEqual(cancelled.current,before);cancelled.controller.destroy();
+  });
+  await check('Physical row Delete locks duplicate work and rejects project or graph changes during review',async()=>{
+    for(const change of [snapshot=>{snapshot.project_id=uuid(700);},snapshot=>{snapshot.physical.id=uuid(701);},snapshot=>{snapshot.physical.revision++;},snapshot=>{snapshot.physical.services[0].fields.notes='Different source with reused revision';}]){
+      const pending=defer(),h=component(graph(),{confirm:()=>pending.promise});await flush();const remove=h.button('Delete S-0001');remove.emit('click');await flush();assert.equal(remove.disabled,true);remove.emit('click');await flush();assert.equal(h.calls.previews.length,1);
+      const next=copy(h.current);change(next);h.controller.render(next);pending.resolve(true);await flush();assert.equal(h.calls.applied.length,0);assert.ok(h.calls.notifications.some(note=>/changed/.test(note.text)));h.controller.destroy();
+    }
+  });
+  await check('A retained physical row Delete cannot target reused entity IDs in a replacement project or graph',async()=>{
+    for(const change of [snapshot=>{snapshot.project_id=uuid(700);},snapshot=>{snapshot.physical.id=uuid(701);},snapshot=>{snapshot.physical.revision++;},snapshot=>{snapshot.physical.services[0].fields.notes='Different row stamp';}]){
+      const h=component();await flush();const stale=h.button('Delete S-0001'),next=copy(h.current);change(next);h.controller.render(next);await flush();stale.emit('click');await flush();assert.equal(h.calls.previews.length,0);assert.equal(h.calls.applied.length,0);h.controller.destroy();
+    }
+  });
+  await check('Current physical row Delete flushes its own pending fields once and then reviews their retained source',async()=>{
+    const h=component(graph(),{confirm:async()=>false});await flush();const control=h.input('Service Size (mm) for Pipe');control.value='48 mm';control.emit('input');await h.click('Delete S-0001');
+    assert.equal(h.calls.previews.length,2);assert.equal(h.calls.previews[0][0].op,'update');assert.equal(h.current.physical.services[0].fields.size,'48 mm');assert.equal(h.calls.previews[1][0].op,'delete');assert.equal(h.calls.applied.length,1);assert.equal(h.calls.confirmations.length,0);h.controller.destroy();
+  });
+  await check('Physical row Delete preserves paginated review above100impacts with explicit Yes and Cancel',async()=>{
+    const value=graph();value.services=Array.from({length:105},(_,i)=>make(100+i,{service:'Cable'},{display_id:`S-${String(i+1).padStart(4,'0')}`,barrier_id:uuid(1),quantity:1}));
+    const index=physical.indexGraph(value),relationships=[...index.values()].map(entry=>({id:entry.entity.id,kind:entry.kind,display_id:entry.entity.display_id,parent_before:entry.entity.barrier_id||entry.entity.defect_id||null,parent_after:entry.entity.barrier_id||entry.entity.defect_id||null,deleted_before:false,deleted_after:true}));
+    const reviews=[],h=component(value,{preview:async()=>({preview_id:'large-delete',affected_ids:relationships.map(row=>row.id),changed_ids:relationships.map(row=>row.id),relationships}),ask:async(title,definitions,text,button)=>{reviews.push({title,definitions,text,button});return reviews.length===1?{action:'next'}:null;}});await flush();const before=copy(h.current);await h.click('Delete D-0001');assert.equal(reviews.length,2);assert.ok(reviews[0].text.includes('Showing 1–100'));assert.ok(reviews[1].text.includes('Showing 101–108'));assert.ok(reviews.every(review=>review.title==='Are you sure you want to delete this item?'&&review.button==='Yes'));assert.equal(h.calls.applied.length,0);assert.deepEqual(h.current,before);h.controller.destroy();
+    const applied=[],approved=component(value,{preview:async()=>({preview_id:'large-approved',affected_ids:relationships.map(row=>row.id),changed_ids:relationships.map(row=>row.id),relationships}),ask:async()=>({action:'apply'}),apply:async id=>{applied.push(id);return {};}});await flush();await approved.click('Delete D-0001');assert.deepEqual(applied,['large-approved']);approved.controller.destroy();
+  });
   console.log(`${passed} physical draft UI checks passed.`);
 })().catch(error=>{console.error(error);process.exitCode=1;});

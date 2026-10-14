@@ -193,6 +193,18 @@ async function controls() {
   const service = await create('service', { 'Category': 'Mechanical', 'Explicit service quantity': 2, 'Service Size (mm)': '32' }, 'Add service in Item Details');
   assert.equal(entity(service).barrier_id, barrier); assert.ok(!Object.hasOwn(entity(service).fields, 'frl')); await expect(details().getByLabel('FRL', { exact: true })).toHaveCount(0);
   await expect(row(service)).toContainText('-/90/90'); await controls();
+  await expect(page.locator('table[aria-label="Draft penetration hierarchy register"] thead th').last()).toHaveText('Delete');
+  const retainedDelete=structuredClone(state.service_plans),retainedReportDelete=structuredClone(state.physical);let rowDeleteApplies=0;
+  const countDeleteApply=request=>{if(new URL(request.url()).pathname.endsWith('/physical/apply'))rowDeleteApplies++;};page.on('request',countDeleteApply);
+  await response(()=>row(service).locator(`[data-physical-delete-id="${service}"]`).click(),'/physical/preview');
+  const removeDialog=page.getByRole('dialog');await expect(removeDialog.getByRole('heading',{name:'Are you sure you want to delete this item?',exact:true})).toBeVisible();await expect(removeDialog.getByRole('button',{name:'Yes',exact:true})).toBeVisible();await removeDialog.getByRole('button',{name:'Cancel',exact:true}).click();await snapshot();assert.equal(rowDeleteApplies,0);assert.deepEqual(state.service_plans,retainedDelete);assert.deepEqual(state.physical,retainedReportDelete);page.removeListener('request',countDeleteApply);
+  await response(()=>row(service).locator(`[data-physical-delete-id="${service}"]`).click(),'/physical/preview');await response(()=>page.getByRole('dialog').getByRole('button',{name:'Yes',exact:true}).click(),'/physical/apply');await snapshot();assert.equal(entity(service).deleted,true);
+  await response(()=>page.locator('.takeoff-physical-register').getByRole('button',{name:'Undo last edit',exact:true}).click(),'/commands');await snapshot();
+  await response(()=>row(barrier).locator(`[data-physical-delete-id="${barrier}"]`).click(),'/physical/preview');await expect(page.getByRole('dialog')).toContainText('B-0001');await expect(page.getByRole('dialog')).toContainText('S-0001');await response(()=>page.getByRole('dialog').getByRole('button',{name:'Yes',exact:true}).click(),'/physical/apply');await snapshot();assert.equal(entity(barrier).deleted,true);assert.equal(entity(service).deleted,true);
+  await response(()=>page.locator('.takeoff-physical-register').getByRole('button',{name:'Undo last edit',exact:true}).click(),'/commands');await snapshot();
+  for(const kind of ['barriers','services'])for(const prior of retainedDelete[kind])for(const key of ['id','display_id','barrier_id','fields','evidence','quantity','deleted'])assert.deepEqual(entity(prior.id)[key],prior[key]);assert.deepEqual(state.physical,retainedReportDelete);await select(service);
+  evidence.servicePlanRowDelete={lastColumn:true,exactQuestionYesCancel:true,cancelNoApply:true,leafAndBarrierCascade:true,undoOriginalIdentityAndEvidence:true,independentReportUntouched:true};
+  await page.screenshot({path:path.join(output,'service-plan-row-delete-restored.png')});
   evidence.hierarchy = { defect, reportBarrier, reportService, barrier, service, independentSequences: true, barrierFrl: true };
   await expect(details().getByLabel('Confirmation',{exact:true})).toHaveCount(0);await expect(details()).toContainText('inherited from Barrier B-0001');
   evidence.compactOriginalIconControls=await assertParentControls(page,details());
@@ -320,7 +332,7 @@ async function controls() {
   const workbook = pythonJson("import json,sys\nfrom openpyxl import load_workbook\nw=load_workbook(sys.argv[1],data_only=False)\ns=w.active;v=list(s.values)\nprint(json.dumps({'sheets':w.sheetnames,'headers':v[0],'rows':v[1:],'string_cells':[{'coordinate':c.coordinate,'value':c.value,'type':c.data_type} for sh in w for r in sh for c in r if isinstance(c.value,str)],'formulas':[c.coordinate for sh in w for r in sh for c in r if c.data_type=='f']}))\nw.close()", xlsx);
   const registerHeaders = ['Barrier ID', 'Service ID', 'Confirmation', 'Location', 'FRL', 'Substrate', 'Orientation', 'Category', 'Service type', 'Service quantity', 'Service Size (mm)', 'Source evidence'];
   const visibleHeaders = await page.locator('.takeoff-physical-register thead th').evaluateAll(cells => cells.map(cell => [...cell.childNodes].filter(child => child.nodeType === Node.TEXT_NODE).map(child => child.textContent).join('').trim()));
-  assert.deepEqual(visibleHeaders, ['Select', 'Hide', 'View/Edit', ...registerHeaders]);
+  assert.deepEqual(visibleHeaders, ['Select', 'Hide', 'View/Edit', ...registerHeaders, 'Delete']);
   assert.deepEqual(workbook.sheets, ['Service Plans']); assert.deepEqual(workbook.headers, registerHeaders); assert.deepEqual(workbook.formulas, []);
   const first = entity(barrier), child = entity(service), second = entity(secondBarrier), blank = value => value == null || value === '' ? null : value;
   assert.equal(first.confirmation, 'unconfirmed'); assert.equal(child.barrier_id, first.id);

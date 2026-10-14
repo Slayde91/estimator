@@ -190,7 +190,8 @@ async function fitCurrentDrawing(name) {
   await chooseCalculator(page, 'Ductwork (spray/wrap)');
   await page.locator('#calculator-pages').getByRole('button', { name: 'SCHEDULE', exact: true }).click();
   const oldRow = page.locator(`tr[data-source-row="${ancestorBinding.row}"]`);
-  await oldRow.getByRole('button', { name: /Remove line/ }).click();
+  await oldRow.getByRole('button', { name: /Delete line/ }).click();
+  await expect(page.getByRole('dialog')).toContainText('Are you sure you want to delete this item?');await page.getByRole('dialog').getByRole('button',{name:'Yes',exact:true}).click();
   await expect(page.locator('#calculator-grid')).not.toHaveAttribute('aria-busy', 'true');
   const cleared = await page.evaluate(() => window.CeasefireCalculators.projectSnapshot());
   for (const address of Object.keys(ancestorBinding.values)) assert.ok(cleared.ductwork.inputs.CALCULATOR[address] == null || cleared.ductwork.inputs.CALCULATOR[address] === '', `${address} must be explicitly cleared`);

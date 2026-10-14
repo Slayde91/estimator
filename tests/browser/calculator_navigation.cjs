@@ -83,12 +83,25 @@ async function workbook(title) {
   await page.locator('#calculator-pages button').filter({ hasText: /^SCHEDULE$/ }).click(); await expect(page.locator('#calculator-grid')).toHaveAttribute('aria-busy', 'false');
   const input = page.locator('[data-calculator-sheet="SCHEDULE"][data-calculator-cell="A10"]'); await expect(input).toBeVisible(); await input.fill('MENU-DRAFT-1'); await input.press('Tab');
   await expect(page.locator('#calculator-grid')).toHaveAttribute('aria-busy', 'false'); const retained = await snapshots();
-  for (const title of ['Steel (board)', 'Ductwork (spray/wrap)']) {
+  evidence.scheduleDeletes=[];
+  for (const title of ['Steel (spray)', 'Steel (board)', 'Ductwork (spray/wrap)']) {
     await chooseCalculator(page, title); await workbook(title);
     await page.locator('#calculator-pages').getByRole('button',{name:'SCHEDULE',exact:true}).click();await expect(page.locator('#calculator-grid')).toHaveAttribute('aria-busy','false');
     const table=page.locator('.calculator-schedule-table'),headers=await table.getByRole('columnheader').allTextContents();
     if(title==='Steel (board)'){assert.ok(!headers.includes('Waste (%)'));await expect(table.locator('[data-calculator-cell^="L"]')).toHaveCount(0);}
-    else{assert.deepEqual(headers.slice(2,10),['Duct size W x H (mm)','Length (m)','FRL — compartment / duct*','Fire exposure / FyreWrap application','Orientation','Product','Wall penetrations','Floor penetrations']);}
+    else if(title==='Ductwork (spray/wrap)'){assert.deepEqual(headers.slice(2,10),['Duct size W x H (mm)','Length (m)','FRL — compartment / duct*','Fire exposure / FyreWrap application','Orientation','Product','Wall penetrations','Floor penetrations']);}
+    assert.equal(headers.at(-1),'Delete');
+    const first=table.locator('tbody tr[data-source-row]').first(),deleteButton=first.getByRole('button',{name:/Delete line/});
+    await expect(first.locator('td').first().getByRole('button',{name:/Delete line/})).toHaveCount(0);await expect(first.locator('td').last().getByRole('button',{name:/Delete line/})).toHaveCount(1);
+    const beforeDelete=await snapshots();await deleteButton.click();const confirmation=page.getByRole('dialog');
+    await expect(confirmation).toContainText('Are you sure you want to delete this item?');await expect(confirmation.getByRole('button')).toHaveText(['Cancel','Yes']);
+    await confirmation.getByRole('button',{name:'Cancel',exact:true}).click();await idle();assert.deepEqual(await snapshots(),beforeDelete,'Cancel preserves every schedule and frozen price');
+    await deleteButton.click();const deleted=page.waitForResponse(reply=>new URL(reply.url()).pathname.startsWith('/api/calculators/')&&new URL(reply.url()).pathname.endsWith('/worksheet')&&reply.request().method()==='POST');
+    await confirmation.getByRole('button',{name:'Yes',exact:true}).click();assert.equal((await deleted).status(),200);await idle();
+    await expect(page.locator('#calculator-grid').getByRole('button',{name:'Undo remove',exact:true})).toBeEnabled();
+    const undo=page.waitForResponse(reply=>new URL(reply.url()).pathname.startsWith('/api/calculators/')&&new URL(reply.url()).pathname.endsWith('/worksheet')&&reply.request().method()==='POST');
+    await page.locator('#calculator-grid').getByRole('button',{name:'Undo remove',exact:true}).click();assert.equal((await undo).status(),200);await idle();assert.deepEqual(await snapshots(),beforeDelete,'Undo restores the exact row and inputs');
+    evidence.scheduleDeletes.push({title,finalDeleteColumn:true,trashInFinalCell:true,exactQuestionAndChoices:true,cancelRetainsAllScopes:true,yesAndUndoRestoresExactState:true});
   }
   await chooseCalculator(page, 'Firestopping Estimator'); await idle(); await expect(page.locator('#estimator-penetration')).toBeVisible(); await expect(page.locator('#calculator-workspace')).toBeHidden();
   await chooseCalculator(page, 'Steel (spray)'); await workbook('Steel (spray)'); await expect(page.locator('#calculator-sheet-title')).toHaveText('SCHEDULE'); await expect(input).toHaveValue('MENU-DRAFT-1');
@@ -181,8 +194,9 @@ async function workbook(title) {
   evidence.firestoppingDocuments = [];
   for (const [headingId, prefix] of [['penetration-estimator-schedule-heading', 'penetration-item'], ['penetration-schedule-heading', 'penetration']]) {
     if (prefix === 'penetration') { await page.getByRole('button', { name: 'Estimates', exact: true }).click(); await idle(); }
-    const schedule = page.locator(`details[aria-labelledby="${headingId}"]`);
-    if (!await schedule.evaluate(element => element.open)) await schedule.locator(':scope > summary').click();
+    if(prefix==='penetration')await page.locator('#main-tab-firestopping-schedule').click();
+    const schedule = page.locator(`${prefix==='penetration'?'section':'details'}[aria-labelledby="${headingId}"]`);
+    if (prefix!=='penetration'&&!await schedule.evaluate(element => element.open)) await schedule.locator(':scope > summary').click();
     const itemOnly=prefix==='penetration-item',actionsId=itemOnly?'firestopping-item-document-actions':'firestopping-document-actions';
     const documentToggle=page.locator(`[aria-controls="${actionsId}"]`),documentActions=page.locator(`#${actionsId}`);
     if(!itemOnly){assert.equal(await documentToggle.evaluate(el=>!!el.closest('.page-heading')?.querySelector('#download-quote-pdf')),true,'Schedule Document shares the Main heading with Estimate PDF');assert.equal(await schedule.locator('.calculator-document-menu').count(),0);assert.equal(await page.locator('.penetration-schedule-recalculate-tools .calculator-document-menu').count(),0);}

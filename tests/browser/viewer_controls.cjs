@@ -23,6 +23,18 @@ async function command(action, op) {
   const pending = page.waitForResponse(value => value.url().endsWith('/commands') && value.request().postDataJSON()?.op === op); pending.catch(() => {});
   await action(); const result = await pending, body = await result.json(); assert.equal(result.status(), 200, JSON.stringify(body)); await idle(); if(op==='record_render')await settingsSettled(page); return body;
 }
+async function navigateDrawingPage(name, number) {
+  const context = await page.evaluate(() => ({ session: window.CeasefireTakeoffs.sessionId(), document: document.querySelector('[aria-label="Drawing document"]').value }));
+  const pending = page.waitForResponse(value => {
+    if (value.request().method() !== 'POST' || !value.url().endsWith(`/sessions/${context.session}/commands`)) return false;
+    const body = value.request().postDataJSON();
+    return body?.op === 'record_render' && body.document_id === context.document && body.page === number && body.success === true;
+  }); pending.catch(() => {});
+  await renderDrawing(page, () => page.getByRole('button', { name, exact: true }).click(), number);
+  const result = await pending, body = await result.json(); assert.equal(result.status(), 200, JSON.stringify(body));
+  await expect.poll(() => page.evaluate(() => window.CeasefireActivity.active)).toBe(false);
+  await settingsSettled(page); return body;
+}
 async function dialog(title, values, action) {
   const modal = page.getByRole('dialog'); await expect(modal.getByRole('heading', { name: title, exact: true })).toBeVisible({timeout:30000});
   for (const [label, value] of Object.entries(values)) {
@@ -155,20 +167,24 @@ async function fitPageMatrix() {
   await page.waitForFunction(() => window.CeasefireDesktop?.status().ready);
   await page.waitForFunction(()=>window.CeasefireDesktop?.status().ready);
   await page.getByRole('button',{name:'Takeoffs',exact:true}).click();
-  await page.locator('#takeoff-upload').setInputFiles(info.fixture);
-  await expect(page.locator('.takeoff-document')).toHaveCount(1, { timeout: 60000 }); await settingsSettled(page);
+  await renderDrawing(page, async () => {
+    await page.locator('#takeoff-upload').setInputFiles(info.fixture);
+    await expect(page.locator('.takeoff-document')).toHaveCount(1, { timeout: 60000 });
+  }, 1);
+  await expect.poll(() => page.evaluate(() => window.CeasefireActivity.active)).toBe(false);
+  await settingsSettled(page);
   const navigation = page.getByRole('group', { name: 'Page navigation', exact: true });
   assert.deepEqual(await navigation.getByRole('button').evaluateAll(nodes => nodes.map(el => el.getAttribute('aria-label'))), ['First page', '‹ Page', 'Page ›', 'Last page']);
   for (const name of ['First page', 'Last page']) {
     const button = navigation.getByRole('button', { name, exact: true });
     await expect(button).toHaveAttribute('title', name); await expect(button.locator('svg')).toHaveCount(1);
   }
-  await command(() => page.getByRole('button', { name: 'Last page', exact: true }).click(), 'record_render');
+  await navigateDrawingPage('Last page', 4);
   await expect(page.getByLabel('Page number', { exact: true })).toHaveValue('4');
-  await command(() => page.getByRole('button', { name: 'First page', exact: true }).click(), 'record_render');
+  await navigateDrawingPage('First page', 1);
   await expect(page.getByLabel('Page number', { exact: true })).toHaveValue('1');
-  await command(() => page.getByRole('button', { name: 'Last page', exact: true }).click(), 'record_render');
-  await command(() => page.getByRole('button', { name: '‹ Page', exact: true }).click(), 'record_render');
+  await navigateDrawingPage('Last page', 4);
+  await navigateDrawingPage('‹ Page', 3);
   await expect(page.getByLabel('Page number', { exact: true })).toHaveValue('3');
   await renderDrawing(page, () => page.getByRole('button', { name: 'Fit page', exact: true }).click());
   evidence.firstLastNavigation = true;
@@ -244,7 +260,7 @@ async function fitPageMatrix() {
     await expect(page.locator('#takeoffs-workspace [role="alert"]')).toHaveText('Choose a page within this document.');
     const errorBounds = await assertErrorVisible(); assert.deepEqual(await snapshot(), before, 'Invalid page does not change the retained document or item');
     await page.screenshot({ path: path.join(output, `error-visible-${width}.png`) });
-    await command(() => page.getByRole('button', { name: 'Last page', exact: true }).click(), 'record_render');
+    await navigateDrawingPage('Last page', 4);
     await expect(page.getByLabel('Page number', { exact: true })).toHaveValue('4');
     await navigation.scrollIntoViewIfNeeded(); await page.screenshot({ path: path.join(output, `page-controls-${width}.png`) });
     evidence[`width${width}`] = { layout, errorBounds };

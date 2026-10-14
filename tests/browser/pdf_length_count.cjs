@@ -21,6 +21,7 @@ const ready = new Promise((resolve,reject)=>{
 const rail=()=>page.getByRole('toolbar',{name:'Drawing tools',exact:true});
 const snapshot=async()=>{await settingsSettled(page);return page.evaluate(()=>window.CeasefireTakeoffs.projectSnapshot());};
 async function command(action,op){const pending=page.waitForResponse(r=>r.url().endsWith('/commands')&&r.request().postDataJSON()?.op===op);pending.catch(()=>{});await action();const reply=await pending;assert.equal(reply.status(),200,await reply.text());await settingsSettled(page);return reply.json();}
+async function chooseDrawingTool(name,tool){await rail().getByRole('button',{name,exact:true}).click();await expect(page.locator('.takeoff-viewport')).toHaveAttribute('data-tool',tool);}
 async function clickPoint(x,y,options){const overlay=page.locator('.takeoff-overlay');await overlay.scrollIntoViewIfNeeded();await overlay.evaluate(el=>window.scrollTo(0,window.scrollY+el.getBoundingClientRect().top-180));const box=await overlay.boundingBox();await page.mouse.click(box.x+x/842*box.width,box.y+(1-y/595)*box.height,options);}
 function invariant(current,before){for(const key of ['items','physical','service_plans','calibrations','transfers','documents'])assert.deepEqual(current[key],before[key],`${key} unchanged`);}
 async function length(mm,reuse=false){const modal=page.getByRole('dialog');await expect(modal.getByRole('heading',{name:'Counted member length',exact:true})).toBeVisible();await modal.getByLabel('Manual Length (mm)',{exact:true}).fill(mm);if(reuse)await modal.getByLabel('Use this length for additional counts').check();await modal.getByRole('button',{name:'Place marker',exact:true}).click();await modal.waitFor({state:'detached'});}
@@ -44,10 +45,10 @@ async function length(mm,reuse=false){const modal=page.getByRole('dialog');await
     await expect(page.getByRole('toolbar',{name:'PDF markup tools',exact:true}).getByRole('button',{name:'Call-out',exact:true})).toHaveCount(0);
     if(mode==='duct')continue;
     assert.deepEqual(visible.slice(visible.indexOf('Measure'),visible.indexOf('Measure')+4),['Measure','Trace length','Count','Call-out']);
-    await rail().getByRole('button',{name:'Trace length',exact:true}).click();
+    await chooseDrawingTool('Trace length','graphic-measure');
     const traced=await command(async()=>{await clickPoint(100,300);await clickPoint(200,300);await page.locator('.takeoff-viewport').press('Enter');},'create_graphic');
     assert.equal(traced.snapshot.graphics.records.at(-1).kind,'measure');assert.equal(traced.pdf_measure_results.at(-1).status,'current');
-    await rail().getByRole('button',{name:'Count',exact:true}).click();await clickPoint(300,300);await length('1234.56789012345',true);
+    await chooseDrawingTool('Count','pdf-count');await clickPoint(300,300);await length('1234.56789012345',true);
     await clickPoint(400,300); // The same manual length is reused without a second dialog.
     const counted=await command(()=>page.locator('.takeoff-viewport').press('Enter'),'create_graphic');
     let count=counted.snapshot.graphics.records.at(-1);assert.equal(count.kind,'count');assert.equal(count.geometry.points.length,2);assert.deepEqual(count.geometry.lengths_m,[1.23456789012345,1.23456789012345]);
@@ -55,9 +56,9 @@ async function length(mm,reuse=false){const modal=page.getByRole('dialog');await
     const changed=await command(()=>modal.getByRole('button',{name:'Apply length',exact:true}).click(),'update_graphic');count=changed.snapshot.graphics.records.find(r=>r.id===count.id);assert.deepEqual(count.geometry.lengths_m,[1.23456789012345,4.5]);
     invariant(await snapshot(),before);assert.deepEqual(await page.evaluate(()=>window.CeasefireCalculators.completeProjectSnapshot()),calculators);
     const savedCount=(await snapshot()).graphics.records.length;
-    await rail().getByRole('button',{name:'Count',exact:true}).click();await clickPoint(500,300);await length('2000',true);await page.locator('.takeoff-viewport').press('Escape');assert.equal((await snapshot()).graphics.records.length,savedCount);
+    await chooseDrawingTool('Count','pdf-count');await clickPoint(500,300);await length('2000',true);await page.locator('.takeoff-viewport').press('Escape');assert.equal((await snapshot()).graphics.records.length,savedCount);
     // Double-click finishes without retaining the endpoint click as another marker.
-    await rail().getByRole('button',{name:'Count',exact:true}).click();await clickPoint(500,300);await length('2000',true);
+    await chooseDrawingTool('Count','pdf-count');await clickPoint(500,300);await length('2000',true);
     const doubled=await command(()=>clickPoint(550,300,{clickCount:2}),'create_graphic');assert.equal(doubled.snapshot.graphics.records.at(-1).geometry.points.length,1);
     const pending=page.waitForEvent('download');await page.evaluate(()=>window.CeasefireTakeoffs.downloadDrawing());const pdf=path.join(output,`${mode.replaceAll('/','-').replaceAll(' ','-')}.pdf`);await(await pending).saveAs(pdf);
     const text=spawnSync(python,['-X','utf8','-B','-c',"from pypdf import PdfReader;import sys;print('\\n'.join(p.extract_text() or '' for p in PdfReader(sys.argv[1]).pages))",pdf],{cwd:root,encoding:'utf8',windowsHide:true});assert.equal(text.status,0,text.stderr);assert.match(text.stdout,/4\.50 m/);assert.match(text.stdout,/2\.00 m/);

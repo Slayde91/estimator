@@ -196,6 +196,57 @@
     scheduleChanged(entry); message(`Line ${row - schedule.first_row + 1} removed. Use Undo remove to restore it.`); await calculate();
   }
 
+  function scheduleDeleteContext(entry) {
+    return { entry, revision: entry.revision, loadRevision: state.loadRevision, sheet: entry.sheet,
+      fingerprint: projectFingerprint(false), target: JSON.stringify(window.CeasefireProject?.downloadTarget?.()) };
+  }
+
+  function scheduleDeleteSources(entry, row) { return JSON.stringify(window.CeasefireTakeoffs?.scheduleBindings(entry.definition.id, row) || []); }
+
+  function scheduleDeleteCurrent(row, entry, review) {
+    return entry === current() && entry === review.entry && !state.action && !entry.invalid.size && entry.revision === review.revision
+      && state.loadRevision === review.loadRevision && entry.sheet === review.sheet && entry.scheduleRows?.includes(row)
+      && projectFingerprint(false) === review.fingerprint && scheduleDeleteSources(entry, row) === review.sources
+      && JSON.stringify(window.CeasefireProject?.downloadTarget?.()) === review.target;
+  }
+
+  async function requestRemoveScheduleRow(row, entry = current(), renderedReview = null) {
+    if (renderedReview && !scheduleDeleteCurrent(row, entry, renderedReview)) {
+      message("The displayed item changed. Nothing was deleted. Wait for the current schedule and review the item again.", true); return;
+    }
+    document.activeElement?.blur?.();
+    if (!entry || entry !== current() || state.action || entry.invalid.size || !entry.scheduleRows?.includes(row)) return;
+    const review = renderedReview || { ...scheduleDeleteContext(entry), sources: scheduleDeleteSources(entry, row) };
+    if (!scheduleDeleteCurrent(row, entry, review)) {
+      message("The item changed while finishing its edit. Nothing was deleted. Wait for the current schedule and review the item again.", true); return;
+    }
+    const confirm = window.CeasefireDialogs?.confirm || confirmReplace;
+    if (!await confirm("Delete item?", "Are you sure you want to delete this item?", "Yes", "Cancel")) return;
+    if (!scheduleDeleteCurrent(row, entry, review)) {
+      message("The item or project changed during deletion review. Nothing was deleted. Review the current item again.", true); return;
+    }
+    await removeScheduleRow(row, entry);
+  }
+
+  function scheduleDeleteButton(row, entry, context) {
+    const item = row - entry.definition.schedule.first_row + 1;
+    const remove = node("button", "button secondary calculator-remove-row"), icon = node("span", "calculator-trash-icon");
+    icon.setAttribute("aria-hidden", "true");
+    icon.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="M3 6h18M9 6V4h6v2M5 6l1 14h12l1-14M10 10v6M14 10v6"/></svg>';
+    remove.append(icon); remove.title = `Delete line ${item}`;
+    remove.type = "button"; remove.dataset.scheduleRemove = String(row); remove.disabled = state.action || entry.invalid.size > 0;
+    const review = { ...context, sources: scheduleDeleteSources(entry, row) };
+    remove.setAttribute("aria-label", `Delete line ${item}`); remove.addEventListener("click", () => requestRemoveScheduleRow(row, entry, review));
+    return remove;
+  }
+
+  function refreshScheduleDeleteControls(entry) {
+    const controls = [...$("calculator-grid").querySelectorAll("[data-schedule-remove]")];
+    if (!controls.length) return;
+    const context = scheduleDeleteContext(entry);
+    for (const control of controls) control.replaceWith(scheduleDeleteButton(Number(control.dataset.scheduleRemove), entry, context));
+  }
+
   async function undoScheduleRemove(entry = current()) {
     if (!entry || entry !== current() || state.action || entry.invalid.size || !entry.removedRows?.length) return;
     const removed = entry.removedRows.pop(), values = entry.inputs[entry.definition.schedule.sheet] ||= {};
@@ -935,6 +986,7 @@
     const schedule = entry.definition.schedule?.sheet === entry.sheet ? entry.definition.schedule : entry.sheet === "EXTRA BOARDS" ? { first_row: 6, last_row: 45, header_row: 5 } : null;
     const scheduleView = scheduleFor(entry) && result.schedule_view;
     const dynamicSchedule = Boolean(scheduleView && Array.isArray(entry.scheduleRows));
+    const deleteReview = dynamicSchedule ? scheduleDeleteContext(entry) : null;
     const virtualSchedule = dynamicSchedule && entry.scheduleRows.length > scheduleWindowSize;
     const syntheticLine = Boolean(schedule?.line_numbers), lineColumn = columnNumber(schedule?.line_id_column), lineWidth = 70;
     const exposureColumns = new Set((schedule?.columns || []).filter((column) => column.editable && /exposure/i.test(column.label)).map((column) => columnNumber(column.column)));
@@ -1097,6 +1149,7 @@
       widths.push(width);
       const heading = node("th", "", labels[column] || ""); heading.scope = "col"; headRow.append(heading);
     }
+    if (dynamicSchedule) { const heading = node("th", "calculator-row-action", "Delete"); heading.scope = "col"; headRow.append(heading); }
     head.append(headRow);
     let introPlaced = false;
     for (const [group, renderedGroup] of sections) for (const row of renderedGroup.sourceRows) {
@@ -1106,12 +1159,7 @@
       tr.dataset.sourceRow = String(row.row);
       if (dynamicSchedule) {
         tr.setAttribute("aria-rowindex", String(entry.scheduleRows.indexOf(row.row) + 2));
-        const action = node("td", "calculator-row-action"), remove = node("button", "button secondary calculator-remove-row"), icon = node("span", "calculator-trash-icon");
-        icon.setAttribute("aria-hidden", "true");
-        icon.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="M3 6h18M9 6V4h6v2M5 6l1 14h12l1-14M10 10v6M14 10v6"/></svg>';
-        remove.append(icon); remove.title = `Remove line ${item}`;
-        remove.type = "button"; remove.dataset.scheduleRemove = String(row.row); remove.disabled = state.action || entry.invalid.size > 0;
-        remove.setAttribute("aria-label", `Remove line ${item}`); remove.addEventListener("click", () => removeScheduleRow(row.row, entry)); action.append(remove);
+        const action = node("td", "calculator-row-action"); action.append(node("span", "", `Line ${item}`));
         for (const binding of window.CeasefireTakeoffs?.scheduleBindings(entry.definition.id, row.row) || []) {
           const source = node("button", "takeoff-source-indicator", "Source"); source.type = "button";
           source.title = `Open takeoff ${binding.item_id}`; source.setAttribute("aria-label", source.title);
@@ -1183,6 +1231,9 @@
         }
         td.hidden = hiddenAddresses.has(address); tr.append(td);
       }
+      if (dynamicSchedule) {
+        const action = node("td", "calculator-row-action"); action.append(scheduleDeleteButton(row.row, entry, deleteReview)); tr.append(action);
+      }
       if (tr.children.length && [...tr.children].every((cell) => cell.hidden)) tr.hidden = true;
       renderedGroup.body.append(tr);
       if (!introPlaced && page.intro_address && row.cells.some((cell) => cell.address === page.intro_after_address)) {
@@ -1234,7 +1285,7 @@
       const groupWidths = definition ? groupColumns.map((column) => definition.column_widths?.[definition.columns.map(columnNumber).indexOf(column)] || 125) : matrix && group === "matrix" ? groupColumns.map((column) => orderTable ? [19, 7, 9, 10, 8, 7, 11, 9, 20][column - 1] : column === 1 ? 100 : 88) : groupColumns.map((column) => widths[columns.indexOf(column)]);
       if (boardSummary && definition?.first_row === 11 && groupColumns.includes(10)) groupWidths.splice(groupColumns.indexOf(10), 0, 170);
       if (syntheticLine) groupWidths.unshift(lineWidth);
-      if (dynamicSchedule) groupWidths.unshift(100);
+      if (dynamicSchedule) { groupWidths.unshift(100); groupWidths.push(100); }
       const totalWidth = groupWidths.reduce((sum, width) => sum + width, 0);
       for (const width of groupWidths) { const col = node("col"); col.style.width = `${fitWidth ? width / totalWidth * 100 : width}${legacyOrder || fitWidth ? "%" : "px"}`; colgroup.append(col); }
       table.style.width = legacyOrder || fitWidth ? "100%" : `${totalWidth}px`; table.append(colgroup);
@@ -1242,7 +1293,7 @@
       if (virtualSchedule) {
         const spacer = (count) => {
           const row = node("tr", "calculator-virtual-spacer"), cell = node("td"); row.setAttribute("aria-hidden", "true");
-          cell.colSpan = groupColumns.length + Number(syntheticLine) + Number(dynamicSchedule);
+          cell.colSpan = groupColumns.length + Number(syntheticLine) + Number(dynamicSchedule) * 2;
           cell.style.height = `${Math.max(0, count) * scheduleRowHeight}px`; row.append(cell); return row;
         };
         body.replaceChildren(spacer(scheduleView.offset), ...body.children, spacer(entry.scheduleRows.length - scheduleView.offset - rows.length));
@@ -1356,6 +1407,7 @@
         grid.scrollLeft = view.scrollLeft; grid.scrollTop = view.scrollTop;
         entry.productTotalsElement = view.totals; entry.boardSteelNotesElement = view.steelNotes; entry.choiceSignature = view.signature;
         entry.renderedSheet = entry.sheet; entry.renderedPage = page; entry.needsRender = false; state.gridEntry = entry;
+        refreshScheduleDeleteControls(entry);
         retainRecent(cache.pages, page, view, 3);
       } else renderGrid(entry);
       $("calculator-grid").setAttribute("aria-busy", "false"); showCalculationStatus(entry, result); return;
@@ -1394,7 +1446,7 @@
       const active = document.activeElement;
       const canRefresh = !entry.needsRender && entry.renderedSheet === sheet && entry.renderedPage === page && entry.choiceSignature === choiceSignature(result);
       entry.result = result;
-      if (canRefresh) { entry.pendingResult = null; refreshOutputs(result); }
+      if (canRefresh) { entry.pendingResult = null; refreshOutputs(result); refreshScheduleDeleteControls(entry); }
       else if (!entry.needsRender && (active?.dataset?.calculatorCell || active?.dataset?.calculatorCustomCell) && active.dataset.calculatorSheet === sheet) { entry.pendingResult = result; refreshOutputs(result); }
       else { entry.pendingResult = null; renderGrid(entry); }
       showCalculationStatus(entry, result);
@@ -1461,6 +1513,7 @@
     const serial = ++state.loadRevision;
     window.CeasefireProposalCalculators?.showWorkbook?.();
     if (id === state.current && state.gridEntry === current() && current()?.result && !current().needsRender) {
+      refreshScheduleDeleteControls(current());
       $("calculator-workspace").hidden = false; renderChoices(); return;
     }
     try {
@@ -1494,9 +1547,10 @@
     } catch (error) { if (serial === state.loadRevision && !window.CeasefireProposalCalculators?.isFirestopping?.()) message(`Could not load the calculators. ${error.message}`, true); }
   }
 
-  function confirmReplace(title, detail, buttonText) {
+  function confirmReplace(title, detail, buttonText, cancelText = "Keep editing") {
     const dialog = $("calculator-confirm-dialog");
     $("calculator-confirm-title").textContent = title; $("calculator-confirm-detail").textContent = detail; $("calculator-confirm-button").textContent = buttonText;
+    $("calculator-confirm-cancel").textContent = cancelText; dialog.returnValue = "cancel";
     return new Promise((resolve) => { dialog.addEventListener("close", () => resolve(dialog.returnValue === "confirm"), { once: true }); dialog.showModal(); });
   }
 
@@ -1511,7 +1565,7 @@
       if (entry.revision === revision) { entry.inputs = saved; entry.scheduleRows = response.schedule_rows || rows.schedule_rows; }
       message(entry.revision === revision ? `${entry.definition.title} saved.` : "Calculator saved. Your later edits are still unsaved.");
     } catch (error) { message(`Could not save the calculator. ${error.message}`, true); }
-    finally { state.action = false; updateStatus(); }
+    finally { state.action = false; updateStatus(); if (current() === entry && state.gridEntry === entry) refreshScheduleDeleteControls(entry); }
   }
 
   async function reset() {
@@ -1648,8 +1702,8 @@
     return Object.fromEntries([...state.entries].map(([id, entry]) => [id, { inputs: clone(entry.inputs), ...scheduleState(entry) }]));
   }
 
-  function projectFingerprint() {
-    return JSON.stringify({ action: state.action, entries: [...state.entries].map(([id, entry]) => [id, entry.inputs, entry.saved, entry.scheduleRows, entry.savedRows, [...entry.invalid]]) });
+  function projectFingerprint(action = state.action) {
+    return JSON.stringify({ action, entries: [...state.entries].map(([id, entry]) => [id, entry.inputs, entry.saved, entry.scheduleRows, entry.savedRows, [...entry.invalid]]) });
   }
 
   function preparedProject(list, definitions, calculators) {

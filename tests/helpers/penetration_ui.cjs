@@ -59,7 +59,7 @@ function harness() {
   const byId=id=>{if(!elements.has(id))elements.set(id,element());return elements.get(id);};
   Object.assign(document,{getElementById:byId,createElement:element,querySelectorAll(selector){return [...elements.values()].flatMap(root=>[...(matches(root,selector)?[root]:[]),...root.querySelectorAll(selector)]);}});
   const pricing={inventory:{},rates:{original:{price:1}}},details={client:'Original client'},target={project_token:'original-token'};
-  const context={document,window:{CeasefireProject:{configuration:()=>copy(pricing),details:()=>copy(details),downloadTarget:()=>copy(target),changed(){}},CeasefirePenetrationNavigation:{confirm:async()=>true,notify:async()=>{},show(){},showSchedule(){}}},Intl,Number,String,JSON,Object,Set,Map,Array,Promise,Error,console,
+  const context={document,window:{CeasefireProject:{configuration:()=>copy(pricing),details:()=>copy(details),downloadTarget:()=>copy(target),changed(){}},CeasefirePenetrationNavigation:{confirm:async()=>true,confirmDelete:async()=>true,notify:async()=>{},show(){},showSchedule(){}}},Intl,Number,String,JSON,Object,Set,Map,Array,Promise,Error,console,
     setTimeout(fn){timers.set(++timerId,fn);return timerId;},clearTimeout(id){timers.delete(id);}};
   vm.createContext(context);vm.runInContext(fs.readFileSync('static/downloads.js','utf8'),context);
   const pen=install(context);

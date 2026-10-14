@@ -8,6 +8,21 @@ function entryPolicy(h){
   for(const [column,label,value] of entryFields)if(!metadata.row_fields.some(field=>field.column===column))metadata.row_fields.push({column,label,type:'select',group:'Penetration',format:'text',options:[value],default:null});
   h.audit.state.definition=copy(metadata);h.audit.setRequest(async(path,payload)=>result(payload.draft,metadata));h.audit.render();return metadata;
 }
+function multiplierPolicy(h){
+  const metadata=definition(),field=(column,label,group,type='number',options=[])=>({column,label,group,type,options,format:type==='select'?'text':'number',units:'',default:null});
+  metadata.groups=['Penetration','Products and labour','Unlagged Pipes','Lagged Pipes','Plastic Pipes','Cables/Bundles','Cabletrays','Substrate','Bulkhead'];
+  const routes={'Unlagged Pipes':['Copper Pipes'],'Lagged Pipes':['Lagged Copper Pipes'],'Plastic Pipes':['PEX pipe'],'Cables/Bundles':['Data Cables'],Cabletrays:['Data Cables','Cable Trays']};
+  metadata.group_visibility={...Object.fromEntries(Object.entries(routes).map(([group,values])=>[group,{column:'K',route_key:group,values}])),Substrate:{column:'L',values:['Oversized']},Bulkhead:{column:'J',values:['Bulkheads']}};
+  for(const draft of [metadata.defaults,metadata.schedule_defaults])draft.globals.service_routes=copy(routes);
+  metadata.row_fields=[field('J','Category','Penetration','select',['Plumbing & Hydraulic','Electrical & Communications','Bulkheads']),field('K','Service Type','Penetration','select',['Copper Pipes','Lagged Copper Pipes','PEX pipe','Data Cables','Cable Trays','Other service']),field('L','Penetration Type','Penetration','select',['Core Hole','Oversized']),field('M','Substrate Orientation','Penetration','select',['Vertical','Horizontal','Saved custom orientation']),field('P','Substrate','Penetration','select',['Concrete/masonry wall','Concrete/masonry floor']),field('O','Item QTY','Penetration'),field('Y','Collar Type','Products and labour','select',['Collar']),field('AL','Diameter','Plastic Pipes'),field('AN','Wrap Multiplier','Pipes'),field('AT','Multiplier','Cabletrays'),field('AY','Board Multiplier','Substrate'),field('BE','Bulkhead Multiplier','Bulkhead')];
+  metadata.row_fields.find(field=>field.column==='AN').display_groups=['Unlagged Pipes','Lagged Pipes','Plastic Pipes','Cables/Bundles'];
+  h.audit.state.definition=metadata;for(const scope of [h.audit.state,h.audit.state.schedule])scope.draft.globals.service_routes=copy(routes);
+  h.audit.setRequest(async(path,payload)=>path.endsWith('/definition')?metadata:result(payload.draft,metadata));h.audit.renderFields();return metadata;
+}
+async function composerField(h,column,value){
+  const field=h.audit.state.definition.row_fields.find(field=>field.column===column),wrapper=h.audit.makeControl(field,h.audit.state.selected),control=wrapper.children[1];
+  control.value=String(value);await control.emit(field.type==='select'?'change':'input');
+}
 const text=node=>[node.textContent,...node.children.map(text)].join(' ');
 let passed=0;
 async function check(name,fn){const h=harness();h.api.applyProject(await h.api.prepareDefaults());await fn(h);passed++;console.log(`ok - ${name}`);}
@@ -136,7 +151,7 @@ async function check(name,fn){const h=harness();h.api.applyProject(await h.api.p
     h.audit.state.edit={rowId:'line-1'};h.audit.renderFields();assert.equal(h.byId('penetration-row-heading').textContent,'Editing schedule item · Electrical · Blank Seal');
     h.audit.state.draft.rows[0].inputs.K='Cable Bundles';h.audit.state.group='Cables/Bundles';h.audit.renderFields();assert.match(text(h.byId('penetration-row-fields')),/Diameter/);
   });
-  await check('Tab changes give the requested labour advisories and permit the second attempt',async h=>{
+  await check('Tab changes show labour advisories while opening the requested tab on the first attempt',async h=>{
     const metadata=definition();metadata.groups=['Products and labour','Additional Allowances','Unlagged Pipes'];metadata.row_fields=[
       {column:'W',label:'Teams/Crews',group:'Products and labour',type:'select',format:'text',units:'',options:['Installer'],default:null},
       {column:'X',label:'Board/Batt Type',group:'Products and labour',type:'select',format:'text',units:'',options:['Board'],default:null},
@@ -145,11 +160,60 @@ async function check(name,fn){const h=harness();h.api.applyProject(await h.api.p
     ];h.audit.state.definition=metadata;
     const notices=[];h.context.window.CeasefirePenetrationNavigation.notify=async(...args)=>notices.push(args);
     h.audit.state.draft.rows[0].inputs={X:'Board'};h.audit.state.group='Products and labour';h.audit.renderFields();
-    await h.audit.selectGroup('Unlagged Pipes');assert.equal(h.audit.state.group,'Products and labour');assert.deepEqual(notices.pop(),['Selection required','Please select Teams/Crews','OK']);
+    await h.audit.selectGroup('Unlagged Pipes');assert.equal(h.audit.state.group,'Unlagged Pipes');assert.deepEqual(notices.pop(),['Selection required','Please select Teams/Crews','OK']);
     await h.audit.selectGroup('Unlagged Pipes');assert.equal(h.audit.state.group,'Unlagged Pipes');
     h.audit.state.draft.rows[0].inputs={AH:1};h.audit.state.group='Additional Allowances';h.audit.renderFields();
-    await h.audit.selectGroup('Unlagged Pipes');assert.equal(h.audit.state.group,'Additional Allowances');assert.deepEqual(notices.pop(),['Selection required','Please select Teams/Crews under Products and Labour','OK']);
+    await h.audit.selectGroup('Unlagged Pipes');assert.equal(h.audit.state.group,'Unlagged Pipes');assert.deepEqual(notices.pop(),['Selection required','Please select Teams/Crews under Products and Labour','OK']);
     await h.audit.selectGroup('Unlagged Pipes');assert.equal(h.audit.state.group,'Unlagged Pipes');
+  });
+  await check('Requested service multipliers default from orientation in either entry order and follow automatic orientation changes',async h=>{
+    multiplierPolicy(h);
+    for(const [service,columns] of [['Copper Pipes',['AN']],['Lagged Copper Pipes',['AN']],['PEX pipe',['AN']],['Data Cables',['AN','AT']],['Cable Trays',['AT']]])for(const order of ['orientation-first','service-first']){
+      await h.audit.addRow();
+      for(const [column,value] of order==='orientation-first'?[['M','Vertical'],['K',service]]:[['K',service],['M','Vertical']])await composerField(h,column,value);
+      for(const column of columns)assert.equal(h.api.projectSnapshot().composer.rows[0].inputs[column],2,`${service} ${order} ${column}`);
+      await h.audit.calculate();await composerField(h,'M','Horizontal');for(const column of columns)assert.equal(h.api.projectSnapshot().composer.rows[0].inputs[column],1);
+      await composerField(h,'M','Vertical');for(const column of columns)assert.equal(h.api.projectSnapshot().composer.rows[0].inputs[column],2);
+      await composerField(h,'M','Saved custom orientation');for(const column of columns)assert.equal(h.api.projectSnapshot().composer.rows[0].inputs[column],undefined,'Unknown orientation has no invented multiplier');
+    }
+  });
+  await check('Substrate-derived orientation updates tracked defaults and board and bulkhead multipliers default to two',async h=>{
+    multiplierPolicy(h);await composerField(h,'K','PEX pipe');await composerField(h,'P','Concrete/masonry wall');assert.equal(h.api.projectSnapshot().composer.rows[0].inputs.M,'Vertical');assert.equal(h.api.projectSnapshot().composer.rows[0].inputs.AN,2);
+    await composerField(h,'P','Concrete/masonry floor');assert.equal(h.api.projectSnapshot().composer.rows[0].inputs.M,'Horizontal');assert.equal(h.api.projectSnapshot().composer.rows[0].inputs.AN,1);
+    await composerField(h,'L','Oversized');assert.equal(h.api.projectSnapshot().composer.rows[0].inputs.AY,2);await composerField(h,'J','Bulkheads');assert.equal(h.api.projectSnapshot().composer.rows[0].inputs.BE,2);
+    await composerField(h,'AY','3.12345678901234');await composerField(h,'BE','4.98765432109876');await composerField(h,'M','Vertical');assert.equal(h.api.projectSnapshot().composer.rows[0].inputs.AY,3.12345678901234);assert.equal(h.api.projectSnapshot().composer.rows[0].inputs.BE,4.98765432109876);
+  });
+  await check('Manual, zero, same-as-default and blank multiplier edits retain ownership through orientation changes',async h=>{
+    multiplierPolicy(h);await composerField(h,'K','Data Cables');await composerField(h,'M','Vertical');
+    await composerField(h,'AN','2');await composerField(h,'AT','0');await composerField(h,'M','Horizontal');assert.equal(h.api.projectSnapshot().composer.rows[0].inputs.AN,2);assert.equal(h.api.projectSnapshot().composer.rows[0].inputs.AT,0);
+    await composerField(h,'AN','1.23456789012345');await composerField(h,'AT','');await h.audit.calculate();assert.equal(h.api.projectSnapshot().composer.rows[0].inputs.AN,1.23456789012345);assert.equal(h.api.projectSnapshot().composer.rows[0].inputs.AT,null,'A manual blank stays blank until another context selection');
+    await composerField(h,'M','Vertical');assert.equal(h.api.projectSnapshot().composer.rows[0].inputs.AN,1.23456789012345);assert.equal(h.api.projectSnapshot().composer.rows[0].inputs.AT,2,'A blank relevant field defaults on an explicit context change');
+    await composerField(h,'K','Other service');assert.equal(h.api.projectSnapshot().composer.rows[0].inputs.AN,1.23456789012345);assert.equal(h.api.projectSnapshot().composer.rows[0].inputs.AT,undefined,'Leaving a service removes only our unused automatic default');
+  });
+  await check('Saved, imported and historical composers remain exact on prepare, open, calculate and unrelated edits',async h=>{
+    const metadata=multiplierPolicy(h);
+    for(const inputs of [{K:'PEX pipe',M:'Vertical',AN:1.23456789012345,AT:0,AY:7.65432109876543,BE:0},{K:'Data Cables',M:'Horizontal',AN:null,AT:null},{K:'Lagged Pipes',M:'Saved custom orientation',AN:2}]){
+      const snapshot={draft:copy(metadata.schedule_defaults),composer:{globals:copy(metadata.defaults.globals),rows:[{id:'historical',inputs:copy(inputs)}]}};
+      h.api.applyProject(await h.api.prepareProject(snapshot));h.audit.renderFields();await h.audit.calculate();assert.deepEqual(copy(h.api.projectSnapshot().composer.rows[0].inputs),inputs);assert.equal(h.api.hasUnsavedChanges(),false);
+      h.audit.state.draft.rows[0].inputs.T='An unrelated description';h.audit.renderFields();await h.audit.calculate();for(const [column,value]of Object.entries(inputs))assert.equal(h.api.projectSnapshot().composer.rows[0].inputs[column],value);
+    }
+  });
+  await check('Clear and new reset multiplier ownership while schedule edit and cancellation preserve retained explicit values',async h=>{
+    const metadata=multiplierPolicy(h);await composerField(h,'K','PEX pipe');await composerField(h,'M','Vertical');await h.audit.calculate();
+    h.audit.state.schedule.draft.rows=[{id:'saved-row',inputs:{K:'PEX pipe',M:'Horizontal',AN:1.98765432109876}}];h.audit.state.rowEpochs.set('saved-row',++h.audit.state.nextEpoch);
+    await h.audit.selectRow('saved-row');await composerField(h,'M','Vertical');assert.equal(h.api.projectSnapshot().composer.rows[0].inputs.AN,1.98765432109876);assert.equal(h.api.projectSnapshot().draft.rows[0].inputs.AN,1.98765432109876);
+    await h.audit.cancelEdit();await composerField(h,'M','Horizontal');assert.equal(h.api.projectSnapshot().composer.rows[0].inputs.AN,1,'Cancel restores the previous in-memory automatic ownership');
+    await h.byId('penetration-clear').emit('click');assert.deepEqual(copy(h.api.projectSnapshot().composer.rows[0].inputs),{});await composerField(h,'M','Vertical');await composerField(h,'K','PEX pipe');assert.equal(h.api.projectSnapshot().composer.rows[0].inputs.AN,2);
+    await h.audit.addRow();assert.deepEqual(copy(h.api.projectSnapshot().composer.rows[0].inputs),metadata.defaults.rows[0].inputs);assert.equal(h.api.projectSnapshot().draft.rows[0].inputs.AN,1.98765432109876);
+  });
+  await check('Collar warnings open Details immediately even while a notification promise is pending and incomplete mutations remain rejected',async h=>{
+    multiplierPolicy(h);h.audit.state.draft.rows[0].inputs={K:'PEX pipe',Y:'Collar',AL:null,AN:null};h.audit.state.group='Plastic Pipes';h.audit.renderFields();
+    const pending=deferred(),notices=[];h.context.window.CeasefirePenetrationNavigation.notify=(...args)=>{notices.push(args);return pending.promise;};const before=copy(h.api.projectSnapshot());
+    await h.audit.selectGroup('Penetration');assert.equal(h.audit.state.group,'Penetration');assert.deepEqual(notices,[['Selection required','Please enter collar Diameter and Multiplier','OK']]);assert.deepEqual(copy(h.api.projectSnapshot()),before);
+    h.audit.setValidationRequest(async()=>{throw new Error('Enter a positive diameter and multiplier.');});await h.audit.addToSchedule();assert.equal(h.api.projectSnapshot().draft.rows.length,0);assert.match(h.byId('penetration-message').textContent,/positive diameter and multiplier/);pending.resolve();
+  });
+  await check('Firestopping operation messages use the app top banner when its API is available',async h=>{
+    const messages=[];h.context.window.CeasefirePenetrationNavigation.message=(...args)=>messages.push(args);h.audit.setRequest(async()=>{throw new Error('Synthetic calculator failure');});await h.audit.calculate();assert.deepEqual(messages.at(-1),['Synthetic calculator failure',true]);assert.equal(h.byId('penetration-message').textContent,'');
   });
   await check('Entering Additional Labour immediately requests Teams/Crews once',async h=>{
     const metadata=definition();metadata.groups=['Additional Allowances','Products and labour'];metadata.row_fields=[
@@ -162,7 +226,7 @@ async function check(name,fn){const h=harness();h.api.applyProject(await h.api.p
     await h.audit.selectGroup('Products and labour');assert.equal(h.audit.state.group,'Products and labour');assert.equal(notices.length,1);
     const team=h.control('W');team.value='Installer';await team.emit('change');team.value='';await team.emit('change');assert.equal(notices.length,2);
   });
-  await check('Bulkhead and collar requirements block tab changes until every required value is present',async h=>{
+  await check('Bulkhead and collar requirements remain advisories and never trap the user in a tab',async h=>{
     const metadata=definition();metadata.groups=['Products and labour','Bulkhead','Plastic Pipes','Additional Allowances'];metadata.row_fields=[
       {column:'W',label:'Teams/Crews',group:'Products and labour',type:'select',format:'text',units:'',options:['Installer'],default:null},
       {column:'X',label:'Board/Batt Type',group:'Products and labour',type:'select',format:'text',units:'',options:['Board'],default:null},
@@ -174,12 +238,12 @@ async function check(name,fn){const h=harness();h.api.applyProject(await h.api.p
     ];h.audit.state.definition=metadata;
     const notices=[];h.context.window.CeasefirePenetrationNavigation.notify=async(...args)=>notices.push(args);
     h.audit.state.draft.rows[0].inputs={BB:300};h.audit.state.group='Bulkhead';h.audit.renderFields();
-    await h.audit.selectGroup('Additional Allowances');assert.equal(h.audit.state.group,'Bulkhead');assert.deepEqual(notices.pop(),['Selection required','Please select [Teams/Crews]; [Board/Batt Type]; [Framing Type] under Products and Labour.','OK']);
-    Object.assign(h.audit.state.draft.rows[0].inputs,{W:'Installer',X:'Board'});await h.audit.selectGroup('Additional Allowances');assert.equal(h.audit.state.group,'Bulkhead');assert.deepEqual(notices.pop(),['Selection required','Please select [Framing Type] under Products and Labour.','OK']);
+    await h.audit.selectGroup('Additional Allowances');assert.equal(h.audit.state.group,'Additional Allowances');assert.deepEqual(notices.pop(),['Selection required','Please select [Teams/Crews]; [Board/Batt Type]; [Framing Type] under Products and Labour.','OK']);
+    Object.assign(h.audit.state.draft.rows[0].inputs,{W:'Installer',X:'Board'});h.audit.state.group='Bulkhead';await h.audit.selectGroup('Additional Allowances');assert.equal(h.audit.state.group,'Additional Allowances');assert.deepEqual(notices.pop(),['Selection required','Please select [Framing Type] under Products and Labour.','OK']);
     h.audit.state.draft.rows[0].inputs.Z='Frame';await h.audit.selectGroup('Additional Allowances');assert.equal(h.audit.state.group,'Additional Allowances');
     h.audit.state.draft.rows[0].inputs={Y:'Collar'};h.audit.state.group='Plastic Pipes';h.audit.renderFields();
-    await h.audit.selectGroup('Additional Allowances');assert.equal(h.audit.state.group,'Plastic Pipes');assert.deepEqual(notices.pop(),['Selection required','Please enter collar Diameter and Multiplier','OK']);
-    Object.assign(h.audit.state.draft.rows[0].inputs,{AL:100,AN:1});await h.audit.selectGroup('Additional Allowances');assert.equal(h.audit.state.group,'Plastic Pipes');assert.deepEqual(notices.pop(),['Selection required','Please select Teams/Crews','OK']);
+    await h.audit.selectGroup('Additional Allowances');assert.equal(h.audit.state.group,'Additional Allowances');assert.deepEqual(notices.pop(),['Selection required','Please enter collar Diameter and Multiplier','OK']);
+    Object.assign(h.audit.state.draft.rows[0].inputs,{AL:100,AN:1});h.audit.state.group='Plastic Pipes';await h.audit.selectGroup('Additional Allowances');assert.equal(h.audit.state.group,'Additional Allowances');assert.deepEqual(notices.pop(),['Selection required','Please select Teams/Crews','OK']);
     await h.audit.selectGroup('Additional Allowances');assert.equal(h.audit.state.group,'Additional Allowances');
   });
   await check('Combined dimension controls preserve source cells and hidden pipe labour stays out of the item form',async h=>{
@@ -492,8 +556,39 @@ async function check(name,fn){const h=harness();h.api.applyProject(await h.api.p
     assert.equal(confirmations,1);assert.equal(h.calls.length,before);assert.equal(h.byId('penetration-add-to-library').disabled,false);assert.equal(h.audit.state.creatingLibrary,false);
   });
   await check('Remove and Undo allow a truly empty schedule and retain precision without affecting composer',async h=>{
-    h.audit.state.draft.rows[0].inputs={T:'Marker',AG:.123456789012345};await h.audit.addToSchedule();const composer=copy(h.api.projectSnapshot().composer),button=h.byId('penetration-schedule-body').querySelectorAll('[data-penetration-remove]')[0];assert.equal(button.title,'Remove item 1');assert.equal(button.getAttribute('aria-label'),'Remove firestopping item 1');
+    h.audit.state.draft.rows[0].inputs={T:'Marker',AG:.123456789012345};await h.audit.addToSchedule();const composer=copy(h.api.projectSnapshot().composer),button=h.byId('penetration-schedule-body').querySelectorAll('[data-penetration-remove]')[0];assert.equal(button.title,'Delete item 1');assert.equal(button.getAttribute('aria-label'),'Delete firestopping item 1');
     h.audit.removeRow('line-1');await flush();assert.equal(h.api.projectSnapshot().draft.rows.length,0);h.audit.undoRemove();await flush();assert.equal(h.api.projectSnapshot().draft.rows[0].inputs.AG,.123456789012345);assert.deepEqual(copy(h.api.projectSnapshot().composer),composer);
+  });
+  await check('Both Firestopping schedules put Edit in Actions and a confirmed trash button in the final Delete cell',async h=>{
+    h.audit.state.draft.rows[0].inputs={T:'Linked source',O:2.34567890123456};await h.audit.addToSchedule();const before=copy(h.api.projectSnapshot()),calls=[];
+    h.context.window.CeasefirePenetrationNavigation.confirmDelete=async(...args)=>{calls.push(args);return false;};
+    for(const id of ['penetration-schedule-body','penetration-estimator-schedule-body']){const row=h.byId(id).children[0];assert.equal(row.children.length,11);assert.equal(row.children[9].children.length,1);assert.equal(row.children[9].children[0].textContent,'Edit');assert.equal(row.children[10].children[0].getAttribute('aria-label'),'Delete firestopping item 1');await row.children[10].children[0].emit('click');assert.deepEqual(copy(h.api.projectSnapshot()),before);}
+    assert.equal(calls.length,2);h.context.window.CeasefirePenetrationNavigation.confirmDelete=async()=>true;await h.byId('penetration-estimator-schedule-body').children[0].children[10].children[0].emit('click');await flush();assert.equal(h.api.projectSnapshot().draft.rows.length,0);
+    await h.byId('penetration-undo').emit('click');await flush();assert.deepEqual(copy(h.api.projectSnapshot()),before);
+  });
+  for(const conflict of ['row edit','remove and reuse','Undo epoch','project replacement','price change','invalid input','destination lease'])await check(`Pending Firestopping deletion rejects ${conflict} without deleting current content`,async h=>{
+    await h.audit.addToSchedule();const state=h.audit.state,pending=deferred();h.context.window.CeasefirePenetrationNavigation.confirmDelete=()=>pending.promise;
+    const deletion=h.byId('penetration-schedule-body').children[0].children[10].children[0].emit('click');await flush();assert.equal(h.byId('penetration-estimator-schedule-body').children[0].children[10].children[0].disabled,true);
+    if(conflict==='row edit'){state.schedule.draft.rows[0].inputs.O=9.98765432109876;state.schedule.revision++;}
+    else if(conflict==='remove and reuse'){h.audit.removeRow('line-1');state.schedule.draft.rows.push({id:'line-1',inputs:{T:'Replacement'}});state.rowEpochs.set('line-1',++state.nextEpoch);}
+    else if(conflict==='Undo epoch'){h.audit.removeRow('line-1');h.audit.undoRemove();}
+    else if(conflict==='project replacement')h.api.applyProject(await h.api.prepareProject({draft:{...definition().schedule_defaults,rows:[{id:'line-1',inputs:{T:'Other project'}}]}}));
+    else if(conflict==='price change')h.pricing.rates.original.price=9.123456789;
+    else if(conflict==='invalid input')state.schedule.invalid.set('["line-1","O"]',{value:'1e-',error:'bad'});
+    else state.takeoffLease={};
+    const before=copy(h.api.projectSnapshot());pending.resolve(true);await deletion;assert.deepEqual(copy(h.api.projectSnapshot()),before);assert.match(h.byId('penetration-schedule-message').textContent,/Nothing was deleted|still applying/);assert.equal(state.pendingDeletes.size,0);
+  });
+  await check('Repeated trash clicks share one pending review and an unavailable confirmation API fails closed',async h=>{
+    await h.audit.addToSchedule();const pending=deferred();let count=0;h.context.window.CeasefirePenetrationNavigation.confirmDelete=()=>{count++;return pending.promise;};const button=h.byId('penetration-schedule-body').children[0].children[10].children[0],deletion=button.emit('click');await flush();await button.emit('click');assert.equal(count,1);pending.resolve(false);await deletion;assert.equal(h.api.projectSnapshot().draft.rows.length,1);
+    delete h.context.window.CeasefirePenetrationNavigation.confirmDelete;await button.emit('click');assert.equal(h.api.projectSnapshot().draft.rows.length,1);assert.match(h.byId('penetration-schedule-message').textContent,/confirmation is unavailable/);
+  });
+  await check('Detached Delete buttons cannot review or delete a replaced row with a reused ID',async h=>{
+    await h.audit.addToSchedule();const old=h.byId('penetration-schedule-body').children[0].children[10].children[0];let calls=0;h.context.window.CeasefirePenetrationNavigation.confirmDelete=async()=>{calls++;return true;};
+    h.api.applyProject(await h.api.prepareProject({draft:{...definition().schedule_defaults,rows:[{id:'line-1',inputs:{T:'Other project'}}]}}));let blurs=0;h.context.document.activeElement={blur(){blurs++;h.audit.state.schedule.draft.rows[0].inputs.T='A replacement input was wrongly flushed';}};const before=copy(h.api.projectSnapshot());await old.emit('click');assert.deepEqual(copy(h.api.projectSnapshot()),before);assert.equal(calls,0);assert.equal(blurs,0,'A detached old Delete control must reject before touching the replacement editor');assert.match(h.byId('penetration-schedule-message').textContent,/replaced or edited/);
+  });
+  await check('Firestopping Delete rechecks the rendered row after a current input blur before opening review',async h=>{
+    await h.audit.addToSchedule();const button=h.byId('penetration-schedule-body').children[0].children[10].children[0];let calls=0;h.context.window.CeasefirePenetrationNavigation.confirmDelete=async()=>{calls++;return true;};h.context.document.activeElement={blur(){h.audit.state.schedule.draft.rows[0].inputs.O=7.12345678901234;}};
+    await button.emit('click');assert.equal(calls,0);assert.equal(h.api.projectSnapshot().draft.rows[0].inputs.O,7.12345678901234);assert.match(h.byId('penetration-schedule-message').textContent,/replaced or edited/);
   });
   await check('A thousand scheduled rows render bounded pages and retain every precise row in calculations',async h=>{
     const draft=definition().schedule_defaults;draft.rows=Array.from({length:1000},(_,i)=>({id:`line-${i+1}`,inputs:i===999?{K:'Last service',L:'Core hole',M:'Floor',N:'120/120/120',O:9.123456789012345}:{}}));h.api.applyProject(await h.api.prepareProject({draft}));assert.equal(h.byId('penetration-schedule-body').children.length,50);assert.equal(h.byId('penetration-add-to-schedule').disabled,true);assert.equal(h.byId('penetration-add').disabled,false);

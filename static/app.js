@@ -114,7 +114,7 @@
     fields: [], currentFields: [], inputs: {}, catalog: { inventory: [], rate_groups: {} }, baseline: { inventory: [], rate_groups: {} },
     configuration: { inventory: {}, rates: {} }, draft: { inventory: {}, rates: {} },
     quote: null, quoteConfiguration: null, quoteContext: 0, quoteLoadRevision: 0, dirty: false, pricingDirty: false,
-    result: null, revision: 0, timer: null, pricingExpanded: new Set(), inputSections: new Map(), legacyTitle: "",
+    result: null, revision: 0, timer: null, pricingExpanded: new Set(), mainSection: "access-travel", legacyTitle: "",
     workflow: "", defaultWorkflow: "Intumescent spray to ductwork", inputErrors: new Map(), inputDrafts: new Map(), inputRevision: 0, projectBusy: false,
     pricingScope: "library", libraryDraft: null, projectPricingDraft: null, pricingRevision: 0,
     projectFile: null, projectsRevision: 0, initialized: false, currentView: "home", projectsOffset: 0, projectsTimer: null, desktopRequests: 0,
@@ -496,10 +496,11 @@
 
   function inputCard(key, title, fields, helper) {
     if (!fields.length) return null;
-    const section = node("details", "card expandable-breakdown");
+    const section = node("section", "card main-section-panel");
     section.dataset.inputSection = key;
-    section.open = state.inputSections.get(key) ?? false;
-    const heading = node("summary");
+    section.dataset.mainSection = key;
+    section.id = `main-panel-${key}`;
+    const heading = node("div", "section-heading");
     const h2 = node("h2", "", title);
     h2.id = `section-${fields[0].cell}`;
     section.setAttribute("aria-labelledby", h2.id);
@@ -511,15 +512,55 @@
     return section;
   }
 
+  function mainSectionPanels() {
+    const cards = id => [...$(id).children].filter(section => section.dataset.mainSection);
+    return [...cards("input-sections"), $("main-panel-materials"), ...cards("post-material-input-sections"),
+      $("main-panel-firestopping-schedule"), ...cards("adjustment-sections"), $("main-panel-firestopping-breakdown"),
+      $("main-panel-material-breakdown"), $("main-panel-labour-breakdown")].filter(section => section.dataset.mainSection);
+  }
+
+  function selectMainSection(key, { focus = false } = {}) {
+    const panels = mainSectionPanels();
+    if (!panels.some(panel => panel.dataset.mainSection === key)) return;
+    state.mainSection = key;
+    for (const panel of panels) panel.hidden = panel.dataset.mainSection !== key;
+    for (const tab of $("main-section-tabs").children) {
+      const active = tab.dataset.mainSectionTab === key;
+      tab.setAttribute("aria-selected", String(active)); tab.tabIndex = active ? 0 : -1;
+      if (active && focus) { tab.focus(); tab.scrollIntoView?.({ block: "nearest", inline: "nearest" }); }
+    }
+  }
+
+  function renderMainSectionTabs() {
+    const panels = mainSectionPanels(), list = $("main-section-tabs");
+    const focused = document.activeElement?.dataset?.mainSectionTab;
+    const tabs = panels.map(panel => {
+      const key = panel.dataset.mainSection;
+      const title = panel.dataset.mainSectionTitle || panel.querySelector("h2").textContent;
+      const tab = node("button", "main-section-tab", title);
+      tab.type = "button"; tab.id = `main-tab-${key}`; tab.dataset.mainSectionTab = key;
+      tab.setAttribute("role", "tab"); tab.setAttribute("aria-controls", panel.id);
+      panel.setAttribute("role", "tabpanel"); panel.setAttribute("aria-labelledby", tab.id);
+      tab.addEventListener("click", () => selectMainSection(key));
+      tab.addEventListener("keydown", event => {
+        const index = tabs.indexOf(tab), count = tabs.length;
+        const next = { ArrowRight: (index + 1) % count, ArrowLeft: (index + count - 1) % count, Home: 0, End: count - 1 }[event.key];
+        if (next === undefined) return;
+        event.preventDefault(); selectMainSection(tabs[next].dataset.mainSectionTab, { focus: true });
+      });
+      return tab;
+    });
+    list.replaceChildren(...tabs);
+    const key = panels.some(panel => panel.dataset.mainSection === state.mainSection) ? state.mainSection : panels[0]?.dataset.mainSection;
+    if (key) selectMainSection(key, { focus: focused === key });
+  }
+
   function renderInputs() {
     const before = $("input-sections");
     const postMaterials = $("post-material-input-sections");
     const after = $("adjustment-sections");
     const materials = $("material-inputs");
     const project = $("project-input-fields");
-    for (const container of [before, postMaterials, after]) {
-      for (const section of container.querySelectorAll("details[data-input-section]")) state.inputSections.set(section.dataset.inputSection, section.open);
-    }
     before.replaceChildren(); postMaterials.replaceChildren(); after.replaceChildren(); materials.replaceChildren(); project.replaceChildren();
     const job = [], labour = [], masking = [], adjustments = [], additions = [], remainder = [];
     for (const field of state.fields) {
@@ -550,6 +591,7 @@
       additionCard,
       inputCard("other-inputs", "Other estimate inputs", remainder),
     ]) if (card) after.append(card);
+    renderMainSectionTabs();
     validateCoverageTeams();
     if ([...state.inputErrors.values()].includes("Select Teams")) showInputProblems();
   }
@@ -677,18 +719,7 @@
     return answer;
   }
 
-  function notify(title, detail, action = "OK") {
-    const answer = confirmationQueue.then(() => new Promise((resolve) => {
-      const dialog = $("notice-dialog");
-      $("notice-title").textContent = title;
-      $("notice-detail").textContent = detail;
-      $("notice-button").textContent = action;
-      dialog.addEventListener("close", () => resolve(), { once: true });
-      dialog.showModal();
-    }));
-    confirmationQueue = answer.catch(() => {});
-    return answer;
-  }
+  async function notify(title, detail) { message(detail || title, true); }
 
   async function newQuote() {
     if (state.projectBusy) return;
@@ -2249,11 +2280,14 @@
     configuration: () => clone(state.quoteConfiguration || state.configuration),
     downloadTarget: () => ({ project_token: state.projectFile?.save_token || null }) };
   window.CeasefireLibraryNavigation = { open: requestLibraryNavigation };
+  window.CeasefireDialogs = { confirm: confirmReplace, notify, message };
   window.CeasefireTakeoffNavigation = { show() { return showView("takeoffs"); } };
   window.CeasefirePenetrationNavigation = {
     show() { return showView("calculators", undefined, "penetration"); },
-    showSchedule() { state.estimateKind = "estimate"; return showView("estimate"); },
+    showSchedule() { state.estimateKind = "estimate"; selectMainSection("firestopping-schedule"); return showView("estimate"); },
     confirm: confirmReplace,
+    confirmDelete() { return confirmReplace("Delete item?", "Are you sure you want to delete this item?", "Yes", "Cancel"); },
+    message,
     notify,
   };
   window.CeasefireLibraryEditorNavigation = {

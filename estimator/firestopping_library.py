@@ -436,14 +436,14 @@ class FirestoppingLibrary(ReferenceLibrary):
                         str(source_substrate), effective_substrate)
                 if 'substrate' in item.get('filter_values', {}):
                     item['filter_values']['substrate'] = [effective_substrate]
-            self._service_size(item, source_inputs)
+            self._service_size(item, source_inputs, source_sha256=source_hash if not own else None)
             edit = saved.get(item['id'])
             if edit:
                 if edit['source_sha256'] != source_hash:
                     item['notice'] = 'A saved edit uses a different source workbook version. Its values are retained; review that version before editing this item.'
                     item['editable'] = False
                 else:
-                    self._apply_edit(item, edit)
+                    self._apply_edit(item, edit, source_sha256=source_hash if not own else None)
             item['fields'] = [field for field in item['fields'] if field.get('column') not in ('Q', 'R')]
         items = {item['id']: item for item in library['items']}
         technical = {item['id']: item for item in data['libraries']['technical']['items']}
@@ -490,10 +490,12 @@ class FirestoppingLibrary(ReferenceLibrary):
         return normalize_draft(copied)
 
     @staticmethod
-    def _service_size(item, inputs):
+    def _service_size(item, inputs, *, source_sha256=None, field=None):
+        field = field if field is not None else service_size_field(
+            inputs, item=item, source_sha256=source_sha256)
         item['fields'] = [field for field in item['fields'] if field['label'] != FIELD_LABEL]
         position = next((i+1 for i, field in enumerate(item['fields']) if field.get('column') == 'K'), 1)
-        item['fields'].insert(position, service_size_field(inputs))
+        item['fields'].insert(position, field)
 
     @staticmethod
     def _takeoff_display_fields(item, inputs=None):
@@ -513,9 +515,10 @@ class FirestoppingLibrary(ReferenceLibrary):
         return {key: '' if value is None else str(value) for key, value in values.items()}
 
     @staticmethod
-    def _apply_edit(item, edit):
+    def _apply_edit(item, edit, *, source_sha256=None):
         inputs = edit['draft']['rows'][0]['inputs']
         presentation_inputs = dict(inputs)
+        size_field = service_size_field(inputs, item=item, source_sha256=source_sha256)
         presentation_inputs['K'] = canonical_service_type(inputs.get('K'))
         presentation_inputs['N'] = canonical_frl(inputs.get('N'))
         presentation_inputs['P'] = canonical_substrate(inputs.get('P'))
@@ -533,7 +536,7 @@ class FirestoppingLibrary(ReferenceLibrary):
         item['fields'].insert(1, {'label': 'Saved library edit', 'value': edit['updated_at']})
         item['notice'] = ('This user-created item has saved edits. Review linked technical details against the current inputs.' if item.get('user_created') else
                           'This item has saved edits. Source diagrams describe the original workbook item; review technical references against the current inputs.')
-        FirestoppingLibrary._service_size(item, presentation_inputs)
+        FirestoppingLibrary._service_size(item, presentation_inputs, field=size_field)
         for key, col in {'manufacturer': 'V', 'service_type': 'K', 'penetration_type': 'L', 'orientation': 'M', 'frl': 'N', 'substrate': 'P'}.items():
             if key in item.get('filter_values', {}):
                 item['filter_values'][key] = [str(presentation_inputs[col])] if presentation_inputs.get(col) else []

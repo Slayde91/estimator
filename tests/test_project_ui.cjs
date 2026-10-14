@@ -69,7 +69,7 @@ function harness({ penetration = false } = {}) {
   appSource = appSource.replace(appEnd, `
     globalThis.appAudit = {state, saveProject, loadProject, openNativeProject, newQuote, projectStamp, saveQuote, openQuote, calculate, reportPayload, projectEstimate,
       applyProjectPricing,savePricing,switchPricingScope,useCurrentPricing,loadProjects,linkProjectFolder,openProjectFile,openProjectBrowser,loadProjectFiles,openProjectFolderFile,closeProjectBrowser,projectPricingChanged,resetProjectPricing,pricingInputProblem,updateProjectStatus,showView,requestCalculatorNavigation,uploadProjectFiles,reviewDesktopClose,
-      renderInputs, setRequest(fn) { request = fn; }};
+      renderInputs, selectMainSection, setRequest(fn) { request = fn; }};
   })();`);
   vm.runInContext(appSource, context);
   const app = context.appAudit, calc = context.calcAudit, bridgeApi = context.window.CeasefireCalculators;
@@ -614,22 +614,22 @@ async function penetrationCheck(name, fn) {
     h.calc.setInput(h.calc.current(),'CALCULATOR','A9','Changed calculator');
     assert.equal(h.byId('project-save-state').textContent,'Unsaved changes');
   });
-  await check('Dynamic estimate disclosures retain logical open and closed state across masking rebuilds', async h => {
+  await check('Main tabs retain current selection and exact inputs across conditional masking rebuilds', async h => {
     const containers=['input-sections','post-material-input-sections','adjustment-sections'].map(h.byId);
-    for(const container of containers)container.querySelectorAll=()=>container.children.filter(child=>child.dataset?.inputSection);
     h.app.state.fields=[['B2','Access'],['D2','Teams'],['D7','Masking teams'],['B9','Masking percentage'],['B26','Global'],['E26','Addition'],['A50','Other']].map(([cell,label])=>({cell,label,type:cell==='D7'?'select':'number',options:cell==='D7'?['N/A','1']:undefined}));
     h.app.state.inputs={D7:'1',B2:12.34567,B9:0.1,E26:98.76543};
     const cards=()=>containers.flatMap(container=>container.children).filter(card=>card.dataset?.inputSection);
-    const states=()=>Object.fromEntries(cards().map(card=>[card.dataset.inputSection,card.open]));
-    h.app.renderInputs();
-    const expected={'access-travel':true,'teams-crews':true,'masking-cleaning':true,'global-adjustments':false,additions:true,'other-inputs':false};
-    for(const card of cards())card.open=expected[card.dataset.inputSection];
-    const original=copy(h.app.state.inputs);h.app.state.inputs.D7='N/A';h.app.renderInputs();
-    assert.deepEqual(states(),Object.fromEntries(Object.entries(expected).filter(([key])=>key!=='masking-cleaning')));
-    h.app.state.fields.reverse();h.app.state.inputs.D7='1';h.app.renderInputs();assert.deepEqual(states(),expected);
-    assert.deepEqual(copy(h.app.state.inputs),original,'Rendering and disclosure preferences cannot change estimate inputs or precision');
-    cards().find(card=>card.dataset.inputSection==='masking-cleaning').open=false;h.app.state.inputs.D7='N/A';h.app.renderInputs();h.app.state.inputs.D7='1';h.app.renderInputs();
-    assert.equal(states()['masking-cleaning'],false,'An explicitly closed temporarily removed section stays closed');
+    const visible=()=>cards().filter(card=>!card.hidden).map(card=>card.dataset.inputSection);
+    h.app.renderInputs();h.app.selectMainSection('additions');const original=copy(h.app.state.inputs);
+    assert.deepEqual(visible(),['additions']);
+    h.app.state.inputs.D7='N/A';h.app.renderInputs();assert.deepEqual(visible(),['additions']);
+    assert.ok(!cards().some(card=>card.dataset.inputSection==='masking-cleaning'));
+    h.app.state.fields.reverse();h.app.state.inputs.D7='1';h.app.renderInputs();assert.deepEqual(visible(),['additions']);
+    assert.deepEqual(copy(h.app.state.inputs),original,'Tab rendering cannot change estimate inputs or precision');
+    h.app.selectMainSection('masking-cleaning');h.app.state.inputs.D7='N/A';h.app.renderInputs();
+    assert.deepEqual(visible(),['access-travel'],'Removing the selected conditional tab falls back to the first available section');
+    h.app.state.inputs.D7='1';h.app.renderInputs();assert.deepEqual(visible(),['access-travel']);
+    h.app.selectMainSection('masking-cleaning');assert.deepEqual(visible(),['masking-cleaning']);assert.deepEqual(copy(h.app.state.inputs),original);
   });
   await check('Header project name keeps authoritative file title through dirty and busy state and clears on New', async h => {
     const title='CF-7000 <saved quote> & Client';h.app.state.projectFile={title,name:'private-filename.cf.json',path:'C:/Private/Folder/private-filename.cf.json'};

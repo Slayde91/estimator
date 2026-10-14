@@ -1,4 +1,4 @@
-// Estimator disclosure state, saved project names and Firestopping controls use
+// Main section tabs, saved project names and Firestopping controls use
 // real endpoints in an isolated synthetic project folder, never the live app.
 const { chromium, expect } = require('@playwright/test');
 const { chooseCalculator } = require('./calculator_actions.cjs');
@@ -30,12 +30,11 @@ async function response(action, pathname, matches = () => true) {
   const pending = page.waitForResponse(reply => new URL(reply.url()).pathname === pathname && reply.request().method() === 'POST' && matches(reply)); pending.catch(() => {});
   await action(); const reply = await pending; assert.equal(reply.status(), 200, await reply.text()); return reply.json();
 }
-async function disclosure(key, open) {
-  const section = page.locator(`details[data-input-section="${key}"]`);
-  if (await section.evaluate(element => element.open) !== open) await section.locator(':scope > summary').click();
-  await expect(section).toHaveJSProperty('open', open);
+async function mainTab(key) {
+  const tab=page.locator(`#main-tab-${key}`);await tab.click();
+  await expect(tab).toHaveAttribute('aria-selected','true');await expect(page.locator(`#main-panel-${key}`)).toBeVisible();
+  await expect(page.locator('#main-section-workspace [role="tabpanel"]:visible')).toHaveCount(1);
 }
-async function disclosureStates() { return page.locator('details[data-input-section]').evaluateAll(elements => Object.fromEntries(elements.map(element => [element.dataset.inputSection, element.open]))); }
 async function headerTitle(title) {
   const label = page.locator('#header-project-name'); await expect(label).toHaveText(title); await expect(label).toHaveAttribute('title', title);
   if (title) await expect(label).toBeVisible(); else await expect(label).toBeHidden();
@@ -55,24 +54,35 @@ function retainedScopes(value) { return { pricing: value.pricing, calculators: v
   }
   await headerTitle(''); await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()); await idle();
   await page.getByRole('button', { name: 'Estimates', exact: true }).click(); await settledEstimate();
-  await disclosure('teams-crews', true);
+  await mainTab('teams-crews');
   const masking = page.locator('#input-D7'), active = await masking.locator('option').evaluateAll(options => options.find(option => option.value && option.value.trim().toLowerCase() !== 'n/a').value);
   const inactive = await masking.locator('option').evaluateAll(options => options.find(option => option.value.trim().toLowerCase() === 'n/a').value);
-  await masking.selectOption(active); await settledEstimate();
-  const expected = { 'access-travel': true, 'teams-crews': true, 'masking-cleaning': true, 'global-adjustments': false, additions: true };
-  for (const [key, open] of Object.entries(expected)) await disclosure(key, open);
-  await page.locator('#input-F26').fill('1.234567891'); await page.locator('#input-F26').press('Tab'); await settledEstimate();
-  const originalInputs = calculations.at(-1).inputs, scopesBefore = await snapshot(); assert.equal(originalInputs.F26, 1.23, 'Native numeric editing retains the established two-decimal entry rule');
-  await masking.selectOption(inactive); await settledEstimate();
-  await expect(page.locator('details[data-input-section="masking-cleaning"]')).toHaveCount(0);
-  const withoutMasking = await disclosureStates(); for (const [key, open] of Object.entries(expected)) if (key !== 'masking-cleaning') assert.equal(withoutMasking[key], open);
-  await masking.selectOption(active); await settledEstimate(); const restored = await disclosureStates();
-  for (const [key, open] of Object.entries(expected)) assert.equal(restored[key], open);
-  assert.deepEqual(calculations.at(-1).inputs, originalInputs); assert.deepEqual(await snapshot(), scopesBefore);
-  await disclosure('masking-cleaning', false); await masking.selectOption(inactive); await settledEstimate(); await masking.selectOption(active); await settledEstimate();
-  await expect(page.locator('details[data-input-section="masking-cleaning"]')).toHaveJSProperty('open', false);
-  assert.deepEqual(calculations.at(-1).inputs, originalInputs); checks.disclosures = { mixedOpenClosedRetained: true, maskingReturnsToPriorState: true, closedMaskingRetained: true, exactInputPrecision: originalInputs.F26, unrelatedDraftsAndPricesUnchanged: true };
-  await page.screenshot({ path: path.join(output, 'retained-estimator-sections.png'), fullPage: true });
+  await masking.selectOption(active); await settledEstimate();await expect(page.locator('#main-tab-teams-crews')).toHaveAttribute('aria-selected','true');
+  await mainTab('additions');await page.locator('#input-F26').fill('1.234567891');await page.locator('#input-F26').press('Tab');await settledEstimate();
+  const originalInputs=calculations.at(-1).inputs,scopesBefore=await snapshot();assert.equal(originalInputs.F26,1.23,'Native numeric editing retains the established two-decimal entry rule');
+  const tabKeys=await page.locator('#main-section-tabs [role="tab"]').evaluateAll(tabs=>tabs.map(tab=>tab.dataset.mainSectionTab));
+  assert.deepEqual(tabKeys,['access-travel','teams-crews','materials','masking-cleaning','firestopping-schedule','global-adjustments','additions','firestopping-breakdown','material-breakdown','labour-breakdown']);
+  const requestCount=calculations.length;
+  for(const key of tabKeys)await mainTab(key);
+  assert.equal(calculations.length,requestCount,'Section switches do not calculate or mutate inputs');assert.deepEqual(await snapshot(),scopesBefore);
+  await mainTab('teams-crews');await masking.selectOption(inactive);await settledEstimate();
+  await expect(page.locator('#main-tab-masking-cleaning')).toHaveCount(0);await expect(page.locator('#main-tab-teams-crews')).toHaveAttribute('aria-selected','true');
+  await masking.selectOption(active);await settledEstimate();await expect(page.locator('#main-tab-masking-cleaning')).toHaveCount(1);await expect(page.locator('#main-tab-teams-crews')).toHaveAttribute('aria-selected','true');
+  assert.deepEqual(calculations.at(-1).inputs,originalInputs);assert.deepEqual(await snapshot(),scopesBefore);
+  checks.mainTabs={allSectionsReachable:true,singleVisiblePanel:true,tabSwitchesDoNotCalculate:true,conditionalMaskingRetainsSelection:true,exactInputPrecision:originalInputs.F26,unrelatedDraftsAndPricesUnchanged:true,viewports:[]};
+  for(const width of [1440,1146,817,390]){
+    await page.setViewportSize({width,height:1100});await mainTab('access-travel');
+    const first=page.locator('#main-tab-access-travel');await first.focus();await first.press('End');await expect(page.locator('#main-tab-labour-breakdown')).toBeFocused();await expect(page.locator('#main-tab-labour-breakdown')).toHaveAttribute('aria-selected','true');
+    await page.locator('#main-tab-labour-breakdown').press('ArrowRight');await expect(first).toBeFocused();await expect(first).toHaveAttribute('aria-selected','true');
+    await first.press('ArrowLeft');await expect(page.locator('#main-tab-labour-breakdown')).toBeFocused();await page.locator('#main-tab-labour-breakdown').press('Home');await expect(first).toBeFocused();
+    await mainTab('additions');await expect(page.locator('#input-F26')).toHaveValue('1.23');
+    const geometry=await page.evaluate(()=>{const box=selector=>{const b=document.querySelector(selector).getBoundingClientRect();return{left:b.left,right:b.right,top:b.top,bottom:b.bottom}};return{project:box('[aria-labelledby="project-heading"]'),tabs:box('#main-section-tabs'),panel:box('#main-panel-additions'),summary:box('#estimator-main .summary-card'),pageWidth:document.documentElement.scrollWidth,details:document.querySelectorAll('.estimate-main details').length}});
+    assert.equal(geometry.details,0);assert.ok(geometry.tabs.top>=geometry.project.bottom);assert.ok(geometry.tabs.left>=0&&geometry.tabs.right<=width+1);assert.ok(geometry.panel.right<=width+1);assert.ok(geometry.pageWidth<=width);
+    if(width>880)assert.ok(geometry.summary.left>=geometry.panel.right,'Estimate Summary stays to the right');
+    assert.deepEqual(await snapshot(),scopesBefore);checks.mainTabs.viewports.push({width,geometry});
+    if([1440,390].includes(width))await page.screenshot({path:path.join(output,`main-tabs-${width}.png`),fullPage:true});
+  }
+  await page.setViewportSize({width:1440,height:1100});
 
   await page.locator('#project-no').fill('CF-7000'); await page.locator('#client').fill('<saved quote> & Client'); await page.locator('#site-address').fill('Fixture site');
   await headerTitle('');
@@ -104,8 +114,8 @@ function retainedScopes(value) { return { pricing: value.pricing, calculators: v
   preciseProject.estimate.inputs.F26 = 1.234567891; fs.writeFileSync(preciseFile, JSON.stringify(preciseProject));
   await response(() => page.locator('#project-import-file').setInputFiles(preciseFile), '/api/project/import'); await page.getByRole('dialog').getByRole('button', { name: 'Load Project', exact: true }).click(); await idle(); await settledEstimate();
   await headerTitle(captured.estimate.title); const preciseInputs = calculations.at(-1).inputs, preciseScopes = await snapshot(); assert.equal(preciseInputs.F26, 1.234567891);
-  await disclosure('teams-crews', true); await page.locator('#input-D7').selectOption(inactive); await settledEstimate(); await page.locator('#input-D7').selectOption(active); await settledEstimate();
-  assert.deepEqual(calculations.at(-1).inputs, preciseInputs); assert.deepEqual(await snapshot(), preciseScopes); checks.disclosures.importedFullPrecisionRetained = preciseInputs.F26;
+  await mainTab('teams-crews'); await page.locator('#input-D7').selectOption(inactive); await settledEstimate(); await page.locator('#input-D7').selectOption(active); await settledEstimate();
+  assert.deepEqual(calculations.at(-1).inputs, preciseInputs); assert.deepEqual(await snapshot(), preciseScopes); checks.mainTabs.importedFullPrecisionRetained = preciseInputs.F26;
 
   // Native schedule edits retain full precision. Quantity controls align with
   // Item QTY; the Document/Library pair stays together and may wrap below it.

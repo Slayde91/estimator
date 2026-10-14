@@ -190,7 +190,18 @@ async function fitCurrentDrawing(name) {
   await chooseCalculator(page, 'Ductwork (spray/wrap)');
   await page.locator('#calculator-pages').getByRole('button', { name: 'SCHEDULE', exact: true }).click();
   const oldRow = page.locator(`tr[data-source-row="${ancestorBinding.row}"]`);
-  await oldRow.getByRole('button', { name: /Remove line/ }).click();
+  await oldRow.getByRole('button', { name: /Delete line/ }).click();
+  await expect(page.getByRole('dialog')).toContainText('Are you sure you want to delete this item?');
+  // The native dialog close event resumes deletion after Yes returns. Wait
+  // for this row's cleared worksheet request rather than its earlier idle UI.
+  const removedReply = page.waitForResponse(reply => {
+    if (new URL(reply.url()).pathname !== '/api/calculators/ductwork/worksheet' || reply.request().method() !== 'POST') return false;
+    const body = reply.request().postDataJSON();
+    return Object.keys(ancestorBinding.values).every(address => body.inputs.CALCULATOR[address] === null);
+  }); removedReply.catch(() => {});
+  await page.getByRole('dialog').getByRole('button',{name:'Yes',exact:true}).click();
+  const removedResponse = await removedReply; assert.equal(removedResponse.status(), 200, await removedResponse.text());
+  await expect(oldRow.locator(`[data-calculator-cell="B${ancestorBinding.row}"]`)).toHaveValue('');
   await expect(page.locator('#calculator-grid')).not.toHaveAttribute('aria-busy', 'true');
   const cleared = await page.evaluate(() => window.CeasefireCalculators.projectSnapshot());
   for (const address of Object.keys(ancestorBinding.values)) assert.ok(cleared.ductwork.inputs.CALCULATOR[address] == null || cleared.ductwork.inputs.CALCULATOR[address] === '', `${address} must be explicitly cleared`);

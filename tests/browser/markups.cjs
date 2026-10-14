@@ -100,7 +100,10 @@ async function load(){const pending=page.waitForResponse(r=>r.url().endsWith('/a
   await page.locator(`tr[data-item-id="${b.id}"]`).getByRole('checkbox',{name:/^Hide /}).check();
   const {path:xlsx}=await download('Download XLSX');evidence.xlsx=xlsx;
   const check=spawnSync(python,['-c',"import json,sys\nfrom openpyxl import load_workbook\nw=load_workbook(sys.argv[1],data_only=False)\ns=w.active;r=list(s.values)\nprint(json.dumps({'sheets':w.sheetnames,'headers':r[0],'rows':[dict(zip(r[0],v)) for v in r[1:]],'formulas':[c.coordinate for s in w for row in s for c in row if c.data_type=='f']}))",xlsx],{cwd:root,windowsHide:true,encoding:'utf8'});assert.equal(check.status,0,check.stderr);const workbook=JSON.parse(check.stdout);assert.deepEqual(workbook.formulas,[]);assert.deepEqual(workbook.sheets,['Current Takeoffs']);
-  assert.deepEqual(workbook.headers,(await page.locator('.takeoff-register:not(.takeoff-physical-register) table').first().getByRole('columnheader').allTextContents()).slice(3).map(value=>value.trim()));
+  const registerHeaders=['Confirmation','Member mark','Level','Member type','Steel section','Product','Fire period (min)','Crit. Temp (°C)','Exposure','Qty','Length each (m)','Total (m)','Thickness (mm)','Evidence / issues'];
+  const uiHeaders=(await page.locator('.takeoff-register:not(.takeoff-physical-register) table').first().getByRole('columnheader').allTextContents()).map(value=>value.trim());
+  assert.equal(uiHeaders.at(-1),'Delete');assert.deepEqual(uiHeaders,['Select','Hide','View/Edit',...registerHeaders,'Delete']);
+  assert.deepEqual(workbook.headers,registerHeaders,'XLSX retains every data column and excludes UI action controls');evidence.xlsxHeaders=workbook.headers;evidence.uiFinalColumn=uiHeaders.at(-1);
   for(const item of[a,b,c]){const row=workbook.rows.find(row=>row['Member mark']===item.fields.mark);assert.ok(row);assert.equal(row.Qty,item.quantity);assert.equal(row.Confirmation,'Unconfirmed');assert.ok(!Object.hasOwn(row,'Geometry'));}evidence.xlsxSheets=workbook.sheets;
   let releaseRender;
   const renderHeld=new Promise(resolve=>{releaseRender=resolve;});

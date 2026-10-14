@@ -172,9 +172,23 @@ function clearedExpected(original, bindings) {
   await pageNumber(3); await fit(); await editItem(id);
   await page.locator('#takeoff-markup-settings').getByRole('button', { name: 'Delete item', exact: true }).scrollIntoViewIfNeeded();
   await page.screenshot({ path: path.join(output, 'restored-item-details-and-rise.png') });
-  await openSpray(); await page.locator(`tr[data-source-row="${spray.row}"]`).getByRole('button', { name: /Remove line/ }).click();
+  await openSpray(); await page.locator(`tr[data-source-row="${spray.row}"]`).getByRole('button', { name: /Delete line/ }).click();
+  await expect(page.getByRole('dialog')).toContainText('Are you sure you want to delete this item?');
+  // Yes closes the native dialog before its asynchronous close event resumes
+  // row removal. The previous idle state is not evidence of that operation.
+  const remainingRows = baseline.steel_vermiculite.schedule_rows.filter(row => row !== spray.row);
+  const removedReply = page.waitForResponse(reply => {
+    if (new URL(reply.url()).pathname !== '/api/calculators/steel_vermiculite/worksheet' || reply.request().method() !== 'POST') return false;
+    const body = reply.request().postDataJSON();
+    return Object.keys(spray.values).every(address => body.inputs.SCHEDULE[address] === null)
+      && JSON.stringify(body.schedule_view.rows) === JSON.stringify(remainingRows);
+  }); removedReply.catch(() => {});
+  await page.getByRole('dialog').getByRole('button',{name:'Yes',exact:true}).click();
+  const removedResponse = await removedReply; assert.equal(removedResponse.status(), 200, await removedResponse.text());
+  await expect(page.locator(`tr[data-source-row="${spray.row}"]`)).toHaveCount(0);
   await expect(page.locator('#calculator-grid')).not.toHaveAttribute('aria-busy', 'true'); const alreadyCleared = await calculators();
   for (const address of Object.keys(spray.values)) assert.ok(alreadyCleared.steel_vermiculite.inputs.SCHEDULE[address] == null);
+  assert.deepEqual(alreadyCleared.steel_vermiculite.schedule_rows, remainingRows);
   await returnToTakeoffs();
   const uncertainBefore = await snapshot(); let unreadable = 0, saveAttempts = 0;
   const saveWatcher = request => { if (/\/api\/project\/save(?:-as)?$/.test(request.url())) saveAttempts++; };

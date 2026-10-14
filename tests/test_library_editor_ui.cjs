@@ -11,7 +11,7 @@ function harness(){
   const h=projectHarness(),calls=[],returns=[];let shows=0,invalidations=0;
   h.context.window.CeasefireLibraryEditorNavigation={show(){shows++;},returnToLibrary(id){returns.push(id);}};
   h.context.window.CeasefireLibraries={invalidate(){invalidations++;}};
-  vm.runInContext(fs.readFileSync('static/library-editor.js','utf8').replace(/\}\)\(\);\s*$/,`globalThis.libraryAudit={state,calculate,refreshPricing,save,cancel,downloadItem,makeControl,renderFields,renderDiagram,queueDiagram,chooseDiagram,present,setRequest(fn){request=fn;},setProjectRequest(fn){projectRequest=fn;}};})();`),h.context);
+  vm.runInContext(fs.readFileSync('static/library-editor.js','utf8').replace(/\}\)\(\);\s*$/,`globalThis.libraryAudit={state,calculate,refreshPricing,save,cancel,downloadItem,makeControl,selectGroup,message,renderFields,renderDiagram,queueDiagram,chooseDiagram,present,setRequest(fn){request=fn;},setProjectRequest(fn){projectRequest=fn;}};})();`),h.context);
   const audit=h.context.libraryAudit,api=h.context.window.CeasefireLibraryEditor;
   audit.setRequest(async(id,action,payload)=>{calls.push({id,action,payload:payload&&copy(payload)});return fixture(payload?.draft,{revision:action==='save'?payload.revision+1:payload?.revision||0,pricing_token:payload?.pricing_token||'workbook-token'});});
   const control=(column,global=false)=>[h.byId('library-editor-item-quantity'),h.byId('library-editor-fields')].flatMap(walk).find(el=>el.dataset.libraryEditorField===column&&el.dataset.libraryEditorGlobal===String(global));
@@ -23,6 +23,22 @@ async function check(name,fn){const h=harness();h.projectApi.applyProject(await 
   const portable = (draft = definition().defaults, diagram = null) => ({id:'orphan-item',library_id:'FL-PROJECT',title:'Project copy',source_sha256:'library-source',draft:copy(draft),configuration:{inventory:{},rates:{}},diagram});
   const bundle = record => ({version:1,source_sha256:'calculator-source',records:[record]});
   const prepared = value => ({library_drafts:copy(value),records:value.records.map(record=>fixture(record.draft,{id:record.id,title:record.title,library_id:record.library_id,project_local:true,configuration:record.configuration,diagram:{available:!!record.diagram,url:record.diagram ? `data:image/png;base64,${record.diagram.content_base64}` : undefined}}))});
+  await check('Library Details opens despite incomplete collar values and leaves the draft untouched',async h=>{
+    const record=fixture();record.definition.groups.push('Plastic Pipes');record.definition.row_fields.push({column:'AL',label:'Diameter',group:'Plastic Pipes',type:'number',format:'number',units:'mm',default:null},{column:'AN',label:'Collar Multiplier',group:'Plastic Pipes',type:'number',format:'number',default:null});
+    record.draft.rows[0].inputs.Y='Selected collar';h.api.present(record);h.audit.state.group='Plastic Pipes';h.audit.renderFields();
+    const before=copy(h.audit.state.draft),fingerprint=h.api.projectFingerprint(),notices=[];
+    h.context.window.CeasefirePenetrationNavigation.notify=async(...args)=>{notices.push(args);};
+    await h.audit.selectGroup('Penetration');assert.equal(h.audit.state.group,'Penetration');assert.deepEqual(copy(h.audit.state.draft),before);assert.equal(h.calls.length,0);
+    assert.deepEqual(notices,[['Selection required','Please enter collar Diameter and Multiplier','OK']]);assert.ok(h.control('T'),'Details fields remain reachable');
+    assert.equal(h.api.projectFingerprint(),fingerprint,'Changing the visible group is display-only');
+    h.audit.state.invalid.set('row:AL',{error:'Retained invalid diameter',value:'bad'});const invalidBefore=copy([...h.audit.state.invalid]);
+    h.audit.state.group='Plastic Pipes';await h.audit.selectGroup('Substrate');assert.equal(h.audit.state.group,'Substrate');assert.deepEqual(copy([...h.audit.state.invalid]),invalidBefore);assert.deepEqual(copy(h.audit.state.draft),before);
+  });
+  await check('Library informational messages use the top banner and successful refreshes retain its advisory',async h=>{
+    const top=[];h.context.window.CeasefirePenetrationNavigation.message=(...args)=>top.push(args);h.api.present(fixture());
+    h.audit.message('Review the missing diameter.',true);assert.deepEqual(top,[['Review the missing diameter.',true]]);assert.equal(h.byId('library-editor-message').hidden,true);
+    h.audit.message();assert.deepEqual(top,[['Review the missing diameter.',true]],'An automatic empty clear cannot erase an unrelated top notification');
+  });
   await check('Scheduled project calculation preserves menu focus and exact edited values', async h => {
     h.api.applyProject(prepared(bundle(portable())));await h.api.open('orphan-item');
     const pending=deferred();let captured;

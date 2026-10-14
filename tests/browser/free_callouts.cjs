@@ -35,7 +35,7 @@ async function sourcePoint([x, y]) {
 function invariant(current, baseline) {
   for (const key of ["documents", "items", "calibrations", "transfers", "physical", "service_plans", "image_extractions"]) assert.deepEqual(current[key], baseline[key], `Free notes preserve ${key}`);
 }
-async function select(id) { await page.getByRole("button", { name: "Select", exact: true }).click(); await note(id).press("Enter"); await expect(editor()).toBeVisible(); }
+async function select(id) { await page.getByRole("button", { name: "Select", exact: true }).click(); await note(id).press("Enter"); await expect(editor()).toBeVisible(); await require('./appearance_layout_helpers.cjs').assertAppearanceLayout(panel()); }
 async function drag(target, dx, dy) {
   await target.scrollIntoViewIfNeeded(); const bounds = await target.boundingBox(); assert.ok(bounds); const start = [bounds.x + bounds.width / 2, bounds.y + bounds.height / 2];
   assert.equal(await page.evaluate(([x, y]) => !!document.elementFromPoint(x, y)?.closest(".takeoff-free-callout"), start), true, "Native pointer reaches free note");

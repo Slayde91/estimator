@@ -58,6 +58,10 @@
 .takeoff-markup-settings{align-self:start;min-width:0;max-height:var(--takeoff-viewer-height);overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable;box-sizing:border-box;border:1px solid #777;border-radius:8px;background:#2d2d2d;color:#fff;padding:0 12px 14px}
 .takeoff-markup-settings[hidden]{display:none}.takeoff-markup-settings .takeoff-viewports-heading{padding:10px 0}
 .takeoff-settings-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(120px,calc(50% - 5px)),1fr));gap:10px;align-items:start}
+.takeoff-appearance-fields{grid-column:1/-1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;align-items:start;min-width:0}
+.takeoff-appearance-gap{min-width:0}
+.takeoff-library-record-link{display:inline;padding:0;border:0;background:transparent;color:inherit;font:inherit;text-align:left;text-decoration:underline;text-underline-offset:3px;cursor:pointer;white-space:normal}
+.takeoff-library-record-link:focus-visible{outline:2px solid currentColor;outline-offset:3px}
 .takeoff-settings-fields>h4,.takeoff-settings-fields>.helper,.takeoff-settings-fields>.actions,.takeoff-settings-fields>.takeoff-count-length{grid-column:1/-1}
 .takeoff-markup-settings .field{margin:0;display:flex;flex-direction:column;gap:5px;min-width:0}.takeoff-markup-settings .field>span{font-size:11px;color:#fff;margin-bottom:0;overflow-wrap:anywhere}
 .takeoff-dialog .takeoff-checkbox-field input[type=checkbox]{display:block;width:20px;height:20px;margin:0}

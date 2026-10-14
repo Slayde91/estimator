@@ -1042,9 +1042,6 @@
     $("save-pricing-label").textContent = project ? "Apply" : "Save pricing";
     save.title = project ? "Apply project pricing" : "Save pricing";
     save.setAttribute("aria-label", save.title);
-    $("pricing-context").textContent = state.pricingScope === "project"
-      ? "These prices and estimator groups belong to the current project. Apply project pricing updates its estimate and dropdowns; Save stores them in the project file. The shared library stays unchanged."
-      : "Save pricing stores the shared library and estimator groups on this computer for future estimates. Existing projects keep their saved pricing and dropdown groups; use Current project pricing to change the open project.";
   }
   function switchPricingScope(scope) {
     document.activeElement?.blur?.();

@@ -99,6 +99,7 @@ async function assertLabels(item, state) {
   const items = [];
   for (const mode of ['steel','duct','wall','slab']) {
     const before = await draw(mode,`VALUE-${mode}`); items.push(before);
+    await require('./appearance_layout_helpers.cjs').assertAppearanceLayout(panel());
     if(['wall','slab'].includes(mode)){await expect(panel().getByLabel('Display Values',{exact:true})).toBeChecked();await assertLabels(before,await snapshot());await command(()=>panel().getByLabel('Display Values',{exact:true}).uncheck());}
     await expect(panel().getByLabel('Display Values',{exact:true})).not.toBeChecked();
     await expect(page.locator(`[data-value-item-id="${before.id}"]`)).toHaveCount(0); await expect(page.locator(`[data-area-item-id="${before.id}"]`)).toHaveCount(["wall","slab"].includes(mode)?1:0);
@@ -139,6 +140,7 @@ async function assertLabels(item, state) {
   assert.equal(count.quantity,2); assert.equal(count.measurement.length_m,6.123456789); assert.equal(count.appearance.display_values,false);
   await expect(page.locator(`[data-value-item-id="${count.id}"]`)).toHaveCount(0);
   await select(count); await command(() => panel().getByLabel('Display Values',{exact:true}).check());
+  await require('./appearance_layout_helpers.cjs').assertAppearanceLayout(panel());
   await expect(page.locator(`[data-value-item-id="${count.id}"]`)).toHaveCount(2);
   assert.deepEqual(await page.locator(`[data-value-item-id="${count.id}"]`).evaluateAll(elements => elements.map(el => Number(el.dataset.value))),[6123.456789,6123.456789]);
   await page.screenshot({path:path.join(output,'steel-count-cited-values.png')});

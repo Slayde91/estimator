@@ -88,7 +88,7 @@
     const pagination = node("nav", "library-pagination"); pagination.setAttribute("aria-label", titles[kind] + " result pages"); pagination.append(pane.previous, pane.next);
     pane.list.append(controls, pane.filterControls, pane.count, pane.results, pagination);
     pane.detailPanel = node("section", "card library-detail"); pane.detailPanel.hidden = true; pane.detailPanel.dataset.libraryDetail = kind;
-    root.replaceChildren(pane.message, pane.projectDrafts, pane.summary, pane.notice, pane.linkPanel, pane.list, pane.detailPanel);
+    root.replaceChildren(pane.message, pane.projectDrafts, pane.summary, ...(kind === "technical" ? [] : [pane.notice]), pane.linkPanel, pane.list, pane.detailPanel);
     pane.searchInput.addEventListener("input", () => {
       pane.search = pane.searchInput.value.trim(); pane.offset = 0;
       invalidateList(pane); pane.count.textContent = "Searching…";

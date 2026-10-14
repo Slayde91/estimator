@@ -300,6 +300,32 @@ class CalculatorReportTests(unittest.TestCase):
             self.assertNotIn(removed, normalized)
         self.assertEqual(data, before)
 
+    def test_spray_summary_uses_source_pooled_whole_bags_and_retains_incomplete_values(self):
+        scenario = next(s for s in read_fixture('steel_vermiculite', 'variations')['scenarios']
+                        if s['id'] == 'rounding_manual_bags_and_helpers')
+        for data in (deepcopy(default_projection('steel_vermiculite')),
+                     project_calculator_report('steel_vermiculite', scenario_inputs(scenario))):
+            before = deepcopy(data)
+            with self.subTest(incomplete_rows=data['incomplete_rows']), patch(
+                    'estimator.calculator_report.project_calculator_report', return_value=data):
+                text = '\n'.join(page.extract_text() for page in PdfReader(BytesIO(
+                    build_calculator_summary_report('steel_vermiculite'))).pages)
+                lines = [line.strip() for line in text.splitlines()]
+                self.assertIn('Whole bags', lines)
+                self.assertNotIn('Net bags', lines)
+                if not data['incomplete_rows']:
+                    self.assertEqual(data['summaries'][0]['rows'][0]['values']['G'], 219)
+                    self.assertIn('219.00', lines)
+                    self.assertNotIn('218.38', lines)
+                else:
+                    # A product with partially quantified lines must retain
+                    # the source's withheld order quantity, not its net bags.
+                    self.assertEqual(data['summaries'][0]['rows'][0]['values']['G'], 'INCOMPLETE')
+                    self.assertIn('INCOMPLETE', lines)
+                    self.assertNotIn('5.54', lines)
+                    self.assertIn('Unresolved material requirements:', text)
+                self.assertEqual(data, before)
+
     def test_steel_material_pdfs_omit_requested_fields_and_keep_unresolved_warning(self):
         for identity, product_column, product in [('steel_vermiculite', 'B', 'MANDOLITE CP2'),
                                                    ('steel_board', 'C', 'PROMATECT 100')]:
@@ -320,7 +346,7 @@ class CalculatorReportTests(unittest.TestCase):
                 self.assertNotIn('Waste', normalized)
                 self.assertNotIn('estimating thickness are reported separately.', normalized)
                 self.assertIn('Material quantities retain the source estimating thickness.', normalized)
-                for retained in ('Product', 'Area entered (m²)', 'Volume quantified (m³)', 'Net bags'):
+                for retained in ('Product', 'Area entered (m²)', 'Volume quantified (m³)', 'Whole bags'):
                     self.assertIn(retained, normalized)
             self.assertIn('Unresolved material requirements:', normalized)
             self.assertIn(product + ' (1 schedule item(s))', normalized)
@@ -399,7 +425,8 @@ class CalculatorReportTests(unittest.TestCase):
     def test_material_summary_preserves_tiny_negative_and_unknown_demand(self):
         # Distinct names prove the PDF includes each row, even though a normal
         # two-decimal display could have hidden a small quantity as zero.
-        cases = [('steel_vermiculite', 0, 'E'), ('steel_board', 0, 'F'), ('ductwork', 0, 'D')]
+        cases = [('steel_vermiculite', 0, 'E'), ('steel_vermiculite', 0, 'G'),
+                 ('steel_board', 0, 'F'), ('ductwork', 0, 'D')]
         for identity, table_index, column in cases:
             for demand in (0.0000001, -0.0000001, '#N/A', None):
                 data = deepcopy(blank_projection(identity))
@@ -412,7 +439,12 @@ class CalculatorReportTests(unittest.TestCase):
                         build_calculator_summary_report(identity))).pages)
                     compact = ''.join(text.split())
                     self.assertIn('REQUIRED-MATERIAL', compact)
-                    if demand == '#N/A':
+                    if identity == 'steel_vermiculite' and column == 'E':
+                        # Net demand still retains the material row, while
+                        # its whole-bag cell uses the source's blank value.
+                        self.assertNotIn('Net bags', text)
+                        self.assertIn('Whole bags', text)
+                    elif demand == '#N/A':
                         self.assertIn('Unavailable:#N/A', compact)
                     elif isinstance(demand, float):
                         self.assertIn('1.00E-7', compact)

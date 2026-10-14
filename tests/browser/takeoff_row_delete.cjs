@@ -19,9 +19,22 @@ const ready = new Promise((resolve, reject) => {
   server.stdout.on('data', data => { stdout += data; if (stdout.includes('\n')) { clearTimeout(timer); resolve(JSON.parse(stdout.split('\n')[0])); } });
   server.once('error', reject); server.once('exit', code => { clearTimeout(timer); reject(new Error(`Fixture exit ${code}: ${logs}`)); });
 });
-const errors = [], writes = [], checks = {};
+const errors = [], writes = [], checks = {}, readinessRefusals = [];
 async function idle() { await expect(page.locator('#takeoffs-workspace')).not.toHaveAttribute('aria-busy', 'true'); }
-async function snapshot() { await idle(); return page.evaluate(() => window.CeasefireTakeoffs.projectSnapshot()); }
+async function snapshot() {
+  await idle(); let value;
+  await expect.poll(async () => {
+    try { value = await page.evaluate(() => window.CeasefireTakeoffs.projectSnapshot()); return true; }
+    catch (error) {
+      if (!error.message.includes('Finish the current takeoff operation before saving.')) throw error;
+      const fingerprint = await page.evaluate(() => JSON.parse(window.CeasefireTakeoffs.projectFingerprint()));
+      const { snapshot, ...status } = fingerprint;
+      readinessRefusals.push({ error: error.message.split('\n')[0], status });
+      return false;
+    }
+  }).toBe(true);
+  return value;
+}
 async function canonical() { const sid = await page.evaluate(() => window.CeasefireTakeoffs.sessionId()); const reply = await page.request.get(`http://127.0.0.1:${info.port}/api/takeoffs/sessions/${sid}`); assert.equal(reply.status(), 200); return reply.json(); }
 async function publish(reply) { await page.evaluate(async reply => { const value = window.CeasefireTakeoffs; value.applyProject(await value.prepareProject(reply.snapshot, reply.session_id)); await value.open(); }, reply); await idle(); }
 async function seed(op, values) {
@@ -105,5 +118,13 @@ async function reviewDelete(id, action, suffix = '/commands', status = 200) {
   assert.deepEqual(sourceItem(restored.snapshot.items.find(value => value.id === steel.id)), sourceItem(linkedBefore.items.find(value => value.id === steel.id))); assert.equal(restored.snapshot.items.find(value => value.id === steel.id).state, 'draft');
   const sourceBindings = values => values.map(({ status, ...binding }) => binding); assert.deepEqual(sourceBindings(restored.snapshot.transfers), sourceBindings(linkedBefore.transfers)); assert.ok(restored.snapshot.transfers.filter(value => value.item_id === steel.id).every(value => value.status === 'stale')); assert.deepEqual(await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()), targetBefore); checks.linkedConflictAndUndoExact = true;
   assert.deepEqual(errors, []); assert.equal(hash(fs.readFileSync(info.fixture)), sourceHash); const runtimeAfter = Object.fromEntries(assets.map(name => [name, hash(fs.readFileSync(path.join(root, name)))])); assert.deepEqual(runtimeAfter, runtimeBefore);
-  fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ passed: true, port: info.port, creationCoverage: 'validated guarded API fixture; deletion/confirmation/history/Undo and linked transfer are rendered browser controls', checks, sourceHash, runtimeBefore, runtimeAfter, errors, requests: writes.map(value => ({ endpoint: value.endpoint, op: value.body.op, request_id: value.body.request_id, revision: value.body.expected_revision })) }, null, 2)); console.log(JSON.stringify({ passed: true, output }));
-})().catch(async error => { console.error(error); fs.writeFileSync(path.join(output, 'failure.txt'), `${error.stack}\n${logs}`); if (page) await page.screenshot({ path: path.join(output, 'failure.png'), fullPage: true }).catch(() => {}); process.exitCode = 1; }).finally(async () => { fs.writeFileSync(path.join(output, 'server.log'), logs); if (browser) await browser.close(); server.kill(); });
+  fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ passed: true, port: info.port, creationCoverage: 'validated guarded API fixture; deletion/confirmation/history/Undo and linked transfer are rendered browser controls', checks, sourceHash, runtimeBefore, runtimeAfter, errors, readinessRefusalCount: readinessRefusals.length, readinessRefusals, requests: writes.map(value => ({ endpoint: value.endpoint, op: value.body.op, request_id: value.body.request_id, revision: value.body.expected_revision })) }, null, 2)); console.log(JSON.stringify({ passed: true, output }));
+})().catch(async error => {
+  console.error(error); fs.writeFileSync(path.join(output, 'failure.txt'), `${error.stack}\n${logs}`);
+  if (page) {
+    const fingerprint = await page.evaluate(() => JSON.parse(window.CeasefireTakeoffs.projectFingerprint())).catch(failure => ({ unavailable: failure.message }));
+    fs.writeFileSync(path.join(output, 'failure-state.json'), JSON.stringify({ error: error.message, fingerprint, readinessRefusals, requests: writes }, null, 2));
+    await page.screenshot({ path: path.join(output, 'failure.png'), fullPage: true }).catch(() => {});
+  }
+  process.exitCode = 1;
+}).finally(async () => { fs.writeFileSync(path.join(output, 'server.log'), logs); if (browser) await browser.close(); server.kill(); });

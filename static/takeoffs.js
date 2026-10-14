@@ -61,7 +61,7 @@
   const documentById = id => documents().find(doc => doc.id === id);
   const currentDocument = () => documentById(state.document);
   const pageMetadata = () => currentDocument()?.pages?.find(page => page.page === state.page);
-  const graphicsUI = X && window.CeasefireTakeoffGraphicsUI({ state, G, X, node, svg, button, clone, snapshot, documents, pageMetadata, currentDocument, pageDisplayKey, signatureMode, signatureInWorkspace, selectedSignature, selectedAnnotation, command, safely, message, renderSelection, renderOverlay, flushSettings, requireFinishedEdits, cancelTrace, setTool, ask, drawingPoint, drawingClickOpensSettings, bindSetting, markSettingsEdited, appearanceField, formField, currentVisibilityControl, renderPhysicalDetails, renderViewportPanel, toggleSettings, openStampMenu, activePageCalibrations, displayRotation: () => state.viewport?.rotation || 0, pdfMeasureResult: id => (state.session?.pdf_measure_results || []).find(result => result.id === id), formatLength });
+  const graphicsUI = X && window.CeasefireTakeoffGraphicsUI({ state, G, X, node, svg, button, clone, snapshot, documents, pageMetadata, currentDocument, pageDisplayKey, signatureMode, signatureInWorkspace, selectedSignature, selectedAnnotation, command, safely, message, renderSelection, renderOverlay, flushSettings, requireFinishedEdits, cancelTrace, setTool, ask, drawingPoint, drawingClickOpensSettings, bindSetting, markSettingsEdited, appearanceField, appendAppearanceFields, formField, currentVisibilityControl, renderPhysicalDetails, renderViewportPanel, toggleSettings, openStampMenu, activePageCalibrations, displayRotation: () => state.viewport?.rotation || 0, pdfMeasureResult: id => (state.session?.pdf_measure_results || []).find(result => result.id === id), formatLength });
   const initialPagesUI = window.CeasefireTakeoffInitialPages?.({ state, G, S, svg, snapshot, currentDocument, pageMetadata, pageRotation, pageDisplayKey, signatureMode, drawingPoint, flushSettings, requireFinishedEdits, cancelTrace, setTool, command, safely, message, renderOverlay, renderSelection });
   const selectedItems = () => items().filter(item => state.selected.has(item.id) && inWorkspace(item.mode));
   const editableFields = (mode, calculator = state.ui?.target?.value) => (fields[mode] || []).filter(([key]) => !["zone", "group", "notes"].includes(key) && (key !== "sides" || calculator === "steel_board"));
@@ -433,6 +433,23 @@
       };
     }
     return field;
+  }
+  function appendAppearanceFields(container, fields) {
+    const group = node("div", "takeoff-appearance-fields");
+    const ordered = (type, keys) => fields.filter(field => field.control.type === type).sort((a, b) => keys.indexOf(a.control.name) - keys.indexOf(b.control.name));
+    const left = [...ordered("color", ["stroke_color", "fill_color", "font_color"]), ...fields.filter(field => !["color", "number", "checkbox"].includes(field.control.type))];
+    const right = ordered("number", ["stroke_width", "opacity", "font_size", "marker_size"]);
+    // Keep the same controls and listeners, with row-wise keyboard navigation.
+    // Empty cells retain the left/right columns when an editor has fewer colours.
+    for (let row = 0; row < Math.max(left.length, right.length); row++) {
+      for (const column of [left, right]) {
+        const wrapper = column[row]?.wrapper || node("div", "takeoff-appearance-gap");
+        if (!column[row]) wrapper.setAttribute("aria-hidden", "true");
+        group.append(wrapper);
+      }
+    }
+    for (const field of fields.filter(field => field.control.type === "checkbox")) group.append(field.wrapper);
+    container.append(group);
   }
   async function ask(title, definitions, detail = "", action = "Apply", setup, splitFields = false) {
     if (state.modal) throw new Error("Finish the current review first.");
@@ -1069,8 +1086,9 @@
     const appearance = appearanceOf(first);
     for (const def of [...(countsOnly ? [["marker_shape", "Marker shape", ["circle", "square", "triangle", "diamond"]], ["marker_size", "Marker Size", "number"]] : []), ["stroke_enabled", "Line Enabled", "checkbox"], ["stroke_color", "Line Colour", "color"], ["stroke_width", "Line Width", "number"], ["fill_color", "Fill Colour", "color"], ["fill_enabled", "Fill Enabled", "checkbox"], ["opacity", "Opacity", "number"], ["display_values", "Display Values", "checkbox"]]) {
       const field = appearanceField(def, appearance[def[0]]); field.control.required = def[2] !== "checkbox";
-      bindSetting(editor, field, `appearance:${def[0]}`); editor.appearance.push(field); content.append(field.wrapper);
+      bindSetting(editor, field, `appearance:${def[0]}`); editor.appearance.push(field);
     }
+    appendAppearanceFields(content, editor.appearance);
     const appearanceActions = node("div", "actions takeoff-appearance-actions");
     appearanceActions.append(button("Set as default", () => setMarkupDefaults(editor)));
     if (selectedItems().length === 1) { editor.visibility = currentVisibilityControl("item", selectedItems()[0].id); appearanceActions.append(editor.visibility); }
@@ -2863,8 +2881,9 @@
     const heading = node("div", "takeoff-viewports-heading"); heading.append(button("Close settings", () => closeAnnotationSettings(editor)), node("h3", "", "Call-out Settings"));
     const controls = node("div", "takeoff-settings-fields"); panel.replaceChildren(heading, controls); controls.append(node("h4", "", "Markup appearance"));
     for (const definition of [["stroke_enabled", "Line Enabled", "checkbox"], ["stroke_color", "Line Colour", "color"], ["stroke_width", "Line Width", "number"], ["fill_color", "Fill Colour", "color"], ["fill_enabled", "Fill Enabled", "checkbox"], ["font_color", "Font Colour", "color"], ["opacity", "Opacity", "number"]]) {
-      const field = appearanceField(definition, annotation.appearance[definition[0]]); editor.appearance.push(field); bindSetting(editor, field, `appearance:${definition[0]}`); controls.append(field.wrapper);
+      const field = appearanceField(definition, annotation.appearance[definition[0]]); editor.appearance.push(field); bindSetting(editor, field, `appearance:${definition[0]}`);
     }
+    appendAppearanceFields(controls, editor.appearance);
     const actions = node("div", "actions takeoff-appearance-actions");
     actions.append(button("Set as default", async () => { await applyAnnotationSettings(editor); A.setDefaults(Object.fromEntries(editor.appearance.map(field => [field.control.name, field.read()]))); message("Default appearance saved for new Call-outs in every drawing workspace."); }));
     editor.visibility = currentVisibilityControl("annotation", annotation.id); actions.append(editor.visibility); controls.append(actions);
@@ -2942,8 +2961,9 @@
     const heading = node("div", "takeoff-viewports-heading"); heading.append(button("Close settings", toggleSettings), node("h3", "", "Signature Settings"));
     const controls = node("div", "takeoff-settings-fields"); panel.replaceChildren(heading, controls);
     for (const definition of [["stroke_color", "Ink Colour", "color"], ["stroke_width", "Line Width", "number"], ["opacity", "Opacity", "number"]]) {
-      const field = appearanceField(definition, signature.appearance[definition[0]]); editor.appearance.push(field); bindSetting(editor, field, `appearance:${definition[0]}`); controls.append(field.wrapper);
+      const field = appearanceField(definition, signature.appearance[definition[0]]); editor.appearance.push(field); bindSetting(editor, field, `appearance:${definition[0]}`);
     }
+    appendAppearanceFields(controls, editor.appearance);
     const actions = node("div", "actions takeoff-appearance-actions"); editor.visibility = currentVisibilityControl("signature", signature.id); actions.append(editor.visibility, button("Redraw signature", redrawSignature), button("Delete signature", deleteSignature)); controls.append(actions);
   }
   async function applySignatureSettings(editor) {
@@ -3214,7 +3234,7 @@
     const definitions = [["fill_color", "Fill Colour", "color"], ["fill_enabled", "Fill Enabled", "checkbox"], ["stroke_enabled", "Line Enabled", "checkbox"], ["stroke_color", "Line Colour", "color"], ["stroke_width", "Line Width", "number"], ...(callout ? [["font_color", "Font Colour", "color"], ["opacity", "Opacity", "number"]] : [["marker_size", "Marker Size", "number"], ["opacity", "Opacity", "number"]])];
     const styleFields = [];
     for (const def of definitions) {
-      const field = appearanceField(def, appearance[def[0]]); styleFields.push(field); fields.append(field.wrapper);
+      const field = appearanceField(def, appearance[def[0]]); styleFields.push(field);
       field.control.addEventListener("change", () => void safely(async () => {
         const value = field.read(); await controller.completePendingEdits(); requireFinishedEdits();
         if (sessionId !== state.session?.session_id || controller !== state.physicalUI || scope !== state.physicalScope || context !== pageDisplayKey() || !state.physicalSelected.has(entity.id)) throw new Error("Select the current source annotation again.");
@@ -3226,6 +3246,7 @@
         await (physicalGraph().defects?.some(record => record.id === entity.id) ? controller.setAnnotation(entity.id, marker) : controller.setMarker(entity.id, marker));
       }));
     }
+    appendAppearanceFields(fields, styleFields);
     if (callout && A) { const actions = node("div", "actions takeoff-appearance-actions"); actions.append(button("Set as default", () => { A.setDefaults(Object.fromEntries(styleFields.map(field => [field.control.name, field.read()]))); message("Default appearance saved for new Call-outs in every drawing workspace."); })); fields.append(actions); }
   }
   async function copyPhysicalCallout() {
@@ -3589,11 +3610,12 @@
   }
   function renderLegendSettings(panel) {
     const legend = selectedLegend(), context = pageDisplayKey(), heading = node("div", "takeoff-viewports-heading"); heading.append(button("Close settings", toggleSettings), node("h3", "", "Legend Settings")); panel.replaceChildren(heading);
-    const fields = node("div", "takeoff-settings-fields"); panel.append(fields);
+    const fields = node("div", "takeoff-settings-fields"), appearance = []; panel.append(fields);
     for (const def of [["stroke_enabled", "Line Enabled", "checkbox"], ["stroke_color", "Line Colour", "color"], ["stroke_width", "Line Width", "number"], ["fill_color", "Fill Colour", "color"], ["fill_enabled", "Fill Enabled", "checkbox"], ["font_color", "Font Colour", "color"], ["opacity", "Opacity", "number"]]) {
-      const field = appearanceField(def, ({ opacity: .94, ...legend.appearance })[def[0]]); fields.append(field.wrapper);
+      const field = appearanceField(def, ({ opacity: .94, ...legend.appearance })[def[0]]); appearance.push(field);
       field.control.addEventListener("change", () => void safely(async () => { requireFinishedEdits(); const current = selectedLegend(); if (context !== pageDisplayKey() || !current || current.id !== legend.id) throw new Error("Select the current legend again."); const value = field.read(); await command("set_legend", { legend: { ...clone(current), appearance: { ...current.appearance, [def[0]]: value } } }, () => { if (context !== pageDisplayKey() || selectedLegend()?.id !== legend.id) throw new Error("Select the current legend again."); return true; }); }));
     }
+    appendAppearanceFields(fields, appearance);
   }
   let linkedThickness = null, linkedThicknessTimer = null, linkedThicknessGeneration = 0;
   function thicknessContext() {

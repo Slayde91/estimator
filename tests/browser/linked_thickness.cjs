@@ -156,6 +156,7 @@ async function editSprayLength(binding, value) {
   await legend().scrollIntoViewIfNeeded(); await legend().dblclick({ delay: 100 });
   await expect(page.locator('#takeoff-markup-settings')).toContainText('Legend Settings');
   await expect(page.locator('.takeoff-legend-handle')).toHaveCount(4);
+  await require('./appearance_layout_helpers.cjs').assertAppearanceLayout(page.locator('#takeoff-markup-settings'));
   const settings = page.locator('#takeoff-markup-settings');
   await response(async () => { await settings.getByLabel('Line Colour', { exact: true }).fill('#123456'); await settings.getByLabel('Line Colour', { exact: true }).press('Tab'); }, '/commands');
   await response(async () => { await settings.getByLabel('Fill Colour', { exact: true }).fill('#fff1dd'); await settings.getByLabel('Fill Colour', { exact: true }).press('Tab'); }, '/commands');

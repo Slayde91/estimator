@@ -613,7 +613,16 @@
           for (const old of waiting) if (!ui.inspector.contains(old)) waiting.delete(old);
           waiting.add(summary);
         }
-        card.append(node("h4","",value.library.library_id),summary);
+        const heading=node("h4"),open=button(value.library.library_id,async()=>{
+          ensureAvailable();
+          const assignment=state.snapshot?.library_assignments?.records?.find(record=>record.id===value.id&&record.scope===scope());
+          if(!assignment||assignment.library.id!==value.library.id||!assignment.members.some(member=>state.selected.has(member.id)))throw new Error("The library association changed. Select the current physical item again.");
+          if(!root.CeasefireLibraryNavigation?.open)throw new Error("The Firestopping Library is unavailable. Open it from Libraries and try again.");
+          await root.CeasefireLibraryNavigation.open("penetration",assignment.library.id);
+        },"takeoff-library-record-link");
+        const label=`Open ${value.library.library_id} in Firestopping Library`;
+        open.setAttribute("aria-label",label);open.title=label;
+        heading.append(open);card.append(heading,summary);
         ui.inspector.append(card);
       }
     }

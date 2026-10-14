@@ -134,8 +134,9 @@ async function makeTextbox() {
   evidence.textboxCreation = { id: graphic.id, command: request.op, anchor_pdf: request.textbox.anchor_pdf, font_size: graphic.appearance.font_size, geometry: graphic.geometry };
 }
 async function textSettings(width, currentTheme) {
-  const labels = await panel().locator(".takeoff-settings-fields > .field > span:first-child").allTextContents();
-  assert.deepEqual(labels.slice(0, 8), ["Line Enabled", "Line Colour", "Line Width", "Fill Colour", "Fill Enabled", "Font Colour", "Font Size", "Opacity"]);
+  const labels = await panel().locator(".takeoff-settings-fields .field > span:first-child").allTextContents();
+  assert.deepEqual(labels.slice(0, 8), ["Line Colour", "Line Width", "Fill Colour", "Opacity", "Font Colour", "Font Size", "Line Enabled", "Fill Enabled"]);
+  const appearanceLayout = await require('./appearance_layout_helpers.cjs').assertAppearanceLayout(panel());
   for (const name of labels.slice(0, 8)) await expect(panel().getByLabel(name, { exact: true })).toBeVisible();
   const colours = await panel().locator(".field > span:first-child").evaluateAll(elements => elements.map(el => getComputedStyle(el).color));
   assert.ok(colours.every(colour => colour === "rgb(255, 255, 255)"), `Dark settings labels remain white in ${currentTheme}: ${JSON.stringify(colours)}`);
@@ -163,7 +164,7 @@ async function textSettings(width, currentTheme) {
   }
   await noOverflow(`${width}/${currentTheme}/Textbox Settings`);
   await page.screenshot({ path: path.join(output, `textbox-${currentTheme}-${width}.png`), fullPage: true });
-  evidence.textSettings.push({ width, theme: currentTheme, labels, colours, settings: p, rightRail: r, trash: t, contents });
+  evidence.textSettings.push({ width, theme: currentTheme, labels, appearanceLayout, colours, settings: p, rightRail: r, trash: t, contents });
 }
 async function resizePane(target, family, width) {
   await page.setViewportSize({ width, height: 764 }); await expect(target).toBeVisible();

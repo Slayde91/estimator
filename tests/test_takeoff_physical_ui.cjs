@@ -930,8 +930,56 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
       const notes=h.input('Notes');notes.focus();const before=copy(h.current);
       pending.resolve({id:'pkb-001',metadata_sha256:hash,display_fields:{service_type:'Literal service',penetration_type:'Core Hole',substrate:'Concrete',orientation:'Vertical',service_size:'25 mm'}});await flush();
       assert.equal(h.input('Notes'),notes);assert.ok(h.dom.container.contains(notes));assert.equal(h.dom.container.ownerDocument.activeElement,notes);assert.deepEqual(h.current,before);assert.equal(h.calls.previews.length,0);assert.equal(h.calls.applied.length,0);
-      const card=h.all().find(node=>node.className.includes('takeoff-library-summary'));assert.ok(card.textContent.includes('Service Type: Literal service'));assert.equal(card.children.filter(node=>node.tagName==='BUTTON').length,0);assert.equal(card.parentElement.children.at(-1),card);
+      const card=h.all().find(node=>node.className.includes('takeoff-library-summary'));assert.ok(card.textContent.includes('Service Type: Literal service'));assert.equal(card.children.filter(node=>node.tagName==='BUTTON').length,0);assert.equal(card.querySelectorAll('button').length,1);assert.equal(card.querySelectorAll('button')[0].className,'takeoff-library-record-link');assert.equal(card.parentElement.children.at(-1),card);
     } finally { h?.controller.destroy();global.CeasefireTakeoffLibraryLinks=previous; }
+  });
+  await check('The inspector library title opens its canonical record without changing its linked snapshot or physical data',async()=>{
+    const previous=global.CeasefireLibraryNavigation,opened=[];let h;
+    try {
+      global.CeasefireLibraryNavigation={open:async(kind,id)=>opened.push([kind,id])};h=component(graph(),{libraryCommand:async()=>null});await flush();
+      h.current.library_assignments={version:1,records:[{id:uuid(201),scope:'defect_reports',library:{id:'pkb-001',library_id:'FL-ID-045',metadata_sha256:'a'.repeat(64)},members:[{id:uuid(5),kind:'service',revision:1}],installation:{mode:'repeated_installations'},state:'draft',schedule_binding:null}]};h.controller.render(copy(h.current));await h.controller.select(uuid(5));
+      const before=copy(h.current),link=h.button('Open FL-ID-045 in Firestopping Library');assert.equal(link.textContent,'FL-ID-045');assert.equal(link.title,'Open FL-ID-045 in Firestopping Library');assert.equal(link.parentElement.tagName,'H4');assert.equal(link.type,'button');
+      await h.click('Open FL-ID-045 in Firestopping Library');assert.deepEqual(opened,[['penetration','pkb-001']]);assert.deepEqual(h.current,before);assert.equal(h.calls.previews.length,0);assert.equal(h.calls.applied.length,0);assert.equal(h.calls.confirmations.length,0);assert.equal(h.calls.notifications.length,0);
+    } finally {h?.controller.destroy();global.CeasefireLibraryNavigation=previous;}
+  });
+  await check('Opening a library title keeps invalid unfinished fields and opens only after a successful automatic flush',async()=>{
+    const previous=global.CeasefireLibraryNavigation,opened=[];let h;
+    try {
+      global.CeasefireLibraryNavigation={open:async(kind,id)=>opened.push([kind,id])};h=component(graph(),{libraryCommand:async()=>null});await flush();
+      h.current.library_assignments={version:1,records:[{id:uuid(201),scope:'defect_reports',library:{id:'pkb-001',library_id:'FL-ID-045',metadata_sha256:'a'.repeat(64)},members:[{id:uuid(5),kind:'service',revision:1}],installation:{mode:'repeated_installations'},state:'draft',schedule_binding:null}]};h.controller.render(copy(h.current));await h.controller.select(uuid(5));const assignments=copy(h.current.library_assignments);
+      const quantity=h.input('Explicit service quantity'),notes=h.input('Notes');quantity.value='-1';quantity.emit('input');notes.value='Keep while opening the source library';notes.emit('input');await h.click('Open FL-ID-045 in Firestopping Library');
+      assert.deepEqual(opened,[]);assert.equal(quantity.value,'-1');assert.equal(notes.value,'Keep while opening the source library');assert.equal(h.controller.hasUnfinishedChanges(),true);assert.equal(h.calls.applied.length,0);assert.ok(h.calls.notifications.some(value=>value.error&&/quantity/i.test(value.text)));
+      quantity.value='2';quantity.emit('input');await h.click('Open FL-ID-045 in Firestopping Library');assert.deepEqual(opened,[['penetration','pkb-001']]);assert.equal(h.current.physical.services[0].quantity,2);assert.equal(h.current.physical.services[0].fields.notes,'Keep while opening the source library');assert.deepEqual(h.current.library_assignments,assignments);assert.equal(h.calls.previews.length,1);assert.equal(h.calls.applied.length,1);assert.equal(h.calls.confirmations.length,0);assert.equal(h.controller.hasUnfinishedChanges(),false);
+    } finally {h?.controller.destroy();global.CeasefireLibraryNavigation=previous;}
+  });
+  await check('A library title cannot open an old assignment after a project replacement while fields are flushing',async()=>{
+    const previous=global.CeasefireLibraryNavigation,opened=[];let h;
+    try {
+      global.CeasefireLibraryNavigation={open:async(kind,id)=>opened.push([kind,id])};h=component(graph(),{libraryCommand:async()=>null});await flush();
+      h.current.library_assignments={version:1,records:[{id:uuid(201),scope:'defect_reports',library:{id:'pkb-001',library_id:'FL-ID-045',metadata_sha256:'a'.repeat(64)},members:[{id:uuid(5),kind:'service',revision:1}],installation:{mode:'repeated_installations'},state:'draft',schedule_binding:null}]};h.controller.render(copy(h.current));await h.controller.select(uuid(5));const notes=h.input('Notes');notes.value='Original project note';notes.emit('input');
+      h.button('Open FL-ID-045 in Firestopping Library').emit('click');const replacement=copy(h.current);replacement.project_id=uuid(500);replacement.physical.project_id=uuid(500);replacement.physical.id=uuid(501);h.controller.render(replacement);await flush();
+      assert.deepEqual(opened,[]);assert.equal(h.calls.previews.length,0);assert.equal(h.calls.applied.length,0);assert.ok(h.calls.notifications.some(value=>value.error&&/workspace|draft changed/.test(value.text)));assert.ok(!h.dom.container.textContent.includes('Original project note'));
+    } finally {h?.controller.destroy();global.CeasefireLibraryNavigation=previous;}
+  });
+  await check('A library title rechecks assignment identity and selected membership after automatically saving an edit',async()=>{
+    const previous=global.CeasefireLibraryNavigation;
+    try {
+      for(const mode of ['removed','replaced','different-member']){
+        const opened=[],h=component(graph(),{libraryCommand:async()=>null});global.CeasefireLibraryNavigation={open:async(kind,id)=>opened.push([kind,id])};await flush();
+        try {
+          h.current.library_assignments={version:1,records:[{id:uuid(201),scope:'defect_reports',library:{id:'pkb-001',library_id:'FL-ID-045',metadata_sha256:'a'.repeat(64)},members:[{id:uuid(5),kind:'service',revision:1}],installation:{mode:'repeated_installations'},state:'draft',schedule_binding:null}]};h.controller.render(copy(h.current));await h.controller.select(uuid(5));
+          const apply=h.bridge.apply;h.bridge.apply=async id=>{await apply(id);if(mode==='removed')h.current.library_assignments.records=[];else if(mode==='replaced')h.current.library_assignments.records[0].library.id='replacement-item';else h.current.library_assignments.records[0].members=[{id:uuid(6),kind:'service',revision:1}];h.controller.render(copy(h.current));return{snapshot:copy(h.current)};};
+          const notes=h.input('Notes');notes.value='A valid pending note';notes.emit('input');await h.click('Open FL-ID-045 in Firestopping Library');assert.deepEqual(opened,[],mode);assert.equal(h.calls.applied.length,1,mode);assert.equal(h.current.physical.services[0].fields.notes,'A valid pending note',mode);assert.ok(h.calls.notifications.some(value=>value.error),mode);
+        } finally {h.controller.destroy();}
+      }
+    } finally {global.CeasefireLibraryNavigation=previous;}
+  });
+  await check('An unavailable library navigation API reports an error and preserves the inspector snapshot',async()=>{
+    const previous=global.CeasefireLibraryNavigation;let h;
+    try {
+      delete global.CeasefireLibraryNavigation;h=component(graph(),{libraryCommand:async()=>null});await flush();h.current.library_assignments={version:1,records:[{id:uuid(201),scope:'defect_reports',library:{id:'pkb-001',library_id:'FL-ID-045',metadata_sha256:'a'.repeat(64)},members:[{id:uuid(5),kind:'service',revision:1}],installation:{mode:'repeated_installations'},state:'draft',schedule_binding:null}]};h.controller.render(copy(h.current));await h.controller.select(uuid(5));const before=copy(h.current);await h.click('Open FL-ID-045 in Firestopping Library');
+      assert.deepEqual(h.current,before);assert.equal(h.calls.applied.length,0);assert.ok(h.calls.notifications.some(value=>value.error&&/unavailable/.test(value.text)));
+    } finally {h?.controller.destroy();global.CeasefireLibraryNavigation=previous;}
   });
   await check('Long Unicode notes use the narrow note bound while ordinary fields keep their existing bound',()=>{
     assert.equal(physical.fieldValue('service','notes','🙂'.repeat(3000)), '🙂'.repeat(3000));

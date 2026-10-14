@@ -29,7 +29,7 @@ function harness(storage) {
   source=source.replace('setApi(fn){api=fn;}', 'renderCalibrations,chooseCalibration,changeViewportScale,navigatePage,navigateDocument,activePageCalibrations,setPageRenderer(fn){renderPage=fn;},setRailRenderer(fn){renderRail=fn;},setApi(fn){api=fn;}');
   source=source.replace('setApi(fn){api=fn;}', 'currentVisibilityControl,physicalDrawingOwner,setRegisterRenderer(fn){renderRegister=fn;},setApi(fn){api=fn;}');
   source=source.replace('setApi(fn){api=fn;}', 'workspaceMode,inWorkspace,selectedItems,registerFilters,registerColumnValues,registerFilterValue,registerDocumentMenu,setDiscardEditor(fn){discardEditor=fn;},setApi(fn){api=fn;}');
-  source=source.replace('setApi(fn){api=fn;}', 'selectedAnnotation,selectFreeCallout,openAnnotationMenu,setApi(fn){api=fn;}');
+  source=source.replace('setApi(fn){api=fn;}', 'selectedAnnotation,selectFreeCallout,openAnnotationMenu,appendAppearanceFields,setApi(fn){api=fn;}');
   vm.runInContext(source,context);
   return {context,audit:context.audit,api:context.window.CeasefireTakeoffs};
 }
@@ -96,6 +96,14 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
     const before=copy(h.audit.state.session.snapshot),editor=h.audit.state.settingsEditor,control=h.audit.currentVisibilityControl('annotation','current');control.events.click();await flush();assert.deepEqual([...h.audit.state.annotationHidden].sort(),['current','other']);assert.equal(control.attributes['aria-pressed'],'true');assert.match(control.title,/show current Call-out/);assert.equal(h.audit.state.annotationSelected,'current');assert.equal(h.audit.state.settingsEditor,editor);assert.equal(editor.pendingText,'Not submitted');assert.equal(h.audit.state.settingsDirty,true);
     control.events.click();await flush();assert.deepEqual([...h.audit.state.annotationHidden],['other']);assert.equal(overlays,2);assert.deepEqual(copy(h.audit.state.session.snapshot),before);
     h.audit.state.session.session_id='replacement';control.events.click();await flush();assert.deepEqual([...h.audit.state.annotationHidden],['other']);assert.equal(overlays,2);
+  });
+  await check('Appearance layouts retain every control and listener, with colours left, numbers right and toggles last',()=>{
+    const h=harness(),dom=attachMinimalDom(h),parent=dom.element(),definitions=[['marker_shape','Marker shape',['circle','square']],['marker_size','Marker Size','number'],['stroke_enabled','Line Enabled','checkbox'],['stroke_color','Line Colour','color'],['stroke_width','Line Width','number'],['fill_color','Fill Colour','color'],['fill_enabled','Fill Enabled','checkbox'],['font_color','Font Colour','color'],['font_size','Font Size','number'],['opacity','Opacity','number'],['display_values','Display Values','checkbox']];
+    const fields=definitions.map(definition=>h.audit.formField(definition)),original=[...fields];let changes=0;fields.forEach(field=>field.control.addEventListener('change',()=>changes++));
+    h.audit.appendAppearanceFields(parent,fields);assert.deepEqual(fields,original,'Layout does not reorder the persistence field list');
+    const group=parent.children[0];assert.equal(group.className,'takeoff-appearance-fields');assert.deepEqual(group.children.map(wrapper=>fields.find(field=>field.wrapper===wrapper)?.control.name),['stroke_color','stroke_width','fill_color','opacity','font_color','font_size','marker_shape','marker_size','stroke_enabled','fill_enabled','display_values']);
+    for(const field of fields){assert.equal(field.wrapper.parentNode,group);field.control.events.change();}assert.equal(changes,fields.length,'Original change listeners remain active');
+    const signature=dom.element(),ink=fields.find(field=>field.control.name==='stroke_color'),width=fields.find(field=>field.control.name==='stroke_width'),opacity=fields.find(field=>field.control.name==='opacity');h.audit.appendAppearanceFields(signature,[ink,width,opacity]);assert.deepEqual(signature.children[0].children.map(wrapper=>wrapper.children.at(-1)?.name),['stroke_color','stroke_width',undefined,'opacity']);assert.equal(signature.children[0].children[2].attributes['aria-hidden'],'true');
   });
   await check('Line Width and percent Opacity controls preserve untouched historical precision and bound explicit edits',async()=>{
     const h=harness(),value=blank(),opacity=.003333333333333333;value.items=[{id:'a',mode:'steel',quantity:1,fields:{mark:'A'},appearance:{stroke_width:.5,opacity}}];h.audit.accept(response(value));attachSettings(h);h.audit.state.selected=new Set(['a']);h.audit.state.settingsOpen=true;h.audit.renderSettingsPanel();

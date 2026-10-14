@@ -441,7 +441,8 @@ class _ScheduleReport(_Report):
             if data['id'] == 'steel_vermiculite':
                 # PDF presentation only: the raw projection and the shared
                 # Excel export retain every source quantity and order field.
-                columns = [column for column in columns if column not in 'BFGHI']
+                columns = ['A', 'C', 'D', 'G']
+                labels['G'] = 'Whole bags'
             fractions = ([.17, .065, .085, .085, .09, .07, .09, .065, .065, .095, .105, .11]
                          if data['id'] == 'steel_board' else
                          [.40, .20, .20, .20] if data['id'] == 'steel_vermiculite' else

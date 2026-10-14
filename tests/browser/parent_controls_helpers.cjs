@@ -111,7 +111,7 @@ async function assertParentControls(page, pane, { hasBarrier = false, keyboard =
   const fields = await pane.locator(':scope > label.field > span').allTextContents();
   if (fields.includes('Confirmation')) assert.equal(fields.indexOf('Confirmation')+1,fields.indexOf('Notes'),'Owning Confirmation precedes Notes');
   const appearance = pane.locator('.takeoff-settings-fields');
-  if (await appearance.count()) assert.deepEqual((await appearance.locator('.field > span').allTextContents()).slice(0,5),['Fill Colour','Fill Enabled','Line Enabled','Line Colour','Line Width']);
+  if (await appearance.count()) { assert.deepEqual((await appearance.locator('.field > span').allTextContents()).slice(0,4),['Line Colour','Line Width','Fill Colour','Opacity']); await require('./appearance_layout_helpers.cjs').assertAppearanceLayout(pane); }
   return { addDisclosure: true, exactOriginalAssetBytes: true, gradientLibraryBook: true, keyboardFocus: keyboard, labels, names, order, mouseOpen, visibilityAlignment };
 }
 

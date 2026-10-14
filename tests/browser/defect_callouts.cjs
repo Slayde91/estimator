@@ -55,13 +55,14 @@ async function textFits() {
   assert.equal(value.fits, true, 'Actual SVG text fits the framed callout'); assert.ok(value.lines >= 2); return value;
 }
 async function physicalThemeLabels(kind) {
-  const labels = kind === 'Marker' ? ['Fill Colour','Fill Enabled','Line Enabled','Line Colour','Line Width','Marker Size','Opacity'] : ['Fill Colour','Fill Enabled','Line Enabled','Line Colour','Line Width','Font Colour','Opacity'];
+  const labels = kind === 'Marker' ? ['Line Colour','Line Width','Fill Colour','Opacity','Marker Size','Fill Enabled','Line Enabled'] : ['Line Colour','Line Width','Fill Colour','Opacity','Font Colour','Fill Enabled','Line Enabled'];
   const draftBefore = structuredClone(await snapshot()), calculatorsBefore = await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()), requestCount = requests.length;
   const initialTheme = await page.locator('html').getAttribute('data-theme'), results = [];
   async function setTheme(theme) { for(let attempt=0;attempt<5 && await page.locator('html').getAttribute('data-theme')!==theme;attempt++) await cycleTheme(page); await expect(page.locator('html')).toHaveAttribute('data-theme',theme); }
   for(const theme of ['ceasefire','midnight','ocean','forest','slate']) {
     await setTheme(theme); await expect(details().getByRole('heading',{name:`${kind} Settings`,exact:true})).toBeVisible();
     assert.deepEqual(await details().locator('.takeoff-settings-fields .field>span:first-child').allTextContents(),labels);
+    const appearanceLayout = await require('./appearance_layout_helpers.cjs').assertAppearanceLayout(details());
     for(const label of labels) await expect(details().getByLabel(label,{exact:true})).toBeVisible();
     const colours = await details().locator('.takeoff-settings-fields .field>span:first-child,.takeoff-settings-fields>h3').evaluateAll(elements => elements.map(el => {
       const css=getComputedStyle(el);let parent=el,background='';while(parent){const value=getComputedStyle(parent).backgroundColor;if(value!=='rgba(0, 0, 0, 0)' && value!=='transparent'){background=value;break;}parent=parent.parentElement;}
@@ -73,7 +74,7 @@ async function physicalThemeLabels(kind) {
       const icon=details().getByRole('button',{name:'Set as default',exact:true}).locator('.takeoff-default-icon');
       assert.ok((await icon.evaluate(el=>getComputedStyle(el).maskImage)).includes('takeoff-set-default.png'));
     }
-    const screenshot=path.join(output,`physical-${kind.toLowerCase()}-${theme}.png`);await details().screenshot({path:screenshot});results.push({theme,kind,colours,screenshot});
+    const screenshot=path.join(output,`physical-${kind.toLowerCase()}-${theme}.png`);await details().screenshot({path:screenshot});results.push({theme,kind,appearanceLayout,colours,screenshot});
   }
   await setTheme(initialTheme);assert.deepEqual(await snapshot(),draftBefore);assert.deepEqual(await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()),calculatorsBefore);assert.equal(requests.length,requestCount,'Theme checks do not mutate physical records');
   evidence[`${kind.toLowerCase()}SettingsThemes`] = results;
@@ -95,7 +96,7 @@ async function physicalThemeLabels(kind) {
   assert.equal(original.annotation.document_sha256, sourceHash); assert.equal(original.annotation.page, 3); assert.equal(original.marker, undefined); assert.equal(original.quantity, undefined);
   assert.equal(original.annotation.appearance.marker_size,10);
   await expect(details().getByLabel('Marker Size',{exact:true})).toHaveValue('10');
-  assert.deepEqual(await details().locator('.takeoff-settings-fields .field>span').allTextContents(),['Fill Colour','Fill Enabled','Line Enabled','Line Colour','Line Width','Marker Size','Opacity']);
+  assert.deepEqual(await details().locator('.takeoff-settings-fields .field>span').allTextContents(),['Line Colour','Line Width','Fill Colour','Opacity','Marker Size','Fill Enabled','Line Enabled']);
   assert.equal(await details().evaluate(el=>el.firstElementChild.getAttribute('aria-label')),'Marker Settings');
   assert.ok(await details().getByLabel('Line Colour',{exact:true}).evaluate(el=>el.getBoundingClientRect().height>=40));
   await physicalThemeLabels('Marker');

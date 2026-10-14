@@ -44,6 +44,7 @@ function fixture(initial = {}, commandOverride) {
     node:dom,svg:(tag,attrs)=>Object.assign(dom(tag),{attributes:attrs}),button:(text,action)=>Object.assign(dom("button","",text),{action}),
     formField:(definition,value)=>{const wrapper=dom("label"),control=dom(Array.isArray(definition[2])?"select":"input");control.name=definition[0];control.value=value;wrapper.append(control);return {wrapper,control,definition,read:()=>control.value};},
     appearanceField:(definition,value)=>{const wrapper=dom("label"),control=dom("input");control.name=definition[0];control.value=value;wrapper.append(control);return {wrapper,control,read:()=>control.value};},
+    appendAppearanceFields:(container,fields)=>container.append(...fields.map(field=>field.wrapper)),
     bindSetting(){},currentVisibilityControl:()=>Object.assign(dom("button"),{refresh(){}}),toggleSettings(){},
     renderPhysicalDetails(){},renderViewportPanel(){},
     ask:async(title,fields,helper,action,setup)=>{calls.ask++;let controls;if(title==="Textbox"&&setup){controls=[{wrapper:dom(),control:dom("textarea")}];setup(controls,ready=>{calls.ready=ready;});}const answer=calls.answerPromise?await calls.answerPromise:calls.answer;return answer&&controls?{...answer,text:controls[0].read()}:answer;},

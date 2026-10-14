@@ -100,9 +100,12 @@ async function reset(label) { await finishMenu(await menu(label), 'Reset filter'
     await documentMenu.getByRole('button',{name:`Download ${category==='all'?'all':category} items`,exact:true}).click();const body=(await requested).postDataJSON();assert.equal(body.mode,'walls_floors');assert.equal(body.confirmation,category);assert.equal(body.item_ids.length,204);
     const target=path.join(output,`${category}-walls-floors.xlsx`);await(await download).saveAs(target);
     const result=require('node:child_process').spawnSync(process.env.CEASEFIRE_PYTHON||'python',['-B','-c',"import json,sys\nfrom openpyxl import load_workbook\nw=load_workbook(sys.argv[1]);r=list(w.active.values);print(json.dumps({'sheets':w.sheetnames,'headers':r[0],'rows':[dict(zip(r[0],v)) for v in r[1:]]}))",target],{cwd:root,windowsHide:true,encoding:'utf8'});assert.equal(result.status,0,result.stderr);const workbook=JSON.parse(result.stdout),exported=workbook.rows;assert.equal(exported.length,count);assert.deepEqual([...new Set(exported.map(row=>row['Surface type']))],['Wall','Floor']);assert.deepEqual(workbook.sheets,['Current Takeoffs']);
-    assert.deepEqual(workbook.headers,(await register().getByRole('columnheader').allTextContents()).slice(3).map(value=>value.trim()));
+    const registerHeaders=['Confirmation','Surface ID','Surface type','Level','Surface basis','Substrate','Treatment','Protection system','Protection product','FRL / fire rating','Number of layers','Gross (m²)','Excluded (m²)','Net (m²)','Total (m²)','Evidence / issues'];
+    const uiHeaders=(await register().getByRole('columnheader').allTextContents()).map(value=>value.trim());
+    assert.equal(uiHeaders.at(-1),'Delete');assert.deepEqual(uiHeaders,['Select','Hide','View/Edit',...registerHeaders,'Delete']);
+    assert.deepEqual(workbook.headers,registerHeaders,'XLSX retains every data column and excludes UI action controls');
     for(const row of exported){const original=seeded.snapshot.items.find(item=>item.fields.mark===row['Surface ID']),native=seeded.results.find(result=>result.id===original.id);assert.equal(row['Net (m²)'],native.net_area_m2);assert.equal(row['Gross (m²)'],native.gross_area_m2);assert.equal(row['Excluded (m²)'],native.excluded_area_m2);assert.equal(row['Total (m²)'],native.total_area_m2);if(category!=='all')assert.equal(row.Confirmation,category==='confirmed'?'Confirmed':'Unconfirmed');}
-    downloadResults[category]={count,path:target};
+    downloadResults[category]={count,path:target,headers:workbook.headers,uiFinalColumn:uiHeaders.at(-1)};
   }
   for (const value of ['wall', 'slab']) {
     await mode(value); const prefix = value === 'wall' ? 'W' : 'S', markLabel = labels(value)[1], basis = value === 'wall' ? 'Wall face (true elevation)' : 'Slab top';

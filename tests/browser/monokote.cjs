@@ -73,7 +73,7 @@ async function screenshot(name,fixture) {
   const displayColumns = ['Z','AA','A','E','F','C','D','B','H','I','J','G','K','L','M','N','O','P','Q','R','S','T','U','Y'];
   const scheduleTable = page.locator('#calculator-grid .calculator-schedule-table');
   const fieldLabels = Object.fromEntries(sourceDefinition.schedule.columns.map(field => [field.column, field.label]));
-  await expect(scheduleTable.locator('thead th')).toHaveText(['Row', ...displayColumns.map(column => fieldLabels[column])]);
+  await expect(scheduleTable.locator('thead th')).toHaveText(['Row', ...displayColumns.map(column => fieldLabels[column]), 'Delete']);
   const rowAddresses = await scheduleTable.locator('tbody tr[data-source-row="10"] td').evaluateAll(cells => cells
     .map(cell => cell.querySelector('[data-calculator-cell]')?.dataset.calculatorCell || cell.dataset.calculatorOutput).filter(Boolean));
   assert.deepEqual(rowAddresses, displayColumns.map(column => `${column}10`));

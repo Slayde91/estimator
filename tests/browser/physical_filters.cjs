@@ -3,10 +3,16 @@ const { chooseTakeoff } = require('./section_navigation.cjs');
 // Column filters and automatic editing use an isolated fixture and owned records.
 const { chromium, expect } = require('@playwright/test');
 const { spawn, spawnSync } = require('node:child_process');
-const { randomUUID } = require('node:crypto');
+const { randomUUID, createHash } = require('node:crypto');
 const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
 const root = path.resolve(__dirname, '../..'), output = path.join(root, '.runtime/browser-qa', `physical-filters-${Date.now()}`);
 fs.mkdirSync(output, { recursive: true });
+const hash = value => createHash('sha256').update(value).digest('hex');
+const sourcePaths = ['static/takeoff-physical.js', 'static/takeoffs.js', 'static/app.js', 'static/index.html', 'static/styles.css', 'static/takeoffs.css',
+  'estimator/takeoff_register_xlsx.py', 'estimator/takeoff_physical_exports.py', 'estimator/takeoff_physical.py', 'estimator/takeoff_http.py',
+  'estimator/penetration_calculator.py', 'estimator/excel_engine.py', 'data/penetration.json.gz'];
+const sourceHashes = Object.fromEntries(sourcePaths.map(name => [name, hash(fs.readFileSync(path.join(root, name)))]));
+const testHash = hash(fs.readFileSync(__filename));
 const server = spawn(process.env.CEASEFIRE_PYTHON || 'python', [path.join(__dirname, 'fixtures.py'), '--directory', output], { cwd: root, windowsHide: true });
 let browser, page, origin, logs = '';
 server.stderr.on('data', value => { logs += value; });
@@ -49,6 +55,8 @@ async function visible() { return page.locator('.takeoff-register-table tbody tr
 async function matches(ids) { const expected = [...ids].sort(); await expect.poll(async () => (await visible()).filter(row => !row.context).map(row => row.id).sort()).toEqual(expected); const all = page.getByRole('checkbox', { name: 'Select all matching physical records', exact: true }); await all.check(); await expect.poll(() => page.locator('.takeoff-register-table tbody tr').evaluateAll(rows => rows.filter(row => row.querySelector('input[type=checkbox]')?.checked).map(row => row.dataset.physicalId).sort())).toEqual(expected); await page.getByRole('button', { name: 'Select filtered records', exact: true }).click(); }
 async function checkDocuments(scope, ids) {
   const before = await snapshot(), graph = before[scope === 'service_plans' ? 'service_plans' : 'physical'];
+  const dataHeaders = [...(scope === 'defect_reports' ? ['Defect ID'] : []), 'Barrier ID', 'Service ID', 'Confirmation', 'Location', 'FRL',
+    'Substrate', 'Orientation', 'Category', 'Service type', 'Service quantity', 'Service Size (mm)', 'Source evidence'];
   const active = [...(graph.defects || []), ...graph.barriers, ...graph.services].filter(entry => !entry.deleted).map(entry => entry.id);
   const root = page.locator('.takeoff-physical-register'), documentMenu = page.locator('.takeoff-workspace-heading .takeoff-physical-document-host'), toggle = documentMenu.getByRole('button', { name: 'Document', exact: true }), list = documentMenu.locator('.calculator-document-actions');
   await toggle.press('ArrowDown'); await expect(list).toBeVisible(); await expect(list.getByRole('button', { name: 'Download confirmed items', exact: true })).toBeFocused();
@@ -62,10 +70,25 @@ async function checkDocuments(scope, ids) {
     const downloadWait = page.waitForEvent('download'), responseWait = page.waitForResponse(reply => reply.url().endsWith('/physical/export/register-xlsx'));
     await action.click(); const reply = await responseWait; assert.equal(reply.status(), 200, await reply.text()); assert.deepEqual(reply.request().postDataJSON(), { scope, expected_revision: before.revision, confirmation: selection });
     const download = await downloadWait, filename = path.join(output, `${scope}-${download.suggestedFilename()}`); await download.saveAs(filename);
-    const parsed = spawnSync(process.env.CEASEFIRE_PYTHON || 'python', ['-c', "import json,sys\nfrom openpyxl import load_workbook\nw=load_workbook(sys.argv[1],data_only=False)\ns=w.active;v=list(s.values);rows=[dict(zip(v[0],r)) for r in v[1:]]\nprint(json.dumps({'sheets':w.sheetnames,'headers':v[0],'ids':sorted(r.get('Service ID') or r.get('Barrier ID') or r.get('Defect ID') for r in rows),'confirmation':sorted(set(r['Confirmation'] for r in rows)),'formulas':[c.coordinate for s in w for r in s for c in r if c.data_type=='f']}))\nw.close()", filename], { encoding: 'utf8', windowsHide: true });
+    const parsed = spawnSync(process.env.CEASEFIRE_PYTHON || 'python', ['-c', "import json,sys\nfrom openpyxl import load_workbook\nw=load_workbook(sys.argv[1],data_only=False)\ns=w.active;v=list(s.values);rows=[dict(zip(v[0],r)) for r in v[1:]]\nprint(json.dumps({'sheets':w.sheetnames,'headers':v[0],'ids':sorted(r.get('Service ID') or r.get('Barrier ID') or r.get('Defect ID') for r in rows),'confirmation':sorted(set(r['Confirmation'] for r in rows)),'records':[{'id':r.get('Service ID') or r.get('Barrier ID') or r.get('Defect ID'),'quantity':r['Service quantity'],'sources':r['Source evidence']} for r in rows],'formulas':[c.coordinate for s in w for r in s for c in r if c.data_type=='f']}))\nw.close()", filename], { encoding: 'utf8', windowsHide: true });
     assert.equal(parsed.status, 0, parsed.stderr); const result = JSON.parse(parsed.stdout);
     const entries=[...(graph.defects||[]),...graph.barriers,...graph.services];assert.deepEqual(result.ids,expected.map(id=>entries.find(entry=>entry.id===id).display_id).sort());assert.equal(result.sheets.length,1);assert.deepEqual(result.formulas,[]);if(selection!=='all')assert.deepEqual(result.confirmation,[selection==='confirmed'?'Confirmed':'Unconfirmed']);
-    assert.deepEqual(result.headers,(await root.getByRole('columnheader').allTextContents()).slice(3).map(value=>value.trim()));
+    // Delete is an explicitly checked UI action; the stable XLSX contract
+    // exports only data columns, including quantities and source evidence.
+    const uiHeaders = (await root.getByRole('columnheader').allTextContents()).map(value => value.trim());
+    assert.deepEqual(uiHeaders, ['Select', 'Hide', 'View/Edit', ...dataHeaders, 'Delete']);
+    assert.deepEqual(result.headers, dataHeaders); assert.equal(result.headers.includes('Delete'), false);
+    await expect(root.locator('thead th').last()).toHaveText('Delete');
+    const deleteCells = await root.locator('tbody tr').evaluateAll(rows => rows.map(row => ({ id: row.dataset.physicalId,
+      cells: row.children.length, deleteId: row.lastElementChild.querySelector('[data-physical-delete-id]')?.dataset.physicalDeleteId,
+      icon: row.lastElementChild.querySelectorAll('button svg').length })));
+    assert.ok(deleteCells.length); for (const cell of deleteCells) { assert.equal(cell.cells, uiHeaders.length); assert.equal(cell.deleteId, cell.id); assert.equal(cell.icon, 1); }
+    for (const record of result.records) {
+      const entry = entries.find(entry => entry.display_id === record.id); assert.ok(entry);
+      assert.equal(record.quantity, graph.services.some(service => service.id === entry.id) ? entry.quantity ?? 'Unknown' : null);
+      assert.equal(record.sources, `${entry.evidence.length} source associations`);
+    }
+    (evidence.registerExports ||= []).push({ scope, selection, dataHeaders: result.headers, uiHeaders, deleteCells, records: result.records, exportedDelete: false });
     await expect(list).toBeHidden(); await idle(); assert.deepEqual(await snapshot(), before);
   }
   await reset('Category'); await toggle.click(); await root.getByRole('heading', { level: 2 }).click(); await expect(list).toBeHidden();
@@ -179,5 +202,7 @@ async function checkAutomaticMenuIntent(scope, ids) {
     const automaticMenuIntent = await checkAutomaticMenuIntent(scope, ids);
     evidence.scopes.push({ scope, automaticMenuIntent, eightColumns: true, andOr: true, blanks: scope==='service_plans', ownerLocationAndConfirmation: true, ancestorContext: true, matchingSelection: true, searchFiltered: true, narrowMenu: true, compactOriginalIconAddService: true, firstClickDiscard: true, firstClickAddService: true, firstClickDelete: true, inFlightTyping: true, focusedControlAndCaretRetained: true });
   }
-  assert.deepEqual(await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()), calculators); assert.deepEqual(errors, []); fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ completed: true, evidence, requests, errors }, null, 2)); console.log(`PASS: Eight physical column filters, AND/OR/blanks, ancestor context, search and matching selection, responsive menus and first-click Discard/Add service in both scopes. Evidence: ${output}`);
+  for (const [name, expected] of Object.entries(sourceHashes)) assert.equal(hash(fs.readFileSync(path.join(root, name))), expected);
+  assert.equal(hash(fs.readFileSync(__filename)), testHash);
+  assert.deepEqual(await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()), calculators); assert.deepEqual(errors, []); fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ completed: true, port: info.port, evidence, requests, errors, sourceHashes, testHash }, null, 2)); console.log(`PASS: Eight physical column filters, AND/OR/blanks, ancestor context, search and matching selection, responsive menus and first-click Discard/Add service in both scopes. Evidence: ${output}`);
 })().catch(async error => { console.error(error); console.error(logs.slice(-4000)); fs.writeFileSync(path.join(output,'failure-evidence.json'),JSON.stringify({error:error.message,evidence,errors},null,2));if (page) { await page.screenshot({ path: path.join(output, 'failure.png'), fullPage: true }).catch(() => {}); fs.writeFileSync(path.join(output, 'failure.txt'), await page.locator('body').innerText().catch(() => '')); } process.exitCode = 1; }).finally(async () => { fs.writeFileSync(path.join(output, 'server.log'), logs); if (browser) await browser.close(); server.kill(); });

@@ -4766,7 +4766,7 @@
     working(true);
     try {
       if (pdf) {
-        await state.drawingFonts;
+        await Promise.all([document.fonts.load("9px CeasefireDrawing"), document.fonts.load("700 9px CeasefireDrawing")]);
         if (!document.fonts.check("9px CeasefireDrawing") || !document.fonts.check("700 9px CeasefireDrawing")) throw new Error("The drawing fonts could not load. Retry after the drawing finishes loading.");
       }
       const calculatorDrafts = {}, calculatorFingerprints = [], destinations = aggregate ? ["steel_vermiculite", "steel_board", "ductwork"] : mode === "steel" ? ["steel_vermiculite", "steel_board"] : mode === "duct" ? ["ductwork"] : [];

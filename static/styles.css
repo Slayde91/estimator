@@ -377,7 +377,7 @@ dialog .actions{justify-content:flex-end}
 html.app-busy,html.app-busy *{cursor:progress!important}
 .app-header .nav-icon{--nav-art-size:26px}
 .app-header .nav-icon>span:not(.sr-only),.app-header .nav-icon svg,.app-header .nav-icon img{width:var(--nav-art-size);height:var(--nav-art-size)}
-.app-header .nav-icon svg{stroke-width:1.8}
+.app-header .nav-icon svg{stroke-width:2}
 .searchable-choice{position:relative;min-width:140px}
 .searchable-choice>input{padding-right:32px}
 .searchable-choice-toggle{position:absolute;right:1px;top:1px;bottom:1px;width:30px;padding:0;background:transparent;color:inherit}

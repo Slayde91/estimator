@@ -71,9 +71,13 @@
     border-color: var(--line);
     box-shadow: inset 0 1px #ffffff06, var(--laser-shadow);
   }
-  :root:is(:not([data-theme]), [data-theme="ceasefire"]) :is(.card, .summary-card, .project-tools, .home-card) {
-    border-top-width: 1px;
-    border-top-color: #a81b2b;
+  :root:is(:not([data-theme]), [data-theme="ceasefire"]) :is(.card, .summary-card, .project-tools, .home-card, .calculator-workspace, .library-result, dialog, .takeoff-physical-details, .takeoff-register:not(.takeoff-physical-register)) {
+    border-top-width: 3px;
+    border-top-color: var(--red);
+  }
+  :root:is(:not([data-theme]), [data-theme="ceasefire"]) :is(.page-heading, .takeoff-workspace-heading) :is(h1, h2) {
+    border-inline-start: 3px solid var(--red);
+    padding-inline-start: 12px;
   }
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) :is(.home-card, .estimator-choice, .project-browser-entry):hover {
     background: #20252d;
@@ -92,7 +96,7 @@
     color: #ff8292;
   }
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) .primary {
-    background: linear-gradient(120deg, #d6001b, #bb0019);
+    background: linear-gradient(120deg, #e5001b, #bd0019);
     border-color: #f62a43;
     color: #fff;
     box-shadow: inset 0 1px #ffffff1f, 0 4px 15px #ed001b1a;
@@ -103,12 +107,12 @@
   }
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) :is(.secondary, .recalculate-button, .link-action-button, .library-edit-button, .library-delete-button, .pricing-discard-button, .pricing-reset-button, .refresh-button, .penetration-header-action, .takeoff-undo-button, .takeoff-column-filter-button, .library-add-transfer) {
     color: var(--ink);
-    background: linear-gradient(160deg, #2c333d, #20252d);
-    border-color: #626c7b;
+    background: linear-gradient(160deg, #39252e, #24252d);
+    border-color: #d04659;
     box-shadow: inset 0 1px #ffffff08;
   }
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) :is(.secondary, .recalculate-button, .link-action-button, .library-edit-button, .library-delete-button, .pricing-discard-button, .pricing-reset-button, .refresh-button, .penetration-header-action, .takeoff-undo-button, .library-add-transfer):hover:not(:disabled) {
-    background: #303846;
+    background: #4b2633;
     color: #fff;
     border-color: #ff6377;
   }
@@ -116,7 +120,7 @@
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) #penetration-add-to-schedule {
     background: #20252d;
     color: var(--ink);
-    border-color: #626c7b;
+    border-color: #d04659;
   }
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) #penetration-add-to-schedule:hover:not(:disabled) {
     background: #303846;
@@ -209,16 +213,17 @@
   .main-output-workspace>.section-heading { margin-bottom: 14px; }
   .main-output-workspace>.section-heading h2 { font-size: 20px; }
   .main-output-tabs { padding-top: 0; }
-  :root:is(:not([data-theme]), [data-theme="ceasefire"]) .main-section-tabs { padding-top: 0; gap: 0; background: #14181e; color: var(--ink); border-color: var(--line); }
+  :root:is(:not([data-theme]), [data-theme="ceasefire"]) .main-section-tabs { padding-top: 0; gap: 0; background: #14181e; color: var(--ink); border-color: #a32c40; }
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) .main-section-tab { background: transparent; color: #c1c8d2; padding-block: 15px; }
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) :is(.main-section-tab[aria-selected=true], .calculator-page[aria-pressed=true], .calculator-settings-choice[aria-expanded=true], .penetration-group[aria-pressed=true], .penetration-group[aria-selected=true], .takeoff-mode[aria-selected=true], .tab.active) {
-    background: #2a1b24;
-    color: #ff8292;
+    background: linear-gradient(120deg, #d9001b, #a90018);
+    color: #fff;
     border-color: transparent;
     border-bottom-color: #ff2947;
-    box-shadow: inset 0 -1px #ff2947, 0 5px 12px -8px #ff2947;
+    box-shadow: inset 0 -3px #ff6377, 0 5px 14px -8px #ed001b;
   }
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) :is(.main-section-tab, .calculator-page, .calculator-settings-choice, .penetration-group, .takeoff-mode, .tab):hover:not(:disabled) { background: #292f3a; color: #fff; }
+  :root:is(:not([data-theme]), [data-theme="ceasefire"]) :is(.main-section-tab[aria-selected=true], .calculator-page[aria-pressed=true], .calculator-settings-choice[aria-expanded=true], .penetration-group[aria-pressed=true], .penetration-group[aria-selected=true], .takeoff-mode[aria-selected=true], .tab.active):hover:not(:disabled) { background: linear-gradient(120deg, #e0001b, #b70019); color: #fff; }
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) :is(.calculator-page, .calculator-settings-choice, .penetration-group, .takeoff-mode, .tab) { color: #c1c8d2; background-color: transparent; }
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) .grand-total {
     background: linear-gradient(120deg, #ce001a, #ab0019);
@@ -230,7 +235,7 @@
   /* Document actions and Takeoffs controls are restyled in place, not replaced. */
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) .calculator-document-actions { background: #151a21; color: var(--ink); border-color: #626c7b; box-shadow: 0 12px 32px #0008; }
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) .calculator-document-actions .button.calculator-document-action { background: #151a21; color: #f4f5f7; border-color: transparent; }
-  :root:is(:not([data-theme]), [data-theme="ceasefire"]) .calculator-document-actions .calculator-document-action:hover:not(:disabled) { background: #303846; border-color: #626c7b; }
+  :root:is(:not([data-theme]), [data-theme="ceasefire"]) .calculator-document-actions .calculator-document-action:hover:not(:disabled) { background: #4b2633; border-color: #ff6377; }
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) :is(.calculator-document-icon, .takeoff-icon-button img:not([src$="/takeoff-colour-wheel.png"], .takeoff-measure-icon), .takeoff-transfer-icon):not(.takeoff-physical-register *, .takeoff-rich-toolbar *) { filter: brightness(0) invert(1); }
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) .takeoff-rich-toolbar button img { filter: brightness(0) invert(1); }
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) .takeoff-tool-rail .takeoff-icon-button .takeoff-measure-icon { filter: invert(1); mix-blend-mode: screen; }

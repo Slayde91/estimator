@@ -1,4 +1,5 @@
 const {cycleTheme}=require('./theme_navigation.cjs');
+const {assertPreviewHeaderIcons,views}=require('./preview_header_helpers.cjs');
 const {chromium,expect}=require('@playwright/test');
 const {spawn,spawnSync}=require('node:child_process');
 const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto'),assert=require('node:assert/strict');
@@ -18,22 +19,22 @@ const evidence=[],errors=[];
   for(const [name,file,digest,size] of assets){
     assert.equal(hash(fs.readFileSync(path.join(root,'static/icons',file))),digest);
     const reply=await page.request.get(`http://127.0.0.1:${info.port}/icons/${file}`);assert.equal(reply.status(),200);assert.equal(reply.headers()['content-type'],'image/jpeg');assert.equal(hash(await reply.body()),digest);
-    await expect(page.locator(`nav [data-view="${name}"] img`)).toHaveJSProperty('naturalWidth',size);
+    await expect(page.locator(`.home-card[data-home-view="${name}"] img`)).toHaveJSProperty('naturalWidth',size);
   }
   for(const theme of ['ceasefire','midnight','ocean','forest','slate']){
     await expect(page.locator('html')).toHaveAttribute('data-theme',theme);
-    for(const [name,file] of assets){
-      const control=page.locator(`nav [data-view="${name}"]`),image=control.locator('img');
+    await assertPreviewHeaderIcons(page);
+    for(const name of views){
+      const control=page.locator(`nav [data-view="${name}"]`),image=control.locator('svg');
       await page.locator('nav [data-view="home"]').click();await page.mouse.move(0,0);
       for(const state of ['normal','hover','active','active-hover']){
         if(state==='hover'||state==='active-hover')await control.hover();
         if(state==='active'){await control.click();await control.press('Escape');await page.mouse.move(0,0);await expect(control).toHaveClass(/\bactive\b/);}
+        await expect(image).toHaveCSS('stroke-width','2px');
         const appearance=await image.evaluate(el=>{const a=el.getBoundingClientRect(),b=el.closest('button').getBoundingClientRect();return{filter:getComputedStyle(el).filter,blend:getComputedStyle(el).mixBlendMode,width:a.width,height:a.height,centreX:a.x+a.width/2-b.x-b.width/2,centreY:a.y+a.height/2-b.y-b.height/2};});
-        assert.equal(appearance.width,name==='help'?29:26);assert.equal(appearance.height,name==='help'?29:26);
+        assert.equal(appearance.width,26);assert.equal(appearance.height,26);
         assert.ok(Math.abs(appearance.centreX)<.5&&Math.abs(appearance.centreY)<.5,'Header artwork remains centred in its control');
-        const expectedFilter=name==='takeoffs'?(state==='hover'?'contrast(1.2)':'invert(1) contrast(1.2)'):(state==='hover'?'none':'invert(1)');
-        assert.equal(appearance.filter,expectedFilter);
-        assert.equal(appearance.blend,state==='hover'?'multiply':'screen');
+        assert.equal(appearance.filter,'none');assert.equal(appearance.blend,'normal');
         const screenshot=path.join(output,`${theme}-${name}-${state}.png`);await image.screenshot({path:screenshot});
         const pixels=spawnSync(python,['-c',"from PIL import Image; import sys; p=list(Image.open(sys.argv[1]).convert('RGB').getdata()); r=max(sum(v)/3 for v in p)-min(sum(v)/3 for v in p); assert r>100, r",screenshot],{encoding:'utf8',windowsHide:true});assert.equal(pixels.status,0,pixels.stderr);
         evidence.push({theme,name,state,...appearance});
@@ -42,5 +43,5 @@ const evidence=[],errors=[];
     await page.locator('nav [data-view="home"]').click();await page.mouse.move(0,0);
     await page.screenshot({path:path.join(output,`navigation-${theme}.png`)});await cycleTheme(page);
   }
-  assert.deepEqual(errors,[]);fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,evidence,errors,assets},null,2));console.log(`PASS: exact Help and Takeoffs icons in all themes and states. ${output}`);
+  assert.deepEqual(errors,[]);fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,evidence,errors,assets},null,2));console.log(`PASS: all eight preview header icons in five themes and four states; original Home artwork retained. ${output}`);
 })().catch(async error=>{console.error(error);process.exitCode=1;await page?.screenshot({path:path.join(output,'failure.png')}).catch(()=>{});}).finally(async()=>{fs.writeFileSync(path.join(output,'server.log'),logs);await browser?.close();server.kill();});

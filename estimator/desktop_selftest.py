@@ -198,18 +198,21 @@ def self_test(data_directory, output_report):
                 assert probe.script('!!document.querySelector("[data-view=takeoffs]") || typeof window.CeasefireTakeoffs !== "undefined"') is False
                 assert probe.script('document.querySelector("#view-home").hidden') is False
                 report['checks'].append('Native standard UI rendered without TAKEOFFS')
-                navigation_icons = probe.wait('(() => { const icons=[...document.querySelectorAll(".app-header nav .nav-icon svg, .app-header nav .nav-icon img")]; return icons.length === 7 && icons.every(icon=>icon.tagName !== "IMG" || icon.complete && icon.naturalWidth > 0) && icons.map(icon=>({width:icon.getBoundingClientRect().width,height:icon.getBoundingClientRect().height,stroke:icon.getAttribute("stroke-width"),src:icon.getAttribute("src"),naturalWidth:icon.naturalWidth || 0})); })()')
+                navigation_icons = probe.wait('(() => { const icons=[...document.querySelectorAll(".app-header nav .nav-icon svg, .app-header nav .nav-icon img")]; return icons.length === 7 && icons.map(icon=>{const a=icon.getBoundingClientRect(),b=icon.closest("button").getBoundingClientRect();return {width:a.width,height:a.height,stroke:icon.getAttribute("stroke-width"),src:icon.getAttribute("src"),name:icon.getAttribute("data-lucide"),viewBox:icon.getAttribute("viewBox"),fill:icon.getAttribute("fill"),hidden:icon.getAttribute("aria-hidden"),focusable:icon.getAttribute("focusable"),centreX:a.x+a.width/2-b.x-b.width/2,centreY:a.y+a.height/2-b.y-b.height/2};}); })()')
                 vectors = [icon for icon in navigation_icons if icon['src'] is None]
                 images = [icon for icon in navigation_icons if icon['src'] is not None]
-                assert len(vectors) == 6 and all(icon['stroke'] == '1.8' for icon in vectors)
+                assert len(vectors) == 7 and not images
+                assert [icon['name'] for icon in vectors] == ['house', 'sigma', 'calculator', 'book-open', 'folders', 'circle-help', 'settings']
+                assert all(icon['stroke'] == '2' and icon['viewBox'] == '0 0 24 24' and icon['fill'] == 'none' for icon in vectors)
+                assert all(icon['hidden'] == 'true' and icon['focusable'] == 'false' for icon in vectors)
                 assert all(icon['width'] == 26 and icon['height'] == 26 for icon in vectors)
-                assert len(images) == 1 and images[0]['src'] == '/icons/navigation-help.jpg' and images[0]['naturalWidth'] == 5000
-                assert images[0]['width'] == 29 and images[0]['height'] == 29
-                alignment = probe.script('(() => { const image=document.querySelector(".app-header .help-navigation-image"), a=image.getBoundingClientRect(), b=image.closest("button").getBoundingClientRect(); return {x:a.x+a.width/2-b.x-b.width/2,y:a.y+a.height/2-b.y-b.height/2}; })()')
+                assert all(abs(icon['centreX']) < .5 and abs(icon['centreY']) < .5 for icon in vectors)
+                help_icon = next(icon for icon in vectors if icon['name'] == 'circle-help')
+                alignment = {'x': help_icon['centreX'], 'y': help_icon['centreY']}
                 assert abs(alignment['x']) < .5 and abs(alignment['y']) < .5
                 report['help_icon_alignment'] = alignment
                 report['navigation_icons'] = navigation_icons
-                report['checks'].append('Native vector navigation icons rendered at 26 pixels with the supplied larger 29 pixel Help image centred and consistent strokes')
+                report['checks'].append('Native preview SVG navigation icons rendered at 26 pixels, centred, decorative and consistently stroked')
                 probe.script('window.nativeQaCsp=[]; document.addEventListener("securitypolicyviolation",event=>window.nativeQaCsp.push(event.effectiveDirective));')
                 probe.click('[data-view="settings"]')
                 probe.wait('!document.querySelector("#view-settings").hidden && !document.querySelector("#company-settings-save").disabled && document.querySelector("#company-settings-status").textContent === "Saved" && document.querySelector("#theme-toggle").dataset.themeReady === "true"')

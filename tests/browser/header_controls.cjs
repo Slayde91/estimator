@@ -2,6 +2,7 @@
 const { chromium, expect } = require('@playwright/test');
 const { chooseCalculator } = require('./calculator_actions.cjs');
 const { chooseTakeoff, chooseLibrary } = require('./section_navigation.cjs');
+const { assertPreviewHeaderIcons } = require('./preview_header_helpers.cjs');
 const { spawn } = require('node:child_process');
 const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict'), crypto = require('node:crypto');
 const root = path.resolve(__dirname, '../..'), output = path.join(root, '.runtime/browser-qa', `header-controls-${Date.now()}`);
@@ -62,7 +63,8 @@ async function inspectHeader(width) {
   await page.addInitScript(() => { window.qaCsp = []; document.addEventListener('securitypolicyviolation', e => window.qaCsp.push(e.effectiveDirective)); });
   await page.goto(`http://127.0.0.1:${info.port}/`); await idle(); await page.evaluate(() => document.fonts.ready);
   await expect(page.locator('#header-project-name')).toBeHidden();
-  await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()); await idle();
+  // Compare fully initialized drafts, including the lazily loaded composer.
+  await page.evaluate(async () => { await window.CeasefireCalculators.completeProjectSnapshot(); await window.CeasefirePenetrations.completeProjectSnapshot(); }); await idle();
   await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); await idle();
   const initial = await snapshot();
   await expect(page.locator('#calculators-heading,#libraries-heading,#takeoffs-heading,.library-choices,.takeoff-tab-panel,.takeoff-heading-controls')).toHaveCount(0);
@@ -134,16 +136,11 @@ async function inspectHeader(width) {
     evidence.calculators.push(title);
   }
   await chooseCalculator(page, 'Steel (board)');await idle();await page.locator('#calculator-navigation-toggle').click();await expect(page.locator('#calculator-title')).toHaveText('Steel (board)');
-  for (const [id, source] of [['library','penetration-add-to-library'],['calculator','calculator-recalculate']]) {
-    assert.equal(await page.locator(`#${id}-navigation-toggle svg`).getAttribute('viewBox'),await page.locator(`#${source} svg`).getAttribute('viewBox'));
-    assert.equal(await page.locator(`#${id}-navigation-toggle svg`).innerHTML(),await page.locator(`#${source} svg`).innerHTML());
-  }
-  await expect(page.locator('#takeoff-navigation-toggle img')).toHaveAttribute('src','/icons/navigation-takeoffs.jpg');
-  assert.ok(await page.locator('#takeoff-navigation-toggle img').evaluate(img=>img.complete&&img.naturalWidth>0));
+  await assertPreviewHeaderIcons(page);
   await expect(page.getByRole('button',{name:'Save As',exact:true})).toHaveCount(0);
   await expect(page.locator('#project-attachment-zone')).toHaveAttribute('title','Drag or drop files');
   const icons=await page.locator('nav[aria-label="Main navigation"] .nav-icon>svg, nav[aria-label="Main navigation"] .nav-icon>span[aria-hidden]>svg, nav[aria-label="Main navigation"] .nav-icon>img').evaluateAll(nodes=>nodes.map(el=>({width:el.getBoundingClientRect().width,height:el.getBoundingClientRect().height,src:el.getAttribute('src'),stroke:el.tagName.toLowerCase()==='svg'?el.getAttribute('stroke-width'):null})));
-  assert.equal(icons.length,8);for(const icon of icons){const size=icon.src==='/icons/navigation-help.jpg'?29:26;assert.equal(icon.width,size);assert.equal(icon.height,size);if(icon.stroke!==null)assert.equal(icon.stroke,'1.8');}
+  assert.equal(icons.length,8);for(const icon of icons){assert.equal(icon.width,26);assert.equal(icon.height,26);assert.equal(icon.stroke,'2');}
   await chooseCalculator(page,'Firestopping'); await idle();
   await expect(page.locator('#penetration-new-item')).toBeHidden(); await expect(page.locator('#penetration-recalculate')).toBeHidden();
   for (const [id, name] of [['penetration-clear','Clear'],['penetration-add-to-schedule','Add to Schedule'],['penetration-add-to-library','Add to Library']]) { await expect(page.locator('#'+id)).toBeVisible(); await expect(page.locator('#'+id)).toHaveAccessibleName(name); }

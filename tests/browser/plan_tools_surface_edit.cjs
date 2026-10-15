@@ -81,9 +81,11 @@ async function layout(width) {
   const pointerTargets = [];
   for (const control of [scale, page.getByLabel('Drawing document', { exact: true }), rail.getByRole('button', { name: 'Call-out', exact: true }), ...await markupRail.getByRole('button').all()]) {
     await control.scrollIntoViewIfNeeded(); await expect(control).toBeVisible();
-    const box = await control.boundingBox(), target = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
-    await page.mouse.move(target.x, target.y);
-    assert.equal(await control.evaluate((el, point) => { const hit = document.elementFromPoint(point.x, point.y); return hit === el || el.contains(hit); }, target), true, `Native pointer target is unobscured: ${await control.getAttribute('aria-label') || await control.textContent()} at ${width}px`);
+    await control.hover();
+    // Ordinary notices expire and reflow the viewer. Read the current centre
+    // and hit together, after native hover has checked pointer actionability.
+    const target = await control.evaluate(el => { const box = el.getBoundingClientRect(), x = box.x + box.width / 2, y = box.y + box.height / 2, hit = document.elementFromPoint(x, y); return { x, y, unobscured: hit === el || el.contains(hit) }; });
+    assert.equal(target.unobscured, true, `Native pointer target is unobscured: ${await control.getAttribute('aria-label') || await control.textContent()} at ${width}px`);
     pointerTargets.push({ name: await control.getAttribute('aria-label') || await control.textContent(), ...target });
   }
   await expect(markupRail.getByRole('button')).toHaveCount(9);

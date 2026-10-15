@@ -18,6 +18,16 @@ const ready = new Promise((resolve, reject) => {
 const errors = [], calculatorRequests = [], evidence = { calculators: [], viewports: [1440, 825, 390] };
 const actionIds = ['calculator-import', 'calculator-excel', 'calculator-pdf', 'calculator-summary-pdf', 'calculator-template'];
 const actionNames = ['Import Schedule', 'Steel Schedule XLSX', 'Steel Schedule PDF', 'Product Summary PDF', 'Export Template'];
+function contrast(foreground, background) {
+  const luminance = value => {
+    const channels = value.match(/^rgb\((\d+), (\d+), (\d+)\)$/);
+    assert.ok(channels, `Contrast requires an opaque rendered colour: ${value}`);
+    const linear = channels.slice(1).map(Number).map(channel => channel / 255).map(channel => channel <= .04045 ? channel / 12.92 : ((channel + .055) / 1.055) ** 2.4);
+    return .2126 * linear[0] + .7152 * linear[1] + .0722 * linear[2];
+  };
+  const a = luminance(foreground), b = luminance(background);
+  return (Math.max(a, b) + .05) / (Math.min(a, b) + .05);
+}
 async function idle() { await page.waitForFunction(() => { const status = window.CeasefireDesktop?.status(); return status?.ready && !status.busy; }); }
 async function snapshot() { await idle(); return page.evaluate(() => ({ calculators: window.CeasefireCalculators.projectSnapshot(), penetration: window.CeasefirePenetrations.projectSnapshot(), pricing: window.CeasefireProject.configuration(), details: window.CeasefireProject.details() })); }
 async function responseTo(action, suffix) {
@@ -100,11 +110,14 @@ async function responseTo(action, suffix) {
         const line=page.locator('.calculator-schedule-table td.calculator-line-number').first();await expect(line).toBeVisible();
         const styles=await line.evaluate(cell=>{const css=getComputedStyle(cell),box=cell.getBoundingClientRect();return{text:cell.textContent.trim(),foreground:css.color,background:css.backgroundColor,width:box.width,height:box.height};});
         assert.match(styles.text,/^\d+$/);assert.equal(styles.foreground,'rgb(23, 18, 23)');assert.equal(styles.background,'rgb(255, 255, 255)');assert.ok(styles.width>0&&styles.height>0);
+        const rowLabel = await page.locator('.calculator-schedule-table tbody .calculator-row-action').first().evaluate(cell => ({ foreground: getComputedStyle(cell).color, background: getComputedStyle(cell).backgroundColor }));
+        assert.ok(contrast(rowLabel.foreground, rowLabel.background) >= 4.5, `${theme}/${width}: schedule row label remains readable`);
         const attachment=page.locator('#project-attachment-zone');await expect(attachment).toBeVisible();
         const colors=await attachment.evaluate(button=>{const css=getComputedStyle(button);return{foreground:css.color,background:css.backgroundColor,icon:getComputedStyle(button.querySelector('svg')).color};});
         assert.deepEqual(colors,{foreground:'rgb(255, 255, 255)',background:'rgb(20, 108, 67)',icon:'rgb(255, 255, 255)'});
         await toggle.click();const action=menu.locator('#calculator-pdf');await expect(action).toBeVisible();
-        assert.deepEqual(await action.evaluate(button=>({foreground:getComputedStyle(button).color,background:getComputedStyle(button).backgroundColor})),{foreground:'rgb(23, 18, 23)',background:'rgb(255, 255, 255)'});
+        const actionColours = await action.evaluate(button=>({foreground:getComputedStyle(button).color,background:getComputedStyle(button).backgroundColor}));
+        assert.ok(contrast(actionColours.foreground, actionColours.background) >= 4.5, `${theme}/${width}: Document action remains readable in the selected palette`);
         await page.keyboard.press('Escape');themeChecks.push({theme,width,line:styles,projectFiles:colors});
         await page.screenshot({path:path.join(output,`${id}-${theme}-${width}-contrast.png`)});
       }

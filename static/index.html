@@ -18,6 +18,7 @@
   <!-- TAKEOFFS:END -->
   <link rel="stylesheet" href="/theme.css">
   <link rel="stylesheet" href="/help-glossary.css">
+  <link rel="stylesheet" href="/laser.css">
   <script src="/activity.js" defer></script>
   <script src="/calculation-queue.js" defer></script>
   <script src="/searchable-choice.js" defer></script>
@@ -144,7 +145,7 @@
 
     </section>
     <section id="view-home" class="view" aria-labelledby="home-heading" hidden>
-      <div class="page-heading"><div><h1 id="home-heading">What would you like to do?</h1><p class="subtitle">Choose an area to start or continue your work.</p></div></div>
+      <div class="home-hero"><div class="home-hero-copy"><div class="page-heading"><div><h1 id="home-heading">What would you like to do?</h1><p class="subtitle">Choose an area to start or continue your work.</p></div></div></div><img class="home-laser-art" src="/laser-steel.svg" alt="" aria-hidden="true" width="560" height="400"></div>
       <div class="home-grid" aria-label="Application areas">
         <button type="button" class="home-card" data-home-view="estimate"><span class="home-card-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M18 3H6l8 9-8 9h12"></path></svg></span><strong>Estimates</strong><span>Build the project material and labour estimates.</span></button>
         <button type="button" class="home-card" data-home-view="pricing"><span class="home-card-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="M3 5.5c3.2-.9 6-.3 9 2v12c-3-2.3-5.8-2.9-9-2z"></path><path d="M21 5.5c-3.2-.9-6-.3-9 2v12c3-2.3 5.8-2.9 9-2z"></path></svg></span><strong>Libraries</strong><span>Manage pricing, firestopping records and technical references.</span></button>
@@ -167,6 +168,10 @@
           <div id="input-sections"></div>
           <section id="main-panel-materials" class="card main-section-panel" data-main-section="materials" aria-labelledby="materials-heading"><div class="section-heading"><h2 id="materials-heading">Materials</h2></div><p class="helper">Hover over coverage and daily output fields to see their units. Primer, Topcoat and Board daily output is a quantity of product units per day; their coverage is in m².</p><div class="table-scroll"><table class="materials-table"><thead><tr><th scope="col">Work item</th><th scope="col">Coverage required</th><th scope="col">Daily output</th><th scope="col">Material</th><th scope="col">Wastage %</th><th scope="col">Material yield</th><th scope="col">Actions</th></tr></thead><tbody id="material-inputs"></tbody></table></div></section>
           <div id="post-material-input-sections"></div>
+          <div id="adjustment-sections"></div>
+          <section id="main-output-workspace" class="main-output-workspace" aria-labelledby="main-output-heading">
+          <div class="section-heading"><h2 id="main-output-heading">Schedules &amp; breakdowns</h2></div>
+          <div id="main-output-tabs" class="main-section-tabs main-output-tabs" role="tablist" aria-label="Main estimate schedules and breakdowns"></div>
           <section id="main-panel-firestopping-schedule" class="main-section-panel" data-main-section="firestopping-schedule" data-main-section-title="Firestopping Schedule">
           <div id="penetration-schedule-workspace" class="penetration-schedule-workspace" hidden>
             <section class="card penetration-schedule" aria-labelledby="penetration-schedule-heading">
@@ -179,7 +184,6 @@
             </section>
           </div>
           </section>
-          <div id="adjustment-sections"></div>
           <section id="main-panel-firestopping-breakdown" class="main-section-panel" data-main-section="firestopping-breakdown" data-main-section-title="Firestopping Breakdown">
           <section class="card firestopping-breakdown" id="penetration-schedule-breakdown-card" hidden>
             <div class="section-heading"><h2>Firestopping Breakdown</h2></div>
@@ -189,6 +193,7 @@
           <section id="main-panel-material-breakdown" class="card main-section-panel material-breakdown-section" data-main-section="material-breakdown" aria-labelledby="breakdown-heading"><div class="section-heading"><h2 id="breakdown-heading">Material Breakdown</h2></div><div class="table-scroll"><table><thead><tr><th scope="col">Material</th><th scope="col" class="numeric">Quantity</th><th scope="col" class="numeric">Unit sell rate</th><th scope="col" class="numeric">Total</th><th scope="col" class="numeric">Labour days</th></tr></thead><tbody id="material-results"><tr><td colspan="5">Calculating…</td></tr></tbody></table></div></section>
           <section id="main-panel-labour-breakdown" class="main-section-panel" data-main-section="labour-breakdown" data-main-section-title="Labour Breakdown">
           <section class="card labour-breakdown-section" id="labour-breakdown" aria-labelledby="labour-heading" aria-busy="true"><div class="section-heading"><h2 id="labour-heading">Labour Breakdown</h2></div><div class="table-scroll"><table class="labour-table" aria-describedby="labour-help"><thead><tr><th scope="col">Labour activity</th><th scope="col" class="numeric">Days</th></tr></thead><tbody id="labour-results"><tr><td colspan="2">Calculating…</td></tr></tbody></table></div><p class="helper" id="labour-help">Pinning is included in meshing days. Mobilisation adds half a day per adjusted mobilisation. Days include the entered labour adjustment.</p></section>
+          </section>
           </section>
           </div>
         </div>

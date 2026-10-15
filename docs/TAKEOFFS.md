@@ -906,11 +906,36 @@ An excluded parent is still identified by the child's retained parent reference.
 These exports remain unapproved drafts. The separate diagnostic export API
 continues to include retained history when no confirmation selection is supplied.
 
+Every Takeoff **Document** menu also has four drawing PDF downloads:
+
+| Download | Documents and pages included |
+| --- | --- |
+| **Download Full Markup** | All pages of the current document, using the current workspace's visible marks. |
+| **Download Markups Only** | Only pages with visible marks in the current document and workspace. |
+| **Download All Markups** | Every marked document in every workspace, including all pages of each document. |
+| **Download Full Markups Only** | Every marked document in every workspace, including only its marked pages. |
+
+Combined downloads include Steel, Ductwork, Walls/Floors, Defect Reports and
+Service Plans in that order. Current register filters do not restrict these
+combined selections. The same source PDF in two workspaces produces two separate
+copies, each with that workspace's marks. Exact source identity, page geometry,
+rotations and evidence are checked before the prepared file is published.
+Drawing exports do not approve records or save calculator drafts.
+
+Document downloads show green progress through completed preparation and save
+stages. A successful native file-save receipt is required for 100%; failed or
+cancelled operations cannot report success. The completion bar then disappears.
+The clicked draft and destination are captured together; subsequent edits are
+retained and are not silently added to an older prepared file.
+
 The Steel section field is a searchable dropdown using the selected calculator's
 existing section database. Type to filter, then select a row or use the arrow
 keys and Enter. Escape cancels the query. Exact typed designations can be
 committed with Tab; partial searches do not change the item. Retained legacy
 designations stay visible. Count-register cells remain locked.
+The truncated-list hint is hidden; search, keyboard selection and the accessible
+result status remain available. Physical Call-out Settings omit Notes editing;
+existing saved notes and source details remain in the project evidence.
 
 ## Signatures and drawing controls
 

@@ -345,7 +345,8 @@ class CalculatorReportTests(unittest.TestCase):
             if identity == 'steel_vermiculite':
                 self.assertNotIn('Waste', normalized)
                 self.assertNotIn('estimating thickness are reported separately.', normalized)
-                self.assertIn('Material quantities retain the source estimating thickness.', normalized)
+                self.assertNotIn('Spray surface follows', normalized)
+                self.assertNotIn('Material quantities retain the source estimating thickness.', normalized)
                 for retained in ('Product', 'Area entered (m²)', 'Volume quantified (m³)', 'Whole bags'):
                     self.assertIn(retained, normalized)
             self.assertIn('Unresolved material requirements:', normalized)

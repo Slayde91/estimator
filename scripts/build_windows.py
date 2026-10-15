@@ -27,7 +27,8 @@ DATA_FILES = (
 )
 STATIC_FILES = (
     'app.js', 'activity.js', 'calculation-queue.js', 'searchable-choice.js', 'penetration-presentation.js',
-    'calculators.css', 'calculators.js', 'ceasefire-logo.png', 'downloads.js',
+    'calculators.css', 'calculators.js', 'ceasefire-logo.png', 'classifire-logo.png',
+    'downloads.js', 'downloads.css', 'main-layout.js',
     'index.html', 'libraries.css', 'libraries.js', 'library-detail-text.js', 'library-editor.css',
     'library-editor.js', 'penetration-breakdown.js', 'penetration.css', 'penetration.js', 'styles.css',
     'header-tagline-media.js', 'header-tagline-character.gif', 'header-tagline-character-still.png',

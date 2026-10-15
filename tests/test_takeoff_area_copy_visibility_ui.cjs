@@ -8,7 +8,7 @@ const copy = value => JSON.parse(JSON.stringify(value));
 function element(tag = "div") {
   const el = { tagName: tag.toUpperCase(), children: [], events: {}, attributes: {}, className: "", textContent: "", dataset: {},
     append(...children) { this.children.push(...children); }, replaceChildren(...children) { this.children = children; },
-    setAttribute(key, value) { this.attributes[key] = String(value); }, addEventListener(name, fn) { this.events[name] = fn; } };
+    setAttribute(key, value) { this.attributes[key] = String(value); }, getAttribute(key) { return this.attributes[key] ?? null; }, addEventListener(name, fn) { this.events[name] = fn; } };
   el.classList = { add(...names) { el.className += ` ${names.join(" ")}`; }, toggle() {} };
   return el;
 }

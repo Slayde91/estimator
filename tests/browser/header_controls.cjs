@@ -142,8 +142,8 @@ async function inspectHeader(width) {
   assert.ok(await page.locator('#takeoff-navigation-toggle img').evaluate(img=>img.complete&&img.naturalWidth>0));
   await expect(page.getByRole('button',{name:'Save As',exact:true})).toHaveCount(0);
   await expect(page.locator('#project-attachment-zone')).toHaveAttribute('title','Drag or drop files');
-  const icons=await page.locator('nav[aria-label="Main navigation"] .nav-icon>svg, nav[aria-label="Main navigation"] .nav-icon>span[aria-hidden]>svg, nav[aria-label="Main navigation"] .nav-icon>img').evaluateAll(nodes=>nodes.map(el=>({width:el.getBoundingClientRect().width,height:el.getBoundingClientRect().height,stroke:el.tagName.toLowerCase()==='svg'?el.getAttribute('stroke-width'):null})));
-  assert.equal(icons.length,8);for(const icon of icons){assert.equal(icon.width,26);assert.equal(icon.height,26);if(icon.stroke!==null)assert.equal(icon.stroke,'1.8');}
+  const icons=await page.locator('nav[aria-label="Main navigation"] .nav-icon>svg, nav[aria-label="Main navigation"] .nav-icon>span[aria-hidden]>svg, nav[aria-label="Main navigation"] .nav-icon>img').evaluateAll(nodes=>nodes.map(el=>({width:el.getBoundingClientRect().width,height:el.getBoundingClientRect().height,src:el.getAttribute('src'),stroke:el.tagName.toLowerCase()==='svg'?el.getAttribute('stroke-width'):null})));
+  assert.equal(icons.length,8);for(const icon of icons){const size=icon.src==='/icons/navigation-help.jpg'?29:26;assert.equal(icon.width,size);assert.equal(icon.height,size);if(icon.stroke!==null)assert.equal(icon.stroke,'1.8');}
   await chooseCalculator(page,'Firestopping'); await idle();
   await expect(page.locator('#penetration-new-item')).toBeHidden(); await expect(page.locator('#penetration-recalculate')).toBeHidden();
   for (const [id, name] of [['penetration-clear','Clear'],['penetration-add-to-schedule','Add to Schedule'],['penetration-add-to-library','Add to Library']]) { await expect(page.locator('#'+id)).toBeVisible(); await expect(page.locator('#'+id)).toHaveAccessibleName(name); }
@@ -154,7 +154,7 @@ async function inspectHeader(width) {
     await chooseLibrary(page, kind); await expect(page.locator(`#library-${kind}`)).toBeVisible();
     if(kind==='pricing'){
       await expect(page.locator('#pricing-heading')).toHaveText('Pricing Library');
-      await expect(page.locator('#library-pricing .eyebrow')).toHaveText('INVENTORY & RATES');
+      await expect(page.locator('#library-pricing .eyebrow')).toHaveCount(0);
       assert.ok(await page.locator('#library-pricing .table-scroll').evaluate(el=>el.scrollWidth<=el.clientWidth+1),'Pricing columns fit desktop width');
     }
     if(kind==='technical')await expect(page.locator('[data-library-summary="technical"]')).toBeVisible();

@@ -27,6 +27,7 @@ from .pricing_workbook import _serialize_exact
 from .reference_library import identifier
 from .report import _Report, _company_header, _escaped, _register_fonts, _LINE, _MUTED
 from .technical_fields import is_hidden_technical_label
+from .technical_display import compact_technical_text
 
 _NOTE = 'Technical Library record snapshot. Retain the original report, diagram and all source conditions.'
 _HIDDEN = {'diagram captions (visually checked)', 'workbook report revision', 'reference review'}
@@ -129,9 +130,16 @@ def _field_rows(snapshot):
         if links:
             for label in field['value'].splitlines():
                 if label.strip():
-                    yield field['label'], label.strip(), links.get(label.strip())
+                    yield compact_technical_text(field['label']), compact_technical_text(label.strip()), links.get(label.strip())
         else:
-            yield field['label'], field['value'], None
+            yield compact_technical_text(field['label']), compact_technical_text(field['value']), None
+
+
+def _diagram_caption(image):
+    # Filenames and hashes remain in the internal snapshot, never the reader's
+    # diagram captions. Authored source conditions around a filename survive.
+    text = image['caption'].replace(image['filename'], '').strip()
+    return compact_technical_text(text) or 'Source diagram'
 
 
 def _new_sheet(workbook, name, title, widths):
@@ -156,7 +164,7 @@ def _xlsx_table(sheet, row, columns, records, widths):
 
 def build_technical_item_xlsx(snapshot):
     record = snapshot['record']
-    intro = [[name.title(), record[name]] for name in ('id', 'title', 'subtitle', 'notice', 'diagram_status') if record[name]]
+    intro = [[name.title(), compact_technical_text(record[name])] for name in ('notice', 'diagram_status') if record[name]]
     rows = list(_field_rows(snapshot))
     # Preflight the actual emitted cell text before constructing any workbook.
     # Report-number fields may split into several cells; the PDF snapshot keeps
@@ -171,7 +179,7 @@ def build_technical_item_xlsx(snapshot):
         _xlsx_cells([image['caption'], image['filename'], image['source_sha256']])
     workbook = Workbook()
     workbook.remove(workbook.active)
-    workbook.properties.creator = 'Ceasefire'
+    workbook.properties.creator = 'CLASSIFIRE'
     workbook.properties.title = 'Technical Library Item Details'
     sheet = _new_sheet(workbook, 'Item Details', 'TECHNICAL LIBRARY ITEM DETAILS', [32, 82])
     _xlsx_table(sheet, 4, ['Field', 'Value'], intro + [[label, value] for label, value, _ in rows], [32, 82])
@@ -183,23 +191,28 @@ def build_technical_item_xlsx(snapshot):
     sheet.freeze_panes = 'A5'
     for ordinal, table in enumerate(snapshot['tables'], 1):
         widths = [max(16, 114 / len(table['columns']))] * len(table['columns'])
-        target = _new_sheet(workbook, f'Source Table {ordinal}', table['label'], widths)
+        target = _new_sheet(workbook, f'Source Table {ordinal}', compact_technical_text(table['label']), widths)
         if table['caption']:
             _xlsx_cells([table['caption']])
-            target.cell(3, 1).value = table['caption']
+            target.cell(3, 1).value = compact_technical_text(table['caption'])
             target.cell(3, 1).data_type = 's'
-        _xlsx_table(target, 5 if table['caption'] else 4, table['columns'], table['rows'], widths)
-    provenance = _new_sheet(workbook, 'Source Information', 'SOURCE INFORMATION', [32, 38, 24, 10, 14, 10])
-    _xlsx_table(provenance, 4, ['Source', 'Filename', 'Document ID', 'Page', 'Sheet', 'Row'], snapshot['sources'], [32, 38, 24, 10, 14, 10])
+        _xlsx_table(target, 5 if table['caption'] else 4,
+                    [compact_technical_text(value) for value in table['columns']],
+                    [[compact_technical_text(value) for value in row] for row in table['rows']], widths)
+    provenance = _new_sheet(workbook, 'Source Information', 'SOURCE INFORMATION', [48, 24, 10, 16, 10])
+    _xlsx_table(provenance, 4, ['Source', 'Document ID', 'Page', 'Sheet', 'Row'],
+                [[compact_technical_text(row[0]), *row[2:]] for row in snapshot['sources']], [48, 24, 10, 16, 10])
     if snapshot['related']:
         related = _new_sheet(workbook, 'Related Records', 'RELATED FIRESTOPPING RECORDS', [30, 24, 55, 45])
-        _xlsx_table(related, 4, ['Title', 'ID', 'Relationship', 'Notice'], snapshot['related'], [30, 24, 55, 45])
+        _xlsx_table(related, 4, ['Title', 'ID', 'Relationship', 'Notice'],
+                    [[compact_technical_text(value) if index != 1 else value for index, value in enumerate(row)]
+                     for row in snapshot['related']], [30, 24, 55, 45])
     diagrams = _new_sheet(workbook, 'Source Diagrams', 'SOURCE DIAGRAMS', [32, 82])
     row = 4
     if not snapshot['images']:
-        _xlsx_table(diagrams, row, ['Source diagram', 'Status'], [['Source diagram', record['diagram_status'] or 'No source diagram is recorded.']], [32, 82])
+        _xlsx_table(diagrams, row, ['Source diagram', 'Status'], [['Source diagram', compact_technical_text(record['diagram_status']) or 'No source diagram is recorded.']], [32, 82])
     for image in snapshot['images']:
-        row = _xlsx_table(diagrams, row, ['Source diagram', 'Original identity'], [[image['caption'], image['filename']], ['Source SHA256', image['source_sha256']]], [32, 82])
+        row = _xlsx_table(diagrams, row, ['Source diagram'], [[_diagram_caption(image)]], [114])
         drawing = ExcelImage(BytesIO(image['image_data']))
         ratio = min(760 / drawing.width, 320 / drawing.height, 1)
         drawing.width *= ratio
@@ -224,9 +237,9 @@ def render_technical_item_pdf(snapshot, *, company=None):
     width, height = A4
     margin, content = 32, width - 64
     record = snapshot['record']
-    report.story.append(report.p(record['title'] or record['id'], 'subheading'))
+    report.story.append(report.p(compact_technical_text(record['title'] or record['id']), 'subheading'))
     if record['notice']:
-        report.story.append(report.p(record['notice']))
+        report.story.append(report.p(compact_technical_text(record['notice'])))
     rows = []
     for label, value, url in _field_rows(snapshot):
         cell = report.rich(f'<link href="{escape(url, quote=True)}" color="#BD0018"><u>{_escaped(value)}</u></link>') if url else report.p(value, 'cell')
@@ -234,21 +247,21 @@ def render_technical_item_pdf(snapshot, *, company=None):
     if rows:
         report.story.append(report.table(['Field', 'Value'], rows, [content * .3, content * .7]))
     for table in snapshot['tables']:
-        report.story.append(report.p(table['label'], 'subheading'))
+        report.story.append(report.p(compact_technical_text(table['label']), 'subheading'))
         if table['caption']:
-            report.story.append(report.p(table['caption'], 'small'))
+            report.story.append(report.p(compact_technical_text(table['caption']), 'small'))
         if len(table['columns']) <= 4:
-            report.story.append(report.table(table['columns'], [[report.p(value, 'cell') for value in row] for row in table['rows']], [content / len(table['columns'])] * len(table['columns']), compact=True))
+            report.story.append(report.table([compact_technical_text(value) for value in table['columns']], [[report.p(compact_technical_text(value), 'cell') for value in row] for row in table['rows']], [content / len(table['columns'])] * len(table['columns']), compact=True))
         else:
             # Keep source columns readable rather than shrinking 20 columns into
             # an A4 page. The explicit source row links each horizontal part.
             for start in range(0, len(table['columns']), 3):
-                columns = table['columns'][start:start + 3]
+                columns = [compact_technical_text(value) for value in table['columns'][start:start + 3]]
                 report.story.append(report.p(f'Columns {start + 1}-{start + len(columns)} of {len(table["columns"])}; source row numbers align these parts.', 'small'))
-                values = [[report.p(str(index), 'cell')] + [report.p(value, 'cell') for value in row[start:start + 3]] for index, row in enumerate(table['rows'], 1)]
+                values = [[report.p(str(index), 'cell')] + [report.p(compact_technical_text(value), 'cell') for value in row[start:start + 3]] for index, row in enumerate(table['rows'], 1)]
                 report.story.append(report.table(['Source row', *columns], values, [55] + [(content - 55) / len(columns)] * len(columns), compact=True))
     if not snapshot['images']:
-        report.story.extend([report.p('Source diagram', 'subheading'), report.p(record['diagram_status'] or 'No source diagram is recorded.')])
+        report.story.extend([report.p('Source diagram', 'subheading'), report.p(compact_technical_text(record['diagram_status']) or 'No source diagram is recorded.')])
     for index, image in enumerate(snapshot['images']):
         scale = min(content / image['width'], 330 / image['height'])
         diagram = ([report.p('Source diagram', 'subheading')] if index == 0 else []) + [
@@ -256,16 +269,16 @@ def render_technical_item_pdf(snapshot, *, company=None):
         report.story.append(KeepTogether(diagram))
     if snapshot['related']:
         report.story.append(report.p('Related firestopping records', 'subheading'))
-        report.story.append(report.table(['Record', 'Relationship / source notice'], [[report.p(row[0] + '\n' + row[1], 'cell'), report.p('\n'.join(row[2:]), 'cell')] for row in snapshot['related']], [content * .3, content * .7]))
+        report.story.append(report.table(['Record', 'Relationship / source notice'], [[report.p(compact_technical_text(row[0]) + '\n' + row[1], 'cell'), report.p('\n'.join(compact_technical_text(value) for value in row[2:]), 'cell')] for row in snapshot['related']], [content * .3, content * .7]))
     source_labels = [source[0] for source in snapshot['sources'] if source[0]]
     if source_labels:
         report.story.append(report.p('Source information', 'subheading'))
         for label in source_labels:
-            report.story.append(report.p(label))
+            report.story.append(report.p(compact_technical_text(label)))
     logo = company_logo(company)
     output = BytesIO()
     document = SimpleDocTemplate(output, pagesize=A4, leftMargin=margin, rightMargin=margin, topMargin=91, bottomMargin=43,
-                                 pageCompression=1, title='Ceasefire - Technical Library Item Details', author='Ceasefire')
+                                 pageCompression=1, title='CLASSIFIRE - Technical Library Item Details', author='CLASSIFIRE')
 
     def decorate(canvas, doc):
         canvas.saveState()
@@ -274,7 +287,7 @@ def render_technical_item_pdf(snapshot, *, company=None):
         canvas.line(margin, 32, width - margin, 32)
         canvas.setFont('CeasefireVera', 7)
         canvas.setFillColor(_MUTED)
-        canvas.drawString(margin, 20, 'Ceasefire ESTIMATOR | Technical Library record snapshot')
+        canvas.drawString(margin, 20, 'CLASSIFIRE ESTIMATOR | Technical Library record snapshot')
         canvas.drawRightString(width - margin, 20, f'Page {doc.page}')
         canvas.restoreState()
 

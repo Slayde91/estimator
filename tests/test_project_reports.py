@@ -48,10 +48,12 @@ class ProjectReportTests(unittest.TestCase):
                                       if 43 < tm[4] * cm[1] + tm[5] * cm[3] + cm[5] < 500 else None)
                     self.assertTrue(''.join(body).strip(), 'Every combined PDF page includes report content')
                 self.assertIn('FULL-TEST', text)
+                self.assertEqual(reader.metadata.title, 'Full Product Summary' if materials else 'Fire Protection Schedule')
+                self.assertIn(reader.metadata.title, reader.pages[0].extract_text())
+                self.assertEqual(text.count('FULL-TEST'), 1)
+                self.assertEqual(text.count('Project details'), 1)
                 self.assertIn('Firestopping product summary' if materials else 'Firestopping schedule', text)
                 if not materials:
-                    self.assertEqual(text.count('FULL-TEST'), 1)
-                    self.assertEqual(text.count('Project details'), 1)
                     for pricing in ('$', 'Grand total', 'Item total', 'Amount / quantity', 'Unit price'):
                         self.assertNotIn(pricing, text)
                 self.assertEqual((calculators, fire), before)

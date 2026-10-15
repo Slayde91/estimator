@@ -85,7 +85,10 @@ class TechnicalItemExportsTests(unittest.TestCase):
                       snapshot['images'][0]['filename'], snapshot['images'][0]['caption'],
                       'Retain the original report, diagram and all source conditions.'):
             self.assertNotIn(value, text)
-        self.assertTrue(any(cell.value == snapshot['images'][0]['source_sha256'] for cell in cells))
+        self.assertFalse(any(cell.value == snapshot['images'][0]['source_sha256'] for cell in cells))
+        self.assertFalse(any(cell.value == snapshot['images'][0]['filename'] for cell in cells))
+        self.assertNotIn('Filename', [cell.value for cell in cells])
+        self.assertFalse(any(cell.value in {'Id', 'Title', 'Subtitle', 'Source SHA256'} for row in workbook['Item Details'] for cell in row))
         self.assertIn(snapshot['record']['notice'], text)
         for label, filename, document_id, page, sheet, row in snapshot['sources']:
             if label:
@@ -136,6 +139,26 @@ class TechnicalItemExportsTests(unittest.TestCase):
         self.assertIn('No source diagram is recorded.', text)
         workbook = load_workbook(BytesIO(build_technical_item_xlsx(snapshot)))
         self.assertEqual(len(workbook['Source Diagrams']._images), 0)
+
+    def test_compact_export_prose_preserves_product_identity_conditions_and_snapshot(self):
+        snapshot = self.capture({'id': 'report-a-v2'})
+        snapshot['record']['diagram_status'] = 'FIREFLYPenowrap with minimum 25 mm; not approved for 50 mm.'
+        snapshot['related'] = [['FIREFLYIntubatt with 60 mm', 'pkb-001',
+                                'minimum 120 minutes per side', 'Only into the aperture of the damper.']]
+        snapshot['fields'][0]['value'] = 'FIREFLYBatt with minimum 12.3456789012345 mm; maximum 50 mm only.'
+        before = deepcopy(snapshot)
+        pdf = '\n'.join(page.extract_text() for page in PdfReader(BytesIO(render_technical_item_pdf(snapshot))).pages)
+        workbook = load_workbook(BytesIO(build_technical_item_xlsx(snapshot)), data_only=False)
+        cells = [str(cell.value) for sheet in workbook for row in sheet for cell in row if cell.value is not None]
+        xlsx = '\n'.join(cells)
+        for text in (pdf, xlsx):
+            for expected in ('Batt w/ min. 12.3456789012345 mm; maximum 50 mm only.',
+                             'Penowrap w/ min. 25 mm; not approved for 50 mm.',
+                             'Intubatt w/ 60 mm', 'min. 120 minutes p/ side',
+                             'Only to aperture of damper.', 'pkb-001'):
+                self.assertIn(expected, text)
+            self.assertNotIn('FIREFLY', text)
+        self.assertEqual(snapshot, before)
 
     def test_oversized_canonical_xlsx_cells_fail_before_workbook_assignment(self):
         canonical = self.library.detail('technical', 'report-a-v2')

@@ -5,7 +5,15 @@ const deferred = () => { let resolve; const promise = new Promise(done => { reso
 const response = (receipt, extra = {}) => ({ok:true,status:200,headers:{get:()=> 'application/json; charset=utf-8'},json:async()=>receipt,...extra});
 const receipt = {saved:true,path:'C:/Projects/One/APPENDIX A (1).pdf',filename:'APPENDIX A (1).pdf',destination:'project'};
 let projectToken = 'selected-project', calls = [], next = response(receipt);
-const context = {window:{CeasefireProject:{downloadTarget:()=>({project_token:projectToken})}},fetch:(path,options)=>{calls.push({path,...options,body:JSON.parse(options.body)});return Promise.resolve(next);},console};
+const context = {
+  window:{CeasefireProject:{downloadTarget:()=>({project_token:projectToken})}},
+  document:{activeElement:null},setTimeout,clearTimeout,requestAnimationFrame:callback=>callback(),
+  fetch:(path,options)=>{
+    if(path==='/api/download-progress') return Promise.resolve(response({token:'progress-token'}));
+    if(path.startsWith('/api/download-progress/')) return Promise.resolve(response({percent:10,state:'preparing'}));
+    calls.push({path,...options,body:JSON.parse(options.body)});return Promise.resolve(next);
+  },console
+};
 vm.createContext(context);
 vm.runInContext(fs.readFileSync('static/downloads.js','utf8'),context);
 let passed = 0;
@@ -17,6 +25,7 @@ let passed = 0;
   waiting.resolve(response(receipt));assert.deepEqual(await saving,receipt);
   assert.equal(calls[0].body.download.project_token,'selected-project');assert.equal(calls[0].body.inputs.CALCULATOR.B9,7.123456789012345);
   assert.equal(calls[0].method,'POST');assert.equal(calls[0].headers.Accept,'application/json');passed++;
+  assert.equal(calls[0].headers['X-Estimator-Download-Progress'],'progress-token');passed++;
 
   projectToken=null;next=response({...receipt,destination:'downloads',path:'D:/Redirected Downloads/APPENDIX A.pdf'});
   const fallback=await context.window.CeasefireDownloads.save('/api/quote-report',{title:'Unsaved'});

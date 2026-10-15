@@ -28,9 +28,11 @@ const evidence=[],errors=[];
       for(const state of ['normal','hover','active','active-hover']){
         if(state==='hover'||state==='active-hover')await control.hover();
         if(state==='active'){await control.click();await control.press('Escape');await page.mouse.move(0,0);await expect(control).toHaveClass(/\bactive\b/);}
-        const appearance=await image.evaluate(el=>({filter:getComputedStyle(el).filter,blend:getComputedStyle(el).mixBlendMode,width:el.getBoundingClientRect().width,height:el.getBoundingClientRect().height}));
-        assert.equal(appearance.width,26);assert.equal(appearance.height,26);
-        assert.equal(appearance.filter,state==='hover'?'none':'invert(1)');
+        const appearance=await image.evaluate(el=>{const a=el.getBoundingClientRect(),b=el.closest('button').getBoundingClientRect();return{filter:getComputedStyle(el).filter,blend:getComputedStyle(el).mixBlendMode,width:a.width,height:a.height,centreX:a.x+a.width/2-b.x-b.width/2,centreY:a.y+a.height/2-b.y-b.height/2};});
+        assert.equal(appearance.width,name==='help'?29:26);assert.equal(appearance.height,name==='help'?29:26);
+        assert.ok(Math.abs(appearance.centreX)<.5&&Math.abs(appearance.centreY)<.5,'Header artwork remains centred in its control');
+        const expectedFilter=name==='takeoffs'?(state==='hover'?'contrast(1.2)':'invert(1) contrast(1.2)'):(state==='hover'?'none':'invert(1)');
+        assert.equal(appearance.filter,expectedFilter);
         assert.equal(appearance.blend,state==='hover'?'multiply':'screen');
         const screenshot=path.join(output,`${theme}-${name}-${state}.png`);await image.screenshot({path:screenshot});
         const pixels=spawnSync(python,['-c',"from PIL import Image; import sys; p=list(Image.open(sys.argv[1]).convert('RGB').getdata()); r=max(sum(v)/3 for v in p)-min(sum(v)/3 for v in p); assert r>100, r",screenshot],{encoding:'utf8',windowsHide:true});assert.equal(pixels.status,0,pixels.stderr);

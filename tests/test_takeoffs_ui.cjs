@@ -14,10 +14,16 @@ function harness(storage) {
   const context={window:{CeasefireTakeoffGeometry:geometry,CeasefireProject:{changed(){}}},document:{getElementById(){return null;},fonts:{load(){return Promise.resolve([]);},check(){return true;}}},crypto,
     Intl,Number,String,JSON,Object,Set,Map,Array,Promise,Error,URL,Math,Event,console:{...console},setTimeout,clearTimeout};
   vm.createContext(context);
+  context.window.CeasefireDownloads={save:async(path,payload)=>{
+    const result=await context.fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    if(!result.ok)throw new Error((await result.json()).error||'Takeoff download failed.');
+    if(result.blob)await result.blob();
+    return{saved:true,path:'fixture/output',filename:'fixture-output'};
+  }};
   if (storage !== undefined) Object.defineProperty(context.window,'localStorage',{get(){if(storage instanceof Error)throw storage;return storage;}});
   let source=fs.readFileSync('static/takeoffs.js','utf8');
   source=source.replace('  window.CeasefireTakeoffs = {', '  globalThis.audit = {state,accept,command,ensureSession,editableFields,settingsSelectedItems,renderSettingsPanel,applySettings,flushSettings,markSettingsEdited,appearanceOf,snapshotKey,reviewStatus,visibleItems,transferSummary,boundInputDetails,notePdfWarning,documentWarnings,installPdfDiagnostics,releaseDocuments,boundedPdf,destroyPdfResources,pdfPage,discardPdf,recordPdfFailure,areaTraceLimit,transfer,detachSelected,manageLinkedRows,splitSelected,mergeSelected,renderRegister,renderOverlay,selectItem,startExclusion,editAreaBoundary,changeAreaCalibration,setTool,discardEditor,requireFinishedEdits,normalizePhysicalImages,button,creationFields,configureSteelCreation,createDrawnItem,lengthSummary,parsedLengthAddition,editLengthAddition,removeLengthAddition,confirmSelected,itemGroup,registerFilters,setApi(fn){api=fn;},setAsk(fn){ask=fn;},setCommand(fn){command=fn;}};\n  window.CeasefireTakeoffs = {');
-  source=source.replace('setApi(fn){api=fn;}', 'renderControlPoints,pointReference,pointTarget,pointRemovalReason,removeControlPoint,planKeydown,handoffPlanWheel,downloadTakeoff,renderPage,drawingPointer,finishTrace,finishTraceFromDoubleClick,changeLength,itemCalibrations,useRectangularDuct,setFinishTrace(fn){finishTrace=fn;},setPdfTools(documentFn,pageFn){pdfDocument=documentFn;pdfPage=pageFn;},setApi(fn){api=fn;}');
+  source=source.replace('setApi(fn){api=fn;}', 'renderControlPoints,pointReference,pointTarget,pointRemovalReason,removeControlPoint,planKeydown,handoffPlanWheel,downloadTakeoff,downloadMarkup,message,renderPage,drawingPointer,finishTrace,finishTraceFromDoubleClick,changeLength,itemCalibrations,useRectangularDuct,setFinishTrace(fn){finishTrace=fn;},setPdfTools(documentFn,pageFn){pdfDocument=documentFn;pdfPage=pageFn;},setApi(fn){api=fn;}');
   source=source.replace('setApi(fn){api=fn;}', 'pointGeometry,moveControlPoint,beginControlPointDrag,cancelSelectionGesture,markupTarget,deleteMarkup,surfacePreview,renderSurfaceLabel,renderPendingTrace,tracePointerMove,setSelectionRenderer(fn){renderSelection=fn;},setPointSelector(fn){selectControlPoint=fn;},setApi(fn){api=fn;}');
   source=source.replace('setApi(fn){api=fn;}', 'stageCountMarker,queueCountLength,resetCountDraft,finishCount,finishStandaloneCount,cancelTrace,deleteCountMarker,beginCountMarkerDrag,changeCountLength,countBatchItems,selectedCountMemberIds,selectCountMarker,continueCount,beginSelectionGesture,working,setOverlayRenderer(fn){renderOverlay=fn;},setApi(fn){api=fn;}');
   source=source.replace('setApi(fn){api=fn;}', 'build,renderRail,linkedCalculatorOperation,recoverLinkedOperation,openItemSettings,viewItem,formField,populateCalculatorOptions,loadSettingsOptions,parseDuctSize,formatDuctSize,bulkEdit,setFlushSettings(fn){flushSettings=fn;},requestApi:api,setDataRenderer(fn){renderData=fn;},setApi(fn){api=fn;}');
@@ -41,6 +47,7 @@ function attachMinimalDom(h) {
       after(child){const siblings=this.parentNode.children,index=siblings.indexOf(this);child.parentNode=this.parentNode;child.previousElementSibling=this;siblings.splice(index+1,0,child);},
       replaceChildren(...children){this.children=[];this._text='';this.append(...children);},
       setAttribute(key,value){this.attributes[key]=String(value);if(key==='class')this.className=String(value);},
+      getAttribute(key){return this.attributes[key]??null;},
       removeAttribute(key){delete this.attributes[key];},
       addEventListener(event,listener){this.events[event]=listener;},
       dispatchEvent(event){this.events[event.type]?.(event);return !event.defaultPrevented;},
@@ -63,7 +70,7 @@ function countHarness() {
   const dom=attachMinimalDom(h);dom.ui.root=dom.element();dom.ui.viewport=dom.element();dom.ui.overlay.getBoundingClientRect=()=>({left:0,top:0,width:200,height:200});
   dom.ui.viewport.focus=()=>{};dom.ui.progress=dom.element();dom.ui.target={value:'steel_vermiculite'};
   Object.assign(h.audit.state,{document:'doc',page:1,tool:'count',viewport:{width:200,height:200,transform:[1,0,0,1,0,0]}});h.audit.setOverlayRenderer(()=>{});h.audit.setSelectionRenderer(()=>{});
-  const timers=new Map();let timerId=0;h.context.setTimeout=fn=>{timers.set(++timerId,fn);return timerId;};h.context.clearTimeout=id=>timers.delete(id);
+  const timers=new Map(),statusTimers=new Map();let timerId=0;h.context.setTimeout=(fn,delay)=>{(delay===5000?statusTimers:timers).set(++timerId,fn);return timerId;};h.context.clearTimeout=id=>{timers.delete(id);statusTimers.delete(id);};
   return {...h,dom,timers,stage(point,timeStamp=10){h.audit.stageCountMarker(point,{timeStamp,clientX:point[0],clientY:point[1]});return h.audit.state.countEntries.at(-1);}};
 }
 function attachSettings(h, calculator='steel_vermiculite') {
@@ -81,6 +88,38 @@ const countItem=(id,countId,length,points)=>({id,count_id:countId,version:1,stat
 let passed=0;
 async function check(label, test) { await test(); passed++; console.log(`ok - ${label}`); }
 (async()=>{
+  await check('Normal Takeoff statuses expire after five seconds while errors and protected recovery notices remain visible',()=>{
+    const h=harness(),dom=attachMinimalDom(h),timers=[];h.context.setTimeout=(callback,delay)=>{timers.push({callback,delay});return timers.length;};h.context.clearTimeout=()=>{};
+    dom.ui.messageSlot=dom.element();dom.ui.messageSlot.style={};let height=70.59375;dom.ui.messageSlot.getBoundingClientRect=()=>({height});
+    h.audit.message('Saved fixture');assert.equal(timers[0].delay,5000);assert.equal(dom.ui.message.hidden,false);
+    h.audit.message('Source unavailable',true);timers[0].callback();assert.equal(dom.ui.message.hidden,false);assert.equal(dom.ui.message.textContent,'Source unavailable');assert.equal(dom.ui.message.getAttribute('role'),'alert');
+    h.audit.message('Current status');const current=timers.at(-1);current.callback();assert.equal(dom.ui.message.hidden,true);assert.equal(dom.ui.message.textContent,'');
+    assert.equal(dom.ui.messageSlot.style.minHeight,'70.59375px','Retirement preserves the exact rendered flow height, including the margin');
+    h.audit.message('New wrapped status');assert.equal(dom.ui.messageSlot.style.minHeight,'','A new notice uses its current width instead of a stale reserve');height=121.25;timers.at(-1).callback();assert.equal(dom.ui.messageSlot.style.minHeight,'121.25px');
+    h.audit.state.linkedRecovery={operation:'retained'};const count=timers.length;h.audit.message('Recover linked change');assert.equal(dom.ui.message.hidden,false);assert.equal(timers.length,count);
+    assert.equal(dom.ui.messageSlot.style.minHeight,'');
+  });
+  await check('Project replacement retires only its exact old render alert without recording render success',()=>{
+    for(const transition of ['replacement','defaults','unrelated alert','same-text status','linked recovery']){
+      const h=harness(),old=blank();old.render_checks=[{document_id:'old-doc',page:1,success:false,warnings:['Unavailable session']}];h.audit.accept(response(old));const dom=attachMinimalDom(h);
+      for(const key of ['search','searchResults','pageWrap','empty'])dom.ui[key]=dom.element();h.audit.setOverlayRenderer(()=>{});h.audit.setDataRenderer(()=>{});h.audit.setApi(async()=>({}));h.context.setTimeout=()=>0;h.context.clearTimeout=()=>{};
+      const notice='This page could not be rendered completely. Review and confirmation are blocked. The takeoff session is unavailable.';h.audit.state.pageError={document_id:'old-doc',page:1,notice};
+      h.audit.message(transition==='unrelated alert'?'Retain this unrelated error':notice,transition!=='same-text status');
+      const priorSession=h.audit.state.session,priorPageError=h.audit.state.pageError,priorText=dom.ui.message.textContent,priorRole=dom.ui.message.getAttribute('role');
+      const next=blank();next.project_id='replacement-project';const prepared={session:transition==='defaults'?null:response(next,'replacement'),saved:null};
+      if(transition==='linked recovery'){
+        h.audit.state.linkedRecovery={operation:'retained'};assert.throws(()=>h.api.applyProject(prepared),/Recover the pending linked change/);
+        assert.equal(h.audit.state.session,priorSession);assert.equal(h.audit.state.pageError,priorPageError);assert.deepEqual(copy(h.audit.state.session.snapshot),old);
+        assert.equal(dom.ui.message.textContent,priorText);assert.equal(dom.ui.message.getAttribute('role'),priorRole);assert.equal(dom.ui.message.hidden,false);continue;
+      }
+      h.api.applyProject(prepared);assert.equal(h.audit.state.pageError,null);
+      if(transition==='replacement'||transition==='defaults'){assert.equal(dom.ui.message.textContent,'');assert.equal(dom.ui.message.hidden,true);assert.equal(dom.ui.message.getAttribute('role'),'status');}
+      else{assert.equal(dom.ui.message.textContent,priorText);assert.equal(dom.ui.message.getAttribute('role'),priorRole);assert.equal(dom.ui.message.hidden,false);}
+      assert.equal(h.audit.state.viewport,null);assert.equal(dom.ui.pageWrap.hidden,true);assert.equal(dom.ui.empty.hidden,false);
+      if(prepared.session)assert.deepEqual(copy(h.audit.state.session.snapshot),next,'Replacing the project does not fabricate a successful render check');else assert.equal(h.audit.state.session,null);
+      assert.deepEqual(old.render_checks,[{document_id:'old-doc',page:1,success:false,warnings:['Unavailable session']}]);
+    }
+  });
   await check('Current-item Visibility keeps pending details, other markups and canonical quantities unchanged in every drawing workspace',async()=>{
     for(const mode of ['steel','duct','wall','slab']){
       const h=harness(),value=blank();value.items=[{id:'current',mode,quantity:3.123456789,fields:{mark:'Current'},appearance:{},geometry:{kind:'polyline',document_id:'doc',page:1,points:[[10,10],[20,20]]}},{id:'other',mode,quantity:7,fields:{mark:'Other'},appearance:{},geometry:{kind:'polyline',document_id:'doc',page:1,points:[[30,30],[40,40]]}}];h.audit.accept(response(value));const dom=attachSettings(h);Object.assign(h.audit.state,{mode,document:'doc',page:1,selected:new Set(['current']),settingsOpen:true});h.audit.renderSettingsPanel();
@@ -505,7 +544,7 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
     assert.equal(wheel(-10,20),true);assert.deepEqual([left,top],[189.5,199.5]);assert.equal(outer.scrollTop,320);
     assert.equal(cancelled,2);
   });
-  await check('A changed calculator draft during export cannot publish the captured linked result',async()=>{
+  await check('A late calculator edit retains the actual saved receipt and warns that newer edits are not included',async()=>{
     const h=harness(),value=blank(),body=deferred();value.items=[{id:'a',mode:'steel',fields:{mark:'A'}}];h.audit.accept(response(value));
     let fingerprint='before',downloads=0,fetches=0;
     h.context.window.CeasefireCalculators={captureTakeoffTarget:async()=>({inputs:{},schedule_rows:1,fingerprint}),projectFingerprint:()=>fingerprint};
@@ -513,7 +552,7 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
     h.context.URL={createObjectURL(){downloads++;return'blob:unused';}};
     const dom=attachMinimalDom(h);dom.ui.target={value:'steel_vermiculite'};dom.ui.root=dom.element();dom.ui.status=dom.element();
     const pending=h.audit.downloadTakeoff('schedule-xlsx');await flush();assert.equal(fetches,1);fingerprint='manual-edit';body.resolve({});
-    await assert.rejects(pending,/calculator draft changed during export/);assert.equal(downloads,0);assert.equal(h.audit.state.busy,false);
+    const saved=await pending;assert.equal(saved.saved,true);assert.match(dom.ui.message.textContent,/Saved fixture-output to fixture\/output/);assert.match(dom.ui.message.textContent,/Later calculator edits are not included/);assert.equal(fingerprint,'manual-edit');assert.equal(downloads,0);assert.equal(h.audit.state.busy,false);
   });
   await check('PDF-space round trips preserve original coordinates at rotations, crop offsets and UserUnit scales',()=>{
     for(const matrix of [[2,0,0,-2,-30,200],[0,3,3,0,-120,-60],[-4,0,0,4,900,-24],[0,-.25,-.25,0,200,100]])
@@ -852,11 +891,11 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
     const ordinary=h.audit.button('Confirm',()=>{});assert.equal(ordinary.textContent,'Confirm');assert.ok(!ordinary.classList.contains('icon-only'));
     const undo=h.audit.button('Undo last edit',()=>{});assert.equal(undo.attributes['aria-label'],'Undo last edit');assert.ok(undo.classList.contains('takeoff-undo-button'));assert.equal(undo.children[0].textContent,'↶');assert.ok(undo.children[0].classList.contains('button-symbol'));assert.equal(dom.all(undo).filter(node=>node.tagName==='SVG').length,0);
   });
-  await check('Register Document provides three ordered XLSX actions and keyboard/focus dismissal without changing records',()=>{
+  await check('Register Document provides ordered XLSX and four PDF actions and keyboard/focus dismissal without changing records',()=>{
     const h=harness(),dom=attachMinimalDom(h),before=copy(h.audit.state.session),menu=h.audit.registerDocumentMenu(),names=menu.list.children.map(control=>control.children[1].textContent);
-    assert.deepEqual(names,['Download confirmed items','Download unconfirmed items','Download all items']);assert.equal(menu.toggle.children[0].src,'/icons/document.png');assert.ok(menu.toggle.children[0].classList.contains('calculator-document-icon'));const chevron=menu.toggle.children.at(-1);assert.ok(chevron.classList.contains('calculator-document-chevron'));assert.equal(chevron.children[0].tagName,'SVG');assert.equal(chevron.children[0].children[0].attributes.d,'m6 9 6 6 6-6');
-    assert.ok(menu.list.hidden);for(const control of menu.list.children){assert.equal(control.children[0].children[1].textContent,'XLSX');assert.equal(control.children[0].attributes['aria-hidden'],'true');}
-    const key=value=>menu.root.events.keydown({key:value,preventDefault(){}});menu.toggle.focus();key('ArrowUp');assert.equal(h.context.document.activeElement,menu.list.children[2]);assert.equal(menu.toggle.attributes['aria-expanded'],'true');key('Home');assert.equal(h.context.document.activeElement,menu.list.children[0]);key('End');assert.equal(h.context.document.activeElement,menu.list.children[2]);key('Escape');assert.equal(h.context.document.activeElement,menu.toggle);assert.ok(menu.list.hidden);
+    assert.deepEqual(names,['Download confirmed items','Download unconfirmed items','Download all items','Download Full Markup','Download Markups Only','Download All Markups','Download Full Markups Only']);assert.equal(menu.toggle.children[0].src,'/icons/document.png');assert.ok(menu.toggle.children[0].classList.contains('calculator-document-icon'));const chevron=menu.toggle.children.at(-1);assert.ok(chevron.classList.contains('calculator-document-chevron'));assert.equal(chevron.children[0].tagName,'SVG');assert.equal(chevron.children[0].children[0].attributes.d,'m6 9 6 6 6-6');
+    assert.ok(menu.list.hidden);for(const [index,control] of menu.list.children.entries()){assert.equal(control.children[0].children[1].textContent,index<3?'XLSX':'PDF');assert.equal(control.children[0].attributes['aria-hidden'],'true');}
+    const key=value=>menu.root.events.keydown({key:value,preventDefault(){}});menu.toggle.focus();key('ArrowUp');assert.equal(h.context.document.activeElement,menu.list.children[6]);assert.equal(menu.toggle.attributes['aria-expanded'],'true');key('Home');assert.equal(h.context.document.activeElement,menu.list.children[0]);key('End');assert.equal(h.context.document.activeElement,menu.list.children[6]);key('Escape');assert.equal(h.context.document.activeElement,menu.toggle);assert.ok(menu.list.hidden);
     menu.toggle.events.click();menu.root.events.focusout({relatedTarget:dom.element()});assert.ok(menu.list.hidden);menu.toggle.events.click();h.context.document.body.events.pointerdown({target:dom.element()});assert.ok(menu.list.hidden);assert.deepEqual(copy(h.audit.state.session),before);
   });
   await check('Combined surfaces retain IDs and native row bases, share selection/filter state and omit incompatible mixed basis edits',()=>{

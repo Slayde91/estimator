@@ -1,3 +1,4 @@
+const { waitForTakeoffDownload } = require('./native_download_helpers.cjs');
 const { chooseTakeoff } = require('./section_navigation.cjs');
 // Steel and Duct column filters against disposable, source-backed 102-row registers.
 const { chromium, expect } = require('@playwright/test');
@@ -105,7 +106,7 @@ async function reset(label) { await finishMenu(await menu(label), 'Reset filter'
   await filter(typeLabel, [steel ? 'Column' : 'Vertical']); assert.deepEqual(await rowMarks(), [`${prefix}002`]);
   // Existing selected-register CSV export remains based on the explicit
   // selection, even if that row is now hidden by a view filter.
-  const download = page.waitForEvent('download'), exported = page.waitForRequest(request => request.url().endsWith('/export/csv'));
+  const download = waitForTakeoffDownload(page), exported = page.waitForRequest(request => request.url().endsWith('/export/csv'));
   await page.evaluate(() => window.CeasefireTakeoffs.exportRegister("csv"));
   assert.deepEqual((await exported).postDataJSON().selected_ids, [seeded.first]); await (await download).saveAs(path.join(output, 'selected-confirmed.csv'));
   await page.getByLabel('Filter register', { exact: true }).fill(`${prefix}001`); await expect(rows()).toHaveCount(0);

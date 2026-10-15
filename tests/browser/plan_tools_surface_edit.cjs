@@ -1,3 +1,4 @@
+const { waitForTakeoffDownload } = require('./native_download_helpers.cjs');
 const { chooseTakeoff } = require('./section_navigation.cjs');
 const { clickProjectControl } = require('./project_actions.cjs');
 const { renderDrawing } = require('./viewer_helpers.cjs');
@@ -80,9 +81,11 @@ async function layout(width) {
   const pointerTargets = [];
   for (const control of [scale, page.getByLabel('Drawing document', { exact: true }), rail.getByRole('button', { name: 'Call-out', exact: true }), ...await markupRail.getByRole('button').all()]) {
     await control.scrollIntoViewIfNeeded(); await expect(control).toBeVisible();
-    const box = await control.boundingBox(), target = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
-    await page.mouse.move(target.x, target.y);
-    assert.equal(await control.evaluate((el, point) => { const hit = document.elementFromPoint(point.x, point.y); return hit === el || el.contains(hit); }, target), true, `Native pointer target is unobscured: ${await control.getAttribute('aria-label') || await control.textContent()} at ${width}px`);
+    await control.hover();
+    // Ordinary notices expire and reflow the viewer. Read the current centre
+    // and hit together, after native hover has checked pointer actionability.
+    const target = await control.evaluate(el => { const box = el.getBoundingClientRect(), x = box.x + box.width / 2, y = box.y + box.height / 2, hit = document.elementFromPoint(x, y); return { x, y, unobscured: hit === el || el.contains(hit) }; });
+    assert.equal(target.unobscured, true, `Native pointer target is unobscured: ${await control.getAttribute('aria-label') || await control.textContent()} at ${width}px`);
     pointerTargets.push({ name: await control.getAttribute('aria-label') || await control.textContent(), ...target });
   }
   await expect(markupRail.getByRole('button')).toHaveCount(9);
@@ -121,7 +124,7 @@ async function layout(width) {
   assert.equal(movedSteel.quantity, 2); assert.deepEqual(movedSteel.member_ids, steel.member_ids); assert.deepEqual(movedSteel.fields, steel.fields);
   assert.ok(Math.abs(result(state, steel.id).length_m - movedSteel.geometry.points.slice(1).reduce((sum, p, i) => sum + Math.hypot(p[0] - movedSteel.geometry.points[i][0], p[1] - movedSteel.geometry.points[i][1]), 0) * 2 * .0254 / 72 * 100) < 1e-10);
   assert.deepEqual(await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()), calculators);
-  const beforeInvalid = await snapshot(); await drag(steel.id, 1, [-100, 100]); await expect(page.locator('#takeoffs-workspace > .message')).toContainText(/outside|page|crop|boundary/i); assert.deepEqual(await snapshot(), beforeInvalid);
+  const beforeInvalid = await snapshot(); await drag(steel.id, 1, [-100, 100]); await expect(page.locator('#takeoff-message')).toContainText(/outside|page|crop|boundary/i); assert.deepEqual(await snapshot(), beforeInvalid);
   const middle = steel.geometry.points[0].map((value, index) => (value + movedSteel.geometry.points[1][index]) / 2); await page.mouse.click(...await screen(middle), { button: 'right' });
   const linked = state.snapshot.transfers.find(link => link.item_id === steel.id), beforeCells = calculators[linked.calculator_id].inputs[linked.sheet], rowAddress = new RegExp(`^[A-Z]+${linked.row}$`), populatedRow = Object.keys(beforeCells).filter(address => rowAddress.test(address) && beforeCells[address] != null && beforeCells[address] !== ''); assert.ok(populatedRow.length > 0);
   await page.getByRole('menu', { name: 'Markup actions', exact: true }).getByRole('menuitem', { name: 'Delete markup', exact: true }).click(); state = await linkedOperation(() => dialog('Delete markup?', {}, 'Delete markup'), 'linked-delete');
@@ -159,7 +162,7 @@ async function layout(width) {
   for (const width of [1600, 900, 620]) { await layout(width); await page.locator('.takeoff-viewport').evaluate(el => window.scrollTo(0, window.scrollY + el.getBoundingClientRect().top - 180)); await page.screenshot({ path: path.join(output, `layout-${width}.png`) }); }
   await page.setViewportSize({ width: 1600, height: 1100 });
   await page.getByLabel('Register position', { exact: true }).selectOption('beside'); const besidePlan = await page.locator('.takeoff-viewport').boundingBox(), besideNav = await page.getByLabel('Drawing navigation', { exact: true }).boundingBox(), besideRegister = await page.locator('.takeoff-register').boundingBox(); assert.ok(besideNav.y >= besidePlan.y && besideNav.y + besideNav.height < besidePlan.y + besidePlan.height); assert.ok(besideRegister.x >= besidePlan.x + besidePlan.width); evidence.beside = { plan: besidePlan, navigation: besideNav, register: besideRegister }; await page.screenshot({ path: path.join(output, 'layout-beside-1600.png') }); await page.getByLabel('Register position', { exact: true }).selectOption('below');
-  for (const extension of ['pdf', 'xlsx']) { const pending = page.waitForEvent('download'); if (extension === 'pdf') await page.evaluate(() => window.CeasefireTakeoffs.downloadDrawing()); else { await page.getByRole('button', { name: 'Takeoff register document actions', exact: true }).click(); await page.getByRole('button', { name: 'Download all items', exact: true }).click(); } const download = await pending, target = path.join(output, `edited-surface.${extension}`); await download.saveAs(target); const bytes = fs.readFileSync(target); assert.ok(bytes.length > 100); assert.equal(bytes.subarray(0, extension === 'pdf' ? 5 : 2).toString(), extension === 'pdf' ? '%PDF-' : 'PK'); }
+  for (const extension of ['pdf', 'xlsx']) { const pending = waitForTakeoffDownload(page); if (extension === 'pdf') await page.evaluate(() => window.CeasefireTakeoffs.downloadDrawing()); else { await page.getByRole('button', { name: 'Takeoff register document actions', exact: true }).click(); await page.getByRole('button', { name: 'Download all items', exact: true }).click(); } const download = await pending, target = path.join(output, `edited-surface.${extension}`); await download.saveAs(target); const bytes = fs.readFileSync(target); assert.ok(bytes.length > 100); assert.equal(bytes.subarray(0, extension === 'pdf' ? 5 : 2).toString(), extension === 'pdf' ? '%PDF-' : 'PK'); }
   const beforeSave = await snapshot(), saving = page.waitForResponse(r => r.url().endsWith('/api/project/save-as')); await clickProjectControl(page, 'Save'); assert.equal((await saving).status(), 200); await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   const opening = page.waitForResponse(r => r.url().endsWith('/api/project/open')); await clickProjectControl(page, 'Load'); assert.equal((await opening).status(), 200); await page.getByRole('dialog').getByRole('button', { name: 'Load Project', exact: true }).click(); await expect(page.locator('#project-save-state')).toHaveText('Saved project'); await page.getByRole('button', { name: 'Takeoffs', exact: true }).click();
   assert.deepEqual((await snapshot()).items, beforeSave.items); assert.deepEqual(await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()), calculators);

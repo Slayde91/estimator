@@ -1,3 +1,4 @@
+const { waitForTakeoffDownload } = require('./native_download_helpers.cjs');
 const { cycleTheme } = require('./theme_navigation.cjs');
 const { chooseTakeoff } = require('./section_navigation.cjs');
 const { clickProjectControl } = require('./project_actions.cjs');
@@ -70,7 +71,7 @@ async function exportArea(record, format) {
   const extension = format.toLowerCase();
   const pendingResponse = page.waitForResponse(response => response.request().method() === 'POST'
     && new URL(response.url()).pathname.endsWith(`/export/${extension}`));
-  const pendingDownload = page.waitForEvent('download');
+  const pendingDownload = waitForTakeoffDownload(page);
   pendingResponse.catch(() => {}); pendingDownload.catch(() => {});
   // Snapshot, exact selection and the original export call share one browser
   // turn; readiness cannot go stale between their checks and the request.
@@ -87,7 +88,8 @@ async function exportArea(record, format) {
     if (selectedIds.length !== 1 || selectedIds[0] !== id || !item?.confirmation) {
       throw new Error('The selected confirmed surface must be settled before exporting.');
     }
-    const evidence = { sessionId, workspaceBusy, openDialogs, selectedIds, item };
+    const download = { project_token: window.CeasefireProject.downloadTarget().project_token ?? null };
+    const evidence = { sessionId, workspaceBusy, openDialogs, selectedIds, item, download };
     return api.exportRegister(extension).then(() => evidence);
   }, { id: record.id, extension });
   let invocation;
@@ -97,9 +99,10 @@ async function exportArea(record, format) {
   assert.equal(invocation.item.fields.layers, 3);
   const response = await pendingResponse;
   assert.equal(response.status(), 200, response.status() === 200 ? `${format} export response` : await response.text());
-  assert.deepEqual(response.request().postDataJSON(), { selected_ids: [record.id] });
+  assert.deepEqual(response.request().postDataJSON(), { selected_ids: [record.id], download: invocation.download });
   assert.ok(new URL(response.url()).pathname.endsWith(`/sessions/${invocation.sessionId}/export/${extension}`));
   const file = await pendingDownload;
+  assert.equal(file.receipt.destination, invocation.download.project_token ? 'project' : 'downloads');
   assert.equal(await file.failure(), null);
   const target = path.join(output, `${record.mode}-${file.suggestedFilename()}`);
   await file.saveAs(target); assert.ok(fs.statSync(target).size > 100);

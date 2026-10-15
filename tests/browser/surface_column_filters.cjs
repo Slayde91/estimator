@@ -1,3 +1,4 @@
+const { waitForTakeoffDownload } = require('./native_download_helpers.cjs');
 const { chooseTakeoff } = require('./section_navigation.cjs');
 // Real combined Wall/Floor filters and classified exports against disposable source-backed projects.
 const { chromium, expect } = require('@playwright/test');
@@ -81,22 +82,22 @@ async function reset(label) { await finishMenu(await menu(label), 'Reset filter'
     await page.setViewportSize({width,height:764});await documentToggle.scrollIntoViewIfNeeded();
     await documentToggle.evaluate(el=>window.scrollTo(0,window.scrollY+el.getBoundingClientRect().top-170));
     await documentToggle.click();const actions=documentMenu.locator('.calculator-document-actions button');
-    assert.deepEqual(await actions.allTextContents(),['⇩XLSXDownload confirmed items','⇩XLSXDownload unconfirmed items','⇩XLSXDownload all items']);
+    assert.deepEqual(await actions.allTextContents(),['⇩XLSXDownload confirmed items','⇩XLSXDownload unconfirmed items','⇩XLSXDownload all items','⇩PDFDownload Full Markup','⇩PDFDownload Markups Only','⇩PDFDownload All Markups','⇩PDFDownload Full Markups Only']);
     assert.ok(await documentToggle.locator('img').evaluate(img=>img.complete&&img.naturalWidth>0));
     const geometry=await actions.evaluateAll(buttons=>buttons.map(button=>{const r=button.getBoundingClientRect(),hit=document.elementFromPoint(r.x+r.width/2,r.y+r.height/2);return{x:r.x,y:r.y,width:r.width,height:r.height,hit:button===hit||button.contains(hit)};}));
     assert.ok(geometry.every(box=>box.x>=0&&box.y>=0&&box.x+box.width<=width&&box.y+box.height<=764&&box.hit),JSON.stringify({width,geometry}));
     await page.screenshot({path:path.join(output,`document-menu-${width}.png`)});
-    await documentToggle.press('ArrowUp');await expect(documentMenu.getByRole('button',{name:'Download all items',exact:true})).toBeFocused();
+    await documentToggle.press('ArrowUp');await expect(documentMenu.getByRole('button',{name:'Download Full Markups Only',exact:true})).toBeFocused();
     await documentMenu.getByRole('button',{name:'Download all items',exact:true}).press('Home');await expect(documentMenu.getByRole('button',{name:'Download confirmed items',exact:true})).toBeFocused();
-    await documentMenu.getByRole('button',{name:'Download confirmed items',exact:true}).press('End');await expect(documentMenu.getByRole('button',{name:'Download all items',exact:true})).toBeFocused();
-    await documentMenu.getByRole('button',{name:'Download all items',exact:true}).press('Escape');await expect(documentToggle).toBeFocused();await expect(documentMenu.locator('.calculator-document-actions')).toBeHidden();
+    await documentMenu.getByRole('button',{name:'Download confirmed items',exact:true}).press('End');await expect(documentMenu.getByRole('button',{name:'Download Full Markups Only',exact:true})).toBeFocused();
+    await documentMenu.getByRole('button',{name:'Download Full Markups Only',exact:true}).press('Escape');await expect(documentToggle).toBeFocused();await expect(documentMenu.locator('.calculator-document-actions')).toBeHidden();
     await documentToggle.click();await page.locator('.takeoff-register h2').click();await expect(documentMenu.locator('.calculator-document-actions')).toBeHidden();
     documentLayout.push({width,geometry,iconLoaded:true,keyboardHomeEndEscape:true,outsideDismissal:true});
   }
   await page.setViewportSize({width:1146,height:764});
   const downloadResults={};
   for(const [category,count] of [['confirmed',2],['unconfirmed',202],['all',204]]) {
-    await documentToggle.click();const requested=page.waitForRequest(request=>request.url().endsWith('/export/register-xlsx')),download=page.waitForEvent('download');
+    await documentToggle.click();const requested=page.waitForRequest(request=>request.url().endsWith('/export/register-xlsx')),download=waitForTakeoffDownload(page);
     await documentMenu.getByRole('button',{name:`Download ${category==='all'?'all':category} items`,exact:true}).click();const body=(await requested).postDataJSON();assert.equal(body.mode,'walls_floors');assert.equal(body.confirmation,category);assert.equal(body.item_ids.length,204);
     const target=path.join(output,`${category}-walls-floors.xlsx`);await(await download).saveAs(target);
     const result=require('node:child_process').spawnSync(process.env.CEASEFIRE_PYTHON||'python',['-B','-c',"import json,sys\nfrom openpyxl import load_workbook\nw=load_workbook(sys.argv[1]);r=list(w.active.values);print(json.dumps({'sheets':w.sheetnames,'headers':r[0],'rows':[dict(zip(r[0],v)) for v in r[1:]]}))",target],{cwd:root,windowsHide:true,encoding:'utf8'});assert.equal(result.status,0,result.stderr);const workbook=JSON.parse(result.stdout),exported=workbook.rows;assert.equal(exported.length,count);assert.deepEqual([...new Set(exported.map(row=>row['Surface type']))],['Wall','Floor']);assert.deepEqual(workbook.sheets,['Current Takeoffs']);
@@ -120,7 +121,7 @@ async function reset(label) { await finishMenu(await menu(label), 'Reset filter'
     await rows().first().getByRole('checkbox', { name: `Select ${prefix}001`, exact: true }).check();
     await filter('Treatment', ['Spray']); assert.deepEqual(await rowMarks(), [`${prefix}002`]);
     // Export remains tied to explicit, confirmed selected IDs even if hidden.
-    const download = page.waitForEvent('download'), exported = page.waitForRequest(request => request.url().endsWith('/export/csv'));
+    const download = waitForTakeoffDownload(page), exported = page.waitForRequest(request => request.url().endsWith('/export/csv'));
     await page.evaluate(() => window.CeasefireTakeoffs.exportRegister("csv")); assert.deepEqual((await exported).postDataJSON().selected_ids, [seeded.first[value]]);
     const exportPath = path.join(output, `${value}-selected-confirmed.csv`); await (await download).saveAs(exportPath);
     const csv = fs.readFileSync(exportPath, 'utf8'); assert.ok(csv.includes(`${prefix}001`)); assert.ok(!csv.includes(`${prefix}002`));

@@ -11,7 +11,7 @@ const settle = async () => { for (let i = 0; i < 16; i++) await Promise.resolve(
 function element(tag = "div") {
   const el = { tagName: tag.toUpperCase(), children: [], events: {}, attributes: {}, className: "", textContent: "", dataset: {},
     append(...children) { this.children.push(...children); }, replaceChildren(...children) { this.children = children; },
-    setAttribute(key, value) { this.attributes[key] = String(value); }, addEventListener(name, fn) { this.events[name] = fn; } };
+    setAttribute(key, value) { this.attributes[key] = String(value); }, getAttribute(key) { return this.attributes[key] ?? null; }, addEventListener(name, fn) { this.events[name] = fn; } };
   el.classList = { add(...names) { el.className += ` ${names.join(" ")}`; }, toggle() {} }; return el;
 }
 function fixture({ mode = "steel", kind = "textbox", signature = false, transform = [1, 0, 0, -1, -10, 820] } = {}) {

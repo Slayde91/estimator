@@ -64,11 +64,15 @@ class ReportTests(unittest.TestCase):
                 self.assertIn(money_text(amount), compact)
         for key in ("labour", "material", "access", "travel", "subtotal", "total", "rate"):
             self.assertIn(money_text(result["summary"][key]), compact, key)
-        for label in ("Material breakdown", "Labour and masking", "Box of pins/clips (1000)", "Masking/Cleaning labour", "Masking materials", "Global material adjustment", "Global labour adjustment", "Mobilisation", "Administration", "Material freight", "Access freight", "Access hire", "Travel", "Accommodation", "Extra labour", "Fixed adjustment", "Quote notes"):
+        for label in ("Material breakdown", "Labour and masking", "Box of pins/clips (1000)", "Masking/Cleaning labour", "Masking materials", "Global material adjustment", "Global labour adjustment", "Mobilisation", "Administration", "Material freight", "Access freight", "Access hire", "Travel", "Accommodation", "Extra labour", "Fixed adjustment"):
             self.assertIn(label, self.text)
         self.assertNotIn("Masking material adjustment", self.text)
-        self.assertIn("unrounded", self.text)
-        self.assertIn("123.45 m²", self.text)
+        for removed in ('Amounts, rates, quantities, days and percentages display',
+                        'Products are listed in the same order', 'Pinning days:',
+                        'Register allowance shows', 'Entered additions:',
+                        "This report uses the quote's recorded quantities", 'Quote notes',
+                        self.quote['measurements']):
+            self.assertNotIn(removed, self.text)
         self.assertNotRegex(self.text, r"\b\d[\d,]*\.\d{3,}\b")
 
     def test_labour_tables_have_requested_titles_order_and_total_rows(self):
@@ -140,21 +144,21 @@ class ReportTests(unittest.TestCase):
         self.assertNotIn('Spray / wrap', labour)
         masking = text.split('Masking / cleaning', 1)[1].split('Additions and project costs', 1)[0]
         self.assertNotIn('Masking/Cleaning labour', masking)
-        additions = text.split('Additions and project costs', 1)[1].split('Quote notes', 1)[0]
+        additions = text.split('Additions and project costs', 1)[1]
         self.assertNotIn('Mobilisation', additions)
         self.assertEqual(quote, before)
 
     def test_official_logo_and_fonts_are_embedded_on_each_page(self):
-        self.assertEqual(sha256((ROOT / "static/ceasefire-logo.png").read_bytes()).hexdigest(), "b390a843144556546558d166207f476d7e2197070ec35a1a23064fbbb7da9ac7")
+        self.assertEqual(sha256((ROOT / "static/classifire-logo.png").read_bytes()).hexdigest(), "a91d44ba45c0f96a589c577800d9e4cc292efaa1f8a9cdab7be18aaebc0d32da")
         self.assertGreaterEqual(len(self.reader.pages), 4)
         for page in self.reader.pages:
             for contact in ("ABN: 50 612 231 562", "Phone: 1300 92 62 88", "Email: sales@ceasefire.com.au"):
                 self.assertIn(contact, page.extract_text())
             images = [obj.get_object() for obj in page["/Resources"]["/XObject"].values()]
-            self.assertTrue(any(obj.get("/Subtype") == "/Image" and obj.get("/Width") == 5375 and obj.get("/Height") == 1790 for obj in images))
+            self.assertTrue(any(obj.get("/Subtype") == "/Image" and obj.get("/Width") == 2172 and obj.get("/Height") == 724 for obj in images))
             fonts = [obj.get_object() for obj in page["/Resources"]["/Font"].values()]
             self.assertTrue(any("/FontFile2" in font.get("/FontDescriptor", {}) for font in fonts))
-        self.assertEqual(self.reader.metadata.author, "Ceasefire")
+        self.assertEqual(self.reader.metadata.author, "CLASSIFIRE")
 
     def test_long_notes_markup_and_long_words_survive_pagination(self):
         quote = deepcopy(self.quote)
@@ -171,21 +175,21 @@ class ReportTests(unittest.TestCase):
         self.assertIn("<b>Literal & quoted title</b>", text)
         for final_token in ("TITLE END", "CLIENT END", "SITE END", "PROJECT END"):
             self.assertIn(final_token.replace(" ", ""), "".join(text.split()))
-        self.assertIn("<img src='https://example.invalid/tracker'>", text)
-        self.assertIn("Inspection note 179", text)
-        self.assertIn("FINAL MEASUREMENT", text)
+        self.assertNotIn("<img src='https://example.invalid/tracker'>", text)
+        self.assertNotIn("Inspection note 179", text)
+        self.assertNotIn("FINAL MEASUREMENT", text)
         self.assertNotIn(quote["source_hashes"]["quote"]["sha256"], "".join(text.split()))
         self.assertEqual(quote, before)
 
-    def test_requested_pdf_blocks_are_omitted_but_quote_details_and_notes_remain(self):
+    def test_requested_pdf_blocks_are_omitted_but_quote_details_and_snapshot_remain(self):
         quote = deepcopy(self.quote)
         quote.update({"client": "Example Client 12.3456", "site_address": "18 Example Road, Suite 3.4567",
                       "project_no": "CF-2026.12345", "work_summary": "Stored work summary: 12.35 m² of coating."})
         text = pdf_text(render_quote_pdf(quote))
-        for token in ("Client", "Site Address", "Project No.", "NOTES",
-                      quote["client"], quote["site_address"], quote["project_no"], quote["measurements"]):
+        for token in ("Client", "Site Address", "Project No.",
+                      quote["client"], quote["site_address"], quote["project_no"]):
             self.assertIn(token, text)
-        for token in ("Work summary", quote["work_summary"], "Material pricing and quantities",
+        for token in ("Quote notes", quote["measurements"], "Work summary", quote["work_summary"], "Material pricing and quantities",
                       "The material category total on the summary also contains",
                       "Project area / items:", "Coverage and units are entered by the estimator.",
                       "Masking allowance:", "Measurement / technical notes", "Estimator notes",
@@ -219,13 +223,14 @@ class ReportTests(unittest.TestCase):
         for token in ("$2.68", "$12.35", "1.23", "$-2.68", "$100.12"):
             self.assertIn(token, text)
         self.assertNotIn("User measurement 98.76543 remains literal.", text)
-        for literal in ("Special coating 12.34567", "Plan reference 123.456789; user measurement 98.76543 remains literal."):
+        self.assertNotIn(quote['measurements'], text)
+        for literal in ("Special coating 12.34567",):
             self.assertIn(literal, text)
             text = text.replace(literal, "literal")
         self.assertNotRegex(text, r"\b\d[\d,]*\.\d{3,}\b")
         self.assertEqual(quote, before)
 
-    def test_current_and_saved_pdfs_omit_automatic_notes_but_preserve_authored_notes_and_snapshot(self):
+    def test_current_and_saved_pdfs_omit_notes_display_but_preserve_authored_snapshot(self):
         quote = deepcopy(self.quote)
         quote['inputs']['B12'] = 'Retained allowance note'
         quote['result']['notes'] = 'Retained allowance note\n\nGenerated board requirement: 7 sheets.'
@@ -239,8 +244,8 @@ class ReportTests(unittest.TestCase):
                 for omitted in ('Estimator notes', 'Generated material and allowance notes',
                                 'Retained allowance note', 'Generated board requirement: 7 sheets.'):
                     self.assertNotIn(omitted, text)
-                self.assertIn('NOTES', text)
-                self.assertIn(quote['measurements'], text)
+                self.assertNotIn('Quote notes', text)
+                self.assertNotIn(quote['measurements'], text)
                 self.assertEqual(quote, before)
 
     def test_current_and_saved_pdfs_omit_workflow_subtitle_without_changing_snapshot(self):
@@ -257,19 +262,19 @@ class ReportTests(unittest.TestCase):
                     with patch("estimator.calculator.calculate", side_effect=AssertionError("Report recalculated")), patch("estimator.catalog.baseline", side_effect=AssertionError("Report consulted current prices")):
                         text = pdf_text(render_quote_pdf(quote))
                     self.assertNotIn(workflow or "Workflow not recorded", text)
-                    for retained in (quote["title"], report_kind, "Quote details", quote["measurements"],
+                    for retained in (quote["title"], report_kind, "Quote details",
                                      money_text(quote["result"]["summary"]["total"])):
                         self.assertIn(retained, text)
                     self.assertEqual(quote, before)
 
-    def test_workflow_text_in_authored_notes_is_not_removed(self):
+    def test_workflow_text_in_authored_notes_is_retained_in_snapshot_when_notes_hidden(self):
         quote = deepcopy(self.quote)
         quote["workflow"] = WORKFLOWS[0]
         quote["measurements"] = "Authored scope: " + WORKFLOWS[0] + "."
         before = deepcopy(quote)
         text = pdf_text(render_quote_pdf(quote))
-        self.assertEqual(text.count(WORKFLOWS[0]), 1)
-        self.assertIn(quote["measurements"], text)
+        self.assertEqual(text.count(WORKFLOWS[0]), 0)
+        self.assertNotIn(quote["measurements"], text)
         self.assertEqual(quote, before)
 
     def test_hidden_automatic_notes_do_not_hide_calculation_errors(self):

@@ -18,7 +18,7 @@ const ready = new Promise((resolve, reject) => {
   server.stdout.on('data', chunk => { stdout += chunk; if (stdout.includes('\n')) { clearTimeout(timer); try { resolve(JSON.parse(stdout.split('\n')[0])); } catch (error) { reject(error); } } });
   server.once('exit', code => { clearTimeout(timer); reject(new Error(`Server exited ${code}: ${logs}`)); });
 });
-const evidence = {}, errors = [], commands = [], assets = {}, assetTasks = [];
+const evidence = {}, errors = [], cspViolations = [], commands = [], assets = {}, assetTasks = [];
 const panel = () => page.locator('#takeoff-markup-settings');
 const hit = id => page.locator(`.takeoff-area-hit[data-item-id="${id}"]`);
 const idle = () => expect(page.locator('#takeoffs-workspace')).not.toHaveAttribute('aria-busy', 'true');
@@ -58,6 +58,67 @@ async function doublePoint(point) {
   await page.waitForTimeout(550); await page.mouse.dblclick(...await screen(point), { delay: 100 }); await idle();
 }
 async function selected(id, value) { await expect(hit(id)).toHaveAttribute('aria-pressed', String(value)); await expect(page.locator(`tr[data-item-id="${id}"]`).getByRole('checkbox', { name: /^Select / })).toBeChecked({ checked: value }); }
+async function noticeExpiryKeepsDrawing(id, point, globalNotice = false) {
+  const noticeId = globalNotice ? 'app-message' : 'takeoff-message';
+  await clickPoint(point); await selected(id, true); await expect(panel()).toBeHidden();
+  const before = await snapshot(), calculators = await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()), count = commands.length;
+  await page.evaluate(noticeId => {
+    const notice = document.getElementById(noticeId), slot = notice.parentElement;
+    const geometry = () => ({ scrollY, overlayY: document.querySelector('.takeoff-overlay').getBoundingClientRect().y,
+      viewportY: document.querySelector('.takeoff-viewport').getBoundingClientRect().y, slotHeight: slot.getBoundingClientRect().height });
+    const probe = window.__surfaceNoticeExpiry = { events: [], geometry };
+    probe.pointer = event => probe.events.push({ at: Date.now(), type: event.type, x: event.clientX, y: event.clientY,
+      item: event.target.closest?.('[data-item-id]')?.dataset.itemId || null, ...geometry() });
+    document.addEventListener('pointerdown', probe.pointer, true);
+    probe.observer = new MutationObserver(() => {
+      if (!notice.hidden && /^(Copied|Project saved)/.test(notice.textContent)) probe.started = Date.now();
+      if (notice.hidden && probe.started) probe.retired = { at: Date.now(), text: notice.textContent, hidden: notice.hidden, ...geometry() };
+    });
+    probe.observer.observe(notice, { attributes: true, childList: true, characterData: true, subtree: true });
+  }, noticeId);
+  // A real ordinary status and native pointer input cross its actual five-second
+  // expiry. At page top the browser cannot hide drawing movement by anchoring.
+  if (globalNotice) {
+    const saving = page.waitForResponse(response => response.url().endsWith('/api/project/save'));
+    await clickProjectControl(page, 'Save'); assert.equal((await saving).status(), 200);
+    await expect(page.locator('#app-message')).toContainText('Project saved');
+  } else {
+    await page.locator('.takeoff-viewport').focus(); await expect(page.locator('.takeoff-viewport')).toBeFocused();
+    await page.keyboard.press('Control+c');
+    await expect(page.locator('#takeoff-message')).toContainText('Copied');
+  }
+  const noticeText = await page.locator(`#${noticeId}`).textContent();
+  await page.mouse.move(10, 200); await page.mouse.wheel(0, -2000);
+  await expect.poll(() => page.evaluate(() => scrollY)).toBe(0);
+  const beforeExpiry = await page.evaluate(() => window.__surfaceNoticeExpiry.geometry());
+  const box = await page.locator('.takeoff-overlay').boundingBox();
+  const position = [box.x + point[0] / 842 * box.width, box.y + (1 - point[1] / 595) * box.height];
+  const remaining = await page.evaluate(() => Math.max(0, window.__surfaceNoticeExpiry.started + 4950 - Date.now()));
+  await page.waitForTimeout(remaining);
+  await page.mouse.dblclick(...position, { delay: 100 }); await idle();
+  await expect(page.locator(`#${noticeId}`)).toBeHidden(); await expect(page.locator(`#${noticeId}`)).toHaveText(globalNotice ? noticeText : '');
+  await selected(id, true); await expect(panel()).toBeVisible();
+  const probe = await page.evaluate(noticeId => {
+    const value = window.__surfaceNoticeExpiry;
+    value.observer.disconnect(); document.removeEventListener('pointerdown', value.pointer, true);
+    return { started: value.started, retired: value.retired, events: value.events, after: value.geometry(),
+      reservedHeight: document.getElementById(noticeId).parentElement.style.minHeight };
+  }, noticeId);
+  assert.ok(probe.retired && probe.retired.at - probe.started >= 4900, 'Ordinary retirement is observed near the actual five-second boundary');
+  assert.equal(probe.retired.hidden, true, 'Retired notices stay outside the rendered and accessibility trees');
+  assert.equal(probe.retired.text, globalNotice ? noticeText : '', 'Global retirement preserves the existing hidden-text contract; Takeoff retirement clears its text');
+  for (const key of ['overlayY', 'viewportY', 'slotHeight', 'scrollY']) assert.equal(probe.retired[key], beforeExpiry[key], `Notice expiry keeps ${key} exact`);
+  // CSSOM serializes70.59375px as70.5938px; rendered geometry above stays exact.
+  assert.ok(Math.abs(Number.parseFloat(probe.reservedHeight) - beforeExpiry.slotHeight) < .001, 'The serialized reserve retains the complete fractional flow height');
+  const nativeDowns = probe.events.filter(event => Math.hypot(event.x-position[0], event.y-position[1]) < 2);
+  assert.equal(nativeDowns.length, 2); assert.ok(nativeDowns.every(event => event.item === id), 'Both native clicks still hit the intended markup');
+  assert.deepEqual(await snapshot(), before, 'Notice expiry and selection preserve all source evidence, quantities and geometry');
+  assert.deepEqual(await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()), calculators);
+  assert.equal(commands.length, count, 'The expiry/selection case sends no mutation command');
+  evidence[globalNotice ? 'globalNoticeRetirement' : 'noticeExpiry'] = { noticeId, beforeExpiry, position, ...probe, sourceAndCalculatorsExact: true, noMutationCommand: true };
+  await page.screenshot({ path: path.join(output, globalNotice ? 'global-notice-selection.png' : 'notice-expiry-selection.png') });
+  await clickPoint([700,450]); await selected(id, false); await expect(panel()).toBeHidden();
+}
 async function drawSurface(mode, mark, startX) {
   await page.getByRole('button', { name: 'Trace surface', exact: true }).click();
   for (const point of [[startX,100],[startX+120,100],[startX+120,240],[startX,240]]) await page.mouse.click(...await screen(point));
@@ -72,6 +133,8 @@ async function drawSurface(mode, mark, startX) {
 }
 (async () => {
   const info = await ready; assert.notEqual(info.port, 8765, 'This fixture must use its disposable server'); browser = await chromium.launch({ headless: true }); page = await browser.newPage({ viewport: { width: 1600, height: 1100 } }); page.setDefaultTimeout(30000);
+  await page.exposeFunction('surfaceCSPViolation', value => cspViolations.push(value));
+  await page.addInitScript(() => document.addEventListener('securitypolicyviolation', event => window.surfaceCSPViolation({ directive: event.effectiveDirective, blocked: event.blockedURI })));
   page.on('pageerror', error => errors.push(error.message)); page.on('request', request => { if (request.url().endsWith('/commands')) commands.push(request.postDataJSON()); });
   page.on('response', response => { const pathname = new URL(response.url()).pathname; if (['/takeoffs.js','/takeoffs.css'].includes(pathname)) assetTasks.push(response.body().then(bytes => { assets[pathname] = { sha256: createHash('sha256').update(bytes).digest('hex'), bytes: bytes.length }; })); });
   await page.goto(`http://127.0.0.1:${info.port}/`); await page.waitForFunction(() => window.CeasefireDesktop?.status().ready);
@@ -148,6 +211,7 @@ async function drawSurface(mode, mark, startX) {
     await clickPoint([700,450]); await expect(panel()).toBeHidden();
     evidence[mode] = { firstId: first.id, secondId: second.id, singleSelectsDoubleOpens: true, blankClickCloses: true, keyboardEnterAndSpace: true, modifierSelectionRetained: true, pendingEditSavedBeforeClose: true, moveDelta: delta, sourceEvidenceUnchanged: true, quantityUnchanged: true };
   }
+  await noticeExpiryKeepsDrawing(evidence.slab.firstId, [175,182]);
   await surfaceFilter();
   const beforeMixed = await snapshot(), beforeMixedCommands = commands.length;
   for (const id of [evidence.wall.firstId, evidence.slab.firstId]) await page.locator(`tr[data-item-id="${id}"]`).getByRole('checkbox', { name: /^Select / }).check();
@@ -162,8 +226,10 @@ async function drawSurface(mode, mark, startX) {
   const beforeSave = await snapshot(), saving = page.waitForResponse(response => response.url().endsWith('/api/project/save-as'));
   await clickProjectControl(page, 'Save'); assert.equal((await saving).status(), 200); await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   const opening = page.waitForResponse(response => response.url().endsWith('/api/project/open')); await clickProjectControl(page, 'Load'); assert.equal((await opening).status(), 200); await page.getByRole('dialog').getByRole('button', { name: 'Load Project', exact: true }).click(); await expect(page.locator('#project-save-state')).toHaveText('Saved project');
-  await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); assert.deepEqual((await snapshot()).items, beforeSave.items); assert.deepEqual(await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()), originalCalculators);
-  assert.deepEqual(errors, []); await Promise.all(assetTasks);
-  fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ completed: true, evidence, errors, assets, commands, savedItems: beforeSave.items, calculatorInputsUnchanged: true }, null, 2));
+  await renderDrawing(page, () => page.getByRole('button', { name: 'Takeoffs', exact: true }).click(), 1); assert.deepEqual((await snapshot()).items, beforeSave.items); assert.deepEqual(await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()), originalCalculators);
+  await surfaceFilter('Floor');
+  await noticeExpiryKeepsDrawing(evidence.slab.firstId, [175,182], true);
+  assert.deepEqual(errors, []); assert.deepEqual(cspViolations, []); await Promise.all(assetTasks);
+  fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ completed: true, evidence, errors, cspViolations, assets, commands, savedItems: beforeSave.items, calculatorInputsUnchanged: true }, null, 2));
   console.log(`PASS: Wall/Slab drawing, keyboard and modifier selection; details open/close; pending edits saved; movement preserves evidence/quantity; save/reopen; unchanged calculators. Evidence: ${output}`);
 })().catch(async error => { console.error(error); console.error(logs.slice(-3000)); if (page) { await page.screenshot({ path: path.join(output,'failure.png'), fullPage:true }).catch(() => {}); fs.writeFileSync(path.join(output,'failure.txt'), await page.locator('body').innerText().catch(() => '')); } process.exitCode=1; }).finally(async () => { fs.writeFileSync(path.join(output,'server.log'),logs); fs.writeFileSync(path.join(output,'requests.json'),JSON.stringify(commands,null,2)); if (browser) await browser.close(); server.kill(); });

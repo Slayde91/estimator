@@ -61,7 +61,10 @@ function retainedScopes(value) { return { pricing: value.pricing, calculators: v
   await mainTab('additions');await page.locator('#input-F26').fill('1.234567891');await page.locator('#input-F26').press('Tab');await settledEstimate();
   const originalInputs=calculations.at(-1).inputs,scopesBefore=await snapshot();assert.equal(originalInputs.F26,1.23,'Native numeric editing retains the established two-decimal entry rule');
   const tabKeys=await page.locator('#main-section-tabs [role="tab"]').evaluateAll(tabs=>tabs.map(tab=>tab.dataset.mainSectionTab));
-  assert.deepEqual(tabKeys,['access-travel','teams-crews','materials','masking-cleaning','firestopping-schedule','global-adjustments','additions','firestopping-breakdown','material-breakdown','labour-breakdown']);
+  assert.deepEqual(tabKeys,['access-travel','teams-crews','materials','masking-cleaning','additions','firestopping-schedule','firestopping-breakdown','material-breakdown','labour-breakdown']);
+  await mainTab('additions');await expect(page.locator('#main-panel-additions #main-panel-global-adjustments')).toBeVisible();
+  await expect(page.locator('#main-tab-global-adjustments')).toHaveCount(0);
+  await expect(page.locator('#main-tab-materials')).toHaveText('Materials');
   const requestCount=calculations.length;
   for(const key of tabKeys)await mainTab(key);
   assert.equal(calculations.length,requestCount,'Section switches do not calculate or mutate inputs');assert.deepEqual(await snapshot(),scopesBefore);

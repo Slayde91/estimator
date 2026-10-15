@@ -94,6 +94,27 @@ class DownloadDestinationTests(unittest.TestCase):
         self.assertEqual(project.read_bytes(), original)
         self.assertEqual(stored_rows(self.store), before)
 
+    def test_takeoff_csv_saves_exact_bytes_exclusively_in_captured_project_folder(self):
+        saved = self.authorize()
+        project = Path(saved['file']['path'])
+        original, before = project.read_bytes(), stored_rows(self.store)
+        destination = self.library.capture_download({'project_token': saved['file']['save_token']})
+        payload = b'Item,Length (m)\r\nExact,1.23456789012345\r\n'
+        first = self.library.write_download(destination, 'Takeoff.csv', payload)
+        second = self.library.write_download(destination, 'Takeoff.csv', payload)
+        self.assertEqual(first['filename'], 'Takeoff.csv')
+        self.assertEqual(second['filename'], 'Takeoff (1).csv')
+        for receipt in (first, second):
+            self.assertTrue(receipt['saved'])
+            self.assertEqual(receipt['destination'], 'project')
+            self.assertEqual(Path(receipt['path']).parent, project.parent)
+            self.assertEqual(Path(receipt['path']).read_bytes(), payload)
+        for name in ('../Takeoff.csv', 'Takeoff.csv.exe', 'Takeoff.cmd', 'Takeoff.js'):
+            with self.subTest(name=name), self.assertRaises(ValidationError):
+                self.library.write_download(destination, name, payload)
+        self.assertEqual(project.read_bytes(), original)
+        self.assertEqual(stored_rows(self.store), before)
+
     def test_captured_destination_survives_save_rotation_and_later_save_as(self):
         original = self.authorize()
         token = original['file']['save_token']

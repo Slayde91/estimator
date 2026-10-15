@@ -1,3 +1,4 @@
+const { waitForTakeoffDownload } = require('./native_download_helpers.cjs');
 const { chooseTakeoff, takeoffChoice } = require('./section_navigation.cjs');
 const { clickProjectControl } = require('./project_actions.cjs');
 const { chooseNewPhysicalItem, startDefect } = require('./physical_dialogs.cjs');
@@ -103,11 +104,11 @@ async function saveAndLoad(info) {
   await idle(); return saved;
 }
 async function exportDraft(format) {
-  const pending = page.waitForEvent('download'); await page.evaluate(format => window.CeasefireTakeoffs.exportPhysical(format.toLowerCase()), format); const download = await pending;
+  const pending = waitForTakeoffDownload(page); await page.evaluate(format => window.CeasefireTakeoffs.exportPhysical(format.toLowerCase()), format); const download = await pending;
   const filename = path.join(output, download.suggestedFilename()); await download.saveAs(filename); return filename;
 }
 async function downloadDrawing() {
-  const pending = page.waitForEvent('download'); await page.evaluate(() => window.CeasefireTakeoffs.downloadDrawing());
+  const pending = waitForTakeoffDownload(page); await page.evaluate(() => window.CeasefireTakeoffs.downloadDrawing());
   const download = await pending, filename = path.join(output, download.suggestedFilename()); await download.saveAs(filename); return filename;
 }
 function pythonJson(code, filename) {
@@ -212,7 +213,8 @@ async function controls() {
   for(const id of [barrier,service])await expect(row(id).locator('.takeoff-state')).toHaveText('Confirmed');
   await select(service);await expect(details().getByLabel('Confirmation',{exact:true})).toHaveCount(0);await expect(details()).toContainText('Confirmation: Confirmed — inherited from Barrier B-0001');
   const priorQuantity=entity(service).quantity,priorFacts=structuredClone(entity(service).fields),priorUncertainty=structuredClone(entity(service).uncertainty);
-  await response(async()=>{const notes=details().getByLabel('Notes',{exact:true});await notes.fill('Owner review invalidated by child facts');await notes.press('Tab');},'/physical/apply');await idle();await snapshot();assert.equal(entity(barrier).confirmation,'unconfirmed');assert.equal(entity(service).quantity,priorQuantity);assert.deepEqual(entity(service).uncertainty,priorUncertainty);assert.equal(entity(service).fields.size,priorFacts.size);
+  const reviewedSize=priorFacts.size==='125 x 80'?'130 x 80':'125 x 80';
+  await response(async()=>{const size=details().getByLabel('Service Size (mm)',{exact:true});await size.fill(reviewedSize);await size.press('Tab');},'/physical/apply');await idle();await snapshot();assert.equal(entity(barrier).confirmation,'unconfirmed');assert.equal(entity(service).quantity,priorQuantity);assert.deepEqual(entity(service).uncertainty,priorUncertainty);assert.deepEqual(entity(service).fields,{...priorFacts,size:reviewedSize});assert.equal(entity(service).fields.notes,priorFacts.notes);
   const selectAll=page.getByRole('checkbox',{name:'Select all matching physical records',exact:true});await selectAll.check();
   await response(()=>page.locator('.takeoff-physical-bulk').getByRole('button',{name:'Confirm',exact:true}).click(),'/physical/preview');assert.deepEqual(previews.at(-1).commands.map(command=>command.entity_id),[barrier]);await apply('Confirm 1 owning Barriers and their descendants?');await snapshot();await selectAll.uncheck();
   evidence.ownerConfirmationInheritanceAndFactInvalidation=true;
@@ -326,7 +328,7 @@ async function controls() {
   const viewerLines=await page.locator('.takeoff-physical-callout tspan').allTextContents();
   const csv = await exportDraft('CSV'), xlsx = await exportDraft('XLSX'), pdf = await downloadDrawing();
   await page.locator('.takeoff-workspace-heading .takeoff-physical-document-host').getByRole('button',{name:'Document',exact:true}).click();
-  const matrixWait=page.waitForEvent('download');await page.getByRole('button',{name:'Download Passive Fire Matrix PDF',exact:true}).click();
+  const matrixWait=waitForTakeoffDownload(page);await page.getByRole('button',{name:'Download Passive Fire Matrix PDF',exact:true}).click();
   const matrixDownload=await matrixWait,matrix=path.join(output,matrixDownload.suggestedFilename());await matrixDownload.saveAs(matrix);
   const csvText = fs.readFileSync(csv, 'utf8'); assert.ok(csvText.includes(barrier)); assert.ok(csvText.includes(service)); assert.ok(!csvText.includes(defect)); assert.ok(!csvText.includes(reportBarrier)); assert.ok(!csvText.split('\n')[0].includes('defect'));
   const workbook = pythonJson("import json,sys\nfrom openpyxl import load_workbook\nw=load_workbook(sys.argv[1],data_only=False)\ns=w.active;v=list(s.values)\nprint(json.dumps({'sheets':w.sheetnames,'headers':v[0],'rows':v[1:],'string_cells':[{'coordinate':c.coordinate,'value':c.value,'type':c.data_type} for sh in w for r in sh for c in r if isinstance(c.value,str)],'formulas':[c.coordinate for sh in w for r in sh for c in r if c.data_type=='f']}))\nw.close()", xlsx);

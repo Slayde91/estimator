@@ -33,6 +33,7 @@ const context = {
   setTimeout: () => 0, clearTimeout() {},
   FileReader: class { readAsDataURL() { this.result = 'data:application/octet-stream;base64,AAAA'; queueMicrotask(() => this.onload()); } },
 };
+require('./helpers/download_progress_vm.cjs').installProgressReceipts(context);
 vm.createContext(context);
 vm.runInContext(fs.readFileSync('static/calculation-queue.js','utf8'),context);
   vm.runInContext(fs.readFileSync('static/downloads.js','utf8'),context);
@@ -1842,6 +1843,7 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
       let pending=deferred(),sent;
       audit.setFetch((path,options)=>{sent={path,body:JSON.parse(options.body),method:options.method,headers:options.headers};return pending.promise;});
       const firstRun=download();
+      await flush();
       assert.equal(sent.path,`/api/calculators/steel_board/${action}`);assert.equal(sent.method,'POST');assert.equal(sent.headers.Accept,'application/json');
       assert.deepEqual(sent.body.download,{project_token:'project-before-save-as'});
       if(template)assert.deepEqual(sent.body,{download:{project_token:'project-before-save-as'}});
@@ -1850,7 +1852,7 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
       projectToken='project-after-save-as';projectNo='CF-after';
       pending.resolve(fileSaved(filename,'project',`C:/Before/${filename}`));await firstRun;
       assert.ok(byId('calculator-message').textContent.includes(`saved to C:/Before/${filename}`));assert.equal(audit.state.action,false);
-      pending=deferred();const secondRun=download();assert.deepEqual(sent.body.download,{project_token:'project-after-save-as'});
+      pending=deferred();const secondRun=download();await flush();assert.deepEqual(sent.body.download,{project_token:'project-after-save-as'});
       projectToken=null;projectNo='';pending.resolve(fileSaved(filename,'project',`C:/After/${filename}`));await secondRun;
       assert.ok(byId('calculator-message').textContent.includes(`saved to C:/After/${filename}`));
       audit.setFetch(async(path,options)=>{sent={path,body:JSON.parse(options.body)};return fileSaved(filename);});await download();

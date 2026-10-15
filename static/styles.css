@@ -212,6 +212,7 @@ td.numeric,.numeric{text-align:right;font-variant-numeric:tabular-nums}
 .material-label small{display:block;color:var(--muted);font-weight:400;line-height:1.6}
 .calculated-yield{font-variant-numeric:tabular-nums;color:#78646d;text-align:right;padding-right:14px!important}
 .quote-notes{font:12px/1.8 "Montserrat",Arial,sans-serif;white-space:pre-wrap;overflow-wrap:anywhere;margin:0;color:#6a5b64}
+.message-slot{display:flow-root}
 .message{padding:14px 17px;border-radius:9px;margin-bottom:22px;font-size:12px;background:#f0f7f2;color:#365c44;border:1px solid #d8e6dc}
 .message.error,.calculation-errors{background:#fff2f2;color:#981322;border:1px solid #f1d3d6}
 .message.info{background:#fff7ee;color:#7a5128;border-color:#f3e1ca}
@@ -397,7 +398,37 @@ html.app-busy,html.app-busy *{cursor:progress!important}
 .main-section-tab:hover{color:var(--red)}
 .main-section-tab[aria-selected=true]{border-color:#171217;border-bottom-color:var(--red);color:var(--red)}
 .main-section-tab:focus-visible{outline:2px solid var(--red);outline-offset:-4px}
+/* Main resizing changes display geometry only; summary values remain literal. */
+@media screen {
+  .estimate-layout.main-layout-ready:not(.main-summary-stacked){grid-template-columns:minmax(0,1fr) 12px minmax(0,var(--main-summary-width,330px));column-gap:12px}
+  .estimate-layout.main-layout-ready .summary-card{min-width:0;grid-row:auto;top:var(--main-summary-sticky-top,119px);overflow-x:auto}
+  .estimate-layout.main-summary-stacked{grid-template-columns:minmax(0,1fr)}
+  .estimate-layout.main-summary-stacked .summary-card{position:static;grid-row:1}
+  .main-summary-divider{position:relative;align-self:stretch;min-height:180px;width:12px;padding:0;border:0;background:transparent;cursor:col-resize;touch-action:none}
+  .main-summary-divider::before{content:"";position:absolute;left:5px;top:0;bottom:0;width:2px;border-radius:3px;background:var(--line)}
+  .main-summary-divider::after{content:"";position:absolute;left:3px;top:90px;width:6px;height:32px;border-inline:2px solid var(--muted)}
+  .main-summary-divider:hover::before,.main-summary-divider:focus-visible::before{background:var(--accent)}
+  .main-summary-divider[hidden]{display:none}
+  .main-summary-dragging,.main-summary-dragging *{cursor:col-resize!important;user-select:none}
+  .summary-card .cost-list dd,.summary-card .metrics dd,.summary-card .grand-total strong{white-space:nowrap;overflow-wrap:normal;flex-shrink:0}
+  .estimate-layout.main-layout-ready .grand-total{overflow-x:auto}
+}
+@media print{.main-summary-divider{display:none!important}}
+.app-header .nav-icon .takeoff-navigation-image{width:26px;height:26px;filter:invert(1) contrast(1.2)}
+.app-header .nav-icon:hover .takeoff-navigation-image{filter:contrast(1.2)}
+.app-header .nav-icon.active .takeoff-navigation-image,.app-header .nav-icon.active:hover .takeoff-navigation-image{filter:invert(1) contrast(1.2)}
+.app-header .nav-icon .help-navigation-image{width:29px;height:29px;align-self:center;flex-shrink:0}
 .main-section-panel{margin-top:20px;min-width:0}
 .main-section-panel[hidden]{display:none}
 .main-section-panel:not(.card)>.card{margin-bottom:0}
 @media print{.main-section-tabs{display:none!important}.main-section-panel[hidden]{display:block!important}.main-section-panel{margin-top:0}}
+/* Keep each allowance immediately below the input it adjusts on narrow screens. */
+.penetration-fields.penetration-additional-fields{grid-template-columns:repeat(2,minmax(0,1fr));grid-template-areas:"materials labour" "material-adjust labour-adjust"}
+.penetration-field-pair>.field>:is(input,select){height:46px;box-sizing:border-box}
+.penetration-additional-fields>.penetration-field-pair:has([data-penetration-field="AE"]){grid-area:materials}
+.penetration-additional-fields>.field:has([data-penetration-field="AH"]){grid-area:labour}
+.penetration-additional-fields>.field:has([data-penetration-field="AI"]){grid-area:material-adjust}
+.penetration-additional-fields>.field:has([data-penetration-field="AJ"]){grid-area:labour-adjust}
+#main-panel-additions>#main-panel-global-adjustments{margin-top:20px;padding-top:20px;border-top:1px solid var(--line)}
+@media(max-width:580px){.penetration-fields.penetration-additional-fields{grid-template-columns:1fr;grid-template-areas:"materials" "material-adjust" "labour" "labour-adjust"}}
+@media print{.message-slot{display:none!important}}

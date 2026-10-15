@@ -183,7 +183,7 @@ async function reviewAutosaveDrag(scope, barrier, service, pageNumber) {
     const original = structuredClone(entity(scope, barrier).marker), serviceBefore = structuredClone(entity(scope, service));
     const target = kind === 'marker' ? marker(barrier) : kind === 'resize' ? page.getByRole('button', { name: 'Resize callout nw', exact: true }) : frame(barrier);
     const dx = clickOnly ? 0 : -12, dy = clickOnly ? 0 : -10;
-    const requestStart = requests.length, notes = `${scope} ${kind} delayed save ${savingFirst} canceled ${canceled} click ${clickOnly}`;
+    const requestStart = requests.length, notes = `${scope[0]}-${kind[0]}-${Number(savingFirst)}${Number(canceled)}${Number(clickOnly)}`;
     let release, held = false, heldRequest, first = true;
     const blocked = new Promise(resolve => { release = resolve; });
     const activeRoutes = new Set();
@@ -193,16 +193,14 @@ async function reviewAutosaveDrag(scope, barrier, service, pageNumber) {
     };
     await page.route('**/physical/apply', intercept);
     try {
-      await details().getByLabel('Notes', { exact: true }).fill(notes);
-      if (savingFirst) { await details().getByLabel('Notes', { exact: true }).press('Tab'); await expect.poll(() => held).toBe(true); }
+      const owner=scope==='service_plans'?barrier:entity(scope,barrier).defect_id;
+      const field=scope==='service_plans'?details().getByLabel('Location',{exact:true}):row(owner).getByLabel(`Location for ${entity(scope,owner).fields.label}`,{exact:true});
+      await field.fill(notes);
+      if (savingFirst) { await field.press('Tab'); await expect.poll(() => held).toBe(true); }
       // Filling a lower pane field may scroll the outer document. Read the
       // native hit position afterward rather than aiming at stale coordinates.
-      await target.evaluate(el => {
-        const bounds = el.getBoundingClientRect(), header = document.querySelector('.app-header').getBoundingClientRect();
-        const y = bounds.y + bounds.height / 2;
-        if (y < header.bottom + 32) window.scrollBy(0, y - header.bottom - 32);
-      });
-      const bounds = await target.boundingBox(), start = [bounds.x + bounds.width / 2, bounds.y + bounds.height / 2];
+      await page.locator('.takeoff-viewport').evaluate(el=>{const header=document.querySelector('.app-header').getBoundingClientRect();window.scrollBy(0,el.getBoundingClientRect().top-header.bottom-12);});
+      const bounds = await target.boundingBox(),start=await target.evaluate(el=>{const bounds=el.getBoundingClientRect(),viewport=el.closest('.takeoff-viewport').getBoundingClientRect(),header=document.querySelector('.app-header').getBoundingClientRect();const left=Math.max(bounds.left,viewport.left+2,2),right=Math.min(bounds.right,viewport.right-2,innerWidth-2),top=Math.max(bounds.top,viewport.top+2,header.bottom+2),bottom=Math.min(bounds.bottom,viewport.bottom-85,innerHeight-2);if(right<=left||bottom<=top)throw Error(`Physical target has no unobstructed visible area: ${JSON.stringify({bounds:bounds.toJSON(),viewport:viewport.toJSON()})}`);return[(left+right)/2,(top+bottom)/2];});
       const hit = await page.evaluate(([x, y]) => ({ className: document.elementFromPoint(x, y)?.getAttribute('class'), physical: !!document.elementFromPoint(x, y)?.closest('.takeoff-physical-callout,.takeoff-physical-marker-hit,.takeoff-physical-callout-handle') }), start);
       assert.ok(hit.physical, `The delayed-save regression reaches its native physical target: ${JSON.stringify(hit)}`);
       await page.mouse.move(...start); await page.mouse.down();
@@ -221,7 +219,7 @@ async function reviewAutosaveDrag(scope, barrier, service, pageNumber) {
       assert.equal((await applied).status(), 200); if (gestured) assert.equal((await gestured).status(), 200);
       await snapshot();
       const next = structuredClone(entity(scope, barrier).marker);
-      assert.equal(entity(scope, barrier).fields.notes, notes, 'The typed field survives the concurrent pointer action');
+      assert.equal(entity(scope, scope==='service_plans'?barrier:entity(scope,barrier).defect_id).fields.location, notes, 'The typed owner field survives the concurrent pointer action');
       assert.deepEqual(entity(scope, service), serviceBefore, 'Concurrent gestures retain service identity, details and quantity');
       if (canceled || clickOnly) assert.deepEqual(next, original, 'Canceled drag or ordinary click keeps geometry unchanged');
       else if (kind === 'marker') {
@@ -323,7 +321,8 @@ let currentScope = 'defect_reports';
       assert.equal(entity(scope, barrier).fields.location, entityBefore.fields.location);
     } else await automaticField(barrier, 'Location', location);
     assert.equal(entity(scope, barrier).defect_id, entityBefore.defect_id); assert.deepEqual(entity(scope, service), serviceBefore);
-    await automaticField(barrier, 'Notes', 'Automatic edit retained without a preview button.');
+    const owner=scope==='service_plans'?barrier:defect;await row(owner).locator('.takeoff-row-link').click();await idle();
+    await automaticField(owner, 'Location', 'Automatic edit retained without a preview button.');await selectBarrier(barrier);
     await expect(details().getByRole('button', { name: 'Preview physical edits', exact: true })).toHaveCount(0);
     const pageNumber = scope === 'service_plans' ? 3 : 1;
     if (pageNumber === 3) await renderDrawing(page, async () => { await page.getByLabel('Page number', { exact: true }).fill('3'); await page.getByLabel('Page number', { exact: true }).press('Tab'); }, 3);

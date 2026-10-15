@@ -1,4 +1,4 @@
-"""Local PDF/Excel destinations and exclusive, non-overwriting file writes."""
+"""Local PDF/Excel/CSV destinations and exclusive, non-overwriting file writes."""
 
 import ctypes
 from dataclasses import dataclass
@@ -83,7 +83,7 @@ def _download_directory(folder, create=False):
 
 def write_download_file(destination, filename, payload):
     """Save complete bytes using exclusive creation; existing names get a suffix."""
-    if (not isinstance(filename, str) or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9 ._-]*\.(?:pdf|xlsx)', filename)
+    if (not isinstance(filename, str) or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9 ._-]*\.(?:pdf|xlsx|csv)', filename)
             or len(filename) > 180 or '..' in filename or not isinstance(payload, bytes) or not payload):
         raise ValidationError('The download has an invalid filename or file content.')
     folder = _download_directory(destination.folder, create=destination.destination == 'downloads')

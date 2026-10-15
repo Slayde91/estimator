@@ -263,13 +263,33 @@
     return element;
   }
 
+  let messageExpiry = null, messageVersion = 0;
+  function releaseMessageSpace() {
+    const slot = $("app-message-slot");
+    if (slot?.style) slot.style.minHeight = "";
+  }
+  function retireMessage() {
+    const box = $("app-message");
+    if (box.hidden) return;
+    const slot = $("app-message-slot"), height = slot?.getBoundingClientRect?.().height;
+    if (slot?.style && Number.isFinite(height) && height > 0) slot.style.minHeight = `${height}px`;
+    box.hidden = true;
+  }
   function message(text, error = false, kind = null) {
+    clearTimeout(messageExpiry);
+    releaseMessageSpace();
+    const version = ++messageVersion;
     const box = $("app-message");
     box.textContent = text;
     box.className = `message${error ? " error" : ""}`;
     box.hidden = !text;
     box.setAttribute("role", error ? "alert" : "status");
     state.projectSavedNotice = kind === "project-saved" ? text : null;
+    if (text && !error) messageExpiry = setTimeout(() => {
+      if (messageVersion !== version || box.getAttribute("role") !== "status") return;
+      retireMessage();
+      state.projectSavedNotice = null;
+    }, 5000);
   }
 
   async function request(path, options = {}) {
@@ -304,7 +324,7 @@
     // Retire only the save receipt; fresh input must not erase another error.
     if (changed && state.projectSavedNotice) {
       const box = $("app-message");
-      if (box.textContent === state.projectSavedNotice && box.getAttribute("role") !== "alert") box.hidden = true;
+      if (box.textContent === state.projectSavedNotice && box.getAttribute("role") !== "alert") retireMessage();
       state.projectSavedNotice = null;
     }
     const status = $("project-save-state");
@@ -515,7 +535,7 @@
   function mainSectionPanels() {
     const cards = id => [...$(id).children].filter(section => section.dataset.mainSection);
     return [...cards("input-sections"), $("main-panel-materials"), ...cards("post-material-input-sections"),
-      $("main-panel-firestopping-schedule"), ...cards("adjustment-sections"), $("main-panel-firestopping-breakdown"),
+      ...cards("adjustment-sections"), $("main-panel-firestopping-schedule"), $("main-panel-firestopping-breakdown"),
       $("main-panel-material-breakdown"), $("main-panel-labour-breakdown")].filter(section => section.dataset.mainSection);
   }
 
@@ -586,8 +606,13 @@
     updateMaterialRowVisibility();
     const additionCard = inputCard("additions", "Additions", additions);
     additionCard?.querySelector(".fields").classList.add("two-columns");
+    const adjustmentCard = inputCard("global-adjustments", "Global Adjustments", adjustments, "Percentage inputs are shown as percentages: enter 10 for 10%. A negative global amount deducts from the quote.");
+    if (adjustmentCard && additionCard) {
+      delete adjustmentCard.dataset.mainSection;
+      adjustmentCard.classList.remove("main-section-panel", "card");
+      additionCard.append(adjustmentCard);
+    }
     for (const card of [
-      inputCard("global-adjustments", "Global Adjustments", adjustments, "Percentage inputs are shown as percentages: enter 10 for 10%. A negative global amount deducts from the quote."),
       additionCard,
       inputCard("other-inputs", "Other estimate inputs", remainder),
     ]) if (card) after.append(card);
@@ -879,6 +904,7 @@
   function showView(view, librarySelection, calculatorId) {
     if (window.CeasefirePenetrations?.hasTakeoffReservation?.() || window.CeasefireTakeoffs?.hasLinkedRecovery?.()) { message("Finish or recover the confirmed Takeoff library link before changing views.", true); return; }
     if (view === "takeoffs" && !state.takeoffsEnabled) { message("TAKEOFFS is not included in this edition.", true); return; }
+    if (view !== state.currentView && $("app-message").hidden) releaseMessageSpace();
     state.currentView = view;
     $("project-tools").hidden = view !== "quotes";
     closeNavigationMenus({ estimate: "estimate-navigation", calculators: "calculator-navigation", pricing: "library-navigation", takeoffs: "takeoff-navigation" }[view]);
@@ -1582,13 +1608,7 @@
         markup.append(priceInput(kind, item, "markup", { defaultValue: legacyPrice !== undefined || item.pricing_mode === "manual" ? 0 : item.markup, percent: true, label: "Markup", onChange: refreshPrices }));
         const sell = node("td"), output = node("span", "price-value", formatMoney(inventorySellPrice(item)));
         output.dataset.sellPreview = "true"; sell.append(output);
-        const rateNotice = node("small", "subtext pricing-rate-notice");
-        refreshers.push(() => {
-          const separate = uses.filter(({ item: rate }) => Object.hasOwn(getOverride("rates", rate.id), "price") || rate.price_mode === "override" || rateSellPrice(rate) !== inventorySellPrice(item));
-          rateNotice.hidden = !separate.length;
-          rateNotice.textContent = separate.length ? `Legacy estimator rates retained for compatibility: ${separate.map(({ group, item: rate }) => `${groups[group] || group} ${formatMoney(rateSellPrice(rate))}`).join("; ")}.` : "";
-        });
-        sell.append(rateNotice); row.append(supplier, markup, sell);
+        row.append(supplier, markup, sell);
       } else {
         const supplier = node("td"), markup = node("td"), sell = node("td");
         supplier.append(priceInput(kind, item, "supplier_price", { defaultValue: getOverride(kind, item.id).price ?? item.supplier_price ?? rateSellPrice(item), label: "Supplier price", onChange: refreshPrices }));
@@ -1685,7 +1705,7 @@
     const draft = JSON.stringify(state.draft);
     button.disabled = true; button.setAttribute("aria-busy", "true"); button.setAttribute("aria-label", "Exporting Excel…");
     try {
-      const saved = await window.CeasefireDownloads.save("/api/pricing/export", { configuration: JSON.parse(draft) });
+      const saved = await window.CeasefireDownloads.save("/api/pricing/export", { configuration: JSON.parse(draft) }, { button });
       message(draft === JSON.stringify(state.draft)
         ? `Excel saved to ${saved.path}. It includes all inventory and rate groups, including your unsaved pricing edits.`
         : `Excel saved to ${saved.path} using the pricing captured when you clicked Export Excel. Later edits are not included.`);
@@ -2143,7 +2163,7 @@
       const calculators = Object.fromEntries(Object.entries(window.CeasefireCalculators.projectSnapshot()).map(([id, value]) => [id, { inputs: value.inputs }]));
       const payload = { calculators, penetration: window.CeasefirePenetrations.projectSnapshot().draft,
         configuration: clone(state.quoteConfiguration || state.configuration), project_details: quoteDetails() };
-      const saved = await window.CeasefireDownloads.save(`/api/project/${materials ? "full-product-summary" : "full-schedule"}.pdf`, payload);
+      const saved = await window.CeasefireDownloads.save(`/api/project/${materials ? "full-product-summary" : "full-schedule"}.pdf`, payload, { button });
       message(`PDF saved to ${saved.path}. It includes the schedule inputs captured when the download was prepared.`);
     } catch (error) { message(error.message, true); }
     finally { button.disabled = false; button.removeAttribute("aria-busy"); }
@@ -2163,7 +2183,7 @@
     button.setAttribute("aria-label", "Preparing Estimate Summary…");
     button.setAttribute("aria-busy", "true");
     try {
-      const saved = await window.CeasefireDownloads.save(reportPath, savedReportId ? {} : payload);
+      const saved = await window.CeasefireDownloads.save(reportPath, savedReportId ? {} : payload, { button });
       const estimateChanged = quoteContext !== state.quoteContext || capturedPayload !== JSON.stringify(reportPayload()) || window.CeasefirePenetrations?.quoteFingerprint?.() !== penetrationStamp;
       message(estimateChanged
         ? `PDF saved to ${saved.path} for “${payload.title}” using ${savedReportId ? "its saved result and pricing snapshot" : "the inputs and pricing captured when you clicked Estimate Summary"}. Later edits are not included.`
@@ -2232,6 +2252,11 @@
     if (state.pricingDirty && !await confirmReplace("Discard pricing changes?", state.pricingScope === "project" ? "Project pricing edits will return to the last applied project prices." : "Shared library edits will return to the last saved library.", "Discard changes")) return;
     if (draft !== state.draft || revision !== state.pricingRevision) return;
     state.draft = clone(pricingBaseline()); refreshPricingCatalog(); renderPricing(); message("Unsaved pricing changes discarded.");
+  });
+  window.addEventListener("resize", () => {
+    // An intentional layout change may release retired space. Keep a captured
+    // drawing pointer stable until its gesture has ended.
+    if ($("app-message").hidden && !document.querySelector(".takeoff-viewport:active")) releaseMessageSpace();
   });
   window.addEventListener("beforeunload", (event) => {
     const pricingChanged = sharedPricingChanged();

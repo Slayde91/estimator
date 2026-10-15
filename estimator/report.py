@@ -387,26 +387,13 @@ class _Report:
             [self.p("Rate per project area / item", "cell"), self.p(self.summary_value("rate", "F8", money=True), "numeric")],
         ]
         self.story.append(self.table(["Calculated output", "Recorded value"], checks, [_WIDTH * .68, _WIDTH * .32], compact=True))
-        self.story.extend([
-            Spacer(1, 9),
-            self.p("Amounts, rates, quantities, days and percentages display no more than two decimal places. "
-                   "Very large detail values use scientific notation. The quote total uses the original unrounded results; adding individually rounded line amounts "
-                   "can differ by a few cents. No rounding adjustment has been added.", "small"),
-        ])
 
     def materials(self):
         self.story.extend([PageBreak(), self.p("Material breakdown", "section")])
         if "global_adjustments" in self.result:
-            material_note = ("Products are listed in the same order as the Estimator Material column, including Firestopping products with a nonzero line amount. "
-                "Coverage, base units and wastage use the recorded calculation snapshot. The global material percentage is applied once to the combined main and Firestopping material cost in the quote summary. "
-                "Fractional priced quantities are preserved.")
             base_heading = "Base units"
         else:
-            material_note = ("Material lines with a nonzero line amount are included. Coverage is the estimator's input. "
-                "Adjusted base units include the recorded global material adjustment; wastage is then added. "
-                "Fractional priced quantities are preserved.")
             base_heading = "Adjusted base units"
-        self.story.append(self.p(material_note, "small"))
         source_lines = {f"Calculator!D{requirements}/F{price}": (row, price)
                         for _, row, price, requirements, _, _ in _LINES}
         duplicate_rows = {item['id']: item for item in self.result.get('work_items', [])
@@ -516,10 +503,6 @@ class _Report:
                      self.p(self.total_cells(labour_amount_cells, money=True), "numeric")])
         widths = [88, 109, 56, 92, 65, _WIDTH - 410]
         self.story.append(self.table(["Task", "Labour selection", "Output units / day", "Daily sell rate", "Days", "Line amount"], rows, widths, compact=True, total_rows=1))
-        self.story.append(self.p(
-            "Pinning days: " + self.value("B37") + ". They mirror meshing days and carry no separate labour charge. "
-            "Total task labour: " + self.value("B44") +
-            " days / " + self.value("B45") + " weeks.", "small"))
 
         if 'firestopping' in self.result:
             self.story.append(self.p('Firestopping Labour', 'subheading'))
@@ -535,15 +518,6 @@ class _Report:
                          self.p(_number(schedule_summary.get('labour'), money=True), 'numeric')])
             self.story.append(self.table(['Task', 'Task hours', 'Labour days', 'Labour amount'], rows,
                 [223, 80, 80, _WIDTH - 383], compact=True, total_rows=1))
-            labour_note = ('Register allowance shows the resolved registration time. Additional Labour includes entered extra hours and fixed labour adjustments. '
-                if any(item.get('name', '').endswith('Register allowance') for item in tasks)
-                else 'Firestopping Labour includes source setup time and fixed labour adjustments. ')
-            self.story.append(self.p(
-                labour_note +
-                'Fixed monetary adjustments do not create task hours. These task totals include the hours allocated to material rows; '
-                'they are included once in the combined quote total.' +
-                (' Zero-amount tasks are omitted; total hours and days still include their recorded time.'
-                 if any(item.get('total') == 0 for item in tasks) else ''), 'small'))
 
         self.story.append(self.p("Masking / cleaning", "subheading"))
         # Older saved quotes lack this additive presentation field. The helper
@@ -590,29 +564,17 @@ class _Report:
                      self.p(self.total_cells([f"D{row}" for row, *_ in _ADDITIONS], money=True), "numeric")])
         self.story.append(self.table(["Item / selection", "Category", "Adjusted qty", "Unit sell rate", "Amount"], rows,
                                      [187, 57, 83, 92, _WIDTH - 419], compact=True, total_rows=1))
-        self.story.append(self.p(
-            "Entered additions: extra days = " + self.input("F26") +
-            "; mobilisation quantity = " + self.input("F27") +
-            "; administration quantity = " + self.input("F28") +
-            "; access quantity = " + self.input("B4") +
-            ". Access hire uses weekly rates. Fixed adjustment: " + self.value("D27", money=True) +
-            ". All additions and the fixed adjustment are included in the quote summary. " +
-            ("The global material and labour percentages are shown separately in the summary and apply once to their combined main and Firestopping cost bases."
-             if "global_adjustments" in self.result else ""), "small"))
 
     def notes(self):
-        self.story.extend([PageBreak(), self.p("Quote notes", "section")])
-        self.story.append(self.p("NOTES", "subheading"))
-        self.note_block(self.quote.get("measurements"))
         if self.errors:
+            # Removing the requested notes section must not hide the complete
+            # recorded calculation-error list for an unavailable quote result.
+            self.story.append(PageBreak())
             self.story.append(self.p("Calculation errors - complete list", "subheading"))
             error_rows = [[self.p(error["label"], "cell"), self.p(error["code"], "cell")]
                           for error in calculation_error_details(self.result)]
             self.story.append(self.table(["Affected calculation", "Recorded error"], error_rows,
                                          [_WIDTH * .55, _WIDTH * .45], compact=True))
-        self.story.append(self.p(
-            "This report uses the quote's recorded quantities and selling prices. "
-            "Later pricing-library changes do not alter a saved quote's report.", "small"))
 
 
 def render_quote_pdf(quote: dict, *, company=None) -> bytes:
@@ -620,13 +582,13 @@ def render_quote_pdf(quote: dict, *, company=None) -> bytes:
     if not isinstance(quote, dict) or not isinstance(quote.get("result"), dict):
         raise ValueError("A prepared quote with calculated results is required for its PDF report.")
     _register_fonts()
-    logo_path = ROOT / "static" / "ceasefire-logo.png"
+    logo_path = ROOT / "static" / "classifire-logo.png"
     if not logo_path.is_file():
-        raise FileNotFoundError("The official Ceasefire logo is missing from static/ceasefire-logo.png.")
+        raise FileNotFoundError("The official CLASSIFIRE logo is missing from static/classifire-logo.png.")
     logo = company_logo(company)
     logo_width, logo_height = logo.getSize()
     if not logo_width or not logo_height:
-        raise ValueError("The official Ceasefire logo has invalid dimensions.")
+        raise ValueError("The official CLASSIFIRE logo has invalid dimensions.")
 
     report = _Report(quote)
     report.summary()
@@ -638,7 +600,7 @@ def render_quote_pdf(quote: dict, *, company=None) -> bytes:
         destination, pagesize=A4, leftMargin=_MARGIN, rightMargin=_MARGIN,
         topMargin=91, bottomMargin=47, pageCompression=1,
         title=_text(quote.get("title", "Ceasefire estimate")),
-        author="Ceasefire", subject="Complete estimating material and labour breakdown",
+        author="CLASSIFIRE", subject="Complete estimating material and labour breakdown",
     )
 
     def decorate(canvas, doc):
@@ -650,7 +612,7 @@ def render_quote_pdf(quote: dict, *, company=None) -> bytes:
         canvas.line(_MARGIN, 34, _PAGE_WIDTH - _MARGIN, 34)
         canvas.setFont("CeasefireVera", 7)
         canvas.setFillColor(_MUTED)
-        canvas.drawString(_MARGIN, 22, "Ceasefire ESTIMATOR | " + _text(quote.get("report_kind", "Saved quote")))
+        canvas.drawString(_MARGIN, 22, "CLASSIFIRE ESTIMATOR | " + _text(quote.get("report_kind", "Saved quote")))
         canvas.drawRightString(_PAGE_WIDTH - _MARGIN, 22, f"Page {doc.page}")
         canvas.restoreState()
 

@@ -1,3 +1,4 @@
+const { waitForTakeoffDownload } = require('./native_download_helpers.cjs');
 "use strict";
 // Native Call-out creation, rich editing and drawing gestures on disposable PDFs.
 const { chromium, expect } = require("@playwright/test");
@@ -87,7 +88,7 @@ async function annotationMenuPosition(id, part, keyboard = false) {
   return {part,keyboard,anchor,menu:geometry.menu,expected,cssError};
 }
 async function download(filename) {
-  const pending = page.waitForEvent("download"), request = page.waitForRequest(value => value.url().endsWith("/export/marked-pdf"));
+  const pending = waitForTakeoffDownload(page), request = page.waitForRequest(value => value.url().endsWith("/export/marked-pdf"));
   await page.evaluate(() => window.CeasefireTakeoffs.downloadDrawing()); const file = path.join(output, filename); await (await pending).saveAs(file); await idle(); return { file, request: (await request).postDataJSON() };
 }
 function inspectPdf(file) {

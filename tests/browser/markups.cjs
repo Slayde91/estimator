@@ -1,3 +1,4 @@
+const { waitForTakeoffDownload } = require('./native_download_helpers.cjs');
 const { clickProjectControl } = require('./project_actions.cjs');
 const { renderDrawing } = require('./viewer_helpers.cjs');
 // Real selection, appearance, movement and draft drawing/report exports on disposable sources.
@@ -25,7 +26,7 @@ async function confirm(count){await page.getByRole('button',{name:'Confirm',exac
 async function download(label){
   // Attach rejection handlers immediately: a missing request must reach the outer
   // failure capture, rather than terminate Node through an unhandled waiter.
-  const pending=page.waitForEvent('download');pending.catch(()=>{});
+  const pending=waitForTakeoffDownload(page);pending.catch(()=>{});
   const responseWait=page.waitForResponse(r=>r.url().endsWith(label==='Download PDF'?'/export/marked-pdf':'/export/register-xlsx'));responseWait.catch(()=>{});
   const [response]=await Promise.all([responseWait,label === 'Download PDF' ? page.evaluate(() => window.CeasefireTakeoffs.downloadDrawing()) : (async()=>{await page.getByRole('button',{name:'Takeoff register document actions',exact:true}).click();await page.getByRole('button',{name:'Download all items',exact:true}).click();})()]);
   if(!response.ok()){const current=await page.evaluate(async()=>{const id=window.CeasefireTakeoffs.sessionId();return(await fetch('/api/takeoffs/sessions/'+id)).json();});throw new Error(JSON.stringify({export:response.request().postDataJSON(),error:await response.json(),currentRevision:current.revision,localRevision:await page.evaluate(()=>window.CeasefireTakeoffs.projectSnapshot().revision)}));}
@@ -43,7 +44,9 @@ async function load(){const pending=page.waitForResponse(r=>r.url().endsWith('/a
 (async()=>{
   const info=await ready;browser=await chromium.launch({headless:true});page=await browser.newPage({viewport:{width:1600,height:1100},deviceScaleFactor:2});page.setDefaultTimeout(30000);
   page.on('pageerror',error=>errors.push(error.message));page.on('request',request=>{if(request.url().endsWith('/commands'))requests.push(request.postDataJSON());});
-  await page.addInitScript(()=>{window.qaCsp=[];document.addEventListener('securitypolicyviolation',event=>window.qaCsp.push({directive:event.effectiveDirective,blocked:event.blockedURI}));});
+  await page.addInitScript(()=>{window.qaCsp=[];document.addEventListener('securitypolicyviolation',event=>window.qaCsp.push({directive:event.effectiveDirective,blocked:event.blockedURI}));
+    window.qaDrawingFontLoads=[];const load=document.fonts.load.bind(document.fonts);document.fonts.load=(...args)=>{const promise=load(...args);if(String(args[0]).includes('CeasefireDrawing')){const entry={font:args[0],resolved:false};window.qaDrawingFontLoads.push(entry);promise.then(faces=>{entry.resolved=true;entry.faces=faces.map(face=>({family:face.family,weight:face.weight,status:face.status}));},error=>{entry.error=error.message;});}return promise;};
+  });
   const response=await page.goto(`http://127.0.0.1:${info.port}/`);assert.ok(!response.headers()['content-security-policy'].includes('unsafe-inline'));
   await page.waitForFunction(()=>window.CeasefireDesktop?.status().ready);
   await page.getByRole('button',{name:'Takeoffs',exact:true}).click();
@@ -123,7 +126,10 @@ async function load(){const pending=page.waitForResponse(r=>r.url().endsWith('/a
     }finally{page.off('request',observe);releaseRender();}
     await focusing;evidence.exportReadiness={heldRenderRejectedPrematureExport:true,completedFocusedRowBeforeExport:true};
   }finally{releaseRender();await page.unroute('**/commands');}
+  const drawingFontState=()=>page.evaluate(()=>({regular:document.fonts.check('9px CeasefireDrawing'),bold:document.fonts.check('700 9px CeasefireDrawing'),faces:[...document.fonts].filter(face=>face.family==='CeasefireDrawing').map(face=>({weight:face.weight,status:face.status})),loads:window.qaDrawingFontLoads}));
+  const beforePdfFonts=await drawingFontState();
   const {path:pdf,request:pdfBody}=await download('Download PDF');assert.equal(pdfBody.mode,'steel');assert.equal(pdfBody.document_id,reopened.documents[0].id);assert.deepEqual(pdfBody.item_ids,[a.id]);evidence.pdf=pdf;
+  const afterPdfFonts=await drawingFontState(),exportFontLoads=afterPdfFonts.loads.slice(beforePdfFonts.loads.length);assert.equal(afterPdfFonts.regular,true);assert.equal(afterPdfFonts.bold,true);assert.deepEqual(exportFontLoads.map(entry=>entry.font).sort(),['700 9px CeasefireDrawing','9px CeasefireDrawing']);assert.ok(exportFontLoads.every(entry=>entry.resolved&&!entry.error&&entry.faces.length>0&&entry.faces.every(face=>face.status==='loaded')));evidence.drawingFonts={beforePdf:beforePdfFonts,afterPdf:afterPdfFonts,freshRegularAndBoldLoad:true};
   const inspected=spawnSync(python,['-c',"import json,sys\nfrom pypdf import PdfReader\nr=PdfReader(sys.argv[1])\nprint(json.dumps({'pages':[{'width':float(p.mediabox.width),'height':float(p.mediabox.height),'rotation':p.rotation,'user_unit':p.user_unit,'text':p.extract_text()} for p in r.pages]}))",pdf],{cwd:root,windowsHide:true,encoding:'utf8'});assert.equal(inspected.status,0,inspected.stderr);
   const document=JSON.parse(inspected.stdout),pdfText=document.pages.map(value=>value.text).join('\n');assert.ok(document.pages.length>=4);assert.equal(document.pages[2].width,1080);assert.ok(document.pages[2].height>=1685);assert.equal(document.pages[2].rotation,0);assert.equal(document.pages[2].user_unit,1);assert.ok(pdfText.includes('QA-MATCH-FIRST'));assert.ok(!pdfText.includes('QA-MATCH-SECOND'));assert.ok(!pdfText.includes('QA-OTHER-THIRD'));assert.ok(/unconfirmed|draft/i.test(pdfText));assert.ok(pdfText.includes('SYNTHETIC TAKEOFF DRAWING'));assert.ok(pdfText.includes('Rotated crop with UserUnit 2'));evidence.pdfPages=document.pages.map(({text,...metadata})=>metadata);
   assert.equal(require('node:crypto').createHash('sha256').update(fs.readFileSync(info.fixture)).digest('hex'),reopened.documents[0].sha256);

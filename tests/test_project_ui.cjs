@@ -49,6 +49,7 @@ function harness({ penetration = false } = {}) {
     URL: { createObjectURL: () => 'blob:project-audit', revokeObjectURL() {} }, setTimeout: () => 1, clearTimeout() {},
     FileReader: class { readAsDataURL() { this.result = 'data:application/octet-stream;base64,QUFBQQ=='; queueMicrotask(() => this.onload()); } },
   };
+  require('./helpers/download_progress_vm.cjs').installProgressReceipts(context);
   vm.createContext(context);
   vm.runInContext(fs.readFileSync('static/calculation-queue.js','utf8'),context);
   vm.runInContext(fs.readFileSync('static/downloads.js','utf8'),context);
@@ -332,6 +333,7 @@ async function penetrationCheck(name, fn) {
     h.context.fetch = (path, options) => { sent = { path, body: JSON.parse(options.body) }; return pending.promise; };
     const details = copy(h.context.window.CeasefireProject.details()), inputs = copy(entry.inputs);
     const download = ({ schedule: h.calc.downloadSchedulePdf, summary: h.calc.downloadMaterialsSummaryPdf, xlsx: h.calc.downloadExcelRegister })[action]();
+    await flush();
     assert.deepEqual(sent.body.inputs, inputs);
     if (action === 'xlsx') assert.deepEqual(Object.keys(sent.body), ['inputs','download']);
     else assert.deepEqual(sent.body.project_details, details);
@@ -342,6 +344,7 @@ async function penetrationCheck(name, fn) {
     assert.equal(h.byId('client').value, 'Client changed after click'); assert.deepEqual(copy(entry.inputs), inputs); assert.equal(h.calc.dirty(entry), true);
     const next = deferred(); h.context.fetch = (path, options) => { sent = { path, body: JSON.parse(options.body) }; return next.promise; };
     const downloadAgain = ({ schedule: h.calc.downloadSchedulePdf, summary: h.calc.downloadMaterialsSummaryPdf, xlsx: h.calc.downloadExcelRegister })[action]();
+    await flush();
     if (action !== 'xlsx') assert.equal(sent.body.project_details.client, 'Client changed after click');
     next.resolve(fileResponse(action === 'xlsx' ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' : 'application/pdf')); await downloadAgain;
   });
@@ -545,7 +548,7 @@ async function penetrationCheck(name, fn) {
   await check('Saving pending project pricing refreshes visible totals with the saved prices', async h => {
     h.app.switchPricingScope('project');h.app.state.draft.rates.frozen.price=42.123456789;
     h.app.state.result={summary:{total:111}};const timers=[];let calculated;
-    h.context.setTimeout=callback=>{timers.push(callback);return timers.length;};
+    h.context.setTimeout=(callback,delay)=>{if(delay!==5000)timers.push(callback);return timers.length;};
     h.app.setRequest(async(path,options)=>{
       const body=JSON.parse(options.body);
       if(path==='/api/configuration/preview')return {configuration:body.configuration,fields:copy(h.app.state.fields)};

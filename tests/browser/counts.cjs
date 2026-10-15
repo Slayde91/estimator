@@ -1,3 +1,4 @@
+const { waitForTakeoffDownload } = require('./native_download_helpers.cjs');
 const { clickProjectControl } = require('./project_actions.cjs');
 const { checkSteelDialog } = require('./steel_dialog_layout.cjs');
 const { renderDrawing } = require('./viewer_helpers.cjs');
@@ -187,7 +188,7 @@ function assertSubsetMove(before, after, memberIds, drag) {
   }
 }
 async function download(label, name) {
-  const pending = page.waitForEvent('download'); pending.catch(() => {});
+  const pending = waitForTakeoffDownload(page); pending.catch(() => {});
   const response = page.waitForResponse(value => value.url().endsWith(label === 'Download PDF' ? '/export/marked-pdf' : '/export/register-xlsx')); response.catch(() => {});
   if (label === 'Download PDF') await page.evaluate(() => window.CeasefireTakeoffs.downloadDrawing()); else { await page.getByRole('button', { name: 'Takeoff register document actions', exact: true }).click(); await page.getByRole('button', { name: 'Download all items', exact: true }).click(); }
   const accepted = await response; assert.equal(accepted.status(), 200, await accepted.text());
@@ -337,8 +338,17 @@ function pythonJson(script, ...args) {
   reply = await command(() => page.getByRole('button', { name: 'Undo last edit', exact: true }).click(), 'undo'); state = reply.snapshot;
   assert.deepEqual(stable(state), stable(multiBaseline));
   await selectMarkers([firstMember, otherMember]);
+  // An ordinary saved receipt retires when this native drag makes the project dirty.
+  const saveBeforeCrossRowDrag = page.waitForResponse(response => response.url().endsWith('/api/project/save'));
+  await clickProjectControl(page, 'Save'); assert.equal((await saveBeforeCrossRowDrag).status(), 200);
+  await expect(page.locator('#app-message')).toContainText(/^Project saved /);
+  await expect(page.locator('#app-message')).toBeVisible();
+  await expect(page.locator('#app-message')).toHaveAttribute('role', 'status');
+  const beforeCrossRowRequests = requests.length;
   reply = await command(async () => { movement = await dragMarker(firstMember, [14, 12]); }, 'move_count_markers');
+  assert.equal(requests.length, beforeCrossRowRequests + 1, 'Moving members across Count rows remains one atomic command after Save');
   assertSubsetMove(multiBaseline, reply.snapshot, [firstMember, otherMember], movement);
+  evidence.savedNoticeGroupDrag = { nativeSaveHTTP200: true, freshSavedReceiptTextAsserted: true, ordinaryNoticeVisibleBeforePointer: true, requestedDelta: [14, 12], deltaPdf: requests.at(-1).delta_pdf, strictSourceDeltaAssertionPassed: true };
   reply = await command(() => page.getByRole('button', { name: 'Undo last edit', exact: true }).click(), 'undo'); state = reply.snapshot;
   assert.deepEqual(stable(state), stable(multiBaseline));
   // Marquee includes one point of the two-member group, never its entire row.

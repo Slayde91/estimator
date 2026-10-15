@@ -213,7 +213,7 @@
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) .calculator-document-actions { background: #151a21; color: var(--ink); border-color: #626c7b; box-shadow: 0 12px 32px #0008; }
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) .calculator-document-actions .button.calculator-document-action { background: #151a21; color: #f4f5f7; border-color: transparent; }
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) .calculator-document-actions .calculator-document-action:hover:not(:disabled) { background: #303846; border-color: #626c7b; }
-  :root:is(:not([data-theme]), [data-theme="ceasefire"]) :is(.calculator-document-icon, .takeoff-icon-button img:not([src$="/takeoff-colour-wheel.png"]), .takeoff-transfer-icon):not(.takeoff-physical-register *, .takeoff-rich-toolbar *) { filter: brightness(0) invert(1); }
+  :root:is(:not([data-theme]), [data-theme="ceasefire"]) :is(.calculator-document-icon, .takeoff-icon-button img:not([src$="/takeoff-colour-wheel.png"], .takeoff-measure-icon), .takeoff-transfer-icon):not(.takeoff-physical-register *, .takeoff-rich-toolbar *) { filter: brightness(0) invert(1); }
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) .takeoff-tool-rail .takeoff-icon-button .takeoff-measure-icon { filter: invert(1); mix-blend-mode: screen; }
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) .takeoff-tool-rail .button:is(.takeoff-tool-active, [aria-pressed=true], [aria-expanded=true]) { background: #3f1d29; color: #fff; border-color: #ff6377; box-shadow: inset 0 0 0 1px #d63049; }
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) :is(.takeoff-markup-settings, .takeoff-viewports, .takeoff-physical-details) { background: #1a1f27; border-color: #626c7b; }

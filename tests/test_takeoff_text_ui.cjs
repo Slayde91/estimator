@@ -1,3 +1,4 @@
+const englishI18n = require("./english_i18n_fixture.cjs");
 // Text extraction is independent from drawing proof and cannot publish stale pages.
 const fs = require('node:fs'), vm = require('node:vm'), assert = require('node:assert/strict');
 const deferred = () => { let resolve, reject; const promise = new Promise((yes, no) => { resolve = yes; reject = no; }); return { promise, resolve, reject }; };
@@ -7,7 +8,7 @@ function harness() {
   function element() { return { style: {}, dataset: {}, children: [], classList: { toggle() {} }, setAttribute() {}, append(child) { this.children.push(child); child.connected = true; }, remove() { this.connected = false; }, contains(value) { return value === this; } }; }
   const selection = { anchorNode: null, focusNode: null, removeAllRanges() { this.anchorNode = this.focusNode = null; } };
   const context = { window: { getSelection: () => selection }, document: { createElement: element, getElementById() {} }, console };
-  vm.createContext(context);
+  if (context.window) context.window.CeasefireI18n = englishI18n(); vm.createContext(context);
   const source = fs.readFileSync('static/takeoffs.js', 'utf8').replace('  window.CeasefireTakeoffs = {', `  globalThis.audit={state,ensurePdfTextLayer,clearPdfTextLayer,clearPdfTextSelection,positionPdfTextLayer,planKeydown,planContextMenu,
     lib(value){pdfLibrary=async()=>value;boundedPdf=promise=>promise;},copy(fn){copyLengthMarkups=fn;},cancel(fn){cancelTrace=fn;}};
   window.CeasefireTakeoffs = {`);

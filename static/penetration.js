@@ -1,5 +1,18 @@
 (() => {
   "use strict";
+  // Bind application-owned copy only; node() remains safe for user and source text.
+  const uiText = (element, source, args = []) => {
+    if (window.CeasefireI18n) return window.CeasefireI18n.text(element, source, args);
+    element.textContent = String(source).replace(/\{(\d+)\}/g, (match, index) => args[index] === undefined ? match : String(typeof args[index] === "function" ? args[index]() : args[index])); return element;
+  };
+  const uiAttr = (element, name, source, args = []) => {
+    if (window.CeasefireI18n) return window.CeasefireI18n.attr(element, name, source, args);
+    const value = String(source).replace(/\{(\d+)\}/g, (match, index) => args[index] === undefined ? match : String(typeof args[index] === "function" ? args[index]() : args[index]));
+    element.setAttribute(name, value); if (["title", "placeholder"].includes(name)) element[name] = value; return element;
+  };
+  const uiNode = (tag, cls, source, args = []) => { const element = node(tag, cls); return window.CeasefireI18n?.nodeText ? window.CeasefireI18n.nodeText(element, source, args) : uiText(element, source, args); };
+  const uiTerm = (source, args = []) => window.CeasefireI18n?.term ? window.CeasefireI18n.term(source, args) : String(source).replace(/\{(\d+)\}/g, (match, index) => args[index] === undefined ? match : String(typeof args[index] === "function" ? args[index]() : args[index]));
+
   const $ = id => document.getElementById(id), clone = value => JSON.parse(JSON.stringify(value));
   const cloneOptional = value => value === undefined ? undefined : clone(value);
   const state = { definition: null, draft: null, saved: null, selected: null, group: null, result: null,
@@ -57,13 +70,16 @@
     const data = await response.json(); if (!response.ok) throw new Error(data.error || `Request failed (${response.status}).`); return data;
     } finally { endActivity?.(); }
   }
-  function message(text = "", error = false, scope = state, top = true) {
+  function message(text = "", error = false, scope = state, top = true, args = []) {
     if (window.CeasefirePenetrationNavigation?.message) {
-      if (top) window.CeasefirePenetrationNavigation.message(text, error);
+      if (top) {
+        if (args.length && window.CeasefireI18n) window.CeasefirePenetrationNavigation.message(text, error, args);
+        else window.CeasefirePenetrationNavigation.message(String(text).replace(/\{(\d+)\}/g, (match, index) => args[index] === undefined ? match : String(typeof args[index] === "function" ? args[index]() : args[index])), error);
+      }
       return;
     }
     const ids = scope === state ? ["penetration-message"] : ["penetration-schedule-message", "penetration-estimator-schedule-message"];
-    for (const id of ids) { const el = $(id); el.textContent = text; el.hidden = !text; el.className = `message${error ? " error" : ""}`; }
+    for (const id of ids) { const el = $(id); uiText(el, text, args); el.hidden = !text; el.className = `message${error ? " error" : ""}`; }
   }
   function buttonBusy(id, value) { $(id).setAttribute("aria-busy", String(value)); }
   const requiredItemFields = () => state.definition?.required_item_fields || [
@@ -85,7 +101,11 @@
     const detailGroup = state.definition.groups.find(group => state.definition.row_fields.some(field => field.column === "J" && field.group === group));
     if (detailGroup) { state.group = detailGroup; renderFields(); }
     const notice = window.CeasefirePenetrationNavigation?.notify;
-    if (notice) await notice("Complete item details", problem, "OK"); else message(problem, true);
+    const missing = missingItemFields(), args = [() => missing.map(field => window.CeasefireI18n?.translate(field.label) || field.label).join(", ")];
+    const detail = !masticProblem(selected()?.inputs || {}) && missing.length ? uiTerm("Complete {0} before adding this Firestopping item.", args) : problem;
+    if (notice) await notice("Complete item details", detail, "OK");
+    else if (!masticProblem(selected()?.inputs || {}) && missing.length) message("Complete {0} before adding this Firestopping item.", true, state, true, args);
+    else message(problem, true);
     const first = missingItemFields()[0];
     if (first) document.querySelectorAll(`[data-penetration-scope="composer"][data-penetration-field="${first.column}"]`)[0]?.focus();
     return false;
@@ -94,13 +114,15 @@
   function hasUnsavedChanges() { return !!state.draft && (stable(canonicalSnapshot(persisted())) !== state.saved || state.invalid.size > 0 || state.schedule.invalid.size > 0 || state.diagramChange !== undefined); }
   function status(text) {
     const statusText = text || (state.schedule.invalid.size ? "Check input" : state.schedule.calculating ? "Calculating…" : state.schedule.result?.errors?.length ? "Review calculation" : hasUnsavedChanges() ? "Unsaved changes" : "Calculated");
-    for (const id of ["penetration-status", "penetration-estimator-status"]) $(id).textContent = statusText;
+    for (const id of ["penetration-status", "penetration-estimator-status"]) uiText($(id), statusText);
     const blocked = !!state.takeoffLease || !state.draft || state.invalid.size > 0, scheduleBlocked = !!state.takeoffLease || !state.schedule.draft || state.schedule.invalid.size > 0;
     $("penetration-recalculate").disabled = blocked || state.calculating;
     for (const id of ["penetration-add", "penetration-estimator-add"]) $(id).disabled = !!state.takeoffLease || !state.draft;
     for (const id of ["penetration-new-item", "penetration-clear"]) $(id).disabled = !!state.takeoffLease || !state.draft || state.creatingLibrary || state.addingLibrary || state.addingSchedule || state.updatingSchedule;
     const requiredProblem = state.draft ? requiredItemProblem() : "";
-    $("penetration-required-fields").textContent = requiredProblem;
+    const missingRequired = state.draft ? missingItemFields() : [];
+    if (requiredProblem && !masticProblem(selected()?.inputs || {}) && missingRequired.length) uiText($("penetration-required-fields"), "Complete {0} before adding this Firestopping item.", [() => missingRequired.map(field => window.CeasefireI18n?.translate(field.label) || field.label).join(", ")]);
+    else uiText($("penetration-required-fields"), requiredProblem);
     $("penetration-required-fields").hidden = !requiredProblem;
     $("penetration-add-to-library").disabled = blocked || !!requiredProblem || state.creatingLibrary;
     $("penetration-add-to-schedule").disabled = blocked || !!requiredProblem || scheduleBlocked || state.diagramChange !== undefined || state.addingSchedule || state.schedule.draft.rows.length >= state.definition.capacity;
@@ -249,14 +271,14 @@
     const context = state.context, epoch = scope === state ? state.composerEpoch : state.rowEpochs.get(rowId);
     const current = () => context === state.context && (scope === state ? epoch === state.composerEpoch : epoch === state.rowEpochs.get(rowId));
     const key = keyFor(rowId, `${field.column}:${paired.column}`), wrapper = node("label", "field");
-    const label = node("span", "", `${fieldLabel(field)}${field.units ? ` (${field.units})` : ""}`), control = node("input"), problem = node("small", "penetration-field-error");
+    const label = uiNode("span", "", "{0}{1}", [() => window.CeasefireI18n?.translate(fieldLabel(field)) || fieldLabel(field), field.units ? ` (${field.units})` : ""]), control = node("input"), problem = node("small", "penetration-field-error");
     const inputs = () => rowById(rowId, scope)?.inputs || {};
     control.type = "text"; control.inputMode = "decimal"; control.autocomplete = "off"; control.maxLength = 100;
     control.placeholder = field.placeholder || "e.g. 300 x 50";
     control.dataset.penetrationScope = scope === state ? "composer" : "schedule";
     control.dataset.penetrationField = field.column; control.dataset.penetrationPaired = paired.column; control.dataset.penetrationRow = rowId;
-    control.setAttribute("aria-label", `${scope === state ? "Current item" : "Schedule item"}: ${label.textContent}`);
-    const showProblem = text => { control.setAttribute("aria-invalid", String(!!text)); problem.textContent = text || ""; problem.hidden = !text; };
+    uiAttr(control, "aria-label", "{0}: {1}", [() => window.CeasefireI18n?.translate(scope === state ? "Current item" : "Schedule item") || (scope === state ? "Current item" : "Schedule item"), () => label.textContent]);
+    const showProblem = text => { control.setAttribute("aria-invalid", String(!!text)); uiText(problem, text || ""); problem.hidden = !text; };
     control.refreshDimension = () => {
       const pending = scope.invalid.get(key); showProblem(pending?.error);
       if (control !== document.activeElement) control.value = pending ? pending.value : dimensionText(inputs(), field.column, paired.column);
@@ -278,19 +300,19 @@
   function makeControl(field, rowId, compact = false, scope = state) {
     const context = state.context, epoch = scope === state ? state.composerEpoch : state.rowEpochs.get(rowId);
     const current = () => context === state.context && (scope === state ? epoch === state.composerEpoch : rowId === null || epoch === state.rowEpochs.get(rowId));
-    const key = keyFor(rowId, field.column), wrapper = node(field.automatic_default ? "div" : "label", "field"), label = node("span", "", fieldLabel(field) + (field.units ? ` (${field.units})` : field.format === "percent" ? " (%)" : ""));
+    const key = keyFor(rowId, field.column), wrapper = node(field.automatic_default ? "div" : "label", "field"), label = uiNode("span", "", "{0}{1}", [() => window.CeasefireI18n?.translate(fieldLabel(field)) || fieldLabel(field), field.units ? ` (${field.units})` : field.format === "percent" ? " (%)" : ""]);
     const long = field.type === "text" && ["T", "U"].includes(field.column);
     const control = node(field.type === "select" ? "select" : long ? "textarea" : "input"), problem = node("small", "penetration-field-error");
     const help = field.column === "M" ? "Substrate Orientation" : ["AN", "AT"].includes(field.column) ? "Enter multiplier for wrap lengths or collars."
       : ["AM", "AS"].includes(field.column) ? "Total wrap length required per side in mm, e.g. 300 (mm)."
       : field.column === "AL" ? state.group === "Lagged Pipes" ? "Enter total outer diameter of the lagged pipe or total bundle." : "Enter total outer diameter of the pipe or bundle."
       : field.help || "";
-    if (help) { wrapper.title = help; label.title = help; control.title = help; }
+    if (help) { uiAttr(wrapper, "title", help); uiAttr(label, "title", help); uiAttr(control, "title", help); }
     if (compact) { wrapper.className += " penetration-schedule-quantity"; label.className = "sr-only"; control.dataset.penetrationScheduleQuantity = rowId; }
     const line = rowId === null ? (scope === state ? "Current item" : "Schedule") : `Item ${scope.draft.rows.findIndex(row => row.id === rowId) + 1}`;
     control.dataset.penetrationScope = scope === state ? "composer" : "schedule";
     control.dataset.penetrationField = field.column; control.dataset.penetrationRow = rowId === null ? "" : rowId;
-    control.setAttribute("aria-label", `${line}: ${label.textContent}`);
+    uiAttr(control, "aria-label", "{0}: {1}", [() => window.CeasefireI18n?.translate(line) || line, () => label.textContent]);
     if (scope === state && rowId !== null && requiredItemFields().some(item => item.column === field.column)) {
       control.required = true; control.setAttribute("aria-required", "true");
     }
@@ -298,7 +320,7 @@
     const manufacturer = rowId !== null && manufacturerLabel(field, raw);
     const options = [...new Set((scope.draft.globals.detail_options?.[field.column] ?? field.options ?? []).map(value => manufacturer && manufacturerLabel(field, value) === manufacturer ? raw : value))];
     if (field.type === "select") {
-      const empty = node("option", "", "Choose…"); empty.value = ""; control.append(empty);
+      const empty = uiNode("option", "", "Choose…"); empty.value = ""; control.append(empty);
       for (const value of options) { const option = node("option", "", manufacturerLabel(field, value) || window.CeasefirePenetrationPresentation?.optionLabel(field, value) || value); option.value = String(value); control.append(option); }
       if (raw !== null && raw !== "" && !options.some(value => String(value) === String(raw))) {
         const option = node("option", "", manufacturer || `Saved value: ${raw} (choose a listed value)`); option.value = String(raw); option.disabled = true; control.append(option);
@@ -315,7 +337,7 @@
       const inputs = rowById(rowId, scope)?.inputs || {};
       control.disabled = field.enabled_when.nonblank && [null, undefined, ""].includes(inputs[field.enabled_when.column]);
     }
-    const showProblem = text => { control.setAttribute("aria-invalid", String(!!text)); problem.textContent = text || ""; problem.hidden = !text; };
+    const showProblem = text => { control.setAttribute("aria-invalid", String(!!text)); uiText(problem, text || ""); problem.hidden = !text; };
     showProblem(pending?.error);
     control.addEventListener("focus", () => {
       if (!current()) return;
@@ -369,13 +391,16 @@
     });
     wrapper.append(label, control, problem);
     if (field.automatic_default) {
-      const tools = node("div", "penetration-automatic-tools"), hint = node("small", "helper"), reset = node("button", "button secondary", "Use automatic");
+      const tools = node("div", "penetration-automatic-tools"), hint = node("small", "helper"), reset = uiNode("button", "button secondary", "Use automatic");
       hint.id = `penetration-default-${++controlSequence}`; control.setAttribute("aria-describedby", hint.id);
-      reset.type = "button"; reset.setAttribute("aria-label", `Use automatic ${fieldLabel(field)}`);
+      reset.type = "button"; uiAttr(reset, "aria-label", "Use automatic {0}", [() => window.CeasefireI18n?.translate(fieldLabel(field)) || fieldLabel(field)]);
       control.refreshAutomatic = () => {
         const value = inputValue(field, rowId, scope), automatic = value === null || value === "";
         const defaults = scope.result?.rows.find(row => row.id === rowId)?.input_defaults;
-        hint.textContent = !automatic ? "Manual allowance." : !defaults ? "Automatic value updates after calculation." : numeric(defaults[field.column]) ? `Automatic: ${controlText(field, defaults[field.column])}${field.units ? ` ${field.units}` : ""}.` : "No automatic value for this item. Enter hours if required.";
+        if (!automatic) uiText(hint, "Manual allowance.");
+        else if (!defaults) uiText(hint, "Automatic value updates after calculation.");
+        else if (numeric(defaults[field.column])) uiText(hint, "Automatic: {0}{1}.", [controlText(field, defaults[field.column]), field.units ? ` ${field.units}` : ""]);
+        else uiText(hint, "No automatic value for this item. Enter hours if required.");
         reset.disabled = automatic && !scope.invalid.has(key);
         if (control !== document.activeElement && !scope.invalid.has(key)) control.value = controlText(field, displayedInput(field, rowId, scope));
       };
@@ -408,8 +433,8 @@
     image.onerror = null;
     if (source) {
       image.src = source; caption.textContent = text;
-      if (libraryId && pending === undefined) image.onerror = () => { preview.hidden = true; empty.hidden = false; empty.textContent = "No source diagram is saved for this library item."; };
-    } else { image.removeAttribute?.("src"); caption.textContent = ""; empty.textContent = "No source diagram is attached to this item."; }
+      if (libraryId && pending === undefined) image.onerror = () => { preview.hidden = true; empty.hidden = false; uiText(empty, "No source diagram is saved for this library item."); };
+    } else { image.removeAttribute?.("src"); uiText(caption, "", []); uiText(empty, "No source diagram is attached to this item."); }
     remove.hidden = !(pending && typeof pending === "object");
     $("penetration-diagram-file").disabled = state.creatingLibrary;
   }
@@ -543,7 +568,7 @@
     for (const scope of [state, state.schedule]) {
       if (error) scope.invalid.set(key, { value, error }); else scope.invalid.delete(key);
     }
-    control.setAttribute("aria-invalid", String(!!error)); problem.textContent = error || ""; problem.hidden = !error;
+    control.setAttribute("aria-invalid", String(!!error)); uiText(problem, error || ""); problem.hidden = !error;
     if (error) { changed(null, state.schedule); changed(null, state); }
   }
   function updateStructuredSetting(key, value) {
@@ -553,7 +578,7 @@
   }
   function renderDetailOptions() {
     const section = node("section", "penetration-settings-section");
-    section.append(node("h4", "penetration-settings-subheading", "DETAILS DROPDOWN VALUES"), node("p", "helper", "Separate values with a semicolon, e.g. Core hole; Oversized. Saved item values are retained."));
+    section.append(uiNode("h4", "penetration-settings-subheading", "DETAILS DROPDOWN VALUES"), uiNode("p", "helper", "Separate values with a semicolon, e.g. Core hole; Oversized. Saved item values are retained."));
     for (const column of state.definition.settings?.detail_option_columns || []) {
       const field = state.definition.row_fields.find(value => value.column === column);
       if (!field) continue;
@@ -561,7 +586,7 @@
       const setting = `detail_options.${column}`, pending = state.schedule.invalid.get(structuredSettingKey(setting));
       control.value = pending?.value ?? (state.schedule.draft.globals.detail_options?.[column] ?? field.options ?? []).join("; ");
       control.rows = 2; control.maxLength = 24400; control.dataset.penetrationDetailOptions = column;
-      problem.hidden = !pending; problem.textContent = pending?.error || "";
+      problem.hidden = !pending; uiText(problem, pending?.error || "");
       control.addEventListener("change", () => {
         if (state.takeoffLease) return;
         const values = [...new Set(control.value.split(";").map(value => value.trim()).filter(Boolean))];
@@ -569,20 +594,20 @@
         structuredProblem(setting, control.value, error, control, problem);
         if (!error) updateStructuredSetting("detail_options", { ...state.schedule.draft.globals.detail_options, [column]: values });
       });
-      label.append(node("span", "", fieldLabel(field)), control, problem); section.append(label);
+      label.append(uiNode("span", "", fieldLabel(field)), control, problem); section.append(label);
     }
     return section;
   }
   function renderServiceRoutes() {
-    const section = node("section", "penetration-settings-section"), heading = node("h4", "penetration-settings-subheading", "SERVICE-TAB ROUTING");
+    const section = node("section", "penetration-settings-section"), heading = uiNode("h4", "penetration-settings-subheading", "SERVICE-TAB ROUTING");
     const scroll = node("div", "table-scroll"), table = node("table", "penetration-settings-table penetration-route-table"), head = node("thead"), header = node("tr");
-    for (const label of ["Service Tab", "Service Types"] ) { const cell = node("th", "", label); cell.scope = "col"; header.append(cell); }
+    for (const label of ["Service Tab", "Service Types"] ) { const cell = uiNode("th", "", label); cell.scope = "col"; header.append(cell); }
     head.append(header); table.append(head); const body = node("tbody"), routes = state.schedule.draft.globals.service_routes || {};
     for (const route of state.definition.settings?.service_routes || []) {
-      const row = node("tr"), label = node("th", "", route.label.toUpperCase()); label.scope = "row";
+      const row = node("tr"), label = uiNode("th", "", route.label.toUpperCase()); label.scope = "row";
       const value = node("td"), editor = node("textarea"), problem = node("small", "penetration-field-error");
       editor.rows = 2; editor.maxLength = 10000; editor.value = (routes[route.key] || []).join("; ");
-      editor.dataset.penetrationServiceRoute = route.key; editor.setAttribute("aria-label", `${route.label} service types`);
+      editor.dataset.penetrationServiceRoute = route.key; uiAttr(editor, "aria-label", "{0} service types", [() => window.CeasefireI18n?.translate(route.label) || route.label]);
       const name = `service_routes.${route.key}`;
       editor.addEventListener("input", () => {
         if (state.takeoffLease) return;
@@ -607,7 +632,7 @@
     return { value: number };
   }
   function renderLabourBands() {
-    const section = node("section", "penetration-settings-section"), heading = node("h4", "penetration-settings-subheading", "PRECALCULATED TASK-HOUR BANDS");
+    const section = node("section", "penetration-settings-section"), heading = uiNode("h4", "penetration-settings-subheading", "PRECALCULATED TASK-HOUR BANDS");
     section.append(heading);
     for (const definition of state.definition.settings?.labour_bands || []) {
       const rows = state.schedule.draft.globals.labour_bands?.[definition.key] || [], details = node("details", "penetration-band-settings");
@@ -617,17 +642,17 @@
         if (details.open) state.openSettingsBand = definition.key;
         else if (state.openSettingsBand === definition.key) state.openSettingsBand = null;
       });
-      const summary = node("summary"); summary.append(node("strong", "", definition.label), node("span", "status-label", `${rows.length} ${rows.length === 1 ? "band" : "bands"}`)); details.append(summary);
+      const summary = node("summary"); summary.append(uiNode("strong", "", definition.label), uiNode("span", "status-label", "{0} bands", [rows.length])); details.append(summary);
       const context = node("p", "helper", `${definition.basis}. ${definition.overflow === "manual" ? "Values above the final band require manual Pipe Labour hours." : "Values above the final band use its hours."}`); details.append(context);
       const scroll = node("div", "table-scroll"), table = node("table", "penetration-settings-table penetration-band-table"), head = node("thead"), header = node("tr");
-      for (const label of [`Up to (${definition.units})`, "Hours", "Action"]) { const cell = node("th", "", label); cell.scope = "col"; header.append(cell); }
+      for (const label of [`Up to (${definition.units})`, "Hours", "Action"]) { const cell = uiNode("th", "", label); cell.scope = "col"; header.append(cell); }
       head.append(header); table.append(head); const body = node("tbody");
       rows.forEach((band, index) => {
         const row = node("tr");
         for (const property of ["maximum", "hours"]) {
           const cell = node("td"), control = node("input"), problem = node("small", "penetration-field-error"), name = `labour_bands.${definition.key}.${index}.${property}`;
           control.type = "number"; control.step = "any"; control.inputMode = "decimal"; control.value = String(band[property]); control.dataset.penetrationBand = name;
-          control.setAttribute("aria-label", `${definition.label} band ${index + 1} ${property === "maximum" ? `maximum ${definition.units}` : "hours"}`);
+          uiAttr(control, "aria-label", "{0} band {1} {2}", [definition.label, index + 1, property === "maximum" ? `maximum ${definition.units}` : "hours"]);
           control.addEventListener("input", () => {
       if (state.takeoffLease) return;
             const parsed = bandNumber(control.value, 0, property === "maximum" ? "band maximum" : "hours", property === "maximum");
@@ -644,14 +669,14 @@
           problem.hidden = true; cell.append(control, problem); row.append(cell);
         }
         const action = node("td"), remove = node("button", "button secondary icon-only penetration-band-remove"); remove.type = "button"; remove.disabled = rows.length === 1;
-        remove.title = `Remove ${definition.label} band ${index + 1}`; remove.setAttribute("aria-label", remove.title); const icon = node("span", "button-symbol", "🗑"); icon.setAttribute("aria-hidden", "true"); remove.append(icon); remove.addEventListener("click", () => {
+        uiAttr(remove, "title", "Remove {0} band {1}", [definition.label, index + 1]); uiAttr(remove, "aria-label", "Remove {0} band {1}", [() => window.CeasefireI18n?.translate(definition.label) || definition.label, index + 1]); const icon = node("span", "button-symbol", "🗑"); icon.setAttribute("aria-hidden", "true"); remove.append(icon); remove.addEventListener("click", () => {
           const bands = clone(state.schedule.draft.globals.labour_bands); if (bands[definition.key].length === 1) return;
           bands[definition.key].splice(index, 1); clearStructuredProblems(`labour_bands.${definition.key}.`); state.openSettingsBand = definition.key; updateStructuredSetting("labour_bands", bands); renderFields();
         });
         action.append(remove); row.append(action); body.append(row);
       });
       table.append(body); scroll.append(table); details.append(scroll);
-      const add = node("button", "button secondary penetration-add-band", "+ Add band"); add.type = "button"; add.addEventListener("click", () => {
+      const add = uiNode("button", "button secondary penetration-add-band", "+ Add band"); add.type = "button"; add.addEventListener("click", () => {
         const bands = clone(state.schedule.draft.globals.labour_bands), current = bands[definition.key], last = current.at(-1), previous = current.at(-2);
         const increment = previous ? last.maximum - previous.maximum : Math.max(last.maximum * .1, 1);
         if (!(increment > 0) || last.maximum + increment > 1e12) return;
@@ -662,16 +687,16 @@
     return section;
   }
   function renderSettings(fields) {
-    const root = node("div", "penetration-settings"), intro = node("p", "message info", "These project settings are shared by the current item and the Firestopping Schedule. Calculations retain the source workbook formulas unless you change a band table.");
+    const root = node("div", "penetration-settings"), intro = uiNode("p", "message info", "These project settings are shared by the current item and the Firestopping Schedule. Calculations retain the source workbook formulas unless you change a band table.");
     const scroll = node("div", "table-scroll"), table = node("table", "penetration-settings-table"), head = node("thead"), header = node("tr");
-    for (const label of ["Setting", "Applies to", "Value"]) { const cell = node("th", "", label); cell.scope = "col"; header.append(cell); }
+    for (const label of ["Setting", "Applies to", "Value"]) { const cell = uiNode("th", "", label); cell.scope = "col"; header.append(cell); }
     head.append(header); table.append(head);
     for (const category of ["Labour allowances", "Pipe labour", "Material waste"]) {
       const matching = fields.filter(field => settingCategory(field) === category); if (!matching.length) continue;
-      const body = node("tbody"), groupRow = node("tr", "settings-group-heading"), groupCell = node("th", "", category); groupCell.scope = "rowgroup"; groupCell.colSpan = 3; groupRow.append(groupCell); body.append(groupRow);
+      const body = node("tbody"), groupRow = node("tr", "settings-group-heading"), groupCell = uiNode("th", "", category); groupCell.scope = "rowgroup"; groupCell.colSpan = 3; groupRow.append(groupCell); body.append(groupRow);
       for (const field of matching) {
-        const row = node("tr"), label = node("th", "", fieldLabel(field) + (field.units ? ` (${field.units})` : field.format === "percent" ? " (%)" : "")); label.scope = "row";
-        const context = node("td", "", settingContext(field)), value = node("td", "penetration-settings-control"); value.append(makeControl(field, null, false, state.schedule)); row.append(label, context, value); body.append(row);
+        const row = node("tr"), label = uiNode("th", "", "{0}{1}", [() => window.CeasefireI18n?.translate(fieldLabel(field)) || fieldLabel(field), field.units ? ` (${field.units})` : field.format === "percent" ? " (%)" : ""]); label.scope = "row";
+        const context = uiNode("td", "", settingContext(field)), value = node("td", "penetration-settings-control"); value.append(makeControl(field, null, false, state.schedule)); row.append(label, context, value); body.append(row);
       }
       table.append(body);
     }
@@ -682,14 +707,14 @@
     const row = selected(), groups = visibleGroups(row.inputs);
     if (!groups.includes(state.group)) state.group = groups[0];
     const buttons = groups.filter(group => group !== "SETTINGS").map(group => {
-      const button = node("button", "penetration-group", state.definition.group_labels?.[group] || group); button.type = "button"; button.dataset.penetrationGroup = group;
+      const button = uiNode("button", "penetration-group", state.definition.group_labels?.[group] || group); button.type = "button"; button.dataset.penetrationGroup = group;
       button.setAttribute("role", "tab"); button.setAttribute("aria-selected", String(group === state.group));
       button.addEventListener("click", () => selectGroup(group)); return button;
     });
     $("penetration-input-groups").replaceChildren(...buttons);
     $("penetration-settings").setAttribute("aria-pressed", String(state.group === "SETTINGS"));
     const identity = [row.inputs.J, row.inputs.K].filter(value => value !== null && value !== undefined && String(value).trim()).join(" · ");
-    $("penetration-row-heading").textContent = `${state.edit ? "Editing schedule item" : "Current item"} · ${identity || "Item details"}`;
+    uiText($("penetration-row-heading"), state.edit ? "Editing schedule item · {0}" : "Current item · {0}", [identity || (() => window.CeasefireI18n?.translate("Item details") || "Item details")]);
     const settings = state.group === "SETTINGS";
     const quantityField = state.definition.row_fields.find(field => field.column === "O"), quantity = $("penetration-item-quantity");
     quantity.hidden = !quantityField;
@@ -718,7 +743,7 @@
       const rowId = control.dataset.penetrationRow || null, key = keyFor(rowId, control.dataset.penetrationField);
       const scope = control.dataset.penetrationScope === "schedule" ? state.schedule : state;
       const pending = scope.invalid.get(key), problem = control.parentNode.children[2];
-      control.setAttribute("aria-invalid", String(!!pending)); problem.textContent = pending?.error || ""; problem.hidden = !pending;
+      control.setAttribute("aria-invalid", String(!!pending)); uiText(problem, pending?.error || ""); problem.hidden = !pending;
       control.refreshAutomatic?.();
       if (control === document.activeElement) continue;
       const field = (rowId === null ? state.definition.global_fields : state.definition.row_fields).find(field => field.column === control.dataset.penetrationField);
@@ -835,9 +860,9 @@
           state.diagramChange = undefined; state.diagramRead++; state.diagramVersion++; diagramVersions.set(record.id, (diagramVersions.get(record.id) || 0) + 1);
           state.revision++; state.libraryCapture = null; renderDiagram(); status();
         }
-        message(`${record.library_id} ${record.created === false ? "is already in" : "was added to"} the Firestopping Library at ${display(record.price.amount, "currency")}.${later ? " It contains the inputs captured when you clicked Add to Library; later edits are not included." : ""}`);
+        message("{0} {1} the Firestopping Library at {2}.{3}", false, state, true, [record.library_id, record.created === false ? "is already in" : "was added to", display(record.price.amount, "currency"), later ? " It contains the inputs captured when you clicked Add to Library; later edits are not included." : ""]);
       }
-    } catch (error) { if (context === state.context) message(`Add to Library was not confirmed. ${error.message}`, true); }
+    } catch (error) { if (context === state.context) message("Add to Library was not confirmed. {0}", true, state, true, [() => window.CeasefireI18n?.translate(error.message) || error.message]); }
     finally { state.creatingLibrary = false; renderDiagram(); status(); }
   }
   function appendSchedule(inputs, libraryId) {
@@ -1030,20 +1055,20 @@
         diagramCell.dataset.libraryDiagram = diagramStamp;
         if (diagramId) {
           const image = node("img"); image.src = `/api/libraries/penetration/${encodeURIComponent(diagramId)}/thumbnail${diagramVersion ? `?v=${diagramVersion}` : ""}`; image.alt = `${row.inputs.T || row.inputs.K || "Firestopping item"} source diagram`; image.loading = "lazy"; image.decoding = "async";
-          image.addEventListener("error", () => { if (diagramCell.dataset.libraryDiagram === diagramStamp) diagramCell.replaceChildren(node("span", "helper", "No diagram")); });
+          image.addEventListener("error", () => { if (diagramCell.dataset.libraryDiagram === diagramStamp) diagramCell.replaceChildren(uiNode("span", "helper", "No diagram")); });
           diagramCell.replaceChildren(image);
         } else diagramCell.replaceChildren(node("span", "helper", "—"));
       }
       const values = [line, window.CeasefirePenetrationPresentation.serviceLabel(row.inputs.K) || "—", window.CeasefirePenetrationPresentation.serviceSize(row.inputs), row.inputs.L || "—", row.inputs.M || "—", row.inputs.N || "—", null, display(result?.outputs.H, "currency"), null];
       values.forEach((value, column) => { if (column !== 6 && column !== 8) tr.children[column].textContent = String(value); });
       if (!quantityField) tr.children[6].textContent = display(row.inputs.O);
-      for (const control of tr.children[6].querySelectorAll("[data-penetration-field]")) control.setAttribute("aria-label", `Item ${line}: ${fieldLabel(quantityField)}`);
-      const actions = node("td", "penetration-item-actions"), edit = node("button", "button secondary", "Edit"); edit.type = "button"; edit.setAttribute("aria-label", `Edit firestopping item ${line}`); edit.addEventListener("click", () => selectRow(row.id));
+      for (const control of tr.children[6].querySelectorAll("[data-penetration-field]")) uiAttr(control, "aria-label", "Item {0}: {1}", [line, fieldLabel(quantityField)]);
+      const actions = node("td", "penetration-item-actions"), edit = uiNode("button", "button secondary", "Edit"); edit.type = "button"; uiAttr(edit, "aria-label", "Edit firestopping item {0}", [line]); edit.addEventListener("click", () => selectRow(row.id));
       const remove = node("button", "button secondary penetration-remove"), icon = node("span"); icon.setAttribute("aria-hidden", "true");
       icon.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="M3 6h18M9 6V4h6v2M5 6l1 14h12l1-14M10 10v6M14 10v6"/></svg>';
       const deletion = node("td", "penetration-item-actions penetration-item-delete");
       const deleteContext = state.context, deleteEpoch = state.rowEpochs.get(row.id), deleteRow = rowStamp(row);
-      remove.append(icon); remove.type = "button"; remove.dataset.penetrationRemove = row.id; remove.title = `Delete item ${line}`; remove.setAttribute("aria-label", `Delete firestopping item ${line}`); remove.disabled = !!state.takeoffLease || state.schedule.invalid.size > 0 || state.pendingDeletes.has(row.id); remove.setAttribute("aria-busy", String(state.pendingDeletes.has(row.id))); remove.addEventListener("click", () => requestRemoveRow(row.id, deleteContext, deleteEpoch, deleteRow));
+      remove.append(icon); remove.type = "button"; remove.dataset.penetrationRemove = row.id; uiAttr(remove, "title", "Delete item {0}", [line]); uiAttr(remove, "aria-label", "Delete firestopping item {0}", [line]); remove.disabled = !!state.takeoffLease || state.schedule.invalid.size > 0 || state.pendingDeletes.has(row.id); remove.setAttribute("aria-busy", String(state.pendingDeletes.has(row.id))); remove.addEventListener("click", () => requestRemoveRow(row.id, deleteContext, deleteEpoch, deleteRow));
       actions.append(edit); deletion.append(remove);
       if (tr.children[9]) tr.children[9].replaceChildren(edit); else tr.append(actions);
       if (tr.children[10]) tr.children[10].replaceChildren(remove); else tr.append(deletion);
@@ -1054,12 +1079,13 @@
     if (rows.length !== previous.length || rows.some((row, index) => row !== previous[index])) body.replaceChildren(...rows);
   }
   function renderScheduleCount(countId) {
-    const count = $(countId); count.replaceChildren(node("span", "", `${state.schedule.draft.rows.length} ${state.schedule.draft.rows.length === 1 ? "item" : "items"} · Capacity ${state.definition.capacity}`));
+    const quantity = state.schedule.draft.rows.length;
+    const count = $(countId); count.replaceChildren(uiNode("span", "", "{0} {1} · Capacity {2}", [quantity, () => window.CeasefireI18n?.translate(quantity === 1 ? "item" : "items") || (quantity === 1 ? "item" : "items"), state.definition.capacity]));
     if (state.schedule.draft.rows.length > pageSize) {
-      const previous = node("button", "button secondary", "Previous rows"), next = node("button", "button secondary", "Next rows"); previous.type = next.type = "button";
+      const previous = uiNode("button", "button secondary", "Previous rows"), next = uiNode("button", "button secondary", "Next rows"); previous.type = next.type = "button";
       previous.disabled = state.page === 0; next.disabled = (state.page + 1) * pageSize >= state.schedule.draft.rows.length;
       previous.addEventListener("click", () => { state.page--; renderSchedule(); }); next.addEventListener("click", () => { state.page++; renderSchedule(); });
-      count.append(previous, node("span", "", `Showing ${state.page * pageSize + 1}–${Math.min((state.page + 1) * pageSize, state.schedule.draft.rows.length)} · All rows calculated`), next);
+      count.append(previous, uiNode("span", "", "Showing {0}–{1} · All rows calculated", [state.page * pageSize + 1, Math.min((state.page + 1) * pageSize, state.schedule.draft.rows.length)]), next);
     }
   }
   function renderSchedule() {
@@ -1096,11 +1122,10 @@
     }
     $(`${prefix}-summary`).replaceChildren(...Object.entries(labels).map(([key, label]) => {
       const value = scope.result?.summary?.[key], invalid = typeof value === "string" && value.startsWith("#");
-      const line = node("div", key === "grand_total" ? "subtotal" : ""); line.append(node("dt", "", label), node("dd", "", invalid ? "Review required inputs below" : display(value, ["total_days", "labour_hours"].includes(key) ? "number" : "currency"))); return line;
+      const line = node("div", key === "grand_total" ? "subtotal" : ""); line.append(uiNode("dt", "", label), invalid ? uiNode("dd", "", "Review required inputs below") : node("dd", "", display(value, ["total_days", "labour_hours"].includes(key) ? "number" : "currency"))); return line;
     }));
-    $(`${prefix}-summary-notes`).textContent = errors.length
-      ? issues.join("\n")
-      : scope === state ? "Current item only. Add it to the schedule to include it in the quote." : "Totals include every schedule item and are included once in the quote.";
+    if (errors.length) $(`${prefix}-summary-notes`).textContent = issues.join("\n");
+    else uiText($(`${prefix}-summary-notes`), scope === state ? "Current item only. Add it to the schedule to include it in the quote." : "Totals include every schedule item and are included once in the quote.");
   }
   function renderBreakdown(scope = state) {
     if (scope === state.schedule) $("penetration-schedule-breakdown").replaceChildren(window.CeasefirePenetrationBreakdown.renderSchedule(state.definition, scope.result));
@@ -1158,7 +1183,7 @@
     state.loading = true;
     try { await initialize(); render(); await calculate(scope); }
     catch (error) {
-      $("penetration-loading").textContent = "The firestopping workspace could not be loaded. Reopen it to try again.";
+      uiText($("penetration-loading"), "The firestopping workspace could not be loaded. Reopen it to try again.");
       if (scope === state.schedule) { $("penetration-schedule-workspace").hidden = false; $("penetration-schedule-breakdown-card").hidden = false; }
       message(error.message, true, scope);
     }
@@ -1177,8 +1202,8 @@
       state.downloading = true; state.downloadKind = kind; status();
       const saved = await window.CeasefireDownloads.save(`/api/penetration/${kind === "pdf" ? "report.pdf" : "register.xlsx"}`, { draft: snapshot.draft, configuration: pricing, project_details: details }, { button });
       const changed = captured !== projectFingerprint() || pricingKey !== configStamp() || JSON.stringify(details) !== JSON.stringify(window.CeasefireProject?.details?.() || {});
-      message(`File saved to ${saved.path}.${changed ? " It uses the inputs and prices captured when you clicked Download; later changes are not included." : ""}`, false, state.schedule);
-    } catch (error) { message(`The schedule file was not saved. ${error.message}`, true, state.schedule); }
+      message("File saved to {0}.{1}", false, state.schedule, true, [saved.path, changed ? " It uses the inputs and prices captured when you clicked Download; later changes are not included." : ""]);
+    } catch (error) { message("The schedule file was not saved. {0}", true, state.schedule, true, [() => window.CeasefireI18n?.translate(error.message) || error.message]); }
     finally { state.downloading = false; state.downloadKind = null; status(); }
   }
   async function downloadItem(kind, button = $(kind === "pdf" ? "penetration-item-pdf" : "penetration-item-excel")) {
@@ -1196,8 +1221,8 @@
       const saved = await window.CeasefireDownloads.save(`/api/penetration/item.${kind}`, payload, { button });
       const current = { item: selected(), globals: state.draft?.globals, configuration: configuration(),
         ...(state.diagramChange === undefined ? {} : { diagram: state.diagramChange }) };
-      message(`File saved to ${saved.path}.${captured !== stable(current) ? " It uses the item, source diagram and prices captured when you clicked Download; later changes are not included." : ""}`);
-    } catch (error) { message(`The current item file was not saved. ${error.message}`, true); }
+      message("File saved to {0}.{1}", false, state, true, [saved.path, captured !== stable(current) ? " It uses the item, source diagram and prices captured when you clicked Download; later changes are not included." : ""]);
+    } catch (error) { message("The current item file was not saved. {0}", true, state, true, [() => window.CeasefireI18n?.translate(error.message) || error.message]); }
     finally { state.downloading = false; state.downloadKind = null; status(); }
   }
   for (const id of ["penetration-add", "penetration-estimator-add"]) $(id).addEventListener("click", addRow);

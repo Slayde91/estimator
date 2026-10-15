@@ -4,6 +4,8 @@
 // markup behaviour outside the calibrated item/transfer model.
 window.CeasefireTakeoffGraphicsUI = function (host) {
   const { state, G, X, node, svg, button, clone, snapshot, documents, pageMetadata, currentDocument, pageDisplayKey, signatureMode, signatureInWorkspace, selectedSignature, selectedAnnotation, command, safely, message, renderSelection, renderOverlay, flushSettings, requireFinishedEdits, cancelTrace, setTool, ask, drawingPoint, drawingClickOpensSettings, bindSetting, appearanceField, currentVisibilityControl, renderPhysicalDetails, renderViewportPanel } = host;
+  const uiNode = (tag, className, source, args = []) => window.CeasefireI18n.nodeText(node(tag, className), source, args);
+  function uiButton(label, ...args) { const control = button(label, ...args); window.CeasefireI18n.attr(control, "aria-label", label); window.CeasefireI18n.attr(control, "title", label); const caption = control.querySelector?.(".sr-only"); if (caption) window.CeasefireI18n.text(caption, label); else if (!control.children.length) window.CeasefireI18n.text(control, label); return control; }
   const records = () => snapshot()?.graphics?.records || [];
   const selected = () => records().find(value => value.id === state.graphicSelected && signatureInWorkspace(value) && value.document_id === state.document && value.page === state.page);
   const key = () => JSON.stringify([pageDisplayKey(), signatureMode(), selected()?.id]);
@@ -73,8 +75,8 @@ window.CeasefireTakeoffGraphicsUI = function (host) {
       const [type,text,file]=controls, status=node("p","helper"); file.control.type="file";file.control.accept="image/png,image/jpeg"; text.control.maxLength=80; file.wrapper.append(status);
       const refresh=()=>{ const usingImage=type.control.value==="image"; text.wrapper.hidden=usingImage;file.wrapper.hidden=!usingImage;text.control.required=!usingImage;file.control.required=usingImage;ready(usingImage?!!image:!!text.control.value.trim()); };
       type.control.addEventListener("change",refresh);text.control.addEventListener("input",refresh);
-      file.control.addEventListener("change",()=>{ const generation=++imageGeneration;image=null;status.textContent="";refresh();const chosen=file.control.files?.[0];if(!chosen)return;status.textContent="Checking image…";
-        void X.stampImage(chosen).then(value=>{if(generation!==imageGeneration)return;image=value;status.textContent="Image ready.";refresh();}).catch(error=>{if(generation!==imageGeneration)return;image=null;status.textContent=error.message;refresh();}); });
+      file.control.addEventListener("change",()=>{ const generation=++imageGeneration;image=null;status.textContent="";refresh();const chosen=file.control.files?.[0];if(!chosen)return;window.CeasefireI18n.text(status, "Checking image…");
+        void X.stampImage(chosen).then(value=>{if(generation!==imageGeneration)return;image=value;window.CeasefireI18n.text(status, "Image ready.");refresh();}).catch(error=>{if(generation!==imageGeneration)return;image=null;status.textContent=error.message;refresh();}); });
       refresh();
     });
     if (!answer) return null;
@@ -135,7 +137,7 @@ window.CeasefireTakeoffGraphicsUI = function (host) {
         const refresh=()=>{try {ready(!!A.text(rich.read()).trim());status.textContent="";}catch(error){ready(false);status.textContent=error.message;}};
         const rich=A.richEditor({version:1,blocks:[{kind:"paragraph",runs:[{text:""}]}]},refresh,{label:"Textbox text",maxLength:4000});
         field.read=()=>{textContent=rich.read();const value=A.text(textContent);if(!value.trim())throw new Error("Enter nonblank markup text.");return value;};
-        wrapper.append(node("span","","Textbox text"),rich.wrap,status);field.wrapper.replaceWith(wrapper);refresh();rich.editor.focus();
+        wrapper.append(uiNode("span","", "Textbox text"),rich.wrap,status);field.wrapper.replaceWith(wrapper);refresh();rich.editor.focus();
       });
       if (!answer) { if(generation===stampGeneration && context===pageDisplayKey() && mode===signatureMode() && tool===state.tool)cancelTrace(); return; } text = answer.text;
     }
@@ -170,7 +172,7 @@ window.CeasefireTakeoffGraphicsUI = function (host) {
     if(prior?.kind === "graphic" && prior.key === selectionKey && (state.settingsDirty || prior.applying || prior.revision === state.session.revision)) { prior.visibility.refresh(); return; }
     if(prior) clearTimeout(prior.timer);
     const editor = {kind:"graphic", key:selectionKey, sessionId:state.session.session_id, revision:state.session.revision, id:value.id, touched:new Map(), appearance:[]}; state.settingsEditor=editor;
-    const heading=node("div","takeoff-viewports-heading"), controls=node("div","takeoff-settings-fields"); heading.append(button("Close settings",host.toggleSettings),node("h3","",`${X.labels[value.kind]} Settings`)); panel.replaceChildren(heading,controls);
+    const heading=node("div","takeoff-viewports-heading"), controls=node("div","takeoff-settings-fields"); heading.append(uiButton("Close settings",host.toggleSettings),uiNode("h3","", "{0} Settings", [window.CeasefireI18n.term(X.labels[value.kind])])); panel.replaceChildren(heading,controls);
     const textAppearance = ["textbox","stamp"].includes(value.kind) && !value.stamp_image;
     const definitions = [["stroke_enabled","Line Enabled","checkbox"],["stroke_color","Line Colour","color"],["stroke_width","Line Width","number"],["fill_color","Fill Colour","color"],["fill_enabled","Fill Enabled","checkbox"],...(textAppearance ? [["font_color","Font Colour","color"],["font_size","Font Size","number"]] : []),["opacity","Opacity","number"]];
     for(const def of definitions) { const field=def[0] === "font_size" ? host.formField(def,value.appearance[def[0]]) : appearanceField(def,value.appearance[def[0]]); if(def[0] === "font_size") {field.control.min="4";field.control.max="144";} editor.appearance.push(field); bindSetting(editor,field,`appearance:${def[0]}`); }
@@ -178,13 +180,13 @@ window.CeasefireTakeoffGraphicsUI = function (host) {
     if(value.kind === "textbox") {
       const A=window.CeasefireTakeoffAnnotations, wrapper=node("div","field takeoff-graphic-text"), content=value.text_content || {version:1,blocks:[{kind:"paragraph",runs:[{text:value.text}]}]};
       editor.rich=A.richEditor(content,()=>host.markSettingsEdited(editor,"text"),{label:"Textbox text",maxLength:4000});
-      wrapper.append(node("span","","Textbox text"),editor.rich.wrap); controls.append(wrapper);
-    } else if(value.kind === "stamp" && !value.stamp_image) { const wrapper=node("label","field takeoff-graphic-text"), control=node("input"); control.name="text";control.value=value.text;control.maxLength=80;control.required=true;control.setAttribute("aria-label","Stamp text");wrapper.append(node("span","","Stamp text"),control);editor.text={control,read:()=>{if(!control.value.trim()) throw new Error("Enter nonblank markup text.");return control.value;}};bindSetting(editor,editor.text,"text");controls.append(wrapper); }
-    else if(value.stamp_image) controls.append(node("p","helper",`Stamp image: ${value.stamp_image.width} × ${value.stamp_image.height} pixels.`));
+      wrapper.append(uiNode("span","", "Textbox text"),editor.rich.wrap); controls.append(wrapper);
+    } else if(value.kind === "stamp" && !value.stamp_image) { const wrapper=node("label","field takeoff-graphic-text"), control=node("input"); control.name="text";control.value=value.text;control.maxLength=80;control.required=true;window.CeasefireI18n.attr(control, "aria-label", "Stamp text");wrapper.append(uiNode("span","", "Stamp text"),control);editor.text={control,read:()=>{if(!control.value.trim()) throw new Error("Enter nonblank markup text.");return control.value;}};bindSetting(editor,editor.text,"text");controls.append(wrapper); }
+    else if(value.stamp_image) controls.append(uiNode("p","helper", "Stamp image: {0} × {1} pixels.", [value.stamp_image.width, value.stamp_image.height]));
     if(value.kind === "count") {
       const actions=node("div","actions takeoff-appearance-actions"), count=value.geometry.points.length;
-      actions.append(button("Edit marker length", () => editCount(false)), button("Remove marker", () => editCount(true)));
-      controls.append(node("p", "helper", `${count} ${count===1 ? "marker" : "markers"} · ${host.formatLength(value.geometry.lengths_m.reduce((sum, length) => sum + length, 0))} m total manual length`),actions);
+      actions.append(uiButton("Edit marker length", () => editCount(false)), uiButton("Remove marker", () => editCount(true)));
+      controls.append(uiNode("p", "helper", "{0} {1} · {2} m total manual length", [count, count===1 ? "marker" : "markers", host.formatLength(value.geometry.lengths_m.reduce((sum, length) => sum + length, 0))]),actions);
     }
     if(["measure","area"].includes(value.kind)) {
       const result=measureResult(value), definitions=value.kind === "area" ? [["gross_area_m2","Gross area (m²)"],["excluded_area_m2","Excluded area (m²)"],["net_area_m2","Area (m²)"]] : [["length_m","Length (m)"]];
@@ -192,16 +194,16 @@ window.CeasefireTakeoffGraphicsUI = function (host) {
       const options=currentCalibrations().filter(entry=>value.kind!=="area" || entry.uniform_scale===true).map(entry=>[entry.id,entry.name]);
       if(!options.some(([id])=>id===value.calibration_id))options.push([value.calibration_id,"Retained calibration — choose a current scale"]);
       editor.calibration=host.formField(["calibration_id","Drawing calibration",options],value.calibration_id); bindSetting(editor,editor.calibration,"calibration_id");controls.append(editor.calibration.wrapper);
-      if(result?.status!=="current")controls.append(node("p","takeoff-warning",`Choose a current drawing calibration to review this ${X.labels[value.kind]}.`));
+      if(result?.status!=="current")controls.append(uiNode("p","takeoff-warning", "Choose a current drawing calibration to review this {0}.", [window.CeasefireI18n.term(X.labels[value.kind])]));
       if(value.kind==="area") {
-        const section=node("section","takeoff-settings-tools"), add=button("Area exclusion",activateExclusion);
+        const section=node("section","takeoff-settings-tools"), add=uiButton("Area exclusion",activateExclusion);
         add.disabled=result?.status!=="current" || result.version!==value.version || value.geometry.exclusions.length>=64 || areaVertexCount(value.geometry)>=998;section.append(add);
-        value.geometry.exclusions.forEach((hole,index)=>{const row=node("section","takeoff-area-exclusion");row.append(node("h4","",`Exclusion ${index+1}`),node("p","helper",hole.note),button("Edit exclusion note",()=>editExclusion(hole.id)),button("Remove exclusion",()=>editExclusion(hole.id,true)));section.append(row);});controls.append(section);
+        value.geometry.exclusions.forEach((hole,index)=>{const row=node("section","takeoff-area-exclusion");row.append(uiNode("h4","", "Exclusion {0}", [index+1]),node("p","helper",hole.note),uiButton("Edit exclusion note",()=>editExclusion(hole.id)),uiButton("Remove exclusion",()=>editExclusion(hole.id,true)));section.append(row);});controls.append(section);
       }
     }
-    const actions=node("div","actions takeoff-appearance-actions"), removeButton=button("Delete markup",remove); removeButton.classList.add("takeoff-markup-delete");removeButton.title="Delete markup";removeButton.setAttribute("aria-label","Delete markup");
+    const actions=node("div","actions takeoff-appearance-actions"), removeButton=uiButton("Delete markup",remove); removeButton.classList.add("takeoff-markup-delete");window.CeasefireI18n.attr(removeButton, "title", "Delete markup");window.CeasefireI18n.attr(removeButton, "aria-label", "Delete markup");
     const trash=svg("svg",{viewBox:"0 0 24 24",width:20,height:20,fill:"none",stroke:"currentColor","stroke-width":1.8,"stroke-linecap":"round","stroke-linejoin":"round","aria-hidden":"true"});trash.append(svg("path",{d:"M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"}));removeButton.replaceChildren(trash);
-    editor.visibility=currentVisibilityControl("graphic",value.id);actions.append(editor.visibility,removeButton);controls.append(actions,node("p","helper","PDF drawing mark only."));
+    editor.visibility=currentVisibilityControl("graphic",value.id);actions.append(editor.visibility,removeButton);controls.append(actions,uiNode("p","helper", "PDF drawing mark only."));
   }
   async function editExclusion(id, removeHole=false) {
     const area=selected(), selectionKey=key(), revision=state.session?.revision, version=area?.version;
@@ -319,8 +321,8 @@ window.CeasefireTakeoffGraphicsUI = function (host) {
     const target=measurePointTarget();
     if(target && measureControl.menu) {
       const ring=controlRing(target),point=transform(ring[measureControl.index]), box=svg("foreignObject",{x:Math.max(0,Math.min(point[0]+8,(state.viewport.width||600)-220)),y:Math.max(0,Math.min(point[1]+8,(state.viewport.height||800)-105)),width:210,height:100});
-      const menu=node("div","takeoff-control-menu");menu.setAttribute("role","menu");menu.setAttribute("aria-label",`${X.labels[target.kind]} control point actions`);
-      const removePoint=button("Delete control point",()=>editMeasurePoint()),insertPoint=button("Insert midpoint",()=>editMeasurePoint(true));
+      const menu=node("div","takeoff-control-menu");menu.setAttribute("role","menu");window.CeasefireI18n.attr(menu, "aria-label", "{0} control point actions", [window.CeasefireI18n.term(X.labels[target.kind])]);
+      const removePoint=uiButton("Delete control point",()=>editMeasurePoint()),insertPoint=uiButton("Insert midpoint",()=>editMeasurePoint(true));
       removePoint.disabled=ring.length<=(target.kind==="area" ? 3 : 2);insertPoint.disabled=(target.kind==="area" ? areaVertexCount(target.geometry)>=1000 : ring.length>=1000 || measureControl.index>=ring.length-1);
       for(const control of [removePoint,insertPoint])control.setAttribute("role","menuitem");
       menu.append(removePoint,insertPoint);box.append(menu);overlay.append(box);

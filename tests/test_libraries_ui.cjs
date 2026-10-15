@@ -44,6 +44,16 @@ function harness(){
 let passed=0;
 async function check(name,fn){await fn(harness());passed++;console.log('ok - '+name);}
 (async()=>{
+  await check('Localized library chrome preserves source facet and manufacturer names matching catalog keys',async h=>{
+    const localized=(source,args=[])=>'translated:'+String(source).replace(/\{(\d+)\}/g,(match,index)=>index<args.length?String(typeof args[index]==='function'?args[index]():args[index]):match);
+    h.context.window.CeasefireI18n={text(element,source,args){element.textContent=localized(source,args);return element;},attr(element,name,source,args){element.setAttribute(name,localized(source,args));return element;},translate:localized};
+    const names=['Board','Primer','Home'];
+    h.setRoute(path=>path==='/api/libraries'?meta():{...records('penetration'),filters:[{key:'manufacturer',label:'Manufacturer',options:names.map(name=>({value:name,label:name}))}],counts:{total:3,manufacturers:names.map(name=>({name,count:1})),unlinked:0}});
+    await h.api.open('penetration');const pane=h.pane('penetration'),control=pane.filterControls.children[0].children[1];
+    assert.deepEqual(control.children.slice(1).map(option=>option.textContent),names);assert.deepEqual(control.children.slice(1).map(option=>option.value),names);
+    const manufacturers=walk(pane.summary).filter(node=>node.className==='library-summary-manufacturer');assert.deepEqual(manufacturers.map(row=>row.children[0].textContent),names);
+    assert.match(pane.summary.children[0].children[2].children[0].children[0].textContent,/^translated:/);
+  });
   await check('Project library drafts remain accessible when the shared source library is unavailable',async h=>{
     const opened=[];let records=[{id:'orphan-record',title:'Saved project copy',library_id:'PROJECT-1'}];
     h.context.window.CeasefireLibraryEditor={projectRecords:()=>records,open:async id=>opened.push(id)};

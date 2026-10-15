@@ -1,3 +1,4 @@
+const englishI18n = require("./english_i18n_fixture.cjs");
 // Exact, destination-scoped thickness and async stale-result suppression.
 const fs = require('node:fs'), vm = require('node:vm'), assert = require('node:assert/strict');
 const copy = value => JSON.parse(JSON.stringify(value));
@@ -18,7 +19,7 @@ function harness() {
       calls.push({ url, body: JSON.parse(options.body) });
       return new Promise(resolve => pending.push(value => resolve({ ok: true, json: async () => value })));
     } };
-  vm.createContext(context);
+  if (context.window) context.window.CeasefireI18n = englishI18n(); vm.createContext(context);
   const source = fs.readFileSync('static/takeoffs.js', 'utf8').replace('  window.CeasefireTakeoffs = {', `  globalThis.audit = { state, linkedThicknessFor, registerFilterValue, visibleItems, scheduleLinkedThickness, calculatorDraftChanged, invalidateLinkedThickness, thicknessContext,
     cache:()=>linkedThickness, renderer:()=>{renderRegister=()=>{globalThis.renders=(globalThis.renders||0)+1;};} };
   window.CeasefireTakeoffs = {`);

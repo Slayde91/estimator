@@ -1,3 +1,4 @@
+const englishI18n = require("./english_i18n_fixture.cjs");
 // Exercise Steel and Duct register predicates and the shared checklist lifecycle.
 // Filters are presentation state: no takeoff commands, quantities or exports change.
 const fs = require('node:fs'), vm = require('node:vm'), assert = require('node:assert/strict');
@@ -18,7 +19,7 @@ function harness() {
   }
   const document = { body: element('body'), getElementById() { return null; }, createElement: element, createElementNS: (_, tag) => element(tag) };
   const context = { document, window: { innerWidth: 1146, innerHeight: 764 }, crypto: require('node:crypto'), console, setTimeout, clearTimeout };
-  vm.createContext(context);
+  if (context.window) context.window.CeasefireI18n = englishI18n(); vm.createContext(context);
   const source = fs.readFileSync('static/takeoffs.js', 'utf8').replace('  window.CeasefireTakeoffs = {', `  globalThis.audit = {state,visibleItems,selectedItems,itemGroup,groupedItems,registerFilters,registerFilterValue,registerColumnValues,setRegisterColumnFilter,openRegisterColumnFilter,registerColumnFilterButton,renderRegister,projectFingerprint,
     stubRenderers(){renderRegister=()=>{globalThis.registerRenders=(globalThis.registerRenders||0)+1;};renderOverlay=()=>{};}};
   window.CeasefireTakeoffs = {`);

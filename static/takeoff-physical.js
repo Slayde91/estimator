@@ -244,6 +244,9 @@
     function ensureEditable() { if (legacyReadOnly()) throw new Error("This legacy hierarchy is read-only until its relationships are assigned. Its original records and evidence remain available for inspection and export."); }
     const graphKey = () => `${scope()}/${state.snapshot?.project_id || ""}/${graph()?.id || "new"}/${graph()?.revision ?? -1}`;
     const node = (tag, className = "", text) => { const element = document.createElement(tag); if (className) element.className = className; if (text !== undefined) element.textContent = String(text); return element; };
+    const uiNode = (tag, className, source, args = []) => root.CeasefireI18n.nodeText(node(tag, className), source, args);
+    function uiButton(label, ...args) { const control = button(label, ...args); control.textContent = ""; return root.CeasefireI18n.nodeText(control, label); }
+    function uiMutationButton(label, ...args) { const control = mutationButton(label, ...args); control.textContent = ""; return root.CeasefireI18n.nodeText(control, label); }
     const choice = (value, label = value) => { const element = node("option", "", label); element.value = value; return element; };
     function report(error) { bridge.notify(error.message || String(error), true); }
     async function safe(action) { try { await action(); } catch (error) { if (!state.destroyed) report(error); } }
@@ -724,14 +727,14 @@
     }
     function renderBulkSelection() {
       const selected = selectEntries(), sameKind = selected.length > 0 && selected.every(entry => !entry.entity.deleted && entry.kind === selected[0].kind), current = ui.bulkField.value;
-      ui.bulk.hidden = !selected.length; ui.selection.textContent = `${selected.length} selected`;
+      ui.bulk.hidden = !selected.length; root.CeasefireI18n.text(ui.selection, "{0} selected", [selected.length]);
       ui.associate.hidden = !servicePlans() || legacyReadOnly(); ui.associate.dataset.locked = String(!canChooseLibrary(selected));
       const options = sameKind ? [...(selected[0].kind === "service" ? [["quantity", "Quantity"]] : []), ...fieldsFor(selected[0].kind, scope()).map(([key, label]) => [key, label])] : [];
       ui.bulkField.replaceChildren(...options.map(([key, label]) => choice(key, label)));
       ui.bulkField.value = options.some(([key]) => key === current) ? current : options[0]?.[0] || "";
       for (const control of [ui.bulkField, ui.bulkValue, ui.bulkApply]) control.dataset.locked = String(!sameKind);
-      ui.bulkField.setAttribute("aria-label", "Bulk physical edit field");
-      ui.bulkValue.title = sameKind ? "New value for every selected record; blank clears an optional property." : "Select active records of one entity type to edit a shared field.";
+      root.CeasefireI18n.attr(ui.bulkField, "aria-label", "Bulk physical edit field");
+      root.CeasefireI18n.attr(ui.bulkValue, "title", sameKind ? "New value for every selected record; blank clears an optional property." : "Select active records of one entity type to edit a shared field.");
       for (const control of [ui.bulkConfirm, ui.bulkUnconfirm]) control.dataset.locked = String(selected.some(entry => entry.entity.deleted) || selected.length > 100 || !selected.length);
     }
     async function confirmSelectedRecords(confirmation) {
@@ -840,7 +843,7 @@
       const type = fieldType(entry.kind, key), cell = node("td"), control = node(Array.isArray(type) ? "select" : "input"), value = key === "quantity" ? entry.entity.quantity : fieldDisplay(entry.entity.fields, key);
       if (Array.isArray(type)) { populateSelect(control, type, value); if (sharedOptionKeys.has(key)) bindSharedOptions(control, key); }
       else { control.type = type === "number" ? "number" : "text"; control.value = value ?? ""; if (control.type === "number") control.step = key === "quantity" ? "1" : "any"; }
-      control.setAttribute("aria-label", `${fieldsFor(entry.kind, scope()).find(definition => definition[0] === key)?.[1] || "Service quantity"} for ${entityName(entry)}`); control.placeholder = "Unknown"; track(control, value, entry, key);
+      root.CeasefireI18n.attr(control, "aria-label", "{0} for {1}", [fieldsFor(entry.kind, scope()).find(definition => definition[0] === key)?.[1] || "Service quantity", entityName(entry)]); root.CeasefireI18n.attr(control, "placeholder", "Unknown"); track(control, value, entry, key);
       state.pendingApply.set(control, () => editField(state.bindings.get(control).entry, key, control));
       if (key === "frl") cell.className += " takeoff-frl-cell";
       cell.append(control); return cell;
@@ -857,10 +860,10 @@
       if (state.filterDialog || !Object.hasOwn(filterColumns, key)) return;
       await completePendingEdits(); ensureAvailable();
       const identity = `${scope()}/${state.snapshot?.project_id || ""}/${graph()?.id || "new"}`, values = columnValues(key), selected = new Set(state.columnFilters.get(key) ?? values), label = filterColumns[key];
-      const dialog = node("dialog", "takeoff-column-filter"), heading = node("h2", "", `Filter ${label}`); heading.id = `takeoff-physical-filter-${root.crypto.randomUUID()}`; dialog.setAttribute("aria-labelledby", heading.id);
-      const search = node("input"); search.type = "search"; search.placeholder = "Search values…"; search.setAttribute("aria-label", `Search ${label} values`);
-      const allLabel = node("label", "takeoff-column-filter-choice"), all = node("input"); all.type = "checkbox"; all.setAttribute("aria-label", "Select all values"); allLabel.append(all, node("span", "", "Select all"));
-      const choices = node("div", "takeoff-column-filter-values"); choices.setAttribute("role", "group"); choices.setAttribute("aria-label", `${label} values`);
+      const dialog = node("dialog", "takeoff-column-filter"), heading = uiNode("h2", "", "Filter {0}", [label]); heading.id = `takeoff-physical-filter-${root.crypto.randomUUID()}`; dialog.setAttribute("aria-labelledby", heading.id);
+      const search = node("input"); search.type = "search"; root.CeasefireI18n.attr(search, "placeholder", "Search values…"); root.CeasefireI18n.attr(search, "aria-label", "Search {0} values", [label]);
+      const allLabel = node("label", "takeoff-column-filter-choice"), all = node("input"); all.type = "checkbox"; root.CeasefireI18n.attr(all, "aria-label", "Select all values"); allLabel.append(all, uiNode("span", "", "Select all"));
+      const choices = node("div", "takeoff-column-filter-values"); choices.setAttribute("role", "group"); root.CeasefireI18n.attr(choices, "aria-label", "{0} values", [label]);
       let matching = values;
       const updateAll = () => { const count = matching.filter(value => selected.has(value)).length; all.checked = !!matching.length && count === matching.length; all.indeterminate = count > 0 && count < matching.length; all.disabled = !matching.length; };
       const renderChoices = () => {
@@ -869,10 +872,10 @@
           const wrapper = node("label", "takeoff-column-filter-choice"), check = node("input"); check.type = "checkbox"; check.checked = selected.has(value); check.setAttribute("aria-label", value || "(Blanks)");
           check.addEventListener("change", () => { check.checked ? selected.add(value) : selected.delete(value); updateAll(); }); wrapper.append(check, node("span", "", value || "(Blanks)")); choices.append(wrapper);
         }
-        if (!matching.length) choices.append(node("p", "takeoff-column-filter-empty", "No matching values")); updateAll();
+        if (!matching.length) choices.append(uiNode("p", "takeoff-column-filter-empty", "No matching values")); updateAll();
       };
       search.addEventListener("input", renderChoices); all.addEventListener("change", () => { for (const value of matching) all.checked ? selected.add(value) : selected.delete(value); renderChoices(); });
-      const actions = node("div", "takeoff-column-filter-actions"); actions.append(button("Apply filter", () => dialog.close("apply"), "button primary"), button("Reset filter", () => dialog.close("reset")), button("Cancel", () => dialog.close("cancel"))); dialog.append(heading, search, allLabel, choices, actions); renderChoices();
+      const actions = node("div", "takeoff-column-filter-actions"); actions.append(uiButton("Apply filter", () => dialog.close("apply"), "button primary"), uiButton("Reset filter", () => dialog.close("reset")), uiButton("Cancel", () => dialog.close("cancel"))); dialog.append(heading, search, allLabel, choices, actions); renderChoices();
       state.filterDialog = dialog; anchor.setAttribute("aria-expanded", "true"); document.body.append(dialog);
       try {
         const result = await new Promise(resolve => {
@@ -887,21 +890,21 @@
     }
     function columnFilterButton(key) {
       const active = state.columnFilters.has(key), label = filterColumns[key], control = button(`Filter ${label}`, () => openColumnFilter(key, control), `takeoff-column-filter-button${active ? " active" : ""}`), icon = actionIcon(["M3 5h18l-7 8v6l-4 2v-8z"]);
-      icon.classList.add?.("takeoff-column-filter-icon"); icon.setAttribute("class", "takeoff-column-filter-icon"); icon.setAttribute("fill", active ? "currentColor" : "none"); icon.setAttribute("stroke", "currentColor"); icon.setAttribute("stroke-width", "1.8"); icon.setAttribute("stroke-linejoin", "round"); control.replaceChildren(icon); control.setAttribute("aria-label", `Filter ${label}`); control.setAttribute("aria-haspopup", "dialog"); control.setAttribute("aria-expanded", "false"); control.setAttribute("aria-pressed", String(active)); control.title = active ? `${label}: filter applied` : `Filter ${label}`; return control;
+      icon.classList.add?.("takeoff-column-filter-icon"); icon.setAttribute("class", "takeoff-column-filter-icon"); icon.setAttribute("fill", active ? "currentColor" : "none"); icon.setAttribute("stroke", "currentColor"); icon.setAttribute("stroke-width", "1.8"); icon.setAttribute("stroke-linejoin", "round"); control.replaceChildren(icon); root.CeasefireI18n.attr(control, "aria-label", "Filter {0}", [label]); control.setAttribute("aria-haspopup", "dialog"); control.setAttribute("aria-expanded", "false"); control.setAttribute("aria-pressed", String(active)); control.title = active ? `${label}: filter applied` : `Filter ${label}`; return control;
     }
     function renderTable() {
       const rows = hierarchyRows(graph(), state); state.offset = Math.max(0, Math.min(state.offset, Math.max(0, Math.floor((rows.length - 1) / 100) * 100)));
-      const page = hierarchyPage(rows, state.index, state.offset), table = node("table"), head = node("thead"), header = node("tr"), body = node("tbody"); table.setAttribute("aria-label", "Draft penetration hierarchy register");
+      const page = hierarchyPage(rows, state.index, state.offset), table = node("table"), head = node("thead"), header = node("tr"), body = node("tbody"); root.CeasefireI18n.attr(table, "aria-label", "Draft penetration hierarchy register");
       const legacy = legacyReadOnly(), rowKinds = legacy ? legacyKinds : servicePlans() ? ["barrier", "service"] : kinds;
       const headings = ["Select", "Hide", "View/Edit", ...(legacy ? ["Legacy hierarchy / label"] : []), ...rowKinds.map(kind => `${titles[kind]} ID`), "Confirmation", "Location", "FRL", ...(legacy ? ["Opening type", "Opening size"] : []), "Substrate", "Orientation", "Category", "Service type", "Service quantity", "Service Size (mm)", "Source evidence", "Delete"];
       for (const label of headings) {
-        const cell = node("th", "", label), filterKey = Object.keys(filterColumns).find(key => filterColumns[key] === label);
+        const cell = uiNode("th", "", label), filterKey = Object.keys(filterColumns).find(key => filterColumns[key] === label);
         if (filterKey) cell.append(columnFilterButton(filterKey));
         if (label === "Select") {
           const matches = matchingActiveRows(), selected = matches.filter(row => state.selected.has(row.entity.id)).length, selectAll = node("input");
           selectAll.type = "checkbox"; selectAll.checked = !!matches.length && selected === matches.length; selectAll.indeterminate = selected > 0 && selected < matches.length;
           selectAll.dataset.locked = String(!matches.length); selectAll.disabled = state.busy || !matches.length;
-          selectAll.setAttribute("aria-label", "Select all matching physical records"); selectAll.title = `Select all ${matches.length} matching active records across register pages`;
+          root.CeasefireI18n.attr(selectAll, "aria-label", "Select all matching physical records"); root.CeasefireI18n.attr(selectAll, "title", "Select all {0} matching active records across register pages", [matches.length]);
           selectAll.addEventListener("change", () => void safe(() => { try { ensureAvailable(); } catch (error) { selectAll.checked = !!matches.length && selected === matches.length; throw error; } for (const row of matches) selectAll.checked ? state.selected.add(row.entity.id) : state.selected.delete(row.entity.id); state.inspectedId = null; renderData(); })); cell.append(selectAll);
         }
         if (label === "Hide") {
@@ -909,22 +912,22 @@
           hideAll.type = "checkbox"; hideAll.checked = !!matches.length && count === matches.length; hideAll.indeterminate = count > 0 && count < matches.length;
           hideAll.disabled = state.busy || !matches.length; hideAll.dataset.locked = String(!matches.length);
           hideAll.dataset.physicalHideAll = "true";
-          hideAll.setAttribute("aria-label", "Hide all matching physical records"); hideAll.title = `Hide all ${matches.length} matching active records on drawing`;
+          root.CeasefireI18n.attr(hideAll, "aria-label", "Hide all matching physical records"); root.CeasefireI18n.attr(hideAll, "title", "Hide all {0} matching active records on drawing", [matches.length]);
           hideAll.addEventListener("change", () => void safe(() => { ensureAvailable(); for (const row of matches) hideAll.checked ? state.hidden.add(row.entity.id) : state.hidden.delete(row.entity.id); renderData(); })); cell.append(hideAll);
         }
         header.append(cell);
       }
       head.append(header); table.append(head, body);
       function disclosure(row) { const collapsed = state.collapsed.has(row.entity.id), control = button(collapsed ? ">" : "<", () => { ensureAvailable(); state.collapsed.has(row.entity.id) ? state.collapsed.delete(row.entity.id) : state.collapsed.add(row.entity.id); renderTable(); }, "text-button takeoff-physical-disclosure"); control.setAttribute("aria-label", `${collapsed ? "Expand" : "Collapse"} ${displayId(row)}`); control.setAttribute("aria-expanded", String(!collapsed)); return control; }
-      function contextNote(row, cell) { if (row.context) cell.append(node("small", "helper", row.continued ? " Parent context (continued)" : " Ancestor context")); }
+      function contextNote(row, cell) { if (row.context) cell.append(uiNode("small", "helper", row.continued ? " Parent context (continued)" : " Ancestor context")); }
       for (const row of page) {
         const { entity, kind } = row, line = node("tr", state.selected.has(entity.id) ? "selected" : ""); line.dataset.physicalId = entity.id; line.dataset.physicalKind = kind; line.addEventListener("pointerenter", () => hover(entity.id)); line.addEventListener("pointerleave", () => hover(null));
-        const checkbox = node("input"), selectCell = node("td"); checkbox.type = "checkbox"; checkbox.checked = state.selected.has(entity.id); checkbox.setAttribute("aria-label", `Select ${titles[kind]} ${entityName(row)}`); checkbox.addEventListener("change", () => void safe(() => selectEntity(entity.id, true))); selectCell.append(checkbox); line.append(selectCell);
-        const hideCell = node("td"), hide = node("input"); hide.type = "checkbox"; hide.checked = state.hidden.has(entity.id); hide.setAttribute("aria-label", `Hide ${titles[kind]} ${entityName(row)} on drawing`);
+        const checkbox = node("input"), selectCell = node("td"); checkbox.type = "checkbox"; checkbox.checked = state.selected.has(entity.id); root.CeasefireI18n.attr(checkbox, "aria-label", "Select {0} {1}", [root.CeasefireI18n.term(titles[kind]), entityName(row)]); checkbox.addEventListener("change", () => void safe(() => selectEntity(entity.id, true))); selectCell.append(checkbox); line.append(selectCell);
+        const hideCell = node("td"), hide = node("input"); hide.type = "checkbox"; hide.checked = state.hidden.has(entity.id); root.CeasefireI18n.attr(hide, "aria-label", "Hide {0} {1} on drawing", [root.CeasefireI18n.term(titles[kind]), entityName(row)]);
         hide.dataset.physicalHide = entity.id;
         hide.addEventListener("change", () => void safe(() => { ensureAvailable(); hide.checked ? state.hidden.add(entity.id) : state.hidden.delete(entity.id); renderData(); })); hideCell.append(hide); line.append(hideCell);
-        const viewCell = node("td", "takeoff-physical-view-edit"), view = button("View", () => viewEntity(entity.id), "text-button"), edit = button("Edit", () => editEntity(entity.id), "text-button");
-        view.title = `View ${displayId(row)} on its source drawing`; edit.title = `${legacy || entity.deleted ? "Inspect" : "Edit"} ${displayId(row)} in Item Details`; edit.setAttribute("aria-controls", "takeoff-physical-details"); viewCell.append(view, edit); line.append(viewCell);
+        const viewCell = node("td", "takeoff-physical-view-edit"), view = uiButton("View", () => viewEntity(entity.id), "text-button"), edit = uiButton("Edit", () => editEntity(entity.id), "text-button");
+        root.CeasefireI18n.attr(view, "title", "View {0} on its source drawing", [displayId(row)]); root.CeasefireI18n.attr(edit, "title", "{0} {1} in Item Details", [legacy || entity.deleted ? "Inspect" : "Edit", displayId(row)]); edit.setAttribute("aria-controls", "takeoff-physical-details"); viewCell.append(view, edit); line.append(viewCell);
         if (legacy) {
           const label = node("td"); if (row.hasChildren) label.append(disclosure(row));
           label.append(button(`${"↳ ".repeat(row.depth)}${titles[kind]}: ${entityName(row)}`, () => selectEntity(entity.id), "takeoff-row-link")); contextNote(row, label); line.append(label);
@@ -936,7 +939,7 @@
             cell.replaceChildren(); if (row.hasChildren) cell.append(disclosure(row));
             cell.append(button(displayId(row), () => selectEntity(entity.id), "takeoff-row-link"));
             if (entity.fields.label) cell.append(node("small", "takeoff-physical-row-label", entity.fields.label)); contextNote(row, cell);
-            if (kind === "barrier" && !state.servicesByBarrier.get(entity.id)?.length) cell.append(node("small", "helper", "0 services"));
+            if (kind === "barrier" && !state.servicesByBarrier.get(entity.id)?.length) cell.append(uiNode("small", "helper", "0 services"));
           }
           const childKind = !legacy && !entity.deleted && (kind === "defect" && relationKind === "barrier" ? "barrier" : kind === "barrier" && relationKind === "service" ? "service" : null);
           if (childKind) {
@@ -945,7 +948,7 @@
           }
           line.append(cell);
         }
-        const status = node("td"); status.append(node("span", `takeoff-state ${effectiveConfirmation(row, state.index)}`, confirmationLabel(confirmationOwner(row, state.index)?.entity))); if (entity.deleted || legacy) status.append(node("p", "helper", entity.deleted ? "Deleted draft" : "Legacy read-only")); status.title = "Manual record review only. Technical approval and schedule confirmation remain separate."; line.append(status);
+        const status = node("td"); status.append(uiNode("span", `takeoff-state ${effectiveConfirmation(row, state.index)}`, confirmationLabel(confirmationOwner(row, state.index)?.entity))); if (entity.deleted || legacy) status.append(uiNode("p", "helper", entity.deleted ? "Deleted draft" : "Legacy read-only")); root.CeasefireI18n.attr(status, "title", "Manual record review only. Technical approval and schedule confirmation remain separate."); line.append(status);
         const inheritedLocation = legacy ? relation.defect?.entity.fields.location ?? relation.barrier?.entity.fields.location : (servicePlans() ? relation.barrier : relation.defect)?.entity.fields.location;
         const location = kind === "defect" || kind === "barrier" && (legacy || servicePlans()) ? editableCell(row, "location") : textCell(inheritedLocation, "Inherited parent location.");
         const frlCell = kind === (servicePlans() ? "barrier" : "defect") ? editableCell(row, "frl") : textCell((servicePlans() ? relation.barrier : relation.defect)?.entity.fields.frl, `Recorded ${servicePlans() ? "barrier" : "defect"} FRL; not a technical approval.`);
@@ -953,7 +956,7 @@
         if (legacy) line.append(textCell(relation.opening?.entity.fields.opening_type), textCell(relation.opening?.entity.fields.size));
         line.append(kind === "barrier" ? editableCell(row, "substrate") : textCell(relation.barrier?.entity.fields.substrate), kind === "barrier" ? editableCell(row, "orientation") : textCell(relation.barrier?.entity.fields.orientation));
         for (const field of ["service", "service_type", "quantity", "size"]) line.append(kind === "service" ? editableCell(row, field) : textCell(null, "Only a service record has this property."));
-        const evidence = node("td"); evidence.append(node("span", "helper", `${entity.evidence.length} source associations`)); if (entity.evidence[0]) evidence.append(button("Open source", () => bridge.source(copy(entity.evidence[0])), "text-button"));
+        const evidence = node("td"); evidence.append(uiNode("span", "helper", "{0} source associations", [entity.evidence.length])); if (entity.evidence[0]) evidence.append(uiButton("Open source", () => bridge.source(copy(entity.evidence[0])), "text-button"));
         const sourceIdentity = () => JSON.stringify([scope(), state.snapshot?.project_id, graph()?.id, graph()?.version]);
         const deleteSource = { key: graphKey(), identity: sourceIdentity(), entry: row, stamp: copy(entity) };
         const requireDeleteSource = () => {
@@ -974,13 +977,13 @@
           requireDeleteSource(); return deleteRegisterEntity(deleteSource.entry, requireDeleteSource);
         }, "button secondary icon-only takeoff-row-delete-button", requireDeleteSource), icon = deleteIcon();
         icon.setAttribute("fill", "none"); icon.setAttribute("stroke", "currentColor"); icon.setAttribute("stroke-width", "1.8"); icon.setAttribute("stroke-linecap", "round"); icon.setAttribute("stroke-linejoin", "round");
-        remove.replaceChildren(icon); remove.setAttribute("aria-label", `Delete ${displayId(row)}`); remove.dataset.physicalDeleteId = entity.id;
+        remove.replaceChildren(icon); root.CeasefireI18n.attr(remove, "aria-label", "Delete {0}", [displayId(row)]); remove.dataset.physicalDeleteId = entity.id;
         remove.dataset.locked = String(legacy || entity.deleted || row.context); remove.disabled = state.busy || legacy || entity.deleted || row.context;
         remove.title = legacy || entity.deleted ? "Retained read-only record; deletion is unavailable." : row.context ? "Ancestor context; adjust the filter to delete this item." : `Delete ${displayId(row)}`;
         removeCell.append(remove); line.append(evidence, removeCell); body.append(line);
       }
       ui.table.replaceChildren(table); if (!rows.length) ui.table.append(node("p", "takeoff-register-empty", graph() ? "No matching physical records. Adjust the filter or create an explicitly linked draft record." : `Create ${servicePlans() ? "a substrate" : "a defect"} to begin the physical hierarchy. Uploaded images never create physical records automatically.`));
-      ui.pagination.replaceChildren(button("Previous 100 records", () => { ensureAvailable(); state.offset = Math.max(0, state.offset - 100); renderTable(); }), node("span", "helper", `${rows.length ? state.offset + 1 : 0}–${Math.min(state.offset + 100, rows.length)} of ${rows.length} visible hierarchy records. Ancestor context may repeat across pages.`), button("Next 100 records", () => { ensureAvailable(); if (state.offset + 100 < rows.length) state.offset += 100; renderTable(); }));
+      ui.pagination.replaceChildren(uiButton("Previous 100 records", () => { ensureAvailable(); state.offset = Math.max(0, state.offset - 100); renderTable(); }), uiNode("span", "helper", "{0}–{1} of {2} visible hierarchy records. Ancestor context may repeat across pages.", [rows.length ? state.offset + 1 : 0, Math.min(state.offset + 100, rows.length), rows.length]), uiButton("Next 100 records", () => { ensureAvailable(); if (state.offset + 100 < rows.length) state.offset += 100; renderTable(); }));
       bridge.viewChanged?.(rows.map(row => row.entity.id), [...state.selected], [...state.hidden]);
     }
     function defectFor(entry) {
@@ -988,19 +991,19 @@
     }
     function renderDetailNavigation() {
       const table = node("table", "takeoff-physical-navigation"), head = node("thead"), headers = node("tr"), body = node("tbody"), cells = node("tr");
-      table.setAttribute("aria-label", "Item Details navigation");
+      root.CeasefireI18n.attr(table, "aria-label", "Item Details navigation");
       const inspected = inspectedEntry(), lineage = inspected ? [...ancestors(inspected, state.index), inspected] : [];
       const editorKey = graphKey(), defect = defectFor(inspected);
       for (const kind of servicePlans() ? ["barrier", "service"] : kinds) {
-        const header = node("th", "", titles[kind]); header.setAttribute("scope", "col"); headers.append(header);
-        const cell = node("td"), control = node("select"); control.setAttribute("aria-label", `${titles[kind]} ID in Item Details`);
+        const header = uiNode("th", "", titles[kind]); header.setAttribute("scope", "col"); headers.append(header);
+        const cell = node("td"), control = node("select"); root.CeasefireI18n.attr(control, "aria-label", "{0} ID in Item Details", [root.CeasefireI18n.term(titles[kind])]);
         // Legacy barriers precede defects. Keep their original read-only navigation
         // without interpreting that retained topology as the current hierarchy.
         const entries = [...state.index.values()].filter(entry => entry.kind === kind && !entry.entity.deleted && (legacyReadOnly() || servicePlans() || kind === "defect" || defect && !defect.entity.deleted && defectFor(entry)?.entity.id === defect.entity.id)).sort((a, b) => displayId(a).localeCompare(displayId(b), "en-AU", { numeric: true }) || a.entity.id.localeCompare(b.entity.id));
         const related = lineage.find(entry => entry.kind === kind && !entry.entity.deleted);
         const current = related && related.entity.id === inspected?.entity.id ? related.entity.id : "";
         populateSelect(control, entries.map(entry => [entry.entity.id, displayId(entry)]), current);
-        if (related && !current) control.children[0].textContent = `View ${displayId(related)}`;
+        if (related && !current) root.CeasefireI18n.text(control.children[0], "View {0}", [displayId(related)]);
         control.dataset.locked = String(!entries.length); control.disabled = state.busy || !entries.length;
         control.addEventListener("change", () => void safe(async () => {
           const id = control.value; control.value = current;
@@ -1021,71 +1024,71 @@
       ui.selectFiltered.setAttribute("aria-pressed", String(matches.length > 0 && matches.every(row => state.selected.has(row.entity.id))));
       state.inspectorEdit = null;
       inspectorMenu?.destroy(); inspectorMenu = null;
-      ui.inspector.replaceChildren(); const selected = selectEntries(); ui.selection.textContent = `${selected.length} selected`;
+      ui.inspector.replaceChildren(); const selected = selectEntries(); root.CeasefireI18n.text(ui.selection, "{0} selected", [selected.length]);
       if (selected.length === 1) bridge.renderDrawingAppearance?.(ui.inspector, inspectedEntry().entity);
       const drawingOwner = selected.length === 1 && visibilityOwner(inspectedEntry());
       const visibility = drawingOwner ? visibilityButton(inspectedEntry(), drawingOwner) : null;
-      ui.inspector.append(node("h3", "", "Item Details"));
+      ui.inspector.append(uiNode("h3", "", "Item Details"));
       if (!servicePlans()) {
         const defects = [...new Map(selected.map(entry => defectFor(entry)).filter(Boolean).map(entry => [entry.entity.id, entry])).values()];
         const defect = defectFor(inspectedEntry()) || (defects.length === 1 ? defects[0] : null);
-        ui.inspector.append(node("p", "takeoff-physical-defect-id", `Defect ID: ${defect ? displayId(defect) : defects.length > 1 ? "Multiple selected" : "—"}`));
+        ui.inspector.append(uiNode("p", "takeoff-physical-defect-id", "Defect ID: {0}", [defect ? displayId(defect) : defects.length > 1 ? "Multiple selected" : "—"]));
       }
       const entry = inspectedEntry(), entity = entry?.entity, editorKey = graphKey();
       const itemActions = node("div", "takeoff-physical-item-actions");
       const addActions = [];
       if (entry?.kind === "defect" && !legacyReadOnly() && !entity.deleted) {
         const addBarrier = imageMutationButton("Add Barrier", () => create("barrier", entity.id), "/icons/takeoff-add-barrier.png", "takeoff-physical-add-barrier");
-        addBarrier.setAttribute("aria-label", "Add barrier in Item Details"); addBarrier.title = `Add barrier to ${displayId(entry)}`; addActions.push(addBarrier);
+        root.CeasefireI18n.attr(addBarrier, "aria-label", "Add barrier in Item Details"); root.CeasefireI18n.attr(addBarrier, "title", "Add barrier to {0}", [displayId(entry)]); addActions.push(addBarrier);
       }
       if (!legacyReadOnly() && selected.length && selected.every(value => !value.entity.deleted)) {
         const addService = imageMutationButton("Add Service", () => createFromSelection("service"), "/icons/takeoff-add-service.png", "takeoff-physical-add-service");
         const barrier = entry && [...ancestors(entry, state.index), entry].find(value => value.kind === "barrier");
-        addService.setAttribute("aria-label", "Add service in Item Details"); addService.title = barrier ? `Add service to ${displayId(barrier)}` : "Add service to an explicitly chosen barrier"; addActions.push(addService);
+        root.CeasefireI18n.attr(addService, "aria-label", "Add service in Item Details"); addService.title = barrier ? `Add service to ${displayId(barrier)}` : "Add service to an explicitly chosen barrier"; addActions.push(addService);
       }
       if (canChooseLibrary(selected)) {
-        const library = mutationButton("Add Library Item", attachLibraryToSelected), icon = actionIcon(["M3 5.5c3.2-.9 6-.3 9 2v12c-3-2.3-5.8-2.9-9-2z", "M21 5.5c-3.2-.9-6-.3-9 2v12c3-2.3 5.8-2.9 9-2z"]);
+        const library = uiMutationButton("Add Library Item", attachLibraryToSelected), icon = actionIcon(["M3 5.5c3.2-.9 6-.3 9 2v12c-3-2.3-5.8-2.9-9-2z", "M21 5.5c-3.2-.9-6-.3-9 2v12c3-2.3 5.8-2.9 9-2z"]);
         const defs = document.createElementNS("http://www.w3.org/2000/svg", "defs"), gradient = document.createElementNS("http://www.w3.org/2000/svg", "linearGradient"), id = `takeoff-library-${crypto.randomUUID()}`;
         gradient.id = id; gradient.setAttribute("x1", "0%"); gradient.setAttribute("y1", "0%"); gradient.setAttribute("x2", "100%"); gradient.setAttribute("y2", "100%");
         for (const [offset, color] of [["0%", "#ff0000"], ["50%", "#ff6600"], ["100%", "#ffa600"]]) { const stop = document.createElementNS("http://www.w3.org/2000/svg", "stop"); stop.setAttribute("offset", offset); stop.setAttribute("stop-color", color); gradient.append(stop); }
         defs.append(gradient); icon.append(defs); for (const path of icon.querySelectorAll("path")) path.setAttribute("stroke", `url(#${id})`);
-        library.setAttribute("aria-label", "Add Library Item"); library.title = "Add Library Item"; library.replaceChildren(icon); addActions.push(library);
+        root.CeasefireI18n.attr(library, "aria-label", "Add Library Item"); root.CeasefireI18n.attr(library, "title", "Add Library Item"); library.replaceChildren(icon); addActions.push(library);
       }
       if (addActions.length) {
         inspectorMenu = actionDisclosure("Add", "Add item actions", "takeoff-physical-add-menu", true);
         inspectorMenu.context = inspectorViewContext();
         for (const action of addActions) {
           const label = action.className.includes("takeoff-physical-add-barrier") ? "Add Barrier" : action.className.includes("takeoff-physical-add-service") ? "Add Service" : "Add Library Item";
-          action.className += " calculator-document-action"; action.append(node("span", "", label)); inspectorMenu.add(action);
+          action.className += " calculator-document-action"; action.append(uiNode("span", "", label)); inspectorMenu.add(action);
         }
         itemActions.append(inspectorMenu.root);
       }
       if (visibility) { const appearanceActions = ui.inspector.querySelector(".takeoff-appearance-actions"); if (appearanceActions) appearanceActions.append(visibility); else { itemActions.className += " with-visibility"; itemActions.append(visibility); } }
       let remove;
       if (entry && !legacyReadOnly() && !entity.deleted) {
-        remove = button("Delete draft record", flushed => deleteEntity(flushed ? state.index.get(entity.id) : entry), "button secondary takeoff-physical-delete-selected"); remove.setAttribute("aria-label", "Delete draft record"); remove.title = "Delete draft record"; remove.replaceChildren(deleteIcon());
+        remove = uiButton("Delete draft record", flushed => deleteEntity(flushed ? state.index.get(entity.id) : entry), "button secondary takeoff-physical-delete-selected"); root.CeasefireI18n.attr(remove, "aria-label", "Delete draft record"); root.CeasefireI18n.attr(remove, "title", "Delete draft record"); remove.replaceChildren(deleteIcon());
       }
       if (itemActions.children.length) ui.inspector.append(itemActions);
-      if (selected.length === 1 && !legacyReadOnly() && !entity.deleted && parentRelations()[entry.kind]) ui.inspector.append(button("Change Parent", flushed => reparent(flushed ? state.index.get(entity.id) : entry)));
+      if (selected.length === 1 && !legacyReadOnly() && !entity.deleted && parentRelations()[entry.kind]) ui.inspector.append(uiButton("Change Parent", flushed => reparent(flushed ? state.index.get(entity.id) : entry)));
       renderDetailNavigation();
-      if (selected.length !== 1) { ui.inspector.append(inspectorActions(remove), node("p", "helper", selected.length ? "Select active records of one entity type for a counted, reversible bulk edit." : "Select a hierarchy row to inspect its parent, evidence and uncertainty.")); renderLibraryAssignments(selected); return; }
+      if (selected.length !== 1) { ui.inspector.append(inspectorActions(remove), uiNode("p", "helper", selected.length ? "Select active records of one entity type for a counted, reversible bulk edit." : "Select a hierarchy row to inspect its parent, evidence and uncertainty.")); renderLibraryAssignments(selected); return; }
       if (legacyReadOnly() || entity.deleted) {
-        if (!legacyReadOnly()) ui.inspector.append(mutationButton("Restore draft record", () => restore(entry)), node("p", "helper", "Original fields, evidence and parent IDs are retained. Restore previews disclose descendants and do not invent missing parents."));
+        if (!legacyReadOnly()) ui.inspector.append(uiMutationButton("Restore draft record", () => restore(entry)), uiNode("p", "helper", "Original fields, evidence and parent IDs are retained. Restore previews disclose descendants and do not invent missing parents."));
         for (const [key, label] of (entry.kind === "opening" ? legacyOpeningFields : [...(retainedDefinitions[entry.kind] || []), ...(legacyReadOnly() ? definitions[entry.kind] : fieldsFor(entry.kind, scope()))])) ui.inspector.append(node("p", "helper", `${label}: ${fieldDisplay(entity.fields, key) ?? "Unknown"}`));
         if (entry.kind === "service") ui.inspector.append(node("p", "helper", entity.quantity == null ? "Service quantity unknown: enter an explicit physical count when reviewed. The commercial schedule contribution is separate." : `Explicit service quantity: ${entity.quantity}`));
-        ui.inspector.append(inspectorActions(remove), node("p", "helper", `Uncertainty: ${entity.uncertainty.state} · ${entity.uncertainty.note || "No explanation recorded"}`)); return;
+        ui.inspector.append(inspectorActions(remove), uiNode("p", "helper", "Uncertainty: {0} · {1}", [entity.uncertainty.state, entity.uncertainty.note || "No explanation recorded"])); return;
       }
       const controls = fieldDefinitions(entry).map(([key, label, type, initial, required]) => {
-        const wrapper = node("label", "field"), control = node(Array.isArray(type) ? "select" : type === "textarea" ? "textarea" : "input"); wrapper.append(node("span", "", label));
-        if (Array.isArray(type)) { if (key === "confirmation") control.replaceChildren(...type.map(([value, text]) => choice(value, text))); else populateSelect(control, type, initial); if (sharedOptionKeys.has(key)) bindSharedOptions(control, key); } else if (type !== "textarea") control.type = type === "number" ? "number" : "text";
-        control.value = initial ?? ""; control.name = key; control.required = !!required; if (type === "number") control.step = key === "quantity" ? "1" : "any"; control.setAttribute("aria-label", label); track(control, initial, entry, key); wrapper.append(control); ui.inspector.append(wrapper); return control;
+        const wrapper = node("label", "field"), control = node(Array.isArray(type) ? "select" : type === "textarea" ? "textarea" : "input"); wrapper.append(uiNode("span", "", label));
+        if (Array.isArray(type)) { if (key === "confirmation") control.replaceChildren(...type.map(([value, text]) => root.CeasefireI18n.text(choice(value, text), text))); else populateSelect(control, type, initial); if (sharedOptionKeys.has(key)) bindSharedOptions(control, key); } else if (type !== "textarea") control.type = type === "number" ? "number" : "text";
+        control.value = initial ?? ""; control.name = key; control.required = !!required; if (type === "number") control.step = key === "quantity" ? "1" : "any"; root.CeasefireI18n.attr(control, "aria-label", label); track(control, initial, entry, key); wrapper.append(control); ui.inspector.append(wrapper); return control;
       });
       ui.inspector.append(inspectorActions(remove));
       const editor = { controls, entry, key: editorKey };
       editor.submit = async () => { ensureAvailable(true); await ensureFieldOptions(editor.entry.kind, true); ensureAvailable(true); if (editor.key !== graphKey()) throw new Error("The physical draft changed before the unfinished edits could be validated. Inspect the current record and try again."); requireCurrent(editor.entry); const entity = editor.entry.entity, values = Object.fromEntries(controls.map(control => [control.name, control.value])); const changes = { fields: fieldsFromValues(editor.entry.kind, values, entity.fields, scope()), ...(Object.hasOwn(values, "confirmation") && recordConfirmation(entity) !== values.confirmation ? { confirmation: values.confirmation } : {}), ...(editor.entry.kind === "service" ? { quantity: recordedQuantity(entity, values.quantity) } : {}) }; if (Object.entries(changes).every(([key, value]) => sameValue(entity[key], value))) { resetPending(); renderData(); return true; } return perform([{ op: "update", entity_id: entity.id, changes }], "Apply physical field changes", true, false); };
       state.inspectorEdit = editor;
       const reviewOwner = confirmationOwner(entry, state.index);
-      if (reviewOwner && reviewOwner.entity.id !== entity.id) ui.inspector.append(node("p", "helper", `Confirmation: ${confirmationLabel(reviewOwner.entity)} — inherited from ${titles[reviewOwner.kind]} ${displayId(reviewOwner)}.`));
+      if (reviewOwner && reviewOwner.entity.id !== entity.id) ui.inspector.append(uiNode("p", "helper", "Confirmation: {0} — inherited from {1} {2}.", [root.CeasefireI18n.term(confirmationLabel(reviewOwner.entity)), root.CeasefireI18n.term(titles[reviewOwner.kind]), displayId(reviewOwner)]));
       renderLibraryAssignments(selected);
     }
     function visibilityOwner(entry) {
@@ -1096,8 +1099,8 @@
     }
     function visibilityButton(entry, owner) {
       const control = node("button", "button secondary icon-only takeoff-icon-button takeoff-physical-visibility takeoff-current-visibility takeoff-visibility-button"), icon = node("img"), identity = `${scope()}/${state.snapshot?.project_id || ""}/${graph()?.id || "new"}`;
-      control.type = "button"; control.setAttribute("aria-label", "Visibility"); icon.src = "/icons/takeoff-visibility.png"; icon.alt = ""; icon.width = 24; icon.height = 24; icon.setAttribute("aria-hidden", "true"); control.append(icon);
-      const sync = () => { const hidden = state.hidden.has(owner.entity.id); control.setAttribute("aria-pressed", String(hidden)); control.title = `${hidden ? "Show" : "Hide"} callout ${displayId(owner)}`; };
+      control.type = "button"; root.CeasefireI18n.attr(control, "aria-label", "Visibility"); icon.src = "/icons/takeoff-visibility.png"; icon.alt = ""; icon.width = 24; icon.height = 24; icon.setAttribute("aria-hidden", "true"); control.append(icon);
+      const sync = () => { const hidden = state.hidden.has(owner.entity.id); control.setAttribute("aria-pressed", String(hidden)); root.CeasefireI18n.attr(control, "title", "{0} callout {1}", [hidden ? "Show" : "Hide", displayId(owner)]); };
       sync();
       control.addEventListener("click", () => void safe(() => {
         ensureAvailable(true);
@@ -1112,19 +1115,19 @@
     }
     function imageMutationButton(label, action, src, className) {
       const control = mutationButton(label, action, `button secondary takeoff-physical-icon-action ${className}`), icon = node("img");
-      control.setAttribute("aria-label", label); control.title = label; icon.src = src; icon.alt = ""; icon.width = 32; icon.height = 32; icon.setAttribute("aria-hidden", "true"); control.replaceChildren(icon); return control;
+      root.CeasefireI18n.attr(control, "aria-label", label); control.title = label; icon.src = src; icon.alt = ""; icon.width = 32; icon.height = 32; icon.setAttribute("aria-hidden", "true"); control.replaceChildren(icon); return control;
     }
     function inspectorActions(remove) { const actions = node("div", "takeoff-physical-inspector-actions"); if (remove) actions.append(remove); actions.append(ui.discard); return actions; }
     function renderAssociations(entry) {
       const entity = entry.entity;
-      ui.inspector.append(node("h3", "", "SOURCE ASSOCIATIONS"));
+      ui.inspector.append(uiNode("h3", "", "SOURCE ASSOCIATIONS"));
       for (const [position, evidence] of entity.evidence.entries()) {
         const card = node("div", "takeoff-exclusion"), doc = (state.snapshot?.documents || []).find(value => value.id === evidence.document_id);
-        card.append(button(`${doc?.name || evidence.document_id} · p${evidence.page}`, () => bridge.source(copy(evidence)), "text-button"), node("p", "helper", evidence.note || "No interpretation note recorded."), node("p", "takeoff-identity", `Document SHA-256: ${evidence.document_sha256}`));
-        if (evidence.image_id) card.append(node("p", "takeoff-identity", `Image ID: ${evidence.image_id}\nRetained display rendition SHA-256: ${evidence.image_sha256}\nOccurrence: ${evidence.occurrence_id}`));
-        if (!legacyReadOnly() && !entity.deleted) card.append(button("Remove source association", () => removeEvidence(entry, position), "text-button")); ui.inspector.append(card);
+        card.append(button(`${doc?.name || evidence.document_id} · p${evidence.page}`, () => bridge.source(copy(evidence)), "text-button"), node("p", "helper", evidence.note || "No interpretation note recorded."), uiNode("p", "takeoff-identity", "Document SHA-256: {0}", [evidence.document_sha256]));
+        if (evidence.image_id) card.append(uiNode("p", "takeoff-identity", "Image ID: {0}\nRetained display rendition SHA-256: {1}\nOccurrence: {2}", [evidence.image_id, evidence.image_sha256, evidence.occurrence_id]));
+        if (!legacyReadOnly() && !entity.deleted) card.append(uiButton("Remove source association", () => removeEvidence(entry, position), "text-button")); ui.inspector.append(card);
       }
-      if (!entity.evidence.length) ui.inspector.append(node("p", "takeoff-warning", "No source evidence is linked. Link an original source page. This draft is not approved."));
+      if (!entity.evidence.length) ui.inspector.append(uiNode("p", "takeoff-warning", "No source evidence is linked. Link an original source page. This draft is not approved."));
     }
     function renderData() {
       if (state.destroyed) return;
@@ -1139,7 +1142,7 @@
         inspectorRefresh = false;
         if (menuView && inspectorMenu?.context === context) inspectorMenu.restore(menuView);
       }
-      renderBulkSelection(); ui.readOnlyNotice.hidden = !legacyReadOnly(); ui.heading.textContent = `${servicePlans() ? "SERVICE PLANS" : "DEFECT REPORTS"} — PHYSICAL DRAFT`; ui.add.setAttribute("aria-label", servicePlans() ? "Add substrate" : "Add defect"); ui.add.title = servicePlans() ? "Add substrate" : "Add defect"; ui.status.textContent = `Physical revision ${graph()?.revision ?? 0} · ${state.index.size} retained identities · ${legacyReadOnly() ? "Legacy read-only" : "Unapproved draft"}`; setBusy(state.busy);
+      renderBulkSelection(); ui.readOnlyNotice.hidden = !legacyReadOnly(); root.CeasefireI18n.text(ui.heading, "{0} — PHYSICAL DRAFT", [root.CeasefireI18n.term(servicePlans() ? "SERVICE PLANS" : "DEFECT REPORTS")]); root.CeasefireI18n.attr(ui.add, "aria-label", servicePlans() ? "Add substrate" : "Add defect"); root.CeasefireI18n.attr(ui.add, "title", servicePlans() ? "Add substrate" : "Add defect"); root.CeasefireI18n.text(ui.status, "Physical revision {0} · {1} retained identities · {2}", [graph()?.revision ?? 0, state.index.size, root.CeasefireI18n.term(legacyReadOnly() ? "Legacy read-only" : "Unapproved draft")]); setBusy(state.busy);
     }
     function refreshPressedInspector() { if (inspectorRefresh && !state.busy && !state.autoRoutine && !state.pending.size) renderData(); }
     function render(snapshot) {
@@ -1215,14 +1218,14 @@
       for (const value of paths) { const path = document.createElementNS("http://www.w3.org/2000/svg", "path"); path.setAttribute("d", value); svg.append(path); } return svg;
     }
     function iconAction(label, action, paths, mutation = false) {
-      const control = (mutation ? mutationButton : button)(label, action, "button secondary takeoff-physical-icon-action"); control.setAttribute("aria-label", label); control.title = label; control.replaceChildren(actionIcon(paths)); return control;
+      const control = (mutation ? mutationButton : button)(label, action, "button secondary takeoff-physical-icon-action"); root.CeasefireI18n.attr(control, "aria-label", label); control.title = label; control.replaceChildren(actionIcon(paths)); return control;
     }
     // Document and Add disclosures share view-only keyboard/dismissal behavior.
     // Existing action buttons still own pending-edit flushes and draft commands.
     function actionDisclosure(label, accessibleName, className, revealOnOpen = false, iconSrc) {
       const menu = node("div", `calculator-document-menu ${className}`), list = node("div", "calculator-document-actions"), toggle = node("button", "button secondary calculator-document-toggle"), actions = [];
       if (iconSrc) { const icon = node("img", "calculator-document-icon"); icon.src = iconSrc; icon.alt = ""; icon.width = 24; icon.height = 24; icon.setAttribute("aria-hidden", "true"); toggle.append(icon); }
-      toggle.append(node("span", "", label));
+      toggle.append(uiNode("span", "", label));
       list.setAttribute("role", "group"); list.setAttribute("aria-label", accessibleName); list.id = `takeoff-actions-${crypto.randomUUID()}`;
       toggle.type = "button"; toggle.setAttribute("aria-expanded", "false"); toggle.setAttribute("aria-controls", list.id);
       const chevron = node("span", "calculator-document-chevron"); chevron.setAttribute("aria-hidden", "true"); chevron.append(actionIcon(["m6 9 6 6 6-6"])); toggle.append(chevron);
@@ -1252,28 +1255,28 @@
       const outside = event => { if (!menu.contains(event.target)) close(); }; document.body.addEventListener("pointerdown", outside);
       close(); menu.append(toggle, list);
       return { root: menu, toggle, list, close,
-        view() { return list.hidden ? null : { toggleFocused: document.activeElement === toggle, action: actions.find(control => control === document.activeElement)?.textContent }; },
-        restore(view) { open(); const focused = view.toggleFocused ? toggle : actions.find(control => control.textContent === view.action && !control.disabled && !control.hidden); focused?.focus(); },
+        view() { return list.hidden ? null : { toggleFocused: document.activeElement === toggle, action: actions.find(control => control === document.activeElement) ? root.CeasefireI18n.source(actions.find(control => control === document.activeElement)) : undefined }; },
+        restore(view) { open(); const focused = view.toggleFocused ? toggle : actions.find(control => root.CeasefireI18n.source(control) === view.action && !control.disabled && !control.hidden); focused?.focus(); },
         add(control) { actions.push(control); list.append(control); control.addEventListener("click", () => close(true), { capture: true }); }, destroy() { document.body.removeEventListener("pointerdown", outside); close(); } };
     }
-    ui.root = node("section", "takeoff-register takeoff-physical-register"); ui.root.setAttribute("aria-label", "Manual draft penetration workspace");
+    ui.root = node("section", "takeoff-register takeoff-physical-register"); root.CeasefireI18n.attr(ui.root, "aria-label", "Manual draft penetration workspace");
     const heading = node("div", "section-heading"); ui.heading = node("h2"); heading.append(ui.heading); ui.status = node("span", "status-label"); heading.append(ui.status); ui.root.append(heading);
-    ui.readOnlyNotice = node("p", "takeoff-warning takeoff-physical-legacy-notice", "Legacy hierarchy — read-only until its relationships are assigned. Original records, fields and evidence are preserved for inspection and export."); ui.root.append(ui.readOnlyNotice);
+    ui.readOnlyNotice = uiNode("p", "takeoff-warning takeoff-physical-legacy-notice", "Legacy hierarchy — read-only until its relationships are assigned. Original records, fields and evidence are preserved for inspection and export."); ui.root.append(ui.readOnlyNotice);
     const tools = node("div", "takeoff-register-controls takeoff-physical-filter-row"), actions = node("div", "takeoff-register-controls takeoff-physical-actions-row");
     const documents = actionDisclosure("Document", "Document actions", "takeoff-document-menu takeoff-physical-document-menu", false, "/icons/document.png");
     for (const [format, confirmation, label] of [["xlsx", "confirmed", "Download confirmed items"], ["xlsx", "unconfirmed", "Download unconfirmed items"], ["xlsx", "all", "Download all items"], ["pdf", null, "Download Passive Fire Matrix PDF"]]) {
       const control = button(label, () => runBridge(() => bridge.export(format, confirmation, control)), "button secondary calculator-document-action");
-      control.setAttribute("aria-label", label); const icon = node("span", "download-format-icon"); icon.setAttribute("aria-hidden", "true"); icon.append(node("span", "download-arrow", "↓"), node("span", "download-format", format.toUpperCase())); control.replaceChildren(icon, node("span", "", label));
+      root.CeasefireI18n.attr(control, "aria-label", label); const icon = node("span", "download-format-icon"); icon.setAttribute("aria-hidden", "true"); icon.append(node("span", "download-arrow", "↓"), node("span", "download-format", format.toUpperCase())); control.replaceChildren(icon, uiNode("span", "", label));
       documents.add(control);
     }
     for (const [kind, label] of [["current-all", "Download Full Markup"], ["current-marked", "Download Markups Only"], ["all-all", "Download All Markups"], ["all-marked", "Download Full Markups Only"]]) {
       const control = button(label, () => downloadMarkup(kind, control), "button secondary calculator-document-action");
-      control.setAttribute("aria-label", label); const icon = node("span", "download-format-icon"); icon.setAttribute("aria-hidden", "true"); icon.append(node("span", "download-arrow", "↓"), node("span", "download-format", "PDF")); control.replaceChildren(icon, node("span", "", label)); documents.add(control);
+      root.CeasefireI18n.attr(control, "aria-label", label); const icon = node("span", "download-format-icon"); icon.setAttribute("aria-hidden", "true"); icon.append(node("span", "download-arrow", "↓"), node("span", "download-format", "PDF")); control.replaceChildren(icon, uiNode("span", "", label)); documents.add(control);
     }
-    const search = node("input"); search.type = "search"; search.placeholder = "Filter physical records…"; search.setAttribute("aria-label", "Filter physical hierarchy"); search.addEventListener("input", () => { if (state.pending.size || state.busy) return; state.filter = search.value; state.offset = 0; renderTable(); });
-    const deleted = node("label", "takeoff-check"), show = node("input"); show.type = "checkbox"; show.addEventListener("change", () => void safe(() => { ensureAvailable(); state.showDeleted = show.checked; state.offset = 0; renderTable(); })); deleted.append(show, node("span", "", "Show deleted records"));
-    ui.discard = button("Discard unfinished physical edits", () => { if (state.busy) throw new Error("Finish the current review first."); resetPending(); renderData(); bridge.notify("Unfinished physical field edits discarded. Recorded draft values are unchanged.", false); }, "button secondary takeoff-physical-discard"); ui.discard.setAttribute("aria-label", "Discard unfinished physical edits"); ui.discard.title = "Discard unfinished physical edits"; ui.discard.replaceChildren(discardIcon());
-    const deleteSelection = mutationButton("Delete", deleteSelected); deleteSelection.setAttribute("aria-label", "Delete selected records"); deleteSelection.title = "Delete selected records";
+    const search = node("input"); search.type = "search"; root.CeasefireI18n.attr(search, "placeholder", "Filter physical records…"); root.CeasefireI18n.attr(search, "aria-label", "Filter physical hierarchy"); search.addEventListener("input", () => { if (state.pending.size || state.busy) return; state.filter = search.value; state.offset = 0; renderTable(); });
+    const deleted = node("label", "takeoff-check"), show = node("input"); show.type = "checkbox"; show.addEventListener("change", () => void safe(() => { ensureAvailable(); state.showDeleted = show.checked; state.offset = 0; renderTable(); })); deleted.append(show, uiNode("span", "", "Show deleted records"));
+    ui.discard = uiButton("Discard unfinished physical edits", () => { if (state.busy) throw new Error("Finish the current review first."); resetPending(); renderData(); bridge.notify("Unfinished physical field edits discarded. Recorded draft values are unchanged.", false); }, "button secondary takeoff-physical-discard"); root.CeasefireI18n.attr(ui.discard, "aria-label", "Discard unfinished physical edits"); root.CeasefireI18n.attr(ui.discard, "title", "Discard unfinished physical edits"); ui.discard.replaceChildren(discardIcon());
+    const deleteSelection = uiMutationButton("Delete", deleteSelected); root.CeasefireI18n.attr(deleteSelection, "aria-label", "Delete selected records"); root.CeasefireI18n.attr(deleteSelection, "title", "Delete selected records");
     const transfer = imageMutationButton("Transfer to Firestopping Schedule", transferConfirmedRegister, "/icons/takeoff-transfer.png", "takeoff-physical-transfer"); transfer.children[0].className = "takeoff-transfer-icon"; transfer.children[0].width = 24; transfer.children[0].height = 24;
     ui.selection = node("strong"); tools.append(search,
       ui.selectFiltered = iconAction("Select filtered records", () => { ensureAvailable(); const rows = matchingActiveRows(), deselect = rows.length > 0 && rows.every(row => state.selected.has(row.entity.id)); for (const row of rows) deselect ? state.selected.delete(row.entity.id) : state.selected.add(row.entity.id); state.inspectedId = null; renderData(); }, ["M4 3h16a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z", "m7 12 3 3 7-7"]));
@@ -1281,14 +1284,14 @@
       iconAction("Update linked rows", () => selectedLibraryAction("update"), ["M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z", "M12 6v6h6"], true),
       iconAction("Unlink from Firestopping Schedule", () => selectedLibraryAction("unlink"), ["M9 7H7a5 5 0 0 0 0 10h2M15 7h2a5 5 0 0 1 0 10h-2"], true));
     (bridge.documentMenuContainer || actions).append(documents.root);
-    ui.undo = mutationButton("Undo last edit", undoLastEdit, "button secondary icon-only takeoff-undo-button"); ui.undo.setAttribute("aria-label", "Undo last edit"); ui.undo.title = "Undo last edit";
-    const undoSymbol = node("span", "button-symbol", "↶"); undoSymbol.setAttribute("aria-hidden", "true"); ui.undo.replaceChildren(undoSymbol, node("span", "sr-only", "Undo last edit"));
+    ui.undo = uiMutationButton("Undo last edit", undoLastEdit, "button secondary icon-only takeoff-undo-button"); root.CeasefireI18n.attr(ui.undo, "aria-label", "Undo last edit"); root.CeasefireI18n.attr(ui.undo, "title", "Undo last edit");
+    const undoSymbol = node("span", "button-symbol", "↶"); undoSymbol.setAttribute("aria-hidden", "true"); ui.undo.replaceChildren(undoSymbol, uiNode("span", "sr-only", "Undo last edit"));
     ui.undo.dataset.locked = String(typeof bridge.undo !== "function"); tools.append(ui.undo, deleted); ui.root.append(tools, actions);
-    ui.bulk = node("div", "takeoff-register-controls takeoff-bulk takeoff-physical-bulk"); ui.bulkField = node("select"); ui.bulkField.dataset.physicalMutation = "true"; ui.bulkValue = node("input"); ui.bulkValue.dataset.physicalMutation = "true"; ui.bulkValue.type = "text"; ui.bulkValue.placeholder = "New value (blank clears)"; ui.bulkValue.setAttribute("aria-label", "Bulk physical edit value");
-    ui.associate = mutationButton("Associate Existing Records", associateLibraryWithSelected);
-    ui.bulkApply = mutationButton("Apply to selected", applyBulkValue); ui.bulkConfirm = mutationButton("Confirm", () => confirmSelectedRecords("confirmed")); ui.bulkUnconfirm = mutationButton("Unconfirm", () => confirmSelectedRecords("unconfirmed")); ui.bulk.append(ui.selection, ui.associate, ui.bulkField, ui.bulkValue, ui.bulkApply, ui.bulkConfirm, ui.bulkUnconfirm, deleteSelection); ui.root.append(ui.bulk);
+    ui.bulk = node("div", "takeoff-register-controls takeoff-bulk takeoff-physical-bulk"); ui.bulkField = node("select"); ui.bulkField.dataset.physicalMutation = "true"; ui.bulkValue = node("input"); ui.bulkValue.dataset.physicalMutation = "true"; ui.bulkValue.type = "text"; root.CeasefireI18n.attr(ui.bulkValue, "placeholder", "New value (blank clears)"); root.CeasefireI18n.attr(ui.bulkValue, "aria-label", "Bulk physical edit value");
+    ui.associate = uiMutationButton("Associate Existing Records", associateLibraryWithSelected);
+    ui.bulkApply = uiMutationButton("Apply to selected", applyBulkValue); ui.bulkConfirm = uiMutationButton("Confirm", () => confirmSelectedRecords("confirmed")); ui.bulkUnconfirm = uiMutationButton("Unconfirm", () => confirmSelectedRecords("unconfirmed")); ui.bulk.append(ui.selection, ui.associate, ui.bulkField, ui.bulkValue, ui.bulkApply, ui.bulkConfirm, ui.bulkUnconfirm, deleteSelection); ui.root.append(ui.bulk);
     ui.table = node("div", "takeoff-register-table"); const addRow = node("div", "takeoff-physical-add-row"); ui.add = mutationButton("+", () => create(servicePlans() ? "barrier" : "defect"), "button secondary takeoff-physical-add-child takeoff-physical-add-defect"); addRow.append(ui.add); addRow.hidden = !servicePlans();
-    ui.pagination = node("div", "takeoff-register-controls"); ui.inspector = node("aside", "takeoff-inspector takeoff-physical-inspector"); ui.inspector.setAttribute("aria-label", "Item Details"); ui.root.append(ui.table, addRow, ui.pagination); if (bridge.inspectorContainer) bridge.inspectorContainer.append(ui.inspector); else ui.root.append(ui.inspector); container.replaceChildren(ui.root); renderData(); void safe(loadFieldOptions);
+    ui.pagination = node("div", "takeoff-register-controls"); ui.inspector = node("aside", "takeoff-inspector takeoff-physical-inspector"); root.CeasefireI18n.attr(ui.inspector, "aria-label", "Item Details"); ui.root.append(ui.table, addRow, ui.pagination); if (bridge.inspectorContainer) bridge.inspectorContainer.append(ui.inspector); else ui.root.append(ui.inspector); container.replaceChildren(ui.root); renderData(); void safe(loadFieldOptions);
     return { render, restoreHidden() { state.hidden.clear(); renderData(); bridge.viewChanged?.(hierarchyRows(graph(), state).map(row => row.entity.id), [...state.selected], []); }, select: selectEntity, selectDrawing, clearSelection, create, createFromSelection, setMarker, setAnnotation, deleteDrawing, copyDrawing, pasteDrawing, selectedBarrier, selection: () => [...state.selected], inspectedId: () => inspectedEntry()?.entity.id || null, summary, hover, completePendingEdits, isAutoApplying: () => state.autoRoutine, editRevision: () => state.editRevision, hasUnfinishedChanges: () => !state.destroyed && (state.busy || state.pending.size > 0), destroy() { state.destroyed = true; state.busy = false; cancelAutomatic(); documents.destroy(); documents.root.remove(); inspectorMenu?.destroy(); state.filterDialog?.close("cancel"); container.replaceChildren(); if (bridge.inspectorContainer) ui.inspector.remove(); state.pending.clear(); changed(); } };
   }
 

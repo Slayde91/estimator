@@ -50,7 +50,8 @@ function harness({ penetration = false } = {}) {
     FileReader: class { readAsDataURL() { this.result = 'data:application/octet-stream;base64,QUFBQQ=='; queueMicrotask(() => this.onload()); } },
   };
   require('./helpers/download_progress_vm.cjs').installProgressReceipts(context);
-  vm.createContext(context);
+  context.window.CeasefireI18n = require('./english_i18n_fixture.cjs')();
+vm.createContext(context);
   vm.runInContext(fs.readFileSync('static/calculation-queue.js','utf8'),context);
   vm.runInContext(fs.readFileSync('static/downloads.js','utf8'),context);
   let calculatorSource = fs.readFileSync('static/calculators.js', 'utf8');
@@ -169,7 +170,7 @@ async function penetrationCheck(name, fn) {
     assert.match(button[0],/aria-label="Project files"/); assert.match(button[0],/aria-describedby="project-attachment-status"/);
     assert.match(button[1],/<svg[^>]*stroke="currentColor"[^>]*aria-hidden="true"[^>]*focusable="false"/);
     assert.doesNotMatch(button[1],/project-attachment-status|Drop files here|choose files/);
-    assert.match(html,/<\/button><small id="project-attachment-status" class="sr-only" role="status">/);
+    assert.match(html,/<\/button><small id="project-attachment-status" class="sr-only" role="status"[^>]*>/);
     assert.match(html,/<input id="project-attachment-input" type="file" multiple hidden>/);
   });
   await check('Calculator menu cancellation preserves Pricing Library and every calculator draft', async h => {

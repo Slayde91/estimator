@@ -1,6 +1,8 @@
 const fs = require('node:fs');
 const vm = require('node:vm');
 const assert = require('node:assert/strict');
+// Translation annotations do not alter the English markup or control structure.
+const englishMarkup = html => html.replace(/\sdata-i18n(?:-[a-z-]+)?="[^"]*"/g, '');
 
 const elements = new Map();
 function element(tag = 'div') {
@@ -34,6 +36,7 @@ const context = {
   FileReader: class { readAsDataURL() { this.result = 'data:application/octet-stream;base64,AAAA'; queueMicrotask(() => this.onload()); } },
 };
 require('./helpers/download_progress_vm.cjs').installProgressReceipts(context);
+context.window.CeasefireI18n = require('./english_i18n_fixture.cjs')();
 vm.createContext(context);
 vm.runInContext(fs.readFileSync('static/calculation-queue.js','utf8'),context);
   vm.runInContext(fs.readFileSync('static/downloads.js','utf8'),context);
@@ -639,7 +642,7 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
   assert.equal(renderedControls().length,11000);
   assert.equal(byId('calculator-option-lists').children.length,1);
   assert.equal(byId('calculator-option-lists').children[0].children.length,553);
-  const html=fs.readFileSync('static/index.html','utf8');
+  const html=englishMarkup(fs.readFileSync('static/index.html','utf8'));
   assert.doesNotMatch(html,/calculator-(?:previous|next|row-page)/);
   assert.doesNotMatch(html,/Show advanced columns|calculator-advanced/);
   assert.doesNotMatch(source,/Show advanced columns|calculator-advanced|entry\.advanced|renderedAdvanced/);
@@ -1708,7 +1711,7 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
   context.window.CeasefireProposalCalculators={isFirestopping:()=>true};audit.renderChoices();
   assert.deepEqual(calculatorChoices.map(button=>button.getAttribute('aria-pressed')),['false','false','false']);
   assert.deepEqual(copy(audit.projectSnapshot()),choiceDraft);delete context.window.CeasefireProposalCalculators;
-  const choiceHtml=fs.readFileSync('static/index.html','utf8');
+  const choiceHtml=englishMarkup(fs.readFileSync('static/index.html','utf8'));
   assert.ok(!choiceHtml.includes('id="calculator-list"'));
   for(const id of ['steel_vermiculite','steel_board','ductwork','penetration'])assert.ok(choiceHtml.includes(`data-calculator-id="${id}"`));assert.ok(!choiceHtml.includes('data-estimator-kind="penetration"'));passed++;
 
@@ -1891,7 +1894,7 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
   assert.equal(byId('calculator-template').disabled,false);assert.equal(JSON.stringify(entry.inputs),templateBefore);passed++;
 
   // Import and the four distinct exports retain their actions and requested order.
-  const registerMarkup=fs.readFileSync('static/index.html','utf8');
+  const registerMarkup=englishMarkup(fs.readFileSync('static/index.html','utf8'));
   for(const [id,label] of [['calculator-import','Import Schedule'],['calculator-template','Export Template'],['calculator-excel','Steel Schedule XLSX'],['calculator-pdf','Steel Schedule PDF'],['calculator-summary-pdf','Product Summary PDF']]){
     assert.match(registerMarkup,new RegExp(`id="${id}"[^>]*class="[^"]*calculator-document-action[^"]*"[^>]*aria-label="${label}"[^>]*title="${label}"`));
   }
@@ -1977,7 +1980,7 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
   const scheduleAdd=byId('calculator-grid').querySelectorAll('[data-schedule-add]')[0],scheduleUndo=byId('calculator-grid').querySelectorAll('[data-schedule-undo]')[0];
   assert.equal(scheduleAdd.textContent,'');assert.equal(scheduleAdd.title,'Add row');assert.equal(scheduleAdd.getAttribute('aria-label'),'Add row');assert.match(scheduleAdd.children[0].textContent,/\+/);
   assert.equal(scheduleUndo.textContent,'');assert.equal(scheduleUndo.title,'Undo remove');assert.equal(scheduleUndo.getAttribute('aria-label'),'Undo remove');assert.match(scheduleUndo.children[0].textContent,/↶/);
-  assert.doesNotMatch(fs.readFileSync('static/index.html','utf8'),/id="calculator-page-status"/);
+  assert.doesNotMatch(englishMarkup(fs.readFileSync('static/index.html','utf8')),/id="calculator-page-status"/);
   assert.doesNotMatch(fs.readFileSync('static/calculators.js','utf8'),/calculator-page-status/);passed++;
 
   // Adding creates explicitly blank editable cells, including advanced inputs,

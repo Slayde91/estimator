@@ -1,9 +1,23 @@
 (() => {
   "use strict";
+  // Bind application-owned copy only; node() remains safe for user and source text.
+  const uiText = (element, source, args = []) => {
+    if (window.CeasefireI18n) return window.CeasefireI18n.text(element, source, args);
+    element.textContent = String(source).replace(/\{(\d+)\}/g, (match, index) => args[index] === undefined ? match : String(typeof args[index] === "function" ? args[index]() : args[index])); return element;
+  };
+  const uiAttr = (element, name, source, args = []) => {
+    if (window.CeasefireI18n) return window.CeasefireI18n.attr(element, name, source, args);
+    const value = String(source).replace(/\{(\d+)\}/g, (match, index) => args[index] === undefined ? match : String(typeof args[index] === "function" ? args[index]() : args[index]));
+    element.setAttribute(name, value); if (["title", "placeholder"].includes(name)) element[name] = value; return element;
+  };
+  const uiNode = (tag, cls, source, args = []) => { const element = node(tag, cls); return window.CeasefireI18n?.nodeText ? window.CeasefireI18n.nodeText(element, source, args) : uiText(element, source, args); };
+  const uiButton = (source, action, cls = "button secondary", args = []) => { const element = button("", action, cls); return window.CeasefireI18n?.nodeText ? window.CeasefireI18n.nodeText(element, source, args) : uiText(element, source, args); };
+
   const kinds = ["penetration", "technical"], titles = { penetration: "Firestopping Library", technical: "Technical Library" };
   const state = { current: null, metadata: null, metadataRequest: null, panes: new Map(), history: [] };
   const $ = id => document.getElementById(id);
   const node = (tag, className = "", text) => { const el = document.createElement(tag); if (className) el.className = className; if (text !== undefined) el.textContent = String(text); return el; };
+  const uiTerm = (source, args = []) => window.CeasefireI18n?.term ? window.CeasefireI18n.term(source, args) : String(source).replace(/\{(\d+)\}/g, (match, index) => args[index] === undefined ? match : String(typeof args[index] === "function" ? args[index]() : args[index]));
   const clone = value => JSON.parse(JSON.stringify(value));
   const money = new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" });
   const priceText = price => typeof price?.amount === "number" && Number.isFinite(price.amount) ? money.format(price.amount) : "Price unavailable";
@@ -30,7 +44,7 @@
   const symbolButton = (symbol, label, action) => {
     const el = button("", action, "button secondary icon-only");
     const icon = node("span", "button-symbol", symbol); icon.setAttribute("aria-hidden", "true");
-    el.append(icon); el.title = label; el.setAttribute("aria-label", label); return el;
+    el.append(icon); uiAttr(el, "title", label); uiAttr(el, "aria-label", label); return el;
   };
   async function request(path, signal, payload) {
     const endActivity = window.CeasefireActivity?.begin();
@@ -54,8 +68,8 @@
     }
     return state.metadataRequest;
   }
-  function message(pane, text = "", error = false) {
-    pane.message.textContent = text; pane.message.hidden = !text;
+  function message(pane, text = "", error = false, args = []) {
+    uiText(pane.message, text, args); pane.message.hidden = !text;
     pane.message.className = `message${error ? " error" : " info"}`;
   }
   function paneFor(kind) {
@@ -67,31 +81,31 @@
     const root = $(kind + "-library-workspace");
     pane.message = node("div", "message"); pane.message.hidden = true; pane.message.setAttribute("role", "status");
     pane.notice = node("p", "helper library-notice"); pane.notice.hidden = true;
-    pane.projectDrafts = node("section", "card library-project-drafts"); pane.projectDrafts.hidden = true; pane.projectDrafts.setAttribute("aria-label", "Project library drafts");
+    pane.projectDrafts = node("section", "card library-project-drafts"); pane.projectDrafts.hidden = true; uiAttr(pane.projectDrafts, "aria-label", "Project library drafts");
     pane.summary = node("section", "card library-summary"); pane.summary.hidden = true; pane.summary.dataset.librarySummary = kind;
     pane.linkPanel = node("section", "card library-link-picker"); pane.linkPanel.hidden = true; pane.linkPanel.dataset.libraryLinkPicker = kind;
-    pane.list = node("section", "card library-browser"); pane.list.setAttribute("aria-label", titles[kind] + " records");
+    pane.list = node("section", "card library-browser"); uiAttr(pane.list, "aria-label", "{0} records", [() => window.CeasefireI18n?.translate(titles[kind]) || titles[kind]]);
     const controls = node("div", "library-controls"), label = node("label", "field library-search");
     pane.searchInput = node("input"); pane.searchInput.type = "search"; pane.searchInput.maxLength = 400;
-    pane.searchInput.placeholder = kind === "penetration" ? "Search firestopping records…" : "Search systems and technical references…";
+    uiAttr(pane.searchInput, "placeholder", kind === "penetration" ? "Search firestopping records…" : "Search systems and technical references…");
     pane.searchInput.dataset.librarySearch = kind;
-    label.append(node("span", "", `Search ${titles[kind]}`), pane.searchInput);
+    label.append(uiNode("span", "", "Search {0}", [titles[kind]]), pane.searchInput);
     pane.refresh = symbolButton("↻", "Refresh", () => refresh(pane)); pane.refresh.className += " refresh-button"; pane.refresh.dataset.libraryRefresh = kind;
     controls.append(label, pane.refresh); pane.filterControls = node("div", "library-filters");
     pane.count = node("p", "helper library-count"); pane.count.setAttribute("role", "status"); pane.count.dataset.libraryCount = kind;
     pane.results = node("div", "library-results"); pane.results.dataset.libraryResults = kind;
     pane.results.setAttribute("aria-busy", "false");
-    pane.previous = button("Previous", () => changePage(pane, Math.max(0, pane.offset - pane.limit)));
-    pane.next = button("Next", () => changePage(pane, pane.offset + pane.limit));
+    pane.previous = uiButton("Previous", () => changePage(pane, Math.max(0, pane.offset - pane.limit)), "button secondary");
+    pane.next = uiButton("Next", () => changePage(pane, pane.offset + pane.limit), "button secondary");
     pane.previous.dataset.libraryPrevious = kind; pane.next.dataset.libraryNext = kind;
     pane.previous.disabled = pane.next.disabled = true;
-    const pagination = node("nav", "library-pagination"); pagination.setAttribute("aria-label", titles[kind] + " result pages"); pagination.append(pane.previous, pane.next);
+    const pagination = node("nav", "library-pagination"); uiAttr(pagination, "aria-label", "{0} result pages", [() => window.CeasefireI18n?.translate(titles[kind]) || titles[kind]]); pagination.append(pane.previous, pane.next);
     pane.list.append(controls, pane.filterControls, pane.count, pane.results, pagination);
     pane.detailPanel = node("section", "card library-detail"); pane.detailPanel.hidden = true; pane.detailPanel.dataset.libraryDetail = kind;
     root.replaceChildren(pane.message, pane.projectDrafts, pane.summary, ...(kind === "technical" ? [] : [pane.notice]), pane.linkPanel, pane.list, pane.detailPanel);
     pane.searchInput.addEventListener("input", () => {
       pane.search = pane.searchInput.value.trim(); pane.offset = 0;
-      invalidateList(pane); pane.count.textContent = "Searching…";
+      invalidateList(pane); uiText(pane.count, "Searching…");
       pane.timer = setTimeout(() => loadList(pane), 250);
     });
     state.panes.set(kind, pane); return pane;
@@ -115,7 +129,7 @@
     const stamp = JSON.stringify([safeFilters, pane.filters]); if (stamp === pane.filterStamp) return;
     pane.filterStamp = stamp;
     pane.filterControls.replaceChildren(...safeFilters.map(filter => {
-      const reference = filter.key === "technical_reference", label = node("label", "field"), control = node("select"), all = node("option", "", reference ? "Any" : `All ${filter.label || filter.key}`); all.value = reference ? "any" : "";
+      const reference = filter.key === "technical_reference", label = node("label", "field"), control = node("select"), all = uiNode("option", "", ...(reference ? ["Any", []] : ["All {0}", [filter.label || filter.key]])); all.value = reference ? "any" : "";
       control.dataset.libraryFilter = filter.key; control.append(all);
       for (const option of filter.options || []) {
         const value = typeof option === "object" ? option.value : option, text = typeof option === "object" ? option.label : option;
@@ -125,14 +139,14 @@
       if (selected && ![...control.children].some(option => option.value === selected)) { const el = node("option", "", selected); el.value = selected; control.append(el); }
       control.value = selected;
       control.addEventListener("change", () => { pane.filters[filter.key] = control.value; pane.offset = 0; loadList(pane); });
-      label.append(node("span", "", filter.label || filter.key), control); return label;
+      label.append(uiNode("span", "", filter.label || filter.key), control); return label;
     }));
   }
   function renderList(pane) {
     const data = pane.data, items = Array.isArray(data.items) ? data.items : [];
     pane.offset = integer(data.offset, pane.offset); pane.limit = integer(data.limit, pane.limit) || 50;
     const total = integer(data.total);
-    pane.count.textContent = total ? `Showing ${pane.offset + 1}–${Math.min(pane.offset + items.length, total)} of ${total} records` : "No matching records.";
+    uiText(pane.count, ...(total ? ["Showing {0}–{1} of {2} records", [pane.offset + 1, Math.min(pane.offset + items.length, total), total]] : ["No matching records.", []]));
     for (const key of pane.scheduleButtons.keys()) if (key.startsWith("list:")) { pane.scheduleButtons.delete(key); pane.actionMessages.delete(key); }
     for (const key of pane.deleteButtons.keys()) if (key.startsWith("list:")) pane.deleteButtons.delete(key);
     for (const key of pane.quantityBadges.keys()) if (key.startsWith("list:")) pane.quantityBadges.delete(key);
@@ -145,24 +159,24 @@
       if (item.price) card.append(node("p", "library-record-price", `${priceLabel(item.price)}: ${priceText(item.price)}`));
       if (item.summary) card.append(node("p", "library-excerpt", valueText(item.summary)));
       if (pane.kind !== "penetration" && item.source_label) card.append(node("p", "helper", item.source_label));
-      if (Number.isSafeInteger(item.related_count)) card.append(node("p", "helper", `${item.related_count} related ${pane.kind === "penetration" ? "technical references" : "firestopping records"}`));
+      if (Number.isSafeInteger(item.related_count)) card.append(uiNode("p", "helper", "{0} related {1}", [item.related_count, () => window.CeasefireI18n?.translate(pane.kind === "penetration" ? "technical references" : "firestopping records") || (pane.kind === "penetration" ? "technical references" : "firestopping records")]));
       if (pane.kind === "penetration") card.append(itemActions(pane, item, "list"));
       return card;
-    }) : [node("p", "empty-state", "Try a different search or filter.")]));
+    }) : [uiNode("p", "empty-state", "Try a different search or filter.")]));
     renderFilters(pane, data.filters || libraryInfo(pane)?.filters || []); renderSummary(pane); setBusy(pane, false);
   }
   function renderSummary(pane) {
     const info = libraryInfo(pane), counts = pane.data?.counts;
     const table = node("table", "library-summary-table"), head = node("thead"), row = node("tr"), body = node("tbody");
-    table.append(node("caption", "", `${titles[pane.kind]} summary`));
-    for (const label of ["Breakdown", "Records"]) { const cell = node("th", "", label); cell.setAttribute("scope", "col"); row.append(cell); }
-    const addRow = (label, value, className = "") => {
-      const line = node("tr", className), heading = node("th", "", label); heading.setAttribute("scope", "row");
+    table.append(uiNode("caption", "", "{0} summary", [titles[pane.kind]]));
+    for (const label of ["Breakdown", "Records"]) { const cell = uiNode("th", "", label); cell.setAttribute("scope", "col"); row.append(cell); }
+    const addRow = (label, value, className = "", owned = false) => {
+      const line = node("tr", className), heading = (owned ? uiNode : node)("th", "", label); heading.setAttribute("scope", "row");
       line.append(heading, node("td", "", Number.isSafeInteger(value) && value >= 0 ? value : "—")); body.append(line);
     };
-    addRow("Total records", counts?.total ?? info?.count, "library-summary-total");
+    addRow("Total records", counts?.total ?? info?.count, "library-summary-total", true);
     for (const entry of Array.isArray(counts?.manufacturers) ? counts.manufacturers : []) addRow(entry.name, entry.count, "library-summary-manufacturer");
-    addRow(pane.kind === "technical" ? "No related firestopping records" : "No related technical references", counts?.unlinked ?? info?.unlinked_count, "library-summary-related");
+    addRow(pane.kind === "technical" ? "No related firestopping records" : "No related technical references", counts?.unlinked ?? info?.unlinked_count, "library-summary-related", true);
     head.append(row); table.append(head, body); pane.summary.replaceChildren(table); pane.summary.hidden = false;
   }
   function actionContext(pane) { return JSON.stringify([state.current, pane.openRevision, pane.selected, pane.search, pane.filters, pane.offset]); }
@@ -170,7 +184,7 @@
     const quantity = window.CeasefirePenetrations?.libraryQuantity?.(id);
     const available = typeof quantity === "number" && Number.isFinite(quantity);
     badge.hidden = quantity === undefined;
-    badge.textContent = available ? `Quantity: ${quantity}` : "Quantity unavailable";
+    uiText(badge, ...(available ? ["Quantity: {0}", [quantity]] : ["Quantity unavailable", []]));
     badge.setAttribute("aria-label", available ? `Current schedule quantity: ${quantity}` : "Current schedule quantity unavailable");
   }
   function quantityBadge(pane, id, place) {
@@ -183,19 +197,19 @@
   }
   function itemActions(pane, item, place) {
     const actions = node("div", "library-item-actions");
-    if (item.editable) { const edit = button("Edit", () => editItem(pane, item.id), "button library-edit-button"); edit.dataset.libraryEdit = item.id; actions.append(edit); }
+    if (item.editable) { const edit = uiButton("Edit", () => editItem(pane, item.id), "button library-edit-button"); edit.dataset.libraryEdit = item.id; actions.append(edit); }
     const link = symbolButton("🔗︎", "Link Library Item", () => openLinkPicker(pane, item, link)); link.className += " link-action-button"; link.dataset.libraryLink = item.id;
     const add = button("", () => addToSchedule(pane, item.id), "button secondary takeoff-physical-icon-action library-add-transfer");
     const transfer = node("img", "takeoff-transfer-icon"); transfer.src = "/icons/takeoff-transfer.png"; transfer.alt = ""; transfer.width = transfer.height = 24; transfer.setAttribute("aria-hidden", "true");
-    add.append(transfer, node("span", "sr-only", "Add to Schedule"));
-    add.dataset.libraryAdd = item.id; add.title = "Add to Schedule"; add.setAttribute("aria-label", "Add to Schedule");
+    add.append(transfer, uiNode("span", "sr-only", "Add to Schedule"));
+    add.dataset.libraryAdd = item.id; uiAttr(add, "title", "Add to Schedule"); uiAttr(add, "aria-label", "Add to Schedule");
     const status = node("p", "message error library-action-message", pane.addErrors.get(item.id) || ""); status.hidden = !status.textContent; status.setAttribute("role", "status");
     const remove = button("", () => deleteItem(pane, item), "button library-delete library-delete-button");
     const icon = node("span", "library-trash-icon");
     icon.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="M4 7h16M9 7V4h6v3M6.5 7l1 13h9l1-13M10 10.5v6M14 10.5v6"></path></svg>';
     icon.setAttribute("aria-hidden", "true"); remove.append(icon);
-    remove.title = `Remove ${item.title || item.id} from the Firestopping Library`;
-    remove.setAttribute("aria-label", remove.title); remove.dataset.libraryDelete = item.id;
+    uiAttr(remove, "title", "Remove {0} from the Firestopping Library", [item.title || item.id]);
+    uiAttr(remove, "aria-label", "Remove {0} from the Firestopping Library", [item.title || item.id]); remove.dataset.libraryDelete = item.id;
     remove.disabled = pane.deletePending.has(item.id); pane.deleteButtons.set(`${place}:${item.id}`, remove);
     add.disabled = pane.addPending.has(item.id); pane.scheduleButtons.set(`${place}:${item.id}`, add); pane.actionMessages.set(`${place}:${item.id}`, status); actions.append(remove, link, add, status); return actions;
   }
@@ -204,7 +218,7 @@
     if (pane.deletePending.has(id)) return;
     const confirm = window.CeasefirePenetrationNavigation?.confirm;
     if (!confirm) { message(pane, "The deletion confirmation is unavailable. Reload the application and try again.", true); return; }
-    if (!await confirm("Remove Firestopping Library item?", `${item.title || id} will be removed from the Firestopping Library.`, "Remove item")) return;
+    if (!await confirm("Remove Firestopping Library item?", uiTerm("{0} will be removed from the Firestopping Library.", [item.title || id]), "Remove item")) return;
     pane.deletePending.add(id);
     for (const control of pane.deleteButtons.values()) if (control.dataset.libraryDelete === id) control.disabled = true;
     try {
@@ -215,10 +229,10 @@
       if (stillViewingDeletedItem) {
         pane.selected = null; pane.detail = null; state.history = [];
         await open("penetration", { list: true });
-        message(pane, `${item.title || id} was removed from the Firestopping Library.`);
+        message(pane, "{0} was removed from the Firestopping Library.", false, [item.title || id]);
       }
     } catch (error) {
-      message(pane, `The library item was not removed. ${error.message}`, true);
+      message(pane, "The library item was not removed. {0}", true, [() => window.CeasefireI18n?.translate(error.message) || error.message]);
     } finally {
       pane.deletePending.delete(id);
       for (const control of pane.deleteButtons.values()) if (control.dataset.libraryDelete === id) control.disabled = false;
@@ -227,7 +241,7 @@
   async function addToSchedule(pane, id) {
     if (pane.addPending.has(id)) return;
     const token = {}, context = actionContext(pane); pane.addPending.set(id, token); pane.addErrors.delete(id); message(pane);
-    for (const [key, status] of pane.actionMessages) if (key === `list:${id}` || key === `detail:${id}`) { status.textContent = ""; status.hidden = true; }
+    for (const [key, status] of pane.actionMessages) if (key === `list:${id}` || key === `detail:${id}`) { uiText(status, "", []); status.hidden = true; }
     for (const control of pane.scheduleButtons.values()) if (control.dataset.libraryAdd === id) control.disabled = true;
     try {
       const receipt = await window.CeasefirePenetrations.addLibraryItem(id);
@@ -235,14 +249,14 @@
       if (context === actionContext(pane) && receipt?.added) {
         const text = receipt.message || "Added to the Firestopping Schedule using its current prices and allowances.";
         for (const [key, status] of pane.actionMessages) if (key === `list:${id}` || key === `detail:${id}`) {
-          status.textContent = text; status.hidden = false; status.className = "message library-action-message";
+          uiText(status, text); status.hidden = false; status.className = "message library-action-message";
         }
       }
     }
     catch (error) {
       if (context === actionContext(pane)) {
         const text = `The library item could not be added to the schedule. ${error.message}`; pane.addErrors.set(id, text);
-        for (const [key, status] of pane.actionMessages) if (key === `list:${id}` || key === `detail:${id}`) { status.textContent = text; status.hidden = false; status.className = "message error library-action-message"; }
+        for (const [key, status] of pane.actionMessages) if (key === `list:${id}` || key === `detail:${id}`) { uiText(status, text); status.hidden = false; status.className = "message error library-action-message"; }
       }
     }
     finally {
@@ -256,13 +270,13 @@
     pane.list.hidden = !!pane.selected; pane.detailPanel.hidden = !pane.selected;
   }
   function linkMessage(session, text = "", error = false) {
-    session.message.textContent = text; session.message.hidden = !text; session.message.className = `message${error ? " error" : " info"}`;
+    uiText(session.message, text); session.message.hidden = !text; session.message.className = `message${error ? " error" : " info"}`;
   }
   function updateLinkSave(session) {
     const count = session.selected.size;
-    session.save.textContent = count ? `Save links (${count})` : "Save links";
+    uiText(session.save, ...(count ? ["Save links ({0})", [count]] : ["Save links", []]));
     session.save.disabled = !count || session.busy || session.saving || !session.available;
-    session.selectionCount.textContent = `${count} selected ${count === 1 ? "reference" : "references"}. Selections are kept across search, filters and pages.`;
+    uiText(session.selectionCount, "{0} selected {1}. Selections are kept across search, filters and pages.", [count, () => window.CeasefireI18n?.translate(count === 1 ? "reference" : "references") || (count === 1 ? "reference" : "references")]);
   }
   function renderLinkFilters(pane, session, filters) {
     // Use the same server-owned definitions as Technical Library discovery.
@@ -276,7 +290,7 @@
     }
     session.filterInputs = [];
     session.filterControls.replaceChildren(...linkFacets.map(([key, title]) => {
-      const definition = definitions.get(key), label = node("label", "field"), control = node("select"), all = node("option", "", definition ? `All ${title}` : `${title} unavailable`); all.value = "";
+      const definition = definitions.get(key), label = node("label", "field"), control = node("select"), all = uiNode("option", "", ...(definition ? ["All {0}", [title]] : ["{0} unavailable", [title]])); all.value = "";
       control.dataset.libraryLinkFilter = key; control.append(all); control.disabled = !definition || session.saving;
       for (const option of definition?.options || []) {
         const value = option && typeof option === "object" ? option.value : option, text = option && typeof option === "object" ? option.label : option;
@@ -297,30 +311,30 @@
     closeLinkPicker(pane); invalidateList(pane); message(pane);
     const session = { id: item.id, search: "", filters: {}, offset: 0, limit: 20, total: 0, selected: new Set(), revision: 0, abort: null, timer: null, busy: false, saving: false, available: false, choices: [], filterInputs: [] };
     pane.linkSession = session; pane.list.hidden = pane.detailPanel.hidden = true; pane.linkPanel.hidden = false;
-    const heading = node("h3", "", "Link Library Item"); heading.id = "library-link-heading"; heading.tabIndex = -1; pane.linkPanel.setAttribute("aria-labelledby", heading.id);
-    const cancel = button("Cancel", async () => {
+    const heading = uiNode("h3", "", "Link Library Item"); heading.id = "library-link-heading"; heading.tabIndex = -1; pane.linkPanel.setAttribute("aria-labelledby", heading.id);
+    const cancel = uiButton("Cancel", async () => {
       if (pane.linkSession !== session || session.saving) return;
       closeLinkPicker(pane); const revision = pane.openRevision + 1; await open(pane.kind, pane.selected || { list: true });
       if (state.current === pane.kind && pane.openRevision === revision && !pane.linkSession) (opener.isConnected === false ? pane.searchInput : opener).focus({ preventScroll: true });
-    }); cancel.dataset.libraryLinkCancel = ""; session.cancel = cancel;
+    }, "button secondary"); cancel.dataset.libraryLinkCancel = ""; session.cancel = cancel;
     const controls = node("div", "library-controls"), label = node("label", "field library-search"); session.searchInput = node("input"); session.searchInput.type = "search"; session.searchInput.maxLength = 400; session.searchInput.dataset.libraryLinkSearch = "";
-    label.append(node("span", "", "Search Technical Library"), session.searchInput);
-    session.refresh = button("Search", () => loadLinkResults(pane, session)); controls.append(label, session.refresh);
-    session.clear = button("Clear filters", () => { if (pane.linkSession !== session || session.saving) return; session.search = ""; session.searchInput.value = ""; session.filters = {}; session.offset = 0; loadLinkResults(pane, session); }); session.clear.dataset.libraryLinkClear = ""; controls.append(session.clear);
+    label.append(uiNode("span", "", "Search Technical Library"), session.searchInput);
+    session.refresh = uiButton("Search", () => loadLinkResults(pane, session), "button secondary"); controls.append(label, session.refresh);
+    session.clear = uiButton("Clear filters", () => { if (pane.linkSession !== session || session.saving) return; session.search = ""; session.searchInput.value = ""; session.filters = {}; session.offset = 0; loadLinkResults(pane, session); }, "button secondary"); session.clear.dataset.libraryLinkClear = ""; controls.append(session.clear);
     session.filterControls = node("div", "library-filters library-link-filters");
     session.message = node("div", "message"); session.message.hidden = true; session.message.setAttribute("role", "status");
     session.count = node("p", "helper"); session.count.setAttribute("role", "status"); session.results = node("div", "library-link-results");
     session.selectionCount = node("p", "helper library-link-selection"); session.selectionCount.setAttribute("role", "status");
-    session.previous = button("Previous", () => { if (session.busy || session.saving || pane.linkSession !== session) return; session.offset = Math.max(0, session.offset - session.limit); loadLinkResults(pane, session); });
-    session.next = button("Next", () => { if (session.busy || session.saving || pane.linkSession !== session) return; session.offset += session.limit; loadLinkResults(pane, session); });
-    session.save = button("Save links", () => saveLink(pane, session), "button link-action-button"); session.save.dataset.libraryLinkSave = ""; session.save.disabled = true;
-    const pages = node("nav", "library-pagination"); pages.setAttribute("aria-label", "Technical reference choices"); pages.append(session.previous, session.next);
+    session.previous = uiButton("Previous", () => { if (session.busy || session.saving || pane.linkSession !== session) return; session.offset = Math.max(0, session.offset - session.limit); loadLinkResults(pane, session); }, "button secondary");
+    session.next = uiButton("Next", () => { if (session.busy || session.saving || pane.linkSession !== session) return; session.offset += session.limit; loadLinkResults(pane, session); }, "button secondary");
+    session.save = uiButton("Save links", () => saveLink(pane, session), "button link-action-button"); session.save.dataset.libraryLinkSave = ""; session.save.disabled = true;
+    const pages = node("nav", "library-pagination"); uiAttr(pages, "aria-label", "Technical reference choices"); pages.append(session.previous, session.next);
     const actions = node("div", "library-item-actions"); actions.append(session.save, cancel);
-    pane.linkPanel.replaceChildren(heading, node("p", "library-subtitle", item.title || item.id), node("p", "helper", "Choose one or more Technical Library items to link."), controls, session.filterControls, session.message, session.count, session.selectionCount, session.results, pages, actions);
+    pane.linkPanel.replaceChildren(heading, node("p", "library-subtitle", item.title || item.id), uiNode("p", "helper", "Choose one or more Technical Library items to link."), controls, session.filterControls, session.message, session.count, session.selectionCount, session.results, pages, actions);
     renderLinkFilters(pane, session, state.metadata?.libraries?.find(library => library.id === "technical")?.filters); updateLinkSave(session);
     session.searchInput.addEventListener("input", () => {
       if (session.saving || pane.linkSession !== session) return;
-      session.search = session.searchInput.value.trim(); session.offset = 0; session.busy = true; ++session.revision; session.abort?.abort(); clearTimeout(session.timer); session.save.disabled = session.previous.disabled = session.next.disabled = true; session.count.textContent = "Searching…";
+      session.search = session.searchInput.value.trim(); session.offset = 0; session.busy = true; ++session.revision; session.abort?.abort(); clearTimeout(session.timer); session.save.disabled = session.previous.disabled = session.next.disabled = true; uiText(session.count, "Searching…");
       session.timer = setTimeout(() => loadLinkResults(pane, session), 250);
     });
     heading.focus({ preventScroll: true }); pane.linkPanel.scrollIntoView?.({ block: "start" }); loadLinkResults(pane, session);
@@ -329,7 +343,7 @@
     if (pane.linkSession !== session || session.saving) return;
     clearTimeout(session.timer); session.abort?.abort(); session.abort = new AbortController(); const revision = ++session.revision;
     session.busy = true; session.available = false; session.save.disabled = session.previous.disabled = session.next.disabled = true;
-    session.choices = []; session.results.replaceChildren(); session.results.setAttribute("aria-busy", "true"); session.count.textContent = "Searching…"; linkMessage(session);
+    session.choices = []; session.results.replaceChildren(); session.results.setAttribute("aria-busy", "true"); uiText(session.count, "Searching…"); linkMessage(session);
     const query = new URLSearchParams({ search: session.search, offset: String(session.offset), limit: String(session.limit) });
     for (const [key] of linkFacets) if (session.filters[key]) query.set(key, session.filters[key]);
     try {
@@ -342,13 +356,13 @@
       session.total = integer(data.total); session.offset = integer(data.offset, session.offset);
       session.available = true; renderLinkFilters(pane, session, data.filters);
       const items = Array.isArray(data.items) ? data.items : [];
-      session.count.textContent = session.total ? `Showing ${session.offset + 1}–${session.offset + items.length} of ${session.total} technical records` : "No matching technical records.";
+      uiText(session.count, ...(session.total ? ["Showing {0}–{1} of {2} technical records", [session.offset + 1, session.offset + items.length, session.total]] : ["No matching technical records.", []]));
       session.results.replaceChildren(...items.map(item => {
         const choice = node("label", "library-link-choice"), input = node("input"), description = node("span"); input.type = "checkbox"; input.value = item.id; input.checked = session.selected.has(item.id); input.dataset.libraryLinkChoice = item.id;
         description.append(node("strong", "library-frl-value", item.title || item.id)); if (item.subtitle) description.append(node("span", "helper library-frl-value", item.subtitle)); if (item.source_label) description.append(node("span", "helper", item.source_label));
         input.addEventListener("change", () => { if (pane.linkSession !== session || revision !== session.revision || session.busy || session.saving) return; if (input.checked) session.selected.add(item.id); else session.selected.delete(item.id); updateLinkSave(session); }); session.choices.push(input); choice.append(input, description); return choice;
       }));
-    } catch (error) { if (pane.linkSession === session && revision === session.revision && error.name !== "AbortError") { session.total = 0; session.count.textContent = "Technical records unavailable."; linkMessage(session, `${error.message} Use Search to retry.`, true); } }
+    } catch (error) { if (pane.linkSession === session && revision === session.revision && error.name !== "AbortError") { session.total = 0; uiText(session.count, "Technical records unavailable."); linkMessage(session, `${error.message} Use Search to retry.`, true); } }
     finally {
       if (pane.linkSession === session && revision === session.revision) { session.busy = false; session.results.setAttribute("aria-busy", "false"); updateLinkSave(session); session.previous.disabled = session.offset === 0; session.next.disabled = session.offset + session.limit >= session.total; }
     }
@@ -381,7 +395,7 @@
     const confirm = window.CeasefirePenetrationNavigation?.confirm;
     if (!confirm) { message(pane, "The unlink confirmation is unavailable. Reload the application and try again.", true); return; }
     const label = pane.kind === "penetration" ? "technical reference" : "firestopping record";
-    if (!await confirm(`Unlink ${label}?`, `${link.title || link.id} will be unlinked from this library record.`, "Unlink")) return;
+    if (!await confirm(uiTerm("Unlink {0}?", [() => window.CeasefireI18n?.translate(label) || label]), uiTerm("{0} will be unlinked from this library record.", [link.title || link.id]), "Unlink")) return;
     pane.unlinkPending.add(key);
     for (const control of pane.unlinkButtons.values()) if (control.dataset.libraryUnlink === key) control.disabled = true;
     try {
@@ -389,8 +403,8 @@
       if (receipt.unlinked !== true || receipt.penetration_id !== penetrationId || receipt.technical_id !== technicalId) throw new Error("The server did not confirm the removed reference link.");
       const sameRecord = state.current === pane.kind && pane.selected === item.id;
       invalidate();
-      if (sameRecord) { await open(pane.kind, item.id); if (state.current === pane.kind && pane.selected === item.id) message(pane, `${label[0].toUpperCase()}${label.slice(1)} unlinked.`); }
-    } catch (error) { message(pane, `The ${label} was not unlinked. ${error.message}`, true); }
+      if (sameRecord) { await open(pane.kind, item.id); if (state.current === pane.kind && pane.selected === item.id) message(pane, "{0}{1} unlinked.", false, [label[0].toUpperCase(), label.slice(1)]); }
+    } catch (error) { message(pane, "The {0} was not unlinked. {1}", true, [label, () => window.CeasefireI18n?.translate(error.message) || error.message]); }
     finally {
       pane.unlinkPending.delete(key);
       for (const control of pane.unlinkButtons.values()) if (control.dataset.libraryUnlink === key) control.disabled = false;
@@ -399,7 +413,7 @@
   async function editItem(pane, id) {
     message(pane);
     try { await window.CeasefireLibraryEditor.open(id); }
-    catch (error) { message(pane, `The library item could not be opened for editing. ${error.message}`, true); }
+    catch (error) { message(pane, "The library item could not be opened for editing. {0}", true, [() => window.CeasefireI18n?.translate(error.message) || error.message]); }
   }
   function libraryInfo(pane) { return state.metadata?.libraries?.find(library => library.id === pane.kind); }
   function updateNotice(pane, data = pane.data) {
@@ -420,8 +434,8 @@
     } catch (error) {
       if (revision !== pane.listRevision || error.name === "AbortError") return;
       pane.data = null;
-      pane.results.replaceChildren(node("p", "empty-state", "The records could not be loaded.")); pane.count.textContent = "Records unavailable.";
-      message(pane, `${error.message} Use Refresh to try again.`, true);
+      pane.results.replaceChildren(uiNode("p", "empty-state", "The records could not be loaded.")); uiText(pane.count, "Records unavailable.");
+      message(pane, "{0} Use Refresh to try again.", true, [() => window.CeasefireI18n?.translate(error.message) || error.message]);
     } finally { if (revision === pane.listRevision) setBusy(pane, false); }
   }
   function changePage(pane, offset) { pane.offset = offset; loadList(pane); pane.list.scrollIntoView?.({ block: "start" }); }
@@ -459,7 +473,7 @@
     const caption = kind === "technical" && item.role ? compactTechnical(`${item.role} — ${captionText}`) : captionText;
     const savedUrl = kind === "penetration" && validDiagramUrl(item.url) ? item.url : null;
     link.href = savedUrl || `/api/libraries/images/${encodeURIComponent(item.id)}`; link.target = "_blank"; link.rel = "noopener noreferrer";
-    link.setAttribute("aria-label", `Open ${caption} at full size (new tab)`);
+    uiAttr(link, "aria-label", "Open {0} at full size (new tab)", [caption]);
     image.src = link.href; image.alt = caption; image.loading = "lazy"; image.decoding = "async";
     link.append(image); figure.append(link);
     if (!imageOnly) figure.append(node("figcaption", "helper", caption));
@@ -582,9 +596,9 @@
     });
   }
   function detailNavigation(pane) {
-    const nav = node("nav", "library-detail-navigation"); nav.setAttribute("aria-label", "Library record navigation");
+    const nav = node("nav", "library-detail-navigation"); uiAttr(nav, "aria-label", "Library record navigation");
     const results = symbolButton("←", "Back to results", () => { state.history = []; showList(pane); pane.searchInput.focus(); }); results.dataset.libraryBackToResults = pane.kind; nav.append(results);
-    if (state.history.length) { const previous = button("Back to previous item", back); previous.dataset.libraryBack = pane.kind; nav.append(previous); }
+    if (state.history.length) { const previous = uiButton("Back to previous item", back, "button secondary"); previous.dataset.libraryBack = pane.kind; nav.append(previous); }
     return nav;
   }
   function technicalDocumentMenu(pane, data) {
@@ -593,9 +607,9 @@
     const icon = node("img", "calculator-document-icon"); icon.src = "/icons/document.png"; icon.alt = ""; icon.width = icon.height = 24;
     const chevron = node("span", "calculator-document-chevron"); chevron.setAttribute("aria-hidden", "true");
     chevron.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="m6 9 6 6 6-6"></path></svg>';
-    toggle.append(icon, node("span", "", "Document"), chevron);
+    toggle.append(icon, uiNode("span", "", "Document"), chevron);
     const list = node("div", "calculator-document-actions"); list.id = "technical-item-document-actions"; list.hidden = true;
-    list.setAttribute("role", "group"); list.setAttribute("aria-label", "Technical item downloads");
+    list.setAttribute("role", "group"); uiAttr(list, "aria-label", "Technical item downloads");
     toggle.setAttribute("aria-controls", list.id); toggle.setAttribute("aria-expanded", "false");
     const revision = pane.detailRevision, id = data.id, actions = [];
     const current = () => state.current === "technical" && pane.selected === id && pane.detailRevision === revision && !pane.detailPanel.hidden;
@@ -611,9 +625,9 @@
       try {
         if (!window.CeasefireDownloads?.save) throw new Error("Document downloads are unavailable. Reopen the application and try again.");
         const result = await window.CeasefireDownloads.save(`/api/technical/item.${format}`, { id }, { button });
-        if (current()) message(pane, `Item Details saved: ${result.filename}`);
+        if (current()) message(pane, "Item Details saved: {0}", false, [result.filename]);
       } catch (error) {
-        if (current()) message(pane, `Item Details were not downloaded. ${error.message}`, true);
+        if (current()) message(pane, "Item Details were not downloaded. {0}", true, [() => window.CeasefireI18n?.translate(error.message) || error.message]);
       } finally {
         if (pane.documentPending === token) {
           pane.documentPending = null;
@@ -623,10 +637,10 @@
     }
     for (const format of ["pdf", "xlsx"]) {
       const action = button("", () => download(format, action), `button ${format === "pdf" ? "pdf" : "excel"}-button calculator-document-action`);
-      action.setAttribute("aria-label", `Download Item Details ${format.toUpperCase()}`);
+      uiAttr(action, "aria-label", "Download Item Details {0}", [format.toUpperCase()]);
       const mark = node("span", "download-format-icon"); mark.setAttribute("aria-hidden", "true");
       mark.append(node("span", "download-arrow", "⇩"), node("span", "download-format", format.toUpperCase()));
-      action.append(mark, node("span", "", "Item Details")); actions.push(action); list.append(action);
+      action.append(mark, uiNode("span", "", "Item Details")); actions.push(action); list.append(action);
     }
     pane.documentControls = [toggle, ...actions];
     for (const control of pane.documentControls) control.disabled = !!pane.documentPending;
@@ -730,17 +744,17 @@
       if (tables.length) { pair.className += " library-record-field-table"; value.append(...tables); }
       if (links.length) { const navigation = node("div", "library-table-links"); navigation.append(...links); value.append(navigation); }
       if (images.length) { const gallery = node("div", "library-images library-field-images"); gallery.append(...images.map(item => imageNode(item, pane.kind, imageOnly))); value.append(gallery); }
-      pair.append(node("dt", "", display(fieldLabel(pane.kind, field.label) || "Field")), value); fields.append(pair);
+      pair.append(uiNode("dt", "", display(fieldLabel(pane.kind, field.label) || "Field")), value); fields.append(pair);
     }
     content.push(fields);
     if (pane.kind === "technical" && data.diagram_status && !diagramStatusShown) content.push(node("p", "helper library-diagram-status", display(data.diagram_status)));
     const images = data.diagram?.custom && validDiagramUrl(data.diagram.url)
       ? [{ url: data.diagram.url, caption: "Source diagram" }]
       : (data.images || []).filter(item => validAssetId(item.id));
-    if (images.length) { const gallery = node("section", "library-images"); gallery.setAttribute("aria-label", "Source diagrams"); gallery.append(...images.map(item => imageNode(item, pane.kind))); content.push(gallery); }
+    if (images.length) { const gallery = node("section", "library-images"); uiAttr(gallery, "aria-label", "Source diagrams"); gallery.append(...images.map(item => imageNode(item, pane.kind))); content.push(gallery); }
     const related = node("section", "library-detail-section"), links = data.links || [];
-    related.append(node("h4", "", pane.kind === "penetration" ? "Related technical references" : "Related firestopping records"));
-    if (!links.length) related.append(node("p", "helper", "No related records are recorded."));
+    related.append(uiNode("h4", "", pane.kind === "penetration" ? "Related technical references" : "Related firestopping records"));
+    if (!links.length) related.append(uiNode("p", "helper", "No related records are recorded."));
     for (const link of links) {
       const box = node("div", "library-related-record"), details = node("div", "library-related-content");
       if (kinds.includes(link.kind) && validId(link.id)) { const action = button(display(link.title || link.id), () => navigate(link.kind, link.id), "library-record-link"); action.dataset.libraryRelated = link.id; details.append(action); }
@@ -755,9 +769,9 @@
     }
     content.push(related);
     if (pane.kind === "technical") {
-      const sources = node("section", "library-detail-section"); sources.append(node("h4", "", "Source information"));
-      if (data.consolidated_ids?.length > 1) sources.append(node("p", "helper", `Consolidated source IDs: ${data.consolidated_ids.join(", ")}`));
-      sources.append(...(data.sources?.length ? data.sources.map(sourceNode) : [node("p", "helper", "No source reference is recorded for this item.")])); content.push(sources);
+      const sources = node("section", "library-detail-section"); sources.append(uiNode("h4", "", "Source information"));
+      if (data.consolidated_ids?.length > 1) sources.append(uiNode("p", "helper", "Consolidated source IDs: {0}", [data.consolidated_ids.join(", ")]));
+      sources.append(...(data.sources?.length ? data.sources.map(sourceNode) : [uiNode("p", "helper", "No source reference is recorded for this item.")])); content.push(sources);
     }
     // Item qualifications belong in the card that receives navigation focus;
     // keep only the general library notices above that card.
@@ -771,14 +785,14 @@
     clearTimeout(pane.timer); invalidateList(pane);
     pane.selected = id; pane.detailAbort?.abort(); const revision = ++pane.detailRevision;
     pane.detailAbort = new AbortController(); pane.list.hidden = true; pane.detailPanel.hidden = false; message(pane);
-    pane.detailPanel.replaceChildren(detailNavigation(pane), node("p", "empty-state", "Loading record…")); pane.detailPanel.setAttribute("aria-busy", "true");
+    pane.detailPanel.replaceChildren(detailNavigation(pane), uiNode("p", "empty-state", "Loading record…")); pane.detailPanel.setAttribute("aria-busy", "true");
     try {
       const data = await request(`/api/libraries/${pane.kind}/${encodeURIComponent(id)}`, pane.detailAbort.signal);
       if (revision !== pane.detailRevision || id !== pane.selected) return;
       pane.detail = data; renderDetail(pane);
     } catch (error) {
       if (revision !== pane.detailRevision || error.name === "AbortError") return;
-      pane.detailPanel.replaceChildren(detailNavigation(pane), node("p", "message error", error.message), button("Retry record", () => loadDetail(pane, id)));
+      pane.detailPanel.replaceChildren(detailNavigation(pane), node("p", "message error", error.message), uiButton("Retry record", () => loadDetail(pane, id), "button secondary"));
     } finally { if (revision === pane.detailRevision) pane.detailPanel.setAttribute("aria-busy", "false"); }
   }
   async function open(kind, selection) {
@@ -790,13 +804,13 @@
       pane.list.hidden = false; pane.detailPanel.hidden = true; return;
     }
     try {
-      pane.count.textContent ||= "Loading library…";
+      if (!pane.count.textContent) uiText(pane.count, "Loading library…");
       const data = await metadata();
       if (revision !== pane.openRevision) return;
       const info = data.libraries?.find(library => library.id === kind); updateNotice(pane); renderSummary(pane);
       if (info?.available === false) {
         pane.data = null;
-        pane.list.hidden = false; pane.detailPanel.hidden = true; pane.count.textContent = "Library unavailable.";
+        pane.list.hidden = false; pane.detailPanel.hidden = true; uiText(pane.count, "Library unavailable.");
         pane.results.replaceChildren(node("p", "empty-state", info.notice || "The local source library is unavailable.")); setBusy(pane, false); return;
       }
       if (selection?.list) await showList(pane);
@@ -805,7 +819,7 @@
       else { pane.list.hidden = false; pane.detailPanel.hidden = true; if (!pane.data || pane.dataQuery !== queryFor(pane)) await loadList(pane); }
     } catch (error) {
       if (revision !== pane.openRevision) return;
-      pane.count.textContent = "Library unavailable."; message(pane, `${error.message} Use Refresh to try again.`, true);
+      uiText(pane.count, "Library unavailable."); message(pane, "{0} Use Refresh to try again.", true, [() => window.CeasefireI18n?.translate(error.message) || error.message]);
     }
   }
   async function refresh(pane) {
@@ -821,7 +835,7 @@
     const records = pane.kind === "penetration" ? window.CeasefireLibraryEditor?.projectRecords?.() || [] : [];
     pane.projectDrafts.hidden = !records.length; pane.projectDrafts.replaceChildren();
     if (!records.length) return;
-    pane.projectDrafts.append(node("h3", "", "Project library drafts"), node("p", "helper", "These item details and diagrams belong to this project. Save stores them with the project file."));
+    pane.projectDrafts.append(uiNode("h3", "", "Project library drafts"), uiNode("p", "helper", "These item details and diagrams belong to this project. Save stores them with the project file."));
     const choices = node("div", "actions");
     for (const record of records) { const edit = button(record.title || record.library_id || record.id, () => editItem(pane, record.id)); edit.dataset.projectLibraryDraft = record.id; choices.append(edit); }
     pane.projectDrafts.append(choices);

@@ -146,10 +146,23 @@
   function matches(row, query, group = "") {
     const words = String(query || "").trim().toLowerCase().split(/\s+/).filter(Boolean);
     const shortcuts = row.keys.flatMap(key => [key, key.replace(/Ctrl\s*\/\s*Cmd/g, "Ctrl"), key.replace(/Ctrl\s*\/\s*Cmd/g, "Cmd")]);
-    const haystack = [row.name, row.description, row.group, ...shortcuts].join(" ").toLowerCase();
+    const translate = value => root?.CeasefireI18n?.translate(value) || value;
+    const haystack = [row.name, row.description, row.group, translate(row.name), translate(row.description), translate(row.group), ...shortcuts].join(" ").toLowerCase();
     return (!group || row.group === group) && words.every(word => haystack.includes(word));
   }
   function mount(document, registry) {
+  // Bind application-owned copy only; node() remains safe for user and source text.
+  const uiText = (element, source, args = []) => {
+    if (window.CeasefireI18n) return window.CeasefireI18n.text(element, source, args);
+    element.textContent = String(source).replace(/\{(\d+)\}/g, (match, index) => args[index] === undefined ? match : String(typeof args[index] === "function" ? args[index]() : args[index])); return element;
+  };
+  const uiAttr = (element, name, source, args = []) => {
+    if (window.CeasefireI18n) return window.CeasefireI18n.attr(element, name, source, args);
+    const value = String(source).replace(/\{(\d+)\}/g, (match, index) => args[index] === undefined ? match : String(typeof args[index] === "function" ? args[index]() : args[index]));
+    element.setAttribute(name, value); if (["title", "placeholder"].includes(name)) element[name] = value; return element;
+  };
+  const uiNode = (tag, cls, source, args = []) => { const element = node(tag, cls); return window.CeasefireI18n?.nodeText ? window.CeasefireI18n.nodeText(element, source, args) : uiText(element, source, args); };
+
     const host = document.getElementById("help-glossary-results"); if (!host) return;
     const search = document.getElementById("help-glossary-search"), category = document.getElementById("help-glossary-category"), status = document.getElementById("help-glossary-status");
     const rows = catalogue(registry, !!document.getElementById("takeoff-navigation"));
@@ -179,12 +192,12 @@
       return symbol;
     }
     const sections = groups.filter(group => rows.some(row => row.group === group)).map((group, index) => {
-      const option = node("option", "", group); option.value = group; category.append(option);
-      const section = node("section", "help-glossary-group"), heading = node("h3", "", group), list = node("ul", "help-glossary-list"); heading.id = `help-glossary-group-${index}`; section.setAttribute("aria-labelledby", heading.id);
+      const option = uiNode("option", "", group); option.value = group; category.append(option);
+      const section = node("section", "help-glossary-group"), heading = uiNode("h3", "", group), list = node("ul", "help-glossary-list"); heading.id = `help-glossary-group-${index}`; section.setAttribute("aria-labelledby", heading.id);
       const entries = rows.filter(row => row.group === group).map(row => {
         const item = node("li", "help-glossary-entry"); item.dataset.glossaryName = row.name;
-        const copy = node("div", "help-glossary-copy"), name = node("h4", "", row.name); copy.append(name, node("p", "", row.description));
-        const keys = node("div", "help-glossary-keys"); if (row.keys.length) { const label = node("span", "sr-only", "Shortcut: "); keys.append(label, ...row.keys.map(key => node("kbd", "", key))); } else keys.append(node("span", "helper", "Button only"));
+        const copy = node("div", "help-glossary-copy"), name = uiNode("h4", "", row.name); copy.append(name, uiNode("p", "", row.description));
+        const keys = node("div", "help-glossary-keys"); if (row.keys.length) { const label = uiNode("span", "sr-only", "Shortcut: "); keys.append(label, ...row.keys.map(key => node("kbd", "", key))); } else keys.append(uiNode("span", "helper", "Button only"));
         item.append(icon(row.icon), copy, keys); list.append(item); return { item, row };
       });
       section.append(heading, list); host.append(section); return { section, entries };
@@ -192,9 +205,10 @@
     function filter() {
       let count = 0;
       for (const { section, entries } of sections) { let visible = 0; for (const { item, row } of entries) { item.hidden = !matches(row, search.value, category.value); if (!item.hidden) { visible++; count++; } } section.hidden = !visible; }
-      status.textContent = count ? `${count} of ${rows.length} controls and shortcuts shown` : "No matching controls. Try another word or choose all sections.";
+      uiText(status, ...(count ? ["{0} of {1} controls and shortcuts shown", [count, rows.length]] : ["No matching controls. Try another word or choose all sections.", []]));
     }
     search.addEventListener("input", filter); category.addEventListener("change", filter);
+    root.addEventListener?.("ceasefire:languagechange", filter);
     document.getElementById("help-glossary-clear").addEventListener("click", () => { search.value = ""; category.value = ""; filter(); search.focus(); }); filter();
   }
   const api = Object.freeze({ catalogue, matches });

@@ -1,6 +1,17 @@
 /* Appearance is a browser preference; it never enters a project or calculator. */
 (() => {
   'use strict';
+  // Bind application-owned copy only; node() remains safe for user and source text.
+  const uiText = (element, source, args = []) => {
+    if (window.CeasefireI18n) return window.CeasefireI18n.text(element, source, args);
+    element.textContent = String(source).replace(/\{(\d+)\}/g, (match, index) => args[index] === undefined ? match : String(typeof args[index] === "function" ? args[index]() : args[index])); return element;
+  };
+  const uiAttr = (element, name, source, args = []) => {
+    if (window.CeasefireI18n) return window.CeasefireI18n.attr(element, name, source, args);
+    const value = String(source).replace(/\{(\d+)\}/g, (match, index) => args[index] === undefined ? match : String(typeof args[index] === "function" ? args[index]() : args[index]));
+    element.setAttribute(name, value); if (["title", "placeholder"].includes(name)) element[name] = value; return element;
+  };
+
   const root = document.documentElement;
   const button = document.getElementById('theme-toggle');
   if (!root || !button || button.dataset.themeReady === 'true') return;
@@ -22,9 +33,9 @@
   function apply(announce) {
     const theme = themes[current], next = themes[(current + 1) % themes.length];
     root.setAttribute('data-theme', theme.id);
-    button.setAttribute('aria-label', `Theme: ${theme.name}. Next theme: ${next.name}.`);
-    button.setAttribute('title', `Theme: ${theme.name}. Next theme: ${next.name}.`);
-    if (announce && status) status.textContent = `${theme.name} theme selected.`;
+    uiAttr(button, 'aria-label', "Theme: {0}. Next theme: {1}.", [() => window.CeasefireI18n?.translate(theme.name) || theme.name, () => window.CeasefireI18n?.translate(next.name) || next.name]);
+    uiAttr(button, 'title', "Theme: {0}. Next theme: {1}.", [() => window.CeasefireI18n?.translate(theme.name) || theme.name, () => window.CeasefireI18n?.translate(next.name) || next.name]);
+    if (announce && status) uiText(status, "{0} theme selected.", [() => window.CeasefireI18n?.translate(theme.name) || theme.name]);
   }
   apply(false);
   button.dataset.themeReady = 'true';

@@ -1,0 +1,2851 @@
+{
+  "Your drawing workspace": [
+    "您的图纸工作区",
+    "आपका ड्रॉइंग कार्यक्षेत्र",
+    "Su espacio de planos",
+    "مساحة عمل الرسومات",
+    "พื้นที่ทำงานแบบของคุณ"
+  ],
+  "Drawing tools": [
+    "绘图工具",
+    "ड्रॉइंग उपकरण",
+    "Herramientas de dibujo",
+    "أدوات الرسم",
+    "เครื่องมือเขียนแบบ"
+  ],
+  "PDF markup tools": [
+    "PDF标注工具",
+    "PDF मार्कअप उपकरण",
+    "Herramientas de marcado PDF",
+    "أدوات التعليق على PDF",
+    "เครื่องมือทำเครื่องหมาย PDF"
+  ],
+  "Colour and legend controls": [
+    "颜色和图例控件",
+    "रंग और लेजेंड नियंत्रण",
+    "Controles de color y leyenda",
+    "عناصر التحكم بالألوان ومفتاح الرموز",
+    "การควบคุมสีและคำอธิบายสัญลักษณ์"
+  ],
+  "Close settings": [
+    "关闭设置",
+    "सेटिंग्स बंद करें",
+    "Cerrar configuración",
+    "إغلاق الإعدادات",
+    "ปิดการตั้งค่า"
+  ],
+  "Viewports": [
+    "局部视口",
+    "व्यूपोर्ट",
+    "Ventanas de vista",
+    "منافذ العرض",
+    "กรอบมุมมอง"
+  ],
+  "Viewports on this page": [
+    "此页的局部视口",
+    "इस पृष्ठ के व्यूपोर्ट",
+    "Ventanas de vista de esta página",
+    "منافذ العرض في هذه الصفحة",
+    "กรอบมุมมองในหน้านี้"
+  ],
+  "Add viewport": [
+    "添加局部视口",
+    "व्यूपोर्ट जोड़ें",
+    "Añadir ventana de vista",
+    "إضافة منفذ عرض",
+    "เพิ่มกรอบมุมมอง"
+  ],
+  "Delete viewport": [
+    "删除局部视口",
+    "व्यूपोर्ट हटाएँ",
+    "Eliminar ventana de vista",
+    "حذف منفذ العرض",
+    "ลบกรอบมุมมอง"
+  ],
+  "Close viewports": [
+    "关闭局部视口",
+    "व्यूपोर्ट बंद करें",
+    "Cerrar ventanas de vista",
+    "إغلاق منافذ العرض",
+    "ปิดกรอบมุมมอง"
+  ],
+  "Scale": [
+    "比例尺",
+    "स्केल",
+    "Escala",
+    "المقياس",
+    "มาตราส่วน"
+  ],
+  "No Scale Selected": [
+    "未选择比例尺",
+    "कोई स्केल नहीं चुना",
+    "Ninguna escala seleccionada",
+    "لم يُحدَّد مقياس",
+    "ยังไม่ได้เลือกมาตราส่วน"
+  ],
+  "Measure length on the PDF": [
+    "在PDF上测量长度",
+    "PDF पर लंबाई मापें",
+    "Medir longitud en el PDF",
+    "قياس الطول على PDF",
+    "วัดความยาวบน PDF"
+  ],
+  "Visibility: show or hide all markups; double-click restores individually hidden items": [
+    "可见性：显示或隐藏所有标注；双击恢复单独隐藏的项目",
+    "दृश्यता: सभी मार्कअप दिखाएँ या छिपाएँ; डबल-क्लिक से अलग से छिपाए आइटम दिखते हैं",
+    "Visibilidad: mostrar u ocultar todas las marcas; doble clic restaura los elementos ocultos individualmente",
+    "الرؤية: إظهار كل العلامات أو إخفاؤها؛ النقر المزدوج يعيد العناصر المخفية منفردة",
+    "การมองเห็น: แสดงหรือซ่อนเครื่องหมายทั้งหมด ดับเบิลคลิกเพื่อคืนรายการที่ซ่อนแยกไว้"
+  ],
+  "Call-out Settings": [
+    "引出标注设置",
+    "कॉलआउट सेटिंग्स",
+    "Configuración de llamada",
+    "إعدادات التعليق التوضيحي",
+    "ตั้งค่าข้อความชี้กำกับ"
+  ],
+  "Callout Settings": [
+    "引出标注设置",
+    "कॉलआउट सेटिंग्स",
+    "Configuración de llamada",
+    "إعدادات التعليق التوضيحي",
+    "ตั้งค่าข้อความชี้กำกับ"
+  ],
+  "Call-out actions": [
+    "引出标注操作",
+    "कॉलआउट क्रियाएँ",
+    "Acciones de llamada",
+    "إجراءات التعليق التوضيحي",
+    "การดำเนินการข้อความชี้กำกับ"
+  ],
+  "Count Settings": [
+    "计数设置",
+    "गिनती सेटिंग्स",
+    "Configuración de conteo",
+    "إعدادات العدّ",
+    "ตั้งค่าการนับ"
+  ],
+  "Marker Settings": [
+    "标记设置",
+    "मार्कर सेटिंग्स",
+    "Configuración de marcador",
+    "إعدادات العلامة",
+    "ตั้งค่าตัวทำเครื่องหมาย"
+  ],
+  "Legend Settings": [
+    "图例设置",
+    "लेजेंड सेटिंग्स",
+    "Configuración de leyenda",
+    "إعدادات مفتاح الرموز",
+    "ตั้งค่าคำอธิบายสัญลักษณ์"
+  ],
+  "Signature Settings": [
+    "签名设置",
+    "हस्ताक्षर सेटिंग्स",
+    "Configuración de firma",
+    "إعدادات التوقيع",
+    "ตั้งค่าลายเซ็น"
+  ],
+  "Redraw signature": [
+    "重新绘制签名",
+    "हस्ताक्षर फिर बनाएँ",
+    "Volver a dibujar firma",
+    "إعادة رسم التوقيع",
+    "วาดลายเซ็นใหม่"
+  ],
+  "Delete signature": [
+    "删除签名",
+    "हस्ताक्षर हटाएँ",
+    "Eliminar firma",
+    "حذف التوقيع",
+    "ลบลายเซ็น"
+  ],
+  "Source documents": [
+    "源文档",
+    "स्रोत दस्तावेज़",
+    "Documentos fuente",
+    "المستندات المصدرية",
+    "เอกสารต้นฉบับ"
+  ],
+  "Source Document": [
+    "源文档",
+    "स्रोत दस्तावेज़",
+    "Documento fuente",
+    "المستند المصدري",
+    "เอกสารต้นฉบับ"
+  ],
+  "Source Document order": [
+    "源文档顺序",
+    "स्रोत दस्तावेज़ क्रम",
+    "Orden de documentos fuente",
+    "ترتيب المستندات المصدرية",
+    "ลำดับเอกสารต้นฉบับ"
+  ],
+  "Remove document": [
+    "移除文档",
+    "दस्तावेज़ हटाएँ",
+    "Quitar documento",
+    "إزالة المستند",
+    "นำเอกสารออก"
+  ],
+  "Drawing document": [
+    "图纸文档",
+    "ड्रॉइंग दस्तावेज़",
+    "Documento del plano",
+    "مستند الرسم",
+    "เอกสารแบบ"
+  ],
+  "Drawing calibration": [
+    "图纸校准",
+    "ड्रॉइंग अंशांकन",
+    "Calibración del plano",
+    "معايرة الرسم",
+    "การปรับเทียบแบบ"
+  ],
+  "Drawing scale": [
+    "图纸比例尺",
+    "ड्रॉइंग स्केल",
+    "Escala del plano",
+    "مقياس الرسم",
+    "มาตราส่วนแบบ"
+  ],
+  "Drawing navigation": [
+    "图纸导航",
+    "ड्रॉइंग नेविगेशन",
+    "Navegación del plano",
+    "التنقل في الرسم",
+    "การนำทางแบบ"
+  ],
+  "Drawing search": [
+    "图纸搜索",
+    "ड्रॉइंग खोज",
+    "Búsqueda en el plano",
+    "البحث في الرسم",
+    "ค้นหาในแบบ"
+  ],
+  "Drawing unavailable": [
+    "图纸不可用",
+    "ड्रॉइंग उपलब्ध नहीं",
+    "Plano no disponible",
+    "الرسم غير متاح",
+    "แบบไม่พร้อมใช้งาน"
+  ],
+  "Original PDF page": [
+    "原始PDF页面",
+    "मूल PDF पृष्ठ",
+    "Página PDF original",
+    "صفحة PDF الأصلية",
+    "หน้า PDF ต้นฉบับ"
+  ],
+  "Original PDF text": [
+    "原始PDF文字",
+    "मूल PDF पाठ",
+    "Texto PDF original",
+    "نص PDF الأصلي",
+    "ข้อความ PDF ต้นฉบับ"
+  ],
+  "Takeoff markups": [
+    "工程量标注",
+    "टेकऑफ मार्कअप",
+    "Marcas de medición",
+    "علامات حصر الكميات",
+    "เครื่องหมายถอดปริมาณ"
+  ],
+  "Takeoff register document actions": [
+    "工程量登记表文档操作",
+    "टेकऑफ रजिस्टर दस्तावेज़ क्रियाएँ",
+    "Acciones de documentos del registro de mediciones",
+    "إجراءات مستند سجل حصر الكميات",
+    "การดำเนินการเอกสารทะเบียนถอดปริมาณ"
+  ],
+  "Initial Pages": [
+    "初始页面",
+    "आरंभिक पृष्ठ",
+    "Páginas iniciales",
+    "الصفحات الأولية",
+    "หน้าเริ่มต้น"
+  ],
+  "First page": [
+    "第一页",
+    "पहला पृष्ठ",
+    "Primera página",
+    "الصفحة الأولى",
+    "หน้าแรก"
+  ],
+  "Last page": [
+    "最后一页",
+    "अंतिम पृष्ठ",
+    "Última página",
+    "الصفحة الأخيرة",
+    "หน้าสุดท้าย"
+  ],
+  "‹ Page": [
+    "‹ 上一页",
+    "‹ पृष्ठ",
+    "‹ Página",
+    "‹ الصفحة",
+    "‹ หน้า"
+  ],
+  "Page ›": [
+    "下一页 ›",
+    "पृष्ठ ›",
+    "Página ›",
+    "الصفحة ›",
+    "หน้า ›"
+  ],
+  "Page number": [
+    "页码",
+    "पृष्ठ संख्या",
+    "Número de página",
+    "رقم الصفحة",
+    "หมายเลขหน้า"
+  ],
+  "Page navigation": [
+    "页面导航",
+    "पृष्ठ नेविगेशन",
+    "Navegación de páginas",
+    "التنقل بين الصفحات",
+    "การนำทางหน้า"
+  ],
+  "Page and zoom controls": [
+    "页面和缩放控件",
+    "पृष्ठ और ज़ूम नियंत्रण",
+    "Controles de página y zoom",
+    "عناصر التحكم بالصفحات والتكبير",
+    "การควบคุมหน้าและการซูม"
+  ],
+  "Fit page (Ctrl+0)": [
+    "适合页面（Ctrl+0）",
+    "पृष्ठ फ़िट करें (Ctrl+0)",
+    "Ajustar página (Ctrl+0)",
+    "ملاءمة الصفحة (Ctrl+0)",
+    "พอดีหน้า (Ctrl+0)"
+  ],
+  "Rotate page right (Ctrl+Down); left (Ctrl+Up)": [
+    "向右旋转页面（Ctrl+Down）；向左（Ctrl+Up）",
+    "पृष्ठ दाएँ घुमाएँ (Ctrl+Down); बाएँ (Ctrl+Up)",
+    "Girar página a la derecha (Ctrl+Down); izquierda (Ctrl+Up)",
+    "تدوير الصفحة يميناً (Ctrl+Down)؛ يساراً (Ctrl+Up)",
+    "หมุนหน้าขวา (Ctrl+Down) ซ้าย (Ctrl+Up)"
+  ],
+  "Previous page (Ctrl+Left)": [
+    "上一页（Ctrl+Left）",
+    "पिछला पृष्ठ (Ctrl+Left)",
+    "Página anterior (Ctrl+Left)",
+    "الصفحة السابقة (Ctrl+Left)",
+    "หน้าก่อน (Ctrl+Left)"
+  ],
+  "Next page (Ctrl+Right)": [
+    "下一页（Ctrl+Right）",
+    "अगला पृष्ठ (Ctrl+Right)",
+    "Página siguiente (Ctrl+Right)",
+    "الصفحة التالية (Ctrl+Right)",
+    "หน้าถัดไป (Ctrl+Right)"
+  ],
+  "Zoom in (Ctrl++)": [
+    "放大（Ctrl++）",
+    "ज़ूम बढ़ाएँ (Ctrl++)",
+    "Acercar (Ctrl++)",
+    "تكبير (Ctrl++)",
+    "ซูมเข้า (Ctrl++)"
+  ],
+  "Zoom out (Ctrl+-)": [
+    "缩小（Ctrl+-）",
+    "ज़ूम घटाएँ (Ctrl+-)",
+    "Alejar (Ctrl+-)",
+    "تصغير (Ctrl+-)",
+    "ซูมออก (Ctrl+-)"
+  ],
+  "Search PDF text…": [
+    "搜索PDF文字…",
+    "PDF पाठ खोजें…",
+    "Buscar texto PDF…",
+    "البحث في نص PDF…",
+    "ค้นหาข้อความ PDF…"
+  ],
+  "Search original document text": [
+    "搜索原始文档文字",
+    "मूल दस्तावेज़ पाठ खोजें",
+    "Buscar texto del documento original",
+    "البحث في نص المستند الأصلي",
+    "ค้นหาข้อความเอกสารต้นฉบับ"
+  ],
+  "Searching PDF text…": [
+    "正在搜索PDF文字…",
+    "PDF पाठ खोजा जा रहा है…",
+    "Buscando texto PDF…",
+    "جارٍ البحث في نص PDF…",
+    "กำลังค้นหาข้อความ PDF…"
+  ],
+  "Text search scope": [
+    "文字搜索范围",
+    "पाठ खोज का दायरा",
+    "Ámbito de búsqueda de texto",
+    "نطاق البحث النصي",
+    "ขอบเขตการค้นหาข้อความ"
+  ],
+  "PDF text search results": [
+    "PDF文字搜索结果",
+    "PDF पाठ खोज परिणाम",
+    "Resultados de búsqueda de texto PDF",
+    "نتائج البحث في نص PDF",
+    "ผลการค้นหาข้อความ PDF"
+  ],
+  "Stop search": [
+    "停止搜索",
+    "खोज रोकें",
+    "Detener búsqueda",
+    "إيقاف البحث",
+    "หยุดค้นหา"
+  ],
+  "This document": [
+    "此文档",
+    "यह दस्तावेज़",
+    "Este documento",
+    "هذا المستند",
+    "เอกสารนี้"
+  ],
+  "All documents": [
+    "所有文档",
+    "सभी दस्तावेज़",
+    "Todos los documentos",
+    "كل المستندات",
+    "เอกสารทั้งหมด"
+  ],
+  "Include drawing labels": [
+    "包含图纸标签",
+    "ड्रॉइंग लेबल शामिल करें",
+    "Incluir etiquetas del plano",
+    "تضمين تسميات الرسم",
+    "รวมป้ายกำกับในแบบ"
+  ],
+  "Recognizing drawing labels locally…": [
+    "正在本机识别图纸标签…",
+    "ड्रॉइंग लेबल स्थानीय रूप से पहचाने जा रहे हैं…",
+    "Reconociendo etiquetas del plano localmente…",
+    "جارٍ التعرف على تسميات الرسم محلياً…",
+    "กำลังรู้จำป้ายกำกับในแบบบนเครื่อง…"
+  ],
+  "No matches found. Drawing labels may still require visual inspection.": [
+    "未找到匹配项。图纸标签仍可能需要目视检查。",
+    "कोई मिलान नहीं मिला। ड्रॉइंग लेबल की दृश्य जाँच अभी भी आवश्यक हो सकती है।",
+    "No se encontraron coincidencias. Las etiquetas del plano pueden requerir inspección visual.",
+    "لم يُعثر على تطابقات. قد تظل تسميات الرسم بحاجة إلى فحص بصري.",
+    "ไม่พบรายการที่ตรงกัน ป้ายกำกับในแบบอาจยังต้องตรวจด้วยสายตา"
+  ],
+  "Destination schedule": [
+    "目标明细表",
+    "गंतव्य अनुसूची",
+    "Cuadro de destino",
+    "الجدول المستهدف",
+    "ตารางปลายทาง"
+  ],
+  "Preview transfer": [
+    "预览传送",
+    "स्थानांतरण पूर्वावलोकन",
+    "Vista previa de transferencia",
+    "معاينة النقل",
+    "ดูตัวอย่างการส่ง"
+  ],
+  "Detach links": [
+    "断开关联",
+    "लिंक अलग करें",
+    "Desvincular",
+    "فصل الروابط",
+    "ยกเลิกการเชื่อมโยง"
+  ],
+  "Export CSV": [
+    "导出CSV",
+    "CSV निर्यात करें",
+    "Exportar CSV",
+    "تصدير CSV",
+    "ส่งออก CSV"
+  ],
+  "Export XLSX": [
+    "导出XLSX",
+    "XLSX निर्यात करें",
+    "Exportar XLSX",
+    "تصدير XLSX",
+    "ส่งออก XLSX"
+  ],
+  "Download XLSX": [
+    "下载XLSX",
+    "XLSX डाउनलोड करें",
+    "Descargar XLSX",
+    "تنزيل XLSX",
+    "ดาวน์โหลด XLSX"
+  ],
+  "Filter register": [
+    "筛选登记表",
+    "रजिस्टर फ़िल्टर करें",
+    "Filtrar registro",
+    "تصفية السجل",
+    "กรองทะเบียน"
+  ],
+  "Filter register…": [
+    "筛选登记表…",
+    "रजिस्टर फ़िल्टर करें…",
+    "Filtrar registro…",
+    "تصفية السجل…",
+    "กรองทะเบียน…"
+  ],
+  "Group register": [
+    "登记表分组",
+    "रजिस्टर समूह बनाएँ",
+    "Agrupar registro",
+    "تجميع السجل",
+    "จัดกลุ่มทะเบียน"
+  ],
+  "Sort register": [
+    "登记表排序",
+    "रजिस्टर क्रमबद्ध करें",
+    "Ordenar registro",
+    "ترتيب السجل",
+    "เรียงลำดับทะเบียน"
+  ],
+  "Register position": [
+    "登记表位置",
+    "रजिस्टर स्थिति",
+    "Posición del registro",
+    "موضع السجل",
+    "ตำแหน่งทะเบียน"
+  ],
+  "Item Details navigation": [
+    "项目详情导航",
+    "आइटम विवरण नेविगेशन",
+    "Navegación de detalles",
+    "التنقل في تفاصيل العنصر",
+    "การนำทางรายละเอียดรายการ"
+  ],
+  "Close Item Details": [
+    "关闭项目详情",
+    "आइटम विवरण बंद करें",
+    "Cerrar detalles del elemento",
+    "إغلاق تفاصيل العنصر",
+    "ปิดรายละเอียดรายการ"
+  ],
+  "Edit item": [
+    "编辑项目",
+    "आइटम संपादित करें",
+    "Editar elemento",
+    "تعديل العنصر",
+    "แก้ไขรายการ"
+  ],
+  "Delete item": [
+    "删除项目",
+    "आइटम हटाएँ",
+    "Eliminar elemento",
+    "حذف العنصر",
+    "ลบรายการ"
+  ],
+  "Remove": [
+    "移除",
+    "हटाएँ",
+    "Quitar",
+    "إزالة",
+    "นำออก"
+  ],
+  "Confirm": [
+    "确认",
+    "पुष्टि करें",
+    "Confirmar",
+    "تأكيد",
+    "ยืนยัน"
+  ],
+  "Unconfirm": [
+    "取消确认",
+    "पुष्टि हटाएँ",
+    "Anular confirmación",
+    "إلغاء التأكيد",
+    "ยกเลิกการยืนยัน"
+  ],
+  "Apply item edits": [
+    "应用项目编辑",
+    "आइटम बदलाव लागू करें",
+    "Aplicar cambios del elemento",
+    "تطبيق تعديلات العنصر",
+    "ใช้การแก้ไขรายการ"
+  ],
+  "Discard item edits": [
+    "放弃项目编辑",
+    "आइटम बदलाव छोड़ें",
+    "Descartar cambios del elemento",
+    "تجاهل تعديلات العنصر",
+    "ทิ้งการแก้ไขรายการ"
+  ],
+  "Select filtered items": [
+    "选择筛选出的项目",
+    "फ़िल्टर किए आइटम चुनें",
+    "Seleccionar elementos filtrados",
+    "تحديد العناصر المصفّاة",
+    "เลือกรายการที่กรอง"
+  ],
+  "Clear selection": [
+    "清除选择",
+    "चयन साफ़ करें",
+    "Limpiar selección",
+    "مسح التحديد",
+    "ล้างการเลือก"
+  ],
+  "Select all": [
+    "全选",
+    "सभी चुनें",
+    "Seleccionar todo",
+    "تحديد الكل",
+    "เลือกทั้งหมด"
+  ],
+  "Hide": [
+    "隐藏",
+    "छिपाएँ",
+    "Ocultar",
+    "إخفاء",
+    "ซ่อน"
+  ],
+  "Select all matching items": [
+    "选择所有匹配项目",
+    "सभी मिलते आइटम चुनें",
+    "Seleccionar todos los elementos coincidentes",
+    "تحديد كل العناصر المطابقة",
+    "เลือกรายการที่ตรงกันทั้งหมด"
+  ],
+  "Hide all matching items": [
+    "隐藏所有匹配项目",
+    "सभी मिलते आइटम छिपाएँ",
+    "Ocultar todos los elementos coincidentes",
+    "إخفاء كل العناصر المطابقة",
+    "ซ่อนรายการที่ตรงกันทั้งหมด"
+  ],
+  "Select all values": [
+    "选择所有值",
+    "सभी मान चुनें",
+    "Seleccionar todos los valores",
+    "تحديد كل القيم",
+    "เลือกค่าทั้งหมด"
+  ],
+  "Apply filter": [
+    "应用筛选",
+    "फ़िल्टर लागू करें",
+    "Aplicar filtro",
+    "تطبيق التصفية",
+    "ใช้ตัวกรอง"
+  ],
+  "Reset filter": [
+    "重置筛选",
+    "फ़िल्टर रीसेट करें",
+    "Restablecer filtro",
+    "إعادة ضبط التصفية",
+    "รีเซ็ตตัวกรอง"
+  ],
+  "Search values…": [
+    "搜索值…",
+    "मान खोजें…",
+    "Buscar valores…",
+    "البحث في القيم…",
+    "ค้นหาค่า…"
+  ],
+  "No matching values": [
+    "无匹配值",
+    "कोई मिलता मान नहीं",
+    "No hay valores coincidentes",
+    "لا توجد قيم مطابقة",
+    "ไม่มีค่าที่ตรงกัน"
+  ],
+  "No matching items": [
+    "无匹配项目",
+    "कोई मिलता आइटम नहीं",
+    "No hay elementos coincidentes",
+    "لا توجد عناصر مطابقة",
+    "ไม่มีรายการที่ตรงกัน"
+  ],
+  "Bulk edit field": [
+    "批量编辑字段",
+    "सामूहिक संपादन फ़ील्ड",
+    "Campo de edición masiva",
+    "حقل التعديل الجماعي",
+    "ฟิลด์แก้ไขหลายรายการ"
+  ],
+  "Bulk edit value": [
+    "批量编辑值",
+    "सामूहिक संपादन मान",
+    "Valor de edición masiva",
+    "قيمة التعديل الجماعي",
+    "ค่าแก้ไขหลายรายการ"
+  ],
+  "New value (blank clears)": [
+    "新值（留空则清除）",
+    "नया मान (खाली रखने से साफ़ होगा)",
+    "Nuevo valor (vacío borra)",
+    "قيمة جديدة (الفراغ يمسح)",
+    "ค่าใหม่ (เว้นว่างเพื่อล้าง)"
+  ],
+  "Previous 100": [
+    "上一组100条",
+    "पिछले 100",
+    "100 anteriores",
+    "المائة السابقة",
+    "100 รายการก่อน"
+  ],
+  "Next 100": [
+    "下一组100条",
+    "अगले 100",
+    "100 siguientes",
+    "المائة التالية",
+    "100 รายการถัดไป"
+  ],
+  "Previous pages": [
+    "上一组页面",
+    "पिछले पृष्ठ",
+    "Páginas anteriores",
+    "الصفحات السابقة",
+    "หน้าก่อนหน้า"
+  ],
+  "Next pages": [
+    "下一组页面",
+    "अगले पृष्ठ",
+    "Páginas siguientes",
+    "الصفحات التالية",
+    "หน้าถัดไป"
+  ],
+  "Previous results": [
+    "上一组结果",
+    "पिछले परिणाम",
+    "Resultados anteriores",
+    "النتائج السابقة",
+    "ผลลัพธ์ก่อนหน้า"
+  ],
+  "Next results": [
+    "下一组结果",
+    "अगले परिणाम",
+    "Resultados siguientes",
+    "النتائج التالية",
+    "ผลลัพธ์ถัดไป"
+  ],
+  "Unknown": [
+    "未知",
+    "अज्ञात",
+    "Desconocido",
+    "غير معروف",
+    "ไม่ทราบ"
+  ],
+  "Preview unavailable": [
+    "预览不可用",
+    "पूर्वावलोकन उपलब्ध नहीं",
+    "Vista previa no disponible",
+    "المعاينة غير متاحة",
+    "ตัวอย่างไม่พร้อมใช้งาน"
+  ],
+  "Image ready.": [
+    "图像已就绪。",
+    "चित्र तैयार है।",
+    "Imagen lista.",
+    "الصورة جاهزة.",
+    "รูปภาพพร้อมแล้ว"
+  ],
+  "Checking image…": [
+    "正在检查图像…",
+    "चित्र जाँचा जा रहा है…",
+    "Comprobando imagen…",
+    "جارٍ فحص الصورة…",
+    "กำลังตรวจสอบรูปภาพ…"
+  ],
+  "PDF Tools": [
+    "PDF工具",
+    "PDF उपकरण",
+    "Herramientas PDF",
+    "أدوات PDF",
+    "เครื่องมือ PDF"
+  ],
+  "New PDF output": [
+    "新PDF输出",
+    "नया PDF आउटपुट",
+    "Salida PDF nueva",
+    "مخرج PDF جديد",
+    "ผลลัพธ์ PDF ใหม่"
+  ],
+  "Download new PDF": [
+    "下载新PDF",
+    "नया PDF डाउनलोड करें",
+    "Descargar PDF nuevo",
+    "تنزيل ملف PDF الجديد",
+    "ดาวน์โหลด PDF ใหม่"
+  ],
+  "Add as new Source Document": [
+    "添加为新源文档",
+    "नए स्रोत दस्तावेज़ के रूप में जोड़ें",
+    "Añadir como documento fuente nuevo",
+    "إضافة كمستند مصدري جديد",
+    "เพิ่มเป็นเอกสารต้นฉบับใหม่"
+  ],
+  "Output page order": [
+    "输出页面顺序",
+    "आउटपुट पृष्ठ क्रम",
+    "Orden de páginas de salida",
+    "ترتيب صفحات المخرج",
+    "ลำดับหน้าผลลัพธ์"
+  ],
+  "Page order": [
+    "页面顺序",
+    "पृष्ठ क्रम",
+    "Orden de páginas",
+    "ترتيب الصفحات",
+    "ลำดับหน้า"
+  ],
+  "Page order (numbers or ranges)": [
+    "页面顺序（页码或范围）",
+    "पृष्ठ क्रम (संख्याएँ या रेंज)",
+    "Orden de páginas (números o rangos)",
+    "ترتيب الصفحات (أرقام أو نطاقات)",
+    "ลำดับหน้า (หมายเลขหรือช่วง)"
+  ],
+  "Pages to extract": [
+    "要提取的页面",
+    "निकालने के पृष्ठ",
+    "Páginas para extraer",
+    "الصفحات المطلوب استخراجها",
+    "หน้าที่จะแยก"
+  ],
+  "Pages to extract, in output order": [
+    "要提取的页面（按输出顺序）",
+    "आउटपुट क्रम में निकालने के पृष्ठ",
+    "Páginas para extraer, en orden de salida",
+    "الصفحات المطلوب استخراجها بترتيب المخرج",
+    "หน้าที่จะแยกตามลำดับผลลัพธ์"
+  ],
+  "Pages to delete": [
+    "要删除的页面",
+    "हटाने के पृष्ठ",
+    "Páginas para eliminar",
+    "الصفحات المطلوب حذفها",
+    "หน้าที่จะลบ"
+  ],
+  "Pages to delete from the output": [
+    "从输出中删除的页面",
+    "आउटपुट से हटाने के पृष्ठ",
+    "Páginas para eliminar de la salida",
+    "الصفحات المطلوب حذفها من المخرج",
+    "หน้าที่จะลบออกจากผลลัพธ์"
+  ],
+  "Apply page order": [
+    "应用页面顺序",
+    "पृष्ठ क्रम लागू करें",
+    "Aplicar orden de páginas",
+    "تطبيق ترتيب الصفحات",
+    "ใช้ลำดับหน้า"
+  ],
+  "Delete selected pages": [
+    "删除所选页面",
+    "चुने पृष्ठ हटाएँ",
+    "Eliminar páginas seleccionadas",
+    "حذف الصفحات المحددة",
+    "ลบหน้าที่เลือก"
+  ],
+  "Create PDF": [
+    "创建PDF",
+    "PDF बनाएँ",
+    "Crear PDF",
+    "إنشاء PDF",
+    "สร้าง PDF"
+  ],
+  "Preparing the new PDF…": [
+    "正在生成新PDF…",
+    "नया PDF तैयार हो रहा है…",
+    "Preparando el PDF nuevo…",
+    "جارٍ إعداد ملف PDF الجديد…",
+    "กำลังเตรียม PDF ใหม่…"
+  ],
+  "Merge": [
+    "合并",
+    "मिलाएँ",
+    "Combinar",
+    "دمج",
+    "รวม"
+  ],
+  "Split": [
+    "拆分",
+    "विभाजित करें",
+    "Dividir",
+    "تقسيم",
+    "แยก"
+  ],
+  "Area exclusion": [
+    "面积排除区域",
+    "क्षेत्रफल बहिष्करण",
+    "Exclusión de área",
+    "استثناء مساحة",
+    "พื้นที่ยกเว้น"
+  ],
+  "Edit exclusion": [
+    "编辑排除区域",
+    "बहिष्करण संपादित करें",
+    "Editar exclusión",
+    "تعديل المنطقة المستثناة",
+    "แก้ไขพื้นที่ยกเว้น"
+  ],
+  "Edit exclusion note": [
+    "编辑排除区域备注",
+    "बहिष्करण टिप्पणी संपादित करें",
+    "Editar nota de exclusión",
+    "تعديل ملاحظة الاستثناء",
+    "แก้ไขหมายเหตุพื้นที่ยกเว้น"
+  ],
+  "Remove exclusion": [
+    "移除排除区域",
+    "बहिष्करण हटाएँ",
+    "Quitar exclusión",
+    "إزالة المنطقة المستثناة",
+    "นำพื้นที่ยกเว้นออก"
+  ],
+  "RISES / DROPS": [
+    "上升/下降段",
+    "ऊर्ध्व / अधो खंड",
+    "SUBIDAS / BAJADAS",
+    "الارتفاعات / الانخفاضات",
+    "แนวขึ้น / แนวลง"
+  ],
+  "Insert Rise / Drop": [
+    "插入上升/下降段",
+    "ऊर्ध्व / अधो खंड जोड़ें",
+    "Insertar subida / bajada",
+    "إدراج ارتفاع / انخفاض",
+    "เพิ่มแนวขึ้น / แนวลง"
+  ],
+  "Edit addition": [
+    "编辑附加长度",
+    "अतिरिक्त लंबाई संपादित करें",
+    "Editar longitud adicional",
+    "تعديل الطول الإضافي",
+    "แก้ไขความยาวเพิ่มเติม"
+  ],
+  "Remove addition": [
+    "移除附加长度",
+    "अतिरिक्त लंबाई हटाएँ",
+    "Quitar longitud adicional",
+    "إزالة الطول الإضافي",
+    "นำความยาวเพิ่มเติมออก"
+  ],
+  "Insert midpoint": [
+    "插入中点",
+    "मध्यबिंदु जोड़ें",
+    "Insertar punto medio",
+    "إدراج نقطة منتصف",
+    "เพิ่มจุดกึ่งกลาง"
+  ],
+  "Delete control point": [
+    "删除控制点",
+    "नियंत्रण बिंदु हटाएँ",
+    "Eliminar punto de control",
+    "حذف نقطة التحكم",
+    "ลบจุดควบคุม"
+  ],
+  "Control point actions": [
+    "控制点操作",
+    "नियंत्रण बिंदु क्रियाएँ",
+    "Acciones de punto de control",
+    "إجراءات نقطة التحكم",
+    "การดำเนินการจุดควบคุม"
+  ],
+  "Markup actions": [
+    "标注操作",
+    "मार्कअप क्रियाएँ",
+    "Acciones de marcado",
+    "إجراءات العلامات",
+    "การดำเนินการเครื่องหมาย"
+  ],
+  "Markup appearance": [
+    "标注外观",
+    "मार्कअप रूप",
+    "Apariencia del marcado",
+    "مظهر العلامة",
+    "ลักษณะเครื่องหมาย"
+  ],
+  "Markup settings": [
+    "标注设置",
+    "मार्कअप सेटिंग्स",
+    "Configuración de marcado",
+    "إعدادات العلامات",
+    "ตั้งค่าเครื่องหมาย"
+  ],
+  "Delete markup": [
+    "删除标注",
+    "मार्कअप हटाएँ",
+    "Eliminar marca",
+    "حذف العلامة",
+    "ลบเครื่องหมาย"
+  ],
+  "Remove marker": [
+    "移除标记",
+    "मार्कर हटाएँ",
+    "Quitar marcador",
+    "إزالة العلامة",
+    "นำตัวทำเครื่องหมายออก"
+  ],
+  "Edit marker length": [
+    "编辑标记长度",
+    "मार्कर लंबाई संपादित करें",
+    "Editar longitud del marcador",
+    "تعديل طول العلامة",
+    "แก้ไขความยาวตัวทำเครื่องหมาย"
+  ],
+  "Stamp actions": [
+    "印章操作",
+    "स्टैम्प क्रियाएँ",
+    "Acciones de sello",
+    "إجراءات الختم",
+    "การดำเนินการตราประทับ"
+  ],
+  "Continue Stamp": [
+    "继续放置印章",
+    "स्टैम्प जारी रखें",
+    "Continuar sello",
+    "متابعة الختم",
+    "วางตราประทับต่อ"
+  ],
+  "Stamp text": [
+    "印章文字",
+    "स्टैम्प पाठ",
+    "Texto del sello",
+    "نص الختم",
+    "ข้อความตราประทับ"
+  ],
+  "Textbox text": [
+    "文本框文字",
+    "टेक्स्टबॉक्स पाठ",
+    "Texto del cuadro",
+    "نص مربع الكتابة",
+    "ข้อความในกล่องข้อความ"
+  ],
+  "Continue count": [
+    "继续计数",
+    "गिनती जारी रखें",
+    "Continuar conteo",
+    "متابعة العدّ",
+    "นับต่อ"
+  ],
+  "Open source": [
+    "打开来源",
+    "स्रोत खोलें",
+    "Abrir fuente",
+    "فتح المصدر",
+    "เปิดต้นฉบับ"
+  ],
+  "SOURCE ASSOCIATIONS": [
+    "来源关联",
+    "स्रोत संबद्धताएँ",
+    "ASOCIACIONES DE FUENTES",
+    "ارتباطات المصادر",
+    "การเชื่อมโยงต้นฉบับ"
+  ],
+  "Remove source association": [
+    "移除来源关联",
+    "स्रोत संबद्धता हटाएँ",
+    "Quitar asociación de fuente",
+    "إزالة ارتباط المصدر",
+    "นำการเชื่อมโยงต้นฉบับออก"
+  ],
+  "Add Library Item": [
+    "添加库项目",
+    "लाइब्रेरी आइटम जोड़ें",
+    "Añadir elemento de biblioteca",
+    "إضافة عنصر مكتبة",
+    "เพิ่มรายการจากคลัง"
+  ],
+  "Searching library…": [
+    "正在搜索库…",
+    "लाइब्रेरी खोजी जा रही है…",
+    "Buscando en biblioteca…",
+    "جارٍ البحث في المكتبة…",
+    "กำลังค้นหาในคลัง…"
+  ],
+  "Select a library item": [
+    "选择库项目",
+    "लाइब्रेरी आइटम चुनें",
+    "Seleccionar elemento de biblioteca",
+    "تحديد عنصر من المكتبة",
+    "เลือกรายการจากคลัง"
+  ],
+  "Add defect": [
+    "添加缺陷",
+    "दोष जोड़ें",
+    "Añadir defecto",
+    "إضافة عيب",
+    "เพิ่มข้อบกพร่อง"
+  ],
+  "Add substrate": [
+    "添加基材",
+    "सब्सट्रेट जोड़ें",
+    "Añadir sustrato",
+    "إضافة ركيزة",
+    "เพิ่มวัสดุฐาน"
+  ],
+  "Add barrier in Item Details": [
+    "在项目详情中添加防火分隔",
+    "आइटम विवरण में बैरियर जोड़ें",
+    "Añadir barrera en detalles",
+    "إضافة حاجز في تفاصيل العنصر",
+    "เพิ่มแนวกั้นในรายละเอียดรายการ"
+  ],
+  "Add service in Item Details": [
+    "在项目详情中添加管线",
+    "आइटम विवरण में सर्विस जोड़ें",
+    "Añadir instalación en detalles",
+    "إضافة خدمة في تفاصيل العنصر",
+    "เพิ่มงานระบบในรายละเอียดรายการ"
+  ],
+  "Add service to an explicitly chosen barrier": [
+    "向明确选择的防火分隔添加管线",
+    "स्पष्ट रूप से चुने बैरियर में सर्विस जोड़ें",
+    "Añadir instalación a una barrera elegida explícitamente",
+    "إضافة خدمة إلى حاجز محدد صراحةً",
+    "เพิ่มงานระบบให้แนวกั้นที่เลือกอย่างชัดเจน"
+  ],
+  "Change Parent": [
+    "更改上级",
+    "मूल रिकॉर्ड बदलें",
+    "Cambiar registro padre",
+    "تغيير السجل الأصل",
+    "เปลี่ยนรายการหลัก"
+  ],
+  "Associate Existing Records": [
+    "关联现有记录",
+    "मौजूदा रिकॉर्ड संबद्ध करें",
+    "Asociar registros existentes",
+    "ربط السجلات الموجودة",
+    "เชื่อมโยงรายการที่มีอยู่"
+  ],
+  "Delete draft record": [
+    "删除草稿记录",
+    "ड्राफ़्ट रिकॉर्ड हटाएँ",
+    "Eliminar registro borrador",
+    "حذف سجل المسودة",
+    "ลบรายการฉบับร่าง"
+  ],
+  "Delete selected records": [
+    "删除所选记录",
+    "चुने रिकॉर्ड हटाएँ",
+    "Eliminar registros seleccionados",
+    "حذف السجلات المحددة",
+    "ลบรายการที่เลือก"
+  ],
+  "Restore draft record": [
+    "恢复草稿记录",
+    "ड्राफ़्ट रिकॉर्ड पुनर्स्थापित करें",
+    "Restaurar registro borrador",
+    "استعادة سجل المسودة",
+    "คืนรายการฉบับร่าง"
+  ],
+  "Deleted records": [
+    "已删除记录",
+    "हटाए गए रिकॉर्ड",
+    "Registros eliminados",
+    "السجلات المحذوفة",
+    "รายการที่ลบ"
+  ],
+  "Deleted draft": [
+    "已删除草稿",
+    "हटाया गया ड्राफ़्ट",
+    "Borrador eliminado",
+    "مسودة محذوفة",
+    "ฉบับร่างที่ลบ"
+  ],
+  "Loading deleted records…": [
+    "正在加载已删除记录…",
+    "हटाए रिकॉर्ड लोड हो रहे हैं…",
+    "Cargando registros eliminados…",
+    "جارٍ تحميل السجلات المحذوفة…",
+    "กำลังโหลดรายการที่ลบ…"
+  ],
+  "Previous deleted records": [
+    "上一组已删除记录",
+    "पिछले हटाए रिकॉर्ड",
+    "Registros eliminados anteriores",
+    "السجلات المحذوفة السابقة",
+    "รายการที่ลบก่อนหน้า"
+  ],
+  "Next deleted records": [
+    "下一组已删除记录",
+    "अगले हटाए रिकॉर्ड",
+    "Registros eliminados siguientes",
+    "السجلات المحذوفة التالية",
+    "รายการที่ลบถัดไป"
+  ],
+  "Previous 100 records": [
+    "上一组100条记录",
+    "पिछले 100 रिकॉर्ड",
+    "100 registros anteriores",
+    "السجلات المائة السابقة",
+    "100 รายการก่อนหน้า"
+  ],
+  "Next 100 records": [
+    "下一组100条记录",
+    "अगले 100 रिकॉर्ड",
+    "100 registros siguientes",
+    "السجلات المائة التالية",
+    "100 รายการถัดไป"
+  ],
+  "Filter physical hierarchy": [
+    "筛选实体层级",
+    "भौतिक पदानुक्रम फ़िल्टर करें",
+    "Filtrar jerarquía física",
+    "تصفية التسلسل المادي",
+    "กรองลำดับรายการจริง"
+  ],
+  "Filter physical records…": [
+    "筛选实体记录…",
+    "भौतिक रिकॉर्ड फ़िल्टर करें…",
+    "Filtrar registros físicos…",
+    "تصفية السجلات المادية…",
+    "กรองรายการจริง…"
+  ],
+  "Filter confirmation state": [
+    "筛选确认状态",
+    "पुष्टि स्थिति फ़िल्टर करें",
+    "Filtrar estado de confirmación",
+    "تصفية حالة التأكيد",
+    "กรองสถานะการยืนยัน"
+  ],
+  "Select all matching physical records": [
+    "选择所有匹配实体记录",
+    "सभी मिलते भौतिक रिकॉर्ड चुनें",
+    "Seleccionar todos los registros físicos coincidentes",
+    "تحديد كل السجلات المادية المطابقة",
+    "เลือกรายการจริงที่ตรงกันทั้งหมด"
+  ],
+  "Hide all matching physical records": [
+    "隐藏所有匹配实体记录",
+    "सभी मिलते भौतिक रिकॉर्ड छिपाएँ",
+    "Ocultar todos los registros físicos coincidentes",
+    "إخفاء كل السجلات المادية المطابقة",
+    "ซ่อนรายการจริงที่ตรงกันทั้งหมด"
+  ],
+  "Bulk physical edit field": [
+    "批量实体编辑字段",
+    "सामूहिक भौतिक संपादन फ़ील्ड",
+    "Campo físico de edición masiva",
+    "حقل التعديل المادي الجماعي",
+    "ฟิลด์แก้ไขรายการจริงหลายรายการ"
+  ],
+  "Bulk physical edit value": [
+    "批量实体编辑值",
+    "सामूहिक भौतिक संपादन मान",
+    "Valor físico de edición masiva",
+    "قيمة التعديل المادي الجماعي",
+    "ค่าแก้ไขรายการจริงหลายรายการ"
+  ],
+  "Manual draft penetration workspace": [
+    "手动贯穿部位草稿工作区",
+    "मैनुअल पेनेट्रेशन ड्राफ़्ट कार्यक्षेत्र",
+    "Espacio manual de borradores de penetraciones",
+    "مساحة مسودات الاختراقات اليدوية",
+    "พื้นที่ร่างช่องทะลุด้วยตนเอง"
+  ],
+  "Draft penetration hierarchy register": [
+    "贯穿部位层级草稿登记表",
+    "पेनेट्रेशन पदानुक्रम ड्राफ़्ट रजिस्टर",
+    "Registro borrador de jerarquía de penetraciones",
+    "سجل مسودة تسلسل الاختراقات",
+    "ทะเบียนลำดับช่องทะลุฉบับร่าง"
+  ],
+  "Legacy read-only": [
+    "旧版只读",
+    "पुराना केवल-पठन",
+    "Versión anterior de solo lectura",
+    "الإصدار السابق للقراءة فقط",
+    "เวอร์ชันเดิมอ่านอย่างเดียว"
+  ],
+  "Barrier": [
+    "防火分隔",
+    "बैरियर",
+    "Barrera",
+    "حاجز",
+    "แนวกั้น"
+  ],
+  "Defect": [
+    "缺陷",
+    "दोष",
+    "Defecto",
+    "عيب",
+    "ข้อบกพร่อง"
+  ],
+  "Opening": [
+    "开口",
+    "खुलाव",
+    "Abertura",
+    "فتحة",
+    "ช่องเปิด"
+  ],
+  "Service": [
+    "管线",
+    "सर्विस",
+    "Instalación",
+    "خدمة",
+    "งานระบบ"
+  ],
+  "Location": [
+    "位置",
+    "स्थान",
+    "Ubicación",
+    "الموقع",
+    "ตำแหน่ง"
+  ],
+  "Level": [
+    "楼层",
+    "स्तर",
+    "Nivel",
+    "المستوى",
+    "ชั้น"
+  ],
+  "Notes": [
+    "备注",
+    "टिप्पणियाँ",
+    "Notas",
+    "الملاحظات",
+    "หมายเหตุ"
+  ],
+  "Confirmation": [
+    "确认状态",
+    "पुष्टि",
+    "Confirmación",
+    "التأكيد",
+    "การยืนยัน"
+  ],
+  "Confirmed": [
+    "已确认",
+    "पुष्ट",
+    "Confirmado",
+    "مؤكد",
+    "ยืนยันแล้ว"
+  ],
+  "Unconfirmed": [
+    "未确认",
+    "अपुष्ट",
+    "Sin confirmar",
+    "غير مؤكد",
+    "ยังไม่ยืนยัน"
+  ],
+  "Not assessed": [
+    "未评估",
+    "आकलन नहीं हुआ",
+    "Sin evaluar",
+    "لم يُقيَّم",
+    "ยังไม่ได้ประเมิน"
+  ],
+  "Unresolved": [
+    "未解决",
+    "अनसुलझा",
+    "Sin resolver",
+    "غير محسوم",
+    "ยังไม่แก้ไข"
+  ],
+  "Missing evidence": [
+    "缺少证据",
+    "साक्ष्य अनुपलब्ध",
+    "Evidencia faltante",
+    "أدلة مفقودة",
+    "ขาดหลักฐาน"
+  ],
+  "Conflicting evidence": [
+    "证据冲突",
+    "विरोधाभासी साक्ष्य",
+    "Evidencia contradictoria",
+    "أدلة متعارضة",
+    "หลักฐานขัดแย้ง"
+  ],
+  "Insufficient evidence": [
+    "证据不足",
+    "अपर्याप्त साक्ष्य",
+    "Evidencia insuficiente",
+    "أدلة غير كافية",
+    "หลักฐานไม่เพียงพอ"
+  ],
+  "Needs review": [
+    "需要复核",
+    "समीक्षा आवश्यक",
+    "Requiere revisión",
+    "يحتاج إلى مراجعة",
+    "ต้องทบทวน"
+  ],
+  "No uncertainty reported (unapproved draft)": [
+    "未报告不确定性（未批准草稿）",
+    "कोई अनिश्चितता दर्ज नहीं (अस्वीकृत ड्राफ़्ट)",
+    "Sin incertidumbre declarada (borrador no aprobado)",
+    "لم يُبلَّغ عن عدم يقين (مسودة غير معتمدة)",
+    "ไม่ได้รายงานความไม่แน่นอน (ฉบับร่างยังไม่อนุมัติ)"
+  ],
+  "Member mark": [
+    "构件编号",
+    "मेंबर चिह्न",
+    "Marca de elemento",
+    "علامة العنصر الإنشائي",
+    "รหัสชิ้นส่วน"
+  ],
+  "Member type": [
+    "构件类型",
+    "मेंबर प्रकार",
+    "Tipo de elemento",
+    "نوع العنصر الإنشائي",
+    "ประเภทชิ้นส่วน"
+  ],
+  "Steel section": [
+    "钢截面",
+    "इस्पात सेक्शन",
+    "Sección de acero",
+    "مقطع الفولاذ",
+    "หน้าตัดเหล็ก"
+  ],
+  "Fire period (min)": [
+    "耐火时间（分钟）",
+    "अग्नि अवधि (मिनट)",
+    "Resistencia al fuego (min)",
+    "مدة مقاومة الحريق (دقيقة)",
+    "ระยะเวลาทนไฟ (นาที)"
+  ],
+  "Exposed sides": [
+    "受火面数",
+    "उजागर भुजाएँ",
+    "Caras expuestas",
+    "الأوجه المعرضة",
+    "ด้านสัมผัสไฟ"
+  ],
+  "Crit. Temp (°C)": [
+    "临界温度（°C）",
+    "क्रांतिक तापमान (°C)",
+    "Temp. crítica (°C)",
+    "الحرارة الحرجة (°C)",
+    "อุณหภูมิวิกฤต (°C)"
+  ],
+  "Exposure": [
+    "暴露情况",
+    "एक्सपोज़र",
+    "Exposición",
+    "التعرض",
+    "การสัมผัส"
+  ],
+  "Zone": [
+    "区域",
+    "क्षेत्र",
+    "Zona",
+    "المنطقة",
+    "โซน"
+  ],
+  "Group": [
+    "组",
+    "समूह",
+    "Grupo",
+    "المجموعة",
+    "กลุ่ม"
+  ],
+  "WxH (mm)": [
+    "宽×高（mm）",
+    "चौड़ाई×ऊँचाई (mm)",
+    "Ancho×alto (mm)",
+    "العرض×الارتفاع (mm)",
+    "กว้าง×สูง (mm)"
+  ],
+  "Orientation": [
+    "方向",
+    "अभिविन्यास",
+    "Orientación",
+    "الاتجاه",
+    "แนววาง"
+  ],
+  "Wall penetrations": [
+    "墙体贯穿",
+    "दीवार पेनेट्रेशन",
+    "Penetraciones de pared",
+    "اختراقات الجدران",
+    "ช่องทะลุผนัง"
+  ],
+  "Floor penetrations": [
+    "楼板贯穿",
+    "फ़र्श पेनेट्रेशन",
+    "Penetraciones de suelo",
+    "اختراقات الأرضيات",
+    "ช่องทะลุพื้น"
+  ],
+  "Surface ID": [
+    "表面编号",
+    "सतह ID",
+    "ID de superficie",
+    "معرّف السطح",
+    "รหัสพื้นที่ผิว"
+  ],
+  "Number of layers": [
+    "层数",
+    "परतों की संख्या",
+    "Número de capas",
+    "عدد الطبقات",
+    "จำนวนชั้นวัสดุ"
+  ],
+  "Surface basis": [
+    "表面依据",
+    "सतह आधार",
+    "Base de superficie",
+    "أساس السطح",
+    "ฐานอ้างอิงพื้นที่ผิว"
+  ],
+  "Wall face (true elevation)": [
+    "墙面（真实立面）",
+    "दीवार का पृष्ठ (वास्तविक एलिवेशन)",
+    "Cara de pared (alzado real)",
+    "وجه الجدار (واجهة حقيقية)",
+    "ผิวหน้าผนัง (รูปด้านจริง)"
+  ],
+  "Slab soffit": [
+    "楼板底面",
+    "स्लैब का निचला पृष्ठ",
+    "Cara inferior de losa",
+    "باطن البلاطة",
+    "ใต้ท้องพื้น"
+  ],
+  "Slab top": [
+    "楼板顶面",
+    "स्लैब का ऊपरी पृष्ठ",
+    "Cara superior de losa",
+    "سطح البلاطة العلوي",
+    "ด้านบนพื้น"
+  ],
+  "Substrate": [
+    "基材",
+    "सब्सट्रेट",
+    "Sustrato",
+    "الركيزة",
+    "วัสดุฐาน"
+  ],
+  "Treatment": [
+    "处理方式",
+    "उपचार",
+    "Tratamiento",
+    "المعالجة",
+    "วิธีป้องกัน"
+  ],
+  "Protection system": [
+    "防护系统",
+    "सुरक्षा प्रणाली",
+    "Sistema de protección",
+    "نظام الحماية",
+    "ระบบป้องกัน"
+  ],
+  "Protection product": [
+    "防护产品",
+    "सुरक्षा उत्पाद",
+    "Producto de protección",
+    "منتج الحماية",
+    "ผลิตภัณฑ์ป้องกัน"
+  ],
+  "FRL / fire rating": [
+    "FRL/耐火等级",
+    "FRL / अग्नि रेटिंग",
+    "FRL / resistencia al fuego",
+    "FRL / تصنيف مقاومة الحريق",
+    "FRL / อัตราการทนไฟ"
+  ],
+  "True-surface source citation": [
+    "真实表面来源引用",
+    "वास्तविक सतह स्रोत संदर्भ",
+    "Referencia de fuente de superficie real",
+    "مرجع مصدر السطح الحقيقي",
+    "แหล่งอ้างอิงพื้นที่ผิวจริง"
+  ],
+  "Barrier type": [
+    "防火分隔类型",
+    "बैरियर प्रकार",
+    "Tipo de barrera",
+    "نوع الحاجز",
+    "ประเภทแนวกั้น"
+  ],
+  "Substrate orientation": [
+    "基材方向",
+    "सब्सट्रेट अभिविन्यास",
+    "Orientación del sustrato",
+    "اتجاه الركيزة",
+    "แนววัสดุฐาน"
+  ],
+  "Defect Ref.": [
+    "缺陷编号",
+    "दोष संदर्भ",
+    "Ref. de defecto",
+    "مرجع العيب",
+    "รหัสอ้างอิงข้อบกพร่อง"
+  ],
+  "Category": [
+    "类别",
+    "श्रेणी",
+    "Categoría",
+    "الفئة",
+    "หมวดหมู่"
+  ],
+  "Service type": [
+    "管线类型",
+    "सर्विस प्रकार",
+    "Tipo de instalación",
+    "نوع الخدمة",
+    "ประเภทงานระบบ"
+  ],
+  "Service Size (mm)": [
+    "管线尺寸（mm）",
+    "सर्विस आकार (mm)",
+    "Tamaño de instalación (mm)",
+    "مقاس الخدمة (mm)",
+    "ขนาดงานระบบ (mm)"
+  ],
+  "Explicit service quantity": [
+    "明确的管线数量",
+    "स्पष्ट सर्विस मात्रा",
+    "Cantidad explícita de instalaciones",
+    "كمية الخدمة الصريحة",
+    "จำนวนงานระบบที่ระบุชัดเจน"
+  ],
+  "Service quantity": [
+    "管线数量",
+    "सर्विस मात्रा",
+    "Cantidad de instalaciones",
+    "كمية الخدمات",
+    "จำนวนงานระบบ"
+  ],
+  "Source evidence": [
+    "来源证据",
+    "स्रोत साक्ष्य",
+    "Evidencia fuente",
+    "الأدلة المصدرية",
+    "หลักฐานต้นฉบับ"
+  ],
+  "Uncertainty": [
+    "不确定性",
+    "अनिश्चितता",
+    "Incertidumbre",
+    "عدم اليقين",
+    "ความไม่แน่นอน"
+  ],
+  "Loading steel sections…": [
+    "正在加载钢截面…",
+    "इस्पात सेक्शन लोड हो रहे हैं…",
+    "Cargando secciones de acero…",
+    "جارٍ تحميل مقاطع الفولاذ…",
+    "กำลังโหลดหน้าตัดเหล็ก…"
+  ],
+  "Show Steel section choices": [
+    "显示钢截面选项",
+    "इस्पात सेक्शन विकल्प दिखाएँ",
+    "Mostrar opciones de sección de acero",
+    "إظهار خيارات مقاطع الفولاذ",
+    "แสดงตัวเลือกหน้าตัดเหล็ก"
+  ],
+  "No matching sections. Refine the search.": [
+    "无匹配截面。请缩小搜索范围。",
+    "कोई मिलता सेक्शन नहीं। खोज सीमित करें।",
+    "No hay secciones coincidentes. Refine la búsqueda.",
+    "لا توجد مقاطع مطابقة. حسّن البحث.",
+    "ไม่มีหน้าตัดที่ตรงกัน โปรดปรับคำค้นหา"
+  ],
+  "Use rectangular duct": [
+    "使用矩形风管",
+    "आयताकार डक्ट उपयोग करें",
+    "Usar conducto rectangular",
+    "استخدام مجرى مستطيل",
+    "ใช้ท่อลมสี่เหลี่ยม"
+  ],
+  "Retry linked change": [
+    "重试关联更改",
+    "लिंक किया बदलाव फिर आज़माएँ",
+    "Reintentar cambio vinculado",
+    "إعادة محاولة التغيير المرتبط",
+    "ลองการแก้ไขที่เชื่อมโยงอีกครั้ง"
+  ],
+  "{0} items · {1} documents · Revision {2}": [
+    "{0}个项目 · {1}份文档 · 修订{2}",
+    "{0} आइटम · {1} दस्तावेज़ · संशोधन {2}",
+    "{0} elementos · {1} documentos · Revisión {2}",
+    "{0} عناصر · {1} مستندات · المراجعة {2}",
+    "{0} รายการ · {1} เอกสาร · ฉบับแก้ไข {2}"
+  ],
+  "Page {0}": [
+    "第{0}页",
+    "पृष्ठ {0}",
+    "Página {0}",
+    "الصفحة {0}",
+    "หน้า {0}"
+  ],
+  "{0} ({1} pages)": [
+    "{0}（{1}页）",
+    "{0} ({1} पृष्ठ)",
+    "{0} ({1} páginas)",
+    "{0} ({1} صفحات)",
+    "{0} ({1} หน้า)"
+  ],
+  "New PDF: {0} pages.": [
+    "新PDF：{0}页。",
+    "नया PDF: {0} पृष्ठ।",
+    "PDF nuevo: {0} páginas.",
+    "ملف PDF الجديد: {0} صفحات.",
+    "PDF ใหม่: {0} หน้า"
+  ],
+  "New PDF: {0} pages; {1} pages removed.": [
+    "新PDF：{0}页；已移除{1}页。",
+    "नया PDF: {0} पृष्ठ; {1} पृष्ठ हटाए।",
+    "PDF nuevo: {0} páginas; {1} páginas quitadas.",
+    "ملف PDF الجديد: {0} صفحات؛ أُزيلت {1} صفحات.",
+    "PDF ใหม่: {0} หน้า นำออก {1} หน้า"
+  ],
+  "Move page {0} down": [
+    "下移第{0}页",
+    "पृष्ठ {0} नीचे करें",
+    "Bajar página {0}",
+    "نقل الصفحة {0} لأسفل",
+    "เลื่อนหน้า {0} ลง"
+  ],
+  "Move page {0} up": [
+    "上移第{0}页",
+    "पृष्ठ {0} ऊपर करें",
+    "Subir página {0}",
+    "نقل الصفحة {0} لأعلى",
+    "เลื่อนหน้า {0} ขึ้น"
+  ],
+  "Move {0} down": [
+    "下移{0}",
+    "{0} नीचे करें",
+    "Bajar {0}",
+    "نقل {0} لأسفل",
+    "เลื่อน {0} ลง"
+  ],
+  "Move {0} up": [
+    "上移{0}",
+    "{0} ऊपर करें",
+    "Subir {0}",
+    "نقل {0} لأعلى",
+    "เลื่อน {0} ขึ้น"
+  ],
+  "Remove page {0} from output": [
+    "从输出中移除第{0}页",
+    "आउटपुट से पृष्ठ {0} हटाएँ",
+    "Quitar página {0} de la salida",
+    "إزالة الصفحة {0} من المخرج",
+    "นำหน้า {0} ออกจากผลลัพธ์"
+  ],
+  "View {0}": [
+    "查看{0}",
+    "{0} देखें",
+    "Ver {0}",
+    "عرض {0}",
+    "ดู {0}"
+  ],
+  "Select {0}": [
+    "选择{0}",
+    "{0} चुनें",
+    "Seleccionar {0}",
+    "تحديد {0}",
+    "เลือก {0}"
+  ],
+  "Delete {0}": [
+    "删除{0}",
+    "{0} हटाएँ",
+    "Eliminar {0}",
+    "حذف {0}",
+    "ลบ {0}"
+  ],
+  "Filter {0}": [
+    "筛选{0}",
+    "{0} फ़िल्टर करें",
+    "Filtrar {0}",
+    "تصفية {0}",
+    "กรอง {0}"
+  ],
+  "Search {0} values": [
+    "搜索{0}的值",
+    "{0} के मान खोजें",
+    "Buscar valores de {0}",
+    "البحث في قيم {0}",
+    "ค้นหาค่า {0}"
+  ],
+  "{0}: filter applied": [
+    "{0}：已应用筛选",
+    "{0}: फ़िल्टर लागू",
+    "{0}: filtro aplicado",
+    "{0}: طُبقت التصفية",
+    "{0}: ใช้ตัวกรองแล้ว"
+  ],
+  "{0} values": [
+    "{0}个值",
+    "{0} मान",
+    "{0} valores",
+    "{0} قيم",
+    "{0} ค่า"
+  ],
+  "{0} selected": [
+    "已选择{0}个",
+    "{0} चुने हुए",
+    "{0} seleccionados",
+    "{0} محدد",
+    "เลือก {0} รายการ"
+  ],
+  "{0}–{1} of {2} matching items": [
+    "匹配项目{0}–{1}，共{2}个",
+    "{2} मिलते आइटम में से {0}–{1}",
+    "{0}–{1} de {2} elementos coincidentes",
+    "{0}–{1} من {2} عناصر مطابقة",
+    "รายการที่ตรงกัน {0}–{1} จาก {2}"
+  ],
+  "{0}–{1} of {2} deleted records": [
+    "已删除记录{0}–{1}，共{2}条",
+    "{2} हटाए रिकॉर्ड में से {0}–{1}",
+    "{0}–{1} de {2} registros eliminados",
+    "{0}–{1} من {2} سجلات محذوفة",
+    "รายการที่ลบ {0}–{1} จาก {2}"
+  ],
+  "Showing {0}–{1} of {2} items.": [
+    "显示项目{0}–{1}，共{2}个。",
+    "{2} आइटम में से {0}–{1} दिख रहे हैं।",
+    "Mostrando {0}–{1} de {2} elementos.",
+    "عرض {0}–{1} من {2} عناصر.",
+    "แสดงรายการ {0}–{1} จาก {2}"
+  ],
+  "Showing {0} of {1} sections. Type to narrow the list.": [
+    "显示{0}个截面，共{1}个。输入文字可缩小列表范围。",
+    "{1} सेक्शन में से {0} दिख रहे हैं। सूची सीमित करने के लिए टाइप करें।",
+    "Mostrando {0} de {1} secciones. Escriba para reducir la lista.",
+    "عرض {0} من {1} مقاطع. اكتب لتضييق القائمة.",
+    "แสดงหน้าตัด {0} จาก {1} พิมพ์เพื่อจำกัดรายการ"
+  ],
+  "{0} section{1}": [
+    "{0}个截面{1}",
+    "{0} सेक्शन{1}",
+    "{0} secciones{1}",
+    "{0} مقاطع{1}",
+    "{0} หน้าตัด{1}"
+  ],
+  "Control point {0}": [
+    "控制点{0}",
+    "नियंत्रण बिंदु {0}",
+    "Punto de control {0}",
+    "نقطة التحكم {0}",
+    "จุดควบคุม {0}"
+  ],
+  "{0} control point actions": [
+    "{0}控制点操作",
+    "{0} नियंत्रण बिंदु क्रियाएँ",
+    "Acciones de punto de control {0}",
+    "إجراءات نقطة التحكم {0}",
+    "การดำเนินการจุดควบคุม {0}"
+  ],
+  "{0} at control point {1}: {2} mm per {3}": [
+    "{0}位于控制点{1}：每{3}为{2} mm",
+    "नियंत्रण बिंदु {1} पर {0}: प्रति {3} {2} mm",
+    "{0} en punto de control {1}: {2} mm por {3}",
+    "{0} عند نقطة التحكم {1}: {2} mm لكل {3}",
+    "{0} ที่จุดควบคุม {1}: {2} mm ต่อ {3}"
+  ],
+  "Exclusion {0}": [
+    "排除区域{0}",
+    "बहिष्करण {0}",
+    "Exclusión {0}",
+    "المنطقة المستثناة {0}",
+    "พื้นที่ยกเว้น {0}"
+  ],
+  "Edit viewport {0}": [
+    "编辑局部视口{0}",
+    "व्यूपोर्ट {0} संपादित करें",
+    "Editar ventana de vista {0}",
+    "تعديل منفذ العرض {0}",
+    "แก้ไขกรอบมุมมอง {0}"
+  ],
+  "Select viewport {0}": [
+    "选择局部视口{0}",
+    "व्यूपोर्ट {0} चुनें",
+    "Seleccionar ventana de vista {0}",
+    "تحديد منفذ العرض {0}",
+    "เลือกกรอบมุมมอง {0}"
+  ],
+  "Scale for viewport {0}": [
+    "局部视口{0}的比例尺",
+    "व्यूपोर्ट {0} का स्केल",
+    "Escala para ventana de vista {0}",
+    "مقياس منفذ العرض {0}",
+    "มาตราส่วนกรอบมุมมอง {0}"
+  ],
+  "Scale · {0}": [
+    "比例尺 · {0}",
+    "स्केल · {0}",
+    "Escala · {0}",
+    "المقياس · {0}",
+    "มาตราส่วน · {0}"
+  ],
+  "{0} Settings": [
+    "{0}设置",
+    "{0} सेटिंग्स",
+    "Configuración de {0}",
+    "إعدادات {0}",
+    "ตั้งค่า {0}"
+  ],
+  "{0} Legend": [
+    "{0}图例",
+    "{0} लेजेंड",
+    "Leyenda de {0}",
+    "مفتاح رموز {0}",
+    "คำอธิบายสัญลักษณ์ {0}"
+  ],
+  "{0} register": [
+    "{0}登记表",
+    "{0} रजिस्टर",
+    "Registro de {0}",
+    "سجل {0}",
+    "ทะเบียน {0}"
+  ],
+  "{0} editable takeoff register": [
+    "{0}可编辑工程量登记表",
+    "{0} संपादन योग्य टेकऑफ रजिस्टर",
+    "Registro editable de mediciones de {0}",
+    "سجل حصر كميات {0} القابل للتعديل",
+    "ทะเบียนถอดปริมาณ {0} ที่แก้ไขได้"
+  ],
+  "{0} source associations": [
+    "{0}个来源关联",
+    "{0} स्रोत संबद्धताएँ",
+    "{0} asociaciones de fuentes",
+    "{0} ارتباطات مصدرية",
+    "การเชื่อมโยงต้นฉบับ {0} รายการ"
+  ],
+  "{0} callout {1}": [
+    "{0}引出标注{1}",
+    "{0} कॉलआउट {1}",
+    "{0} llamada {1}",
+    "{0} تعليق توضيحي {1}",
+    "{0} ข้อความชี้กำกับ {1}"
+  ],
+  "Stamp image: {0} × {1} pixels.": [
+    "印章图像：{0} × {1}像素。",
+    "स्टैम्प चित्र: {0} × {1} पिक्सेल।",
+    "Imagen de sello: {0} × {1} píxeles.",
+    "صورة الختم: {0} × {1} بكسل.",
+    "รูปตราประทับ: {0} × {1} พิกเซล"
+  ],
+  "Length group {0}": [
+    "长度组{0}",
+    "लंबाई समूह {0}",
+    "Grupo de longitudes {0}",
+    "مجموعة الأطوال {0}",
+    "กลุ่มความยาว {0}"
+  ],
+  "Length measurements": [
+    "长度测量",
+    "लंबाई माप",
+    "Mediciones de longitud",
+    "قياسات الطول",
+    "การวัดความยาว"
+  ],
+  "Length: {0} m · {1}": [
+    "长度：{0} m · {1}",
+    "लंबाई: {0} m · {1}",
+    "Longitud: {0} m · {1}",
+    "الطول: {0} m · {1}",
+    "ความยาว: {0} m · {1}"
+  ],
+  "{0} · {1} mm each": [
+    "{0} · 每个{1} mm",
+    "{0} · प्रत्येक {1} mm",
+    "{0} · {1} mm cada uno",
+    "{0} · {1} mm لكل منها",
+    "{0} · ชิ้นละ {1} mm"
+  ],
+  "Thickness (mm): {0}. {1}": [
+    "厚度（mm）：{0}。{1}",
+    "मोटाई (mm): {0}। {1}",
+    "Espesor (mm): {0}. {1}",
+    "السماكة (mm): {0}. {1}",
+    "ความหนา (mm): {0} {1}"
+  ],
+  "Duct surface (m²): {0}. {1}": [
+    "风管表面积（m²）：{0}。{1}",
+    "डक्ट सतह (m²): {0}। {1}",
+    "Superficie del conducto (m²): {0}. {1}",
+    "سطح المجرى (m²): {0}. {1}",
+    "พื้นที่ผิวท่อลม (m²): {0} {1}"
+  ],
+  "Document SHA-256: {0}": [
+    "文档SHA-256：{0}",
+    "दस्तावेज़ SHA-256: {0}",
+    "SHA-256 del documento: {0}",
+    "بصمة المستند SHA-256: {0}",
+    "SHA-256 เอกสาร: {0}"
+  ],
+  "Defect ID: {0}": [
+    "缺陷编号：{0}",
+    "दोष ID: {0}",
+    "ID de defecto: {0}",
+    "معرّف العيب: {0}",
+    "รหัสข้อบกพร่อง: {0}"
+  ],
+  "Explicit service quantity: {0}": [
+    "明确的管线数量：{0}",
+    "स्पष्ट सर्विस मात्रा: {0}",
+    "Cantidad explícita de instalaciones: {0}",
+    "كمية الخدمة الصريحة: {0}",
+    "จำนวนงานระบบที่ระบุ: {0}"
+  ],
+  "Add barrier to {0}": [
+    "向{0}添加防火分隔",
+    "{0} में बैरियर जोड़ें",
+    "Añadir barrera a {0}",
+    "إضافة حاجز إلى {0}",
+    "เพิ่มแนวกั้นให้ {0}"
+  ],
+  "Add service to {0}": [
+    "向{0}添加管线",
+    "{0} में सर्विस जोड़ें",
+    "Añadir instalación a {0}",
+    "إضافة خدمة إلى {0}",
+    "เพิ่มงานระบบให้ {0}"
+  ],
+  "Select {0} {1}": [
+    "选择{0} {1}",
+    "{0} {1} चुनें",
+    "Seleccionar {0} {1}",
+    "تحديد {0} {1}",
+    "เลือก {0} {1}"
+  ],
+  "Hide {0} {1} on drawing": [
+    "在图纸上隐藏{0} {1}",
+    "ड्रॉइंग पर {0} {1} छिपाएँ",
+    "Ocultar {0} {1} en el plano",
+    "إخفاء {0} {1} في الرسم",
+    "ซ่อน {0} {1} บนแบบ"
+  ],
+  "Hide {0} on drawing": [
+    "在图纸上隐藏{0}",
+    "ड्रॉइंग पर {0} छिपाएँ",
+    "Ocultar {0} en el plano",
+    "إخفاء {0} في الرسم",
+    "ซ่อน {0} บนแบบ"
+  ],
+  "View {0} on its source drawing": [
+    "在源图纸上查看{0}",
+    "{0} को उसके स्रोत ड्रॉइंग पर देखें",
+    "Ver {0} en su plano fuente",
+    "عرض {0} في رسمه المصدري",
+    "ดู {0} บนแบบต้นฉบับ"
+  ],
+  "{0} ID in Item Details": [
+    "项目详情中的{0}编号",
+    "आइटम विवरण में {0} ID",
+    "ID de {0} en detalles",
+    "معرّف {0} في تفاصيل العنصر",
+    "รหัส {0} ในรายละเอียดรายการ"
+  ],
+  "{0} {1} in Item Details": [
+    "项目详情中的{0} {1}",
+    "आइटम विवरण में {0} {1}",
+    "{0} {1} en detalles",
+    "{0} {1} في تفاصيل العنصر",
+    "{0} {1} ในรายละเอียดรายการ"
+  ],
+  "Physical revision {0} · {1} retained identities · {2}": [
+    "实体修订{0} · 保留{1}个标识 · {2}",
+    "भौतिक संशोधन {0} · {1} सुरक्षित पहचान · {2}",
+    "Revisión física {0} · {1} identidades conservadas · {2}",
+    "المراجعة المادية {0} · {1} هويات محفوظة · {2}",
+    "ฉบับแก้ไขรายการจริง {0} · คงรหัส {1} รายการ · {2}"
+  ],
+  "Confirmation: {0} — inherited from {1} {2}.": [
+    "确认状态：{0} — 继承自{1} {2}。",
+    "पुष्टि: {0} — {1} {2} से प्राप्त।",
+    "Confirmación: {0} — heredada de {1} {2}.",
+    "التأكيد: {0} — موروث من {1} {2}.",
+    "การยืนยัน: {0} — สืบทอดจาก {1} {2}"
+  ],
+  "Uncertainty: {0} · {1}": [
+    "不确定性：{0} · {1}",
+    "अनिश्चितता: {0} · {1}",
+    "Incertidumbre: {0} · {1}",
+    "عدم اليقين: {0} · {1}",
+    "ความไม่แน่นอน: {0} · {1}"
+  ],
+  "{0} — PHYSICAL DRAFT": [
+    "{0} — 实体草稿",
+    "{0} — भौतिक ड्राफ़्ट",
+    "{0} — BORRADOR FÍSICO",
+    "{0} — مسودة مادية",
+    "{0} — ฉบับร่างรายการจริง"
+  ],
+  "Select all {0} matching active records across register pages": [
+    "跨登记表页面选择所有{0}条匹配的有效记录",
+    "सभी रजिस्टर पृष्ठों के {0} मिलते सक्रिय रिकॉर्ड चुनें",
+    "Seleccionar los {0} registros activos coincidentes en todas las páginas",
+    "تحديد كل السجلات النشطة المطابقة وعددها {0} عبر صفحات السجل",
+    "เลือกรายการที่ใช้งานตรงกันทั้ง {0} รายการข้ามหน้าทะเบียน"
+  ],
+  "Hide all {0} matching active records on drawing": [
+    "在图纸上隐藏所有{0}条匹配的有效记录",
+    "ड्रॉइंग पर सभी {0} मिलते सक्रिय रिकॉर्ड छिपाएँ",
+    "Ocultar los {0} registros activos coincidentes en el plano",
+    "إخفاء كل السجلات النشطة المطابقة وعددها {0} في الرسم",
+    "ซ่อนรายการที่ใช้งานตรงกันทั้ง {0} รายการบนแบบ"
+  ],
+  "{0}–{1} of {2} visible hierarchy records. Ancestor context may repeat across pages.": [
+    "可见层级记录{0}–{1}，共{2}条。上级上下文可能跨页重复。",
+    "{2} दृश्य पदानुक्रम रिकॉर्ड में से {0}–{1}। पूर्वज संदर्भ पृष्ठों पर दोहर सकता है।",
+    "{0}–{1} de {2} registros jerárquicos visibles. El contexto ancestral puede repetirse entre páginas.",
+    "{0}–{1} من {2} سجلات تسلسل مرئية. قد يتكرر سياق السجلات الأعلى عبر الصفحات.",
+    "รายการลำดับที่มองเห็น {0}–{1} จาก {2} บริบทรายการระดับบนอาจซ้ำข้ามหน้า"
+  ],
+  "Prepare a new PDF. Original Source Documents and their existing markups stay attached to the original pages.": [
+    "生成新的PDF。原始源文档及其现有标注仍关联原始页面。",
+    "नया PDF तैयार करें। मूल स्रोत दस्तावेज़ और उनके मौजूदा मार्कअप मूल पृष्ठों से जुड़े रहते हैं।",
+    "Prepare un PDF nuevo. Los documentos fuente originales y sus marcas existentes siguen vinculados a las páginas originales.",
+    "أعدّ ملف PDF جديداً. تبقى المستندات المصدرية الأصلية وعلاماتها الحالية مرتبطة بالصفحات الأصلية.",
+    "เตรียม PDF ใหม่ เอกสารต้นฉบับและเครื่องหมายเดิมยังผูกกับหน้าเดิม"
+  ],
+  "Select PDFs and use the arrows to set their merge order.": [
+    "选择PDF并使用箭头设置合并顺序。",
+    "PDF चुनें और तीरों से उनका मिलाने का क्रम तय करें।",
+    "Seleccione PDF y use las flechas para definir el orden de combinación.",
+    "حدد ملفات PDF واستخدم الأسهم لضبط ترتيب دمجها.",
+    "เลือก PDF และใช้ลูกศรจัดลำดับการรวม"
+  ],
+  "Use the arrows or enter a page order. Removing a page here affects only the new PDF.": [
+    "使用箭头或输入页面顺序。此处移除页面仅影响新PDF。",
+    "तीरों का उपयोग करें या पृष्ठ क्रम दर्ज करें। यहाँ पृष्ठ हटाने से केवल नया PDF प्रभावित होता है।",
+    "Use las flechas o introduzca el orden de páginas. Quitar una página aquí solo afecta al PDF nuevo.",
+    "استخدم الأسهم أو أدخل ترتيب الصفحات. إزالة صفحة هنا تؤثر في ملف PDF الجديد فقط.",
+    "ใช้ลูกศรหรือป้อนลำดับหน้า การนำหน้าออกที่นี่มีผลเฉพาะ PDF ใหม่"
+  ],
+  "PDF drawing mark only.": [
+    "仅为PDF图纸标记。",
+    "केवल PDF ड्रॉइंग चिह्न।",
+    "Solo una marca del plano PDF.",
+    "علامة رسم على PDF فقط.",
+    "เป็นเครื่องหมายบนแบบ PDF เท่านั้น"
+  ],
+  "Quantity is derived from count markers.": [
+    "数量由计数标记得出。",
+    "मात्रा गिनती मार्करों से निकलती है।",
+    "La cantidad se deriva de los marcadores de conteo.",
+    "الكمية مستمدة من علامات العدّ.",
+    "จำนวนคำนวณจากตัวทำเครื่องหมายการนับ"
+  ],
+  "Edit shared Count details using Edit item.": [
+    "使用“编辑项目”修改共用的计数详情。",
+    "साझा गिनती विवरण बदलने के लिए आइटम संपादित करें का उपयोग करें।",
+    "Use Editar elemento para cambiar los detalles compartidos de conteo.",
+    "استخدم تعديل العنصر لتعديل تفاصيل العدّ المشتركة.",
+    "ใช้แก้ไขรายการเพื่อแก้รายละเอียดการนับร่วมกัน"
+  ],
+  "No riser or drop lengths added.": [
+    "尚未添加上升或下降段长度。",
+    "कोई ऊर्ध्व या अधो लंबाई नहीं जोड़ी गई।",
+    "No se añadieron longitudes de subida o bajada.",
+    "لم تُضف أطوال ارتفاع أو انخفاض.",
+    "ยังไม่ได้เพิ่มความยาวแนวขึ้นหรือแนวลง"
+  ],
+  "Show hidden Call-outs": [
+    "显示隐藏的引出标注",
+    "छिपे कॉलआउट दिखाएँ",
+    "Mostrar llamadas ocultas",
+    "إظهار التعليقات التوضيحية المخفية",
+    "แสดงข้อความชี้กำกับที่ซ่อน"
+  ],
+  "Free Call-outs are drawing notes. They do not add register entries or quantities.": [
+    "自由引出标注为图纸备注，不会添加登记表条目或数量。",
+    "स्वतंत्र कॉलआउट ड्रॉइंग टिप्पणियाँ हैं। वे रजिस्टर प्रविष्टियाँ या मात्रा नहीं जोड़ते।",
+    "Las llamadas libres son notas del plano. No añaden entradas ni cantidades al registro.",
+    "التعليقات الحرة ملاحظات رسم، ولا تضيف قيوداً أو كميات إلى السجل.",
+    "ข้อความชี้กำกับอิสระเป็นหมายเหตุในแบบ ไม่เพิ่มรายการหรือปริมาณในทะเบียน"
+  ],
+  "Marker size uses physical PDF points. Colour, shape, fill and opacity change appearance only.": [
+    "标记尺寸使用PDF物理点。颜色、形状、填充和不透明度仅改变外观。",
+    "मार्कर आकार भौतिक PDF पॉइंट उपयोग करता है। रंग, आकार, भराव और अपारदर्शिता केवल रूप बदलते हैं।",
+    "El tamaño del marcador usa puntos físicos PDF. Color, forma, relleno y opacidad solo cambian la apariencia.",
+    "يستخدم حجم العلامة نقاط PDF المادية. يغير اللون والشكل والتعبئة والعتامة المظهر فقط.",
+    "ขนาดตัวทำเครื่องหมายใช้จุดทางกายภาพของ PDF สี รูปร่าง สีเติม และความทึบเปลี่ยนเฉพาะลักษณะ"
+  ],
+  "No viewports on this page. Add a viewport around a detail with its own scale.": [
+    "此页没有局部视口。请为具有独立比例尺的详图添加视口。",
+    "इस पृष्ठ पर व्यूपोर्ट नहीं हैं। अपने स्केल वाले विवरण के चारों ओर व्यूपोर्ट जोड़ें।",
+    "No hay ventanas de vista en esta página. Añada una alrededor de un detalle con escala propia.",
+    "لا توجد منافذ عرض في هذه الصفحة. أضف منفذ عرض حول تفصيل له مقياس مستقل.",
+    "หน้านี้ไม่มีกรอบมุมมอง เพิ่มกรอบรอบรายละเอียดที่มีมาตราส่วนของตนเอง"
+  ],
+  "Item Details cannot fit: resize or shorten": [
+    "项目详情无法容纳：请调整大小或缩短内容",
+    "आइटम विवरण नहीं समा रहा: आकार बदलें या छोटा करें",
+    "Los detalles no caben: cambie el tamaño o acorte el contenido",
+    "لا تتسع تفاصيل العنصر: غيّر الحجم أو اختصر",
+    "รายละเอียดรายการไม่พอดี ปรับขนาดหรือย่อเนื้อหา"
+  ],
+  "Read-only history. Deleted records do not contribute to quantities or schedules.": [
+    "只读历史。已删除记录不计入数量或明细表。",
+    "केवल-पठन इतिहास। हटाए रिकॉर्ड मात्रा या अनुसूची में योगदान नहीं करते।",
+    "Historial de solo lectura. Los registros eliminados no contribuyen a cantidades ni cuadros.",
+    "سجل تاريخي للقراءة فقط. لا تدخل السجلات المحذوفة في الكميات أو الجداول.",
+    "ประวัติอ่านอย่างเดียว รายการที่ลบไม่นับรวมปริมาณหรือตาราง"
+  ],
+  "Deleted records are retained read-only; Undo restores the original item.": [
+    "已删除记录以只读方式保留；撤销可恢复原始项目。",
+    "हटाए रिकॉर्ड केवल-पठन रूप में सुरक्षित हैं; पूर्ववत मूल आइटम लौटाता है।",
+    "Los registros eliminados se conservan en solo lectura; Deshacer restaura el elemento original.",
+    "تُحفظ السجلات المحذوفة للقراءة فقط؛ التراجع يستعيد العنصر الأصلي.",
+    "เก็บรายการที่ลบไว้อ่านอย่างเดียว เลิกทำจะคืนรายการต้นฉบับ"
+  ],
+  "No deleted records match this workspace and filter.": [
+    "没有符合此工作区和筛选条件的已删除记录。",
+    "इस कार्यक्षेत्र और फ़िल्टर से कोई हटाया रिकॉर्ड मेल नहीं खाता।",
+    "Ningún registro eliminado coincide con este espacio y filtro.",
+    "لا توجد سجلات محذوفة تطابق مساحة العمل والتصفية.",
+    "ไม่มีรายการที่ลบตรงกับพื้นที่ทำงานและตัวกรองนี้"
+  ],
+  "Original fields, evidence and parent IDs are retained. Restore previews disclose descendants and do not invent missing parents.": [
+    "保留原始字段、证据及上级编号。恢复预览显示下级记录，不会虚构缺失的上级。",
+    "मूल फ़ील्ड, साक्ष्य और मूल रिकॉर्ड ID सुरक्षित हैं। पुनर्स्थापन पूर्वावलोकन वंशज दिखाता है और लापता मूल रिकॉर्ड नहीं बनाता।",
+    "Se conservan campos, evidencias e ID de padres originales. La vista previa de restauración muestra descendientes y no inventa padres faltantes.",
+    "تُحفظ الحقول والأدلة ومعرّفات السجلات الأصل. تعرض معاينة الاستعادة السجلات التابعة ولا تنشئ سجلات أصل مفقودة.",
+    "คงฟิลด์ หลักฐาน และรหัสรายการหลักเดิม ตัวอย่างการคืนแสดงรายการย่อยและไม่สร้างรายการหลักที่หายไป"
+  ],
+  "Manual record review only. Technical approval and schedule confirmation remain separate.": [
+    "仅为手动记录复核。技术审批与明细表确认仍独立进行。",
+    "केवल मैनुअल रिकॉर्ड समीक्षा। तकनीकी अनुमोदन और अनुसूची पुष्टि अलग रहते हैं।",
+    "Solo revisión manual de registros. La aprobación técnica y la confirmación del cuadro siguen separadas.",
+    "مراجعة يدوية للسجل فقط. يبقى الاعتماد الفني وتأكيد الجدول منفصلين.",
+    "เป็นการทบทวนรายการด้วยตนเองเท่านั้น การอนุมัติทางเทคนิคและยืนยันตารางยังแยกกัน"
+  ],
+  "Select a hierarchy row to inspect its parent, evidence and uncertainty.": [
+    "选择层级行以检查上级、证据和不确定性。",
+    "मूल रिकॉर्ड, साक्ष्य और अनिश्चितता जाँचने के लिए पदानुक्रम पंक्ति चुनें।",
+    "Seleccione una fila de jerarquía para inspeccionar su padre, evidencias e incertidumbre.",
+    "حدد صفاً من التسلسل لفحص سجله الأصل والأدلة وعدم اليقين.",
+    "เลือกแถวลำดับเพื่อตรวจรายการหลัก หลักฐาน และความไม่แน่นอน"
+  ],
+  "Service quantity unknown: enter an explicit physical count when reviewed. The commercial schedule contribution is separate.": [
+    "管线数量未知：复核后请填写明确的实物计数。商务明细表的计量单独处理。",
+    "सर्विस मात्रा अज्ञात: समीक्षा के बाद स्पष्ट भौतिक गिनती दर्ज करें। वाणिज्यिक अनुसूची योगदान अलग है।",
+    "Cantidad de instalaciones desconocida: introduzca un conteo físico explícito tras revisarlo. La contribución al cuadro comercial es independiente.",
+    "كمية الخدمة غير معروفة: أدخل عدداً مادياً صريحاً بعد المراجعة. المساهمة في الجدول التجاري منفصلة.",
+    "ไม่ทราบจำนวนงานระบบ ป้อนจำนวนจริงที่ชัดเจนหลังทบทวน การนำไปนับในตารางเชิงพาณิชย์แยกกัน"
+  ],
+  "No source evidence is linked. Link an original source page. This draft is not approved.": [
+    "未关联来源证据。请关联原始源页面。此草稿未经批准。",
+    "स्रोत साक्ष्य लिंक नहीं है। मूल स्रोत पृष्ठ लिंक करें। यह ड्राफ़्ट अनुमोदित नहीं है।",
+    "No hay evidencia fuente vinculada. Vincule una página original. Este borrador no está aprobado.",
+    "لا توجد أدلة مصدرية مرتبطة. اربط صفحة مصدر أصلية. هذه المسودة غير معتمدة.",
+    "ยังไม่เชื่อมโยงหลักฐานต้นฉบับ โปรดเชื่อมโยงหน้าต้นฉบับ ฉบับร่างนี้ยังไม่ได้อนุมัติ"
+  ],
+  "Source markup missing": [
+    "来源标注缺失",
+    "स्रोत मार्कअप अनुपलब्ध",
+    "Falta la marca fuente",
+    "العلامة المصدرية مفقودة",
+    "ขาดเครื่องหมายต้นฉบับ"
+  ],
+  "Source markup is missing. You can inspect and edit this draft, but review and confirmation remain blocked.": [
+    "来源标注缺失。您可以检查和编辑此草稿，但复核与确认仍被阻止。",
+    "स्रोत मार्कअप अनुपलब्ध है। ड्राफ़्ट देख और संपादित कर सकते हैं, पर समीक्षा और पुष्टि अवरुद्ध हैं।",
+    "Falta la marca fuente. Puede inspeccionar y editar el borrador, pero la revisión y la confirmación están bloqueadas.",
+    "العلامة المصدرية مفقودة. يمكنك فحص المسودة وتعديلها، لكن المراجعة والتأكيد يظلان محظورين.",
+    "ขาดเครื่องหมายต้นฉบับ คุณตรวจและแก้ไขฉบับร่างได้ แต่ยังทบทวนและยืนยันไม่ได้"
+  ],
+  "Select active records of one entity type to edit a shared field.": [
+    "选择同一实体类型的有效记录以编辑共用字段。",
+    "साझा फ़ील्ड संपादित करने हेतु एक प्रकार के सक्रिय रिकॉर्ड चुनें।",
+    "Seleccione registros activos de un solo tipo para editar un campo compartido.",
+    "حدد سجلات نشطة من نوع واحد لتعديل حقل مشترك.",
+    "เลือกรายการที่ใช้งานประเภทเดียวกันเพื่อแก้ไขฟิลด์ร่วม"
+  ],
+  "Select active records of one entity type for a counted, reversible bulk edit.": [
+    "选择同一实体类型的有效记录，进行可计数、可撤销的批量编辑。",
+    "गिने हुए, पूर्ववत योग्य सामूहिक संपादन के लिए एक प्रकार के सक्रिय रिकॉर्ड चुनें।",
+    "Seleccione registros activos de un solo tipo para una edición masiva contada y reversible.",
+    "حدد سجلات نشطة من نوع واحد لتعديل جماعي محسوب وقابل للتراجع.",
+    "เลือกรายการที่ใช้งานประเภทเดียวกันเพื่อแก้ไขหลายรายการแบบนับจำนวนและย้อนกลับได้"
+  ],
+  "New value for every selected record; blank clears an optional property.": [
+    "为每条所选记录设置新值；留空将清除可选属性。",
+    "हर चुने रिकॉर्ड के लिए नया मान; खाली रखने से वैकल्पिक गुण साफ़ होगा।",
+    "Nuevo valor para cada registro seleccionado; vacío borra una propiedad opcional.",
+    "قيمة جديدة لكل سجل محدد؛ الفراغ يمسح الخاصية الاختيارية.",
+    "ค่าใหม่สำหรับทุกรายการที่เลือก เว้นว่างเพื่อล้างคุณสมบัติที่ไม่บังคับ"
+  ],
+  "No matching physical records. Adjust the filter or create an explicitly linked draft record.": [
+    "无匹配的实体记录。请调整筛选或创建具有明确关联的草稿记录。",
+    "कोई मिलता भौतिक रिकॉर्ड नहीं। फ़िल्टर बदलें या स्पष्ट रूप से लिंक किया ड्राफ़्ट रिकॉर्ड बनाएँ।",
+    "No hay registros físicos coincidentes. Ajuste el filtro o cree un borrador vinculado explícitamente.",
+    "لا توجد سجلات مادية مطابقة. عدّل التصفية أو أنشئ سجل مسودة مرتبطاً صراحةً.",
+    "ไม่มีรายการจริงที่ตรงกัน ปรับตัวกรองหรือสร้างรายการฉบับร่างที่เชื่อมโยงชัดเจน"
+  ],
+  "Ancestor context; adjust the filter to delete this item.": [
+    "上级上下文；如需删除此项目，请调整筛选。",
+    "पूर्वज संदर्भ; यह आइटम हटाने के लिए फ़िल्टर बदलें।",
+    "Contexto ancestral; ajuste el filtro para eliminar este elemento.",
+    "سياق السجلات الأعلى؛ عدّل التصفية لحذف هذا العنصر.",
+    "บริบทรายการระดับบน ปรับตัวกรองเพื่อลบรายการนี้"
+  ],
+  "Retained read-only record; deletion is unavailable.": [
+    "保留的只读记录；无法删除。",
+    "सुरक्षित केवल-पठन रिकॉर्ड; हटाना उपलब्ध नहीं।",
+    "Registro conservado de solo lectura; no se puede eliminar.",
+    "سجل محفوظ للقراءة فقط؛ الحذف غير متاح.",
+    "รายการที่เก็บไว้อ่านอย่างเดียว ไม่สามารถลบได้"
+  ],
+  "Surface merging is unavailable. Group separate physical surfaces without changing their identities.": [
+    "无法合并表面。可将独立实物表面分组，但不更改其标识。",
+    "सतह मिलाना उपलब्ध नहीं। पहचान बदले बिना अलग भौतिक सतहें समूहित करें।",
+    "No se pueden combinar superficies. Agrupe superficies físicas separadas sin cambiar sus identidades.",
+    "دمج الأسطح غير متاح. جمّع الأسطح المادية المنفصلة دون تغيير هوياتها.",
+    "รวมพื้นที่ผิวไม่ได้ จัดกลุ่มพื้นที่ผิวจริงแยกกันโดยไม่เปลี่ยนรหัส"
+  ],
+  "Surface splitting is unavailable. Group separate physical surfaces without changing their identities.": [
+    "无法拆分表面。可将独立实物表面分组，但不更改其标识。",
+    "सतह विभाजन उपलब्ध नहीं। पहचान बदले बिना अलग भौतिक सतहें समूहित करें।",
+    "No se pueden dividir superficies. Agrupe superficies físicas separadas sin cambiar sus identidades.",
+    "تقسيم الأسطح غير متاح. جمّع الأسطح المادية المنفصلة دون تغيير هوياتها.",
+    "แยกพื้นที่ผิวไม่ได้ จัดกลุ่มพื้นที่ผิวจริงแยกกันโดยไม่เปลี่ยนรหัส"
+  ],
+  "Retained non-rectangular duct; calculator transfer unavailable.": [
+    "保留的非矩形风管；无法传送到计算器。",
+    "सुरक्षित गैर-आयताकार डक्ट; कैलकुलेटर स्थानांतरण उपलब्ध नहीं।",
+    "Conducto no rectangular conservado; no se puede transferir a la calculadora.",
+    "مجرى غير مستطيل محفوظ؛ النقل إلى الحاسبة غير متاح.",
+    "คงท่อลมที่ไม่ใช่สี่เหลี่ยมไว้ ไม่สามารถส่งไปเครื่องคำนวณ"
+  ],
+  "Combine compatible repeated-member groups while retaining every physical member identity.": [
+    "合并兼容的重复构件组，同时保留每个实物构件的标识。",
+    "हर भौतिक मेंबर की पहचान रखते हुए संगत दोहराए मेंबर समूह मिलाएँ।",
+    "Combine grupos compatibles de elementos repetidos conservando cada identidad física.",
+    "ادمج مجموعات العناصر المتكررة المتوافقة مع حفظ هوية كل عنصر مادي.",
+    "รวมกลุ่มชิ้นส่วนซ้ำที่เข้ากันได้โดยคงรหัสชิ้นส่วนจริงทุกชิ้น"
+  ],
+  "Merge adjoining measured segments of one individual duct run.": [
+    "合并同一独立风管管段的相邻测量段。",
+    "एक डक्ट रन के सटे हुए मापे खंड मिलाएँ।",
+    "Combine tramos medidos contiguos de un mismo recorrido de conducto.",
+    "ادمج المقاطع المقاسة المتجاورة لمسار مجرى واحد.",
+    "รวมส่วนที่วัดติดกันของแนวท่อลมเดียว"
+  ],
+  "Split measured segments of one individual duct run.": [
+    "拆分同一独立风管管段的测量段。",
+    "एक डक्ट रन के मापे खंड विभाजित करें।",
+    "Divida los tramos medidos de un mismo recorrido de conducto.",
+    "قسّم المقاطع المقاسة لمسار مجرى واحد.",
+    "แยกส่วนที่วัดของแนวท่อลมเดียว"
+  ],
+  "Partition an explicit repeated-member quantity without changing individual member lengths.": [
+    "划分明确的重复构件数量，而不改变单个构件长度。",
+    "व्यक्तिगत लंबाई बदले बिना स्पष्ट दोहराए मेंबर मात्रा बाँटें।",
+    "Divida una cantidad explícita de elementos repetidos sin cambiar sus longitudes individuales.",
+    "قسّم كمية صريحة من العناصر المتكررة دون تغيير أطوال العناصر المنفردة.",
+    "แบ่งจำนวนชิ้นส่วนซ้ำที่ระบุชัดเจนโดยไม่เปลี่ยนความยาวแต่ละชิ้น"
+  ],
+  " Ancestor context": [
+    " 上级上下文",
+    " पूर्वज संदर्भ",
+    " Contexto ancestral",
+    " سياق السجلات الأعلى",
+    " บริบทรายการระดับบน"
+  ],
+  " Parent context (continued)": [
+    " 上级上下文（续）",
+    " मूल रिकॉर्ड संदर्भ (जारी)",
+    " Contexto padre (continuación)",
+    " سياق السجل الأصل (تابع)",
+    " บริบทรายการหลัก (ต่อ)"
+  ],
+  "0 services": [
+    "0条管线",
+    "0 सर्विस",
+    "0 instalaciones",
+    "0 خدمات",
+    "งานระบบ 0 รายการ"
+  ],
+  "Area records export as m². Existing steel and duct calculators do not accept surface areas. Split/merge is unavailable for surfaces; group separate physical surfaces without changing their identities.": [
+    "面积记录以m²导出。现有钢结构及风管计算器不接受表面积。表面无法拆分或合并；请在保留独立标识的情况下分组。",
+    "क्षेत्रफल रिकॉर्ड m² में निर्यात होते हैं। मौजूदा इस्पात और डक्ट कैलकुलेटर सतह क्षेत्रफल नहीं लेते। सतहें विभाजित या मिलाई नहीं जा सकतीं; पहचान बदले बिना अलग भौतिक सतहें समूहित करें।",
+    "Los registros de área se exportan en m². Las calculadoras de acero y conductos no aceptan superficies. No se pueden dividir ni combinar superficies; agrúpelas conservando sus identidades.",
+    "تُصدَّر سجلات المساحة بوحدة m². لا تقبل حاسبات الفولاذ والمجاري الحالية مساحات الأسطح. تقسيم الأسطح ودمجها غير متاح؛ جمّع الأسطح المنفصلة دون تغيير هوياتها.",
+    "ส่งออกพื้นที่เป็น m² เครื่องคำนวณเหล็กและท่อลมปัจจุบันไม่รับพื้นที่ผิว แยกหรือรวมพื้นที่ผิวไม่ได้ ให้จัดกลุ่มพื้นที่ผิวจริงแยกกันโดยคงรหัสเดิม"
+  ],
+  "Barrier marker actions": [
+    "防火分隔标记操作",
+    "बैरियर मार्कर क्रियाएँ",
+    "Acciones de marcador de barrera",
+    "إجراءات علامة الحاجز",
+    "การดำเนินการตัวทำเครื่องหมายแนวกั้น"
+  ],
+  "Defect annotation actions": [
+    "缺陷标注操作",
+    "दोष एनोटेशन क्रियाएँ",
+    "Acciones de anotación de defecto",
+    "إجراءات تعليق العيب",
+    "การดำเนินการหมายเหตุข้อบกพร่อง"
+  ],
+  "Edit calibration": [
+    "编辑校准",
+    "अंशांकन संपादित करें",
+    "Editar calibración",
+    "تعديل المعايرة",
+    "แก้ไขการปรับเทียบ"
+  ],
+  "Choose a current drawing calibration to review this {0}.": [
+    "请选择当前图纸校准以复核此{0}。",
+    "इस {0} की समीक्षा के लिए मौजूदा ड्रॉइंग अंशांकन चुनें।",
+    "Elija una calibración actual del plano para revisar este {0}.",
+    "اختر معايرة حالية للرسم لمراجعة {0}.",
+    "เลือกการปรับเทียบแบบปัจจุบันเพื่อทบทวน {0} นี้"
+  ],
+  "Drawing. Click or focus to scroll inside; Escape releases page scrolling. Drag a selected control point to recalculate, or remove it with Control+Z. Right-click a markup to delete it.": [
+    "图纸。单击或聚焦后在内部滚动；Escape解除页面滚动锁定。拖动所选控制点可重新计算，Control+Z可删除控制点。右键单击标注可删除。",
+    "ड्रॉइंग। अंदर स्क्रॉल करने के लिए क्लिक या फ़ोकस करें; Escape पृष्ठ स्क्रॉल मुक्त करता है। पुनर्गणना के लिए चुना नियंत्रण बिंदु खींचें या Control+Z से हटाएँ। मार्कअप हटाने के लिए राइट-क्लिक करें।",
+    "Plano. Haga clic o enfoque para desplazarse dentro; Escape libera el desplazamiento de la página. Arrastre un punto seleccionado para recalcular o elimínelo con Control+Z. Clic derecho en una marca para eliminarla.",
+    "الرسم. انقر أو ركّز للتمرير داخله؛ Escape يحرر تمرير الصفحة. اسحب نقطة تحكم محددة لإعادة الحساب أو احذفها باستخدام Control+Z. انقر بزر الفأرة الأيمن على علامة لحذفها.",
+    "แบบ คลิกหรือโฟกัสเพื่อเลื่อนภายใน Escape คืนการเลื่อนหน้า ลากจุดควบคุมที่เลือกเพื่อคำนวณใหม่ หรือลบด้วย Control+Z คลิกขวาที่เครื่องหมายเพื่อลบ"
+  ],
+  "Legacy hierarchy — read-only until its relationships are assigned. Original records, fields and evidence are preserved for inspection and export.": [
+    "旧版层级 — 在分配关联关系前仅可读取。原始记录、字段及证据均保留供检查与导出。",
+    "पुराना पदानुक्रम — संबंध तय होने तक केवल-पठन। मूल रिकॉर्ड, फ़ील्ड और साक्ष्य जाँच और निर्यात के लिए सुरक्षित हैं।",
+    "Jerarquía anterior: solo lectura hasta asignar sus relaciones. Se conservan los registros, campos y evidencias originales para inspección y exportación.",
+    "التسلسل السابق للقراءة فقط حتى تعيين علاقاته. تُحفظ السجلات والحقول والأدلة الأصلية للفحص والتصدير.",
+    "ลำดับเวอร์ชันเดิมอ่านอย่างเดียวจนกว่าจะกำหนดความสัมพันธ์ คงรายการ ฟิลด์ และหลักฐานเดิมไว้เพื่อตรวจและส่งออก"
+  ],
+  "Recognize drawing labels locally. Results are approximate; recognition may take up to 60 seconds per page and covers at most eight pages per search.": [
+    "在本机识别图纸标签。结果为近似值；每页最多可能需要60秒，每次搜索最多覆盖8页。",
+    "ड्रॉइंग लेबल स्थानीय रूप से पहचानें। परिणाम अनुमानित हैं; प्रति पृष्ठ 60 सेकंड तक लग सकते हैं और हर खोज अधिकतम आठ पृष्ठों तक है।",
+    "Reconozca etiquetas del plano localmente. Los resultados son aproximados; puede tardar hasta 60 segundos por página y abarca hasta ocho páginas por búsqueda.",
+    "تعرف على تسميات الرسم محلياً. النتائج تقريبية؛ قد يستغرق التعرف حتى 60 ثانية للصفحة ويغطي ثماني صفحات كحد أقصى لكل بحث.",
+    "รู้จำป้ายกำกับในแบบบนเครื่อง ผลลัพธ์เป็นค่าโดยประมาณ อาจใช้เวลาสูงสุด 60 วินาทีต่อหน้า และค้นหาได้ไม่เกินแปดหน้าต่อครั้ง"
+  ],
+  "Retained {0} duct. {1}Its original shape and dimensions are preserved; this record cannot transfer to the rectangular duct calculator.": [
+    "保留的{0}风管。{1}其原始形状和尺寸均已保留；无法将此记录传送到矩形风管计算器。",
+    "सुरक्षित {0} डक्ट। {1}इसका मूल आकार और आयाम सुरक्षित हैं; यह रिकॉर्ड आयताकार डक्ट कैलकुलेटर में नहीं भेजा जा सकता।",
+    "Conducto {0} conservado. {1}Se preservan su forma y dimensiones originales; no se puede transferir a la calculadora de conductos rectangulares.",
+    "مجرى {0} محفوظ. {1}يُحفظ شكله وأبعاده الأصلية؛ لا يمكن نقل هذا السجل إلى حاسبة المجاري المستطيلة.",
+    "คงท่อลม {0} ไว้ {1}รักษารูปร่างและขนาดเดิม ไม่สามารถส่งรายการนี้ไปเครื่องคำนวณท่อลมสี่เหลี่ยม"
+  ],
+  "Select counts, measurements or calculator items separately to edit their details.": [
+    "请分别选择计数、测量或计算器项目来编辑详情。",
+    "विवरण संपादित करने के लिए गिनती, माप या कैलकुलेटर आइटम अलग-अलग चुनें।",
+    "Seleccione por separado conteos, mediciones o elementos de calculadora para editar sus detalles.",
+    "حدد العدّ أو القياسات أو عناصر الحاسبة بشكل منفصل لتعديل تفاصيلها.",
+    "เลือกการนับ การวัด หรือรายการเครื่องคำนวณแยกกันเพื่อแก้ไขรายละเอียด"
+  ],
+  "Select one or more drawing markups or register items. Settings show the first selected item; only fields you edit are applied to the selection.": [
+    "选择一个或多个图纸标注或登记表项目。设置显示第一个所选项目；仅将您编辑的字段应用于所选项目。",
+    "एक या अधिक ड्रॉइंग मार्कअप या रजिस्टर आइटम चुनें। सेटिंग्स पहला चुना आइटम दिखाती हैं; केवल बदले फ़ील्ड चयन पर लागू होते हैं।",
+    "Seleccione una o más marcas o elementos del registro. La configuración muestra el primero seleccionado; solo se aplican a la selección los campos que edite.",
+    "حدد علامة رسم أو عنصر سجل أو أكثر. تعرض الإعدادات أول عنصر محدد؛ تُطبق فقط الحقول التي تعدلها على التحديد.",
+    "เลือกเครื่องหมายในแบบหรือรายการทะเบียนอย่างน้อยหนึ่งรายการ การตั้งค่าแสดงรายการแรกที่เลือก ใช้เฉพาะฟิลด์ที่คุณแก้กับรายการที่เลือก"
+  ],
+  "Steel register": [
+    "钢结构登记表",
+    "इस्पात रजिस्टर",
+    "Registro de acero",
+    "سجل الفولاذ",
+    "ทะเบียนเหล็ก"
+  ],
+  "Duct register": [
+    "风管登记表",
+    "डक्ट रजिस्टर",
+    "Registro de conductos",
+    "سجل المجاري",
+    "ทะเบียนท่อลม"
+  ],
+  "Walls/Floors register": [
+    "墙体/楼板登记表",
+    "दीवार/फ़र्श रजिस्टर",
+    "Registro de paredes/suelos",
+    "سجل الجدران/الأرضيات",
+    "ทะเบียนผนัง/พื้น"
+  ],
+  "Upload the original PDFs, choose a scale or calibrate a known distance, then trace each physical object. Edit and confirm items in the register before adding them to a schedule.": [
+    "上传原始PDF，选择比例尺或校准已知距离，再描绘各个实物对象。加入明细表之前，请在登记表中编辑并确认项目。",
+    "मूल PDF अपलोड करें, स्केल चुनें या ज्ञात दूरी अंशांकित करें, फिर हर भौतिक वस्तु ट्रेस करें। अनुसूची में जोड़ने से पहले रजिस्टर में आइटम संपादित और पुष्ट करें।",
+    "Cargue los PDF originales, elija una escala o calibre una distancia conocida y trace cada objeto físico. Edite y confirme los elementos del registro antes de añadirlos al cuadro.",
+    "حمّل ملفات PDF الأصلية واختر مقياساً أو عاير مسافة معروفة ثم تتبع كل جسم مادي. عدّل عناصر السجل وأكدها قبل إضافتها إلى الجدول.",
+    "อัปโหลด PDF ต้นฉบับ เลือกมาตราส่วนหรือปรับเทียบระยะที่ทราบ แล้วลากตามวัตถุจริงแต่ละชิ้น แก้ไขและยืนยันในทะเบียนก่อนเพิ่มเข้าตาราง"
+  ],
+  "View": [
+    "查看",
+    "देखें",
+    "Ver",
+    "عرض",
+    "ดู"
+  ],
+  "Visibility: {0} current {1}": [
+    "可见性：{0}当前{1}",
+    "दृश्यता: {0} मौजूदा {1}",
+    "Visibilidad: {0} {1} actual",
+    "الرؤية: {0} {1} الحالي",
+    "การมองเห็น: {0} {1} ปัจจุบัน"
+  ],
+  "{0} EXCLUDED OPENINGS": [
+    "{0}个排除开口",
+    "{0} बहिष्कृत खुलाव",
+    "{0} ABERTURAS EXCLUIDAS",
+    "{0} فتحات مستثناة",
+    "ช่องเปิดยกเว้น {0} ช่อง"
+  ],
+  "{0} Sqm{1}{2}": [
+    "{0}平方米{1}{2}",
+    "{0} वर्ग मीटर{1}{2}",
+    "{0} m²{1}{2}",
+    "{0} م²{1}{2}",
+    "{0} ตร.ม.{1}{2}"
+  ],
+  "{0} all {1} matching items across register pages": [
+    "跨登记表页面{0}所有{1}个匹配项目",
+    "सभी रजिस्टर पृष्ठों के {1} मिलते आइटम {0}",
+    "{0} los {1} elementos coincidentes de todas las páginas del registro",
+    "{0} كل العناصر المطابقة وعددها {1} عبر صفحات السجل",
+    "{0} รายการที่ตรงกันทั้ง {1} รายการข้ามหน้าทะเบียน"
+  ],
+  "{0} for {1}": [
+    "{1}的{0}",
+    "{1} के लिए {0}",
+    "{0} para {1}",
+    "{0} لـ {1}",
+    "{0} สำหรับ {1}"
+  ],
+  "{0} markers · Manual base: {1} m each{2} · Total: {3} m": [
+    "{0}个标记 · 手动基础长度：每个{1} m{2} · 合计：{3} m",
+    "{0} मार्कर · मैनुअल आधार: प्रत्येक {1} m{2} · कुल: {3} m",
+    "{0} marcadores · Base manual: {1} m cada uno{2} · Total: {3} m",
+    "{0} علامات · الأساس اليدوي: {1} m لكل منها{2} · الإجمالي: {3} m",
+    "{0} เครื่องหมาย · ความยาวฐานกำหนดเอง: ชิ้นละ {1} m{2} · รวม: {3} m"
+  ],
+  "{0} sections": [
+    "{0}个截面",
+    "{0} सेक्शन",
+    "{0} secciones",
+    "{0} مقاطع",
+    "{0} หน้าตัด"
+  ],
+  "{0} {1} mm": [
+    "{0} {1} mm",
+    "{0} {1} mm",
+    "{0} {1} mm",
+    "{0} {1} mm",
+    "{0} {1} mm"
+  ],
+  "{0} {1} · {2} m total manual length": [
+    "{0} {1} · 手动总长度{2} m",
+    "{0} {1} · कुल मैनुअल लंबाई {2} m",
+    "{0} {1} · Longitud manual total {2} m",
+    "{0} {1} · الطول اليدوي الإجمالي {2} m",
+    "{0} {1} · ความยาวกำหนดเองรวม {2} m"
+  ],
+  "{0}. Drag to move and recalculate. Select, then Ctrl+Z deletes this point. Right-click for its menu.": [
+    "{0}。拖动以移动并重新计算。选择后按Ctrl+Z可删除此点。右键单击可打开菜单。",
+    "{0}। खींचकर स्थान बदलें और पुनर्गणना करें। चुनने के बाद Ctrl+Z से बिंदु हटता है। मेनू के लिए राइट-क्लिक करें।",
+    "{0}. Arrastre para mover y recalcular. Seleccione y pulse Ctrl+Z para eliminar este punto. Clic derecho para su menú.",
+    "{0}. اسحب للتحريك وإعادة الحساب. حدد ثم استخدم Ctrl+Z لحذف النقطة. انقر بزر الفأرة الأيمن لفتح قائمتها.",
+    "{0} ลากเพื่อย้ายและคำนวณใหม่ เลือกแล้วกด Ctrl+Z เพื่อลบจุด คลิกขวาเพื่อเปิดเมนู"
+  ],
+  "Register below drawing": [
+    "登记表置于图纸下方",
+    "ड्रॉइंग के नीचे रजिस्टर",
+    "Registro debajo del plano",
+    "السجل أسفل الرسم",
+    "ทะเบียนใต้แบบ"
+  ],
+  "Register beside drawing": [
+    "登记表置于图纸旁",
+    "ड्रॉइंग के बगल में रजिस्टर",
+    "Registro junto al plano",
+    "السجل بجانب الرسم",
+    "ทะเบียนข้างแบบ"
+  ],
+  "All confirmation states": [
+    "所有确认状态",
+    "सभी पुष्टि स्थितियाँ",
+    "Todos los estados de confirmación",
+    "كل حالات التأكيد",
+    "ทุกสถานะการยืนยัน"
+  ],
+  "Sort: Mark": [
+    "排序：编号",
+    "क्रम: चिह्न",
+    "Orden: marca",
+    "ترتيب: العلامة",
+    "เรียง: รหัส"
+  ],
+  "Sort: Level": [
+    "排序：楼层",
+    "क्रम: स्तर",
+    "Orden: nivel",
+    "ترتيب: المستوى",
+    "เรียง: ชั้น"
+  ],
+  "Sort: Length": [
+    "排序：长度",
+    "क्रम: लंबाई",
+    "Orden: longitud",
+    "ترتيب: الطول",
+    "เรียง: ความยาว"
+  ],
+  "Sort: Confirmation": [
+    "排序：确认状态",
+    "क्रम: पुष्टि",
+    "Orden: confirmación",
+    "ترتيب: التأكيد",
+    "เรียง: การยืนยัน"
+  ],
+  "No grouping": [
+    "不分组",
+    "कोई समूह नहीं",
+    "Sin agrupación",
+    "دون تجميع",
+    "ไม่จัดกลุ่ม"
+  ],
+  "Group by level": [
+    "按楼层分组",
+    "स्तर अनुसार समूह",
+    "Agrupar por nivel",
+    "تجميع حسب المستوى",
+    "จัดกลุ่มตามชั้น"
+  ],
+  "Group by label": [
+    "按标签分组",
+    "लेबल अनुसार समूह",
+    "Agrupar por etiqueta",
+    "تجميع حسب التسمية",
+    "จัดกลุ่มตามป้ายกำกับ"
+  ],
+  "Group by confirmation": [
+    "按确认状态分组",
+    "पुष्टि अनुसार समूह",
+    "Agrupar por confirmación",
+    "تجميع حسب التأكيد",
+    "จัดกลุ่มตามการยืนยัน"
+  ],
+  "Steel Spray Schedule": [
+    "钢结构喷涂明细表",
+    "इस्पात स्प्रे अनुसूची",
+    "Cuadro de proyección para acero",
+    "جدول رش الفولاذ",
+    "ตารางพ่นวัสดุป้องกันเหล็ก"
+  ],
+  "Steel Board Schedule": [
+    "钢结构板材明细表",
+    "इस्पात बोर्ड अनुसूची",
+    "Cuadro de placas para acero",
+    "جدول ألواح حماية الفولاذ",
+    "ตารางแผ่นป้องกันเหล็ก"
+  ],
+  "View/Edit": [
+    "查看/编辑",
+    "देखें/संपादित करें",
+    "Ver/Editar",
+    "عرض/تعديل",
+    "ดู/แก้ไข"
+  ],
+  "Surface type": [
+    "表面类型",
+    "सतह प्रकार",
+    "Tipo de superficie",
+    "نوع السطح",
+    "ประเภทพื้นที่ผิว"
+  ],
+  "Gross (m²)": [
+    "毛面积（m²）",
+    "सकल (m²)",
+    "Bruto (m²)",
+    "الإجمالي (m²)",
+    "พื้นที่รวม (m²)"
+  ],
+  "Excluded (m²)": [
+    "排除面积（m²）",
+    "बहिष्कृत (m²)",
+    "Excluido (m²)",
+    "المستثنى (m²)",
+    "พื้นที่ยกเว้น (m²)"
+  ],
+  "Net (m²)": [
+    "净面积（m²）",
+    "शुद्ध (m²)",
+    "Neto (m²)",
+    "الصافي (m²)",
+    "พื้นที่สุทธิ (m²)"
+  ],
+  "Total (m²)": [
+    "总计（m²）",
+    "कुल (m²)",
+    "Total (m²)",
+    "المجموع (m²)",
+    "รวม (m²)"
+  ],
+  "Qty": [
+    "数量",
+    "मात्रा",
+    "Cant.",
+    "الكمية",
+    "จำนวน"
+  ],
+  "Length each (m)": [
+    "每个长度（m）",
+    "प्रत्येक लंबाई (m)",
+    "Longitud individual (m)",
+    "طول كل عنصر (m)",
+    "ความยาวต่อชิ้น (m)"
+  ],
+  "Total (m)": [
+    "总计（m）",
+    "कुल (m)",
+    "Total (m)",
+    "المجموع (m)",
+    "รวม (m)"
+  ],
+  "Duct surface (m²)": [
+    "风管表面积（m²）",
+    "डक्ट सतह (m²)",
+    "Superficie del conducto (m²)",
+    "سطح المجرى (m²)",
+    "พื้นที่ผิวท่อลม (m²)"
+  ],
+  "Thickness (mm)": [
+    "厚度（mm）",
+    "मोटाई (mm)",
+    "Espesor (mm)",
+    "السماكة (mm)",
+    "ความหนา (mm)"
+  ],
+  "Evidence / issues": [
+    "证据/问题",
+    "साक्ष्य / समस्याएँ",
+    "Evidencias / incidencias",
+    "الأدلة / المشكلات",
+    "หลักฐาน / ปัญหา"
+  ],
+  "Length (m)": [
+    "长度（m）",
+    "लंबाई (m)",
+    "Longitud (m)",
+    "الطول (m)",
+    "ความยาว (m)"
+  ],
+  "Total Count/QTY": [
+    "总计数/数量",
+    "कुल गिनती/मात्रा",
+    "Conteo/Cantidad total",
+    "إجمالي العدّ/الكمية",
+    "จำนวนรวม"
+  ],
+  "Retained ID": [
+    "保留编号",
+    "सुरक्षित ID",
+    "ID conservado",
+    "المعرّف المحفوظ",
+    "รหัสที่คงไว้"
+  ],
+  "Details": [
+    "详情",
+    "विवरण",
+    "Detalles",
+    "التفاصيل",
+    "รายละเอียด"
+  ],
+  "Deleted at revision": [
+    "删除时修订号",
+    "हटाने का संशोधन",
+    "Eliminado en revisión",
+    "حُذف في المراجعة",
+    "ลบในฉบับแก้ไข"
+  ],
+  "Unapproved draft": [
+    "未批准草稿",
+    "अनुमोदन रहित ड्राफ़्ट",
+    "Borrador no aprobado",
+    "مسودة غير معتمدة",
+    "ฉบับร่างยังไม่อนุมัติ"
+  ],
+  "SERVICE PLANS": [
+    "管线平面图",
+    "सर्विस प्लान",
+    "PLANOS DE INSTALACIONES",
+    "مخططات الخدمات",
+    "แบบงานระบบ"
+  ],
+  "DEFECT REPORTS": [
+    "缺陷报告",
+    "दोष रिपोर्ट",
+    "INFORMES DE DEFECTOS",
+    "تقارير العيوب",
+    "รายงานข้อบกพร่อง"
+  ],
+  "Image ID: {0}\nRetained display rendition SHA-256: {1}\nOccurrence: {2}": [
+    "图像编号：{0}\n保留显示副本SHA-256：{1}\n出现位置：{2}",
+    "चित्र ID: {0}\nसुरक्षित प्रदर्शन प्रतिरूप SHA-256: {1}\nउपस्थिति: {2}",
+    "ID de imagen: {0}\nSHA-256 de la representación conservada: {1}\nAparición: {2}",
+    "معرّف الصورة: {0}\nبصمة نسخة العرض المحفوظة SHA-256: {1}\nالظهور: {2}",
+    "รหัสรูปภาพ: {0}\nSHA-256 ของภาพแสดงผลที่เก็บไว้: {1}\nตำแหน่งที่ปรากฏ: {2}"
+  ],
+  "{0} page in the new PDF{1}.": [
+    "新PDF共{0}页{1}。",
+    "नए PDF में {0} पृष्ठ{1}।",
+    "El PDF nuevo tiene {0} página{1}.",
+    "في ملف PDF الجديد {0} صفحة{1}.",
+    "PDF ใหม่มี {0} หน้า{1}"
+  ],
+  "{0} pages in the new PDF{1}.": [
+    "新PDF共{0}页{1}。",
+    "नए PDF में {0} पृष्ठ{1}।",
+    "El PDF nuevo tiene {0} páginas{1}.",
+    "في ملف PDF الجديد {0} صفحات{1}.",
+    "PDF ใหม่มี {0} หน้า{1}"
+  ],
+  "; {0} removed": [
+    "；移除{0}页",
+    "; {0} हटाए गए",
+    "; {0} eliminadas",
+    "؛ أُزيلت {0}",
+    " นำออก {0} หน้า"
+  ],
+  "Sort: Total area": [
+    "排序：总面积",
+    "क्रम: कुल क्षेत्रफल",
+    "Orden: área total",
+    "ترتيب: المساحة الكلية",
+    "เรียง: พื้นที่รวม"
+  ],
+  "Ductwork Schedule": [
+    "风管明细表",
+    "डक्ट अनुसूची",
+    "Cuadro de conductos",
+    "جدول مجاري الهواء",
+    "ตารางท่อลม"
+  ],
+  "No PDFs uploaded": [
+    "尚未上传PDF",
+    "कोई PDF अपलोड नहीं हुआ",
+    "No se cargaron PDF",
+    "لم تُحمَّل ملفات PDF",
+    "ยังไม่ได้อัปโหลด PDF"
+  ],
+  "Beam": [
+    "梁",
+    "बीम",
+    "Viga",
+    "عارضة",
+    "คาน"
+  ],
+  "Column": [
+    "柱",
+    "कॉलम",
+    "Columna",
+    "عمود",
+    "เสา"
+  ],
+  "Horizontal": [
+    "水平",
+    "क्षैतिज",
+    "Horizontal",
+    "أفقي",
+    "แนวนอน"
+  ],
+  "Vertical": [
+    "垂直",
+    "ऊर्ध्वाधर",
+    "Vertical",
+    "عمودي",
+    "แนวตั้ง"
+  ],
+  "Both": [
+    "两者",
+    "दोनों",
+    "Ambos",
+    "كلاهما",
+    "ทั้งสองแนว"
+  ]
+}

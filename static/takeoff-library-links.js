@@ -41,7 +41,7 @@
         "Choose an item yourself. Selection imports its editable physical draft fields immediately. Search does not establish technical applicability or approval; the schedule stays unchanged until the physical records are confirmed and transferred.","Use selected item",async (controls,ready)=>{
           const input=controls.find(field=>field.control.name==="search").control,select=controls.find(field=>field.control.name==="library_id").control,doc=input.ownerDocument;
           input.maxLength=200;const info=doc.createElement("p");info.className="helper";info.setAttribute("role","status");select.after(info);
-          const previous=doc.createElement("button"),next=doc.createElement("button");for(const button of [previous,next]){button.type="button";button.className="button secondary";info.after(button);}previous.textContent="Previous results";next.textContent="Next results";
+          const previous=doc.createElement("button"),next=doc.createElement("button");for(const button of [previous,next]){button.type="button";button.className="button secondary";info.after(button);}root.CeasefireI18n.text(previous, "Previous results");root.CeasefireI18n.text(next, "Next results");
           const facets=doc.createElement("div");facets.className="library-filters";input.closest("label")?.after(facets);
           let offset=0,total=0;const filters={},facetControls=new Map();
           const renderFacets=data=>{
@@ -57,14 +57,14 @@
             }
           };
           const load=async()=>{
-            const token=++generation;controller?.abort();controller=new root.AbortController();select.disabled=true;select.replaceChildren();ready(false);info.textContent="Searching library…";
+            const token=++generation;controller?.abort();controller=new root.AbortController();select.disabled=true;select.replaceChildren();ready(false);root.CeasefireI18n.text(info, "Searching library…");
             try {
               const query={search:input.value.slice(0,200),offset:String(offset),limit:"100"};for(const [key,value]of Object.entries(filters))if(value)query[key]=value;
               const url=`/api/libraries/penetration?${new URLSearchParams(query)}`;
               const response=await root.fetch(url,{cache:"no-store",signal:controller.signal}),data=await response.json();
               if(!response.ok)throw new Error(data.error||"Library search failed.");if(closed||token!==generation)return;
               if(!Array.isArray(data.items)||!Number.isInteger(data.total)||data.total<0)throw new Error("Library search returned invalid results.");total=data.total;renderFacets(data);
-              const placeholder=doc.createElement("option");placeholder.value="";placeholder.textContent=data.items.length?"Select a library item":"No matching items";select.append(placeholder);
+              const placeholder=doc.createElement("option");placeholder.value="";root.CeasefireI18n.text(placeholder, data.items.length?"Select a library item":"No matching items");select.append(placeholder);
               for(const item of data.items){const option=doc.createElement("option");option.value=item.id;option.textContent=libraryLabel(item);select.append(option);}
               select.disabled=!data.items.length;info.textContent=data.items.length?`Showing ${offset+1}–${offset+data.items.length} of ${total} items.`:"No matching items. Refine the search or Cancel and choose New Item.";previous.disabled=offset===0;next.disabled=offset+data.items.length>=total;
             }catch(error){if(closed||token!==generation||error.name==="AbortError")return;info.textContent=error.message;select.disabled=true;ready(false);}

@@ -1,3 +1,4 @@
+const englishI18n = require("./english_i18n_fixture.cjs");
 "use strict";
 const assert = require("node:assert/strict"), fs = require("node:fs"), vm = require("node:vm"), crypto = require("node:crypto");
 const shortcuts = require("../static/takeoff-shortcuts.js"), geometry = require("../static/takeoff-geometry.js");
@@ -7,7 +8,7 @@ function keyEvent(key, changes = {}) { return { key, ctrlKey: false, target: { c
 function harness() {
   const window = { CeasefireTakeoffGeometry: geometry, CeasefireTakeoffShortcuts: shortcuts };
   const context = { window, document: { createElement() { return { getContext() { return { measureText(value) { return { width: value.length * 6 }; } }; } }; } }, crypto, console, setTimeout, clearTimeout };
-  vm.createContext(context);
+  if (context.window) context.window.CeasefireI18n = englishI18n(); vm.createContext(context);
   let source = fs.readFileSync("static/takeoffs.js", "utf8").replace("  window.CeasefireTakeoffs = {", `  globalThis.audit = { state, eligibleLegendItems, canToggleLegend, updatePresentationTools, toggleLegend, syncToolShortcuts, setCommand(fn) { command = fn; }, setRenderer(fn) { renderOverlay = fn; } };\n  window.CeasefireTakeoffs = {`);
   vm.runInContext(source, context);
   const state = context.audit.state;

@@ -1,3 +1,4 @@
+const englishI18n = require("./english_i18n_fixture.cjs");
 "use strict";
 // Exercise the production Takeoffs transaction/recovery functions with DOM
 // display faults. No fixture server, supplier source or live draft is involved.
@@ -17,7 +18,7 @@ function harness() {
   const context = { console, crypto, Intl, setTimeout, clearTimeout,
     window: { CeasefireProject: { changed() {} } },
     document: { getElementById() { return null; }, createElement: element } };
-  vm.createContext(context);
+  if (context.window) context.window.CeasefireI18n = englishI18n(); vm.createContext(context);
   const source = fs.readFileSync("static/takeoffs.js", "utf8").replace("  window.CeasefireTakeoffs = {", `
   globalThis.audit = { state, applyLibraryLink, transferConfirmedLibraryRegister, recoverLinkedOperation,
     setApi(fn) { api = fn; }, setDataRenderer(fn) { renderData = fn; } };

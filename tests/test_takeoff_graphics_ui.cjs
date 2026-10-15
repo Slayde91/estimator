@@ -1,4 +1,5 @@
 "use strict";
+const englishI18n = require("./english_i18n_fixture.cjs");
 const { test } = require("node:test"), assert = require("node:assert/strict");
 const fs = require("node:fs"), path = require("node:path"), vm = require("node:vm");
 const source = path.resolve(__dirname, "../static/takeoff-graphics-ui.js");
@@ -27,7 +28,7 @@ function fixture(initial = {}, commandOverride) {
   const snapshot = { graphics: { version:1, records:[] }, items:[], calibrations:[], transfers:[] };
   const document = { fonts: { load() { let resolve, reject; const promise = new Promise((yes,no) => { resolve=yes; reject=no; }); fonts.push({promise,resolve,reject}); return promise; } },
     createElement(tag) { assert.equal(tag,"canvas"); return { getContext() { return {}; } }; } };
-  const context = { window: {crypto:require("node:crypto"),CeasefireTakeoffAnnotations:{text:value=>value.blocks.map(block=>block.runs.map(run=>run.text).join("")).join("\n"),richEditor(){return {read:()=>structuredClone(calls.richContent || {version:1,blocks:[{kind:"paragraph",runs:[{text:"TEXT"}]}]}),wrap:dom(),editor:dom()};}}}, document, Date:{now:()=>clock.now}, setTimeout, clearTimeout }; vm.createContext(context); vm.runInContext(code, context, {filename:source});
+  const context = { window: {crypto:require("node:crypto"),CeasefireTakeoffAnnotations:{text:value=>value.blocks.map(block=>block.runs.map(run=>run.text).join("")).join("\n"),richEditor(){return {read:()=>structuredClone(calls.richContent || {version:1,blocks:[{kind:"paragraph",runs:[{text:"TEXT"}]}]}),wrap:dom(),editor:dom()};}}}, document, Date:{now:()=>clock.now}, setTimeout, clearTimeout }; context.window.CeasefireI18n = englishI18n(); vm.createContext(context); vm.runInContext(code, context, {filename:source});
   const host = { state, X, G, clone:structuredClone,
     snapshot:()=>snapshot, documents:()=>originals, currentDocument:()=>originals.find(v=>v.id===state.document),
     pageDisplayKey:()=>JSON.stringify([state.session?.session_id,state.document,state.page,state.mode]),

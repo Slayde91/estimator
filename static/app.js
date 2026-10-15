@@ -57,9 +57,12 @@
   try { previous = window.localStorage.getItem(storageKey); } catch { /* Storage may be unavailable. */ }
   // All phrases share one hidden grid cell, reserving the tallest wrapping at
   // this width before typing or navigation can change the visible sentence.
-  sizer.replaceChildren(...phrases.map(phrase => { const line = document.createElement("span"); line.textContent = phrase + "_"; return line; }));
+  function sizePhrases() {
+    sizer.replaceChildren(...phrases.map(phrase => { const line = document.createElement("span"); line.textContent = window.CeasefireI18n.translate(phrase) + "_"; return line; }));
+  }
+  sizePhrases();
   const motion = window.matchMedia?.("(prefers-reduced-motion: reduce)");
-  let phrase = "", characters = [], typingTimer = null, cursorTimer = null, count = 0, complete = false, closed = false;
+  let phrase = "", displayedPhrase = "", characters = [], typingTimer = null, cursorTimer = null, count = 0, complete = false, closed = false;
   function stopCursor() {
     clearTimeout(cursorTimer);
     cursorTimer = null;
@@ -70,7 +73,7 @@
     else if (!complete) window.CeasefireHeaderTaglineMedia?.finish();
     clearTimeout(typingTimer);
     typingTimer = null;
-    if (typed.textContent !== phrase) typed.textContent = phrase;
+    if (typed.textContent !== displayedPhrase) typed.textContent = displayedPhrase;
     if (complete || closed) return;
     complete = true;
     stopCursor();
@@ -95,12 +98,18 @@
     const choices = phrases.filter(choice => choice !== (phrase || previous));
     phrase = choices[Math.floor(Math.random() * choices.length)];
     try { window.localStorage.setItem(storageKey, phrase); } catch { /* The phrase still works without storage. */ }
-    label.textContent = phrase;
-    characters = Array.from(phrase); count = 0; complete = false;
+    displayPhrase();
+  }
+  function displayPhrase() {
+    clearTimeout(typingTimer); typingTimer = null; stopCursor();
+    displayedPhrase = window.CeasefireI18n.translate(phrase);
+    label.textContent = displayedPhrase;
+    characters = Array.from(displayedPhrase); count = 0; complete = false;
     typed.textContent = ""; cursor.hidden = false;
     if (motion?.matches) finish(); else { window.CeasefireHeaderTaglineMedia?.start(); typeNext(); }
   }
   nextPhrase();
+  window.addEventListener("ceasefire:languagechange", () => { sizePhrases(); if (!closed) displayPhrase(); });
   window.CeasefireHeaderTagline = Object.freeze({ next: nextPhrase });
   motion?.addEventListener?.("change", event => { if (event.matches) finish(); });
   window.addEventListener?.("pagehide", close, { once: true });
@@ -263,6 +272,18 @@
     return element;
   }
 
+  // Only application-owned copy is bound. User values, product names and
+  // retained source evidence continue through node() without translation.
+  function uiNode(tag, className, source, args = []) {
+    return window.CeasefireI18n.nodeText(node(tag, className), source, args);
+  }
+  function uiCopy(source, args = []) { return source === "" ? "" : { i18nSource: source, i18nArgs: args }; }
+  function uiText(element, copy) {
+    if (copy && typeof copy === "object" && Object.hasOwn(copy, "i18nSource")) return window.CeasefireI18n.text(element, copy.i18nSource, copy.i18nArgs);
+    if (copy && typeof copy === "object") return window.CeasefireI18n.text(element, "{0}", [copy]);
+    return window.CeasefireI18n.text(element, copy == null ? "" : String(copy));
+  }
+
   let messageExpiry = null, messageVersion = 0;
   function releaseMessageSpace() {
     const slot = $("app-message-slot");
@@ -280,11 +301,11 @@
     releaseMessageSpace();
     const version = ++messageVersion;
     const box = $("app-message");
-    box.textContent = text;
+    uiText(box, text);
     box.className = `message${error ? " error" : ""}`;
     box.hidden = !text;
     box.setAttribute("role", error ? "alert" : "status");
-    state.projectSavedNotice = kind === "project-saved" ? text : null;
+    state.projectSavedNotice = kind === "project-saved" ? window.CeasefireI18n.source(box) : null;
     if (text && !error) messageExpiry = setTimeout(() => {
       if (messageVersion !== version || box.getAttribute("role") !== "status") return;
       retireMessage();
@@ -315,7 +336,7 @@
 
   function updateDirty(value = true) {
     state.dirty = value;
-    $("quote-status").textContent = `${state.projectFile ? "Project file" : state.quote ? "Older saved estimate" : "New project"}${value ? " · Unsaved changes" : ""}`;
+    window.CeasefireI18n.text($("quote-status"), "{0}{1}", [window.CeasefireI18n.term(state.projectFile ? "Project file" : state.quote ? "Older saved estimate" : "New project"), window.CeasefireI18n.term(value ? " · Unsaved changes" : "")]);
     updateProjectStatus();
   }
 
@@ -324,22 +345,24 @@
     // Retire only the save receipt; fresh input must not erase another error.
     if (changed && state.projectSavedNotice) {
       const box = $("app-message");
-      if (box.textContent === state.projectSavedNotice && box.getAttribute("role") !== "alert") retireMessage();
+      if (window.CeasefireI18n.source(box) === state.projectSavedNotice && box.getAttribute("role") !== "alert") retireMessage();
       state.projectSavedNotice = null;
     }
     const status = $("project-save-state");
-    status.textContent = state.projectBusy ? "Working…" : changed ? "Unsaved changes" : file ? "Saved project" : "Not saved to a file";
+    window.CeasefireI18n.text(status, state.projectBusy ? "Working…" : changed ? "Unsaved changes" : file ? "Saved project" : "Not saved to a file");
     status.classList.toggle("unsaved", changed || !file);
     const projectName = $("header-project-name");
     if (projectName) {
       const title = typeof file?.title === "string" ? file.title.trim() : "";
       projectName.textContent = title; projectName.title = title; projectName.hidden = !title;
     }
-    $("project-file-location").textContent = file?.path || file?.relative_path || (file ? "Imported file · choose a folder with Save" : "Choose a folder with Save");
+    if (file?.path || file?.relative_path) $("project-file-location").textContent = file.path || file.relative_path;
+    else window.CeasefireI18n.text($("project-file-location"), file ? "Imported file · choose a folder with Save" : "Choose a folder with Save");
     const savedAt = file?.modified_at ? new Date(file.modified_at) : null;
-    $("project-last-saved").textContent = savedAt && !Number.isNaN(savedAt.getTime()) ? `File saved ${savedAt.toLocaleString("en-AU")}` : "File save time unavailable";
+    if (savedAt && !Number.isNaN(savedAt.getTime())) window.CeasefireI18n.text($("project-last-saved"), "File saved {0}", [savedAt.toLocaleString("en-AU")]);
+    else window.CeasefireI18n.text($("project-last-saved"), "File save time unavailable");
     $("project-last-saved").hidden = !file;
-    $("project-pricing-source").textContent = state.quoteConfiguration ? "Pricing: project snapshot" : "Pricing: current saved library";
+    window.CeasefireI18n.text($("project-pricing-source"), state.quoteConfiguration ? "Pricing: project snapshot" : "Pricing: current saved library");
   }
 
   function isPercent(field) {
@@ -355,7 +378,7 @@
       if (!options.includes(current)) options.unshift(current);
       for (const value of options) {
         const label = Object.hasOwn(field.option_labels || {}, value) ? field.option_labels[value] : value;
-        const option = node("option", "", value ? label : "(blank)");
+        const option = value ? node("option", "", label) : uiNode("option", "", "(blank)");
         option.value = value;
         control.append(option);
       }
@@ -377,7 +400,7 @@
     }
     control.id = `input-${field.cell}`;
     control.dataset.cell = field.cell;
-    control.setAttribute("aria-label", `${field.label || "Estimate input"}${isPercent(field) ? " in percent" : ""}`);
+    window.CeasefireI18n.attr(control, "aria-label", "{0}{1}", [window.CeasefireI18n.term(field.label || "Estimate input"), window.CeasefireI18n.term(isPercent(field) ? " in percent" : "")]);
     if (state.inputErrors.has(field.cell)) {
       control.setAttribute("aria-invalid", "true"); control.setCustomValidity?.(state.inputErrors.get(field.cell));
     }
@@ -386,7 +409,7 @@
       let value = control.value;
       if (coverageNeedsTeam(field.cell) && value !== "" && Number.isFinite(Number(value)) && Number(value) !== 0) {
         control.value = state.inputDrafts.has(field.cell) ? state.inputDrafts.get(field.cell) : estimateControlValue(field, state.inputs[field.cell]);
-        validateCoverageTeams(); message("Select Teams", true);
+        validateCoverageTeams(); message(uiCopy("Select Teams"), true);
         if (state.inputErrors.size) showInputProblems();
         return;
       }
@@ -402,8 +425,8 @@
       state.inputs[field.cell] = value;
       validateCoverageTeams();
       if (Object.values(materialTeams).includes(field.cell)) updateMaterialRowVisibility();
-      if (state.inputErrors.get(Object.keys(coverageTeams).find(cell => coverageTeams[cell] === field.cell)) === "Select Teams") message("Select Teams", true);
-      else if ($("app-message").textContent === "Select Teams" && ![...state.inputErrors.values()].includes("Select Teams")) message("");
+      if (state.inputErrors.get(Object.keys(coverageTeams).find(cell => coverageTeams[cell] === field.cell)) === "Select Teams") message(uiCopy("Select Teams"), true);
+      else if (window.CeasefireI18n.source($("app-message")) === "Select Teams" && ![...state.inputErrors.values()].includes("Select Teams")) message(uiCopy(""));
       updateDirty();
       if (field.cell === "D7") renderInputs();
       scheduleCalculation();
@@ -413,12 +436,11 @@
     });
     if (compact) return control;
     const label = node("label", "field");
-    const caption = node("span", "", field.label || "Estimate input");
+    const caption = uiNode("span", "", (field.label || "Estimate input") + (isPercent(field) && !(field.label || "").includes("%") ? " (%)" : ""));
     if (field.cell === "B9") {
       const help = "Masking/cleaning is a percentage of Spray labour.";
-      caption.title = help; control.title = help; control.setAttribute("aria-description", help);
+      window.CeasefireI18n.attr(caption, "title", help); window.CeasefireI18n.attr(control, "title", help); window.CeasefireI18n.attr(control, "aria-description", help);
     }
-    if (isPercent(field) && !(field.label || "").includes("%")) caption.append(document.createTextNode(" (%)"));
     label.append(caption, control);
     return label;
   }
@@ -434,7 +456,7 @@
       const current = String(item.inputs[column] ?? "");
       if (!options.includes(current)) options.unshift(current);
       for (const value of options) {
-        const option = node("option", "", value ? (field.option_labels?.[value] ?? value) : "(blank)");
+        const option = value ? node("option", "", field.option_labels?.[value] ?? value) : uiNode("option", "", "(blank)");
         option.value = value; control.append(option);
       }
       control.value = current;
@@ -446,14 +468,14 @@
     }
     control.id = `work-item-${item.id}-${column}`;
     control.dataset.workItem = item.id; control.dataset.sourceRow = String(item.source_row); control.dataset.column = column;
-    control.setAttribute("aria-label", `${materialNames[item.source_row - 15][0]} duplicate — ${field.label || "input"}`);
+    window.CeasefireI18n.attr(control, "aria-label", "{0} duplicate — {1}", [window.CeasefireI18n.term(materialNames[item.source_row - 15][0]), window.CeasefireI18n.term(field.label || "input")]);
     if (state.workItemErrors.has(key)) { control.setAttribute("aria-invalid", "true"); control.setCustomValidity?.(state.workItemErrors.get(key)); }
     control.addEventListener("input", () => {
       state.inputRevision++;
       let value = control.value;
       if (column === "B" && coverageNeedsTeam(`B${item.source_row}`) && value !== "" && Number.isFinite(Number(value)) && Number(value) !== 0) {
         control.value = state.workItemDrafts.has(key) ? state.workItemDrafts.get(key) : estimateControlValue(field, item.inputs[column]);
-        validateCoverageTeams(); message("Select Teams", true); showInputProblems(); return;
+        validateCoverageTeams(); message(uiCopy("Select Teams"), true); showInputProblems(); return;
       }
       if (field.type === "number") value = editedEstimateNumber(control, field);
       if (field.type === "number" && typeof value === "string" && value !== "") {
@@ -485,8 +507,8 @@
 
   function workItemAction(label, symbol, action, className = "") {
     const button = node("button", `button secondary icon-only work-item-action ${className}`.trim());
-    button.type = "button"; button.title = label; button.setAttribute("aria-label", label);
-    button.append(node("span", "button-symbol", symbol), node("span", "sr-only", label));
+    button.type = "button"; if (label?.i18nSource) { window.CeasefireI18n.attr(button, "title", label.i18nSource, label.i18nArgs); window.CeasefireI18n.attr(button, "aria-label", label.i18nSource, label.i18nArgs); }
+    const accessibleLabel = node("span", "sr-only"); uiText(accessibleLabel, label); button.append(node("span", "button-symbol", symbol), accessibleLabel);
     button.addEventListener("click", action); return button;
   }
 
@@ -494,23 +516,24 @@
     const tr = node("tr", item ? "duplicated-work-item" : "");
     tr.dataset.materialRow = String(sourceRow); if (item) tr.dataset.workItem = item.id;
     const name = materialNames[sourceRow - 15][0];
-    const title = node("td", "material-label", name);
-    title.append(node("small", "", item ? "Duplicated work item" : materialNames[sourceRow - 15][1])); tr.append(title);
+    const title = node("td", "material-label"); title.append(uiNode("span", "", name));
+    title.append(uiNode("small", "", item ? "Duplicated work item" : materialNames[sourceRow - 15][1])); tr.append(title);
     for (const column of ["B", "C", "D", "E"]) {
       const td = node("td"), field = fieldByCell(`${column}${sourceRow}`);
       const control = field ? (item ? makeWorkItemControl(item, column) : makeControl(field, true)) : node("span", "", "—");
       if (field && (column === "B" || column === "C")) {
         const unit = column === "B" ? materialNames[sourceRow - 15][1] : sourceRow === 17 ? "m²" : "Quantity";
-        control.title = unit; control.setAttribute("aria-label", `${name}${item ? " duplicate" : ""} — ${column === "B" ? "Coverage required" : "Daily output"} (${unit})`);
-        if (column === "C") control.setAttribute("aria-description", sourceRow === 17 ? "Square metres per day. This field does not change pinning labour, which follows meshing days." : "Quantity of selected product units completed per day.");
+        window.CeasefireI18n.attr(control, "title", unit);
+        window.CeasefireI18n.attr(control, "aria-label", "{0}{1} — {2} ({3})", [window.CeasefireI18n.term(name), window.CeasefireI18n.term(item ? " duplicate" : ""), window.CeasefireI18n.term(column === "B" ? "Coverage required" : "Daily output"), window.CeasefireI18n.term(unit)]);
+        if (column === "C") window.CeasefireI18n.attr(control, "aria-description", sourceRow === 17 ? "Square metres per day. This field does not change pinning labour, which follows meshing days." : "Quantity of selected product units completed per day.");
       }
       td.append(control); tr.append(td);
     }
     const yieldCell = node("td", "calculated-yield"), value = node("span", "", "—");
     value.id = item ? `yield-work-item-${item.id}` : `yield-${sourceRow}`; yieldCell.append(value); tr.append(yieldCell);
     const actions = node("td", "work-item-actions");
-    actions.append(workItemAction(`Duplicate ${name} work item`, "⧉", () => addWorkItem(sourceRow, item?.inputs)));
-    if (item) actions.append(workItemAction(`Remove ${name} duplicated work item`, "🗑", () => removeWorkItem(item), "remove-work-item"));
+    actions.append(workItemAction(uiCopy("Duplicate {0} work item", [window.CeasefireI18n.term(name)]), "⧉", () => addWorkItem(sourceRow, item?.inputs)));
+    if (item) actions.append(workItemAction(uiCopy("Remove {0} duplicated work item", [window.CeasefireI18n.term(name)]), "🗑", () => removeWorkItem(item), "remove-work-item"));
     tr.append(actions); return tr;
   }
 
@@ -521,14 +544,14 @@
     section.dataset.mainSection = key;
     section.id = `main-panel-${key}`;
     const heading = node("div", "section-heading");
-    const h2 = node("h2", "", title);
+    const h2 = uiNode("h2", "", title);
     h2.id = `section-${fields[0].cell}`;
     section.setAttribute("aria-labelledby", h2.id);
     heading.append(h2);
     const fieldGrid = node("div", "fields");
     for (const field of fields) fieldGrid.append(makeControl(field));
     section.append(heading, fieldGrid);
-    if (helper) section.append(node("p", "helper", helper));
+    if (helper) section.append(uiNode("p", "helper", helper));
     return section;
   }
 
@@ -562,8 +585,8 @@
       const stateKey = group === "output" ? "mainOutputSection" : "mainSection";
       const tabs = panels.map(panel => {
         const key = panel.dataset.mainSection;
-        const title = panel.dataset.mainSectionTitle || panel.querySelector("h2").textContent;
-        const tab = node("button", "main-section-tab", title);
+        const title = panel.dataset.mainSectionTitle || window.CeasefireI18n.source(panel.querySelector("h2"));
+        const tab = uiNode("button", "main-section-tab", title);
         tab.type = "button"; tab.id = `main-tab-${key}`; tab.dataset.mainSectionTab = key;
         tab.setAttribute("role", "tab"); tab.setAttribute("aria-controls", panel.id);
         panel.setAttribute("role", "tabpanel"); panel.setAttribute("aria-labelledby", tab.id);
@@ -629,14 +652,14 @@
   }
 
   function clearResults(status) {
-    $("calculation-status").textContent = status;
+    window.CeasefireI18n.text($("calculation-status"), status);
     document.querySelector(".summary-card").setAttribute("aria-busy", "true");
     for (const key of ["labour", "material", "access", "travel", "material-adjustment", "labour-adjustment", "subtotal", "adjustment", "total", "rate", "days"]) $( `sum-${key}`).textContent = "—";
     for (let row = 15; row <= 23; row++) $(`yield-${row}`).textContent = "—";
     for (const item of state.workItems) { const output = $(`yield-work-item-${item.id}`); if (output) output.textContent = "—"; }
-    const row = node("tr"); const cell = node("td", "", status === "Calculating…" ? "Calculating…" : "No current calculation is available.");
+    const row = node("tr"); const cell = uiNode("td", "", status === "Calculating…" ? "Calculating…" : "No current calculation is available.");
     cell.colSpan = 5; row.append(cell); $("material-results").replaceChildren(row);
-    const labourRow = node("tr"), labourCell = node("td", "", status === "Calculating…" ? "Calculating…" : "No current calculation is available.");
+    const labourRow = node("tr"), labourCell = uiNode("td", "", status === "Calculating…" ? "Calculating…" : "No current calculation is available.");
     labourCell.colSpan = 2; labourRow.append(labourCell); $("labour-results").replaceChildren(labourRow);
     $("labour-breakdown").setAttribute("aria-busy", "true");
     $("calculation-errors").hidden = true;
@@ -696,12 +719,12 @@
         node("td", "numeric", formatNumber(material.days)));
       materialRows.push(row);
     }
-    if (!materialRows.length) { const row = node("tr"); const cell = node("td", "", "No material requirements."); cell.colSpan = 5; row.append(cell); materialRows.push(row); }
+    if (!materialRows.length) { const row = node("tr"); const cell = uiNode("td", "", "No material requirements."); cell.colSpan = 5; row.append(cell); materialRows.push(row); }
     $("material-results").replaceChildren(...materialRows);
     const labour = result.labour, labourRows = [];
     if (labour) {
       const addDays = (label, days, className = "") => {
-        const row = node("tr", className), labelCell = node("th", "", label);
+        const row = node("tr", className), labelCell = uiNode("th", "", label);
         labelCell.scope = "row"; row.append(labelCell, node("td", "numeric", formatNumber(days))); labourRows.push(row);
       };
       for (const task of labour.tasks || []) if (task.source !== "firestopping") addDays(task.name, task.days);
@@ -711,19 +734,19 @@
       addDays("Mobilisation allowance", labour.mobilisation_days);
       addDays("Total project days", labour.total_days, "labour-total");
     } else {
-      const row = node("tr"), cell = node("td", "", "Labour breakdown is unavailable for this result.");
+      const row = node("tr"), cell = uiNode("td", "", "Labour breakdown is unavailable for this result.");
       cell.colSpan = 2; row.append(cell); labourRows.push(row);
     }
     $("labour-results").replaceChildren(...labourRows);
     $("labour-breakdown").setAttribute("aria-busy", "false");
     const entries = Object.entries(errors);
-    $("calculation-status").textContent = entries.length ? "Check errors" : "Calculated";
+    window.CeasefireI18n.text($("calculation-status"), entries.length ? "Check errors" : "Calculated");
     document.querySelector(".summary-card").setAttribute("aria-busy", "false");
     const box = $("calculation-errors");
     box.replaceChildren();
     box.hidden = !entries.length;
     if (entries.length) {
-      box.append(node("strong", "", "Some estimate calculations need attention."));
+      box.append(uiNode("strong", "", "Some estimate calculations need attention."));
       const list = node("ul");
       const details = result.error_details || entries.map(([, code]) => ({ label: "Estimate calculation", code }));
       for (const error of details) list.append(node("li", "", `${error.label}: ${error.code}`));
@@ -734,15 +757,15 @@
 
   let confirmationQueue = Promise.resolve();
 
-  function confirmReplace(title, detail, action, cancel = "Keep editing") {
+  function confirmReplace(title, detail, action, cancel = uiCopy("Keep editing")) {
     // An import can finish while another confirmation is open. Each operation
     // needs its own answer; one click must never confirm two replacements.
     const answer = confirmationQueue.then(() => new Promise((resolve) => {
       const dialog = $("discard-dialog");
-      dialog.querySelector("h2").textContent = title;
-      dialog.querySelector("p").textContent = detail;
-      dialog.querySelector('[value="cancel"]').textContent = cancel;
-      dialog.querySelector('[value="confirm"]').textContent = action;
+      uiText(dialog.querySelector("h2"), title);
+      uiText(dialog.querySelector("p"), detail);
+      uiText(dialog.querySelector('[value="cancel"]'), cancel);
+      uiText(dialog.querySelector('[value="confirm"]'), action);
       dialog.addEventListener("close", () => resolve(dialog.returnValue === "confirm"), { once: true });
       dialog.returnValue = "cancel";
       dialog.showModal();
@@ -755,7 +778,7 @@
 
   async function newQuote() {
     if (state.projectBusy) return;
-    if (projectHasChanges() && !await confirmReplace("Start a new project?", `The Quote, Firestopping items, ${takeoffContents()}project library drafts, project pricing and all three specialist calculator drafts will be replaced with defaults using your saved pricing library. Shared libraries stay unchanged.`, "New project")) return;
+    if (projectHasChanges() && !await confirmReplace(uiCopy("Start a new project?"), uiCopy("The Quote, Firestopping items, {0}project library drafts, project pricing and all three specialist calculator drafts will be replaced with defaults using your saved pricing library. Shared libraries stay unchanged.", [window.CeasefireI18n.term(takeoffContents())]), uiCopy("New project"))) return;
     if (state.initialized) {
       try {
         const captured = projectStamp();
@@ -782,7 +805,7 @@
     state.workflow = state.defaultWorkflow;
     $("measurements").value = "";
     $("snapshot-message").hidden = true;
-    selectEstimator("estimate"); renderInputs(); updateDirty(false); message(""); showView("estimate"); scheduleCalculation();
+    selectEstimator("estimate"); renderInputs(); updateDirty(false); message(uiCopy("")); showView("estimate"); scheduleCalculation();
     window.CeasefirePenetrations?.pricingChanged();
   }
 
@@ -804,7 +827,7 @@
       const penetrationStamp = window.CeasefirePenetrations?.quoteFingerprint?.();
       const payload = { title, inputs, work_items: workItems, workflow, measurements, configuration, ...details, ...(penetration ? { penetration } : {}) };
       const saved = await request(state.quote ? `/api/quotes/${encodeURIComponent(state.quote.id)}` : "/api/quotes", { method: state.quote ? "PUT" : "POST", body: JSON.stringify(payload) });
-      if (quoteContext !== state.quoteContext) { message(`Saved “${title}”. Your currently open estimate has been kept.`); return; }
+      if (quoteContext !== state.quoteContext) { message(uiCopy("Saved “{0}”. Your currently open estimate has been kept.", [title])); return; }
       const pricingChangedDuringSave = JSON.stringify(state.quoteConfiguration || state.configuration) !== JSON.stringify(configuration);
       state.quote = saved;
       if ([saved.project_no, saved.client, saved.site_address].some((value) => typeof value === "string" && value.trim())) state.legacyTitle = "";
@@ -812,26 +835,26 @@
       if (!pricingChangedDuringSave) state.quoteConfiguration = clone(saved.configuration || configuration);
       if (!pricingChangedDuringSave && saved.fields) { state.fields = clone(saved.fields); renderInputs(); }
       $("snapshot-message").hidden = false;
-      if (!pricingChangedDuringSave) $("snapshot-message").querySelector("span").textContent = "This quote uses its saved pricing snapshot.";
+      if (!pricingChangedDuringSave) window.CeasefireI18n.text($("snapshot-message").querySelector("span"), "This quote uses its saved pricing snapshot.");
       const changedDuringSave = pricingChangedDuringSave || state.inputRevision !== inputRevision || state.inputErrors.size > 0 || state.workItemErrors.size > 0 || JSON.stringify(state.inputs) !== JSON.stringify(inputs) || JSON.stringify(state.workItems) !== JSON.stringify(workItems) || window.CeasefirePenetrations?.quoteFingerprint?.() !== penetrationStamp || JSON.stringify(window.CeasefirePenetrations?.quoteSnapshot?.()) !== JSON.stringify(penetration) || JSON.stringify(quoteDetails()) !== JSON.stringify(details) || $("quote-title").value.trim() !== title || state.workflow !== workflow || $("measurements").value !== measurements;
       updateDirty(changedDuringSave);
-      message(changedDuringSave ? `Saved “${title}”. Changes made while saving still need to be saved.` : `Saved “${title}” with its inputs and pricing snapshot.`);
-    } catch (error) { message(`Quote was not saved. ${error.message}`, true); }
+      message(changedDuringSave ? uiCopy("Saved “{0}”. Changes made while saving still need to be saved.", [title]) : uiCopy("Saved “{0}” with its inputs and pricing snapshot.", [title]));
+    } catch (error) { message(uiCopy("Quote was not saved. {0}", [error.message]), true); }
     finally { button.disabled = false; }
   }
 
   async function loadQuotes() {
-    const list = $("quote-list"); list.textContent = "Loading saved quotes…";
+    const list = $("quote-list"); window.CeasefireI18n.text(list, "Loading saved quotes…");
     try {
       const data = await request("/api/quotes");
-      if (!(data.quotes || []).length) { list.replaceChildren(node("p", "empty-state", "No older estimate-only saves.")); return; }
+      if (!(data.quotes || []).length) { list.replaceChildren(uiNode("p", "empty-state", "No older estimate-only saves.")); return; }
       list.replaceChildren(...data.quotes.map((quote) => {
         const item = node("article", "quote-item");
         const description = node("div");
         description.append(node("h3", "", quote.title || "Untitled quote"));
         const date = new Date(quote.updated_at);
-        description.append(node("p", "", Number.isNaN(date.getTime()) ? "Saved locally" : `Updated ${date.toLocaleString("en-AU")}`));
-        const button = node("button", "button secondary", "Open older estimate");
+        description.append(Number.isNaN(date.getTime()) ? uiNode("p", "", "Saved locally") : uiNode("p", "", "Updated {0}", [date.toLocaleString("en-AU")]));
+        const button = uiNode("button", "button secondary", "Open older estimate");
         button.type = "button";
         button.addEventListener("click", () => openQuote(quote.id, button));
         item.append(description, button); return item;
@@ -851,7 +874,7 @@
         ? window.CeasefirePenetrations?.prepareProject(quote.penetration, quote.configuration || state.configuration)
         : window.CeasefirePenetrations?.prepareDefaults(quote.configuration || state.configuration), window.CeasefireTakeoffs?.prepareDefaults()]);
       const scope = quote.penetration ? "This record contains the estimate, its firestopping schedule and original pricing. The current item and other calculators will start from defaults." : "This record contains the estimate and its original pricing only. The penetration schedule and all three calculators will start from defaults.";
-      if (!await confirmReplace("Open this older estimate?", `${scope} The current estimate will be replaced. Save can then save them together.`, "Open older estimate")) return;
+      if (!await confirmReplace(uiCopy("Open this older estimate?"), uiCopy("{0} The current estimate will be replaced. Save can then save them together.", [window.CeasefireI18n.term(scope)]), uiCopy("Open older estimate"))) return;
       if (captured !== projectStamp()) throw new Error("The current project changed during review. Open the older estimate again when ready.");
       if (loadRevision !== state.quoteLoadRevision) return;
       state.quoteContext++;
@@ -874,10 +897,10 @@
       state.workflow = typeof quote.workflow === "string" ? quote.workflow : state.defaultWorkflow;
       $("measurements").value = typeof quote.measurements === "string" ? quote.measurements : JSON.stringify(quote.measurements || "");
       $("snapshot-message").hidden = false;
-      $("snapshot-message").querySelector("span").textContent = "This quote uses its saved pricing snapshot.";
-      selectEstimator("estimate"); renderInputs(); updateDirty(false); message(""); showView("estimate"); scheduleCalculation();
+      window.CeasefireI18n.text($("snapshot-message").querySelector("span"), "This quote uses its saved pricing snapshot.");
+      selectEstimator("estimate"); renderInputs(); updateDirty(false); message(uiCopy("")); showView("estimate"); scheduleCalculation();
       window.CeasefirePenetrations?.pricingChanged();
-    } catch (error) { message(`Could not open the quote. ${error.message}`, true); }
+    } catch (error) { message(uiCopy("Could not open the quote. {0}", [error.message]), true); }
     finally { button.disabled = false; }
   }
 
@@ -909,8 +932,8 @@
   }
 
   function showView(view, librarySelection, calculatorId) {
-    if (window.CeasefirePenetrations?.hasTakeoffReservation?.() || window.CeasefireTakeoffs?.hasLinkedRecovery?.()) { message("Finish or recover the confirmed Takeoff library link before changing views.", true); return; }
-    if (view === "takeoffs" && !state.takeoffsEnabled) { message("TAKEOFFS is not included in this edition.", true); return; }
+    if (window.CeasefirePenetrations?.hasTakeoffReservation?.() || window.CeasefireTakeoffs?.hasLinkedRecovery?.()) { message(uiCopy("Finish or recover the confirmed Takeoff library link before changing views."), true); return; }
+    if (view === "takeoffs" && !state.takeoffsEnabled) { message(uiCopy("TAKEOFFS is not included in this edition."), true); return; }
     if (view !== state.currentView && $("app-message").hidden) releaseMessageSpace();
     state.currentView = view;
     $("project-tools").hidden = view !== "quotes";
@@ -946,7 +969,7 @@
     state.pricingDirty = draftChanged(state.draft, pricingBaseline());
     if (state.pricingScope === "project") state.projectPricingDraft = state.draft;
     else state.libraryDraft = state.draft;
-    $("pricing-status").textContent = state.pricingDirty ? "Unsaved pricing changes" : state.pricingScope === "project" ? "Project pricing" : "Saved library";
+    window.CeasefireI18n.text($("pricing-status"), state.pricingDirty ? "Unsaved pricing changes" : state.pricingScope === "project" ? "Project pricing" : "Saved library");
     updateProjectStatus();
   }
 
@@ -961,9 +984,9 @@
     document.activeElement?.blur?.();
     if (!pricingLibraryPageDirty()) return true;
     const draft = state.draft, fingerprint = JSON.stringify(draft), pending = JSON.stringify([...pricingPendingFields(draft)]);
-    if (!await confirmReplace("Unsaved Pricing Library", pricingUnsavedPrompt, "Continue", "Cancel")) return false;
+    if (!await confirmReplace(uiCopy("Unsaved Pricing Library"), uiCopy(pricingUnsavedPrompt), uiCopy("Continue"), uiCopy("Cancel"))) return false;
     if (state.draft !== draft || JSON.stringify(state.draft) !== fingerprint || JSON.stringify([...pricingPendingFields(draft)]) !== pending) {
-      message("The Pricing Library changed while the confirmation was open. Review the current changes and try again.", true);
+      message(uiCopy("The Pricing Library changed while the confirmation was open. Review the current changes and try again."), true);
       return false;
     }
     return true;
@@ -979,7 +1002,7 @@
     document.activeElement?.blur?.();
     if (state.currentView !== "calculators" && !await confirmLeavePricingLibrary()) return false;
     if (window.CeasefireCalculators?.hasPendingOperation?.()) {
-      message("Finish the current calculator action before choosing another calculator.", true); return false;
+      message(uiCopy("Finish the current calculator action before choosing another calculator."), true); return false;
     }
     state.estimatorKind = "estimate";
     await showView("calculators", undefined, id);
@@ -991,7 +1014,7 @@
     if (!["estimate", "penetration"].includes(kind)) return false;
     document.activeElement?.blur?.();
     if (state.currentView !== "estimate" && !await confirmLeavePricingLibrary()) return false;
-    if (window.CeasefireCalculators?.hasPendingOperation?.()) { message("Finish the current calculator action before choosing an estimate.", true); return false; }
+    if (window.CeasefireCalculators?.hasPendingOperation?.()) { message(uiCopy("Finish the current calculator action before choosing an estimate."), true); return false; }
     state.estimateKind = kind;
     await showView("estimate");
     if (state.currentView === "estimate") window.CeasefireHeaderTagline?.next();
@@ -1103,9 +1126,9 @@
   function pricingScopeUi() {
     $("pricing-scope").value = state.pricingScope;
     const save = $("save-pricing"), project = state.pricingScope === "project";
-    $("save-pricing-label").textContent = project ? "Apply" : "Save pricing";
-    save.title = project ? "Apply project pricing" : "Save pricing";
-    save.setAttribute("aria-label", save.title);
+    window.CeasefireI18n.text($("save-pricing-label"), project ? "Apply" : "Save pricing");
+    window.CeasefireI18n.attr(save, "title", project ? "Apply project pricing" : "Save pricing");
+    window.CeasefireI18n.attr(save, "aria-label", project ? "Apply project pricing" : "Save pricing");
   }
   function switchPricingScope(scope) {
     document.activeElement?.blur?.();
@@ -1142,12 +1165,12 @@
   }
   function chooseProjectSavePricing() {
     const answer = confirmationQueue.then(() => new Promise(resolve => {
-      const dialog = $("discard-dialog"), library = node("button", "button secondary", "Use library draft for this project");
+      const dialog = $("discard-dialog"), library = uiNode("button", "button secondary", "Use library draft for this project");
       library.type = "button"; library.addEventListener("click", () => dialog.close("library"));
-      dialog.querySelector("h2").textContent = "Which prices should this project save?";
-      dialog.querySelector("p").textContent = "Current project pricing and the Pricing Library draft have different edits. Choose the prices for this project file. The other draft will be kept, and the shared library will stay unchanged.";
-      dialog.querySelector('[value="cancel"]').textContent = "Cancel save";
-      dialog.querySelector('[value="confirm"]').textContent = "Use project pricing";
+      window.CeasefireI18n.text(dialog.querySelector("h2"), "Which prices should this project save?");
+      window.CeasefireI18n.text(dialog.querySelector("p"), "Current project pricing and the Pricing Library draft have different edits. Choose the prices for this project file. The other draft will be kept, and the shared library will stay unchanged.");
+      window.CeasefireI18n.text(dialog.querySelector('[value="cancel"]'), "Cancel save");
+      window.CeasefireI18n.text(dialog.querySelector('[value="confirm"]'), "Use project pricing");
       dialog.querySelector(".actions").append(library);
       dialog.addEventListener("close", () => { library.remove(); resolve(dialog.returnValue === "confirm" ? "project" : dialog.returnValue === "library" ? "library" : null); }, { once: true });
       dialog.returnValue = "cancel"; dialog.showModal();
@@ -1178,18 +1201,18 @@
     renderInputs(); updateDirty(); scheduleCalculation();
     window.CeasefirePenetrations?.pricingChanged();
     $("snapshot-message").hidden = false;
-    $("snapshot-message").querySelector("span").textContent = "This project uses its own pricing. Save retains these prices in its file.";
+    window.CeasefireI18n.text($("snapshot-message").querySelector("span"), "This project uses its own pricing. Save retains these prices in its file.");
   }
 
   async function useCurrentPricing() {
     if (state.projectBusy) return;
-    if (projectPricingChanged() && !await confirmReplace("Use current library prices?", "The project's pricing edits will be replaced with the last saved shared library.", "Use current pricing")) return;
+    if (projectPricingChanged() && !await confirmReplace(uiCopy("Use current library prices?"), uiCopy("The project's pricing edits will be replaced with the last saved shared library."), uiCopy("Use current pricing"))) return;
     state.quoteConfiguration = clone(state.configuration); state.fields = clone(state.currentFields);
     resetProjectPricing(); renderInputs(); updateDirty(); scheduleCalculation();
     window.CeasefirePenetrations?.pricingChanged();
     $("snapshot-message").hidden = false;
-    $("snapshot-message").querySelector("span").textContent = "Current saved library applied. Save to retain these prices.";
-    message("Current saved library applied to this project. Check any removed product selections, then Save.");
+    window.CeasefireI18n.text($("snapshot-message").querySelector("span"), "Current saved library applied. Save to retain these prices.");
+    message(uiCopy("Current saved library applied to this project. Check any removed product selections, then Save."));
   }
 
   function setOverride(kind, item, field, value) {
@@ -1211,7 +1234,7 @@
     input.dataset.priceField = key;
     const current = getOverride(kind, item.id)[key] ?? options.defaultValue ?? item[key] ?? "";
     input.value = options.text ? current : controlValue(current, options.percent);
-    input.setAttribute("aria-label", `${item.name}: ${options.label || key}${options.percent ? " in percent" : ""}`);
+    window.CeasefireI18n.attr(input, "aria-label", "{0}: {1}{2}", [item.name, window.CeasefireI18n.term(options.label || key), window.CeasefireI18n.term(options.percent ? " in percent" : "")]);
     input.addEventListener("input", () => {
       let value = input.value;
       if (!options.text) value = editedNumber(input, options.percent);
@@ -1266,25 +1289,25 @@
     const selection = $("rate-group").value;
     const firestopping = state.pricingUsage?.firestopping || {};
     const options = [["", "All estimator availability"], ["main-estimator", "Main Estimator"],
-      ...Object.keys(state.catalog.rate_groups || {}).map((key) => [key, `Main Estimator — ${groups[key] || key}`]),
+      ...Object.keys(state.catalog.rate_groups || {}).map((key) => [key, uiCopy("Main Estimator — {0}", [window.CeasefireI18n.term(groups[key] || key)])]),
       ["firestopping", firestopping.label || "Firestopping Estimator"],
-      ...(firestopping.groups || []).map((group) => [`firestopping:${group.key}`, `Firestopping Estimator — ${group.label}`]),
+      ...(firestopping.groups || []).map((group) => [`firestopping:${group.key}`, uiCopy("Firestopping Estimator — {0}", [window.CeasefireI18n.term(group.label)])]),
       ["not-used", "Not used in either estimator"]].map(([key, label]) => {
-      const option = node("option", "", label); option.value = key; return option;
+      const option = node("option"); uiText(option, label); option.value = key; return option;
     });
     $("rate-group").replaceChildren(...options);
     $("rate-group").value = options.some((option) => option.value === selection) ? selection : "";
   }
 
   function resetButton(kind, item) {
-    const button = node("button", "reset-button", "Reset row");
+    const button = uiNode("button", "reset-button", "Reset row");
     button.type = "button";
     const saved = pricingBaseline(), savedCatalog = saved.catalog || state.baseline;
     const ownRate = (rate) => kind === "inventory" ? rate.inventory_id === item.id : rate.id === item.id;
     const original = kind === "inventory" ? savedCatalog.inventory.find((entry) => entry.id === item.id)
       : Object.values(savedCatalog.rate_groups).flat().find(ownRate);
     button.disabled = !original;
-    button.setAttribute("aria-label", `Restore saved values and estimator uses for ${item.name}`);
+    window.CeasefireI18n.attr(button, "aria-label", "Restore saved values and estimator uses for {0}", [item.name]);
     button.addEventListener("click", () => {
       if (!original) return;
       const affectedRates = new Set([...Object.values(state.catalog.rate_groups).flat(), ...Object.values(savedCatalog.rate_groups).flat()].filter(ownRate).map((rate) => rate.id));
@@ -1374,7 +1397,7 @@
     const addedRow = $("pricing-body").querySelector(`[data-price-id="${id}"]`);
     addedRow?.scrollIntoView?.({ block: "center", behavior: "instant" });
     const firstInput = addedRow?.querySelector("input,textarea,select"); firstInput?.focus({ preventScroll: true }); firstInput?.select?.();
-    message("New pricing item added to the draft. Complete its details and estimator groups, then save pricing.");
+    message(uiCopy("New pricing item added to the draft. Complete its details and estimator groups, then save pricing."));
   }
   async function removePricingItem(record) {
     document.activeElement?.blur?.();
@@ -1384,9 +1407,9 @@
       ? `${itemName} and its ${linkedRates.length} linked estimator ${linkedRates.length === 1 ? "use" : "uses"} will be removed from this pricing draft.`
       : `${itemName} will be removed from this pricing draft.`;
     const draft = state.draft, fingerprint = JSON.stringify(draft);
-    if (!await confirmReplace("Remove pricing item?", detail, "Remove item")) return;
+    if (!await confirmReplace(uiCopy("Remove pricing item?"), detail, uiCopy("Remove item"))) return;
     if (state.draft !== draft || JSON.stringify(state.draft) !== fingerprint) {
-      message("Pricing changed during removal confirmation. Review the current draft and try again.", true); return;
+      message(uiCopy("Pricing changed during removal confirmation. Review the current draft and try again."), true); return;
     }
     editPricingCatalog((catalog) => {
       if (record.kind === "inventory") catalog.inventory = catalog.inventory.filter((item) => item.id !== record.item.id);
@@ -1402,7 +1425,7 @@
     for (const key of [...pricingPendingFields().keys()]) {
       if (key.startsWith(`${record.kind}:${record.item.id}:`) || linkedRates.some((id) => key.startsWith(`rates:${id}:`))) pricingPendingFields().delete(key);
     }
-    renderPricing(); message(`${itemName} removed from the pricing draft. Save pricing to keep this change.`);
+    renderPricing(); message(uiCopy("{0} removed from the pricing draft. Save pricing to keep this change.", [itemName]));
   }
   function pricingFieldInput(record, field, initial, apply, placeholder = "", multiline = false) {
     const input = node(multiline ? "textarea" : "input", "pricing-use-list");
@@ -1411,7 +1434,7 @@
     input.dataset.priceField = field;
     input.value = pricingPendingFields().get(key)?.value ?? initial;
     input.placeholder = placeholder;
-    input.setAttribute("aria-label", `${record.item.name}: ${field}`);
+    window.CeasefireI18n.attr(input, "aria-label", "{0}: {1}", [record.item.name, window.CeasefireI18n.term(field)]);
     const invalid = pricingPendingFields().get(key)?.error;
     if (invalid) { input.setCustomValidity?.(invalid); input.setAttribute("aria-invalid", "true"); }
     input.addEventListener("input", () => {
@@ -1425,9 +1448,9 @@
         pricingPendingFields().delete(key);
         input.setCustomValidity?.(""); input.removeAttribute("aria-invalid");
         markPricingDirty(); renderPricing();
-        if (changed && field.endsWith("Estimator groups")) message(state.pricingScope === "project"
+        if (changed && field.endsWith("Estimator groups")) message(uiCopy(state.pricingScope === "project"
           ? "Estimator groups changed in this project draft. Click Apply project pricing to update this project's dropdowns, then Save to store them."
-          : "Estimator groups changed in the shared library draft. Click Save pricing to update dropdowns for new estimates. Existing projects keep their saved groups.");
+          : "Estimator groups changed in the shared library draft. Click Save pricing to update dropdowns for new estimates. Existing projects keep their saved groups."));
       } catch (error) {
         const text = `${record.item.name}: ${error.message}`;
         pricingPendingFields().set(key, { value: input.value, error: text });
@@ -1543,12 +1566,12 @@
     document.activeElement?.blur?.();
     const scope = state.pricingScope, draft = state.draft, snapshot = JSON.stringify(draft), pending = JSON.stringify([...pricingPendingFields(draft)]);
     const saveAction = scope === "project" ? "Apply project pricing" : "Save pricing";
-    if (!await confirmReplace(scope === "project" ? "Reset project pricing?" : "Reset Library?", `Replace this pricing draft with the application's original products, rates and yields. Click ${saveAction} to keep these defaults. Existing project files keep their own pricing.`, "Reset Library")) return;
+    if (!await confirmReplace(uiCopy(scope === "project" ? "Reset project pricing?" : "Reset Library?"), uiCopy("Replace this pricing draft with the application's original products, rates and yields. Click {0} to keep these defaults. Existing project files keep their own pricing.", [window.CeasefireI18n.term(saveAction)]), uiCopy("Reset Library"))) return;
     if (state.pricingScope !== scope || state.draft !== draft || JSON.stringify(state.draft) !== snapshot || JSON.stringify([...pricingPendingFields(draft)]) !== pending) {
-      message("Pricing changed during reset confirmation. Review the current pricing draft and try Reset Library again.", true); return;
+      message(uiCopy("Pricing changed during reset confirmation. Review the current pricing draft and try Reset Library again."), true); return;
     }
     state.draft = { inventory: {}, rates: {} }; refreshPricingCatalog(); renderPricing();
-    message(`Original library defaults are ready as a draft. Click ${saveAction} to keep them, or Discard changes to restore the ${scope === "project" ? "last applied project pricing" : "last saved library"}.`);
+    message(uiCopy("Original library defaults are ready as a draft. Click {0} to keep them, or Discard changes to restore the {1}.", [window.CeasefireI18n.term(saveAction), window.CeasefireI18n.term(scope === "project" ? "last applied project pricing" : "last saved library")]));
   }
 
   function pricingViewState() {
@@ -1590,13 +1613,13 @@
       const useText = `${record.uses.map(({ group, item }) => `${groups[group] || group} ${item.name} ${item.display_name || ""}`).join(" ")} ${firestoppingText}`.toLocaleLowerCase();
       return groupMatch && `${productText(record)} ${useText}`.includes(search);
     });
-    $("pricing-count").textContent = `${matches.length} of ${records.length} products and standalone rates`;
-    $("pricing-help").textContent = state.pricingScope === "project"
+    window.CeasefireI18n.text($("pricing-count"), "{0} of {1} products and standalone rates", [matches.length, records.length]);
+    window.CeasefireI18n.text($("pricing-help"), state.pricingScope === "project"
       ? "Each availability box accepts group names separated by semicolons. Main Estimator groups control its selection lists; Firestopping Estimator groups control its product dropdowns. Group changes update this project's dropdowns after Apply project pricing. Save then stores them in the project file."
-      : "Supplier and sell prices in this library are shared by both estimators. Each availability box accepts group names separated by semicolons. Main Estimator groups control its selection lists; Firestopping Estimator groups control its product dropdowns. Group changes update dropdowns after Save pricing and apply to new estimates; existing projects keep their saved groups.";
+      : "Supplier and sell prices in this library are shared by both estimators. Each availability box accepts group names separated by semicolons. Main Estimator groups control its selection lists; Firestopping Estimator groups control its product dropdowns. Group changes update dropdowns after Save pricing and apply to new estimates; existing projects keep their saved groups.");
     const heading = node("tr");
     for (const title of ["Product/Service", "Supplier price", "Markup %", "Sell price", "Main Estimator groups", "Firestopping Estimator groups", "Yield", "Actions"])
-      heading.append(node("th", "", title));
+      heading.append(uiNode("th", "", title));
     $("pricing-head").replaceChildren(heading);
     const refreshers = [], refreshPrices = () => refreshers.forEach((refresh) => refresh());
     const rows = [];
@@ -1633,15 +1656,15 @@
       const input = pricingFieldInput(record, "Yield", String(shared.value), (text) => setSharedPricingYield(record, text));
       input.title = shared.units.join("; ") || "Stored yield; not used by this item's current calculation groups";
       yieldCell.append(input);
-      if (shared.mixed || shared.units.length > 1) yieldCell.append(node("small", "subtext", "Different saved yields: enter one value to apply it to all uses."));
+      if (shared.mixed || shared.units.length > 1) yieldCell.append(uiNode("small", "subtext", "Different saved yields: enter one value to apply it to all uses."));
       row.append(yieldCell);
       const reset = node("td", "pricing-row-actions"), remove = node("button", "button secondary icon-only");
-      remove.type = "button"; remove.dataset.pricingRemove = item.id; remove.title = `Remove ${productServiceName(record) || item.name}`; remove.setAttribute("aria-label", remove.title);
+      remove.type = "button"; remove.dataset.pricingRemove = item.id; window.CeasefireI18n.attr(remove, "title", "Remove {0}", [productServiceName(record) || item.name]); window.CeasefireI18n.attr(remove, "aria-label", "Remove {0}", [productServiceName(record) || item.name]);
       const removeIcon = node("span", "button-symbol", "🗑︎"); removeIcon.setAttribute("aria-hidden", "true"); remove.append(removeIcon);
       remove.addEventListener("click", () => removePricingItem(record)); reset.append(resetButton(kind, item), remove); row.append(reset);
       rows.push(row);
     }
-    if (!rows.length) { const row = node("tr"); const cell = node("td", "empty-state", "No matching products or rates."); cell.colSpan = 8; row.append(cell); rows.push(row); }
+    if (!rows.length) { const row = node("tr"); const cell = uiNode("td", "empty-state", "No matching products or rates."); cell.colSpan = 8; row.append(cell); rows.push(row); }
     $("pricing-body").replaceChildren(...rows);
     refreshPrices();
     markPricingDirty();
@@ -1657,7 +1680,7 @@
     try {
       if (state.pricingScope === "project") {
         await applyProjectPricing();
-        message("Project pricing applied. Save to store it with the estimate and calculators.");
+        message(uiCopy("Project pricing applied. Save to store it with the estimate and calculators."));
         return;
       }
       const draftObject = state.draft;
@@ -1685,9 +1708,9 @@
       }
       refreshPricingCatalog(); renderPricing();
       const changedElsewhere = JSON.stringify(state.configuration) !== JSON.stringify(configuration);
-      message(changedElsewhere ? "Pricing was saved, then changed in another session. The latest saved library is loaded; any further draft edits are still unsaved."
-        : state.pricingDirty ? "Pricing saved. Changes made while saving are still unsaved." : "Pricing library saved. The saved products, choices and rates now apply to new estimates.");
-    } catch (error) { message(persisted ? `Pricing was saved, but the updated dropdowns could not be loaded. Reload the app before starting another estimate. ${error.message}` : `Pricing was not saved. ${error.message}`, true); }
+      message(uiCopy(changedElsewhere ? "Pricing was saved, then changed in another session. The latest saved library is loaded; any further draft edits are still unsaved."
+        : state.pricingDirty ? "Pricing saved. Changes made while saving are still unsaved." : "Pricing library saved. The saved products, choices and rates now apply to new estimates."));
+    } catch (error) { message(persisted ? uiCopy("Pricing was saved, but the updated dropdowns could not be loaded. Reload the app before starting another estimate. {0}", [error.message]) : uiCopy("Pricing was not saved. {0}", [error.message]), true); }
     finally { button.disabled = false; $("use-current-pricing").disabled = false; }
   }
 
@@ -1696,9 +1719,9 @@
     if (pricingInputProblem()) { message(pricingInputProblem(), true); return; }
     if (state.pricingScope === "project") return savePricing();
     const draft = state.draft, fingerprint = JSON.stringify(draft), pending = JSON.stringify([...pricingPendingFields(draft)]);
-    if (!await confirmReplace("Save Pricing Library?", pricingSavePrompt, "Save", "Cancel")) return;
+    if (!await confirmReplace(uiCopy("Save Pricing Library?"), uiCopy(pricingSavePrompt), uiCopy("Save"), uiCopy("Cancel"))) return;
     if (state.pricingScope !== "library" || state.draft !== draft || JSON.stringify(state.draft) !== fingerprint || JSON.stringify([...pricingPendingFields(draft)]) !== pending) {
-      message("The Pricing Library changed while the confirmation was open. Review the current changes and click Save pricing again.", true);
+      message(uiCopy("The Pricing Library changed while the confirmation was open. Review the current changes and click Save pricing again."), true);
       return;
     }
     return savePricing();
@@ -1710,14 +1733,12 @@
     const button = $("export-pricing");
     if (button.disabled) return;
     const draft = JSON.stringify(state.draft);
-    button.disabled = true; button.setAttribute("aria-busy", "true"); button.setAttribute("aria-label", "Exporting Excel…");
+    button.disabled = true; button.setAttribute("aria-busy", "true"); window.CeasefireI18n.attr(button, "aria-label", "Exporting Excel…");
     try {
       const saved = await window.CeasefireDownloads.save("/api/pricing/export", { configuration: JSON.parse(draft) }, { button });
-      message(draft === JSON.stringify(state.draft)
-        ? `Excel saved to ${saved.path}. It includes all inventory and rate groups, including your unsaved pricing edits.`
-        : `Excel saved to ${saved.path} using the pricing captured when you clicked Export Excel. Later edits are not included.`);
-    } catch (error) { message(`Pricing was not exported. ${error.message}`, true); }
-    finally { button.disabled = false; button.removeAttribute("aria-busy"); button.setAttribute("aria-label", "Export Excel"); }
+      message(draft === JSON.stringify(state.draft) ? uiCopy("Excel saved to {0}. It includes all inventory and rate groups, including your unsaved pricing edits.", [saved.path]) : uiCopy("Excel saved to {0} using the pricing captured when you clicked Export Excel. Later edits are not included.", [saved.path]));
+    } catch (error) { message(uiCopy("Pricing was not exported. {0}", [error.message]), true); }
+    finally { button.disabled = false; button.removeAttribute("aria-busy"); window.CeasefireI18n.attr(button, "aria-label", "Export Excel"); }
   }
 
   function fileBase64(file) {
@@ -1738,7 +1759,7 @@
     if (!file) return;
     const button = $("import-pricing");
     const sourceDraft = state.draft, draft = JSON.stringify(sourceDraft);
-    button.disabled = true; button.setAttribute("aria-busy", "true"); button.setAttribute("aria-label", "Reading Excel…");
+    button.disabled = true; button.setAttribute("aria-busy", "true"); window.CeasefireI18n.attr(button, "aria-label", "Reading Excel…");
     try {
       if (!/\.xlsx$/i.test(file.name)) throw new Error("Choose an .xlsx workbook exported from this pricing library.");
       if (file.size > 5 * 1024 * 1024) throw new Error("The workbook must be 5 MB or smaller.");
@@ -1753,14 +1774,14 @@
       };
       const saveAction = $("save-pricing").getAttribute("aria-label") || "Save pricing";
       const detail = `${file.name}\n${counts("inventory", "Inventory")}\n${counts("rates", "Rates and choices")}\nThis replaces the entire draft library. Deleted workbook rows will be removed. The changes take effect only after you click ${saveAction}.`;
-      const accepted = await confirmReplace("Review imported pricing", detail, "Apply to draft");
-      if (!accepted) { message("Import cancelled. Your pricing draft was kept."); return; }
+      const accepted = await confirmReplace(uiCopy("Review imported pricing"), detail, uiCopy("Apply to draft"));
+      if (!accepted) { message(uiCopy("Import cancelled. Your pricing draft was kept.")); return; }
       if (state.draft !== sourceDraft || draft !== JSON.stringify(state.draft) || pricingInputProblem()) throw new Error("Pricing changed during import review. Import again to keep your latest edits safe.");
       state.draft = clone(preview.configuration);
       refreshPricingCatalog(); renderPricing();
-      message(`Imported pricing is ready to review. Click ${saveAction} to apply the new products, dropdown choices and rates.`);
-    } catch (error) { message(`Pricing was not imported. ${error.message}`, true); }
-    finally { button.disabled = false; button.removeAttribute("aria-busy"); button.setAttribute("aria-label", "Import Excel"); }
+      message(uiCopy("Imported pricing is ready to review. Click {0} to apply the new products, dropdown choices and rates.", [window.CeasefireI18n.term(saveAction)]));
+    } catch (error) { message(uiCopy("Pricing was not imported. {0}", [error.message]), true); }
+    finally { button.disabled = false; button.removeAttribute("aria-busy"); window.CeasefireI18n.attr(button, "aria-label", "Import Excel"); }
   }
 
   async function bootstrap() {
@@ -1785,7 +1806,7 @@
       $("header-project-actions").hidden = false;
       showView("home");
       state.initialized = true;
-    } catch (error) { $("loading-state").textContent = "The estimator could not be loaded. Reload after the local server is available."; message(error.message, true); }
+    } catch (error) { window.CeasefireI18n.text($("loading-state"), "The estimator could not be loaded. Reload after the local server is available."); message(error.message, true); }
     } finally { endActivity?.(); }
   }
 
@@ -1862,7 +1883,7 @@
       if (!saveAs) payload.save_token = target.save_token;
       const captured = projectStamp();
       const saved = await request(saveAs ? "/api/project/save-as" : "/api/project/save", { method: "POST", body: JSON.stringify(payload) });
-      if (saved.cancelled) { message("Save cancelled. Your current project remains open."); return; }
+      if (saved.cancelled) { message(uiCopy("Save cancelled. Your current project remains open.")); return; }
       const changed = captured !== projectStamp() || preparedPricing !== pricingStamp();
       if (context === state.quoteContext) {
         state.projectFile = saved.file;
@@ -1882,11 +1903,11 @@
           renderInputs(); updateDirty(false); scheduleCalculation();
           window.CeasefirePenetrations?.pricingChanged();
           $("snapshot-message").hidden = false;
-          $("snapshot-message").querySelector("span").textContent = "This project uses the pricing saved in its file.";
+          window.CeasefireI18n.text($("snapshot-message").querySelector("span"), "This project uses the pricing saved in its file.");
         } else updateDirty();
       }
-      if (!changed || $("app-message").getAttribute("role") !== "alert") message(`Project saved to ${saved.file.path}. It includes the Quote, Firestopping items, ${takeoffContents()}project pricing${libraryDrafts ? ", project library drafts" : ""} and all three specialist calculators.${pricing?.scope === "library" ? " Pricing Library edits were saved for this project only." : ""}${pricing?.conflict ? " The other pricing draft is still available and was not included." : ""}${changed ? " Later edits are not included and still need saving." : ""}${saved.warning ? ` ${saved.warning}` : ""}`, false, "project-saved");
-    } catch (error) { message(`Project was not saved. ${error.message}`, true); }
+      if (!changed || $("app-message").getAttribute("role") !== "alert") message(uiCopy("Project saved to {0}. It includes the Quote, Firestopping items, {1}project pricing{2} and all three specialist calculators.{3}{4}{5}{6}", [saved.file.path, window.CeasefireI18n.term(takeoffContents()), window.CeasefireI18n.term(libraryDrafts ? ", project library drafts" : ""), window.CeasefireI18n.term(pricing?.scope === "library" ? " Pricing Library edits were saved for this project only." : ""), window.CeasefireI18n.term(pricing?.conflict ? " The other pricing draft is still available and was not included." : ""), window.CeasefireI18n.term(changed ? " Later edits are not included and still need saving." : ""), saved.warning ? ` ${saved.warning}` : ""]), false, "project-saved");
+    } catch (error) { message(uiCopy("Project was not saved. {0}", [error.message]), true); }
     finally { projectBusy(false); }
   }
 
@@ -1896,9 +1917,9 @@
     try {
       const captured = projectStamp();
       const project = await request("/api/project/open", { method: "POST", body: "{}" });
-      if (project.cancelled) { message("Project load cancelled. Your current drafts were kept."); return; }
+      if (project.cancelled) { message(uiCopy("Project load cancelled. Your current drafts were kept.")); return; }
       await reviewAndLoadProject(project, project.file, captured);
-    } catch (error) { message(`Project was not loaded. ${error.message}`, true); }
+    } catch (error) { message(uiCopy("Project was not loaded. {0}", [error.message]), true); }
     finally { projectBusy(false); }
   }
 
@@ -1912,30 +1933,30 @@
       const content_base64 = await fileBase64(file);
       const project = await request("/api/project/import", { method: "POST", body: JSON.stringify({ filename: file.name, content_base64 }) });
       await reviewAndLoadProject(project, { name: file.name, ...(file.lastModified ? { modified_at: new Date(file.lastModified).toISOString() } : {}) }, captured);
-    } catch (error) { message(`Project was not loaded. ${error.message}`, true); }
+    } catch (error) { message(uiCopy("Project was not loaded. {0}", [error.message]), true); }
     finally { projectBusy(false); }
   }
 
-  function projectAttachmentNotice(text = "Files save beside the current project.") {
-    $("project-attachment-status").textContent = text;
+  function projectAttachmentNotice(text = uiCopy("Files save beside the current project.")) {
+    uiText($("project-attachment-status"), text);
   }
 
   function requireSavedProjectForFiles() {
     if (state.projectFile?.save_token) return true;
     const text = 'There is no saved project. Please click "Save" and select a project folder.';
-    projectAttachmentNotice(text); message(text, true); return false;
+    projectAttachmentNotice(uiCopy(text)); message(uiCopy(text), true); return false;
   }
 
   async function uploadProjectFiles(selectedFiles) {
     const files = Array.from(selectedFiles || []);
     if (!files.length || state.projectBusy || !requireSavedProjectForFiles()) return;
-    if (files.length > 50) { message("Choose no more than 50 project files at once.", true); return; }
+    if (files.length > 50) { message(uiCopy("Choose no more than 50 project files at once."), true); return; }
     const target = state.projectFile, saved = [];
     projectBusy(true, "project-attachment-zone");
     try {
       for (const [index, file] of files.entries()) {
         if (!file?.name || file.size > 16 * 1024 * 1024) throw new Error("Each project file must have a filename and be 16 MB or smaller.");
-        projectAttachmentNotice(`Saving ${index + 1} of ${files.length}: ${file.name}`);
+        projectAttachmentNotice(uiCopy("Saving {0} of {1}: {2}", [index + 1, files.length, file.name]));
         const content_base64 = await fileBase64(file);
         if (state.projectFile !== target) throw new Error("The saved project changed while the files were being read. Choose them again.");
         const result = await request("/api/project/attachment", { method: "POST", body: JSON.stringify({ project_token: target.save_token, filename: file.name, content_base64 }) });
@@ -1962,8 +1983,8 @@
       const [prepared, penetration, takeoffs, libraryDrafts] = await Promise.all([window.CeasefireCalculators.prepareProject(project.calculators), window.CeasefirePenetrations?.prepareProject(project.penetration, project.estimate.configuration), window.CeasefireTakeoffs?.prepareProject(project.takeoffs, project.takeoffs_session_id), window.CeasefireLibraryEditor?.prepareProject?.(project.library_drafts)]);
       if (captured !== projectStamp()) throw new Error("Your draft changed while reading the file. Load it again when ready.");
       const detail = project.project_details || {};
-      const accepted = await confirmReplace("Load this project?", `${file.name}\nProject No.: ${detail.project_no || "Not recorded"}\nClient: ${detail.client || "Not recorded"}\nSite Address: ${detail.site_address || "Not recorded"}\n\nThis replaces the Quote, Firestopping items, ${takeoffContents()}project library drafts, their pricing and all three specialist calculator drafts. Shared libraries stay unchanged.`, "Load Project");
-      if (!accepted) { message("Project load cancelled. Your current drafts were kept."); return; }
+      const accepted = await confirmReplace(uiCopy("Load this project?"), uiCopy("{0}\nProject No.: {1}\nClient: {2}\nSite Address: {3}\n\nThis replaces the Quote, Firestopping items, {4}project library drafts, their pricing and all three specialist calculator drafts. Shared libraries stay unchanged.", [file.name, detail.project_no || "Not recorded", detail.client || "Not recorded", detail.site_address || "Not recorded", window.CeasefireI18n.term(takeoffContents())]), uiCopy("Load Project"));
+      if (!accepted) { message(uiCopy("Project load cancelled. Your current drafts were kept.")); return; }
       if (captured !== projectStamp()) throw new Error("Your draft changed during review. Load the file again to keep your latest edits safe.");
       const estimate = project.estimate;
       // All validation and definition loading finish before either workspace changes.
@@ -1983,12 +2004,10 @@
       $("project-no").value = estimate.project_no || ""; $("client").value = estimate.client || ""; $("site-address").value = estimate.site_address || "";
       state.workflow = estimate.workflow; $("measurements").value = estimate.measurements || "";
       updateQuoteTitle(); renderInputs(); updateDirty(false);
-      $("snapshot-message").hidden = false; $("snapshot-message").querySelector("span").textContent = "This project uses the pricing snapshot from its file.";
+      $("snapshot-message").hidden = false; window.CeasefireI18n.text($("snapshot-message").querySelector("span"), "This project uses the pricing snapshot from its file.");
       selectEstimator("estimate"); showView("estimate"); scheduleCalculation();
       window.CeasefirePenetrations?.pricingChanged();
-      message(file.save_token
-        ? `Project loaded with the Quote, Firestopping items, ${takeoffContents()}original pricing and all three specialist calculators. Save updates this project file.`
-        : `Project imported with the Quote, Firestopping items, ${takeoffContents()}original pricing and all three specialist calculators. Use Save to choose its project file.`);
+      message(file.save_token ? uiCopy("Project loaded with the Quote, Firestopping items, {0}original pricing and all three specialist calculators. Save updates this project file.", [window.CeasefireI18n.term(takeoffContents())]) : uiCopy("Project imported with the Quote, Firestopping items, {0}original pricing and all three specialist calculators. Use Save to choose its project file.", [window.CeasefireI18n.term(takeoffContents())]));
     } finally {
       if (!takeoffsAdopted) await window.CeasefireTakeoffs?.discardPreparedSession?.(project.takeoffs_session_id);
     }
@@ -2010,19 +2029,20 @@
       if (!data.scan_pending && offset > 0 && data.matched !== undefined && offset >= data.matched) {
         return loadProjects({ offset: data.matched ? Math.floor((data.matched - 1) / 100) * 100 : 0 });
       }
-      $("project-folder").textContent = data.folder || "Link your estimates folder to list its project files and use it as the default save location.";
+      if (data.folder) $("project-folder").textContent = data.folder;
+      else window.CeasefireI18n.text($("project-folder"), "Link your estimates folder to list its project files and use it as the default save location.");
       state.projectsOffset = data.offset ?? offset;
       const items = (data.files || []).map(file => {
         const item = node("article", "quote-item"), description = node("div");
         const heading = node("h3"), title = node("button", "project-title-button", file.title || file.name); title.type = "button";
-        title.setAttribute("aria-label", `Browse files for ${file.title || file.name}`); title.addEventListener("click", () => openProjectBrowser(file)); heading.append(title);
-        description.append(heading, node("p", "", [file.project_no, file.client, file.site_address].filter(Boolean).join(" · ")), node("p", "helper project-relative-path", file.relative_path || file.name), node("p", "helper", `Saved ${new Date(file.modified_at).toLocaleString("en-AU")}`));
-        const button = node("button", "button secondary", "Open project"); button.type = "button";
+        window.CeasefireI18n.attr(title, "aria-label", "Browse files for {0}", [file.title || file.name]); title.addEventListener("click", () => openProjectBrowser(file)); heading.append(title);
+        description.append(heading, node("p", "", [file.project_no, file.client, file.site_address].filter(Boolean).join(" · ")), node("p", "helper project-relative-path", file.relative_path || file.name), uiNode("p", "helper", "Saved {0}", [new Date(file.modified_at).toLocaleString("en-AU")]));
+        const button = uiNode("button", "button secondary", "Open project"); button.type = "button";
         button.addEventListener("click", () => openProjectFile(file, button)); item.append(description, button); return item;
       });
-      list.replaceChildren(...(items.length ? items : [node("p", "empty-state", data.scan_pending ? "Scanning the linked folder and subfolders…" : search ? "No projects match this search." : "No project files in the linked folder or its subfolders yet.")]));
+      list.replaceChildren(...(items.length ? items : [uiNode("p", "empty-state", data.scan_pending ? "Scanning the linked folder and subfolders…" : search ? "No projects match this search." : "No project files in the linked folder or its subfolders yet.")]));
       const matched = data.matched ?? items.length, total = data.total ?? matched, first = items.length ? state.projectsOffset + 1 : 0;
-      $("project-list-status").textContent = `${first}–${items.length ? state.projectsOffset + items.length : 0} of ${matched} matching projects · ${total} found${data.scan_pending ? ` · Scanning subfolders (${data.scanned_entries || 0} entries checked)…` : ""}`;
+      window.CeasefireI18n.text($("project-list-status"), "{0}–{1} of {2} matching projects · {3} found{4}", [first, items.length ? state.projectsOffset + items.length : 0, matched, total, data.scan_pending ? ` · Scanning subfolders (${data.scanned_entries || 0} entries checked)…` : ""]);
       $("project-previous").disabled = !state.projectsOffset;
       $("project-next").disabled = state.projectsOffset + items.length >= matched;
       $("project-continue").hidden = !data.scan_pending;
@@ -2034,7 +2054,7 @@
     } catch (error) {
       if (revision === state.projectsRevision) {
         list.replaceChildren(node("p", "message error", error.message));
-        $("project-list-status").textContent = "Project list unavailable · use Refresh to retry";
+        window.CeasefireI18n.text($("project-list-status"), "Project list unavailable · use Refresh to retry");
         $("project-continue").hidden = true;
       }
     } finally { if (revision === state.projectsRevision) list.setAttribute("aria-busy", "false"); }
@@ -2045,10 +2065,10 @@
     projectBusy(true, "link-project-folder");
     try {
       const data = await request("/api/projects/link-folder", { method: "POST", body: "{}" });
-      if (data.cancelled) { message("Folder selection cancelled."); return; }
+      if (data.cancelled) { message(uiCopy("Folder selection cancelled.")); return; }
       closeProjectBrowser(); state.projectsOffset = 0;
-      await loadProjects(); message(`Estimates folder linked: ${data.folder}`);
-    } catch (error) { message(`Folder was not linked. ${error.message}`, true); }
+      await loadProjects(); message(uiCopy("Estimates folder linked: {0}", [data.folder]));
+    } catch (error) { message(uiCopy("Folder was not linked. {0}", [error.message]), true); }
     finally { projectBusy(false); }
   }
 
@@ -2059,7 +2079,7 @@
       const captured = projectStamp();
       const project = await request("/api/projects/load", { method: "POST", body: JSON.stringify({ id: file.id }) });
       await reviewAndLoadProject(project, project.file || file, captured);
-    } catch (error) { message(`Project was not loaded. ${error.message}`, true); }
+    } catch (error) { message(uiCopy("Project was not loaded. {0}", [error.message]), true); }
     finally { projectBusy(false); button.disabled = false; button.setAttribute("aria-busy", "false"); }
   }
 
@@ -2113,12 +2133,12 @@
     try {
       await request("/api/projects/open-file", { method: "POST", body: JSON.stringify({ id: project.id, relative_path: entry.relative_path }) });
       if (revision === state.projectBrowserRevision && state.projectBrowserProject?.id === project.id) {
-        $("project-browser-message").textContent = `Opened ${entry.name} in its default application.`;
+        window.CeasefireI18n.text($("project-browser-message"), "Opened {0} in its default application.", [entry.name]);
         $("project-browser-message").className = "message info"; $("project-browser-message").hidden = false;
       }
     } catch (error) {
       if (revision === state.projectBrowserRevision && state.projectBrowserProject?.id === project.id) {
-        $("project-browser-message").textContent = `The file was not opened. ${error.message}`;
+        window.CeasefireI18n.text($("project-browser-message"), "The file was not opened. {0}", [error.message]);
         $("project-browser-message").className = "message error"; $("project-browser-message").hidden = false;
       }
     } finally { button.disabled = false; button.setAttribute("aria-busy", "false"); }
@@ -2129,8 +2149,8 @@
     state.projectBrowserProject = project; state.projectBrowserPath = relativePath;
     $("project-list-card").hidden = true; $("project-file-errors").hidden = true; $("project-browser").hidden = false;
     $("project-browser-title").textContent = project.title || project.name;
-    $("project-browser-status").textContent = "Reading project folder…"; $("project-browser-message").hidden = true;
-    list.setAttribute("aria-busy", "true"); list.replaceChildren(node("p", "empty-state", "Reading files and folders…"));
+    window.CeasefireI18n.text($("project-browser-status"), "Reading project folder…"); $("project-browser-message").hidden = true;
+    list.setAttribute("aria-busy", "true"); list.replaceChildren(uiNode("p", "empty-state", "Reading files and folders…"));
     try {
       const data = await request("/api/projects/files", { method: "POST", body: JSON.stringify({ id: project.id, relative_path: relativePath }) });
       if (revision !== state.projectBrowserRevision || state.projectBrowserProject?.id !== project.id) return;
@@ -2139,19 +2159,19 @@
         const button = node("button", "project-browser-entry"); button.type = "button";
         const symbol = projectFileIcon(entry);
         const name = node("span", "project-browser-entry-name", entry.name);
-        const meta = node("span", "project-browser-entry-meta", entry.type === "folder" ? "Folder" : [projectFileSize(entry.size), entry.modified_at ? new Date(entry.modified_at).toLocaleString("en-AU") : ""].filter(Boolean).join(" · "));
+        const meta = entry.type === "folder" ? uiNode("span", "project-browser-entry-meta", "Folder") : node("span", "project-browser-entry-meta", [projectFileSize(entry.size), entry.modified_at ? new Date(entry.modified_at).toLocaleString("en-AU") : ""].filter(Boolean).join(" · "));
         button.append(symbol, name, meta);
-        button.setAttribute("aria-label", entry.type === "folder" ? `Open folder ${entry.name}` : `Open ${entry.name} in its default application`);
+        window.CeasefireI18n.attr(button, "aria-label", entry.type === "folder" ? "Open folder {0}" : "Open {0} in its default application", [entry.name]);
         button.addEventListener("click", () => entry.type === "folder" ? loadProjectFiles(data.project, entry.relative_path) : openProjectFolderFile(data.project, entry, button));
         return button;
       });
-      list.replaceChildren(...(entries.length ? entries : [node("p", "empty-state", "This folder is empty.")]));
-      $("project-browser-status").textContent = `${entries.length.toLocaleString("en-AU")} ${entries.length === 1 ? "entry" : "entries"}`;
+      list.replaceChildren(...(entries.length ? entries : [uiNode("p", "empty-state", "This folder is empty.")]));
+      window.CeasefireI18n.text($("project-browser-status"), "{0} {1}", [entries.length.toLocaleString("en-AU"), window.CeasefireI18n.term(entries.length === 1 ? "entry" : "entries")]);
       const problems = (data.errors || []).map(item => `${item.name}: ${item.error}`);
       $("project-browser-message").textContent = problems.join("\n"); $("project-browser-message").className = "message error"; $("project-browser-message").hidden = !problems.length;
     } catch (error) {
       if (revision === state.projectBrowserRevision) {
-        list.replaceChildren(node("p", "message error", error.message)); $("project-browser-status").textContent = "Project folder unavailable";
+        list.replaceChildren(node("p", "message error", error.message)); window.CeasefireI18n.text($("project-browser-status"), "Project folder unavailable");
       }
     } finally { if (revision === state.projectBrowserRevision) list.setAttribute("aria-busy", "false"); }
   }
@@ -2171,7 +2191,7 @@
       const payload = { calculators, penetration: window.CeasefirePenetrations.projectSnapshot().draft,
         configuration: clone(state.quoteConfiguration || state.configuration), project_details: quoteDetails() };
       const saved = await window.CeasefireDownloads.save(`/api/project/${materials ? "full-product-summary" : "full-schedule"}.pdf`, payload, { button });
-      message(`PDF saved to ${saved.path}. It includes the schedule inputs captured when the download was prepared.`);
+      message(uiCopy("PDF saved to {0}. It includes the schedule inputs captured when the download was prepared.", [saved.path]));
     } catch (error) { message(error.message, true); }
     finally { button.disabled = false; button.removeAttribute("aria-busy"); }
   }
@@ -2187,18 +2207,16 @@
     const savedReportId = state.quote && !state.dirty ? state.quote.id : null;
     const reportPath = savedReportId ? `/api/quotes/${encodeURIComponent(savedReportId)}/report.pdf` : "/api/quote-report";
     button.disabled = true;
-    button.setAttribute("aria-label", "Preparing Estimate Summary…");
+    window.CeasefireI18n.attr(button, "aria-label", "Preparing Estimate Summary…");
     button.setAttribute("aria-busy", "true");
     try {
       const saved = await window.CeasefireDownloads.save(reportPath, savedReportId ? {} : payload, { button });
       const estimateChanged = quoteContext !== state.quoteContext || capturedPayload !== JSON.stringify(reportPayload()) || window.CeasefirePenetrations?.quoteFingerprint?.() !== penetrationStamp;
-      message(estimateChanged
-        ? `PDF saved to ${saved.path} for “${payload.title}” using ${savedReportId ? "its saved result and pricing snapshot" : "the inputs and pricing captured when you clicked Estimate Summary"}. Later edits are not included.`
-        : `PDF saved to ${saved.path} for “${payload.title}”.`);
-    } catch (error) { message(`PDF for “${payload.title}” was not downloaded. ${error.message}`, true); }
+      message(estimateChanged ? uiCopy("PDF saved to {0} for “{1}” using {2}. Later edits are not included.", [saved.path, payload.title, window.CeasefireI18n.term(savedReportId ? "its saved result and pricing snapshot" : "the inputs and pricing captured when you clicked Estimate Summary")]) : uiCopy("PDF saved to {0} for “{1}”.", [saved.path, payload.title]));
+    } catch (error) { message(uiCopy("PDF for “{0}” was not downloaded. {1}", [payload.title, error.message]), true); }
     finally {
       button.disabled = false;
-      button.setAttribute("aria-label", "Estimate Summary");
+      window.CeasefireI18n.attr(button, "aria-label", "Estimate Summary");
       button.removeAttribute("aria-busy");
     }
   }
@@ -2215,7 +2233,7 @@
     const button = node("button", "button pdf-button calculator-document-action"); button.id = id; button.type = "button";
     const icon = node("span", "download-format-icon"); icon.setAttribute("aria-hidden", "true");
     icon.append(node("span", "download-arrow", "⇩"), node("span", "download-format", "PDF"));
-    button.append(icon, node("span", "", label)); button.addEventListener("click", () => downloadFullReport(materials, button));
+    button.append(icon, uiNode("span", "", label)); button.addEventListener("click", () => downloadFullReport(materials, button));
     $("firestopping-document-actions").append(button);
   }
   $("save-current-project").addEventListener("click", saveProject);
@@ -2256,9 +2274,9 @@
   $("discard-pricing").addEventListener("click", async () => {
     document.activeElement?.blur?.();
     const draft = state.draft, revision = state.pricingRevision;
-    if (state.pricingDirty && !await confirmReplace("Discard pricing changes?", state.pricingScope === "project" ? "Project pricing edits will return to the last applied project prices." : "Shared library edits will return to the last saved library.", "Discard changes")) return;
+    if (state.pricingDirty && !await confirmReplace(uiCopy("Discard pricing changes?"), uiCopy(state.pricingScope === "project" ? "Project pricing edits will return to the last applied project prices." : "Shared library edits will return to the last saved library."), uiCopy("Discard changes"))) return;
     if (draft !== state.draft || revision !== state.pricingRevision) return;
-    state.draft = clone(pricingBaseline()); refreshPricingCatalog(); renderPricing(); message("Unsaved pricing changes discarded.");
+    state.draft = clone(pricingBaseline()); refreshPricingCatalog(); renderPricing(); message(uiCopy("Unsaved pricing changes discarded."));
   });
   window.addEventListener("resize", () => {
     // An intentional layout change may release retired space. Keep a captured
@@ -2279,12 +2297,12 @@
   function desktopCloseStamp() { return JSON.stringify({ project: projectStamp(), input: desktopInputRevision, pricing: sharedPricingDraft(), pricingRevision: state.pricingRevision, libraryDirty: !!window.CeasefireLibraryEditor?.hasUnsavedChanges() }); }
   function desktopBusy() { return state.projectBusy || state.desktopRequests > 0 || !!document.querySelector('dialog[open], [aria-busy="true"]') || !state.initialized || !!window.CeasefireCalculators?.hasPendingOperation?.() || !!window.CeasefirePenetrations?.hasPendingOperation?.() || !!window.CeasefireTakeoffs?.hasPendingOperation?.() || !!window.CeasefireLibraryEditor?.hasPendingOperation?.(); }
   async function reviewDesktopClose() {
-    if (desktopBusy()) { message("Finish the current operation or dialog before closing ESTIMATOR.", true); return false; }
+    if (desktopBusy()) { message(uiCopy("Finish the current operation or dialog before closing ESTIMATOR."), true); return false; }
     const captured = desktopCloseStamp();
     if (projectHasChanges() || sharedPricingChanged() || window.CeasefireLibraryEditor?.hasUnsavedChanges()) {
-      if (!await confirmReplace("Close ESTIMATOR?", "There are unsaved project, calculator or library edits. Close without saving discards these edits. Keep editing to save them first.", "Close without saving")) return false;
+      if (!await confirmReplace(uiCopy("Close ESTIMATOR?"), uiCopy("There are unsaved project, calculator or library edits. Close without saving discards these edits. Keep editing to save them first."), uiCopy("Close without saving"))) return false;
     }
-    if (desktopBusy() || captured !== desktopCloseStamp()) { message("Your draft changed during the close review. Close again when ready to keep your latest edits safe.", true); return false; }
+    if (desktopBusy() || captured !== desktopCloseStamp()) { message(uiCopy("Your draft changed during the close review. Close again when ready to keep your latest edits safe."), true); return false; }
     return true;
   }
   window.CeasefireDesktop = {
@@ -2297,7 +2315,7 @@
       if (desktopClosePending) { reply("resolve", false); return; }
       desktopClosePending = true; let allowed = false;
       try { reply("ack"); allowed = await reviewDesktopClose(); }
-      catch (error) { message(`ESTIMATOR was not closed. ${error.message}`, true); }
+      catch (error) { message(uiCopy("ESTIMATOR was not closed. {0}", [error.message]), true); }
       finally { desktopClosePending = false; reply("resolve", allowed); }
     },
   };
@@ -2318,8 +2336,8 @@
     show() { return showView("calculators", undefined, "penetration"); },
     showSchedule() { state.estimateKind = "estimate"; selectMainSection("firestopping-schedule"); return showView("estimate"); },
     confirm: confirmReplace,
-    confirmDelete() { return confirmReplace("Delete item?", "Are you sure you want to delete this item?", "Yes", "Cancel"); },
-    message,
+    confirmDelete() { return confirmReplace(uiCopy("Delete item?"), uiCopy("Are you sure you want to delete this item?"), uiCopy("Yes"), uiCopy("Cancel")); },
+    message(text, error = false, args = []) { message(uiCopy(text, args), error); },
     notify,
   };
   window.CeasefireLibraryEditorNavigation = {

@@ -1,0 +1,1843 @@
+{
+  "Skip to content": [
+    "跳到主要内容",
+    "मुख्य सामग्री पर जाएँ",
+    "Saltar al contenido",
+    "انتقل إلى المحتوى",
+    "ข้ามไปยังเนื้อหา"
+  ],
+  "Main navigation": [
+    "主导航",
+    "मुख्य नेविगेशन",
+    "Navegación principal",
+    "التنقل الرئيسي",
+    "เมนูนำทางหลัก"
+  ],
+  "Home": [
+    "主页",
+    "मुखपृष्ठ",
+    "Inicio",
+    "الرئيسية",
+    "หน้าหลัก"
+  ],
+  "Estimates": [
+    "估算",
+    "अनुमान",
+    "Presupuestos",
+    "التقديرات",
+    "ประมาณราคา"
+  ],
+  "Choose an estimate": [
+    "选择估算",
+    "अनुमान चुनें",
+    "Elegir presupuesto",
+    "اختر تقديرًا",
+    "เลือกประมาณราคา"
+  ],
+  "Main": [
+    "主估算",
+    "मुख्य",
+    "Principal",
+    "الرئيسي",
+    "หลัก"
+  ],
+  "Calculators": [
+    "计算器",
+    "कैलकुलेटर",
+    "Calculadoras",
+    "الحاسبات",
+    "เครื่องคำนวณ"
+  ],
+  "Choose a calculator": [
+    "选择计算器",
+    "कैलकुलेटर चुनें",
+    "Elegir calculadora",
+    "اختر حاسبة",
+    "เลือกเครื่องคำนวณ"
+  ],
+  "Steel (spray)": [
+    "钢结构（喷涂）",
+    "इस्पात (स्प्रे)",
+    "Acero (proyección)",
+    "الفولاذ (رش)",
+    "เหล็ก (พ่น)"
+  ],
+  "Steel (board)": [
+    "钢结构（板材）",
+    "इस्पात (बोर्ड)",
+    "Acero (placas)",
+    "الفولاذ (ألواح)",
+    "เหล็ก (แผ่น)"
+  ],
+  "Ductwork (spray/wrap)": [
+    "风管（喷涂/包覆）",
+    "डक्ट (स्प्रे/रैप)",
+    "Conductos (proyección/envoltura)",
+    "مجاري الهواء (رش/تغليف)",
+    "ท่อลม (พ่น/หุ้ม)"
+  ],
+  "Firestopping": [
+    "防火封堵",
+    "अग्निरोधी सीलिंग",
+    "Sellado cortafuego",
+    "سد الفتحات المقاوم للحريق",
+    "การอุดปิดช่องเปิดกันไฟ"
+  ],
+  "Takeoffs": [
+    "图纸工程量提取",
+    "ड्रॉइंग से मात्रा मापन",
+    "Mediciones",
+    "حصر الكميات",
+    "ถอดปริมาณ"
+  ],
+  "Choose a takeoff workspace": [
+    "选择工程量工作区",
+    "मात्रा मापन कार्यक्षेत्र चुनें",
+    "Elegir área de mediciones",
+    "اختر مساحة حصر الكميات",
+    "เลือกพื้นที่ถอดปริมาณ"
+  ],
+  "Steel": [
+    "钢结构",
+    "इस्पात",
+    "Acero",
+    "الفولاذ",
+    "เหล็ก"
+  ],
+  "Duct": [
+    "风管",
+    "डक्ट",
+    "Conducto",
+    "مجرى الهواء",
+    "ท่อลม"
+  ],
+  "Penetrations": [
+    "贯穿孔洞",
+    "प्रवेश छिद्र",
+    "Penetraciones",
+    "الاختراقات",
+    "ช่องเปิดทะลุ"
+  ],
+  "Penetration workspaces": [
+    "贯穿孔洞工作区",
+    "प्रवेश छिद्र कार्यक्षेत्र",
+    "Áreas de penetraciones",
+    "مساحات الاختراقات",
+    "พื้นที่ช่องเปิดทะลุ"
+  ],
+  "Defect Reports": [
+    "缺陷报告",
+    "दोष रिपोर्ट",
+    "Informes de defectos",
+    "تقارير العيوب",
+    "รายงานข้อบกพร่อง"
+  ],
+  "Service Plans": [
+    "管线布置图",
+    "सेवा योजनाएँ",
+    "Planos de instalaciones",
+    "مخططات الخدمات",
+    "แบบระบบประกอบอาคาร"
+  ],
+  "Walls/Floors": [
+    "墙体/楼板",
+    "दीवारें/फ़र्श",
+    "Muros/forjados",
+    "الجدران/الأرضيات",
+    "ผนัง/พื้น"
+  ],
+  "Libraries": [
+    "资料库",
+    "लाइब्रेरी",
+    "Bibliotecas",
+    "المكتبات",
+    "คลังข้อมูล"
+  ],
+  "Choose a library": [
+    "选择资料库",
+    "लाइब्रेरी चुनें",
+    "Elegir biblioteca",
+    "اختر مكتبة",
+    "เลือกคลังข้อมูล"
+  ],
+  "Pricing Library": [
+    "价格库",
+    "मूल्य लाइब्रेरी",
+    "Biblioteca de precios",
+    "مكتبة الأسعار",
+    "คลังราคา"
+  ],
+  "Firestopping Library": [
+    "防火封堵库",
+    "अग्निरोधी सीलिंग लाइब्रेरी",
+    "Biblioteca cortafuego",
+    "مكتبة سد الفتحات",
+    "คลังงานอุดปิดช่องเปิดกันไฟ"
+  ],
+  "Technical Library": [
+    "技术资料库",
+    "तकनीकी लाइब्रेरी",
+    "Biblioteca técnica",
+    "المكتبة الفنية",
+    "คลังข้อมูลทางเทคนิค"
+  ],
+  "Projects": [
+    "项目",
+    "परियोजनाएँ",
+    "Proyectos",
+    "المشاريع",
+    "โครงการ"
+  ],
+  "Help": [
+    "帮助",
+    "सहायता",
+    "Ayuda",
+    "المساعدة",
+    "ความช่วยเหลือ"
+  ],
+  "Settings": [
+    "设置",
+    "सेटिंग्स",
+    "Configuración",
+    "الإعدادات",
+    "การตั้งค่า"
+  ],
+  "Built on caffeine and the audacity of 'Do your best, mastic the rest.'": [
+    "以咖啡因和“尽力施工，其余用密封胶”的勇气为动力。",
+    "कैफ़ीन और ‘पूरी कोशिश करो, बाकी सीलेंट से भरो’ के साहस से बना।",
+    "Impulsado por cafeína y la audacia de «Haz lo mejor; sella el resto».",
+    "صُنع بالكافيين وجرأة «ابذل جهدك، وأغلق الباقي بالمعجون».",
+    "ขับเคลื่อนด้วยคาเฟอีนและความกล้าแบบ “ทำให้ดีที่สุด ที่เหลือใช้วัสดุอุด”"
+  ],
+  "Built on caffeine and the audacity of 'Do your best, mastic the rest.'_": [
+    "以咖啡因和“尽力施工，其余用密封胶”的勇气为动力。",
+    "कैफ़ीन और ‘पूरी कोशिश करो, बाकी सीलेंट से भरो’ के साहस से बना।",
+    "Impulsado por cafeína y la audacia de «Haz lo mejor; sella el resto».",
+    "صُنع بالكافيين وجرأة «ابذل جهدك، وأغلق الباقي بالمعجون».",
+    "ขับเคลื่อนด้วยคาเฟอีนและความกล้าแบบ “ทำให้ดีที่สุด ที่เหลือใช้วัสดุอุด”"
+  ],
+  "Project actions": [
+    "项目操作",
+    "परियोजना क्रियाएँ",
+    "Acciones del proyecto",
+    "إجراءات المشروع",
+    "การดำเนินการโครงการ"
+  ],
+  "Drag or drop files": [
+    "拖放文件",
+    "फ़ाइलें खींचें या छोड़ें",
+    "Arrastrar o soltar archivos",
+    "اسحب الملفات وأفلتها",
+    "ลากหรือวางไฟล์"
+  ],
+  "Project files": [
+    "项目文件",
+    "परियोजना फ़ाइलें",
+    "Archivos del proyecto",
+    "ملفات المشروع",
+    "ไฟล์โครงการ"
+  ],
+  "APPLICATION SETTINGS": [
+    "应用设置",
+    "एप्लिकेशन सेटिंग्स",
+    "CONFIGURACIÓN DE LA APLICACIÓN",
+    "إعدادات التطبيق",
+    "การตั้งค่าแอปพลิเคชัน"
+  ],
+  "Company details for PDF downloads": [
+    "PDF 下载所用公司信息",
+    "PDF डाउनलोड के लिए कंपनी विवरण",
+    "Datos de empresa para descargas PDF",
+    "بيانات الشركة لتنزيلات PDF",
+    "รายละเอียดบริษัทสำหรับไฟล์ PDF"
+  ],
+  "These details apply to new PDF exports across the application.": [
+    "这些信息适用于应用中新导出的 PDF 文件。",
+    "ये विवरण पूरे एप्लिकेशन में नए PDF निर्यात पर लागू होते हैं।",
+    "Estos datos se aplican a las nuevas exportaciones PDF de toda la aplicación.",
+    "تُطبّق هذه البيانات على ملفات PDF الجديدة المصدّرة من التطبيق.",
+    "รายละเอียดเหล่านี้ใช้กับไฟล์ PDF ที่ส่งออกใหม่ทั่วทั้งแอป"
+  ],
+  "Company name": [
+    "公司名称",
+    "कंपनी का नाम",
+    "Nombre de la empresa",
+    "اسم الشركة",
+    "ชื่อบริษัท"
+  ],
+  "Phone": [
+    "电话",
+    "फ़ोन",
+    "Teléfono",
+    "الهاتف",
+    "โทรศัพท์"
+  ],
+  "Email": [
+    "电子邮件",
+    "ईमेल",
+    "Correo electrónico",
+    "البريد الإلكتروني",
+    "อีเมล"
+  ],
+  "Company logo (PNG or JPEG, up to 2 MB)": [
+    "公司标志（PNG 或 JPEG，不超过 2 MB）",
+    "कंपनी लोगो (PNG या JPEG, अधिकतम 2 MB)",
+    "Logotipo de empresa (PNG o JPEG, hasta 2 MB)",
+    "شعار الشركة (PNG أو JPEG، حتى 2 MB)",
+    "โลโก้บริษัท (PNG หรือ JPEG ไม่เกิน 2 MB)"
+  ],
+  "Delete company logo": [
+    "删除公司标志",
+    "कंपनी लोगो हटाएँ",
+    "Eliminar logotipo",
+    "حذف شعار الشركة",
+    "ลบโลโก้บริษัท"
+  ],
+  "Save company details": [
+    "保存公司信息",
+    "कंपनी विवरण सहेजें",
+    "Guardar datos de empresa",
+    "حفظ بيانات الشركة",
+    "บันทึกรายละเอียดบริษัท"
+  ],
+  "Loading…": [
+    "正在加载…",
+    "लोड हो रहा है…",
+    "Cargando…",
+    "جارٍ التحميل…",
+    "กำลังโหลด…"
+  ],
+  "Appearance": [
+    "外观",
+    "स्वरूप",
+    "Apariencia",
+    "المظهر",
+    "รูปลักษณ์"
+  ],
+  "Choose the application theme. PDF exports use Ceasefire red, black and white.": [
+    "选择应用主题。PDF 导出使用 Ceasefire 红、黑、白配色。",
+    "एप्लिकेशन थीम चुनें। PDF निर्यात में Ceasefire के लाल, काले और सफ़ेद रंग हैं।",
+    "Elija el tema. Los PDF usan los colores rojo, negro y blanco de Ceasefire.",
+    "اختر سمة التطبيق. تستخدم ملفات PDF ألوان Ceasefire الأحمر والأسود والأبيض.",
+    "เลือกธีมของแอป ไฟล์ PDF ใช้สีแดง ดำ และขาวของ Ceasefire"
+  ],
+  "Theme: Ceasefire. Next theme: Midnight.": [
+    "主题：Ceasefire。下一主题：午夜。",
+    "थीम: Ceasefire। अगली थीम: मिडनाइट।",
+    "Tema: Ceasefire. Siguiente: Medianoche.",
+    "السمة: Ceasefire. التالية: منتصف الليل.",
+    "ธีม: Ceasefire ธีมถัดไป: เที่ยงคืน"
+  ],
+  "Loading the estimator and pricing library…": [
+    "正在加载估算工具和价格库…",
+    "अनुमानक और मूल्य लाइब्रेरी लोड हो रही है…",
+    "Cargando el estimador y la biblioteca de precios…",
+    "جارٍ تحميل أداة التقدير ومكتبة الأسعار…",
+    "กำลังโหลดเครื่องประมาณราคาและคลังราคา…"
+  ],
+  "Project file": [
+    "项目文件",
+    "परियोजना फ़ाइल",
+    "Archivo de proyecto",
+    "ملف المشروع",
+    "ไฟล์โครงการ"
+  ],
+  "CURRENT PROJECT": [
+    "当前项目",
+    "वर्तमान परियोजना",
+    "PROYECTO ACTUAL",
+    "المشروع الحالي",
+    "โครงการปัจจุบัน"
+  ],
+  "Untitled project": [
+    "未命名项目",
+    "बिना नाम की परियोजना",
+    "Proyecto sin título",
+    "مشروع بلا عنوان",
+    "โครงการไม่มีชื่อ"
+  ],
+  "Choose a folder with Save": [
+    "使用“保存”选择文件夹",
+    "सहेजें से फ़ोल्डर चुनें",
+    "Elija una carpeta con Guardar",
+    "اختر مجلدًا باستخدام حفظ",
+    "เลือกโฟลเดอร์ด้วยปุ่มบันทึก"
+  ],
+  "What would you like to do?": [
+    "您想进行什么操作？",
+    "आप क्या करना चाहते हैं?",
+    "¿Qué desea hacer?",
+    "ماذا تريد أن تفعل؟",
+    "คุณต้องการทำอะไร"
+  ],
+  "Choose an area to start or continue your work.": [
+    "选择区域以开始或继续工作。",
+    "काम शुरू करने या जारी रखने के लिए क्षेत्र चुनें।",
+    "Elija un área para empezar o continuar.",
+    "اختر قسمًا لبدء عملك أو متابعته.",
+    "เลือกส่วนงานเพื่อเริ่มหรือทำงานต่อ"
+  ],
+  "Application areas": [
+    "应用功能区",
+    "एप्लिकेशन क्षेत्र",
+    "Áreas de la aplicación",
+    "أقسام التطبيق",
+    "ส่วนงานของแอป"
+  ],
+  "Build the project material and labour estimates.": [
+    "编制项目材料和人工估算。",
+    "परियोजना की सामग्री और श्रम का अनुमान बनाएँ।",
+    "Prepare estimaciones de materiales y mano de obra.",
+    "أعد تقديرات مواد المشروع والعمالة.",
+    "จัดทำประมาณการวัสดุและแรงงานของโครงการ"
+  ],
+  "Manage pricing, firestopping records and technical references.": [
+    "管理价格、防火封堵记录和技术参考。",
+    "मूल्य, अग्निरोधी सीलिंग रिकॉर्ड और तकनीकी संदर्भ सँभालें।",
+    "Gestione precios, registros cortafuego y referencias técnicas.",
+    "أدر الأسعار وسجلات سد الفتحات والمراجع الفنية.",
+    "จัดการราคา บันทึกงานกันไฟ และเอกสารอ้างอิงทางเทคนิค"
+  ],
+  "Use the specialist workbook calculators and export schedules.": [
+    "使用专业工作簿计算器并导出明细表。",
+    "विशेष कार्यपुस्तिका कैलकुलेटर उपयोग करें और अनुसूचियाँ निर्यात करें।",
+    "Use calculadoras especializadas y exporte listados.",
+    "استخدم حاسبات المصنفات المتخصصة وصدّر الجداول.",
+    "ใช้เครื่องคำนวณเฉพาะทางและส่งออกตารางงาน"
+  ],
+  "Find and reopen project files from your linked folder.": [
+    "从关联文件夹查找并重新打开项目文件。",
+    "लिंक किए फ़ोल्डर से परियोजना फ़ाइलें खोजें और खोलें।",
+    "Busque y vuelva a abrir proyectos de la carpeta vinculada.",
+    "ابحث عن ملفات المشاريع في المجلد المرتبط وأعد فتحها.",
+    "ค้นหาและเปิดไฟล์โครงการจากโฟลเดอร์ที่เชื่อมโยง"
+  ],
+  "Measure original drawings and keep their source evidence with the project.": [
+    "测量原始图纸，并将来源证据随项目保存。",
+    "मूल ड्रॉइंग मापें और स्रोत साक्ष्य परियोजना के साथ रखें।",
+    "Mida planos originales y conserve su evidencia con el proyecto.",
+    "قِس المخططات الأصلية واحتفظ بأدلة المصدر مع المشروع.",
+    "วัดจากแบบต้นฉบับและเก็บหลักฐานแหล่งที่มากับโครงการ"
+  ],
+  "Read the guide to estimates, drawings, schedules and project files.": [
+    "阅读估算、图纸、明细表和项目文件指南。",
+    "अनुमान, ड्रॉइंग, अनुसूची और परियोजना फ़ाइलों की मार्गदर्शिका पढ़ें।",
+    "Consulte la guía de presupuestos, planos, listados y archivos.",
+    "اقرأ دليل التقديرات والمخططات والجداول وملفات المشروع.",
+    "อ่านคู่มือประมาณราคา แบบ ตารางงาน และไฟล์โครงการ"
+  ],
+  "ESTIMATES": [
+    "估算",
+    "अनुमान",
+    "PRESUPUESTOS",
+    "التقديرات",
+    "ประมาณราคา"
+  ],
+  "From project details to a complete material and labour quote.": [
+    "从项目详情到完整的材料和人工报价。",
+    "परियोजना विवरण से पूरी सामग्री और श्रम कोटेशन तक।",
+    "De los datos del proyecto a una cotización completa.",
+    "من تفاصيل المشروع إلى عرض أسعار شامل للمواد والعمالة.",
+    "จากรายละเอียดโครงการสู่ใบเสนอราคาวัสดุและแรงงานที่ครบถ้วน"
+  ],
+  "Document actions": [
+    "文件操作",
+    "दस्तावेज़ क्रियाएँ",
+    "Acciones de documentos",
+    "إجراءات المستندات",
+    "การจัดการเอกสาร"
+  ],
+  "Σ": [
+    "Σ",
+    "Σ",
+    "Σ",
+    "Σ",
+    "Σ"
+  ],
+  "Download Firestopping Schedule": [
+    "下载防火封堵明细表",
+    "अग्निरोधी सीलिंग अनुसूची डाउनलोड करें",
+    "Descargar listado cortafuego",
+    "تنزيل جدول سد الفتحات",
+    "ดาวน์โหลดตารางงานอุดปิดช่องเปิดกันไฟ"
+  ],
+  "Project Details": [
+    "项目详情",
+    "परियोजना विवरण",
+    "Datos del proyecto",
+    "تفاصيل المشروع",
+    "รายละเอียดโครงการ"
+  ],
+  "New estimate": [
+    "新建估算",
+    "नया अनुमान",
+    "Nuevo presupuesto",
+    "تقدير جديد",
+    "ประมาณราคาใหม่"
+  ],
+  "Project No.": [
+    "项目编号",
+    "परियोजना संख्या",
+    "N.º de proyecto",
+    "رقم المشروع",
+    "เลขที่โครงการ"
+  ],
+  "e.g. CF-1042": [
+    "例如 CF-1042",
+    "उदा. CF-1042",
+    "p. ej., CF-1042",
+    "مثال: CF-1042",
+    "เช่น CF-1042"
+  ],
+  "Client": [
+    "客户",
+    "ग्राहक",
+    "Cliente",
+    "العميل",
+    "ลูกค้า"
+  ],
+  "Client or company name": [
+    "客户或公司名称",
+    "ग्राहक या कंपनी का नाम",
+    "Nombre del cliente o empresa",
+    "اسم العميل أو الشركة",
+    "ชื่อลูกค้าหรือบริษัท"
+  ],
+  "Site Address": [
+    "工地地址",
+    "स्थल का पता",
+    "Dirección de obra",
+    "عنوان الموقع",
+    "ที่อยู่หน้างาน"
+  ],
+  "Street address or project location": [
+    "街道地址或项目地点",
+    "सड़क का पता या परियोजना स्थान",
+    "Dirección o ubicación del proyecto",
+    "عنوان الشارع أو موقع المشروع",
+    "ที่อยู่หรือที่ตั้งโครงการ"
+  ],
+  "Optional": [
+    "可选",
+    "वैकल्पिक",
+    "Opcional",
+    "اختياري",
+    "ไม่บังคับ"
+  ],
+  "Record dimensions, measured areas and the basis of the required quantities.": [
+    "记录尺寸、测量面积和所需工程量的依据。",
+    "आयाम, मापे गए क्षेत्र और आवश्यक मात्राओं का आधार दर्ज करें।",
+    "Registre dimensiones, superficies medidas y bases de las cantidades.",
+    "سجّل الأبعاد والمساحات المقاسة وأساس الكميات المطلوبة.",
+    "บันทึกขนาด พื้นที่ที่วัด และที่มาของปริมาณที่ต้องการ"
+  ],
+  "Generated automatically": [
+    "自动生成",
+    "स्वतः बनाया गया",
+    "Generado automáticamente",
+    "يُنشأ تلقائيًا",
+    "สร้างอัตโนมัติ"
+  ],
+  "This quote uses its saved pricing snapshot.": [
+    "此报价使用已保存的价格快照。",
+    "यह कोटेशन अपने सहेजे हुए मूल्य स्नैपशॉट का उपयोग करता है।",
+    "Esta cotización usa sus precios guardados.",
+    "يستخدم عرض الأسعار نسخة الأسعار المحفوظة الخاصة به.",
+    "ใบเสนอราคานี้ใช้ชุดราคาที่บันทึกไว้"
+  ],
+  "Main estimate sections": [
+    "主估算各部分",
+    "मुख्य अनुमान के अनुभाग",
+    "Secciones del presupuesto principal",
+    "أقسام التقدير الرئيسي",
+    "ส่วนของประมาณราคาหลัก"
+  ],
+  "Materials": [
+    "材料",
+    "सामग्री",
+    "Materiales",
+    "المواد",
+    "วัสดุ"
+  ],
+  "Hover over coverage and daily output fields to see their units. Primer, Topcoat and Board daily output is a quantity of product units per day; their coverage is in m².": [
+    "将鼠标悬停在覆盖量和日产量字段上可查看单位。底漆、面漆和板材的日产量以每日产品单位数量表示；覆盖量以 m² 表示。",
+    "कवरेज और दैनिक उत्पादन फ़ील्ड पर माउस रखने से इकाइयाँ दिखती हैं। प्राइमर, टॉपकोट और बोर्ड का दैनिक उत्पादन प्रति दिन उत्पाद इकाइयों में है; कवरेज m² में है।",
+    "Pase el cursor sobre cobertura y rendimiento diario para ver las unidades. Para imprimación, acabado y placas, el rendimiento es en unidades de producto por día; la cobertura es en m².",
+    "مرّر المؤشر فوق حقول التغطية والإنتاج اليومي لرؤية الوحدات. إنتاج البطانة والطبقة النهائية والألواح بوحدات المنتج يوميًا؛ وتغطيتها بوحدة m².",
+    "ชี้เมาส์ที่ช่องความครอบคลุมและผลงานต่อวันเพื่อดูหน่วย ผลงานต่อวันของสีรองพื้น สีทับหน้า และแผ่นวัสดุเป็นจำนวนหน่วยผลิตภัณฑ์ต่อวัน ส่วนความครอบคลุมเป็น m²"
+  ],
+  "Work item": [
+    "工作项",
+    "कार्य मद",
+    "Partida",
+    "بند العمل",
+    "รายการงาน"
+  ],
+  "Wastage %": [
+    "损耗 %",
+    "अपव्यय %",
+    "Merma %",
+    "الهدر %",
+    "สูญเสีย %"
+  ],
+  "Material yield": [
+    "材料用量",
+    "सामग्री की उपज",
+    "Rendimiento del material",
+    "مردود المادة",
+    "อัตราการใช้วัสดุ"
+  ],
+  "Schedules & breakdowns": [
+    "明细表与分项",
+    "अनुसूचियाँ और विवरण",
+    "Listados y desgloses",
+    "الجداول والتفاصيل",
+    "ตารางและรายละเอียด"
+  ],
+  "Main estimate schedules and breakdowns": [
+    "主估算明细表与分项",
+    "मुख्य अनुमान की अनुसूचियाँ और विवरण",
+    "Listados y desgloses del presupuesto principal",
+    "جداول التقدير الرئيسي وتفاصيله",
+    "ตารางและรายละเอียดประมาณราคาหลัก"
+  ],
+  "Firestopping Schedule": [
+    "防火封堵明细表",
+    "अग्निरोधी सीलिंग अनुसूची",
+    "Listado cortafuego",
+    "جدول سد الفتحات",
+    "ตารางงานอุดปิดช่องเปิดกันไฟ"
+  ],
+  "Ready": [
+    "就绪",
+    "तैयार",
+    "Listo",
+    "جاهز",
+    "พร้อม"
+  ],
+  "Recalculate Schedule": [
+    "重新计算明细表",
+    "अनुसूची की पुनर्गणना करें",
+    "Recalcular listado",
+    "إعادة حساب الجدول",
+    "คำนวณตารางใหม่"
+  ],
+  "Only items added to this schedule contribute to the firestopping totals below.": [
+    "仅添加到此明细表的项目计入下方防火封堵总额。",
+    "इस अनुसूची में जोड़ी गई मदें ही नीचे के अग्निरोधी सीलिंग योग में शामिल हैं।",
+    "Solo las partidas añadidas a este listado se incluyen en los totales inferiores.",
+    "تدخل البنود المضافة إلى هذا الجدول فقط في إجماليات سد الفتحات أدناه.",
+    "เฉพาะรายการที่เพิ่มในตารางนี้เท่านั้นที่รวมในยอดงานกันไฟด้านล่าง"
+  ],
+  "Item": [
+    "项目",
+    "मद",
+    "Partida",
+    "البند",
+    "รายการ"
+  ],
+  "Service Type": [
+    "管线类型",
+    "सेवा का प्रकार",
+    "Tipo de instalación",
+    "نوع الخدمة",
+    "ประเภทงานระบบ"
+  ],
+  "Service size (mm)": [
+    "管线尺寸 (mm)",
+    "सेवा आकार (mm)",
+    "Tamaño de instalación (mm)",
+    "مقاس الخدمة (mm)",
+    "ขนาดงานระบบ (mm)"
+  ],
+  "Penetration Type": [
+    "贯穿类型",
+    "प्रवेश छिद्र का प्रकार",
+    "Tipo de penetración",
+    "نوع الاختراق",
+    "ประเภทช่องเปิดทะลุ"
+  ],
+  "Substrate Orientation": [
+    "基材方向",
+    "आधार की दिशा",
+    "Orientación del sustrato",
+    "اتجاه الركيزة",
+    "ทิศทางวัสดุฐาน"
+  ],
+  "FRL": [
+    "FRL",
+    "FRL",
+    "FRL",
+    "FRL",
+    "FRL"
+  ],
+  "Item QTY": [
+    "项目数量",
+    "मद की मात्रा",
+    "Cantidad de partida",
+    "كمية البند",
+    "จำนวนรายการ"
+  ],
+  "Total": [
+    "合计",
+    "कुल",
+    "Total",
+    "الإجمالي",
+    "รวม"
+  ],
+  "Diagram": [
+    "示意图",
+    "आरेख",
+    "Diagrama",
+    "الرسم",
+    "แผนภาพ"
+  ],
+  "Add new item": [
+    "添加新项目",
+    "नई मद जोड़ें",
+    "Añadir partida",
+    "إضافة بند جديد",
+    "เพิ่มรายการใหม่"
+  ],
+  "Firestopping Breakdown": [
+    "防火封堵分项",
+    "अग्निरोधी सीलिंग विवरण",
+    "Desglose cortafuego",
+    "تفصيل سد الفتحات",
+    "รายละเอียดงานกันไฟ"
+  ],
+  "Firestopping schedule breakdown": [
+    "防火封堵明细分项",
+    "अग्निरोधी सीलिंग अनुसूची विवरण",
+    "Desglose del listado cortafuego",
+    "تفصيل جدول سد الفتحات",
+    "รายละเอียดตารางงานกันไฟ"
+  ],
+  "Summary": [
+    "汇总",
+    "सारांश",
+    "Resumen",
+    "الملخص",
+    "สรุป"
+  ],
+  "Material Breakdown": [
+    "材料分项",
+    "सामग्री विवरण",
+    "Desglose de materiales",
+    "تفصيل المواد",
+    "รายละเอียดวัสดุ"
+  ],
+  "Unit sell rate": [
+    "单位售价",
+    "प्रति इकाई बिक्री दर",
+    "Precio unitario de venta",
+    "سعر بيع الوحدة",
+    "ราคาขายต่อหน่วย"
+  ],
+  "Labour days": [
+    "人工天数",
+    "श्रम दिवस",
+    "Días de trabajo",
+    "أيام العمالة",
+    "วันทำงาน"
+  ],
+  "Labour Breakdown": [
+    "人工分项",
+    "श्रम विवरण",
+    "Desglose de mano de obra",
+    "تفصيل العمالة",
+    "รายละเอียดแรงงาน"
+  ],
+  "Labour activity": [
+    "人工活动",
+    "श्रम गतिविधि",
+    "Actividad de trabajo",
+    "نشاط العمالة",
+    "กิจกรรมแรงงาน"
+  ],
+  "Days": [
+    "天数",
+    "दिन",
+    "Días",
+    "الأيام",
+    "วัน"
+  ],
+  "Pinning is included in meshing days. Mobilisation adds half a day per adjusted mobilisation. Days include the entered labour adjustment.": [
+    "固定销安装已包含在挂网天数内。每次调整后的进场增加半天。天数包含已输入的人工调整。",
+    "पिन लगाने का समय जाली लगाने के दिनों में शामिल है। प्रत्येक समायोजित मोबिलाइज़ेशन में आधा दिन जुड़ता है। दिनों में दर्ज श्रम समायोजन शामिल है।",
+    "La fijación se incluye en los días de mallado. Cada movilización ajustada añade medio día. Los días incluyen el ajuste de mano de obra introducido.",
+    "تثبيت المسامير مشمول في أيام تركيب الشبك. تضيف كل تعبئة معدّلة نصف يوم. تشمل الأيام تعديل العمالة المدخل.",
+    "เวลาติดหมุดรวมอยู่ในวันติดตะแกรง การระดมงานที่ปรับแล้วแต่ละครั้งเพิ่มครึ่งวัน จำนวนวันรวมการปรับแรงงานที่กรอกแล้ว"
+  ],
+  "Resize Main form and Estimate Summary": [
+    "调整主表单与估算汇总大小",
+    "मुख्य फ़ॉर्म और अनुमान सारांश का आकार बदलें",
+    "Redimensionar formulario y resumen",
+    "تغيير حجم النموذج الرئيسي وملخص التقدير",
+    "ปรับขนาดแบบฟอร์มหลักและสรุปประมาณราคา"
+  ],
+  "Calculating": [
+    "正在计算",
+    "गणना जारी",
+    "Calculando",
+    "جارٍ الحساب",
+    "กำลังคำนวณ"
+  ],
+  "Grand total": [
+    "总计",
+    "समग्र योग",
+    "Total general",
+    "المجموع الكلي",
+    "ยอดรวมทั้งหมด"
+  ],
+  "AUD · Material & labour estimate": [
+    "AUD · 材料与人工估算",
+    "AUD · सामग्री और श्रम अनुमान",
+    "AUD · Estimación de materiales y mano de obra",
+    "AUD · تقدير المواد والعمالة",
+    "AUD · ประมาณการวัสดุและแรงงาน"
+  ],
+  "Enter assessed quantities and suitable products. A quote total does not assess product suitability or fire ratings.": [
+    "请输入经评估的工程量并选择适用产品。报价总额不评估产品适用性或耐火等级。",
+    "आकलित मात्राएँ और उपयुक्त उत्पाद दर्ज करें। कोटेशन का योग उत्पाद की उपयुक्तता या अग्नि रेटिंग का आकलन नहीं करता।",
+    "Introduzca cantidades evaluadas y productos adecuados. El total no evalúa la idoneidad del producto ni la resistencia al fuego.",
+    "أدخل الكميات المقدّرة والمنتجات المناسبة. لا يقيّم إجمالي العرض ملاءمة المنتجات أو تصنيفات الحريق.",
+    "กรอกปริมาณที่ประเมินและผลิตภัณฑ์ที่เหมาะสม ยอดใบเสนอราคาไม่ได้ประเมินความเหมาะสมหรือระดับทนไฟ"
+  ],
+  "FIRESTOPPING CALCULATOR": [
+    "防火封堵计算器",
+    "अग्निरोधी सीलिंग कैलकुलेटर",
+    "CALCULADORA CORTAFUEGO",
+    "حاسبة سد الفتحات",
+    "เครื่องคำนวณงานอุดปิดช่องเปิดกันไฟ"
+  ],
+  "Calculate the current item, then add it to the Firestopping Schedule in Main.": [
+    "计算当前项目，然后添加到主估算的防火封堵明细表。",
+    "वर्तमान मद की गणना करें, फिर मुख्य में अग्निरोधी सीलिंग अनुसूची में जोड़ें।",
+    "Calcule la partida y añádala al listado cortafuego de Principal.",
+    "احسب البند الحالي ثم أضفه إلى جدول سد الفتحات في القسم الرئيسي.",
+    "คำนวณรายการปัจจุบัน แล้วเพิ่มลงตารางงานกันไฟในหน้าหลัก"
+  ],
+  "Recalculate": [
+    "重新计算",
+    "पुनर्गणना करें",
+    "Recalcular",
+    "إعادة الحساب",
+    "คำนวณใหม่"
+  ],
+  "Loading penetration fields…": [
+    "正在加载贯穿孔洞字段…",
+    "प्रवेश छिद्र फ़ील्ड लोड हो रहे हैं…",
+    "Cargando campos de penetración…",
+    "جارٍ تحميل حقول الاختراق…",
+    "กำลังโหลดช่องข้อมูลช่องเปิดทะลุ…"
+  ],
+  "Current item": [
+    "当前项目",
+    "वर्तमान मद",
+    "Partida actual",
+    "البند الحالي",
+    "รายการปัจจุบัน"
+  ],
+  "Clear all current item inputs": [
+    "清除当前项目所有输入",
+    "वर्तमान मद के सभी इनपुट साफ़ करें",
+    "Borrar todas las entradas de la partida",
+    "مسح جميع مدخلات البند الحالي",
+    "ล้างข้อมูลทั้งหมดของรายการปัจจุบัน"
+  ],
+  "Clear": [
+    "清除",
+    "साफ़ करें",
+    "Borrar",
+    "مسح",
+    "ล้าง"
+  ],
+  "Add to Schedule": [
+    "添加到明细表",
+    "अनुसूची में जोड़ें",
+    "Añadir al listado",
+    "إضافة إلى الجدول",
+    "เพิ่มในตาราง"
+  ],
+  "Item Details": [
+    "项目详情",
+    "मद विवरण",
+    "Detalles de partida",
+    "تفاصيل البند",
+    "รายละเอียดรายการ"
+  ],
+  "Add to Library": [
+    "添加到资料库",
+    "लाइब्रेरी में जोड़ें",
+    "Añadir a biblioteca",
+    "إضافة إلى المكتبة",
+    "เพิ่มในคลัง"
+  ],
+  "Update Schedule": [
+    "更新明细表",
+    "अनुसूची अपडेट करें",
+    "Actualizar listado",
+    "تحديث الجدول",
+    "อัปเดตตาราง"
+  ],
+  "Cancel edit": [
+    "取消编辑",
+    "संपादन रद्द करें",
+    "Cancelar edición",
+    "إلغاء التعديل",
+    "ยกเลิกการแก้ไข"
+  ],
+  "Item input sections": [
+    "项目输入部分",
+    "मद इनपुट अनुभाग",
+    "Secciones de entrada de partida",
+    "أقسام مدخلات البند",
+    "ส่วนข้อมูลรายการ"
+  ],
+  "Source diagram": [
+    "来源示意图",
+    "स्रोत आरेख",
+    "Diagrama de origen",
+    "رسم المصدر",
+    "แผนภาพต้นฉบับ"
+  ],
+  "No source diagram is attached to this item.": [
+    "此项目未附来源示意图。",
+    "इस मद में स्रोत आरेख संलग्न नहीं है।",
+    "Esta partida no tiene diagrama de origen adjunto.",
+    "لا يوجد رسم مصدر مرفق بهذا البند.",
+    "ไม่มีแผนภาพต้นฉบับแนบกับรายการนี้"
+  ],
+  "Choose source diagram": [
+    "选择来源示意图",
+    "स्रोत आरेख चुनें",
+    "Elegir diagrama de origen",
+    "اختيار رسم المصدر",
+    "เลือกแผนภาพต้นฉบับ"
+  ],
+  "Discard selected image": [
+    "放弃所选图片",
+    "चुनी हुई छवि छोड़ें",
+    "Descartar imagen seleccionada",
+    "تجاهل الصورة المحددة",
+    "ละทิ้งรูปภาพที่เลือก"
+  ],
+  "PNG, JPEG or WebP, up to 15 MB. Add the item to the Firestopping Library to save the compressed image and schedule thumbnail.": [
+    "PNG、JPEG 或 WebP，不超过 15 MB。将项目添加到防火封堵库以保存压缩图片和明细表缩略图。",
+    "PNG, JPEG या WebP, अधिकतम 15 MB। संकुचित छवि और अनुसूची थंबनेल सहेजने के लिए मद को अग्निरोधी सीलिंग लाइब्रेरी में जोड़ें।",
+    "PNG, JPEG o WebP, hasta 15 MB. Añada la partida a la biblioteca cortafuego para guardar la imagen comprimida y la miniatura.",
+    "PNG أو JPEG أو WebP، حتى 15 MB. أضف البند إلى مكتبة سد الفتحات لحفظ الصورة المضغوطة والمصغرة.",
+    "PNG, JPEG หรือ WebP ไม่เกิน 15 MB เพิ่มรายการในคลังงานกันไฟเพื่อบันทึกรูปบีบอัดและภาพย่อในตาราง"
+  ],
+  "Item Breakdown": [
+    "项目分项",
+    "मद का विवरण",
+    "Desglose de partida",
+    "تفصيل البند",
+    "รายละเอียดแยกรายการ"
+  ],
+  "Item Summary": [
+    "项目汇总",
+    "मद सारांश",
+    "Resumen de partida",
+    "ملخص البند",
+    "สรุปรายการ"
+  ],
+  "This is the same Firestopping Schedule used in the Quote. Changes made here update the Quote totals and breakdown.": [
+    "这是报价中使用的同一防火封堵明细表。此处修改将更新报价总额和分项。",
+    "यह कोटेशन वाली ही अग्निरोधी सीलिंग अनुसूची है। यहाँ बदलाव से कोटेशन के योग और विवरण बदलते हैं।",
+    "Es el mismo listado cortafuego de la cotización. Los cambios actualizan sus totales y desgloses.",
+    "هذا هو جدول سد الفتحات نفسه المستخدم في عرض الأسعار. تحدّث التغييرات هنا إجماليات العرض وتفاصيله.",
+    "นี่คือตารางงานกันไฟเดียวกับใบเสนอราคา การเปลี่ยนแปลงที่นี่จะอัปเดตยอดรวมและรายละเอียด"
+  ],
+  "FIRESTOPPING LIBRARY ITEM": [
+    "防火封堵库项目",
+    "अग्निरोधी सीलिंग लाइब्रेरी मद",
+    "PARTIDA DE BIBLIOTECA CORTAFUEGO",
+    "بند مكتبة سد الفتحات",
+    "รายการในคลังงานกันไฟ"
+  ],
+  "Save Library Item": [
+    "保存库项目",
+    "लाइब्रेरी मद सहेजें",
+    "Guardar partida en biblioteca",
+    "حفظ بند المكتبة",
+    "บันทึกรายการในคลัง"
+  ],
+  "Editing this library item leaves your current project and estimate unchanged.": [
+    "编辑此库项目不会更改当前项目与估算。",
+    "इस लाइब्रेरी मद का संपादन वर्तमान परियोजना और अनुमान नहीं बदलता।",
+    "Editar esta partida no modifica el proyecto ni el presupuesto actual.",
+    "لا يؤدي تعديل بند المكتبة إلى تغيير المشروع والتقدير الحاليين.",
+    "การแก้ไขรายการในคลังนี้ไม่เปลี่ยนโครงการหรือประมาณราคาปัจจุบัน"
+  ],
+  "Library price": [
+    "库价格",
+    "लाइब्रेरी मूल्य",
+    "Precio de biblioteca",
+    "سعر المكتبة",
+    "ราคาในคลัง"
+  ],
+  "Refresh from Pricing Library": [
+    "从价格库刷新",
+    "मूल्य लाइब्रेरी से ताज़ा करें",
+    "Actualizar desde biblioteca de precios",
+    "تحديث من مكتبة الأسعار",
+    "อัปเดตจากคลังราคา"
+  ],
+  "Item details": [
+    "项目详情",
+    "मद विवरण",
+    "Detalles de partida",
+    "تفاصيل البند",
+    "รายละเอียดรายการ"
+  ],
+  "Library item document actions": [
+    "库项目文件操作",
+    "लाइब्रेरी मद दस्तावेज़ क्रियाएँ",
+    "Acciones de documentos de partida",
+    "إجراءات مستند بند المكتبة",
+    "การจัดการเอกสารรายการในคลัง"
+  ],
+  "Library item input sections": [
+    "库项目输入部分",
+    "लाइब्रेरी मद इनपुट अनुभाग",
+    "Secciones de entrada de biblioteca",
+    "أقسام مدخلات بند المكتبة",
+    "ส่วนข้อมูลรายการในคลัง"
+  ],
+  "No source diagram is saved for this item.": [
+    "此项目未保存来源示意图。",
+    "इस मद के लिए स्रोत आरेख सहेजा नहीं गया।",
+    "No hay diagrama de origen guardado para esta partida.",
+    "لا يوجد رسم مصدر محفوظ لهذا البند.",
+    "ไม่มีแผนภาพต้นฉบับบันทึกไว้สำหรับรายการนี้"
+  ],
+  "Remove saved image": [
+    "删除已保存图片",
+    "सहेजी छवि हटाएँ",
+    "Eliminar imagen guardada",
+    "إزالة الصورة المحفوظة",
+    "ลบรูปภาพที่บันทึกไว้"
+  ],
+  "PNG, JPEG or WebP, up to 15 MB. The saved image is compressed for clear viewing and a schedule thumbnail is created automatically.": [
+    "PNG、JPEG 或 WebP，不超过 15 MB。已保存图片将压缩以便清晰查看，并自动创建明细表缩略图。",
+    "PNG, JPEG या WebP, अधिकतम 15 MB। स्पष्ट देखने के लिए सहेजी छवि संकुचित होती है और अनुसूची थंबनेल स्वतः बनता है।",
+    "PNG, JPEG o WebP, hasta 15 MB. La imagen se comprime para verla con claridad y se crea una miniatura automáticamente.",
+    "PNG أو JPEG أو WebP، حتى 15 MB. تُضغط الصورة المحفوظة للعرض الواضح وتُنشأ مصغرة للجدول تلقائيًا.",
+    "PNG, JPEG หรือ WebP ไม่เกิน 15 MB รูปที่บันทึกจะบีบอัดให้ดูชัด และสร้างภาพย่อในตารางอัตโนมัติ"
+  ],
+  "Item estimate": [
+    "项目估算",
+    "मद का अनुमान",
+    "Presupuesto de partida",
+    "تقدير البند",
+    "ประมาณการรายการ"
+  ],
+  "Calculated breakdown": [
+    "计算分项",
+    "गणना विवरण",
+    "Desglose calculado",
+    "التفصيل المحسوب",
+    "รายละเอียดที่คำนวณแล้ว"
+  ],
+  "WORKBOOK CALCULATOR": [
+    "工作簿计算器",
+    "कार्यपुस्तिका कैलकुलेटर",
+    "CALCULADORA DE LIBRO",
+    "حاسبة المصنف",
+    "เครื่องคำนวณสมุดงาน"
+  ],
+  "Workbook defaults": [
+    "工作簿默认值",
+    "कार्यपुस्तिका डिफ़ॉल्ट",
+    "Valores predeterminados del libro",
+    "القيم الافتراضية للمصنف",
+    "ค่าเริ่มต้นสมุดงาน"
+  ],
+  "Reset Calc": [
+    "重置计算器",
+    "कैलकुलेटर रीसेट करें",
+    "Restablecer calculadora",
+    "إعادة ضبط الحاسبة",
+    "รีเซ็ตเครื่องคำนวณ"
+  ],
+  "Calculator pages": [
+    "计算器页面",
+    "कैलकुलेटर पृष्ठ",
+    "Páginas de calculadora",
+    "صفحات الحاسبة",
+    "หน้าเครื่องคำนวณ"
+  ],
+  "Calculator worksheet": [
+    "计算器工作表",
+    "कैलकुलेटर वर्कशीट",
+    "Hoja de cálculo",
+    "ورقة عمل الحاسبة",
+    "แผ่นงานเครื่องคำนวณ"
+  ],
+  "Add or remove schedule rows as needed · Imports create their rows automatically": [
+    "按需增删明细行 · 导入会自动创建行",
+    "अनुसूची की पंक्तियाँ जोड़ें या हटाएँ · आयात पर पंक्तियाँ स्वतः बनती हैं",
+    "Añada o elimine filas · Las importaciones crean sus filas automáticamente",
+    "أضف صفوف الجدول أو أزلها حسب الحاجة · ينشئ الاستيراد الصفوف تلقائيًا",
+    "เพิ่มหรือลบแถวตามต้องการ · การนำเข้าจะสร้างแถวอัตโนมัติ"
+  ],
+  "Technical documents and source information": [
+    "技术文件与来源信息",
+    "तकनीकी दस्तावेज़ और स्रोत जानकारी",
+    "Documentos técnicos e información de origen",
+    "المستندات الفنية ومعلومات المصدر",
+    "เอกสารทางเทคนิคและข้อมูลแหล่งที่มา"
+  ],
+  "Select between Main Library and Current Project. Editing the library for Current Project will only retain edits for the current project.": [
+    "在主价格库和当前项目之间选择。编辑当前项目价格库只会保留当前项目的修改。",
+    "मुख्य लाइब्रेरी और वर्तमान परियोजना में से चुनें। वर्तमान परियोजना की लाइब्रेरी में बदलाव केवल उसी परियोजना में रहते हैं।",
+    "Elija Biblioteca principal o Proyecto actual. Los cambios del proyecto actual solo se conservan en ese proyecto.",
+    "اختر المكتبة الرئيسية أو المشروع الحالي. تُحفظ تعديلات مكتبة المشروع الحالي لهذا المشروع فقط.",
+    "เลือกระหว่างคลังหลักและโครงการปัจจุบัน การแก้ไขคลังของโครงการปัจจุบันจะเก็บไว้เฉพาะโครงการนี้"
+  ],
+  "Document": [
+    "文件",
+    "दस्तावेज़",
+    "Documento",
+    "المستند",
+    "เอกสาร"
+  ],
+  "+ Add item": [
+    "+ 添加项目",
+    "+ मद जोड़ें",
+    "+ Añadir partida",
+    "+ إضافة بند",
+    "+ เพิ่มรายการ"
+  ],
+  "Discard Changes": [
+    "放弃更改",
+    "बदलाव छोड़ें",
+    "Descartar cambios",
+    "تجاهل التغييرات",
+    "ละทิ้งการเปลี่ยนแปลง"
+  ],
+  "Search products or services": [
+    "搜索产品或服务",
+    "उत्पाद या सेवाएँ खोजें",
+    "Buscar productos o servicios",
+    "البحث عن منتجات أو خدمات",
+    "ค้นหาผลิตภัณฑ์หรือบริการ"
+  ],
+  "Search product, service or item code…": [
+    "搜索产品、服务或项目代码…",
+    "उत्पाद, सेवा या मद कोड खोजें…",
+    "Buscar producto, servicio o código…",
+    "ابحث عن منتج أو خدمة أو رمز بند…",
+    "ค้นหาผลิตภัณฑ์ บริการ หรือรหัสรายการ…"
+  ],
+  "Estimator availability": [
+    "估算工具适用范围",
+    "अनुमानक उपलब्धता",
+    "Disponibilidad en estimadores",
+    "التوفر في أدوات التقدير",
+    "การใช้งานในเครื่องประมาณราคา"
+  ],
+  "Pricing to edit": [
+    "要编辑的价格",
+    "संपादन के लिए मूल्य",
+    "Precios para editar",
+    "الأسعار المراد تعديلها",
+    "ราคาที่ต้องการแก้ไข"
+  ],
+  "Main Library": [
+    "主价格库",
+    "मुख्य लाइब्रेरी",
+    "Biblioteca principal",
+    "المكتبة الرئيسية",
+    "คลังหลัก"
+  ],
+  "Current Project": [
+    "当前项目",
+    "वर्तमान परियोजना",
+    "Proyecto actual",
+    "المشروع الحالي",
+    "โครงการปัจจุบัน"
+  ],
+  "Saved configuration": [
+    "已保存配置",
+    "सहेजा गया विन्यास",
+    "Configuración guardada",
+    "الإعدادات المحفوظة",
+    "การกำหนดค่าที่บันทึกไว้"
+  ],
+  "WORKSPACE": [
+    "工作区",
+    "कार्यक्षेत्र",
+    "ÁREA DE TRABAJO",
+    "مساحة العمل",
+    "พื้นที่ทำงาน"
+  ],
+  "Open a complete estimate, its original prices and all three calculators.": [
+    "打开完整估算、原始价格和全部三个计算器。",
+    "पूरा अनुमान, उसके मूल मूल्य और तीनों कैलकुलेटर खोलें।",
+    "Abra un presupuesto completo, sus precios originales y las tres calculadoras.",
+    "افتح تقديرًا كاملًا بأسعاره الأصلية والحاسبات الثلاث.",
+    "เปิดประมาณราคาฉบับสมบูรณ์ ราคาต้นฉบับ และเครื่องคำนวณทั้งสาม"
+  ],
+  "New": [
+    "新建",
+    "नया",
+    "Nuevo",
+    "جديد",
+    "ใหม่"
+  ],
+  "Load": [
+    "加载",
+    "लोड करें",
+    "Cargar",
+    "تحميل",
+    "โหลด"
+  ],
+  "Link Project Folder": [
+    "关联项目文件夹",
+    "परियोजना फ़ोल्डर लिंक करें",
+    "Vincular carpeta de proyectos",
+    "ربط مجلد المشاريع",
+    "เชื่อมโยงโฟลเดอร์โครงการ"
+  ],
+  "Refresh": [
+    "刷新",
+    "ताज़ा करें",
+    "Actualizar",
+    "تحديث",
+    "รีเฟรช"
+  ],
+  "Search projects": [
+    "搜索项目",
+    "परियोजनाएँ खोजें",
+    "Buscar proyectos",
+    "البحث عن مشاريع",
+    "ค้นหาโครงการ"
+  ],
+  "Project, client, address or folder…": [
+    "项目、客户、地址或文件夹…",
+    "परियोजना, ग्राहक, पता या फ़ोल्डर…",
+    "Proyecto, cliente, dirección o carpeta…",
+    "مشروع أو عميل أو عنوان أو مجلد…",
+    "โครงการ ลูกค้า ที่อยู่ หรือโฟลเดอร์…"
+  ],
+  "Sort by": [
+    "排序方式",
+    "क्रमबद्ध करें",
+    "Ordenar por",
+    "ترتيب حسب",
+    "เรียงตาม"
+  ],
+  "Most recently saved": [
+    "最近保存优先",
+    "हाल में सहेजा गया पहले",
+    "Guardado más reciente",
+    "الأحدث حفظًا",
+    "บันทึกล่าสุดก่อน"
+  ],
+  "Oldest saved first": [
+    "最早保存优先",
+    "सबसे पुराना सहेजा पहले",
+    "Guardado más antiguo",
+    "الأقدم حفظًا",
+    "บันทึกเก่าสุดก่อน"
+  ],
+  "Project name A–Z": [
+    "项目名称 A–Z",
+    "परियोजना नाम A–Z",
+    "Nombre A–Z",
+    "اسم المشروع A–Z",
+    "ชื่อโครงการ A–Z"
+  ],
+  "Project name Z–A": [
+    "项目名称 Z–A",
+    "परियोजना नाम Z–A",
+    "Nombre Z–A",
+    "اسم المشروع Z–A",
+    "ชื่อโครงการ Z–A"
+  ],
+  "Reading project files…": [
+    "正在读取项目文件…",
+    "परियोजना फ़ाइलें पढ़ी जा रही हैं…",
+    "Leyendo archivos de proyecto…",
+    "جارٍ قراءة ملفات المشروع…",
+    "กำลังอ่านไฟล์โครงการ…"
+  ],
+  "Previous": [
+    "上一页",
+    "पिछला",
+    "Anterior",
+    "السابق",
+    "ก่อนหน้า"
+  ],
+  "Next": [
+    "下一页",
+    "अगला",
+    "Siguiente",
+    "التالي",
+    "ถัดไป"
+  ],
+  "Continue folder scan": [
+    "继续扫描文件夹",
+    "फ़ोल्डर स्कैन जारी रखें",
+    "Continuar exploración de carpeta",
+    "متابعة فحص المجلد",
+    "สแกนโฟลเดอร์ต่อ"
+  ],
+  "PROJECT FILES": [
+    "项目文件",
+    "परियोजना फ़ाइलें",
+    "ARCHIVOS DEL PROYECTO",
+    "ملفات المشروع",
+    "ไฟล์โครงการ"
+  ],
+  "Back to Projects": [
+    "返回项目",
+    "परियोजनाओं पर वापस",
+    "Volver a proyectos",
+    "العودة إلى المشاريع",
+    "กลับไปที่โครงการ"
+  ],
+  "Project folder breadcrumbs": [
+    "项目文件夹路径导航",
+    "परियोजना फ़ोल्डर पथ",
+    "Ruta de carpetas del proyecto",
+    "مسار مجلد المشروع",
+    "เส้นทางโฟลเดอร์โครงการ"
+  ],
+  "HELP": [
+    "帮助",
+    "सहायता",
+    "AYUDA",
+    "المساعدة",
+    "ความช่วยเหลือ"
+  ],
+  "Using the Ceasefire Estimator": [
+    "使用 Ceasefire 估算工具",
+    "Ceasefire अनुमानक का उपयोग",
+    "Uso del estimador Ceasefire",
+    "استخدام أداة تقدير Ceasefire",
+    "การใช้เครื่องประมาณราคา Ceasefire"
+  ],
+  "A plain-English guide to finding your way around and producing an estimate.": [
+    "了解应用操作和编制估算的简明指南。",
+    "एप्लिकेशन चलाने और अनुमान बनाने की सरल मार्गदर्शिका।",
+    "Guía sencilla para navegar y preparar un presupuesto.",
+    "دليل مبسّط للتنقل وإعداد التقديرات.",
+    "คู่มือใช้งานและจัดทำประมาณราคาที่เข้าใจง่าย"
+  ],
+  "Button symbols, functions and shortcuts": [
+    "按钮符号、功能与快捷键",
+    "बटन चिह्न, कार्य और शॉर्टकट",
+    "Símbolos, funciones y atajos",
+    "رموز الأزرار ووظائفها واختصاراتها",
+    "สัญลักษณ์ปุ่ม หน้าที่ และปุ่มลัด"
+  ],
+  "Search by name, symbol, function or shortcut. Drawing shortcuts work in Takeoffs when the control is available, focus is outside text fields and no dialog is open. Ctrl/Cmd accepts Control or Command; other Ctrl shortcuts use Control.": [
+    "按名称、符号、功能或快捷键搜索。图纸快捷键仅在工程量界面控件可用、焦点位于文本框外且无对话框打开时生效。Ctrl/Cmd 接受 Control 或 Command；其他 Ctrl 快捷键使用 Control。",
+    "नाम, चिह्न, कार्य या शॉर्टकट से खोजें। ड्रॉइंग शॉर्टकट मात्रा मापन में तभी चलते हैं जब नियंत्रण उपलब्ध हो, फ़ोकस टेक्स्ट फ़ील्ड के बाहर हो और कोई संवाद न खुला हो। Ctrl/Cmd में Control या Command चलता है; अन्य Ctrl शॉर्टकट Control उपयोग करते हैं।",
+    "Busque por nombre, símbolo, función o atajo. Los atajos de dibujo funcionan en Mediciones si el control está disponible, el foco está fuera de campos de texto y no hay diálogos abiertos. Ctrl/Cmd admite Control o Command; los demás usan Control.",
+    "ابحث بالاسم أو الرمز أو الوظيفة أو الاختصار. تعمل اختصارات الرسم في حصر الكميات عندما يكون التحكم متاحًا والتركيز خارج حقول النص ولا يوجد مربع حوار مفتوح. يقبل Ctrl/Cmd مفتاح Control أو Command؛ وتستخدم اختصارات Ctrl الأخرى مفتاح Control.",
+    "ค้นหาด้วยชื่อ สัญลักษณ์ หน้าที่ หรือปุ่มลัด ปุ่มลัดแบบใช้ในหน้าถอดปริมาณเมื่อปุ่มพร้อมใช้ โฟกัสอยู่นอกช่องข้อความ และไม่มีหน้าต่างโต้ตอบ Ctrl/Cmd ใช้ Control หรือ Command ส่วนปุ่มลัด Ctrl อื่นใช้ Control"
+  ],
+  "Search buttons and shortcuts": [
+    "搜索按钮与快捷键",
+    "बटन और शॉर्टकट खोजें",
+    "Buscar botones y atajos",
+    "البحث عن أزرار واختصارات",
+    "ค้นหาปุ่มและปุ่มลัด"
+  ],
+  "Try surface, download, visibility or Ctrl…": [
+    "尝试搜索表面、下载、可见性或 Ctrl…",
+    "सतह, डाउनलोड, दृश्यता या Ctrl खोजें…",
+    "Pruebe superficie, descarga, visibilidad o Ctrl…",
+    "جرّب سطح أو تنزيل أو إظهار أو Ctrl…",
+    "ลองค้นหา พื้นผิว ดาวน์โหลด การมองเห็น หรือ Ctrl…"
+  ],
+  "Section": [
+    "部分",
+    "अनुभाग",
+    "Sección",
+    "القسم",
+    "ส่วน"
+  ],
+  "All sections": [
+    "所有部分",
+    "सभी अनुभाग",
+    "Todas las secciones",
+    "جميع الأقسام",
+    "ทุกส่วน"
+  ],
+  "Clear search": [
+    "清除搜索",
+    "खोज साफ़ करें",
+    "Borrar búsqueda",
+    "مسح البحث",
+    "ล้างการค้นหา"
+  ],
+  "Start a project": [
+    "开始项目",
+    "परियोजना शुरू करें",
+    "Iniciar un proyecto",
+    "بدء مشروع",
+    "เริ่มโครงการ"
+  ],
+  "Open Estimates and enter the project number, client and site address.": [
+    "打开“估算”，输入项目编号、客户和工地地址。",
+    "अनुमान खोलें और परियोजना संख्या, ग्राहक व स्थल पता दर्ज करें।",
+    "Abra Presupuestos e introduzca número de proyecto, cliente y dirección de obra.",
+    "افتح التقديرات وأدخل رقم المشروع والعميل وعنوان الموقع.",
+    "เปิดประมาณราคาแล้วกรอกเลขโครงการ ลูกค้า และที่อยู่หน้างาน"
+  ],
+  "Open Calculators for a specialist workbook calculator. Use Estimates for Main and Calculators for Firestopping.": [
+    "打开“计算器”以使用专业工作簿计算器。在“估算”中选择主估算，在“计算器”中选择防火封堵。",
+    "विशेष कार्यपुस्तिका के लिए कैलकुलेटर खोलें। मुख्य के लिए अनुमान और अग्निरोधी सीलिंग के लिए कैलकुलेटर उपयोग करें।",
+    "Abra Calculadoras para cálculos especializados. Use Presupuestos para Principal y Calculadoras para Sellado cortafuego.",
+    "افتح الحاسبات للحسابات المتخصصة. استخدم التقديرات للقسم الرئيسي والحاسبات لسد الفتحات.",
+    "เปิดเครื่องคำนวณสำหรับงานเฉพาะทาง ใช้ประมาณราคาสำหรับหน้าหลัก และเครื่องคำนวณสำหรับงานกันไฟ"
+  ],
+  "Use Save the first time. Use Save after the file has a location.": [
+    "首次使用“保存”。文件有保存位置后，继续使用“保存”更新。",
+    "पहली बार सहेजें उपयोग करें। फ़ाइल का स्थान तय होने के बाद भी सहेजें उपयोग करें।",
+    "Use Guardar la primera vez y también cuando el archivo ya tenga ubicación.",
+    "استخدم حفظ في المرة الأولى وبعد تحديد موقع الملف أيضًا.",
+    "ใช้บันทึกครั้งแรก และใช้บันทึกอีกครั้งเมื่อไฟล์มีตำแหน่งแล้ว"
+  ],
+  "Build the Quote": [
+    "编制报价",
+    "कोटेशन बनाएँ",
+    "Preparar la cotización",
+    "إعداد عرض الأسعار",
+    "จัดทำใบเสนอราคา"
+  ],
+  "Quote combines materials, labour, access, travel and adjustments. The summary updates after valid changes. Choose a section tab to edit or audit its values.": [
+    "报价汇总材料、人工、设备、差旅和调整。有效更改后汇总会更新。选择部分标签以编辑或审核数值。",
+    "कोटेशन में सामग्री, श्रम, पहुँच उपकरण, यात्रा और समायोजन जुड़ते हैं। सही बदलाव के बाद सारांश बदलता है। मान संपादित या जाँचने के लिए अनुभाग टैब चुनें।",
+    "La cotización combina materiales, mano de obra, medios de acceso, viajes y ajustes. El resumen se actualiza tras cambios válidos. Elija una pestaña para editar o revisar sus valores.",
+    "يجمع العرض المواد والعمالة ومعدات الوصول والسفر والتعديلات. يتحدث الملخص بعد التغييرات الصحيحة. اختر علامة قسم لتعديل القيم أو مراجعتها.",
+    "ใบเสนอราคารวมวัสดุ แรงงาน อุปกรณ์เข้าถึง การเดินทาง และการปรับราคา สรุปจะอัปเดตหลังแก้ไขถูกต้อง เลือกแท็บเพื่อแก้ไขหรือตรวจสอบค่า"
+  ],
+  "In Material Requirements & Output, the copy symbol duplicates a work-item row. A duplicate has the same inputs and labour team as its source. Its material and labour are added to the summary and breakdowns. Use its trash symbol to remove it.": [
+    "在“材料需求与产出”中，复制符号可复制工作项行。副本保留原输入和班组，其材料与人工计入汇总和分项。使用垃圾桶符号删除。",
+    "सामग्री आवश्यकताएँ और आउटपुट में कॉपी चिह्न कार्य मद की पंक्ति की प्रतिलिपि बनाता है। उसके इनपुट और श्रम दल मूल जैसे रहते हैं। उसकी सामग्री और श्रम सारांश व विवरण में जुड़ते हैं। हटाने के लिए कूड़ेदान चिह्न उपयोग करें।",
+    "En Requisitos y resultados de materiales, el símbolo de copia duplica una fila con sus entradas y equipo. Sus materiales y mano de obra se añaden al resumen y desgloses. Use la papelera para eliminarla.",
+    "في متطلبات المواد والمخرجات، ينسخ رمز النسخ صف بند العمل بمدخلاته وفريقه. تُضاف مواده وعمالته إلى الملخص والتفاصيل. استخدم سلة المهملات لإزالته.",
+    "ในความต้องการวัสดุและผลลัพธ์ ปุ่มคัดลอกจะทำสำเนาแถวพร้อมข้อมูลและทีมแรงงาน วัสดุและแรงงานของสำเนารวมในสรุปและรายละเอียด ใช้ถังขยะเพื่อลบ"
+  ],
+  "Open Calculators, then choose Firestopping. Complete the item tabs, review Item Summary and Item Breakdown, and use the plus symbol to add the item to the Firestopping Schedule.": [
+    "打开“计算器”，选择“防火封堵”。填写项目标签页，审核项目汇总和分项，再使用加号添加到防火封堵明细表。",
+    "कैलकुलेटर खोलें और अग्निरोधी सीलिंग चुनें। मद टैब भरें, मद सारांश और विवरण जाँचें, फिर प्लस चिह्न से अनुसूची में जोड़ें।",
+    "Abra Calculadoras y elija Sellado cortafuego. Complete las pestañas, revise resumen y desglose de partida y use el signo más para añadirla al listado.",
+    "افتح الحاسبات ثم اختر سد الفتحات. أكمل علامات البند وراجع ملخصه وتفاصيله، ثم استخدم علامة الجمع لإضافته إلى الجدول.",
+    "เปิดเครื่องคำนวณ เลือกงานกันไฟ กรอกข้อมูลในแท็บ ตรวจสรุปและรายละเอียด แล้วใช้ปุ่มบวกเพิ่มในตาราง"
+  ],
+  "The schedule shown below the item is the same schedule shown in Quote. Edit, remove, undo or recalculate in either location. Only scheduled items contribute to quote totals. Open Document in Main to download the Estimate Summary PDF or the complete current Firestopping Schedule as XLSX or PDF. Use Document in the current item to download that item’s details; its PDF also includes the source diagram when attached.": [
+    "项目下方与报价中显示的是同一明细表，可在任一位置编辑、删除、撤销或重算。仅明细表项目计入报价总额。在主估算中打开“文件”下载汇总 PDF 或完整防火封堵 XLSX/PDF；在当前项目中打开“文件”下载项目详情，PDF 包含已附来源图。",
+    "मद के नीचे और कोटेशन में एक ही अनुसूची है। दोनों जगह संपादन, हटाना, पूर्ववत या पुनर्गणना कर सकते हैं। केवल अनुसूची की मदें योग में हैं। मुख्य के दस्तावेज़ से अनुमान सारांश PDF या पूरी अग्निरोधी अनुसूची XLSX/PDF डाउनलोड करें। वर्तमान मद के दस्तावेज़ से विवरण लें; संलग्न स्रोत आरेख भी PDF में आता है।",
+    "El listado bajo la partida es el mismo de la cotización. Edite, elimine, deshaga o recalcule en ambos sitios. Solo sus partidas se suman al total. En Documento de Principal descargue el resumen PDF o el listado completo XLSX/PDF. En la partida descargue sus detalles; el PDF incluye el diagrama adjunto.",
+    "الجدول أسفل البند هو نفسه في العرض. يمكن تعديله أو إزالة بنوده أو التراجع أو إعادة حسابه من الموضعين. تدخل بنوده فقط في الإجمالي. من مستند القسم الرئيسي نزّل ملخص PDF أو الجدول الكامل XLSX/PDF. ومن مستند البند نزّل تفاصيله مع رسم المصدر المرفق في PDF.",
+    "ตารางใต้รายการเป็นตารางเดียวกับใบเสนอราคา แก้ไข ลบ เลิกทำ หรือคำนวณใหม่ได้ทั้งสองที่ เฉพาะรายการในตารางรวมในยอด เปิดเอกสารในหน้าหลักเพื่อดาวน์โหลดสรุป PDF หรือตารางงานกันไฟ XLSX/PDF เปิดเอกสารในรายการเพื่อดาวน์โหลดรายละเอียดและแผนภาพที่แนบใน PDF"
+  ],
+  "Product Calculators": [
+    "产品计算器",
+    "उत्पाद कैलकुलेटर",
+    "Calculadoras de productos",
+    "حاسبات المنتجات",
+    "เครื่องคำนวณผลิตภัณฑ์"
+  ],
+  "Choose Steel Spray, Steel Board or Ductwork under Calculators. Move through the page tabs, enter values in the input fields and select Recalculate. Open Document and choose Export XLSX Template for the supported import layout for the selected calculator.": [
+    "在“计算器”中选择钢结构喷涂、钢结构板材或风管。切换页面标签，输入数值并重新计算。打开“文件”，选择导出 XLSX 模板以获取所选计算器支持的导入格式。",
+    "कैलकुलेटर में इस्पात स्प्रे, इस्पात बोर्ड या डक्ट चुनें। पृष्ठ टैब बदलें, मान भरें और पुनर्गणना करें। चुने कैलकुलेटर का समर्थित आयात प्रारूप पाने के लिए दस्तावेज़ में XLSX टेम्पलेट निर्यात करें चुनें।",
+    "Elija Acero proyectado, Acero con placas o Conductos en Calculadoras. Recorra las pestañas, introduzca datos y recalcule. En Documento elija Exportar plantilla XLSX para el formato de importación compatible.",
+    "اختر رش الفولاذ أو ألواح الفولاذ أو مجاري الهواء ضمن الحاسبات. انتقل بين الصفحات وأدخل القيم وأعد الحساب. افتح المستند وصدّر قالب XLSX لتنسيق الاستيراد المدعوم.",
+    "เลือกเหล็กพ่น เหล็กแผ่น หรือท่อลมในเครื่องคำนวณ เลื่อนไปตามแท็บ กรอกค่า แล้วคำนวณใหม่ เปิดเอกสารและส่งออกแม่แบบ XLSX เพื่อใช้รูปแบบนำเข้าที่รองรับ"
+  ],
+  "The page owns vertical scrolling. Wide tables scroll sideways without changing height when a field is selected.": [
+    "页面负责纵向滚动。宽表格可横向滚动，选择字段时不会改变高度。",
+    "पृष्ठ में लंबवत स्क्रॉल होता है। चौड़ी तालिकाएँ फ़ील्ड चुनने पर ऊँचाई बदले बिना बगल में स्क्रॉल होती हैं।",
+    "La página se desplaza verticalmente. Las tablas anchas se desplazan horizontalmente sin cambiar de altura al seleccionar un campo.",
+    "تتولى الصفحة التمرير العمودي. تتمرر الجداول العريضة أفقيًا دون تغيير ارتفاعها عند اختيار حقل.",
+    "หน้าเอกสารเลื่อนแนวตั้ง ตารางกว้างเลื่อนแนวนอนได้โดยความสูงไม่เปลี่ยนเมื่อเลือกช่อง"
+  ],
+  "Schedules and files": [
+    "明细表与文件",
+    "अनुसूचियाँ और फ़ाइलें",
+    "Listados y archivos",
+    "الجداول والملفات",
+    "ตารางและไฟล์"
+  ],
+  "Schedule tabs let you add, duplicate, remove and undo rows. Import XLSX replaces the current schedule draft only after confirmation. Export Template provides the supported input layout.": [
+    "明细表标签支持添加、复制、删除和撤销行。导入 XLSX 仅在确认后替换当前草稿。导出模板提供支持的输入格式。",
+    "अनुसूची टैब में पंक्तियाँ जोड़ें, प्रतिलिपि बनाएँ, हटाएँ या पूर्ववत करें। XLSX आयात पुष्टि के बाद ही वर्तमान ड्राफ़्ट बदलता है। निर्यात टेम्पलेट समर्थित इनपुट प्रारूप देता है।",
+    "Las pestañas permiten añadir, duplicar, eliminar y deshacer filas. Importar XLSX solo sustituye el borrador tras confirmar. Exportar plantilla ofrece el formato compatible.",
+    "تتيح علامات الجدول إضافة الصفوف ونسخها وإزالتها والتراجع. لا يستبدل استيراد XLSX المسودة إلا بعد التأكيد. يوفر تصدير القالب تنسيق الإدخال المدعوم.",
+    "แท็บตารางเพิ่ม ทำสำเนา ลบ และเลิกทำแถวได้ การนำเข้า XLSX แทนที่ฉบับร่างหลังยืนยันเท่านั้น ส่งออกแม่แบบให้รูปแบบข้อมูลที่รองรับ"
+  ],
+  "The Document menu lists imports, templates and downloads for the current schedule or summary, with an icon and name for each action. A generated file reflects the values captured when the action began.": [
+    "“文件”菜单列出当前明细表或汇总可用的导入、模板和下载，每项带有图标与名称。生成文件反映操作开始时获取的数值。",
+    "दस्तावेज़ मेनू में वर्तमान अनुसूची या सारांश के आयात, टेम्पलेट और डाउनलोड चिह्न व नाम के साथ हैं। बनी फ़ाइल कार्रवाई शुरू होने के समय के मान दिखाती है।",
+    "Documento muestra importaciones, plantillas y descargas disponibles con icono y nombre. El archivo refleja los valores capturados al iniciar la acción.",
+    "تسرد قائمة المستند عمليات الاستيراد والقوالب والتنزيلات المتاحة مع رمز واسم. يعكس الملف القيم المسجلة عند بدء الإجراء.",
+    "เมนูเอกสารแสดงการนำเข้า แม่แบบ และดาวน์โหลดที่ใช้ได้ พร้อมไอคอนและชื่อ ไฟล์สะท้อนค่าที่จับไว้เมื่อเริ่มดำเนินการ"
+  ],
+  "Main Library edits the shared prices used by new work. Current Project edits only the open project’s pricing snapshot. Main Estimator and Firestopping Estimator availability groups control where a product or service appears.": [
+    "主价格库编辑新工作使用的共享价格。当前项目只编辑已打开项目的价格快照。“主估算”和“防火封堵估算”适用组控制产品或服务的显示范围。",
+    "मुख्य लाइब्रेरी नए काम के साझा मूल्य बदलती है। वर्तमान परियोजना केवल खुले प्रोजेक्ट का मूल्य स्नैपशॉट बदलती है। मुख्य और अग्निरोधी सीलिंग उपलब्धता समूह तय करते हैं कि उत्पाद या सेवा कहाँ दिखे।",
+    "Biblioteca principal edita precios compartidos de trabajos nuevos. Proyecto actual solo edita sus precios guardados. Los grupos de disponibilidad controlan dónde aparece cada producto o servicio.",
+    "تعدّل المكتبة الرئيسية الأسعار المشتركة للعمل الجديد. يعدّل المشروع الحالي نسخة أسعاره فقط. تتحكم مجموعات التوفر في ظهور المنتجات والخدمات بأداة التقدير المناسبة.",
+    "คลังหลักแก้ไขราคากลางสำหรับงานใหม่ โครงการปัจจุบันแก้เฉพาะชุดราคาของโครงการที่เปิด กลุ่มการใช้งานกำหนดว่าผลิตภัณฑ์หรือบริการแสดงในเครื่องประมาณราคาใด"
+  ],
+  "Export Excel includes the whole draft library. Import the complete workbook, review the comparison, then save or apply it. Discard returns to the last saved or applied values. Reset loads application defaults into the draft and still requires Save or Apply.": [
+    "导出 Excel 包含整个价格库草稿。导入完整工作簿，审核差异后保存或应用。放弃会恢复到上次保存或应用的值。重置会将默认值载入草稿，仍需保存或应用。",
+    "Excel निर्यात में पूरी ड्राफ़्ट लाइब्रेरी है। पूरी कार्यपुस्तिका आयात करें, तुलना जाँचें और सहेजें या लागू करें। छोड़ने से पिछले सहेजे/लागू मान लौटते हैं। रीसेट डिफ़ॉल्ट ड्राफ़्ट में लाता है; फिर भी सहेजना या लागू करना आवश्यक है।",
+    "Exportar Excel incluye todo el borrador. Importe el libro completo, revise la comparación y guarde o aplique. Descartar vuelve a los últimos valores guardados o aplicados. Restablecer carga valores predeterminados que aún deben guardarse o aplicarse.",
+    "يشمل تصدير Excel مسودة المكتبة كاملة. استورد المصنف الكامل وراجع المقارنة ثم احفظ أو طبّق. يعيد التجاهل آخر القيم المحفوظة أو المطبّقة. يحمّل الضبط الافتراضيات في المسودة مع استمرار الحاجة للحفظ أو التطبيق.",
+    "ส่งออก Excel รวมคลังฉบับร่างทั้งหมด นำเข้าสมุดงานครบชุด ตรวจเปรียบเทียบ แล้วบันทึกหรือนำไปใช้ ละทิ้งจะคืนค่าที่บันทึกหรือใช้ล่าสุด รีเซ็ตโหลดค่าเริ่มต้นในฉบับร่างซึ่งยังต้องบันทึกหรือนำไปใช้"
+  ],
+  "Firestopping and Technical Libraries": [
+    "防火封堵库和技术资料库",
+    "अग्निरोधी सीलिंग और तकनीकी लाइब्रेरी",
+    "Bibliotecas cortafuego y técnica",
+    "مكتبتا سد الفتحات والمراجع الفنية",
+    "คลังงานกันไฟและคลังข้อมูลทางเทคนิค"
+  ],
+  "Firestopping Library records store reusable item inputs, calculated prices and source diagrams. Technical Library records store supporting system and report references. Use the link symbol to associate one or more records and the trash symbol to unlink an association.": [
+    "防火封堵库保存可复用的项目输入、计算价格和来源图。技术资料库保存系统及报告参考。使用链接符号关联记录，使用垃圾桶符号解除关联。",
+    "अग्निरोधी सीलिंग लाइब्रेरी पुन: उपयोग योग्य इनपुट, गणित मूल्य और स्रोत आरेख रखती है। तकनीकी लाइब्रेरी सिस्टम व रिपोर्ट संदर्भ रखती है। लिंक चिह्न से रिकॉर्ड जोड़ें और कूड़ेदान से संबंध हटाएँ।",
+    "La biblioteca cortafuego guarda entradas reutilizables, precios calculados y diagramas. La técnica guarda referencias de sistemas e informes. Use el enlace para asociar registros y la papelera para desvincular.",
+    "تحفظ مكتبة سد الفتحات المدخلات القابلة لإعادة الاستخدام والأسعار المحسوبة ورسوم المصدر. تحفظ المكتبة الفنية مراجع الأنظمة والتقارير. استخدم رمز الرابط للربط وسلة المهملات لفك الارتباط.",
+    "คลังงานกันไฟเก็บข้อมูลใช้ซ้ำ ราคาที่คำนวณ และแผนภาพต้นฉบับ คลังเทคนิคเก็บเอกสารอ้างอิงระบบและรายงาน ใช้ปุ่มลิงก์เชื่อมรายการและถังขยะยกเลิกลิงก์"
+  ],
+  "Editing or unlinking a library record does not edit the source technical document. Reusable library data does not itself confirm project suitability, compliance or approval.": [
+    "编辑或解除资料库记录关联不会更改来源技术文件。可复用库数据本身不能确认项目适用性、合规性或批准。",
+    "लाइब्रेरी रिकॉर्ड संपादित या अनलिंक करने से स्रोत तकनीकी दस्तावेज़ नहीं बदलता। पुन: उपयोग योग्य डेटा स्वयं परियोजना उपयुक्तता, अनुपालन या स्वीकृति की पुष्टि नहीं है।",
+    "Editar o desvincular un registro no modifica el documento técnico de origen. Los datos reutilizables no confirman por sí solos idoneidad, cumplimiento ni aprobación.",
+    "لا يغيّر تعديل السجل أو فك ربطه المستند الفني الأصلي. لا تؤكد بيانات المكتبة وحدها ملاءمة المشروع أو الامتثال أو الاعتماد.",
+    "การแก้ไขหรือยกเลิกลิงก์รายการไม่แก้เอกสารเทคนิคต้นฉบับ ข้อมูลใช้ซ้ำไม่ได้ยืนยันความเหมาะสม การปฏิบัติตามข้อกำหนด หรือการอนุมัติโครงการด้วยตัวเอง"
+  ],
+  "Save, load and attach files": [
+    "保存、加载与附加文件",
+    "फ़ाइलें सहेजें, लोड करें और संलग्न करें",
+    "Guardar, cargar y adjuntar archivos",
+    "حفظ الملفات وتحميلها وإرفاقها",
+    "บันทึก โหลด และแนบไฟล์"
+  ],
+  "A project file contains the Quote, duplicated work items, Firestopping Schedule, calculator drafts and the project’s pricing snapshot. Save chooses a location for a new project and safely updates an already selected file.": [
+    "项目文件包含报价、复制工作项、防火封堵明细表、计算器草稿和项目价格快照。保存会为新项目选择位置，并安全更新已选文件。",
+    "परियोजना फ़ाइल में कोटेशन, प्रतिलिपि कार्य मदें, अग्निरोधी अनुसूची, कैलकुलेटर ड्राफ़्ट और मूल्य स्नैपशॉट हैं। सहेजें नए प्रोजेक्ट का स्थान चुनता है और चुनी फ़ाइल सुरक्षित अपडेट करता है।",
+    "El archivo contiene cotización, partidas duplicadas, listado cortafuego, borradores y precios guardados. Guardar elige ubicación para proyectos nuevos y actualiza de forma segura el archivo elegido.",
+    "يحتوي ملف المشروع على العرض والبنود المنسوخة وجدول سد الفتحات والمسودات ونسخة الأسعار. يختار الحفظ موقعًا للمشروع الجديد ويحدّث الملف المحدد بأمان.",
+    "ไฟล์โครงการมีใบเสนอราคา รายการสำเนา ตารางงานกันไฟ ฉบับร่างเครื่องคำนวณ และชุดราคา บันทึกเลือกตำแหน่งสำหรับโครงการใหม่และอัปเดตไฟล์ที่เลือกอย่างปลอดภัย"
+  ],
+  "After saving, Project files can store attachments beside the project. Projects searches the linked folder and subfolders. Opening a file replaces the current drafts only after confirmation.": [
+    "保存后，“项目文件”可在项目旁存放附件。“项目”搜索关联文件夹及子文件夹。打开文件仅在确认后替换当前草稿。",
+    "सहेजने के बाद परियोजना फ़ाइलें प्रोजेक्ट के पास संलग्नक रख सकती हैं। परियोजनाएँ लिंक फ़ोल्डर और उपफ़ोल्डर खोजता है। फ़ाइल खोलने पर पुष्टि के बाद ही ड्राफ़्ट बदलता है।",
+    "Tras guardar, Archivos del proyecto almacena adjuntos junto al proyecto. Proyectos busca en la carpeta vinculada y subcarpetas. Abrir un archivo solo sustituye borradores tras confirmar.",
+    "بعد الحفظ، يمكن تخزين المرفقات بجوار المشروع. يبحث قسم المشاريع في المجلد المرتبط ومجلداته الفرعية. لا يستبدل فتح الملف المسودات إلا بعد التأكيد.",
+    "หลังบันทึก ไฟล์โครงการเก็บไฟล์แนบข้างโครงการได้ หน้าโครงการค้นหาในโฟลเดอร์ที่เชื่อมและโฟลเดอร์ย่อย การเปิดไฟล์แทนที่ฉบับร่างหลังยืนยันเท่านั้น"
+  ],
+  "Older prices and recalculation": [
+    "历史价格与重新计算",
+    "पुराने मूल्य और पुनर्गणना",
+    "Precios anteriores y recálculo",
+    "الأسعار السابقة وإعادة الحساب",
+    "ราคาเดิมและการคำนวณใหม่"
+  ],
+  "Loaded projects keep their saved pricing so historical totals do not silently change. Use current pricing deliberately replaces that snapshot and recalculates the project with the current Main Library.": [
+    "载入项目保留已保存价格，防止历史总额静默变化。“使用当前价格”会明确替换价格快照，并用当前主价格库重新计算项目。",
+    "लोड प्रोजेक्ट अपने सहेजे मूल्य रखते हैं ताकि पुराने योग चुपचाप न बदलें। वर्तमान मूल्य उपयोग करें जानबूझकर स्नैपशॉट बदलता और मुख्य लाइब्रेरी से पुनर्गणना करता है।",
+    "Los proyectos cargados conservan sus precios para evitar cambios silenciosos en totales históricos. Usar precios actuales sustituye deliberadamente la copia y recalcula con la biblioteca principal.",
+    "تحتفظ المشاريع المحمّلة بأسعارها لمنع تغيّر الإجماليات السابقة دون إشعار. يستبدل استخدام الأسعار الحالية النسخة عمدًا ويعيد الحساب بالمكتبة الرئيسية.",
+    "โครงการที่โหลดเก็บราคาเดิมเพื่อไม่ให้ยอดย้อนหลังเปลี่ยนโดยไม่ทราบ ใช้ราคาปัจจุบันจะแทนชุดราคาและคำนวณใหม่ด้วยคลังหลักปัจจุบัน"
+  ],
+  "If a product or crew is missing, select a valid replacement before saving or exporting. Unsaved pricing changes remain separate until Save pricing or Apply is used.": [
+    "若产品或班组缺失，请在保存或导出前选择有效替代项。未保存的价格变更保持独立，直到使用保存价格或应用。",
+    "उत्पाद या दल गायब हो तो सहेजने/निर्यात से पहले वैध विकल्प चुनें। मूल्य सहेजें या लागू करें तक असहेजे मूल्य बदलाव अलग रहते हैं।",
+    "Si falta un producto o equipo, elija un sustituto válido antes de guardar o exportar. Los precios sin guardar permanecen separados hasta Guardar precios o Aplicar.",
+    "إذا فُقد منتج أو فريق، اختر بديلًا صالحًا قبل الحفظ أو التصدير. تبقى تغييرات الأسعار غير المحفوظة منفصلة حتى الحفظ أو التطبيق.",
+    "หากผลิตภัณฑ์หรือทีมขาดหาย เลือกตัวแทนที่ใช้ได้ก่อนบันทึกหรือส่งออก การแก้ราคาที่ยังไม่บันทึกจะแยกไว้จนกดบันทึกราคาหรือนำไปใช้"
+  ],
+  "Messages and recovery": [
+    "消息与恢复",
+    "संदेश और पुनर्प्राप्ति",
+    "Mensajes y recuperación",
+    "الرسائل والاستعادة",
+    "ข้อความและการกู้คืน"
+  ],
+  "Select Teams: choose a crew for each used work-item type.": [
+    "选择班组：为每种已使用工作项类型选择班组。",
+    "दल चुनें: उपयोग हुए हर कार्य मद प्रकार के लिए दल चुनें।",
+    "Seleccionar equipos: elija un equipo para cada tipo de partida utilizada.",
+    "اختيار الفرق: اختر فريقًا لكل نوع بند عمل مستخدم.",
+    "เลือกทีม: เลือกทีมสำหรับงานแต่ละประเภทที่ใช้"
+  ],
+  "Check inputs: correct the field marked in red, then recalculate.": [
+    "检查输入：更正红色标记字段，然后重新计算。",
+    "इनपुट जाँचें: लाल चिह्नित फ़ील्ड ठीक करें और पुनर्गणना करें।",
+    "Revisar entradas: corrija el campo rojo y recalcule.",
+    "تحقق من المدخلات: صحّح الحقل الأحمر وأعد الحساب.",
+    "ตรวจข้อมูล: แก้ไขช่องสีแดงแล้วคำนวณใหม่"
+  ],
+  "Unsaved changes: use Save before closing or replacing the project.": [
+    "未保存更改：关闭或替换项目前请保存。",
+    "असहेजे बदलाव: प्रोजेक्ट बंद या बदलने से पहले सहेजें।",
+    "Cambios sin guardar: guarde antes de cerrar o sustituir el proyecto.",
+    "تغييرات غير محفوظة: احفظ قبل إغلاق المشروع أو استبداله.",
+    "การเปลี่ยนแปลงยังไม่บันทึก: บันทึกก่อนปิดหรือแทนที่โครงการ"
+  ],
+  "Saved pricing snapshot: the project is intentionally using its own frozen prices.": [
+    "已保存价格快照：项目有意保留其冻结价格。",
+    "सहेजा मूल्य स्नैपशॉट: प्रोजेक्ट जानबूझकर अपने स्थिर मूल्य उपयोग करता है।",
+    "Precios guardados: el proyecto usa deliberadamente sus precios congelados.",
+    "نسخة أسعار محفوظة: يستخدم المشروع أسعاره الثابتة عمدًا.",
+    "ชุดราคาที่บันทึกไว้: โครงการตั้งใจใช้ราคาเดิมที่ตรึงไว้"
+  ],
+  "Final review": [
+    "最终审核",
+    "अंतिम समीक्षा",
+    "Revisión final",
+    "المراجعة النهائية",
+    "ตรวจสอบขั้นสุดท้าย"
+  ],
+  "This estimating product has been developed by CLASSIFIRE. All information and results are indicative and provided for guidance only. Before relying on any output, confirm its suitability with the relevant manufacturer and project authority.": [
+    "本估算产品由 CLASSIFIRE 开发。所有信息和结果仅供参考。使用任何输出前，请向相关制造商和项目主管确认适用性。",
+    "यह अनुमान उत्पाद CLASSIFIRE ने विकसित किया है। सभी जानकारी और परिणाम केवल मार्गदर्शन हेतु सांकेतिक हैं। किसी आउटपुट पर निर्भर होने से पहले संबंधित निर्माता और परियोजना प्राधिकरण से उपयुक्तता की पुष्टि करें।",
+    "Este producto de estimación ha sido desarrollado por CLASSIFIRE. La información y los resultados son orientativos. Antes de usar cualquier resultado, confirme su idoneidad con el fabricante y la autoridad del proyecto.",
+    "طوّرت CLASSIFIRE هذا المنتج للتقدير. جميع المعلومات والنتائج إرشادية فقط. قبل الاعتماد على أي مخرجات، تحقّق من ملاءمتها لدى المصنّع والجهة المختصة بالمشروع.",
+    "ผลิตภัณฑ์ประมาณราคานี้พัฒนาโดย CLASSIFIRE ข้อมูลและผลลัพธ์ใช้เป็นแนวทางเท่านั้น ก่อนใช้งานผลลัพธ์ต้องยืนยันความเหมาะสมกับผู้ผลิตและผู้มีอำนาจของโครงการ"
+  ],
+  "Start a new estimate?": [
+    "开始新估算？",
+    "नया अनुमान शुरू करें?",
+    "¿Iniciar un presupuesto nuevo?",
+    "هل تريد بدء تقدير جديد؟",
+    "เริ่มประมาณราคาใหม่หรือไม่"
+  ],
+  "Your current unsaved changes will be replaced with the default estimate inputs.": [
+    "当前未保存的更改将被默认估算输入替换。",
+    "वर्तमान असहेजे बदलाव डिफ़ॉल्ट अनुमान इनपुट से बदल दिए जाएँगे।",
+    "Los cambios sin guardar se sustituirán por las entradas predeterminadas.",
+    "ستُستبدل التغييرات غير المحفوظة بمدخلات التقدير الافتراضية.",
+    "การเปลี่ยนแปลงที่ยังไม่บันทึกจะถูกแทนด้วยค่าเริ่มต้น"
+  ],
+  "Start new estimate": [
+    "开始新估算",
+    "नया अनुमान शुरू करें",
+    "Iniciar presupuesto nuevo",
+    "بدء تقدير جديد",
+    "เริ่มประมาณราคาใหม่"
+  ],
+  "Replace calculator inputs?": [
+    "替换计算器输入？",
+    "कैलकुलेटर इनपुट बदलें?",
+    "¿Sustituir entradas de calculadora?",
+    "هل تريد استبدال مدخلات الحاسبة؟",
+    "แทนที่ข้อมูลเครื่องคำนวณหรือไม่"
+  ],
+  "Replace draft": [
+    "替换草稿",
+    "ड्राफ़्ट बदलें",
+    "Sustituir borrador",
+    "استبدال المسودة",
+    "แทนที่ฉบับร่าง"
+  ],
+  "JavaScript is required to calculate estimates in this application.": [
+    "此应用需要 JavaScript 才能计算估算。",
+    "इस एप्लिकेशन में अनुमान की गणना के लिए JavaScript आवश्यक है।",
+    "Se requiere JavaScript para calcular presupuestos en esta aplicación.",
+    "يلزم JavaScript لحساب التقديرات في هذا التطبيق.",
+    "แอปนี้ต้องใช้ JavaScript เพื่อคำนวณประมาณราคา"
+  ],
+  "Language": [
+    "语言",
+    "भाषा",
+    "Idioma",
+    "اللغة",
+    "ภาษา"
+  ],
+  "Application language": [
+    "应用语言",
+    "एप्लिकेशन की भाषा",
+    "Idioma de la aplicación",
+    "لغة التطبيق",
+    "ภาษาของแอปพลิเคชัน"
+  ],
+  "Application language updated.": [
+    "应用语言已更新。",
+    "एप्लिकेशन की भाषा बदल गई।",
+    "Idioma de la aplicación actualizado.",
+    "تم تحديث لغة التطبيق.",
+    "อัปเดตภาษาของแอปพลิเคชันแล้ว"
+  ],
+  "The interface language is saved in this browser. Project data, technical evidence and PDF/Excel exports keep their original language.": [
+    "界面语言保存在此浏览器中。项目数据、技术证据及 PDF/Excel 导出文件保留原始语言。",
+    "इंटरफ़ेस की भाषा इस ब्राउज़र में सहेजी जाती है। परियोजना डेटा, तकनीकी साक्ष्य और PDF/Excel निर्यात अपनी मूल भाषा में रहते हैं।",
+    "El idioma de la interfaz se guarda en este navegador. Los datos del proyecto, la evidencia técnica y las exportaciones PDF/Excel conservan su idioma original.",
+    "تُحفظ لغة الواجهة في هذا المتصفح. تحتفظ بيانات المشروع والأدلة الفنية وملفات PDF/Excel المصدّرة بلغتها الأصلية.",
+    "ภาษาของหน้าจอจะบันทึกในเบราว์เซอร์นี้ ข้อมูลโครงการ หลักฐานทางเทคนิค และไฟล์ PDF/Excel ที่ส่งออกจะคงภาษาเดิม"
+  ],
+  "Enter the job quantities, crews, products and allowances that apply.": [
+    "输入适用的工程量、班组、产品和预留费用。",
+    "लागू कार्य मात्राएँ, दल, उत्पाद और भत्ते दर्ज करें।",
+    "Introduzca cantidades, equipos, productos y provisiones aplicables.",
+    "أدخل كميات العمل والفرق والمنتجات والبدلات المناسبة.",
+    "กรอกปริมาณงาน ทีม ผลิตภัณฑ์ และค่าเผื่อที่เกี่ยวข้อง"
+  ],
+  "Review the Estimate Summary and both breakdowns.": [
+    "审核估算汇总和两项分项。",
+    "अनुमान सारांश और दोनों विवरण जाँचें।",
+    "Revise el resumen y ambos desgloses.",
+    "راجع ملخص التقدير والتفصيلين.",
+    "ตรวจสรุปประมาณราคาและรายละเอียดทั้งสองส่วน"
+  ],
+  "If an import is wrong, cancel the review or discard the draft before saving it.": [
+    "若导入有误，请取消审核或在保存前放弃草稿。",
+    "आयात गलत हो तो सहेजने से पहले समीक्षा रद्द करें या ड्राफ़्ट छोड़ें।",
+    "Si la importación es incorrecta, cancele la revisión o descarte el borrador antes de guardar.",
+    "إذا كان الاستيراد خاطئًا، ألغِ المراجعة أو تجاهل المسودة قبل حفظها.",
+    "หากนำเข้าผิด ให้ยกเลิกการตรวจหรือละทิ้งฉบับร่างก่อนบันทึก"
+  ],
+  "Check project identity, measured quantities and assumptions.": [
+    "检查项目身份、测量工程量和假设。",
+    "परियोजना पहचान, मापी मात्राएँ और धारणाएँ जाँचें।",
+    "Compruebe la identidad del proyecto, las cantidades medidas y las hipótesis.",
+    "تحقق من هوية المشروع والكميات المقاسة والافتراضات.",
+    "ตรวจชื่อโครงการ ปริมาณที่วัด และสมมติฐาน"
+  ],
+  "Confirm products, yields, rates, crews, wastage and adjustments.": [
+    "确认产品、用量、费率、班组、损耗和调整。",
+    "उत्पाद, उपज, दरें, दल, अपव्यय और समायोजन पुष्टि करें।",
+    "Confirme productos, rendimientos, tarifas, equipos, mermas y ajustes.",
+    "أكد المنتجات والمردود والأسعار والفرق والهدر والتعديلات.",
+    "ยืนยันผลิตภัณฑ์ อัตราการใช้ ราคา ทีม การสูญเสีย และการปรับค่า"
+  ],
+  "Review Estimate Summary, Material Breakdown, Labour Breakdown and Firestopping Breakdown.": [
+    "审核估算汇总、材料分项、人工分项和防火封堵分项。",
+    "अनुमान सारांश, सामग्री, श्रम और अग्निरोधी सीलिंग विवरण जाँचें।",
+    "Revise el resumen y los desgloses de materiales, mano de obra y sellado cortafuego.",
+    "راجع ملخص التقدير وتفاصيل المواد والعمالة وسد الفتحات.",
+    "ตรวจสรุปประมาณราคา รายละเอียดวัสดุ แรงงาน และงานกันไฟ"
+  ],
+  "Resolve all warnings and calculation errors.": [
+    "解决所有警告和计算错误。",
+    "सभी चेतावनियाँ और गणना त्रुटियाँ हल करें।",
+    "Resuelva todas las advertencias y errores de cálculo.",
+    "عالج جميع التحذيرات وأخطاء الحساب.",
+    "แก้ไขคำเตือนและข้อผิดพลาดการคำนวณทั้งหมด"
+  ],
+  "Save the project and review the exported file.": [
+    "保存项目并审核导出文件。",
+    "परियोजना सहेजें और निर्यात फ़ाइल जाँचें।",
+    "Guarde el proyecto y revise el archivo exportado.",
+    "احفظ المشروع وراجع الملف المصدّر.",
+    "บันทึกโครงการและตรวจไฟล์ที่ส่งออก"
+  ],
+  "Confirm technical suitability and fire-rating requirements with the manufacturer and relevant project authority.": [
+    "向制造商及相关项目主管确认技术适用性和耐火等级要求。",
+    "निर्माता और संबंधित परियोजना प्राधिकरण से तकनीकी उपयुक्तता और अग्नि रेटिंग की पुष्टि करें।",
+    "Confirme la idoneidad técnica y la resistencia al fuego con el fabricante y la autoridad del proyecto.",
+    "أكد الملاءمة الفنية ومتطلبات مقاومة الحريق مع المصنّع والجهة المختصة بالمشروع.",
+    "ยืนยันความเหมาะสมทางเทคนิคและข้อกำหนดทนไฟกับผู้ผลิตและผู้มีอำนาจของโครงการ"
+  ],
+  "NOTES Optional": [
+    "备注（可选）",
+    "टिप्पणियाँ (वैकल्पिक)",
+    "NOTAS (opcional)",
+    "ملاحظات (اختياري)",
+    "หมายเหตุ (ไม่บังคับ)"
+  ],
+  "Quote name Generated automatically": [
+    "报价名称（自动生成）",
+    "कोटेशन नाम (स्वतः बना)",
+    "Nombre de cotización (automático)",
+    "اسم العرض (يُنشأ تلقائيًا)",
+    "ชื่อใบเสนอราคา (สร้างอัตโนมัติ)"
+  ],
+  "Labour": [
+    "人工",
+    "श्रम",
+    "Mano de obra",
+    "العمالة",
+    "แรงงาน"
+  ],
+  "Access": [
+    "高空作业设备",
+    "पहुँच उपकरण",
+    "Medios de acceso",
+    "معدات الوصول",
+    "อุปกรณ์เข้าถึง"
+  ],
+  "Global material adjustment": [
+    "全局材料调整",
+    "समग्र सामग्री समायोजन",
+    "Ajuste global de materiales",
+    "تعديل المواد العام",
+    "การปรับวัสดุรวม"
+  ],
+  "Global labour adjustment": [
+    "全局人工调整",
+    "समग्र श्रम समायोजन",
+    "Ajuste global de mano de obra",
+    "تعديل العمالة العام",
+    "การปรับแรงงานรวม"
+  ],
+  "Subtotal": [
+    "小计",
+    "उप-योग",
+    "Subtotal",
+    "المجموع الفرعي",
+    "ยอดรวมย่อย"
+  ],
+  "Fixed adjustment": [
+    "固定调整",
+    "निश्चित समायोजन",
+    "Ajuste fijo",
+    "تعديل ثابت",
+    "การปรับคงที่"
+  ],
+  "Rate per SQM / item": [
+    "每平方米/项目费率",
+    "प्रति वर्ग मीटर / मद दर",
+    "Tarifa por m² / partida",
+    "السعر لكل متر مربع / بند",
+    "ราคาต่อ m² / รายการ"
+  ],
+  "Total days": [
+    "总天数",
+    "कुल दिन",
+    "Días totales",
+    "إجمالي الأيام",
+    "วันรวม"
+  ],
+  "Company logo preview": [
+    "公司标志预览",
+    "कंपनी लोगो पूर्वावलोकन",
+    "Vista previa del logotipo",
+    "معاينة شعار الشركة",
+    "ตัวอย่างโลโก้บริษัท"
+  ],
+  "Current item source diagram preview": [
+    "当前项目来源图预览",
+    "वर्तमान मद स्रोत आरेख पूर्वावलोकन",
+    "Vista previa del diagrama de la partida",
+    "معاينة رسم مصدر البند الحالي",
+    "ตัวอย่างแผนภาพต้นฉบับของรายการปัจจุบัน"
+  ],
+  "Source diagram preview": [
+    "来源图预览",
+    "स्रोत आरेख पूर्वावलोकन",
+    "Vista previa del diagrama de origen",
+    "معاينة رسم المصدر",
+    "ตัวอย่างแผนภาพต้นฉบับ"
+  ],
+  "Project No. - Client - Site Address": [
+    "项目编号 - 客户 - 工地地址",
+    "परियोजना संख्या - ग्राहक - स्थल पता",
+    "N.º de proyecto - Cliente - Dirección",
+    "رقم المشروع - العميل - عنوان الموقع",
+    "เลขโครงการ - ลูกค้า - ที่อยู่หน้างาน"
+  ]
+}

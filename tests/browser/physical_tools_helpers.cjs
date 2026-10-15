@@ -3,7 +3,28 @@ const assert = require('node:assert/strict');
 const { expect } = require('@playwright/test');
 
 // Read rendered controls in a disposable fixture. Undo size follows its actual
-// left-hand selection icon; its existing Schedule glyph/style remains intact.
+// left-hand selection icon; its Schedule geometry and glyph remain intact.
+function contrast(foreground, background) {
+  const luminance = value => {
+    const rgb = value.match(/^rgb\((\d+), (\d+), (\d+)\)$/);
+    assert.ok(rgb, `Control contrast requires an opaque rendered colour: ${value}`);
+    const channels = rgb.slice(1).map(Number).map(channel => channel / 255).map(channel => channel <= .04045 ? channel / 12.92 : ((channel + .055) / 1.055) ** 2.4);
+    return .2126 * channels[0] + .7152 * channels[1] + .0722 * channels[2];
+  };
+  const a = luminance(foreground), b = luminance(background);
+  return (Math.max(a, b) + .05) / (Math.min(a, b) + .05);
+}
+async function assertReadableControl(control) {
+  const paint = await control.evaluate(el => {
+    const css = getComputedStyle(el), svg = el.querySelector('svg');
+    return { color: css.color, background: css.backgroundColor, backgroundImage: css.backgroundImage, glyph: svg ? getComputedStyle(svg).stroke : css.color };
+  });
+  const stops = paint.backgroundImage === 'none' ? [paint.background] : paint.backgroundImage.match(/rgba?\([^)]*\)/g) || [];
+  assert.ok(stops.length, 'Control exposes its opaque painted surface');
+  paint.contrast = stops.map(background => ({ background, text: contrast(paint.color, background), glyph: contrast(paint.glyph === 'none' ? paint.color : paint.glyph, background) }));
+  for (const value of paint.contrast) { assert.ok(value.text >= 4.5, 'Control text remains readable against every painted gradient stop'); assert.ok(value.glyph >= 4.5, 'Control glyph remains readable against every painted gradient stop'); }
+  return paint;
+}
 async function assertPhysicalTools(page) {
   assert.notEqual(new URL(page.url()).port, '8765');
   await page.mouse.move(0, 0);
@@ -23,6 +44,7 @@ async function assertPhysicalTools(page) {
     const transfer = button('Transfer to Firestopping Schedule'), update = button('Update linked rows'), unlink = button('Unlink from Firestopping Schedule');
     const documentMenu = document.querySelector('.takeoff-workspace-heading .takeoff-physical-document-host .takeoff-document-menu'), documentHost = documentMenu.parentElement, tools = document.querySelector('.takeoff-workspace-heading .takeoff-pdf-tools-menu');
     return {
+      theme: document.documentElement.dataset.theme || 'ceasefire',
       firstRow: box(first), actionsRow: box(actions), register: box(el),
       controls: [transfer, update, unlink].map(box),
       document: { box: box(documentMenu), tools: box(tools), directlyBeforeTools: documentHost.nextElementSibling === tools, absentFromRegister: !el.querySelector('.takeoff-document-menu') },
@@ -31,7 +53,7 @@ async function assertPhysicalTools(page) {
       adjacentRows: first.nextElementSibling === actions,
       undo: { box: box(undo), style: style(undo), glyph: glyph(undo) },
       selection: { box: box(selection), directlyBeforeUndo: undo.previousElementSibling === selection },
-      scheduleUndo: { style: style(reference), glyph: glyph(reference), text: reference.querySelector('.button-symbol').textContent },
+      scheduleUndo: { style: style(reference), glyph: glyph(reference), text: reference.querySelector('.button-symbol').textContent, backgroundImage: getComputedStyle(reference).backgroundImage },
     };
   });
   assert.equal(measured.firstRowOwnsFilterSelectionUndo, true);
@@ -47,8 +69,24 @@ async function assertPhysicalTools(page) {
   assert.ok(measured.controls.at(-1).right <= measured.register.right + 1, 'The action row fits the register');
   assert.equal(measured.selection.directlyBeforeUndo,true);assert.equal(measured.undo.box.width,measured.selection.box.width);assert.equal(measured.undo.box.height,measured.selection.box.height);assert.equal(measured.undo.box.width,38);assert.equal(measured.undo.box.height,38);
   assert.equal(measured.scheduleUndo.text, '↶');
-  assert.deepEqual(measured.undo.style, {...measured.scheduleUndo.style,width:measured.selection.box.width+'px',height:measured.selection.box.height+'px'}, 'Physical Undo retains its Schedule styling with the requested adjacent-icon dimensions');
-  assert.deepEqual(measured.undo.glyph, measured.scheduleUndo.glyph, 'Undo uses the same Schedule symbol font and colour');
+  const scheduleStyle = {...measured.scheduleUndo.style,width:measured.selection.box.width+'px',height:measured.selection.box.height+'px'};
+  if (measured.theme === 'ceasefire') {
+    const omit = (value, keys) => Object.fromEntries(Object.entries(value).filter(([key]) => !keys.includes(key)));
+    assert.deepEqual(omit(measured.undo.style, ['color','backgroundColor','borderTopColor']), omit(scheduleStyle, ['color','backgroundColor','borderTopColor']), 'Physical Undo retains Schedule geometry, typography and shadow while its evidence palette stays light');
+    assert.deepEqual(omit(measured.undo.glyph, ['color']), omit(measured.scheduleUndo.glyph, ['color']), 'Undo retains the Schedule symbol font');
+    assert.equal(measured.undo.style.backgroundColor, 'rgb(255, 255, 255)', 'Physical Undo retains its white evidence surface');
+    assert.equal(measured.undo.glyph.color, measured.undo.style.color, 'Physical Undo glyph follows its own readable button colour');
+    measured.undo.contrast = contrast(measured.undo.glyph.color, measured.undo.style.backgroundColor);
+    assert.ok(measured.undo.contrast >= 4.5, 'Physical Undo glyph remains readable on its white surface');
+    const background = measured.scheduleUndo.backgroundImage;
+    const stops = background === 'none' ? [measured.scheduleUndo.style.backgroundColor] : background.match(/rgba?\([^)]*\)/g) || [];
+    assert.ok(stops.length, 'Schedule Undo exposes opaque painted colours for contrast');
+    measured.scheduleUndo.contrast = stops.map(stop => ({ background: stop, ratio: contrast(measured.scheduleUndo.glyph.color, stop) }));
+    for (const value of measured.scheduleUndo.contrast) assert.ok(value.ratio >= 4.5, 'Schedule Undo glyph remains readable against every opaque gradient stop');
+  } else {
+    assert.deepEqual(measured.undo.style, scheduleStyle, 'Physical Undo retains its Schedule styling with the requested adjacent-icon dimensions');
+    assert.deepEqual(measured.undo.glyph, measured.scheduleUndo.glyph, 'Undo uses the same Schedule symbol font and colour');
+  }
   return measured;
 }
-module.exports = { assertPhysicalTools };
+module.exports = { assertPhysicalTools, assertReadableControl };

@@ -90,10 +90,35 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
 (async()=>{
   await check('Normal Takeoff statuses expire after five seconds while errors and protected recovery notices remain visible',()=>{
     const h=harness(),dom=attachMinimalDom(h),timers=[];h.context.setTimeout=(callback,delay)=>{timers.push({callback,delay});return timers.length;};h.context.clearTimeout=()=>{};
+    dom.ui.messageSlot=dom.element();dom.ui.messageSlot.style={};let height=70.59375;dom.ui.messageSlot.getBoundingClientRect=()=>({height});
     h.audit.message('Saved fixture');assert.equal(timers[0].delay,5000);assert.equal(dom.ui.message.hidden,false);
     h.audit.message('Source unavailable',true);timers[0].callback();assert.equal(dom.ui.message.hidden,false);assert.equal(dom.ui.message.textContent,'Source unavailable');assert.equal(dom.ui.message.getAttribute('role'),'alert');
     h.audit.message('Current status');const current=timers.at(-1);current.callback();assert.equal(dom.ui.message.hidden,true);assert.equal(dom.ui.message.textContent,'');
+    assert.equal(dom.ui.messageSlot.style.minHeight,'70.59375px','Retirement preserves the exact rendered flow height, including the margin');
+    h.audit.message('New wrapped status');assert.equal(dom.ui.messageSlot.style.minHeight,'','A new notice uses its current width instead of a stale reserve');height=121.25;timers.at(-1).callback();assert.equal(dom.ui.messageSlot.style.minHeight,'121.25px');
     h.audit.state.linkedRecovery={operation:'retained'};const count=timers.length;h.audit.message('Recover linked change');assert.equal(dom.ui.message.hidden,false);assert.equal(timers.length,count);
+    assert.equal(dom.ui.messageSlot.style.minHeight,'');
+  });
+  await check('Project replacement retires only its exact old render alert without recording render success',()=>{
+    for(const transition of ['replacement','defaults','unrelated alert','same-text status','linked recovery']){
+      const h=harness(),old=blank();old.render_checks=[{document_id:'old-doc',page:1,success:false,warnings:['Unavailable session']}];h.audit.accept(response(old));const dom=attachMinimalDom(h);
+      for(const key of ['search','searchResults','pageWrap','empty'])dom.ui[key]=dom.element();h.audit.setOverlayRenderer(()=>{});h.audit.setDataRenderer(()=>{});h.audit.setApi(async()=>({}));h.context.setTimeout=()=>0;h.context.clearTimeout=()=>{};
+      const notice='This page could not be rendered completely. Review and confirmation are blocked. The takeoff session is unavailable.';h.audit.state.pageError={document_id:'old-doc',page:1,notice};
+      h.audit.message(transition==='unrelated alert'?'Retain this unrelated error':notice,transition!=='same-text status');
+      const priorSession=h.audit.state.session,priorPageError=h.audit.state.pageError,priorText=dom.ui.message.textContent,priorRole=dom.ui.message.getAttribute('role');
+      const next=blank();next.project_id='replacement-project';const prepared={session:transition==='defaults'?null:response(next,'replacement'),saved:null};
+      if(transition==='linked recovery'){
+        h.audit.state.linkedRecovery={operation:'retained'};assert.throws(()=>h.api.applyProject(prepared),/Recover the pending linked change/);
+        assert.equal(h.audit.state.session,priorSession);assert.equal(h.audit.state.pageError,priorPageError);assert.deepEqual(copy(h.audit.state.session.snapshot),old);
+        assert.equal(dom.ui.message.textContent,priorText);assert.equal(dom.ui.message.getAttribute('role'),priorRole);assert.equal(dom.ui.message.hidden,false);continue;
+      }
+      h.api.applyProject(prepared);assert.equal(h.audit.state.pageError,null);
+      if(transition==='replacement'||transition==='defaults'){assert.equal(dom.ui.message.textContent,'');assert.equal(dom.ui.message.hidden,true);assert.equal(dom.ui.message.getAttribute('role'),'status');}
+      else{assert.equal(dom.ui.message.textContent,priorText);assert.equal(dom.ui.message.getAttribute('role'),priorRole);assert.equal(dom.ui.message.hidden,false);}
+      assert.equal(h.audit.state.viewport,null);assert.equal(dom.ui.pageWrap.hidden,true);assert.equal(dom.ui.empty.hidden,false);
+      if(prepared.session)assert.deepEqual(copy(h.audit.state.session.snapshot),next,'Replacing the project does not fabricate a successful render check');else assert.equal(h.audit.state.session,null);
+      assert.deepEqual(old.render_checks,[{document_id:'old-doc',page:1,success:false,warnings:['Unavailable session']}]);
+    }
   });
   await check('Current-item Visibility keeps pending details, other markups and canonical quantities unchanged in every drawing workspace',async()=>{
     for(const mode of ['steel','duct','wall','slab']){

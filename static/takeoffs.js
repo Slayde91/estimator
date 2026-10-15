@@ -248,14 +248,24 @@
     control.refresh = () => { const isHidden = hidden().has(id); control.setAttribute("aria-pressed", String(isHidden)); control.title = `Visibility: ${isHidden ? "show" : "hide"} current ${kind === "annotation" ? "Call-out" : "item"}`; };
     control.refresh(); return control;
   }
+  function releaseMessageSpace() {
+    if (state.ui?.messageSlot?.style) state.ui.messageSlot.style.minHeight = "";
+  }
   function message(text = "", error = false) {
     if (!state.ui) return;
     clearTimeout(state.messageTimer);
+    releaseMessageSpace();
     const version = state.messageVersion = (state.messageVersion || 0) + 1;
     const notice = state.ui.message; notice.textContent = text; notice.hidden = !text; notice.className = `message${error ? " error" : ""}`; notice.setAttribute("role", error ? "alert" : "status");
     if (state.linkedRecovery) notice.append(button("Retry linked change", recoverLinkedOperation));
     if (text && !error && !state.linkedRecovery) state.messageTimer = setTimeout(() => {
-      if (state.messageVersion === version && state.ui?.message === notice && notice.getAttribute("role") === "status" && !state.linkedRecovery) { notice.textContent = ""; notice.hidden = true; }
+      if (state.messageVersion === version && state.ui?.message === notice && notice.getAttribute("role") === "status" && !state.linkedRecovery) {
+        // Retire the notice without moving the PDF under an active pointer.
+        // The flow-root includes its bottom margin and current wrapped height.
+        const slot = state.ui.messageSlot, height = slot?.getBoundingClientRect?.().height;
+        if (slot?.style && Number.isFinite(height) && height > 0) slot.style.minHeight = `${height}px`;
+        notice.textContent = ""; notice.hidden = true;
+      }
     }, 5000);
     if (error && text && notice.getClientRects?.().length) {
       const reveal = () => {
@@ -526,7 +536,11 @@
     ui.physicalDocumentHost = node("div", "takeoff-physical-document-host"); ui.physicalDocumentHost.hidden = true;
     const headingActions = node("div", "actions takeoff-document-tools"); headingActions.append(ui.documentMenu.root, ui.physicalDocumentHost, buildPDFToolsMenu());
     ui.heading = node("div", "takeoff-workspace-heading"); ui.heading.append(ui.title, headingActions);
-    ui.message = node("div", "message"); ui.message.hidden = true;
+    ui.message = node("div", "message"); ui.message.id = "takeoff-message"; ui.message.hidden = true;
+    ui.messageSlot = node("div", "takeoff-message-slot"); ui.messageSlot.append(ui.message);
+    // A deliberate window resize may release retired space; never do so in
+    // the middle of a captured drawing gesture.
+    window.addEventListener?.("resize", () => { if (ui.message.hidden && !state.gesture) releaseMessageSpace(); });
     const toolbar = node("div", "takeoff-toolbar takeoff-tool-rail"); ui.toolRail = toolbar; toolbar.setAttribute("role", "toolbar"); toolbar.setAttribute("aria-label", "Drawing tools"); toolbar.setAttribute("aria-orientation", "vertical");
     const markupRail = node("aside", "takeoff-toolbar takeoff-markup-rail"); ui.markupRail = markupRail; markupRail.setAttribute("role", "toolbar"); markupRail.setAttribute("aria-label", "PDF markup tools"); markupRail.setAttribute("aria-orientation", "vertical");
     ui.upload = node("input"); ui.upload.type = "file"; ui.upload.accept = ".pdf,application/pdf"; ui.upload.multiple = true; ui.upload.hidden = true; ui.upload.id = "takeoff-upload";
@@ -654,7 +668,7 @@
     const bottomControls = node("div", "takeoff-viewer-bottom"); bottomControls.append(pageControls, ui.presentationTools);
     const viewer = node("div", "takeoff-viewer"); viewer.append(ui.viewport, viewerTop, bottomControls);
     drawingPane.append(viewer, ui.progress, ui.controlStatus, ui.physicalOverlayStatus);
-    workspace.append(layout, register); root.append(ui.heading, ui.message, workspace, ui.physicalContainer);
+    workspace.append(layout, register); root.append(ui.heading, ui.messageSlot, workspace, ui.physicalContainer);
     ui.paneResize = window.CeasefireTakeoffPaneResize?.mount(layout, [ui.viewportPanel, ui.settingsPanel, ui.physicalDetails]);
     if (typeof ResizeObserver === "function") {
       ui.topControlsObserver = new ResizeObserver(() => layout.style.setProperty("--takeoff-top-controls-height", `${viewerTop.offsetHeight}px`));
@@ -750,6 +764,7 @@
       build(); await ensureSession();
       const sessionId = state.session?.session_id;
       if (!await discardEditor() || sessionId !== state.session?.session_id) return false;
+      if (state.ui.message.hidden) releaseMessageSpace();
       invalidateLinkedThickness(); resetPlanInteraction(); cancelTrace();
       if (scope && scope !== state.physicalScope) {
         state.physicalUI?.destroy(); state.physicalUI = null;
@@ -4822,6 +4837,8 @@
     state.showDeleted = false; state.deletedOffset = 0; state.deletedHistory = null; state.deletedFilterContext = null;
     if (state.ui?.showDeleted) state.ui.showDeleted.checked = false;
     requireSettledLinkedChange();
+    if (state.pageError?.notice && state.ui?.message?.getAttribute("role") === "alert" && state.ui.message.textContent === state.pageError.notice) message();
+    if (state.ui?.message.hidden) releaseMessageSpace();
     state.graphicHidden = new Set(); state.signatureHidden = new Set(); state.signatureDraft = null; state.annotationHidden = new Set(); state.annotationSelected = null; state.graphicSelected = null; state.signatureSelected = null; state.graphicSelected = null;
     cancelSearch(true);
     invalidateLinkedThickness();

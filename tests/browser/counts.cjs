@@ -338,8 +338,17 @@ function pythonJson(script, ...args) {
   reply = await command(() => page.getByRole('button', { name: 'Undo last edit', exact: true }).click(), 'undo'); state = reply.snapshot;
   assert.deepEqual(stable(state), stable(multiBaseline));
   await selectMarkers([firstMember, otherMember]);
+  // An ordinary saved receipt retires when this native drag makes the project dirty.
+  const saveBeforeCrossRowDrag = page.waitForResponse(response => response.url().endsWith('/api/project/save'));
+  await clickProjectControl(page, 'Save'); assert.equal((await saveBeforeCrossRowDrag).status(), 200);
+  await expect(page.locator('#app-message')).toContainText(/^Project saved /);
+  await expect(page.locator('#app-message')).toBeVisible();
+  await expect(page.locator('#app-message')).toHaveAttribute('role', 'status');
+  const beforeCrossRowRequests = requests.length;
   reply = await command(async () => { movement = await dragMarker(firstMember, [14, 12]); }, 'move_count_markers');
+  assert.equal(requests.length, beforeCrossRowRequests + 1, 'Moving members across Count rows remains one atomic command after Save');
   assertSubsetMove(multiBaseline, reply.snapshot, [firstMember, otherMember], movement);
+  evidence.savedNoticeGroupDrag = { nativeSaveHTTP200: true, freshSavedReceiptTextAsserted: true, ordinaryNoticeVisibleBeforePointer: true, requestedDelta: [14, 12], deltaPdf: requests.at(-1).delta_pdf, strictSourceDeltaAssertionPassed: true };
   reply = await command(() => page.getByRole('button', { name: 'Undo last edit', exact: true }).click(), 'undo'); state = reply.snapshot;
   assert.deepEqual(stable(state), stable(multiBaseline));
   // Marquee includes one point of the two-member group, never its entire row.

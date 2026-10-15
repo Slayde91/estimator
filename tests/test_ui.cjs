@@ -34,7 +34,7 @@ vm.runInContext(fs.readFileSync('static/downloads.js','utf8'),context);
 let source=fs.readFileSync('static/app.js','utf8');
 source=source.replace(/  bootstrap\(\);\s*\}\)\(\);\s*$/, `
   globalThis.audit={state,savePricing,requestSavePricing,saveQuote,openQuote,newQuote,confirmReplace,confirmLeavePricingLibrary,requestViewNavigation,requestLibraryNavigation,requestPricingScopeSwitch,importPricing,exportPricing,makeControl,priceInput,
-    quoteDetails,updateQuoteTitle,reportPayload,downloadQuotePdf,controlValue,formatNumber,formatMoney,calculate,renderInputs,selectMainSection,renderMainSectionTabs,renderResults,showView,notify,bootstrap,renderPricing,refreshPricingCatalog,projectStamp,addWorkItem,removeWorkItem,
+    quoteDetails,updateQuoteTitle,reportPayload,downloadQuotePdf,controlValue,formatNumber,formatMoney,calculate,renderInputs,selectMainSection,renderMainSectionTabs,renderResults,showView,notify,bootstrap,renderPricing,refreshPricingCatalog,projectStamp,addWorkItem,removeWorkItem,message,retireMessage,
     setRequest(fn){request=fn;}, setFetch(fn){globalThis.fetch=(path,options)=>path==='/api/download-progress'?Promise.resolve({ok:true,json:async()=>({token:'fixture-progress'})}):path.startsWith('/api/download-progress/')?Promise.resolve({ok:true,json:async()=>({percent:10,state:'preparing'})}):fn(path,options);},setRenderPricing(fn){renderPricing=fn;},setRenderInputs(fn){renderInputs=fn;}};
   renderInputs=()=>{}; renderPricing=()=>{state.pricingDirty=JSON.stringify(state.draft)!==JSON.stringify(state.configuration);};
   globalThis.scheduled=0; scheduleCalculation=()=>{globalThis.scheduled++;};
@@ -60,6 +60,20 @@ async function openOlder(id, button) {
 }
 let passed=0;
 (async()=>{
+  // Both timed expiry and stale Save receipts retire without moving the form.
+  const originalTimeout=context.setTimeout, timers=[];
+  context.setTimeout=(callback,delay)=>{timers.push({callback,delay});return timers.length;};
+  const noticeSlot=byId('app-message-slot');noticeSlot.style={};let noticeHeight=89.1875;
+  noticeSlot.getBoundingClientRect=()=>({height:noticeHeight});
+  audit.message('Ordinary status');assert.equal(timers.at(-1).delay,5000);
+  const stale=timers.at(-1);audit.message('Durable error',true);stale.callback();
+  assert.equal(byId('app-message').hidden,false);assert.equal(byId('app-message').textContent,'Durable error');
+  audit.message('Saved fixture',false,'project-saved');audit.retireMessage();
+  assert.equal(byId('app-message').hidden,true);assert.equal(byId('app-message').textContent,'');
+  assert.equal(noticeSlot.style.minHeight,'89.1875px');timers.at(-1).callback();assert.equal(noticeSlot.style.minHeight,'89.1875px');
+  audit.message('Wrapped replacement');assert.equal(noticeSlot.style.minHeight,'');noticeHeight=121.25;timers.at(-1).callback();
+  assert.equal(noticeSlot.style.minHeight,'121.25px');assert.equal(byId('app-message').textContent,'');
+  audit.message('');assert.equal(noticeSlot.style.minHeight,'');context.setTimeout=originalTimeout;passed++;
   setup();
   const put=deferred(),meta=deferred();
   audit.setRequest(path=>path==='/api/configuration'?put.promise:meta.promise);

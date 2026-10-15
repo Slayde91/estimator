@@ -212,6 +212,7 @@ td.numeric,.numeric{text-align:right;font-variant-numeric:tabular-nums}
 .material-label small{display:block;color:var(--muted);font-weight:400;line-height:1.6}
 .calculated-yield{font-variant-numeric:tabular-nums;color:#78646d;text-align:right;padding-right:14px!important}
 .quote-notes{font:12px/1.8 "Montserrat",Arial,sans-serif;white-space:pre-wrap;overflow-wrap:anywhere;margin:0;color:#6a5b64}
+.message-slot{display:flow-root}
 .message{padding:14px 17px;border-radius:9px;margin-bottom:22px;font-size:12px;background:#f0f7f2;color:#365c44;border:1px solid #d8e6dc}
 .message.error,.calculation-errors{background:#fff2f2;color:#981322;border:1px solid #f1d3d6}
 .message.info{background:#fff7ee;color:#7a5128;border-color:#f3e1ca}
@@ -430,3 +431,4 @@ html.app-busy,html.app-busy *{cursor:progress!important}
 .penetration-additional-fields>.field:has([data-penetration-field="AJ"]){grid-area:labour-adjust}
 #main-panel-additions>#main-panel-global-adjustments{margin-top:20px;padding-top:20px;border-top:1px solid var(--line)}
 @media(max-width:580px){.penetration-fields.penetration-additional-fields{grid-template-columns:1fr;grid-template-areas:"materials" "material-adjust" "labour" "labour-adjust"}}
+@media print{.message-slot{display:none!important}}

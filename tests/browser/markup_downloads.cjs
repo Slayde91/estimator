@@ -86,7 +86,8 @@ async function download(kind, label, scope, held=false){
 (async()=>{try{
   info=await ready;origin=`http://127.0.0.1:${info.port}`;evidence.port=info.port;
   browser=await chromium.launch({headless:true});page=await browser.newPage({viewport:{width:1384,height:1000}});page.setDefaultTimeout(30000);
-  page.on('pageerror',error=>errors.push(error.message));await page.goto(origin);
+  page.on('pageerror',error=>errors.push(error.message));
+  await page.addInitScript(()=>{window.__markupDownloadCsp=[];document.addEventListener('securitypolicyviolation',event=>window.__markupDownloadCsp.push({directive:event.effectiveDirective,blocked:event.blockedURI}));});await page.goto(origin);
   await chooseTakeoff(page,'Steel');await renderDrawing(page,()=>page.locator('#takeoff-upload').setInputFiles(info.fixture),1);await idle();
   const sid=await page.evaluate(()=>window.CeasefireTakeoffs.sessionId());current=await(await page.request.get(`${origin}/api/takeoffs/sessions/${sid}`)).json();
   const doc=current.snapshot.documents[0], originalHash=hash(info.fixture);evidence.original=originalHash;
@@ -152,6 +153,38 @@ async function download(kind, label, scope, held=false){
   await page.getByRole('button',{name:'Last page',exact:true}).click();await expect(page.locator('#takeoffs-workspace [role="alert"]')).toContainText('The takeoff session is unavailable. Reopen the project to continue.');
   const reject=await page.request.post(`${origin}/api/takeoffs/sessions/${active}/commands`,{data:{op:'confirm_items',request_id:randomUUID(),expected_revision:beforeClosed.revision,item_ids:[steel.id]}});assert.equal(reject.status(),400);
   evidence.checks.push('Explicitly closed synthetic session fails rendering and confirmation closed; historical missing-session cause remains unproven');
+  const notice=()=>page.locator('#takeoff-message');
+  const noticeState=()=>notice().evaluate(el=>({hidden:el.hidden,text:el.textContent,role:el.getAttribute('role')}));
+  evidence.closedSessionNotice=await noticeState();assert.equal(evidence.closedSessionNotice.hidden,false);assert.equal(evidence.closedSessionNotice.role,'alert');
+  await page.screenshot({path:path.join(output,'closed-session-error.png'),fullPage:true});
+  const reopening=page.waitForResponse(response=>response.url().endsWith('/api/project/open'));
+  await clickProjectControl(page,'Load');assert.equal((await reopening).status(),200);
+  await expect(page.getByRole('dialog',{name:'Load this project?',exact:true})).toBeVisible();
+  await page.getByRole('dialog').getByRole('button',{name:'Load Project',exact:true}).click();
+  await expect(page.locator('#project-save-state')).toHaveText('Saved project');
+  await renderDrawing(page,()=>chooseTakeoff(page,'Steel'),1);await idle();
+  const fresh=await page.evaluate(()=>window.CeasefireTakeoffs.sessionId());assert.notEqual(fresh,active);
+  const reopened=await snapshot();assert.deepEqual(reopened.items,savedSnapshot.items);
+  assert.deepEqual(await page.evaluate(()=>window.CeasefireCalculators.completeProjectSnapshot()),calculatorsBefore);
+  evidence.reopenedSession={old:active,fresh,notice:await noticeState(),itemsExact:true,calculatorsExact:true,
+    bitmap:await page.locator('.takeoff-viewport canvas').evaluate(canvas=>{const pixels=canvas.getContext('2d').getImageData(0,0,canvas.width,canvas.height).data;let ink=0;for(let index=0;index<pixels.length;index+=4)if(pixels[index+3]>0&&(pixels[index]<245||pixels[index+1]<245||pixels[index+2]<245))ink++;return {width:canvas.width,height:canvas.height,ink};}),
+    progress:await page.locator('.takeoff-progress').innerText()};
+  assert.ok(evidence.reopenedSession.bitmap.width>0&&evidence.reopenedSession.bitmap.height>0&&evidence.reopenedSession.bitmap.ink>100);
+  assert.ok(evidence.reopenedSession.progress.includes('Original source'));
+  assert.deepEqual(evidence.reopenedSession.notice,{hidden:true,text:'',role:'status'},'Successful explicit project replacement retires only its old page error');
+  await page.screenshot({path:path.join(output,'fresh-session-before-confirm.png'),fullPage:true});
+  await page.locator(`tr[data-item-id="${steel.id}"]`).getByRole('checkbox',{name:/^Select /}).check();
+  await page.getByRole('button',{name:'Confirm',exact:true}).click();
+  const confirmation=page.getByRole('dialog',{name:'Confirm 1 items?',exact:true});await expect(confirmation).toBeVisible();
+  const confirming=page.waitForResponse(response=>response.url().endsWith('/commands')&&response.request().postDataJSON()?.op==='confirm_items');
+  await confirmation.getByRole('button',{name:'Confirm items',exact:true}).click();
+  const response=await confirming,confirmed=await response.json();
+  assert.equal(response.status(),200,JSON.stringify(confirmed));await idle();
+  assert.equal((await snapshot()).items.find(item=>item.id===steel.id).state,'confirmed');
+  assert.deepEqual(await page.evaluate(()=>window.CeasefireCalculators.completeProjectSnapshot()),calculatorsBefore);
+  evidence.freshConfirmation={status:response.status(),item:steel.id,state:'confirmed',notice:await noticeState()};
+  evidence.checks.push('Native reload after a closed session creates a fresh session and full original bitmap, clears its owned stale alert, and permits native confirmation; invalid old session still returns400');
+  evidence.csp=await page.evaluate(()=>window.__markupDownloadCsp);assert.deepEqual(evidence.csp,[]);
   assert.equal(hash(info.project),projectHash);assert.equal(hash(info.fixture),originalHash);
   assert.deepEqual(errors,[]);const afterHashes=Object.fromEntries(sourceFiles.map(file=>[file,hash(path.join(root,file))]));assert.deepEqual(afterHashes,beforeHashes);
   fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,errors,evidence,source_before:beforeHashes,source_after:afterHashes,test_sha:hash(__filename)},null,2));console.log(`Markup downloads browser acceptance passed: ${output}`);

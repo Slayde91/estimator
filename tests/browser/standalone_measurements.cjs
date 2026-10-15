@@ -111,7 +111,7 @@ async function assertDeleteFarLeft(mode) {
     await expect(page.locator('.takeoff-count-pending')).toHaveCount(0);
     await expect(page.locator('.takeoff-count-hit')).toHaveCount(2);
     assertSamePoints(await renderedMarkerPoints('.takeoff-count-hit'), count.geometry.points, `${mode} saved markers match the post-undo geometry`);
-    await expect(page.locator('#takeoffs-workspace > .message')).not.toHaveAttribute('role', 'alert');
+    await expect(page.locator('#takeoff-message')).not.toHaveAttribute('role', 'alert');
     await expect(page.locator('.takeoff-settings-fields').getByLabel('Total Count/QTY', { exact: true })).toHaveValue('2');
     const changed = page.locator('.takeoff-settings-fields').getByLabel('Item', { exact: true }); await changed.fill(`${mode}-EDITED`); await changed.press('Tab');
     await expect.poll(async () => (await snapshot()).items.find(item => item.id === count.id).fields.mark).toBe(`${mode}-EDITED`);

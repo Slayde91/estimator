@@ -263,9 +263,22 @@
     return element;
   }
 
-  let messageExpiry = null;
+  let messageExpiry = null, messageVersion = 0;
+  function releaseMessageSpace() {
+    const slot = $("app-message-slot");
+    if (slot?.style) slot.style.minHeight = "";
+  }
+  function retireMessage() {
+    const box = $("app-message");
+    if (box.hidden) return;
+    const slot = $("app-message-slot"), height = slot?.getBoundingClientRect?.().height;
+    if (slot?.style && Number.isFinite(height) && height > 0) slot.style.minHeight = `${height}px`;
+    box.textContent = ""; box.hidden = true;
+  }
   function message(text, error = false, kind = null) {
     clearTimeout(messageExpiry);
+    releaseMessageSpace();
+    const version = ++messageVersion;
     const box = $("app-message");
     box.textContent = text;
     box.className = `message${error ? " error" : ""}`;
@@ -273,7 +286,8 @@
     box.setAttribute("role", error ? "alert" : "status");
     state.projectSavedNotice = kind === "project-saved" ? text : null;
     if (text && !error) messageExpiry = setTimeout(() => {
-      box.hidden = true;
+      if (messageVersion !== version || box.getAttribute("role") !== "status") return;
+      retireMessage();
       state.projectSavedNotice = null;
     }, 5000);
   }
@@ -310,7 +324,7 @@
     // Retire only the save receipt; fresh input must not erase another error.
     if (changed && state.projectSavedNotice) {
       const box = $("app-message");
-      if (box.textContent === state.projectSavedNotice && box.getAttribute("role") !== "alert") box.hidden = true;
+      if (box.textContent === state.projectSavedNotice && box.getAttribute("role") !== "alert") retireMessage();
       state.projectSavedNotice = null;
     }
     const status = $("project-save-state");
@@ -890,6 +904,7 @@
   function showView(view, librarySelection, calculatorId) {
     if (window.CeasefirePenetrations?.hasTakeoffReservation?.() || window.CeasefireTakeoffs?.hasLinkedRecovery?.()) { message("Finish or recover the confirmed Takeoff library link before changing views.", true); return; }
     if (view === "takeoffs" && !state.takeoffsEnabled) { message("TAKEOFFS is not included in this edition.", true); return; }
+    if (view !== state.currentView && $("app-message").hidden) releaseMessageSpace();
     state.currentView = view;
     $("project-tools").hidden = view !== "quotes";
     closeNavigationMenus({ estimate: "estimate-navigation", calculators: "calculator-navigation", pricing: "library-navigation", takeoffs: "takeoff-navigation" }[view]);
@@ -2237,6 +2252,11 @@
     if (state.pricingDirty && !await confirmReplace("Discard pricing changes?", state.pricingScope === "project" ? "Project pricing edits will return to the last applied project prices." : "Shared library edits will return to the last saved library.", "Discard changes")) return;
     if (draft !== state.draft || revision !== state.pricingRevision) return;
     state.draft = clone(pricingBaseline()); refreshPricingCatalog(); renderPricing(); message("Unsaved pricing changes discarded.");
+  });
+  window.addEventListener("resize", () => {
+    // An intentional layout change may release retired space. Keep a captured
+    // drawing pointer stable until its gesture has ended.
+    if ($("app-message").hidden && !document.querySelector(".takeoff-viewport:active")) releaseMessageSpace();
   });
   window.addEventListener("beforeunload", (event) => {
     const pricingChanged = sharedPricingChanged();

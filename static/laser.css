@@ -112,6 +112,24 @@
     color: #fff;
     border-color: #ff6377;
   }
+  /* Match the composer's existing ID rule so its white surface cannot hide the light icon. */
+  :root:is(:not([data-theme]), [data-theme="ceasefire"]) #penetration-add-to-schedule {
+    background: #20252d;
+    color: var(--ink);
+    border-color: #626c7b;
+  }
+  :root:is(:not([data-theme]), [data-theme="ceasefire"]) #penetration-add-to-schedule:hover:not(:disabled) {
+    background: #303846;
+    color: #fff;
+    border-color: #ff6377;
+  }
+  :root:is(:not([data-theme]), [data-theme="ceasefire"]) #penetration-settings[aria-pressed=true],
+  :root:is(:not([data-theme]), [data-theme="ceasefire"]) .secondary:is([aria-pressed=true], [aria-expanded=true]):not(.takeoff-physical-register *, .penetration-settings-table *, .takeoff-control-menu *) {
+    background: #3f1d29;
+    color: #fff;
+    border-color: #ff6377;
+    box-shadow: inset 0 0 0 2px #ff6377;
+  }
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) :is(.button, .pricing-discard-button, .pricing-reset-button):focus-visible {
     outline-color: #ff6377;
   }
@@ -125,7 +143,7 @@
     border-color: #ff6377;
     box-shadow: 0 0 0 3px #ed001b20;
   }
-  :root:is(:not([data-theme]), [data-theme="ceasefire"]) :is(input, select, textarea)::placeholder { color: #a5adba; opacity: 1; }
+  :root:is(:not([data-theme]), [data-theme="ceasefire"]) :is(input, select, textarea)::placeholder { color: var(--muted); opacity: 1; }
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) input[readonly]:not(.takeoff-physical-register *, .penetration-settings-table *) { background: #11151a; color: #bac2ce; }
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) :is(input, select, textarea)[aria-invalid=true] { background: #fff2f2; color: #7d1019; border-color: #a20b16; }
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) :is(.field>span:first-child, .help-card p, .help-card li, .work-summary, .quote-notes, .calculated-yield, .pricing-uses>summary, .gear-symbol, .calculator-symbol-button):not(.takeoff-physical-register *, .penetration-settings-table *, .takeoff-control-menu *) { color: var(--ink); }
@@ -214,8 +232,9 @@
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) .calculator-document-actions .button.calculator-document-action { background: #151a21; color: #f4f5f7; border-color: transparent; }
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) .calculator-document-actions .calculator-document-action:hover:not(:disabled) { background: #303846; border-color: #626c7b; }
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) :is(.calculator-document-icon, .takeoff-icon-button img:not([src$="/takeoff-colour-wheel.png"], .takeoff-measure-icon), .takeoff-transfer-icon):not(.takeoff-physical-register *, .takeoff-rich-toolbar *) { filter: brightness(0) invert(1); }
+  :root:is(:not([data-theme]), [data-theme="ceasefire"]) .takeoff-rich-toolbar button img { filter: brightness(0) invert(1); }
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) .takeoff-tool-rail .takeoff-icon-button .takeoff-measure-icon { filter: invert(1); mix-blend-mode: screen; }
-  :root:is(:not([data-theme]), [data-theme="ceasefire"]) .takeoff-tool-rail .button:is(.takeoff-tool-active, [aria-pressed=true], [aria-expanded=true]) { background: #3f1d29; color: #fff; border-color: #ff6377; box-shadow: inset 0 0 0 1px #d63049; }
+  :root:is(:not([data-theme]), [data-theme="ceasefire"]) :is(.takeoff-tool-rail, .takeoff-markup-rail) .button:is(.takeoff-tool-active, [aria-pressed=true], [aria-expanded=true]) { background: #3f1d29; color: #fff; border-color: #ff6377; box-shadow: inset 0 0 0 1px #d63049; }
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) :is(.takeoff-markup-settings, .takeoff-viewports, .takeoff-physical-details) { background: #1a1f27; border-color: #626c7b; }
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) .takeoff-markup-settings>.takeoff-viewports-heading { background: #1a1f27; }
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) .takeoff-empty { color: #535a66; }
@@ -253,6 +272,9 @@
     color: #111;
   }
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) :is(.takeoff-physical-register, .penetration-settings-table, .takeoff-control-menu) :is(.secondary, .recalculate-button, .link-action-button, .library-edit-button, .library-delete-button, .refresh-button, .takeoff-undo-button, .takeoff-column-filter-button) { background: #fff; color: #51414a; border-color: #b8b8b8; }
+  :root:is(:not([data-theme]), [data-theme="ceasefire"]) :is(.takeoff-physical-register, .penetration-settings-table, .takeoff-control-menu) :is(.secondary, .recalculate-button, .link-action-button, .library-edit-button, .library-delete-button, .refresh-button, .takeoff-undo-button, .takeoff-column-filter-button):hover:not(:disabled) { background: #fff; color: #51414a; border-color: #920711; }
+  :root:is(:not([data-theme]), [data-theme="ceasefire"]) :is(.takeoff-physical-register, .penetration-settings-table, .takeoff-control-menu) :is(.secondary, .recalculate-button, .link-action-button, .library-edit-button, .library-delete-button, .refresh-button, .takeoff-undo-button, .takeoff-column-filter-button):is([aria-pressed=true], [aria-expanded=true], .active),
+  :root:is(:not([data-theme]), [data-theme="ceasefire"]) :is(.takeoff-physical-register, .penetration-settings-table, .takeoff-control-menu) :is(.secondary, .recalculate-button, .link-action-button, .library-edit-button, .library-delete-button, .refresh-button, .takeoff-undo-button, .takeoff-column-filter-button):is([aria-pressed=true], [aria-expanded=true], .active):hover:not(:disabled) { background: #fff0f0; color: #51414a; border-color: #920711; box-shadow: inset 0 0 0 1px #920711; }
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) .takeoff-physical-register .takeoff-register-editor { background: #fff; color: #111; }
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) :is(.library-editor-diagram, .library-image, .penetration-diagram) { background: #fff; color: #171b22; border-color: #626c7b; }
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) :is(.library-editor-diagram, .library-image, .penetration-diagram) :is(.helper, figcaption) { color: #535a66; }

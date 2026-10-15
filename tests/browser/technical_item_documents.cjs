@@ -101,7 +101,14 @@ async function exported(extension){
     const colors=await contrast('#penetration-add-to-schedule');assert.ok(colors.ratio>=4.5,`${theme} composer schedule control contrast`);
     const source=await contrast('#penetration-diagram-empty');assert.ok(source.ratio>=4.5,`${theme} Source diagram text contrast`);
     scheduleContrast.push({theme,control:'composer',...colors},{theme,control:'source diagram',...source});
-    await page.locator('#penetration-diagram').scrollIntoViewIfNeeded();await page.screenshot({path:path.join(output,`firestopping-diagram-${theme}.png`)});await cycleTheme(page);
+    await page.locator('#penetration-diagram').scrollIntoViewIfNeeded();await page.screenshot({path:path.join(output,`firestopping-diagram-${theme}.png`)});
+    if(theme==='ceasefire'){
+      const settings=page.locator('#penetration-settings');await settings.click();await expect(settings).toHaveAttribute('aria-pressed','true');
+      const gear=await contrast('#penetration-settings .gear-symbol');assert.ok(gear.ratio>=4.5,`${theme} active Settings gear contrast ${gear.ratio}`);
+      scheduleContrast.push({theme,control:'active Settings gear',...gear});await page.screenshot({path:path.join(output,`firestopping-settings-${theme}.png`)});
+      await page.locator('#penetration-input-groups [role="tab"]').first().click();await expect(settings).toHaveAttribute('aria-pressed','false');
+    }
+    await cycleTheme(page);
   }
   checks.push('five-theme library and composer schedule/source contrast');
   assert.deepEqual(await snapshot(),before,'Exports and menu access preserve calculator/composer/pricing/project drafts');

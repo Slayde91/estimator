@@ -193,9 +193,59 @@ def _paint_count_marker(pdf, center, style):
         pdf.drawPath(path, stroke=int(style.get('stroke_enabled', True)), fill=fill)
 
 
-def _paint_length_additions(pdf, item, matrix, drawing_bounds):
+def _viewer_text(pdf, text, x, y, size, colour, halo):
+    """Stroke behind the literal glyphs, matching the drawing label halo."""
+    from reportlab.lib.colors import HexColor
+    from reportlab.pdfbase.pdfmetrics import getFont
+    if any(ord(character) not in getFont('ExportVeraBold').face.charToGlyph for character in text):
+        raise ValueError('A drawing label contains a character unsupported by the bundled PDF font. Edit that character before exporting; the original label is retained.')
+    pdf.saveState(); pdf.setFillAlpha(1); pdf.setStrokeAlpha(1)
+    pdf.setFont('ExportVeraBold', size); pdf.setStrokeColor(HexColor('#ffffff')); pdf.setLineWidth(halo)
+    stroke = pdf.beginText(x, y); stroke.setTextRenderMode(1); stroke.textOut(text)
+    # Text rendering mode persists across BT/ET. Reset on this same object so
+    # ReportLab emits an actual 0 Tr, rather than eliding a fresh object's
+    # default zero while the PDF interpreter still retains stroke-only mode.
+    stroke.setTextRenderMode(0); pdf.drawText(stroke)
+    pdf.setFillColor(HexColor(colour))
+    fill = pdf.beginText(x, y); fill.setTextRenderMode(0); fill.textOut(text); pdf.drawText(fill)
+    pdf.restoreState()
+
+
+def _paint_length_additions(pdf, item, matrix, drawing_bounds, viewer_zoom=None):
     """Label entered vertical lengths at transformed source anchors, never infer them."""
     from reportlab.pdfbase.pdfmetrics import stringWidth
+    if viewer_zoom is not None:
+        stacks = {}
+        for addition in item.get('length_additions', []):
+            index = (addition.get('anchor') or {}).get('point_index')
+            if type(index) is not int or not 0 <= index < len(item['geometry']['points']):
+                continue
+            point = item['geometry']['points'][index]; x, y = transform(point, matrix)
+            offset = stacks.get(index, 0); stacks[index] = offset+1
+            value = addition['length_mm']
+            # The viewer's addition formatter uses at most three decimal places;
+            # the exact source numeric value remains unchanged in the draft.
+            from decimal import Decimal, localcontext, ROUND_HALF_UP
+            number = Decimal(str(value))
+            with localcontext() as context:
+                context.prec = max(28, number.adjusted()+8)
+                formatted = format(number.quantize(Decimal('.001'), rounding=ROUND_HALF_UP), ',f').rstrip('0').rstrip('.')
+            label = ('Rise' if addition['kind'] == 'riser' else 'Drop') + ' ' + formatted + ' mm'
+            baseline = y-(17+offset*16)/viewer_zoom; arrow_x = x+14/viewer_zoom
+            top, bottom = baseline+9/viewer_zoom, baseline+1/viewer_zoom
+            head = top if addition['kind'] == 'riser' else bottom
+            shoulder = head+(-3 if addition['kind'] == 'riser' else 3)/viewer_zoom
+            from reportlab.lib.colors import HexColor
+            pdf.saveState(); pdf.setLineCap(1); pdf.setLineJoin(1); pdf.setStrokeAlpha(1)
+            for colour, width in (('#ffffff', 4), ('#1e3344', 1.5)):
+                pdf.setStrokeColor(HexColor(colour)); pdf.setLineWidth(width/viewer_zoom)
+                arrow = pdf.beginPath(); arrow.moveTo(arrow_x, top); arrow.lineTo(arrow_x, bottom)
+                arrow.moveTo(arrow_x-3/viewer_zoom, shoulder); arrow.lineTo(arrow_x, head); arrow.lineTo(arrow_x+3/viewer_zoom, shoulder)
+                pdf.drawPath(arrow, stroke=1, fill=0)
+            pdf.restoreState()
+            _viewer_text(pdf, label, x+22/viewer_zoom, baseline,
+                         11/viewer_zoom, '#1e3344', 3/viewer_zoom)
+        return
     grouped = {}
     for addition in item.get('length_additions', []):
         if 'anchor' not in addition:
@@ -219,7 +269,7 @@ def _paint_length_additions(pdf, item, matrix, drawing_bounds):
             pdf.drawString(label_x, label_y-11*index, label)
 
 
-def _paint_drawing_legends(pdf, legends, matrix):
+def _paint_drawing_legends(pdf, legends, matrix, viewer=False):
     from reportlab.lib.colors import HexColor
     from reportlab.lib.styles import ParagraphStyle
     from reportlab.platypus import Paragraph
@@ -230,12 +280,27 @@ def _paint_drawing_legends(pdf, legends, matrix):
         style = {'stroke_color': '#404040', 'fill_color': '#FFFFFF', 'font_color': '#202020',
                  'fill_enabled': True, 'stroke_width': 1, 'opacity': .94, **legend['appearance']}
         pdf.saveState(); pdf.setStrokeColor(HexColor(style['stroke_color']))
-        pdf.setLineWidth(style['stroke_width']); pdf.setFillColor(HexColor(style['fill_color']))
+        pdf.setLineWidth(style['stroke_width'] * (scale if viewer else 1)); pdf.setFillColor(HexColor(style['fill_color']))
         pdf.setFillAlpha(style['opacity']); pdf.rect(x, top-height, width, height, stroke=int(style.get('stroke_enabled', True)), fill=int(style['fill_enabled']))
         groups = {}
         for row in legend['rows']:
             groups.setdefault(row['colour'], []).append(row['text'])
         lines = [(colour, '; '.join(texts)) for colour, texts in groups.items()]
+        if viewer:
+            font_size = 11*scale; wrapped = []
+            for _ in range(45):
+                wrapped = [(colour, _physical_lines([text], max(10*scale, width-30*scale), font_size)) for colour, text in lines]
+                if (sum(len(values) for _, values in wrapped)+3)*font_size*1.3 < height-12*scale: break
+                font_size *= .9
+            pdf.setFillAlpha(1); pdf.setFillColor(HexColor(style['font_color'])); pdf.setFont('ExportVeraBold', font_size)
+            pdf.drawString(x+8*scale, top-8*scale-font_size, legend['mode'].title() + ' Legend')
+            y = top-8*scale-font_size*2.5
+            for colour, values in wrapped:
+                pdf.setFillColor(HexColor(colour)); pdf.rect(x+8*scale, y-font_size*.2, font_size, font_size, stroke=0, fill=1)
+                pdf.setFillColor(HexColor(style['font_color'])); pdf.setFont('ExportVera', font_size)
+                for value in values:
+                    pdf.drawString(x+12*scale+font_size, y, value); y -= font_size*1.3
+            pdf.restoreState(); continue
         font_size = 9 * scale; padding = min(8 * scale, width/10, height/10)
         for _ in range(40):
             paragraphs = [Paragraph(_text(text), ParagraphStyle('DrawingLegend', fontName='ExportVera',
@@ -594,7 +659,7 @@ def _paint_graphics(pdf, graphics, matrix, bounds):
         pdf.restoreState()
 
 
-def _paint_markups(pdf, items, matrix, drawing_bounds=None, physical_zoom=None):
+def _paint_markups(pdf, items, matrix, drawing_bounds=None, physical_zoom=None, viewer_zoom=None):
     from reportlab.lib.colors import HexColor
     for item in items:
         geometry, style = item['geometry'], item['appearance']; points = geometry['points']
@@ -677,10 +742,10 @@ def _paint_markups(pdf, items, matrix, drawing_bounds=None, physical_zoom=None):
                     pdf.setFont('ExportVera', 7)
                     for line_index, label in enumerate(fitted):
                         pdf.drawString(label_x, label_y-10*line_index, label)
-                else:
+                elif viewer_zoom is None:
                     pdf.drawString(center[0]+style['marker_size']/2+3, center[1]+3, str(item['legend_number']))
                 pdf.setFillColor(HexColor(style['fill_color']))
-            _paint_value_labels(pdf, item, matrix, drawing_bounds)
+            _paint_value_labels(pdf, item, matrix, drawing_bounds, viewer_zoom)
             pdf.restoreState()
             continue
         path = pdf.beginPath()
@@ -697,13 +762,16 @@ def _paint_markups(pdf, items, matrix, drawing_bounds=None, physical_zoom=None):
         pdf.setFillAlpha(style['opacity']); pdf.setFillColor(HexColor(style['stroke_color'])); pdf.setFont('ExportVeraBold', 8)
         # The complete human identifier remains in the wrapped legend. A compact
         # ordinal on the drawing avoids obscuring geometry with long identifiers.
-        pdf.drawString(x+4, y+4, str(item['legend_number']))
-        _paint_length_additions(pdf, item, matrix, drawing_bounds)
-        _paint_value_labels(pdf, item, matrix, drawing_bounds)
+        if viewer_zoom is None:
+            pdf.drawString(x+4, y+4, str(item['legend_number']))
+        else:
+            _viewer_text(pdf, item['mark'], x+6/viewer_zoom, y+7/viewer_zoom, 11/viewer_zoom, '#1e3344', 3/viewer_zoom)
+        _paint_length_additions(pdf, item, matrix, drawing_bounds, viewer_zoom)
+        _paint_value_labels(pdf, item, matrix, drawing_bounds, viewer_zoom)
         pdf.restoreState()
 
 
-def _paint_value_labels(pdf, item, matrix, bounds):
+def _paint_value_labels(pdf, item, matrix, bounds, viewer_zoom=None):
     from decimal import Decimal, localcontext, ROUND_HALF_UP
     from reportlab.lib.colors import HexColor
     from reportlab.pdfbase.pdfmetrics import stringWidth
@@ -713,6 +781,14 @@ def _paint_value_labels(pdf, item, matrix, bounds):
             context.prec = max(28, value.adjusted()+8)
             text = format(value.quantize(Decimal('.01'), rounding=ROUND_HALF_UP), ',f') + ' ' + label['unit']
         x, y = transform(label['point'], matrix)
+        if viewer_zoom is not None:
+            area = label['kind'] == 'area'; size = (13 if area else 12)/viewer_zoom
+            if area: text = text.rsplit(' ', 1)[0] + ' Sqm'
+            width = stringWidth(text, 'ExportVeraBold', size)
+            x += item['appearance'].get('marker_size', 12)/2+5/viewer_zoom if label['kind'] == 'cited-count' else -width/2
+            y += ((8 if label['kind'] == 'cited-count' else 10)/viewer_zoom if not area else 0) - size*.3
+            _viewer_text(pdf, text, x, y, size, '#18384e' if area else item['appearance'].get('font_color', item['appearance']['stroke_color']), 4/viewer_zoom)
+            continue
         width = stringWidth(text, 'ExportVeraBold', 8)
         x += item['appearance'].get('marker_size', 12)/2+5 if label['kind'] == 'cited-count' else -width/2
         y += 9
@@ -749,28 +825,33 @@ def register_drawing_fonts(physical=False):
     pdfmetrics.registerFontFamily('ExportVera', normal='ExportVera', bold='ExportVeraBold')
 
 
-def render_document(source, spec, output):
+def render_document(source, spec, output, *, writer=None, progress=None):
     from pypdf import PdfReader, PdfWriter
     from pypdf.generic import NameObject, RectangleObject
     from reportlab.pdfgen import canvas
     from reportlab.lib.styles import ParagraphStyle
     from reportlab.lib.colors import HexColor
     physical = bool(spec.get('physical_drawing'))
+    viewer = 'viewer_rendering' in spec
     register_drawing_fonts(physical)
     style = ParagraphStyle('Legend', fontName='ExportVera', fontSize=8, leading=10, textColor=HexColor('#151515'))
-    reader = PdfReader(source, strict=True); writer = PdfWriter(); total_content = 0
+    reader = PdfReader(source, strict=True); shared_writer = writer is not None
+    writer = writer if shared_writer else PdfWriter(); total_content = 0
     if reader.is_encrypted: raise ValueError('Encrypted source PDFs cannot be exported.')
     if len(reader.pages) != len(spec['document']['pages']): raise ValueError('Source PDF page count changed.')
     for index, original in enumerate(reader.pages):
+        if viewer and index+1 not in spec['selected_pages']:
+            continue
         annotations = original.get('/Annots', [])
         if hasattr(annotations, 'get_object'): annotations = annotations.get_object()
         if any(not _invisible_link(annotation) for annotation in annotations):
             raise ValueError('Source annotations or form widgets cannot yet be flattened faithfully. Export a plain drawing PDF; the original is unchanged.')
         metadata = dict(spec['document']['pages'][index])
-        if physical:
-            metadata['rotation'] = (metadata['rotation']+spec['physical_rendering']['rotations'].get(str(index+1),0))%360
+        if physical or viewer:
+            rendering = spec['viewer_rendering'] if viewer else spec['physical_rendering']
+            metadata['rotation'] = (metadata['rotation']+rendering['rotations'].get(str(index+1),0))%360
         _, drawing_width, drawing_height = page_transform(metadata)
-        if not 1 <= drawing_width <= MAX_PAGE_SIDE or not 1 <= drawing_height <= (MAX_PAGE_SIDE if physical else MAX_PAGE_SIDE-800):
+        if not 1 <= drawing_width <= MAX_PAGE_SIDE or not 1 <= drawing_height <= (MAX_PAGE_SIDE if physical or viewer else MAX_PAGE_SIDE-800):
             raise ValueError('This PDF page is outside the supported physical drawing export size.')
         contents = original.get_contents(); count = len(contents.get_data()) if contents is not None else 0
         total_content += count
@@ -778,9 +859,9 @@ def render_document(source, spec, output):
             raise ValueError('Decoded PDF drawing content exceeds the safe export limit.')
         page_items = [item for item in spec['items'] if item['geometry']['page'] == index+1]
         for number, item in enumerate(page_items, 1): item['legend_number'] = number
-        width = drawing_width if physical else max(595, drawing_width)
+        width = drawing_width if physical or viewer else max(595, drawing_width)
         first_rows, remaining, heading_height, legend_height = [], [], 0, 0
-        if not physical:
+        if not physical and not viewer:
             rows = _legend_rows(page_items,width,style)
             _,heading_height = _filename_heading(spec,width)
             remaining,used = list(rows),95+heading_height
@@ -805,14 +886,15 @@ def render_document(source, spec, output):
         drawing_left = (width-drawing_width)/2
         _paint_markups(pdf, page_items, matrix,
                        (drawing_left, legend_height, drawing_left+drawing_width, height),
-                       spec['physical_rendering']['zoom'] if physical else None)
-        _paint_drawing_legends(pdf, [legend for legend in spec.get('drawing_legends', []) if legend['page'] == index+1], matrix)
+                       spec['physical_rendering']['zoom'] if physical else None,
+                       spec['viewer_rendering']['zoom'] if viewer else None)
+        _paint_drawing_legends(pdf, [legend for legend in spec.get('drawing_legends', []) if legend['page'] == index+1], matrix, viewer)
         _paint_annotations(pdf, [annotation for annotation in spec.get('annotations', []) if annotation['page'] == index+1], matrix,
                            (drawing_left, legend_height, drawing_left+drawing_width, height))
         _paint_signatures(pdf, [signature for signature in spec.get('signatures', []) if signature['page'] == index+1], matrix)
         _paint_graphics(pdf, [graphic for graphic in spec.get('graphics', []) if graphic['page'] == index+1], matrix,
                         (drawing_left, legend_height, drawing_left+drawing_width, height))
-        if not physical:
+        if not physical and not viewer:
             _paint_legend(pdf, first_rows, width, legend_height, spec, index+1)
         # Blank physical pages still need one overlay page after legends are removed.
         pdf.showPage(); pdf.save(); overlay.seek(0); page.merge_page(PdfReader(overlay).pages[0])
@@ -826,12 +908,17 @@ def render_document(source, spec, output):
             _paint_legend(pdf, group, width, 842, spec, index+1, continuation=True); pdf.save(); overlay.seek(0)
             extra = writer.add_page(PdfReader(overlay).pages[0]); extra.compress_content_streams(level=9)
         if len(writer.pages) > 4000: raise ValueError('The marked PDF exceeds its output page limit.')
+        if progress is not None: progress()
     # Clone only the optional-content configuration, using the same writer
     # translation table as merged resources so ON/OFF groups keep their identity.
     # The source document catalog, actions and embedded files are never cloned.
     layers = reader.trailer['/Root'].get('/OCProperties')
     if layers:
-        writer._root_object[NameObject('/OCProperties')] = layers.get_object().clone(writer)
+        cloned = layers.get_object().clone(writer)
+        if shared_writer: _combine_layers(writer, cloned, spec['mode'])
+        else: writer._root_object[NameObject('/OCProperties')] = cloned
+    if shared_writer:
+        return
     writer.add_metadata({'/Title': 'CEASEFIRE marked drawing', '/Subject': 'Static Takeoffs derivative; originals retained unchanged',
                          '/Creator': 'CEASEFIRE ESTIMATOR'})
     # Reuse repeated fonts/branding only when optional-content identity is not
@@ -839,6 +926,10 @@ def render_document(source, spec, output):
     # ON/OFF membership; generic deduplication would change drawing visibility.
     # All page streams remain losslessly compressed in either case.
     writer.compress_identical_objects(remove_duplicates=not bool(layers), remove_unreferenced=True)
+    _write_bounded(writer, output)
+
+
+def _write_bounded(writer, output):
     class BoundedOutput:
         def __init__(self, stream): self.stream = stream
         def write(self, value):
@@ -850,25 +941,79 @@ def render_document(source, spec, output):
         writer.write(BoundedOutput(stream))
 
 
+def _combine_layers(writer, layers, scope):
+    """Keep each reader's cloned OCG identity and its default visibility distinct."""
+    from pypdf.generic import ArrayObject, DictionaryObject, NameObject, TextStringObject
+    root = writer._root_object
+    if '/OCProperties' not in root:
+        root[NameObject('/OCProperties')] = DictionaryObject({NameObject('/OCGs'): ArrayObject(),
+            NameObject('/D'): DictionaryObject({NameObject('/BaseState'): NameObject('/OFF'),
+                NameObject('/ON'): ArrayObject(), NameObject('/OFF'): ArrayObject(), NameObject('/Order'): ArrayObject()})})
+    combined = root['/OCProperties']; default = combined['/D']; source_default = layers.get('/D', {})
+    if hasattr(source_default, 'get_object'): source_default = source_default.get_object()
+    groups = list(layers.get('/OCGs', [])); on = list(source_default.get('/ON', [])); off = list(source_default.get('/OFF', []))
+    combined['/OCGs'].extend(groups)
+    for group in groups:
+        enabled = group in on or group not in off and source_default.get('/BaseState', '/ON') != '/OFF'
+        default['/ON' if enabled else '/OFF'].append(group)
+    default['/Order'].append(ArrayObject([TextStringObject(scope), *source_default.get('/Order', groups)]))
+    for name in ('/Locked', '/RBGroups', '/AS'):
+        if name in source_default:
+            default.setdefault(NameObject(name), ArrayObject()).extend(source_default[name])
+
+
+def _verified_source(path, spec):
+    """Use a private verified copy throughout parsing and composition."""
+    checksum = sha256(); size = 0; source = tempfile.TemporaryFile(mode='w+b')
+    try:
+        with Path(path).open('rb') as original:
+            while chunk := original.read(1024*1024):
+                size += len(chunk)
+                if size > limits.MAX_DOCUMENT_SIZE: raise ValueError('Source PDF exceeds its export limit.')
+                checksum.update(chunk); source.write(chunk)
+        if size != spec['document']['size'] or checksum.hexdigest() != spec['document']['sha256']:
+            raise ValueError('The retained PDF changed before export.')
+        source.seek(0); metadata = limits.parse_pdf_stream(source)
+        if metadata['pages'] != spec['document']['pages']: raise ValueError('Source page geometry changed before export.')
+        source.seek(0); return source
+    except BaseException:
+        source.close(); raise
+
+
+def render_batch(manifest, output, progress_path):
+    from pypdf import PdfWriter
+    copies = manifest['copies']; writer = PdfWriter(); completed = 0
+    if not isinstance(copies, list) or not 1 <= len(copies) <= 128: raise ValueError('Invalid drawing copy count.')
+    total = sum(len(value['spec']['selected_pages']) for value in copies)
+    if not 1 <= total <= 4000: raise ValueError('Invalid markup PDF page count.')
+    def progress():
+        nonlocal completed
+        completed += 1
+        temporary = Path(progress_path).with_suffix('.next')
+        temporary.write_text(json.dumps({'completed': completed, 'total': total}), encoding='utf-8')
+        temporary.replace(progress_path)
+    for value in copies:
+        with _verified_source(value['source'], value['spec']) as source:
+            render_document(source, value['spec'], None, writer=writer, progress=progress)
+    if completed != total or len(writer.pages) != total: raise ValueError('Incomplete markup PDF page coverage.')
+    writer.add_metadata({'/Title': 'CLASSIFIRE Takeoff markups', '/Subject': 'Static viewer derivative; original documents and draft authority unchanged', '/Creator': 'CLASSIFIRE ESTIMATOR'})
+    writer.compress_identical_objects(remove_duplicates='/OCProperties' not in writer._root_object, remove_unreferenced=True)
+    _write_bounded(writer, output)
+
+
 def main():
     try:
         limits.CPU_SECONDS = 60; limits.restrict_process()
-        if len(sys.argv) != 4: raise ValueError('A retained PDF, bounded request and private output are required.')
+        batch = len(sys.argv) == 5 and sys.argv[1] == '--batch'
+        if not batch and len(sys.argv) != 4: raise ValueError('A retained PDF, bounded request and private output are required.')
         raw = Path(sys.argv[2]).read_bytes()
         if len(raw) > 16*1024*1024: raise ValueError('The marked PDF request exceeds its resource limit.')
-        spec = json.loads(raw); checksum = sha256(); size = 0
-        with tempfile.TemporaryFile(mode='w+b') as source:
-            with Path(sys.argv[1]).open('rb') as original:
-                while chunk := original.read(1024*1024):
-                    size += len(chunk)
-                    if size > limits.MAX_DOCUMENT_SIZE: raise ValueError('Source PDF exceeds its export limit.')
-                    checksum.update(chunk); source.write(chunk)
-            if size != spec['document']['size'] or checksum.hexdigest() != spec['document']['sha256']:
-                raise ValueError('The retained PDF changed before export.')
-            source.seek(0)
-            metadata = limits.parse_pdf_stream(source)
-            if metadata['pages'] != spec['document']['pages']: raise ValueError('Source page geometry changed before export.')
-            source.seek(0); render_document(source, spec, sys.argv[3])
+        spec = json.loads(raw)
+        if batch:
+            render_batch(spec, sys.argv[3], sys.argv[4])
+        else:
+            with _verified_source(sys.argv[1], spec) as source:
+                render_document(source, spec, sys.argv[3])
         output = Path(sys.argv[3])
         if not 0 < output.stat().st_size <= MAX_OUTPUT_BYTES: raise ValueError('Marked PDF output exceeds its resource limit.')
         from pypdf import PdfReader

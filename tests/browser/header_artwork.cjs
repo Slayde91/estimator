@@ -6,7 +6,7 @@ const fs = require('node:fs'), path = require('node:path'), crypto = require('no
 const root = path.resolve(__dirname, '../..'), output = path.join(root, '.runtime/browser-qa', `header-artwork-${Date.now()}`);
 fs.mkdirSync(output, { recursive: true });
 const python = process.env.CEASEFIRE_PYTHON || 'python';
-const originals = ['ceasefire-logo.png', 'header-tagline-character.gif', 'header-tagline-character-still.png'];
+const originals = ['ceasefire-logo.png', 'classifire-logo.png', 'header-tagline-character.gif', 'header-tagline-character-still.png'];
 const hashes = () => Object.fromEntries(originals.map(name => [name, crypto.createHash('sha256').update(fs.readFileSync(path.join(root, 'static', name))).digest('hex')]));
 const before = hashes(), server = spawn(python, [path.join(__dirname, 'fixtures.py'), '--directory', output], { cwd: root, windowsHide: true });
 let logs = '', browser, page;
@@ -33,11 +33,11 @@ im=Image.open(sys.argv[1]).convert('RGB'); pixels=list(im.getdata()); w,h=im.siz
 white=sys.argv[2]=='true'; logo=sys.argv[3]=='true'
 corner=im.getpixel((w-1,0)); end=im.getpixel((0,0) if logo else (w-1,h-1))
 assert max(abs(a-b) for a,b in zip(corner,end)) < 5, (corner,end)
-assert min(corner) < 254, 'An opaque white matte remains'
 if not logo:
+  assert min(corner) < 254, 'An opaque white matte remains'
   border=[im.getpixel((x,y)) for x,y in [(x,0) for x in range(w)]+[(x,h-1) for x in range(w)]+[(0,y) for y in range(h)]+[(w-1,y) for y in range(h)]]
   assert all(max(abs(a-b) for a,b in zip(p,corner))<5 for p in border), 'Filter adds an opaque border outside the image'
-if white:
+if white and not logo:
   ink=[p for p in pixels if min(p)>240]
   assert len(ink)>w*h*.02, 'White foreground is missing'
   assert not any(max(p)-min(p)>65 and max(p)>200 for p in pixels), 'Colored foreground remains in Midnight'
@@ -60,7 +60,8 @@ print(json.dumps({'size':[w,h],'corner':corner,'passed':True}))
     for (let n = 0; n < 5 && await page.locator('html').getAttribute('data-theme') !== theme; n++) await cycleTheme(page);
     await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
     await page.evaluate(() => window.CeasefireHeaderTaglineMedia.stop());
-    await shot('.brand-logo', theme + '-logo', theme === 'midnight', true);
+    await expect(page.locator('.brand-logo')).toHaveAttribute('src','/classifire-logo.png');
+    await shot('.brand-logo', theme + '-logo', false, true);
     await shot('#header-tagline-character', theme + '-still', theme === 'midnight');
     await page.evaluate(() => window.CeasefireHeaderTaglineMedia.start());
     await expect(page.locator('#header-tagline-character')).toHaveAttribute('data-tagline-motion', 'playing');

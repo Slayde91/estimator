@@ -71,6 +71,31 @@ class ServerTests(unittest.TestCase):
                 self.assertEqual(self.request("POST", "/api/configuration", {}, headers)[0], 403)
         self.assertEqual(self.request("PUT", "/api/configuration", "inventory=x", {"Content-Type": "text/plain"})[0], 400)
 
+    def test_download_progress_tracks_real_file_save_and_failure(self):
+        from estimator.download_files import DownloadDestination
+        destination = DownloadDestination(Path(self.temp.name), 'downloads')
+        status, _, body = self.request('POST', '/api/download-progress', {})
+        self.assertEqual(status, 200)
+        token = json.loads(body)['token']
+        header = {'X-Estimator-Download-Progress': token}
+        with patch('estimator.project_library.ProjectLibrary.capture_download', return_value=destination):
+            status, _, body = self.request('POST', '/api/calculators/steel_board/template',
+                                           {'download': {'project_token': None}}, header)
+        self.assertEqual(status, 200)
+        receipt = json.loads(body)
+        self.assertTrue(receipt['saved'])
+        self.assertTrue(Path(receipt['path']).is_file())
+        status, _, body = self.request('GET', '/api/download-progress/' + token)
+        self.assertEqual(json.loads(body), {'percent': 100, 'state': 'saved'})
+        self.assertEqual(self.request('POST', '/api/quote-report', {}, header)[0], 400)
+        status, _, body = self.request('POST', '/api/download-progress', {})
+        failed_token = json.loads(body)['token']
+        self.assertEqual(self.request('POST', '/api/calculators/steel_board/template',
+                         {'extra': True}, {'X-Estimator-Download-Progress': failed_token})[0], 400)
+        status, _, body = self.request('GET', '/api/download-progress/' + failed_token)
+        self.assertEqual(json.loads(body)['state'], 'failed')
+        self.assertLess(json.loads(body)['percent'], 100)
+
     def test_a_second_estimator_cannot_share_the_live_port(self):
         with tempfile.TemporaryDirectory() as directory:
             with self.assertRaises(OSError):

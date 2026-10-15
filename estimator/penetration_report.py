@@ -91,7 +91,7 @@ def _excel_format(field):
     return {'percent': '0.00%', 'currency': '$#,##0.00'}.get(field.get('format'), '#,##0.00')
 
 
-def render_penetration_pdf(result, definition, project_details, *, library=None, company=None, include_project_details=True):
+def render_penetration_pdf(result, definition, project_details, *, library=None, company=None, include_project_details=True, project_report_title=None):
     """Show the technical schedule without prices, using captured inputs."""
     _register_fonts()
     report = _Report({})
@@ -103,7 +103,7 @@ def render_penetration_pdf(result, definition, project_details, *, library=None,
     margin = 32
     content = width - 2 * margin
     logo = company_logo(company)
-    report.story.append(report.p('Firestopping schedule', 'title'))
+    report.story.append(report.p(project_report_title or 'Firestopping schedule', 'title'))
     details = [('Project No.', project_details.get('project_no', '')),
                ('Client', project_details.get('client', '')),
                ('Site Address', project_details.get('site_address', ''))]
@@ -112,6 +112,8 @@ def render_penetration_pdf(result, definition, project_details, *, library=None,
             [[report.p(label, 'cell'), report.p(value, 'cell')] for label, value in details],
             [content * .25, content * .75]))
         report.story.append(Spacer(1, 12))
+    if project_report_title:
+        report.story.append(report.p('Firestopping schedule', 'section'))
     if result.get('errors'):
         report.story.append(report.p('Some workbook results are unavailable. Review the calculation errors below.', 'alert'))
     report.story.append(report.p('Schedule', 'subheading'))
@@ -161,7 +163,7 @@ def render_penetration_pdf(result, definition, project_details, *, library=None,
     output = BytesIO()
     document = SimpleDocTemplate(output, pagesize=landscape(A4), leftMargin=margin, rightMargin=margin,
         topMargin=91, bottomMargin=43, pageCompression=1,
-        title='Ceasefire - Firestopping schedule', author='Ceasefire')
+        title='CLASSIFIRE - Firestopping schedule', author='CLASSIFIRE')
 
     def decorate(canvas, doc):
         canvas.saveState()
@@ -170,7 +172,7 @@ def render_penetration_pdf(result, definition, project_details, *, library=None,
         canvas.line(margin, 32, width - margin, 32)
         canvas.setFont('CeasefireVera', 7)
         canvas.setFillColor(_MUTED)
-        canvas.drawString(margin, 20, 'Ceasefire ESTIMATOR | Firestopping Estimator')
+        canvas.drawString(margin, 20, 'CLASSIFIRE ESTIMATOR | Firestopping Estimator')
         canvas.drawRightString(width - margin, 20, f'Page {doc.page}')
         canvas.restoreState()
 
@@ -178,19 +180,22 @@ def render_penetration_pdf(result, definition, project_details, *, library=None,
     return output.getvalue()
 
 
-def render_penetration_summary_pdf(result, definition, project_details, *, library=None, company=None):
+def render_penetration_summary_pdf(result, definition, project_details, *, library=None, company=None, include_project_details=True, project_report_title=None):
     """Use the canonical product totals, preserving captured rates and units."""
     _register_fonts()
     report = _Report({})
     width, height = landscape(A4)
     margin, content = 32, width - 64
     logo = company_logo(company)
-    report.story.append(report.p('Firestopping product summary', 'title'))
-    report.story.append(report.table(['Project details', 'Value'], [
-        [report.p(label, 'cell'), report.p(project_details.get(key, ''), 'cell')]
-        for label, key in [('Project No.', 'project_no'), ('Client', 'client'), ('Site Address', 'site_address')]
-    ], [content * .25, content * .75]))
-    report.story.append(Spacer(1, 12))
+    report.story.append(report.p(project_report_title or 'Firestopping product summary', 'title'))
+    if include_project_details:
+        report.story.append(report.table(['Project details', 'Value'], [
+            [report.p(label, 'cell'), report.p(project_details.get(key, ''), 'cell')]
+            for label, key in [('Project No.', 'project_no'), ('Client', 'client'), ('Site Address', 'site_address')]
+        ], [content * .25, content * .75]))
+        report.story.append(Spacer(1, 12))
+    if project_report_title:
+        report.story.append(report.p('Firestopping product summary', 'section'))
     rows = []
     for item in result['material_breakdown']:
         def show(value, currency=False):
@@ -204,7 +209,7 @@ def render_penetration_summary_pdf(result, definition, project_details, *, libra
         report.story.append(report.p('Some quantities are unavailable. Correct the affected schedule inputs before ordering.', 'alert'))
     output = BytesIO()
     document = SimpleDocTemplate(output, pagesize=landscape(A4), leftMargin=margin, rightMargin=margin,
-        topMargin=91, bottomMargin=43, title='Ceasefire - Firestopping product summary', author='Ceasefire')
+        topMargin=91, bottomMargin=43, title='CLASSIFIRE - Firestopping product summary', author='CLASSIFIRE')
 
     def decorate(canvas, doc):
         canvas.saveState()
@@ -213,7 +218,7 @@ def render_penetration_summary_pdf(result, definition, project_details, *, libra
         canvas.line(margin, 32, width - margin, 32)
         canvas.setFont('CeasefireVera', 7)
         canvas.setFillColor(_MUTED)
-        canvas.drawString(margin, 20, 'Ceasefire ESTIMATOR | Firestopping')
+        canvas.drawString(margin, 20, 'CLASSIFIRE ESTIMATOR | Firestopping')
         canvas.drawRightString(width - margin, 20, f'Page {doc.page}')
         canvas.restoreState()
 
@@ -225,7 +230,7 @@ def build_penetration_register(result, definition, project_details):
     """Values-only Excel export; user text cannot become formulas or links."""
     workbook = Workbook()
     workbook.remove(workbook.active)
-    workbook.properties.creator = 'Ceasefire'
+    workbook.properties.creator = 'CLASSIFIRE'
     workbook.properties.title = 'Firestopping schedule'
     summary = _sheet(workbook, 'Summary', 'FIRESTOPPING SCHEDULE', [36, 64])
     row = _table(summary, 4, ['Project details', 'Value'],

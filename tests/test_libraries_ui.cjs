@@ -19,6 +19,12 @@ function harness(){
   function element(tagName='div'){
     const attributes=new Map();
     return{tagName,children:[],dataset:{},style:{},listeners:{},textContent:'',value:'',hidden:false,disabled:false,
+      get classList(){const node=this;const tokens=()=>String(node.className||'').split(/\s+/).filter(Boolean);return{
+        add(...names){node.className=[...new Set([...tokens(),...names])].join(' ');},
+        remove(...names){node.className=tokens().filter(name=>!names.includes(name)).join(' ');},
+        contains(name){return tokens().includes(name);},
+        toggle(name,force){const active=force===undefined?!this.contains(name):Boolean(force);if(active)this.add(name);else this.remove(name);return active;},
+      };},
       append(...children){this.children.push(...children);},replaceChildren(...children){this.children=[];this.append(...children);},
       addEventListener(name,fn){(this.listeners[name]||=[]).push(fn);},removeEventListener(name,fn){this.listeners[name]=(this.listeners[name]||[]).filter(listener=>listener!==fn);},contains(target){return walk(this).includes(target);},async emit(name,options={}){const event={target:this,defaultPrevented:false,propagationStopped:false,preventDefault(){this.defaultPrevented=true;},stopPropagation(){this.propagationStopped=true;},...options};for(const fn of [...this.listeners[name]||[]])await fn(event);return event;},
       setAttribute(name,value){attributes.set(name,String(value));},getAttribute(name){return attributes.get(name);},focus(options){this.focused=true;this.focusOptions=options;context.document.activeElement=this;},scrollIntoView(options){this.scrolled=true;this.scrollOptions=options;},getBoundingClientRect(){return this.rect||{bottom:96};}};
@@ -207,7 +213,11 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     const panel=h.pane('technical').detailPanel,nodes=walk(panel),tables=nodes.filter(n=>n.className==='library-field-table-scroll');
     assert.equal(tables.length,1);assert.equal(tables[0].getAttribute('aria-label'),'Barrier Construction table');
     assert.deepEqual(nodes.filter(n=>n.tagName==='th').map(n=>n.textContent),['Max Aperture Size','Separating Element','FRL']);
-    assert.deepEqual(nodes.filter(n=>n.tagName==='td').map(n=>n.textContent),rows.flat());
+    assert.deepEqual(nodes.filter(n=>n.tagName==='td').map(n=>n.textContent),[
+      '600 × 600 mm','min. 100 mm concrete or masonry wall.','-/60/60',
+      '800 × 600 mm','Two layers of 13 mm fire-rated plasterboard to each wall face.','-/90/90',
+      '1000 × 600 mm','min. 130 mm CLT wall.','-/120/120']);
+    assert.deepEqual(nodes.filter(n=>n.classList.contains('library-frl-value')&&['th','td'].includes(n.tagName)).map(n=>n.textContent),['FRL','-/60/60','-/90/90','-/120/120']);
     for(const [label,summary] of [['Blank Seal FRL','-/60/60 to -/120/120'],['Maximum Opening Size','1000 × 600 mm']]) {
       const pair=nodes.find(n=>n.className==='library-record-field'&&n.children[0].textContent===label),value=pair.children[1],links=walk(value).filter(n=>n.className==='library-configuration-link');
       assert.equal(value.textContent,summary);assert.equal(links.length,1);assert.equal(links[0].textContent,'View barrier construction table');assert.equal(links[0].href,'#'+tables[0].id);
@@ -319,15 +329,15 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
   });
   await check('FRL generated qualifiers disappear only when the exact referenced column or row retains the condition',async h=>{
     const cases=[
-      {suffix:'source substrate alternatives (Barrier Construction table 1; FRL Without Wrap). The entry selection remains separate.',columns:['Substrate','FRL Without Wrap','FRL With Wrap'],rows:[['Wall','-/90/60','-/120/120']],rating:'-/90/60'},
-      {suffix:'observed source service ratings (Barrier Construction table 1 (FRL With Wrap)).',columns:['FRL With Wrap','FRL Without Wrap'],rows:[['-/120/120','-/90/60']],rating:'-/120/120'},
+      {suffix:'source substrate alternatives (Barrier Construction table 1; FRL Without Wrap). The entry selection remains separate.',columns:['Substrate','FRL Without Wrap','FRL With Wrap'],displayColumns:['Substrate','FRL Without Wrap','FRL w/ Wrap'],rows:[['Wall','-/90/60','-/120/120']],rating:'-/90/60'},
+      {suffix:'observed source service ratings (Barrier Construction table 1 (FRL With Wrap)).',columns:['FRL With Wrap','FRL Without Wrap'],displayColumns:['FRL w/ Wrap','FRL Without Wrap'],rows:[['-/120/120','-/90/60']],rating:'-/120/120'},
       {suffix:'matched source barrier row (Barrier Construction table 1; Wall Thickness: 2 x 15mm board).',columns:['Wall Thickness','FRL'],rows:[['2 x 15mm board','-/120/120'],['2 x 10mm board','-/60/60']],rating:'-/120/120'},
       {suffix:'observed source service ratings (Barrier Construction table 1).',columns:['Service','Source FRL'],rows:[['Pipe','-/120/120']],rating:'-/120/120'}
     ];
     for(const [index,item] of cases.entries()) {
       const fields=[{label:'FRL',value:`${item.rating} — ${item.suffix}`,table_links:[{field:'Barrier Construction',table_index:0}]},{label:'Barrier Construction',value:'',table:{columns:item.columns,rows:item.rows}}],before=copy(fields);
       h.setRoute(path=>path==='/api/libraries'?meta():({...detail('technical','qualified-'+index),fields,images:[]}));await h.api.open('technical','qualified-'+index);const nodes=walk(h.pane('technical').detailPanel);
-      assert.equal(nodes.find(n=>n.tagName==='dd').textContent,item.rating);assert.equal(nodes.filter(n=>n.className==='library-configuration-link').length,1);assert.deepEqual(nodes.filter(n=>n.tagName==='th').map(n=>n.textContent),item.columns);assert.deepEqual(nodes.filter(n=>n.tagName==='td').map(n=>n.textContent),item.rows.flat());assert.deepEqual(fields,before);
+      assert.equal(nodes.find(n=>n.tagName==='dd').textContent,item.rating);assert.equal(nodes.filter(n=>n.className==='library-configuration-link').length,1);assert.deepEqual(nodes.filter(n=>n.tagName==='th').map(n=>n.textContent),item.displayColumns||item.columns);assert.deepEqual(nodes.filter(n=>n.tagName==='td').map(n=>n.textContent),item.rows.flat());assert.deepEqual(fields,before);
     }
   });
   await check('FRL never invents extrema for incomparable components or different dash masks',async h=>{

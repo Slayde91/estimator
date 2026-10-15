@@ -12,6 +12,20 @@
   const longHeading = line => line.length > 61 && /^[A-Za-z][^.!?]*:$/.test(line);
   const endsInConnector = text => /(?:\b(?:of|the|and|or|with|using|in|to|on|at|by|from|for|as|a|an|into|either|each)|[×,])$/i.test(text);
 
+  function compact(value) {
+    const text = String(value ?? ""), protectedText = /https?:\/\/[^\s<>]+|[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}/gi;
+    const prose = part => part.replace(/\bFIREFLY(?=[A-Za-z])/gi, "")
+      .replace(/\bFIREFLY[ \t]+(?=(?:Batt|Mastic|Penowrap|Intu[A-Za-z]+)\b)/gi, "")
+      .replace(/\binto\s+the\s+aperture\b/gi, "to aperture")
+      .replace(/\bof\s+the\s+damper\b/gi, "of damper")
+      .replace(/\bminimum\b\.?/gi, "min.").replace(/\bper\b/gi, "p/").replace(/\bwith\b/gi, "w/");
+    let result = "", cursor = 0;
+    for (const match of text.matchAll(protectedText)) {
+      result += prose(text.slice(cursor, match.index)) + match[0]; cursor = match.index + match[0].length;
+    }
+    return result + prose(text.slice(cursor));
+  }
+
   function installationHeading(lines, index) {
     if (!/^Installation (?:through|against)\b/.test(lines[index] || "")) return null;
     let text = "";
@@ -129,9 +143,10 @@
   }
 
   function render(document, value, options) {
+    const display = options?.compact ? compact : text => text;
     const renderBlock = block => {
       if (block.type === "paragraph") {
-        const paragraph = document.createElement("p"); paragraph.textContent = block.text; return paragraph;
+        const paragraph = document.createElement("p"); paragraph.textContent = display(block.text); return paragraph;
       }
       const list = document.createElement(block.ordered ? "ol" : "ul");
       if (block.items[0].label) list.className = "library-source-labelled-list";
@@ -140,7 +155,7 @@
         const element = document.createElement("li");
         if (item.label) element.setAttribute("data-source-marker", item.label);
         else if (block.ordered) element.setAttribute("value", String(item.number));
-        element.textContent = item.text;
+        element.textContent = display(item.text);
         element.append(...item.children.map(renderBlock));
         list.append(element);
       }
@@ -149,7 +164,7 @@
     return parse(value, options).map(renderBlock);
   }
 
-  const api = Object.freeze({ parse, render });
+  const api = Object.freeze({ parse, render, compact });
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   if (root) root.LibraryDetailText = api;
 })(typeof window !== "undefined" ? window : globalThis);

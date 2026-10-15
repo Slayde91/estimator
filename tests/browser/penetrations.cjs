@@ -1,3 +1,4 @@
+const { waitForTakeoffDownload } = require('./native_download_helpers.cjs');
 const { chooseTakeoff } = require('./section_navigation.cjs');
 const { chooseNewDefect, startDefect } = require('./physical_dialogs.cjs');
 const { clickProjectControl } = require('./project_actions.cjs');
@@ -164,7 +165,7 @@ async function associateImage(id, image) {
   await renderDrawing(page, () => page.getByRole('button', { name: 'Fit page', exact: true }).click()); await idle();
   await page.locator(`.takeoff-hit[data-physical-id="${cable}"]`).hover(); await expect(page.locator(`tr[data-physical-id="${cable}"]`)).toHaveClass(/hovered/);
   await page.getByLabel('Filter physical hierarchy', { exact: true }).fill('S-0002'); await expect(page.locator('.takeoff-physical-register tr[data-physical-id]')).toHaveCount(3); await expect(page.locator(`tr[data-physical-id="${defect}"]`)).toContainText('Ancestor context'); await page.getByLabel('Filter physical hierarchy', { exact: true }).fill('');
-  const notes = page.getByRole('complementary', { name: 'Item Details' }).getByLabel('Notes', { exact: true });
+  const notes = page.getByRole('complementary', { name: 'Item Details' }).getByLabel('Service Size (mm)', { exact: true });
   const frl = page.getByLabel('FRL for D-001', { exact: true }), beforePending = await canonicalState(), requestsBeforePending = physicalRequests.length;
   // Stage separate inspector/table inputs in one browser task so a slow runner
   // cannot save the first field before this conservative mixed-edit guard runs.
@@ -177,7 +178,7 @@ async function associateImage(id, image) {
   assert.deepEqual((await canonicalState()).snapshot.physical, beforePending.snapshot.physical, 'Mixed unfinished inputs cannot change canonical fields, identities, quantities or evidence');
   assert.equal(physicalRequests.length, requestsBeforePending, 'The mixed-edit guard sends no preview or apply request');
   await expect(page.getByRole('dialog')).toHaveCount(0);
-  await page.getByRole('button', { name: 'Discard unfinished physical edits', exact: true }).click(); await expect(notes).toHaveValue(''); await expect(frl).toHaveValue('-/120/120');
+  await page.getByRole('button', { name: 'Discard unfinished physical edits', exact: true }).click(); await expect(notes).toHaveValue('10'); await expect(frl).toHaveValue('-/120/120');
   assert.deepEqual((await canonicalState()).snapshot.physical, beforePending.snapshot.physical); assert.equal(physicalRequests.length, requestsBeforePending);
   state = await response(() => frl.selectOption('-/90/90'), '/physical/apply'); await idle(); await expect(page.getByRole('dialog')).toHaveCount(0);
   assert.equal(record(defect).fields.frl, '-/90/90'); assert.deepEqual(activeGraph().services, beforePending.snapshot.physical.services);
@@ -234,7 +235,7 @@ async function associateImage(id, image) {
     assert.equal(physicalRequests.length, requestsBeforeRace, 'Invalid pending fields and rejected Load send no physical preview or apply request');
     const originalQuantity = beforeLater.snapshot.physical.services.find(entity => entity.id === cable).quantity;
     state = await response(() => quantity.fill(String(originalQuantity)), '/physical/apply'); await idle();
-    assert.equal(record(cable).quantity, originalQuantity); assert.equal(record(cable).fields.notes, 'Later pending note must survive the load race');
+    assert.equal(record(cable).quantity, originalQuantity); assert.equal(record(cable).fields.size, 'Later pending note must survive the load race');
     await expect(notes).toHaveValue('Later pending note must survive the load race'); await expect(page.getByRole('dialog')).toHaveCount(0);
     Object.assign(automaticFieldChecks, { delayedLoadRejectsLaterDirtyRevision: true, invalidQuantityPreservesCanonical: true, latestInvalidPendingNoteRetained: true, correctedQuantityAutoSavesLatestNoteWithoutReview: true });
   } finally { releaseRead(); await Promise.all([...activeRoutes]); await page.unroute('**/api/project/open', delayRead); }
@@ -244,7 +245,7 @@ async function associateImage(id, image) {
   assert.deepEqual(retainedEvidenceChecks.reopenedBitmap, retainedEvidenceChecks.originalBitmap); assert.deepEqual((await canonicalState()).snapshot.image_extractions, saved.takeoffs.image_extractions);
   const afterReopen = await create('service', serviceFields, 'Add service to B-0001'); await identifier(afterReopen, 'S-0005'); await undo(); assert.equal(record(afterReopen).deleted, true); assert.deepEqual(identities().filter(entity => entity.id !== afterReopen), savedIdentities);
   await select(cable); assert.deepEqual(record(cable).evidence[0], evidence);
-  for (const format of ['CSV', 'XLSX']) { const download = page.waitForEvent('download'); await page.evaluate(format => window.CeasefireTakeoffs.exportPhysical(format.toLowerCase()), format); const file = await download; assert.ok(file.suggestedFilename().includes('UNAPPROVED-DRAFT')); const filename = path.join(output, file.suggestedFilename()); await file.saveAs(filename); assert.ok(fs.statSync(filename).size > 100); if (format === 'CSV') { const csv = fs.readFileSync(filename, 'utf8'); for (const value of [defect, otherDefect, empty, occupied, pipe, cable, 'D-0001', 'D-0002', 'B-0001', 'B-0002', 'S-0001', 'S-0005', evidence.image_sha256, 'UNAPPROVED DRAFT']) assert.ok(csv.includes(value), value); assert.ok(!/opening/i.test(csv), 'New exports must omit Opening fields and relationships'); } await idle(); }
+  for (const format of ['CSV', 'XLSX']) { const download = waitForTakeoffDownload(page); await page.evaluate(format => window.CeasefireTakeoffs.exportPhysical(format.toLowerCase()), format); const file = await download; assert.ok(file.suggestedFilename().includes('UNAPPROVED-DRAFT')); const filename = path.join(output, file.suggestedFilename()); await file.saveAs(filename); assert.ok(fs.statSync(filename).size > 100); if (format === 'CSV') { const csv = fs.readFileSync(filename, 'utf8'); for (const value of [defect, otherDefect, empty, occupied, pipe, cable, 'D-0001', 'D-0002', 'B-0001', 'B-0002', 'S-0001', 'S-0005', evidence.image_sha256, 'UNAPPROVED DRAFT']) assert.ok(csv.includes(value), value); assert.ok(!/opening/i.test(csv), 'New exports must omit Opening fields and relationships'); } await idle(); }
   assert.ok(inventoryRequests.length); assert.ok(inventoryRequests.every(request => request.extraction && request.limit === '100')); assert.deepEqual(await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()), calculators); assert.deepEqual(errors, []); assert.deepEqual(await page.evaluate(() => window.qaCsp), []);
   await page.screenshot({ path: path.join(output, 'reopened-draft.png'), fullPage: true });
   await page.locator('.takeoff-viewport').scrollIntoViewIfNeeded(); await page.screenshot({ path: path.join(output, 'drawing-viewport.png') });
@@ -279,7 +280,7 @@ async function associateImage(id, image) {
     await expect(legacyInspector.locator('input, textarea, select:not(.takeoff-physical-navigation select)')).toHaveCount(0);
     assert.deepEqual(await page.evaluate(() => window.CeasefireTakeoffs.projectSnapshot().physical), legacySaved.takeoffs.physical);
   }
-  const legacyDownload = page.waitForEvent('download'); await page.evaluate(() => window.CeasefireTakeoffs.exportPhysical('csv')); const legacyFile = await legacyDownload; const legacyFilename = path.join(output, 'legacy-physical.csv'); await legacyFile.saveAs(legacyFilename);
+  const legacyDownload = waitForTakeoffDownload(page); await page.evaluate(() => window.CeasefireTakeoffs.exportPhysical('csv')); const legacyFile = await legacyDownload; const legacyFilename = path.join(output, 'legacy-physical.csv'); await legacyFile.saveAs(legacyFilename);
   const legacyCsv = fs.readFileSync(legacyFilename, 'utf8'); for (const value of ['opening_id', 'LEGACY-OPENING', 'Legacy 100 mm', ...['barriers', 'defects', 'openings', 'services'].flatMap(key => legacySaved.takeoffs.physical[key].map(entity => entity.id))]) assert.ok(legacyCsv.includes(value), value);
   assert.deepEqual(fs.readFileSync(info.legacy_project), legacyBytes); assert.deepEqual(fs.readFileSync(info.project), legacyBytes);
   await page.screenshot({ path: path.join(output, 'legacy-read-only.png'), fullPage: true }); await page.getByRole('table', { name: 'Draft penetration hierarchy register' }).screenshot({ path: path.join(output, 'legacy-table.png') }); assert.deepEqual(errors, []); assert.deepEqual(await page.evaluate(() => window.qaCsp), []);

@@ -294,9 +294,12 @@ class _ScheduleReport(_Report):
         # Paragraphs split safely even for 2,000-character notes or identifiers.
         return self.p(' | '.join(f'{label}: {self.display(value, blank="Blank")}' for label, value in values), 'small')
 
-    def overview(self, *, materials=False, include_project_details=True):
+    def overview(self, *, materials=False, include_project_details=True, project_report_title=None):
         data = self.data
-        self.story += [self.p('Current calculator snapshot', 'small'), self.p(data['title'], 'title')]
+        if project_report_title:
+            self.story.append(self.p(project_report_title, 'title'))
+        else:
+            self.story += [self.p('Current calculator snapshot', 'small'), self.p(data['title'], 'title')]
         details = [[self.p(label, 'cell'), self.p(self.project_details.get(key) or 'Not recorded', 'cell')]
                    for key, label in (('project_no', 'Project No.'), ('client', 'Client'),
                                       ('site_address', 'Site Address'))]
@@ -304,12 +307,16 @@ class _ScheduleReport(_Report):
             self.story.append(self.table(['Project details', 'Recorded value'], details,
                                          [_CONTENT * .20, _CONTENT * .80]))
             self.story.append(Spacer(1, 10))
+        if project_report_title:
+            self.story.append(self.p(data['title'], 'section'))
         if materials and data['id'] != 'ductwork':
             basis = data['basis']
             if data['id'] == 'steel_vermiculite':
                 basis = basis.replace('Published thickness and usable estimating thickness are reported separately.',
                                       'Material quantities retain the source estimating thickness.')
-            self.story += [self.p('Material quantities and summary', 'section'), self.p(basis)]
+            self.story.append(self.p('Material quantities and summary', 'section'))
+            if data['id'] != 'steel_vermiculite':
+                self.story.append(self.p(basis))
         if not (materials and data['id'] in {'steel_board', 'steel_vermiculite'}):
             coverage = ('Review the schedule PDF for individual items and their statuses.' if materials else
                         'Every used item remains in this report.')
@@ -477,23 +484,24 @@ class _ScheduleReport(_Report):
         if not data.get('board_net_steel_areas'):
             self.story.append(self.p(f"{data['incomplete_rows']} schedule item(s) have incomplete or unavailable primary quantities. Displayed product quantities retain the source workbook's exclusions; review the item statuses in the calculator before ordering.", 'small'))
 
-def build_calculator_report(calculator_id, inputs=None, *, project_details=None, company=None, include_project_details=True):
+def build_calculator_report(calculator_id, inputs=None, *, project_details=None, company=None, include_project_details=True, project_report_title=None):
     """Return the full schedule only; reading a draft never saves it."""
     return _build_calculator_pdf(calculator_id, inputs, materials=False, project_details=project_details, company=company,
-                                 include_project_details=include_project_details)
+                                 include_project_details=include_project_details, project_report_title=project_report_title)
 
 
-def build_calculator_summary_report(calculator_id, inputs=None, *, project_details=None, company=None):
+def build_calculator_summary_report(calculator_id, inputs=None, *, project_details=None, company=None, include_project_details=True, project_report_title=None):
     """Return material quantities, pooled summaries and extra-board allowances."""
-    return _build_calculator_pdf(calculator_id, inputs, materials=True, project_details=project_details, company=company)
+    return _build_calculator_pdf(calculator_id, inputs, materials=True, project_details=project_details, company=company,
+                                 include_project_details=include_project_details, project_report_title=project_report_title)
 
 
-def _build_calculator_pdf(calculator_id, inputs, *, materials, project_details=None, company=None, include_project_details=True):
+def _build_calculator_pdf(calculator_id, inputs, *, materials, project_details=None, company=None, include_project_details=True, project_report_title=None):
     data = project_calculator_report(calculator_id, inputs)
     _register_fonts()
     logo = company_logo(company)
     report = _ScheduleReport(data, project_details)
-    report.overview(materials=materials, include_project_details=include_project_details)
+    report.overview(materials=materials, include_project_details=include_project_details, project_report_title=project_report_title)
     if data.get('assessment_notes'):
         # Assessment evidence can occupy several pages. Start its quantities
         # on a fresh page so neither a section title nor table header is left
@@ -511,8 +519,8 @@ def _build_calculator_pdf(calculator_id, inputs, *, materials, project_details=N
     report_title = 'Material quantities and summary' if materials else 'Full schedule'
     output = BytesIO()
     document = SimpleDocTemplate(output, pagesize=landscape(A4), leftMargin=_MARGIN, rightMargin=_MARGIN,
-        topMargin=91, bottomMargin=43, pageCompression=1, title='Ceasefire - ' + data['title'] + ' - ' + report_title,
-        author='Ceasefire', subject=report_title)
+        topMargin=91, bottomMargin=43, pageCompression=1, title='CLASSIFIRE - ' + data['title'] + ' - ' + report_title,
+        author='CLASSIFIRE', subject=report_title)
 
     def decorate(canvas, doc):
         canvas.saveState()
@@ -523,7 +531,7 @@ def _build_calculator_pdf(calculator_id, inputs, *, materials, project_details=N
         canvas.line(_MARGIN, 32, _WIDTH - _MARGIN, 32)
         canvas.setFont('CeasefireVera', 7)
         canvas.setFillColor(_MUTED)
-        canvas.drawString(_MARGIN, 20, 'Ceasefire ESTIMATOR | ' + data['title'])
+        canvas.drawString(_MARGIN, 20, 'CLASSIFIRE ESTIMATOR | ' + data['title'])
         canvas.drawRightString(_WIDTH - _MARGIN, 20, f'Page {doc.page}')
         canvas.restoreState()
 

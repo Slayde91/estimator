@@ -99,9 +99,9 @@ async function assertParentControls(page, pane, { hasBarrier = false, keyboard =
     const children = [...el.children], index = selector => children.findIndex(child => child.matches(selector));
     const actionRow = el.querySelector('.takeoff-physical-inspector-actions');
     const itemRow = el.querySelector('.takeoff-physical-item-actions'), visibility = itemRow.querySelector('[aria-label="Visibility"]');
-    return { add: index('.takeoff-physical-item-actions'), records: index('.takeoff-physical-inspector-actions'), navigation: index('.takeoff-physical-navigation'), notes: children.findIndex(child => child.querySelector('[aria-label="Notes"]')), labels: [...actionRow.querySelectorAll('button')].map(button => button.getAttribute('aria-label')), visibilityAtEnd: !visibility || visibility === itemRow.lastElementChild };
+    return { add: index('.takeoff-physical-item-actions'), records: index('.takeoff-physical-inspector-actions'), navigation: index('.takeoff-physical-navigation'), notes: children.findIndex(child => child.querySelector('[aria-label="Notes"]')), lastField: children.findLastIndex(child => child.matches('.field')), labels: [...actionRow.querySelectorAll('button')].map(button => button.getAttribute('aria-label')), visibilityAtEnd: !visibility || visibility === itemRow.lastElementChild };
   });
-  assert.ok(order.add >= 0 && order.add < order.navigation && order.navigation < order.notes && order.records === order.notes + 1, JSON.stringify(order));
+  assert.equal(order.notes,-1,'Notes remain stored data without an editable callout field');assert.ok(order.add >= 0 && order.add < order.navigation && order.navigation < order.lastField && order.records === order.lastField + 1, JSON.stringify(order));
   assert.deepEqual(order.labels, ['Delete draft record', 'Discard unfinished physical edits']); assert.equal(order.visibilityAtEnd, true);
   const recordBoxes=await pane.locator('.takeoff-physical-inspector-actions button').evaluateAll(buttons=>buttons.map(button=>{const rect=button.getBoundingClientRect();return {x:rect.x,y:rect.y,width:rect.width,height:rect.height};}));
   for(let i=0;i<recordBoxes.length;i++){assert.equal(recordBoxes[i].width,38);assert.equal(recordBoxes[i].height,38);if(i){assert.ok(Math.abs(recordBoxes[i].y-recordBoxes[0].y)<1);assert.ok(recordBoxes[i].x>recordBoxes[i-1].x+recordBoxes[i-1].width);}}
@@ -109,7 +109,7 @@ async function assertParentControls(page, pane, { hasBarrier = false, keyboard =
   let visibilityAlignment;
   if (await visibility.count()) { const box = await visibility.boundingBox(), row = await actions.boundingBox(), currentToggleBox = await toggle.boundingBox(); assert.equal(box.width,38); assert.equal(box.height,38); assert.ok(Math.abs(box.y-currentToggleBox.y)<1); assert.ok(Math.abs(box.x+box.width-row.x-row.width)<1, 'Visibility is at the far right of Add'); visibilityAlignment = { beforeDismissalToggleY: toggleBox.y, currentToggleY: currentToggleBox.y, visibilityY: box.y }; }
   const fields = await pane.locator(':scope > label.field > span').allTextContents();
-  if (fields.includes('Confirmation')) assert.equal(fields.indexOf('Confirmation')+1,fields.indexOf('Notes'),'Owning Confirmation precedes Notes');
+  if (fields.includes('Confirmation')) assert.equal(fields.at(-1),'Confirmation','Owning Confirmation is the final editable field');
   const appearance = pane.locator('.takeoff-settings-fields');
   if (await appearance.count()) { assert.deepEqual((await appearance.locator('.field > span').allTextContents()).slice(0,4),['Line Colour','Line Width','Fill Colour','Opacity']); await require('./appearance_layout_helpers.cjs').assertAppearanceLayout(pane); }
   return { addDisclosure: true, exactOriginalAssetBytes: true, gradientLibraryBook: true, keyboardFocus: keyboard, labels, names, order, mouseOpen, visibilityAlignment };

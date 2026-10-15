@@ -106,7 +106,7 @@ async function takeoffSnapshot() { const session = await page.evaluate(() => win
   const commands = [
     { op: 'create', kind: 'defect', entity: entity(ids.defect, { label: 'SAVED-SERVICES', location: 'Level01', frl: '-/120/120' }) },
     { op: 'create', kind: 'barrier', entity: entity(ids.barrier, { substrate: 'Concrete/masonry wall', orientation: 'Vertical' }, { defect_id: ids.defect }) },
-    { op: 'create', kind: 'service', entity: entity(ids.service, { service: 'Plumbing & Hydraulic', service_type: 'Plastic Pipes', width_mm: 12.3456789012345 }, { barrier_id: ids.barrier, quantity: 1 }) },
+    { op: 'create', kind: 'service', entity: entity(ids.service, { service: 'Plumbing & Hydraulic', service_type: 'Plastic Pipes', width_mm: 12.3456789012345, notes: 'Retained original service note' }, { barrier_id: ids.barrier, quantity: 1 }) },
   ];
   const sid = await page.evaluate(() => window.CeasefireTakeoffs.sessionId()), snapshot = await takeoffSnapshot();
   const previewReply = await page.request.post(`${origin}/api/takeoffs/sessions/${sid}/physical/preview`, { data: { scope: 'defect_reports', expected_revision: snapshot.revision, commands } }); assert.equal(previewReply.status(), 200, await previewReply.text()); const preview = await previewReply.json();
@@ -115,10 +115,13 @@ async function takeoffSnapshot() { const session = await page.evaluate(() => win
   await page.locator(`tr[data-physical-id="${ids.barrier}"] .takeoff-row-link`).click(); await clickInspectorAdd(page.getByRole('complementary',{name:'Item Details',exact:true}), 'Add service in Item Details');
   const modal = page.getByRole('dialog'); await expect(modal.getByRole('heading', { name: 'Create draft service', exact: true })).toBeVisible(); evidence.takeoffNewOptions = await options(modal.getByLabel('Service type', { exact: true })); await modal.getByRole('button', { name: 'Cancel', exact: true }).click();
   await page.locator(`tr[data-physical-id="${ids.service}"] .takeoff-row-link`).click(); const details = page.getByRole('complementary', { name: 'Item Details', exact: true }); evidence.takeoffSavedOptions = await options(details.getByLabel('Service type', { exact: true }), 'Plastic Pipes');
-  await details.getByLabel('Notes', { exact: true }).fill('Independent service note'); await details.getByLabel('Notes', { exact: true }).press('Tab'); await expect.poll(async () => (await takeoffSnapshot()).physical.services[0].fields.notes).toBe('Independent service note');
+  await expect(details.getByLabel('Notes', { exact: true })).toHaveCount(0);
+  await details.getByLabel('Service Size (mm)', { exact: true }).fill('12.3456789012345 mm source designation'); await details.getByLabel('Service Size (mm)', { exact: true }).press('Tab'); await expect.poll(async () => (await takeoffSnapshot()).physical.services[0].fields.size).toBe('12.3456789012345 mm source designation');
+  assert.equal((await takeoffSnapshot()).physical.services[0].fields.notes, 'Retained original service note');
   await page.screenshot({ path: path.join(output, 'takeoff-saved-service.png') });
   await response(() => clickProjectControl(page, 'Save'), '/api/project/save'); await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   const saved = JSON.parse(fs.readFileSync(info.project)); assert.equal(saved.penetration.composer.rows[0].inputs.K, 'Plastic Pipes'); assert.equal(saved.takeoffs.physical.services[0].fields.service_type, 'Plastic Pipes'); assert.equal(saved.takeoffs.physical.services[0].id, ids.service); assert.equal(saved.takeoffs.physical.services[0].quantity, 1); assert.equal(saved.takeoffs.physical.services[0].fields.width_mm, 12.3456789012345);
+  assert.equal(saved.takeoffs.physical.services[0].fields.notes, 'Retained original service note'); assert.equal(saved.takeoffs.physical.services[0].fields.size, '12.3456789012345 mm source designation');
   // Reopening mounts a fresh inspector before its asynchronous shared choices
   // arrive. Retained values stay visible but locked until the definition loads.
   let definitionHeld = false, releaseDefinition;

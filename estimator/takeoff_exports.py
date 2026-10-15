@@ -396,7 +396,7 @@ def _schedule_xlsx(snapshot, selected, results, confirmations, linked, *, mode, 
     return payload, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', f'CEASEFIRE-{label}{suffix}-Takeoffs.xlsx'
 
 
-def export_workspace(snapshot, request, format, *, documents, store):
+def export_workspace(snapshot, request, format, *, documents, store, markup_options=None):
     """Read-only current-register/drawing exports after service evidence gates."""
     if format not in ('schedule-xlsx', 'register-xlsx', 'marked-pdf'):
         raise ValidationError('Choose the current schedule XLSX or marked drawing PDF export.')
@@ -404,7 +404,7 @@ def export_workspace(snapshot, request, format, *, documents, store):
         if type(request.get('expected_revision')) is not int or request['expected_revision'] != snapshot['revision']:
             raise ValidationError('The Takeoffs draft changed before export. Retry from its current state.')
         from .takeoff_physical_markers import export_physical_pdf
-        return export_physical_pdf(snapshot, request, documents)
+        return export_physical_pdf(snapshot, request, documents, markup_options=markup_options)
     spreadsheet = format in ('schedule-xlsx', 'register-xlsx')
     allowed = {'expected_revision', 'mode', 'item_ids', 'calculator_drafts'} | ({'document_id', 'annotation_ids', 'signature_ids', 'graphic_ids'} if format == 'marked-pdf' else {'confirmation'})
     if format == 'register-xlsx':
@@ -470,4 +470,5 @@ def export_workspace(snapshot, request, format, *, documents, store):
     from .takeoff_markup_pdf import export_marked_pdf
     return export_marked_pdf(document, selected, results, confirmations, linked, documents,
                              project_id=snapshot['project_id'], revision=snapshot['revision'], mode=request['mode'], snapshot=snapshot,
-                             annotations=annotations, signatures=signatures, graphics=graphics, company=store.company_settings())
+                             annotations=annotations, signatures=signatures, graphics=graphics, company=store.company_settings(),
+                             **(markup_options or {}))

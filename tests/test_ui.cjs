@@ -7,7 +7,7 @@ function element(tag='div') {
   return {
     tagName: tag, value: '', textContent: '', dataset: {}, children: [], disabled: false,
     listeners: {}, parts: new Map(), options: [], files: [], validity: {badInput:false}, attributes: new Map(),
-    classList: {add(){},toggle(){}}, setAttribute(name,value){this.attributes.set(name,value);},getAttribute(name){return this.attributes.get(name);},removeAttribute(name){this.attributes.delete(name);},focus(){},
+    classList: {add(){},remove(){},toggle(){}}, setAttribute(name,value){this.attributes.set(name,value);},getAttribute(name){return this.attributes.get(name);},removeAttribute(name){this.attributes.delete(name);},focus(){},
     addEventListener(event, fn, options={}) { (this.listeners[event] ||= []).push({fn,once:options.once}); },
     emit(event) { const callbacks = [...(this.listeners[event] || [])]; this.listeners[event] = (this.listeners[event]||[]).filter(x=>!x.once); return Promise.all(callbacks.map(x=>x.fn())); },
     append(...children){this.children.push(...children);this.options=this.children;children.forEach(child=>{if(child&&typeof child==='object')child.parent=this;});},
@@ -25,7 +25,7 @@ function byId(id){if(!elements.has(id))elements.set(id,element());return element
 const context = {
   document:{getElementById:id=>['workflow','work-summary'].includes(id)?null:byId(id),querySelector:selector=>byId(`selector:${selector}`),querySelectorAll:()=>[],createElement:element,createTextNode:text=>text,body:element()},
   window:{addEventListener(){},scrollTo(options){scrollCalls.push(options);},CeasefireCalculators:{projectFingerprint:()=>'',hasUnsavedChanges:()=>false,prepareDefaults:async()=>({}),applyProject(){}}}, Intl, Number, JSON, Object, Set, Array, String, Promise, Error,
-  setTimeout:()=>0,clearTimeout(){},AbortController, console,
+  setTimeout:()=>0,clearTimeout(){},requestAnimationFrame:callback=>callback(),AbortController, console,
   FileReader:class { readAsDataURL(){this.result='data:application/octet-stream;base64,AAAA';queueMicrotask(()=>this.onload());} },
 };
 vm.createContext(context);
@@ -35,7 +35,7 @@ let source=fs.readFileSync('static/app.js','utf8');
 source=source.replace(/  bootstrap\(\);\s*\}\)\(\);\s*$/, `
   globalThis.audit={state,savePricing,requestSavePricing,saveQuote,openQuote,newQuote,confirmReplace,confirmLeavePricingLibrary,requestViewNavigation,requestLibraryNavigation,requestPricingScopeSwitch,importPricing,exportPricing,makeControl,priceInput,
     quoteDetails,updateQuoteTitle,reportPayload,downloadQuotePdf,controlValue,formatNumber,formatMoney,calculate,renderInputs,selectMainSection,renderMainSectionTabs,renderResults,showView,notify,bootstrap,renderPricing,refreshPricingCatalog,projectStamp,addWorkItem,removeWorkItem,
-    setRequest(fn){request=fn;}, setFetch(fn){globalThis.fetch=fn;},setRenderPricing(fn){renderPricing=fn;},setRenderInputs(fn){renderInputs=fn;}};
+    setRequest(fn){request=fn;}, setFetch(fn){globalThis.fetch=(path,options)=>path==='/api/download-progress'?Promise.resolve({ok:true,json:async()=>({token:'fixture-progress'})}):path.startsWith('/api/download-progress/')?Promise.resolve({ok:true,json:async()=>({percent:10,state:'preparing'})}):fn(path,options);},setRenderPricing(fn){renderPricing=fn;},setRenderInputs(fn){renderInputs=fn;}};
   renderInputs=()=>{}; renderPricing=()=>{state.pricingDirty=JSON.stringify(state.draft)!==JSON.stringify(state.configuration);};
   globalThis.scheduled=0; scheduleCalculation=()=>{globalThis.scheduled++;};
 })();`);
@@ -361,7 +361,8 @@ let passed=0;
   assert.equal(productInput('team','Firestopping Estimator groups').disabled,true);
   assert.equal(productInput('coat','Yield').value,'Mixed');assert.equal(productInput('coat','Yield unit'),undefined);assert.equal(productInput('coat','Yield').title,'m² / unit');
   assert.equal(productInput('coat','Sell rate override'),undefined);assert.equal(productInput('team','Yield').value,'');
-  assert.match(productRows()[0].children[3].children[1].textContent,/Legacy estimator rates retained for compatibility: Topcoats \$180.12/);
+  assert.equal(productRows()[0].children[3].children.length,1);
+  assert.ok(!pricingNodes().some(node=>node.className==='subtext pricing-rate-notice'));
   assert.equal(audit.state.pricingDirty,false);assert.equal(JSON.stringify(pricingFixture),originalPricing);passed++;
 
   // New cost controls retain legacy values; blank unused yields can be saved and cleared.
@@ -460,11 +461,13 @@ let passed=0;
   productInput('coat','supplier_price').value='200';await productInput('coat','supplier_price').emit('input');
   assert.equal(productRows()[0].querySelector('[data-sell-preview]').textContent,'$240.00');
   assert.equal(productInput('coat','Sell rate override'),undefined);assert.equal(productInput('team','Sell rate override'),undefined);
-  assert.match(productRows()[0].children[3].children[1].textContent,/Topcoats \$180.12/);
+  assert.equal(productRows()[0].children[3].children.length,1);
+  assert.equal(audit.state.catalog.rate_groups.topcoats[0].price,180.123456);
   await editList('coat','Yield','12.75');
   productInput('coat','supplier_price').value='210';await productInput('coat','supplier_price').emit('input');
   assert.equal(productRows()[0].querySelector('[data-sell-preview]').textContent,'$252.00');
-  assert.match(productRows()[0].children[3].children[1].textContent,/Topcoats \$180.12/);
+  assert.equal(productRows()[0].children[3].children.length,1);
+  assert.equal(audit.state.catalog.rate_groups.topcoats[0].price,180.123456);
   assert.equal(audit.state.catalog.rate_groups.topcoats[0].price_mode,'override');assert.equal(audit.state.draft.rates.primer.yield,12.75);assert.equal(audit.state.draft.rates.topcoat.yield,12.75);
   audit.renderPricing();passed++;
 
@@ -665,11 +668,14 @@ let passed=0;
 
   // Main section tabs change visibility only; every original control keeps its identity.
   assert.match(html,/id="main-section-tabs"[^>]*role="tablist"[^>]*aria-label="Main estimate sections"/);
-  const mainHtml=html.slice(html.indexOf('<div class="estimate-main">'),html.indexOf('<aside class="summary-card"'));
+  const mainHtml=html.slice(html.indexOf('<div id="main-estimate-form"'),html.indexOf('<aside id="main-estimate-summary"'));
   assert.doesNotMatch(mainHtml,/<details|<summary/);
   assert.ok(mainHtml.indexOf('id="project-heading"')<mainHtml.indexOf('id="main-section-tabs"'));
   assert.match(mainHtml,/id="main-panel-materials"[^>]*data-main-section="materials"/);
   assert.match(mainHtml,/id="main-panel-firestopping-schedule"[^>]*data-main-section="firestopping-schedule"/);
+  const additionSection=byId('adjustment-sections').children.find(section=>section.dataset.mainSection==='additions');
+  const globalSection=additionSection.children.find(section=>section.dataset.inputSection==='global-adjustments');
+  assert.ok(globalSection);assert.equal(globalSection.dataset.mainSection,undefined);
   for(const section of [...byId('input-sections').children,...byId('post-material-input-sections').children,...byId('adjustment-sections').children]) {
     assert.equal(section.tagName,'section');assert.equal(section.getAttribute('role'),'tabpanel');
     assert.equal(section.getAttribute('aria-labelledby'),`main-tab-${section.dataset.mainSection}`);

@@ -49,7 +49,7 @@ def validate_company_settings(value):
 
 def company_logo(company=None):
     logo = (company or DEFAULTS).get('logo')
-    return ImageReader(BytesIO(base64.b64decode(logo.split(',', 1)[1]))) if logo else ImageReader(str(ROOT / 'static/ceasefire-logo.png'))
+    return ImageReader(BytesIO(base64.b64decode(logo.split(',', 1)[1]))) if logo else ImageReader(str(ROOT / 'static/classifire-logo.png'))
 
 
 def contact_lines(company=None):

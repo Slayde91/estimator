@@ -158,7 +158,7 @@ def effective_appearance(snapshot, item, linked=None):
     return appearance
 
 
-def legend_rows(snapshot, legend, results, linked):
+def legend_rows(snapshot, legend, results, linked, *, viewer=False, calculator_id=None):
     rows = []
     for item in snapshot['items']:
         geometry = item.get('geometry')
@@ -167,6 +167,8 @@ def legend_rows(snapshot, legend, results, linked):
         field = item['fields']; records = linked.get(item['id'], [])
         original = next((row for mode in snapshot.get('drawing_presentation', {}).get('colour_modes', []) if mode['document_id'] == legend['document_id'] for row in mode['originals'] if row['item_id'] == item['id']), None)
         calculator = 'ductwork' if item['mode'] == 'duct' else next((value['calculator_id'] for value in snapshot.get('drawing_presentation', {}).get('colour_modes', []) if value['document_id'] == legend['document_id']), None)
+        if viewer and calculator_id:
+            calculator = calculator_id
         if not calculator:
             calculator = next((value['calculator_id'] for value in records if value['status'] == 'Current'), 'steel_vermiculite')
         thickness = thickness_value(records, original['calculator_id'] if original else calculator)
@@ -183,5 +185,25 @@ def legend_rows(snapshot, legend, results, linked):
             total = results.get(item['id'], {}).get('total_length_m')
             description += f" | {total:g} m" if total is not None else ' | Length missing'
         description += f" | {thickness:g} mm" if thickness is not None else ' | Thickness missing/unavailable'
+        if viewer:
+            from .takeoff_physical_markers import _number
+            separator = ' · '
+            description = field.get('mark') or item['id'][:8]
+            if item['mode'] == 'steel':
+                description += separator + (field.get('section') or 'Section missing')
+                if item['quantity'] > 1: description += separator + _number(item['quantity']) + ' members'
+            else:
+                width, height = field.get('width_mm'), field.get('height_mm')
+                size = 'WxH missing' if width is None and height is None else _number(width) + ' x ' + _number(height)
+                total = results.get(item['id'], {}).get('total_length_m')
+                from decimal import Decimal, localcontext, ROUND_HALF_UP
+                if total is None: length = '—'
+                else:
+                    number = Decimal(str(total))
+                    with localcontext() as context:
+                        context.prec = max(28, number.adjusted()+8)
+                        length = format(number.quantize(Decimal('.01'), rounding=ROUND_HALF_UP), ',f')
+                description += separator + size + ' mm' + separator + length + ' m'
+            description += separator + (_number(thickness) + ' mm' if thickness is not None else 'Thickness missing/unavailable')
         rows.append({'colour': colour, 'text': description})
     return rows

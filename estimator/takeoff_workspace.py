@@ -2018,6 +2018,29 @@ class TakeoffService:
                 self._validate_physical_links(session_id, snapshot)
             return export_workspace(snapshot, request, format, documents=self.documents, store=self.store)
 
+    def export_markups(self, session_id, request, progress=None):
+        """Export exact source/workspace copies from one revision, without authority."""
+        from .takeoff_markup_exports import export_markups
+        with self._lock:
+            snapshot = self._session(session_id)['snapshot']
+            if (not isinstance(request, dict) or type(request.get('expected_revision')) is not int
+                    or request['expected_revision'] != snapshot['revision']):
+                raise ValidationError('The takeoff draft changed. Download its current revision again.')
+            self._session_evidence(session_id)
+            self.documents.assert_documents(snapshot['documents'], owner=session_id)
+            self._verify_audit_head(snapshot, owner=session_id)
+            self._validate_physical_links(session_id, snapshot)
+            captured = deepcopy(snapshot)
+        result = export_markups(captured, request, self.documents, self.store, progress)
+        with self._lock:
+            if self._session(session_id)['snapshot']['revision'] != captured['revision']:
+                raise ValidationError('The takeoff draft changed while preparing this PDF. Download the current revision again.')
+            self._session_evidence(session_id)
+            self.documents.assert_documents(captured['documents'], owner=session_id)
+            self._verify_audit_head(captured, owner=session_id)
+            self._validate_physical_links(session_id, captured)
+        return result
+
     def export_pdf_tools(self, session_id, request):
         """Derive a PDF copy from one captured revision without editing sources."""
         from .takeoff_pdf_tools import build_pdf

@@ -149,6 +149,8 @@
   function fieldsFromValues(kind, values, retainedFields = {}, scope = "defect_reports") {
     const result = copy(retainedFields);
     for (const [key] of fieldsFor(kind, scope)) {
+      // Notes remain source data; the callout form no longer exposes an editor.
+      if (key === "notes" && !Object.hasOwn(values, key)) continue;
       if (key === "width_height_mm") {
         if (!Object.hasOwn(values, key) || String(values[key] ?? "") === formatDimensions(retainedFields)) continue;
         const dimensions = parseDimensions(values[key]); delete result.width_mm; delete result.height_mm; Object.assign(result, dimensions); continue;
@@ -381,7 +383,7 @@
     }
     function fieldDefinitions(entry, createKind) {
       const kind = entry?.kind || createKind, entity = entry?.entity;
-      const fields = fieldsFor(kind, scope()).flatMap(([key, label]) => [[key, label, fieldType(kind, key), fieldDisplay(entity?.fields, key) ?? ""], ...(kind === "service" && key === "service_type" ? [["quantity", "Explicit service quantity", "number", entity?.quantity ?? "", !entity?.library_quantity]] : [])]);
+      const fields = fieldsFor(kind, scope()).filter(([key]) => key !== "notes").flatMap(([key, label]) => [[key, label, fieldType(kind, key), fieldDisplay(entity?.fields, key) ?? ""], ...(kind === "service" && key === "service_type" ? [["quantity", "Explicit service quantity", "number", entity?.quantity ?? "", !entity?.library_quantity]] : [])]);
       if (kind === (servicePlans() ? "barrier" : "defect")) {
         const notes = fields.findIndex(([key]) => key === "notes");
         fields.splice(notes < 0 ? fields.length : notes, 0, ["confirmation", "Confirmation", confirmationOptions, recordConfirmation(entity), true]);
@@ -834,12 +836,13 @@
     }
     function textCell(value, explanation = "Unknown — no source value recorded.") { const cell = node("td", "", value === "" || value == null ? "—" : value); cell.title = explanation; return cell; }
     function editableCell(entry, key) {
-      if (legacyReadOnly() || entry.entity.deleted) return textCell(key === "quantity" ? entry.entity.quantity : fieldDisplay(entry.entity.fields, key), legacyReadOnly() ? "Legacy record: read-only." : "Deleted draft record; restore before editing.");
+      if (legacyReadOnly() || entry.entity.deleted) { const cell = textCell(key === "quantity" ? entry.entity.quantity : fieldDisplay(entry.entity.fields, key), legacyReadOnly() ? "Legacy record: read-only." : "Deleted draft record; restore before editing."); if (key === "frl") cell.className += " takeoff-frl-cell"; return cell; }
       const type = fieldType(entry.kind, key), cell = node("td"), control = node(Array.isArray(type) ? "select" : "input"), value = key === "quantity" ? entry.entity.quantity : fieldDisplay(entry.entity.fields, key);
       if (Array.isArray(type)) { populateSelect(control, type, value); if (sharedOptionKeys.has(key)) bindSharedOptions(control, key); }
       else { control.type = type === "number" ? "number" : "text"; control.value = value ?? ""; if (control.type === "number") control.step = key === "quantity" ? "1" : "any"; }
       control.setAttribute("aria-label", `${fieldsFor(entry.kind, scope()).find(definition => definition[0] === key)?.[1] || "Service quantity"} for ${entityName(entry)}`); control.placeholder = "Unknown"; track(control, value, entry, key);
       state.pendingApply.set(control, () => editField(state.bindings.get(control).entry, key, control));
+      if (key === "frl") cell.className += " takeoff-frl-cell";
       cell.append(control); return cell;
     }
     function relationCells(entry) {
@@ -945,7 +948,8 @@
         const status = node("td"); status.append(node("span", `takeoff-state ${effectiveConfirmation(row, state.index)}`, confirmationLabel(confirmationOwner(row, state.index)?.entity))); if (entity.deleted || legacy) status.append(node("p", "helper", entity.deleted ? "Deleted draft" : "Legacy read-only")); status.title = "Manual record review only. Technical approval and schedule confirmation remain separate."; line.append(status);
         const inheritedLocation = legacy ? relation.defect?.entity.fields.location ?? relation.barrier?.entity.fields.location : (servicePlans() ? relation.barrier : relation.defect)?.entity.fields.location;
         const location = kind === "defect" || kind === "barrier" && (legacy || servicePlans()) ? editableCell(row, "location") : textCell(inheritedLocation, "Inherited parent location.");
-        line.append(location, kind === (servicePlans() ? "barrier" : "defect") ? editableCell(row, "frl") : textCell((servicePlans() ? relation.barrier : relation.defect)?.entity.fields.frl, `Recorded ${servicePlans() ? "barrier" : "defect"} FRL; not a technical approval.`));
+        const frlCell = kind === (servicePlans() ? "barrier" : "defect") ? editableCell(row, "frl") : textCell((servicePlans() ? relation.barrier : relation.defect)?.entity.fields.frl, `Recorded ${servicePlans() ? "barrier" : "defect"} FRL; not a technical approval.`);
+        frlCell.className += " takeoff-frl-cell"; line.append(location, frlCell);
         if (legacy) line.append(textCell(relation.opening?.entity.fields.opening_type), textCell(relation.opening?.entity.fields.size));
         line.append(kind === "barrier" ? editableCell(row, "substrate") : textCell(relation.barrier?.entity.fields.substrate), kind === "barrier" ? editableCell(row, "orientation") : textCell(relation.barrier?.entity.fields.orientation));
         for (const field of ["service", "service_type", "quantity", "size"]) line.append(kind === "service" ? editableCell(row, field) : textCell(null, "Only a service record has this property."));
@@ -1074,8 +1078,9 @@
       const controls = fieldDefinitions(entry).map(([key, label, type, initial, required]) => {
         const wrapper = node("label", "field"), control = node(Array.isArray(type) ? "select" : type === "textarea" ? "textarea" : "input"); wrapper.append(node("span", "", label));
         if (Array.isArray(type)) { if (key === "confirmation") control.replaceChildren(...type.map(([value, text]) => choice(value, text))); else populateSelect(control, type, initial); if (sharedOptionKeys.has(key)) bindSharedOptions(control, key); } else if (type !== "textarea") control.type = type === "number" ? "number" : "text";
-        control.value = initial ?? ""; control.name = key; control.required = !!required; if (type === "number") control.step = key === "quantity" ? "1" : "any"; control.setAttribute("aria-label", label); track(control, initial, entry, key); wrapper.append(control); ui.inspector.append(wrapper); if (key === "notes") ui.inspector.append(inspectorActions(remove)); return control;
+        control.value = initial ?? ""; control.name = key; control.required = !!required; if (type === "number") control.step = key === "quantity" ? "1" : "any"; control.setAttribute("aria-label", label); track(control, initial, entry, key); wrapper.append(control); ui.inspector.append(wrapper); return control;
       });
+      ui.inspector.append(inspectorActions(remove));
       const editor = { controls, entry, key: editorKey };
       editor.submit = async () => { ensureAvailable(true); await ensureFieldOptions(editor.entry.kind, true); ensureAvailable(true); if (editor.key !== graphKey()) throw new Error("The physical draft changed before the unfinished edits could be validated. Inspect the current record and try again."); requireCurrent(editor.entry); const entity = editor.entry.entity, values = Object.fromEntries(controls.map(control => [control.name, control.value])); const changes = { fields: fieldsFromValues(editor.entry.kind, values, entity.fields, scope()), ...(Object.hasOwn(values, "confirmation") && recordConfirmation(entity) !== values.confirmation ? { confirmation: values.confirmation } : {}), ...(editor.entry.kind === "service" ? { quantity: recordedQuantity(entity, values.quantity) } : {}) }; if (Object.entries(changes).every(([key, value]) => sameValue(entity[key], value))) { resetPending(); renderData(); return true; } return perform([{ op: "update", entity_id: entity.id, changes }], "Apply physical field changes", true, false); };
       state.inspectorEdit = editor;
@@ -1154,6 +1159,16 @@
     async function runBridge(action, confirmation) {
       ensureAvailable(); if (confirmation && !await ask(confirmation.title, [], confirmation.text, confirmation.button)) return; setBusy(true);
       try { const reply = await action(); if (!state.destroyed) displayReply(reply); }
+      finally { if (!state.destroyed) { setBusy(false); renderData(); } }
+    }
+    async function downloadMarkup(kind, control) {
+      ensureAvailable();
+      // The shared drawing downloader checks genuine pending physical edits
+      // before taking its own operation lock. Start that preflight first;
+      // setting this component busy first would make it reject its own action.
+      const downloading = bridge.downloadMarkup(kind, control);
+      setBusy(true);
+      try { await downloading; }
       finally { if (!state.destroyed) { setBusy(false); renderData(); } }
     }
     async function undoLastEdit() {
@@ -1247,9 +1262,13 @@
     const tools = node("div", "takeoff-register-controls takeoff-physical-filter-row"), actions = node("div", "takeoff-register-controls takeoff-physical-actions-row");
     const documents = actionDisclosure("Document", "Document actions", "takeoff-document-menu takeoff-physical-document-menu", false, "/icons/document.png");
     for (const [format, confirmation, label] of [["xlsx", "confirmed", "Download confirmed items"], ["xlsx", "unconfirmed", "Download unconfirmed items"], ["xlsx", "all", "Download all items"], ["pdf", null, "Download Passive Fire Matrix PDF"]]) {
-      const control = button(label, () => runBridge(() => bridge.export(format, confirmation)), "button secondary calculator-document-action");
+      const control = button(label, () => runBridge(() => bridge.export(format, confirmation, control)), "button secondary calculator-document-action");
       control.setAttribute("aria-label", label); const icon = node("span", "download-format-icon"); icon.setAttribute("aria-hidden", "true"); icon.append(node("span", "download-arrow", "↓"), node("span", "download-format", format.toUpperCase())); control.replaceChildren(icon, node("span", "", label));
       documents.add(control);
+    }
+    for (const [kind, label] of [["current-all", "Download Full Markup"], ["current-marked", "Download Markups Only"], ["all-all", "Download All Markups"], ["all-marked", "Download Full Markups Only"]]) {
+      const control = button(label, () => downloadMarkup(kind, control), "button secondary calculator-document-action");
+      control.setAttribute("aria-label", label); const icon = node("span", "download-format-icon"); icon.setAttribute("aria-hidden", "true"); icon.append(node("span", "download-arrow", "↓"), node("span", "download-format", "PDF")); control.replaceChildren(icon, node("span", "", label)); documents.add(control);
     }
     const search = node("input"); search.type = "search"; search.placeholder = "Filter physical records…"; search.setAttribute("aria-label", "Filter physical hierarchy"); search.addEventListener("input", () => { if (state.pending.size || state.busy) return; state.filter = search.value; state.offset = 0; renderTable(); });
     const deleted = node("label", "takeoff-check"), show = node("input"); show.type = "checkbox"; show.addEventListener("change", () => void safe(() => { ensureAvailable(); state.showDeleted = show.checked; state.offset = 0; renderTable(); })); deleted.append(show, node("span", "", "Show deleted records"));

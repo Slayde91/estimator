@@ -78,7 +78,7 @@
   :root[data-theme]:not([data-theme="ceasefire"]) :is(input,select,textarea)[readonly] { background:var(--theme-soft); }
   :root[data-theme]:not([data-theme="ceasefire"]) :is(input,select,textarea)::placeholder { color:var(--muted); opacity:1; }
   :root[data-theme]:not([data-theme="ceasefire"]) :is(.field>span:first-child,.help-card p,.help-card li,.work-summary) { color:var(--ink); }
-  :root[data-theme]:not([data-theme="ceasefire"]) :is(th,.work-summary-panel,.tabs,.tab.active,.penetration-group[aria-pressed=true],.penetration-group[aria-selected=true]) { background:var(--theme-soft); color:var(--ink); border-color:var(--line); }
+  :root[data-theme]:not([data-theme="ceasefire"]) :is(th,.work-summary-panel,.tabs,.tab.active,.penetration-group[aria-pressed=true],.penetration-group[aria-selected=true]):not(.takeoff-physical-register th,.penetration-settings-table th) { background:var(--theme-soft); color:var(--ink); border-color:var(--line); }
   :root[data-theme]:not([data-theme="ceasefire"]) :is(td,.workflow-section) { border-color:var(--line); }
   :root[data-theme]:not([data-theme="ceasefire"]) .library-summary-table tbody td { background:var(--theme-surface); color:var(--ink); }
   :root[data-theme]:not([data-theme="ceasefire"]) .library-summary-table .library-summary-total>* { background:var(--theme-button); color:#fff; border-color:var(--theme-border); }
@@ -104,7 +104,7 @@
   :root[data-theme]:not([data-theme="ceasefire"]) :is(.calculator-summary-metric strong,.calculator-grid .calculator-product-totals .calculator-number) { color:var(--accent); }
   :root[data-theme]:not([data-theme="ceasefire"]) .calculator-grid td.calculator-editable { box-shadow:inset 4px 0 0 var(--theme-edge); }
   :root[data-theme]:not([data-theme="ceasefire"]) :is(.takeoff-register,.takeoff-toolbar,.takeoff-viewer-toolbar,.takeoff-document-controls,.takeoff-search,.takeoff-modal,.takeoff-annotation-panel) { background:var(--theme-surface); color:var(--ink); border-color:var(--line); }
-  :root[data-theme]:not([data-theme="ceasefire"]) :is(.takeoff-register th,.takeoff-column-filter-menu) { background:var(--theme-soft); color:var(--ink); }
+  :root[data-theme]:not([data-theme="ceasefire"]) :is(.takeoff-register th,.takeoff-column-filter-menu):not(.takeoff-physical-register th) { background:var(--theme-soft); color:var(--ink); }
   :root[data-theme="midnight"] :is(.gear-symbol,.calculator-symbol-button,.penetration-group,.library-summary-table th,.library-summary-table td) { color:var(--ink); }
   :root[data-theme="midnight"] .brand-logo { filter:brightness(0) invert(1); }
   :root[data-theme="midnight"] .header-tagline-character { filter:url(#header-character-white); }
@@ -123,3 +123,32 @@
 
 :root[data-theme="midnight"] :is(.takeoff-bulk,.takeoff-register tr.selected td){background:var(--theme-soft);color:var(--ink)}
 :root[data-theme="midnight"] .takeoff-register .takeoff-state{background:var(--theme-soft);color:var(--ink)}
+
+/* Hover text stays legible against its actual tab surface in every theme. */
+@media screen {
+  :root[data-theme] :is(.main-section-tab,.calculator-page,.calculator-settings-choice,.penetration-group,.tab):hover:not(:disabled){background:var(--theme-button);color:#fff}
+  :root :is(.main-section-tab,.calculator-page,.calculator-settings-choice,.penetration-group,.tab):focus-visible{outline-color:var(--theme-focus)}
+  :root[data-theme="midnight"] .brand-logo{background:#fff;border-radius:6px;filter:none}
+}
+
+/* These source/draft tables retain their red, black and white presentation. */
+:root .takeoff-physical-register,:root .penetration-settings-table{
+  color-scheme:light;--red:#f10d1b;--accent:#b90a15;--accent-dark:#920711;--ink:#111;--muted:#555;--line:#dedede;--paper:#fff;--navy:#111;
+  --theme-button:#b90a15;--theme-button-hover:#920711;--theme-focus:#b90a15;--theme-surface:#fff;--theme-raised:#fff4f4;--theme-soft:#fff;--theme-input:#fff;--theme-border:#d5d5d5;--theme-edge:#f10d1b;
+  background:#fff;color:#111;border-color:#dedede;
+}
+:root .takeoff-physical-register{border-top-color:#f10d1b}
+:root .takeoff-physical-register .status-label,:root .takeoff-physical-register .takeoff-state{background:#fff;color:#111;border-color:#dedede}
+:root .takeoff-physical-register .takeoff-state.confirmed,:root .takeoff-physical-register .takeoff-state.reviewed{background:#fff;color:#111;border:1px solid #b90a15}
+:root .takeoff-physical-register .takeoff-bulk{background:#fff;border:1px solid #f10d1b}
+:root .takeoff-physical-register tr.selected td{background:#fff0f0;color:#111}
+:root .takeoff-physical-register .takeoff-row-link,:root .takeoff-physical-register .takeoff-group-toggle{color:#b90a15}
+:root .takeoff-physical-register :is(.takeoff-icon-button img,.takeoff-transfer-icon,.calculator-document-icon){filter:none}
+:root .takeoff-physical-register input[type=checkbox]{accent-color:#b90a15}
+:root[data-theme] .takeoff-physical-register thead th,:root[data-theme] .penetration-settings-table thead th{background:#b90a15;color:#fff;border-color:#111}
+:root .penetration-settings-table .settings-group-heading th{background:#111;color:#fff;border-color:#111}
+:root .penetration-settings-table tbody td,:root .penetration-settings-table tbody th:not([scope=rowgroup]){background:#fff;color:#111}
+:root .penetration-settings-table .penetration-field-error{color:#b90a15}
+:root .takeoff-physical-register .takeoff-frl-cell{white-space:nowrap;width:max-content;min-width:110px}
+:root .takeoff-physical-register .takeoff-frl-cell :is(select,input){field-sizing:content;width:max-content;min-width:110px;white-space:nowrap}
+:is(#penetration-schedule-body,#penetration-estimator-schedule-body)>tr>td:nth-child(6){white-space:nowrap}

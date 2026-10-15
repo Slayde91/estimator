@@ -1,3 +1,4 @@
+const { waitForTakeoffDownload } = require('./native_download_helpers.cjs');
 const { clickProjectControl } = require('./project_actions.cjs');
 const { renderDrawing } = require('./viewer_helpers.cjs');
 // Real selection, appearance, movement and draft drawing/report exports on disposable sources.
@@ -25,7 +26,7 @@ async function confirm(count){await page.getByRole('button',{name:'Confirm',exac
 async function download(label){
   // Attach rejection handlers immediately: a missing request must reach the outer
   // failure capture, rather than terminate Node through an unhandled waiter.
-  const pending=page.waitForEvent('download');pending.catch(()=>{});
+  const pending=waitForTakeoffDownload(page);pending.catch(()=>{});
   const responseWait=page.waitForResponse(r=>r.url().endsWith(label==='Download PDF'?'/export/marked-pdf':'/export/register-xlsx'));responseWait.catch(()=>{});
   const [response]=await Promise.all([responseWait,label === 'Download PDF' ? page.evaluate(() => window.CeasefireTakeoffs.downloadDrawing()) : (async()=>{await page.getByRole('button',{name:'Takeoff register document actions',exact:true}).click();await page.getByRole('button',{name:'Download all items',exact:true}).click();})()]);
   if(!response.ok()){const current=await page.evaluate(async()=>{const id=window.CeasefireTakeoffs.sessionId();return(await fetch('/api/takeoffs/sessions/'+id)).json();});throw new Error(JSON.stringify({export:response.request().postDataJSON(),error:await response.json(),currentRevision:current.revision,localRevision:await page.evaluate(()=>window.CeasefireTakeoffs.projectSnapshot().revision)}));}

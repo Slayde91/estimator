@@ -1,3 +1,4 @@
+const { waitForTakeoffDownload } = require('./native_download_helpers.cjs');
 "use strict";
 // Drawing-only trace/count tools on disposable PDFs; no live app state.
 const { chromium, expect } = require('@playwright/test');
@@ -60,7 +61,7 @@ async function length(mm,reuse=false){const modal=page.getByRole('dialog');await
     // Double-click finishes without retaining the endpoint click as another marker.
     await chooseDrawingTool('Count','pdf-count');await clickPoint(500,300);await length('2000',true);
     const doubled=await command(()=>clickPoint(550,300,{clickCount:2}),'create_graphic');assert.equal(doubled.snapshot.graphics.records.at(-1).geometry.points.length,1);
-    const pending=page.waitForEvent('download');await page.evaluate(()=>window.CeasefireTakeoffs.downloadDrawing());const pdf=path.join(output,`${mode.replaceAll('/','-').replaceAll(' ','-')}.pdf`);await(await pending).saveAs(pdf);
+    const pending=waitForTakeoffDownload(page);await page.evaluate(()=>window.CeasefireTakeoffs.downloadDrawing());const pdf=path.join(output,`${mode.replaceAll('/','-').replaceAll(' ','-')}.pdf`);await(await pending).saveAs(pdf);
     const text=spawnSync(python,['-X','utf8','-B','-c',"from pypdf import PdfReader;import sys;print('\\n'.join(p.extract_text() or '' for p in PdfReader(sys.argv[1]).pages))",pdf],{cwd:root,encoding:'utf8',windowsHide:true});assert.equal(text.status,0,text.stderr);assert.match(text.stdout,/4\.50 m/);assert.match(text.stdout,/2\.00 m/);
     await page.screenshot({path:path.join(output,`${mode.replaceAll('/','-').replaceAll(' ','-')}.png`)});checks.push(`${mode}: trace, counts, reuse, exact manual lengths, edit, cancellation, double-click and PDF; no register mutation`);console.log(checks.at(-1));
   }

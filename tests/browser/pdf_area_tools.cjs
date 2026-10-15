@@ -1,3 +1,4 @@
+const { waitForTakeoffDownload } = require('./native_download_helpers.cjs');
 "use strict";
 // PDF-only Area and exclusions against synthetic source files and a disposable server.
 const { chromium, expect } = require("@playwright/test");
@@ -85,7 +86,7 @@ async function tools() {
   assert.equal(midpoint.snapshot.graphics.records.find(value => value.id === area.id).geometry.points.length, 5);
   await command(() => page.getByRole("button", { name: "Undo last edit", exact: true }).click(), "undo");
   assert.deepEqual((await snapshot()).graphics.records.find(value => value.id === area.id).geometry, area.geometry); check("Area closing-edge midpoint and Undo retain hole IDs and exact geometry");
-  const pending = page.waitForEvent("download"); await page.evaluate(() => window.CeasefireTakeoffs.downloadDrawing()); const pdf = path.join(output, "area-marked.pdf"); await (await pending).saveAs(pdf);
+  const pending = waitForTakeoffDownload(page); await page.evaluate(() => window.CeasefireTakeoffs.downloadDrawing()); const pdf = path.join(output, "area-marked.pdf"); await (await pending).saveAs(pdf);
   const extracted = spawnSync(python, ["-X", "utf8", "-B", "-c", "from pypdf import PdfReader;import sys;print('\\n'.join(p.extract_text() or '' for p in PdfReader(sys.argv[1]).pages))", pdf], { cwd: root, encoding: "utf8", windowsHide: true });
   assert.equal(extracted.status, 0, extracted.stderr); assert.ok(extracted.stdout.includes(`${netAreas[0].toFixed(2)} m²`)); check("Marked PDF includes measured net area");
   const saved = await snapshot(); await clickProjectControl(page, "Save"); await expect(page.locator("#project-save-state")).toHaveText("Saved project");

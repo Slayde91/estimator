@@ -1,3 +1,4 @@
+const { waitForTakeoffDownload } = require('./native_download_helpers.cjs');
 const { chooseTakeoff } = require('./section_navigation.cjs');
 const { checkSteelDialog } = require('./steel_dialog_layout.cjs');
 const { chooseCalculator } = require('./calculator_actions.cjs');
@@ -492,7 +493,7 @@ async function boardJourney(info) {
     await settingsSettled(page);
     const settled = await captureExportReadiness('settled-export', format);
     assert.equal(settled.busy, false); assert.equal(settled.modal, false); assert.equal(settled.settingsDirty, false);
-    const download = page.waitForEvent('download'), exported = page.waitForResponse(response => response.url().endsWith(`/export/${format.toLowerCase()}`));
+    const download = waitForTakeoffDownload(page), exported = page.waitForResponse(response => response.url().endsWith(`/export/${format.toLowerCase()}`));
     download.catch(() => {}); exported.catch(() => {});
     await page.evaluate(format => window.CeasefireTakeoffs.exportRegister(format.toLowerCase()), format);
     const response = await exported; assert.equal(response.status(), 200); assert.deepEqual(response.request().postDataJSON().selected_ids, [ductId]);

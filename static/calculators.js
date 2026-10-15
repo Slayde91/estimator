@@ -1608,9 +1608,10 @@
 
   async function exportTemplate() {
     const entry = current(); if (!entry || state.action) return;
+    const button = $("calculator-template");
     state.action = true; updateStatus();
     try {
-      const saved = await window.CeasefireDownloads.save(endpoint(entry.definition.id, "template"));
+      const saved = await window.CeasefireDownloads.save(endpoint(entry.definition.id, "template"), {}, { button });
       message(`Schedule template saved to ${saved.path}. Complete its input columns, then use Import Schedule.`);
     } catch (error) { message(`Could not export the template. ${error.message}`, true); }
     finally { state.action = false; updateStatus(); }
@@ -1629,7 +1630,7 @@
     state.action = true; updateStatus();
     button.setAttribute("aria-label", `Preparing ${label}…`); button.setAttribute("aria-busy", "true");
     try {
-      const saved = await window.CeasefireDownloads.save(endpoint(id, action), { inputs: snapshot, ...(projectDetails ? { project_details: projectDetails } : {}) });
+      const saved = await window.CeasefireDownloads.save(endpoint(id, action), { inputs: snapshot, ...(projectDetails ? { project_details: projectDetails } : {}) }, { button });
       const changed = current() !== entry || entry.revision !== revision || projectDetails && JSON.stringify(projectDetails) !== JSON.stringify(window.CeasefireProject?.details() || {});
       message(`${label} saved to ${saved.path} using the ${entry.definition.title} draft captured when you clicked Download.${changed ? " Your current draft was kept; later edits are not included." : ""}`);
     } catch (error) { message(`Could not download the ${label}. ${error.message}`, true); }

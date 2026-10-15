@@ -25,6 +25,14 @@
       const group = pair ? pair.map(column => fields.find(value => value.column === column)) : [field];
       group.forEach(value => used.add(value.column)); groups.push(group);
     }
+    // Keep the source columns intact while placing complete visual groups.
+    const collar = groups.findIndex(group => group.some(field => field.column === "Y"));
+    const mastic = groups.findIndex(group => group.some(field => field.column === "AB"));
+    if (collar >= 0 && mastic >= 0) [groups[collar], groups[mastic]] = [groups[mastic], groups[collar]];
+    if (fields.some(field => field.group === "Additional Allowances")) {
+      const order = new Map(["AE", "AF", "AI", "AH", "AJ"].map((column, index) => [column, index]));
+      groups.sort((left, right) => (order.get(left[0].column) ?? 100) - (order.get(right[0].column) ?? 100));
+    }
     return groups;
   }
   function growTextarea(control) {

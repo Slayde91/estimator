@@ -699,6 +699,7 @@
     if (settings) $("penetration-row-fields").replaceChildren(renderSettings(visible));
     else {
       const fields = node("div", "penetration-fields");
+      if (state.group === "Additional Allowances") fields.className += " penetration-additional-fields";
       for (const group of window.CeasefirePenetrationPresentation.fieldGroups(visible)) {
         const host = group.length > 1 ? node("div", "penetration-field-pair" + (group[0].column === "AB" ? " penetration-mastic-pair" : "")) : fields;
         for (const field of group) {
@@ -1165,7 +1166,7 @@
   }
   function open() { return openScope(state); }
   function openSchedule() { return openScope(state.schedule); }
-  async function download(kind) {
+  async function download(kind, button = $(kind === "pdf" ? "penetration-pdf" : "penetration-excel")) {
     if (state.downloading) return;
     document.activeElement?.blur?.();
     try {
@@ -1174,13 +1175,13 @@
       const snapshot = projectSnapshot();
       const pricing = configuration(), details = clone(window.CeasefireProject?.details?.() || {}), captured = projectFingerprint(), pricingKey = JSON.stringify(pricing);
       state.downloading = true; state.downloadKind = kind; status();
-      const saved = await window.CeasefireDownloads.save(`/api/penetration/${kind === "pdf" ? "report.pdf" : "register.xlsx"}`, { draft: snapshot.draft, configuration: pricing, project_details: details });
+      const saved = await window.CeasefireDownloads.save(`/api/penetration/${kind === "pdf" ? "report.pdf" : "register.xlsx"}`, { draft: snapshot.draft, configuration: pricing, project_details: details }, { button });
       const changed = captured !== projectFingerprint() || pricingKey !== configStamp() || JSON.stringify(details) !== JSON.stringify(window.CeasefireProject?.details?.() || {});
       message(`File saved to ${saved.path}.${changed ? " It uses the inputs and prices captured when you clicked Download; later changes are not included." : ""}`, false, state.schedule);
     } catch (error) { message(`The schedule file was not saved. ${error.message}`, true, state.schedule); }
     finally { state.downloading = false; state.downloadKind = null; status(); }
   }
-  async function downloadItem(kind) {
+  async function downloadItem(kind, button = $(kind === "pdf" ? "penetration-item-pdf" : "penetration-item-excel")) {
     if (state.downloading) return;
     document.activeElement?.blur?.();
     try {
@@ -1192,7 +1193,7 @@
         ...(state.diagramChange === undefined ? {} : { diagram: clone(state.diagramChange) }) };
       const captured = stable(payload);
       state.downloading = true; state.downloadKind = kind; status();
-      const saved = await window.CeasefireDownloads.save(`/api/penetration/item.${kind}`, payload);
+      const saved = await window.CeasefireDownloads.save(`/api/penetration/item.${kind}`, payload, { button });
       const current = { item: selected(), globals: state.draft?.globals, configuration: configuration(),
         ...(state.diagramChange === undefined ? {} : { diagram: state.diagramChange }) };
       message(`File saved to ${saved.path}.${captured !== stable(current) ? " It uses the item, source diagram and prices captured when you clicked Download; later changes are not included." : ""}`);
@@ -1218,11 +1219,11 @@
   $("penetration-add-to-schedule").addEventListener("click", requestAddToSchedule);
   $("penetration-update-schedule").addEventListener("click", updateSchedule);
   $("penetration-cancel-edit").addEventListener("click", cancelEdit);
-  $("penetration-pdf").addEventListener("click", () => download("pdf"));
-  $("penetration-excel").addEventListener("click", () => download("xlsx"));
-  $("penetration-item-pdf").addEventListener("click", () => downloadItem("pdf"));
-  $("penetration-item-schedule-pdf").addEventListener("click", () => download("pdf"));
-  $("penetration-item-excel").addEventListener("click", () => downloadItem("xlsx"));
+  $("penetration-pdf").addEventListener("click", event => download("pdf", event.currentTarget));
+  $("penetration-excel").addEventListener("click", event => download("xlsx", event.currentTarget));
+  $("penetration-item-pdf").addEventListener("click", event => downloadItem("pdf", event.currentTarget));
+  $("penetration-item-schedule-pdf").addEventListener("click", event => download("pdf", event.currentTarget));
+  $("penetration-item-excel").addEventListener("click", event => downloadItem("xlsx", event.currentTarget));
   function assertTakeoffWritable() {
     if (state.takeoffLease && !state.takeoffApplying) throw new Error("A confirmed Takeoff library link is still applying. Recover its outcome before editing, saving or replacing the Firestopping Schedule.");
   }

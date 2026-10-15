@@ -1,3 +1,4 @@
+const { waitForTakeoffDownload } = require('./native_download_helpers.cjs');
 "use strict";
 // All ink, source PDFs, saved projects and browser storage belong to this
 // disposable fixture. This journey never opens the live application on 8765.
@@ -79,7 +80,7 @@ async function drag(target, dx, dy, id) {
   await page.mouse.move(...start); await page.mouse.down(); await page.mouse.move(start[0]+dx,start[1]+dy,{steps:8}); await page.mouse.up();
 }
 async function download(name, expectedIds, mode, scope = null) {
-  const before = await snapshot(), pending = page.waitForEvent("download"), request = page.waitForRequest(v=>v.url().endsWith("/export/marked-pdf"));
+  const before = await snapshot(), pending = waitForTakeoffDownload(page), request = page.waitForRequest(v=>v.url().endsWith("/export/marked-pdf"));
   await page.evaluate(()=>window.CeasefireTakeoffs.downloadDrawing()); const file = await pending, target = path.join(output,name);
   assert.equal(await file.failure(),null); await file.saveAs(target); const body=(await request).postDataJSON(); await idle();
   assert.deepEqual(body.graphic_ids,expectedIds); assert.equal(body.mode,mode); if(scope) assert.equal(body.physical_scope,scope);

@@ -1,3 +1,4 @@
+const { waitForTakeoffDownload } = require('./native_download_helpers.cjs');
 const { assertParentControls, clickInspectorAdd } = require('./parent_controls_helpers.cjs');
 const { chooseTakeoff } = require('./section_navigation.cjs');
 // Column filters and automatic editing use an isolated fixture and owned records.
@@ -60,15 +61,15 @@ async function checkDocuments(scope, ids) {
   const active = [...(graph.defects || []), ...graph.barriers, ...graph.services].filter(entry => !entry.deleted).map(entry => entry.id);
   const root = page.locator('.takeoff-physical-register'), documentMenu = page.locator('.takeoff-workspace-heading .takeoff-physical-document-host'), toggle = documentMenu.getByRole('button', { name: 'Document', exact: true }), list = documentMenu.locator('.calculator-document-actions');
   await toggle.press('ArrowDown'); await expect(list).toBeVisible(); await expect(list.getByRole('button', { name: 'Download confirmed items', exact: true })).toBeFocused();
-  await page.keyboard.press('End'); await expect(list.getByRole('button', { name: 'Download Passive Fire Matrix PDF', exact: true })).toBeFocused();
+  await page.keyboard.press('End'); await expect(list.getByRole('button', { name: 'Download Full Markups Only', exact: true })).toBeFocused();
   await page.keyboard.press('Escape'); await expect(list).toBeHidden(); await expect(toggle).toBeFocused();
   await setFilter('Category', ['Mechanical']); // Export selection is independent of the visible register filter.
   const confirmed=scope==='service_plans'?[ids.b1,ids.s1,ids.s2]:[ids.d1,ids.b1,ids.b3,ids.s1,ids.s2];
   for (const [selection, expected] of [['confirmed', confirmed], ['unconfirmed', active.filter(id => !confirmed.includes(id))], ['all', active]]) {
     await toggle.click(); const action = list.getByRole('button', { name: `Download ${selection} items`, exact: true });
     const position = await action.evaluate(el => ({ icon: el.firstElementChild.getBoundingClientRect().x, label: el.lastElementChild.getBoundingClientRect().x })); assert.ok(position.icon < position.label);
-    const downloadWait = page.waitForEvent('download'), responseWait = page.waitForResponse(reply => reply.url().endsWith('/physical/export/register-xlsx'));
-    await action.click(); const reply = await responseWait; assert.equal(reply.status(), 200, await reply.text()); assert.deepEqual(reply.request().postDataJSON(), { scope, expected_revision: before.revision, confirmation: selection });
+    const downloadWait = waitForTakeoffDownload(page), responseWait = page.waitForResponse(reply => reply.url().endsWith('/physical/export/register-xlsx'));
+    await action.click(); const reply = await responseWait; assert.equal(reply.status(), 200, await reply.text()); assert.deepEqual(reply.request().postDataJSON(), { scope, expected_revision: before.revision, confirmation: selection, download: { project_token: null } });
     const download = await downloadWait, filename = path.join(output, `${scope}-${download.suggestedFilename()}`); await download.saveAs(filename);
     const parsed = spawnSync(process.env.CEASEFIRE_PYTHON || 'python', ['-c', "import json,sys\nfrom openpyxl import load_workbook\nw=load_workbook(sys.argv[1],data_only=False)\ns=w.active;v=list(s.values);rows=[dict(zip(v[0],r)) for r in v[1:]]\nprint(json.dumps({'sheets':w.sheetnames,'headers':v[0],'ids':sorted(r.get('Service ID') or r.get('Barrier ID') or r.get('Defect ID') for r in rows),'confirmation':sorted(set(r['Confirmation'] for r in rows)),'records':[{'id':r.get('Service ID') or r.get('Barrier ID') or r.get('Defect ID'),'quantity':r['Service quantity'],'sources':r['Source evidence']} for r in rows],'formulas':[c.coordinate for s in w for r in s for c in r if c.data_type=='f']}))\nw.close()", filename], { encoding: 'utf8', windowsHide: true });
     assert.equal(parsed.status, 0, parsed.stderr); const result = JSON.parse(parsed.stdout);
@@ -105,15 +106,15 @@ async function checkDocuments(scope, ids) {
   await page.keyboard.press('Escape'); await expect(list).toBeHidden(); await page.setViewportSize({ width: 1600, height: 1100 });
 }
 async function checkAutomaticMenuIntent(scope, ids) {
-  const cases = [];
+  const cases = [];let sizeSequence=200;
   for (const mode of ['toggle', 'action-focus', 'escape', 'outside', 'field-focus', 'selection', 'activate', 'pointer', 'pointer-cancel', 'pointer-leave']) {
-    await row(ids.b1).locator('.takeoff-row-link').click(); await idle();
-    const before = await rawSnapshot(), prior = requests.length, value = `Held Add intent: ${scope} ${mode}`;
+    await row(ids.s1).locator('.takeoff-row-link').click(); await idle();
+    const before = await rawSnapshot(), prior = requests.length, value = `${++sizeSequence} x 75`;
     let release, signal, first = true;
     const held = new Promise(resolve => { release = resolve; }), started = new Promise(resolve => { signal = resolve; });
     await page.route('**/physical/preview', async route => { if (first) { first = false; signal(); await held; } await route.continue(); });
     try {
-      const notes = details().getByLabel('Notes', { exact: true }); await notes.fill(value); await notes.press('Tab'); await started;
+      const notes = details().getByLabel('Service Size (mm)', { exact: true }); await notes.fill(value); await notes.press('Tab'); await started;
       const toggle = details().getByRole('button', { name: 'Add', exact: true }), list = details().getByRole('group', { name: 'Add item actions', exact: true, includeHidden: true });
       await toggle.click(); await expect(list).toBeVisible();
       const action = list.getByRole('button', { name: 'Add service in Item Details', exact: true });
@@ -129,7 +130,7 @@ async function checkAutomaticMenuIntent(scope, ids) {
         await page.mouse.move(pressedBounds.x + pressedBounds.width / 2, pressedBounds.y + pressedBounds.height / 2); await page.mouse.down();
       }
       const applied = page.waitForResponse(reply => reply.url().endsWith('/physical/apply')); release(); assert.equal((await applied).status(), 200); if (mode !== 'activate') await idle();
-      await expect.poll(async () => { const graph = (await rawSnapshot())[scope === 'service_plans' ? 'service_plans' : 'physical']; return graph.barriers.find(entity => entity.id === ids.b1).fields.notes; }).toBe(value);
+      await expect.poll(async () => { const graph = (await rawSnapshot())[scope === 'service_plans' ? 'service_plans' : 'physical']; return graph.services.find(entity => entity.id === ids.s1).fields.size; }).toBe(value);
       if (mode.startsWith('pointer')) {
         assert.equal(await pressed.evaluate(el => el.isConnected), true, 'The original pressed Add option must survive its automatic Notes response');
         pointerEvidence = await pressed.evaluate((el, point) => { const rect = el.getBoundingClientRect(), hit = document.elementFromPoint(point[0], point[1]); return { connected: el.isConnected, point, bounds: { x: rect.x, y: rect.y, width: rect.width, height: rect.height }, originalActionAtPoint: el === hit || el.contains(hit) }; }, [pressedBounds.x + pressedBounds.width / 2, pressedBounds.y + pressedBounds.height / 2]);
@@ -144,10 +145,10 @@ async function checkAutomaticMenuIntent(scope, ids) {
         await expect(list).toBeHidden(); await dialog.getByRole('button', { name: 'Cancel', exact: true }).click(); await idle();
         if (mode === 'pointer') {
           await details().getByRole('button', { name: 'Delete draft record', exact: true }).click();
-          await expect(dialog.getByRole('heading', { name: 'Delete draft barrier', exact: true })).toBeVisible(); await dialog.getByRole('button', { name: 'Cancel', exact: true }).click(); await idle();
+          await expect(dialog.getByRole('heading', { name: 'Delete draft service', exact: true })).toBeVisible(); await dialog.getByRole('button', { name: 'Cancel', exact: true }).click(); await idle();
           if (scope === 'defect_reports') {
             await details().getByRole('button', { name: 'Change Parent', exact: true }).click();
-            await expect(dialog.getByRole('heading', { name: 'Change barrier parent', exact: true })).toBeVisible(); await dialog.getByRole('button', { name: 'Cancel', exact: true }).click(); await idle();
+            await expect(dialog.getByRole('heading', { name: 'Change service parent', exact: true })).toBeVisible(); await dialog.getByRole('button', { name: 'Cancel', exact: true }).click(); await idle();
           }
         }
       } else if (['toggle', 'action-focus'].includes(mode)) {
@@ -159,12 +160,12 @@ async function checkAutomaticMenuIntent(scope, ids) {
         if (mode.startsWith('pointer')) {
           await expect(page.getByRole('dialog')).toHaveCount(0);
           await details().getByRole('button', { name: 'Delete draft record', exact: true }).click();
-          const dialog = page.getByRole('dialog'); await expect(dialog.getByRole('heading', { name: 'Delete draft barrier', exact: true })).toBeVisible(); await dialog.getByRole('button', { name: 'Cancel', exact: true }).click(); await idle();
+          const dialog = page.getByRole('dialog'); await expect(dialog.getByRole('heading', { name: 'Delete draft service', exact: true })).toBeVisible(); await dialog.getByRole('button', { name: 'Cancel', exact: true }).click(); await idle();
         }
       }
       assert.equal(requests.length, prior + 1, 'Each held Notes value must produce exactly one preview and apply before any child command');
       const after = await rawSnapshot(), key = scope === 'service_plans' ? 'service_plans' : 'physical';
-      assert.deepEqual(after[key].services, before[key].services); assert.deepEqual(after[key].barriers.map(entity => [entity.id, entity.defect_id]), before[key].barriers.map(entity => [entity.id, entity.defect_id]));
+      assert.deepEqual(after[key].services.map(entity=>entity.id===ids.s1?{...entity,revision:before[key].services.find(prior=>prior.id===entity.id).revision,fields:{...entity.fields,size:before[key].services.find(prior=>prior.id===entity.id).fields.size}}:entity), before[key].services); assert.deepEqual(after[key].barriers.map(entity => [entity.id, entity.defect_id]), before[key].barriers.map(entity => [entity.id, entity.defect_id]));
       cases.push({ mode, mouseOpenedBeforeRelease: true, savedExactlyOnce: true, menuIntentPreserved: ['toggle', 'action-focus'].includes(mode), explicitDismissalRetained: !['toggle', 'action-focus', 'pointer'].includes(mode), originalPressedOptionRetained: mode.startsWith('pointer'), pointerEvidence, currentParentDialog: ['activate', 'pointer'].includes(mode), freshFirstClickDeleteAfterPointer: mode.startsWith('pointer') });
     } finally { release(); await page.unroute('**/physical/preview'); }
   }
@@ -189,16 +190,16 @@ async function checkAutomaticMenuIntent(scope, ids) {
     const dialog = await menu('Location'); await expect(dialog.getByRole('checkbox', { name: 'Level02', exact: true })).toBeVisible(); await dialog.getByRole('searchbox', { name: 'Search Location values', exact: true }).fill('Level02'); await expect(dialog.getByRole('checkbox', { name: 'Level01', exact: true })).toHaveCount(0); await expect(dialog.getByRole('checkbox', { name: 'Select all values', exact: true })).toBeChecked(); await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
     await reset('Category'); await reset('Orientation'); await setFilter('Location', scope==='service_plans'?['', 'Level02']:['Level02']); await matches(scope==='service_plans'?[ids.b2,ids.s3,ids.b3]:[ids.d2,ids.b2,ids.s3]); await reset('Location');
     await setFilter('Category', ['Mechanical']); await page.setViewportSize({ width: 764, height: 764 }); const narrow = await menu('Category'); const box = await narrow.boundingBox(); assert.ok(box.x >= 0 && box.x + box.width <= 764 && box.y >= 0 && box.y + box.height <= 764); await page.screenshot({ path: path.join(output, `physical-filter-${scope}-764.png`) }); await narrow.getByRole('button', { name: 'Reset filter', exact: true }).click(); await page.setViewportSize({ width: 1600, height: 1100 });
-    await row(ids.b1).locator('.takeoff-row-link').click(); await idle(); await expect(details().getByRole('button', { name: 'Preview physical edits', exact: true })).toHaveCount(0);
+    await row(ids.s1).locator('.takeoff-row-link').click(); await idle(); await expect(details().getByRole('button', { name: 'Preview physical edits', exact: true })).toHaveCount(0);
     await assertParentControls(page, details());
-    const notes = details().getByLabel('Notes', { exact: true }), discard = details().getByRole('button', { name: 'Discard unfinished physical edits', exact: true }); await discard.scrollIntoViewIfNeeded(); const beforeDiscard = requests.length; await notes.fill('Discard this unfinished note'); await discard.click(); await expect(notes).toHaveValue(''); assert.equal(requests.length, beforeDiscard, 'The first Discard click must not apply its unfinished field');
-    await notes.fill('Flush before child creation'); await clickInspectorAdd(details(), 'Add service in Item Details'); const create = page.getByRole('dialog'); await expect(create.getByRole('heading', { name: 'Create draft service', exact: true })).toBeVisible(); const graph = (await rawSnapshot())[scope === 'service_plans' ? 'service_plans' : 'physical']; assert.equal(graph.barriers.find(value => value.id === ids.b1).fields.notes, 'Flush before child creation'); await create.getByRole('button', { name: 'Cancel', exact: true }).click(); await idle();
+    const notes = details().getByLabel('Service Size (mm)', { exact: true }), discard = details().getByRole('button', { name: 'Discard unfinished physical edits', exact: true }); await discard.scrollIntoViewIfNeeded(); const beforeDiscard = requests.length; await notes.fill('99 x 75'); await discard.click(); await expect(notes).toHaveValue('25'); assert.equal(requests.length, beforeDiscard, 'The first Discard click must not apply its unfinished field');
+    await notes.fill('100 x 75'); await clickInspectorAdd(details(), 'Add service in Item Details'); const create = page.getByRole('dialog'); await expect(create.getByRole('heading', { name: 'Create draft service', exact: true })).toBeVisible(); const graph = (await rawSnapshot())[scope === 'service_plans' ? 'service_plans' : 'physical']; assert.equal(graph.services.find(value => value.id === ids.s1).fields.size, '100 x 75'); await create.getByRole('button', { name: 'Cancel', exact: true }).click(); await idle();
     let release, intercepted; const held = new Promise(resolve => { release = resolve; }), started = new Promise(resolve => { intercepted = resolve; }); let first = true;
     await page.route('**/physical/preview', async route => { if (first) { first = false; intercepted(); await held; } await route.continue(); });
-    const prior = requests.length; await notes.fill('First queued value'); await notes.press('Tab'); await started; await expect(notes).toBeEnabled(); await notes.fill('Later queued value'); await notes.evaluate(el => { el.focus(); el.setSelectionRange(5, 5); }); const retained = await notes.elementHandle(); release();
-    await expect.poll(async () => { const graph = (await snapshot())[scope === 'service_plans' ? 'service_plans' : 'physical']; return graph.barriers.find(value => value.id === ids.b1).fields.notes; }).toBe('Later queued value'); await page.unroute('**/physical/preview');
-    assert.equal(requests.length, prior + 2); assert.deepEqual(await retained.evaluate(el => ({ connected: el.isConnected, focused: document.activeElement === el, caret: el.selectionStart, value: el.value })), { connected: true, focused: true, caret: 5, value: 'Later queued value' });
-    const deletion = details().getByRole('button', { name: 'Delete draft record', exact: true }); await deletion.scrollIntoViewIfNeeded(); await notes.fill('Flush before delete review'); await deletion.click(); const review = page.getByRole('dialog'); await expect(review.getByRole('heading', { name: 'Delete draft barrier', exact: true })).toBeVisible(); const deletionGraph = (await rawSnapshot())[scope === 'service_plans' ? 'service_plans' : 'physical']; assert.equal(deletionGraph.barriers.find(value => value.id === ids.b1).fields.notes, 'Flush before delete review'); assert.equal(deletionGraph.barriers.find(value => value.id === ids.b1).deleted, false); await review.getByRole('button', { name: 'Cancel', exact: true }).click(); await idle();
+    const prior = requests.length; await notes.fill('105 x 75'); await notes.press('Tab'); await started; await expect(notes).toBeEnabled(); await notes.fill('110 x 75'); await notes.evaluate(el => { el.focus(); el.setSelectionRange(5, 5); }); const retained = await notes.elementHandle(); release();
+    await expect.poll(async () => { const graph = (await snapshot())[scope === 'service_plans' ? 'service_plans' : 'physical']; return graph.services.find(value => value.id === ids.s1).fields.size; }).toBe('110 x 75'); await page.unroute('**/physical/preview');
+    assert.equal(requests.length, prior + 2); assert.deepEqual(await retained.evaluate(el => ({ connected: el.isConnected, focused: document.activeElement === el, caret: el.selectionStart, value: el.value })), { connected: true, focused: true, caret: 5, value: '110 x 75' });
+    const deletion = details().getByRole('button', { name: 'Delete draft record', exact: true }); await deletion.scrollIntoViewIfNeeded(); await notes.fill('120 x 75'); await deletion.click(); const review = page.getByRole('dialog'); await expect(review.getByRole('heading', { name: 'Delete draft service', exact: true })).toBeVisible(); const deletionGraph = (await rawSnapshot())[scope === 'service_plans' ? 'service_plans' : 'physical']; assert.equal(deletionGraph.services.find(value => value.id === ids.s1).fields.size, '120 x 75'); assert.equal(deletionGraph.services.find(value => value.id === ids.s1).deleted, false); await review.getByRole('button', { name: 'Cancel', exact: true }).click(); await idle();
     const automaticMenuIntent = await checkAutomaticMenuIntent(scope, ids);
     evidence.scopes.push({ scope, automaticMenuIntent, eightColumns: true, andOr: true, blanks: scope==='service_plans', ownerLocationAndConfirmation: true, ancestorContext: true, matchingSelection: true, searchFiltered: true, narrowMenu: true, compactOriginalIconAddService: true, firstClickDiscard: true, firstClickAddService: true, firstClickDelete: true, inFlightTyping: true, focusedControlAndCaretRetained: true });
   }

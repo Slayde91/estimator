@@ -119,7 +119,7 @@ def inherited_library_barrier_parent(snapshot, graph, barrier):
     return None
 
 
-def export_physical_pdf(snapshot, request, documents):
+def export_physical_pdf(snapshot, request, documents, *, markup_options=None):
     required = {'expected_revision', 'mode', 'physical_scope', 'document_id', 'item_ids'}
     object_fields(request, required | {'rendering', 'signature_ids', 'graphic_ids'}, 'Penetration drawing export', required)
     graph = current_graph(snapshot, request['physical_scope'])
@@ -175,4 +175,5 @@ def export_physical_pdf(snapshot, request, documents):
     graphics = export_graphics(snapshot, request, document['id'], (request['physical_scope'],))
     return export_marked_pdf(document, [], {}, {}, {}, documents, project_id=snapshot['project_id'],
         revision=snapshot['revision'], mode=request['physical_scope'].replace('_', ' '), physical_rows=rows,
-        physical_rendering=rendering, snapshot=snapshot, signatures=signatures, graphics=graphics)
+        physical_rendering=rendering, snapshot=snapshot, signatures=signatures, graphics=graphics,
+        **(markup_options or {}))

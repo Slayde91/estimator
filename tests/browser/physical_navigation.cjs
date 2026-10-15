@@ -143,8 +143,8 @@ async function layout(width) {
   await expect(details().locator('.takeoff-physical-defect-id')).toHaveText('Defect ID: D-0001');
   for (const action of ['View','Edit']) { await row(service).getByRole('button',{name:action,exact:true}).click(); await idle(); const geometry=await page.evaluate(()=>({drawing:document.querySelector('.takeoff-viewport').getBoundingClientRect().top,header:document.querySelector('.app-header').getBoundingClientRect().bottom})); assert.ok(Math.abs(geometry.drawing-geometry.header-12)<3, JSON.stringify(geometry)); await expect(details()).toBeVisible(); }
   await navigate('Defect',defect);
-  const previews = requests.length; await details().getByLabel('Notes', { exact: true }).fill('Retain unfinished Defect edit');
-  await response(()=>navigation.getByLabel('Service ID in Item Details', { exact: true }).selectOption(service),'/physical/apply'); await idle(); await snapshot(); assert.equal(state.physical.defects.find(entry=>entry.id===defect).fields.notes,'Retain unfinished Defect edit'); await expect(details().getByLabel('Service ID in Item Details', { exact: true })).toHaveValue(service); assert.equal(requests.length, previews+1);
+  const previews = requests.length; await details().getByLabel('Location', { exact: true }).fill('Retain unfinished Defect edit');
+  await response(()=>navigation.getByLabel('Service ID in Item Details', { exact: true }).selectOption(service),'/physical/apply'); await idle(); await snapshot(); assert.equal(state.physical.defects.find(entry=>entry.id===defect).fields.location,'Retain unfinished Defect edit'); await expect(details().getByLabel('Service ID in Item Details', { exact: true })).toHaveValue(service); assert.equal(requests.length, previews+1);
   await page.locator('.takeoff-physical-details').evaluate(el => { el.scrollTop = el.scrollHeight; }); await marker(barrier).dblclick({ delay: 100 });
   await expect.poll(() => page.locator('.takeoff-physical-details').evaluate(el => el.scrollTop)).toBe(0);
   await layout(1600); await layout(764); evidence.markerKeepsSelectionAndOpensDefect = true;

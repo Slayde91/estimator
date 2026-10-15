@@ -1,3 +1,4 @@
+const { waitForTakeoffDownload } = require('./native_download_helpers.cjs');
 "use strict";
 // Explicit manual commercial linking against a disposable library/database.
 const {chromium,expect}=require('@playwright/test');
@@ -85,7 +86,7 @@ async function schedule(){return page.evaluate(()=>window.CeasefirePenetrations.
   // The desktop file load settles before its restored drawing finishes rendering.
   // Export must wait for the same visible readiness that enables drawing actions.
   await expect(page.locator('.takeoff-progress')).toContainText('Original source');await expect(page.locator('#takeoffs-workspace')).not.toHaveAttribute('aria-busy','true');
-  const download=page.waitForEvent('download');await page.evaluate(() => window.CeasefireTakeoffs.downloadDrawing());await(await download).saveAs(path.join(output,'linked-callout.pdf'));assert.ok(fs.statSync(path.join(output,'linked-callout.pdf')).size>1000);evidence.originalSourceAnnotationAndMarkedPdf=true;
+  const download=waitForTakeoffDownload(page);await page.evaluate(() => window.CeasefireTakeoffs.downloadDrawing());await(await download).saveAs(path.join(output,'linked-callout.pdf'));assert.ok(fs.statSync(path.join(output,'linked-callout.pdf')).size>1000);evidence.originalSourceAnnotationAndMarkedPdf=true;
   assert.equal(hash(source),beforeSource);assert.equal(hash(info.fixture),beforePDF);assert.deepEqual(await page.evaluate(()=>window.CeasefireCalculators.projectSnapshot()),calculators);assert.deepEqual(errors,[]);
   fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({status:'PASS',port:info.port,errors,evidence,assignmentId,defectId,sourceSha256:beforeSource,pdfSha256:beforePDF,applyBodies},null,2));console.log(`PASS library linking browser acceptance: ${output}`);
 })().catch(async error=>{console.error(error.stack);console.error(logs);if(page)await page.screenshot({path:path.join(output,'failure.png')}).catch(()=>{});process.exitCode=1;}).finally(async()=>{await page?.unrouteAll({behavior:'ignoreErrors'});await browser?.close();server.kill();});

@@ -23,6 +23,7 @@ jobs:
       - run: node --check static/calculation-queue.js && node --test tests/test_calculation_queue.cjs
       - run: node --check static/calculators.js
       - run: node --check static/downloads.js
+      - run: node --check static/main-layout.js
       - run: node --check static/penetration.js
       - run: node --check static/penetration-breakdown.js
       - run: node --check static/libraries.js
@@ -63,6 +64,7 @@ jobs:
       - run: node tests/test_penetration_ui.cjs
       - run: node tests/test_libraries_ui.cjs
       - run: node tests/test_library_detail_text.cjs
+      - run: node tests/test_technical_display.cjs
       - run: node tests/test_library_editor_ui.cjs
       - run: node tests/test_takeoffs_ui.cjs
       - run: node tests/test_takeoff_zoom_ui.cjs
@@ -97,6 +99,8 @@ jobs:
       - run: npm run test:project-library-drafts
       - run: node tests/browser/pdf_render_gate.cjs
       - run: node tests/browser/header_artwork.cjs
+      - run: node tests/browser/classifire_branding_downloads.cjs
+      - run: node tests/browser/markup_downloads.cjs
       - run: npm run test:themes-browser
       - run: npm run test:help-glossary
       - run: npm run test:help-glossary -- --standard
@@ -118,6 +122,7 @@ jobs:
       - run: npm run test:company-firestopping-settings
       - run: node tests/browser/project_reports.cjs
       - run: npm run test:estimator-header-state
+      - run: node tests/browser/classifire_layout.cjs
       - run: npm run test:calculator-navigation
       - run: npm run test:penetration-defaults-notices
       - run: npm run test:takeoff-row-delete
@@ -182,6 +187,7 @@ jobs:
           path: |
             .runtime/browser-qa/**/*.png
             .runtime/browser-qa/**/result.json
+            .runtime/browser-qa/markup-downloads-*/failure.json
             .runtime/browser-qa/**/export-readiness.json
             .runtime/browser-qa/**/export-content.json
             .runtime/browser-qa/pdf-render-gate.json

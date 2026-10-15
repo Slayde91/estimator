@@ -290,6 +290,10 @@ if __name__ == '__main__':
         server = create_server(0, folder / 'qa.sqlite3', project_dialogs=Dialogs())
         print(json.dumps({'port': server.server_port, 'fixture': str(fixture), 'failed_fixture': str(failed_fixture), 'board_fixture': str(board_fixture), 'area_fixture': str(area_fixture), 'scale_fixture': str(scale_fixture), 'physical_fixture': str(physical_fixture), 'physical_v2_fixture': str(physical_v2_fixture), 'legacy_project': str(legacy_project) if legacy_project else None, 'project': str(project), 'directory': str(folder)}), flush=True)
         try:
-            server.serve_forever()
+            # Native document saves in this disposable server must never enter
+            # the user's Downloads folder, even before the fixture is saved.
+            from unittest.mock import patch
+            with patch('estimator.download_files.standard_downloads_directory', return_value=folder / 'native-downloads'):
+                server.serve_forever()
         finally:
             server.server_close()

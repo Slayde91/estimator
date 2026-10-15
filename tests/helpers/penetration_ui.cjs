@@ -50,9 +50,10 @@ function harness() {
     const attrs=new Map();
     return {tagName,dataset:{},children:[],listeners:{},style:{},value:'',textContent:'',hidden:false,isConnected:true,
       setAttribute(key,value){attrs.set(key,String(value));},getAttribute(key){return attrs.get(key);},
-      append(...nodes){for(const child of nodes){child.parentNode=this;this.children.push(child);}},replaceChildren(...nodes){this.children=[];this.append(...nodes);},
+      append(...nodes){for(const child of nodes){child.parentNode=this;child.parentElement=this;this.children.push(child);}},replaceChildren(...nodes){this.children=[];this.append(...nodes);},
+      closest(){return null;},remove(){if(this.parentNode)this.parentNode.children=this.parentNode.children.filter(child=>child!==this);this.parentNode=null;this.parentElement=null;},
       querySelectorAll(selector){return this.children.flatMap(child=>[...(matches(child,selector)?[child]:[]),...child.querySelectorAll(selector)]);},
-      addEventListener(name,fn){(this.listeners[name]||=[]).push(fn);},async emit(name){for(const fn of this.listeners[name]||[])await fn({target:this});},
+      addEventListener(name,fn){(this.listeners[name]||=[]).push(fn);},async emit(name){for(const fn of this.listeners[name]||[])await fn({target:this,currentTarget:this});},
       focus(){document.activeElement=this;return this.emit('focus');},blur(){document.activeElement=null;return this.emit('blur');},select(){this.selectionStart=0;this.selectionEnd=this.value.length;},
     };
   }
@@ -61,6 +62,8 @@ function harness() {
   const pricing={inventory:{},rates:{original:{price:1}}},details={client:'Original client'},target={project_token:'original-token'};
   const context={document,window:{CeasefireProject:{configuration:()=>copy(pricing),details:()=>copy(details),downloadTarget:()=>copy(target),changed(){}},CeasefirePenetrationNavigation:{confirm:async()=>true,confirmDelete:async()=>true,notify:async()=>{},show(){},showSchedule(){}}},Intl,Number,String,JSON,Object,Set,Map,Array,Promise,Error,console,
     setTimeout(fn){timers.set(++timerId,fn);return timerId;},clearTimeout(id){timers.delete(id);}};
+  let operationFetch;
+  Object.defineProperty(context,'fetch',{set(fn){operationFetch=fn;},get(){return(path,options)=>String(path).startsWith('/api/download-progress')?Promise.resolve({ok:true,json:async()=>String(path)==='/api/download-progress'?{token:'fixture-progress-token'}:{state:'preparing',percent:20}}):operationFetch(path,options);}});
   vm.createContext(context);vm.runInContext(fs.readFileSync('static/downloads.js','utf8'),context);
   const pen=install(context);
   const control=(column,row='line-1')=>[byId('penetration-item-quantity'),byId('penetration-row-fields')].flatMap(root=>root.querySelectorAll('[data-penetration-field]')).find(el=>el.dataset.penetrationField===column&&el.dataset.penetrationRow===(row||''));

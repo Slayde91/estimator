@@ -225,7 +225,10 @@
     root.addEventListener("focusout", event => { if (!root.contains(event.relatedTarget)) close(false); });
     document.body.addEventListener("pointerdown", event => { if (!root.contains(event.target)) close(false); });
     for (const [confirmation, label] of [["confirmed", "Download confirmed items"], ["unconfirmed", "Download unconfirmed items"], ["all", "Download all items"]]) {
-      const action = button(label, () => { close(false); return downloadTakeoff("schedule-xlsx", confirmation); }, "button secondary calculator-document-action"), symbol = node("span", "download-format-icon"); symbol.setAttribute("aria-hidden", "true"); symbol.append(node("span", "download-arrow", "⇩"), node("span", "download-format", "XLSX")); action.replaceChildren(symbol, node("span", "", label)); list.append(action);
+      const action = button(label, () => { close(false); return downloadTakeoff("schedule-xlsx", confirmation, action); }, "button secondary calculator-document-action"), symbol = node("span", "download-format-icon"); symbol.setAttribute("aria-hidden", "true"); symbol.append(node("span", "download-arrow", "⇩"), node("span", "download-format", "XLSX")); action.replaceChildren(symbol, node("span", "", label)); list.append(action);
+    }
+    for (const [kind, label] of [["current-all", "Download Full Markup"], ["current-marked", "Download Markups Only"], ["all-all", "Download All Markups"], ["all-marked", "Download Full Markups Only"]]) {
+      const action = button(label, () => { close(false); return downloadMarkup(kind, action); }, "button secondary calculator-document-action"), symbol = node("span", "download-format-icon"); symbol.setAttribute("aria-hidden", "true"); symbol.append(node("span", "download-arrow", "⇩"), node("span", "download-format", "PDF")); action.replaceChildren(symbol, node("span", "", label)); list.append(action);
     }
     return { root, toggle, list, close };
   }
@@ -247,8 +250,13 @@
   }
   function message(text = "", error = false) {
     if (!state.ui) return;
+    clearTimeout(state.messageTimer);
+    const version = state.messageVersion = (state.messageVersion || 0) + 1;
     const notice = state.ui.message; notice.textContent = text; notice.hidden = !text; notice.className = `message${error ? " error" : ""}`; notice.setAttribute("role", error ? "alert" : "status");
     if (state.linkedRecovery) notice.append(button("Retry linked change", recoverLinkedOperation));
+    if (text && !error && !state.linkedRecovery) state.messageTimer = setTimeout(() => {
+      if (state.messageVersion === version && state.ui?.message === notice && notice.getAttribute("role") === "status" && !state.linkedRecovery) { notice.textContent = ""; notice.hidden = true; }
+    }, 5000);
     if (error && text && notice.getClientRects?.().length) {
       const reveal = () => {
         if (notice.hidden || notice.getAttribute("role") !== "alert" || notice.textContent !== text) return;
@@ -512,6 +520,7 @@
     if (state.ui) return;
     const root = $("takeoffs-workspace"); if (!root) return;
     const ui = state.ui = { root };
+    state.drawingFonts ||= Promise.all([document.fonts.load("9px CeasefireDrawing"), document.fonts.load("700 9px CeasefireDrawing")]).then(() => { if (state.viewport) renderOverlay(); });
     ui.title = node("h1", "takeoff-workspace-title", "Steel");
     ui.documentMenu = registerDocumentMenu();
     ui.physicalDocumentHost = node("div", "takeoff-physical-document-host"); ui.physicalDocumentHost.hidden = true;
@@ -874,13 +883,11 @@
     state.physicalHovered = id;
     for (const hit of state.ui?.overlay.querySelectorAll("[data-physical-id]") || []) hit.previousElementSibling?.classList.toggle("hovered", hit.dataset.physicalId === id);
   }
-  async function exportPhysical(format, confirmation = null) {
+  async function exportPhysical(format, confirmation = null, button = document.activeElement) {
     const sessionId = state.session?.session_id, scope = state.physicalScope, revision = state.session?.revision;
-    const response = await fetch(`/api/takeoffs/sessions/${sessionId}/physical/export/${format === "xlsx" ? "register-xlsx" : format}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ scope, ...(format === "pdf" || format === "xlsx" || confirmation !== null ? { expected_revision: revision } : {}), ...(confirmation !== null ? { confirmation } : {}) }) });
-    if (!response.ok) { const result = await response.json(); throw new Error(result.error || "Physical draft export failed."); }
-    if (sessionId !== state.session?.session_id || scope !== state.physicalScope || revision !== state.session?.revision) throw new Error("The project or penetration workspace changed during draft export. Export the current draft again.");
-    const blob = await response.blob(), url = URL.createObjectURL(blob), link = node("a"); link.href = url; link.download = format === "pdf" ? "Passive_Fire_Matrix.pdf" : `CEASEFIRE-${scope === "service_plans" ? "Service-Plans" : "Defect-Reports"}${confirmation !== null ? `-${confirmation[0].toUpperCase()}${confirmation.slice(1)}-Items` : ""}-UNAPPROVED-DRAFT.${format}`; document.body.append(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 30000);
-    message(format === "pdf" ? "Downloaded Passive_Fire_Matrix from the current physical draft." : confirmation !== null ? `Downloaded ${confirmation} active items. Confirmation records manual draft review; it does not approve technical suitability.` : "Exported the unapproved physical draft with its retained parent and evidence identities. This is not an approved quantity export.");
+    const saved = await window.CeasefireDownloads.save(`/api/takeoffs/sessions/${sessionId}/physical/export/${format === "xlsx" ? "register-xlsx" : format}`, { scope, ...(format === "pdf" || format === "xlsx" || confirmation !== null ? { expected_revision: revision } : {}), ...(confirmation !== null ? { confirmation } : {}) }, { button });
+    if (sessionId !== state.session?.session_id || scope !== state.physicalScope || revision !== state.session?.revision) return saved;
+    message(`Saved ${saved.filename} to ${saved.path}.`);
   }
   function ensurePhysicalUI() {
     if (state.physicalUI) return;
@@ -955,7 +962,7 @@
         return { ...reply, snapshot: physicalSnapshot(reply.snapshot) };
       },
       drawingPdf: () => button("Download PDF", () => downloadTakeoff("marked-pdf")),
-      export: exportPhysical, undo: async () => { const reply = await command("undo"); return { ...reply, snapshot: physicalSnapshot(reply.snapshot) }; }, history: showAudit,
+      export: exportPhysical, downloadMarkup, undo: async () => { const reply = await command("undo"); return { ...reply, snapshot: physicalSnapshot(reply.snapshot) }; }, history: showAudit,
       selection: async (ids, reference, focus, openDetails = true) => { state.physicalSelected = new Set(ids); if (ids.length) { state.signatureSelected = null; state.graphicSelected = null; state.settingsOpen = false; state.settingsEditor = null; renderSettingsPanel(); } if (openDetails && ids.length && state.mode === "physical") { setPhysicalDetailsOpen(true); state.ui.physicalDetails.scrollTop = 0; } if (reference && focus) await physicalSource(reference); else renderOverlay(); },
       hover: hoverPhysical,
       placeMarker: id => armPhysicalMarker(id),
@@ -2709,8 +2716,11 @@
       if (!canonical) continue;
       const point = G.transform(canonical, state.viewport.transform), offset = stacks.get(index) || 0;
       stacks.set(index, offset + 1);
-      const label = svg("text", { x: point[0] + 10, y: point[1] + 17 + offset * 16, class: "takeoff-label takeoff-rise-drop", "pointer-events": "none", "data-addition-id": addition.id });
-      label.textContent = `${addition.kind === "riser" ? "↑ Rise" : "↓ Drop"} ${units.format(addition.length_mm)} mm`;
+      const baseline = point[1]+17+offset*16, top = baseline-9, bottom = baseline-1, head = addition.kind === "riser" ? top : bottom, shoulder = head+(addition.kind === "riser" ? 3 : -3), x = point[0]+14;
+      const path = `M${x},${top} L${x},${bottom} M${x-3},${shoulder} L${x},${head} L${x+3},${shoulder}`;
+      for (const [stroke, width] of [["#ffffff", 4], ["#1e3344", 1.5]]) overlay.append(svg("path", { d: path, stroke, "stroke-width": width, "stroke-linecap": "round", "stroke-linejoin": "round", fill: "none", "pointer-events": "none", "data-addition-arrow": addition.kind }));
+      const label = svg("text", { x: point[0] + 22, y: baseline, class: "takeoff-label takeoff-rise-drop", "pointer-events": "none", "data-addition-id": addition.id });
+      label.textContent = `${addition.kind === "riser" ? "Rise" : "Drop"} ${units.format(addition.length_mm)} mm`;
       const title = svg("title", {}); title.textContent = `${addition.kind === "riser" ? "Rise" : "Drop"} at control point ${index + 1}: ${addition.length_mm} mm per ${item.mode === "steel" ? "member" : "run"}`;
       label.append(title); overlay.append(label);
     }
@@ -3544,10 +3554,10 @@
       appearance: { stroke_color: "#404040", fill_color: "#FFFFFF", font_color: "#202020", stroke_width: 1, fill_enabled: true, opacity: .94 } };
     if (!existing) {
       const font = 11, rows = drawingLegendRows(legend), canvas = document.createElement("canvas"), measure = canvas.getContext("2d");
-      measure.font = `${font}px Arial, sans-serif`;
+      measure.fontKerning = "none"; measure.font = `${font}px CeasefireDrawing`;
       const contentWidth = Math.max(80, ...rows.map(row => measure.measureText(row.text).width + 30));
       legend.width = Math.min(Math.max(120, contentWidth), Math.max(120, Math.min(460, state.viewport.width * .8 / scale)));
-      const lines = rows.reduce((sum, row) => sum + physicalCalloutLines(row.text, legend.width - 30, font, "Arial, sans-serif").length, 0);
+      const lines = rows.reduce((sum, row) => sum + physicalCalloutLines(row.text, legend.width - 30, font, "CeasefireDrawing").length, 0);
       legend.height = Math.max(40, (lines + 3) * font * 1.3 + 16);
     }
     await command("set_legend", { legend }, () => { requireFinishedEdits(); if (context !== pageDisplayKey()) throw new Error("The drawing changed. Click Legend again."); if (legend.visible && !eligibleLegendItems().length) throw new Error("The eligible Length or Count markups changed. Show a current markup before enabling Legend."); return true; });
@@ -3575,12 +3585,12 @@
     const group = svg("g", { class: "takeoff-drawing-legend", role: "button", tabindex: 0, "aria-label": `${labels[legend.mode]} Legend`, "aria-pressed": String(!!selected), "data-legend-id": legend.id });
     group.append(svg("rect", { x, y, width, height, fill: style.fill_enabled ? style.fill_color : "none", "fill-opacity": style.opacity, stroke: style.stroke_enabled === false ? "none" : style.stroke_color, "data-line-enabled": style.stroke_enabled !== false, "stroke-width": style.stroke_width*scale }));
     let font = 11*scale, wrapped;
-    for (let attempt = 0; attempt < 45; attempt++) { wrapped = rows.map(row => ({ ...row, lines: physicalCalloutLines(row.text, Math.max(10, width-30*scale), font, "Arial, sans-serif") })); if ((wrapped.reduce((sum, row) => sum+row.lines.length, 0)+3)*font*1.3 < height-12*scale) break; font *= .9; }
-    const heading = svg("text", { x: x+8*scale, y: y+8*scale+font, fill: style.font_color || "#202020", "font-size": font, "font-family": "Arial, sans-serif", "font-weight": "700", "pointer-events": "none" }); heading.textContent = `${labels[legend.mode]} Legend`; group.append(heading);
+    for (let attempt = 0; attempt < 45; attempt++) { wrapped = rows.map(row => ({ ...row, lines: physicalCalloutLines(row.text, Math.max(10, width-30*scale), font, "CeasefireDrawing") })); if ((wrapped.reduce((sum, row) => sum+row.lines.length, 0)+3)*font*1.3 < height-12*scale) break; font *= .9; }
+    const heading = svg("text", { x: x+8*scale, y: y+8*scale+font, fill: style.font_color || "#202020", "font-size": font, "font-family": "CeasefireDrawing", "font-kerning": "none", "font-weight": "700", "pointer-events": "none" }); heading.textContent = `${labels[legend.mode]} Legend`; group.append(heading);
     let lineY = y+8*scale+font*2.5;
     for (const row of wrapped) {
       group.append(svg("rect", { x: x+8*scale, y: lineY-font*.8, width: font, height: font, fill: row.colour, "pointer-events": "none" }));
-      for (const line of row.lines) { const text = svg("text", { x: x+12*scale+font, y: lineY, fill: style.font_color || "#202020", "font-size": font, "font-family": "Arial, sans-serif", "pointer-events": "none" }); text.textContent = line; group.append(text); lineY += font*1.3; }
+      for (const line of row.lines) { const text = svg("text", { x: x+12*scale+font, y: lineY, fill: style.font_color || "#202020", "font-size": font, "font-family": "CeasefireDrawing", "font-kerning": "none", "pointer-events": "none" }); text.textContent = line; group.append(text); lineY += font*1.3; }
     }
     const choose = event => { event.preventDefault(); event.stopPropagation(); if (state.tool !== "select") return; state.selected.clear(); state.countSelection.clear(); state.legendSelected = legend.id; if (event.type === "dblclick") { state.settingsOpen = true; state.settingsEditor = null; renderSettingsPanel(); } renderOverlay(); };
     group.addEventListener("click", choose); group.addEventListener("dblclick", choose); group.addEventListener("keydown", event => { if (["Enter", " "].includes(event.key)) choose(event); });
@@ -4737,26 +4747,29 @@
   }
   async function exportRegister(format) { requireFinishedEdits();
     const ids = selectedItems().map(item => item.id); if (!ids.length) throw new Error("Select confirmed register items to export. All selected items must be eligible.");
-    const response = await fetch(`/api/takeoffs/sessions/${state.session.session_id}/export/${format}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ selected_ids: ids }) });
-    if (!response.ok) { const result = await response.json(); throw new Error(result.error || "Register export failed."); }
-    const blob = await response.blob(), url = URL.createObjectURL(blob), link = node("a"); link.href = url; link.download = `CEASEFIRE-${labels[state.mode]}-Takeoff.${format}`; document.body.append(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 30000); message(`Exported ${ids.length} selected confirmed items with their source identities.`);
+    const sessionId = state.session.session_id, revision = state.session.revision;
+    const saved = await window.CeasefireDownloads.save(`/api/takeoffs/sessions/${sessionId}/export/${format}`, { selected_ids: ids });
+    if (state.session?.session_id !== sessionId || state.session.revision !== revision) return saved;
+    message(`Saved ${saved.filename} to ${saved.path}.`);
   }
-  async function downloadTakeoff(format, confirmation = "all") {
+  function downloadMarkup(kind, button = document.activeElement) { return downloadTakeoff("markup-pdf", "all", button, kind); }
+  async function downloadTakeoff(format, confirmation = "all", button = document.activeElement, markupKind = null) {
     if (!["confirmed", "unconfirmed", "all"].includes(confirmation)) throw new Error("Choose confirmed, unconfirmed or all takeoff items.");
     requireFinishedEdits();
     if (state.busy || state.modal || !state.session) throw new Error("Finish the current takeoff operation before downloading.");
     const mode = state.mode, scope = state.physicalScope, sessionId = state.session.session_id, revision = state.session.revision, documentId = state.document;
-    if (mode === "physical" && format !== "marked-pdf") throw new Error("Use the physical draft CSV/XLSX export controls for penetration records.");
-    const pdf = format === "marked-pdf", list = mode === "physical" ? state.markupsHidden ? [] : [...(physicalGraph()?.barriers || []), ...(physicalGraph()?.defects || [])].filter(entity => !entity.deleted && !physicalEntityHidden(entity) && physicalDrawingLocator(entity, documentId)?.document_id === documentId) : pdf ? state.markupsHidden ? [] : visibleItems().filter(item => (item.measurement || isCount(item)) && !state.hidden.has(item.id) && item.geometry?.document_id === documentId) : items().filter(item => inWorkspace(item.mode, mode));
-    if (pdf && !documentId) throw new Error("Open the PDF to download its visible markups.");
+    if (mode === "physical" && !["marked-pdf", "markup-pdf"].includes(format)) throw new Error("Use the physical draft CSV/XLSX export controls for penetration records.");
+    if (markupKind !== null && !["current-all", "current-marked", "all-all", "all-marked"].includes(markupKind)) throw new Error("Choose a supported markup PDF download.");
+    const aggregate = markupKind?.startsWith("all-"), pdf = format === "marked-pdf" || format === "markup-pdf", list = mode === "physical" ? state.markupsHidden ? [] : [...(physicalGraph()?.barriers || []), ...(physicalGraph()?.defects || [])].filter(entity => !entity.deleted && !physicalEntityHidden(entity) && physicalDrawingLocator(entity, documentId)?.document_id === documentId) : pdf ? state.markupsHidden ? [] : visibleItems().filter(item => (item.measurement || isCount(item)) && !state.hidden.has(item.id) && item.geometry?.document_id === documentId) : items().filter(item => inWorkspace(item.mode, mode));
+    if (pdf && !documentId && !aggregate) throw new Error("Open the PDF to download its visible markups.");
     if (!list.length && !pdf) throw new Error("There are no items in this takeoff type to download.");
     working(true);
     try {
-      if (mode === "physical") {
+      if (pdf) {
         await state.drawingFonts;
         if (!document.fonts.check("9px CeasefireDrawing") || !document.fonts.check("700 9px CeasefireDrawing")) throw new Error("The drawing fonts could not load. Retry after the drawing finishes loading.");
       }
-      const calculatorDrafts = {}, calculatorFingerprints = [], destinations = mode === "steel" ? ["steel_vermiculite", "steel_board"] : mode === "duct" ? ["ductwork"] : [];
+      const calculatorDrafts = {}, calculatorFingerprints = [], destinations = aggregate ? ["steel_vermiculite", "steel_board", "ductwork"] : mode === "steel" ? ["steel_vermiculite", "steel_board"] : mode === "duct" ? ["ductwork"] : [];
       for (const id of destinations) {
         try { const draft = await window.CeasefireCalculators?.captureTakeoffTarget?.(id); if (draft) { calculatorDrafts[id] = { inputs: draft.inputs, schedule_rows: draft.schedule_rows }; calculatorFingerprints.push(draft.fingerprint); } }
         catch { /* An unavailable/invalid calculator cannot supply coating or layer values. */ }
@@ -4767,13 +4780,17 @@
       const rendering = { zoom: state.zoom, rotations: Object.fromEntries((documentById(documentId)?.pages || []).map((_, index) => [String(index+1), state.pageRotations.get(JSON.stringify([sessionId,documentId,index+1])) || 0])) };
       const annotationIds = state.markupsHidden ? [] : annotations().filter(value => value.document_id === documentId && inWorkspace(value.mode, mode) && !state.annotationHidden?.has(value.id)).map(value => value.id);
       const signatureIds = state.markupsHidden ? [] : signatures().filter(value => value.document_id === documentId && signatureInWorkspace(value, mode, scope) && !state.signatureHidden?.has(value.id)).map(value => value.id);
-      const response = await fetch(`/api/takeoffs/sessions/${sessionId}/export/${pdf ? format : "register-xlsx"}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ expected_revision: revision, mode: mode === "physical" ? "penetrations" : workspaceMode(mode), item_ids: list.map(item => item.id), ...(pdf ? { document_id: documentId, signature_ids: signatureIds, graphic_ids: state.markupsHidden ? [] : (graphicsUI?.records() || []).filter(value => value.document_id === documentId && signatureInWorkspace(value, mode, scope) && !state.graphicHidden?.has(value.id)).map(value => value.id), ...(mode !== "physical" ? { annotation_ids: annotationIds } : {}) } : { confirmation, target: isArea(mode) ? null : state.ui.target.value }), ...(mode === "physical" ? { physical_scope: scope, rendering } : { calculator_drafts: calculatorDrafts }) }) });
-      if (!response.ok) { const result = await response.json(); throw new Error(result.error || "Takeoff download failed."); }
-      const blob = await response.blob();
-      if (state.session?.session_id !== sessionId || state.session.revision !== revision || mode === "physical" && scope !== state.physicalScope) throw new Error("The project changed during the download. Export the current draft again.");
-      assertCalculatorDrafts();
-      const url = URL.createObjectURL(blob), link = node("a"); link.href = url; link.download = `CEASEFIRE-${mode === "physical" ? scope === "service_plans" ? "Service-Plans" : "Defect-Reports" : labels[mode].replaceAll("/", "-")}-${pdf ? "Marked-drawing.pdf" : `${confirmation}-Takeoff-schedule.xlsx`}`; document.body.append(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 30000);
-      message(mode === "physical" ? `Downloaded the original PDF with ${list.length} source annotations and current draft callouts. The exported records remain an unapproved draft.` : pdf ? `Downloaded the current PDF with ${list.length} visible ${labels[mode].toLowerCase()} measurement markups and ${annotationIds.length} free Call-outs across its pages. Unavailable calculator coating/layers are labelled explicitly.` : `Downloaded ${confirmation} ${labels[mode].toLowerCase()} items using their current local confirmation status, including hidden rows in that category.`);
+      const graphicIds = state.markupsHidden ? [] : (graphicsUI?.records() || []).filter(value => value.document_id === documentId && signatureInWorkspace(value, mode, scope) && !state.graphicHidden?.has(value.id)).map(value => value.id);
+      let payload = { expected_revision: revision, mode: mode === "physical" ? "penetrations" : workspaceMode(mode), item_ids: list.map(item => item.id), ...(pdf ? { document_id: documentId, signature_ids: signatureIds, graphic_ids: graphicIds, ...(mode !== "physical" ? { annotation_ids: annotationIds } : {}) } : { confirmation, target: isArea(mode) ? null : state.ui.target.value }), ...(mode === "physical" ? { physical_scope: scope, rendering } : { calculator_drafts: calculatorDrafts }) };
+      if (markupKind) {
+        const drawings = aggregate ? snapshot().documents : [documentById(documentId)], renderings = Object.fromEntries(drawings.map(drawing => [drawing.id, { zoom: state.zoom, rotations: Object.fromEntries(drawing.pages.map((_, index) => [String(index+1), state.pageRotations.get(JSON.stringify([sessionId,drawing.id,index+1])) || 0])) }]));
+        payload = { expected_revision: revision, mode: mode === "physical" ? "penetrations" : workspaceMode(mode), kind: markupKind, calculator_drafts: calculatorDrafts, targets: { steel: mode === "steel" ? state.ui.target.value : "steel_vermiculite", duct: "ductwork" }, rendering: renderings, ...(mode === "physical" ? { physical_scope: scope } : {}), ...(!aggregate ? { document_id: documentId, visibility: { item_ids: list.map(item => item.id), annotation_ids: mode === "physical" ? [] : annotationIds, signature_ids: signatureIds, graphic_ids: graphicIds, legend_ids: state.markupsHidden ? [] : (snapshot().drawing_presentation?.legends || []).filter(value => value.visible && value.document_id === documentId && value.mode === workspaceMode(mode)).map(value => value.id) } } : {}) };
+      }
+      const saved = await window.CeasefireDownloads.save(`/api/takeoffs/sessions/${sessionId}/export/${pdf ? format : "register-xlsx"}`, payload, { button });
+      if (state.session?.session_id !== sessionId || state.session.revision !== revision || mode !== state.mode || mode === "physical" && scope !== state.physicalScope) return saved;
+      const laterCalculatorEdits = calculatorFingerprints.some(fingerprint => fingerprint !== window.CeasefireCalculators?.projectFingerprint?.());
+      message(`Saved ${saved.filename} to ${saved.path}.${laterCalculatorEdits ? " Later calculator edits are not included; review the current draft before relying on this file." : ""}`, laterCalculatorEdits);
+      return saved;
     } finally { working(false); }
   }
   async function showAudit() {
@@ -4844,5 +4861,5 @@
       requireFinishedEdits(); working(true);
       try { return await exportPhysical(format); } finally { working(false); }
     }),
-    downloadDrawing: () => safely(() => downloadTakeoff("marked-pdf")) };
+    downloadDrawing: () => safely(() => downloadTakeoff("marked-pdf")), downloadMarkup: (kind, control) => safely(() => downloadMarkup(kind, control)) };
 })();

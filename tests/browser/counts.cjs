@@ -1,3 +1,4 @@
+const { waitForTakeoffDownload } = require('./native_download_helpers.cjs');
 const { clickProjectControl } = require('./project_actions.cjs');
 const { checkSteelDialog } = require('./steel_dialog_layout.cjs');
 const { renderDrawing } = require('./viewer_helpers.cjs');
@@ -187,7 +188,7 @@ function assertSubsetMove(before, after, memberIds, drag) {
   }
 }
 async function download(label, name) {
-  const pending = page.waitForEvent('download'); pending.catch(() => {});
+  const pending = waitForTakeoffDownload(page); pending.catch(() => {});
   const response = page.waitForResponse(value => value.url().endsWith(label === 'Download PDF' ? '/export/marked-pdf' : '/export/register-xlsx')); response.catch(() => {});
   if (label === 'Download PDF') await page.evaluate(() => window.CeasefireTakeoffs.downloadDrawing()); else { await page.getByRole('button', { name: 'Takeoff register document actions', exact: true }).click(); await page.getByRole('button', { name: 'Download all items', exact: true }).click(); }
   const accepted = await response; assert.equal(accepted.status(), 200, await accepted.text());

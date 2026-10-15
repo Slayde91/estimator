@@ -43,6 +43,8 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
         takeoff_http = TakeoffHTTP(takeoffs, ROOT, content_security_policy)
     from .project_library import ProjectLibrary
     projects = ProjectLibrary(store, project_dialogs, takeoffs=takeoffs, edition=edition)
+    from .download_progress import DownloadProgress
+    download_progress = DownloadProgress()
     from .reference_library import ReferenceNotFound
     from .firestopping_library import FirestoppingLibrary, LibraryConflict
     libraries = FirestoppingLibrary(library_directory, store)
@@ -53,6 +55,8 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
         server_version = "CeasefireEstimator"
 
         def send_payload(self, status, payload, content_type="application/json; charset=utf-8", headers=None, *, content_security_policy_override=None):
+            if status >= 400:
+                download_progress.update(getattr(self, '_download_progress_token', None), 0, 'failed')
             body = json.dumps(payload, ensure_ascii=False, allow_nan=False).encode("utf-8") if content_type.startswith("application/json") else payload
             self.send_response(status)
             self.send_header("Content-Type", content_type)
@@ -68,10 +72,21 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                 self.wfile.write(body)
 
         def send_download(self, payload, content_type, filename, destination=None):
+            token = getattr(self, '_download_progress_token', None)
+            download_progress.update(token, 90, 'saving')
             if destination is not None:
-                self.send_payload(200, projects.write_download(destination, filename, payload))
+                receipt = projects.write_download(destination, filename, payload)
+                download_progress.update(token, 100, 'saved')
+                self.send_payload(200, receipt)
             else:
                 self.send_payload(200, payload, content_type, {'Content-Disposition': f'attachment; filename="{filename}"'})
+                download_progress.update(token, 100, 'saved')
+
+        def capture_download(self, request):
+            return projects.capture_download(request)
+
+        def download_progress(self, completed, total):
+            download_progress.pages(getattr(self, '_download_progress_token', None), completed, total)
 
         def send_reference_asset(self, asset_id, pdf=True):
             payload, content_type, filename = libraries.asset(asset_id, pdf)
@@ -140,6 +155,12 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
             if origin and origin not in {f"http://{h}" for h in hosts}:
                 self.send_payload(403, {"error": "Cross-origin requests are not allowed."})
                 return
+            progress_token = self.headers.get('X-Estimator-Download-Progress')
+            if progress_token is not None:
+                if self.command != 'POST':
+                    raise ValidationError('Document progress requires one download request.')
+                download_progress.claim(progress_token)
+                self._download_progress_token = progress_token
             route = urlsplit(self.path).path
             if excluded_route(route, edition):
                 self.send_payload(404, {'error': 'Not found.'})
@@ -147,7 +168,9 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
             if takeoff_http is not None and takeoff_http.dispatch(self, route):
                 return
             if self.command == "GET":
-                if route == '/api/company-settings':
+                if re.fullmatch(r'/api/download-progress/[A-Za-z0-9_-]{32}', route):
+                    self.send_payload(200, download_progress.read(route.rsplit('/', 1)[1]))
+                elif route == '/api/company-settings':
                     self.send_payload(200, store.company_settings())
                 elif route == '/api/libraries':
                     self.send_payload(200, libraries.overview())
@@ -204,7 +227,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     self.send_report(store.quote(route[len("/api/quotes/"):-len("/report.pdf")]), "Saved quote")
                 elif route.startswith("/api/quotes/"):
                     self.send_quote(200, store.quote(route.removeprefix("/api/quotes/")))
-                elif route in {"/", "/index.html", "/company-settings.js", "/activity.js", "/calculation-queue.js", "/searchable-choice.js", "/penetration-presentation.js", "/icons/navigation-takeoffs.svg", "/icons/navigation-takeoffs.jpg", "/icons/navigation-help.jpg", "/theme.js", "/theme.css", "/app.js", "/downloads.js", "/styles.css", "/calculators.js", "/calculators.css", "/penetration-breakdown.js", "/penetration.js", "/penetration.css", "/libraries.js", "/library-detail-text.js", "/libraries.css", "/library-editor.js", "/library-editor.css", "/icons/navigation-home.png", "/icons/document.png", "/icons/schedule-add.png", "/icons/navigation-help.png", "/icons/navigation-takeoffs.png", "/icons/takeoff-visibility.jpg", "/icons/takeoff-colour-wheel.png", "/icons/takeoff-legend.png", "/ceasefire-logo.png", "/ceasefire-app.ico", "/fonts/Montserrat-Variable.ttf", "/fonts/Vera.ttf", "/fonts/VeraBd.ttf", "/fonts/Montserrat-Italic-Variable.ttf", "/takeoffs.js", "/takeoffs.css", "/takeoff-geometry.js", "/takeoff-physical.js", "/takeoff-annotations.js", "/takeoff-signatures.js", "/takeoff-graphics.js", "/takeoff-graphics-ui.js", "/takeoff-pane-resize.js", "/takeoff-initial-pages.js", "/takeoff-pdf-tools.js", "/takeoff-pdf-tools.css", "/icons/default-memory.svg", "/icons/takeoff-set-default.png", "/icons/signature.svg", "/help-glossary.js", "/help-glossary.css", "/takeoff-search.js", "/takeoff-shortcuts.js", "/icons/takeoff-callout.png", "/takeoff-pdf-worker.mjs", "/takeoff-library-links.js", "/icons/takeoff-visibility.png", "/icons/takeoff-bullet-list.png", "/icons/takeoff-numbered-list.png", "/icons/takeoff-add-service.png", "/icons/takeoff-add-barrier.png", "/icons/takeoff-transfer.png", "/icons/takeoff-measure.png", "/header-tagline-media.js", "/header-tagline-character.gif", "/header-tagline-character-still.png"}:
+                elif route in {"/", "/index.html", "/company-settings.js", "/classifire-logo.png", "/main-layout.js", "/downloads.css", "/activity.js", "/calculation-queue.js", "/searchable-choice.js", "/penetration-presentation.js", "/icons/navigation-takeoffs.svg", "/icons/navigation-takeoffs.jpg", "/icons/navigation-help.jpg", "/theme.js", "/theme.css", "/app.js", "/downloads.js", "/styles.css", "/calculators.js", "/calculators.css", "/penetration-breakdown.js", "/penetration.js", "/penetration.css", "/libraries.js", "/library-detail-text.js", "/libraries.css", "/library-editor.js", "/library-editor.css", "/icons/navigation-home.png", "/icons/document.png", "/icons/schedule-add.png", "/icons/navigation-help.png", "/icons/navigation-takeoffs.png", "/icons/takeoff-visibility.jpg", "/icons/takeoff-colour-wheel.png", "/icons/takeoff-legend.png", "/ceasefire-logo.png", "/ceasefire-app.ico", "/fonts/Montserrat-Variable.ttf", "/fonts/Vera.ttf", "/fonts/VeraBd.ttf", "/fonts/Montserrat-Italic-Variable.ttf", "/takeoffs.js", "/takeoffs.css", "/takeoff-geometry.js", "/takeoff-physical.js", "/takeoff-annotations.js", "/takeoff-signatures.js", "/takeoff-graphics.js", "/takeoff-graphics-ui.js", "/takeoff-pane-resize.js", "/takeoff-initial-pages.js", "/takeoff-pdf-tools.js", "/takeoff-pdf-tools.css", "/icons/default-memory.svg", "/icons/takeoff-set-default.png", "/icons/signature.svg", "/help-glossary.js", "/help-glossary.css", "/takeoff-search.js", "/takeoff-shortcuts.js", "/icons/takeoff-callout.png", "/takeoff-pdf-worker.mjs", "/takeoff-library-links.js", "/icons/takeoff-visibility.png", "/icons/takeoff-bullet-list.png", "/icons/takeoff-numbered-list.png", "/icons/takeoff-add-service.png", "/icons/takeoff-add-barrier.png", "/icons/takeoff-transfer.png", "/icons/takeoff-measure.png", "/header-tagline-media.js", "/header-tagline-character.gif", "/header-tagline-character-still.png"}:
                     name = "index.html" if route == "/" else route[1:]
                     path = ROOT / "static" / name
                     kind = {".js": "text/javascript; charset=utf-8", ".mjs": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".html": "text/html; charset=utf-8", ".png": "image/png", ".svg": "image/svg+xml", ".jpg": "image/jpeg", ".gif": "image/gif", ".avif": "image/avif", ".ico": "image/x-icon", ".ttf": "font/ttf"}[path.suffix]
@@ -217,12 +240,16 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
             elif self.command in {"POST", "PUT"}:
                 body = self.read_json()
                 calculator_route = re.fullmatch(r'/api/calculators/([a-z_]+)/(calculate|worksheet|report\.pdf|summary\.pdf|register\.xlsx|state|template|import)', route)
-                if route in {'/api/project/full-schedule.pdf', '/api/project/full-product-summary.pdf'} and self.command == 'POST':
+                if route == '/api/download-progress' and self.command == 'POST':
+                    if body:
+                        raise ValidationError('Document progress does not accept extra options.')
+                    self.send_payload(200, download_progress.begin())
+                elif route in {'/api/project/full-schedule.pdf', '/api/project/full-product-summary.pdf'} and self.command == 'POST':
                     from .project_file import project_details
                     from .project_reports import build_project_report
                     if set(body) - {'calculators', 'penetration', 'configuration', 'project_details', 'download'}:
                         raise ValidationError('Include the project schedule snapshots only.')
-                    destination = projects.capture_download(body['download']) if 'download' in body else None
+                    destination = self.capture_download(body['download']) if 'download' in body else None
                     materials = route.endswith('full-product-summary.pdf')
                     report = build_project_report(body.get('calculators', {}), body.get('penetration'),
                         validate_configuration(body.get('configuration', store.configuration())), project_details(body.get('project_details')),
@@ -272,7 +299,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                         raise ValidationError('Technical item downloads do not accept query parameters.')
                     from .technical_item_exports import prepare_technical_item, render_technical_item_pdf, build_technical_item_xlsx
                     snapshot = prepare_technical_item(body, library=libraries)
-                    destination = projects.capture_download(body['download']) if 'download' in body else None
+                    destination = self.capture_download(body['download']) if 'download' in body else None
                     if route.endswith('.pdf'):
                         self.send_download(render_technical_item_pdf(snapshot, company=store.company_settings()), 'application/pdf', 'CEASEFIRE-Technical-Item.pdf', destination)
                     else:
@@ -283,7 +310,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                         return
                     from .penetration_item_exports import prepare_item_snapshot, render_item_pdf, build_item_xlsx
                     snapshot = prepare_item_snapshot(body, library=libraries, default_configuration=store.configuration(), require_diagram=route.endswith('.pdf'))
-                    destination = projects.capture_download(body['download']) if 'download' in body else None
+                    destination = self.capture_download(body['download']) if 'download' in body else None
                     if route.endswith('.pdf'):
                         self.send_download(render_item_pdf(snapshot, company=store.company_settings()), 'application/pdf', 'CEASEFIRE-Firestopping-Item.pdf', destination)
                     else:
@@ -312,7 +339,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     else:
                         from .penetration_report import render_penetration_pdf, build_penetration_register
                         from .project_file import project_details
-                        destination = projects.capture_download(body['download']) if 'download' in body else None
+                        destination = self.capture_download(body['download']) if 'download' in body else None
                         details = project_details(body.get('project_details'))
                         result = calculate_penetration(body['draft'], config)
                         if action == 'report.pdf':
@@ -369,7 +396,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                 elif route.startswith('/api/quotes/') and route.endswith('/report.pdf') and self.command == 'POST':
                     if set(body) - {'download'}:
                         raise ValidationError('Saved quote report requests accept download options only.')
-                    destination = projects.capture_download(body['download']) if 'download' in body else None
+                    destination = self.capture_download(body['download']) if 'download' in body else None
                     self.send_report(store.quote(route[len('/api/quotes/'):-len('/report.pdf')]), 'Saved quote', destination)
                 elif calculator_route:
                     from .schedule_rows import blank_schedule_defaults
@@ -384,7 +411,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                                'template': {'download'}, 'import': {'filename', 'content_base64', 'inputs'}}[action]
                     if set(body) - allowed:
                         raise ValidationError('Unknown calculator request fields.')
-                    destination = projects.capture_download(body['download']) if 'download' in body else None
+                    destination = self.capture_download(body['download']) if 'download' in body else None
                     if action in {'calculate', 'worksheet', 'report.pdf', 'summary.pdf', 'register.xlsx', 'import'}:
                         saved_inputs = store.calculator_state(calculator_id)['inputs']
                         inputs = validate_calculator_edits(calculator_id, blank_schedule_defaults(
@@ -432,7 +459,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     from .pricing_workbook import export_pricing_workbook
                     if set(body) - {"configuration", "download"}:
                         raise ValidationError("Unknown pricing export fields.")
-                    destination = projects.capture_download(body['download']) if 'download' in body else None
+                    destination = self.capture_download(body['download']) if 'download' in body else None
                     workbook = export_pricing_workbook(body.get("configuration", store.configuration()))
                     self.send_download(workbook, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 'ceasefire-pricing.xlsx', destination)
                 elif route == "/api/pricing/import" and self.command == "POST":
@@ -455,7 +482,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     self.send_payload(200, {**proposed, "catalog": configuration_catalog(config),
                                             "fields": fields(effective_catalog(config))})
                 elif route == "/api/quote-report" and self.command == "POST":
-                    destination = projects.capture_download(body.pop('download')) if 'download' in body else None
+                    destination = self.capture_download(body.pop('download')) if 'download' in body else None
                     source_quote_id = body.pop("source_quote_id", None)
                     if source_quote_id is not None and (not isinstance(source_quote_id, str) or not 0 < len(source_quote_id) <= 200):
                         raise ValidationError("Source quote reference must contain 1 to 200 characters.")
@@ -485,6 +512,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                 self.send_payload(405, {"error": "Method not allowed."})
 
         def handle_request(self):
+            self._download_progress_token = None
             self.connection.settimeout(15)
             try:
                 self.dispatch()

@@ -74,16 +74,44 @@
   <header class="app-header">
     <div class="brand-stack"><a class="brand" href="/" aria-label="CLASSIFIRE home"><img class="brand-logo" src="/classifire-logo.png" alt="CLASSIFIRE" width="2172" height="724"></a><span id="header-project-name" class="header-project-name" hidden></span><span id="project-save-state" class="status-label unsaved" role="status">Not saved to a file</span></div>
     <div class="header-navigation">
-    <nav aria-label="Main navigation">
-      <button type="button" class="nav-button nav-icon active" data-view="home" aria-current="page" aria-label="Home" title="Home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m2 10 10-8 10 8M5 8v13h14V8M17 3h3v5"></path></svg><span class="sr-only">Home</span></button>
+    <!-- Header SVG artwork: Lucide Icons, https://lucide.dev/license
+ISC License. Copyright (c) 2026 Lucide Icons and Contributors.
+Permission to use, copy, modify, and/or distribute this software for any purpose
+with or without fee is hereby granted, provided that the above copyright notice
+and this permission notice appear in all copies.
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH
+REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
+AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT,
+INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
+LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR
+OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+PERFORMANCE OF THIS SOFTWARE.
+Feather-derived artwork: MIT License. Copyright (c) 2013-present Cole Bemis.
+Permission is hereby granted, free of charge, to any person obtaining a copy of
+this software and associated documentation files (the "Software"), to deal in
+the Software without restriction, including without limitation the rights to
+use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
+of the Software, and to permit persons to whom the Software is furnished to do
+so, subject to the following conditions:
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE. -->
+<nav aria-label="Main navigation">
+      <button type="button" class="nav-button nav-icon active" data-view="home" aria-current="page" aria-label="Home" title="Home"><svg aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="house" class="lucide lucide-house"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"></path><path d="M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg><span class="sr-only">Home</span></button>
       <div id="estimate-navigation" class="section-navigation">
-        <button id="estimate-navigation-toggle" type="button" class="nav-button nav-icon" data-view="estimate" aria-label="Estimates" title="Estimates" aria-expanded="false" aria-controls="estimate-navigation-menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M18 3H6l8 9-8 9h12"></path></svg><span class="sr-only">Estimates</span></button>
+        <button id="estimate-navigation-toggle" type="button" class="nav-button nav-icon" data-view="estimate" aria-label="Estimates" title="Estimates" aria-expanded="false" aria-controls="estimate-navigation-menu"><svg aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="sigma" class="lucide lucide-sigma"><path d="M18 7V5a1 1 0 0 0-1-1H6.5a.5.5 0 0 0-.4.8l4.5 6a2 2 0 0 1 0 2.4l-4.5 6a.5.5 0 0 0 .4.8H17a1 1 0 0 0 1-1v-2"></path></svg><span class="sr-only">Estimates</span></button>
         <div id="estimate-navigation-menu" class="section-navigation-menu" role="group" aria-label="Choose an estimate" hidden>
           <button type="button" class="section-navigation-choice" data-estimator-kind="estimate" aria-pressed="false">Main</button>
         </div>
       </div>
       <div id="calculator-navigation" class="calculator-navigation">
-        <button id="calculator-navigation-toggle" type="button" class="nav-button nav-icon" data-view="calculators" aria-label="Calculators" title="Calculators" aria-expanded="false" aria-controls="calculator-navigation-menu"><span aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false"><rect x="4" y="2.5" width="16" height="19" rx="2"></rect><path d="M7.5 6.5h9v3h-9zM8 13h.01M12 13h.01M16 13h.01M8 17h.01M12 17h.01M16 17h.01"></path></svg></span><span class="sr-only">Calculators</span></button>
+        <button id="calculator-navigation-toggle" type="button" class="nav-button nav-icon" data-view="calculators" aria-label="Calculators" title="Calculators" aria-expanded="false" aria-controls="calculator-navigation-menu"><svg aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="calculator" class="lucide lucide-calculator"><rect width="16" height="20" x="4" y="2" rx="2"></rect><line x1="8" x2="16" y1="6" y2="6"></line><line x1="16" x2="16" y1="14" y2="18"></line><path d="M16 10h.01"></path><path d="M12 10h.01"></path><path d="M8 10h.01"></path><path d="M12 14h.01"></path><path d="M8 14h.01"></path><path d="M12 18h.01"></path><path d="M8 18h.01"></path></svg><span class="sr-only">Calculators</span></button>
         <div id="calculator-navigation-menu" class="calculator-navigation-menu" role="group" aria-label="Choose a calculator" hidden>
           <button type="button" class="calculator-navigation-choice" data-calculator-id="steel_vermiculite" aria-pressed="false">Steel (spray)</button>
           <button type="button" class="calculator-navigation-choice" data-calculator-id="steel_board" aria-pressed="false">Steel (board)</button>
@@ -93,7 +121,7 @@
       </div>
       <!-- TAKEOFFS:START -->
       <div id="takeoff-navigation" class="section-navigation">
-        <button id="takeoff-navigation-toggle" type="button" class="nav-button nav-icon" data-view="takeoffs" aria-label="Takeoffs" title="Takeoffs" aria-expanded="false" aria-controls="takeoff-navigation-menu"><img class="takeoff-navigation-image" src="/icons/navigation-takeoffs.jpg" alt="" width="25" height="25"><span class="sr-only">Takeoffs</span></button>
+        <button id="takeoff-navigation-toggle" type="button" class="nav-button nav-icon" data-view="takeoffs" aria-label="Takeoffs" title="Takeoffs" aria-expanded="false" aria-controls="takeoff-navigation-menu"><svg aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="scan-line" class="lucide lucide-scan-line"><path d="M3 7V5a2 2 0 0 1 2-2h2"></path><path d="M17 3h2a2 2 0 0 1 2 2v2"></path><path d="M21 17v2a2 2 0 0 1-2 2h-2"></path><path d="M7 21H5a2 2 0 0 1-2-2v-2"></path><path d="M7 12h10"></path></svg><span class="sr-only">Takeoffs</span></button>
         <div id="takeoff-navigation-menu" class="section-navigation-menu" role="group" aria-label="Choose a takeoff workspace" hidden>
           <button type="button" class="section-navigation-choice" data-mode="steel" aria-pressed="true">Steel</button>
           <button type="button" class="section-navigation-choice" data-mode="duct" aria-pressed="false">Duct</button>
@@ -109,16 +137,16 @@
       </div>
       <!-- TAKEOFFS:END -->
       <div id="library-navigation" class="section-navigation">
-        <button id="library-navigation-toggle" type="button" class="nav-button nav-icon" data-view="pricing" aria-label="Libraries" title="Libraries" aria-expanded="false" aria-controls="library-navigation-menu"><span aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="M3 5.5c3.2-.9 6-.3 9 2v12c-3-2.3-5.8-2.9-9-2z"></path><path d="M21 5.5c-3.2-.9-6-.3-9 2v12c3-2.3 5.8-2.9 9-2z"></path></svg></span><span class="sr-only">Libraries</span></button>
+        <button id="library-navigation-toggle" type="button" class="nav-button nav-icon" data-view="pricing" aria-label="Libraries" title="Libraries" aria-expanded="false" aria-controls="library-navigation-menu"><svg aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="book-open" class="lucide lucide-book-open"><path d="M12 7v14"></path><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"></path></svg><span class="sr-only">Libraries</span></button>
         <div id="library-navigation-menu" class="section-navigation-menu" role="group" aria-label="Choose a library" hidden>
           <button type="button" class="section-navigation-choice" data-library-kind="pricing" aria-pressed="true">Pricing Library</button>
           <button type="button" class="section-navigation-choice" data-library-kind="penetration" aria-pressed="false">Firestopping Library</button>
           <button type="button" class="section-navigation-choice" data-library-kind="technical" aria-pressed="false">Technical Library</button>
         </div>
       </div>
-      <button type="button" class="nav-button nav-icon" data-view="quotes" aria-label="Projects" title="Projects"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="3" y="3" width="18" height="18"></rect><rect x="7" y="7" width="10" height="10"></rect></svg><span class="sr-only">Projects</span></button>
-      <button type="button" class="nav-button nav-icon" data-view="help" aria-label="Help" title="Help"><img class="help-navigation-image" src="/icons/navigation-help.jpg" alt="" width="25" height="25"><span class="sr-only">Help</span></button>
-<button type="button" class="nav-button nav-icon" data-view="settings" aria-label="Settings" title="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false"><circle cx="12" cy="12" r="4.5"></circle><path d="M10 2h4l1 3 2.8-1.3 2.5 2.5L19 9l3 1v4l-3 1 1.3 2.8-2.5 2.5L15 19l-1 3h-4l-1-3-2.8 1.3-2.5-2.5L5 15l-3-1v-4l3-1-1.3-2.8 2.5-2.5L9 5z"></path></svg><span class="sr-only">Settings</span></button>
+      <button type="button" class="nav-button nav-icon" data-view="quotes" aria-label="Projects" title="Projects"><svg aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="folders" class="lucide lucide-folders"><path d="M20 5a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h2.5a1.5 1.5 0 0 1 1.2.6l.6.8a1.5 1.5 0 0 0 1.2.6z"></path><path d="M3 8.268a2 2 0 0 0-1 1.738V19a2 2 0 0 0 2 2h11a2 2 0 0 0 1.732-1"></path></svg><span class="sr-only">Projects</span></button>
+      <button type="button" class="nav-button nav-icon" data-view="help" aria-label="Help" title="Help"><svg aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="circle-help" class="lucide lucide-circle-help"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><path d="M12 17h.01"></path></svg><span class="sr-only">Help</span></button>
+<button type="button" class="nav-button nav-icon" data-view="settings" aria-label="Settings" title="Settings"><svg aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="settings" class="lucide lucide-settings"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"></path><circle cx="12" cy="12" r="3"></circle></svg><span class="sr-only">Settings</span></button>
     </nav>
     <p id="header-tagline" class="header-tagline"><img id="header-tagline-character" class="header-tagline-character" src="/header-tagline-character-still.png" width="32" height="48" alt="" aria-hidden="true"><span id="header-tagline-label" class="sr-only">Built on caffeine and the audacity of 'Do your best, mastic the rest.'</span><span id="header-tagline-sizer" class="header-tagline-sizer" aria-hidden="true">Built on caffeine and the audacity of 'Do your best, mastic the rest.'_</span><span class="header-tagline-visual" aria-hidden="true"><span id="header-tagline-typed">Built on caffeine and the audacity of 'Do your best, mastic the rest.'</span><span class="header-tagline-cursor">_</span></span></p>
     </div>

@@ -38,7 +38,7 @@ function harness({ penetration = false } = {}) {
       addEventListener(name, fn, options = {}) { (this.listeners[name] ||= []).push({ fn, once: options.once }); },
       async emit(name, event) { const callbacks = [...this.listeners[name] || []]; this.listeners[name] = callbacks.filter(item => !item.once); for (const item of callbacks) await item.fn(event); },
       showModal() { assert.ok(!this.open); this.open = true; }, async close(value) { this.returnValue = value; this.open = false; await this.emit('close'); },
-      click() { this.clicked = true; }, remove() {}, focus() {}, blur() { this.blurred = true; }, setCustomValidity() {},
+      click() { this.clicked = true; }, remove() {}, focus() { context.document.activeElement = this; }, blur() { this.blurred = true; }, setCustomValidity() {},
     };
   }
   const byId = id => { if (!elements.has(id)) elements.set(id, element()); return elements.get(id); };
@@ -617,13 +617,46 @@ async function penetrationCheck(name, fn) {
     h.calc.setInput(h.calc.current(),'CALCULATOR','A9','Changed calculator');
     assert.equal(h.byId('project-save-state').textContent,'Unsaved changes');
   });
+  await check('Main input and output tabs retain independent selection, keyboard bounds and original controls', async h => {
+    const inputContainers=['input-sections','post-material-input-sections','adjustment-sections'].map(h.byId);
+    const outputKeys=['firestopping-schedule','firestopping-breakdown','material-breakdown','labour-breakdown'];
+    const outputs=outputKeys.map(key=>{const panel=h.byId(`main-panel-${key}`);panel.id=`main-panel-${key}`;panel.dataset.mainSection=key;panel.dataset.mainSectionTitle=key;return panel;});
+    const materials=h.byId('main-panel-materials');materials.id='main-panel-materials';materials.dataset.mainSection='materials';
+    h.app.state.fields=[['B2','Access'],['D2','Teams'],['D7','Masking teams'],['B9','Masking'],['B26','Global'],['E26','Addition'],['A50','Other']].map(([cell,label])=>({cell,label,type:cell==='D7'?'select':'number',options:cell==='D7'?['N/A','1']:undefined}));
+    h.app.state.inputs={D7:'1',B2:12.34567891,B9:0.1,E26:98.7654321};
+    h.app.state.inputDrafts.set('B2','12.34567891');h.app.state.inputErrors.set('A50','Existing validation error');
+    const inputCards=()=>[...inputContainers.flatMap(container=>container.children),materials];
+    const visibleInputs=()=>inputCards().filter(card=>!card.hidden).map(card=>card.dataset.mainSection);
+    const visibleOutputs=()=>outputs.filter(panel=>!panel.hidden).map(panel=>panel.dataset.mainSection);
+    const tabs=id=>h.byId(id).children,keys=id=>tabs(id).map(tab=>tab.dataset.mainSectionTab);
+    h.app.renderInputs();const before=h.snapshot(),requests=h.calls.length,errors=[...h.app.state.inputErrors],drafts=[...h.app.state.inputDrafts];
+    assert.deepEqual(keys('main-section-tabs'),['access-travel','teams-crews','materials','masking-cleaning','additions','other-inputs']);
+    assert.deepEqual(keys('main-output-tabs'),outputKeys);assert.deepEqual(visibleInputs(),['access-travel']);assert.deepEqual(visibleOutputs(),['firestopping-schedule']);
+    h.app.selectMainSection('additions');const additions=inputCards().find(card=>card.dataset.mainSection==='additions');
+    const fields=additions.children[1],controls=[...fields.children];
+    for(const key of outputKeys){h.app.selectMainSection(key);assert.deepEqual(visibleInputs(),['additions']);assert.deepEqual(visibleOutputs(),[key]);assert.equal(h.app.state.mainSection,'additions');assert.equal(h.app.state.mainOutputSection,key);assert.deepEqual(fields.children,controls);}
+    h.app.selectMainSection('teams-crews');assert.deepEqual(visibleOutputs(),['labour-breakdown']);
+    const press=async(tab,key)=>{let prevented=false;await tab.emit('keydown',{key,preventDefault(){prevented=true;}});assert.equal(prevented,true);};
+    await press(tabs('main-section-tabs')[0],'End');assert.equal(h.context.document.activeElement.dataset.mainSectionTab,'other-inputs');assert.deepEqual(visibleOutputs(),['labour-breakdown']);
+    await press(tabs('main-section-tabs').at(-1),'ArrowRight');assert.equal(h.context.document.activeElement.dataset.mainSectionTab,'access-travel');
+    await press(tabs('main-output-tabs')[0],'End');assert.equal(h.context.document.activeElement.dataset.mainSectionTab,'labour-breakdown');assert.deepEqual(visibleInputs(),['access-travel']);
+    await press(tabs('main-output-tabs').at(-1),'ArrowRight');assert.equal(h.context.document.activeElement.dataset.mainSectionTab,'firestopping-schedule');
+    await press(tabs('main-output-tabs')[0],'ArrowLeft');assert.equal(h.context.document.activeElement.dataset.mainSectionTab,'labour-breakdown');
+    await press(tabs('main-output-tabs').at(-1),'Home');assert.equal(h.context.document.activeElement.dataset.mainSectionTab,'firestopping-schedule');
+    for(const id of ['main-section-tabs','main-output-tabs'])assert.equal(tabs(id).filter(tab=>tab.tabIndex===0&&tab.getAttribute('aria-selected')==='true').length,1);
+    for(const panel of [...inputCards(),...outputs])assert.equal(panel.getAttribute('aria-labelledby'),`main-tab-${panel.dataset.mainSection}`);
+    h.app.selectMainSection('unknown-section');assert.deepEqual(visibleInputs(),['access-travel']);assert.deepEqual(visibleOutputs(),['firestopping-schedule']);
+    assert.deepEqual(h.snapshot(),before,'Tab navigation preserves project, prices, calculator drafts and exact precision');assert.equal(h.calls.length,requests,'Tab navigation makes no requests');
+    assert.deepEqual([...h.app.state.inputErrors],errors);assert.deepEqual([...h.app.state.inputDrafts],drafts);
+  });
   await check('Main tabs retain current selection and exact inputs across conditional masking rebuilds', async h => {
     const containers=['input-sections','post-material-input-sections','adjustment-sections'].map(h.byId);
     h.app.state.fields=[['B2','Access'],['D2','Teams'],['D7','Masking teams'],['B9','Masking percentage'],['B26','Global'],['E26','Addition'],['A50','Other']].map(([cell,label])=>({cell,label,type:cell==='D7'?'select':'number',options:cell==='D7'?['N/A','1']:undefined}));
     h.app.state.inputs={D7:'1',B2:12.34567,B9:0.1,E26:98.76543};
     const cards=()=>containers.flatMap(container=>container.children).filter(card=>card.dataset?.inputSection);
     const visible=()=>cards().filter(card=>!card.hidden).map(card=>card.dataset.inputSection);
-    h.app.renderInputs();h.app.selectMainSection('additions');const original=copy(h.app.state.inputs);
+    const output=h.byId('main-panel-material-breakdown');output.id='main-panel-material-breakdown';output.dataset.mainSection='material-breakdown';output.dataset.mainSectionTitle='Material Breakdown';
+    h.app.renderInputs();h.app.selectMainSection('additions');h.app.selectMainSection('material-breakdown');const original=copy(h.app.state.inputs);
     assert.deepEqual(visible(),['additions']);
     h.app.state.inputs.D7='N/A';h.app.renderInputs();assert.deepEqual(visible(),['additions']);
     assert.ok(!cards().some(card=>card.dataset.inputSection==='masking-cleaning'));
@@ -633,6 +666,9 @@ async function penetrationCheck(name, fn) {
     assert.deepEqual(visible(),['access-travel'],'Removing the selected conditional tab falls back to the first available section');
     h.app.state.inputs.D7='1';h.app.renderInputs();assert.deepEqual(visible(),['access-travel']);
     h.app.selectMainSection('masking-cleaning');assert.deepEqual(visible(),['masking-cleaning']);assert.deepEqual(copy(h.app.state.inputs),original);
+    h.app.selectMainSection('other-inputs');h.app.state.fields=h.app.state.fields.filter(field=>field.cell!=='A50');h.app.renderInputs();
+    assert.deepEqual(visible(),['access-travel']);assert.equal(h.app.state.mainOutputSection,'material-breakdown');assert.equal(output.hidden,false);
+    assert.deepEqual(copy(h.app.state.inputs),original,'Conditional tab removal preserves inputs and the selected lower output');
   });
   await check('Header project name keeps authoritative file title through dirty and busy state and clears on New', async h => {
     const title='CF-7000 <saved quote> & Client';h.app.state.projectFile={title,name:'private-filename.cf.json',path:'C:/Private/Folder/private-filename.cf.json'};

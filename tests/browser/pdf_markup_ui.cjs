@@ -11,10 +11,20 @@ const fs = require("node:fs"), path = require("node:path"), crypto = require("no
 
 const root = path.resolve(__dirname, "../.."), output = path.join(root, ".runtime/browser-qa", `pdf-markup-ui-${Date.now()}`);
 const python = process.env.CEASEFIRE_PYTHON || "python";
-const assets = ["static/app.js", "static/takeoffs.js", "static/takeoffs.css", "static/takeoff-pane-resize.js", "static/takeoff-graphics.js", "static/takeoff-graphics-ui.js", "static/takeoff-physical.js", "static/takeoff-annotations.js", "static/penetration.js", "static/penetration.css", "static/libraries.css", "static/index.html", "static/styles.css", "static/theme.css", "static/icons/takeoff-transfer.png", "static/icons/schedule-add.png", "estimator/takeoff_pdf_measure.py", "estimator/takeoff_textbox_layout.py", "estimator/takeoff_deleted_items.py", "estimator/takeoff_graphics.py", "estimator/takeoff_workspace.py", "estimator/takeoff_http.py", "estimator/takeoff_markup_pdf.py", "estimator/takeoff_markup_pdf_worker.py", "tests/browser/pdf_markup_ui.cjs"];
+const assets = ["static/app.js", "static/takeoffs.js", "static/takeoffs.css", "static/takeoff-pane-resize.js", "static/takeoff-graphics.js", "static/takeoff-graphics-ui.js", "static/takeoff-physical.js", "static/takeoff-annotations.js", "static/penetration.js", "static/penetration.css", "static/libraries.css", "static/index.html", "static/styles.css", "static/theme.css", "static/laser.css", "static/icons/takeoff-bullet-list.png", "static/icons/takeoff-numbered-list.png", "static/icons/takeoff-transfer.png", "static/icons/schedule-add.png", "estimator/takeoff_pdf_measure.py", "estimator/takeoff_textbox_layout.py", "estimator/takeoff_deleted_items.py", "estimator/takeoff_graphics.py", "estimator/takeoff_workspace.py", "estimator/takeoff_http.py", "estimator/takeoff_markup_pdf.py", "estimator/takeoff_markup_pdf_worker.py", "tests/browser/pdf_markup_ui.cjs"];
 const hash = file => crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex");
 const hashes = () => Object.fromEntries(assets.map(file => [file, hash(path.join(root, file))]));
 const sourceBefore = hashes(), evidence = { layouts: [], menus: [], heights: [], textSettings: [], library: [], pointerTargets: [] }, errors = [], csp = [], requests = [], networkFailures = [];
+function contrast(foreground, background) {
+  const luminance = value => {
+    const rgb = value.match(/^rgb\((\d+), (\d+), (\d+)\)$/);
+    assert.ok(rgb, `Rendered contrast requires an opaque colour: ${value}`);
+    const linear = rgb.slice(1).map(Number).map(channel => channel / 255).map(channel => channel <= .04045 ? channel / 12.92 : ((channel + .055) / 1.055) ** 2.4);
+    return .2126 * linear[0] + .7152 * linear[1] + .0722 * linear[2];
+  };
+  const a = luminance(foreground), b = luminance(background);
+  return (Math.max(a, b) + .05) / (Math.min(a, b) + .05);
+}
 const server = spawn(python, [path.join(__dirname, "library_link_picker_fixture.py"), "--directory", output], { cwd: root, windowsHide: true });
 let browser, page, info, logs = "", stage = "fixture startup";
 server.stderr.on("data", value => { logs += value; });
@@ -114,7 +124,16 @@ async function makeTextbox() {
   const documentId = (await snapshot()).documents[0].id;
   await expect(page.getByLabel("Drawing document", { exact: true })).toHaveValue(documentId);
   await renderDrawing(page, () => page.getByRole("button", { name: "Fit page", exact: true }).click(), 1);
-  await rail().getByRole("button", { name: "Textbox", exact: true }).click();
+  const textboxTool = rail().getByRole("button", { name: "Textbox", exact: true });
+  const idleBackground = await textboxTool.evaluate(el => getComputedStyle(el).backgroundColor);
+  await textboxTool.click(); await expect(textboxTool).toHaveClass(/\btakeoff-tool-active\b/); await page.mouse.move(1, 1);
+  await expect(textboxTool).toHaveCSS("background-color", /^rgb\(\d+, \d+, \d+\)$/);
+  const selectedTool = await textboxTool.evaluate(el => { const css = getComputedStyle(el); return { background: css.backgroundColor, color: getComputedStyle(el.querySelector("svg")).stroke, border: css.borderColor, shadow: css.boxShadow }; });
+  assert.notEqual(selectedTool.background, idleBackground, "Selected right-rail tool has a distinct filled surface");
+  assert.ok(contrast(selectedTool.color, selectedTool.background) >= 4.5, "Selected right-rail glyph remains readable");
+  assert.ok(contrast(selectedTool.border, selectedTool.background) >= 3, "Selected right-rail boundary remains visible");
+  assert.notEqual(selectedTool.shadow, "none", "Selected right-rail tool retains its inset indicator");
+  evidence.selectedRightRailTool = selectedTool; await textboxTool.screenshot({ path: path.join(output, "selected-textbox-tool.png") });
   const overlay = page.locator(".takeoff-overlay"); await overlay.scrollIntoViewIfNeeded();
   await overlay.evaluate(el => window.scrollTo(0, window.scrollY + el.getBoundingClientRect().top - 195));
   const bounds = await box(overlay);
@@ -143,6 +162,14 @@ async function textSettings(width, currentTheme) {
   const toolbar = panel().getByRole("toolbar", { name: "Textbox text formatting", exact: true }), editor = panel().getByRole("textbox", { name: "Textbox text", exact: true });
   await expect(editor).toHaveAttribute("contenteditable", "true"); await expect(editor).toHaveAttribute("aria-multiline", "true");
   for (const name of ["Bold", "Italic", "Underline", "Bullet list", "Numbered list"]) await expect(toolbar.getByRole("button", { name, exact: true })).toBeVisible();
+  const listIcons = [];
+  for (const name of ["Bullet list", "Numbered list"]) {
+    const image = toolbar.getByRole("button", { name, exact: true }).locator("img"); await expect(image).toHaveJSProperty("complete", true);
+    assert.equal(await image.evaluate(el => getComputedStyle(el).filter), "brightness(0) invert(1)", `${currentTheme} ${name} raster stays readable on its dark control`);
+    const screenshot = path.join(output, `list-icon-${name.replace(/ /g, "-")}-${currentTheme}-${width}.png`); await image.screenshot({ path: screenshot });
+    const pixels = spawnSync(python, ["-B", "-c", "from PIL import Image; import sys; p=list(Image.open(sys.argv[1]).convert('RGB').getdata()); delta=max(sum(v)/3 for v in p)-min(sum(v)/3 for v in p); assert delta>100, delta; print(delta)", screenshot], { encoding: "utf8", windowsHide: true });
+    assert.equal(pixels.status, 0, pixels.stderr); listIcons.push({ name, screenshot, renderedRange: Number(pixels.stdout) });
+  }
   const trash = panel().getByRole("button", { name: "Delete markup", exact: true }); await expect(trash.locator("svg")).toHaveCount(1);
   await expect(trash).toHaveAttribute("title", "Delete markup"); const t = await box(trash); assert.ok(Math.abs(t.width - 38) < .1 && Math.abs(t.height - 38) < .1);
   const r = await box(rail()), p = await box(panel()); assert.ok(p.x + p.width <= r.x + .1, "Settings do not cover the right PDF tools");
@@ -164,7 +191,7 @@ async function textSettings(width, currentTheme) {
   }
   await noOverflow(`${width}/${currentTheme}/Textbox Settings`);
   await page.screenshot({ path: path.join(output, `textbox-${currentTheme}-${width}.png`), fullPage: true });
-  evidence.textSettings.push({ width, theme: currentTheme, labels, appearanceLayout, colours, settings: p, rightRail: r, trash: t, contents });
+  evidence.textSettings.push({ width, theme: currentTheme, labels, appearanceLayout, colours, settings: p, rightRail: r, trash: t, contents, listIcons });
 }
 async function resizePane(target, family, width) {
   await page.setViewportSize({ width, height: 764 }); await expect(target).toBeVisible();

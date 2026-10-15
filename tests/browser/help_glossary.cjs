@@ -16,6 +16,16 @@ const ready = new Promise((resolve, reject) => {
   server.once('error', reject); server.once('exit', code => { clearTimeout(timer); reject(new Error(`Fixture exited ${code}: ${logs}`)); });
 });
 const errors = [], failed = [], requests = [], csp = [], evidence = { standard, layouts: [] };
+function contrast(foreground, background) {
+  const luminance = value => {
+    const channels = value.match(/^rgb\((\d+), (\d+), (\d+)\)$/);
+    assert.ok(channels, `Contrast requires an opaque rendered colour: ${value}`);
+    const linear = channels.slice(1).map(Number).map(channel => channel / 255).map(channel => channel <= .04045 ? channel / 12.92 : ((channel + .055) / 1.055) ** 2.4);
+    return .2126 * linear[0] + .7152 * linear[1] + .0722 * linear[2];
+  };
+  const a = luminance(foreground), b = luminance(background);
+  return (Math.max(a, b) + .05) / (Math.min(a, b) + .05);
+}
 async function idle() { await page.waitForFunction(() => { const s = window.CeasefireDesktop?.status(); return s?.ready && !s.busy; }); }
 async function snapshot() { await idle(); return page.evaluate(() => ({
   calculators: window.CeasefireCalculators.projectSnapshot(), penetration: window.CeasefirePenetrations.projectSnapshot(),
@@ -79,7 +89,9 @@ async function theme(id) { for (let index = 0; index < 5 && await page.locator('
       await expect(menu.getByRole('button')).toHaveCount(5); await expect(summary.locator('span').last()).toHaveText('Estimate Summary');
       for (const label of ['Download Full Schedule', 'Download Full Product Summary']) await expect(menu.getByRole('button', { name: label, exact: true })).toBeVisible();
       const styles = await menu.locator('.calculator-document-action').evaluateAll(actions => actions.map(el => { const s = getComputedStyle(el); return { color: s.color, background: s.backgroundColor }; }));
-      assert.deepEqual(styles[0], styles[1], 'Estimate Summary shares the existing menu-entry presentation'); assert.equal(styles[0].background, 'rgb(255, 255, 255)');
+      assert.deepEqual(styles[0], styles[1], 'Estimate Summary shares the existing menu-entry presentation');
+      assert.equal(styles[0].background, themeId === 'ceasefire' ? 'rgb(21, 26, 33)' : 'rgb(255, 255, 255)', `${themeId}/${width}: Document uses the selected palette`);
+      for (const style of styles) assert.ok(contrast(style.color, style.background) >= 4.5, `${themeId}/${width}: every Document entry remains readable`);
       const bounds = await menu.boundingBox(); assert.ok(bounds.x >= -1 && bounds.x + bounds.width <= width + 1, `${themeId}/${width}: Document stays within viewport`);
       if (width === 390) await menu.screenshot({ path: path.join(output, `${themeId}-summary-menu.png`) });
       await page.keyboard.press('End'); await expect(menu.getByRole('button').last()).toBeFocused(); await page.keyboard.press('Escape'); await expect(menu).toBeHidden(); await expect(toggle).toBeFocused();

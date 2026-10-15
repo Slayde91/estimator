@@ -33,7 +33,9 @@ async function response(action, pathname, matches = () => true) {
 async function mainTab(key) {
   const tab=page.locator(`#main-tab-${key}`);await tab.click();
   await expect(tab).toHaveAttribute('aria-selected','true');await expect(page.locator(`#main-panel-${key}`)).toBeVisible();
-  await expect(page.locator('#main-section-workspace [role="tabpanel"]:visible')).toHaveCount(1);
+  await expect(page.locator('#main-section-workspace [role="tabpanel"]:visible')).toHaveCount(2);
+  await expect(page.locator('#main-section-tabs [aria-selected="true"]')).toHaveCount(1);
+  await expect(page.locator('#main-output-tabs [aria-selected="true"]')).toHaveCount(1);
 }
 async function headerTitle(title) {
   const label = page.locator('#header-project-name'); await expect(label).toHaveText(title); await expect(label).toHaveAttribute('title', title);
@@ -61,26 +63,33 @@ function retainedScopes(value) { return { pricing: value.pricing, calculators: v
   await mainTab('additions');await page.locator('#input-F26').fill('1.234567891');await page.locator('#input-F26').press('Tab');await settledEstimate();
   const originalInputs=calculations.at(-1).inputs,scopesBefore=await snapshot();assert.equal(originalInputs.F26,1.23,'Native numeric editing retains the established two-decimal entry rule');
   const tabKeys=await page.locator('#main-section-tabs [role="tab"]').evaluateAll(tabs=>tabs.map(tab=>tab.dataset.mainSectionTab));
-  assert.deepEqual(tabKeys,['access-travel','teams-crews','materials','masking-cleaning','additions','firestopping-schedule','firestopping-breakdown','material-breakdown','labour-breakdown']);
+  const outputKeys=await page.locator('#main-output-tabs [role="tab"]').evaluateAll(tabs=>tabs.map(tab=>tab.dataset.mainSectionTab));
+  assert.deepEqual(tabKeys,['access-travel','teams-crews','materials','masking-cleaning','additions']);
+  assert.deepEqual(outputKeys,['firestopping-schedule','firestopping-breakdown','material-breakdown','labour-breakdown']);
   await mainTab('additions');await expect(page.locator('#main-panel-additions #main-panel-global-adjustments')).toBeVisible();
   await expect(page.locator('#main-tab-global-adjustments')).toHaveCount(0);
   await expect(page.locator('#main-tab-materials')).toHaveText('Materials');
   const requestCount=calculations.length;
   for(const key of tabKeys)await mainTab(key);
+  await mainTab('additions');const originalAddition=await page.locator('#input-F26').elementHandle(),originalAdditionValue=await page.locator('#input-F26').inputValue();
+  for(const key of outputKeys){await mainTab(key);await expect(page.locator('#main-tab-additions')).toHaveAttribute('aria-selected','true');await expect(page.locator('#main-panel-additions')).toBeVisible();assert.equal(await page.evaluate(input=>document.getElementById('input-F26')===input,originalAddition),true,'Output selection retains the original input element');await expect(page.locator('#input-F26')).toHaveValue(originalAdditionValue);}
+  await originalAddition.dispose();
   assert.equal(calculations.length,requestCount,'Section switches do not calculate or mutate inputs');assert.deepEqual(await snapshot(),scopesBefore);
   await mainTab('teams-crews');await masking.selectOption(inactive);await settledEstimate();
   await expect(page.locator('#main-tab-masking-cleaning')).toHaveCount(0);await expect(page.locator('#main-tab-teams-crews')).toHaveAttribute('aria-selected','true');
   await masking.selectOption(active);await settledEstimate();await expect(page.locator('#main-tab-masking-cleaning')).toHaveCount(1);await expect(page.locator('#main-tab-teams-crews')).toHaveAttribute('aria-selected','true');
   assert.deepEqual(calculations.at(-1).inputs,originalInputs);assert.deepEqual(await snapshot(),scopesBefore);
-  checks.mainTabs={allSectionsReachable:true,singleVisiblePanel:true,tabSwitchesDoNotCalculate:true,conditionalMaskingRetainsSelection:true,exactInputPrecision:originalInputs.F26,unrelatedDraftsAndPricesUnchanged:true,viewports:[]};
+  await expect(page.locator('#main-tab-labour-breakdown')).toHaveAttribute('aria-selected','true');
+  checks.mainTabs={allSectionsReachable:true,oneVisiblePanelPerGroup:true,independentSelections:true,originalControlsRetained:true,tabSwitchesDoNotCalculate:true,conditionalMaskingRetainsSelection:true,exactInputPrecision:originalInputs.F26,unrelatedDraftsAndPricesUnchanged:true,viewports:[]};
   for(const width of [1440,1146,817,390]){
     await page.setViewportSize({width,height:1100});await mainTab('access-travel');
-    const first=page.locator('#main-tab-access-travel');await first.focus();await first.press('End');await expect(page.locator('#main-tab-labour-breakdown')).toBeFocused();await expect(page.locator('#main-tab-labour-breakdown')).toHaveAttribute('aria-selected','true');
-    await page.locator('#main-tab-labour-breakdown').press('ArrowRight');await expect(first).toBeFocused();await expect(first).toHaveAttribute('aria-selected','true');
-    await first.press('ArrowLeft');await expect(page.locator('#main-tab-labour-breakdown')).toBeFocused();await page.locator('#main-tab-labour-breakdown').press('Home');await expect(first).toBeFocused();
+    const first=page.locator('#main-tab-access-travel'),lastInput=page.locator('#main-tab-additions');await first.focus();await first.press('End');await expect(lastInput).toBeFocused();await expect(lastInput).toHaveAttribute('aria-selected','true');
+    await lastInput.press('ArrowRight');await expect(first).toBeFocused();await expect(first).toHaveAttribute('aria-selected','true');
+    await first.press('ArrowLeft');await expect(lastInput).toBeFocused();await lastInput.press('Home');await expect(first).toBeFocused();
+    const firstOutput=page.locator('#main-tab-firestopping-schedule'),lastOutput=page.locator('#main-tab-labour-breakdown');await firstOutput.focus();await firstOutput.press('End');await expect(lastOutput).toBeFocused();await lastOutput.press('ArrowRight');await expect(firstOutput).toBeFocused();await firstOutput.press('ArrowLeft');await expect(lastOutput).toBeFocused();await lastOutput.press('Home');await expect(firstOutput).toBeFocused();await expect(first).toHaveAttribute('aria-selected','true');
     await mainTab('additions');await expect(page.locator('#input-F26')).toHaveValue('1.23');
-    const geometry=await page.evaluate(()=>{const box=selector=>{const b=document.querySelector(selector).getBoundingClientRect();return{left:b.left,right:b.right,top:b.top,bottom:b.bottom}};return{project:box('[aria-labelledby="project-heading"]'),tabs:box('#main-section-tabs'),panel:box('#main-panel-additions'),summary:box('#estimator-main .summary-card'),pageWidth:document.documentElement.scrollWidth,details:document.querySelectorAll('.estimate-main details').length}});
-    assert.equal(geometry.details,0);assert.ok(geometry.tabs.top>=geometry.project.bottom);assert.ok(geometry.tabs.left>=0&&geometry.tabs.right<=width+1);assert.ok(geometry.panel.right<=width+1);assert.ok(geometry.pageWidth<=width);
+    const geometry=await page.evaluate(()=>{const box=selector=>{const b=document.querySelector(selector).getBoundingClientRect();return{left:b.left,right:b.right,top:b.top,bottom:b.bottom}};return{project:box('[aria-labelledby="project-heading"]'),tabs:box('#main-section-tabs'),panel:box('#main-panel-additions'),outputs:box('#main-output-workspace'),summary:box('#estimator-main .summary-card'),pageWidth:document.documentElement.scrollWidth,details:document.querySelectorAll('.estimate-main details').length}});
+    assert.equal(geometry.details,0);assert.ok(geometry.tabs.top>=geometry.project.bottom);assert.ok(geometry.tabs.left>=0&&geometry.tabs.right<=width+1);assert.ok(geometry.panel.right<=width+1);assert.ok(geometry.outputs.top>=geometry.panel.bottom,'Schedules and breakdowns stay below the visible input card');assert.ok(geometry.outputs.right<=width+1);assert.ok(geometry.pageWidth<=width);
     if(width>880)assert.ok(geometry.summary.left>=geometry.panel.right,'Estimate Summary stays to the right');
     assert.deepEqual(await snapshot(),scopesBefore);checks.mainTabs.viewports.push({width,geometry});
     if([1440,390].includes(width))await page.screenshot({path:path.join(output,`main-tabs-${width}.png`),fullPage:true});

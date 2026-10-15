@@ -1,6 +1,13 @@
-.document-download-progress{display:grid;gap:5px;min-width:190px;margin-top:9px;font-size:12px;color:var(--ink);font-variant-numeric:tabular-nums}
+.document-download-progress{--download-success:#18864c;display:grid;gap:6px;min-width:min(190px,100%);margin-top:9px;font-size:12px;color:var(--ink);font-variant-numeric:tabular-nums}
 .document-download-progress[hidden]{display:none}
-.document-download-progress progress{display:block;width:100%;height:12px;accent-color:#18864c;border:1px solid #18864c;border-radius:6px;overflow:hidden;background:#eef5f0}
-.document-download-progress progress::-webkit-progress-bar{background:#eef5f0}
-.document-download-progress progress::-webkit-progress-value{background:#18864c}
-.document-download-progress progress::-moz-progress-bar{background:#18864c}
+.document-download-track{position:relative;overflow:hidden;border:1px solid var(--download-success);border-radius:6px;background:var(--theme-surface,#eef5f0)}
+.document-download-progress progress{appearance:none;display:block;width:100%;height:10px;accent-color:var(--download-success);border:0;overflow:hidden;background:transparent}
+.document-download-progress progress::-webkit-progress-bar{background:transparent}
+.document-download-progress progress::-webkit-progress-value{background:var(--download-success)}
+.document-download-progress progress::-moz-progress-bar{background:var(--download-success)}
+.document-download-progress[data-indeterminate=true] progress{opacity:0}
+.document-download-beam{display:none;position:absolute;inset:0 auto 0 0;width:32%;border-radius:inherit;background:linear-gradient(90deg,transparent,var(--accent,#b90a15) 55%,var(--red,#f10d1b));animation:document-download-work 1.35s ease-in-out infinite}
+.document-download-progress[data-indeterminate=true] .document-download-beam{display:block}
+.document-download-progress[data-state=saved] .document-download-track{box-shadow:0 0 0 1px var(--download-success)}
+@keyframes document-download-work{from{transform:translateX(-110%)}to{transform:translateX(420%)}}
+@media(prefers-reduced-motion:reduce){.document-download-beam{animation:none;left:34%;background:var(--download-success)}}

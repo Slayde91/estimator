@@ -114,7 +114,7 @@
     fields: [], currentFields: [], inputs: {}, catalog: { inventory: [], rate_groups: {} }, baseline: { inventory: [], rate_groups: {} },
     configuration: { inventory: {}, rates: {} }, draft: { inventory: {}, rates: {} },
     quote: null, quoteConfiguration: null, quoteContext: 0, quoteLoadRevision: 0, dirty: false, pricingDirty: false,
-    result: null, revision: 0, timer: null, pricingExpanded: new Set(), mainSection: "access-travel", legacyTitle: "",
+    result: null, revision: 0, timer: null, pricingExpanded: new Set(), mainSection: "access-travel", mainOutputSection: "firestopping-schedule", legacyTitle: "",
     workflow: "", defaultWorkflow: "Intumescent spray to ductwork", inputErrors: new Map(), inputDrafts: new Map(), inputRevision: 0, projectBusy: false,
     pricingScope: "library", libraryDraft: null, projectPricingDraft: null, pricingRevision: 0,
     projectFile: null, projectsRevision: 0, initialized: false, currentView: "home", projectsOffset: 0, projectsTimer: null, desktopRequests: 0,
@@ -532,19 +532,23 @@
     return section;
   }
 
-  function mainSectionPanels() {
+  function mainSectionPanels(group = "input") {
+    if (group === "output") return [$("main-panel-firestopping-schedule"), $("main-panel-firestopping-breakdown"),
+      $("main-panel-material-breakdown"), $("main-panel-labour-breakdown")].filter(section => section?.dataset.mainSection);
     const cards = id => [...$(id).children].filter(section => section.dataset.mainSection);
     return [...cards("input-sections"), $("main-panel-materials"), ...cards("post-material-input-sections"),
-      ...cards("adjustment-sections"), $("main-panel-firestopping-schedule"), $("main-panel-firestopping-breakdown"),
-      $("main-panel-material-breakdown"), $("main-panel-labour-breakdown")].filter(section => section.dataset.mainSection);
+      ...cards("adjustment-sections")].filter(section => section?.dataset.mainSection);
   }
 
   function selectMainSection(key, { focus = false } = {}) {
-    const panels = mainSectionPanels();
+    // Navigation and calculator transfers can still select any existing section,
+    // but each group owns its visibility and selection independently.
+    const group = mainSectionPanels("output").some(panel => panel.dataset.mainSection === key) ? "output" : "input";
+    const panels = mainSectionPanels(group);
     if (!panels.some(panel => panel.dataset.mainSection === key)) return;
-    state.mainSection = key;
+    state[group === "output" ? "mainOutputSection" : "mainSection"] = key;
     for (const panel of panels) panel.hidden = panel.dataset.mainSection !== key;
-    for (const tab of $("main-section-tabs").children) {
+    for (const tab of $(group === "output" ? "main-output-tabs" : "main-section-tabs").children) {
       const active = tab.dataset.mainSectionTab === key;
       tab.setAttribute("aria-selected", String(active)); tab.tabIndex = active ? 0 : -1;
       if (active && focus) { tab.focus(); tab.scrollIntoView?.({ block: "nearest", inline: "nearest" }); }
@@ -552,27 +556,30 @@
   }
 
   function renderMainSectionTabs() {
-    const panels = mainSectionPanels(), list = $("main-section-tabs");
     const focused = document.activeElement?.dataset?.mainSectionTab;
-    const tabs = panels.map(panel => {
-      const key = panel.dataset.mainSection;
-      const title = panel.dataset.mainSectionTitle || panel.querySelector("h2").textContent;
-      const tab = node("button", "main-section-tab", title);
-      tab.type = "button"; tab.id = `main-tab-${key}`; tab.dataset.mainSectionTab = key;
-      tab.setAttribute("role", "tab"); tab.setAttribute("aria-controls", panel.id);
-      panel.setAttribute("role", "tabpanel"); panel.setAttribute("aria-labelledby", tab.id);
-      tab.addEventListener("click", () => selectMainSection(key));
-      tab.addEventListener("keydown", event => {
-        const index = tabs.indexOf(tab), count = tabs.length;
-        const next = { ArrowRight: (index + 1) % count, ArrowLeft: (index + count - 1) % count, Home: 0, End: count - 1 }[event.key];
-        if (next === undefined) return;
-        event.preventDefault(); selectMainSection(tabs[next].dataset.mainSectionTab, { focus: true });
+    for (const group of ["input", "output"]) {
+      const panels = mainSectionPanels(group), list = $(group === "output" ? "main-output-tabs" : "main-section-tabs");
+      const stateKey = group === "output" ? "mainOutputSection" : "mainSection";
+      const tabs = panels.map(panel => {
+        const key = panel.dataset.mainSection;
+        const title = panel.dataset.mainSectionTitle || panel.querySelector("h2").textContent;
+        const tab = node("button", "main-section-tab", title);
+        tab.type = "button"; tab.id = `main-tab-${key}`; tab.dataset.mainSectionTab = key;
+        tab.setAttribute("role", "tab"); tab.setAttribute("aria-controls", panel.id);
+        panel.setAttribute("role", "tabpanel"); panel.setAttribute("aria-labelledby", tab.id);
+        tab.addEventListener("click", () => selectMainSection(key));
+        tab.addEventListener("keydown", event => {
+          const index = tabs.indexOf(tab), count = tabs.length;
+          const next = { ArrowRight: (index + 1) % count, ArrowLeft: (index + count - 1) % count, Home: 0, End: count - 1 }[event.key];
+          if (next === undefined) return;
+          event.preventDefault(); selectMainSection(tabs[next].dataset.mainSectionTab, { focus: true });
+        });
+        return tab;
       });
-      return tab;
-    });
-    list.replaceChildren(...tabs);
-    const key = panels.some(panel => panel.dataset.mainSection === state.mainSection) ? state.mainSection : panels[0]?.dataset.mainSection;
-    if (key) selectMainSection(key, { focus: focused === key });
+      list.replaceChildren(...tabs);
+      const key = panels.some(panel => panel.dataset.mainSection === state[stateKey]) ? state[stateKey] : panels[0]?.dataset.mainSection;
+      if (key) selectMainSection(key, { focus: focused === key });
+    }
   }
 
   function renderInputs() {

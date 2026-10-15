@@ -6,14 +6,59 @@
     if (!host) return { update() {}, remove() {} };
     const box = document.createElement('div'); box.className = 'document-download-progress';
     const label = document.createElement('span'), bar = document.createElement('progress');
-    bar.max = 100; bar.value = 0; bar.setAttribute('aria-label', 'Document download progress');
-    box.append(label, bar); host.append(box);
+    const track = document.createElement('div'), beam = document.createElement('span');
+    track.className = 'document-download-track'; beam.className = 'document-download-beam';
+    beam.setAttribute('aria-hidden', 'true'); label.setAttribute('role', 'status');
+    bar.max = 100; bar.setAttribute('aria-label', 'Document download progress');
+    track.append(bar, beam); box.append(label, track); host.append(box);
+    const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    let frame = null, disposed = false, shown = 10, target = 10;
+    function stopAnimation() {
+      if (frame !== null) cancelAnimationFrame(frame);
+      frame = null;
+    }
+    function measuredProgress(percent) {
+      const next = Math.max(target, percent);
+      if (box.dataset.indeterminate === 'false' && target === next) return;
+      stopAnimation(); target = next;
+      box.dataset.indeterminate = 'false';
+      label.textContent = `Preparing file · ${Math.floor(target)}%`;
+      bar.setAttribute('aria-valuetext', `${Math.floor(target)}% preparation completed`);
+      // Ease only to work the server has already reported. Elapsed time must
+      // never advance the target or imply that an unmeasured job is nearly done.
+      if (reducedMotion) { shown = target; bar.value = shown; return; }
+      const from = shown;
+      let start = null;
+      bar.value = shown;
+      const step = timestamp => {
+        if (disposed) return;
+        if (start === null) start = timestamp;
+        const position = Math.min(1, (timestamp - start) / 280);
+        shown = from + (target - from) * (1 - (1 - position) ** 3);
+        bar.value = shown;
+        frame = position < 1 ? requestAnimationFrame(step) : null;
+      };
+      frame = requestAnimationFrame(step);
+    }
     return {
       update(percent, state) {
-        bar.value = percent;
-        label.textContent = `${{waiting:'Preparing file',preparing:'Preparing file',saving:'Saving file',saved:'File saved'}[state] || 'Preparing file'} · ${percent}%`;
+        if (disposed) return;
+        box.dataset.state = state;
+        if (state === 'saved') {
+          stopAnimation(); box.dataset.indeterminate = 'false';
+          shown = target = 100; bar.value = 100;
+          label.textContent = 'File saved · 100%'; bar.setAttribute('aria-valuetext', 'File saved');
+        } else if (state === 'preparing' && percent > 10 && percent <= 85) {
+          // The backend's optional completed/total page count is the measured
+          // preparation range. Claiming (10%) and saving (90%) have no work total.
+          measuredProgress(percent);
+        } else {
+          stopAnimation(); box.dataset.indeterminate = 'true'; bar.removeAttribute('value');
+          label.textContent = {saving:'Saving file',confirming:'Confirming file save'}[state] || 'Preparing file';
+          bar.setAttribute('aria-valuetext', label.textContent);
+        }
       },
-      remove() { box.remove(); },
+      remove() { disposed = true; stopAnimation(); box.remove(); },
     };
   }
 
@@ -36,7 +81,9 @@
         const response = await fetch(`/api/download-progress/${encodeURIComponent(token)}`);
         const progress = await response.json();
         // A save receipt in the original response is the completion authority.
-        if (!finished && response.ok && Number.isFinite(progress?.percent) && progress.percent >= 0 && progress.percent <= 100 && progress.state !== 'failed') view.update(Math.min(99, progress.percent), progress.state);
+        if (!finished && response.ok && Number.isFinite(progress?.percent) && progress.percent >= 0 && progress.percent <= 100 && progress.state !== 'failed') {
+          view.update(Math.min(99, progress.percent), progress.state === 'saved' ? 'confirming' : progress.state);
+        }
       } catch { /* The original operation retains its success/error authority. */ }
       if (!finished) poll = setTimeout(readProgress, 400);
     };

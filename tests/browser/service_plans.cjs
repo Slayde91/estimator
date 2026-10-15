@@ -4,6 +4,7 @@ const { clickProjectControl } = require('./project_actions.cjs');
 const { chooseNewPhysicalItem, startDefect } = require('./physical_dialogs.cjs');
 const { renderDrawing } = require('./viewer_helpers.cjs');
 const { assertParentControls, clickInspectorAdd } = require('./parent_controls_helpers.cjs');
+const { assertReadableControl } = require('./physical_tools_helpers.cjs');
 // Real penetration sub-tabs, barrier markers and project round trips. Every
 // source, database and native-dialog save target belongs to this fixture.
 const { chromium, expect } = require('@playwright/test');
@@ -126,7 +127,11 @@ async function controls() {
   await expect(discard).toHaveCount(1); await expect(page.getByRole('button', { name: 'Discard unfinished physical edits', exact: true })).toHaveCount(1);
   await expect(page.locator('.takeoff-physical-register').getByRole('button', { name: 'Discard unfinished physical edits', exact: true })).toHaveCount(0);
   const style = locator => locator.evaluate(el => { const css = getComputedStyle(el); return { color: css.color, background: css.backgroundColor, border: css.borderColor }; });
-  await expect(trash).toHaveText('Delete');assert.equal((await style(trash)).background,(await style(discard)).background);
+  await expect(trash).toHaveText('Delete');
+  if(await page.locator('html').getAttribute('data-theme')==='ceasefire'){
+    assert.equal((await style(trash)).background,'rgb(255, 255, 255)','Physical register Delete retains its white evidence surface');
+    evidence.controlPalette={trash:await assertReadableControl(trash),discard:await assertReadableControl(discard)};
+  }else assert.equal((await style(trash)).background,(await style(discard)).background);
   for (const name of ['Select filtered records']) {
     const button = page.getByRole('button', { name, exact: true }); await expect(button.locator('svg')).toHaveCount(1); assert.equal((await button.innerText()).trim(), '');
   }
@@ -255,10 +260,14 @@ async function controls() {
   assert.equal(entity(barrier).confirmation,'confirmed');assert.notDeepEqual(entity(barrier).marker.callout,beforeLayout.marker.callout);assert.deepEqual(entity(barrier).marker.point,beforeLayout.marker.point);assert.deepEqual(entity(barrier).fields,beforeLayout.fields);assert.deepEqual(entity(barrier).evidence,beforeLayout.evidence);assert.deepEqual(entity(service),serviceBeforeLayout);originalMarker=structuredClone(entity(barrier).marker);evidence.calloutLayoutPreservesOwnerConfirmation=true;
   const visibility=details().getByRole('button',{name:'Visibility',exact:true}),beforeVisibility=structuredClone(state),offVisibilityColor=await visibility.evaluate(el=>getComputedStyle(el).backgroundColor);
   await expect(visibility).toHaveAttribute('aria-pressed','false');await visibility.click();await expect(visibility).toHaveAttribute('aria-pressed','true');await expect(callout(barrier)).toHaveCount(0);
-  await expect.poll(()=>visibility.evaluate(el=>getComputedStyle(el).backgroundColor)).toBe('rgb(255, 217, 220)');await snapshot();assert.deepEqual(state,beforeVisibility);
+  const visibilityTheme=await page.locator('html').getAttribute('data-theme');
+  await expect.poll(()=>visibility.evaluate(el=>getComputedStyle(el).backgroundColor)).toBe(visibilityTheme==='ceasefire'?'rgb(63, 29, 41)':'rgb(255, 217, 220)');
+  const activeVisibilityColor=await visibility.evaluate(el=>getComputedStyle(el).backgroundColor);assert.notEqual(activeVisibilityColor,offVisibilityColor,'Pressed Visibility has a distinct painted surface');
+  if(visibilityTheme==='ceasefire')evidence.currentVisibilityActiveStyle=await assertReadableControl(visibility);
+  await snapshot();assert.deepEqual(state,beforeVisibility);
   await page.keyboard.press('Tab');await visibility.focus();await expect(visibility).toBeFocused();
   assert.equal(await visibility.evaluate(el=>el.matches(':focus-visible')),true);const focusedVisibility=await visibility.evaluate(el=>({style:getComputedStyle(el).outlineStyle,width:parseFloat(getComputedStyle(el).outlineWidth)}));assert.notEqual(focusedVisibility.style,'none');assert.ok(focusedVisibility.width>=2);evidence.currentVisibilityKeyboardFocusVisible=true;
-  await page.keyboard.press('Space');await page.mouse.move(0,0);await expect(visibility).toHaveAttribute('aria-pressed','false');await expect(callout(barrier)).toBeVisible();await expect.poll(()=>visibility.evaluate(el=>getComputedStyle(el).backgroundColor)).toBe(offVisibilityColor);await snapshot();assert.deepEqual(state,beforeVisibility);evidence.currentVisibilityActiveLightRed=true;
+  await page.keyboard.press('Space');await page.mouse.move(0,0);await expect(visibility).toHaveAttribute('aria-pressed','false');await expect(callout(barrier)).toBeVisible();await expect.poll(()=>visibility.evaluate(el=>getComputedStyle(el).backgroundColor)).toBe(offVisibilityColor);await snapshot();assert.deepEqual(state,beforeVisibility);evidence.currentVisibilityDistinctReadable=true;
   assert.equal(state.calibrations.length, 0, 'A barrier Count marker requires no scale'); assert.equal(state.items.length, 0, 'Barrier counts must not create steel/duct quantity rows');
   const detailBox = await page.locator('.takeoff-physical-details').boundingBox(), drawingBox = await page.locator('.takeoff-viewport').boundingBox();
   assert.ok(detailBox.x + detailBox.width <= drawingBox.x + 2, 'Item Details sits left of the PDF page');

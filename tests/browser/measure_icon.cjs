@@ -5,7 +5,7 @@ const {chromium,expect}=require("@playwright/test"),{chooseTakeoff}=require("./s
 const {spawn,spawnSync}=require("node:child_process"),fs=require("node:fs"),path=require("node:path"),crypto=require("node:crypto"),assert=require("node:assert/strict");
 const root=path.resolve(__dirname,"../.."),python=process.env.CEASEFIRE_PYTHON||"python",output=path.join(root,".runtime/browser-qa",`measure-icon-${Date.now()}`);fs.mkdirSync(output,{recursive:true});
 const asset="static/icons/takeoff-measure.png",expected="fc053970adcdb00965ae9aba71063f1b659a2391f57a39f8301ed0573f1d8130";
-const files=[asset,"static/takeoffs.js","static/takeoffs.css","static/theme.css","estimator/server.py","tests/browser/measure_icon.cjs"],hash=data=>crypto.createHash("sha256").update(data).digest("hex"),hashes=()=>Object.fromEntries(files.map(file=>[file,hash(fs.readFileSync(path.join(root,file)))])),before=hashes();assert.equal(before[asset],expected);
+const files=[asset,"static/takeoffs.js","static/takeoffs.css","static/theme.css","static/laser.css","estimator/server.py","tests/browser/measure_icon.cjs"],hash=data=>crypto.createHash("sha256").update(data).digest("hex"),hashes=()=>Object.fromEntries(files.map(file=>[file,hash(fs.readFileSync(path.join(root,file)))])),before=hashes();assert.equal(before[asset],expected);
 const server=spawn(python,[path.join(__dirname,"fixtures.py"),"--directory",output],{cwd:root,windowsHide:true});let logs="",browser,page;server.stderr.on("data",value=>logs+=value);
 const ready=new Promise((resolve,reject)=>{let stdout="";const timer=setTimeout(()=>reject(Error(`Startup timeout: ${logs}`)),120000);server.stdout.on("data",value=>{stdout+=value;if(stdout.includes("\n")){clearTimeout(timer);try{resolve(JSON.parse(stdout.split("\n")[0]));}catch(error){reject(error);}}});server.once("error",error=>{clearTimeout(timer);reject(error);});});
 const evidence=[],errors=[];
@@ -18,7 +18,8 @@ const evidence=[],errors=[];
   for(const theme of ["ceasefire","midnight","ocean","forest","slate"]){
     await expect(page.locator("html")).toHaveAttribute("data-theme",theme);await control.scrollIntoViewIfNeeded();
     const appearance=await image.evaluate(el=>({src:el.getAttribute("src"),filter:getComputedStyle(el).filter,blend:getComputedStyle(el).mixBlendMode,width:el.naturalWidth,height:el.naturalHeight,buttonBackground:getComputedStyle(el.parentElement).backgroundColor}));
-    assert.equal(appearance.filter,theme==="midnight"?"invert(1)":"none");assert.equal(appearance.blend,theme==="midnight"?"screen":"multiply");assert.equal(appearance.src,"/icons/takeoff-measure.png");
+    const dark=theme==="ceasefire"||theme==="midnight";
+    assert.equal(appearance.filter,dark?"invert(1)":"none");assert.equal(appearance.blend,dark?"screen":"multiply");assert.equal(appearance.src,"/icons/takeoff-measure.png");
     const file=path.join(output,`measure-${theme}.png`);await image.screenshot({path:file});
     const proof=spawnSync(python,["-B","-c","from PIL import Image; import json,sys; p=list(Image.open(sys.argv[1]).convert('RGB').getdata()); lo=min(sum(v)/3 for v in p); hi=max(sum(v)/3 for v in p); assert hi-lo>100, (lo,hi); print(json.dumps({'minimum':lo,'maximum':hi,'contrast_range':hi-lo}))",file],{encoding:"utf8",windowsHide:true});assert.equal(proof.status,0,proof.stderr);evidence.push({theme,...appearance,pixel_contrast:JSON.parse(proof.stdout),screenshot:file});
     assert.equal(await page.evaluate(()=>window.CeasefireTakeoffs.projectFingerprint()),fingerprint,"Theme/icon checks preserve drawing draft");await cycleTheme(page);

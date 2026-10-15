@@ -36,7 +36,10 @@ async function snapshot(){await idle();return page.evaluate(()=>({project:window
   evidence.languages.push({locale,heading,dir:await page.locator('html').getAttribute('dir'),screenshot});
  }
  // Create UI after the language has changed; the canonical input values remain English.
+ await page.evaluate(()=>{const probe=document.createElement('p');probe.id='language-source-collision-probe';document.body.append(probe);window.CeasefireI18n.text(probe,'Home');probe.textContent='Home';});
  await page.locator('#application-language').selectOption('es');
+ await expect(page.locator('#language-source-collision-probe')).toHaveText('Home');
+ await page.locator('#language-source-collision-probe').evaluate(el=>el.remove());
  await page.locator('#takeoff-navigation-toggle').hover();await page.locator('#takeoff-navigation-menu [data-mode="steel"]').click();await idle();
  await expect(page.locator('.takeoff-viewport')).toHaveCSS('direction','ltr');
  const spanish=await page.locator('#view-takeoffs').innerText();assert.match(spanish,/Acero|acero/);assert.match(spanish,/Subir|Cargar/);

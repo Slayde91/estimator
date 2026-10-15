@@ -41,6 +41,8 @@ test('raw user data and option values stay canonical and stale bindings never ov
   const h=harness(),raw=new Element('DIV','Home'),field=new Element('INPUT'),label=new Element(),option=new Element('OPTION');field.value='Home';
   h.ui.text(label,'Home');h.ui.text(option,'Home');label.textContent='User document Home';h.ui.setLanguage('ar');
   assert.equal(raw.textContent,'Home');assert.equal(field.value,'Home');assert.equal(label.textContent,'User document Home');assert.equal(option.value,'Home');assert.equal(option.textContent,'الرئيسية');
+  h.ui.setLanguage('en');h.ui.text(label,'Home');label.replaceChildren(new Element('#text','Home'));
+  h.ui.setLanguage('es');assert.equal(label.textContent,'Home','replacement by identical raw text retires the old UI binding');assert.equal(h.ui.source(label),'Home');
 });
 test('session changes work with blocked storage; storage sync and unknown keys are safe',()=>{
   const h=harness(null,true),node=new Element();h.ui.text(node,'Unknown {0}',['<img>']);h.ui.setLanguage('th');assert.equal(node.textContent,'Unknown <img>');assert.equal(h.writes.length,0);

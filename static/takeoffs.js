@@ -268,7 +268,7 @@
     clearTimeout(state.messageTimer);
     releaseMessageSpace();
     const version = state.messageVersion = (state.messageVersion || 0) + 1;
-    const notice = state.ui.message; window.CeasefireI18n.text(notice, text); notice.hidden = !text; notice.className = `message${error ? " error" : ""}`; notice.setAttribute("role", error ? "alert" : "status");
+    const notice = state.ui.message; notice.textContent = ""; window.CeasefireI18n.nodeText(notice, text); notice.hidden = !text; notice.className = `message${error ? " error" : ""}`; notice.setAttribute("role", error ? "alert" : "status");
     if (state.linkedRecovery) notice.append(uiButton("Retry linked change", recoverLinkedOperation));
     if (text && !error && !state.linkedRecovery) state.messageTimer = setTimeout(() => {
       if (state.messageVersion === version && state.ui?.message === notice && notice.getAttribute("role") === "status" && !state.linkedRecovery) {

@@ -21,6 +21,12 @@
     return format(typeof translation === 'string' && translation ? translation : source, args, true);
   }
   const read = (element, attribute) => attribute ? element.getAttribute(attribute) : element.textContent;
+  function current(binding) {
+    if (read(binding.element, binding.attribute) !== binding.last) return false;
+    if (binding.attribute || binding.element.nodeType !== 1) return true;
+    const children = binding.element.childNodes;
+    return children.length === binding.children.length && binding.children.every((node, index) => children[index] === node);
+  }
   function write(binding) {
     const {element, attribute, source, args} = binding;
     const value = translate(source, args);
@@ -28,6 +34,7 @@
     else if (attribute) element.setAttribute(attribute, value);
     else if (element.textContent !== value) element.textContent = value;
     binding.last = read(element, attribute);
+    binding.children = [...element.childNodes];
   }
   function bind(element, attribute, source, args = [], original = null) {
     if (!element) return element;
@@ -44,7 +51,7 @@
   function source(element, attribute = null) {
     if (!element) return '';
     const binding = bindings.get(element)?.get(attribute || '');
-    if (binding && read(element, attribute) === binding.last) return format(binding.source, binding.args);
+    if (binding && current(binding)) return format(binding.source, binding.args);
     if (!attribute && element.childNodes?.length) return [...element.childNodes].map(child => source(child)).join('');
     return read(element, attribute);
   }
@@ -54,7 +61,7 @@
       for (const [name, binding] of slots) {
         // A subsequent unbound user/source update takes ownership of the node. Never
         // overwrite that content with a stale UI label on the next language change.
-        if (read(element, binding.attribute) !== binding.last) slots.delete(name);
+        if (!current(binding)) slots.delete(name);
         else write(binding);
       }
       if (!slots.size) bindings.delete(element);

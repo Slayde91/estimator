@@ -1,5 +1,17 @@
 (() => {
   "use strict";
+  // Bind application-owned copy only; node() remains safe for user and source text.
+  const uiText = (element, source, args = []) => {
+    if (window.CeasefireI18n) return window.CeasefireI18n.text(element, source, args);
+    element.textContent = String(source).replace(/\{(\d+)\}/g, (match, index) => args[index] === undefined ? match : String(typeof args[index] === "function" ? args[index]() : args[index])); return element;
+  };
+  const uiAttr = (element, name, source, args = []) => {
+    if (window.CeasefireI18n) return window.CeasefireI18n.attr(element, name, source, args);
+    const value = String(source).replace(/\{(\d+)\}/g, (match, index) => args[index] === undefined ? match : String(typeof args[index] === "function" ? args[index]() : args[index]));
+    element.setAttribute(name, value); if (["title", "placeholder"].includes(name)) element[name] = value; return element;
+  };
+  const uiNode = (tag, cls, source, args = []) => { const element = node(tag, cls); return window.CeasefireI18n?.nodeText ? window.CeasefireI18n.nodeText(element, source, args) : uiText(element, source, args); };
+
   const $ = id => document.getElementById(id), clone = value => JSON.parse(JSON.stringify(value));
   const state = { record: null, draft: null, definition: null, result: null, group: null, baseline: null,
     invalid: new Map(), session: 0, version: 0, busy: false, downloadKind: null, pendingFields: false, open: false, requestRevision: 0, opening: 0, timer: null,
@@ -142,14 +154,17 @@
     const adjusted = field.format === "percent" ? shiftDecimal(value, 2) : value;
     return precise ? String(adjusted) : number.format(adjusted).replace(/,/g, "");
   }
-  function message(text = "", error = false) {
+  function message(text = "", error = false, args = []) {
     const element = $("library-editor-message");
     if (window.CeasefirePenetrationNavigation?.message) {
       element.hidden = true;
-      if (text) window.CeasefirePenetrationNavigation.message(text, error);
+      if (text) {
+        if (args.length && window.CeasefireI18n) window.CeasefirePenetrationNavigation.message(text, error, args);
+        else window.CeasefirePenetrationNavigation.message(String(text).replace(/\{(\d+)\}/g, (match, index) => args[index] === undefined ? match : String(typeof args[index] === "function" ? args[index]() : args[index])), error);
+      }
       return;
     }
-    element.textContent = text; element.hidden = !text; element.className = `message${error ? " error" : ""}`;
+    uiText(element, text, args); element.hidden = !text; element.className = `message${error ? " error" : ""}`;
   }
   const diagramMime = filename => /\.png$/i.test(filename) ? "image/png" : /\.webp$/i.test(filename) ? "image/webp" : "image/jpeg";
   function renderDiagram() {
@@ -165,9 +180,9 @@
       source = saved.url; text = "The original source diagram will remain after saving.";
     }
     preview.hidden = !source; empty.hidden = !!source;
-    if (source) { image.src = source; caption.textContent = text; } else { image.removeAttribute?.("src"); caption.textContent = ""; }
+    if (source) { image.src = source; caption.textContent = text; } else { image.removeAttribute?.("src"); uiText(caption, "", []); }
     remove.hidden = !(pending !== undefined || saved.custom);
-    remove.textContent = pending === null ? "Undo image change" : pending && typeof pending === "object" ? "Discard selected image" : "Remove saved image";
+    uiText(remove, pending === null ? "Undo image change" : pending && typeof pending === "object" ? "Discard selected image" : "Remove saved image");
   }
   function queueDiagram(filename, content) {
     if (!state.open || typeof filename !== "string" || !/\.(?:png|jpe?g|webp)$/i.test(filename)) throw new Error("Choose a PNG, JPEG or WebP source diagram.");
@@ -193,9 +208,9 @@
     queueDiagram(file.name, content); message(state.record.project_local ? "The source diagram is ready. Save the project to retain this image." : "The source diagram is ready. Save the project to retain it here, or Save Library Item to update the shared library.");
   }
   function status(text) {
-    $("library-editor-status").textContent = text || (state.busy ? "Working…" : state.invalid.size ? "Check input" : state.result?.errors?.length ? "Review calculation" : state.record?.project_local ? hasProjectChanges() ? "Unsaved project library draft" : "Saved in this project" : hasUnsavedChanges() ? "Unsaved library changes" : "Saved library item");
-    $("library-editor-save").textContent = state.record?.project_local ? "Keep in project draft" : "Save Library Item";
-    $("library-editor-save").title = state.record?.project_local ? "Keep this project draft; Save the project to store it in its file" : "Save Library Item";
+    uiText($("library-editor-status"), text || (state.busy ? "Working…" : state.invalid.size ? "Check input" : state.result?.errors?.length ? "Review calculation" : state.record?.project_local ? hasProjectChanges() ? "Unsaved project library draft" : "Saved in this project" : hasUnsavedChanges() ? "Unsaved library changes" : "Saved library item"));
+    uiText($("library-editor-save"), state.record?.project_local ? "Keep in project draft" : "Save Library Item");
+    uiAttr($("library-editor-save"), "title", state.record?.project_local ? "Keep this project draft; Save the project to store it in its file" : "Save Library Item");
     $("library-editor-refresh-pricing").hidden = !!state.record?.project_local;
     for (const id of ["library-editor-save", "library-editor-recalculate", "library-editor-refresh-pricing"]) $(id).disabled = !state.record || state.busy || !!state.diagramReading || state.invalid.size > 0;
     $("library-editor-cancel").disabled = state.busy || !!state.diagramReading;
@@ -234,8 +249,8 @@
     control.type = "text"; control.inputMode = "decimal"; control.autocomplete = "off"; control.maxLength = 100;
     control.placeholder = field.placeholder || "e.g. 300 x 50";
     control.dataset.libraryEditorField = field.column; control.dataset.libraryEditorPaired = paired.column;
-    control.dataset.libraryEditorGlobal = "false"; control.setAttribute("aria-label", `Library item: ${label}`);
-    const showProblem = text => { control.setAttribute("aria-invalid", String(!!text)); problem.textContent = text || ""; problem.hidden = !text; };
+    control.dataset.libraryEditorGlobal = "false"; uiAttr(control, "aria-label", "Library item: {0}", [() => (window.CeasefireI18n?.translate(fieldLabel(field)) || fieldLabel(field)) + (field.units ? ` (${field.units})` : "")]);
+    const showProblem = text => { control.setAttribute("aria-invalid", String(!!text)); uiText(problem, text || ""); problem.hidden = !text; };
     control.refreshDimension = () => {
       const pending = state.invalid.get(key); showProblem(pending?.error);
       if (control !== document.activeElement) control.value = pending ? pending.value : dimensionText(field.column, paired.column);
@@ -251,7 +266,7 @@
       showProblem(parsed.error); changed();
     });
     control.addEventListener("blur", () => { if (session === state.session) control.refreshDimension(); });
-    wrapper.append(node("span", "", label), control, problem); control.refreshDimension(); return wrapper;
+    wrapper.append(uiNode("span", "", "{0}{1}", [() => window.CeasefireI18n?.translate(fieldLabel(field)) || fieldLabel(field), field.units ? ` (${field.units})` : field.format === "percent" ? " (%)" : ""]), control, problem); control.refreshDimension(); return wrapper;
   }
   function makeControl(field, global) {
     const session = state.session, key = keyFor(global, field.column), raw = values(global)[field.column] ?? null;
@@ -261,10 +276,10 @@
     const long = field.type === "text" && ["T", "U"].includes(field.column);
     const wrapper = node(field.automatic_default ? "div" : "label", `field${long ? " library-editor-long-text" : ""}`), label = fieldLabel(field) + (field.units ? ` (${field.units})` : field.format === "percent" ? " (%)" : "");
     const control = node(field.type === "select" ? "select" : long ? "textarea" : "input"), problem = node("small", "penetration-field-error");
-    if (field.help || field.column === "M") { wrapper.title = control.title = field.column === "M" ? "Substrate Orientation" : field.help; }
-    control.dataset.libraryEditorField = field.column; control.dataset.libraryEditorGlobal = String(global); control.setAttribute("aria-label", `${global ? "Item allowance" : "Library item"}: ${label}`);
+    if (field.help || field.column === "M") { const help = field.column === "M" ? "Substrate Orientation" : field.help; uiAttr(wrapper, "title", help); uiAttr(control, "title", help); }
+    control.dataset.libraryEditorField = field.column; control.dataset.libraryEditorGlobal = String(global); uiAttr(control, "aria-label", "{0}: {1}", [() => window.CeasefireI18n?.translate(global ? "Item allowance" : "Library item") || (global ? "Item allowance" : "Library item"), () => (window.CeasefireI18n?.translate(fieldLabel(field)) || fieldLabel(field)) + (field.units ? ` (${field.units})` : field.format === "percent" ? " (%)" : "")]);
     if (field.type === "select") {
-      const empty = node("option", "", "Choose…"); empty.value = ""; control.append(empty);
+      const empty = uiNode("option", "", "Choose…"); empty.value = ""; control.append(empty);
       for (const value of options) { const option = node("option", "", manufacturerLabel(field, value) || window.CeasefirePenetrationPresentation?.optionLabel(field, value) || value); option.value = String(value); control.append(option); }
       if (raw !== null && raw !== "" && !options.some(value => String(value) === String(raw))) { const saved = node("option", "", manufacturer || `Saved value: ${raw} (choose a listed value)`); saved.value = String(raw); saved.disabled = true; control.append(saved); }
     } else {
@@ -277,7 +292,7 @@
     const pending = state.invalid.get(key); control.value = pending ? pending.value : controlText(field, displayedInput(field, global));
     if (long) window.CeasefirePenetrationPresentation?.growTextarea(control);
     if (field.enabled_when) control.disabled = field.enabled_when.nonblank && [null, undefined, ""].includes(state.draft.rows[0].inputs[field.enabled_when.column]);
-    const showProblem = text => { control.setAttribute("aria-invalid", String(!!text)); problem.textContent = text || ""; problem.hidden = !text; };
+    const showProblem = text => { control.setAttribute("aria-invalid", String(!!text)); uiText(problem, text || ""); problem.hidden = !text; };
     showProblem(pending?.error);
     control.addEventListener("focus", () => { if (session === state.session && field.type === "number" && !state.invalid.has(key)) { control.value = controlText(field, displayedInput(field, global), true); control.select?.(); } });
     control.addEventListener(field.type === "select" ? "change" : "input", () => {
@@ -306,15 +321,18 @@
       if (!state.invalid.has(key)) control.value = controlText(field, displayedInput(field, global));
       if (state.pendingFields) { state.pendingFields = false; renderFields(); }
     });
-    wrapper.append(node("span", "", label), control, problem);
+    wrapper.append(uiNode("span", "", "{0}{1}", [() => window.CeasefireI18n?.translate(fieldLabel(field)) || fieldLabel(field), field.units ? ` (${field.units})` : field.format === "percent" ? " (%)" : ""]), control, problem);
     if (field.automatic_default) {
-      const tools = node("div", "penetration-automatic-tools"), hint = node("small", "helper"), reset = node("button", "button secondary", "Use automatic");
+      const tools = node("div", "penetration-automatic-tools"), hint = node("small", "helper"), reset = uiNode("button", "button secondary", "Use automatic");
       hint.id = `library-editor-default-${++controlSequence}`; control.setAttribute("aria-describedby", hint.id);
-      reset.type = "button"; reset.setAttribute("aria-label", `Use automatic ${fieldLabel(field)}`);
+      reset.type = "button"; uiAttr(reset, "aria-label", "Use automatic {0}", [() => window.CeasefireI18n?.translate(fieldLabel(field)) || fieldLabel(field)]);
       control.refreshAutomatic = () => {
         const value = values(global)[field.column], automatic = value === null || value === undefined || value === "";
         const defaults = state.result?.rows?.[0]?.input_defaults;
-        hint.textContent = !automatic ? "Manual allowance." : !defaults ? "Automatic value updates after calculation." : numeric(defaults[field.column]) ? `Automatic: ${controlText(field, defaults[field.column])}${field.units ? ` ${field.units}` : ""}.` : "No automatic value for this item. Enter hours if required.";
+        if (!automatic) uiText(hint, "Manual allowance.");
+        else if (!defaults) uiText(hint, "Automatic value updates after calculation.");
+        else if (numeric(defaults[field.column])) uiText(hint, "Automatic: {0}{1}.", [controlText(field, defaults[field.column]), field.units ? ` ${field.units}` : ""]);
+        else uiText(hint, "No automatic value for this item. Enter hours if required.");
         reset.disabled = automatic && !state.invalid.has(key);
         if (control !== document.activeElement && !state.invalid.has(key)) control.value = controlText(field, displayedInput(field, global));
       };
@@ -387,22 +405,22 @@
   function structuredProblem(name, value, error, control, problem) {
     const key = structuredSettingKey(name);
     if (error) state.invalid.set(key, { value, error }); else state.invalid.delete(key);
-    control.setAttribute("aria-invalid", String(!!error)); problem.textContent = error || ""; problem.hidden = !error;
+    control.setAttribute("aria-invalid", String(!!error)); uiText(problem, error || ""); problem.hidden = !error;
     if (error) changed();
   }
   function updateStructuredSetting(key, value) {
     state.draft.globals[key] = clone(value); changed();
   }
   function renderServiceRoutes() {
-    const section = node("section", "penetration-settings-section"), heading = node("h4", "penetration-settings-subheading", "SERVICE-TAB ROUTING");
+    const section = node("section", "penetration-settings-section"), heading = uiNode("h4", "penetration-settings-subheading", "SERVICE-TAB ROUTING");
     const scroll = node("div", "table-scroll"), table = node("table", "penetration-settings-table penetration-route-table"), head = node("thead"), header = node("tr");
-    for (const label of ["Service Tab", "Service Types"]) { const cell = node("th", "", label); cell.scope = "col"; header.append(cell); }
+    for (const label of ["Service Tab", "Service Types"]) { const cell = uiNode("th", "", label); cell.scope = "col"; header.append(cell); }
     head.append(header); table.append(head); const body = node("tbody"), routes = state.draft.globals.service_routes || {};
     for (const route of state.definition.settings?.service_routes || []) {
-      const row = node("tr"), label = node("th", "", route.label.toUpperCase()); label.scope = "row";
+      const row = node("tr"), label = uiNode("th", "", route.label.toUpperCase()); label.scope = "row";
       const value = node("td"), editor = node("textarea"), problem = node("small", "penetration-field-error");
       editor.rows = 2; editor.maxLength = 10000; editor.value = (routes[route.key] || []).join("; ");
-      editor.dataset.libraryEditorServiceRoute = route.key; editor.setAttribute("aria-label", `${route.label} service types`);
+      editor.dataset.libraryEditorServiceRoute = route.key; uiAttr(editor, "aria-label", "{0} service types", [() => window.CeasefireI18n?.translate(route.label) || route.label]);
       const name = `service_routes.${route.key}`;
       editor.addEventListener("input", () => {
         const services = editor.value.split(";").map(item => item.trim()).filter(Boolean), seen = new Set();
@@ -424,22 +442,22 @@
     return { value: parsed };
   }
   function renderLabourBands() {
-    const section = node("section", "penetration-settings-section"), heading = node("h4", "penetration-settings-subheading", "PRECALCULATED TASK-HOUR BANDS");
+    const section = node("section", "penetration-settings-section"), heading = uiNode("h4", "penetration-settings-subheading", "PRECALCULATED TASK-HOUR BANDS");
     section.append(heading);
     for (const definition of state.definition.settings?.labour_bands || []) {
       const rows = state.draft.globals.labour_bands?.[definition.key] || [], details = node("details", "penetration-band-settings");
       details.open = state.openSettingsBand === definition.key; details.addEventListener("toggle", () => { if (details.open) state.openSettingsBand = definition.key; });
-      const summary = node("summary"); summary.append(node("strong", "", definition.label), node("span", "status-label", `${rows.length} ${rows.length === 1 ? "band" : "bands"}`)); details.append(summary);
+      const summary = node("summary"); summary.append(uiNode("strong", "", definition.label), uiNode("span", "status-label", "{0} bands", [rows.length])); details.append(summary);
       details.append(node("p", "helper", `${definition.basis}. ${definition.overflow === "manual" ? "Values above the final band require manual Pipe Labour hours." : "Values above the final band use its hours."}`));
       const scroll = node("div", "table-scroll"), table = node("table", "penetration-settings-table penetration-band-table"), head = node("thead"), header = node("tr");
-      for (const label of [`Up to (${definition.units})`, "Hours", "Action"]) { const cell = node("th", "", label); cell.scope = "col"; header.append(cell); }
+      for (const label of [`Up to (${definition.units})`, "Hours", "Action"]) { const cell = uiNode("th", "", label); cell.scope = "col"; header.append(cell); }
       head.append(header); table.append(head); const body = node("tbody");
       rows.forEach((band, index) => {
         const row = node("tr");
         for (const property of ["maximum", "hours"]) {
           const cell = node("td"), control = node("input"), problem = node("small", "penetration-field-error"), name = `labour_bands.${definition.key}.${index}.${property}`;
           control.type = "number"; control.step = "any"; control.inputMode = "decimal"; control.value = String(band[property]); control.dataset.libraryEditorBand = name;
-          control.setAttribute("aria-label", `${definition.label} band ${index + 1} ${property === "maximum" ? `maximum ${definition.units}` : "hours"}`);
+          uiAttr(control, "aria-label", "{0} band {1} {2}", [definition.label, index + 1, property === "maximum" ? `maximum ${definition.units}` : "hours"]);
           control.addEventListener("input", () => {
             const parsed = bandNumber(control.value, 0, property === "maximum" ? "band maximum" : "hours", property === "maximum");
             let error = parsed.error || "";
@@ -455,14 +473,14 @@
           problem.hidden = true; cell.append(control, problem); row.append(cell);
         }
         const action = node("td"), remove = node("button", "button secondary icon-only penetration-band-remove"); remove.type = "button"; remove.disabled = rows.length === 1;
-        remove.title = `Remove ${definition.label} band ${index + 1}`; remove.setAttribute("aria-label", remove.title); const icon = node("span", "button-symbol", "🗑"); icon.setAttribute("aria-hidden", "true"); remove.append(icon); remove.addEventListener("click", () => {
+        uiAttr(remove, "title", "Remove {0} band {1}", [definition.label, index + 1]); uiAttr(remove, "aria-label", "Remove {0} band {1}", [() => window.CeasefireI18n?.translate(definition.label) || definition.label, index + 1]); const icon = node("span", "button-symbol", "🗑"); icon.setAttribute("aria-hidden", "true"); remove.append(icon); remove.addEventListener("click", () => {
           const bands = clone(state.draft.globals.labour_bands); if (bands[definition.key].length === 1) return;
           bands[definition.key].splice(index, 1); clearStructuredProblems(`labour_bands.${definition.key}.`); state.openSettingsBand = definition.key; updateStructuredSetting("labour_bands", bands); renderFields();
         });
         action.append(remove); row.append(action); body.append(row);
       });
       table.append(body); scroll.append(table); details.append(scroll);
-      const add = node("button", "button secondary penetration-add-band", "+ Add band"); add.type = "button"; add.addEventListener("click", () => {
+      const add = uiNode("button", "button secondary penetration-add-band", "+ Add band"); add.type = "button"; add.addEventListener("click", () => {
         const bands = clone(state.draft.globals.labour_bands), current = bands[definition.key], last = current.at(-1), previous = current.at(-2);
         const increment = previous ? last.maximum - previous.maximum : Math.max(last.maximum * .1, 1);
         if (!(increment > 0) || last.maximum + increment > 1e12) return;
@@ -473,16 +491,16 @@
     return section;
   }
   function renderSettings(fields) {
-    const root = node("div", "penetration-settings"), intro = node("p", "message info", "These settings are saved with this Firestopping Library item. Calculations retain the source workbook formulas unless you change a band table.");
+    const root = node("div", "penetration-settings"), intro = uiNode("p", "message info", "These settings are saved with this Firestopping Library item. Calculations retain the source workbook formulas unless you change a band table.");
     const scroll = node("div", "table-scroll"), table = node("table", "penetration-settings-table"), head = node("thead"), header = node("tr");
-    for (const label of ["Setting", "Applies to", "Value"]) { const cell = node("th", "", label); cell.scope = "col"; header.append(cell); }
+    for (const label of ["Setting", "Applies to", "Value"]) { const cell = uiNode("th", "", label); cell.scope = "col"; header.append(cell); }
     head.append(header); table.append(head);
     for (const category of ["Labour allowances", "Pipe labour", "Material waste"]) {
       const matching = fields.filter(field => settingCategory(field) === category); if (!matching.length) continue;
-      const body = node("tbody"), groupRow = node("tr", "settings-group-heading"), groupCell = node("th", "", category); groupCell.scope = "rowgroup"; groupCell.colSpan = 3; groupRow.append(groupCell); body.append(groupRow);
+      const body = node("tbody"), groupRow = node("tr", "settings-group-heading"), groupCell = uiNode("th", "", category); groupCell.scope = "rowgroup"; groupCell.colSpan = 3; groupRow.append(groupCell); body.append(groupRow);
       for (const field of matching) {
-        const row = node("tr"), label = node("th", "", fieldLabel(field) + (field.units ? ` (${field.units})` : field.format === "percent" ? " (%)" : "")); label.scope = "row";
-        const context = node("td", "", settingContext(field)), value = node("td", "penetration-settings-control"); value.append(makeControl(field, true)); row.append(label, context, value); body.append(row);
+        const row = node("tr"), label = uiNode("th", "", "{0}{1}", [() => window.CeasefireI18n?.translate(fieldLabel(field)) || fieldLabel(field), field.units ? ` (${field.units})` : field.format === "percent" ? " (%)" : ""]); label.scope = "row";
+        const context = uiNode("td", "", settingContext(field)), value = node("td", "penetration-settings-control"); value.append(makeControl(field, true)); row.append(label, context, value); body.append(row);
       }
       table.append(body);
     }
@@ -491,7 +509,7 @@
   function renderFields() {
     const groups = fieldGroups(); if (!groups.includes(state.group)) state.group = groups[0];
     $("library-editor-groups").replaceChildren(...groups.filter(group => group !== "SETTINGS").map(group => {
-      const button = node("button", "penetration-group", state.definition.group_labels?.[group] || group); button.type = "button"; button.dataset.libraryEditorGroup = group; button.setAttribute("role", "tab"); button.setAttribute("aria-selected", String(group === state.group));
+      const button = uiNode("button", "penetration-group", state.definition.group_labels?.[group] || group); button.type = "button"; button.dataset.libraryEditorGroup = group; button.setAttribute("role", "tab"); button.setAttribute("aria-selected", String(group === state.group));
       button.addEventListener("click", () => selectGroup(group)); return button;
     }));
     $("library-editor-settings").setAttribute("aria-pressed", String(state.group === "SETTINGS"));
@@ -512,11 +530,13 @@
   function renderOutputs() {
     const price = state.result ? state.result.rows?.[0]?.outputs?.H : (!hasUnsavedChanges() ? state.record.price?.amount : null);
     $("library-editor-price").textContent = display(price, "currency");
-    $("library-editor-pricing-basis").textContent = state.record.pricing_label || "Workbook prices";
+    if (state.record.pricing_label) $("library-editor-pricing-basis").textContent = state.record.pricing_label;
+    else uiText($("library-editor-pricing-basis"), "Workbook prices");
     const labels = { materials: "Materials", labour: "Labour", grand_total: "Grand total", total_days: "Total days", labour_hours: "Task Hours" };
-    $("library-editor-summary").replaceChildren(...Object.entries(labels).map(([key, label]) => { const line = node("div", key === "grand_total" ? "subtotal" : ""); line.append(node("dt", "", label), node("dd", "", display(state.result?.summary?.[key], ["total_days", "labour_hours"].includes(key) ? "number" : "currency"))); return line; }));
+    $("library-editor-summary").replaceChildren(...Object.entries(labels).map(([key, label]) => { const line = node("div", key === "grand_total" ? "subtotal" : ""); line.append(uiNode("dt", "", label), node("dd", "", display(state.result?.summary?.[key], ["total_days", "labour_hours"].includes(key) ? "number" : "currency"))); return line; }));
     const errors = state.result?.errors || [];
-    $("library-editor-summary-notes").textContent = errors.length ? errors.map(error => `${state.definition.row_fields.find(field => field.column === error.cell)?.label || error.cell}: ${error.message}`).join("\n") : "Calculated from this library item's inputs and selected pricing basis.";
+    if (errors.length) uiText($("library-editor-summary-notes"), "{0}", [() => errors.map(error => { const label = state.definition.row_fields.find(field => field.column === error.cell)?.label || error.cell; return `${window.CeasefireI18n?.translate(label) || label}: ${window.CeasefireI18n?.translate(error.message) || error.message}`; }).join("\n")]);
+    else uiText($("library-editor-summary-notes"), "Calculated from this library item's inputs and selected pricing basis.");
     const row = state.result?.rows?.[0], breakdown = $("library-editor-breakdown");
     breakdown.replaceChildren(window.CeasefirePenetrationBreakdown.render(state.definition, row));
   }
@@ -528,8 +548,8 @@
     actions = { changed: scheduleCalculation, calculate, refreshPricing, save, cancel, ...handlers };
     $("library-editor-identity").textContent = record.title || record.library_id || record.id;
     const scope = $("firestopping-library-editor").querySelectorAll(".library-editor-scope")[0];
-    if (scope) scope.textContent = record.project_local ? "These library edits stay within the current project. Use Save to store them in its file." : "Save keeps these edits within the current project. Save Library Item updates the shared library.";
-    $("library-editor-pricing-heading").textContent = record.project_local ? "Project library price" : "Library price";
+    if (scope) uiText(scope, record.project_local ? "These library edits stay within the current project. Use Save to store them in its file." : "Save keeps these edits within the current project. Save Library Item updates the shared library.");
+    uiText($("library-editor-pricing-heading"), record.project_local ? "Project library price" : "Library price");
     $("firestopping-project-workspace").hidden = true; $("firestopping-library-editor").hidden = false;
     renderFields(); renderOutputs(); renderDiagram(); status(); message();
   }
@@ -563,7 +583,7 @@
   }
   async function open(id) {
     if (state.open) {
-      if (state.record.id !== id) message(`Finish editing ${state.record.library_id || state.record.title} or cancel it before opening another library item.`, true);
+      if (state.record.id !== id) message("Finish editing {0} or cancel it before opening another library item.", true, [state.record.library_id || state.record.title]);
       window.CeasefireLibraryEditorNavigation?.show(); return;
     }
     if (project.records.has(id)) { present(project.records.get(id)); window.CeasefireLibraryEditorNavigation?.show(); return; }
@@ -630,7 +650,7 @@
       if (Object.hasOwn(captured.payload, "diagram")) window.CeasefirePenetrations?.libraryDiagramChanged?.(captured.id);
       if (later) { reschedule = true; message("The captured library item was saved. Your later edits are still here and have not been saved."); }
       else { close(); window.CeasefireLibraryEditorNavigation?.returnToLibrary(captured.id); }
-    } catch (error) { if (current(captured) && revision === state.requestRevision) message(`Library item was not saved. ${error.message}`, true); }
+    } catch (error) { if (current(captured) && revision === state.requestRevision) message("Library item was not saved. {0}", true, [() => window.CeasefireI18n?.translate(error.message) || error.message]); }
     finally { if (current(captured) && revision === state.requestRevision) { state.busy = false; status(); if (reschedule) scheduleCalculation(); } }
   }
   async function downloadItem(kind) {
@@ -655,9 +675,9 @@
       if (!current(captured)) return;
       const later = state.version !== captured.version || JSON.stringify(state.record.configuration) !== JSON.stringify(payload.configuration)
         || state.invalid.size > 0 || stamp() !== capturedStamp || JSON.stringify(state.diagramChange) !== capturedDiagram;
-      message(`Item Details ${kind.toUpperCase()} saved to ${saved.path} using the fields, prices and source diagram captured when you clicked.${later ? " Your later edits are still here and are not included." : ""}`);
+      message("Item Details {0} saved to {1} using the fields, prices and source diagram captured when you clicked.{2}", false, [kind.toUpperCase(), saved.path, later ? " Your later edits are still here and are not included." : ""]);
     } catch (error) {
-      if (current(captured)) message(`Item Details were not downloaded. ${error.message}`, true);
+      if (current(captured)) message("Item Details were not downloaded. {0}", true, [() => window.CeasefireI18n?.translate(error.message) || error.message]);
     } finally {
       if (current(captured)) {
         state.busy = false; state.downloadKind = null; status();

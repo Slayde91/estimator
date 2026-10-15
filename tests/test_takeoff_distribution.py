@@ -13,7 +13,8 @@ class TakeoffDistributionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             for name in ('README.md', 'requirements.txt', 'Start-Estimator.cmd', 'Start-Estimator.ps1',
-                         'scripts/install_reference_library.py', 'docs/TAKEOFFS.md',
+                         'scripts/install_reference_library.py', 'scripts/build_language_catalog.py',
+                         'docs/TAKEOFFS.md', 'docs/LANGUAGES.md',
                          'estimator/__init__.py', 'static/takeoffs.js', 'data/public.json'):
                 path = root / name; path.parent.mkdir(parents=True, exist_ok=True); path.write_text('')
             for name in ('estimator', 'static', 'data'):
@@ -25,6 +26,8 @@ class TakeoffDistributionTests(unittest.TestCase):
                 names = archive.namelist()
                 self.assertIn('static/takeoffs.js', names)
                 self.assertIn('docs/TAKEOFFS.md', names)
+                self.assertIn('docs/LANGUAGES.md', names)
+                self.assertIn('scripts/build_language_catalog.py', names)
                 self.assertFalse(any('.ceasefire-evidence' in name for name in names))
 
 

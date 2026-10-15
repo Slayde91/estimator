@@ -27,6 +27,17 @@ const text=node=>[node.textContent,...node.children.map(text)].join(' ');
 let passed=0;
 async function check(name,fn){const h=harness();h.api.applyProject(await h.api.prepareDefaults());await fn(h);passed++;console.log(`ok - ${name}`);}
 (async()=>{
+  await check('Localized UI never translates product choices or breakdown source labels that match UI words',async h=>{
+    const localized=(source,args=[])=>'translated:'+String(source).replace(/\{(\d+)\}/g,(match,index)=>index<args.length?String(typeof args[index]==='function'?args[index]():args[index]):match);
+    h.context.window.CeasefireI18n={text(element,source,args){element.textContent=localized(source,args);return element;},attr(element,name,source,args){element.setAttribute(name,localized(source,args));return element;},translate:localized};
+    const names=['Board','Primer','Home'],field={column:'X',label:'Board/Batt Type',type:'select',group:'Products and labour',format:'text',options:names,default:null};
+    const control=h.audit.makeControl(field,h.audit.state.selected).children[1];
+    assert.deepEqual(control.children.slice(1).map(option=>option.textContent),names);assert.deepEqual(control.children.slice(1).map(option=>option.value),names);
+    const row={errors:[],inputs:{O:1},breakdown:{rows:[{label:'Board',unit_prices:names.map(label=>({label,value:12.3456789})),material_quantities:[],material_costs:0,labour_costs:0,task_hours:0}],totals:{material_costs:0,labour_costs:0,task_hours:0}}};
+    const before=copy(row),rendered=h.context.window.CeasefirePenetrationBreakdown.render(definition(),row);
+    const walk=node=>[node,...node.children.flatMap(walk)],source=walk(rendered).filter(node=>node.className==='penetration-breakdown-context');
+    assert.deepEqual(source.map(node=>node.textContent),names);assert.deepEqual(row,before);assert.match(text(rendered),/translated:Subtotal/);
+  });
   await check('Rapid calculations retain only the newest pending exact draft and recover after the active failure',async h=>{
     const held=deferred(),calls=[];h.audit.setRequest((path,payload)=>{calls.push(copy(payload));return calls.length===1?held.promise:Promise.resolve(result(payload.draft));});
     h.audit.state.draft.rows[0].inputs.O=1;const active=h.audit.calculate();await flush();
@@ -452,7 +463,7 @@ async function check(name,fn){const h=harness();h.api.applyProject(await h.api.p
   });
   await check('Item Summary uses the sticky quote-summary pattern and the requested title',async h=>{
     const html=fs.readFileSync('static/index.html','utf8'),css=fs.readFileSync('static/penetration.css','utf8');
-    assert.match(html,/id="penetration-summary-heading">Item Summary</);assert.doesNotMatch(html,/Current item summary/);assert.match(css,/\.penetration-summary\{position:sticky;top:116px;align-self:start\}/);
+    assert.match(html,/id="penetration-summary-heading"[^>]*>Item Summary</);assert.doesNotMatch(html,/Current item summary/);assert.match(css,/\.penetration-summary\{position:sticky;top:116px;align-self:start\}/);
     const main=html.indexOf('class="penetration-main"'),breakdown=html.indexOf('aria-labelledby="penetration-breakdown-heading"'),summary=html.indexOf('class="card penetration-summary"');assert.ok(main>0&&main<breakdown&&breakdown<summary);
   });
   await check('Substrate inputs remain available in the current item after allowance controls are removed',async h=>{

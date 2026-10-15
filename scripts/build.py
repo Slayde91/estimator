@@ -13,6 +13,8 @@ def main():
     paths.extend([ROOT / name for name in ("README.md", "requirements.txt", "Start-Estimator.cmd", "Start-Estimator.ps1")])
     paths.append(ROOT / 'scripts' / 'install_reference_library.py')
     paths.append(ROOT / 'docs' / 'TAKEOFFS.md')
+    paths.append(ROOT / 'docs' / 'LANGUAGES.md')
+    paths.append(ROOT / 'scripts' / 'build_language_catalog.py')
     for path in paths:
         if path.suffix == ".py":
             py_compile.compile(str(path), doraise=True)

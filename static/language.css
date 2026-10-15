@@ -1,0 +1,23 @@
+/* System fallback fonts cover CJK, Devanagari, Arabic and Thai offline. */
+html[data-language="zh-Hans"] {font-family:"Microsoft YaHei","PingFang SC","Noto Sans CJK SC",sans-serif}
+html[data-language="hi"] {font-family:"Nirmala UI","Noto Sans Devanagari",sans-serif}
+html[data-language="ar"] {font-family:"Segoe UI",Tahoma,"Noto Sans Arabic",sans-serif}
+html[data-language="th"] {font-family:"Leelawadee UI",Tahoma,"Noto Sans Thai",sans-serif}
+html:not([data-language="en"]) .quote-notes {font-family:inherit}
+.language-field {max-width:32rem}
+.language-field select {min-height:46px}
+html[dir="rtl"] .field,html[dir="rtl"] .page-heading,html[dir="rtl"] .card {text-align:start}
+html[dir="rtl"] input[type="number"],html[dir="rtl"] input[type="email"],html[dir="rtl"] input[type="url"],
+html[dir="rtl"] input[inputmode="decimal"],html[dir="rtl"] input[inputmode="numeric"],
+html[dir="rtl"] #company-phone,html[dir="rtl"] #company-abn,
+html[dir="rtl"] .numeric,html[dir="rtl"] .cost-list dd,html[dir="rtl"] .grand-total strong,
+html[dir="rtl"] .metrics dd,html[dir="rtl"] .calculated-yield,html[dir="rtl"] .price-value,
+html[dir="rtl"] .takeoff-viewport,html[dir="rtl"] .takeoff-page,html[dir="rtl"] .takeoff-overlay,
+html[dir="rtl"] .calculator-grid,html[dir="rtl"] .source-diagram,html[dir="rtl"] .library-diagram {direction:ltr;unicode-bidi:isolate}
+html[dir="rtl"] .takeoff-empty {direction:rtl}
+html[dir="rtl"] .project-title-button,html[dir="rtl"] .project-browser-breadcrumbs button,
+html[dir="rtl"] .takeoff-search-result {text-align:start}
+html[dir="rtl"] th,html[dir="rtl"] td {text-align:start}
+html[dir="rtl"] .numeric {text-align:end}
+html[dir="rtl"] .main-output-workspace,html[dir="rtl"] .main-section-tabs {min-width:0}
+html[dir="rtl"] .brand,html[dir="rtl"] .brand-logo {direction:ltr}

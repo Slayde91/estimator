@@ -50,7 +50,7 @@ const phrases = [
 ];
 function harness({ random = 0, previous, reduced = false, blocked = false, missing = false, missingCursor = false, missingMotion = false } = {}) {
   const label = { textContent: '' }, sizer = { children: [], get textContent() { return this.children.map(line => line.textContent).join(''); }, replaceChildren(...lines) { this.children = lines; } }, cursor = { hidden: false }, frames = [], timers = new Map(), writes = [];
-  let current = '', last = previous, nextTimer = 0, preference, pagehide, now = 0;
+  let current = '', last = previous, nextTimer = 0, preference, pagehide, languagechange, now = 0;
   const typed = { get textContent() { return current; }, set textContent(value) { current = value; frames.push(value); } };
   const elements = { 'header-tagline-label': label, 'header-tagline-sizer': sizer, 'header-tagline-typed': typed };
   const motion = { matches: reduced, addEventListener(name, callback) { assert.equal(name, 'change'); preference = callback; } };
@@ -63,12 +63,13 @@ function harness({ random = 0, previous, reduced = false, blocked = false, missi
     },
     window: {
       CeasefireHeaderTaglineMedia: media,
+      CeasefireI18n: require('./english_i18n_fixture.cjs')(),
       localStorage: {
         getItem(key) { assert.equal(key, 'ceasefire.headerTagline.last'); if (blocked) throw Error('Storage denied'); return last; },
         setItem(key, value) { assert.equal(key, 'ceasefire.headerTagline.last'); if (blocked) throw Error('Storage denied'); writes.push(value); last = value; },
       },
       matchMedia: missingMotion ? undefined : query => { assert.equal(query, '(prefers-reduced-motion: reduce)'); return motion; },
-      addEventListener(name, callback, options) { assert.equal(name, 'pagehide'); assert.equal(options.once, true); pagehide = callback; },
+      addEventListener(name, callback, options) { if (name === 'ceasefire:languagechange') { languagechange = callback; return; } assert.equal(name, 'pagehide'); assert.equal(options.once, true); pagehide = callback; },
       CeasefireProject: { changed() { throw Error('Presentation must never dirty a project'); } },
       CeasefireCalculators: { completeProjectSnapshot() { throw Error('Presentation must never access calculator state'); } },
       dispatchEvent() { throw Error('Presentation must not emit input or change events'); },
@@ -98,6 +99,7 @@ function harness({ random = 0, previous, reduced = false, blocked = false, missi
   const finish = () => { finishTyping(); advance(2000); };
   run();
   return { label, sizer, typed, cursor, media, frames, timers, writes, run, tick, finishTyping, finish, advance, nextPhrase() { context.window.CeasefireHeaderTagline.next(); },
+    changeLanguage(translation) { context.window.CeasefireI18n = { translate: value => translation[value] || value }; languagechange(); },
     now: () => now, changeMotion(matches = true) { motion.matches = matches; preference({ matches }); }, pagehide() { pagehide(); } };
 }
 let passed = 0;
@@ -202,6 +204,17 @@ for (let index = 0; index < phrases.length; index++) {
 }
 {
   const h = harness({ missingCursor: true }); assert.equal(h.timers.size, 0); assert.equal(h.writes.length, 0); passed++;
+}
+{
+  // Changing language restarts presentation for the same canonical phrase;
+  // it never selects another joke, rewrites persistence or touches project state.
+  const h = harness(); const original = h.label.textContent, writes = h.writes.slice();
+  h.changeLanguage({[original]: '同一短语：हिन्दी ภาษาไทย العربية'});
+  assert.equal(h.label.textContent, '同一短语：हिन्दी ภาษาไทย العربية');
+  h.finish(); assert.equal(h.typed.textContent, h.label.textContent);
+  assert.deepEqual(h.writes, writes); assert.equal(h.sizer.children[0].textContent, h.label.textContent + '_');
+  h.changeLanguage({}); h.finish(); assert.equal(h.label.textContent, original);
+  assert.deepEqual(h.writes, writes); passed++;
 }
 const html = fs.readFileSync('static/index.html', 'utf8');
 assert.match(html, /id="header-tagline-character"[^>]*alt=""[^>]*aria-hidden="true"/, 'The decorative supplied character stays out of the accessibility tree');

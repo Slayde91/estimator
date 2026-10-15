@@ -1,4 +1,5 @@
 "use strict";
+const englishI18n = require("./english_i18n_fixture.cjs");
 const { test } = require("node:test"), assert = require("node:assert/strict"), fs = require("node:fs"), vm = require("node:vm");
 const T = require("../static/takeoff-pdf-tools.js"), copy = value => JSON.parse(JSON.stringify(value));
 const documents = [{id:"alpha",name:"Alpha.pdf",size:1200,pages:Array.from({length:4},(_,page)=>({page:page+1}))},
@@ -43,7 +44,7 @@ function harness() {
   function descendants(el=current){return [el,...el.children.flatMap(child=>child.children?descendants(child):[child])];}
   root={Blob,URL:{createObjectURL:()=>"blob:disposable-pdf",revokeObjectURL:value=>revoked.push(value)},setTimeout:fn=>fn(),
     document:{createElement:element,createTextNode:text=>({textContent:text}),body:element("body")}};
-  const context={window:root};vm.createContext(context);vm.runInContext(fs.readFileSync("static/takeoff-pdf-tools.js","utf8"),context);
+  root.CeasefireI18n = englishI18n(); const context={window:root};vm.createContext(context);vm.runInContext(fs.readFileSync("static/takeoff-pdf-tools.js","utf8"),context);
   const find=predicate=>descendants().find(predicate), button=name=>find(el=>el.tagName==="BUTTON"&&el.textContent===name),
     input=name=>find(el=>el.tagName==="INPUT"&&el.attributes["aria-label"]===name),
     aria=name=>find(el=>el.attributes?.["aria-label"]===name), dispatch=(el,name="click",event={})=>Promise.all((el.events[name]||[]).map(fn=>fn(event)));

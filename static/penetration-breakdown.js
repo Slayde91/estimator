@@ -1,5 +1,17 @@
 (() => {
   "use strict";
+  // Bind application-owned copy only; node() remains safe for user and source text.
+  const uiText = (element, source, args = []) => {
+    if (window.CeasefireI18n) return window.CeasefireI18n.text(element, source, args);
+    element.textContent = String(source).replace(/\{(\d+)\}/g, (match, index) => args[index] === undefined ? match : String(typeof args[index] === "function" ? args[index]() : args[index])); return element;
+  };
+  const uiAttr = (element, name, source, args = []) => {
+    if (window.CeasefireI18n) return window.CeasefireI18n.attr(element, name, source, args);
+    const value = String(source).replace(/\{(\d+)\}/g, (match, index) => args[index] === undefined ? match : String(typeof args[index] === "function" ? args[index]() : args[index]));
+    element.setAttribute(name, value); if (["title", "placeholder"].includes(name)) element[name] = value; return element;
+  };
+  const uiNode = (tag, cls, source, args = []) => { const element = node(tag, cls); return window.CeasefireI18n?.nodeText ? window.CeasefireI18n.nodeText(element, source, args) : uiText(element, source, args); };
+
   const number = new Intl.NumberFormat("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const currency = new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" });
   const percent = new Intl.NumberFormat("en-AU", { style: "percent", minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -25,7 +37,7 @@
       for (const group of row.breakdown.source_groups) {
         if (["Summary", "Multipliers"].includes(group.label)) continue;
         const section = node("details", "penetration-output-group"); section.append(node("summary", "", group.label));
-        if (!group.rows.length) section.append(node("p", "helper", "No schedule items."));
+        if (!group.rows.length) section.append(uiNode("p", "helper", "No schedule items."));
         for (const item of group.rows) {
           section.append(node("h4", "penetration-source-line", item.label));
           const list = node("dl", "cost-list");
@@ -41,7 +53,7 @@
   }
   function render(definition, row, schedule = false) {
     const container = node("div", "penetration-breakdown-content");
-    if (!row) { container.append(node("p", "helper", schedule ? "Recalculate to see the schedule output." : "Recalculate to see this item's output.")); return container; }
+    if (!row) { container.append(uiNode("p", "helper", schedule ? "Recalculate to see the schedule output." : "Recalculate to see this item's output.")); return container; }
     if (row.errors?.length) {
       const messages = row.errors.filter(error => !String(error.message).startsWith("#"))
         .map(error => String(error.message).replace(/#(?:VALUE!|REF!|NUM!|DIV\/0!|N\/A|NAME\?|NULL!|CALC!)/g, "an unavailable calculation value"));
@@ -56,13 +68,13 @@
       container.append(node("p", "message error", [...new Set(messages)].join("\n")));
     }
     const breakdown = row.breakdown;
-    if (!breakdown || !Array.isArray(breakdown.rows)) { container.append(node("p", "helper", "The item breakdown is unavailable.")); sourceGroups(container, definition, row); return container; }
+    if (!breakdown || !Array.isArray(breakdown.rows)) { container.append(uiNode("p", "helper", "The item breakdown is unavailable.")); sourceGroups(container, definition, row); return container; }
     const scroll = node("div", "table-scroll penetration-breakdown-scroll"), table = node("table", "penetration-breakdown-table");
     const caption = schedule ? "Schedule cost breakdown" : "Item cost breakdown";
-    scroll.tabIndex = 0; scroll.setAttribute("role", "region"); scroll.setAttribute("aria-label", caption);
-    table.append(node("caption", "sr-only", caption));
+    scroll.tabIndex = 0; scroll.setAttribute("role", "region"); uiAttr(scroll, "aria-label", caption);
+    table.append(uiNode("caption", "sr-only", caption));
     const head = node("thead"), headings = node("tr"), body = node("tbody"), foot = node("tfoot"), subtotal = node("tr");
-    for (const label of ["Item", "Unit Prices", "Material Quantities", "Material Costs", "Labour Costs", "Task Hours"]) { const cell = node("th", "", label); cell.setAttribute("scope", "col"); headings.append(cell); }
+    for (const label of ["Item", "Unit Prices", "Material Quantities", "Material Costs", "Labour Costs", "Task Hours"]) { const cell = uiNode("th", "", label); cell.setAttribute("scope", "col"); headings.append(cell); }
     head.append(headings);
     for (const item of breakdown.rows) {
       const line = node("tr"), label = node("th", "", item.label); label.setAttribute("scope", "row");
@@ -70,7 +82,7 @@
       for (const [key, format] of [["material_costs", "currency"], ["labour_costs", "currency"], ["task_hours", "number"]]) line.append(node("td", "", display(item[key], format)));
       body.append(line);
     }
-    const label = node("th", "", "Subtotal"); label.setAttribute("scope", "row"); label.colSpan = 3; subtotal.append(label);
+    const label = uiNode("th", "", "Subtotal"); label.setAttribute("scope", "row"); label.colSpan = 3; subtotal.append(label);
     for (const [key, format] of [["material_costs", "currency"], ["labour_costs", "currency"], ["task_hours", "number"]]) subtotal.append(node("td", "", display(breakdown.totals?.[key], format)));
     foot.append(subtotal); table.append(head, body, foot); scroll.append(table); container.append(scroll);
     if (breakdown.note) container.append(node("p", "helper penetration-breakdown-note", breakdown.note));

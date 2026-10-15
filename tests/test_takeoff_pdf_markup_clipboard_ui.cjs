@@ -1,4 +1,5 @@
 "use strict";
+const englishI18n = require("./english_i18n_fixture.cjs");
 // Run the real workspace closures with disposable state and controlled async
 // boundaries. This contains no network, browser, storage or calculator runtime.
 const { test } = require("node:test");
@@ -9,9 +10,9 @@ const clone = value => JSON.parse(JSON.stringify(value));
 const deferred = () => { let resolve, reject; const promise = new Promise((yes, no) => { resolve = yes; reject = no; }); return { promise, resolve, reject }; };
 const settle = async () => { for (let i = 0; i < 16; i++) await Promise.resolve(); };
 function element(tag = "div") {
-  const el = { tagName: tag.toUpperCase(), children: [], events: {}, attributes: {}, className: "", textContent: "", dataset: {},
+  const el = { tagName: tag.toUpperCase(), children: [], get childNodes() { return this.children; }, events: {}, attributes: {}, className: "", textContent: "", dataset: {},
     append(...children) { this.children.push(...children); }, replaceChildren(...children) { this.children = children; },
-    setAttribute(key, value) { this.attributes[key] = String(value); }, getAttribute(key) { return this.attributes[key] ?? null; }, addEventListener(name, fn) { this.events[name] = fn; } };
+    setAttribute(key, value) { this.attributes[key] = String(value); }, getAttribute(key) { return this.attributes[key] ?? null; }, hasAttribute(key) { return key in this.attributes; }, addEventListener(name, fn) { this.events[name] = fn; } };
   el.classList = { add(...names) { el.className += ` ${names.join(" ")}`; }, toggle() {} }; return el;
 }
 function fixture({ mode = "steel", kind = "textbox", signature = false, transform = [1, 0, 0, -1, -10, 820] } = {}) {
@@ -23,7 +24,7 @@ function fixture({ mode = "steel", kind = "textbox", signature = false, transfor
     selected: () => host.snapshot()?.graphics?.records.find(value => value.id === host.state.graphicSelected && host.signatureInWorkspace(value) && value.document_id === host.state.document && value.page === host.state.page),
     isTool: () => false
   });
-  vm.createContext(context);
+  context.window.CeasefireI18n = englishI18n(); vm.createContext(context);
   const source = fs.readFileSync(sourcePath, "utf8").replace("  window.CeasefireTakeoffs = {", `  globalThis.audit = {
     state, copyPdfMarkup, pastePdfMarkup, clearDrawingSelection, planKeydown, pdfPasteContext, pageDisplayKey, drawingPoint, applySignatureSettings, signatureSelectionKey,
     setCommand(fn) { command = fn; }, setFlush(fn) { flushSettings = fn; }, setDiscard(fn) { discardEditor = fn; },
@@ -299,7 +300,7 @@ test("A linked Textbox colour edit submits only the touched style, preserving pe
   const start = code.indexOf("  async function apply(editor) {"), end = code.indexOf("  const measure=", start); assert.ok(start >= 0 && end > start);
   const context = { state: f.state, selected: () => f.record, key: () => "selected", window: {}, clearTimeout,
     command: async (op, body, guard) => { assert.equal(guard(), true); f.calls.commands.push({ op, ...clone(body) }); return { revision: 9 }; } };
-  vm.createContext(context); vm.runInContext(`${code.slice(start, end)}; globalThis.applyGraphic = apply;`, context);
+  context.window.CeasefireI18n = englishI18n(); vm.createContext(context); vm.runInContext(`${code.slice(start, end)}; globalThis.applyGraphic = apply;`, context);
   const editor = f.state.settingsEditor = { key: "selected", sessionId: "session-A", id: f.record.id, touched: new Map([["appearance:font_color", 1]]),
     appearance: Object.entries(X.defaults()).map(([name, value]) => ({ control: { name }, read: () => name === "font_color" ? "#123456" : value })) };
   f.state.settingsDirty = true; await context.applyGraphic(editor);

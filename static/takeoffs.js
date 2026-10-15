@@ -84,7 +84,7 @@
   function syncBulkFields() {
     const control = state.ui?.bulkField; if (!control?.replaceChildren) return;
     const previous = control.value, choices = bulkSelectionFields();
-    control.replaceChildren(...choices.map(([key, label]) => option(key, label)));
+    control.replaceChildren(...choices.map(([key, label]) => uiOption(key, label)));
     control.value = choices.some(([key]) => key === previous) ? previous : choices[0]?.[0] || "";
   }
   function appearanceOf(item) {
@@ -116,7 +116,18 @@
   const uuid = () => crypto.randomUUID();
   const snapshotKey = value => { if (!value) return null; const copy = clone(value); delete copy.companion_folder; return JSON.stringify(copy); };
   function node(tag, className = "", text) { const el = document.createElement(tag); if (className) el.className = className; if (text !== undefined) el.textContent = String(text); return el; }
+  // Only application-owned text is bound. Project names, source evidence and
+  // markup content keep their original bytes and are passed to node() directly.
+  function uiNode(tag, className, source, args = []) { return window.CeasefireI18n.nodeText(node(tag, className), source, args); }
+  function uiButton(label, ...args) {
+    const control = button(label, ...args);
+    for (const attribute of ["title", "aria-label"]) if (control.getAttribute?.(attribute) != null) window.CeasefireI18n.attr(control, attribute, label);
+    if (!control.children.length) window.CeasefireI18n.text(control, label);
+    else for (const child of control.childNodes || control.children) if (child.nodeType === 3 && child.textContent === label || child.nodeType === 1 && child.getAttribute("aria-hidden") !== "true" && !child.children.length && child.textContent === label) window.CeasefireI18n.text(child, label);
+    return control;
+  }
   function option(value, label = value) { const el = node("option", "", label); el.value = value; return el; }
+  function uiOption(value, source, args = []) { const el = uiNode("option", "", source, args); el.value = value; return el; }
   const buttonIcons = {
     "First page": "M4 5v14M17 5l-7 7 7 7", "‹ Page": "M15 5l-7 7 7 7", "Page ›": "M9 5l7 7-7 7", "Last page": "M20 5v14M7 5l7 7-7 7",
     "Discard item edits": "M20 7a8 8 0 0 0-13-2L3 9m0-6v6h6M4 17a8 8 0 0 0 13 2l4-4m0 6v-6h-6",
@@ -201,6 +212,7 @@
     el.addEventListener("click", () => void safely(fn)); return el;
   }
   function select(options, change, value) { const el = node("select"); options.forEach(([v, text]) => el.append(option(v, text))); if (value !== undefined) el.value = value; if (change) el.addEventListener("change", () => void safely(() => change(el.value))); return el; }
+  function uiSelect(options, change, value) { const control = select(options, change, value), choices = control.options || control.children; for (let index = 0; index < options.length; index++) window.CeasefireI18n.text(choices[index], options[index][1]); return control; }
   function documentChevron() {
     const wrapper = node("span", "calculator-document-chevron"); wrapper.setAttribute("aria-hidden", "true");
     const chevron = svg("svg", {viewBox:"0 0 24 24", fill:"none", stroke:"currentColor", "stroke-width":1.8, "stroke-linecap":"round", "stroke-linejoin":"round", focusable:"false"});
@@ -208,10 +220,10 @@
   }
   function registerDocumentMenu() {
     const root = node("div", "calculator-document-menu takeoff-document-menu"), toggle = node("button", "button secondary calculator-document-toggle"), list = node("div", "calculator-document-actions");
-    toggle.type = "button"; toggle.setAttribute("aria-label", "Takeoff register document actions"); toggle.setAttribute("aria-expanded", "false"); toggle.setAttribute("aria-controls", "takeoff-register-document-actions");
+    toggle.type = "button"; window.CeasefireI18n.attr(toggle, "aria-label", "Takeoff register document actions"); toggle.setAttribute("aria-expanded", "false"); toggle.setAttribute("aria-controls", "takeoff-register-document-actions");
     const image = node("img", "calculator-document-icon"); image.src = "/icons/document.png"; image.alt = ""; image.setAttribute("aria-hidden", "true");
-    toggle.append(image, node("span", "", "Document"), documentChevron());
-    list.id = "takeoff-register-document-actions"; list.hidden = true; list.setAttribute("role", "group"); list.setAttribute("aria-label", "Takeoff register document actions"); root.append(toggle, list);
+    toggle.append(image, uiNode("span", "", "Document"), documentChevron());
+    list.id = "takeoff-register-document-actions"; list.hidden = true; list.setAttribute("role", "group"); window.CeasefireI18n.attr(list, "aria-label", "Takeoff register document actions"); root.append(toggle, list);
     const close = focus => { list.hidden = true; toggle.setAttribute("aria-expanded", "false"); if (focus) toggle.focus(); };
     const choices = () => [...list.children].filter(control => !control.disabled && !control.hidden);
     const open = () => { if (toggle.disabled) return; list.hidden = false; toggle.setAttribute("aria-expanded", "true"); };
@@ -225,17 +237,17 @@
     root.addEventListener("focusout", event => { if (!root.contains(event.relatedTarget)) close(false); });
     document.body.addEventListener("pointerdown", event => { if (!root.contains(event.target)) close(false); });
     for (const [confirmation, label] of [["confirmed", "Download confirmed items"], ["unconfirmed", "Download unconfirmed items"], ["all", "Download all items"]]) {
-      const action = button(label, () => { close(false); return downloadTakeoff("schedule-xlsx", confirmation, action); }, "button secondary calculator-document-action"), symbol = node("span", "download-format-icon"); symbol.setAttribute("aria-hidden", "true"); symbol.append(node("span", "download-arrow", "⇩"), node("span", "download-format", "XLSX")); action.replaceChildren(symbol, node("span", "", label)); list.append(action);
+      const action = button(label, () => { close(false); return downloadTakeoff("schedule-xlsx", confirmation, action); }, "button secondary calculator-document-action"), symbol = node("span", "download-format-icon"); symbol.setAttribute("aria-hidden", "true"); symbol.append(node("span", "download-arrow", "⇩"), node("span", "download-format", "XLSX")); action.replaceChildren(symbol, uiNode("span", "", label)); list.append(action);
     }
     for (const [kind, label] of [["current-all", "Download Full Markup"], ["current-marked", "Download Markups Only"], ["all-all", "Download All Markups"], ["all-marked", "Download Full Markups Only"]]) {
-      const action = button(label, () => { close(false); return downloadMarkup(kind, action); }, "button secondary calculator-document-action"), symbol = node("span", "download-format-icon"); symbol.setAttribute("aria-hidden", "true"); symbol.append(node("span", "download-arrow", "⇩"), node("span", "download-format", "PDF")); action.replaceChildren(symbol, node("span", "", label)); list.append(action);
+      const action = button(label, () => { close(false); return downloadMarkup(kind, action); }, "button secondary calculator-document-action"), symbol = node("span", "download-format-icon"); symbol.setAttribute("aria-hidden", "true"); symbol.append(node("span", "download-arrow", "⇩"), node("span", "download-format", "PDF")); action.replaceChildren(symbol, uiNode("span", "", label)); list.append(action);
     }
     return { root, toggle, list, close };
   }
   function currentVisibilityControl(kind, id) {
     const sessionId = state.session?.session_id, mode = state.mode;
     const hidden = () => kind === "graphic" ? state.graphicHidden ||= new Set() : kind === "annotation" ? state.annotationHidden ||= new Set() : kind === "signature" ? state.signatureHidden ||= new Set() : state.hidden;
-    const control = button("Visibility", () => {
+    const control = uiButton("Visibility", () => {
       const current = kind === "graphic" ? graphicsUI.selected()?.id === id : kind === "annotation" ? selectedAnnotation()?.id === id : kind === "signature" ? selectedSignature()?.id === id : selectedItems().length === 1 && state.selected.has(id);
       if (!current || sessionId !== state.session?.session_id || mode !== state.mode) throw new Error("The current item changed. Open its Item Details again.");
       const values = hidden(); values.has(id) ? values.delete(id) : values.add(id);
@@ -244,8 +256,8 @@
       renderOverlay();
     });
     const eye = node("img"); eye.src = "/icons/takeoff-visibility.png"; eye.alt = ""; eye.width = 24; eye.height = 24;
-    control.replaceChildren(eye); control.classList.add("icon-only", "takeoff-icon-button", "takeoff-current-visibility", "takeoff-visibility-button"); control.setAttribute("aria-label", "Visibility");
-    control.refresh = () => { const isHidden = hidden().has(id); control.setAttribute("aria-pressed", String(isHidden)); control.title = `Visibility: ${isHidden ? "show" : "hide"} current ${kind === "annotation" ? "Call-out" : "item"}`; };
+    control.replaceChildren(eye); control.classList.add("icon-only", "takeoff-icon-button", "takeoff-current-visibility", "takeoff-visibility-button"); window.CeasefireI18n.attr(control, "aria-label", "Visibility");
+    control.refresh = () => { const isHidden = hidden().has(id); control.setAttribute("aria-pressed", String(isHidden)); window.CeasefireI18n.attr(control, "title", "Visibility: {0} current {1}", [isHidden ? "show" : "hide", kind === "annotation" ? "Call-out" : "item"]); };
     control.refresh(); return control;
   }
   function releaseMessageSpace() {
@@ -256,8 +268,8 @@
     clearTimeout(state.messageTimer);
     releaseMessageSpace();
     const version = state.messageVersion = (state.messageVersion || 0) + 1;
-    const notice = state.ui.message; notice.textContent = text; notice.hidden = !text; notice.className = `message${error ? " error" : ""}`; notice.setAttribute("role", error ? "alert" : "status");
-    if (state.linkedRecovery) notice.append(button("Retry linked change", recoverLinkedOperation));
+    const notice = state.ui.message; notice.textContent = ""; window.CeasefireI18n.nodeText(notice, text); notice.hidden = !text; notice.className = `message${error ? " error" : ""}`; notice.setAttribute("role", error ? "alert" : "status");
+    if (state.linkedRecovery) notice.append(uiButton("Retry linked change", recoverLinkedOperation));
     if (text && !error && !state.linkedRecovery) state.messageTimer = setTimeout(() => {
       if (state.messageVersion === version && state.ui?.message === notice && notice.getAttribute("role") === "status" && !state.linkedRecovery) {
         // Retire the notice without moving the PDF under an active pointer.
@@ -269,7 +281,7 @@
     }, 5000);
     if (error && text && notice.getClientRects?.().length) {
       const reveal = () => {
-        if (notice.hidden || notice.getAttribute("role") !== "alert" || notice.textContent !== text) return;
+        if (notice.hidden || notice.getAttribute("role") !== "alert" || window.CeasefireI18n.source(notice) !== text) return;
         const header = document.querySelector(".app-header"), top = Math.max(0, header?.getBoundingClientRect().bottom || 0) + 12, bounds = notice.getBoundingClientRect();
         if (bounds.top < top || bounds.bottom > window.innerHeight) window.scrollBy({ top: bounds.top - top, behavior: "auto" });
       };
@@ -281,7 +293,7 @@
   }
   function setProgress(text = "") {
     if (!state.ui?.progress) return;
-    state.ui.progress.textContent = text;
+    window.CeasefireI18n.text(state.ui.progress, text);
     // The source identity already appears in the document selector. Keep the
     // render status available to assistive technology without repeating it.
     state.ui.progress.classList.toggle("sr-only", !text || text.endsWith(" · Original source"));
@@ -334,7 +346,7 @@
       if (state.ui.documentSelect) state.ui.documentSelect.disabled = value || !documents().length;
       for (const control of state.ui.tableWrap?.querySelectorAll("input,select") || []) if (!control.closest(".takeoff-register-editor")) control.disabled = value || control.dataset.countReadOnly === "true";
       syncRegisterDeleteControls();
-      state.ui.status.textContent = value ? "Working…" : `${items().length} items · ${documents().length} documents · Revision ${state.session?.revision || 0}`;
+      window.CeasefireI18n.text(state.ui.status, value ? "Working…" : "{0} items · {1} documents · Revision {2}", value ? [] : [items().length, documents().length, state.session?.revision || 0]);
       renderViewportPanel();
       updatePresentationTools();
     }
@@ -367,16 +379,23 @@
     return state.session;
   }
   function formField(definition, initial = "") {
-    const [key, title, kind] = definition, wrapper = node("label", "field"); wrapper.append(node("span", "", title));
+    const [key, title, kind] = definition, wrapper = node("label", "field"); wrapper.append(uiNode("span", "", title));
     const numeric = kind === "number" || Array.isArray(kind) && numericOptionFields.has(key);
     if (kind === "checkbox") wrapper.classList.add("takeoff-checkbox-field");
     const reviewChoice = key === "confirmation" && title === "Confirmation" && Array.isArray(kind) && JSON.stringify(kind.map(value => Array.isArray(value) ? value[0] : value)) === '["unconfirmed","confirmed"]';
     const control = Array.isArray(kind) ? select([...(reviewChoice ? [] : [["", "Choose…"]]), ...kind.map(value => Array.isArray(value) ? value : [value, value])]) : node(kind === "textarea" ? "textarea" : "input");
+    if (Array.isArray(kind)) {
+      const choices = control.options || control.children, offset = reviewChoice ? 0 : 1;
+      if (!reviewChoice) window.CeasefireI18n.text(choices[0], "Choose…");
+      // These enum labels are application-owned; product/section choices and
+      // retained custom values remain verbatim source data.
+      if (["member_type", "orientation", "surface_basis", "confirmation"].includes(key)) kind.forEach((value, index) => window.CeasefireI18n.text(choices[index + offset], Array.isArray(value) ? value[1] : value));
+    }
     if (!Array.isArray(kind) && kind !== "textarea") control.type = ["number", "color", "checkbox"].includes(kind) ? kind : "text";
     if (kind === "number") control.step = "any";
     if (key === "layers") { control.min = "1"; control.max = "1000000000000"; control.step = "1"; }
     if (Array.isArray(kind) && initial !== "" && initial != null && !kind.some(value => (Array.isArray(value) ? value[0] : value) === initial)) control.append(option(initial, `${initial} (retained)`));
-    control.name = key; control.value = initial ?? ""; if (kind === "checkbox") control.checked = !!initial; control.dataset.field = key; control.setAttribute("aria-label", title); wrapper.append(control);
+    control.name = key; control.value = initial ?? ""; if (kind === "checkbox") control.checked = !!initial; control.dataset.field = key; window.CeasefireI18n.attr(control, "aria-label", title); wrapper.append(control);
     if (key === "duct_size") { control.placeholder = "100x100"; control.pattern = ductSizePattern; }
     const field = { wrapper, control, read: () => { if (kind === "checkbox") return control.checked; if (!numeric) return Array.isArray(kind) ? control.value : control.value.trim(); if (control.validity?.badInput) throw new Error(`${title}: enter a valid number.`); if (control.value.trim() === "") { if (key === "layers") throw new Error("Number of layers: enter a positive whole number."); return null; } const value = Number(control.value); if (!Number.isFinite(value)) throw new Error(`${title}: enter a finite number.`); if (key === "layers" && (!Number.isSafeInteger(value) || value < 1 || value > 1e12)) throw new Error("Number of layers: enter a positive whole number."); return value; } };
     if (key === "section" && !Array.isArray(kind)) sectionSearch(field, initial ?? "");
@@ -388,9 +407,9 @@
     const normalize = value => String(value).toLocaleLowerCase("en-AU").replace(/×/g, "x").replace(/\s/g, "");
     const listId = `takeoff-sections-${uuid()}`;
     control.setAttribute("role", "combobox"); control.setAttribute("aria-autocomplete", "list"); control.setAttribute("aria-haspopup", "listbox"); control.setAttribute("aria-controls", listId); control.setAttribute("aria-expanded", "false"); control.autocomplete = "off";
-    list.id = listId; list.setAttribute("role", "listbox"); list.setAttribute("aria-label", "Steel section choices");
+    list.id = listId; list.setAttribute("role", "listbox"); window.CeasefireI18n.attr(list, "aria-label", "Steel section choices");
     status.setAttribute("role", "status"); popup.hidden = true; popup.append(list, status);
-    toggle.type = "button"; toggle.tabIndex = -1; toggle.setAttribute("aria-label", "Show Steel section choices"); toggle.setAttribute("aria-controls", listId); toggle.setAttribute("aria-expanded", "false");
+    toggle.type = "button"; toggle.tabIndex = -1; window.CeasefireI18n.attr(toggle, "aria-label", "Show Steel section choices"); toggle.setAttribute("aria-controls", listId); toggle.setAttribute("aria-expanded", "false");
     const arrow = document.createElementNS("http://www.w3.org/2000/svg", "svg"), path = document.createElementNS("http://www.w3.org/2000/svg", "path");
     for (const [key, value] of Object.entries({ viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", "stroke-width": "1.8", "aria-hidden": "true", focusable: "false" })) arrow.setAttribute(key, value);
     path.setAttribute("d", "m6 9 6 6 6-6"); arrow.append(path); toggle.append(arrow);
@@ -413,7 +432,7 @@
         const option = node("div", "takeoff-section-option", value.label); option.id = `${listId}-${index}`; option.setAttribute("role", "option"); option.setAttribute("aria-selected", "false"); option.dataset.section = value.value;
         option.addEventListener("pointerdown", event => event.preventDefault()); option.addEventListener("click", event => { event.preventDefault(); choose(value.value); }); return option;
       }));
-      status.textContent = !loaded ? "Loading steel sections…" : !candidates.length ? "No matching sections. Refine the search." : candidates.length > matches.length ? `Showing ${matches.length} of ${candidates.length} sections. Type to narrow the list.` : `${candidates.length} section${candidates.length === 1 ? "" : "s"}`;
+      window.CeasefireI18n.text(status, !loaded ? "Loading steel sections…" : !candidates.length ? "No matching sections. Refine the search." : candidates.length > matches.length ? "Showing {0} of {1} sections. Type to narrow the list." : "{0} sections", !loaded || !candidates.length ? [] : candidates.length > matches.length ? [matches.length, candidates.length] : [candidates.length]);
     };
     const open = (filter = "") => { if (control.disabled || control.readOnly) return; query = filter; popup.hidden = false; control.setAttribute("aria-expanded", "true"); toggle.setAttribute("aria-expanded", "true"); render(); popup.scrollIntoView?.({ block: "nearest" }); };
     const exact = () => { if (values.includes(control.value)) return control.value; const matches = values.filter(value => normalize(value) === normalize(control.value)); return matches.length === 1 ? matches[0] : undefined; };
@@ -479,7 +498,7 @@
     if (state.modal) throw new Error("Finish the current review first.");
     setModal(true); const sessionId = state.session?.session_id;
     const dialog = node("dialog", "takeoff-dialog"), form = node("form"); form.method = "dialog";
-    const heading = node("h2", "", title); heading.id = `takeoff-dialog-${uuid()}`; dialog.setAttribute("aria-labelledby", heading.id); form.append(heading, node("p", "helper", detail));
+    const heading = uiNode("h2", "", title); heading.id = `takeoff-dialog-${uuid()}`; dialog.setAttribute("aria-labelledby", heading.id); form.append(heading, uiNode("p", "helper", detail));
     const controls = definitions.map(def => { const field = formField(def, def[3]); if (def[4]) field.control.required = true; form.append(field.wrapper); return field; });
     if (splitFields) {
       const choices = controls.filter(field => field.control.name !== "section" && (field.control.tagName === "SELECT" || field.control.getAttribute("role") === "combobox"));
@@ -499,7 +518,7 @@
         form.append(grid);
       }
     }
-    const actions = node("div", "actions"), cancel = node("button", "button secondary", "Cancel"), apply = node("button", "button primary", action); cancel.type = "button"; cancel.addEventListener("click", () => dialog.close("cancel")); apply.type = "submit"; apply.value = "confirm"; actions.append(cancel, apply); form.append(actions); dialog.append(form); document.body.append(dialog);
+    const actions = node("div", "actions"), cancel = uiNode("button", "button secondary", "Cancel"), apply = uiNode("button", "button primary", action); cancel.type = "button"; cancel.addEventListener("click", () => dialog.close("cancel")); apply.type = "submit"; apply.value = "confirm"; actions.append(cancel, apply); form.append(actions); dialog.append(form); document.body.append(dialog);
     try {
       // Show the form immediately. Exact calculator choices load separately;
       // submission stays disabled until their current request has completed.
@@ -531,7 +550,7 @@
     const root = $("takeoffs-workspace"); if (!root) return;
     const ui = state.ui = { root };
     state.drawingFonts ||= Promise.all([document.fonts.load("9px CeasefireDrawing"), document.fonts.load("700 9px CeasefireDrawing")]).then(() => { if (state.viewport) renderOverlay(); });
-    ui.title = node("h1", "takeoff-workspace-title", "Steel");
+    ui.title = uiNode("h1", "takeoff-workspace-title", "Steel");
     ui.documentMenu = registerDocumentMenu();
     ui.physicalDocumentHost = node("div", "takeoff-physical-document-host"); ui.physicalDocumentHost.hidden = true;
     const headingActions = node("div", "actions takeoff-document-tools"); headingActions.append(ui.documentMenu.root, ui.physicalDocumentHost, buildPDFToolsMenu());
@@ -541,31 +560,31 @@
     // A deliberate window resize may release retired space; never do so in
     // the middle of a captured drawing gesture.
     window.addEventListener?.("resize", () => { if (ui.message.hidden && !state.gesture) releaseMessageSpace(); });
-    const toolbar = node("div", "takeoff-toolbar takeoff-tool-rail"); ui.toolRail = toolbar; toolbar.setAttribute("role", "toolbar"); toolbar.setAttribute("aria-label", "Drawing tools"); toolbar.setAttribute("aria-orientation", "vertical");
-    const markupRail = node("aside", "takeoff-toolbar takeoff-markup-rail"); ui.markupRail = markupRail; markupRail.setAttribute("role", "toolbar"); markupRail.setAttribute("aria-label", "PDF markup tools"); markupRail.setAttribute("aria-orientation", "vertical");
+    const toolbar = node("div", "takeoff-toolbar takeoff-tool-rail"); ui.toolRail = toolbar; toolbar.setAttribute("role", "toolbar"); window.CeasefireI18n.attr(toolbar, "aria-label", "Drawing tools"); toolbar.setAttribute("aria-orientation", "vertical");
+    const markupRail = node("aside", "takeoff-toolbar takeoff-markup-rail"); ui.markupRail = markupRail; markupRail.setAttribute("role", "toolbar"); window.CeasefireI18n.attr(markupRail, "aria-label", "PDF markup tools"); markupRail.setAttribute("aria-orientation", "vertical");
     ui.upload = node("input"); ui.upload.type = "file"; ui.upload.accept = ".pdf,application/pdf"; ui.upload.multiple = true; ui.upload.hidden = true; ui.upload.id = "takeoff-upload";
     ui.upload.addEventListener("change", () => { const files = [...ui.upload.files]; ui.upload.value = ""; void safely(() => upload(files)); });
-    toolbar.append(button("Upload PDFs", () => { if (!state.busy) ui.upload.click(); }, "button primary"), ui.upload);
+    toolbar.append(uiButton("Upload PDFs", () => { if (!state.busy) ui.upload.click(); }, "button primary"), ui.upload);
     ui.tools = {};
-    for (const [tool, title] of [["select", "Select"], ["pan", "Pan"], ["settings", "Settings"], ["viewport", "Viewport"], ["calibrate", "Calibrate"], ["trace", "Trace length"], ["count", "Count"], ["countLength", "Count steel lengths"], ["polygon", "Trace surface"], ["exclusion", "Add exclusion"], ["measure", "Length"]]) { const el = button(title, () => tool === "count" ? activateCountTool() : tool === "countLength" ? toggleDrawingTool("count") : tool === "exclusion" ? startExclusion() : tool === "settings" ? toggleSettings() : tool === "viewport" ? toggleViewportPanel() : toggleDrawingTool(tool)); if (!["viewport", "settings"].includes(tool)) el.dataset.tool = tool === "countLength" ? "count" : tool; else { el.setAttribute("aria-expanded", "false"); el.setAttribute("aria-controls", tool === "settings" ? "takeoff-markup-settings" : "takeoff-viewports"); } ui.tools[tool] = el; toolbar.append(el); }
+    for (const [tool, title] of [["select", "Select"], ["pan", "Pan"], ["settings", "Settings"], ["viewport", "Viewport"], ["calibrate", "Calibrate"], ["trace", "Trace length"], ["count", "Count"], ["countLength", "Count steel lengths"], ["polygon", "Trace surface"], ["exclusion", "Add exclusion"], ["measure", "Length"]]) { const el = uiButton(title, () => tool === "count" ? activateCountTool() : tool === "countLength" ? toggleDrawingTool("count") : tool === "exclusion" ? startExclusion() : tool === "settings" ? toggleSettings() : tool === "viewport" ? toggleViewportPanel() : toggleDrawingTool(tool)); if (!["viewport", "settings"].includes(tool)) el.dataset.tool = tool === "countLength" ? "count" : tool; else { el.setAttribute("aria-expanded", "false"); el.setAttribute("aria-controls", tool === "settings" ? "takeoff-markup-settings" : "takeoff-viewports"); } ui.tools[tool] = el; toolbar.append(el); }
     ui.countAnchor = node("div", "takeoff-count-anchor"); ui.tools.count.after(ui.countAnchor); ui.countAnchor.append(ui.tools.count);
     for (const [key, title, asset, action] of [["markups", "Markups", "takeoff-colour-wheel.png", toggleThicknessColours], ["legend", "Legend", "takeoff-legend.png", toggleLegend]]) {
-      const control = button(title, action), image = node("img"); image.src = `/icons/${asset}`; image.alt = ""; image.setAttribute("aria-hidden", "true"); image.width = 28; image.height = 28;
+      const control = uiButton(title, action), image = node("img"); image.src = `/icons/${asset}`; image.alt = ""; image.setAttribute("aria-hidden", "true"); image.width = 28; image.height = 28;
       control.classList.add("icon-only", "takeoff-icon-button"); control.replaceChildren(image); control.setAttribute("aria-label", title); control.title = title; control.setAttribute("aria-pressed", "false"); ui.tools[key] = control;
     }
     ui.presentationTools = node("div", "takeoff-toolbar takeoff-presentation-tools");
-    ui.presentationTools.setAttribute("role", "group"); ui.presentationTools.setAttribute("aria-label", "Colour and legend controls");
+    ui.presentationTools.setAttribute("role", "group"); window.CeasefireI18n.attr(ui.presentationTools, "aria-label", "Colour and legend controls");
     ui.presentationTools.append(ui.tools.markups, ui.tools.legend);
     if (X && graphicsUI) {
-      const measure = button("Measure", () => graphicsUI.activate("measure")); measure.dataset.tool = "graphic-measure";
+      const measure = uiButton("Measure", () => graphicsUI.activate("measure")); measure.dataset.tool = "graphic-measure";
       const measureIcon = node("img", "takeoff-measure-icon"); measureIcon.src = "/icons/takeoff-measure.png"; measureIcon.alt = ""; measureIcon.setAttribute("aria-hidden", "true"); measureIcon.width = 28; measureIcon.height = 28;
       measure.classList.add("icon-only", "takeoff-icon-button", "takeoff-graphic-tool"); measure.replaceChildren(measureIcon);
-      measure.setAttribute("aria-label", "Measure"); measure.title = "Measure length on the PDF"; ui.tools["graphic-measure"] = measure;
+      window.CeasefireI18n.attr(measure, "aria-label", "Measure"); window.CeasefireI18n.attr(measure, "title", "Measure length on the PDF"); ui.tools["graphic-measure"] = measure;
       ui.tools.viewport.after(measure);
-      ui.tools.pdfTrace = button("Trace length", () => graphicsUI.activate("measure"));
+      ui.tools.pdfTrace = uiButton("Trace length", () => graphicsUI.activate("measure"));
       ui.tools.pdfTrace.dataset.tool = "graphic-measure";
-      ui.tools.pdfCount = button("Count steel lengths", () => toggleDrawingTool("pdf-count"));
-      ui.tools.pdfCount.setAttribute("aria-label", "Count"); ui.tools.pdfCount.title = "Count";
+      ui.tools.pdfCount = uiButton("Count steel lengths", () => toggleDrawingTool("pdf-count"));
+      window.CeasefireI18n.attr(ui.tools.pdfCount, "aria-label", "Count"); window.CeasefireI18n.attr(ui.tools.pdfCount, "title", "Count");
       ui.tools.pdfCount.dataset.tool = "pdf-count";
       measure.after(ui.tools.pdfTrace, ui.tools.pdfCount);
       for (const [kind, label] of [["area", "Area"], ["area-exclusion", "Area exclusion"]]) {
@@ -574,74 +593,74 @@
         control.setAttribute("aria-label", label); control.title = label; ui.tools[`graphic-${kind}`] = control; toolbar.append(control);
       }
     }
-    const visibility = button("Visibility", () => { state.markupsHidden = !state.markupsHidden; visibility.setAttribute("aria-pressed", String(state.markupsHidden)); renderOverlay(); });
+    const visibility = uiButton("Visibility", () => { state.markupsHidden = !state.markupsHidden; visibility.setAttribute("aria-pressed", String(state.markupsHidden)); renderOverlay(); });
     const eye = node("img"); eye.src = "/icons/takeoff-visibility.png"; eye.alt = ""; eye.width = 24; eye.height = 24;
-    visibility.replaceChildren(eye); visibility.classList.add("icon-only", "takeoff-icon-button", "takeoff-visibility-button"); visibility.setAttribute("aria-label", "Visibility"); visibility.title = "Visibility: show or hide all markups; double-click restores individually hidden items"; visibility.setAttribute("aria-pressed", "false");
+    visibility.replaceChildren(eye); visibility.classList.add("icon-only", "takeoff-icon-button", "takeoff-visibility-button"); window.CeasefireI18n.attr(visibility, "aria-label", "Visibility"); window.CeasefireI18n.attr(visibility, "title", "Visibility: show or hide all markups; double-click restores individually hidden items"); visibility.setAttribute("aria-pressed", "false");
     visibility.addEventListener("dblclick", event => {
       event.preventDefault(); state.hidden.clear(); state.annotationHidden?.clear(); state.signatureHidden?.clear(); state.graphicHidden?.clear();
       state.physicalHidden.clear(); state.physicalUI?.restoreHidden?.(); state.markupsHidden = false; visibility.setAttribute("aria-pressed", "false");
       renderRegister(); renderSettingsPanel(); renderOverlay(); message("Restored individually hidden drawing items.");
     });
     ui.tools.visibility = visibility; ui.tools.settings.after(visibility);
-    ui.tools.callout = button("Call-out", () => toggleDrawingTool("callout")); ui.tools.callout.dataset.tool = "callout";
+    ui.tools.callout = uiButton("Call-out", () => toggleDrawingTool("callout")); ui.tools.callout.dataset.tool = "callout";
     const calloutIcon = node("img"); calloutIcon.src = "/icons/takeoff-callout.png"; calloutIcon.alt = ""; calloutIcon.width = 25; calloutIcon.height = 25; calloutIcon.setAttribute("aria-hidden", "true");
-    ui.tools.callout.classList.add("icon-only", "takeoff-icon-button"); ui.tools.callout.replaceChildren(calloutIcon); ui.tools.callout.setAttribute("aria-label", "Call-out"); ui.tools.callout.title = "Call-out"; markupRail.append(ui.tools.callout);
-    ui.tools.signature = button("Signatures", armSignature); ui.tools.signature.dataset.tool = "signature"; markupRail.append(ui.tools.signature);
+    ui.tools.callout.classList.add("icon-only", "takeoff-icon-button"); ui.tools.callout.replaceChildren(calloutIcon); window.CeasefireI18n.attr(ui.tools.callout, "aria-label", "Call-out"); window.CeasefireI18n.attr(ui.tools.callout, "title", "Call-out"); markupRail.append(ui.tools.callout);
+    ui.tools.signature = uiButton("Signatures", armSignature); ui.tools.signature.dataset.tool = "signature"; markupRail.append(ui.tools.signature);
     if (X && graphicsUI) for (const kind of ["cloud", "textbox", "stamp", "polyline", "arrow", "rectangle", "circle", "polygon"]) {
-      const control = button(X.labels[kind], () => graphicsUI.activate(kind)); control.classList.add("icon-only", "takeoff-icon-button", "takeoff-graphic-tool"); control.dataset.tool = `graphic-${kind}`; control.replaceChildren(X.icon(kind)); control.title = X.labels[kind]; control.setAttribute("aria-label", X.labels[kind]); ui.tools[`graphic-${kind}`] = control; markupRail.append(control);
+      const control = uiButton(X.labels[kind], () => graphicsUI.activate(kind)); control.classList.add("icon-only", "takeoff-icon-button", "takeoff-graphic-tool"); control.dataset.tool = `graphic-${kind}`; control.replaceChildren(X.icon(kind)); window.CeasefireI18n.attr(control, "title", X.labels[kind]); window.CeasefireI18n.attr(control, "aria-label", X.labels[kind]); ui.tools[`graphic-${kind}`] = control; markupRail.append(control);
     }
-    const scaleAnchor = node("div", "takeoff-scale-anchor"); ui.scaleToggle = button("Scale", () => toggleScaleControls()); ui.scaleToggle.setAttribute("aria-expanded", "false"); ui.scaleToggle.setAttribute("aria-controls", "takeoff-scale-controls"); ui.scaleToggle.setAttribute("aria-describedby", "takeoff-active-scale");
-    ui.scaleStatus = node("span", "takeoff-active-scale", "No Scale Selected"); ui.scaleStatus.id = "takeoff-active-scale"; scaleAnchor.append(ui.scaleToggle, ui.scaleStatus); ui.scaleAnchor = scaleAnchor;
-    ui.drawingPdf = button("Download PDF", () => downloadTakeoff("marked-pdf"));
-    ui.calibration = select([["", "No Scale Selected"]], async value => { await chooseCalibration(value); toggleScaleControls(false); }); ui.calibration.id = "takeoff-calibration"; ui.calibration.setAttribute("aria-label", "Drawing calibration"); ui.editCalibration = button("Edit calibration", editCalibration);
-    const navigation = node("div", "takeoff-navigation"); ui.navigation = navigation; navigation.setAttribute("role", "group"); navigation.setAttribute("aria-label", "Drawing navigation");
-    const documentControls = node("div", "takeoff-navigation-group takeoff-document-controls takeoff-source-documents"); documentControls.setAttribute("aria-label", "Source documents");
-    ui.documentSelect = select([], async value => { try { if (value && value !== state.document) await navigateDocument(value); } finally { ui.documentSelect.value = state.document || ""; } }); ui.documentSelect.setAttribute("aria-label", "Drawing document");
-    const sourceLabel = node("label", "sr-only", "Source documents"); sourceLabel.htmlFor = "takeoff-document-select"; ui.documentSelect.id = "takeoff-document-select";
-    ui.removeDocument = button("Remove document", removeDocument); documentControls.append(sourceLabel, ui.documentSelect, ui.removeDocument); navigation.append(documentControls);
-    const pageControls = ui.pageControls = node("div", "takeoff-toolbar takeoff-viewer-controls takeoff-page-controls"); pageControls.setAttribute("role", "group"); pageControls.setAttribute("aria-label", "Page and zoom controls");
-    const pageNavigation = node("div", "takeoff-page-navigation"); pageNavigation.setAttribute("role", "group"); pageNavigation.setAttribute("aria-label", "Page navigation");
-    const previousPage = button("‹ Page", () => navigatePage(state.page - 1)); previousPage.title = "Previous page (Ctrl+Left)"; previousPage.setAttribute("aria-keyshortcuts", "Control+ArrowLeft");
-    pageNavigation.append(button("First page", () => navigatePage(1)), previousPage);
-    ui.page = node("input", "takeoff-page-input"); ui.page.type = "number"; ui.page.min = "1"; ui.page.step = "1"; ui.page.value = "1"; ui.page.setAttribute("aria-label", "Page number"); ui.page.addEventListener("change", () => void safely(() => navigatePage(Number(ui.page.value))));
-    const nextPage = button("Page ›", () => navigatePage(state.page + 1)); nextPage.title = "Next page (Ctrl+Right)"; nextPage.setAttribute("aria-keyshortcuts", "Control+ArrowRight");
-    ui.pageCount = node("span", "helper", "/ 0"); pageNavigation.append(ui.page, ui.pageCount, nextPage, button("Last page", () => navigatePage(currentDocument()?.pages.length || 1)));
-    ui.tools.text = button("Select PDF text", () => setTool("text")); ui.tools.text.dataset.tool = "text";
-    ui.rotate = button("Rotate page", rotatePage); ui.rotate.title = "Rotate page right (Ctrl+Down); left (Ctrl+Up)"; ui.rotate.setAttribute("aria-keyshortcuts", "Control+ArrowDown Control+ArrowUp"); ui.rotate.setAttribute("aria-description", "Rotate the displayed page 90 degrees clockwise. Original measurements stay unchanged.");
-    const fit = button("Fit page", () => fitPage(true)); fit.title = "Fit page (Ctrl+0)"; fit.setAttribute("aria-keyshortcuts", "Control+0");
-    const zoomOut = button("−", () => zoomBy(1 / 1.25)), zoomIn = button("+", () => zoomBy(1.25)); zoomOut.title = "Zoom out (Ctrl+-)"; zoomIn.title = "Zoom in (Ctrl++)"; zoomOut.setAttribute("aria-keyshortcuts", "Control+-"); zoomIn.setAttribute("aria-keyshortcuts", "Control+Plus");
+    const scaleAnchor = node("div", "takeoff-scale-anchor"); ui.scaleToggle = uiButton("Scale", () => toggleScaleControls()); ui.scaleToggle.setAttribute("aria-expanded", "false"); ui.scaleToggle.setAttribute("aria-controls", "takeoff-scale-controls"); ui.scaleToggle.setAttribute("aria-describedby", "takeoff-active-scale");
+    ui.scaleStatus = uiNode("span", "takeoff-active-scale", "No Scale Selected"); ui.scaleStatus.id = "takeoff-active-scale"; scaleAnchor.append(ui.scaleToggle, ui.scaleStatus); ui.scaleAnchor = scaleAnchor;
+    ui.drawingPdf = uiButton("Download PDF", () => downloadTakeoff("marked-pdf"));
+    ui.calibration = uiSelect([["", "No Scale Selected"]], async value => { await chooseCalibration(value); toggleScaleControls(false); }); ui.calibration.id = "takeoff-calibration"; window.CeasefireI18n.attr(ui.calibration, "aria-label", "Drawing calibration"); ui.editCalibration = uiButton("Edit calibration", editCalibration);
+    const navigation = node("div", "takeoff-navigation"); ui.navigation = navigation; navigation.setAttribute("role", "group"); window.CeasefireI18n.attr(navigation, "aria-label", "Drawing navigation");
+    const documentControls = node("div", "takeoff-navigation-group takeoff-document-controls takeoff-source-documents"); window.CeasefireI18n.attr(documentControls, "aria-label", "Source documents");
+    ui.documentSelect = select([], async value => { try { if (value && value !== state.document) await navigateDocument(value); } finally { ui.documentSelect.value = state.document || ""; } }); window.CeasefireI18n.attr(ui.documentSelect, "aria-label", "Drawing document");
+    const sourceLabel = uiNode("label", "sr-only", "Source documents"); sourceLabel.htmlFor = "takeoff-document-select"; ui.documentSelect.id = "takeoff-document-select";
+    ui.removeDocument = uiButton("Remove document", removeDocument); documentControls.append(sourceLabel, ui.documentSelect, ui.removeDocument); navigation.append(documentControls);
+    const pageControls = ui.pageControls = node("div", "takeoff-toolbar takeoff-viewer-controls takeoff-page-controls"); pageControls.setAttribute("role", "group"); window.CeasefireI18n.attr(pageControls, "aria-label", "Page and zoom controls");
+    const pageNavigation = node("div", "takeoff-page-navigation"); pageNavigation.setAttribute("role", "group"); window.CeasefireI18n.attr(pageNavigation, "aria-label", "Page navigation");
+    const previousPage = uiButton("‹ Page", () => navigatePage(state.page - 1)); window.CeasefireI18n.attr(previousPage, "title", "Previous page (Ctrl+Left)"); previousPage.setAttribute("aria-keyshortcuts", "Control+ArrowLeft");
+    pageNavigation.append(uiButton("First page", () => navigatePage(1)), previousPage);
+    ui.page = node("input", "takeoff-page-input"); ui.page.type = "number"; ui.page.min = "1"; ui.page.step = "1"; ui.page.value = "1"; window.CeasefireI18n.attr(ui.page, "aria-label", "Page number"); ui.page.addEventListener("change", () => void safely(() => navigatePage(Number(ui.page.value))));
+    const nextPage = uiButton("Page ›", () => navigatePage(state.page + 1)); window.CeasefireI18n.attr(nextPage, "title", "Next page (Ctrl+Right)"); nextPage.setAttribute("aria-keyshortcuts", "Control+ArrowRight");
+    ui.pageCount = node("span", "helper", "/ 0"); pageNavigation.append(ui.page, ui.pageCount, nextPage, uiButton("Last page", () => navigatePage(currentDocument()?.pages.length || 1)));
+    ui.tools.text = uiButton("Select PDF text", () => setTool("text")); ui.tools.text.dataset.tool = "text";
+    ui.rotate = uiButton("Rotate page", rotatePage); window.CeasefireI18n.attr(ui.rotate, "title", "Rotate page right (Ctrl+Down); left (Ctrl+Up)"); ui.rotate.setAttribute("aria-keyshortcuts", "Control+ArrowDown Control+ArrowUp"); ui.rotate.setAttribute("aria-description", "Rotate the displayed page 90 degrees clockwise. Original measurements stay unchanged.");
+    const fit = uiButton("Fit page", () => fitPage(true)); window.CeasefireI18n.attr(fit, "title", "Fit page (Ctrl+0)"); fit.setAttribute("aria-keyshortcuts", "Control+0");
+    const zoomOut = button("−", () => zoomBy(1 / 1.25)), zoomIn = button("+", () => zoomBy(1.25)); window.CeasefireI18n.attr(zoomOut, "title", "Zoom out (Ctrl+-)"); window.CeasefireI18n.attr(zoomIn, "title", "Zoom in (Ctrl++)"); zoomOut.setAttribute("aria-keyshortcuts", "Control+-"); zoomIn.setAttribute("aria-keyshortcuts", "Control+Plus");
     pageControls.append(pageNavigation, ui.tools.select, ui.tools.pan, ui.tools.text, zoomOut, zoomIn, fit, ui.rotate);
     ui.zoom = node("span", "helper", "100%"); pageControls.append(ui.zoom);
-    ui.search = node("input"); ui.search.type = "search"; ui.search.maxLength = 200; ui.search.placeholder = "Search PDF text…"; ui.search.setAttribute("aria-label", "Search original document text"); ui.search.setAttribute("aria-controls", "takeoff-text-search-results"); ui.search.setAttribute("aria-expanded", "false");
+    ui.search = node("input"); ui.search.type = "search"; ui.search.maxLength = 200; window.CeasefireI18n.attr(ui.search, "placeholder", "Search PDF text…"); window.CeasefireI18n.attr(ui.search, "aria-label", "Search original document text"); ui.search.setAttribute("aria-controls", "takeoff-text-search-results"); ui.search.setAttribute("aria-expanded", "false");
     ui.search.addEventListener("input", scheduleSearch); ui.search.addEventListener("keydown", event => { if (event.key === "Enter") { event.preventDefault(); void safely(runSearch); } else if (event.key === "ArrowDown" && state.searchHits.length) { event.preventDefault(); showSearchResults(); ui.searchResults.querySelector("button")?.focus(); } else if (event.key === "Escape") hideSearchResults(); });
     ui.search.addEventListener("pointerdown", () => { if (state.searchHits.length || state.searchToken && !state.searchComplete) showSearchResults(); });
-    const searchControls = node("div", "takeoff-toolbar takeoff-search-controls"); searchControls.setAttribute("role", "search"); searchControls.setAttribute("aria-label", "Drawing search"); ui.searchScope = select([["document", "This document"], ["all", "All documents"]], () => scheduleSearch()); ui.searchScope.setAttribute("aria-label", "Text search scope");
-    const searchAnchor = ui.searchAnchor = node("div", "takeoff-search-anchor"); ui.searchResults = node("div", "takeoff-search-results"); ui.searchResults.id = "takeoff-text-search-results"; ui.searchResults.hidden = true; ui.searchResults.setAttribute("role", "region"); ui.searchResults.setAttribute("aria-label", "PDF text search results");
+    const searchControls = node("div", "takeoff-toolbar takeoff-search-controls"); searchControls.setAttribute("role", "search"); window.CeasefireI18n.attr(searchControls, "aria-label", "Drawing search"); ui.searchScope = uiSelect([["document", "This document"], ["all", "All documents"]], () => scheduleSearch()); window.CeasefireI18n.attr(ui.searchScope, "aria-label", "Text search scope");
+    const searchAnchor = ui.searchAnchor = node("div", "takeoff-search-anchor"); ui.searchResults = node("div", "takeoff-search-results"); ui.searchResults.id = "takeoff-text-search-results"; ui.searchResults.hidden = true; ui.searchResults.setAttribute("role", "region"); window.CeasefireI18n.attr(ui.searchResults, "aria-label", "PDF text search results");
     ui.searchResults.addEventListener("keydown", event => { const buttons = [...ui.searchResults.querySelectorAll("button")], index = buttons.indexOf(document.activeElement); if (["ArrowDown", "ArrowUp"].includes(event.key) && buttons.length) { event.preventDefault(); buttons[(index + (event.key === "ArrowDown" ? 1 : -1) + buttons.length) % buttons.length].focus(); } else if (event.key === "Escape") { event.preventDefault(); hideSearchResults(); ui.search.focus(); } });
     ui.searchOcr = node("input"); ui.searchOcr.type = "checkbox"; ui.searchOcr.checked = true; ui.searchOcr.addEventListener("change", () => scheduleSearch());
-    const ocrOption = node("label", "takeoff-search-ocr"); ocrOption.title = "Recognize drawing labels locally. Results are approximate; recognition may take up to 60 seconds per page and covers at most eight pages per search."; ocrOption.append(ui.searchOcr, node("span", "", "Include drawing labels"));
-    searchAnchor.append(ui.search, ui.searchResults); searchControls.append(searchAnchor, ui.searchScope, ocrOption, button("Search", runSearch), button("Stop search", () => cancelSearch(true, "Search stopped; input, results and highlights cleared.")));
+    const ocrOption = node("label", "takeoff-search-ocr"); window.CeasefireI18n.attr(ocrOption, "title", "Recognize drawing labels locally. Results are approximate; recognition may take up to 60 seconds per page and covers at most eight pages per search."); ocrOption.append(ui.searchOcr, uiNode("span", "", "Include drawing labels"));
+    searchAnchor.append(ui.search, ui.searchResults); searchControls.append(searchAnchor, ui.searchScope, ocrOption, uiButton("Search", runSearch), uiButton("Stop search", () => cancelSearch(true, "Search stopped; input, results and highlights cleared.")));
     document.addEventListener("pointerdown", event => { if (state.active && !searchControls.contains(event.target)) hideSearchResults(); }, { capture: true });
     const viewerTop = ui.viewerTop = node("div", "takeoff-toolbar takeoff-viewer-controls takeoff-viewer-top"); viewerTop.append(scaleAnchor, navigation, searchControls);
-    const scaleControls = ui.scaleControls = node("div", "takeoff-toolbar takeoff-scale-controls"); scaleControls.id = "takeoff-scale-controls"; scaleControls.hidden = true; scaleControls.setAttribute("role", "group"); scaleControls.setAttribute("aria-label", "Drawing scale"); scaleControls.append(ui.calibration, ui.tools.calibrate, ui.editCalibration); scaleAnchor.append(scaleControls);
+    const scaleControls = ui.scaleControls = node("div", "takeoff-toolbar takeoff-scale-controls"); scaleControls.id = "takeoff-scale-controls"; scaleControls.hidden = true; scaleControls.setAttribute("role", "group"); window.CeasefireI18n.attr(scaleControls, "aria-label", "Drawing scale"); scaleControls.append(ui.calibration, ui.tools.calibrate, ui.editCalibration); scaleAnchor.append(scaleControls);
     scaleControls.addEventListener("keydown", event => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); toggleScaleControls(false); ui.scaleToggle.focus(); } });
     ui.progress = node("p", "takeoff-progress"); ui.progress.setAttribute("role", "status"); ui.physicalOverlayStatus = node("p", "helper"); ui.physicalOverlayStatus.hidden = true;
     const workspace = node("div", "takeoff-workspace-split"); ui.workspace = workspace;
     const layout = node("div", "takeoff-drawing-layout"); ui.layout = layout; const drawingPane = node("div", "takeoff-drawing-pane"); ui.drawingPane = drawingPane;
-    ui.viewport = node("div", "takeoff-viewport"); ui.viewport.id = "takeoff-viewport"; ui.viewport.tabIndex = 0; ui.viewport.dataset.scrollActive = "false"; ui.viewport.setAttribute("aria-label", "Drawing. Click or focus to scroll inside; Escape releases page scrolling. Drag a selected control point to recalculate, or remove it with Control+Z. Right-click a markup to delete it.");
-    ui.pageWrap = node("div", "takeoff-page"); ui.pageWrap.hidden = true; ui.canvas = node("canvas"); ui.canvas.setAttribute("aria-label", "Original PDF page"); ui.overlay = document.createElementNS("http://www.w3.org/2000/svg", "svg"); ui.overlay.classList.add("takeoff-overlay"); ui.overlay.setAttribute("aria-label", "Takeoff markups");
-    ui.pageWrap.append(ui.canvas, ui.overlay); ui.panSpace = node("div", "takeoff-pan-space"); ui.panSpace.append(ui.pageWrap); ui.empty = node("div", "takeoff-empty"); ui.empty.append(node("strong", "", "Your drawing workspace"), node("p", "", "Upload the original PDFs, choose a scale or calibrate a known distance, then trace each physical object. Edit and confirm items in the register before adding them to a schedule.")); ui.viewport.append(ui.panSpace, ui.empty);
-    ui.viewportPanel = node("aside", "takeoff-viewports"); ui.viewportPanel.id = "takeoff-viewports"; ui.viewportPanel.hidden = true; ui.viewportPanel.setAttribute("aria-label", "Viewports");
-    ui.settingsPanel = node("aside", "takeoff-markup-settings"); ui.settingsPanel.id = "takeoff-markup-settings"; ui.settingsPanel.hidden = true; ui.settingsPanel.setAttribute("aria-label", "Markup settings");
+    ui.viewport = node("div", "takeoff-viewport"); ui.viewport.id = "takeoff-viewport"; ui.viewport.tabIndex = 0; ui.viewport.dataset.scrollActive = "false"; window.CeasefireI18n.attr(ui.viewport, "aria-label", "Drawing. Click or focus to scroll inside; Escape releases page scrolling. Drag a selected control point to recalculate, or remove it with Control+Z. Right-click a markup to delete it.");
+    ui.pageWrap = node("div", "takeoff-page"); ui.pageWrap.hidden = true; ui.canvas = node("canvas"); window.CeasefireI18n.attr(ui.canvas, "aria-label", "Original PDF page"); ui.overlay = document.createElementNS("http://www.w3.org/2000/svg", "svg"); ui.overlay.classList.add("takeoff-overlay"); window.CeasefireI18n.attr(ui.overlay, "aria-label", "Takeoff markups");
+    ui.pageWrap.append(ui.canvas, ui.overlay); ui.panSpace = node("div", "takeoff-pan-space"); ui.panSpace.append(ui.pageWrap); ui.empty = node("div", "takeoff-empty"); ui.empty.append(uiNode("strong", "", "Your drawing workspace"), uiNode("p", "", "Upload the original PDFs, choose a scale or calibrate a known distance, then trace each physical object. Edit and confirm items in the register before adding them to a schedule.")); ui.viewport.append(ui.panSpace, ui.empty);
+    ui.viewportPanel = node("aside", "takeoff-viewports"); ui.viewportPanel.id = "takeoff-viewports"; ui.viewportPanel.hidden = true; window.CeasefireI18n.attr(ui.viewportPanel, "aria-label", "Viewports");
+    ui.settingsPanel = node("aside", "takeoff-markup-settings"); ui.settingsPanel.id = "takeoff-markup-settings"; ui.settingsPanel.hidden = true; window.CeasefireI18n.attr(ui.settingsPanel, "aria-label", "Markup settings");
     ui.physicalDetails = node("div", "takeoff-physical-details"); ui.physicalDetails.id = "takeoff-physical-details"; ui.physicalDetails.hidden = true;
-    ui.physicalDetails.append(button("Close Item Details", () => setPhysicalDetailsOpen(false), "button secondary", "Close settings"));
+    ui.physicalDetails.append(uiButton("Close Item Details", () => setPhysicalDetailsOpen(false), "button secondary", "Close settings"));
     layout.append(toolbar, ui.viewportPanel, ui.settingsPanel, ui.physicalDetails, drawingPane, markupRail);
-    const register = node("section", "takeoff-register"); ui.register = register; const heading = node("div", "section-heading"); ui.registerTitle = node("h2", "", "Steel register"); ui.status = node("span", "status-label", "Ready"); ui.registerLayout = select([["below", "Register below drawing"], ["beside", "Register beside drawing"]], value => { workspace.classList.toggle("beside", value === "beside"); }); ui.registerLayout.setAttribute("aria-label", "Register position"); heading.append(ui.registerTitle, ui.status, ui.registerLayout); register.append(heading);
-    const controls = node("div", "takeoff-register-controls"); ui.filter = node("input"); ui.filter.type = "search"; ui.filter.placeholder = "Filter register…"; ui.filter.setAttribute("aria-label", "Filter register"); ui.filter.addEventListener("input", () => { state.filter = ui.filter.value.toLowerCase(); state.offset = 0; renderRegister(); renderOverlay(); });
-    ui.statusFilter = select([["", "All confirmation states"], ["unconfirmed", "Unconfirmed"], ["confirmed", "Confirmed"]], () => { renderRegister(); renderOverlay(); }); ui.statusFilter.setAttribute("aria-label", "Filter confirmation state");
-    ui.sort = select([["mark", "Sort: Mark"], ["level", "Sort: Level"], ["length", "Sort: Length"], ["state", "Sort: Confirmation"]], value => { state.sort = value; renderRegister(); }); ui.sort.setAttribute("aria-label", "Sort register");
-    ui.group = select([["", "No grouping"], ["level", "Group by level"], ["group", "Group by label"], ["state", "Group by confirmation"]], value => { state.group = value; renderRegister(); }); ui.group.setAttribute("aria-label", "Group register");
-    ui.selectFiltered = button("Select filtered items", async () => {
+    const register = node("section", "takeoff-register"); ui.register = register; const heading = node("div", "section-heading"); ui.registerTitle = uiNode("h2", "", "Steel register"); ui.status = uiNode("span", "status-label", "Ready"); ui.registerLayout = uiSelect([["below", "Register below drawing"], ["beside", "Register beside drawing"]], value => { workspace.classList.toggle("beside", value === "beside"); }); window.CeasefireI18n.attr(ui.registerLayout, "aria-label", "Register position"); heading.append(ui.registerTitle, ui.status, ui.registerLayout); register.append(heading);
+    const controls = node("div", "takeoff-register-controls"); ui.filter = node("input"); ui.filter.type = "search"; window.CeasefireI18n.attr(ui.filter, "placeholder", "Filter register…"); window.CeasefireI18n.attr(ui.filter, "aria-label", "Filter register"); ui.filter.addEventListener("input", () => { state.filter = ui.filter.value.toLowerCase(); state.offset = 0; renderRegister(); renderOverlay(); });
+    ui.statusFilter = uiSelect([["", "All confirmation states"], ["unconfirmed", "Unconfirmed"], ["confirmed", "Confirmed"]], () => { renderRegister(); renderOverlay(); }); window.CeasefireI18n.attr(ui.statusFilter, "aria-label", "Filter confirmation state");
+    ui.sort = uiSelect([["mark", "Sort: Mark"], ["level", "Sort: Level"], ["length", "Sort: Length"], ["state", "Sort: Confirmation"]], value => { state.sort = value; renderRegister(); }); window.CeasefireI18n.attr(ui.sort, "aria-label", "Sort register");
+    ui.group = uiSelect([["", "No grouping"], ["level", "Group by level"], ["group", "Group by label"], ["state", "Group by confirmation"]], value => { state.group = value; renderRegister(); }); window.CeasefireI18n.attr(ui.group, "aria-label", "Group register");
+    ui.selectFiltered = uiButton("Select filtered items", async () => {
       if (!await discardEditor()) return;
       const list = visibleItems(), deselect = list.length > 0 && list.every(item => state.selected.has(item.id));
       for (const item of list) { deselect ? state.selected.delete(item.id) : state.selected.add(item.id); state.countSelection.delete(item.id); }
@@ -649,18 +668,18 @@
     });
     ui.selectFiltered.setAttribute("aria-pressed", "false");
     const showDeleted = node("label", "takeoff-check"), deletedCheck = node("input"); deletedCheck.type = "checkbox"; deletedCheck.checked = false;
-    deletedCheck.setAttribute("aria-label", "Show deleted records");
+    window.CeasefireI18n.attr(deletedCheck, "aria-label", "Show deleted records");
     deletedCheck.addEventListener("change", () => { state.showDeleted = deletedCheck.checked; state.deletedOffset = 0; renderRegister(); });
-    showDeleted.append(deletedCheck, node("span", "", "Show deleted records")); ui.showDeleted = deletedCheck;
-    ui.registerExtraControls = [ui.statusFilter, ui.sort, ui.group, ui.selectFiltered, button("Undo last edit", () => undoLastEdit()), showDeleted];
+    showDeleted.append(deletedCheck, uiNode("span", "", "Show deleted records")); ui.showDeleted = deletedCheck;
+    ui.registerExtraControls = [ui.statusFilter, ui.sort, ui.group, ui.selectFiltered, uiButton("Undo last edit", () => undoLastEdit()), showDeleted];
     controls.append(ui.filter, ...ui.registerExtraControls);
-    ui.bulk = node("div", "takeoff-bulk"); ui.bulk.hidden = true; ui.selectionCount = node("strong"); ui.bulkField = select([]); ui.bulkField.setAttribute("aria-label", "Bulk edit field"); ui.bulkValue = node("input"); ui.bulkValue.setAttribute("aria-label", "Bulk edit value"); ui.bulkValue.placeholder = "New value (blank clears)";
-    ui.bulk.append(ui.selectionCount, ui.bulkField, ui.bulkValue, button("Apply to selected", bulkEdit), button("Confirm", confirmSelected), button("Unconfirm", () => selectedCommand("unconfirm_items")), button("Delete", deleteSelected));
+    ui.bulk = node("div", "takeoff-bulk"); ui.bulk.hidden = true; ui.selectionCount = node("strong"); ui.bulkField = select([]); window.CeasefireI18n.attr(ui.bulkField, "aria-label", "Bulk edit field"); ui.bulkValue = node("input"); window.CeasefireI18n.attr(ui.bulkValue, "aria-label", "Bulk edit value"); window.CeasefireI18n.attr(ui.bulkValue, "placeholder", "New value (blank clears)");
+    ui.bulk.append(ui.selectionCount, ui.bulkField, ui.bulkValue, uiButton("Apply to selected", bulkEdit), uiButton("Confirm", confirmSelected), uiButton("Unconfirm", () => selectedCommand("unconfirm_items")), uiButton("Delete", deleteSelected));
     // Historical operations remain available to integrations, outside this toolbar.
-    ui.split = button("Split", splitSelected); ui.merge = button("Merge", mergeSelected);
-    const exports = node("div", "takeoff-register-controls"); ui.target = select([["steel_vermiculite", "Steel Spray Schedule"], ["steel_board", "Steel Board Schedule"]], refreshRegisterOptions); ui.target.setAttribute("aria-label", "Destination schedule");
-    ui.transferControls = [ui.target, button("Preview transfer", () => transfer(false)), button("Update linked rows", () => transfer(true)), button("Detach links", detachSelected)];
-    ui.areaNotice = node("p", "helper takeoff-area-notice", "Area records export as m². Existing steel and duct calculators do not accept surface areas. Split/merge is unavailable for surfaces; group separate physical surfaces without changing their identities.");
+    ui.split = uiButton("Split", splitSelected); ui.merge = uiButton("Merge", mergeSelected);
+    const exports = node("div", "takeoff-register-controls"); ui.target = uiSelect([["steel_vermiculite", "Steel Spray Schedule"], ["steel_board", "Steel Board Schedule"]], refreshRegisterOptions); window.CeasefireI18n.attr(ui.target, "aria-label", "Destination schedule");
+    ui.transferControls = [ui.target, uiButton("Preview transfer", () => transfer(false)), uiButton("Update linked rows", () => transfer(true)), uiButton("Detach links", detachSelected)];
+    ui.areaNotice = uiNode("p", "helper takeoff-area-notice", "Area records export as m². Existing steel and duct calculators do not accept surface areas. Split/merge is unavailable for surfaces; group separate physical surfaces without changing their identities.");
     exports.append(...ui.transferControls, ui.areaNotice);
     ui.tableWrap = node("div", "takeoff-register-table"); ui.pagination = node("div", "takeoff-register-controls"); ui.deletedRecords = node("section", "takeoff-deleted-records"); ui.deletedRecords.hidden = true; register.append(controls, ui.bulk, exports, ui.tableWrap, ui.pagination, ui.deletedRecords);
     ui.physicalContainer = node("div", "takeoff-physical-container"); ui.physicalContainer.hidden = true;
@@ -711,11 +730,11 @@
     });
   }
   function buildPDFToolsMenu() {
-    const root = node("div", "calculator-document-menu takeoff-pdf-tools-menu"), toggle = button("Tools", () => close(!list.hidden), "button secondary calculator-document-toggle"), list = node("div", "calculator-document-actions");
-    toggle.replaceChildren(node("span", "", "Tools"), documentChevron()); toggle.setAttribute("aria-expanded", "false"); toggle.setAttribute("aria-controls", "takeoff-pdf-tools-actions"); list.id = "takeoff-pdf-tools-actions"; list.hidden = true; list.setAttribute("role", "group"); list.setAttribute("aria-label", "PDF Tools"); root.append(toggle, list);
+    const root = node("div", "calculator-document-menu takeoff-pdf-tools-menu"), toggle = uiButton("Tools", () => close(!list.hidden), "button secondary calculator-document-toggle"), list = node("div", "calculator-document-actions");
+    toggle.replaceChildren(uiNode("span", "", "Tools"), documentChevron()); toggle.setAttribute("aria-expanded", "false"); toggle.setAttribute("aria-controls", "takeoff-pdf-tools-actions"); list.id = "takeoff-pdf-tools-actions"; list.hidden = true; list.setAttribute("role", "group"); window.CeasefireI18n.attr(list, "aria-label", "PDF Tools"); root.append(toggle, list);
     function close(hide = true) { list.hidden = hide; toggle.setAttribute("aria-expanded", String(!hide)); }
-    for (const [operation, label] of [["merge", "Merge PDF Files"], ["organise", "Organise Pages"], ["extract", "Extract Pages"]]) list.append(button(label, () => { close(); return openPDFTools(operation); }, "button secondary calculator-document-action"));
-    if (initialPagesUI) { const initial = button("Initial Pages", () => { close(); return initialPagesUI.activate(); }, "button secondary calculator-document-action"); initial.dataset.tool = "initial-pages"; list.append(initial); }
+    for (const [operation, label] of [["merge", "Merge PDF Files"], ["organise", "Organise Pages"], ["extract", "Extract Pages"]]) list.append(uiButton(label, () => { close(); return openPDFTools(operation); }, "button secondary calculator-document-action"));
+    if (initialPagesUI) { const initial = uiButton("Initial Pages", () => { close(); return initialPagesUI.activate(); }, "button secondary calculator-document-action"); initial.dataset.tool = "initial-pages"; list.append(initial); }
     const paths = ["M3 3h7v9H3zM14 3h7v9h-7zM7 16h10v6H7zM6 12v3h6m6-3v3h-6v1", "M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z", "M13 3H4v18h13M13 3v5h5M14 14h8m-3-3 3 3-3 3", "M14 3H5v18h14V8l-5-5zM14 3v5h5M8 16c2-7 3-7 2 0 3-4 3-4 2 0l4-2"];
     [...list.children].forEach((control, index) => {
       const icon = svg("svg", {viewBox:"0 0 24 24", width:24, height:24, fill:"none", stroke:"currentColor", "stroke-width":1.8, "stroke-linecap":"round", "stroke-linejoin":"round", "aria-hidden":"true"});
@@ -797,7 +816,7 @@
     state.ui.documentMenu.root.hidden = physical;
     state.ui.physicalDocumentHost.hidden = !physical;
     if (physical) state.ui.documentMenu.close(false);
-    state.ui.title.textContent = physical ? state.physicalScope === "service_plans" ? "Service Plans" : "Defect Reports" : state.mode === "duct" ? "Ductwork" : labels[state.mode];
+    window.CeasefireI18n.text(state.ui.title, physical ? state.physicalScope === "service_plans" ? "Service Plans" : "Defect Reports" : state.mode === "duct" ? "Ductwork" : labels[state.mode]);
     state.ui.tools.markups.hidden = state.mode !== "steel";
     state.ui.tools.legend.hidden = !["steel", "duct"].includes(state.mode);
     state.ui.presentationTools.hidden = !["steel", "duct"].includes(state.mode);
@@ -810,7 +829,7 @@
     const countLabel = physical ? "Call-out" : "Count";
     state.ui.tools.count.setAttribute("aria-label", countLabel); state.ui.tools.count.title = countLabel;
     if (physical) { const image = node("img"); image.src = "/icons/takeoff-callout.png"; image.alt = ""; image.width = 25; image.height = 25; image.setAttribute("aria-hidden", "true"); state.ui.tools.count.replaceChildren(image); }
-    else if (state.ui.tools.count.querySelector("img")) { const replacement = button("Count", activateCountTool); state.ui.tools.count.replaceChildren(...replacement.childNodes); }
+    else if (state.ui.tools.count.querySelector("img")) { const replacement = uiButton("Count", activateCountTool); state.ui.tools.count.replaceChildren(...replacement.childNodes); }
     if (state.ui.tools.settings) state.ui.tools.settings.hidden = false;
     if (physical && !selectedSignature() && !graphicsUI?.selected()) { state.settingsOpen = false; state.settingsEditor = null; } renderSettingsPanel();
     renderPhysicalDetails();
@@ -825,7 +844,7 @@
       ensurePhysicalUI(); state.physicalUI.render(physicalSnapshot()); renderRail(); renderCalibrations(); renderOverlay(); working(state.busy); return;
     }
     state.ui.tools.trace.after(state.ui.countAnchor);
-    state.ui.registerTitle.textContent = `${labels[state.mode]} register`;
+    window.CeasefireI18n.text(state.ui.registerTitle, "{0} register", [window.CeasefireI18n.term(labels[state.mode])]);
     for (const control of state.ui.registerExtraControls || []) control.hidden = false;
     for (const control of [state.ui.statusFilter, state.ui.sort, state.ui.group]) control.hidden = usesColumnFilters();
     const area = isArea();
@@ -837,9 +856,9 @@
     for (const tool of ["polygon", "exclusion"]) state.ui.tools[tool].hidden = !area;
     const sortChoices = [["mark", "Sort: Mark"], ["level", "Sort: Level"], [area ? "area" : "length", area ? "Sort: Total area" : "Sort: Length"], ["state", "Sort: Confirmation"]];
     if (!sortChoices.some(([key]) => key === state.sort)) state.sort = "mark";
-    state.ui.sort.replaceChildren(...sortChoices.map(([key, label]) => option(key, label))); state.ui.sort.value = state.sort;
+    state.ui.sort.replaceChildren(...sortChoices.map(([key, label]) => uiOption(key, label))); state.ui.sort.value = state.sort;
     const targets = area ? [] : state.mode === "steel" ? [["steel_vermiculite", "Steel Spray Schedule"], ["steel_board", "Steel Board Schedule"]] : [["ductwork", "Ductwork Schedule"]];
-    const target = state.ui.target.value; state.ui.target.replaceChildren(...targets.map(([id, label]) => option(id, label))); if (targets.some(([id]) => id === target)) state.ui.target.value = target;
+    const target = state.ui.target.value; state.ui.target.replaceChildren(...targets.map(([id, label]) => uiOption(id, label))); if (targets.some(([id]) => id === target)) state.ui.target.value = target;
     if (state.mode === "steel" && state.ui.target.value !== target) { registerFilters().delete("thickness"); invalidateLinkedThickness(); }
     syncBulkFields();
     renderRail(); renderCalibrations(); renderRegister(); renderSettingsPanel(); renderOverlay(); working(state.busy);
@@ -976,7 +995,7 @@
         const reply = await physicalRequest("images/extract", { document_id: state.document, first_page: state.page, page_count: 1 }, { mutate: true });
         return { ...reply, snapshot: physicalSnapshot(reply.snapshot) };
       },
-      drawingPdf: () => button("Download PDF", () => downloadTakeoff("marked-pdf")),
+      drawingPdf: () => uiButton("Download PDF", () => downloadTakeoff("marked-pdf")),
       export: exportPhysical, downloadMarkup, undo: async () => { const reply = await command("undo"); return { ...reply, snapshot: physicalSnapshot(reply.snapshot) }; }, history: showAudit,
       selection: async (ids, reference, focus, openDetails = true) => { state.physicalSelected = new Set(ids); if (ids.length) { state.signatureSelected = null; state.graphicSelected = null; state.settingsOpen = false; state.settingsEditor = null; renderSettingsPanel(); } if (openDetails && ids.length && state.mode === "physical") { setPhysicalDetailsOpen(true); state.ui.physicalDetails.scrollTop = 0; } if (reference && focus) await physicalSource(reference); else renderOverlay(); },
       hover: hoverPhysical,
@@ -1027,7 +1046,7 @@
       state.calibration = state.calibrationSelections.get(context) || "";
       state.viewportSelection = "";
     }
-    state.ui.calibration.replaceChildren(option("", "No Scale Selected"), ...calibrations.map(calibration => option(calibration.id, `${calibration.region ? "Viewport: " : ""}${calibration.name}${calibration.scale_denominator ? ` · 1:${calibration.scale_denominator}` : ""}`)), ...scaleDenominators.map(value => option(`scale:${value}`, `1:${value}`)));
+    state.ui.calibration.replaceChildren(uiOption("", "No Scale Selected"), ...calibrations.map(calibration => option(calibration.id, `${calibration.region ? "Viewport: " : ""}${calibration.name}${calibration.scale_denominator ? ` · 1:${calibration.scale_denominator}` : ""}`)), ...scaleDenominators.map(value => option(`scale:${value}`, `1:${value}`)));
     // Losing an active selection must not silently switch scope from a deleted
     // viewport (or revised scale) to another calibration on the same page.
     if (state.calibration && !calibrations.some(calibration => calibration.id === state.calibration)) { state.calibration = ""; state.calibrationSelections.set(context, ""); }
@@ -1038,7 +1057,7 @@
     if (!state.calibration && !state.calibrationSelections.has(context) && pageScales.length === 1) state.calibration = pageScales[0].id;
     if (state.calibration) state.calibrationSelections.set(context, state.calibration);
     state.ui.calibration.value = state.calibration;
-    if (state.ui.scaleToggle) { const active = state.ui.calibration.selectedOptions[0]?.textContent || "No Scale Selected"; state.ui.scaleToggle.title = `Scale · ${active}`; state.ui.scaleStatus.textContent = active; }
+    if (state.ui.scaleToggle) { const active = state.ui.calibration.selectedOptions[0]?.textContent || "No Scale Selected"; window.CeasefireI18n.attr(state.ui.scaleToggle, "title", "Scale · {0}", [active]); state.ui.scaleStatus.textContent = active; }
     state.viewportSelection = calibrations.some(value => value.id === state.calibration && value.region) ? state.calibration : "";
     renderViewportPanel();
   }
@@ -1103,14 +1122,14 @@
     const existing = state.settingsEditor;
     if (existing?.key === key && (state.settingsDirty || existing.applying || existing.revision === state.session.revision)) { const sides = existing.fields.find(field => field.control.name === "sides"); if (sides) sides.wrapper.hidden = state.ui.target.value !== "steel_board"; existing.visibility?.refresh(); refreshItemSettingsTools(existing); void safely(() => loadSettingsOptions(existing)); return; }
     const countsOnly = selected.length > 0 && selected.every(isCount);
-    const heading = node("div", "takeoff-viewports-heading"); heading.append(button("Close settings", toggleSettings), node("h3", "", countsOnly ? "Count Settings" : "Settings")); panel.replaceChildren(heading);
-    if (!selected.length) { state.settingsEditor = null; panel.append(node("p", "helper", "Select one or more drawing markups or register items. Settings show the first selected item; only fields you edit are applied to the selection.")); if (state.annotationHidden?.size) panel.append(button("Show hidden Call-outs", () => { state.annotationHidden.clear(); renderSettingsPanel(); renderOverlay(); })); return; }
+    const heading = node("div", "takeoff-viewports-heading"); heading.append(uiButton("Close settings", toggleSettings), uiNode("h3", "", countsOnly ? "Count Settings" : "Settings")); panel.replaceChildren(heading);
+    if (!selected.length) { state.settingsEditor = null; panel.append(uiNode("p", "helper", "Select one or more drawing markups or register items. Settings show the first selected item; only fields you edit are applied to the selection.")); if (state.annotationHidden?.size) panel.append(uiButton("Show hidden Call-outs", () => { state.annotationHidden.clear(); renderSettingsPanel(); renderOverlay(); })); return; }
     if (existing) clearTimeout(existing.timer);
     const first = selected[0];
-    if (selected.some(item => (item.purpose || "standard") !== (first.purpose || "standard"))) { state.settingsEditor = null; panel.append(node("p", "helper", "Select counts, measurements or calculator items separately to edit their details.")); return; }
+    if (selected.some(item => (item.purpose || "standard") !== (first.purpose || "standard"))) { state.settingsEditor = null; panel.append(uiNode("p", "helper", "Select counts, measurements or calculator items separately to edit their details.")); return; }
     const editor = { key, sessionId: state.session.session_id, revision: state.session.revision, ids: selected.map(item => item.id), touched: new Map(), fields: [], appearance: [], quantity: null, lengths: [] }; state.settingsEditor = editor;
     const content = node("div", "takeoff-settings-fields"); panel.append(content);
-    content.append(node("h4", "", "Markup appearance"));
+    content.append(uiNode("h4", "", "Markup appearance"));
     const appearance = appearanceOf(first);
     for (const def of [...(countsOnly ? [["marker_shape", "Marker shape", ["circle", "square", "triangle", "diamond"]], ["marker_size", "Marker Size", "number"]] : []), ["stroke_enabled", "Line Enabled", "checkbox"], ["stroke_color", "Line Colour", "color"], ["stroke_width", "Line Width", "number"], ["fill_color", "Fill Colour", "color"], ["fill_enabled", "Fill Enabled", "checkbox"], ["opacity", "Opacity", "number"], ["display_values", "Display Values", "checkbox"]]) {
       const field = appearanceField(def, appearance[def[0]]); field.control.required = def[2] !== "checkbox";
@@ -1118,31 +1137,31 @@
     }
     appendAppearanceFields(content, editor.appearance);
     const appearanceActions = node("div", "actions takeoff-appearance-actions");
-    appearanceActions.append(button("Set as default", () => setMarkupDefaults(editor)));
+    appearanceActions.append(uiButton("Set as default", () => setMarkupDefaults(editor)));
     if (selectedItems().length === 1) { editor.visibility = currentVisibilityControl("item", selectedItems()[0].id); appearanceActions.append(editor.visibility); }
     content.append(appearanceActions);
-    if (countsOnly) content.append(node("p", "helper", "Marker size uses physical PDF points. Colour, shape, fill and opacity change appearance only."));
-    content.append(node("h4", "", "Item details"));
+    if (countsOnly) content.append(uiNode("p", "helper", "Marker size uses physical PDF points. Colour, shape, fill and opacity change appearance only."));
+    content.append(uiNode("h4", "", "Item details"));
     // Hide this legacy source field only in the inspector. Untouched citations
     // remain in the item and its evidence; unrelated edits send touched fields only.
     editor.fields = commonItemFields(selected, itemFields).filter(([key]) => !["surface_citation", "surface_basis"].includes(key)).map(def => { const field = formField(def, def[0] === "duct_size" ? formatDuctSize(first.fields) : (def[0] === "layers" ? first.fields.layers ?? 1 : first.fields[def[0]])); bindSetting(editor, field, `fields:${def[0]}`); if (def[0] === "sides") field.wrapper.hidden = state.ui.target.value !== "steel_board"; if (["product", "member_type"].includes(def[0])) field.control.addEventListener("change", () => void safely(() => loadSettingsOptions(editor))); content.append(field.wrapper); return field; });
     if (selected.some(isCount)) {
       const counted = selected.filter(item => isCount(item) && !isStandalone(item));
       counted.forEach((item, index) => {
-        if (counted.length > 1) content.append(node("h4", "", `Length group ${index + 1}`));
+        if (counted.length > 1) content.append(uiNode("h4", "", "Length group {0}", [index + 1]));
         const quantity = formField(["count_quantity", "Count/QTY", "number"], item.quantity), length = formField(["length_mm", "Manual Length (mm)", "number"], item.measurement.length_m * 1000);
         quantity.control.readOnly = true; length.control.required = true; length.control.min = "0.000001"; length.control.max = "1000000000000000";
         const entry = { key: `length:${item.id}`, memberIds: [...item.member_ids], field: length, quantity, itemId: item.id }; editor.lengths.push(entry); bindSetting(editor, length, entry.key);
         content.append(quantity.wrapper, length.wrapper);
         const row = node("div", "takeoff-count-length"), result = itemResult(item); row.dataset.itemId = item.id;
-        row.append(node("p", "helper", `${item.quantity} markers · Manual base: ${formatLength(item.measurement.length_m)} m each${result.additions_length_m ? ` + additions: ${formatLength(result.additions_length_m)} m each` : ""} · Total: ${formatLength(result.total_length_m)} m`), button("Delete item", async () => { await flushSettings(); const current = items().filter(value => isCount(value) && value.member_ids.some(id => entry.memberIds.includes(id))); if (current.some(value => value.member_ids.some(id => !entry.memberIds.includes(id)))) throw new Error("The length groups combined. Select the current group before deleting it."); await deleteItems(current.map(value => value.id)); })); content.append(row);
+        row.append(uiNode("p", "helper", "{0} markers · Manual base: {1} m each{2} · Total: {3} m", [item.quantity, formatLength(item.measurement.length_m), result.additions_length_m ? ` + additions: ${formatLength(result.additions_length_m)} m each` : "", formatLength(result.total_length_m)]), uiButton("Delete item", async () => { await flushSettings(); const current = items().filter(value => isCount(value) && value.member_ids.some(id => entry.memberIds.includes(id))); if (current.some(value => value.member_ids.some(id => !entry.memberIds.includes(id)))) throw new Error("The length groups combined. Select the current group before deleting it."); await deleteItems(current.map(value => value.id)); })); content.append(row);
       });
     }
     if (isStandalone(first)) {
       const total = selected.reduce((sum, item) => sum + item.quantity, 0), row = node("div", "takeoff-standalone-settings");
       const quantity = formField(["total_count", first.purpose === "count-only" ? "Total Count/QTY" : "Length (m)", "number"], first.purpose === "count-only" ? total : itemResult(first).length_m); quantity.control.readOnly = true;
       if (first.purpose === "length-only") quantity.control.value = Number.isFinite(itemResult(first).length_m) ? itemResult(first).length_m.toFixed(2) : "";
-      row.append(quantity.wrapper); const remove = button("Delete item", async () => { await flushSettings(); await deleteItems(selected.map(item => item.id)); }); remove.classList.add("takeoff-delete-left"); row.append(remove); content.append(row);
+      row.append(quantity.wrapper); const remove = uiButton("Delete item", async () => { await flushSettings(); await deleteItems(selected.map(item => item.id)); }); remove.classList.add("takeoff-delete-left"); row.append(remove); content.append(row);
     } else if (!isCount(first) && !isSurface(first)) { editor.quantity = formField(["quantity", "Count/QTY", "number"], first.quantity); bindSetting(editor, editor.quantity, "quantity"); content.append(editor.quantity.wrapper); }
     if (selected.length === 1 && !isCount(first)) renderItemSettingsTools(content, first, editor);
     void safely(() => loadSettingsOptions(editor));
@@ -1218,7 +1237,7 @@
           editor.revision = state.session.revision;
           for (const entry of editor.lengths) {
             const item = countRows.find(value => value.id === entry.itemId), summary = state.ui.settingsPanel?.querySelector?.(`[data-item-id="${entry.itemId}"] p`), result = itemResult(item);
-            if (summary) summary.textContent = `${item.quantity} markers · Manual base: ${formatLength(item.measurement.length_m)} m each${result.additions_length_m ? ` + additions: ${formatLength(result.additions_length_m)} m each` : ""} · Total: ${formatLength(result.total_length_m)} m`;
+            if (summary) window.CeasefireI18n.text(summary, "{0} markers · Manual base: {1} m each{2} · Total: {3} m", [item.quantity, formatLength(item.measurement.length_m), result.additions_length_m ? ` + additions: ${formatLength(result.additions_length_m)} m each` : "", formatLength(result.total_length_m)]);
           }
         }
         window.CeasefireProject?.changed?.(); message("Settings updated.");
@@ -1248,18 +1267,18 @@
     if (!state.viewportsOpen) return;
     const viewports = activePageCalibrations().filter(value => value.region);
     if (!viewports.some(value => value.id === state.viewportSelection)) state.viewportSelection = "";
-    const heading = node("div", "takeoff-viewports-heading"); heading.append(button("Close viewports", toggleViewportPanel), node("h3", "", "Viewports"));
-    const list = node("div", "takeoff-viewport-list"); list.setAttribute("aria-label", "Viewports on this page");
+    const heading = node("div", "takeoff-viewports-heading"); heading.append(uiButton("Close viewports", toggleViewportPanel), uiNode("h3", "", "Viewports"));
+    const list = node("div", "takeoff-viewport-list"); window.CeasefireI18n.attr(list, "aria-label", "Viewports on this page");
     for (const viewport of viewports) {
       const row = node("div", `takeoff-viewport-row${viewport.id === state.viewportSelection ? " selected" : ""}`); row.dataset.calibrationId = viewport.id;
-      const name = button(viewport.name, () => selectViewport(viewport.id), "takeoff-viewport-name"); name.title = viewport.name; name.setAttribute("aria-label", `Select viewport ${viewport.name}`); name.setAttribute("aria-pressed", String(viewport.id === state.viewportSelection));
-      const scale = select([["manual", viewport.scale_denominator ? "Calibrate a known dimension" : "Custom scale"], ...scaleDenominators.map(value => [String(value), `1:${value}`])], value => changeViewportScale(viewport.id, value), viewport.scale_denominator ? String(viewport.scale_denominator) : "manual"); scale.setAttribute("aria-label", `Scale for viewport ${viewport.name}`);
-      const more = button("⋯", () => editViewport(viewport.id), "takeoff-viewport-more"); more.setAttribute("aria-label", `Edit viewport ${viewport.name}`); more.title = `Edit viewport ${viewport.name}`;
+      const name = button(viewport.name, () => selectViewport(viewport.id), "takeoff-viewport-name"); name.title = viewport.name; window.CeasefireI18n.attr(name, "aria-label", "Select viewport {0}", [viewport.name]); name.setAttribute("aria-pressed", String(viewport.id === state.viewportSelection));
+      const scale = uiSelect([["manual", viewport.scale_denominator ? "Calibrate a known dimension" : "Custom scale"], ...scaleDenominators.map(value => [String(value), `1:${value}`])], value => changeViewportScale(viewport.id, value), viewport.scale_denominator ? String(viewport.scale_denominator) : "manual"); window.CeasefireI18n.attr(scale, "aria-label", "Scale for viewport {0}", [viewport.name]);
+      const more = button("⋯", () => editViewport(viewport.id), "takeoff-viewport-more"); window.CeasefireI18n.attr(more, "aria-label", "Edit viewport {0}", [viewport.name]); window.CeasefireI18n.attr(more, "title", "Edit viewport {0}", [viewport.name]);
       for (const control of [name, scale, more]) control.disabled = state.busy;
       row.append(name, scale, more); list.append(row);
     }
-    if (!viewports.length) list.append(node("p", "helper", "No viewports on this page. Add a viewport around a detail with its own scale."));
-    const actions = node("div", "takeoff-viewport-actions"), add = button("Add viewport", () => { requireFinishedEdits(); setTool("viewport"); }), remove = button("Delete viewport", deleteViewport);
+    if (!viewports.length) list.append(uiNode("p", "helper", "No viewports on this page. Add a viewport around a detail with its own scale."));
+    const actions = node("div", "takeoff-viewport-actions"), add = uiButton("Add viewport", () => { requireFinishedEdits(); setTool("viewport"); }), remove = uiButton("Delete viewport", deleteViewport);
     add.disabled = state.busy || !state.viewport; remove.disabled = state.busy || !state.viewportSelection;
     actions.append(add, remove); panel.replaceChildren(heading, list, actions);
   }
@@ -1342,7 +1361,7 @@
     if (state.railKey !== key) {
       state.railKey = key;
       const choices = documents().map(doc => { const el = option(doc.id, `${doc.name} · ${doc.pages.length} pages · ${units.format(doc.size / 1048576)} MiB`); el.className = "takeoff-document"; el.setAttribute("aria-selected", String(doc.id === state.document)); return el; });
-      state.ui.documentSelect.replaceChildren(...(choices.length ? choices : [option("", "No PDFs uploaded")]));
+      state.ui.documentSelect.replaceChildren(...(choices.length ? choices : [uiOption("", "No PDFs uploaded")]));
     }
     state.ui.documentSelect.value = state.document || ""; state.ui.documentSelect.disabled = !documents().length;
     state.ui.documentSelect.title = currentDocument() ? `${currentDocument().name} · ${currentDocument().pages.length} pages · ${units.format(currentDocument().size / 1048576)} MiB` : "Upload a PDF to choose a drawing document";
@@ -1382,7 +1401,7 @@
       const notice = `This page could not be rendered completely. Review and confirmation are blocked. ${error.message}`;
       state.pageError = { document_id: docId, page, notice };
       clearPdfTextLayer(); cancelQueuedZoom(); state.displayPage = null; state.displayKey = null; state.viewport = null; state.ui.pageWrap.hidden = true; state.ui.empty.hidden = false;
-      state.ui.empty.replaceChildren(node("strong", "", "Drawing unavailable"), node("p", "", error.message));
+      state.ui.empty.replaceChildren(uiNode("strong", "", "Drawing unavailable"), node("p", "", error.message));
       setProgress(`Page ${page} blocked: ${error.message}`);
       message(notice, true);
     }
@@ -1565,7 +1584,7 @@
         const lib = await pdfLibrary(); if (!current()) return;
         const content = await boundedPdf(page.getTextContent(), "Reading selectable PDF text", () => text.task?.cancel());
         if (!current()) return;
-        const container = text.container = node("div", "takeoff-text-layer"); container.setAttribute("aria-label", "Original PDF text");
+        const container = text.container = node("div", "takeoff-text-layer"); window.CeasefireI18n.attr(container, "aria-label", "Original PDF text");
         const task = text.task = new lib.TextLayer({ textContentSource: content, container, viewport: page.getViewport({ scale: 1, rotation: 0 }) });
         await boundedPdf(task.render(), "Preparing selectable PDF text", () => task.cancel());
         if (!current()) { task.cancel(); return; }
@@ -1604,7 +1623,7 @@
       const viewport = pageViewport(page, zoom, rotation);
       const ratio = Math.min(window.devicePixelRatio || 1, 2, 16384 / Math.max(viewport.width, viewport.height), Math.sqrt(16000000 / (viewport.width * viewport.height)));
       if (!(ratio > 0) || viewport.width > 40000 || viewport.height > 40000) throw new Error("This zoom is too large to display safely. Use Fit page.");
-      const canvas = node("canvas"); canvas.width = Math.max(1, Math.floor(viewport.width * ratio)); canvas.height = Math.max(1, Math.floor(viewport.height * ratio)); canvas.style.width = `${viewport.width}px`; canvas.style.height = `${viewport.height}px`; canvas.setAttribute("aria-label", "Original PDF page");
+      const canvas = node("canvas"); canvas.width = Math.max(1, Math.floor(viewport.width * ratio)); canvas.height = Math.max(1, Math.floor(viewport.height * ratio)); canvas.style.width = `${viewport.width}px`; canvas.style.height = `${viewport.height}px`; window.CeasefireI18n.attr(canvas, "aria-label", "Original PDF page");
       const render = page.render({ canvasContext: canvas.getContext("2d"), viewport, transform: ratio === 1 ? null : [ratio, 0, 0, ratio, 0, 0] }); state.pending = render;
       await boundedPdf(render.promise, `Rendering PDF page ${pageNumber}`, () => { render.cancel(); discardPdf(docId, sessionId, pdf); }); if (renderId !== state.renderId || sessionId !== state.session?.session_id) return;
       state.ui.canvas.replaceWith(canvas); state.ui.canvas = canvas; state.viewport = viewport; state.displayPage = page; state.displayKey = displayKey; state.ui.overlay.setAttribute("viewBox", `0 0 ${viewport.width} ${viewport.height}`); state.ui.overlay.setAttribute("width", String(viewport.width)); state.ui.overlay.setAttribute("height", String(viewport.height));
@@ -1623,7 +1642,7 @@
       const alreadyVerified = retainDisplay && !warnings.length && previous?.success === true && !previous.warnings.length && previous.sha256 === documentById(docId)?.sha256;
       if (!alreadyVerified) await command("record_render", { document_id: docId, page: pageNumber, success: warnings.length === 0, warnings }, () => renderId === state.renderId);
       if (warnings.length) message(`PDF content could not be verified. Review and confirmation are blocked. ${warnings.join(" ")}`, true);
-      else if (state.pageError?.document_id === docId && state.pageError.page === pageNumber) { if (state.ui.message.textContent === state.pageError.notice) message(); state.pageError = null; }
+      else if (state.pageError?.document_id === docId && state.pageError.page === pageNumber) { if (window.CeasefireI18n.source(state.ui.message) === state.pageError.notice) message(); state.pageError = null; }
       if (!warnings.length) await autoCalibratePage(docId, pageNumber, sessionId, renderId);
       if (renderId === state.renderId && state.tool === "text") void ensurePdfTextLayer();
       if (renderId === state.renderId && state.searchHits.length) void updateSearchGeometry();
@@ -1652,7 +1671,7 @@
         await boundedPdf(render.promise, `Rendering PDF preview ${el.dataset.page}`, () => { render.cancel(); discardPdf(docId, sessionId, pdf); });
         if (renderId === state.renderId && el.isConnected) { el.querySelector("canvas").replaceWith(canvas); el.dataset.previewReady = "true"; }
       } catch (error) {
-        if (renderId === state.renderId && error.name !== "RenderingCancelledException") { el.append(node("small", "", "Preview unavailable")); if (error.name === "PdfTimeoutError") { await recordPdfFailure(docId, Number(el.dataset.page), error, sessionId, false, () => renderId === state.renderId); return; } notePdfWarning(docId, `Page ${el.dataset.page} preview failed: ${error.message}`); }
+        if (renderId === state.renderId && error.name !== "RenderingCancelledException") { el.append(uiNode("small", "", "Preview unavailable")); if (error.name === "PdfTimeoutError") { await recordPdfFailure(docId, Number(el.dataset.page), error, sessionId, false, () => renderId === state.renderId); return; } notePdfWarning(docId, `Page ${el.dataset.page} preview failed: ${error.message}`); }
       } finally { if (canvas && state.thumbnailTasks.get(canvas) === render) state.thumbnailTasks.delete(canvas); if (canvas) state.thumbnailPages.delete(canvas); }
     }
   }
@@ -2101,9 +2120,9 @@
     if (!state.markupMenu || state.markupMenu.annotation || state.markupMenu.physical || state.markupMenu.pdf || state.gesture) return;
     const { reference, point } = state.markupMenu;
     try { markupTarget(reference); } catch { state.markupMenu = null; return; }
-    const menu = node("div", "takeoff-control-menu takeoff-markup-menu"); menu.setAttribute("role", "menu"); menu.setAttribute("aria-label", "Markup actions");
+    const menu = node("div", "takeoff-control-menu takeoff-markup-menu"); menu.setAttribute("role", "menu"); window.CeasefireI18n.attr(menu, "aria-label", "Markup actions");
     const memberId = state.markupMenu.memberId;
-    if (memberId) { const resume = button("Continue count", () => continueCount(reference, memberId)); resume.setAttribute("role", "menuitem"); menu.append(resume); }
+    if (memberId) { const resume = uiButton("Continue count", () => continueCount(reference, memberId)); resume.setAttribute("role", "menuitem"); menu.append(resume); }
     const remove = button(memberId ? "Delete count marker" : "Delete markup", () => memberId ? deleteCountMarker(reference, memberId) : deleteMarkup(reference)); remove.setAttribute("role", "menuitem"); menu.append(remove); appendPlanMenu(overlay, point, menu, memberId ? 104 : 58);
   }
   function continueCount(reference, memberId) {
@@ -2201,14 +2220,14 @@
     const value=graphicsUI?.records().find(v=>v.id===id && v.kind==="stamp" && signatureInWorkspace(v) && v.document_id===state.document && v.page===state.page);
     if(!value) return;
     state.controlPoint=null;state.controlMenu=false;state.markupMenu={pdf:{id,context:before,revision:state.session.revision,version:value.version,point:G.transform(point,state.viewport.transform)}};renderOverlay();
-    state.ui.overlay.querySelector('[aria-label="Stamp actions"] button')?.focus({preventScroll:true});
+    state.ui.overlay.querySelector('.takeoff-stamp-actions button')?.focus({preventScroll:true});
   }
   function renderStampMenu(overlay) {
     const reference=state.markupMenu?.pdf;if(!reference || state.gesture)return;
     const valid=()=>reference.context===pdfPasteContext() && reference.revision===state.session?.revision && graphicsUI?.records().some(v=>v.id===reference.id && v.kind==="stamp" && v.version===reference.version && signatureInWorkspace(v) && v.document_id===state.document && v.page===state.page);
     if(!valid()){state.markupMenu=null;return;}
-    const menu=node("div","takeoff-control-menu takeoff-markup-menu");menu.setAttribute("role","menu");menu.setAttribute("aria-label","Stamp actions");
-    const resume=button("Continue Stamp",async()=>{if(!valid())throw new Error("The Stamp changed. Open its menu again.");state.markupMenu=null;await graphicsUI.continueStamp(reference.id);});resume.setAttribute("role","menuitem");menu.append(resume);appendPlanMenu(overlay,reference.point,menu,170);
+    const menu=node("div","takeoff-control-menu takeoff-markup-menu takeoff-stamp-actions");menu.setAttribute("role","menu");window.CeasefireI18n.attr(menu, "aria-label", "Stamp actions");
+    const resume=uiButton("Continue Stamp",async()=>{if(!valid())throw new Error("The Stamp changed. Open its menu again.");state.markupMenu=null;await graphicsUI.continueStamp(reference.id);});resume.setAttribute("role","menuitem");menu.append(resume);appendPlanMenu(overlay,reference.point,menu,170);
   }
   function planContextMenu(event) {
     if (state.points.length || !["select", "pan", "text"].includes(state.tool)) { event.preventDefault(); event.stopImmediatePropagation(); cancelTrace(); }
@@ -2369,18 +2388,18 @@
   }
   function renderStandaloneRegister(list, container) {
     const table = node("table", "takeoff-standalone-register"), head = node("thead"), heading = node("tr"), body = node("tbody");
-    for (const label of ["Select", "Hide", "View/Edit", "Confirmation", ...standaloneFields.map(def => def[1]), isArea() ? "Length (m)" : "Total Count/QTY", "Delete"]) heading.append(node("th", "", label));
+    for (const label of ["Select", "Hide", "View/Edit", "Confirmation", ...standaloneFields.map(def => def[1]), isArea() ? "Length (m)" : "Total Count/QTY", "Delete"]) heading.append(uiNode("th", "", label));
     head.append(heading); table.append(head, body);
     for (const item of list) {
       const row = node("tr", state.selected.has(item.id) ? "selected" : ""); row.dataset.itemId = item.id; row.dataset.purpose = item.purpose;
       for (const [label, set] of [["Select", state.selected], ["Hide", state.hidden]]) { const cell = node("td"), check = node("input"); check.type = "checkbox"; check.checked = set.has(item.id); check.setAttribute("aria-label", `${label} ${item.fields.mark || item.id}`); check.addEventListener("change", () => void safely(async () => { if (label === "Select") await selectItem(item.id, true, false); else { check.checked ? set.add(item.id) : set.delete(item.id); renderSelection(); } })); cell.append(check); row.append(cell); }
-      const actions = node("td"); actions.append(button("View", () => viewItem(item), "takeoff-row-link"), button("Edit item", () => openItemSettings(item), "text-button")); row.append(actions, node("td", "", reviewStatus(item).label));
+      const actions = node("td"); actions.append(uiButton("View", () => viewItem(item), "takeoff-row-link"), uiButton("Edit item", () => openItemSettings(item), "text-button")); row.append(actions, node("td", "", reviewStatus(item).label));
       const controls = [];
       for (const def of standaloneFields) { const field = formField(def, def[0] === "duct_size" ? formatDuctSize(item.fields) : item.fields[def[0]]); controls.push(field); field.control.addEventListener("change", () => void safely(async () => { await flushSettings(); requireFinishedEdits(); await command("update_item", { item_id: item.id, changes: { fields: def[0] === "duct_size" ? parseDuctSize(field.read()) : { [def[0]]: field.read() } } }); })); const cell = node("td"); cell.append(field.control); row.append(cell); }
       row.append(node("td", "", item.purpose === "count-only" ? String(item.quantity) : formatLength(itemResult(item).length_m)), registerDeleteCell(item)); body.append(row);
       const sessionId = state.session?.session_id; void loadCalculatorOptions("firestopping").then(choices => { if (table.isConnected && sessionId === state.session?.session_id) populateCalculatorOptions(controls, choices, "firestopping"); }).catch(error => { if (table.isConnected) message(error.message, true); });
     }
-    container.append(node("h3", "", "Length measurements"), table);
+    container.append(uiNode("h3", "", "Length measurements"), table);
   }
   async function createDrawnItem(measurement, geometry, evidence = []) {
     if (isArea()) {
@@ -2656,7 +2675,7 @@
     if (options.itemId) label.dataset.areaItemId = options.itemId;
     label.dataset.areaValue = area;
     label.dataset.areaBasis = options.excluded ? "excluded" : "measured-net";
-    label.textContent = `${displayValues.format(area)} Sqm${options.excluded ? " excluded" : ""}${options.preview ? " · Preview" : ""}`;
+    window.CeasefireI18n.text(label, "{0} Sqm{1}{2}", [displayValues.format(area), options.excluded ? " excluded" : "", options.preview ? " · Preview" : ""]);
     overlay.append(label);
   }
   function renderValueLabel(overlay, point, value, unit, itemId, options = {}) {
@@ -2735,8 +2754,8 @@
       const path = `M${x},${top} L${x},${bottom} M${x-3},${shoulder} L${x},${head} L${x+3},${shoulder}`;
       for (const [stroke, width] of [["#ffffff", 4], ["#1e3344", 1.5]]) overlay.append(svg("path", { d: path, stroke, "stroke-width": width, "stroke-linecap": "round", "stroke-linejoin": "round", fill: "none", "pointer-events": "none", "data-addition-arrow": addition.kind }));
       const label = svg("text", { x: point[0] + 22, y: baseline, class: "takeoff-label takeoff-rise-drop", "pointer-events": "none", "data-addition-id": addition.id });
-      label.textContent = `${addition.kind === "riser" ? "Rise" : "Drop"} ${units.format(addition.length_mm)} mm`;
-      const title = svg("title", {}); title.textContent = `${addition.kind === "riser" ? "Rise" : "Drop"} at control point ${index + 1}: ${addition.length_mm} mm per ${item.mode === "steel" ? "member" : "run"}`;
+      window.CeasefireI18n.text(label, "{0} {1} mm", [addition.kind === "riser" ? "Rise" : "Drop", units.format(addition.length_mm)]);
+      const title = svg("title", {}); window.CeasefireI18n.text(title, "{0} at control point {1}: {2} mm per {3}", [addition.kind === "riser" ? "Rise" : "Drop", index + 1, addition.length_mm, item.mode === "steel" ? "member" : "run"]);
       label.append(title); overlay.append(label);
     }
   }
@@ -2755,7 +2774,7 @@
         const label = `Control point ${index + 1} for ${item.fields.mark || item.id}${ring.id ? `, excluded opening ${ring.note}` : ""}`;
         const handle = svg("circle", { cx: position[0], cy: position[1], r: 5, class: `takeoff-control-point${active ? " active" : ""}`, role: "button", tabindex: 0, "aria-label": label, "aria-pressed": String(active) });
         handle.dataset.controlItemId = item.id; handle.dataset.pointIndex = String(index); handle.dataset.exclusionId = ring.id || "";
-        const title = svg("title", {}); title.textContent = `${label}. Drag to move and recalculate. Select, then Ctrl+Z deletes this point. Right-click for its menu.`; handle.append(title);
+        const title = svg("title", {}); window.CeasefireI18n.text(title, "{0}. Drag to move and recalculate. Select, then Ctrl+Z deletes this point. Right-click for its menu.", [label]); handle.append(title);
         handle.addEventListener("focus", () => {
           try { pointTarget(reference); } catch { return; }
           const prior = state.controlPoint;
@@ -2775,9 +2794,9 @@
     if (state.controlMenu && state.controlPoint && menuPoint) {
       const reference = state.controlPoint, reason = pointRemovalReason(reference), { item } = pointTarget(reference);
       const canAddLength = !reference.exclusionId && ["steel", "duct"].includes(item.mode) && (item.geometry.kind || "polyline") === "polyline" && item.measurement?.method === "calibrated";
-      const menu = node("div", "takeoff-control-menu"); menu.setAttribute("role", "menu"); menu.setAttribute("aria-label", "Control point actions");
-      if (canAddLength) { const insert = button("Insert Rise / Drop", () => editLengthAddition(item, null, reference)); insert.setAttribute("role", "menuitem"); menu.append(insert); }
-      const remove = button("Delete control point", () => removeControlPoint(reference)); remove.setAttribute("role", "menuitem"); remove.disabled = !!reason; if (reason) remove.title = reason; menu.append(remove); if (reason) menu.append(node("p", "helper", reason));
+      const menu = node("div", "takeoff-control-menu"); menu.setAttribute("role", "menu"); window.CeasefireI18n.attr(menu, "aria-label", "Control point actions");
+      if (canAddLength) { const insert = uiButton("Insert Rise / Drop", () => editLengthAddition(item, null, reference)); insert.setAttribute("role", "menuitem"); menu.append(insert); }
+      const remove = uiButton("Delete control point", () => removeControlPoint(reference)); remove.setAttribute("role", "menuitem"); remove.disabled = !!reason; if (reason) remove.title = reason; menu.append(remove); if (reason) menu.append(node("p", "helper", reason));
       appendPlanMenu(overlay, menuPoint, menu, (reason ? 178 : 58) + (canAddLength ? 48 : 0));
     }
   }
@@ -2880,9 +2899,9 @@
     if (!selection || state.gesture) return;
     const annotation = annotations().find(value => value.id === selection.id);
     if (!annotation || selection.context !== pageDisplayKey() || selection.revision !== state.session?.revision) { state.markupMenu = null; return; }
-    const menu = node("div", "takeoff-control-menu takeoff-markup-menu"); menu.setAttribute("role", "menu"); menu.setAttribute("aria-label", "Call-out actions");
-    const hide = button("Hide", async () => { await flushSettings(); requireFinishedEdits(); if (selection.context !== pageDisplayKey() || !annotations().some(value => value.id === selection.id)) throw new Error("Select the current Call-out again."); state.markupMenu = null; state.annotationHidden ||= new Set(); state.annotationHidden.add(selection.id); state.annotationSelected = null; state.graphicSelected = null; state.signatureSelected = null; state.graphicSelected = null; state.settingsEditor = null; renderSelection(); });
-    const remove = button("Delete", async () => { await flushSettings(); requireFinishedEdits(); if (selection.context !== pageDisplayKey() || !annotations().some(value => value.id === selection.id)) throw new Error("Select the current Call-out again."); state.markupMenu = null; await command("delete_annotation", { annotation_id: selection.id }); state.annotationSelected = null; state.graphicSelected = null; state.signatureSelected = null; state.graphicSelected = null; state.settingsEditor = null; renderSelection(); });
+    const menu = node("div", "takeoff-control-menu takeoff-markup-menu"); menu.setAttribute("role", "menu"); window.CeasefireI18n.attr(menu, "aria-label", "Call-out actions");
+    const hide = uiButton("Hide", async () => { await flushSettings(); requireFinishedEdits(); if (selection.context !== pageDisplayKey() || !annotations().some(value => value.id === selection.id)) throw new Error("Select the current Call-out again."); state.markupMenu = null; state.annotationHidden ||= new Set(); state.annotationHidden.add(selection.id); state.annotationSelected = null; state.graphicSelected = null; state.signatureSelected = null; state.graphicSelected = null; state.settingsEditor = null; renderSelection(); });
+    const remove = uiButton("Delete", async () => { await flushSettings(); requireFinishedEdits(); if (selection.context !== pageDisplayKey() || !annotations().some(value => value.id === selection.id)) throw new Error("Select the current Call-out again."); state.markupMenu = null; await command("delete_annotation", { annotation_id: selection.id }); state.annotationSelected = null; state.graphicSelected = null; state.signatureSelected = null; state.graphicSelected = null; state.settingsEditor = null; renderSelection(); });
     hide.setAttribute("role", "menuitem"); remove.setAttribute("role", "menuitem"); menu.append(hide, remove); appendPlanMenu(overlay, selection.point, menu, 104);
   }
   async function openAnnotationMenu(id, sourcePoint) {
@@ -2909,18 +2928,18 @@
     if (existing?.kind === "annotation" && existing.key === key && (state.settingsDirty || existing.applying || existing.revision === state.session.revision)) { existing.visibility?.refresh(); return; }
     if (existing) clearTimeout(existing.timer);
     const editor = { kind: "annotation", key, sessionId: state.session.session_id, revision: state.session.revision, id: annotation.id, touched: new Map(), fields: [], appearance: [] }; state.settingsEditor = editor;
-    const heading = node("div", "takeoff-viewports-heading"); heading.append(button("Close settings", () => closeAnnotationSettings(editor)), node("h3", "", "Call-out Settings"));
-    const controls = node("div", "takeoff-settings-fields"); panel.replaceChildren(heading, controls); controls.append(node("h4", "", "Markup appearance"));
+    const heading = node("div", "takeoff-viewports-heading"); heading.append(uiButton("Close settings", () => closeAnnotationSettings(editor)), uiNode("h3", "", "Call-out Settings"));
+    const controls = node("div", "takeoff-settings-fields"); panel.replaceChildren(heading, controls); controls.append(uiNode("h4", "", "Markup appearance"));
     for (const definition of [["stroke_enabled", "Line Enabled", "checkbox"], ["stroke_color", "Line Colour", "color"], ["stroke_width", "Line Width", "number"], ["fill_color", "Fill Colour", "color"], ["fill_enabled", "Fill Enabled", "checkbox"], ["font_color", "Font Colour", "color"], ["opacity", "Opacity", "number"]]) {
       const field = appearanceField(definition, annotation.appearance[definition[0]]); editor.appearance.push(field); bindSetting(editor, field, `appearance:${definition[0]}`);
     }
     appendAppearanceFields(controls, editor.appearance);
     const actions = node("div", "actions takeoff-appearance-actions");
-    actions.append(button("Set as default", async () => { await applyAnnotationSettings(editor); A.setDefaults(Object.fromEntries(editor.appearance.map(field => [field.control.name, field.read()]))); message("Default appearance saved for new Call-outs in every drawing workspace."); }));
+    actions.append(uiButton("Set as default", async () => { await applyAnnotationSettings(editor); A.setDefaults(Object.fromEntries(editor.appearance.map(field => [field.control.name, field.read()]))); message("Default appearance saved for new Call-outs in every drawing workspace."); }));
     editor.visibility = currentVisibilityControl("annotation", annotation.id); actions.append(editor.visibility); controls.append(actions);
-    controls.append(node("h4", "", "Item Details"));
+    controls.append(uiNode("h4", "", "Item Details"));
     editor.rich = A.richEditor(annotation.content, () => markSettingsEdited(editor, "content")); controls.append(editor.rich.wrap);
-    controls.append(node("p", "helper", "Free Call-outs are drawing notes. They do not add register entries or quantities."));
+    controls.append(uiNode("p", "helper", "Free Call-outs are drawing notes. They do not add register entries or quantities."));
   }
   async function applyAnnotationSettings(editor) {
     if (state.settingsEditor !== editor) return;
@@ -2989,13 +3008,13 @@
     if (existing?.kind === "signature" && existing.key === key && (state.settingsDirty || existing.applying || existing.revision === state.session.revision)) { existing.visibility.refresh(); return; }
     if (existing) clearTimeout(existing.timer);
     const editor = { kind: "signature", key, sessionId: state.session.session_id, revision: state.session.revision, id: signature.id, touched: new Map(), appearance: [] }; state.settingsEditor = editor;
-    const heading = node("div", "takeoff-viewports-heading"); heading.append(button("Close settings", toggleSettings), node("h3", "", "Signature Settings"));
+    const heading = node("div", "takeoff-viewports-heading"); heading.append(uiButton("Close settings", toggleSettings), uiNode("h3", "", "Signature Settings"));
     const controls = node("div", "takeoff-settings-fields"); panel.replaceChildren(heading, controls);
     for (const definition of [["stroke_color", "Ink Colour", "color"], ["stroke_width", "Line Width", "number"], ["opacity", "Opacity", "number"]]) {
       const field = appearanceField(definition, signature.appearance[definition[0]]); editor.appearance.push(field); bindSetting(editor, field, `appearance:${definition[0]}`);
     }
     appendAppearanceFields(controls, editor.appearance);
-    const actions = node("div", "actions takeoff-appearance-actions"); editor.visibility = currentVisibilityControl("signature", signature.id); actions.append(editor.visibility, button("Redraw signature", redrawSignature), button("Delete signature", deleteSignature)); controls.append(actions);
+    const actions = node("div", "actions takeoff-appearance-actions"); editor.visibility = currentVisibilityControl("signature", signature.id); actions.append(editor.visibility, uiButton("Redraw signature", redrawSignature), uiButton("Delete signature", deleteSignature)); controls.append(actions);
   }
   async function applySignatureSettings(editor) {
     if (state.settingsEditor !== editor) return;
@@ -3101,7 +3120,7 @@
       try {
         const layout = A.layout(annotation.content, width, height), text = svg("text", { "font-family": "CeasefireDrawing", "font-size": layout.size * scale, fill: appearance.font_color, "pointer-events": "none" });
         layout.lines.forEach((line, index) => { for (const run of line) { const span = svg("tspan", { x: label[0] + (layout.padding + run.x) * scale, y: label[1] + (layout.padding + layout.size + index * layout.size * 1.3) * scale, "font-weight": run.bold ? "700" : "400", "font-style": run.italic ? "italic" : "normal", "text-decoration": run.underline ? "underline" : "none" }); span.textContent = run.text; text.append(span); } }); group.append(text);
-      } catch (error) { const warning = svg("text", { x: label[0] + 6, y: label[1] + 20, fill: appearance.font_color }); warning.textContent = "Item Details cannot fit: resize or shorten"; group.append(warning); }
+      } catch (error) { const warning = svg("text", { x: label[0] + 6, y: label[1] + 20, fill: appearance.font_color }); window.CeasefireI18n.text(warning, "Item Details cannot fit: resize or shorten"); group.append(warning); }
       // Keep the original source anchor visible and draggable when rotation or
       // page-edge clamping places its upright label over the anchor, as in PDF.
       if (selected) group.append(svg("circle", { cx: point[0], cy: point[1], r: Math.max(3 * scale, 5) + 4, fill: "none", stroke: "white", "stroke-width": 5, "pointer-events": "none" }), svg("circle", { cx: point[0], cy: point[1], r: Math.max(3 * scale, 5) + 4, fill: "none", stroke: "#1264c4", "stroke-width": 2, "stroke-dasharray": "3 2", "pointer-events": "none", class: "takeoff-annotation-selection" }));
@@ -3261,7 +3280,7 @@
     const sessionId = state.session?.session_id, controller = state.physicalUI, context = pageDisplayKey(), scope = state.physicalScope;
     const part = state.physicalAppearancePart || "marker", callout = part === "callout";
     const defaults = callout ? calloutDefaults() : appearanceOf({ appearance: locator.appearance });
-    const appearance = { ...defaults, ...(callout ? locator.callout?.appearance : locator.appearance) }, fields = node("div", "takeoff-settings-fields"); fields.setAttribute("aria-label", callout ? "Callout Settings" : "Marker Settings"); fields.append(node("h3", "", callout ? "Callout Settings" : "Marker Settings")); container.append(fields);
+    const appearance = { ...defaults, ...(callout ? locator.callout?.appearance : locator.appearance) }, fields = node("div", "takeoff-settings-fields"); window.CeasefireI18n.attr(fields, "aria-label", callout ? "Callout Settings" : "Marker Settings"); fields.append(uiNode("h3", "", callout ? "Callout Settings" : "Marker Settings")); container.append(fields);
     const definitions = [["fill_color", "Fill Colour", "color"], ["fill_enabled", "Fill Enabled", "checkbox"], ["stroke_enabled", "Line Enabled", "checkbox"], ["stroke_color", "Line Colour", "color"], ["stroke_width", "Line Width", "number"], ...(callout ? [["font_color", "Font Colour", "color"], ["opacity", "Opacity", "number"]] : [["marker_size", "Marker Size", "number"], ["opacity", "Opacity", "number"]])];
     const styleFields = [];
     for (const def of definitions) {
@@ -3278,7 +3297,7 @@
       }));
     }
     appendAppearanceFields(fields, styleFields);
-    if (callout && A) { const actions = node("div", "actions takeoff-appearance-actions"); actions.append(button("Set as default", () => { A.setDefaults(Object.fromEntries(styleFields.map(field => [field.control.name, field.read()]))); message("Default appearance saved for new Call-outs in every drawing workspace."); })); fields.append(actions); }
+    if (callout && A) { const actions = node("div", "actions takeoff-appearance-actions"); actions.append(uiButton("Set as default", () => { A.setDefaults(Object.fromEntries(styleFields.map(field => [field.control.name, field.read()]))); message("Default appearance saved for new Call-outs in every drawing workspace."); })); fields.append(actions); }
   }
   async function copyPhysicalCallout() {
     await state.physicalUI.completePendingEdits(); requireFinishedEdits();
@@ -3459,7 +3478,7 @@
     if (!state.markupMenu?.physical || state.gesture) return;
     const { reference, point } = state.markupMenu;
     try { physicalMarkerTarget(reference); } catch { state.markupMenu = null; return; }
-    const defect = reference.kind === "defect", menu = node("div", "takeoff-control-menu takeoff-markup-menu"); menu.setAttribute("role", "menu"); menu.setAttribute("aria-label", defect ? "Defect annotation actions" : "Barrier marker actions");
+    const defect = reference.kind === "defect", menu = node("div", "takeoff-control-menu takeoff-markup-menu"); menu.setAttribute("role", "menu"); window.CeasefireI18n.attr(menu, "aria-label", defect ? "Defect annotation actions" : "Barrier marker actions");
     const remove = button(defect ? "Delete" : "Remove count marker", async () => { requireFinishedEdits(); physicalMarkerTarget(reference); state.markupMenu = null; await (defect ? state.physicalUI.deleteDrawing(reference.id) : state.physicalUI.setMarker(reference.id, null)); renderOverlay(); }); remove.setAttribute("role", "menuitem"); menu.append(remove); appendPlanMenu(overlay, point, menu);
   }
   function samePhysicalLocator(left, right) {
@@ -3601,7 +3620,7 @@
     group.append(svg("rect", { x, y, width, height, fill: style.fill_enabled ? style.fill_color : "none", "fill-opacity": style.opacity, stroke: style.stroke_enabled === false ? "none" : style.stroke_color, "data-line-enabled": style.stroke_enabled !== false, "stroke-width": style.stroke_width*scale }));
     let font = 11*scale, wrapped;
     for (let attempt = 0; attempt < 45; attempt++) { wrapped = rows.map(row => ({ ...row, lines: physicalCalloutLines(row.text, Math.max(10, width-30*scale), font, "CeasefireDrawing") })); if ((wrapped.reduce((sum, row) => sum+row.lines.length, 0)+3)*font*1.3 < height-12*scale) break; font *= .9; }
-    const heading = svg("text", { x: x+8*scale, y: y+8*scale+font, fill: style.font_color || "#202020", "font-size": font, "font-family": "CeasefireDrawing", "font-kerning": "none", "font-weight": "700", "pointer-events": "none" }); heading.textContent = `${labels[legend.mode]} Legend`; group.append(heading);
+    const heading = svg("text", { x: x+8*scale, y: y+8*scale+font, fill: style.font_color || "#202020", "font-size": font, "font-family": "CeasefireDrawing", "font-kerning": "none", "font-weight": "700", "pointer-events": "none" }); window.CeasefireI18n.text(heading, "{0} Legend", [window.CeasefireI18n.term(labels[legend.mode])]); group.append(heading);
     let lineY = y+8*scale+font*2.5;
     for (const row of wrapped) {
       group.append(svg("rect", { x: x+8*scale, y: lineY-font*.8, width: font, height: font, fill: row.colour, "pointer-events": "none" }));
@@ -3640,7 +3659,7 @@
     });
   }
   function renderLegendSettings(panel) {
-    const legend = selectedLegend(), context = pageDisplayKey(), heading = node("div", "takeoff-viewports-heading"); heading.append(button("Close settings", toggleSettings), node("h3", "", "Legend Settings")); panel.replaceChildren(heading);
+    const legend = selectedLegend(), context = pageDisplayKey(), heading = node("div", "takeoff-viewports-heading"); heading.append(uiButton("Close settings", toggleSettings), uiNode("h3", "", "Legend Settings")); panel.replaceChildren(heading);
     const fields = node("div", "takeoff-settings-fields"), appearance = []; panel.append(fields);
     for (const def of [["stroke_enabled", "Line Enabled", "checkbox"], ["stroke_color", "Line Colour", "color"], ["stroke_width", "Line Width", "number"], ["fill_color", "Fill Colour", "color"], ["fill_enabled", "Fill Enabled", "checkbox"], ["font_color", "Font Colour", "color"], ["opacity", "Opacity", "number"]]) {
       const field = appearanceField(def, ({ opacity: .94, ...legend.appearance })[def[0]]); appearance.push(field);
@@ -3721,11 +3740,11 @@
   }
   function updateLinkedThicknessCell(cell, item) {
     const thickness = linkedThicknessFor(item); cell.textContent = thickness.text; cell.title = thickness.detail;
-    cell.setAttribute("aria-label", `Thickness (mm): ${thickness.text}. ${thickness.detail}`);
+    window.CeasefireI18n.attr(cell, "aria-label", "Thickness (mm): {0}. {1}", [thickness.text, thickness.detail]);
   }
   function updateLinkedDuctSurfaceCell(cell, item) {
     const surface = linkedThicknessFor(item, "duct_surface"); cell.textContent = surface.text; cell.title = surface.detail;
-    cell.setAttribute("aria-label", `Duct surface (m²): ${surface.text}. ${surface.detail}`);
+    window.CeasefireI18n.attr(cell, "aria-label", "Duct surface (m²): {0}. {1}", [surface.text, surface.detail]);
   }
   function updateLinkedThicknessPresentation() {
     if (!["steel", "duct"].includes(state.mode) || !state.ui || state.ui.root.closest?.("[hidden]")) return;
@@ -3796,11 +3815,11 @@
   async function openRegisterColumnFilter(key, anchor) {
     if (state.modal || !usesColumnFilters() || !Object.hasOwn(registerFilterColumns[state.mode], key)) return;
     const sessionId = state.session?.session_id, mode = state.mode, values = registerColumnValues(key), selected = new Set(registerFilters().get(key) ?? values);
-    const label = registerFilterColumns[mode][key], dialog = node("dialog", "takeoff-column-filter"), heading = node("h2", "", `Filter ${label}`);
+    const label = registerFilterColumns[mode][key], dialog = node("dialog", "takeoff-column-filter"), heading = uiNode("h2", "", "Filter {0}", [label]);
     heading.id = `takeoff-column-filter-${uuid()}`; dialog.setAttribute("aria-labelledby", heading.id);
-    const search = node("input"); search.type = "search"; search.placeholder = "Search values…"; search.setAttribute("aria-label", `Search ${label} values`);
-    const allLabel = node("label", "takeoff-column-filter-choice"), all = node("input"); all.type = "checkbox"; all.setAttribute("aria-label", "Select all values"); allLabel.append(all, node("span", "", "Select all"));
-    const choices = node("div", "takeoff-column-filter-values"); choices.setAttribute("role", "group"); choices.setAttribute("aria-label", `${label} values`);
+    const search = node("input"); search.type = "search"; window.CeasefireI18n.attr(search, "placeholder", "Search values…"); window.CeasefireI18n.attr(search, "aria-label", "Search {0} values", [label]);
+    const allLabel = node("label", "takeoff-column-filter-choice"), all = node("input"); all.type = "checkbox"; window.CeasefireI18n.attr(all, "aria-label", "Select all values"); allLabel.append(all, uiNode("span", "", "Select all"));
+    const choices = node("div", "takeoff-column-filter-values"); choices.setAttribute("role", "group"); window.CeasefireI18n.attr(choices, "aria-label", "{0} values", [label]);
     let matching = values;
     const updateAll = () => { const count = matching.filter(value => selected.has(value)).length; all.checked = !!matching.length && count === matching.length; all.indeterminate = count > 0 && count < matching.length; all.disabled = !matching.length; };
     const renderChoices = () => {
@@ -3810,13 +3829,13 @@
         check.addEventListener("change", () => { check.checked ? selected.add(value) : selected.delete(value); updateAll(); });
         choice.append(check, node("span", "", value || "(Blanks)")); choices.append(choice);
       }
-      if (!matching.length) choices.append(node("p", "takeoff-column-filter-empty", "No matching values"));
+      if (!matching.length) choices.append(uiNode("p", "takeoff-column-filter-empty", "No matching values"));
       updateAll();
     };
     search.addEventListener("input", renderChoices);
     all.addEventListener("change", () => { for (const value of matching) all.checked ? selected.add(value) : selected.delete(value); renderChoices(); });
     const actions = node("div", "takeoff-column-filter-actions");
-    actions.append(button("Apply filter", () => dialog.close("apply"), "button primary"), button("Reset filter", () => dialog.close("reset")), button("Cancel", () => dialog.close("cancel")));
+    actions.append(uiButton("Apply filter", () => dialog.close("apply"), "button primary"), uiButton("Reset filter", () => dialog.close("reset")), uiButton("Cancel", () => dialog.close("cancel")));
     dialog.append(heading, search, allLabel, choices, actions); renderChoices();
     setModal(true); anchor.setAttribute("aria-expanded", "true"); document.body.append(dialog);
     try {
@@ -3834,7 +3853,7 @@
     const active = registerFilters().has(key), label = registerFilterColumns[state.mode][key];
     const control = button(`Filter ${label}`, () => openRegisterColumnFilter(key, control), `takeoff-column-filter-button${active ? " active" : ""}`);
     const icon = svg("svg", { viewBox: "0 0 24 24", "aria-hidden": "true", class: "takeoff-column-filter-icon" }); icon.append(svg("path", { d: "M3 5h18l-7 8v6l-4 2v-8z", fill: active ? "currentColor" : "none", stroke: "currentColor", "stroke-width": 1.8, "stroke-linejoin": "round" }));
-    control.replaceChildren(icon); control.setAttribute("aria-label", `Filter ${label}`); control.setAttribute("aria-haspopup", "dialog"); control.setAttribute("aria-expanded", "false"); control.setAttribute("aria-pressed", String(active)); control.title = active ? `${label}: filter applied` : `Filter ${label}`;
+    control.replaceChildren(icon); window.CeasefireI18n.attr(control, "aria-label", "Filter {0}", [label]); control.setAttribute("aria-haspopup", "dialog"); control.setAttribute("aria-expanded", "false"); control.setAttribute("aria-pressed", String(active)); control.title = active ? `${label}: filter applied` : `Filter ${label}`;
     return control;
   }
   function visibleItems() {
@@ -3939,9 +3958,9 @@
     const key = JSON.stringify(context), current = () => state.showDeleted && key === JSON.stringify({ sessionId: state.session?.session_id, revision: state.session?.revision, mode: workspaceMode(), query: state.filter, offset: state.deletedOffset });
     const draw = reply => {
       if (!current()) return;
-      const heading = node("h3", "", "Deleted records"), notice = node("p", "helper", "Read-only history. Deleted records do not contribute to quantities or schedules.");
+      const heading = uiNode("h3", "", "Deleted records"), notice = uiNode("p", "helper", "Read-only history. Deleted records do not contribute to quantities or schedules.");
       const table = node("table"), head = node("thead"), row = node("tr"), body = node("tbody");
-      for (const title of ["Retained ID", "Item", "Level", "Details", "Deleted at revision", "Delete"]) row.append(node("th", "", title));
+      for (const title of ["Retained ID", "Item", "Level", "Details", "Deleted at revision", "Delete"]) row.append(uiNode("th", "", title));
       head.append(row); table.append(head, body);
       for (const record of reply.records || []) {
         const item = record.item, fields = item.fields || {}, line = node("tr", "takeoff-deleted-record"); line.dataset.deletedItemId = item.id;
@@ -3949,15 +3968,15 @@
         line.append(registerDeleteCell(item, true)); body.append(line);
       }
       const total = reply.total || 0, paging = node("div", "takeoff-register-controls");
-      const previous = button("Previous deleted records", () => { state.deletedOffset = Math.max(0, state.deletedOffset - 100); renderDeletedHistory(); }); previous.disabled = !context.offset;
-      const next = button("Next deleted records", () => { state.deletedOffset += 100; renderDeletedHistory(); }); next.disabled = context.offset + 100 >= total;
-      paging.append(previous, node("span", "helper", `${total ? context.offset + 1 : 0}–${Math.min(context.offset + 100, total)} of ${total} deleted records`), next);
+      const previous = uiButton("Previous deleted records", () => { state.deletedOffset = Math.max(0, state.deletedOffset - 100); renderDeletedHistory(); }); previous.disabled = !context.offset;
+      const next = uiButton("Next deleted records", () => { state.deletedOffset += 100; renderDeletedHistory(); }); next.disabled = context.offset + 100 >= total;
+      paging.append(previous, uiNode("span", "helper", "{0}–{1} of {2} deleted records", [total ? context.offset + 1 : 0, Math.min(context.offset + 100, total), total]), next);
       container.replaceChildren(heading, notice, table, paging);
-      if (!total) container.append(node("p", "helper", "No deleted records match this workspace and filter."));
+      if (!total) container.append(uiNode("p", "helper", "No deleted records match this workspace and filter."));
     };
     if (state.deletedHistory?.key === key) { if (state.deletedHistory.reply) draw(state.deletedHistory.reply); return; }
     const request = state.deletedHistory = { key };
-    container.replaceChildren(node("p", "helper", "Loading deleted records…"));
+    container.replaceChildren(uiNode("p", "helper", "Loading deleted records…"));
     void api(`/sessions/${context.sessionId}/deleted-items`, { expected_revision: context.revision, mode: context.mode, query: context.query, offset: context.offset, limit: 100 }).then(reply => {
       if (state.deletedHistory !== request || !current()) return;
       if (reply.revision !== context.revision || reply.mode !== context.mode || reply.read_only !== true || !Array.isArray(reply.records) || reply.records.length > 100 || !Number.isSafeInteger(reply.total) || reply.total < reply.records.length || reply.records.some(record => record.read_only !== true || !record.item?.id)) throw new Error("The deleted-record history response is incomplete. Reload the current records.");
@@ -3994,17 +4013,17 @@
     if (quantityOption) { quantityOption.disabled = selected.some(isCount); if (quantityOption.disabled && state.ui.bulkField.value === "quantity") state.ui.bulkField.value = "mark"; }
     state.ui.split.disabled = !(selected.length === 1 && (individualMeasuredDuct || steelGroups && selected[0].quantity > 1));
     state.ui.merge.disabled = !(individualMeasuredDuct && selected.length === 2 || steelGroups && selected.length >= 2);
-    state.ui.split.title = isArea() ? "Surface splitting is unavailable. Group separate physical surfaces without changing their identities." : state.mode === "steel" ? "Partition an explicit repeated-member quantity without changing individual member lengths." : "Split measured segments of one individual duct run.";
-    state.ui.merge.title = isArea() ? "Surface merging is unavailable. Group separate physical surfaces without changing their identities." : state.mode === "steel" ? "Combine compatible repeated-member groups while retaining every physical member identity." : "Merge adjoining measured segments of one individual duct run.";
-    state.ui.bulk.hidden = !selected.length; state.ui.selectionCount.textContent = `${selected.length} selected`;
-    const table = node("table"), head = node("thead"), header = node("tr"), body = node("tbody"); table.setAttribute("aria-label", `${labels[state.mode]} editable takeoff register`);
+    window.CeasefireI18n.attr(state.ui.split, "title", isArea() ? "Surface splitting is unavailable. Group separate physical surfaces without changing their identities." : state.mode === "steel" ? "Partition an explicit repeated-member quantity without changing individual member lengths." : "Split measured segments of one individual duct run.");
+    window.CeasefireI18n.attr(state.ui.merge, "title", isArea() ? "Surface merging is unavailable. Group separate physical surfaces without changing their identities." : state.mode === "steel" ? "Combine compatible repeated-member groups while retaining every physical member identity." : "Merge adjoining measured segments of one individual duct run.");
+    state.ui.bulk.hidden = !selected.length; window.CeasefireI18n.text(state.ui.selectionCount, "{0} selected", [selected.length]);
+    const table = node("table"), head = node("thead"), header = node("tr"), body = node("tbody"); window.CeasefireI18n.attr(table, "aria-label", "{0} editable takeoff register", [window.CeasefireI18n.term(labels[state.mode])]);
     const area = isArea(), columns = area ? ["mark", "surface_type", "level", "surface_basis", "substrate", "treatment", "system", "product", "frl", "layers"] : state.mode === "steel" ? ["mark", "level", "member_type", "section", "product", "fire_period_min", "critical_temperature", "exposure", ...(state.ui.target?.value === "steel_board" ? ["sides"] : [])] : ["mark", "level", "duct_size", "frl", "orientation", "product"];
     const headings = ["Select", "Hide", "View/Edit", "Confirmation", ...columns.map(key => area && key === "mark" ? "Surface ID" : key === "surface_type" ? "Surface type" : fields[state.mode].find(field => field[0] === key)?.[1] || key), ...(area ? ["Gross (m²)", "Excluded (m²)", "Net (m²)", "Total (m²)"] : ["Qty", "Length each (m)", "Total (m)"]), ...(state.mode === "duct" ? ["Duct surface (m²)"] : []), ...(["steel", "duct"].includes(state.mode) ? ["Thickness (mm)"] : []), "Evidence / issues", "Delete"];
     for (const title of headings) {
-      const cell = node("th", "", title);
+      const cell = uiNode("th", "", title);
       if (usesColumnFilters()) { const filterColumns = registerFilterColumns[state.mode], key = Object.keys(filterColumns).find(key => filterColumns[key] === title); if (key) cell.append(registerColumnFilterButton(key)); }
       if (title === "Select" || title === "Hide") {
-        const input = node("input"), set = title === "Select" ? state.selected : state.hidden, count = list.filter(item => set.has(item.id)).length; input.type = "checkbox"; input.checked = !!list.length && count === list.length; input.indeterminate = count > 0 && count < list.length; input.disabled = !list.length || state.busy; input.setAttribute("aria-label", title === "Select" ? "Select all matching items" : "Hide all matching items"); input.title = `${title} all ${list.length} matching items across register pages`;
+        const input = node("input"), set = title === "Select" ? state.selected : state.hidden, count = list.filter(item => set.has(item.id)).length; input.type = "checkbox"; input.checked = !!list.length && count === list.length; input.indeterminate = count > 0 && count < list.length; input.disabled = !list.length || state.busy; window.CeasefireI18n.attr(input, "aria-label", title === "Select" ? "Select all matching items" : "Hide all matching items"); window.CeasefireI18n.attr(input, "title", "{0} all {1} matching items across register pages", [title, list.length]);
         input.addEventListener("change", () => void safely(async () => { const checked = input.checked; if (title === "Select" && !await discardEditor()) { renderRegister(); return; } for (const item of list) { checked ? set.add(item.id) : set.delete(item.id); if (title === "Select") state.countSelection.delete(item.id); } renderSelection(); })); cell.append(input);
       }
       header.append(cell);
@@ -4020,16 +4039,16 @@
       if (group && state.collapsed.has(group)) continue;
       const row = node("tr", state.selected.has(item.id) ? "selected" : ""); row.dataset.itemId = item.id; row.addEventListener("pointerenter", () => hover(item.id)); row.addEventListener("pointerleave", () => hover(null));
       if (item.purpose) row.dataset.purpose = item.purpose;
-      const checkCell = node("td"), check = node("input"); check.type = "checkbox"; check.checked = state.selected.has(item.id); check.setAttribute("aria-label", `Select ${item.fields.mark || item.id}`); check.addEventListener("change", () => void safely(async () => { await selectItem(item.id, true, false); check.checked = state.selected.has(item.id); })); checkCell.append(check);
-      const showCell = node("td"), show = node("input"); show.type = "checkbox"; show.checked = state.hidden.has(item.id); show.setAttribute("aria-label", `Hide ${item.fields.mark || item.id} on drawing`); show.addEventListener("change", () => { show.checked ? state.hidden.add(item.id) : state.hidden.delete(item.id); renderRegister(); renderOverlay(); }); showCell.append(show);
-      const linkCell = node("td"), edit = button("Edit item", () => openItemSettings(item), "text-button"); edit.setAttribute("aria-controls", "takeoff-markup-settings");
-      linkCell.append(button("View", () => viewItem(item), "takeoff-row-link"), edit); const reviewCell = node("td"); reviewCell.append(node("span", `takeoff-state ${reviewStatus(item).key}`, reviewStatus(item).label)); row.append(checkCell, showCell, linkCell, reviewCell);
+      const checkCell = node("td"), check = node("input"); check.type = "checkbox"; check.checked = state.selected.has(item.id); window.CeasefireI18n.attr(check, "aria-label", "Select {0}", [item.fields.mark || item.id]); check.addEventListener("change", () => void safely(async () => { await selectItem(item.id, true, false); check.checked = state.selected.has(item.id); })); checkCell.append(check);
+      const showCell = node("td"), show = node("input"); show.type = "checkbox"; show.checked = state.hidden.has(item.id); window.CeasefireI18n.attr(show, "aria-label", "Hide {0} on drawing", [item.fields.mark || item.id]); show.addEventListener("change", () => { show.checked ? state.hidden.add(item.id) : state.hidden.delete(item.id); renderRegister(); renderOverlay(); }); showCell.append(show);
+      const linkCell = node("td"), edit = uiButton("Edit item", () => openItemSettings(item), "text-button"); edit.setAttribute("aria-controls", "takeoff-markup-settings");
+      linkCell.append(uiButton("View", () => viewItem(item), "takeoff-row-link"), edit); const reviewCell = node("td"); reviewCell.append(node("span", `takeoff-state ${reviewStatus(item).key}`, reviewStatus(item).label)); row.append(checkCell, showCell, linkCell, reviewCell);
       const rowFields = [];
       for (const key of [...columns, ...(area ? [] : ["quantity"])]) {
         if (key === "surface_type") { row.append(node("td", "", surfaceType(item))); continue; }
         const initial = key === "quantity" ? item.quantity : key === "duct_size" ? formatDuctSize(item.fields) : key === "layers" ? item.fields.layers ?? 1 : item.fields[key];
         const def = key === "quantity" ? [key, "Quantity", "number"] : fields[item.mode].find(field => field[0] === key), field = formField(def, initial); rowFields.push(field);
-        if (isCount(item)) { field.control.readOnly = true; field.control.disabled = true; field.control.dataset.countReadOnly = "true"; field.control.title = key === "quantity" ? "Quantity is derived from count markers." : "Edit shared Count details using Edit item."; field.sectionSearch?.setLocked(); }
+        if (isCount(item)) { field.control.readOnly = true; field.control.disabled = true; field.control.dataset.countReadOnly = "true"; window.CeasefireI18n.attr(field.control, "title", key === "quantity" ? "Quantity is derived from count markers." : "Edit shared Count details using Edit item."); field.sectionSearch?.setLocked(); }
         else field.control.addEventListener("change", () => void safely(async () => { if (field.sectionSearch && !field.sectionSearch.commitTyped()) return; try { await flushSettings(); requireFinishedEdits(); if (sessionId !== state.session?.session_id) throw new Error("The project changed. Choose the item again."); } catch (error) { field.control.value = initial ?? ""; throw error; } if (field.control.value === String(initial ?? "")) return; const value = field.read(); if (def[2] === "number" && value !== null && !Number.isFinite(value)) throw new Error("Enter a finite number."); await command("update_item", { item_id: item.id, changes: key === "quantity" ? { quantity: value } : { fields: key === "duct_size" ? parseDuctSize(field.control.value) : { [key]: value } } }); }));
         const cell = node("td"); cell.append(field.sectionSearch ? field.wrapper : field.control); row.append(cell);
       }
@@ -4040,14 +4059,14 @@
         const cell = node("td", "takeoff-linked-thickness"); cell.dataset.thicknessItemId = item.id;
         updateLinkedThicknessCell(cell, item); row.append(cell);
       }
-      const evidence = node("td"); evidence.append(node("span", "", item.geometry ? `${documentById(item.geometry.document_id)?.name || "Missing document"} · p${item.geometry.page}` : "Source markup missing")); if (!isStandalone(item) && item.mode === "duct" && item.fields.shape !== "rectangular") evidence.append(node("span", "takeoff-row-issue", "Retained non-rectangular duct; calculator transfer unavailable.")); for (const issue of result.issues || []) evidence.append(node("span", "takeoff-row-issue", issueText(issue))); row.append(evidence, registerDeleteCell(item)); body.append(row);
+      const evidence = node("td"); evidence.append(node("span", "", item.geometry ? `${documentById(item.geometry.document_id)?.name || "Missing document"} · p${item.geometry.page}` : "Source markup missing")); if (!isStandalone(item) && item.mode === "duct" && item.fields.shape !== "rectangular") evidence.append(uiNode("span", "takeoff-row-issue", "Retained non-rectangular duct; calculator transfer unavailable.")); for (const issue of result.issues || []) evidence.append(node("span", "takeoff-row-issue", issueText(issue))); row.append(evidence, registerDeleteCell(item)); body.append(row);
       if (!area && calculator && rowFields.some(field => field.control.tagName === "SELECT" && ["frl", "fire_period_min"].includes(field.control.name))) {
         const url = `/options?calculator=${encodeURIComponent(calculator)}&product=${encodeURIComponent(item.fields.product || "")}&member_type=${encodeURIComponent(item.fields.member_type || "")}`;
         if (!optionRequests.has(url)) optionRequests.set(url, loadCalculatorOptions(calculator, item.fields.product || "", item.fields.member_type || ""));
         void optionRequests.get(url).then(choices => { if (table.isConnected && sessionId === state.session?.session_id && calculator === state.ui.target.value) populateCalculatorOptions(rowFields, choices, calculator); }).catch(error => { if (table.isConnected) message(`Calculator choices could not be loaded. ${error.message}`, true); });
       }
     }
-    state.ui.pagination.replaceChildren(button("Previous 100", () => { state.offset = Math.max(0, state.offset - 100); renderRegister(); }), node("span", "helper", `${list.length ? state.offset + 1 : 0}–${Math.min(state.offset + 100, list.length)} of ${list.length} matching items`), button("Next 100", () => { if (state.offset + 100 < list.length) state.offset += 100; renderRegister(); }));
+    state.ui.pagination.replaceChildren(uiButton("Previous 100", () => { state.offset = Math.max(0, state.offset - 100); renderRegister(); }), uiNode("span", "helper", "{0}–{1} of {2} matching items", [list.length ? state.offset + 1 : 0, Math.min(state.offset + 100, list.length), list.length]), uiButton("Next 100", () => { if (state.offset + 100 < list.length) state.offset += 100; renderRegister(); }));
     state.ui.tableWrap.replaceChildren(table);
     const standaloneRows = grouped.slice(state.offset, state.offset + 100).filter(item => item.purpose === "length-only");
     if (standaloneRows.length) renderStandaloneRegister(standaloneRows, state.ui.tableWrap);
@@ -4069,21 +4088,21 @@
     const sessionId = state.session?.session_id;
     const currentAction = action => async () => { await flushSettings(); requireFinishedEdits(); if (sessionId !== state.session?.session_id) throw new Error("The project changed. Choose the item again."); const current = items().find(value => value.id === item.id); if (!current) throw new Error("This item is no longer available."); return action(current); };
     if (item.purpose === "length-only") {
-      panel.append(node("p", "takeoff-calibration-summary", `Length: ${formatLength(result.length_m)} m · ${snapshot().calibrations.find(value => value.id === item.measurement?.calibration_id)?.name || "Missing calibration"}`));
+      panel.append(uiNode("p", "takeoff-calibration-summary", "Length: {0} m · {1}", [formatLength(result.length_m), snapshot().calibrations.find(value => value.id === item.measurement?.calibration_id)?.name || "Missing calibration"]));
       for (const issue of result.issues || []) panel.append(node("p", "takeoff-warning", issueText(issue)));
       return;
     }
-    if (!item.geometry) panel.append(node("p", "takeoff-warning", "Source markup is missing. You can inspect and edit this draft, but review and confirmation remain blocked."));
+    if (!item.geometry) panel.append(uiNode("p", "takeoff-warning", "Source markup is missing. You can inspect and edit this draft, but review and confirmation remain blocked."));
     if (item.mode === "duct") {
-      if (item.fields.shape !== "rectangular") panel.append(node("p", "takeoff-warning", `Retained ${item.fields.shape || "unspecified-shape"} duct. ${item.fields.diameter_mm != null ? `Original diameter: ${item.fields.diameter_mm} mm. ` : ""}Its original shape and dimensions are preserved; this record cannot transfer to the rectangular duct calculator.`));
-      if (item.fields.shape == null || item.fields.shape === "") panel.append(button("Use rectangular duct", currentAction(useRectangularDuct)));
+      if (item.fields.shape !== "rectangular") panel.append(uiNode("p", "takeoff-warning", "Retained {0} duct. {1}Its original shape and dimensions are preserved; this record cannot transfer to the rectangular duct calculator.", [item.fields.shape || "unspecified-shape", item.fields.diameter_mm != null ? `Original diameter: ${item.fields.diameter_mm} mm. ` : ""]));
+      if (item.fields.shape == null || item.fields.shape === "") panel.append(uiButton("Use rectangular duct", currentAction(useRectangularDuct)));
     }
-    const actions = node("div", "actions"); actions.append(button("Delete item", currentAction(current => deleteItems([current.id]))));
+    const actions = node("div", "actions"); actions.append(uiButton("Delete item", currentAction(current => deleteItems([current.id]))));
     panel.append(actions); for (const issue of result.issues || []) panel.append(node("p", "takeoff-warning", issueText(issue)));
     if (!area) renderLengthAdditions(panel, item, currentAction);
     if (area) {
-      const entries = item.geometry?.exclusions || [], exclusions = node("div", "takeoff-exclusions"); exclusions.append(node("h3", "", `${entries.length} EXCLUDED OPENINGS`));
-      for (const exclusion of entries) { const entry = node("div", "takeoff-exclusion"), act = action => currentAction(current => { const retained = current.geometry?.exclusions?.find(value => value.id === exclusion.id); if (!retained) throw new Error("This exclusion is no longer available."); return action(current, retained); }); entry.append(node("p", "helper", exclusion.note), node("p", "takeoff-identity", exclusion.id), button("Edit exclusion", act((current, retained) => editAreaBoundary(current, retained.id)), "text-button"), button("Remove exclusion", act(removeAreaExclusion), "text-button")); exclusions.append(entry); }
+      const entries = item.geometry?.exclusions || [], exclusions = node("div", "takeoff-exclusions"); exclusions.append(uiNode("h3", "", "{0} EXCLUDED OPENINGS", [entries.length]));
+      for (const exclusion of entries) { const entry = node("div", "takeoff-exclusion"), act = action => currentAction(current => { const retained = current.geometry?.exclusions?.find(value => value.id === exclusion.id); if (!retained) throw new Error("This exclusion is no longer available."); return action(current, retained); }); entry.append(node("p", "helper", exclusion.note), node("p", "takeoff-identity", exclusion.id), uiButton("Edit exclusion", act((current, retained) => editAreaBoundary(current, retained.id)), "text-button"), uiButton("Remove exclusion", act(removeAreaExclusion), "text-button")); exclusions.append(entry); }
       panel.append(exclusions);
     }
     for (const evidence of item.evidence || []) panel.append(button(`${documentById(evidence.document_id)?.name || "Missing source"} · p${evidence.page}${evidence.fields?.length ? " · " + evidence.fields.join(", ") : ""}: ${evidence.note}`, () => navigateDocument(evidence.document_id, evidence.page), "text-button"));
@@ -4100,17 +4119,17 @@
   }
   function renderLengthAdditions(panel, item, currentAction) {
     const additions = item.length_additions || [], section = node("section", "takeoff-length-additions");
-    section.append(node("h3", "", "RISES / DROPS"));
+    section.append(uiNode("h3", "", "RISES / DROPS"));
     for (const addition of additions) {
       const card = node("div", "takeoff-exclusion");
-      card.append(node("strong", "", `${addition.kind === "riser" ? "Rise" : "Drop"} · ${formatLength(addition.length_mm)} mm each`));
+      card.append(uiNode("strong", "", "{0} · {1} mm each", [addition.kind === "riser" ? "Rise" : "Drop", formatLength(addition.length_mm)]));
       if (addition.note) card.append(node("p", "helper", addition.note));
-      if (addition.anchor) card.append(node("p", "helper", `Control point ${addition.anchor.point_index + 1}`));
+      if (addition.anchor) card.append(uiNode("p", "helper", "Control point {0}", [addition.anchor.point_index + 1]));
       const act = action => currentAction(current => { const retained = current.length_additions?.find(value => value.id === addition.id); if (!retained) throw new Error("This rise or drop is no longer available."); return action(current, retained); });
-      card.append(button("Edit addition", act(editLengthAddition), "text-button"), button("Remove addition", act(removeLengthAddition), "text-button"));
+      card.append(uiButton("Edit addition", act(editLengthAddition), "text-button"), uiButton("Remove addition", act(removeLengthAddition), "text-button"));
       section.append(card);
     }
-    if (!additions.length) section.append(node("p", "helper", "No riser or drop lengths added."));
+    if (!additions.length) section.append(uiNode("p", "helper", "No riser or drop lengths added."));
     panel.append(section);
   }
   function currentLengthItem(item) {
@@ -4511,7 +4530,7 @@
       el.disabled = state.busy;
       el.dataset.searchHitId = hit.id; el.setAttribute("aria-current", hit.id === state.searchActiveId ? "true" : "false"); return el;
     });
-    if (!children.length) children.push(node("p", "takeoff-search-empty", state.searchComplete ? "No matches found. Drawing labels may still require visual inspection." : state.searchToken?.nativeFinished ? "Recognizing drawing labels locally…" : "Searching PDF text…"));
+    if (!children.length) children.push(uiNode("p", "takeoff-search-empty", state.searchComplete ? "No matches found. Drawing labels may still require visual inspection." : state.searchToken?.nativeFinished ? "Recognizing drawing labels locally…" : "Searching PDF text…"));
     state.ui.searchResults.replaceChildren(...children); showSearchResults(false);
     if (focused) children.find(el => el.dataset.searchHitId === focused)?.focus({ preventScroll: true });
   }
@@ -4837,7 +4856,7 @@
     state.showDeleted = false; state.deletedOffset = 0; state.deletedHistory = null; state.deletedFilterContext = null;
     if (state.ui?.showDeleted) state.ui.showDeleted.checked = false;
     requireSettledLinkedChange();
-    if (state.pageError?.notice && state.ui?.message?.getAttribute("role") === "alert" && state.ui.message.textContent === state.pageError.notice) message();
+    if (state.pageError?.notice && state.ui?.message?.getAttribute("role") === "alert" && window.CeasefireI18n.source(state.ui.message) === state.pageError.notice) message();
     if (state.ui?.message.hidden) releaseMessageSpace();
     state.graphicHidden = new Set(); state.signatureHidden = new Set(); state.signatureDraft = null; state.annotationHidden = new Set(); state.annotationSelected = null; state.graphicSelected = null; state.signatureSelected = null; state.graphicSelected = null;
     cancelSearch(true);

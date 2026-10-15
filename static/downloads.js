@@ -1,5 +1,16 @@
 (() => {
   "use strict";
+  // Bind application-owned copy only; node() remains safe for user and source text.
+  const uiText = (element, source, args = []) => {
+    if (window.CeasefireI18n) return window.CeasefireI18n.text(element, source, args);
+    element.textContent = String(source).replace(/\{(\d+)\}/g, (match, index) => args[index] === undefined ? match : String(typeof args[index] === "function" ? args[index]() : args[index])); return element;
+  };
+  const uiAttr = (element, name, source, args = []) => {
+    if (window.CeasefireI18n) return window.CeasefireI18n.attr(element, name, source, args);
+    const value = String(source).replace(/\{(\d+)\}/g, (match, index) => args[index] === undefined ? match : String(typeof args[index] === "function" ? args[index]() : args[index]));
+    element.setAttribute(name, value); if (["title", "placeholder"].includes(name)) element[name] = value; return element;
+  };
+
 
   function progressView(button) {
     const host = button?.closest?.('.calculator-document-menu, .takeoff-document-menu') || button?.parentElement;
@@ -9,7 +20,7 @@
     const track = document.createElement('div'), beam = document.createElement('span');
     track.className = 'document-download-track'; beam.className = 'document-download-beam';
     beam.setAttribute('aria-hidden', 'true'); label.setAttribute('role', 'status');
-    bar.max = 100; bar.setAttribute('aria-label', 'Document download progress');
+    bar.max = 100; uiAttr(bar, 'aria-label', "Document download progress");
     track.append(bar, beam); box.append(label, track); host.append(box);
     const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
     let frame = null, disposed = false, shown = 10, target = 10;
@@ -22,8 +33,8 @@
       if (box.dataset.indeterminate === 'false' && target === next) return;
       stopAnimation(); target = next;
       box.dataset.indeterminate = 'false';
-      label.textContent = `Preparing file · ${Math.floor(target)}%`;
-      bar.setAttribute('aria-valuetext', `${Math.floor(target)}% preparation completed`);
+      uiText(label, "Preparing file · {0}%", [Math.floor(target)]);
+      uiAttr(bar, 'aria-valuetext', "{0}% preparation completed", [Math.floor(target)]);
       // Ease only to work the server has already reported. Elapsed time must
       // never advance the target or imply that an unmeasured job is nearly done.
       if (reducedMotion) { shown = target; bar.value = shown; return; }
@@ -47,15 +58,15 @@
         if (state === 'saved') {
           stopAnimation(); box.dataset.indeterminate = 'false';
           shown = target = 100; bar.value = 100;
-          label.textContent = 'File saved · 100%'; bar.setAttribute('aria-valuetext', 'File saved');
+          uiText(label, "File saved · 100%"); uiAttr(bar, 'aria-valuetext', "File saved");
         } else if (state === 'preparing' && percent > 10 && percent <= 85) {
           // The backend's optional completed/total page count is the measured
           // preparation range. Claiming (10%) and saving (90%) have no work total.
           measuredProgress(percent);
         } else {
           stopAnimation(); box.dataset.indeterminate = 'true'; bar.removeAttribute('value');
-          label.textContent = {saving:'Saving file',confirming:'Confirming file save'}[state] || 'Preparing file';
-          bar.setAttribute('aria-valuetext', label.textContent);
+          uiText(label, {saving:'Saving file',confirming:'Confirming file save'}[state] || 'Preparing file');
+          uiAttr(bar, 'aria-valuetext', window.CeasefireI18n?.source(label) || label.textContent);
         }
       },
       remove() { disposed = true; stopAnimation(); box.remove(); },

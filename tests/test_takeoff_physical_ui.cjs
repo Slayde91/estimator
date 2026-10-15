@@ -1,3 +1,4 @@
+global.CeasefireI18n = require("./english_i18n_fixture.cjs")();
 // Physical hierarchy and real component event tests. A separate browser journey
 // proves rendered PDF/image interaction; these checks do not claim visual QA.
 const assert = require('node:assert/strict');

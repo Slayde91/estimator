@@ -1,3 +1,4 @@
+const englishI18n = require("./english_i18n_fixture.cjs");
 "use strict";
 // Check source selection and draft protection against production upload(), with
 // isolated upload replies; real bytes/parser/renderer are exercised in browser QA.
@@ -5,7 +6,7 @@ const assert = require('node:assert/strict'), fs = require('node:fs'), vm = requ
 const copy = value => JSON.parse(JSON.stringify(value));
 function harness() {
   const calls = [], fitted = [], context = { window: {}, document: {}, console, Set };
-  vm.createContext(context);
+  if (context.window) context.window.CeasefireI18n = englishI18n(); vm.createContext(context);
   const source = fs.readFileSync('static/takeoffs.js', 'utf8').replace('  window.CeasefireTakeoffs = {', `
   globalThis.audit = {state, upload, configure() {
     ensureSession = async () => state.session; flushSettings = async () => {};

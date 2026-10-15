@@ -1,3 +1,4 @@
+const englishI18n = require("./english_i18n_fixture.cjs");
 "use strict";
 // Exercise production run guards and stream cancellation with a controllably
 // slow PDF reader. The real parser/render/coordinates are checked in browser QA.
@@ -8,7 +9,7 @@ const deferred = () => { let resolve; const promise = new Promise(yes => { resol
 function harness() {
   const element = tag => ({ tag, value: '', dataset: {}, hidden: false, textContent: '', children: [], replaceChildren(...children) { this.children = children; }, append(...children) { this.children.push(...children); }, contains(value) { return !!value && this.children.includes(value); }, addEventListener() {}, setAttribute() {}, classList: { toggle() {} } });
   const context = { window: { CeasefireTakeoffSearch: S, CeasefireTakeoffGeometry: G }, document: { getElementById() {}, createElement: element }, setTimeout, clearTimeout, AbortController, Error, console };
-  vm.createContext(context);
+  if (context.window) context.window.CeasefireI18n = englishI18n(); vm.createContext(context);
   const source = fs.readFileSync('static/takeoffs.js', 'utf8').replace('  window.CeasefireTakeoffs = {', `  globalThis.audit={state,searchContextKey,searchCurrent,readSearchText,cancelSearch,waitSearch,invalidateSearchContext,runSearch,hideSearchResults,showSearchResults,renderSearchResults,scheduleSearch,productionSelect:selectSearchHit,noRender(){renderOverlay=()=>{};},geometry(fn){updateSearchGeometry=fn;},select(fn){selectSearchHit=fn;},navigate(fn){navigateDocument=fn;},position(fn){positionPage=fn;}};
   window.CeasefireTakeoffs = {`);
   vm.runInContext(source, context);

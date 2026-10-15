@@ -1,6 +1,8 @@
 const fs = require('node:fs');
 const vm = require('node:vm');
 const assert = require('node:assert/strict');
+// Translation annotations do not alter the English markup or control structure.
+const englishMarkup = html => html.replace(/\sdata-i18n(?:-[a-z-]+)?="[^"]*"/g, '');
 const elements = new Map();
 const scrollCalls = [];
 function element(tag='div') {
@@ -28,6 +30,7 @@ const context = {
   setTimeout:()=>0,clearTimeout(){},requestAnimationFrame:callback=>callback(),AbortController, console,
   FileReader:class { readAsDataURL(){this.result='data:application/octet-stream;base64,AAAA';queueMicrotask(()=>this.onload());} },
 };
+context.window.CeasefireI18n = require('./english_i18n_fixture.cjs')();
 vm.createContext(context);
 vm.runInContext(fs.readFileSync('static/calculation-queue.js','utf8'),context);
 vm.runInContext(fs.readFileSync('static/downloads.js','utf8'),context);
@@ -583,7 +586,7 @@ let passed=0;
   assert.equal(audit.state.result.work_summary,'Fire wrap to ductwork\nWrap: 12.35 m² <b>literal label</b>');
   assert.equal(byId('sum-days').textContent,'2.35');assert.equal(byId('sum-total').textContent,'$1.23');
   assert.equal(audit.state.result.notes,'Literal product 1.2345');
-  assert.ok(!fs.readFileSync('static/index.html','utf8').includes('id="calculated-notes"'));passed++;
+  assert.ok(!englishMarkup(fs.readFileSync('static/index.html','utf8')).includes('id="calculated-notes"'));passed++;
 
   // New estimates keep normal defaults but start Notes blank without mutating source metadata.
   const notesField=JSON.parse(fs.readFileSync('data/calculator.json','utf8')).fields.find(field=>field.cell==='B12');
@@ -609,7 +612,7 @@ let passed=0;
   assert.deepEqual(visibleCells.slice().sort(),audit.state.fields.filter(field=>field.cell!=='B12').map(field=>field.cell).sort());
   assert.equal(JSON.stringify(audit.state.inputs),hiddenNotesInputs);assert.equal(JSON.stringify(audit.state.fields),hiddenNotesFields);
   assert.equal(audit.reportPayload().inputs.B12,'Historical workbook note');assert.equal(audit.reportPayload().measurements,'Visible main note');
-  assert.match(fs.readFileSync('static/index.html','utf8'),/<textarea[^>]*id="measurements"/);passed++;
+  assert.match(englishMarkup(fs.readFileSync('static/index.html','utf8')),/<textarea[^>]*id="measurements"/);passed++;
 
   // Material requirement rows follow their labour selections, and masking help explains its basis.
   setup();audit.setRenderInputs(audit.renderInputs);audit.state.fields=JSON.parse(fs.readFileSync('data/calculator.json','utf8')).fields;
@@ -631,7 +634,7 @@ let passed=0;
   assert.ok(!inputDescendants(byId('post-material-input-sections')).some(node=>node.textContent==='Masking/Cleaning'));
   const sprayTeam=inputDescendants(byId('input-sections')).find(node=>node.dataset?.cell==='D2');sprayTeam.value='1 Team - 1x';await sprayTeam.emit('input');
   assert.equal(byId('material-inputs').children[0].hidden,false);assert.ok(byId('material-inputs').children.slice(1).every(row=>row.hidden));
-  const html=fs.readFileSync('static/index.html','utf8');
+  const html=englishMarkup(fs.readFileSync('static/index.html','utf8'));
   assert.match(html,/id="penetration-add-to-schedule"[\s\S]*?<\/button><div class="penetration-library-actions"><div class="calculator-document-menu">[\s\S]*?<\/div><\/div><button id="penetration-add-to-library"/);
   for(const id of ['penetration-new-item','penetration-recalculate'])assert.match(html,new RegExp(`id="${id}"[^>]*hidden`));
   assert.ok(html.indexOf('id="input-sections"')<html.indexOf('id="materials-heading"'));assert.ok(html.indexOf('id="materials-heading"')<html.indexOf('id="post-material-input-sections"'));
@@ -838,7 +841,7 @@ let passed=0;
   context.window.CeasefirePenetrationNavigation.show();assert.equal(audit.state.estimatorKind,'penetration');
   assert.deepEqual(workspaceOpens,['schedule','item']);context.window.CeasefirePenetrations=priorPenetrations;passed++;
 
-  const markup=fs.readFileSync('static/index.html','utf8');
+  const markup=englishMarkup(fs.readFileSync('static/index.html','utf8'));
   const actionCss=fs.readFileSync('static/styles.css','utf8');
   assert.doesNotMatch(markup,/id="save-quote"/);assert.doesNotMatch(markup,/id="save-project"/);
   assert.match(markup,/id="save-current-project"[^>]*class="button save-button icon-only"[^>]*aria-label="Save"[^>]*title="Save"/);

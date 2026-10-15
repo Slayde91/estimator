@@ -15,6 +15,9 @@ jobs:
           node-version: '22'
       - run: python -m pip install -r requirements-dev.txt
       - run: python -m unittest discover -s tests -v
+      - run: python scripts/build_language_catalog.py --check
+      - run: node --check static/language.js && node --check static/language-catalog.js
+      - run: node --test tests/test_language_ui.cjs
       - run: node --check static/theme.js
       - run: node --check static/company-settings.js
       - run: node --check static/app.js
@@ -101,6 +104,7 @@ jobs:
       - run: node tests/browser/header_artwork.cjs
       - run: node tests/browser/classifire_branding_downloads.cjs
       - run: node tests/browser/markup_downloads.cjs
+      - run: npm run test:languages-browser
       - run: npm run test:themes-browser
       - run: npm run test:help-glossary
       - run: npm run test:help-glossary -- --standard

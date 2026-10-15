@@ -1,3 +1,4 @@
+const englishI18n = require("./english_i18n_fixture.cjs");
 // Protect discarded drafts and late edits across queued annotation updates.
 const fs = require('node:fs'), vm = require('node:vm'), assert = require('node:assert/strict');
 const deferred = () => { let resolve; const promise = new Promise(yes => { resolve = yes; }); return { promise, resolve }; };
@@ -5,7 +6,7 @@ const flush = async () => { for (let i = 0; i < 12; i++) await Promise.resolve()
 function harness() {
   const calls = [], content = { version: 1, blocks: [{ kind: 'paragraph', runs: [{ text: 'first' }] }] };
   const context = { console, setTimeout, clearTimeout, window: { CeasefireTakeoffGeometry: { transform: ([x,y]) => [x*2+3,600-y*2] }, CeasefireTakeoffAnnotations: { layout() {} }, CeasefireProject: { changed() {} } }, document: { getElementById() {} } };
-  vm.createContext(context);
+  if (context.window) context.window.CeasefireI18n = englishI18n(); vm.createContext(context);
   const source = fs.readFileSync('static/takeoffs.js', 'utf8').replace('  window.CeasefireTakeoffs = {', `  globalThis.audit = {state, applyAnnotationSettings, annotationSelectionKey, openAnnotationMenu, closeAnnotationSettings, command(fn){command=fn;}, render(fn){renderOverlay=fn;}, confirm(fn){confirm=fn;}, toggle(fn){toggleSettings=fn;}};
   window.CeasefireTakeoffs = {`);
   vm.runInContext(source, context); const { state } = context.audit;

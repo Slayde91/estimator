@@ -178,7 +178,7 @@
     entry.removedRows = [];
     const index = entry.scheduleRows.indexOf(row);
     entry.scheduleViewport = { offset: Math.max(0, Math.min(index - scheduleBuffer, entry.scheduleRows.length - scheduleWindowSize)), top: entry.scheduleRows.length > scheduleWindowSize ? Math.max(0, index - 2) * scheduleRowHeight : 0, left: entry.scheduleViewport?.left || 0 };
-    scheduleChanged(entry); message(`Line ${row - schedule.first_row + 1} added.`); await calculate();
+    scheduleChanged(entry); message(uiCopy("Line {0} added.", [row - schedule.first_row + 1])); await calculate();
   }
 
   async function removeScheduleRow(row, entry = current()) {
@@ -193,7 +193,7 @@
     const viewport = entry.scheduleViewport ||= {};
     viewport.offset = Math.max(0, Math.min(viewport.offset || 0, entry.scheduleRows.length - scheduleWindowSize));
     viewport.top = Math.max(0, Math.min(viewport.top || 0, (entry.scheduleRows.length - 1) * scheduleRowHeight));
-    scheduleChanged(entry); message(`Line ${row - schedule.first_row + 1} removed. Use Undo remove to restore it.`); await calculate();
+    scheduleChanged(entry); message(uiCopy("Line {0} removed. Use Undo remove to restore it.", [row - schedule.first_row + 1])); await calculate();
   }
 
   function scheduleDeleteContext(entry) {
@@ -212,18 +212,18 @@
 
   async function requestRemoveScheduleRow(row, entry = current(), renderedReview = null) {
     if (renderedReview && !scheduleDeleteCurrent(row, entry, renderedReview)) {
-      message("The displayed item changed. Nothing was deleted. Wait for the current schedule and review the item again.", true); return;
+      message(uiCopy("The displayed item changed. Nothing was deleted. Wait for the current schedule and review the item again."), true); return;
     }
     document.activeElement?.blur?.();
     if (!entry || entry !== current() || state.action || entry.invalid.size || !entry.scheduleRows?.includes(row)) return;
     const review = renderedReview || { ...scheduleDeleteContext(entry), sources: scheduleDeleteSources(entry, row) };
     if (!scheduleDeleteCurrent(row, entry, review)) {
-      message("The item changed while finishing its edit. Nothing was deleted. Wait for the current schedule and review the item again.", true); return;
+      message(uiCopy("The item changed while finishing its edit. Nothing was deleted. Wait for the current schedule and review the item again."), true); return;
     }
     const confirm = window.CeasefireDialogs?.confirm || confirmReplace;
     if (!await confirm("Delete item?", "Are you sure you want to delete this item?", "Yes", "Cancel")) return;
     if (!scheduleDeleteCurrent(row, entry, review)) {
-      message("The item or project changed during deletion review. Nothing was deleted. Review the current item again.", true); return;
+      message(uiCopy("The item or project changed during deletion review. Nothing was deleted. Review the current item again."), true); return;
     }
     await removeScheduleRow(row, entry);
   }
@@ -233,10 +233,10 @@
     const remove = node("button", "button secondary calculator-remove-row"), icon = node("span", "calculator-trash-icon");
     icon.setAttribute("aria-hidden", "true");
     icon.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="M3 6h18M9 6V4h6v2M5 6l1 14h12l1-14M10 10v6M14 10v6"/></svg>';
-    remove.append(icon); remove.title = `Delete line ${item}`;
+    remove.append(icon); window.CeasefireI18n.attr(remove, "title", "Delete line {0}", [item]);
     remove.type = "button"; remove.dataset.scheduleRemove = String(row); remove.disabled = state.action || entry.invalid.size > 0;
     const review = { ...context, sources: scheduleDeleteSources(entry, row) };
-    remove.setAttribute("aria-label", `Delete line ${item}`); remove.addEventListener("click", () => requestRemoveScheduleRow(row, entry, review));
+    window.CeasefireI18n.attr(remove, "aria-label", "Delete line {0}", [item]); remove.addEventListener("click", () => requestRemoveScheduleRow(row, entry, review));
     return remove;
   }
 
@@ -256,21 +256,21 @@
     if (!removed.hadSheet && !Object.keys(values).length) delete entry.inputs[entry.definition.schedule.sheet];
     const index = entry.scheduleRows.indexOf(removed.row);
     entry.scheduleViewport = { offset: Math.max(0, Math.min(index - scheduleBuffer, entry.scheduleRows.length - scheduleWindowSize)), top: entry.scheduleRows.length > scheduleWindowSize ? Math.max(0, index - 2) * scheduleRowHeight : 0, left: entry.scheduleViewport?.left || 0 };
-    scheduleChanged(entry); message("Removed row restored with its original inputs."); await calculate();
+    scheduleChanged(entry); message(uiCopy("Removed row restored with its original inputs.")); await calculate();
   }
 
   function renderScheduleTools(entry) {
     const toolbar = node("div", "calculator-schedule-tools"), add = node("button", "button primary icon-only"), undo = node("button", "button secondary icon-only");
     add.type = undo.type = "button"; add.dataset.scheduleAdd = "true"; undo.dataset.scheduleUndo = "true";
     const addIcon = node("span", "button-symbol", "+"), undoIcon = node("span", "button-symbol", "↶"); addIcon.setAttribute("aria-hidden", "true"); undoIcon.setAttribute("aria-hidden", "true");
-    add.title = "Add row"; add.setAttribute("aria-label", "Add row"); add.append(addIcon);
-    undo.title = "Undo remove"; undo.setAttribute("aria-label", "Undo remove"); undo.append(undoIcon);
+    window.CeasefireI18n.attr(add, "title", "Add row"); window.CeasefireI18n.attr(add, "aria-label", "Add row"); add.append(addIcon);
+    window.CeasefireI18n.attr(undo, "title", "Undo remove"); window.CeasefireI18n.attr(undo, "aria-label", "Undo remove"); undo.append(undoIcon);
     const capacity = entry.definition.schedule.last_row - entry.definition.schedule.first_row + 1;
     add.disabled = state.action || entry.invalid.size > 0 || entry.scheduleRows.length >= capacity;
     undo.disabled = state.action || entry.invalid.size > 0 || !entry.removedRows?.length;
     add.addEventListener("click", () => addScheduleRow(entry)); undo.addEventListener("click", () => undoScheduleRemove(entry));
-    const count = node("span", "helper", `${entry.scheduleRows.length.toLocaleString("en-AU")} ${entry.scheduleRows.length === 1 ? "row" : "rows"} · Capacity ${capacity.toLocaleString("en-AU")}`);
-    const help = node("span", "helper calculator-schedule-help", "Line numbers stay with their items. Removing a row clears its inputs; Undo remove restores them.");
+    const count = uiNode("span", "helper", "{0} {1} · Capacity {2}", [entry.scheduleRows.length.toLocaleString("en-AU"), window.CeasefireI18n.term(entry.scheduleRows.length === 1 ? "row" : "rows"), capacity.toLocaleString("en-AU")]);
+    const help = uiNode("span", "helper calculator-schedule-help", "Line numbers stay with their items. Removing a row clears its inputs; Undo remove restores them.");
     toolbar.append(add, undo, count, help); return toolbar;
   }
 
@@ -314,7 +314,7 @@
         }
         scroll.scrollTop = top; scroll.scrollLeft = left;
         viewport.top = scroll.scrollTop; viewport.left = scroll.scrollLeft;
-        message("Correct the invalid input before scrolling to another group of rows.", true); return;
+        message(uiCopy("Correct the invalid input before scrolling to another group of rows."), true); return;
       }
       timer = setTimeout(() => {
         if (entry !== current() || !scheduleFor(entry) || entry.invalid.size) return;
@@ -333,9 +333,20 @@
     return element;
   }
 
+  // Bind UI copy explicitly; worksheet values and evidence remain verbatim.
+  function uiNode(tag, className, source, args = []) {
+    return window.CeasefireI18n.nodeText(node(tag, className), source, args);
+  }
+  function uiCopy(source, args = []) { return source === "" ? "" : { i18nSource: source, i18nArgs: args }; }
+  function uiText(element, copy) {
+    if (copy && typeof copy === "object" && Object.hasOwn(copy, "i18nSource")) return window.CeasefireI18n.text(element, copy.i18nSource, copy.i18nArgs);
+    if (copy && typeof copy === "object") return window.CeasefireI18n.text(element, "{0}", [copy]);
+    return window.CeasefireI18n.text(element, copy == null ? "" : String(copy));
+  }
+
   function message(text = "", error = false) {
     const box = $("calculator-message");
-    box.textContent = text; box.hidden = !text;
+    uiText(box, text); box.hidden = !text;
     box.className = `message${error ? " error" : ""}`;
     box.setAttribute("role", error ? "alert" : "status");
   }
@@ -448,10 +459,10 @@
   function renderDocumentLabels(entry = current()) {
     for (const [id, label] of Object.entries(documentLabels(entry))) {
       const button = $(id);
-      button.title = label;
-      if (button.getAttribute("aria-busy") !== "true") button.setAttribute("aria-label", label);
+      window.CeasefireI18n.attr(button, "title", label);
+      if (button.getAttribute("aria-busy") !== "true") window.CeasefireI18n.attr(button, "aria-label", label);
       const text = button.lastElementChild;
-      if (text) text.textContent = label;
+      if (text) window.CeasefireI18n.text(text, label);
     }
   }
   function updateStatus(entry = current()) {
@@ -459,14 +470,14 @@
     window.CeasefireProject?.changed?.();
     if (!entry || entry !== current()) return;
     renderDocumentLabels(entry);
-    $("calculator-save-status").textContent = entry.invalid.size ? "Check input" : dirty(entry) ? "Unsaved changes" : "Saved";
+    window.CeasefireI18n.text($("calculator-save-status"), entry.invalid.size ? "Check input" : dirty(entry) ? "Unsaved changes" : "Saved");
     const hasErrors = entry.invalid.size > 0;
     $("calculator-recalculate").disabled = state.calculating || hasErrors;
     $("calculator-recalculate").setAttribute("aria-busy", String(state.calculating));
     $("calculator-pdf").disabled = state.action || hasErrors;
     $("calculator-excel").disabled = state.action || hasErrors;
     $("calculator-summary-pdf").disabled = state.action || hasErrors;
-    if (hasErrors) calculationStatus("Enter a valid number to recalculate.");
+    if (hasErrors) calculationStatus(uiCopy("Enter a valid number to recalculate."));
     $("calculator-reset").disabled = state.action;
     $("calculator-import").disabled = state.action;
     $("calculator-template").disabled = state.action;
@@ -476,11 +487,11 @@
   }
 
   function calculationStatus(text = "") {
-    const status = $("calculator-calculation-status"); status.textContent = text; status.hidden = !text;
+    const status = $("calculator-calculation-status"); uiText(status, text); status.hidden = !text;
   }
 
   function setInput(entry, sheet, address, value) {
-    if (state.takeoffReservation) { message("Wait for the takeoff transfer to finish before editing the schedule."); return; }
+    if (state.takeoffReservation) { message(uiCopy("Wait for the takeoff transfer to finish before editing the schedule.")); return; }
     entry.inputs[sheet] ||= {};
     entry.inputs[sheet][address] = value;
     // Reusing a removed source row is a new draft. Undo must never overwrite
@@ -547,14 +558,14 @@
     if (custom) {
       custom.type = "text"; custom.hidden = true; custom.autocomplete = "off";
       custom.dataset.calculatorCustomCell = address; custom.dataset.calculatorSheet = sourceSheet;
-      custom.setAttribute("aria-label", `${label} custom value${percent(cell) ? " in percent" : ""}`);
+      window.CeasefireI18n.attr(custom, "aria-label", "{0} custom value{1}", [window.CeasefireI18n.term(label), window.CeasefireI18n.term(percent(cell) ? " in percent" : "")]);
       if (numeric) custom.inputMode = "decimal";
-      customOption = node("option", "", "Enter custom value…"); customOption.value = customToken;
+      customOption = uiNode("option", "", "Enter custom value…"); customOption.value = customToken;
     }
     const selectOptions = [];
     control.dataset.calculatorCell = address;
     control.dataset.calculatorSheet = entry.sheet;
-    control.setAttribute("aria-label", `${label}${percent(cell) ? " in percent" : ""}`);
+    window.CeasefireI18n.attr(control, "aria-label", "{0}{1}", [window.CeasefireI18n.term(label), window.CeasefireI18n.term(percent(cell) ? " in percent" : "")]);
     if (select) {
       const appendOption = (item) => {
         // Historical inputs stay visible and exact, without becoming new choices.
@@ -562,7 +573,7 @@
         const option = node("option", "", unavailable ? `Saved value: ${item} (choose a listed value)` : item === "" ? "(blank)" : displayValue(item, cell));
         if (unavailable) option.disabled = true;
         option.value = String(item); control.append(option); selectOptions.push({ option, value: item, unavailable });
-        if (isNumber(item)) option.title = `Exact value: ${numericInputValue(item, cell, true)}${percent(cell) ? "%" : ""}`;
+        if (isNumber(item)) window.CeasefireI18n.attr(option, "title", "Exact value: {0}{1}", [numericInputValue(item, cell, true), window.CeasefireI18n.term(percent(cell) ? "%" : "")]);
       };
       control.calculatorEnsureOption = (item) => {
         item ??= "";
@@ -599,7 +610,7 @@
       if (numeric) control.inputMode = "decimal";
       control.autocomplete = "off";
     }
-    if (isNumber(value)) control.title = `Exact value: ${numericInputValue(value, cell, true)}${percent(cell) ? "%" : ""}`;
+    if (isNumber(value)) window.CeasefireI18n.attr(control, "title", "Exact value: {0}{1}", [numericInputValue(value, cell, true), window.CeasefireI18n.term(percent(cell) ? "%" : "")]);
     if (entry.invalid.has(key)) { control.value = entry.invalid.get(key); control.setAttribute("aria-invalid", "true"); }
     const bindEditor = (editor, isChoice) => {
       let focusedValue;
@@ -623,7 +634,7 @@
         const optionIndex = options.findIndex((option) => optionText(option) === next);
         if ((listedChoice || searchableSteel && !allowOther && next !== String(rawValue() ?? "")) && next !== "" && optionIndex < 0) {
           editor.value = String(rawValue() ?? "");
-          calculationStatus("Choose a value from the available list."); return;
+          calculationStatus(uiCopy("Choose a value from the available list.")); return;
         }
         const selectedOption = isChoice ? selectOptions.find(({ option }) => option.value === next) : null;
         const validSyntax = /^[+-]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?$/i.test(next.trim());
@@ -634,12 +645,12 @@
           if (!Number.isFinite(next)) {
             entry.invalid.set(key, editor.value); editor.setAttribute("aria-invalid", "true"); control.setAttribute("aria-invalid", "true");
             entry.revision++; entry.pendingResult = null; entry.navigationCache = null; clearTimeout(state.timer); updateStatus(entry);
-            calculationStatus("Enter a valid number to recalculate."); return;
+            calculationStatus(uiCopy("Enter a valid number to recalculate.")); return;
           }
           if (percent(cell)) next = decimalShift(next, -2);
         }
         entry.invalid.delete(key); control.removeAttribute("aria-invalid"); custom?.removeAttribute("aria-invalid");
-        if (isNumber(next)) editor.title = `Exact value: ${numericInputValue(next, cell, true)}${percent(cell) ? "%" : ""}`;
+        if (isNumber(next)) window.CeasefireI18n.attr(editor, "title", "Exact value: {0}{1}", [numericInputValue(next, cell, true), window.CeasefireI18n.term(percent(cell) ? "%" : "")]);
         else editor.removeAttribute("title");
         setInput(entry, sourceSheet, address, next);
       });
@@ -647,7 +658,7 @@
         const selectedValue = Object.prototype.hasOwnProperty.call(entry.inputs[sourceSheet] || {}, address) ? entry.inputs[sourceSheet][address] : value;
         if (!isChoice && cell.type === "select" && !allowOther && selectedValue !== null && selectedValue !== "" && !options.some((option) => String(option) === String(selectedValue)) && String(value ?? "") !== String(selectedValue)) {
           entry.invalid.set(key, editor.value); editor.setAttribute("aria-invalid", "true");
-          calculationStatus("Choose a value from the available list."); updateStatus(entry);
+          calculationStatus(uiCopy("Choose a value from the available list.")); updateStatus(entry);
         }
         for (const item of selectOptions) if (isNumber(item.value) && !item.unavailable) item.option.textContent = displayValue(item.value, cell);
         if (isChoice && listedDuctChoice && !entry.invalid.has(key)) {
@@ -714,7 +725,7 @@
       element.classList.add("calculator-split-status"); element.replaceChildren(columns);
     }
     if (entry?.definition.id === "steel_vermiculite" && entry.sheet === "SETTINGS" && ["J32", "J65", "J97", "J174", "J230"].includes(address) && cell.value === "BACK TO TOP") {
-      const link = node("a", "calculator-inline-link", "Back to worksheet controls"); link.href = "#calculator-sheet-title"; element.replaceChildren(link);
+      const link = uiNode("a", "calculator-inline-link", "Back to worksheet controls"); link.href = "#calculator-sheet-title"; element.replaceChildren(link);
     }
     element.classList.toggle("calculator-number", isNumber(cell.value));
     element.classList.toggle("calculator-error", Boolean(cell.error) || (typeof cell.value === "string" && /^#(?:N\/A|VALUE!|REF!|DIV\/0!|NUM!|NAME\?|CALC!)/.test(cell.value)));
@@ -775,7 +786,7 @@
         const shown = String(control.tagName.toLowerCase() === "select" ? value ?? "" : isNumber(value) ? numericInputValue(value, cell) : value ?? "");
         if (String(control.value) !== shown) control.value = shown;
       }
-      if (isNumber(value)) control.title = `Exact value: ${numericInputValue(value, cell, true)}${percent(cell) ? "%" : ""}`;
+      if (isNumber(value)) window.CeasefireI18n.attr(control, "title", "Exact value: {0}{1}", [numericInputValue(value, cell, true), window.CeasefireI18n.term(percent(cell) ? "%" : "")]);
     }
     renderProductTotals(result, entry.productTotalsElement);
     refreshBoardSteelAreas(result);
@@ -881,9 +892,9 @@
     const totals = (board ? result.board_product_totals : result?.product_totals) || [];
     container.hidden = !totals.length;
     if (!totals.length) { container.replaceChildren(); return; }
-    const heading = node("h4", "", board ? "CALCULATED SUMMARY" : "PRODUCT SUMMARY"), note = board ? node("p", "", "Box reference area measures the enclosure used for the board takeoff. Net board area and whole sheets include valid additional boards. Review products with incomplete rows.") : null;
+    const heading = uiNode("h4", "", board ? "CALCULATED SUMMARY" : "PRODUCT SUMMARY"), note = board ? uiNode("p", "", "Box reference area measures the enclosure used for the board takeoff. Net board area and whole sheets include valid additional boards. Review products with incomplete rows.") : null;
     const scroll = node("div", "calculator-product-totals-scroll"), table = node("table", "calculator-centered-data-table"), head = node("thead"), body = node("tbody"), headers = node("tr");
-    for (const label of board ? ["Product", "Box reference area (m²)", "Net board area (m²)", "Whole sheets", "Order status"] : ["Product", "Net bags", "Whole bags", "Order status"]) { const cell = node("th", "", label); cell.scope = "col"; headers.append(cell); }
+    for (const label of board ? ["Product", "Box reference area (m²)", "Net board area (m²)", "Whole sheets", "Order status"] : ["Product", "Net bags", "Whole bags", "Order status"]) { const cell = uiNode("th", "", label); cell.scope = "col"; headers.append(cell); }
     head.append(headers);
     for (const total of totals) {
       const row = node("tr"), product = node("th", "", total.product); product.scope = "row"; row.append(product);
@@ -913,14 +924,14 @@
 
   function renderContents(sections) {
     const contents = node("nav", "calculator-contents"), links = node("div", "calculator-contents-links");
-    contents.setAttribute("aria-label", "Worksheet contents"); contents.append(node("p", "calculator-contents-title", "On this page"));
-    for (const section of sections) { const link = node("a", `calculator-section-theme-${section.theme}`, section.label); link.href = `#${section.id}`; links.append(link); }
+    window.CeasefireI18n.attr(contents, "aria-label", "Worksheet contents"); contents.append(uiNode("p", "calculator-contents-title", "On this page"));
+    for (const section of sections) { const link = uiNode("a", `calculator-section-theme-${section.theme}`, section.label); link.href = `#${section.id}`; links.append(link); }
     contents.append(links); return contents;
   }
 
   function settingsPanels(entry, definitions) {
     const page = currentPage(entry), chooser = node("div", "calculator-settings-chooser"), panels = new Map(), buttons = new Map();
-    chooser.setAttribute("role", "group"); chooser.setAttribute("aria-label", "Settings sections");
+    chooser.setAttribute("role", "group"); window.CeasefireI18n.attr(chooser, "aria-label", "Settings sections");
     entry.settingsSelection ||= {};
     const update = () => {
       for (const [id, panel] of panels) {
@@ -930,7 +941,7 @@
     };
     for (const [index, definition] of definitions.entries()) {
       const prefix = `calculator-settings-${entry.definition.id}-${page}-${definition.id}`.replace(/[^A-Za-z0-9_-]/g, "-");
-      const button = node("button", `calculator-settings-choice calculator-section-theme-${index % 11}`, definition.label), panel = node("section", "calculator-settings-panel");
+      const button = uiNode("button", `calculator-settings-choice calculator-section-theme-${index % 11}`, definition.label), panel = node("section", "calculator-settings-panel");
       button.type = "button"; button.id = `${prefix}-button`; button.dataset.calculatorSettingsSection = definition.id; button.setAttribute("aria-controls", prefix);
       panel.id = prefix; panel.setAttribute("role", "region"); panel.setAttribute("aria-labelledby", button.id);
       if (definition.note) panel.append(node("p", "calculator-technical-note calculator-settings-note", definition.note));
@@ -1140,16 +1151,16 @@
       }
     }
     const headRow = node("tr");
-    if (dynamicSchedule) { const heading = node("th", "calculator-row-action", "Row"); heading.scope = "col"; headRow.append(heading); }
-    if (syntheticLine) { const heading = node("th", "calculator-line-number", "Line"); heading.scope = "col"; headRow.append(heading); }
+    if (dynamicSchedule) { const heading = uiNode("th", "calculator-row-action", "Row"); heading.scope = "col"; headRow.append(heading); }
+    if (syntheticLine) { const heading = uiNode("th", "calculator-line-number", "Line"); heading.scope = "col"; headRow.append(heading); }
     for (const column of columns) {
       const label = String(labels[column] || "");
       const minimum = !schedule ? 24 : /notes?|status|requirements|basis|sources?/i.test(label) ? 360 : /product|steel id|section|member mark|item.*mark|location|duct use/i.test(label) ? 220 : 125;
       const width = schedule && column === lineColumn ? lineWidth : Math.max(minimum, Math.min(schedule ? 420 : 320, (Number(metadata.column_widths?.[column]) || 22) * 7));
       widths.push(width);
-      const heading = node("th", "", labels[column] || ""); heading.scope = "col"; headRow.append(heading);
+      const heading = uiNode("th", "", labels[column] || ""); heading.scope = "col"; headRow.append(heading);
     }
-    if (dynamicSchedule) { const heading = node("th", "calculator-row-action", "Delete"); heading.scope = "col"; headRow.append(heading); }
+    if (dynamicSchedule) { const heading = uiNode("th", "calculator-row-action", "Delete"); heading.scope = "col"; headRow.append(heading); }
     head.append(headRow);
     let introPlaced = false;
     for (const [group, renderedGroup] of sections) for (const row of renderedGroup.sourceRows) {
@@ -1159,10 +1170,10 @@
       tr.dataset.sourceRow = String(row.row);
       if (dynamicSchedule) {
         tr.setAttribute("aria-rowindex", String(entry.scheduleRows.indexOf(row.row) + 2));
-        const action = node("td", "calculator-row-action"); action.append(node("span", "", `Line ${item}`));
+        const action = node("td", "calculator-row-action"); action.append(uiNode("span", "", "Line {0}", [item]));
         for (const binding of window.CeasefireTakeoffs?.scheduleBindings(entry.definition.id, row.row) || []) {
-          const source = node("button", "takeoff-source-indicator", "Source"); source.type = "button";
-          source.title = `Open takeoff ${binding.item_id}`; source.setAttribute("aria-label", source.title);
+          const source = uiNode("button", "takeoff-source-indicator", "Source"); source.type = "button";
+          window.CeasefireI18n.attr(source, "title", "Open takeoff {0}", [binding.item_id]); window.CeasefireI18n.attr(source, "aria-label", "Open takeoff {0}", [binding.item_id]);
           source.addEventListener("click", () => void window.CeasefireTakeoffs.showSource(binding.item_id)); action.append(source);
         }
         tr.append(action);
@@ -1180,7 +1191,7 @@
         const column = placement.column;
         if (boardSummary && column === 10 && row.row >= 11 && row.row <= 29) {
           const steelCell = node(row.row === 11 ? "th" : "td", "calculator-role-output calculator-center calculator-bold");
-          if (row.row === 11) { steelCell.scope = "col"; steelCell.textContent = "Net Steel sqm"; }
+          if (row.row === 11) { steelCell.scope = "col"; window.CeasefireI18n.text(steelCell, "Net Steel sqm"); }
           else { steelCell.dataset.boardSteelRow = String(row.row); steelCell.dataset.calculatorValue = "true"; updateOutputCell(steelCell, { value: boardSteelValue(result, row.row) }); }
           tr.append(steelCell);
         }
@@ -1271,7 +1282,7 @@
       const responsive = definition?.table_kind === "form" || matrix && group !== "matrix";
       const table = node("table", schedule ? "calculator-schedule-table" : `calculator-form-table${responsive ? " calculator-responsive-form" : group === "matrix" || definition?.table_kind === "comparison" ? " calculator-comparison-table" : ""}`);
       if (virtualSchedule) table.classList.add("calculator-virtual-schedule");
-      if (dynamicSchedule) { table.setAttribute("aria-label", `${entry.definition.title} schedule`); table.setAttribute("aria-rowcount", String(entry.scheduleRows.length + 1)); }
+      if (dynamicSchedule) { window.CeasefireI18n.attr(table, "aria-label", "{0} schedule", [entry.definition.title]); table.setAttribute("aria-rowcount", String(entry.scheduleRows.length + 1)); }
       const colgroup = node("colgroup");
       const legacyOrder = matrix && !periodMatrix && group === "matrix";
       const orderTable = legacyOrder || definition?.table_kind === "order";
@@ -1302,7 +1313,7 @@
       const scroll = node("div", `calculator-table-scroll${responsive ? " calculator-responsive-scroll" : ""}`);
       if (definition || metadata.expand_tables || !schedule && ["SETTINGS", "PRODUCT SETTINGS"].includes(entry.sheet)) scroll.classList.add("calculator-section-scroll");
       const tableLabel = definition?.label || (group === "matrix" ? matrix.label : null);
-      if (tableLabel) { table.setAttribute("aria-label", tableLabel); scroll.setAttribute("role", "region"); scroll.setAttribute("aria-label", `${tableLabel} · scroll horizontally for all columns`); scroll.tabIndex = 0; }
+      if (tableLabel) { window.CeasefireI18n.attr(table, "aria-label", tableLabel); scroll.setAttribute("role", "region"); window.CeasefireI18n.attr(scroll, "aria-label", "{0} · scroll horizontally for all columns", [window.CeasefireI18n.term(tableLabel)]); scroll.tabIndex = 0; }
       scroll.append(table);
       if (boardSummary && definition?.first_row === 11) {
         const notes = node("div"); notes.id = "calculator-board-steel-notes";
@@ -1311,7 +1322,7 @@
         scroll.append(notes);
       }
       if (dynamicSchedule) {
-        scroll.setAttribute("role", "region"); scroll.setAttribute("aria-label", "Schedule rows. Scroll vertically for more rows and horizontally for all columns."); scroll.tabIndex = 0;
+        scroll.setAttribute("role", "region"); window.CeasefireI18n.attr(scroll, "aria-label", "Schedule rows. Scroll vertically for more rows and horizontally for all columns."); scroll.tabIndex = 0;
         bindScheduleScroll(scroll, entry, scheduleView);
       }
       const link = definition && tableLinks[presentationTables.indexOf(definition)];
@@ -1325,7 +1336,7 @@
         } else content.push(element);
       };
       if (link) {
-        const section = node("section", projectedTables ? "calculator-projected-section" : "calculator-stacked-section"), heading = node("h4", `calculator-section-anchor calculator-section-theme-${link.theme}`, link.label); heading.id = link.id;
+        const section = node("section", projectedTables ? "calculator-projected-section" : "calculator-stacked-section"), heading = uiNode("h4", `calculator-section-anchor calculator-section-theme-${link.theme}`, link.label); heading.id = link.id;
         const titleCell = sourceCells.get(definition.title_address);
         applyCellDisplay(heading, metadata.display_cells[definition.title_address]);
         if (titleCell) { heading.dataset.calculatorOutput = definition.title_address; updateOutputCell(heading, titleCell); }
@@ -1341,7 +1352,7 @@
         section.append(scroll); append(section);
       }
       else if (schedule && metadata.schedule_heading) {
-        const section = node("section", "calculator-schedule-section"), heading = node("h4", "", metadata.schedule_heading);
+        const section = node("section", "calculator-schedule-section"), heading = uiNode("h4", "", metadata.schedule_heading);
         section.append(heading, scroll); append(section);
       } else append(scroll);
     }
@@ -1413,7 +1424,7 @@
       $("calculator-grid").setAttribute("aria-busy", "false"); showCalculationStatus(entry, result); return;
     }
     entry.result = null; state.gridEntry = null;
-    $("calculator-grid").replaceChildren(node("p", "calculator-empty", "Loading this worksheet…"));
+    $("calculator-grid").replaceChildren(uiNode("p", "calculator-empty", "Loading this worksheet…"));
     await calculate({ navigation: true });
   }
 
@@ -1423,7 +1434,7 @@
     if (!options.navigation) entry.navigationCache = null;
     const revision = entry.revision, sheet = entry.sheet, page = currentPage(entry), serial = ++state.requestRevision;
     state.calculating = true; updateStatus(entry);
-    calculationStatus("Calculating…");
+    calculationStatus(uiCopy("Calculating…"));
     $("calculator-grid").setAttribute("aria-busy", "true");
     try {
       const schedule = scheduleFor(entry);
@@ -1451,23 +1462,23 @@
       else { entry.pendingResult = null; renderGrid(entry); }
       showCalculationStatus(entry, result);
     } catch (error) {
-      if (current() === entry && serial === state.requestRevision && revision === entry.revision && page === currentPage(entry)) { message(`Could not calculate. ${error.message}`, true); calculationStatus("Calculation needs attention"); }
+      if (current() === entry && serial === state.requestRevision && revision === entry.revision && page === currentPage(entry)) { message(uiCopy("Could not calculate. {0}", [error.message]), true); calculationStatus(uiCopy("Calculation needs attention")); }
     } finally { if (serial === state.requestRevision) { state.calculating = false; $("calculator-grid").setAttribute("aria-busy", "false"); updateStatus(entry); } }
   }
 
   async function selectPage(id) {
     const entry = current(), page = entry && displayPages(entry.definition).find((item) => item.id === id); if (!page) return;
     if (id === currentPage(entry) && state.gridEntry === entry && entry.result && !entry.needsRender) return;
-    if (entry.invalid.size) { message("Correct the invalid number before changing pages.", true); return; }
+    if (entry.invalid.size) { message(uiCopy("Correct the invalid number before changing pages."), true); return; }
     retainPage(entry);
     entry.page = page.id; entry.sheet = page.sheet;
-    $("calculator-sheet-title").textContent = page.label;
+    window.CeasefireI18n.text($("calculator-sheet-title"), page.label);
     renderPages(entry); message(); await navigateWorksheet(entry);
   }
 
   function renderPages(entry) {
     const buttons = displayPages(entry.definition).map((page) => {
-      const button = node("button", "calculator-page", page.label); button.type = "button";
+      const button = uiNode("button", "calculator-page", page.label); button.type = "button";
       button.setAttribute("aria-pressed", String(page.id === currentPage(entry))); button.addEventListener("click", () => selectPage(page.id)); return button;
     });
     $("calculator-pages").replaceChildren(...buttons);
@@ -1529,12 +1540,12 @@
       if (serial !== state.loadRevision || window.CeasefireProposalCalculators?.isFirestopping?.()) return;
       retainPage(current());
       state.current = id; ++state.requestRevision; clearTimeout(state.timer);
-      $("calculator-workspace").hidden = false; $("calculator-title").textContent = entry.definition.title;
-      $("calculator-workspace").querySelector(".eyebrow").textContent = entry.definition.id === "ductwork" ? "DUCTWORK CALCULATOR" : "STEEL CALCULATOR";
-      $("calculator-sheet-title").textContent = pageDefinition(entry).label;
+      $("calculator-workspace").hidden = false; window.CeasefireI18n.text($("calculator-title"), entry.definition.title);
+      window.CeasefireI18n.text($("calculator-workspace").querySelector(".eyebrow"), entry.definition.id === "ductwork" ? "DUCTWORK CALCULATOR" : "STEEL CALCULATOR");
+      window.CeasefireI18n.text($("calculator-sheet-title"), pageDefinition(entry).label);
       renderChoices(); renderPages(entry); renderDocuments(entry); updateStatus(entry); message();
       await navigateWorksheet(entry);
-    } catch (error) { if (serial === state.loadRevision && !window.CeasefireProposalCalculators?.isFirestopping?.()) message(`Could not open the calculator. ${error.message}`, true); }
+    } catch (error) { if (serial === state.loadRevision && !window.CeasefireProposalCalculators?.isFirestopping?.()) message(uiCopy("Could not open the calculator. {0}", [error.message]), true); }
   }
 
   async function open() {
@@ -1544,13 +1555,13 @@
       if (serial !== state.loadRevision || window.CeasefireProposalCalculators?.isFirestopping?.()) return;
       renderChoices();
       if (list.length) await selectCalculator(state.current || list[0].id);
-    } catch (error) { if (serial === state.loadRevision && !window.CeasefireProposalCalculators?.isFirestopping?.()) message(`Could not load the calculators. ${error.message}`, true); }
+    } catch (error) { if (serial === state.loadRevision && !window.CeasefireProposalCalculators?.isFirestopping?.()) message(uiCopy("Could not load the calculators. {0}", [error.message]), true); }
   }
 
-  function confirmReplace(title, detail, buttonText, cancelText = "Keep editing") {
+  function confirmReplace(title, detail, buttonText, cancelText = uiCopy("Keep editing")) {
     const dialog = $("calculator-confirm-dialog");
-    $("calculator-confirm-title").textContent = title; $("calculator-confirm-detail").textContent = detail; $("calculator-confirm-button").textContent = buttonText;
-    $("calculator-confirm-cancel").textContent = cancelText; dialog.returnValue = "cancel";
+    uiText($("calculator-confirm-title"), title); uiText($("calculator-confirm-detail"), detail); uiText($("calculator-confirm-button"), buttonText);
+    uiText($("calculator-confirm-cancel"), cancelText); dialog.returnValue = "cancel";
     return new Promise((resolve) => { dialog.addEventListener("close", () => resolve(dialog.returnValue === "confirm"), { once: true }); dialog.showModal(); });
   }
 
@@ -1563,8 +1574,8 @@
       const saved = clone(response.inputs || snapshot); entry.saved = JSON.stringify(saved);
       entry.savedRows = JSON.stringify(response.schedule_rows || rows.schedule_rows);
       if (entry.revision === revision) { entry.inputs = saved; entry.scheduleRows = response.schedule_rows || rows.schedule_rows; }
-      message(entry.revision === revision ? `${entry.definition.title} saved.` : "Calculator saved. Your later edits are still unsaved.");
-    } catch (error) { message(`Could not save the calculator. ${error.message}`, true); }
+      message(entry.revision === revision ? uiCopy("{0} saved.", [entry.definition.title]) : uiCopy("Calculator saved. Your later edits are still unsaved."));
+    } catch (error) { message(uiCopy("Could not save the calculator. {0}", [error.message]), true); }
     finally { state.action = false; updateStatus(); if (current() === entry && state.gridEntry === entry) refreshScheduleDeleteControls(entry); }
   }
 
@@ -1572,12 +1583,12 @@
     const entry = current(); if (!entry || state.action) return;
     state.action = true; updateStatus(); const revision = entry.revision;
     try {
-      if (!await confirmReplace("Reset calculator defaults?", "This clears all rows and resets the schedule.", "Reset")) return;
-      if (current() !== entry || entry.revision !== revision) { message("The calculator changed while the confirmation was open. Review the latest draft and try again.", true); return; }
+      if (!await confirmReplace(uiCopy("Reset calculator defaults?"), uiCopy("This clears all rows and resets the schedule."), uiCopy("Reset"))) return;
+      if (current() !== entry || entry.revision !== revision) { message(uiCopy("The calculator changed while the confirmation was open. Review the latest draft and try again."), true); return; }
       entry.inputs = clone(entry.definition.defaults || {}); entry.invalid.clear(); entry.revision++; entry.pendingResult = null; entry.navigationCache = null; entry.needsRender = true;
       if (entry.definition.schedule) entry.scheduleRows = [entry.definition.schedule.first_row];
       entry.scheduleViewport = null; entry.removedRows = [];
-      message("Calculator defaults restored in this draft. Use Save to keep them."); await calculate();
+      message(uiCopy("Calculator defaults restored in this draft. Use Save to keep them.")); await calculate();
     } finally { state.action = false; updateStatus(); }
   }
 
@@ -1590,19 +1601,19 @@
   async function importSchedule() {
     const input = $("calculator-import-file"), file = input.files?.[0]; input.value = "";
     const entry = current(); if (!file || !entry || state.action) return;
-    if (file.size > 5 * 1024 * 1024) { message("Choose an Excel workbook smaller than 5 MB.", true); return; }
-    if (!file.name.toLowerCase().endsWith(".xlsx")) { message("Choose an .xlsx schedule workbook.", true); return; }
+    if (file.size > 5 * 1024 * 1024) { message(uiCopy("Choose an Excel workbook smaller than 5 MB."), true); return; }
+    if (!file.name.toLowerCase().endsWith(".xlsx")) { message(uiCopy("Choose an .xlsx schedule workbook."), true); return; }
     state.action = true; updateStatus(); const revision = entry.revision, snapshot = clone(entry.inputs);
     try {
       const content = await readFile(file);
       const result = await request(endpoint(entry.definition.id, "import"), { method: "POST", body: JSON.stringify({ filename: file.name, content_base64: content, inputs: snapshot }) });
-      if (current() !== entry || entry.revision !== revision) { message("The calculator changed while the file was importing. Your edits were kept; import the file again to review it.", true); return; }
-      if (!await confirmReplace("Replace the schedule draft?", `${result.imported_rows} schedule rows are ready to import. The imported schedule replaces the current schedule in this draft. Review the results, then click Save.`, "Apply to draft")) return;
-      if (current() !== entry || entry.revision !== revision) { message("The calculator changed while the confirmation was open. Your edits were kept; import the file again.", true); return; }
+      if (current() !== entry || entry.revision !== revision) { message(uiCopy("The calculator changed while the file was importing. Your edits were kept; import the file again to review it."), true); return; }
+      if (!await confirmReplace(uiCopy("Replace the schedule draft?"), uiCopy("{0} schedule rows are ready to import. The imported schedule replaces the current schedule in this draft. Review the results, then click Save.", [result.imported_rows]), uiCopy("Apply to draft"))) return;
+      if (current() !== entry || entry.revision !== revision) { message(uiCopy("The calculator changed while the confirmation was open. Your edits were kept; import the file again."), true); return; }
       entry.inputs = clone(result.inputs); entry.invalid.clear(); entry.revision++; entry.pendingResult = null; entry.navigationCache = null; entry.needsRender = true;
       entry.scheduleRows = result.schedule_rows && [...result.schedule_rows]; entry.scheduleViewport = null; entry.removedRows = [];
-      message(`Imported ${result.imported_rows} schedule rows into the draft. Use Save to keep them.`); await calculate();
-    } catch (error) { message(`Could not import the schedule. ${error.message}`, true); }
+      message(uiCopy("Imported {0} schedule rows into the draft. Use Save to keep them.", [result.imported_rows])); await calculate();
+    } catch (error) { message(uiCopy("Could not import the schedule. {0}", [error.message]), true); }
     finally { state.action = false; updateStatus(); }
   }
 
@@ -1612,8 +1623,8 @@
     state.action = true; updateStatus();
     try {
       const saved = await window.CeasefireDownloads.save(endpoint(entry.definition.id, "template"), {}, { button });
-      message(`Schedule template saved to ${saved.path}. Complete its input columns, then use Import Schedule.`);
-    } catch (error) { message(`Could not export the template. ${error.message}`, true); }
+      message(uiCopy("Schedule template saved to {0}. Complete its input columns, then use Import Schedule.", [saved.path]));
+    } catch (error) { message(uiCopy("Could not export the template. {0}", [error.message]), true); }
     finally { state.action = false; updateStatus(); }
   }
 
@@ -1628,12 +1639,12 @@
     const projectDetails = includeProjectDetails ? clone(window.CeasefireProject?.details() || {}) : null;
     const button = $(buttonId), previousLabel = button.getAttribute("aria-label") || label;
     state.action = true; updateStatus();
-    button.setAttribute("aria-label", `Preparing ${label}…`); button.setAttribute("aria-busy", "true");
+    window.CeasefireI18n.attr(button, "aria-label", "Preparing {0}…", [window.CeasefireI18n.term(label)]); button.setAttribute("aria-busy", "true");
     try {
       const saved = await window.CeasefireDownloads.save(endpoint(id, action), { inputs: snapshot, ...(projectDetails ? { project_details: projectDetails } : {}) }, { button });
       const changed = current() !== entry || entry.revision !== revision || projectDetails && JSON.stringify(projectDetails) !== JSON.stringify(window.CeasefireProject?.details() || {});
-      message(`${label} saved to ${saved.path} using the ${entry.definition.title} draft captured when you clicked Download.${changed ? " Your current draft was kept; later edits are not included." : ""}`);
-    } catch (error) { message(`Could not download the ${label}. ${error.message}`, true); }
+      message(uiCopy("{0} saved to {1} using the {2} draft captured when you clicked Download.{3}", [window.CeasefireI18n.term(label), saved.path, entry.definition.title, window.CeasefireI18n.term(changed ? " Your current draft was kept; later edits are not included." : "")]));
+    } catch (error) { message(uiCopy("Could not download the {0}. {1}", [window.CeasefireI18n.term(label), error.message]), true); }
     finally { button.setAttribute("aria-label", previousLabel); button.removeAttribute("aria-busy"); state.action = false; updateStatus(); }
   }
 

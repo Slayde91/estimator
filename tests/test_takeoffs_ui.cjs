@@ -1,3 +1,4 @@
+const englishI18n = require("./english_i18n_fixture.cjs");
 // Exercise geometry and real workspace lifecycle/operation code without a PDF
 // or a supplier source. Real rendering is covered by the browser journey.
 const fs = require('node:fs');
@@ -13,7 +14,7 @@ const response = (snapshot, session_id='session') => ({session_id,revision:snaps
 function harness(storage) {
   const context={window:{CeasefireTakeoffGeometry:geometry,CeasefireProject:{changed(){}}},document:{getElementById(){return null;},fonts:{load(){return Promise.resolve([]);},check(){return true;}}},crypto,
     Intl,Number,String,JSON,Object,Set,Map,Array,Promise,Error,URL,Math,Event,console:{...console},setTimeout,clearTimeout};
-  vm.createContext(context);
+  if (context.window) context.window.CeasefireI18n = englishI18n(); vm.createContext(context);
   context.window.CeasefireDownloads={save:async(path,payload)=>{
     const result=await context.fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
     if(!result.ok)throw new Error((await result.json()).error||'Takeoff download failed.');
@@ -841,7 +842,7 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
   });
   await check('Worker diagnostics preserve console output, bound payloads, and signal readiness after upstream import',()=>{
     const messages=[],logged=[],context={console:{warn:(...args)=>logged.push(args),error:(...args)=>logged.push(args)},self:{postMessage:data=>messages.push(data)},String};
-    vm.createContext(context);let source=fs.readFileSync('static/takeoff-pdf-worker.mjs','utf8');
+    if (context.window) context.window.CeasefireI18n = englishI18n(); vm.createContext(context);let source=fs.readFileSync('static/takeoff-pdf-worker.mjs','utf8');
     assert.ok(source.includes('await import("/vendor/pdfjs/build/pdf.worker.mjs");'));
     source=source.replace('await import("/vendor/pdfjs/build/pdf.worker.mjs");','');vm.runInContext(source,context);
     for(let i=0;i<25;i++)context.console.warn('X'.repeat(700));

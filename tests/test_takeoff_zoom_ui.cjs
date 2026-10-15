@@ -1,3 +1,4 @@
+const englishI18n = require("./english_i18n_fixture.cjs");
 // Exercise the real PDF display/zoom lifecycle with independently controlled
 // animation frames and PDF renders; no browser timing or supplier file required.
 const fs = require('node:fs');
@@ -25,7 +26,7 @@ function harness() {
   const context = { window: { CeasefireTakeoffGeometry: geometry, requestAnimationFrame(fn) { frames.set(++nextId, fn); return nextId; }, cancelAnimationFrame(id) { frames.delete(id); } },
     document: { getElementById() { return null; }, createElement: element, createElementNS: (_, tag) => element(tag) },
     console, crypto: require('node:crypto'), setTimeout(fn, delay) { timers.set(++nextId, { fn, delay }); return nextId; }, clearTimeout(id) { timers.delete(id); } };
-  vm.createContext(context);
+  if (context.window) context.window.CeasefireI18n = englishI18n(); vm.createContext(context);
   const source = fs.readFileSync('static/takeoffs.js', 'utf8').replace('  window.CeasefireTakeoffs = {', `  globalThis.audit = {state,zoomBy,renderPage,fitPage,rotatePage,pageViewport,pageRotation,displayViewport,pageDisplayKey,cancelQueuedZoom,drawingPoint,positionPage,beginPan,recordPdfFailure,releaseDocuments,
     setPdf(fn){pdfDocument=async()=>({});pdfPage=async(...args)=>fn(args[2]);},setCommand(fn){command=fn;},setOverlay(fn){renderOverlay=fn;},stopSideWork(){autoCalibratePage=async()=>{};renderThumbnails=async()=>{};}};
   window.CeasefireTakeoffs = {`);

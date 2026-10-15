@@ -1,4 +1,5 @@
 "use strict";
+const englishI18n = require("./english_i18n_fixture.cjs");
 // Execute the real workspace functions with disposable state. The browser
 // journey covers actual keyboard focus, clipboard, drawing and rendered sizing.
 const { test } = require("node:test");
@@ -6,9 +7,9 @@ const assert = require("node:assert/strict"), fs = require("node:fs"), vm = requ
 const geometry = require("../static/takeoff-geometry.js");
 const copy = value => JSON.parse(JSON.stringify(value));
 function element(tag = "div") {
-  const el = { tagName: tag.toUpperCase(), children: [], events: {}, attributes: {}, className: "", textContent: "", dataset: {},
+  const el = { tagName: tag.toUpperCase(), children: [], get childNodes() { return this.children; }, events: {}, attributes: {}, className: "", textContent: "", dataset: {},
     append(...children) { this.children.push(...children); }, replaceChildren(...children) { this.children = children; },
-    setAttribute(key, value) { this.attributes[key] = String(value); }, getAttribute(key) { return this.attributes[key] ?? null; }, addEventListener(name, fn) { this.events[name] = fn; } };
+    setAttribute(key, value) { this.attributes[key] = String(value); }, getAttribute(key) { return this.attributes[key] ?? null; }, hasAttribute(key) { return key in this.attributes; }, addEventListener(name, fn) { this.events[name] = fn; } };
   el.classList = { add(...names) { el.className += ` ${names.join(" ")}`; }, toggle() {} };
   return el;
 }
@@ -20,7 +21,7 @@ function surface(id = "wall", mode = "wall") {
 function harness() {
   const context = { window: { CeasefireTakeoffGeometry: geometry }, document: { createElement: element, createElementNS: (_, tag) => element(tag) },
     crypto, console, setTimeout, clearTimeout, Intl };
-  vm.createContext(context);
+  context.window.CeasefireI18n = englishI18n(); vm.createContext(context);
   const source = fs.readFileSync("static/takeoffs.js", "utf8").replace("  window.CeasefireTakeoffs = {", `  globalThis.audit = {
     state, copyLengthMarkups, pasteLengthMarkups, planKeydown, pageDisplayKey, currentVisibilityControl, button, itemFields,
     setCommand(fn) { command = fn; }, setRenderers(fn) { renderSelection = fn; renderOverlay = fn; renderRegister = fn; }

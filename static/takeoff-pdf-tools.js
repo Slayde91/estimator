@@ -71,14 +71,16 @@
     if (operation === "merge" && documents.length < 2) throw new Error("Upload at least two Source Documents to merge PDFs.");
     const doc = root.document, dialog = doc.createElement("dialog"); dialog.className = "modal takeoff-pdf-tools-dialog";
     const node = (tag, className, text) => { const value = doc.createElement(tag); if (className) value.className = className; if (text !== undefined) value.textContent = text; return value; };
-    const title = node("h2", "", names[operation]); title.id = "takeoff-pdf-tools-title"; dialog.setAttribute("aria-labelledby", title.id);
-    const intro = node("p", "helper", "Prepare a new PDF. Original Source Documents and their existing markups stay attached to the original pages.");
+    const uiNode = (tag, className, source, args = []) => root.CeasefireI18n.nodeText(node(tag, className), source, args);
+    const uiMake = (label, ...args) => { const control = make(label, ...args); control.textContent = ""; return root.CeasefireI18n.nodeText(control, label); };
+    const title = uiNode("h2", "", names[operation]); title.id = "takeoff-pdf-tools-title"; dialog.setAttribute("aria-labelledby", title.id);
+    const intro = uiNode("p", "helper", "Prepare a new PDF. Original Source Documents and their existing markups stay attached to the original pages.");
     const status = node("p", "takeoff-pdf-tools-status"); status.setAttribute("role", "status");
     const workspace = node("div", "takeoff-pdf-tools-workspace"), output = node("label", "field"), outputSelect = node("select");
-    outputSelect.setAttribute("aria-label", "New PDF output"); output.append(node("span", "", "New PDF output"), outputSelect);
+    window.CeasefireI18n.attr(outputSelect, "aria-label", "New PDF output"); output.append(uiNode("span", "", "New PDF output"), outputSelect);
     for (const [value, label] of [["download", "Download new PDF"], ["add-source", "Add as new Source Document"]]) {
       if (operation === "organise" && value === "add-source") continue;
-      const option = node("option", "", label); option.value = value; option.disabled = value === "add-source" && typeof onResult !== "function"; outputSelect.append(option);
+      const option = uiNode("option", "", label); option.value = value; option.disabled = value === "add-source" && typeof onResult !== "function"; outputSelect.append(option);
     }
     outputSelect.value = operation !== "organise" && options.defaultAction === "add-source" && typeof onResult === "function" ? "add-source" : "download";
     outputSelect.disabled = operation === "organise";
@@ -91,14 +93,14 @@
     function payload() { return request(operation, operation === "merge" ? mergeOrder.filter(value => included.has(value)) : [sourceId], order, expectedRevision, documents); }
     function describe() {
       try { const body = payload(); const pages = operation === "merge" ? body.document_ids.reduce((sum, id) => sum + documents.find(value => value.id === id).pages.length, 0) : order.length;
-        summary.textContent = `${pages} page${pages === 1 ? "" : "s"} in the new PDF${operation === "organise" ? `; ${source().pages.length-order.length} removed` : ""}.`;
+        root.CeasefireI18n.text(summary, pages === 1 ? "{0} page in the new PDF{1}." : "{0} pages in the new PDF{1}.", [pages, operation === "organise" ? root.CeasefireI18n.term("; {0} removed", [source().pages.length-order.length]) : ""]);
         create.disabled = false;
       } catch (error) { summary.textContent = error.message; create.disabled = true; }
     }
     function error(value) { status.textContent = value.message || String(value); }
-    const rows = node("ol", "takeoff-pdf-tools-order"); rows.setAttribute("aria-label", operation === "merge" ? "Source Document order" : "Output page order");
-    const previous = make("Previous pages", () => { previewOffset = Math.max(0, previewOffset-100); renderPages(); });
-    const next = make("Next pages", () => { previewOffset += 100; renderPages(); });
+    const rows = node("ol", "takeoff-pdf-tools-order"); window.CeasefireI18n.attr(rows, "aria-label", operation === "merge" ? "Source Document order" : "Output page order");
+    const previous = uiMake("Previous pages", () => { previewOffset = Math.max(0, previewOffset-100); renderPages(); });
+    const next = uiMake("Next pages", () => { previewOffset += 100; renderPages(); });
     const pagination = node("div", "takeoff-pdf-tools-pagination"); pagination.append(previous, next);
     function renderMerge() {
       rows.replaceChildren();
@@ -106,50 +108,50 @@
         const source = documents.find(value => value.id === id), row = node("li"), label = node("label"), check = node("input"); check.type = "checkbox"; check.checked = included.has(id);
         label.append(check, doc.createTextNode(`${source.name} (${source.pages.length} pages)`));
         check.addEventListener("change", () => { check.checked ? included.add(id) : included.delete(id); invalidate(); describe(); });
-        const up = make("↑", () => moveMerge(index, -1)), down = make("↓", () => moveMerge(index, 1)); up.setAttribute("aria-label", `Move ${source.name} up`); down.setAttribute("aria-label", `Move ${source.name} down`); up.disabled = index === 0; down.disabled = index === mergeOrder.length-1;
+        const up = make("↑", () => moveMerge(index, -1)), down = make("↓", () => moveMerge(index, 1)); window.CeasefireI18n.attr(up, "aria-label", "Move {0} up", [source.name]); window.CeasefireI18n.attr(down, "aria-label", "Move {0} down", [source.name]); up.disabled = index === 0; down.disabled = index === mergeOrder.length-1;
         const actions = node("div", "takeoff-pdf-tools-row-actions"); actions.append(up, down); row.append(label, actions); rows.append(row);
       }
       describe();
     }
     function moveMerge(index, delta) { [mergeOrder[index], mergeOrder[index+delta]] = [mergeOrder[index+delta], mergeOrder[index]]; invalidate(); renderMerge(); }
-    const orderText = node("input"); orderText.type = "text"; orderText.maxLength = 20000; orderText.setAttribute("aria-label", operation === "extract" ? "Pages to extract" : "Page order"); orderText.placeholder = "1, 3-5";
+    const orderText = node("input"); orderText.type = "text"; orderText.maxLength = 20000; window.CeasefireI18n.attr(orderText, "aria-label", operation === "extract" ? "Pages to extract" : "Page order"); orderText.placeholder = "1, 3-5";
     function renderPages() {
       if (previewOffset >= order.length) previewOffset = Math.max(0, Math.floor((order.length-1)/100)*100);
       rows.replaceChildren(); orderText.value = formatPages(order);
       order.slice(previewOffset, previewOffset+100).forEach((number, local) => {
-        const index = previewOffset+local, row = node("li"), actions = node("div", "takeoff-pdf-tools-row-actions"); row.append(node("span", "", `Page ${number}`));
-        const up = make("↑", () => movePage(index, -1)), down = make("↓", () => movePage(index, 1)); up.setAttribute("aria-label", `Move page ${number} up`); down.setAttribute("aria-label", `Move page ${number} down`); up.disabled = index === 0; down.disabled = index === order.length-1;
-        const remove = make("Remove", () => { order.splice(index,1); invalidate(); renderPages(); }); remove.setAttribute("aria-label", `Remove page ${number} from output`); actions.append(up, down, remove); row.append(actions); rows.append(row);
+        const index = previewOffset+local, row = node("li"), actions = node("div", "takeoff-pdf-tools-row-actions"); row.append(uiNode("span", "", "Page {0}", [number]));
+        const up = make("↑", () => movePage(index, -1)), down = make("↓", () => movePage(index, 1)); window.CeasefireI18n.attr(up, "aria-label", "Move page {0} up", [number]); window.CeasefireI18n.attr(down, "aria-label", "Move page {0} down", [number]); up.disabled = index === 0; down.disabled = index === order.length-1;
+        const remove = uiMake("Remove", () => { order.splice(index,1); invalidate(); renderPages(); }); window.CeasefireI18n.attr(remove, "aria-label", "Remove page {0} from output", [number]); actions.append(up, down, remove); row.append(actions); rows.append(row);
       });
       pagination.hidden = order.length <= 100; previous.disabled = previewOffset === 0; next.disabled = previewOffset+100 >= order.length; describe();
     }
     function movePage(index, delta) { [order[index], order[index+delta]] = [order[index+delta], order[index]]; invalidate(); renderPages(); }
-    if (operation === "merge") { workspace.append(node("p", "helper", "Select PDFs and use the arrows to set their merge order."), rows); }
+    if (operation === "merge") { workspace.append(uiNode("p", "helper", "Select PDFs and use the arrows to set their merge order."), rows); }
     else {
-      const choose = node("label", "field"), sourceSelect = node("select"); sourceSelect.setAttribute("aria-label", "Source Document"); choose.append(node("span", "", "Source Document"), sourceSelect);
-      for (const value of documents) { const option = node("option", "", `${value.name} (${value.pages.length} pages)`); option.value = value.id; sourceSelect.append(option); } sourceSelect.value = sourceId;
-      const pages = node("label", "field"), apply = make("Apply page order", () => { try { order = parsePages(orderText.value, source().pages.length); previewOffset = 0; invalidate(); renderPages(); } catch (value) { error(value); } });
-      pages.append(node("span", "", operation === "extract" ? "Pages to extract, in output order" : "Page order (numbers or ranges)"), orderText);
+      const choose = node("label", "field"), sourceSelect = node("select"); window.CeasefireI18n.attr(sourceSelect, "aria-label", "Source Document"); choose.append(uiNode("span", "", "Source Document"), sourceSelect);
+      for (const value of documents) { const option = uiNode("option", "", "{0} ({1} pages)", [value.name, value.pages.length]); option.value = value.id; sourceSelect.append(option); } sourceSelect.value = sourceId;
+      const pages = node("label", "field"), apply = uiMake("Apply page order", () => { try { order = parsePages(orderText.value, source().pages.length); previewOffset = 0; invalidate(); renderPages(); } catch (value) { error(value); } });
+      pages.append(uiNode("span", "", operation === "extract" ? "Pages to extract, in output order" : "Page order (numbers or ranges)"), orderText);
       workspace.append(choose, pages, apply);
       if (operation === "organise") {
-        const removeField = node("label", "field"), removeText = node("input"); removeText.type = "text"; removeText.maxLength = 20000; removeText.placeholder = "2, 4-6"; removeText.setAttribute("aria-label", "Pages to delete"); removeField.append(node("span", "", "Pages to delete from the output"), removeText);
-        const remove = make("Delete selected pages", () => { try { const deleted = new Set(parsePages(removeText.value, source().pages.length)), kept = order.filter(value => !deleted.has(value)); if (!kept.length) throw new Error("Keep at least one page in the new PDF."); order = kept; removeText.value = ""; invalidate(); renderPages(); } catch (value) { error(value); } });
+        const removeField = node("label", "field"), removeText = node("input"); removeText.type = "text"; removeText.maxLength = 20000; removeText.placeholder = "2, 4-6"; window.CeasefireI18n.attr(removeText, "aria-label", "Pages to delete"); removeField.append(uiNode("span", "", "Pages to delete from the output"), removeText);
+        const remove = uiMake("Delete selected pages", () => { try { const deleted = new Set(parsePages(removeText.value, source().pages.length)), kept = order.filter(value => !deleted.has(value)); if (!kept.length) throw new Error("Keep at least one page in the new PDF."); order = kept; removeText.value = ""; invalidate(); renderPages(); } catch (value) { error(value); } });
         workspace.append(removeField, remove);
       }
-      workspace.append(node("p", "helper", "Use the arrows or enter a page order. Removing a page here affects only the new PDF."), rows, pagination);
+      workspace.append(uiNode("p", "helper", "Use the arrows or enter a page order. Removing a page here affects only the new PDF."), rows, pagination);
       sourceSelect.addEventListener("change", () => { sourceId = sourceSelect.value; order = Array.from({length:pageCount(source().pages.length)}, (_,index) => index+1); previewOffset = 0; invalidate(); renderPages(); });
       order = Array.from({length:pageCount(source().pages.length)}, (_,index) => index+1);
     }
     outputSelect.addEventListener("change", () => { status.textContent = ""; });
-    const cancel = make("Cancel", () => { if (!pending) dialog.close("cancel"); });
-    const create = make("Create PDF", async () => {
+    const cancel = uiMake("Cancel", () => { if (!pending) dialog.close("cancel"); });
+    const create = uiMake("Create PDF", async () => {
       if (pending) return;
       const disabled = new Map();
       try {
         // Typed page order must be applied as part of this one explicit command.
         if (operation !== "merge") { order = parsePages(orderText.value, source().pages.length); renderPages(); }
         const body = payload(), fingerprint = JSON.stringify(body), action = operation === "organise" ? "download" : outputSelect.value;
-        pending = true; for (const control of dialog.querySelectorAll("button,input,select")) { disabled.set(control,control.disabled); control.disabled = true; } dialog.setAttribute("aria-busy", "true"); status.textContent = "Preparing the new PDF…";
+        pending = true; for (const control of dialog.querySelectorAll("button,input,select")) { disabled.set(control,control.disabled); control.disabled = true; } dialog.setAttribute("aria-busy", "true"); window.CeasefireI18n.text(status, "Preparing the new PDF…");
         if (!prepared || prepared.fingerprint !== fingerprint) prepared = { ...await checkedResult(await requestPDF(body), operation), fingerprint };
         result = { blob:prepared.blob, filename:prepared.filename, action };
         if (typeof onResult === "function") await onResult(result);

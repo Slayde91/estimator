@@ -48,7 +48,7 @@ const association = {
     assert.match(links.description(association, candidate), /Service size: 25\.123456789012 mm 100\.234567890123 mm wide$/);
   });
   await test("the actual search setup writes six-field labels with textContent only", async () => {
-    const originalFetch = global.fetch, captured = [];
+    const originalFetch = global.fetch, originalI18n = global.CeasefireI18n, captured = [];
     class Element {
       constructor(tag = "input") { this.tagName = tag; this.children = []; this.events = {}; this.value = ""; this.disabled = false; this.ownerDocument = doc; }
       set innerHTML(value) { throw new Error("Picker must never render HTML from library evidence"); }
@@ -61,6 +61,13 @@ const association = {
       get options() { return this.children; }
     }
     const doc = {createElement: tag => new Element(tag)};
+    // The application loads its language runtime before this module. This isolated
+    // contract keeps English UI copy while exercising the same text-only sink;
+    // literal evidence labels below must still bypass translation entirely.
+    global.CeasefireI18n = {text(element, source, args = []) {
+      element.textContent = String(source).replace(/\{(\d+)\}/g, (match, index) => index < args.length ? String(args[index]) : match);
+      return element;
+    }};
     global.fetch = async url => ({ok: true, json: async () => url.includes("/takeoff") ? copy(record) : {items: [{...copy(record), display_fields: {...record.display_fields, substrate: "<img src=x onerror=boom>"}}], total: 1, filters: []}});
     try {
       const chosen = await links.choose({ask: async (title, fields, message, submit, setup) => {
@@ -76,7 +83,7 @@ const association = {
       assert.equal(captured[1].textContent, "FL-ID-001; Core Hole; <img src=x onerror=boom>; Vertical; Copper pipe; -/120/120");
       assert.deepEqual(captured[1].children, []);
       assert.equal(chosen.details.item_quantity, 700);
-    } finally { global.fetch = originalFetch; }
+    } finally { global.fetch = originalFetch; if (originalI18n === undefined) delete global.CeasefireI18n; else global.CeasefireI18n = originalI18n; }
   });
   console.log(`${passed} literal library display contracts passed.`);
 })().catch(error => { console.error(error); process.exitCode = 1; });

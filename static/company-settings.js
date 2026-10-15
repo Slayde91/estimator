@@ -1,5 +1,16 @@
 (() => {
   'use strict';
+  // Bind application-owned copy only; node() remains safe for user and source text.
+  const uiText = (element, source, args = []) => {
+    if (window.CeasefireI18n) return window.CeasefireI18n.text(element, source, args);
+    element.textContent = String(source).replace(/\{(\d+)\}/g, (match, index) => args[index] === undefined ? match : String(typeof args[index] === "function" ? args[index]() : args[index])); return element;
+  };
+  const uiAttr = (element, name, source, args = []) => {
+    if (window.CeasefireI18n) return window.CeasefireI18n.attr(element, name, source, args);
+    const value = String(source).replace(/\{(\d+)\}/g, (match, index) => args[index] === undefined ? match : String(typeof args[index] === "function" ? args[index]() : args[index]));
+    element.setAttribute(name, value); if (["title", "placeholder"].includes(name)) element[name] = value; return element;
+  };
+
   const form = document.getElementById('company-settings-form');
   if (!form) return;
   const status = document.getElementById('company-settings-status');
@@ -8,7 +19,7 @@
   const save = document.getElementById('company-settings-save');
   let current = null, logo = null, removed = false, reading = false, saving = false;
   const fields = ['name', 'abn', 'phone', 'email'];
-  const message = (text, error = false) => { status.textContent = text; status.className = error ? 'message error' : 'status-label calculator-status'; };
+  const message = (text, error = false) => { uiText(status, text); status.className = error ? 'message error' : 'status-label calculator-status'; };
   const renderLogo = () => {
     preview.hidden = removed;
     if (removed) preview.removeAttribute('src');

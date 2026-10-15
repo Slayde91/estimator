@@ -20,6 +20,15 @@ function harness(){
 let passed=0;
 async function check(name,fn){const h=harness();h.projectApi.applyProject(await h.projectApi.prepareDefaults());await fn(h);passed++;console.log('ok - '+name);}
 (async()=>{
+  await check('Localized editor keeps custom product and pricing names literal even when they match UI terms',async h=>{
+    const localized=(source,args=[])=>'translated:'+String(source).replace(/\{(\d+)\}/g,(match,index)=>index<args.length?String(typeof args[index]==='function'?args[index]():args[index]):match);
+    h.context.window.CeasefireI18n={text(element,source,args){element.textContent=localized(source,args);return element;},attr(element,name,source,args){element.setAttribute(name,localized(source,args));return element;},translate:localized};
+    const names=['Board','Primer','Home'];
+    for(const name of names){const record=fixture(undefined,{pricing_label:name});h.audit.present(record);assert.equal(h.byId('library-editor-pricing-basis').textContent,name);assert.deepEqual(h.audit.state.draft,record.draft);}
+    const field={column:'X',label:'Board/Batt Type',type:'select',group:'Products and labour',format:'text',options:names,default:null},control=h.audit.makeControl(field,false).children[1];
+    assert.deepEqual(control.children.slice(1).map(option=>option.textContent),names);assert.deepEqual(control.children.slice(1).map(option=>option.value),names);
+    assert.match(h.byId('library-editor-pricing-heading').textContent,/^translated:/);
+  });
   const portable = (draft = definition().defaults, diagram = null) => ({id:'orphan-item',library_id:'FL-PROJECT',title:'Project copy',source_sha256:'library-source',draft:copy(draft),configuration:{inventory:{},rates:{}},diagram});
   const bundle = record => ({version:1,source_sha256:'calculator-source',records:[record]});
   const prepared = value => ({library_drafts:copy(value),records:value.records.map(record=>fixture(record.draft,{id:record.id,title:record.title,library_id:record.library_id,project_local:true,configuration:record.configuration,diagram:{available:!!record.diagram,url:record.diagram ? `data:image/png;base64,${record.diagram.content_base64}` : undefined}}))});

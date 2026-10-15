@@ -184,7 +184,7 @@ class PenetrationLabourExportTests(unittest.TestCase):
         self.assertNotIn('Other', labour_section)
         self.assertIn('Additional Labour', labour_section)
         self.assertIn('Register allowance', labour_section)
-        self.assertIn('Zero-amount tasks are omitted', labour_section)
+        self.assertNotIn('Zero-amount tasks are omitted', labour_section)
 
         # The hourly price already contains the selected worker count. Doubling
         # the crew changes cost, never register/pipe task hours or labour days.
@@ -201,8 +201,8 @@ class PenetrationLabourExportTests(unittest.TestCase):
             stored = Store(self.store.path).quote(quote['id'])
             render_quote_pdf(stored)
         self.assertEqual(stored, quote)
-        # An older snapshot can retain its original seven task labels. Export
-        # copy must describe those stored labels without resolving new policy.
+        # An older snapshot retains its original task labels and prices without
+        # resolving new policy; the requested helper explanation stays omitted.
         historical = deepcopy(stored)
         tasks = historical['result']['labour']['firestopping_tasks']
         additional = next(task for task in tasks if task['name'].endswith('Additional Labour'))
@@ -214,7 +214,8 @@ class PenetrationLabourExportTests(unittest.TestCase):
         tasks.remove(additional)
         with patch('estimator.penetration_calculator.resolve_labour', side_effect=AssertionError('Historical snapshot recalculated')):
             text = pdf_text(render_quote_pdf(historical))
-        self.assertIn('Firestopping Labour includes source setup time', text)
+        self.assertNotIn('Firestopping Labour includes source setup time', text)
+        self.assertIn(f"${historical['result']['summary']['total']:,.2f}", text)
         self.assertNotIn('Register allowance shows', text)
         later = deepcopy(quote['penetration'])
         later['draft']['rows'][0]['inputs']['AL'] = 300

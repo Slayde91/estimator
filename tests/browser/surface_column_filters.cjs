@@ -82,7 +82,7 @@ async function reset(label) { await finishMenu(await menu(label), 'Reset filter'
     await page.setViewportSize({width,height:764});await documentToggle.scrollIntoViewIfNeeded();
     await documentToggle.evaluate(el=>window.scrollTo(0,window.scrollY+el.getBoundingClientRect().top-170));
     await documentToggle.click();const actions=documentMenu.locator('.calculator-document-actions button');
-    assert.deepEqual(await actions.allTextContents(),['⇩XLSXDownload confirmed items','⇩XLSXDownload unconfirmed items','⇩XLSXDownload all items']);
+    assert.deepEqual(await actions.allTextContents(),['⇩XLSXDownload confirmed items','⇩XLSXDownload unconfirmed items','⇩XLSXDownload all items','⇩PDFDownload Full Markup','⇩PDFDownload Markups Only','⇩PDFDownload All Markups','⇩PDFDownload Full Markups Only']);
     assert.ok(await documentToggle.locator('img').evaluate(img=>img.complete&&img.naturalWidth>0));
     const geometry=await actions.evaluateAll(buttons=>buttons.map(button=>{const r=button.getBoundingClientRect(),hit=document.elementFromPoint(r.x+r.width/2,r.y+r.height/2);return{x:r.x,y:r.y,width:r.width,height:r.height,hit:button===hit||button.contains(hit)};}));
     assert.ok(geometry.every(box=>box.x>=0&&box.y>=0&&box.x+box.width<=width&&box.y+box.height<=764&&box.hit),JSON.stringify({width,geometry}));

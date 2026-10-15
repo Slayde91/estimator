@@ -273,7 +273,7 @@
     if (box.hidden) return;
     const slot = $("app-message-slot"), height = slot?.getBoundingClientRect?.().height;
     if (slot?.style && Number.isFinite(height) && height > 0) slot.style.minHeight = `${height}px`;
-    box.textContent = ""; box.hidden = true;
+    box.hidden = true;
   }
   function message(text, error = false, kind = null) {
     clearTimeout(messageExpiry);

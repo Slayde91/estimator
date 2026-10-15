@@ -72,7 +72,7 @@ async function noticeExpiryKeepsDrawing(id, point, globalNotice = false) {
     document.addEventListener('pointerdown', probe.pointer, true);
     probe.observer = new MutationObserver(() => {
       if (!notice.hidden && /^(Copied|Project saved)/.test(notice.textContent)) probe.started = Date.now();
-      if (notice.hidden && probe.started) probe.retired = { at: Date.now(), text: notice.textContent, ...geometry() };
+      if (notice.hidden && probe.started) probe.retired = { at: Date.now(), text: notice.textContent, hidden: notice.hidden, ...geometry() };
     });
     probe.observer.observe(notice, { attributes: true, childList: true, characterData: true, subtree: true });
   }, noticeId);
@@ -87,6 +87,7 @@ async function noticeExpiryKeepsDrawing(id, point, globalNotice = false) {
     await page.keyboard.press('Control+c');
     await expect(page.locator('#takeoff-message')).toContainText('Copied');
   }
+  const noticeText = await page.locator(`#${noticeId}`).textContent();
   await page.mouse.move(10, 200); await page.mouse.wheel(0, -2000);
   await expect.poll(() => page.evaluate(() => scrollY)).toBe(0);
   const beforeExpiry = await page.evaluate(() => window.__surfaceNoticeExpiry.geometry());
@@ -95,7 +96,7 @@ async function noticeExpiryKeepsDrawing(id, point, globalNotice = false) {
   const remaining = await page.evaluate(() => Math.max(0, window.__surfaceNoticeExpiry.started + 4950 - Date.now()));
   await page.waitForTimeout(remaining);
   await page.mouse.dblclick(...position, { delay: 100 }); await idle();
-  await expect(page.locator(`#${noticeId}`)).toBeHidden(); await expect(page.locator(`#${noticeId}`)).toHaveText('');
+  await expect(page.locator(`#${noticeId}`)).toBeHidden(); await expect(page.locator(`#${noticeId}`)).toHaveText(globalNotice ? noticeText : '');
   await selected(id, true); await expect(panel()).toBeVisible();
   const probe = await page.evaluate(noticeId => {
     const value = window.__surfaceNoticeExpiry;
@@ -104,7 +105,8 @@ async function noticeExpiryKeepsDrawing(id, point, globalNotice = false) {
       reservedHeight: document.getElementById(noticeId).parentElement.style.minHeight };
   }, noticeId);
   assert.ok(probe.retired && probe.retired.at - probe.started >= 4900, 'Ordinary retirement is observed near the actual five-second boundary');
-  assert.equal(probe.retired.text, '', 'Expired text is removed, including from assistive technology');
+  assert.equal(probe.retired.hidden, true, 'Retired notices stay outside the rendered and accessibility trees');
+  assert.equal(probe.retired.text, globalNotice ? noticeText : '', 'Global retirement preserves the existing hidden-text contract; Takeoff retirement clears its text');
   for (const key of ['overlayY', 'viewportY', 'slotHeight', 'scrollY']) assert.equal(probe.retired[key], beforeExpiry[key], `Notice expiry keeps ${key} exact`);
   // CSSOM serializes70.59375px as70.5938px; rendered geometry above stays exact.
   assert.ok(Math.abs(Number.parseFloat(probe.reservedHeight) - beforeExpiry.slotHeight) < .001, 'The serialized reserve retains the complete fractional flow height');

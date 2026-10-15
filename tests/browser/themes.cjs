@@ -62,6 +62,17 @@ async function readableMidnightIcon(control) {
   await control.hover();const hover=await controlAppearance(control);assert.equal(hover.image.filter,'brightness(0) invert(1)');assert.ok(contrast('rgb(255,255,255)',hover.background)>=3,'hover must preserve white icon contrast');assert.ok(contrast(hover.color,hover.background)>=4.5);
   await page.mouse.move(1,1);return {normal:value,hover};
 }
+async function readablePhysicalIcon(control) {
+  await expect(control).toBeVisible();await expect(control.locator('img')).toHaveJSProperty('complete',true);
+  const value=await controlAppearance(control);assert.equal(value.image.width,512);assert.equal(value.image.height,512);assert.ok(value.image.opaque>0);assert.equal(value.image.nonBlackOpaque,0);
+  await control.hover();const hover=await controlAppearance(control);
+  for(const state of [value,hover]) {
+    assert.equal(state.filter,'none');assert.equal(state.image.filter,'none','Physical draft controls retain the original black icon');
+    assert.equal(state.background,'rgb(255, 255, 255)','Physical draft controls retain their white surface');
+    assert.ok(contrast('rgb(0,0,0)',state.background)>=3,'Black physical icon contrast');assert.ok(contrast(state.color,state.background)>=4.5,'Physical control text remains readable');
+  }
+  await page.mouse.move(1,1);return {normal:value,hover};
+}
 (async () => {
   const fixture=await ready; assert.notEqual(fixture.port,8765);
   browser=await chromium.launch({ headless:true });
@@ -117,17 +128,25 @@ async function readableMidnightIcon(control) {
       const documentControl=page.locator(physical?'.takeoff-workspace-heading .takeoff-physical-document-host':'.takeoff-workspace-heading').getByRole('button',{name:physical?'Document':'Takeoff register document actions',exact:true});
       await documentControl.scrollIntoViewIfNeeded();const document=await readableMidnightIcon(documentControl);
       const transfer=register.getByRole('button',{name:physical?'Transfer to Firestopping Schedule':'Preview transfer',exact:true});
-      const transferAppearance=await transfer.isVisible()?await readableMidnightIcon(transfer):null;
-      // Undo shares Schedule's glyph colors; adjacent physical SVGs follow ink.
+      const transferAppearance=await transfer.isVisible()?await (physical?readablePhysicalIcon:readableMidnightIcon)(transfer):null;
+      // Ordinary registers follow Schedule; physical drafts retain the user's
+      // red/black/white palette even while surrounding application chrome changes.
       const undo=await controlAppearance(register.getByRole('button',{name:'Undo last edit',exact:true}));
-      assert.equal(undo.background,scheduleUndo.background);assert.equal(undo.color,scheduleUndo.color);
+      let physicalPalette;
+      if(physical) {
+        physicalPalette=await register.evaluate(el=>{const css=getComputedStyle(el),heading=getComputedStyle(el.querySelector('thead th'));return {background:css.backgroundColor,color:css.color,headingBackground:heading.backgroundColor,headingColor:heading.color};});
+        assert.deepEqual(physicalPalette,{background:'rgb(255, 255, 255)',color:'rgb(17, 17, 17)',headingBackground:'rgb(185, 10, 21)',headingColor:'rgb(255, 255, 255)'});
+        assert.ok(contrast(physicalPalette.headingColor,physicalPalette.headingBackground)>=4.5,'Physical heading contrast');
+        assert.equal(undo.background,'rgb(255, 255, 255)');assert.ok(contrast(undo.color,undo.background)>=4.5,'Physical Undo contrast');
+      } else { assert.equal(undo.background,scheduleUndo.background);assert.equal(undo.color,scheduleUndo.color); }
       const adjacent=[];
       for(const name of ['Update linked rows',physical?'Unlink from Firestopping Schedule':'Detach links']) {
         const control=register.getByRole('button',{name,exact:true,includeHidden:true});if(!await control.isVisible())continue;
         const value=await controlAppearance(control);assert.ok(contrast(value.svgStroke,value.background)>=3,name+' SVG contrast');adjacent.push({name,...value});
       }
       for(const value of adjacent) {
-        assert.equal(document.normal.background,value.background,'Document shares adjacent control surface');assert.equal(document.normal.color,value.color,'Document shares adjacent control text color');
+        if(physical) { assert.equal(value.background,'rgb(255, 255, 255)');assert.ok(contrast(value.color,value.background)>=4.5,'Physical adjacent control text contrast'); }
+        else { assert.equal(document.normal.background,value.background,'Document shares adjacent control surface');assert.equal(document.normal.color,value.color,'Document shares adjacent control text color'); }
         if(transferAppearance){assert.equal(transferAppearance.normal.background,value.background,'Transfer shares adjacent control surface');assert.equal(transferAppearance.normal.color,value.color,'Transfer shares adjacent control text color');}
       }
       const rail=[];
@@ -150,7 +169,7 @@ async function readableMidnightIcon(control) {
       await documentControl.focus();await page.keyboard.press('ArrowDown');await expect(documentControl).toHaveAttribute('aria-expanded','true');await page.keyboard.press('Escape');await expect(documentControl).toHaveAttribute('aria-expanded','false');await expect(documentControl).toBeFocused();
       assert.deepEqual(await snapshot(),beforeDocument,'Document open/dismiss preserves project/draft');assert.equal(mutationRequests.length,beforeRequests);
       const screenshot=path.join(output,'midnight-'+view.toLowerCase().replace(/[^a-z]+/g,'-')+'-'+width+'.png');await page.screenshot({path:screenshot});
-      evidence.iconToolbars.push({view,width,document,transfer:transferAppearance,undo,adjacent,rail,railScreenshot,markupRailScreenshot,screenshot});
+      evidence.iconToolbars.push({view,width,document,transfer:transferAppearance,undo,physicalPalette,adjacent,rail,railScreenshot,markupRailScreenshot,screenshot});
     }
   }
   // Only chrome artwork is tinted; the retained drawing canvas and overlay stay unfiltered.

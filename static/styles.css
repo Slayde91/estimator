@@ -416,7 +416,7 @@ html.app-busy,html.app-busy *{cursor:progress!important}
 .app-header .nav-icon .takeoff-navigation-image{width:26px;height:26px;filter:invert(1) contrast(1.2)}
 .app-header .nav-icon:hover .takeoff-navigation-image{filter:contrast(1.2)}
 .app-header .nav-icon.active .takeoff-navigation-image,.app-header .nav-icon.active:hover .takeoff-navigation-image{filter:invert(1) contrast(1.2)}
-.app-header .nav-icon .help-navigation-image{width:29px;height:29px;align-self:center}
+.app-header .nav-icon .help-navigation-image{width:29px;height:29px;align-self:center;flex-shrink:0}
 .main-section-panel{margin-top:20px;min-width:0}
 .main-section-panel[hidden]{display:none}
 .main-section-panel:not(.card)>.card{margin-bottom:0}

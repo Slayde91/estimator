@@ -48,12 +48,12 @@ async function workbook(title) {
   const before = await snapshots(), beforeRequests = calculationRequests();
   const estimateToggle=page.getByRole('button',{name:'Estimates',exact:true}), estimates=page.getByRole('group',{name:'Choose an estimate',exact:true});
   await estimateToggle.hover();await expect(estimates).toBeVisible();
-  assert.deepEqual(await estimates.getByRole('button').allTextContents(),['Main']);
+  assert.deepEqual(await estimates.getByRole('button').allTextContents(),['Estimate']);
   assert.deepEqual(await snapshots(),before);assert.equal(calculationRequests(),beforeRequests);
   await chooseCalculator(page,'Firestopping');await idle();
   await expect(page.locator('#view-calculators')).toBeVisible();await expect(page.locator('#view-estimate')).toBeHidden();
   await expect(page.locator('#estimator-penetration')).toBeVisible();await expect(page.locator('#estimator-main')).toBeHidden();
-  await estimateToggle.hover();await estimates.getByRole('button',{name:'Main',exact:true}).click();await idle();
+  await estimateToggle.hover();await estimates.getByRole('button',{name:'Estimate',exact:true}).click();await idle();
   await expect(page.locator('#estimator-main')).toBeVisible();await expect(page.locator('#estimator-penetration')).toBeHidden();
   assert.deepEqual(await snapshots(),before);
   const toggle = page.getByRole('button', { name: 'Calculators', exact: true }), menu = page.getByRole('group', { name: 'Choose a calculator', exact: true });

@@ -49,7 +49,7 @@ async function reply(action, suffix){const pending=page.waitForResponse(r=>r.req
   const cleared=await reply(()=>page.locator('#company-settings-save').click(),'/api/company-settings');assert.equal(cleared.logo,null);
   await expect(page.locator('#company-logo-preview')).toBeVisible();await expect(page.locator('#company-logo-preview')).toHaveAttribute('src','/classifire-logo.png');
   await page.screenshot({path:path.join(output,'company-logo-fallback.png')});evidence.companyLogoDeletionAndDefaultFallback=true;
-  await page.getByRole('button',{name:'Estimates',exact:true}).hover();await page.getByRole('group',{name:'Choose an estimate',exact:true}).getByRole('button',{name:'Main',exact:true}).click();await idle();
+  await page.getByRole('button',{name:'Estimates',exact:true}).hover();await page.getByRole('group',{name:'Choose an estimate',exact:true}).getByRole('button',{name:'Estimate',exact:true}).click();await idle();
   await reply(()=>clickProjectControl(page,'Save'),'/api/project/save-as');await expect(page.locator('#app-message')).toBeVisible();
   const notice=await page.locator('#app-message').textContent();assert.match(notice,/Project saved/);
   await expect(page.locator('#app-message')).toBeHidden({timeout:6500});await expect(page.locator('#project-save-state')).toHaveText('Saved project');evidence.appStatusExpiresWithoutLosingSavedState=true;

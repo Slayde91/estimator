@@ -12,6 +12,24 @@ const ready=new Promise((resolve,reject)=>{let data='';const timer=setTimeout(()
 const evidence=[],errors=[],csp=[];
 async function idle(){await page.waitForFunction(()=>{const s=window.CeasefireDesktop?.status();return s?.ready&&!s.busy;},null,{timeout:60000});}
 async function snapshot(){await idle();return page.evaluate(()=>({details:window.CeasefireProject.details(),configuration:window.CeasefireProject.configuration(),calculators:window.CeasefireCalculators.projectSnapshot(),penetration:window.CeasefirePenetrations.projectSnapshot()}));}
+async function documentActions(toggleSelector,ids,name){
+ const checks=[];
+ for(const width of [1146,906,390]){
+  await page.setViewportSize({width,height:900});await page.evaluate(()=>scrollTo(0,0));
+  const toggle=page.locator(toggleSelector);await toggle.click();
+  for(const id of ids){
+   const action=page.locator('#'+id);
+   // Native actionability catches a menu painted behind a later sticky card.
+   // The unchanged project_reports/calculator_navigation journeys exercise
+   // the real download handlers and verify actual exported document bytes.
+   await action.click({trial:true,timeout:5000});
+   const hit=await action.evaluate(el=>{const r=el.getBoundingClientRect(),target=document.elementFromPoint(r.x+r.width/2,r.y+r.height/2);return{reachable:!!target&&(target===el||el.contains(target)),interceptedBy:target?.tagName,x:r.x,y:r.y,width:r.width,height:r.height};});
+   assert.equal(hit.reachable,true,`${name}/${id}/${width} receives pointer input above later cards and tables`);checks.push({width,id,...hit});
+  }
+  await toggle.press('Escape');await expect(toggle).toHaveAttribute('aria-expanded','false');
+ }
+ evidence.push({name:name+'-document-actions',checks});await page.setViewportSize({width:1384,height:764});
+}
 async function art(selector,name,header=false){
  const img=page.locator(selector);await expect(img).toBeVisible();await expect.poll(()=>img.evaluate(el=>el.complete&&el.naturalWidth>0),{timeout:30000}).toBe(true);
  const value=await img.evaluate(el=>{const s=getComputedStyle(el),r=el.getBoundingClientRect();return{src:el.getAttribute('src'),alt:el.alt,hidden:el.getAttribute('aria-hidden')||el.parentElement.getAttribute('aria-hidden'),position:s.position,mask:s.maskImage,composite:s.maskComposite,pointer:s.pointerEvents,width:r.width,height:r.height};});
@@ -30,9 +48,11 @@ async function art(selector,name,header=false){
  await page.evaluate(async()=>{await window.CeasefireCalculators.completeProjectSnapshot();await window.CeasefirePenetrations.completeProjectSnapshot();});const before=await snapshot();
  await art('.home-laser-art','home');
  await page.locator('#estimate-navigation-toggle').click();await idle();await art('.workspace-header-art--estimate','estimate',true);
+ await documentActions('[aria-controls="firestopping-document-actions"]',['download-full-schedule','download-full-product-summary'],'estimate');
  for(const [name,id,kind]of [['Steel (spray)','steel_vermiculite','spray'],['Steel (board)','steel_board','board'],['Ductwork (spray/wrap)','ductwork','ductwork']]){
   await chooseCalculator(page,name);await idle();await expect(page.locator('#calculator-workspace')).toHaveAttribute('data-calculator-kind',id);
   await expect(page.locator('#calculator-workspace .workspace-header-art:visible')).toHaveCount(1);await art('.workspace-header-art--'+kind,id,true);
+  await documentActions('#calculator-document-toggle',['calculator-excel','calculator-pdf','calculator-summary-pdf','calculator-template'],id);
  }
  await chooseCalculator(page,'Firestopping');await idle();await art('.penetration-workspace-art img','firestopping');
  const order=await page.locator('.penetration-workspace-art').evaluate(el=>el.nextElementSibling.classList.contains('penetration-layout'));assert.equal(order,true,'Artwork is above the existing current-item layout');

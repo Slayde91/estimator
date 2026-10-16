@@ -79,15 +79,30 @@ async function editorExport(kind,scope,configuration,diagram) {
     let release;
     const held=new Promise(resolve=>{release=resolve;});
     const endpoint='**/api/project/library-drafts/prepare';
-    await page.route(endpoint,async route=>{await held;await route.continue();});
-    const started=page.waitForRequest(request=>new URL(request.url()).pathname==='/api/project/library-drafts/prepare');started.catch(()=>{});
+    let heldCalculations=0;
+    await page.route(endpoint,async route=>{
+      // A queued debounce calculation may begin after libraryIdle(). Let that
+      // request finish; only hold the explicitly triggered native button click.
+      const manual=await page.locator('#library-editor-recalculate').getAttribute('data-qa-busy-menu-calculation');
+      if(manual==='true'){heldCalculations++;await held;}
+      await route.continue();
+    });
     try {
       // Invoke the same calculation handler as the debounce timer without a
-      // pointer focus change. Hold its response to inspect the busy menu.
-      await page.evaluate(()=>document.getElementById('library-editor-recalculate').click());
-      await started;await expect(menu).toBeVisible();await expect(toggle).toBeFocused();
+      // pointer focus change. Check readiness and click in one browser turn so
+      // a timer cannot disable the native button between those operations.
+      await expect.poll(()=>page.evaluate(()=>{
+        const control=document.getElementById('library-editor-recalculate');
+        if(control.disabled||window.CeasefireLibraryEditor.hasPendingOperation())return false;
+        control.dataset.qaBusyMenuCalculation='true';control.click();return true;
+      }),{timeout:60000}).toBe(true);
+      await expect.poll(()=>heldCalculations,{timeout:60000}).toBe(1);
+      await expect(menu).toBeVisible();await expect(toggle).toBeFocused();
       await expect(page.locator('#library-editor-item-pdf')).toBeDisabled();
-    } finally {release();await page.unrouteAll({behavior:'wait'});}
+    } finally {
+      await page.locator('#library-editor-recalculate').evaluate(control=>delete control.dataset.qaBusyMenuCalculation);
+      release();await page.unrouteAll({behavior:'wait'});
+    }
     await libraryIdle();await expect(menu).toBeVisible();await expect(toggle).toBeFocused();
     evidence.recalculationKeepsDocumentMenuOpen=true;
   }

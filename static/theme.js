@@ -16,7 +16,7 @@
   const button = document.getElementById('theme-toggle');
   if (!root || !button || button.dataset.themeReady === 'true') return;
   const themes = [
-    { id: 'ceasefire', name: 'Ceasefire' },
+    { id: 'ceasefire', name: 'CLASSIFIRE' },
     { id: 'midnight', name: 'Midnight' },
     { id: 'ocean', name: 'Ocean' },
     { id: 'forest', name: 'Forest' },

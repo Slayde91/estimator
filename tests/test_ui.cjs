@@ -873,7 +873,7 @@ let passed=0;
   assert.ok(markup.indexOf('id="add-pricing-item"')<markup.indexOf('id="pricing-import-file"'));
   assert.match(markup,/id="penetration-undo"[^>]*class="button secondary icon-only"[^>]*aria-label="Undo remove"[^>]*title="Undo remove"/);
   for(const [id,format,label] of [['penetration-excel','excel','Download Firestopping Schedule'],['penetration-pdf','pdf','Download Firestopping Schedule'],['penetration-item-excel','excel','Item Details'],['penetration-item-pdf','pdf','Item Details']])assert.match(markup,new RegExp(`id="${id}"[^>]*class="button ${format}-button calculator-document-action"[^>]*aria-label="${label}"[^>]*title="${label}"[\\s\\S]*?<span class="download-arrow">⇩<\\/span>`));
-  const estimateHeading=markup.match(/<div class="page-heading">[^\n]*id="download-quote-pdf"[^\n]*<\/div>/)?.[0];
+  const estimateHeading=markup.match(/<div class="page-heading workspace-banner-heading">[^\n]*id="download-quote-pdf"[^\n]*<\/div>/)?.[0];
   assert.ok(estimateHeading,'Main heading contains the estimate PDF control');
   assert.match(estimateHeading,/aria-controls="firestopping-document-actions"[\s\S]*id="firestopping-document-actions"[\s\S]*id="download-quote-pdf"[\s\S]*id="penetration-excel"[\s\S]*id="penetration-pdf"/);
   const recalculateRows=markup.match(/<div class="penetration-row-tools penetration-schedule-recalculate-tools">[^\n]*<\/div>/g)||[];

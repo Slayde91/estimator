@@ -51,13 +51,20 @@ async function theme(id) { for (let index = 0; index < 5 && await page.locator('
   await page.getByRole('button', { name: 'Help', exact: true }).click();
   const glossary = page.locator('.help-glossary'); await expect(glossary.getByRole('heading', { name: 'Button symbols, functions and shortcuts', exact: true })).toBeVisible();
   const search = page.locator('#help-glossary-search'), category = page.locator('#help-glossary-category'), visibleRows = () => glossary.locator('.help-glossary-entry:visible');
-  const total = await visibleRows().count(); assert.ok(total >= (standard ? 30 : 85)); evidence.entries = total;
+  const total = await visibleRows().count(); assert.ok(total >= (standard ? 25 : 80)); evidence.entries = total;
+  const textOnlyNames = ['New', 'Load / Open project', 'Edit / Back to previous item', 'Use current pricing', 'View / Edit item', 'Apply to selected', 'Confirm / Unconfirm', 'Merge PDF Files', 'Organise Pages', 'Extract Pages'];
+  for (const label of textOnlyNames) await expect(glossary.locator(`.help-glossary-entry[data-glossary-name="${label}"]`)).toHaveCount(0);
+  const symbols = await glossary.locator('.help-glossary-symbol').evaluateAll(nodes => nodes.map(node => ({ name: node.closest('[data-glossary-name]').dataset.glossaryName, artwork: !!node.querySelector('svg, img, .download-format-icon'), masked: node.classList.contains('help-signature-symbol') || node.classList.contains('help-default-symbol'), text: node.textContent.trim() })));
+  const buttonSymbols = new Set(['+', '⧉', '↶', '− / +', '⊗', 'B I U', '🔗︎', '↻']);
+  assert.deepEqual(symbols.filter(symbol => !symbol.artwork && !symbol.masked && !buttonSymbols.has(symbol.text)), [], 'Every glossary entry uses real artwork or an actual button symbol');
+  await expect(glossary.locator('[data-glossary-name="Theme"]')).toContainText('Cycle through CLASSIFIRE, Midnight, Ocean, Forest and Slate.');
+  evidence.iconOnly = { excludedTextControls: textOnlyNames, everyEntryHasSymbol: true };
   const requestCount = requests.length;
   if (!standard) {
     await search.fill('Shift+A'); await expect(visibleRows()).toHaveCount(1); await expect(visibleRows().first()).toHaveAttribute('data-glossary-name', 'Trace surface');
-    await search.fill('Ctrl+C'); await expect(visibleRows().filter({ hasText: 'Copy / Paste drawing selection' })).toHaveCount(1);
-    await search.fill('Cmd+V'); await expect(visibleRows()).toHaveCount(1);
-    await search.fill('net sqm'); await expect(visibleRows()).toHaveCount(2);assert.deepEqual((await visibleRows().evaluateAll(rows=>rows.map(row=>row.dataset.glossaryName))).sort(),['Display Values','Trace surface']);
+    await search.fill('Ctrl+Z'); await expect(visibleRows().filter({ hasText: 'Undo drawing point' })).toHaveCount(1);
+    await search.fill('Cmd+Z'); await expect(visibleRows()).toHaveCount(1);
+    await search.fill('net sqm'); await expect(visibleRows()).toHaveCount(1); await expect(visibleRows()).toHaveAttribute('data-glossary-name', 'Trace surface');
     await search.fill('Signatures'); await expect(visibleRows()).toHaveCount(1); await expect(visibleRows().locator('kbd')).toHaveText('Ctrl+Shift+S');
     assert.equal(await visibleRows().locator('.help-signature-symbol').evaluate(el => getComputedStyle(el, '::before').maskImage.includes('signature.svg')), true);
     const graphics=[['Cloud','cloud'],['Textbox','textbox'],['Stamp','stamp'],['Line/Polyline','polyline'],['Arrow','arrow'],['Rectangle','rectangle'],['Circle','circle'],['Polygon','polygon']];
@@ -65,8 +72,8 @@ async function theme(id) { for (let index = 0; index < 5 && await page.locator('
       const row=glossary.locator(`.help-glossary-entry[data-glossary-name="${label}"]`);await expect(row).toHaveCount(1);await expect(row.locator('kbd')).toHaveCount(kind==='textbox'?0:1);
       assert.equal(await row.locator('.help-glossary-symbol svg path').getAttribute('d'),await page.evaluate(kind=>window.CeasefireTakeoffGraphics.icon(kind,document).querySelector('path').getAttribute('d'),kind),'Help uses the actual PDF graphic glyph');
     }
-    for(const label of ['Tools','Merge PDF Files','Organise Pages','Extract Pages']) {const row=glossary.locator(`.help-glossary-entry[data-glossary-name="${label}"]`);await expect(row).toHaveCount(1);await expect(row.locator('kbd')).toHaveCount(0);}
-    evidence.pdfGraphicsAndPageTools={graphics:8,pageTools:3,actualGlyphs:true,noInventedShortcuts:true};
+    const toolsRow=glossary.locator('.help-glossary-entry[data-glossary-name="Tools"]'); await expect(toolsRow).toHaveCount(1); await expect(toolsRow.locator('kbd')).toHaveCount(0); await expect(toolsRow.locator('svg path')).toHaveAttribute('d','m6 9 6 6 6-6');
+    evidence.pdfGraphicsAndPageTools={graphics:8,iconMenu:1,excludedTextPageTools:3,actualGlyphs:true,noInventedShortcuts:true};
     await glossary.screenshot({ path: path.join(output, 'signature-reference.png') });
   } else {
     assert.equal(await category.locator('option').filter({ hasText: 'Drawing tools' }).count(), 0);

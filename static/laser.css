@@ -65,13 +65,13 @@
   }
 
   /* No geometry changes to document menus, the tool rails or editable grids. */
-  :root:is(:not([data-theme]), [data-theme="ceasefire"]) :is(.card, .summary-card, .home-card, .project-tools, .estimator-choice, .project-browser-entry, dialog, .library-result, .firestopping-breakdown-part, .calculator-workspace, .takeoff-register, .takeoff-register-editor, .takeoff-toolbar, .takeoff-viewer-controls, .takeoff-tab-panel, .takeoff-inactive-mode):not(.takeoff-physical-register, .takeoff-physical-register *) {
+  :root:is(:not([data-theme]), [data-theme="ceasefire"]) :is(.card, .summary-card, .home-card, .project-tools, .estimator-choice, .project-browser-entry, dialog, .library-result, .firestopping-breakdown-part, .calculator-workspace, .takeoff-register, .takeoff-register-editor, .takeoff-toolbar, .takeoff-viewer-controls, .takeoff-tab-panel, .takeoff-inactive-mode) {
     background: linear-gradient(135deg, #ffffff03, transparent 60%), var(--paper);
     color: var(--ink);
     border-color: var(--line);
     box-shadow: inset 0 1px #ffffff06, var(--laser-shadow);
   }
-  :root:is(:not([data-theme]), [data-theme="ceasefire"]) :is(.card, .summary-card, .project-tools, .home-card, .calculator-workspace, .library-result, dialog, .takeoff-physical-details, .takeoff-register:not(.takeoff-physical-register)) {
+  :root:is(:not([data-theme]), [data-theme="ceasefire"]) :is(.card, .summary-card, .project-tools, .home-card, .calculator-workspace, .library-result, dialog, .takeoff-physical-details, .takeoff-register) {
     border-top-width: 3px;
     border-top-color: var(--red);
   }
@@ -128,7 +128,7 @@
     border-color: #ff6377;
   }
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) #penetration-settings[aria-pressed=true],
-  :root:is(:not([data-theme]), [data-theme="ceasefire"]) .secondary:is([aria-pressed=true], [aria-expanded=true]):not(.takeoff-physical-register *, .penetration-settings-table *, .takeoff-control-menu *) {
+  :root:is(:not([data-theme]), [data-theme="ceasefire"]) .secondary:is([aria-pressed=true], [aria-expanded=true]):not(.penetration-settings-table *, .takeoff-control-menu *) {
     background: #3f1d29;
     color: #fff;
     border-color: #ff6377;
@@ -137,20 +137,20 @@
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) :is(.button, .pricing-discard-button, .pricing-reset-button):focus-visible {
     outline-color: #ff6377;
   }
-  :root:is(:not([data-theme]), [data-theme="ceasefire"]) :is(input, select, textarea):not([aria-invalid=true], input[type=color], .takeoff-physical-register *, .penetration-settings-table *, .takeoff-rich-editor *, .takeoff-control-menu *) {
+  :root:is(:not([data-theme]), [data-theme="ceasefire"]) :is(input, select, textarea):not([aria-invalid=true], input[type=color], .penetration-settings-table *, .takeoff-rich-editor *, .takeoff-control-menu *) {
     color: var(--ink);
     background: var(--theme-input);
     border-color: var(--theme-border);
     box-shadow: inset 0 1px #ffffff04;
   }
-  :root:is(:not([data-theme]), [data-theme="ceasefire"]) :is(input, select, textarea):focus:not([aria-invalid=true], input[type=color], .takeoff-physical-register *, .penetration-settings-table *, .takeoff-control-menu *) {
+  :root:is(:not([data-theme]), [data-theme="ceasefire"]) :is(input, select, textarea):focus:not([aria-invalid=true], input[type=color], .penetration-settings-table *, .takeoff-control-menu *) {
     border-color: #ff6377;
     box-shadow: 0 0 0 3px #ed001b20;
   }
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) :is(input, select, textarea)::placeholder { color: var(--muted); opacity: 1; }
-  :root:is(:not([data-theme]), [data-theme="ceasefire"]) input[readonly]:not(.takeoff-physical-register *, .penetration-settings-table *) { background: #11151a; color: #bac2ce; }
+  :root:is(:not([data-theme]), [data-theme="ceasefire"]) input[readonly]:not(.penetration-settings-table *) { background: #11151a; color: #bac2ce; }
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) :is(input, select, textarea)[aria-invalid=true] { background: #fff2f2; color: #7d1019; border-color: #a20b16; }
-  :root:is(:not([data-theme]), [data-theme="ceasefire"]) :is(.field>span:first-child, .help-card p, .help-card li, .work-summary, .quote-notes, .calculated-yield, .pricing-uses>summary, .gear-symbol, .calculator-symbol-button):not(.takeoff-physical-register *, .penetration-settings-table *, .takeoff-control-menu *) { color: var(--ink); }
+  :root:is(:not([data-theme]), [data-theme="ceasefire"]) :is(.field>span:first-child, .help-card p, .help-card li, .work-summary, .quote-notes, .calculated-yield, .pricing-uses>summary, .gear-symbol, .calculator-symbol-button):not(.penetration-settings-table *, .takeoff-control-menu *) { color: var(--ink); }
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) :is(.work-summary-panel, .pricing-uses, .tabs, .calculator-contents, .calculator-tools, .calculator-overview, .calculator-overview-metric, .calculator-overview-column_header, .calculator-summary-metric, .calculator-document-card, .calculator-document-card.calculator-document-request, .calculator-projected-note, .calculator-schedule-tools, .calculator-sheet-heading, .calculator-sheet-footer, .calculator-settings-chooser, .calculator-settings-note, .calculator-pages, .library-source, .library-related-record, .library-related-notice, .library-record-notice, .penetration-band-settings) {
     background: #1b2028;
     color: var(--ink);
@@ -169,14 +169,14 @@
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) .pricing-table .edited { background: #302919; color: #ffe1a0; }
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) .penetration-selected-row { background: #33202a; color: #f4f5f7; box-shadow: inset 3px 0 #ff6377; }
 
-  /* Standard estimate tables are dark; source settings/physical tables stay white. */
-  :root:is(:not([data-theme]), [data-theme="ceasefire"]) th:not(.takeoff-physical-register *, .penetration-settings-table *, .library-field-table *, .calculator-grid *, .takeoff-physical-navigation *) {
+  /* Estimate and draft register tables follow the theme; source settings stay white. */
+  :root:is(:not([data-theme]), [data-theme="ceasefire"]) th:not(.penetration-settings-table *, .library-field-table *, .calculator-grid *, .takeoff-physical-navigation *) {
     background: #222832;
     color: #e3e7ee;
     border-color: var(--line);
   }
-  :root:is(:not([data-theme]), [data-theme="ceasefire"]) td:not(.takeoff-physical-register *, .penetration-settings-table *, .library-field-table *, .calculator-grid *, .takeoff-physical-navigation *) { border-color: var(--line); }
-  :root:is(:not([data-theme]), [data-theme="ceasefire"]) tbody tr:hover:not(.takeoff-physical-register *, .penetration-settings-table *, .library-field-table *, .calculator-grid *) { background: #202630; }
+  :root:is(:not([data-theme]), [data-theme="ceasefire"]) td:not(.penetration-settings-table *, .library-field-table *, .calculator-grid *, .takeoff-physical-navigation *) { border-color: var(--line); }
+  :root:is(:not([data-theme]), [data-theme="ceasefire"]) tbody tr:hover:not(.penetration-settings-table *, .library-field-table *, .calculator-grid *) { background: #202630; }
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) :is(.table-scroll, .calculator-table-scroll, .calculator-grid) { scrollbar-color: #6b7483 #15181e; }
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) .pricing-table .pricing-availability { background: #15181e; }
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) .library-summary-table { background: #15181e; color: var(--ink); }
@@ -187,21 +187,21 @@
 
   /* Calculator cells remain recognizable and editable; numeric values are untouched. */
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) .calculator-grid {
-    --calculator-section-bg: linear-gradient(105deg, #2d1820, #252c36);
-    --calculator-section-ink: #fff;
+    --calculator-section-bg: #fff;
+    --calculator-section-ink: #000;
     background: #15181e;
     color: var(--ink);
   }
-  :root:is(:not([data-theme]), [data-theme="ceasefire"]) .calculator-grid [class*="calculator-section-theme-"] { --section-ink: #f4f5f7; --section-bg: #202630; --section-edge: #b32a3d; }
-  :root:is(:not([data-theme]), [data-theme="ceasefire"]) .calculator-contents a { background: #202630; color: #e3e7ee; border-color: #8b3a48; }
+  :root:is(:not([data-theme]), [data-theme="ceasefire"]) .calculator-grid [class*="calculator-section-theme-"] { --section-ink: #000; --section-bg: #fff; --section-edge: #b32a3d; }
+  :root:is(:not([data-theme]), [data-theme="ceasefire"]) .calculator-contents a { background: #fff; color: #000; border-color: #8b3a48; }
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) .calculator-grid :is(td, th) { border-color: #515b6a; }
-  :root:is(:not([data-theme]), [data-theme="ceasefire"]) .calculator-grid :is(thead th, .calculator-row-label, .calculator-source-heading, .calculator-role-column_header, .calculator-comparison-table th) { background: #272e38; color: #f4f5f7; }
-  :root:is(:not([data-theme]), [data-theme="ceasefire"]) .calculator-grid :is(td.calculator-role-label, td.calculator-role-note, td.calculator-role-output, td.calculator-role-spacer, .calculator-value-present, .calculator-value-empty, .calculator-value-present.calculator-published-thickness, .calculator-schedule-table tbody td:first-child, .calculator-form-table td:empty, .calculator-product-totals tbody td, .calculator-product-totals tbody th) { background: #191e25; color: #f4f5f7; }
+  :root:is(:not([data-theme]), [data-theme="ceasefire"]) .calculator-grid :is(thead th, .calculator-row-label, .calculator-source-heading, .calculator-role-column_header, .calculator-comparison-table th, .calculator-product-totals tbody th) { background: #fff; color: #000; }
+  :root:is(:not([data-theme]), [data-theme="ceasefire"]) .calculator-grid :is(td.calculator-role-label, td.calculator-role-note, td.calculator-role-output, td.calculator-role-spacer, .calculator-value-present, .calculator-value-empty, .calculator-value-present.calculator-published-thickness, .calculator-schedule-table tbody td:first-child, .calculator-form-table td:empty, .calculator-product-totals tbody td) { background: #191e25; color: #f4f5f7; }
   /* Legacy workbook fills use !important; match only those explicit cell roles. */
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) .calculator-grid :is(td.calculator-role-label, td.calculator-role-note, td.calculator-role-spacer, .calculator-value-present, .calculator-value-empty, .calculator-value-present.calculator-published-thickness) { background: #191e25!important; }
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) .calculator-grid td.calculator-editable { background: #252c36!important; box-shadow: inset 3px 0 #c72b42; }
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) .calculator-grid :is(td.calculator-role-output.calculator-number, .calculator-product-totals .calculator-number) { color: #f4f5f7; }
-  :root:is(:not([data-theme]), [data-theme="ceasefire"]) .calculator-grid .calculator-schedule-table tbody th { background: #272e38!important; color: #f4f5f7; }
+  :root:is(:not([data-theme]), [data-theme="ceasefire"]) .calculator-grid .calculator-schedule-table tbody th { background: #fff!important; color: #000; }
   /* Source line numbers and row-action labels retain their white/dark contract.
      Match the role-fill specificity, including synthetic and workbook columns. */
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) .calculator-grid .calculator-schedule-table :is(tbody, thead) :is(td, th):is(.calculator-line-number, .calculator-row-action) { background: #fff!important; color: #171217!important; }
@@ -219,8 +219,8 @@
     background: linear-gradient(120deg, #d9001b, #a90018);
     color: #fff;
     border-color: transparent;
-    border-bottom-color: #ff2947;
-    box-shadow: inset 0 -3px #ff6377, 0 5px 14px -8px #ed001b;
+    border-bottom-color: #fff;
+    box-shadow: inset 0 -3px #fff, 0 5px 14px -8px #ed001b;
   }
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) :is(.main-section-tab, .calculator-page, .calculator-settings-choice, .penetration-group, .takeoff-mode, .tab):hover:not(:disabled) { background: #292f3a; color: #fff; }
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) :is(.main-section-tab[aria-selected=true], .calculator-page[aria-pressed=true], .calculator-settings-choice[aria-expanded=true], .penetration-group[aria-pressed=true], .penetration-group[aria-selected=true], .takeoff-mode[aria-selected=true], .tab.active):hover:not(:disabled) { background: linear-gradient(120deg, #e0001b, #b70019); color: #fff; }
@@ -236,18 +236,18 @@
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) .calculator-document-actions { background: #151a21; color: var(--ink); border-color: #626c7b; box-shadow: 0 12px 32px #0008; }
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) .calculator-document-actions .button.calculator-document-action { background: #151a21; color: #f4f5f7; border-color: transparent; }
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) .calculator-document-actions .calculator-document-action:hover:not(:disabled) { background: #4b2633; border-color: #ff6377; }
-  :root:is(:not([data-theme]), [data-theme="ceasefire"]) :is(.calculator-document-icon, .takeoff-icon-button img:not([src$="/takeoff-colour-wheel.png"], .takeoff-measure-icon), .takeoff-transfer-icon):not(.takeoff-physical-register *, .takeoff-rich-toolbar *) { filter: brightness(0) invert(1); }
+  :root:is(:not([data-theme]), [data-theme="ceasefire"]) :is(.calculator-document-icon, .takeoff-icon-button img:not([src$="/takeoff-colour-wheel.png"], .takeoff-measure-icon), .takeoff-transfer-icon):not(.takeoff-rich-toolbar *) { filter: brightness(0) invert(1); }
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) .takeoff-rich-toolbar button img { filter: brightness(0) invert(1); }
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) .takeoff-tool-rail .takeoff-icon-button .takeoff-measure-icon { filter: invert(1); mix-blend-mode: screen; }
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) :is(.takeoff-tool-rail, .takeoff-markup-rail) .button:is(.takeoff-tool-active, [aria-pressed=true], [aria-expanded=true]) { background: #3f1d29; color: #fff; border-color: #ff6377; box-shadow: inset 0 0 0 1px #d63049; }
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) :is(.takeoff-markup-settings, .takeoff-viewports, .takeoff-physical-details) { background: #1a1f27; border-color: #626c7b; }
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) .takeoff-markup-settings>.takeoff-viewports-heading { background: #1a1f27; }
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) .takeoff-empty { color: #535a66; }
-  :root:is(:not([data-theme]), [data-theme="ceasefire"]) .takeoff-register:not(.takeoff-physical-register) :is(.takeoff-register-detail>td, .takeoff-group-row td) { background: #202630; }
-  :root:is(:not([data-theme]), [data-theme="ceasefire"]) .takeoff-register:not(.takeoff-physical-register) tr.selected td { background: #33202a; }
-  :root:is(:not([data-theme]), [data-theme="ceasefire"]) .takeoff-register:not(.takeoff-physical-register) .takeoff-bulk { background: #2c2519; }
-  :root:is(:not([data-theme]), [data-theme="ceasefire"]) .takeoff-register:not(.takeoff-physical-register) .takeoff-state.unconfirmed { background: #303641; color: #e1e5ec; }
-  :root:is(:not([data-theme]), [data-theme="ceasefire"]) .takeoff-register:not(.takeoff-physical-register) .takeoff-state:not(.confirmed, .reviewed, .blocked, .insufficient, .unconfirmed) { background: #303641; color: #e1e5ec; }
+  :root:is(:not([data-theme]), [data-theme="ceasefire"]) .takeoff-register :is(.takeoff-register-detail>td, .takeoff-group-row td) { background: #202630; }
+  :root:is(:not([data-theme]), [data-theme="ceasefire"]) .takeoff-register tr.selected td { background: #33202a; }
+  :root:is(:not([data-theme]), [data-theme="ceasefire"]) .takeoff-register .takeoff-bulk { background: #2c2519; }
+  :root:is(:not([data-theme]), [data-theme="ceasefire"]) .takeoff-register .takeoff-state.unconfirmed { background: #303641; color: #e1e5ec; }
+  :root:is(:not([data-theme]), [data-theme="ceasefire"]) .takeoff-register .takeoff-state:not(.confirmed, .reviewed, .blocked, .insufficient, .unconfirmed) { background: #303641; color: #e1e5ec; }
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) .takeoff-section-toggle { color: #e1e5ec; }
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) :is(.takeoff-section-popup, .takeoff-column-filter, .takeoff-column-filter-menu) { background: #202630; color: #f4f5f7; border-color: #626c7b; }
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) .takeoff-section-option:is(:hover, .active) { background: #3a2631; color: #ffb4be; }
@@ -262,7 +262,7 @@
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) .skip-link { color: #111; }
 
   /* Evidence tables keep their original light palette, including all form controls. */
-  :root:is(:not([data-theme]), [data-theme="ceasefire"]) :is(.takeoff-physical-register, .penetration-settings-table, .library-field-table, .takeoff-control-menu) {
+  :root:is(:not([data-theme]), [data-theme="ceasefire"]) :is(.penetration-settings-table, .library-field-table, .takeoff-control-menu) {
     color-scheme: light;
     --ink: #111;
     --muted: #555;
@@ -276,15 +276,14 @@
     background: #fff;
     color: #111;
   }
-  :root:is(:not([data-theme]), [data-theme="ceasefire"]) :is(.takeoff-physical-register, .penetration-settings-table, .takeoff-control-menu) :is(.secondary, .recalculate-button, .link-action-button, .library-edit-button, .library-delete-button, .refresh-button, .takeoff-undo-button, .takeoff-column-filter-button) { background: #fff; color: #51414a; border-color: #b8b8b8; }
-  :root:is(:not([data-theme]), [data-theme="ceasefire"]) :is(.takeoff-physical-register, .penetration-settings-table, .takeoff-control-menu) :is(.secondary, .recalculate-button, .link-action-button, .library-edit-button, .library-delete-button, .refresh-button, .takeoff-undo-button, .takeoff-column-filter-button):hover:not(:disabled) { background: #fff; color: #51414a; border-color: #920711; }
-  :root:is(:not([data-theme]), [data-theme="ceasefire"]) :is(.takeoff-physical-register, .penetration-settings-table, .takeoff-control-menu) :is(.secondary, .recalculate-button, .link-action-button, .library-edit-button, .library-delete-button, .refresh-button, .takeoff-undo-button, .takeoff-column-filter-button):is([aria-pressed=true], [aria-expanded=true], .active),
-  :root:is(:not([data-theme]), [data-theme="ceasefire"]) :is(.takeoff-physical-register, .penetration-settings-table, .takeoff-control-menu) :is(.secondary, .recalculate-button, .link-action-button, .library-edit-button, .library-delete-button, .refresh-button, .takeoff-undo-button, .takeoff-column-filter-button):is([aria-pressed=true], [aria-expanded=true], .active):hover:not(:disabled) { background: #fff0f0; color: #51414a; border-color: #920711; box-shadow: inset 0 0 0 1px #920711; }
-  :root:is(:not([data-theme]), [data-theme="ceasefire"]) .takeoff-physical-register .takeoff-register-editor { background: #fff; color: #111; }
-  :root:is(:not([data-theme]), [data-theme="ceasefire"]) :is(.library-editor-diagram, .library-image, .penetration-diagram) { background: #fff; color: #171b22; border-color: #626c7b; }
-  :root:is(:not([data-theme]), [data-theme="ceasefire"]) :is(.library-editor-diagram, .library-image, .penetration-diagram) :is(.helper, figcaption) { color: #535a66; }
-  :root:is(:not([data-theme]), [data-theme="ceasefire"]) :is(.library-editor-diagram, .library-image, .penetration-diagram) .field>span:first-child { color: #171b22; }
-  :root:is(:not([data-theme]), [data-theme="ceasefire"]) :is(.library-editor-diagram, .library-image, .penetration-diagram) .text-button { color: #b90a15; }
+  :root:is(:not([data-theme]), [data-theme="ceasefire"]) :is(.penetration-settings-table, .takeoff-control-menu) :is(.secondary, .recalculate-button, .link-action-button, .library-edit-button, .library-delete-button, .refresh-button, .takeoff-undo-button, .takeoff-column-filter-button) { background: #fff; color: #51414a; border-color: #b8b8b8; }
+  :root:is(:not([data-theme]), [data-theme="ceasefire"]) :is(.penetration-settings-table, .takeoff-control-menu) :is(.secondary, .recalculate-button, .link-action-button, .library-edit-button, .library-delete-button, .refresh-button, .takeoff-undo-button, .takeoff-column-filter-button):hover:not(:disabled) { background: #fff; color: #51414a; border-color: #920711; }
+  :root:is(:not([data-theme]), [data-theme="ceasefire"]) :is(.penetration-settings-table, .takeoff-control-menu) :is(.secondary, .recalculate-button, .link-action-button, .library-edit-button, .library-delete-button, .refresh-button, .takeoff-undo-button, .takeoff-column-filter-button):is([aria-pressed=true], [aria-expanded=true], .active),
+  :root:is(:not([data-theme]), [data-theme="ceasefire"]) :is(.penetration-settings-table, .takeoff-control-menu) :is(.secondary, .recalculate-button, .link-action-button, .library-edit-button, .library-delete-button, .refresh-button, .takeoff-undo-button, .takeoff-column-filter-button):is([aria-pressed=true], [aria-expanded=true], .active):hover:not(:disabled) { background: #fff0f0; color: #51414a; border-color: #920711; box-shadow: inset 0 0 0 1px #920711; }
+  :root:is(:not([data-theme]), [data-theme="ceasefire"]) :is(.library-editor-diagram, .library-image) { background: #fff; color: #171b22; border-color: #626c7b; }
+  :root:is(:not([data-theme]), [data-theme="ceasefire"]) :is(.library-editor-diagram, .library-image) :is(.helper, figcaption) { color: #535a66; }
+  :root:is(:not([data-theme]), [data-theme="ceasefire"]) :is(.library-editor-diagram, .library-image) .field>span:first-child { color: #171b22; }
+  :root:is(:not([data-theme]), [data-theme="ceasefire"]) :is(.library-editor-diagram, .library-image) .text-button { color: #b90a15; }
 
   /* Static, decorative steel artwork is confined to Home, outside the work surface. */
   .home-hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, .95fr); align-items: center; gap: 30px; min-height: 325px; margin-bottom: 25px; padding: 25px 36px; border: 1px solid var(--line); border-radius: 16px; overflow: hidden; background: var(--paper); }

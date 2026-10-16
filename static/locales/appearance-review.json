@@ -1,0 +1,11 @@
+{
+  "CLASSIFIRE": ["CLASSIFIRE", "CLASSIFIRE", "CLASSIFIRE", "CLASSIFIRE", "CLASSIFIRE"],
+  "Estimate Inputs": ["估算输入", "अनुमान इनपुट", "Datos del presupuesto", "مدخلات التقدير", "ข้อมูลนำเข้าสำหรับประมาณราคา"],
+  "Estimate Outputs": ["估算输出", "अनुमान आउटपुट", "Resultados del presupuesto", "مخرجات التقدير", "ผลลัพธ์การประมาณราคา"],
+  "Theme: CLASSIFIRE. Next theme: Midnight.": ["主题：CLASSIFIRE。下一个主题：午夜。", "थीम: CLASSIFIRE। अगली थीम: मध्यरात्रि।", "Tema: CLASSIFIRE. Siguiente tema: Medianoche.", "السمة: CLASSIFIRE. السمة التالية: منتصف الليل.", "ธีม: CLASSIFIRE ธีมถัดไป: เที่ยงคืน"],
+  "Cycle through CLASSIFIRE, Midnight, Ocean, Forest and Slate.": ["依次切换 CLASSIFIRE、午夜、海洋、森林和板岩主题。", "CLASSIFIRE, मध्यरात्रि, महासागर, वन और स्लेट थीम के बीच बदलें।", "Alternar entre CLASSIFIRE, Medianoche, Océano, Bosque y Pizarra.", "التبديل بين CLASSIFIRE ومنتصف الليل والمحيط والغابة والأردواز.", "สลับระหว่างธีม CLASSIFIRE เที่ยงคืน มหาสมุทร ป่า และหินชนวน"],
+  "Choose Estimate or Firestopping and review the estimate.": ["选择估算或防火封堵并查看估算。", "अनुमान या अग्निरोधक सीलिंग चुनें और अनुमान की समीक्षा करें।", "Elija Presupuesto o Sellado cortafuego y revise el presupuesto.", "اختر التقدير أو سد الاختراقات المقاومة للحريق وراجع التقدير.", "เลือกประมาณราคาหรืองานอุดช่องเปิดกันไฟ แล้วตรวจทานประมาณราคา"],
+  "Download the estimate PDF using the inputs and prices captured when you click.": ["使用点击时记录的输入和价格下载估算 PDF。", "क्लिक करते समय दर्ज इनपुट और कीमतों के आधार पर अनुमान PDF डाउनलोड करें।", "Descargue el presupuesto en PDF con los datos y precios capturados al hacer clic.", "تنزيل التقدير بصيغة PDF باستخدام المدخلات والأسعار المسجلة عند النقر.", "ดาวน์โหลด PDF ประมาณราคาโดยใช้ข้อมูลนำเข้าและราคาที่บันทึกเมื่อคลิก"],
+  "Column filters": ["列筛选", "स्तंभ फ़िल्टर", "Filtros de columnas", "عوامل تصفية الأعمدة", "ตัวกรองคอลัมน์"],
+  "Filter the register by individual column values.": ["按各列的值筛选登记表。", "अलग-अलग स्तंभ मानों के अनुसार रजिस्टर फ़िल्टर करें।", "Filtre el registro por los valores de cada columna.", "تصفية السجل بحسب قيم الأعمدة الفردية.", "กรองทะเบียนตามค่าในแต่ละคอลัมน์"]
+}

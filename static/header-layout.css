@@ -1,0 +1,141 @@
+/* Application chrome only. Keep the original controls and their event owners. */
+@media screen {
+  .app-header {
+    grid-template-columns: 190px minmax(150px, 1fr) auto;
+    align-items: center;
+    gap: 18px;
+  }
+  .app-header .brand-stack { width: 190px; }
+  .app-header .brand-logo { width: 190px; }
+  .app-header > .header-tagline {
+    margin: 0;
+    width: 100%;
+    max-width: 430px;
+    justify-self: start;
+    text-align: center;
+  }
+  .app-header .header-navigation {
+    justify-self: end;
+    width: fit-content;
+    min-width: 0;
+  }
+  .app-header nav {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 4px;
+    width: fit-content;
+    padding: 6px;
+  }
+  .app-header .nav-icon {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 6px;
+    width: auto;
+    min-width: 65px;
+    height: auto;
+    min-height: 70px;
+    padding: 8px 9px;
+    font-size: 12px;
+    line-height: 1.2;
+  }
+  .app-header .nav-icon > span.nav-page-label {
+    display: block;
+    width: auto;
+    height: auto;
+    max-width: 102px;
+    overflow-wrap: anywhere;
+    text-align: center;
+  }
+  .app-header .section-navigation,
+  .app-header .calculator-navigation { display: flex; min-width: 0; }
+  .app-header #library-navigation-menu { inset-inline-start: auto; inset-inline-end: 0; transform: none; }
+  /* The right-aligned navigation leaves less room for a right-hand flyout. */
+  @media (min-width: 1021px) {
+    .app-header #takeoff-navigation-menu .section-navigation-subgroup { left: auto; right: 100%; border-radius: 11px 0 11px 11px; }
+  }
+
+  /* A body child remains attached to the viewport even when the sticky header
+     uses a backdrop filter. Both existing buttons keep the same IDs and state. */
+  #header-project-actions {
+    position: fixed;
+    right: max(16px, env(safe-area-inset-right));
+    bottom: max(16px, env(safe-area-inset-bottom));
+    z-index: 35;
+    display: flex;
+    flex-direction: row;
+    gap: 9px;
+    align-items: center;
+    margin: 0;
+    padding: 8px;
+    border: 1px solid var(--line);
+    border-radius: 13px;
+    background: var(--paper);
+    box-shadow: 0 5px 22px #0004;
+    direction: ltr;
+  }
+  #header-project-actions[hidden] { display: none !important; }
+  #header-project-actions .button,
+  #header-project-actions .icon-only {
+    width: 48px;
+    min-width: 48px;
+    height: 48px;
+    min-height: 48px;
+    padding: 11px;
+  }
+  #header-project-actions .button.save-button {
+    color: #332600;
+    background: #ffdb66;
+    border-color: #d0a72c;
+  }
+  #header-project-actions .button.project-attachment-zone {
+    color: #fff;
+    background: #146c43;
+    border-color: #146c43;
+  }
+  #header-project-actions .button.project-attachment-zone:hover,
+  #header-project-actions .button.project-attachment-zone.is-dragover {
+    color: #fff;
+    background: #105735;
+    border-color: #fff;
+  }
+  #header-project-actions .button:focus-visible { outline: 3px solid var(--theme-focus); outline-offset: 3px; }
+  html { scroll-padding-bottom: 110px; }
+  body main { padding-bottom: max(112px, calc(96px + env(safe-area-inset-bottom))); }
+  body:has(dialog[open]) #header-project-actions { visibility: hidden; pointer-events: none; }
+
+  @media (max-width: 1150px) {
+    .app-header { grid-template-columns: 160px minmax(0, 1fr); gap: 12px 18px; }
+    .app-header .brand-stack,
+    .app-header .brand-logo { width: 160px; }
+    .app-header > .header-tagline { max-width: 520px; justify-self: end; }
+    .app-header .header-navigation { grid-column: 1 / -1; justify-self: end; max-width: 100%; }
+    .app-header nav { max-width: 100%; }
+  }
+  @media (max-width: 720px) {
+    .app-header { padding: 12px 14px; grid-template-columns: 130px minmax(0, 1fr); gap: 10px 12px; }
+    .app-header .brand-stack,
+    .app-header .brand-logo { width: 130px; }
+    .app-header > .header-tagline { font-size: 11px; }
+    .app-header .header-navigation { width: 100%; }
+    .app-header nav { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); width: 100%; gap: 4px; }
+    .app-header .nav-icon { width: 100%; min-width: 44px; height: auto; min-height: 68px; padding: 6px 4px; font-size: 11px; }
+    .app-header .section-navigation,
+    .app-header .calculator-navigation { position: static; }
+    .app-header :is(.section-navigation-menu, .calculator-navigation-menu) { left: auto; right: 0; inset-inline-start: auto; inset-inline-end: 0; top: 100%; max-width: calc(100vw - 28px); }
+    .app-header .section-navigation-subgroup { position: static; width: 100%; border-radius: 7px; box-shadow: none; }
+    #header-project-actions { right: max(10px, env(safe-area-inset-right)); bottom: max(10px, env(safe-area-inset-bottom)); gap: 7px; padding: 7px; }
+    #header-project-actions .button,
+    #header-project-actions .icon-only { width: 44px; min-width: 44px; height: 44px; min-height: 44px; padding: 9px; }
+  }
+  @media (max-width: 420px) {
+    .app-header { grid-template-columns: 100px minmax(0, 1fr); gap: 10px; }
+    .app-header .brand-stack,
+    .app-header .brand-logo { width: 100px; }
+    .app-header > .header-tagline { grid-template-columns: 26px minmax(0, 1fr); column-gap: 6px; font-size: 10px; }
+    .app-header .header-tagline-character { width: 26px; height: 39px; }
+    .app-header .brand-stack .status-label,
+    .app-header .header-project-name { max-width: 100%; margin-inline-start: 0; }
+  }
+}
+@media print { #header-project-actions { display: none !important; } }

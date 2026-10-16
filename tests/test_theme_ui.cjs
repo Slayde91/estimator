@@ -22,13 +22,37 @@ function harness({ stored = null, getDenied = false, setDenied = false, absent =
 test('five distinct themes cycle once per activation, wrap, announce and store only their own preference', () => {
   const h = harness();
   assert.equal(h.attrs['data-theme'], 'ceasefire'); assert.equal(h.status.textContent, ''); assert.equal(h.writes.length, 0);
-  for (const [id, name, next] of [['midnight','Midnight','Ocean'], ['ocean','Ocean','Forest'], ['forest','Forest','Slate'], ['slate','Slate','Ceasefire'], ['ceasefire','Ceasefire','Midnight']]) {
+  assert.equal(h.buttonAttrs['aria-label'], 'Theme: CLASSIFIRE. Next theme: Midnight.');
+  for (const [id, name, next] of [['midnight','Midnight','Ocean'], ['ocean','Ocean','Forest'], ['forest','Forest','Slate'], ['slate','Slate','CLASSIFIRE'], ['ceasefire','CLASSIFIRE','Midnight']]) {
     h.click(); assert.equal(h.attrs['data-theme'], id);
     assert.equal(h.buttonAttrs['aria-label'], `Theme: ${name}. Next theme: ${next}.`);
     assert.equal(h.buttonAttrs.title, h.buttonAttrs['aria-label']); assert.equal(h.status.textContent, `${name} theme selected.`);
     assert.deepEqual(h.writes.at(-1), [key, id]);
   }
   assert.equal(h.writes.length, 5);
+});
+
+test('the CLASSIFIRE display name restores the existing ceasefire preference without migration', () => {
+  const h = harness({ stored: 'ceasefire' });
+  assert.equal(h.attrs['data-theme'], 'ceasefire');
+  assert.equal(h.buttonAttrs['aria-label'], 'Theme: CLASSIFIRE. Next theme: Midnight.');
+  assert.equal(h.writes.length, 0);
+  assert.doesNotMatch(source, /id: 'classifire'|ceasefire\.ui\.theme\.v2/);
+});
+
+test('estimate input/output headings are labelled, translated and keep their existing tab controls', () => {
+  const html = fs.readFileSync(path.join(root, 'static/index.html'), 'utf8');
+  assert.match(html, /id="main-section-workspace"[^>]*role="region"[^>]*aria-labelledby="main-input-heading"/);
+  assert.match(html, /<h2 id="main-input-heading" data-i18n="Estimate Inputs">Estimate Inputs<\/h2><\/div>\s*<div id="main-section-tabs"/);
+  assert.match(html, /<h2 id="main-output-heading" data-i18n="Estimate Outputs">Estimate Outputs<\/h2>/);
+  assert.doesNotMatch(html, /<p[^>]+data-i18n="Choose the application theme\. PDF exports use Ceasefire red, black and white\."/);
+  const localized = require('./helpers/localized_i18n.cjs');
+  for (const locale of ['zh-Hans', 'hi', 'es', 'ar', 'th']) {
+    const ui = localized(locale);
+    assert.notEqual(ui.translate('Estimate Inputs'), 'Estimate Inputs');
+    assert.notEqual(ui.translate('Estimate Outputs'), 'Estimate Outputs');
+    assert.equal(ui.translate('CLASSIFIRE'), 'CLASSIFIRE');
+  }
 });
 test('a recognized stored appearance restores without emitting writes or announcements', () => {
   const h = harness({ stored: 'forest' }); assert.equal(h.attrs['data-theme'], 'forest'); assert.equal(h.writes.length, 0); assert.equal(h.status.textContent, ''); h.click(); assert.equal(h.attrs['data-theme'], 'slate');

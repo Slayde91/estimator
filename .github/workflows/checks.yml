@@ -102,6 +102,9 @@ jobs:
       - run: npm run test:project-library-drafts
       - run: node tests/browser/pdf_render_gate.cjs
       - run: node tests/browser/header_artwork.cjs
+      - run: node tests/browser/header_layout_followups.cjs
+      - run: node tests/browser/appearance_theme_followups.cjs
+      - run: node tests/browser/workspace_art.cjs
       - run: node tests/browser/classifire_branding_downloads.cjs
       - run: node tests/browser/markup_downloads.cjs
       - run: npm run test:languages-browser

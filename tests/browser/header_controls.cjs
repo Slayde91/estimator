@@ -32,8 +32,9 @@ async function inspectHeader(width) {
     const header = await box(page.locator('.app-header')), brand = await box(page.locator('.brand-stack')),
       nav = await box(page.getByRole('navigation', { name: 'Main navigation' })), actions = await box(page.locator('#header-project-actions')),
       name = await box(page.locator('#header-project-name'));
-    assert.ok(Math.abs(nav.y - brand.y) < 1, `Navigation remains top-aligned at ${width}`);
-    assert.ok(nav.x >= brand.x + brand.width && nav.x + nav.width <= actions.x + 1, `Navigation stays beside the logo at ${width}`);
+    assert.ok(nav.y >= header.y && nav.y + nav.height <= header.y + header.height + 1, `Navigation stays in the header at ${width}`);
+    if (width > 1150) assert.ok(nav.x >= brand.x + brand.width, `Navigation sits to the right of the logo at ${width}`);
+    assert.ok(actions.y > header.y + header.height && actions.y + actions.height <= 1000, `Project actions overlay the viewport bottom at ${width}`);
     assert.ok(actions.x + actions.width <= width + 1, `Project actions fit at ${width}`);
     assert.ok(name.x >= brand.x && name.x + name.width <= brand.x + brand.width + 1, `Long quote name stays in its column at ${width}`);
     await expect(page.locator('#header-project-name')).toHaveText(longName);
@@ -47,7 +48,7 @@ async function inspectHeader(width) {
       assert.ok(b.width >= 40 && b.height >= 40, `Usable navigation target at ${width}`);
       assert.ok(b.x >= nav.x && b.x + b.width <= nav.x + nav.width + 1 && b.y >= nav.y && b.y + b.height <= nav.y + nav.height + 1, `Individual navigation button fits at ${width}`);
     }
-    assert.ok(header.height <= (width >= 825 ? 180 : width >= 570 ? 235 : width >= 390 ? 260 : 300), `Header avoids excessive height at ${width}: ${header.height}`);
+    assert.ok(header.height <= (width > 1150 ? 180 : width > 720 ? 235 : 300), `Header avoids excessive height at ${width}: ${header.height}`);
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), `Long quote name does not cause overflow at ${width}`);
     const screenshot = path.join(output, `header-${width}-long-name.png`);
     await page.screenshot({ path: screenshot });
@@ -71,16 +72,15 @@ async function inspectHeader(width) {
   for (const width of [1600, 1146, 1021, 981, 825, 720, 570, 390, 320]) {
     await page.setViewportSize({ width, height: 1000 });
     await inspectHeader(width);
-    if (width >= 1146) {
-      const brand=await box(page.locator('.brand-stack')), nav=await box(page.getByRole('navigation',{name:'Main navigation'})), actions=await box(page.locator('#header-project-actions'));
-      assert.ok(nav.width<550,'Navigation shrinks to its buttons');
-      assert.ok(Math.abs(nav.y+nav.height/2-actions.y-actions.height/2)<2,'Save and project files share the navigation row');
-      assert.ok(nav.x >= brand.x+brand.width && nav.x+nav.width <= actions.x && nav.y < brand.y+brand.height, 'Main navigation fits between the logo and Save controls');
+    if (width > 1150) {
+      const header=await box(page.locator('.app-header')),nav=await box(page.getByRole('navigation',{name:'Main navigation'}));
+      assert.ok(nav.width<850,'Navigation includes visible page labels without filling the header');
+      assert.ok(header.x+header.width-nav.x-nav.width<=32,'Main navigation is aligned at the far right');
     }
     if (width === 1146) {
       await page.locator('#takeoff-navigation-toggle').hover(); await page.locator('#penetration-navigation-toggle').hover();
       const parent=await box(page.locator('#penetration-navigation-toggle')), submenu=page.getByRole('group',{name:'Penetration workspaces'});await expect(submenu).toBeVisible();const bounds=await box(submenu);
-      assert.ok(bounds.x >= parent.x+parent.width-1 && bounds.x+bounds.width <= width, 'Penetrations flyout opens to the right');
+      assert.ok(bounds.x >= 0 && bounds.x+bounds.width <= width && (bounds.x+bounds.width <= parent.x+1 || bounds.x >= parent.x+parent.width-1), 'Penetrations flyout remains beside its parent within the viewport');
       await page.mouse.move(0,0);
     }
     for (const id of ['estimate', 'calculator', 'library', 'takeoff']) {
@@ -107,7 +107,8 @@ async function inspectHeader(width) {
       const actions = page.locator('#header-project-actions'); await expect(actions).toBeVisible();
       for (const name of ['Save', 'Project files']) await expect(actions.getByRole('button', { name, exact: true })).toBeVisible();
       const bounds = await box(actions), header = await box(page.locator('.app-header'));
-      assert.ok(bounds.x >= 0 && bounds.x + bounds.width <= width + 1 && bounds.y < header.y + header.height);
+      assert.ok(bounds.x >= 0 && bounds.x + bounds.width <= width + 1 && bounds.y > header.y + header.height && bounds.y + bounds.height <= 1000);
+      assert.equal(await actions.evaluate(el=>getComputedStyle(el).position),'fixed');
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), `Page overflow at ${width}/${section}`);
       if (section === 'Projects') {
         const controls = page.locator('.project-workspace-actions'), link = await box(controls.getByRole('button', { name: 'Link Project Folder', exact: true }));

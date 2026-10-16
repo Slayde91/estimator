@@ -25,7 +25,7 @@ test('Standard Help omits unsupported tools and icons', () => {
   assert.ok(rows.some(row => row.name === 'Save'));
 });
 
-test('PDF graphics and page tools are documented without invented shortcuts', () => {
+test('PDF graphics and the icon-bearing Tools menu keep their actual artwork and shortcuts', () => {
   const rows = glossary.catalogue(registry), graphics = require('../static/takeoff-graphics.js');
   for (const kind of ['cloud','textbox','stamp','polyline','arrow','rectangle','circle','polygon']) {
     const row = rows.find(row => row.icon.graphic === kind);
@@ -33,12 +33,13 @@ test('PDF graphics and page tools are documented without invented shortcuts', ()
     assert.deepEqual(row.keys, kind === 'textbox' ? [] : [registry.shortcut(registry.actions[`graphic-${kind}`])]);
     assert.match(row.description, /Click/);
   }
-  for (const name of ['Tools','Merge PDF Files','Organise Pages','Extract Pages']) {
-    const row = rows.find(row => row.name === name);
-    assert.equal(row.group, 'Drawing view');
-    assert.deepEqual(row.keys, []);
-    assert.match(row.description, /PDF/);
-  }
+  const tools = rows.find(row => row.name === 'Tools');
+  assert.equal(tools.group, 'Drawing view');
+  assert.equal(tools.icon.selector, '.takeoff-pdf-tools-menu > button');
+  assert.equal(tools.icon.path, 'chevron');
+  assert.deepEqual(tools.keys, []);
+  assert.match(tools.description, /PDF/);
+  for (const name of ['Merge PDF Files','Organise Pages','Extract Pages']) assert.ok(!rows.some(row => row.name === name), `${name} is a text-only control`);
 });
 
 test('search finds functions and shortcuts, combines words and honors section', () => {
@@ -46,11 +47,25 @@ test('search finds functions and shortcuts, combines words and honors section', 
   const find = (query, category = '') => rows.filter(row => glossary.matches(row, query, category));
   assert.ok(find('  NET   sqm ').some(row => row.name === 'Trace surface'));
   assert.deepEqual(find('shift+a').map(row => row.name), ['Trace surface']);
-  assert.ok(find('Ctrl+C').some(row => row.id === 'drawing-copy'));
-  assert.ok(find('Cmd+V').some(row => row.id === 'drawing-copy'));
+  assert.ok(find('Ctrl+Z').some(row => row.name === 'Undo drawing point'));
+  assert.ok(find('Cmd+Z').some(row => row.name === 'Undo drawing point'));
   assert.ok(find('download', 'Documents').length >= 4);
   assert.deepEqual(find('shift+a', 'Projects and files'), []);
   assert.deepEqual(find('<script>'), [], 'search text never becomes HTML');
+});
+
+test('the glossary describes real symbols rather than inventing icons for text-only controls', () => {
+  const rows = glossary.catalogue(registry);
+  const removed = ['New', 'Load / Open project', 'Edit / Back to previous item', 'Project search and sort', 'Use current pricing', 'Source diagram / Open image', 'View / Edit item', 'Apply to selected', 'Confirm / Unconfirm', 'Split / Merge', 'Display Values', 'Show deleted records', 'Continue count / Delete count marker', 'Finish / Cancel drawing', 'Copy / Paste drawing selection', 'Move focus / Activate', 'Navigate a menu'];
+  for (const name of removed) assert.ok(!rows.some(row => row.name === name), `${name} has no icon button`);
+  const actualTextSymbols = new Set(['+', '⧉', '↶', '− / +', '⊗', 'B I U']);
+  for (const row of rows) {
+    assert.ok(row.icon.selector || row.icon.graphic || row.icon.path || row.icon.asset || row.icon.format || actualTextSymbols.has(row.icon.text), `${row.name} has real artwork or a button symbol`);
+    assert.ok(!row.icon.fallback, `${row.name} cannot substitute a word for artwork`);
+  }
+  assert.equal(rows.find(row => row.name === 'Column filters').icon.path, 'filter');
+  assert.match(rows.find(row => row.name === 'Theme').description, /CLASSIFIRE/);
+  assert.doesNotMatch(rows.find(row => row.name === 'Theme').description, /Ceasefire/);
 });
 
 test('Takeoff glyphs in Help retain their actual button paths', () => {

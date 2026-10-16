@@ -22,6 +22,8 @@
     checked: "M4 3h16a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z M7 12l3 3 7-7",
     update: "M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z M12 6v6h6",
     unlink: "M15 7h2a5 5 0 0 1 0 10h-2M9 17H7A5 5 0 0 1 7 7h2",
+    filter: "M3 5h18l-7 8v6l-4 2v-8z",
+    chevron: "m6 9 6 6 6-6",
     first: "M4 5v14M17 5l-7 7 7 7", previous: "M15 5l-7 7 7 7",
     next: "M9 5l7 7-7 7", last: "M20 5v14M7 5l7 7-7 7",
   };
@@ -30,24 +32,19 @@
     const add = (group, name, description, icon, extra = {}) => rows.push({ group, name, description, icon, ...extra });
     const nav = (name, view, detail) => add("Navigation", name, detail, { selector: `.app-header [data-view="${view}"]` });
     nav("Home", "home", "Open the workspace starting page.");
-    nav("Estimates", "estimate", "Choose Main or Firestopping and review the estimate.");
+    nav("Estimates", "estimate", "Choose Estimate or Firestopping and review the estimate.");
     nav("Calculators", "calculators", "Choose Firestopping, Steel Spray, Steel Board or Ductwork.");
     if (takeoffs) nav("Takeoffs", "takeoffs", "Choose Steel, Duct, Penetrations, Defect Reports, Service Plans or Walls/Floors.");
     nav("Libraries", "pricing", "Choose Pricing, Firestopping or Technical Library.");
     nav("Projects", "quotes", "Find, load and browse project files.");
     nav("Help", "help", "Open the guide and this button glossary.");
-    add("Navigation", "Theme", "Cycle through Ceasefire, Midnight, Ocean, Forest and Slate.", { selector: "#theme-toggle" });
+    add("Navigation", "Theme", "Cycle through CLASSIFIRE, Midnight, Ocean, Forest and Slate.", { selector: "#theme-toggle" });
     add("Projects and files", "Save", "Choose a location for a new project, or update the selected .cf.json project file.", { selector: "#save-current-project" });
-    add("Projects and files", "New", "Start a new estimate after reviewing the replacement prompt.", { text: "New" });
-    add("Projects and files", "Load / Open project", "Load a .cf.json project and its saved prices and drafts after confirming replacement.", { text: "Load" });
     add("Projects and files", "Link Project Folder", "Choose the folder Projects searches for .cf.json files.", { selector: "#link-project-folder" });
     add("Projects and files", "Refresh", "Read the linked project folder again.", { selector: "#refresh-quotes" });
     add("Projects and files", "Project files", "Attach files beside a saved project. You can also drag files onto this button.", { selector: "#project-attachment-zone" });
-    add("Projects and files", "Project search and sort", "Filter the project list by project, client, address or folder; choose its order.", { text: "Search" });
-    add("Projects and files", "Previous / Next / Continue folder scan", "Move between project results or continue a bounded folder scan.", { text: "Next" });
-    add("Projects and files", "Folder breadcrumbs / Back to Projects", "Browse attached folders and return to the project list.", { text: "Back" });
     add("Documents", "Document", "Open the imports, templates and downloads available in the current workspace.", { asset: "document.png" }, { keys: ["↑ / ↓", "Home / End", "Esc"] });
-    add("Documents", "Estimate Summary", "Download the Main estimate PDF using the inputs and prices captured when you click.", { format: "PDF", symbol: "Σ" });
+    add("Documents", "Estimate Summary", "Download the estimate PDF using the inputs and prices captured when you click.", { format: "PDF", symbol: "Σ" });
     add("Documents", "Download Firestopping Schedule", "Save the complete current Firestopping Schedule as XLSX or PDF.", { format: "XLSX / PDF" });
     add("Documents", "Item Details", "Download the current Firestopping composer or Library Editor item's captured fields and prices as XLSX or PDF; the PDF includes its source diagram.", { format: "XLSX / PDF" });
     add("Documents", "Steel / Duct Schedule and Product Summary", "Download the selected calculator's schedule as XLSX or PDF, or its Product Summary PDF.", { format: "XLSX / PDF" });
@@ -59,12 +56,9 @@
     add("Estimating and libraries", "Duplicate", "Copy a work-item or schedule row with its existing inputs.", { text: "⧉" });
     add("Estimating and libraries", "Remove / Delete", "Remove the selected row, item or library record after any displayed confirmation.", { path: "bin" });
     add("Estimating and libraries", "Undo", "Restore the most recently removed schedule row, or undo the available last edit.", { text: "↶" });
-    add("Estimating and libraries", "Clear current item / Reset", "Clear the Firestopping current item, or load the selected calculator's defaults after its prompt.", { selector: "#penetration-clear", fallback: "Reset" });
-    add("Estimating and libraries", "Save pricing / Apply / Discard", "Save shared pricing, apply project pricing, or return the draft to its saved values.", { selector: "#save-pricing", fallback: "Save" });
-    add("Estimating and libraries", "Use current pricing", "Replace the project's saved pricing snapshot with the current Main Library and recalculate.", { text: "Use current pricing" });
-    add("Estimating and libraries", "Edit / Back to previous item", "Edit a library record or return to the previous record or results.", { text: "Edit" });
+    add("Estimating and libraries", "Clear current item / Reset", "Clear the Firestopping current item, or load the selected calculator's defaults after its prompt.", { selector: "#penetration-clear" });
+    add("Estimating and libraries", "Save pricing / Apply / Discard", "Save shared pricing, apply project pricing, or return the draft to its saved values.", { selector: "#save-pricing" });
     add("Estimating and libraries", "Add to Library", "Create a reusable Firestopping Library item from the current item's completed inputs.", { selector: "#penetration-add-to-library" });
-    add("Estimating and libraries", "Source diagram / Open image", "Attach a source diagram to the current Firestopping item, or open a library image at full size.", { text: "Diagram" });
     add("Estimating and libraries", "Link Library Item / Unlink", "Choose one or more filtered Technical Library references, or remove an association.", { path: "unlink" });
     add("Estimating and libraries", "Add to Schedule", "Add the Firestopping Library item to the current schedule.", takeoffs ? { asset: "takeoff-transfer.png" } : { text: "+" });
     if (takeoffs) {
@@ -96,13 +90,9 @@
       graphic("Circle", "circle", "Click two opposite corners to place a circle or ellipse within that box. Select it to move, resize or edit its line and fill.");
       graphic("Polygon", "polygon", "Click at least three boundary points, then press Enter or double-click to finish a closed drawing polygon. This PDF markup adds no surface quantity.");
       add("Drawing tools", "Set as default", "Remember the current appearance for new markups of that kind.", { asset: "default-memory.svg", mask: true });
-      add("Drawing tools", "Display Values", "Show or hide boundary dimensions. The centred net Sqm of a surface stays visible.", { text: "✓" });
       add("Drawing tools", "Re-trace geometry / Exclusions", "Replace a selected surface boundary, or edit or remove one of its exclusions.", { path: "area" });
       add("Drawing view", "Upload PDFs", "Add source PDF documents to the current project.", { selector: "#project-attachment-zone" });
-      add("Drawing view", "Tools", "Download a new PDF copy. Merge and Extract can also add it as another Source Document.", { text: "Tools" });
-      add("Drawing view", "Merge PDF Files", "Choose at least two retained PDFs and arrange their order to create one new PDF copy.", { text: "Merge" });
-      add("Drawing view", "Organise Pages", "Reorder or remove pages from one retained PDF, keeping at least one page, then download the edited copy.", { text: "Pages" });
-      add("Drawing view", "Extract Pages", "Choose existing page numbers or ranges in the required order to create a new PDF copy.", { text: "Extract" });
+      add("Drawing view", "Tools", "Download a new PDF copy. Merge and Extract can also add it as another Source Document.", { selector: ".takeoff-pdf-tools-menu > button", path: "chevron" });
       add("Drawing view", "Document / Remove document", "Choose an uploaded PDF, or remove the current source after confirmation.", { path: "bin" });
       add("Drawing view", "Scale / Edit calibration", "Choose or edit the applicable page or viewport calibration.", { path: "scale" });
       add("Drawing view", "Search / Stop search", "Search PDF text and optional drawing labels in this document or all documents. Stop clears the search and highlights.", { path: "search" }, { keys: ["Enter", "↓", "Esc"] });
@@ -112,35 +102,21 @@
       add("Drawing view", "Fit page", "Fit the complete drawing in the viewer.", { path: "fit" }, { keys: ["Ctrl+0"] });
       add("Drawing view", "Zoom out / Zoom in", "Change drawing magnification, keeping the drawing point at the viewer centre.", { text: "− / +" }, { keys: ["Ctrl+− / +", "Ctrl / Cmd+wheel"] });
       add("Drawing view", "Download PDF", "Save the marked-up PDF from the current drawing workspace.", { format: "PDF" });
-      add("Register and selection", "Filter / Sort / Group", "Narrow the register, choose its order or group items. Column funnels filter individual fields.", { text: "Filter" });
+      add("Register and selection", "Column filters", "Filter the register by individual column values.", { path: "filter" });
       add("Register and selection", "Select filtered items / Select filtered records", "Select or clear the currently filtered register rows.", { path: "checked" });
       add("Register and selection", "Hide / Visibility", "Hide an individual row's drawing markup without deleting the item.", { asset: "takeoff-visibility.png" });
-      add("Register and selection", "View / Edit item", "Centre the drawing on an item or open its editable details.", { text: "View / Edit" });
-      add("Register and selection", "Apply to selected", "Apply only the fields you changed to the selected items.", { text: "Apply" });
-      add("Register and selection", "Confirm / Unconfirm", "Change the selected records' manual review status.", { text: "Confirm" });
       add("Register and selection", "Undo last edit", "Undo the latest available Takeoff edit.", { text: "↶" });
       add("Register and selection", "Delete", "Delete selected items after the displayed confirmation.", { path: "bin" });
-      add("Register and selection", "Split / Merge", "Split a traced Steel/Duct run at a chosen point, or merge eligible connected length items.", { text: "Split / Merge" });
       add("Register and selection", "Preview transfer / Transfer", "Review selected quantities before applying them to the destination calculator schedule.", { asset: "takeoff-transfer.png" });
       add("Register and selection", "Update linked rows", "Review and update existing linked calculator rows from their Takeoff items.", { path: "update" });
       add("Register and selection", "Detach links / Unlink from Firestopping Schedule", "Remove the selected Takeoff-to-schedule links using the displayed prompt.", { path: "unlink" });
       add("Register and selection", "Add substrate / Add defect / Add service", "Create the next physical record in the current Penetration, Defect Report or Service Plan.", { text: "+" });
       add("Register and selection", "Document downloads", "Download confirmed, unconfirmed or all items from the current register as XLSX.", { format: "XLSX" });
       add("Register and selection", "Download Passive Fire Matrix PDF", "Save the physical hierarchy's current Passive Fire Matrix report.", { format: "PDF" });
-      add("Register and selection", "Show deleted records", "Include deleted physical records in the current register view.", { text: "✓" });
       add("Register and selection", "Discard unfinished physical edits", "Discard pending field edits and return to the recorded draft values.", { text: "⊗" });
-      add("Register and selection", "Previous 100 / Next 100 / Register layout", "Page through register rows, or position the register below or beside the drawing.", { text: "Next 100" });
-      add("Drawing tools", "Continue count / Delete count marker", "Resume a count from its marker's context menu, or remove that individual marker.", { path: "count" });
       add("Drawing tools", "Call-out formatting", "Use Bold, Italic, Underline and bullet or numbered list buttons in Call-out Settings.", { text: "B I U" });
-      add("Keyboard and mouse", "Finish / Cancel drawing", "With drawing focus, Enter finishes a trace; Escape or right-click cancels the active drawing operation.", { text: "Enter" }, { keys: ["Enter", "Esc", "Right-click"] });
       add("Keyboard and mouse", "Undo drawing point", "Backspace removes the last unfinished trace point. Ctrl/Cmd+Z also removes a chosen control point, or undoes a supported count, Call-out, signature or PDF graphic edit.", { text: "↶" }, { keys: ["Backspace", "Ctrl / Cmd+Z"] });
-      add("Keyboard and mouse", "Copy / Paste drawing selection", "With Select active, copy and paste free or physical Call-outs, Steel/Duct Length markups or Wall/Floor surfaces. Copies are separate records; pasted quantity items start unconfirmed and use the destination drawing position and calibration.", { text: "Copy / Paste" }, { keys: ["Ctrl / Cmd+C", "Ctrl / Cmd+V"], id: "drawing-copy" });
-      add("Keyboard and mouse", "Multiple selection", "Hold Ctrl, Cmd or Shift when choosing drawing items to extend or toggle the selection.", { path: "checked" }, { keys: ["Ctrl / Cmd / Shift+click"] });
-      add("Keyboard and mouse", "Drawing context actions", "Open actions for a focused markup, Call-out or control point.", { text: "⋯" }, { keys: ["Right-click", "Shift+F10", "Menu key"] });
-      add("Keyboard and mouse", "Steel section choices", "Type to filter section names; arrows or Home/End choose a match, Enter accepts and Escape restores the previous choice.", { text: "Search" }, { keys: ["↑ / ↓", "Home / End", "Enter", "Esc"] });
     }
-    add("Keyboard and mouse", "Move focus / Activate", "Tab and Shift+Tab move through controls. Enter or Space activates a focused button.", { text: "Tab" }, { keys: ["Tab / Shift+Tab", "Enter / Space"] });
-    add("Keyboard and mouse", "Navigate a menu", "Use arrows to move through navigation or Document choices, Home/End for first/last, and Escape to close. In the Firestopping navigation branch, Right opens and Left returns.", { text: "↑ ↓" }, { keys: ["↑ / ↓", "Home / End", "Esc", "← / →"] });
     return rows.map(row => ({ ...row, keys: row.action && registry?.actions?.[row.action] ? [registry.shortcut(registry.actions[row.action])] : row.keys || [] }));
   }
   function matches(row, query, group = "") {

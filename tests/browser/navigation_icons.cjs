@@ -31,9 +31,10 @@ const evidence=[],errors=[];
         if(state==='hover'||state==='active-hover')await control.hover();
         if(state==='active'){await control.click();await control.press('Escape');await page.mouse.move(0,0);await expect(control).toHaveClass(/\bactive\b/);}
         await expect(image).toHaveCSS('stroke-width','2px');
-        const appearance=await image.evaluate(el=>{const a=el.getBoundingClientRect(),b=el.closest('button').getBoundingClientRect();return{filter:getComputedStyle(el).filter,blend:getComputedStyle(el).mixBlendMode,width:a.width,height:a.height,centreX:a.x+a.width/2-b.x-b.width/2,centreY:a.y+a.height/2-b.y-b.height/2};});
+        const appearance=await image.evaluate(el=>{const a=el.getBoundingClientRect(),button=el.closest('button'),b=button.getBoundingClientRect(),label=button.querySelector('.nav-page-label'),c=label.getBoundingClientRect();return{filter:getComputedStyle(el).filter,blend:getComputedStyle(el).mixBlendMode,width:a.width,height:a.height,centreX:a.x+a.width/2-b.x-b.width/2,centreY:a.y+a.height/2-b.y-b.height/2,label:label.textContent,labelVisible:c.width>0&&c.height>0&&getComputedStyle(label).visibility==='visible',labelBelow:c.top>=a.bottom+4,labelCentreX:c.x+c.width/2-b.x-b.width/2,contained:a.left>=b.left&&a.top>=b.top&&a.right<=b.right&&c.left>=b.left&&c.right<=b.right&&c.bottom<=b.bottom,stackCentreY:(Math.min(a.top,c.top)+Math.max(a.bottom,c.bottom))/2-b.y-b.height/2};});
         assert.equal(appearance.width,26);assert.equal(appearance.height,26);
-        assert.ok(Math.abs(appearance.centreX)<.5&&Math.abs(appearance.centreY)<.5,'Header artwork remains centred in its control');
+        assert.ok(appearance.label.trim()&&appearance.labelVisible&&appearance.labelBelow&&appearance.contained,'Each original icon remains above a visible page name within its control');
+        assert.ok(Math.abs(appearance.centreX)<.5&&Math.abs(appearance.labelCentreX)<.5&&Math.abs(appearance.stackCentreY)<.5,'The icon and page-name stack remains centred in its control');
         assert.equal(appearance.filter,'none');assert.equal(appearance.blend,'normal');
         const screenshot=path.join(output,`${theme}-${name}-${state}.png`);await image.screenshot({path:screenshot});
         const pixels=spawnSync(python,['-c',"from PIL import Image; import sys; p=list(Image.open(sys.argv[1]).convert('RGB').getdata()); r=max(sum(v)/3 for v in p)-min(sum(v)/3 for v in p); assert r>100, r",screenshot],{encoding:'utf8',windowsHide:true});assert.equal(pixels.status,0,pixels.stderr);

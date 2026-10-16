@@ -154,10 +154,23 @@
   }
 
   /* Workbook headers are neutral in every theme; input and result cells keep their roles. */
-  :root .calculator-grid { --calculator-section-bg:#fff; --calculator-section-ink:#000; }
+  :root .calculator-grid { --calculator-section-bg:#fff; --calculator-section-ink:#000; --calculator-body-bg:var(--theme-surface); --calculator-input-cell-bg:var(--theme-surface); }
   :root .calculator-grid [class*="calculator-section-theme-"] { --section-ink:#000; --section-bg:#fff; --section-edge:var(--theme-edge); }
-  :root[data-theme] .calculator-grid :is(thead th,.calculator-row-label,.calculator-source-heading,.calculator-role-column_header,.calculator-comparison-table th,.calculator-product-totals tbody th,.calculator-schedule-table tbody th,.calculator-overview-column_header),
+  :root[data-theme] .calculator-grid :is(thead th,th[scope=col],.calculator-source-heading,.calculator-role-column_header,.calculator-overview-column_header),
   :root[data-theme] .calculator-contents a { background:#fff; color:#000; }
+
+  /* Row identities and product names are body values, not column headings. */
+  :root[data-theme] .calculator-grid :is(tbody th[scope=row],tbody .calculator-row-label,.calculator-product-totals tbody th) { background:var(--calculator-body-bg); color:var(--ink); }
+  :root[data-theme] .calculator-grid .calculator-schedule-table tbody :is(td,th).calculator-line-number { background:var(--calculator-input-cell-bg)!important; color:var(--ink)!important; text-align:left!important; }
+  :root[data-theme] .calculator-grid .calculator-schedule-table tbody td.calculator-row-action { background:var(--calculator-body-bg)!important; color:var(--ink); }
+
+  /* Header dividers remain red; selected page-tab markers remain white. */
+  :root[data-theme] .calculator-grid :is(thead th,th[scope=col],.calculator-source-heading,.calculator-role-column_header,.calculator-section-anchor,.calculator-role-title,.calculator-role-section,.calculator-role-compact_title,.calculator-role-compact_summary_title,.calculator-overview-column_header) { border-bottom-color:var(--red); }
+
+  /* Input values override workbook centring without moving summary-table numbers. */
+  :root[data-theme] .calculator-grid :is(input,select,textarea),
+  :root[data-theme] .calculator-grid .calculator-responsive-form td[data-calculator-value],
+  :root[data-theme] .calculator-grid .calculator-responsive-form td[data-calculator-value] :is(.calculator-value-present,.calculator-value-empty,.calculator-virtual-output) { text-align:left!important; text-align-last:left!important; }
 
   /* These are application forms and drafts, never retained drawing/image pixels. */
   :root[data-theme] .takeoff-physical-register { background:var(--theme-surface); color:var(--ink); border-color:var(--line); border-top-color:var(--theme-edge); }

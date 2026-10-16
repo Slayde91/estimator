@@ -18,6 +18,9 @@
     justify-self: end;
     width: fit-content;
     min-width: 0;
+    /* Zoom participates in layout, so the requested 35% reduction also frees
+       the occupied space and keeps native menu/pointer coordinates aligned. */
+    zoom: .65;
   }
   .app-header nav {
     display: flex;
@@ -117,7 +120,8 @@
     .app-header .brand-stack,
     .app-header .brand-logo { width: 130px; }
     .app-header > .header-tagline { font-size: 11px; }
-    .app-header .header-navigation { width: 100%; }
+    /* Percentage widths otherwise compensate for zoom and remain full-width. */
+    .app-header .header-navigation { width: 65%; }
     .app-header nav { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); width: 100%; gap: 4px; }
     .app-header .nav-icon { width: 100%; min-width: 44px; height: auto; min-height: 68px; padding: 6px 4px; font-size: 11px; }
     .app-header .section-navigation,

@@ -99,8 +99,8 @@ async function responseTo(action, suffix) {
         await dialog.getByRole('button', { name: 'Keep editing', exact: true }).click(); await idle(); await expect(menu).toBeHidden();
       }
     }
-    // The source line column intentionally remains white. Verify the actual
-    // rendered foreground/background pair rather than theme CSS text.
+    // Line identities share the schedule body palette; true column headings
+    // stay white. Verify rendered colours rather than theme CSS text.
     await page.locator('#calculator-pages').getByRole('button',{name:'SCHEDULE',exact:true}).click();await idle();
     const themeChecks=[];
     for(const theme of ['ceasefire','midnight','ocean','forest','slate']) {
@@ -108,8 +108,10 @@ async function responseTo(action, suffix) {
       for(const width of [1146,390]) {
         await page.setViewportSize({width,height:1000});
         const line=page.locator('.calculator-schedule-table td.calculator-line-number').first();await expect(line).toBeVisible();
-        const styles=await line.evaluate(cell=>{const css=getComputedStyle(cell),box=cell.getBoundingClientRect();return{text:cell.textContent.trim(),foreground:css.color,background:css.backgroundColor,width:box.width,height:box.height};});
-        assert.match(styles.text,/^\d+$/);assert.equal(styles.foreground,'rgb(23, 18, 23)');assert.equal(styles.background,'rgb(255, 255, 255)');assert.ok(styles.width>0&&styles.height>0);
+        const styles=await line.evaluate(cell=>{const css=getComputedStyle(cell),box=cell.getBoundingClientRect(),adjacentCell=cell.nextElementSibling,adjacent=getComputedStyle(adjacentCell),visibleValue=getComputedStyle(adjacentCell.querySelector('input,select,textarea')||adjacentCell);return{text:cell.textContent.trim(),foreground:css.color,background:css.backgroundColor,adjacentForeground:visibleValue.color,adjacentBackground:adjacent.backgroundColor,width:box.width,height:box.height};});
+        assert.match(styles.text,/^\d+$/);assert.equal(styles.foreground,styles.adjacentForeground);assert.equal(styles.background,styles.adjacentBackground);assert.ok(contrast(styles.foreground,styles.background)>=4.5);assert.ok(styles.width>0&&styles.height>0);
+        const lineHeading=await page.locator('.calculator-schedule-table thead th').filter({hasText:/^Line$/}).evaluate(cell=>({foreground:getComputedStyle(cell).color,background:getComputedStyle(cell).backgroundColor}));
+        assert.deepEqual(lineHeading,{foreground:'rgb(0, 0, 0)',background:'rgb(255, 255, 255)'});
         const rowLabel = await page.locator('.calculator-schedule-table tbody .calculator-row-action').first().evaluate(cell => ({ foreground: getComputedStyle(cell).color, background: getComputedStyle(cell).backgroundColor }));
         assert.ok(contrast(rowLabel.foreground, rowLabel.background) >= 4.5, `${theme}/${width}: schedule row label remains readable`);
         const attachment=page.locator('#project-attachment-zone');await expect(attachment).toBeVisible();

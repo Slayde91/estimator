@@ -1975,6 +1975,11 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
   }
   entry=dynamicSetup();await audit.calculate();
   assert.equal(renderedControls().length,2);assert.equal(byId('calculator-grid').querySelectorAll('[data-schedule-remove]').length,1);
+  const initialScheduleTable=renderedTable(),initialScheduleHead=initialScheduleTable.children.find(node=>node.tagName==='thead').children[0];
+  assert.deepEqual(initialScheduleHead.children.map(cell=>cell.textContent),['Line','Member','Length','Actions']);
+  assert.equal(initialScheduleTable.children[0].children.length,initialScheduleHead.children.length);
+  assert.equal(initialScheduleTable.children.at(-1).children[0].children.length,initialScheduleHead.children.length);
+  assert.equal(initialScheduleTable.children.at(-1).children[0].children[0].textContent,'1');
   assert.equal(byId('calculator-grid').querySelectorAll('[data-schedule-add]').length,1);assert.equal(audit.dirty(entry),false);
   assert.equal(byId('calculator-grid').children.at(-1).className,'calculator-schedule-tools');
   const scheduleAdd=byId('calculator-grid').querySelectorAll('[data-schedule-add]')[0],scheduleUndo=byId('calculator-grid').querySelectorAll('[data-schedule-undo]')[0];
@@ -2004,10 +2009,25 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
   assert.equal(entry.inputs.CALCULATOR.A10,'Keep');assert.equal(entry.inputs.SETTINGS.B6,0.123456789012345);
   await byId('calculator-grid').querySelectorAll('[data-schedule-undo]')[0].emit('click');assert.deepEqual(copy(entry.scheduleRows),[9,10]);assert.equal(JSON.stringify(entry.inputs),beforeRemove);assert.equal(audit.dirty(entry),false);passed++;
 
+  // Removing the redundant row gutter keeps every source link beside Delete,
+  // while the retained Line column and all row inputs remain unchanged.
+  const openedSources=[];
+  context.window.CeasefireTakeoffs={scheduleBindings:(id,row)=>id==='steel_board'&&row===9?[{item_id:'takeoff-first'},{item_id:'takeoff-second'}]:[],showSource:id=>openedSources.push(id)};
+  entry=dynamicSetup([9,10],{CALCULATOR:{A9:'Linked',B9:7.123456789012345,A10:'Unlinked',B10:2.34567890123456}});await audit.calculate();
+  const linkedRows=renderedTable().children.at(-1).children,linkedAction=linkedRows[0].children.at(-1);
+  const sourceButtons=linkedAction.children.filter(node=>node.className==='takeoff-source-indicator');
+  assert.equal(linkedRows[0].children[0].textContent,'1');assert.equal(linkedRows[1].children[0].textContent,'2');
+  assert.deepEqual(sourceButtons.map(button=>button.getAttribute('aria-label')),['Open takeoff takeoff-first','Open takeoff takeoff-second']);
+  assert.equal(linkedAction.children.at(-1).dataset.scheduleRemove,'9');assert.equal(linkedRows[1].children.at(-1).children.length,1);
+  const beforeOpeningSources=JSON.stringify(audit.projectSnapshot());
+  for(const source of sourceButtons)await source.emit('click');
+  assert.deepEqual(openedSources,['takeoff-first','takeoff-second']);assert.equal(JSON.stringify(audit.projectSnapshot()),beforeOpeningSources);
+  delete context.window.CeasefireTakeoffs;passed++;
+
   // Cancel and stale review responses retain all row values, prices, settings and Undo state.
   entry=dynamicSetup([9,10],{CALCULATOR:{A9:'Review target',B9:7.123456789012345,A10:'Keep'},SETTINGS:{B6:.123456789}});await audit.calculate();
-  const deleteHead=renderedTable().children.find(node=>node.tagName==='thead').children[0];assert.equal(deleteHead.children.at(-1).textContent,'Delete');
-  const firstRendered=renderedTable().children.find(node=>node.tagName==='tbody').children[0];assert.equal(firstRendered.children[0].children[0].textContent,'Line 1');assert.ok(firstRendered.children.at(-1).children.some(node=>node.dataset.scheduleRemove==='9'));
+  const deleteHead=renderedTable().children.find(node=>node.tagName==='thead').children[0];assert.equal(deleteHead.children.at(-1).textContent,'Actions');
+  const firstRendered=renderedTable().children.find(node=>node.tagName==='tbody').children[0];assert.equal(firstRendered.children[0].textContent,'1');assert.ok(firstRendered.children[0].className==='calculator-line-number');assert.ok(firstRendered.children.at(-1).children.some(node=>node.dataset.scheduleRemove==='9'));
   assert.equal(firstRendered.children[0].children.some(node=>node.dataset.scheduleRemove),false);
   const cancelledInputs=JSON.stringify(entry.inputs),cancelledRows=JSON.stringify(entry.scheduleRows),cancelledDirty=audit.dirty(entry);
   const cancelledDelete=audit.requestRemoveScheduleRow(9);await flush();await byId('calculator-confirm-dialog').close('cancel');await cancelledDelete;
@@ -2057,6 +2077,7 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
   // new value subsequently entered into that same physical row.
   entry=dynamicSetup([9],{CALCULATOR:{A9:'Deleted',B9:7.123456789012345},SETTINGS:{B6:1}});await audit.calculate();await audit.removeScheduleRow(9);
   assert.deepEqual(copy(entry.scheduleRows),[9]);assert.equal(entry.inputs.CALCULATOR.A9,null);
+  assert.equal(renderedTable().children.at(-1).children[0].children.length,4);assert.equal(renderedTable().children.at(-1).children[0].children[0].textContent,'1');
   audit.setInput(entry,'CALCULATOR','A9','Replacement');assert.equal(entry.removedRows.length,0);await audit.undoScheduleRemove();assert.equal(entry.inputs.CALCULATOR.A9,'Replacement');passed++;
 
   // Removing a sole non-first source row and undoing restores exactly its
@@ -2076,6 +2097,8 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
   assert.equal(byId('calculator-grid').querySelectorAll('[data-schedule-add]')[0].disabled,true);
   const virtualTable=renderedTable(),virtualBody=virtualTable.children.at(-1);
   assert.equal(virtualTable.classList.contains('calculator-virtual-schedule'),true);assert.equal(virtualTable.getAttribute('aria-rowcount'),'1001');
+  assert.equal(virtualTable.children[0].children.length,4);assert.equal(virtualBody.children[0].children[0].colSpan,4);assert.equal(virtualBody.children.at(-1).children[0].colSpan,4);
+  assert.ok(virtualBody.children.slice(1,-1).every(row=>row.children.length===4));
   assert.equal(virtualBody.children.at(-1).children[0].style.height,`${940*96}px`);assert.equal(entry.inputs.CALCULATOR.B1008,9.987654321098765);passed++;
 
   // Scrolling to the end asks for the final bounded window with every draft

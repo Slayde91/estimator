@@ -20,6 +20,18 @@ function harness(){
 let passed=0;
 async function check(name,fn){const h=harness();h.projectApi.applyProject(await h.projectApi.prepareDefaults());await fn(h);passed++;console.log('ok - '+name);}
 (async()=>{
+  await check('Mandarin library settings translate route and band table captions without changing routes or exact thresholds',async h=>{
+    const ui=h.context.window.CeasefireI18n=require('./helpers/localized_i18n.cjs')(),metadata=definition();metadata.groups.push('SETTINGS');
+    metadata.settings={service_routes:[{key:'lagged_pipes',label:'Lagged Pipes'}],labour_bands:[{key:'pipe',label:'Pipe Labour',units:'mm',basis:'Pipe diameter',overflow:'manual'}]};
+    const draft=copy(metadata.defaults);Object.assign(draft.globals,{service_routes:{lagged_pipes:['Lagged Pipes','Home']},labour_bands:{pipe:[{maximum:123.456789012345,hours:.123456789012345}]}});
+    h.api.present(fixture(draft,{definition:metadata,result:result(draft,metadata)}));h.audit.state.group='SETTINGS';h.audit.renderFields();
+    const nodes=walk(h.byId('library-editor-fields'));
+    assert.ok(nodes.some(el=>el.tagName==='th'&&el.textContent===ui.translate('Lagged Pipes').toUpperCase()));
+    assert.ok(nodes.some(el=>el.tagName==='th'&&el.textContent===ui.translate('Up to ({0})',['mm'])));
+    assert.ok(nodes.some(el=>el.dataset.libraryEditorServiceRoute==='lagged_pipes'&&el.value==='Lagged Pipes; Home'));
+    assert.ok(nodes.some(el=>el.dataset.libraryEditorBand==='labour_bands.pipe.0.maximum'&&el.value==='123.456789012345'));
+    assert.deepEqual(copy(h.audit.state.draft),draft);assert.equal(h.calls.length,0);
+  });
   await check('Localized editor keeps custom product and pricing names literal even when they match UI terms',async h=>{
     const localized=(source,args=[])=>'translated:'+String(source).replace(/\{(\d+)\}/g,(match,index)=>index<args.length?String(typeof args[index]==='function'?args[index]():args[index]):match);
     h.context.window.CeasefireI18n={text(element,source,args){element.textContent=localized(source,args);return element;},attr(element,name,source,args){element.setAttribute(name,localized(source,args));return element;},translate:localized};

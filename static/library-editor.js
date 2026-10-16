@@ -417,7 +417,7 @@
     for (const label of ["Service Tab", "Service Types"]) { const cell = uiNode("th", "", label); cell.scope = "col"; header.append(cell); }
     head.append(header); table.append(head); const body = node("tbody"), routes = state.draft.globals.service_routes || {};
     for (const route of state.definition.settings?.service_routes || []) {
-      const row = node("tr"), label = uiNode("th", "", route.label.toUpperCase()); label.scope = "row";
+      const row = node("tr"), label = uiNode("th", "", "{0}", [() => (window.CeasefireI18n?.translate(route.label) || route.label).toUpperCase()]); label.scope = "row";
       const value = node("td"), editor = node("textarea"), problem = node("small", "penetration-field-error");
       editor.rows = 2; editor.maxLength = 10000; editor.value = (routes[route.key] || []).join("; ");
       editor.dataset.libraryEditorServiceRoute = route.key; uiAttr(editor, "aria-label", "{0} service types", [() => window.CeasefireI18n?.translate(route.label) || route.label]);
@@ -448,16 +448,16 @@
       const rows = state.draft.globals.labour_bands?.[definition.key] || [], details = node("details", "penetration-band-settings");
       details.open = state.openSettingsBand === definition.key; details.addEventListener("toggle", () => { if (details.open) state.openSettingsBand = definition.key; });
       const summary = node("summary"); summary.append(uiNode("strong", "", definition.label), uiNode("span", "status-label", "{0} bands", [rows.length])); details.append(summary);
-      details.append(node("p", "helper", `${definition.basis}. ${definition.overflow === "manual" ? "Values above the final band require manual Pipe Labour hours." : "Values above the final band use its hours."}`));
+      details.append(uiNode("p", "helper", "{0}. {1}", [() => window.CeasefireI18n?.translate(definition.basis) || definition.basis, () => { const source = definition.overflow === "manual" ? "Values above the final band require manual Pipe Labour hours." : "Values above the final band use its hours."; return window.CeasefireI18n?.translate(source) || source; }]));
       const scroll = node("div", "table-scroll"), table = node("table", "penetration-settings-table penetration-band-table"), head = node("thead"), header = node("tr");
-      for (const label of [`Up to (${definition.units})`, "Hours", "Action"]) { const cell = uiNode("th", "", label); cell.scope = "col"; header.append(cell); }
+      for (const label of ["Up to ({0})", "Hours", "Action"]) { const cell = uiNode("th", "", label, label === "Up to ({0})" ? [definition.units] : []); cell.scope = "col"; header.append(cell); }
       head.append(header); table.append(head); const body = node("tbody");
       rows.forEach((band, index) => {
         const row = node("tr");
         for (const property of ["maximum", "hours"]) {
           const cell = node("td"), control = node("input"), problem = node("small", "penetration-field-error"), name = `labour_bands.${definition.key}.${index}.${property}`;
           control.type = "number"; control.step = "any"; control.inputMode = "decimal"; control.value = String(band[property]); control.dataset.libraryEditorBand = name;
-          uiAttr(control, "aria-label", "{0} band {1} {2}", [definition.label, index + 1, property === "maximum" ? `maximum ${definition.units}` : "hours"]);
+          uiAttr(control, "aria-label", "{0} band {1} {2}", [() => window.CeasefireI18n?.translate(definition.label) || definition.label, index + 1, () => property === "maximum" ? window.CeasefireI18n?.translate("maximum {0}", [definition.units]) || `maximum ${definition.units}` : window.CeasefireI18n?.translate("hours") || "hours"]);
           control.addEventListener("input", () => {
             const parsed = bandNumber(control.value, 0, property === "maximum" ? "band maximum" : "hours", property === "maximum");
             let error = parsed.error || "";
@@ -473,7 +473,7 @@
           problem.hidden = true; cell.append(control, problem); row.append(cell);
         }
         const action = node("td"), remove = node("button", "button secondary icon-only penetration-band-remove"); remove.type = "button"; remove.disabled = rows.length === 1;
-        uiAttr(remove, "title", "Remove {0} band {1}", [definition.label, index + 1]); uiAttr(remove, "aria-label", "Remove {0} band {1}", [() => window.CeasefireI18n?.translate(definition.label) || definition.label, index + 1]); const icon = node("span", "button-symbol", "🗑"); icon.setAttribute("aria-hidden", "true"); remove.append(icon); remove.addEventListener("click", () => {
+        uiAttr(remove, "title", "Remove {0} band {1}", [() => window.CeasefireI18n?.translate(definition.label) || definition.label, index + 1]); uiAttr(remove, "aria-label", "Remove {0} band {1}", [() => window.CeasefireI18n?.translate(definition.label) || definition.label, index + 1]); const icon = node("span", "button-symbol", "🗑"); icon.setAttribute("aria-hidden", "true"); remove.append(icon); remove.addEventListener("click", () => {
           const bands = clone(state.draft.globals.labour_bands); if (bands[definition.key].length === 1) return;
           bands[definition.key].splice(index, 1); clearStructuredProblems(`labour_bands.${definition.key}.`); state.openSettingsBand = definition.key; updateStructuredSetting("labour_bands", bands); renderFields();
         });

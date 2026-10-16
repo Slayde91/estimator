@@ -1,0 +1,4419 @@
+{
+  "Item / mark": [
+    "项目 / 标记",
+    "मद / चिह्न",
+    "Elemento / marca",
+    "البند / العلامة",
+    "รายการ / หมายเลข"
+  ],
+  "Exposure / member case": [
+    "受火情况 / 构件类型",
+    "अग्नि संपर्क / सदस्य स्थिति",
+    "Exposición / tipo de elemento",
+    "التعرض / حالة العنصر",
+    "การรับไฟ / ประเภทชิ้นส่วน"
+  ],
+  "Critical temp": [
+    "临界温度",
+    "क्रांतिक तापमान",
+    "Temperatura crítica",
+    "درجة الحرارة الحرجة",
+    "อุณหภูมิวิกฤต"
+  ],
+  "Critical temperature": [
+    "临界温度",
+    "क्रांतिक तापमान",
+    "Temperatura crítica",
+    "درجة الحرارة الحرجة",
+    "อุณหภูมิวิกฤต"
+  ],
+  "Input method": [
+    "输入方式",
+    "इनपुट विधि",
+    "Método de entrada",
+    "طريقة الإدخال",
+    "วิธีป้อนข้อมูล"
+  ],
+  "Steel section ID": [
+    "钢截面编号",
+    "इस्पात अनुभाग ID",
+    "ID de sección de acero",
+    "معرف مقطع الفولاذ",
+    "รหัสหน้าตัดเหล็ก"
+  ],
+  "Section ID": [
+    "截面编号",
+    "अनुभाग ID",
+    "ID de sección",
+    "معرف المقطع",
+    "รหัสหน้าตัด"
+  ],
+  "Steel ID": [
+    "钢材编号",
+    "इस्पात ID",
+    "ID del acero",
+    "معرف الفولاذ",
+    "รหัสเหล็ก"
+  ],
+  "Fire-resistance period": [
+    "耐火时间",
+    "अग्नि प्रतिरोध अवधि",
+    "Periodo de resistencia al fuego",
+    "مدة مقاومة الحريق",
+    "ระยะเวลาทนไฟ"
+  ],
+  "Quantity of members": [
+    "构件数量",
+    "सदस्यों की संख्या",
+    "Cantidad de elementos",
+    "عدد العناصر",
+    "จำนวนชิ้นส่วน"
+  ],
+  "Length per member": [
+    "每件长度",
+    "प्रति सदस्य लंबाई",
+    "Longitud por elemento",
+    "الطول لكل عنصر",
+    "ความยาวต่อชิ้นส่วน"
+  ],
+  "Length / member": [
+    "每件长度",
+    "लंबाई / सदस्य",
+    "Longitud / elemento",
+    "الطول / العنصر",
+    "ความยาว / ชิ้นส่วน"
+  ],
+  "Girth override": [
+    "周长覆盖值",
+    "परिधि ओवरराइड",
+    "Perímetro manual",
+    "تجاوز المحيط",
+    "ค่าเส้นรอบรูปกำหนดเอง"
+  ],
+  "Area override": [
+    "面积覆盖值",
+    "क्षेत्रफल ओवरराइड",
+    "Área manual",
+    "تجاوز المساحة",
+    "ค่าพื้นที่กำหนดเอง"
+  ],
+  "Lookup ESA/M": [
+    "查得 ESA/M",
+    "खोजा गया ESA/M",
+    "ESA/M consultado",
+    "ESA/M المستخرج",
+    "ค่า ESA/M ที่ค้นได้"
+  ],
+  "Lookup Hp/A": [
+    "查得 Hp/A",
+    "खोजा गया Hp/A",
+    "Hp/A consultado",
+    "Hp/A المستخرج",
+    "ค่า Hp/A ที่ค้นได้"
+  ],
+  "Usable estimating thickness": [
+    "可用于估算的厚度",
+    "अनुमान योग्य मोटाई",
+    "Espesor utilizable para estimación",
+    "السماكة القابلة للتقدير",
+    "ความหนาที่ใช้ประมาณได้"
+  ],
+  "Girth used": [
+    "采用周长",
+    "प्रयुक्त परिधि",
+    "Perímetro utilizado",
+    "المحيط المستخدم",
+    "เส้นรอบรูปที่ใช้"
+  ],
+  "Spray area": [
+    "喷涂面积",
+    "स्प्रे क्षेत्रफल",
+    "Área de proyección",
+    "مساحة الرش",
+    "พื้นที่พ่น"
+  ],
+  "Coating volume": [
+    "涂层体积",
+    "लेपन आयतन",
+    "Volumen del revestimiento",
+    "حجم الطلاء",
+    "ปริมาตรสารเคลือบ"
+  ],
+  "Published thickness": [
+    "公布厚度",
+    "प्रकाशित मोटाई",
+    "Espesor publicado",
+    "السماكة المنشورة",
+    "ความหนาที่เผยแพร่"
+  ],
+  "Estimating thickness": [
+    "估算厚度",
+    "अनुमानित मोटाई",
+    "Espesor estimado",
+    "السماكة التقديرية",
+    "ความหนาสำหรับประมาณ"
+  ],
+  "Whole bags incl. waste": [
+    "整袋数（含损耗）",
+    "बर्बादी सहित पूर्ण बैग",
+    "Sacos enteros con merma",
+    "الأكياس الكاملة شاملة الهدر",
+    "จำนวนถุงเต็มรวมสูญเสีย"
+  ],
+  "Thickness status": [
+    "厚度状态",
+    "मोटाई स्थिति",
+    "Estado del espesor",
+    "حالة السماكة",
+    "สถานะความหนา"
+  ],
+  "Quantity status": [
+    "数量状态",
+    "मात्रा स्थिति",
+    "Estado de cantidades",
+    "حالة الكمية",
+    "สถานะปริมาณ"
+  ],
+  "Thickness source": [
+    "厚度来源",
+    "मोटाई स्रोत",
+    "Fuente del espesor",
+    "مصدر السماكة",
+    "แหล่งข้อมูลความหนา"
+  ],
+  "Basis / review note": [
+    "依据 / 复核说明",
+    "आधार / समीक्षा टिप्पणी",
+    "Base / nota de revisión",
+    "الأساس / ملاحظة المراجعة",
+    "หลักเกณฑ์ / หมายเหตุทบทวน"
+  ],
+  "Manual thickness": [
+    "手动厚度",
+    "मैनुअल मोटाई",
+    "Espesor manual",
+    "السماكة اليدوية",
+    "ความหนากำหนดเอง"
+  ],
+  "Yield used": [
+    "采用产出率",
+    "प्रयुक्त उपज",
+    "Rendimiento utilizado",
+    "الإنتاجية المستخدمة",
+    "อัตราผลผลิตที่ใช้"
+  ],
+  "Waste allowance": [
+    "损耗预留",
+    "बर्बादी भत्ता",
+    "Previsión de merma",
+    "بدل الهدر",
+    "ค่าเผื่อสูญเสีย"
+  ],
+  "Coverage": [
+    "覆盖面积",
+    "कवरेज",
+    "Cobertura",
+    "التغطية",
+    "พื้นที่ครอบคลุม"
+  ],
+  "Schedule lines": [
+    "清单行数",
+    "अनुसूची पंक्तियाँ",
+    "Líneas de listado",
+    "سطور الجدول",
+    "จำนวนแถวรายการ"
+  ],
+  "Area entered": [
+    "已输入面积",
+    "दर्ज क्षेत्रफल",
+    "Área introducida",
+    "المساحة المدخلة",
+    "พื้นที่ที่ป้อน"
+  ],
+  "Volume quantified": [
+    "已计算体积",
+    "गणना किया आयतन",
+    "Volumen calculado",
+    "الحجم المحسوب",
+    "ปริมาตรที่คำนวณ"
+  ],
+  "Whole bags / product": [
+    "每种产品整袋数",
+    "पूर्ण बैग / उत्पाद",
+    "Sacos enteros / producto",
+    "الأكياس الكاملة / المنتج",
+    "ถุงเต็ม / ผลิตภัณฑ์"
+  ],
+  "Incomplete rows": [
+    "不完整行",
+    "अधूरी पंक्तियाँ",
+    "Filas incompletas",
+    "الصفوف غير المكتملة",
+    "แถวที่ไม่สมบูรณ์"
+  ],
+  "TOTAL ENTERED SPRAY AREA": [
+    "已输入喷涂总面积",
+    "दर्ज कुल स्प्रे क्षेत्रफल",
+    "ÁREA TOTAL DE PROYECCIÓN INTRODUCIDA",
+    "إجمالي مساحة الرش المدخلة",
+    "พื้นที่พ่นรวมที่ป้อน"
+  ],
+  "COATING VOLUME QUANTIFIED": [
+    "已计算涂层体积",
+    "गणना किया लेपन आयतन",
+    "VOLUMEN DE REVESTIMIENTO CALCULADO",
+    "حجم الطلاء المحسوب",
+    "ปริมาตรสารเคลือบที่คำนวณ"
+  ],
+  "THICKNESS / SCOPE BLOCKS": [
+    "厚度 / 适用范围限制",
+    "मोटाई / दायरे की रोक",
+    "BLOQUEOS DE ESPESOR / ALCANCE",
+    "قيود السماكة / النطاق",
+    "ข้อจำกัดความหนา / ขอบเขต"
+  ],
+  "ROWS NOT FULLY QUANTIFIED": [
+    "未完成数量计算的行",
+    "अपूर्ण मात्रा वाली पंक्तियाँ",
+    "FILAS SIN CUANTIFICAR POR COMPLETO",
+    "صفوف غير محسوبة بالكامل",
+    "แถวที่ยังคำนวณปริมาณไม่ครบ"
+  ],
+  "01  INPUTS": [
+    "01 输入",
+    "01 इनपुट",
+    "01 ENTRADAS",
+    "01 المدخلات",
+    "01 ข้อมูลป้อนเข้า"
+  ],
+  "02  THICKNESS & QUANTITIES": [
+    "02 厚度与数量",
+    "02 मोटाई और मात्राएँ",
+    "02 ESPESOR Y CANTIDADES",
+    "02 السماكة والكميات",
+    "02 ความหนาและปริมาณ"
+  ],
+  "03  ALL PUBLISHED PERIODS FOR THIS INPUT": [
+    "03 此输入的所有公布耐火时间",
+    "03 इस इनपुट की सभी प्रकाशित अवधियाँ",
+    "03 TODOS LOS PERIODOS PUBLICADOS PARA ESTA ENTRADA",
+    "03 جميع المدد المنشورة لهذه المدخلات",
+    "03 ระยะเวลาที่เผยแพร่ทั้งหมดสำหรับข้อมูลนี้"
+  ],
+  "Minutes": [
+    "分钟",
+    "मिनट",
+    "Minutos",
+    "دقائق",
+    "นาที"
+  ],
+  "MATERIAL QUANTITIES": [
+    "材料数量",
+    "सामग्री मात्राएँ",
+    "CANTIDADES DE MATERIAL",
+    "كميات المواد",
+    "ปริมาณวัสดุ"
+  ],
+  "GLOBAL SETTINGS": [
+    "全局设置",
+    "वैश्विक सेटिंग्स",
+    "AJUSTES GLOBALES",
+    "الإعدادات العامة",
+    "การตั้งค่ารวม"
+  ],
+  "COMMON CALCULATION RULES": [
+    "通用计算规则",
+    "सामान्य गणना नियम",
+    "REGLAS COMUNES DE CÁLCULO",
+    "قواعد الحساب العامة",
+    "กฎการคำนวณร่วม"
+  ],
+  "Project reference": [
+    "项目参考",
+    "परियोजना संदर्भ",
+    "Referencia del proyecto",
+    "مرجع المشروع",
+    "อ้างอิงโครงการ"
+  ],
+  "Engineer / design reference": [
+    "工程师 / 设计参考",
+    "अभियंता / डिज़ाइन संदर्भ",
+    "Referencia del ingeniero / diseño",
+    "مرجع المهندس / التصميم",
+    "อ้างอิงวิศวกร / แบบ"
+  ],
+  "Project design release": [
+    "项目设计发布",
+    "परियोजना डिज़ाइन रिलीज़",
+    "Emisión del diseño del proyecto",
+    "إصدار تصميم المشروع",
+    "การออกแบบโครงการที่อนุมัติ"
+  ],
+  "Steel density": [
+    "钢材密度",
+    "इस्पात घनत्व",
+    "Densidad del acero",
+    "كثافة الفولاذ",
+    "ความหนาแน่นเหล็ก"
+  ],
+  "Factor lookup policy": [
+    "系数查找规则",
+    "गुणांक खोज नीति",
+    "Política de consulta de factores",
+    "سياسة البحث عن المعامل",
+    "นโยบายค้นหาค่าปัจจัย"
+  ],
+  "Comparison tolerance": [
+    "比较容差",
+    "तुलना सहनशीलता",
+    "Tolerancia de comparación",
+    "سماحية المقارنة",
+    "ค่าคลาดเคลื่อนเปรียบเทียบ"
+  ],
+  "Lookup method": [
+    "查找方式",
+    "खोज विधि",
+    "Método de consulta",
+    "طريقة البحث",
+    "วิธีค้นหา"
+  ],
+  "Thickness & holds": [
+    "厚度与限制",
+    "मोटाई और रोक",
+    "Espesor y bloqueos",
+    "السماكة والقيود",
+    "ความหนาและข้อจำกัด"
+  ],
+  "Quantities & orders": [
+    "数量与订购",
+    "मात्राएँ और आदेश",
+    "Cantidades y pedidos",
+    "الكميات والطلبات",
+    "ปริมาณและการสั่งซื้อ"
+  ],
+  "Project design": [
+    "项目设计",
+    "परियोजना डिज़ाइन",
+    "Diseño del proyecto",
+    "تصميم المشروع",
+    "การออกแบบโครงการ"
+  ],
+  "PARAMETER": [
+    "参数",
+    "पैरामीटर",
+    "PARÁMETRO",
+    "المعامل",
+    "พารามิเตอร์"
+  ],
+  "VALUE": [
+    "数值",
+    "मान",
+    "VALOR",
+    "القيمة",
+    "ค่า"
+  ],
+  "BASIS / EFFECT": [
+    "依据 / 影响",
+    "आधार / प्रभाव",
+    "BASE / EFECTO",
+    "الأساس / الأثر",
+    "หลักเกณฑ์ / ผลกระทบ"
+  ],
+  "Bag mass": [
+    "每袋质量",
+    "बैग का द्रव्यमान",
+    "Masa por saco",
+    "كتلة الكيس",
+    "มวลต่อถุง"
+  ],
+  "Verified direct yield": [
+    "已核实直接产出率",
+    "सत्यापित प्रत्यक्ष उपज",
+    "Rendimiento directo verificado",
+    "الإنتاجية المباشرة المتحققة",
+    "อัตราผลผลิตโดยตรงที่ตรวจสอบแล้ว"
+  ],
+  "Estimating density": [
+    "估算用密度",
+    "अनुमान घनत्व",
+    "Densidad para estimación",
+    "كثافة التقدير",
+    "ความหนาแน่นสำหรับประมาณ"
+  ],
+  "Material status": [
+    "材料状态",
+    "सामग्री स्थिति",
+    "Estado del material",
+    "حالة المادة",
+    "สถานะวัสดุ"
+  ],
+  "Material basis / reference": [
+    "材料依据 / 参考",
+    "सामग्री आधार / संदर्भ",
+    "Base / referencia del material",
+    "أساس المادة / المرجع",
+    "หลักเกณฑ์วัสดุ / อ้างอิง"
+  ],
+  "Product scope": [
+    "产品适用范围",
+    "उत्पाद दायरा",
+    "Alcance del producto",
+    "نطاق المنتج",
+    "ขอบเขตผลิตภัณฑ์"
+  ],
+  "Consumption evidence": [
+    "用量依据",
+    "खपत साक्ष्य",
+    "Evidencia de consumo",
+    "أدلة الاستهلاك",
+    "หลักฐานอัตราการใช้"
+  ],
+  "TECHNICAL RULES & SOURCE-REVIEW DEFINITIONS": [
+    "技术规则与来源复核定义",
+    "तकनीकी नियम और स्रोत समीक्षा परिभाषाएँ",
+    "REGLAS TÉCNICAS Y DEFINICIONES DE REVISIÓN DE FUENTES",
+    "القواعد الفنية وتعريفات مراجعة المصادر",
+    "กฎทางเทคนิคและนิยามการทบทวนแหล่งข้อมูล"
+  ],
+  "Named-section route": [
+    "指定截面路径",
+    "नामित अनुभाग मार्ग",
+    "Ruta de sección identificada",
+    "مسار المقطع المسمى",
+    "วิธีใช้หน้าตัดที่ระบุ"
+  ],
+  "ESA/M input basis": [
+    "ESA/M 输入依据",
+    "ESA/M इनपुट आधार",
+    "Base de entrada ESA/M",
+    "أساس إدخال ESA/M",
+    "หลักเกณฑ์ป้อน ESA/M"
+  ],
+  "TEMP °C": [
+    "温度 °C",
+    "तापमान °C",
+    "TEMP. °C",
+    "الحرارة °C",
+    "อุณหภูมิ °C"
+  ],
+  "Hp/A MIN": [
+    "Hp/A 最小值",
+    "Hp/A न्यूनतम",
+    "Hp/A MÍN.",
+    "Hp/A الأدنى",
+    "Hp/A ต่ำสุด"
+  ],
+  "Hp/A MAX": [
+    "Hp/A 最大值",
+    "Hp/A अधिकतम",
+    "Hp/A MÁX.",
+    "Hp/A الأقصى",
+    "Hp/A สูงสุด"
+  ],
+  "PUBLISHED PERIODS": [
+    "公布时间",
+    "प्रकाशित अवधियाँ",
+    "PERIODOS PUBLICADOS",
+    "المدد المنشورة",
+    "ระยะเวลาที่เผยแพร่"
+  ],
+  "FACTOR BASIS": [
+    "系数依据",
+    "गुणांक आधार",
+    "BASE DEL FACTOR",
+    "أساس المعامل",
+    "หลักเกณฑ์ค่าปัจจัย"
+  ],
+  "STATUS": [
+    "状态",
+    "स्थिति",
+    "ESTADO",
+    "الحالة",
+    "สถานะ"
+  ],
+  "Direct estimating yield": [
+    "直接估算产出率",
+    "प्रत्यक्ष अनुमान उपज",
+    "Rendimiento directo estimado",
+    "إنتاجية التقدير المباشرة",
+    "อัตราผลผลิตประมาณโดยตรง"
+  ],
+  "Lower-web numerator": [
+    "下腹板分子值",
+    "निचले वेब का अंश",
+    "Numerador del alma inferior",
+    "بسط الجسر السفلي",
+    "ค่าตัวเศษเอวล่าง"
+  ],
+  "Castellated maximum": [
+    "蜂窝梁最大值",
+    "कैस्टेलेटेड अधिकतम",
+    "Máximo para viga alveolada",
+    "الحد الأقصى للكمرة المفرغة",
+    "ค่าสูงสุดคานเจาะช่อง"
+  ],
+  "Heated perimeter": [
+    "受热周长",
+    "गर्म परिधि",
+    "Perímetro expuesto al calor",
+    "المحيط المعرض للحرارة",
+    "เส้นรอบรูปที่รับความร้อน"
+  ],
+  "Steel area": [
+    "钢截面积",
+    "इस्पात क्षेत्रफल",
+    "Área de acero",
+    "مساحة الفولاذ",
+    "พื้นที่หน้าตัดเหล็ก"
+  ],
+  "Mass per metre": [
+    "每米质量",
+    "प्रति मीटर द्रव्यमान",
+    "Masa por metro",
+    "الكتلة لكل متر",
+    "มวลต่อเมตร"
+  ],
+  "Hp/A from steel area": [
+    "由钢截面积计算 Hp/A",
+    "इस्पात क्षेत्रफल से Hp/A",
+    "Hp/A según área de acero",
+    "Hp/A من مساحة الفولاذ",
+    "Hp/A จากพื้นที่หน้าตัดเหล็ก"
+  ],
+  "ESA/M from mass": [
+    "由质量计算 ESA/M",
+    "द्रव्यमान से ESA/M",
+    "ESA/M según masa",
+    "ESA/M من الكتلة",
+    "ESA/M จากมวล"
+  ],
+  "Shape": [
+    "形状",
+    "आकार",
+    "Forma",
+    "الشكل",
+    "รูปทรง"
+  ],
+  "Depth / outside diameter": [
+    "高度 / 外径",
+    "गहराई / बाहरी व्यास",
+    "Canto / diámetro exterior",
+    "العمق / القطر الخارجي",
+    "ความลึก / เส้นผ่านศูนย์กลางภายนอก"
+  ],
+  "Width": [
+    "宽度",
+    "चौड़ाई",
+    "Anchura",
+    "العرض",
+    "ความกว้าง"
+  ],
+  "Wall thickness": [
+    "壁厚",
+    "दीवार की मोटाई",
+    "Espesor de pared",
+    "سماكة الجدار",
+    "ความหนาผนัง"
+  ],
+  "Lower-web thickness": [
+    "下腹板厚度",
+    "निचले वेब की मोटाई",
+    "Espesor del alma inferior",
+    "سماكة الجسر السفلي",
+    "ความหนาเอวล่าง"
+  ],
+  "Special Hp/A": [
+    "特殊 Hp/A",
+    "विशेष Hp/A",
+    "Hp/A especial",
+    "Hp/A الخاص",
+    "Hp/A เฉพาะ"
+  ],
+  "ESA/M input": [
+    "ESA/M 输入值",
+    "ESA/M इनपुट",
+    "Entrada ESA/M",
+    "مدخل ESA/M",
+    "ข้อมูลป้อน ESA/M"
+  ],
+  "Lineal metres": [
+    "延米",
+    "रेखीय मीटर",
+    "Metros lineales",
+    "الأمتار الطولية",
+    "เมตรตามยาว"
+  ],
+  "Sides": [
+    "面数",
+    "पक्ष",
+    "Caras",
+    "الأوجه",
+    "จำนวนด้าน"
+  ],
+  "FRL required": [
+    "所需耐火等级 FRL",
+    "आवश्यक FRL",
+    "FRL requerido",
+    "FRL المطلوب",
+    "FRL ที่ต้องการ"
+  ],
+  "Beam or Column": [
+    "梁或柱",
+    "बीम या स्तंभ",
+    "Viga o pilar",
+    "كمرة أو عمود",
+    "คานหรือเสา"
+  ],
+  "Family": [
+    "截面类别",
+    "अनुभाग परिवार",
+    "Familia de sección",
+    "عائلة المقطع",
+    "กลุ่มหน้าตัด"
+  ],
+  "Family (ESA input)": [
+    "截面类别（ESA 输入）",
+    "अनुभाग परिवार (ESA इनपुट)",
+    "Familia (entrada ESA)",
+    "العائلة (إدخال ESA)",
+    "กลุ่มหน้าตัด (ป้อน ESA)"
+  ],
+  "Exposure layout": [
+    "受火布置",
+    "अग्नि संपर्क विन्यास",
+    "Disposición de exposición",
+    "ترتيب التعرض",
+    "รูปแบบการรับไฟ"
+  ],
+  "Partial depth": [
+    "部分高度",
+    "आंशिक गहराई",
+    "Canto parcial",
+    "العمق الجزئي",
+    "ความลึกบางส่วน"
+  ],
+  "Layer preference": [
+    "层数偏好",
+    "परत वरीयता",
+    "Preferencia de capas",
+    "تفضيل الطبقات",
+    "จำนวนชั้นที่ต้องการ"
+  ],
+  "Thickness lookup": [
+    "厚度查找",
+    "मोटाई खोज",
+    "Consulta de espesor",
+    "البحث عن السماكة",
+    "การค้นหาความหนา"
+  ],
+  "Installation detail": [
+    "安装详图",
+    "स्थापना विवरण",
+    "Detalle de instalación",
+    "تفصيل التركيب",
+    "รายละเอียดติดตั้ง"
+  ],
+  "Depth or OD": [
+    "高度或外径",
+    "गहराई या बाहरी व्यास",
+    "Canto o diámetro exterior",
+    "العمق أو القطر الخارجي",
+    "ความลึกหรือเส้นผ่านศูนย์กลางภายนอก"
+  ],
+  "Width B": [
+    "宽度 B",
+    "चौड़ाई B",
+    "Anchura B",
+    "العرض B",
+    "ความกว้าง B"
+  ],
+  "Steel mass": [
+    "钢材质量",
+    "इस्पात द्रव्यमान",
+    "Masa del acero",
+    "كتلة الفولاذ",
+    "มวลเหล็ก"
+  ],
+  "Box girth override": [
+    "箱体周长覆盖值",
+    "बॉक्स परिधि ओवरराइड",
+    "Perímetro de caja manual",
+    "تجاوز محيط الصندوق",
+    "เส้นรอบรูปกล่องกำหนดเอง"
+  ],
+  "Added girth": [
+    "附加周长",
+    "अतिरिक्त परिधि",
+    "Perímetro añadido",
+    "المحيط المضاف",
+    "เส้นรอบรูปเพิ่ม"
+  ],
+  "Design reference": [
+    "设计参考",
+    "डिज़ाइन संदर्भ",
+    "Referencia de diseño",
+    "مرجع التصميم",
+    "อ้างอิงแบบ"
+  ],
+  "ESA/M used": [
+    "采用 ESA/M",
+    "प्रयुक्त ESA/M",
+    "ESA/M utilizado",
+    "ESA/M المستخدم",
+    "ESA/M ที่ใช้"
+  ],
+  "Board stack": [
+    "板材叠层",
+    "बोर्ड परत समूह",
+    "Composición de placas",
+    "تراكم الألواح",
+    "ชุดชั้นแผ่น"
+  ],
+  "Layers": [
+    "层数",
+    "परतें",
+    "Capas",
+    "الطبقات",
+    "จำนวนชั้น"
+  ],
+  "Total thickness": [
+    "总厚度",
+    "कुल मोटाई",
+    "Espesor total",
+    "السماكة الإجمالية",
+    "ความหนารวม"
+  ],
+  "Bare box girth": [
+    "裸箱体周长",
+    "नंगे बॉक्स की परिधि",
+    "Perímetro de caja sin revestir",
+    "محيط الصندوق غير المكسو",
+    "เส้นรอบรูปกล่องไม่หุ้ม"
+  ],
+  "Box reference area": [
+    "箱体参考面积",
+    "बॉक्स संदर्भ क्षेत्रफल",
+    "Área de referencia de caja",
+    "مساحة الصندوق المرجعية",
+    "พื้นที่กล่องอ้างอิง"
+  ],
+  "Board required - net": [
+    "板材净需求量",
+    "आवश्यक बोर्ड - शुद्ध",
+    "Placa necesaria - neta",
+    "الألواح المطلوبة - الصافي",
+    "แผ่นที่ต้องใช้สุทธิ"
+  ],
+  "Board incl waste": [
+    "板材量（含损耗）",
+    "बर्बादी सहित बोर्ड",
+    "Placa con merma",
+    "الألواح شاملة الهدر",
+    "ปริมาณแผ่นรวมสูญเสีย"
+  ],
+  "Sheets - this line": [
+    "本行板张数",
+    "शीट - यह पंक्ति",
+    "Planchas de esta línea",
+    "الألواح لهذا السطر",
+    "จำนวนแผ่นในแถวนี้"
+  ],
+  "Purchase area - line": [
+    "本行采购面积",
+    "खरीद क्षेत्रफल - पंक्ति",
+    "Área de compra de la línea",
+    "مساحة الشراء للسطر",
+    "พื้นที่จัดซื้อในแถวนี้"
+  ],
+  "Row status": [
+    "行状态",
+    "पंक्ति स्थिति",
+    "Estado de fila",
+    "حالة الصف",
+    "สถานะแถว"
+  ],
+  "Notes and conditions": [
+    "说明与条件",
+    "टिप्पणियाँ और शर्तें",
+    "Notas y condiciones",
+    "الملاحظات والشروط",
+    "หมายเหตุและเงื่อนไข"
+  ],
+  "NET BOARD REQUIRED": [
+    "板材净需求量",
+    "आवश्यक शुद्ध बोर्ड",
+    "PLACA NETA NECESARIA",
+    "صافي الألواح المطلوبة",
+    "ปริมาณแผ่นสุทธิที่ต้องใช้"
+  ],
+  "WHOLE SHEETS": [
+    "整张板数",
+    "पूर्ण शीट",
+    "PLANCHAS ENTERAS",
+    "الألواح الكاملة",
+    "จำนวนแผ่นเต็ม"
+  ],
+  "PURCHASE AREA": [
+    "采购面积",
+    "खरीद क्षेत्रफल",
+    "ÁREA DE COMPRA",
+    "مساحة الشراء",
+    "พื้นที่จัดซื้อ"
+  ],
+  "Board mm": [
+    "板厚 mm",
+    "बोर्ड mm",
+    "Placa mm",
+    "الألواح mm",
+    "ความหนาแผ่น mm"
+  ],
+  "Sheet length mm": [
+    "板长 mm",
+    "शीट लंबाई mm",
+    "Largo de plancha mm",
+    "طول اللوح mm",
+    "ความยาวแผ่น mm"
+  ],
+  "Sheet width mm": [
+    "板宽 mm",
+    "शीट चौड़ाई mm",
+    "Ancho de plancha mm",
+    "عرض اللوح mm",
+    "ความกว้างแผ่น mm"
+  ],
+  "Box board - net m2": [
+    "箱体板材净面积 m2",
+    "बॉक्स बोर्ड - शुद्ध m2",
+    "Placa de caja - neta m2",
+    "صافي ألواح الصندوق m2",
+    "พื้นที่แผ่นกล่องสุทธิ m2"
+  ],
+  "Extra boards - net m2": [
+    "额外板材净面积 m2",
+    "अतिरिक्त बोर्ड - शुद्ध m2",
+    "Placas adicionales - netas m2",
+    "صافي الألواح الإضافية m2",
+    "พื้นที่แผ่นเพิ่มเติมสุทธิ m2"
+  ],
+  "Net total sqm": [
+    "净总面积 sqm",
+    "शुद्ध कुल sqm",
+    "Total neto sqm",
+    "الإجمالي الصافي sqm",
+    "พื้นที่สุทธิรวม sqm"
+  ],
+  "With waste sqm": [
+    "含损耗面积 sqm",
+    "बर्बादी सहित sqm",
+    "Con merma sqm",
+    "شامل الهدر sqm",
+    "พื้นที่รวมสูญเสีย sqm"
+  ],
+  "Purchase sqm": [
+    "采购面积 sqm",
+    "खरीद sqm",
+    "Compra sqm",
+    "مساحة الشراء sqm",
+    "พื้นที่จัดซื้อ sqm"
+  ],
+  "Stock source": [
+    "库存来源",
+    "स्टॉक स्रोत",
+    "Fuente de existencias",
+    "مصدر المخزون",
+    "แหล่งข้อมูลวัสดุคงคลัง"
+  ],
+  "Board key": [
+    "板材键值",
+    "बोर्ड कुंजी",
+    "Clave de placa",
+    "مفتاح اللوح",
+    "คีย์แผ่น"
+  ],
+  "Units": [
+    "单位",
+    "इकाइयाँ",
+    "Unidades",
+    "الوحدات",
+    "หน่วย"
+  ],
+  "Basis": [
+    "依据",
+    "आधार",
+    "Base",
+    "الأساس",
+    "หลักเกณฑ์"
+  ],
+  "No selection": [
+    "未选择",
+    "कोई चयन नहीं",
+    "Sin selección",
+    "لا يوجد اختيار",
+    "ยังไม่เลือก"
+  ],
+  "Column temp": [
+    "柱临界温度",
+    "स्तंभ तापमान",
+    "Temperatura de pilar",
+    "درجة حرارة العمود",
+    "อุณหภูมิเสา"
+  ],
+  "P100 beam temp": [
+    "P100 梁临界温度",
+    "P100 बीम तापमान",
+    "Temperatura de viga P100",
+    "حرارة كمرة P100",
+    "อุณหภูมิคาน P100"
+  ],
+  "Other beam temp": [
+    "其他梁临界温度",
+    "अन्य बीम तापमान",
+    "Temperatura de otras vigas",
+    "حرارة الكمرات الأخرى",
+    "อุณหภูมิคานอื่น"
+  ],
+  "Duct size W x H": [
+    "风管尺寸 宽 x 高",
+    "डक्ट आकार चौड़ाई x ऊँचाई",
+    "Tamaño de conducto ancho x alto",
+    "أبعاد المجرى عرض x ارتفاع",
+    "ขนาดท่อ กว้าง x สูง"
+  ],
+  "FRL — compartment / duct*": [
+    "FRL — 防火分区 / 风管*",
+    "FRL — कम्पार्टमेंट / डक्ट*",
+    "FRL — sector / conducto*",
+    "FRL — الحيز / المجرى*",
+    "FRL — ส่วนกั้นไฟ / ท่อ*"
+  ],
+  "Fire exposure / FyreWrap application": [
+    "受火情况 / FyreWrap 应用",
+    "अग्नि संपर्क / FyreWrap उपयोग",
+    "Exposición al fuego / aplicación FyreWrap",
+    "التعرض للحريق / تطبيق FyreWrap",
+    "การรับไฟ / การใช้งาน FyreWrap"
+  ],
+  "STATUS / ESTIMATING BASIS": [
+    "状态 / 估算依据",
+    "स्थिति / अनुमान आधार",
+    "ESTADO / BASE DE ESTIMACIÓN",
+    "الحالة / أساس التقدير",
+    "สถานะ / หลักเกณฑ์ประมาณ"
+  ],
+  "Spray DFT": [
+    "喷涂干膜厚度 DFT",
+    "स्प्रे DFT",
+    "DFT proyectado",
+    "DFT الرش",
+    "ความหนาแห้ง DFT งานพ่น"
+  ],
+  "Net bags — body only": [
+    "净袋数 — 仅管体",
+    "शुद्ध बैग — केवल डक्ट बॉडी",
+    "Sacos netos — solo cuerpo",
+    "صافي الأكياس — الجسم فقط",
+    "จำนวนถุงสุทธิ — เฉพาะตัวท่อ"
+  ],
+  "Net wrap material": [
+    "包覆材料净量",
+    "शुद्ध आवरण सामग्री",
+    "Material neto de envoltura",
+    "صافي مادة التغليف",
+    "วัสดุหุ้มสุทธิ"
+  ],
+  "Net roll equivalents": [
+    "净等效卷数",
+    "शुद्ध समतुल्य रोल",
+    "Rollos equivalentes netos",
+    "صافي مكافئ اللفائف",
+    "จำนวนม้วนเทียบเท่าสุทธิ"
+  ],
+  "Maxilite net @60 mm": [
+    "Maxilite 净量 @60 mm",
+    "Maxilite शुद्ध @60 mm",
+    "Maxilite neto @60 mm",
+    "صافي Maxilite @60 mm",
+    "Maxilite สุทธิ @60 mm"
+  ],
+  "Wrap fixing method": [
+    "包覆固定方式",
+    "आवरण बन्धन विधि",
+    "Método de fijación de envoltura",
+    "طريقة تثبيت التغليف",
+    "วิธียึดวัสดุหุ้ม"
+  ],
+  "Continuous wrap layers": [
+    "连续包覆层数",
+    "निरंतर आवरण परतें",
+    "Capas continuas de envoltura",
+    "طبقات التغليف المستمرة",
+    "จำนวนชั้นหุ้มต่อเนื่อง"
+  ],
+  "Wall L2 each side": [
+    "墙两侧各 L2",
+    "दीवार L2 प्रत्येक ओर",
+    "L2 de pared a cada lado",
+    "L2 الجدار لكل جانب",
+    "L2 ผนังแต่ละด้าน"
+  ],
+  "Floor L2 top": [
+    "楼板上部 L2",
+    "फर्श L2 ऊपर",
+    "L2 superior de suelo",
+    "L2 أعلى الأرضية",
+    "L2 เหนือพื้น"
+  ],
+  "Floor L3 top": [
+    "楼板上部 L3",
+    "फर्श L3 ऊपर",
+    "L3 superior de suelo",
+    "L3 أعلى الأرضية",
+    "L3 เหนือพื้น"
+  ],
+  "L1 material": [
+    "L1 材料量",
+    "L1 सामग्री",
+    "Material L1",
+    "مادة L1",
+    "วัสดุ L1"
+  ],
+  "L2 material": [
+    "L2 材料量",
+    "L2 सामग्री",
+    "Material L2",
+    "مادة L2",
+    "วัสดุ L2"
+  ],
+  "L3 material": [
+    "L3 材料量",
+    "L3 सामग्री",
+    "Material L3",
+    "مادة L3",
+    "วัสดุ L3"
+  ],
+  "Maxilite width": [
+    "Maxilite 宽度",
+    "Maxilite चौड़ाई",
+    "Anchura Maxilite",
+    "عرض Maxilite",
+    "ความกว้าง Maxilite"
+  ],
+  "Maxilite strips": [
+    "Maxilite 板条",
+    "Maxilite पट्टियाँ",
+    "Tiras Maxilite",
+    "شرائط Maxilite",
+    "แถบแผ่น Maxilite"
+  ],
+  "Cut board strips (not sheets)": [
+    "切割板条（非整张板）",
+    "कटी बोर्ड पट्टियाँ (शीट नहीं)",
+    "Tiras cortadas de placa (no planchas)",
+    "شرائط ألواح مقطوعة (ليست ألواحا كاملة)",
+    "แถบแผ่นที่ตัด (ไม่ใช่แผ่นเต็ม)"
+  ],
+  "Cross-strip cut": [
+    "横向板条切割尺寸",
+    "आड़ी पट्टी कट",
+    "Corte de tira transversal",
+    "قطع الشريط العرضي",
+    "ขนาดตัดแถบขวาง"
+  ],
+  "Side-strip cut": [
+    "侧向板条切割尺寸",
+    "पार्श्व पट्टी कट",
+    "Corte de tira lateral",
+    "قطع الشريط الجانبي",
+    "ขนาดตัดแถบข้าง"
+  ],
+  "Wall angle profile": [
+    "墙角钢截面",
+    "दीवार एंगल प्रोफ़ाइल",
+    "Perfil angular de pared",
+    "مقطع زاوية الجدار",
+    "หน้าตัดเหล็กฉากผนัง"
+  ],
+  "Wall angle net / allowance": [
+    "墙角钢净长度 / 预留",
+    "दीवार एंगल शुद्ध / भत्ता",
+    "Ángulo de pared neto / previsión",
+    "صافي زاوية الجدار / البدل",
+    "เหล็กฉากผนังสุทธิ / ค่าเผื่อ"
+  ],
+  "Floor TOP profile": [
+    "楼板上部截面",
+    "फर्श ऊपरी प्रोफ़ाइल",
+    "Perfil SUPERIOR de suelo",
+    "مقطع أعلى الأرضية",
+    "หน้าตัดเหนือพื้น"
+  ],
+  "Floor TOP net / allowance": [
+    "楼板上部净长度 / 预留",
+    "फर्श ऊपरी शुद्ध / भत्ता",
+    "SUPERIOR de suelo neto / previsión",
+    "صافي أعلى الأرضية / البدل",
+    "เหนือพื้นสุทธิ / ค่าเผื่อ"
+  ],
+  "Floor BOTTOM profile": [
+    "楼板下部截面",
+    "फर्श निचली प्रोफ़ाइल",
+    "Perfil INFERIOR de suelo",
+    "مقطع أسفل الأرضية",
+    "หน้าตัดใต้พื้น"
+  ],
+  "Floor BOTTOM net / allowance": [
+    "楼板下部净长度 / 预留",
+    "फर्श निचली शुद्ध / भत्ता",
+    "INFERIOR de suelo neto / previsión",
+    "صافي أسفل الأرضية / البدل",
+    "ใต้พื้นสุทธิ / ค่าเผื่อ"
+  ],
+  "Combined angle length": [
+    "角钢总长度",
+    "कुल एंगल लंबाई",
+    "Longitud angular combinada",
+    "إجمالي طول الزوايا",
+    "ความยาวเหล็กฉากรวม"
+  ],
+  "Penetration clearance guide": [
+    "贯穿部间隙指南",
+    "पेनेट्रेशन अंतर मार्गदर्शिका",
+    "Guía de holgura de penetración",
+    "دليل خلوص الاختراق",
+    "แนวทางช่องว่างช่องทะลุ"
+  ],
+  "Penetration fixing guide": [
+    "贯穿部固定指南",
+    "पेनेट्रेशन बन्धन मार्गदर्शिका",
+    "Guía de fijación de penetración",
+    "دليل تثبيت الاختراق",
+    "แนวทางยึดช่องทะลุ"
+  ],
+  "Body fixing / support guide": [
+    "管体固定 / 支撑指南",
+    "बॉडी बन्धन / सहारा मार्गदर्शिका",
+    "Guía de fijación / soporte del cuerpo",
+    "دليل تثبيت / دعم الجسم",
+    "แนวทางยึด / รองรับตัวท่อ"
+  ],
+  "Spray body volume": [
+    "管体喷涂体积",
+    "स्प्रे बॉडी आयतन",
+    "Volumen proyectado del cuerpo",
+    "حجم رش الجسم",
+    "ปริมาตรพ่นตัวท่อ"
+  ],
+  "Working yield": [
+    "作业产出率",
+    "कार्यशील उपज",
+    "Rendimiento de trabajo",
+    "الإنتاجية العملية",
+    "อัตราผลผลิตใช้งาน"
+  ],
+  "Rows": [
+    "行数",
+    "पंक्तियाँ",
+    "Filas",
+    "الصفوف",
+    "จำนวนแถว"
+  ],
+  "Duct area": [
+    "风管面积",
+    "डक्ट क्षेत्रफल",
+    "Área de conducto",
+    "مساحة المجرى",
+    "พื้นที่ท่อ"
+  ],
+  "Roll eq.": [
+    "等效卷数",
+    "समतुल्य रोल",
+    "Rollos eq.",
+    "مكافئ اللفائف",
+    "ม้วนเทียบเท่า"
+  ],
+  "Maxilite": [
+    "Maxilite",
+    "Maxilite",
+    "Maxilite",
+    "Maxilite",
+    "Maxilite"
+  ],
+  "Angles": [
+    "角钢",
+    "एंगल",
+    "Ángulos",
+    "الزوايا",
+    "เหล็กฉาก"
+  ],
+  "Primary qty withheld": [
+    "主要数量未提供",
+    "मुख्य मात्रा रोकी गई",
+    "Cantidad principal retenida",
+    "الكمية الرئيسية محجوبة",
+    "ระงับปริมาณหลัก"
+  ],
+  "Steel rows withheld": [
+    "钢材行未提供",
+    "इस्पात पंक्तियाँ रोकी गईं",
+    "Filas de acero retenidas",
+    "صفوف الفولاذ المحجوبة",
+    "ระงับแถวเหล็ก"
+  ],
+  "Interpretation": [
+    "解释",
+    "व्याख्या",
+    "Interpretación",
+    "التفسير",
+    "การตีความ"
+  ],
+  "Profile": [
+    "截面",
+    "प्रोफ़ाइल",
+    "Perfil",
+    "المقطع",
+    "หน้าตัด"
+  ],
+  "Quantity basis": [
+    "数量依据",
+    "मात्रा आधार",
+    "Base de cantidades",
+    "أساس الكمية",
+    "หลักเกณฑ์ปริมาณ"
+  ],
+  "Limitation": [
+    "限制",
+    "सीमा",
+    "Limitación",
+    "القيد",
+    "ข้อจำกัด"
+  ],
+  "Working m³/bag": [
+    "作业 m³/bag",
+    "कार्यशील m³/bag",
+    "Rendimiento m³/bag",
+    "الإنتاجية m³/bag",
+    "อัตราผลผลิต m³/bag"
+  ],
+  "Reference quantity": [
+    "参考数量",
+    "संदर्भ मात्रा",
+    "Cantidad de referencia",
+    "الكمية المرجعية",
+    "ปริมาณอ้างอิง"
+  ],
+  "Strip width": [
+    "板条宽度",
+    "पट्टी चौड़ाई",
+    "Anchura de tira",
+    "عرض الشريط",
+    "ความกว้างแถบ"
+  ],
+  "Wall board": [
+    "墙板",
+    "दीवार बोर्ड",
+    "Placa de pared",
+    "لوح الجدار",
+    "แผ่นผนัง"
+  ],
+  "Floor TOP": [
+    "楼板上部",
+    "फर्श ऊपरी",
+    "SUPERIOR de suelo",
+    "أعلى الأرضية",
+    "เหนือพื้น"
+  ],
+  "Floor BOTTOM": [
+    "楼板下部",
+    "फर्श निचली",
+    "INFERIOR de suelo",
+    "أسفل الأرضية",
+    "ใต้พื้น"
+  ],
+  "Total board": [
+    "板材总量",
+    "कुल बोर्ड",
+    "Placa total",
+    "إجمالي الألواح",
+    "ปริมาณแผ่นรวม"
+  ],
+  "Cut strips": [
+    "切割板条",
+    "कटी पट्टियाँ",
+    "Tiras cortadas",
+    "الشرائط المقطوعة",
+    "แถบที่ตัด"
+  ],
+  "Cut strip length": [
+    "切割板条长度",
+    "कटी पट्टी लंबाई",
+    "Longitud de tira cortada",
+    "طول الشريط المقطوع",
+    "ความยาวแถบที่ตัด"
+  ],
+  "Area identity check": [
+    "面积一致性核验",
+    "क्षेत्रफल समानता जाँच",
+    "Comprobación de igualdad de áreas",
+    "فحص تطابق المساحة",
+    "ตรวจความเท่ากันของพื้นที่"
+  ],
+  "Parameter": [
+    "参数",
+    "पैरामीटर",
+    "Parámetro",
+    "المعامل",
+    "พารามิเตอร์"
+  ],
+  "Source / interpretation": [
+    "来源 / 解释",
+    "स्रोत / व्याख्या",
+    "Fuente / interpretación",
+    "المصدر / التفسير",
+    "แหล่งข้อมูล / การตีความ"
+  ],
+  "Width band": [
+    "宽度范围",
+    "चौड़ाई श्रेणी",
+    "Intervalo de anchura",
+    "نطاق العرض",
+    "ช่วงความกว้าง"
+  ],
+  "Height max": [
+    "最大高度",
+    "अधिकतम ऊँचाई",
+    "Altura máxima",
+    "الارتفاع الأقصى",
+    "ความสูงสูงสุด"
+  ],
+  "Hanger rods": [
+    "吊杆",
+    "हैंगर रॉड",
+    "Varillas de suspensión",
+    "قضبان التعليق",
+    "แกนแขวน"
+  ],
+  "Spacing": [
+    "间距",
+    "अंतर",
+    "Separación",
+    "التباعد",
+    "ระยะห่าง"
+  ],
+  "Bottom support": [
+    "底部支撑",
+    "निचला सहारा",
+    "Soporte inferior",
+    "الدعم السفلي",
+    "ฐานรองรับ"
+  ],
+  "Stiffener": [
+    "加劲件",
+    "कठोरक",
+    "Rigidizador",
+    "المقوي",
+    "ตัวเสริมความแข็ง"
+  ],
+  "Key": [
+    "键值",
+    "कुंजी",
+    "Clave",
+    "المفتاح",
+    "คีย์"
+  ],
+  "Complete FRL": [
+    "完整 FRL",
+    "पूर्ण FRL",
+    "FRL completo",
+    "FRL الكامل",
+    "FRL ครบถ้วน"
+  ],
+  "Internal": [
+    "内部",
+    "आंतरिक",
+    "Interior",
+    "داخلي",
+    "ภายใน"
+  ],
+  "External": [
+    "外部",
+    "बाहरी",
+    "Exterior",
+    "خارجي",
+    "ภายนอก"
+  ],
+  "Max size": [
+    "最大尺寸",
+    "अधिकतम आकार",
+    "Tamaño máximo",
+    "المقاس الأقصى",
+    "ขนาดสูงสุด"
+  ],
+  "Selection": [
+    "选择",
+    "चयन",
+    "Selección",
+    "الاختيار",
+    "การเลือก"
+  ],
+  "Calculator H selection": [
+    "计算器 H 列选项",
+    "कैलकुलेटर H चयन",
+    "Selección H de calculadora",
+    "اختيار H في الحاسبة",
+    "ตัวเลือก H ในเครื่องคำนวณ"
+  ],
+  "Manual application wording": [
+    "手册应用原文",
+    "मैनुअल उपयोग शब्दावली",
+    "Texto de aplicación del manual",
+    "صياغة التطبيق في الدليل",
+    "ข้อความการใช้งานตามคู่มือ"
+  ],
+  "Continuous layers": [
+    "连续层数",
+    "निरंतर परतें",
+    "Capas continuas",
+    "الطبقات المستمرة",
+    "จำนวนชั้นต่อเนื่อง"
+  ],
+  "External FRL (2h table)": [
+    "外部 FRL（2h 表）",
+    "बाहरी FRL (2h तालिका)",
+    "FRL exterior (tabla 2h)",
+    "FRL الخارجي (جدول 2h)",
+    "FRL ภายนอก (ตาราง 2h)"
+  ],
+  "Internal FRL (2h table)": [
+    "内部 FRL（2h 表）",
+    "आंतरिक FRL (2h तालिका)",
+    "FRL interior (tabla 2h)",
+    "FRL الداخلي (جدول 2h)",
+    "FRL ภายใน (ตาราง 2h)"
+  ],
+  "Source page": [
+    "来源页码",
+    "स्रोत पृष्ठ",
+    "Página de fuente",
+    "صفحة المصدر",
+    "หน้าแหล่งข้อมูล"
+  ],
+  "Scope / distinction": [
+    "适用范围 / 区别",
+    "दायरा / अंतर",
+    "Alcance / distinción",
+    "النطاق / التمييز",
+    "ขอบเขต / ข้อแตกต่าง"
+  ],
+  "Duct max": [
+    "最大风管尺寸",
+    "अधिकतम डक्ट",
+    "Conducto máximo",
+    "المجرى الأقصى",
+    "ขนาดท่อสูงสุด"
+  ],
+  "Gap min": [
+    "最小间隙",
+    "न्यूनतम अंतर",
+    "Holgura mínima",
+    "الخلوص الأدنى",
+    "ช่องว่างต่ำสุด"
+  ],
+  "Gap max": [
+    "最大间隙",
+    "अधिकतम अंतर",
+    "Holgura máxima",
+    "الخلوص الأقصى",
+    "ช่องว่างสูงสุด"
+  ],
+  "Board width": [
+    "板宽",
+    "बोर्ड चौड़ाई",
+    "Anchura de placa",
+    "عرض اللوح",
+    "ความกว้างแผ่น"
+  ],
+  "Angle": [
+    "角钢",
+    "एंगल",
+    "Ángulo",
+    "الزاوية",
+    "เหล็กฉาก"
+  ],
+  "Board thick": [
+    "板厚",
+    "बोर्ड मोटाई",
+    "Espesor de placa",
+    "سماكة اللوح",
+    "ความหนาแผ่น"
+  ],
+  "Source / scope": [
+    "来源 / 适用范围",
+    "स्रोत / दायरा",
+    "Fuente / alcance",
+    "المصدر / النطاق",
+    "แหล่งข้อมูล / ขอบเขต"
+  ],
+  "Wall board collars": [
+    "墙体板材围框",
+    "दीवार बोर्ड कॉलर",
+    "Collarines de placa de pared",
+    "أطواق ألواح الجدار",
+    "กรอบแผ่นผนัง"
+  ],
+  "faces/wall": [
+    "面/墙",
+    "फलक/दीवार",
+    "caras/pared",
+    "أوجه/جدار",
+    "หน้า/ผนัง"
+  ],
+  "Wall type": [
+    "墙体类型",
+    "दीवार प्रकार",
+    "Tipo de pared",
+    "نوع الجدار",
+    "ประเภทผนัง"
+  ],
+  "Angle to wall": [
+    "角钢与墙体连接",
+    "एंगल से दीवार",
+    "Ángulo a pared",
+    "الزاوية إلى الجدار",
+    "เหล็กฉากกับผนัง"
+  ],
+  "Board to wall": [
+    "板材与墙体连接",
+    "बोर्ड से दीवार",
+    "Placa a pared",
+    "اللوح إلى الجدار",
+    "แผ่นกับผนัง"
+  ],
+  "Max c/c": [
+    "最大中心距",
+    "अधिकतम c/c",
+    "Máx. entre centros",
+    "أقصى تباعد مركزي",
+    "ระยะศูนย์ถึงศูนย์สูงสุด"
+  ],
+  "Angle to duct": [
+    "角钢与风管连接",
+    "एंगल से डक्ट",
+    "Ángulo a conducto",
+    "الزاوية إلى المجرى",
+    "เหล็กฉากกับท่อ"
+  ],
+  "Pin specification": [
+    "销钉规格",
+    "पिन विनिर्देश",
+    "Especificación de pasador",
+    "مواصفات المسمار",
+    "ข้อกำหนดหมุด"
+  ],
+  "Scope": [
+    "适用范围",
+    "दायरा",
+    "Alcance",
+    "النطاق",
+    "ขอบเขต"
+  ],
+  "Cut strips per collar": [
+    "每个围框切割板条数",
+    "प्रति कॉलर कटी पट्टियाँ",
+    "Tiras cortadas por collarín",
+    "الشرائط المقطوعة لكل طوق",
+    "แถบที่ตัดต่อกรอบ"
+  ],
+  "strips": [
+    "板条",
+    "पट्टियाँ",
+    "tiras",
+    "شرائط",
+    "แถบ"
+  ],
+  "Printed WIDTH": [
+    "原表宽度",
+    "मुद्रित चौड़ाई",
+    "ANCHURA impresa",
+    "العرض المطبوع",
+    "ความกว้างตามตาราง"
+  ],
+  "Printed HEIGHT": [
+    "原表高度",
+    "मुद्रित ऊँचाई",
+    "ALTURA impresa",
+    "الارتفاع المطبوع",
+    "ความสูงตามตาราง"
+  ],
+  "60-min L2": [
+    "60-min L2",
+    "60-min L2",
+    "60-min L2",
+    "60-min L2",
+    "60-min L2"
+  ],
+  "120-min L2": [
+    "120-min L2",
+    "120-min L2",
+    "120-min L2",
+    "120-min L2",
+    "120-min L2"
+  ],
+  "120-min L3": [
+    "120-min L3",
+    "120-min L3",
+    "120-min L3",
+    "120-min L3",
+    "120-min L3"
+  ],
+  "180-min L2": [
+    "180-min L2",
+    "180-min L2",
+    "180-min L2",
+    "180-min L2",
+    "180-min L2"
+  ],
+  "180-min L3": [
+    "180-min L3",
+    "180-min L3",
+    "180-min L3",
+    "180-min L3",
+    "180-min L3"
+  ],
+  "Selection order": [
+    "选择顺序",
+    "चयन क्रम",
+    "Orden de selección",
+    "ترتيب الاختيار",
+    "ลำดับการเลือก"
+  ],
+  "Corner treatment": [
+    "转角处理",
+    "कोने का उपचार",
+    "Tratamiento de esquina",
+    "معالجة الزاوية",
+    "การจัดการมุม"
+  ],
+  "Count once": [
+    "仅计一次",
+    "एक बार गिनें",
+    "Contar una vez",
+    "يحسب مرة واحدة",
+    "นับครั้งเดียว"
+  ],
+  "geometry": [
+    "几何",
+    "ज्यामिति",
+    "geometría",
+    "الهندسة",
+    "เรขาคณิต"
+  ],
+  "Source / priority": [
+    "来源 / 优先级",
+    "स्रोत / प्राथमिकता",
+    "Fuente / prioridad",
+    "المصدر / الأولوية",
+    "แหล่งข้อมูล / ลำดับสำคัญ"
+  ],
+  "Stair pressurisation": [
+    "楼梯加压",
+    "सीढ़ी दबाव",
+    "Presurización de escalera",
+    "ضغط السلالم",
+    "ระบบอัดอากาศบันได"
+  ],
+  "Other pressurisation": [
+    "其他加压",
+    "अन्य दबाव",
+    "Otra presurización",
+    "ضغط آخر",
+    "ระบบอัดอากาศอื่น"
+  ],
+  "Standard": [
+    "标准",
+    "मानक",
+    "Estándar",
+    "قياسي",
+    "มาตรฐาน"
+  ],
+  "Rotate": [
+    "旋转",
+    "घुमाएँ",
+    "Girar",
+    "تدوير",
+    "หมุน"
+  ],
+  "Opposite B": [
+    "B 向相对两面",
+    "विपरीत B",
+    "Opuestas B",
+    "المتقابل B",
+    "ด้านตรงข้าม B"
+  ],
+  "Opposite D": [
+    "D 向相对两面",
+    "विपरीत D",
+    "Opuestas D",
+    "المتقابل D",
+    "ด้านตรงข้าม D"
+  ],
+  "Custom girth": [
+    "自定义周长",
+    "कस्टम परिधि",
+    "Perímetro personalizado",
+    "محيط مخصص",
+    "เส้นรอบรูปกำหนดเอง"
+  ],
+  "Auto": [
+    "自动",
+    "स्वतः",
+    "Automático",
+    "تلقائي",
+    "อัตโนมัติ"
+  ],
+  "Single": [
+    "单层",
+    "एकल",
+    "Simple",
+    "مفرد",
+    "ชั้นเดียว"
+  ],
+  "Double": [
+    "双层",
+    "दोहरा",
+    "Doble",
+    "مزدوج",
+    "สองชั้น"
+  ],
+  "Published first": [
+    "优先采用公布数据",
+    "प्रकाशित पहले",
+    "Publicado primero",
+    "المنشور أولا",
+    "ใช้ข้อมูลเผยแพร่ก่อน"
+  ],
+  "General only": [
+    "仅通用数据",
+    "केवल सामान्य",
+    "Solo general",
+    "العام فقط",
+    "ข้อมูลทั่วไปเท่านั้น"
+  ],
+  "Standard box": [
+    "标准箱体",
+    "मानक बॉक्स",
+    "Caja estándar",
+    "صندوق قياسي",
+    "กล่องมาตรฐาน"
+  ],
+  "XS top of wall": [
+    "XS 墙顶",
+    "XS दीवार शीर्ष",
+    "XS en coronación de pared",
+    "XS أعلى الجدار",
+    "XS บนผนัง"
+  ],
+  "Promat trapezoid unfilled": [
+    "Promat 未填充梯形",
+    "Promat खाली समलंब",
+    "Trapecio Promat sin relleno",
+    "شبه منحرف Promat غير مملوء",
+    "Promat ทรงคางหมูไม่บรรจุ"
+  ],
+  "Special / engineered": [
+    "特殊 / 工程设计",
+    "विशेष / अभिकल्पित",
+    "Especial / diseñado",
+    "خاص / مصمم هندسيا",
+    "เฉพาะ / ออกแบบวิศวกรรม"
+  ],
+  "Channel": [
+    "槽钢",
+    "चैनल",
+    "Canal",
+    "قناة",
+    "เหล็กรางน้ำ"
+  ],
+  "Tee": [
+    "T 型钢",
+    "टी अनुभाग",
+    "Sección T",
+    "مقطع T",
+    "เหล็กตัวที"
+  ],
+  "Saved value: {0} (choose a listed value)": [
+    "已保存值：{0}（请选择列表中的值）",
+    "सहेजा मान: {0} (सूचीबद्ध मान चुनें)",
+    "Valor guardado: {0} (elija un valor de la lista)",
+    "القيمة المحفوظة: {0} (اختر قيمة من القائمة)",
+    "ค่าที่บันทึก: {0} (เลือกค่าจากรายการ)"
+  ],
+  "No incomplete rows": [
+    "无不完整行",
+    "कोई अधूरी पंक्ति नहीं",
+    "Sin filas incompletas",
+    "لا توجد صفوف غير مكتملة",
+    "ไม่มีแถวไม่สมบูรณ์"
+  ],
+  "{0} incomplete schedule rows": [
+    "{0} 行清单不完整",
+    "{0} अधूरी अनुसूची पंक्तियाँ",
+    "{0} filas de listado incompletas",
+    "{0} صفوف جدول غير مكتملة",
+    "แถวรายการไม่สมบูรณ์ {0} แถว"
+  ],
+  "{0} incomplete additional-board rows": [
+    "{0} 行额外板材不完整",
+    "{0} अधूरी अतिरिक्त बोर्ड पंक्तियाँ",
+    "{0} filas de placas adicionales incompletas",
+    "{0} صفوف ألواح إضافية غير مكتملة",
+    "แถวแผ่นเพิ่มเติมไม่สมบูรณ์ {0} แถว"
+  ],
+  "{0} — totals need review": [
+    "{0} — 总量需要复核",
+    "{0} — कुल की समीक्षा आवश्यक",
+    "{0} — revisar los totales",
+    "{0} — الإجماليات تحتاج مراجعة",
+    "{0} — ต้องทบทวนยอดรวม"
+  ],
+  "{0}; {1}": [
+    "{0}；{1}",
+    "{0}; {1}",
+    "{0}; {1}",
+    "{0}؛ {1}",
+    "{0}; {1}"
+  ],
+  "{0}, item {1}": [
+    "{0}，第 {1} 项",
+    "{0}, मद {1}",
+    "{0}, elemento {1}",
+    "{0}، البند {1}",
+    "{0}, รายการ {1}"
+  ],
+  "QUICK CALCULATOR": [
+    "快速计算器",
+    "त्वरित कैलकुलेटर",
+    "CALCULADORA RÁPIDA",
+    "الحاسبة السريعة",
+    "เครื่องคำนวณด่วน"
+  ],
+  "Area": [
+    "面积",
+    "क्षेत्रफल",
+    "Área",
+    "المساحة",
+    "พื้นที่"
+  ],
+  "COMMON RULES": [
+    "通用规则",
+    "सामान्य नियम",
+    "REGLAS COMUNES",
+    "القواعد العامة",
+    "กฎร่วม"
+  ],
+  "COMPLETE WORKBOOK OPERATING RULES": [
+    "完整工作簿操作规则",
+    "संपूर्ण कार्यपुस्तिका संचालन नियम",
+    "REGLAS COMPLETAS DE USO DEL LIBRO",
+    "قواعد تشغيل المصنف الكاملة",
+    "กฎการใช้งานสมุดงานทั้งหมด"
+  ],
+  "START HERE": [
+    "从此开始",
+    "यहाँ शुरू करें",
+    "EMPIECE AQUÍ",
+    "ابدأ هنا",
+    "เริ่มที่นี่"
+  ],
+  "READ THE RESULT": [
+    "阅读结果",
+    "परिणाम पढ़ें",
+    "LEA EL RESULTADO",
+    "اقرأ النتيجة",
+    "อ่านผลลัพธ์"
+  ],
+  "NAMED MEMBERS AND SHARED FACTORS": [
+    "指定构件与共用系数",
+    "नामित सदस्य और साझा गुणांक",
+    "ELEMENTOS IDENTIFICADOS Y FACTORES COMPARTIDOS",
+    "العناصر المسماة والمعاملات المشتركة",
+    "ชิ้นส่วนที่ระบุและค่าปัจจัยร่วม"
+  ],
+  "SCOPE AND HOLLOW SECTIONS": [
+    "适用范围与空心截面",
+    "दायरा और खोखले अनुभाग",
+    "ALCANCE Y SECCIONES HUECAS",
+    "النطاق والمقاطع المجوفة",
+    "ขอบเขตและหน้าตัดกลวง"
+  ],
+  "SCHEDULE AND SORTING": [
+    "清单与排序",
+    "अनुसूची और क्रमबद्धता",
+    "LISTADO Y ORDENACIÓN",
+    "الجدول والفرز",
+    "รายการและการเรียงลำดับ"
+  ],
+  "QUANTITIES": [
+    "数量",
+    "मात्राएँ",
+    "CANTIDADES",
+    "الكميات",
+    "ปริมาณ"
+  ],
+  "BAG YIELDS AND ORDERS": [
+    "袋装产出率与订购",
+    "बैग उपज और आदेश",
+    "RENDIMIENTOS POR SACO Y PEDIDOS",
+    "إنتاجية الأكياس والطلبات",
+    "อัตราผลผลิตต่อถุงและการสั่งซื้อ"
+  ],
+  "PROJECT RELEASE": [
+    "项目发布",
+    "परियोजना रिलीज़",
+    "EMISIÓN DEL PROYECTO",
+    "إصدار المشروع",
+    "การออกโครงการ"
+  ],
+  "SOURCE CONTROL AND QUALITY": [
+    "来源控制与质量",
+    "स्रोत नियंत्रण और गुणवत्ता",
+    "CONTROL DE FUENTES Y CALIDAD",
+    "ضبط المصادر والجودة",
+    "การควบคุมแหล่งข้อมูลและคุณภาพ"
+  ],
+  "IDEALISED HOLLOW GEOMETRY": [
+    "理想化空心截面几何",
+    "आदर्श खोखली ज्यामिति",
+    "GEOMETRÍA HUECA IDEALIZADA",
+    "هندسة المقطع المجوف المثالية",
+    "รูปทรงหน้าตัดกลวงอุดมคติ"
+  ],
+  "01  EVERYDAY WORKFLOW": [
+    "01 日常工作流程",
+    "01 दैनिक कार्यप्रवाह",
+    "01 FLUJO DE TRABAJO DIARIO",
+    "01 سير العمل اليومي",
+    "01 ขั้นตอนงานประจำ"
+  ],
+  "NORMAL INPUTS A:L": [
+    "常规输入 A:L",
+    "सामान्य इनपुट A:L",
+    "ENTRADAS NORMALES A:L",
+    "المدخلات العادية A:L",
+    "ข้อมูลป้อนทั่วไป A:L"
+  ],
+  "NORMAL INPUTS": [
+    "常规输入",
+    "सामान्य इनपुट",
+    "ENTRADAS NORMALES",
+    "المدخلات العادية",
+    "ข้อมูลป้อนทั่วไป"
+  ],
+  "MAIN RESULTS Y:AI": [
+    "主要结果 Y:AI",
+    "मुख्य परिणाम Y:AI",
+    "RESULTADOS PRINCIPALES Y:AI",
+    "النتائج الرئيسية Y:AI",
+    "ผลลัพธ์หลัก Y:AI"
+  ],
+  "MAIN RESULTS": [
+    "主要结果",
+    "मुख्य परिणाम",
+    "RESULTADOS PRINCIPALES",
+    "النتائج الرئيسية",
+    "ผลลัพธ์หลัก"
+  ],
+  "EXTRA BOARDS": [
+    "额外板材",
+    "अतिरिक्त बोर्ड",
+    "PLACAS ADICIONALES",
+    "الألواح الإضافية",
+    "แผ่นเพิ่มเติม"
+  ],
+  "02  HOW BOARD AREA IS CALCULATED": [
+    "02 板材面积计算方式",
+    "02 बोर्ड क्षेत्रफल की गणना",
+    "02 CÓMO SE CALCULA EL ÁREA DE PLACA",
+    "02 كيفية حساب مساحة الألواح",
+    "02 วิธีคำนวณพื้นที่แผ่น"
+  ],
+  "03  SAFETY AND SCOPE": [
+    "03 安全与适用范围",
+    "03 सुरक्षा और दायरा",
+    "03 SEGURIDAD Y ALCANCE",
+    "03 السلامة والنطاق",
+    "03 ความปลอดภัยและขอบเขต"
+  ],
+  "04  OPTIONAL CONTROLS AND MAINTENANCE": [
+    "04 可选控制与维护",
+    "04 वैकल्पिक नियंत्रण और रखरखाव",
+    "04 CONTROLES OPCIONALES Y MANTENIMIENTO",
+    "04 الضوابط الاختيارية والصيانة",
+    "04 ตัวควบคุมเพิ่มเติมและการบำรุงรักษา"
+  ],
+  "05  HOW TO READ THE ROW NOTES": [
+    "05 行说明阅读方式",
+    "05 पंक्ति टिप्पणियाँ कैसे पढ़ें",
+    "05 CÓMO LEER LAS NOTAS DE FILA",
+    "05 كيفية قراءة ملاحظات الصف",
+    "05 วิธีอ่านหมายเหตุแถว"
+  ],
+  "STRUCTURAL STEEL BOARD SCHEDULE": [
+    "结构钢防火板清单",
+    "संरचनात्मक इस्पात बोर्ड अनुसूची",
+    "LISTADO DE PLACAS PARA ACERO ESTRUCTURAL",
+    "جدول ألواح الفولاذ الإنشائي",
+    "รายการแผ่นป้องกันเหล็กโครงสร้าง"
+  ],
+  "SCHEDULE ROWS": [
+    "清单行数",
+    "अनुसूची पंक्तियाँ",
+    "FILAS DE LISTADO",
+    "صفوف الجدول",
+    "จำนวนแถวรายการ"
+  ],
+  "WITH BOARD QUANTITIES": [
+    "已计算板材数量",
+    "बोर्ड मात्रा सहित",
+    "CON CANTIDADES DE PLACA",
+    "مع كميات الألواح",
+    "มีปริมาณแผ่น"
+  ],
+  "INCOMPLETE / NO QUANTITY": [
+    "不完整 / 无数量",
+    "अधूरा / मात्रा नहीं",
+    "INCOMPLETO / SIN CANTIDAD",
+    "غير مكتمل / بلا كمية",
+    "ไม่สมบูรณ์ / ไม่มีปริมาณ"
+  ],
+  "BOX REFERENCE m2": [
+    "箱体参考面积 m2",
+    "बॉक्स संदर्भ m2",
+    "REFERENCIA DE CAJA m2",
+    "مرجع الصندوق m2",
+    "พื้นที่กล่องอ้างอิง m2"
+  ],
+  "NET BOARD REQUIRED m2": [
+    "板材净需求面积 m2",
+    "आवश्यक शुद्ध बोर्ड m2",
+    "PLACA NETA NECESARIA m2",
+    "صافي الألواح المطلوبة m2",
+    "พื้นที่แผ่นสุทธิที่ต้องใช้ m2"
+  ],
+  "POOLED JOB SHEETS": [
+    "项目合并板张数",
+    "परियोजना की संयुक्त शीट",
+    "PLANCHAS AGRUPADAS DEL TRABAJO",
+    "ألواح المشروع المجمعة",
+    "จำนวนแผ่นรวมทั้งงาน"
+  ],
+  "Layer 1": [
+    "第 1 层",
+    "परत 1",
+    "Capa 1",
+    "الطبقة 1",
+    "ชั้นที่ 1"
+  ],
+  "Layer 2": [
+    "第 2 层",
+    "परत 2",
+    "Capa 2",
+    "الطبقة 2",
+    "ชั้นที่ 2"
+  ],
+  "Layer 1 board area": [
+    "第 1 层板材面积",
+    "परत 1 बोर्ड क्षेत्रफल",
+    "Área de placa de capa 1",
+    "مساحة ألواح الطبقة 1",
+    "พื้นที่แผ่นชั้นที่ 1"
+  ],
+  "Layer 2 board area": [
+    "第 2 层板材面积",
+    "परत 2 बोर्ड क्षेत्रफल",
+    "Área de placa de capa 2",
+    "مساحة ألواح الطبقة 2",
+    "พื้นที่แผ่นชั้นที่ 2"
+  ],
+  "Design period": [
+    "设计耐火时间",
+    "डिज़ाइन अवधि",
+    "Periodo de diseño",
+    "مدة التصميم",
+    "ระยะเวลาออกแบบ"
+  ],
+  "Critical temp used": [
+    "采用临界温度",
+    "प्रयुक्त क्रांतिक तापमान",
+    "Temperatura crítica utilizada",
+    "الحرارة الحرجة المستخدمة",
+    "อุณหภูมิวิกฤตที่ใช้"
+  ],
+  "Fire-design HpA (1/m)": [
+    "防火设计 HpA (1/m)",
+    "अग्नि डिज़ाइन HpA (1/m)",
+    "HpA de diseño contra incendios (1/m)",
+    "HpA لتصميم الحريق (1/m)",
+    "HpA ออกแบบทนไฟ (1/m)"
+  ],
+  "Inside cladding girth": [
+    "包覆内周长",
+    "आवरण की अंदरूनी परिधि",
+    "Perímetro interior del revestimiento",
+    "المحيط الداخلي للكسوة",
+    "เส้นรอบรูปภายในวัสดุหุ้ม"
+  ],
+  "Design status": [
+    "设计状态",
+    "डिज़ाइन स्थिति",
+    "Estado del diseño",
+    "حالة التصميم",
+    "สถานะการออกแบบ"
+  ],
+  "Geometry source": [
+    "几何来源",
+    "ज्यामिति स्रोत",
+    "Fuente de geometría",
+    "مصدر الهندسة",
+    "แหล่งข้อมูลรูปทรง"
+  ],
+  "Published requirement": [
+    "公布要求",
+    "प्रकाशित आवश्यकता",
+    "Requisito publicado",
+    "المتطلب المنشور",
+    "ข้อกำหนดที่เผยแพร่"
+  ],
+  "HpA benchmark (1/m)": [
+    "HpA 基准 (1/m)",
+    "HpA मानदंड (1/m)",
+    "Referencia HpA (1/m)",
+    "مرجع HpA (1/m)",
+    "ค่าอ้างอิง HpA (1/m)"
+  ],
+  "Waste used": [
+    "采用损耗率",
+    "प्रयुक्त बर्बादी",
+    "Merma utilizada",
+    "الهدر المستخدم",
+    "อัตราสูญเสียที่ใช้"
+  ],
+  "Layer 1 with waste": [
+    "第 1 层（含损耗）",
+    "बर्बादी सहित परत 1",
+    "Capa 1 con merma",
+    "الطبقة 1 شاملة الهدر",
+    "ชั้นที่ 1 รวมสูญเสีย"
+  ],
+  "Layer 2 with waste": [
+    "第 2 层（含损耗）",
+    "बर्बादी सहित परत 2",
+    "Capa 2 con merma",
+    "الطبقة 2 شاملة الهدر",
+    "ชั้นที่ 2 รวมสูญเสีย"
+  ],
+  "Source data flag": [
+    "来源数据标志",
+    "स्रोत डेटा संकेत",
+    "Indicador de datos de fuente",
+    "علامة بيانات المصدر",
+    "ตัวบ่งชี้ข้อมูลต้นทาง"
+  ],
+  "Quantity review flag": [
+    "数量复核标志",
+    "मात्रा समीक्षा संकेत",
+    "Indicador de revisión de cantidades",
+    "علامة مراجعة الكمية",
+    "ตัวบ่งชี้ทบทวนปริมาณ"
+  ],
+  "Active": [
+    "有效",
+    "सक्रिय",
+    "Activo",
+    "نشط",
+    "ใช้งาน"
+  ],
+  "Product code": [
+    "产品代码",
+    "उत्पाद कोड",
+    "Código de producto",
+    "رمز المنتج",
+    "รหัสผลิตภัณฑ์"
+  ],
+  "Steel index": [
+    "钢材索引",
+    "इस्पात सूचकांक",
+    "Índice de acero",
+    "فهرس الفولاذ",
+    "ดัชนีเหล็ก"
+  ],
+  "Section family used": [
+    "采用截面类别",
+    "प्रयुक्त अनुभाग परिवार",
+    "Familia de sección utilizada",
+    "عائلة المقطع المستخدمة",
+    "กลุ่มหน้าตัดที่ใช้"
+  ],
+  "Lookup basis used": [
+    "采用查找依据",
+    "प्रयुक्त खोज आधार",
+    "Base de consulta utilizada",
+    "أساس البحث المستخدم",
+    "หลักเกณฑ์ค้นหาที่ใช้"
+  ],
+  "Layer preference used": [
+    "采用层数偏好",
+    "प्रयुक्त परत वरीयता",
+    "Preferencia de capas utilizada",
+    "تفضيل الطبقات المستخدم",
+    "จำนวนชั้นที่เลือกใช้"
+  ],
+  "Layout used": [
+    "采用布置",
+    "प्रयुक्त विन्यास",
+    "Disposición utilizada",
+    "الترتيب المستخدم",
+    "รูปแบบที่ใช้"
+  ],
+  "Installation detail used": [
+    "采用安装详图",
+    "प्रयुक्त स्थापना विवरण",
+    "Detalle de instalación utilizado",
+    "تفصيل التركيب المستخدم",
+    "รายละเอียดติดตั้งที่ใช้"
+  ],
+  "Depth used": [
+    "采用高度",
+    "प्रयुक्त गहराई",
+    "Canto utilizado",
+    "العمق المستخدم",
+    "ความลึกที่ใช้"
+  ],
+  "Width used": [
+    "采用宽度",
+    "प्रयुक्त चौड़ाई",
+    "Anchura utilizada",
+    "العرض المستخدم",
+    "ความกว้างที่ใช้"
+  ],
+  "Area used": [
+    "采用面积",
+    "प्रयुक्त क्षेत्रफल",
+    "Área utilizada",
+    "المساحة المستخدمة",
+    "พื้นที่ที่ใช้"
+  ],
+  "Thermal girth": [
+    "受热周长",
+    "तापीय परिधि",
+    "Perímetro térmico",
+    "المحيط الحراري",
+    "เส้นรอบรูปด้านความร้อน"
+  ],
+  "Factor record position": [
+    "系数记录位置",
+    "गुणांक रिकॉर्ड स्थिति",
+    "Posición de registro del factor",
+    "موضع سجل المعامل",
+    "ตำแหน่งระเบียนค่าปัจจัย"
+  ],
+  "Base HpA (1/m)": [
+    "基础 HpA (1/m)",
+    "मूल HpA (1/m)",
+    "HpA base (1/m)",
+    "HpA الأساسي (1/m)",
+    "HpA พื้นฐาน (1/m)"
+  ],
+  "Input error": [
+    "输入错误",
+    "इनपुट त्रुटि",
+    "Error de entrada",
+    "خطأ الإدخال",
+    "ข้อผิดพลาดข้อมูลป้อน"
+  ],
+  "Section design key": [
+    "截面设计键值",
+    "अनुभाग डिज़ाइन कुंजी",
+    "Clave de diseño de sección",
+    "مفتاح تصميم المقطع",
+    "คีย์ออกแบบหน้าตัด"
+  ],
+  "Section design position": [
+    "截面设计位置",
+    "अनुभाग डिज़ाइन स्थिति",
+    "Posición de diseño de sección",
+    "موضع تصميم المقطع",
+    "ตำแหน่งออกแบบหน้าตัด"
+  ],
+  "Rule index": [
+    "规则索引",
+    "नियम सूचकांक",
+    "Índice de regla",
+    "فهرس القاعدة",
+    "ดัชนีกฎ"
+  ],
+  "System ID": [
+    "系统编号",
+    "प्रणाली ID",
+    "ID del sistema",
+    "معرف النظام",
+    "รหัสระบบ"
+  ],
+  "System index": [
+    "系统索引",
+    "प्रणाली सूचकांक",
+    "Índice de sistema",
+    "فهرس النظام",
+    "ดัชนีระบบ"
+  ],
+  "Added girth used": [
+    "采用附加周长",
+    "प्रयुक्त अतिरिक्त परिधि",
+    "Perímetro añadido utilizado",
+    "المحيط المضاف المستخدم",
+    "เส้นรอบรูปเพิ่มที่ใช้"
+  ],
+  "Corner count": [
+    "转角数",
+    "कोनों की संख्या",
+    "Número de esquinas",
+    "عدد الزوايا",
+    "จำนวนมุม"
+  ],
+  "Sheet area": [
+    "单张面积",
+    "शीट क्षेत्रफल",
+    "Área de plancha",
+    "مساحة اللوح",
+    "พื้นที่ต่อแผ่น"
+  ],
+  "Base system ID": [
+    "基础系统编号",
+    "मूल प्रणाली ID",
+    "ID del sistema base",
+    "معرف النظام الأساسي",
+    "รหัสระบบพื้นฐาน"
+  ],
+  "Native design chosen": [
+    "已选原生设计",
+    "चयनित मूल डिज़ाइन",
+    "Diseño nativo seleccionado",
+    "التصميم الأصلي المختار",
+    "แบบต้นฉบับที่เลือก"
+  ],
+  "Geometry override used": [
+    "采用几何覆盖值",
+    "प्रयुक्त ज्यामिति ओवरराइड",
+    "Geometría manual utilizada",
+    "تجاوز الهندسة المستخدم",
+    "ค่ารูปทรงกำหนดเองที่ใช้"
+  ],
+  "Source group": [
+    "来源组",
+    "स्रोत समूह",
+    "Grupo de fuentes",
+    "مجموعة المصدر",
+    "กลุ่มแหล่งข้อมูล"
+  ],
+  "Steel lookup record": [
+    "钢材查找记录",
+    "इस्पात खोज रिकॉर्ड",
+    "Registro de consulta de acero",
+    "سجل بحث الفولاذ",
+    "ระเบียนค้นหาเหล็ก"
+  ],
+  "Section lookup record": [
+    "截面查找记录",
+    "अनुभाग खोज रिकॉर्ड",
+    "Registro de consulta de sección",
+    "سجل بحث المقطع",
+    "ระเบียนค้นหาหน้าตัด"
+  ],
+  "Duration lookup record": [
+    "时间查找记录",
+    "अवधि खोज रिकॉर्ड",
+    "Registro de consulta de duración",
+    "سجل بحث المدة",
+    "ระเบียนค้นหาระยะเวลา"
+  ],
+  "Rule lookup map": [
+    "规则查找映射",
+    "नियम खोज मानचित्र",
+    "Mapa de consulta de reglas",
+    "خريطة بحث القواعد",
+    "แผนผังค้นหากฎ"
+  ],
+  "Selected rule record": [
+    "已选规则记录",
+    "चयनित नियम रिकॉर्ड",
+    "Registro de regla seleccionada",
+    "سجل القاعدة المختارة",
+    "ระเบียนกฎที่เลือก"
+  ],
+  "SETTINGS & CONVENTIONS": [
+    "设置与约定",
+    "सेटिंग्स और परिपाटियाँ",
+    "AJUSTES Y CONVENCIONES",
+    "الإعدادات والاصطلاحات",
+    "การตั้งค่าและข้อตกลง"
+  ],
+  "Existing diagnostic code": [
+    "现有诊断代码",
+    "मौजूदा निदान कोड",
+    "Código de diagnóstico existente",
+    "رمز التشخيص الحالي",
+    "รหัสวินิจฉัยเดิม"
+  ],
+  "Plain-English message (display only)": [
+    "易读说明（仅显示）",
+    "सरल संदेश (केवल प्रदर्शन)",
+    "Mensaje claro (solo visualización)",
+    "رسالة واضحة (للعرض فقط)",
+    "ข้อความเข้าใจง่าย (แสดงผลเท่านั้น)"
+  ],
+  "DUCT PROTECTION CALCULATOR": [
+    "风管防火保护计算器",
+    "डक्ट सुरक्षा कैलकुलेटर",
+    "CALCULADORA DE PROTECCIÓN DE CONDUCTOS",
+    "حاسبة حماية المجاري",
+    "เครื่องคำนวณป้องกันท่อลม"
+  ],
+  "PENETRATION ANGLES — LENGTH BY SIZE AND LOCATION": [
+    "贯穿部角钢 — 按尺寸及位置统计长度",
+    "पेनेट्रेशन एंगल — आकार और स्थान अनुसार लंबाई",
+    "ÁNGULOS DE PENETRACIÓN — LONGITUD POR TAMAÑO Y UBICACIÓN",
+    "زوايا الاختراق — الطول حسب المقاس والموقع",
+    "เหล็กฉากช่องทะลุ — ความยาวตามขนาดและตำแหน่ง"
+  ],
+  "WORKING YIELDS — CALIBRATED OR UNCALIBRATED": [
+    "作业产出率 — 已校准或未校准",
+    "कार्यशील उपज — अंशांकित या अनंशांकित",
+    "RENDIMIENTOS DE TRABAJO — CALIBRADOS O SIN CALIBRAR",
+    "الإنتاجية العملية — معايرة أو غير معايرة",
+    "อัตราผลผลิตใช้งาน — สอบเทียบหรือยังไม่สอบเทียบ"
+  ],
+  "BOTH / MIXED — USE THE STRICTER CASE": [
+    "两者 / 混合 — 采用更严格的情况",
+    "दोनों / मिश्रित — अधिक कठोर स्थिति अपनाएँ",
+    "AMBAS / MIXTA — USE EL CASO MÁS EXIGENTE",
+    "كلاهما / مختلط — استخدم الحالة الأشد",
+    "ทั้งสอง / ผสม — ใช้กรณีที่เข้มงวดกว่า"
+  ],
+  "Source application": [
+    "来源应用",
+    "स्रोत उपयोग",
+    "Aplicación de fuente",
+    "تطبيق المصدر",
+    "การใช้งานตามแหล่งข้อมูล"
+  ],
+  "Factor-label gap: above": [
+    "系数标签间隙：上方",
+    "गुणांक लेबल अंतर: ऊपर",
+    "Separación de etiqueta de factor: arriba",
+    "فجوة تسمية المعامل: أعلى",
+    "ช่องว่างป้ายค่าปัจจัย: ด้านบน"
+  ],
+  "Factor-label gap: below": [
+    "系数标签间隙：下方",
+    "गुणांक लेबल अंतर: नीचे",
+    "Separación de etiqueta de factor: abajo",
+    "فجوة تسمية المعامل: أسفل",
+    "ช่องว่างป้ายค่าปัจจัย: ด้านล่าง"
+  ],
+  "Lower web (mm)": [
+    "下腹板 (mm)",
+    "निचला वेब (mm)",
+    "Alma inferior (mm)",
+    "الجسر السفلي (mm)",
+    "เอวล่าง (mm)"
+  ],
+  "Exact only": [
+    "仅精确匹配",
+    "केवल सटीक",
+    "Solo exacto",
+    "مطابقة تامة فقط",
+    "ตรงค่าที่ระบุเท่านั้น"
+  ],
+  "Next higher (estimate)": [
+    "采用相邻较高值（估算）",
+    "अगला उच्च (अनुमान)",
+    "Siguiente superior (estimación)",
+    "الأعلى التالي (تقدير)",
+    "ค่าที่สูงกว่าถัดไป (ประมาณ)"
+  ],
+  "Re-entrant - 3 sides": [
+    "开口截面 - 3 面",
+    "री-एंट्रेंट - 3 पक्ष",
+    "Sección entrante - 3 caras",
+    "مقطع معاد الدخول - 3 أوجه",
+    "หน้าตัดเปิด - 3 ด้าน"
+  ],
+  "Re-entrant - 4 sides": [
+    "开口截面 - 4 面",
+    "री-एंट्रेंट - 4 पक्ष",
+    "Sección entrante - 4 caras",
+    "مقطع معاد الدخول - 4 أوجه",
+    "หน้าตัดเปิด - 4 ด้าน"
+  ],
+  "Hollow - 3 sides": [
+    "空心截面 - 3 面",
+    "खोखला - 3 पक्ष",
+    "Hueca - 3 caras",
+    "مجوف - 3 أوجه",
+    "หน้าตัดกลวง - 3 ด้าน"
+  ],
+  "Hollow - 4 sides": [
+    "空心截面 - 4 面",
+    "खोखला - 4 पक्ष",
+    "Hueca - 4 caras",
+    "مجوف - 4 أوجه",
+    "หน้าตัดกลวง - 4 ด้าน"
+  ],
+  "Castellated - special factor": [
+    "蜂窝梁 - 特殊系数",
+    "कैस्टेलेटेड - विशेष गुणांक",
+    "Alveolada - factor especial",
+    "مفرغ - معامل خاص",
+    "คานเจาะช่อง - ค่าปัจจัยเฉพาะ"
+  ],
+  "PFC web to slab - 3 sides": [
+    "PFC 腹板接触楼板 - 3 面",
+    "PFC वेब स्लैब से - 3 पक्ष",
+    "Alma PFC a losa - 3 caras",
+    "جسر PFC إلى البلاطة - 3 أوجه",
+    "เอว PFC ชิดพื้น - 3 ด้าน"
+  ],
+  "Not confirmed": [
+    "未确认",
+    "पुष्टि नहीं",
+    "Sin confirmar",
+    "غير مؤكد",
+    "ยังไม่ยืนยัน"
+  ],
+  "Confirmed by project designer": [
+    "已由项目设计师确认",
+    "परियोजना डिज़ाइनर द्वारा पुष्ट",
+    "Confirmado por el diseñador del proyecto",
+    "مؤكد من مصمم المشروع",
+    "ยืนยันโดยผู้ออกแบบโครงการ"
+  ],
+  "Un-injected": [
+    "未注入",
+    "बिना इंजेक्शन",
+    "Sin inyección",
+    "غير محقون",
+    "ไม่ฉีดสารเพิ่ม"
+  ],
+  "Injected": [
+    "已注入",
+    "इंजेक्टेड",
+    "Inyectado",
+    "محقون",
+    "ฉีดสารเพิ่ม"
+  ],
+  "Calibrated": [
+    "已校准",
+    "अंशांकित",
+    "Calibrado",
+    "معاير",
+    "สอบเทียบแล้ว"
+  ],
+  "Uncalibrated": [
+    "未校准",
+    "अनंशांकित",
+    "Sin calibrar",
+    "غير معاير",
+    "ยังไม่สอบเทียบ"
+  ],
+  "Hp/A | ESA/M | web mm": [
+    "Hp/A | ESA/M | 腹板 mm",
+    "Hp/A | ESA/M | वेब mm",
+    "Hp/A | ESA/M | alma mm",
+    "Hp/A | ESA/M | الجسر mm",
+    "Hp/A | ESA/M | เอว mm"
+  ],
+  "Hp/A | ESA/M | lower web mm": [
+    "Hp/A | ESA/M | 下腹板 mm",
+    "Hp/A | ESA/M | निचला वेब mm",
+    "Hp/A | ESA/M | alma inferior mm",
+    "Hp/A | ESA/M | الجسر السفلي mm",
+    "Hp/A | ESA/M | เอวล่าง mm"
+  ],
+  "FACTOR HELPER  |  Hp/A AND ESA/M": [
+    "系数助手 | Hp/A 与 ESA/M",
+    "गुणांक सहायक | Hp/A और ESA/M",
+    "ASISTENTE DE FACTOR | Hp/A Y ESA/M",
+    "مساعد المعامل | Hp/A و ESA/M",
+    "เครื่องช่วยค่าปัจจัย | Hp/A และ ESA/M"
+  ],
+  "Critical temperature (°C)": [
+    "临界温度 (°C)",
+    "क्रांतिक तापमान (°C)",
+    "Temperatura crítica (°C)",
+    "درجة الحرارة الحرجة (°C)",
+    "อุณหภูมิวิกฤต (°C)"
+  ],
+  "Fire-resistance period (min)": [
+    "耐火时间 (min)",
+    "अग्नि प्रतिरोध अवधि (min)",
+    "Periodo de resistencia al fuego (min)",
+    "مدة مقاومة الحريق (min)",
+    "ระยะเวลาทนไฟ (min)"
+  ],
+  "Lookup ESA/M (m²/t)": [
+    "查得 ESA/M (m²/t)",
+    "खोजा गया ESA/M (m²/t)",
+    "ESA/M consultado (m²/t)",
+    "ESA/M المستخرج (m²/t)",
+    "ค่า ESA/M ที่ค้นได้ (m²/t)"
+  ],
+  "Lookup Hp/A (m⁻¹)": [
+    "查得 Hp/A (m⁻¹)",
+    "खोजा गया Hp/A (m⁻¹)",
+    "Hp/A consultado (m⁻¹)",
+    "Hp/A المستخرج (m⁻¹)",
+    "ค่า Hp/A ที่ค้นได้ (m⁻¹)"
+  ],
+  "Usable estimating thickness (mm)": [
+    "可用于估算的厚度 (mm)",
+    "अनुमान योग्य मोटाई (mm)",
+    "Espesor utilizable para estimación (mm)",
+    "السماكة القابلة للتقدير (mm)",
+    "ความหนาที่ใช้ประมาณได้ (mm)"
+  ],
+  "Length per member (m)": [
+    "每件长度 (m)",
+    "प्रति सदस्य लंबाई (m)",
+    "Longitud por elemento (m)",
+    "الطول لكل عنصر (m)",
+    "ความยาวต่อชิ้นส่วน (m)"
+  ],
+  "Girth used (m)": [
+    "采用周长 (m)",
+    "प्रयुक्त परिधि (m)",
+    "Perímetro utilizado (m)",
+    "المحيط المستخدم (m)",
+    "เส้นรอบรูปที่ใช้ (m)"
+  ],
+  "Girth override (m)": [
+    "周长覆盖值 (m)",
+    "परिधि ओवरराइड (m)",
+    "Perímetro manual (m)",
+    "تجاوز المحيط (m)",
+    "ค่าเส้นรอบรูปกำหนดเอง (m)"
+  ],
+  "Spray area (m²)": [
+    "喷涂面积 (m²)",
+    "स्प्रे क्षेत्रफल (m²)",
+    "Área de proyección (m²)",
+    "مساحة الرش (m²)",
+    "พื้นที่พ่น (m²)"
+  ],
+  "Area override (m²)": [
+    "面积覆盖值 (m²)",
+    "क्षेत्रफल ओवरराइड (m²)",
+    "Área manual (m²)",
+    "تجاوز المساحة (m²)",
+    "ค่าพื้นที่กำหนดเอง (m²)"
+  ],
+  "Coating volume (m³)": [
+    "涂层体积 (m³)",
+    "लेपन आयतन (m³)",
+    "Volumen del revestimiento (m³)",
+    "حجم الطلاء (m³)",
+    "ปริมาตรสารเคลือบ (m³)"
+  ],
+  "TOTAL ENTERED SPRAY AREA (m²)": [
+    "已输入喷涂总面积 (m²)",
+    "दर्ज कुल स्प्रे क्षेत्रफल (m²)",
+    "ÁREA TOTAL DE PROYECCIÓN INTRODUCIDA (m²)",
+    "إجمالي مساحة الرش المدخلة (m²)",
+    "พื้นที่พ่นรวมที่ป้อน (m²)"
+  ],
+  "COATING VOLUME QUANTIFIED (m³)": [
+    "已计算涂层体积 (m³)",
+    "गणना किया लेपन आयतन (m³)",
+    "VOLUMEN DE REVESTIMIENTO CALCULADO (m³)",
+    "حجم الطلاء المحسوب (m³)",
+    "ปริมาตรสารเคลือบที่คำนวณ (m³)"
+  ],
+  "Critical temp (°C)": [
+    "临界温度 (°C)",
+    "क्रांतिक तापमान (°C)",
+    "Temperatura crítica (°C)",
+    "درجة الحرارة الحرجة (°C)",
+    "อุณหภูมิวิกฤต (°C)"
+  ],
+  "Length / member (m)": [
+    "每件长度 (m)",
+    "लंबाई / सदस्य (m)",
+    "Longitud / elemento (m)",
+    "الطول / العنصر (m)",
+    "ความยาว / ชิ้นส่วน (m)"
+  ],
+  "Published thickness (mm)": [
+    "公布厚度 (mm)",
+    "प्रकाशित मोटाई (mm)",
+    "Espesor publicado (mm)",
+    "السماكة المنشورة (mm)",
+    "ความหนาที่เผยแพร่ (mm)"
+  ],
+  "Estimating thickness (mm)": [
+    "估算厚度 (mm)",
+    "अनुमानित मोटाई (mm)",
+    "Espesor estimado (mm)",
+    "السماكة التقديرية (mm)",
+    "ความหนาสำหรับประมาณ (mm)"
+  ],
+  "Area (m²)": [
+    "面积 (m²)",
+    "क्षेत्रफल (m²)",
+    "Área (m²)",
+    "المساحة (m²)",
+    "พื้นที่ (m²)"
+  ],
+  "Manual thickness (mm)": [
+    "手动厚度 (mm)",
+    "मैनुअल मोटाई (mm)",
+    "Espesor manual (mm)",
+    "السماكة اليدوية (mm)",
+    "ความหนากำหนดเอง (mm)"
+  ],
+  "Yield used (m³/bag)": [
+    "采用产出率 (m³/bag)",
+    "प्रयुक्त उपज (m³/bag)",
+    "Rendimiento utilizado (m³/bag)",
+    "الإنتاجية المستخدمة (m³/bag)",
+    "อัตราผลผลิตที่ใช้ (m³/bag)"
+  ],
+  "Coverage (m²/bag)": [
+    "覆盖面积 (m²/bag)",
+    "कवरेज (m²/bag)",
+    "Cobertura (m²/bag)",
+    "التغطية (m²/bag)",
+    "พื้นที่ครอบคลุม (m²/bag)"
+  ],
+  "Area entered (m²)": [
+    "已输入面积 (m²)",
+    "दर्ज क्षेत्रफल (m²)",
+    "Área introducida (m²)",
+    "المساحة المدخلة (m²)",
+    "พื้นที่ที่ป้อน (m²)"
+  ],
+  "Volume quantified (m³)": [
+    "已计算体积 (m³)",
+    "गणना किया आयतन (m³)",
+    "Volumen calculado (m³)",
+    "الحجم المحسوب (m³)",
+    "ปริมาตรที่คำนวณ (m³)"
+  ],
+  "EXPOSURE / MEMBER CASE": [
+    "受火情况 / 构件类型",
+    "अग्नि संपर्क / सदस्य स्थिति",
+    "Exposición / tipo de elemento",
+    "التعرض / حالة العنصر",
+    "การรับไฟ / ประเภทชิ้นส่วน"
+  ],
+  "PUBLISHED PERIODS (MIN)": [
+    "公布时间 (MIN)",
+    "प्रकाशित अवधियाँ (MIN)",
+    "PERIODOS PUBLICADOS (MIN)",
+    "المدد المنشورة (MIN)",
+    "ระยะเวลาที่เผยแพร่ (MIN)"
+  ],
+  "FACTOR LOOKUP POLICY": [
+    "系数查找规则",
+    "गुणांक खोज नीति",
+    "Política de consulta de factores",
+    "سياسة البحث عن المعامل",
+    "นโยบายค้นหาค่าปัจจัย"
+  ],
+  "Heated perimeter (m)": [
+    "受热周长 (m)",
+    "गर्म परिधि (m)",
+    "Perímetro expuesto al calor (m)",
+    "المحيط المعرض للحرارة (m)",
+    "เส้นรอบรูปที่รับความร้อน (m)"
+  ],
+  "Steel area (mm²)": [
+    "钢截面积 (mm²)",
+    "इस्पात क्षेत्रफल (mm²)",
+    "Área de acero (mm²)",
+    "مساحة الفولاذ (mm²)",
+    "พื้นที่หน้าตัดเหล็ก (mm²)"
+  ],
+  "Mass per metre (kg/m)": [
+    "每米质量 (kg/m)",
+    "प्रति मीटर द्रव्यमान (kg/m)",
+    "Masa por metro (kg/m)",
+    "الكتلة لكل متر (kg/m)",
+    "มวลต่อเมตร (kg/m)"
+  ],
+  "Hp/A from steel area (m⁻¹)": [
+    "由钢截面积计算 Hp/A (m⁻¹)",
+    "इस्पात क्षेत्रफल से Hp/A (m⁻¹)",
+    "Hp/A según área de acero (m⁻¹)",
+    "Hp/A من مساحة الفولاذ (m⁻¹)",
+    "Hp/A จากพื้นที่หน้าตัดเหล็ก (m⁻¹)"
+  ],
+  "ESA/M from mass (m²/t)": [
+    "由质量计算 ESA/M (m²/t)",
+    "द्रव्यमान से ESA/M (m²/t)",
+    "ESA/M según masa (m²/t)",
+    "ESA/M من الكتلة (m²/t)",
+    "ESA/M จากมวล (m²/t)"
+  ],
+  "Depth / outside diameter (mm)": [
+    "高度 / 外径 (mm)",
+    "गहराई / बाहरी व्यास (mm)",
+    "Canto / diámetro exterior (mm)",
+    "العمق / القطر الخارجي (mm)",
+    "ความลึก / เส้นผ่านศูนย์กลางภายนอก (mm)"
+  ],
+  "Width (mm)": [
+    "宽度 (mm)",
+    "चौड़ाई (mm)",
+    "Anchura (mm)",
+    "العرض (mm)",
+    "ความกว้าง (mm)"
+  ],
+  "Wall thickness (mm)": [
+    "壁厚 (mm)",
+    "दीवार की मोटाई (mm)",
+    "Espesor de pared (mm)",
+    "سماكة الجدار (mm)",
+    "ความหนาผนัง (mm)"
+  ],
+  "Lower-web thickness (mm)": [
+    "下腹板厚度 (mm)",
+    "निचले वेब की मोटाई (mm)",
+    "Espesor del alma inferior (mm)",
+    "سماكة الجسر السفلي (mm)",
+    "ความหนาเอวล่าง (mm)"
+  ],
+  "Special Hp/A (m⁻¹)": [
+    "特殊 Hp/A (m⁻¹)",
+    "विशेष Hp/A (m⁻¹)",
+    "Hp/A especial (m⁻¹)",
+    "Hp/A الخاص (m⁻¹)",
+    "Hp/A เฉพาะ (m⁻¹)"
+  ],
+  "ESA/M input (m2/t)": [
+    "ESA/M 输入值 (m2/t)",
+    "ESA/M इनपुट (m2/t)",
+    "Entrada ESA/M (m2/t)",
+    "مدخل ESA/M (m2/t)",
+    "ข้อมูลป้อน ESA/M (m2/t)"
+  ],
+  "FRL required (min)": [
+    "所需耐火等级 FRL (min)",
+    "आवश्यक FRL (min)",
+    "FRL requerido (min)",
+    "FRL المطلوب (min)",
+    "FRL ที่ต้องการ (min)"
+  ],
+  "Critical temp (C)": [
+    "临界温度 (C)",
+    "क्रांतिक तापमान (C)",
+    "Temperatura crítica (C)",
+    "درجة الحرارة الحرجة (C)",
+    "อุณหภูมิวิกฤต (C)"
+  ],
+  "Waste (%)": [
+    "损耗 (%)",
+    "बर्बादी (%)",
+    "Merma (%)",
+    "الهدر (%)",
+    "การสูญเสีย (%)"
+  ],
+  "Partial depth (mm)": [
+    "部分高度 (mm)",
+    "आंशिक गहराई (mm)",
+    "Canto parcial (mm)",
+    "العمق الجزئي (mm)",
+    "ความลึกบางส่วน (mm)"
+  ],
+  "Depth or OD (mm)": [
+    "高度或外径 (mm)",
+    "गहराई या बाहरी व्यास (mm)",
+    "Canto o diámetro exterior (mm)",
+    "العمق أو القطر الخارجي (mm)",
+    "ความลึกหรือเส้นผ่านศูนย์กลางภายนอก (mm)"
+  ],
+  "Width B (mm)": [
+    "宽度 B (mm)",
+    "चौड़ाई B (mm)",
+    "Anchura B (mm)",
+    "العرض B (mm)",
+    "ความกว้าง B (mm)"
+  ],
+  "Steel area (cm2)": [
+    "钢截面积 (cm2)",
+    "इस्पात क्षेत्रफल (cm2)",
+    "Área de acero (cm2)",
+    "مساحة الفولاذ (cm2)",
+    "พื้นที่หน้าตัดเหล็ก (cm2)"
+  ],
+  "Steel mass (kg/m)": [
+    "钢材质量 (kg/m)",
+    "इस्पात द्रव्यमान (kg/m)",
+    "Masa del acero (kg/m)",
+    "كتلة الفولاذ (kg/m)",
+    "มวลเหล็ก (kg/m)"
+  ],
+  "Box girth override (m)": [
+    "箱体周长覆盖值 (m)",
+    "बॉक्स परिधि ओवरराइड (m)",
+    "Perímetro de caja manual (m)",
+    "تجاوز محيط الصندوق (m)",
+    "เส้นรอบรูปกล่องกำหนดเอง (m)"
+  ],
+  "Added girth (m)": [
+    "附加周长 (m)",
+    "अतिरिक्त परिधि (m)",
+    "Perímetro añadido (m)",
+    "المحيط المضاف (m)",
+    "เส้นรอบรูปเพิ่ม (m)"
+  ],
+  "ESA/M used (m2/t)": [
+    "采用 ESA/M (m2/t)",
+    "प्रयुक्त ESA/M (m2/t)",
+    "ESA/M utilizado (m2/t)",
+    "ESA/M المستخدم (m2/t)",
+    "ESA/M ที่ใช้ (m2/t)"
+  ],
+  "Board stack (mm)": [
+    "板材叠层 (mm)",
+    "बोर्ड परत समूह (mm)",
+    "Composición de placas (mm)",
+    "تراكم الألواح (mm)",
+    "ชุดชั้นแผ่น (mm)"
+  ],
+  "Total thickness (mm)": [
+    "总厚度 (mm)",
+    "कुल मोटाई (mm)",
+    "Espesor total (mm)",
+    "السماكة الإجمالية (mm)",
+    "ความหนารวม (mm)"
+  ],
+  "Bare box girth (m)": [
+    "裸箱体周长 (m)",
+    "नंगे बॉक्स की परिधि (m)",
+    "Perímetro de caja sin revestir (m)",
+    "محيط الصندوق غير المكسو (m)",
+    "เส้นรอบรูปกล่องไม่หุ้ม (m)"
+  ],
+  "Box reference area (m2)": [
+    "箱体参考面积 (m2)",
+    "बॉक्स संदर्भ क्षेत्रफल (m2)",
+    "Área de referencia de caja (m2)",
+    "مساحة الصندوق المرجعية (m2)",
+    "พื้นที่กล่องอ้างอิง (m2)"
+  ],
+  "Board required - net (m2)": [
+    "板材净需求量 (m2)",
+    "आवश्यक बोर्ड - शुद्ध (m2)",
+    "Placa necesaria - neta (m2)",
+    "الألواح المطلوبة - الصافي (m2)",
+    "แผ่นที่ต้องใช้สุทธิ (m2)"
+  ],
+  "Board incl waste (m2)": [
+    "板材量（含损耗） (m2)",
+    "बर्बादी सहित बोर्ड (m2)",
+    "Placa con merma (m2)",
+    "الألواح شاملة الهدر (m2)",
+    "ปริมาณแผ่นรวมสูญเสีย (m2)"
+  ],
+  "Purchase area - line (m2)": [
+    "本行采购面积 (m2)",
+    "खरीद क्षेत्रफल - पंक्ति (m2)",
+    "Área de compra de la línea (m2)",
+    "مساحة الشراء للسطر (m2)",
+    "พื้นที่จัดซื้อในแถวนี้ (m2)"
+  ],
+  "Layer 1 (mm)": [
+    "第 1 层 (mm)",
+    "परत 1 (mm)",
+    "Capa 1 (mm)",
+    "الطبقة 1 (mm)",
+    "ชั้นที่ 1 (mm)"
+  ],
+  "Layer 2 (mm)": [
+    "第 2 层 (mm)",
+    "परत 2 (mm)",
+    "Capa 2 (mm)",
+    "الطبقة 2 (mm)",
+    "ชั้นที่ 2 (mm)"
+  ],
+  "Layer 1 board area (m2)": [
+    "第 1 层板材面积 (m2)",
+    "परत 1 बोर्ड क्षेत्रफल (m2)",
+    "Área de placa de capa 1 (m2)",
+    "مساحة ألواح الطبقة 1 (m2)",
+    "พื้นที่แผ่นชั้นที่ 1 (m2)"
+  ],
+  "Layer 2 board area (m2)": [
+    "第 2 层板材面积 (m2)",
+    "परत 2 बोर्ड क्षेत्रफल (m2)",
+    "Área de placa de capa 2 (m2)",
+    "مساحة ألواح الطبقة 2 (m2)",
+    "พื้นที่แผ่นชั้นที่ 2 (m2)"
+  ],
+  "Design period (min)": [
+    "设计耐火时间 (min)",
+    "डिज़ाइन अवधि (min)",
+    "Periodo de diseño (min)",
+    "مدة التصميم (min)",
+    "ระยะเวลาออกแบบ (min)"
+  ],
+  "Critical temp used (C)": [
+    "采用临界温度 (C)",
+    "प्रयुक्त क्रांतिक तापमान (C)",
+    "Temperatura crítica utilizada (C)",
+    "الحرارة الحرجة المستخدمة (C)",
+    "อุณหภูมิวิกฤตที่ใช้ (C)"
+  ],
+  "Inside cladding girth (m)": [
+    "包覆内周长 (m)",
+    "आवरण की अंदरूनी परिधि (m)",
+    "Perímetro interior del revestimiento (m)",
+    "المحيط الداخلي للكسوة (m)",
+    "เส้นรอบรูปภายในวัสดุหุ้ม (m)"
+  ],
+  "Published requirement (mm)": [
+    "公布要求 (mm)",
+    "प्रकाशित आवश्यकता (mm)",
+    "Requisito publicado (mm)",
+    "المتطلب المنشور (mm)",
+    "ข้อกำหนดที่เผยแพร่ (mm)"
+  ],
+  "Layer 1 with waste (m2)": [
+    "第 1 层（含损耗） (m2)",
+    "बर्बादी सहित परत 1 (m2)",
+    "Capa 1 con merma (m2)",
+    "الطبقة 1 شاملة الهدر (m2)",
+    "ชั้นที่ 1 รวมสูญเสีย (m2)"
+  ],
+  "Layer 2 with waste (m2)": [
+    "第 2 层（含损耗） (m2)",
+    "बर्बादी सहित परत 2 (m2)",
+    "Capa 2 con merma (m2)",
+    "الطبقة 2 شاملة الهدر (m2)",
+    "ชั้นที่ 2 รวมสูญเสีย (m2)"
+  ],
+  "Depth used (mm)": [
+    "采用高度 (mm)",
+    "प्रयुक्त गहराई (mm)",
+    "Canto utilizado (mm)",
+    "العمق المستخدم (mm)",
+    "ความลึกที่ใช้ (mm)"
+  ],
+  "Width used (mm)": [
+    "采用宽度 (mm)",
+    "प्रयुक्त चौड़ाई (mm)",
+    "Anchura utilizada (mm)",
+    "العرض المستخدم (mm)",
+    "ความกว้างที่ใช้ (mm)"
+  ],
+  "Area used (cm2)": [
+    "采用面积 (cm2)",
+    "प्रयुक्त क्षेत्रफल (cm2)",
+    "Área utilizada (cm2)",
+    "المساحة المستخدمة (cm2)",
+    "พื้นที่ที่ใช้ (cm2)"
+  ],
+  "Thermal girth (m)": [
+    "受热周长 (m)",
+    "तापीय परिधि (m)",
+    "Perímetro térmico (m)",
+    "المحيط الحراري (m)",
+    "เส้นรอบรูปด้านความร้อน (m)"
+  ],
+  "Added girth used (m)": [
+    "采用附加周长 (m)",
+    "प्रयुक्त अतिरिक्त परिधि (m)",
+    "Perímetro añadido utilizado (m)",
+    "المحيط المضاف المستخدم (m)",
+    "เส้นรอบรูปเพิ่มที่ใช้ (m)"
+  ],
+  "Sheet area (m2)": [
+    "单张面积 (m2)",
+    "शीट क्षेत्रफल (m2)",
+    "Área de plancha (m2)",
+    "مساحة اللوح (m2)",
+    "พื้นที่ต่อแผ่น (m2)"
+  ],
+  "NET BOARD REQUIRED (m2)": [
+    "板材净需求量 (m2)",
+    "आवश्यक शुद्ध बोर्ड (m2)",
+    "PLACA NETA NECESARIA (m2)",
+    "صافي الألواح المطلوبة (m2)",
+    "ปริมาณแผ่นสุทธิที่ต้องใช้ (m2)"
+  ],
+  "PURCHASE AREA (m²)": [
+    "采购面积 (m²)",
+    "खरीद क्षेत्रफल (m²)",
+    "ÁREA DE COMPRA (m²)",
+    "مساحة الشراء (m²)",
+    "พื้นที่จัดซื้อ (m²)"
+  ],
+  "Status": [
+    "状态",
+    "स्थिति",
+    "ESTADO",
+    "الحالة",
+    "สถานะ"
+  ],
+  "Column temp (C)": [
+    "柱临界温度 (C)",
+    "स्तंभ तापमान (C)",
+    "Temperatura de pilar (C)",
+    "درجة حرارة العمود (C)",
+    "อุณหภูมิเสา (C)"
+  ],
+  "P100 beam temp (C)": [
+    "P100 梁临界温度 (C)",
+    "P100 बीम तापमान (C)",
+    "Temperatura de viga P100 (C)",
+    "حرارة كمرة P100 (C)",
+    "อุณหภูมิคาน P100 (C)"
+  ],
+  "Other beam temp (C)": [
+    "其他梁临界温度 (C)",
+    "अन्य बीम तापमान (C)",
+    "Temperatura de otras vigas (C)",
+    "حرارة الكمرات الأخرى (C)",
+    "อุณหภูมิคานอื่น (C)"
+  ],
+  "Duct size W x H (mm)": [
+    "风管尺寸 宽 x 高 (mm)",
+    "डक्ट आकार चौड़ाई x ऊँचाई (mm)",
+    "Tamaño de conducto ancho x alto (mm)",
+    "أبعاد المجرى عرض x ارتفاع (mm)",
+    "ขนาดท่อ กว้าง x สูง (mm)"
+  ],
+  "Spray DFT (mm)": [
+    "喷涂干膜厚度 DFT (mm)",
+    "स्प्रे DFT (mm)",
+    "DFT proyectado (mm)",
+    "DFT الرش (mm)",
+    "ความหนาแห้ง DFT งานพ่น (mm)"
+  ],
+  "Net wrap material (m²)": [
+    "包覆材料净量 (m²)",
+    "शुद्ध आवरण सामग्री (m²)",
+    "Material neto de envoltura (m²)",
+    "صافي مادة التغليف (m²)",
+    "วัสดุหุ้มสุทธิ (m²)"
+  ],
+  "Maxilite net @60 mm (m²)": [
+    "Maxilite 净量 @60 mm (m²)",
+    "Maxilite शुद्ध @60 mm (m²)",
+    "Maxilite neto @60 mm (m²)",
+    "صافي Maxilite @60 mm (m²)",
+    "Maxilite สุทธิ @60 mm (m²)"
+  ],
+  "Wall L2 each side (m)": [
+    "墙两侧各 L2 (m)",
+    "दीवार L2 प्रत्येक ओर (m)",
+    "L2 de pared a cada lado (m)",
+    "L2 الجدار لكل جانب (m)",
+    "L2 ผนังแต่ละด้าน (m)"
+  ],
+  "Floor L2 top (m)": [
+    "楼板上部 L2 (m)",
+    "फर्श L2 ऊपर (m)",
+    "L2 superior de suelo (m)",
+    "L2 أعلى الأرضية (m)",
+    "L2 เหนือพื้น (m)"
+  ],
+  "Floor L3 top (m)": [
+    "楼板上部 L3 (m)",
+    "फर्श L3 ऊपर (m)",
+    "L3 superior de suelo (m)",
+    "L3 أعلى الأرضية (m)",
+    "L3 เหนือพื้น (m)"
+  ],
+  "L1 material (m²)": [
+    "L1 材料量 (m²)",
+    "L1 सामग्री (m²)",
+    "Material L1 (m²)",
+    "مادة L1 (m²)",
+    "วัสดุ L1 (m²)"
+  ],
+  "L2 material (m²)": [
+    "L2 材料量 (m²)",
+    "L2 सामग्री (m²)",
+    "Material L2 (m²)",
+    "مادة L2 (m²)",
+    "วัสดุ L2 (m²)"
+  ],
+  "L3 material (m²)": [
+    "L3 材料量 (m²)",
+    "L3 सामग्री (m²)",
+    "Material L3 (m²)",
+    "مادة L3 (m²)",
+    "วัสดุ L3 (m²)"
+  ],
+  "Maxilite width (mm)": [
+    "Maxilite 宽度 (mm)",
+    "Maxilite चौड़ाई (mm)",
+    "Anchura Maxilite (mm)",
+    "عرض Maxilite (mm)",
+    "ความกว้าง Maxilite (mm)"
+  ],
+  "Maxilite strips (lm)": [
+    "Maxilite 板条 (lm)",
+    "Maxilite पट्टियाँ (lm)",
+    "Tiras Maxilite (lm)",
+    "شرائط Maxilite (lm)",
+    "แถบแผ่น Maxilite (lm)"
+  ],
+  "Cross-strip cut (mm)": [
+    "横向板条切割尺寸 (mm)",
+    "आड़ी पट्टी कट (mm)",
+    "Corte de tira transversal (mm)",
+    "قطع الشريط العرضي (mm)",
+    "ขนาดตัดแถบขวาง (mm)"
+  ],
+  "Side-strip cut (mm)": [
+    "侧向板条切割尺寸 (mm)",
+    "पार्श्व पट्टी कट (mm)",
+    "Corte de tira lateral (mm)",
+    "قطع الشريط الجانبي (mm)",
+    "ขนาดตัดแถบข้าง (mm)"
+  ],
+  "Wall angle net / allowance (lm)": [
+    "墙角钢净长度 / 预留 (lm)",
+    "दीवार एंगल शुद्ध / भत्ता (lm)",
+    "Ángulo de pared neto / previsión (lm)",
+    "صافي زاوية الجدار / البدل (lm)",
+    "เหล็กฉากผนังสุทธิ / ค่าเผื่อ (lm)"
+  ],
+  "Floor TOP net / allowance (lm)": [
+    "楼板上部净长度 / 预留 (lm)",
+    "फर्श ऊपरी शुद्ध / भत्ता (lm)",
+    "SUPERIOR de suelo neto / previsión (lm)",
+    "صافي أعلى الأرضية / البدل (lm)",
+    "เหนือพื้นสุทธิ / ค่าเผื่อ (lm)"
+  ],
+  "Floor BOTTOM net / allowance (lm)": [
+    "楼板下部净长度 / 预留 (lm)",
+    "फर्श निचली शुद्ध / भत्ता (lm)",
+    "INFERIOR de suelo neto / previsión (lm)",
+    "صافي أسفل الأرضية / البدل (lm)",
+    "ใต้พื้นสุทธิ / ค่าเผื่อ (lm)"
+  ],
+  "Combined angle length (lm)": [
+    "角钢总长度 (lm)",
+    "कुल एंगल लंबाई (lm)",
+    "Longitud angular combinada (lm)",
+    "إجمالي طول الزوايا (lm)",
+    "ความยาวเหล็กฉากรวม (lm)"
+  ],
+  "Spray body volume (m³)": [
+    "管体喷涂体积 (m³)",
+    "स्प्रे बॉडी आयतन (m³)",
+    "Volumen proyectado del cuerpo (m³)",
+    "حجم رش الجسم (m³)",
+    "ปริมาตรพ่นตัวท่อ (m³)"
+  ],
+  "Working yield (m³/bag)": [
+    "作业产出率 (m³/bag)",
+    "कार्यशील उपज (m³/bag)",
+    "Rendimiento de trabajo (m³/bag)",
+    "الإنتاجية العملية (m³/bag)",
+    "อัตราผลผลิตใช้งาน (m³/bag)"
+  ],
+  "Duct area (m²)": [
+    "风管面积 (m²)",
+    "डक्ट क्षेत्रफल (m²)",
+    "Área de conducto (m²)",
+    "مساحة المجرى (m²)",
+    "พื้นที่ท่อ (m²)"
+  ],
+  "Wrap (m²)": [
+    "包覆 (m²)",
+    "आवरण (m²)",
+    "Envoltura (m²)",
+    "التغليف (m²)",
+    "วัสดุหุ้ม (m²)"
+  ],
+  "Maxilite (m²)": [
+    "Maxilite (m²)",
+    "Maxilite (m²)",
+    "Maxilite (m²)",
+    "Maxilite (m²)",
+    "Maxilite (m²)"
+  ],
+  "Angles (lm)": [
+    "角钢 (lm)",
+    "एंगल (lm)",
+    "Ángulos (lm)",
+    "الزوايا (lm)",
+    "เหล็กฉาก (lm)"
+  ],
+  "Profile (mm)": [
+    "截面 (mm)",
+    "प्रोफ़ाइल (mm)",
+    "Perfil (mm)",
+    "المقطع (mm)",
+    "หน้าตัด (mm)"
+  ],
+  "Length (lm)": [
+    "长度 (lm)",
+    "लंबाई (lm)",
+    "Longitud (lm)",
+    "الطول (lm)",
+    "ความยาว (lm)"
+  ],
+  "MAXILITE": [
+    "Maxilite",
+    "Maxilite",
+    "Maxilite",
+    "Maxilite",
+    "Maxilite"
+  ],
+  "Strip width (mm)": [
+    "板条宽度 (mm)",
+    "पट्टी चौड़ाई (mm)",
+    "Anchura de tira (mm)",
+    "عرض الشريط (mm)",
+    "ความกว้างแถบ (mm)"
+  ],
+  "Wall board (m²)": [
+    "墙板 (m²)",
+    "दीवार बोर्ड (m²)",
+    "Placa de pared (m²)",
+    "لوح الجدار (m²)",
+    "แผ่นผนัง (m²)"
+  ],
+  "Floor TOP (m²)": [
+    "楼板上部 (m²)",
+    "फर्श ऊपरी (m²)",
+    "SUPERIOR de suelo (m²)",
+    "أعلى الأرضية (m²)",
+    "เหนือพื้น (m²)"
+  ],
+  "Floor BOTTOM (m²)": [
+    "楼板下部 (m²)",
+    "फर्श निचली (m²)",
+    "INFERIOR de suelo (m²)",
+    "أسفل الأرضية (m²)",
+    "ใต้พื้น (m²)"
+  ],
+  "Total board (m²)": [
+    "板材总量 (m²)",
+    "कुल बोर्ड (m²)",
+    "Placa total (m²)",
+    "إجمالي الألواح (m²)",
+    "ปริมาณแผ่นรวม (m²)"
+  ],
+  "Cut strips (pieces)": [
+    "切割板条 (pieces)",
+    "कटी पट्टियाँ (pieces)",
+    "Tiras cortadas (pieces)",
+    "الشرائط المقطوعة (pieces)",
+    "แถบที่ตัด (pieces)"
+  ],
+  "Cut strip length (lm)": [
+    "切割板条长度 (lm)",
+    "कटी पट्टी लंबाई (lm)",
+    "Longitud de tira cortada (lm)",
+    "طول الشريط المقطوع (lm)",
+    "ความยาวแถบที่ตัด (lm)"
+  ],
+  "Height max (mm)": [
+    "最大高度 (mm)",
+    "अधिकतम ऊँचाई (mm)",
+    "Altura máxima (mm)",
+    "الارتفاع الأقصى (mm)",
+    "ความสูงสูงสุด (mm)"
+  ],
+  "Spacing (mm)": [
+    "间距 (mm)",
+    "अंतर (mm)",
+    "Separación (mm)",
+    "التباعد (mm)",
+    "ระยะห่าง (mm)"
+  ],
+  "Internal (mm)": [
+    "内部 (mm)",
+    "आंतरिक (mm)",
+    "Interior (mm)",
+    "داخلي (mm)",
+    "ภายใน (mm)"
+  ],
+  "External (mm)": [
+    "外部 (mm)",
+    "बाहरी (mm)",
+    "Exterior (mm)",
+    "خارجي (mm)",
+    "ภายนอก (mm)"
+  ],
+  "Duct max (mm)": [
+    "最大风管尺寸 (mm)",
+    "अधिकतम डक्ट (mm)",
+    "Conducto máximo (mm)",
+    "المجرى الأقصى (mm)",
+    "ขนาดท่อสูงสุด (mm)"
+  ],
+  "Gap min (mm)": [
+    "最小间隙 (mm)",
+    "न्यूनतम अंतर (mm)",
+    "Holgura mínima (mm)",
+    "الخلوص الأدنى (mm)",
+    "ช่องว่างต่ำสุด (mm)"
+  ],
+  "Gap max (mm)": [
+    "最大间隙 (mm)",
+    "अधिकतम अंतर (mm)",
+    "Holgura máxima (mm)",
+    "الخلوص الأقصى (mm)",
+    "ช่องว่างสูงสุด (mm)"
+  ],
+  "Board width (mm)": [
+    "板宽 (mm)",
+    "बोर्ड चौड़ाई (mm)",
+    "Anchura de placa (mm)",
+    "عرض اللوح (mm)",
+    "ความกว้างแผ่น (mm)"
+  ],
+  "Angle (mm)": [
+    "角钢 (mm)",
+    "एंगल (mm)",
+    "Ángulo (mm)",
+    "الزاوية (mm)",
+    "เหล็กฉาก (mm)"
+  ],
+  "Board thick (mm)": [
+    "板厚 (mm)",
+    "बोर्ड मोटाई (mm)",
+    "Espesor de placa (mm)",
+    "سماكة اللوح (mm)",
+    "ความหนาแผ่น (mm)"
+  ],
+  "Max c/c (mm)": [
+    "最大中心距 (mm)",
+    "अधिकतम c/c (mm)",
+    "Máx. entre centros (mm)",
+    "أقصى تباعد مركزي (mm)",
+    "ระยะศูนย์ถึงศูนย์สูงสุด (mm)"
+  ],
+  "60-min L2 (mm)": [
+    "60-min L2 (mm)",
+    "60-min L2 (mm)",
+    "60-min L2 (mm)",
+    "60-min L2 (mm)",
+    "60-min L2 (mm)"
+  ],
+  "120-min L2 (mm)": [
+    "120-min L2 (mm)",
+    "120-min L2 (mm)",
+    "120-min L2 (mm)",
+    "120-min L2 (mm)",
+    "120-min L2 (mm)"
+  ],
+  "120-min L3 (mm)": [
+    "120-min L3 (mm)",
+    "120-min L3 (mm)",
+    "120-min L3 (mm)",
+    "120-min L3 (mm)",
+    "120-min L3 (mm)"
+  ],
+  "180-min L2 (mm)": [
+    "180-min L2 (mm)",
+    "180-min L2 (mm)",
+    "180-min L2 (mm)",
+    "180-min L2 (mm)",
+    "180-min L2 (mm)"
+  ],
+  "180-min L3 (mm)": [
+    "180-min L3 (mm)",
+    "180-min L3 (mm)",
+    "180-min L3 (mm)",
+    "180-min L3 (mm)",
+    "180-min L3 (mm)"
+  ],
+  "Assessed spray thickness": [
+    "评估喷涂厚度",
+    "आकलित स्प्रे मोटाई",
+    "Espesor proyectado evaluado",
+    "سماكة الرش المقيمة",
+    "ความหนาพ่นตามการประเมิน"
+  ],
+  "Internal / vertical FRL ceiling": [
+    "内部 / 垂直 FRL 上限",
+    "आंतरिक / लंबवत FRL सीमा",
+    "Límite FRL interior / vertical",
+    "حد FRL الداخلي / الرأسي",
+    "ขีดจำกัด FRL ภายใน / แนวตั้ง"
+  ],
+  "External horizontal FRL ceiling": [
+    "外部水平 FRL 上限",
+    "बाहरी क्षैतिज FRL सीमा",
+    "Límite FRL exterior horizontal",
+    "حد FRL الخارجي الأفقي",
+    "ขีดจำกัด FRL ภายนอกแนวนอน"
+  ],
+  "Horizontal maximum WIDTH": [
+    "水平最大宽度",
+    "क्षैतिज अधिकतम चौड़ाई",
+    "ANCHURA máxima horizontal",
+    "العرض الأفقي الأقصى",
+    "ความกว้างสูงสุดแนวนอน"
+  ],
+  "Horizontal maximum HEIGHT": [
+    "水平最大高度",
+    "क्षैतिज अधिकतम ऊँचाई",
+    "ALTURA máxima horizontal",
+    "الارتفاع الأفقي الأقصى",
+    "ความสูงสูงสุดแนวนอน"
+  ],
+  "Larger-than-tested trigger": [
+    "超出试验尺寸触发条件",
+    "परीक्षण से बड़े आकार की शर्त",
+    "Umbral de tamaño superior al ensayado",
+    "حد تجاوز المقاس المختبر",
+    "เกณฑ์เกินขนาดที่ทดสอบ"
+  ],
+  "Duct base metal thickness": [
+    "风管基材金属厚度",
+    "डक्ट मूल धातु मोटाई",
+    "Espesor de metal base del conducto",
+    "سماكة معدن المجرى الأساسي",
+    "ความหนาโลหะฐานท่อ"
+  ],
+  "Horizontal hanger interval": [
+    "水平吊架间距",
+    "क्षैतिज हैंगर अंतर",
+    "Intervalo de suspensión horizontal",
+    "تباعد التعليق الأفقي",
+    "ระยะห่างชุดแขวนแนวนอน"
+  ],
+  "Vertical standard support interval": [
+    "垂直标准支撑间距",
+    "लंबवत मानक सहारा अंतर",
+    "Intervalo estándar de soporte vertical",
+    "تباعد الدعم الرأسي القياسي",
+    "ระยะรองรับมาตรฐานแนวตั้ง"
+  ],
+  "Vertical oversized / lightweight": [
+    "垂直超大 / 轻型",
+    "लंबवत बड़े आकार / हल्के",
+    "Vertical sobredimensionado / ligero",
+    "رأسي كبير المقاس / خفيف",
+    "แนวตั้งขนาดใหญ่ / น้ำหนักเบา"
+  ],
+  "Concrete floor thickness": [
+    "混凝土楼板厚度",
+    "कंक्रीट फर्श मोटाई",
+    "Espesor de suelo de hormigón",
+    "سماكة الأرضية الخرسانية",
+    "ความหนาพื้นคอนกรีต"
+  ],
+  "Concrete floor nominal density": [
+    "混凝土楼板标称密度",
+    "कंक्रीट फर्श नाममात्र घनत्व",
+    "Densidad nominal del suelo de hormigón",
+    "الكثافة الاسمية للأرضية الخرسانية",
+    "ความหนาแน่นตามพิกัดพื้นคอนกรีต"
+  ],
+  "Duct protection dried density": [
+    "风管保护层干燥密度",
+    "डक्ट सुरक्षा का शुष्क घनत्व",
+    "Densidad seca de protección del conducto",
+    "كثافة حماية المجرى الجافة",
+    "ความหนาแน่นแห้งวัสดุป้องกันท่อ"
+  ],
+  "Generic TDS reference density": [
+    "通用 TDS 参考密度",
+    "सामान्य TDS संदर्भ घनत्व",
+    "Densidad de referencia TDS general",
+    "كثافة مرجع TDS العامة",
+    "ความหนาแน่นอ้างอิง TDS ทั่วไป"
+  ],
+  "Generic theoretical coverage": [
+    "通用理论覆盖面积",
+    "सामान्य सैद्धांतिक कवरेज",
+    "Cobertura teórica general",
+    "التغطية النظرية العامة",
+    "พื้นที่ครอบคลุมเชิงทฤษฎีทั่วไป"
+  ],
+  "Coverage reference thickness": [
+    "覆盖面积参考厚度",
+    "कवरेज संदर्भ मोटाई",
+    "Espesor de referencia de cobertura",
+    "سماكة مرجع التغطية",
+    "ความหนาอ้างอิงพื้นที่ครอบคลุม"
+  ],
+  "Working net yield — DUCTS": [
+    "作业净产出率 — 风管",
+    "कार्यशील शुद्ध उपज — डक्ट",
+    "Rendimiento neto de trabajo — CONDUCTOS",
+    "صافي الإنتاجية العملية — المجاري",
+    "อัตราผลผลิตสุทธิใช้งาน — ท่อ"
+  ],
+  "Working coverage at 60 mm": [
+    "60 mm 作业覆盖面积",
+    "60 mm पर कार्यशील कवरेज",
+    "Cobertura de trabajo a 60 mm",
+    "التغطية العملية عند 60 mm",
+    "พื้นที่ครอบคลุมใช้งานที่ 60 mm"
+  ],
+  "Wall capping angle": [
+    "墙体压顶角钢",
+    "दीवार कैपिंग एंगल",
+    "Ángulo de remate de pared",
+    "زاوية تتويج الجدار",
+    "เหล็กฉากครอบผนัง"
+  ],
+  "Concrete floor TOP angle": [
+    "混凝土楼板上部角钢",
+    "कंक्रीट फर्श ऊपरी एंगल",
+    "Ángulo SUPERIOR de suelo de hormigón",
+    "زاوية أعلى الأرضية الخرسانية",
+    "เหล็กฉากเหนือพื้นคอนกรีต"
+  ],
+  "Concrete floor BOTTOM angle": [
+    "混凝土楼板下部角钢",
+    "कंक्रीट फर्श निचला एंगल",
+    "Ángulo INFERIOR de suelo de hormigón",
+    "زاوية أسفل الأرضية الخرسانية",
+    "เหล็กฉากใต้พื้นคอนกรีต"
+  ],
+  "Wall angle frames": [
+    "墙体角钢框架",
+    "दीवार एंगल फ्रेम",
+    "Marcos angulares de pared",
+    "إطارات زوايا الجدار",
+    "กรอบเหล็กฉากผนัง"
+  ],
+  "Floor frames — each profile": [
+    "楼板框架 — 每种截面",
+    "फर्श फ्रेम — प्रत्येक प्रोफ़ाइल",
+    "Marcos de suelo — cada perfil",
+    "إطارات الأرضية — لكل مقطع",
+    "กรอบพื้น — แต่ละหน้าตัด"
+  ],
+  "AAC / Speedpanel companion boards": [
+    "AAC / Speedpanel 配套板材",
+    "AAC / Speedpanel सहायक बोर्ड",
+    "Placas complementarias AAC / Speedpanel",
+    "ألواح تكميلية AAC / Speedpanel",
+    "แผ่นประกอบ AAC / Speedpanel"
+  ],
+  "Removed site inputs": [
+    "已移除的现场输入",
+    "हटाए गए साइट इनपुट",
+    "Entradas de obra retiradas",
+    "مدخلات الموقع المحذوفة",
+    "ข้อมูลหน้างานที่นำออก"
+  ],
+  "Net spray quantity convention": [
+    "净喷涂数量约定",
+    "शुद्ध स्प्रे मात्रा परिपाटी",
+    "Convención de cantidad neta proyectada",
+    "اصطلاح صافي كمية الرش",
+    "หลักเกณฑ์ปริมาณพ่นสุทธิ"
+  ],
+  "Yield basis": [
+    "产出率依据",
+    "उपज आधार",
+    "Base de rendimiento",
+    "أساس الإنتاجية",
+    "หลักเกณฑ์อัตราผลผลิต"
+  ],
+  "Up to 1200 mm": [
+    "不超过 1200 mm",
+    "1200 mm तक",
+    "Hasta 1200 mm",
+    "حتى 1200 mm",
+    "ไม่เกิน 1200 mm"
+  ],
+  "Yield source URL": [
+    "产出率来源网址",
+    "उपज स्रोत URL",
+    "URL de fuente del rendimiento",
+    "رابط مصدر الإنتاجية",
+    "URL แหล่งอัตราผลผลิต"
+  ],
+  "Assessment source": [
+    "评估来源",
+    "आकलन स्रोत",
+    "Fuente de evaluación",
+    "مصدر التقييم",
+    "แหล่งการประเมิน"
+  ],
+  "CAFCO yield interpretation": [
+    "CAFCO 产出率解释",
+    "CAFCO उपज व्याख्या",
+    "Interpretación del rendimiento CAFCO",
+    "تفسير إنتاجية CAFCO",
+    "การตีความอัตราผลผลิต CAFCO"
+  ],
+  "Calibration reference area": [
+    "校准参考面积",
+    "अंशांकन संदर्भ क्षेत्रफल",
+    "Área de referencia de calibración",
+    "مساحة مرجع المعايرة",
+    "พื้นที่อ้างอิงสอบเทียบ"
+  ],
+  "Calibration reference thickness": [
+    "校准参考厚度",
+    "अंशांकन संदर्भ मोटाई",
+    "Espesor de referencia de calibración",
+    "سماكة مرجع المعايرة",
+    "ความหนาอ้างอิงสอบเทียบ"
+  ],
+  "Calibration target net bags": [
+    "校准目标净袋数",
+    "अंशांकन लक्ष्य शुद्ध बैग",
+    "Sacos netos objetivo de calibración",
+    "صافي الأكياس المستهدف للمعايرة",
+    "จำนวนถุงสุทธิเป้าหมายสอบเทียบ"
+  ],
+  "Maximum duct width / height": [
+    "风管最大宽度 / 高度",
+    "अधिकतम डक्ट चौड़ाई / ऊँचाई",
+    "Anchura / altura máxima del conducto",
+    "العرض / الارتفاع الأقصى للمجرى",
+    "ความกว้าง / สูงท่อสูงสุด"
+  ],
+  "Stability / integrity ceiling": [
+    "稳定性 / 完整性上限",
+    "स्थिरता / अखंडता सीमा",
+    "Límite de estabilidad / integridad",
+    "حد الثبات / السلامة",
+    "ขีดจำกัดเสถียรภาพ / ความคงสภาพ"
+  ],
+  "Insulation ceiling": [
+    "隔热性上限",
+    "इन्सुलेशन सीमा",
+    "Límite de aislamiento",
+    "حد العزل",
+    "ขีดจำกัดการเป็นฉนวน"
+  ],
+  "Small duct maximum width": [
+    "小型风管最大宽度",
+    "छोटे डक्ट की अधिकतम चौड़ाई",
+    "Anchura máxima de conducto pequeño",
+    "عرض المجرى الصغير الأقصى",
+    "ความกว้างสูงสุดท่อขนาดเล็ก"
+  ],
+  "Small duct maximum height": [
+    "小型风管最大高度",
+    "छोटे डक्ट की अधिकतम ऊँचाई",
+    "Altura máxima de conducto pequeño",
+    "ارتفاع المجرى الصغير الأقصى",
+    "ความสูงสูงสุดท่อขนาดเล็ก"
+  ],
+  "Medium duct maximum dimension": [
+    "中型风管最大尺寸",
+    "मध्यम डक्ट का अधिकतम आयाम",
+    "Dimensión máxima de conducto mediano",
+    "البعد الأقصى للمجرى المتوسط",
+    "มิติสูงสุดท่อขนาดกลาง"
+  ],
+  "Small duct minimum BMT": [
+    "小型风管最小 BMT",
+    "छोटे डक्ट का न्यूनतम BMT",
+    "BMT mínimo de conducto pequeño",
+    "BMT الأدنى للمجرى الصغير",
+    "BMT ต่ำสุดท่อขนาดเล็ก"
+  ],
+  "Other duct minimum BMT": [
+    "其他风管最小 BMT",
+    "अन्य डक्ट का न्यूनतम BMT",
+    "BMT mínimo de otros conductos",
+    "BMT الأدنى للمجاري الأخرى",
+    "BMT ต่ำสุดท่ออื่น"
+  ],
+  "Horizontal hanger spacing": [
+    "水平吊架间距",
+    "क्षैतिज हैंगर दूरी",
+    "Separación de suspensión horizontal",
+    "تباعد التعليق الأفقي",
+    "ระยะห่างชุดแขวนแนวนอน"
+  ],
+  "Vertical intermediate-support trigger": [
+    "垂直中间支撑触发条件",
+    "लंबवत मध्यवर्ती सहारा शर्त",
+    "Umbral de soporte intermedio vertical",
+    "حد الدعم الرأسي الوسيط",
+    "เกณฑ์รองรับเสริมแนวตั้ง"
+  ],
+  "Standard concrete floor thickness": [
+    "标准混凝土楼板厚度",
+    "मानक कंक्रीट फर्श मोटाई",
+    "Espesor estándar de suelo de hormigón",
+    "سماكة الأرضية الخرسانية القياسية",
+    "ความหนามาตรฐานพื้นคอนกรีต"
+  ],
+  "Standard penetration clearance": [
+    "标准贯穿部间隙",
+    "मानक पेनेट्रेशन अंतर",
+    "Holgura estándar de penetración",
+    "خلوص الاختراق القياسي",
+    "ช่องว่างช่องทะลุมาตรฐาน"
+  ],
+  "Larger-duct wall stiffener": [
+    "大型风管壁加劲件",
+    "बड़े डक्ट दीवार का कठोरक",
+    "Rigidizador de pared de conducto grande",
+    "مقوي جدار المجرى الأكبر",
+    "ตัวเสริมผนังท่อขนาดใหญ่"
+  ],
+  "Wall perimeter frame allowance": [
+    "墙周边框架预留",
+    "दीवार परिधि फ्रेम भत्ता",
+    "Previsión de marco perimetral de pared",
+    "بدل إطار محيط الجدار",
+    "ค่าเผื่อกรอบรอบผนัง"
+  ],
+  "Floor perimeter frame allowance": [
+    "楼板周边框架预留",
+    "फर्श परिधि फ्रेम भत्ता",
+    "Previsión de marco perimetral de suelo",
+    "بدل إطار محيط الأرضية",
+    "ค่าเผื่อกรอบรอบพื้น"
+  ],
+  "Spray application basis": [
+    "喷涂应用依据",
+    "स्प्रे अनुप्रयोग आधार",
+    "Base de aplicación proyectada",
+    "أساس تطبيق الرش",
+    "หลักเกณฑ์การพ่น"
+  ],
+  "Un-injected nozzle yield": [
+    "未注入喷嘴产出率",
+    "बिना इंजेक्शन नोज़ल उपज",
+    "Rendimiento de boquilla sin inyección",
+    "إنتاجية الفوهة غير المحقونة",
+    "อัตราผลผลิตหัวพ่นไม่ฉีดสาร"
+  ],
+  "Injected nozzle yield": [
+    "注入喷嘴产出率",
+    "इंजेक्टेड नोज़ल उपज",
+    "Rendimiento de boquilla inyectada",
+    "إنتاجية الفوهة المحقونة",
+    "อัตราผลผลิตหัวพ่นฉีดสาร"
+  ],
+  "Board-foot volume": [
+    "板英尺体积",
+    "बोर्ड-फुट आयतन",
+    "Volumen de pie tablar",
+    "حجم القدم اللوحي",
+    "ปริมาตรบอร์ดฟุต"
+  ],
+  "Working net yield": [
+    "作业净产出率",
+    "कार्यशील शुद्ध उपज",
+    "Rendimiento neto de trabajo",
+    "صافي الإنتاجية العملية",
+    "อัตราผลผลิตสุทธิใช้งาน"
+  ],
+  "GCP AU published MK-6/HY bag": [
+    "GCP AU 公布的 MK-6/HY 袋装规格",
+    "GCP AU प्रकाशित MK-6/HY बैग",
+    "Saco MK-6/HY publicado por GCP AU",
+    "كيس MK-6/HY المنشور من GCP AU",
+    "ขนาดถุง MK-6/HY ตาม GCP AU"
+  ],
+  "Standard wall basis": [
+    "标准墙体依据",
+    "मानक दीवार आधार",
+    "Base de pared estándar",
+    "أساس الجدار القياسي",
+    "หลักเกณฑ์ผนังมาตรฐาน"
+  ],
+  "Standard floor basis": [
+    "标准楼板依据",
+    "मानक फर्श आधार",
+    "Base de suelo estándar",
+    "أساس الأرضية القياسية",
+    "หลักเกณฑ์พื้นมาตรฐาน"
+  ],
+  "Spray scope": [
+    "喷涂适用范围",
+    "स्प्रे दायरा",
+    "Alcance de proyección",
+    "نطاق الرش",
+    "ขอบเขตการพ่น"
+  ],
+  "Yield chart URL": [
+    "产出率图表网址",
+    "उपज चार्ट URL",
+    "URL de gráfico de rendimiento",
+    "رابط مخطط الإنتاجية",
+    "URL ตารางอัตราผลผลิต"
+  ],
+  "Local duct manual URL": [
+    "本地风管手册网址",
+    "स्थानीय डक्ट मैनुअल URL",
+    "URL de manual local de conductos",
+    "رابط دليل المجاري المحلي",
+    "URL คู่มือท่อท้องถิ่น"
+  ],
+  "GCP AU TDS URL": [
+    "GCP AU TDS 网址",
+    "GCP AU TDS URL",
+    "URL de TDS GCP AU",
+    "رابط GCP AU TDS",
+    "URL ของ GCP AU TDS"
+  ],
+  "Application choice": [
+    "应用选项",
+    "उपयोग चयन",
+    "Opción de aplicación",
+    "اختيار التطبيق",
+    "ตัวเลือกการใช้งาน"
+  ],
+  "Blanket layer thickness": [
+    "毡材层厚度",
+    "ब्लैंकेट परत मोटाई",
+    "Espesor de capa de manta",
+    "سماكة طبقة البطانية",
+    "ความหนาชั้นวัสดุหุ้ม"
+  ],
+  "Selected roll width": [
+    "所选卷材宽度",
+    "चयनित रोल चौड़ाई",
+    "Anchura de rollo seleccionada",
+    "عرض اللفة المختار",
+    "ความกว้างม้วนที่เลือก"
+  ],
+  "Roll length": [
+    "卷材长度",
+    "रोल लंबाई",
+    "Longitud de rollo",
+    "طول اللفة",
+    "ความยาวม้วน"
+  ],
+  "Required wrap overlap": [
+    "所需包覆搭接量",
+    "आवश्यक आवरण ओवरलैप",
+    "Solape requerido de envoltura",
+    "تراكب التغليف المطلوب",
+    "ระยะซ้อนทับหุ้มที่ต้องการ"
+  ],
+  "Board strip butt-joint gap": [
+    "板条对接缝间隙",
+    "बोर्ड पट्टी बट-जोड़ अंतर",
+    "Holgura de junta a tope de tira",
+    "فجوة الوصلة التناكبية للشرائط",
+    "ช่องว่างรอยต่อชนแถบแผ่น"
+  ],
+  "Maxilite thickness": [
+    "Maxilite 厚度",
+    "Maxilite मोटाई",
+    "Espesor Maxilite",
+    "سماكة Maxilite",
+    "ความหนา Maxilite"
+  ],
+  "Wall collars / local zones": [
+    "墙围框 / 局部区域",
+    "दीवार कॉलर / स्थानीय क्षेत्र",
+    "Collarines de pared / zonas locales",
+    "أطواق الجدار / المناطق الموضعية",
+    "กรอบผนัง / บริเวณเฉพาะ"
+  ],
+  "Floor local-WRAP zones": [
+    "楼板局部包覆区域",
+    "फर्श स्थानीय आवरण क्षेत्र",
+    "Zonas de ENVOLTURA local de suelo",
+    "مناطق التغليف الموضعية للأرضية",
+    "บริเวณหุ้มเฉพาะพื้นที่พื้น"
+  ],
+  "Band maximum centres": [
+    "带材最大中心距",
+    "बैंड अधिकतम केंद्र दूरी",
+    "Separación máxima entre centros de bandas",
+    "أقصى تباعد مركزي للأشرطة",
+    "ระยะศูนย์ถึงศูนย์สายรัดสูงสุด"
+  ],
+  "Pin grid maximum centres": [
+    "销钉网格最大中心距",
+    "पिन ग्रिड अधिकतम केंद्र दूरी",
+    "Separación máxima de retícula de pasadores",
+    "أقصى تباعد مركزي لشبكة المسامير",
+    "ระยะกริดหมุดสูงสุด"
+  ],
+  "Banding-only size threshold": [
+    "仅用带材固定的尺寸阈值",
+    "केवल बैंड आकार सीमा",
+    "Umbral de tamaño para solo bandas",
+    "حد المقاس للتثبيت بالأشرطة فقط",
+    "เกณฑ์ขนาดยึดด้วยสายรัดอย่างเดียว"
+  ],
+  "Band + one-face pins limit": [
+    "带材 + 单面销钉限制",
+    "बैंड + एक फलक पिन सीमा",
+    "Límite de banda + pasadores de una cara",
+    "حد الأشرطة ومسامير وجه واحد",
+    "ขีดจำกัดสายรัดและหมุดด้านเดียว"
+  ],
+  "Supplied table dimension envelope": [
+    "所提供表格的尺寸范围",
+    "दी गई तालिका की आयाम सीमा",
+    "Envolvente dimensional de tabla suministrada",
+    "نطاق أبعاد الجدول المقدم",
+    "ขอบเขตมิติในตารางที่ให้"
+  ],
+  "External support example envelope": [
+    "外部支撑示例范围",
+    "बाहरी सहारा उदाहरण सीमा",
+    "Envolvente de ejemplo de soporte exterior",
+    "نطاق مثال الدعم الخارجي",
+    "ขอบเขตตัวอย่างรองรับภายนอก"
+  ],
+  "Complete duct FRL auto-schedule": [
+    "完整风管 FRL 自动清单",
+    "पूर्ण डक्ट FRL स्वचालित अनुसूची",
+    "Listado automático completo de FRL del conducto",
+    "الجدول التلقائي الكامل لـ FRL المجرى",
+    "รายการ FRL ท่ออัตโนมัติครบถ้วน"
+  ],
+  "Added waste / error allowance": [
+    "附加损耗 / 误差预留",
+    "अतिरिक्त बर्बादी / त्रुटि भत्ता",
+    "Previsión añadida de merma / error",
+    "بدل الهدر / الخطأ المضاف",
+    "ค่าเผื่อสูญเสีย / ผิดพลาดเพิ่มเติม"
+  ],
+  "Selected actual roll area": [
+    "所选卷材实际面积",
+    "चयनित वास्तविक रोल क्षेत्रफल",
+    "Área real del rollo seleccionado",
+    "المساحة الفعلية للفة المختارة",
+    "พื้นที่จริงม้วนที่เลือก"
+  ],
+  "Width / height lookup convention": [
+    "宽度 / 高度查找约定",
+    "चौड़ाई / ऊँचाई खोज परिपाटी",
+    "Convención de consulta de anchura / altura",
+    "اصطلاح البحث عن العرض / الارتفاع",
+    "หลักเกณฑ์ค้นหาความกว้าง / สูง"
+  ],
+  "Local layer count basis": [
+    "局部层数依据",
+    "स्थानीय परत संख्या आधार",
+    "Base de recuento de capas locales",
+    "أساس عدد الطبقات الموضعية",
+    "หลักเกณฑ์จำนวนชั้นเฉพาะพื้นที่"
+  ],
+  "Standard penetration basis": [
+    "标准贯穿部依据",
+    "मानक पेनेट्रेशन आधार",
+    "Base de penetración estándar",
+    "أساس الاختراق القياسي",
+    "หลักเกณฑ์ช่องทะลุมาตรฐาน"
+  ],
+  "Nominal steel density": [
+    "钢材标称密度",
+    "नाममात्र इस्पात घनत्व",
+    "Densidad nominal del acero",
+    "الكثافة الاسمية للفولاذ",
+    "ความหนาแน่นเหล็กตามพิกัด"
+  ],
+  "Kilograms per tonne": [
+    "每吨千克数",
+    "प्रति टन किलोग्राम",
+    "Kilogramos por tonelada",
+    "كيلوغرامات لكل طن",
+    "กิโลกรัมต่อตัน"
+  ],
+  "Millimetres per metre": [
+    "每米毫米数",
+    "प्रति मीटर मिलीमीटर",
+    "Milímetros por metro",
+    "ملليمترات لكل متر",
+    "มิลลิเมตรต่อเมตร"
+  ],
+  "Square centimetres per square metre": [
+    "每平方米平方厘米数",
+    "प्रति वर्ग मीटर वर्ग सेंटीमीटर",
+    "Centímetros cuadrados por metro cuadrado",
+    "سنتيمترات مربعة لكل متر مربع",
+    "ตารางเซนติเมตรต่อตารางเมตร"
+  ],
+  "Default board wastage": [
+    "默认板材损耗率",
+    "डिफ़ॉल्ट बोर्ड बर्बादी",
+    "Merma predeterminada de placa",
+    "هدر الألواح الافتراضي",
+    "อัตราสูญเสียแผ่นเริ่มต้น"
+  ],
+  "COREX first general HpA row": [
+    "COREX 首行通用 HpA",
+    "COREX पहली सामान्य HpA पंक्ति",
+    "Primera fila HpA general COREX",
+    "أول صف HpA عام لـ COREX",
+    "แถว HpA ทั่วไปแรก COREX"
+  ],
+  "XS beam noggin protrusion per side": [
+    "XS 梁横撑每侧突出量",
+    "XS बीम नॉगिन प्रति ओर उभार",
+    "Saliente de travesaño XS por lado",
+    "بروز دعامة كمرة XS لكل جانب",
+    "ระยะยื่นค้ำคาน XS ต่อด้าน"
+  ],
+  "Default column critical temperature": [
+    "默认柱临界温度",
+    "डिफ़ॉल्ट स्तंभ क्रांतिक तापमान",
+    "Temperatura crítica predeterminada de pilar",
+    "الحرارة الحرجة الافتراضية للعمود",
+    "อุณหภูมิวิกฤตเสาเริ่มต้น"
+  ],
+  "Default beam critical temperature": [
+    "默认梁临界温度",
+    "डिफ़ॉल्ट बीम क्रांतिक तापमान",
+    "Temperatura crítica predeterminada de viga",
+    "الحرارة الحرجة الافتراضية للكمرة",
+    "อุณหภูมิวิกฤตคานเริ่มต้น"
+  ],
+  "P100/P250 standard detail maximum depth": [
+    "P100/P250 标准详图最大高度",
+    "P100/P250 मानक विवरण अधिकतम गहराई",
+    "Canto máximo del detalle estándar P100/P250",
+    "العمق الأقصى للتفصيل القياسي P100/P250",
+    "ความลึกสูงสุดรายละเอียดมาตรฐาน P100/P250"
+  ],
+  "P100/P250 standard detail maximum width": [
+    "P100/P250 标准详图最大宽度",
+    "P100/P250 मानक विवरण अधिकतम चौड़ाई",
+    "Anchura máxima del detalle estándar P100/P250",
+    "العرض الأقصى للتفصيل القياسي P100/P250",
+    "ความกว้างสูงสุดรายละเอียดมาตรฐาน P100/P250"
+  ],
+  "XS beam maximum height stated": [
+    "XS 梁已述最大高度",
+    "XS बीम उल्लिखित अधिकतम ऊँचाई",
+    "Altura máxima indicada de viga XS",
+    "الارتفاع الأقصى المعلن لكمرة XS",
+    "ความสูงสูงสุดคาน XS ที่ระบุ"
+  ],
+  "XS top-of-wall single layer minimum": [
+    "XS 墙顶单层最小值",
+    "XS दीवार शीर्ष एकल परत न्यूनतम",
+    "Mínimo monocapa XS en coronación de pared",
+    "الحد الأدنى للطبقة المفردة XS أعلى الجدار",
+    "ค่าต่ำสุดชั้นเดียว XS บนผนัง"
+  ],
+  "XS top-of-wall minimum steel width": [
+    "XS 墙顶最小钢材宽度",
+    "XS दीवार शीर्ष न्यूनतम इस्पात चौड़ाई",
+    "Anchura mínima de acero XS en coronación",
+    "عرض الفولاذ الأدنى XS أعلى الجدار",
+    "ความกว้างเหล็กต่ำสุด XS บนผนัง"
+  ],
+  "Unfilled trapezoid 90 minute HpA multiplier": [
+    "未填充梯形 90 minute HpA 乘数",
+    "खाली समलंब 90 minute HpA गुणक",
+    "Multiplicador HpA de trapecio sin relleno 90 minute",
+    "معامل HpA لشبه منحرف غير مملوء 90 minute",
+    "ตัวคูณ HpA ทรงคางหมูไม่บรรจุ 90 minute"
+  ],
+  "Boundary numerical tolerance": [
+    "边界数值容差",
+    "सीमा संख्यात्मक सहनशीलता",
+    "Tolerancia numérica del límite",
+    "السماحية العددية للحد",
+    "ค่าคลาดเคลื่อนตัวเลขขอบเขต"
+  ],
+  "COREX assessment maximum Hp/A": [
+    "COREX 评估最大 Hp/A",
+    "COREX आकलन अधिकतम Hp/A",
+    "Hp/A máximo de evaluación COREX",
+    "Hp/A الأقصى لتقييم COREX",
+    "Hp/A สูงสุดการประเมิน COREX"
+  ],
+  "COREX assessment maximum depth": [
+    "COREX 评估最大高度",
+    "COREX आकलन अधिकतम गहराई",
+    "Canto máximo de evaluación COREX",
+    "العمق الأقصى لتقييم COREX",
+    "ความลึกสูงสุดการประเมิน COREX"
+  ],
+  "COREX single-layer maximum thickness": [
+    "COREX 单层最大厚度",
+    "COREX एकल परत अधिकतम मोटाई",
+    "Espesor máximo monocapa COREX",
+    "السماكة القصوى للطبقة المفردة COREX",
+    "ความหนาสูงสุดชั้นเดียว COREX"
+  ],
+  "COREX maximum two-layer total": [
+    "COREX 双层总厚度上限",
+    "COREX अधिकतम दो परत कुल",
+    "Total máximo bicapa COREX",
+    "الإجمالي الأقصى لطبقتين COREX",
+    "ความหนารวมสูงสุดสองชั้น COREX"
+  ],
+  "COREX single-layer maximum period": [
+    "COREX 单层最大时间",
+    "COREX एकल परत अधिकतम अवधि",
+    "Periodo máximo monocapa COREX",
+    "المدة القصوى للطبقة المفردة COREX",
+    "ระยะเวลาสูงสุดชั้นเดียว COREX"
+  ],
+  "COREX 120-minute maximum published Hp/A": [
+    "COREX 120-minute 最大公布 Hp/A",
+    "COREX 120-minute अधिकतम प्रकाशित Hp/A",
+    "Hp/A máximo publicado COREX 120-minute",
+    "Hp/A المنشور الأقصى COREX 120-minute",
+    "Hp/A สูงสุดที่เผยแพร่ COREX 120-minute"
+  ],
+  "COREX 180-minute / 620 C maximum Hp/A": [
+    "COREX 180-minute / 620 C 最大 Hp/A",
+    "COREX 180-minute / 620 C अधिकतम Hp/A",
+    "Hp/A máximo COREX 180-minute / 620 C",
+    "Hp/A الأقصى COREX 180-minute / 620 C",
+    "Hp/A สูงสุด COREX 180-minute / 620 C"
+  ],
+  "COREX 180-minute / 550 C stock maximum Hp/A": [
+    "COREX 180-minute / 550 C 库存最大 Hp/A",
+    "COREX 180-minute / 550 C स्टॉक अधिकतम Hp/A",
+    "Hp/A máximo de existencias COREX 180-minute / 550 C",
+    "Hp/A الأقصى للمخزون COREX 180-minute / 550 C",
+    "Hp/A สูงสุดวัสดุคงคลัง COREX 180-minute / 550 C"
+  ],
+  "COREX 90-minute / 550 C maximum published Hp/A": [
+    "COREX 90-minute / 550 C 最大公布 Hp/A",
+    "COREX 90-minute / 550 C अधिकतम प्रकाशित Hp/A",
+    "Hp/A máximo publicado COREX 90-minute / 550 C",
+    "Hp/A المنشور الأقصى COREX 90-minute / 550 C",
+    "Hp/A สูงสุดที่เผยแพร่ COREX 90-minute / 550 C"
+  ],
+  "COREX upper-band lower boundary": [
+    "COREX 上段下边界",
+    "COREX ऊपरी बैंड की निचली सीमा",
+    "Límite inferior de banda superior COREX",
+    "الحد الأدنى للنطاق العلوي COREX",
+    "ขอบเขตล่างช่วงบน COREX"
+  ],
+  "COREX 90-minute / 550 C upper-band stock": [
+    "COREX 90-minute / 550 C 上段库存",
+    "COREX 90-minute / 550 C ऊपरी बैंड स्टॉक",
+    "Existencias de banda superior COREX 90-minute / 550 C",
+    "مخزون النطاق العلوي COREX 90-minute / 550 C",
+    "วัสดุคงคลังช่วงบน COREX 90-minute / 550 C"
+  ],
+  "COREX 120-minute / 550 C upper-band stock": [
+    "COREX 120-minute / 550 C 上段库存",
+    "COREX 120-minute / 550 C ऊपरी बैंड स्टॉक",
+    "Existencias de banda superior COREX 120-minute / 550 C",
+    "مخزون النطاق العلوي COREX 120-minute / 550 C",
+    "วัสดุคงคลังช่วงบน COREX 120-minute / 550 C"
+  ],
+  "SCHEDULE = members  |  SCHEDULE = take-off  |  SUMMARY = ordering  |  Open FACTOR CALCS for the Section Factor Helper.": [
+    "清单 = 构件 | 清单 = 工程量提取 | 汇总 = 订购 | 打开“系数计算”使用截面系数助手。",
+    "अनुसूची = सदस्य | अनुसूची = मात्रा मापन | सारांश = आदेश | अनुभाग गुणांक सहायक के लिए गुणांक गणना खोलें।",
+    "LISTADO = elementos | LISTADO = medición | RESUMEN = pedidos | Abra CÁLCULOS DE FACTOR para usar el asistente de factor de sección.",
+    "الجدول = العناصر | الجدول = حصر الكميات | الملخص = الطلبات | افتح حسابات المعامل لاستخدام مساعد معامل المقطع.",
+    "รายการ = ชิ้นส่วน | รายการ = ถอดปริมาณ | สรุป = สั่งซื้อ | เปิดการคำนวณค่าปัจจัยเพื่อใช้เครื่องช่วยค่าปัจจัยหน้าตัด"
+  ],
+  "Use SCHEDULE for one member or SCHEDULE for up to 1,000 lines. Select product, exposure, steel temperature and input method. Enter the exact section or verified factor. Lower-web input is only for Fendolite castellated beams.": [
+    "使用清单录入一个构件或最多 1,000 行。选择产品、受火情况、钢材温度和输入方式。输入准确的截面或已核实的系数。下腹板输入仅适用于 Fendolite 蜂窝梁。",
+    "एक सदस्य या अधिकतम 1,000 पंक्तियों के लिए अनुसूची का उपयोग करें। उत्पाद, अग्नि संपर्क, इस्पात तापमान और इनपुट विधि चुनें। सटीक अनुभाग या सत्यापित गुणांक दर्ज करें। निचले वेब का इनपुट केवल Fendolite कैस्टेलेटेड बीम के लिए है।",
+    "Use el LISTADO para un elemento o hasta 1.000 líneas. Seleccione producto, exposición, temperatura del acero y método de entrada. Introduzca la sección exacta o el factor verificado. La entrada del alma inferior es solo para vigas alveoladas Fendolite.",
+    "استخدم الجدول لعنصر واحد أو لما يصل إلى 1,000 سطر. اختر المنتج والتعرض ودرجة حرارة الفولاذ وطريقة الإدخال. أدخل المقطع الدقيق أو المعامل المتحقق منه. إدخال الجسر السفلي مخصص لكمرات Fendolite المفرغة فقط.",
+    "ใช้รายการสำหรับชิ้นส่วนเดียวหรือสูงสุด 1,000 แถว เลือกผลิตภัณฑ์ การรับไฟ อุณหภูมิเหล็ก และวิธีป้อนข้อมูล ป้อนหน้าตัดที่ตรงหรือค่าปัจจัยที่ตรวจสอบแล้ว ข้อมูลเอวล่างใช้เฉพาะคานเจาะช่อง Fendolite"
+  ],
+  "Read the visible result note before using estimating thickness. Excluded or unpublished cases return no bags. Published values and estimating replacements are not project design approval.": [
+    "采用估算厚度前，请阅读显示的结果说明。不适用或未公布的情况不返回袋数。公布值和用于估算的替代值不代表项目设计批准。",
+    "अनुमानित मोटाई उपयोग करने से पहले दिखाई गई परिणाम टिप्पणी पढ़ें। बाहर रखी गई या अप्रकाशित स्थितियों में बैग की मात्रा नहीं मिलती। प्रकाशित मान और अनुमान हेतु प्रतिस्थापन परियोजना डिज़ाइन की स्वीकृति नहीं हैं।",
+    "Lea la nota visible del resultado antes de usar el espesor estimado. Los casos excluidos o no publicados no devuelven cantidades de sacos. Los valores publicados y las sustituciones de estimación no constituyen aprobación del diseño del proyecto.",
+    "اقرأ ملاحظة النتيجة الظاهرة قبل استخدام السماكة التقديرية. لا تنتج الحالات المستبعدة أو غير المنشورة كميات أكياس. القيم المنشورة والبدائل التقديرية لا تمثل اعتمادا لتصميم المشروع.",
+    "อ่านหมายเหตุผลลัพธ์ที่แสดงก่อนใช้ความหนาประมาณ กรณีที่ไม่อยู่ในขอบเขตหรือไม่มีข้อมูลเผยแพร่จะไม่ให้จำนวนถุง ค่าที่เผยแพร่และค่าทดแทนสำหรับประมาณไม่ใช่การอนุมัติแบบโครงการ"
+  ],
+  "The complete SCHEDULE table stays together on one page. Keep the hidden Line ID unchanged. Use the 1,000 prepared rows; more rows require extending ENGINE.": [
+    "完整清单保留在同一页。请勿更改隐藏的行 ID。使用已准备的 1,000 行；增加行数需要扩展 ENGINE。",
+    "पूरी अनुसूची तालिका एक ही पृष्ठ पर साथ रहती है। छिपी Line ID को न बदलें। तैयार 1,000 पंक्तियों का उपयोग करें; अधिक पंक्तियों के लिए ENGINE का विस्तार आवश्यक है।",
+    "La tabla completa del LISTADO permanece unida en una página. Mantenga sin cambios el Line ID oculto. Use las 1.000 filas preparadas; más filas requieren ampliar ENGINE.",
+    "يبقى الجدول الكامل معا في صفحة واحدة. لا تغير معرف السطر المخفي. استخدم الصفوف الألف المعدة؛ تتطلب الصفوف الإضافية توسيع ENGINE.",
+    "ตารางรายการทั้งหมดอยู่รวมในหน้าเดียว อย่าเปลี่ยน Line ID ที่ซ่อนอยู่ ใช้ 1,000 แถวที่เตรียมไว้ หากต้องการมากกว่านี้ต้องขยาย ENGINE"
+  ],
+  "Verify pack size, method and site yield for each product. The original CAFCO workbook used an inherited assumption; new estimates use user-selected consumption settings. The startup densities are estimating assumptions; verify product-specific site yield. Add waste separately. See the historical product yield-source records on SETTINGS.": [
+    "核实每种产品的包装规格、施工方法及现场产出率。原 CAFCO 工作簿使用继承的假设；新估算使用用户选择的用量设置。初始密度为估算假设，请核实各产品的现场产出率。另行添加损耗。历史产品产出率来源记录见“设置”。",
+    "हर उत्पाद के पैक आकार, विधि और साइट उपज की पुष्टि करें। मूल CAFCO कार्यपुस्तिका में पुरानी धारणा उपयोग हुई थी; नए अनुमान उपयोगकर्ता द्वारा चुनी खपत सेटिंग्स का उपयोग करते हैं। शुरुआती घनत्व अनुमान संबंधी धारणाएँ हैं; उत्पाद-विशिष्ट साइट उपज की पुष्टि करें। बर्बादी अलग जोड़ें। सेटिंग्स में ऐतिहासिक उत्पाद उपज स्रोत रिकॉर्ड देखें।",
+    "Verifique el tamaño del envase, el método y el rendimiento en obra de cada producto. El libro CAFCO original usaba una hipótesis heredada; las nuevas estimaciones usan ajustes de consumo elegidos por el usuario. Las densidades iniciales son hipótesis de estimación; verifique el rendimiento en obra de cada producto. Añada la merma por separado. Consulte los registros históricos de fuentes de rendimiento en AJUSTES.",
+    "تحقق من حجم العبوة والطريقة والإنتاجية في الموقع لكل منتج. استخدم مصنف CAFCO الأصلي افتراضا موروثا؛ تستخدم التقديرات الجديدة إعدادات الاستهلاك التي يختارها المستخدم. الكثافات الأولية افتراضات تقديرية؛ تحقق من الإنتاجية الخاصة بكل منتج في الموقع. أضف الهدر بشكل منفصل. راجع سجلات مصادر الإنتاجية التاريخية للمنتجات في الإعدادات.",
+    "ตรวจสอบขนาดบรรจุ วิธีการ และอัตราผลผลิตหน้างานของแต่ละผลิตภัณฑ์ สมุดงาน CAFCO เดิมใช้สมมติฐานที่สืบทอดมา การประมาณใหม่ใช้การตั้งค่าอัตราการใช้ที่ผู้ใช้เลือก ความหนาแน่นเริ่มต้นเป็นสมมติฐานสำหรับประมาณ จึงต้องตรวจสอบอัตราผลผลิตหน้างานเฉพาะผลิตภัณฑ์ เพิ่มการสูญเสียแยกต่างหาก ดูประวัติแหล่งอัตราผลผลิตในหน้าตั้งค่า"
+  ],
+  "Have the designer confirm the member, exposure, steel temperature, substrate, fixings, application and thickness. Record the design references here. This estimator does not certify the fire design.": [
+    "请设计师确认构件、受火情况、钢材温度、基材、固定件、应用及厚度。在此记录设计参考。本估算工具不认证防火设计。",
+    "डिज़ाइनर से सदस्य, अग्नि संपर्क, इस्पात तापमान, आधार सामग्री, बन्धन, उपयोग और मोटाई की पुष्टि कराएँ। डिज़ाइन संदर्भ यहाँ दर्ज करें। यह अनुमानक अग्नि डिज़ाइन को प्रमाणित नहीं करता।",
+    "Solicite al diseñador que confirme elemento, exposición, temperatura del acero, sustrato, fijaciones, aplicación y espesor. Registre aquí las referencias de diseño. Este estimador no certifica el diseño contra incendios.",
+    "اطلب من المصمم تأكيد العنصر والتعرض ودرجة حرارة الفولاذ والركيزة والمثبتات والتطبيق والسماكة. سجل مراجع التصميم هنا. لا تصادق أداة التقدير هذه على تصميم الحريق.",
+    "ให้ผู้ออกแบบยืนยันชิ้นส่วน การรับไฟ อุณหภูมิเหล็ก วัสดุฐาน ตัวยึด การใช้งาน และความหนา บันทึกอ้างอิงแบบที่นี่ เครื่องประมาณนี้ไม่รับรองแบบป้องกันอัคคีภัย"
+  ],
+  "The workbook records the supplied report editions, not verified current validity. Review the complete signed reports for the project. AUDIT retains the source decisions and validation checks.": [
+    "工作簿记录的是所提供的报告版本，未核实其当前有效性。请为项目复核完整的已签署报告。AUDIT 保留来源决策和验证检查记录。",
+    "कार्यपुस्तिका दिए गए रिपोर्ट संस्करण दर्ज करती है; उनकी वर्तमान वैधता सत्यापित नहीं है। परियोजना के लिए पूरी हस्ताक्षरित रिपोर्टों की समीक्षा करें। AUDIT स्रोत निर्णय और सत्यापन जाँच रखता है।",
+    "El libro registra las ediciones de los informes facilitados, sin verificar su validez actual. Revise los informes firmados completos para el proyecto. AUDIT conserva las decisiones sobre fuentes y las comprobaciones de validación.",
+    "يسجل المصنف إصدارات التقارير المقدمة دون التحقق من صلاحيتها الحالية. راجع التقارير الكاملة الموقعة للمشروع. يحتفظ AUDIT بقرارات المصادر وفحوص التحقق.",
+    "สมุดงานบันทึกฉบับรายงานที่ได้รับ โดยยังไม่ได้ตรวจสอบความใช้ได้ในปัจจุบัน ทบทวนรายงานฉบับลงนามครบถ้วนสำหรับโครงการ AUDIT เก็บการตัดสินใจเกี่ยวกับแหล่งข้อมูลและผลตรวจสอบ"
+  ],
+  "Add schedule rows as needed, or import a schedule. Enter one member, or one group of identical members, per row. Enter the TOTAL lineal length for that row.": [
+    "按需添加清单行，或导入清单。每行输入一个构件或一组相同构件，并输入该行的总延米长度。",
+    "आवश्यकतानुसार अनुसूची पंक्तियाँ जोड़ें या अनुसूची आयात करें। हर पंक्ति में एक सदस्य या समान सदस्यों का एक समूह दर्ज करें। उस पंक्ति की कुल रेखीय लंबाई दर्ज करें।",
+    "Añada filas al listado según sea necesario o importe un listado. Introduzca un elemento o un grupo de elementos idénticos por fila. Introduzca la longitud lineal TOTAL de esa fila.",
+    "أضف صفوف الجدول حسب الحاجة أو استورد جدولا. أدخل عنصرا واحدا أو مجموعة عناصر متطابقة في كل صف. أدخل إجمالي الطول الطولي لذلك الصف.",
+    "เพิ่มแถวรายการตามต้องการหรือนำเข้ารายการ ป้อนหนึ่งชิ้นส่วนหรือกลุ่มชิ้นส่วนที่เหมือนกันต่อแถว แล้วป้อนความยาวตามยาวรวมของแถวนั้น"
+  ],
+  "Product; Steel ID OR ESA/M; lineal metres; exposed sides; FRL; Beam/Column; critical temperature; family for manual ESA input; wastage. FRL and temperature dropdowns follow the selected product/member.": [
+    "产品；钢材 ID 或 ESA/M；延米；受火面数；FRL；梁/柱；临界温度；手动 ESA 输入的截面类别；损耗率。FRL 和温度下拉选项随所选产品/构件变化。",
+    "उत्पाद; इस्पात ID या ESA/M; रेखीय मीटर; अग्नि-संपर्क वाले पक्ष; FRL; बीम/स्तंभ; क्रांतिक तापमान; मैनुअल ESA इनपुट के लिए अनुभाग परिवार; बर्बादी। FRL और तापमान ड्रॉपडाउन चयनित उत्पाद/सदस्य के अनुसार बदलते हैं।",
+    "Producto; ID del acero O ESA/M; metros lineales; caras expuestas; FRL; viga/pilar; temperatura crítica; familia para entrada ESA manual; merma. Las listas de FRL y temperatura dependen del producto/elemento seleccionado.",
+    "المنتج؛ معرف الفولاذ أو ESA/M؛ الأمتار الطولية؛ الأوجه المعرضة؛ FRL؛ كمرة/عمود؛ الحرارة الحرجة؛ عائلة المقطع لإدخال ESA اليدوي؛ الهدر. تتبع قوائم FRL والحرارة المنتج/العنصر المختار.",
+    "ผลิตภัณฑ์ รหัสเหล็กหรือ ESA/M เมตรตามยาว จำนวนด้านรับไฟ FRL คาน/เสา อุณหภูมิวิกฤต กลุ่มหน้าตัดสำหรับป้อน ESA เอง และอัตราสูญเสีย ตัวเลือก FRL และอุณหภูมิเปลี่ยนตามผลิตภัณฑ์/ชิ้นส่วนที่เลือก"
+  ],
+  "Read Row status for the actual issue and next action. No quantity = this row is excluded from purchasing. Warnings with a quantity state the checks or extra boards still needed. Box reference area is for reference only; Board required - net and Board incl waste are actual board quantities.": [
+    "阅读“行状态”了解实际问题及下一步操作。无数量表示该行不计入采购。有数量的警告会说明仍需进行的检查或增加的板材。箱体参考面积仅供参考；“板材净需求量”和“板材量（含损耗）”为实际板材数量。",
+    "वास्तविक समस्या और अगली कार्रवाई के लिए पंक्ति स्थिति पढ़ें। मात्रा नहीं होने का अर्थ है कि यह पंक्ति खरीद में शामिल नहीं है। मात्रा के साथ चेतावनियाँ आवश्यक जाँच या अतिरिक्त बोर्ड बताती हैं। बॉक्स संदर्भ क्षेत्रफल केवल संदर्भ के लिए है; आवश्यक शुद्ध बोर्ड और बर्बादी सहित बोर्ड वास्तविक बोर्ड मात्राएँ हैं।",
+    "Lea Estado de fila para conocer el problema y la siguiente acción. Sin cantidad significa que la fila se excluye de las compras. Las advertencias con cantidad indican comprobaciones o placas adicionales pendientes. El área de referencia de caja es solo orientativa; Placa necesaria - neta y Placa con merma son cantidades reales de placa.",
+    "اقرأ حالة الصف لمعرفة المشكلة الفعلية والإجراء التالي. عدم وجود كمية يعني استبعاد الصف من الشراء. توضح التحذيرات المصحوبة بكمية الفحوص أو الألواح الإضافية اللازمة. مساحة الصندوق المرجعية للمرجع فقط؛ صافي الألواح المطلوبة والألواح شاملة الهدر هما الكميتان الفعليتان.",
+    "อ่านสถานะแถวเพื่อทราบปัญหาและขั้นตอนถัดไป หากไม่มีปริมาณ แถวนั้นจะไม่รวมในการจัดซื้อ คำเตือนที่มีปริมาณจะระบุการตรวจสอบหรือแผ่นเพิ่มเติมที่ยังต้องใช้ พื้นที่กล่องอ้างอิงใช้เพื่ออ้างอิงเท่านั้น ปริมาณแผ่นสุทธิและปริมาณแผ่นรวมสูญเสียคือปริมาณจริง"
+  ],
+  "Use the whole-job pooled quantities for purchasing, not the sum of standalone line-sheet counts. Filtered-out schedule rows remain in the whole-job total. Stock is separated by product and actual board thickness.": [
+    "采购应使用整个项目合并后的数量，不应累加各行单独计算的板张数。筛选隐藏的清单行仍计入整个项目总量。库存按产品及实际板厚分别统计。",
+    "खरीद के लिए पूरे कार्य की संयुक्त मात्राओं का उपयोग करें, अलग-अलग पंक्तियों की शीट संख्या के योग का नहीं। फ़िल्टर से छिपी अनुसूची पंक्तियाँ पूरे कार्य के कुल में रहती हैं। स्टॉक उत्पाद और वास्तविक बोर्ड मोटाई के अनुसार अलग होता है।",
+    "Use las cantidades agrupadas de todo el trabajo para comprar, en vez de sumar las planchas calculadas por línea individual. Las filas ocultas por filtro siguen incluidas en el total del trabajo. Las existencias se separan por producto y espesor real de placa.",
+    "استخدم الكميات المجمعة للعمل بالكامل للشراء، بدلا من مجموع أعداد الألواح المنفردة لكل سطر. تبقى الصفوف المستبعدة بالترشيح ضمن إجمالي العمل. يفصل المخزون حسب المنتج وسماكة اللوح الفعلية.",
+    "ใช้ปริมาณที่รวมทั้งงานในการจัดซื้อ แทนการบวกจำนวนแผ่นที่คำนวณแยกแต่ละแถว แถวที่ถูกซ่อนด้วยตัวกรองยังอยู่ในยอดรวมทั้งงาน วัสดุคงคลังแยกตามผลิตภัณฑ์และความหนาแผ่นจริง"
+  ],
+  "Previously saved additional-board allowances remain included in purchasing totals.": [
+    "先前保存的额外板材预留仍计入采购总量。",
+    "पहले सहेजे गए अतिरिक्त बोर्ड भत्ते खरीद के कुल में शामिल रहते हैं।",
+    "Las previsiones de placas adicionales guardadas anteriormente siguen incluidas en los totales de compra.",
+    "تبقى بدلات الألواح الإضافية المحفوظة سابقا ضمن إجماليات الشراء.",
+    "ค่าเผื่อแผ่นเพิ่มเติมที่บันทึกไว้ก่อนหน้ายังคงรวมในยอดจัดซื้อ"
+  ],
+  "Row status gives the required action. Saved optional inputs, detailed calculation outputs and notes remain part of the workbook rules.": [
+    "“行状态”给出所需操作。已保存的可选输入、详细计算结果及说明仍属于工作簿规则的一部分。",
+    "पंक्ति स्थिति आवश्यक कार्रवाई बताती है। सहेजे गए वैकल्पिक इनपुट, विस्तृत गणना परिणाम और टिप्पणियाँ कार्यपुस्तिका नियमों का हिस्सा रहते हैं।",
+    "Estado de fila indica la acción necesaria. Las entradas opcionales guardadas, los resultados detallados y las notas siguen formando parte de las reglas del libro.",
+    "تبين حالة الصف الإجراء المطلوب. تبقى المدخلات الاختيارية المحفوظة ومخرجات الحساب التفصيلية والملاحظات جزءا من قواعد المصنف.",
+    "สถานะแถวระบุสิ่งที่ต้องดำเนินการ ข้อมูลเพิ่มเติม ผลคำนวณละเอียด และหมายเหตุที่บันทึกไว้ยังเป็นส่วนหนึ่งของกฎสมุดงาน"
+  ],
+  "Use START, SCHEDULE, BOARD SUMMARY and SETTINGS. Supporting reference data is retained by the application.": [
+    "使用“开始”、“清单”、“板材汇总”和“设置”。应用保留支持性参考数据。",
+    "प्रारंभ, अनुसूची, बोर्ड सारांश और सेटिंग्स का उपयोग करें। सहायक संदर्भ डेटा अनुप्रयोग में सुरक्षित रहता है।",
+    "Use INICIO, LISTADO, RESUMEN DE PLACAS y AJUSTES. La aplicación conserva los datos de referencia de apoyo.",
+    "استخدم البداية والجدول وملخص الألواح والإعدادات. يحتفظ التطبيق بالبيانات المرجعية الداعمة.",
+    "ใช้หน้าเริ่มต้น รายการ สรุปแผ่น และตั้งค่า แอปเก็บข้อมูลอ้างอิงประกอบไว้"
+  ],
+  "Schedules support up to 1,000 rows. Every entered row is included in the calculations and purchasing totals, including rows outside the current view.": [
+    "清单最多支持 1,000 行。所有已输入的行都计入计算和采购总量，包括当前视图之外的行。",
+    "अनुसूचियाँ अधिकतम 1,000 पंक्तियों का समर्थन करती हैं। हर दर्ज पंक्ति गणना और खरीद के कुल में शामिल होती है, वर्तमान दृश्य के बाहर की पंक्तियाँ भी।",
+    "Los listados admiten hasta 1.000 filas. Todas las filas introducidas se incluyen en los cálculos y totales de compra, incluso las que están fuera de la vista actual.",
+    "تدعم الجداول ما يصل إلى 1,000 صف. يدخل كل صف مسجل في الحسابات وإجماليات الشراء، بما في ذلك الصفوف خارج العرض الحالي.",
+    "รายการรองรับสูงสุด 1,000 แถว ทุกแถวที่ป้อนจะรวมในการคำนวณและยอดจัดซื้อ รวมถึงแถวที่อยู่นอกมุมมองปัจจุบัน"
+  ],
+  "Saved additional-board allowances remain included in the board summary.": [
+    "已保存的额外板材预留仍计入板材汇总。",
+    "सहेजे गए अतिरिक्त बोर्ड भत्ते बोर्ड सारांश में शामिल रहते हैं।",
+    "Las previsiones guardadas de placas adicionales siguen incluidas en el resumen de placas.",
+    "تبقى بدلات الألواح الإضافية المحفوظة ضمن ملخص الألواح.",
+    "ค่าเผื่อแผ่นเพิ่มเติมที่บันทึกไว้ยังคงรวมในสรุปแผ่น"
+  ]
+}

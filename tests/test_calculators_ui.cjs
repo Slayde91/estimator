@@ -2210,6 +2210,44 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
   entry.scheduleRows=undefined;assert.throws(()=>takeoffBridge.readTakeoffTarget('steel_board'),/unavailable/);
   context.document.activeElement=null;passed++;
 
+  // Fixed workbook interface cells translate without granting ownership of
+  // formula results, product text or editable cells that happen to match them.
+  const englishI18n = context.window.CeasefireI18n;
+  const messages = Object.assign({}, ...fs.readdirSync('static/locales').filter(name => name.endsWith('.json')).map(name => JSON.parse(fs.readFileSync(`static/locales/${name}`, 'utf8'))));
+  for (const localeIndex of [0, 1, 2, 3, 4]) {
+    const token = Symbol('owned interface term');
+    const translate = (source, args = []) => (messages[source]?.[localeIndex] || source).replace(/\{(\d+)\}/g, (match, index) => index >= args.length ? match : args[index]?.[token] ? translate(args[index].source, args[index].args) : String(args[index] ?? ''));
+    const text = (element, source, args = []) => { element.textContent = translate(source, args); return element; };
+    context.window.CeasefireI18n = {...englishI18n, text, nodeText: text, term: (source, args = []) => ({[token]: true, source, args})};
+    entry = setup();
+    const heading = element('th');
+    audit.updateOutputCell(heading, {address: 'D8', value: 'Steel ID', presentation: {role: 'column_header'}});
+    assert.equal(heading.textContent, messages['Steel ID'][localeIndex]);
+    for (const changes of [{address: 'D9'}, {calculated: true}, {editable: true}, {value: 'User Steel ID'}]) {
+      const sourceCell = {address: 'D8', value: 'Steel ID', ...changes};
+      audit.updateOutputCell(heading, sourceCell);
+      assert.equal(heading.textContent, sourceCell.value, 'source values and formulas retain their original text');
+    }
+    entry.sheet = 'SETTINGS';
+    audit.updateOutputCell(heading, {address: 'C5', value: 'Units', presentation: {role: 'column_header'}});
+    assert.equal(heading.textContent, messages.Units[localeIndex]);
+    audit.updateOutputCell(heading, {address: 'A6', value: 'Nominal steel density', presentation: {role: 'body'}});
+    assert.equal(heading.textContent, messages['Nominal steel density'][localeIndex], 'plain-weight settings row labels are translated');
+    entry.sheet = 'CALCULATOR';
+    const before = JSON.stringify(entry.inputs), beam = audit.makeControl({address: 'I9', column: 9, type: 'select', value: 'Beam', options: ['Beam', 'Column']}, 9, entry, 'Beam or Column');
+    assert.equal(beam.value, 'Beam'); assert.equal(JSON.stringify(entry.inputs), before);
+    assert.equal(beam.children.find(option => option.value === 'Beam').textContent, messages.Beam[localeIndex]);
+    const product = audit.makeControl({address: 'C9', column: 3, type: 'select', value: 'Beam', options: ['Beam', 'Column']}, 9, entry, 'Product');
+    assert.equal(product.children.find(option => option.value === 'Beam').textContent, 'Beam', 'identical product text is not translated');
+    const canonical = {product: 'Units', box_reference_area: 1.23456789012345, net_board_area: 2, whole_sheets: 3, incomplete_rows: 0, incomplete_extra_rows: 0};
+    const canonicalBefore = JSON.stringify(canonical), summary = element();
+    audit.renderProductTotals({board_product_totals: [canonical]}, summary);
+    assert.ok(descendants(summary).some(node => node.textContent === messages['No incomplete rows'][localeIndex]));
+    assert.ok(descendants(summary).some(node => node.tagName === 'th' && node.textContent === 'Units'), 'source product label is unchanged');
+    assert.equal(JSON.stringify(canonical), canonicalBefore); passed++;
+  }
+  context.window.CeasefireI18n = englishI18n;
+
   assert.match(fs.readFileSync('static/app.js', 'utf8'), /view === "calculators"[\s\S]*?CeasefireCalculators\?\.open/);
   console.log(`Calculator UI checks passed: ${passed}`);
 })().catch(error => { console.error(error); process.exitCode = 1; }).finally(() => clearTimeout(deadline));

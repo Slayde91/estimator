@@ -44,6 +44,17 @@ function harness(){
 let passed=0;
 async function check(name,fn){await fn(harness());passed++;console.log('ok - '+name);}
 (async()=>{
+  await check('Mandarin library headings and generated reference choices translate while source table columns stay literal',async h=>{
+    h.context.window.CeasefireI18n=require('./helpers/localized_i18n.cjs')();
+    await h.api.open('penetration');const pane=h.pane('penetration');
+    assert.ok(text(pane.list).includes(h.context.window.CeasefireI18n.translate('Search {0}',[h.context.window.CeasefireI18n.term('Firestopping Library')])));
+    const reference=walk(pane.filterControls).find(el=>el.dataset.libraryFilter==='technical_reference');
+    assert.deepEqual(reference.children.map(el=>el.value),['any','linked','unlinked']);
+    assert.equal(reference.children[1].textContent,h.context.window.CeasefireI18n.translate('Linked Technical References'));
+    h.setRoute(path=>path==='/api/libraries'?meta():{...detail('technical','technical-1'),fields:[{label:'Source data',table:{columns:['Board','Primer','Home'],rows:[['Home','Board','Primer']]}}]});
+    await h.api.open('technical','technical-1');const headings=walk(h.pane('technical').detailPanel).filter(el=>el.tagName==='th');
+    assert.deepEqual(headings.map(el=>el.textContent),['Board','Primer','Home']);
+  });
   await check('Localized library chrome preserves source facet and manufacturer names matching catalog keys',async h=>{
     const localized=(source,args=[])=>'translated:'+String(source).replace(/\{(\d+)\}/g,(match,index)=>index<args.length?String(typeof args[index]==='function'?args[index]():args[index]):match);
     h.context.window.CeasefireI18n={text(element,source,args){element.textContent=localized(source,args);return element;},attr(element,name,source,args){element.setAttribute(name,localized(source,args));return element;},translate:localized};

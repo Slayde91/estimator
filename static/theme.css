@@ -106,7 +106,6 @@
   :root[data-theme]:not([data-theme="ceasefire"]) :is(.takeoff-register,.takeoff-toolbar,.takeoff-viewer-toolbar,.takeoff-document-controls,.takeoff-search,.takeoff-modal,.takeoff-annotation-panel) { background:var(--theme-surface); color:var(--ink); border-color:var(--line); }
   :root[data-theme]:not([data-theme="ceasefire"]) :is(.takeoff-register th,.takeoff-column-filter-menu):not(.takeoff-physical-register th) { background:var(--theme-soft); color:var(--ink); }
   :root[data-theme="midnight"] :is(.gear-symbol,.calculator-symbol-button,.penetration-group,.library-summary-table th,.library-summary-table td) { color:var(--ink); }
-  :root[data-theme="midnight"] .brand-logo { filter:brightness(0) invert(1); }
   :root[data-theme="midnight"] .header-tagline-character { filter:url(#header-character-white); }
   :root[data-theme="midnight"] footer { color:var(--muted); }
   /* Tint only application controls; retained drawing pixels and artwork bytes stay unchanged. */
@@ -128,7 +127,7 @@
 @media screen {
   :root[data-theme] :is(.main-section-tab,.calculator-page,.calculator-settings-choice,.penetration-group,.tab):hover:not(:disabled){background:var(--theme-button);color:#fff}
   :root :is(.main-section-tab,.calculator-page,.calculator-settings-choice,.penetration-group,.tab):focus-visible{outline-color:var(--theme-focus)}
-  :root[data-theme="midnight"] .brand-logo{background:#fff;border-radius:6px;filter:none}
+  :root .brand-logo{background:transparent;border-radius:0}
 }
 
 /* These source/draft tables retain their red, black and white presentation. */

@@ -11,6 +11,12 @@
     element.setAttribute(name, value); if (["title", "placeholder"].includes(name)) element[name] = value; return element;
   };
   const uiNode = (tag, cls, source, args = []) => { const element = node(tag, cls); return window.CeasefireI18n?.nodeText ? window.CeasefireI18n.nodeText(element, source, args) : uiText(element, source, args); };
+  const uiTerm = (source, args = []) => window.CeasefireI18n?.term ? window.CeasefireI18n.term(source, args) : String(source).replace(/\{(\d+)\}/g, (match, index) => args[index] === undefined ? match : String(args[index]));
+  // These names describe application task rows and quantity contexts. Product
+  // names and unexpected source labels never enter a translation binding.
+  const taskLabels = new Set(["Labour", "Additional Labour", "Register allowance", "Board", "Collars", "Mastic", "Framing", "Wrap", "Other"]);
+  const quantityContexts = Object.freeze({ CJ: "Substrate", CQ: "Bulkhead", AN: "Collars", AC: "Mastic Qty", CU: "Bulkhead", BS: "Pipes", CB: "Cabletrays", AF: "Additional material" });
+  const inputError = value => typeof value === "string" && /^#(?:VALUE!|REF!|NUM!|DIV\/0!|N\/A|NAME\?|NULL!|CALC!)/.test(value);
 
   const number = new Intl.NumberFormat("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const currency = new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" });
@@ -18,19 +24,36 @@
   const node = (tag, className = "", text) => { const element = document.createElement(tag); if (className) element.className = className; if (text !== undefined) element.textContent = String(text); return element; };
   function display(value, format) {
     if (value === null || value === undefined || value === "") return "—";
-    if (typeof value === "string" && /^#(?:VALUE!|REF!|NUM!|DIV\/0!|N\/A|NAME\?|NULL!|CALC!)/.test(value)) return "Check inputs";
+    if (inputError(value)) return "Check inputs";
     if (typeof value !== "number" || !Number.isFinite(value)) return String(value);
     return format === "currency" ? currency.format(value) : format === "percent" ? percent.format(value) : number.format(value);
   }
+  const displayNode = (tag, value, format) => inputError(value) ? uiNode(tag, "", "Check inputs") : node(tag, "", display(value, format));
   function details(values, format) {
     const cell = node("td");
     if (!Array.isArray(values) || !values.length) { cell.textContent = "—"; return cell; }
     for (const value of values) {
       const entry = node("div", "penetration-breakdown-value");
-      if (value.label) entry.append(node("span", "penetration-breakdown-context", value.label));
-      entry.append(node("span", "", `${display(value.value, value.format || format)}${value.units ? ` ${value.units}` : ""}`)); cell.append(entry);
+      if (value.label) entry.append(contextLabel(value));
+      entry.append(inputError(value.value) ? uiNode("span", "", "{0}{1}", [uiTerm("Check inputs"), value.units ? ` ${value.units}` : ""]) : node("span", "", `${display(value.value, value.format || format)}${value.units ? ` ${value.units}` : ""}`)); cell.append(entry);
     }
     return cell;
+  }
+  function contextLabel(value) {
+    const label = value.label, context = Object.hasOwn(quantityContexts, value.column) ? quantityContexts[value.column] : null, cls = "penetration-breakdown-context";
+    if (context && label === context && !value.product) return uiNode("span", cls, context);
+    if (Object.hasOwn(value, "product")) {
+      // The server supplies product identity separately from its composed label.
+      // Verify that composition before localizing only its application context.
+      if (value.product && context && label === `${value.product} · ${context}`) return uiNode("span", cls, "{0} · {1}", [value.product, uiTerm(context)]);
+      if (!value.product) {
+        const line = String(label).match(/^Line (\d+)(?: · (.*))?$/);
+        if (line && (!line[2] || line[2] === context)) return line[2]
+          ? uiNode("span", cls, "{0} · {1}", [uiTerm("Line {0}", [line[1]]), uiTerm(context)])
+          : uiNode("span", cls, "Line {0}", [line[1]]);
+      }
+    }
+    return node("span", cls, label);
   }
   function sourceGroups(container, definition, row) {
     if (Array.isArray(row.breakdown?.source_groups)) {
@@ -77,15 +100,15 @@
     for (const label of ["Item", "Unit Prices", "Material Quantities", "Material Costs", "Labour Costs", "Task Hours"]) { const cell = uiNode("th", "", label); cell.setAttribute("scope", "col"); headings.append(cell); }
     head.append(headings);
     for (const item of breakdown.rows) {
-      const line = node("tr"), label = node("th", "", item.label); label.setAttribute("scope", "row");
+      const line = node("tr"), label = taskLabels.has(item.label) ? uiNode("th", "", item.label) : node("th", "", item.label); label.setAttribute("scope", "row");
       line.append(label, details(item.unit_prices, "currency"), details(item.material_quantities, "number"));
-      for (const [key, format] of [["material_costs", "currency"], ["labour_costs", "currency"], ["task_hours", "number"]]) line.append(node("td", "", display(item[key], format)));
+      for (const [key, format] of [["material_costs", "currency"], ["labour_costs", "currency"], ["task_hours", "number"]]) line.append(displayNode("td", item[key], format));
       body.append(line);
     }
     const label = uiNode("th", "", "Subtotal"); label.setAttribute("scope", "row"); label.colSpan = 3; subtotal.append(label);
-    for (const [key, format] of [["material_costs", "currency"], ["labour_costs", "currency"], ["task_hours", "number"]]) subtotal.append(node("td", "", display(breakdown.totals?.[key], format)));
+    for (const [key, format] of [["material_costs", "currency"], ["labour_costs", "currency"], ["task_hours", "number"]]) subtotal.append(displayNode("td", breakdown.totals?.[key], format));
     foot.append(subtotal); table.append(head, body, foot); scroll.append(table); container.append(scroll);
-    if (breakdown.note) container.append(node("p", "helper penetration-breakdown-note", breakdown.note));
+    if (breakdown.note && !schedule) container.append(node("p", "helper penetration-breakdown-note", breakdown.note));
     sourceGroups(container, definition, row);
     return container;
   }

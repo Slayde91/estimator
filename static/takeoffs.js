@@ -2393,7 +2393,7 @@
     for (const item of list) {
       const row = node("tr", state.selected.has(item.id) ? "selected" : ""); row.dataset.itemId = item.id; row.dataset.purpose = item.purpose;
       for (const [label, set] of [["Select", state.selected], ["Hide", state.hidden]]) { const cell = node("td"), check = node("input"); check.type = "checkbox"; check.checked = set.has(item.id); check.setAttribute("aria-label", `${label} ${item.fields.mark || item.id}`); check.addEventListener("change", () => void safely(async () => { if (label === "Select") await selectItem(item.id, true, false); else { check.checked ? set.add(item.id) : set.delete(item.id); renderSelection(); } })); cell.append(check); row.append(cell); }
-      const actions = node("td"); actions.append(uiButton("View", () => viewItem(item), "takeoff-row-link"), uiButton("Edit item", () => openItemSettings(item), "text-button")); row.append(actions, node("td", "", reviewStatus(item).label));
+      const actions = node("td"); actions.append(uiButton("View", () => viewItem(item), "takeoff-row-link"), uiButton("Edit item", () => openItemSettings(item), "text-button")); row.append(actions, uiNode("td", "", reviewStatus(item).label));
       const controls = [];
       for (const def of standaloneFields) { const field = formField(def, def[0] === "duct_size" ? formatDuctSize(item.fields) : item.fields[def[0]]); controls.push(field); field.control.addEventListener("change", () => void safely(async () => { await flushSettings(); requireFinishedEdits(); await command("update_item", { item_id: item.id, changes: { fields: def[0] === "duct_size" ? parseDuctSize(field.read()) : { [def[0]]: field.read() } } }); })); const cell = node("td"); cell.append(field.control); row.append(cell); }
       row.append(node("td", "", item.purpose === "count-only" ? String(item.quantity) : formatLength(itemResult(item).length_m)), registerDeleteCell(item)); body.append(row);
@@ -3740,10 +3740,12 @@
   }
   function updateLinkedThicknessCell(cell, item) {
     const thickness = linkedThicknessFor(item); cell.textContent = thickness.text; cell.title = thickness.detail;
+    if (["Unavailable", "Checking…"].includes(thickness.text)) window.CeasefireI18n.text(cell, thickness.text);
     window.CeasefireI18n.attr(cell, "aria-label", "Thickness (mm): {0}. {1}", [thickness.text, thickness.detail]);
   }
   function updateLinkedDuctSurfaceCell(cell, item) {
     const surface = linkedThicknessFor(item, "duct_surface"); cell.textContent = surface.text; cell.title = surface.detail;
+    if (["Unavailable", "Checking…"].includes(surface.text)) window.CeasefireI18n.text(cell, surface.text);
     window.CeasefireI18n.attr(cell, "aria-label", "Duct surface (m²): {0}. {1}", [surface.text, surface.detail]);
   }
   function updateLinkedThicknessPresentation() {
@@ -3815,19 +3817,20 @@
   async function openRegisterColumnFilter(key, anchor) {
     if (state.modal || !usesColumnFilters() || !Object.hasOwn(registerFilterColumns[state.mode], key)) return;
     const sessionId = state.session?.session_id, mode = state.mode, values = registerColumnValues(key), selected = new Set(registerFilters().get(key) ?? values);
-    const label = registerFilterColumns[mode][key], dialog = node("dialog", "takeoff-column-filter"), heading = uiNode("h2", "", "Filter {0}", [label]);
+    const label = registerFilterColumns[mode][key], dialog = node("dialog", "takeoff-column-filter"), heading = uiNode("h2", "", "Filter {0}", [window.CeasefireI18n.term(label)]);
     heading.id = `takeoff-column-filter-${uuid()}`; dialog.setAttribute("aria-labelledby", heading.id);
-    const search = node("input"); search.type = "search"; window.CeasefireI18n.attr(search, "placeholder", "Search values…"); window.CeasefireI18n.attr(search, "aria-label", "Search {0} values", [label]);
+    const search = node("input"); search.type = "search"; window.CeasefireI18n.attr(search, "placeholder", "Search values…"); window.CeasefireI18n.attr(search, "aria-label", "Search {0} values", [window.CeasefireI18n.term(label)]);
     const allLabel = node("label", "takeoff-column-filter-choice"), all = node("input"); all.type = "checkbox"; window.CeasefireI18n.attr(all, "aria-label", "Select all values"); allLabel.append(all, uiNode("span", "", "Select all"));
-    const choices = node("div", "takeoff-column-filter-values"); choices.setAttribute("role", "group"); window.CeasefireI18n.attr(choices, "aria-label", "{0} values", [label]);
+    const choices = node("div", "takeoff-column-filter-values"); choices.setAttribute("role", "group"); window.CeasefireI18n.attr(choices, "aria-label", "{0} values", [window.CeasefireI18n.term(label)]);
     let matching = values;
     const updateAll = () => { const count = matching.filter(value => selected.has(value)).length; all.checked = !!matching.length && count === matching.length; all.indeterminate = count > 0 && count < matching.length; all.disabled = !matching.length; };
     const renderChoices = () => {
-      const query = search.value.trim().toLowerCase(); matching = values.filter(value => (value || "(Blanks)").toLowerCase().includes(query)); choices.replaceChildren();
+      const query = search.value.trim().toLowerCase(); matching = values.filter(value => (value || "(Blanks)").toLowerCase().includes(query) || (!value || key === "confirmation") && window.CeasefireI18n.translate(value || "(Blanks)").toLowerCase().includes(query)); choices.replaceChildren();
       for (const value of matching) {
-        const choice = node("label", "takeoff-column-filter-choice"), check = node("input"); check.type = "checkbox"; check.checked = selected.has(value); check.setAttribute("aria-label", value || "(Blanks)");
+        const choice = node("label", "takeoff-column-filter-choice"), check = node("input"), owned = !value || key === "confirmation"; check.type = "checkbox"; check.checked = selected.has(value); check.setAttribute("aria-label", value || "(Blanks)");
+        if (owned) window.CeasefireI18n.attr(check, "aria-label", value || "(Blanks)");
         check.addEventListener("change", () => { check.checked ? selected.add(value) : selected.delete(value); updateAll(); });
-        choice.append(check, node("span", "", value || "(Blanks)")); choices.append(choice);
+        choice.append(check, (owned ? uiNode : node)("span", "", value || "(Blanks)")); choices.append(choice);
       }
       if (!matching.length) choices.append(uiNode("p", "takeoff-column-filter-empty", "No matching values"));
       updateAll();
@@ -3853,7 +3856,7 @@
     const active = registerFilters().has(key), label = registerFilterColumns[state.mode][key];
     const control = button(`Filter ${label}`, () => openRegisterColumnFilter(key, control), `takeoff-column-filter-button${active ? " active" : ""}`);
     const icon = svg("svg", { viewBox: "0 0 24 24", "aria-hidden": "true", class: "takeoff-column-filter-icon" }); icon.append(svg("path", { d: "M3 5h18l-7 8v6l-4 2v-8z", fill: active ? "currentColor" : "none", stroke: "currentColor", "stroke-width": 1.8, "stroke-linejoin": "round" }));
-    control.replaceChildren(icon); window.CeasefireI18n.attr(control, "aria-label", "Filter {0}", [label]); control.setAttribute("aria-haspopup", "dialog"); control.setAttribute("aria-expanded", "false"); control.setAttribute("aria-pressed", String(active)); control.title = active ? `${label}: filter applied` : `Filter ${label}`;
+    control.replaceChildren(icon); window.CeasefireI18n.attr(control, "aria-label", "Filter {0}", [window.CeasefireI18n.term(label)]); control.setAttribute("aria-haspopup", "dialog"); control.setAttribute("aria-expanded", "false"); control.setAttribute("aria-pressed", String(active)); window.CeasefireI18n.attr(control, "title", active ? "{0}: filter applied" : "Filter {0}", [window.CeasefireI18n.term(label)]);
     return control;
   }
   function visibleItems() {
@@ -4042,10 +4045,10 @@
       const checkCell = node("td"), check = node("input"); check.type = "checkbox"; check.checked = state.selected.has(item.id); window.CeasefireI18n.attr(check, "aria-label", "Select {0}", [item.fields.mark || item.id]); check.addEventListener("change", () => void safely(async () => { await selectItem(item.id, true, false); check.checked = state.selected.has(item.id); })); checkCell.append(check);
       const showCell = node("td"), show = node("input"); show.type = "checkbox"; show.checked = state.hidden.has(item.id); window.CeasefireI18n.attr(show, "aria-label", "Hide {0} on drawing", [item.fields.mark || item.id]); show.addEventListener("change", () => { show.checked ? state.hidden.add(item.id) : state.hidden.delete(item.id); renderRegister(); renderOverlay(); }); showCell.append(show);
       const linkCell = node("td"), edit = uiButton("Edit item", () => openItemSettings(item), "text-button"); edit.setAttribute("aria-controls", "takeoff-markup-settings");
-      linkCell.append(uiButton("View", () => viewItem(item), "takeoff-row-link"), edit); const reviewCell = node("td"); reviewCell.append(node("span", `takeoff-state ${reviewStatus(item).key}`, reviewStatus(item).label)); row.append(checkCell, showCell, linkCell, reviewCell);
+      linkCell.append(uiButton("View", () => viewItem(item), "takeoff-row-link"), edit); const reviewCell = node("td"); reviewCell.append(uiNode("span", `takeoff-state ${reviewStatus(item).key}`, reviewStatus(item).label)); row.append(checkCell, showCell, linkCell, reviewCell);
       const rowFields = [];
       for (const key of [...columns, ...(area ? [] : ["quantity"])]) {
-        if (key === "surface_type") { row.append(node("td", "", surfaceType(item))); continue; }
+        if (key === "surface_type") { row.append(uiNode("td", "", surfaceType(item))); continue; }
         const initial = key === "quantity" ? item.quantity : key === "duct_size" ? formatDuctSize(item.fields) : key === "layers" ? item.fields.layers ?? 1 : item.fields[key];
         const def = key === "quantity" ? [key, "Quantity", "number"] : fields[item.mode].find(field => field[0] === key), field = formField(def, initial); rowFields.push(field);
         if (isCount(item)) { field.control.readOnly = true; field.control.disabled = true; field.control.dataset.countReadOnly = "true"; window.CeasefireI18n.attr(field.control, "title", key === "quantity" ? "Quantity is derived from count markers." : "Edit shared Count details using Edit item."); field.sectionSearch?.setLocked(); }

@@ -35,7 +35,7 @@ async function dock(){
   for(const label of layout.labels){assert.notEqual(label.display,'none');assert.ok(label.width>0&&label.height>0&&label.y>=label.iconBottom,JSON.stringify({width,label}));}
   assert.ok(layout.tagline.x>=layout.brand.right,'Mascot and quote sit to the right of the logo');assert.ok(layout.nav.right<=width&&layout.header.bottom>=layout.nav.bottom);
   assert.equal(layout.headerBackground,'rgb(255, 255, 255)');assert.equal(layout.zoom,'0.65');assert.equal(layout.transform,'none');
-  for(const axis of ['width','height']){assert.ok(Math.abs(layout.nav[axis]-unscaled.nav[axis]*.65)<1,`Navigation ${axis} is 65% of its previous layout size at ${width}`);assert.ok(Math.abs(layout.wrapper[axis]-layout.nav[axis])<.1,'Navigation frees its occupied layout space');}
+  for(const axis of ['width','height']){assert.ok(Math.abs(layout.nav[axis]-unscaled.nav[axis]*.65)<1,`Navigation ${axis} is 65% of its previous layout size at ${width}: ${JSON.stringify({unscaled,layout})}`);assert.ok(Math.abs(layout.wrapper[axis]-layout.nav[axis])<.1,'Navigation frees its occupied layout space');}
   for(const [index,button]of layout.buttons.entries())for(const axis of ['width','height'])assert.ok(Math.abs(button[axis]-unscaled.buttons[index][axis]*.65)<1,`Navigation button ${index} ${axis} is 35% smaller at ${width}`);
   if(width<=1150)assert.ok(width-layout.nav.right<=(width<=720?14:30)+1,'Responsive navigation keeps its right alignment');
   if(width>1150){assert.ok(width-layout.nav.right<=32,'Navigation occupies the far right');assert.ok(layout.tagline.right<=layout.nav.x);}

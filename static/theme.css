@@ -170,7 +170,9 @@
   /* Input values override workbook centring without moving summary-table numbers. */
   :root[data-theme] .calculator-grid :is(input,select,textarea),
   :root[data-theme] .calculator-grid .calculator-responsive-form td[data-calculator-value],
-  :root[data-theme] .calculator-grid .calculator-responsive-form td[data-calculator-value] :is(.calculator-value-present,.calculator-value-empty,.calculator-virtual-output) { text-align:left!important; text-align-last:left!important; }
+  :root[data-theme] .calculator-grid .calculator-settings-panel .calculator-form-table:not(.calculator-projection-table) td[data-calculator-value],
+  :root[data-theme] .calculator-grid .calculator-responsive-form td[data-calculator-value] :is(.calculator-value-present,.calculator-value-empty,.calculator-virtual-output),
+  :root[data-theme] .calculator-grid .calculator-settings-panel .calculator-form-table:not(.calculator-projection-table) td[data-calculator-value] :is(.calculator-value-present,.calculator-value-empty,.calculator-virtual-output) { text-align:left!important; text-align-last:left!important; }
 
   /* These are application forms and drafts, never retained drawing/image pixels. */
   :root[data-theme] .takeoff-physical-register { background:var(--theme-surface); color:var(--ink); border-color:var(--line); border-top-color:var(--theme-edge); }

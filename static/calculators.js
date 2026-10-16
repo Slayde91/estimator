@@ -1905,7 +1905,6 @@
       }
     }
     const headRow = node("tr");
-    if (dynamicSchedule) { const heading = uiNode("th", "calculator-row-action", "Row"); heading.scope = "col"; headRow.append(heading); }
     if (syntheticLine) { const heading = uiNode("th", "calculator-line-number", "Line"); heading.scope = "col"; headRow.append(heading); }
     for (const column of columns) {
       const label = String(labels[column] || "");
@@ -1914,7 +1913,7 @@
       widths.push(width);
       const heading = uiNode("th", "", labels[column] || ""); heading.scope = "col"; headRow.append(heading);
     }
-    if (dynamicSchedule) { const heading = uiNode("th", "calculator-row-action", "Delete"); heading.scope = "col"; headRow.append(heading); }
+    if (dynamicSchedule) { const heading = uiNode("th", "calculator-row-action", "Actions"); heading.scope = "col"; headRow.append(heading); }
     head.append(headRow);
     let introPlaced = false;
     for (const [group, renderedGroup] of sections) for (const row of renderedGroup.sourceRows) {
@@ -1924,13 +1923,6 @@
       tr.dataset.sourceRow = String(row.row);
       if (dynamicSchedule) {
         tr.setAttribute("aria-rowindex", String(entry.scheduleRows.indexOf(row.row) + 2));
-        const action = node("td", "calculator-row-action"); action.append(uiNode("span", "", "Line {0}", [item]));
-        for (const binding of window.CeasefireTakeoffs?.scheduleBindings(entry.definition.id, row.row) || []) {
-          const source = uiNode("button", "takeoff-source-indicator", "Source"); source.type = "button";
-          window.CeasefireI18n.attr(source, "title", "Open takeoff {0}", [binding.item_id]); window.CeasefireI18n.attr(source, "aria-label", "Open takeoff {0}", [binding.item_id]);
-          source.addEventListener("click", () => void window.CeasefireTakeoffs.showSource(binding.item_id)); action.append(source);
-        }
-        tr.append(action);
       }
       if (syntheticLine) tr.append(node("td", "calculator-line-number", item));
       const requestedLayout = renderedGroup.definition?.row_layouts?.[row.row];
@@ -1997,7 +1989,13 @@
         td.hidden = hiddenAddresses.has(address); tr.append(td);
       }
       if (dynamicSchedule) {
-        const action = node("td", "calculator-row-action"); action.append(scheduleDeleteButton(row.row, entry, deleteReview)); tr.append(action);
+        const action = node("td", "calculator-row-action");
+        for (const binding of window.CeasefireTakeoffs?.scheduleBindings(entry.definition.id, row.row) || []) {
+          const source = uiNode("button", "takeoff-source-indicator", "Source"); source.type = "button";
+          window.CeasefireI18n.attr(source, "title", "Open takeoff {0}", [binding.item_id]); window.CeasefireI18n.attr(source, "aria-label", "Open takeoff {0}", [binding.item_id]);
+          source.addEventListener("click", () => void window.CeasefireTakeoffs.showSource(binding.item_id)); action.append(source);
+        }
+        action.append(scheduleDeleteButton(row.row, entry, deleteReview)); tr.append(action);
       }
       if (tr.children.length && [...tr.children].every((cell) => cell.hidden)) tr.hidden = true;
       renderedGroup.body.append(tr);
@@ -2050,7 +2048,7 @@
       const groupWidths = definition ? groupColumns.map((column) => definition.column_widths?.[definition.columns.map(columnNumber).indexOf(column)] || 125) : matrix && group === "matrix" ? groupColumns.map((column) => orderTable ? [19, 7, 9, 10, 8, 7, 11, 9, 20][column - 1] : column === 1 ? 100 : 88) : groupColumns.map((column) => widths[columns.indexOf(column)]);
       if (boardSummary && definition?.first_row === 11 && groupColumns.includes(10)) groupWidths.splice(groupColumns.indexOf(10), 0, 170);
       if (syntheticLine) groupWidths.unshift(lineWidth);
-      if (dynamicSchedule) { groupWidths.unshift(100); groupWidths.push(100); }
+      if (dynamicSchedule) groupWidths.push(100);
       const totalWidth = groupWidths.reduce((sum, width) => sum + width, 0);
       for (const width of groupWidths) { const col = node("col"); col.style.width = `${fitWidth ? width / totalWidth * 100 : width}${legacyOrder || fitWidth ? "%" : "px"}`; colgroup.append(col); }
       table.style.width = legacyOrder || fitWidth ? "100%" : `${totalWidth}px`; table.append(colgroup);
@@ -2058,7 +2056,7 @@
       if (virtualSchedule) {
         const spacer = (count) => {
           const row = node("tr", "calculator-virtual-spacer"), cell = node("td"); row.setAttribute("aria-hidden", "true");
-          cell.colSpan = groupColumns.length + Number(syntheticLine) + Number(dynamicSchedule) * 2;
+          cell.colSpan = groupColumns.length + Number(syntheticLine) + Number(dynamicSchedule);
           cell.style.height = `${Math.max(0, count) * scheduleRowHeight}px`; row.append(cell); return row;
         };
         body.replaceChildren(spacer(scheduleView.offset), ...body.children, spacer(entry.scheduleRows.length - scheduleView.offset - rows.length));

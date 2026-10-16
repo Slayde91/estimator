@@ -88,10 +88,16 @@ async function workbook(title) {
     await chooseCalculator(page, title); await workbook(title);
     await page.locator('#calculator-pages').getByRole('button',{name:'SCHEDULE',exact:true}).click();await expect(page.locator('#calculator-grid')).toHaveAttribute('aria-busy','false');
     const table=page.locator('.calculator-schedule-table'),headers=await table.getByRole('columnheader').allTextContents();
+    assert.equal(headers[0],'Line');assert.ok(!headers.includes('Row'));
     if(title==='Steel (board)'){assert.ok(!headers.includes('Waste (%)'));await expect(table.locator('[data-calculator-cell^="L"]')).toHaveCount(0);}
-    else if(title==='Ductwork (spray/wrap)'){assert.deepEqual(headers.slice(2,10),['Duct size W x H (mm)','Length (m)','FRL — compartment / duct*','Fire exposure / FyreWrap application','Orientation','Product','Wall penetrations','Floor penetrations']);}
-    assert.equal(headers.at(-1),'Delete');
+    else if(title==='Ductwork (spray/wrap)'){assert.deepEqual(headers.slice(1,9),['Duct size W x H (mm)','Length (m)','FRL — compartment / duct*','Fire exposure / FyreWrap application','Orientation','Product','Wall penetrations','Floor penetrations']);}
+    assert.equal(headers.at(-1),'Actions');
     const first=table.locator('tbody tr[data-source-row]').first(),deleteButton=first.getByRole('button',{name:/Delete line/});
+    await expect(first.locator('td').first()).toHaveClass(/calculator-line-number/);await expect(first.locator('td').first()).toHaveText('1');
+    assert.equal(await table.locator('colgroup col').count(),headers.length);
+    assert.equal(await first.locator('td').count(),headers.length);
+    const lineOutput=await first.locator('td').first().getAttribute('data-calculator-output');
+    assert.equal(lineOutput,title==='Steel (spray)'?'Z10':title==='Ductwork (spray/wrap)'?'A11':null);
     await expect(first.locator('td').first().getByRole('button',{name:/Delete line/})).toHaveCount(0);await expect(first.locator('td').last().getByRole('button',{name:/Delete line/})).toHaveCount(1);
     const beforeDelete=await snapshots();await deleteButton.click();const confirmation=page.getByRole('dialog');
     await expect(confirmation).toContainText('Are you sure you want to delete this item?');await expect(confirmation.getByRole('button')).toHaveText(['Cancel','Yes']);
@@ -101,7 +107,7 @@ async function workbook(title) {
     await expect(page.locator('#calculator-grid').getByRole('button',{name:'Undo remove',exact:true})).toBeEnabled();
     const undo=page.waitForResponse(reply=>new URL(reply.url()).pathname.startsWith('/api/calculators/')&&new URL(reply.url()).pathname.endsWith('/worksheet')&&reply.request().method()==='POST');
     await page.locator('#calculator-grid').getByRole('button',{name:'Undo remove',exact:true}).click();assert.equal((await undo).status(),200);await idle();assert.deepEqual(await snapshots(),beforeDelete,'Undo restores the exact row and inputs');
-    evidence.scheduleDeletes.push({title,finalDeleteColumn:true,trashInFinalCell:true,exactQuestionAndChoices:true,cancelRetainsAllScopes:true,yesAndUndoRestoresExactState:true});
+    evidence.scheduleDeletes.push({title,noRedundantRowColumn:true,lineIdentityRetained:lineOutput||'synthetic',alignedHeaderBodyAndWidths:true,finalActionsColumn:true,trashInFinalCell:true,exactQuestionAndChoices:true,cancelRetainsAllScopes:true,yesAndUndoRestoresExactState:true});
   }
   await chooseCalculator(page, 'Firestopping Estimator'); await idle(); await expect(page.locator('#estimator-penetration')).toBeVisible(); await expect(page.locator('#calculator-workspace')).toBeHidden();
   await chooseCalculator(page, 'Steel (spray)'); await workbook('Steel (spray)'); await expect(page.locator('#calculator-sheet-title')).toHaveText('SCHEDULE'); await expect(input).toHaveValue('MENU-DRAFT-1');

@@ -189,22 +189,20 @@
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) .calculator-grid {
     --calculator-section-bg: #fff;
     --calculator-section-ink: #000;
+    --calculator-body-bg: #191e25;
+    --calculator-input-cell-bg: #252c36;
     background: #15181e;
     color: var(--ink);
   }
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) .calculator-grid [class*="calculator-section-theme-"] { --section-ink: #000; --section-bg: #fff; --section-edge: #b32a3d; }
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) .calculator-contents a { background: #fff; color: #000; border-color: #8b3a48; }
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) .calculator-grid :is(td, th) { border-color: #515b6a; }
-  :root:is(:not([data-theme]), [data-theme="ceasefire"]) .calculator-grid :is(thead th, .calculator-row-label, .calculator-source-heading, .calculator-role-column_header, .calculator-comparison-table th, .calculator-product-totals tbody th) { background: #fff; color: #000; }
+  :root:is(:not([data-theme]), [data-theme="ceasefire"]) .calculator-grid :is(thead th, th[scope=col], .calculator-source-heading, .calculator-role-column_header) { background: #fff; color: #000; }
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) .calculator-grid :is(td.calculator-role-label, td.calculator-role-note, td.calculator-role-output, td.calculator-role-spacer, .calculator-value-present, .calculator-value-empty, .calculator-value-present.calculator-published-thickness, .calculator-schedule-table tbody td:first-child, .calculator-form-table td:empty, .calculator-product-totals tbody td) { background: #191e25; color: #f4f5f7; }
   /* Legacy workbook fills use !important; match only those explicit cell roles. */
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) .calculator-grid :is(td.calculator-role-label, td.calculator-role-note, td.calculator-role-spacer, .calculator-value-present, .calculator-value-empty, .calculator-value-present.calculator-published-thickness) { background: #191e25!important; }
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) .calculator-grid td.calculator-editable { background: #252c36!important; box-shadow: inset 3px 0 #c72b42; }
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) .calculator-grid :is(td.calculator-role-output.calculator-number, .calculator-product-totals .calculator-number) { color: #f4f5f7; }
-  :root:is(:not([data-theme]), [data-theme="ceasefire"]) .calculator-grid .calculator-schedule-table tbody th { background: #fff!important; color: #000; }
-  /* Source line numbers and row-action labels retain their white/dark contract.
-     Match the role-fill specificity, including synthetic and workbook columns. */
-  :root:is(:not([data-theme]), [data-theme="ceasefire"]) .calculator-grid .calculator-schedule-table :is(tbody, thead) :is(td, th):is(.calculator-line-number, .calculator-row-action) { background: #fff!important; color: #171217!important; }
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) :is(.calculator-product-totals>.calculator-overview, .calculator-product-totals>p) { background: #191e25; color: var(--muted); }
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) .calculator-grid .calculator-error { color: #ffb4be; }
 

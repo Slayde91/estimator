@@ -31,6 +31,9 @@ async function snapshot(){return page.evaluate(()=>window.CeasefireCalculators.p
     const before=await snapshot();
     for(const width of [1146,390]){
       await page.setViewportSize({width,height:764});
+      const table=viewport().locator('table'),headers=await table.locator('thead th').allTextContents();
+      assert.equal(headers[0],'Line');assert.ok(!headers.includes('Row'));assert.equal(headers.at(-1),'Actions');
+      const columnCount=headers.length;assert.equal(await table.locator('colgroup col').count(),columnCount);
       const geometry=await viewport().evaluate(el=>({height:el.clientHeight,scrollHeight:el.scrollHeight,overflow:getComputedStyle(el).overflowY}));
       assert.ok(geometry.height<=764,`${id}: schedule viewport must fit the screen`);
       assert.ok(geometry.scrollHeight>geometry.height,`${id}: schedule must scroll vertically`);
@@ -41,9 +44,12 @@ async function snapshot(){return page.evaluate(()=>window.CeasefireCalculators.p
         await expect(control).toHaveCount(1);await idle();
         await control.scrollIntoViewIfNeeded();await expect(control).toBeVisible();
         assert.ok(await page.locator('.calculator-virtual-schedule tbody tr:not(.calculator-virtual-spacer)').count()<=60);
+        const alignment=await table.locator('tbody tr').evaluateAll((rows,count)=>rows.every(row=>[...row.cells].reduce((total,cell)=>total+cell.colSpan,0)===count),columnCount);
+        assert.equal(alignment,true,`${id}/${width}/line ${line}: data and virtual spacer cells align with every visible header`);
+        await expect(control.locator('xpath=ancestor::tr').locator('td').first()).toHaveText(String(line));
       }
       assert.deepEqual(await snapshot(),before,'Scrolling must preserve every draft input');
-      evidence.push({id,width,...geometry,lines:[61,500,1000,1]});
+      evidence.push({id,width,...geometry,columns:columnCount,lineIdentityAndSpacerAlignment:true,lines:[61,500,1000,1]});
     }
     await viewport().evaluate(el=>{el.scrollTop=el.scrollHeight;});
     const last=page.locator(`[data-calculator-cell="${column}${first+999}"]`);await expect(last).toHaveCount(1);await idle();

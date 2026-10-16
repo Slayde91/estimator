@@ -2,8 +2,8 @@
 const assert = require('node:assert/strict');
 const { expect } = require('@playwright/test');
 
-// Read rendered controls in a disposable fixture. Undo size follows its actual
-// left-hand selection icon; its Schedule geometry and glyph remain intact.
+// Read rendered controls in a disposable fixture. Physical Undo shares the
+// Steel register's control family and the same existing Schedule symbol.
 function contrast(foreground, background) {
   const luminance = value => {
     const rgb = value.match(/^rgb\((\d+), (\d+), (\d+)\)$/);
@@ -38,6 +38,7 @@ async function assertPhysicalTools(page) {
     const actions = el.querySelector('.takeoff-physical-actions-row');
     const button = label => el.querySelector(`[aria-label="${label}"]`);
     const undo = button('Undo last edit'), reference = document.querySelector('#penetration-undo'), selection = button('Select filtered records');
+    const steelUndo = document.querySelector('.takeoff-register:not(.takeoff-physical-register) .takeoff-undo-button');
     const box = control => { const r = control.getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height, right: r.right, bottom: r.bottom }; };
     const style = control => Object.fromEntries(['display','alignItems','justifyItems','width','height','paddingTop','paddingRight','paddingBottom','paddingLeft','borderTopWidth','borderTopColor','borderTopLeftRadius','color','backgroundColor','fontSize','fontWeight','boxShadow'].map(key => [key, getComputedStyle(control)[key]]));
     const glyph = control => Object.fromEntries(['fontFamily','fontSize','fontWeight','lineHeight','color'].map(key => [key, getComputedStyle(control.querySelector('.button-symbol'))[key]]));
@@ -54,6 +55,7 @@ async function assertPhysicalTools(page) {
       undo: { box: box(undo), style: style(undo), glyph: glyph(undo) },
       selection: { box: box(selection), directlyBeforeUndo: undo.previousElementSibling === selection },
       scheduleUndo: { style: style(reference), glyph: glyph(reference), text: reference.querySelector('.button-symbol').textContent, backgroundImage: getComputedStyle(reference).backgroundImage },
+      steelUndo: { style: style(steelUndo), glyph: glyph(steelUndo), text: steelUndo.querySelector('.button-symbol').textContent },
     };
   });
   assert.equal(measured.firstRowOwnsFilterSelectionUndo, true);
@@ -69,24 +71,16 @@ async function assertPhysicalTools(page) {
   assert.ok(measured.controls.at(-1).right <= measured.register.right + 1, 'The action row fits the register');
   assert.equal(measured.selection.directlyBeforeUndo,true);assert.equal(measured.undo.box.width,measured.selection.box.width);assert.equal(measured.undo.box.height,measured.selection.box.height);assert.equal(measured.undo.box.width,38);assert.equal(measured.undo.box.height,38);
   assert.equal(measured.scheduleUndo.text, '↶');
-  const scheduleStyle = {...measured.scheduleUndo.style,width:measured.selection.box.width+'px',height:measured.selection.box.height+'px'};
-  if (measured.theme === 'ceasefire') {
-    const omit = (value, keys) => Object.fromEntries(Object.entries(value).filter(([key]) => !keys.includes(key)));
-    assert.deepEqual(omit(measured.undo.style, ['color','backgroundColor','borderTopColor']), omit(scheduleStyle, ['color','backgroundColor','borderTopColor']), 'Physical Undo retains Schedule geometry, typography and shadow while its surface follows the selected theme');
-    assert.deepEqual(omit(measured.undo.glyph, ['color']), omit(measured.scheduleUndo.glyph, ['color']), 'Undo retains the Schedule symbol font');
-    assert.equal(measured.undo.style.backgroundColor, measured.registerBackground, 'Physical Undo follows its register theme surface');
-    assert.equal(measured.undo.glyph.color, measured.undo.style.color, 'Physical Undo glyph follows its own readable button colour');
-    measured.undo.contrast = contrast(measured.undo.glyph.color, measured.undo.style.backgroundColor);
-    assert.ok(measured.undo.contrast >= 4.5, 'Physical Undo glyph remains readable on its theme surface');
-    const background = measured.scheduleUndo.backgroundImage;
-    const stops = background === 'none' ? [measured.scheduleUndo.style.backgroundColor] : background.match(/rgba?\([^)]*\)/g) || [];
-    assert.ok(stops.length, 'Schedule Undo exposes opaque painted colours for contrast');
-    measured.scheduleUndo.contrast = stops.map(stop => ({ background: stop, ratio: contrast(measured.scheduleUndo.glyph.color, stop) }));
-    for (const value of measured.scheduleUndo.contrast) assert.ok(value.ratio >= 4.5, 'Schedule Undo glyph remains readable against every opaque gradient stop');
-  } else {
-    assert.deepEqual(measured.undo.style, scheduleStyle, 'Physical Undo retains its Schedule styling with the requested adjacent-icon dimensions');
-    assert.deepEqual(measured.undo.glyph, measured.scheduleUndo.glyph, 'Undo uses the same Schedule symbol font and colour');
-  }
+  assert.equal(measured.steelUndo.text,measured.scheduleUndo.text,'Both registers retain the original Undo symbol');
+  assert.deepEqual(measured.undo.style,measured.steelUndo.style,'Physical Undo shares the actual Steel register geometry, typography and paint');
+  assert.deepEqual(measured.undo.glyph,measured.steelUndo.glyph,'Physical Undo shares the Steel register symbol font and colour');
+  assert.equal(measured.undo.glyph.color,measured.undo.style.color,'Undo glyph follows its readable button colour');
+  measured.undo.contrast=await assertReadableControl(undo);
+  const background=measured.scheduleUndo.backgroundImage;
+  const stops=background==='none'?[measured.scheduleUndo.style.backgroundColor]:background.match(/rgba?\([^)]*\)/g)||[];
+  assert.ok(stops.length,'Schedule Undo exposes opaque painted colours for contrast');
+  measured.scheduleUndo.contrast=stops.map(stop=>({background:stop,ratio:contrast(measured.scheduleUndo.glyph.color,stop)}));
+  for(const value of measured.scheduleUndo.contrast)assert.ok(value.ratio>=4.5,'Schedule Undo glyph remains readable against every opaque gradient stop');
   return measured;
 }
-module.exports = { assertPhysicalTools, assertReadableControl };
+module.exports = { assertPhysicalTools, assertReadableControl, contrast };

@@ -42,6 +42,25 @@ function harness() {
 let passed = 0;
 async function check(label, test) { await test(); passed++; console.log(`ok - ${label}`); }
 (async () => {
+  await check('Mandarin register status and filter chrome translate while source text and filter values stay canonical', async () => {
+    const h = harness(); h.context.window.CeasefireI18n = require('./helpers/localized_i18n.cjs')();
+    h.state.session.snapshot.items[0].fields.mark = 'Home'; h.state.session.snapshot.items[1].fields.level = 'Unconfirmed';
+    const before = copy(h.state.session.snapshot); h.audit.renderRegister();
+    const nodes = h.all(h.ui.tableWrap), status = id => h.all(nodes.find(el => el.dataset.itemId === id)).find(el => el.className.startsWith('takeoff-state')).textContent;
+    assert.equal(status('D1'), '已确认'); assert.equal(status('D2'), '未确认');
+    assert.ok(nodes.some(el => el.value === 'Home')); assert.ok(nodes.some(el => el.value === 'Unconfirmed'));
+    h.audit.stubRenderers(); const anchor = h.element('button'); let pending = h.audit.openRegisterColumnFilter('confirmation', anchor);
+    const menu = h.document.body.children[0], search = h.all(menu).find(el => el.tagName === 'INPUT' && el.type === 'search');
+    assert.equal(menu.children[0].textContent, h.context.window.CeasefireI18n.translate('Filter {0}', [h.context.window.CeasefireI18n.term('Confirmation')]));
+    search.value = '已确认'; search.events.input();
+    const choices = h.all(menu).filter(el => el.className === 'takeoff-column-filter-choice');
+    assert.equal(choices.at(-1).textContent, '已确认');
+    menu.close('cancel'); await pending;
+    pending = h.audit.openRegisterColumnFilter('level', anchor); const sourceMenu = h.document.body.children[0];
+    assert.ok(h.all(sourceMenu).some(el => el.textContent === 'Unconfirmed'), 'A user level named Unconfirmed is not translated');
+    sourceMenu.close('cancel'); await pending;
+    assert.deepEqual(copy(h.state.session.snapshot), before); assert.equal(h.audit.registerFilters().size, 0);
+  });
   await check('The requested Steel and Duct columns have accessible filters, including linked Steel thickness', () => {
     const h = harness(); h.audit.renderRegister();
     const buttons = h.all(h.ui.tableWrap).filter(el => el.className.includes('takeoff-column-filter-button'));

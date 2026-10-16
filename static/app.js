@@ -714,7 +714,7 @@
     const materialRows = [];
     for (const material of result.materials || []) {
       const row = node("tr");
-      row.append(node("td", "", material.name || "—"), node("td", "numeric", formatNumber(material.quantity)),
+      row.append(materialNameCell(material), node("td", "numeric", formatNumber(material.quantity)),
         node("td", "numeric", formatMoney(material.price)), node("td", "numeric", formatMoney(material.total)),
         node("td", "numeric", formatNumber(material.days)));
       materialRows.push(row);
@@ -753,6 +753,21 @@
       for (const [cell] of entries) $(`input-${cell}`)?.setAttribute("aria-invalid", "true");
       box.append(list);
     }
+  }
+
+  function materialNameCell(material) {
+    // Selected products are source data. Only the application's fallback name
+    // for an unselected Firestopping product has translatable task/context parts.
+    const name = material.name || "—";
+    if (material.source === "firestopping" && material.product === null) {
+      const adjustment = String(name).match(/^Line (\d+) · Material adjustment$/);
+      if (adjustment && material.context === "Material adjustment") return uiNode("td", "", "{0} · {1}", [window.CeasefireI18n.term("Line {0}", [adjustment[1]]), window.CeasefireI18n.term("Material adjustment")]);
+      const tasks = new Set(["Board", "Collars", "Mastic", "Framing", "Wrap", "Other"]);
+      const contexts = new Set(["Substrate", "Bulkhead", "Collars", "Mastic Qty", "Pipes", "Cabletrays", "Additional material"]);
+      const item = String(name).match(/^Item (\d+) (.+) · (.+)$/);
+      if (item && tasks.has(item[2]) && contexts.has(item[3]) && material.context === item[3]) return uiNode("td", "", "Item {0} {1} · {2}", [item[1], window.CeasefireI18n.term(item[2]), window.CeasefireI18n.term(item[3])]);
+    }
+    return node("td", "", name);
   }
 
   let confirmationQueue = Promise.resolve();

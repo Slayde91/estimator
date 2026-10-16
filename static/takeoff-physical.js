@@ -860,17 +860,18 @@
       if (state.filterDialog || !Object.hasOwn(filterColumns, key)) return;
       await completePendingEdits(); ensureAvailable();
       const identity = `${scope()}/${state.snapshot?.project_id || ""}/${graph()?.id || "new"}`, values = columnValues(key), selected = new Set(state.columnFilters.get(key) ?? values), label = filterColumns[key];
-      const dialog = node("dialog", "takeoff-column-filter"), heading = uiNode("h2", "", "Filter {0}", [label]); heading.id = `takeoff-physical-filter-${root.crypto.randomUUID()}`; dialog.setAttribute("aria-labelledby", heading.id);
-      const search = node("input"); search.type = "search"; root.CeasefireI18n.attr(search, "placeholder", "Search values…"); root.CeasefireI18n.attr(search, "aria-label", "Search {0} values", [label]);
+      const dialog = node("dialog", "takeoff-column-filter"), heading = uiNode("h2", "", "Filter {0}", [root.CeasefireI18n.term(label)]); heading.id = `takeoff-physical-filter-${root.crypto.randomUUID()}`; dialog.setAttribute("aria-labelledby", heading.id);
+      const search = node("input"); search.type = "search"; root.CeasefireI18n.attr(search, "placeholder", "Search values…"); root.CeasefireI18n.attr(search, "aria-label", "Search {0} values", [root.CeasefireI18n.term(label)]);
       const allLabel = node("label", "takeoff-column-filter-choice"), all = node("input"); all.type = "checkbox"; root.CeasefireI18n.attr(all, "aria-label", "Select all values"); allLabel.append(all, uiNode("span", "", "Select all"));
-      const choices = node("div", "takeoff-column-filter-values"); choices.setAttribute("role", "group"); root.CeasefireI18n.attr(choices, "aria-label", "{0} values", [label]);
+      const choices = node("div", "takeoff-column-filter-values"); choices.setAttribute("role", "group"); root.CeasefireI18n.attr(choices, "aria-label", "{0} values", [root.CeasefireI18n.term(label)]);
       let matching = values;
       const updateAll = () => { const count = matching.filter(value => selected.has(value)).length; all.checked = !!matching.length && count === matching.length; all.indeterminate = count > 0 && count < matching.length; all.disabled = !matching.length; };
       const renderChoices = () => {
-        const query = search.value.trim().toLowerCase(); matching = values.filter(value => (value || "(Blanks)").toLowerCase().includes(query)); choices.replaceChildren();
+        const query = search.value.trim().toLowerCase(); matching = values.filter(value => (value || "(Blanks)").toLowerCase().includes(query) || (!value || key === "state") && root.CeasefireI18n.translate(value || "(Blanks)").toLowerCase().includes(query)); choices.replaceChildren();
         for (const value of matching) {
-          const wrapper = node("label", "takeoff-column-filter-choice"), check = node("input"); check.type = "checkbox"; check.checked = selected.has(value); check.setAttribute("aria-label", value || "(Blanks)");
-          check.addEventListener("change", () => { check.checked ? selected.add(value) : selected.delete(value); updateAll(); }); wrapper.append(check, node("span", "", value || "(Blanks)")); choices.append(wrapper);
+          const wrapper = node("label", "takeoff-column-filter-choice"), check = node("input"), owned = !value || key === "state"; check.type = "checkbox"; check.checked = selected.has(value); check.setAttribute("aria-label", value || "(Blanks)");
+          if (owned) root.CeasefireI18n.attr(check, "aria-label", value || "(Blanks)");
+          check.addEventListener("change", () => { check.checked ? selected.add(value) : selected.delete(value); updateAll(); }); wrapper.append(check, (owned ? uiNode : node)("span", "", value || "(Blanks)")); choices.append(wrapper);
         }
         if (!matching.length) choices.append(uiNode("p", "takeoff-column-filter-empty", "No matching values")); updateAll();
       };
@@ -890,7 +891,7 @@
     }
     function columnFilterButton(key) {
       const active = state.columnFilters.has(key), label = filterColumns[key], control = button(`Filter ${label}`, () => openColumnFilter(key, control), `takeoff-column-filter-button${active ? " active" : ""}`), icon = actionIcon(["M3 5h18l-7 8v6l-4 2v-8z"]);
-      icon.classList.add?.("takeoff-column-filter-icon"); icon.setAttribute("class", "takeoff-column-filter-icon"); icon.setAttribute("fill", active ? "currentColor" : "none"); icon.setAttribute("stroke", "currentColor"); icon.setAttribute("stroke-width", "1.8"); icon.setAttribute("stroke-linejoin", "round"); control.replaceChildren(icon); root.CeasefireI18n.attr(control, "aria-label", "Filter {0}", [label]); control.setAttribute("aria-haspopup", "dialog"); control.setAttribute("aria-expanded", "false"); control.setAttribute("aria-pressed", String(active)); control.title = active ? `${label}: filter applied` : `Filter ${label}`; return control;
+      icon.classList.add?.("takeoff-column-filter-icon"); icon.setAttribute("class", "takeoff-column-filter-icon"); icon.setAttribute("fill", active ? "currentColor" : "none"); icon.setAttribute("stroke", "currentColor"); icon.setAttribute("stroke-width", "1.8"); icon.setAttribute("stroke-linejoin", "round"); control.replaceChildren(icon); root.CeasefireI18n.attr(control, "aria-label", "Filter {0}", [root.CeasefireI18n.term(label)]); control.setAttribute("aria-haspopup", "dialog"); control.setAttribute("aria-expanded", "false"); control.setAttribute("aria-pressed", String(active)); root.CeasefireI18n.attr(control, "title", active ? "{0}: filter applied" : "Filter {0}", [root.CeasefireI18n.term(label)]); return control;
     }
     function renderTable() {
       const rows = hierarchyRows(graph(), state); state.offset = Math.max(0, Math.min(state.offset, Math.max(0, Math.floor((rows.length - 1) / 100) * 100)));

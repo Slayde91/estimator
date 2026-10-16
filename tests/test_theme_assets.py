@@ -52,6 +52,7 @@ class ThemeAssetTests(unittest.TestCase):
             with self.subTest(edition=edition):
                 for name, mime in [('theme.js', 'text/javascript; charset=utf-8'), ('theme.css', 'text/css; charset=utf-8'),
                                    ('laser.css', 'text/css; charset=utf-8'), ('laser-steel.svg', 'image/svg+xml'),
+                                   ('home-steel-frame.png', 'image/png'),
                                    ('icons/navigation-help.jpg', 'image/jpeg'), ('icons/navigation-takeoffs.jpg', 'image/jpeg')]:
                     status, headers, payload = self.get(edition, '/' + name)
                     if edition == 'standard' and name == 'icons/navigation-takeoffs.jpg':
@@ -67,7 +68,7 @@ class ThemeAssetTests(unittest.TestCase):
                 self.assertIn(b'id="theme-toggle" type="button"', html)
                 self.assertIn(b'href="/theme.css"', html)
                 self.assertIn(b'href="/laser.css"', html)
-                self.assertIn(b'src="/laser-steel.svg"', html)
+                self.assertIn(b'src="/home-steel-frame.png"', html)
                 self.assertIn(b'src="/theme.js" defer', html)
                 if edition == 'standard':
                     self.assertNotIn(b'/takeoffs.js', html)
@@ -75,6 +76,6 @@ class ThemeAssetTests(unittest.TestCase):
 
     def test_theme_routes_keep_the_exact_asset_boundary(self):
         for edition in self.servers:
-            for route in ('/theme.js/extra', '/theme.css/extra', '/laser.css/extra', '/laser-steel.svg/extra', '/theme-settings.json'):
+            for route in ('/theme.js/extra', '/theme.css/extra', '/laser.css/extra', '/laser-steel.svg/extra', '/home-steel-frame.png/extra', '/theme-settings.json'):
                 with self.subTest(edition=edition, route=route):
                     self.assertEqual(self.get(edition, route)[0], 404)

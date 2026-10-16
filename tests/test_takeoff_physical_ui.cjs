@@ -82,6 +82,18 @@ function overlayHarness(value,controller){
 let passed=0;
 async function check(label,test){await test();passed++;console.log(`ok - ${label}`);}
 (async()=>{
+  await check('Mandarin physical table IDs and status translate without changing retained labels or graph values',async()=>{
+    const previous=global.CeasefireI18n;global.CeasefireI18n=require('./helpers/localized_i18n.cjs')();
+    let h;
+    try{
+      const value=graph();value.defects[0].fields.label='Home';value.barriers[0].fields.substrate='Board';value.services[0].fields.service_type='Primer';
+      h=component(value);await flush();const all=h.all();
+      for(const source of ['Defect ID','Barrier ID','Service ID'])assert.ok(all.some(el=>el.tagName==='TH'&&el.textContent===global.CeasefireI18n.translate(source)));
+      assert.ok(all.some(el=>el.className.startsWith('takeoff-state')&&el.textContent==='未确认'));
+      assert.ok(all.some(el=>el.textContent==='Home'));assert.ok(all.some(el=>el.value==='Board'));assert.ok(all.some(el=>el.value==='Primer'));
+      assert.deepEqual(h.current.physical,value);assert.equal(h.calls.previews.length,0);assert.equal(h.calls.applied.length,0);
+    }finally{h?.controller.destroy();global.CeasefireI18n=previous;}
+  });
   await check('Removed callout Notes editors preserve exact stored text through every unrelated root, barrier and service edit',async()=>{
     for(const [value,scope]of[[graph(),'defect_reports'],[servicePlanGraph(),'service_plans']]){
       const literal='  Retained source note\r\nOriginal second line\n\tExact final whitespace  ';

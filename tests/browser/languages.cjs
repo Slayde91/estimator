@@ -17,6 +17,8 @@ async function snapshot(){await idle();return page.evaluate(()=>({project:window
  browser=await chromium.launch({headless:true});page=await browser.newPage({viewport:{width:1366,height:1000}});
  page.on('pageerror',e=>errors.push(String(e)));page.on('request',r=>{if(!['GET','HEAD'].includes(r.method()))evidence.requests.push({method:r.method(),url:r.url()});});
  await page.goto(`http://127.0.0.1:${fixture.port}/`);await idle();
+ await expect(page.locator('.home-laser-art')).toHaveAttribute('src','/home-steel-frame.png');
+ await expect.poll(()=>page.locator('.home-laser-art').evaluate(el=>el.naturalWidth)).toBe(1122);
  await page.evaluate(async()=>{await window.CeasefireCalculators.completeProjectSnapshot();await window.CeasefirePenetrations.completeProjectSnapshot();});
  await chooseTakeoff(page,'Steel');await idle();
  await page.locator('nav [data-view="estimate"]').click();await idle();
@@ -30,6 +32,21 @@ async function snapshot(){await idle();return page.evaluate(()=>({project:window
   assert.equal(evidence.requests.length,before,'language preference sends no mutation requests');
   if(locale==='ar')for(const id of ['company-phone','company-abn'])await expect(page.locator('#'+id)).toHaveCSS('direction','ltr');
   await page.locator('nav [data-view="estimate"]').click();await idle();assert.deepEqual(await snapshot(),baseline,'language changes preserve project inputs, canonical values and totals');
+  if(locale==='en')await expect(page.locator('#estimate-heading')).toHaveText('Estimate');
+  if(locale==='zh-Hans'){
+   await expect(page.locator('#estimate-heading')).toHaveText('估算');
+   await expect(page.locator('#view-estimate .calculator-document-toggle')).toContainText('文件');
+   await expect(page.locator('#main-panel-materials > p.helper')).toHaveCount(0);
+   const previousOutput=await page.locator('#main-output-tabs [aria-selected="true"]').getAttribute('id');
+   await page.locator('#main-tab-firestopping-breakdown').click();
+   const breakdown=page.locator('#penetration-schedule-breakdown');
+   for(const label of ['板材','防火圈','密封胶','框架','防火包裹材料','其他','附加人工','登记工时预留'])await expect(breakdown.getByText(label,{exact:true})).toBeVisible();
+   await expect(breakdown.locator('.penetration-breakdown-note')).toHaveCount(0);
+   await page.screenshot({path:path.join(output,'zh-estimate-tables.png')});
+   if(previousOutput)await page.locator('#'+previousOutput).click();
+   assert.deepEqual(await snapshot(),baseline,'Mandarin table labels preserve project values and totals');
+   evidence.mandarinTables={taskRows:true,documentButton:true,notesRemoved:true,canonicalStateUnchanged:true};
+  }
   if(locale==='ar')await expect(page.locator('#input-B28')).toHaveCSS('direction','ltr');
   await expect(page.locator('#client')).toHaveValue('Home');
   await settings();const screenshot=path.join(output,`${locale}-settings.png`);await page.screenshot({path:screenshot});

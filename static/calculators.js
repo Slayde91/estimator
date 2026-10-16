@@ -38,6 +38,717 @@
       },
     },
   };
+  // Fixed interface labels in immutable workbook presentation cells. Match both
+  // source coordinates and original text; formula results, products and draft values
+  // retain their canonical text even when it happens to equal a translated label.
+  const calculatorLabelSources = {
+    "steel_vermiculite": {
+      "CALCULATOR": {
+        "A1": "CEASEFIRE  |  STEEL FIRE PROTECTION",
+        "A5": "01  INPUTS",
+        "H5": "02  THICKNESS & QUANTITIES",
+        "A6": "Product",
+        "A7": "Exposure / member case",
+        "A8": "Critical temperature (°C)",
+        "A9": "Input method",
+        "A10": "Steel section ID",
+        "A11": "Hp/A | ESA/M | lower web mm",
+        "A12": "Fire-resistance period (min)",
+        "H12": "Lookup ESA/M (m²/t)",
+        "H13": "Lookup Hp/A (m⁻¹)",
+        "A14": "Quantity of members",
+        "H14": "Usable estimating thickness (mm)",
+        "A15": "Length per member (m)",
+        "H15": "Girth used (m)",
+        "A16": "Girth override (m)",
+        "H16": "Spray area (m²)",
+        "A17": "Area override (m²)",
+        "H17": "Coating volume (m³)",
+        "H18": "Net bags",
+        "A26": "03  ALL PUBLISHED PERIODS FOR THIS INPUT",
+        "A28": "Minutes"
+      },
+      "SCHEDULE": {
+        "B9": "Product",
+        "C9": "Exposure / member case",
+        "E9": "Input method",
+        "Q9": "Girth used (m)",
+        "K9": "Girth override (m)",
+        "R9": "Spray area (m²)",
+        "L9": "Area override (m²)",
+        "S9": "Coating volume (m³)",
+        "T9": "Net bags",
+        "A4": "TOTAL ENTERED SPRAY AREA",
+        "G4": "COATING VOLUME QUANTIFIED",
+        "M4": "THICKNESS / SCOPE BLOCKS",
+        "S4": "ROWS NOT FULLY QUANTIFIED",
+        "A9": "Item / mark",
+        "D9": "Critical temp (°C)",
+        "F9": "Section ID",
+        "G9": "Hp/A | ESA/M | web mm",
+        "H9": "Fire period (min)",
+        "I9": "Quantity",
+        "J9": "Length / member (m)",
+        "M9": "Lookup ESA/M",
+        "N9": "Lookup Hp/A",
+        "O9": "Published thickness (mm)",
+        "P9": "Estimating thickness (mm)",
+        "U9": "Whole bags incl. waste",
+        "V9": "Thickness status",
+        "W9": "Quantity status",
+        "X9": "Thickness source",
+        "Y9": "Basis / review note",
+        "Z9": "Line ID",
+        "AA9": "Location"
+      },
+      "BAGS": {
+        "A6": "Product",
+        "A19": "Product",
+        "A9": "Coating volume (m³)",
+        "A12": "Net bags",
+        "E19": "Net bags",
+        "A13": "Whole bags incl. waste",
+        "A1": "CEASEFIRE  |  MATERIAL QUANTITIES",
+        "A7": "Area (m²)",
+        "A8": "Manual thickness (mm)",
+        "A10": "Yield used (m³/bag)",
+        "A11": "Waste allowance",
+        "A14": "Coverage (m²/bag)",
+        "A17": "PRODUCT ORDER SUMMARY",
+        "B19": "Schedule lines",
+        "C19": "Area entered (m²)",
+        "D19": "Volume quantified (m³)",
+        "F19": "Waste",
+        "G19": "Whole bags / product",
+        "H19": "Incomplete rows",
+        "I19": "Order status"
+      },
+      "SETTINGS": {
+        "A39": "Waste allowance",
+        "A72": "Waste allowance",
+        "A104": "Waste allowance",
+        "A181": "Waste allowance",
+        "A237": "Waste allowance",
+        "A564": "Waste allowance",
+        "K5": "COMMON RULES",
+        "A9": "01  /  GLOBAL SETTINGS",
+        "A10": "Project reference",
+        "A11": "Engineer / design reference",
+        "A12": "Project design release",
+        "A13": "Steel density",
+        "A14": "Factor lookup policy",
+        "A43": "Factor lookup policy",
+        "A76": "Factor lookup policy",
+        "A108": "Factor lookup policy",
+        "A185": "Factor lookup policy",
+        "A241": "Factor lookup policy",
+        "A15": "Comparison tolerance",
+        "A17": "02  /  COMMON CALCULATION RULES",
+        "A19": "Lookup method",
+        "A21": "Thickness & holds",
+        "A23": "Material yield",
+        "A25": "Quantities & orders",
+        "A27": "Project design",
+        "A35": "PARAMETER",
+        "A68": "PARAMETER",
+        "A100": "PARAMETER",
+        "A177": "PARAMETER",
+        "A233": "PARAMETER",
+        "A560": "PARAMETER",
+        "D35": "VALUE",
+        "D68": "VALUE",
+        "D100": "VALUE",
+        "D177": "VALUE",
+        "D233": "VALUE",
+        "D560": "VALUE",
+        "G35": "BASIS / EFFECT",
+        "G68": "BASIS / EFFECT",
+        "G100": "BASIS / EFFECT",
+        "G177": "BASIS / EFFECT",
+        "G233": "BASIS / EFFECT",
+        "G560": "BASIS / EFFECT",
+        "A36": "Bag mass",
+        "A69": "Bag mass",
+        "A101": "Bag mass",
+        "A178": "Bag mass",
+        "A234": "Bag mass",
+        "A561": "Bag mass",
+        "A37": "Verified direct yield",
+        "A38": "Estimating density",
+        "A71": "Estimating density",
+        "A103": "Estimating density",
+        "A180": "Estimating density",
+        "A236": "Estimating density",
+        "A563": "Estimating density",
+        "A40": "Yield used",
+        "A73": "Yield used",
+        "A105": "Yield used",
+        "A182": "Yield used",
+        "A238": "Yield used",
+        "A565": "Yield used",
+        "A41": "Material status",
+        "A74": "Material status",
+        "A106": "Material status",
+        "A183": "Material status",
+        "A239": "Material status",
+        "A566": "Material status",
+        "A42": "Material basis / reference",
+        "A75": "Material basis / reference",
+        "A107": "Material basis / reference",
+        "A184": "Material basis / reference",
+        "A240": "Material basis / reference",
+        "A567": "Material basis / reference",
+        "A45": "Product scope",
+        "A78": "Product scope",
+        "A110": "Product scope",
+        "A187": "Product scope",
+        "A243": "Product scope",
+        "A568": "Product scope",
+        "A46": "Consumption evidence",
+        "A79": "Consumption evidence",
+        "A111": "Consumption evidence",
+        "A188": "Consumption evidence",
+        "A244": "Consumption evidence",
+        "A48": "TECHNICAL RULES & SOURCE-REVIEW DEFINITIONS",
+        "A81": "TECHNICAL RULES & SOURCE-REVIEW DEFINITIONS",
+        "A113": "TECHNICAL RULES & SOURCE-REVIEW DEFINITIONS",
+        "A190": "TECHNICAL RULES & SOURCE-REVIEW DEFINITIONS",
+        "A246": "TECHNICAL RULES & SOURCE-REVIEW DEFINITIONS",
+        "A50": "Named-section route",
+        "A83": "Named-section route",
+        "A192": "Named-section route",
+        "A51": "ESA/M input basis",
+        "A84": "ESA/M input basis",
+        "A193": "ESA/M input basis",
+        "A54": "EXPOSURE / MEMBER CASE",
+        "A86": "EXPOSURE / MEMBER CASE",
+        "A123": "EXPOSURE / MEMBER CASE",
+        "A196": "EXPOSURE / MEMBER CASE",
+        "A259": "EXPOSURE / MEMBER CASE",
+        "D54": "TEMP °C",
+        "D86": "TEMP °C",
+        "D123": "TEMP °C",
+        "D196": "TEMP °C",
+        "D259": "TEMP °C",
+        "E54": "Hp/A MIN",
+        "E86": "Hp/A MIN",
+        "E123": "Hp/A MIN",
+        "E196": "Hp/A MIN",
+        "E259": "Hp/A MIN",
+        "F54": "Hp/A MAX",
+        "F86": "Hp/A MAX",
+        "F123": "Hp/A MAX",
+        "F196": "Hp/A MAX",
+        "F259": "Hp/A MAX",
+        "G54": "PUBLISHED PERIODS (MIN)",
+        "G86": "PUBLISHED PERIODS (MIN)",
+        "G123": "PUBLISHED PERIODS (MIN)",
+        "G196": "PUBLISHED PERIODS (MIN)",
+        "G259": "PUBLISHED PERIODS (MIN)",
+        "J54": "FACTOR BASIS",
+        "J86": "FACTOR BASIS",
+        "J123": "FACTOR BASIS",
+        "J196": "FACTOR BASIS",
+        "J259": "FACTOR BASIS",
+        "L54": "STATUS",
+        "L86": "STATUS",
+        "L123": "STATUS",
+        "L196": "STATUS",
+        "L259": "STATUS",
+        "A70": "Direct estimating yield",
+        "A102": "Direct estimating yield",
+        "A179": "Direct estimating yield",
+        "A235": "Direct estimating yield",
+        "A562": "Direct estimating yield",
+        "A115": "Lower-web numerator",
+        "A116": "Castellated maximum",
+        "A248": "Factor-label gap: above",
+        "A249": "Factor-label gap: below",
+        "A270": "08  /  COMPLETE WORKBOOK OPERATING RULES",
+        "A272": "START HERE",
+        "A276": "READ THE RESULT",
+        "A280": "FACTOR LOOKUP POLICY",
+        "A284": "NAMED MEMBERS AND SHARED FACTORS",
+        "A288": "SCOPE AND HOLLOW SECTIONS",
+        "A292": "SCHEDULE AND SORTING",
+        "A296": "QUANTITIES",
+        "A300": "BAG YIELDS AND ORDERS",
+        "A308": "PROJECT RELEASE",
+        "A312": "SOURCE CONTROL AND QUALITY",
+        "A341": "FACTOR HELPER  |  Hp/A AND ESA/M",
+        "A346": "Heated perimeter (m)",
+        "A365": "Heated perimeter (m)",
+        "A347": "Steel area (mm²)",
+        "A364": "Steel area (mm²)",
+        "A348": "Mass per metre (kg/m)",
+        "A350": "Hp/A from steel area (m⁻¹)",
+        "A351": "ESA/M from mass (m²/t)",
+        "A356": "IDEALISED HOLLOW GEOMETRY  |  Approximate helper; no corner radii or manufacturing tolerances.",
+        "A358": "Shape",
+        "A359": "Depth / outside diameter (mm)",
+        "A360": "Width (mm)",
+        "A361": "Wall thickness (mm)",
+        "A362": "Exposed sides",
+        "A372": "Lower-web thickness (mm)",
+        "A373": "Special Hp/A (m⁻¹)",
+        "A7": "CALCULATOR = one member  |  SCHEDULE = take-off  |  BAGS = ordering  |  Factor helper starts at row 341.",
+        "A273": "Use CALCULATOR for one member or SCHEDULE for up to 1,000 lines. Select product, exposure, steel temperature and input method. Enter the exact section or verified factor. Lower-web input is only for Fendolite castellated beams.",
+        "A277": "Read the visible result note before using estimating thickness. Excluded or unpublished cases return no bags. Published values and estimating replacements are not project design approval.",
+        "A293": "Sort or filter the entire SCHEDULE table, never one column alone. Keep the hidden Line ID unchanged. Use the 1,000 prepared rows; more rows require extending ENGINE.",
+        "A301": "Verify pack size, method and site yield for each product. CAFCO uses an inherited assumption; Mandolite is provisional; Fendolite/Perlifoc are theoretical; Monokote is uninjected. Add waste separately. Sources: P330:V333.",
+        "A309": "Have the designer confirm the member, exposure, steel temperature, substrate, fixings, application and thickness. Record the design references here. This estimator does not certify the fire design.",
+        "A313": "The workbook records the supplied report editions, not verified current validity. Review the complete signed reports for the project. AUDIT retains the source decisions and validation checks."
+      }
+    },
+    "steel_board": {
+      "START": {
+        "A8": "01  EVERYDAY WORKFLOW",
+        "A9": "CALCULATOR",
+        "A10": "NORMAL INPUTS A:L",
+        "A11": "MAIN RESULTS Y:AI",
+        "A12": "BOARD SUMMARY",
+        "A13": "EXTRA BOARDS",
+        "A15": "02  HOW BOARD AREA IS CALCULATED",
+        "A21": "03  SAFETY AND SCOPE",
+        "A25": "04  OPTIONAL CONTROLS AND MAINTENANCE",
+        "A30": "05  HOW TO READ THE ROW NOTES",
+        "D9": "Replace or clear the demonstration rows. Enter one member, or one group of identical members, per row. 200 prepared rows: 9–208. Enter the TOTAL lineal length for that row.",
+        "D10": "Product; Steel ID OR ESA/M; lineal metres; exposed sides; FRL; Beam/Column; critical temperature; family for manual ESA input; wastage. FRL and temperature dropdowns follow the selected product/member.",
+        "D11": "Read Row status (AI) for the actual issue and next action. No quantity = this row is excluded from purchasing. Warnings with a quantity state the checks or extra boards still needed. AD is reference box area only; AE/AF are actual board quantities.",
+        "D12": "Use the whole-job pooled quantities for purchasing, not the sum of standalone line-sheet counts. Filtered-out schedule rows remain in the whole-job total. Stock is separated by product and actual board thickness.",
+        "D13": "This hidden input sheet retains measured noggings, soldiers, cover strips, closures and coatbacks. Valid allowances still feed BOARD SUMMARY. Right-click a sheet tab and choose Unhide to enter them.",
+        "A26": "Unhide M:X for advanced inputs. M:Q controls layout, layers, lookup and installation detail. R/S = depth/width; T = area; U = mass; V = INSIDE box girth; W = added girth; X = design reference. AI gives the action directly. AJ:AV retains detailed outputs and notes.",
+        "A27": "Only START, CALCULATOR and BOARD SUMMARY are visible. Supporting data sheets remain embedded and hidden. Do not delete them. Library edits must also update the generated geometric lookup prefix. This release rebuilds and checks every prefix while preserving the native fire-design suffixes.",
+        "A28": "Capacity is 200 prepared rows. For a larger job, extend inside the table, copy ALL formula columns Y:CI and check dropdowns and purchasing ranges. Do not assume typing below row 208 automatically extends every summary formula.",
+        "A31": "Example: 'Confirm 620 C for this 2-sided beam' means ask the structural designer to confirm the critical temperature for that exposure. 'Add support boards separately' means the displayed board area excludes those supports; enter the measured allowance on the hidden EXTRA BOARDS sheet."
+      },
+      "CALCULATOR": {
+        "A1": "CEASEFIRE  /  STRUCTURAL STEEL BOARD SCHEDULE",
+        "A4": "SCHEDULE ROWS",
+        "E4": "WITH BOARD QUANTITIES",
+        "I4": "INCOMPLETE / NO QUANTITY",
+        "Y4": "BOX REFERENCE m2",
+        "AC4": "NET BOARD REQUIRED m2",
+        "AG4": "POOLED JOB SHEETS",
+        "A8": "Member mark",
+        "B8": "Location",
+        "C8": "Product",
+        "D8": "Steel ID",
+        "E8": "ESA/M input (m2/t)",
+        "F8": "Lineal metres",
+        "G8": "Sides",
+        "H8": "FRL required (min)",
+        "I8": "Beam or Column",
+        "J8": "Critical temp (C)",
+        "K8": "Family (ESA input)",
+        "L8": "Waste (%)",
+        "M8": "Exposure layout",
+        "N8": "Partial depth (mm)",
+        "O8": "Layer preference",
+        "P8": "Thickness lookup",
+        "Q8": "Installation detail",
+        "R8": "Depth or OD (mm)",
+        "S8": "Width B (mm)",
+        "T8": "Steel area (cm2)",
+        "U8": "Steel mass (kg/m)",
+        "V8": "Box girth override (m)",
+        "W8": "Added girth (m)",
+        "X8": "Design reference",
+        "Y8": "ESA/M used (m2/t)",
+        "Z8": "Board stack (mm)",
+        "AA8": "Layers",
+        "AB8": "Total thickness (mm)",
+        "AC8": "Bare box girth (m)",
+        "AD8": "Box reference area (m2)",
+        "AE8": "Board required - net (m2)",
+        "AF8": "Board incl waste (m2)",
+        "AG8": "Sheets - this line",
+        "AH8": "Purchase area - line (m2)",
+        "AI8": "Row status",
+        "AJ8": "Layer 1 (mm)",
+        "AK8": "Layer 2 (mm)",
+        "AL8": "Layer 1 board area (m2)",
+        "AM8": "Layer 2 board area (m2)",
+        "AN8": "Design period (min)",
+        "AO8": "Critical temp used (C)",
+        "AP8": "Fire-design HpA (1/m)",
+        "AQ8": "Inside cladding girth (m)",
+        "AR8": "Quantity status",
+        "AS8": "Design status",
+        "AT8": "Thickness source",
+        "AU8": "Geometry source",
+        "AV8": "Notes and conditions",
+        "AW8": "Published requirement (mm)",
+        "AX8": "HpA benchmark (1/m)",
+        "AY8": "Waste used",
+        "AZ8": "Layer 1 with waste (m2)",
+        "BA8": "Layer 2 with waste (m2)",
+        "BB8": "Source data flag",
+        "BC8": "Quantity review flag",
+        "BD8": "Active",
+        "BE8": "Product code",
+        "BF8": "Steel index",
+        "BG8": "Section family used",
+        "BH8": "Lookup basis used",
+        "BI8": "Layer preference used",
+        "BJ8": "Layout used",
+        "BK8": "Installation detail used",
+        "BL8": "Depth used (mm)",
+        "BM8": "Width used (mm)",
+        "BN8": "Area used (cm2)",
+        "BO8": "Thermal girth (m)",
+        "BP8": "Factor record position",
+        "BQ8": "Base HpA (1/m)",
+        "BR8": "Input error",
+        "BS8": "Section design key",
+        "BT8": "Section design position",
+        "BU8": "Rule index",
+        "BV8": "System ID",
+        "BW8": "System index",
+        "BX8": "Added girth used (m)",
+        "BY8": "Corner count",
+        "BZ8": "Sheet area (m2)",
+        "CA8": "Base system ID",
+        "CB8": "Native design chosen",
+        "CC8": "Geometry override used",
+        "CD8": "Source group",
+        "CE8": "Steel lookup record",
+        "CF8": "Section lookup record",
+        "CG8": "Duration lookup record",
+        "CH8": "Rule lookup map",
+        "CI8": "Selected rule record"
+      },
+      "BOARD SUMMARY": {
+        "A11": "Product",
+        "A1": "CEASEFIRE  /  BOARD TAKEOFF",
+        "A5": "NET BOARD REQUIRED (m2)",
+        "E5": "WHOLE SHEETS",
+        "I5": "PURCHASE AREA (m²)",
+        "B11": "Board mm",
+        "C11": "Sheet length mm",
+        "D11": "Sheet width mm",
+        "E11": "Box board - net m2",
+        "F11": "Extra boards - net m2",
+        "G11": "Net total sqm",
+        "H11": "With waste sqm",
+        "I11": "Whole sheets",
+        "J11": "Purchase sqm",
+        "K11": "Stock source",
+        "L11": "Board key"
+      },
+      "EXTRA BOARDS": {
+        "B5": "Product",
+        "K5": "With waste sqm",
+        "L5": "Board key",
+        "A1": "EXTRA BOARDS  /  DETAIL TAKEOFF",
+        "A5": "Item",
+        "M5": "Status"
+      },
+      "SETTINGS": {
+        "A1": "SETTINGS & CONVENTIONS",
+        "A5": "Setting",
+        "B5": "Value",
+        "C5": "Units",
+        "D5": "Basis",
+        "K5": "No selection",
+        "L5": "Column temp (C)",
+        "M5": "P100 beam temp (C)",
+        "N5": "Other beam temp (C)",
+        "P5": "Existing diagnostic code",
+        "Q5": "Plain-English message (display only)",
+        "A6": "Nominal steel density",
+        "A7": "Kilograms per tonne",
+        "A8": "Millimetres per metre",
+        "A9": "Square centimetres per square metre",
+        "A10": "Default board wastage",
+        "A11": "COREX first general HpA row",
+        "A12": "XS beam noggin protrusion per side",
+        "A13": "Default column critical temperature",
+        "A14": "Default beam critical temperature",
+        "A15": "P100/P250 standard detail maximum depth",
+        "A16": "P100/P250 standard detail maximum width",
+        "A17": "XS beam maximum height stated",
+        "A18": "XS top-of-wall single layer minimum",
+        "A19": "XS top-of-wall minimum steel width",
+        "A20": "Unfilled trapezoid 90 minute HpA multiplier",
+        "A21": "Boundary numerical tolerance",
+        "A23": "COREX assessment maximum Hp/A",
+        "A24": "COREX assessment maximum depth",
+        "A25": "COREX single-layer maximum thickness",
+        "A26": "COREX maximum two-layer total",
+        "A27": "COREX single-layer maximum period",
+        "A28": "COREX 120-minute maximum published Hp/A",
+        "A29": "COREX 180-minute / 620 C maximum Hp/A",
+        "A30": "COREX 180-minute / 550 C stock maximum Hp/A",
+        "A31": "COREX 90-minute / 550 C maximum published Hp/A",
+        "A32": "COREX upper-band lower boundary",
+        "A33": "COREX 90-minute / 550 C upper-band stock",
+        "A34": "COREX 120-minute / 550 C upper-band stock"
+      }
+    },
+    "ductwork": {
+      "CALCULATOR": {
+        "A1": "CEASEFIRE | DUCT PROTECTION CALCULATOR • V5.5.2",
+        "A10": "Line",
+        "B10": "Duct size W x H (mm)",
+        "C10": "Product",
+        "D10": "Length (m)",
+        "E10": "FRL — compartment / duct*",
+        "F10": "Wall penetrations",
+        "G10": "Floor penetrations",
+        "H10": "Fire exposure / FyreWrap application",
+        "I10": "Orientation",
+        "J10": "STATUS / ESTIMATING BASIS",
+        "K10": "Duct surface (m²)",
+        "L10": "Spray DFT (mm)",
+        "M10": "Net bags — body only",
+        "N10": "Net wrap material (m²)",
+        "O10": "Net roll equivalents",
+        "P10": "Maxilite net @60 mm (m²)",
+        "Q10": "Wrap fixing method",
+        "R10": "Continuous wrap layers",
+        "S10": "Wall L2 each side (m)",
+        "T10": "Floor L2 top (m)",
+        "U10": "Floor L3 top (m)",
+        "V10": "L1 material (m²)",
+        "W10": "L2 material (m²)",
+        "X10": "L3 material (m²)",
+        "Y10": "Maxilite width (mm)",
+        "Z10": "Maxilite strips (lm)",
+        "AA10": "Cut board strips (not sheets)",
+        "AB10": "Cross-strip cut (mm)",
+        "AC10": "Side-strip cut (mm)",
+        "AD10": "Wall angle profile",
+        "AE10": "Wall angle net / allowance (lm)",
+        "AF10": "Floor TOP profile",
+        "AG10": "Floor TOP net / allowance (lm)",
+        "AH10": "Floor BOTTOM profile",
+        "AI10": "Floor BOTTOM net / allowance (lm)",
+        "AJ10": "Combined angle length (lm)",
+        "AK10": "Penetration clearance guide",
+        "AL10": "Penetration fixing guide",
+        "AM10": "Body fixing / support guide",
+        "AN10": "Spray body volume (m³)",
+        "AO10": "Working yield (m³/bag)",
+        "AS10": "Active",
+        "BD10": "Product code"
+      },
+      "SUMMARY": {
+        "A8": "Product",
+        "A18": "Product",
+        "A30": "Product",
+        "B8": "Rows",
+        "C8": "Duct area (m²)",
+        "D8": "Net bags",
+        "E8": "Wrap (m²)",
+        "F8": "Roll eq.",
+        "G8": "Maxilite (m²)",
+        "H8": "Angles (lm)",
+        "I8": "Primary qty withheld",
+        "J8": "Steel rows withheld",
+        "K8": "Basis",
+        "D30": "Basis",
+        "I39": "Basis",
+        "L8": "Interpretation",
+        "F30": "Interpretation",
+        "A17": "PENETRATION ANGLES — LENGTH BY SIZE AND LOCATION",
+        "B18": "Location",
+        "C18": "Profile (mm)",
+        "D18": "Length (lm)",
+        "E18": "Quantity basis",
+        "F18": "Limitation",
+        "A29": "WORKING YIELDS — CALIBRATED OR UNCALIBRATED",
+        "B30": "Working m³/bag",
+        "C30": "Reference quantity",
+        "E30": "Source",
+        "A38": "MAXILITE — 60 mm BOARD AREA AND CUT STRIPS",
+        "A39": "Strip width (mm)",
+        "B39": "Wall board (m²)",
+        "C39": "Floor TOP (m²)",
+        "D39": "Floor BOTTOM (m²)",
+        "E39": "Total board (m²)",
+        "F39": "Cut strips (pieces)",
+        "G39": "Cut strip length (lm)",
+        "H39": "Area identity check"
+      },
+      "PRODUCT SETTINGS": {
+        "D7": "Basis",
+        "D49": "Basis",
+        "D95": "Basis",
+        "H36": "Interpretation",
+        "G36": "Source",
+        "F74": "Source",
+        "G123": "Source",
+        "G129": "Source",
+        "J6": "BOTH / MIXED — USE THE STRICTER CASE",
+        "A7": "Parameter",
+        "A49": "Parameter",
+        "A95": "Parameter",
+        "J116": "Parameter",
+        "B7": "Value",
+        "B49": "Value",
+        "B95": "Value",
+        "K116": "Value",
+        "C7": "Units",
+        "C49": "Units",
+        "C95": "Units",
+        "L116": "Units",
+        "E7": "Source / interpretation",
+        "E49": "Source / interpretation",
+        "E95": "Source / interpretation",
+        "M116": "Source / interpretation",
+        "A36": "Width band",
+        "B36": "Height max (mm)",
+        "C36": "Hanger rods",
+        "D36": "Spacing (mm)",
+        "E36": "Bottom support",
+        "F36": "Stiffener",
+        "A74": "Key",
+        "A117": "Key",
+        "A129": "Key",
+        "A136": "Key",
+        "B74": "Complete FRL",
+        "C74": "Internal (mm)",
+        "D74": "External (mm)",
+        "E74": "Max size",
+        "G74": "Selection",
+        "H74": "Notes",
+        "J94": "FYREWRAP APPLICATION TABLE • MANUAL pp.8–9",
+        "J95": "Calculator H selection",
+        "K95": "Manual application wording",
+        "L95": "Family",
+        "M95": "Continuous layers",
+        "N95": "External FRL (2h table)",
+        "O95": "Internal FRL (2h table)",
+        "P95": "Source page",
+        "Q95": "Scope / distinction",
+        "J115": "PENETRATION TAKEOFF — STANDARD FOUR-SIDED DETAILS",
+        "B117": "Duct max (mm)",
+        "C117": "Gap min (mm)",
+        "D117": "Gap max (mm)",
+        "E117": "Board width (mm)",
+        "F117": "Angle (mm)",
+        "G117": "Board thick (mm)",
+        "H117": "Source / scope",
+        "J117": "Wall board collars",
+        "L117": "faces/wall",
+        "A123": "Wall type",
+        "B123": "Angle to wall",
+        "C123": "Board to wall",
+        "D123": "Max c/c (mm)",
+        "E123": "Angle to duct",
+        "F123": "Pin specification",
+        "H123": "Scope",
+        "H129": "Scope",
+        "J123": "Cut strips per collar",
+        "L123": "strips",
+        "B129": "Printed WIDTH",
+        "B136": "Printed WIDTH",
+        "C129": "Printed HEIGHT",
+        "C136": "Printed HEIGHT",
+        "D129": "60-min L2 (mm)",
+        "E129": "120-min L2 (mm)",
+        "D136": "120-min L2 (mm)",
+        "F129": "Selection order",
+        "J129": "Corner treatment",
+        "K129": "Count once",
+        "L129": "geometry",
+        "E136": "120-min L3 (mm)",
+        "F136": "180-min L2 (mm)",
+        "G136": "180-min L3 (mm)",
+        "H136": "Source / priority",
+        "A8": "Assessed spray thickness",
+        "A9": "Internal / vertical FRL ceiling",
+        "A10": "External horizontal FRL ceiling",
+        "A11": "Horizontal maximum WIDTH",
+        "A12": "Horizontal maximum HEIGHT",
+        "A13": "Larger-than-tested trigger",
+        "A14": "Duct base metal thickness",
+        "A15": "Horizontal hanger interval",
+        "A16": "Vertical standard support interval",
+        "A17": "Vertical oversized / lightweight",
+        "A18": "Concrete floor thickness",
+        "A19": "Concrete floor nominal density",
+        "A20": "Duct protection dried density",
+        "A21": "Generic TDS reference density",
+        "A22": "Bag mass",
+        "A23": "Generic theoretical coverage",
+        "A24": "Coverage reference thickness",
+        "A25": "Working net yield — DUCTS",
+        "A26": "Working coverage at 60 mm",
+        "A27": "Wall capping angle",
+        "A28": "Concrete floor TOP angle",
+        "A29": "Concrete floor BOTTOM angle",
+        "A30": "Wall angle frames",
+        "A31": "Floor frames — each profile",
+        "A32": "AAC / Speedpanel companion boards",
+        "A33": "Removed site inputs",
+        "A34": "Net spray quantity convention",
+        "A35": "Yield basis",
+        "A73": "Yield basis",
+        "A37": "Up to 1200 mm",
+        "A41": "Yield source URL",
+        "A42": "Assessment source",
+        "A88": "Assessment source",
+        "A43": "CAFCO yield interpretation",
+        "A44": "Calibration reference area",
+        "A90": "Calibration reference area",
+        "A45": "Calibration reference thickness",
+        "A91": "Calibration reference thickness",
+        "A46": "Calibration target net bags",
+        "A92": "Calibration target net bags",
+        "A50": "Maximum duct width / height",
+        "A51": "Stability / integrity ceiling",
+        "A52": "Insulation ceiling",
+        "A53": "Small duct maximum width",
+        "A54": "Small duct maximum height",
+        "A55": "Medium duct maximum dimension",
+        "A56": "Small duct minimum BMT",
+        "A57": "Other duct minimum BMT",
+        "A58": "Horizontal hanger spacing",
+        "A59": "Vertical intermediate-support trigger",
+        "A60": "Standard concrete floor thickness",
+        "A61": "Standard penetration clearance",
+        "A62": "Larger-duct wall stiffener",
+        "A63": "Wall perimeter frame allowance",
+        "A64": "Floor perimeter frame allowance",
+        "A65": "Spray application basis",
+        "A66": "Un-injected nozzle yield",
+        "A67": "Injected nozzle yield",
+        "A68": "Board-foot volume",
+        "A69": "Working net yield",
+        "A70": "GCP AU published MK-6/HY bag",
+        "A81": "Standard wall basis",
+        "A82": "Standard floor basis",
+        "A83": "Spray scope",
+        "A85": "Yield chart URL",
+        "A86": "Local duct manual URL",
+        "A87": "GCP AU TDS URL",
+        "A89": "Application choice",
+        "A96": "Blanket layer thickness",
+        "A97": "Selected roll width",
+        "A98": "Roll length",
+        "A99": "Required wrap overlap",
+        "A100": "Board strip butt-joint gap",
+        "A101": "Maxilite thickness",
+        "A102": "Wall collars / local zones",
+        "A103": "Floor local-WRAP zones",
+        "A104": "Band maximum centres",
+        "A105": "Pin grid maximum centres",
+        "A106": "Banding-only size threshold",
+        "A107": "Band + one-face pins limit",
+        "A108": "Supplied table dimension envelope",
+        "A109": "External support example envelope",
+        "A110": "Complete duct FRL auto-schedule",
+        "A111": "Added waste / error allowance",
+        "A112": "Selected actual roll area",
+        "A113": "Width / height lookup convention",
+        "A114": "Local layer count basis",
+        "A115": "Standard penetration basis"
+      }
+    }
+  };
+
   const browserAlignmentRanges = new WeakMap();
   function browserCellDisplay(entry, address, source = {}) {
     const rules = browserPresentation[entry.definition.id]?.[entry.sheet];
@@ -519,7 +1230,7 @@
     $("calculator-option-lists").append(list); state.optionLists.set(key, list.id); return list.id;
   }
 
-  function makeControl(cell, row, entry, label) {
+  function makeControl(cell, row, entry, label, item = null) {
     const address = cell.address || `${columnName(cell.column)}${row}`;
     const key = `${entry.sheet}!${address}`;
     const sourceSheet = entry.sheet;
@@ -555,24 +1266,29 @@
     const custom = customAllowed ? node("input", numeric ? "calculator-number" : "") : null;
     let customMode = false, customToken = "__calculator_custom_value__", customOption;
     while (options.some((option) => String(option) === customToken) || String(value) === customToken) customToken += "_";
+    const controlLabel = item ? window.CeasefireI18n.term("{0}, item {1}", [window.CeasefireI18n.term(label), item]) : window.CeasefireI18n.term(label);
     if (custom) {
       custom.type = "text"; custom.hidden = true; custom.autocomplete = "off";
       custom.dataset.calculatorCustomCell = address; custom.dataset.calculatorSheet = sourceSheet;
-      window.CeasefireI18n.attr(custom, "aria-label", "{0} custom value{1}", [window.CeasefireI18n.term(label), window.CeasefireI18n.term(percent(cell) ? " in percent" : "")]);
+      window.CeasefireI18n.attr(custom, "aria-label", "{0} custom value{1}", [controlLabel, window.CeasefireI18n.term(percent(cell) ? " in percent" : "")]);
       if (numeric) custom.inputMode = "decimal";
       customOption = uiNode("option", "", "Enter custom value…"); customOption.value = customToken;
     }
     const selectOptions = [];
     control.dataset.calculatorCell = address;
     control.dataset.calculatorSheet = entry.sheet;
-    window.CeasefireI18n.attr(control, "aria-label", "{0}{1}", [window.CeasefireI18n.term(label), window.CeasefireI18n.term(percent(cell) ? " in percent" : "")]);
+    window.CeasefireI18n.attr(control, "aria-label", "{0}{1}", [controlLabel, window.CeasefireI18n.term(percent(cell) ? " in percent" : "")]);
     if (select) {
       const appendOption = (item) => {
         // Historical inputs stay visible and exact, without becoming new choices.
         const unavailable = listedChoice && item !== "" && !options.some((choice) => String(choice) === String(item));
-        const option = node("option", "", unavailable ? `Saved value: ${item} (choose a listed value)` : item === "" ? "(blank)" : displayValue(item, cell));
+        const option = node("option"); option.value = String(item);
+        if (unavailable) window.CeasefireI18n.text(option, "Saved value: {0} (choose a listed value)", [item]);
+        else if (item === "") window.CeasefireI18n.text(option, "(blank)");
+        else if (calculatorChoiceLabel(entry, address, item, options.some((choice) => String(choice) === String(item)))) window.CeasefireI18n.text(option, item);
+        else option.textContent = displayValue(item, cell);
         if (unavailable) option.disabled = true;
-        option.value = String(item); control.append(option); selectOptions.push({ option, value: item, unavailable });
+        control.append(option); selectOptions.push({ option, value: item, unavailable });
         if (isNumber(item)) window.CeasefireI18n.attr(option, "title", "Exact value: {0}{1}", [numericInputValue(item, cell, true), window.CeasefireI18n.term(percent(cell) ? "%" : "")]);
       };
       control.calculatorEnsureOption = (item) => {
@@ -711,6 +1427,27 @@
     return labels;
   }
 
+  function bindCalculatorLabel(element, cell, entry, address, display = cell.value) {
+    if (!cell.editable && !cell.calculated && typeof cell.value === "string"
+      && calculatorLabelSources[entry?.definition.id]?.[entry?.sheet]?.[address] === cell.value) {
+      window.CeasefireI18n.text(element, display); return true;
+    }
+    return false;
+  }
+
+  const calculatorChoiceTerms = new Set("Internal|External|Both|Stair pressurisation|Other pressurisation|Horizontal|Vertical|Beam|Column|Channel|Angle|Tee|Standard|Rotate|Partial depth|Opposite B|Opposite D|Custom girth|Auto|Single|Double|Published first|General only|Standard box|XS top of wall|Promat trapezoid unfilled|Special / engineered|Section|Lower web (mm)|Exact only|Next higher (estimate)|Re-entrant - 3 sides|Re-entrant - 4 sides|Hollow - 3 sides|Hollow - 4 sides|Castellated - special factor|PFC web to slab - 3 sides|Not confirmed|Confirmed by project designer|Un-injected|Injected|Calibrated|Uncalibrated".split("|"));
+  function calculatorChoiceLabel(entry, address, item, listed) {
+    if (!listed || !calculatorChoiceTerms.has(item)) return false;
+    const position = parseAddress(address), schedule = entry.definition.schedule;
+    if (schedule?.sheet === entry.sheet && position?.row >= schedule.first_row && position.row <= schedule.last_row) {
+      const columns = { steel_vermiculite: [3, 5], steel_board: [9, 11, 13, 15, 16, 17], ductwork: [8, 9] };
+      return (columns[entry.definition.id] || []).includes(position.column);
+    }
+    return entry.definition.id === "steel_vermiculite" && (entry.sheet === "CALCULATOR" && ["D7", "D9"].includes(address)
+      || entry.sheet === "SETTINGS" && ["D12", "D14", "D358"].includes(address))
+      || entry.definition.id === "ductwork" && entry.sheet === "PRODUCT SETTINGS" && ["B35", "B65", "B73"].includes(address);
+  }
+
   function updateOutputCell(element, cell) {
     const address = cell.address || element.dataset.calculatorOutput, entry = current();
     const value = sourceDisplayText(cell.value, entry, address), suffix = entry && (entry.result?.display_cells || sheetMetadata(entry).display_cells)?.[address]?.suffix;
@@ -736,7 +1473,11 @@
       outputState(element, cell.value);
       if (element.calculatorValueCard) outputState(element.calculatorValueCard, cell.value);
     }
-    if (element.dataset.calculatorVirtualOutput === "true") element.replaceChildren(node("div", "calculator-virtual-output", element.textContent));
+    const translatedLabel = bindCalculatorLabel(element, cell, entry, address, value);
+    if (element.dataset.calculatorVirtualOutput === "true") {
+      const content = node("div", "calculator-virtual-output", element.textContent); element.replaceChildren(content);
+      if (translatedLabel) bindCalculatorLabel(content, cell, entry, address, value);
+    }
   }
 
   function outputState(element, value) {
@@ -858,6 +1599,7 @@
       const label = mapped.get(labelAddress), value = mapped.get(valueAddress);
       if (!label || !value || !columns.includes(value.column)) continue;
       const card = node("div", "calculator-summary-metric"), heading = node("span", "", sourceDisplayText(label.value, entry, labelAddress)), output = node("strong");
+      bindCalculatorLabel(heading, label, entry, labelAddress, sourceDisplayText(label.value, entry, labelAddress));
       applyCellDisplay(heading, metadata.display_cells[labelAddress]); applyCellDisplay(output, metadata.display_cells[valueAddress]);
       output.dataset.calculatorValue = "true"; output.calculatorValueCard = card;
       output.dataset.calculatorOutput = valueAddress; updateOutputCell(output, value); card.append(heading, output); cards.append(card);
@@ -900,13 +1642,25 @@
       const row = node("tr"), product = node("th", "", total.product); product.scope = "row"; row.append(product);
       const incomplete = board ? [[total.incomplete_rows, "schedule rows"], [total.incomplete_extra_rows, "additional-board rows"]].filter(([count]) => count > 0).map(([count, label]) => `${displayValue(count)} incomplete ${label}`) : [];
       const status = !board ? total.status : incomplete.length ? `${incomplete.join("; ")} — totals need review` : total.incomplete_rows == null && total.incomplete_extra_rows == null ? "" : "No incomplete rows";
-      for (const value of board ? [total.box_reference_area, total.net_board_area, total.whole_sheets, status] : [total.net_bags, total.whole_bags, status]) { const cell = node("td", typeof value === "string" ? "calculator-product-order-status" : ""); cell.dataset.calculatorValue = "true"; updateOutputCell(cell, { value }); row.append(cell); }
+      for (const value of board ? [total.box_reference_area, total.net_board_area, total.whole_sheets, status] : [total.net_bags, total.whole_bags, status]) {
+        const cell = node("td", typeof value === "string" ? "calculator-product-order-status" : ""); cell.dataset.calculatorValue = "true"; updateOutputCell(cell, { value });
+        if (board && value === status && typeof value === "string" && value) {
+          const notes = [[total.incomplete_rows, "{0} incomplete schedule rows"], [total.incomplete_extra_rows, "{0} incomplete additional-board rows"]]
+            .filter(([count]) => count > 0).map(([count, source]) => window.CeasefireI18n.term(source, [displayValue(count)]));
+          const detail = notes.length > 1 ? window.CeasefireI18n.term("{0}; {1}", notes) : notes[0];
+          if (detail) window.CeasefireI18n.text(cell, "{0} — totals need review", [detail]);
+          else window.CeasefireI18n.text(cell, "No incomplete rows");
+        }
+        row.append(cell);
+      }
       body.append(row);
     }
     table.append(head, body); scroll.append(table);
     const cards = node("div", "calculator-summary-cards calculator-summary-three");
     for (const total of result?.spray_schedule_totals || []) {
-      const card = node("div", "calculator-summary-metric"), output = node("strong"); output.dataset.calculatorValue = "true"; updateOutputCell(output, { value: total.value }); card.append(node("span", "", total.label), output); cards.append(card);
+      const card = node("div", "calculator-summary-metric"), output = node("strong"), label = node("span", "", total.label);
+      if (["TOTAL ENTERED SPRAY AREA", "COATING VOLUME QUANTIFIED", "ROWS NOT FULLY QUANTIFIED"].includes(total.label)) window.CeasefireI18n.text(label, total.label);
+      output.dataset.calculatorValue = "true"; updateOutputCell(output, { value: total.value }); card.append(label, output); cards.append(card);
     }
     container.replaceChildren(heading, ...(cards.children.length ? [cards] : []), ...(overview ? [overview] : []), ...(note ? [note] : []), scroll);
   }
@@ -1230,7 +1984,7 @@
           td.classList.add("calculator-editable");
           const preceding = row.cells.filter((candidate) => candidate.column < column && typeof candidate.value === "string" && candidate.value.trim()).at(-1)?.value;
           const label = cell.label || labels[column] || preceding || "Calculator input";
-          td.append(makeControl(cell, row.row, entry, `${label}${item ? `, item ${item}` : ""}`));
+          td.append(makeControl(cell, row.row, entry, label, item));
         } else {
           const structural = matrixHeading || sourceHeading || ["title", "compact_title", "compact_summary_title", "section", "column_header"].includes(role);
           const tableValue = Boolean(schedule) || group === "matrix" || Boolean(renderedGroup.definition) || referenceTableValue(entry, row.row, column);

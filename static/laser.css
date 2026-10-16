@@ -292,11 +292,11 @@
   .home-hero .page-heading { display: block; margin: 0; }
   .home-hero h1 { max-width: 600px; font-size: clamp(30px, 3.2vw, 48px); font-weight: 800; letter-spacing: -1.3px; }
   .home-hero .subtitle { max-width: 470px; margin-top: 18px; line-height: 1.8; }
-  .home-laser-art { display: block; width: 100%; max-width: 520px; max-height: 360px; justify-self: end; object-fit: contain; pointer-events: none; }
+  .home-laser-art { display: block; width: 100%; max-width: 520px; height: 310px; max-height: 360px; justify-self: end; object-fit: cover; object-position: center 72%; border-radius: 10px; pointer-events: none; }
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) .home-hero { background: radial-gradient(ellipse at 77% 85%, #b9001818, transparent 54%), linear-gradient(120deg, #13171d, #090c10); border-color: #45404a; box-shadow: inset 0 1px #ed001b33, 0 16px 35px #0002; }
   @media (max-width: 760px) {
     .home-hero { grid-template-columns: minmax(0, 1fr); gap: 12px; padding: 25px 22px; }
-    .home-laser-art { max-height: 230px; max-width: 390px; justify-self: center; }
+    .home-laser-art { height: 260px; max-height: 260px; max-width: 100%; justify-self: center; }
     .main-output-workspace { margin-top: 23px; padding-top: 20px; }
   }
   @media (prefers-reduced-motion: reduce) {

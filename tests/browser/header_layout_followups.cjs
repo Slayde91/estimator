@@ -13,8 +13,25 @@ const ready=new Promise((resolve,reject)=>{let data='';const timer=setTimeout(()
 const errors=[],evidence={layouts:[],views:[],languages:[]};
 async function idle(){await page.waitForFunction(()=>{const s=window.CeasefireDesktop?.status();return s?.ready&&!s.busy;});}
 async function snapshot(){await idle();return page.evaluate(()=>({project:window.CeasefireProject.details(),inputs:[...document.querySelectorAll('#main-estimate-form input,#main-estimate-form select,#main-estimate-form textarea')].map(el=>[el.id,el.value,el.checked]),calculators:window.CeasefireCalculators.projectSnapshot(),penetration:window.CeasefirePenetrations.projectSnapshot(),configuration:window.CeasefireProject.configuration()}));}
-async function unscaledNavigation(){
- return page.locator('.header-navigation').evaluate(el=>{const saved=['zoom','width'].map(name=>[name,el.style.getPropertyValue(name),el.style.getPropertyPriority(name)]);try{el.style.zoom='1';if(innerWidth<=720)el.style.width='100%';const box=n=>{const r=n.getBoundingClientRect();return{width:r.width,height:r.height};};return{nav:box(el.querySelector('nav')),buttons:[...el.querySelectorAll('.nav-icon')].map(box)};}finally{for(const[name,value,priority]of saved)if(value)el.style.setProperty(name,value,priority);else el.style.removeProperty(name);}});
+async function navigationScale(){
+ return page.locator('.header-navigation').evaluate(el=>{
+  const buttons=[...el.querySelectorAll('.nav-icon')],box=n=>{const r=n.getBoundingClientRect();return{x:r.x,y:r.y,width:r.width,height:r.height};};
+  const measure=()=>({nav:box(el.querySelector('nav')),wrapper:box(el),buttons:buttons.map(box),labels:buttons.map(b=>box(b.querySelector('.nav-page-label')))});
+  const save=(node,names)=>({node,attribute:node.getAttribute('style'),css:node.style.cssText,properties:names.map(name=>[name,node.style.getPropertyValue(name),node.style.getPropertyPriority(name)])});
+  // Flush lazy CSSOM attribute serialization before restoring an absent style.
+  const restore=s=>{for(const[name,value,priority]of s.properties)if(value)s.node.style.setProperty(name,value,priority);else s.node.style.removeProperty(name);if(s.attribute===null&&s.node.style.length===0){s.node.getAttribute('style');s.node.removeAttribute('style');}};
+  if(buttons.some(b=>getComputedStyle(b).boxSizing!=='border-box'))throw Error('Scale probe requires the original border-box button sizing');
+  const wrapperStyle=save(el,['zoom','width']),styles=[wrapperStyle,...buttons.map(b=>save(b,['width','height']))],artwork=buttons.map(b=>b.querySelector('svg').outerHTML),actualBefore=measure();
+  let naturalUnscaled,controlledUnscaled,controlledScaled;
+  try{
+   el.style.zoom='1';if(innerWidth<=720)el.style.width='100%';naturalUnscaled=measure();
+   // Font engines round auto-sized glyph advances differently at smaller sizes.
+   // Hold the same original boxes while measuring the requested CSS scale.
+   for(const[index,b]of buttons.entries()){b.style.width=naturalUnscaled.buttons[index].width+'px';b.style.height=naturalUnscaled.buttons[index].height+'px';}
+   controlledUnscaled=measure();restore(wrapperStyle);controlledScaled=measure();
+  }finally{for(const s of styles)restore(s);}
+  return{naturalUnscaled,controlledUnscaled,controlledScaled,actualBefore,actualAfter:measure(),styleRestoration:styles.map(s=>({before:s.css,after:s.node.style.cssText,attributeBefore:s.attribute,attributeAfter:s.node.getAttribute('style')})),stylesRestored:styles.every(s=>s.node.style.cssText===s.css&&s.node.getAttribute('style')===s.attribute),artworkRestored:buttons.every((b,index)=>b.querySelector('svg').outerHTML===artwork[index])};
+ });
 }
 async function dock(){
  const value=await page.locator('#header-project-actions').evaluate(el=>{const r=el.getBoundingClientRect();return{position:getComputedStyle(el).position,parent:el.parentElement.tagName,x:r.x,y:r.y,right:r.right,bottom:r.bottom,width:r.width,height:r.height,viewport:[innerWidth,innerHeight],hit:[...el.querySelectorAll('button')].every(b=>{const r=b.getBoundingClientRect(),hit=document.elementFromPoint(r.x+r.width/2,r.y+r.height/2);return b===hit||b.contains(hit);})};});
@@ -29,17 +46,19 @@ async function dock(){
  await assertPreviewHeaderIcons(page);
  for(const width of [1600,1384,1146,906,720,390,320]){
   await page.setViewportSize({width,height:764});await page.locator('nav [data-view="home"]').click();await idle();
-  const unscaled=await unscaledNavigation();
+  const scale=await navigationScale(),unscaled=scale.naturalUnscaled;
   const layout=await page.evaluate(()=>{const box=s=>{const r=(typeof s==='string'?document.querySelector(s):s).getBoundingClientRect();return{x:r.x,y:r.y,right:r.right,bottom:r.bottom,width:r.width,height:r.height};};return{header:box('.app-header'),headerBackground:getComputedStyle(document.querySelector('.app-header')).backgroundColor,brand:box('.brand-stack'),tagline:box('#header-tagline'),nav:box('.app-header nav'),wrapper:box('.header-navigation'),zoom:getComputedStyle(document.querySelector('.header-navigation')).zoom,transform:getComputedStyle(document.querySelector('.header-navigation')).transform,buttons:[...document.querySelectorAll('.app-header .nav-icon')].map(box),overflow:document.documentElement.scrollWidth-innerWidth,labels:[...document.querySelectorAll('.app-header .nav-icon')].map(el=>{const icon=el.querySelector('svg').getBoundingClientRect(),label=el.querySelector('.nav-page-label'),r=label.getBoundingClientRect();return{text:label.textContent,display:getComputedStyle(label).display,width:r.width,height:r.height,y:r.y,iconBottom:icon.bottom};})};});
   assert.ok(layout.overflow<=1,JSON.stringify({width,layout}));assert.equal(layout.labels.length,8);
   for(const label of layout.labels){assert.notEqual(label.display,'none');assert.ok(label.width>0&&label.height>0&&label.y>=label.iconBottom,JSON.stringify({width,label}));}
   assert.ok(layout.tagline.x>=layout.brand.right,'Mascot and quote sit to the right of the logo');assert.ok(layout.nav.right<=width&&layout.header.bottom>=layout.nav.bottom);
   assert.equal(layout.headerBackground,'rgb(255, 255, 255)');assert.equal(layout.zoom,'0.65');assert.equal(layout.transform,'none');
-  for(const axis of ['width','height']){assert.ok(Math.abs(layout.nav[axis]-unscaled.nav[axis]*.65)<1,`Navigation ${axis} is 65% of its previous layout size at ${width}: ${JSON.stringify({unscaled,layout})}`);assert.ok(Math.abs(layout.wrapper[axis]-layout.nav[axis])<.1,'Navigation frees its occupied layout space');}
-  for(const [index,button]of layout.buttons.entries())for(const axis of ['width','height'])assert.ok(Math.abs(button[axis]-unscaled.buttons[index][axis]*.65)<1,`Navigation button ${index} ${axis} is 35% smaller at ${width}`);
+  assert.equal(scale.stylesRestored,true,`Scale probe restores every original inline style: ${JSON.stringify(scale.styleRestoration)}`);assert.equal(scale.artworkRestored,true,'Scale probe preserves original SVG artwork');assert.deepEqual(scale.actualAfter,scale.actualBefore,'Real automatic layout is restored exactly after the controlled probe');
+  for(const axis of ['width','height']){assert.ok(Math.abs(scale.controlledScaled.nav[axis]-scale.controlledUnscaled.nav[axis]*.65)<1,`Navigation ${axis} scales to 65% with the same source boxes at ${width}: ${JSON.stringify({scale,layout})}`);assert.ok(Math.abs(layout.wrapper[axis]-layout.nav[axis])<.1,'Navigation frees its occupied layout space');assert.ok(layout.nav[axis]<=unscaled.nav[axis]*.65+1,'Real automatic navigation is at most65% of its original size plus1px rounding');}
+  for(const [index,button]of scale.controlledScaled.buttons.entries())for(const axis of ['width','height'])assert.ok(Math.abs(button[axis]-scale.controlledUnscaled.buttons[index][axis]*.65)<1,`Navigation button ${index} ${axis} scales to 65% at ${width}`);
+  for(const[index,button]of layout.buttons.entries()){assert.ok(button.width>=40&&button.height>=40,'Real navigation retains native pointer targets');for(const axis of ['width','height'])assert.ok(button[axis]<=unscaled.buttons[index][axis]*.65+1,'Real automatic button is at most65% of its original size plus1px rounding');const label=scale.actualAfter.labels[index];assert.ok(label.x>=button.x&&label.x+label.width<=button.right&&label.y>=button.y&&label.y+label.height<=button.bottom,'Real automatic captions remain contained');}
   if(width<=1150)assert.ok(width-layout.nav.right<=(width<=720?14:30)+1,'Responsive navigation keeps its right alignment');
   if(width>1150){assert.ok(width-layout.nav.right<=32,'Navigation occupies the far right');assert.ok(layout.tagline.right<=layout.nav.x);}
-  evidence.layouts.push({width,unscaled,...layout,dock:await dock()});await page.screenshot({path:path.join(output,`header-layout-${width}.png`)});
+  evidence.layouts.push({width,unscaled,scale,...layout,dock:await dock()});await page.screenshot({path:path.join(output,`header-layout-${width}.png`)});
  }
  await page.setViewportSize({width:1384,height:764});
  const views=[...['home','estimate','quotes','help','settings'].map(id=>[id,()=>page.locator(`nav [data-view="${id}"]`).click()]),...['Steel (spray)','Steel (board)','Ductwork (spray/wrap)','Firestopping'].map(name=>[name,()=>chooseCalculator(page,name)]),...['Steel','Duct','Walls/Floors','Defect Reports','Service Plans'].map(name=>[name,()=>chooseTakeoff(page,name)]),...['pricing','penetration','technical'].map(kind=>['library-'+kind,()=>chooseLibrary(page,kind)])];

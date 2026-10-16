@@ -17,6 +17,14 @@ def near(a, b):
     return len(a) == len(b) and all(abs(float(x)-float(y)) < .0001 for x, y in zip(a, b))
 
 
+def serialized_geometry(actual, expected):
+    # ReportLab emits PDF coordinates with fp_str's magnitude-dependent precision.
+    # Compare those exact tokens, retaining strict geometry checks even when a
+    # CropBox/UserUnit transform places a valid translation above 1,000 points.
+    emitted = [float(token) for token in fp_str(*expected).split()]
+    return len(actual) == len(emitted) and [float(value) for value in actual] == emitted
+
+
 def inspect(pdf_path, specification):
     reader = PdfReader(pdf_path)
     proof = []
@@ -40,7 +48,7 @@ def inspect(pdf_path, specification):
             if 'points' in graphic['geometry']:
                 expected = [transform(point, matrix) for point in graphic['geometry']['points']]
                 actual = [args for args, op in ink if op in (b'm', b'l')][:len(expected)]
-                if len(actual) == len(expected) and all(near(a, b) for a, b in zip(actual, expected)):
+                if len(actual) == len(expected) and all(serialized_geometry(a, b) for a, b in zip(actual, expected)):
                     assert near(next(args for args, op in ink if op == b'w'), [style['stroke_width']]), 'Stroke is measured in physical PDF points'
                     if graphic['kind'] == 'arrow':
                         assert sum(op == b'S' for _, op in ink) >= 2, 'Arrow stem and open head are separate strokes'
@@ -50,7 +58,7 @@ def inspect(pdf_path, specification):
                 q0, q1, _, q3 = [transform(point, matrix) for point in graphic['geometry']['quad_pdf']]
                 w, h = math.dist(q0, q1), math.dist(q0, q3)
                 expected = [(q1[0]-q0[0])/w, (q1[1]-q0[1])/w, (q0[0]-q3[0])/h, (q0[1]-q3[1])/h, *q3]
-                if any(op == b'cm' and near(args, expected) for args, op in ink):
+                if any(op == b'cm' and serialized_geometry(args, expected) for args, op in ink):
                     assert near(next(args for args, op in ink if op == b'w'), [style['stroke_width']]), 'Stroke is measured in physical PDF points'
                     if graphic['kind'] in ('cloud', 'circle'):
                         assert any(op == b'c' for _, op in ink), 'Cloud and Circle contain real vector curves'

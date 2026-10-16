@@ -21,17 +21,32 @@
     mask-image:linear-gradient(90deg,transparent,#000 24%,#000 76%,transparent),linear-gradient(transparent,#000 24%,#000 76%,transparent);
     -webkit-mask-composite:source-in; mask-composite:intersect;
   }
-  .calculator-workspace-heading .workspace-header-art { display:none; }
+  .calculator-workspace-heading .workspace-header-art { display:none; inset-inline:14% 16%; width:70%; overflow:hidden; }
   #calculator-workspace[data-calculator-kind="steel_vermiculite"] .workspace-header-art--spray,
   #calculator-workspace[data-calculator-kind="steel_board"] .workspace-header-art--board,
   #calculator-workspace[data-calculator-kind="ductwork"] .workspace-header-art--ductwork { display:block; }
   .workspace-header-art--estimate { object-position:center 56%; opacity:.8; }
-  .workspace-header-art--spray { object-position:center 73%; }
-  .workspace-header-art--board { object-position:center 68%; }
-  .workspace-header-art--ductwork { object-position:center 71%; }
-  .penetration-workspace-art { height:150px; margin:-8px 0 18px; overflow:hidden; pointer-events:none; }
-  .penetration-workspace-art img {
-    display:block; width:100%; height:100%; object-fit:cover; object-position:center 71%;
+  /* Keep the wide frame and header height. The inner frame follows the actual
+     painted portrait, so its black edges fade before meeting the theme surface. */
+  .workspace-banner-crop {
+    position:absolute; inset:0 auto 0 50%; height:100%; width:auto; max-width:100%;
+    aspect-ratio:1.44; transform:translateX(-50%); overflow:hidden;
+    -webkit-mask-image:linear-gradient(90deg,transparent,#000 18%,#000 82%,transparent);
+    mask-image:linear-gradient(90deg,transparent,#000 18%,#000 82%,transparent);
+  }
+  /* At unconstrained widths this exposes source rows 33–89%, including the
+     recognisable object, rather than the old magnified, thin cover crop. */
+  .workspace-banner-image {
+    position:absolute; inset-inline:0; top:-60%; display:block; width:100%; height:180%;
+    object-fit:contain; object-position:center; pointer-events:none;
+  }
+  .penetration-banner-heading { position:relative; isolation:isolate; }
+  .penetration-banner-heading > :first-child { max-width:58%; }
+  .penetration-banner-heading > :not(.penetration-workspace-art) { position:relative; z-index:1; }
+  .penetration-banner-heading > .actions { position:absolute; inset-block-start:0; inset-inline-end:0; }
+  .penetration-workspace-art {
+    position:absolute; inset-block:0; inset-inline:auto 0; width:38%; height:100%;
+    margin:0; overflow:hidden; pointer-events:none;
     -webkit-mask-image:linear-gradient(90deg,transparent,#000 22%,#000 78%,transparent),linear-gradient(transparent,#000 24%,#000 76%,transparent);
     mask-image:linear-gradient(90deg,transparent,#000 22%,#000 78%,transparent),linear-gradient(transparent,#000 24%,#000 76%,transparent);
     -webkit-mask-composite:source-in; mask-composite:intersect;
@@ -46,7 +61,8 @@
       -webkit-mask-image:linear-gradient(90deg,transparent,#000 20%,#000 80%,transparent),linear-gradient(transparent,#000 35%,#000 80%,transparent);
       mask-image:linear-gradient(90deg,transparent,#000 20%,#000 80%,transparent),linear-gradient(transparent,#000 35%,#000 80%,transparent); }
     .workspace-header-art { inset-inline:20% 0; width:80%; opacity:.32; }
-    .penetration-workspace-art { height:115px; }
+    .workspace-banner-crop { aspect-ratio:1122 / 1402; }
+    .workspace-banner-image { top:0; height:100%; }
   }
 }
 @media print {

@@ -176,8 +176,14 @@
   :root[data-theme] .takeoff-physical-register { background:var(--theme-surface); color:var(--ink); border-color:var(--line); border-top-color:var(--theme-edge); }
   :root[data-theme] .takeoff-physical-register .status-label { background:var(--theme-soft); color:var(--ink); border-color:var(--line); }
   :root[data-theme] .takeoff-physical-register .takeoff-register-editor { background:var(--theme-surface); color:var(--ink); }
-  :root[data-theme] .takeoff-physical-register :is(.takeoff-physical-icon-action,.takeoff-physical-discard,.takeoff-physical-delete-selected,.takeoff-undo-button,.takeoff-column-filter-button) { background:var(--theme-surface); color:var(--ink); border-color:var(--theme-border); }
-  :root[data-theme] .takeoff-physical-register .takeoff-column-filter-button:is(.active,[aria-expanded=true]) { background:var(--theme-soft); color:var(--ink); border-color:var(--theme-edge); }
+  /* Physical controls share Steel's existing secondary/filter palette and states. */
+  :root[data-theme] .takeoff-physical-register :is(.takeoff-physical-icon-action,.takeoff-physical-discard,.takeoff-physical-delete-selected,.takeoff-undo-button) { padding:6px; border-radius:8px; }
+  :root[data-theme] .takeoff-physical-register :is(.takeoff-physical-icon-action,.takeoff-physical-discard,.takeoff-physical-delete-selected) svg { stroke-width:1.8; }
+  :root[data-theme] .takeoff-physical-register .takeoff-undo-button .button-symbol { display:inline-flex; align-items:center; justify-content:center; width:22px; height:22px; line-height:1; }
+  :root[data-theme] .takeoff-physical-register .takeoff-column-filter-button.active path { fill:currentColor; }
+  /* A light filter glyph on white was unreadable in Midnight in the Steel register. */
+  :root[data-theme="midnight"] .takeoff-register .takeoff-column-filter-button { background:var(--theme-surface); color:var(--ink); border-color:var(--theme-border); }
+  :root[data-theme="midnight"] .takeoff-register .takeoff-column-filter-button:is(.active,[aria-expanded=true]) { background:var(--theme-soft); color:var(--ink); border-color:var(--theme-edge); }
   :root[data-theme] .penetration-diagram { background:var(--theme-raised); color:var(--ink); border-color:var(--line); }
   :root[data-theme] .penetration-diagram :is(.helper,figcaption) { color:var(--muted); }
   :root[data-theme] .penetration-diagram .field>span:first-child { color:var(--ink); }

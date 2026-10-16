@@ -4,6 +4,8 @@ const {spawn}=require('node:child_process');
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
 const {chooseCalculator}=require('./calculator_actions.cjs');
 const {chooseTakeoff}=require('./section_navigation.cjs');
+const {seedRegisterParity,assertRegisterControlParity}=require('./register_control_parity.cjs');
+const {assertReadableControl}=require('./physical_tools_helpers.cjs');
 const root=path.resolve(__dirname,'../..'),output=path.join(root,'.runtime/browser-qa',`appearance-theme-followups-${Date.now()}`);
 fs.mkdirSync(output,{recursive:true});
 const server=spawn(process.env.CEASEFIRE_PYTHON||'python',[path.join(__dirname,'fixtures.py'),'--directory',output],{cwd:root,windowsHide:true});
@@ -62,7 +64,7 @@ async function calculatorAppearance(id,name){
 (async()=>{
  const fixture=await ready;assert.notEqual(fixture.port,8765);browser=await chromium.launch({headless:true});page=await browser.newPage({viewport:{width:1384,height:1000}});page.setDefaultTimeout(30000);page.on('pageerror',e=>errors.push(e.message));await page.goto(`http://127.0.0.1:${fixture.port}/`);await idle();
  // Initialize each real workspace once before checking that theme changes do not alter models.
- await main();await chooseCalculator(page,'Steel (spray)');await idle();await chooseCalculator(page,'Firestopping');await idle();await chooseTakeoff(page,'physical');await idle();await settings();const before=await snapshot();
+ await main();await chooseCalculator(page,'Steel (spray)');await idle();await chooseCalculator(page,'Firestopping');await idle();await chooseTakeoff(page,'physical');await idle();await seedRegisterParity(page,fixture);await settings();const before=await snapshot();
  for(const id of ['ceasefire','midnight','ocean','forest','slate']){
   await theme(id);const item={id};
   item.logo=await colors('#company-logo-preview');assert.equal(item.logo.background,'rgba(0, 0, 0, 0)');await expect(page.locator('#company-logo-preview')).toHaveJSProperty('complete',true);item.logoPixels=await page.locator('#company-logo-preview').evaluate(el=>{const canvas=document.createElement('canvas');canvas.width=el.naturalWidth;canvas.height=el.naturalHeight;const c=canvas.getContext('2d');c.drawImage(el,0,0);return{src:el.getAttribute('src'),width:el.naturalWidth,height:el.naturalHeight,cornerAlpha:c.getImageData(0,0,1,1).data[3]};});assert.equal(item.logoPixels.src,'/classifire-logo.png');assert.equal(item.logoPixels.cornerAlpha,0);
@@ -72,7 +74,8 @@ async function calculatorAppearance(id,name){
   item.calculators=[];for(const [calculator,name] of [['steel_vermiculite','Steel (spray)'],['steel_board','Steel (board)'],['ductwork','Ductwork (spray/wrap)']])item.calculators.push(await calculatorAppearance(calculator,name));
   item.calculatorTabs=await tabs('#calculator-pages [aria-pressed=true]');
   await chooseCalculator(page,'Firestopping');await idle();item.itemTabs=await tabs('.penetration-group[aria-selected=true],.penetration-group[aria-pressed=true]');item.diagram=await colors('#penetration-diagram');const expected=await page.locator('html').evaluate(el=>{const probe=document.createElement('div');probe.style.background='var(--theme-raised)';probe.style.color='var(--ink)';el.append(probe);const c=getComputedStyle(probe),v={background:c.backgroundColor,color:c.color};probe.remove();return v;});assert.deepEqual(item.diagram,expected);assert.ok(contrast(item.diagram.color,item.diagram.background)>=4.5);
-  await chooseTakeoff(page,'physical');await idle();item.physical=await colors('.takeoff-physical-register');const surface=await page.locator('html').evaluate(el=>{const probe=document.createElement('div');probe.style.background='var(--theme-surface)';probe.style.color='var(--ink)';el.append(probe);const c=getComputedStyle(probe),v={background:c.backgroundColor,color:c.color};probe.remove();return v;});assert.deepEqual(item.physical,surface);item.physicalHeader=await colors('.takeoff-physical-register thead th');assert.ok(contrast(item.physicalHeader.color,item.physicalHeader.background)>=4.5);item.physicalUndo=await colors('.takeoff-physical-register .takeoff-undo-button');assert.ok(contrast(item.physicalUndo.color,item.physicalUndo.background)>=4.5);
+  await chooseTakeoff(page,'physical');await idle();item.physical=await colors('.takeoff-physical-register');const surface=await page.locator('html').evaluate(el=>{const probe=document.createElement('div');probe.style.background='var(--theme-surface)';probe.style.color='var(--ink)';el.append(probe);const c=getComputedStyle(probe),v={background:c.backgroundColor,color:c.color};probe.remove();return v;});assert.deepEqual(item.physical,surface);item.physicalHeader=await colors('.takeoff-physical-register thead th');assert.ok(contrast(item.physicalHeader.color,item.physicalHeader.background)>=4.5);item.physicalUndo=await assertReadableControl(page.locator('.takeoff-physical-register .takeoff-undo-button'));
+  item.registerControls=await assertRegisterControlParity(page);
   await page.locator('.takeoff-physical-register').screenshot({path:path.join(output,`physical-${id}.png`)});assert.deepEqual(await snapshot(),before,`Theme/navigation preserved all canonical inputs: ${id}`);evidence.push(item);
  }
  assert.deepEqual(errors,[]);fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,fixturePort:fixture.port,evidence,errors},null,2));console.log(`PASS appearance theme followups: ${output}`);

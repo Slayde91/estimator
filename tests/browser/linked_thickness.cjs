@@ -168,14 +168,31 @@ async function editSprayLength(binding, value) {
     // Chromium bring this handle into native pointer reach before reading its
     // coordinates; the trial never starts a resize or changes the legend.
     await handle.click({trial:true});
-    let box; await expect.poll(async () => !!(box = await handle.boundingBox())).toBe(true);
-    assert.equal(await handle.evaluate(el=>{const r=el.getBoundingClientRect();return document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)===el;}),true,`Native pointer reaches legend ${corner} before dragging`);
+    // A committed overlay render can replace this SVG node between locator
+    // resolution and evaluation. Resolve it afresh on each bounded poll and
+    // capture only the same connected box that passes the exact center hit.
+    let box; await expect.poll(async () => {
+      box = await handle.evaluate(el => {
+        if (!el.isConnected) return null;
+        const r = el.getBoundingClientRect();
+        if (r.width <= 0 || r.height <= 0 || document.elementFromPoint(r.x+r.width/2,r.y+r.height/2) !== el) return null;
+        return {x:r.x,y:r.y,width:r.width,height:r.height};
+      });
+      return !!box;
+    }, {message:`Native pointer reaches legend ${corner} before dragging`}).toBe(true);
     await response(async () => { await page.mouse.move(box.x+box.width/2, box.y+box.height/2); await page.mouse.down(); await page.mouse.move(box.x+box.width/2+(corner.includes('w') ? -8 : 8), box.y+box.height/2+(corner.includes('n') ? -8 : 8), { steps: 3 }); await page.mouse.up(); }, '/commands');
   }
   const beforeMove = (await snapshot()).drawing_presentation.legends[0].point;
   await legend().click({trial:true});
-  let box; await expect.poll(async () => !!(box = await legend().boundingBox())).toBe(true);
-  assert.equal(await page.evaluate(([x,y])=>!!document.elementFromPoint(x,y)?.closest('.takeoff-drawing-legend'),[box.x+10,box.y+10]),true,'Native pointer reaches the legend before moving it');
+  let box; await expect.poll(async () => {
+    box = await legend().evaluate(el => {
+      if (!el.isConnected) return null;
+      const r = el.getBoundingClientRect();
+      if (r.width <= 0 || r.height <= 0 || !document.elementFromPoint(r.x+10,r.y+10)?.closest('.takeoff-drawing-legend')) return null;
+      return {x:r.x,y:r.y,width:r.width,height:r.height};
+    });
+    return !!box;
+  }, {message:'Native pointer reaches the legend before moving it'}).toBe(true);
   await response(async () => { await page.mouse.move(box.x+10, box.y+10); await page.mouse.down(); await page.mouse.move(box.x+35, box.y+30, { steps: 5 }); await page.mouse.up(); }, '/commands');
   assert.notDeepEqual((await snapshot()).drawing_presentation.legends[0].point, beforeMove);
   await page.screenshot({ path: path.join(output, 'steel-thickness-colours-legend.png') });

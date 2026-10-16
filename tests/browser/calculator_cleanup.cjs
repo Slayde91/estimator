@@ -31,8 +31,30 @@ async function tab(name){await page.locator('#calculator-pages').getByRole('butt
  assert.ok((await stock.locator('[data-board-steel-row]').allTextContents()).every(text=>text==='0.00'));
  await expect(page.locator('#calculator-board-steel-notes')).toContainText('total lineal metres');
  await page.screenshot({path:path.join(output,'board-summary.png'),fullPage:true});
+ // Remove only the nine requested browser notes; their source/API content and
+ // adjacent quantity tables, documentary rows and editable controls survive.
+ await chooseCalculator(page,'Ductwork (spray/wrap)');await idle();await tab('SUMMARY');
+ const worksheet=async sheet=>{const response=await page.request.post(`http://127.0.0.1:${info.port}/api/calculators/ductwork/worksheet`,{data:{sheet}});assert.equal(response.status(),200);return response.json();};
+ const rawSummary=await worksheet('SUMMARY'),summaryCells=new Map(rawSummary.rows.flatMap(row=>row.cells.map(cell=>[cell.address,cell]))),noteChecks=[];
+ for(const [address,prefix] of [['A4','Totals include calculated quantities only.'],['A14','Both/Mixed uses the stricter covered case.'],['A35','Single rectangular steel ducts, protected on four sides only.'],['A43','Maxilite is a four-strip frame, not a full sheet.']]){
+   assert.ok(summaryCells.get(address).value.startsWith(prefix),`${address}: original source note remains in the worksheet API`);
+   await expect(page.locator(`#calculator-grid [data-calculator-output="${address}"]`)).toHaveCount(0);await expect(page.locator('#calculator-grid')).not.toContainText(prefix);
+   noteChecks.push({sheet:'SUMMARY',address,sourceNoteRetained:true,browserNoteRemoved:true});
+ }
+ for(const label of ['Product totals','Penetration angle totals','Working yields','Maxilite cutting totals'])await expect(page.getByRole('table',{name:label,exact:true})).toHaveCount(1);
+ for(const address of ['A17','A29','A38','D9','D19','F40'])await expect(page.locator(`#calculator-grid [data-calculator-output="${address}"]`)).toHaveCount(1);
+ await tab('PRODUCT SETTINGS');const rawSettings=await worksheet('PRODUCT SETTINGS');
+ for(const [id,prefix,adjacent] of [['A6','Use the assessed construction and fire direction.','[data-calculator-cell="B35"]'],['A48','Check the assessed duct size, steel, supports, wall and floor details.','[data-calculator-cell="B65"]'],['A94','Use matching barrier, gap and fixing details.','[data-calculator-cell="B96"]'],['J94','FyreWrap application FRLs preserve directional requirements:','[data-calculator-output="J96"]'],['J115','Counts cover standard four-sided details:','[data-calculator-output="J117"]']]){
+   const choice=page.locator(`[data-calculator-settings-section="${id}"]`);await choice.click();const panel=page.locator(`#${await choice.getAttribute('aria-controls')}`);await expect(panel).toBeVisible();
+   const projected=id==='J94',source=projected?rawSettings.presentation_tables.find(table=>table.title_address===id):rawSettings.settings_sections.find(section=>section.id===id);
+   assert.ok(source.note.startsWith(prefix),`${id}: the full technical note remains in API metadata`);
+   await expect(panel.locator(projected?'.calculator-projected-note.calculator-technical-note':'.calculator-settings-note')).toHaveCount(0);await expect(panel).not.toContainText(prefix);await expect(panel.locator(adjacent)).toBeVisible();
+   noteChecks.push({sheet:'PRODUCT SETTINGS',id,sourceNoteRetained:true,browserNoteRemoved:true,adjacentControlOrOutputVisible:true});
+ }
+ await page.screenshot({path:path.join(output,'duct-settings-notes-removed.png'),fullPage:true});
  assert.deepEqual(await page.evaluate(()=>window.CeasefireCalculators.completeProjectSnapshot()),before);assert.deepEqual(errors,[]);
  // Enter a new board schedule using public controls, including blank custom design selectors.
+ await chooseCalculator(page,'Steel (board)');await idle();
  await tab('SCHEDULE');
  for(const [cell,value] of [['C9','PROMATECT-XS'],['D9','200UC46'],['G9','4'],['H9','120'],['I9','Column'],['J9','550']]) {
    const control=page.locator(`[data-calculator-cell="${cell}"]`);
@@ -59,5 +81,5 @@ async function tab(name){await page.locator('#calculator-pages').getByRole('butt
  const filled=await page.evaluate(()=>window.CeasefireCalculators.completeProjectSnapshot());
  await tab('SCHEDULE');await tab('BOARD SUMMARY');assert.deepEqual(await page.evaluate(()=>window.CeasefireCalculators.completeProjectSnapshot()),filled);
  await page.screenshot({path:path.join(output,'net-steel-double-layer.png'),fullPage:true});assert.deepEqual(errors,[]);
- fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({completed:true,unchangedInputs:true,errors},null,2));console.log(`PASS calculator cleanup: ${output}`);
+ fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({completed:true,unchangedInputs:true,requestedDuctNotes:noteChecks,errors},null,2));console.log(`PASS calculator cleanup: ${output}`);
 })().catch(async error=>{console.error(error);console.error(logs.slice(-3000));if(page)await page.screenshot({path:path.join(output,'failure.png'),fullPage:true}).catch(()=>{});process.exitCode=1;}).finally(async()=>{if(browser)await browser.close();server.kill();});

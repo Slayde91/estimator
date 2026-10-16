@@ -904,17 +904,17 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
     {first_row:39,last_row:41,columns:[1,2,3,4,5,6,7],column_widths:[200,125,125,125,125,125,125],label:'Board totals'},
   ];
   const boldDuctSummaryRows=[9,10,11,19,20,21,22,23,24,25,26,31,32];
-  entry.definition.sheets=[{name:'SUMMARY',header_rows:[8,18,30,39],section_cells:['A17','A29','A38'],navigation_mode:'hidden',section_spacing:true,presentation_tables:summaryTables,display_cells:{A1:{role:'compact_summary_title'},A17:{merge:'A17:L17'},A29:{merge:'A29:L29'},...Object.fromEntries(boldDuctSummaryRows.map(row=>[`A${row}`,{bold:true}]))},merges:['A1:L1','A14:L14','A15:L15','A17:F17','A29:F29','A35:L35','A36:L36','A37:L37','A38:L38','I40:L40','A43:L43']}];
-  const summaryRows=[1,14,15,17,29,35,36,37,38,43].map(row=>({row,cells:[{column:1,address:`A${row}`,value:`Source note ${row}`,presentation:{role:'note'}}]}));
+  entry.definition.sheets=[{name:'SUMMARY',header_rows:[8,18,30,39],section_cells:['A17','A29','A38'],navigation_mode:'hidden',section_spacing:true,presentation_tables:summaryTables,display_cells:{A1:{role:'compact_summary_title'},A17:{merge:'A17:L17'},A29:{merge:'A29:L29'},...Object.fromEntries(boldDuctSummaryRows.map(row=>[`A${row}`,{bold:true}]))},merges:['A1:L1','A4:L5','A14:L15','A17:F17','A29:F29','A35:L37','A38:L38','I40:L40','A43:L45']}];
+  const summaryRows=[1,4,14,17,29,35,38,43].map(row=>({row,cells:[{column:1,address:`A${row}`,value:`Source note ${row}`,presentation:{role:'note'}}]}));
   for(const table of summaryTables) for(let row=table.first_row;row<=table.last_row;row++) summaryRows.push({row,cells:Array.from({length:12},(_,i)=>({column:i+1,address:`${String.fromCharCode(65+i)}${row}`,value:row===26?null:row===table.first_row?`Header ${i+1}`:row*100+i,calculated:row!==table.first_row}))});
   summaryRows.sort((a,b)=>a.row-b.row);
   entry.result=result({}, {sheet:'SUMMARY',max_column:12,visible_columns:Array.from({length:12},(_,i)=>i+1),display_cells:{A1:{role:'compact_summary_title'},A17:{merge:'A17:L17'},A29:{merge:'A29:L29'},...Object.fromEntries(boldDuctSummaryRows.map(row=>[`A${row}`,{bold:true}]))},rows:summaryRows});
   const originalSummary=JSON.stringify(entry.result);realRender(entry);audit.setRender(realRender);
   const summaryRendered=descendants(byId('calculator-grid')).filter(node=>node.tagName==='table');
-  assert.equal(summaryRendered.length,11);
-  assert.deepEqual(summaryRendered.map(table=>table.children.at(-1).children.map(row=>Number(row.dataset.sourceRow))),[[1],[8,9,10,11],[14,15],[17],[18,19,20,21,22,23,24,25,26],[29],[30,31,32],[35,36,37],[38],[39,40,41],[43]]);
+  assert.equal(summaryRendered.length,8);
+  assert.deepEqual(summaryRendered.map(table=>table.children.at(-1).children.map(row=>Number(row.dataset.sourceRow))),[[1],[8,9,10,11],[17],[18,19,20,21,22,23,24,25,26],[29],[30,31,32],[38],[39,40,41]]);
   const logicalSummary=byId('calculator-grid').children.filter(node=>node.className==='calculator-logical-section');assert.equal(logicalSummary.length,4);
-  assert.deepEqual(logicalSummary.map(section=>descendants(section).filter(node=>node.tagName==='tr').map(node=>Number(node.dataset.sourceRow))),[[1,8,9,10,11,14,15],[17,18,19,20,21,22,23,24,25,26],[29,30,31,32,35,36,37],[38,39,40,41,43]]);
+  assert.deepEqual(logicalSummary.map(section=>descendants(section).filter(node=>node.tagName==='tr').map(node=>Number(node.dataset.sourceRow))),[[1,8,9,10,11],[17,18,19,20,21,22,23,24,25,26],[29,30,31,32],[38,39,40,41]]);
   for(const spec of summaryTables) {
     const table=summaryRendered.find(node=>node.getAttribute('aria-label')===spec.label);
     assert.equal(table.children[0].children.length,spec.columns.length);
@@ -922,6 +922,7 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
     assert.ok(table.children.at(-1).children[0].children.every(cell=>cell.tagName==='th'));
   }
   const summaryOutputs=()=>byId('calculator-grid').querySelectorAll('[data-calculator-output]');
+  for(const address of ['A4','A14','A35','A43'])assert.ok(!summaryOutputs().some(cell=>cell.dataset.calculatorOutput===address),`Requested Ductwork summary note ${address} is absent only from the browser`);
   const productSummaryHeading=summaryOutputs().find(cell=>cell.dataset.calculatorOutput==='A1');assert.match(productSummaryHeading.className,/calculator-role-compact_summary_title/);assert.equal(productSummaryHeading.dataset.calculatorValue,undefined);assert.equal(productSummaryHeading.classList.contains('calculator-value-present'),false);
   for(const address of ['K9','L9','D31','E31','F31','H40','I40','J40','K40','L40']) assert.ok(!summaryOutputs().some(cell=>cell.dataset.calculatorOutput===address),address);
   for(const address of ['D9','E9','F9','G9','D19','E19','F19','E40','F40','G40']) assert.ok(summaryOutputs().some(cell=>cell.dataset.calculatorOutput===address),address);
@@ -1447,7 +1448,7 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
       {row:5,cells:[{column:1,address:'A5',value:'Setting'},{column:7,address:'G5',value:'Fire period'},{column:16,address:'P5',value:'Diagnostic code'},{column:17,address:'Q5',value:'Message'}]},
       {row:6,cells:[{column:1,address:'A6',value:'Allowance'},{column:2,address:'B6',value:0.1,editable:true,type:'number'},{column:7,address:'G6',value:90},{column:16,address:'P6',value:'REVIEW'},{column:17,address:'Q6',value:'Source diagnostic message'}]},
     ]},
-    {id:'ductwork',sheet:'PRODUCT SETTINGS',sections:[{id:'A6',label:'CAFCO',note:'Check the assessed construction.',display_columns:[1,2,3,4],header_row:7,promote_rows:[35,44,45,46,161,162,25],ranges:['A6:H46','A161:H162']},{id:'A48',label:'MONOKOTE',header_row:49,promote_rows:[65,73,90,91,92,163,164,68,69],ranges:['A48:H92','A163:H164']},{id:'A94',label:'FYREWRAP',move_after:[{row:100,rows:[111,112]}],ranges:['A94:H151']},{id:'J94',label:'FYREWRAP APPLICATION TABLE',display_columns:[10,13,14,15],ranges:['J94:Q113']},{id:'J115',label:'PENETRATION',ranges:['J115:Q149']}],metadata:{table_layout:'projected',header_rows:[7,49,95,116],section_cells:['A6','A48','A94','J94','J115'],display_text:{J94:'FYREWRAP APPLICATION TABLE'},technical_basis:{label:'TECHNICAL BASIS',visible:false,sections:[{section_id:'A6',ranges:['A21:H24']}]},merges:['A94:H94','J94:Q94','J115:Q115'],presentation_tables:[
+    {id:'ductwork',sheet:'PRODUCT SETTINGS',sections:[{id:'A6',label:'CAFCO',note:'Check the assessed construction.',display_columns:[1,2,3,4],header_row:7,promote_rows:[35,44,45,46,161,162,25],ranges:['A6:H46','A161:H162']},{id:'A48',label:'MONOKOTE',note:'Requested Monokote operating note.',header_row:49,promote_rows:[65,73,90,91,92,163,164,68,69],ranges:['A48:H92','A163:H164']},{id:'A94',label:'FYREWRAP',note:'Requested FyreWrap operating note.',move_after:[{row:100,rows:[111,112]}],ranges:['A94:H151']},{id:'J94',label:'FYREWRAP APPLICATION TABLE',display_columns:[10,13,14,15],ranges:['J94:Q113']},{id:'J115',label:'PENETRATION',note:'Requested penetration operating note.',ranges:['J115:Q149']}],metadata:{table_layout:'projected',header_rows:[7,49,95,116],section_cells:['A6','A48','A94','J94','J115'],display_text:{J94:'FYREWRAP APPLICATION TABLE'},technical_basis:{label:'TECHNICAL BASIS',visible:false,sections:[{section_id:'A6',ranges:['A21:H24']}]},merges:['A94:H94','J94:Q94','J115:Q115'],presentation_tables:[
       {first_row:94,last_row:151,columns:[1,2,3,4,5,6,7,8],column_widths:Array(8).fill(1),width_mode:'fit',table_kind:'form',title_address:'A94',label:'FYREWRAP'},
       {first_row:94,last_row:113,columns:[10,11,12,13,14,15,16,17],column_widths:Array(8).fill(100),table_kind:'comparison',title_address:'J94',header_row:95,label:'Application',note:'FyreWrap application FRLs preserve directional requirements.'},
       {first_row:115,last_row:149,columns:[10,11,12,13,14,15,16,17],column_widths:Array(8).fill(1),width_mode:'fit',table_kind:'comparison',title_address:'J115',header_row:116,label:'Penetration'},
@@ -1474,7 +1475,7 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
     entry.definition.id=scenario.id;entry.sheet=scenario.sheet;entry.definition.pages=[scenario.sheet,'CALCULATOR'];entry.definition.schedule.sheet='CALCULATOR';
     entry.definition.sheets=[{name:scenario.sheet,header_rows:[],merges:[],...copy(scenario.metadata),navigation_mode:'select',settings_sections:copy(scenario.sections)},{name:'CALCULATOR',header_rows:[8],merges:[]}];
     const sectionResult=inputs=>result(copy(inputs),{sheet:scenario.sheet,max_column:17,rows:copy(scenario.rows)});
-    entry.result=sectionResult(entry.inputs);const rawChooser=JSON.stringify(entry.result);realRender(entry);audit.setRender(realRender);
+    entry.result=sectionResult(entry.inputs);const rawChooser=JSON.stringify(entry.result),rawChooserDefinition=JSON.stringify(entry.definition);realRender(entry);audit.setRender(realRender);
     const chooserButtons=()=>descendants(byId('calculator-grid')).filter(node=>node.className?.startsWith('calculator-settings-choice'));
     const chooserPanels=()=>byId('calculator-grid').children.filter(node=>node.className==='calculator-settings-panel');
     const openPanels=()=>chooserPanels().filter(panel=>!panel.hidden);
@@ -1494,18 +1495,17 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
       assert.deepEqual(fyrewrapRows.slice(joint,joint+4),[100,111,112,101]);
       assert.equal(renderedControls().find(node=>node.dataset.calculatorCell==='B96').value,'0.038');
       assert.equal(renderedControls().find(node=>node.dataset.calculatorCell==='B100').value,'0.005');
-      assert.ok(descendants(panelById('A6')).some(node=>node.className?.includes('calculator-settings-note')&&node.textContent==='Check the assessed construction.'));
+      for(const id of ['A6','A48','A94','J115'])assert.ok(!descendants(panelById(id)).some(node=>node.className?.includes('calculator-settings-note')),`Requested ${id} panel note is not rendered`);
       assert.ok(!chooserButtons().some(button=>button.textContent==='TECHNICAL BASIS'));
       assert.ok(!descendants(panelById('A6')).some(node=>node.textContent==='Historical source detail'));
       assert.ok(!descendants(panelById('J94')).some(node=>node.textContent==='Documentary wording'));
       for(const address of ['A94','A115','A117'])assert.ok(descendants(panelById('A94')).some(node=>node.dataset?.calculatorOutput===address));
       assert.ok(descendants(panelById('J94')).some(node=>node.dataset?.calculatorOutput==='J94'&&node.textContent==='FYREWRAP APPLICATION TABLE'));
-      assert.equal(descendants(panelById('J94')).filter(node=>node.className?.includes('calculator-technical-note')).length,1);
-      assert.equal(descendants(panelById('J94')).find(node=>node.className?.includes('calculator-technical-note')).textContent,'FyreWrap application FRLs preserve directional requirements.');
+      assert.equal(descendants(panelById('J94')).filter(node=>node.className?.includes('calculator-technical-note')).length,0);
       assert.ok(!descendants(panelById('J115')).some(node=>node.className?.includes('calculator-technical-note')));
       assert.ok(descendants(panelById('J115')).some(node=>node.dataset?.calculatorOutput==='J117'));
     }
-    assert.equal(JSON.stringify(entry.result),rawChooser);assert.deepEqual(copy(entry.inputs),{});
+    assert.equal(JSON.stringify(entry.result),rawChooser);assert.equal(JSON.stringify(entry.definition),rawChooserDefinition);assert.deepEqual(copy(entry.inputs),{});
     await chooserButtons()[0].emit('click');assert.equal(openPanels().length,1);assert.equal(chooserButtons()[0].getAttribute('aria-expanded'),'true');
     const firstControl=descendants(openPanels()[0]).find(node=>node.dataset?.calculatorCell),controlAddress=firstControl.dataset.calculatorCell;
     await firstControl.emit('focus');firstControl.value='12.3456789';await firstControl.emit('input');await firstControl.emit('blur');

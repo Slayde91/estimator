@@ -55,8 +55,36 @@
     mask-image:linear-gradient(90deg,transparent,#000 14%,#000 86%,transparent),linear-gradient(transparent,#000 14%,#000 86%,transparent);
     -webkit-mask-composite:source-in; mask-composite:intersect;
   }
-  .workspace-header-art--spray .workspace-banner-crop { aspect-ratio:2.4; }
+  .workspace-header-art--spray .workspace-banner-crop { aspect-ratio:1.6; }
   .calculator-workspace-heading .workspace-banner-image { top:0; height:100%; object-fit:cover; }
+  .workspace-header-art--spray .workspace-banner-image { object-position:center 78%; }
+  /* The art has no intrinsic layout size. The original title and actions still
+     determine the row height and its wrap point. */
+  .takeoff-heading-copy { display:flex; flex:1 0 auto; align-items:center; align-self:stretch; min-width:0; }
+  .takeoff-workspace-heading > .takeoff-document-tools { margin:0; margin-inline-start:auto; }
+  .takeoff-heading-art-slot { position:relative; flex:1 1 0; align-self:stretch; min-width:0; pointer-events:none; }
+  .takeoff-heading-art {
+    position:absolute; inset-block:50% auto; inset-inline:8px auto; height:100%; width:auto; max-width:calc(100% + 8px); transform:translateY(-50%); display:none; overflow:hidden; pointer-events:none;
+    -webkit-mask-image:linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent),linear-gradient(transparent,#000 12%,#000 88%,transparent);
+    mask-image:linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent),linear-gradient(transparent,#000 12%,#000 88%,transparent);
+    -webkit-mask-composite:source-in; mask-composite:intersect;
+  }
+  .takeoff-heading-art img {
+    position:absolute; top:50%; display:block; width:100%; height:auto; max-width:none; object-fit:contain; pointer-events:none;
+    -webkit-mask-image:linear-gradient(transparent,#000 12%,#000 88%,transparent);
+    mask-image:linear-gradient(transparent,#000 12%,#000 88%,transparent);
+  }
+  .takeoff-workspace-heading[data-takeoff-mode="steel"] .takeoff-heading-art--steel,
+  .takeoff-workspace-heading[data-takeoff-mode="duct"] .takeoff-heading-art--duct,
+  .takeoff-workspace-heading[data-takeoff-mode="physical"] .takeoff-heading-art--physical { display:block; }
+  /* Trim empty canvas around each supplied composition, keeping the object
+     recognisable in the existing row rather than enlarging a thin cover slice. */
+  .takeoff-heading-art--steel { aspect-ratio:1.7; }
+  .takeoff-heading-art--steel img { right:0; width:calc(300% / 1.7); transform:translateY(-50%); }
+  .takeoff-heading-art--duct { aspect-ratio:calc(1.8 * 1122 / 1402); }
+  .takeoff-heading-art--duct img { transform:translateY(-64%); }
+  .takeoff-heading-art--physical { aspect-ratio:calc(1.9 * 1054 / 1492); }
+  .takeoff-heading-art--physical img { transform:translateY(-63%); }
   .penetration-banner-heading { position:relative; isolation:isolate; }
   .penetration-banner-heading > :first-child { max-width:58%; }
   .penetration-banner-heading > :not(.penetration-workspace-art) { position:relative; z-index:1; }
@@ -84,7 +112,7 @@
     .calculator-workspace-heading .workspace-banner-crop {
       inset-block:50% auto; width:100%; height:auto; aspect-ratio:3; transform:translate(-50%,-50%);
     }
-    .calculator-workspace-heading .workspace-header-art--spray .workspace-banner-crop { aspect-ratio:2.4; }
+    .calculator-workspace-heading .workspace-header-art--spray .workspace-banner-crop { width:auto; height:100%; aspect-ratio:1.6; }
     .calculator-workspace-heading .workspace-header-art:not(.workspace-header-art--spray) .workspace-banner-image { object-fit:contain; }
     .workspace-banner-heading > .workspace-header-art--estimate {
       inset:0; inset-inline-start:auto; inset-block-end:auto; width:48%; height:auto; max-width:none; aspect-ratio:3;
@@ -95,5 +123,5 @@
   }
 }
 @media print {
-  .workspace-header-art,.penetration-workspace-art,.home-laser-art { display:none!important; }
+  .workspace-header-art,.penetration-workspace-art,.home-laser-art,.takeoff-heading-art-slot { display:none!important; }
 }

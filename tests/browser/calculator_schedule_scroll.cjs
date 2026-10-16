@@ -46,10 +46,12 @@ async function snapshot(){return page.evaluate(()=>window.CeasefireCalculators.p
         assert.ok(await page.locator('.calculator-virtual-schedule tbody tr:not(.calculator-virtual-spacer)').count()<=60);
         const alignment=await table.locator('tbody tr').evaluateAll((rows,count)=>rows.every(row=>[...row.cells].reduce((total,cell)=>total+cell.colSpan,0)===count),columnCount);
         assert.equal(alignment,true,`${id}/${width}/line ${line}: data and virtual spacer cells align with every visible header`);
-        await expect(control.locator('xpath=ancestor::tr').locator('td').first()).toHaveText(String(line));
+        const lineCell=control.locator('xpath=ancestor::tr').locator('td').first();await expect(lineCell).toHaveText(String(line));
+        const centred=await lineCell.evaluate(cell=>{const text=document.createTreeWalker(cell,NodeFilter.SHOW_TEXT).nextNode(),range=document.createRange();range.selectNodeContents(text);const ink=range.getBoundingClientRect(),box=cell.getBoundingClientRect();return{alignment:getComputedStyle(cell).textAlign,inkWidth:ink.width,error:Math.abs(ink.x+ink.width/2-box.x-box.width/2)};});
+        assert.equal(centred.alignment,'center');assert.ok(centred.inkWidth>0&&centred.error<1,`${id}/${width}/line ${line}: actual virtualized Line text remains centred`);
       }
       assert.deepEqual(await snapshot(),before,'Scrolling must preserve every draft input');
-      evidence.push({id,width,...geometry,columns:columnCount,lineIdentityAndSpacerAlignment:true,lines:[61,500,1000,1]});
+      evidence.push({id,width,...geometry,columns:columnCount,lineIdentityAndSpacerAlignment:true,lineTextCentred:true,lines:[61,500,1000,1]});
     }
     await viewport().evaluate(el=>{el.scrollTop=el.scrollHeight;});
     const last=page.locator(`[data-calculator-cell="${column}${first+999}"]`);await expect(last).toHaveCount(1);await idle();

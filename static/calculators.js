@@ -30,9 +30,11 @@
     },
     ductwork: {
       CALCULATOR: { column_order: ["A", "B", "D", "E", "H", "I", "F", "G", "C"] },
-      SUMMARY: { center: ["A8:J11", "A18:F26", "A30:C32", "A39:G41"], text: { A17: "PENETRATION ANGLES" } }, // 27–30
+      SUMMARY: { center: ["A8:J11", "A18:F26", "A30:C32", "A39:G41"], text: { A17: "PENETRATION ANGLES" }, omit: ["A4:L5", "A14:L15", "A35:L37", "A43:L45"] }, // Retain source notes in worksheet data and exports.
       "PRODUCT SETTINGS": {
         omit: ["A1"],
+        omit_section_notes: ["A6", "A48", "A94", "J115"],
+        omit_table_notes: ["J94"],
         center: ["A36:H39", "B7:D35", "B44:D46", "B90:D92", "A74:H79", "B49:D73", "B95:D115",
           "A117:H121", "A123:H127", "A129:H134", "A136:H141", "J95:Q104", "J116:Q130"], // 31–43
       },
@@ -1499,7 +1501,12 @@
       const common = settingsSections.find(section => section.id === "A17");
       settingsSections = settingsSections.filter(section => section.id !== "A17").map(section => section.id === "A9" && common ? { ...section, ranges: [...section.ranges, ...common.ranges] } : section);
     }
-    return { ...metadata, omitted_rows: result?.omitted_rows || metadata.omitted_rows || [], omitted_columns: omittedColumns, omitted_ranges: omittedRanges, hidden_addresses: browserPresentation[entry.definition.id]?.[entry.sheet]?.hide || [], presentation_tables: (result?.presentation_tables || metadata.presentation_tables || []).filter(table => !spraySummary || table.title_address !== "A17"), table_layout: result?.table_layout || metadata.table_layout, display_column_order: columnOrder, display_text: result?.display_text || metadata.display_text || {}, display_cells: result?.display_cells || metadata.display_cells || {}, navigation_mode: result?.navigation_mode ?? metadata.navigation_mode ?? "links", settings_sections: settingsSections, display_table_order: result?.display_table_order ?? metadata.display_table_order ?? [], schedule_heading: result?.schedule_heading ?? metadata.schedule_heading ?? "", expand_tables: result?.expand_tables ?? metadata.expand_tables ?? false };
+    // These are browser display copies; retained API metadata and source notes stay intact.
+    settingsSections = settingsSections.map(section => browser.omit_section_notes?.includes(section.id) ? { ...section, note: "" } : section);
+    const presentationTables = (result?.presentation_tables || metadata.presentation_tables || [])
+      .filter(table => !spraySummary || table.title_address !== "A17")
+      .map(table => browser.omit_table_notes?.includes(table.title_address) ? { ...table, note: "" } : table);
+    return { ...metadata, omitted_rows: result?.omitted_rows || metadata.omitted_rows || [], omitted_columns: omittedColumns, omitted_ranges: omittedRanges, hidden_addresses: browserPresentation[entry.definition.id]?.[entry.sheet]?.hide || [], presentation_tables: presentationTables, table_layout: result?.table_layout || metadata.table_layout, display_column_order: columnOrder, display_text: result?.display_text || metadata.display_text || {}, display_cells: result?.display_cells || metadata.display_cells || {}, navigation_mode: result?.navigation_mode ?? metadata.navigation_mode ?? "links", settings_sections: settingsSections, display_table_order: result?.display_table_order ?? metadata.display_table_order ?? [], schedule_heading: result?.schedule_heading ?? metadata.schedule_heading ?? "", expand_tables: result?.expand_tables ?? metadata.expand_tables ?? false };
   }
 
   function omittedCell(metadata) {

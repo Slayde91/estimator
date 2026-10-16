@@ -554,7 +554,14 @@
     ui.documentMenu = registerDocumentMenu();
     ui.physicalDocumentHost = node("div", "takeoff-physical-document-host"); ui.physicalDocumentHost.hidden = true;
     const headingActions = node("div", "actions takeoff-document-tools"); headingActions.append(ui.documentMenu.root, ui.physicalDocumentHost, buildPDFToolsMenu());
-    ui.heading = node("div", "takeoff-workspace-heading"); ui.heading.append(ui.title, headingActions);
+    const headingCopy = node("div", "takeoff-heading-copy"), headingArt = node("span", "takeoff-heading-art-slot");
+    headingArt.setAttribute("aria-hidden", "true");
+    for (const [mode, source] of [["steel", "steel"], ["duct", "ductwork"], ["physical", "physical"]]) {
+      const frame = node("span", `takeoff-heading-art takeoff-heading-art--${mode}`), image = node("img");
+      image.src = `/takeoff-header-${source}.png`; image.alt = ""; image.decoding = "async"; image.setAttribute("aria-hidden", "true"); frame.append(image); headingArt.append(frame);
+    }
+    headingCopy.append(ui.title, headingArt);
+    ui.heading = node("div", "takeoff-workspace-heading"); ui.heading.append(headingCopy, headingActions);
     ui.message = node("div", "message"); ui.message.id = "takeoff-message"; ui.message.hidden = true;
     ui.messageSlot = node("div", "takeoff-message-slot"); ui.messageSlot.append(ui.message);
     // A deliberate window resize may release retired space; never do so in
@@ -813,6 +820,7 @@
     scheduleLinkedThickness();
     refreshNavigation();
     const physical = state.mode === "physical";
+    state.ui.heading.dataset.takeoffMode = state.mode;
     state.ui.documentMenu.root.hidden = physical;
     state.ui.physicalDocumentHost.hidden = !physical;
     if (physical) state.ui.documentMenu.close(false);

@@ -87,3 +87,20 @@ class ThemeAssetTests(unittest.TestCase):
             for route in ('/theme.js/extra', '/theme.css/extra', '/laser.css/extra', '/laser-steel.svg/extra', '/home-steel-frame.png/extra', '/theme-settings.json', '/header-layout.css/extra', '/workspace-art.css/extra', '/header-steel-spray.png/extra', '/header-steel-board.png/extra', '/header-ductwork.png/extra', '/header-firestopping.png/extra', '/header-estimate.png/extra'):
                 with self.subTest(edition=edition, route=route):
                     self.assertEqual(self.get(edition, route)[0], 404)
+
+    def test_takeoff_heading_art_is_full_edition_only(self):
+        before = {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in self.folder.glob('*.sqlite3')}
+        for name in ('takeoff-header-steel.png', 'takeoff-header-ductwork.png', 'takeoff-header-physical.png'):
+            with self.subTest(asset=name):
+                status, headers, payload = self.get('full', '/' + name)
+                self.assertEqual(status, 200)
+                self.assertEqual(payload, (ROOT / 'static' / name).read_bytes())
+                self.assertTrue(payload.startswith(b'\x89PNG\r\n\x1a\n'))
+                self.assertEqual(headers['Content-Type'], 'image/png')
+                self.assertEqual(headers['Content-Security-Policy'], DEFAULT_CONTENT_SECURITY_POLICY)
+                self.assertEqual(headers['X-Content-Type-Options'], 'nosniff')
+                self.assertEqual(self.get('standard', '/' + name)[0], 404)
+                for edition in self.servers:
+                    self.assertEqual(self.get(edition, '/' + name + '/extra')[0], 404)
+                    self.assertEqual(self.get(edition, '/static/' + name)[0], 404)
+        self.assertEqual(before, {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in self.folder.glob('*.sqlite3')})

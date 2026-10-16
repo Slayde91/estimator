@@ -48,7 +48,7 @@ async function layout() {
     const rectangle = selector => { const b = document.querySelector(selector).getBoundingClientRect(); return { x: b.x, y: b.y, width: b.width, height: b.height, bottom: b.bottom }; };
     const tag = document.querySelector('#header-tagline'), cursor = tag.querySelector('.header-tagline-cursor');
     const character = document.querySelector('#header-tagline-character');
-    return { brand: rectangle('.brand-stack'), header: rectangle('.app-header'), nav: rectangle('.app-header nav'), tagline: rectangle('#header-tagline'),
+    return { brand: rectangle('.brand-stack'), logo: rectangle('.brand-logo'), header: rectangle('.app-header'), nav: rectangle('.app-header nav'), tagline: rectangle('#header-tagline'),
       character: rectangle('#header-tagline-character'), visual: rectangle('.header-tagline-visual'), mediaState: character.dataset.taglineMotion, mediaSrc: character.getAttribute('src'), mediaLoaded: character.complete && character.naturalWidth > 0,
       cursorAnimation: getComputedStyle(cursor).animationName, cursorOpacity: getComputedStyle(cursor).opacity,
       cursorHidden: cursor.hidden, cursorDisplay: getComputedStyle(cursor).display, cursorAnimationCount: cursor.getAnimations().length,
@@ -166,9 +166,9 @@ async function characterMotion(initial) {
   return { differentNativeFrames: frames.size, src: initial.mediaSrc, originalDimensions: [512, 768] };
 }
 async function presentationNavigation(initial) {
-  // Initialize every synthetic calculator before comparing fingerprints so
+  // Initialize every synthetic calculator and the lazy Firestopping composer before comparing fingerprints so
   // choosing a workspace cannot be confused with a project-data change.
-  await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()); await idle();
+  await page.evaluate(async () => { await window.CeasefireCalculators.completeProjectSnapshot(); await window.CeasefirePenetrations.completeProjectSnapshot(); }); await idle();
   const snapshot = () => page.evaluate(() => ({ calculators: window.CeasefireCalculators.projectFingerprint(), penetration: window.CeasefirePenetrations.projectFingerprint(), pricing: window.CeasefireProject.configuration(), details: window.CeasefireProject.details() }));
   const baseline = await snapshot(), changes = [];
   const sections = [['Home', '#view-home'], ['Estimates', '#view-estimate'], ['Calculators', '#view-calculators'], ['Takeoffs', '#view-takeoffs'], ['Libraries', '#view-pricing'], ['Projects', '#view-quotes'], ['Help', '#view-help']];
@@ -238,8 +238,8 @@ async function presentationNavigation(initial) {
     await page.evaluate(() => document.fonts.ready);
     const initial = await layout(); assert.equal(initial.accessible, phrase); assert.equal(initial.italic, 'italic');
     assert.ok(phrase.startsWith(initial.typed)); assert.notEqual(initial.typed, phrase, 'Actual typing must still be in progress');
-    assert.ok(initial.tagline.x >= initial.brand.x + initial.brand.width, 'Tagline remains to the right of the CLASSIFIRE logo'); assert.ok(initial.overflow <= 1);
-    assert.equal(initial.alignment, 'center'); assert.ok(initial.tagline.bottom <= initial.header.bottom && initial.tagline.y >= initial.header.y, 'Tagline remains within the header beside the logo');
+    assert.ok(initial.tagline.y >= initial.logo.bottom && initial.tagline.x >= initial.brand.x && initial.tagline.x + initial.tagline.width <= initial.brand.x + initial.brand.width + .1, 'Tagline remains directly beneath the CLASSIFIRE logo in its left group'); assert.ok(initial.overflow <= 1);
+    assert.equal(initial.alignment, 'start'); assert.ok(initial.tagline.bottom <= initial.header.bottom && initial.tagline.y >= initial.header.y, 'Tagline remains within the header beneath the logo');
     const typingBlink = await blinking(initial, phrase, 'during typing');
     const media = width === 1146 ? await characterMotion(initial) : { state: initial.mediaState, leftOfSentence: initial.character.x + initial.character.width <= initial.visual.x }; assert.equal(initial.mediaState, 'playing'); assert.equal(media.leftOfSentence ?? true, true);
     await page.screenshot({ path: path.join(output, `tagline-typing-${width}.png`), fullPage: false });
@@ -249,7 +249,7 @@ async function presentationNavigation(initial) {
     assert.ok(accessibility.includes(phrase)); assert.ok(!accessibility.includes('_'));
     const expiry = await expireCursor(initial, phrase);
     await page.screenshot({ path: path.join(output, `tagline-${width}.png`), fullPage: false });
-    evidence[width] = { sampleCount: samples.length, typingBlink, media, initial, final: samples.at(-1), expiry, accessibility, dirty: false, besideLogo: true };
+    evidence[width] = { sampleCount: samples.length, typingBlink, media, initial, final: samples.at(-1), expiry, accessibility, dirty: false, beneathLogo: true };
     if (width === 1146) {
       evidence.navigation = await presentationNavigation(initial);
       const previous = await page.locator('#header-tagline-label').textContent();

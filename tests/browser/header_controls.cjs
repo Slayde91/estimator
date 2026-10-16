@@ -31,12 +31,12 @@ async function inspectHeader(width) {
   try {
     const header = await box(page.locator('.app-header')), brand = await box(page.locator('.brand-stack')),
       nav = await box(page.getByRole('navigation', { name: 'Main navigation' })), actions = await box(page.locator('#header-project-actions')),
-      name = await box(page.locator('#header-project-name'));
+      name = await box(page.locator('#header-project-name')), identity = await box(page.locator('.header-project-identity')), status = await box(page.locator('#project-save-state')), logo = await box(page.locator('.brand-logo')), tagline = await box(page.locator('#header-tagline'));
     assert.ok(nav.y >= header.y && nav.y + nav.height <= header.y + header.height + 1, `Navigation stays in the header at ${width}`);
     if (width > 1150) assert.ok(nav.x >= brand.x + brand.width, `Navigation sits to the right of the logo at ${width}`);
     assert.ok(actions.y > header.y + header.height && actions.y + actions.height <= 1000, `Project actions overlay the viewport bottom at ${width}`);
     assert.ok(actions.x + actions.width <= width + 1, `Project actions fit at ${width}`);
-    assert.ok(name.x >= brand.x && name.x + name.width <= brand.x + brand.width + 1, `Long quote name stays in its column at ${width}`);
+    assert.ok(name.x >= identity.x && name.x + name.width <= identity.x + identity.width + 1 && name.y>=nav.y+nav.height, `Long quote name stays beneath navigation in its own column at ${width}`);assert.ok(status.y>=name.y+name.height&&Math.abs(status.x+status.width-nav.x-nav.width)<1,'Save state remains beneath project name at the right');assert.ok(tagline.y>=logo.y+logo.height&&tagline.x>=brand.x&&tagline.x+tagline.width<=brand.x+brand.width+1,'Character and quote stay directly under the logo');
     await expect(page.locator('#header-project-name')).toHaveText(longName);
     await expect(page.locator('#header-project-name')).toHaveAttribute('title', longName);
     assert.equal(await page.locator('#header-project-name').evaluate(el => getComputedStyle(el).textOverflow), 'ellipsis');
@@ -141,7 +141,7 @@ async function inspectHeader(width) {
   await expect(page.getByRole('button',{name:'Save As',exact:true})).toHaveCount(0);
   await expect(page.locator('#project-attachment-zone')).toHaveAttribute('title','Drag or drop files');
   const icons=await page.locator('nav[aria-label="Main navigation"] .nav-icon>svg, nav[aria-label="Main navigation"] .nav-icon>span[aria-hidden]>svg, nav[aria-label="Main navigation"] .nav-icon>img').evaluateAll(nodes=>nodes.map(el=>({width:el.getBoundingClientRect().width,height:el.getBoundingClientRect().height,src:el.getAttribute('src'),stroke:el.tagName.toLowerCase()==='svg'?el.getAttribute('stroke-width'):null})));
-  assert.equal(icons.length,8);for(const icon of icons){assert.ok(Math.abs(icon.width-26*.65)<.02&&Math.abs(icon.height-26*.65)<.02,'Original navigation artwork renders 35% smaller');assert.equal(icon.stroke,'2');}
+  assert.equal(icons.length,8);for(const icon of icons){assert.ok(Math.abs(icon.width-26*(.65*1.2))<.02&&Math.abs(icon.height-26*(.65*1.2))<.02,'Original navigation artwork renders20% larger than the previous65% baseline');assert.equal(icon.stroke,'2');}
   await chooseCalculator(page,'Firestopping'); await idle();
   await expect(page.locator('#penetration-new-item')).toBeHidden(); await expect(page.locator('#penetration-recalculate')).toBeHidden();
   for (const [id, name] of [['penetration-clear','Clear'],['penetration-add-to-schedule','Add to Schedule'],['penetration-add-to-library','Add to Library']]) { await expect(page.locator('#'+id)).toBeVisible(); await expect(page.locator('#'+id)).toHaveAccessibleName(name); }

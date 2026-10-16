@@ -221,8 +221,8 @@ def self_test(data_directory, output_report):
                 assert [icon['name'] for icon in vectors] == ['house', 'sigma', 'calculator', 'book-open', 'folders', 'circle-help', 'settings']
                 assert all(icon['stroke'] == '2' and icon['viewBox'] == '0 0 24 24' and icon['fill'] == 'none' for icon in vectors)
                 assert all(icon['hidden'] == 'true' and icon['focusable'] == 'false' for icon in vectors)
-                assert all(abs(icon['width'] - 26 * .65) < .02 and abs(icon['height'] - 26 * .65) < .02 for icon in vectors)
-                assert all(icon['artSize'] == '26px' and icon['zoom'] == '0.65' for icon in vectors)
+                assert all(abs(icon['width'] - 26 * (.65 * 1.2)) < .02 and abs(icon['height'] - 26 * (.65 * 1.2)) < .02 for icon in vectors)
+                assert all(icon['artSize'] == '26px' and icon['zoom'] == '0.78' for icon in vectors)
                 # Page names now sit beneath the artwork. Centre the complete
                 # icon/label stack rather than the icon alone within its button.
                 assert [icon['label'] for icon in vectors] == ['Home', 'Estimates', 'Calculators', 'Libraries', 'Projects', 'Help', 'Settings']
@@ -232,7 +232,7 @@ def self_test(data_directory, output_report):
                 alignment = {'x': help_icon['centreX'], 'y': help_icon['stackCentreY'], 'icon_y': help_icon['centreY']}
                 assert abs(alignment['x']) < .5 and abs(alignment['y']) < .5
                 report['help_icon_alignment'] = alignment
-                report['checks'].append('Native preview SVG navigation icons render at 65% of their original 26 pixels, decorative, consistently stroked and centred above visible page names')
+                report['checks'].append('Native preview SVG navigation icons render 20% larger than the previous 65% scale of their original 26 pixels, decorative, consistently stroked and centred above visible page names')
                 probe.script('window.nativeQaCsp=[]; document.addEventListener("securitypolicyviolation",event=>window.nativeQaCsp.push(event.effectiveDirective));')
                 probe.click('[data-view="settings"]')
                 probe.wait('!document.querySelector("#view-settings").hidden && !document.querySelector("#company-settings-save").disabled && document.querySelector("#company-settings-status").textContent === "Saved" && document.querySelector("#theme-toggle").dataset.themeReady === "true"')

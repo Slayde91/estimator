@@ -164,7 +164,6 @@
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) .snapshot-message .text-button { color: #ff9cab; }
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) .message .text-button { color: #a20b16; }
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) .calculation-errors { color: #981322; }
-  :root:is(:not([data-theme]), [data-theme="ceasefire"]) .labour-table .labour-total>* { background: #302919; color: #ffe1a0; }
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) .materials-table .duplicated-work-item { background: #2c2519; }
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) .pricing-table .edited { background: #302919; color: #ffe1a0; }
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) .penetration-selected-row { background: #33202a; color: #f4f5f7; box-shadow: inset 3px 0 #ff6377; }
@@ -209,7 +208,14 @@
   /* A distinct lower output workspace, independent of the selected input panel. */
   .main-output-workspace { min-width: 0; margin-top: 30px; padding-top: 25px; border-top: 1px solid var(--line); }
   .main-output-workspace>.section-heading { margin-bottom: 14px; }
+  #main-input-heading,
   .main-output-workspace>.section-heading h2 { font-size: 20px; }
+  /* Keep the project-days total readable and consistently red in every theme. */
+  :root .labour-breakdown-section .labour-table tr.labour-total > :is(th, td) {
+    background: #b90a15;
+    color: #fff;
+    border-top: 2px solid #ed001b;
+  }
   .main-output-tabs { padding-top: 0; }
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) .main-section-tabs { padding-top: 0; gap: 0; background: #14181e; color: var(--ink); border-color: #a32c40; }
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) .main-section-tab { background: transparent; color: #c1c8d2; padding-block: 15px; }

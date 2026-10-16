@@ -22,6 +22,20 @@ function lum(value){const c=value.match(/[\d.]+/g).slice(0,3).map(Number).map(v=
 function contrast(a,b){const x=lum(a),y=lum(b);return(Math.max(x,y)+.05)/(Math.min(x,y)+.05);}
 async function tabs(selector){const values=await page.locator(selector).evaluateAll(nodes=>nodes.map(el=>{const c=getComputedStyle(el);return{text:el.textContent.trim(),border:c.borderBottomColor,shadow:c.boxShadow};}));assert.ok(values.length,`No selected tab: ${selector}`);for(const value of values){assert.equal(value.border,'rgb(255, 255, 255)',JSON.stringify(value));assert.match(value.shadow,/inset.*rgb\(255, 255, 255\)|rgb\(255, 255, 255\).*inset/);}return values;}
 async function colors(selector){return page.locator(selector).first().evaluate(el=>{const c=getComputedStyle(el);return{background:c.backgroundColor,color:c.color};});}
+async function mainEstimateAppearance(expectedDays){
+ await expect(page.locator('#main-input-heading')).toBeVisible();
+ const headingFont=await page.locator('#main-input-heading').evaluate(el=>getComputedStyle(el).fontSize);assert.equal(headingFont,'20px');
+ const previousOutput=await page.locator('#main-output-tabs [aria-selected=true]').getAttribute('id');
+ await page.locator('#main-tab-labour-breakdown').click();await expect(page.locator('#labour-breakdown')).toHaveAttribute('aria-busy','false');
+ const cells=page.locator('.labour-table tr.labour-total > :is(th,td)');await expect(cells).toHaveCount(2);await expect(cells.first()).toBeVisible();
+ const totalCells=await cells.evaluateAll(nodes=>nodes.map(el=>{const c=getComputedStyle(el);return{tag:el.tagName,text:el.textContent.trim(),background:c.backgroundColor,image:c.backgroundImage,color:c.color,border:c.borderTopColor,borderWidth:c.borderTopWidth,borderStyle:c.borderTopStyle};}));
+ assert.deepEqual(totalCells.map(value=>value.tag),['TH','TD']);
+ for(const value of totalCells){assert.equal(value.background,'rgb(185, 10, 21)',JSON.stringify(value));assert.equal(value.image,'none');assert.equal(value.color,'rgb(255, 255, 255)',JSON.stringify(value));assert.equal(value.border,'rgb(237, 0, 27)',JSON.stringify(value));assert.equal(value.borderWidth,'2px');assert.equal(value.borderStyle,'solid');assert.ok(contrast(value.color,value.background)>=4.5,JSON.stringify(value));}
+ assert.equal(totalCells[1].text,expectedDays,'Themes and presentation preserve the calculated project-day total');
+ assert.equal((await page.locator('#sum-days').textContent()).trim(),expectedDays,'Labour total still reconciles to the estimate summary');
+ if(previousOutput!=='main-tab-labour-breakdown')await page.locator('#'+previousOutput).click();
+ return{headingFont,totalCells,days:totalCells[1].text};
+}
 // Scope distinguishes column headings from product row headings and line values.
 async function calculatorHeaders(){
  const values=await page.locator('#calculator-grid :is(thead th,th[scope="col"],.calculator-source-heading,.calculator-role-column_header,.calculator-section-anchor,.calculator-role-title,.calculator-role-section,.calculator-role-compact_title,.calculator-role-compact_summary_title,.calculator-overview h3,.calculator-overview-section,.calculator-product-totals h4)').evaluateAll(nodes=>{
@@ -95,14 +109,16 @@ async function calculatorAppearance(id,name){
 (async()=>{
  const fixture=await ready;assert.notEqual(fixture.port,8765);browser=await chromium.launch({headless:true});page=await browser.newPage({viewport:{width:1384,height:1000}});page.setDefaultTimeout(30000);page.on('pageerror',e=>errors.push(e.message));await page.goto(`http://127.0.0.1:${fixture.port}/`);await idle();
  // Initialize each real workspace once before checking that theme changes do not alter models.
- await main();await chooseCalculator(page,'Steel (spray)');await idle();await chooseCalculator(page,'Firestopping');await idle();await chooseTakeoff(page,'physical');await idle();if(!alignmentOnly)await seedRegisterParity(page,fixture);await settings();const before=await snapshot();
+ await main();await chooseCalculator(page,'Steel (spray)');await idle();await chooseCalculator(page,'Firestopping');await idle();await chooseTakeoff(page,'physical');await idle();if(!alignmentOnly)await seedRegisterParity(page,fixture);
+ let mainDaysBefore;if(!alignmentOnly){await main();await expect(page.locator('#labour-breakdown')).toHaveAttribute('aria-busy','false');mainDaysBefore=(await page.locator('.labour-table tr.labour-total > td').textContent()).trim();}
+ await settings();const before=await snapshot();
  for(const id of ['ceasefire','midnight','ocean','forest','slate']){
   await theme(id);const item={id};
   if(!alignmentOnly){
   item.logo=await colors('#company-logo-preview');assert.equal(item.logo.background,'rgba(0, 0, 0, 0)');await expect(page.locator('#company-logo-preview')).toHaveJSProperty('complete',true);item.logoPixels=await page.locator('#company-logo-preview').evaluate(el=>{const canvas=document.createElement('canvas');canvas.width=el.naturalWidth;canvas.height=el.naturalHeight;const c=canvas.getContext('2d');c.drawImage(el,0,0);return{src:el.getAttribute('src'),width:el.naturalWidth,height:el.naturalHeight,cornerAlpha:c.getImageData(0,0,1,1).data[3]};});assert.equal(item.logoPixels.src,'/classifire-logo.png');assert.equal(item.logoPixels.cornerAlpha,0);
   item.file=await page.locator('#company-logo').evaluate(el=>{const c=getComputedStyle(el,'::file-selector-button');return{background:c.backgroundColor,color:c.color};});assert.deepEqual(item.file,{background:'rgb(255, 255, 255)',color:'rgb(0, 0, 0)'});
   item.save=await colors('#company-settings-save');assert.equal(item.save.background,'rgb(185, 10, 21)');assert.ok(contrast(item.save.color,item.save.background)>=4.5);const originalDisabled=await page.locator('#company-settings-save').isDisabled();await page.locator('#company-settings-save').evaluate(el=>el.disabled=true);item.disabledSave=await colors('#company-settings-save');assert.ok(contrast(item.disabledSave.color,item.disabledSave.background)>=4.5);await page.locator('#company-settings-save').evaluate((el,value)=>el.disabled=value,originalDisabled);
-  await main();item.inputTabs=await tabs('#main-section-tabs [aria-selected=true]');item.outputTabs=await tabs('.main-output-tabs [aria-selected=true]');
+  await main();item.inputTabs=await tabs('#main-section-tabs [aria-selected=true]');item.outputTabs=await tabs('.main-output-tabs [aria-selected=true]');item.mainEstimate=await mainEstimateAppearance(mainDaysBefore);
   }
   item.calculators=[];for(const [calculator,name] of [['steel_vermiculite','Steel (spray)'],['steel_board','Steel (board)'],['ductwork','Ductwork (spray/wrap)']])item.calculators.push(await calculatorAppearance(calculator,name));
   if(!alignmentOnly){

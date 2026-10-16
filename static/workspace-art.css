@@ -25,7 +25,13 @@
   #calculator-workspace[data-calculator-kind="steel_vermiculite"] .workspace-header-art--spray,
   #calculator-workspace[data-calculator-kind="steel_board"] .workspace-header-art--board,
   #calculator-workspace[data-calculator-kind="ductwork"] .workspace-header-art--ductwork { display:block; }
-  .workspace-header-art--estimate { object-position:center 56%; opacity:.8; }
+  .workspace-banner-heading > .workspace-header-art--estimate {
+    inset:0 auto 0 53%; width:auto; height:100%; max-width:60%; aspect-ratio:4.5;
+    transform:translateX(-50%); object-fit:cover; object-position:center; opacity:.8;
+    /* The source's empty left canvas must not darken the estimate subtitle. */
+    -webkit-mask-image:linear-gradient(90deg,transparent 60%,#000 78%,#000 86%,transparent),linear-gradient(transparent,#000 24%,#000 76%,transparent);
+    mask-image:linear-gradient(90deg,transparent 60%,#000 78%,#000 86%,transparent),linear-gradient(transparent,#000 24%,#000 76%,transparent);
+  }
   /* Keep the wide frame and header height. The inner frame follows the actual
      painted portrait, so its black edges fade before meeting the theme surface. */
   .workspace-banner-crop {
@@ -40,6 +46,17 @@
     position:absolute; inset-inline:0; top:-60%; display:block; width:100%; height:180%;
     object-fit:contain; object-position:center; pointer-events:none;
   }
+  /* The supplied landscape scenes use a wider window without changing the
+     heading height. The spray cutout needs a taller window to retain its flanges.
+     Fade the actual clipped window on all four sides in every colour theme. */
+  .calculator-workspace-heading .workspace-banner-crop {
+    aspect-ratio:4.5;
+    -webkit-mask-image:linear-gradient(90deg,transparent,#000 14%,#000 86%,transparent),linear-gradient(transparent,#000 14%,#000 86%,transparent);
+    mask-image:linear-gradient(90deg,transparent,#000 14%,#000 86%,transparent),linear-gradient(transparent,#000 14%,#000 86%,transparent);
+    -webkit-mask-composite:source-in; mask-composite:intersect;
+  }
+  .workspace-header-art--spray .workspace-banner-crop { aspect-ratio:2.4; }
+  .calculator-workspace-heading .workspace-banner-image { top:0; height:100%; object-fit:cover; }
   .penetration-banner-heading { position:relative; isolation:isolate; }
   .penetration-banner-heading > :first-child { max-width:58%; }
   .penetration-banner-heading > :not(.penetration-workspace-art) { position:relative; z-index:1; }
@@ -53,6 +70,7 @@
   }
   @media (max-width:880px) {
     .workspace-header-art { inset-inline:30% 0; width:70%; opacity:.55; }
+    .workspace-banner-heading > .workspace-header-art--estimate { max-width:70%; opacity:.55; }
   }
   @media (max-width:760px) {
     .home-hero { min-height:430px; align-items:start; }
@@ -63,6 +81,17 @@
     .workspace-header-art { inset-inline:20% 0; width:80%; opacity:.32; }
     .workspace-banner-crop { aspect-ratio:1122 / 1402; }
     .workspace-banner-image { top:0; height:100%; }
+    .calculator-workspace-heading .workspace-banner-crop {
+      inset-block:50% auto; width:100%; height:auto; aspect-ratio:3; transform:translate(-50%,-50%);
+    }
+    .calculator-workspace-heading .workspace-header-art--spray .workspace-banner-crop { aspect-ratio:2.4; }
+    .calculator-workspace-heading .workspace-header-art:not(.workspace-header-art--spray) .workspace-banner-image { object-fit:contain; }
+    .workspace-banner-heading > .workspace-header-art--estimate {
+      inset:0; inset-inline-start:auto; inset-block-end:auto; width:48%; height:auto; max-width:none; aspect-ratio:3;
+      transform:none; object-fit:contain; opacity:.32;
+      -webkit-mask-image:linear-gradient(90deg,transparent,#000 24%,#000 76%,transparent),linear-gradient(transparent,#000 24%,#000 76%,transparent);
+      mask-image:linear-gradient(90deg,transparent,#000 24%,#000 76%,transparent),linear-gradient(transparent,#000 24%,#000 76%,transparent);
+    }
   }
 }
 @media print {

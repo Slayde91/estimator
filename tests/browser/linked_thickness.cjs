@@ -163,11 +163,19 @@ async function editSprayLength(binding, value) {
   await response(async () => { await settings.getByLabel('Fill Colour', { exact: true }).fill('#fff1dd'); await settings.getByLabel('Fill Colour', { exact: true }).press('Tab'); }, '/commands');
   await settings.getByRole('button', { name: 'Close settings', exact: true }).click();
   for (const corner of ['nw', 'ne', 'sw', 'se']) {
-    const handle = page.getByRole('button', { name: `Resize legend ${corner}`, exact: true }); let box; await expect.poll(async () => !!(box = await handle.boundingBox())).toBe(true);
+    const handle = page.getByRole('button', { name: `Resize legend ${corner}`, exact: true });
+    // Closing settings can leave the drawing behind the sticky header. Let
+    // Chromium bring this handle into native pointer reach before reading its
+    // coordinates; the trial never starts a resize or changes the legend.
+    await handle.click({trial:true});
+    let box; await expect.poll(async () => !!(box = await handle.boundingBox())).toBe(true);
+    assert.equal(await handle.evaluate(el=>{const r=el.getBoundingClientRect();return document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)===el;}),true,`Native pointer reaches legend ${corner} before dragging`);
     await response(async () => { await page.mouse.move(box.x+box.width/2, box.y+box.height/2); await page.mouse.down(); await page.mouse.move(box.x+box.width/2+(corner.includes('w') ? -8 : 8), box.y+box.height/2+(corner.includes('n') ? -8 : 8), { steps: 3 }); await page.mouse.up(); }, '/commands');
   }
   const beforeMove = (await snapshot()).drawing_presentation.legends[0].point;
+  await legend().click({trial:true});
   let box; await expect.poll(async () => !!(box = await legend().boundingBox())).toBe(true);
+  assert.equal(await page.evaluate(([x,y])=>!!document.elementFromPoint(x,y)?.closest('.takeoff-drawing-legend'),[box.x+10,box.y+10]),true,'Native pointer reaches the legend before moving it');
   await response(async () => { await page.mouse.move(box.x+10, box.y+10); await page.mouse.down(); await page.mouse.move(box.x+35, box.y+30, { steps: 5 }); await page.mouse.up(); }, '/commands');
   assert.notDeepEqual((await snapshot()).drawing_presentation.legends[0].point, beforeMove);
   await page.screenshot({ path: path.join(output, 'steel-thickness-colours-legend.png') });

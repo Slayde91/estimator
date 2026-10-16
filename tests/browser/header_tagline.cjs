@@ -48,7 +48,7 @@ async function layout() {
     const rectangle = selector => { const b = document.querySelector(selector).getBoundingClientRect(); return { x: b.x, y: b.y, width: b.width, height: b.height, bottom: b.bottom }; };
     const tag = document.querySelector('#header-tagline'), cursor = tag.querySelector('.header-tagline-cursor');
     const character = document.querySelector('#header-tagline-character');
-    return { header: rectangle('.app-header'), nav: rectangle('.app-header nav'), tagline: rectangle('#header-tagline'),
+    return { brand: rectangle('.brand-stack'), header: rectangle('.app-header'), nav: rectangle('.app-header nav'), tagline: rectangle('#header-tagline'),
       character: rectangle('#header-tagline-character'), visual: rectangle('.header-tagline-visual'), mediaState: character.dataset.taglineMotion, mediaSrc: character.getAttribute('src'), mediaLoaded: character.complete && character.naturalWidth > 0,
       cursorAnimation: getComputedStyle(cursor).animationName, cursorOpacity: getComputedStyle(cursor).opacity,
       cursorHidden: cursor.hidden, cursorDisplay: getComputedStyle(cursor).display, cursorAnimationCount: cursor.getAnimations().length,
@@ -238,8 +238,8 @@ async function presentationNavigation(initial) {
     await page.evaluate(() => document.fonts.ready);
     const initial = await layout(); assert.equal(initial.accessible, phrase); assert.equal(initial.italic, 'italic');
     assert.ok(phrase.startsWith(initial.typed)); assert.notEqual(initial.typed, phrase, 'Actual typing must still be in progress');
-    assert.ok(initial.tagline.y >= initial.nav.bottom); assert.ok(initial.overflow <= 1);
-    assert.equal(initial.alignment, 'center'); assert.ok(Math.abs(initial.tagline.x + initial.tagline.width / 2 - initial.nav.x - initial.nav.width / 2) < .1, 'Tagline is centered beneath navigation');
+    assert.ok(initial.tagline.x >= initial.brand.x + initial.brand.width, 'Tagline remains to the right of the CLASSIFIRE logo'); assert.ok(initial.overflow <= 1);
+    assert.equal(initial.alignment, 'center'); assert.ok(initial.tagline.bottom <= initial.header.bottom && initial.tagline.y >= initial.header.y, 'Tagline remains within the header beside the logo');
     const typingBlink = await blinking(initial, phrase, 'during typing');
     const media = width === 1146 ? await characterMotion(initial) : { state: initial.mediaState, leftOfSentence: initial.character.x + initial.character.width <= initial.visual.x }; assert.equal(initial.mediaState, 'playing'); assert.equal(media.leftOfSentence ?? true, true);
     await page.screenshot({ path: path.join(output, `tagline-typing-${width}.png`), fullPage: false });
@@ -249,7 +249,7 @@ async function presentationNavigation(initial) {
     assert.ok(accessibility.includes(phrase)); assert.ok(!accessibility.includes('_'));
     const expiry = await expireCursor(initial, phrase);
     await page.screenshot({ path: path.join(output, `tagline-${width}.png`), fullPage: false });
-    evidence[width] = { sampleCount: samples.length, typingBlink, media, initial, final: samples.at(-1), expiry, accessibility, dirty: false, centered: true };
+    evidence[width] = { sampleCount: samples.length, typingBlink, media, initial, final: samples.at(-1), expiry, accessibility, dirty: false, besideLogo: true };
     if (width === 1146) {
       evidence.navigation = await presentationNavigation(initial);
       const previous = await page.locator('#header-tagline-label').textContent();

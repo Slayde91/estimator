@@ -2,6 +2,7 @@
 const { chromium, expect } = require('@playwright/test');
 const { settingsSettled } = require('./settings_helpers.cjs');
 const { renderDrawing } = require('./viewer_helpers.cjs');
+const { chooseTakeoff } = require('./section_navigation.cjs');
 const { spawn } = require('node:child_process');
 const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
 const root = path.resolve(__dirname, '../..'), output = path.join(root, '.runtime/browser-qa', `text-search-${Date.now()}`);
@@ -60,7 +61,8 @@ async function pageInputDuringZoomRefinement(value) {
   page.on('pageerror', error => errors.push(error.message));
   await page.addInitScript(() => { window.searchCsp = []; document.addEventListener('securitypolicyviolation', event => window.searchCsp.push(event.effectiveDirective)); });
   await page.goto(`http://127.0.0.1:${info.port}/`); await page.waitForFunction(() => window.CeasefireDesktop?.status().ready);
-  await page.getByRole('button', { name: 'Takeoffs', exact: true }).click();
+  // Choose the workspace and close its menu before using drawing controls.
+  await chooseTakeoff(page, 'steel');
   await page.getByLabel('Include drawing labels', { exact: true }).uncheck();
   await page.locator('#takeoff-upload').setInputFiles([info.fixture, info.other]);
   await expect(page.locator('.takeoff-document')).toHaveCount(2); await expect(page.locator('.takeoff-page>canvas')).toBeVisible();

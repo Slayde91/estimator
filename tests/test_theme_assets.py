@@ -53,6 +53,7 @@ class ThemeAssetTests(unittest.TestCase):
                 for name, mime in [('theme.js', 'text/javascript; charset=utf-8'), ('theme.css', 'text/css; charset=utf-8'),
                                    ('laser.css', 'text/css; charset=utf-8'), ('laser-steel.svg', 'image/svg+xml'),
                                    ('home-steel-frame.png', 'image/png'),
+                                   ('header-layout.css', 'text/css; charset=utf-8'), ('workspace-art.css', 'text/css; charset=utf-8'), ('header-steel-spray.png', 'image/png'), ('header-steel-board.png', 'image/png'), ('header-ductwork.png', 'image/png'), ('header-firestopping.png', 'image/png'), ('header-estimate.png', 'image/png'),
                                    ('icons/navigation-help.jpg', 'image/jpeg'), ('icons/navigation-takeoffs.jpg', 'image/jpeg')]:
                     status, headers, payload = self.get(edition, '/' + name)
                     if edition == 'standard' and name == 'icons/navigation-takeoffs.jpg':
@@ -69,6 +70,13 @@ class ThemeAssetTests(unittest.TestCase):
                 self.assertIn(b'href="/theme.css"', html)
                 self.assertIn(b'href="/laser.css"', html)
                 self.assertIn(b'src="/home-steel-frame.png"', html)
+                self.assertIn(b'href="/header-layout.css"', html)
+                self.assertIn(b'href="/workspace-art.css"', html)
+                self.assertIn(b'src="/header-steel-spray.png"', html)
+                self.assertIn(b'src="/header-steel-board.png"', html)
+                self.assertIn(b'src="/header-ductwork.png"', html)
+                self.assertIn(b'src="/header-firestopping.png"', html)
+                self.assertIn(b'src="/header-estimate.png"', html)
                 self.assertIn(b'src="/theme.js" defer', html)
                 if edition == 'standard':
                     self.assertNotIn(b'/takeoffs.js', html)
@@ -76,6 +84,6 @@ class ThemeAssetTests(unittest.TestCase):
 
     def test_theme_routes_keep_the_exact_asset_boundary(self):
         for edition in self.servers:
-            for route in ('/theme.js/extra', '/theme.css/extra', '/laser.css/extra', '/laser-steel.svg/extra', '/home-steel-frame.png/extra', '/theme-settings.json'):
+            for route in ('/theme.js/extra', '/theme.css/extra', '/laser.css/extra', '/laser-steel.svg/extra', '/home-steel-frame.png/extra', '/theme-settings.json', '/header-layout.css/extra', '/workspace-art.css/extra', '/header-steel-spray.png/extra', '/header-steel-board.png/extra', '/header-ductwork.png/extra', '/header-firestopping.png/extra', '/header-estimate.png/extra'):
                 with self.subTest(edition=edition, route=route):
                     self.assertEqual(self.get(edition, route)[0], 404)

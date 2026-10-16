@@ -198,7 +198,22 @@ def self_test(data_directory, output_report):
                 assert probe.script('!!document.querySelector("[data-view=takeoffs]") || typeof window.CeasefireTakeoffs !== "undefined"') is False
                 assert probe.script('document.querySelector("#view-home").hidden') is False
                 report['checks'].append('Native standard UI rendered without TAKEOFFS')
-                navigation_icons = probe.wait('(() => { const icons=[...document.querySelectorAll(".app-header nav .nav-icon svg, .app-header nav .nav-icon img")]; return icons.length === 7 && icons.map(icon=>{const a=icon.getBoundingClientRect(),b=icon.closest("button").getBoundingClientRect();return {width:a.width,height:a.height,stroke:icon.getAttribute("stroke-width"),src:icon.getAttribute("src"),name:icon.getAttribute("data-lucide"),viewBox:icon.getAttribute("viewBox"),fill:icon.getAttribute("fill"),hidden:icon.getAttribute("aria-hidden"),focusable:icon.getAttribute("focusable"),centreX:a.x+a.width/2-b.x-b.width/2,centreY:a.y+a.height/2-b.y-b.height/2};}); })()')
+                navigation_icons = probe.wait('''(() => {
+                    const icons=[...document.querySelectorAll(".app-header nav .nav-icon svg, .app-header nav .nav-icon img")];
+                    return icons.length === 7 && icons.map(icon=>{
+                        const a=icon.getBoundingClientRect(),button=icon.closest("button"),b=button.getBoundingClientRect();
+                        const label=button.querySelector(".nav-page-label"),c=label?.getBoundingClientRect();
+                        return {width:a.width,height:a.height,stroke:icon.getAttribute("stroke-width"),src:icon.getAttribute("src"),
+                            name:icon.getAttribute("data-lucide"),viewBox:icon.getAttribute("viewBox"),fill:icon.getAttribute("fill"),
+                            hidden:icon.getAttribute("aria-hidden"),focusable:icon.getAttribute("focusable"),
+                            centreX:a.x+a.width/2-b.x-b.width/2,centreY:a.y+a.height/2-b.y-b.height/2,
+                            label:label?.textContent.trim(),labelVisible:!!c&&c.width>0&&c.height>0&&getComputedStyle(label).visibility==="visible",
+                            labelBelow:!!c&&c.top>=a.bottom+4,labelCentreX:c?c.x+c.width/2-b.x-b.width/2:null,
+                            contained:!!c&&a.left>=b.left&&a.top>=b.top&&a.right<=b.right&&c.left>=b.left&&c.right<=b.right&&c.bottom<=b.bottom,
+                            stackCentreY:c?(Math.min(a.top,c.top)+Math.max(a.bottom,c.bottom))/2-b.y-b.height/2:null};
+                    });
+                })()''')
+                report['navigation_icons'] = navigation_icons
                 vectors = [icon for icon in navigation_icons if icon['src'] is None]
                 images = [icon for icon in navigation_icons if icon['src'] is not None]
                 assert len(vectors) == 7 and not images
@@ -206,13 +221,16 @@ def self_test(data_directory, output_report):
                 assert all(icon['stroke'] == '2' and icon['viewBox'] == '0 0 24 24' and icon['fill'] == 'none' for icon in vectors)
                 assert all(icon['hidden'] == 'true' and icon['focusable'] == 'false' for icon in vectors)
                 assert all(icon['width'] == 26 and icon['height'] == 26 for icon in vectors)
-                assert all(abs(icon['centreX']) < .5 and abs(icon['centreY']) < .5 for icon in vectors)
+                # Page names now sit beneath the artwork. Centre the complete
+                # icon/label stack rather than the icon alone within its button.
+                assert [icon['label'] for icon in vectors] == ['Home', 'Estimates', 'Calculators', 'Libraries', 'Projects', 'Help', 'Settings']
+                assert all(icon['labelVisible'] and icon['labelBelow'] and icon['contained'] for icon in vectors)
+                assert all(abs(icon['centreX']) < .5 and abs(icon['labelCentreX']) < .5 and abs(icon['stackCentreY']) < .5 for icon in vectors)
                 help_icon = next(icon for icon in vectors if icon['name'] == 'circle-help')
-                alignment = {'x': help_icon['centreX'], 'y': help_icon['centreY']}
+                alignment = {'x': help_icon['centreX'], 'y': help_icon['stackCentreY'], 'icon_y': help_icon['centreY']}
                 assert abs(alignment['x']) < .5 and abs(alignment['y']) < .5
                 report['help_icon_alignment'] = alignment
-                report['navigation_icons'] = navigation_icons
-                report['checks'].append('Native preview SVG navigation icons rendered at 26 pixels, centred, decorative and consistently stroked')
+                report['checks'].append('Native preview SVG navigation icons rendered at 26 pixels, decorative, consistently stroked and centred above visible page names')
                 probe.script('window.nativeQaCsp=[]; document.addEventListener("securitypolicyviolation",event=>window.nativeQaCsp.push(event.effectiveDirective));')
                 probe.click('[data-view="settings"]')
                 probe.wait('!document.querySelector("#view-settings").hidden && !document.querySelector("#company-settings-save").disabled && document.querySelector("#company-settings-status").textContent === "Saved" && document.querySelector("#theme-toggle").dataset.themeReady === "true"')

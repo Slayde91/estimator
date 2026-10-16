@@ -62,17 +62,6 @@ async function readableMidnightIcon(control) {
   await control.hover();const hover=await controlAppearance(control);assert.equal(hover.image.filter,'brightness(0) invert(1)');assert.ok(contrast('rgb(255,255,255)',hover.background)>=3,'hover must preserve white icon contrast');assert.ok(contrast(hover.color,hover.background)>=4.5);
   await page.mouse.move(1,1);return {normal:value,hover};
 }
-async function readablePhysicalIcon(control) {
-  await expect(control).toBeVisible();await expect(control.locator('img')).toHaveJSProperty('complete',true);
-  const value=await controlAppearance(control);assert.equal(value.image.width,512);assert.equal(value.image.height,512);assert.ok(value.image.opaque>0);assert.equal(value.image.nonBlackOpaque,0);
-  await control.hover();const hover=await controlAppearance(control);
-  for(const state of [value,hover]) {
-    assert.equal(state.filter,'none');assert.equal(state.image.filter,'none','Physical draft controls retain the original black icon');
-    assert.equal(state.background,'rgb(255, 255, 255)','Physical draft controls retain their white surface');
-    assert.ok(contrast('rgb(0,0,0)',state.background)>=3,'Black physical icon contrast');assert.ok(contrast(state.color,state.background)>=4.5,'Physical control text remains readable');
-  }
-  await page.mouse.move(1,1);return {normal:value,hover};
-}
 (async () => {
   const fixture=await ready; assert.notEqual(fixture.port,8765);
   browser=await chromium.launch({ headless:true });
@@ -80,7 +69,7 @@ async function readablePhysicalIcon(control) {
   await context.addInitScript(() => { window.themeCsp=[]; document.addEventListener('securitypolicyviolation',e => window.themeCsp.push(e.effectiveDirective)); });
   page=await context.newPage(); watch(page);
   await page.goto(`http://127.0.0.1:${fixture.port}`,{waitUntil:'networkidle'}); await idle();
-  await settings(); await expect(page.locator('#theme-toggle')).toHaveAccessibleName('Theme: Ceasefire. Next theme: Midnight.');
+  await settings(); await expect(page.locator('#theme-toggle')).toHaveAccessibleName('Theme: CLASSIFIRE. Next theme: Midnight.');
   await page.getByRole('button',{name:'Estimates',exact:true}).click(); await idle();
   await expect(page.locator('#project-no')).toBeVisible();
   await page.locator('#project-no').fill('THEME-DRAFT-UNCHANGED'); await page.locator('#measurements').fill('Pending notes are preserved across every theme.');
@@ -92,8 +81,8 @@ async function readablePhysicalIcon(control) {
     if(id!=='ceasefire') assert.ok(contrast(input.border,input.background)>=3,id+' input boundary');
     for(const width of [1146,752,720]) {
       await page.setViewportSize({width,height:1000});
-      const geometry=await page.evaluate(() => { const box=s => { const r=document.querySelector(s).getBoundingClientRect(); return {x:r.x,y:r.y,width:r.width,height:r.height,right:r.right,bottom:r.bottom}; }; return {header:box('.app-header'),nav:box('.app-header nav'),tools:box('.header-tools'),theme:box('#theme-toggle'),overflow:document.documentElement.scrollWidth-innerWidth}; });
-      assert.ok(geometry.overflow<=1,`${id}/${width} page overflow`); assert.ok(geometry.nav.right<=geometry.tools.x+1,`${id}/${width} header collision`); assert.equal(geometry.theme.width,0,"Theme control belongs to the hidden Settings view");
+      const geometry=await page.evaluate(() => { const box=s => { const r=document.querySelector(s).getBoundingClientRect(); return {x:r.x,y:r.y,width:r.width,height:r.height,right:r.right,bottom:r.bottom}; }; return {header:box('.app-header'),nav:box('.app-header nav'),actions:box('#header-project-actions'),actionsPosition:getComputedStyle(document.querySelector('#header-project-actions')).position,viewportHeight:innerHeight,theme:box('#theme-toggle'),overflow:document.documentElement.scrollWidth-innerWidth}; });
+      assert.ok(geometry.overflow<=1,`${id}/${width} page overflow`); assert.ok(geometry.nav.right<=width,`${id}/${width} navigation fits`);assert.equal(geometry.actionsPosition,'fixed');assert.ok(geometry.actions.right<=width,`${id}/${width} floating actions fit`);assert.ok(geometry.actions.bottom<=geometry.viewportHeight,`${id}/${width} floating actions stay in viewport`); assert.equal(geometry.theme.width,0,"Theme control belongs to the hidden Settings view");
       const screenshot=path.join(output,`${id}-${width}.png`); await page.screenshot({path:screenshot}); evidence.layouts.push({id,width,geometry,screenshot});
     }
     const footer=await page.locator('footer').evaluate(el => {
@@ -128,16 +117,15 @@ async function readablePhysicalIcon(control) {
       const documentControl=page.locator(physical?'.takeoff-workspace-heading .takeoff-physical-document-host':'.takeoff-workspace-heading').getByRole('button',{name:physical?'Document':'Takeoff register document actions',exact:true});
       await documentControl.scrollIntoViewIfNeeded();const document=await readableMidnightIcon(documentControl);
       const transfer=register.getByRole('button',{name:physical?'Transfer to Firestopping Schedule':'Preview transfer',exact:true});
-      const transferAppearance=await transfer.isVisible()?await (physical?readablePhysicalIcon:readableMidnightIcon)(transfer):null;
-      // Ordinary registers follow Schedule; physical drafts retain the user's
-      // red/black/white palette even while surrounding application chrome changes.
+      const transferAppearance=await transfer.isVisible()?await readableMidnightIcon(transfer):null;
+      // Both draft and ordinary register chrome follow the selected theme.
       const undo=await controlAppearance(register.getByRole('button',{name:'Undo last edit',exact:true}));
       let physicalPalette;
       if(physical) {
         physicalPalette=await register.evaluate(el=>{const css=getComputedStyle(el),heading=getComputedStyle(el.querySelector('thead th'));return {background:css.backgroundColor,color:css.color,headingBackground:heading.backgroundColor,headingColor:heading.color};});
-        assert.deepEqual(physicalPalette,{background:'rgb(255, 255, 255)',color:'rgb(17, 17, 17)',headingBackground:'rgb(185, 10, 21)',headingColor:'rgb(255, 255, 255)'});
+        assert.equal(physicalPalette.background,grid.background);assert.equal(physicalPalette.color,grid.color);
         assert.ok(contrast(physicalPalette.headingColor,physicalPalette.headingBackground)>=4.5,'Physical heading contrast');
-        assert.equal(undo.background,'rgb(255, 255, 255)');assert.ok(contrast(undo.color,undo.background)>=4.5,'Physical Undo contrast');
+        assert.equal(undo.background,scheduleUndo.background);assert.equal(undo.color,scheduleUndo.color);assert.ok(contrast(undo.color,undo.background)>=4.5,'Physical Undo contrast');
       } else { assert.equal(undo.background,scheduleUndo.background);assert.equal(undo.color,scheduleUndo.color); }
       const adjacent=[];
       for(const name of ['Update linked rows',physical?'Unlink from Firestopping Schedule':'Detach links']) {
@@ -145,7 +133,7 @@ async function readablePhysicalIcon(control) {
         const value=await controlAppearance(control);assert.ok(contrast(value.svgStroke,value.background)>=3,name+' SVG contrast');adjacent.push({name,...value});
       }
       for(const value of adjacent) {
-        if(physical) { assert.equal(value.background,'rgb(255, 255, 255)');assert.ok(contrast(value.color,value.background)>=4.5,'Physical adjacent control text contrast'); }
+        if(physical) { assert.equal(value.background,document.normal.background);assert.ok(contrast(value.color,value.background)>=4.5,'Physical adjacent control text contrast'); }
         else { assert.equal(document.normal.background,value.background,'Document shares adjacent control surface');assert.equal(document.normal.color,value.color,'Document shares adjacent control text color'); }
         if(transferAppearance){assert.equal(transferAppearance.normal.background,value.background,'Transfer shares adjacent control surface');assert.equal(transferAppearance.normal.color,value.color,'Transfer shares adjacent control text color');}
       }

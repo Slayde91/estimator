@@ -126,10 +126,12 @@ async function controls() {
   const trash = page.getByRole('button', { name: 'Delete selected records', exact: true }), discard = details().getByRole('button', { name: 'Discard unfinished physical edits', exact: true });
   await expect(discard).toHaveCount(1); await expect(page.getByRole('button', { name: 'Discard unfinished physical edits', exact: true })).toHaveCount(1);
   await expect(page.locator('.takeoff-physical-register').getByRole('button', { name: 'Discard unfinished physical edits', exact: true })).toHaveCount(0);
-  const style = locator => locator.evaluate(el => { const css = getComputedStyle(el); return { color: css.color, background: css.backgroundColor, border: css.borderColor }; });
+  const style = locator => locator.evaluate(el => { const css = getComputedStyle(el); return { color: css.color, background: css.backgroundColor, backgroundImage:css.backgroundImage, border: css.borderColor }; });
   await expect(trash).toHaveText('Delete');
+  const deleteStyle=await style(trash),adjacentStyle=await style(page.getByRole('button',{name:'Unconfirm',exact:true}));
+  assert.equal(deleteStyle.background,adjacentStyle.background,'Physical register Delete follows adjacent theme controls');
+  assert.equal(deleteStyle.backgroundImage,adjacentStyle.backgroundImage,'Physical register Delete shares adjacent painted theme surface');
   if(await page.locator('html').getAttribute('data-theme')==='ceasefire'){
-    assert.equal((await style(trash)).background,'rgb(255, 255, 255)','Physical register Delete retains its white evidence surface');
     evidence.controlPalette={trash:await assertReadableControl(trash),discard:await assertReadableControl(discard)};
   }else assert.equal((await style(trash)).background,(await style(discard)).background);
   for (const name of ['Select filtered records']) {

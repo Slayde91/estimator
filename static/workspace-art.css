@@ -1,0 +1,54 @@
+/* Decorative campaign artwork; masks blend into each theme's actual surface. */
+@media screen {
+  .home-hero { position:relative; isolation:isolate; grid-template-columns:minmax(0,1fr); }
+  .home-hero-copy { position:relative; z-index:1; max-width:53%; }
+  .home-laser-art {
+    position:absolute; inset:-12px -2% -12px auto; width:74%; height:calc(100% + 24px);
+    max-width:none; max-height:none; object-fit:cover; object-position:center 72%;
+    border-radius:0; opacity:.94;
+    -webkit-mask-image:linear-gradient(90deg,transparent,#000 30%,#000 86%,transparent),linear-gradient(transparent,#000 16%,#000 84%,transparent);
+    mask-image:linear-gradient(90deg,transparent,#000 30%,#000 86%,transparent),linear-gradient(transparent,#000 16%,#000 84%,transparent);
+    -webkit-mask-composite:source-in; mask-composite:intersect;
+  }
+  /* Keep header menus above later sticky summaries and table headings, while
+     preserving the artwork's isolated blend beneath the real controls. */
+  .workspace-banner-heading { position:relative; isolation:isolate; z-index:5; }
+  .workspace-banner-heading > :not(.workspace-header-art) { position:relative; z-index:1; }
+  .workspace-header-art {
+    position:absolute; inset:0 17% 0 23%; width:60%; height:100%; display:block;
+    object-fit:cover; object-position:center 72%; pointer-events:none; z-index:0;
+    -webkit-mask-image:linear-gradient(90deg,transparent,#000 24%,#000 76%,transparent),linear-gradient(transparent,#000 24%,#000 76%,transparent);
+    mask-image:linear-gradient(90deg,transparent,#000 24%,#000 76%,transparent),linear-gradient(transparent,#000 24%,#000 76%,transparent);
+    -webkit-mask-composite:source-in; mask-composite:intersect;
+  }
+  .calculator-workspace-heading .workspace-header-art { display:none; }
+  #calculator-workspace[data-calculator-kind="steel_vermiculite"] .workspace-header-art--spray,
+  #calculator-workspace[data-calculator-kind="steel_board"] .workspace-header-art--board,
+  #calculator-workspace[data-calculator-kind="ductwork"] .workspace-header-art--ductwork { display:block; }
+  .workspace-header-art--estimate { object-position:center 56%; opacity:.8; }
+  .workspace-header-art--spray { object-position:center 73%; }
+  .workspace-header-art--board { object-position:center 68%; }
+  .workspace-header-art--ductwork { object-position:center 71%; }
+  .penetration-workspace-art { height:150px; margin:-8px 0 18px; overflow:hidden; pointer-events:none; }
+  .penetration-workspace-art img {
+    display:block; width:100%; height:100%; object-fit:cover; object-position:center 71%;
+    -webkit-mask-image:linear-gradient(90deg,transparent,#000 22%,#000 78%,transparent),linear-gradient(transparent,#000 24%,#000 76%,transparent);
+    mask-image:linear-gradient(90deg,transparent,#000 22%,#000 78%,transparent),linear-gradient(transparent,#000 24%,#000 76%,transparent);
+    -webkit-mask-composite:source-in; mask-composite:intersect;
+  }
+  @media (max-width:880px) {
+    .workspace-header-art { inset-inline:30% 0; width:70%; opacity:.55; }
+  }
+  @media (max-width:760px) {
+    .home-hero { min-height:430px; align-items:start; }
+    .home-hero-copy { max-width:100%; }
+    .home-laser-art { inset:28% -5% -5%; width:110%; height:78%; max-width:none; max-height:none; object-position:center 72%;
+      -webkit-mask-image:linear-gradient(90deg,transparent,#000 20%,#000 80%,transparent),linear-gradient(transparent,#000 35%,#000 80%,transparent);
+      mask-image:linear-gradient(90deg,transparent,#000 20%,#000 80%,transparent),linear-gradient(transparent,#000 35%,#000 80%,transparent); }
+    .workspace-header-art { inset-inline:20% 0; width:80%; opacity:.32; }
+    .penetration-workspace-art { height:115px; }
+  }
+}
+@media print {
+  .workspace-header-art,.penetration-workspace-art,.home-laser-art { display:none!important; }
+}

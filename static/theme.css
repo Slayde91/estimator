@@ -16,7 +16,7 @@
 @media(max-width:570px) { .button.theme-toggle { width:44px; min-width:44px; height:44px; min-height:44px; padding:9px; } }
 @media(max-width:420px) { .header-tools { margin-top:0; } .button.theme-toggle { width:40px; min-width:40px; height:40px; min-height:40px; padding:7px; } }
 
-/* The default deliberately keeps the existing Ceasefire palette. */
+/* The default deliberately keeps the existing CLASSIFIRE palette. */
 :root[data-theme="midnight"] {
   color-scheme:dark;
   --accent:#9bc9ff; --accent-dark:#c6dfff; --ink:#eef2f7; --muted:#b9c4d2;
@@ -78,7 +78,7 @@
   :root[data-theme]:not([data-theme="ceasefire"]) :is(input,select,textarea)[readonly] { background:var(--theme-soft); }
   :root[data-theme]:not([data-theme="ceasefire"]) :is(input,select,textarea)::placeholder { color:var(--muted); opacity:1; }
   :root[data-theme]:not([data-theme="ceasefire"]) :is(.field>span:first-child,.help-card p,.help-card li,.work-summary) { color:var(--ink); }
-  :root[data-theme]:not([data-theme="ceasefire"]) :is(th,.work-summary-panel,.tabs,.tab.active,.penetration-group[aria-pressed=true],.penetration-group[aria-selected=true]):not(.takeoff-physical-register th,.penetration-settings-table th) { background:var(--theme-soft); color:var(--ink); border-color:var(--line); }
+  :root[data-theme]:not([data-theme="ceasefire"]) :is(th,.work-summary-panel,.tabs):not(:where(.penetration-settings-table th,.calculator-grid *)) { background:var(--theme-soft); color:var(--ink); border-color:var(--line); }
   :root[data-theme]:not([data-theme="ceasefire"]) :is(td,.workflow-section) { border-color:var(--line); }
   :root[data-theme]:not([data-theme="ceasefire"]) .library-summary-table tbody td { background:var(--theme-surface); color:var(--ink); }
   :root[data-theme]:not([data-theme="ceasefire"]) .library-summary-table .library-summary-total>* { background:var(--theme-button); color:#fff; border-color:var(--theme-border); }
@@ -94,17 +94,17 @@
   :root[data-theme]:not([data-theme="ceasefire"]) #penetration-add-to-schedule:hover:not(:disabled) { background:var(--theme-soft); color:var(--accent); }
   :root[data-theme]:not([data-theme="ceasefire"]) .grand-total { background:var(--theme-button); }
   :root[data-theme]:not([data-theme="ceasefire"]) :is(.grand-total>span,.grand-total .currency-note) { color:#fff; }
-  :root[data-theme]:not([data-theme="ceasefire"]) :is(.calculator-workspace,.calculator-tools,.calculator-sheet-heading,.calculator-sheet-footer,.calculator-pages,.calculator-settings-chooser,.calculator-page,.calculator-settings-choice,.calculator-grid,.calculator-overview,.calculator-overview-metric,.calculator-summary-metric,.calculator-contents,.calculator-contents a,.calculator-document-card,.calculator-document-card.calculator-document-request,.calculator-projected-note,.calculator-schedule-tools) { background:var(--theme-surface); color:var(--ink); border-color:var(--theme-border); }
-  :root[data-theme]:not([data-theme="ceasefire"]) .calculator-grid { --calculator-section-bg:var(--theme-section); --calculator-section-ink:#fff; }
-  :root[data-theme]:not([data-theme="ceasefire"]) .calculator-grid [class*="calculator-section-theme-"] { --section-ink:var(--ink); --section-bg:var(--theme-surface); --section-edge:var(--theme-edge); }
-  :root[data-theme]:not([data-theme="ceasefire"]) .calculator-grid :is(.calculator-row-label,.calculator-source-heading,.calculator-role-column_header,.calculator-comparison-table th) { background:var(--theme-section); color:#fff; }
+  :root[data-theme]:not([data-theme="ceasefire"]) :is(.calculator-workspace,.calculator-tools,.calculator-sheet-heading,.calculator-sheet-footer,.calculator-pages,.calculator-settings-chooser,.calculator-page,.calculator-settings-choice,.calculator-grid,.calculator-overview,.calculator-overview-metric,.calculator-summary-metric,.calculator-contents,.calculator-document-card,.calculator-projected-note,.calculator-schedule-tools) { background:var(--theme-surface); color:var(--ink); border-color:var(--theme-border); }
+
+
+
   :root[data-theme]:not([data-theme="ceasefire"]) .calculator-grid :is(td.calculator-role-label,td.calculator-role-note,td.calculator-editable,td.calculator-role-spacer,.calculator-value-present,.calculator-value-empty,.calculator-value-present.calculator-published-thickness):not(.calculator-line-number) { background:var(--theme-surface)!important; color:var(--ink); }
   :root[data-theme]:not([data-theme="ceasefire"]) .calculator-grid :is(input,select,textarea):not([aria-invalid=true]) { background:var(--theme-input); color:var(--ink); border-color:var(--theme-border); }
   :root[data-theme]:not([data-theme="ceasefire"]) :is(.calculator-contents-title,.calculator-overview-label,.calculator-summary-metric span,.calculator-overview p,.calculator-overview-full>p,.calculator-product-totals>p,.calculator-documents summary,.calculator-document-group h4,.calculator-document-meta,.calculator-document-coverage,.calculator-document-notes) { color:var(--ink); }
   :root[data-theme]:not([data-theme="ceasefire"]) :is(.calculator-summary-metric strong,.calculator-grid .calculator-product-totals .calculator-number) { color:var(--accent); }
   :root[data-theme]:not([data-theme="ceasefire"]) .calculator-grid td.calculator-editable { box-shadow:inset 4px 0 0 var(--theme-edge); }
   :root[data-theme]:not([data-theme="ceasefire"]) :is(.takeoff-register,.takeoff-toolbar,.takeoff-viewer-toolbar,.takeoff-document-controls,.takeoff-search,.takeoff-modal,.takeoff-annotation-panel) { background:var(--theme-surface); color:var(--ink); border-color:var(--line); }
-  :root[data-theme]:not([data-theme="ceasefire"]) :is(.takeoff-register th,.takeoff-column-filter-menu):not(.takeoff-physical-register th) { background:var(--theme-soft); color:var(--ink); }
+  :root[data-theme]:not([data-theme="ceasefire"]) :is(.takeoff-register th,.takeoff-column-filter-menu) { background:var(--theme-soft); color:var(--ink); }
   :root[data-theme="midnight"] :is(.gear-symbol,.calculator-symbol-button,.penetration-group,.library-summary-table th,.library-summary-table td) { color:var(--ink); }
   :root[data-theme="midnight"] .header-tagline-character { filter:url(#header-character-white); }
   :root[data-theme="midnight"] footer { color:var(--muted); }
@@ -130,24 +130,47 @@
   :root .brand-logo{background:transparent;border-radius:0}
 }
 
-/* These source/draft tables retain their red, black and white presentation. */
-:root .takeoff-physical-register,:root .penetration-settings-table{
+/* Source settings retain their original evidence palette; draft registers use the app theme. */
+:root .penetration-settings-table{
   color-scheme:light;--red:#f10d1b;--accent:#b90a15;--accent-dark:#920711;--ink:#111;--muted:#555;--line:#dedede;--paper:#fff;--navy:#111;
   --theme-button:#b90a15;--theme-button-hover:#920711;--theme-focus:#b90a15;--theme-surface:#fff;--theme-raised:#fff4f4;--theme-soft:#fff;--theme-input:#fff;--theme-border:#d5d5d5;--theme-edge:#f10d1b;
   background:#fff;color:#111;border-color:#dedede;
 }
-:root .takeoff-physical-register{border-top-color:#f10d1b}
-:root .takeoff-physical-register .status-label,:root .takeoff-physical-register .takeoff-state{background:#fff;color:#111;border-color:#dedede}
-:root .takeoff-physical-register .takeoff-state.confirmed,:root .takeoff-physical-register .takeoff-state.reviewed{background:#fff;color:#111;border:1px solid #b90a15}
-:root .takeoff-physical-register .takeoff-bulk{background:#fff;border:1px solid #f10d1b}
-:root .takeoff-physical-register tr.selected td{background:#fff0f0;color:#111}
-:root .takeoff-physical-register .takeoff-row-link,:root .takeoff-physical-register .takeoff-group-toggle{color:#b90a15}
-:root .takeoff-physical-register :is(.takeoff-icon-button img,.takeoff-transfer-icon,.calculator-document-icon){filter:none}
-:root .takeoff-physical-register input[type=checkbox]{accent-color:#b90a15}
-:root[data-theme] .takeoff-physical-register thead th,:root[data-theme] .penetration-settings-table thead th{background:#b90a15;color:#fff;border-color:#111}
+:root[data-theme] .penetration-settings-table thead th{background:#b90a15;color:#fff;border-color:#111}
 :root .penetration-settings-table .settings-group-heading th{background:#111;color:#fff;border-color:#111}
 :root .penetration-settings-table tbody td,:root .penetration-settings-table tbody th:not([scope=rowgroup]){background:#fff;color:#111}
 :root .penetration-settings-table .penetration-field-error{color:#b90a15}
 :root .takeoff-physical-register .takeoff-frl-cell{white-space:nowrap;width:max-content;min-width:110px}
 :root .takeoff-physical-register .takeoff-frl-cell :is(select,input){field-sizing:content;width:max-content;min-width:110px;white-space:nowrap}
 :is(#penetration-schedule-body,#penetration-estimator-schedule-body)>tr>td:nth-child(6){white-space:nowrap}
+
+@media screen {
+  /* Active tabs share one white bottom marker. Focus outlines remain independent. */
+  :root[data-theme] :is(.main-section-tab[aria-selected=true],.calculator-page[aria-pressed=true],.calculator-settings-choice[aria-expanded=true],.penetration-group[aria-pressed=true],.penetration-group[aria-selected=true],.takeoff-mode[aria-selected=true],.tab.active) {
+    background:var(--theme-button);
+    color:#fff;
+    border-bottom-color:#fff;
+    box-shadow:inset 0 -3px #fff;
+  }
+
+  /* Workbook headers are neutral in every theme; input and result cells keep their roles. */
+  :root .calculator-grid { --calculator-section-bg:#fff; --calculator-section-ink:#000; }
+  :root .calculator-grid [class*="calculator-section-theme-"] { --section-ink:#000; --section-bg:#fff; --section-edge:var(--theme-edge); }
+  :root[data-theme] .calculator-grid :is(thead th,.calculator-row-label,.calculator-source-heading,.calculator-role-column_header,.calculator-comparison-table th,.calculator-product-totals tbody th,.calculator-schedule-table tbody th,.calculator-overview-column_header),
+  :root[data-theme] .calculator-contents a { background:#fff; color:#000; }
+
+  /* These are application forms and drafts, never retained drawing/image pixels. */
+  :root[data-theme] .takeoff-physical-register { background:var(--theme-surface); color:var(--ink); border-color:var(--line); border-top-color:var(--theme-edge); }
+  :root[data-theme] .takeoff-physical-register .status-label { background:var(--theme-soft); color:var(--ink); border-color:var(--line); }
+  :root[data-theme] .takeoff-physical-register .takeoff-register-editor { background:var(--theme-surface); color:var(--ink); }
+  :root[data-theme] .takeoff-physical-register :is(.takeoff-physical-icon-action,.takeoff-physical-discard,.takeoff-physical-delete-selected,.takeoff-undo-button,.takeoff-column-filter-button) { background:var(--theme-surface); color:var(--ink); border-color:var(--theme-border); }
+  :root[data-theme] .takeoff-physical-register .takeoff-column-filter-button:is(.active,[aria-expanded=true]) { background:var(--theme-soft); color:var(--ink); border-color:var(--theme-edge); }
+  :root[data-theme] .penetration-diagram { background:var(--theme-raised); color:var(--ink); border-color:var(--line); }
+  :root[data-theme] .penetration-diagram :is(.helper,figcaption) { color:var(--muted); }
+  :root[data-theme] .penetration-diagram .field>span:first-child { color:var(--ink); }
+  :root[data-theme] #company-logo-preview { background:transparent; }
+  :root[data-theme] #company-settings-save { background:#b90a15; background-image:none; color:#fff; border-color:#b90a15; }
+  :root[data-theme] #company-settings-save:hover:not(:disabled) { background:#920711; border-color:#920711; }
+  :root[data-theme] #company-settings-save:disabled { background:#8c2430; color:#fff; border-color:#8c2430; opacity:1; }
+  :root[data-theme] input[type=file]::file-selector-button { background:#fff; color:#000; border:1px solid #777; border-radius:4px; padding:5px 9px; }
+}

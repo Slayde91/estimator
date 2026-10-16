@@ -45,7 +45,7 @@ async function assertPhysicalTools(page) {
     const documentMenu = document.querySelector('.takeoff-workspace-heading .takeoff-physical-document-host .takeoff-document-menu'), documentHost = documentMenu.parentElement, tools = document.querySelector('.takeoff-workspace-heading .takeoff-pdf-tools-menu');
     return {
       theme: document.documentElement.dataset.theme || 'ceasefire',
-      firstRow: box(first), actionsRow: box(actions), register: box(el),
+      firstRow: box(first), actionsRow: box(actions), register: box(el), registerBackground:getComputedStyle(el).backgroundColor,
       controls: [transfer, update, unlink].map(box),
       document: { box: box(documentMenu), tools: box(tools), directlyBeforeTools: documentHost.nextElementSibling === tools, absentFromRegister: !el.querySelector('.takeoff-document-menu') },
       actionsOrder: [...actions.children].map(control => control.getAttribute('aria-label') || control.className),
@@ -72,12 +72,12 @@ async function assertPhysicalTools(page) {
   const scheduleStyle = {...measured.scheduleUndo.style,width:measured.selection.box.width+'px',height:measured.selection.box.height+'px'};
   if (measured.theme === 'ceasefire') {
     const omit = (value, keys) => Object.fromEntries(Object.entries(value).filter(([key]) => !keys.includes(key)));
-    assert.deepEqual(omit(measured.undo.style, ['color','backgroundColor','borderTopColor']), omit(scheduleStyle, ['color','backgroundColor','borderTopColor']), 'Physical Undo retains Schedule geometry, typography and shadow while its evidence palette stays light');
+    assert.deepEqual(omit(measured.undo.style, ['color','backgroundColor','borderTopColor']), omit(scheduleStyle, ['color','backgroundColor','borderTopColor']), 'Physical Undo retains Schedule geometry, typography and shadow while its surface follows the selected theme');
     assert.deepEqual(omit(measured.undo.glyph, ['color']), omit(measured.scheduleUndo.glyph, ['color']), 'Undo retains the Schedule symbol font');
-    assert.equal(measured.undo.style.backgroundColor, 'rgb(255, 255, 255)', 'Physical Undo retains its white evidence surface');
+    assert.equal(measured.undo.style.backgroundColor, measured.registerBackground, 'Physical Undo follows its register theme surface');
     assert.equal(measured.undo.glyph.color, measured.undo.style.color, 'Physical Undo glyph follows its own readable button colour');
     measured.undo.contrast = contrast(measured.undo.glyph.color, measured.undo.style.backgroundColor);
-    assert.ok(measured.undo.contrast >= 4.5, 'Physical Undo glyph remains readable on its white surface');
+    assert.ok(measured.undo.contrast >= 4.5, 'Physical Undo glyph remains readable on its theme surface');
     const background = measured.scheduleUndo.backgroundImage;
     const stops = background === 'none' ? [measured.scheduleUndo.style.backgroundColor] : background.match(/rgba?\([^)]*\)/g) || [];
     assert.ok(stops.length, 'Schedule Undo exposes opaque painted colours for contrast');

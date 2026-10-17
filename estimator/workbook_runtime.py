@@ -356,7 +356,12 @@ def _add_monokote_application_basis(model):
             cells[f'{column}{row}'].pop('cached_value', None)
         cells[f'A{row}']['value'] = 'Spray application basis'
         cells[address].update(value='Uninjected', data_type='s', style=cells['D12']['style'])
-        cells[f'G{row}'].pop('value', None)
+        cells[f'G{row}']['value'] = (
+            'Z106: injection records the application method only; it does not increase yield. '
+            'GCP MONOKOTE Accelerator guidance excludes Z106 from injection yield gains.'
+            if address == 'D570' else
+            'Injected multiplies the selected base yield by 40/27; Uninjected uses the base yield. '
+            'Waste is applied separately; technical thickness is unchanged.')
         for merged in source_merges:
             match = re.fullmatch(r'([A-Z]+)237:([A-Z]+)237', merged)
             if match:

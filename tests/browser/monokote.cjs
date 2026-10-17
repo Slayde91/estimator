@@ -193,6 +193,8 @@ async function screenshot(name,fixture) {
     await expect(control('SETTINGS',`D${row}`)).toBeVisible();
     await expect(control('SETTINGS',`D${row}`)).toHaveCSS('text-align','left');
   }
+  await expect(rendered('G570')).toBeVisible();
+  await expect(rendered('G570')).toContainText('does not increase yield');
   await expect(rendered('D565')).toBeVisible();await expect(rendered('D565')).toHaveCSS('text-align','left');
   await expect(rendered('D568')).toContainText('FAR4856 Issue 2');
   await screenshot('z106-settings-alignment.png',fixture);

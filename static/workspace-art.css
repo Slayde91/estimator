@@ -64,7 +64,7 @@
   .calculator-heading-text { flex:0 1 auto; min-width:0; }
   .calculator-heading-art-slot { position:relative; flex:1 1 0; align-self:stretch; min-width:0; pointer-events:none; }
   .calculator-heading-lightning {
-    position:absolute; inset-block:50% auto; inset-inline:6px auto; width:12px; height:56px;
+    position:absolute; inset-block:50% auto; inset-inline:6px auto; width:12px; height:calc(100% + 16px); min-height:64px;
     transform:translateY(-50%); color:var(--red); pointer-events:none;
   }
   .calculator-heading-art-slot .workspace-header-art {
@@ -105,7 +105,8 @@
   }
   .takeoff-workspace-heading[data-takeoff-mode="steel"] .takeoff-heading-art--steel,
   .takeoff-workspace-heading[data-takeoff-mode="duct"] .takeoff-heading-art--duct,
-  .takeoff-workspace-heading[data-takeoff-mode="physical"] .takeoff-heading-art--physical { display:block; }
+  .takeoff-workspace-heading[data-takeoff-mode="physical"][data-physical-scope="defect_reports"] .takeoff-heading-art--physical,
+  .takeoff-workspace-heading[data-takeoff-mode="physical"][data-physical-scope="service_plans"] .takeoff-heading-art--service_plans { display:block; }
   /* Trim empty canvas around each supplied composition, keeping the object
      recognisable in the existing row rather than enlarging a thin cover slice. */
   .takeoff-heading-art--steel { aspect-ratio:1.7; }
@@ -114,6 +115,9 @@
   .takeoff-heading-art--duct img { transform:translateY(-64%); }
   .takeoff-heading-art--physical { aspect-ratio:calc(1.9 * 1054 / 1492); }
   .takeoff-heading-art--physical img { transform:translateY(-63%); }
+  /* Service Plans has its own landscape scene; Defect Reports keeps its portrait. */
+  .takeoff-heading-art--service_plans { aspect-ratio:2.7; }
+  .takeoff-heading-art--service_plans img { transform:translateY(-50%); }
   .penetration-banner-heading { position:relative; isolation:isolate; }
   .penetration-banner-heading > :first-child { max-width:58%; }
   .penetration-banner-heading > :not(.penetration-workspace-art) { position:relative; z-index:1; }
@@ -125,6 +129,9 @@
     mask-image:linear-gradient(90deg,transparent,#000 22%,#000 78%,transparent),linear-gradient(transparent,#000 24%,#000 76%,transparent);
     -webkit-mask-composite:source-in; mask-composite:intersect;
   }
+  /* Enlarge the painted penetration inside the existing black heading column. */
+  .penetration-workspace-art .workspace-banner-crop { aspect-ratio:2.1; }
+  .penetration-workspace-art .workspace-banner-image { top:50%; height:auto; transform:translateY(-63%); }
   @media (max-width:880px) {
     .workspace-header-art { inset-inline:30% 0; width:70%; opacity:.55; }
     .workspace-banner-heading > .workspace-header-art--estimate { max-width:70%; opacity:.55; }

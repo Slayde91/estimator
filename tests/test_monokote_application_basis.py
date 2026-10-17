@@ -73,6 +73,8 @@ class MonokoteApplicationBasisTests(unittest.TestCase):
                 self.assertEqual(field['type'], 'select')
                 self.assertEqual(field['validation']['formula1'], '"Injected,Uninjected"')
                 self.assertEqual(settings['cells'][cell]['value'], 'Uninjected')
+                explanation = settings['cells'][f'G{cell[1:]}']['value']
+                self.assertIn('does not increase yield' if cell == 'D570' else '40/27', explanation)
                 self.assertEqual(definition['defaults']['SETTINGS'][cell], 'Uninjected')
                 section = next(section for section in metadata['settings_sections'] if section['id'] == owner)
                 self.assertIn(f'A{cell[1:]}:N{cell[1:]}', section['ranges'])

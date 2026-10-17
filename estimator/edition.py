@@ -25,7 +25,7 @@ TAKEOFF_ASSETS = frozenset({
     '/icons/navigation-takeoffs.png', '/icons/navigation-takeoffs.svg', '/icons/navigation-takeoffs.jpg',
     '/icons/takeoff-callout.png',
     '/takeoff-library-links.js', '/icons/takeoff-visibility.png',
-    '/takeoff-header-steel.png', '/takeoff-header-ductwork.png', '/takeoff-header-physical.png',
+    '/takeoff-header-steel.png', '/takeoff-header-ductwork.png', '/takeoff-header-physical.png', '/takeoff-header-service-plans.png',
     '/icons/takeoff-bullet-list.png', '/icons/takeoff-numbered-list.png',
     '/icons/takeoff-add-service.png', '/icons/takeoff-add-barrier.png', '/icons/takeoff-transfer.png',
 })

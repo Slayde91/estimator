@@ -556,7 +556,7 @@
     const headingActions = node("div", "actions takeoff-document-tools"); headingActions.append(ui.documentMenu.root, ui.physicalDocumentHost, buildPDFToolsMenu());
     const headingCopy = node("div", "takeoff-heading-copy"), headingArt = node("span", "takeoff-heading-art-slot");
     headingArt.setAttribute("aria-hidden", "true");
-    for (const [mode, source] of [["steel", "steel"], ["duct", "ductwork"], ["physical", "physical"]]) {
+    for (const [mode, source] of [["steel", "steel"], ["duct", "ductwork"], ["physical", "physical"], ["service_plans", "service-plans"]]) {
       const frame = node("span", `takeoff-heading-art takeoff-heading-art--${mode}`), image = node("img");
       image.src = `/takeoff-header-${source}.png`; image.alt = ""; image.decoding = "async"; image.setAttribute("aria-hidden", "true"); frame.append(image); headingArt.append(frame);
     }
@@ -821,6 +821,7 @@
     refreshNavigation();
     const physical = state.mode === "physical";
     state.ui.heading.dataset.takeoffMode = state.mode;
+    state.ui.heading.dataset.physicalScope = state.physicalScope;
     state.ui.documentMenu.root.hidden = physical;
     state.ui.physicalDocumentHost.hidden = !physical;
     if (physical) state.ui.documentMenu.close(false);

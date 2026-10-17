@@ -197,7 +197,7 @@ async function presentationNavigation(initial) {
   assert.equal((await layout()).accessible, beforeHover.accessible); assert.deepEqual((await layout()).finished, beforeHover.finished);
   await page.mouse.move(0, 0); await expect(menu).toBeHidden();
   const previous = beforeHover.accessible;
-  await toggle.hover(); await menu.getByRole('button', { name: 'Steel (board)', exact: true }).click();
+  await toggle.hover(); await menu.getByRole('button', { name: 'Steel', exact: true }).click(); await page.locator('#calculator-steel-hub').getByRole('button',{name:'Steel (board)',exact:true}).click();
   await expect(page.locator('#calculator-title')).toHaveText('Steel (board)');
   await expect.poll(() => page.locator('#header-tagline-label').textContent()).not.toBe(previous);
   const selected = await layout(); sameHeader(initial, selected);
@@ -217,10 +217,10 @@ async function presentationNavigation(initial) {
   await page.getByRole('button', { name: 'Help', exact: true }).click(); await expect(dialog).toBeVisible();
   await dialog.getByRole('button', { name: 'Cancel', exact: true }).click(); await expect(page.locator('#view-pricing')).toBeVisible();
   assert.equal((await layout()).accessible, beforeCancel.accessible); assert.deepEqual((await layout()).finished, beforeCancel.finished); assert.deepEqual(await snapshot(), guarded);
-  await toggle.hover(); await menu.getByRole('button', { name: 'Steel (board)', exact: true }).click(); await expect(dialog).toBeVisible();
+  await toggle.hover(); await menu.getByRole('button', { name: 'Steel', exact: true }).click(); await expect(dialog).toBeVisible();
   await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
   assert.equal((await layout()).accessible, beforeCancel.accessible); assert.deepEqual((await layout()).finished, beforeCancel.finished); assert.deepEqual(await snapshot(), guarded); await expect(price).toHaveValue(display);
-  await toggle.hover(); await menu.getByRole('button', { name: 'Steel (board)', exact: true }).click(); await expect(dialog).toBeVisible();
+  await toggle.hover(); await menu.getByRole('button', { name: 'Steel', exact: true }).click(); await expect(dialog).toBeVisible();
   await dialog.getByRole('button', { name: 'Continue', exact: true }).click();
   await expect.poll(() => page.locator('#header-tagline-label').textContent()).not.toBe(beforeCancel.accessible);
   const accepted = await layout(); sameHeader(initial, accepted);

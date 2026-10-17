@@ -121,6 +121,12 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     const heading=nodes.find(node=>node.tagName==='h3');assert.equal(heading.focusOptions.preventScroll,true);assert.equal(pane.detailPanel.scrolled,true);assert.equal(heading.scrolled,undefined,'Keep Back navigation above the heading inside the scrolled view.');
     assert.equal(pane.detailPanel.children.filter(node=>node.textContent==='Record-specific source qualification.').length,1);assert.doesNotMatch(pane.notice.textContent,/Record-specific/);assert.equal(h.byId('technical-library-workspace').contains(pane.notice),false,'The generic technical-library notice is absent from the page.');assert.equal(h.byId('technical-library-workspace').contains(pane.detailPanel),true);
   });
+  await check('Reviewed AI replicas retain original image access for both field and gallery images',async h=>{
+    const source={...detail('technical','technical-1'),image_replicas:{'synthetic_image-1':'/api/libraries/replicas/synthetic_image-1','field-image':'/api/libraries/replicas/field-image'},fields:[{label:'Installation Concept',value:'',images:[{id:'field-image',caption:'Field detail'}]}]};
+    const before=copy(source);h.setRoute(path=>path==='/api/libraries'?meta():source);await h.api.open('technical','technical-1');const nodes=walk(h.pane('technical').detailPanel);
+    assert.equal(nodes.filter(node=>node.tagName==='img'&&node.src?.startsWith('/api/libraries/replicas/')).length,2);
+    const originals=nodes.filter(node=>node.tagName==='a'&&node.textContent==='Open original source image');assert.equal(originals.length,2);assert.ok(originals.every(node=>node.href.startsWith('/api/libraries/images/')));assert.match(text(h.pane('technical').detailPanel),/AI replica — illustrative/);assert.deepEqual(source,before);
+  });
   await check('Technical general notices stay absent while record errors and retry controls remain visible',async h=>{
     h.setRoute(path=>path==='/api/libraries'?meta():path.includes('?')?records('technical'):{error:'This linked library record was removed.'});await h.api.open('technical');const pane=h.pane('technical');assert.equal(h.byId('technical-library-workspace').contains(pane.notice),false);
     await h.api.open('technical','removed record');assert.match(h.calls.at(-1).path,/\/technical\/removed%20record$/);assert.match(text(pane.detailPanel),/linked library record was removed/);assert.equal(pane.detailPanel.getAttribute('aria-busy'),'false');assert.equal(h.byId('technical-library-workspace').contains(pane.notice),false);

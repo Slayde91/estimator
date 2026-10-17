@@ -22,7 +22,7 @@ const ready = new Promise((resolve, reject) => {
   server.once('exit', code => { clearTimeout(timer); reject(new Error(`Fixture exited ${code}: ${logs}`)); });
 });
 const errors = [], requests = [], evidence = {};
-const destinations = ['Steel (spray)', 'Steel (board)', 'Ductwork (spray/wrap)', 'Firestopping'];
+const destinations = ['Steel', 'Duct', 'Firestopping'];
 function monitor(target) {
   target.setDefaultTimeout(60000); target.on('pageerror', error => errors.push(error.message));
   target.on('request', request => requests.push({ method: request.method(), path: new URL(request.url()).pathname }));
@@ -41,9 +41,9 @@ async function workbook(title) {
   await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()); await idle();
   const saveReply = page.waitForResponse(reply => new URL(reply.url()).pathname === '/api/project/save-as' && reply.request().method() === 'POST');
   await clickProjectControl(page, 'Save'); assert.equal((await saveReply).status(), 200); await idle();
-  await page.getByRole('button', { name: 'Calculators', exact: true }).click(); await workbook('Steel (spray)');
+  await page.getByRole('button', { name: 'Calculators', exact: true }).click(); await expect(page.locator('#calculator-steel-hub')).toBeVisible(); await expect(page.locator('#calculator-workspace')).toBeHidden(); await expect(page.locator('#calculator-steel-hub [data-steel-calculator]')).toHaveCount(2);
   await page.getByRole('button', { name: 'Home', exact: true }).click();
-  evidence.initialCalculator = 'Steel (spray)';
+  evidence.initialCalculator = 'Steel landing page';
   const calculationRequests = () => requests.filter(item => item.path.startsWith('/api/calculators/')).length;
   const before = await snapshots(), beforeRequests = calculationRequests();
   const estimateToggle=page.getByRole('button',{name:'Estimates',exact:true}), estimates=page.getByRole('group',{name:'Choose an estimate',exact:true});
@@ -71,8 +71,7 @@ async function workbook(title) {
   await page.keyboard.press('Home'); await expect(menu.getByRole('button').first()).toBeFocused();
   await page.keyboard.press('Escape'); await expect(toggle).toBeFocused(); await expect(toggle).toHaveAttribute('aria-expanded', 'false'); await expect(menu).toBeHidden();
   assert.deepEqual(await snapshots(), before);
-  await toggle.press('ArrowDown'); await page.keyboard.press('ArrowDown');
-  await expect(menu.getByRole('button', { name: 'Steel (board)', exact: true })).toBeFocused(); await page.keyboard.press('Enter'); await workbook('Steel (board)');
+  await toggle.press('ArrowDown'); await expect(menu.getByRole('button', { name: 'Steel', exact: true })).toBeFocused(); await page.keyboard.press('Enter'); await expect(page.locator('#calculator-steel-hub')).toBeVisible(); const boardCard=page.locator('#calculator-steel-hub').getByRole('button',{name:'Steel (board)',exact:true}); await boardCard.focus(); await boardCard.press('Enter'); await workbook('Steel (board)');
   assert.deepEqual(await snapshots(), before); evidence.keyboard = { focus: true, arrows: true, homeEnd: true, escapeReturnsFocus: true, enterSelectsCalculator: true, changedDrafts: false };
   await page.getByRole('button', { name: 'Home', exact: true }).click(); await toggle.click(); await workbook('Steel (board)');
   assert.deepEqual(await snapshots(), before);
@@ -84,20 +83,20 @@ async function workbook(title) {
   const input = page.locator('[data-calculator-sheet="SCHEDULE"][data-calculator-cell="A10"]'); await expect(input).toBeVisible(); await input.fill('MENU-DRAFT-1'); await input.press('Tab');
   await expect(page.locator('#calculator-grid')).toHaveAttribute('aria-busy', 'false'); const retained = await snapshots();
   evidence.scheduleDeletes=[];
-  for (const title of ['Steel (spray)', 'Steel (board)', 'Ductwork (spray/wrap)']) {
+  for (const title of ['Steel (spray)', 'Steel (board)', 'Duct']) {
     await chooseCalculator(page, title); await workbook(title);
     await page.locator('#calculator-pages').getByRole('button',{name:'SCHEDULE',exact:true}).click();await expect(page.locator('#calculator-grid')).toHaveAttribute('aria-busy','false');
     const table=page.locator('.calculator-schedule-table'),headers=await table.getByRole('columnheader').allTextContents();
     assert.equal(headers[0],'Line');assert.ok(!headers.includes('Row'));
     if(title==='Steel (board)'){assert.ok(!headers.includes('Waste (%)'));await expect(table.locator('[data-calculator-cell^="L"]')).toHaveCount(0);}
-    else if(title==='Ductwork (spray/wrap)'){assert.deepEqual(headers.slice(1,9),['Duct size W x H (mm)','Length (m)','FRL — compartment / duct*','Fire exposure / FyreWrap application','Orientation','Product','Wall penetrations','Floor penetrations']);}
+    else if(title==='Duct'){assert.deepEqual(headers.slice(1,9),['Duct size W x H (mm)','Length (m)','FRL — compartment / duct*','Fire exposure / FyreWrap application','Orientation','Product','Wall penetrations','Floor penetrations']);}
     assert.equal(headers.at(-1),'Actions');
     const first=table.locator('tbody tr[data-source-row]').first(),deleteButton=first.getByRole('button',{name:/Delete line/});
     await expect(first.locator('td').first()).toHaveClass(/calculator-line-number/);await expect(first.locator('td').first()).toHaveText('1');
     assert.equal(await table.locator('colgroup col').count(),headers.length);
     assert.equal(await first.locator('td').count(),headers.length);
     const lineOutput=await first.locator('td').first().getAttribute('data-calculator-output');
-    assert.equal(lineOutput,title==='Steel (spray)'?'Z10':title==='Ductwork (spray/wrap)'?'A11':null);
+    assert.equal(lineOutput,title==='Steel (spray)'?'Z10':title==='Duct'?'A11':null);
     await expect(first.locator('td').first().getByRole('button',{name:/Delete line/})).toHaveCount(0);await expect(first.locator('td').last().getByRole('button',{name:/Delete line/})).toHaveCount(1);
     const beforeDelete=await snapshots();await deleteButton.click();const confirmation=page.getByRole('dialog');
     await expect(confirmation).toContainText('Are you sure you want to delete this item?');await expect(confirmation.getByRole('button')).toHaveText(['Cancel','Yes']);
@@ -112,7 +111,7 @@ async function workbook(title) {
   await chooseCalculator(page, 'Firestopping Estimator'); await idle(); await expect(page.locator('#estimator-penetration')).toBeVisible(); await expect(page.locator('#calculator-workspace')).toBeHidden();
   await chooseCalculator(page, 'Steel (spray)'); await workbook('Steel (spray)'); await expect(page.locator('#calculator-sheet-title')).toHaveText('SCHEDULE'); await expect(input).toHaveValue('MENU-DRAFT-1');
   assert.deepEqual(await snapshots(), retained); evidence.selection = { allDestinations: true, unsavedScheduleRetained: true, pageRetained: true, unrelatedDraftsUnchanged: true };
-  for (const title of ['Steel (spray)', 'Steel (board)', 'Ductwork (spray/wrap)', 'Firestopping']) {
+  for (const title of ['Steel (spray)', 'Steel (board)', 'Duct', 'Firestopping']) {
     await chooseCalculator(page, title); await idle();
     await page.getByRole('button', { name: 'Home', exact: true }).click(); await toggle.click(); await idle();
     if (title === 'Firestopping') { await expect(page.locator('#estimator-penetration')).toBeVisible(); await expect(page.locator('#calculator-workspace')).toBeHidden(); }
@@ -132,7 +131,7 @@ async function workbook(title) {
   const guarded = await snapshots(); await chooseCalculator(page, 'Steel (board)');
   const dialog = page.getByRole('dialog'); await expect(dialog).toBeVisible(); await expect(dialog.getByRole('heading')).toHaveText('Unsaved Pricing Library');
   await dialog.getByRole('button', { name: 'Cancel', exact: true }).click(); await expect(page.locator('#view-pricing')).toBeVisible(); await expect(price).toHaveValue(priceDisplay); assert.deepEqual(await snapshots(), guarded);
-  await chooseCalculator(page, 'Steel (board)'); await dialog.getByRole('button', { name: 'Continue', exact: true }).click(); await workbook('Steel (board)'); assert.deepEqual(await snapshots(), guarded);
+  await chooseCalculator(page, 'Steel (board)'); await dialog.getByRole('button', { name: 'Continue', exact: true }).click(); await page.locator('#calculator-steel-hub').getByRole('button',{name:'Steel (board)',exact:true}).click(); await workbook('Steel (board)'); assert.deepEqual(await snapshots(), guarded);
   assert.ok(!requests.some(item => item.method !== 'GET' && /\/api\/(?:pricing|calculators)\/.+state$|\/api\/pricing$/.test(item.path)), 'Navigation must not save pricing or calculator defaults');
   evidence.pricingGuard = { cancelPreservesView: true, cancelPreservesPriceAndDrafts: true, continueKeepsUnsavedPrices: true };
 
@@ -140,7 +139,7 @@ async function workbook(title) {
   for (const width of [1600, 1146, 825, 570, 390]) {
     await page.setViewportSize({ width, height: 1000 }); await page.mouse.move(0, 0); await toggle.hover(); await expect(menu).toBeVisible();
     const bounds = await menu.boundingBox(); assert.ok(bounds.x >= -1 && bounds.x + bounds.width <= width + 1, `Dropdown escaped viewport at ${width}: ${JSON.stringify(bounds)}`);
-    await expect(menu.getByRole('button', { name: 'Ductwork (spray/wrap)', exact: true })).toBeVisible();
+    await expect(menu.getByRole('button', { name: 'Duct', exact: true })).toBeVisible();
     if ([1146, 390].includes(width)) await page.screenshot({ path: path.join(output, `calculator-menu-${width}.png`), fullPage: true });
     await page.getByRole('button', { name: 'Home', exact: true }).click(); await expect(menu).toBeHidden();
   }
@@ -238,7 +237,7 @@ async function workbook(title) {
   const touch = await touchContext.newPage(); await monitor(touch); await touch.goto(`http://127.0.0.1:${info.port}/`); await idle(touch);
   await touch.getByRole('button', { name: 'Calculators', exact: true }).tap();
   const touchMenu = touch.getByRole('group', { name: 'Choose a calculator', exact: true }); await expect(touchMenu).toBeVisible();
-  await touchMenu.getByRole('button', { name: 'Steel (board)', exact: true }).tap(); await expect(touch.locator('#calculator-title')).toHaveText('Steel (board)', { timeout: 60000 }); await expect(touch.locator('#calculator-grid')).toHaveAttribute('aria-busy', 'false', { timeout: 60000 }); await expect(touchMenu).toBeHidden();
+  await touchMenu.getByRole('button', { name: 'Steel', exact: true }).tap(); await expect(touch.locator('#calculator-steel-hub')).toBeVisible(); await touch.locator('#calculator-steel-hub').getByRole('button',{name:'Steel (board)',exact:true}).tap(); await expect(touch.locator('#calculator-title')).toHaveText('Steel (board)', { timeout: 60000 }); await expect(touch.locator('#calculator-grid')).toHaveAttribute('aria-busy', 'false', { timeout: 60000 }); await expect(touchMenu).toBeHidden();
   evidence.touch = { disclosureTap: true, chosenCalculator: 'Steel (board)' };
   assert.deepEqual(await touch.evaluate(() => window.qaCsp), []); await touchContext.close();
   assert.deepEqual(errors, []); assert.deepEqual(await page.evaluate(() => window.qaCsp), []);

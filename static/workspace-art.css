@@ -65,8 +65,11 @@
   .calculator-heading-art-slot { position:relative; flex:1 1 0; align-self:stretch; min-width:0; pointer-events:none; }
   .calculator-heading-lightning {
     position:absolute; inset-block:50% auto; inset-inline:6px auto; width:12px; height:calc(100% + 16px); min-height:64px;
-    transform:translateY(-50%); color:var(--red); pointer-events:none;
+    transform:translateY(-50%); color:#fff4f4; pointer-events:none;
+    filter:drop-shadow(0 0 1px #ff182e) drop-shadow(0 0 3px #ff001b) drop-shadow(0 0 7px #e9001b);
   }
+  .calculator-steel-cards { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  @media(max-width:570px) { .calculator-steel-cards { grid-template-columns:1fr; } }
   .calculator-heading-art-slot .workspace-header-art {
     inset-block:calc(50% - 2.5px) auto; inset-inline:24px auto; width:auto;
     height:calc(100% + 45px); max-width:calc(100% - 24px); aspect-ratio:2.7;

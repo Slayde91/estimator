@@ -2284,7 +2284,7 @@
   function renderChoices() {
     const firestopping = Boolean(window.CeasefireProposalCalculators?.isFirestopping?.());
     for (const button of $("calculator-navigation-menu")?.querySelectorAll("[data-calculator-id]") || []) {
-      button.setAttribute("aria-pressed", String(button.dataset.calculatorId === "penetration" ? firestopping : !firestopping && button.dataset.calculatorId === state.current));
+      button.setAttribute("aria-pressed", String(button.dataset.calculatorId === "penetration" ? firestopping : !firestopping && (button.dataset.calculatorId === "steel" ? window.CeasefireProposalCalculators?.isSteelHub?.() || ["steel_vermiculite", "steel_board"].includes(state.current) : button.dataset.calculatorId === state.current)));
     }
   }
 
@@ -2308,7 +2308,7 @@
       if (serial !== state.loadRevision || window.CeasefireProposalCalculators?.isFirestopping?.()) return;
       retainPage(current());
       state.current = id; ++state.requestRevision; clearTimeout(state.timer);
-      $("calculator-workspace").hidden = false; $("calculator-workspace").dataset.calculatorKind = entry.definition.id; window.CeasefireI18n.text($("calculator-title"), entry.definition.title);
+      $("calculator-workspace").hidden = false; $("calculator-workspace").dataset.calculatorKind = entry.definition.id; window.CeasefireI18n.text($("calculator-title"), entry.definition.id === "ductwork" ? "Duct" : entry.definition.title);
       window.CeasefireI18n.text($("calculator-workspace").querySelector(".eyebrow"), entry.definition.id === "ductwork" ? "DUCTWORK CALCULATOR" : "STEEL CALCULATOR");
       window.CeasefireI18n.text($("calculator-sheet-title"), pageDefinition(entry).label);
       renderChoices(); renderPages(entry); renderDocuments(entry); updateStatus(entry); message();
@@ -2650,7 +2650,7 @@
   }
 
   window.CeasefireCalculators = { open, projectSnapshot, projectFingerprint, prepareProject, applyProject };
-  Object.assign(window.CeasefireCalculators, { select: selectCalculator, refreshNavigation: renderChoices });
+  Object.assign(window.CeasefireCalculators, { select: selectCalculator, refreshNavigation: renderChoices, hide() { ++state.loadRevision; $("calculator-workspace").hidden = true; } });
   Object.assign(window.CeasefireCalculators, { prepareDefaults, markProjectSaved, hasUnsavedChanges, completeProjectSnapshot });
   Object.assign(window.CeasefireCalculators, { hasPendingOperation: () => !!state.action });
   Object.assign(window.CeasefireCalculators, { readTakeoffTarget, captureTakeoffTarget, reserveTakeoffTarget, applyTakeoffTarget, releaseTakeoffTarget });

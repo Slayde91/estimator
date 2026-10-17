@@ -638,8 +638,8 @@ def normalize_draft(draft):
         globals_out['register_allowance_hours'] = checked_register[0]
     result, seen, library_ids = [], set(), set()
     for row in rows:
-        if not isinstance(row, dict) or set(row) - {'id', 'inputs', 'library_item_id'}:
-            raise ValidationError('Each penetration row must contain id, inputs and an optional library item ID only.')
+        if not isinstance(row, dict) or set(row) - {'id', 'inputs', 'library_item_id', 'takeoff_source'}:
+            raise ValidationError('Each penetration row must contain id, inputs and optional library/source identities only.')
         identifier, inputs = row.get('id'), row.get('inputs', {})
         if not isinstance(identifier, str) or not identifier or len(identifier) > 128 or identifier in seen:
             raise ValidationError('Penetration row IDs must be unique nonempty text, at most 128 characters.')
@@ -675,6 +675,9 @@ def normalize_draft(draft):
                 raise ValidationError('Each library item may appear only once in a firestopping schedule; update its quantity instead.')
             library_ids.add(library_id)
             normalized['library_item_id'] = library_id
+        if 'takeoff_source' in row:
+            from .penetration_source import validate_source
+            normalized['takeoff_source'] = validate_source(row['takeoff_source'])
         result.append(normalized)
     return {'globals': globals_out, 'rows': result}
 

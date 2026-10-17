@@ -114,7 +114,7 @@ class ConfirmedRegisterTransferTests(unittest.TestCase):
                 self.links.case.documents.validate_audit(result['snapshot'], owner=self.sid)
         self.links.assert_source_unchanged()
 
-    def test_unconfirmed_and_unassociated_records_are_skipped_without_approval(self):
+    def test_confirmed_manual_services_transfer_while_unconfirmed_associations_stay_pending(self):
         _, ready = self.branch(quantities=(3,))
         self.associate(ready)
         _, pending = self.branch(quantities=(9,), confirmed=False)
@@ -122,8 +122,11 @@ class ConfirmedRegisterTransferTests(unittest.TestCase):
         self.branch(quantities=(20,))  # Confirmed service without an association.
         before = deepcopy(self.state()['service_plans'])
         result, _ = self.transfer()
-        self.assertEqual(result['library_link']['skipped'], {'unconfirmed': 1, 'already_linked': 0, 'unassociated': 1})
-        self.assertEqual(result['library_link']['transferred'], 1)
+        self.assertEqual(result['library_link']['skipped'], {'unconfirmed': 1, 'already_linked': 0, 'unassociated': 0})
+        self.assertEqual(result['library_link']['transferred'], 2)
+        self.assertEqual(result['library_link']['manual_transferred'], 1)
+        self.assertEqual(self.links.draft['rows'][1]['inputs']['O'], 20)
+        self.assertNotIn('library_item_id', self.links.draft['rows'][1])
         self.assertEqual(self.links.draft['rows'][0]['inputs']['O'], 3)
         self.assertEqual(result['snapshot']['service_plans'], before)
         self.assertIsNone(next(record for record in self.records() if record['id'] == pending_id)['schedule_binding'])
@@ -140,6 +143,77 @@ class ConfirmedRegisterTransferTests(unittest.TestCase):
                 self.transfer()
         self.assertEqual(self.state(), before)
         self.assertEqual(self.links.draft, draft)
+
+    def test_manual_rows_keep_literal_fields_and_identity_through_edit_and_repeat(self):
+        from estimator.penetration_calculator import normalize_draft
+        for scope in ('defect_reports', 'service_plans'):
+            with self.subTest(scope=scope):
+                barrier, services = self.branch(scope, quantities=(2,), confirmed=False)
+                self.links.physical([
+                    {'op': 'update', 'entity_id': barrier, 'changes': {'fields': {
+                        'barrier_type': 'Oversized', 'substrate': 'Concrete/masonry wall',
+                        'orientation': 'Vertical', 'location': 'Level 2',
+                        **({'frl': '-/120/120'} if scope == 'service_plans' else {})}}},
+                    {'op': 'update', 'entity_id': services[0], 'changes': {'fields': {
+                        'service': 'Electrical & Communications', 'service_type': 'D1 Power Cables',
+                        'size': '600', 'width_mm': 600, 'height_mm': 45,
+                        'notes': 'Explicit register note'}}}], scope)
+                self.review(scope)
+                before = deepcopy(self.state())
+                result, request = self.transfer(scope)
+                row = self.links.draft['rows'][-1]
+                self.assertEqual({key: row['inputs'][key] for key in ('J', 'K', 'L', 'M', 'N', 'O', 'P', 'AQ', 'AR')},
+                    {'J': 'Electrical & Communications', 'K': 'D1 Power Cables', 'L': 'Oversized',
+                     'M': 'Vertical', 'N': '-/120/120', 'O': 2, 'P': 'Concrete/masonry wall', 'AQ': 600, 'AR': 45})
+                self.assertNotIn('AL', row['inputs'])  # Generic size is not a diameter.
+                self.assertNotIn('library_item_id', row)
+                self.assertEqual(row['takeoff_source']['service_size'], '600')
+                self.assertIn('Level 2', row['inputs']['T'])
+                self.assertEqual(row['inputs']['U'], 'Explicit register note')
+                normalized = normalize_draft(self.links.draft)['rows'][-1]
+                self.assertEqual(normalized['takeoff_source'], row['takeoff_source'])
+                self.assertEqual({key: normalized['inputs'][key] for key in row['inputs']}, row['inputs'])
+                self.assertEqual(result['snapshot'].get(scope), before.get(scope))
+                self.assertEqual(self.service.transfer_confirmed_library(self.sid, request), result)
+                row['inputs']['T'] = 'Human edited this draft'
+                row['inputs']['O'] = 7.123456789
+                edited = deepcopy(self.links.draft)
+                with self.assertRaisesRegex(ValidationError, 'already linked'):
+                    self.transfer(scope)
+                self.assertEqual(self.links.draft, edited)
+                self.assertEqual(self.state(), result['snapshot'])
+
+    def test_manual_capacity_failure_rolls_back(self):
+        from estimator.penetration_calculator import definition
+        self.branch(quantities=(3, 4))
+        before = deepcopy(self.state())
+        with patch('estimator.penetration_calculator.definition',
+                   side_effect=lambda configuration: {**definition(configuration), 'capacity': 1}):
+            with self.assertRaisesRegex(ValidationError, 'capacity|full'):
+                self.transfer()
+        self.assertEqual(self.state(), before)
+        self.assertEqual(self.links.draft['rows'], [])
+
+    def test_later_library_association_cannot_double_count_a_transferred_manual_service(self):
+        _, services = self.branch()
+        self.transfer()
+        self.associate(services)
+        before, draft = deepcopy(self.state()), deepcopy(self.links.draft)
+        with self.assertRaisesRegex(ValidationError, 'already has a manual Firestopping draft'):
+            self.transfer()
+        self.assertEqual(self.state(), before)
+        self.assertEqual(self.links.draft, draft)
+
+    def test_unassociated_unknown_service_quantity_is_skipped_without_guessing(self):
+        self.branch(quantities=(3,))
+        commands, unknown, _ = self.links.unknown_import('service_plans')
+        self.links.physical(commands, 'service_plans')
+        self.links.review_physical([unknown], 'service_plans')
+        result, _ = self.transfer()
+        self.assertEqual(result['library_link']['manual_transferred'], 1)
+        self.assertEqual(result['library_link']['manual_skipped']['quantity_missing'], 1)
+        self.assertEqual(len(self.links.draft['rows']), 1)
+        self.assertEqual(self.links.draft['rows'][0]['inputs']['O'], 3)
 
     def test_every_parent_must_be_confirmed_and_old_confirm_api_has_same_gate(self):
         for scope in ('defect_reports', 'service_plans'):
@@ -311,7 +385,7 @@ class ConfirmedRegisterTransferTests(unittest.TestCase):
         self.assertEqual(self.state(), before)
         self.assertEqual(self.links.draft, draft)
 
-    def test_maximum_graph_index_matches_ordinary_previews_in_both_scopes(self):
+    def test_maximum_graph_with_thousands_of_manual_services_rejects_atomically_in_both_scopes(self):
         from estimator.takeoff_library_links import (assignment_quantity, confirmation_preview,
                                                      confirmed_transfer_preview)
         from estimator.takeoff_physical import validate_graph
@@ -337,9 +411,8 @@ class ConfirmedRegisterTransferTests(unittest.TestCase):
                     ordinary['library_assignments']['records'] = [result['assignment'] if entry['id'] == record['id'] else entry
                         for entry in ordinary['library_assignments']['records']]
                     output = result['draft']
-                compiled = confirmed_transfer_preview(snapshot, scope, self.links.draft, self.service._selected_library, {})
-                self.assertEqual(compiled['snapshot'], ordinary)
-                self.assertEqual(compiled['penetration']['draft'], output)
+                with self.assertRaisesRegex(ValidationError, 'Schedule is full'):
+                    confirmed_transfer_preview(snapshot, scope, self.links.draft, self.service._selected_library, {})
                 self.assertEqual(snapshot, before)
 
     def test_physical_indexes_are_scope_pinned_and_keep_current_rejection_checks(self):

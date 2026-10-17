@@ -131,7 +131,7 @@ async function inspectHeader(width) {
     evidence.widths.push(width);
   }
   await page.setViewportSize({ width: 1440, height: 1000 });
-  for (const title of ['Steel (spray)', 'Steel (board)', 'Ductwork (spray/wrap)']) {
+  for (const title of ['Steel (spray)', 'Steel (board)', 'Duct']) {
     await chooseCalculator(page, title); await idle();
     await expect(page.locator('#calculator-title')).toHaveText(title, { timeout: 60000 });
     await expect(page.locator('#calculator-grid')).toHaveAttribute('aria-busy', 'false', { timeout: 60000 });

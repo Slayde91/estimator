@@ -357,6 +357,27 @@ class ReferenceLibraryApiTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(json.loads(body)['links'][0]['id'], item['id'])
 
+    def test_reviewed_replica_is_optional_presentation_with_separate_original_transport(self):
+        folder = self.root / 'library/replicas'
+        folder.mkdir()
+        self.addCleanup(folder.rmdir)
+        payload = b'\x89PNG\r\n\x1a\nSynthetic AI illustration bytes'
+        fingerprint = hashlib.sha256(payload).hexdigest()
+        path = folder / (fingerprint + '.png')
+        path.write_bytes(payload); self.addCleanup(path.unlink)
+        index = folder / 'index.json'
+        index.write_text(json.dumps({'version': 1, 'images': {'diagram-a': {
+            'source_sha256': hashlib.sha256(self.png).hexdigest(), 'file': path.name,
+            'sha256': fingerprint, 'review': 'visual_review_passed'}}}), encoding='utf-8')
+        self.addCleanup(index.unlink)
+        status, _, body = self.request('/api/libraries/penetration/pkb-001')
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(body)['image_replicas'], {'diagram-a': '/api/libraries/replicas/diagram-a'})
+        status, headers, body = self.request('/api/libraries/replicas/diagram-a')
+        self.assertEqual((status, headers['Content-Type'], body), (200, 'image/png', payload))
+        status, _, body = self.request('/api/libraries/images/diagram-a')
+        self.assertEqual((status, body), (200, self.png))
+
     def test_pdf_ranges_and_original_bytes(self):
         route = '/api/libraries/documents/report-a.pdf'
         status, headers, body = self.request(route)

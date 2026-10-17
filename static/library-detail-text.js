@@ -18,6 +18,9 @@
       .replace(/\bFIREFLY[ \t]+(?=(?:Batt|Mastic|Penowrap|Intu[A-Za-z]+)\b)/gi, "")
       .replace(/\binto\s+the\s+aperture\b/gi, "to aperture")
       .replace(/\bof\s+the\s+damper\b/gi, "of damper")
+      .replace(/\bBrush Grade\b/gi, "BG").replace(/\bincluding\b/gi, "incl.").replace(/\bapproximately\b/gi, "approx.")
+      .replace(/\bThe (Batt layers) are glued together using\b/gi, "Glue $1 together w/")
+      .replace(/\bAll cut edges, incl\. layer joints and the wall perimeter interface, to be coated\b/gi, "Coat all cut edges, incl. layer joints and wall perimeter interface")
       .replace(/\bminimum\b\.?/gi, "min.").replace(/\bper\b/gi, "p/").replace(/\bwith\b/gi, "w/");
     let result = "", cursor = 0;
     for (const match of text.matchAll(protectedText)) {

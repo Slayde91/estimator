@@ -535,7 +535,7 @@
       const reply = await bridge.transferConfirmedLibraryRegister(scope());
       displayReply(reply);
       const summary = reply.library_link;
-      bridge.notify(`${summary.transferred} confirmed library item${summary.transferred === 1 ? "" : "s"} transferred. ${summary.skipped?.unconfirmed || 0} unconfirmed associations skipped; confirm their records before transfer. ${summary.skipped?.already_linked || 0} already linked. ${summary.skipped?.unassociated || 0} confirmed records need a library item.`, false);
+      bridge.notify(`${summary.transferred} confirmed item${summary.transferred === 1 ? "" : "s"} transferred (${summary.manual_transferred || 0} manual drafts; choose their system/materials in Firestopping). ${summary.skipped?.unconfirmed || 0} unconfirmed associations skipped; confirm their records before transfer. ${summary.skipped?.already_linked || 0} already linked. ${summary.skipped?.unassociated || 0} confirmed records await explicit service details.`, false);
     }
     async function attachLibraryToSelected() {
       await completePendingEdits();ensureAvailable();ensureEditable();

@@ -12,6 +12,8 @@ def main():
                    if path.is_file() and not {'__pycache__', '.ceasefire-evidence'} & set(path.parts))
     paths.extend([ROOT / name for name in ("README.md", "requirements.txt", "Start-Estimator.cmd", "Start-Estimator.ps1")])
     paths.append(ROOT / 'scripts' / 'install_reference_library.py')
+    paths.append(ROOT / 'scripts' / 'install_library_replicas.py')
+    paths.append(ROOT / 'docs' / 'LIBRARY_REPLICAS.md')
     paths.append(ROOT / 'docs' / 'TAKEOFFS.md')
     paths.append(ROOT / 'docs' / 'LANGUAGES.md')
     paths.append(ROOT / 'scripts' / 'build_language_catalog.py')

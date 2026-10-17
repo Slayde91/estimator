@@ -50,7 +50,7 @@ async function responseTo(action, suffix) {
   const review=page.getByRole('dialog');await expect(review.getByRole('heading')).toHaveText('Load this project?');await review.getByRole('button',{name:'Load Project',exact:true}).click();await expect(review).toBeHidden();await idle();
   const before = await snapshot(), savedProject = fs.readFileSync(info.project);assert.equal(before.calculators.steel_board.inputs.CALCULATOR.L9,0.123456789012345);
   evidence.importedWasteRetained=0.123456789012345;
-  for (const [id, title] of [['steel_vermiculite', 'Steel (spray)'], ['steel_board', 'Steel (board)'], ['ductwork', 'Ductwork (spray/wrap)']]) {
+  for (const [id, title] of [['steel_vermiculite', 'Steel (spray)'], ['steel_board', 'Steel (board)'], ['ductwork', 'Duct']]) {
     await chooseCalculator(page, title); await idle();
     await expect(page.locator('#calculator-title')).toHaveText(title); await expect(page.locator('#calculator-grid')).toHaveAttribute('aria-busy', 'false');
     if(id==='steel_board'){await page.locator('#calculator-pages').getByRole('button',{name:'SCHEDULE',exact:true}).click();await expect(page.locator('#calculator-grid')).toHaveAttribute('aria-busy','false');await expect(page.locator('[data-calculator-cell="L9"]')).toHaveCount(0);assert.ok(!(await page.locator('.calculator-schedule-table').getByRole('columnheader').allTextContents()).includes('Waste (%)'));}

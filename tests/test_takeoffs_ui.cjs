@@ -235,7 +235,13 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
     assert.ok(!dom.all(ui.toolRail).includes(ui.tools.select));assert.ok(!dom.all(ui.viewport).includes(top));assert.ok(!dom.all(ui.viewport).includes(bottom));assert.equal(ui.tools.count.parentNode,ui.countAnchor);assert.equal(ui.scaleAnchor.parentNode,top);assert.ok(!dom.all(ui.toolRail).includes(ui.scaleAnchor));
     assert.deepEqual(ui.scaleControls.children,[ui.calibration,ui.tools.calibrate,ui.editCalibration]);assert.equal(ui.tools.calibrate.textContent,'Calibrate');assert.equal(ui.tools.calibrate.children.length,0);
     const pageNavigation=find('takeoff-page-navigation');assert.equal(pageNavigation.parentNode,bottom);assert.deepEqual(pageNavigation.children.map(el=>el.attributes['aria-label']||el.textContent),['First page','‹ Page','Page number','/ 0','Page ›','Last page']);
-    assert.equal(ui.navigation.parentNode,top);assert.equal(ui.documentSelect.parentNode.attributes["aria-label"],"Source documents");assert.equal(search.attributes.role,"search");assert.equal(root.children[0],ui.heading);assert.equal(ui.heading.children[0],ui.title);
+    assert.equal(ui.navigation.parentNode,top);assert.equal(ui.documentSelect.parentNode.attributes["aria-label"],"Source documents");assert.equal(search.attributes.role,"search");assert.equal(root.children[0],ui.heading);
+    const headingCopy=find('takeoff-heading-copy'),headingArt=find('takeoff-heading-art-slot'),headingActions=find('takeoff-document-tools');
+    assert.deepEqual(ui.heading.children,[headingCopy,headingActions]);assert.deepEqual(headingCopy.children,[ui.title,headingArt]);assert.equal(headingArt.attributes['aria-hidden'],'true');
+    assert.deepEqual(headingArt.children.map(frame=>frame.className),['takeoff-heading-art takeoff-heading-art--steel','takeoff-heading-art takeoff-heading-art--duct','takeoff-heading-art takeoff-heading-art--physical']);
+    assert.deepEqual(headingArt.children.map(frame=>frame.children.length),[1,1,1]);
+    assert.deepEqual(headingArt.children.map(frame=>({src:frame.children[0].src,alt:frame.children[0].alt,decoding:frame.children[0].decoding,hidden:frame.children[0].attributes['aria-hidden']})),['steel','ductwork','physical'].map(mode=>({src:`/takeoff-header-${mode}.png`,alt:'',decoding:'async',hidden:'true'})));
+    assert.deepEqual(headingActions.children,[ui.documentMenu.root,ui.physicalDocumentHost,find('takeoff-pdf-tools-menu')]);
     const outside=dom.documentEvents.find(event=>event.type==='pointerdown'&&event.options?.capture);assert.ok(outside);assert.equal(outside.options.capture,true);
     h.audit.state.active=true;h.audit.state.searchHits=[{id:'retained-match'}];ui.searchResults.hidden=false;
     outside.listener({target:ui.search});assert.equal(ui.searchResults.hidden,false,'Inside-search pointer keeps the dropdown available');

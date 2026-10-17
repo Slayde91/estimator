@@ -494,7 +494,9 @@ class ConfirmedRegisterTransferTests(unittest.TestCase):
         self.associate([services[0]]); self.transfer()
         self.associate(services)
         before, draft = deepcopy(self.state()), deepcopy(self.links.draft)
-        with self.assertRaisesRegex(ValidationError, 'overlapping schedule'):
+        # The first Transfer also retains the unassociated second Service as a
+        # manual draft, so that earlier collision guard now rejects the batch.
+        with self.assertRaisesRegex(ValidationError, 'manual Firestopping draft'):
             self.transfer()
         self.assertEqual(self.state(), before); self.assertEqual(self.links.draft, draft)
 

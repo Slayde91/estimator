@@ -6,10 +6,18 @@
     gap: 18px;
   }
   .app-header .brand-stack { width: 100%; max-width: 430px; gap: 6px; }
-  .app-header .brand-logo { width: 190px; }
+  .app-header .brand { max-width: 100%; }
+  .app-header .brand-logo {
+    width: 250px;
+    aspect-ratio: 250 / 83.8;
+    height: auto;
+    object-fit: contain;
+  }
   .app-header .brand-stack > .header-tagline {
-    margin: 0;
-    width: 100%;
+    /* Move into the logo canvas's transparent lower padding, keeping its ink clear. */
+    margin: -20px 0 0;
+    margin-inline-start: 15px;
+    width: calc(100% - 15px);
     text-align: start;
   }
   .app-header .header-navigation-stack {
@@ -132,15 +140,15 @@
 
   @media (max-width: 1150px) {
     .app-header { gap: 12px 18px; }
-    .app-header .brand-logo { width: 160px; }
     .app-header .brand-stack { max-width: 350px; }
     .app-header nav { max-width: 100%; }
   }
   @media (max-width: 720px) {
     .app-header { padding: 12px 14px; grid-template-columns: minmax(0, 1fr); gap: 8px; }
     .app-header .brand-stack { max-width: 430px; gap: 4px; }
-    .app-header .brand-logo { width: 130px; }
-    .app-header .brand-stack > .header-tagline { font-size: 11px; }
+    .app-header .brand-logo { width: 130px; aspect-ratio: auto; }
+    /* Compact phone artwork has less transparent padding to overlap safely. */
+    .app-header .brand-stack > .header-tagline { margin: 0; width: 100%; font-size: 11px; }
     .app-header .header-navigation-stack { width: 100%; gap: 4px; }
     /* Percentage widths otherwise compensate for zoom and remain full-width. */
     .app-header .header-navigation { width: 78%; }

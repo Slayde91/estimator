@@ -41,9 +41,11 @@ async function homeIcons(theme){
         if(state==='hover')await card.hover();
         if(state==='focus'){await card.focus();await expect(card).toBeFocused();}
         await expect(svg).toHaveCSS('stroke-width','2px');
-        const appearance=await svg.evaluate(el=>{const css=getComputedStyle(el),box=el.getBoundingClientRect(),slot=el.parentElement.getBoundingClientRect();return{width:box.width,height:box.height,filter:css.filter,blend:css.mixBlendMode,slotWidth:slot.width,slotHeight:slot.height,centreX:box.x+box.width/2-slot.x-slot.width/2,centreY:box.y+box.height/2-slot.y-slot.height/2,contained:box.x>=slot.x&&box.y>=slot.y&&box.right<=slot.right&&box.bottom<=slot.bottom};});
+        const appearance=await svg.evaluate(el=>{const css=getComputedStyle(el),box=el.getBoundingClientRect(),slot=el.parentElement.getBoundingClientRect(),slotCSS=getComputedStyle(el.parentElement);return{width:box.width,height:box.height,filter:css.filter,blend:css.mixBlendMode,slotWidth:slot.width,slotHeight:slot.height,slotCSSWidth:slotCSS.width,slotCSSHeight:slotCSS.height,centreX:box.x+box.width/2-slot.x-slot.width/2,centreY:box.y+box.height/2-slot.y-slot.height/2,contained:box.x>=slot.x&&box.y>=slot.y&&box.right<=slot.right&&box.bottom<=slot.bottom};});
         assert.ok(Math.abs(appearance.width-26)<.02&&Math.abs(appearance.height-26)<.02,'Home retains the existing26px artwork size');
-        assert.equal(appearance.slotWidth,width<=570?42:48);assert.equal(appearance.slotHeight,width<=570?42:48);
+        const slotSize=width<=570?42:48;
+        assert.equal(appearance.slotCSSWidth,`${slotSize}px`);assert.equal(appearance.slotCSSHeight,`${slotSize}px`);
+        assert.ok(Math.abs(appearance.slotWidth-slotSize)<.02&&Math.abs(appearance.slotHeight-slotSize)<.02,'Home slot retains its exact CSS size with bounded DOM-rectangle rounding: '+JSON.stringify(appearance));
         assert.ok(Math.abs(appearance.centreX)<.5&&Math.abs(appearance.centreY)<.5&&appearance.contained,'Home artwork stays centred within its existing card icon slot');
         assert.equal(appearance.filter,'none');assert.equal(appearance.blend,'normal');
         if(state==='normal'){

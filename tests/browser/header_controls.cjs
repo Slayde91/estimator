@@ -36,7 +36,20 @@ async function inspectHeader(width) {
     if (width > 1150) assert.ok(nav.x >= brand.x + brand.width, `Navigation sits to the right of the logo at ${width}`);
     assert.ok(actions.y > header.y + header.height && actions.y + actions.height <= 1000, `Project actions overlay the viewport bottom at ${width}`);
     assert.ok(actions.x + actions.width <= width + 1, `Project actions fit at ${width}`);
-    assert.ok(name.x >= identity.x && name.x + name.width <= identity.x + identity.width + 1 && name.y>=nav.y+nav.height, `Long quote name stays beneath navigation in its own column at ${width}`);assert.ok(status.y>=name.y+name.height&&Math.abs(status.x+status.width-nav.x-nav.width)<1,'Save state remains beneath project name at the right');assert.ok(tagline.y>=logo.y+logo.height&&tagline.x>=brand.x&&tagline.x+tagline.width<=brand.x+brand.width+1,'Character and quote stay directly under the logo');
+    assert.ok(name.x >= identity.x && name.x + name.width <= identity.x + identity.width + 1 && name.y>=nav.y+nav.height, `Long quote name stays beneath navigation in its own column at ${width}`);assert.ok(status.y>=name.y+name.height&&Math.abs(status.x+status.width-nav.x-nav.width)<1,'Save state remains beneath project name at the right');
+    const compact=width<=720,logoWidth=Math.min(compact?(width<=420?100:130):250,brand.width);
+    assert.ok(Math.abs(logo.width-logoWidth)<.1&&Math.abs(logo.height-logoWidth*(compact?1/3:83.8/250))<.1,'Logo retains the requested desktop box and original compact phone proportions');
+    assert.ok(Math.abs(tagline.y-(logo.y+logo.height+(compact?4:6)-(compact?0:20)))<.1,'The requested desktop20px overlap keeps the normal4px phone gap');
+    assert.ok(Math.abs(tagline.x-brand.x-(compact?0:15))<.1&&tagline.x+tagline.width<=brand.x+brand.width+.1,'The requested desktop15px inset stays within the brand; phone alignment is unchanged');
+    const logoInk=await page.locator('.brand-logo').evaluate(img=>{
+      // The PNG contains nearly transparent raster noise outside the mark.
+      // Alpha>8 includes every visible letter/symbol and excludes that noise.
+      const canvas=document.createElement('canvas');canvas.width=img.naturalWidth;canvas.height=img.naturalHeight;const context=canvas.getContext('2d');context.drawImage(img,0,0);const pixels=context.getImageData(0,0,canvas.width,canvas.height).data;let left=canvas.width,top=canvas.height,right=0,bottom=0;
+      for(let y=0;y<canvas.height;y++)for(let x=0;x<canvas.width;x++)if(pixels[(y*canvas.width+x)*4+3]>8){left=Math.min(left,x);top=Math.min(top,y);right=Math.max(right,x+1);bottom=Math.max(bottom,y+1);}
+      const r=img.getBoundingClientRect(),style=getComputedStyle(img),scale=Math.min(r.width/canvas.width,r.height/canvas.height),position=style.objectPosition.split(' ').map(v=>parseFloat(v)/100),x=r.x+(r.width-canvas.width*scale)*position[0],y=r.y+(r.height-canvas.height*scale)*position[1];return{alphaThreshold:8,natural:[canvas.width,canvas.height],source:{left,top,right,bottom},fit:style.objectFit,rendered:{left:x+left*scale,top:y+top*scale,right:x+right*scale,bottom:y+bottom*scale}};
+    });
+    assert.equal(logoInk.fit,'contain');assert.ok(logoInk.source.right>logoInk.source.left&&logoInk.source.bottom>logoInk.source.top,'Actual supplied logo has visible artwork');
+    assert.ok(tagline.y>=logoInk.rendered.bottom-.1,'The character/quote clears the actual logo ink while sharing its transparent canvas: '+JSON.stringify({width,logo,tagline,logoInk}));
     await expect(page.locator('#header-project-name')).toHaveText(longName);
     await expect(page.locator('#header-project-name')).toHaveAttribute('title', longName);
     assert.equal(await page.locator('#header-project-name').evaluate(el => getComputedStyle(el).textOverflow), 'ellipsis');
@@ -52,7 +65,7 @@ async function inspectHeader(width) {
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), `Long quote name does not cause overflow at ${width}`);
     const screenshot = path.join(output, `header-${width}-long-name.png`);
     await page.screenshot({ path: screenshot });
-    evidence.headerGeometry.push({ width, header, brand, nav, actions, name, navigationRows: [...new Set(buttons.map(b => Math.round(b.y)))].length, screenshot });
+    evidence.headerGeometry.push({ width, header, brand, nav, actions, name, logo, tagline, logoInk, navigationRows: [...new Set(buttons.map(b => Math.round(b.y)))].length, screenshot });
   } finally {
     await page.locator('#header-project-name').evaluate((el, before) => { el.textContent = before.text; el.title = before.title; el.hidden = before.hidden; }, saved);
   }

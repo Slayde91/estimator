@@ -27,6 +27,14 @@ const text=node=>[node.textContent,...node.children.map(text)].join(' ');
 let passed=0;
 async function check(name,fn){const h=harness();h.api.applyProject(await h.api.prepareDefaults());await fn(h);passed++;console.log(`ok - ${name}`);}
 (async()=>{
+  await check('Manual Takeoff provenance and literal size survive project save, schedule editing and cancellation', async h=>{
+    const source={version:1,scope:'service_plans',project_id:'11111111-1111-4111-8111-111111111111',graph_id:'22222222-2222-4222-8222-222222222222',service_id:'33333333-3333-4333-8333-333333333333',service_revision:2,barrier_id:'44444444-4444-4444-8444-444444444444',barrier_revision:3,context_sha256:'a'.repeat(64),service_size:'600'};
+    const snapshot=copy(h.api.projectSnapshot());snapshot.draft.rows=[{id:'physical-source',inputs:{O:2,T:'Manual Takeoff draft'},takeoff_source:source}];
+    h.api.applyProject(await h.api.prepareProject(snapshot));assert.deepEqual(copy(h.api.projectSnapshot().draft.rows[0].takeoff_source),source);
+    await h.audit.selectRow('physical-source');assert.deepEqual(copy(h.api.projectSnapshot().composer.rows[0].takeoff_source),source);
+    await composerField(h,'T','Edited known description');await h.audit.updateSchedule();
+    assert.equal(h.api.projectSnapshot().draft.rows[0].inputs.T,'Edited known description');assert.deepEqual(copy(h.api.projectSnapshot().draft.rows[0].takeoff_source),source);
+  });
   await check('Localized UI never translates product choices or breakdown source labels that match UI words',async h=>{
     const localized=(source,args=[])=>'translated:'+String(source).replace(/\{(\d+)\}/g,(match,index)=>index<args.length?String(typeof args[index]==='function'?args[index]():args[index]):match);
     h.context.window.CeasefireI18n={text(element,source,args){element.textContent=localized(source,args);return element;},attr(element,name,source,args){element.setAttribute(name,localized(source,args));return element;},translate:localized};

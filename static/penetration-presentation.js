@@ -10,12 +10,12 @@
   const vertical = new Set(["Plasterboard wall", "Concrete/masonry wall", "Hebel wall", "Speedpanel wall", "Dincel wall", "AFS wall", "CLT wall", "Insulated panel wall"]);
   const horizontal = new Set(["Plasterboard ceiling", "Concrete/masonry floor", "Bondek floor", "Hebel floor", "CLT floor"]);
   const orientation = substrate => vertical.has(substrate) ? "Vertical" : horizontal.has(substrate) ? "Horizontal" : null;
-  function serviceSize(inputs) {
+  function serviceSize(inputs, source) {
     const present = value => value !== null && value !== undefined && value !== "";
     const sizes = [];
     if (present(inputs.AL)) sizes.push(`Ø ${inputs.AL}`);
     if (present(inputs.AQ) || present(inputs.AR)) sizes.push(`${present(inputs.AQ) ? inputs.AQ : "—"} × ${present(inputs.AR) ? inputs.AR : "—"}`);
-    return sizes.join("; ") || "—";
+    return sizes.join("; ") || source?.service_size || "—";
   }
   function fieldGroups(fields) {
     const pairs = [["J", "K"], ["L", "N"], ["P", "M"], ["X", "AA"], ["AE", "AF"], ["AB", "AC"]], used = new Set(), groups = [];

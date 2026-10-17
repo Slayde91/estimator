@@ -99,8 +99,9 @@ async function worksheetReady(title, label) {
   await page.screenshot({path:path.join(output,'standard-calculators.png'),fullPage:true});
   assert.ok(!requests.some(p => p.startsWith('/api/takeoffs/') || /takeoff|pdfjs/.test(p)));
   assert.deepEqual(errors,[]); assert.deepEqual(await page.evaluate(() => window.qaCsp),[]);
-  // The main header explicitly selects Steel (spray). Hold its cold definition
-  // response to exercise rapid clicks without requiring a catalogue request.
+  // The main header opens the Steel landing page without loading a workbook.
+  // Hold the card's cold definition response to exercise repeated header clicks
+  // without duplicate definition requests or a catalogue request.
   await page.close();page=await browser.newPage({viewport:{width:1440,height:1000}});page.setDefaultTimeout(45000);
   const navigationRequests=[];page.on('pageerror',error=>errors.push(error.message));page.on('request',request=>navigationRequests.push(new URL(request.url()).pathname));
   await page.addInitScript(()=>{window.qaCsp=[];document.addEventListener('securitypolicyviolation',event=>window.qaCsp.push({directive:event.effectiveDirective,blocked:event.blockedURI}));});
@@ -111,12 +112,16 @@ async function worksheetReady(title, label) {
   const calculatorsButton=page.getByRole('button',{name:'Calculators',exact:true});
   await calculatorsButton.click();await calculatorsButton.click();
   const count=pathname=>navigationRequests.filter(value=>value===pathname).length;
+  await expect(page.locator('#calculator-steel-hub')).toBeVisible();
+  await expect(page.locator('#calculator-steel-hub [data-steel-calculator]')).toHaveCount(2);
+  assert.equal(count('/api/calculators/steel_vermiculite'),0);
+  await page.locator('#calculator-steel-hub').getByRole('button',{name:'Steel (spray)',exact:true}).click();
   await expect.poll(()=>count('/api/calculators/steel_vermiculite')).toBe(1);
-  await calculatorsButton.click();releaseDefinition();
+  await calculatorsButton.click();await calculatorsButton.click();releaseDefinition();
   await worksheetReady('Steel (spray)','START');
   assert.equal(count('/api/calculators'),0);assert.equal(count('/api/calculators/steel_vermiculite'),1);assert.equal(count('/api/calculators/steel_vermiculite/worksheet'),1);
   await page.unroute('**/api/calculators/steel_vermiculite');
-  const destinations=['Steel (spray)','Ductwork (spray/wrap)','Steel (board)'],lastPages=[];
+  const destinations=['Steel (spray)','Duct','Steel (board)'],lastPages=[];
   for(const title of destinations){
     await chooseCalculator(page, title);await worksheetReady(title);
     const pages=page.locator('#calculator-pages button'),label=await pages.nth(1).textContent();

@@ -100,7 +100,10 @@ async function saveLoad(info) {
   await expect(page.locator("#project-save-state")).toHaveText("Saved project"); const saved = JSON.parse(fs.readFileSync(info.project, "utf8"));
   const opening = page.waitForResponse(value => value.url().endsWith("/api/project/open")); opening.catch(() => {}); await clickProjectControl(page, "Load"); assert.equal((await opening).status(), 200);
   await page.getByRole("dialog").getByRole("button", { name: "Load Project", exact: true }).click(); await expect(page.locator("#project-save-state")).toHaveText("Saved project");
-  await page.getByRole("button", { name: "Takeoffs", exact: true }).click(); await chooseTakeoff(page, "steel");
+  // Saved project was already displayed before Load. Wait for the completed
+  // load's destination and its replacement PDF before editing the page number.
+  await expect(page.locator("#view-estimate")).toBeVisible();
+  await renderDrawing(page, async () => { await page.getByRole("button", { name: "Takeoffs", exact: true }).click(); await chooseTakeoff(page, "steel"); }, 1);
   await renderDrawing(page, async () => { await page.getByLabel("Page number", { exact: true }).fill("3"); await page.getByLabel("Page number", { exact: true }).press("Tab"); }, 3);
   return { saved, reopened: await snapshot() };
 }

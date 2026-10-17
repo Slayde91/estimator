@@ -350,12 +350,14 @@ class DesktopPackagingTests(unittest.TestCase):
         from estimator.desktop_selftest import self_test
 
         class Template(HTMLParser):
-            def __init__(self): super().__init__(); self.menu = False; self.controls = {}
+            def __init__(self): super().__init__(); self.menu = False; self.controls = {}; self.cards = {}
             def handle_starttag(self, tag, attributes):
                 attributes = dict(attributes)
                 if tag == 'div' and attributes.get('id') == 'calculator-navigation-menu': self.menu = True
                 if tag == 'button' and (attributes.get('id') == 'calculator-navigation-toggle' or self.menu):
                     self.controls[attributes.get('id') or attributes.get('data-calculator-id')] = attributes
+                if tag == 'button' and attributes.get('data-steel-calculator'):
+                    self.cards[attributes['data-steel-calculator']] = attributes
             def handle_endtag(self, tag):
                 if tag == 'div': self.menu = False
 
@@ -369,16 +371,29 @@ class DesktopPackagingTests(unittest.TestCase):
         selector = next(node.value for node in journey.body if isinstance(node, ast.Assign)
             and any(isinstance(target, ast.Name) and target.id == 'selector' for target in node.targets))
         self.assertEqual(template.controls['calculator-navigation-toggle']['aria-controls'], 'calculator-navigation-menu')
+        self.assertEqual(set(template.cards), {'steel_vermiculite', 'steel_board'})
         for identifier, _ in destinations:
+            menu_id = 'steel' if identifier in template.cards else identifier
             parts = []
             for part in selector.values:
                 if isinstance(part, ast.Constant): parts.append(part.value)
                 else:
                     self.assertIsInstance(part, ast.FormattedValue)
-                    self.assertEqual(part.value.id, 'calculator_id'); parts.append(identifier)
+                    self.assertEqual(part.value.id, 'menu_id'); parts.append(menu_id)
             actual = ''.join(parts)
-            self.assertEqual(actual, f'#calculator-navigation-menu button[data-calculator-id="{identifier}"]')
-            self.assertEqual(template.controls[identifier]['data-calculator-id'], identifier)
+            self.assertEqual(actual, f'#calculator-navigation-menu button[data-calculator-id="{menu_id}"]')
+            self.assertEqual(template.controls[menu_id]['data-calculator-id'], menu_id)
+        for identifier in template.cards:
+            self.assertNotIn(identifier, template.controls)
+        card_click = next(node for node in ast.walk(journey) if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute) and node.func.attr == 'click'
+            and node.args and isinstance(node.args[0], ast.JoinedStr)
+            and any(isinstance(part, ast.Constant) and 'data-steel-calculator=' in str(part.value)
+                    for part in node.args[0].values))
+        for identifier in template.cards:
+            actual = ''.join(str(part.value) if isinstance(part, ast.Constant) else identifier
+                             for part in card_click.args[0].values)
+            self.assertEqual(actual, f'#calculator-steel-hub [data-steel-calculator="{identifier}"]')
 
     def test_native_runtime_inputs_require_both_distinct_verified_packages(self):
         x64=self.root/'runtime-x64.exe'

@@ -46,7 +46,7 @@
     ? Object.fromEntries(Object.keys(value).sort().map(key => [key, ordered(value[key])])) : value;
   const stable = value => JSON.stringify(ordered(value));
   const canonicalValues = values => ordered(Object.fromEntries(Object.entries(values).map(([key, value]) => [key, value === "" ? null : value])));
-  const canonicalRow = row => row && ({ id: row.id, inputs: canonicalValues(row.inputs), ...(row.library_item_id ? { library_item_id: row.library_item_id } : {}) });
+  const canonicalRow = row => row && ({ id: row.id, inputs: canonicalValues(row.inputs), ...(row.library_item_id ? { library_item_id: row.library_item_id } : {}), ...(row.takeoff_source ? { takeoff_source: clone(row.takeoff_source) } : {}) });
   function canonicalDraft(draft, definition = state.definition) {
     return draft && { globals: canonicalValues({ ...definition.defaults.globals, ...draft.globals }), rows: draft.rows.map(canonicalRow) };
   }
@@ -1059,7 +1059,7 @@
           diagramCell.replaceChildren(image);
         } else diagramCell.replaceChildren(node("span", "helper", "—"));
       }
-      const values = [line, window.CeasefirePenetrationPresentation.serviceLabel(row.inputs.K) || "—", window.CeasefirePenetrationPresentation.serviceSize(row.inputs), row.inputs.L || "—", row.inputs.M || "—", row.inputs.N || "—", null, display(result?.outputs.H, "currency"), null];
+      const values = [line, window.CeasefirePenetrationPresentation.serviceLabel(row.inputs.K) || "—", window.CeasefirePenetrationPresentation.serviceSize(row.inputs, row.takeoff_source), row.inputs.L || "—", row.inputs.M || "—", row.inputs.N || "—", null, display(result?.outputs.H, "currency"), null];
       values.forEach((value, column) => { if (column !== 6 && column !== 8) tr.children[column].textContent = String(value); });
       if (!quantityField) tr.children[6].textContent = display(row.inputs.O);
       for (const control of tr.children[6].querySelectorAll("[data-penetration-field]")) uiAttr(control, "aria-label", "Item {0}: {1}", [line, uiTerm(fieldLabel(quantityField))]);

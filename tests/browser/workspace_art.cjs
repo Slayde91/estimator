@@ -37,7 +37,7 @@ async function translatedTakeoff(name){
  await choice.click();await expect(choice).toHaveAttribute('aria-pressed','true');await page.mouse.move(0,0);await expect(page.locator('#takeoff-navigation-menu')).toBeHidden();await takeoffIdle();
 }
 async function translatedCalculator(id){
- await page.locator('#calculator-navigation-toggle').hover();const menu=page.locator('#calculator-navigation-menu');await expect(menu).toBeVisible();const choice=menu.locator(`[data-calculator-id="${id}"]`);await choice.click();await expect(choice).toHaveAttribute('aria-pressed','true');await page.mouse.move(0,0);await expect(menu).toBeHidden();await idle();
+ await page.locator('#calculator-navigation-toggle').hover();const menu=page.locator('#calculator-navigation-menu');await expect(menu).toBeVisible();const steel=["steel_vermiculite","steel_board"].includes(id);const choice=menu.locator(`[data-calculator-id="${steel?"steel":id}"]`);await choice.click();if(steel)await page.locator(`[data-steel-calculator="${id}"]`).click();await expect(choice).toHaveAttribute('aria-pressed','true');await page.mouse.move(0,0);await expect(menu).toBeHidden();await idle();
 }
 async function theme(id,name){
  if(await page.locator('html').getAttribute('data-theme')===id)return;

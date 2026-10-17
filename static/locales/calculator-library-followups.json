@@ -1,0 +1,44 @@
+{
+  "Open the steel spray calculator.": [
+    "打开钢结构喷涂计算器。",
+    "स्टील स्प्रे कैलकुलेटर खोलें।",
+    "Abrir la calculadora de acero proyectado.",
+    "افتح حاسبة رش الفولاذ.",
+    "เปิดเครื่องคำนวณงานพ่นเหล็ก"
+  ],
+  "Open the steel board calculator.": [
+    "打开钢结构板材计算器。",
+    "स्टील बोर्ड कैलकुलेटर खोलें।",
+    "Abrir la calculadora de placas para acero.",
+    "افتح حاسبة ألواح الفولاذ.",
+    "เปิดเครื่องคำนวณแผ่นหุ้มเหล็ก"
+  ],
+  "Open original source image": [
+    "打开原始来源图像",
+    "मूल स्रोत चित्र खोलें",
+    "Abrir imagen original",
+    "افتح الصورة الأصلية",
+    "เปิดภาพต้นฉบับ"
+  ],
+  "Open AI replica at full size (new tab)": [
+    "以完整尺寸打开 AI 复制图（新标签页）",
+    "AI प्रतिकृति पूर्ण आकार में खोलें (नया टैब)",
+    "Abrir réplica de IA a tamaño completo (pestaña nueva)",
+    "افتح نسخة الذكاء الاصطناعي بالحجم الكامل (علامة تبويب جديدة)",
+    "เปิดภาพจำลอง AI ขนาดเต็ม (แท็บใหม่)"
+  ],
+  "AI replica — illustrative; check original for installation detail.": [
+    "AI 复制图 — 仅供示意；安装细节请查看原图。",
+    "AI प्रतिकृति — चित्रण के लिए; स्थापना विवरण मूल चित्र में देखें।",
+    "Réplica de IA: ilustrativa; consulte el original para los detalles de instalación.",
+    "نسخة بالذكاء الاصطناعي للتوضيح؛ راجع الأصل لتفاصيل التركيب.",
+    "ภาพจำลอง AI เพื่อประกอบความเข้าใจ โปรดดูรายละเอียดการติดตั้งจากต้นฉบับ"
+  ],
+  "CALCULATORS": [
+    "计算器",
+    "कैलकुलेटर",
+    "CALCULADORAS",
+    "الحاسبات",
+    "เครื่องคำนวณ"
+  ]
+}

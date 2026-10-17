@@ -1740,16 +1740,18 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
   // Header destinations retain the active workbook/firestopping state without
   // recreating the removed chooser cards or changing any draft inputs.
   entry=setup();
-  const calculatorChoices=['steel_vermiculite','steel_board','ductwork'].map(id=>{const button=element('button');button.dataset.calculatorId=id;return button;});
+  const calculatorChoices=['steel','ductwork','penetration'].map(id=>{const button=element('button');button.dataset.calculatorId=id;return button;});
   byId('calculator-navigation-menu').replaceChildren(...calculatorChoices);
   const choiceDraft=copy(audit.projectSnapshot());audit.renderChoices();
-  assert.deepEqual(calculatorChoices.map(button=>button.getAttribute('aria-pressed')),['false','true','false']);
+  assert.deepEqual(calculatorChoices.map(button=>button.getAttribute('aria-pressed')),['true','false','false']);
   context.window.CeasefireProposalCalculators={isFirestopping:()=>true};audit.renderChoices();
-  assert.deepEqual(calculatorChoices.map(button=>button.getAttribute('aria-pressed')),['false','false','false']);
+  assert.deepEqual(calculatorChoices.map(button=>button.getAttribute('aria-pressed')),['false','false','true']);
   assert.deepEqual(copy(audit.projectSnapshot()),choiceDraft);delete context.window.CeasefireProposalCalculators;
   const choiceHtml=englishMarkup(fs.readFileSync('static/index.html','utf8'));
   assert.ok(!choiceHtml.includes('id="calculator-list"'));
-  for(const id of ['steel_vermiculite','steel_board','ductwork','penetration'])assert.ok(choiceHtml.includes(`data-calculator-id="${id}"`));assert.ok(!choiceHtml.includes('data-estimator-kind="penetration"'));passed++;
+  for(const id of ['steel','ductwork','penetration'])assert.ok(choiceHtml.includes(`data-calculator-id="${id}"`));
+  for(const id of ['steel_vermiculite','steel_board']){assert.ok(!choiceHtml.includes(`data-calculator-id="${id}"`));assert.ok(choiceHtml.includes(`data-steel-calculator="${id}"`));}
+  assert.ok(!choiceHtml.includes('data-estimator-kind="penetration"'));passed++;
 
   // Only Exposure input column data is normal weight; headers and diagnostics retain their source emphasis.
   for(const [id,sheet,column,firstRow,label] of [

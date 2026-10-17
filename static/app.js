@@ -128,7 +128,7 @@
     pricingScope: "library", libraryDraft: null, projectPricingDraft: null, pricingRevision: 0,
     projectFile: null, projectsRevision: 0, initialized: false, currentView: "home", projectsOffset: 0, projectsTimer: null, desktopRequests: 0,
     projectBrowserProject: null, projectBrowserPath: "", projectBrowserRevision: 0,
-    pricingRender: null, estimatorKind: "estimate", calculatorKind: "steel_vermiculite", libraryKind: "pricing",
+    pricingRender: null, estimatorKind: "estimate", calculatorKind: "steel", libraryKind: "pricing",
     workItems: [], workItemErrors: new Map(), workItemDrafts: new Map(), nextWorkItem: 1,
     pricingUsage: { firestopping: { label: "Firestopping Estimator", keywords: [], groups: [] } }, takeoffsEnabled: true,
   };
@@ -967,7 +967,9 @@
     if (view === "calculators") {
       calculatorId ||= state.calculatorKind;
       state.calculatorKind = calculatorId;
-      if (calculatorId === "penetration") estimatorReady = selectEstimator("penetration");
+      $("calculator-steel-hub").hidden = calculatorId !== "steel";
+      if (calculatorId === "steel") { $("estimator-penetration").hidden = true; state.estimatorKind = "estimate"; window.CeasefireCalculators?.hide?.(); window.CeasefireCalculators?.refreshNavigation?.(); }
+      else if (calculatorId === "penetration") estimatorReady = selectEstimator("penetration");
       else { $("estimator-penetration").hidden = true; state.estimatorKind = "estimate"; estimatorReady = calculatorId ? window.CeasefireCalculators?.select(calculatorId) : window.CeasefireCalculators?.open(); }
     }
     if (view === "estimate") estimatorReady = selectEstimator(state.estimateKind || "estimate");
@@ -1013,7 +1015,7 @@
     return true;
   }
   async function requestCalculatorNavigation(id = state.calculatorKind) {
-    if (!["steel_vermiculite", "steel_board", "ductwork", "penetration"].includes(id)) return false;
+    if (!["steel", "steel_vermiculite", "steel_board", "ductwork", "penetration"].includes(id)) return false;
     document.activeElement?.blur?.();
     if (state.currentView !== "calculators" && !await confirmLeavePricingLibrary()) return false;
     if (window.CeasefireCalculators?.hasPendingOperation?.()) {
@@ -2237,6 +2239,7 @@
   }
 
   for (const button of document.querySelectorAll("[data-view]")) button.addEventListener("click", () => button.id === "calculator-navigation-toggle" ? requestCalculatorNavigation() : requestViewNavigation(button.dataset.view));
+  for (const card of document.querySelectorAll("[data-steel-calculator]")) card.addEventListener("click", () => requestCalculatorNavigation(card.dataset.steelCalculator));
   setupCalculatorNavigation();
   for (const button of document.querySelectorAll("[data-home-view]")) button.addEventListener("click", () => requestViewNavigation(button.dataset.homeView));
   document.querySelector(".brand")?.addEventListener("click", (event) => { event.preventDefault(); requestViewNavigation("home"); });
@@ -2363,6 +2366,7 @@
     showFirestopping() { return showView("calculators", undefined, "penetration"); },
     showWorkbook() { state.estimatorKind = "estimate"; $("estimator-penetration").hidden = true; },
     isFirestopping() { return state.estimatorKind === "penetration"; },
+    isSteelHub() { return state.currentView === "calculators" && state.calculatorKind === "steel"; },
   };
   bootstrap();
 })();

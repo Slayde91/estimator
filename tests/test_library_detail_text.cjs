@@ -1,6 +1,6 @@
 "use strict";
 const assert = require("node:assert/strict");
-const { parse, render } = require("../static/library-detail-text.js");
+const { parse, render, compact } = require("../static/library-detail-text.js");
 
 const item = (text, number) => ({ text, children: [], ...(number === undefined ? {} : { number }) });
 const paragraph = text => ({ type: "paragraph", text });
@@ -74,3 +74,6 @@ assert.equal(render(document, "4. (A) Fit strip.")[0].children[0].attributes.val
 assert.equal(render(document, "A) Fit strip.\nB) Apply fillet.", { sourceMarkers: true })[0].children[1].attributes["data-source-marker"], "B)");
 assert.deepEqual(parse("1.5 mm steel.\n3. 4. remains a reference.", { sourceMarkers: true }), [paragraph("1.5 mm steel."), list(true, item("4. remains a reference.", 3))]);
 console.log("Library detail text formatting tests passed");
+
+assert.equal(compact("Use Brush Grade including approximately 3 layers; do not exceed 200 mm, or 2 × 50 mm."), "Use BG incl. approx. 3 layers; do not exceed 200 mm, or 2 × 50 mm.");
+assert.equal(compact("The Batt layers are glued together using Mastic (Brush Grade or Mastic)."), "Glue Batt layers together w/ Mastic (BG or Mastic).");

@@ -270,8 +270,8 @@
     const version = state.messageVersion = (state.messageVersion || 0) + 1;
     const notice = state.ui.message; notice.textContent = ""; window.CeasefireI18n.nodeText(notice, text); notice.hidden = !text; notice.className = `message${error ? " error" : ""}`; notice.setAttribute("role", error ? "alert" : "status");
     if (state.linkedRecovery) notice.append(uiButton("Retry linked change", recoverLinkedOperation));
-    if (text && !error && !state.linkedRecovery) state.messageTimer = setTimeout(() => {
-      if (state.messageVersion === version && state.ui?.message === notice && notice.getAttribute("role") === "status" && !state.linkedRecovery) {
+    if (text && !state.linkedRecovery && !state.pageError) state.messageTimer = setTimeout(() => {
+      if (state.messageVersion === version && state.ui?.message === notice && !state.linkedRecovery && !state.pageError) {
         // Retire the notice without moving the PDF under an active pointer.
         // The flow-root includes its bottom margin and current wrapped height.
         const slot = state.ui.messageSlot, height = slot?.getBoundingClientRect?.().height;

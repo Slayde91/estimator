@@ -20,12 +20,12 @@ async function snapshot(){return page.evaluate(()=>window.CeasefireCalculators.p
   browser=await chromium.launch({headless:true});page=await browser.newPage({viewport:{width:1146,height:764}});page.setDefaultTimeout(60000);
   page.on('pageerror',error=>errors.push(error.message));
   const base=`http://127.0.0.1:${info.port}`;
-  for(const [id,title,sheet,first,column] of [['steel_vermiculite','Steel (spray)','SCHEDULE',10,'A'],['steel_board','Steel (board)','CALCULATOR',9,'A'],['ductwork','Ductwork (spray/wrap)','CALCULATOR',11,'B']]){
+  for(const [id,title,sheet,first,column] of [['steel_vermiculite','Steel (spray)','SCHEDULE',10,'A'],['steel_board','Steel (board)','CALCULATOR',9,'A'],['ductwork','Duct','CALCULATOR',11,'B']]){
     const inputs={[sheet]:Object.fromEntries(Array.from({length:1000},(_,i)=>[`${column}${first+i}`,id==='ductwork'?'400x300':`SCROLL-${i+1}`]))};
     const saved=await page.request.put(`${base}/api/calculators/${id}/state`,{data:{inputs,schedule_rows:Array.from({length:1000},(_,i)=>first+i)}});assert.equal(saved.status(),200);
   }
   await page.goto(base,{waitUntil:'networkidle'});
-  for(const [id,title,first,column] of [['steel_vermiculite','Steel (spray)',10,'A'],['steel_board','Steel (board)',9,'A'],['ductwork','Ductwork (spray/wrap)',11,'B']]){
+  for(const [id,title,first,column] of [['steel_vermiculite','Steel (spray)',10,'A'],['steel_board','Steel (board)',9,'A'],['ductwork','Duct',11,'B']]){
     await chooseCalculator(page,title);await expect(page.locator('#calculator-title')).toHaveText(title);await idle();
     const schedule=page.getByRole('button',{name:'SCHEDULE',exact:true});if(await schedule.count())await schedule.click();await idle();
     const before=await snapshot();

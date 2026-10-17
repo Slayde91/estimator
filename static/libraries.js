@@ -469,7 +469,7 @@
     box.append(node("span", "", compactTechnical(heading)));
     return box;
   }
-  function imageNode(item, kind, imageOnly = false) {
+  function imageNode(item, kind, imageOnly = false, replicas = {}) {
     const figure = node("figure", "library-image"), link = node("a"), image = node("img");
     const captionText = kind === "technical" ? compactTechnical(diagramCaption(kind, item.caption)) : diagramCaption(kind, item.caption);
     const caption = kind === "technical" && item.role ? compactTechnical(`${item.role} — ${captionText}`) : captionText;
@@ -478,6 +478,16 @@
     uiAttr(link, "aria-label", "Open {0} at full size (new tab)", [caption]);
     image.src = link.href; image.alt = caption; image.loading = "lazy"; image.decoding = "async";
     link.append(image); figure.append(link);
+    const replica = replicas[item.id], expected = `/api/libraries/replicas/${encodeURIComponent(item.id)}`;
+    if (!savedUrl && replica === expected) {
+      const original = node("a", "helper"); original.href = link.href; original.target = "_blank"; original.rel = "noopener noreferrer";
+      uiText(original, "Open original source image");
+      link.href = replica; image.src = replica;
+      uiAttr(link, "aria-label", "Open AI replica at full size (new tab)");
+      image.alt = `${caption} — AI replica`;
+      image.addEventListener("error", () => { image.src = original.href; link.href = original.href; image.alt = caption; }, { once: true });
+      figure.append(uiNode("figcaption", "helper", "AI replica — illustrative; check original for installation detail."), original);
+    }
     if (!imageOnly) figure.append(node("figcaption", "helper", caption));
     return figure;
   }
@@ -557,7 +567,7 @@
   const anchorPart = value => Array.from(String(value), char => char.codePointAt(0).toString(16)).join("-");
   const tableAnchor = (kind, id, label, index) => `library-table-${kind}-${anchorPart(id)}-${anchorPart(label)}-${index}`;
   function fieldTable(field, index = 0, total = 1, kind = "technical") {
-    const display = kind === "technical" ? compactTechnical : valueText;
+    const display = ["technical", "penetration"].includes(kind) ? compactTechnical : valueText;
     const scroll = node("div", "library-field-table-scroll"), table = node("table", "library-field-table"), head = node("thead"), headings = node("tr"), body = node("tbody");
     const caption = Array.isArray(field.table_captions) ? field.table_captions[index] : null;
     // Technical-table captions are retained as source/audit metadata, not UI copy.
@@ -667,7 +677,7 @@
   }
   function renderDetail(pane) {
     pane.documentCleanup?.();
-    const display = pane.kind === "technical" ? compactTechnical : valueText;
+    const display = ["technical", "penetration"].includes(pane.kind) ? compactTechnical : valueText;
     const data = pane.detail, heading = node("h3", "", display(data.title || data.id));
     if (pane.kind === "technical") heading.classList.add("library-frl-value");
     // Legacy Firefly report imports predate the Manufacturer field.
@@ -736,7 +746,7 @@
           value.append(p);
         }
       } else if (formatted) {
-        const blocks = window.LibraryDetailText.render(document, field.value ?? "", { sourceMarkers: firefly, compact: pane.kind === "technical" });
+        const blocks = window.LibraryDetailText.render(document, field.value ?? "", { sourceMarkers: firefly, compact: ["technical", "penetration"].includes(pane.kind) });
         if (blocks.length) { const prose = node("div", "library-detail-text"); prose.append(...blocks); value.append(prose); }
         else if (!images.length && !tables.length && !links.length) continue;
       } else if (!imageOnly && (!images.length && !tables.length && !links.length || field.value !== null && field.value !== undefined && field.value !== "")) value.textContent = display(pane.kind === "technical" && field.label === "FRL" ? frlDisplayValue(field, visibleFields) : field.value);
@@ -745,7 +755,7 @@
       }
       if (tables.length) { pair.className += " library-record-field-table"; value.append(...tables); }
       if (links.length) { const navigation = node("div", "library-table-links"); navigation.append(...links); value.append(navigation); }
-      if (images.length) { const gallery = node("div", "library-images library-field-images"); gallery.append(...images.map(item => imageNode(item, pane.kind, imageOnly))); value.append(gallery); }
+      if (images.length) { const gallery = node("div", "library-images library-field-images"); gallery.append(...images.map(item => imageNode(item, pane.kind, imageOnly, pane.detail.image_replicas))); value.append(gallery); }
       pair.append(uiNode("dt", "", display(fieldLabel(pane.kind, field.label) || "Field")), value); fields.append(pair);
     }
     content.push(fields);
@@ -753,7 +763,7 @@
     const images = data.diagram?.custom && validDiagramUrl(data.diagram.url)
       ? [{ url: data.diagram.url, caption: "Source diagram" }]
       : (data.images || []).filter(item => validAssetId(item.id));
-    if (images.length) { const gallery = node("section", "library-images"); uiAttr(gallery, "aria-label", "Source diagrams"); gallery.append(...images.map(item => imageNode(item, pane.kind))); content.push(gallery); }
+    if (images.length) { const gallery = node("section", "library-images"); uiAttr(gallery, "aria-label", "Source diagrams"); gallery.append(...images.map(item => imageNode(item, pane.kind, false, pane.detail.image_replicas))); content.push(gallery); }
     const related = node("section", "library-detail-section"), links = data.links || [];
     related.append(uiNode("h4", "", pane.kind === "penetration" ? "Related technical references" : "Related firestopping records"));
     if (!links.length) related.append(uiNode("p", "helper", "No related records are recorded."));

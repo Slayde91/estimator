@@ -1,4 +1,5 @@
 const { clickProjectControl } = require('./project_actions.cjs');
+const { chooseCalculator } = require('./calculator_actions.cjs');
 // Rendered manual-input regression. Default evidence is wholly synthetic.
 const {chromium, expect} = require('@playwright/test');
 const {spawn, spawnSync} = require('node:child_process');
@@ -80,7 +81,7 @@ async function screenshot(name,fixture) {
   const initial=await page.goto(`http://127.0.0.1:${info.port}/`);assert.ok(!initial.headers()['content-security-policy'].includes('unsafe-inline'));await page.waitForFunction(() => window.CeasefireDesktop?.status().ready);
   await page.getByRole('button',{name:'Estimates',exact:true}).click();
   await page.getByLabel('Project No.',{exact:true}).fill(fixture.synthetic?'SYNTHETIC-MONOKOTE-QA':'PRIVATE-MONOKOTE-QA');
-  await page.getByRole('button',{name:'Calculators',exact:true}).click();
+  await chooseCalculator(page,'Steel (spray)');
   await expect(page.locator('#calculator-title')).toHaveText('Steel (spray)');await idle();
   await expect(rendered('A285')).toContainText('FAR4856 Issue 2 governs thickness');
   await expect(rendered('A285')).toContainText('Hp/A and ESA/M');
@@ -148,7 +149,7 @@ async function screenshot(name,fixture) {
   await apiReply(()=>clickProjectControl(page,'Load'),'/api/project/open');await page.getByRole('dialog').getByRole('button',{name:'Load Project',exact:true}).click();
   await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   assert.deepEqual(await page.evaluate(()=>window.CeasefireCalculators.completeProjectSnapshot()),draft);
-  await page.getByRole('button',{name:'Calculators',exact:true}).click();
+  await chooseCalculator(page,'Steel (spray)');
   await selectBasis('MONOKOTE MK-6 HY','D569',237,'Uninjected');await selectBasis('MONOKOTE Z106','D570',564,'Uninjected');
   // Restore the initially collapsed Settings chooser as well as both values,
   // so the original later first-visit panel checks retain their exact setup.
@@ -218,7 +219,7 @@ async function screenshot(name,fixture) {
   assert.deepEqual(await page.evaluate(()=>window.CeasefireCalculators.completeProjectSnapshot()),before);
   assert.equal(saved.version,1);
   assert.equal(saved.calculators.steel_vermiculite.inputs.SETTINGS.D569,'Uninjected');assert.equal(saved.calculators.steel_vermiculite.inputs.SETTINGS.D570,'Uninjected');
-  await page.getByRole('button',{name:'Calculators',exact:true}).click();await tab('SCHEDULE');
+  await chooseCalculator(page,'Steel (spray)');await tab('SCHEDULE');
   const reopened=await recalculate('SCHEDULE');
   for(const address of ['P10','T10','P11','T11','P12','T12','V12','O13','P13','S13','T13','V13','W13','X13']) assert.deepEqual(reopened[address],scheduled[address],`reopened ${address}`);
   await page.getByRole('button',{name:'Document',exact:true}).click();

@@ -435,6 +435,23 @@ class ReferenceLibrary:
             item['links'] = deepcopy(data['_links'][kind][key])
             return item
 
+    def image_replicas(self):
+        from .library_replicas import registry
+        with self._lock:
+            data = self._load()
+            return registry(self.directory, data['_assets']) if data else {}
+
+    def replica_asset(self, key):
+        from .library_replicas import asset
+        identifier(key)
+        entry = self.image_replicas().get(key)
+        if entry is None:
+            raise ReferenceNotFound()
+        # Validate the current source bytes as well as the derivative's bytes.
+        # A replica can never bypass the original source integrity check.
+        self.asset(key, False)
+        return asset(self.directory, entry)
+
     def asset(self, key, pdf=True):
         with self._lock:
             identifier(key)

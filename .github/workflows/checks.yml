@@ -163,6 +163,7 @@ jobs:
       - run: npm run test:takeoffs-free-callouts
       - run: npm run test:takeoffs-viewer-shortcuts
       - run: npm run test:takeoffs-library-links
+      - run: npm run test:manual-register-transfer
       - run: npm run test:takeoffs-library-barriers
       - run: npm run test:takeoffs-drawing-ocr
       - run: npm run test:takeoffs-duct-filters

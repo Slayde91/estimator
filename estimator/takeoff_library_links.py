@@ -487,6 +487,9 @@ def confirmed_transfer_preview(snapshot, scope, draft, library_lookup, configura
                         and entity['id'] not in service_parents and entity['id'] not in associated
                         for entity in graph.get('barriers', []))
     skipped = {'unconfirmed': 0, 'already_linked': 0, 'unassociated': unassociated}
+    manual_services = {row['takeoff_source']['service_id'] for row in draft['rows']
+        if row.get('takeoff_source', {}).get('project_id') == snapshot['project_id']
+        and row['takeoff_source']['scope'] == scope and row['takeoff_source']['graph_id'] == graph['id']}
     candidates, libraries = [], {}
     for record in records:
         if record['schedule_binding'] is not None:
@@ -497,6 +500,8 @@ def confirmed_transfer_preview(snapshot, scope, draft, library_lookup, configura
         except ValidationError:
             skipped['unconfirmed'] += 1
             continue
+        if any(member['kind'] == 'service' and member['id'] in manual_services for member in record['members']):
+            raise ValidationError('A Service already has a manual Firestopping draft. Edit that existing schedule row or remove it before transferring a new library association; nothing was transferred.')
         library_id = record['library']['id']
         if library_id not in libraries:
             libraries[library_id] = library_lookup(library_id)
@@ -511,10 +516,12 @@ def confirmed_transfer_preview(snapshot, scope, draft, library_lookup, configura
         proposed = {**record, 'quantity_source': source}
         quantity = assignment_quantity(after, proposed, _physical=physical_context)
         candidates.append((record, library, source, quantity))
-    if not candidates:
-        raise ValidationError('No confirmed unlinked library items are ready to transfer. '
-            f"Confirm associated records ({skipped['unconfirmed']} unconfirmed assignments); add library items to unassociated records ({unassociated}). "
-            f"{skipped['already_linked']} assignments are already linked and were not counted twice.")
+    from .takeoff_manual_transfer import compile_rows
+    manual = compile_rows(after, scope, draft, associated, physical_context)
+    if not candidates and not manual['rows']:
+        raise ValidationError('No confirmed unlinked records are ready to transfer. '
+            f"Confirm records and enter explicit service quantities ({manual['skipped']['quantity_missing']} missing). "
+            f"{skipped['already_linked'] + manual['skipped']['already_linked']} records are already linked and were not counted twice.")
     # Shared ancestors are valid: separate Services may use one Barrier. Only
     # quantity-bearing members collide, including a previously linked member.
     def quantity_members(record):
@@ -550,12 +557,20 @@ def confirmed_transfer_preview(snapshot, scope, draft, library_lookup, configura
         output = result['draft']
         changes.append({**result['change'], 'assignment_id': record['id']})
         source_sha256 = result['source_sha256']
+    if len(output['rows']) + len(manual['rows']) > calculator_definition['capacity']:
+        raise ValidationError('The Firestopping Schedule is full. Split this transfer before trying again; nothing was transferred.')
+    output['rows'].extend(manual['rows'])
+    changes.extend(manual['changes'])
+    skipped['unassociated'] -= len(manual['rows']) + manual['skipped']['already_linked']
+    skipped['already_linked'] += manual['skipped']['already_linked']
+    source_sha256 = source_sha256 or calculator_definition['source_sha256']
     # The compiler owns this draft and publishes nothing until every exact
     # contribution succeeds. Retain full validation at both transaction bounds.
     normalize_draft(output)
     return {'snapshot': after, 'penetration': {'draft': output, 'source_sha256': source_sha256},
             'library_link': {'action': 'transfer_confirmed', 'scope': scope, 'transferred': len(changes),
-                             'changes': changes, 'skipped': skipped}}
+                             'changes': changes, 'skipped': skipped, 'manual_transferred': len(manual['rows']),
+                             'manual_skipped': manual['skipped']}}
 
 
 def validate_proposal(proposed):

@@ -89,16 +89,18 @@ const countItem=(id,countId,length,points)=>({id,count_id:countId,version:1,stat
 let passed=0;
 async function check(label, test) { await test(); passed++; console.log(`ok - ${label}`); }
 (async()=>{
-  await check('Normal Takeoff statuses expire after five seconds while errors and protected recovery notices remain visible',()=>{
+  await check('Takeoff notices and ordinary alerts expire after five seconds; protected recovery notices remain visible',()=>{
     const h=harness(),dom=attachMinimalDom(h),timers=[];h.context.setTimeout=(callback,delay)=>{timers.push({callback,delay});return timers.length;};h.context.clearTimeout=()=>{};
     dom.ui.messageSlot=dom.element();dom.ui.messageSlot.style={};let height=70.59375;dom.ui.messageSlot.getBoundingClientRect=()=>({height});
     h.audit.message('Saved fixture');assert.equal(timers[0].delay,5000);assert.equal(dom.ui.message.hidden,false);
     h.audit.message('Source unavailable',true);timers[0].callback();assert.equal(dom.ui.message.hidden,false);assert.equal(dom.ui.message.textContent,'Source unavailable');assert.equal(dom.ui.message.getAttribute('role'),'alert');
+    assert.equal(timers.at(-1).delay,5000);timers.at(-1).callback();assert.equal(dom.ui.message.hidden,true);
     h.audit.message('Current status');const current=timers.at(-1);current.callback();assert.equal(dom.ui.message.hidden,true);assert.equal(dom.ui.message.textContent,'');
     assert.equal(dom.ui.messageSlot.style.minHeight,'70.59375px','Retirement preserves the exact rendered flow height, including the margin');
     h.audit.message('New wrapped status');assert.equal(dom.ui.messageSlot.style.minHeight,'','A new notice uses its current width instead of a stale reserve');height=121.25;timers.at(-1).callback();assert.equal(dom.ui.messageSlot.style.minHeight,'121.25px');
     h.audit.state.linkedRecovery={operation:'retained'};const count=timers.length;h.audit.message('Recover linked change');assert.equal(dom.ui.message.hidden,false);assert.equal(timers.length,count);
     assert.equal(dom.ui.messageSlot.style.minHeight,'');
+    h.audit.state.linkedRecovery=null;h.audit.state.pageError={notice:'Render blocked'};const renderCount=timers.length;h.audit.message('Render blocked',true);assert.equal(timers.length,renderCount);assert.equal(dom.ui.message.hidden,false);
   });
   await check('Project replacement retires only its exact old render alert without recording render success',()=>{
     for(const transition of ['replacement','defaults','unrelated alert','same-text status','linked recovery']){
@@ -238,9 +240,9 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
     assert.equal(ui.navigation.parentNode,top);assert.equal(ui.documentSelect.parentNode.attributes["aria-label"],"Source documents");assert.equal(search.attributes.role,"search");assert.equal(root.children[0],ui.heading);
     const headingCopy=find('takeoff-heading-copy'),headingArt=find('takeoff-heading-art-slot'),headingActions=find('takeoff-document-tools');
     assert.deepEqual(ui.heading.children,[headingCopy,headingActions]);assert.deepEqual(headingCopy.children,[ui.title,headingArt]);assert.equal(headingArt.attributes['aria-hidden'],'true');
-    assert.deepEqual(headingArt.children.map(frame=>frame.className),['takeoff-heading-art takeoff-heading-art--steel','takeoff-heading-art takeoff-heading-art--duct','takeoff-heading-art takeoff-heading-art--physical']);
-    assert.deepEqual(headingArt.children.map(frame=>frame.children.length),[1,1,1]);
-    assert.deepEqual(headingArt.children.map(frame=>({src:frame.children[0].src,alt:frame.children[0].alt,decoding:frame.children[0].decoding,hidden:frame.children[0].attributes['aria-hidden']})),['steel','ductwork','physical'].map(mode=>({src:`/takeoff-header-${mode}.png`,alt:'',decoding:'async',hidden:'true'})));
+    assert.deepEqual(headingArt.children.map(frame=>frame.className),['takeoff-heading-art takeoff-heading-art--steel','takeoff-heading-art takeoff-heading-art--duct','takeoff-heading-art takeoff-heading-art--physical','takeoff-heading-art takeoff-heading-art--service_plans']);
+    assert.deepEqual(headingArt.children.map(frame=>frame.children.length),[1,1,1,1]);
+    assert.deepEqual(headingArt.children.map(frame=>({src:frame.children[0].src,alt:frame.children[0].alt,decoding:frame.children[0].decoding,hidden:frame.children[0].attributes['aria-hidden']})),['steel','ductwork','physical','service-plans'].map(mode=>({src:`/takeoff-header-${mode}.png`,alt:'',decoding:'async',hidden:'true'})));
     assert.deepEqual(headingActions.children,[ui.documentMenu.root,ui.physicalDocumentHost,find('takeoff-pdf-tools-menu')]);
     const outside=dom.documentEvents.find(event=>event.type==='pointerdown'&&event.options?.capture);assert.ok(outside);assert.equal(outside.options.capture,true);
     h.audit.state.active=true;h.audit.state.searchHits=[{id:'retained-match'}];ui.searchResults.hidden=false;

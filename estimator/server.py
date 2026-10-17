@@ -190,11 +190,22 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     self.send_payload(200, libraries.takeoff_record(route.split('/')[-2]))
                 elif re.fullmatch(r'/api/libraries/(penetration|technical)/[a-z0-9][a-z0-9_-]{0,119}', route):
                     _, _, _, kind, key = route.split('/')
-                    self.send_payload(200, libraries.detail(kind, key))
+                    detail = libraries.detail(kind, key)
+                    # Presentation only: never included in technical identities,
+                    # calculator inputs, saved records or source evidence hashes.
+                    replicas = libraries.image_replicas()
+                    if replicas:
+                        images = [*detail.get('images', []), *(image for field in detail.get('fields', []) for image in field.get('images', []))]
+                        detail['image_replicas'] = {image['id']: f"/api/libraries/replicas/{image['id']}" for image in images if image['id'] in replicas}
+                    self.send_payload(200, detail)
                 elif re.fullmatch(r'/api/libraries/documents/[a-z0-9][a-z0-9_-]{0,119}\.pdf', route):
                     self.send_reference_asset(route.rsplit('/', 1)[1][:-4])
                 elif re.fullmatch(r'/api/libraries/images/[a-z0-9][a-z0-9_-]{0,119}', route):
                     self.send_reference_asset(route.rsplit('/', 1)[1], False)
+                elif re.fullmatch(r'/api/libraries/replicas/[a-z0-9][a-z0-9_-]{0,119}', route):
+                    payload, content_type, filename = libraries.replica_asset(route.rsplit('/', 1)[1])
+                    self.send_payload(200, payload, content_type,
+                                      {'Content-Disposition': f'inline; filename="{filename}"'})
                 elif route == '/api/penetration':
                     from .penetration_calculator import definition
                     self.send_payload(200, definition(store.configuration(), service_types=libraries.service_types()))

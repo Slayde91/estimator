@@ -5,6 +5,9 @@ const fs=require('node:fs'),path=require('node:path'),assert=require('node:asser
 const {chooseCalculator}=require('./calculator_actions.cjs');
 const {chooseTakeoff}=require('./section_navigation.cjs');
 const takeoffWidthOnly=process.argv.includes('--takeoff-width-only');
+const rtlCalculatorMenusOnly=process.argv.includes('--rtl-calculator-menus-only');
+const calculatorBannersOnly=process.argv.includes('--calculator-banners-only')||rtlCalculatorMenusOnly;
+const runMode=takeoffWidthOnly?'takeoff-width-only':rtlCalculatorMenusOnly?'rtl-calculator-menus-only':calculatorBannersOnly?'calculator-banners-only':'complete-artwork';
 const root=path.resolve(__dirname,'../..'),output=path.join(root,'.runtime/browser-qa',`workspace-art-${Date.now()}`);
 fs.mkdirSync(output,{recursive:true});
 const server=spawn(process.env.CEASEFIRE_PYTHON||'python',[path.join(__dirname,'fixtures.py'),'--directory',output],{cwd:root,windowsHide:true});
@@ -32,6 +35,9 @@ async function translatedTakeoff(name){
  const choice=page.locator('#takeoff-navigation-menu '+(physical?`[data-physical-scope="${name==='Service Plans'?'service_plans':'defect_reports'}"]`:`[data-mode="${name==='Steel'?'steel':'duct'}"]`));
  await choice.click();await expect(choice).toHaveAttribute('aria-pressed','true');await page.mouse.move(0,0);await expect(page.locator('#takeoff-navigation-menu')).toBeHidden();await takeoffIdle();
 }
+async function translatedCalculator(id){
+ await page.locator('#calculator-navigation-toggle').hover();const menu=page.locator('#calculator-navigation-menu');await expect(menu).toBeVisible();const choice=menu.locator(`[data-calculator-id="${id}"]`);await choice.click();await expect(choice).toHaveAttribute('aria-pressed','true');await page.mouse.move(0,0);await expect(menu).toBeHidden();await idle();
+}
 async function theme(id,name){
  if(await page.locator('html').getAttribute('data-theme')===id)return;
  await page.locator('nav [data-view="settings"]').click();await idle();
@@ -39,7 +45,7 @@ async function theme(id,name){
  await expect(page.locator('html')).toHaveAttribute('data-theme',id);
  if(name==='estimate')await chooseEstimate();
  else if(name.startsWith('takeoff:'))await translatedTakeoff(name.slice(8));
- else await chooseCalculator(page,{'steel_vermiculite':'Steel (spray)','steel_board':'Steel (board)','ductwork':'Ductwork (spray/wrap)'}[name]);
+ else await translatedCalculator(name);
  await idle();
 }
 async function documentActions(toggleSelector,ids,name){
@@ -63,11 +69,11 @@ async function documentActions(toggleSelector,ids,name){
 async function art(selector,name,header=false){
  const frame=page.locator(selector);await expect(frame).toBeVisible();await expect.poll(()=>frame.evaluate(el=>{const image=el.matches('img')?el:el.querySelector('img');return image.complete&&image.naturalWidth>0;}),{timeout:30000}).toBe(true);
  const value=await frame.evaluate(el=>{const image=el.matches('img')?el:el.querySelector('img'),s=getComputedStyle(el),r=el.getBoundingClientRect();return{src:image.getAttribute('src'),alt:image.alt,hidden:el.getAttribute('aria-hidden')||el.parentElement.getAttribute('aria-hidden'),position:s.position,mask:s.maskImage,composite:s.maskComposite,pointer:s.pointerEvents,width:r.width,height:r.height};});
- assert.equal(value.alt,'');assert.equal(value.hidden,'true');assert.match(value.mask,/linear-gradient.*transparent|linear-gradient.*rgba\(0, 0, 0, 0\)/);assert.match(value.composite,/intersect/);if(name!=='firestopping')assert.ok(value.width>value.height*2,name+' uses a wide banner');
+ assert.equal(value.alt,'');assert.equal(value.hidden,'true');assert.match(value.mask,/linear-gradient.*transparent|linear-gradient.*rgba\(0, 0, 0, 0\)/);assert.match(value.composite,/intersect/);if(!['firestopping','steel_vermiculite','steel_board','ductwork'].includes(name))assert.ok(value.width>value.height*2,name+' uses a wide banner');
  if(header){
   assert.equal(value.position,'absolute');
-  const sizes=await frame.evaluate(el=>{const parent=el.parentElement,a=parent.getBoundingClientRect().height,original=el.style.getPropertyValue('display'),priority=el.style.getPropertyPriority('display'),attribute=el.getAttribute('style');try{el.style.display='none';if(getComputedStyle(el).display!=='none')throw Error('Artwork was not hidden');return[a,parent.getBoundingClientRect().height];}finally{if(original)el.style.setProperty('display',original,priority);else el.style.removeProperty('display');if(attribute===null&&el.style.length===0){el.getAttribute('style');el.removeAttribute('style');}}});assert.equal(sizes[0],sizes[1],name+' retains existing header height');
-  if(name!=='firestopping'){await page.locator(selector+' ~ :is(.actions,.calculator-header-actions) button').first().click();await page.keyboard.press('Escape');}
+  const sizes=await frame.evaluate(el=>{const parent=el.closest('.workspace-banner-heading,.penetration-banner-heading')||el.parentElement,a=parent.getBoundingClientRect().height,original=el.style.getPropertyValue('display'),priority=el.style.getPropertyPriority('display'),attribute=el.getAttribute('style');try{el.style.display='none';if(getComputedStyle(el).display!=='none')throw Error('Artwork was not hidden');return[a,parent.getBoundingClientRect().height];}finally{if(original)el.style.setProperty('display',original,priority);else el.style.removeProperty('display');if(attribute===null&&el.style.length===0){el.getAttribute('style');el.removeAttribute('style');}}});assert.equal(sizes[0],sizes[1],name+' retains existing header height');
+  if(name!=='firestopping'){await page.locator('.workspace-banner-heading:visible :is(.actions,.calculator-header-actions) button').first().click();await page.keyboard.press('Escape');}
  }
  evidence.push({name,...value});await page.screenshot({path:path.join(output,name+'.png')});
 }
@@ -86,6 +92,48 @@ async function framing(selector,name,firestopping=false){
  }
  if(!firestopping)await theme('ceasefire',name);
  await page.setViewportSize({width:1384,height:764});
+}
+async function calculatorFraming(kind,name,themes=['ceasefire','midnight','ocean','forest','slate'],widths=[1384,1146,825,390]){
+ const heading=page.locator('.calculator-workspace-heading');
+ for(const themeId of themes){
+  await theme(themeId,name);
+  for(const width of widths){
+   await page.setViewportSize({width,height:764});await page.evaluate(()=>scrollTo(0,0));
+   const toggle=page.locator('#calculator-document-toggle');await toggle.click({trial:true});
+   const value=await heading.evaluate(el=>{
+    const box=n=>{const r=n.getBoundingClientRect();return{x:r.x,y:r.y,right:r.right,bottom:r.bottom,width:r.width,height:r.height};};
+    const copy=el.querySelector('.calculator-heading-copy'),text=el.querySelector('.calculator-heading-text'),slot=el.querySelector('.calculator-heading-art-slot'),bolt=slot.querySelector('svg'),frames=[...slot.querySelectorAll('.workspace-header-art')],frame=frames.find(n=>getComputedStyle(n).display!=='none'),img=frame.querySelector('img'),actions=el.querySelector('.calculator-header-actions'),title=el.querySelector('h2');
+    const framing=()=>{const crop=frame.querySelector('.workspace-banner-crop'),f=box(frame),c=box(crop),b=box(img),s=getComputedStyle(img),scale=(s.objectFit==='cover'?Math.max:Math.min)(b.width/img.naturalWidth,b.height/img.naturalHeight),position=s.objectPosition.split(' ').map(v=>parseFloat(v)/100),paint={x:b.x+(b.width-img.naturalWidth*scale)*position[0],y:b.y+(b.height-img.naturalHeight*scale)*position[1],width:img.naturalWidth*scale,height:img.naturalHeight*scale},left=Math.max(paint.x,f.x,c.x),right=Math.min(paint.x+paint.width,f.right,c.right),top=Math.max(paint.y,f.y,c.y),bottom=Math.min(paint.y+paint.height,f.bottom,c.bottom);return{frame:f,crop:c,image:b,paint,scale,fit:s.objectFit,sourceCrop:{left:(left-paint.x)/scale,top:(top-paint.y)/scale,width:(right-left)/scale,height:(bottom-top)/scale,fraction:(right-left)*(bottom-top)/(paint.width*paint.height)},visiblePaint:{left,right,top,bottom,width:right-left,height:bottom-top}};};
+    const geometry=()=>({heading:box(el),copy:box(text),title:box(title),actions:box(actions)}),layout=()=>({workspace:box(el.parentElement),pages:box(document.querySelector('#calculator-pages')),main:box(document.querySelector('main')),scrollHeight:document.documentElement.scrollHeight,scrollWidth:document.documentElement.scrollWidth});
+    const html=el.outerHTML,actual=geometry(),actualLayout=layout(),art=framing(),copyStyle=copy.getAttribute('style'),textClass=text.getAttribute('class');let baseline;
+    // Recover the shipped direct-child text/art/actions flow using the same
+    // source nodes. Absolute artwork never contributed to the original height.
+    try{copy.before(text);text.removeAttribute('class');for(const f of frames)actions.before(f);copy.style.setProperty('display','none','important');baseline={geometry:geometry(),layout:layout(),art:framing()};}
+    finally{copy.insertBefore(text,slot);if(textClass===null)text.removeAttribute('class');else text.setAttribute('class',textClass);for(const f of frames)slot.append(f);if(copyStyle===null){copy.getAttribute('style');copy.removeAttribute('style');}else copy.setAttribute('style',copyStyle);}
+    const css=getComputedStyle(frame),imageCSS=getComputedStyle(img),boltCSS=getComputedStyle(bolt.querySelector('path')),r=toggle=>{const b=toggle.getBoundingClientRect(),hit=document.elementFromPoint(b.x+b.width/2,b.y+b.height/2);return!!hit&&(hit===toggle||toggle.contains(hit));};
+    return{actual,actualLayout,baseline,...art,slot:box(slot),bolt:{...box(bolt),path:bolt.querySelector('path').getAttribute('d'),stroke:boltCSS.stroke,length:bolt.querySelector('path').getTotalLength(),hidden:bolt.getAttribute('aria-hidden'),focusable:bolt.getAttribute('focusable'),pointer:getComputedStyle(bolt).pointerEvents},src:img.getAttribute('src'),natural:[img.naturalWidth,img.naturalHeight],alt:img.alt,hidden:slot.getAttribute('aria-hidden'),pointer:css.pointerEvents,imagePointer:imageCSS.pointerEvents,mask:css.maskImage,composite:css.maskComposite,position:css.position,aspect:css.aspectRatio,direction:getComputedStyle(el).direction,restored:html===el.outerHTML,documentHit:r(el.querySelector('#calculator-document-toggle')),overflow:document.documentElement.scrollWidth-innerWidth};
+   });
+   assert.equal(value.src,'/header-'+(kind==='spray'?'steel-spray':kind==='board'?'steel-board':'ductwork')+'.png');assert.deepEqual(value.natural,assetContract[value.src].natural);assert.equal(value.alt,'');assert.equal(value.hidden,'true');assert.equal(value.pointer,'none');assert.equal(value.imagePointer,'none');assert.equal(value.position,'absolute');assert.match(value.mask,/linear-gradient/);assert.match(value.composite,/intersect/);assert.equal(value.fit,'cover');assert.equal(value.restored,true,'The shipped layout probe restores exact source nodes and inline markup');
+   for(const part of ['heading','copy','title','actions'])for(const axis of ['x','y','width','height'])assert.ok(Math.abs(value.actual[part][axis]-value.baseline.geometry[part][axis])<.1,`${name}/${themeId}/${width} preserves original ${part}.${axis}: ${JSON.stringify(value)}`);
+   assert.deepEqual(value.actualLayout,value.baseline.layout,'Moving artwork preserves the calculator, worksheet and full page flow');
+   assert.equal(value.documentHit,true,'The real Document toggle receives native pointer input');assert.ok(value.overflow<=1);
+   assert.equal(value.bolt.hidden,'true');assert.equal(value.bolt.focusable,'false');assert.equal(value.bolt.pointer,'none');assert.ok(value.bolt.width>=10&&value.bolt.height>=48&&value.bolt.length>64,'The lightning is a visible full-height separator');assert.doesNotMatch(value.bolt.stroke,/none|rgba\(0, 0, 0, 0\)/);
+   assert.ok(value.direction==='rtl'?value.frame.right<=value.bolt.x&&value.bolt.right<=value.actual.copy.x:value.actual.copy.right<=value.bolt.x&&value.bolt.right<=value.frame.x,'Lightning sits between the original copy and the visible image window');
+   assert.ok(value.frame.width>0&&value.frame.height>0&&value.frame.x>=value.actual.heading.x&&value.frame.right<=value.actual.heading.right+.1&&value.frame.y>=value.actual.heading.y-.1&&value.frame.bottom<=value.actual.heading.bottom+.1,'The art stays inside the original heading');
+   if(value.actual.actions.y<value.actual.title.bottom)assert.ok(value.direction==='rtl'?value.frame.x>=value.actual.actions.right:value.frame.right<=value.actual.actions.x,'The image leaves same-row controls clear');else assert.ok(value.frame.bottom<=value.actual.actions.y+.1,'Phone artwork stays above the original controls');
+   assert.ok(Math.abs(value.visiblePaint.left-value.crop.x)<.25&&Math.abs(value.visiblePaint.right-value.crop.right)<.25&&Math.abs(value.visiblePaint.top-value.crop.y)<.25&&Math.abs(value.visiblePaint.bottom-value.crop.bottom)<.25,'The four-edge mask follows the actual clipped scene');
+   if(kind==='spray'){assert.ok(value.sourceCrop.fraction>=.625-.001,'The square spray scene retains at least62.5percent of its source');assert.ok(value.sourceCrop.top<=400&&value.sourceCrop.top+value.sourceCrop.height>=1100,'Both beam flanges remain visible');}
+   else{assert.ok(value.sourceCrop.left>=value.natural[0]*.399&&Math.abs(value.sourceCrop.left+value.sourceCrop.width-value.natural[0])<.25,'Only the useful right scene is retained after trimming at least40percent empty left canvas');if(width>760&&value.frame.width>=value.frame.height*2.7-.1)assert.ok(Math.abs(value.scale-value.baseline.art.scale)<.001,'Unconstrained cropping preserves the shipped useful-scene scale');}
+   // Open the real disclosure in every theme/width, including RTL, and hit-test
+   // its first native action above the artwork and later sticky worksheet cells.
+   await toggle.click();const menu=page.locator('#calculator-document-menu');await expect(menu).toBeVisible();const first=menu.locator('button:visible').first();await first.click({trial:true});const menuHit=await first.evaluate(n=>{const box=el=>{const r=el.getBoundingClientRect();return{x:r.x,y:r.y,right:r.right,bottom:r.bottom,width:r.width,height:r.height};},r=box(n),point={x:r.x+r.width/2,y:r.y+r.height/2},hit=document.elementFromPoint(point.x,point.y);return{reachable:!!hit&&(hit===n||n.contains(hit)),connected:n.isConnected,point,action:r,menu:box(n.closest('.calculator-document-actions')),workspace:box(n.closest('#calculator-workspace')),viewport:{width:innerWidth,clientWidth:document.documentElement.clientWidth,height:innerHeight},hit:hit?{tag:hit.tagName,id:hit.id,class:String(hit.className)}:null};});
+   const diagnostic=JSON.stringify({name,theme:themeId,width,direction:value.direction,...menuHit});
+   assert.ok(menuHit.menu.x>=menuHit.workspace.x-.1&&menuHit.menu.right<=menuHit.workspace.right+.1&&menuHit.menu.x>=0&&menuHit.menu.right<=menuHit.viewport.clientWidth+.1,'The complete native Document menu fits horizontally without card/viewport clipping: '+diagnostic);
+   assert.equal(menuHit.reachable,true,'Native pointer reaches the actual action centre: '+diagnostic);await toggle.press('Escape');await expect(menu).toBeHidden();
+   evidence.push({name:name+'-adjacent-framing',theme:themeId,viewport:width,...value,menuReachable:menuHit.reachable,menuHit});await page.screenshot({path:path.join(output,`${name}-adjacent-${themeId}-${value.direction}-${width}.png`)});
+  }
+ }
+ await page.emulateMedia({media:'print'});await expect(heading.locator('.calculator-heading-art-slot')).toBeHidden();await page.emulateMedia({media:'screen'});await page.setViewportSize({width:1384,height:764});
 }
 async function takeoffHeading(name,route,themes=['ceasefire','midnight','ocean','forest','slate'],widths=[1384,825,390]){
  const heading=page.locator('.takeoff-workspace-heading');
@@ -160,28 +208,38 @@ async function takeoffHeading(name,route,themes=['ceasefire','midnight','ocean',
  await expect(page.locator('.takeoff-page')).toBeVisible();await takeoffIdle();
  for(const name of ['Duct','Defect Reports','Service Plans','Walls/Floors','Steel']){await chooseTakeoff(page,name);await takeoffIdle();}
  const before=await snapshot();
- if(!takeoffWidthOnly){
+ if(!takeoffWidthOnly&&!calculatorBannersOnly){
  await page.locator('nav [data-view="home"]').click();await idle();
  await art('.home-laser-art','home');
  await chooseEstimate();await art('.workspace-header-art--estimate','estimate',true);
  await framing('.workspace-header-art--estimate','estimate');
  await documentActions('[aria-controls="firestopping-document-actions"]',['download-full-schedule','download-full-product-summary'],'estimate');
+ }
+ if(!takeoffWidthOnly&&!rtlCalculatorMenusOnly){
  for(const [name,id,kind]of [['Steel (spray)','steel_vermiculite','spray'],['Steel (board)','steel_board','board'],['Ductwork (spray/wrap)','ductwork','ductwork']]){
   await chooseCalculator(page,name);await idle();await expect(page.locator('#calculator-workspace')).toHaveAttribute('data-calculator-kind',id);
   await expect(page.locator('#calculator-workspace .workspace-header-art:visible')).toHaveCount(1);await art('.workspace-header-art--'+kind,id,true);
-  await framing('.workspace-header-art--'+kind,id);
+  await calculatorFraming(kind,id);
   await documentActions('#calculator-document-toggle',['calculator-excel','calculator-pdf','calculator-summary-pdf','calculator-template'],id);
  }
+ }
+ if(!takeoffWidthOnly&&!calculatorBannersOnly){
  await chooseCalculator(page,'Firestopping');await idle();await art('.penetration-workspace-art','firestopping',true);await framing('.penetration-workspace-art','firestopping',true);
  const order=await page.locator('.penetration-workspace-art').evaluate(el=>el.parentElement.classList.contains('penetration-banner-heading')&&!document.querySelector('#penetration-workspace .penetration-workspace-art'));assert.equal(order,true,'Artwork is in the heading row before the existing current-item layout');
  }
+ if(!calculatorBannersOnly){
  for(const [name,route]of [['Steel','/takeoff-header-steel.png'],['Duct','/takeoff-header-ductwork.png'],['Defect Reports','/takeoff-header-physical.png'],['Service Plans','/takeoff-header-physical.png']]){await chooseTakeoff(page,name);await takeoffIdle();await takeoffHeading(name,route);}
  await chooseTakeoff(page,'Walls/Floors');await takeoffIdle();await expect(page.locator('.takeoff-heading-art:visible')).toHaveCount(0);evidence.push({name:'takeoff-walls-floors',artHidden:true});
  await page.locator('nav [data-view="settings"]').click();await idle();await page.locator('#application-language').selectOption('ar');await expect(page.locator('html')).toHaveAttribute('dir','rtl');
  for(const [name,route]of [['Steel','/takeoff-header-steel.png'],['Duct','/takeoff-header-ductwork.png'],['Defect Reports','/takeoff-header-physical.png'],['Service Plans','/takeoff-header-physical.png']]){await translatedTakeoff(name);await takeoffHeading(name,route,['slate'],[825,390]);}
+ }
+ if(!takeoffWidthOnly){
+ await page.locator('nav [data-view="settings"]').click();await idle();await page.locator('#application-language').selectOption('ar');await expect(page.locator('html')).toHaveAttribute('dir','rtl');
+ for(const [id,kind]of [['steel_vermiculite','spray'],['steel_board','board'],['ductwork','ductwork']]){await translatedCalculator(id);await calculatorFraming(kind,id,['slate'],[825,390]);}
+ }
  await page.locator('nav [data-view="settings"]').click();await idle();await page.locator('#application-language').selectOption('en');await expect(page.locator('html')).toHaveAttribute('dir','ltr');
  for(const width of [906,390]){await page.setViewportSize({width,height:764});await page.locator('nav [data-view="home"]').click();await idle();await expect(page.locator('.home-laser-art')).toBeVisible();assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth-innerWidth)<=1);await page.screenshot({path:path.join(output,'home-'+width+'.png')});}
  assert.deepEqual(await snapshot(),before,'Decorative images and navigation preserve project data');
  await page.emulateMedia({media:'print'});await expect(page.locator('.home-laser-art')).toBeHidden();await expect(page.locator('.workspace-header-art--estimate')).toHaveCSS('display','none');await page.emulateMedia({media:'screen'});
- assert.deepEqual(errors,[]);assert.deepEqual(csp,[]);fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,mode:takeoffWidthOnly?'takeoff-width-only':'complete-artwork',assets:assetEvidence,evidence,draftsUnchanged:true,errors,csp},null,2));console.log('PASS workspace artwork: '+output);
-})().catch(async error=>{console.error(error);process.exitCode=1;await page?.screenshot({path:path.join(output,'failure.png')}).catch(()=>{});fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:false,mode:takeoffWidthOnly?'takeoff-width-only':'complete-artwork',error:String(error),evidence,errors,csp},null,2));}).finally(async()=>{fs.writeFileSync(path.join(output,'server.log'),logs);await browser?.close();server.kill();});
+ assert.deepEqual(errors,[]);assert.deepEqual(csp,[]);fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,mode:runMode,assets:assetEvidence,evidence,draftsUnchanged:true,errors,csp},null,2));console.log('PASS workspace artwork: '+output);
+})().catch(async error=>{console.error(error);process.exitCode=1;await page?.screenshot({path:path.join(output,'failure.png')}).catch(()=>{});fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:false,mode:runMode,error:String(error),evidence,errors,csp},null,2));}).finally(async()=>{fs.writeFileSync(path.join(output,'server.log'),logs);await browser?.close();server.kill();});

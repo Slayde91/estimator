@@ -58,6 +58,33 @@
   .workspace-header-art--spray .workspace-banner-crop { aspect-ratio:1.6; }
   .calculator-workspace-heading .workspace-banner-image { top:0; height:100%; object-fit:cover; }
   .workspace-header-art--spray .workspace-banner-image { object-position:center 78%; }
+  /* The original title and controls still size the row. An empty flexible slot
+     places the artwork directly after the copy without adding layout height. */
+  .calculator-heading-copy { display:flex; flex:1 1 auto; align-items:center; align-self:stretch; min-width:0; }
+  .calculator-heading-text { flex:0 1 auto; min-width:0; }
+  .calculator-heading-art-slot { position:relative; flex:1 1 0; align-self:stretch; min-width:0; pointer-events:none; }
+  .calculator-heading-lightning {
+    position:absolute; inset-block:50% auto; inset-inline:6px auto; width:12px; height:56px;
+    transform:translateY(-50%); color:var(--red); pointer-events:none;
+  }
+  .calculator-heading-art-slot .workspace-header-art {
+    inset-block:calc(50% - 2.5px) auto; inset-inline:24px auto; width:auto;
+    height:calc(100% + 45px); max-width:calc(100% - 24px); aspect-ratio:2.7;
+    transform:translateY(-50%);
+    -webkit-mask-image:linear-gradient(90deg,transparent,#000 20%,#000 80%,transparent),linear-gradient(transparent,#000 22%,#000 78%,transparent);
+    mask-image:linear-gradient(90deg,transparent,#000 20%,#000 80%,transparent),linear-gradient(transparent,#000 22%,#000 78%,transparent);
+  }
+  .calculator-heading-art-slot .workspace-header-art--spray { aspect-ratio:1.6; }
+  .calculator-heading-art-slot .workspace-banner-crop {
+    inset:0; width:100%; height:100%; max-width:none; aspect-ratio:auto; transform:none;
+    -webkit-mask-image:none; mask-image:none;
+  }
+  /* Keep the former 4.5:1 scene scale while removing its empty left 40%.
+     The source pixels and their orientation remain unchanged in RTL layouts. */
+  .calculator-heading-art-slot .workspace-banner-image {
+    left:auto; right:0; top:0; width:calc(100% / .6); height:100%; object-fit:cover; object-position:right center;
+  }
+  .calculator-heading-art-slot .workspace-header-art--spray .workspace-banner-image { width:100%; object-position:center 78%; }
   /* The art has no intrinsic layout size. The original title and actions still
      determine the row height and its wrap point. */
   .takeoff-heading-copy { display:flex; flex:1 0 auto; align-items:center; align-self:stretch; min-width:0; }
@@ -116,6 +143,15 @@
     }
     .calculator-workspace-heading .workspace-header-art--spray .workspace-banner-crop { width:auto; height:100%; aspect-ratio:1.6; }
     .calculator-workspace-heading .workspace-header-art:not(.workspace-header-art--spray) .workspace-banner-image { object-fit:contain; }
+    .calculator-heading-art-slot .workspace-header-art {
+      inset-block:50% auto; height:calc(100% + 40px);
+    }
+    .calculator-heading-art-slot .workspace-banner-crop { inset:0; width:100%; height:100%; aspect-ratio:auto; transform:none; }
+    .calculator-heading-art-slot .workspace-header-art--spray .workspace-banner-crop { width:100%; height:100%; aspect-ratio:auto; }
+    .calculator-heading-art-slot .workspace-header-art:not(.workspace-header-art--spray) .workspace-banner-image { object-fit:cover; }
+    /* The phone toggle follows writing direction. Keep its full native menu
+       inside the card in RTL instead of extending from a physical left edge. */
+    .calculator-workspace-heading .calculator-document-actions { left:auto; right:auto; inset-inline-start:0; inset-inline-end:auto; }
     .workspace-banner-heading > .workspace-header-art--estimate {
       inset:0; inset-inline-start:auto; inset-block-end:auto; width:48%; height:auto; max-width:none; aspect-ratio:3;
       transform:none; object-fit:contain; opacity:.32;
@@ -130,5 +166,5 @@
   }
 }
 @media print {
-  .workspace-header-art,.penetration-workspace-art,.home-laser-art,.takeoff-heading-art-slot { display:none!important; }
+  .workspace-header-art,.penetration-workspace-art,.home-laser-art,.takeoff-heading-art-slot,.calculator-heading-art-slot { display:none!important; }
 }

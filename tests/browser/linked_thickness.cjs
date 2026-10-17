@@ -150,7 +150,16 @@ async function editSprayLength(binding, value) {
   assert.deepEqual((await snapshot()).items, beforeColours.items); assert.deepEqual((await snapshot()).transfers, beforeColours.transfers); assert.deepEqual(await calculators(), beforeColourCalculators);
   await response(() => page.getByRole('button', { name: 'Legend', exact: true }).click(), '/commands');
   const legend = () => page.getByRole('button', { name: 'Steel Legend', exact: true });
-  const initialFit=await legend().evaluate(el=>{const r=el.querySelector('rect'),texts=[...el.querySelectorAll('text')].map(node=>{const b=node.getBBox();return{x:b.x,y:b.y,width:b.width,height:b.height};});return{width:Number(r.getAttribute('width')),height:Number(r.getAttribute('height')),x:Number(r.getAttribute('x')),y:Number(r.getAttribute('y')),texts};});
+  // Overlay refreshes can detach a resolved SVG before evaluation. Measure
+  // one connected frame/text layout, retaining the strict overflow bounds.
+  await page.evaluate(() => document.fonts.ready);
+  let initialFit;
+  await expect.poll(async () => {
+    initialFit=await legend().evaluate(el=>{if(!el.isConnected)return null;const r=el.querySelector('rect'),texts=[...el.querySelectorAll('text')].map(node=>{const b=node.getBBox();return{x:b.x,y:b.y,width:b.width,height:b.height};});return{width:Number(r.getAttribute('width')),height:Number(r.getAttribute('height')),x:Number(r.getAttribute('x')),y:Number(r.getAttribute('y')),texts};});
+    return !!initialFit?.texts.length && initialFit.texts.every(text =>
+      text.x >= initialFit.x && text.x + text.width <= initialFit.x + initialFit.width + 1 &&
+      text.y >= initialFit.y && text.y + text.height <= initialFit.y + initialFit.height + 1);
+  }, { message: 'Populated legend text fits its current frame after fonts settle' }).toBe(true);
   assert.ok(initialFit.width>120&&initialFit.height>40,'First legend fits populated text rather than a fixed large frame');
   for(const text of initialFit.texts){assert.ok(text.x>=initialFit.x&&text.x+text.width<=initialFit.x+initialFit.width+1);assert.ok(text.y>=initialFit.y&&text.y+text.height<=initialFit.y+initialFit.height+1);}
   await expect(legend()).toContainText('SPRAY-LINK'); await expect(legend()).toContainText('410UB54'); await expect(legend()).toContainText(`${sprayValue} mm`);

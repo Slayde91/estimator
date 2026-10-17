@@ -5,8 +5,9 @@ const fs=require('node:fs'),path=require('node:path'),assert=require('node:asser
 const {chooseCalculator}=require('./calculator_actions.cjs');
 const {chooseTakeoff}=require('./section_navigation.cjs');
 const takeoffWidthOnly=process.argv.includes('--takeoff-width-only');
-const calculatorBannersOnly=process.argv.includes('--calculator-banners-only');
-const runMode=takeoffWidthOnly?'takeoff-width-only':calculatorBannersOnly?'calculator-banners-only':'complete-artwork';
+const rtlCalculatorMenusOnly=process.argv.includes('--rtl-calculator-menus-only');
+const calculatorBannersOnly=process.argv.includes('--calculator-banners-only')||rtlCalculatorMenusOnly;
+const runMode=takeoffWidthOnly?'takeoff-width-only':rtlCalculatorMenusOnly?'rtl-calculator-menus-only':calculatorBannersOnly?'calculator-banners-only':'complete-artwork';
 const root=path.resolve(__dirname,'../..'),output=path.join(root,'.runtime/browser-qa',`workspace-art-${Date.now()}`);
 fs.mkdirSync(output,{recursive:true});
 const server=spawn(process.env.CEASEFIRE_PYTHON||'python',[path.join(__dirname,'fixtures.py'),'--directory',output],{cwd:root,windowsHide:true});
@@ -125,8 +126,11 @@ async function calculatorFraming(kind,name,themes=['ceasefire','midnight','ocean
    else{assert.ok(value.sourceCrop.left>=value.natural[0]*.399&&Math.abs(value.sourceCrop.left+value.sourceCrop.width-value.natural[0])<.25,'Only the useful right scene is retained after trimming at least40percent empty left canvas');if(width>760&&value.frame.width>=value.frame.height*2.7-.1)assert.ok(Math.abs(value.scale-value.baseline.art.scale)<.001,'Unconstrained cropping preserves the shipped useful-scene scale');}
    // Open the real disclosure in every theme/width, including RTL, and hit-test
    // its first native action above the artwork and later sticky worksheet cells.
-   await toggle.click();const menu=page.locator('#calculator-document-menu');await expect(menu).toBeVisible();const first=menu.locator('button:visible').first();await first.click({trial:true});const reachable=await first.evaluate(n=>{const r=n.getBoundingClientRect(),hit=document.elementFromPoint(r.x+r.width/2,r.y+r.height/2);return!!hit&&(hit===n||n.contains(hit));});assert.equal(reachable,true);await toggle.press('Escape');await expect(menu).toBeHidden();
-   evidence.push({name:name+'-adjacent-framing',theme:themeId,viewport:width,...value,menuReachable:reachable});await page.screenshot({path:path.join(output,`${name}-adjacent-${themeId}-${value.direction}-${width}.png`)});
+   await toggle.click();const menu=page.locator('#calculator-document-menu');await expect(menu).toBeVisible();const first=menu.locator('button:visible').first();await first.click({trial:true});const menuHit=await first.evaluate(n=>{const box=el=>{const r=el.getBoundingClientRect();return{x:r.x,y:r.y,right:r.right,bottom:r.bottom,width:r.width,height:r.height};},r=box(n),point={x:r.x+r.width/2,y:r.y+r.height/2},hit=document.elementFromPoint(point.x,point.y);return{reachable:!!hit&&(hit===n||n.contains(hit)),connected:n.isConnected,point,action:r,menu:box(n.closest('.calculator-document-actions')),workspace:box(n.closest('#calculator-workspace')),viewport:{width:innerWidth,clientWidth:document.documentElement.clientWidth,height:innerHeight},hit:hit?{tag:hit.tagName,id:hit.id,class:String(hit.className)}:null};});
+   const diagnostic=JSON.stringify({name,theme:themeId,width,direction:value.direction,...menuHit});
+   assert.ok(menuHit.menu.x>=menuHit.workspace.x-.1&&menuHit.menu.right<=menuHit.workspace.right+.1&&menuHit.menu.x>=0&&menuHit.menu.right<=menuHit.viewport.clientWidth+.1,'The complete native Document menu fits horizontally without card/viewport clipping: '+diagnostic);
+   assert.equal(menuHit.reachable,true,'Native pointer reaches the actual action centre: '+diagnostic);await toggle.press('Escape');await expect(menu).toBeHidden();
+   evidence.push({name:name+'-adjacent-framing',theme:themeId,viewport:width,...value,menuReachable:menuHit.reachable,menuHit});await page.screenshot({path:path.join(output,`${name}-adjacent-${themeId}-${value.direction}-${width}.png`)});
   }
  }
  await page.emulateMedia({media:'print'});await expect(heading.locator('.calculator-heading-art-slot')).toBeHidden();await page.emulateMedia({media:'screen'});await page.setViewportSize({width:1384,height:764});
@@ -211,7 +215,7 @@ async function takeoffHeading(name,route,themes=['ceasefire','midnight','ocean',
  await framing('.workspace-header-art--estimate','estimate');
  await documentActions('[aria-controls="firestopping-document-actions"]',['download-full-schedule','download-full-product-summary'],'estimate');
  }
- if(!takeoffWidthOnly){
+ if(!takeoffWidthOnly&&!rtlCalculatorMenusOnly){
  for(const [name,id,kind]of [['Steel (spray)','steel_vermiculite','spray'],['Steel (board)','steel_board','board'],['Ductwork (spray/wrap)','ductwork','ductwork']]){
   await chooseCalculator(page,name);await idle();await expect(page.locator('#calculator-workspace')).toHaveAttribute('data-calculator-kind',id);
   await expect(page.locator('#calculator-workspace .workspace-header-art:visible')).toHaveCount(1);await art('.workspace-header-art--'+kind,id,true);

@@ -149,6 +149,9 @@
     .calculator-heading-art-slot .workspace-banner-crop { inset:0; width:100%; height:100%; aspect-ratio:auto; transform:none; }
     .calculator-heading-art-slot .workspace-header-art--spray .workspace-banner-crop { width:100%; height:100%; aspect-ratio:auto; }
     .calculator-heading-art-slot .workspace-header-art:not(.workspace-header-art--spray) .workspace-banner-image { object-fit:cover; }
+    /* The phone toggle follows writing direction. Keep its full native menu
+       inside the card in RTL instead of extending from a physical left edge. */
+    .calculator-workspace-heading .calculator-document-actions { left:auto; right:auto; inset-inline-start:0; inset-inline-end:auto; }
     .workspace-banner-heading > .workspace-header-art--estimate {
       inset:0; inset-inline-start:auto; inset-block-end:auto; width:48%; height:auto; max-width:none; aspect-ratio:3;
       transform:none; object-fit:contain; opacity:.32;

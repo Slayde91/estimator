@@ -90,7 +90,7 @@ class ThemeAssetTests(unittest.TestCase):
 
     def test_takeoff_heading_art_is_full_edition_only(self):
         before = {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in self.folder.glob('*.sqlite3')}
-        for name in ('takeoff-header-steel.png', 'takeoff-header-ductwork.png', 'takeoff-header-physical.png'):
+        for name in ('takeoff-header-steel.png', 'takeoff-header-ductwork.png', 'takeoff-header-physical.png', 'takeoff-header-service-plans.png'):
             with self.subTest(asset=name):
                 status, headers, payload = self.get('full', '/' + name)
                 self.assertEqual(status, 200)

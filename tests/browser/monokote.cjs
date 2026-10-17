@@ -5,7 +5,8 @@ const {spawn, spawnSync} = require('node:child_process');
 const fs = require('node:fs'), path = require('node:path'), os = require('node:os'), crypto = require('node:crypto'), assert = require('node:assert/strict');
 const root = path.resolve(__dirname, '../..');
 const sourcePaths = ['static/calculators.js', 'data/calculators/index.json', 'data/calculators/steel_vermiculite.json.gz',
-  'estimator/workbook_calculators.py', 'estimator/excel_engine.py', 'estimator/calculator_register.py', 'estimator/schedule_workbook.py'];
+  'estimator/workbook_calculators.py', 'estimator/workbook_runtime.py', 'estimator/calculator_defaults.py',
+  'estimator/excel_engine.py', 'estimator/calculator_register.py', 'estimator/schedule_workbook.py'];
 const sourceHashes = () => Object.fromEntries(sourcePaths.map(name => [name, crypto.createHash('sha256').update(fs.readFileSync(path.join(root, name))).digest('hex')]));
 const sourceBefore = sourceHashes();
 const privateEvidence = Boolean(process.env.CEASEFIRE_CALCULATOR_EVIDENCE_DIRECTORY);
@@ -23,7 +24,7 @@ const ready = new Promise((resolve, reject) => {
   server.once('exit', code=>{clearTimeout(timer);reject(new Error(`Server exited ${code}: ${logs}`));});
 });
 const errors=[], journeys=[], pfcJourneys=[];
-let schedulePresentation;
+let schedulePresentation, applicationBasis;
 const control = (sheet,address) => page.locator(`[data-calculator-sheet="${sheet}"][data-calculator-cell="${address}"]`);
 const rendered = address => page.locator(`[data-calculator-output="${address}"]`);
 const values = result => Object.fromEntries(result.rows.flatMap(row=>row.cells.map(cell=>[cell.address,cell.value])));
@@ -45,12 +46,33 @@ async function apiReply(action,suffix) {
   const pending=page.waitForResponse(response=>new URL(response.url()).pathname.endsWith(suffix));
   await action();const response=await pending,body=await response.json();assert.equal(response.status(),200,JSON.stringify(body));return body;
 }
+function savedCalculatorRows() {
+  const result=spawnSync(python,['-c','import json,sqlite3,sys;db=sqlite3.connect(sys.argv[1]);print(json.dumps(db.execute("SELECT * FROM calculator_states ORDER BY id").fetchall()))',path.join(output,'qa.sqlite3')],{cwd:root,encoding:'utf8',windowsHide:true});
+  assert.equal(result.status,0,result.stderr);return JSON.parse(result.stdout);
+}
+async function selectBasis(product, address, wasteRow, mode) {
+  await tab('SETTINGS');await page.getByRole('button',{name:product,exact:true}).click();
+  const select=control('SETTINGS',address);await expect(select).toBeVisible();
+  await expect(select).toHaveJSProperty('tagName','SELECT');
+  await expect(select.locator('option')).toHaveText(['Injected','Uninjected']);
+  assert.deepEqual(await select.locator('option').evaluateAll(options=>options.map(option=>option.value)),['Injected','Uninjected']);
+  const placement=await select.evaluate(element=>({row:element.closest('tr').dataset.sourceRow,
+    previous:element.closest('tr').previousElementSibling?.dataset.sourceRow,
+    label:element.closest('tr').textContent}));
+  assert.equal(placement.row,address.slice(1));assert.equal(placement.previous,String(wasteRow));
+  assert.match(placement.label,/Spray application basis/);
+  await select.focus();await select.selectOption(mode);await idle();await expect(select).toHaveValue(mode);
+  const result=await recalculate('SETTINGS'),used=address==='D569'?'D238':'D565';await expect(rendered(used)).toBeVisible();
+  closeNumber(result[used],(address==='D569'?21.8/344:22.2/325)*(address==='D569' && mode==='Injected'?40/27:1),'selected method yield');
+  return {...placement,mode,yield:result[used]};
+}
 async function screenshot(name,fixture) {
   if(fixture.synthetic) await page.evaluate(()=>{document.title='SYNTHETIC TEST DATA — NOT FOR DESIGN';let label=document.getElementById('synthetic-qa-label');if(!label){label=document.createElement('p');label.id='synthetic-qa-label';label.textContent='SYNTHETIC TEST DATA — NOT FOR DESIGN';document.body.prepend(label);}});
   await page.screenshot({path:path.join(output,name),fullPage:true});
 }
 (async()=>{
   const info=await ready,fixture=JSON.parse(fs.readFileSync(path.join(output,'monokote-fixture.json'),'utf8'));fixtureInfo=fixture;
+  assert.ok(Number.isInteger(info.port) && info.port>0 && info.port!==8765,'Monokote browser uses an isolated ephemeral port');
   assert.equal(fixture.synthetic,!privateEvidence);
   browser=await chromium.launch({headless:true});page=await browser.newPage({viewport:{width:1600,height:1100}});page.setDefaultTimeout(60000);
   page.on('pageerror',error=>errors.push(error.message));
@@ -88,6 +110,54 @@ async function screenshot(name,fixture) {
     journeys.push({product,thickness,netBags:result[`T${row}`],schedule:true});
     console.log(`Verified schedule: ${product}.`);
   }
+  // Save the uninjected baseline, then export a genuinely unsaved Injected
+  // draft. All files remain in the disposable project's own directory.
+  const baseline=await recalculate('SCHEDULE');
+  await apiReply(()=>clickProjectControl(page,'Save'),'/api/project/save-as');
+  await expect(page.locator('#project-save-state')).toHaveText('Saved project');
+  const savedPath=path.join(output,'standard-project.cf.json'),savedBytes=fs.readFileSync(savedPath),savedRows=savedCalculatorRows();
+  const placements=[];
+  placements.push(await selectBasis('MONOKOTE MK-6 HY','D569',237,'Injected'));
+  placements.push(await selectBasis('MONOKOTE Z106','D570',564,'Injected'));
+  await tab('SCHEDULE');const injected=await recalculate('SCHEDULE');
+  closeNumber(injected.T10,baseline.T10*27/40,'MK6 injected bags');
+  for(const address of ['O10','P10','R10','S10','V10','W10','X10','P11','R11','S11','T11','U11','V11','W11','X11']) assert.deepEqual(injected[address],baseline[address],`basis preserves ${address}`);
+  const draft=await page.evaluate(()=>window.CeasefireCalculators.completeProjectSnapshot());
+  assert.equal(draft.steel_vermiculite.inputs.SETTINGS.D569,'Injected');assert.equal(draft.steel_vermiculite.inputs.SETTINGS.D570,'Injected');
+  await expect(page.locator('#project-save-state')).not.toHaveText('Saved project');
+  const exportedDrafts=[];
+  for(const [id,suffix,magic] of [['calculator-pdf','report.pdf','%PDF'],['calculator-summary-pdf','summary.pdf','%PDF'],['calculator-excel','register.xlsx','PK']]) {
+    await page.getByRole('button',{name:'Document',exact:true}).click();
+    const pending=page.waitForRequest(request=>new URL(request.url()).pathname.endsWith(`/steel_vermiculite/${suffix}`));
+    const exported=await apiReply(()=>page.locator(`#${id}`).click(),`/${suffix}`),request=await pending;
+    assert.equal(exported.saved,true);assert.equal(exported.destination,'project');assert.ok(within(output,path.resolve(exported.path)));
+    assert.ok(fs.readFileSync(exported.path).subarray(0,4).toString().startsWith(magic));
+    assert.equal(request.postDataJSON().inputs.SETTINGS.D569,'Injected');assert.equal(request.postDataJSON().inputs.SETTINGS.D570,'Injected');
+    assert.deepEqual(fs.readFileSync(savedPath),savedBytes,'draft export does not save the selected project');assert.deepEqual(savedCalculatorRows(),savedRows,'draft export does not save calculator state');
+    exportedDrafts.push({suffix,path:exported.path});
+  }
+  const inspection=spawnSync(python,['-c','import json,sys;from openpyxl import load_workbook;from pypdf import PdfReader;w=load_workbook(sys.argv[1],data_only=False);print(json.dumps({"formulas":sum(c.data_type=="f" for s in w for r in s for c in r),"summary":list(w["Summary"].values),"pdf":" ".join(p.extract_text() or "" for p in PdfReader(sys.argv[2]).pages)}))',exportedDrafts[2].path,exportedDrafts[1].path],{cwd:root,encoding:'utf8',windowsHide:true});
+  assert.equal(inspection.status,0,inspection.stderr);const draftFiles=JSON.parse(inspection.stdout);assert.equal(draftFiles.formulas,0);
+  const mk6Order=draftFiles.summary.find(row=>row[0]==='MONOKOTE MK-6 HY'),z106Order=draftFiles.summary.find(row=>row[0]==='MONOKOTE Z106');
+  assert.ok(mk6Order && z106Order);assert.equal(mk6Order[6],Math.ceil(injected.T10));assert.equal(z106Order[6],Math.ceil(injected.T11));
+  assert.match(draftFiles.pdf,/MONOKOTE MK-6 HY/);assert.match(draftFiles.pdf,new RegExp(`\\b${Math.ceil(injected.T10)}(?:\\.00)?\\b`));
+  await apiReply(()=>clickProjectControl(page,'Save'),'/api/project/save');
+  await expect(page.locator('#project-save-state')).toHaveText('Saved project');
+  const savedInjected=JSON.parse(fs.readFileSync(savedPath,'utf8'));assert.equal(savedInjected.calculators.steel_vermiculite.inputs.SETTINGS.D569,'Injected');assert.equal(savedInjected.calculators.steel_vermiculite.inputs.SETTINGS.D570,'Injected');
+  fs.writeFileSync(path.join(output,'dialog-mode.json'),JSON.stringify({open:'saved'}));
+  await apiReply(()=>clickProjectControl(page,'Load'),'/api/project/open');await page.getByRole('dialog').getByRole('button',{name:'Load Project',exact:true}).click();
+  await expect(page.locator('#project-save-state')).toHaveText('Saved project');
+  assert.deepEqual(await page.evaluate(()=>window.CeasefireCalculators.completeProjectSnapshot()),draft);
+  await page.getByRole('button',{name:'Calculators',exact:true}).click();
+  await selectBasis('MONOKOTE MK-6 HY','D569',237,'Uninjected');await selectBasis('MONOKOTE Z106','D570',564,'Uninjected');
+  // Restore the initially collapsed Settings chooser as well as both values,
+  // so the original later first-visit panel checks retain their exact setup.
+  await page.getByRole('button',{name:'MONOKOTE Z106',exact:true}).click();
+  await expect(page.getByRole('button',{name:'MONOKOTE Z106',exact:true})).toHaveAttribute('aria-expanded','false');
+  await tab('SCHEDULE');const restored=await recalculate('SCHEDULE');
+  for(const address of ['O10','P10','S10','T10','U10','P11','S11','T11','U11']) assert.deepEqual(restored[address],baseline[address],`uninjected restored ${address}`);
+  applicationBasis={placements,choices:['Injected','Uninjected'],mk6Factor:40/27,z106Factor:1,baselineBags:[baseline.T10,baseline.T11],injectedBags:[injected.T10,injected.T11],draftExports:exportedDrafts,savedProjectRoundtrip:true,noImplicitSave:true,restoredUninjected:true};
+  console.log('Verified exact basis selectors below Waste, MK6 40/27, independent Z106, unsaved draft PDF/XLSX and saved-project roundtrip.');
   await page.getByRole('button',{name:'Add row',exact:true}).click();
   await fill('SCHEDULE',{A12:'SYNTHETIC-BLOCKED',B12:'MONOKOTE Z106',C12:'Hollow - 4 sides',D12:650,E12:'Hp/A',G12:250,H12:240,I12:1,J12:1,K12:1});
   let scheduled=await recalculate('SCHEDULE');
@@ -135,7 +205,7 @@ async function screenshot(name,fixture) {
   await expect(rendered('L262')).toContainText('no generic factor table');
   await screenshot('monokote-coverage.png',fixture);
   console.log('Verified all six order products, Z106 alignment, hollow coverage and named-only PFC coverage.');
-  await apiReply(()=>clickProjectControl(page, 'Save'),'/api/project/save-as');
+  await apiReply(()=>clickProjectControl(page, 'Save'),'/api/project/save');
   await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   const saved=JSON.parse(fs.readFileSync(path.join(output,'standard-project.cf.json'),'utf8'));
   const before=await page.evaluate(()=>window.CeasefireCalculators.completeProjectSnapshot());
@@ -145,6 +215,7 @@ async function screenshot(name,fixture) {
   await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   assert.deepEqual(await page.evaluate(()=>window.CeasefireCalculators.completeProjectSnapshot()),before);
   assert.equal(saved.version,1);
+  assert.equal(saved.calculators.steel_vermiculite.inputs.SETTINGS.D569,'Uninjected');assert.equal(saved.calculators.steel_vermiculite.inputs.SETTINGS.D570,'Uninjected');
   await page.getByRole('button',{name:'Calculators',exact:true}).click();await tab('SCHEDULE');
   const reopened=await recalculate('SCHEDULE');
   for(const address of ['P10','T10','P11','T11','P12','T12','V12','O13','P13','S13','T13','V13','W13','X13']) assert.deepEqual(reopened[address],scheduled[address],`reopened ${address}`);
@@ -168,6 +239,6 @@ async function screenshot(name,fixture) {
   const pfcRow=workbook.rows.Schedule.find(row=>row[2]==='SYNTHETIC-PFC');assert.ok(pfcRow);
   closeNumber(pfcRow[7],19,'exported PFC published thickness');closeNumber(pfcRow[8],scheduled.R13,'exported PFC spray surface');assert.match(pfcRow[9],/MK6-030521 p15/);
   assert.deepEqual(errors,[]);assert.deepEqual(await page.evaluate(()=>window.qaCsp),[]);assert.deepEqual(sourceHashes(),sourceBefore);
-  fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({completed:true,...fixture,sourceHashes:sourceBefore,schedulePresentation,journeys,pfcJourneys,blockedQuantitiesWithheld:true,schedule:true,pfcSchedule:true,pfcSaveReopen:true,pfcExport:true,allSixProductTotals:true,z106SummaryCentered:true,z106SettingsLeftAligned:true,hollowAssessmentCoverage:true,pfcNamedOnlyCoverage:true,saveReopen:true,valuesOnlyExport:true,errors,csp:[]},null,2));
+  fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({completed:true,...fixture,sourceHashes:sourceBefore,schedulePresentation,applicationBasis,journeys,pfcJourneys,blockedQuantitiesWithheld:true,schedule:true,pfcSchedule:true,pfcSaveReopen:true,pfcExport:true,allSixProductTotals:true,z106SummaryCentered:true,z106SettingsLeftAligned:true,hollowAssessmentCoverage:true,pfcNamedOnlyCoverage:true,saveReopen:true,valuesOnlyExport:true,errors,csp:[]},null,2));
   console.log(`PASS: ${fixture.evidence_mode}; MONOKOTE hollow/PFC schedule, bags, blocked source, schedule, save/reopen and values-only XLSX. Evidence: ${output}`);
 })().catch(async error=>{console.error(error);console.error(logs.slice(-5000));if(page)await screenshot('failure.png',fixtureInfo || {synthetic:!privateEvidence}).catch(()=>{});process.exitCode=1;}).finally(async()=>{fs.writeFileSync(path.join(output,'server.log'),logs);if(browser)await browser.close();server.kill();});

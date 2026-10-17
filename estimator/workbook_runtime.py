@@ -12,7 +12,7 @@ import re
 from openpyxl.formula.translate import Translator
 
 from .workbook_catalog import load_workbook_catalog, list_workbook_catalogs, range_addresses
-from .calculator_defaults import default_calculator_inputs
+from .calculator_defaults import default_calculator_inputs, MONOKOTE_APPLICATION_BASIS_CELLS, MONOKOTE_APPLICATION_BASES
 from .ductwork_policy import apply_ductwork_choices
 
 
@@ -336,6 +336,52 @@ def _add_monokote_z106(model):
     bags['rows']['25'] = {**bags['rows']['24'], 'r': '25'}
 
 
+def _add_monokote_application_basis(model):
+    """Record the application method without changing the imported source.
+
+    MK-6 HY uses the existing Ductwork estimating pair, 40/27 board feet.
+    GCP Australia's MONOKOTE Accelerator data (29 April 2026, Use section)
+    explicitly excludes Z-106/HY from injection yield gains, so its quantity
+    formula stays unchanged. The method still belongs to its saved inputs.
+    """
+    settings = next(sheet for sheet in model['sheets'] if sheet['name'] == 'SETTINGS')
+    cells = settings['cells']
+    source_merges = list(settings['merges'])
+    for address in MONOKOTE_APPLICATION_BASIS_CELLS.values():
+        row = int(address[1:])
+        settings['rows'][str(row)] = {**settings['rows']['237'], 'r': str(row)}
+        for column in ('A', 'D', 'G'):
+            cells[f'{column}{row}'] = deepcopy(cells[f'{column}237'])
+            cells[f'{column}{row}'].pop('formula', None)
+            cells[f'{column}{row}'].pop('cached_value', None)
+        cells[f'A{row}']['value'] = 'Spray application basis'
+        cells[address].update(value='Uninjected', data_type='s', style=cells['D12']['style'])
+        cells[f'G{row}'].pop('value', None)
+        for merged in source_merges:
+            match = re.fullmatch(r'([A-Z]+)237:([A-Z]+)237', merged)
+            if match:
+                settings['merges'].append(f'{match[1]}{row}:{match[2]}{row}')
+        validation = {'type': 'list', 'sqref': address,
+                      'formula1': '"' + ','.join(MONOKOTE_APPLICATION_BASES) + '"',
+                      'allowBlank': '0', 'showErrorMessage': '1', 'errorStyle': 'stop'}
+        settings['validations'].append(validation)
+        model['fields']['SETTINGS'].append({'cell': address, 'label': 'Spray application basis',
+                                            'type': 'select', 'setting': True, 'validation': validation})
+        model['setting_ranges']['SETTINGS'].append(address)
+    settings['dimension'] = settings['page_range'] = 'A1:BM570'
+
+    # Keep the old direct-yield priority, invalid/blank semantics and density
+    # fallback verbatim. Only an explicit Injected choice multiplies that base.
+    base = cells['D238']['formula']
+    cells['D238']['formula'] = (f'IF(D569="Injected",IF(ISNUMBER({base}),({base})*(40/27),""),'
+                                f'IF(D569="Uninjected",{base},""))')
+    cells['D238'].pop('cached_value', None)
+    status = cells['D239']['formula']
+    cells['D239']['formula'] = (f'IF(D569="Injected",IF(ISNUMBER(D238),"INJECTED ESTIMATE SET",'
+                                f'"ENTER VERIFIED YIELD"),{status})')
+    cells['D239'].pop('cached_value', None)
+
+
 @lru_cache(maxsize=3)
 def _application_catalog(calculator_id):
     """Private, shared model; consumers must treat it as immutable."""
@@ -352,6 +398,7 @@ def _application_catalog(calculator_id):
     if calculator_id == 'steel_vermiculite':
         _add_spray_location(model)
         _add_monokote_z106(model)
+        _add_monokote_application_basis(model)
     elif calculator_id == 'steel_board':
         schedule['line_numbers'] = True
         schedule['location_column'] = 'B'

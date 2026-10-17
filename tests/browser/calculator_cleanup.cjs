@@ -14,6 +14,26 @@ async function tab(name){await page.locator('#calculator-pages').getByRole('butt
  const info=await ready;assert.notEqual(info.port,8765);browser=await chromium.launch({headless:true});page=await browser.newPage({viewport:{width:1146,height:764}});page.setDefaultTimeout(60000);
  const errors=[];page.on('pageerror',error=>errors.push(error.message));await page.goto(`http://127.0.0.1:${info.port}/`);await page.waitForFunction(()=>window.CeasefireDesktop?.status().ready);
  await chooseCalculator(page,'Steel (spray)');await idle();const before=await page.evaluate(()=>window.CeasefireCalculators.completeProjectSnapshot());
+ // The marked START content is a virtual SETTINGS projection. Browser removals
+ // leave original worksheet directions, retained neighbors and drafts intact.
+ await expect(page.locator('#calculator-sheet-title')).toHaveText('START');
+ const startResponse=await page.request.post(`http://127.0.0.1:${info.port}/api/calculators/steel_vermiculite/worksheet`,{data:{sheet:'SETTINGS'}});assert.equal(startResponse.status(),200);
+ const startRaw=await startResponse.json(),startCells=new Map(startRaw.rows.flatMap(row=>row.cells.map(cell=>[cell.address,cell]))),startChecks=[];
+ for(const [address,prefix] of [['A292','SCHEDULE AND SORTING'],['A293','Sort or filter the entire SCHEDULE table'],['A308','PROJECT RELEASE'],['A309','Have the designer confirm'],['A312','SOURCE CONTROL AND QUALITY'],['A313','The workbook records the supplied report editions']]){
+   assert.ok(startCells.get(address).value.startsWith(prefix),`${address}: original START source retained`);
+   await expect(page.locator(`#calculator-grid [data-calculator-output="${address}"]`)).toHaveCount(0);
+   startChecks.push({address,sourceRetained:true,browserSectionRemoved:true});
+ }
+ for(const [address,sourceFragment,removedFragment,retainedFragment] of [
+   ['A7','SCHEDULE = take-off','SCHEDULE = take-off','SUMMARY = ordering'],
+   ['A273','Use CALCULATOR for one member or SCHEDULE for up to 1,000 lines.','Use SCHEDULE for one member or SCHEDULE for up to 1,000 lines.','Select product, exposure, steel temperature and input method.'],
+   ['A301','CAFCO uses an inherited assumption;','The original CAFCO workbook used an inherited assumption; new estimates use user-selected consumption settings.','The startup densities are estimating assumptions; verify product-specific site yield.']]){
+   assert.ok(startCells.get(address).value.includes(sourceFragment),`${address}: original fragment retained in API`);
+   const output=page.locator(`#calculator-grid [data-calculator-output="${address}"]`);await expect(output).toContainText(retainedFragment);await expect(output).not.toContainText(removedFragment);
+   startChecks.push({address,sourceRetained:true,browserFragmentRemoved:true,remainingGuidanceRetained:true});
+ }
+ await expect(page.locator('#calculator-grid')).toContainText('QUANTITIES');await expect(page.locator('#calculator-grid')).toContainText('BAG YIELDS AND ORDERS');
+ await page.screenshot({path:path.join(output,'spray-start-selected-text-removed.png'),fullPage:true});
  await expect(page.locator('#calculator-pages').getByRole('button',{name:'LOOKUP',exact:true})).toHaveCount(0);
  await tab('SCHEDULE');await expect(page.locator('#calculator-product-totals')).toHaveCount(0);
  await tab('SUMMARY');await expect(page.locator('#calculator-product-totals')).toContainText('PRODUCT SUMMARY');
@@ -81,5 +101,5 @@ async function tab(name){await page.locator('#calculator-pages').getByRole('butt
  const filled=await page.evaluate(()=>window.CeasefireCalculators.completeProjectSnapshot());
  await tab('SCHEDULE');await tab('BOARD SUMMARY');assert.deepEqual(await page.evaluate(()=>window.CeasefireCalculators.completeProjectSnapshot()),filled);
  await page.screenshot({path:path.join(output,'net-steel-double-layer.png'),fullPage:true});assert.deepEqual(errors,[]);
- fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({completed:true,unchangedInputs:true,requestedDuctNotes:noteChecks,errors},null,2));console.log(`PASS calculator cleanup: ${output}`);
+ fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({completed:true,unchangedInputs:true,requestedSprayInstructions:startChecks,requestedDuctNotes:noteChecks,errors},null,2));console.log(`PASS calculator cleanup: ${output}`);
 })().catch(async error=>{console.error(error);console.error(logs.slice(-3000));if(page)await page.screenshot({path:path.join(output,'failure.png'),fullPage:true}).catch(()=>{});process.exitCode=1;}).finally(async()=>{if(browser)await browser.close();server.kill();});

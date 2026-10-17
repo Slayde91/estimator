@@ -2603,6 +2603,13 @@
     "غير محقون",
     "ไม่ฉีดสารเพิ่ม"
   ],
+  "Uninjected": [
+    "未注入",
+    "बिना इंजेक्शन",
+    "Sin inyección",
+    "غير محقون",
+    "ไม่ฉีดสารเพิ่ม"
+  ],
   "Injected": [
     "已注入",
     "इंजेक्टेड",
@@ -4303,6 +4310,27 @@
     "Existencias de banda superior COREX 120-minute / 550 C",
     "مخزون النطاق العلوي COREX 120-minute / 550 C",
     "วัสดุคงคลังช่วงบน COREX 120-minute / 550 C"
+  ],
+  "SCHEDULE = members  |  SUMMARY = ordering  |  Open FACTOR CALCS for the Section Factor Helper.": [
+    "清单 = 构件 | 汇总 = 订购 | 打开“系数计算”使用截面系数助手。",
+    "अनुसूची = सदस्य | सारांश = आदेश | अनुभाग गुणांक सहायक के लिए गुणांक गणना खोलें।",
+    "LISTADO = elementos | RESUMEN = pedidos | Abra CÁLCULOS DE FACTOR para usar el asistente de factor de sección.",
+    "الجدول = العناصر | الملخص = الطلبات | افتح حسابات المعامل لاستخدام مساعد معامل المقطع.",
+    "รายการ = ชิ้นส่วน | สรุป = สั่งซื้อ | เปิดการคำนวณค่าปัจจัยเพื่อใช้เครื่องช่วยค่าปัจจัยหน้าตัด"
+  ],
+  "Select product, exposure, steel temperature and input method. Enter the exact section or verified factor. Lower-web input is only for Fendolite castellated beams.": [
+    "选择产品、受火情况、钢材温度和输入方式。输入准确的截面或已核实的系数。下腹板输入仅适用于 Fendolite 蜂窝梁。",
+    "उत्पाद, अग्नि संपर्क, इस्पात तापमान और इनपुट विधि चुनें। सटीक अनुभाग या सत्यापित गुणांक दर्ज करें। निचले वेब का इनपुट केवल Fendolite कैस्टेलेटेड बीम के लिए है।",
+    "Seleccione producto, exposición, temperatura del acero y método de entrada. Introduzca la sección exacta o el factor verificado. La entrada del alma inferior es solo para vigas alveoladas Fendolite.",
+    "اختر المنتج والتعرض ودرجة حرارة الفولاذ وطريقة الإدخال. أدخل المقطع الدقيق أو المعامل المتحقق منه. إدخال الجسر السفلي مخصص لكمرات Fendolite المفرغة فقط.",
+    "เลือกผลิตภัณฑ์ การรับไฟ อุณหภูมิเหล็ก และวิธีป้อนข้อมูล ป้อนหน้าตัดที่ตรงหรือค่าปัจจัยที่ตรวจสอบแล้ว ข้อมูลเอวล่างใช้เฉพาะคานเจาะช่อง Fendolite"
+  ],
+  "Verify pack size, method and site yield for each product. The startup densities are estimating assumptions; verify product-specific site yield. Add waste separately. See the historical product yield-source records on SETTINGS.": [
+    "核实每种产品的包装规格、施工方法及现场产出率。初始密度为估算假设，请核实各产品的现场产出率。另行添加损耗。历史产品产出率来源记录见“设置”。",
+    "हर उत्पाद के पैक आकार, विधि और साइट उपज की पुष्टि करें। शुरुआती घनत्व अनुमान संबंधी धारणाएँ हैं; उत्पाद-विशिष्ट साइट उपज की पुष्टि करें। बर्बादी अलग जोड़ें। सेटिंग्स में ऐतिहासिक उत्पाद उपज स्रोत रिकॉर्ड देखें।",
+    "Verifique el tamaño del envase, el método y el rendimiento en obra de cada producto. Las densidades iniciales son hipótesis de estimación; verifique el rendimiento en obra de cada producto. Añada la merma por separado. Consulte los registros históricos de fuentes de rendimiento en AJUSTES.",
+    "تحقق من حجم العبوة والطريقة والإنتاجية في الموقع لكل منتج. الكثافات الأولية افتراضات تقديرية؛ تحقق من الإنتاجية الخاصة بكل منتج في الموقع. أضف الهدر بشكل منفصل. راجع سجلات مصادر الإنتاجية التاريخية للمنتجات في الإعدادات.",
+    "ตรวจสอบขนาดบรรจุ วิธีการ และอัตราผลผลิตหน้างานของแต่ละผลิตภัณฑ์ ความหนาแน่นเริ่มต้นเป็นสมมติฐานสำหรับประมาณ จึงต้องตรวจสอบอัตราผลผลิตหน้างานเฉพาะผลิตภัณฑ์ เพิ่มการสูญเสียแยกต่างหาก ดูประวัติแหล่งอัตราผลผลิตในหน้าตั้งค่า"
   ],
   "SCHEDULE = members  |  SCHEDULE = take-off  |  SUMMARY = ordering  |  Open FACTOR CALCS for the Section Factor Helper.": [
     "清单 = 构件 | 清单 = 工程量提取 | 汇总 = 订购 | 打开“系数计算”使用截面系数助手。",

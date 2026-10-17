@@ -13,7 +13,8 @@ from openpyxl.formula.translate import Translator
 from .catalog import ROOT, ValidationError
 from .excel_engine import WorkbookEngine, FormulaError, CellRange, coordinates, column_name, column_number, parse_formula, relative_formula, steel_criteria_matches
 from .workbook_runtime import _application_catalog, list_application_catalogs, application_editable_cells as editable_cells
-from .calculator_defaults import default_calculator_inputs, yield_review
+from .calculator_defaults import (default_calculator_inputs, yield_review,
+                                  MONOKOTE_APPLICATION_BASIS_CELLS, MONOKOTE_APPLICATION_BASES)
 from .ductwork_policy import canonical_ductwork_value, normalize_schedule_choices
 
 
@@ -141,6 +142,7 @@ _DISPLAY_CELLS = {
                      **{f'Y{row}': {'bold': False} for row in range(10, 1010)},
                      **{f'F{row}': {'control': 'select'} for row in range(10, 1010)}},
         'SETTINGS': {
+            **{address: {'control': 'select'} for address in MONOKOTE_APPLICATION_BASIS_CELLS.values()},
             **{f'A{row}': {'role': 'column_header'} for row in (48, 81, 113, 190, 246, 560)},
             **{f'D{row}': {'bold': False} for row in (42, 75, 107, 184, 240)},
             **{f'A{row}': {'bold': True} for row in (
@@ -211,7 +213,10 @@ _DUCT_SETTINGS_ROW_LAYOUT = {
 # rectangles follow the original merged cells, including side-by-side tables.
 _SETTINGS_SECTIONS = {
     ('steel_vermiculite', 'SETTINGS'): [
-        {'id': f'A{first}', 'title_address': f'A{first}', 'ranges': [f'A{first}:N{last}']}
+        {'id': f'A{first}', 'title_address': f'A{first}',
+         'ranges': [f'A{first}:N{last}', *({229: ['A569:N569'], 559: ['A570:N570']}.get(first, []))],
+         **({229: {'move_after': [{'row': 237, 'rows': [569]}]},
+             559: {'move_after': [{'row': 564, 'rows': [570]}]}}.get(first, {}))}
         for first, last in ((9, 16), (17, 30), (31, 63), (64, 95), (96, 172),
                             (173, 228), (229, 269), (270, 340), (341, 355), (356, 369),
                             (370, 374), (559, 568))
@@ -435,6 +440,12 @@ def normalize_calculator_inputs(calculator_id, inputs=None):
             raise ValidationError('Only the workbook input and setting fields can be changed; calculated values and reference databases are read-only.')
         normalized[name] = {}
         for address, value in cells.items():
+            if (calculator_id == 'steel_vermiculite' and name == 'SETTINGS'
+                    and address in MONOKOTE_APPLICATION_BASIS_CELLS.values()):
+                if not isinstance(value, str) or value not in MONOKOTE_APPLICATION_BASES:
+                    raise ValidationError('Spray application basis: choose Injected or Uninjected.')
+                normalized[name][address] = value
+                continue
             # Clearing an input is an actual Excel blank, not a text formula "".
             if value is None or value == '':
                 normalized[name][address] = None

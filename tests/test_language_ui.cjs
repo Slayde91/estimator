@@ -106,18 +106,23 @@ test('Operational calculator START prose translates its actual display wording a
   vm.runInContext(source.match(/^  function sheetMetadata[^\n]+/m)[0],h.context);
   for(const name of ['parseAddress','sourceDisplayText','bindCalculatorLabel'])vm.runInContext(source.match(new RegExp(`^  function ${name}[^\\n]+\\n[\\s\\S]*?^  \\}`,'m'))[0],h.context);
   const entry={definition:{id:'steel_vermiculite',sheets:[{name:'SETTINGS'}]},sheet:'SETTINGS',inputs:{SETTINGS:{D346:1.23456789012345}}},before=JSON.stringify(entry),bindings=[];
-  for(const address of ['A7','A273']){
+  for(const address of ['A7','A273','A301']){
     const raw=vm.runInContext(`calculatorLabelSources.steel_vermiculite.SETTINGS.${address}`,h.context),cell={address,value:raw,editable:false,calculated:false},display=h.context.sourceDisplayText(raw,entry,address),element=new Element('P',display);
     assert.notEqual(display,raw,'the existing browser wording is resolved before translation');assert.equal(h.context.bindCalculatorLabel(element,cell,entry,address,display),true);
     bindings.push({element,cell,display});
   }
-  assert.equal(bindings[0].display,'SCHEDULE = members  |  SCHEDULE = take-off  |  SUMMARY = ordering  |  Open FACTOR CALCS for the Section Factor Helper.');
+  assert.equal(bindings[0].display,'SCHEDULE = members  |  SUMMARY = ordering  |  Open FACTOR CALCS for the Section Factor Helper.');
   const probes=[{...bindings[0].cell,editable:true},{...bindings[0].cell,calculated:true},{...bindings[0].cell,address:'A285'},{...bindings[0].cell,value:'User '+bindings[0].cell.value}].map(cell=>{
     const element=new Element('P',cell.value);assert.equal(h.context.bindCalculatorLabel(element,cell,entry,cell.address),false);return{element,cell};
   });
   h.ui.setLanguage('zh-Hans');
-  assert.equal(bindings[0].element.textContent,'清单 = 构件 | 清单 = 工程量提取 | 汇总 = 订购 | 打开“系数计算”使用截面系数助手。');
+  assert.equal(bindings[0].element.textContent,'清单 = 构件 | 汇总 = 订购 | 打开“系数计算”使用截面系数助手。');
   assert.match(bindings[1].element.textContent,/[\u3400-\u9fff]/);assert.doesNotMatch(bindings[1].element.textContent,/Use SCHEDULE/);
+  assert.match(bindings[2].element.textContent,/[\u3400-\u9fff]/);assert.doesNotMatch(bindings[2].element.textContent,/CAFCO|user-selected consumption/);
+  for(const language of ['hi','es','ar','th']){
+    h.ui.setLanguage(language);
+    for(const {element,display} of bindings)assert.notEqual(element.textContent,display,'each shortened direction has a complete translated display');
+  }
   for(const {element,cell} of probes)assert.equal(element.textContent,cell.value,'formula, input and arbitrary source strings remain literal');
   h.ui.setLanguage('en');for(const {element,cell,display} of bindings){assert.equal(element.textContent,display);assert.equal(h.context.sourceDisplayText(cell.value,entry,cell.address),display);}
   assert.equal(JSON.stringify(entry),before,'presentation never edits the calculator draft or precision');

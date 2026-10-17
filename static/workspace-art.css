@@ -64,7 +64,9 @@
   .takeoff-workspace-heading > .takeoff-document-tools { margin:0; margin-inline-start:auto; }
   .takeoff-heading-art-slot { position:relative; flex:1 1 0; align-self:stretch; min-width:0; pointer-events:none; }
   .takeoff-heading-art {
-    position:absolute; inset-block:50% auto; inset-inline:8px auto; height:100%; width:auto; max-width:calc(100% + 8px); transform:translateY(-50%); display:none; overflow:hidden; pointer-events:none;
+    /* Borrow the existing top padding and 20px gap below the heading. The
+       doubled tablet/desktop art has no effect on heading or drawing flow. */
+    position:absolute; inset-block:calc(50% - 4px) auto; inset-inline:8px auto; height:calc(100% + 48px); width:auto; max-width:calc(100% + 8px); transform:translateY(-50%); display:none; overflow:hidden; pointer-events:none;
     -webkit-mask-image:linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent),linear-gradient(transparent,#000 12%,#000 88%,transparent);
     mask-image:linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent),linear-gradient(transparent,#000 12%,#000 88%,transparent);
     -webkit-mask-composite:source-in; mask-composite:intersect;
@@ -120,6 +122,11 @@
       -webkit-mask-image:linear-gradient(90deg,transparent,#000 24%,#000 76%,transparent),linear-gradient(transparent,#000 24%,#000 76%,transparent);
       mask-image:linear-gradient(90deg,transparent,#000 24%,#000 76%,transparent),linear-gradient(transparent,#000 24%,#000 76%,transparent);
     }
+  }
+  @media (max-width:570px) {
+    /* Phone top padding is smaller; keep the same native row wrapping and
+       constrain narrow Steel artwork to the gap before its controls. */
+    .takeoff-heading-art { height:calc(100% + 40px); }
   }
 }
 @media print {

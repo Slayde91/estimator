@@ -72,6 +72,12 @@ class CalculatorSectionNavigationTests(unittest.TestCase):
                 if identity == 'ductwork':
                     expected_ranges[0][1].append('A161:H162')
                     expected_ranges[1][1].append('A163:H164')
+                if identity == 'steel_vermiculite':
+                    for section_id, ranges in expected_ranges:
+                        if section_id == 'A229':
+                            ranges.append('A569:N569')
+                        elif section_id == 'A559':
+                            ranges.append('A570:N570')
                 self.assertEqual([(section['id'], section['ranges']) for section in sections], expected_ranges)
                 self.assertEqual(len({section['id'] for section in sections}), len(expected))
                 source = next(sheet for sheet in source_model(identity)['sheets'] if sheet['name'] == name)

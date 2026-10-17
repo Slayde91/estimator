@@ -116,7 +116,7 @@
   .takeoff-heading-art--physical { aspect-ratio:calc(1.9 * 1054 / 1492); }
   .takeoff-heading-art--physical img { transform:translateY(-63%); }
   /* Service Plans has its own landscape scene; Defect Reports keeps its portrait. */
-  .takeoff-heading-art--service_plans { aspect-ratio:2.7; }
+  .takeoff-heading-art--service_plans { aspect-ratio:2.7; max-width:calc(100% - 8px); }
   .takeoff-heading-art--service_plans img { transform:translateY(-50%); }
   .penetration-banner-heading { position:relative; isolation:isolate; }
   .penetration-banner-heading > :first-child { max-width:58%; }

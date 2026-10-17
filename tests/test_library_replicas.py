@@ -72,7 +72,8 @@ class ReplicaTests(unittest.TestCase):
         manifest = self.root.parent / 'batch.json'
         job = {'status': 'generated_visual_review_passed', 'source_sha256': self.entry['source_sha256'],
             'aliases': ['diagram-a'], 'output': {'path': str(self.file), 'sha256': self.hash},
-            'review': {'result': 'visual_review_passed', 'technical_approval': False}}
+            'review': {'result': 'visual_review_passed', 'technical_approval': False,
+                       'no_text': True, 'no_branding': True}}
         manifest.write_text(json.dumps({'jobs': [job]}), encoding='utf-8')
         before = (self.root / 'library.json').read_bytes()
         first = install(manifest, self.root)
@@ -80,6 +81,15 @@ class ReplicaTests(unittest.TestCase):
         self.assertEqual(first, {'registered_source_ids': 1, 'unique_replica_files': 1})
         self.assertEqual((self.root / 'library.json').read_bytes(), before)
         registry_before = (self.folder / 'index.json').read_bytes()
+        for field in ('no_text', 'no_branding'):
+            for value in (None, False, 'true', 1):
+                with self.subTest(field=field, value=value):
+                    job['review'][field] = value
+                    manifest.write_text(json.dumps({'jobs': [job]}), encoding='utf-8')
+                    with self.assertRaisesRegex(ValidationError, 'no text and no branding'):
+                        install(manifest, self.root)
+                    self.assertEqual((self.folder / 'index.json').read_bytes(), registry_before)
+            job['review'][field] = True
         job['source_sha256'] = '0' * 64
         manifest.write_text(json.dumps({'jobs': [job]}), encoding='utf-8')
         with self.assertRaisesRegex(ValidationError, 'source changed'):

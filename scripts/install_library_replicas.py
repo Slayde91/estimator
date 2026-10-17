@@ -31,6 +31,8 @@ def install(manifest, directory):
             continue
         if job.get('review', {}).get('result') != 'visual_review_passed' or job['review'].get('technical_approval') is not False:
             raise ValidationError('Only explicitly reviewed illustrations can be installed.')
+        if job['review'].get('no_text') is not True or job['review'].get('no_branding') is not True:
+            raise ValidationError('Replicas require explicit visual confirmation of no text and no branding.')
         output = job['output']
         path = Path(output['path'])
         if not 0 < path.stat().st_size <= IMAGE_LIMIT:

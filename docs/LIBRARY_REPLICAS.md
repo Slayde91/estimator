@@ -12,10 +12,16 @@ sharing an output. Similar appearance alone is insufficient. Keep the grouping,
 prompt, generated candidate, visual review and rejected variants in the private
 batch record. Do not commit supplier images or private library records to Git.
 
+Generated replicas contain construction imagery only: no branding, logos, text,
+dimensions, labels, watermarks or printed wrapper graphics. Omit every bottom
+reference code or caption, including codes such as `BMH-120-V38 a`. Record names,
+technical conditions and links to original evidence remain outside image pixels.
+
 `scripts/install_library_replicas.py` installs a reviewed batch manifest into a
 library's separate `replicas` folder. Each reviewed job records `source_sha256`,
 source `aliases`, an `output` path and SHA-256, plus `review.result` equal to
-`visual_review_passed` and `review.technical_approval` equal to `false`. Job status
+`visual_review_passed`, `review.technical_approval` equal to `false`, and explicit
+`review.no_text` and `review.no_branding` booleans equal to `true`. Job status
 is `generated_visual_review_passed` or `reused_visual_review_passed`.
 
 The installer verifies all source and output bytes before writing. Outputs use

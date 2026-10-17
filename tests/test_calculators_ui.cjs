@@ -146,6 +146,18 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
     }
   }passed++;
 
+  // Both application-owned Monokote settings remain two-choice native selects
+  // even if a stale browser response has permissive worksheet metadata.
+  entry=setup({SETTINGS:{D569:'Uninjected',D570:'Uninjected'}});entry.definition.id='steel_vermiculite';entry.sheet='SETTINGS';
+  entry.definition.sheets=[{name:'SETTINGS',display_cells:{D569:{control:'select'},D570:{control:'select'}}}];
+  for(const address of ['D569','D570']){
+    const setting=audit.makeControl({address,type:'select',value:'Uninjected',options:['Injected','Uninjected'],allow_other:true,error_style:'warning'},Number(address.slice(1)),entry,'Spray application basis');
+    assert.equal(setting.tagName,'select');assert.deepEqual(setting.children.map(option=>option.value),['Injected','Uninjected']);
+    assert.ok(!descendants(setting).some(node=>node.tagName==='input'||node.textContent==='Enter custom value…'));
+    setting.value='Injected';await setting.emit('change');assert.equal(entry.inputs.SETTINGS[address],'Injected');
+    setting.value='Unsupported';await setting.emit('change');assert.equal(setting.value,'Injected');assert.equal(entry.inputs.SETTINGS[address],'Injected');
+  }passed++;
+
   // Ductwork product settings show only the approved yield and application choices.
   entry=ductSetup({ 'PRODUCT SETTINGS': { B35:'Calibrated', B65:'Un-injected', B73:'Calibrated' } });
   entry.sheet='PRODUCT SETTINGS';entry.definition.sheets=[{name:'PRODUCT SETTINGS',display_cells:{B35:{control:'select'},B65:{control:'select'},B73:{control:'select'}}}];
@@ -568,7 +580,8 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
   entry=setup();entry.definition.id='steel_vermiculite';entry.sheet='SETTINGS';
   const originalBasis='Verify pack size, method and site yield for each product. CAFCO uses an inherited assumption; Mandolite is provisional; Fendolite/Perlifoc are theoretical; Monokote is uninjected. Add waste separately. Sources: P330:V333.';
   const shownBasis=audit.sourceDisplayText(originalBasis,entry,'A301');
-  assert.match(shownBasis,/The original CAFCO workbook used an inherited assumption; new estimates use user-selected consumption settings\./);
+  assert.doesNotMatch(shownBasis,/CAFCO uses an inherited assumption|The original CAFCO workbook|user-selected consumption settings\./);
+  assert.match(shownBasis,/^Verify pack size, method and site yield for each product\./);
   assert.match(shownBasis,/The startup densities are estimating assumptions; verify product-specific site yield\. Add waste separately\./);
   assert.equal(audit.sourceDisplayText(originalBasis,entry,'D42'),originalBasis);
   const densityNote="Used only when direct yield is blank. Use this product's estimating density, not another product's value.";
@@ -577,6 +590,29 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
   const factorNote='Uses the global lookup policy in D14. Next-higher results are estimates; product limits still apply.';
   for(const address of ['G43','G76','G108','G185','G241'])assert.equal(audit.sourceDisplayText(factorNote,entry,address),'Uses the global Factor lookup policy. Next-higher results are estimates; product limits still apply.');
   assert.equal(audit.sourceDisplayText(factorNote,entry,'D14'),factorNote);passed++;
+
+  // The selected START fragments and section pairs are presentation-only. The
+  // virtual START page owns SETTINGS cells, not a separate START worksheet.
+  const startInstructions={
+    A7:'CALCULATOR = one member  |  SCHEDULE = take-off  |  BAGS = ordering  |  Factor helper starts at row 341.',
+    A273:'Use CALCULATOR for one member or SCHEDULE for up to 1,000 lines. Select product, exposure, steel temperature and input method. Enter the exact section or verified factor. Lower-web input is only for Fendolite castellated beams.',
+    A292:'SCHEDULE AND SORTING',A293:'Sort or filter the entire SCHEDULE table, never one column alone. Keep the hidden Line ID unchanged. Use the 1,000 prepared rows; more rows require extending ENGINE.',
+    A296:'QUANTITIES',A297:'Area and volume calculation guidance.',A300:'BAG YIELDS AND ORDERS',A301:originalBasis,
+    A308:'PROJECT RELEASE',A309:'Have the designer confirm the member, exposure, steel temperature, substrate, fixings, application and thickness. Record the design references here. This estimator does not certify the fire design.',
+    A312:'SOURCE CONTROL AND QUALITY',A313:'The workbook records the supplied report editions, not verified current validity. Review the complete signed reports for the project. AUDIT retains the source decisions and validation checks.'
+  };
+  entry=setup();entry.definition.id='steel_vermiculite';entry.sheet='SETTINGS';entry.page='START';
+  entry.definition.sheets=[{name:'SETTINGS',header_rows:[],section_cells:[],navigation_mode:'hidden',expand_tables:true,merges:['A7:L7','A273:L275','A292:L292','A293:L295','A296:L296','A297:L299','A300:L300','A301:L303','A308:L308','A309:L311','A312:L312','A313:L315']}];
+  entry.result=result({}, {sheet:'SETTINGS',max_column:12,visible_columns:Array.from({length:12},(_,i)=>i+1),rows:Object.entries(startInstructions).map(([address,value])=>({row:Number(address.slice(1)),cells:[{column:1,address,value,presentation:{role:'note'}}]})).sort((a,b)=>a.row-b.row)});
+  const retainedStartSource=JSON.stringify({definition:entry.definition,result:entry.result,inputs:entry.inputs});realRender(entry);
+  const startOutputs=byId('calculator-grid').querySelectorAll('[data-calculator-output]');
+  for(const address of ['A292','A293','A308','A309','A312','A313'])assert.ok(!startOutputs.some(cell=>cell.dataset.calculatorOutput===address),address);
+  for(const address of ['A7','A273','A296','A297','A300','A301'])assert.ok(startOutputs.some(cell=>cell.dataset.calculatorOutput===address),address);
+  assert.doesNotMatch(audit.sourceDisplayText(startInstructions.A7,entry,'A7'),/take-off/);
+  assert.match(audit.sourceDisplayText(startInstructions.A7,entry,'A7'),/SCHEDULE = members.*SUMMARY = ordering.*FACTOR CALCS/);
+  assert.equal(audit.sourceDisplayText(startInstructions.A273,entry,'A273'),startInstructions.A273.slice(startInstructions.A273.indexOf('Select product')));
+  assert.equal(audit.sourceDisplayText(startInstructions.A273,entry,'D273'),startInstructions.A273.replace('CALCULATOR','SCHEDULE'));
+  assert.equal(JSON.stringify({definition:entry.definition,result:entry.result,inputs:entry.inputs}),retainedStartSource);passed++;
 
   // Historical worksheet directions describe the actual app controls and pages.
   entry=setup();entry.sheet='START';

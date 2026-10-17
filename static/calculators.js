@@ -17,7 +17,11 @@
       CALCULATOR: { hide: ["A1"], text: { A1: "" }, center: ["A6:F24", "H6:N24"], split_status: ["H9", "H20"] }, // 4–5
       BAGS: { center: ["A6:N15", "A19:I25"] }, // Manual quantities and all six product totals
       SETTINGS: {
-        omit: ["A1"],
+        omit: ["A1", "A292:L295", "A308:L315"],
+        text: {
+          A273: "Select product, exposure, steel temperature and input method. Enter the exact section or verified factor. Lower-web input is only for Fendolite castellated beams.",
+          A301: "Verify pack size, method and site yield for each product. The startup densities are estimating assumptions; verify product-specific site yield. Add waste separately. See the historical product yield-source records on SETTINGS.",
+        },
         center: ["A10:L15", "A54:L58", "A86:L90", "A123:L167", "A196:L223", "A259:L264"], // 10–11, 17–20
         left: ["D36:F41", "D69:F74", "D101:F106", "D178:F183", "D234:F239", "D561:F566"], // Product quantity settings
       },
@@ -132,6 +136,8 @@
         "A181": "Waste allowance",
         "A237": "Waste allowance",
         "A564": "Waste allowance",
+        "A569": "Spray application basis",
+        "A570": "Spray application basis",
         "K5": "COMMON RULES",
         "A9": "01  /  GLOBAL SETTINGS",
         "A10": "Project reference",
@@ -817,7 +823,7 @@
       BAGS: { A27: [["The factor helper is also there.", "Open FACTOR CALCS for factor helpers."], ["Hidden reference sheets support the calculations and must not be deleted.", "Retained reference data supports the calculations."]] },
       SETTINGS: {
         A3: [["blue cells are editable", "input fields are editable"]],
-        A7: [["CALCULATOR = one member", "SCHEDULE = members"], ["BAGS = ordering", "SUMMARY = ordering"], ["Factor helper starts at row 341.", "Open FACTOR CALCS for the Section Factor Helper."]],
+        A7: [["CALCULATOR = one member", "SCHEDULE = members"], ["  |  SCHEDULE = take-off", ""], ["BAGS = ordering", "SUMMARY = ordering"], ["Factor helper starts at row 341.", "Open FACTOR CALCS for the Section Factor Helper."]],
         G43: factorLookupDirections, G76: factorLookupDirections, G108: factorLookupDirections,
         G185: factorLookupDirections, G241: factorLookupDirections,
         G38: estimatingDensityDirections, G71: estimatingDensityDirections, G103: estimatingDensityDirections,
@@ -1248,10 +1254,13 @@
       && [3, 5, 8, 9].includes(coordinates.column);
     const closedDuctSetting = cell.type === "select" && entry.definition.id === "ductwork" && entry.sheet === "PRODUCT SETTINGS"
       && ["B35", "B65", "B73"].includes(address);
+    const closedMonokoteSetting = cell.type === "select" && entry.definition.id === "steel_vermiculite" && entry.sheet === "SETTINGS"
+      && ["D569", "D570"].includes(address);
+    const closedSetting = closedDuctSetting || closedMonokoteSetting;
     const searchableSteel = cell.type === "select" && options.some(option => typeof option === "string") && schedule && coordinates && entry.sheet === schedule.sheet
       && coordinates.row >= schedule.first_row && coordinates.row <= schedule.last_row
       && (entry.definition.id === "steel_vermiculite" && coordinates.column === 6 || entry.definition.id === "steel_board" && coordinates.column === 4);
-    const listedChoice = listedDuctChoice || closedDuctSetting;
+    const listedChoice = listedDuctChoice || closedSetting;
     const allowOther = !listedChoice && (cell.allow_other || ["warning", "information"].includes(cell.error_style || cell.validation?.error_style || cell.validation?.errorStyle));
     // A dropdown may mix numbers and text (60 and "60/60/60"). Its current
     // selection cannot determine the type of every other available option.
@@ -1313,7 +1322,7 @@
         if (custom) control.append(customOption);
         control.value = customMode ? customToken : String(selected ?? ""); optionsLoaded = true;
       };
-      if (!closedDuctSetting || value == null || value === "") appendOption("");
+      if (!closedSetting || value == null || value === "") appendOption("");
       for (const item of deferredOptions ? [] : options) if (String(item) !== "") appendOption(item);
       control.calculatorEnsureOption(value);
       if (custom) control.append(customOption);
@@ -1437,7 +1446,7 @@
     return false;
   }
 
-  const calculatorChoiceTerms = new Set("Internal|External|Both|Stair pressurisation|Other pressurisation|Horizontal|Vertical|Beam|Column|Channel|Angle|Tee|Standard|Rotate|Partial depth|Opposite B|Opposite D|Custom girth|Auto|Single|Double|Published first|General only|Standard box|XS top of wall|Promat trapezoid unfilled|Special / engineered|Section|Lower web (mm)|Exact only|Next higher (estimate)|Re-entrant - 3 sides|Re-entrant - 4 sides|Hollow - 3 sides|Hollow - 4 sides|Castellated - special factor|PFC web to slab - 3 sides|Not confirmed|Confirmed by project designer|Un-injected|Injected|Calibrated|Uncalibrated".split("|"));
+  const calculatorChoiceTerms = new Set("Internal|External|Both|Stair pressurisation|Other pressurisation|Horizontal|Vertical|Beam|Column|Channel|Angle|Tee|Standard|Rotate|Partial depth|Opposite B|Opposite D|Custom girth|Auto|Single|Double|Published first|General only|Standard box|XS top of wall|Promat trapezoid unfilled|Special / engineered|Section|Lower web (mm)|Exact only|Next higher (estimate)|Re-entrant - 3 sides|Re-entrant - 4 sides|Hollow - 3 sides|Hollow - 4 sides|Castellated - special factor|PFC web to slab - 3 sides|Not confirmed|Confirmed by project designer|Un-injected|Uninjected|Injected|Calibrated|Uncalibrated".split("|"));
   function calculatorChoiceLabel(entry, address, item, listed) {
     if (!listed || !calculatorChoiceTerms.has(item)) return false;
     const position = parseAddress(address), schedule = entry.definition.schedule;
@@ -1446,7 +1455,7 @@
       return (columns[entry.definition.id] || []).includes(position.column);
     }
     return entry.definition.id === "steel_vermiculite" && (entry.sheet === "CALCULATOR" && ["D7", "D9"].includes(address)
-      || entry.sheet === "SETTINGS" && ["D12", "D14", "D358"].includes(address))
+      || entry.sheet === "SETTINGS" && ["D12", "D14", "D358", "D569", "D570"].includes(address))
       || entry.definition.id === "ductwork" && entry.sheet === "PRODUCT SETTINGS" && ["B35", "B65", "B73"].includes(address);
   }
 

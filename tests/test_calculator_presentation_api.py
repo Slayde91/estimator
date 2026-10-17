@@ -21,7 +21,7 @@ from estimator.workbook_calculators import source_model
 
 
 EXTENTS = {
-    "steel_vermiculite": {"CALCULATOR": (41, 14), "SCHEDULE": (1009, 27), "BAGS": (29, 14), "SETTINGS": (568, 65)},
+    "steel_vermiculite": {"CALCULATOR": (41, 14), "SCHEDULE": (1009, 27), "BAGS": (29, 14), "SETTINGS": (570, 65)},
     "ductwork": {"CALCULATOR": (1010, 90), "SUMMARY": (45, 12), "PRODUCT SETTINGS": (164, 17)},
     "steel_board": {"START": (100, 12), "CALCULATOR": (1008, 35), "BOARD SUMMARY": (38, 12), "EXTRA BOARDS": (45, 14), "SETTINGS": (51, 17)},
 }
@@ -96,6 +96,12 @@ class CalculatorPresentationApiTests(unittest.TestCase):
                             if "options_ref" in cell:
                                 self.assertIn(cell["options_ref"], result["option_sets"])
                                 self.assertNotIn("options", cell, "Shared options must not also be repeated in every cell")
+                    if identity == 'steel_vermiculite' and name == 'SETTINGS':
+                        fields = self.cells(result)
+                        for address in ('D569', 'D570'):
+                            self.assertTrue(fields[address]['editable'])
+                            self.assertEqual(fields[address]['value'], 'Uninjected')
+                            self.assertEqual(result['option_sets'][fields[address]['options_ref']], ['Injected', 'Uninjected'])
                     page_count += 1
         self.assertEqual(page_count, 12)
         self.assertEqual(self.stored_rows(), before)

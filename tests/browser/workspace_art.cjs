@@ -4,6 +4,7 @@ const {spawn}=require('node:child_process');
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict'),crypto=require('node:crypto');
 const {chooseCalculator}=require('./calculator_actions.cjs');
 const {chooseTakeoff}=require('./section_navigation.cjs');
+const takeoffWidthOnly=process.argv.includes('--takeoff-width-only');
 const root=path.resolve(__dirname,'../..'),output=path.join(root,'.runtime/browser-qa',`workspace-art-${Date.now()}`);
 fs.mkdirSync(output,{recursive:true});
 const server=spawn(process.env.CEASEFIRE_PYTHON||'python',[path.join(__dirname,'fixtures.py'),'--directory',output],{cwd:root,windowsHide:true});
@@ -98,7 +99,13 @@ async function takeoffHeading(name,route,themes=['ceasefire','midnight','ocean',
    const value=await heading.evaluate(el=>{
     const box=n=>{const r=n.getBoundingClientRect();return{x:r.x,y:r.y,right:r.right,bottom:r.bottom,width:r.width,height:r.height};};
     const copy=el.querySelector('.takeoff-heading-copy'),title=el.querySelector('h1'),slot=el.querySelector('.takeoff-heading-art-slot'),actions=el.querySelector('.takeoff-document-tools'),frame=[...slot.children].find(n=>getComputedStyle(n).display!=='none'),img=frame.querySelector('img');
-    const actual={heading:box(el),title:box(title),actions:box(actions)},html=el.outerHTML,actionStyle=actions.getAttribute('style'),style={value:copy.style.getPropertyValue('display'),priority:copy.style.getPropertyPriority('display'),attribute:copy.getAttribute('style')};let baseline;
+    const layout=()=>({workspace:box(el.parentElement),drawing:box(el.parentElement.querySelector('.takeoff-drawing-layout')),viewport:box(el.parentElement.querySelector('.takeoff-viewport')),toolbar:box(el.parentElement.querySelector('.takeoff-viewer-top')),main:box(document.querySelector('main')),scrollHeight:document.documentElement.scrollHeight,scrollWidth:document.documentElement.scrollWidth});
+    const actual={heading:box(el),title:box(title),actions:box(actions)},actualLayout=layout(),html=el.outerHTML,actionStyle=actions.getAttribute('style'),style={value:copy.style.getPropertyValue('display'),priority:copy.style.getPropertyPriority('display'),attribute:copy.getAttribute('style')},frameStyle=frame.getAttribute('style');let baseline,previousArt;
+    // The previously shipped artwork was exactly the copy row's height and
+    // centred vertically. Probe those original CSS values on the same source
+    // nodes without changing page flow, then restore their exact inline state.
+    try{frame.style.setProperty('height','100%','important');frame.style.setProperty('inset-block','50% auto','important');previousArt={frame:box(frame),paint:box(img),layout:layout()};}
+    finally{if(frameStyle===null){frame.getAttribute('style');frame.removeAttribute('style');}else frame.setAttribute('style',frameStyle);}
     // Restore the exact pre-art title/actions flow temporarily, then put the
     // original nodes and inline styles back. This measures the old contract,
     // rather than treating the new wrapper's layout as the baseline.
@@ -109,14 +116,21 @@ async function takeoffHeading(name,route,themes=['ceasefire','midnight','ocean',
     finally{copy.insertBefore(title,slot);if(actionStyle===null)actions.removeAttribute('style');else actions.setAttribute('style',actionStyle);if(style.value)copy.style.setProperty('display',style.value,style.priority);else copy.style.removeProperty('display');if(style.attribute===null&&copy.style.length===0){copy.getAttribute('style');copy.removeAttribute('style');}}
     const css=getComputedStyle(frame),imageCSS=getComputedStyle(img);
     const f=box(frame),paint=box(img),scale=paint.width/img.naturalWidth,left=Math.max(f.x,paint.x),right=Math.min(f.right,paint.right),top=Math.max(f.y,paint.y),bottom=Math.min(f.bottom,paint.bottom);
-    return{mode:el.dataset.takeoffMode,actual,baseline,restored:html===el.outerHTML,frame:f,slot:box(slot),src:img.getAttribute('src'),natural:[img.naturalWidth,img.naturalHeight],paint,sourceCrop:{left:(left-paint.x)/scale,top:(top-paint.y)/scale,width:(right-left)/scale,height:(bottom-top)/scale},alt:img.alt,hidden:slot.getAttribute('aria-hidden'),imageHidden:img.getAttribute('aria-hidden'),pointer:css.pointerEvents,imagePointer:imageCSS.pointerEvents,mask:css.maskImage,imageMask:imageCSS.maskImage,composite:css.maskComposite,position:css.position,objectPosition:imageCSS.objectPosition,direction:getComputedStyle(el).direction,overflow:document.documentElement.scrollWidth-innerWidth};
+    return{mode:el.dataset.takeoffMode,actual,actualLayout,previousArt,baseline,restored:html===el.outerHTML,frame:f,slot:box(slot),src:img.getAttribute('src'),natural:[img.naturalWidth,img.naturalHeight],paint,sourceCrop:{left:(left-paint.x)/scale,top:(top-paint.y)/scale,width:(right-left)/scale,height:(bottom-top)/scale},alt:img.alt,hidden:slot.getAttribute('aria-hidden'),imageHidden:img.getAttribute('aria-hidden'),pointer:css.pointerEvents,imagePointer:imageCSS.pointerEvents,mask:css.maskImage,imageMask:imageCSS.maskImage,composite:css.maskComposite,position:css.position,objectPosition:imageCSS.objectPosition,direction:getComputedStyle(el).direction,overflow:document.documentElement.scrollWidth-innerWidth};
    });
    assert.equal(value.src,route);assert.deepEqual(value.natural,assetContract[route].natural);assert.equal(value.alt,'');assert.equal(value.hidden,'true');assert.equal(value.imageHidden,'true');assert.equal(value.pointer,'none');assert.equal(value.imagePointer,'none');assert.equal(value.position,'absolute');assert.match(value.mask,/linear-gradient/);assert.match(value.composite,/intersect/);assert.equal(value.restored,true,'Baseline probe restores the original nodes and exact inline markup');
    for(const part of ['heading','title','actions'])for(const axis of ['x','y','width','height'])if(!(value.direction==='rtl'&&part==='actions'&&axis==='x'))assert.ok(Math.abs(value.actual[part][axis]-value.baseline[part][axis])<.1,`${name}/${themeId}/${width} retains pre-art ${part}.${axis}: ${JSON.stringify(value)}`);
    if(value.direction==='rtl'){assert.ok(Math.abs(value.actual.actions.x-value.actual.heading.x)<.1,'RTL controls mirror to the logical end of the original row');value.rtlActionEndPlacement={originalPhysicalMarginX:value.baseline.actions.x,actualLogicalMarginX:value.actual.actions.x,intentional:true};}
-   assert.ok(value.frame.width>0&&value.frame.height>0&&value.frame.x>=value.slot.x-16.1&&value.frame.right<=value.slot.right+16.1&&value.frame.y>=value.actual.heading.y&&value.frame.bottom<=value.actual.heading.bottom+.1,'Image stays within the existing heading row and the unused gap before its controls');
+   assert.deepEqual(value.actualLayout,value.previousArt.layout,'Wider art preserves workspace, drawing, canvas, toolbar and overall page geometry');
+   const extraHeight=width<=570?40:48;
+   assert.ok(Math.abs(value.frame.height-value.previousArt.frame.height-extraHeight)<.1,'Art borrows only existing vertical whitespace: '+JSON.stringify(value));
+   assert.ok(Math.abs((value.frame.y+value.frame.height/2)-(value.previousArt.frame.y+value.previousArt.frame.height/2)+4)<.1,'The larger frame is centred four pixels above the original frame');
+   assert.ok(value.frame.width>=value.previousArt.frame.width-.1,'Every Takeoffs image is at least as wide as the shipped framing');
+   if(width>570)assert.ok(Math.abs(value.frame.width/value.previousArt.frame.width-2)<.005,'All four tablet/desktop Takeoffs images double their original painted window width');
+   assert.ok(value.frame.width>0&&value.frame.height>0&&value.frame.x>=value.slot.x-16.1&&value.frame.right<=value.slot.right+16.1&&value.frame.y>=value.actualLayout.main.y&&value.frame.bottom<=value.actualLayout.drawing.y+.1,'Image uses existing whitespace without entering the app header or drawing workspace');
    assert.ok(value.direction==='rtl'?value.frame.right<=value.actual.title.x+.1:value.frame.x>=value.actual.title.right-.1,'Artwork is beside the actual heading text');assert.ok(value.overflow<=1);
    if(value.actual.actions.y<value.actual.title.bottom)assert.ok(value.direction==='rtl'?value.frame.x>=value.actual.actions.right-.1:value.frame.right<=value.actual.actions.x+.1,'Artwork leaves the original controls clear on their shared row');
+   else assert.ok(value.frame.bottom<=value.actual.actions.y+.1,'Wrapped phone art stays above the original controls');
    assert.match(value.imageMask,/linear-gradient/);assert.ok(Math.abs(value.paint.height-value.paint.width*value.natural[1]/value.natural[0])<.02,'Original pixels keep their natural aspect ratio within one layout subpixel: '+JSON.stringify(value));
    if(name==='Steel'){assert.ok(value.sourceCrop.height>=723&&value.sourceCrop.left<=1000&&value.sourceCrop.left+value.sourceCrop.width>=2171,'The steel scene keeps its full height and the complete maquette after trimming empty left canvas');}
    else{assert.ok(value.sourceCrop.width>=value.natural[0]-.5&&value.sourceCrop.top<=560&&value.sourceCrop.top+value.sourceCrop.height>=1250,'Portrait framing keeps the complete object width and the recognizable lower scene, rather than a thin cover slice');}
@@ -140,8 +154,14 @@ async function takeoffHeading(name,route,themes=['ceasefire','midnight','ocean',
  await page.evaluate(async()=>{await window.CeasefireCalculators.completeProjectSnapshot();await window.CeasefirePenetrations.completeProjectSnapshot();});
  await chooseTakeoff(page,'Steel');await takeoffIdle();await page.locator('#takeoff-upload').setInputFiles(fixture.fixture);
  await page.waitForFunction(()=>!window.CeasefireTakeoffs.hasPendingOperation()&&window.CeasefireTakeoffs.projectSnapshot()?.documents.length===1);
+ // Upload metadata is accepted before automatic Fit has loaded and verified
+ // the PDF. Wait for that actual first-page render before changing workspace.
+ await page.waitForFunction(()=>{if(window.CeasefireTakeoffs.hasPendingOperation())return false;const s=window.CeasefireTakeoffs.projectSnapshot();return s?.render_checks?.some(check=>check.document_id===s.documents[0]?.id&&check.page===1&&check.success);});
+ await expect(page.locator('.takeoff-page')).toBeVisible();await takeoffIdle();
  for(const name of ['Duct','Defect Reports','Service Plans','Walls/Floors','Steel']){await chooseTakeoff(page,name);await takeoffIdle();}
- const before=await snapshot();await page.locator('nav [data-view="home"]').click();await idle();
+ const before=await snapshot();
+ if(!takeoffWidthOnly){
+ await page.locator('nav [data-view="home"]').click();await idle();
  await art('.home-laser-art','home');
  await chooseEstimate();await art('.workspace-header-art--estimate','estimate',true);
  await framing('.workspace-header-art--estimate','estimate');
@@ -154,6 +174,7 @@ async function takeoffHeading(name,route,themes=['ceasefire','midnight','ocean',
  }
  await chooseCalculator(page,'Firestopping');await idle();await art('.penetration-workspace-art','firestopping',true);await framing('.penetration-workspace-art','firestopping',true);
  const order=await page.locator('.penetration-workspace-art').evaluate(el=>el.parentElement.classList.contains('penetration-banner-heading')&&!document.querySelector('#penetration-workspace .penetration-workspace-art'));assert.equal(order,true,'Artwork is in the heading row before the existing current-item layout');
+ }
  for(const [name,route]of [['Steel','/takeoff-header-steel.png'],['Duct','/takeoff-header-ductwork.png'],['Defect Reports','/takeoff-header-physical.png'],['Service Plans','/takeoff-header-physical.png']]){await chooseTakeoff(page,name);await takeoffIdle();await takeoffHeading(name,route);}
  await chooseTakeoff(page,'Walls/Floors');await takeoffIdle();await expect(page.locator('.takeoff-heading-art:visible')).toHaveCount(0);evidence.push({name:'takeoff-walls-floors',artHidden:true});
  await page.locator('nav [data-view="settings"]').click();await idle();await page.locator('#application-language').selectOption('ar');await expect(page.locator('html')).toHaveAttribute('dir','rtl');
@@ -162,5 +183,5 @@ async function takeoffHeading(name,route,themes=['ceasefire','midnight','ocean',
  for(const width of [906,390]){await page.setViewportSize({width,height:764});await page.locator('nav [data-view="home"]').click();await idle();await expect(page.locator('.home-laser-art')).toBeVisible();assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth-innerWidth)<=1);await page.screenshot({path:path.join(output,'home-'+width+'.png')});}
  assert.deepEqual(await snapshot(),before,'Decorative images and navigation preserve project data');
  await page.emulateMedia({media:'print'});await expect(page.locator('.home-laser-art')).toBeHidden();await expect(page.locator('.workspace-header-art--estimate')).toHaveCSS('display','none');await page.emulateMedia({media:'screen'});
- assert.deepEqual(errors,[]);assert.deepEqual(csp,[]);fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,assets:assetEvidence,evidence,draftsUnchanged:true,errors,csp},null,2));console.log('PASS workspace artwork: '+output);
-})().catch(async error=>{console.error(error);process.exitCode=1;await page?.screenshot({path:path.join(output,'failure.png')}).catch(()=>{});fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:false,error:String(error),evidence,errors,csp},null,2));}).finally(async()=>{fs.writeFileSync(path.join(output,'server.log'),logs);await browser?.close();server.kill();});
+ assert.deepEqual(errors,[]);assert.deepEqual(csp,[]);fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,mode:takeoffWidthOnly?'takeoff-width-only':'complete-artwork',assets:assetEvidence,evidence,draftsUnchanged:true,errors,csp},null,2));console.log('PASS workspace artwork: '+output);
+})().catch(async error=>{console.error(error);process.exitCode=1;await page?.screenshot({path:path.join(output,'failure.png')}).catch(()=>{});fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:false,mode:takeoffWidthOnly?'takeoff-width-only':'complete-artwork',error:String(error),evidence,errors,csp},null,2));}).finally(async()=>{fs.writeFileSync(path.join(output,'server.log'),logs);await browser?.close();server.kill();});

@@ -30,7 +30,9 @@ BASES = [('D36', 'D37', 'D38', 'D40', 20, 308),
 class CalculatorDefaultsTests(unittest.TestCase):
     def test_user_selected_blank_direct_yields_and_density_fallback(self):
         inputs = default_calculator_inputs(IDENTITY)
-        self.assertEqual(len(inputs['SETTINGS']), 23)
+        self.assertEqual(len(inputs['SETTINGS']), 25)
+        self.assertEqual({cell: inputs['SETTINGS'][cell] for cell in ('D569', 'D570')},
+                         {'D569': 'Uninjected', 'D570': 'Uninjected'})
         _, engine, lock = calculator_session(IDENTITY, inputs)
         with lock:
             for mass_cell, direct_cell, density_cell, used_cell, mass, density in BASES:

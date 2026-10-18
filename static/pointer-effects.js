@@ -18,14 +18,18 @@
     // Let the action finish first, including opening/closing a native dialog.
     queueMicrotask(() => {
       if (motion.matches || document.hidden) return;
+      if (layer && !layer.isConnected) clear();
       while (bursts.size >= 8) remove(bursts.values().next().value);
       if (!layer) {
         layer = document.createElement('div');
         layer.className = 'click-smoke-layer';
         layer.setAttribute('aria-hidden', 'true');
         layer.inert = true;
-        if (typeof layer.showPopover === 'function') layer.setAttribute('popover', 'manual');
-        (document.querySelector('dialog[open]') || document.body).append(layer);
+        const popover = typeof layer.showPopover === 'function';
+        if (popover) layer.setAttribute('popover', 'manual');
+        // Modern overlays belong to the document, so removing a temporary
+        // dialog cannot detach an active burst before the next click.
+        (popover ? document.body : document.querySelector('dialog[open]') || document.body).append(layer);
       }
       // Re-enter the top layer if this click just opened a newer modal.
       if (typeof layer.showPopover === 'function') {

@@ -51,9 +51,26 @@ async function checkPointerEffects(page,output) {
   await page.keyboard.press('Escape');await expect(dialog).toBeHidden();
   await expect(page.locator('.click-smoke-layer')).toHaveCount(0);
 
+  // Drawing tools remove transient dialog nodes, sometimes during a burst.
+  await page.evaluate(()=>{
+    const dialog=document.createElement('dialog');dialog.id='qa-transient-dialog';
+    const text=document.createElement('p');text.textContent='Transient dialog content';
+    const close=document.createElement('button');close.textContent='Dismiss transient dialog';
+    close.addEventListener('click',()=>dialog.remove());
+    dialog.append(text,close);document.body.append(dialog);dialog.showModal();
+  });
+  await page.locator('#qa-transient-dialog p').click();
+  await page.evaluate(()=>document.querySelectorAll('.click-smoke-puff').forEach(el=>el.getAnimations().forEach(a=>a.pause())));
+  await page.getByRole('button',{name:'Dismiss transient dialog',exact:true}).click();
+  await expect(page.locator('#qa-transient-dialog')).toHaveCount(0);
+  assert.equal(await page.locator('.click-smoke-layer').evaluate(el=>el.parentElement===document.body),true,'Smoke survives removing a transient dialog');
+  await page.evaluate(()=>document.querySelectorAll('.click-smoke-puff').forEach(el=>el.getAnimations().forEach(a=>a.play())));
+  await expect(page.locator('.click-smoke-layer')).toHaveCount(0);
+
   await page.locator('#estimate-navigation-toggle').hover();
   await page.locator('#estimate-navigation-menu [data-estimator-kind="estimate"]').click();
   const tab=page.locator('#main-section-tabs [role="tab"]').first();await expect(tab).toBeVisible();
+  await expect(page.locator('html')).not.toHaveClass(/\bapp-busy\b/,{timeout:60000});
   await tab.hover();assert.match(await cursor(tab),/laser-reticle\.svg/,'Dynamically created tabs use the reticle');
   const input=page.locator('#client');
   assert.doesNotMatch(await cursor(input),/laser-reticle/,'Text fields keep their editing cursor');
@@ -64,6 +81,6 @@ async function checkPointerEffects(page,output) {
   assert.doesNotMatch(await cursor(home),/laser-reticle/,'Busy state retains the progress cursor');
   await page.evaluate(()=>document.documentElement.classList.remove('app-busy'));
   await home.click();await expect(page.locator('.click-smoke-layer')).toHaveCount(0);
-  return{reticle:true,icons:true,tabs:true,modal:true,cardinalSmoke:true,plainContent:true,cleanup:true,bounded:true,reducedMotion:true,keyboardFocus:true,editingCursor:true};
+  return{reticle:true,icons:true,tabs:true,modal:true,transientDialog:true,cardinalSmoke:true,plainContent:true,cleanup:true,bounded:true,reducedMotion:true,keyboardFocus:true,editingCursor:true};
 }
 module.exports={checkPointerEffects};

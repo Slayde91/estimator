@@ -1,5 +1,29 @@
 "use strict";
 
+// Cursor coordinates are transient window pixels, never project data.
+(() => {
+  const output = document.getElementById("cursor-position");
+  if (!output || !document.addEventListener) return;
+  let pending = null, frame = null;
+  function clear() {
+    if (frame !== null) cancelAnimationFrame(frame);
+    pending = frame = null;
+    output.textContent = "X: —   Y: —";
+  }
+  document.addEventListener("pointermove", event => {
+    if (event.pointerType === "touch") { clear(); return; }
+    pending = [Math.round(event.clientX), Math.round(event.clientY)];
+    if (frame !== null) return;
+    frame = requestAnimationFrame(() => {
+      frame = null;
+      output.textContent = `X: ${pending[0]}   Y: ${pending[1]}`;
+    });
+  }, { passive: true, capture: true });
+  document.addEventListener("pointerout", event => { if (!event.relatedTarget) clear(); }, { passive: true });
+  window.addEventListener("blur", clear);
+  document.addEventListener("visibilitychange", () => { if (document.hidden) clear(); });
+})();
+
 // HEADER_TAGLINE:START
 // Presentation only: selecting and typing a phrase never changes a project.
 (() => {

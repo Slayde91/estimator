@@ -61,6 +61,20 @@ def _identity(info):
     return info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns
 
 
+def _quote_save_directory(selected_folder, filename):
+    """Prepare one safe quote folder before showing Save As."""
+    if selected_folder is None:
+        return None
+    root = _directory(selected_folder)
+    folder = root / filename[:-len(PROJECT_EXTENSION)]
+    try:
+        folder.mkdir(exist_ok=True)
+    except OSError as error:
+        raise ValidationError("The quote folder could not be created. Check the linked Project folder and try again.") from error
+    # Recheck existing folders and every ancestor; never follow a junction or link.
+    return str(_directory(folder))
+
+
 def _read_file(path, *, scan=False):
     """Read a bounded regular file and reject replacement during the read.
 
@@ -778,7 +792,9 @@ class ProjectLibrary:
         project = load_project_bytes(self.store, payload, edition=self.edition)
         with _dialog():
             selected_folder = self.store.project_folder()
-            selection = self.dialogs.choose_save(selected_folder, project_filename(project["estimate"]["title"]))
+            filename = project_filename(project["estimate"]["title"])
+            initial_directory = _quote_save_directory(selected_folder, filename)
+            selection = self.dialogs.choose_save(initial_directory, filename)
             if selection is None:
                 return {"cancelled": True}
             selected_path = _project_save_path(selection)

@@ -167,9 +167,82 @@ class ProjectLibraryTests(unittest.TestCase):
         self.assertFalse(result["file"]["in_linked_folder"])
         self.assertIsNone(result["file"]["id"])
         self.assertEqual(result["folder"], str(self.folder))
-        self.assertEqual(self.dialogs.calls[-1][1], str(self.folder))
+        self.assertEqual(self.dialogs.calls[-1][1], str(self.folder / "Project 17- A client"))
         self.assertEqual(Store(self.store.path).project_folder(), str(self.folder))
         self.assertEqual(self.library.listing()["files"], [])
+
+    def test_save_as_creates_quote_folder_before_dialog_and_reuses_it(self):
+        self.store.set_project_folder(self.folder)
+        expected = self.folder / "Project 17- A client"
+        before = database_rows(self.store)
+        def choose(initial_directory, filename):
+            self.assertEqual(Path(initial_directory), expected)
+            self.assertTrue(expected.is_dir())
+            self.assertEqual(filename, "Project 17- A client.cf.json")
+            return None
+        self.dialogs.choose_save = choose
+        self.assertEqual(self.library.save_as(self.request), {"cancelled": True})
+        note = expected / "Keep.txt"
+        note.write_text("Existing quote contents", encoding="utf-8")
+        self.assertEqual(self.library.save_as(self.request), {"cancelled": True})
+        self.assertEqual(note.read_text(), "Existing quote contents")
+        self.assertEqual(database_rows(self.store), before)
+
+    def test_quote_folder_failure_and_invalid_snapshot_do_not_open_dialog(self):
+        self.store.set_project_folder(self.folder)
+        malformed = copy.deepcopy(self.request)
+        malformed["calculators"]["steel_vermiculite"]["inputs"] = {"SCHEDULE": {"Z1009": "forged"}}
+        with self.assertRaises(ValidationError):
+            self.library.save_as(malformed)
+        self.assertEqual(list(self.folder.iterdir()), [])
+        with patch("estimator.project_library.Path.mkdir", side_effect=PermissionError("denied")):
+            with self.assertRaisesRegex(ValidationError, "quote folder could not be created"):
+                self.library.save_as(self.request)
+        self.assertEqual(self.dialogs.calls, [])
+
+    def test_quote_folder_save_and_later_save_keep_original_file_location(self):
+        self.store.set_project_folder(self.folder)
+        quote_folder = self.folder / "Project 17- A client"
+        target = quote_folder / "Project 17- A client.cf.json"
+        def choose(initial_directory, filename):
+            self.assertTrue(quote_folder.is_dir())
+            self.assertEqual(Path(initial_directory) / filename, target)
+            return SaveSelection(str(target), None)
+        self.dialogs.choose_save = choose
+        saved = self.library.save_as(self.request)
+        self.assertEqual(json.loads(target.read_bytes()), json.loads(self.payload))
+        self.assertTrue(saved["file"]["in_linked_folder"])
+        changed = copy.deepcopy(self.request)
+        changed["save_token"] = saved["file"]["save_token"]
+        changed["estimate"]["project_no"] = "Renamed quote"
+        self.dialogs.choose_save = lambda *_: self.fail("Save must not reopen Save As")
+        self.library.save(changed)
+        self.assertEqual(json.loads(target.read_bytes())["estimate"]["project_no"], "Renamed quote")
+        self.assertEqual([path.name for path in self.folder.iterdir()], [quote_folder.name])
+
+    def test_quote_folder_rejects_file_collision_and_redirected_folder(self):
+        self.store.set_project_folder(self.folder)
+        expected = self.folder / "Project 17- A client"
+        expected.write_text("Keep existing file", encoding="utf-8")
+        with self.assertRaises(ValidationError):
+            self.library.save_as(self.request)
+        self.assertEqual(expected.read_text(), "Keep existing file")
+        self.assertEqual(self.dialogs.calls, [])
+        expected.unlink()
+        outside = self.root / "Outside"
+        outside.mkdir()
+        expected.mkdir()
+        original_lstat = Path.lstat
+        def junction(path, *args, **kwargs):
+            info = original_lstat(path, *args, **kwargs)
+            if path == expected:
+                return SimpleNamespace(st_mode=info.st_mode, st_file_attributes=0x400, st_reparse_tag=0xA0000003)
+            return info
+        with patch("estimator.project_library.Path.lstat", junction):
+            with self.assertRaisesRegex(ValidationError, "symbolic link or junction"):
+                self.library.save_as(self.request)
+        self.assertEqual(list(outside.iterdir()), [])
+        self.assertEqual(self.dialogs.calls, [])
 
     def test_save_overwrites_only_authorized_file_preserves_precision_and_rotates_capability(self):
         target = self.folder / "Existing.cf.json"

@@ -825,7 +825,7 @@
     state.ui.documentMenu.root.hidden = physical;
     state.ui.physicalDocumentHost.hidden = !physical;
     if (physical) state.ui.documentMenu.close(false);
-    window.CeasefireI18n.text(state.ui.title, physical ? state.physicalScope === "service_plans" ? "Service Plans" : "Defect Reports" : state.mode === "duct" ? "Ductwork" : labels[state.mode]);
+    window.CeasefireI18n.text(state.ui.title, physical ? state.physicalScope === "service_plans" ? "Service Plans" : "Defect Reports" : state.mode === "duct" ? "Duct" : labels[state.mode]);
     state.ui.tools.markups.hidden = state.mode !== "steel";
     state.ui.tools.legend.hidden = !["steel", "duct"].includes(state.mode);
     state.ui.presentationTools.hidden = !["steel", "duct"].includes(state.mode);

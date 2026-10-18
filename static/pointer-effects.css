@@ -1,0 +1,22 @@
+@media screen and (any-hover:hover) and (any-pointer:fine) {
+  html:not(.app-busy) :is(button:enabled,[role="button"],[role="tab"],.button):not(:disabled):not([aria-disabled="true"]):not([aria-busy="true"]) {
+    cursor:url('/laser-reticle.svg') 16 16,pointer;
+  }
+}
+
+/* A manual popover paints above native dialogs without taking focus or input. */
+.click-smoke-layer {
+  position:fixed; inset:0; width:100%; height:100%; margin:0; padding:0;
+  border:0; background:transparent; overflow:hidden; pointer-events:none;
+  z-index:2147483647; contain:strict;
+}
+.click-smoke-layer::backdrop { background:transparent; pointer-events:none; }
+.click-smoke-puff {
+  position:absolute; left:0; top:0; width:12px; height:12px;
+  border-radius:50%; pointer-events:none; opacity:0;
+  background:radial-gradient(ellipse at 35% 35%,#f0f2f4b3,transparent 62%),radial-gradient(ellipse at 65% 60%,#89939dc9,#47515c73 45%,transparent 72%);
+  filter:blur(.6px); will-change:transform,opacity;
+}
+@media print, (prefers-reduced-motion:reduce) {
+  .click-smoke-layer { display:none!important; }
+}

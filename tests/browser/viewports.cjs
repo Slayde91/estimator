@@ -205,9 +205,9 @@ function closePoint(actual, expected, tolerance = 0.9) { actual.forEach((n, i) =
   await page.locator('#takeoff-navigation-toggle').hover();
   const modes = page.locator('#takeoff-navigation-menu');
   await expect(modes).toBeVisible();
-  await expect(modes.getByRole('button')).toHaveText(['Steel', 'Duct', 'Penetrations›', 'Walls/Floors']);
+  await expect(modes.getByRole('button')).toHaveText(['Steel', 'Duct', 'Walls/Floors', 'Penetrations›']);
   await page.locator('#penetration-navigation-toggle').hover();
-  await expect(modes.getByRole('button')).toHaveText(['Steel', 'Duct', 'Penetrations›', 'Defect Reports', 'Service Plans', 'Walls/Floors']);
+  await expect(modes.getByRole('button')).toHaveText(['Steel', 'Duct', 'Walls/Floors', 'Penetrations›', 'Defect Reports', 'Service Plans']);
   await expect(takeoffChoice(page, 'Defect Reports')).toBeInViewport();
   await expect(takeoffChoice(page, 'Service Plans')).toBeInViewport();
   await expect(takeoffChoice(page, 'Steel')).toHaveAttribute('aria-pressed', 'true');

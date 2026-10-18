@@ -1,7 +1,66 @@
 [
-  {"source":"FIREFLYBatt minimum 50 mm with 2 screws per 300 mm into the aperture of the damper; FRL -/120/120 only, maximum 900 x 600 mm.","display":"Batt min. 50 mm w/ 2 screws p/ 300 mm to aperture of damper; FRL -/120/120 only, maximum 900 x 600 mm."},
-  {"source":"FIREFLYMastic and FIREFLYPenowrap, FIREFLYIntubatt and Firefly Intumastic; not interchangeable. Minimum 2.125 mm.","display":"Mastic and Penowrap, Intubatt and Intumastic; not interchangeable. min. 2.125 mm."},
-  {"source":"Firefly recommends FIREFLYBatt only where the source conditions apply. minimumminimum percentage within permitted.","display":"Firefly recommends Batt only where the source conditions apply. minimumminimum percentage within permitted."},
-  {"source":"See https://example.test/with/per/minimum/FIREFLYBatt.pdf and with@example.test with 0.5 mm minimum.","display":"See https://example.test/with/per/minimum/FIREFLYBatt.pdf and with@example.test w/ 0.5 mm min."},
-  {"source":"Install into\nthe aperture, retain 3.2 and 1.5 mm, -10 °C, 60% and 120/120/120 with all qualifiers.","display":"Install to aperture, retain 3.2 and 1.5 mm, -10 °C, 60% and 120/120/120 w/ all qualifiers."}
+  {
+    "source": "FIREFLYBatt minimum 50 mm with 2 screws per 300 mm into the aperture of the damper; FRL -/120/120 only, maximum 900 x 600 mm.",
+    "display": "Batt min. 50 mm w/ 2 screws p/ 300 mm to aperture of damper; FRL -/120/120 only, max. 900 x 600 mm."
+  },
+  {
+    "source": "FIREFLYMastic and FIREFLYPenowrap, FIREFLYIntubatt and Firefly Intumastic; not interchangeable. Minimum 2.125 mm.",
+    "display": "Mastic and wrap, Intubatt and Intumastic; not interchangeable. min. 2.125 mm."
+  },
+  {
+    "source": "Firefly recommends FIREFLYBatt only where the source conditions apply. minimumminimum percentage within permitted.",
+    "display": "Firefly recommends Batt only where the source conditions apply. minimumminimum percentage within permitted."
+  },
+  {
+    "source": "See https://example.test/with/per/minimum/FIREFLYBatt.pdf and with@example.test with 0.5 mm minimum.",
+    "display": "See https://example.test/with/per/minimum/FIREFLYBatt.pdf and with@example.test w/ 0.5 mm min."
+  },
+  {
+    "source": "Install into\nthe aperture, retain 3.2 and 1.5 mm, -10 °C, 60% and 120/120/120 with all qualifiers.",
+    "display": "Install to aperture, retain 3.2 and 1.5 mm, -10 °C, 60% and 120/120/120 w/ all qualifiers."
+  },
+  {
+    "source": "FIREFLY Penowrap, FIREFLYPenowrap, PENOWRAP® and Penowrap™; TWrap and Intubatt are distinct.",
+    "display": "wrap, wrap, wrap and wrap; TWrap and Intubatt are distinct."
+  },
+  {
+    "source": "In order to seal the aperture, install a minimum of 2 layers using Mastic in accordance with Section 4.6. Maximum 50 mm; approximately 3.2 mm including joints.",
+    "display": "to seal aperture, install min. 2 layers w/ Mastic p/ Section 4.6. max. 50 mm; approx. 3.2 mm incl. joints."
+  },
+  {
+    "source": "The board is required to be at least 50 mm thick on both sides of the wall; no more than 2 layers, unless otherwise stated.",
+    "display": "board must be min. 50 mm thick on both wall faces; no more than 2 layers, unless otherwise stated."
+  },
+  {
+    "source": "The Batt layers are glued together using Mastic. All cut edges, including layer joints and the wall perimeter interface, to be coated with Brush Grade.",
+    "display": "Glue Batt layers together w/ Mastic. Coat all cut edges, incl. layer joints and wall perimeter interface w/ BG."
+  },
+  {
+    "source": "Penowrap.pdf and maximum.png; https://example.test/Penowrap/with/minimum.pdf?x=1 with Penowrap@example.test.",
+    "display": "Penowrap.pdf and maximum.png; https://example.test/Penowrap/with/minimum.pdf?x=1 w/ Penowrap@example.test."
+  },
+  {
+    "source": "Only for tested walls; not interchangeable or generally approved. Nominal 50 mm, except where stated otherwise. Either 2 or 3 layers; may be used if permitted.",
+    "display": "Only for tested walls; not interchangeable or generally approved. Nominal 50 mm, except where stated otherwise. Either 2 or 3 layers; may be used if permitted."
+  },
+  {
+    "source": "A minimum of 2 layers prior to installation; a maximum of 3 layers subsequent to installation. The seal is required for -/120/120; at most 60% compression.",
+    "display": "min. 2 layers before installation; max. 3 layers after installation. seal required for -/120/120; max. 60% compression."
+  },
+  {
+    "source": "One layer on each side of the wall, recessed 50 mm from the face of the wall, provided that support achieves required FRL.",
+    "display": "One layer on each wall face, recessed 50 mm from wall face, provided support achieves required FRL."
+  },
+  {
+    "source": "Source configuration ratings remain subject to the stated barrier construction and installation conditions. The entry selection remains separate; no missing values have been inferred.",
+    "display": "Source ratings subject to stated barrier construction and installation conditions. Entry selection remains separate; no missing values inferred."
+  },
+  {
+    "source": "Install in between layers to ensure that all gaps are sealed, at a distance of 50 mm. In the event that 2 layers are used, provided that approval applies, fit using steel ties for the purpose of securing wrap in addition to fixings.",
+    "display": "Install between layers to ensure all gaps are sealed, at 50 mm. if 2 layers are used, provided approval applies, fit w/ steel ties for securing wrap plus fixings."
+  },
+  {
+    "source": "When using Batt, coat edges. The seals are required to be at least 25 mm deep; seals are required for -/120/120.",
+    "display": "When using Batt, coat edges. seals must be min. 25 mm deep; seals required for -/120/120."
+  }
 ]

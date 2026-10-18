@@ -9,7 +9,7 @@ from estimator.technical_display import compact_technical_text
 
 class TechnicalDisplayTests(unittest.TestCase):
     def test_authorized_display_vectors_preserve_every_numeric_token(self):
-        vectors = json.loads((Path(__file__).parent / 'fixtures/technical-compact-display.json').read_text())
+        vectors = json.loads((Path(__file__).parent / 'fixtures/technical-compact-display.json').read_text(encoding='utf-8'))
         for entry in vectors:
             with self.subTest(source=entry['source']):
                 self.assertEqual(compact_technical_text(entry['source']), entry['display'])

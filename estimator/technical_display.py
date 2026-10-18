@@ -4,6 +4,28 @@ import re
 _PROTECTED = re.compile(
     r'https?://[^\s<>]+|[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}'
     r'|\b[\w.-]+\.(?:pdf|xlsx?|docx?|png|jpe?g|json)\b', re.I)
+_SENTENCE_START = re.compile(r'''\.(["'\u2019\u201d)\]]*\s+["'\u2018\u201c(\[]*)([a-z])''')
+_ABBREVIATION = re.compile(r'\b(?:min|max|incl|approx|figs?|sec|no|vs|etc|e\.g|i\.e)\.$', re.I)
+_LEADING_LETTER = re.compile(r'''^([\s"'\u2018\u201c(\[]*)([A-Za-z])''')
+
+
+def _capitalise_sentences(text, source):
+    """Restore sentence capitals after shortening, without changing references."""
+    protected = [(match.start(), match.end()) for match in _PROTECTED.finditer(text)]
+    original, shortened = _LEADING_LETTER.match(source), _LEADING_LETTER.match(text)
+    if (original and shortened and original[2].isupper()
+            and not any(start <= shortened.start(2) < end for start, end in protected)):
+        position = shortened.start(2)
+        text = text[:position] + text[position].upper() + text[position + 1:]
+
+    def capitalise(match):
+        position = match.start(2)
+        if (any(start <= position < end for start, end in protected)
+                or _ABBREVIATION.search(text[max(0, match.start() - 12):match.start() + 1])):
+            return match[0]
+        return '.' + match[1] + match[2].upper()
+
+    return _SENTENCE_START.sub(capitalise, text)
 
 # Keep these ordered rules aligned with LibraryDetailText.compact. Shared
 # fixtures exercise both implementations, including their second application.
@@ -72,4 +94,4 @@ def compact_technical_text(value):
         pieces.extend((compact(value[cursor:match.start()]), match[0]))
         cursor = match.end()
     pieces.append(compact(value[cursor:]))
-    return ''.join(pieces)
+    return _capitalise_sentences(''.join(pieces), value)

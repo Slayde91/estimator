@@ -66,7 +66,23 @@
     for (const match of text.matchAll(protectedText)) {
       result += prose(text.slice(cursor, match.index)) + match[0]; cursor = match.index + match[0].length;
     }
-    return result + prose(text.slice(cursor));
+    let shortened = result + prose(text.slice(cursor));
+    const protectedRanges = [...shortened.matchAll(protectedText)].map(match => [match.index, match.index + match[0].length]);
+    const leadingLetter = /^([\s"'\u2018\u201c(\[]*)([A-Za-z])/;
+    const originalStart = leadingLetter.exec(text), shortenedStart = leadingLetter.exec(shortened);
+    if (originalStart && shortenedStart && /[A-Z]/.test(originalStart[2])
+        && !protectedRanges.some(([start, end]) => start <= shortenedStart[1].length && shortenedStart[1].length < end)) {
+      const position = shortenedStart[1].length;
+      shortened = shortened.slice(0, position) + shortened[position].toUpperCase() + shortened.slice(position + 1);
+    }
+    // Capitalise sentences after shortening, not words following abbreviations.
+    // Match the export formatter; protected URLs, emails and filenames stay exact.
+    return shortened.replace(/\.(["'\u2019\u201d)\]]*\s+["'\u2018\u201c(\[]*)([a-z])/g, (match, gap, letter, offset) => {
+      const position = offset + 1 + gap.length;
+      if (protectedRanges.some(([start, end]) => start <= position && position < end)
+          || /\b(?:min|max|incl|approx|figs?|sec|no|vs|etc|e\.g|i\.e)\.$/i.test(shortened.slice(Math.max(0, offset - 12), offset + 1))) return match;
+      return `.${gap}${letter.toUpperCase()}`;
+    });
   }
 
   function installationHeading(lines, index) {

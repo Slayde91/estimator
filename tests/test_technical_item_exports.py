@@ -153,7 +153,7 @@ class TechnicalItemExportsTests(unittest.TestCase):
         xlsx = '\n'.join(cells)
         for text in (pdf, xlsx):
             for expected in ('Batt w/ min. 12.3456789012345 mm; max. 50 mm only.',
-                             'wrap w/ min. 25 mm; not approved for 50 mm.',
+                             'Wrap w/ min. 25 mm; not approved for 50 mm.',
                              'Intubatt w/ 60 mm', 'min. 120 minutes p/ side',
                              'Only to aperture of damper.', 'pkb-001'):
                 self.assertIn(expected, text)

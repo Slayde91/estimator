@@ -214,7 +214,10 @@
         const element = document.createElement("li");
         if (item.label) element.setAttribute("data-source-marker", item.label);
         else if (block.ordered) element.setAttribute("value", String(item.number));
-        element.textContent = display(item.text);
+        // Number markers are rendered by <ol>, but their full stop still starts
+        // a sentence. Keep that context for the shared display/export rule.
+        const prefix = options?.compact && block.ordered && !item.label ? `${item.number}. ` : "";
+        element.textContent = display(prefix + item.text).slice(prefix.length);
         element.append(...item.children.map(renderBlock));
         list.append(element);
       }

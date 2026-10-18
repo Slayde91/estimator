@@ -466,3 +466,10 @@ dialog.takeoff-column-filter{position:fixed;box-sizing:border-box;width:280px;ma
 .takeoff-row-delete { text-align: center; white-space: nowrap; }
 .takeoff-row-delete-button svg { display: block; width: 20px; height: 20px; }
 .takeoff-message-slot { display: flow-root; }
+@media screen {
+  /* Retain each control's fill, dimensions and keyboard focus treatment. */
+  #takeoffs-workspace button:is(.active,.takeoff-tool-active,[aria-pressed="true"],[aria-selected="true"],[aria-expanded="true"]) {
+    border-color:#ffe066;
+    box-shadow:inset 0 0 0 1px #ffe066,0 0 8px #ffd43b99;
+  }
+}

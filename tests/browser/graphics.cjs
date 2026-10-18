@@ -108,7 +108,8 @@ async function unfinishedGuards() {
   await clickProjectControl(page,"Save");await expect(page.getByRole("button",{name:"Save",exact:true})).toBeEnabled({timeout:30000});await expect(page.locator("#app-message")).toContainText("Project was not saved.");assert.equal(projectWrites.length,writes);
   const modal=page.getByRole("dialog",{name:"Discard unfinished edits?",exact:true});
   await page.getByRole("button",{name:"Page ›",exact:true}).click();await expect(modal).toBeVisible();await modal.getByRole("button",{name:"Cancel",exact:true}).click();await expect(modal).toHaveCount(0);
-  assert.deepEqual(await page.evaluate(()=>JSON.parse(window.CeasefireTakeoffs.projectFingerprint())),retained);assert.equal(requests.length,count);
+  // A native dialog becomes hidden before its close event releases modal state.
+  await expect.poll(()=>page.evaluate(()=>JSON.parse(window.CeasefireTakeoffs.projectFingerprint()))).toEqual(retained);assert.equal(requests.length,count);
   await renderDrawing(page,async()=>{await page.getByRole("button",{name:"Page ›",exact:true}).click();await expect(modal).toBeVisible();await modal.getByRole("button",{name:"Discard edits",exact:true}).click();},2);
   assert.deepEqual((await snapshot()).graphics,before.graphics);await renderDrawing(page,()=>page.getByRole("button",{name:"‹ Page",exact:true}).click(),1);await fit();invariant(await snapshot(),before);
   check("unfinished graphic trace blocks Save; Cancel navigation retains it and explicit discard creates no visual record");

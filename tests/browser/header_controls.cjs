@@ -3,6 +3,7 @@ const { chromium, expect } = require('@playwright/test');
 const { chooseCalculator } = require('./calculator_actions.cjs');
 const { chooseTakeoff, chooseLibrary } = require('./section_navigation.cjs');
 const { assertPreviewHeaderIcons } = require('./preview_header_helpers.cjs');
+const { checkPointerEffects } = require('./pointer_effects_checks.cjs');
 const { spawn } = require('node:child_process');
 const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict'), crypto = require('node:crypto');
 const root = path.resolve(__dirname, '../..'), output = path.join(root, '.runtime/browser-qa', `header-controls-${Date.now()}`);
@@ -80,6 +81,7 @@ async function inspectHeader(width) {
   await page.addInitScript(() => { window.qaCsp = []; document.addEventListener('securitypolicyviolation', e => window.qaCsp.push(e.effectiveDirective)); });
   await page.goto(`http://127.0.0.1:${info.port}/`); await idle(); await page.evaluate(() => document.fonts.ready);
   await expect(page.locator('#header-project-name')).toBeHidden();
+  evidence.pointerEffects = await checkPointerEffects(page, output);
   const coordinates = page.locator('#cursor-position');
   await expect(coordinates).toBeVisible();
   await page.mouse.move(241, 173, { steps: 8 });
@@ -108,6 +110,13 @@ async function inspectHeader(width) {
   await page.evaluate(async () => { await window.CeasefireCalculators.completeProjectSnapshot(); await window.CeasefirePenetrations.completeProjectSnapshot(); }); await idle();
   await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); await idle();
   const initial = await snapshot();
+  await expect(page.locator('#takeoff-navigation-menu > button, #takeoff-navigation-menu > .section-navigation-branch > button')).toHaveText(['Steel','Duct','Walls/Floors','Penetrations›']);
+  await page.locator('#takeoff-navigation-toggle').focus();
+  await page.keyboard.press('ArrowDown'); await page.keyboard.press('End');
+  await expect(page.locator('#penetration-navigation-toggle')).toBeFocused();
+  await page.keyboard.press('ArrowRight');
+  await expect(page.getByRole('button',{name:'Defect Reports',exact:true})).toBeFocused();
+  await page.keyboard.press('Escape'); await page.keyboard.press('Escape');
   await expect(page.locator('#calculators-heading,#libraries-heading,#takeoffs-heading,.library-choices,.takeoff-tab-panel,.takeoff-heading-controls')).toHaveCount(0);
   for (const width of [1600, 1146, 1021, 981, 825, 720, 570, 390, 320]) {
     await page.setViewportSize({ width, height: 1000 });
@@ -136,7 +145,13 @@ async function inspectHeader(width) {
         await toggle.hover();
       }
       await toggle.focus(); await toggle.press('ArrowDown'); await expect(menu.getByRole('button').first()).toBeFocused();
-      await page.keyboard.press('End'); await expect(menu.getByRole('button').last()).toBeFocused();
+      await page.keyboard.press('End'); await expect(id === 'takeoff' ? page.locator('#penetration-navigation-toggle') : menu.getByRole('button').last()).toBeFocused();
+      if(id === 'takeoff') {
+        await page.keyboard.press('ArrowRight');
+        await expect(page.getByRole('button',{name:'Defect Reports',exact:true})).toBeFocused();
+        await page.keyboard.press('End');
+        await expect(page.getByRole('button',{name:'Service Plans',exact:true})).toBeFocused();
+      }
       await page.keyboard.press('ArrowDown'); await expect(menu.getByRole('button').first()).toBeFocused();
       await page.keyboard.press('Escape'); await expect(toggle).toBeFocused(); await expect(menu).toBeHidden();
     }

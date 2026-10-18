@@ -1,9 +1,11 @@
-// Decorative banners retain real controls, existing header heights and drafts.
+// Decorative banners retain real controls, responsive flow and project drafts.
 const {chromium,expect}=require('@playwright/test');
 const {spawn}=require('node:child_process');
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict'),crypto=require('node:crypto');
 const {chooseCalculator}=require('./calculator_actions.cjs');
-const {chooseTakeoff}=require('./section_navigation.cjs');
+const {chooseTakeoff,chooseLibrary}=require('./section_navigation.cjs');
+const followupRtlOnly=process.argv.includes('--rtl-header-followups-only');
+const followupsOnly=followupRtlOnly||process.argv.includes('--header-followups-only');
 const takeoffWidthOnly=process.argv.includes('--takeoff-width-only');
 const rtlCalculatorMenusOnly=process.argv.includes('--rtl-calculator-menus-only');
 const calculatorBannersOnly=process.argv.includes('--calculator-banners-only')||rtlCalculatorMenusOnly;
@@ -16,6 +18,8 @@ server.stderr.on('data',v=>logs+=v);
 const ready=new Promise((resolve,reject)=>{let data='';const timer=setTimeout(()=>reject(Error('Fixture startup timeout')),120000);server.stdout.on('data',v=>{data+=v;if(data.includes('\n')){clearTimeout(timer);resolve(JSON.parse(data.split('\n')[0]));}});server.once('error',reject);});
 const evidence=[],errors=[],csp=[],assetEvidence=[];
 const assetContract={
+ '/projects-evidence-banner.png':{sha256:'abd1489d1a25aa81c19e03d881a0b0e5812b25e9eaee6f8e32f049a31c3cbdff',natural:[2172, 724]},
+ '/header-projects.png':{sha256:'1a04d966cd48b61d77f28548344ca153d4f864f7c506dbe672dc2aa28fced31a',natural:[1254, 1254]},
  '/takeoff-header-service-plans.png':{sha256:'7e2c1c1a554201852151c27bc030624b9d7e63722c15c260d9f0f218ca6fbfea',natural:[2172,724]},
  '/header-steel-spray.png':{sha256:'291c15eb430d5fa3dfad5b05b1aacb3f0c49da30a841189fe3d7203afc7707a3',natural:[1254,1254]},
  '/header-steel-board.png':{sha256:'c033e82dda0f1f82071eb600019423cb74dc562702abaaff9b50d09b32928bef',natural:[2172,724]},
@@ -87,13 +91,41 @@ async function framing(selector,name,firestopping=false){
   const value=await page.locator(selector).evaluate(frame=>{const image=frame.matches('img')?frame:frame.querySelector('img'),crop=frame.matches('img')?frame:frame.querySelector('.workspace-banner-crop'),heading=frame.closest(".workspace-banner-heading,.penetration-banner-heading"),box=el=>{const r=el.getBoundingClientRect();return{x:r.x,y:r.y,right:r.right,bottom:r.bottom,width:r.width,height:r.height}},f=box(frame),c=box(crop),b=box(image),s=getComputedStyle(image),scale=(s.objectFit==='cover'?Math.max:Math.min)(b.width/image.naturalWidth,b.height/image.naturalHeight),position=s.objectPosition.split(' ').map(v=>parseFloat(v)/100),paint={x:b.x+(b.width-image.naturalWidth*scale)*position[0],y:b.y+(b.height-image.naturalHeight*scale)*position[1],width:image.naturalWidth*scale,height:image.naturalHeight*scale},left=Math.max(paint.x,f.x,c.x),right=Math.min(paint.x+paint.width,f.right,c.right),top=Math.max(paint.y,f.y,c.y),bottom=Math.min(paint.y+paint.height,f.bottom,c.bottom);let heightWithoutArt;const original=frame.style.getPropertyValue('display'),priority=frame.style.getPropertyPriority('display'),attribute=frame.getAttribute('style');try{frame.style.display='none';heightWithoutArt=heading.getBoundingClientRect().height;}finally{if(original)frame.style.setProperty('display',original,priority);else frame.style.removeProperty('display');if(attribute===null&&frame.style.length===0){frame.getAttribute('style');frame.removeAttribute('style');}}return{src:image.getAttribute('src'),frame:f,crop:c,image:b,paint,visiblePaint:{left,right,top,bottom,width:right-left,height:bottom-top},heading:box(heading),heightWithoutArt,title:box(heading.querySelector('h1,h2')),natural:[image.naturalWidth,image.naturalHeight],fit:s.objectFit,sourceCrop:{left:(left-paint.x)/scale,top:(top-paint.y)/scale,width:(right-left)/scale,height:(bottom-top)/scale,fraction:(right-left)*(bottom-top)/(paint.width*paint.height)},innerMask:getComputedStyle(crop).maskImage,innerComposite:getComputedStyle(crop).maskComposite,pointer:s.pointerEvents,overflow:document.documentElement.scrollWidth-innerWidth};});
   assert.deepEqual(value.natural,assetContract[value.src].natural);assert.equal(value.pointer,'none');assert.match(value.innerMask,/linear-gradient/);assert.ok(Math.abs(value.visiblePaint.left-value.crop.x)<.25&&Math.abs(value.visiblePaint.right-value.crop.right)<.25&&Math.abs(value.visiblePaint.top-value.crop.y)<.25&&Math.abs(value.visiblePaint.bottom-value.crop.bottom)<.25,'The fade frame follows all four visible painted edges');assert.equal(value.heading.height,value.heightWithoutArt,name+' artwork retains the original header height at every theme and viewport');assert.ok(value.overflow<=1);assert.ok(value.frame.x>=value.heading.x&&value.frame.right<=value.heading.right+.1&&value.frame.y>=value.heading.y&&value.frame.bottom<=value.heading.bottom+.1,'Decorative frame fits the original heading: '+JSON.stringify(value));
   if(firestopping){const adjacent=await page.locator(selector).evaluate(el=>{const heading=el.closest('.penetration-banner-heading'),text=heading.querySelector('.calculator-heading-text').getBoundingClientRect(),bolt=heading.querySelector('svg').getBoundingClientRect(),art=el.getBoundingClientRect();return{left:bolt.left-text.right,right:art.left-bolt.right};});assert.ok(adjacent.left>=17.9&&adjacent.right>=17.9,'Firestopping lightning has space on both sides');assert.equal(value.fit,'contain');assert.ok(value.frame.width<=210.1,'Firestopping art stays compact beside the heading');}
-  else{assert.equal(value.fit,width<=760&&name!=='steel_vermiculite'?'contain':'cover');assert.match(value.innerMask,/90deg/);assert.match(value.innerComposite,/intersect/);assert.ok(value.sourceCrop.width/value.natural[0]>.999,'The complete horizontal scene is retained');if(name==='steel_vermiculite'){assert.ok(value.sourceCrop.fraction>=.625-.001,'Square spray scene retains at least62.5percent of its source');assert.ok(value.sourceCrop.top<=400&&value.sourceCrop.top+value.sourceCrop.height>=1100,'Spray crop retains both beam flanges in the supplied square scene');}else assert.ok(value.sourceCrop.fraction>(width<=760?.999:.65),'Wide landscapes retain at least65percent source height and the complete scene on phones');if(name!=='estimate'&&name!=='steel_vermiculite'){const oldPaintWidth=Math.min(value.frame.width,value.heading.height*(width<=760?1122/1402:1.44));assert.ok(value.visiblePaint.width>=oldPaintWidth-.25,'Landscape paint does not shrink into the old portrait window');if(width>760)assert.ok(value.visiblePaint.width>oldPaintWidth*1.5,'The supplied artwork uses a substantially wider banner than the old portrait');value.originalPortraitPaintWidth=oldPaintWidth;}}
-  if(name==='estimate'&&width<=760){const copy=await page.locator(selector).evaluate(frame=>{const heading=frame.parentElement,title=heading.querySelector('h1'),range=document.createRange();range.selectNodeContents(title);const ink=range.getBoundingClientRect(),subtitle=heading.querySelector('.subtitle').getBoundingClientRect(),r=frame.getBoundingClientRect();return{direction:getComputedStyle(heading).direction,titleInk:{left:ink.left,right:ink.right},subtitleTop:subtitle.top,art:{left:r.left,right:r.right,bottom:r.bottom}};});assert.ok(copy.direction==='rtl'?copy.art.right<=copy.titleInk.left:copy.art.left>=copy.titleInk.right,'Phone estimate artwork leaves the title ink clear');assert.ok(copy.art.bottom<=copy.subtitleTop,'Phone estimate artwork stays above the subtitle');value.mobileCopyBounds=copy;}
   evidence.push({name:name+'-framing',theme:themeId,viewport:width,...value});await page.screenshot({path:path.join(output,`${name}-framing-${themeId}-${width}.png`)});
  }
  }
  if(!firestopping)await theme('ceasefire',name);
  await page.setViewportSize({width:1384,height:764});
+}
+async function followupBanners(themes=['ceasefire','midnight','ocean','forest','slate'],widths=[1384,1020,825,390]){
+ for(const themeId of themes){
+  await theme(themeId,'estimate');await chooseEstimate();
+  for(const workspace of ['estimate','projects','technical','pricing']){
+   if(workspace==='projects'){await page.locator('nav [data-view="quotes"]').click();await idle();}
+   else if(workspace==='technical'||workspace==='pricing'){await chooseLibrary(page,workspace);await idle();}
+   const heading=page.locator(workspace==='estimate'?'.estimate-banner-heading':workspace==='projects'?'.project-banner-heading':`#library-${workspace} > .page-heading`);
+   for(const width of widths){
+    await page.setViewportSize({width,height:764});await page.evaluate(()=>scrollTo(0,0));
+    const data=await heading.evaluate(el=>{
+     const box=n=>{const r=n.getBoundingClientRect();return{x:r.x,y:r.y,right:r.right,bottom:r.bottom,width:r.width,height:r.height};},title=el.querySelector('h1,h2'),frame=el.querySelector('.workspace-header-art--estimate,.project-heading-art-slot img,.library-heading-art-slot img'),image=frame&&(frame.matches('img')?frame:frame.querySelector('img'));
+     return{heading:box(el),title:box(title),font:getComputedStyle(title).fontSize,art:frame?box(frame):null,src:image?.getAttribute('src'),loaded:!image||image.complete&&image.naturalWidth>0,direction:getComputedStyle(el).direction,subtitle:el.querySelectorAll('.subtitle').length,overflow:document.documentElement.scrollWidth-innerWidth};
+    });
+    assert.equal(data.loaded,true);assert.equal(data.subtitle,0);assert.ok(data.overflow<=1,JSON.stringify(data));
+    if(workspace==='pricing')assert.equal(data.font,'28px');
+    else{assert.ok(data.art.width>0&&data.art.height>0);assert.ok(data.direction==='rtl'?data.art.right<=data.title.x:data.art.x>=data.title.right,'Artwork follows the heading without overlap: '+JSON.stringify(data));assert.ok(data.art.x>=data.heading.x&&data.art.right<=data.heading.right+.1);}
+    if(workspace==='technical'){assert.ok(data.art.width<=220.1&&data.art.height<=90.1,'Technical artwork fits the requested bounds');}
+    if(workspace==='estimate'){const toggle=heading.locator('[data-document-menu-toggle]');await toggle.click({trial:true});}
+    if(workspace==='projects'){
+     for(const id of ['new-quote','load-project','link-project-folder','refresh-quotes'])await page.locator('#'+id).click({trial:true});
+     const banner=await page.locator('.project-evidence-art').evaluate(el=>{const frame=el.querySelector('.project-evidence-crop'),image=el.querySelector('img'),r=el.getBoundingClientRect(),list=document.querySelector('#project-list-card').getBoundingClientRect(),crop=frame.getBoundingClientRect();return{centered:Math.abs((crop.left+crop.right)/2-(r.left+r.right)/2)<.1,inside:crop.left>=r.left-.1&&crop.right<=r.right+.1,width:r.width,height:r.height,afterList:r.top>=list.bottom,loaded:image.complete&&image.naturalWidth>0,mask:getComputedStyle(frame).maskImage,composite:getComputedStyle(frame).maskComposite,pointer:getComputedStyle(el).pointerEvents};});
+     assert.equal(banner.afterList,true);assert.equal(banner.centered,true);assert.equal(banner.inside,true);assert.equal(banner.loaded,true);assert.match(banner.mask,/90deg/);assert.match(banner.composite,/intersect/);assert.equal(banner.pointer,'none');assert.ok(banner.height>=128&&banner.height<=180);data.banner=banner;await page.locator('.project-evidence-art').scrollIntoViewIfNeeded();await page.screenshot({path:path.join(output,`followup-evidence-${themeId}-${width}.png`)});await page.evaluate(()=>scrollTo(0,0));
+    }
+    evidence.push({name:'header-followup',workspace,theme:themeId,viewport:width,...data});await page.screenshot({path:path.join(output,`followup-${workspace}-${themeId}-${width}.png`)});
+   }
+  }
+ }
+ await page.locator('nav [data-view="quotes"]').click();await idle();await page.emulateMedia({media:'print'});await expect(page.locator('.project-evidence-art')).toBeHidden();await expect(page.locator('.project-heading-art-slot')).toBeHidden();await page.emulateMedia({media:'screen'});
+ await theme('ceasefire','estimate');await page.setViewportSize({width:1384,height:764});
 }
 async function calculatorFraming(kind,name,themes=['ceasefire','midnight','ocean','forest','slate'],widths=[1384,1146,825,390]){
  const heading=page.locator('.calculator-workspace-heading');
@@ -119,7 +151,7 @@ async function calculatorFraming(kind,name,themes=['ceasefire','midnight','ocean
    for(const part of ['heading','copy','title','actions'])for(const axis of ['x','y','width','height'])assert.ok(Math.abs(value.actual[part][axis]-value.baseline.geometry[part][axis])<.1,`${name}/${themeId}/${width} preserves original ${part}.${axis}: ${JSON.stringify(value)}`);
    assert.deepEqual(value.actualLayout,value.baseline.layout,'Moving artwork preserves the calculator, worksheet and full page flow');
    assert.equal(value.documentHit,true,'The real Document toggle receives native pointer input');assert.ok(value.overflow<=1);
-   assert.equal(value.bolt.stretch,'none','The painted bolt stretches with its box');assert.equal(value.bolt.hidden,'true');assert.equal(value.bolt.focusable,'false');assert.equal(value.bolt.pointer,'none');assert.ok(value.bolt.width>=10&&value.bolt.length>64,'The lightning is visible');assert.ok(value.bolt.y<=value.slot.y-7.9&&value.bolt.bottom>=value.slot.bottom+7.9,'Lightning extends beyond both edges of the copy row without changing layout');assert.doesNotMatch(value.bolt.stroke,/none|rgba\(0, 0, 0, 0\)/);
+   assert.equal(value.bolt.stretch,'xMidYMid meet','Lightning retains its natural proportions');assert.equal(value.bolt.height,96,'All calculator lightning has the same height');assert.equal(value.bolt.width,16);assert.equal(value.bolt.stroke,'rgb(53, 191, 255)','Electric blue channel');assert.equal(value.bolt.hidden,'true');assert.equal(value.bolt.focusable,'false');assert.equal(value.bolt.pointer,'none');assert.ok(value.bolt.width>=10&&value.bolt.length>64,'The lightning is visible');assert.ok(Math.abs((value.bolt.y+value.bolt.height/2)-(value.slot.y+value.slot.height/2))<.1,'Lightning is centred beside the heading');assert.doesNotMatch(value.bolt.stroke,/none|rgba\(0, 0, 0, 0\)/);
    assert.ok(value.direction==='rtl'?value.bolt.x-value.frame.right>=17.9&&value.actual.copy.x-value.bolt.right>=17.9:value.bolt.x-value.actual.copy.right>=17.9&&value.frame.x-value.bolt.right>=17.9,'Lightning leaves 18px on either side');
    assert.ok(value.frame.width>0&&value.frame.height>0&&value.frame.x>=value.actual.heading.x&&value.frame.right<=value.actual.heading.right+.1&&value.frame.y>=value.actual.heading.y-.1&&value.frame.bottom<=value.actual.heading.bottom+.1,'The art stays inside the original heading');
    if(value.actual.actions.y<value.actual.title.bottom)assert.ok(value.direction==='rtl'?value.frame.x>=value.actual.actions.right:value.frame.right<=value.actual.actions.x,'The image leaves same-row controls clear');else assert.ok(value.frame.bottom<=value.actual.actions.y+.1,'Phone artwork stays above the original controls');
@@ -203,6 +235,7 @@ async function takeoffHeading(name,route,themes=['ceasefire','midnight','ocean',
  await page.goto(`http://127.0.0.1:${fixture.port}/`);await idle();
  for(const [route,contract]of Object.entries(assetContract)){const response=await page.request.get(new URL(route,page.url()).href);assert.equal(response.status(),200);assert.match(response.headers()['content-type'],/image\/png/);const bytes=await response.body(),sha256=crypto.createHash('sha256').update(bytes).digest('hex');assert.equal(sha256,contract.sha256,'Served artwork exactly matches the supplied or unchanged original');assert.equal(crypto.createHash('sha256').update(fs.readFileSync(path.join(root,'static',route.slice(1)))).digest('hex'),sha256);assetEvidence.push({route,sha256,bytes:bytes.length,natural:contract.natural});}
  await page.evaluate(async()=>{await window.CeasefireCalculators.completeProjectSnapshot();await window.CeasefirePenetrations.completeProjectSnapshot();});
+ if(followupsOnly){const before=await snapshot();if(followupRtlOnly){await page.locator('nav [data-view="settings"]').click();await idle();await page.locator('#application-language').selectOption('ar');}await chooseEstimate();await followupBanners(followupRtlOnly?['slate']:undefined,followupRtlOnly?[1020,390]:undefined);assert.deepEqual(await snapshot(),before,'Header artwork preserves every project draft');assert.deepEqual(errors,[]);assert.deepEqual(csp,[]);fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,mode:'header-followups-only',assets:assetEvidence,evidence,draftsUnchanged:true,errors,csp},null,2));console.log('PASS header followups: '+output);return;}
  await chooseTakeoff(page,'Steel');await takeoffIdle();await page.locator('#takeoff-upload').setInputFiles(fixture.fixture);
  await page.waitForFunction(()=>!window.CeasefireTakeoffs.hasPendingOperation()&&window.CeasefireTakeoffs.projectSnapshot()?.documents.length===1);
  // Upload metadata is accepted before automatic Fit has loaded and verified
@@ -215,7 +248,7 @@ async function takeoffHeading(name,route,themes=['ceasefire','midnight','ocean',
  await page.locator('nav [data-view="home"]').click();await idle();
  await art('.home-laser-art','home');
  await chooseEstimate();await art('.workspace-header-art--estimate','estimate',true);
- await framing('.workspace-header-art--estimate','estimate');
+ await followupBanners();
  await documentActions('[aria-controls="firestopping-document-actions"]',['download-full-schedule','download-full-product-summary'],'estimate');
  }
  if(!takeoffWidthOnly&&!rtlCalculatorMenusOnly){
@@ -239,6 +272,7 @@ async function takeoffHeading(name,route,themes=['ceasefire','midnight','ocean',
  if(!takeoffWidthOnly){
  await page.locator('nav [data-view="settings"]').click();await idle();await page.locator('#application-language').selectOption('ar');await expect(page.locator('html')).toHaveAttribute('dir','rtl');
  for(const [id,kind]of [['steel_vermiculite','spray'],['steel_board','board'],['ductwork','ductwork']]){await translatedCalculator(id);await calculatorFraming(kind,id,['slate'],[825,390]);}
+ if(!calculatorBannersOnly)await followupBanners(['slate'],[1020,390]);
  }
  await page.locator('nav [data-view="settings"]').click();await idle();await page.locator('#application-language').selectOption('en');await expect(page.locator('html')).toHaveAttribute('dir','ltr');
  for(const width of [906,390]){await page.setViewportSize({width,height:764});await page.locator('nav [data-view="home"]').click();await idle();await expect(page.locator('.home-laser-art')).toBeVisible();assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth-innerWidth)<=1);await page.screenshot({path:path.join(output,'home-'+width+'.png')});}

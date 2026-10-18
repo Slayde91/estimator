@@ -33,7 +33,7 @@ STATIC_FILES = (
     'library-editor.js', 'penetration-breakdown.js', 'penetration.css', 'penetration.js', 'styles.css',
     'header-tagline-media.js', 'header-tagline-character.gif', 'header-tagline-character-still.png',
     'help-glossary.js', 'help-glossary.css', 'company-settings.js', 'theme.js', 'theme.css', 'language.js', 'language-catalog.js', 'language.css', 'laser.css', 'laser-steel.svg', 'home-steel-frame.png',
-    'header-layout.css', 'workspace-art.css', 'header-steel-spray.png', 'header-steel-board.png', 'header-ductwork.png', 'header-firestopping.png', 'header-estimate.png',
+    'header-layout.css', 'workspace-art.css', 'header-steel-spray.png', 'header-steel-board.png', 'header-ductwork.png', 'header-firestopping.png', 'header-estimate.png', 'header-firestopping-library.png', 'header-technical-library.png',
     'fonts/Montserrat-Italic-Variable.ttf', 'fonts/Montserrat-Variable.ttf', 'fonts/OFL.txt',
     'ceasefire-app.ico', 'ceasefire-app-icon.png',
     'icons/navigation-home.png', 'icons/navigation-help.png', 'icons/navigation-help.jpg', 'icons/document.png', 'icons/schedule-add.png',

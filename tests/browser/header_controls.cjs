@@ -61,7 +61,10 @@ async function inspectHeader(width) {
       assert.ok(b.width >= 40 && b.height >= 40, `Usable navigation target at ${width}`);
       assert.ok(b.x >= nav.x && b.x + b.width <= nav.x + nav.width + 1 && b.y >= nav.y && b.y + b.height <= nav.y + nav.height + 1, `Individual navigation button fits at ${width}`);
     }
-    assert.ok(header.height <= (width > 1150 ? 180 : width > 720 ? 235 : 300), `Header avoids excessive height at ${width}: ${header.height}`);
+    const coordinates=await box(page.locator('#cursor-position'));
+    assert.ok(coordinates.x>=header.x&&coordinates.x+coordinates.width<=header.x+header.width&&coordinates.y+coordinates.height<=header.y+header.height,'Coordinates remain inside the header');
+    // The new coordinate row adds 16px plus the existing 4px identity gap.
+    assert.ok(header.height <= (width > 1150 ? 180 : width > 720 ? 235 : 300)+20, `Header avoids excessive height at ${width}: ${header.height}`);
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), `Long quote name does not cause overflow at ${width}`);
     const screenshot = path.join(output, `header-${width}-long-name.png`);
     await page.screenshot({ path: screenshot });
@@ -77,6 +80,30 @@ async function inspectHeader(width) {
   await page.addInitScript(() => { window.qaCsp = []; document.addEventListener('securitypolicyviolation', e => window.qaCsp.push(e.effectiveDirective)); });
   await page.goto(`http://127.0.0.1:${info.port}/`); await idle(); await page.evaluate(() => document.fonts.ready);
   await expect(page.locator('#header-project-name')).toBeHidden();
+  const coordinates = page.locator('#cursor-position');
+  await expect(coordinates).toBeVisible();
+  await page.mouse.move(241, 173, { steps: 8 });
+  await expect(coordinates).toHaveText('X: 241   Y: 173');
+  await page.mouse.move(501, 319, { steps: 8 });
+  await expect(coordinates).toHaveText('X: 501   Y: 319');
+  await page.evaluate(() => scrollTo(0, 200));
+  await page.mouse.move(310, 250);
+  await expect(coordinates).toHaveText('X: 310   Y: 250');
+  await page.evaluate(() => scrollTo(0, 0));
+  await page.mouse.move(-10, -10);
+  await expect(coordinates).toHaveText('X: —   Y: —');
+  evidence.cursorCoordinates = { realPointerMoves: true, windowPixelsAfterScroll: true, clearedOnLeave: true };
+  await page.getByRole('button',{name:'Settings',exact:true}).click(); await idle();
+  for(const theme of ['ceasefire','midnight','ocean','forest','slate']) {
+    await expect(page.locator('html')).toHaveAttribute('data-theme',theme);
+    const contrast=await coordinates.evaluate(el=>{
+      const rgb=value=>value.match(/[\d.]+/g).slice(0,3).map(Number),luminance=values=>values.map(v=>{v/=255;return v<=.04045?v/12.92:((v+.055)/1.055)**2.4;}).reduce((sum,v,i)=>sum+v*[.2126,.7152,.0722][i],0);
+      const ink=luminance(rgb(getComputedStyle(el).color)),paper=luminance(rgb(getComputedStyle(el.closest('.app-header')).backgroundColor));
+      return (Math.max(ink,paper)+.05)/(Math.min(ink,paper)+.05);
+    });
+    assert.ok(contrast>=4.5,`Readable cursor coordinates in ${theme}: ${contrast}`);
+    await page.locator('#theme-toggle').click();
+  }
   // Compare fully initialized drafts, including the lazily loaded composer.
   await page.evaluate(async () => { await window.CeasefireCalculators.completeProjectSnapshot(); await window.CeasefirePenetrations.completeProjectSnapshot(); }); await idle();
   await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); await idle();
@@ -169,12 +196,26 @@ async function inspectHeader(width) {
       assert.ok(await page.locator('#library-pricing .table-scroll').evaluate(el=>el.scrollWidth<=el.clientWidth+1),'Pricing columns fit desktop width');
     }
     if(kind==='technical')await expect(page.locator('[data-library-summary="technical"]')).toBeVisible();
+    if(kind==='pricing')await expect(page.locator('#library-pricing > .page-heading .subtitle')).toHaveCount(0);
+    else {
+      const heading=page.locator(`#library-${kind} > .page-heading`), image=heading.locator('.library-heading-art-slot img');
+      await expect(image).toHaveAttribute('src',`/header-${kind==='penetration'?'firestopping':'technical'}-library.png`);
+      assert.ok(await image.evaluate(el=>el.complete&&el.naturalWidth>0));
+      for(const width of [1384,825,390]) {
+        await page.setViewportSize({width,height:1000});
+        const bounds=await heading.boundingBox(), art=await image.boundingBox(), title=await heading.locator('h1,h2').boundingBox();
+        assert.ok(art.x>=title.x+title.width&&art.x+art.width<=bounds.x+bounds.width+1,'Library artwork sits beside the heading without overlap');
+        assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
+        await page.screenshot({path:path.join(output,`library-${kind}-${width}.png`)});
+      }
+      await page.setViewportSize({width:1440,height:1000});
+    }
     evidence.libraries.push(kind);
   }
   for (const name of ['Steel', 'Duct', 'Walls/Floors', 'Defect Reports', 'Service Plans']) {
     await chooseTakeoff(page, name); await idle();
     const visibility=page.getByRole('button',{name:'Visibility',exact:true});await expect(visibility).toBeVisible();assert.ok(await visibility.locator('img').evaluate(img=>img.complete && img.naturalWidth>0));
-    await expect(page.locator('.takeoff-workspace-title')).toHaveText(name==='Duct'?'Ductwork':name);
+    await expect(page.locator('.takeoff-workspace-title')).toHaveText(name);
     const reference=await page.locator('#view-takeoffs').getByRole('button', { name: 'Settings', exact: true }).boundingBox();
     for(const tool of ['Visibility',...name==='Steel'?['Markups','Legend']:name==='Duct'?['Legend']:[]]){const b=await page.getByRole('button',{name:tool,exact:true}).boundingBox();assert.equal(b.width,reference.width);assert.equal(b.height,reference.height);}
     const documents=await page.locator('.takeoff-source-documents').boundingBox(),search=await page.locator('.takeoff-search-controls').boundingBox();assert.ok(documents.x<search.x||documents.y<search.y);await expect(page.locator('.takeoff-drawing-layout>.takeoff-source-documents')).toHaveCount(0);

@@ -12,16 +12,56 @@
   const longHeading = line => line.length > 61 && /^[A-Za-z][^.!?]*:$/.test(line);
   const endsInConnector = text => /(?:\b(?:of|the|and|or|with|using|in|to|on|at|by|from|for|as|a|an|into|either|each)|[×,])$/i.test(text);
 
+  // Keep these ordered rules aligned with estimator/technical_display.py.
+  const compactRules = [
+    [/\bFIREFLY(?=[A-Za-z])/gi, ""],
+    [/\bFIREFLY[ \t]+(?=(?:Batt|Mastic|Penowrap|Intu[A-Za-z]+)\b)/gi, ""],
+    [/\bPenowrap\b[\u00ae\u2122]?/gi, "wrap"],
+    [/\bBrush Grade\b/gi, "BG"],
+    [/\bincluding\b/gi, "incl."],
+    [/\bapproximately\b/gi, "approx."],
+    [/\bin order to\b/gi, "to"],
+    [/\bin accordance with\b/gi, "per"],
+    [/\bas per\b/gi, "per"],
+    [/\bprior to\b/gi, "before"],
+    [/\bsubsequent to\b/gi, "after"],
+    [/\bin the event that\b/gi, "if"],
+    [/\bprovided that\b/gi, "provided"],
+    [/\bfor the purpose of\b/gi, "for"],
+    [/\bin addition to\b/gi, "plus"],
+    [/\bin between\b/gi, "between"],
+    [/\bSource configuration ratings remain subject to the stated barrier construction and installation conditions\b/gi, "Source ratings subject to stated barrier construction and installation conditions"],
+    [/\bThe entry selection remains separate\b/gi, "Entry selection remains separate"],
+    [/\bno missing values have been inferred\b/gi, "no missing values inferred"],
+    [/\bto ensure that\b/gi, "to ensure"],
+    [/\bat a distance of\b/gi, "at"],
+    [/\ba minimum of\b|\bminimum of\b/gi, "min."],
+    [/\ba maximum of\b|\bmaximum of\b/gi, "max."],
+    [/\bminimum\b\.?/gi, "min."],
+    [/\bmaximum\b\.?/gi, "max."],
+    [/\bis required to be\b/gi, "must be"],
+    [/\bare required to be\b/gi, "must be"],
+    [/\bis required for\b/gi, "required for"],
+    [/\bare required for\b/gi, "required for"],
+    [/\bmust be at least\b/gi, "must be min."],
+    [/\bat least\b/gi, "min."],
+    [/\bat most\b/gi, "max."],
+    [/\bon both sides of the wall\b/gi, "on both wall faces"],
+    [/\bon each side of the wall\b/gi, "on each wall face"],
+    [/\bfrom the face of the wall\b/gi, "from wall face"],
+    [/\bthe (Batt layers) are glued together using\b/gi, "Glue $1 together w/"],
+    [/\bAll cut edges, incl\. layer joints and the wall perimeter interface, to be coated\b/gi, "Coat all cut edges, incl. layer joints and wall perimeter interface"],
+    [/\binto\s+the\s+aperture\b/gi, "to aperture"],
+    [/\bof\s+the\s+damper\b/gi, "of damper"],
+    [/\bthe (apertures?|walls?|floors?|ceilings?|slabs?|substrates?|services?|collars?|boards?|seals?|wraps?|openings?|perimeters?)\b/gi, "$1"],
+    [/(?<!when )\busing\b/gi, "w/"],
+    [/\bwith\b/gi, "w/"],
+    [/\bper\b/gi, "p/"],
+  ];
+
   function compact(value) {
-    const text = String(value ?? ""), protectedText = /https?:\/\/[^\s<>]+|[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}/gi;
-    const prose = part => part.replace(/\bFIREFLY(?=[A-Za-z])/gi, "")
-      .replace(/\bFIREFLY[ \t]+(?=(?:Batt|Mastic|Penowrap|Intu[A-Za-z]+)\b)/gi, "")
-      .replace(/\binto\s+the\s+aperture\b/gi, "to aperture")
-      .replace(/\bof\s+the\s+damper\b/gi, "of damper")
-      .replace(/\bBrush Grade\b/gi, "BG").replace(/\bincluding\b/gi, "incl.").replace(/\bapproximately\b/gi, "approx.")
-      .replace(/\bThe (Batt layers) are glued together using\b/gi, "Glue $1 together w/")
-      .replace(/\bAll cut edges, incl\. layer joints and the wall perimeter interface, to be coated\b/gi, "Coat all cut edges, incl. layer joints and wall perimeter interface")
-      .replace(/\bminimum\b\.?/gi, "min.").replace(/\bper\b/gi, "p/").replace(/\bwith\b/gi, "w/");
+    const text = String(value ?? ""), protectedText = /https?:\/\/[^\s<>]+|[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}|\b[\w.-]+\.(?:pdf|xlsx?|docx?|png|jpe?g|json)\b/gi;
+    const prose = part => compactRules.reduce((text, [expression, replacement]) => text.replace(expression, replacement), part);
     let result = "", cursor = 0;
     for (const match of text.matchAll(protectedText)) {
       result += prose(text.slice(cursor, match.index)) + match[0]; cursor = match.index + match[0].length;

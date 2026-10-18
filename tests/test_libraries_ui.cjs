@@ -44,6 +44,17 @@ function harness(){
 let passed=0;
 async function check(name,fn){await fn(harness());passed++;console.log('ok - '+name);}
 (async()=>{
+  await check('Compact list and link-picker wording preserves source objects and exact record IDs',async h=>{
+    const item={...records('technical').items[0],title:'FIREFLYPenowrap with minimum 50 mm',subtitle:'Maximum 120 mm only',summary:'Use the wall requirements.',source_label:'Penowrap with report 123'},before=copy(item);
+    h.setRoute(path=>path==='/api/libraries'?meta():path.startsWith('/api/libraries/technical')?{...records('technical'),items:[item]}:records('penetration'));
+    await h.api.open('technical');const pane=h.pane('technical'),nodes=walk(pane.results);
+    assert.equal(nodes.find(n=>n.dataset.libraryRecord).textContent,'wrap w/ min. 50 mm');
+    assert.equal(nodes.find(n=>n.dataset.libraryRecord).dataset.libraryRecord,'technical-1');
+    assert.match(text(pane.results),/max\. 120 mm only/);assert.match(text(pane.results),/Use wall requirements\./);assert.doesNotMatch(text(pane.results),/Penowrap/i);
+    await h.api.open('penetration');const fire=h.pane('penetration');await walk(fire.results).find(n=>n.dataset.libraryLink).emit('click');await flush();
+    assert.equal(fire.linkSession.choices[0].value,'technical-1');assert.match(text(fire.linkSession.results),/wrap w\/ min\. 50 mm/);assert.doesNotMatch(text(fire.linkSession.results),/Penowrap/i);
+    assert.deepEqual(item,before);
+  });
   await check('Mandarin library headings and generated reference choices translate while source table columns stay literal',async h=>{
     h.context.window.CeasefireI18n=require('./helpers/localized_i18n.cjs')();
     await h.api.open('penetration');const pane=h.pane('penetration');
@@ -245,7 +256,7 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
       '800 × 600 mm','Two layers of 13 mm fire-rated plasterboard to each wall face.','-/90/90',
       '1000 × 600 mm','min. 130 mm CLT wall.','-/120/120']);
     assert.deepEqual(nodes.filter(n=>n.classList.contains('library-frl-value')&&['th','td'].includes(n.tagName)).map(n=>n.textContent),['FRL','-/60/60','-/90/90','-/120/120']);
-    for(const [label,summary] of [['Blank Seal FRL','-/60/60 to -/120/120'],['Maximum Opening Size','1000 × 600 mm']]) {
+    for(const [label,summary] of [['Blank Seal FRL','-/60/60 to -/120/120'],['max. Opening Size','1000 × 600 mm']]) {
       const pair=nodes.find(n=>n.className==='library-record-field'&&n.children[0].textContent===label),value=pair.children[1],links=walk(value).filter(n=>n.className==='library-configuration-link');
       assert.equal(value.textContent,summary);assert.equal(links.length,1);assert.equal(links[0].textContent,'View barrier construction table');assert.equal(links[0].href,'#'+tables[0].id);
       await links[0].emit('click',{detail:0});assert.equal(h.context.document.activeElement,tables[0]);
@@ -343,7 +354,7 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
       const fields=[{label,value:'Source page 1, 2\nFit around the\nservice.\n\n1. Cut the board.\n2. Fill the gap.\nSource page 3\nProtect both faces.'}],before=copy(fields);
       h.setRoute(path=>path==='/api/libraries'?meta():({...detail(kind,'instructions'),fields,images:[]}));await h.api.open(kind,'instructions');
       const nodes=walk(h.pane(kind).detailPanel),prose=nodes.find(n=>n.className==='library-detail-text');
-      assert.ok(prose);assert.doesNotMatch(text(prose),/Source page/);assert.match(text(prose),/Fit around the service\./);
+      assert.ok(prose);assert.doesNotMatch(text(prose),/Source page/);assert.match(text(prose),/Fit around service\./);
       assert.equal(walk(prose).filter(n=>n.tagName==='ol').length,1);assert.equal(walk(prose).filter(n=>n.tagName==='li').length,2);assert.match(text(prose),/Protect both faces/);assert.deepEqual(fields,before);
     }
   });
@@ -378,13 +389,13 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     const cases=[{links:{}},{links:[null,{field:'Barrier Construction',table_index:0,extra:true}]},{links:[{field:'Barrier Construction',table_index:2}]},{table:{columns:['FRL'],rows:[null]}},{table:{columns:['FRL'],rows:[['-/60/60']]}},{value:'-/120/120 — source substrate alternatives (Barrier Construction table 1; FRL Without Wrap). The entry selection remains separate.'},{value:'-/120/120 — matched source barrier row (Barrier Construction table 1; Substrate: Floor).'}, {value:'-/120/120 — observed source service ratings (Barrier Construction table 1; unknown scope).'}];
     for(const [index,item] of cases.entries()) {
       const fields=[{...base,value:item.value||base.value,table_links:item.links??base.table_links},{label:'Barrier Construction',value:'',table:item.table||table}],before=copy(fields);
-      h.setRoute(path=>path==='/api/libraries'?meta():({...detail('technical','invalid-frl-'+index),fields,images:[]}));await h.api.open('technical','invalid-frl-'+index);assert.equal(walk(h.pane('technical').detailPanel).find(n=>n.tagName==='dd').textContent,fields[0].value);assert.deepEqual(fields,before);
+      h.setRoute(path=>path==='/api/libraries'?meta():({...detail('technical','invalid-frl-'+index),fields,images:[]}));await h.api.open('technical','invalid-frl-'+index);assert.equal(walk(h.pane('technical').detailPanel).find(n=>n.tagName==='dd').textContent,fields[0].value.replace('The entry selection','Entry selection'));assert.deepEqual(fields,before);
     }
   });
   await check('FRL authored qualifications and non-applicability survive concise linked-table summaries',async h=>{
     const authored='-/120/120 RISF 81; use the lower rating of the supporting construction.\n\nUp to -/180/120 (-/180/90 without wrap).\n\nBoard thickness must be at least 40 mm.\n\n-/120/120 — observed concrete-slab service ratings (Service Size / Configuration table 1; applicability to the CLT entry is not established).';
     const fields=[{label:'FRL',value:authored+'\n\n-/60/60 to -/120/120 — observed source service ratings (Service Size / Configuration table 1).\n\nSource configuration ratings remain subject to the stated barrier construction and installation conditions.',table_links:[{field:'Service Size / Configuration',table_index:0}]},{label:'Service Size / Configuration',value:'',table:{columns:['FRL'],rows:[['-/60/60'],['-/120/120']]}}],before=copy(fields);
-    h.setRoute(path=>path==='/api/libraries'?meta():({...detail('technical','authored'),fields,images:[]}));await h.api.open('technical','authored');assert.equal(walk(h.pane('technical').detailPanel).find(n=>n.tagName==='dd').textContent,authored+'\n\n-/60/60 to -/120/120');assert.deepEqual(fields,before);
+    h.setRoute(path=>path==='/api/libraries'?meta():({...detail('technical','authored'),fields,images:[]}));await h.api.open('technical','authored');assert.equal(walk(h.pane('technical').detailPanel).find(n=>n.tagName==='dd').textContent,authored.replace('at least','min.')+'\n\n-/60/60 to -/120/120');assert.deepEqual(fields,before);
   });
   await check('FRL qualified source references are concise only when the linked table retains the qualified rating',async h=>{
     const qualification='Up to -/120/120, subject to the supporting barrier.',reference='Source substrate alternatives (Barrier Construction table 1; FRL): retain the qualified source ratings as shown; no range is inferred.';

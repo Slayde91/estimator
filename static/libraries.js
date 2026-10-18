@@ -146,6 +146,7 @@
   }
   function renderList(pane) {
     const data = pane.data, items = Array.isArray(data.items) ? data.items : [];
+    const display = compactTechnical;
     pane.offset = integer(data.offset, pane.offset); pane.limit = integer(data.limit, pane.limit) || 50;
     const total = integer(data.total);
     uiText(pane.count, ...(total ? ["Showing {0}–{1} of {2} records", [pane.offset + 1, Math.min(pane.offset + items.length, total), total]] : ["No matching records.", []]));
@@ -153,14 +154,14 @@
     for (const key of pane.deleteButtons.keys()) if (key.startsWith("list:")) pane.deleteButtons.delete(key);
     for (const key of pane.quantityBadges.keys()) if (key.startsWith("list:")) pane.quantityBadges.delete(key);
     pane.results.replaceChildren(...(items.length ? items.map(item => {
-      const card = node("article", "library-result"), title = button(item.title || item.id, () => navigate(pane.kind, item.id), "library-record-link");
+      const card = node("article", "library-result"), title = button(display(item.title || item.id), () => navigate(pane.kind, item.id), "library-record-link");
       title.dataset.libraryRecord = item.id;
       if (pane.kind === "penetration") { const heading = node("div", "library-record-heading"); heading.append(title, quantityBadge(pane, item.id, "list")); card.append(heading); }
       else { title.classList.add("library-frl-value"); card.append(title); }
-      if (item.subtitle) card.append(node("p", "library-subtitle library-frl-value", item.subtitle));
+      if (item.subtitle) card.append(node("p", "library-subtitle library-frl-value", display(item.subtitle)));
       if (item.price) card.append(node("p", "library-record-price", `${priceLabel(item.price)}: ${priceText(item.price)}`));
-      if (item.summary) card.append(node("p", "library-excerpt", valueText(item.summary)));
-      if (pane.kind !== "penetration" && item.source_label) card.append(node("p", "helper", item.source_label));
+      if (item.summary) card.append(node("p", "library-excerpt", display(item.summary)));
+      if (pane.kind !== "penetration" && item.source_label) card.append(node("p", "helper", display(item.source_label)));
       if (Number.isSafeInteger(item.related_count)) card.append(uiNode("p", "helper", "{0} related {1}", [item.related_count, () => window.CeasefireI18n?.translate(pane.kind === "penetration" ? "technical references" : "firestopping records") || (pane.kind === "penetration" ? "technical references" : "firestopping records")]));
       if (pane.kind === "penetration") card.append(itemActions(pane, item, "list"));
       return card;
@@ -361,7 +362,7 @@
       uiText(session.count, ...(session.total ? ["Showing {0}–{1} of {2} technical records", [session.offset + 1, session.offset + items.length, session.total]] : ["No matching technical records.", []]));
       session.results.replaceChildren(...items.map(item => {
         const choice = node("label", "library-link-choice"), input = node("input"), description = node("span"); input.type = "checkbox"; input.value = item.id; input.checked = session.selected.has(item.id); input.dataset.libraryLinkChoice = item.id;
-        description.append(node("strong", "library-frl-value", item.title || item.id)); if (item.subtitle) description.append(node("span", "helper library-frl-value", item.subtitle)); if (item.source_label) description.append(node("span", "helper", item.source_label));
+        description.append(node("strong", "library-frl-value", compactTechnical(item.title || item.id))); if (item.subtitle) description.append(node("span", "helper library-frl-value", compactTechnical(item.subtitle))); if (item.source_label) description.append(node("span", "helper", compactTechnical(item.source_label)));
         input.addEventListener("change", () => { if (pane.linkSession !== session || revision !== session.revision || session.busy || session.saving) return; if (input.checked) session.selected.add(item.id); else session.selected.delete(item.id); updateLinkSave(session); }); session.choices.push(input); choice.append(input, description); return choice;
       }));
     } catch (error) { if (pane.linkSession === session && revision === session.revision && error.name !== "AbortError") { session.total = 0; uiText(session.count, "Technical records unavailable."); linkMessage(session, `${error.message} Use Search to retry.`, true); } }

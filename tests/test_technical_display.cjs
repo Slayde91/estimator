@@ -24,3 +24,6 @@ console.log("PASS Technical display text, exact numbers/conditions, protected li
 const steps = detail.render(document, "1. The aperture remains sealed.\n2. The wrap must remain secured.", {compact:true});
 assert.equal(steps[0].children[0].textContent, "Aperture remains sealed.");
 assert.equal(steps[0].children[1].textContent, "Wrap must remain secured.");
+const lowercaseSteps = detail.render(document, "1. the aperture remains sealed.\n2. install Penowrap for 300 mm.", {compact:true});
+assert.equal(lowercaseSteps[0].children[0].textContent, "Aperture remains sealed.");
+assert.equal(lowercaseSteps[0].children[1].textContent, "Install wrap for 300 mm.");

@@ -191,7 +191,7 @@ async function inspectHeader(width) {
   for (const kind of ['pricing', 'penetration', 'technical']) {
     await chooseLibrary(page, kind); await expect(page.locator(`#library-${kind}`)).toBeVisible();
     if(kind==='pricing'){
-      await expect(page.locator('#pricing-heading')).toHaveText('Pricing Library');
+      await expect(page.locator('#pricing-heading')).toHaveText('Pricing Library');await expect(page.locator('#pricing-heading')).toHaveCSS('font-size','28px');
       await expect(page.locator('#library-pricing .eyebrow')).toHaveCount(0);
       assert.ok(await page.locator('#library-pricing .table-scroll').evaluate(el=>el.scrollWidth<=el.clientWidth+1),'Pricing columns fit desktop width');
     }

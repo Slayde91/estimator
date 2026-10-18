@@ -18,3 +18,9 @@ const rendered = detail.render(document, source, { compact: true });
 assert.deepEqual(detail.parse(source), before);
 assert.equal(rendered.at(-1).children[0].textContent, "Apply min. 50 mm w/ 2 fixings p/ 300 mm.");
 console.log("PASS Technical display text, exact numbers/conditions, protected links and original list parsing");
+
+// Numbering is removed before each text node is formatted in the browser.
+// Preserve source capitalisation when shortening removes the opening word.
+const steps = detail.render(document, "1. The aperture remains sealed.\n2. The wrap must remain secured.", {compact:true});
+assert.equal(steps[0].children[0].textContent, "Aperture remains sealed.");
+assert.equal(steps[0].children[1].textContent, "Wrap must remain secured.");

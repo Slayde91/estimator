@@ -5,11 +5,11 @@
   },
   {
     "source": "FIREFLYMastic and FIREFLYPenowrap, FIREFLYIntubatt and Firefly Intumastic; not interchangeable. Minimum 2.125 mm.",
-    "display": "Mastic and wrap, Intubatt and Intumastic; not interchangeable. min. 2.125 mm."
+    "display": "Mastic and wrap, Intubatt and Intumastic; not interchangeable. Min. 2.125 mm."
   },
   {
     "source": "Firefly recommends FIREFLYBatt only where the source conditions apply. minimumminimum percentage within permitted.",
-    "display": "Firefly recommends Batt only where the source conditions apply. minimumminimum percentage within permitted."
+    "display": "Firefly recommends Batt only where the source conditions apply. Minimumminimum percentage within permitted."
   },
   {
     "source": "See https://example.test/with/per/minimum/FIREFLYBatt.pdf and with@example.test with 0.5 mm minimum.",
@@ -21,15 +21,15 @@
   },
   {
     "source": "FIREFLY Penowrap, FIREFLYPenowrap, PENOWRAP® and Penowrap™; TWrap and Intubatt are distinct.",
-    "display": "wrap, wrap, wrap and wrap; TWrap and Intubatt are distinct."
+    "display": "Wrap, wrap, wrap and wrap; TWrap and Intubatt are distinct."
   },
   {
     "source": "In order to seal the aperture, install a minimum of 2 layers using Mastic in accordance with Section 4.6. Maximum 50 mm; approximately 3.2 mm including joints.",
-    "display": "to seal aperture, install min. 2 layers w/ Mastic p/ Section 4.6. max. 50 mm; approx. 3.2 mm incl. joints."
+    "display": "To seal aperture, install min. 2 layers w/ Mastic p/ Section 4.6. Max. 50 mm; approx. 3.2 mm incl. joints."
   },
   {
     "source": "The board is required to be at least 50 mm thick on both sides of the wall; no more than 2 layers, unless otherwise stated.",
-    "display": "board must be min. 50 mm thick on both wall faces; no more than 2 layers, unless otherwise stated."
+    "display": "Board must be min. 50 mm thick on both wall faces; no more than 2 layers, unless otherwise stated."
   },
   {
     "source": "The Batt layers are glued together using Mastic. All cut edges, including layer joints and the wall perimeter interface, to be coated with Brush Grade.",
@@ -45,7 +45,7 @@
   },
   {
     "source": "A minimum of 2 layers prior to installation; a maximum of 3 layers subsequent to installation. The seal is required for -/120/120; at most 60% compression.",
-    "display": "min. 2 layers before installation; max. 3 layers after installation. seal required for -/120/120; max. 60% compression."
+    "display": "Min. 2 layers before installation; max. 3 layers after installation. Seal required for -/120/120; max. 60% compression."
   },
   {
     "source": "One layer on each side of the wall, recessed 50 mm from the face of the wall, provided that support achieves required FRL.",
@@ -57,10 +57,54 @@
   },
   {
     "source": "Install in between layers to ensure that all gaps are sealed, at a distance of 50 mm. In the event that 2 layers are used, provided that approval applies, fit using steel ties for the purpose of securing wrap in addition to fixings.",
-    "display": "Install between layers to ensure all gaps are sealed, at 50 mm. if 2 layers are used, provided approval applies, fit w/ steel ties for securing wrap plus fixings."
+    "display": "Install between layers to ensure all gaps are sealed, at 50 mm. If 2 layers are used, provided approval applies, fit w/ steel ties for securing wrap plus fixings."
   },
   {
     "source": "When using Batt, coat edges. The seals are required to be at least 25 mm deep; seals are required for -/120/120.",
-    "display": "When using Batt, coat edges. seals must be min. 25 mm deep; seals required for -/120/120."
+    "display": "When using Batt, coat edges. Seals must be min. 25 mm deep; seals required for -/120/120."
+  },
+  {
+    "source": "Install Mastic. the aperture must remain sealed. the wrap may overlap only where permitted.",
+    "display": "Install Mastic. Aperture must remain sealed. Wrap may overlap only where permitted."
+  },
+  {
+    "source": "Use min. two layers, max. opening 50 mm and approx. five fixings, incl. screws. seal all gaps.",
+    "display": "Use min. two layers, max. opening 50 mm and approx. five fixings, incl. screws. Seal all gaps."
+  },
+  {
+    "source": "Use e.g. steel fixings, i.e. approved screws. retain Section 3.2 and 2.125 mm.",
+    "display": "Use e.g. steel fixings, i.e. approved screws. Retain Section 3.2 and 2.125 mm."
+  },
+  {
+    "source": "See https://example.test/with/minimum.pdf. use wrap@example.test. retain Penowrap.pdf. the wall must be sealed.",
+    "display": "See https://example.test/with/minimum.pdf. Use wrap@example.test. Retain Penowrap.pdf. Wall must be sealed."
+  },
+  {
+    "source": "Refer Section 4.6. the slab needs protection.\n\n\"the service must remain supported.\" the collar is required for -/120/120.",
+    "display": "Refer Section 4.6. Slab needs protection.\n\n\"Service must remain supported.\" Collar required for -/120/120."
+  },
+  {
+    "source": "Install seal. minimum 25 mm. Maximum opening 1200 x 600 mm only.",
+    "display": "Install seal. Min. 25 mm. Max. opening 1200 x 600 mm only."
+  },
+  {
+    "source": "Check report. minimum.pdf and with@example.test remain exact.",
+    "display": "Check report. minimum.pdf and with@example.test remain exact."
+  },
+  {
+    "source": "Maximum Opening Size",
+    "display": "Max. Opening Size"
+  },
+  {
+    "source": "The aperture remains sealed.",
+    "display": "Aperture remains sealed."
+  },
+  {
+    "source": "1. The aperture remains sealed.\n2. The wrap must remain secured.",
+    "display": "1. Aperture remains sealed.\n2. Wrap must remain secured."
+  },
+  {
+    "source": "uPVC pipe. the collar must fit.",
+    "display": "uPVC pipe. Collar must fit."
   }
 ]

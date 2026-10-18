@@ -48,11 +48,11 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     const item={...records('technical').items[0],title:'FIREFLYPenowrap with minimum 50 mm',subtitle:'Maximum 120 mm only',summary:'Use the wall requirements.',source_label:'Penowrap with report 123'},before=copy(item);
     h.setRoute(path=>path==='/api/libraries'?meta():path.startsWith('/api/libraries/technical')?{...records('technical'),items:[item]}:records('penetration'));
     await h.api.open('technical');const pane=h.pane('technical'),nodes=walk(pane.results);
-    assert.equal(nodes.find(n=>n.dataset.libraryRecord).textContent,'wrap w/ min. 50 mm');
+    assert.equal(nodes.find(n=>n.dataset.libraryRecord).textContent,'Wrap w/ min. 50 mm');
     assert.equal(nodes.find(n=>n.dataset.libraryRecord).dataset.libraryRecord,'technical-1');
-    assert.match(text(pane.results),/max\. 120 mm only/);assert.match(text(pane.results),/Use wall requirements\./);assert.doesNotMatch(text(pane.results),/Penowrap/i);
+    assert.match(text(pane.results),/Max\. 120 mm only/);assert.match(text(pane.results),/Use wall requirements\./);assert.doesNotMatch(text(pane.results),/Penowrap/i);
     await h.api.open('penetration');const fire=h.pane('penetration');await walk(fire.results).find(n=>n.dataset.libraryLink).emit('click');await flush();
-    assert.equal(fire.linkSession.choices[0].value,'technical-1');assert.match(text(fire.linkSession.results),/wrap w\/ min\. 50 mm/);assert.doesNotMatch(text(fire.linkSession.results),/Penowrap/i);
+    assert.equal(fire.linkSession.choices[0].value,'technical-1');assert.match(text(fire.linkSession.results),/Wrap w\/ min\. 50 mm/);assert.doesNotMatch(text(fire.linkSession.results),/Penowrap/i);
     assert.deepEqual(item,before);
   });
   await check('Mandarin library headings and generated reference choices translate while source table columns stay literal',async h=>{
@@ -252,11 +252,11 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     assert.equal(tables.length,1);assert.equal(tables[0].getAttribute('aria-label'),'Barrier Construction table');
     assert.deepEqual(nodes.filter(n=>n.tagName==='th').map(n=>n.textContent),['Max Aperture Size','Separating Element','FRL']);
     assert.deepEqual(nodes.filter(n=>n.tagName==='td').map(n=>n.textContent),[
-      '600 × 600 mm','min. 100 mm concrete or masonry wall.','-/60/60',
+      '600 × 600 mm','Min. 100 mm concrete or masonry wall.','-/60/60',
       '800 × 600 mm','Two layers of 13 mm fire-rated plasterboard to each wall face.','-/90/90',
-      '1000 × 600 mm','min. 130 mm CLT wall.','-/120/120']);
+      '1000 × 600 mm','Min. 130 mm CLT wall.','-/120/120']);
     assert.deepEqual(nodes.filter(n=>n.classList.contains('library-frl-value')&&['th','td'].includes(n.tagName)).map(n=>n.textContent),['FRL','-/60/60','-/90/90','-/120/120']);
-    for(const [label,summary] of [['Blank Seal FRL','-/60/60 to -/120/120'],['max. Opening Size','1000 × 600 mm']]) {
+    for(const [label,summary] of [['Blank Seal FRL','-/60/60 to -/120/120'],['Max. Opening Size','1000 × 600 mm']]) {
       const pair=nodes.find(n=>n.className==='library-record-field'&&n.children[0].textContent===label),value=pair.children[1],links=walk(value).filter(n=>n.className==='library-configuration-link');
       assert.equal(value.textContent,summary);assert.equal(links.length,1);assert.equal(links[0].textContent,'View barrier construction table');assert.equal(links[0].href,'#'+tables[0].id);
       await links[0].emit('click',{detail:0});assert.equal(h.context.document.activeElement,tables[0]);

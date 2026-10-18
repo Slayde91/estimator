@@ -253,6 +253,7 @@ async function inspectHeader(width) {
   await chooseLibrary(page, 'technical'); await page.getByRole('dialog').getByRole('button', { name: 'Continue', exact: true }).click(); await expect(page.locator('#library-technical')).toBeVisible(); assert.deepEqual(await snapshot(), guarded);
   evidence.pricingGuard = true;
   const touch = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true }); const mobile = await touch.newPage(); await mobile.goto(`http://127.0.0.1:${info.port}/`); await idle(mobile);
+  assert.match(await mobile.locator('#takeoff-navigation-toggle').evaluate(el=>getComputedStyle(el).cursor),/laser-reticle\.svg/,'Reticle remains available to a mouse in browsers reporting touch hardware');
   for (const [id, choice, view] of [['library', 'Technical Library', '#library-technical'], ['takeoff', 'Service Plans', '.takeoff-physical-register']]) {
     await mobile.locator(`#${id}-navigation-toggle`).tap(); await idle(mobile); const menu = mobile.locator(`#${id}-navigation-menu`); await expect(menu).toBeVisible();
     if (id === 'takeoff') await mobile.locator('#penetration-navigation-toggle').tap();

@@ -1,4 +1,6 @@
-@media screen and (any-hover:hover) and (any-pointer:fine) {
+/* Browsers may report touch hardware even with an active desktop mouse.
+   Native cursors already render only when a pointing device uses them. */
+@media screen {
   html:not(.app-busy) :is(button:enabled,[role="button"],[role="tab"],.button):not(:disabled):not([aria-disabled="true"]):not([aria-busy="true"]) {
     cursor:url('/laser-reticle.svg') 16 16,pointer;
   }

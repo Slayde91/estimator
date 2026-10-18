@@ -32,7 +32,7 @@ def _capitalise_sentences(text, source):
 # Never remove modals, negations, alternatives, measurements or source markers.
 _RULES = tuple((re.compile(expression, re.I), replacement) for expression, replacement in (
     (r'\bFIREFLY(?=[A-Za-z])', ''),
-    (r'\bFIREFLY[ \t]+(?=(?:Batt|Mastic|Penowrap|Intu[A-Za-z]+)\b)', ''),
+    (r'\bFIREFLY\s+(?=(?:Batts?|Mastic|Penowrap|wrap|Intu[A-Za-z]+)\b)', ''),
     (r'\bPenowrap\b[\u00ae\u2122]?', 'wrap'),
     (r'\bBrush Grade\b', 'BG'),
     (r'\bincluding\b', 'incl.'),
@@ -72,10 +72,27 @@ _RULES = tuple((re.compile(expression, re.I), replacement) for expression, repla
      'Coat all cut edges, incl. layer joints and wall perimeter interface'),
     (r'\binto\s+the\s+aperture\b', 'to aperture'),
     (r'\bof\s+the\s+damper\b', 'of damper'),
-    (r'\bthe (apertures?|walls?|floors?|ceilings?|slabs?|substrates?|services?|collars?|boards?|seals?|wraps?|openings?|perimeters?)\b', r'\1'),
+    (r'\bwall\s+thickness\s+of\b', 'wall thickness'),
+    (r'\b(for|to|over)\s+a\s+distance\s+of\b', r'\1'),
+    (r'\b(?:a\s+)?(min\.|max\.)\s+(depth|width|height|length|thickness)\s+of\b', r'\1 \2'),
+    (r'\bto\s+a\s+depth\s+of(?=\s+\d)', 'to depth'),
+    (r'\bthe\s+full\s+depth\b', 'full depth'),
+    (r'\b(requiring|requires)\s+the\s+use\s+of\b', r'\1'),
+    (r'\bbefore\s+the\s+installation\s+of\b', 'before installing'),
+    (r'\bfollowing\s+the\s+installation\s+of\b', 'after installing'),
+    (r'\bduring\s+the\s+installation\s+of\b', 'while installing'),
+    (r'\ba\s+combination\s+of\s+both\b', 'both'),
+    (r'\band\s+also\b', 'and'),
+    (r'\band\s+then\b', 'then'),
+    (r'\b(?:the\s+)+(apertures?|walls?|floors?|ceilings?|slabs?|substrates?|services?|collars?|boards?|seals?|wraps?|openings?|perimeters?|Batts?|annular\s+gaps?|pipes?|layers?|ends?|edges?|faces?|base|top|underside|framing|steel\s+(?:angles?|beams?|plates?|frames?)|joints?|gaps?|separating\s+element|interfacing\s+element|supporting\s+element|configuration\s+table|complete\s+row|selected\s+configuration|use)\b', r'\1'),
     (r'(?<!when )\busing\b', 'w/'),
     (r'\bwith\b', 'w/'),
     (r'\bper\b', 'p/'),
+    (r'\bw/\s+a\s+w/\s+a\b', 'w/ a'),
+    (r'\bAll\s+joints\s+between\s+Batt\s+sections\s+are\s+glued\s+and\s+sealed\s+w/',
+     'Glue and seal all joints between Batt sections w/'),
+    (r'\bBatt\s+layers\s+are\s+glued\s+together\s+at\s+perimeter\s+bond\s+employing\b',
+     'Glue Batt layers together at perimeter bond w/'),
 ))
 
 

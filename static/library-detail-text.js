@@ -15,7 +15,7 @@
   // Keep these ordered rules aligned with estimator/technical_display.py.
   const compactRules = [
     [/\bFIREFLY(?=[A-Za-z])/gi, ""],
-    [/\bFIREFLY[ \t]+(?=(?:Batt|Mastic|Penowrap|Intu[A-Za-z]+)\b)/gi, ""],
+    [/\bFIREFLY\s+(?=(?:Batts?|Mastic|Penowrap|wrap|Intu[A-Za-z]+)\b)/gi, ""],
     [/\bPenowrap\b[\u00ae\u2122]?/gi, "wrap"],
     [/\bBrush Grade\b/gi, "BG"],
     [/\bincluding\b/gi, "incl."],
@@ -53,10 +53,25 @@
     [/\bAll cut edges, incl\. layer joints and the wall perimeter interface, to be coated\b/gi, "Coat all cut edges, incl. layer joints and wall perimeter interface"],
     [/\binto\s+the\s+aperture\b/gi, "to aperture"],
     [/\bof\s+the\s+damper\b/gi, "of damper"],
-    [/\bthe (apertures?|walls?|floors?|ceilings?|slabs?|substrates?|services?|collars?|boards?|seals?|wraps?|openings?|perimeters?)\b/gi, "$1"],
+    [/\bwall\s+thickness\s+of\b/gi, "wall thickness"],
+    [/\b(for|to|over)\s+a\s+distance\s+of\b/gi, "$1"],
+    [/\b(?:a\s+)?(min\.|max\.)\s+(depth|width|height|length|thickness)\s+of\b/gi, "$1 $2"],
+    [/\bto\s+a\s+depth\s+of(?=\s+\d)/gi, "to depth"],
+    [/\bthe\s+full\s+depth\b/gi, "full depth"],
+    [/\b(requiring|requires)\s+the\s+use\s+of\b/gi, "$1"],
+    [/\bbefore\s+the\s+installation\s+of\b/gi, "before installing"],
+    [/\bfollowing\s+the\s+installation\s+of\b/gi, "after installing"],
+    [/\bduring\s+the\s+installation\s+of\b/gi, "while installing"],
+    [/\ba\s+combination\s+of\s+both\b/gi, "both"],
+    [/\band\s+also\b/gi, "and"],
+    [/\band\s+then\b/gi, "then"],
+    [/\b(?:the\s+)+(apertures?|walls?|floors?|ceilings?|slabs?|substrates?|services?|collars?|boards?|seals?|wraps?|openings?|perimeters?|Batts?|annular\s+gaps?|pipes?|layers?|ends?|edges?|faces?|base|top|underside|framing|steel\s+(?:angles?|beams?|plates?|frames?)|joints?|gaps?|separating\s+element|interfacing\s+element|supporting\s+element|configuration\s+table|complete\s+row|selected\s+configuration|use)\b/gi, "$1"],
     [/(?<!when )\busing\b/gi, "w/"],
     [/\bwith\b/gi, "w/"],
     [/\bper\b/gi, "p/"],
+    [/\bw\/\s+a\s+w\/\s+a\b/gi, "w/ a"],
+    [/\bAll\s+joints\s+between\s+Batt\s+sections\s+are\s+glued\s+and\s+sealed\s+w\//gi, "Glue and seal all joints between Batt sections w/"],
+    [/\bBatt\s+layers\s+are\s+glued\s+together\s+at\s+perimeter\s+bond\s+employing\b/gi, "Glue Batt layers together at perimeter bond w/"],
   ];
 
   function compact(value) {

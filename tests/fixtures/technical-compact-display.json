@@ -106,5 +106,45 @@
   {
     "source": "uPVC pipe. the collar must fit.",
     "display": "uPVC pipe. Collar must fit."
+  },
+  {
+    "source": "Wall thickness of 2.125 mm. Seal the annular gap to a minimum depth of 30 mm for a distance of 300 mm on each side of the wall.",
+    "display": "Wall thickness 2.125 mm. Seal annular gap to min. depth 30 mm for 300 mm on each wall face."
+  },
+  {
+    "source": "Use either FIREFLY\nPenowrap or Batt or a combination of both. Do not interchange layers.",
+    "display": "Use either wrap or Batt or both. Do not interchange layers."
+  },
+  {
+    "source": "The configuration table pairs service size / configuration and collar with each stated FRL. Use the complete row for the selected configuration.",
+    "display": "Configuration table pairs service size / configuration and collar w/ each stated FRL. Use complete row for selected configuration."
+  },
+  {
+    "source": "The pipe must not move. The annular gap may be filled to the full depth of the collar only if required.",
+    "display": "Pipe must not move. Annular gap may be filled to full depth of collar only if required."
+  },
+  {
+    "source": "Prior to the installation of the Batt, retain 2 fixings. Following the installation of the board, check the edges. During the installation of the pipe, support the steel beam.",
+    "display": "Before installing Batt, retain 2 fixings. After installing board, check edges. While installing pipe, support steel beam."
+  },
+  {
+    "source": "Requiring the use of a 3-sided Penowrap configuration. This requires the use of either Batt or Penowrap.",
+    "display": "Requiring a 3-sided wrap configuration. This requires either Batt or wrap."
+  },
+  {
+    "source": "See https://example.test/the/annular-gap/Penowrap.pdf and Penowrap.pdf. The annular gap must remain 0.5 mm.",
+    "display": "See https://example.test/the/annular-gap/Penowrap.pdf and Penowrap.pdf. Annular gap must remain 0.5 mm."
+  },
+  {
+    "source": "At a distance of 50 mm, seal the Batt with a with a 25 mm fillet and then check the edges and also the joints.",
+    "display": "At 50 mm, seal Batt w/ a 25 mm fillet then check edges and joints."
+  },
+  {
+    "source": "Seal the annular\ngap to a minimum\ndepth of 30 mm for a\ndistance of 300 mm. Secure the the ends.",
+    "display": "Seal annular\ngap to min. depth 30 mm for 300 mm. Secure ends."
+  },
+  {
+    "source": "All joints between FIREFLYBatt sections are glued and sealed with Mastic (BG or Mastic). The Batt layers are glued together at the perimeter bond employing a minimum 10 mm width bead of Mastic. Joints must be staggered by minimum 200 mm.",
+    "display": "Glue and seal all joints between Batt sections w/ Mastic (BG or Mastic). Glue Batt layers together at perimeter bond w/ a min. 10 mm width bead of Mastic. Joints must be staggered by min. 200 mm."
   }
 ]

@@ -22,7 +22,7 @@ const ready = new Promise((resolve, reject) => {
   server.once('exit', code => { clearTimeout(timer); reject(new Error(`Fixture exited ${code}: ${logs}`)); });
 });
 const errors = [], requests = [], evidence = {};
-const destinations = ['Steel', 'Duct', 'Firestopping'];
+const destinations = ['Duct', 'Firestopping', 'Steel›'];
 function monitor(target) {
   target.setDefaultTimeout(60000); target.on('pageerror', error => errors.push(error.message));
   target.on('request', request => requests.push({ method: request.method(), path: new URL(request.url()).pathname }));
@@ -59,19 +59,22 @@ async function workbook(title) {
   const toggle = page.getByRole('button', { name: 'Calculators', exact: true }), menu = page.getByRole('group', { name: 'Choose a calculator', exact: true });
   await expect(page.locator('#calculator-list')).toHaveCount(0); await expect(page.locator('.calculator-choice')).toHaveCount(0);
   await toggle.hover(); await expect(toggle).toHaveAttribute('aria-expanded', 'true'); await expect(menu).toBeVisible();
-  assert.deepEqual(await menu.getByRole('button').allTextContents(), destinations);
+  const topChoices=menu.locator(':scope > button, :scope > .section-navigation-branch > button'),steel=page.locator('#steel-calculator-navigation-toggle'),steelMenu=page.locator('#steel-calculator-navigation-menu');
+  assert.deepEqual(await topChoices.allTextContents(), destinations);await expect(steelMenu).toBeHidden();
   await page.mouse.move(0, 0); await expect(menu).toBeHidden(); assert.deepEqual(await snapshots(), before);
   assert.equal(calculationRequests(), beforeRequests, 'Hover must not open a calculator or make a calculation request');
   evidence.hover = { destinations, changedDrafts: false, openedCalculator: false, requestedCalculation: false };
 
   await toggle.focus(); await expect(menu).toBeVisible(); await toggle.press('ArrowDown'); await expect(menu.getByRole('button').first()).toBeFocused();
-  await page.keyboard.press('End'); await expect(menu.getByRole('button').last()).toBeFocused();
-  await page.keyboard.press('ArrowDown'); await expect(menu.getByRole('button').first()).toBeFocused();
-  await page.keyboard.press('ArrowUp'); await expect(menu.getByRole('button').last()).toBeFocused();
+  await page.keyboard.press('End'); await expect(steel).toBeFocused();await expect(steelMenu).toBeVisible();
+  await page.keyboard.press('ArrowRight');await expect(steelMenu.getByRole('button').first()).toBeFocused();
+  await page.keyboard.press('ArrowLeft');await expect(steel).toBeFocused();await expect(steelMenu).toBeHidden();
+  await page.keyboard.press('ArrowDown'); await expect(topChoices.first()).toBeFocused();
+  await page.keyboard.press('ArrowUp'); await expect(steel).toBeFocused();
   await page.keyboard.press('Home'); await expect(menu.getByRole('button').first()).toBeFocused();
   await page.keyboard.press('Escape'); await expect(toggle).toBeFocused(); await expect(toggle).toHaveAttribute('aria-expanded', 'false'); await expect(menu).toBeHidden();
   assert.deepEqual(await snapshots(), before);
-  await toggle.press('ArrowDown'); await expect(menu.getByRole('button', { name: 'Steel', exact: true })).toBeFocused(); await page.keyboard.press('Enter'); await expect(page.locator('#calculator-steel-hub')).toBeVisible(); const boardCard=page.locator('#calculator-steel-hub').getByRole('button',{name:'Steel (board)',exact:true}); await boardCard.focus(); await boardCard.press('Enter'); await workbook('Steel (board)');
+  await toggle.press('ArrowDown');await page.keyboard.press('End');await expect(steel).toBeFocused();await page.keyboard.press('Enter');await expect(steelMenu).toBeVisible();await page.keyboard.press('ArrowRight');await page.keyboard.press('ArrowDown');await expect(steelMenu.getByRole('button',{name:'Steel (board)',exact:true})).toBeFocused();await page.keyboard.press('Escape');await expect(steel).toBeFocused();await expect(steelMenu).toBeHidden();await page.keyboard.press('ArrowRight');await page.keyboard.press('ArrowDown');await page.keyboard.press('Enter');await workbook('Steel (board)');
   assert.deepEqual(await snapshots(), before); evidence.keyboard = { focus: true, arrows: true, homeEnd: true, escapeReturnsFocus: true, enterSelectsCalculator: true, changedDrafts: false };
   await page.getByRole('button', { name: 'Home', exact: true }).click(); await toggle.click(); await workbook('Steel (board)');
   assert.deepEqual(await snapshots(), before);
@@ -131,7 +134,7 @@ async function workbook(title) {
   const guarded = await snapshots(); await chooseCalculator(page, 'Steel (board)');
   const dialog = page.getByRole('dialog'); await expect(dialog).toBeVisible(); await expect(dialog.getByRole('heading')).toHaveText('Unsaved Pricing Library');
   await dialog.getByRole('button', { name: 'Cancel', exact: true }).click(); await expect(page.locator('#view-pricing')).toBeVisible(); await expect(price).toHaveValue(priceDisplay); assert.deepEqual(await snapshots(), guarded);
-  await chooseCalculator(page, 'Steel (board)'); await dialog.getByRole('button', { name: 'Continue', exact: true }).click(); await page.locator('#calculator-steel-hub').getByRole('button',{name:'Steel (board)',exact:true}).click(); await workbook('Steel (board)'); assert.deepEqual(await snapshots(), guarded);
+  await chooseCalculator(page, 'Steel (board)'); await dialog.getByRole('button', { name: 'Continue', exact: true }).click(); await workbook('Steel (board)'); assert.deepEqual(await snapshots(), guarded);
   assert.ok(!requests.some(item => item.method !== 'GET' && /\/api\/(?:pricing|calculators)\/.+state$|\/api\/pricing$/.test(item.path)), 'Navigation must not save pricing or calculator defaults');
   evidence.pricingGuard = { cancelPreservesView: true, cancelPreservesPriceAndDrafts: true, continueKeepsUnsavedPrices: true };
 
@@ -140,6 +143,7 @@ async function workbook(title) {
     await page.setViewportSize({ width, height: 1000 }); await page.mouse.move(0, 0); await toggle.hover(); await expect(menu).toBeVisible();
     const bounds = await menu.boundingBox(); assert.ok(bounds.x >= -1 && bounds.x + bounds.width <= width + 1, `Dropdown escaped viewport at ${width}: ${JSON.stringify(bounds)}`);
     await expect(menu.getByRole('button', { name: 'Duct', exact: true })).toBeVisible();
+    await steel.hover();await expect(steelMenu).toBeVisible();const subBounds=await steelMenu.boundingBox();assert.ok(subBounds.x>=0&&subBounds.x+subBounds.width<=width,'Steel choices remain inside the viewport');
     if ([1146, 390].includes(width)) await page.screenshot({ path: path.join(output, `calculator-menu-${width}.png`), fullPage: true });
     await page.getByRole('button', { name: 'Home', exact: true }).click(); await expect(menu).toBeHidden();
   }
@@ -237,7 +241,7 @@ async function workbook(title) {
   const touch = await touchContext.newPage(); await monitor(touch); await touch.goto(`http://127.0.0.1:${info.port}/`); await idle(touch);
   await touch.getByRole('button', { name: 'Calculators', exact: true }).tap();
   const touchMenu = touch.getByRole('group', { name: 'Choose a calculator', exact: true }); await expect(touchMenu).toBeVisible();
-  await touchMenu.getByRole('button', { name: 'Steel', exact: true }).tap(); await expect(touch.locator('#calculator-steel-hub')).toBeVisible(); await touch.locator('#calculator-steel-hub').getByRole('button',{name:'Steel (board)',exact:true}).tap(); await expect(touch.locator('#calculator-title')).toHaveText('Steel (board)', { timeout: 60000 }); await expect(touch.locator('#calculator-grid')).toHaveAttribute('aria-busy', 'false', { timeout: 60000 }); await expect(touchMenu).toBeHidden();
+  await touchMenu.getByRole('button', { name: 'Steel', exact: true }).tap(); await expect(touch.locator('#steel-calculator-navigation-menu')).toBeVisible();await expect(touch.locator('#calculator-steel-hub')).toBeVisible();await touch.locator('#steel-calculator-navigation-menu').getByRole('button',{name:'Steel (board)',exact:true}).tap(); await expect(touch.locator('#calculator-title')).toHaveText('Steel (board)', { timeout: 60000 }); await expect(touch.locator('#calculator-grid')).toHaveAttribute('aria-busy', 'false', { timeout: 60000 }); await expect(touchMenu).toBeHidden();
   evidence.touch = { disclosureTap: true, chosenCalculator: 'Steel (board)' };
   assert.deepEqual(await touch.evaluate(() => window.qaCsp), []); await touchContext.close();
   assert.deepEqual(errors, []); assert.deepEqual(await page.evaluate(() => window.qaCsp), []);

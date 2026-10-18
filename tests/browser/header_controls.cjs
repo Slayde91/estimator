@@ -145,7 +145,11 @@ async function inspectHeader(width) {
         await toggle.hover();
       }
       await toggle.focus(); await toggle.press('ArrowDown'); await expect(menu.getByRole('button').first()).toBeFocused();
-      await page.keyboard.press('End'); await expect(id === 'takeoff' ? page.locator('#penetration-navigation-toggle') : menu.getByRole('button').last()).toBeFocused();
+      await page.keyboard.press('End'); await expect(id === 'takeoff' ? page.locator('#penetration-navigation-toggle') : id === 'calculator' ? page.locator('#steel-calculator-navigation-toggle') : menu.getByRole('button').last()).toBeFocused();
+      if(id === 'calculator') {
+        await page.keyboard.press('ArrowRight');await expect(page.locator('#steel-calculator-navigation-menu').getByRole('button',{name:'Steel (spray)',exact:true})).toBeFocused();
+        await page.keyboard.press('End');await expect(page.locator('#steel-calculator-navigation-menu').getByRole('button',{name:'Steel (board)',exact:true})).toBeFocused();
+      }
       if(id === 'takeoff') {
         await page.keyboard.press('ArrowRight');
         await expect(page.getByRole('button',{name:'Defect Reports',exact:true})).toBeFocused();

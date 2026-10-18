@@ -1,19 +1,17 @@
 /* Decorative campaign artwork; masks blend into each theme's actual surface. */
 @media screen {
   #pricing-heading { font-size:28px; }
-  #library-technical .library-heading-art-slot img { width:220px; height:90px; }
+  #penetration-heading { font-size:23px; }
+  #library-technical .library-heading-art-slot img { width:188.5px; height:80px; }
+  #library-penetration .library-heading-art-slot img { width:314px; height:84px; }
   .estimate-heading-copy,.project-heading-copy { display:flex; flex:1 1 auto; align-items:center; align-self:stretch; min-width:0; }
-  .project-heading-copy { min-height:114px; }
   .estimate-heading-text,.project-heading-text { flex:0 1 auto; min-width:0; }
   .estimate-heading-art-slot,.project-heading-art-slot { position:relative; flex:1 1 0; align-self:stretch; min-width:0; pointer-events:none; }
-  .project-heading-art-slot img {
-    position:absolute; inset-block:50% auto; inset-inline:24px auto; width:128px; height:114px;
-    max-width:calc(100% - 24px); transform:translateY(-50%); object-fit:contain; pointer-events:none;
-  }
-  /* Preserve the whole supplied composition; trim only empty left canvas. */
-  .project-evidence-art { position:relative; height:clamp(128px,13vw,180px); margin-block-start:20px; overflow:hidden; pointer-events:none; }
+  /* The text and controls size the row; the relocated banner fits that height.
+     Preserve the supplied composition and fade its edges into every theme. */
+  .project-evidence-art { position:absolute; inset-block:0; inset-inline:24px 0; overflow:hidden; pointer-events:none; }
   .project-evidence-crop {
-    position:absolute; inset:0 auto 0 50%; transform:translateX(-50%); height:100%; width:auto; max-width:100%; aspect-ratio:2.4; overflow:hidden;
+    position:absolute; inset-block:0; inset-inline:0 auto; height:100%; width:auto; max-width:100%; aspect-ratio:2.4; overflow:hidden;
     -webkit-mask-image:linear-gradient(90deg,transparent,#000 12%,#000 88%,transparent),linear-gradient(transparent,#000 15%,#000 85%,transparent);
     mask-image:linear-gradient(90deg,transparent,#000 12%,#000 88%,transparent),linear-gradient(transparent,#000 15%,#000 85%,transparent);
     -webkit-mask-composite:source-in; mask-composite:intersect;
@@ -84,7 +82,8 @@
   .calculator-heading-art-slot { position:relative; flex:1 1 0; align-self:stretch; min-width:0; pointer-events:none; }
   .calculator-heading-lightning {
     position:absolute; inset-block:50% auto; inset-inline:18px auto; width:48px; height:96px;
-    transform:translateY(-50%) scaleX(-1); color:#35bfff; pointer-events:none;
+    /* Keep the direction, height and reserved gaps; reduce the lean by 30%. */
+    transform:translateY(-50%) scaleX(-.7); color:#35bfff; pointer-events:none;
     filter:drop-shadow(0 0 1px #b9f3ff) drop-shadow(0 0 3px #00c8ff) drop-shadow(0 0 7px #1677ff);
   }
   .calculator-heading-lightning .lightning-branches { stroke-width:.65; opacity:.8; }

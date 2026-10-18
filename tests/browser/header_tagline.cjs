@@ -198,14 +198,11 @@ async function presentationNavigation(initial) {
   await page.mouse.move(0, 0); await expect(menu).toBeHidden();
   const previous = beforeHover.accessible;
   await toggle.hover(); await menu.getByRole('button', { name: 'Steel', exact: true }).click();
-  await expect(page.locator('#calculator-steel-hub')).toBeVisible();
-  await expect.poll(() => page.locator('#header-tagline-label').textContent()).not.toBe(previous);
-  const hubPhrase = await page.locator('#header-tagline-label').textContent();
-  await page.locator('#calculator-steel-hub').getByRole('button',{name:'Steel (board)',exact:true}).click();
+  await expect(page.locator('#steel-calculator-navigation-menu')).toBeVisible();
+  assert.equal((await layout()).accessible,previous,'Opening Steel only discloses its choices');
+  await page.locator('#steel-calculator-navigation-menu').getByRole('button',{name:'Steel (board)',exact:true}).click();
   await expect(page.locator('#calculator-title')).toHaveText('Steel (board)');
-  // The hub and its card are two successful navigations. Wait for the card's
-  // phrase, rather than accepting the hub refresh while the workbook loads.
-  await expect.poll(() => page.locator('#header-tagline-label').textContent()).not.toBe(hubPhrase);
+  await expect.poll(() => page.locator('#header-tagline-label').textContent()).not.toBe(previous);
   const selected = await layout(); sameHeader(initial, selected);
   await typeUntilFinished(selected, selected.accessible, await bootstrap(selected, selected.accessible));
   await idle(); await clean(); assert.deepEqual(await snapshot(), baseline);
@@ -223,10 +220,10 @@ async function presentationNavigation(initial) {
   await page.getByRole('button', { name: 'Help', exact: true }).click(); await expect(dialog).toBeVisible();
   await dialog.getByRole('button', { name: 'Cancel', exact: true }).click(); await expect(page.locator('#view-pricing')).toBeVisible();
   assert.equal((await layout()).accessible, beforeCancel.accessible); assert.deepEqual((await layout()).finished, beforeCancel.finished); assert.deepEqual(await snapshot(), guarded);
-  await toggle.hover(); await menu.getByRole('button', { name: 'Steel', exact: true }).click(); await expect(dialog).toBeVisible();
+  await toggle.hover(); await menu.getByRole('button', { name: 'Steel', exact: true }).click();await page.locator('#steel-calculator-navigation-menu').getByRole('button',{name:'Steel (board)',exact:true}).click(); await expect(dialog).toBeVisible();
   await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
   assert.equal((await layout()).accessible, beforeCancel.accessible); assert.deepEqual((await layout()).finished, beforeCancel.finished); assert.deepEqual(await snapshot(), guarded); await expect(price).toHaveValue(display);
-  await toggle.hover(); await menu.getByRole('button', { name: 'Steel', exact: true }).click(); await expect(dialog).toBeVisible();
+  await toggle.hover(); await menu.getByRole('button', { name: 'Steel', exact: true }).click();await page.locator('#steel-calculator-navigation-menu').getByRole('button',{name:'Steel (board)',exact:true}).click(); await expect(dialog).toBeVisible();
   await dialog.getByRole('button', { name: 'Continue', exact: true }).click();
   await expect.poll(() => page.locator('#header-tagline-label').textContent()).not.toBe(beforeCancel.accessible);
   const accepted = await layout(); sameHeader(initial, accepted);

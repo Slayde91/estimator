@@ -155,7 +155,9 @@
   }
   /* Enlarge the painted penetration inside the existing black heading column. */
   .penetration-workspace-art .workspace-banner-crop { aspect-ratio:2.1; }
-  .penetration-workspace-art .workspace-banner-image { top:50%; height:auto; min-height:100%; object-fit:cover; transform:translateY(-63%); }
+  /* At least 136% height fills the frame after its 63% focal-point shift,
+     including the narrower phone slot beside the diagonal lightning. */
+  .penetration-workspace-art .workspace-banner-image { top:50%; height:auto; min-height:136%; object-fit:cover; transform:translateY(-63%); }
   @media (max-width:880px) {
     .workspace-header-art { inset-inline:30% 0; width:70%; opacity:.55; }
   }

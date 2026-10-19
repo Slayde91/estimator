@@ -8,7 +8,7 @@
   function clear() {
     if (frame !== null) cancelAnimationFrame(frame);
     pending = frame = null;
-    output.textContent = "X: —   Y: —";
+    output.textContent = "—";
   }
   document.addEventListener("pointermove", event => {
     if (event.pointerType === "touch") { clear(); return; }
@@ -16,7 +16,7 @@
     if (frame !== null) return;
     frame = requestAnimationFrame(() => {
       frame = null;
-      output.textContent = `X: ${pending[0]}   Y: ${pending[1]}`;
+      output.textContent = `${pending[0]}${pending[1]}`;
     });
   }, { passive: true, capture: true });
   document.addEventListener("pointerout", event => { if (!event.relatedTarget) clear(); }, { passive: true });
@@ -1067,6 +1067,10 @@
     if (open) closeNavigationMenus("calculator-navigation");
     menu.hidden = !open; toggle.setAttribute("aria-expanded", String(open));
     if (open) window.CeasefireCalculators?.refreshNavigation?.();
+    if (!open) {
+      const submenu = $("steel-calculator-navigation-menu"), parent = $("steel-calculator-navigation-toggle");
+      if (submenu && parent) { submenu.hidden = true; parent.setAttribute("aria-expanded", "false"); }
+    }
   }
   function setupSectionNavigation(id, selector, setOpen, navigate) {
     const navigation = $(id), toggle = $(id + "-toggle"), menu = $(id + "-menu");
@@ -1090,6 +1094,9 @@
       }
     });
     for (const choice of choices) choice.addEventListener("click", event => {
+      if (choice.id === "steel-calculator-navigation-toggle") {
+        $("steel-calculator-navigation-menu").hidden = false; choice.setAttribute("aria-expanded", "true"); return;
+      }
       if (choice.id === "penetration-navigation-toggle" && event.pointerType === "touch") {
         $("penetration-navigation-menu").hidden = false; choice.setAttribute("aria-expanded", "true"); return;
       }
@@ -1108,22 +1115,25 @@
   function closeNavigationMenus(except) {
     for (const id of ["estimate-navigation", "calculator-navigation", "library-navigation", "takeoff-navigation"]) {
       if (id === except) continue;
+      if (id === "calculator-navigation") { setCalculatorMenuOpen(false); continue; }
       const menu = $(id + "-menu"), toggle = $(id + "-toggle");
       if (menu && toggle) { menu.hidden = true; toggle.setAttribute("aria-expanded", "false"); }
     }
   }
   function setupCalculatorNavigation() {
-    const branch = $("penetration-navigation"), parent = $("penetration-navigation-toggle"), submenu = $("penetration-navigation-menu");
-    if (branch && parent && submenu) {
-      const open = value => { submenu.hidden = !value; parent.setAttribute("aria-expanded", String(value)); };
-      branch.addEventListener("pointerenter", event => { if (event.pointerType !== "touch") open(true); });
-      branch.addEventListener("pointerleave", event => { if (event.pointerType !== "touch" && !branch.contains(document.activeElement)) open(false); });
-      branch.addEventListener("focusin", () => open(true));
-      branch.addEventListener("focusout", event => { if (!branch.contains(event.relatedTarget)) open(false); });
-      branch.addEventListener("keydown", event => {
-        if (event.key === "ArrowRight" && event.target === parent) { event.preventDefault(); event.stopPropagation(); open(true); submenu.querySelector("button")?.focus(); }
-        if (event.key === "ArrowLeft" && submenu.contains(event.target)) { event.preventDefault(); event.stopPropagation(); parent.focus(); open(false); }
-      });
+    for (const id of ["penetration-navigation", "steel-calculator-navigation"]) {
+      const branch = $(id), parent = $(id + "-toggle"), submenu = $(id + "-menu");
+      if (branch && parent && submenu) {
+        const open = value => { submenu.hidden = !value; parent.setAttribute("aria-expanded", String(value)); };
+        branch.addEventListener("pointerenter", event => { if (event.pointerType !== "touch") open(true); });
+        branch.addEventListener("pointerleave", event => { if (event.pointerType !== "touch" && !branch.contains(document.activeElement)) open(false); });
+        branch.addEventListener("focusin", () => open(true));
+        branch.addEventListener("focusout", event => { if (!branch.contains(event.relatedTarget)) open(false); });
+        branch.addEventListener("keydown", event => {
+          if (event.key === "ArrowRight" && event.target === parent) { event.preventDefault(); event.stopPropagation(); open(true); submenu.querySelector("button")?.focus(); }
+          if ((event.key === "ArrowLeft" && submenu.contains(event.target)) || (id === "steel-calculator-navigation" && event.key === "Escape" && !submenu.hidden)) { event.preventDefault(); event.stopPropagation(); parent.focus(); open(false); }
+        });
+      }
     }
     setupSectionNavigation("estimate-navigation", "[data-estimator-kind]", open => setSectionMenuOpen("estimate-navigation", open), choice => requestEstimateNavigation(choice.dataset.estimatorKind));
     setupSectionNavigation("calculator-navigation", "[data-calculator-id]", setCalculatorMenuOpen, choice => requestCalculatorNavigation(choice.dataset.calculatorId));

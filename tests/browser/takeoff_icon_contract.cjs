@@ -9,6 +9,8 @@ const hashes = () => Object.fromEntries(names.map(name => [name,sha(fs.readFileS
 const before = hashes(), evidence = [], errors = [], requests = [];
 assert.equal(before['static/icons/takeoff-set-default.png'],'dc8c0ba65090852527ecbe104cf56c82b8875729c8c0b4da092e28e4a0fec01f','The supplied Set as default icon is preserved byte for byte');
 const resources = new Map(names.filter(name => name.startsWith('static/')).map(name => ['/' + name.slice(7),fs.readFileSync(path.join(root,name))]));
+resources.set('/pdf-cursors.css',fs.readFileSync(path.join(root,'static/pdf-cursors.css')));
+for(const name of fs.readdirSync(path.join(root,'static/cursors')).filter(name=>name.endsWith('.png'))) resources.set('/cursors/'+name,fs.readFileSync(path.join(root,'static/cursors',name)));
 for (const name of ['Montserrat-Variable.ttf','Montserrat-Italic-Variable.ttf','Vera.ttf','VeraBd.ttf']) resources.set('/fonts/'+name,fs.readFileSync(path.join(root,'static/fonts',name)));
 const eye = '<button class="button secondary icon-only takeoff-icon-button takeoff-current-visibility takeoff-visibility-button" aria-label="Visibility"><img src="/icons/takeoff-visibility.png" width="32" height="32" alt=""></button>';
 const memory = '<button class="button secondary icon-only takeoff-icon-button takeoff-default-button" aria-label="Set as default"><span class="takeoff-action-icon takeoff-default-icon" aria-hidden="true"></span></button>';
@@ -19,7 +21,7 @@ const server = http.createServer((req,res) => {
   requests.push({ method:req.method,route:req.url });
   if (!['GET','HEAD'].includes(req.method)) { res.writeHead(405);res.end();return; }
   if (req.url === '/favicon.ico') { res.writeHead(204);res.end();return; }
-  const bytes = req.url === '/' ? Buffer.from(html) : resources.get(req.url);
+  const bytes = req.url === '/' ? Buffer.from(html.replace('</head>','<link rel="stylesheet" href="/pdf-cursors.css"></head>')) : resources.get(req.url);
   if (!bytes) { res.writeHead(404);res.end();return; }
   const mime = req.url === '/' ? 'text/html' : req.url.endsWith('.css') ? 'text/css' : req.url.endsWith('.svg') ? 'image/svg+xml' : req.url.endsWith('.ttf') ? 'font/ttf' : 'image/png';
   res.writeHead(200,{ 'Content-Type':mime,'Content-Length':bytes.length });res.end(req.method === 'HEAD' ? undefined : bytes);
@@ -63,11 +65,11 @@ let browser;
     const screenshot=path.join(out,theme+'.png');await page.screenshot({path:screenshot});evidence.push({theme,geometry,adjacency,pad,screenshot});
   }
   const cursors=await page.evaluate(() => {
-    const viewport=document.createElement('div');viewport.className='takeoff-viewport';viewport.innerHTML='<div class="takeoff-page"><canvas></canvas><svg class="takeoff-overlay"><g class="takeoff-graphic takeoff-graphic-selected"><rect class="takeoff-physical-marker-hit"></rect><text class="takeoff-label">Fixture</text><circle class="takeoff-graphic-handle"></circle></g></svg></div>';document.body.append(viewport);
+    const viewport=document.createElement('div');viewport.className='takeoff-viewport';viewport.id='takeoff-viewport';viewport.innerHTML='<div class="takeoff-page"><canvas></canvas><svg class="takeoff-overlay"><g class="takeoff-graphic takeoff-graphic-selected"><rect class="takeoff-physical-marker-hit"></rect><text class="takeoff-label">Fixture</text><circle class="takeoff-graphic-handle"></circle></g></svg></div>';document.body.append(viewport);
     const elements=[viewport,...viewport.querySelectorAll('.takeoff-page,canvas,.takeoff-overlay,.takeoff-overlay *')];
     return ['select','signature','initial-pages','graphic-cloud','graphic-textbox','graphic-callout','graphic-stamp'].map(tool=>{viewport.dataset.tool=tool;return {tool,values:elements.map(el=>({tag:el.tagName,classes:el.className.baseVal??el.className,cursor:getComputedStyle(el).cursor}))};});
   });
-  for(const state of cursors){if(state.tool==='select')assert.ok(state.values.some(value=>value.cursor!=='crosshair'),'Selection retains its existing cursors');else for(const value of state.values)assert.equal(value.cursor,'crosshair',`${state.tool}: ${value.tag} ${value.classes}`);}
+  for(const state of cursors){const role=state.tool==='select'?'pointer':state.tool==='signature'?'handwriting':'precision';for(const value of state.values)assert.match(value.cursor,new RegExp('cursors/'+role+'\\.png'),`${state.tool}: ${value.tag} ${value.classes}`);}
   await page.evaluate(()=>{const img=document.createElement('img');img.src='/icons/takeoff-set-default.png';img.width=256;img.height=256;img.style.background='white';img.setAttribute('aria-label','Original supplied Set as default icon on white');document.body.prepend(img);});
   await page.getByRole('img',{name:'Original supplied Set as default icon on white'}).evaluate(async img=>img.decode());
   const originalPreview=path.join(out,'original-supplied-set-default-on-white.png');await page.getByRole('img',{name:'Original supplied Set as default icon on white'}).screenshot({path:originalPreview});

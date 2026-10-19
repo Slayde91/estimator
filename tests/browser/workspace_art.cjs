@@ -261,7 +261,7 @@ async function takeoffHeading(name,route,themes=['ceasefire','midnight','ocean',
  }
  if(!takeoffWidthOnly&&!calculatorBannersOnly){
  await chooseCalculator(page,'Firestopping');await idle();await art('.penetration-workspace-art','firestopping',true);await framing('.penetration-workspace-art','firestopping',true);
- const order=await page.locator('.penetration-workspace-art').evaluate(el=>!!el.closest('.penetration-banner-heading')&&!document.querySelector('#penetration-workspace .penetration-workspace-art'));assert.equal(order,true,'Artwork is in the heading row before the existing current-item layout');
+ const order=await page.locator('.penetration-workspace-art').evaluate(el=>!!el.closest('#penetration-current-item-card > .penetration-banner-heading')&&el.closest('#penetration-current-item-card').firstElementChild.classList.contains('penetration-banner-heading'));assert.equal(order,true,'Artwork is the first row inside the current-item card');
  }
  if(!calculatorBannersOnly){
  for(const [name,route]of [['Steel','/takeoff-header-steel.png'],['Duct','/takeoff-header-ductwork.png'],['Defect Reports','/takeoff-header-physical.png'],['Service Plans','/takeoff-header-service-plans.png']]){await chooseTakeoff(page,name);await takeoffIdle();await takeoffHeading(name,route);}

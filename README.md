@@ -407,4 +407,14 @@ Without the files, two source-reconstruction tests skip; all committed Excel fix
 
 ## Operating boundary
 
-This is a single-computer application bound to `127.0.0.1`. It rejects foreign hosts/origins, limits request sizes, validates inputs, uses parameterized SQLite queries and has no CDN or remote runtime calls. It is not an authenticated multi-user service and has not been deployed. Do not expose this local HTTP server publicly.
+This is a single-computer application bound to `127.0.0.1`. It rejects foreign hosts/origins, limits request sizes, validates inputs, uses parameterized SQLite queries and has no CDN dependencies. Optional Google driving-route requests require setup and an explicit user action, as described below. It is not an authenticated multi-user service and has not been deployed. Do not expose this local HTTP server publicly.
+
+## Google Maps travel information
+
+Access & Travel includes a temporary route panel using the project Site Address. Map links work without an API key. Driving estimates require Google Maps Platform billing, Routes API and a server key restricted to that API. Open the setup guide from Settings or `/maps-setup.html`.
+
+The application server reads `CEASEFIRE_GOOGLE_MAPS_API_KEY` at startup. Configure it in the application account's environment before launching the app; never put it in source, browser storage or project files. The key is never returned through the status or route endpoints. Without a key, the interface shows setup instructions and makes no Google API calls.
+
+Current location is read only after choosing **Use current location**. Only an explicit **Check driving route** sends the selected origin and project address to Google. Addresses, coordinates and route results are not persisted or used to set quote charges. Requests have a fixed HTTPS destination, timeout, bounded response and a per-server concurrency/rate limit. Changing either location clears results and ignores stale replies.
+
+The PDF editor's Azure Aura Red cursors are credited to Cursors-4U.com. The application owner confirmed separate commercial permission. Original copyright/license notices are retained in `static/cursors`; web images use proportionally scaled hotspots. No operating-system cursor scheme is installed.

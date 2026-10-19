@@ -1750,7 +1750,7 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
   const choiceHtml=englishMarkup(fs.readFileSync('static/index.html','utf8'));
   assert.ok(!choiceHtml.includes('id="calculator-list"'));
   for(const id of ['steel','ductwork','penetration'])assert.ok(choiceHtml.includes(`data-calculator-id="${id}"`));
-  for(const id of ['steel_vermiculite','steel_board']){assert.ok(!choiceHtml.includes(`data-calculator-id="${id}"`));assert.ok(choiceHtml.includes(`data-steel-calculator="${id}"`));}
+  for(const id of ['steel_vermiculite','steel_board']){assert.ok(choiceHtml.includes(`data-calculator-id="${id}"`));assert.ok(choiceHtml.includes(`data-steel-calculator="${id}"`));}
   assert.ok(!choiceHtml.includes('data-estimator-kind="penetration"'));passed++;
 
   // Only Exposure input column data is normal weight; headers and diagnostics retain their source emphasis.

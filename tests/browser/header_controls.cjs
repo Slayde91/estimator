@@ -85,12 +85,12 @@ async function inspectHeader(width) {
   const coordinates = page.locator('#cursor-position');
   await expect(coordinates).toBeVisible();
   await page.mouse.move(241, 173, { steps: 8 });
-  await expect(coordinates).toHaveText('241173');
+  await expect(coordinates).toHaveText('X241Y173');
   await page.mouse.move(501, 319, { steps: 8 });
-  await expect(coordinates).toHaveText('501319');
+  await expect(coordinates).toHaveText('X501Y319');
   await page.evaluate(() => scrollTo(0, 200));
   await page.mouse.move(310, 250);
-  await expect(coordinates).toHaveText('310250');
+  await expect(coordinates).toHaveText('X310Y250');
   await page.evaluate(() => scrollTo(0, 0));
   await page.mouse.move(-10, -10);
   await expect(coordinates).toHaveText('—');

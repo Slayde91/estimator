@@ -8,7 +8,7 @@
   function clear() {
     if (frame !== null) cancelAnimationFrame(frame);
     pending = frame = null;
-    output.textContent = "X: —   Y: —";
+    output.textContent = "—";
   }
   document.addEventListener("pointermove", event => {
     if (event.pointerType === "touch") { clear(); return; }
@@ -16,7 +16,7 @@
     if (frame !== null) return;
     frame = requestAnimationFrame(() => {
       frame = null;
-      output.textContent = `X: ${pending[0]}   Y: ${pending[1]}`;
+      output.textContent = `${pending[0]}${pending[1]}`;
     });
   }, { passive: true, capture: true });
   document.addEventListener("pointerout", event => { if (!event.relatedTarget) clear(); }, { passive: true });

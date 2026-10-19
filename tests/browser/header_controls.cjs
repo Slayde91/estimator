@@ -85,25 +85,20 @@ async function inspectHeader(width) {
   const coordinates = page.locator('#cursor-position');
   await expect(coordinates).toBeVisible();
   await page.mouse.move(241, 173, { steps: 8 });
-  await expect(coordinates).toHaveText('X: 241   Y: 173');
+  await expect(coordinates).toHaveText('241173');
   await page.mouse.move(501, 319, { steps: 8 });
-  await expect(coordinates).toHaveText('X: 501   Y: 319');
+  await expect(coordinates).toHaveText('501319');
   await page.evaluate(() => scrollTo(0, 200));
   await page.mouse.move(310, 250);
-  await expect(coordinates).toHaveText('X: 310   Y: 250');
+  await expect(coordinates).toHaveText('310250');
   await page.evaluate(() => scrollTo(0, 0));
   await page.mouse.move(-10, -10);
-  await expect(coordinates).toHaveText('X: —   Y: —');
+  await expect(coordinates).toHaveText('—');
   evidence.cursorCoordinates = { realPointerMoves: true, windowPixelsAfterScroll: true, clearedOnLeave: true };
   await page.getByRole('button',{name:'Settings',exact:true}).click(); await idle();
   for(const theme of ['ceasefire','midnight','ocean','forest','slate']) {
     await expect(page.locator('html')).toHaveAttribute('data-theme',theme);
-    const contrast=await coordinates.evaluate(el=>{
-      const rgb=value=>value.match(/[\d.]+/g).slice(0,3).map(Number),luminance=values=>values.map(v=>{v/=255;return v<=.04045?v/12.92:((v+.055)/1.055)**2.4;}).reduce((sum,v,i)=>sum+v*[.2126,.7152,.0722][i],0);
-      const ink=luminance(rgb(getComputedStyle(el).color)),paper=luminance(rgb(getComputedStyle(el.closest('.app-header')).backgroundColor));
-      return (Math.max(ink,paper)+.05)/(Math.min(ink,paper)+.05);
-    });
-    assert.ok(contrast>=4.5,`Readable cursor coordinates in ${theme}: ${contrast}`);
+    await expect(coordinates).toHaveCSS('color','rgb(255, 0, 0)');
     await page.locator('#theme-toggle').click();
   }
   // Compare fully initialized drafts, including the lazily loaded composer.

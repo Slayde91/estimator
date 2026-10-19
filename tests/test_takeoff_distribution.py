@@ -15,6 +15,7 @@ class TakeoffDistributionTests(unittest.TestCase):
             for name in ('README.md', 'requirements.txt', 'Start-Estimator.cmd', 'Start-Estimator.ps1',
                          'scripts/install_reference_library.py', 'scripts/build_language_catalog.py',
                          'scripts/install_library_replicas.py', 'docs/LIBRARY_REPLICAS.md',
+                         'scripts/import_boss_matrix.py', 'docs/BOSS_MATRIX_IMPORT.md',
                          'docs/TAKEOFFS.md', 'docs/LANGUAGES.md',
                          'estimator/__init__.py', 'static/takeoffs.js', 'data/public.json'):
                 path = root / name; path.parent.mkdir(parents=True, exist_ok=True); path.write_text('')
@@ -31,6 +32,8 @@ class TakeoffDistributionTests(unittest.TestCase):
                 self.assertIn('scripts/build_language_catalog.py', names)
                 self.assertIn('scripts/install_library_replicas.py', names)
                 self.assertIn('docs/LIBRARY_REPLICAS.md', names)
+                self.assertIn('scripts/import_boss_matrix.py', names)
+                self.assertIn('docs/BOSS_MATRIX_IMPORT.md', names)
                 self.assertFalse(any('.ceasefire-evidence' in name for name in names))
 
 

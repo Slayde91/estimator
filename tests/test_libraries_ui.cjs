@@ -621,16 +621,21 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     const urls=['https://media.promat.com/example.pdf','https://etex.azureedge.net/example.pdf?brand=sample',
       'https://systems.tbafirefly.com.au/reports',
       'https://tfire.com.au/documents/Example-report',
+      'https://bossfire.com/documents/test-reports/Synthetic-FAS990001.pdf',
       'javascript:alert(1)','https://media.promat.com.evil.test/a.pdf','https://user@media.promat.com/a.pdf','http://media.promat.com/a.pdf',
       'https://systems.tbafirefly.com.au/reports?redirect=evil','https://systems.tbafirefly.com.au.evil/reports',
       'https://tfire.com.au/documents/report?redirect=evil','https://user@tfire.com.au/documents/report',
-      'https://tfire.com.au.evil/documents/report','https://tfire.com.au/documents/..'];
+      'https://tfire.com.au.evil/documents/report','https://tfire.com.au/documents/..',
+      'https://bossfire.com/documents/test-reports/report.pdf?redirect=evil',
+      'https://bossfire.com.evil/documents/test-reports/report.pdf',
+      'https://bossfire.com/documents/test-reports/../report.pdf',
+      'http://bossfire.com/documents/test-reports/report.pdf'];
     for(let i=0;i<urls.length;i++) {
       h.setRoute(path=>path==='/api/libraries'?meta():({...detail('technical','technical-1'),fields:[{label:'Report Number',value:'EXAMPLE123',report_links:[{label:'EXAMPLE123',url:urls[i]}]}]}));
       await h.api.open('technical','technical-1');
       const anchors=walk(h.pane('technical').detailPanel).filter(n=>n.tagName==='a'&&n.textContent==='EXAMPLE123');
-      assert.equal(anchors.length,i<4?1:0);
-      if(i<4){assert.equal(anchors[0].href,urls[i]);assert.equal(anchors[0].target,'_blank');assert.equal(anchors[0].rel,'noopener noreferrer');}
+      assert.equal(anchors.length,i<5?1:0);
+      if(i<5){assert.equal(anchors[0].href,urls[i]);assert.equal(anchors[0].target,'_blank');assert.equal(anchors[0].rel,'noopener noreferrer');}
       assert.match(text(h.pane('technical').detailPanel),/EXAMPLE123/);
     }
   });

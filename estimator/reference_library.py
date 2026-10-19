@@ -27,7 +27,9 @@ from .technical_fields import (FIELD_LABELS, LEGACY_LABELS,
 
 KINDS = {'penetration': 'Firestopping Library', 'technical': 'Technical Library'}
 IDENTIFIER = re.compile(r'[a-z0-9][a-z0-9_-]{0,119}\Z')
-MAX_INDEX = 64 * 1024 * 1024
+# The BOSS matrix leaves the reviewed index within 3 KiB of the old 64 MiB limit.
+# Keep a bounded file size and the existing record/field/asset limits.
+MAX_INDEX = 96 * 1024 * 1024
 MAX_ASSET = 128 * 1024 * 1024
 
 

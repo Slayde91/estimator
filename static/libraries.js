@@ -726,7 +726,8 @@
       const tables = tablesByField.get(field).filter(Boolean), links = configurationLinks(field, configurationTargets);
       const imageOnly = firefly && field.label === "Diagrams & Figures";
       if (imageOnly && !images.length) continue;
-      const formatted = ["Installation Details", "Local Protection"].includes(field.label) || firefly && ["Service Wrap", configurationField].includes(field.label);
+      const boss = (data.fields || []).some(f => f.label === "Manufacturer" && f.value === "BOSS");
+      const formatted = ["Installation Details", "Local Protection"].includes(field.label) || boss && field.label === "Barrier Construction" || firefly && ["Service Wrap", configurationField].includes(field.label);
       if (pane.kind === "technical" && !images.length && !tables.length && !links.length && String(field.value ?? "").trim() === "") continue;
       const reportLinks = pane.kind === "technical" && field.label === "Report Number" && Array.isArray(field.report_links) ? field.report_links : [];
       const reportLabels = String(field.value ?? "").split(/\n/).map(x => x.trim()).filter(Boolean);
@@ -736,7 +737,8 @@
         if (link.url === "https://systems.tbafirefly.com.au/reports") return true;
         try { const u = new URL(link.url); return u.protocol === "https:" && !u.username && !u.password && (
           ["media.promat.com", "etex.azureedge.net"].includes(u.host) && /\.pdf$/i.test(u.pathname) ||
-          u.host === "tfire.com.au" && /^https:\/\/tfire\.com\.au\/documents\/[A-Za-z0-9][A-Za-z0-9_.()=-]*$/.test(link.url)
+          u.host === "tfire.com.au" && /^https:\/\/tfire\.com\.au\/documents\/[A-Za-z0-9][A-Za-z0-9_.()=-]*$/.test(link.url) ||
+          u.host === "bossfire.com" && /^https:\/\/bossfire\.com\/documents\/test-reports\/[A-Za-z0-9][A-Za-z0-9_.()-]*\.pdf$/i.test(link.url)
         ); } catch { return false; }
       });
       if (validReports) {

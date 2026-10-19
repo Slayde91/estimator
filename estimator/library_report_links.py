@@ -20,7 +20,9 @@ def valid_report_url(value):
         return (url.scheme == 'https' and (
             url.netloc in REPORT_HOSTS and url.path.lower().endswith('.pdf')
             or url.netloc == 'tfire.com.au' and not url.query and not url.fragment
-            and TRAFALGAR_REPORT_PATH.fullmatch(url.path) is not None))
+            and TRAFALGAR_REPORT_PATH.fullmatch(url.path) is not None
+            or url.netloc == 'bossfire.com' and not url.query and not url.fragment
+            and re.fullmatch(r'https://bossfire\.com/documents/test-reports/[A-Za-z0-9][A-Za-z0-9_.()-]*\.pdf', value, re.I) is not None))
     except ValueError:
         return False
 

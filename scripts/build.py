@@ -13,6 +13,8 @@ def main():
     paths.extend([ROOT / name for name in ("README.md", "requirements.txt", "Start-Estimator.cmd", "Start-Estimator.ps1")])
     paths.append(ROOT / 'scripts' / 'install_reference_library.py')
     paths.append(ROOT / 'scripts' / 'install_library_replicas.py')
+    paths.append(ROOT / 'scripts' / 'import_boss_matrix.py')
+    paths.append(ROOT / 'docs' / 'BOSS_MATRIX_IMPORT.md')
     paths.append(ROOT / 'docs' / 'LIBRARY_REPLICAS.md')
     paths.append(ROOT / 'docs' / 'TAKEOFFS.md')
     paths.append(ROOT / 'docs' / 'LANGUAGES.md')

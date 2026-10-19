@@ -130,12 +130,12 @@ function retainedScopes(value) { return { pricing: value.pricing, calculators: v
   assert.deepEqual(calculations.at(-1).inputs, preciseInputs); assert.deepEqual(await snapshot(), preciseScopes); checks.mainTabs.importedFullPrecisionRetained = preciseInputs.F26;
 
   // Native schedule edits retain full precision. Quantity controls align with
-  // Item QTY; the Document/Library pair stays together and may wrap below it.
+  // Header actions stay together above Item QTY and Add to Schedule.
   await chooseCalculator(page, 'Firestopping'); await idle(); await expect(page.locator('#estimator-penetration')).toBeVisible();
   const clear = page.locator('#penetration-clear'), add = page.locator('#penetration-add-to-schedule'), library = page.locator('#penetration-add-to-library'), fresh = page.locator('#penetration-estimator-add');
   await expect(page.locator('#penetration-new-item')).toBeHidden(); await expect(page.locator('#penetration-recalculate')).toBeHidden();
   for (const [control, name] of [[clear, 'Clear'], [add, 'Add to Schedule'], [library, 'Add to Library']]) { await expect(control).toBeVisible(); await expect(control).toHaveAccessibleName(name); }
-  assert.equal(await clear.locator('svg path').count(), 2);
+  assert.equal(await clear.locator('svg').innerHTML(), await page.locator('#calculator-reset svg').innerHTML());
   const addIcon = add.locator('img'), originalIcon = fs.readFileSync(path.join(root, 'static/icons/takeoff-transfer.png'));
   await expect(addIcon).toHaveAttribute('src', '/icons/schedule-add.png'); await expect(addIcon).toHaveAttribute('aria-hidden', 'true');
   await expect(addIcon).toHaveJSProperty('complete', true); await expect(addIcon).toHaveJSProperty('naturalWidth', 512); await expect(addIcon).toHaveJSProperty('naturalHeight', 512);
@@ -155,13 +155,17 @@ function retainedScopes(value) { return { pricing: value.pricing, calculators: v
     });
     assert.equal(geometry.input.height, 48); for (const button of [...Object.values(geometry.buttons), geometry.document]) { assert.equal(button.height, 48); assert.ok(button.left >= 0); assert.ok(button.right <= width); }
     assert.equal(geometry.buttons['penetration-add-to-schedule'].right - geometry.buttons['penetration-add-to-schedule'].left, 48); assert.equal(geometry.addIcon.right - geometry.addIcon.left, 24); assert.equal(geometry.addIcon.height, 24);
-    for (const id of ['penetration-clear', 'penetration-add-to-schedule']) { const button = geometry.buttons[id]; assert.ok(Math.abs(button.top - geometry.input.top) < 1, `${id} aligns with Item QTY at ${width}`); assert.ok(Math.abs(button.bottom - geometry.input.bottom) < 1); }
+    const scheduleButton = geometry.buttons['penetration-add-to-schedule'];
+    assert.ok(Math.abs(scheduleButton.top - geometry.input.top) < 1, 'Add to Schedule aligns with Item QTY at '+width);
+    assert.ok(Math.abs(scheduleButton.bottom - geometry.input.bottom) < 1);
+    const clearButton = geometry.buttons['penetration-clear'];
+    assert.ok(Math.abs(clearButton.top - geometry.document.top) < 1, 'Clear shares the Document row at '+width);
+    assert.ok(clearButton.right <= geometry.document.left, 'Clear is left of Document at '+width);
     const libraryButton = geometry.buttons['penetration-add-to-library'];
     assert.ok(Math.abs(libraryButton.top - geometry.document.top) < 1, `Document and Library share a row at ${width}`);
     assert.ok(Math.abs(libraryButton.bottom - geometry.document.bottom) < 1);
     assert.ok(Math.abs(libraryButton.left - geometry.document.right - geometry.pairGap) < 1, `Document immediately precedes Library at ${width}`);
-    if (Math.abs(geometry.document.top - geometry.input.top) < 1) assert.ok(geometry.document.left >= geometry.buttons['penetration-add-to-schedule'].right, `Document follows Add to Schedule at ${width}`);
-    else assert.ok(geometry.document.top >= geometry.input.bottom, `Document and Library wrap below the quantity controls at ${width}`);
+    assert.ok(geometry.document.bottom <= geometry.input.top, 'Header actions precede quantity controls at '+width);
     assert.ok(geometry.pageWidth <= width, `Firestopping escaped viewport at ${width}`);
     for (const offset of Object.values(geometry.iconOffsets)) { assert.ok(Math.abs(offset.x) < 1, `Icon is horizontally centred at ${width}`); assert.ok(Math.abs(offset.y) < 1, `Icon is vertically centred at ${width}`); }
     if ([1146, 390].includes(width)) await page.screenshot({ path: path.join(output, `firestopping-controls-${width}.png`), fullPage: true });

@@ -1,6 +1,12 @@
 /* Azure Aura Red, supplied with commercial permission. The original hotspots
    are scaled with each 32px web image; drawing coordinates remain untouched. */
 @media screen {
+  main:has(> #view-takeoffs:not([hidden])) { cursor:url('/cursors/pointer.png') 6 2,default; }
+  #view-takeoffs { cursor:url('/cursors/pointer.png') 6 2,default; }
+  #view-takeoffs :where(*) { cursor:inherit; }
+  #view-takeoffs :is(button,[role="button"],[role="tab"],a,.button,summary,select,input:is([type="checkbox"],[type="radio"],[type="range"],[type="color"],[type="file"])) { cursor:url('/cursors/link.png') 6 2,pointer; }
+  #view-takeoffs :is(input:not([type="checkbox"],[type="radio"],[type="range"],[type="color"],[type="file"]),textarea,[contenteditable="true"]) { cursor:url('/cursors/text.png') 16 16,text; }
+  #view-takeoffs :is(button:disabled,[aria-disabled="true"]) { cursor:url('/cursors/unavailable.png') 16 16,not-allowed; }
   #takeoff-viewport { --pdf-cursor:url('/cursors/pointer.png') 6 2,default; cursor:var(--pdf-cursor); }
   #takeoff-viewport :is(.takeoff-page,canvas,.takeoff-overlay,.takeoff-overlay *) { cursor:var(--pdf-cursor); }
   #takeoff-viewport:is([data-tool="trace"],[data-tool="calibrate"],[data-tool="cite"],[data-tool="count"],[data-tool="count-only"],[data-tool="viewport"],[data-tool="polygon"],[data-tool="exclusion"],[data-tool="callout"],[data-tool="initial-pages"],[data-tool^="graphic-"]) { --pdf-cursor:url('/cursors/precision.png') 16 16,crosshair; }
@@ -13,7 +19,13 @@
   #takeoff-viewport[data-tool="select"] [data-graphic-part][aria-label="Resize markup"] { cursor:url('/cursors/resize-nwse.png') 16 16,nwse-resize; }
   #takeoff-viewport[data-tool="select"] :is(.takeoff-annotation-resize,.takeoff-physical-callout-handle):is([data-corner="ne"],[data-corner="sw"]) { cursor:url('/cursors/resize-nesw.png') 16 16,nesw-resize; }
   #takeoffs-workspace .takeoff-drawing-layout :is(button,[role="tab"],.button) { cursor:url('/cursors/link.png') 6 2,pointer; }
-  #takeoffs-workspace .takeoff-drawing-layout :is(input,textarea,[contenteditable="true"]) { cursor:url('/cursors/text.png') 16 16,text; }
+  #takeoffs-workspace .takeoff-drawing-layout :is(input:not([type="checkbox"],[type="radio"],[type="range"],[type="color"],[type="file"]),textarea,[contenteditable="true"]) { cursor:url('/cursors/text.png') 16 16,text; }
+  dialog:is(.takeoff-dialog,.takeoff-column-filter,.takeoff-pdf-tools-dialog,.takeoff-signature-dialog) { cursor:url('/cursors/pointer.png') 6 2,default; }
+  dialog:is(.takeoff-dialog,.takeoff-column-filter,.takeoff-pdf-tools-dialog,.takeoff-signature-dialog) :where(*) { cursor:inherit; }
+  dialog:is(.takeoff-dialog,.takeoff-column-filter,.takeoff-pdf-tools-dialog,.takeoff-signature-dialog) :is(button,a,select,input:is([type="checkbox"],[type="radio"],[type="range"],[type="color"],[type="file"])) { cursor:url('/cursors/link.png') 6 2,pointer; }
+  dialog:is(.takeoff-dialog,.takeoff-column-filter,.takeoff-pdf-tools-dialog,.takeoff-signature-dialog) :is(input:not([type="checkbox"],[type="radio"],[type="range"],[type="color"],[type="file"]),textarea,[contenteditable="true"]) { cursor:url('/cursors/text.png') 16 16,text; }
+  .takeoff-signature-dialog .takeoff-signature-pad { cursor:url('/cursors/handwriting.png') 2 31,crosshair; }
+  dialog:is(.takeoff-dialog,.takeoff-column-filter,.takeoff-pdf-tools-dialog,.takeoff-signature-dialog) button:disabled { cursor:url('/cursors/unavailable.png') 16 16,not-allowed; }
   #takeoffs-workspace .takeoff-pane-resizer { cursor:url('/cursors/resize-horizontal.png') 16 16,col-resize; }
   #takeoffs-workspace .takeoff-drawing-layout :is(button:disabled,[aria-disabled="true"]) { cursor:url('/cursors/unavailable.png') 16 16,not-allowed; }
   html.app-busy #takeoff-viewport { --pdf-cursor:wait; }

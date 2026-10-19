@@ -122,6 +122,8 @@ and application ZIP. To install an inspected bundle, run
 `python scripts/install_reference_library.py <reviewed-bundle-directory>`;
 an existing installation requires `--replace` and is retained as a backup.
 See [local reference libraries](docs/REFERENCE_LIBRARIES.md) for the data contract.
+The [BOSS matrix import](docs/BOSS_MATRIX_IMPORT.md) describes the separate
+source-bound preparation tool and its index-only activation boundary.
 
 **Substrate** replaces the Technical Library's Table filter. Entries with several
 recorded barrier alternatives appear under each matching substrate. The filter

@@ -23,6 +23,27 @@ async function snapshot(){return page.evaluate(()=>({details:window.CeasefirePro
  await chooseCalculator(page,'Firestopping');await idle();
  assert.equal(await page.locator('#penetration-current-item-card').evaluate(el=>el.firstElementChild.classList.contains('penetration-banner-heading')),true);
  assert.equal(await page.locator('#penetration-clear svg').innerHTML(),await page.locator('#calculator-reset svg').innerHTML());
+ for(const width of [1384,1020,825,390]){
+  await page.setViewportSize({width,height:900});
+  const positions=await page.locator('.penetration-banner-heading').evaluate(el=>{
+   const box=n=>{const r=n.getBoundingClientRect();return{x:r.x,y:r.y,right:r.right,bottom:r.bottom,width:r.width,height:r.height};};
+   return{header:box(el),title:box(el.querySelector('#penetration-heading')),clear:box(el.querySelector('#penetration-clear')),document:box(el.querySelector('.calculator-document-toggle')),library:box(el.querySelector('#penetration-add-to-library'))};
+  });
+  assert.ok(positions.clear.right<=positions.document.x);assert.ok(Math.abs(positions.clear.y-positions.document.y)<1);
+  assert.ok(positions.library.bottom<=positions.header.bottom&&positions.clear.x>=positions.header.x);
+  if(width>=825)assert.ok(positions.clear.y<positions.title.bottom&&positions.clear.bottom>positions.title.y,'Controls share the title row at '+width+': '+JSON.stringify(positions));
+  assert.equal(await page.locator('.penetration-item-heading #penetration-clear,.penetration-item-heading .penetration-library-actions').count(),0);
+  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth-innerWidth)<=1);
+ }
+ await page.setViewportSize({width:1384,height:900});
+ await page.locator('.penetration-banner-heading .calculator-document-toggle').click();await expect(page.locator('#firestopping-item-document-actions')).toBeVisible();await page.keyboard.press('Escape');
+ await page.locator('#penetration-settings').click();
+ for(const theme of ['ceasefire','midnight','ocean','forest','slate']){
+  await page.locator('html').evaluate((el,theme)=>el.dataset.theme=theme,theme);
+  const headings=page.locator('.penetration-settings-subheading');assert.equal(await headings.count(),3);
+  for(const heading of await headings.all()){await expect(heading).toHaveCSS('background-color','rgb(255, 224, 102)');await expect(heading).toHaveCSS('color','rgb(0, 0, 0)');}
+ }
+ await page.locator('html').evaluate(el=>el.dataset.theme='ceasefire');await page.locator('#penetration-settings').click();
  await page.mouse.move(241,173);await expect(page.locator('#cursor-position')).toHaveText('X241Y173');await expect(page.locator('#cursor-position')).toHaveCSS('color','rgb(255, 0, 0)');
  await page.screenshot({path:path.join(output,'firestopping-first-row.png')});
  await page.locator('nav [data-view="settings"]').click();await idle();
@@ -48,6 +69,12 @@ async function snapshot(){return page.evaluate(()=>({details:window.CeasefirePro
  await page.locator('#travel-calculate').click();await started;await page.locator('#site-address').fill('Different fixture destination');release();await expect(page.locator('#travel-distance')).toHaveText('—');await expect(page.locator('#travel-status')).toContainText('address changed');
  await page.unroute('**/api/travel/route');await page.route('**/api/travel/route',r=>r.fulfill({status:502,json:{error:'Synthetic provider unavailable'}}));await page.locator('#travel-calculate').click();await expect(page.locator('#travel-status')).toHaveText('Synthetic provider unavailable');await expect(page.locator('#travel-distance')).toHaveText('—');
  await chooseTakeoff(page,'Steel');await renderDrawing(page,()=>page.locator('#takeoff-upload').setInputFiles(info.fixture));
+ await expect(page.locator('#view-takeoffs')).toHaveCSS('cursor',/cursors\/pointer\.png/);
+ await expect(page.locator('main')).toHaveCSS('cursor',/cursors\/pointer\.png/);
+ await expect(page.locator('#takeoffs-workspace > .takeoff-workspace-heading')).toHaveCSS('cursor',/cursors\/pointer\.png/);
+ await expect(page.locator('.takeoff-workspace-heading .calculator-document-toggle').first()).toHaveCSS('cursor',/cursors\/link\.png/);
+ await expect(page.locator('#view-takeoffs input[type="checkbox"]').first()).toHaveCSS('cursor',/cursors\/link\.png/);
+ await expect(page.locator('#view-takeoffs input[type="search"]').first()).toHaveCSS('cursor',/cursors\/text\.png/);
  const drawing=page.locator('#takeoff-viewport'),box=await drawing.boundingBox();await page.mouse.click(box.x+70,box.y+140);await expect(page.locator('.click-smoke-puff')).toHaveCount(0);
  await expect(drawing).toHaveCSS('cursor',/cursors\/pointer\.png.*6 2, default/);
  for(const [name,asset]of[['Pan','move'],['Select PDF text','text']]){await page.getByRole('button',{name,exact:true}).click();await expect(drawing).toHaveCSS('cursor',new RegExp('cursors/'+asset+'\\.png'));await expect(page.locator('.click-smoke-puff')).toHaveCount(0);}

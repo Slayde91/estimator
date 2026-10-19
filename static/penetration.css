@@ -109,7 +109,7 @@
 .penetration-settings{display:grid;gap:22px;min-width:0;max-width:100%;margin-top:20px}
 .penetration-settings>.message,.penetration-settings .penetration-settings-table{margin-top:0}
 .penetration-settings-section{min-width:0;max-width:100%}
-.penetration-settings-subheading{margin:0 0 12px;padding:15px 10px;background:#fff0e7;color:#752a22;font-size:12px;line-height:1.4;text-transform:uppercase;letter-spacing:.04em}
+.penetration-settings-subheading{margin:0 0 12px;padding:15px 10px;background:#ffe066;color:#000;font-size:12px;line-height:1.4;text-transform:uppercase;letter-spacing:.04em}
 .penetration-settings-section>.table-scroll{min-width:0;max-width:100%}
 .penetration-route-table{min-width:0}
 .penetration-route-table th[scope=row]{width:26%}

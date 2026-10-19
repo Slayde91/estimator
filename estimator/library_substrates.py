@@ -332,6 +332,33 @@ def _construction_bullet(value):
 
 def classification_evidence(source, projected, *, selector_capture=None, source_documents=None):
     """Return classified evidence for diagnostics without changing any record."""
+    if source.get('boss_matrix_source'):
+        # The importer keeps every approved matrix alternative as its own bullet.
+        # Installation build-up and the originally tested construction must not
+        # become extra approved substrates.
+        fields = {f['label']: f.get('value','') for f in projected.get('fields',[])}
+        kind = {'Wall':'wall','Floor':'floor','Ceiling':'ceiling'}.get(fields.get('Barrier Type'))
+        clauses = fields.get('Barrier Construction','').splitlines()
+        approved = source['boss_matrix_source'].get('approved_substrate_columns',[])
+        if not approved and clauses==['No approved substrate is marked in matrix columns K–AQ.']:
+            return []
+        if not kind or len(clauses)!=len(approved) or any(not c.startswith('• ') for c in clauses):
+            raise ValueError('BOSS approved-substrate mapping changed; review is required.')
+        evidence=[]
+        for clause in clauses:
+            label=clause[2:].split(' — ',1)[0]
+            direct=next((family for family,pattern in (
+                ('BOSS FlexiBatt',r'BOSS Flexi-?Batt'),
+                ('BOSS Batt',r'BOSS Batt'),
+                ('Supapanel',r'Supapanel'),
+                ('Comflor 60',r'Comflor'),
+                ('Permanent polymer formwork',r'Permanent Polymer Formwork'),
+            ) if re.search(pattern,label,re.I)),None)
+            labels={direct+' '+kind} if direct else _classified_text(label,(kind,))
+            if not labels:
+                raise ValueError('Unmapped BOSS approved substrate: '+label)
+            evidence.extend({'substrate':name,'source':'BOSS matrix approved substrate','text':clause} for name in sorted(labels))
+        return evidence
     fields = projected.get('fields', [])
     fallback = _fallback_types(projected)
     reviewed = _reviewed_evidence(source, source_documents)

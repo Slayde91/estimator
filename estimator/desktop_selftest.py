@@ -279,15 +279,15 @@ def self_test(data_directory, output_report):
                     # choice closes it. IDs keep exports independent of order.
                     probe.click('#calculator-navigation-toggle')
                     steel = calculator_id in ('steel_vermiculite', 'steel_board')
-                    menu_id = 'steel' if steel else calculator_id
-                    selector = f'#calculator-navigation-menu button[data-calculator-id="{menu_id}"]'
-                    probe.wait(f'!document.querySelector("#calculator-navigation-menu").hidden && !!document.querySelector({json.dumps(selector)})')
-                    probe.click(selector)
+                    probe.wait('!document.querySelector("#calculator-navigation-menu").hidden')
                     if steel:
-                        probe.wait('!document.querySelector("#calculator-steel-hub").hidden && document.querySelectorAll("#calculator-steel-hub [data-steel-calculator]").length === 2')
-                        assert not probe.script('!!document.querySelector("#calculator-navigation-menu [data-calculator-id=steel_vermiculite], #calculator-navigation-menu [data-calculator-id=steel_board]")')
-                        probe.click(f'#calculator-steel-hub [data-steel-calculator="{calculator_id}"]')
+                        probe.click('#steel-calculator-navigation-toggle')
+                        probe.wait('!document.querySelector("#steel-calculator-navigation-menu").hidden && document.querySelectorAll("#steel-calculator-navigation-menu button").length === 2')
+                    selector = f'#calculator-navigation-menu button[data-calculator-id="{calculator_id}"]'
+                    probe.wait(f'!!document.querySelector({json.dumps(selector)}).getClientRects().length')
+                    probe.click(selector)
                     probe.wait(f'document.querySelector({json.dumps(selector)}).getAttribute("aria-pressed") === "true"')
+                    probe.wait('document.querySelector("#calculator-navigation-menu").hidden && document.querySelector("#steel-calculator-navigation-menu").hidden')
                     # Export availability alone can precede the first worksheet
                     # response. Require calculated, rendered content as well.
                     probe.wait('!document.querySelector("#calculator-workspace").hidden && !document.querySelector("#calculator-excel").disabled && document.querySelector("#calculator-grid").getAttribute("aria-busy") === "false" && !!document.querySelector("#calculator-grid table") && !document.querySelector("#calculator-grid").textContent.includes("Loading this worksheet")')

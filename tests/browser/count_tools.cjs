@@ -47,9 +47,9 @@ async function pendingPoint() {
   });
 }
 async function countCursor() {
-  await expect(page.locator('.takeoff-viewport')).toHaveCSS('cursor', 'crosshair');
-  await expect(page.locator('.takeoff-overlay')).toHaveCSS('cursor', 'crosshair');
-  for (const element of await page.locator('.takeoff-overlay [role="button"]').all()) await expect(element).toHaveCSS('cursor', 'crosshair');
+  await expect(page.locator('.takeoff-viewport')).toHaveCSS('cursor', /cursors\/precision\.png.*16 16, crosshair/);
+  await expect(page.locator('.takeoff-overlay')).toHaveCSS('cursor', /cursors\/precision\.png.*16 16, crosshair/);
+  for (const element of await page.locator('.takeoff-overlay [role="button"]').all()) await expect(element).toHaveCSS('cursor', /cursors\/precision\.png.*16 16, crosshair/);
 }
 (async () => {
   const info = await ready; assert.notEqual(info.port, 8765, 'Never use the live app'); const sourceHash = hash(info.fixture), runtimeBefore = runtimeHashes();

@@ -16,7 +16,7 @@
     if (frame !== null) return;
     frame = requestAnimationFrame(() => {
       frame = null;
-      output.textContent = `${pending[0]}${pending[1]}`;
+      output.textContent = `X${pending[0]}Y${pending[1]}`;
     });
   }, { passive: true, capture: true });
   document.addEventListener("pointerout", event => { if (!event.relatedTarget) clear(); }, { passive: true });
@@ -651,6 +651,7 @@
     }
     const maskingActive = String(state.inputs.D7 ?? "").trim().toLowerCase() !== "n/a";
     for (const card of [inputCard("access-travel", "Access & Travel", job), inputCard("teams-crews", "Teams/Crews", labour)]) if (card) before.append(card);
+    window.CeasefireTravel?.attach?.($("main-panel-access-travel"));
     const maskingCard = maskingActive ? inputCard("masking-cleaning", "Masking/Cleaning", masking) : null;
     if (maskingCard) postMaterials.append(maskingCard);
     for (let row = 15; row <= 23; row++) {

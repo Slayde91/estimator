@@ -18,6 +18,7 @@ from .presentation import calculation_error_details
 from .quote_details import compile_work_summary
 from .storage import Store, WORKFLOWS
 from .edition import excluded_route, features, render_index, require_project_edition, validate_edition
+from .travel import TravelService, TravelError
 
 MAX_BODY = 24 * 1_048_576
 MAX_PRICING_FILE = 5 * 1_048_576
@@ -34,6 +35,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
         # Keep style attributes and scripts under the normal strict policy.
         content_security_policy += "; style-src-elem 'self' 'unsafe-inline'"
     store = Store(database or ROOT / ".runtime" / "estimator.sqlite3")
+    travel = TravelService()
     takeoffs = takeoff_http = None
     if capabilities['takeoffs']:
         from .takeoff_documents import TakeoffDocuments
@@ -170,6 +172,8 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
             if self.command == "GET":
                 if re.fullmatch(r'/api/download-progress/[A-Za-z0-9_-]{32}', route):
                     self.send_payload(200, download_progress.read(route.rsplit('/', 1)[1]))
+                elif route == '/api/travel/status':
+                    self.send_payload(200, travel.status())
                 elif route == '/api/company-settings':
                     self.send_payload(200, store.company_settings())
                 elif route == '/api/libraries':
@@ -238,7 +242,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     self.send_report(store.quote(route[len("/api/quotes/"):-len("/report.pdf")]), "Saved quote")
                 elif route.startswith("/api/quotes/"):
                     self.send_quote(200, store.quote(route.removeprefix("/api/quotes/")))
-                elif route in {"/", "/index.html", "/company-settings.js", "/classifire-logo.png", "/main-layout.js", "/downloads.css", "/activity.js", "/calculation-queue.js", "/searchable-choice.js", "/penetration-presentation.js", "/icons/navigation-takeoffs.svg", "/icons/navigation-takeoffs.jpg", "/icons/navigation-help.jpg", "/theme.js", "/language.js", "/language-catalog.js", "/language.css", "/theme.css", "/laser.css", "/laser-steel.svg", "/home-steel-frame.png", "/header-layout.css", "/workspace-art.css", "/pointer-effects.css", "/pointer-effects.js", "/laser-reticle.svg", "/takeoff-header-steel.png", "/takeoff-header-ductwork.png", "/takeoff-header-physical.png", "/takeoff-header-service-plans.png", "/header-steel-spray.png", "/header-steel-board.png", "/header-ductwork.png", "/header-firestopping.png", "/header-estimate.png", "/header-projects.png", "/projects-evidence-banner.png", "/header-firestopping-library.png", "/header-technical-library.png", "/app.js", "/downloads.js", "/styles.css", "/calculators.js", "/calculators.css", "/penetration-breakdown.js", "/penetration.js", "/penetration.css", "/libraries.js", "/library-detail-text.js", "/libraries.css", "/library-editor.js", "/library-editor.css", "/icons/navigation-home.png", "/icons/document.png", "/icons/schedule-add.png", "/icons/navigation-help.png", "/icons/navigation-takeoffs.png", "/icons/takeoff-visibility.jpg", "/icons/takeoff-colour-wheel.png", "/icons/takeoff-legend.png", "/ceasefire-logo.png", "/ceasefire-app.ico", "/fonts/Montserrat-Variable.ttf", "/fonts/Vera.ttf", "/fonts/VeraBd.ttf", "/fonts/Montserrat-Italic-Variable.ttf", "/takeoffs.js", "/takeoffs.css", "/takeoff-geometry.js", "/takeoff-physical.js", "/takeoff-annotations.js", "/takeoff-signatures.js", "/takeoff-graphics.js", "/takeoff-graphics-ui.js", "/takeoff-pane-resize.js", "/takeoff-initial-pages.js", "/takeoff-pdf-tools.js", "/takeoff-pdf-tools.css", "/icons/default-memory.svg", "/icons/takeoff-set-default.png", "/icons/signature.svg", "/help-glossary.js", "/help-glossary.css", "/takeoff-search.js", "/takeoff-shortcuts.js", "/icons/takeoff-callout.png", "/takeoff-pdf-worker.mjs", "/takeoff-library-links.js", "/icons/takeoff-visibility.png", "/icons/takeoff-bullet-list.png", "/icons/takeoff-numbered-list.png", "/icons/takeoff-add-service.png", "/icons/takeoff-add-barrier.png", "/icons/takeoff-transfer.png", "/icons/takeoff-measure.png", "/header-tagline-media.js", "/header-tagline-character.gif", "/header-tagline-character-still.png"}:
+                elif route in {'/travel.js', '/travel.css', '/maps-setup.html', '/pdf-cursors.css', '/cursors/pointer.png', '/cursors/precision.png', '/cursors/move.png', '/cursors/text.png', '/cursors/handwriting.png', '/cursors/link.png', '/cursors/resize-nwse.png', '/cursors/resize-nesw.png', '/cursors/resize-horizontal.png', '/cursors/resize-vertical.png', '/cursors/unavailable.png', "/", "/index.html", "/company-settings.js", "/classifire-logo.png", "/main-layout.js", "/downloads.css", "/activity.js", "/calculation-queue.js", "/searchable-choice.js", "/penetration-presentation.js", "/icons/navigation-takeoffs.svg", "/icons/navigation-takeoffs.jpg", "/icons/navigation-help.jpg", "/theme.js", "/language.js", "/language-catalog.js", "/language.css", "/theme.css", "/laser.css", "/laser-steel.svg", "/home-steel-frame.png", "/header-layout.css", "/workspace-art.css", "/pointer-effects.css", "/pointer-effects.js", "/laser-reticle.svg", "/takeoff-header-steel.png", "/takeoff-header-ductwork.png", "/takeoff-header-physical.png", "/takeoff-header-service-plans.png", "/header-steel-spray.png", "/header-steel-board.png", "/header-ductwork.png", "/header-firestopping.png", "/header-estimate.png", "/header-projects.png", "/projects-evidence-banner.png", "/header-firestopping-library.png", "/header-technical-library.png", "/app.js", "/downloads.js", "/styles.css", "/calculators.js", "/calculators.css", "/penetration-breakdown.js", "/penetration.js", "/penetration.css", "/libraries.js", "/library-detail-text.js", "/libraries.css", "/library-editor.js", "/library-editor.css", "/icons/navigation-home.png", "/icons/document.png", "/icons/schedule-add.png", "/icons/navigation-help.png", "/icons/navigation-takeoffs.png", "/icons/takeoff-visibility.jpg", "/icons/takeoff-colour-wheel.png", "/icons/takeoff-legend.png", "/ceasefire-logo.png", "/ceasefire-app.ico", "/fonts/Montserrat-Variable.ttf", "/fonts/Vera.ttf", "/fonts/VeraBd.ttf", "/fonts/Montserrat-Italic-Variable.ttf", "/takeoffs.js", "/takeoffs.css", "/takeoff-geometry.js", "/takeoff-physical.js", "/takeoff-annotations.js", "/takeoff-signatures.js", "/takeoff-graphics.js", "/takeoff-graphics-ui.js", "/takeoff-pane-resize.js", "/takeoff-initial-pages.js", "/takeoff-pdf-tools.js", "/takeoff-pdf-tools.css", "/icons/default-memory.svg", "/icons/takeoff-set-default.png", "/icons/signature.svg", "/help-glossary.js", "/help-glossary.css", "/takeoff-search.js", "/takeoff-shortcuts.js", "/icons/takeoff-callout.png", "/takeoff-pdf-worker.mjs", "/takeoff-library-links.js", "/icons/takeoff-visibility.png", "/icons/takeoff-bullet-list.png", "/icons/takeoff-numbered-list.png", "/icons/takeoff-add-service.png", "/icons/takeoff-add-barrier.png", "/icons/takeoff-transfer.png", "/icons/takeoff-measure.png", "/header-tagline-media.js", "/header-tagline-character.gif", "/header-tagline-character-still.png"}:
                     name = "index.html" if route == "/" else route[1:]
                     path = ROOT / "static" / name
                     kind = {".js": "text/javascript; charset=utf-8", ".mjs": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".html": "text/html; charset=utf-8", ".png": "image/png", ".svg": "image/svg+xml", ".jpg": "image/jpeg", ".gif": "image/gif", ".avif": "image/avif", ".ico": "image/x-icon", ".ttf": "font/ttf"}[path.suffix]
@@ -267,6 +271,14 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                         materials=materials, library=libraries, company=store.company_settings(),
                         saved_calculators={key: store.calculator_state(key)['inputs'] for key in ('steel_vermiculite', 'steel_board', 'ductwork')})
                     self.send_download(report, 'application/pdf', 'CEASEFIRE-Full-Product-Summary.pdf' if materials else 'CEASEFIRE-Full-Schedule.pdf', destination)
+                elif route == '/api/travel/route':
+                    if self.command != 'POST':
+                        self.send_payload(405, {'error': 'Method not allowed.'})
+                        return
+                    try:
+                        self.send_payload(200, travel.route(body))
+                    except TravelError as error:
+                        self.send_payload(error.status, {'error': str(error)})
                 elif route == '/api/company-settings':
                     self.send_payload(200, store.save_company_settings(body))
                 elif route == '/api/libraries/penetration':

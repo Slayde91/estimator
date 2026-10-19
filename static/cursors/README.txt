@@ -1,0 +1,1 @@
+Azure Aura Red by Cursors-4U.com. Commercial use authorized separately by the application owner. Original copyright and license notices are retained. Web cursors use the original artwork at 32px with proportionally adjusted original hotspots. No operating-system cursor scheme is installed.

@@ -26,6 +26,7 @@ DATA_FILES = (
     'calculators/steel_board.json.gz', 'calculators/steel_vermiculite.json.gz',
 )
 STATIC_FILES = (
+    'travel.js', 'travel.css', 'maps-setup.html',
     'pointer-effects.js', 'pointer-effects.css', 'laser-reticle.svg',
     'app.js', 'activity.js', 'calculation-queue.js', 'searchable-choice.js', 'penetration-presentation.js',
     'calculators.css', 'calculators.js', 'ceasefire-logo.png', 'classifire-logo.png',

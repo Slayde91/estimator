@@ -75,6 +75,13 @@ async function snapshot(){return page.evaluate(()=>({details:window.CeasefirePro
  await expect(page.locator('.takeoff-workspace-heading .calculator-document-toggle').first()).toHaveCSS('cursor',/cursors\/link\.png/);
  await expect(page.locator('#view-takeoffs input[type="checkbox"]').first()).toHaveCSS('cursor',/cursors\/link\.png/);
  await expect(page.locator('#view-takeoffs input[type="search"]').first()).toHaveCSS('cursor',/cursors\/text\.png/);
+ await page.getByRole('button',{name:'Filter Confirmation',exact:true}).click();
+ const filterDialog=page.getByRole('dialog',{name:'Filter Confirmation',exact:true});
+ await expect(filterDialog).toHaveCSS('cursor',/cursors\/pointer\.png/);
+ await expect(filterDialog.getByRole('button',{name:'Apply filter',exact:true})).toHaveCSS('cursor',/cursors\/link\.png/);
+ await expect(filterDialog.getByRole('searchbox')).toHaveCSS('cursor',/cursors\/text\.png/);
+ await expect(filterDialog.getByRole('checkbox',{name:'Select all values',exact:true})).toHaveCSS('cursor',/cursors\/unavailable\.png/);
+ await filterDialog.getByRole('button',{name:'Cancel',exact:true}).click();await expect(page.locator('.click-smoke-layer')).toHaveCount(0);
  const drawing=page.locator('#takeoff-viewport'),box=await drawing.boundingBox();await page.mouse.click(box.x+70,box.y+140);await expect(page.locator('.click-smoke-puff')).toHaveCount(0);
  await expect(drawing).toHaveCSS('cursor',/cursors\/pointer\.png.*6 2, default/);
  for(const [name,asset]of[['Pan','move'],['Select PDF text','text']]){await page.getByRole('button',{name,exact:true}).click();await expect(drawing).toHaveCSS('cursor',new RegExp('cursors/'+asset+'\\.png'));await expect(page.locator('.click-smoke-puff')).toHaveCount(0);}

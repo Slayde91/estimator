@@ -18,6 +18,7 @@ from .technical_table_navigation import validate_table_navigation
 from .technical_orientation import prepare_selector_orientation_context
 from .library_substrates import classify_substrates
 from .library_display import display_subtitle, remove_resolved_source_notices
+from .technical_brand_presentation import present_manufacturer_fields
 from .library_diagram_names import validate_drawing_name, drawing_source_names, apply_drawing_names
 from .library_report_links import FIREFLY_REPORTS_URL, validate_report_links
 from .library_facets import FACETS, classify_facets, facet_options
@@ -291,6 +292,9 @@ class ReferenceLibrary:
                     apply_drawing_names(item, assets, source_names)
                     remove_resolved_source_notices(item)
                     present_options(item)
+                    # Resolved notice columns can leave another FRL-only table.
+                    # Finish the shared display after those columns are removed.
+                    present_manufacturer_fields(item)
                     text = [item.get(name, '') for name in ('title', 'subtitle', 'summary', 'source_label')]
                     text += field_text(item.get('fields', []), assets, projected=True)
                     for source in item.get('sources', []):

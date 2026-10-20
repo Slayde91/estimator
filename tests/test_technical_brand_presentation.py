@@ -2,6 +2,9 @@
 
 from copy import deepcopy
 from io import BytesIO
+import json
+from pathlib import Path
+import tempfile
 import unittest
 
 from openpyxl import load_workbook
@@ -13,6 +16,8 @@ from estimator.technical_item_exports import (prepare_technical_item,
     build_technical_item_xlsx, render_technical_item_pdf)
 from estimator.technical_table_navigation import validate_table_navigation
 from scripts.import_boss_matrix import bind_review
+from estimator.reference_library import ReferenceLibrary
+from tests.test_reference_library import sample_library
 
 
 def record(*fields, brand='Promat'):
@@ -165,6 +170,29 @@ class BrandPresentationTests(unittest.TestCase):
             for text in (pdf, xlsx):
                 self.assertIn(expected, text)
                 self.assertNotIn(forbidden, text)
+
+    def test_full_library_removes_rating_table_after_resolved_notice_column(self):
+        source = record(('Service Size / Configuration', 'ø 20'), ('FRL', '-/30/30 to -/120/120'))
+        notice = ('The publisher wrap text contains an unrecognised <gt/> element. '
+                  'The comparison symbol is unresolved; verify the wrap length against the approval.')
+        source['fields'][0].update(table={'columns': ['ID', 'FRL', 'Source Issues'],
+            'rows': [['a', '-/30/30', notice], ['b', '-/120/120', '']]}, table_row_ids=[['a', 'b']])
+        source['fields'][1]['table_links'] = [{'field': 'Service Size / Configuration', 'table_index': 0}]
+        bind_review(source)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            data, _, _ = sample_library(root)
+            data['libraries']['technical'] = {'filters': [{'key': 'manufacturer', 'label': 'Manufacturer'}], 'items': [source]}
+            data['links'] = []
+            payload = json.dumps(data).encode()
+            (root / 'library.json').write_bytes(payload)
+            library = ReferenceLibrary(root)
+            detail = library.detail('technical', 'sample')
+            self.assertEqual(values(detail)['FRL'], '-/120/120')
+            self.assertFalse(any(field.get('table') or field.get('tables') or field.get('table_links') for field in detail['fields']))
+            self.assertIn(' — -/120/120 — ', detail['title'])
+            self.assertEqual(normalize_technical_item(detail), detail)
+            self.assertEqual((root / 'library.json').read_bytes(), payload)
 
 
 if __name__ == '__main__':

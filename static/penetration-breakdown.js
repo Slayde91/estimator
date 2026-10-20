@@ -108,7 +108,6 @@
     const label = uiNode("th", "", "Subtotal"); label.setAttribute("scope", "row"); label.colSpan = 3; subtotal.append(label);
     for (const [key, format] of [["material_costs", "currency"], ["labour_costs", "currency"], ["task_hours", "number"]]) subtotal.append(displayNode("td", breakdown.totals?.[key], format));
     foot.append(subtotal); table.append(head, body, foot); scroll.append(table); container.append(scroll);
-    if (breakdown.note && !schedule) container.append(node("p", "helper penetration-breakdown-note", breakdown.note));
     sourceGroups(container, definition, row);
     return container;
   }

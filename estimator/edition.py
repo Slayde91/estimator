@@ -16,7 +16,6 @@ TAKEOFF_PROJECT_ERROR = (
     'have not been changed; this edition cannot open or overwrite them.'
 )
 TAKEOFF_ASSETS = frozenset({
-    '/pdf-cursors.css', '/cursors/pointer.png', '/cursors/precision.png', '/cursors/move.png', '/cursors/text.png', '/cursors/handwriting.png', '/cursors/link.png', '/cursors/resize-nwse.png', '/cursors/resize-nesw.png', '/cursors/resize-horizontal.png', '/cursors/resize-vertical.png', '/cursors/unavailable.png',
     '/takeoffs.js', '/takeoffs.css', '/takeoff-geometry.js',
     '/takeoff-physical.js', '/takeoff-pdf-worker.mjs',
     '/takeoff-annotations.js', '/takeoff-signatures.js', '/takeoff-search.js', '/takeoff-shortcuts.js',

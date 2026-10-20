@@ -1,0 +1,2037 @@
+{
+  "Your drawing workspace": [
+    "도면 작업공간",
+    "Iyong lugar ng trabaho sa guhit",
+    "Không gian bản vẽ của bạn"
+  ],
+  "Drawing tools": [
+    "도면 도구",
+    "Mga kasangkapan sa guhit",
+    "Công cụ bản vẽ"
+  ],
+  "PDF markup tools": [
+    "PDF 마크업 도구",
+    "Mga kasangkapan sa pagmamarka ng PDF",
+    "Công cụ đánh dấu PDF"
+  ],
+  "Colour and legend controls": [
+    "색상 및 범례 제어",
+    "Mga kontrol sa kulay at legend",
+    "Điều khiển màu và chú giải"
+  ],
+  "Close settings": [
+    "설정 닫기",
+    "Isara ang mga setting",
+    "Đóng cài đặt"
+  ],
+  "Viewports": [
+    "뷰포트",
+    "Mga viewport",
+    "Khung nhìn"
+  ],
+  "Viewports on this page": [
+    "이 페이지의 뷰포트",
+    "Mga viewport sa pahinang ito",
+    "Khung nhìn trên trang này"
+  ],
+  "Add viewport": [
+    "뷰포트 추가",
+    "Magdagdag ng viewport",
+    "Thêm khung nhìn"
+  ],
+  "Delete viewport": [
+    "뷰포트 삭제",
+    "Burahin ang viewport",
+    "Xóa khung nhìn"
+  ],
+  "Close viewports": [
+    "뷰포트 닫기",
+    "Isara ang mga viewport",
+    "Đóng khung nhìn"
+  ],
+  "Scale": [
+    "축척",
+    "Iskala",
+    "Tỷ lệ"
+  ],
+  "No Scale Selected": [
+    "축척 미선택",
+    "Walang napiling iskala",
+    "Chưa chọn tỷ lệ"
+  ],
+  "Measure length on the PDF": [
+    "PDF에서 길이 측정",
+    "Sukatin ang haba sa PDF",
+    "Đo chiều dài trên PDF"
+  ],
+  "Visibility: show or hide all markups; double-click restores individually hidden items": [
+    "표시: 모든 마크업 표시 또는 숨기기; 두 번 클릭하면 개별적으로 숨긴 항목을 복원합니다",
+    "Visibility: ipakita o itago ang lahat ng marka; mag-double click upang ibalik ang mga item na paisa-isang itinago",
+    "Hiển thị: hiện hoặc ẩn tất cả đánh dấu; nhấp đúp để hiện lại các mục đã ẩn riêng"
+  ],
+  "Call-out Settings": [
+    "설명선 설정",
+    "Mga setting ng callout",
+    "Cài đặt chú thích"
+  ],
+  "Callout Settings": [
+    "설명선 설정",
+    "Mga setting ng callout",
+    "Cài đặt chú thích"
+  ],
+  "Call-out actions": [
+    "설명선 작업",
+    "Mga aksiyon sa callout",
+    "Thao tác chú thích"
+  ],
+  "Count Settings": [
+    "개수 설정",
+    "Mga setting ng bilang",
+    "Cài đặt đếm"
+  ],
+  "Marker Settings": [
+    "마커 설정",
+    "Mga setting ng marker",
+    "Cài đặt dấu"
+  ],
+  "Legend Settings": [
+    "범례 설정",
+    "Mga setting ng legend",
+    "Cài đặt chú giải"
+  ],
+  "Signature Settings": [
+    "서명 설정",
+    "Mga setting ng lagda",
+    "Cài đặt chữ ký"
+  ],
+  "Redraw signature": [
+    "서명 다시 그리기",
+    "Muling iguhit ang lagda",
+    "Vẽ lại chữ ký"
+  ],
+  "Delete signature": [
+    "서명 삭제",
+    "Burahin ang lagda",
+    "Xóa chữ ký"
+  ],
+  "Source documents": [
+    "원본 문서",
+    "Mga dokumento ng pinagmulan",
+    "Tài liệu nguồn"
+  ],
+  "Source Document": [
+    "원본 문서",
+    "Dokumento ng pinagmulan",
+    "Tài liệu nguồn"
+  ],
+  "Source Document order": [
+    "원본 문서 순서",
+    "Pagkakasunod ng mga dokumento ng pinagmulan",
+    "Thứ tự tài liệu nguồn"
+  ],
+  "Remove document": [
+    "문서 제거",
+    "Alisin ang dokumento",
+    "Xóa tài liệu"
+  ],
+  "Drawing document": [
+    "도면 문서",
+    "Dokumento ng guhit",
+    "Tài liệu bản vẽ"
+  ],
+  "Drawing calibration": [
+    "도면 보정",
+    "Pagkalibrate ng guhit",
+    "Hiệu chuẩn bản vẽ"
+  ],
+  "Drawing scale": [
+    "도면 축척",
+    "Iskala ng guhit",
+    "Tỷ lệ bản vẽ"
+  ],
+  "Drawing navigation": [
+    "도면 탐색",
+    "Pag-navigate sa guhit",
+    "Điều hướng bản vẽ"
+  ],
+  "Drawing search": [
+    "도면 검색",
+    "Paghahanap sa guhit",
+    "Tìm kiếm bản vẽ"
+  ],
+  "Drawing unavailable": [
+    "도면을 사용할 수 없음",
+    "Hindi magagamit ang guhit",
+    "Không có bản vẽ"
+  ],
+  "Original PDF page": [
+    "원본 PDF 페이지",
+    "Orihinal na pahina ng PDF",
+    "Trang PDF gốc"
+  ],
+  "Original PDF text": [
+    "원본 PDF 텍스트",
+    "Orihinal na teksto ng PDF",
+    "Văn bản PDF gốc"
+  ],
+  "Takeoff markups": [
+    "수량 산출 마크업",
+    "Mga marka ng pagsukat ng dami",
+    "Đánh dấu bóc tách khối lượng"
+  ],
+  "Takeoff register document actions": [
+    "수량 산출 대장 문서 작업",
+    "Mga aksiyon sa dokumento ng rehistro ng pagsukat ng dami",
+    "Thao tác tài liệu của sổ bóc tách khối lượng"
+  ],
+  "Initial Pages": [
+    "시작 페이지",
+    "Mga panimulang pahina",
+    "Các trang đầu"
+  ],
+  "First page": [
+    "첫 페이지",
+    "Unang pahina",
+    "Trang đầu"
+  ],
+  "Last page": [
+    "마지막 페이지",
+    "Huling pahina",
+    "Trang cuối"
+  ],
+  "‹ Page": [
+    "‹ 페이지",
+    "‹ Pahina",
+    "‹ Trang"
+  ],
+  "Page ›": [
+    "페이지 ›",
+    "Pahina ›",
+    "Trang ›"
+  ],
+  "Page number": [
+    "페이지 번호",
+    "Numero ng pahina",
+    "Số trang"
+  ],
+  "Page navigation": [
+    "페이지 탐색",
+    "Pag-navigate sa pahina",
+    "Điều hướng trang"
+  ],
+  "Page and zoom controls": [
+    "페이지 및 확대/축소 제어",
+    "Mga kontrol sa pahina at zoom",
+    "Điều khiển trang và thu phóng"
+  ],
+  "Fit page (Ctrl+0)": [
+    "페이지에 맞추기 (Ctrl+0)",
+    "Iangkop ang pahina (Ctrl+0)",
+    "Vừa trang (Ctrl+0)"
+  ],
+  "Rotate page right (Ctrl+Down); left (Ctrl+Up)": [
+    "페이지 오른쪽 회전 (Ctrl+Down); 왼쪽 (Ctrl+Up)",
+    "Paikutin ang pahina pakanan (Ctrl+Down); pakaliwa (Ctrl+Up)",
+    "Xoay trang sang phải (Ctrl+Down); sang trái (Ctrl+Up)"
+  ],
+  "Previous page (Ctrl+Left)": [
+    "이전 페이지 (Ctrl+Left)",
+    "Nakaraang pahina (Ctrl+Left)",
+    "Trang trước (Ctrl+Left)"
+  ],
+  "Next page (Ctrl+Right)": [
+    "다음 페이지 (Ctrl+Right)",
+    "Susunod na pahina (Ctrl+Right)",
+    "Trang tiếp (Ctrl+Right)"
+  ],
+  "Zoom in (Ctrl++)": [
+    "확대 (Ctrl++)",
+    "Palakihin (Ctrl++)",
+    "Phóng to (Ctrl++)"
+  ],
+  "Zoom out (Ctrl+-)": [
+    "축소 (Ctrl+-)",
+    "Paliitin (Ctrl+-)",
+    "Thu nhỏ (Ctrl+-)"
+  ],
+  "Search PDF text…": [
+    "PDF 텍스트 검색…",
+    "Maghanap ng teksto sa PDF…",
+    "Tìm văn bản PDF…"
+  ],
+  "Search original document text": [
+    "원본 문서 텍스트 검색",
+    "Maghanap sa orihinal na teksto ng dokumento",
+    "Tìm văn bản tài liệu gốc"
+  ],
+  "Searching PDF text…": [
+    "PDF 텍스트 검색 중…",
+    "Naghahanap ng teksto sa PDF…",
+    "Đang tìm văn bản PDF…"
+  ],
+  "Text search scope": [
+    "텍스트 검색 범위",
+    "Saklaw ng paghahanap ng teksto",
+    "Phạm vi tìm văn bản"
+  ],
+  "PDF text search results": [
+    "PDF 텍스트 검색 결과",
+    "Mga resulta ng paghahanap ng teksto sa PDF",
+    "Kết quả tìm văn bản PDF"
+  ],
+  "Stop search": [
+    "검색 중지",
+    "Ihinto ang paghahanap",
+    "Dừng tìm"
+  ],
+  "This document": [
+    "이 문서",
+    "Dokumentong ito",
+    "Tài liệu này"
+  ],
+  "All documents": [
+    "모든 문서",
+    "Lahat ng dokumento",
+    "Tất cả tài liệu"
+  ],
+  "Include drawing labels": [
+    "도면 라벨 포함",
+    "Isama ang mga label ng guhit",
+    "Gồm nhãn bản vẽ"
+  ],
+  "Recognizing drawing labels locally…": [
+    "도면 라벨을 로컬에서 인식하는 중…",
+    "Kinikilala nang lokal ang mga label ng guhit…",
+    "Đang nhận dạng nhãn bản vẽ cục bộ…"
+  ],
+  "No matches found. Drawing labels may still require visual inspection.": [
+    "일치하는 항목이 없습니다. 도면 라벨은 여전히 눈으로 확인해야 할 수 있습니다.",
+    "Walang nakitang tugma. Maaaring kailangan pa ring suriin nang biswal ang mga label ng guhit.",
+    "Không tìm thấy kết quả. Nhãn bản vẽ vẫn có thể cần kiểm tra bằng mắt."
+  ],
+  "Destination schedule": [
+    "대상 일람표",
+    "Patutunguhang talaan",
+    "Bảng kê đích"
+  ],
+  "Preview transfer": [
+    "전송 미리보기",
+    "Preview ng paglilipat",
+    "Xem trước chuyển dữ liệu"
+  ],
+  "Detach links": [
+    "연결 해제",
+    "Alisin ang mga link",
+    "Gỡ liên kết"
+  ],
+  "Export CSV": [
+    "CSV 내보내기",
+    "I-export ang CSV",
+    "Xuất CSV"
+  ],
+  "Export XLSX": [
+    "XLSX 내보내기",
+    "I-export ang XLSX",
+    "Xuất XLSX"
+  ],
+  "Download XLSX": [
+    "XLSX 다운로드",
+    "I-download ang XLSX",
+    "Tải XLSX"
+  ],
+  "Filter register": [
+    "대장 필터",
+    "Salain ang rehistro",
+    "Lọc sổ"
+  ],
+  "Filter register…": [
+    "대장 필터…",
+    "Salain ang rehistro…",
+    "Lọc sổ…"
+  ],
+  "Group register": [
+    "대장 그룹화",
+    "Igrupo ang rehistro",
+    "Nhóm sổ"
+  ],
+  "Sort register": [
+    "대장 정렬",
+    "Ayusin ang rehistro",
+    "Sắp xếp sổ"
+  ],
+  "Register position": [
+    "대장 위치",
+    "Posisyon ng rehistro",
+    "Vị trí sổ"
+  ],
+  "Item Details navigation": [
+    "항목 정보 탐색",
+    "Pag-navigate sa mga detalye ng item",
+    "Điều hướng thông tin hạng mục"
+  ],
+  "Close Item Details": [
+    "항목 정보 닫기",
+    "Isara ang mga detalye ng item",
+    "Đóng thông tin hạng mục"
+  ],
+  "Edit item": [
+    "항목 편집",
+    "I-edit ang item",
+    "Sửa hạng mục"
+  ],
+  "Delete item": [
+    "항목 삭제",
+    "Burahin ang item",
+    "Xóa hạng mục"
+  ],
+  "Remove": [
+    "제거",
+    "Alisin",
+    "Xóa"
+  ],
+  "Confirm": [
+    "확인",
+    "Kumpirmahin",
+    "Xác nhận"
+  ],
+  "Unconfirm": [
+    "확인 취소",
+    "Alisin ang kumpirmasyon",
+    "Bỏ xác nhận"
+  ],
+  "Apply item edits": [
+    "항목 편집 적용",
+    "Ilapat ang mga pag-edit ng item",
+    "Áp dụng sửa hạng mục"
+  ],
+  "Discard item edits": [
+    "항목 편집 버리기",
+    "Itapon ang mga pag-edit ng item",
+    "Bỏ sửa hạng mục"
+  ],
+  "Select filtered items": [
+    "필터된 항목 선택",
+    "Piliin ang mga sinalang item",
+    "Chọn mục đã lọc"
+  ],
+  "Clear selection": [
+    "선택 지우기",
+    "Burahin ang pagpili",
+    "Bỏ chọn"
+  ],
+  "Select all": [
+    "모두 선택",
+    "Piliin lahat",
+    "Chọn tất cả"
+  ],
+  "Hide": [
+    "숨기기",
+    "Itago",
+    "Ẩn"
+  ],
+  "Select all matching items": [
+    "일치하는 모든 항목 선택",
+    "Piliin lahat ng tugmang item",
+    "Chọn tất cả mục phù hợp"
+  ],
+  "Hide all matching items": [
+    "일치하는 모든 항목 숨기기",
+    "Itago lahat ng tugmang item",
+    "Ẩn tất cả mục phù hợp"
+  ],
+  "Select all values": [
+    "모든 값 선택",
+    "Piliin lahat ng halaga",
+    "Chọn tất cả giá trị"
+  ],
+  "Apply filter": [
+    "필터 적용",
+    "Ilapat ang salaan",
+    "Áp dụng bộ lọc"
+  ],
+  "Reset filter": [
+    "필터 초기화",
+    "I-reset ang salaan",
+    "Đặt lại bộ lọc"
+  ],
+  "Search values…": [
+    "값 검색…",
+    "Maghanap ng mga halaga…",
+    "Tìm giá trị…"
+  ],
+  "No matching values": [
+    "일치하는 값 없음",
+    "Walang tugmang halaga",
+    "Không có giá trị phù hợp"
+  ],
+  "No matching items": [
+    "일치하는 항목 없음",
+    "Walang tugmang item",
+    "Không có hạng mục phù hợp"
+  ],
+  "Bulk edit field": [
+    "일괄 편집 필드",
+    "Field para sa maramihang pag-edit",
+    "Ô sửa hàng loạt"
+  ],
+  "Bulk edit value": [
+    "일괄 편집 값",
+    "Halaga para sa maramihang pag-edit",
+    "Giá trị sửa hàng loạt"
+  ],
+  "New value (blank clears)": [
+    "새 값 (비우면 지워짐)",
+    "Bagong halaga (iwanang blangko upang burahin)",
+    "Giá trị mới (để trống để xóa)"
+  ],
+  "Previous 100": [
+    "이전 100개",
+    "Nakaraang 100",
+    "100 mục trước"
+  ],
+  "Next 100": [
+    "다음 100개",
+    "Susunod na 100",
+    "100 mục tiếp"
+  ],
+  "Previous pages": [
+    "이전 페이지",
+    "Mga nakaraang pahina",
+    "Các trang trước"
+  ],
+  "Next pages": [
+    "다음 페이지",
+    "Mga susunod na pahina",
+    "Các trang tiếp"
+  ],
+  "Previous results": [
+    "이전 결과",
+    "Mga nakaraang resulta",
+    "Các kết quả trước"
+  ],
+  "Next results": [
+    "다음 결과",
+    "Mga susunod na resulta",
+    "Các kết quả tiếp"
+  ],
+  "Unknown": [
+    "알 수 없음",
+    "Hindi alam",
+    "Không rõ"
+  ],
+  "Preview unavailable": [
+    "미리보기 사용 불가",
+    "Hindi magagamit ang preview",
+    "Không thể xem trước"
+  ],
+  "Image ready.": [
+    "이미지 준비 완료.",
+    "Handa na ang larawan.",
+    "Ảnh đã sẵn sàng."
+  ],
+  "Checking image…": [
+    "이미지 확인 중…",
+    "Sinusuri ang larawan…",
+    "Đang kiểm tra ảnh…"
+  ],
+  "PDF Tools": [
+    "PDF 도구",
+    "Mga kasangkapan sa PDF",
+    "Công cụ PDF"
+  ],
+  "New PDF output": [
+    "새 PDF 출력",
+    "Bagong output na PDF",
+    "Đầu ra PDF mới"
+  ],
+  "Download new PDF": [
+    "새 PDF 다운로드",
+    "I-download ang bagong PDF",
+    "Tải PDF mới"
+  ],
+  "Add as new Source Document": [
+    "새 원본 문서로 추가",
+    "Idagdag bilang bagong dokumento ng pinagmulan",
+    "Thêm làm tài liệu nguồn mới"
+  ],
+  "Output page order": [
+    "출력 페이지 순서",
+    "Pagkakasunod ng mga pahina sa output",
+    "Thứ tự trang đầu ra"
+  ],
+  "Page order": [
+    "페이지 순서",
+    "Pagkakasunod ng pahina",
+    "Thứ tự trang"
+  ],
+  "Page order (numbers or ranges)": [
+    "페이지 순서 (번호 또는 범위)",
+    "Pagkakasunod ng pahina (mga numero o saklaw)",
+    "Thứ tự trang (số hoặc khoảng)"
+  ],
+  "Pages to extract": [
+    "추출할 페이지",
+    "Mga pahinang kukunin",
+    "Các trang cần trích xuất"
+  ],
+  "Pages to extract, in output order": [
+    "출력 순서로 추출할 페이지",
+    "Mga pahinang kukunin, sa pagkakasunod ng output",
+    "Các trang cần trích xuất, theo thứ tự đầu ra"
+  ],
+  "Pages to delete": [
+    "삭제할 페이지",
+    "Mga pahinang buburahin",
+    "Các trang cần xóa"
+  ],
+  "Pages to delete from the output": [
+    "출력에서 삭제할 페이지",
+    "Mga pahinang buburahin mula sa output",
+    "Các trang cần xóa khỏi đầu ra"
+  ],
+  "Apply page order": [
+    "페이지 순서 적용",
+    "Ilapat ang pagkakasunod ng pahina",
+    "Áp dụng thứ tự trang"
+  ],
+  "Delete selected pages": [
+    "선택한 페이지 삭제",
+    "Burahin ang mga napiling pahina",
+    "Xóa các trang đã chọn"
+  ],
+  "Create PDF": [
+    "PDF 만들기",
+    "Gumawa ng PDF",
+    "Tạo PDF"
+  ],
+  "Preparing the new PDF…": [
+    "새 PDF를 준비하는 중…",
+    "Inihahanda ang bagong PDF…",
+    "Đang chuẩn bị PDF mới…"
+  ],
+  "Merge": [
+    "병합",
+    "Pagsamahin",
+    "Gộp"
+  ],
+  "Split": [
+    "분할",
+    "Hatiin",
+    "Tách"
+  ],
+  "Area exclusion": [
+    "제외 면적",
+    "Hindi kasamang lawak",
+    "Vùng loại trừ"
+  ],
+  "Edit exclusion": [
+    "제외 영역 편집",
+    "I-edit ang hindi kasamang lawak",
+    "Sửa vùng loại trừ"
+  ],
+  "Edit exclusion note": [
+    "제외 영역 메모 편집",
+    "I-edit ang tala ng hindi kasamang lawak",
+    "Sửa ghi chú vùng loại trừ"
+  ],
+  "Remove exclusion": [
+    "제외 영역 제거",
+    "Alisin ang hindi kasamang lawak",
+    "Xóa vùng loại trừ"
+  ],
+  "RISES / DROPS": [
+    "상승 / 하강",
+    "MGA PAANGAT / PABABA",
+    "ĐOẠN LÊN / XUỐNG"
+  ],
+  "Insert Rise / Drop": [
+    "상승 / 하강 추가",
+    "Maglagay ng paangat / pababa",
+    "Chèn đoạn lên / xuống"
+  ],
+  "Edit addition": [
+    "추가 길이 편집",
+    "I-edit ang dagdag",
+    "Sửa phần bổ sung"
+  ],
+  "Remove addition": [
+    "추가 길이 제거",
+    "Alisin ang dagdag",
+    "Xóa phần bổ sung"
+  ],
+  "Insert midpoint": [
+    "중간점 삽입",
+    "Maglagay ng gitnang punto",
+    "Chèn điểm giữa"
+  ],
+  "Delete control point": [
+    "제어점 삭제",
+    "Burahin ang control point",
+    "Xóa điểm điều khiển"
+  ],
+  "Control point actions": [
+    "제어점 작업",
+    "Mga aksiyon sa control point",
+    "Thao tác điểm điều khiển"
+  ],
+  "Markup actions": [
+    "마크업 작업",
+    "Mga aksiyon sa marka",
+    "Thao tác đánh dấu"
+  ],
+  "Markup appearance": [
+    "마크업 모양",
+    "Hitsura ng marka",
+    "Hình thức đánh dấu"
+  ],
+  "Markup settings": [
+    "마크업 설정",
+    "Mga setting ng marka",
+    "Cài đặt đánh dấu"
+  ],
+  "Delete markup": [
+    "마크업 삭제",
+    "Burahin ang marka",
+    "Xóa đánh dấu"
+  ],
+  "Remove marker": [
+    "마커 제거",
+    "Alisin ang marker",
+    "Xóa dấu"
+  ],
+  "Edit marker length": [
+    "마커 길이 편집",
+    "I-edit ang haba ng marker",
+    "Sửa chiều dài dấu"
+  ],
+  "Stamp actions": [
+    "스탬프 작업",
+    "Mga aksiyon sa stamp",
+    "Thao tác con dấu"
+  ],
+  "Continue Stamp": [
+    "스탬프 계속",
+    "Ipagpatuloy ang stamp",
+    "Tiếp tục đóng dấu"
+  ],
+  "Stamp text": [
+    "스탬프 텍스트",
+    "Teksto ng stamp",
+    "Văn bản con dấu"
+  ],
+  "Textbox text": [
+    "텍스트 상자 내용",
+    "Teksto ng text box",
+    "Nội dung hộp văn bản"
+  ],
+  "Continue count": [
+    "개수 세기 계속",
+    "Ipagpatuloy ang pagbibilang",
+    "Tiếp tục đếm"
+  ],
+  "Open source": [
+    "원본 열기",
+    "Buksan ang pinagmulan",
+    "Mở nguồn"
+  ],
+  "SOURCE ASSOCIATIONS": [
+    "원본 연결",
+    "MGA UGNAYAN SA PINAGMULAN",
+    "LIÊN KẾT NGUỒN"
+  ],
+  "Remove source association": [
+    "원본 연결 제거",
+    "Alisin ang ugnayan sa pinagmulan",
+    "Xóa liên kết nguồn"
+  ],
+  "Add Library Item": [
+    "라이브러리 항목 추가",
+    "Magdagdag ng item ng library",
+    "Thêm hạng mục thư viện"
+  ],
+  "Searching library…": [
+    "라이브러리 검색 중…",
+    "Naghahanap sa library…",
+    "Đang tìm trong thư viện…"
+  ],
+  "Select a library item": [
+    "라이브러리 항목 선택",
+    "Pumili ng item ng library",
+    "Chọn hạng mục thư viện"
+  ],
+  "Add defect": [
+    "결함 추가",
+    "Magdagdag ng depekto",
+    "Thêm khiếm khuyết"
+  ],
+  "Add substrate": [
+    "바탕재 추가",
+    "Magdagdag ng substrate",
+    "Thêm vật liệu nền"
+  ],
+  "Add barrier in Item Details": [
+    "항목 정보에서 방화구획 추가",
+    "Magdagdag ng harang sa mga detalye ng item",
+    "Thêm kết cấu ngăn cháy trong thông tin hạng mục"
+  ],
+  "Add service in Item Details": [
+    "항목 정보에서 설비 추가",
+    "Magdagdag ng serbisyo sa mga detalye ng item",
+    "Thêm hệ thống kỹ thuật trong thông tin hạng mục"
+  ],
+  "Add service to an explicitly chosen barrier": [
+    "명시적으로 선택한 방화구획에 설비 추가",
+    "Magdagdag ng serbisyo sa tahasang piniling harang",
+    "Thêm hệ thống vào kết cấu ngăn cháy được chọn rõ ràng"
+  ],
+  "Change Parent": [
+    "상위 항목 변경",
+    "Baguhin ang magulang",
+    "Đổi mục cha"
+  ],
+  "Associate Existing Records": [
+    "기존 기록 연결",
+    "Iugnay ang mga umiiral na tala",
+    "Liên kết hồ sơ hiện có"
+  ],
+  "Delete draft record": [
+    "초안 기록 삭제",
+    "Burahin ang draft na tala",
+    "Xóa hồ sơ nháp"
+  ],
+  "Delete selected records": [
+    "선택한 기록 삭제",
+    "Burahin ang mga napiling tala",
+    "Xóa hồ sơ đã chọn"
+  ],
+  "Restore draft record": [
+    "초안 기록 복원",
+    "Ibalik ang draft na tala",
+    "Khôi phục hồ sơ nháp"
+  ],
+  "Deleted records": [
+    "삭제한 기록",
+    "Mga binurang tala",
+    "Hồ sơ đã xóa"
+  ],
+  "Deleted draft": [
+    "삭제한 초안",
+    "Binurang draft",
+    "Bản nháp đã xóa"
+  ],
+  "Loading deleted records…": [
+    "삭제한 기록을 불러오는 중…",
+    "Nilo-load ang mga binurang tala…",
+    "Đang tải hồ sơ đã xóa…"
+  ],
+  "Previous deleted records": [
+    "이전 삭제 기록",
+    "Mga nakaraang binurang tala",
+    "Hồ sơ đã xóa trước"
+  ],
+  "Next deleted records": [
+    "다음 삭제 기록",
+    "Mga susunod na binurang tala",
+    "Hồ sơ đã xóa tiếp"
+  ],
+  "Previous 100 records": [
+    "이전 100개 기록",
+    "Nakaraang 100 tala",
+    "100 hồ sơ trước"
+  ],
+  "Next 100 records": [
+    "다음 100개 기록",
+    "Susunod na 100 tala",
+    "100 hồ sơ tiếp"
+  ],
+  "Filter physical hierarchy": [
+    "물리적 계층 필터",
+    "Salain ang pisikal na hirarkiya",
+    "Lọc phân cấp vật lý"
+  ],
+  "Filter physical records…": [
+    "물리적 기록 필터…",
+    "Salain ang mga pisikal na tala…",
+    "Lọc hồ sơ vật lý…"
+  ],
+  "Filter confirmation state": [
+    "확인 상태 필터",
+    "Salain ang katayuan ng kumpirmasyon",
+    "Lọc trạng thái xác nhận"
+  ],
+  "Select all matching physical records": [
+    "일치하는 모든 물리적 기록 선택",
+    "Piliin lahat ng tugmang pisikal na tala",
+    "Chọn tất cả hồ sơ vật lý phù hợp"
+  ],
+  "Hide all matching physical records": [
+    "일치하는 모든 물리적 기록 숨기기",
+    "Itago lahat ng tugmang pisikal na tala",
+    "Ẩn tất cả hồ sơ vật lý phù hợp"
+  ],
+  "Bulk physical edit field": [
+    "물리적 기록 일괄 편집 필드",
+    "Field para sa maramihang pisikal na pag-edit",
+    "Ô sửa hồ sơ vật lý hàng loạt"
+  ],
+  "Bulk physical edit value": [
+    "물리적 기록 일괄 편집 값",
+    "Halaga para sa maramihang pisikal na pag-edit",
+    "Giá trị sửa hồ sơ vật lý hàng loạt"
+  ],
+  "Manual draft penetration workspace": [
+    "수동 관통부 초안 작업공간",
+    "Lugar para sa manwal na draft ng butas na dinaanan",
+    "Không gian bản nháp lỗ xuyên thủ công"
+  ],
+  "Draft penetration hierarchy register": [
+    "관통부 초안 계층 대장",
+    "Rehistro ng hirarkiya ng draft ng butas na dinaanan",
+    "Sổ phân cấp lỗ xuyên nháp"
+  ],
+  "Legacy read-only": [
+    "이전 형식 읽기 전용",
+    "Lumang anyo, basa lamang",
+    "Dữ liệu cũ chỉ đọc"
+  ],
+  "Barrier": [
+    "방화구획",
+    "Harang na panlaban sa sunog",
+    "Kết cấu ngăn cháy"
+  ],
+  "Defect": [
+    "결함",
+    "Depekto",
+    "Khiếm khuyết"
+  ],
+  "Opening": [
+    "개구부",
+    "Bukana",
+    "Lỗ mở"
+  ],
+  "Service": [
+    "설비",
+    "Serbisyo",
+    "Hệ thống kỹ thuật"
+  ],
+  "Location": [
+    "위치",
+    "Lokasyon",
+    "Vị trí"
+  ],
+  "Level": [
+    "층",
+    "Palapag",
+    "Tầng"
+  ],
+  "Notes": [
+    "메모",
+    "Mga tala",
+    "Ghi chú"
+  ],
+  "Confirmation": [
+    "확인",
+    "Kumpirmasyon",
+    "Xác nhận"
+  ],
+  "Confirmed": [
+    "확인됨",
+    "Nakumpirma",
+    "Đã xác nhận"
+  ],
+  "Unconfirmed": [
+    "미확인",
+    "Hindi nakumpirma",
+    "Chưa xác nhận"
+  ],
+  "Not assessed": [
+    "미평가",
+    "Hindi pa nasuri",
+    "Chưa đánh giá"
+  ],
+  "Unresolved": [
+    "미해결",
+    "Hindi pa nalulutas",
+    "Chưa xử lý"
+  ],
+  "Missing evidence": [
+    "증빙 누락",
+    "Nawawalang katibayan",
+    "Thiếu bằng chứng"
+  ],
+  "Conflicting evidence": [
+    "상충하는 증빙",
+    "Magkasalungat na katibayan",
+    "Bằng chứng mâu thuẫn"
+  ],
+  "Insufficient evidence": [
+    "증빙 불충분",
+    "Hindi sapat na katibayan",
+    "Bằng chứng chưa đủ"
+  ],
+  "Needs review": [
+    "검토 필요",
+    "Kailangang suriin",
+    "Cần xem xét"
+  ],
+  "No uncertainty reported (unapproved draft)": [
+    "보고된 불확실성 없음 (미승인 초안)",
+    "Walang naiulat na kawalan ng katiyakan (hindi aprubadong draft)",
+    "Không báo cáo điều chưa chắc chắn (bản nháp chưa phê duyệt)"
+  ],
+  "Member mark": [
+    "부재 기호",
+    "Marka ng miyembro",
+    "Ký hiệu cấu kiện"
+  ],
+  "Member type": [
+    "부재 유형",
+    "Uri ng miyembro",
+    "Loại cấu kiện"
+  ],
+  "Steel section": [
+    "강재 단면",
+    "Seksiyon ng bakal",
+    "Tiết diện thép"
+  ],
+  "Fire period (min)": [
+    "내화 시간 (분)",
+    "Tagal ng paglaban sa sunog (min)",
+    "Thời gian chịu lửa (phút)"
+  ],
+  "Exposed sides": [
+    "노출 면",
+    "Mga nakalantad na gilid",
+    "Các mặt tiếp xúc"
+  ],
+  "Crit. Temp (°C)": [
+    "임계 온도 (°C)",
+    "Kritikal na temperatura (°C)",
+    "Nhiệt độ tới hạn (°C)"
+  ],
+  "Exposure": [
+    "노출",
+    "Pagkalantad",
+    "Tiếp xúc"
+  ],
+  "Zone": [
+    "구역",
+    "Sona",
+    "Khu vực"
+  ],
+  "Group": [
+    "그룹",
+    "Grupo",
+    "Nhóm"
+  ],
+  "WxH (mm)": [
+    "너비×높이 (mm)",
+    "Lapad×taas (mm)",
+    "Rộng×cao (mm)"
+  ],
+  "Orientation": [
+    "방향",
+    "Oryentasyon",
+    "Hướng"
+  ],
+  "Wall penetrations": [
+    "벽 관통부",
+    "Mga butas na dumaraan sa pader",
+    "Lỗ xuyên tường"
+  ],
+  "Floor penetrations": [
+    "바닥 관통부",
+    "Mga butas na dumaraan sa sahig",
+    "Lỗ xuyên sàn"
+  ],
+  "Surface ID": [
+    "표면 ID",
+    "ID ng ibabaw",
+    "ID bề mặt"
+  ],
+  "Number of layers": [
+    "레이어 수",
+    "Bilang ng mga patong",
+    "Số lớp"
+  ],
+  "Surface basis": [
+    "표면 산출 기준",
+    "Batayan ng ibabaw",
+    "Cơ sở bề mặt"
+  ],
+  "Wall face (true elevation)": [
+    "벽면 (실제 입면)",
+    "Mukha ng pader (tunay na elevation)",
+    "Mặt tường (mặt đứng thực)"
+  ],
+  "Slab soffit": [
+    "슬래브 하부면",
+    "Ilalim ng slab",
+    "Mặt dưới sàn"
+  ],
+  "Slab top": [
+    "슬래브 상부면",
+    "Ibabaw ng slab",
+    "Mặt trên sàn"
+  ],
+  "Substrate": [
+    "바탕재",
+    "Substrate",
+    "Vật liệu nền"
+  ],
+  "Treatment": [
+    "처리",
+    "Paraan ng proteksiyon",
+    "Xử lý"
+  ],
+  "Protection system": [
+    "보호 시스템",
+    "Sistema ng proteksiyon",
+    "Hệ bảo vệ"
+  ],
+  "Protection product": [
+    "보호 제품",
+    "Produktong pamproteksiyon",
+    "Sản phẩm bảo vệ"
+  ],
+  "FRL / fire rating": [
+    "FRL / 내화 등급",
+    "FRL / antas ng paglaban sa sunog",
+    "FRL / cấp chịu lửa"
+  ],
+  "True-surface source citation": [
+    "실제 표면 원본 인용",
+    "Sanggunian ng pinagmulan ng tunay na ibabaw",
+    "Trích dẫn nguồn bề mặt thực"
+  ],
+  "Barrier type": [
+    "방화구획 유형",
+    "Uri ng harang",
+    "Loại kết cấu ngăn cháy"
+  ],
+  "Substrate orientation": [
+    "바탕재 방향",
+    "Oryentasyon ng substrate",
+    "Hướng vật liệu nền"
+  ],
+  "Defect Ref.": [
+    "결함 참조",
+    "Sanggunian ng depekto",
+    "Mã tham chiếu khiếm khuyết"
+  ],
+  "Category": [
+    "범주",
+    "Kategorya",
+    "Danh mục"
+  ],
+  "Service type": [
+    "설비 유형",
+    "Uri ng serbisyo",
+    "Loại hệ thống kỹ thuật"
+  ],
+  "Service Size (mm)": [
+    "설비 크기 (mm)",
+    "Laki ng serbisyo (mm)",
+    "Kích thước hệ thống (mm)"
+  ],
+  "Explicit service quantity": [
+    "명시된 설비 수량",
+    "Tahasang dami ng serbisyo",
+    "Số lượng hệ thống khai báo rõ"
+  ],
+  "Service quantity": [
+    "설비 수량",
+    "Dami ng serbisyo",
+    "Số lượng hệ thống"
+  ],
+  "Source evidence": [
+    "원본 증빙",
+    "Katibayan ng pinagmulan",
+    "Bằng chứng nguồn"
+  ],
+  "Uncertainty": [
+    "불확실성",
+    "Kawalan ng katiyakan",
+    "Điều chưa chắc chắn"
+  ],
+  "Loading steel sections…": [
+    "강재 단면을 불러오는 중…",
+    "Nilo-load ang mga seksiyon ng bakal…",
+    "Đang tải tiết diện thép…"
+  ],
+  "Show Steel section choices": [
+    "강재 단면 선택지 표시",
+    "Ipakita ang mga pagpipiliang seksiyon ng bakal",
+    "Hiện các lựa chọn tiết diện thép"
+  ],
+  "No matching sections. Refine the search.": [
+    "일치하는 단면이 없습니다. 검색 범위를 좁히세요.",
+    "Walang tugmang seksiyon. Paliitin ang paghahanap.",
+    "Không có tiết diện phù hợp. Thu hẹp tìm kiếm."
+  ],
+  "Use rectangular duct": [
+    "직사각형 덕트 사용",
+    "Gumamit ng parihabang duct",
+    "Dùng ống gió chữ nhật"
+  ],
+  "Retry linked change": [
+    "연결된 변경 다시 시도",
+    "Subukan muli ang naka-link na pagbabago",
+    "Thử lại thay đổi liên kết"
+  ],
+  "{0} items · {1} documents · Revision {2}": [
+    "{0}개 항목 · {1}개 문서 · 개정 {2}",
+    "{0} item · {1} dokumento · Rebisyon {2}",
+    "{0} hạng mục · {1} tài liệu · Phiên bản {2}"
+  ],
+  "Page {0}": [
+    "페이지 {0}",
+    "Pahina {0}",
+    "Trang {0}"
+  ],
+  "{0} ({1} pages)": [
+    "{0} ({1}페이지)",
+    "{0} ({1} pahina)",
+    "{0} ({1} trang)"
+  ],
+  "New PDF: {0} pages.": [
+    "새 PDF: {0}페이지.",
+    "Bagong PDF: {0} pahina.",
+    "PDF mới: {0} trang."
+  ],
+  "New PDF: {0} pages; {1} pages removed.": [
+    "새 PDF: {0}페이지; {1}페이지 제거.",
+    "Bagong PDF: {0} pahina; {1} pahina ang inalis.",
+    "PDF mới: {0} trang; đã xóa {1} trang."
+  ],
+  "Move page {0} down": [
+    "페이지 {0} 아래로 이동",
+    "Ilipat pababa ang pahina {0}",
+    "Chuyển trang {0} xuống"
+  ],
+  "Move page {0} up": [
+    "페이지 {0} 위로 이동",
+    "Ilipat pataas ang pahina {0}",
+    "Chuyển trang {0} lên"
+  ],
+  "Move {0} down": [
+    "{0} 아래로 이동",
+    "Ilipat pababa ang {0}",
+    "Chuyển {0} xuống"
+  ],
+  "Move {0} up": [
+    "{0} 위로 이동",
+    "Ilipat pataas ang {0}",
+    "Chuyển {0} lên"
+  ],
+  "Remove page {0} from output": [
+    "출력에서 페이지 {0} 제거",
+    "Alisin ang pahina {0} sa output",
+    "Xóa trang {0} khỏi đầu ra"
+  ],
+  "View {0}": [
+    "{0} 보기",
+    "Tingnan ang {0}",
+    "Xem {0}"
+  ],
+  "Select {0}": [
+    "{0} 선택",
+    "Piliin ang {0}",
+    "Chọn {0}"
+  ],
+  "Delete {0}": [
+    "{0} 삭제",
+    "Burahin ang {0}",
+    "Xóa {0}"
+  ],
+  "Filter {0}": [
+    "{0} 필터",
+    "Salain ang {0}",
+    "Lọc {0}"
+  ],
+  "Search {0} values": [
+    "{0} 값 검색",
+    "Hanapin ang mga halaga ng {0}",
+    "Tìm giá trị {0}"
+  ],
+  "{0}: filter applied": [
+    "{0}: 필터 적용됨",
+    "{0}: nailapat ang salaan",
+    "{0}: đã áp dụng bộ lọc"
+  ],
+  "{0} values": [
+    "{0} 값",
+    "Mga halaga ng {0}",
+    "Giá trị {0}"
+  ],
+  "{0} selected": [
+    "{0}개 선택됨",
+    "{0} ang napili",
+    "Đã chọn {0}"
+  ],
+  "{0}–{1} of {2} matching items": [
+    "일치하는 {2}개 항목 중 {0}–{1}",
+    "{0}–{1} sa {2} tugmang item",
+    "{0}–{1} trong {2} hạng mục phù hợp"
+  ],
+  "{0}–{1} of {2} deleted records": [
+    "삭제한 {2}개 기록 중 {0}–{1}",
+    "{0}–{1} sa {2} binurang tala",
+    "{0}–{1} trong {2} hồ sơ đã xóa"
+  ],
+  "Showing {0}–{1} of {2} items.": [
+    "{2}개 항목 중 {0}–{1} 표시.",
+    "Ipinapakita ang {0}–{1} sa {2} item.",
+    "Hiển thị {0}–{1} trong {2} hạng mục."
+  ],
+  "Showing {0} of {1} sections. Type to narrow the list.": [
+    "{1}개 단면 중 {0}개 표시. 목록을 좁히려면 입력하세요.",
+    "Ipinapakita ang {0} sa {1} seksiyon. Mag-type upang paliitin ang listahan.",
+    "Hiển thị {0} trong {1} tiết diện. Nhập để thu hẹp danh sách."
+  ],
+  "{0} section{1}": [
+    "단면 {0}{1}개",
+    "{0} seksiyon{1}",
+    "{0} tiết diện{1}"
+  ],
+  "Control point {0}": [
+    "제어점 {0}",
+    "Control point {0}",
+    "Điểm điều khiển {0}"
+  ],
+  "{0} control point actions": [
+    "{0} 제어점 작업",
+    "Mga aksiyon sa control point ng {0}",
+    "Thao tác điểm điều khiển {0}"
+  ],
+  "{0} at control point {1}: {2} mm per {3}": [
+    "제어점 {1}의 {0}: {3}당 {2} mm",
+    "{0} sa control point {1}: {2} mm bawat {3}",
+    "{0} tại điểm điều khiển {1}: {2} mm mỗi {3}"
+  ],
+  "Exclusion {0}": [
+    "제외 영역 {0}",
+    "Hindi kasamang lawak {0}",
+    "Vùng loại trừ {0}"
+  ],
+  "Edit viewport {0}": [
+    "뷰포트 {0} 편집",
+    "I-edit ang viewport {0}",
+    "Sửa khung nhìn {0}"
+  ],
+  "Select viewport {0}": [
+    "뷰포트 {0} 선택",
+    "Piliin ang viewport {0}",
+    "Chọn khung nhìn {0}"
+  ],
+  "Scale for viewport {0}": [
+    "뷰포트 {0} 축척",
+    "Iskala para sa viewport {0}",
+    "Tỷ lệ cho khung nhìn {0}"
+  ],
+  "Scale · {0}": [
+    "축척 · {0}",
+    "Iskala · {0}",
+    "Tỷ lệ · {0}"
+  ],
+  "{0} Settings": [
+    "{0} 설정",
+    "Mga setting ng {0}",
+    "Cài đặt {0}"
+  ],
+  "{0} Legend": [
+    "{0} 범례",
+    "Legend ng {0}",
+    "Chú giải {0}"
+  ],
+  "{0} register": [
+    "{0} 대장",
+    "Rehistro ng {0}",
+    "Sổ {0}"
+  ],
+  "{0} editable takeoff register": [
+    "{0} 편집 가능한 수량 산출 대장",
+    "Nae-edit na rehistro ng pagsukat ng dami ng {0}",
+    "Sổ bóc tách khối lượng {0} có thể sửa"
+  ],
+  "{0} source associations": [
+    "{0} 원본 연결",
+    "Mga ugnayan ng pinagmulan ng {0}",
+    "Liên kết nguồn {0}"
+  ],
+  "{0} callout {1}": [
+    "{0} 설명선 {1}",
+    "{0} callout {1}",
+    "{0} chú thích {1}"
+  ],
+  "Stamp image: {0} × {1} pixels.": [
+    "스탬프 이미지: {0} × {1}픽셀.",
+    "Larawan ng stamp: {0} × {1} pixel.",
+    "Ảnh con dấu: {0} × {1} pixel."
+  ],
+  "Length group {0}": [
+    "길이 그룹 {0}",
+    "Grupo ng haba {0}",
+    "Nhóm chiều dài {0}"
+  ],
+  "Length measurements": [
+    "길이 측정",
+    "Mga sukat ng haba",
+    "Đo chiều dài"
+  ],
+  "Length: {0} m · {1}": [
+    "길이: {0} m · {1}",
+    "Haba: {0} m · {1}",
+    "Chiều dài: {0} m · {1}"
+  ],
+  "{0} · {1} mm each": [
+    "{0} · 개당 {1} mm",
+    "{0} · {1} mm bawat isa",
+    "{0} · {1} mm mỗi cái"
+  ],
+  "Thickness (mm): {0}. {1}": [
+    "두께 (mm): {0}. {1}",
+    "Kapal (mm): {0}. {1}",
+    "Chiều dày (mm): {0}. {1}"
+  ],
+  "Duct surface (m²): {0}. {1}": [
+    "덕트 표면적 (m²): {0}. {1}",
+    "Lawak ng duct (m²): {0}. {1}",
+    "Diện tích ống gió (m²): {0}. {1}"
+  ],
+  "Document SHA-256: {0}": [
+    "문서 SHA-256: {0}",
+    "SHA-256 ng dokumento: {0}",
+    "SHA-256 tài liệu: {0}"
+  ],
+  "Defect ID: {0}": [
+    "결함 ID: {0}",
+    "ID ng depekto: {0}",
+    "ID khiếm khuyết: {0}"
+  ],
+  "Explicit service quantity: {0}": [
+    "명시된 설비 수량: {0}",
+    "Tahasang dami ng serbisyo: {0}",
+    "Số lượng hệ thống khai báo rõ: {0}"
+  ],
+  "Add barrier to {0}": [
+    "{0}에 방화구획 추가",
+    "Magdagdag ng harang sa {0}",
+    "Thêm kết cấu ngăn cháy vào {0}"
+  ],
+  "Add service to {0}": [
+    "{0}에 설비 추가",
+    "Magdagdag ng serbisyo sa {0}",
+    "Thêm hệ thống vào {0}"
+  ],
+  "Select {0} {1}": [
+    "{0} {1} 선택",
+    "Piliin ang {0} {1}",
+    "Chọn {0} {1}"
+  ],
+  "Hide {0} {1} on drawing": [
+    "도면에서 {0} {1} 숨기기",
+    "Itago ang {0} {1} sa guhit",
+    "Ẩn {0} {1} trên bản vẽ"
+  ],
+  "Hide {0} on drawing": [
+    "도면에서 {0} 숨기기",
+    "Itago ang {0} sa guhit",
+    "Ẩn {0} trên bản vẽ"
+  ],
+  "View {0} on its source drawing": [
+    "원본 도면에서 {0} 보기",
+    "Tingnan ang {0} sa orihinal nitong guhit",
+    "Xem {0} trên bản vẽ nguồn"
+  ],
+  "{0} ID in Item Details": [
+    "항목 정보의 {0} ID",
+    "ID ng {0} sa mga detalye ng item",
+    "ID {0} trong thông tin hạng mục"
+  ],
+  "{0} {1} in Item Details": [
+    "항목 정보의 {0} {1}",
+    "{0} {1} sa mga detalye ng item",
+    "{0} {1} trong thông tin hạng mục"
+  ],
+  "Physical revision {0} · {1} retained identities · {2}": [
+    "물리적 개정 {0} · 유지된 식별자 {1}개 · {2}",
+    "Pisikal na rebisyon {0} · {1} pinanatiling pagkakakilanlan · {2}",
+    "Phiên bản vật lý {0} · {1} định danh được giữ · {2}"
+  ],
+  "Confirmation: {0} — inherited from {1} {2}.": [
+    "확인: {0} — {1} {2}에서 상속됨.",
+    "Kumpirmasyon: {0} — minana mula sa {1} {2}.",
+    "Xác nhận: {0} — kế thừa từ {1} {2}."
+  ],
+  "Uncertainty: {0} · {1}": [
+    "불확실성: {0} · {1}",
+    "Kawalan ng katiyakan: {0} · {1}",
+    "Điều chưa chắc chắn: {0} · {1}"
+  ],
+  "{0} — PHYSICAL DRAFT": [
+    "{0} — 물리적 초안",
+    "{0} — PISIKAL NA DRAFT",
+    "{0} — BẢN NHÁP VẬT LÝ"
+  ],
+  "Select all {0} matching active records across register pages": [
+    "대장 페이지 전체에서 일치하는 활성 기록 {0}개 모두 선택",
+    "Piliin lahat ng {0} tugmang aktibong tala sa lahat ng pahina ng rehistro",
+    "Chọn cả {0} hồ sơ hoạt động phù hợp trên mọi trang sổ"
+  ],
+  "Hide all {0} matching active records on drawing": [
+    "도면에서 일치하는 활성 기록 {0}개 모두 숨기기",
+    "Itago lahat ng {0} tugmang aktibong tala sa guhit",
+    "Ẩn cả {0} hồ sơ hoạt động phù hợp trên bản vẽ"
+  ],
+  "{0}–{1} of {2} visible hierarchy records. Ancestor context may repeat across pages.": [
+    "표시되는 계층 기록 {2}개 중 {0}–{1}. 상위 항목 맥락이 여러 페이지에 반복될 수 있습니다.",
+    "{0}–{1} sa {2} nakikitang tala ng hirarkiya. Maaaring maulit ang konteksto ng mga ninuno sa iba-ibang pahina.",
+    "{0}–{1} trong {2} hồ sơ phân cấp hiển thị. Ngữ cảnh mục cấp trên có thể lặp lại giữa các trang."
+  ],
+  "Prepare a new PDF. Original Source Documents and their existing markups stay attached to the original pages.": [
+    "새 PDF를 준비합니다. 원본 문서와 기존 마크업은 원래 페이지에 연결된 상태로 유지됩니다.",
+    "Maghanda ng bagong PDF. Mananatiling nakakabit sa orihinal na mga pahina ang mga dokumento ng pinagmulan at umiiral nilang mga marka.",
+    "Chuẩn bị PDF mới. Tài liệu nguồn gốc và các đánh dấu hiện có vẫn gắn với các trang gốc."
+  ],
+  "Select PDFs and use the arrows to set their merge order.": [
+    "PDF를 선택하고 화살표로 병합 순서를 정하세요.",
+    "Pumili ng mga PDF at gamitin ang mga arrow upang itakda ang pagkakasunod ng pagsasama.",
+    "Chọn các PDF và dùng mũi tên để đặt thứ tự gộp."
+  ],
+  "Use the arrows or enter a page order. Removing a page here affects only the new PDF.": [
+    "화살표를 사용하거나 페이지 순서를 입력하세요. 여기서 페이지를 제거하면 새 PDF에만 영향을 줍니다.",
+    "Gamitin ang mga arrow o maglagay ng pagkakasunod ng pahina. Ang pag-alis ng pahina rito ay sa bagong PDF lamang may epekto.",
+    "Dùng mũi tên hoặc nhập thứ tự trang. Xóa trang tại đây chỉ ảnh hưởng PDF mới."
+  ],
+  "PDF drawing mark only.": [
+    "PDF 도면 표시 전용.",
+    "Marka lamang sa guhit ng PDF.",
+    "Chỉ là dấu trên bản vẽ PDF."
+  ],
+  "Quantity is derived from count markers.": [
+    "수량은 개수 마커에서 산출됩니다.",
+    "Kinukuha ang dami mula sa mga marker ng bilang.",
+    "Số lượng được tính từ các dấu đếm."
+  ],
+  "Edit shared Count details using Edit item.": [
+    "항목 편집에서 공통 개수 정보를 편집하세요.",
+    "I-edit ang mga ibinabahaging detalye ng bilang gamit ang I-edit ang item.",
+    "Sửa thông tin đếm dùng chung bằng Sửa hạng mục."
+  ],
+  "No riser or drop lengths added.": [
+    "추가한 상승 또는 하강 길이가 없습니다.",
+    "Walang idinagdag na haba ng paangat o pababa.",
+    "Chưa thêm chiều dài đoạn lên hoặc xuống."
+  ],
+  "Show hidden Call-outs": [
+    "숨긴 설명선 표시",
+    "Ipakita ang mga nakatagong callout",
+    "Hiện chú thích đã ẩn"
+  ],
+  "Free Call-outs are drawing notes. They do not add register entries or quantities.": [
+    "독립 설명선은 도면 메모입니다. 대장 항목이나 수량을 추가하지 않습니다.",
+    "Mga tala sa guhit ang mga malayang callout. Hindi sila nagdaragdag ng tala sa rehistro o ng dami.",
+    "Chú thích tự do là ghi chú bản vẽ. Chúng không thêm dòng sổ hay khối lượng."
+  ],
+  "Marker size uses physical PDF points. Colour, shape, fill and opacity change appearance only.": [
+    "마커 크기는 실제 PDF 포인트를 사용합니다. 색상, 모양, 채움과 불투명도는 표시 모양만 바꿉니다.",
+    "Gumagamit ng pisikal na PDF point ang laki ng marker. Hitsura lamang ang binabago ng kulay, hugis, punan at opacity.",
+    "Kích thước dấu dùng đơn vị point thực của PDF. Màu, hình dạng, màu nền và độ đục chỉ đổi hình thức hiển thị."
+  ],
+  "No viewports on this page. Add a viewport around a detail with its own scale.": [
+    "이 페이지에 뷰포트가 없습니다. 자체 축척을 가진 상세 영역 주위에 뷰포트를 추가하세요.",
+    "Walang viewport sa pahinang ito. Magdagdag ng viewport sa paligid ng detalyeng may sariling iskala.",
+    "Trang này chưa có khung nhìn. Thêm khung nhìn quanh chi tiết có tỷ lệ riêng."
+  ],
+  "Item Details cannot fit: resize or shorten": [
+    "항목 정보가 들어가지 않습니다: 크기를 조절하거나 줄이세요",
+    "Hindi kasya ang mga detalye ng item: baguhin ang laki o paikliin",
+    "Thông tin hạng mục không vừa: đổi kích thước hoặc rút ngắn"
+  ],
+  "Read-only history. Deleted records do not contribute to quantities or schedules.": [
+    "읽기 전용 이력입니다. 삭제한 기록은 수량이나 일람표에 포함되지 않습니다.",
+    "Basa-lamang na kasaysayan. Hindi kasama ang mga binurang tala sa dami o mga talaan.",
+    "Lịch sử chỉ đọc. Hồ sơ đã xóa không tính vào khối lượng hoặc bảng kê."
+  ],
+  "Deleted records are retained read-only; Undo restores the original item.": [
+    "삭제한 기록은 읽기 전용으로 유지됩니다. 실행 취소로 원래 항목을 복원합니다.",
+    "Pinananatiling basa lamang ang mga binurang tala; ibinabalik ng I-undo ang orihinal na item.",
+    "Hồ sơ đã xóa được giữ chỉ đọc; Hoàn tác khôi phục hạng mục gốc."
+  ],
+  "No deleted records match this workspace and filter.": [
+    "이 작업공간과 필터에 일치하는 삭제 기록이 없습니다.",
+    "Walang binurang talang tumutugma sa lugar ng trabaho at salaang ito.",
+    "Không có hồ sơ đã xóa phù hợp không gian và bộ lọc này."
+  ],
+  "Original fields, evidence and parent IDs are retained. Restore previews disclose descendants and do not invent missing parents.": [
+    "원본 필드, 증빙과 상위 ID가 유지됩니다. 복원 미리보기에는 하위 항목이 표시되며 누락된 상위 항목을 임의로 만들지 않습니다.",
+    "Pinananatili ang mga orihinal na field, katibayan at parent ID. Ipinapakita ng mga preview ng pagbabalik ang mga inapo at hindi gumagawa ng mga nawawalang magulang.",
+    "Giữ nguyên các ô, bằng chứng và ID mục cha gốc. Xem trước khôi phục hiển thị các mục con và không tự tạo mục cha bị thiếu."
+  ],
+  "Manual record review only. Technical approval and schedule confirmation remain separate.": [
+    "수동 기록 검토 전용입니다. 기술적 승인과 일람표 확인은 별도입니다.",
+    "Manwal na pagsusuri ng tala lamang. Magkahiwalay pa rin ang teknikal na pag-apruba at kumpirmasyon ng talaan.",
+    "Chỉ xem xét hồ sơ thủ công. Phê duyệt kỹ thuật và xác nhận bảng kê vẫn tách biệt."
+  ],
+  "Select a hierarchy row to inspect its parent, evidence and uncertainty.": [
+    "계층 행을 선택하여 상위 항목, 증빙과 불확실성을 확인하세요.",
+    "Pumili ng hilera ng hirarkiya upang suriin ang magulang, katibayan at kawalan ng katiyakan nito.",
+    "Chọn dòng phân cấp để xem mục cha, bằng chứng và điều chưa chắc chắn."
+  ],
+  "Service quantity unknown: enter an explicit physical count when reviewed. The commercial schedule contribution is separate.": [
+    "설비 수량 불명: 검토 후 명시적인 실제 개수를 입력하세요. 상업용 일람표 반영은 별도입니다.",
+    "Hindi alam ang dami ng serbisyo: magpasok ng tahasang pisikal na bilang kapag nasuri na. Hiwalay ang ambag sa komersiyal na talaan.",
+    "Chưa rõ số lượng hệ thống: nhập số lượng thực rõ ràng sau khi xem xét. Phần đóng góp vào bảng kê thương mại được tách riêng."
+  ],
+  "No source evidence is linked. Link an original source page. This draft is not approved.": [
+    "연결된 원본 증빙이 없습니다. 원본 페이지를 연결하세요. 이 초안은 승인되지 않았습니다.",
+    "Walang naka-link na katibayan ng pinagmulan. I-link ang isang orihinal na pahina. Hindi aprubado ang draft na ito.",
+    "Chưa liên kết bằng chứng nguồn. Liên kết một trang nguồn gốc. Bản nháp này chưa được phê duyệt."
+  ],
+  "Source markup missing": [
+    "원본 마크업 누락",
+    "Nawawalang marka ng pinagmulan",
+    "Thiếu đánh dấu nguồn"
+  ],
+  "Source markup is missing. You can inspect and edit this draft, but review and confirmation remain blocked.": [
+    "원본 마크업이 없습니다. 이 초안을 확인하고 편집할 수 있지만 검토와 확인은 계속 차단됩니다.",
+    "Nawawala ang marka ng pinagmulan. Maaari mong suriin at i-edit ang draft na ito, ngunit nakaharang pa rin ang pagsusuri at kumpirmasyon.",
+    "Thiếu đánh dấu nguồn. Bạn có thể xem và sửa bản nháp này nhưng việc xem xét và xác nhận vẫn bị chặn."
+  ],
+  "Select active records of one entity type to edit a shared field.": [
+    "공통 필드를 편집하려면 같은 엔터티 유형의 활성 기록을 선택하세요.",
+    "Pumili ng mga aktibong tala ng iisang uri ng entidad upang i-edit ang ibinabahaging field.",
+    "Chọn hồ sơ hoạt động cùng loại thực thể để sửa ô dùng chung."
+  ],
+  "Select active records of one entity type for a counted, reversible bulk edit.": [
+    "개수를 확인할 수 있고 되돌릴 수 있는 일괄 편집을 하려면 같은 엔터티 유형의 활성 기록을 선택하세요.",
+    "Pumili ng mga aktibong tala ng iisang uri ng entidad para sa maramihang pag-edit na binibilang at maaaring bawiin.",
+    "Chọn hồ sơ hoạt động cùng loại thực thể để sửa hàng loạt có đếm số lượng và có thể hoàn tác."
+  ],
+  "New value for every selected record; blank clears an optional property.": [
+    "선택한 모든 기록의 새 값입니다. 비우면 선택 속성이 지워집니다.",
+    "Bagong halaga para sa bawat napiling tala; inaalis ng blangko ang opsiyonal na katangian.",
+    "Giá trị mới cho mọi hồ sơ đã chọn; để trống sẽ xóa thuộc tính tùy chọn."
+  ],
+  "No matching physical records. Adjust the filter or create an explicitly linked draft record.": [
+    "일치하는 물리적 기록이 없습니다. 필터를 조정하거나 명시적으로 연결한 초안 기록을 만드세요.",
+    "Walang tugmang pisikal na tala. Ayusin ang salaan o gumawa ng tahasang naka-link na draft na tala.",
+    "Không có hồ sơ vật lý phù hợp. Chỉnh bộ lọc hoặc tạo hồ sơ nháp có liên kết rõ ràng."
+  ],
+  "Ancestor context; adjust the filter to delete this item.": [
+    "상위 항목 맥락입니다. 이 항목을 삭제하려면 필터를 조정하세요.",
+    "Konteksto ng ninuno; ayusin ang salaan upang burahin ang item na ito.",
+    "Ngữ cảnh mục cấp trên; chỉnh bộ lọc để xóa hạng mục này."
+  ],
+  "Retained read-only record; deletion is unavailable.": [
+    "유지된 읽기 전용 기록입니다. 삭제할 수 없습니다.",
+    "Pinanatiling basa-lamang na tala; hindi maaaring burahin.",
+    "Hồ sơ được giữ chỉ đọc; không thể xóa."
+  ],
+  "Surface merging is unavailable. Group separate physical surfaces without changing their identities.": [
+    "표면 병합은 사용할 수 없습니다. 각 물리적 표면의 식별자를 바꾸지 않고 그룹화하세요.",
+    "Hindi magagamit ang pagsasama ng ibabaw. Igrupo ang magkakahiwalay na pisikal na ibabaw nang hindi binabago ang kanilang pagkakakilanlan.",
+    "Không thể gộp bề mặt. Nhóm các bề mặt vật lý riêng mà không đổi định danh của chúng."
+  ],
+  "Surface splitting is unavailable. Group separate physical surfaces without changing their identities.": [
+    "표면 분할은 사용할 수 없습니다. 각 물리적 표면의 식별자를 바꾸지 않고 그룹화하세요.",
+    "Hindi magagamit ang paghahati ng ibabaw. Igrupo ang magkakahiwalay na pisikal na ibabaw nang hindi binabago ang kanilang pagkakakilanlan.",
+    "Không thể tách bề mặt. Nhóm các bề mặt vật lý riêng mà không đổi định danh của chúng."
+  ],
+  "Retained non-rectangular duct; calculator transfer unavailable.": [
+    "직사각형이 아닌 덕트를 유지합니다. 계산기로 전송할 수 없습니다.",
+    "Pinanatiling hindi parihabang duct; hindi magagamit ang paglilipat sa kalkulador.",
+    "Giữ ống gió không chữ nhật; không thể chuyển sang bộ tính."
+  ],
+  "Combine compatible repeated-member groups while retaining every physical member identity.": [
+    "모든 실제 부재 식별자를 유지하면서 호환되는 반복 부재 그룹을 결합합니다.",
+    "Pagsamahin ang mga magkatugmang grupo ng paulit-ulit na miyembro habang pinananatili ang pagkakakilanlan ng bawat pisikal na miyembro.",
+    "Kết hợp các nhóm cấu kiện lặp tương thích trong khi giữ định danh từng cấu kiện thực."
+  ],
+  "Merge adjoining measured segments of one individual duct run.": [
+    "단일 덕트 경로에서 인접한 측정 구간을 병합합니다.",
+    "Pagsamahin ang magkadugtong na nasukat na segment ng isang indibiduwal na ruta ng duct.",
+    "Gộp các đoạn đo liền kề của một tuyến ống gió riêng."
+  ],
+  "Split measured segments of one individual duct run.": [
+    "단일 덕트 경로의 측정 구간을 분할합니다.",
+    "Hatiin ang mga nasukat na segment ng isang indibiduwal na ruta ng duct.",
+    "Tách các đoạn đo của một tuyến ống gió riêng."
+  ],
+  "Partition an explicit repeated-member quantity without changing individual member lengths.": [
+    "개별 부재 길이를 바꾸지 않고 명시된 반복 부재 수량을 나눕니다.",
+    "Hatiin ang tahasang dami ng paulit-ulit na miyembro nang hindi binabago ang haba ng bawat miyembro.",
+    "Phân chia số lượng cấu kiện lặp đã khai báo mà không đổi chiều dài từng cấu kiện."
+  ],
+  " Ancestor context": [
+    " 상위 항목 맥락",
+    " Konteksto ng ninuno",
+    " Ngữ cảnh mục cấp trên"
+  ],
+  " Parent context (continued)": [
+    " 상위 항목 맥락 (계속)",
+    " Konteksto ng magulang (pagpapatuloy)",
+    " Ngữ cảnh mục cha (tiếp)"
+  ],
+  "0 services": [
+    "설비 0개",
+    "0 serbisyo",
+    "0 hệ thống"
+  ],
+  "Area records export as m². Existing steel and duct calculators do not accept surface areas. Split/merge is unavailable for surfaces; group separate physical surfaces without changing their identities.": [
+    "면적 기록은 m²로 내보냅니다. 기존 강재 및 덕트 계산기는 표면적을 받지 않습니다. 표면 분할/병합은 사용할 수 없습니다. 각 물리적 표면의 식별자를 바꾸지 않고 그룹화하세요.",
+    "Ine-export bilang m² ang mga tala ng lawak. Hindi tumatanggap ng lawak ng ibabaw ang umiiral na mga kalkulador ng bakal at duct. Hindi magagamit ang paghahati/pagsasama para sa mga ibabaw; igrupo ang magkakahiwalay na pisikal na ibabaw nang hindi binabago ang pagkakakilanlan nila.",
+    "Hồ sơ diện tích được xuất theo m². Bộ tính thép và ống gió hiện tại không nhận diện tích bề mặt. Không thể tách/gộp bề mặt; nhóm các bề mặt vật lý riêng mà không đổi định danh."
+  ],
+  "Barrier marker actions": [
+    "방화구획 마커 작업",
+    "Mga aksiyon sa marker ng harang",
+    "Thao tác dấu kết cấu ngăn cháy"
+  ],
+  "Defect annotation actions": [
+    "결함 주석 작업",
+    "Mga aksiyon sa anotasyon ng depekto",
+    "Thao tác chú giải khiếm khuyết"
+  ],
+  "Edit calibration": [
+    "보정 편집",
+    "I-edit ang pagkalibrate",
+    "Sửa hiệu chuẩn"
+  ],
+  "Choose a current drawing calibration to review this {0}.": [
+    "이 {0}을 검토할 현재 도면 보정을 선택하세요.",
+    "Pumili ng kasalukuyang pagkalibrate ng guhit upang suriin ang {0} na ito.",
+    "Chọn hiệu chuẩn bản vẽ hiện tại để xem xét {0} này."
+  ],
+  "Drawing. Click or focus to scroll inside; Escape releases page scrolling. Drag a selected control point to recalculate, or remove it with Control+Z. Right-click a markup to delete it.": [
+    "도면. 클릭하거나 포커스를 두면 내부를 스크롤하고, Escape를 누르면 페이지 스크롤로 돌아갑니다. 선택한 제어점을 끌어 다시 계산하거나 Control+Z로 제거하세요. 마크업을 마우스 오른쪽 버튼으로 클릭하면 삭제할 수 있습니다.",
+    "Guhit. I-click o ituon upang mag-scroll sa loob; ibinabalik ng Escape ang pag-scroll ng pahina. I-drag ang napiling control point upang muling kalkulahin, o alisin ito gamit ang Control+Z. I-right-click ang marka upang burahin ito.",
+    "Bản vẽ. Nhấp hoặc lấy tiêu điểm để cuộn bên trong; Escape trả về cuộn trang. Kéo điểm điều khiển đã chọn để tính lại hoặc xóa bằng Control+Z. Nhấp phải đánh dấu để xóa."
+  ],
+  "Legacy hierarchy — read-only until its relationships are assigned. Original records, fields and evidence are preserved for inspection and export.": [
+    "이전 형식 계층 — 관계가 지정될 때까지 읽기 전용입니다. 원본 기록, 필드와 증빙은 확인 및 내보내기를 위해 보존됩니다.",
+    "Lumang hirarkiya — basa lamang hanggang italaga ang mga ugnayan nito. Pinananatili ang mga orihinal na tala, field at katibayan para sa pagsusuri at pag-export.",
+    "Phân cấp cũ — chỉ đọc đến khi gán quan hệ. Giữ hồ sơ, ô và bằng chứng gốc để xem và xuất."
+  ],
+  "Recognize drawing labels locally. Results are approximate; recognition may take up to 60 seconds per page and covers at most eight pages per search.": [
+    "도면 라벨을 로컬에서 인식합니다. 결과는 근삿값이며 페이지당 최대 60초가 걸릴 수 있고 한 번의 검색은 최대 여덟 페이지까지 처리합니다.",
+    "Kilalanin nang lokal ang mga label ng guhit. Tinatayang resulta lamang; maaaring umabot sa 60 segundo bawat pahina ang pagkilala at hanggang walong pahina lamang bawat paghahanap.",
+    "Nhận dạng nhãn bản vẽ cục bộ. Kết quả là xấp xỉ; có thể mất đến 60 giây mỗi trang và tối đa tám trang mỗi lần tìm."
+  ],
+  "Retained {0} duct. {1}Its original shape and dimensions are preserved; this record cannot transfer to the rectangular duct calculator.": [
+    "유지된 {0} 덕트. {1}원래 모양과 치수는 보존되며 이 기록을 직사각형 덕트 계산기로 전송할 수 없습니다.",
+    "Pinanatiling {0} na duct. {1}Napanatili ang orihinal na hugis at sukat nito; hindi maililipat ang talang ito sa kalkulador ng parihabang duct.",
+    "Giữ ống gió {0}. {1}Hình dạng và kích thước gốc được giữ; không thể chuyển hồ sơ này sang bộ tính ống gió chữ nhật."
+  ],
+  "Select counts, measurements or calculator items separately to edit their details.": [
+    "상세 정보를 편집하려면 개수, 측정 또는 계산기 항목을 각각 따로 선택하세요.",
+    "Piliin nang magkahiwalay ang mga bilang, sukat o item ng kalkulador upang i-edit ang mga detalye nila.",
+    "Chọn riêng mục đếm, phép đo hoặc hạng mục bộ tính để sửa chi tiết."
+  ],
+  "Select one or more drawing markups or register items. Settings show the first selected item; only fields you edit are applied to the selection.": [
+    "도면 마크업이나 대장 항목을 하나 이상 선택하세요. 설정에는 첫 번째 선택 항목이 표시되며 편집한 필드만 선택 항목에 적용됩니다.",
+    "Pumili ng isa o higit pang marka ng guhit o item ng rehistro. Ipinapakita ng mga setting ang unang napiling item; ang mga field lamang na ie-edit mo ang ilalapat sa pagpili.",
+    "Chọn một hoặc nhiều đánh dấu bản vẽ hay mục sổ. Cài đặt hiển thị mục đầu tiên được chọn; chỉ những ô bạn sửa được áp dụng cho lựa chọn."
+  ],
+  "Steel register": [
+    "강재 대장",
+    "Rehistro ng bakal",
+    "Sổ thép"
+  ],
+  "Duct register": [
+    "덕트 대장",
+    "Rehistro ng duct",
+    "Sổ ống gió"
+  ],
+  "Walls/Floors register": [
+    "벽/바닥 대장",
+    "Rehistro ng mga pader/sahig",
+    "Sổ tường/sàn"
+  ],
+  "Upload the original PDFs, choose a scale or calibrate a known distance, then trace each physical object. Edit and confirm items in the register before adding them to a schedule.": [
+    "원본 PDF를 업로드하고 축척을 선택하거나 알고 있는 거리로 보정한 다음 각 실제 객체를 따라 그리세요. 일람표에 추가하기 전에 대장에서 항목을 편집하고 확인하세요.",
+    "I-upload ang mga orihinal na PDF, pumili ng iskala o ikalibrate ang alam na distansiya, saka sundan ang bawat pisikal na bagay. I-edit at kumpirmahin ang mga item sa rehistro bago idagdag sa talaan.",
+    "Tải lên PDF gốc, chọn tỷ lệ hoặc hiệu chuẩn theo khoảng cách đã biết rồi vẽ theo từng đối tượng thực. Sửa và xác nhận hạng mục trong sổ trước khi thêm vào bảng kê."
+  ],
+  "View": [
+    "보기",
+    "Tingnan",
+    "Xem"
+  ],
+  "Visibility: {0} current {1}": [
+    "표시: 현재 {0} {1}",
+    "Visibility: {0} kasalukuyang {1}",
+    "Hiển thị: {0} {1} hiện tại"
+  ],
+  "{0} EXCLUDED OPENINGS": [
+    "제외된 개구부 {0}개",
+    "{0} HINDI KASAMANG BUKANA",
+    "{0} LỖ MỞ LOẠI TRỪ"
+  ],
+  "{0} Sqm{1}{2}": [
+    "{0} m²{1}{2}",
+    "{0} m²{1}{2}",
+    "{0} m²{1}{2}"
+  ],
+  "{0} all {1} matching items across register pages": [
+    "대장 페이지 전체에서 일치하는 모든 {1}개 항목 {0}",
+    "{0} lahat ng {1} tugmang item sa lahat ng pahina ng rehistro",
+    "{0} cả {1} hạng mục phù hợp trên mọi trang sổ"
+  ],
+  "{0} for {1}": [
+    "{1}의 {0}",
+    "{0} para sa {1}",
+    "{0} cho {1}"
+  ],
+  "{0} markers · Manual base: {1} m each{2} · Total: {3} m": [
+    "마커 {0}개 · 수동 기준: 개당 {1} m{2} · 합계: {3} m",
+    "{0} marker · Manwal na base: {1} m bawat isa{2} · Kabuuan: {3} m",
+    "{0} dấu · Cơ sở thủ công: {1} m mỗi cái{2} · Tổng: {3} m"
+  ],
+  "{0} sections": [
+    "단면 {0}개",
+    "{0} seksiyon",
+    "{0} tiết diện"
+  ],
+  "{0} {1} mm": [
+    "{0} {1} mm",
+    "{0} {1} mm",
+    "{0} {1} mm"
+  ],
+  "{0} {1} · {2} m total manual length": [
+    "{0} {1} · 총 수동 길이 {2} m",
+    "{0} {1} · {2} m kabuuang manwal na haba",
+    "{0} {1} · tổng chiều dài thủ công {2} m"
+  ],
+  "{0}. Drag to move and recalculate. Select, then Ctrl+Z deletes this point. Right-click for its menu.": [
+    "{0}. 끌어서 이동하고 다시 계산합니다. 선택 후 Ctrl+Z로 이 점을 삭제합니다. 마우스 오른쪽 버튼을 클릭하면 메뉴가 열립니다.",
+    "{0}. I-drag upang ilipat at muling kalkulahin. Piliin, saka Ctrl+Z upang burahin ang puntong ito. I-right-click para sa menu nito.",
+    "{0}. Kéo để di chuyển và tính lại. Chọn rồi nhấn Ctrl+Z để xóa điểm này. Nhấp phải để mở menu."
+  ],
+  "Register below drawing": [
+    "도면 아래 대장",
+    "Rehistro sa ilalim ng guhit",
+    "Sổ dưới bản vẽ"
+  ],
+  "Register beside drawing": [
+    "도면 옆 대장",
+    "Rehistro sa tabi ng guhit",
+    "Sổ cạnh bản vẽ"
+  ],
+  "All confirmation states": [
+    "모든 확인 상태",
+    "Lahat ng katayuan ng kumpirmasyon",
+    "Tất cả trạng thái xác nhận"
+  ],
+  "Sort: Mark": [
+    "정렬: 기호",
+    "Ayusin: Marka",
+    "Sắp xếp: Ký hiệu"
+  ],
+  "Sort: Level": [
+    "정렬: 층",
+    "Ayusin: Palapag",
+    "Sắp xếp: Tầng"
+  ],
+  "Sort: Length": [
+    "정렬: 길이",
+    "Ayusin: Haba",
+    "Sắp xếp: Chiều dài"
+  ],
+  "Sort: Confirmation": [
+    "정렬: 확인",
+    "Ayusin: Kumpirmasyon",
+    "Sắp xếp: Xác nhận"
+  ],
+  "No grouping": [
+    "그룹화 안 함",
+    "Walang paggrupo",
+    "Không nhóm"
+  ],
+  "Group by level": [
+    "층별 그룹화",
+    "Igrupo ayon sa palapag",
+    "Nhóm theo tầng"
+  ],
+  "Group by label": [
+    "라벨별 그룹화",
+    "Igrupo ayon sa label",
+    "Nhóm theo nhãn"
+  ],
+  "Group by confirmation": [
+    "확인별 그룹화",
+    "Igrupo ayon sa kumpirmasyon",
+    "Nhóm theo xác nhận"
+  ],
+  "Steel Spray Schedule": [
+    "강재 분사 일람표",
+    "Talaan ng bakal na spray",
+    "Bảng kê thép phun"
+  ],
+  "Steel Board Schedule": [
+    "강재 보드 일람표",
+    "Talaan ng bakal na tabla",
+    "Bảng kê thép tấm"
+  ],
+  "View/Edit": [
+    "보기/편집",
+    "Tingnan/I-edit",
+    "Xem/Sửa"
+  ],
+  "Surface type": [
+    "표면 유형",
+    "Uri ng ibabaw",
+    "Loại bề mặt"
+  ],
+  "Gross (m²)": [
+    "총면적 (m²)",
+    "Kabuuang lawak (m²)",
+    "Diện tích gộp (m²)"
+  ],
+  "Excluded (m²)": [
+    "제외 면적 (m²)",
+    "Hindi kasama (m²)",
+    "Loại trừ (m²)"
+  ],
+  "Net (m²)": [
+    "순면적 (m²)",
+    "Netong lawak (m²)",
+    "Diện tích thực (m²)"
+  ],
+  "Total (m²)": [
+    "총면적 (m²)",
+    "Kabuuan (m²)",
+    "Tổng (m²)"
+  ],
+  "Qty": [
+    "수량",
+    "Dami",
+    "Số lượng"
+  ],
+  "Length each (m)": [
+    "개별 길이 (m)",
+    "Haba bawat isa (m)",
+    "Chiều dài mỗi cái (m)"
+  ],
+  "Total (m)": [
+    "합계 (m)",
+    "Kabuuan (m)",
+    "Tổng (m)"
+  ],
+  "Duct surface (m²)": [
+    "덕트 표면적 (m²)",
+    "Lawak ng duct (m²)",
+    "Diện tích ống gió (m²)"
+  ],
+  "Thickness (mm)": [
+    "두께 (mm)",
+    "Kapal (mm)",
+    "Chiều dày (mm)"
+  ],
+  "Evidence / issues": [
+    "증빙 / 문제",
+    "Katibayan / mga isyu",
+    "Bằng chứng / vấn đề"
+  ],
+  "Length (m)": [
+    "길이 (m)",
+    "Haba (m)",
+    "Chiều dài (m)"
+  ],
+  "Total Count/QTY": [
+    "총 개수/수량",
+    "Kabuuang bilang/dami",
+    "Tổng số đếm/số lượng"
+  ],
+  "Retained ID": [
+    "유지된 ID",
+    "Pinanatiling ID",
+    "ID được giữ"
+  ],
+  "Details": [
+    "상세 정보",
+    "Mga detalye",
+    "Chi tiết"
+  ],
+  "Deleted at revision": [
+    "삭제 시 개정",
+    "Nabura sa rebisyon",
+    "Đã xóa ở phiên bản"
+  ],
+  "Unapproved draft": [
+    "미승인 초안",
+    "Hindi aprubadong draft",
+    "Bản nháp chưa phê duyệt"
+  ],
+  "SERVICE PLANS": [
+    "설비 도면",
+    "MGA PLANO NG MGA SERBISYO",
+    "BẢN VẼ HỆ THỐNG KỸ THUẬT"
+  ],
+  "DEFECT REPORTS": [
+    "결함 보고서",
+    "MGA ULAT NG DEPEKTO",
+    "BÁO CÁO KHIẾM KHUYẾT"
+  ],
+  "Image ID: {0}\nRetained display rendition SHA-256: {1}\nOccurrence: {2}": [
+    "이미지 ID: {0}\n유지된 표시 렌디션 SHA-256: {1}\n발생 항목: {2}\n",
+    "ID ng larawan: {0}\nSHA-256 ng pinanatiling rendition para sa pagtingin: {1}\nPagkakaganap: {2}\n",
+    "ID ảnh: {0}\nSHA-256 bản hiển thị được giữ: {1}\nLần xuất hiện: {2}\n"
+  ],
+  "{0} page in the new PDF{1}.": [
+    "새 PDF의 {0}페이지{1}.",
+    "{0} pahina sa bagong PDF{1}.",
+    "{0} trang trong PDF mới{1}."
+  ],
+  "{0} pages in the new PDF{1}.": [
+    "새 PDF의 {0}페이지{1}.",
+    "{0} pahina sa bagong PDF{1}.",
+    "{0} trang trong PDF mới{1}."
+  ],
+  "; {0} removed": [
+    "; {0}개 제거",
+    "; {0} ang inalis",
+    "; đã xóa {0}"
+  ],
+  "Sort: Total area": [
+    "정렬: 총면적",
+    "Ayusin: Kabuuang lawak",
+    "Sắp xếp: Tổng diện tích"
+  ],
+  "Ductwork Schedule": [
+    "덕트 일람표",
+    "Talaan ng ductwork",
+    "Bảng kê ống gió"
+  ],
+  "No PDFs uploaded": [
+    "업로드한 PDF 없음",
+    "Walang na-upload na PDF",
+    "Chưa tải lên PDF"
+  ],
+  "Beam": [
+    "보",
+    "Biga",
+    "Dầm"
+  ],
+  "Column": [
+    "기둥",
+    "Haligi",
+    "Cột"
+  ],
+  "Horizontal": [
+    "수평",
+    "Pahalang",
+    "Ngang"
+  ],
+  "Vertical": [
+    "수직",
+    "Patayo",
+    "Đứng"
+  ],
+  "Both": [
+    "둘 다",
+    "Pareho",
+    "Cả hai"
+  ]
+}

@@ -57,6 +57,21 @@ class PromatImportTests(unittest.TestCase):
         self.assertEqual(classify_substrates(entry, entry), ['Plasterboard wall', 'Concrete/masonry wall'])
         field_text(entry['fields'], {})
 
+    def test_gap_stated_for_one_variant_is_not_copied_to_other_rows(self):
+        stated, unstated = variant('example-gap'), variant('example-unstated')
+        stated['fields'].append({'label': 'Annular gap', 'value': 'Width: 10 mm - 20 mm'})
+        before = deepcopy([stated, unstated])
+        mapped = [map_variant(source) for source in (stated, unstated)]
+        self.assertEqual(mapped[0]['Annular Gap'], 'Width: 10 mm - 20 mm')
+        self.assertNotIn('Annular Gap', mapped[1])
+        entry = make_entry(list(zip((stated, unstated), mapped)))
+        fields = {field['label']: field for field in entry['fields']}
+        table = fields['Service Size / Configuration']['table']
+        gap = table['columns'].index('Annular Gap')
+        self.assertEqual([row[gap] for row in table['rows']], ['Width: 10 mm - 20 mm', ''])
+        self.assertEqual(fields['Annular Gap']['value'], '')
+        self.assertEqual([stated, unstated], before)
+
     def test_different_reports_or_diagrams_never_group(self):
         a, b = variant(), variant('example-2', report='OTHER123')
         self.assertNotEqual(group_key(a, map_variant(a)), group_key(b, map_variant(b)))

@@ -3,7 +3,8 @@
   'use strict';
   const root = document.documentElement;
   const key = 'ceasefire.ui.language.v1';
-  const languages = Object.freeze(['en', 'zh-Hans', 'hi', 'es', 'ar', 'th']);
+  const languages = Object.freeze(['en', 'zh-Hans', 'hi', 'es', 'ar', 'th', 'ko', 'tl', 'vi']);
+  const languageCodes = Object.freeze({en: 'EN', 'zh-Hans': '中文', hi: 'HI', es: 'ES', ar: 'AR', th: 'TH', ko: 'KO', tl: 'TL', vi: 'VI'});
   const messages = window.CeasefireMessages || {};
   const bindings = new Map();
   const termToken = Symbol('owned UI term');
@@ -97,6 +98,7 @@
     refresh();
     const select = document.getElementById('application-language');
     if (select) select.value = language;
+    updateLanguageMenu();
     if (persist) { try { localStorage.setItem(key, language); } catch (_) {} }
     window.dispatchEvent(new CustomEvent('ceasefire:languagechange', {detail: {language}}));
     return true;
@@ -113,8 +115,83 @@
     term: (source, args = []) => Object.freeze({[termToken]: true, source, args}),
     get language() { return language; },
   });
+  function updateLanguageMenu() {
+    const code = document.getElementById('application-language-code');
+    if (code) code.textContent = languageCodes[language];
+    for (const button of document.querySelectorAll('[data-language-code]')) {
+      const selected = button.dataset.languageCode === language;
+      button.setAttribute('aria-checked', String(selected));
+      button.tabIndex = selected ? 0 : -1;
+    }
+  }
+  function initialiseLanguageMenu() {
+    const select = document.getElementById('application-language');
+    const toggle = document.getElementById('application-language-toggle');
+    const menu = document.getElementById('application-language-menu');
+    if (!select || !toggle || !menu) return;
+    const picker = toggle.parentElement;
+    const options = [...select.options].filter(option => languages.includes(option.value));
+    const buttons = options.map(option => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'language-menu-option';
+      button.dataset.languageCode = option.value;
+      button.setAttribute('role', 'menuitemradio');
+      button.lang = option.lang || option.value;
+      button.dir = option.dir || 'ltr';
+      button.textContent = option.textContent;
+      menu.append(button);
+      return button;
+    });
+    function close(focus = false) {
+      menu.hidden = true;
+      toggle.setAttribute('aria-expanded', 'false');
+      if (focus) toggle.focus();
+    }
+    function open(position = 'selected') {
+      menu.hidden = false;
+      toggle.setAttribute('aria-expanded', 'true');
+      const index = position === 'first' ? 0 : position === 'last' ? buttons.length - 1 : Math.max(0, options.findIndex(option => option.value === language));
+      buttons[index]?.focus();
+    }
+    toggle.addEventListener('click', () => menu.hidden ? open() : close());
+    toggle.addEventListener('keydown', event => {
+      if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+      event.preventDefault();
+      open(event.key === 'ArrowDown' ? 'first' : 'last');
+    });
+    buttons.forEach((button, index) => {
+      button.addEventListener('click', () => {
+        setLanguage(button.dataset.languageCode);
+        const status = document.getElementById('language-status');
+        if (status) bind(status, null, 'Application language updated.');
+        close(true);
+      });
+      button.addEventListener('keydown', event => {
+        let next;
+        if (event.key === 'ArrowDown') next = (index + 1) % buttons.length;
+        else if (event.key === 'ArrowUp') next = (index + buttons.length - 1) % buttons.length;
+        else if (event.key === 'Home') next = 0;
+        else if (event.key === 'End') next = buttons.length - 1;
+        else if (event.key === 'Escape') { event.preventDefault(); close(true); return; }
+        else if (event.key === 'Tab') { close(true); return; }
+        else return;
+        event.preventDefault(); buttons[next].focus();
+      });
+    });
+    document.addEventListener('click', event => { if (!picker.contains(event.target)) close(); });
+    document.addEventListener('focusin', event => { if (!picker.contains(event.target)) close(); });
+    // Keep a native select as the no-script fallback and a canonical selection API.
+    // The globe menu owns keyboard and assistive-technology navigation after setup.
+    select.classList.add('language-native-select');
+    select.tabIndex = -1;
+    select.setAttribute('aria-hidden', 'true');
+    toggle.hidden = false;
+    updateLanguageMenu();
+  }
   annotate(document);
   setLanguage(language, false);
+  initialiseLanguageMenu();
   document.getElementById('application-language')?.addEventListener('change', event => {
     setLanguage(event.target.value);
     const status = document.getElementById('language-status');

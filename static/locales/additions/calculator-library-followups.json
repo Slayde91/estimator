@@ -1,0 +1,32 @@
+{
+  "Open the steel spray calculator.": [
+    "강재 분사 계산기를 엽니다.",
+    "Buksan ang kalkulador ng bakal na spray.",
+    "Mở bộ tính thép phun."
+  ],
+  "Open the steel board calculator.": [
+    "강재 보드 계산기를 엽니다.",
+    "Buksan ang kalkulador ng bakal na tabla.",
+    "Mở bộ tính thép tấm."
+  ],
+  "Open original source image": [
+    "원본 이미지 열기",
+    "Buksan ang orihinal na larawan",
+    "Mở ảnh nguồn gốc"
+  ],
+  "Open AI replica at full size (new tab)": [
+    "AI 복제본을 원본 크기로 열기 (새 탭)",
+    "Buksan ang replika ng AI sa buong laki (bagong tab)",
+    "Mở bản sao AI ở kích thước đầy đủ (thẻ mới)"
+  ],
+  "AI replica — illustrative; check original for installation detail.": [
+    "AI 복제본 — 예시용입니다. 시공 상세는 원본을 확인하세요.",
+    "Replika ng AI — paglalarawan lamang; tingnan ang orihinal para sa detalye ng pag-install.",
+    "Bản sao AI — chỉ minh họa; kiểm tra bản gốc để biết chi tiết thi công."
+  ],
+  "CALCULATORS": [
+    "계산기",
+    "MGA KALKULADOR",
+    "BỘ TÍNH"
+  ]
+}

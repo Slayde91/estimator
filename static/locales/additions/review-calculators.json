@@ -1,0 +1,3177 @@
+{
+  "Item / mark": [
+    "항목 / 부재 표시",
+    "Aytem / marka",
+    "Mục / ký hiệu"
+  ],
+  "Exposure / member case": [
+    "노출 / 부재 조건",
+    "Kondisyon ng pagkalantad / miyembro",
+    "Điều kiện tiếp xúc lửa / cấu kiện"
+  ],
+  "Critical temp": [
+    "임계 온도",
+    "Kritikal na temperatura",
+    "Nhiệt độ tới hạn"
+  ],
+  "Critical temperature": [
+    "임계 온도",
+    "Kritikal na temperatura",
+    "Nhiệt độ tới hạn"
+  ],
+  "Input method": [
+    "입력 방식",
+    "Paraan ng pag-input",
+    "Phương thức nhập"
+  ],
+  "Steel section ID": [
+    "강재 단면 ID",
+    "ID ng seksiyon ng bakal",
+    "ID tiết diện thép"
+  ],
+  "Section ID": [
+    "단면 ID",
+    "ID ng seksiyon",
+    "ID tiết diện"
+  ],
+  "Steel ID": [
+    "강재 ID",
+    "ID ng bakal",
+    "ID thép"
+  ],
+  "Fire-resistance period": [
+    "내화 시간",
+    "Tagal ng paglaban sa sunog",
+    "Thời gian chịu lửa"
+  ],
+  "Quantity of members": [
+    "부재 수량",
+    "Bilang ng mga miyembro",
+    "Số lượng cấu kiện"
+  ],
+  "Length per member": [
+    "부재당 길이",
+    "Haba bawat miyembro",
+    "Chiều dài mỗi cấu kiện"
+  ],
+  "Length / member": [
+    "길이 / 부재",
+    "Haba / miyembro",
+    "Chiều dài / cấu kiện"
+  ],
+  "Girth override": [
+    "둘레 재지정",
+    "Manu-manong paligid",
+    "Ghi đè chu vi"
+  ],
+  "Area override": [
+    "면적 재지정",
+    "Manu-manong lawak",
+    "Ghi đè diện tích"
+  ],
+  "Lookup ESA/M": [
+    "ESA/M 조회",
+    "Hanapin ang ESA/M",
+    "Tra cứu ESA/M"
+  ],
+  "Lookup Hp/A": [
+    "Hp/A 조회",
+    "Hanapin ang Hp/A",
+    "Tra cứu Hp/A"
+  ],
+  "Usable estimating thickness": [
+    "견적에 사용 가능한 두께",
+    "Kapal na magagamit sa pagtatantiya",
+    "Chiều dày có thể dùng để dự toán"
+  ],
+  "Girth used": [
+    "적용 둘레",
+    "Paligid na ginamit",
+    "Chu vi áp dụng"
+  ],
+  "Spray area": [
+    "분사 면적",
+    "Lawak na iispreyan",
+    "Diện tích phun"
+  ],
+  "Coating volume": [
+    "피복 체적",
+    "Dami ng patong",
+    "Thể tích lớp phủ"
+  ],
+  "Published thickness": [
+    "공표 두께",
+    "Inilathalang kapal",
+    "Chiều dày công bố"
+  ],
+  "Estimating thickness": [
+    "견적용 두께",
+    "Kapal para sa pagtatantiya",
+    "Chiều dày dự toán"
+  ],
+  "Whole bags incl. waste": [
+    "폐기율 포함 전체 포대 수",
+    "Buong sako kasama ang pag-aaksaya",
+    "Số bao nguyên gồm hao hụt"
+  ],
+  "Thickness status": [
+    "두께 상태",
+    "Kalagayan ng kapal",
+    "Trạng thái chiều dày"
+  ],
+  "Quantity status": [
+    "수량 상태",
+    "Kalagayan ng dami",
+    "Trạng thái khối lượng"
+  ],
+  "Thickness source": [
+    "두께 출처",
+    "Pinagmulan ng kapal",
+    "Nguồn chiều dày"
+  ],
+  "Basis / review note": [
+    "근거 / 검토 메모",
+    "Batayan / tala ng pagsusuri",
+    "Cơ sở / ghi chú rà soát"
+  ],
+  "Manual thickness": [
+    "수동 두께",
+    "Manu-manong kapal",
+    "Chiều dày nhập tay"
+  ],
+  "Yield used": [
+    "적용 수율",
+    "Magagamit na daming ginamit",
+    "Định mức áp dụng"
+  ],
+  "Waste allowance": [
+    "폐기 허용량",
+    "Palugit sa pag-aaksaya",
+    "Dự phòng hao hụt"
+  ],
+  "Coverage": [
+    "도포량",
+    "Saklaw",
+    "Diện tích bao phủ"
+  ],
+  "Schedule lines": [
+    "일람표 행",
+    "Mga linya sa talaan",
+    "Các dòng bảng kê"
+  ],
+  "Area entered": [
+    "입력 면적",
+    "Inilagay na lawak",
+    "Diện tích đã nhập"
+  ],
+  "Volume quantified": [
+    "산정 체적",
+    "Sinukat na dami",
+    "Thể tích đã tính"
+  ],
+  "Whole bags / product": [
+    "전체 포대 수 / 제품",
+    "Buong sako / produkto",
+    "Số bao nguyên / sản phẩm"
+  ],
+  "Incomplete rows": [
+    "미완성 행",
+    "Mga hilera na kulang",
+    "Các dòng chưa hoàn chỉnh"
+  ],
+  "TOTAL ENTERED SPRAY AREA": [
+    "입력한 총 분사 면적",
+    "KABUUANG INILAGAY NA LAWAK NA IISPREYAN",
+    "TỔNG DIỆN TÍCH PHUN ĐÃ NHẬP"
+  ],
+  "COATING VOLUME QUANTIFIED": [
+    "산정한 피복 체적",
+    "SINUKAT NA DAMI NG PATONG",
+    "THỂ TÍCH LỚP PHỦ ĐÃ TÍNH"
+  ],
+  "THICKNESS / SCOPE BLOCKS": [
+    "두께 / 적용 범위 차단 항목",
+    "MGA HADLANG SA KAPAL / SAKLAW",
+    "CÁC ĐIỂM CHẶN VỀ CHIỀU DÀY / PHẠM VI"
+  ],
+  "ROWS NOT FULLY QUANTIFIED": [
+    "수량 산정이 완료되지 않은 행",
+    "MGA HILERANG HINDI PA GANAP NA NASUKAT",
+    "CÁC DÒNG CHƯA TÍNH ĐỦ KHỐI LƯỢNG"
+  ],
+  "01  INPUTS": [
+    "01  입력",
+    "01  MGA INPUT",
+    "01  DỮ LIỆU NHẬP"
+  ],
+  "02  THICKNESS & QUANTITIES": [
+    "02  두께 및 수량",
+    "02  KAPAL AT DAMI",
+    "02  CHIỀU DÀY VÀ KHỐI LƯỢNG"
+  ],
+  "03  ALL PUBLISHED PERIODS FOR THIS INPUT": [
+    "03  이 입력의 모든 공표 시간",
+    "03  LAHAT NG INILATHALANG TAGAL PARA SA INPUT NA ITO",
+    "03  TẤT CẢ THỜI GIAN CÔNG BỐ CHO DỮ LIỆU NÀY"
+  ],
+  "Minutes": [
+    "분",
+    "Minuto",
+    "Phút"
+  ],
+  "MATERIAL QUANTITIES": [
+    "자재 수량",
+    "MGA DAMI NG MATERYAL",
+    "KHỐI LƯỢNG VẬT LIỆU"
+  ],
+  "GLOBAL SETTINGS": [
+    "공통 설정",
+    "PANGKALAHATANG MGA SETTING",
+    "CÀI ĐẶT CHUNG"
+  ],
+  "COMMON CALCULATION RULES": [
+    "공통 계산 규칙",
+    "KARANIWANG MGA TUNTUNIN SA PAGKALKULA",
+    "QUY TẮC TÍNH TOÁN CHUNG"
+  ],
+  "Project reference": [
+    "프로젝트 참조",
+    "Sanggunian ng proyekto",
+    "Tham chiếu dự án"
+  ],
+  "Engineer / design reference": [
+    "엔지니어 / 설계 참조",
+    "Sanggunian ng inhinyero / disenyo",
+    "Tham chiếu kỹ sư / thiết kế"
+  ],
+  "Project design release": [
+    "프로젝트 설계 승인",
+    "Pag-apruba ng disenyo ng proyekto",
+    "Phê duyệt thiết kế dự án"
+  ],
+  "Steel density": [
+    "강재 밀도",
+    "Densidad ng bakal",
+    "Khối lượng riêng của thép"
+  ],
+  "Factor lookup policy": [
+    "계수 조회 정책",
+    "Patakaran sa paghahanap ng salik",
+    "Quy tắc tra cứu hệ số"
+  ],
+  "Comparison tolerance": [
+    "비교 허용 오차",
+    "Pinapayagang pagkakaiba sa paghahambing",
+    "Dung sai so sánh"
+  ],
+  "Lookup method": [
+    "조회 방식",
+    "Paraan ng paghahanap",
+    "Phương pháp tra cứu"
+  ],
+  "Thickness & holds": [
+    "두께 및 보류 사항",
+    "Kapal at mga pagpigil",
+    "Chiều dày và các điểm tạm giữ"
+  ],
+  "Quantities & orders": [
+    "수량 및 주문",
+    "Dami at mga order",
+    "Khối lượng và đặt hàng"
+  ],
+  "Project design": [
+    "프로젝트 설계",
+    "Disenyo ng proyekto",
+    "Thiết kế dự án"
+  ],
+  "PARAMETER": [
+    "매개변수",
+    "PARAMETRO",
+    "THAM SỐ"
+  ],
+  "VALUE": [
+    "값",
+    "HALAGA",
+    "GIÁ TRỊ"
+  ],
+  "BASIS / EFFECT": [
+    "근거 / 영향",
+    "BATAYAN / EPEKTO",
+    "CƠ SỞ / ẢNH HƯỞNG"
+  ],
+  "Bag mass": [
+    "포대 질량",
+    "Bigat bawat sako",
+    "Khối lượng mỗi bao"
+  ],
+  "Verified direct yield": [
+    "검증된 직접 수율",
+    "Napatunayang direktang magagamit na dami",
+    "Định mức trực tiếp đã xác minh"
+  ],
+  "Estimating density": [
+    "견적용 밀도",
+    "Densidad para sa pagtatantiya",
+    "Khối lượng riêng dùng để dự toán"
+  ],
+  "Material status": [
+    "자재 상태",
+    "Kalagayan ng materyal",
+    "Trạng thái vật liệu"
+  ],
+  "Material basis / reference": [
+    "자재 근거 / 참조",
+    "Batayan / sanggunian ng materyal",
+    "Cơ sở / tham chiếu vật liệu"
+  ],
+  "Product scope": [
+    "제품 적용 범위",
+    "Saklaw ng produkto",
+    "Phạm vi sản phẩm"
+  ],
+  "Consumption evidence": [
+    "소요량 근거",
+    "Katibayan ng konsumo",
+    "Bằng chứng về lượng tiêu thụ"
+  ],
+  "TECHNICAL RULES & SOURCE-REVIEW DEFINITIONS": [
+    "기술 규칙 및 출처 검토 정의",
+    "MGA TEKNIKAL NA TUNTUNIN AT KAHULUGAN SA PAGSUSURI NG SANGGUNIAN",
+    "QUY TẮC KỸ THUẬT VÀ ĐỊNH NGHĨA RÀ SOÁT NGUỒN"
+  ],
+  "Named-section route": [
+    "명명 단면 경로",
+    "Paraan para sa pinangalanang seksiyon",
+    "Phương án theo tên tiết diện"
+  ],
+  "ESA/M input basis": [
+    "ESA/M 입력 근거",
+    "Batayan ng input na ESA/M",
+    "Cơ sở nhập ESA/M"
+  ],
+  "TEMP °C": [
+    "온도 °C",
+    "TEMPERATURA °C",
+    "NHIỆT ĐỘ °C"
+  ],
+  "Hp/A MIN": [
+    "Hp/A 최솟값",
+    "Hp/A PINAKAMABABA",
+    "Hp/A TỐI THIỂU"
+  ],
+  "Hp/A MAX": [
+    "Hp/A 최댓값",
+    "Hp/A PINAKAMATAAS",
+    "Hp/A TỐI ĐA"
+  ],
+  "PUBLISHED PERIODS": [
+    "공표 시간",
+    "MGA INILATHALANG TAGAL",
+    "THỜI GIAN CÔNG BỐ"
+  ],
+  "FACTOR BASIS": [
+    "계수 근거",
+    "BATAYAN NG SALIK",
+    "CƠ SỞ HỆ SỐ"
+  ],
+  "STATUS": [
+    "상태",
+    "KALAGAYAN",
+    "TRẠNG THÁI"
+  ],
+  "Direct estimating yield": [
+    "직접 견적 수율",
+    "Direktang magagamit na dami sa pagtatantiya",
+    "Định mức dự toán trực tiếp"
+  ],
+  "Lower-web numerator": [
+    "하부 웨브 분자",
+    "Numerador ng ibabang web",
+    "Tử số bản bụng dưới"
+  ],
+  "Castellated maximum": [
+    "캐슬레이티드 최댓값",
+    "Pinakamataas para sa castellated",
+    "Giới hạn tối đa của dầm bụng lỗ"
+  ],
+  "Heated perimeter": [
+    "가열 둘레",
+    "Pinainit na paligid",
+    "Chu vi chịu nhiệt"
+  ],
+  "Steel area": [
+    "강재 면적",
+    "Lawak ng bakal",
+    "Diện tích thép"
+  ],
+  "Mass per metre": [
+    "미터당 질량",
+    "Bigat bawat metro",
+    "Khối lượng mỗi mét"
+  ],
+  "Hp/A from steel area": [
+    "강재 면적 기반 Hp/A",
+    "Hp/A mula sa lawak ng bakal",
+    "Hp/A từ diện tích thép"
+  ],
+  "ESA/M from mass": [
+    "질량 기반 ESA/M",
+    "ESA/M mula sa bigat",
+    "ESA/M từ khối lượng"
+  ],
+  "Shape": [
+    "형상",
+    "Hugis",
+    "Hình dạng"
+  ],
+  "Depth / outside diameter": [
+    "깊이 / 외경",
+    "Lalim / panlabas na diyametro",
+    "Chiều cao / đường kính ngoài"
+  ],
+  "Width": [
+    "폭",
+    "Lapad",
+    "Chiều rộng"
+  ],
+  "Wall thickness": [
+    "벽 두께",
+    "Kapal ng dingding",
+    "Chiều dày thành"
+  ],
+  "Lower-web thickness": [
+    "하부 웨브 두께",
+    "Kapal ng ibabang web",
+    "Chiều dày bản bụng dưới"
+  ],
+  "Special Hp/A": [
+    "특수 Hp/A",
+    "Espesyal na Hp/A",
+    "Hp/A đặc biệt"
+  ],
+  "ESA/M input": [
+    "ESA/M 입력",
+    "Input na ESA/M",
+    "Nhập ESA/M"
+  ],
+  "Lineal metres": [
+    "연장 미터",
+    "Haba sa metro",
+    "Mét dài"
+  ],
+  "Sides": [
+    "면 수",
+    "Mga panig",
+    "Số mặt"
+  ],
+  "FRL required": [
+    "필요 FRL",
+    "Kinakailangang FRL",
+    "FRL yêu cầu"
+  ],
+  "Beam or Column": [
+    "보 또는 기둥",
+    "Bigà o haligi",
+    "Dầm hoặc cột"
+  ],
+  "Family": [
+    "계열",
+    "Pangkat",
+    "Nhóm"
+  ],
+  "Family (ESA input)": [
+    "계열 (ESA 입력)",
+    "Pangkat (input na ESA)",
+    "Nhóm (nhập ESA)"
+  ],
+  "Exposure layout": [
+    "노출 배치",
+    "Ayos ng pagkalantad",
+    "Bố trí tiếp xúc lửa"
+  ],
+  "Partial depth": [
+    "부분 깊이",
+    "Bahagyang lalim",
+    "Chiều sâu một phần"
+  ],
+  "Layer preference": [
+    "층 구성 선호 방식",
+    "Piniling pagkakapatong",
+    "Lựa chọn cấu lớp"
+  ],
+  "Thickness lookup": [
+    "두께 조회",
+    "Paghahanap ng kapal",
+    "Tra cứu chiều dày"
+  ],
+  "Installation detail": [
+    "설치 상세",
+    "Detalye ng pagkakabit",
+    "Chi tiết lắp đặt"
+  ],
+  "Depth or OD": [
+    "깊이 또는 외경",
+    "Lalim o panlabas na diyametro",
+    "Chiều cao hoặc đường kính ngoài"
+  ],
+  "Width B": [
+    "폭 B",
+    "Lapad B",
+    "Chiều rộng B"
+  ],
+  "Steel mass": [
+    "강재 질량",
+    "Bigat ng bakal",
+    "Khối lượng thép"
+  ],
+  "Box girth override": [
+    "박스 둘레 재지정",
+    "Manu-manong paligid ng kahon",
+    "Ghi đè chu vi hộp"
+  ],
+  "Added girth": [
+    "추가 둘레",
+    "Dagdag na paligid",
+    "Chu vi bổ sung"
+  ],
+  "Design reference": [
+    "설계 참조",
+    "Sanggunian ng disenyo",
+    "Tham chiếu thiết kế"
+  ],
+  "ESA/M used": [
+    "적용 ESA/M",
+    "ESA/M na ginamit",
+    "ESA/M áp dụng"
+  ],
+  "Board stack": [
+    "보드 적층 구성",
+    "Pagkakapatong ng tabla",
+    "Cấu lớp tấm"
+  ],
+  "Layers": [
+    "층 수",
+    "Mga patong",
+    "Số lớp"
+  ],
+  "Total thickness": [
+    "총 두께",
+    "Kabuuang kapal",
+    "Tổng chiều dày"
+  ],
+  "Bare box girth": [
+    "맨 박스 둘레",
+    "Paligid ng hubad na kahon",
+    "Chu vi hộp chưa bọc"
+  ],
+  "Box reference area": [
+    "박스 참조 면적",
+    "Sangguniang lawak ng kahon",
+    "Diện tích tham chiếu hộp"
+  ],
+  "Board required - net": [
+    "필요 보드 - 순수량",
+    "Kinakailangang tabla - neto",
+    "Lượng tấm cần dùng - thuần"
+  ],
+  "Board incl waste": [
+    "폐기율 포함 보드",
+    "Tabla kasama ang pag-aaksaya",
+    "Tấm gồm hao hụt"
+  ],
+  "Sheets - this line": [
+    "시트 수 - 이 행",
+    "Mga sheet - linyang ito",
+    "Số tấm nguyên - dòng này"
+  ],
+  "Purchase area - line": [
+    "구매 면적 - 행",
+    "Lawak na bibilhin - linya",
+    "Diện tích mua - dòng"
+  ],
+  "Row status": [
+    "행 상태",
+    "Kalagayan ng hilera",
+    "Trạng thái dòng"
+  ],
+  "Notes and conditions": [
+    "메모 및 조건",
+    "Mga tala at kondisyon",
+    "Ghi chú và điều kiện"
+  ],
+  "NET BOARD REQUIRED": [
+    "필요 순 보드 수량",
+    "KINAKAILANGANG NETONG TABLA",
+    "LƯỢNG TẤM THUẦN CẦN DÙNG"
+  ],
+  "WHOLE SHEETS": [
+    "전체 시트 수",
+    "BUONG MGA SHEET",
+    "SỐ TẤM NGUYÊN"
+  ],
+  "PURCHASE AREA": [
+    "구매 면적",
+    "LAWAK NA BIBILHIN",
+    "DIỆN TÍCH MUA"
+  ],
+  "Board mm": [
+    "보드 mm",
+    "Tabla mm",
+    "Tấm mm"
+  ],
+  "Sheet length mm": [
+    "시트 길이 mm",
+    "Haba ng sheet mm",
+    "Chiều dài tấm mm"
+  ],
+  "Sheet width mm": [
+    "시트 폭 mm",
+    "Lapad ng sheet mm",
+    "Chiều rộng tấm mm"
+  ],
+  "Box board - net m2": [
+    "박스 보드 - 순 m2",
+    "Tabla ng kahon - netong m2",
+    "Tấm hộp - thuần m2"
+  ],
+  "Extra boards - net m2": [
+    "추가 보드 - 순 m2",
+    "Dagdag na tabla - netong m2",
+    "Tấm bổ sung - thuần m2"
+  ],
+  "Net total sqm": [
+    "순 총면적 sqm",
+    "Kabuuang netong lawak sqm",
+    "Tổng diện tích thuần sqm"
+  ],
+  "With waste sqm": [
+    "폐기율 포함 sqm",
+    "Kasama ang pag-aaksaya sqm",
+    "Gồm hao hụt sqm"
+  ],
+  "Purchase sqm": [
+    "구매 sqm",
+    "Bibilhing sqm",
+    "Diện tích mua sqm"
+  ],
+  "Stock source": [
+    "재고 출처",
+    "Pinagmulan ng stock",
+    "Nguồn hàng tồn"
+  ],
+  "Board key": [
+    "보드 키",
+    "Susi ng tabla",
+    "Mã tấm"
+  ],
+  "Units": [
+    "단위",
+    "Mga yunit",
+    "Đơn vị"
+  ],
+  "Basis": [
+    "근거",
+    "Batayan",
+    "Cơ sở"
+  ],
+  "No selection": [
+    "선택 없음",
+    "Walang napili",
+    "Chưa chọn"
+  ],
+  "Column temp": [
+    "기둥 온도",
+    "Temperatura ng haligi",
+    "Nhiệt độ cột"
+  ],
+  "P100 beam temp": [
+    "P100 보 온도",
+    "Temperatura ng bigang P100",
+    "Nhiệt độ dầm P100"
+  ],
+  "Other beam temp": [
+    "기타 보 온도",
+    "Temperatura ng ibang biga",
+    "Nhiệt độ dầm khác"
+  ],
+  "Duct size W x H": [
+    "덕트 치수 W x H",
+    "Laki ng duct W x H",
+    "Kích thước ống gió W x H"
+  ],
+  "FRL — compartment / duct*": [
+    "FRL — 방화구획 / 덕트*",
+    "FRL — kompartimento / duct*",
+    "FRL — khoang / ống gió*"
+  ],
+  "Fire exposure / FyreWrap application": [
+    "화재 노출 / FyreWrap 적용",
+    "Pagkalantad sa sunog / paglalapat ng FyreWrap",
+    "Tiếp xúc lửa / ứng dụng FyreWrap"
+  ],
+  "STATUS / ESTIMATING BASIS": [
+    "상태 / 견적 근거",
+    "KALAGAYAN / BATAYAN NG PAGTATANTIYA",
+    "TRẠNG THÁI / CƠ SỞ DỰ TOÁN"
+  ],
+  "Spray DFT": [
+    "분사 건조 도막 두께 DFT",
+    "DFT ng isprey",
+    "DFT lớp phun"
+  ],
+  "Net bags — body only": [
+    "순 포대 수 — 본체만",
+    "Netong sako — katawan lamang",
+    "Số bao thuần — chỉ thân ống"
+  ],
+  "Net wrap material": [
+    "순 방화 랩 자재",
+    "Netong materyal na pambalot",
+    "Vật liệu bọc thuần"
+  ],
+  "Net roll equivalents": [
+    "순 롤 환산량",
+    "Netong katumbas na rolyo",
+    "Số cuộn quy đổi thuần"
+  ],
+  "Maxilite net @60 mm": [
+    "Maxilite 순수량 @60 mm",
+    "Netong Maxilite @60 mm",
+    "Maxilite thuần @60 mm"
+  ],
+  "Wrap fixing method": [
+    "방화 랩 고정 방식",
+    "Paraan ng pagkabit ng balot",
+    "Phương pháp cố định lớp bọc"
+  ],
+  "Continuous wrap layers": [
+    "연속 방화 랩 층 수",
+    "Tuloy-tuloy na mga patong ng balot",
+    "Số lớp bọc liên tục"
+  ],
+  "Wall L2 each side": [
+    "벽 L2 각 면",
+    "L2 ng pader bawat panig",
+    "L2 tường mỗi bên"
+  ],
+  "Floor L2 top": [
+    "바닥 상부 L2",
+    "L2 sa ibabaw ng sahig",
+    "L2 trên sàn"
+  ],
+  "Floor L3 top": [
+    "바닥 상부 L3",
+    "L3 sa ibabaw ng sahig",
+    "L3 trên sàn"
+  ],
+  "L1 material": [
+    "L1 자재",
+    "Materyal ng L1",
+    "Vật liệu L1"
+  ],
+  "L2 material": [
+    "L2 자재",
+    "Materyal ng L2",
+    "Vật liệu L2"
+  ],
+  "L3 material": [
+    "L3 자재",
+    "Materyal ng L3",
+    "Vật liệu L3"
+  ],
+  "Maxilite width": [
+    "Maxilite 폭",
+    "Lapad ng Maxilite",
+    "Chiều rộng Maxilite"
+  ],
+  "Maxilite strips": [
+    "Maxilite 스트립",
+    "Mga piraso ng Maxilite",
+    "Các dải Maxilite"
+  ],
+  "Cut board strips (not sheets)": [
+    "절단 보드 스트립 (시트 아님)",
+    "Mga pinutol na piraso ng tabla (hindi mga sheet)",
+    "Dải tấm cắt (không phải tấm nguyên)"
+  ],
+  "Cross-strip cut": [
+    "가로 스트립 절단",
+    "Gupit ng pahalang na piraso",
+    "Cắt dải ngang"
+  ],
+  "Side-strip cut": [
+    "측면 스트립 절단",
+    "Gupit ng gilid na piraso",
+    "Cắt dải bên"
+  ],
+  "Wall angle profile": [
+    "벽 앵글 규격",
+    "Profile ng anggulo sa pader",
+    "Tiết diện thép góc tường"
+  ],
+  "Wall angle net / allowance": [
+    "벽 앵글 순수량 / 허용량",
+    "Netong anggulo sa pader / palugit",
+    "Thép góc tường thuần / dự phòng"
+  ],
+  "Floor TOP profile": [
+    "바닥 상부 규격",
+    "Profile sa ITAAS ng sahig",
+    "Tiết diện PHÍA TRÊN sàn"
+  ],
+  "Floor TOP net / allowance": [
+    "바닥 상부 순수량 / 허용량",
+    "Neto sa ITAAS ng sahig / palugit",
+    "PHÍA TRÊN sàn thuần / dự phòng"
+  ],
+  "Floor BOTTOM profile": [
+    "바닥 하부 규격",
+    "Profile sa ILALIM ng sahig",
+    "Tiết diện PHÍA DƯỚI sàn"
+  ],
+  "Floor BOTTOM net / allowance": [
+    "바닥 하부 순수량 / 허용량",
+    "Neto sa ILALIM ng sahig / palugit",
+    "PHÍA DƯỚI sàn thuần / dự phòng"
+  ],
+  "Combined angle length": [
+    "합산 앵글 길이",
+    "Pinagsamang haba ng anggulo",
+    "Tổng chiều dài thép góc"
+  ],
+  "Penetration clearance guide": [
+    "관통부 이격 가이드",
+    "Gabay sa puwang ng tagusan",
+    "Hướng dẫn khoảng hở lỗ xuyên"
+  ],
+  "Penetration fixing guide": [
+    "관통부 고정 가이드",
+    "Gabay sa pagkabit sa tagusan",
+    "Hướng dẫn cố định tại lỗ xuyên"
+  ],
+  "Body fixing / support guide": [
+    "본체 고정 / 지지 가이드",
+    "Gabay sa pagkabit / suporta ng katawan",
+    "Hướng dẫn cố định / đỡ thân ống"
+  ],
+  "Spray body volume": [
+    "분사 본체 체적",
+    "Dami ng isprey sa katawan",
+    "Thể tích phun thân ống"
+  ],
+  "Working yield": [
+    "작업 수율",
+    "Magagamit na dami sa trabaho",
+    "Định mức thực tế"
+  ],
+  "Rows": [
+    "행 수",
+    "Mga hilera",
+    "Các dòng"
+  ],
+  "Duct area": [
+    "덕트 면적",
+    "Lawak ng duct",
+    "Diện tích ống gió"
+  ],
+  "Roll eq.": [
+    "롤 환산량",
+    "Katumbas na rolyo",
+    "Cuộn quy đổi"
+  ],
+  "Maxilite": [
+    "Maxilite",
+    "Maxilite",
+    "Maxilite"
+  ],
+  "Angles": [
+    "앵글",
+    "Mga anggulo",
+    "Thép góc"
+  ],
+  "Primary qty withheld": [
+    "주요 수량 보류",
+    "Pinigil na pangunahing dami",
+    "Khối lượng chính tạm giữ"
+  ],
+  "Steel rows withheld": [
+    "강재 행 보류",
+    "Pinigil na mga hilera ng bakal",
+    "Các dòng thép tạm giữ"
+  ],
+  "Interpretation": [
+    "해석",
+    "Pagpapakahulugan",
+    "Diễn giải"
+  ],
+  "Profile": [
+    "규격",
+    "Hugis ng seksiyon",
+    "Tiết diện"
+  ],
+  "Quantity basis": [
+    "수량 근거",
+    "Batayan ng dami",
+    "Cơ sở khối lượng"
+  ],
+  "Limitation": [
+    "제한 사항",
+    "Limitasyon",
+    "Giới hạn"
+  ],
+  "Working m³/bag": [
+    "작업 m³/bag",
+    "Magagamit sa trabaho m³/bag",
+    "Thực tế m³/bag"
+  ],
+  "Reference quantity": [
+    "참조 수량",
+    "Sangguniang dami",
+    "Khối lượng tham chiếu"
+  ],
+  "Strip width": [
+    "스트립 폭",
+    "Lapad ng piraso",
+    "Chiều rộng dải"
+  ],
+  "Wall board": [
+    "벽 보드",
+    "Tabla ng pader",
+    "Tấm tường"
+  ],
+  "Floor TOP": [
+    "바닥 상부",
+    "ITAAS ng sahig",
+    "PHÍA TRÊN sàn"
+  ],
+  "Floor BOTTOM": [
+    "바닥 하부",
+    "ILALIM ng sahig",
+    "PHÍA DƯỚI sàn"
+  ],
+  "Total board": [
+    "총 보드",
+    "Kabuuang tabla",
+    "Tổng lượng tấm"
+  ],
+  "Cut strips": [
+    "절단 스트립",
+    "Mga pinutol na piraso",
+    "Các dải cắt"
+  ],
+  "Cut strip length": [
+    "절단 스트립 길이",
+    "Haba ng pinutol na piraso",
+    "Chiều dài dải cắt"
+  ],
+  "Area identity check": [
+    "면적 일치 확인",
+    "Pagsuri sa pagtutugma ng lawak",
+    "Kiểm tra tính nhất quán diện tích"
+  ],
+  "Parameter": [
+    "매개변수",
+    "Parametro",
+    "Tham số"
+  ],
+  "Source / interpretation": [
+    "출처 / 해석",
+    "Sanggunian / pagpapakahulugan",
+    "Nguồn / diễn giải"
+  ],
+  "Width band": [
+    "폭 구간",
+    "Saklaw ng lapad",
+    "Khoảng chiều rộng"
+  ],
+  "Height max": [
+    "최대 높이",
+    "Pinakamataas na taas",
+    "Chiều cao tối đa"
+  ],
+  "Hanger rods": [
+    "행거 로드",
+    "Mga rod na pangsabit",
+    "Thanh treo"
+  ],
+  "Spacing": [
+    "간격",
+    "Agwat",
+    "Khoảng cách"
+  ],
+  "Bottom support": [
+    "하부 지지",
+    "Suporta sa ibaba",
+    "Giá đỡ phía dưới"
+  ],
+  "Stiffener": [
+    "보강재",
+    "Pampatigas",
+    "Sườn tăng cứng"
+  ],
+  "Key": [
+    "키",
+    "Susi",
+    "Mã"
+  ],
+  "Complete FRL": [
+    "완전한 FRL",
+    "Kumpletong FRL",
+    "FRL đầy đủ"
+  ],
+  "Internal": [
+    "내부",
+    "Panloob",
+    "Bên trong"
+  ],
+  "External": [
+    "외부",
+    "Panlabas",
+    "Bên ngoài"
+  ],
+  "Max size": [
+    "최대 치수",
+    "Pinakamalaking sukat",
+    "Kích thước tối đa"
+  ],
+  "Selection": [
+    "선택",
+    "Pinili",
+    "Lựa chọn"
+  ],
+  "Calculator H selection": [
+    "계산기 H 선택",
+    "Pagpili sa H ng kalkulador",
+    "Lựa chọn H của công cụ tính"
+  ],
+  "Manual application wording": [
+    "수동 적용 문구",
+    "Manu-manong pananalita ng paglalapat",
+    "Nội dung ứng dụng nhập tay"
+  ],
+  "Continuous layers": [
+    "연속 층 수",
+    "Tuloy-tuloy na mga patong",
+    "Số lớp liên tục"
+  ],
+  "External FRL (2h table)": [
+    "외부 FRL (2h 표)",
+    "Panlabas na FRL (talaan ng 2h)",
+    "FRL bên ngoài (bảng 2h)"
+  ],
+  "Internal FRL (2h table)": [
+    "내부 FRL (2h 표)",
+    "Panloob na FRL (talaan ng 2h)",
+    "FRL bên trong (bảng 2h)"
+  ],
+  "Source page": [
+    "출처 페이지",
+    "Pahina ng sanggunian",
+    "Trang nguồn"
+  ],
+  "Scope / distinction": [
+    "적용 범위 / 구분",
+    "Saklaw / pagkakaiba",
+    "Phạm vi / phân biệt"
+  ],
+  "Duct max": [
+    "덕트 최댓값",
+    "Pinakamalaking duct",
+    "Ống gió tối đa"
+  ],
+  "Gap min": [
+    "최소 틈새",
+    "Pinakamaliit na puwang",
+    "Khe hở tối thiểu"
+  ],
+  "Gap max": [
+    "최대 틈새",
+    "Pinakamalaking puwang",
+    "Khe hở tối đa"
+  ],
+  "Board width": [
+    "보드 폭",
+    "Lapad ng tabla",
+    "Chiều rộng tấm"
+  ],
+  "Angle": [
+    "앵글",
+    "Anggulo",
+    "Thép góc"
+  ],
+  "Board thick": [
+    "보드 두께",
+    "Kapal ng tabla",
+    "Chiều dày tấm"
+  ],
+  "Source / scope": [
+    "출처 / 적용 범위",
+    "Sanggunian / saklaw",
+    "Nguồn / phạm vi"
+  ],
+  "Wall board collars": [
+    "벽 보드 칼라",
+    "Mga collar na tabla sa pader",
+    "Đai tấm ở tường"
+  ],
+  "faces/wall": [
+    "면 수/벽",
+    "mga mukha/pader",
+    "mặt/tường"
+  ],
+  "Wall type": [
+    "벽 유형",
+    "Uri ng pader",
+    "Loại tường"
+  ],
+  "Angle to wall": [
+    "앵글-벽 고정",
+    "Anggulo sa pader",
+    "Liên kết thép góc với tường"
+  ],
+  "Board to wall": [
+    "보드-벽 고정",
+    "Tabla sa pader",
+    "Liên kết tấm với tường"
+  ],
+  "Max c/c": [
+    "최대 c/c",
+    "Pinakamalaking c/c",
+    "c/c tối đa"
+  ],
+  "Angle to duct": [
+    "앵글-덕트 고정",
+    "Anggulo sa duct",
+    "Liên kết thép góc với ống gió"
+  ],
+  "Pin specification": [
+    "핀 사양",
+    "Espesipikasyon ng pin",
+    "Quy cách chốt"
+  ],
+  "Scope": [
+    "적용 범위",
+    "Saklaw",
+    "Phạm vi"
+  ],
+  "Cut strips per collar": [
+    "칼라당 절단 스트립",
+    "Pinutol na piraso bawat collar",
+    "Số dải cắt mỗi đai"
+  ],
+  "strips": [
+    "스트립 수",
+    "mga piraso",
+    "dải"
+  ],
+  "Printed WIDTH": [
+    "표기 폭",
+    "Nakalimbag na LAPAD",
+    "CHIỀU RỘNG ghi trên tài liệu"
+  ],
+  "Printed HEIGHT": [
+    "표기 높이",
+    "Nakalimbag na TAAS",
+    "CHIỀU CAO ghi trên tài liệu"
+  ],
+  "60-min L2": [
+    "60-min L2",
+    "60-min L2",
+    "60-min L2"
+  ],
+  "120-min L2": [
+    "120-min L2",
+    "120-min L2",
+    "120-min L2"
+  ],
+  "120-min L3": [
+    "120-min L3",
+    "120-min L3",
+    "120-min L3"
+  ],
+  "180-min L2": [
+    "180-min L2",
+    "180-min L2",
+    "180-min L2"
+  ],
+  "180-min L3": [
+    "180-min L3",
+    "180-min L3",
+    "180-min L3"
+  ],
+  "Selection order": [
+    "선택 순서",
+    "Pagkakasunod ng pagpili",
+    "Thứ tự chọn"
+  ],
+  "Corner treatment": [
+    "모서리 처리",
+    "Paggamot sa sulok",
+    "Xử lý góc"
+  ],
+  "Count once": [
+    "한 번만 산정",
+    "Bilangin nang isang beses",
+    "Chỉ tính một lần"
+  ],
+  "geometry": [
+    "형상",
+    "heometriya",
+    "hình học"
+  ],
+  "Source / priority": [
+    "출처 / 우선순위",
+    "Sanggunian / priyoridad",
+    "Nguồn / mức ưu tiên"
+  ],
+  "Stair pressurisation": [
+    "계단 가압",
+    "Pagpapanatili ng presyon sa hagdan",
+    "Tăng áp buồng thang"
+  ],
+  "Other pressurisation": [
+    "기타 가압",
+    "Iba pang pagpapanatili ng presyon",
+    "Tăng áp khác"
+  ],
+  "Standard": [
+    "표준",
+    "Pamantayan",
+    "Tiêu chuẩn"
+  ],
+  "Rotate": [
+    "회전",
+    "Ikutin",
+    "Xoay"
+  ],
+  "Opposite B": [
+    "반대쪽 B",
+    "Kabilang panig ng B",
+    "Đối diện B"
+  ],
+  "Opposite D": [
+    "반대쪽 D",
+    "Kabilang panig ng D",
+    "Đối diện D"
+  ],
+  "Custom girth": [
+    "사용자 지정 둘레",
+    "Pasadyang paligid",
+    "Chu vi tùy chỉnh"
+  ],
+  "Auto": [
+    "자동",
+    "Awtomatiko",
+    "Tự động"
+  ],
+  "Single": [
+    "단일",
+    "Iisa",
+    "Đơn"
+  ],
+  "Double": [
+    "이중",
+    "Doble",
+    "Kép"
+  ],
+  "Published first": [
+    "공표 값 우선",
+    "Unahin ang inilathala",
+    "Ưu tiên giá trị công bố"
+  ],
+  "General only": [
+    "일반 항목만",
+    "Pangkalahatan lamang",
+    "Chỉ trường hợp chung"
+  ],
+  "Standard box": [
+    "표준 박스",
+    "Karaniwang kahon",
+    "Hộp tiêu chuẩn"
+  ],
+  "XS top of wall": [
+    "XS 벽 상부",
+    "XS sa ibabaw ng pader",
+    "XS ở đỉnh tường"
+  ],
+  "Promat trapezoid unfilled": [
+    "Promat 무충전 사다리꼴",
+    "Promat na trapezoid na walang laman",
+    "Hình thang Promat không chèn"
+  ],
+  "Special / engineered": [
+    "특수 / 엔지니어 설계",
+    "Espesyal / dinisenyo ng inhinyero",
+    "Đặc biệt / theo thiết kế kỹ sư"
+  ],
+  "Channel": [
+    "채널형",
+    "Hugis-channel",
+    "Tiết diện chữ U"
+  ],
+  "Tee": [
+    "T형",
+    "Hugis-T",
+    "Tiết diện chữ T"
+  ],
+  "Saved value: {0} (choose a listed value)": [
+    "저장된 값: {0} (목록에서 값을 선택하세요)",
+    "Naka-save na halaga: {0} (pumili ng nakalistang halaga)",
+    "Giá trị đã lưu: {0} (chọn một giá trị trong danh sách)"
+  ],
+  "No incomplete rows": [
+    "미완성 행 없음",
+    "Walang kulang na hilera",
+    "Không có dòng chưa hoàn chỉnh"
+  ],
+  "{0} incomplete schedule rows": [
+    "일람표 미완성 행 {0}개",
+    "{0} kulang na hilera sa talaan",
+    "{0} dòng bảng kê chưa hoàn chỉnh"
+  ],
+  "{0} incomplete additional-board rows": [
+    "추가 보드 미완성 행 {0}개",
+    "{0} kulang na hilera ng dagdag na tabla",
+    "{0} dòng tấm bổ sung chưa hoàn chỉnh"
+  ],
+  "{0} — totals need review": [
+    "{0} — 합계 검토 필요",
+    "{0} — kailangang suriin ang mga kabuuan",
+    "{0} — cần rà soát tổng"
+  ],
+  "{0}; {1}": [
+    "{0}; {1}",
+    "{0}; {1}",
+    "{0}; {1}"
+  ],
+  "{0}, item {1}": [
+    "{0}, 항목 {1}",
+    "{0}, aytem {1}",
+    "{0}, mục {1}"
+  ],
+  "QUICK CALCULATOR": [
+    "간편 계산기",
+    "MABILIS NA KALKULADOR",
+    "CÔNG CỤ TÍNH NHANH"
+  ],
+  "Area": [
+    "면적",
+    "Lawak",
+    "Diện tích"
+  ],
+  "COMMON RULES": [
+    "공통 규칙",
+    "MGA KARANIWANG TUNTUNIN",
+    "QUY TẮC CHUNG"
+  ],
+  "COMPLETE WORKBOOK OPERATING RULES": [
+    "전체 워크북 사용 규칙",
+    "KUMPLETONG MGA TUNTUNIN SA PAGGAMIT NG WORKBOOK",
+    "QUY TẮC SỬ DỤNG SỔ TÍNH ĐẦY ĐỦ"
+  ],
+  "START HERE": [
+    "여기서 시작",
+    "MAGSIMULA RITO",
+    "BẮT ĐẦU TẠI ĐÂY"
+  ],
+  "READ THE RESULT": [
+    "결과 읽기",
+    "BASAHIN ANG RESULTA",
+    "ĐỌC KẾT QUẢ"
+  ],
+  "NAMED MEMBERS AND SHARED FACTORS": [
+    "명명 부재 및 공통 계수",
+    "MGA PINANGALANANG MIYEMBRO AT PINAGSASALUHANG SALIK",
+    "CẤU KIỆN CÓ TÊN VÀ HỆ SỐ DÙNG CHUNG"
+  ],
+  "SCOPE AND HOLLOW SECTIONS": [
+    "적용 범위 및 중공 단면",
+    "SAKLAW AT MGA HUNGKAG NA SEKSIYON",
+    "PHẠM VI VÀ TIẾT DIỆN RỖNG"
+  ],
+  "SCHEDULE AND SORTING": [
+    "일람표 및 정렬",
+    "TALAAN AT PAG-UURI",
+    "BẢNG KÊ VÀ SẮP XẾP"
+  ],
+  "QUANTITIES": [
+    "수량",
+    "MGA DAMI",
+    "KHỐI LƯỢNG"
+  ],
+  "BAG YIELDS AND ORDERS": [
+    "포대 수율 및 주문",
+    "MAGAGAMIT NA DAMI BAWAT SAKO AT MGA ORDER",
+    "ĐỊNH MỨC MỖI BAO VÀ ĐẶT HÀNG"
+  ],
+  "PROJECT RELEASE": [
+    "프로젝트 승인",
+    "PAG-APRUBA NG PROYEKTO",
+    "PHÊ DUYỆT DỰ ÁN"
+  ],
+  "SOURCE CONTROL AND QUALITY": [
+    "출처 관리 및 품질",
+    "PAMAMAHALA NG SANGGUNIAN AT KALIDAD",
+    "KIỂM SOÁT NGUỒN VÀ CHẤT LƯỢNG"
+  ],
+  "IDEALISED HOLLOW GEOMETRY": [
+    "이상화된 중공 형상",
+    "PINASIMPLENG HUNGKAG NA HEOMETRIYA",
+    "HÌNH HỌC TIẾT DIỆN RỖNG LÝ TƯỞNG HÓA"
+  ],
+  "01  EVERYDAY WORKFLOW": [
+    "01  일상 작업 흐름",
+    "01  KARANIWANG DALOY NG TRABAHO",
+    "01  QUY TRÌNH LÀM VIỆC HẰNG NGÀY"
+  ],
+  "NORMAL INPUTS A:L": [
+    "일반 입력 A:L",
+    "MGA KARANIWANG INPUT A:L",
+    "DỮ LIỆU NHẬP THÔNG THƯỜNG A:L"
+  ],
+  "NORMAL INPUTS": [
+    "일반 입력",
+    "MGA KARANIWANG INPUT",
+    "DỮ LIỆU NHẬP THÔNG THƯỜNG"
+  ],
+  "MAIN RESULTS Y:AI": [
+    "주요 결과 Y:AI",
+    "MGA PANGUNAHING RESULTA Y:AI",
+    "KẾT QUẢ CHÍNH Y:AI"
+  ],
+  "MAIN RESULTS": [
+    "주요 결과",
+    "MGA PANGUNAHING RESULTA",
+    "KẾT QUẢ CHÍNH"
+  ],
+  "EXTRA BOARDS": [
+    "추가 보드",
+    "MGA DAGDAG NA TABLA",
+    "TẤM BỔ SUNG"
+  ],
+  "02  HOW BOARD AREA IS CALCULATED": [
+    "02  보드 면적 계산 방법",
+    "02  PAANO KINAKALKULA ANG LAWAK NG TABLA",
+    "02  CÁCH TÍNH DIỆN TÍCH TẤM"
+  ],
+  "03  SAFETY AND SCOPE": [
+    "03  안전 및 적용 범위",
+    "03  KALIGTASAN AT SAKLAW",
+    "03  AN TOÀN VÀ PHẠM VI"
+  ],
+  "04  OPTIONAL CONTROLS AND MAINTENANCE": [
+    "04  선택적 제어 및 유지 관리",
+    "04  MGA OPSIYONAL NA KONTROL AT PAGPAPANATILI",
+    "04  ĐIỀU KHIỂN TÙY CHỌN VÀ BẢO TRÌ"
+  ],
+  "05  HOW TO READ THE ROW NOTES": [
+    "05  행 메모 읽는 방법",
+    "05  PAANO BASAHIN ANG MGA TALA NG HILERA",
+    "05  CÁCH ĐỌC GHI CHÚ CỦA DÒNG"
+  ],
+  "STRUCTURAL STEEL BOARD SCHEDULE": [
+    "구조용 강재 보드 일람표",
+    "TALAAN NG TABLA PARA SA ESTRUKTURAL NA BAKAL",
+    "BẢNG KÊ TẤM BỌC THÉP KẾT CẤU"
+  ],
+  "SCHEDULE ROWS": [
+    "일람표 행",
+    "MGA HILERA SA TALAAN",
+    "CÁC DÒNG BẢNG KÊ"
+  ],
+  "WITH BOARD QUANTITIES": [
+    "보드 수량 있음",
+    "MAY DAMI NG TABLA",
+    "CÓ KHỐI LƯỢNG TẤM"
+  ],
+  "INCOMPLETE / NO QUANTITY": [
+    "미완성 / 수량 없음",
+    "KULANG / WALANG DAMI",
+    "CHƯA HOÀN CHỈNH / KHÔNG CÓ KHỐI LƯỢNG"
+  ],
+  "BOX REFERENCE m2": [
+    "박스 참조 m2",
+    "SANGGUNIANG KAHON m2",
+    "THAM CHIẾU HỘP m2"
+  ],
+  "NET BOARD REQUIRED m2": [
+    "필요 순 보드 수량 m2",
+    "KINAKAILANGANG NETONG TABLA m2",
+    "LƯỢNG TẤM THUẦN CẦN DÙNG m2"
+  ],
+  "POOLED JOB SHEETS": [
+    "프로젝트 통합 시트 수",
+    "PINAGSAMANG SHEET PARA SA BUONG TRABAHO",
+    "SỐ TẤM GỘP TOÀN CÔNG TRÌNH"
+  ],
+  "Layer 1": [
+    "1층",
+    "Patong 1",
+    "Lớp 1"
+  ],
+  "Layer 2": [
+    "2층",
+    "Patong 2",
+    "Lớp 2"
+  ],
+  "Layer 1 board area": [
+    "1층 보드 면적",
+    "Lawak ng tabla sa patong 1",
+    "Diện tích tấm lớp 1"
+  ],
+  "Layer 2 board area": [
+    "2층 보드 면적",
+    "Lawak ng tabla sa patong 2",
+    "Diện tích tấm lớp 2"
+  ],
+  "Design period": [
+    "설계 시간",
+    "Tagal sa disenyo",
+    "Thời gian thiết kế"
+  ],
+  "Critical temp used": [
+    "적용 임계 온도",
+    "Kritikal na temperaturang ginamit",
+    "Nhiệt độ tới hạn áp dụng"
+  ],
+  "Fire-design HpA (1/m)": [
+    "내화 설계 HpA (1/m)",
+    "HpA ng disenyong panlaban sa sunog (1/m)",
+    "HpA thiết kế chịu lửa (1/m)"
+  ],
+  "Inside cladding girth": [
+    "피복 내부 둘레",
+    "Panloob na paligid ng balot",
+    "Chu vi bên trong lớp bọc"
+  ],
+  "Design status": [
+    "설계 상태",
+    "Kalagayan ng disenyo",
+    "Trạng thái thiết kế"
+  ],
+  "Geometry source": [
+    "형상 출처",
+    "Pinagmulan ng heometriya",
+    "Nguồn hình học"
+  ],
+  "Published requirement": [
+    "공표 요구 사항",
+    "Inilathalang kinakailangan",
+    "Yêu cầu công bố"
+  ],
+  "HpA benchmark (1/m)": [
+    "HpA 기준 (1/m)",
+    "Batayang HpA (1/m)",
+    "HpA tham chiếu (1/m)"
+  ],
+  "Waste used": [
+    "적용 폐기율",
+    "Pag-aaksayang ginamit",
+    "Hao hụt áp dụng"
+  ],
+  "Layer 1 with waste": [
+    "폐기율 포함 1층",
+    "Patong 1 kasama ang pag-aaksaya",
+    "Lớp 1 gồm hao hụt"
+  ],
+  "Layer 2 with waste": [
+    "폐기율 포함 2층",
+    "Patong 2 kasama ang pag-aaksaya",
+    "Lớp 2 gồm hao hụt"
+  ],
+  "Source data flag": [
+    "출처 데이터 표시",
+    "Palatandaan ng datos mula sa sanggunian",
+    "Cờ dữ liệu nguồn"
+  ],
+  "Quantity review flag": [
+    "수량 검토 표시",
+    "Palatandaan ng pagsusuri ng dami",
+    "Cờ rà soát khối lượng"
+  ],
+  "Active": [
+    "활성",
+    "Aktibo",
+    "Đang hoạt động"
+  ],
+  "Product code": [
+    "제품 코드",
+    "Kodigo ng produkto",
+    "Mã sản phẩm"
+  ],
+  "Steel index": [
+    "강재 인덱스",
+    "Indeks ng bakal",
+    "Chỉ mục thép"
+  ],
+  "Section family used": [
+    "적용 단면 계열",
+    "Pangkat ng seksiyong ginamit",
+    "Nhóm tiết diện áp dụng"
+  ],
+  "Lookup basis used": [
+    "적용 조회 근거",
+    "Batayan ng paghahanap na ginamit",
+    "Cơ sở tra cứu áp dụng"
+  ],
+  "Layer preference used": [
+    "적용 층 구성 선호 방식",
+    "Piniling pagkakapatong na ginamit",
+    "Lựa chọn cấu lớp áp dụng"
+  ],
+  "Layout used": [
+    "적용 배치",
+    "Ayos na ginamit",
+    "Bố trí áp dụng"
+  ],
+  "Installation detail used": [
+    "적용 설치 상세",
+    "Detalye ng pagkakabit na ginamit",
+    "Chi tiết lắp đặt áp dụng"
+  ],
+  "Depth used": [
+    "적용 깊이",
+    "Lalim na ginamit",
+    "Chiều cao áp dụng"
+  ],
+  "Width used": [
+    "적용 폭",
+    "Lapad na ginamit",
+    "Chiều rộng áp dụng"
+  ],
+  "Area used": [
+    "적용 면적",
+    "Lawak na ginamit",
+    "Diện tích áp dụng"
+  ],
+  "Thermal girth": [
+    "열적 둘레",
+    "Paligid na apektado ng init",
+    "Chu vi nhiệt"
+  ],
+  "Factor record position": [
+    "계수 레코드 위치",
+    "Posisyon ng rekord ng salik",
+    "Vị trí bản ghi hệ số"
+  ],
+  "Base HpA (1/m)": [
+    "기본 HpA (1/m)",
+    "Batayang HpA (1/m)",
+    "HpA cơ sở (1/m)"
+  ],
+  "Input error": [
+    "입력 오류",
+    "Mali sa input",
+    "Lỗi nhập liệu"
+  ],
+  "Section design key": [
+    "단면 설계 키",
+    "Susi ng disenyo ng seksiyon",
+    "Mã thiết kế tiết diện"
+  ],
+  "Section design position": [
+    "단면 설계 위치",
+    "Posisyon ng disenyo ng seksiyon",
+    "Vị trí thiết kế tiết diện"
+  ],
+  "Rule index": [
+    "규칙 인덱스",
+    "Indeks ng tuntunin",
+    "Chỉ mục quy tắc"
+  ],
+  "System ID": [
+    "시스템 ID",
+    "ID ng sistema",
+    "ID hệ thống"
+  ],
+  "System index": [
+    "시스템 인덱스",
+    "Indeks ng sistema",
+    "Chỉ mục hệ thống"
+  ],
+  "Added girth used": [
+    "적용 추가 둘레",
+    "Dagdag na paligid na ginamit",
+    "Chu vi bổ sung áp dụng"
+  ],
+  "Corner count": [
+    "모서리 수",
+    "Bilang ng sulok",
+    "Số góc"
+  ],
+  "Sheet area": [
+    "시트 면적",
+    "Lawak ng sheet",
+    "Diện tích tấm nguyên"
+  ],
+  "Base system ID": [
+    "기본 시스템 ID",
+    "ID ng batayang sistema",
+    "ID hệ thống cơ sở"
+  ],
+  "Native design chosen": [
+    "선택한 원본 설계",
+    "Napiling orihinal na disenyo",
+    "Thiết kế gốc đã chọn"
+  ],
+  "Geometry override used": [
+    "적용 형상 재지정",
+    "Manu-manong heometriyang ginamit",
+    "Ghi đè hình học áp dụng"
+  ],
+  "Source group": [
+    "출처 그룹",
+    "Pangkat ng sanggunian",
+    "Nhóm nguồn"
+  ],
+  "Steel lookup record": [
+    "강재 조회 레코드",
+    "Rekord ng paghahanap ng bakal",
+    "Bản ghi tra cứu thép"
+  ],
+  "Section lookup record": [
+    "단면 조회 레코드",
+    "Rekord ng paghahanap ng seksiyon",
+    "Bản ghi tra cứu tiết diện"
+  ],
+  "Duration lookup record": [
+    "시간 조회 레코드",
+    "Rekord ng paghahanap ng tagal",
+    "Bản ghi tra cứu thời gian"
+  ],
+  "Rule lookup map": [
+    "규칙 조회 맵",
+    "Mapa ng paghahanap ng tuntunin",
+    "Sơ đồ tra cứu quy tắc"
+  ],
+  "Selected rule record": [
+    "선택한 규칙 레코드",
+    "Napiling rekord ng tuntunin",
+    "Bản ghi quy tắc đã chọn"
+  ],
+  "SETTINGS & CONVENTIONS": [
+    "설정 및 규약",
+    "MGA SETTING AT KUMBENSIYON",
+    "CÀI ĐẶT VÀ QUY ƯỚC"
+  ],
+  "Existing diagnostic code": [
+    "기존 진단 코드",
+    "Umiiral na kodigo ng pagsusuri",
+    "Mã chẩn đoán hiện có"
+  ],
+  "Plain-English message (display only)": [
+    "쉬운 설명 (표시용)",
+    "Mensahe sa payak na wika (para sa pagpapakita lamang)",
+    "Thông báo dễ hiểu (chỉ để hiển thị)"
+  ],
+  "DUCT PROTECTION CALCULATOR": [
+    "덕트 보호 계산기",
+    "KALKULADOR NG PROTEKSIYON NG DUCT",
+    "CÔNG CỤ TÍNH BẢO VỆ ỐNG GIÓ"
+  ],
+  "PENETRATION ANGLES — LENGTH BY SIZE AND LOCATION": [
+    "관통부 앵글 — 치수 및 위치별 길이",
+    "MGA ANGULO NG TAGUSAN — HABA AYON SA LAKI AT LOKASYON",
+    "THÉP GÓC LỖ XUYÊN — CHIỀU DÀI THEO KÍCH THƯỚC VÀ VỊ TRÍ"
+  ],
+  "WORKING YIELDS — CALIBRATED OR UNCALIBRATED": [
+    "작업 수율 — 보정 또는 미보정",
+    "MAGAGAMIT NA DAMI SA TRABAHO — NAKA-CALIBRATE O HINDI",
+    "ĐỊNH MỨC THỰC TẾ — ĐÃ HOẶC CHƯA HIỆU CHỈNH"
+  ],
+  "BOTH / MIXED — USE THE STRICTER CASE": [
+    "양쪽 / 혼합 — 더 엄격한 조건 사용",
+    "PAREHO / HALO — GAMITIN ANG MAS MAHIGPIT NA KASO",
+    "CẢ HAI / HỖN HỢP — DÙNG TRƯỜNG HỢP NGHIÊM NGẶT HƠN"
+  ],
+  "Source application": [
+    "출처 적용 방식",
+    "Paglalapat ayon sa sanggunian",
+    "Ứng dụng theo nguồn"
+  ],
+  "Factor-label gap: above": [
+    "계수 표기 간격: 위",
+    "Puwang ng label ng salik: itaas",
+    "Khoảng cách nhãn hệ số: trên"
+  ],
+  "Factor-label gap: below": [
+    "계수 표기 간격: 아래",
+    "Puwang ng label ng salik: ibaba",
+    "Khoảng cách nhãn hệ số: dưới"
+  ],
+  "Lower web (mm)": [
+    "하부 웨브 (mm)",
+    "Ibabang web (mm)",
+    "Bản bụng dưới (mm)"
+  ],
+  "Exact only": [
+    "정확히 일치만",
+    "Eksaktong tugma lamang",
+    "Chỉ khớp chính xác"
+  ],
+  "Next higher (estimate)": [
+    "다음 높은 값 (견적)",
+    "Susunod na mas mataas (pagtatantiya)",
+    "Mức cao hơn kế tiếp (dự toán)"
+  ],
+  "Re-entrant - 3 sides": [
+    "오목 단면 - 3면",
+    "May papasok na sulok - 3 panig",
+    "Tiết diện lõm - 3 mặt"
+  ],
+  "Re-entrant - 4 sides": [
+    "오목 단면 - 4면",
+    "May papasok na sulok - 4 panig",
+    "Tiết diện lõm - 4 mặt"
+  ],
+  "Hollow - 3 sides": [
+    "중공 - 3면",
+    "Hungkag - 3 panig",
+    "Rỗng - 3 mặt"
+  ],
+  "Hollow - 4 sides": [
+    "중공 - 4면",
+    "Hungkag - 4 panig",
+    "Rỗng - 4 mặt"
+  ],
+  "Castellated - special factor": [
+    "캐슬레이티드 - 특수 계수",
+    "Castellated - espesyal na salik",
+    "Dầm bụng lỗ - hệ số đặc biệt"
+  ],
+  "PFC web to slab - 3 sides": [
+    "PFC 웨브가 슬래브에 접함 - 3면",
+    "Web ng PFC sa slab - 3 panig",
+    "Bản bụng PFC sát sàn - 3 mặt"
+  ],
+  "Not confirmed": [
+    "미확인",
+    "Hindi pa nakumpirma",
+    "Chưa xác nhận"
+  ],
+  "Confirmed by project designer": [
+    "프로젝트 설계자 확인 완료",
+    "Kinumpirma ng tagadisenyo ng proyekto",
+    "Đã được người thiết kế dự án xác nhận"
+  ],
+  "Un-injected": [
+    "미주입",
+    "Walang iniksyon",
+    "Không châm thêm"
+  ],
+  "Uninjected": [
+    "미주입",
+    "Walang iniksyon",
+    "Không châm thêm"
+  ],
+  "Injected": [
+    "주입",
+    "May iniksyon",
+    "Có châm thêm"
+  ],
+  "Calibrated": [
+    "보정됨",
+    "Naka-calibrate",
+    "Đã hiệu chỉnh"
+  ],
+  "Uncalibrated": [
+    "미보정",
+    "Hindi naka-calibrate",
+    "Chưa hiệu chỉnh"
+  ],
+  "Hp/A | ESA/M | web mm": [
+    "Hp/A | ESA/M | 웨브 mm",
+    "Hp/A | ESA/M | kapal ng web mm",
+    "Hp/A | ESA/M | bản bụng mm"
+  ],
+  "Hp/A | ESA/M | lower web mm": [
+    "Hp/A | ESA/M | 하부 웨브 mm",
+    "Hp/A | ESA/M | ibabang web mm",
+    "Hp/A | ESA/M | bản bụng dưới mm"
+  ],
+  "FACTOR HELPER  |  Hp/A AND ESA/M": [
+    "계수 도우미  |  Hp/A 및 ESA/M",
+    "KATULONG SA SALIK  |  Hp/A AT ESA/M",
+    "TRỢ GIÚP HỆ SỐ  |  Hp/A VÀ ESA/M"
+  ],
+  "Critical temperature (°C)": [
+    "임계 온도 (°C)",
+    "Kritikal na temperatura (°C)",
+    "Nhiệt độ tới hạn (°C)"
+  ],
+  "Fire-resistance period (min)": [
+    "내화 시간 (min)",
+    "Tagal ng paglaban sa sunog (min)",
+    "Thời gian chịu lửa (min)"
+  ],
+  "Lookup ESA/M (m²/t)": [
+    "ESA/M 조회 (m²/t)",
+    "Hanapin ang ESA/M (m²/t)",
+    "Tra cứu ESA/M (m²/t)"
+  ],
+  "Lookup Hp/A (m⁻¹)": [
+    "Hp/A 조회 (m⁻¹)",
+    "Hanapin ang Hp/A (m⁻¹)",
+    "Tra cứu Hp/A (m⁻¹)"
+  ],
+  "Usable estimating thickness (mm)": [
+    "견적에 사용 가능한 두께 (mm)",
+    "Kapal na magagamit sa pagtatantiya (mm)",
+    "Chiều dày có thể dùng để dự toán (mm)"
+  ],
+  "Length per member (m)": [
+    "부재당 길이 (m)",
+    "Haba bawat miyembro (m)",
+    "Chiều dài mỗi cấu kiện (m)"
+  ],
+  "Girth used (m)": [
+    "적용 둘레 (m)",
+    "Paligid na ginamit (m)",
+    "Chu vi áp dụng (m)"
+  ],
+  "Girth override (m)": [
+    "둘레 재지정 (m)",
+    "Manu-manong paligid (m)",
+    "Ghi đè chu vi (m)"
+  ],
+  "Spray area (m²)": [
+    "분사 면적 (m²)",
+    "Lawak na iispreyan (m²)",
+    "Diện tích phun (m²)"
+  ],
+  "Area override (m²)": [
+    "면적 재지정 (m²)",
+    "Manu-manong lawak (m²)",
+    "Ghi đè diện tích (m²)"
+  ],
+  "Coating volume (m³)": [
+    "피복 체적 (m³)",
+    "Dami ng patong (m³)",
+    "Thể tích lớp phủ (m³)"
+  ],
+  "TOTAL ENTERED SPRAY AREA (m²)": [
+    "입력한 총 분사 면적 (m²)",
+    "KABUUANG INILAGAY NA LAWAK NA IISPREYAN (m²)",
+    "TỔNG DIỆN TÍCH PHUN ĐÃ NHẬP (m²)"
+  ],
+  "COATING VOLUME QUANTIFIED (m³)": [
+    "산정한 피복 체적 (m³)",
+    "SINUKAT NA DAMI NG PATONG (m³)",
+    "THỂ TÍCH LỚP PHỦ ĐÃ TÍNH (m³)"
+  ],
+  "Critical temp (°C)": [
+    "임계 온도 (°C)",
+    "Kritikal na temperatura (°C)",
+    "Nhiệt độ tới hạn (°C)"
+  ],
+  "Length / member (m)": [
+    "길이 / 부재 (m)",
+    "Haba / miyembro (m)",
+    "Chiều dài / cấu kiện (m)"
+  ],
+  "Published thickness (mm)": [
+    "공표 두께 (mm)",
+    "Inilathalang kapal (mm)",
+    "Chiều dày công bố (mm)"
+  ],
+  "Estimating thickness (mm)": [
+    "견적용 두께 (mm)",
+    "Kapal para sa pagtatantiya (mm)",
+    "Chiều dày dự toán (mm)"
+  ],
+  "Area (m²)": [
+    "면적 (m²)",
+    "Lawak (m²)",
+    "Diện tích (m²)"
+  ],
+  "Manual thickness (mm)": [
+    "수동 두께 (mm)",
+    "Manu-manong kapal (mm)",
+    "Chiều dày nhập tay (mm)"
+  ],
+  "Yield used (m³/bag)": [
+    "적용 수율 (m³/bag)",
+    "Magagamit na daming ginamit (m³/bag)",
+    "Định mức áp dụng (m³/bag)"
+  ],
+  "Coverage (m²/bag)": [
+    "도포량 (m²/bag)",
+    "Saklaw (m²/bag)",
+    "Diện tích bao phủ (m²/bag)"
+  ],
+  "Area entered (m²)": [
+    "입력 면적 (m²)",
+    "Inilagay na lawak (m²)",
+    "Diện tích đã nhập (m²)"
+  ],
+  "Volume quantified (m³)": [
+    "산정 체적 (m³)",
+    "Sinukat na dami (m³)",
+    "Thể tích đã tính (m³)"
+  ],
+  "EXPOSURE / MEMBER CASE": [
+    "노출 / 부재 조건",
+    "Kondisyon ng pagkalantad / miyembro",
+    "Điều kiện tiếp xúc lửa / cấu kiện"
+  ],
+  "PUBLISHED PERIODS (MIN)": [
+    "공표 시간 (MIN)",
+    "MGA INILATHALANG TAGAL (MIN)",
+    "THỜI GIAN CÔNG BỐ (MIN)"
+  ],
+  "FACTOR LOOKUP POLICY": [
+    "계수 조회 정책",
+    "Patakaran sa paghahanap ng salik",
+    "Quy tắc tra cứu hệ số"
+  ],
+  "Heated perimeter (m)": [
+    "가열 둘레 (m)",
+    "Pinainit na paligid (m)",
+    "Chu vi chịu nhiệt (m)"
+  ],
+  "Steel area (mm²)": [
+    "강재 면적 (mm²)",
+    "Lawak ng bakal (mm²)",
+    "Diện tích thép (mm²)"
+  ],
+  "Mass per metre (kg/m)": [
+    "미터당 질량 (kg/m)",
+    "Bigat bawat metro (kg/m)",
+    "Khối lượng mỗi mét (kg/m)"
+  ],
+  "Hp/A from steel area (m⁻¹)": [
+    "강재 면적 기반 Hp/A (m⁻¹)",
+    "Hp/A mula sa lawak ng bakal (m⁻¹)",
+    "Hp/A từ diện tích thép (m⁻¹)"
+  ],
+  "ESA/M from mass (m²/t)": [
+    "질량 기반 ESA/M (m²/t)",
+    "ESA/M mula sa bigat (m²/t)",
+    "ESA/M từ khối lượng (m²/t)"
+  ],
+  "Depth / outside diameter (mm)": [
+    "깊이 / 외경 (mm)",
+    "Lalim / panlabas na diyametro (mm)",
+    "Chiều cao / đường kính ngoài (mm)"
+  ],
+  "Width (mm)": [
+    "폭 (mm)",
+    "Lapad (mm)",
+    "Chiều rộng (mm)"
+  ],
+  "Wall thickness (mm)": [
+    "벽 두께 (mm)",
+    "Kapal ng dingding (mm)",
+    "Chiều dày thành (mm)"
+  ],
+  "Lower-web thickness (mm)": [
+    "하부 웨브 두께 (mm)",
+    "Kapal ng ibabang web (mm)",
+    "Chiều dày bản bụng dưới (mm)"
+  ],
+  "Special Hp/A (m⁻¹)": [
+    "특수 Hp/A (m⁻¹)",
+    "Espesyal na Hp/A (m⁻¹)",
+    "Hp/A đặc biệt (m⁻¹)"
+  ],
+  "ESA/M input (m2/t)": [
+    "ESA/M 입력 (m2/t)",
+    "Input na ESA/M (m2/t)",
+    "Nhập ESA/M (m2/t)"
+  ],
+  "FRL required (min)": [
+    "필요 FRL (min)",
+    "Kinakailangang FRL (min)",
+    "FRL yêu cầu (min)"
+  ],
+  "Critical temp (C)": [
+    "임계 온도 (C)",
+    "Kritikal na temperatura (C)",
+    "Nhiệt độ tới hạn (C)"
+  ],
+  "Waste (%)": [
+    "폐기율 (%)",
+    "Pag-aaksaya (%)",
+    "Hao hụt (%)"
+  ],
+  "Partial depth (mm)": [
+    "부분 깊이 (mm)",
+    "Bahagyang lalim (mm)",
+    "Chiều sâu một phần (mm)"
+  ],
+  "Depth or OD (mm)": [
+    "깊이 또는 외경 (mm)",
+    "Lalim o panlabas na diyametro (mm)",
+    "Chiều cao hoặc đường kính ngoài (mm)"
+  ],
+  "Width B (mm)": [
+    "폭 B (mm)",
+    "Lapad B (mm)",
+    "Chiều rộng B (mm)"
+  ],
+  "Steel area (cm2)": [
+    "강재 면적 (cm2)",
+    "Lawak ng bakal (cm2)",
+    "Diện tích thép (cm2)"
+  ],
+  "Steel mass (kg/m)": [
+    "강재 질량 (kg/m)",
+    "Bigat ng bakal (kg/m)",
+    "Khối lượng thép (kg/m)"
+  ],
+  "Box girth override (m)": [
+    "박스 둘레 재지정 (m)",
+    "Manu-manong paligid ng kahon (m)",
+    "Ghi đè chu vi hộp (m)"
+  ],
+  "Added girth (m)": [
+    "추가 둘레 (m)",
+    "Dagdag na paligid (m)",
+    "Chu vi bổ sung (m)"
+  ],
+  "ESA/M used (m2/t)": [
+    "적용 ESA/M (m2/t)",
+    "ESA/M na ginamit (m2/t)",
+    "ESA/M áp dụng (m2/t)"
+  ],
+  "Board stack (mm)": [
+    "보드 적층 구성 (mm)",
+    "Pagkakapatong ng tabla (mm)",
+    "Cấu lớp tấm (mm)"
+  ],
+  "Total thickness (mm)": [
+    "총 두께 (mm)",
+    "Kabuuang kapal (mm)",
+    "Tổng chiều dày (mm)"
+  ],
+  "Bare box girth (m)": [
+    "맨 박스 둘레 (m)",
+    "Paligid ng hubad na kahon (m)",
+    "Chu vi hộp chưa bọc (m)"
+  ],
+  "Box reference area (m2)": [
+    "박스 참조 면적 (m2)",
+    "Sangguniang lawak ng kahon (m2)",
+    "Diện tích tham chiếu hộp (m2)"
+  ],
+  "Board required - net (m2)": [
+    "필요 보드 - 순수량 (m2)",
+    "Kinakailangang tabla - neto (m2)",
+    "Lượng tấm cần dùng - thuần (m2)"
+  ],
+  "Board incl waste (m2)": [
+    "폐기율 포함 보드 (m2)",
+    "Tabla kasama ang pag-aaksaya (m2)",
+    "Tấm gồm hao hụt (m2)"
+  ],
+  "Purchase area - line (m2)": [
+    "구매 면적 - 행 (m2)",
+    "Lawak na bibilhin - linya (m2)",
+    "Diện tích mua - dòng (m2)"
+  ],
+  "Layer 1 (mm)": [
+    "1층 (mm)",
+    "Patong 1 (mm)",
+    "Lớp 1 (mm)"
+  ],
+  "Layer 2 (mm)": [
+    "2층 (mm)",
+    "Patong 2 (mm)",
+    "Lớp 2 (mm)"
+  ],
+  "Layer 1 board area (m2)": [
+    "1층 보드 면적 (m2)",
+    "Lawak ng tabla sa patong 1 (m2)",
+    "Diện tích tấm lớp 1 (m2)"
+  ],
+  "Layer 2 board area (m2)": [
+    "2층 보드 면적 (m2)",
+    "Lawak ng tabla sa patong 2 (m2)",
+    "Diện tích tấm lớp 2 (m2)"
+  ],
+  "Design period (min)": [
+    "설계 시간 (min)",
+    "Tagal sa disenyo (min)",
+    "Thời gian thiết kế (min)"
+  ],
+  "Critical temp used (C)": [
+    "적용 임계 온도 (C)",
+    "Kritikal na temperaturang ginamit (C)",
+    "Nhiệt độ tới hạn áp dụng (C)"
+  ],
+  "Inside cladding girth (m)": [
+    "피복 내부 둘레 (m)",
+    "Panloob na paligid ng balot (m)",
+    "Chu vi bên trong lớp bọc (m)"
+  ],
+  "Published requirement (mm)": [
+    "공표 요구 사항 (mm)",
+    "Inilathalang kinakailangan (mm)",
+    "Yêu cầu công bố (mm)"
+  ],
+  "Layer 1 with waste (m2)": [
+    "폐기율 포함 1층 (m2)",
+    "Patong 1 kasama ang pag-aaksaya (m2)",
+    "Lớp 1 gồm hao hụt (m2)"
+  ],
+  "Layer 2 with waste (m2)": [
+    "폐기율 포함 2층 (m2)",
+    "Patong 2 kasama ang pag-aaksaya (m2)",
+    "Lớp 2 gồm hao hụt (m2)"
+  ],
+  "Depth used (mm)": [
+    "적용 깊이 (mm)",
+    "Lalim na ginamit (mm)",
+    "Chiều cao áp dụng (mm)"
+  ],
+  "Width used (mm)": [
+    "적용 폭 (mm)",
+    "Lapad na ginamit (mm)",
+    "Chiều rộng áp dụng (mm)"
+  ],
+  "Area used (cm2)": [
+    "적용 면적 (cm2)",
+    "Lawak na ginamit (cm2)",
+    "Diện tích áp dụng (cm2)"
+  ],
+  "Thermal girth (m)": [
+    "열적 둘레 (m)",
+    "Paligid na apektado ng init (m)",
+    "Chu vi nhiệt (m)"
+  ],
+  "Added girth used (m)": [
+    "적용 추가 둘레 (m)",
+    "Dagdag na paligid na ginamit (m)",
+    "Chu vi bổ sung áp dụng (m)"
+  ],
+  "Sheet area (m2)": [
+    "시트 면적 (m2)",
+    "Lawak ng sheet (m2)",
+    "Diện tích tấm nguyên (m2)"
+  ],
+  "NET BOARD REQUIRED (m2)": [
+    "필요 순 보드 수량 (m2)",
+    "KINAKAILANGANG NETONG TABLA (m2)",
+    "LƯỢNG TẤM THUẦN CẦN DÙNG (m2)"
+  ],
+  "PURCHASE AREA (m²)": [
+    "구매 면적 (m²)",
+    "LAWAK NA BIBILHIN (m²)",
+    "DIỆN TÍCH MUA (m²)"
+  ],
+  "Status": [
+    "상태",
+    "KALAGAYAN",
+    "TRẠNG THÁI"
+  ],
+  "Column temp (C)": [
+    "기둥 온도 (C)",
+    "Temperatura ng haligi (C)",
+    "Nhiệt độ cột (C)"
+  ],
+  "P100 beam temp (C)": [
+    "P100 보 온도 (C)",
+    "Temperatura ng bigang P100 (C)",
+    "Nhiệt độ dầm P100 (C)"
+  ],
+  "Other beam temp (C)": [
+    "기타 보 온도 (C)",
+    "Temperatura ng ibang biga (C)",
+    "Nhiệt độ dầm khác (C)"
+  ],
+  "Duct size W x H (mm)": [
+    "덕트 치수 W x H (mm)",
+    "Laki ng duct W x H (mm)",
+    "Kích thước ống gió W x H (mm)"
+  ],
+  "Spray DFT (mm)": [
+    "분사 건조 도막 두께 DFT (mm)",
+    "DFT ng isprey (mm)",
+    "DFT lớp phun (mm)"
+  ],
+  "Net wrap material (m²)": [
+    "순 방화 랩 자재 (m²)",
+    "Netong materyal na pambalot (m²)",
+    "Vật liệu bọc thuần (m²)"
+  ],
+  "Maxilite net @60 mm (m²)": [
+    "Maxilite 순수량 @60 mm (m²)",
+    "Netong Maxilite @60 mm (m²)",
+    "Maxilite thuần @60 mm (m²)"
+  ],
+  "Wall L2 each side (m)": [
+    "벽 L2 각 면 (m)",
+    "L2 ng pader bawat panig (m)",
+    "L2 tường mỗi bên (m)"
+  ],
+  "Floor L2 top (m)": [
+    "바닥 상부 L2 (m)",
+    "L2 sa ibabaw ng sahig (m)",
+    "L2 trên sàn (m)"
+  ],
+  "Floor L3 top (m)": [
+    "바닥 상부 L3 (m)",
+    "L3 sa ibabaw ng sahig (m)",
+    "L3 trên sàn (m)"
+  ],
+  "L1 material (m²)": [
+    "L1 자재 (m²)",
+    "Materyal ng L1 (m²)",
+    "Vật liệu L1 (m²)"
+  ],
+  "L2 material (m²)": [
+    "L2 자재 (m²)",
+    "Materyal ng L2 (m²)",
+    "Vật liệu L2 (m²)"
+  ],
+  "L3 material (m²)": [
+    "L3 자재 (m²)",
+    "Materyal ng L3 (m²)",
+    "Vật liệu L3 (m²)"
+  ],
+  "Maxilite width (mm)": [
+    "Maxilite 폭 (mm)",
+    "Lapad ng Maxilite (mm)",
+    "Chiều rộng Maxilite (mm)"
+  ],
+  "Maxilite strips (lm)": [
+    "Maxilite 스트립 (lm)",
+    "Mga piraso ng Maxilite (lm)",
+    "Các dải Maxilite (lm)"
+  ],
+  "Cross-strip cut (mm)": [
+    "가로 스트립 절단 (mm)",
+    "Gupit ng pahalang na piraso (mm)",
+    "Cắt dải ngang (mm)"
+  ],
+  "Side-strip cut (mm)": [
+    "측면 스트립 절단 (mm)",
+    "Gupit ng gilid na piraso (mm)",
+    "Cắt dải bên (mm)"
+  ],
+  "Wall angle net / allowance (lm)": [
+    "벽 앵글 순수량 / 허용량 (lm)",
+    "Netong anggulo sa pader / palugit (lm)",
+    "Thép góc tường thuần / dự phòng (lm)"
+  ],
+  "Floor TOP net / allowance (lm)": [
+    "바닥 상부 순수량 / 허용량 (lm)",
+    "Neto sa ITAAS ng sahig / palugit (lm)",
+    "PHÍA TRÊN sàn thuần / dự phòng (lm)"
+  ],
+  "Floor BOTTOM net / allowance (lm)": [
+    "바닥 하부 순수량 / 허용량 (lm)",
+    "Neto sa ILALIM ng sahig / palugit (lm)",
+    "PHÍA DƯỚI sàn thuần / dự phòng (lm)"
+  ],
+  "Combined angle length (lm)": [
+    "합산 앵글 길이 (lm)",
+    "Pinagsamang haba ng anggulo (lm)",
+    "Tổng chiều dài thép góc (lm)"
+  ],
+  "Spray body volume (m³)": [
+    "분사 본체 체적 (m³)",
+    "Dami ng isprey sa katawan (m³)",
+    "Thể tích phun thân ống (m³)"
+  ],
+  "Working yield (m³/bag)": [
+    "작업 수율 (m³/bag)",
+    "Magagamit na dami sa trabaho (m³/bag)",
+    "Định mức thực tế (m³/bag)"
+  ],
+  "Duct area (m²)": [
+    "덕트 면적 (m²)",
+    "Lawak ng duct (m²)",
+    "Diện tích ống gió (m²)"
+  ],
+  "Wrap (m²)": [
+    "방화 랩 (m²)",
+    "Balot (m²)",
+    "Lớp bọc (m²)"
+  ],
+  "Maxilite (m²)": [
+    "Maxilite (m²)",
+    "Maxilite (m²)",
+    "Maxilite (m²)"
+  ],
+  "Angles (lm)": [
+    "앵글 (lm)",
+    "Mga anggulo (lm)",
+    "Thép góc (lm)"
+  ],
+  "Profile (mm)": [
+    "규격 (mm)",
+    "Hugis ng seksiyon (mm)",
+    "Tiết diện (mm)"
+  ],
+  "Length (lm)": [
+    "길이 (lm)",
+    "Haba (lm)",
+    "Chiều dài (lm)"
+  ],
+  "MAXILITE": [
+    "MAXILITE",
+    "MAXILITE",
+    "MAXILITE"
+  ],
+  "Strip width (mm)": [
+    "스트립 폭 (mm)",
+    "Lapad ng piraso (mm)",
+    "Chiều rộng dải (mm)"
+  ],
+  "Wall board (m²)": [
+    "벽 보드 (m²)",
+    "Tabla ng pader (m²)",
+    "Tấm tường (m²)"
+  ],
+  "Floor TOP (m²)": [
+    "바닥 상부 (m²)",
+    "ITAAS ng sahig (m²)",
+    "PHÍA TRÊN sàn (m²)"
+  ],
+  "Floor BOTTOM (m²)": [
+    "바닥 하부 (m²)",
+    "ILALIM ng sahig (m²)",
+    "PHÍA DƯỚI sàn (m²)"
+  ],
+  "Total board (m²)": [
+    "총 보드 (m²)",
+    "Kabuuang tabla (m²)",
+    "Tổng lượng tấm (m²)"
+  ],
+  "Cut strips (pieces)": [
+    "절단 스트립 (개)",
+    "Mga pinutol na piraso (piraso)",
+    "Dải cắt (miếng)"
+  ],
+  "Cut strip length (lm)": [
+    "절단 스트립 길이 (lm)",
+    "Haba ng pinutol na piraso (lm)",
+    "Chiều dài dải cắt (lm)"
+  ],
+  "Height max (mm)": [
+    "최대 높이 (mm)",
+    "Pinakamataas na taas (mm)",
+    "Chiều cao tối đa (mm)"
+  ],
+  "Spacing (mm)": [
+    "간격 (mm)",
+    "Agwat (mm)",
+    "Khoảng cách (mm)"
+  ],
+  "Internal (mm)": [
+    "내부 (mm)",
+    "Panloob (mm)",
+    "Bên trong (mm)"
+  ],
+  "External (mm)": [
+    "외부 (mm)",
+    "Panlabas (mm)",
+    "Bên ngoài (mm)"
+  ],
+  "Duct max (mm)": [
+    "덕트 최댓값 (mm)",
+    "Pinakamalaking duct (mm)",
+    "Ống gió tối đa (mm)"
+  ],
+  "Gap min (mm)": [
+    "최소 틈새 (mm)",
+    "Pinakamaliit na puwang (mm)",
+    "Khe hở tối thiểu (mm)"
+  ],
+  "Gap max (mm)": [
+    "최대 틈새 (mm)",
+    "Pinakamalaking puwang (mm)",
+    "Khe hở tối đa (mm)"
+  ],
+  "Board width (mm)": [
+    "보드 폭 (mm)",
+    "Lapad ng tabla (mm)",
+    "Chiều rộng tấm (mm)"
+  ],
+  "Angle (mm)": [
+    "앵글 (mm)",
+    "Anggulo (mm)",
+    "Thép góc (mm)"
+  ],
+  "Board thick (mm)": [
+    "보드 두께 (mm)",
+    "Kapal ng tabla (mm)",
+    "Chiều dày tấm (mm)"
+  ],
+  "Max c/c (mm)": [
+    "최대 c/c (mm)",
+    "Pinakamalaking c/c (mm)",
+    "c/c tối đa (mm)"
+  ],
+  "60-min L2 (mm)": [
+    "60-min L2 (mm)",
+    "60-min L2 (mm)",
+    "60-min L2 (mm)"
+  ],
+  "120-min L2 (mm)": [
+    "120-min L2 (mm)",
+    "120-min L2 (mm)",
+    "120-min L2 (mm)"
+  ],
+  "120-min L3 (mm)": [
+    "120-min L3 (mm)",
+    "120-min L3 (mm)",
+    "120-min L3 (mm)"
+  ],
+  "180-min L2 (mm)": [
+    "180-min L2 (mm)",
+    "180-min L2 (mm)",
+    "180-min L2 (mm)"
+  ],
+  "180-min L3 (mm)": [
+    "180-min L3 (mm)",
+    "180-min L3 (mm)",
+    "180-min L3 (mm)"
+  ],
+  "Assessed spray thickness": [
+    "평가된 분사 두께",
+    "Sinuring kapal ng isprey",
+    "Chiều dày phun đã đánh giá"
+  ],
+  "Internal / vertical FRL ceiling": [
+    "내부 / 수직 FRL 상한",
+    "Hangganan ng panloob / patayong FRL",
+    "Giới hạn trên FRL bên trong / đứng"
+  ],
+  "External horizontal FRL ceiling": [
+    "외부 수평 FRL 상한",
+    "Hangganan ng panlabas na pahalang na FRL",
+    "Giới hạn trên FRL bên ngoài theo phương ngang"
+  ],
+  "Horizontal maximum WIDTH": [
+    "수평 최대 폭",
+    "Pinakamalaking LAPAD sa pahalang",
+    "CHIỀU RỘNG tối đa theo phương ngang"
+  ],
+  "Horizontal maximum HEIGHT": [
+    "수평 최대 높이",
+    "Pinakamalaking TAAS sa pahalang",
+    "CHIỀU CAO tối đa theo phương ngang"
+  ],
+  "Larger-than-tested trigger": [
+    "시험 치수 초과 판정 기준",
+    "Batayan kapag mas malaki kaysa sa sinubukan",
+    "Ngưỡng vượt kích thước đã thử nghiệm"
+  ],
+  "Duct base metal thickness": [
+    "덕트 모재 두께",
+    "Kapal ng batayang metal ng duct",
+    "Chiều dày kim loại nền ống gió"
+  ],
+  "Horizontal hanger interval": [
+    "수평 행거 간격",
+    "Agwat ng mga pahalang na hanger",
+    "Khoảng cách giá treo ngang"
+  ],
+  "Vertical standard support interval": [
+    "수직 표준 지지 간격",
+    "Karaniwang agwat ng patayong suporta",
+    "Khoảng cách gối đỡ đứng tiêu chuẩn"
+  ],
+  "Vertical oversized / lightweight": [
+    "수직 대형 / 경량",
+    "Patayong malaki ang sukat / magaan",
+    "Đứng quá khổ / nhẹ"
+  ],
+  "Concrete floor thickness": [
+    "콘크리트 바닥 두께",
+    "Kapal ng kongkretong sahig",
+    "Chiều dày sàn bê tông"
+  ],
+  "Concrete floor nominal density": [
+    "콘크리트 바닥 공칭 밀도",
+    "Itinakdang densidad ng kongkretong sahig",
+    "Khối lượng riêng danh nghĩa sàn bê tông"
+  ],
+  "Duct protection dried density": [
+    "덕트 보호재 건조 밀도",
+    "Densidad ng tuyong proteksiyon ng duct",
+    "Khối lượng riêng khô lớp bảo vệ ống gió"
+  ],
+  "Generic TDS reference density": [
+    "일반 TDS 참조 밀도",
+    "Pangkalahatang sangguniang densidad sa TDS",
+    "Khối lượng riêng tham chiếu TDS chung"
+  ],
+  "Generic theoretical coverage": [
+    "일반 이론 도포량",
+    "Pangkalahatang teoretikal na saklaw",
+    "Diện tích bao phủ lý thuyết chung"
+  ],
+  "Coverage reference thickness": [
+    "도포량 기준 두께",
+    "Sangguniang kapal para sa saklaw",
+    "Chiều dày tham chiếu diện tích bao phủ"
+  ],
+  "Working net yield — DUCTS": [
+    "작업 순 수율 — 덕트",
+    "NETONG MAGAGAMIT NA DAMI SA TRABAHO — MGA DUCT",
+    "ĐỊNH MỨC THUẦN THỰC TẾ — ỐNG GIÓ"
+  ],
+  "Working coverage at 60 mm": [
+    "60 mm 작업 도포량",
+    "Saklaw sa trabaho sa 60 mm",
+    "Diện tích bao phủ thực tế ở 60 mm"
+  ],
+  "Wall capping angle": [
+    "벽 캡핑 앵글",
+    "Bakal na anggulong panakip sa pader",
+    "Thép góc nẹp tường"
+  ],
+  "Concrete floor TOP angle": [
+    "콘크리트 바닥 상부 앵글",
+    "Bakal na anggulo sa ITAAS ng kongkretong sahig",
+    "Thép góc PHÍA TRÊN sàn bê tông"
+  ],
+  "Concrete floor BOTTOM angle": [
+    "콘크리트 바닥 하부 앵글",
+    "Bakal na anggulo sa ILALIM ng kongkretong sahig",
+    "Thép góc PHÍA DƯỚI sàn bê tông"
+  ],
+  "Wall angle frames": [
+    "벽 앵글 프레임",
+    "Mga balangkas na bakal na anggulo sa pader",
+    "Khung thép góc tường"
+  ],
+  "Floor frames — each profile": [
+    "바닥 프레임 — 규격별",
+    "Mga balangkas sa sahig — bawat hugis ng seksiyon",
+    "Khung sàn — từng tiết diện"
+  ],
+  "AAC / Speedpanel companion boards": [
+    "AAC / Speedpanel 동반 보드",
+    "Mga kasamang tabla para sa AAC / Speedpanel",
+    "Tấm dùng kèm AAC / Speedpanel"
+  ],
+  "Removed site inputs": [
+    "제거된 현장 입력",
+    "Mga inalis na input ng lugar ng trabaho",
+    "Dữ liệu công trường đã loại bỏ"
+  ],
+  "Net spray quantity convention": [
+    "순 분사 수량 규약",
+    "Kumbensiyon ng netong dami ng isprey",
+    "Quy ước khối lượng phun thuần"
+  ],
+  "Yield basis": [
+    "수율 근거",
+    "Batayan ng magagamit na dami",
+    "Cơ sở định mức"
+  ],
+  "Up to 1200 mm": [
+    "최대 1200 mm",
+    "Hanggang 1200 mm",
+    "Đến 1200 mm"
+  ],
+  "Yield source URL": [
+    "수율 출처 URL",
+    "URL ng sanggunian ng magagamit na dami",
+    "URL nguồn định mức"
+  ],
+  "Assessment source": [
+    "평가 출처",
+    "Sanggunian ng pagsusuri",
+    "Nguồn đánh giá"
+  ],
+  "CAFCO yield interpretation": [
+    "CAFCO 수율 해석",
+    "Pagpapakahulugan ng magagamit na dami ng CAFCO",
+    "Diễn giải định mức CAFCO"
+  ],
+  "Calibration reference area": [
+    "보정 기준 면적",
+    "Sangguniang lawak sa pag-calibrate",
+    "Diện tích tham chiếu hiệu chỉnh"
+  ],
+  "Calibration reference thickness": [
+    "보정 기준 두께",
+    "Sangguniang kapal sa pag-calibrate",
+    "Chiều dày tham chiếu hiệu chỉnh"
+  ],
+  "Calibration target net bags": [
+    "보정 목표 순 포대 수",
+    "Target na netong sako sa pag-calibrate",
+    "Số bao thuần mục tiêu hiệu chỉnh"
+  ],
+  "Maximum duct width / height": [
+    "덕트 최대 폭 / 높이",
+    "Pinakamalaking lapad / taas ng duct",
+    "Chiều rộng / chiều cao tối đa ống gió"
+  ],
+  "Stability / integrity ceiling": [
+    "안정성 / 차염성 상한",
+    "Hangganan ng katatagan / integridad",
+    "Giới hạn trên độ ổn định / tính toàn vẹn"
+  ],
+  "Insulation ceiling": [
+    "차열성 상한",
+    "Hangganan ng pagkakabukod sa init",
+    "Giới hạn trên khả năng cách nhiệt"
+  ],
+  "Small duct maximum width": [
+    "소형 덕트 최대 폭",
+    "Pinakamalaking lapad ng maliit na duct",
+    "Chiều rộng tối đa ống gió nhỏ"
+  ],
+  "Small duct maximum height": [
+    "소형 덕트 최대 높이",
+    "Pinakamalaking taas ng maliit na duct",
+    "Chiều cao tối đa ống gió nhỏ"
+  ],
+  "Medium duct maximum dimension": [
+    "중형 덕트 최대 치수",
+    "Pinakamalaking sukat ng katamtamang duct",
+    "Kích thước tối đa ống gió trung bình"
+  ],
+  "Small duct minimum BMT": [
+    "소형 덕트 최소 BMT",
+    "Pinakamababang BMT ng maliit na duct",
+    "BMT tối thiểu ống gió nhỏ"
+  ],
+  "Other duct minimum BMT": [
+    "기타 덕트 최소 BMT",
+    "Pinakamababang BMT ng ibang duct",
+    "BMT tối thiểu ống gió khác"
+  ],
+  "Horizontal hanger spacing": [
+    "수평 행거 간격",
+    "Agwat ng mga pahalang na hanger",
+    "Khoảng cách giá treo ngang"
+  ],
+  "Vertical intermediate-support trigger": [
+    "수직 중간 지지 필요 기준",
+    "Batayan para sa patayong suportang nasa gitna",
+    "Ngưỡng yêu cầu gối đỡ trung gian đứng"
+  ],
+  "Standard concrete floor thickness": [
+    "표준 콘크리트 바닥 두께",
+    "Karaniwang kapal ng kongkretong sahig",
+    "Chiều dày sàn bê tông tiêu chuẩn"
+  ],
+  "Standard penetration clearance": [
+    "표준 관통부 이격",
+    "Karaniwang puwang ng tagusan",
+    "Khoảng hở lỗ xuyên tiêu chuẩn"
+  ],
+  "Larger-duct wall stiffener": [
+    "대형 덕트 벽 보강재",
+    "Pampatigas sa pader para sa mas malaking duct",
+    "Sườn tăng cứng tường cho ống gió lớn"
+  ],
+  "Wall perimeter frame allowance": [
+    "벽 둘레 프레임 허용량",
+    "Palugit para sa balangkas sa paligid ng pader",
+    "Dự phòng khung bao quanh tường"
+  ],
+  "Floor perimeter frame allowance": [
+    "바닥 둘레 프레임 허용량",
+    "Palugit para sa balangkas sa paligid ng sahig",
+    "Dự phòng khung bao quanh sàn"
+  ],
+  "Spray application basis": [
+    "분사 적용 근거",
+    "Batayan ng paglalapat ng isprey",
+    "Cơ sở ứng dụng phun"
+  ],
+  "Un-injected nozzle yield": [
+    "미주입 노즐 수율",
+    "Magagamit na dami ng nozzle na walang iniksyon",
+    "Định mức vòi phun không châm thêm"
+  ],
+  "Injected nozzle yield": [
+    "주입 노즐 수율",
+    "Magagamit na dami ng nozzle na may iniksyon",
+    "Định mức vòi phun có châm thêm"
+  ],
+  "Board-foot volume": [
+    "보드피트 체적",
+    "Dami sa board-foot",
+    "Thể tích board-foot"
+  ],
+  "Working net yield": [
+    "작업 순 수율",
+    "Netong magagamit na dami sa trabaho",
+    "Định mức thuần thực tế"
+  ],
+  "GCP AU published MK-6/HY bag": [
+    "GCP AU 공표 MK-6/HY 포대",
+    "Inilathalang sako ng MK-6/HY ng GCP AU",
+    "Bao MK-6/HY do GCP AU công bố"
+  ],
+  "Standard wall basis": [
+    "표준 벽 근거",
+    "Batayan ng karaniwang pader",
+    "Cơ sở tường tiêu chuẩn"
+  ],
+  "Standard floor basis": [
+    "표준 바닥 근거",
+    "Batayan ng karaniwang sahig",
+    "Cơ sở sàn tiêu chuẩn"
+  ],
+  "Spray scope": [
+    "분사 적용 범위",
+    "Saklaw ng pag-iisprey",
+    "Phạm vi phun"
+  ],
+  "Yield chart URL": [
+    "수율 차트 URL",
+    "URL ng tsart ng magagamit na dami",
+    "URL biểu đồ định mức"
+  ],
+  "Local duct manual URL": [
+    "현지 덕트 매뉴얼 URL",
+    "URL ng lokal na manwal ng duct",
+    "URL hướng dẫn ống gió tại địa phương"
+  ],
+  "GCP AU TDS URL": [
+    "GCP AU TDS URL",
+    "URL ng TDS ng GCP AU",
+    "URL TDS của GCP AU"
+  ],
+  "Application choice": [
+    "적용 방식 선택",
+    "Pagpili ng paglalapat",
+    "Lựa chọn ứng dụng"
+  ],
+  "Blanket layer thickness": [
+    "블랭킷 층 두께",
+    "Kapal ng patong ng blanket",
+    "Chiều dày lớp chăn cách nhiệt"
+  ],
+  "Selected roll width": [
+    "선택한 롤 폭",
+    "Napiling lapad ng rolyo",
+    "Chiều rộng cuộn đã chọn"
+  ],
+  "Roll length": [
+    "롤 길이",
+    "Haba ng rolyo",
+    "Chiều dài cuộn"
+  ],
+  "Required wrap overlap": [
+    "필요 방화 랩 겹침",
+    "Kinakailangang patong ng balot sa dugtungan",
+    "Độ chồng mí lớp bọc yêu cầu"
+  ],
+  "Board strip butt-joint gap": [
+    "보드 스트립 맞댐 이음 틈새",
+    "Puwang sa dulong dugtungan ng mga piraso ng tabla",
+    "Khe nối đối đầu dải tấm"
+  ],
+  "Maxilite thickness": [
+    "Maxilite 두께",
+    "Kapal ng Maxilite",
+    "Chiều dày Maxilite"
+  ],
+  "Wall collars / local zones": [
+    "벽 칼라 / 국부 구역",
+    "Mga collar sa pader / lokal na sona",
+    "Đai tường / vùng cục bộ"
+  ],
+  "Floor local-WRAP zones": [
+    "바닥 국부 방화 랩 구역",
+    "Mga lokal na sona ng BALOT sa sahig",
+    "Vùng BỌC cục bộ tại sàn"
+  ],
+  "Band maximum centres": [
+    "밴드 최대 중심 간격",
+    "Pinakamalaking agwat ng gitna ng mga banda",
+    "Khoảng cách tâm tối đa của đai"
+  ],
+  "Pin grid maximum centres": [
+    "핀 격자 최대 중심 간격",
+    "Pinakamalaking agwat ng gitna sa hanay ng mga pin",
+    "Khoảng cách tâm tối đa lưới chốt"
+  ],
+  "Banding-only size threshold": [
+    "밴딩만 적용하는 치수 한계",
+    "Hangganan ng sukat para sa mga banda lamang",
+    "Ngưỡng kích thước chỉ dùng đai"
+  ],
+  "Band + one-face pins limit": [
+    "밴드 + 한 면 핀 한계",
+    "Hangganan ng banda + mga pin sa isang mukha",
+    "Giới hạn đai + chốt một mặt"
+  ],
+  "Supplied table dimension envelope": [
+    "제공 표의 치수 범위",
+    "Hangganan ng mga sukat sa ibinigay na talaan",
+    "Phạm vi kích thước của bảng được cung cấp"
+  ],
+  "External support example envelope": [
+    "외부 지지 예시 범위",
+    "Hangganan ng halimbawa ng panlabas na suporta",
+    "Phạm vi ví dụ gối đỡ bên ngoài"
+  ],
+  "Complete duct FRL auto-schedule": [
+    "완전한 덕트 FRL 자동 일람표",
+    "Awtomatikong talaan ng kumpletong FRL ng duct",
+    "Bảng kê tự động FRL ống gió đầy đủ"
+  ],
+  "Added waste / error allowance": [
+    "추가 폐기 / 오차 허용량",
+    "Dagdag na palugit sa pag-aaksaya / pagkakamali",
+    "Dự phòng hao hụt / sai số bổ sung"
+  ],
+  "Selected actual roll area": [
+    "선택한 실제 롤 면적",
+    "Napiling aktuwal na lawak ng rolyo",
+    "Diện tích cuộn thực tế đã chọn"
+  ],
+  "Width / height lookup convention": [
+    "폭 / 높이 조회 규약",
+    "Kumbensiyon sa paghahanap ng lapad / taas",
+    "Quy ước tra cứu chiều rộng / chiều cao"
+  ],
+  "Local layer count basis": [
+    "국부 층 수 산정 근거",
+    "Batayan ng bilang ng mga patong sa lokal na sona",
+    "Cơ sở số lớp cục bộ"
+  ],
+  "Standard penetration basis": [
+    "표준 관통부 근거",
+    "Batayan ng karaniwang tagusan",
+    "Cơ sở lỗ xuyên tiêu chuẩn"
+  ],
+  "Nominal steel density": [
+    "강재 공칭 밀도",
+    "Itinakdang densidad ng bakal",
+    "Khối lượng riêng danh nghĩa của thép"
+  ],
+  "Kilograms per tonne": [
+    "톤당 킬로그램",
+    "Kilogramo bawat tonelada",
+    "Kilôgam mỗi tấn"
+  ],
+  "Millimetres per metre": [
+    "미터당 밀리미터",
+    "Milimetro bawat metro",
+    "Milimét mỗi mét"
+  ],
+  "Square centimetres per square metre": [
+    "제곱미터당 제곱센티미터",
+    "Sentimetrong kuwadrado bawat metrong kuwadrado",
+    "Xentimét vuông mỗi mét vuông"
+  ],
+  "Default board wastage": [
+    "보드 기본 폐기율",
+    "Karaniwang pag-aaksaya ng tabla",
+    "Hao hụt tấm mặc định"
+  ],
+  "COREX first general HpA row": [
+    "COREX 첫 일반 HpA 행",
+    "Unang pangkalahatang hilera ng HpA ng COREX",
+    "Dòng HpA chung đầu tiên của COREX"
+  ],
+  "XS beam noggin protrusion per side": [
+    "XS 보 노깅의 면당 돌출",
+    "Pag-usli ng noggin ng bigang XS bawat panig",
+    "Độ nhô nẹp ngang dầm XS mỗi bên"
+  ],
+  "Default column critical temperature": [
+    "기둥 기본 임계 온도",
+    "Karaniwang kritikal na temperatura ng haligi",
+    "Nhiệt độ tới hạn cột mặc định"
+  ],
+  "Default beam critical temperature": [
+    "보 기본 임계 온도",
+    "Karaniwang kritikal na temperatura ng biga",
+    "Nhiệt độ tới hạn dầm mặc định"
+  ],
+  "P100/P250 standard detail maximum depth": [
+    "P100/P250 표준 상세 최대 깊이",
+    "Pinakamalaking lalim sa karaniwang detalye ng P100/P250",
+    "Chiều cao tối đa chi tiết tiêu chuẩn P100/P250"
+  ],
+  "P100/P250 standard detail maximum width": [
+    "P100/P250 표준 상세 최대 폭",
+    "Pinakamalaking lapad sa karaniwang detalye ng P100/P250",
+    "Chiều rộng tối đa chi tiết tiêu chuẩn P100/P250"
+  ],
+  "XS beam maximum height stated": [
+    "XS 보에 명시된 최대 높이",
+    "Nakatakdang pinakamataas na taas ng bigang XS",
+    "Chiều cao tối đa dầm XS được nêu"
+  ],
+  "XS top-of-wall single layer minimum": [
+    "XS 벽 상부 단일 층 최솟값",
+    "Pinakamababa para sa iisang patong ng XS sa ibabaw ng pader",
+    "Mức tối thiểu một lớp XS tại đỉnh tường"
+  ],
+  "XS top-of-wall minimum steel width": [
+    "XS 벽 상부 강재 최소 폭",
+    "Pinakamababang lapad ng bakal sa ibabaw ng pader para sa XS",
+    "Chiều rộng thép tối thiểu XS tại đỉnh tường"
+  ],
+  "Unfilled trapezoid 90 minute HpA multiplier": [
+    "무충전 사다리꼴 90분 HpA 배율",
+    "Pamparaming salik ng HpA para sa trapezoid na walang laman, 90 minuto",
+    "Hệ số HpA hình thang không chèn trong 90 phút"
+  ],
+  "Boundary numerical tolerance": [
+    "경계 수치 허용 오차",
+    "Pinapayagang numerikal na pagkakaiba sa hangganan",
+    "Dung sai số tại biên"
+  ],
+  "COREX assessment maximum Hp/A": [
+    "COREX 평가 최대 Hp/A",
+    "Pinakamataas na Hp/A sa pagsusuri ng COREX",
+    "Hp/A tối đa trong đánh giá COREX"
+  ],
+  "COREX assessment maximum depth": [
+    "COREX 평가 최대 깊이",
+    "Pinakamalaking lalim sa pagsusuri ng COREX",
+    "Chiều cao tối đa trong đánh giá COREX"
+  ],
+  "COREX single-layer maximum thickness": [
+    "COREX 단일 층 최대 두께",
+    "Pinakamalaking kapal ng iisang patong ng COREX",
+    "Chiều dày tối đa một lớp COREX"
+  ],
+  "COREX maximum two-layer total": [
+    "COREX 두 층 총 두께 최댓값",
+    "Pinakamalaking kabuuan ng dalawang patong ng COREX",
+    "Tổng chiều dày tối đa hai lớp COREX"
+  ],
+  "COREX single-layer maximum period": [
+    "COREX 단일 층 최대 시간",
+    "Pinakamahabang tagal ng iisang patong ng COREX",
+    "Thời gian tối đa một lớp COREX"
+  ],
+  "COREX 120-minute maximum published Hp/A": [
+    "COREX 120분 최대 공표 Hp/A",
+    "Pinakamataas na inilathalang Hp/A ng COREX sa 120 minuto",
+    "Hp/A công bố tối đa COREX trong 120 phút"
+  ],
+  "COREX 180-minute / 620 C maximum Hp/A": [
+    "COREX 180분 / 620 C 최대 Hp/A",
+    "Pinakamataas na Hp/A ng COREX sa 180 minuto / 620 C",
+    "Hp/A tối đa COREX trong 180 phút / 620 C"
+  ],
+  "COREX 180-minute / 550 C stock maximum Hp/A": [
+    "COREX 180분 / 550 C 재고 최대 Hp/A",
+    "Pinakamataas na Hp/A ng stock ng COREX sa 180 minuto / 550 C",
+    "Hp/A tối đa của hàng tồn COREX trong 180 phút / 550 C"
+  ],
+  "COREX 90-minute / 550 C maximum published Hp/A": [
+    "COREX 90분 / 550 C 최대 공표 Hp/A",
+    "Pinakamataas na inilathalang Hp/A ng COREX sa 90 minuto / 550 C",
+    "Hp/A công bố tối đa COREX trong 90 phút / 550 C"
+  ],
+  "COREX upper-band lower boundary": [
+    "COREX 상위 구간 하한",
+    "Ibabang hangganan ng mataas na saklaw ng COREX",
+    "Cận dưới khoảng trên COREX"
+  ],
+  "COREX 90-minute / 550 C upper-band stock": [
+    "COREX 90분 / 550 C 상위 구간 재고",
+    "Stock ng COREX sa mataas na saklaw, 90 minuto / 550 C",
+    "Hàng tồn khoảng trên COREX trong 90 phút / 550 C"
+  ],
+  "COREX 120-minute / 550 C upper-band stock": [
+    "COREX 120분 / 550 C 상위 구간 재고",
+    "Stock ng COREX sa mataas na saklaw, 120 minuto / 550 C",
+    "Hàng tồn khoảng trên COREX trong 120 phút / 550 C"
+  ],
+  "SCHEDULE = members  |  SUMMARY = ordering  |  Open FACTOR CALCS for the Section Factor Helper.": [
+    "일람표 = 부재  |  요약 = 주문  |  단면 계수 도우미를 열려면 계수 계산을 선택하세요.",
+    "TALAAN = mga miyembro  |  BUOD = pag-order  |  Buksan ang MGA KALKULASYON NG SALIK para sa Katulong sa Salik ng Seksiyon.",
+    "BẢNG KÊ = cấu kiện  |  TỔNG HỢP = đặt hàng  |  Mở TÍNH HỆ SỐ để dùng Trợ giúp hệ số tiết diện."
+  ],
+  "Select product, exposure, steel temperature and input method. Enter the exact section or verified factor. Lower-web input is only for Fendolite castellated beams.": [
+    "제품, 노출 조건, 강재 온도 및 입력 방식을 선택하세요. 정확한 단면 또는 검증된 계수를 입력하세요. 하부 웨브 입력은 Fendolite 캐슬레이티드 보에만 적용됩니다.",
+    "Piliin ang produkto, pagkalantad, temperatura ng bakal at paraan ng pag-input. Ilagay ang eksaktong seksiyon o napatunayang salik. Ang input para sa ibabang web ay para lamang sa mga castellated na biga ng Fendolite.",
+    "Chọn sản phẩm, điều kiện tiếp xúc lửa, nhiệt độ thép và phương thức nhập. Nhập tiết diện chính xác hoặc hệ số đã xác minh. Dữ liệu bản bụng dưới chỉ áp dụng cho dầm bụng lỗ Fendolite."
+  ],
+  "Verify pack size, method and site yield for each product. The startup densities are estimating assumptions; verify product-specific site yield. Add waste separately. See the historical product yield-source records on SETTINGS.": [
+    "제품별 포장 크기, 시공 방식 및 현장 수율을 확인하세요. 초기 밀도는 견적용 가정이므로 제품별 현장 수율을 확인해야 합니다. 폐기율은 별도로 추가하세요. 설정에서 과거 제품 수율 출처 기록을 확인하세요.",
+    "Tiyakin ang laki ng pakete, paraan at magagamit na dami sa lugar ng trabaho para sa bawat produkto. Ang mga paunang densidad ay mga palagay sa pagtatantiya; tiyakin ang magagamit na dami sa lugar ng trabaho para sa partikular na produkto. Idagdag nang hiwalay ang pag-aaksaya. Tingnan ang mga dating rekord ng sanggunian ng magagamit na dami ng produkto sa MGA SETTING.",
+    "Xác minh quy cách đóng gói, phương pháp và định mức tại công trường cho từng sản phẩm. Các khối lượng riêng ban đầu là giả định dự toán; cần xác minh định mức tại công trường của từng sản phẩm. Cộng hao hụt riêng. Xem hồ sơ nguồn định mức sản phẩm trước đây trong CÀI ĐẶT."
+  ],
+  "SCHEDULE = members  |  SCHEDULE = take-off  |  SUMMARY = ordering  |  Open FACTOR CALCS for the Section Factor Helper.": [
+    "일람표 = 부재  |  일람표 = 수량 산출  |  요약 = 주문  |  단면 계수 도우미를 열려면 계수 계산을 선택하세요.",
+    "TALAAN = mga miyembro  |  TALAAN = pagsukat ng dami  |  BUOD = pag-order  |  Buksan ang MGA KALKULASYON NG SALIK para sa Katulong sa Salik ng Seksiyon.",
+    "BẢNG KÊ = cấu kiện  |  BẢNG KÊ = bóc tách khối lượng  |  TỔNG HỢP = đặt hàng  |  Mở TÍNH HỆ SỐ để dùng Trợ giúp hệ số tiết diện."
+  ],
+  "Use SCHEDULE for one member or SCHEDULE for up to 1,000 lines. Select product, exposure, steel temperature and input method. Enter the exact section or verified factor. Lower-web input is only for Fendolite castellated beams.": [
+    "부재 하나에는 일람표를, 최대 1,000개 행에도 일람표를 사용하세요. 제품, 노출 조건, 강재 온도 및 입력 방식을 선택하세요. 정확한 단면 또는 검증된 계수를 입력하세요. 하부 웨브 입력은 Fendolite 캐슬레이티드 보에만 적용됩니다.",
+    "Gamitin ang TALAAN para sa isang miyembro o ang TALAAN para sa hanggang 1,000 linya. Piliin ang produkto, pagkalantad, temperatura ng bakal at paraan ng pag-input. Ilagay ang eksaktong seksiyon o napatunayang salik. Ang input para sa ibabang web ay para lamang sa mga castellated na biga ng Fendolite.",
+    "Dùng BẢNG KÊ cho một cấu kiện hoặc BẢNG KÊ cho tối đa 1,000 dòng. Chọn sản phẩm, điều kiện tiếp xúc lửa, nhiệt độ thép và phương thức nhập. Nhập tiết diện chính xác hoặc hệ số đã xác minh. Dữ liệu bản bụng dưới chỉ áp dụng cho dầm bụng lỗ Fendolite."
+  ],
+  "Read the visible result note before using estimating thickness. Excluded or unpublished cases return no bags. Published values and estimating replacements are not project design approval.": [
+    "견적용 두께를 사용하기 전에 표시된 결과 메모를 읽으세요. 제외되거나 공표되지 않은 조건은 포대 수량을 반환하지 않습니다. 공표 값과 견적용 대체 값은 프로젝트 설계 승인을 의미하지 않습니다.",
+    "Basahin ang nakikitang tala ng resulta bago gamitin ang kapal para sa pagtatantiya. Walang dami ng sako na ibinabalik para sa mga kasong hindi saklaw o hindi inilathala. Ang mga inilathalang halaga at pamalit para sa pagtatantiya ay hindi pag-apruba ng disenyo ng proyekto.",
+    "Đọc ghi chú kết quả hiển thị trước khi dùng chiều dày dự toán. Các trường hợp bị loại trừ hoặc chưa được công bố sẽ không có số lượng bao. Giá trị công bố và giá trị thay thế để dự toán không phải là phê duyệt thiết kế dự án."
+  ],
+  "The complete SCHEDULE table stays together on one page. Keep the hidden Line ID unchanged. Use the 1,000 prepared rows; more rows require extending ENGINE.": [
+    "전체 일람표 표는 한 페이지에 함께 유지됩니다. 숨겨진 Line ID는 변경하지 마세요. 준비된 1,000개 행을 사용하세요. 행을 더 추가하려면 ENGINE을 확장해야 합니다.",
+    "Nananatiling magkakasama sa isang pahina ang buong talahanayan ng TALAAN. Panatilihing hindi nababago ang nakatagong Line ID. Gamitin ang nakahandang 1,000 hilera; kailangang palawakin ang ENGINE para sa mas maraming hilera.",
+    "Toàn bộ BẢNG KÊ được giữ cùng trên một trang. Giữ nguyên Line ID ẩn. Dùng 1,000 dòng đã chuẩn bị; muốn thêm dòng phải mở rộng ENGINE."
+  ],
+  "Verify pack size, method and site yield for each product. The original CAFCO workbook used an inherited assumption; new estimates use user-selected consumption settings. The startup densities are estimating assumptions; verify product-specific site yield. Add waste separately. See the historical product yield-source records on SETTINGS.": [
+    "제품별 포장 크기, 시공 방식 및 현장 수율을 확인하세요. 원래 CAFCO 워크북은 이전부터 이어진 가정을 사용했으며, 새 견적은 사용자가 선택한 소요량 설정을 사용합니다. 초기 밀도는 견적용 가정이므로 제품별 현장 수율을 확인해야 합니다. 폐기율은 별도로 추가하세요. 설정에서 과거 제품 수율 출처 기록을 확인하세요.",
+    "Tiyakin ang laki ng pakete, paraan at magagamit na dami sa lugar ng trabaho para sa bawat produkto. Gumamit ang orihinal na workbook ng CAFCO ng minanang palagay; ginagamit ng mga bagong pagtatantiya ang mga setting ng konsumo na pinili ng gumagamit. Ang mga paunang densidad ay mga palagay sa pagtatantiya; tiyakin ang magagamit na dami sa lugar ng trabaho para sa partikular na produkto. Idagdag nang hiwalay ang pag-aaksaya. Tingnan ang mga dating rekord ng sanggunian ng magagamit na dami ng produkto sa MGA SETTING.",
+    "Xác minh quy cách đóng gói, phương pháp và định mức tại công trường cho từng sản phẩm. Sổ tính CAFCO gốc dùng giả định kế thừa; dự toán mới dùng cài đặt tiêu thụ do người dùng chọn. Các khối lượng riêng ban đầu là giả định dự toán; cần xác minh định mức tại công trường của từng sản phẩm. Cộng hao hụt riêng. Xem hồ sơ nguồn định mức sản phẩm trước đây trong CÀI ĐẶT."
+  ],
+  "Have the designer confirm the member, exposure, steel temperature, substrate, fixings, application and thickness. Record the design references here. This estimator does not certify the fire design.": [
+    "설계자에게 부재, 노출 조건, 강재 온도, 바탕재, 고정부재, 적용 방식 및 두께를 확인받으세요. 설계 참조를 여기에 기록하세요. 이 견적 도구는 내화 설계를 인증하지 않습니다.",
+    "Ipakumpirma sa tagadisenyo ang miyembro, pagkalantad, temperatura ng bakal, substrate, mga pangkabit, paglalapat at kapal. Itala rito ang mga sanggunian ng disenyo. Hindi pinatutunayan ng kalkulador na ito ng pagtatantiya ang disenyo ng proteksiyon sa sunog.",
+    "Yêu cầu người thiết kế xác nhận cấu kiện, điều kiện tiếp xúc lửa, nhiệt độ thép, vật liệu nền, chi tiết cố định, ứng dụng và chiều dày. Ghi tham chiếu thiết kế tại đây. Công cụ dự toán này không chứng nhận thiết kế chịu lửa."
+  ],
+  "The workbook records the supplied report editions, not verified current validity. Review the complete signed reports for the project. AUDIT retains the source decisions and validation checks.": [
+    "워크북에는 제공된 보고서 판본이 기록되며 현재 유효성이 검증된 것은 아닙니다. 프로젝트에 적용할 서명된 전체 보고서를 검토하세요. AUDIT에는 출처에 관한 결정 및 검증 점검이 보관됩니다.",
+    "Itinatala ng workbook ang mga edisyon ng ibinigay na ulat, hindi ang napatunayang kasalukuyang bisa. Suriin ang kumpletong mga ulat na may lagda para sa proyekto. Pinananatili ng AUDIT ang mga pasya tungkol sa sanggunian at mga pagsusuri ng pagpapatunay.",
+    "Sổ tính ghi nhận phiên bản báo cáo được cung cấp, không xác minh hiệu lực hiện tại. Rà soát đầy đủ các báo cáo đã ký cho dự án. AUDIT lưu các quyết định về nguồn và bước kiểm tra xác thực."
+  ],
+  "Add schedule rows as needed, or import a schedule. Enter one member, or one group of identical members, per row. Enter the TOTAL lineal length for that row.": [
+    "필요에 따라 일람표 행을 추가하거나 일람표를 가져오세요. 행마다 부재 하나 또는 동일한 부재 그룹 하나를 입력하세요. 해당 행의 총 연장 길이를 입력하세요.",
+    "Magdagdag ng mga hilera sa talaan kung kailangan, o mag-import ng talaan. Maglagay ng isang miyembro, o isang pangkat ng magkakaparehong miyembro, bawat hilera. Ilagay ang KABUUANG haba sa metro para sa hilerang iyon.",
+    "Thêm dòng bảng kê khi cần hoặc nhập bảng kê. Mỗi dòng nhập một cấu kiện hoặc một nhóm cấu kiện giống nhau. Nhập TỔNG chiều dài cho dòng đó."
+  ],
+  "Product; Steel ID OR ESA/M; lineal metres; exposed sides; FRL; Beam/Column; critical temperature; family for manual ESA input; wastage. FRL and temperature dropdowns follow the selected product/member.": [
+    "제품; 강재 ID 또는 ESA/M; 연장 미터; 노출 면 수; FRL; 보/기둥; 임계 온도; 수동 ESA 입력용 계열; 폐기율을 입력하세요. FRL 및 온도 드롭다운은 선택한 제품/부재에 따라 달라집니다.",
+    "Produkto; ID ng bakal O ESA/M; haba sa metro; mga panig na nakalantad; FRL; biga/haligi; kritikal na temperatura; pangkat para sa manu-manong input na ESA; pag-aaksaya. Nakabatay ang mga pagpipilian ng FRL at temperatura sa napiling produkto/miyembro.",
+    "Sản phẩm; ID thép HOẶC ESA/M; mét dài; số mặt tiếp xúc lửa; FRL; dầm/cột; nhiệt độ tới hạn; nhóm cho dữ liệu ESA nhập tay; hao hụt. Các danh sách chọn FRL và nhiệt độ thay đổi theo sản phẩm/cấu kiện đã chọn."
+  ],
+  "Read Row status for the actual issue and next action. No quantity = this row is excluded from purchasing. Warnings with a quantity state the checks or extra boards still needed. Box reference area is for reference only; Board required - net and Board incl waste are actual board quantities.": [
+    "실제 문제와 다음 조치는 행 상태에서 확인하세요. 수량 없음 = 이 행은 구매에서 제외됩니다. 수량이 있는 경고는 아직 필요한 점검 또는 추가 보드를 안내합니다. 박스 참조 면적은 참조용일 뿐이며, 필요 보드 - 순수량과 폐기율 포함 보드가 실제 보드 수량입니다.",
+    "Basahin ang Kalagayan ng hilera para sa aktuwal na problema at susunod na hakbang. Walang dami = hindi kasama sa pagbili ang hilerang ito. Ang mga babalang may dami ay nagsasaad ng mga pagsusuri o dagdag na tabla na kailangan pa. Ang Sangguniang lawak ng kahon ay sanggunian lamang; ang Kinakailangang tabla - neto at Tabla kasama ang pag-aaksaya ang aktuwal na mga dami ng tabla.",
+    "Đọc Trạng thái dòng để biết vấn đề thực tế và hành động tiếp theo. Không có khối lượng = dòng này bị loại khỏi phần mua hàng. Cảnh báo có khối lượng nêu các kiểm tra hoặc tấm bổ sung còn cần. Diện tích tham chiếu hộp chỉ để tham khảo; Lượng tấm cần dùng - thuần và Tấm gồm hao hụt là khối lượng tấm thực tế."
+  ],
+  "Use the whole-job pooled quantities for purchasing, not the sum of standalone line-sheet counts. Filtered-out schedule rows remain in the whole-job total. Stock is separated by product and actual board thickness.": [
+    "구매에는 개별 행의 시트 수를 합산하지 말고 프로젝트 전체 통합 수량을 사용하세요. 필터로 숨겨진 일람표 행도 프로젝트 전체 합계에 포함됩니다. 재고는 제품 및 실제 보드 두께별로 구분됩니다.",
+    "Gamitin sa pagbili ang pinagsamang dami para sa buong trabaho, hindi ang kabuuan ng magkakahiwalay na bilang ng sheet bawat linya. Kasama pa rin sa kabuuan ng buong trabaho ang mga hilera sa talaan na itinago ng filter. Hiwalay ang stock ayon sa produkto at aktuwal na kapal ng tabla.",
+    "Dùng khối lượng gộp toàn công trình để mua hàng, không cộng số tấm nguyên tính riêng từng dòng. Các dòng bảng kê bị lọc khỏi màn hình vẫn nằm trong tổng toàn công trình. Hàng tồn được tách theo sản phẩm và chiều dày tấm thực tế."
+  ],
+  "Previously saved additional-board allowances remain included in purchasing totals.": [
+    "이전에 저장한 추가 보드 허용량도 구매 합계에 계속 포함됩니다.",
+    "Kasama pa rin sa mga kabuuan ng pagbili ang dati nang naka-save na mga palugit para sa dagdag na tabla.",
+    "Các khoản dự phòng tấm bổ sung đã lưu trước đây vẫn được tính trong tổng mua hàng."
+  ],
+  "Row status gives the required action. Saved optional inputs, detailed calculation outputs and notes remain part of the workbook rules.": [
+    "행 상태는 필요한 조치를 안내합니다. 저장된 선택 입력, 상세 계산 결과 및 메모도 워크북 규칙의 일부로 유지됩니다.",
+    "Ipinapakita ng Kalagayan ng hilera ang kinakailangang hakbang. Bahagi pa rin ng mga tuntunin ng workbook ang mga naka-save na opsiyonal na input, detalyadong resulta ng pagkalkula at mga tala.",
+    "Trạng thái dòng cho biết hành động cần thực hiện. Dữ liệu nhập tùy chọn đã lưu, kết quả tính chi tiết và ghi chú vẫn thuộc các quy tắc của sổ tính."
+  ],
+  "Use START, SCHEDULE, BOARD SUMMARY and SETTINGS. Supporting reference data is retained by the application.": [
+    "시작, 일람표, 보드 요약 및 설정을 사용하세요. 보조 참조 데이터는 애플리케이션에 보관됩니다.",
+    "Gamitin ang SIMULA, TALAAN, BUOD NG TABLA at MGA SETTING. Pinananatili ng aplikasyon ang mga pantulong na datos na sanggunian.",
+    "Dùng BẮT ĐẦU, BẢNG KÊ, TỔNG HỢP TẤM và CÀI ĐẶT. Ứng dụng lưu giữ dữ liệu tham chiếu hỗ trợ."
+  ],
+  "Schedules support up to 1,000 rows. Every entered row is included in the calculations and purchasing totals, including rows outside the current view.": [
+    "일람표는 최대 1,000개 행을 지원합니다. 입력한 모든 행은 현재 보기에 없는 행까지 계산 및 구매 합계에 포함됩니다.",
+    "Sinusuportahan ng mga talaan ang hanggang 1,000 hilera. Kasama sa mga kalkulasyon at kabuuan ng pagbili ang bawat inilagay na hilera, pati ang mga hilera na wala sa kasalukuyang pagtingin.",
+    "Bảng kê hỗ trợ tối đa 1,000 dòng. Mọi dòng đã nhập đều được tính trong phép tính và tổng mua hàng, kể cả các dòng ngoài chế độ xem hiện tại."
+  ],
+  "Saved additional-board allowances remain included in the board summary.": [
+    "저장된 추가 보드 허용량도 보드 요약에 계속 포함됩니다.",
+    "Kasama pa rin sa buod ng tabla ang mga naka-save na palugit para sa dagdag na tabla.",
+    "Các khoản dự phòng tấm bổ sung đã lưu vẫn được tính trong tổng hợp tấm."
+  ]
+}

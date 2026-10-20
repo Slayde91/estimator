@@ -107,6 +107,8 @@ jobs:
       - run: node tests/browser/appearance_theme_followups.cjs
       - run: node tests/browser/active_tools_lightning.cjs
       - run: node tests/browser/travel_editor_followups.cjs
+      - run: node tests/browser/library_takeoff_ui_followups.cjs
+      - run: node tests/browser/cursor_roles.cjs
       - run: node tests/browser/boss_matrix.cjs
       - run: node tests/browser/workspace_art.cjs
       - run: node tests/browser/classifire_branding_downloads.cjs

@@ -27,7 +27,7 @@ function fixture(initial = {}, commandOverride) {
   const originals = [{id:"document-A",sha256:"a".repeat(64)}, {id:"document-B",sha256:"b".repeat(64)}];
   const snapshot = { graphics: { version:1, records:[] }, items:[], calibrations:[], transfers:[] };
   const document = { fonts: { load() { let resolve, reject; const promise = new Promise((yes,no) => { resolve=yes; reject=no; }); fonts.push({promise,resolve,reject}); return promise; } },
-    createElement(tag) { assert.equal(tag,"canvas"); return { getContext() { return {}; } }; } };
+    createElement(tag) { assert.equal(tag,"canvas"); return { getContext() { return {measureText:text=>({width:text.length*5})}; } }; } };
   const context = { window: {crypto:require("node:crypto"),CeasefireTakeoffAnnotations:{text:value=>value.blocks.map(block=>block.runs.map(run=>run.text).join("")).join("\n"),richEditor(){return {read:()=>structuredClone(calls.richContent || {version:1,blocks:[{kind:"paragraph",runs:[{text:"TEXT"}]}]}),wrap:dom(),editor:dom()};}}}, document, Date:{now:()=>clock.now}, setTimeout, clearTimeout }; context.window.CeasefireI18n = englishI18n(); vm.createContext(context); vm.runInContext(code, context, {filename:source});
   const host = { state, X, G, clone:structuredClone,
     snapshot:()=>snapshot, documents:()=>originals, currentDocument:()=>originals.find(v=>v.id===state.document),
@@ -67,6 +67,24 @@ test("Unchanged graphic activation waits for fonts and only arms a drawing tool"
   activation.complete(); await activation.pending;
   assert.equal(f.state.tool,"graphic-rectangle"); assert.equal(f.calls.cancel,1); assert.equal(f.calls.render,1);
   assert.equal(f.calls.command,0); assert.deepEqual(f.snapshot,unchanged);
+});
+
+test("Rendered handles resize retained boxes and move every non-box vertex",()=>{
+  const resize=X.boxes;
+  for(const kind of X.kinds) {
+    const f=fixture({graphicSelected:kind}), box=X.boxes.has(kind);
+    f.snapshot.graphics.records.push({id:kind,version:1,kind,mode:"wall",document_id:"document-A",page:1,
+      text:"Fixture",appearance:X.defaults(),geometry:box?{quad_pdf:[[20,20],[120,20],[120,80],[20,80]]}:{points:[[20,20],[120,20],[120,80]],exclusions:kind==="area"?[{id:"hole",points:[[70,30],[90,30],[90,40]]}]:[],lengths_m:[1,2,3]}});
+    const overlay=dom("svg");f.ui.paint(overlay);
+    const handles=overlay.children[0].children.filter(node=>node.attributes?.["data-cursor-role"]);
+    assert.ok(handles.length,kind+" renders its actual editing hit targets");
+    for(const handle of handles) {
+      assert.equal(handle.attributes["data-cursor-role"],resize.has(kind)?"resize-nwse":"move",kind);
+      if(!resize.has(kind))assert.notEqual(handle.attributes["aria-label"],"Resize markup",kind);
+    }
+    if(kind==="area")assert.ok(handles.some(handle=>handle.attributes["data-graphic-part"].startsWith("hole:")),"Area exclusion vertices have their own move hit targets");
+    assert.equal(f.calls.command,0,"Paint and cursor feedback never update drawing data");
+  }
 });
 
 const transitions = [

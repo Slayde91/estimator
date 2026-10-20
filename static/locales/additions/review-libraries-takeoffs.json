@@ -1,0 +1,107 @@
+{
+  "{0}. {1}": [
+    "{0}. {1}",
+    "{0}. {1}",
+    "{0}. {1}"
+  ],
+  "(Blanks)": [
+    "(빈 값)",
+    "(Mga blangko)",
+    "(Trống)"
+  ],
+  "Barrier ID": [
+    "방화구획 ID",
+    "ID ng harang",
+    "ID kết cấu ngăn cháy"
+  ],
+  "Checking…": [
+    "확인 중…",
+    "Sinusuri…",
+    "Đang kiểm tra…"
+  ],
+  "Cables/Bundles": [
+    "케이블/다발",
+    "Mga kable/bundle",
+    "Cáp/bó cáp"
+  ],
+  "Defect ID": [
+    "결함 ID",
+    "ID ng depekto",
+    "ID khiếm khuyết"
+  ],
+  "Floor": [
+    "바닥",
+    "Sahig",
+    "Sàn"
+  ],
+  "Framing required": [
+    "프레임 필요",
+    "Kailangan ng balangkas",
+    "Cần khung"
+  ],
+  "Lagged Pipes": [
+    "보온 배관",
+    "Mga tubong may insulasyon",
+    "Ống có bảo ôn"
+  ],
+  "Opening ID": [
+    "개구부 ID",
+    "ID ng bukana",
+    "ID lỗ mở"
+  ],
+  "Pipe diameter": [
+    "배관 지름",
+    "Diyametro ng tubo",
+    "Đường kính ống"
+  ],
+  "Plastic Pipes": [
+    "플라스틱 배관",
+    "Mga plastik na tubo",
+    "Ống nhựa"
+  ],
+  "Service ID": [
+    "설비 ID",
+    "ID ng serbisyo",
+    "ID hệ thống"
+  ],
+  "Unavailable": [
+    "사용 불가",
+    "Hindi magagamit",
+    "Không khả dụng"
+  ],
+  "Unlagged Pipes": [
+    "비보온 배관",
+    "Mga tubong walang insulasyon",
+    "Ống không bảo ôn"
+  ],
+  "Up to ({0})": [
+    "최대 ({0})",
+    "Hanggang ({0})",
+    "Tối đa ({0})"
+  ],
+  "Values above the final band require manual Pipe Labour hours.": [
+    "최종 구간을 초과하는 값은 배관 작업시간을 수동으로 입력해야 합니다.",
+    "Kailangan ng manwal na oras ng paggawa sa tubo ang mga halagang lampas sa huling antas.",
+    "Giá trị vượt dải cuối cần nhập thủ công giờ công đường ống."
+  ],
+  "Values above the final band use its hours.": [
+    "최종 구간을 초과하는 값은 해당 구간의 시간을 사용합니다.",
+    "Ginagamit ng mga halagang lampas sa huling antas ang oras nito.",
+    "Giá trị vượt dải cuối dùng số giờ của dải đó."
+  ],
+  "Wall": [
+    "벽",
+    "Pader",
+    "Tường"
+  ],
+  "hours": [
+    "시간",
+    "oras",
+    "giờ"
+  ],
+  "maximum {0}": [
+    "최대 {0}",
+    "pinakamataas na {0}",
+    "tối đa {0}"
+  ]
+}

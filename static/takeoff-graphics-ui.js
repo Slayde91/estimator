@@ -304,7 +304,8 @@ window.CeasefireTakeoffGraphicsUI = function (host) {
       else group.append(svg(closed ? "polygon" : "polyline",{points:points.map(p=>p.join(",")).join(" "),fill:closed ? "transparent":"none",stroke:"transparent","stroke-width":Math.max(12,graphic.appearance.stroke_width*scale),"pointer-events":"all","data-graphic-part":"move"}));
       if(active) { const bounds=G.bounds(points);group.append(svg("rect",{x:bounds[0]-3,y:bounds[1]-3,width:bounds[2]-bounds[0]+6,height:bounds[3]-bounds[1]+6,fill:"none",stroke:"#1264c4","stroke-width":1.5,"pointer-events":"none"})); if(state.tool==="select") { const handles=graphic.geometry.quad_pdf ? [[2,points[2],null]] : [...points.map((p,index)=>[index,p,null]),...(graphic.geometry.exclusions || []).flatMap(hole=>hole.points.map((p,index)=>[index,transform(p),hole.id]))]; for(const[index,p,exclusionId]of handles) {
         const measured=["measure","area"].includes(value.kind), label=`${exclusionId ? "Area exclusion" : X.labels[value.kind]} control point ${index+1}`;
-        const handle=svg("rect",{x:p[0]-5,y:p[1]-5,width:10,height:10,fill:"white",stroke:"#1264c4","data-graphic-part":exclusionId ? `hole:${exclusionId}:${index}` : String(index),"aria-label":measured ? label : "Resize markup"});
+        const cursorRole=X.handleCursorRole(value);
+        const handle=svg("rect",{x:p[0]-5,y:p[1]-5,width:10,height:10,fill:"white",stroke:"#1264c4","data-graphic-part":exclusionId ? `hole:${exclusionId}:${index}` : String(index),"data-cursor-role":cursorRole,"aria-label":measured || cursorRole === "move" ? label : "Resize markup"});
         if(measured) {
           handle.setAttribute("tabindex","0");handle.setAttribute("role","button");
           handle.addEventListener("click",event=>{event.stopPropagation();void safely(()=>selectMeasurePoint(value.id,index,false,exclusionId));});

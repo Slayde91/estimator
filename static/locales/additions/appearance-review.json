@@ -1,0 +1,47 @@
+{
+  "CLASSIFIRE": [
+    "CLASSIFIRE",
+    "CLASSIFIRE",
+    "CLASSIFIRE"
+  ],
+  "Estimate Inputs": [
+    "견적 입력",
+    "Mga input ng pagtatantiya",
+    "Dữ liệu dự toán"
+  ],
+  "Estimate Outputs": [
+    "견적 출력",
+    "Mga output ng pagtatantiya",
+    "Kết quả dự toán"
+  ],
+  "Theme: CLASSIFIRE. Next theme: Midnight.": [
+    "테마: CLASSIFIRE. 다음 테마: 한밤.",
+    "Tema: CLASSIFIRE. Susunod na tema: Hatinggabi.",
+    "Chủ đề: CLASSIFIRE. Chủ đề tiếp theo: Nửa đêm."
+  ],
+  "Cycle through CLASSIFIRE, Midnight, Ocean, Forest and Slate.": [
+    "CLASSIFIRE, 한밤, 바다, 숲, 슬레이트 테마를 차례로 전환합니다.",
+    "Magpalit sa mga temang CLASSIFIRE, Hatinggabi, Karagatan, Kagubatan at Slate.",
+    "Lần lượt chuyển qua các chủ đề CLASSIFIRE, Nửa đêm, Đại dương, Rừng và Đá phiến."
+  ],
+  "Choose Estimate or Firestopping and review the estimate.": [
+    "견적 또는 방화 관통부 밀봉을 선택하고 견적을 검토하세요.",
+    "Piliin ang Pagtatantiya o Pagseselyong panlaban sa sunog at suriin ang pagtatantiya.",
+    "Chọn Dự toán hoặc Bịt kín chống cháy và xem xét dự toán."
+  ],
+  "Download the estimate PDF using the inputs and prices captured when you click.": [
+    "클릭할 때 캡처한 입력과 가격으로 견적 PDF를 다운로드합니다.",
+    "I-download ang PDF ng pagtatantiya gamit ang mga input at presyong nakuha sa pag-click.",
+    "Tải PDF dự toán theo dữ liệu nhập và đơn giá ghi nhận lúc nhấp."
+  ],
+  "Column filters": [
+    "열 필터",
+    "Mga salaan ng kolum",
+    "Bộ lọc cột"
+  ],
+  "Filter the register by individual column values.": [
+    "개별 열 값으로 대장을 필터합니다.",
+    "Salain ang rehistro ayon sa mga halaga ng bawat kolum.",
+    "Lọc sổ theo giá trị từng cột."
+  ]
+}

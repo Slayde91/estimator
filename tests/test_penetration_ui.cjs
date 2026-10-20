@@ -336,8 +336,10 @@ async function check(name,fn){const h=harness();h.api.applyProject(await h.api.p
   await check('The item breakdown omits the redundant Summary and Multipliers groups without changing source values',async h=>{
     const metadata=definition();metadata.output_fields.push({column:'B',label:'Substrate cost',group:'Summary',format:'currency'},{column:'BI',label:'Complexity',group:'Multipliers',format:'percent'},{column:'BJ',label:'Access',group:'Multipliers',format:'percent'});
     const row=result(metadata.defaults).rows[0];Object.assign(row.outputs,{B:37.89123,BI:.123456789,BJ:'#VALUE!'});
+    row.breakdown.note='Retained calculation note, omitted from the item display.';
     const original=copy(row),rendered=h.context.window.CeasefirePenetrationBreakdown.render(metadata,row),sections=rendered.children.filter(child=>child.tagName==='details');
     assert.deepEqual(sections,[]);assert.deepEqual(copy(row),original);
+    const walk=node=>[node,...node.children.flatMap(walk)];assert.doesNotMatch(text(rendered),/Retained calculation note/);assert.ok(!walk(rendered).some(node=>node.className==='helper penetration-breakdown-note'));
     assert.doesNotMatch(text(rendered),/Summary|Item total|Substrate cost|37\.89|Multipliers|Complexity|12\.35%|Access|Material quantities|Unit prices|Labour days/);
     delete row.breakdown;const unavailable=h.context.window.CeasefirePenetrationBreakdown.render(metadata,row);assert.match(text(unavailable),/unavailable/);assert.doesNotMatch(text(unavailable),/Summary|Item total|Substrate cost|Multipliers|Complexity|Access/);
   });

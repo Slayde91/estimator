@@ -1,0 +1,57 @@
+{
+  "Register allowance": [
+    "대장 작업시간 할증",
+    "Allowance ng rehistro",
+    "Dự phòng cho sổ"
+  ],
+  "Other": [
+    "기타",
+    "Iba pa",
+    "Khác"
+  ],
+  "Bulkhead": [
+    "방화 격벽",
+    "Bulkhead",
+    "Vách bịt"
+  ],
+  "Pipes": [
+    "배관",
+    "Mga tubo",
+    "Đường ống"
+  ],
+  "Cabletrays": [
+    "케이블 트레이",
+    "Mga cable tray",
+    "Máng cáp"
+  ],
+  "Additional material": [
+    "추가 자재",
+    "Karagdagang materyales",
+    "Vật tư bổ sung"
+  ],
+  "Material adjustment": [
+    "자재 조정",
+    "Pagsasaayos ng materyales",
+    "Điều chỉnh vật tư"
+  ],
+  "Check inputs": [
+    "입력 확인",
+    "Suriin ang input",
+    "Kiểm tra dữ liệu nhập"
+  ],
+  "{0} · {1}": [
+    "{0} · {1}",
+    "{0} · {1}",
+    "{0} · {1}"
+  ],
+  "Item {0}": [
+    "항목 {0}",
+    "Item {0}",
+    "Hạng mục {0}"
+  ],
+  "Item {0} {1} · {2}": [
+    "항목 {0} {1} · {2}",
+    "Item {0} {1} · {2}",
+    "Hạng mục {0} {1} · {2}"
+  ]
+}

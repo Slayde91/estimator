@@ -104,13 +104,14 @@
 .library-record-field-table>dd{min-width:0}
 .library-field-table-scroll{max-width:100%;overflow-x:auto;margin-top:12px;border:1px solid var(--line);border-radius:6px}
 .library-field-table-scroll:focus-visible{outline:3px solid #b86c00;outline-offset:3px}
-.library-field-table{width:100%;min-width:30rem;border-collapse:collapse;white-space:normal;table-layout:auto}
+.library-field-table{width:100%;min-width:30rem;border-collapse:collapse;white-space:normal;table-layout:auto;background:var(--paper);color:var(--ink)}
 /* Preserve the minimum width of words and FRLs; the wrapper scrolls on narrow screens. */
 .library-field-table th,.library-field-table td{padding:10px 12px;border:1px solid var(--line);text-align:left;vertical-align:top;white-space:pre-wrap;overflow-wrap:break-word}
 .library-field-table .library-frl-value{white-space:nowrap;overflow-wrap:normal}
 .library-record-field dd.library-frl-value,.library-subtitle.library-frl-value,.library-record-link.library-frl-value,.library-technical-heading h3.library-frl-value,.library-link-choice .library-frl-value{white-space:nowrap;overflow-wrap:normal;max-width:100%;overflow-x:auto;min-width:0}
 .library-record-link.library-frl-value{display:block}
-.library-field-table th{background:#f5f0e9;color:var(--text);font-weight:650}
+.library-field-table th{background:var(--theme-soft,var(--paper));color:var(--ink);font-weight:650}
+.library-field-table td{background:var(--paper);color:var(--ink)}
 .library-field-table caption{padding:10px 12px;text-align:left;font-weight:650;white-space:normal;overflow-wrap:anywhere}
 .library-table-links{display:flex;flex-wrap:wrap;gap:8px 16px;margin-top:8px;white-space:normal}
 .library-configuration-link{max-width:100%;overflow-wrap:anywhere;text-underline-offset:3px}

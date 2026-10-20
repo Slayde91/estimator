@@ -1,1 +1,2 @@
 Azure Aura Red by Cursors-4U.com. Commercial use authorized separately by the application owner. Original copyright and license notices are retained. Web cursors use the original artwork at 32px with proportionally adjusted original hotspots. No operating-system cursor scheme is installed.
+busy.png is the unchanged embedded 32px PNG in the first frame of Azure Aura Red Busy_32-48-64.ani, hotspot 7,2. The static native web cursor avoids browser-dependent ANI animation support.

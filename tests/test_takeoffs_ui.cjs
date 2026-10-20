@@ -13,7 +13,8 @@ const blank = () => ({version:1,project_id:'project',revision:0,documents:[],cal
 const response = (snapshot, session_id='session') => ({session_id,revision:snapshot.revision,snapshot:copy(snapshot),item_results:[],issues:[]});
 function harness(storage) {
   const context={window:{CeasefireTakeoffGeometry:geometry,CeasefireProject:{changed(){}}},document:{getElementById(){return null;},fonts:{load(){return Promise.resolve([]);},check(){return true;}}},crypto,
-    Intl,Number,String,JSON,Object,Set,Map,Array,Promise,Error,URL,Math,Event,console:{...console},setTimeout,clearTimeout};
+    Intl,Number,String,JSON,Object,Set,Map,Array,Promise,Error,URL,Math,Event,console:{...console},setTimeout,clearTimeout,
+    requestAnimationFrame: callback => setTimeout(callback,0),cancelAnimationFrame:clearTimeout};
   if (context.window) context.window.CeasefireI18n = englishI18n(); vm.createContext(context);
   context.window.CeasefireDownloads={save:async(path,payload)=>{
     const result=await context.fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});

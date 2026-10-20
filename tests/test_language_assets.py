@@ -21,16 +21,54 @@ class LanguageAssetsTests(unittest.TestCase):
         self.assertEqual((ROOT / 'static/language-catalog.js').read_text(encoding='utf-8'), payload)
         messages = {}
         for path in (ROOT / 'static/locales').glob('*.json'):
-            messages.update(json.loads(path.read_text(encoding='utf-8')))
+            base = builder['read_catalog'](path)
+            additions = builder['read_catalog'](path.parent / 'additions' / path.name)
+            self.assertEqual(set(base), set(additions), path.name)
+            for source, translations in base.items():
+                self.assertEqual(len(translations), 5)
+                self.assertEqual(len(additions[source]), 3)
+                messages[source] = translations + additions[source]
         for key in ['Language', 'Application language', 'Home', 'Settings', 'Document', 'Recalculate']:
             self.assertIn(key, messages)
-            self.assertEqual(len(messages[key]), 5)
+            self.assertEqual(len(messages[key]), 8)
+        self.assertEqual(builder['LANGUAGES'], ('zh-Hans', 'hi', 'es', 'ar', 'th', 'ko', 'tl', 'vi'))
         class Markers(HTMLParser):
             def handle_starttag(inner, tag, attrs):
                 for name, value in attrs:
                     if name.startswith('data-i18n'):
                         self.assertIn(value, messages, f'Missing static translation: {value}')
         Markers().feed((ROOT / 'static/index.html').read_text(encoding='utf-8'))
+
+    def test_duplicate_keys_and_placeholder_multiplicity_are_rejected(self):
+        builder = runpy.run_path(str(ROOT / 'scripts/build_language_catalog.py'))
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'duplicate.json'
+            path.write_text('{"Home":["a"],"Home":["b"]}', encoding='utf-8')
+            with self.assertRaisesRegex(ValueError, 'duplicate source message'):
+                builder['read_catalog'](path)
+            with self.assertRaisesRegex(ValueError, 'placeholders changed'):
+                builder['validate_translations'](path, '{0} + {0} = {1}', ['{0} = {1}'], ['ko'])
+            with self.assertRaisesRegex(ValueError, 'missing languages'):
+                builder['validate_translations'](path, 'Home', ['홈'], ['ko', 'tl', 'vi'])
+
+    def test_missing_additional_message_cannot_be_published_as_complete(self):
+        builder = runpy.run_path(str(ROOT / 'scripts/build_language_catalog.py'))
+        build = builder['build']
+        original_root = build.__globals__['ROOT']
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            locales = root / 'static/locales'
+            (locales / 'additions').mkdir(parents=True)
+            (locales / 'test.json').write_text(json.dumps({'Home': ['一', 'एक', 'Uno', 'واحد', 'หนึ่ง']}), encoding='utf-8')
+            (locales / 'additions/test.json').write_text('{}', encoding='utf-8')
+            try:
+                build.__globals__['ROOT'] = root
+                with self.assertRaisesRegex(ValueError, 'source keys differ'):
+                    build()
+                (locales / 'additions/test.json').write_text(json.dumps({'Home': ['홈', 'Simula', 'Trang chủ']}), encoding='utf-8')
+                self.assertEqual(build()[1], 1)
+            finally:
+                build.__globals__['ROOT'] = original_root
 
     def test_exact_assets_in_both_editions_preserve_security_and_database(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -58,7 +96,7 @@ class LanguageAssetsTests(unittest.TestCase):
                     status, _, body = get('/')
                     self.assertEqual(status, 200)
                     self.assertIn(b'id="application-language"', body)
-                    for locale in ['en', 'zh-Hans', 'hi', 'es', 'ar', 'th']:
+                    for locale in ['en', 'zh-Hans', 'hi', 'es', 'ar', 'th', 'ko', 'tl', 'vi']:
                         self.assertIn(f'value="{locale}"'.encode(), body)
                     if edition == 'standard': self.assertNotIn(b'/takeoffs.js', body)
                     self.assertEqual(before, hashlib.sha256(database.read_bytes()).hexdigest())

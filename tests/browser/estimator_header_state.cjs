@@ -160,11 +160,11 @@ function retainedScopes(value) { return { pricing: value.pricing, calculators: v
     assert.ok(Math.abs(scheduleButton.bottom - geometry.input.bottom) < 1);
     const clearButton = geometry.buttons['penetration-clear'];
     assert.ok(Math.abs(clearButton.top - geometry.document.top) < 1, 'Clear shares the Document row at '+width);
-    assert.ok(clearButton.right <= geometry.document.left, 'Clear is left of Document at '+width);
+    assert.ok(Math.abs(clearButton.left - geometry.document.right - geometry.pairGap) < 1, 'Document immediately precedes Clear at '+width);
     const libraryButton = geometry.buttons['penetration-add-to-library'];
     assert.ok(Math.abs(libraryButton.top - geometry.document.top) < 1, `Document and Library share a row at ${width}`);
     assert.ok(Math.abs(libraryButton.bottom - geometry.document.bottom) < 1);
-    assert.ok(Math.abs(libraryButton.left - geometry.document.right - geometry.pairGap) < 1, `Document immediately precedes Library at ${width}`);
+    assert.ok(Math.abs(libraryButton.left - clearButton.right - geometry.pairGap) < 1, `Clear immediately precedes Library at ${width}`);
     assert.ok(geometry.document.bottom <= geometry.input.top, 'Header actions precede quantity controls at '+width);
     assert.ok(geometry.pageWidth <= width, `Firestopping escaped viewport at ${width}`);
     for (const offset of Object.values(geometry.iconOffsets)) { assert.ok(Math.abs(offset.x) < 1, `Icon is horizontally centred at ${width}`); assert.ok(Math.abs(offset.y) < 1, `Icon is vertically centred at ${width}`); }

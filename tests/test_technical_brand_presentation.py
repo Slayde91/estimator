@@ -62,6 +62,7 @@ class BrandPresentationTests(unittest.TestCase):
             'Wrap; Thickness: 40 mm; Configuration: LI (300mm on top side)': 'Wrap; Thickness: 40 mm; LI (300mm on top side).',
             'Armaflex; Configuration: LI (400mm on both sides); Class: FR Armaflex 25mm; Wall - both sides 400mm Long': 'Armaflex; LI (400mm on both sides); Class: FR Armaflex 25mm.',
             'Wrap; Configuration: 800mm Top Side Only; Floor - both sides': 'Wrap; 800mm Top Side Only; Floor - both sides.',
+            'Wrap; Configuration: 300mm Top Side Only; Floor - both sides 600mm Long': 'Wrap; 300mm Top Side Only; Floor - both sides 600mm Long.',
         }
         for source, expected in cases.items():
             with self.subTest(source=source):

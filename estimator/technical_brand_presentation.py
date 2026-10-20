@@ -58,8 +58,9 @@ def simplify_promat_wrap(value):
                 if length and re.search(r'(?<![\d.])' + re.escape(length[1]) + r'\s*mm\b', measured, re.I):
                     suffix = ''
                 part = suffix
-            elif suffix:
-                # Remove the redundant heading but retain its measured content.
+            elif suffix and side == 'both sides' and re.search(r'\bboth faces\b', suffix, re.I):
+                # The suffix itself must state the same placement. A length
+                # alone cannot replace a conflicting side requirement.
                 part = suffix
         if part:
             clean.append(part)

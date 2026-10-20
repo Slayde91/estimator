@@ -14,6 +14,7 @@ from .technical_field_options import normalize_options
 from .technical_field_reviewed import normalize_reviewed_content
 from .technical_frl_presentation import normalize_frl_presentation
 from .technical_orientation import project_trafalgar_orientation
+from .technical_brand_presentation import present_manufacturer_fields
 
 
 PROJECTION_VERSION = 1
@@ -246,7 +247,7 @@ def normalize_technical_item(item, *, selector_capture=None):
     projected = deepcopy(item)
     existing_basis = projected.get('technical_basis', {})
     if existing_basis.get('projection_version') == PROJECTION_VERSION:
-        return projected
+        return present_manufacturer_fields(projected)
     original_fields = deepcopy(projected.get('fields', []))
     technical_basis = deepcopy(existing_basis)
     technical_basis.update(projection_version=PROJECTION_VERSION,
@@ -310,4 +311,4 @@ def normalize_technical_item(item, *, selector_capture=None):
         normalize_options(normalize_content(fields)), review, original_fields))
     if item.get('id', '').startswith('trafalgar-'):
         projected['fields'] = normalize_frl_presentation(projected['fields'])
-    return project_trafalgar_orientation(projected, item, selector_capture)
+    return present_manufacturer_fields(project_trafalgar_orientation(projected, item, selector_capture))

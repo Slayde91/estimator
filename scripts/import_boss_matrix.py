@@ -20,6 +20,7 @@ from estimator.reference_library import ReferenceLibrary, MAX_INDEX
 from estimator.library_report_links import valid_report_url
 from estimator.technical_fields import normalize_technical_item
 from estimator.technical_field_reviewed import review_fingerprint
+from estimator.technical_brand_presentation import boss_product_names
 
 IMPORT_KEY = 'boss_matrix_import'
 SOURCE_URL = 'https://bossfire.com/resources/'
@@ -288,7 +289,9 @@ def prepare(matrix,base,report_links,output):
     library=ReferenceLibrary(output);summary=library.overview()
     for item in entries:
         actual={f['label']:{k:v for k,v in f.items() if k!='source_labels'} for f in library.detail('technical',item['id'])['fields']}
-        expected={f['label']:f for f in item['fields']}
+        # Display omits product-code labels; source/review fields retain them.
+        expected={f['label']:deepcopy(f) for f in item['fields']}
+        expected['System Products']['value']=boss_product_names(expected['System Products']['value'])
         for label,value in expected.items():
             if actual.get(label)!=value:raise ValueError('Projected BOSS field changed: '+item['id']+' / '+label)
     linked=sum(any(f.get('report_links') for f in item['fields']) for item in entries)

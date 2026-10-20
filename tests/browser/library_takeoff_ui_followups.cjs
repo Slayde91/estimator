@@ -89,10 +89,17 @@ async function activePaint(label){
    await button.click();await expect(button).toHaveAttribute('aria-expanded','false');await alignment(width+'/'+name+'/closed');
   }
  }
+ // Every title and its artwork must fit after the PDF-edge inset, including
+ // narrow physical workspaces and both logical directions.
+ for(const width of [1384,825,390]){
+  await page.setViewportSize({width,height:900});
+  for(const name of ['Steel','Duct','Walls/Floors','Defect Reports','Service Plans']){await chooseTakeoff(page,name);await idle();await alignment(width+'/workspace/'+name);}
+  await page.locator('html').evaluate(node=>node.dir='rtl');
+  for(const name of ['Steel','Duct','Walls/Floors','Defect Reports','Service Plans']){await chooseTakeoff(page,name);await idle();await alignment(width+'/rtl/workspace/'+name);}
+  await chooseTakeoff(page,'Steel');await idle();await settings.click();await alignment(width+'/rtl/settings');await settings.click();
+  await page.locator('html').evaluate(node=>node.removeAttribute('dir'));await alignment(width+'/ltr/restored');
+ }
  await page.setViewportSize({width:1384,height:900});
- for(const name of ['Steel','Duct','Walls/Floors','Defect Reports','Service Plans']){await chooseTakeoff(page,name);await idle();await alignment('workspace/'+name);}
- await chooseTakeoff(page,'Steel');await idle();
- await page.locator('html').evaluate(node=>node.dir='rtl');await alignment('rtl/normal');await settings.click();await alignment('rtl/settings');await settings.click();await page.locator('html').evaluate(node=>node.removeAttribute('dir'));await alignment('ltr/restored');
  for(const theme of themes){
   await setTheme(theme);await settings.click();await activePaint(theme+'/left-settings');
   const arrow=page.locator('.takeoff-markup-rail').getByRole('button',{name:'Arrow',exact:true});await arrow.click();await activePaint(theme+'/right-arrow');

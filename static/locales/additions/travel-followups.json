@@ -1,0 +1,167 @@
+{
+  "Checking Google Maps setup…": [
+    "Google Maps 설정 확인 중…",
+    "Sinusuri ang pag-setup ng Google Maps…",
+    "Đang kiểm tra thiết lập Google Maps…"
+  ],
+  "Driving estimates use your current location and the project Site Address. They do not change quote travel charges.": [
+    "운전 예상값은 현재 위치와 프로젝트 현장 주소를 사용합니다. 견적 이동 비용은 바뀌지 않습니다.",
+    "Ginagamit ng mga pagtatantiya sa pagmamaneho ang iyong kasalukuyang lokasyon at adres ng proyekto. Hindi nito binabago ang singil sa paglalakbay sa sipi.",
+    "Ước tính lái xe dùng vị trí hiện tại và địa chỉ công trình. Chúng không đổi chi phí đi lại trong báo giá."
+  ],
+  "Open setup guide": [
+    "설정 안내서 열기",
+    "Buksan ang gabay sa pag-setup",
+    "Mở hướng dẫn thiết lập"
+  ],
+  "Refresh Google Maps status": [
+    "Google Maps 상태 새로고침",
+    "I-refresh ang katayuan ng Google Maps",
+    "Làm mới trạng thái Google Maps"
+  ],
+  "Check the driving route to see information from Google Maps.": [
+    "Google Maps 정보를 보려면 운전 경로를 확인하세요.",
+    "Suriin ang ruta sa pagmamaneho upang makita ang impormasyon mula sa Google Maps.",
+    "Kiểm tra tuyến lái xe để xem thông tin từ Google Maps."
+  ],
+  "Project address changed. Check the route again.": [
+    "프로젝트 주소가 바뀌었습니다. 경로를 다시 확인하세요.",
+    "Nagbago ang adres ng proyekto. Suriin muli ang ruta.",
+    "Địa chỉ dự án đã đổi. Kiểm tra lại tuyến đường."
+  ],
+  "Google Maps is configured.": [
+    "Google Maps가 설정되었습니다.",
+    "Naka-configure na ang Google Maps.",
+    "Google Maps đã được thiết lập."
+  ],
+  "Google Maps needs an API key before driving estimates are available.": [
+    "운전 예상값을 사용하려면 Google Maps API 키가 필요합니다.",
+    "Kailangan ng Google Maps ng API key bago magamit ang mga pagtatantiya sa pagmamaneho.",
+    "Google Maps cần khóa API để cung cấp ước tính lái xe."
+  ],
+  "Check the route to see approximate driving distance and time.": [
+    "대략적인 운전 거리와 시간을 보려면 경로를 확인하세요.",
+    "Suriin ang ruta upang makita ang tinatayang distansiya at oras sa pagmamaneho.",
+    "Kiểm tra tuyến đường để xem khoảng cách và thời gian lái xe ước tính."
+  ],
+  "Google Maps is not configured. You can still open the project in Google Maps.": [
+    "Google Maps가 설정되지 않았습니다. 프로젝트 위치는 Google Maps에서 열 수 있습니다.",
+    "Hindi pa naka-configure ang Google Maps. Maaari mo pa ring buksan ang proyekto sa Google Maps.",
+    "Google Maps chưa được thiết lập. Bạn vẫn có thể mở dự án trong Google Maps."
+  ],
+  "Enter the project Site Address above first.": [
+    "먼저 위에 프로젝트 현장 주소를 입력하세요.",
+    "Ilagay muna ang adres ng proyekto sa itaas.",
+    "Trước tiên nhập địa chỉ công trình ở trên."
+  ],
+  "Enter your current address or choose Use current location.": [
+    "현재 주소를 입력하거나 현재 위치 사용을 선택하세요.",
+    "Ilagay ang iyong kasalukuyang adres o piliin ang Gamitin ang kasalukuyang lokasyon.",
+    "Nhập địa chỉ hiện tại hoặc chọn Dùng vị trí hiện tại."
+  ],
+  "Google Maps is not configured. Open the setup guide in Settings.": [
+    "Google Maps가 설정되지 않았습니다. 설정에서 안내서를 여세요.",
+    "Hindi pa naka-configure ang Google Maps. Buksan ang gabay sa pag-setup sa Mga setting.",
+    "Google Maps chưa được thiết lập. Mở hướng dẫn thiết lập trong Cài đặt."
+  ],
+  "Checking the driving route…": [
+    "운전 경로 확인 중…",
+    "Sinusuri ang ruta sa pagmamaneho…",
+    "Đang kiểm tra tuyến lái xe…"
+  ],
+  "The driving route is unavailable.": [
+    "운전 경로를 사용할 수 없습니다.",
+    "Hindi magagamit ang ruta sa pagmamaneho.",
+    "Tuyến lái xe không khả dụng."
+  ],
+  "{0} km · {1} by car": [
+    "차량 {0} km · {1}",
+    "{0} km · {1} sa kotse",
+    "{0} km · {1} bằng ô tô"
+  ],
+  "Approximate driving estimate. Traffic and the chosen route can change the journey.": [
+    "대략적인 운전 예상값입니다. 교통 상황과 선택한 경로에 따라 여정이 달라질 수 있습니다.",
+    "Tinatayang pagmamaneho lamang. Maaaring magbago ang biyahe dahil sa trapiko at napiling ruta.",
+    "Ước tính lái xe gần đúng. Giao thông và tuyến đã chọn có thể làm thay đổi hành trình."
+  ],
+  "Project travel": [
+    "프로젝트 이동",
+    "Paglalakbay sa proyekto",
+    "Đi lại dự án"
+  ],
+  "Current location": [
+    "현재 위치",
+    "Kasalukuyang lokasyon",
+    "Vị trí hiện tại"
+  ],
+  "Enter your current address": [
+    "현재 주소 입력",
+    "Ilagay ang iyong kasalukuyang adres",
+    "Nhập địa chỉ hiện tại"
+  ],
+  "Use current location": [
+    "현재 위치 사용",
+    "Gamitin ang kasalukuyang lokasyon",
+    "Dùng vị trí hiện tại"
+  ],
+  "Project location": [
+    "프로젝트 위치",
+    "Lokasyon ng proyekto",
+    "Vị trí dự án"
+  ],
+  "Enter the project Site Address above.": [
+    "위에 프로젝트 현장 주소를 입력하세요.",
+    "Ilagay ang adres ng proyekto sa itaas.",
+    "Nhập địa chỉ công trình ở trên."
+  ],
+  "Check driving route": [
+    "운전 경로 확인",
+    "Suriin ang ruta sa pagmamaneho",
+    "Kiểm tra tuyến lái xe"
+  ],
+  "Google Maps setup": [
+    "Google Maps 설정",
+    "Pag-setup ng Google Maps",
+    "Thiết lập Google Maps"
+  ],
+  "Approx. distance by car": [
+    "대략적인 운전 거리",
+    "Tinatayang distansiya sa kotse",
+    "Khoảng cách ước tính bằng ô tô"
+  ],
+  "Approx. travel time by car": [
+    "대략적인 운전 시간",
+    "Tinatayang oras sa kotse",
+    "Thời gian ước tính bằng ô tô"
+  ],
+  "Checking a route sends your chosen current location and the project address to Google. Locations and route results are not saved with the quote.": [
+    "경로를 확인하면 선택한 현재 위치와 프로젝트 주소가 Google에 전송됩니다. 위치와 경로 결과는 견적과 함께 저장되지 않습니다.",
+    "Kapag nagsuri ng ruta, ipinapadala sa Google ang pinili mong kasalukuyang lokasyon at adres ng proyekto. Hindi sine-save kasama ng sipi ang mga lokasyon at resulta ng ruta.",
+    "Kiểm tra tuyến đường gửi vị trí hiện tại đã chọn và địa chỉ dự án đến Google. Vị trí và kết quả tuyến đường không được lưu cùng báo giá."
+  ],
+  "Current location changed. Check the route again.": [
+    "현재 위치가 바뀌었습니다. 경로를 다시 확인하세요.",
+    "Nagbago ang kasalukuyang lokasyon. Suriin muli ang ruta.",
+    "Vị trí hiện tại đã đổi. Kiểm tra lại tuyến đường."
+  ],
+  "Current location is unavailable. Enter your current address instead.": [
+    "현재 위치를 사용할 수 없습니다. 대신 현재 주소를 입력하세요.",
+    "Hindi magagamit ang kasalukuyang lokasyon. Ilagay na lamang ang iyong kasalukuyang adres.",
+    "Vị trí hiện tại không khả dụng. Hãy nhập địa chỉ hiện tại."
+  ],
+  "Waiting for location permission…": [
+    "위치 권한 대기 중…",
+    "Naghihintay ng pahintulot sa lokasyon…",
+    "Đang chờ quyền truy cập vị trí…"
+  ],
+  "Current location found. Choose Check driving route to send it to Google.": [
+    "현재 위치를 찾았습니다. Google에 전송하려면 운전 경로 확인을 선택하세요.",
+    "Nahanap ang kasalukuyang lokasyon. Piliin ang Suriin ang ruta sa pagmamaneho upang ipadala ito sa Google.",
+    "Đã tìm thấy vị trí hiện tại. Chọn Kiểm tra tuyến lái xe để gửi đến Google."
+  ],
+  "Current location could not be read. Allow location access or enter your current address.": [
+    "현재 위치를 읽지 못했습니다. 위치 접근을 허용하거나 현재 주소를 입력하세요.",
+    "Hindi mabasa ang kasalukuyang lokasyon. Payagan ang access sa lokasyon o ilagay ang iyong kasalukuyang adres.",
+    "Không đọc được vị trí hiện tại. Cho phép truy cập vị trí hoặc nhập địa chỉ hiện tại."
+  ]
+}

@@ -207,13 +207,13 @@ async function inspectHeader(width) {
   for(const width of [1440,825,390]){
     await page.setViewportSize({width,height:1000});
     const clear=await box(headingActions.locator('#penetration-clear')),document=await box(penetrationDocument),library=await box(headingActions.locator('#penetration-add-to-library')),banner=await box(penetrationBanner),item=await box(currentItem),add=await box(currentItem.locator('#penetration-add-to-schedule'));
-    assert.ok(clear.x+clear.width<=document.x&&document.x+document.width<=library.x&&Math.abs(clear.y-document.y)<1&&Math.abs(document.y-library.y)<1,'Clear, Document and Library stay ordered on the same first row at '+width);
+    assert.ok(document.x+document.width<=clear.x&&clear.x+clear.width<=library.x&&Math.abs(clear.y-document.y)<1&&Math.abs(document.y-library.y)<1,'Document, Clear and Library stay ordered on the same first row at '+width);
     assert.ok(Math.abs(clear.height-document.height)<1&&Math.abs(document.height-library.height)<1&&Math.abs(add.height-library.height)<1,'Firestopping action buttons retain equal heights at '+width);
-    assert.ok(clear.x>=banner.x&&library.x+library.width<=banner.x+banner.width+1&&clear.y>=banner.y&&library.y+library.height<=banner.y+banner.height+1&&library.y+library.height<=item.y,'The first-row actions fit within the banner above current-item controls at '+width);
+    assert.ok(document.x>=banner.x&&library.x+library.width<=banner.x+banner.width+1&&clear.y>=banner.y&&library.y+library.height<=banner.y+banner.height+1&&library.y+library.height<=item.y,'The first-row actions fit within the banner above current-item controls at '+width);
     assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'Firestopping header fits the viewport at '+width);firestoppingWidths.push(width);
   }
   await page.setViewportSize({width:1440,height:1000});
-  evidence.firestoppingCurrentActions={topNewAndRecalculateHidden:true,visibleAccessibleActions:true,clearDocumentLibraryInBanner:true,scheduleWithCurrentItem:true,widths:firestoppingWidths};
+  evidence.firestoppingCurrentActions={topNewAndRecalculateHidden:true,visibleAccessibleActions:true,documentClearLibraryInBanner:true,scheduleWithCurrentItem:true,widths:firestoppingWidths};
   for (const kind of ['pricing', 'penetration', 'technical']) {
     await chooseLibrary(page, kind); await expect(page.locator(`#library-${kind}`)).toBeVisible();
     if(kind==='pricing'){

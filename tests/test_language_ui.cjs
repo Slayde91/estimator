@@ -27,11 +27,23 @@ function harness(saved=null,denied=false,messages=null){
   const context={window,document,localStorage:store,CustomEvent:class{constructor(type,options){this.type=type;this.detail=options.detail;}},MutationObserver:class{constructor(fn){observer=fn;}observe(){}}};
   vm.createContext(context);vm.runInContext(runtime,context);return {ui:window.CeasefireI18n,context,root,select,status,events,writes,listeners,observe:n=>observer([{addedNodes:[n]}])};
 }
-function catalogs(){return Object.assign({},...fs.readdirSync(path.join(__dirname,'../static/locales')).filter(name=>name.endsWith('.json')).sort().map(name=>JSON.parse(fs.readFileSync(path.join(__dirname,'../static/locales',name),'utf8'))));}
-test('six locales persist independently and invalid preference falls back to English',()=>{
+function catalogs(){return Object.assign({},...fs.readdirSync(path.join(__dirname,'../static/locales')).filter(name=>name.endsWith('.json')).sort().map(name=>{
+  const base=JSON.parse(fs.readFileSync(path.join(__dirname,'../static/locales',name),'utf8')), additions=JSON.parse(fs.readFileSync(path.join(__dirname,'../static/locales/additions',name),'utf8'));
+  return Object.fromEntries(Object.entries(base).map(([source,translations])=>[source,translations.concat(additions[source])]));
+}));}
+test('nine locales persist independently and invalid preference falls back to English',()=>{
   const h=harness('invalid');assert.equal(h.ui.language,'en');assert.equal(h.root.lang,'en-AU');assert.equal(h.writes.length,0);
-  for(const locale of ['zh-Hans','hi','es','ar','th','en']){assert.equal(h.ui.setLanguage(locale),true);assert.equal(h.select.value,locale);assert.equal(h.root.dir,locale==='ar'?'rtl':'ltr');assert.equal(h.writes.at(-1)[0],'ceasefire.ui.language.v1');}
+  for(const locale of ['zh-Hans','hi','es','ar','th','ko','tl','vi','en']){assert.equal(h.ui.setLanguage(locale),true);assert.equal(h.select.value,locale);assert.equal(h.root.dir,locale==='ar'?'rtl':'ltr');assert.equal(h.writes.at(-1)[0],'ceasefire.ui.language.v1');}
   assert.equal(h.ui.setLanguage('fr'),false);assert.equal(h.ui.language,'en');
+});
+test('new locales translate both navigation and detailed prose through the same owned bindings',()=>{
+  const h=harness(null,false,catalogs()),home=new Element(),language=new Element(),details=new Element();
+  const source='The interface language is saved in this browser. Project data, technical evidence and PDF/Excel exports keep their original language.';
+  h.ui.text(home,'Home');h.ui.text(language,'Language');h.ui.text(details,source);
+  for(const [locale,homeText,languageText] of [['ko','홈','언어'],['tl','Simula','Wika'],['vi','Trang chủ','Ngôn ngữ']]){
+    h.ui.setLanguage(locale);assert.equal(home.textContent,homeText);assert.equal(language.textContent,languageText);assert.notEqual(details.textContent,source);assert.ok(details.textContent.includes('PDF/Excel'));
+  }
+  h.ui.setLanguage('en');assert.equal(home.textContent,'Home');assert.equal(details.textContent,source);
 });
 test('existing text, accessible attributes and nested terms update without reloading or losing child icons',()=>{
   const h=harness(),label=new Element(),icon=new Element('SVG'),button=new Element('BUTTON');
@@ -71,7 +83,7 @@ test('Mandarin breakdown tables translate owned tasks and contexts while retaini
   assert.equal(foot.children[0].children[3].textContent,'检查输入');assert.equal(output.children.length,1,'schedule helper note is omitted');
   for(const locale of ['hi','es','ar','th','en']){h.ui.setLanguage(locale);assert.equal(JSON.stringify(result),before);assert.deepEqual(body.children[2].children[1].children.map(entry=>entry.children[0].textContent),['Board','Primer','Home']);}
   assert.deepEqual(body.children.map(row=>row.children[0].textContent),labels);assert.equal(body.children[2].children[2].children[0].children[0].textContent,'Board · Substrate');
-  const item=api.render({}, {errors:[],breakdown:projection});assert.equal(item.children.at(-1).textContent,projection.note,'current-item note is retained');
+  const item=api.render({}, {errors:[],breakdown:projection});assert.equal(item.children.length,1,'current-item helper note is omitted');
 });
 test('Generated estimate material descriptions translate without altering selected product names or canonical results',()=>{
   const h=harness(null,false,catalogs());

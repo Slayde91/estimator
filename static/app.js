@@ -1666,9 +1666,6 @@
       return groupMatch && `${productText(record)} ${useText}`.includes(search);
     });
     window.CeasefireI18n.text($("pricing-count"), "{0} of {1} products and standalone rates", [matches.length, records.length]);
-    window.CeasefireI18n.text($("pricing-help"), state.pricingScope === "project"
-      ? "Each availability box accepts group names separated by semicolons. Main Estimator groups control its selection lists; Firestopping Estimator groups control its product dropdowns. Group changes update this project's dropdowns after Apply project pricing. Save then stores them in the project file."
-      : "Supplier and sell prices in this library are shared by both estimators. Each availability box accepts group names separated by semicolons. Main Estimator groups control its selection lists; Firestopping Estimator groups control its product dropdowns. Group changes update dropdowns after Save pricing and apply to new estimates; existing projects keep their saved groups.");
     const heading = node("tr");
     for (const title of ["Product/Service", "Supplier price", "Markup %", "Sell price", "Main Estimator groups", "Firestopping Estimator groups", "Yield", "Actions"])
       heading.append(uiNode("th", "", title));

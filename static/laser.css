@@ -75,7 +75,7 @@
     border-top-width: 3px;
     border-top-color: var(--red);
   }
-  :root:is(:not([data-theme]), [data-theme="ceasefire"]) :is(.page-heading, .takeoff-workspace-heading) :is(h1, h2) {
+  :root:is(:not([data-theme]), [data-theme="ceasefire"]) :is(.page-heading, .takeoff-workspace-heading, .calculator-workspace-heading) :is(h1, h2) {
     border-inline-start: 3px solid var(--red);
     padding-inline-start: 12px;
   }
@@ -265,8 +265,8 @@
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) dialog::backdrop { background: #0009; }
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) .skip-link { color: #111; }
 
-  /* Evidence tables keep their original light palette, including all form controls. */
-  :root:is(:not([data-theme]), [data-theme="ceasefire"]) :is(.penetration-settings-table, .library-field-table, .takeoff-control-menu) {
+  /* Settings controls keep their existing light palette; library tables follow the theme. */
+  :root:is(:not([data-theme]), [data-theme="ceasefire"]) :is(.penetration-settings-table, .takeoff-control-menu) {
     color-scheme: light;
     --ink: #111;
     --muted: #555;

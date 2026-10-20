@@ -11,6 +11,12 @@ const ready=new Promise((resolve,reject)=>{let data='';const timer=setTimeout(()
 const errors=[],evidence={languages:[],requests:[]};
 async function idle(){await page.waitForFunction(()=>{const s=window.CeasefireDesktop?.status();return s?.ready&&!s.busy;});}
 async function settings(){await page.locator('nav [data-view="settings"]').click();await expect(page.locator('#view-settings')).toBeVisible();}
+async function chooseLanguage(locale){
+ await page.locator('#application-language-toggle').click();await expect(page.locator('#application-language-menu')).toBeVisible();
+ await page.locator(`#application-language-menu [data-language-code="${locale}"]`).click();
+ await expect(page.locator('#application-language-menu')).toBeHidden();await expect(page.locator('#application-language')).toHaveValue(locale);
+ await expect(page.locator(`#application-language-menu [data-language-code="${locale}"]`)).toHaveAttribute('aria-checked','true');
+}
 async function snapshot(){await idle();return page.evaluate(()=>({project:window.CeasefireProject.configuration(),calculators:window.CeasefireCalculators.projectSnapshot(),penetrations:window.CeasefirePenetrations.projectSnapshot(),takeoffs:window.CeasefireTakeoffs.projectSnapshot(),inputs:[...document.querySelectorAll('#main-estimate-form input,#main-estimate-form select,#main-estimate-form textarea')].map(el=>[el.id,el.type,el.value,el.checked]),totals:[...document.querySelectorAll('[id^="sum-"]')].map(el=>[el.id,el.textContent])}));}
 (async()=>{
  const fixture=await ready;assert.notEqual(fixture.port,8765);evidence.port=fixture.port;
@@ -24,9 +30,23 @@ async function snapshot(){await idle();return page.evaluate(()=>({project:window
  await page.locator('nav [data-view="estimate"]').click();await idle();
  await page.locator('#project-no').fill('CF-LANGUAGE');await page.locator('#client').fill('Home');await page.locator('#site-address').fill('原始ข้อมูล العربية हिन्दी <literal>');await page.locator('#site-address').blur();await idle();
  const baseline=await snapshot();await settings();
- const languages=[['en','Language','Settings'],['zh-Hans','语言','设置'],['hi','भाषा','सेटिंग्स'],['es','Idioma','Configuración'],['ar','اللغة','الإعدادات'],['th','ภาษา','การตั้งค่า']];
+ const toggle=page.locator('#application-language-toggle'),menu=page.locator('#application-language-menu');
+ await expect(toggle.locator('svg')).toHaveCount(1);await expect(toggle).toHaveAttribute('aria-haspopup','menu');
+ assert.deepEqual(await menu.locator('[role="menuitemradio"]').allTextContents(),['English','普通话','हिन्दी','Español','العربية الفصحى','ไทย','한국어','Tagalog','Tiếng Việt']);
+ await toggle.focus();await toggle.press('ArrowDown');await expect(menu.locator('[data-language-code="en"]')).toBeFocused();
+ await page.screenshot({path:path.join(output,'globe-language-menu.png')});
+ await page.keyboard.press('End');await expect(menu.locator('[data-language-code="vi"]')).toBeFocused();
+ await page.keyboard.press('Home');await expect(menu.locator('[data-language-code="en"]')).toBeFocused();
+ await page.keyboard.press('ArrowUp');await expect(menu.locator('[data-language-code="vi"]')).toBeFocused();
+ await page.keyboard.press('Escape');await expect(menu).toBeHidden();await expect(toggle).toBeFocused();
+ await toggle.press('ArrowDown');await page.keyboard.press('End');await page.keyboard.press('Enter');
+ await expect(page.locator('#application-language')).toHaveValue('vi');await expect(toggle).toBeFocused();await expect(page.locator('#application-language-code')).toHaveText('VI');
+ await toggle.click();await page.locator('#language-heading').click();await expect(menu).toBeHidden();
+ await page.locator('#application-language').selectOption('en');await expect(page.locator('#application-language-code')).toHaveText('EN');
+ evidence.menu={keyboardWrap:true,homeEnd:true,escapeFocus:true,enterSelect:true,outsideDismissal:true,nativeSelectCompatibility:true,nativeLanguageNames:true};
+ const languages=[['en','Language','Settings'],['zh-Hans','语言','设置'],['hi','भाषा','सेटिंग्स'],['es','Idioma','Configuración'],['ar','اللغة','الإعدادات'],['th','ภาษา','การตั้งค่า'],['ko','언어','설정'],['tl','Wika','Mga setting'],['vi','Ngôn ngữ','Cài đặt']];
  for(const [locale,heading,settingsName] of languages){
-  const before=evidence.requests.length;await page.locator('#application-language').selectOption(locale);
+  const before=evidence.requests.length;await chooseLanguage(locale);
   await expect(page.locator('#language-heading')).toHaveText(heading);await expect(page.locator('html')).toHaveAttribute('lang',locale==='en'?'en-AU':locale);await expect(page.locator('html')).toHaveAttribute('dir',locale==='ar'?'rtl':'ltr');
   await expect(page.locator('nav [data-view="settings"]')).toHaveAttribute('aria-label',settingsName);
   assert.equal(evidence.requests.length,before,'language preference sends no mutation requests');
@@ -49,21 +69,30 @@ async function snapshot(){await idle();return page.evaluate(()=>({project:window
   }
   if(locale==='ar')await expect(page.locator('#input-B28')).toHaveCSS('direction','ltr');
   await expect(page.locator('#client')).toHaveValue('Home');
+  if(['ko','tl','vi'].includes(locale)){
+   await page.locator('nav [data-view="help"]').click();
+   const prose=await page.locator('#view-help .help-card p').evaluateAll(nodes=>nodes.map(el=>({source:window.CeasefireI18n.source(el),display:el.textContent})).filter(item=>item.source.length>60));
+   assert.ok(prose.length>=5);for(const item of prose)assert.notEqual(item.display,item.source,`${locale} detailed Help is translated`);
+   assert.deepEqual(await snapshot(),baseline,'detailed language display preserves complete project/pricing/calculator state');
+   await page.screenshot({path:path.join(output,`${locale}-help.png`)});
+   evidence[`${locale}DetailedHelp`]=prose.length;
+  }
   await settings();const screenshot=path.join(output,`${locale}-settings.png`);await page.screenshot({path:screenshot});
   evidence.languages.push({locale,heading,dir:await page.locator('html').getAttribute('dir'),screenshot});
  }
  // Create UI after the language has changed; the canonical input values remain English.
  await page.evaluate(()=>{const probe=document.createElement('p');probe.id='language-source-collision-probe';document.body.append(probe);window.CeasefireI18n.text(probe,'Home');probe.textContent='Home';});
- await page.locator('#application-language').selectOption('es');
+ await chooseLanguage('es');
  await expect(page.locator('#language-source-collision-probe')).toHaveText('Home');
  await page.locator('#language-source-collision-probe').evaluate(el=>el.remove());
  await page.locator('#takeoff-navigation-toggle').hover();await page.locator('#takeoff-navigation-menu [data-mode="steel"]').click();await idle();
  await expect(page.locator('.takeoff-viewport')).toHaveCSS('direction','ltr');
  const spanish=await page.locator('#view-takeoffs').innerText();assert.match(spanish,/Acero|acero/);assert.match(spanish,/Subir|Cargar/);
- await settings();await page.locator('#application-language').selectOption('ar');
+ await settings();await chooseLanguage('ar');
  await page.locator('#takeoff-navigation-toggle').hover();await page.locator('#takeoff-navigation-menu [data-mode="steel"]').click();await idle();
  await expect(page.locator('.takeoff-viewport')).toHaveCSS('direction','ltr');await page.screenshot({path:path.join(output,'ar-drawing-direction.png')});
- await settings();await page.locator('#application-language').selectOption('th');await page.reload();await idle();await settings();await expect(page.locator('#application-language')).toHaveValue('th');await expect(page.locator('#language-heading')).toHaveText('ภาษา');
- await page.locator('#application-language').selectOption('en');await expect(page.locator('#language-heading')).toHaveText('Language');
- assert.deepEqual(errors,[]);fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({...evidence,errors,passed:true},null,2));console.log(`Languages passed: all six locales, immediate updates, canonical state, dynamic Takeoffs, Arabic drawing direction, reload persistence. ${output}`);
+ await settings();await chooseLanguage('vi');await page.reload();await idle();await settings();await expect(page.locator('#application-language')).toHaveValue('vi');await expect(page.locator('#language-heading')).toHaveText('Ngôn ngữ');
+ await page.setViewportSize({width:390,height:900});await toggle.click();const bounds=await menu.boundingBox();assert.ok(bounds.x>=0&&bounds.x+bounds.width<=390,'globe menu remains inside a narrow viewport');await page.keyboard.press('Escape');await page.setViewportSize({width:1366,height:1000});
+ await chooseLanguage('en');await expect(page.locator('#language-heading')).toHaveText('Language');
+ assert.deepEqual(errors,[]);fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({...evidence,errors,passed:true},null,2));console.log(`Languages passed: all nine locales, globe keyboard menu, immediate updates, canonical state, dynamic Takeoffs, Arabic drawing direction, reload persistence. ${output}`);
 })().catch(async e=>{console.error(e);console.error(logs);if(page)await page.screenshot({path:path.join(output,'failure.png')}).catch(()=>{});process.exitCode=1;}).finally(async()=>{await browser?.close();server.kill();});

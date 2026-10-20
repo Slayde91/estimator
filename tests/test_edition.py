@@ -291,13 +291,15 @@ class StandardHTTPTests(unittest.TestCase):
                           '/api/takeoffs/sessions', '/api/takeoffs', '/takeoffs.js?edition=full',
                           '/api/libraries/penetration/pkb-001/takeoff']:
                 for method in ('GET', 'POST', 'HEAD'):
-                    self.assertEqual(self.request(method, route, {} if method == 'POST' else None)[0], 404)
+                    with self.subTest(method=method, route=route):
+                        self.assertEqual(self.request(method, route, {} if method == 'POST' else None)[0], 404)
             status, headers, payload = self.request('GET', '/')
             self.assertEqual(status, 200)
             self.assertNotIn(b'/takeoff', payload)
             self.assertNotIn(b'data-home-view="takeoffs"', payload)
             self.assertIn(b'data-home-view="help"', payload)
             self.assertIn(b'/penetration.js', payload)
+            self.assertIn(b'href="/pdf-cursors.css"', payload)
             self.assertIn("script-src 'self'", headers['Content-Security-Policy'])
             status, _, payload = self.request('GET', '/api/bootstrap')
             self.assertEqual(status, 200)
@@ -306,6 +308,11 @@ class StandardHTTPTests(unittest.TestCase):
             for asset in ('header-tagline-media.js', 'header-tagline-character.gif', 'header-tagline-character-still.png', 'icons/document.png'):
                 status, _, payload = self.request('GET', '/' + asset)
                 self.assertEqual(status, 200)
+                self.assertEqual(payload, (ROOT / 'static' / asset).read_bytes())
+            for asset in ('pdf-cursors.css', *(path.relative_to(ROOT / 'static').as_posix()
+                                             for path in sorted((ROOT / 'static/cursors').glob('*.png')))):
+                status, _, payload = self.request('GET', '/' + asset)
+                self.assertEqual(status, 200, asset)
                 self.assertEqual(payload, (ROOT / 'static' / asset).read_bytes())
 
     def test_calculators_pricing_firestopping_and_reports_remain_available(self):

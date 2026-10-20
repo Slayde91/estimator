@@ -1,0 +1,1317 @@
+{
+  "Skip to content": [
+    "본문으로 건너뛰기",
+    "Lumaktaw sa nilalaman",
+    "Chuyển đến nội dung"
+  ],
+  "Main navigation": [
+    "주 탐색",
+    "Pangunahing nabigasyon",
+    "Điều hướng chính"
+  ],
+  "Home": [
+    "홈",
+    "Simula",
+    "Trang chủ"
+  ],
+  "Estimates": [
+    "견적",
+    "Mga pagtatantiya",
+    "Dự toán"
+  ],
+  "Choose an estimate": [
+    "견적 선택",
+    "Pumili ng pagtatantiya",
+    "Chọn dự toán"
+  ],
+  "Main": [
+    "기본",
+    "Pangunahin",
+    "Chính"
+  ],
+  "Calculators": [
+    "계산기",
+    "Mga kalkulador",
+    "Bộ tính"
+  ],
+  "Choose a calculator": [
+    "계산기 선택",
+    "Pumili ng kalkulador",
+    "Chọn bộ tính"
+  ],
+  "Steel (spray)": [
+    "강재 (분사)",
+    "Bakal (spray)",
+    "Thép (phun)"
+  ],
+  "Steel (board)": [
+    "강재 (보드)",
+    "Bakal (tabla)",
+    "Thép (tấm)"
+  ],
+  "Ductwork (spray/wrap)": [
+    "덕트 (분사/랩)",
+    "Ductwork (spray/balot)",
+    "Ống gió (phun/bọc)"
+  ],
+  "Firestopping": [
+    "방화 관통부 밀봉",
+    "Pagseselyong panlaban sa sunog",
+    "Bịt kín chống cháy"
+  ],
+  "Takeoffs": [
+    "수량 산출",
+    "Pagsukat ng dami",
+    "Bóc tách khối lượng"
+  ],
+  "Choose a takeoff workspace": [
+    "수량 산출 작업공간 선택",
+    "Pumili ng lugar para sa pagsukat ng dami",
+    "Chọn không gian bóc tách khối lượng"
+  ],
+  "Steel": [
+    "강재",
+    "Bakal",
+    "Thép"
+  ],
+  "Duct": [
+    "덕트",
+    "Duct",
+    "Ống gió"
+  ],
+  "Penetrations": [
+    "관통부",
+    "Mga butas na dinaanan",
+    "Lỗ xuyên"
+  ],
+  "Penetration workspaces": [
+    "관통부 작업공간",
+    "Mga lugar ng trabaho para sa mga butas na dinaanan",
+    "Không gian làm việc cho lỗ xuyên"
+  ],
+  "Defect Reports": [
+    "결함 보고서",
+    "Mga ulat ng depekto",
+    "Báo cáo khiếm khuyết"
+  ],
+  "Service Plans": [
+    "설비 도면",
+    "Mga plano ng mga serbisyo",
+    "Bản vẽ hệ thống kỹ thuật"
+  ],
+  "Walls/Floors": [
+    "벽/바닥",
+    "Mga pader/sahig",
+    "Tường/sàn"
+  ],
+  "Libraries": [
+    "라이브러리",
+    "Mga library",
+    "Thư viện"
+  ],
+  "Choose a library": [
+    "라이브러리 선택",
+    "Pumili ng library",
+    "Chọn thư viện"
+  ],
+  "Pricing Library": [
+    "가격 라이브러리",
+    "Library ng presyo",
+    "Thư viện đơn giá"
+  ],
+  "Firestopping Library": [
+    "방화 관통부 밀봉 라이브러리",
+    "Library ng pagseselyong panlaban sa sunog",
+    "Thư viện bịt kín chống cháy"
+  ],
+  "Technical Library": [
+    "기술 라이브러리",
+    "Library ng teknikal",
+    "Thư viện kỹ thuật"
+  ],
+  "Projects": [
+    "프로젝트",
+    "Mga proyekto",
+    "Dự án"
+  ],
+  "Help": [
+    "도움말",
+    "Tulong",
+    "Trợ giúp"
+  ],
+  "Settings": [
+    "설정",
+    "Mga setting",
+    "Cài đặt"
+  ],
+  "Built on caffeine and the audacity of 'Do your best, mastic the rest.'": [
+    "카페인과 '최선을 다하고, 나머지는 매스틱으로'라는 배짱으로 만들었습니다.",
+    "Binuo sa kape at sa lakas ng loob na 'Gawin ang makakaya, lagyan ng mastic ang natitira.'",
+    "Được tạo nên từ caffeine và sự táo bạo: 'Làm hết sức, phần còn lại dùng keo mastic.'"
+  ],
+  "Built on caffeine and the audacity of 'Do your best, mastic the rest.'_": [
+    "카페인과 '최선을 다하고, 나머지는 매스틱으로'라는 배짱으로 만들었습니다._",
+    "Binuo sa kape at sa lakas ng loob na 'Gawin ang makakaya, lagyan ng mastic ang natitira.'_",
+    "Được tạo nên từ caffeine và sự táo bạo: 'Làm hết sức, phần còn lại dùng keo mastic.'_"
+  ],
+  "Project actions": [
+    "프로젝트 작업",
+    "Mga aksiyon sa proyekto",
+    "Thao tác dự án"
+  ],
+  "Drag or drop files": [
+    "파일 끌어서 놓기",
+    "I-drag o i-drop ang mga file",
+    "Kéo hoặc thả tệp"
+  ],
+  "Project files": [
+    "프로젝트 파일",
+    "Mga file ng proyekto",
+    "Tệp dự án"
+  ],
+  "APPLICATION SETTINGS": [
+    "애플리케이션 설정",
+    "MGA SETTING NG APLIKASYON",
+    "CÀI ĐẶT ỨNG DỤNG"
+  ],
+  "Company details for PDF downloads": [
+    "PDF 다운로드용 회사 정보",
+    "Mga detalye ng kompanya para sa mga PDF na ida-download",
+    "Thông tin công ty cho tệp PDF tải xuống"
+  ],
+  "These details apply to new PDF exports across the application.": [
+    "이 정보는 애플리케이션 전체에서 새로 내보내는 PDF에 적용됩니다.",
+    "Ang mga detalyeng ito ay para sa mga bagong PDF na ie-export sa buong aplikasyon.",
+    "Thông tin này áp dụng cho các tệp PDF mới xuất trong toàn bộ ứng dụng."
+  ],
+  "Company name": [
+    "회사명",
+    "Pangalan ng kompanya",
+    "Tên công ty"
+  ],
+  "Phone": [
+    "전화",
+    "Telepono",
+    "Điện thoại"
+  ],
+  "Email": [
+    "이메일",
+    "Email",
+    "Email"
+  ],
+  "Company logo (PNG or JPEG, up to 2 MB)": [
+    "회사 로고 (PNG 또는 JPEG, 최대 2 MB)",
+    "Logo ng kompanya (PNG o JPEG, hanggang 2 MB)",
+    "Logo công ty (PNG hoặc JPEG, tối đa 2 MB)"
+  ],
+  "Delete company logo": [
+    "회사 로고 삭제",
+    "Burahin ang logo ng kompanya",
+    "Xóa logo công ty"
+  ],
+  "Save company details": [
+    "회사 정보 저장",
+    "I-save ang mga detalye ng kompanya",
+    "Lưu thông tin công ty"
+  ],
+  "Loading…": [
+    "불러오는 중…",
+    "Naglo-load…",
+    "Đang tải…"
+  ],
+  "Appearance": [
+    "화면 모양",
+    "Hitsura",
+    "Giao diện"
+  ],
+  "Choose the application theme. PDF exports use Ceasefire red, black and white.": [
+    "애플리케이션 테마를 선택하세요. PDF는 Ceasefire의 빨강, 검정, 흰색으로 내보냅니다.",
+    "Piliin ang tema ng aplikasyon. Pula, itim at puti ng Ceasefire ang gamit sa mga PDF na ine-export.",
+    "Chọn chủ đề ứng dụng. Tệp PDF xuất dùng màu đỏ, đen và trắng của Ceasefire."
+  ],
+  "Theme: Ceasefire. Next theme: Midnight.": [
+    "테마: Ceasefire. 다음 테마: 한밤.",
+    "Tema: Ceasefire. Susunod na tema: Hatinggabi.",
+    "Chủ đề: Ceasefire. Chủ đề tiếp theo: Nửa đêm."
+  ],
+  "Loading the estimator and pricing library…": [
+    "견적기와 가격 라이브러리를 불러오는 중…",
+    "Nilo-load ang tagatantiya at library ng presyo…",
+    "Đang tải công cụ dự toán và thư viện đơn giá…"
+  ],
+  "Project file": [
+    "프로젝트 파일",
+    "File ng proyekto",
+    "Tệp dự án"
+  ],
+  "CURRENT PROJECT": [
+    "현재 프로젝트",
+    "KASALUKUYANG PROYEKTO",
+    "DỰ ÁN HIỆN TẠI"
+  ],
+  "Untitled project": [
+    "제목 없는 프로젝트",
+    "Proyektong walang pamagat",
+    "Dự án chưa đặt tên"
+  ],
+  "Choose a folder with Save": [
+    "저장으로 폴더 선택",
+    "Pumili ng folder gamit ang I-save",
+    "Chọn thư mục bằng nút Lưu"
+  ],
+  "What would you like to do?": [
+    "어떤 작업을 하시겠습니까?",
+    "Ano ang gusto mong gawin?",
+    "Bạn muốn làm gì?"
+  ],
+  "Choose an area to start or continue your work.": [
+    "작업을 시작하거나 계속할 영역을 선택하세요.",
+    "Pumili ng lugar upang simulan o ipagpatuloy ang iyong trabaho.",
+    "Chọn khu vực để bắt đầu hoặc tiếp tục công việc."
+  ],
+  "Application areas": [
+    "애플리케이션 영역",
+    "Mga bahagi ng aplikasyon",
+    "Các khu vực ứng dụng"
+  ],
+  "Build the project material and labour estimates.": [
+    "프로젝트의 자재비와 인건비 견적을 작성하세요.",
+    "Buuin ang mga pagtatantiya ng materyales at paggawa para sa proyekto.",
+    "Lập dự toán vật tư và nhân công cho dự án."
+  ],
+  "Manage pricing, firestopping records and technical references.": [
+    "가격, 방화 관통부 밀봉 기록과 기술 참조를 관리하세요.",
+    "Pamahalaan ang presyo, mga tala ng pagseselyong panlaban sa sunog at mga teknikal na sanggunian.",
+    "Quản lý đơn giá, hồ sơ bịt kín chống cháy và tài liệu kỹ thuật."
+  ],
+  "Use the specialist workbook calculators and export schedules.": [
+    "전문 통합 문서 계산기를 사용하고 일람표를 내보내세요.",
+    "Gamitin ang mga espesyalistang kalkulador ng workbook at i-export ang mga talaan.",
+    "Dùng các bộ tính chuyên dụng theo bảng tính và xuất bảng kê."
+  ],
+  "Find and reopen project files from your linked folder.": [
+    "연결한 폴더에서 프로젝트 파일을 찾아 다시 여세요.",
+    "Hanapin at muling buksan ang mga file ng proyekto mula sa naka-link na folder.",
+    "Tìm và mở lại tệp dự án từ thư mục đã liên kết."
+  ],
+  "Measure original drawings and keep their source evidence with the project.": [
+    "원본 도면을 측정하고 원본 증빙을 프로젝트와 함께 보관하세요.",
+    "Sukatin ang mga orihinal na guhit at itago sa proyekto ang katibayan ng pinagmulan nito.",
+    "Đo bản vẽ gốc và lưu bằng chứng nguồn cùng dự án."
+  ],
+  "Read the guide to estimates, drawings, schedules and project files.": [
+    "견적, 도면, 일람표와 프로젝트 파일 안내서를 읽으세요.",
+    "Basahin ang gabay sa mga pagtatantiya, guhit, talaan at file ng proyekto.",
+    "Đọc hướng dẫn về dự toán, bản vẽ, bảng kê và tệp dự án."
+  ],
+  "ESTIMATES": [
+    "견적",
+    "MGA PAGTATANTIYA",
+    "DỰ TOÁN"
+  ],
+  "From project details to a complete material and labour quote.": [
+    "프로젝트 정보부터 완전한 자재비와 인건비 견적까지.",
+    "Mula sa mga detalye ng proyekto hanggang sa kumpletong sipi ng presyo ng materyales at paggawa.",
+    "Từ thông tin dự án đến báo giá đầy đủ vật tư và nhân công."
+  ],
+  "Document actions": [
+    "문서 작업",
+    "Mga aksiyon sa dokumento",
+    "Thao tác tài liệu"
+  ],
+  "Σ": [
+    "Σ",
+    "Σ",
+    "Σ"
+  ],
+  "Download Firestopping Schedule": [
+    "방화 관통부 밀봉 일람표 다운로드",
+    "I-download ang talaan ng pagseselyong panlaban sa sunog",
+    "Tải bảng kê bịt kín chống cháy"
+  ],
+  "Project Details": [
+    "프로젝트 정보",
+    "Mga detalye ng proyekto",
+    "Thông tin dự án"
+  ],
+  "New estimate": [
+    "새 견적",
+    "Bagong pagtatantiya",
+    "Dự toán mới"
+  ],
+  "Project No.": [
+    "프로젝트 번호",
+    "Blg. ng proyekto",
+    "Mã dự án"
+  ],
+  "e.g. CF-1042": [
+    "예: CF-1042",
+    "hal. CF-1042",
+    "VD: CF-1042"
+  ],
+  "Client": [
+    "고객",
+    "Kliyente",
+    "Khách hàng"
+  ],
+  "Client or company name": [
+    "고객 또는 회사명",
+    "Pangalan ng kliyente o kompanya",
+    "Tên khách hàng hoặc công ty"
+  ],
+  "Site Address": [
+    "현장 주소",
+    "Adres ng lugar",
+    "Địa chỉ công trình"
+  ],
+  "Street address or project location": [
+    "도로명 주소 또는 프로젝트 위치",
+    "Adres ng kalye o lokasyon ng proyekto",
+    "Địa chỉ đường hoặc vị trí dự án"
+  ],
+  "Optional": [
+    "선택 사항",
+    "Opsiyonal",
+    "Không bắt buộc"
+  ],
+  "Record dimensions, measured areas and the basis of the required quantities.": [
+    "치수, 측정 면적과 필요한 수량의 산출 근거를 기록하세요.",
+    "Itala ang mga sukat, nasukat na lawak at batayan ng mga kinakailangang dami.",
+    "Ghi kích thước, diện tích đo và cơ sở xác định khối lượng cần thiết."
+  ],
+  "Generated automatically": [
+    "자동 생성",
+    "Awtomatikong binuo",
+    "Tự động tạo"
+  ],
+  "This quote uses its saved pricing snapshot.": [
+    "이 견적은 저장된 가격 스냅샷을 사용합니다.",
+    "Ginagamit ng siping ito ang naka-save na kopya ng presyo.",
+    "Báo giá này dùng bản chụp đơn giá đã lưu."
+  ],
+  "Main estimate sections": [
+    "기본 견적 구역",
+    "Mga seksiyon ng pangunahing pagtatantiya",
+    "Các mục dự toán chính"
+  ],
+  "Materials": [
+    "자재",
+    "Mga materyales",
+    "Vật tư"
+  ],
+  "Hover over coverage and daily output fields to see their units. Primer, Topcoat and Board daily output is a quantity of product units per day; their coverage is in m².": [
+    "도포 면적과 일일 작업량 필드에 마우스를 올리면 단위가 표시됩니다. 프라이머, 상도, 보드의 일일 작업량은 하루당 제품 단위 수량이며, 도포 면적은 m²입니다.",
+    "Itapat ang pointer sa mga field ng saklaw at arawang output upang makita ang yunit. Ang arawang output ng primer, topcoat at tabla ay dami ng yunit ng produkto bawat araw; m² ang saklaw nila.",
+    "Di chuột lên ô độ phủ và năng suất ngày để xem đơn vị. Năng suất ngày của sơn lót, sơn phủ và tấm là số đơn vị sản phẩm mỗi ngày; độ phủ tính bằng m²."
+  ],
+  "Work item": [
+    "작업 항목",
+    "Gawaing item",
+    "Hạng mục công việc"
+  ],
+  "Wastage %": [
+    "손실률 %",
+    "Pag-aaksaya %",
+    "Hao hụt %"
+  ],
+  "Material yield": [
+    "자재 수율",
+    "Magagamit na dami ng materyales",
+    "Định mức vật tư"
+  ],
+  "Schedules & breakdowns": [
+    "일람표 및 세부 내역",
+    "Mga talaan at detalyadong hati",
+    "Bảng kê và chi tiết"
+  ],
+  "Main estimate schedules and breakdowns": [
+    "기본 견적 일람표 및 세부 내역",
+    "Mga talaan at detalyadong hati ng pangunahing pagtatantiya",
+    "Bảng kê và chi tiết dự toán chính"
+  ],
+  "Firestopping Schedule": [
+    "방화 관통부 밀봉 일람표",
+    "Talaan ng pagseselyong panlaban sa sunog",
+    "Bảng kê bịt kín chống cháy"
+  ],
+  "Ready": [
+    "준비됨",
+    "Handa",
+    "Sẵn sàng"
+  ],
+  "Recalculate Schedule": [
+    "일람표 다시 계산",
+    "Muling kalkulahin ang talaan",
+    "Tính lại bảng kê"
+  ],
+  "Only items added to this schedule contribute to the firestopping totals below.": [
+    "이 일람표에 추가한 항목만 아래 방화 관통부 밀봉 합계에 포함됩니다.",
+    "Ang mga item na idinagdag sa talaang ito lamang ang kasama sa mga kabuuan ng pagseselyong panlaban sa sunog sa ibaba.",
+    "Chỉ các hạng mục đã thêm vào bảng kê này được tính vào tổng bịt kín chống cháy bên dưới."
+  ],
+  "Item": [
+    "항목",
+    "Item",
+    "Hạng mục"
+  ],
+  "Service Type": [
+    "설비 유형",
+    "Uri ng serbisyo",
+    "Loại hệ thống kỹ thuật"
+  ],
+  "Service size (mm)": [
+    "설비 크기 (mm)",
+    "Laki ng serbisyo (mm)",
+    "Kích thước hệ thống (mm)"
+  ],
+  "Penetration Type": [
+    "관통부 유형",
+    "Uri ng butas na dinaanan",
+    "Loại lỗ xuyên"
+  ],
+  "Substrate Orientation": [
+    "바탕재 방향",
+    "Oryentasyon ng substrate",
+    "Hướng vật liệu nền"
+  ],
+  "FRL": [
+    "FRL",
+    "FRL",
+    "FRL"
+  ],
+  "Item QTY": [
+    "항목 수량",
+    "Dami ng item",
+    "Số lượng hạng mục"
+  ],
+  "Total": [
+    "합계",
+    "Kabuuan",
+    "Tổng"
+  ],
+  "Diagram": [
+    "도해",
+    "Diyagram",
+    "Sơ đồ"
+  ],
+  "Add new item": [
+    "새 항목 추가",
+    "Magdagdag ng bagong item",
+    "Thêm hạng mục mới"
+  ],
+  "Firestopping Breakdown": [
+    "방화 관통부 밀봉 세부 내역",
+    "Detalyadong hati ng pagseselyong panlaban sa sunog",
+    "Chi tiết bịt kín chống cháy"
+  ],
+  "Firestopping schedule breakdown": [
+    "방화 관통부 밀봉 일람표 세부 내역",
+    "Detalyadong hati ng talaan ng pagseselyong panlaban sa sunog",
+    "Chi tiết bảng kê bịt kín chống cháy"
+  ],
+  "Summary": [
+    "요약",
+    "Buod",
+    "Tóm tắt"
+  ],
+  "Material Breakdown": [
+    "자재 세부 내역",
+    "Detalyadong hati ng materyales",
+    "Chi tiết vật tư"
+  ],
+  "Unit sell rate": [
+    "판매 단가",
+    "Presyo ng bentahan bawat yunit",
+    "Đơn giá bán"
+  ],
+  "Labour days": [
+    "작업 일수",
+    "Mga araw ng paggawa",
+    "Số ngày công"
+  ],
+  "Labour Breakdown": [
+    "인건비 세부 내역",
+    "Detalyadong hati ng paggawa",
+    "Chi tiết nhân công"
+  ],
+  "Labour activity": [
+    "작업 내용",
+    "Gawain sa paggawa",
+    "Công tác nhân công"
+  ],
+  "Days": [
+    "일수",
+    "Mga araw",
+    "Số ngày"
+  ],
+  "Pinning is included in meshing days. Mobilisation adds half a day per adjusted mobilisation. Days include the entered labour adjustment.": [
+    "핀 고정은 메시 설치 일수에 포함됩니다. 조정된 현장 투입 횟수마다 반나절이 추가됩니다. 입력한 인력 조정은 일수에 포함됩니다.",
+    "Kasama ang paglalagay ng pin sa mga araw ng paglalagay ng mesh. Nagdaragdag ng kalahating araw sa bawat inayos na mobilisasyon. Kasama sa mga araw ang ipinasok na pagsasaayos sa paggawa.",
+    "Số ngày lắp lưới đã gồm công ghim. Mỗi lần huy động đã điều chỉnh cộng thêm nửa ngày. Số ngày đã gồm phần điều chỉnh nhân công đã nhập."
+  ],
+  "Resize Main form and Estimate Summary": [
+    "기본 양식과 견적 요약 크기 조절",
+    "Baguhin ang laki ng pangunahing form at buod ng pagtatantiya",
+    "Đổi kích thước biểu mẫu chính và tóm tắt dự toán"
+  ],
+  "Calculating": [
+    "계산 중",
+    "Kinakalkula",
+    "Đang tính"
+  ],
+  "Grand total": [
+    "총합계",
+    "Pangkalahatang kabuuan",
+    "Tổng cộng"
+  ],
+  "AUD · Material & labour estimate": [
+    "AUD · 자재비 및 인건비 견적",
+    "AUD · Pagtatantiya ng materyales at paggawa",
+    "AUD · Dự toán vật tư và nhân công"
+  ],
+  "Enter assessed quantities and suitable products. A quote total does not assess product suitability or fire ratings.": [
+    "검토한 수량과 적합한 제품을 입력하세요. 견적 합계는 제품 적합성이나 내화 등급을 평가하지 않습니다.",
+    "Ipasok ang mga nasuring dami at angkop na produkto. Hindi sinusuri ng kabuuang sipi ang kaangkupan ng produkto o mga antas ng paglaban sa sunog.",
+    "Nhập khối lượng đã đánh giá và sản phẩm phù hợp. Tổng báo giá không đánh giá tính phù hợp của sản phẩm hay cấp chịu lửa."
+  ],
+  "FIRESTOPPING CALCULATOR": [
+    "방화 관통부 밀봉 계산기",
+    "KALKULADOR NG PAGSESELYONG PANLABAN SA SUNOG",
+    "BỘ TÍNH BỊT KÍN CHỐNG CHÁY"
+  ],
+  "Calculate the current item, then add it to the Firestopping Schedule in Main.": [
+    "현재 항목을 계산한 후 기본 화면의 방화 관통부 밀봉 일람표에 추가하세요.",
+    "Kalkulahin ang kasalukuyang item, saka idagdag ito sa talaan ng pagseselyong panlaban sa sunog sa Pangunahin.",
+    "Tính hạng mục hiện tại rồi thêm vào bảng kê bịt kín chống cháy ở phần Chính."
+  ],
+  "Recalculate": [
+    "다시 계산",
+    "Muling kalkulahin",
+    "Tính lại"
+  ],
+  "Loading penetration fields…": [
+    "관통부 필드를 불러오는 중…",
+    "Nilo-load ang mga field ng butas na dinaanan…",
+    "Đang tải các ô thông tin lỗ xuyên…"
+  ],
+  "Current item": [
+    "현재 항목",
+    "Kasalukuyang item",
+    "Hạng mục hiện tại"
+  ],
+  "Clear all current item inputs": [
+    "현재 항목의 모든 입력 지우기",
+    "Burahin ang lahat ng input ng kasalukuyang item",
+    "Xóa toàn bộ dữ liệu nhập của hạng mục hiện tại"
+  ],
+  "Clear": [
+    "지우기",
+    "Burahin",
+    "Xóa"
+  ],
+  "Add to Schedule": [
+    "일람표에 추가",
+    "Idagdag sa talaan",
+    "Thêm vào bảng kê"
+  ],
+  "Item Details": [
+    "항목 정보",
+    "Mga detalye ng item",
+    "Thông tin hạng mục"
+  ],
+  "Add to Library": [
+    "라이브러리에 추가",
+    "Idagdag sa library",
+    "Thêm vào thư viện"
+  ],
+  "Update Schedule": [
+    "일람표 업데이트",
+    "I-update ang talaan",
+    "Cập nhật bảng kê"
+  ],
+  "Cancel edit": [
+    "편집 취소",
+    "Kanselahin ang pag-edit",
+    "Hủy chỉnh sửa"
+  ],
+  "Item input sections": [
+    "항목 입력 구역",
+    "Mga seksiyon ng input ng item",
+    "Các mục nhập của hạng mục"
+  ],
+  "Source diagram": [
+    "원본 도해",
+    "Diyagram ng pinagmulan",
+    "Sơ đồ nguồn"
+  ],
+  "No source diagram is attached to this item.": [
+    "이 항목에 첨부된 원본 도해가 없습니다.",
+    "Walang nakalakip na diyagram ng pinagmulan sa item na ito.",
+    "Hạng mục này chưa đính kèm sơ đồ nguồn."
+  ],
+  "Choose source diagram": [
+    "원본 도해 선택",
+    "Pumili ng diyagram ng pinagmulan",
+    "Chọn sơ đồ nguồn"
+  ],
+  "Discard selected image": [
+    "선택한 이미지 버리기",
+    "Itapon ang napiling larawan",
+    "Bỏ ảnh đã chọn"
+  ],
+  "PNG, JPEG or WebP, up to 15 MB. Add the item to the Firestopping Library to save the compressed image and schedule thumbnail.": [
+    "PNG, JPEG 또는 WebP, 최대 15 MB. 압축 이미지와 일람표 썸네일을 저장하려면 항목을 방화 관통부 밀봉 라이브러리에 추가하세요.",
+    "PNG, JPEG o WebP, hanggang 15 MB. Idagdag ang item sa library ng pagseselyong panlaban sa sunog upang ma-save ang pinasiksik na larawan at maliit na larawan para sa talaan.",
+    "PNG, JPEG hoặc WebP, tối đa 15 MB. Thêm hạng mục vào thư viện bịt kín chống cháy để lưu ảnh nén và ảnh thu nhỏ trong bảng kê."
+  ],
+  "Item Breakdown": [
+    "항목 세부 내역",
+    "Detalyadong hati ng item",
+    "Chi tiết hạng mục"
+  ],
+  "Item Summary": [
+    "항목 요약",
+    "Buod ng item",
+    "Tóm tắt hạng mục"
+  ],
+  "This is the same Firestopping Schedule used in the Quote. Changes made here update the Quote totals and breakdown.": [
+    "이 일람표는 견적에서 사용하는 방화 관통부 밀봉 일람표와 같습니다. 여기서 변경하면 견적 합계와 세부 내역이 업데이트됩니다.",
+    "Ito rin ang talaan ng pagseselyong panlaban sa sunog na ginagamit sa sipi. Ang mga pagbabago rito ay nag-a-update sa mga kabuuan at detalyadong hati ng sipi.",
+    "Đây là bảng kê bịt kín chống cháy dùng trong báo giá. Thay đổi tại đây cập nhật tổng và chi tiết của báo giá."
+  ],
+  "FIRESTOPPING LIBRARY ITEM": [
+    "방화 관통부 밀봉 라이브러리 항목",
+    "ITEM NG LIBRARY NG PAGSESELYONG PANLABAN SA SUNOG",
+    "HẠNG MỤC THƯ VIỆN BỊT KÍN CHỐNG CHÁY"
+  ],
+  "Save Library Item": [
+    "라이브러리 항목 저장",
+    "I-save ang item ng library",
+    "Lưu hạng mục thư viện"
+  ],
+  "Editing this library item leaves your current project and estimate unchanged.": [
+    "이 라이브러리 항목을 편집해도 현재 프로젝트와 견적은 바뀌지 않습니다.",
+    "Hindi mababago ang kasalukuyang proyekto at pagtatantiya kapag in-edit ang item na ito ng library.",
+    "Chỉnh sửa hạng mục thư viện này không làm thay đổi dự án và dự toán hiện tại."
+  ],
+  "Library price": [
+    "라이브러리 가격",
+    "Presyo sa library",
+    "Giá thư viện"
+  ],
+  "Refresh from Pricing Library": [
+    "가격 라이브러리에서 새로고침",
+    "I-refresh mula sa library ng presyo",
+    "Làm mới từ thư viện đơn giá"
+  ],
+  "Item details": [
+    "항목 정보",
+    "Mga detalye ng item",
+    "Thông tin hạng mục"
+  ],
+  "Library item document actions": [
+    "라이브러리 항목 문서 작업",
+    "Mga aksiyon sa dokumento ng item ng library",
+    "Thao tác tài liệu của hạng mục thư viện"
+  ],
+  "Library item input sections": [
+    "라이브러리 항목 입력 구역",
+    "Mga seksiyon ng input ng item ng library",
+    "Các mục nhập của hạng mục thư viện"
+  ],
+  "No source diagram is saved for this item.": [
+    "이 항목에 저장된 원본 도해가 없습니다.",
+    "Walang naka-save na diyagram ng pinagmulan para sa item na ito.",
+    "Hạng mục này chưa lưu sơ đồ nguồn."
+  ],
+  "Remove saved image": [
+    "저장한 이미지 제거",
+    "Alisin ang naka-save na larawan",
+    "Xóa ảnh đã lưu"
+  ],
+  "PNG, JPEG or WebP, up to 15 MB. The saved image is compressed for clear viewing and a schedule thumbnail is created automatically.": [
+    "PNG, JPEG 또는 WebP, 최대 15 MB. 저장하는 이미지는 선명하게 볼 수 있도록 압축되며 일람표 썸네일이 자동으로 만들어집니다.",
+    "PNG, JPEG o WebP, hanggang 15 MB. Pinasisiksik ang naka-save na larawan para sa malinaw na pagtingin at awtomatikong gumagawa ng maliit na larawan para sa talaan.",
+    "PNG, JPEG hoặc WebP, tối đa 15 MB. Ảnh được nén để xem rõ và tự động tạo ảnh thu nhỏ cho bảng kê."
+  ],
+  "Item estimate": [
+    "항목 견적",
+    "Pagtatantiya ng item",
+    "Dự toán hạng mục"
+  ],
+  "Calculated breakdown": [
+    "계산된 세부 내역",
+    "Nakalkulang detalyadong hati",
+    "Chi tiết đã tính"
+  ],
+  "WORKBOOK CALCULATOR": [
+    "통합 문서 계산기",
+    "KALKULADOR NG WORKBOOK",
+    "BỘ TÍNH THEO BẢNG TÍNH"
+  ],
+  "Workbook defaults": [
+    "통합 문서 기본값",
+    "Mga default ng workbook",
+    "Giá trị mặc định của bảng tính"
+  ],
+  "Reset Calc": [
+    "계산기 초기화",
+    "I-reset ang kalkulador",
+    "Đặt lại bộ tính"
+  ],
+  "Calculator pages": [
+    "계산기 페이지",
+    "Mga pahina ng kalkulador",
+    "Các trang bộ tính"
+  ],
+  "Calculator worksheet": [
+    "계산기 워크시트",
+    "Worksheet ng kalkulador",
+    "Trang tính của bộ tính"
+  ],
+  "Add or remove schedule rows as needed · Imports create their rows automatically": [
+    "필요에 따라 일람표 행을 추가하거나 제거하세요 · 가져오기는 행을 자동으로 만듭니다",
+    "Magdagdag o mag-alis ng mga hilera ng talaan ayon sa kailangan · Awtomatikong ginagawa ng mga import ang kanilang mga hilera",
+    "Thêm hoặc xóa dòng bảng kê khi cần · Dữ liệu nhập tự tạo các dòng"
+  ],
+  "Technical documents and source information": [
+    "기술 문서 및 원본 정보",
+    "Mga teknikal na dokumento at impormasyon ng pinagmulan",
+    "Tài liệu kỹ thuật và thông tin nguồn"
+  ],
+  "Select between Main Library and Current Project. Editing the library for Current Project will only retain edits for the current project.": [
+    "기본 라이브러리와 현재 프로젝트 중에서 선택하세요. 현재 프로젝트의 라이브러리를 편집하면 변경 사항은 현재 프로젝트에만 저장됩니다.",
+    "Pumili sa pangunahing library at kasalukuyang proyekto. Ang pag-edit ng library para sa kasalukuyang proyekto ay magtatago ng mga pagbabago para lamang sa kasalukuyang proyekto.",
+    "Chọn Thư viện chính hoặc Dự án hiện tại. Sửa thư viện cho Dự án hiện tại chỉ lưu thay đổi cho dự án đang mở."
+  ],
+  "Document": [
+    "문서",
+    "Dokumento",
+    "Tài liệu"
+  ],
+  "+ Add item": [
+    "+ 항목 추가",
+    "+ Magdagdag ng item",
+    "+ Thêm hạng mục"
+  ],
+  "Discard Changes": [
+    "변경 사항 버리기",
+    "Itapon ang mga pagbabago",
+    "Bỏ thay đổi"
+  ],
+  "Search products or services": [
+    "제품 또는 서비스 검색",
+    "Maghanap ng mga produkto o serbisyo",
+    "Tìm sản phẩm hoặc dịch vụ"
+  ],
+  "Search product, service or item code…": [
+    "제품, 서비스 또는 항목 코드 검색…",
+    "Maghanap ng produkto, serbisyo o code ng item…",
+    "Tìm sản phẩm, dịch vụ hoặc mã hạng mục…"
+  ],
+  "Estimator availability": [
+    "견적기 사용 가능 범위",
+    "Paggamit sa mga tagatantiya",
+    "Phạm vi dùng trong công cụ dự toán"
+  ],
+  "Pricing to edit": [
+    "편집할 가격",
+    "Presyong ie-edit",
+    "Đơn giá cần sửa"
+  ],
+  "Main Library": [
+    "기본 라이브러리",
+    "Pangunahing library",
+    "Thư viện chính"
+  ],
+  "Current Project": [
+    "현재 프로젝트",
+    "Kasalukuyang proyekto",
+    "Dự án hiện tại"
+  ],
+  "Saved configuration": [
+    "저장한 구성",
+    "Naka-save na pagsasaayos",
+    "Cấu hình đã lưu"
+  ],
+  "WORKSPACE": [
+    "작업공간",
+    "LUGAR NG TRABAHO",
+    "KHÔNG GIAN LÀM VIỆC"
+  ],
+  "Open a complete estimate, its original prices and all three calculators.": [
+    "완전한 견적, 원래 가격과 세 가지 계산기를 모두 여세요.",
+    "Buksan ang kumpletong pagtatantiya, ang orihinal nitong mga presyo at ang lahat ng tatlong kalkulador.",
+    "Mở dự toán đầy đủ, đơn giá gốc và cả ba bộ tính."
+  ],
+  "New": [
+    "새로 만들기",
+    "Bago",
+    "Mới"
+  ],
+  "Load": [
+    "불러오기",
+    "I-load",
+    "Tải"
+  ],
+  "Link Project Folder": [
+    "프로젝트 폴더 연결",
+    "I-link ang folder ng proyekto",
+    "Liên kết thư mục dự án"
+  ],
+  "Refresh": [
+    "새로고침",
+    "I-refresh",
+    "Làm mới"
+  ],
+  "Search projects": [
+    "프로젝트 검색",
+    "Maghanap ng mga proyekto",
+    "Tìm dự án"
+  ],
+  "Project, client, address or folder…": [
+    "프로젝트, 고객, 주소 또는 폴더…",
+    "Proyekto, kliyente, adres o folder…",
+    "Dự án, khách hàng, địa chỉ hoặc thư mục…"
+  ],
+  "Sort by": [
+    "정렬 기준",
+    "Ayusin ayon sa",
+    "Sắp xếp theo"
+  ],
+  "Most recently saved": [
+    "최근 저장 순",
+    "Pinakahuling na-save",
+    "Lưu gần nhất"
+  ],
+  "Oldest saved first": [
+    "오래된 저장 순",
+    "Pinakamatagal nang na-save muna",
+    "Lưu lâu nhất trước"
+  ],
+  "Project name A–Z": [
+    "프로젝트명 A–Z",
+    "Pangalan ng proyekto A–Z",
+    "Tên dự án A–Z"
+  ],
+  "Project name Z–A": [
+    "프로젝트명 Z–A",
+    "Pangalan ng proyekto Z–A",
+    "Tên dự án Z–A"
+  ],
+  "Reading project files…": [
+    "프로젝트 파일을 읽는 중…",
+    "Binabasa ang mga file ng proyekto…",
+    "Đang đọc tệp dự án…"
+  ],
+  "Previous": [
+    "이전",
+    "Nakaraan",
+    "Trước"
+  ],
+  "Next": [
+    "다음",
+    "Susunod",
+    "Tiếp"
+  ],
+  "Continue folder scan": [
+    "폴더 검색 계속",
+    "Ipagpatuloy ang pag-scan ng folder",
+    "Tiếp tục quét thư mục"
+  ],
+  "PROJECT FILES": [
+    "프로젝트 파일",
+    "MGA FILE NG PROYEKTO",
+    "TỆP DỰ ÁN"
+  ],
+  "Back to Projects": [
+    "프로젝트로 돌아가기",
+    "Bumalik sa mga proyekto",
+    "Quay lại dự án"
+  ],
+  "Project folder breadcrumbs": [
+    "프로젝트 폴더 경로",
+    "Mga breadcrumb ng folder ng proyekto",
+    "Đường dẫn thư mục dự án"
+  ],
+  "HELP": [
+    "도움말",
+    "TULONG",
+    "TRỢ GIÚP"
+  ],
+  "Using the Ceasefire Estimator": [
+    "Ceasefire 견적기 사용법",
+    "Paggamit ng Ceasefire Estimator",
+    "Sử dụng công cụ dự toán Ceasefire"
+  ],
+  "A plain-English guide to finding your way around and producing an estimate.": [
+    "기능을 찾고 견적을 작성하는 쉬운 안내서입니다.",
+    "Isang gabay sa madaling Ingles upang matutong gumamit at gumawa ng pagtatantiya.",
+    "Hướng dẫn bằng tiếng Anh đơn giản về điều hướng và lập dự toán."
+  ],
+  "Button symbols, functions and shortcuts": [
+    "버튼 기호, 기능 및 단축키",
+    "Mga simbolo ng button, gamit at shortcut",
+    "Biểu tượng nút, chức năng và phím tắt"
+  ],
+  "Search by name, symbol, function or shortcut. Drawing shortcuts work in Takeoffs when the control is available, focus is outside text fields and no dialog is open. Ctrl/Cmd accepts Control or Command; other Ctrl shortcuts use Control.": [
+    "이름, 기호, 기능 또는 단축키로 검색하세요. 도면 단축키는 수량 산출에서 컨트롤을 사용할 수 있고 포커스가 텍스트 필드 밖에 있으며 대화상자가 열려 있지 않을 때 작동합니다. Ctrl/Cmd는 Control 또는 Command를 뜻하며, 다른 Ctrl 단축키는 Control을 사용합니다.",
+    "Maghanap ayon sa pangalan, simbolo, gamit o shortcut. Gumagana ang mga shortcut sa guhit sa Pagsukat ng dami kapag magagamit ang kontrol, wala sa text field ang pokus at walang bukas na dialog. Tinatanggap ng Ctrl/Cmd ang Control o Command; Control ang gamit ng ibang Ctrl shortcut.",
+    "Tìm theo tên, biểu tượng, chức năng hoặc phím tắt. Phím tắt bản vẽ hoạt động trong Bóc tách khối lượng khi điều khiển khả dụng, con trỏ không nằm trong ô văn bản và không có hộp thoại mở. Ctrl/Cmd chấp nhận Control hoặc Command; các phím tắt Ctrl khác dùng Control."
+  ],
+  "Search buttons and shortcuts": [
+    "버튼 및 단축키 검색",
+    "Maghanap ng mga button at shortcut",
+    "Tìm nút và phím tắt"
+  ],
+  "Try surface, download, visibility or Ctrl…": [
+    "표면, 다운로드, 표시 또는 Ctrl 등을 검색하세요…",
+    "Subukan ang ibabaw, pag-download, visibility o Ctrl…",
+    "Thử bề mặt, tải xuống, hiển thị hoặc Ctrl…"
+  ],
+  "Section": [
+    "구역",
+    "Seksiyon",
+    "Mục"
+  ],
+  "All sections": [
+    "모든 구역",
+    "Lahat ng seksiyon",
+    "Tất cả các mục"
+  ],
+  "Clear search": [
+    "검색 지우기",
+    "Burahin ang paghahanap",
+    "Xóa tìm kiếm"
+  ],
+  "Start a project": [
+    "프로젝트 시작",
+    "Magsimula ng proyekto",
+    "Bắt đầu dự án"
+  ],
+  "Open Estimates and enter the project number, client and site address.": [
+    "견적을 열고 프로젝트 번호, 고객과 현장 주소를 입력하세요.",
+    "Buksan ang Mga pagtatantiya at ilagay ang numero ng proyekto, kliyente at adres ng lugar.",
+    "Mở Dự toán rồi nhập mã dự án, khách hàng và địa chỉ công trình."
+  ],
+  "Open Calculators for a specialist workbook calculator. Use Estimates for Main and Calculators for Firestopping.": [
+    "전문 통합 문서 계산기를 쓰려면 계산기를 여세요. 기본 견적은 견적에서, 방화 관통부 밀봉은 계산기에서 사용하세요.",
+    "Buksan ang Mga kalkulador para sa espesyalistang kalkulador ng workbook. Gamitin ang Mga pagtatantiya para sa Pangunahin at Mga kalkulador para sa pagseselyong panlaban sa sunog.",
+    "Mở Bộ tính để dùng bộ tính chuyên dụng theo bảng tính. Dùng Dự toán cho phần Chính và Bộ tính cho Bịt kín chống cháy."
+  ],
+  "Use Save the first time. Use Save after the file has a location.": [
+    "처음에는 저장을 사용하세요. 파일 위치가 지정된 뒤에도 저장을 사용하세요.",
+    "Gamitin ang I-save sa unang pagkakataon. Gamitin ang I-save kapag may lokasyon na ang file.",
+    "Dùng Lưu lần đầu. Tiếp tục dùng Lưu sau khi tệp đã có vị trí."
+  ],
+  "Build the Quote": [
+    "견적 작성",
+    "Buuin ang sipi ng presyo",
+    "Lập báo giá"
+  ],
+  "Quote combines materials, labour, access, travel and adjustments. The summary updates after valid changes. Choose a section tab to edit or audit its values.": [
+    "견적에는 자재비, 인건비, 접근 장비, 이동비와 조정이 합산됩니다. 유효한 변경 후 요약이 업데이트됩니다. 구역 탭을 선택해 값을 편집하거나 검토하세요.",
+    "Pinagsasama ng sipi ang materyales, paggawa, pag-access, paglalakbay at mga pagsasaayos. Nag-a-update ang buod matapos ang wastong pagbabago. Pumili ng tab ng seksiyon upang i-edit o suriin ang mga halaga.",
+    "Báo giá kết hợp vật tư, nhân công, tiếp cận, đi lại và các khoản điều chỉnh. Tóm tắt cập nhật sau thay đổi hợp lệ. Chọn thẻ mục để sửa hoặc kiểm tra giá trị."
+  ],
+  "In Material Requirements & Output, the copy symbol duplicates a work-item row. A duplicate has the same inputs and labour team as its source. Its material and labour are added to the summary and breakdowns. Use its trash symbol to remove it.": [
+    "자재 소요량 및 작업량에서 복사 기호는 작업 항목 행을 복제합니다. 복제 행은 원본과 같은 입력과 작업팀을 사용합니다. 해당 자재와 인건비가 요약과 세부 내역에 더해집니다. 삭제하려면 휴지통 기호를 사용하세요.",
+    "Sa Mga pangangailangan at output ng materyales, dinodoble ng simbolo ng kopya ang isang hilera ng gawaing item. Pareho ang input at pangkat ng paggawa ng kopya at ng pinagmulan. Idinaragdag sa buod at detalyadong hati ang mga materyales at paggawa nito. Gamitin ang simbolo ng basurahan upang alisin ito.",
+    "Trong Nhu cầu vật tư và năng suất, biểu tượng sao chép tạo bản sao dòng công việc. Bản sao giữ nguyên dữ liệu nhập và đội nhân công của dòng gốc. Vật tư và nhân công của dòng đó được cộng vào tóm tắt và chi tiết. Dùng biểu tượng thùng rác để xóa."
+  ],
+  "Open Calculators, then choose Firestopping. Complete the item tabs, review Item Summary and Item Breakdown, and use the plus symbol to add the item to the Firestopping Schedule.": [
+    "계산기를 열고 방화 관통부 밀봉을 선택하세요. 항목 탭을 작성하고 항목 요약과 세부 내역을 검토한 뒤 더하기 기호로 방화 관통부 밀봉 일람표에 항목을 추가하세요.",
+    "Buksan ang Mga kalkulador at piliin ang pagseselyong panlaban sa sunog. Kumpletuhin ang mga tab ng item, suriin ang buod at detalyadong hati, at gamitin ang plus na simbolo upang idagdag ang item sa talaan ng pagseselyong panlaban sa sunog.",
+    "Mở Bộ tính rồi chọn Bịt kín chống cháy. Hoàn thành các thẻ hạng mục, xem tóm tắt và chi tiết hạng mục, rồi dùng biểu tượng cộng để thêm hạng mục vào bảng kê bịt kín chống cháy."
+  ],
+  "The schedule shown below the item is the same schedule shown in Quote. Edit, remove, undo or recalculate in either location. Only scheduled items contribute to quote totals. Open Document in Main to download the Estimate Summary PDF or the complete current Firestopping Schedule as XLSX or PDF. Use Document in the current item to download that item’s details; its PDF also includes the source diagram when attached.": [
+    "항목 아래의 일람표는 견적에 표시되는 일람표와 같습니다. 어느 곳에서든 편집, 제거, 실행 취소 또는 다시 계산할 수 있습니다. 일람표에 추가된 항목만 견적 합계에 포함됩니다. 기본 화면의 문서를 열면 견적 요약 PDF 또는 현재 방화 관통부 밀봉 일람표 전체를 XLSX나 PDF로 다운로드할 수 있습니다. 현재 항목의 문서에서는 해당 항목의 상세 정보를 다운로드하며, 첨부된 원본 도해도 PDF에 포함됩니다.",
+    "Ang talaan sa ilalim ng item ay ang parehong talaan sa sipi. Maaaring mag-edit, mag-alis, mag-undo o muling magkalkula sa alinman. Ang nasa talaan lamang ang kasama sa kabuuan ng sipi. Buksan ang Dokumento sa Pangunahin upang i-download ang PDF ng buod ng pagtatantiya o ang buong kasalukuyang talaan ng pagseselyong panlaban sa sunog bilang XLSX o PDF. Gamitin ang Dokumento ng kasalukuyang item upang i-download ang mga detalye nito; kasama rin sa PDF ang diyagram ng pinagmulan kung nakalakip.",
+    "Bảng kê bên dưới hạng mục cũng là bảng kê hiển thị trong Báo giá. Có thể sửa, xóa, hoàn tác hoặc tính lại ở cả hai nơi. Chỉ hạng mục có trong bảng kê mới góp vào tổng báo giá. Mở Tài liệu ở phần Chính để tải PDF tóm tắt dự toán hoặc toàn bộ bảng kê bịt kín chống cháy hiện tại dưới dạng XLSX hoặc PDF. Dùng Tài liệu của hạng mục hiện tại để tải chi tiết; PDF cũng gồm sơ đồ nguồn nếu đã đính kèm."
+  ],
+  "Product Calculators": [
+    "제품 계산기",
+    "Mga kalkulador ng produkto",
+    "Bộ tính sản phẩm"
+  ],
+  "Choose Steel Spray, Steel Board or Ductwork under Calculators. Move through the page tabs, enter values in the input fields and select Recalculate. Open Document and choose Export XLSX Template for the supported import layout for the selected calculator.": [
+    "계산기에서 강재 분사, 강재 보드 또는 덕트를 선택하세요. 페이지 탭을 이동하며 입력 필드에 값을 넣고 다시 계산을 선택하세요. 문서를 열고 XLSX 템플릿 내보내기를 선택하면 선택한 계산기에서 지원하는 가져오기 양식을 받을 수 있습니다.",
+    "Piliin ang Bakal na spray, Bakal na tabla o Ductwork sa Mga kalkulador. Lumipat sa mga tab ng pahina, maglagay ng halaga sa mga input field at piliin ang Muling kalkulahin. Buksan ang Dokumento at piliin ang I-export ang template na XLSX para sa suportadong layout ng import ng napiling kalkulador.",
+    "Chọn Thép phun, Thép tấm hoặc Ống gió trong Bộ tính. Di chuyển qua các thẻ trang, nhập giá trị vào ô và chọn Tính lại. Mở Tài liệu rồi chọn Xuất mẫu XLSX để nhận bố cục nhập được hỗ trợ cho bộ tính đã chọn."
+  ],
+  "The page owns vertical scrolling. Wide tables scroll sideways without changing height when a field is selected.": [
+    "세로 스크롤은 페이지에서 합니다. 넓은 표는 필드를 선택해도 높이가 바뀌지 않고 가로로 스크롤됩니다.",
+    "Ang pahina ang may hawak ng patayong pag-scroll. Ang malalapad na talahanayan ay nai-scroll nang pahalang nang hindi nagbabago ng taas kapag pumili ng field.",
+    "Trang đảm nhiệm cuộn dọc. Bảng rộng cuộn ngang và không đổi chiều cao khi chọn ô."
+  ],
+  "Schedules and files": [
+    "일람표 및 파일",
+    "Mga talaan at file",
+    "Bảng kê và tệp"
+  ],
+  "Schedule tabs let you add, duplicate, remove and undo rows. Import XLSX replaces the current schedule draft only after confirmation. Export Template provides the supported input layout.": [
+    "일람표 탭에서 행을 추가, 복제, 제거하거나 실행 취소할 수 있습니다. XLSX 가져오기는 확인한 후에만 현재 일람표 초안을 대체합니다. 템플릿 내보내기는 지원하는 입력 양식을 제공합니다.",
+    "Sa mga tab ng talaan ay maaaring magdagdag, magdoble, mag-alis at mag-undo ng mga hilera. Pinapalitan lamang ng Pag-import ng XLSX ang kasalukuyang draft ng talaan matapos ang kumpirmasyon. Ibinibigay ng I-export ang template ang suportadong layout ng input.",
+    "Các thẻ bảng kê cho phép thêm, sao chép, xóa và hoàn tác dòng. Nhập XLSX chỉ thay thế bản nháp bảng kê hiện tại sau khi xác nhận. Xuất mẫu cung cấp bố cục nhập được hỗ trợ."
+  ],
+  "The Document menu lists imports, templates and downloads for the current schedule or summary, with an icon and name for each action. A generated file reflects the values captured when the action began.": [
+    "문서 메뉴는 현재 일람표나 요약에 대한 가져오기, 템플릿, 다운로드를 각 작업의 아이콘과 이름으로 표시합니다. 생성되는 파일은 작업을 시작할 때 캡처된 값을 반영합니다.",
+    "Nakalista sa menu ng Dokumento ang mga import, template at download para sa kasalukuyang talaan o buod, na may icon at pangalan para sa bawat aksiyon. Ipinapakita ng binuong file ang mga halagang nakuha nang simulan ang aksiyon.",
+    "Menu Tài liệu liệt kê các thao tác nhập, mẫu và tải xuống cho bảng kê hoặc tóm tắt hiện tại, kèm biểu tượng và tên từng thao tác. Tệp tạo ra phản ánh các giá trị ghi nhận khi bắt đầu thao tác."
+  ],
+  "Main Library edits the shared prices used by new work. Current Project edits only the open project’s pricing snapshot. Main Estimator and Firestopping Estimator availability groups control where a product or service appears.": [
+    "기본 라이브러리는 새 작업에서 공유하는 가격을 편집합니다. 현재 프로젝트는 열린 프로젝트의 가격 스냅샷만 편집합니다. 기본 견적기와 방화 관통부 밀봉 견적기의 사용 가능 그룹은 제품이나 서비스가 표시되는 위치를 제어합니다.",
+    "Ini-edit ng pangunahing library ang mga ibinabahaging presyong gamit sa bagong trabaho. Ini-edit lamang ng kasalukuyang proyekto ang kopya ng presyo ng bukas na proyekto. Kinokontrol ng mga grupo ng paggamit sa pangunahing tagatantiya at tagatantiya ng pagseselyong panlaban sa sunog kung saan lumilitaw ang produkto o serbisyo.",
+    "Thư viện chính sửa đơn giá dùng chung cho công việc mới. Dự án hiện tại chỉ sửa bản chụp đơn giá của dự án đang mở. Các nhóm khả dụng trong công cụ dự toán chính và công cụ bịt kín chống cháy kiểm soát nơi sản phẩm hoặc dịch vụ xuất hiện."
+  ],
+  "Export Excel includes the whole draft library. Import the complete workbook, review the comparison, then save or apply it. Discard returns to the last saved or applied values. Reset loads application defaults into the draft and still requires Save or Apply.": [
+    "Excel 내보내기에는 라이브러리 초안 전체가 포함됩니다. 통합 문서 전체를 가져오고 비교를 검토한 다음 저장하거나 적용하세요. 버리기는 마지막 저장 또는 적용한 값으로 돌아갑니다. 초기화는 애플리케이션 기본값을 초안으로 불러오며, 이후에도 저장 또는 적용이 필요합니다.",
+    "Kasama sa I-export ang Excel ang buong draft ng library. I-import ang kumpletong workbook, suriin ang paghahambing, saka i-save o ilapat. Ibinabalik ng Itapon ang mga huling na-save o nailapat na halaga. Nilo-load ng I-reset ang mga default ng aplikasyon sa draft at kailangan pa ring I-save o Ilapat.",
+    "Xuất Excel gồm toàn bộ bản nháp thư viện. Nhập toàn bộ bảng tính, xem phần so sánh rồi lưu hoặc áp dụng. Bỏ thay đổi trở về giá trị lưu hoặc áp dụng gần nhất. Đặt lại tải mặc định ứng dụng vào bản nháp và vẫn cần Lưu hoặc Áp dụng."
+  ],
+  "Firestopping and Technical Libraries": [
+    "방화 관통부 밀봉 및 기술 라이브러리",
+    "Mga library ng pagseselyong panlaban sa sunog at teknikal",
+    "Thư viện bịt kín chống cháy và kỹ thuật"
+  ],
+  "Firestopping Library records store reusable item inputs, calculated prices and source diagrams. Technical Library records store supporting system and report references. Use the link symbol to associate one or more records and the trash symbol to unlink an association.": [
+    "방화 관통부 밀봉 라이브러리 기록에는 재사용할 항목 입력, 계산된 가격과 원본 도해가 저장됩니다. 기술 라이브러리 기록에는 시스템과 보고서 참조가 저장됩니다. 연결 기호로 하나 이상의 기록을 연결하고 휴지통 기호로 연결을 해제하세요.",
+    "Itinatago ng mga tala sa library ng pagseselyong panlaban sa sunog ang magagamit muli na input ng item, nakalkulang presyo at diyagram ng pinagmulan. Itinatago ng mga tala sa teknikal na library ang sumusuportang sistema at sanggunian ng ulat. Gamitin ang simbolo ng link upang iugnay ang isa o higit pang tala at ang basurahan upang alisin ang ugnayan.",
+    "Hồ sơ thư viện bịt kín chống cháy lưu dữ liệu nhập có thể dùng lại, giá đã tính và sơ đồ nguồn. Hồ sơ thư viện kỹ thuật lưu tài liệu hệ thống và tham chiếu báo cáo hỗ trợ. Dùng biểu tượng liên kết để gắn một hoặc nhiều hồ sơ và thùng rác để gỡ liên kết."
+  ],
+  "Editing or unlinking a library record does not edit the source technical document. Reusable library data does not itself confirm project suitability, compliance or approval.": [
+    "라이브러리 기록을 편집하거나 연결 해제해도 원본 기술 문서는 바뀌지 않습니다. 재사용 가능한 라이브러리 데이터만으로 프로젝트 적합성, 규정 준수 또는 승인이 확인되지는 않습니다.",
+    "Hindi nababago ang orihinal na teknikal na dokumento kapag nag-edit o nag-alis ng ugnayan ng tala sa library. Ang datos ng library na magagamit muli ay hindi sa sarili nito kumpirmasyon ng kaangkupan sa proyekto, pagsunod o pag-apruba.",
+    "Sửa hoặc gỡ liên kết hồ sơ thư viện không sửa tài liệu kỹ thuật gốc. Dữ liệu thư viện dùng lại tự nó không xác nhận tính phù hợp với dự án, tuân thủ hay phê duyệt."
+  ],
+  "Save, load and attach files": [
+    "파일 저장, 불러오기 및 첨부",
+    "Mag-save, mag-load at maglakip ng mga file",
+    "Lưu, tải và đính kèm tệp"
+  ],
+  "A project file contains the Quote, duplicated work items, Firestopping Schedule, calculator drafts and the project’s pricing snapshot. Save chooses a location for a new project and safely updates an already selected file.": [
+    "프로젝트 파일에는 견적, 복제한 작업 항목, 방화 관통부 밀봉 일람표, 계산기 초안과 프로젝트 가격 스냅샷이 포함됩니다. 저장은 새 프로젝트 위치를 선택하고 이미 선택한 파일을 안전하게 업데이트합니다.",
+    "Nasa file ng proyekto ang sipi, mga kinopyang gawaing item, talaan ng pagseselyong panlaban sa sunog, mga draft ng kalkulador at kopya ng presyo ng proyekto. Pinapapili ng I-save ang lokasyon ng bagong proyekto at ligtas na ina-update ang napiling file.",
+    "Tệp dự án gồm Báo giá, các dòng công việc sao chép, bảng kê bịt kín chống cháy, bản nháp bộ tính và bản chụp đơn giá của dự án. Lưu cho phép chọn vị trí dự án mới và cập nhật an toàn tệp đã chọn."
+  ],
+  "After saving, Project files can store attachments beside the project. Projects searches the linked folder and subfolders. Opening a file replaces the current drafts only after confirmation.": [
+    "저장 후 프로젝트 파일 기능으로 첨부 파일을 프로젝트 옆에 저장할 수 있습니다. 프로젝트는 연결한 폴더와 하위 폴더를 검색합니다. 파일 열기는 확인한 후에만 현재 초안을 대체합니다.",
+    "Pagkatapos mag-save, maaaring magtago ng mga kalakip sa tabi ng proyekto ang Mga file ng proyekto. Hinahanap ng Mga proyekto ang naka-link na folder at mga subfolder. Pinapalitan lamang ng pagbubukas ng file ang kasalukuyang mga draft matapos ang kumpirmasyon.",
+    "Sau khi lưu, Tệp dự án có thể lưu tệp đính kèm cạnh dự án. Dự án tìm trong thư mục liên kết và thư mục con. Mở tệp chỉ thay thế bản nháp hiện tại sau khi xác nhận."
+  ],
+  "Older prices and recalculation": [
+    "이전 가격 및 다시 계산",
+    "Mga lumang presyo at muling pagkalkula",
+    "Đơn giá cũ và tính lại"
+  ],
+  "Loaded projects keep their saved pricing so historical totals do not silently change. Use current pricing deliberately replaces that snapshot and recalculates the project with the current Main Library.": [
+    "불러온 프로젝트는 저장한 가격을 유지하여 과거 합계가 저절로 바뀌지 않습니다. 현재 가격 사용을 선택하면 해당 스냅샷을 의도적으로 대체하고 현재 기본 라이브러리로 프로젝트를 다시 계산합니다.",
+    "Pinananatili ng mga na-load na proyekto ang naka-save nilang presyo upang hindi tahimik na magbago ang mga dating kabuuan. Sadyang pinapalitan ng Gamitin ang kasalukuyang presyo ang kopyang iyon at muling kinakalkula ang proyekto gamit ang kasalukuyang pangunahing library.",
+    "Dự án được tải giữ đơn giá đã lưu để tổng cũ không tự thay đổi. Dùng đơn giá hiện tại chủ động thay bản chụp đó và tính lại dự án bằng Thư viện chính hiện tại."
+  ],
+  "If a product or crew is missing, select a valid replacement before saving or exporting. Unsaved pricing changes remain separate until Save pricing or Apply is used.": [
+    "제품이나 작업팀이 없으면 저장 또는 내보내기 전에 유효한 대체 항목을 선택하세요. 저장하지 않은 가격 변경은 가격 저장 또는 적용을 사용할 때까지 별도로 유지됩니다.",
+    "Kung may nawawalang produkto o pangkat, pumili ng wastong kapalit bago mag-save o mag-export. Nananatiling hiwalay ang hindi pa naka-save na pagbabago sa presyo hanggang gamitin ang I-save ang presyo o Ilapat.",
+    "Nếu thiếu sản phẩm hoặc đội nhân công, chọn mục thay thế hợp lệ trước khi lưu hoặc xuất. Thay đổi giá chưa lưu được giữ riêng đến khi dùng Lưu đơn giá hoặc Áp dụng."
+  ],
+  "Messages and recovery": [
+    "메시지 및 복구",
+    "Mga mensahe at pagbawi",
+    "Thông báo và khôi phục"
+  ],
+  "Select Teams: choose a crew for each used work-item type.": [
+    "작업팀 선택: 사용 중인 각 작업 항목 유형의 작업팀을 선택하세요.",
+    "Pumili ng mga pangkat: pumili ng pangkat para sa bawat ginagamit na uri ng gawaing item.",
+    "Chọn đội: chọn đội cho từng loại công việc đang dùng."
+  ],
+  "Check inputs: correct the field marked in red, then recalculate.": [
+    "입력 확인: 빨간색으로 표시된 필드를 수정한 후 다시 계산하세요.",
+    "Suriin ang input: itama ang field na may pulang marka, saka muling kalkulahin.",
+    "Kiểm tra dữ liệu nhập: sửa ô đánh dấu đỏ rồi tính lại."
+  ],
+  "Unsaved changes: use Save before closing or replacing the project.": [
+    "저장하지 않은 변경: 프로젝트를 닫거나 대체하기 전에 저장하세요.",
+    "Mga pagbabagong hindi naka-save: gamitin ang I-save bago isara o palitan ang proyekto.",
+    "Thay đổi chưa lưu: dùng Lưu trước khi đóng hoặc thay thế dự án."
+  ],
+  "Saved pricing snapshot: the project is intentionally using its own frozen prices.": [
+    "저장된 가격 스냅샷: 프로젝트가 의도적으로 고정한 자체 가격을 사용하고 있습니다.",
+    "Naka-save na kopya ng presyo: sadyang ginagamit ng proyekto ang sarili nitong nakapirming mga presyo.",
+    "Bản chụp đơn giá đã lưu: dự án đang chủ động dùng đơn giá đã chốt riêng."
+  ],
+  "Final review": [
+    "최종 검토",
+    "Huling pagsusuri",
+    "Kiểm tra cuối"
+  ],
+  "This estimating product has been developed by CLASSIFIRE. All information and results are indicative and provided for guidance only. Before relying on any output, confirm its suitability with the relevant manufacturer and project authority.": [
+    "이 견적 제품은 CLASSIFIRE가 개발했습니다. 모든 정보와 결과는 참고용이며 안내 목적으로만 제공됩니다. 출력을 신뢰하기 전에 관련 제조사와 프로젝트 책임 기관을 통해 적합성을 확인하세요.",
+    "Binuo ng CLASSIFIRE ang produktong ito sa pagtatantiya. Tantiya lamang ang lahat ng impormasyon at resulta at ibinibigay bilang gabay lamang. Bago umasa sa anumang output, kumpirmahin ang kaangkupan nito sa kaugnay na tagagawa at awtoridad ng proyekto.",
+    "Sản phẩm dự toán này do CLASSIFIRE phát triển. Mọi thông tin và kết quả mang tính tham khảo, chỉ dùng để hướng dẫn. Trước khi dựa vào bất kỳ đầu ra nào, xác nhận tính phù hợp với nhà sản xuất và cơ quan phụ trách dự án."
+  ],
+  "Start a new estimate?": [
+    "새 견적을 시작하시겠습니까?",
+    "Magsimula ng bagong pagtatantiya?",
+    "Bắt đầu dự toán mới?"
+  ],
+  "Your current unsaved changes will be replaced with the default estimate inputs.": [
+    "저장하지 않은 현재 변경 사항이 기본 견적 입력으로 대체됩니다.",
+    "Papalitan ng mga default na input ng pagtatantiya ang kasalukuyan mong mga pagbabagong hindi naka-save.",
+    "Thay đổi chưa lưu hiện tại sẽ được thay bằng dữ liệu dự toán mặc định."
+  ],
+  "Start new estimate": [
+    "새 견적 시작",
+    "Magsimula ng bagong pagtatantiya",
+    "Bắt đầu dự toán mới"
+  ],
+  "Replace calculator inputs?": [
+    "계산기 입력을 대체하시겠습니까?",
+    "Palitan ang mga input ng kalkulador?",
+    "Thay dữ liệu nhập của bộ tính?"
+  ],
+  "Replace draft": [
+    "초안 대체",
+    "Palitan ang draft",
+    "Thay bản nháp"
+  ],
+  "JavaScript is required to calculate estimates in this application.": [
+    "이 애플리케이션에서 견적을 계산하려면 JavaScript가 필요합니다.",
+    "Kailangan ang JavaScript upang magkalkula ng mga pagtatantiya sa aplikasyong ito.",
+    "Cần JavaScript để tính dự toán trong ứng dụng này."
+  ],
+  "Language": [
+    "언어",
+    "Wika",
+    "Ngôn ngữ"
+  ],
+  "Application language": [
+    "애플리케이션 언어",
+    "Wika ng aplikasyon",
+    "Ngôn ngữ ứng dụng"
+  ],
+  "Application language updated.": [
+    "애플리케이션 언어가 변경되었습니다.",
+    "Na-update ang wika ng aplikasyon.",
+    "Đã cập nhật ngôn ngữ ứng dụng."
+  ],
+  "The interface language is saved in this browser. Project data, technical evidence and PDF/Excel exports keep their original language.": [
+    "인터페이스 언어는 이 브라우저에 저장됩니다. 프로젝트 데이터, 기술 증빙 및 PDF/Excel 내보내기는 원래 언어를 유지합니다.",
+    "Naka-save sa browser na ito ang wika ng interface. Nananatili sa orihinal na wika ang datos ng proyekto, teknikal na katibayan at mga PDF/Excel na ine-export.",
+    "Ngôn ngữ giao diện được lưu trong trình duyệt này. Dữ liệu dự án, bằng chứng kỹ thuật và tệp PDF/Excel xuất giữ nguyên ngôn ngữ gốc."
+  ],
+  "Enter the job quantities, crews, products and allowances that apply.": [
+    "작업에 필요한 수량, 작업팀, 제품과 할증을 입력하세요.",
+    "Ipasok ang naaangkop na dami, mga pangkat, produkto at allowance ng trabaho.",
+    "Nhập khối lượng, đội nhân công, sản phẩm và khoản dự phòng phù hợp với công việc."
+  ],
+  "Review the Estimate Summary and both breakdowns.": [
+    "견적 요약과 두 가지 세부 내역을 검토하세요.",
+    "Suriin ang buod ng pagtatantiya at ang dalawang detalyadong hati.",
+    "Xem tóm tắt dự toán và cả hai bảng chi tiết."
+  ],
+  "If an import is wrong, cancel the review or discard the draft before saving it.": [
+    "가져오기가 잘못되면 저장하기 전에 검토를 취소하거나 초안을 버리세요.",
+    "Kung mali ang import, kanselahin ang pagsusuri o itapon ang draft bago ito i-save.",
+    "Nếu nhập sai, hủy phần xem xét hoặc bỏ bản nháp trước khi lưu."
+  ],
+  "Check project identity, measured quantities and assumptions.": [
+    "프로젝트 식별 정보, 측정 수량과 가정을 확인하세요.",
+    "Suriin ang pagkakakilanlan ng proyekto, mga nasukat na dami at palagay.",
+    "Kiểm tra thông tin dự án, khối lượng đo và các giả định."
+  ],
+  "Confirm products, yields, rates, crews, wastage and adjustments.": [
+    "제품, 수율, 단가, 작업팀, 손실률과 조정을 확인하세요.",
+    "Kumpirmahin ang mga produkto, ani, rate, pangkat, pag-aaksaya at pagsasaayos.",
+    "Xác nhận sản phẩm, định mức, đơn giá, đội nhân công, hao hụt và điều chỉnh."
+  ],
+  "Review Estimate Summary, Material Breakdown, Labour Breakdown and Firestopping Breakdown.": [
+    "견적 요약, 자재 세부 내역, 인건비 세부 내역과 방화 관통부 밀봉 세부 내역을 검토하세요.",
+    "Suriin ang buod ng pagtatantiya, detalyadong hati ng materyales, paggawa at pagseselyong panlaban sa sunog.",
+    "Xem tóm tắt dự toán, chi tiết vật tư, nhân công và bịt kín chống cháy."
+  ],
+  "Resolve all warnings and calculation errors.": [
+    "모든 경고와 계산 오류를 해결하세요.",
+    "Ayusin ang lahat ng babala at error sa pagkalkula.",
+    "Xử lý tất cả cảnh báo và lỗi tính toán."
+  ],
+  "Save the project and review the exported file.": [
+    "프로젝트를 저장하고 내보낸 파일을 검토하세요.",
+    "I-save ang proyekto at suriin ang na-export na file.",
+    "Lưu dự án và kiểm tra tệp đã xuất."
+  ],
+  "Confirm technical suitability and fire-rating requirements with the manufacturer and relevant project authority.": [
+    "제조사 및 관련 프로젝트 책임 기관을 통해 기술적 적합성과 내화 등급 요구 사항을 확인하세요.",
+    "Kumpirmahin ang teknikal na kaangkupan at mga kinakailangang antas ng paglaban sa sunog sa tagagawa at kaugnay na awtoridad ng proyekto.",
+    "Xác nhận tính phù hợp kỹ thuật và yêu cầu cấp chịu lửa với nhà sản xuất và cơ quan phụ trách dự án."
+  ],
+  "NOTES Optional": [
+    "메모 선택 사항",
+    "MGA TALA Opsiyonal",
+    "GHI CHÚ Không bắt buộc"
+  ],
+  "Quote name Generated automatically": [
+    "견적명 자동 생성",
+    "Pangalan ng sipi Awtomatikong binuo",
+    "Tên báo giá Tự động tạo"
+  ],
+  "Labour": [
+    "인건비",
+    "Paggawa",
+    "Nhân công"
+  ],
+  "Access": [
+    "접근 장비",
+    "Pag-access",
+    "Tiếp cận"
+  ],
+  "Global material adjustment": [
+    "전체 자재비 조정",
+    "Pangkalahatang pagsasaayos ng materyales",
+    "Điều chỉnh vật tư toàn bộ"
+  ],
+  "Global labour adjustment": [
+    "전체 인건비 조정",
+    "Pangkalahatang pagsasaayos ng paggawa",
+    "Điều chỉnh nhân công toàn bộ"
+  ],
+  "Subtotal": [
+    "소계",
+    "Bahagyang kabuuan",
+    "Tạm tính"
+  ],
+  "Fixed adjustment": [
+    "고정 조정",
+    "Nakapirming pagsasaayos",
+    "Điều chỉnh cố định"
+  ],
+  "Rate per SQM / item": [
+    "m² / 항목당 단가",
+    "Rate bawat m² / item",
+    "Đơn giá mỗi m² / hạng mục"
+  ],
+  "Total days": [
+    "총 일수",
+    "Kabuuang mga araw",
+    "Tổng số ngày"
+  ],
+  "Company logo preview": [
+    "회사 로고 미리보기",
+    "Preview ng logo ng kompanya",
+    "Xem trước logo công ty"
+  ],
+  "Current item source diagram preview": [
+    "현재 항목 원본 도해 미리보기",
+    "Preview ng diyagram ng pinagmulan ng kasalukuyang item",
+    "Xem trước sơ đồ nguồn của hạng mục hiện tại"
+  ],
+  "Source diagram preview": [
+    "원본 도해 미리보기",
+    "Preview ng diyagram ng pinagmulan",
+    "Xem trước sơ đồ nguồn"
+  ],
+  "Project No. - Client - Site Address": [
+    "프로젝트 번호 - 고객 - 현장 주소",
+    "Blg. ng proyekto - Kliyente - Adres ng lugar",
+    "Mã dự án - Khách hàng - Địa chỉ công trình"
+  ]
+}

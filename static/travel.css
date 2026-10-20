@@ -7,7 +7,7 @@
   #penetration-current-item-card > .penetration-banner-heading { gap:16px; flex-direction:row; flex-wrap:wrap; align-items:center; }
   #penetration-current-item-card > .penetration-banner-heading > .calculator-heading-copy { flex:1 1 330px; min-height:96px; }
   #penetration-current-item-card > .penetration-banner-heading > .penetration-heading-actions { position:relative; inset:auto; width:auto; max-width:100%; flex:0 0 auto; align-self:center; flex-wrap:nowrap; margin:0; gap:10px; }
-  .penetration-heading-actions > #penetration-clear { width:48px; height:48px; min-height:48px; margin:0; }
+  .penetration-heading-actions #penetration-clear { width:48px; height:48px; min-height:48px; margin:0; }
   .penetration-heading-actions .calculator-document-actions { inset-inline:auto 0; }
   @media(max-width:580px) { #penetration-current-item-card > .penetration-banner-heading > .penetration-heading-actions { flex-basis:100%; justify-content:flex-end; } }
   .travel-details { margin-top:24px; padding-top:20px; border-top:1px solid var(--line); min-width:0; }

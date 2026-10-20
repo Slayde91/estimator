@@ -1,0 +1,233 @@
+{
+  "Checking Google Maps setup…": [
+    "正在检查 Google Maps 设置…",
+    "Google Maps सेटअप की जाँच हो रही है…",
+    "Comprobando la configuración de Google Maps…",
+    "جارٍ التحقق من إعداد Google Maps…",
+    "กำลังตรวจสอบการตั้งค่า Google Maps…"
+  ],
+  "Driving estimates use your current location and the project Site Address. They do not change quote travel charges.": [
+    "驾车估算使用您的当前位置和项目现场地址，不会更改报价中的出行费用。",
+    "ड्राइविंग के अनुमान आपके वर्तमान स्थान और परियोजना के स्थल पते का उपयोग करते हैं। इनसे कोटेशन का यात्रा शुल्क नहीं बदलता।",
+    "Las estimaciones de conducción usan su ubicación actual y la dirección de la obra. No cambian los cargos de viaje del presupuesto.",
+    "تستخدم تقديرات القيادة موقعك الحالي وعنوان موقع المشروع، ولا تغيّر رسوم السفر في عرض السعر.",
+    "ค่าประมาณการขับรถใช้ตำแหน่งปัจจุบันและที่อยู่โครงการ โดยไม่เปลี่ยนค่าเดินทางในใบเสนอราคา"
+  ],
+  "Open setup guide": [
+    "打开设置指南",
+    "सेटअप मार्गदर्शिका खोलें",
+    "Abrir guía de configuración",
+    "فتح دليل الإعداد",
+    "เปิดคู่มือการตั้งค่า"
+  ],
+  "Refresh Google Maps status": [
+    "刷新 Google Maps 状态",
+    "Google Maps की स्थिति रीफ़्रेश करें",
+    "Actualizar estado de Google Maps",
+    "تحديث حالة Google Maps",
+    "รีเฟรชสถานะ Google Maps"
+  ],
+  "Check the driving route to see information from Google Maps.": [
+    "检查驾车路线以查看 Google Maps 提供的信息。",
+    "Google Maps की जानकारी देखने के लिए ड्राइविंग मार्ग जाँचें।",
+    "Compruebe la ruta en coche para ver información de Google Maps.",
+    "تحقق من مسار القيادة لعرض معلومات من Google Maps.",
+    "ตรวจสอบเส้นทางขับรถเพื่อดูข้อมูลจาก Google Maps"
+  ],
+  "Project address changed. Check the route again.": [
+    "项目地址已更改，请重新检查路线。",
+    "परियोजना का पता बदल गया है। मार्ग फिर से जाँचें।",
+    "La dirección del proyecto cambió. Compruebe la ruta de nuevo.",
+    "تغيّر عنوان المشروع. تحقق من المسار مجددًا.",
+    "ที่อยู่โครงการเปลี่ยนแล้ว โปรดตรวจสอบเส้นทางอีกครั้ง"
+  ],
+  "Google Maps is configured.": [
+    "Google Maps 已配置。",
+    "Google Maps कॉन्फ़िगर है।",
+    "Google Maps está configurado.",
+    "تم إعداد Google Maps.",
+    "ตั้งค่า Google Maps แล้ว"
+  ],
+  "Google Maps needs an API key before driving estimates are available.": [
+    "Google Maps 需要 API 密钥才能提供驾车估算。",
+    "ड्राइविंग के अनुमान उपलब्ध होने से पहले Google Maps के लिए API कुंजी चाहिए।",
+    "Google Maps necesita una clave de API para ofrecer estimaciones de conducción.",
+    "يتطلب Google Maps مفتاح API لإتاحة تقديرات القيادة.",
+    "Google Maps ต้องใช้คีย์ API ก่อนจะแสดงค่าประมาณการขับรถได้"
+  ],
+  "Check the route to see approximate driving distance and time.": [
+    "检查路线以查看大致驾车距离和时间。",
+    "लगभग ड्राइविंग दूरी और समय देखने के लिए मार्ग जाँचें।",
+    "Compruebe la ruta para ver la distancia y el tiempo aproximados en coche.",
+    "تحقق من المسار لعرض مسافة القيادة ومدتها التقريبيتين.",
+    "ตรวจสอบเส้นทางเพื่อดูระยะทางและเวลาขับรถโดยประมาณ"
+  ],
+  "Google Maps is not configured. You can still open the project in Google Maps.": [
+    "Google Maps 尚未配置，您仍可在 Google Maps 中打开项目位置。",
+    "Google Maps कॉन्फ़िगर नहीं है। आप फिर भी परियोजना को Google Maps में खोल सकते हैं।",
+    "Google Maps no está configurado. Aun así puede abrir el proyecto en Google Maps.",
+    "لم يتم إعداد Google Maps. لا يزال بإمكانك فتح المشروع في Google Maps.",
+    "ยังไม่ได้ตั้งค่า Google Maps แต่คุณยังเปิดโครงการใน Google Maps ได้"
+  ],
+  "Enter the project Site Address above first.": [
+    "请先在上方输入项目现场地址。",
+    "पहले ऊपर परियोजना का स्थल पता दर्ज करें।",
+    "Primero introduzca arriba la dirección de la obra.",
+    "أدخل عنوان موقع المشروع أعلاه أولًا.",
+    "โปรดกรอกที่อยู่โครงการด้านบนก่อน"
+  ],
+  "Enter your current address or choose Use current location.": [
+    "请输入当前地址，或选择“使用当前位置”。",
+    "अपना वर्तमान पता दर्ज करें या वर्तमान स्थान का उपयोग करें चुनें।",
+    "Introduzca su dirección actual o elija Usar ubicación actual.",
+    "أدخل عنوانك الحالي أو اختر استخدام الموقع الحالي.",
+    "กรอกที่อยู่ปัจจุบันหรือเลือกใช้ตำแหน่งปัจจุบัน"
+  ],
+  "Google Maps is not configured. Open the setup guide in Settings.": [
+    "Google Maps 尚未配置，请在设置中打开设置指南。",
+    "Google Maps कॉन्फ़िगर नहीं है। सेटिंग्स में सेटअप मार्गदर्शिका खोलें।",
+    "Google Maps no está configurado. Abra la guía de configuración en Ajustes.",
+    "لم يتم إعداد Google Maps. افتح دليل الإعداد من الإعدادات.",
+    "ยังไม่ได้ตั้งค่า Google Maps โปรดเปิดคู่มือการตั้งค่าในเมนูการตั้งค่า"
+  ],
+  "Checking the driving route…": [
+    "正在检查驾车路线…",
+    "ड्राइविंग मार्ग की जाँच हो रही है…",
+    "Comprobando la ruta en coche…",
+    "جارٍ التحقق من مسار القيادة…",
+    "กำลังตรวจสอบเส้นทางขับรถ…"
+  ],
+  "The driving route is unavailable.": [
+    "驾车路线不可用。",
+    "ड्राइविंग मार्ग उपलब्ध नहीं है।",
+    "La ruta en coche no está disponible.",
+    "مسار القيادة غير متاح.",
+    "ไม่สามารถใช้เส้นทางขับรถได้"
+  ],
+  "{0} km · {1} by car": [
+    "驾车 {0} km · {1}",
+    "कार से {0} km · {1}",
+    "{0} km · {1} en coche",
+    "{0} km · {1} بالسيارة",
+    "ขับรถ {0} km · {1}"
+  ],
+  "Approximate driving estimate. Traffic and the chosen route can change the journey.": [
+    "这是大致驾车估算，交通状况和所选路线会影响行程。",
+    "यह ड्राइविंग का लगभग अनुमान है। यातायात और चुना गया मार्ग यात्रा बदल सकते हैं।",
+    "Estimación aproximada de conducción. El tráfico y la ruta elegida pueden cambiar el trayecto.",
+    "تقدير تقريبي للقيادة. قد تتغير الرحلة حسب حركة المرور والمسار المختار.",
+    "เป็นค่าประมาณการขับรถ การจราจรและเส้นทางที่เลือกอาจทำให้การเดินทางเปลี่ยนไป"
+  ],
+  "Project travel": [
+    "项目出行",
+    "परियोजना यात्रा",
+    "Viaje al proyecto",
+    "السفر إلى المشروع",
+    "การเดินทางไปโครงการ"
+  ],
+  "Current location": [
+    "当前位置",
+    "वर्तमान स्थान",
+    "Ubicación actual",
+    "الموقع الحالي",
+    "ตำแหน่งปัจจุบัน"
+  ],
+  "Enter your current address": [
+    "输入当前地址",
+    "अपना वर्तमान पता दर्ज करें",
+    "Introduzca su dirección actual",
+    "أدخل عنوانك الحالي",
+    "กรอกที่อยู่ปัจจุบัน"
+  ],
+  "Use current location": [
+    "使用当前位置",
+    "वर्तमान स्थान का उपयोग करें",
+    "Usar ubicación actual",
+    "استخدام الموقع الحالي",
+    "ใช้ตำแหน่งปัจจุบัน"
+  ],
+  "Project location": [
+    "项目位置",
+    "परियोजना का स्थान",
+    "Ubicación del proyecto",
+    "موقع المشروع",
+    "ตำแหน่งโครงการ"
+  ],
+  "Enter the project Site Address above.": [
+    "在上方输入项目现场地址。",
+    "ऊपर परियोजना का स्थल पता दर्ज करें।",
+    "Introduzca arriba la dirección de la obra.",
+    "أدخل عنوان موقع المشروع أعلاه.",
+    "กรอกที่อยู่โครงการด้านบน"
+  ],
+  "Check driving route": [
+    "检查驾车路线",
+    "ड्राइविंग मार्ग जाँचें",
+    "Comprobar ruta en coche",
+    "التحقق من مسار القيادة",
+    "ตรวจสอบเส้นทางขับรถ"
+  ],
+  "Google Maps setup": [
+    "Google Maps 设置",
+    "Google Maps सेटअप",
+    "Configuración de Google Maps",
+    "إعداد Google Maps",
+    "การตั้งค่า Google Maps"
+  ],
+  "Approx. distance by car": [
+    "大致驾车距离",
+    "कार से लगभग दूरी",
+    "Distancia aprox. en coche",
+    "المسافة التقريبية بالسيارة",
+    "ระยะทางขับรถโดยประมาณ"
+  ],
+  "Approx. travel time by car": [
+    "大致驾车时间",
+    "कार से लगभग यात्रा समय",
+    "Tiempo aprox. en coche",
+    "مدة السفر التقريبية بالسيارة",
+    "เวลาขับรถโดยประมาณ"
+  ],
+  "Checking a route sends your chosen current location and the project address to Google. Locations and route results are not saved with the quote.": [
+    "检查路线会将您选择的当前位置和项目地址发送给 Google。位置和路线结果不会随报价保存。",
+    "मार्ग जाँचने पर आपका चुना हुआ वर्तमान स्थान और परियोजना का पता Google को भेजा जाता है। स्थान और मार्ग के परिणाम कोटेशन के साथ सहेजे नहीं जाते।",
+    "Comprobar una ruta envía a Google su ubicación actual elegida y la dirección del proyecto. Las ubicaciones y los resultados de ruta no se guardan con el presupuesto.",
+    "يؤدي التحقق من المسار إلى إرسال موقعك الحالي المحدد وعنوان المشروع إلى Google. لا تُحفظ المواقع ونتائج المسار مع عرض السعر.",
+    "การตรวจสอบเส้นทางจะส่งตำแหน่งปัจจุบันที่คุณเลือกและที่อยู่โครงการไปยัง Google โดยไม่บันทึกตำแหน่งและผลลัพธ์เส้นทางไว้กับใบเสนอราคา"
+  ],
+  "Current location changed. Check the route again.": [
+    "当前位置已更改，请重新检查路线。",
+    "वर्तमान स्थान बदल गया है। मार्ग फिर से जाँचें।",
+    "La ubicación actual cambió. Compruebe la ruta de nuevo.",
+    "تغيّر الموقع الحالي. تحقق من المسار مجددًا.",
+    "ตำแหน่งปัจจุบันเปลี่ยนแล้ว โปรดตรวจสอบเส้นทางอีกครั้ง"
+  ],
+  "Current location is unavailable. Enter your current address instead.": [
+    "无法获取当前位置，请改为输入当前地址。",
+    "वर्तमान स्थान उपलब्ध नहीं है। इसके बजाय अपना वर्तमान पता दर्ज करें।",
+    "La ubicación actual no está disponible. Introduzca su dirección actual.",
+    "الموقع الحالي غير متاح. أدخل عنوانك الحالي بدلًا من ذلك.",
+    "ไม่สามารถใช้ตำแหน่งปัจจุบันได้ โปรดกรอกที่อยู่ปัจจุบันแทน"
+  ],
+  "Waiting for location permission…": [
+    "正在等待位置权限…",
+    "स्थान की अनुमति की प्रतीक्षा हो रही है…",
+    "Esperando permiso de ubicación…",
+    "بانتظار إذن الموقع…",
+    "กำลังรออนุญาตการเข้าถึงตำแหน่ง…"
+  ],
+  "Current location found. Choose Check driving route to send it to Google.": [
+    "已获取当前位置。选择“检查驾车路线”以将其发送给 Google。",
+    "वर्तमान स्थान मिल गया। इसे Google को भेजने के लिए ड्राइविंग मार्ग जाँचें चुनें।",
+    "Ubicación actual encontrada. Elija Comprobar ruta en coche para enviarla a Google.",
+    "تم العثور على الموقع الحالي. اختر التحقق من مسار القيادة لإرساله إلى Google.",
+    "พบตำแหน่งปัจจุบันแล้ว เลือกตรวจสอบเส้นทางขับรถเพื่อส่งไปยัง Google"
+  ],
+  "Current location could not be read. Allow location access or enter your current address.": [
+    "无法读取当前位置。请允许位置访问或输入当前地址。",
+    "वर्तमान स्थान पढ़ा नहीं जा सका। स्थान की अनुमति दें या अपना वर्तमान पता दर्ज करें।",
+    "No se pudo leer la ubicación actual. Permita el acceso a la ubicación o introduzca su dirección actual.",
+    "تعذرت قراءة الموقع الحالي. اسمح بالوصول إلى الموقع أو أدخل عنوانك الحالي.",
+    "ไม่สามารถอ่านตำแหน่งปัจจุบันได้ โปรดอนุญาตการเข้าถึงตำแหน่งหรือกรอกที่อยู่ปัจจุบัน"
+  ]
+}

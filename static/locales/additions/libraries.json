@@ -1,0 +1,2922 @@
+{
+  "+ Add band": [
+    "+ 구간 추가",
+    "+ Magdagdag ng saklaw",
+    "+ Thêm dải"
+  ],
+  "All {0}": [
+    "모든 {0}",
+    "Lahat ng {0}",
+    "Tất cả {0}"
+  ],
+  "Any": [
+    "모두",
+    "Anuman",
+    "Bất kỳ"
+  ],
+  "Automatic value updates after calculation.": [
+    "계산 후 자동 값이 갱신됩니다.",
+    "Awtomatikong nag-a-update ang halaga pagkatapos magkalkula.",
+    "Giá trị tự động cập nhật sau khi tính."
+  ],
+  "Back to previous item": [
+    "이전 항목으로 돌아가기",
+    "Bumalik sa nakaraang aytem",
+    "Quay lại mục trước"
+  ],
+  "Button only": [
+    "버튼만",
+    "Button lamang",
+    "Chỉ nút"
+  ],
+  "Calculated from this library item's inputs and selected pricing basis.": [
+    "이 라이브러리 항목의 입력값과 선택한 단가 기준으로 계산됩니다.",
+    "Kinakalkula mula sa mga input ng aytem na ito at sa napiling batayan ng presyo.",
+    "Tính từ dữ liệu nhập của mục thư viện này và cơ sở giá đã chọn."
+  ],
+  "Choose one or more Technical Library items to link.": [
+    "연결할 기술 라이브러리 항목을 하나 이상 선택하세요.",
+    "Pumili ng isa o higit pang aytem sa Library ng teknikal na iuugnay.",
+    "Chọn một hoặc nhiều mục Thư viện kỹ thuật để liên kết."
+  ],
+  "Choose…": [
+    "선택…",
+    "Pumili…",
+    "Chọn…"
+  ],
+  "Clear filters": [
+    "필터 지우기",
+    "Burahin ang mga filter",
+    "Xóa bộ lọc"
+  ],
+  "Consolidated source IDs: {0}": [
+    "통합된 원본 ID: {0}",
+    "Pinagsamang mga ID ng pinagmulan: {0}",
+    "ID nguồn đã hợp nhất: {0}"
+  ],
+  "Current item only. Add it to the schedule to include it in the quote.": [
+    "현재 항목만 해당합니다. 견적에 포함하려면 일람표에 추가하세요.",
+    "Para lamang sa kasalukuyang aytem. Idagdag sa talaan upang maisama sa presyong alok.",
+    "Chỉ mục hiện tại. Thêm vào bảng kê để đưa vào báo giá."
+  ],
+  "DETAILS DROPDOWN VALUES": [
+    "상세 드롭다운 값",
+    "MGA HALAGA SA DROPDOWN NG DETALYE",
+    "GIÁ TRỊ DANH SÁCH CHI TIẾT"
+  ],
+  "Delete firestopping item {0}": [
+    "방화 관통부 밀봉 항목 {0} 삭제",
+    "Burahin ang aytem sa Pagseselyong panlaban sa sunog na {0}",
+    "Xóa mục Bịt kín chống cháy {0}"
+  ],
+  "Delete item {0}": [
+    "항목 {0} 삭제",
+    "Burahin ang aytem na {0}",
+    "Xóa mục {0}"
+  ],
+  "Document download progress": [
+    "문서 다운로드 진행 상황",
+    "Progreso ng pag-download ng dokumento",
+    "Tiến trình tải tài liệu"
+  ],
+  "Download Item Details {0}": [
+    "항목 상세 {0} 다운로드",
+    "I-download ang Mga Detalye ng Aytem {0}",
+    "Tải Chi tiết mục {0}"
+  ],
+  "Edit": [
+    "편집",
+    "I-edit",
+    "Sửa"
+  ],
+  "Edit firestopping item {0}": [
+    "방화 관통부 밀봉 항목 {0} 편집",
+    "I-edit ang aytem sa Pagseselyong panlaban sa sunog na {0}",
+    "Sửa mục Bịt kín chống cháy {0}"
+  ],
+  "File saved": [
+    "파일 저장됨",
+    "Nai-save ang file",
+    "Đã lưu tệp"
+  ],
+  "File saved · 100%": [
+    "파일 저장됨 · 100%",
+    "Nai-save ang file · 100%",
+    "Đã lưu tệp · 100%"
+  ],
+  "Item {0}: {1}": [
+    "항목 {0}: {1}",
+    "Aytem {0}: {1}",
+    "Mục {0}: {1}"
+  ],
+  "Keep in project draft": [
+    "프로젝트 초안에 보관",
+    "Panatilihin sa draft ng proyekto",
+    "Giữ trong bản nháp dự án"
+  ],
+  "Keep this project draft; Save the project to store it in its file": [
+    "이 프로젝트 초안을 유지합니다. 프로젝트를 저장하면 파일에 보관됩니다.",
+    "Panatilihin ang draft na ito; i-save ang proyekto upang mailagay ito sa file nito",
+    "Giữ bản nháp dự án này; lưu dự án để ghi vào tệp của dự án"
+  ],
+  "Library item: {0}": [
+    "라이브러리 항목: {0}",
+    "Aytem sa library: {0}",
+    "Mục thư viện: {0}"
+  ],
+  "Library record navigation": [
+    "라이브러리 레코드 탐색",
+    "Pag-navigate sa mga rekord ng library",
+    "Điều hướng bản ghi thư viện"
+  ],
+  "Library unavailable.": [
+    "라이브러리를 사용할 수 없습니다.",
+    "Hindi magagamit ang library.",
+    "Không thể dùng thư viện."
+  ],
+  "Link Library Item": [
+    "라이브러리 항목 연결",
+    "Iugnay ang Aytem sa Library",
+    "Liên kết mục thư viện"
+  ],
+  "Loading record…": [
+    "레코드 불러오는 중…",
+    "Naglo-load ng rekord…",
+    "Đang tải bản ghi…"
+  ],
+  "Loading library…": [
+    "라이브러리 불러오는 중…",
+    "Naglo-load ng library…",
+    "Đang tải thư viện…"
+  ],
+  "Manual allowance.": [
+    "수동 가산량입니다.",
+    "Manu-manong laang halaga.",
+    "Khoản dự phòng nhập tay."
+  ],
+  "Next rows": [
+    "다음 행",
+    "Mga susunod na hanay",
+    "Các hàng sau"
+  ],
+  "No automatic value for this item. Enter hours if required.": [
+    "이 항목에는 자동 값이 없습니다. 필요하면 시간을 입력하세요.",
+    "Walang awtomatikong halaga para sa aytem na ito. Ilagay ang oras kung kailangan.",
+    "Mục này không có giá trị tự động. Nhập số giờ nếu cần."
+  ],
+  "No diagram": [
+    "도면 없음",
+    "Walang diyagram",
+    "Không có sơ đồ"
+  ],
+  "No matching controls. Try another word or choose all sections.": [
+    "일치하는 조작 항목이 없습니다. 다른 단어를 입력하거나 모든 섹션을 선택하세요.",
+    "Walang tumugmang kontrol. Subukan ang ibang salita o piliin ang lahat ng seksiyon.",
+    "Không có điều khiển phù hợp. Thử từ khác hoặc chọn tất cả các phần."
+  ],
+  "No matching records.": [
+    "일치하는 레코드가 없습니다.",
+    "Walang tumugmang rekord.",
+    "Không có bản ghi phù hợp."
+  ],
+  "No matching sections. Choose a listed value.": [
+    "일치하는 단면이 없습니다. 목록에 있는 값을 선택하세요.",
+    "Walang tumugmang seksiyon. Pumili ng nakalistang halaga.",
+    "Không có tiết diện phù hợp. Chọn giá trị trong danh sách."
+  ],
+  "No matching technical records.": [
+    "일치하는 기술 레코드가 없습니다.",
+    "Walang tumugmang teknikal na rekord.",
+    "Không có bản ghi kỹ thuật phù hợp."
+  ],
+  "No related records are recorded.": [
+    "기록된 관련 레코드가 없습니다.",
+    "Walang nakatalang kaugnay na rekord.",
+    "Chưa ghi nhận bản ghi liên quan."
+  ],
+  "No schedule items.": [
+    "일람표 항목이 없습니다.",
+    "Walang aytem sa talaan.",
+    "Không có mục trong bảng kê."
+  ],
+  "No source diagram is saved for this library item.": [
+    "이 라이브러리 항목에 저장된 원본 도면이 없습니다.",
+    "Walang naka-save na pinagmulang diyagram para sa aytem na ito sa library.",
+    "Mục thư viện này chưa lưu sơ đồ nguồn."
+  ],
+  "No source reference is recorded for this item.": [
+    "이 항목에 기록된 원본 참조가 없습니다.",
+    "Walang nakatalang sanggunian ng pinagmulan para sa aytem na ito.",
+    "Mục này chưa ghi nhận tham chiếu nguồn."
+  ],
+  "Open {0} at full size (new tab)": [
+    "{0} 원본 크기로 열기(새 탭)",
+    "Buksan ang {0} sa buong laki (bagong tab)",
+    "Mở {0} ở kích thước đầy đủ (thẻ mới)"
+  ],
+  "PRECALCULATED TASK-HOUR BANDS": [
+    "사전 계산 작업시간 구간",
+    "MGA PAUNANG KINALKULANG SAKLAW NG ORAS NG GAWAIN",
+    "DẢI GIỜ CÔNG TÍNH SẴN"
+  ],
+  "Preparing file · {0}%": [
+    "파일 준비 중 · {0}%",
+    "Inihahanda ang file · {0}%",
+    "Đang chuẩn bị tệp · {0}%"
+  ],
+  "Previous rows": [
+    "이전 행",
+    "Mga nakaraang hanay",
+    "Các hàng trước"
+  ],
+  "Project library drafts": [
+    "프로젝트 라이브러리 초안",
+    "Mga draft ng library ng proyekto",
+    "Bản nháp thư viện dự án"
+  ],
+  "Project library price": [
+    "프로젝트 라이브러리 단가",
+    "Presyo sa library ng proyekto",
+    "Giá thư viện dự án"
+  ],
+  "Quantity unavailable": [
+    "수량을 사용할 수 없음",
+    "Hindi makuha ang dami",
+    "Không có số lượng"
+  ],
+  "Quantity: {0}": [
+    "수량: {0}",
+    "Dami: {0}",
+    "Số lượng: {0}"
+  ],
+  "Current schedule quantity: {0}": [
+    "현재 일람표 수량: {0}",
+    "Kasalukuyang dami sa talaan: {0}",
+    "Số lượng bảng kê hiện tại: {0}"
+  ],
+  "Current schedule quantity unavailable": [
+    "현재 일람표 수량을 사용할 수 없음",
+    "Hindi makuha ang kasalukuyang dami sa talaan",
+    "Không có số lượng bảng kê hiện tại"
+  ],
+  "Recalculate to see the schedule output.": [
+    "일람표 결과를 보려면 다시 계산하세요.",
+    "Magkalkulang muli upang makita ang resulta ng talaan.",
+    "Tính lại để xem kết quả bảng kê."
+  ],
+  "Recalculate to see this item's output.": [
+    "이 항목의 결과를 보려면 다시 계산하세요.",
+    "Magkalkulang muli upang makita ang resulta ng aytem na ito.",
+    "Tính lại để xem kết quả của mục này."
+  ],
+  "Records unavailable.": [
+    "레코드를 사용할 수 없습니다.",
+    "Hindi magagamit ang mga rekord.",
+    "Không thể dùng các bản ghi."
+  ],
+  "Related firestopping records": [
+    "관련 방화 관통부 밀봉 레코드",
+    "Mga kaugnay na rekord ng Pagseselyong panlaban sa sunog",
+    "Bản ghi Bịt kín chống cháy liên quan"
+  ],
+  "Related technical references": [
+    "관련 기술 참조",
+    "Mga kaugnay na teknikal na sanggunian",
+    "Tham chiếu kỹ thuật liên quan"
+  ],
+  "Remove {0} band {1}": [
+    "{0} 구간 {1} 삭제",
+    "Alisin ang saklaw na {1} ng {0}",
+    "Xóa dải {1} của {0}"
+  ],
+  "Remove {0} from the Firestopping Library": [
+    "방화 관통부 밀봉 라이브러리에서 {0} 삭제",
+    "Alisin ang {0} sa Library ng Pagseselyong panlaban sa sunog",
+    "Xóa {0} khỏi Thư viện Bịt kín chống cháy"
+  ],
+  "Retry record": [
+    "레코드 다시 시도",
+    "Subukang muli ang rekord",
+    "Thử tải lại bản ghi"
+  ],
+  "Review required inputs below": [
+    "아래 필수 입력값을 검토하세요",
+    "Suriin ang mga kailangang input sa ibaba",
+    "Kiểm tra dữ liệu bắt buộc bên dưới"
+  ],
+  "SERVICE-TAB ROUTING": [
+    "설비 탭 연결 규칙",
+    "PAGTUTUGMA SA TAB NG SERBISYO",
+    "ĐỊNH TUYẾN THẺ HỆ KỸ THUẬT"
+  ],
+  "Save keeps these edits within the current project. Save Library Item updates the shared library.": [
+    "저장은 이 편집 내용을 현재 프로젝트에 보관합니다. 라이브러리 항목 저장은 공용 라이브러리를 갱신합니다.",
+    "Pinananatili ng I-save ang mga pagbabagong ito sa kasalukuyang proyekto. Ina-update ng I-save ang Aytem sa Library ang pinagsasaluhang library.",
+    "Lưu giữ các chỉnh sửa này trong dự án hiện tại. Lưu mục thư viện cập nhật thư viện dùng chung."
+  ],
+  "Save links": [
+    "연결 저장",
+    "I-save ang mga ugnayan",
+    "Lưu liên kết"
+  ],
+  "Save links ({0})": [
+    "연결 저장({0})",
+    "I-save ang mga ugnayan ({0})",
+    "Lưu liên kết ({0})"
+  ],
+  "Search": [
+    "검색",
+    "Hanapin",
+    "Tìm kiếm"
+  ],
+  "Search Technical Library": [
+    "기술 라이브러리 검색",
+    "Maghanap sa Library ng teknikal",
+    "Tìm trong Thư viện kỹ thuật"
+  ],
+  "Search firestopping records…": [
+    "방화 관통부 밀봉 레코드 검색…",
+    "Maghanap ng mga rekord ng Pagseselyong panlaban sa sunog…",
+    "Tìm bản ghi Bịt kín chống cháy…"
+  ],
+  "Search systems and technical references…": [
+    "시스템 및 기술 참조 검색…",
+    "Maghanap ng mga sistema at teknikal na sanggunian…",
+    "Tìm hệ thống và tham chiếu kỹ thuật…"
+  ],
+  "Search {0}": [
+    "{0} 검색",
+    "Hanapin ang {0}",
+    "Tìm {0}"
+  ],
+  "Searching…": [
+    "검색 중…",
+    "Naghahanap…",
+    "Đang tìm…"
+  ],
+  "Separate values with a semicolon, e.g. Core hole; Oversized. Saved item values are retained.": [
+    "값은 세미콜론으로 구분하세요. 예: 코어 홀; 대형 개구부. 저장된 항목 값은 유지됩니다.",
+    "Paghiwalayin ang mga halaga gamit ang tuldok-kuwit, hal. Butas na kinore; Sobrang laki. Pinananatili ang mga naka-save na halaga ng aytem.",
+    "Phân tách giá trị bằng dấu chấm phẩy, ví dụ Lỗ khoan lõi; Quá cỡ. Giá trị đã lưu của mục được giữ lại."
+  ],
+  "Shortcut: ": [
+    "단축키: ",
+    "Mabilis na utos: ",
+    "Phím tắt: "
+  ],
+  "Showing {0}–{1} of {2} records": [
+    "{2}개 레코드 중 {0}–{1} 표시",
+    "Ipinapakita ang {0}–{1} sa {2} rekord",
+    "Hiển thị {0}–{1} trong {2} bản ghi"
+  ],
+  "Showing {0}–{1} of {2} technical records": [
+    "{2}개 기술 레코드 중 {0}–{1} 표시",
+    "Ipinapakita ang {0}–{1} sa {2} teknikal na rekord",
+    "Hiển thị {0}–{1} trong {2} bản ghi kỹ thuật"
+  ],
+  "Showing {0}–{1} · All rows calculated": [
+    "{0}–{1} 표시 · 모든 행 계산 완료",
+    "Ipinapakita ang {0}–{1} · Nakalkula ang lahat ng hanay",
+    "Hiển thị {0}–{1} · Đã tính tất cả hàng"
+  ],
+  "Source diagrams": [
+    "원본 도면",
+    "Mga pinagmulang diyagram",
+    "Sơ đồ nguồn"
+  ],
+  "Source information": [
+    "원본 정보",
+    "Impormasyon ng pinagmulan",
+    "Thông tin nguồn"
+  ],
+  "Technical item downloads": [
+    "기술 항목 다운로드",
+    "Mga download ng teknikal na aytem",
+    "Tải mục kỹ thuật"
+  ],
+  "Technical records unavailable.": [
+    "기술 레코드를 사용할 수 없습니다.",
+    "Hindi magagamit ang mga teknikal na rekord.",
+    "Không thể dùng bản ghi kỹ thuật."
+  ],
+  "Technical reference choices": [
+    "기술 참조 선택 항목",
+    "Mga pagpipilian ng teknikal na sanggunian",
+    "Lựa chọn tham chiếu kỹ thuật"
+  ],
+  "The firestopping workspace could not be loaded. Reopen it to try again.": [
+    "방화 관통부 밀봉 작업공간을 불러오지 못했습니다. 다시 열어 시도하세요.",
+    "Hindi ma-load ang workspace ng Pagseselyong panlaban sa sunog. Buksan itong muli upang subukan.",
+    "Không tải được không gian làm việc Bịt kín chống cháy. Mở lại để thử."
+  ],
+  "The item breakdown is unavailable.": [
+    "항목별 내역을 사용할 수 없습니다.",
+    "Hindi magagamit ang pagkakabahagi ng aytem.",
+    "Không có bảng phân tích mục."
+  ],
+  "The records could not be loaded.": [
+    "레코드를 불러오지 못했습니다.",
+    "Hindi ma-load ang mga rekord.",
+    "Không tải được các bản ghi."
+  ],
+  "Theme: {0}. Next theme: {1}.": [
+    "테마: {0}. 다음 테마: {1}.",
+    "Tema: {0}. Susunod na tema: {1}.",
+    "Giao diện: {0}. Giao diện tiếp theo: {1}."
+  ],
+  "These item details and diagrams belong to this project. Save stores them with the project file.": [
+    "이 항목의 상세 정보와 도면은 이 프로젝트에 속합니다. 저장하면 프로젝트 파일에 함께 보관됩니다.",
+    "Ang mga detalye at diyagram ng aytem na ito ay sa proyektong ito. Iniimbak ang mga ito kasama ng file ng proyekto kapag nag-save.",
+    "Chi tiết và sơ đồ mục này thuộc dự án này. Lưu sẽ ghi chúng cùng tệp dự án."
+  ],
+  "These library edits stay within the current project. Use Save to store them in its file.": [
+    "이 라이브러리 편집 내용은 현재 프로젝트에만 보관됩니다. 저장을 눌러 프로젝트 파일에 보관하세요.",
+    "Nananatili ang mga pagbabagong ito sa library sa kasalukuyang proyekto. Gamitin ang I-save upang ilagay sa file nito.",
+    "Các chỉnh sửa thư viện này nằm trong dự án hiện tại. Dùng Lưu để ghi vào tệp dự án."
+  ],
+  "These project settings are shared by the current item and the Firestopping Schedule. Calculations retain the source workbook formulas unless you change a band table.": [
+    "이 프로젝트 설정은 현재 항목과 방화 관통부 밀봉 일람표가 공유합니다. 구간 표를 변경하지 않는 한 원본 통합문서의 수식을 유지합니다.",
+    "Pinagsasaluhan ng kasalukuyang aytem at Talaan ng Pagseselyong panlaban sa sunog ang mga setting na ito. Pinananatili ang mga pormula ng pinagmulang workbook maliban kung babaguhin ang talahanayan ng saklaw.",
+    "Mục hiện tại và Bảng kê Bịt kín chống cháy dùng chung thiết lập dự án này. Phép tính giữ công thức của sổ làm việc nguồn trừ khi bạn đổi bảng dải."
+  ],
+  "These settings are saved with this Firestopping Library item. Calculations retain the source workbook formulas unless you change a band table.": [
+    "이 설정은 이 방화 관통부 밀봉 라이브러리 항목과 함께 저장됩니다. 구간 표를 변경하지 않는 한 원본 통합문서의 수식을 유지합니다.",
+    "Nai-save ang mga setting na ito kasama ng aytem na ito sa Library ng Pagseselyong panlaban sa sunog. Pinananatili ang mga pormula ng pinagmulang workbook maliban kung babaguhin ang talahanayan ng saklaw.",
+    "Thiết lập được lưu cùng mục Thư viện Bịt kín chống cháy này. Phép tính giữ công thức của sổ làm việc nguồn trừ khi bạn đổi bảng dải."
+  ],
+  "Totals include every schedule item and are included once in the quote.": [
+    "합계는 일람표의 모든 항목을 포함하며 견적에 한 번만 반영됩니다.",
+    "Kasama sa mga kabuuan ang bawat aytem sa talaan at isang beses lamang isinasama sa presyong alok.",
+    "Tổng gồm mọi mục trong bảng kê và chỉ tính một lần trong báo giá."
+  ],
+  "Try a different search or filter.": [
+    "다른 검색어나 필터를 사용하세요.",
+    "Subukan ang ibang paghahanap o filter.",
+    "Thử từ khóa hoặc bộ lọc khác."
+  ],
+  "Undo image change": [
+    "이미지 변경 취소",
+    "I-undo ang pagbabago sa larawan",
+    "Hoàn tác thay đổi hình"
+  ],
+  "Use automatic": [
+    "자동 값 사용",
+    "Gamitin ang awtomatiko",
+    "Dùng giá trị tự động"
+  ],
+  "Use automatic {0}": [
+    "자동 {0} 사용",
+    "Gamitin ang awtomatikong {0}",
+    "Dùng {0} tự động"
+  ],
+  "{0} band {1} {2}": [
+    "{0} 구간 {1} {2}",
+    "{0} saklaw {1} {2}",
+    "{0} dải {1} {2}"
+  ],
+  "{0} of {1} controls and shortcuts shown": [
+    "조작 항목 및 단축키 {1}개 중 {0}개 표시",
+    "{0} sa {1} kontrol at shortcut ang ipinapakita",
+    "Hiển thị {0} trong {1} điều khiển và phím tắt"
+  ],
+  "{0} related {1}": [
+    "관련 {1} {0}개",
+    "{0} kaugnay na {1}",
+    "{0} {1} liên quan"
+  ],
+  "{0} selected {1}. Selections are kept across search, filters and pages.": [
+    "{1} {0}개 선택됨. 검색, 필터, 페이지를 바꿔도 선택은 유지됩니다.",
+    "{0} napiling {1}. Nananatili ang mga pinili sa paghahanap, mga filter at mga pahina.",
+    "Đã chọn {0} {1}. Lựa chọn được giữ khi tìm kiếm, lọc và chuyển trang."
+  ],
+  "{0} service types": [
+    "설비 유형 {0}개",
+    "{0} uri ng serbisyo",
+    "{0} loại hệ kỹ thuật"
+  ],
+  "{0} summary": [
+    "{0} 요약",
+    "Buod ng {0}",
+    "Tóm tắt {0}"
+  ],
+  "{0} theme selected.": [
+    "{0} 테마가 선택되었습니다.",
+    "Napili ang temang {0}.",
+    "Đã chọn giao diện {0}."
+  ],
+  "{0} unavailable": [
+    "{0}을(를) 사용할 수 없음",
+    "Hindi magagamit ang {0}",
+    "Không thể dùng {0}"
+  ],
+  "{0}% preparation completed": [
+    "준비 {0}% 완료",
+    "{0}% ng paghahanda ang tapos na",
+    "Chuẩn bị hoàn tất {0}%"
+  ],
+  "{0}{1}": [
+    "{0}{1}",
+    "{0}{1}",
+    "{0}{1}"
+  ],
+  "{0} records": [
+    "레코드 {0}개",
+    "{0} rekord",
+    "{0} bản ghi"
+  ],
+  "{0} result pages": [
+    "결과 페이지 {0}개",
+    "{0} pahina ng resulta",
+    "{0} trang kết quả"
+  ],
+  "Add to Library was not confirmed. {0}": [
+    "라이브러리 추가가 확인되지 않았습니다. {0}",
+    "Hindi nakumpirma ang pagdagdag sa library. {0}",
+    "Chưa xác nhận việc thêm vào thư viện. {0}"
+  ],
+  "File saved to {0}.{1}": [
+    "파일을 {0}에 저장했습니다.{1}",
+    "Nai-save ang file sa {0}.{1}",
+    "Đã lưu tệp vào {0}.{1}"
+  ],
+  "Finish editing {0} or cancel it before opening another library item.": [
+    "다른 라이브러리 항목을 열기 전에 {0} 편집을 완료하거나 취소하세요.",
+    "Tapusin o kanselahin ang pag-edit ng {0} bago magbukas ng ibang aytem sa library.",
+    "Hoàn tất hoặc hủy sửa {0} trước khi mở mục thư viện khác."
+  ],
+  "Item Details saved: {0}": [
+    "항목 상세 저장됨: {0}",
+    "Nai-save ang Mga Detalye ng Aytem: {0}",
+    "Đã lưu Chi tiết mục: {0}"
+  ],
+  "Item Details were not downloaded. {0}": [
+    "항목 상세가 다운로드되지 않았습니다. {0}",
+    "Hindi na-download ang Mga Detalye ng Aytem. {0}",
+    "Chưa tải được Chi tiết mục. {0}"
+  ],
+  "Item Details {0} saved to {1} using the fields, prices and source diagram captured when you clicked.{2}": [
+    "클릭 시점에 캡처한 필드, 단가, 원본 도면으로 항목 상세 {0}을(를) {1}에 저장했습니다.{2}",
+    "Nai-save ang Mga Detalye ng Aytem {0} sa {1} gamit ang mga field, presyo at pinagmulang diyagram na nakuha noong nag-click ka.{2}",
+    "Đã lưu Chi tiết mục {0} vào {1} bằng các trường, giá và sơ đồ nguồn được chụp lúc nhấp.{2}"
+  ],
+  "Library item was not saved. {0}": [
+    "라이브러리 항목이 저장되지 않았습니다. {0}",
+    "Hindi nai-save ang aytem sa library. {0}",
+    "Chưa lưu mục thư viện. {0}"
+  ],
+  "The current item file was not saved. {0}": [
+    "현재 항목 파일이 저장되지 않았습니다. {0}",
+    "Hindi nai-save ang file ng kasalukuyang aytem. {0}",
+    "Chưa lưu tệp mục hiện tại. {0}"
+  ],
+  "The library item could not be opened for editing. {0}": [
+    "라이브러리 항목을 편집용으로 열지 못했습니다. {0}",
+    "Hindi mabuksan para sa pag-edit ang aytem sa library. {0}",
+    "Không mở được mục thư viện để sửa. {0}"
+  ],
+  "The library item was not removed. {0}": [
+    "라이브러리 항목이 삭제되지 않았습니다. {0}",
+    "Hindi naalis ang aytem sa library. {0}",
+    "Chưa xóa mục thư viện. {0}"
+  ],
+  "The schedule file was not saved. {0}": [
+    "일람표 파일이 저장되지 않았습니다. {0}",
+    "Hindi nai-save ang file ng talaan. {0}",
+    "Chưa lưu tệp bảng kê. {0}"
+  ],
+  "The {0} was not unlinked. {1}": [
+    "{0} 연결이 해제되지 않았습니다. {1}",
+    "Hindi naalis ang ugnayan ng {0}. {1}",
+    "Chưa hủy liên kết {0}. {1}"
+  ],
+  "{0} Use Refresh to try again.": [
+    "{0} 새로고침을 눌러 다시 시도하세요.",
+    "{0} Gamitin ang I-refresh upang subukang muli.",
+    "{0} Dùng Làm mới để thử lại."
+  ],
+  "{0} was removed from the Firestopping Library.": [
+    "방화 관통부 밀봉 라이브러리에서 {0}을(를) 삭제했습니다.",
+    "Naalis ang {0} sa Library ng Pagseselyong panlaban sa sunog.",
+    "Đã xóa {0} khỏi Thư viện Bịt kín chống cháy."
+  ],
+  "{0} {1} the Firestopping Library at {2}.{3}": [
+    "{0} {1} 방화 관통부 밀봉 라이브러리 · {2}.{3}",
+    "{0} {1} ang Library ng Pagseselyong panlaban sa sunog sa {2}.{3}",
+    "{0} {1} Thư viện Bịt kín chống cháy tại {2}.{3}"
+  ],
+  "{0}{1} unlinked.": [
+    "{0}{1} 연결 해제됨.",
+    "Naalis ang ugnayan ng {0}{1}.",
+    "Đã hủy liên kết {0}{1}."
+  ],
+  "{0} choices": [
+    "{0} 선택 항목",
+    "Mga pagpipilian sa {0}",
+    "Lựa chọn {0}"
+  ],
+  "Show {0} choices": [
+    "{0} 선택 항목 표시",
+    "Ipakita ang mga pagpipilian sa {0}",
+    "Hiện lựa chọn {0}"
+  ],
+  "{0} matches. Type more to narrow the list.": [
+    "일치 항목 {0}개. 더 입력해 목록을 좁히세요.",
+    "{0} tugma. Mag-type pa upang paliitin ang listahan.",
+    "{0} kết quả phù hợp. Nhập thêm để thu hẹp danh sách."
+  ],
+  "Automatic: {0}{1}.": [
+    "자동: {0}{1}.",
+    "Awtomatiko: {0}{1}.",
+    "Tự động: {0}{1}."
+  ],
+  "{0} bands": [
+    "구간 {0}개",
+    "{0} saklaw",
+    "{0} dải"
+  ],
+  "Editing schedule item · {0}": [
+    "일람표 항목 편집 중 · {0}",
+    "Ini-edit ang aytem sa talaan · {0}",
+    "Đang sửa mục bảng kê · {0}"
+  ],
+  "Current item · {0}": [
+    "현재 항목 · {0}",
+    "Kasalukuyang aytem · {0}",
+    "Mục hiện tại · {0}"
+  ],
+  "Choose a PNG or JPEG logo smaller than 2 MB.": [
+    "2 MB 미만의 PNG 또는 JPEG 로고를 선택하세요.",
+    "Pumili ng PNG o JPEG na logo na mas maliit sa 2 MB.",
+    "Chọn logo PNG hoặc JPEG nhỏ hơn 2 MB."
+  ],
+  "Choose a PNG, JPEG or WebP source diagram.": [
+    "PNG, JPEG 또는 WebP 원본 도면을 선택하세요.",
+    "Pumili ng PNG, JPEG o WebP na pinagmulang diyagram.",
+    "Chọn sơ đồ nguồn PNG, JPEG hoặc WebP."
+  ],
+  "The logo could not be read.": [
+    "로고를 읽지 못했습니다.",
+    "Hindi mabasa ang logo.",
+    "Không đọc được logo."
+  ],
+  "The source diagram could not be read.": [
+    "원본 도면을 읽지 못했습니다.",
+    "Hindi mabasa ang pinagmulang diyagram.",
+    "Không đọc được sơ đồ nguồn."
+  ],
+  "The source diagram must be no larger than 15 MB.": [
+    "원본 도면 크기는 15 MB 이하여야 합니다.",
+    "Hindi dapat lumampas sa 15 MB ang pinagmulang diyagram.",
+    "Sơ đồ nguồn không được vượt quá 15 MB."
+  ],
+  "Review calculation": [
+    "계산 검토",
+    "Suriin ang kalkulasyon",
+    "Kiểm tra phép tính"
+  ],
+  "Saved in this project": [
+    "이 프로젝트에 저장됨",
+    "Nai-save sa proyektong ito",
+    "Đã lưu trong dự án này"
+  ],
+  "Saved library item": [
+    "저장된 라이브러리 항목",
+    "Naka-save na aytem sa library",
+    "Mục thư viện đã lưu"
+  ],
+  "Saving…": [
+    "저장 중…",
+    "Nagse-save…",
+    "Đang lưu…"
+  ],
+  "Unsaved library changes": [
+    "저장되지 않은 라이브러리 변경 사항",
+    "Mga hindi pa na-save na pagbabago sa library",
+    "Thay đổi thư viện chưa lưu"
+  ],
+  "Unsaved project library draft": [
+    "저장되지 않은 프로젝트 라이브러리 초안",
+    "Hindi pa na-save na draft ng library ng proyekto",
+    "Bản nháp thư viện dự án chưa lưu"
+  ],
+  "Please enter details, products, and/or labour.": [
+    "상세 정보, 제품 및/또는 노무를 입력하세요.",
+    "Maglagay ng detalye, produkto at/o paggawa.",
+    "Nhập chi tiết, sản phẩm và/hoặc nhân công."
+  ],
+  "Please select Teams/Crews under Products and Labour": [
+    "제품 및 노무에서 팀/작업반을 선택하세요",
+    "Pumili ng mga Koponan/Crew sa Mga Produkto at Paggawa",
+    "Chọn Đội/Nhóm thi công trong Sản phẩm và nhân công"
+  ],
+  "Please select a quantity.": [
+    "수량을 선택하세요.",
+    "Pumili ng dami.",
+    "Chọn số lượng."
+  ],
+  "Current item inputs cleared. Scheduled items and project settings are retained.": [
+    "현재 항목 입력값을 지웠습니다. 일람표 항목과 프로젝트 설정은 유지됩니다.",
+    "Nabura ang mga input ng kasalukuyang aytem. Napanatili ang mga aytem sa talaan at setting ng proyekto.",
+    "Đã xóa dữ liệu nhập mục hiện tại. Các mục bảng kê và thiết lập dự án được giữ lại."
+  ],
+  "Schedule item updated using the schedule prices.": [
+    "일람표 단가로 일람표 항목을 갱신했습니다.",
+    "Na-update ang aytem sa talaan gamit ang mga presyo ng talaan.",
+    "Đã cập nhật mục bảng kê bằng giá của bảng kê."
+  ],
+  "Current saved Pricing Library rates are ready to review. Save Library Item to retain them.": [
+    "현재 저장된 단가 라이브러리의 요율을 검토할 수 있습니다. 유지하려면 라이브러리 항목 저장을 누르세요.",
+    "Handa nang suriin ang mga kasalukuyang naka-save na presyo sa Library ng Presyo. I-save ang Aytem sa Library upang mapanatili ang mga ito.",
+    "Đơn giá hiện lưu trong Thư viện giá đã sẵn sàng để kiểm tra. Lưu mục thư viện để giữ lại."
+  ],
+  "Document downloads are unavailable. Reopen the application and try again.": [
+    "문서 다운로드를 사용할 수 없습니다. 앱을 다시 열고 시도하세요.",
+    "Hindi magagamit ang pag-download ng dokumento. Buksan muli ang aplikasyon at subukan.",
+    "Không thể tải tài liệu. Mở lại ứng dụng rồi thử."
+  ],
+  "The server did not confirm that the file was saved.": [
+    "서버가 파일 저장을 확인하지 않았습니다.",
+    "Hindi kinumpirma ng server na nai-save ang file.",
+    "Máy chủ chưa xác nhận tệp đã được lưu."
+  ],
+  "The server did not return a file-save confirmation.": [
+    "서버가 파일 저장 확인을 반환하지 않았습니다.",
+    "Walang ibinalik na kumpirmasyon ng pag-save ng file ang server.",
+    "Máy chủ không trả về xác nhận lưu tệp."
+  ],
+  "The server did not confirm the deletion.": [
+    "서버가 삭제를 확인하지 않았습니다.",
+    "Hindi kinumpirma ng server ang pagbura.",
+    "Máy chủ chưa xác nhận việc xóa."
+  ],
+  "The server did not confirm the removed reference link.": [
+    "서버가 참조 연결 해제를 확인하지 않았습니다.",
+    "Hindi kinumpirma ng server ang pag-alis ng ugnayan ng sanggunian.",
+    "Máy chủ chưa xác nhận việc hủy liên kết tham chiếu."
+  ],
+  "The server did not confirm the saved reference links.": [
+    "서버가 저장된 참조 연결을 확인하지 않았습니다.",
+    "Hindi kinumpirma ng server ang mga naka-save na ugnayan ng sanggunian.",
+    "Máy chủ chưa xác nhận các liên kết tham chiếu đã lưu."
+  ],
+  "The deletion confirmation is unavailable. Reload the application and try again.": [
+    "삭제 확인을 사용할 수 없습니다. 앱을 새로고침하고 다시 시도하세요.",
+    "Hindi magagamit ang kumpirmasyon ng pagbura. I-reload ang aplikasyon at subukang muli.",
+    "Không có xác nhận xóa. Tải lại ứng dụng rồi thử lại."
+  ],
+  "The unlink confirmation is unavailable. Reload the application and try again.": [
+    "연결 해제 확인을 사용할 수 없습니다. 앱을 새로고침하고 다시 시도하세요.",
+    "Hindi magagamit ang kumpirmasyon ng pag-alis ng ugnayan. I-reload ang aplikasyon at subukang muli.",
+    "Không có xác nhận hủy liên kết. Tải lại ứng dụng rồi thử lại."
+  ],
+  "The Technical Library returned an invalid result page.": [
+    "기술 라이브러리가 잘못된 결과 페이지를 반환했습니다.",
+    "Nagbalik ang Library ng teknikal ng di-wastong pahina ng resulta.",
+    "Thư viện kỹ thuật trả về trang kết quả không hợp lệ."
+  ],
+  "The Technical Library returned an unexpected result page.": [
+    "기술 라이브러리가 예상과 다른 결과 페이지를 반환했습니다.",
+    "Nagbalik ang Library ng teknikal ng di-inaasahang pahina ng resulta.",
+    "Thư viện kỹ thuật trả về trang kết quả ngoài dự kiến."
+  ],
+  "The Technical Library returned an inconsistent result count.": [
+    "기술 라이브러리가 일관되지 않은 결과 개수를 반환했습니다.",
+    "Nagbalik ang Library ng teknikal ng hindi tugmang bilang ng resulta.",
+    "Thư viện kỹ thuật trả về số lượng kết quả không nhất quán."
+  ],
+  "A library item is already being added to the schedule.": [
+    "라이브러리 항목을 이미 일람표에 추가 중입니다.",
+    "Kasalukuyang idinaragdag na sa talaan ang isang aytem sa library.",
+    "Đang thêm một mục thư viện vào bảng kê."
+  ],
+  "Choose exactly one current Firestopping item.": [
+    "현재 방화 관통부 밀봉 항목을 정확히 하나 선택하세요.",
+    "Pumili ng eksaktong isang kasalukuyang aytem ng Pagseselyong panlaban sa sunog.",
+    "Chọn đúng một mục Bịt kín chống cháy hiện tại."
+  ],
+  "Correct the schedule input marked invalid before adding an item.": [
+    "항목을 추가하기 전에 잘못되었다고 표시된 일람표 입력값을 수정하세요.",
+    "Itama ang input sa talaan na minarkahang di-wasto bago magdagdag ng aytem.",
+    "Sửa dữ liệu bảng kê bị đánh dấu không hợp lệ trước khi thêm mục."
+  ],
+  "Correct the schedule input marked invalid before downloading.": [
+    "다운로드하기 전에 잘못되었다고 표시된 일람표 입력값을 수정하세요.",
+    "Itama ang input sa talaan na minarkahang di-wasto bago mag-download.",
+    "Sửa dữ liệu bảng kê bị đánh dấu không hợp lệ trước khi tải."
+  ],
+  "Finish the current item before replacing it.": [
+    "현재 항목을 교체하기 전에 완료하세요.",
+    "Tapusin ang kasalukuyang aytem bago ito palitan.",
+    "Hoàn tất mục hiện tại trước khi thay thế."
+  ],
+  "Finish the current item input or operation before downloading.": [
+    "다운로드하기 전에 현재 항목 입력 또는 작업을 완료하세요.",
+    "Tapusin ang pag-input o operasyon ng kasalukuyang aytem bago mag-download.",
+    "Hoàn tất nhập liệu hoặc thao tác mục hiện tại trước khi tải."
+  ],
+  "Finish the current library item operation before saving the project.": [
+    "프로젝트를 저장하기 전에 현재 라이브러리 항목 작업을 완료하세요.",
+    "Tapusin ang kasalukuyang operasyon sa aytem ng library bago i-save ang proyekto.",
+    "Hoàn tất thao tác mục thư viện hiện tại trước khi lưu dự án."
+  ],
+  "Save or cancel the open library edit before adding an item to the schedule.": [
+    "항목을 일람표에 추가하기 전에 열린 라이브러리 편집을 저장하거나 취소하세요.",
+    "I-save o kanselahin ang bukas na pag-edit sa library bago magdagdag ng aytem sa talaan.",
+    "Lưu hoặc hủy chỉnh sửa thư viện đang mở trước khi thêm mục vào bảng kê."
+  ],
+  "Item deletion confirmation is unavailable. Nothing was deleted.": [
+    "항목 삭제 확인을 사용할 수 없습니다. 아무것도 삭제되지 않았습니다.",
+    "Hindi magagamit ang kumpirmasyon ng pagbura ng aytem. Walang nabura.",
+    "Không có xác nhận xóa mục. Chưa xóa gì."
+  ],
+  "The captured library item was saved. Your later edits are still here and have not been saved.": [
+    "캡처한 라이브러리 항목을 저장했습니다. 이후 편집 내용은 여전히 남아 있으며 저장되지 않았습니다.",
+    "Nai-save ang nakuhang aytem sa library. Narito pa rin ang mga sumunod mong pagbabago at hindi pa nai-save.",
+    "Đã lưu mục thư viện được chụp lại. Các chỉnh sửa sau đó vẫn còn đây và chưa được lưu."
+  ],
+  "The current item or pricing changed while checking its details. Review it and add it again.": [
+    "상세 정보를 확인하는 중 현재 항목 또는 단가가 변경되었습니다. 검토 후 다시 추가하세요.",
+    "Nagbago ang kasalukuyang aytem o presyo habang sinusuri ang mga detalye nito. Suriin at idagdag itong muli.",
+    "Mục hiện tại hoặc giá đã đổi khi kiểm tra chi tiết. Kiểm tra rồi thêm lại."
+  ],
+  "The current schedule is full. Remove a row before adding another item.": [
+    "현재 일람표가 가득 찼습니다. 다른 항목을 추가하기 전에 행을 삭제하세요.",
+    "Puno na ang kasalukuyang talaan. Mag-alis ng hanay bago magdagdag ng ibang aytem.",
+    "Bảng kê hiện tại đã đầy. Xóa một hàng trước khi thêm mục khác."
+  ],
+  "The firestopping inputs are incomplete or exceed their row capacity.": [
+    "방화 관통부 밀봉 입력값이 불완전하거나 허용 행 수를 초과했습니다.",
+    "Kulang ang mga input ng Pagseselyong panlaban sa sunog o lampas sa kapasidad ng mga hanay.",
+    "Dữ liệu Bịt kín chống cháy chưa đủ hoặc vượt số hàng cho phép."
+  ],
+  "The firestopping inputs use a different source workbook version. Their inputs have been retained.": [
+    "방화 관통부 밀봉 입력값의 원본 통합문서 버전이 다릅니다. 입력값은 유지되었습니다.",
+    "Ibang bersiyon ng pinagmulang workbook ang gamit ng mga input ng Pagseselyong panlaban sa sunog. Napanatili ang mga input.",
+    "Dữ liệu Bịt kín chống cháy dùng phiên bản sổ làm việc nguồn khác. Dữ liệu nhập được giữ lại."
+  ],
+  "The firestopping schedule contains an invalid or repeated row.": [
+    "방화 관통부 밀봉 일람표에 잘못되거나 중복된 행이 있습니다.",
+    "May di-wasto o paulit-ulit na hanay sa Talaan ng Pagseselyong panlaban sa sunog.",
+    "Bảng kê Bịt kín chống cháy có hàng không hợp lệ hoặc trùng lặp."
+  ],
+  "The item details could not be validated. Nothing was added.": [
+    "항목 상세를 검증하지 못했습니다. 아무것도 추가되지 않았습니다.",
+    "Hindi mapatunayan ang mga detalye ng aytem. Walang naidagdag.",
+    "Không xác thực được chi tiết mục. Chưa thêm gì."
+  ],
+  "The library did not confirm the saved item. Retry to check the same capture.": [
+    "라이브러리가 항목 저장을 확인하지 않았습니다. 다시 시도해 동일한 캡처를 확인하세요.",
+    "Hindi kinumpirma ng library ang nai-save na aytem. Subukang muli upang masuri ang parehong kuha.",
+    "Thư viện chưa xác nhận mục đã lưu. Thử lại để kiểm tra cùng bản chụp dữ liệu."
+  ],
+  "The library draft changed while preparing the project. Save again when ready.": [
+    "프로젝트를 준비하는 중 라이브러리 초안이 변경되었습니다. 준비되면 다시 저장하세요.",
+    "Nagbago ang draft ng library habang inihahanda ang proyekto. Mag-save muli kapag handa na.",
+    "Bản nháp thư viện đã đổi khi chuẩn bị dự án. Lưu lại khi sẵn sàng."
+  ],
+  "The library drafts use different calculator sources.": [
+    "라이브러리 초안의 계산기 원본이 다릅니다.",
+    "Magkaiba ang mga pinagmulan ng calculator sa mga draft ng library.",
+    "Các bản nháp thư viện dùng nguồn công cụ tính khác nhau."
+  ],
+  "The library editor changed while preparing the project. Save again when ready.": [
+    "프로젝트를 준비하는 중 라이브러리 편집기가 변경되었습니다. 준비되면 다시 저장하세요.",
+    "Nagbago ang editor ng library habang inihahanda ang proyekto. Mag-save muli kapag handa na.",
+    "Trình sửa thư viện đã đổi khi chuẩn bị dự án. Lưu lại khi sẵn sàng."
+  ],
+  "The library item ID is invalid.": [
+    "라이브러리 항목 ID가 잘못되었습니다.",
+    "Di-wasto ang ID ng aytem sa library.",
+    "ID mục thư viện không hợp lệ."
+  ],
+  "The library item does not contain one editable source row.": [
+    "라이브러리 항목에 편집 가능한 원본 행이 정확히 하나 있지 않습니다.",
+    "Walang eksaktong isang nae-edit na pinagmulang hanay ang aytem sa library.",
+    "Mục thư viện không chứa đúng một hàng nguồn có thể sửa."
+  ],
+  "The pending source diagram was discarded.": [
+    "대기 중인 원본 도면을 폐기했습니다.",
+    "Itinapon ang nakabinbing pinagmulang diyagram.",
+    "Đã bỏ sơ đồ nguồn đang chờ."
+  ],
+  "The project changed while loading firestopping inputs. Try again.": [
+    "방화 관통부 밀봉 입력값을 불러오는 중 프로젝트가 변경되었습니다. 다시 시도하세요.",
+    "Nagbago ang proyekto habang nilo-load ang mga input ng Pagseselyong panlaban sa sunog. Subukang muli.",
+    "Dự án đã đổi khi tải dữ liệu Bịt kín chống cháy. Hãy thử lại."
+  ],
+  "The project changed while opening the library item. Nothing was added.": [
+    "라이브러리 항목을 여는 중 프로젝트가 변경되었습니다. 아무것도 추가되지 않았습니다.",
+    "Nagbago ang proyekto habang binubuksan ang aytem sa library. Walang naidagdag.",
+    "Dự án đã đổi khi mở mục thư viện. Chưa thêm gì."
+  ],
+  "The project changed. Add the library item again when ready.": [
+    "프로젝트가 변경되었습니다. 준비되면 라이브러리 항목을 다시 추가하세요.",
+    "Nagbago ang proyekto. Idagdag muli ang aytem sa library kapag handa na.",
+    "Dự án đã đổi. Thêm lại mục thư viện khi sẵn sàng."
+  ],
+  "The project library draft changed while calculating. Your latest edits were kept.": [
+    "계산 중 프로젝트 라이브러리 초안이 변경되었습니다. 최신 편집 내용은 유지되었습니다.",
+    "Nagbago ang draft ng library ng proyekto habang nagkakalkula. Napanatili ang pinakabagong mga pagbabago.",
+    "Bản nháp thư viện dự án đã đổi trong khi tính. Các chỉnh sửa mới nhất được giữ lại."
+  ],
+  "The resulting schedule quantity exceeds the supported range.": [
+    "계산된 일람표 수량이 지원 범위를 초과합니다.",
+    "Lampas sa sinusuportahang saklaw ang nagresultang dami sa talaan.",
+    "Số lượng bảng kê sau tính vượt phạm vi hỗ trợ."
+  ],
+  "The schedule contains a repeated library item ID.": [
+    "일람표에 중복된 라이브러리 항목 ID가 있습니다.",
+    "May paulit-ulit na ID ng aytem sa library sa talaan.",
+    "Bảng kê chứa ID mục thư viện trùng lặp."
+  ],
+  "The schedule contains an invalid library item ID.": [
+    "일람표에 잘못된 라이브러리 항목 ID가 있습니다.",
+    "May di-wastong ID ng aytem sa library sa talaan.",
+    "Bảng kê chứa ID mục thư viện không hợp lệ."
+  ],
+  "The source diagram is ready. Add this item to the Firestopping Library to save it.": [
+    "원본 도면이 준비되었습니다. 저장하려면 이 항목을 방화 관통부 밀봉 라이브러리에 추가하세요.",
+    "Handa na ang pinagmulang diyagram. Idagdag ang aytem na ito sa Library ng Pagseselyong panlaban sa sunog upang i-save ito.",
+    "Sơ đồ nguồn đã sẵn sàng. Thêm mục này vào Thư viện Bịt kín chống cháy để lưu."
+  ],
+  "This library item does not match the current Firestopping Estimator calculation source.": [
+    "이 라이브러리 항목은 현재 방화 관통부 밀봉 견적 계산 원본과 일치하지 않습니다.",
+    "Hindi tugma ang aytem na ito sa library sa kasalukuyang pinagmulan ng kalkulasyon ng Pagtatantya ng Pagseselyong panlaban sa sunog.",
+    "Mục thư viện này không khớp nguồn tính của Công cụ dự toán Bịt kín chống cháy hiện tại."
+  ],
+  "This library item has no captured pricing configuration to export.": [
+    "이 라이브러리 항목에는 내보낼 캡처 단가 구성이 없습니다.",
+    "Walang nakuhang pagsasaayos ng presyo na mae-export ang aytem na ito sa library.",
+    "Mục thư viện này không có cấu hình giá đã chụp để xuất."
+  ],
+  "Wait for the library diagram to finish loading before saving the project.": [
+    "프로젝트를 저장하기 전에 라이브러리 도면 불러오기가 완료될 때까지 기다리세요.",
+    "Hintaying matapos mag-load ang diyagram ng library bago i-save ang proyekto.",
+    "Đợi tải xong sơ đồ thư viện trước khi lưu dự án."
+  ],
+  "The Firestopping Schedule or prices changed while reviewing deletion. Review the current item and try again. Nothing was deleted.": [
+    "삭제를 검토하는 중 방화 관통부 밀봉 일람표 또는 단가가 변경되었습니다. 현재 항목을 검토한 후 다시 시도하세요. 아무것도 삭제되지 않았습니다.",
+    "Nagbago ang Talaan ng Pagseselyong panlaban sa sunog o mga presyo habang sinusuri ang pagbura. Suriin ang kasalukuyang aytem at subukang muli. Walang nabura.",
+    "Bảng kê Bịt kín chống cháy hoặc giá đã đổi khi xem xét xóa. Kiểm tra mục hiện tại rồi thử lại. Chưa xóa gì."
+  ],
+  "This Firestopping row was replaced or edited. Review its current Delete button. Nothing was deleted.": [
+    "이 방화 관통부 밀봉 행이 교체되거나 편집되었습니다. 현재 삭제 버튼을 확인하세요. 아무것도 삭제되지 않았습니다.",
+    "Napalitan o na-edit ang hanay na ito ng Pagseselyong panlaban sa sunog. Suriin ang kasalukuyang button na Burahin nito. Walang nabura.",
+    "Hàng Bịt kín chống cháy này đã bị thay hoặc sửa. Kiểm tra nút Xóa hiện tại của hàng. Chưa xóa gì."
+  ],
+  "Description": [
+    "설명",
+    "Paglalarawan",
+    "Mô tả"
+  ],
+  "Manufacturer": [
+    "제조사",
+    "Tagagawa",
+    "Nhà sản xuất"
+  ],
+  "Type": [
+    "유형",
+    "Uri",
+    "Loại"
+  ],
+  "Services": [
+    "설비",
+    "Mga serbisyo",
+    "Hệ kỹ thuật"
+  ],
+  "Setting": [
+    "설정",
+    "Takda",
+    "Thiết lập"
+  ],
+  "Applies to": [
+    "적용 대상",
+    "Nalalapat sa",
+    "Áp dụng cho"
+  ],
+  "Value": [
+    "값",
+    "Halaga",
+    "Giá trị"
+  ],
+  "Hours": [
+    "시간",
+    "Mga oras",
+    "Giờ"
+  ],
+  "Action": [
+    "작업",
+    "Aksiyon",
+    "Thao tác"
+  ],
+  "DETAILS": [
+    "상세",
+    "MGA DETALYE",
+    "CHI TIẾT"
+  ],
+  "CABLE TRAYS": [
+    "케이블 트레이",
+    "MGA CABLE TRAY",
+    "MÁNG CÁP"
+  ],
+  "BUNDLES": [
+    "묶음",
+    "MGA BUNDLE",
+    "BÓ"
+  ],
+  "OTHER": [
+    "기타",
+    "IBA PA",
+    "KHÁC"
+  ],
+  "Additional Labour": [
+    "추가 노무",
+    "Karagdagang paggawa",
+    "Nhân công bổ sung"
+  ],
+  "Board Length": [
+    "보드 길이",
+    "Haba ng tabla",
+    "Chiều dài tấm"
+  ],
+  "Board Width": [
+    "보드 폭",
+    "Lapad ng tabla",
+    "Chiều rộng tấm"
+  ],
+  "Board Multiplier": [
+    "보드 배수",
+    "Multiplier ng tabla",
+    "Hệ số tấm"
+  ],
+  "Board/Batt Type": [
+    "보드/배트 유형",
+    "Uri ng tabla/batt",
+    "Loại tấm/tấm bông"
+  ],
+  "Board/Batt W x L": [
+    "보드/배트 폭 × 길이",
+    "Tabla/batt Lp x Hb",
+    "Tấm/tấm bông R x D"
+  ],
+  "Bulkhead Height": [
+    "벌크헤드 높이",
+    "Taas ng bulkhead",
+    "Chiều cao vách bịt"
+  ],
+  "Bulkhead Length": [
+    "벌크헤드 길이",
+    "Haba ng bulkhead",
+    "Chiều dài vách bịt"
+  ],
+  "Bulkhead Width": [
+    "벌크헤드 폭",
+    "Lapad ng bulkhead",
+    "Chiều rộng vách bịt"
+  ],
+  "Bulkhead Multiplier": [
+    "벌크헤드 배수",
+    "Multiplier ng bulkhead",
+    "Hệ số vách bịt"
+  ],
+  "Cabletray Depth": [
+    "케이블 트레이 깊이",
+    "Lalim ng cable tray",
+    "Chiều sâu máng cáp"
+  ],
+  "Cabletray W x D": [
+    "케이블 트레이 폭 × 깊이",
+    "Cable tray Lp x Lm",
+    "Máng cáp R x S"
+  ],
+  "Collars": [
+    "칼라",
+    "Mga collar",
+    "Đai chặn"
+  ],
+  "Collar Type": [
+    "칼라 유형",
+    "Uri ng collar",
+    "Loại đai chặn"
+  ],
+  "Collar Multiplier": [
+    "칼라 배수",
+    "Multiplier ng collar",
+    "Hệ số đai chặn"
+  ],
+  "Diameter": [
+    "직경",
+    "Diyametro",
+    "Đường kính"
+  ],
+  "Framing": [
+    "프레임",
+    "Balangkas",
+    "Khung"
+  ],
+  "Framing Type": [
+    "프레임 유형",
+    "Uri ng balangkas",
+    "Loại khung"
+  ],
+  "Mastic Type": [
+    "매스틱 유형",
+    "Uri ng mastic",
+    "Loại keo mastic"
+  ],
+  "Mastic Qty": [
+    "매스틱 수량",
+    "Dami ng mastic",
+    "Lượng keo mastic"
+  ],
+  "Material QTY": [
+    "자재 수량",
+    "DAMI ng materyal",
+    "SỐ LƯỢNG vật liệu"
+  ],
+  "Material Adjustment ($)": [
+    "자재 조정($)",
+    "Pagsasaayos sa materyal ($)",
+    "Điều chỉnh vật liệu ($)"
+  ],
+  "Labour Adjustment ($)": [
+    "노무 조정($)",
+    "Pagsasaayos sa paggawa ($)",
+    "Điều chỉnh nhân công ($)"
+  ],
+  "Pipe Labour": [
+    "배관 노무",
+    "Paggawa sa tubo",
+    "Nhân công ống"
+  ],
+  "Pipe labour": [
+    "배관 노무",
+    "Paggawa sa tubo",
+    "Nhân công ống"
+  ],
+  "Register Allowance": [
+    "대장 가산량",
+    "Laang halaga sa rehistro",
+    "Khoản dự phòng sổ đăng ký"
+  ],
+  "Waste": [
+    "할증 손실",
+    "Aksaya",
+    "Hao hụt"
+  ],
+  "Wrap": [
+    "랩",
+    "Balot",
+    "Bọc"
+  ],
+  "Wrap Type": [
+    "랩 유형",
+    "Uri ng balot",
+    "Loại bọc"
+  ],
+  "Wrap Length": [
+    "랩 길이",
+    "Haba ng balot",
+    "Chiều dài bọc"
+  ],
+  "Wrap Width": [
+    "랩 폭",
+    "Lapad ng balot",
+    "Chiều rộng bọc"
+  ],
+  "Wrap Length required": [
+    "필요 랩 길이",
+    "Kinakailangang haba ng balot",
+    "Chiều dài bọc cần dùng"
+  ],
+  "Total Wrap Req": [
+    "총 필요 랩",
+    "Kabuuang kailangang balot",
+    "Tổng bọc cần dùng"
+  ],
+  "Wrap Multiplier": [
+    "랩 배수",
+    "Multiplier ng balot",
+    "Hệ số bọc"
+  ],
+  "Task Hours": [
+    "작업시간",
+    "Mga oras ng gawain",
+    "Giờ công"
+  ],
+  "Total Task Hours": [
+    "총 작업시간",
+    "Kabuuang oras ng gawain",
+    "Tổng giờ công"
+  ],
+  "Unit Prices": [
+    "단가",
+    "Mga presyo bawat yunit",
+    "Đơn giá"
+  ],
+  "Material Quantities": [
+    "자재 수량",
+    "Mga dami ng materyal",
+    "Khối lượng vật liệu"
+  ],
+  "Material Costs": [
+    "자재비",
+    "Mga gastos sa materyal",
+    "Chi phí vật liệu"
+  ],
+  "Labour Costs": [
+    "노무비",
+    "Mga gastos sa paggawa",
+    "Chi phí nhân công"
+  ],
+  "Item cost breakdown": [
+    "항목 원가 내역",
+    "Pagkakabahagi ng gastos sa aytem",
+    "Phân tích chi phí mục"
+  ],
+  "Schedule cost breakdown": [
+    "일람표 원가 내역",
+    "Pagkakabahagi ng gastos sa talaan",
+    "Phân tích chi phí bảng kê"
+  ],
+  "Service Tab": [
+    "설비 탭",
+    "Tab ng serbisyo",
+    "Thẻ hệ kỹ thuật"
+  ],
+  "Service Types": [
+    "설비 유형",
+    "Mga uri ng serbisyo",
+    "Loại hệ kỹ thuật"
+  ],
+  "Labour allowances": [
+    "노무 가산량",
+    "Mga laang halaga sa paggawa",
+    "Khoản dự phòng nhân công"
+  ],
+  "Material waste": [
+    "자재 손실",
+    "Aksaya sa materyal",
+    "Hao hụt vật liệu"
+  ],
+  "Every Firestopping item": [
+    "모든 방화 관통부 밀봉 항목",
+    "Bawat aytem ng Pagseselyong panlaban sa sunog",
+    "Mọi mục Bịt kín chống cháy"
+  ],
+  "Firestopping estimate": [
+    "방화 관통부 밀봉 견적",
+    "Tantiyang Pagseselyong panlaban sa sunog",
+    "Dự toán Bịt kín chống cháy"
+  ],
+  "Firestopping library item": [
+    "방화 관통부 밀봉 라이브러리 항목",
+    "Aytem sa Library ng Pagseselyong panlaban sa sunog",
+    "Mục Thư viện Bịt kín chống cháy"
+  ],
+  "System/Install Details": [
+    "시스템/시공 상세",
+    "Mga detalye ng sistema/pagkakabit",
+    "Chi tiết hệ thống/lắp đặt"
+  ],
+  "Complexity": [
+    "복잡도",
+    "Pagiging kumplikado",
+    "Độ phức tạp"
+  ],
+  "Complexity Multiplier": [
+    "복잡도 배수",
+    "Multiplier ng pagiging kumplikado",
+    "Hệ số độ phức tạp"
+  ],
+  "Access Multiplier": [
+    "접근성 배수",
+    "Multiplier ng akses",
+    "Hệ số tiếp cận"
+  ],
+  "Substrate Multiplier": [
+    "바탕재 배수",
+    "Multiplier ng substrate",
+    "Hệ số vật liệu nền"
+  ],
+  "Travel & LAFHA": [
+    "출장 및 LAFHA",
+    "Biyahe at LAFHA",
+    "Đi lại và LAFHA"
+  ],
+  "ITEM TOTAL": [
+    "항목 합계",
+    "KABUUAN NG AYTEM",
+    "TỔNG MỤC"
+  ],
+  "Midnight": [
+    "미드나잇",
+    "Hatinggabi",
+    "Nửa đêm"
+  ],
+  "Ocean": [
+    "오션",
+    "Karagatan",
+    "Đại dương"
+  ],
+  "Forest": [
+    "포레스트",
+    "Kagubatan",
+    "Rừng"
+  ],
+  "Slate": [
+    "슬레이트",
+    "Batong pisara",
+    "Đá phiến"
+  ],
+  "reference": [
+    "참조",
+    "sanggunian",
+    "tham chiếu"
+  ],
+  "references": [
+    "참조",
+    "mga sanggunian",
+    "các tham chiếu"
+  ],
+  "technical references": [
+    "기술 참조",
+    "mga teknikal na sanggunian",
+    "tham chiếu kỹ thuật"
+  ],
+  "firestopping records": [
+    "방화 관통부 밀봉 레코드",
+    "mga rekord ng Pagseselyong panlaban sa sunog",
+    "bản ghi Bịt kín chống cháy"
+  ],
+  "item": [
+    "항목",
+    "aytem",
+    "mục"
+  ],
+  "items": [
+    "항목",
+    "mga aytem",
+    "các mục"
+  ],
+  "Unlink {0}?": [
+    "{0} 연결을 해제할까요?",
+    "Alisin ang ugnayan ng {0}?",
+    "Hủy liên kết {0}?"
+  ],
+  "{0} will be unlinked from this library record.": [
+    "이 라이브러리 레코드에서 {0} 연결이 해제됩니다.",
+    "Aalisin ang ugnayan ng {0} sa rekord na ito sa library.",
+    "Sẽ hủy liên kết {0} khỏi bản ghi thư viện này."
+  ],
+  "Open the workspace starting page.": [
+    "작업공간 시작 페이지를 엽니다.",
+    "Buksan ang panimulang pahina ng workspace.",
+    "Mở trang bắt đầu của không gian làm việc."
+  ],
+  "Choose Main or Firestopping and review the estimate.": [
+    "메인 또는 방화 관통부 밀봉을 선택하고 견적을 검토하세요.",
+    "Piliin ang Pangunahin o Pagseselyong panlaban sa sunog at suriin ang tantiya.",
+    "Chọn Chính hoặc Bịt kín chống cháy rồi kiểm tra dự toán."
+  ],
+  "Choose Firestopping, Steel Spray, Steel Board or Ductwork.": [
+    "방화 관통부 밀봉, 철골 분사, 철골 보드 또는 덕트를 선택하세요.",
+    "Piliin ang Pagseselyong panlaban sa sunog, Spray sa Bakal, Tabla sa Bakal o Ductwork.",
+    "Chọn Bịt kín chống cháy, Phun thép, Tấm thép hoặc Ống gió."
+  ],
+  "Choose Steel, Duct, Penetrations, Defect Reports, Service Plans or Walls/Floors.": [
+    "철골, 덕트, 관통부, 하자 보고서, 설비 도면 또는 벽/바닥을 선택하세요.",
+    "Piliin ang Bakal, Duct, Mga Penetrasyon, Mga Ulat ng Depekto, Mga Plano ng Serbisyo o Mga Pader/Sahig.",
+    "Chọn Thép, Ống gió, Lỗ xuyên, Báo cáo lỗi, Bản vẽ hệ kỹ thuật hoặc Tường/Sàn."
+  ],
+  "Choose Pricing, Firestopping or Technical Library.": [
+    "단가, 방화 관통부 밀봉 또는 기술 라이브러리를 선택하세요.",
+    "Piliin ang Library ng Presyo, Pagseselyong panlaban sa sunog o Library ng teknikal.",
+    "Chọn Thư viện giá, Bịt kín chống cháy hoặc Thư viện kỹ thuật."
+  ],
+  "Find, load and browse project files.": [
+    "프로젝트 파일을 찾고 불러오고 탐색합니다.",
+    "Hanapin, i-load at i-browse ang mga file ng proyekto.",
+    "Tìm, tải và duyệt tệp dự án."
+  ],
+  "Open the guide and this button glossary.": [
+    "안내서와 이 버튼 용어집을 엽니다.",
+    "Buksan ang gabay at talahulugan ng mga button na ito.",
+    "Mở hướng dẫn và bảng chú giải nút này."
+  ],
+  "Theme": [
+    "테마",
+    "Tema",
+    "Giao diện"
+  ],
+  "Cycle through Ceasefire, Midnight, Ocean, Forest and Slate.": [
+    "Ceasefire, 미드나잇, 오션, 포레스트, 슬레이트 테마를 차례로 전환합니다.",
+    "Magpalit sa Ceasefire, Hatinggabi, Karagatan, Kagubatan at Batong pisara.",
+    "Chuyển lần lượt giữa Ceasefire, Nửa đêm, Đại dương, Rừng và Đá phiến."
+  ],
+  "Choose a location for a new project, or update the selected .cf.json project file.": [
+    "새 프로젝트 위치를 선택하거나 선택한 .cf.json 프로젝트 파일을 갱신합니다.",
+    "Pumili ng lokasyon para sa bagong proyekto o i-update ang napiling .cf.json na file ng proyekto.",
+    "Chọn vị trí cho dự án mới hoặc cập nhật tệp dự án .cf.json đã chọn."
+  ],
+  "Start a new estimate after reviewing the replacement prompt.": [
+    "교체 확인 메시지를 검토한 후 새 견적을 시작합니다.",
+    "Magsimula ng bagong tantiya matapos suriin ang prompt ng pagpapalit.",
+    "Bắt đầu dự toán mới sau khi xem lời nhắc thay thế."
+  ],
+  "Load / Open project": [
+    "프로젝트 불러오기/열기",
+    "I-load / Buksan ang proyekto",
+    "Tải / Mở dự án"
+  ],
+  "Load a .cf.json project and its saved prices and drafts after confirming replacement.": [
+    "교체를 확인한 후 .cf.json 프로젝트와 저장된 단가 및 초안을 불러옵니다.",
+    "I-load ang .cf.json na proyekto at ang mga naka-save nitong presyo at draft matapos kumpirmahin ang pagpapalit.",
+    "Tải dự án .cf.json cùng giá và bản nháp đã lưu sau khi xác nhận thay thế."
+  ],
+  "Choose the folder Projects searches for .cf.json files.": [
+    "프로젝트에서 .cf.json 파일을 검색할 폴더를 선택합니다.",
+    "Piliin ang folder kung saan hahanapin ng Mga Proyekto ang mga .cf.json na file.",
+    "Chọn thư mục để Dự án tìm tệp .cf.json."
+  ],
+  "Read the linked project folder again.": [
+    "연결된 프로젝트 폴더를 다시 읽습니다.",
+    "Basahin muli ang naka-link na folder ng proyekto.",
+    "Đọc lại thư mục dự án đã liên kết."
+  ],
+  "Attach files beside a saved project. You can also drag files onto this button.": [
+    "저장된 프로젝트 옆에 파일을 첨부합니다. 이 버튼에 파일을 끌어 놓을 수도 있습니다.",
+    "Mag-attach ng mga file sa tabi ng naka-save na proyekto. Maaari ring mag-drag ng mga file sa button na ito.",
+    "Đính kèm tệp cạnh dự án đã lưu. Bạn cũng có thể kéo tệp vào nút này."
+  ],
+  "Project search and sort": [
+    "프로젝트 검색 및 정렬",
+    "Paghahanap at pag-aayos ng proyekto",
+    "Tìm và sắp xếp dự án"
+  ],
+  "Filter the project list by project, client, address or folder; choose its order.": [
+    "프로젝트, 고객, 주소 또는 폴더로 프로젝트 목록을 필터링하고 순서를 선택합니다.",
+    "I-filter ang listahan ng proyekto ayon sa proyekto, kliyente, address o folder; piliin ang pagkakasunod nito.",
+    "Lọc danh sách theo dự án, khách hàng, địa chỉ hoặc thư mục; chọn thứ tự."
+  ],
+  "Previous / Next / Continue folder scan": [
+    "이전/다음/폴더 검색 계속",
+    "Nakaraan / Susunod / Ipagpatuloy ang pag-scan ng folder",
+    "Trước / Sau / Tiếp tục quét thư mục"
+  ],
+  "Move between project results or continue a bounded folder scan.": [
+    "프로젝트 검색 결과를 이동하거나 범위가 제한된 폴더 검색을 계속합니다.",
+    "Lumipat sa mga resulta ng proyekto o ipagpatuloy ang may-limitasyong pag-scan ng folder.",
+    "Di chuyển giữa kết quả dự án hoặc tiếp tục quét thư mục có giới hạn."
+  ],
+  "Folder breadcrumbs / Back to Projects": [
+    "폴더 경로/프로젝트로 돌아가기",
+    "Landas ng folder / Bumalik sa Mga Proyekto",
+    "Đường dẫn thư mục / Về Dự án"
+  ],
+  "Browse attached folders and return to the project list.": [
+    "첨부 폴더를 탐색하고 프로젝트 목록으로 돌아갑니다.",
+    "I-browse ang mga naka-attach na folder at bumalik sa listahan ng proyekto.",
+    "Duyệt thư mục đính kèm và quay về danh sách dự án."
+  ],
+  "Open the imports, templates and downloads available in the current workspace.": [
+    "현재 작업공간의 가져오기, 템플릿, 다운로드를 엽니다.",
+    "Buksan ang mga import, template at download sa kasalukuyang workspace.",
+    "Mở mục nhập, mẫu và tải xuống có trong không gian làm việc hiện tại."
+  ],
+  "Download the Main estimate PDF using the inputs and prices captured when you click.": [
+    "클릭 시점에 캡처한 입력값과 단가로 메인 견적 PDF를 다운로드합니다.",
+    "I-download ang PDF ng Pangunahing tantiya gamit ang mga input at presyong nakuha sa oras ng pag-click.",
+    "Tải PDF dự toán Chính bằng dữ liệu và giá chụp lúc nhấp."
+  ],
+  "Save the complete current Firestopping Schedule as XLSX or PDF.": [
+    "현재 방화 관통부 밀봉 일람표 전체를 XLSX 또는 PDF로 저장합니다.",
+    "I-save ang buong kasalukuyang Talaan ng Pagseselyong panlaban sa sunog bilang XLSX o PDF.",
+    "Lưu toàn bộ Bảng kê Bịt kín chống cháy hiện tại dưới dạng XLSX hoặc PDF."
+  ],
+  "Download the current Firestopping composer or Library Editor item's captured fields and prices as XLSX or PDF; the PDF includes its source diagram.": [
+    "현재 방화 관통부 밀봉 작성기 또는 라이브러리 편집기 항목의 캡처 필드와 단가를 XLSX 또는 PDF로 다운로드합니다. PDF에는 원본 도면이 포함됩니다.",
+    "I-download bilang XLSX o PDF ang nakuhang mga field at presyo ng kasalukuyang aytem sa tagabuo ng Pagseselyong panlaban sa sunog o Editor ng Library; kasama sa PDF ang pinagmulang diyagram.",
+    "Tải các trường và giá đã chụp của mục hiện tại trong trình soạn Bịt kín chống cháy hoặc Trình sửa thư viện thành XLSX hoặc PDF; PDF có sơ đồ nguồn."
+  ],
+  "Steel / Duct Schedule and Product Summary": [
+    "철골/덕트 일람표 및 제품 요약",
+    "Talaan ng Bakal / Duct at Buod ng Produkto",
+    "Bảng kê Thép / Ống gió và Tóm tắt sản phẩm"
+  ],
+  "Download the selected calculator's schedule as XLSX or PDF, or its Product Summary PDF.": [
+    "선택한 계산기의 일람표를 XLSX 또는 PDF로, 또는 제품 요약을 PDF로 다운로드합니다.",
+    "I-download ang talaan ng napiling calculator bilang XLSX o PDF, o ang Buod ng Produkto nito bilang PDF.",
+    "Tải bảng kê của công cụ tính đã chọn thành XLSX hoặc PDF, hoặc Tóm tắt sản phẩm thành PDF."
+  ],
+  "Import Schedule / Export Template": [
+    "일람표 가져오기/템플릿 내보내기",
+    "Mag-import ng Talaan / Mag-export ng Template",
+    "Nhập bảng kê / Xuất mẫu"
+  ],
+  "Use the supported calculator template. Review the confirmation before replacing a schedule draft.": [
+    "지원되는 계산기 템플릿을 사용하세요. 일람표 초안을 교체하기 전에 확인 내용을 검토하세요.",
+    "Gamitin ang sinusuportahang template ng calculator. Suriin ang kumpirmasyon bago palitan ang draft ng talaan.",
+    "Dùng mẫu công cụ tính được hỗ trợ. Xem xác nhận trước khi thay bản nháp bảng kê."
+  ],
+  "Export Excel / Import Excel": [
+    "Excel 내보내기/가져오기",
+    "Mag-export ng Excel / Mag-import ng Excel",
+    "Xuất Excel / Nhập Excel"
+  ],
+  "Export the whole pricing draft, or import a complete pricing workbook for review.": [
+    "전체 단가 초안을 내보내거나 완전한 단가 통합문서를 가져와 검토합니다.",
+    "I-export ang buong draft ng presyo o mag-import ng kumpletong workbook ng presyo para suriin.",
+    "Xuất toàn bộ bản nháp giá hoặc nhập sổ làm việc giá đầy đủ để kiểm tra."
+  ],
+  "Calculate the current workbook or schedule from its valid inputs.": [
+    "유효한 입력값으로 현재 통합문서 또는 일람표를 계산합니다.",
+    "Kalkulahin ang kasalukuyang workbook o talaan mula sa mga wastong input nito.",
+    "Tính sổ làm việc hoặc bảng kê hiện tại từ dữ liệu hợp lệ."
+  ],
+  "Open the current calculator or Firestopping settings.": [
+    "현재 계산기 또는 방화 관통부 밀봉 설정을 엽니다.",
+    "Buksan ang kasalukuyang calculator o mga setting ng Pagseselyong panlaban sa sunog.",
+    "Mở thiết lập của công cụ tính hiện tại hoặc Bịt kín chống cháy."
+  ],
+  "Add item / Add row": [
+    "항목 추가/행 추가",
+    "Magdagdag ng aytem / Magdagdag ng hanay",
+    "Thêm mục / Thêm hàng"
+  ],
+  "Add the current completed Firestopping item or a new schedule row.": [
+    "완성된 현재 방화 관통부 밀봉 항목 또는 새 일람표 행을 추가합니다.",
+    "Idagdag ang kasalukuyang nakumpletong aytem ng Pagseselyong panlaban sa sunog o bagong hanay sa talaan.",
+    "Thêm mục Bịt kín chống cháy hiện tại đã hoàn tất hoặc một hàng bảng kê mới."
+  ],
+  "Duplicate": [
+    "복제",
+    "Doblehin",
+    "Nhân bản"
+  ],
+  "Copy a work-item or schedule row with its existing inputs.": [
+    "기존 입력값을 유지한 작업 항목 또는 일람표 행의 복사본을 만듭니다.",
+    "Kopyahin ang aytem ng gawain o hanay ng talaan kasama ang dati nitong mga input.",
+    "Sao chép mục công việc hoặc hàng bảng kê cùng dữ liệu nhập sẵn có."
+  ],
+  "Remove / Delete": [
+    "제거/삭제",
+    "Alisin / Burahin",
+    "Loại bỏ / Xóa"
+  ],
+  "Remove the selected row, item or library record after any displayed confirmation.": [
+    "확인 메시지가 표시되면 확인한 후 선택한 행, 항목 또는 라이브러리 레코드를 삭제합니다.",
+    "Alisin ang napiling hanay, aytem o rekord sa library matapos ang anumang ipinakitang kumpirmasyon.",
+    "Xóa hàng, mục hoặc bản ghi thư viện đã chọn sau xác nhận nếu có."
+  ],
+  "Undo": [
+    "실행 취소",
+    "I-undo",
+    "Hoàn tác"
+  ],
+  "Restore the most recently removed schedule row, or undo the available last edit.": [
+    "가장 최근에 삭제한 일람표 행을 복원하거나 가능한 마지막 편집을 취소합니다.",
+    "Ibalik ang pinakahuling inalis na hanay ng talaan o i-undo ang huling pag-edit na maaari pang ibalik.",
+    "Khôi phục hàng bảng kê vừa xóa nhất hoặc hoàn tác chỉnh sửa cuối còn khả dụng."
+  ],
+  "Clear current item / Reset": [
+    "현재 항목 지우기/초기화",
+    "Burahin ang kasalukuyang aytem / I-reset",
+    "Xóa mục hiện tại / Đặt lại"
+  ],
+  "Clear the Firestopping current item, or load the selected calculator's defaults after its prompt.": [
+    "현재 방화 관통부 밀봉 항목을 지우거나 확인 메시지 후 선택한 계산기의 기본값을 불러옵니다.",
+    "Burahin ang kasalukuyang aytem ng Pagseselyong panlaban sa sunog o i-load ang mga default ng napiling calculator pagkatapos ng prompt nito.",
+    "Xóa mục Bịt kín chống cháy hiện tại hoặc tải mặc định của công cụ tính đã chọn sau lời nhắc."
+  ],
+  "Save pricing / Apply / Discard": [
+    "단가 저장/적용/폐기",
+    "I-save ang presyo / Ilapat / Itapon",
+    "Lưu giá / Áp dụng / Bỏ"
+  ],
+  "Save shared pricing, apply project pricing, or return the draft to its saved values.": [
+    "공용 단가를 저장하거나 프로젝트 단가를 적용하거나 초안을 저장된 값으로 되돌립니다.",
+    "I-save ang pinagsasaluhang presyo, ilapat ang presyo ng proyekto o ibalik ang draft sa mga naka-save na halaga.",
+    "Lưu giá dùng chung, áp dụng giá dự án hoặc trả bản nháp về giá trị đã lưu."
+  ],
+  "Replace the project's saved pricing snapshot with the current Main Library and recalculate.": [
+    "프로젝트에 저장된 단가 스냅샷을 현재 메인 라이브러리로 교체하고 다시 계산합니다.",
+    "Palitan ang naka-save na snapshot ng presyo ng proyekto ng kasalukuyang Pangunahing Library at magkalkulang muli.",
+    "Thay ảnh chụp giá đã lưu của dự án bằng Thư viện chính hiện tại rồi tính lại."
+  ],
+  "Edit / Back to previous item": [
+    "편집/이전 항목으로 돌아가기",
+    "I-edit / Bumalik sa nakaraang aytem",
+    "Sửa / Quay lại mục trước"
+  ],
+  "Edit a library record or return to the previous record or results.": [
+    "라이브러리 레코드를 편집하거나 이전 레코드 또는 결과로 돌아갑니다.",
+    "I-edit ang rekord ng library o bumalik sa nakaraang rekord o mga resulta.",
+    "Sửa bản ghi thư viện hoặc quay về bản ghi trước hay kết quả."
+  ],
+  "Create a reusable Firestopping Library item from the current item's completed inputs.": [
+    "현재 항목의 완성된 입력값으로 재사용 가능한 방화 관통부 밀봉 라이브러리 항목을 만듭니다.",
+    "Gumawa ng magagamit muli na aytem sa Library ng Pagseselyong panlaban sa sunog mula sa nakumpletong mga input ng kasalukuyang aytem.",
+    "Tạo mục Thư viện Bịt kín chống cháy có thể dùng lại từ dữ liệu hoàn tất của mục hiện tại."
+  ],
+  "Source diagram / Open image": [
+    "원본 도면/이미지 열기",
+    "Pinagmulang diyagram / Buksan ang larawan",
+    "Sơ đồ nguồn / Mở hình"
+  ],
+  "Attach a source diagram to the current Firestopping item, or open a library image at full size.": [
+    "현재 방화 관통부 밀봉 항목에 원본 도면을 첨부하거나 라이브러리 이미지를 원본 크기로 엽니다.",
+    "Mag-attach ng pinagmulang diyagram sa kasalukuyang aytem ng Pagseselyong panlaban sa sunog o buksan ang larawan sa library sa buong laki.",
+    "Đính kèm sơ đồ nguồn vào mục Bịt kín chống cháy hiện tại hoặc mở hình thư viện ở kích thước đầy đủ."
+  ],
+  "Link Library Item / Unlink": [
+    "라이브러리 항목 연결/연결 해제",
+    "Iugnay ang Aytem sa Library / Alisin ang ugnayan",
+    "Liên kết mục thư viện / Hủy liên kết"
+  ],
+  "Choose one or more filtered Technical Library references, or remove an association.": [
+    "필터링된 기술 라이브러리 참조를 하나 이상 선택하거나 연결을 제거합니다.",
+    "Pumili ng isa o higit pang na-filter na sanggunian sa Library ng teknikal o alisin ang isang ugnayan.",
+    "Chọn một hoặc nhiều tham chiếu Thư viện kỹ thuật đã lọc hoặc xóa liên kết."
+  ],
+  "Add the Firestopping Library item to the current schedule.": [
+    "방화 관통부 밀봉 라이브러리 항목을 현재 일람표에 추가합니다.",
+    "Idagdag ang aytem sa Library ng Pagseselyong panlaban sa sunog sa kasalukuyang talaan.",
+    "Thêm mục Thư viện Bịt kín chống cháy vào bảng kê hiện tại."
+  ],
+  "Select": [
+    "선택",
+    "Piliin",
+    "Chọn"
+  ],
+  "Select a markup, drag selected geometry or drag a selection rectangle.": [
+    "마크업을 선택하거나 선택한 도형을 끌거나 선택 사각형을 그립니다.",
+    "Pumili ng markup, i-drag ang napiling hugis o mag-drag ng parihabang pagpili.",
+    "Chọn chú thích, kéo hình đã chọn hoặc kéo khung chữ nhật chọn."
+  ],
+  "Pan": [
+    "이동",
+    "I-pan",
+    "Dịch chuyển"
+  ],
+  "Drag the drawing without changing its markups.": [
+    "마크업을 변경하지 않고 도면을 끕니다.",
+    "I-drag ang guhit nang hindi binabago ang mga markup nito.",
+    "Kéo bản vẽ mà không đổi chú thích."
+  ],
+  "Edit the selected markup's appearance and item details.": [
+    "선택한 마크업의 모양과 항목 상세를 편집합니다.",
+    "I-edit ang hitsura at mga detalye ng aytem ng napiling markup.",
+    "Sửa hình thức và chi tiết mục của chú thích đã chọn."
+  ],
+  "Viewport": [
+    "뷰포트",
+    "Viewport",
+    "Khung nhìn"
+  ],
+  "Manage named drawing regions and their separate scales.": [
+    "이름이 지정된 도면 영역과 각각의 축척을 관리합니다.",
+    "Pamahalaan ang mga pinangalanang rehiyon ng guhit at magkakahiwalay na sukat ng mga ito.",
+    "Quản lý vùng bản vẽ được đặt tên và tỷ lệ riêng của chúng."
+  ],
+  "Calibrate": [
+    "축척 보정",
+    "I-calibrate",
+    "Hiệu chuẩn"
+  ],
+  "Mark a known distance and enter its real length to establish scale.": [
+    "알려진 거리를 표시하고 실제 길이를 입력하여 축척을 설정합니다.",
+    "Markahan ang alam na distansiya at ilagay ang totoong haba nito upang itakda ang iskala.",
+    "Đánh dấu khoảng cách đã biết và nhập chiều dài thực để thiết lập tỷ lệ."
+  ],
+  "Trace length": [
+    "길이 추적",
+    "I-trace ang haba",
+    "Đo theo tuyến"
+  ],
+  "Click points along a Steel or Duct run, then finish the trace.": [
+    "철골 또는 덕트 경로를 따라 점을 클릭한 후 추적을 완료합니다.",
+    "I-click ang mga punto sa kahabaan ng bakal o duct, pagkatapos ay tapusin ang pag-trace.",
+    "Nhấp các điểm dọc tuyến Thép hoặc Ống gió rồi kết thúc đường đo."
+  ],
+  "Count": [
+    "개수 세기",
+    "Bilangin",
+    "Đếm"
+  ],
+  "Place count markers. Penetration workspaces use their Call-out action for physical items.": [
+    "개수 마커를 배치합니다. 관통부 작업공간에서는 물리 항목에 인출선을 사용합니다.",
+    "Maglagay ng mga pananda ng bilang. Gamitin ang aksiyong Call-out para sa pisikal na aytem sa mga workspace ng Penetrasyon.",
+    "Đặt dấu đếm. Không gian làm việc Lỗ xuyên dùng thao tác Chú dẫn cho mục vật lý."
+  ],
+  "Count steel lengths": [
+    "철골 길이 개수 세기",
+    "Bilangin ang mga haba ng bakal",
+    "Đếm cấu kiện thép theo chiều dài"
+  ],
+  "Place markers for repeated steel members with a stated length each.": [
+    "각 길이가 지정된 반복 철골 부재에 마커를 배치합니다.",
+    "Maglagay ng mga pananda para sa paulit-ulit na miyembrong bakal na may nakasaad na haba bawat isa.",
+    "Đặt dấu cho cấu kiện thép lặp lại có chiều dài nêu cho từng cấu kiện."
+  ],
+  "Trace surface": [
+    "표면 추적",
+    "I-trace ang ibabaw",
+    "Đo diện tích bề mặt"
+  ],
+  "Trace a closed Wall/Floor surface. Centred net Sqm stays visible; Display Values controls boundary dimensions.": [
+    "닫힌 벽/바닥 표면을 추적합니다. 중앙 순면적 Sqm은 계속 표시되며, 값 표시로 경계 치수를 제어합니다.",
+    "I-trace ang saradong ibabaw ng Pader/Sahig. Nananatiling nakikita sa gitna ang netong Sqm; kinokontrol ng Ipakita ang mga Halaga ang mga dimensiyon ng hangganan.",
+    "Đo đường bao kín bề mặt Tường/Sàn. Sqm ròng ở giữa luôn hiển thị; Hiện giá trị điều khiển kích thước biên."
+  ],
+  "Add exclusion": [
+    "제외 영역 추가",
+    "Magdagdag ng hindi kasamang lugar",
+    "Thêm vùng loại trừ"
+  ],
+  "Trace an excluded area within the selected Wall/Floor surface.": [
+    "선택한 벽/바닥 표면 안에서 제외할 영역을 추적합니다.",
+    "I-trace ang hindi kasamang lugar sa loob ng napiling ibabaw ng Pader/Sahig.",
+    "Vẽ vùng loại trừ trong bề mặt Tường/Sàn đã chọn."
+  ],
+  "Length": [
+    "길이",
+    "Haba",
+    "Chiều dài"
+  ],
+  "Measure a standalone calibrated length on the drawing.": [
+    "도면에서 독립된 보정 길이를 측정합니다.",
+    "Sukatin ang hiwalay na na-calibrate na haba sa guhit.",
+    "Đo chiều dài độc lập đã hiệu chuẩn trên bản vẽ."
+  ],
+  "Markups": [
+    "마크업",
+    "Mga markup",
+    "Chú thích"
+  ],
+  "Turn thickness-based colours on or off for Steel drawing markups.": [
+    "철골 도면 마크업의 두께별 색상을 켜거나 끕니다.",
+    "I-on o i-off ang mga kulay ayon sa kapal para sa mga markup ng bakal sa guhit.",
+    "Bật hoặc tắt màu theo chiều dày cho chú thích Thép trên bản vẽ."
+  ],
+  "Legend": [
+    "범례",
+    "Leyenda",
+    "Chú giải"
+  ],
+  "Show a drawing legend; select it to change its position, size or settings.": [
+    "도면 범례를 표시합니다. 선택하여 위치, 크기 또는 설정을 변경하세요.",
+    "Ipakita ang leyenda ng guhit; piliin ito upang baguhin ang posisyon, laki o mga setting.",
+    "Hiện chú giải bản vẽ; chọn để đổi vị trí, kích thước hoặc thiết lập."
+  ],
+  "Visibility": [
+    "표시 여부",
+    "Pagiging nakikita",
+    "Hiển thị"
+  ],
+  "Click to show or hide all drawing markups. Double-click restores individually hidden items and shows all markups. The eye beside an item changes only that item's visibility.": [
+    "클릭하여 모든 도면 마크업을 표시하거나 숨깁니다. 두 번 클릭하면 개별 숨김 항목을 복원하고 모든 마크업을 표시합니다. 항목 옆 눈 아이콘은 해당 항목만 제어합니다.",
+    "I-click upang ipakita o itago ang lahat ng markup ng guhit. I-double-click upang ibalik ang mga indibidwal na nakatagong aytem at ipakita ang lahat. Ang mata sa tabi ng aytem ay para lamang sa aytem na iyon.",
+    "Nhấp để hiện hoặc ẩn mọi chú thích bản vẽ. Nhấp đúp khôi phục mục bị ẩn riêng và hiện mọi chú thích. Biểu tượng mắt cạnh mục chỉ đổi hiển thị của mục đó."
+  ],
+  "Call-out": [
+    "인출선",
+    "Call-out",
+    "Chú dẫn"
+  ],
+  "Place a text Call-out. In Penetrations, place a physical item Call-out from the current draft.": [
+    "문자 인출선을 배치합니다. 관통부에서는 현재 초안으로 물리 항목 인출선을 배치합니다.",
+    "Maglagay ng tekstong Call-out. Sa Mga Penetrasyon, maglagay ng Call-out ng pisikal na aytem mula sa kasalukuyang draft.",
+    "Đặt chú dẫn văn bản. Trong Lỗ xuyên, đặt chú dẫn mục vật lý từ bản nháp hiện tại."
+  ],
+  "Signatures": [
+    "서명",
+    "Mga lagda",
+    "Chữ ký"
+  ],
+  "Draw a signature or reuse the last one, then place it on the PDF. Select it to move, resize or delete it.": [
+    "서명을 그리거나 이전 서명을 재사용한 후 PDF에 배치합니다. 선택하여 이동, 크기 조절 또는 삭제하세요.",
+    "Gumuhit ng lagda o gamitin muli ang huli, pagkatapos ay ilagay sa PDF. Piliin ito upang ilipat, baguhin ang laki o burahin.",
+    "Vẽ chữ ký hoặc dùng lại chữ ký trước rồi đặt lên PDF. Chọn để di chuyển, đổi kích thước hoặc xóa."
+  ],
+  "Cloud": [
+    "구름형 변경 표시",
+    "Ulap ng rebisyon",
+    "Đám mây sửa đổi"
+  ],
+  "Click two opposite corners to surround a drawing region with a revision cloud. Select it to move, resize or edit its appearance.": [
+    "대각선의 두 모서리를 클릭해 도면 영역을 구름형 변경 표시로 둘러쌉니다. 선택하여 이동, 크기 조절 또는 모양을 편집하세요.",
+    "I-click ang dalawang magkasalungat na sulok upang palibutan ang rehiyon ng guhit ng ulap ng rebisyon. Piliin upang ilipat, baguhin ang laki o hitsura.",
+    "Nhấp hai góc đối diện để bao vùng bản vẽ bằng đám mây sửa đổi. Chọn để di chuyển, đổi kích thước hoặc sửa hình thức."
+  ],
+  "Textbox": [
+    "텍스트 상자",
+    "Kahon ng teksto",
+    "Hộp văn bản"
+  ],
+  "Click once on the PDF, then enter a formatted text note. Its bordered box fits the text at that point. Select it to move, resize or edit its text and appearance.": [
+    "PDF를 한 번 클릭한 후 서식 있는 메모를 입력합니다. 테두리 상자가 그 위치의 텍스트에 맞춰집니다. 선택하여 이동, 크기 조절 또는 텍스트와 모양을 편집하세요.",
+    "I-click nang isang beses ang PDF at maglagay ng may-format na tala. Ibinabagay ng may-border na kahon ang laki sa teksto sa puntong iyon. Piliin upang ilipat, baguhin ang laki o i-edit ang teksto at hitsura.",
+    "Nhấp một lần lên PDF rồi nhập ghi chú có định dạng. Khung viền tự vừa văn bản tại điểm đó. Chọn để di chuyển, đổi kích thước hoặc sửa văn bản và hình thức."
+  ],
+  "Measure": [
+    "측정",
+    "Sukatin",
+    "Đo"
+  ],
+  "Measure calibrated length on the PDF without a register record or quantity. Click control points and finish with Enter or a double-click; select its points to edit the line.": [
+    "대장 레코드나 수량을 만들지 않고 PDF에서 보정 길이를 측정합니다. 제어점을 클릭한 후 Enter 또는 두 번 클릭으로 완료합니다. 점을 선택해 선을 편집하세요.",
+    "Sukatin ang na-calibrate na haba sa PDF nang walang rekord o dami sa rehistro. I-click ang mga control point at tapusin gamit ang Enter o double-click; piliin ang mga punto upang i-edit ang linya.",
+    "Đo chiều dài đã hiệu chuẩn trên PDF mà không tạo bản ghi hay số lượng trong sổ đăng ký. Nhấp điểm điều khiển rồi Enter hoặc nhấp đúp để kết thúc; chọn điểm để sửa đường."
+  ],
+  "Stamp": [
+    "스탬프",
+    "Selyo",
+    "Dấu đóng"
+  ],
+  "Click to choose stamp text or an image, then click to place copies. Select it to move, resize or edit its text and appearance.": [
+    "클릭하여 스탬프 텍스트나 이미지를 선택한 후 클릭하여 복사본을 배치합니다. 선택하여 이동, 크기 조절 또는 텍스트와 모양을 편집하세요.",
+    "I-click upang pumili ng teksto o larawan ng selyo, pagkatapos ay i-click upang maglagay ng mga kopya. Piliin upang ilipat, baguhin ang laki o i-edit ang teksto at hitsura.",
+    "Nhấp chọn văn bản hoặc hình của dấu rồi nhấp để đặt các bản sao. Chọn để di chuyển, đổi kích thước hoặc sửa văn bản và hình thức."
+  ],
+  "Line/Polyline": [
+    "선/폴리라인",
+    "Linya/Polyline",
+    "Đường/Đa tuyến"
+  ],
+  "Click each point, then press Enter or double-click to finish. Two points make a line; more points make a polyline.": [
+    "각 점을 클릭한 후 Enter 또는 두 번 클릭으로 완료합니다. 두 점이면 선, 더 많으면 폴리라인이 됩니다.",
+    "I-click ang bawat punto, pagkatapos ay Enter o double-click upang tapusin. Dalawang punto ang bumubuo ng linya; higit pa ang bumubuo ng polyline.",
+    "Nhấp từng điểm rồi Enter hoặc nhấp đúp để kết thúc. Hai điểm tạo đoạn thẳng; nhiều điểm tạo đa tuyến."
+  ],
+  "Arrow": [
+    "화살표",
+    "Palaso",
+    "Mũi tên"
+  ],
+  "Click the start and end points to place an arrow. Select it to move its endpoints or edit its appearance.": [
+    "시작점과 끝점을 클릭하여 화살표를 배치합니다. 선택하여 끝점을 이동하거나 모양을 편집하세요.",
+    "I-click ang simula at dulo upang maglagay ng palaso. Piliin upang ilipat ang mga dulo o i-edit ang hitsura.",
+    "Nhấp điểm đầu và cuối để đặt mũi tên. Chọn để di chuyển điểm đầu/cuối hoặc sửa hình thức."
+  ],
+  "Rectangle": [
+    "사각형",
+    "Parihaba",
+    "Hình chữ nhật"
+  ],
+  "Click two opposite corners to place a rectangle. Select it to move, resize or edit its line and fill.": [
+    "대각선의 두 모서리를 클릭해 사각형을 배치합니다. 선택하여 이동, 크기 조절 또는 선과 채우기를 편집하세요.",
+    "I-click ang dalawang magkasalungat na sulok upang maglagay ng parihaba. Piliin upang ilipat, baguhin ang laki o i-edit ang linya at punô.",
+    "Nhấp hai góc đối diện để đặt hình chữ nhật. Chọn để di chuyển, đổi kích thước hoặc sửa nét và màu tô."
+  ],
+  "Circle": [
+    "원",
+    "Bilog",
+    "Hình tròn"
+  ],
+  "Click two opposite corners to place a circle or ellipse within that box. Select it to move, resize or edit its line and fill.": [
+    "대각선의 두 모서리를 클릭해 그 상자 안에 원 또는 타원을 배치합니다. 선택하여 이동, 크기 조절 또는 선과 채우기를 편집하세요.",
+    "I-click ang dalawang magkasalungat na sulok upang maglagay ng bilog o elipse sa loob ng kahon. Piliin upang ilipat, baguhin ang laki o i-edit ang linya at punô.",
+    "Nhấp hai góc đối diện để đặt hình tròn hoặc elip trong khung đó. Chọn để di chuyển, đổi kích thước hoặc sửa nét và màu tô."
+  ],
+  "Polygon": [
+    "다각형",
+    "Poligono",
+    "Đa giác"
+  ],
+  "Click at least three boundary points, then press Enter or double-click to finish a closed drawing polygon. This PDF markup adds no surface quantity.": [
+    "경계점 세 개 이상을 클릭한 후 Enter 또는 두 번 클릭으로 닫힌 도면 다각형을 완성합니다. 이 PDF 마크업은 표면 수량을 추가하지 않습니다.",
+    "I-click ang hindi bababa sa tatlong punto sa hangganan, pagkatapos ay Enter o double-click upang tapusin ang saradong poligono. Walang idinaragdag na dami ng ibabaw ang PDF markup na ito.",
+    "Nhấp ít nhất ba điểm biên rồi Enter hoặc nhấp đúp để hoàn tất đa giác kín trên bản vẽ. Chú thích PDF này không thêm khối lượng bề mặt."
+  ],
+  "Set as default": [
+    "기본값으로 설정",
+    "Itakda bilang default",
+    "Đặt làm mặc định"
+  ],
+  "Remember the current appearance for new markups of that kind.": [
+    "현재 모양을 같은 유형의 새 마크업에 사용하도록 기억합니다.",
+    "Tandaan ang kasalukuyang hitsura para sa mga bagong markup ng ganoong uri.",
+    "Ghi nhớ hình thức hiện tại cho chú thích mới cùng loại."
+  ],
+  "Display Values": [
+    "값 표시",
+    "Ipakita ang mga halaga",
+    "Hiện giá trị"
+  ],
+  "Show or hide boundary dimensions. The centred net Sqm of a surface stays visible.": [
+    "경계 치수를 표시하거나 숨깁니다. 표면 중앙의 순면적 Sqm은 계속 표시됩니다.",
+    "Ipakita o itago ang mga dimensiyon ng hangganan. Nananatiling nakikita ang netong Sqm sa gitna ng ibabaw.",
+    "Hiện hoặc ẩn kích thước biên. Sqm ròng ở giữa bề mặt luôn hiển thị."
+  ],
+  "Re-trace geometry / Exclusions": [
+    "도형 다시 추적/제외 영역",
+    "I-trace muli ang hugis / Mga hindi kasamang lugar",
+    "Vẽ lại hình / Vùng loại trừ"
+  ],
+  "Replace a selected surface boundary, or edit or remove one of its exclusions.": [
+    "선택한 표면 경계를 교체하거나 제외 영역 하나를 편집 또는 삭제합니다.",
+    "Palitan ang hangganan ng napiling ibabaw o i-edit o alisin ang isa sa mga hindi kasamang lugar nito.",
+    "Thay đường biên bề mặt đã chọn hoặc sửa hay xóa một vùng loại trừ."
+  ],
+  "Upload PDFs": [
+    "PDF 업로드",
+    "Mag-upload ng mga PDF",
+    "Tải PDF lên"
+  ],
+  "Add source PDF documents to the current project.": [
+    "현재 프로젝트에 원본 PDF 문서를 추가합니다.",
+    "Magdagdag ng mga pinagmulang PDF na dokumento sa kasalukuyang proyekto.",
+    "Thêm tài liệu PDF nguồn vào dự án hiện tại."
+  ],
+  "Tools": [
+    "도구",
+    "Mga kasangkapan",
+    "Công cụ"
+  ],
+  "Download a new PDF copy. Merge and Extract can also add it as another Source Document.": [
+    "새 PDF 복사본을 다운로드합니다. 병합 및 추출은 이를 다른 원본 문서로 추가할 수도 있습니다.",
+    "Mag-download ng bagong kopya ng PDF. Maaari rin itong idagdag ng Pagsamahin at Kunin bilang isa pang Pinagmulang Dokumento.",
+    "Tải một bản PDF mới. Gộp và Trích xuất cũng có thể thêm bản đó thành Tài liệu nguồn khác."
+  ],
+  "Merge PDF Files": [
+    "PDF 파일 병합",
+    "Pagsamahin ang mga PDF file",
+    "Gộp tệp PDF"
+  ],
+  "Choose at least two retained PDFs and arrange their order to create one new PDF copy.": [
+    "보관된 PDF 두 개 이상을 선택하고 순서를 정해 새 PDF 복사본을 만듭니다.",
+    "Pumili ng hindi bababa sa dalawang napanatiling PDF at ayusin ang pagkakasunod upang gumawa ng bagong kopya ng PDF.",
+    "Chọn ít nhất hai PDF được giữ lại và sắp xếp thứ tự để tạo bản PDF mới."
+  ],
+  "Organise Pages": [
+    "페이지 구성",
+    "Ayusin ang mga pahina",
+    "Sắp xếp trang"
+  ],
+  "Reorder or remove pages from one retained PDF, keeping at least one page, then download the edited copy.": [
+    "보관된 PDF 하나의 페이지 순서를 바꾸거나 삭제하되 최소 한 페이지를 유지한 후 편집한 복사본을 다운로드합니다.",
+    "Ayusin ang pagkakasunod o alisin ang mga pahina sa isang napanatiling PDF, magtira ng kahit isang pahina, pagkatapos ay i-download ang na-edit na kopya.",
+    "Đổi thứ tự hoặc xóa trang trong một PDF được giữ lại, giữ ít nhất một trang rồi tải bản đã sửa."
+  ],
+  "Extract Pages": [
+    "페이지 추출",
+    "Kunin ang mga pahina",
+    "Trích xuất trang"
+  ],
+  "Choose existing page numbers or ranges in the required order to create a new PDF copy.": [
+    "기존 페이지 번호 또는 범위를 필요한 순서로 선택해 새 PDF 복사본을 만듭니다.",
+    "Pumili ng umiiral na mga numero o saklaw ng pahina sa kailangang pagkakasunod upang gumawa ng bagong kopya ng PDF.",
+    "Chọn số trang hoặc dải trang có sẵn theo thứ tự cần thiết để tạo bản PDF mới."
+  ],
+  "Document / Remove document": [
+    "문서/문서 삭제",
+    "Dokumento / Alisin ang dokumento",
+    "Tài liệu / Xóa tài liệu"
+  ],
+  "Choose an uploaded PDF, or remove the current source after confirmation.": [
+    "업로드한 PDF를 선택하거나 확인 후 현재 원본을 삭제합니다.",
+    "Pumili ng na-upload na PDF o alisin ang kasalukuyang pinagmulan matapos kumpirmahin.",
+    "Chọn PDF đã tải lên hoặc xóa nguồn hiện tại sau xác nhận."
+  ],
+  "Scale / Edit calibration": [
+    "축척/보정 편집",
+    "Iskala / I-edit ang calibration",
+    "Tỷ lệ / Sửa hiệu chuẩn"
+  ],
+  "Choose or edit the applicable page or viewport calibration.": [
+    "해당 페이지 또는 뷰포트의 보정을 선택하거나 편집합니다.",
+    "Piliin o i-edit ang naaangkop na calibration ng pahina o viewport.",
+    "Chọn hoặc sửa hiệu chuẩn áp dụng cho trang hoặc khung nhìn."
+  ],
+  "Search / Stop search": [
+    "검색/검색 중지",
+    "Hanapin / Ihinto ang paghahanap",
+    "Tìm / Dừng tìm"
+  ],
+  "Search PDF text and optional drawing labels in this document or all documents. Stop clears the search and highlights.": [
+    "현재 문서 또는 모든 문서에서 PDF 텍스트와 선택적으로 도면 레이블을 검색합니다. 중지는 검색 내용과 강조 표시를 지웁니다.",
+    "Hanapin ang teksto ng PDF at opsiyonal na mga label ng guhit sa dokumentong ito o sa lahat. Binubura ng Ihinto ang paghahanap at mga highlight.",
+    "Tìm văn bản PDF và tùy chọn nhãn bản vẽ trong tài liệu này hoặc mọi tài liệu. Dừng sẽ xóa tìm kiếm và phần tô sáng."
+  ],
+  "Select PDF text": [
+    "PDF 텍스트 선택",
+    "Piliin ang teksto ng PDF",
+    "Chọn văn bản PDF"
+  ],
+  "Drag over embedded PDF text and copy the selection.": [
+    "PDF에 포함된 텍스트 위를 끌어 선택하고 복사합니다.",
+    "I-drag sa naka-embed na teksto ng PDF at kopyahin ang napili.",
+    "Kéo qua văn bản nhúng trong PDF rồi sao chép phần chọn."
+  ],
+  "First / Previous / Next / Last page": [
+    "첫 페이지/이전/다음/마지막 페이지",
+    "Una / Nakaraan / Susunod / Huling pahina",
+    "Trang đầu / Trước / Sau / Cuối"
+  ],
+  "Move through the PDF, or enter its page number.": [
+    "PDF 페이지를 이동하거나 페이지 번호를 입력합니다.",
+    "Lumipat sa mga pahina ng PDF o ilagay ang numero ng pahina.",
+    "Di chuyển trong PDF hoặc nhập số trang."
+  ],
+  "Rotate page": [
+    "페이지 회전",
+    "I-rotate ang pahina",
+    "Xoay trang"
+  ],
+  "Rotate the displayed page 90 degrees left or right.": [
+    "표시된 페이지를 왼쪽 또는 오른쪽으로 90도 회전합니다.",
+    "I-rotate ang ipinapakitang pahina nang 90 digri pakaliwa o pakanan.",
+    "Xoay trang đang hiển thị 90 độ sang trái hoặc phải."
+  ],
+  "Fit page": [
+    "페이지 맞춤",
+    "Iangkop ang pahina",
+    "Vừa trang"
+  ],
+  "Fit the complete drawing in the viewer.": [
+    "도면 전체가 뷰어에 맞도록 표시합니다.",
+    "Iangkop ang buong guhit sa viewer.",
+    "Hiển thị trọn bản vẽ vừa khung xem."
+  ],
+  "Zoom out / Zoom in": [
+    "축소/확대",
+    "Mag-zoom out / Mag-zoom in",
+    "Thu nhỏ / Phóng to"
+  ],
+  "Change drawing magnification, keeping the drawing point at the viewer centre.": [
+    "뷰어 중앙의 도면 점을 유지하면서 배율을 변경합니다.",
+    "Baguhin ang pagpapalaki ng guhit habang pinananatili ang punto ng guhit sa gitna ng viewer.",
+    "Đổi độ phóng đại, giữ điểm bản vẽ tại giữa khung xem."
+  ],
+  "Download PDF": [
+    "PDF 다운로드",
+    "I-download ang PDF",
+    "Tải PDF"
+  ],
+  "Save the marked-up PDF from the current drawing workspace.": [
+    "현재 도면 작업공간의 마크업된 PDF를 저장합니다.",
+    "I-save ang PDF na may mga markup mula sa kasalukuyang workspace ng guhit.",
+    "Lưu PDF có chú thích từ không gian bản vẽ hiện tại."
+  ],
+  "Filter / Sort / Group": [
+    "필터/정렬/그룹",
+    "I-filter / Ayusin / Igrupo",
+    "Lọc / Sắp xếp / Nhóm"
+  ],
+  "Narrow the register, choose its order or group items. Column funnels filter individual fields.": [
+    "대장 범위를 좁히고 순서를 정하거나 항목을 그룹화합니다. 열의 깔때기 아이콘은 개별 필드를 필터링합니다.",
+    "Paliitin ang rehistro, piliin ang pagkakasunod o igrupo ang mga aytem. Pansala sa bawat field ang mga funnel sa kolum.",
+    "Thu hẹp sổ đăng ký, chọn thứ tự hoặc nhóm mục. Phễu tại cột lọc từng trường."
+  ],
+  "Select filtered items / Select filtered records": [
+    "필터링된 항목 선택/필터링된 레코드 선택",
+    "Piliin ang mga na-filter na aytem / Piliin ang mga na-filter na rekord",
+    "Chọn mục đã lọc / Chọn bản ghi đã lọc"
+  ],
+  "Select or clear the currently filtered register rows.": [
+    "현재 필터링된 대장 행을 선택하거나 선택 해제합니다.",
+    "Piliin o alisin ang pagpili sa mga kasalukuyang na-filter na hanay ng rehistro.",
+    "Chọn hoặc bỏ chọn các hàng sổ đăng ký đang được lọc."
+  ],
+  "Hide / Visibility": [
+    "숨기기/표시 여부",
+    "Itago / Pagiging nakikita",
+    "Ẩn / Hiển thị"
+  ],
+  "Hide an individual row's drawing markup without deleting the item.": [
+    "항목을 삭제하지 않고 해당 행의 도면 마크업을 숨깁니다.",
+    "Itago ang markup ng guhit ng indibidwal na hanay nang hindi binubura ang aytem.",
+    "Ẩn chú thích bản vẽ của từng hàng mà không xóa mục."
+  ],
+  "View / Edit item": [
+    "항목 보기/편집",
+    "Tingnan / I-edit ang aytem",
+    "Xem / Sửa mục"
+  ],
+  "Centre the drawing on an item or open its editable details.": [
+    "도면을 항목 중심으로 이동하거나 편집 가능한 상세를 엽니다.",
+    "Igitna ang guhit sa aytem o buksan ang mga nae-edit na detalye nito.",
+    "Căn bản vẽ vào giữa mục hoặc mở chi tiết có thể sửa."
+  ],
+  "Apply to selected": [
+    "선택 항목에 적용",
+    "Ilapat sa napili",
+    "Áp dụng cho mục đã chọn"
+  ],
+  "Apply only the fields you changed to the selected items.": [
+    "변경한 필드만 선택한 항목에 적용합니다.",
+    "Ilapat lamang ang mga field na binago mo sa mga napiling aytem.",
+    "Chỉ áp dụng các trường bạn đã đổi cho những mục đã chọn."
+  ],
+  "Confirm / Unconfirm": [
+    "확인/확인 취소",
+    "Kumpirmahin / Alisin ang kumpirmasyon",
+    "Xác nhận / Bỏ xác nhận"
+  ],
+  "Change the selected records' manual review status.": [
+    "선택한 레코드의 수동 검토 상태를 변경합니다.",
+    "Baguhin ang katayuan ng manu-manong pagsusuri ng mga napiling rekord.",
+    "Đổi trạng thái kiểm tra thủ công của bản ghi đã chọn."
+  ],
+  "Undo last edit": [
+    "마지막 편집 취소",
+    "I-undo ang huling pag-edit",
+    "Hoàn tác chỉnh sửa cuối"
+  ],
+  "Undo the latest available Takeoff edit.": [
+    "취소 가능한 가장 최근의 수량 산출 편집을 취소합니다.",
+    "I-undo ang pinakahuling pag-edit sa Pagsukat ng dami na maaari pang ibalik.",
+    "Hoàn tác chỉnh sửa Bóc tách khối lượng mới nhất còn khả dụng."
+  ],
+  "Split / Merge": [
+    "분할/병합",
+    "Hatiin / Pagsamahin",
+    "Tách / Gộp"
+  ],
+  "Split a traced Steel/Duct run at a chosen point, or merge eligible connected length items.": [
+    "추적한 철골/덕트 경로를 선택한 점에서 분할하거나 조건을 충족하는 연결된 길이 항목을 병합합니다.",
+    "Hatiin ang na-trace na bakal/duct sa napiling punto o pagsamahin ang karapat-dapat na magkakaugnay na aytem ng haba.",
+    "Tách tuyến Thép/Ống gió đã đo tại điểm chọn hoặc gộp mục chiều dài nối nhau đủ điều kiện."
+  ],
+  "Preview transfer / Transfer": [
+    "전송 미리보기/전송",
+    "I-preview ang paglilipat / Ilipat",
+    "Xem trước chuyển / Chuyển"
+  ],
+  "Review selected quantities before applying them to the destination calculator schedule.": [
+    "대상 계산기 일람표에 적용하기 전에 선택한 수량을 검토합니다.",
+    "Suriin ang mga napiling dami bago ilapat sa destinasyong talaan ng calculator.",
+    "Kiểm tra khối lượng đã chọn trước khi áp dụng vào bảng kê của công cụ tính đích."
+  ],
+  "Update linked rows": [
+    "연결된 행 갱신",
+    "I-update ang mga naka-link na hanay",
+    "Cập nhật hàng đã liên kết"
+  ],
+  "Review and update existing linked calculator rows from their Takeoff items.": [
+    "수량 산출 항목에서 기존에 연결된 계산기 행을 검토하고 갱신합니다.",
+    "Suriin at i-update ang umiiral na naka-link na mga hanay ng calculator mula sa mga aytem ng Pagsukat ng dami.",
+    "Kiểm tra và cập nhật hàng công cụ tính đang liên kết từ mục Bóc tách khối lượng."
+  ],
+  "Detach links / Unlink from Firestopping Schedule": [
+    "연결 분리/방화 관통부 밀봉 일람표 연결 해제",
+    "Tanggalin ang mga ugnayan / Alisin ang ugnay sa Talaan ng Pagseselyong panlaban sa sunog",
+    "Tách liên kết / Hủy liên kết với Bảng kê Bịt kín chống cháy"
+  ],
+  "Remove the selected Takeoff-to-schedule links using the displayed prompt.": [
+    "표시된 확인 메시지를 사용해 선택한 수량 산출과 일람표 간 연결을 제거합니다.",
+    "Alisin ang napiling mga ugnayan mula sa Pagsukat ng dami patungo sa talaan gamit ang ipinakitang prompt.",
+    "Xóa liên kết Bóc tách khối lượng với bảng kê đã chọn theo lời nhắc hiển thị."
+  ],
+  "Add substrate / Add defect / Add service": [
+    "바탕재 추가/하자 추가/설비 추가",
+    "Magdagdag ng substrate / depekto / serbisyo",
+    "Thêm vật liệu nền / lỗi / hệ kỹ thuật"
+  ],
+  "Create the next physical record in the current Penetration, Defect Report or Service Plan.": [
+    "현재 관통부, 하자 보고서 또는 설비 도면에서 다음 물리 레코드를 만듭니다.",
+    "Gumawa ng susunod na pisikal na rekord sa kasalukuyang Penetrasyon, Ulat ng Depekto o Plano ng Serbisyo.",
+    "Tạo bản ghi vật lý kế tiếp trong Lỗ xuyên, Báo cáo lỗi hoặc Bản vẽ hệ kỹ thuật hiện tại."
+  ],
+  "Document downloads": [
+    "문서 다운로드",
+    "Mga download ng dokumento",
+    "Tải tài liệu"
+  ],
+  "Download confirmed, unconfirmed or all items from the current register as XLSX.": [
+    "현재 대장의 확인된 항목, 확인되지 않은 항목 또는 모든 항목을 XLSX로 다운로드합니다.",
+    "I-download bilang XLSX ang kumpirmado, hindi kumpirmado o lahat ng aytem sa kasalukuyang rehistro.",
+    "Tải mục đã xác nhận, chưa xác nhận hoặc mọi mục của sổ đăng ký hiện tại thành XLSX."
+  ],
+  "Download Passive Fire Matrix PDF": [
+    "수동적 화재 방호 매트릭스 PDF 다운로드",
+    "I-download ang PDF ng Matrix ng Pasibong Proteksiyon sa Sunog",
+    "Tải PDF Ma trận chống cháy thụ động"
+  ],
+  "Save the physical hierarchy's current Passive Fire Matrix report.": [
+    "물리 계층 구조의 현재 수동적 화재 방호 매트릭스 보고서를 저장합니다.",
+    "I-save ang kasalukuyang ulat ng Matrix ng Pasibong Proteksiyon sa Sunog ng pisikal na herarkiya.",
+    "Lưu báo cáo Ma trận chống cháy thụ động hiện tại của cấu trúc phân cấp vật lý."
+  ],
+  "Show deleted records": [
+    "삭제된 레코드 표시",
+    "Ipakita ang mga naburang rekord",
+    "Hiện bản ghi đã xóa"
+  ],
+  "Include deleted physical records in the current register view.": [
+    "현재 대장 보기에 삭제된 물리 레코드를 포함합니다.",
+    "Isama ang mga naburang pisikal na rekord sa kasalukuyang view ng rehistro.",
+    "Đưa bản ghi vật lý đã xóa vào chế độ xem sổ đăng ký hiện tại."
+  ],
+  "Discard unfinished physical edits": [
+    "미완료 물리 항목 편집 폐기",
+    "Itapon ang hindi tapos na mga pisikal na pag-edit",
+    "Bỏ chỉnh sửa vật lý chưa hoàn tất"
+  ],
+  "Discard pending field edits and return to the recorded draft values.": [
+    "대기 중인 필드 편집을 폐기하고 기록된 초안 값으로 돌아갑니다.",
+    "Itapon ang nakabinbing mga pagbabago sa field at bumalik sa nakatalang mga halaga ng draft.",
+    "Bỏ chỉnh sửa trường đang chờ và quay về giá trị bản nháp đã ghi."
+  ],
+  "Previous 100 / Next 100 / Register layout": [
+    "이전 100개/다음 100개/대장 배치",
+    "Nakaraang 100 / Susunod na 100 / Ayos ng rehistro",
+    "100 trước / 100 sau / Bố trí sổ đăng ký"
+  ],
+  "Page through register rows, or position the register below or beside the drawing.": [
+    "대장 행의 페이지를 이동하거나 대장을 도면 아래 또는 옆에 배치합니다.",
+    "Lumipat sa mga pahina ng hanay ng rehistro o ilagay ang rehistro sa ibaba o tabi ng guhit.",
+    "Chuyển trang các hàng sổ đăng ký hoặc đặt sổ bên dưới hay cạnh bản vẽ."
+  ],
+  "Continue count / Delete count marker": [
+    "개수 세기 계속/개수 마커 삭제",
+    "Ipagpatuloy ang pagbibilang / Burahin ang pananda ng bilang",
+    "Tiếp tục đếm / Xóa dấu đếm"
+  ],
+  "Resume a count from its marker's context menu, or remove that individual marker.": [
+    "마커의 상황별 메뉴에서 개수 세기를 계속하거나 해당 마커 하나를 삭제합니다.",
+    "Ipagpatuloy ang pagbibilang mula sa context menu ng pananda o alisin ang indibidwal na panandang iyon.",
+    "Tiếp tục đếm từ menu ngữ cảnh của dấu hoặc xóa riêng dấu đó."
+  ],
+  "Call-out formatting": [
+    "인출선 서식",
+    "Pag-format ng Call-out",
+    "Định dạng chú dẫn"
+  ],
+  "Use Bold, Italic, Underline and bullet or numbered list buttons in Call-out Settings.": [
+    "인출선 설정에서 굵게, 기울임꼴, 밑줄, 글머리 기호 또는 번호 목록 버튼을 사용합니다.",
+    "Gamitin ang mga button na Bold, Italic, Salungguhit at bullet o de-numerong listahan sa Mga Setting ng Call-out.",
+    "Dùng các nút Đậm, Nghiêng, Gạch chân và danh sách dấu đầu dòng hoặc đánh số trong Thiết lập chú dẫn."
+  ],
+  "Finish / Cancel drawing": [
+    "그리기 완료/취소",
+    "Tapusin / Kanselahin ang pagguhit",
+    "Kết thúc / Hủy vẽ"
+  ],
+  "With drawing focus, Enter finishes a trace; Escape or right-click cancels the active drawing operation.": [
+    "도면에 포커스가 있을 때 Enter는 추적을 완료하고, Escape 또는 오른쪽 클릭은 진행 중인 그리기 작업을 취소합니다.",
+    "Kapag nasa guhit ang pokus, tinatapos ng Enter ang pag-trace; kinanansela ng Escape o right-click ang aktibong pagguhit.",
+    "Khi bản vẽ được lấy tiêu điểm, Enter kết thúc đường đo; Escape hoặc nhấp phải hủy thao tác vẽ hiện tại."
+  ],
+  "Undo drawing point": [
+    "도면 점 취소",
+    "I-undo ang punto ng guhit",
+    "Hoàn tác điểm vẽ"
+  ],
+  "Backspace removes the last unfinished trace point. Ctrl/Cmd+Z also removes a chosen control point, or undoes a supported count, Call-out, signature or PDF graphic edit.": [
+    "Backspace는 미완료 추적의 마지막 점을 삭제합니다. Ctrl/Cmd+Z는 선택한 제어점을 삭제하거나 지원되는 개수 세기, 인출선, 서명 또는 PDF 도형 편집을 취소합니다.",
+    "Inaalis ng Backspace ang huling punto ng hindi tapos na trace. Inaalis din ng Ctrl/Cmd+Z ang napiling control point o inu-undo ang sinusuportahang pag-edit ng bilang, Call-out, lagda o PDF graphic.",
+    "Backspace xóa điểm cuối của đường đo chưa xong. Ctrl/Cmd+Z cũng xóa điểm điều khiển đã chọn hoặc hoàn tác thao tác đếm, chú dẫn, chữ ký hay hình PDF được hỗ trợ."
+  ],
+  "Copy / Paste drawing selection": [
+    "도면 선택 복사/붙여넣기",
+    "Kopyahin / Idikit ang napili sa guhit",
+    "Sao chép / Dán phần chọn bản vẽ"
+  ],
+  "With Select active, copy and paste free or physical Call-outs, Steel/Duct Length markups or Wall/Floor surfaces. Copies are separate records; pasted quantity items start unconfirmed and use the destination drawing position and calibration.": [
+    "선택 도구가 활성화된 상태에서 독립 또는 물리 항목 인출선, 철골/덕트 길이 마크업, 벽/바닥 표면을 복사해 붙여넣습니다. 복사본은 별도 레코드입니다. 붙여넣은 수량 항목은 미확인 상태로 시작하며 대상 도면 위치와 보정을 사용합니다.",
+    "Kapag aktibo ang Piliin, kopyahin at idikit ang malaya o pisikal na Call-out, markup ng haba ng Bakal/Duct o ibabaw ng Pader/Sahig. Hiwalay na rekord ang mga kopya; nagsisimulang hindi kumpirmado ang idinikit na aytem ng dami at ginagamit ang posisyon at calibration ng destinasyong guhit.",
+    "Khi công cụ Chọn hoạt động, sao chép và dán chú dẫn tự do hoặc vật lý, chú thích Chiều dài Thép/Ống gió hoặc bề mặt Tường/Sàn. Bản sao là bản ghi riêng; mục khối lượng được dán bắt đầu ở trạng thái chưa xác nhận và dùng vị trí, hiệu chuẩn của bản vẽ đích."
+  ],
+  "Multiple selection": [
+    "다중 선택",
+    "Maramihang pagpili",
+    "Chọn nhiều"
+  ],
+  "Hold Ctrl, Cmd or Shift when choosing drawing items to extend or toggle the selection.": [
+    "도면 항목을 선택할 때 Ctrl, Cmd 또는 Shift를 눌러 선택을 확장하거나 전환합니다.",
+    "Pindutin ang Ctrl, Cmd o Shift habang pumipili ng mga aytem sa guhit upang dagdagan o i-toggle ang pagpili.",
+    "Giữ Ctrl, Cmd hoặc Shift khi chọn mục bản vẽ để mở rộng hoặc bật/tắt lựa chọn."
+  ],
+  "Drawing context actions": [
+    "도면 상황별 작업",
+    "Mga aksiyon sa konteksto ng guhit",
+    "Thao tác ngữ cảnh bản vẽ"
+  ],
+  "Open actions for a focused markup, Call-out or control point.": [
+    "포커스가 있는 마크업, 인출선 또는 제어점의 작업 메뉴를 엽니다.",
+    "Buksan ang mga aksiyon para sa markup, Call-out o control point na may pokus.",
+    "Mở thao tác cho chú thích, chú dẫn hoặc điểm điều khiển đang có tiêu điểm."
+  ],
+  "Steel section choices": [
+    "철골 단면 선택",
+    "Mga pagpipilian ng seksiyon ng bakal",
+    "Lựa chọn tiết diện thép"
+  ],
+  "Type to filter section names; arrows or Home/End choose a match, Enter accepts and Escape restores the previous choice.": [
+    "입력하여 단면 이름을 필터링합니다. 방향키 또는 Home/End로 일치 항목을 선택하고 Enter로 확정하거나 Escape로 이전 선택을 복원합니다.",
+    "Mag-type upang i-filter ang pangalan ng seksiyon; pumili ng tugma gamit ang mga arrow o Home/End, tanggapin gamit ang Enter at ibalik ang dating pinili gamit ang Escape.",
+    "Nhập để lọc tên tiết diện; dùng phím mũi tên hoặc Home/End để chọn kết quả, Enter để chấp nhận và Escape để khôi phục lựa chọn trước."
+  ],
+  "Move focus / Activate": [
+    "포커스 이동/활성화",
+    "Ilipat ang pokus / I-activate",
+    "Di chuyển tiêu điểm / Kích hoạt"
+  ],
+  "Tab and Shift+Tab move through controls. Enter or Space activates a focused button.": [
+    "Tab과 Shift+Tab으로 조작 항목을 이동합니다. Enter 또는 Space로 포커스가 있는 버튼을 활성화합니다.",
+    "Ginagalaw ng Tab at Shift+Tab ang pokus sa mga kontrol. Ina-activate ng Enter o Space ang button na may pokus.",
+    "Tab và Shift+Tab di chuyển giữa các điều khiển. Enter hoặc Space kích hoạt nút đang có tiêu điểm."
+  ],
+  "Navigate a menu": [
+    "메뉴 탐색",
+    "Mag-navigate sa menu",
+    "Điều hướng menu"
+  ],
+  "Use arrows to move through navigation or Document choices, Home/End for first/last, and Escape to close. In the Firestopping navigation branch, Right opens and Left returns.": [
+    "방향키로 탐색 메뉴 또는 문서 선택을 이동하고 Home/End로 처음/마지막으로 이동하며 Escape로 닫습니다. 방화 관통부 밀봉 하위 메뉴에서는 오른쪽으로 열고 왼쪽으로 돌아갑니다.",
+    "Gamitin ang mga arrow sa mga pagpipilian ng navigation o Dokumento, Home/End sa una/huli at Escape upang isara. Sa sangay ng navigation ng Pagseselyong panlaban sa sunog, binubuksan ng Kanan at ibinabalik ng Kaliwa.",
+    "Dùng phím mũi tên để di chuyển trong menu điều hướng hoặc Tài liệu, Home/End đến đầu/cuối và Escape để đóng. Trong nhánh Bịt kín chống cháy, phím Phải mở và phím Trái quay lại."
+  ],
+  "Delete selected items after the displayed confirmation.": [
+    "표시된 확인 절차 후 선택한 항목을 삭제합니다.",
+    "Burahin ang mga napiling aytem matapos ang ipinakitang kumpirmasyon.",
+    "Xóa các mục đã chọn sau xác nhận hiển thị."
+  ],
+  "Board Price ($)": [
+    "보드 단가 ($)",
+    "Presyo ng tabla ($)",
+    "Đơn giá tấm ($)"
+  ],
+  "Board Subtotal ($)": [
+    "보드 소계 ($)",
+    "Subtotal ng tabla ($)",
+    "Tạm tính tấm ($)"
+  ],
+  "Board Task Hours": [
+    "보드 작업시간",
+    "Oras ng gawain sa tabla",
+    "Giờ công tấm"
+  ],
+  "Board SQM": [
+    "보드 면적 (SQM)",
+    "Lawak ng tabla (SQM)",
+    "Diện tích tấm (SQM)"
+  ],
+  "Board SQM Required": [
+    "필요 보드 면적 (SQM)",
+    "Kinakailangang lawak ng tabla (SQM)",
+    "Diện tích tấm cần dùng (SQM)"
+  ],
+  "Board Total SQM": [
+    "보드 총면적 (SQM)",
+    "Kabuuang lawak ng tabla (SQM)",
+    "Tổng diện tích tấm (SQM)"
+  ],
+  "Board Length (mm)": [
+    "보드 길이 (mm)",
+    "Haba ng tabla (mm)",
+    "Chiều dài tấm (mm)"
+  ],
+  "Board required (lm)": [
+    "필요 보드 (lm)",
+    "Kailangang tabla (lm)",
+    "Tấm cần dùng (lm)"
+  ],
+  "Board required (mm)": [
+    "필요 보드 (mm)",
+    "Kailangang tabla (mm)",
+    "Tấm cần dùng (mm)"
+  ],
+  "Framing Price ($)": [
+    "프레임 단가 ($)",
+    "Presyo ng balangkas ($)",
+    "Đơn giá khung ($)"
+  ],
+  "Framing Subtotal ($)": [
+    "프레임 소계 ($)",
+    "Subtotal ng balangkas ($)",
+    "Tạm tính khung ($)"
+  ],
+  "Framing Task Hours": [
+    "프레임 작업시간",
+    "Oras ng gawain sa balangkas",
+    "Giờ công khung"
+  ],
+  "Framing SQM": [
+    "프레임 면적 (SQM)",
+    "Lawak ng balangkas (SQM)",
+    "Diện tích khung (SQM)"
+  ],
+  "Framing SQM Required": [
+    "필요 프레임 면적 (SQM)",
+    "Kinakailangang lawak ng balangkas (SQM)",
+    "Diện tích khung cần dùng (SQM)"
+  ],
+  "Framing Total SQM": [
+    "프레임 총면적 (SQM)",
+    "Kabuuang lawak ng balangkas (SQM)",
+    "Tổng diện tích khung (SQM)"
+  ],
+  "Framing Length (mm)": [
+    "프레임 길이 (mm)",
+    "Haba ng balangkas (mm)",
+    "Chiều dài khung (mm)"
+  ],
+  "Framing required (lm)": [
+    "필요 프레임 (lm)",
+    "Kailangang balangkas (lm)",
+    "Khung cần dùng (lm)"
+  ],
+  "Framing required (mm)": [
+    "필요 프레임 (mm)",
+    "Kailangang balangkas (mm)",
+    "Khung cần dùng (mm)"
+  ],
+  "Collar Price ($)": [
+    "칼라 단가 ($)",
+    "Presyo ng collar ($)",
+    "Đơn giá đai chặn ($)"
+  ],
+  "Collar Subtotal ($)": [
+    "칼라 소계 ($)",
+    "Subtotal ng collar ($)",
+    "Tạm tính đai chặn ($)"
+  ],
+  "Collar Task Hours": [
+    "칼라 작업시간",
+    "Oras ng gawain sa collar",
+    "Giờ công đai chặn"
+  ],
+  "Collar SQM": [
+    "칼라 면적 (SQM)",
+    "Lawak ng collar (SQM)",
+    "Diện tích đai chặn (SQM)"
+  ],
+  "Collar SQM Required": [
+    "필요 칼라 면적 (SQM)",
+    "Kinakailangang lawak ng collar (SQM)",
+    "Diện tích đai chặn cần dùng (SQM)"
+  ],
+  "Collar Total SQM": [
+    "칼라 총면적 (SQM)",
+    "Kabuuang lawak ng collar (SQM)",
+    "Tổng diện tích đai chặn (SQM)"
+  ],
+  "Collar Length (mm)": [
+    "칼라 길이 (mm)",
+    "Haba ng collar (mm)",
+    "Chiều dài đai chặn (mm)"
+  ],
+  "Collar required (lm)": [
+    "필요 칼라 (lm)",
+    "Kailangang collar (lm)",
+    "Đai chặn cần dùng (lm)"
+  ],
+  "Collar required (mm)": [
+    "필요 칼라 (mm)",
+    "Kailangang collar (mm)",
+    "Đai chặn cần dùng (mm)"
+  ],
+  "Mastic Price ($)": [
+    "매스틱 단가 ($)",
+    "Presyo ng mastic ($)",
+    "Đơn giá keo mastic ($)"
+  ],
+  "Mastic Subtotal ($)": [
+    "매스틱 소계 ($)",
+    "Subtotal ng mastic ($)",
+    "Tạm tính keo mastic ($)"
+  ],
+  "Mastic Task Hours": [
+    "매스틱 작업시간",
+    "Oras ng gawain sa mastic",
+    "Giờ công keo mastic"
+  ],
+  "Mastic SQM": [
+    "매스틱 면적 (SQM)",
+    "Lawak ng mastic (SQM)",
+    "Diện tích keo mastic (SQM)"
+  ],
+  "Mastic SQM Required": [
+    "필요 매스틱 면적 (SQM)",
+    "Kinakailangang lawak ng mastic (SQM)",
+    "Diện tích keo mastic cần dùng (SQM)"
+  ],
+  "Mastic Total SQM": [
+    "매스틱 총면적 (SQM)",
+    "Kabuuang lawak ng mastic (SQM)",
+    "Tổng diện tích keo mastic (SQM)"
+  ],
+  "Mastic Length (mm)": [
+    "매스틱 길이 (mm)",
+    "Haba ng mastic (mm)",
+    "Chiều dài keo mastic (mm)"
+  ],
+  "Mastic required (lm)": [
+    "필요 매스틱 (lm)",
+    "Kailangang mastic (lm)",
+    "Keo mastic cần dùng (lm)"
+  ],
+  "Mastic required (mm)": [
+    "필요 매스틱 (mm)",
+    "Kailangang mastic (mm)",
+    "Keo mastic cần dùng (mm)"
+  ],
+  "Wrap Price ($)": [
+    "랩 단가 ($)",
+    "Presyo ng balot ($)",
+    "Đơn giá bọc ($)"
+  ],
+  "Wrap Subtotal ($)": [
+    "랩 소계 ($)",
+    "Subtotal ng balot ($)",
+    "Tạm tính bọc ($)"
+  ],
+  "Wrap Task Hours": [
+    "랩 작업시간",
+    "Oras ng gawain sa balot",
+    "Giờ công bọc"
+  ],
+  "Wrap SQM": [
+    "랩 면적 (SQM)",
+    "Lawak ng balot (SQM)",
+    "Diện tích bọc (SQM)"
+  ],
+  "Wrap SQM Required": [
+    "필요 랩 면적 (SQM)",
+    "Kinakailangang lawak ng balot (SQM)",
+    "Diện tích bọc cần dùng (SQM)"
+  ],
+  "Wrap Total SQM": [
+    "랩 총면적 (SQM)",
+    "Kabuuang lawak ng balot (SQM)",
+    "Tổng diện tích bọc (SQM)"
+  ],
+  "Wrap Length (mm)": [
+    "랩 길이 (mm)",
+    "Haba ng balot (mm)",
+    "Chiều dài bọc (mm)"
+  ],
+  "Wrap required (lm)": [
+    "필요 랩 (lm)",
+    "Kailangang balot (lm)",
+    "Bọc cần dùng (lm)"
+  ],
+  "Wrap required (mm)": [
+    "필요 랩 (mm)",
+    "Kailangang balot (mm)",
+    "Bọc cần dùng (mm)"
+  ],
+  "Pipes Price ($)": [
+    "배관 단가 ($)",
+    "Presyo ng mga tubo ($)",
+    "Đơn giá ống ($)"
+  ],
+  "Pipes Subtotal ($)": [
+    "배관 소계 ($)",
+    "Subtotal ng mga tubo ($)",
+    "Tạm tính ống ($)"
+  ],
+  "Pipes Task Hours": [
+    "배관 작업시간",
+    "Oras ng gawain sa mga tubo",
+    "Giờ công ống"
+  ],
+  "Pipes SQM": [
+    "배관 면적 (SQM)",
+    "Lawak ng mga tubo (SQM)",
+    "Diện tích ống (SQM)"
+  ],
+  "Pipes SQM Required": [
+    "필요 배관 면적 (SQM)",
+    "Kinakailangang lawak ng mga tubo (SQM)",
+    "Diện tích ống cần dùng (SQM)"
+  ],
+  "Pipes Total SQM": [
+    "배관 총면적 (SQM)",
+    "Kabuuang lawak ng mga tubo (SQM)",
+    "Tổng diện tích ống (SQM)"
+  ],
+  "Pipes Length (mm)": [
+    "배관 길이 (mm)",
+    "Haba ng mga tubo (mm)",
+    "Chiều dài ống (mm)"
+  ],
+  "Pipes required (lm)": [
+    "필요 배관 (lm)",
+    "Kailangang mga tubo (lm)",
+    "Ống cần dùng (lm)"
+  ],
+  "Pipes required (mm)": [
+    "필요 배관 (mm)",
+    "Kailangang mga tubo (mm)",
+    "Ống cần dùng (mm)"
+  ],
+  "Additional Labour Price ($)": [
+    "추가 노무 단가 ($)",
+    "Presyo ng karagdagang paggawa ($)",
+    "Đơn giá nhân công bổ sung ($)"
+  ],
+  "Additional Labour Subtotal ($)": [
+    "추가 노무 소계 ($)",
+    "Subtotal ng karagdagang paggawa ($)",
+    "Tạm tính nhân công bổ sung ($)"
+  ],
+  "Additional Labour Task Hours": [
+    "추가 노무 작업시간",
+    "Oras ng gawain sa karagdagang paggawa",
+    "Giờ công nhân công bổ sung"
+  ],
+  "Additional Labour SQM": [
+    "추가 노무 면적 (SQM)",
+    "Lawak ng karagdagang paggawa (SQM)",
+    "Diện tích nhân công bổ sung (SQM)"
+  ],
+  "Additional Labour SQM Required": [
+    "필요 추가 노무 면적 (SQM)",
+    "Kinakailangang lawak ng karagdagang paggawa (SQM)",
+    "Diện tích nhân công bổ sung cần dùng (SQM)"
+  ],
+  "Additional Labour Total SQM": [
+    "추가 노무 총면적 (SQM)",
+    "Kabuuang lawak ng karagdagang paggawa (SQM)",
+    "Tổng diện tích nhân công bổ sung (SQM)"
+  ],
+  "Additional Labour Length (mm)": [
+    "추가 노무 길이 (mm)",
+    "Haba ng karagdagang paggawa (mm)",
+    "Chiều dài nhân công bổ sung (mm)"
+  ],
+  "Additional Labour required (lm)": [
+    "필요 추가 노무 (lm)",
+    "Kailangang karagdagang paggawa (lm)",
+    "Nhân công bổ sung cần dùng (lm)"
+  ],
+  "Additional Labour required (mm)": [
+    "필요 추가 노무 (mm)",
+    "Kailangang karagdagang paggawa (mm)",
+    "Nhân công bổ sung cần dùng (mm)"
+  ],
+  "Other Material Price ($)": [
+    "기타 자재 단가 ($)",
+    "Presyo ng ibang materyal ($)",
+    "Đơn giá vật liệu khác ($)"
+  ],
+  "Other Material Subtotal ($)": [
+    "기타 자재 소계 ($)",
+    "Subtotal ng ibang materyal ($)",
+    "Tạm tính vật liệu khác ($)"
+  ],
+  "Other Material Task Hours": [
+    "기타 자재 작업시간",
+    "Oras ng gawain sa ibang materyal",
+    "Giờ công vật liệu khác"
+  ],
+  "Other Material SQM": [
+    "기타 자재 면적 (SQM)",
+    "Lawak ng ibang materyal (SQM)",
+    "Diện tích vật liệu khác (SQM)"
+  ],
+  "Other Material SQM Required": [
+    "필요 기타 자재 면적 (SQM)",
+    "Kinakailangang lawak ng ibang materyal (SQM)",
+    "Diện tích vật liệu khác cần dùng (SQM)"
+  ],
+  "Other Material Total SQM": [
+    "기타 자재 총면적 (SQM)",
+    "Kabuuang lawak ng ibang materyal (SQM)",
+    "Tổng diện tích vật liệu khác (SQM)"
+  ],
+  "Other Material Length (mm)": [
+    "기타 자재 길이 (mm)",
+    "Haba ng ibang materyal (mm)",
+    "Chiều dài vật liệu khác (mm)"
+  ],
+  "Other Material required (lm)": [
+    "필요 기타 자재 (lm)",
+    "Kailangang ibang materyal (lm)",
+    "Vật liệu khác cần dùng (lm)"
+  ],
+  "Other Material required (mm)": [
+    "필요 기타 자재 (mm)",
+    "Kailangang ibang materyal (mm)",
+    "Vật liệu khác cần dùng (mm)"
+  ],
+  "Other Price ($)": [
+    "기타 단가 ($)",
+    "Presyo ng iba pa ($)",
+    "Đơn giá khác ($)"
+  ],
+  "Other Subtotal ($)": [
+    "기타 소계 ($)",
+    "Subtotal ng iba pa ($)",
+    "Tạm tính khác ($)"
+  ],
+  "Other Task Hours": [
+    "기타 작업시간",
+    "Oras ng gawain sa iba pa",
+    "Giờ công khác"
+  ],
+  "Other SQM": [
+    "기타 면적 (SQM)",
+    "Lawak ng iba pa (SQM)",
+    "Diện tích khác (SQM)"
+  ],
+  "Other SQM Required": [
+    "필요 기타 면적 (SQM)",
+    "Kinakailangang lawak ng iba pa (SQM)",
+    "Diện tích khác cần dùng (SQM)"
+  ],
+  "Other Total SQM": [
+    "기타 총면적 (SQM)",
+    "Kabuuang lawak ng iba pa (SQM)",
+    "Tổng diện tích khác (SQM)"
+  ],
+  "Other Length (mm)": [
+    "기타 길이 (mm)",
+    "Haba ng iba pa (mm)",
+    "Chiều dài khác (mm)"
+  ],
+  "Other required (lm)": [
+    "필요 기타 (lm)",
+    "Kailangang iba pa (lm)",
+    "Khác cần dùng (lm)"
+  ],
+  "Other required (mm)": [
+    "필요 기타 (mm)",
+    "Kailangang iba pa (mm)",
+    "Khác cần dùng (mm)"
+  ],
+  "% of total SQM": [
+    "총면적 SQM의 %",
+    "% ng kabuuang SQM",
+    "% của tổng SQM"
+  ],
+  "% of Total SQM": [
+    "총면적 SQM의 %",
+    "% ng kabuuang SQM",
+    "% của tổng SQM"
+  ],
+  "Service Circumference": [
+    "설비 둘레",
+    "Paligid ng serbisyo",
+    "Chu vi hệ kỹ thuật"
+  ],
+  "LM of wrap required": [
+    "필요 랩 연장 (LM)",
+    "Kinakailangang haba ng balot (LM)",
+    "Chiều dài bọc cần dùng (LM)"
+  ],
+  "Qty Board Required": [
+    "필요 보드 수량",
+    "Dami ng tabla na kailangan",
+    "Số lượng tấm cần dùng"
+  ],
+  "Qty Frame Required": [
+    "필요 프레임 수량",
+    "Dami ng balangkas na kailangan",
+    "Số lượng khung cần dùng"
+  ],
+  "Qty Wrap Required": [
+    "필요 랩 수량",
+    "Dami ng balot na kailangan",
+    "Số lượng bọc cần dùng"
+  ],
+  "{0}: {1}": [
+    "{0}: {1}",
+    "{0}: {1}",
+    "{0}: {1}"
+  ],
+  "{0} will be removed from the Firestopping Library.": [
+    "방화 관통부 밀봉 라이브러리에서 {0}이(가) 삭제됩니다.",
+    "Aalisin ang {0} sa Library ng Pagseselyong panlaban sa sunog.",
+    "Sẽ xóa {0} khỏi Thư viện Bịt kín chống cháy."
+  ],
+  "Remove Firestopping Library item?": [
+    "방화 관통부 밀봉 라이브러리 항목을 삭제할까요?",
+    "Alisin ang aytem sa Library ng Pagseselyong panlaban sa sunog?",
+    "Xóa mục Thư viện Bịt kín chống cháy?"
+  ],
+  "technical reference": [
+    "기술 참조",
+    "teknikal na sanggunian",
+    "tham chiếu kỹ thuật"
+  ],
+  "firestopping record": [
+    "방화 관통부 밀봉 레코드",
+    "rekord ng Pagseselyong panlaban sa sunog",
+    "bản ghi Bịt kín chống cháy"
+  ],
+  "Labour Price ($)": [
+    "노무 단가 ($)",
+    "Presyo ng paggawa ($)",
+    "Đơn giá nhân công ($)"
+  ],
+  "A confirmed Takeoff library link is still applying. Recover its outcome before editing, saving or replacing the Firestopping Schedule.": [
+    "확인된 수량 산출 라이브러리 연결을 아직 적용 중입니다. 방화 관통부 밀봉 일람표를 편집, 저장 또는 교체하기 전에 그 결과를 복구하세요.",
+    "Kasalukuyan pang inilalapat ang kumpirmadong ugnayan ng library ng Pagsukat ng dami. Bawiin ang kinalabasan nito bago i-edit, i-save o palitan ang Talaan ng Pagseselyong panlaban sa sunog.",
+    "Liên kết thư viện Bóc tách khối lượng đã xác nhận vẫn đang được áp dụng. Khôi phục kết quả thao tác trước khi sửa, lưu hoặc thay Bảng kê Bịt kín chống cháy."
+  ],
+  "Finish the current Firestopping operation before reviewing a Takeoff library link.": [
+    "수량 산출 라이브러리 연결을 검토하기 전에 현재 방화 관통부 밀봉 작업을 완료하세요.",
+    "Tapusin ang kasalukuyang operasyon ng Pagseselyong panlaban sa sunog bago suriin ang ugnayan ng library ng Pagsukat ng dami.",
+    "Hoàn tất thao tác Bịt kín chống cháy hiện tại trước khi kiểm tra liên kết thư viện Bóc tách khối lượng."
+  ],
+  "The Firestopping draft or frozen prices changed during link review. Review again.": [
+    "연결 검토 중 방화 관통부 밀봉 초안 또는 고정 단가가 변경되었습니다. 다시 검토하세요.",
+    "Nagbago ang draft ng Pagseselyong panlaban sa sunog o mga nakapirming presyo habang sinusuri ang ugnayan. Suriing muli.",
+    "Bản nháp Bịt kín chống cháy hoặc giá cố định đã đổi trong khi kiểm tra liên kết. Hãy kiểm tra lại."
+  ],
+  "The commercial link response uses a different Firestopping source or has no complete schedule.": [
+    "상업용 연결 응답이 다른 방화 관통부 밀봉 원본을 사용하거나 완전한 일람표를 포함하지 않습니다.",
+    "Ibang pinagmulan ng Pagseselyong panlaban sa sunog ang gamit ng tugon ng komersiyal na ugnayan o wala itong kumpletong talaan.",
+    "Phản hồi liên kết thương mại dùng nguồn Bịt kín chống cháy khác hoặc không có bảng kê đầy đủ."
+  ],
+  "The leased Firestopping destination changed. Keep the pending link and recover its recorded outcome before continuing.": [
+    "임시로 확보한 방화 관통부 밀봉 대상이 변경되었습니다. 계속하기 전에 대기 중인 연결을 유지하고 기록된 결과를 복구하세요.",
+    "Nagbago ang pansamantalang nakalaang destinasyon ng Pagseselyong panlaban sa sunog. Panatilihin ang nakabinbing ugnayan at bawiin ang nakatalang kinalabasan nito bago magpatuloy.",
+    "Đích Bịt kín chống cháy được giữ tạm đã đổi. Giữ liên kết đang chờ và khôi phục kết quả đã ghi trước khi tiếp tục."
+  ],
+  "The retained linked schedule row was removed or replaced. Review its association before opening another item.": [
+    "보관된 연결 일람표 행이 삭제되거나 교체되었습니다. 다른 항목을 열기 전에 연결 관계를 검토하세요.",
+    "Naalis o napalitan ang napanatiling naka-link na hanay ng talaan. Suriin ang kaugnayan nito bago magbukas ng ibang aytem.",
+    "Hàng bảng kê liên kết được giữ lại đã bị xóa hoặc thay thế. Kiểm tra quan hệ liên kết trước khi mở mục khác."
+  ],
+  "The retry returned a different commercial destination.": [
+    "재시도 결과가 다른 상업용 대상을 반환했습니다.",
+    "Ibang komersiyal na destinasyon ang ibinalik ng muling pagsubok.",
+    "Lần thử lại trả về đích thương mại khác."
+  ],
+  "This Firestopping destination lease is no longer current.": [
+    "이 방화 관통부 밀봉 대상의 임시 사용권은 더 이상 유효하지 않습니다.",
+    "Hindi na kasalukuyan ang pansamantalang paglalaan ng destinasyong ito ng Pagseselyong panlaban sa sunog.",
+    "Quyền giữ tạm đích Bịt kín chống cháy này không còn hiệu lực."
+  ],
+  "Navigation": [
+    "탐색",
+    "Pag-navigate",
+    "Điều hướng"
+  ],
+  "Projects and files": [
+    "프로젝트 및 파일",
+    "Mga proyekto at file",
+    "Dự án và tệp"
+  ],
+  "Documents": [
+    "문서",
+    "Mga dokumento",
+    "Tài liệu"
+  ],
+  "Estimating and libraries": [
+    "견적 및 라이브러리",
+    "Pagtatantiya at mga library",
+    "Dự toán và thư viện"
+  ],
+  "Drawing view": [
+    "도면 보기",
+    "Pagtingin sa guhit",
+    "Chế độ xem bản vẽ"
+  ],
+  "Register and selection": [
+    "대장 및 선택",
+    "Rehistro at pagpili",
+    "Sổ đăng ký và lựa chọn"
+  ],
+  "Keyboard and mouse": [
+    "키보드 및 마우스",
+    "Keyboard at mouse",
+    "Bàn phím và chuột"
+  ],
+  "Item allowance": [
+    "항목 가산량",
+    "Laang halaga sa aytem",
+    "Khoản dự phòng mục"
+  ],
+  "Library item": [
+    "라이브러리 항목",
+    "Aytem sa library",
+    "Mục thư viện"
+  ],
+  "Preparing file": [
+    "파일 준비 중",
+    "Inihahanda ang file",
+    "Đang chuẩn bị tệp"
+  ],
+  "Saving file": [
+    "파일 저장 중",
+    "Nagse-save ng file",
+    "Đang lưu tệp"
+  ],
+  "Confirming file save": [
+    "파일 저장 확인 중",
+    "Kinukumpirma ang pag-save ng file",
+    "Đang xác nhận lưu tệp"
+  ],
+  "Complete {0} before adding this Firestopping item.": [
+    "이 방화 관통부 밀봉 항목을 추가하기 전에 {0}을(를) 완료하세요.",
+    "Kumpletuhin ang {0} bago idagdag ang aytem na ito ng Pagseselyong panlaban sa sunog.",
+    "Hoàn tất {0} trước khi thêm mục Bịt kín chống cháy này."
+  ],
+  "Enter a Mastic Qty greater than zero for the selected Mastic Type.": [
+    "선택한 매스틱 유형의 매스틱 수량을 0보다 크게 입력하세요.",
+    "Maglagay ng Dami ng Mastic na higit sa sero para sa napiling Uri ng Mastic.",
+    "Nhập Lượng keo mastic lớn hơn 0 cho Loại keo mastic đã chọn."
+  ],
+  "Choose a Mastic Type for the entered Mastic Qty.": [
+    "입력한 매스틱 수량에 해당하는 매스틱 유형을 선택하세요.",
+    "Pumili ng Uri ng Mastic para sa inilagay na Dami ng Mastic.",
+    "Chọn Loại keo mastic cho Lượng keo mastic đã nhập."
+  ]
+}

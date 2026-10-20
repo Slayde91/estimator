@@ -696,10 +696,29 @@
     drawingPane.append(viewer, ui.progress, ui.controlStatus, ui.physicalOverlayStatus);
     workspace.append(layout, register); root.append(ui.heading, ui.messageSlot, workspace, ui.physicalContainer);
     ui.paneResize = window.CeasefireTakeoffPaneResize?.mount(layout, [ui.viewportPanel, ui.settingsPanel, ui.physicalDetails]);
+    const alignHeading = () => {
+      if (ui.headingInsetFrame) return;
+      ui.headingInsetFrame = requestAnimationFrame(() => {
+        ui.headingInsetFrame = null;
+        if (!root.isConnected || !ui.viewport.getClientRects().length) return;
+        const workspaceBox = workspace.getBoundingClientRect(), drawingBox = ui.viewport.getBoundingClientRect();
+        const inset = getComputedStyle(root).direction === "rtl" ? workspaceBox.right - drawingBox.right : drawingBox.left - workspaceBox.left;
+        const value = `${Math.max(0, Math.round(inset * 100) / 100)}px`;
+        if (root.style.getPropertyValue("--takeoff-heading-inset") !== value) root.style.setProperty("--takeoff-heading-inset", value);
+      });
+    };
     if (typeof ResizeObserver === "function") {
       ui.topControlsObserver = new ResizeObserver(() => layout.style.setProperty("--takeoff-top-controls-height", `${viewerTop.offsetHeight}px`));
       ui.topControlsObserver.observe(viewerTop);
+      ui.headingInsetObserver = new ResizeObserver(alignHeading);
+      for (const element of [workspace, layout, ui.viewport]) ui.headingInsetObserver.observe(element);
     }
+    if (typeof MutationObserver === "function") {
+      ui.headingInsetChanges = new MutationObserver(alignHeading);
+      ui.headingInsetChanges.observe(layout, { attributes: true, subtree: true, attributeFilter: ["hidden", "class"] });
+      ui.headingInsetChanges.observe(document.documentElement, { attributes: true, attributeFilter: ["dir"] });
+    }
+    alignHeading();
     viewer.addEventListener("keydown", event => {
       const blocked = !state.active || state.busy || state.modal || state.countFinishing || state.physicalPlacing || state.navigationBusy || !state.viewport || !!document.querySelector?.("dialog[open], [role=dialog][aria-modal=true]");
       if (window.CeasefireTakeoffShortcuts?.dispatchViewer(event, {
@@ -2781,7 +2800,7 @@
         if (shown >= maximum) break;
         const reference = { ...base, index, exclusionId: ring.id }, position = G.transform(point, state.viewport.transform), active = state.controlPoint?.itemId === item.id && state.controlPoint.index === index && state.controlPoint.exclusionId === ring.id;
         const label = `Control point ${index + 1} for ${item.fields.mark || item.id}${ring.id ? `, excluded opening ${ring.note}` : ""}`;
-        const handle = svg("circle", { cx: position[0], cy: position[1], r: 5, class: `takeoff-control-point${active ? " active" : ""}`, role: "button", tabindex: 0, "aria-label": label, "aria-pressed": String(active) });
+        const handle = svg("circle", { cx: position[0], cy: position[1], r: 5, class: `takeoff-control-point${active ? " active" : ""}`, "data-cursor-role": "move", role: "button", tabindex: 0, "aria-label": label, "aria-pressed": String(active) });
         handle.dataset.controlItemId = item.id; handle.dataset.pointIndex = String(index); handle.dataset.exclusionId = ring.id || "";
         const title = svg("title", {}); window.CeasefireI18n.text(title, "{0}. Drag to move and recalculate. Select, then Ctrl+Z deletes this point. Right-click for its menu.", [label]); handle.append(title);
         handle.addEventListener("focus", () => {

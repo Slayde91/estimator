@@ -27,6 +27,9 @@
     return { quad_pdf: [[x, y], [x+w, y], [x+w, y+h], [x, y+h]].map(inverse) };
   }
   function coordinates(graphic) { return graphic.geometry.quad_pdf || graphic.geometry.points; }
+  // Only a retained box has dimensions to resize. Polygon/Area vertices and
+  // line endpoints edit individual points, even when their outline looks boxy.
+  const handleCursorRole = graphic => graphic.geometry.quad_pdf ? "resize-nwse" : "move";
   const imageByteLimit = 2 * 1024 * 1024;
   function imageSize(width, height) {
     if (![width, height].every(n => Number.isInteger(n) && n >= 1 && n <= 4096) || width * height > 4000000) throw new Error("Choose an image up to 4,096 pixels per side and 4 million pixels in total.");
@@ -174,7 +177,7 @@
     }
     return group;
   }
-  const api = Object.freeze({ kinds, tools, boxes, labels, defaults, box, coordinates, icon, paint, textLines, richTextLines, fontSize, resizedTextBox, imageByteLimit, stampImageHeader, stampImage, stampDataUrl, stampAt });
+  const api = Object.freeze({ kinds, tools, boxes, labels, defaults, box, coordinates, handleCursorRole, icon, paint, textLines, richTextLines, fontSize, resizedTextBox, imageByteLimit, stampImageHeader, stampImage, stampDataUrl, stampAt });
   if (typeof module === "object" && module.exports) module.exports = api;
   if (root) root.CeasefireTakeoffGraphics = api;
 })(typeof window === "object" ? window : null);

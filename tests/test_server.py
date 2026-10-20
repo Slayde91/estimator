@@ -160,6 +160,14 @@ class ServerTests(unittest.TestCase):
                 self.assertEqual(headers['Content-Type'], content_type)
                 self.assertEqual(body, (ROOT / 'static' / path.lstrip('/')).read_bytes())
 
+    def test_custom_cursor_assets_are_served_as_exact_png_bytes(self):
+        for path in sorted((ROOT / 'static/cursors').glob('*.png')):
+            with self.subTest(asset=path.name):
+                status, headers, body = self.request('GET', '/cursors/' + path.name)
+                self.assertEqual(status, 200)
+                self.assertEqual(headers['Content-Type'], 'image/png')
+                self.assertEqual(body, path.read_bytes())
+
     def test_official_logo_is_served_unchanged_with_image_content_type(self):
         status, headers, body = self.request("GET", "/ceasefire-logo.png")
         self.assertEqual(status, 200)

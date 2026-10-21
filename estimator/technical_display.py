@@ -31,6 +31,8 @@ def _capitalise_sentences(text, source):
 # fixtures exercise both implementations, including their second application.
 # Never remove modals, negations, alternatives, measurements or source markers.
 _RULES = tuple((re.compile(expression, re.I), replacement) for expression, replacement in (
+    (r'\bFIREFLY(?:TM\b|\u2122)[ \t]*', ''),
+    (r'(?<![\w-])(?:TBA|TM)(?![\w-])[ \t]*|\u2122[ \t]*', ''),
     (r'\bFIREFLY(?=[A-Za-z])', ''),
     (r'\bFIREFLY\s+(?=(?:Batts?|Mastic|Penowrap|wrap|Intu[A-Za-z]+)\b)', ''),
     (r'\bPenowrap\b[\u00ae\u2122]?', 'wrap'),

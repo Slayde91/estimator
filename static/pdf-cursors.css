@@ -1,13 +1,12 @@
-/* Azure Aura Red, supplied with commercial permission. Original artwork and
-   hotspots are retained; cursor feedback never changes PDF coordinates. */
+/* Standard system cursors preserve feedback for controls and drawing tools. */
 @media screen {
   :root {
-    --app-cursor:url('/cursors/pointer.png') 6 2,default;
-    --app-cursor-link:url('/cursors/link.png') 6 2,pointer;
-    --app-cursor-text:url('/cursors/text.png') 16 16,text;
-    --app-cursor-move:url('/cursors/move.png') 16 16,move;
-    --app-cursor-unavailable:url('/cursors/unavailable.png') 16 16,not-allowed;
-    --app-cursor-busy:url('/cursors/busy.png') 7 2,progress;
+    --app-cursor:default;
+    --app-cursor-link:pointer;
+    --app-cursor-text:text;
+    --app-cursor-move:move;
+    --app-cursor-unavailable:not-allowed;
+    --app-cursor-busy:progress;
     cursor:var(--app-cursor);
   }
   body,body :where(*) { cursor:inherit; }
@@ -18,20 +17,20 @@
   :root :is(:disabled,[aria-disabled="true"],[readonly],[aria-readonly="true"],[inert],[data-cursor-role="unavailable"]) { cursor:var(--app-cursor-unavailable)!important; }
   :root :where(.library-link-choice:has(input:disabled)) { cursor:var(--app-cursor-unavailable)!important; }
   :root :is([aria-disabled="true"],[inert]) :where(*) { cursor:inherit!important; }
-  :root :is(.takeoff-pane-resizer,.main-summary-divider) { cursor:url('/cursors/resize-horizontal.png') 16 16,col-resize; }
-  :root .main-summary-dragging,:root .main-summary-dragging * { cursor:url('/cursors/resize-horizontal.png') 16 16,col-resize!important; }
-  :root .takeoff-signature-pad { cursor:url('/cursors/handwriting.png') 2 31,crosshair; }
+  :root :is(.takeoff-pane-resizer,.main-summary-divider) { cursor:col-resize; }
+  :root .main-summary-dragging,:root .main-summary-dragging * { cursor:col-resize!important; }
+  :root .takeoff-signature-pad { cursor:crosshair; }
   #takeoff-viewport { --pdf-cursor:var(--app-cursor); cursor:var(--pdf-cursor); }
   #takeoff-viewport :is(.takeoff-page,canvas,.takeoff-overlay,.takeoff-overlay *,.takeoff-text-layer,.takeoff-text-layer span,.takeoff-text-layer br) { cursor:var(--pdf-cursor); }
-  #takeoff-viewport:is([data-tool="trace"],[data-tool="measure"],[data-tool="calibrate"],[data-tool="cite"],[data-tool="count"],[data-tool="count-only"],[data-tool="pdf-count"],[data-tool="viewport"],[data-tool="polygon"],[data-tool="exclusion"],[data-tool="callout"],[data-tool="initial-pages"],[data-tool^="graphic-"]) { --pdf-cursor:url('/cursors/precision.png') 16 16,crosshair; }
-  #takeoff-viewport[data-tool="pan"] { --pdf-cursor:url('/cursors/move.png') 16 16,grab; }
+  #takeoff-viewport:is([data-tool="trace"],[data-tool="measure"],[data-tool="calibrate"],[data-tool="cite"],[data-tool="count"],[data-tool="count-only"],[data-tool="pdf-count"],[data-tool="viewport"],[data-tool="polygon"],[data-tool="exclusion"],[data-tool="callout"],[data-tool="initial-pages"],[data-tool^="graphic-"]) { --pdf-cursor:crosshair; }
+  #takeoff-viewport[data-tool="pan"] { --pdf-cursor:grab; }
   #takeoff-viewport[data-tool="text"] { --pdf-cursor:var(--app-cursor-text); }
-  #takeoff-viewport:is([data-tool="signature"],[data-tool="graphic-freehand"]) { --pdf-cursor:url('/cursors/handwriting.png') 2 31,crosshair; }
+  #takeoff-viewport:is([data-tool="signature"],[data-tool="graphic-freehand"]) { --pdf-cursor:crosshair; }
   #takeoff-viewport:has(> .takeoff-empty:not([hidden])) { --pdf-cursor:var(--app-cursor-unavailable); }
   #takeoff-viewport[data-tool="select"] .takeoff-free-callout [data-annotation-part="point"],
   #takeoff-viewport[data-tool="select"] :is(.takeoff-hit,.takeoff-signature,[data-graphic-part="move"],.takeoff-physical-callout,[data-cursor-role="move"]) { cursor:var(--app-cursor-move); }
-  #takeoff-viewport[data-tool="select"] :is(.takeoff-annotation-resize,.takeoff-signature-resize,.takeoff-physical-callout-handle,[data-cursor-role="resize-nwse"]) { cursor:url('/cursors/resize-nwse.png') 16 16,nwse-resize; }
-  #takeoff-viewport[data-tool="select"] :is(.takeoff-annotation-resize,.takeoff-physical-callout-handle):is([data-corner="ne"],[data-corner="sw"]) { cursor:url('/cursors/resize-nesw.png') 16 16,nesw-resize; }
+  #takeoff-viewport[data-tool="select"] :is(.takeoff-annotation-resize,.takeoff-signature-resize,.takeoff-physical-callout-handle,[data-cursor-role="resize-nwse"]) { cursor:nwse-resize; }
+  #takeoff-viewport[data-tool="select"] :is(.takeoff-annotation-resize,.takeoff-physical-callout-handle):is([data-corner="ne"],[data-corner="sw"]) { cursor:nesw-resize; }
   #takeoff-viewport :is(.takeoff-control-menu,.takeoff-markup-menu) :is(button,[role="menuitem"]) { cursor:var(--app-cursor-link); }
   #takeoff-viewport :is(.takeoff-control-menu,.takeoff-markup-menu) :is(:disabled,[aria-disabled="true"]) { cursor:var(--app-cursor-unavailable); }
 }

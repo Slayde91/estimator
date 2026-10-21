@@ -47,7 +47,7 @@ async function checkPointerEffects(page,output) {
   assert.equal(await page.locator('.click-smoke-layer').evaluate(el=>el.matches(':popover-open')),true,'Smoke paints above the native modal');
   await expect(dialog).toBeVisible();
   assert.equal(await dialog.evaluate(el=>el===document.activeElement||el.contains(document.activeElement)),true,'Pointer effect leaves focus inside the modal');
-  assert.match(await cursor(dialog.getByRole('button',{name:'Continue',exact:true})),/cursors\/link\.png/,'Dialog actions use the red link cursor');
+  assert.match(await cursor(dialog.getByRole('button',{name:'Continue',exact:true})),/^pointer$/,'Dialog actions use the system link cursor');
   await page.keyboard.press('Escape');await expect(dialog).toBeHidden();
   await expect(page.locator('.click-smoke-layer')).toHaveCount(0);
 
@@ -71,14 +71,14 @@ async function checkPointerEffects(page,output) {
   await page.locator('#estimate-navigation-menu [data-estimator-kind="estimate"]').click();
   const tab=page.locator('#main-section-tabs [role="tab"]').first();await expect(tab).toBeVisible();
   await expect(page.locator('html')).not.toHaveClass(/\bapp-busy\b/,{timeout:60000});
-  await tab.hover();assert.match(await cursor(tab),/cursors\/link\.png/,'Ordinary tabs use the red link cursor');
+  await tab.hover();assert.match(await cursor(tab),/^pointer$/,'Ordinary tabs use the system link cursor');
   const input=page.locator('#client');
   assert.doesNotMatch(await cursor(input),/laser-reticle/,'Text fields keep their editing cursor');
   const originalDisabled=await tab.evaluate(el=>{const before=el.disabled;el.disabled=true;return before;});
-  assert.match(await cursor(tab),/cursors\/unavailable\.png/,'Disabled controls use the red unavailable cursor');
+  assert.match(await cursor(tab),/^not-allowed$/,'Disabled controls use the system unavailable cursor');
   await tab.evaluate((el,value)=>{el.disabled=value;},originalDisabled);
   await page.evaluate(()=>document.documentElement.classList.add('app-busy'));
-  assert.match(await cursor(home),/cursors\/busy\.png/,'Busy state uses the red loading cursor');
+  assert.match(await cursor(home),/^progress$/,'Busy state uses the system loading cursor');
   await page.evaluate(()=>document.documentElement.classList.remove('app-busy'));
   await home.click();await expect(page.locator('.click-smoke-layer')).toHaveCount(0);
   return{reticle:true,icons:true,tabs:true,modal:true,transientDialog:true,cardinalSmoke:true,plainContent:true,cleanup:true,bounded:true,reducedMotion:true,keyboardFocus:true,editingCursor:true};

@@ -12,6 +12,7 @@ import unicodedata
 from .technical_field_content import normalize_content
 from .technical_field_options import normalize_options
 from .technical_field_reviewed import normalize_reviewed_content
+from .promat_installation_text import clean_installation_details
 from .technical_frl_presentation import normalize_frl_presentation
 from .technical_orientation import project_trafalgar_orientation
 from .technical_brand_presentation import present_manufacturer_fields
@@ -309,6 +310,10 @@ def normalize_technical_item(item, *, selector_capture=None):
     # merging, so mixed source callouts remain attributable to the right field.
     projected['fields'] = _merge_fields(normalize_reviewed_content(
         normalize_options(normalize_content(fields)), review, original_fields))
+    if item.get('promat_source') and review:
+        for field in projected['fields']:
+            if field['label'] == 'Installation Details':
+                field['value'] = clean_installation_details(field['value'])
     if item.get('id', '').startswith('trafalgar-'):
         projected['fields'] = normalize_frl_presentation(projected['fields'])
     return present_manufacturer_fields(project_trafalgar_orientation(projected, item, selector_capture))

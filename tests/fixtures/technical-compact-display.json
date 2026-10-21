@@ -1,5 +1,9 @@
 [
   {
+    "source": "Use RocTM board, retain ASTM E814 and 2 x 50 mm layers.",
+    "display": "Use Roc board, retain ASTM E814 and 2 x 50 mm layers."
+  },
+  {
     "source": "Wrap with 1 layer of TBA FireflyTM 12mm Penowrap® for 300 mm. Use offcuts of TBA FireflyTM Penowrap®.",
     "display": "Wrap w/ 1 layer of 12mm wrap for 300 mm. Use offcuts of wrap."
   },

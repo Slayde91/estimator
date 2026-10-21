@@ -15,6 +15,7 @@
   // Keep these ordered rules aligned with estimator/technical_display.py.
   const compactRules = [
     [/\bFIREFLY(?:TM\b|\u2122)[ \t]*/gi, ""],
+    [/\b(Roc)TM\b/gi, "$1"],
     [/(?<![\w-])(?:TBA|TM)(?![\w-])[ \t]*|\u2122[ \t]*/gi, ""],
     [/\bFIREFLY(?=[A-Za-z])/gi, ""],
     [/\bFIREFLY\s+(?=(?:Batts?|Mastic|Penowrap|wrap|Intu[A-Za-z]+)\b)/gi, ""],

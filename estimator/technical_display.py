@@ -33,7 +33,7 @@ def _capitalise_sentences(text, source):
 _RULES = tuple((re.compile(expression, re.I), replacement) for expression, replacement in (
     (r'\bFIREFLY(?:TM\b|\u2122)[ \t]*', ''),
     (r'\b(Roc)TM\b', r'\1'),
-    (r'(?<![\w-])(?:TBA|TM)(?![\w-])[ \t]*|\u2122[ \t]*', ''),
+    (r'(?<![\w-])(?:TBA|TM)(?![\w-])[ \t]*|\u2122', ''),
     (r'\bFIREFLY(?=[A-Za-z])', ''),
     (r'\bFIREFLY\s+(?=(?:Batts?|Mastic|Penowrap|wrap|Intu[A-Za-z]+)\b)', ''),
     (r'\bPenowrap\b[\u00ae\u2122]?', 'wrap'),

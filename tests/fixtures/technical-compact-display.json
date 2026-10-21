@@ -1,5 +1,25 @@
 [
   {
+    "source": "BOSS Batt™ protecting an aperture, sealed with FireMastic-300™ 10 mm deep on both sides.",
+    "display": "BOSS Batt protecting an aperture, sealed w/ FireMastic-300 10 mm deep on both sides."
+  },
+  {
+    "source": "Use RocTM board, retain ASTM E814 and 2 x 50 mm layers.",
+    "display": "Use Roc board, retain ASTM E814 and 2 x 50 mm layers."
+  },
+  {
+    "source": "Wrap with 1 layer of TBA FireflyTM 12mm Penowrap® for 300 mm. Use offcuts of TBA FireflyTM Penowrap®.",
+    "display": "Wrap w/ 1 layer of 12mm wrap for 300 mm. Use offcuts of wrap."
+  },
+  {
+    "source": "TBA FIREFLYBatt and TBA Firefly™ Penowrap®; TM Mastic, TBA TM wrap and wrap™. Minimum 50 mm, not more than 2 layers.",
+    "display": "Batt and wrap; Mastic, wrap and wrap. Min. 50 mm, not more than 2 layers."
+  },
+  {
+    "source": "See https://example.test/TBA/TM/FireflyTM.pdf, TBA.TM@example.test and TBA.pdf. Keep TM-100, TBA-200, ASTM and HTML identifiers.",
+    "display": "See https://example.test/TBA/TM/FireflyTM.pdf, TBA.TM@example.test and TBA.pdf. Keep TM-100, TBA-200, ASTM and HTML identifiers."
+  },
+  {
     "source": "FIREFLYBatt minimum 50 mm with 2 screws per 300 mm into the aperture of the damper; FRL -/120/120 only, maximum 900 x 600 mm.",
     "display": "Batt min. 50 mm w/ 2 screws p/ 300 mm to aperture of damper; FRL -/120/120 only, max. 900 x 600 mm."
   },

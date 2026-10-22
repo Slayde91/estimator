@@ -47,6 +47,18 @@ const phrases = [
   "Just think of it like insurance, except it only lasts for 120 minutes.",
   "I don't need a depth gauge when I have a perfectly good set of eyes.",
   "Proper Preparation Prevents Piss-Poor Performance",
+  "CLASSIFIRE | Passive Fire Intelligence | Talk FRL to me.",
+  "CLASSIFIRE | Passive Fire Intelligence | Good with penetrations.",
+  "CLASSIFIRE | Passive Fire Intelligence | I know my way around an opening.",
+  "CLASSIFIRE | Passive Fire Intelligence | Looks aren’t everything. Size matters.",
+  "CLASSIFIRE | Passive Fire Intelligence | Stop staring at my calculations.",
+  "CLASSIFIRE | Passive Fire Intelligence | Ridiculously good at looking things up.",
+  "“By others” is the hardest-working subcontractor on the project.",
+  "No allowances have been made for an archaeological expedition through the ceiling.",
+  "Spray is measured in millimetres. Overspray is measured in emails.",
+  "CLASSIFIRE | Passive Fire Intelligence | Depth. Thickness. Compatibility. I have standards.",
+  "CLASSIFIRE | Passive Fire Intelligence | Looking for something long-term. Minimum 120 minutes.",
+  "CLASSIFIRE | Passive Fire Intelligence | Let me help you spray your load.",
 ];
 function harness({ random = 0, previous, reduced = false, blocked = false, missing = false, missingCursor = false, missingMotion = false } = {}) {
   const label = { textContent: '' }, sizer = { children: [], get textContent() { return this.children.map(line => line.textContent).join(''); }, replaceChildren(...lines) { this.children = lines; } }, cursor = { hidden: false }, frames = [], timers = new Map(), writes = [];

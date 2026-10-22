@@ -16,12 +16,12 @@ const ready = new Promise((resolve, reject) => {
   server.once('error', reject); server.once('exit', code => { clearTimeout(timer); reject(Error(`Fixture exited ${code}: ${logs}`)); });
 });
 const phrase = "I'm an expert at reading plans and looking at photos - a site visit would just be a waste of my time.";
-const newPhrase = 'I don’t believe in common sense unless it has a report number.';
+const newPhrase = 'CLASSIFIRE | Passive Fire Intelligence | Talk FRL to me.';
 const errors = [], evidence = {}, csp = [];
 const pendingRequests = new WeakMap();
 const clockOrigin = Date.parse('2026-10-04T00:00:00Z');
 const delay = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
-async function instrument(context, { random = 2 / 42 + .001, blocked = false } = {}) {
+async function instrument(context, { random = 2 / 54 + .001, blocked = false } = {}) {
   await context.addInitScript(({ random, blocked }) => {
     Math.random = () => random;
     window.qaCsp = [];
@@ -267,19 +267,22 @@ async function presentationNavigation(initial) {
     }
     csp.push(...await page.evaluate(() => window.qaCsp)); await context.close();
   }
-  {
+  for (const [index, selectedPhrase, evidenceKey] of [
+    [28, 'I don’t believe in common sense unless it has a report number.', 'reportNumberPhrase'],
+    [42, newPhrase, 'newPhrase'],
+  ]) {
     const context = await browser.newContext({ viewport: { width: 1146, height: 900 } });
-    await instrument(context, { random: 28 / 42 + .001 }); // Forty-two choices, no previous phrase: first new phrase at index 28.
+    await instrument(context, { random: index / 54 + .001 }); // Fifty-four choices; preserve the prior phrase check and exercise the first addition.
     page = await context.newPage(); watch(page); await installPausedClock();
     await page.goto(`http://127.0.0.1:${info.port}/`); await page.evaluate(() => document.fonts.ready);
-    const initial = await layout(); assert.equal(initial.accessible, newPhrase);
-    assert.ok(newPhrase.startsWith(initial.typed)); assert.notEqual(initial.typed, newPhrase);
-    const typingBlink = await blinking(initial, newPhrase, 'while typing a newly added phrase');
-    const samples = await typeUntilFinished(initial, newPhrase, await bootstrap(initial, newPhrase));
+    const initial = await layout(); assert.equal(initial.accessible, selectedPhrase);
+    assert.ok(selectedPhrase.startsWith(initial.typed)); assert.notEqual(initial.typed, selectedPhrase);
+    const typingBlink = await blinking(initial, selectedPhrase, 'while typing the selected phrase');
+    const samples = await typeUntilFinished(initial, selectedPhrase, await bootstrap(initial, selectedPhrase));
     await idle(); await clean();
-    const expiry = await expireCursor(initial, newPhrase);
-    await page.screenshot({ path: path.join(output, 'tagline-new-phrase.png'), fullPage: false });
-    evidence.newPhrase = { expected: newPhrase, sampleCount: samples.length, typingBlink, expiry, dirty: false };
+    const expiry = await expireCursor(initial, selectedPhrase);
+    await page.screenshot({ path: path.join(output, `tagline-${evidenceKey}.png`), fullPage: false });
+    evidence[evidenceKey] = { expected: selectedPhrase, sampleCount: samples.length, typingBlink, expiry, dirty: false };
     csp.push(...await page.evaluate(() => window.qaCsp)); await context.close();
   }
   for (const blocked of [false, true]) {
@@ -306,7 +309,7 @@ async function presentationNavigation(initial) {
   assert.deepEqual(errors, []); assert.deepEqual(csp, []);
   for (const name of assets) assert.equal(crypto.createHash('sha256').update(fs.readFileSync(path.join(root, name))).digest('hex'), assetHashes[name], `${name} changed during native acceptance`);
   fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ completed: true, fixturePort: info.port, assetHashes, evidence, errors, csp,
-    limits: ['Disposable browser fixture only; no live port 8765 interaction.', 'Playwright clock advances production JS typing/expiry callbacks; CSS opacity transitions are sampled in real Chromium frames.', 'All 42 exact phrases and preference-change timer cancellation are additionally verified by focused unit checks.'] }, null, 2));
+    limits: ['Disposable browser fixture only; no live port 8765 interaction.', 'Playwright clock advances production JS typing/expiry callbacks; CSS opacity transitions are sampled in real Chromium frames.', 'All 54 exact phrases and preference-change timer cancellation are additionally verified by focused unit checks.'] }, null, 2));
   console.log(`Header navigation tagline browser acceptance passed: ${output}`);
 })().catch(async error => {
   fs.writeFileSync(path.join(output, 'failure-evidence.json'), JSON.stringify({ completed: false, error: String(error), assetHashes, evidence, errors, csp }, null, 2));

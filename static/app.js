@@ -75,6 +75,18 @@
     "Just think of it like insurance, except it only lasts for 120 minutes.",
     "I don't need a depth gauge when I have a perfectly good set of eyes.",
     "Proper Preparation Prevents Piss-Poor Performance",
+    "CLASSIFIRE | Passive Fire Intelligence | Talk FRL to me.",
+    "CLASSIFIRE | Passive Fire Intelligence | Good with penetrations.",
+    "CLASSIFIRE | Passive Fire Intelligence | I know my way around an opening.",
+    "CLASSIFIRE | Passive Fire Intelligence | Looks aren’t everything. Size matters.",
+    "CLASSIFIRE | Passive Fire Intelligence | Stop staring at my calculations.",
+    "CLASSIFIRE | Passive Fire Intelligence | Ridiculously good at looking things up.",
+    "“By others” is the hardest-working subcontractor on the project.",
+    "No allowances have been made for an archaeological expedition through the ceiling.",
+    "Spray is measured in millimetres. Overspray is measured in emails.",
+    "CLASSIFIRE | Passive Fire Intelligence | Depth. Thickness. Compatibility. I have standards.",
+    "CLASSIFIRE | Passive Fire Intelligence | Looking for something long-term. Minimum 120 minutes.",
+    "CLASSIFIRE | Passive Fire Intelligence | Let me help you spray your load.",
   ];
   const storageKey = "ceasefire.headerTagline.last";
   let previous;
@@ -651,7 +663,6 @@
     }
     const maskingActive = String(state.inputs.D7 ?? "").trim().toLowerCase() !== "n/a";
     for (const card of [inputCard("access-travel", "Access & Travel", job), inputCard("teams-crews", "Teams/Crews", labour)]) if (card) before.append(card);
-    window.CeasefireTravel?.attach?.($("main-panel-access-travel"));
     const maskingCard = maskingActive ? inputCard("masking-cleaning", "Masking/Cleaning", masking) : null;
     if (maskingCard) postMaterials.append(maskingCard);
     for (let row = 15; row <= 23; row++) {

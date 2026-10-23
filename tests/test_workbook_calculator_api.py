@@ -130,7 +130,15 @@ class WorkbookCalculatorApiTests(unittest.TestCase):
                 self.assertEqual(definition["inputs"], empty_schedule_inputs(identity))
                 self.assertEqual(len(definition["source"]["sha256"]), 64)
                 self.assertTrue(definition["documents"])
-                self.assertTrue(all(item["url"].startswith("https://") for item in definition["documents"]))
+                references = [item for item in definition['documents'] if item.get('reference_only') is True]
+                self.assertEqual(len(references), 1 if identity == 'steel_vermiculite' else 0)
+                for item in definition['documents']:
+                    if item.get('reference_only') is True:
+                        self.assertIsNone(item['url'])
+                        self.assertIn('FC21278-01-1', item['title'])
+                        self.assertIn('held privately', item['availability'])
+                    else:
+                        self.assertTrue(item['url'].startswith('https://'))
                 for name in pages:
                     page = self.calculate(identity=identity, sheet=name, row=1, count=1)
                     self.assertEqual(page["sheet"], name)

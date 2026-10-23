@@ -273,16 +273,16 @@ def self_test(data_directory, output_report):
                 probe.wait('document.querySelector("#app-message").textContent.startsWith("PDF saved to ")')
                 pdfs = list(directory.glob('*.pdf'))
                 assert pdfs and all(file.read_bytes().startswith(b'%PDF') for file in pdfs)
-                for calculator_id, label in (('steel_vermiculite', 'Steel spray'), ('steel_board', 'Steel board'), ('ductwork', 'Duct')):
+                for calculator_id, label in (('steel_vermiculite', 'Steel spray'), ('steel_intumescent', 'Steel intumescent'), ('steel_board', 'Steel board'), ('ductwork', 'Duct')):
                     before = set(directory.glob('*.xlsx'))
                     # Use the public disclosure for every destination; a prior
                     # choice closes it. IDs keep exports independent of order.
                     probe.click('#calculator-navigation-toggle')
-                    steel = calculator_id in ('steel_vermiculite', 'steel_board')
+                    steel = calculator_id in ('steel_vermiculite', 'steel_intumescent', 'steel_board')
                     probe.wait('!document.querySelector("#calculator-navigation-menu").hidden')
                     if steel:
                         probe.click('#steel-calculator-navigation-toggle')
-                        probe.wait('!document.querySelector("#steel-calculator-navigation-menu").hidden && document.querySelectorAll("#steel-calculator-navigation-menu button").length === 2')
+                        probe.wait('!document.querySelector("#steel-calculator-navigation-menu").hidden && document.querySelectorAll("#steel-calculator-navigation-menu button").length === 3')
                     selector = f'#calculator-navigation-menu button[data-calculator-id="{calculator_id}"]'
                     probe.wait(f'!!document.querySelector({json.dumps(selector)}).getClientRects().length')
                     probe.click(selector)

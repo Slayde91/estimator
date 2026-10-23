@@ -1,7 +1,7 @@
 """Portable, values-only project snapshots. Loading never writes local storage.
 
 The file carries estimating inputs and a complete pricing snapshot, plus the
-three calculator input maps. Results are always recalculated locally; files
+calculator input maps. Results are always recalculated locally; files
 cannot introduce formulas, source workbooks, or trusted reference exceptions.
 """
 
@@ -17,7 +17,7 @@ from .calculator import fields
 from .catalog import ValidationError, effective_catalog
 from .quote_details import QUOTE_DETAIL_LIMITS, validate_quote_details
 from .workbook_calculators import source_model, validate_calculator_edits
-from .schedule_rows import blank_schedule_defaults, normalize_schedule_rows
+from .schedule_rows import blank_schedule_defaults, empty_schedule_inputs, normalize_schedule_rows
 from .edition import require_project_edition, validate_edition
 
 
@@ -27,7 +27,9 @@ TAKEOFF_PROJECT_VERSION = 2
 PROJECT_EXTENSION = ".cf.json"
 PROJECT_FILENAME = "CEASEFIRE-Project" + PROJECT_EXTENSION
 MAX_PROJECT_FILE = 16 * 1_048_576
-CALCULATOR_IDS = ("steel_vermiculite", "steel_board", "ductwork")
+LEGACY_CALCULATOR_IDS = ("steel_vermiculite", "steel_board", "ductwork")
+CALCULATOR_IDS = (*LEGACY_CALCULATOR_IDS, "steel_intumescent")
+OPTIONAL_CALCULATOR_IDS = ("steel_intumescent",)
 ESTIMATE_REQUIRED_FIELDS = {"title", "workflow", "measurements", "inputs", "configuration", *QUOTE_DETAIL_LIMITS}
 ESTIMATE_FIELDS = {*ESTIMATE_REQUIRED_FIELDS, "work_items"}
 
@@ -209,7 +211,7 @@ def export_project(store, request, *, edition='full'):
     prepared = store.prepare_quote(quote_inputs)
     drafts = request.get("calculators", {})
     if not isinstance(drafts, dict) or set(drafts) - set(CALCULATOR_IDS):
-        raise ValidationError("Project calculators must use the three available calculator names.")
+        raise ValidationError("Project calculators must use the available calculator names.")
     calculators = {}
     for calculator_id in CALCULATOR_IDS:
         draft = drafts.get(calculator_id)
@@ -217,6 +219,11 @@ def export_project(store, request, *, edition='full'):
             if not isinstance(draft, dict) or 'inputs' not in draft or set(draft) - {"inputs", "schedule_rows"}:
                 raise ValidationError("Each calculator draft must contain input values and optional schedule rows only.")
             inputs = draft["inputs"]
+        elif calculator_id in OPTIONAL_CALCULATOR_IDS and set(drafts) == set(LEGACY_CALCULATOR_IDS):
+            # An older project's complete three-map draft cannot opt into a
+            # different project's locally saved SC902 schedule by omission.
+            inputs = empty_schedule_inputs(calculator_id)
+            draft = {"inputs": inputs}
         else:
             draft = store.calculator_state(calculator_id)
             inputs = draft["inputs"]
@@ -288,10 +295,19 @@ def load_project_bytes(store, payload, *, edition='full'):
     if not isinstance(estimate.get("configuration"), dict) or "catalog" not in estimate["configuration"]:
         raise ValidationError("The project must include its own pricing library snapshot.")
     calculators = snapshot["calculators"]
-    if not isinstance(calculators, dict) or set(calculators) != set(CALCULATOR_IDS):
-        raise ValidationError("The project must contain all three calculators.")
+    if (not isinstance(calculators, dict) or not set(LEGACY_CALCULATOR_IDS) <= set(calculators)
+            or set(calculators) - set(CALCULATOR_IDS)):
+        raise ValidationError("The project must contain its three original calculators and may include the steel intumescent calculator.")
     normalized = {}
     for calculator_id in CALCULATOR_IDS:
+        if calculator_id not in calculators:
+            # Loading a legacy file only returns an empty new draft. It never
+            # reads or rewrites a receiver's independently saved SC902 state.
+            inputs = empty_schedule_inputs(calculator_id)
+            normalized[calculator_id] = {"inputs": inputs,
+                "source_sha256": source_model(calculator_id)["source"]["sha256"],
+                "schedule_rows": normalize_schedule_rows(calculator_id, inputs)}
+            continue
         calculator = calculators[calculator_id]
         if (not isinstance(calculator, dict) or not {"inputs", "source_sha256"} <= set(calculator)
                 or set(calculator) - {"inputs", "source_sha256", "schedule_rows"}):

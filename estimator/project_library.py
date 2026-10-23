@@ -21,7 +21,7 @@ import time
 from .catalog import ValidationError
 from .edition import require_project_edition, validate_edition
 from .native_dialogs import NativeDialogs, SaveSelection
-from .project_file import CALCULATOR_IDS, ESTIMATE_FIELDS, ESTIMATE_REQUIRED_FIELDS, MAX_PROJECT_FILE, PROJECT_EXTENSION, assert_project_overwrite, export_project, has_project_identity, is_project_filename, load_project_bytes, project_filename, project_summary
+from .project_file import CALCULATOR_IDS, LEGACY_CALCULATOR_IDS, OPTIONAL_CALCULATOR_IDS, ESTIMATE_FIELDS, ESTIMATE_REQUIRED_FIELDS, MAX_PROJECT_FILE, PROJECT_EXTENSION, assert_project_overwrite, export_project, has_project_identity, is_project_filename, load_project_bytes, project_filename, project_summary
 
 
 MAX_PROJECT_FILES = 200
@@ -181,6 +181,42 @@ def _preserve_library_drafts(path, request):
         return
     if isinstance(snapshot, dict) and has_project_identity(existing) and 'library_drafts' in snapshot:
         raise ValidationError('Refresh the application and reload this project before saving its project library drafts.')
+
+
+def _preserve_optional_calculators(path, request):
+    """An older browser cannot remove a calculator it has not loaded."""
+    incoming = request.get('calculators', {})
+    missing = set(OPTIONAL_CALCULATOR_IDS) - set(incoming)
+    if not missing:
+        return
+    existing, _ = _read_file(path)
+    try:
+        snapshot = json.loads(existing)
+    except (ValueError, UnicodeDecodeError, RecursionError):
+        return
+    calculators = snapshot.get('calculators') if isinstance(snapshot, dict) else None
+    if not has_project_identity(existing) or not isinstance(calculators, dict):
+        return
+    from .schedule_rows import empty_schedule_inputs, normalize_schedule_rows
+    from .workbook_calculators import source_model
+    for identity in missing & set(calculators):
+        previous = calculators[identity]
+        inputs = previous.get('inputs') if isinstance(previous, dict) else None
+        if not isinstance(inputs, dict):
+            raise ValidationError('Reload this project in the current application before saving its steel intumescent calculator inputs.')
+        defaults = empty_schedule_inputs(identity)
+        if ('schedule_rows' in previous
+                and previous['schedule_rows'] != normalize_schedule_rows(identity, defaults)):
+            raise ValidationError('Reload this project in the current application before saving its steel intumescent calculator inputs.')
+        schedule_sheet = source_model(identity)['schedule']['sheet']
+        for sheet, cells in inputs.items():
+            if not isinstance(cells, dict):
+                raise ValidationError('Reload this project in the current application before saving its steel intumescent calculator inputs.')
+            for address, value in cells.items():
+                changed = (value not in (None, '') if sheet == schedule_sheet
+                           else value != defaults.get(sheet, {}).get(address))
+                if changed:
+                    raise ValidationError('Reload this project in the current application before saving its steel intumescent calculator inputs.')
 
 
 def _file_id(folder, name):
@@ -731,8 +767,10 @@ class ProjectLibrary:
         required = {"save_token", "estimate", "calculators"}
         if not isinstance(request, dict) or not required <= set(request) or set(request) - required - {"penetration", "takeoffs", "takeoffs_session_id", "library_drafts"}:
             raise ValidationError("Save requires the current project selection and its complete estimate and calculators.")
-        if not isinstance(request["calculators"], dict) or set(request["calculators"]) != set(CALCULATOR_IDS):
-            raise ValidationError("Save must include all three calculator drafts.")
+        if (not isinstance(request["calculators"], dict)
+                or not set(LEGACY_CALCULATOR_IDS) <= set(request["calculators"])
+                or set(request["calculators"]) - set(CALCULATOR_IDS)):
+            raise ValidationError("Save must include the three original calculator drafts and any loaded steel intumescent draft.")
         if (not isinstance(request["estimate"], dict) or not ESTIMATE_REQUIRED_FIELDS <= set(request["estimate"])
                 or set(request["estimate"]) - ESTIMATE_FIELDS):
             raise ValidationError("Save must include the complete estimate inputs and pricing snapshot.")
@@ -757,6 +795,7 @@ class ProjectLibrary:
                 raise ValidationError('The project file changed or was removed outside this window. Reload it or use "Save As".')
             _preserve_penetration_inputs(path, request)
             _preserve_library_drafts(path, request)
+            _preserve_optional_calculators(path, request)
             self._preserve_takeoffs(path, request)
             selected_folder = self.store.project_folder()
             if 'takeoffs' in captured:
@@ -802,6 +841,7 @@ class ProjectLibrary:
                 if isinstance(selection, SaveSelection) and selection.fingerprint is not None:
                     _preserve_penetration_inputs(selected_path, request)
                     _preserve_library_drafts(selected_path, request)
+                    _preserve_optional_calculators(selected_path, request)
                     self._preserve_takeoffs(selected_path, request)
                 if 'takeoffs' in captured:
                     captured = self._publish_takeoffs(captured, selected_path)

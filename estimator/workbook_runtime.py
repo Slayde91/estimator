@@ -20,6 +20,7 @@ SCHEDULE_CAPACITY = 1000
 APPLICATION_TITLES = {
     'steel_vermiculite': 'Steel (spray)',
     'steel_board': 'Steel (board)',
+    'steel_intumescent': 'Steel (intumescent)',
     'ductwork': 'Ductwork (spray/wrap)',
 }
 _STRINGS = re.compile(r'("(?:[^"]|"")*")')
@@ -432,9 +433,12 @@ def _add_perlifoc_assessment(model):
     calculator['J30']['formula'] = '""'
 
 
-@lru_cache(maxsize=3)
+@lru_cache(maxsize=4)
 def _application_catalog(calculator_id):
     """Private, shared model; consumers must treat it as immutable."""
+    if calculator_id == 'steel_intumescent':
+        from .intumescent import model
+        return model()
     model = load_workbook_catalog(calculator_id)
     schedule = model['schedule']
     original_last = schedule['last_row']
@@ -467,6 +471,9 @@ def load_application_catalog(calculator_id):
 
 def list_application_catalogs():
     raw = {entry['id']: entry for entry in list_workbook_catalogs()}
+    from .intumescent import model
+    native = model()
+    raw[native['id']] = {key: native[key] for key in ('id', 'title', 'source', 'pages')}
     return [{**raw[identity], 'title': title, 'schedule_capacity': SCHEDULE_CAPACITY}
             for identity, title in APPLICATION_TITLES.items()]
 

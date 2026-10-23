@@ -26,6 +26,9 @@ def yield_review(calculator_id):
 
 
 def default_calculator_inputs(calculator_id):
+    if calculator_id == 'steel_intumescent':
+        from .intumescent import SETTING_DEFAULTS
+        return {'SETTINGS': dict(SETTING_DEFAULTS)}
     if calculator_id != 'steel_vermiculite':
         return {}
     settings = {}

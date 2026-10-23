@@ -102,6 +102,15 @@ def _schedule(data, workbook):
                     v['K'], 'N/A' if item['wrap'] else v['M'], v['N'] if item['wrap'] else 'N/A',
                     v['O'] if item['wrap'] else 'N/A', v['J'] or 'No calculated status returned']
                    for item in data['rows'] for v in [item['values']]]
+    elif identity == 'steel_intumescent':
+        labels = ['Line', 'Location', 'Mark', 'Product', 'Member case', 'Section', 'Period (min)',
+                  'Critical temp (°C)', 'Input A/V (m⁻¹)', 'Table A/V (m⁻¹)', 'DFT (µm)',
+                  'Wet film (µm)', 'Coating area (m²)', 'Mixed coating (L)', 'Net kits', 'Status / basis']
+        widths = [9, 23, 23, 24, 26, 24, 17, 18, 18, 18, 17, 17, 19, 19, 17, 70]
+        records = [[item['line'], v['AA'], v['A'], v['B'], v['C'], v['F'], v['H'], v['D'],
+                    v['M'], v['N'], v['O'], v['P'], v['R'], v['S'], v['T'],
+                    '\n'.join(str(v[col]) for col in ('V', 'W', 'X', 'Y') if v[col] not in (None, ''))]
+                   for item in data['rows'] for v in [item['values']]]
     elif identity == 'steel_vermiculite':
         labels = ['Line', 'Location', 'Mark', 'Product', 'Section', 'Quantity', 'Length (m)', 'Published thickness (mm)',
                   'Spray surface (m²)', 'Status']
@@ -137,7 +146,10 @@ def _summary(data, workbook):
         sheet.row_dimensions[row].height = 30
         row += 1
     row += 1
-    _band(sheet, row, f"{data['incomplete_rows']} schedule item(s) have incomplete or unavailable primary quantities. Totals retain the source workbook's exclusions; review item statuses before ordering.", len(widths))
+    basis_note = ('Totals follow the assessment and estimating settings; review item statuses before ordering.'
+                  if data['id'] == 'steel_intumescent' else
+                  "Totals retain the source workbook's exclusions; review item statuses before ordering.")
+    _band(sheet, row, f"{data['incomplete_rows']} schedule item(s) have incomplete or unavailable primary quantities. {basis_note}", len(widths))
     row += 2
     if data.get('assessment_receipt'):
         _band(sheet, row, data['assessment_receipt'], len(widths))
@@ -170,7 +182,7 @@ def _summary(data, workbook):
                 values.append(value)
             records.append(values)
         row = _table(sheet, row, [labels[column] for column in columns], records, widths,
-                     formats={6: '0.00%'} if data['id'] == 'steel_vermiculite' else None)
+                     formats={6: '0.00%'} if data['id'] in {'steel_vermiculite', 'steel_intumescent'} else None)
         if data.get('board_net_steel_areas'):
             areas = data['board_net_steel_areas']
             for note in [areas['basis'], *areas['notes']]:
@@ -179,7 +191,7 @@ def _summary(data, workbook):
         for product, basis, interpretation in summary.get('qualifications', []):
             _band(sheet, row, '\n'.join(str(value) for value in (product, basis, interpretation) if value not in (None, '')), len(widths))
             row += 1
-    _band(sheet, row, 'Source workbook: ' + data['source']['filename'], len(widths))
+    _band(sheet, row, ('Source assessment: ' if data['id'] == 'steel_intumescent' else 'Source workbook: ') + data['source']['filename'], len(widths))
     _band(sheet, row + 1, 'Source SHA-256: ' + data['source']['sha256'], len(widths))
     sheet.freeze_panes = 'B5'
     sheet.print_title_rows = '1:2'

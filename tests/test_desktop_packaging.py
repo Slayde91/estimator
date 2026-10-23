@@ -67,33 +67,40 @@ class CalculatorEvidencePackagingTests(unittest.TestCase):
             with self.assertRaises(FileExistsError):
                 stage_calculator_evidence(self.source, self.stage)
 
-    def test_deliverable_requires_both_and_stages_only_verified_snapshots(self):
-        from estimator import monokote_hollow, perlifoc_assessment
+    def test_deliverable_requires_all_three_and_stages_only_verified_snapshots(self):
+        from estimator import monokote_hollow, perlifoc_assessment, sc902_assessment
         with patch('estimator.monokote_hollow.validate_assessment_payload', side_effect=self.synthetic_authority), \
-                patch('estimator.perlifoc_assessment.validate_assessment_payload', side_effect=self.synthetic_authority):
-            with self.assertRaisesRegex(ValueError, 'both reviewed'):
+                patch('estimator.perlifoc_assessment.validate_assessment_payload', side_effect=self.synthetic_authority), \
+                patch('estimator.sc902_assessment.validate_assessment_payload', side_effect=self.synthetic_authority):
+            with self.assertRaisesRegex(ValueError, 'all reviewed'):
                 stage_calculator_evidence(self.source, self.stage, required=True)
             self.assertFalse(self.stage.exists())
             perlifoc_payload = b'{"synthetic_perlifoc_packaging_fixture":true}'
             (self.source / perlifoc_assessment.DATASET_FILENAME).write_bytes(perlifoc_payload)
+            with self.assertRaisesRegex(ValueError, 'all reviewed'):
+                stage_calculator_evidence(self.source, self.stage, required=True)
+            self.assertFalse(self.stage.exists())
+            sc902_payload = b'{"synthetic_sc902_packaging_fixture":true}'
+            (self.source / sc902_assessment.DATASET_FILENAME).write_bytes(sc902_payload)
             (self.source / 'private-report.pdf').write_bytes(b'not for packaging')
             receipt = stage_calculator_evidence(self.source, self.stage, required=True)
             self.assertEqual(receipt['schema_version'], 1)
             self.assertEqual([item['id'] for item in receipt['datasets']],
-                             [monokote_hollow.DATASET_ID, perlifoc_assessment.DATASET_ID])
+                             [monokote_hollow.DATASET_ID, perlifoc_assessment.DATASET_ID, sc902_assessment.DATASET_ID])
             self.assertEqual({item.name for item in self.stage.iterdir()},
-                             {self.filename, perlifoc_assessment.DATASET_FILENAME})
+                             {self.filename, perlifoc_assessment.DATASET_FILENAME, sc902_assessment.DATASET_FILENAME})
             self.assertEqual(verify_calculator_evidence(self.source, receipt), receipt)
             bundle = self.root / 'multi-bundle'
             frozen = bundle / '_internal/calculator-evidence'
             shutil.copytree(self.stage, frozen)
             self.assertEqual(verify_packaged_calculator_evidence(bundle, receipt), receipt)
-            for directory in (self.source, self.stage, frozen):
-                path = directory / perlifoc_assessment.DATASET_FILENAME
-                path.write_bytes(perlifoc_payload + b' ')
-                with self.assertRaisesRegex(ValueError, 'changed during the build'):
-                    verify_calculator_evidence(directory, receipt)
-                path.write_bytes(perlifoc_payload)
+            for authority, payload in ((perlifoc_assessment, perlifoc_payload), (sc902_assessment, sc902_payload)):
+                for directory in (self.source, self.stage, frozen):
+                    path = directory / authority.DATASET_FILENAME
+                    path.write_bytes(payload + b' ')
+                    with self.assertRaisesRegex(ValueError, 'changed during the build'):
+                        verify_calculator_evidence(directory, receipt)
+                    path.write_bytes(payload)
             (frozen / self.filename).unlink()
             with self.assertRaisesRegex(ValueError, 'missing or unexpected files'):
                 verify_packaged_calculator_evidence(bundle, receipt)
@@ -106,6 +113,21 @@ class CalculatorEvidencePackagingTests(unittest.TestCase):
             receipt = stage_calculator_evidence(self.source, self.stage)
             self.assertEqual(receipt['id'], perlifoc_assessment.DATASET_ID)
             self.assertEqual(verify_calculator_evidence(self.stage, receipt), receipt)
+
+    def test_optional_single_sc902_uses_its_own_authority_and_bounded_read(self):
+        from estimator import sc902_assessment
+        (self.source / self.filename).unlink()
+        source = self.source / sc902_assessment.DATASET_FILENAME
+        source.write_bytes(self.payload)
+        with patch('estimator.sc902_assessment.validate_assessment_payload', side_effect=self.synthetic_authority):
+            receipt = stage_calculator_evidence(self.source, self.stage)
+            self.assertEqual(receipt['id'], sc902_assessment.DATASET_ID)
+            self.assertEqual(verify_calculator_evidence(self.stage, receipt), receipt)
+        source.write_bytes(b'x' * (sc902_assessment.MAX_DATASET_BYTES + 4096))
+        with patch('estimator.sc902_assessment.validate_assessment_payload', side_effect=ValueError('bounded size')) as validate:
+            with self.assertRaisesRegex(ValueError, 'bounded size'):
+                verify_calculator_evidence(self.source, receipt)
+        self.assertEqual(len(validate.call_args.args[0]), sc902_assessment.MAX_DATASET_BYTES + 1)
 
     def test_synthetic_omission_is_explicit_but_deliverable_requires_evidence(self):
         self.assertIsNone(stage_calculator_evidence(None, self.stage))
@@ -409,11 +431,11 @@ class DesktopPackagingTests(unittest.TestCase):
             and isinstance(node.target, ast.Tuple)
             and [value.id for value in node.target.elts] == ['calculator_id', 'label'])
         destinations = ast.literal_eval(journey.iter)
-        self.assertEqual({identifier for identifier, _ in destinations}, {'steel_vermiculite', 'steel_board', 'ductwork'})
+        self.assertEqual({identifier for identifier, _ in destinations}, {'steel_vermiculite', 'steel_board', 'ductwork', 'steel_intumescent'})
         selector = next(node.value for node in journey.body if isinstance(node, ast.Assign)
             and any(isinstance(target, ast.Name) and target.id == 'selector' for target in node.targets))
         self.assertEqual(template.controls['calculator-navigation-toggle']['aria-controls'], 'calculator-navigation-menu')
-        self.assertEqual(set(template.cards), {'steel_vermiculite', 'steel_board'})
+        self.assertEqual(set(template.cards), {'steel_vermiculite', 'steel_board', 'steel_intumescent'})
         self.assertEqual(template.controls['steel-calculator-navigation-toggle']['aria-controls'], 'steel-calculator-navigation-menu')
         for identifier, _ in destinations:
             parts = []

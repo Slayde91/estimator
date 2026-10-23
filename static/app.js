@@ -1051,7 +1051,7 @@
     return true;
   }
   async function requestCalculatorNavigation(id = state.calculatorKind) {
-    if (!["steel", "steel_vermiculite", "steel_board", "ductwork", "penetration"].includes(id)) return false;
+    if (!["steel", "steel_vermiculite", "steel_intumescent", "steel_board", "ductwork", "penetration"].includes(id)) return false;
     document.activeElement?.blur?.();
     if (state.currentView !== "calculators" && !await confirmLeavePricingLibrary()) return false;
     if (window.CeasefireCalculators?.hasPendingOperation?.()) {

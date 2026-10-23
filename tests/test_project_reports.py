@@ -26,11 +26,14 @@ class ProjectReportTests(unittest.TestCase):
             self.assertEqual([entry.title for entry in reader.outline], ['Steel board'])
             self.assertTrue(reader.pages)
 
-    def test_schedule_and_product_summary_include_all_four_sections_and_branding(self):
+    def test_schedule_and_product_summary_include_all_five_sections_and_branding(self):
         calculators = {
             'steel_vermiculite': {'inputs': {'SCHEDULE': {'A10': 'Spray fixture', 'B10': 'CAFCO 300', 'C10': 'Re-entrant - 3 sides', 'D10': 620, 'E10': 'Section', 'F10': '410UB54', 'H10': 120, 'I10': 2, 'J10': 3}}},
             'steel_board': {'inputs': {'CALCULATOR': {'A9': 'Board fixture', 'C9': 'PROMATECT-XS', 'D9': '200UC46', 'F9': 10, 'G9': 4, 'H9': 120, 'I9': 'Column', 'J9': 550}}},
-            'ductwork': {'inputs': {'CALCULATOR': {'B11': '250x250', 'C11': 'CAFCO 300', 'D11': 10, 'E11': '120/120/120', 'F11': 1, 'G11': 0, 'H11': 'External', 'I11': 'Horizontal'}}}}
+            'ductwork': {'inputs': {'CALCULATOR': {'B11': '250x250', 'C11': 'CAFCO 300', 'D11': 10, 'E11': '120/120/120', 'F11': 1, 'G11': 0, 'H11': 'External', 'I11': 'Horizontal'}}},
+            'steel_intumescent': {'inputs': {'SCHEDULE': {'A10': 'Captured SC902 fixture', 'B10': 'Nullifire SC902',
+                'C10': 'I/H beam - 3 sides', 'D10': 550, 'E10': 'A/V', 'G10': 200,
+                'H10': 120, 'I10': 2, 'J10': 3, 'K10': .4}}}}
         fire = draft()
         before = deepcopy((calculators, fire))
         company = {**DEFAULTS, 'name': 'Combined Fixture', 'email': 'combined@example.test'}
@@ -38,7 +41,8 @@ class ProjectReportTests(unittest.TestCase):
             with self.subTest(materials=materials):
                 result = build_project_report(calculators, fire, {}, {'project_no': 'FULL-TEST'}, materials=materials, company=company)
                 reader = PdfReader(BytesIO(result))
-                self.assertEqual([entry.title for entry in reader.outline], ['Steel spray', 'Steel board', 'Ductwork', 'Firestopping'])
+                self.assertEqual([entry.title for entry in reader.outline],
+                                 ['Steel spray', 'Steel board', 'Ductwork', 'Steel intumescent', 'Firestopping'])
                 text = '\n'.join(page.extract_text() for page in reader.pages)
                 for page in reader.pages:
                     self.assertIn('Combined Fixture', page.extract_text())
@@ -53,6 +57,9 @@ class ProjectReportTests(unittest.TestCase):
                 self.assertEqual(text.count('FULL-TEST'), 1)
                 self.assertEqual(text.count('Project details'), 1)
                 self.assertIn('Firestopping product summary' if materials else 'Firestopping schedule', text)
+                self.assertIn('Nullifire SC902', text)
+                if not materials:
+                    self.assertIn('Captured SC902 fixture', ' '.join(text.split()))
                 if not materials:
                     for pricing in ('$', 'Grand total', 'Item total', 'Amount / quantity', 'Unit price'):
                         self.assertNotIn(pricing, text)
@@ -69,7 +76,8 @@ class ProjectReportTests(unittest.TestCase):
                 self.assertEqual('\n'.join(texts).count('ONCE-CLIENT'), 1)
 
     def test_untrusted_calculated_cells_and_unknown_calculators_are_rejected(self):
-        for calculators in ({'unknown': {}}, {'steel_board': {'inputs': {'CALCULATOR': {'AR9': 2}}}}):
+        for calculators in ({'unknown': {}}, {'steel_board': {'inputs': {'CALCULATOR': {'AR9': 2}}}},
+                            {'steel_intumescent': {'inputs': {'SCHEDULE': {'O10': 999}}}}):
             with self.subTest(calculators=calculators), self.assertRaises(ValidationError):
                 build_project_report(calculators, None, {}, {})
 

@@ -41,7 +41,7 @@ async function workbook(title) {
   await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()); await idle();
   const saveReply = page.waitForResponse(reply => new URL(reply.url()).pathname === '/api/project/save-as' && reply.request().method() === 'POST');
   await clickProjectControl(page, 'Save'); assert.equal((await saveReply).status(), 200); await idle();
-  await page.getByRole('button', { name: 'Calculators', exact: true }).click(); await expect(page.locator('#calculator-steel-hub')).toBeVisible(); await expect(page.locator('#calculator-workspace')).toBeHidden(); await expect(page.locator('#calculator-steel-hub [data-steel-calculator]')).toHaveCount(2);
+  await page.getByRole('button', { name: 'Calculators', exact: true }).click(); await expect(page.locator('#calculator-steel-hub')).toBeVisible(); await expect(page.locator('#calculator-workspace')).toBeHidden(); await expect(page.locator('#calculator-steel-hub [data-steel-calculator]')).toHaveCount(3);
   await page.getByRole('button', { name: 'Home', exact: true }).click();
   evidence.initialCalculator = 'Steel landing page';
   const calculationRequests = () => requests.filter(item => item.path.startsWith('/api/calculators/')).length;

@@ -260,7 +260,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                         raise ValidationError('Document progress does not accept extra options.')
                     self.send_payload(200, download_progress.begin())
                 elif route in {'/api/project/full-schedule.pdf', '/api/project/full-product-summary.pdf'} and self.command == 'POST':
-                    from .project_file import project_details
+                    from .project_file import CALCULATOR_IDS, project_details
                     from .project_reports import build_project_report
                     if set(body) - {'calculators', 'penetration', 'configuration', 'project_details', 'download'}:
                         raise ValidationError('Include the project schedule snapshots only.')
@@ -269,7 +269,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     report = build_project_report(body.get('calculators', {}), body.get('penetration'),
                         validate_configuration(body.get('configuration', store.configuration())), project_details(body.get('project_details')),
                         materials=materials, library=libraries, company=store.company_settings(),
-                        saved_calculators={key: store.calculator_state(key)['inputs'] for key in ('steel_vermiculite', 'steel_board', 'ductwork')})
+                        saved_calculators={key: store.calculator_state(key)['inputs'] for key in CALCULATOR_IDS})
                     self.send_download(report, 'application/pdf', 'CEASEFIRE-Full-Product-Summary.pdf' if materials else 'CEASEFIRE-Full-Schedule.pdf', destination)
                 elif route == '/api/travel/route':
                     if self.command != 'POST':

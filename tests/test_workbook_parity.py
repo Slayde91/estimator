@@ -115,9 +115,10 @@ class NativeFixtureIntegrityTests(unittest.TestCase):
 
 class NativeExcelParityTests(unittest.TestCase):
     def compare_capture(self, identifier, kind):
-        # The ductwork application now has an explicit estimating-yield overlay.
-        # Native captures remain an oracle for the packaged workbook itself.
-        model = load_workbook_catalog(identifier) if identifier == 'ductwork' else source_model(identifier)
+        # Ductwork yields and Perlifoc assessment settings have application
+        # overlays. Native captures remain an oracle for the packaged workbook.
+        model = (load_workbook_catalog(identifier) if identifier in ('ductwork', 'steel_vermiculite')
+                 else source_model(identifier))
         fixture = read_fixture(identifier, kind)
         self.assertEqual(fixture["source_sha256"], model["source"]["sha256"])
         for scenario in fixture["scenarios"]:

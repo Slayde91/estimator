@@ -1206,6 +1206,7 @@
     for (const button of $("calculator-grid").querySelectorAll("[data-schedule-add]")) button.disabled = state.action || hasErrors || entry.scheduleRows.length >= entry.definition.schedule.last_row - entry.definition.schedule.first_row + 1;
     for (const button of $("calculator-grid").querySelectorAll("[data-schedule-undo]")) button.disabled = state.action || hasErrors || !entry.removedRows?.length;
     for (const button of $("calculator-grid").querySelectorAll("[data-schedule-remove]")) button.disabled = state.action || hasErrors;
+    for (const button of $("calculator-grid").querySelectorAll("[data-calculator-defaults]")) button.disabled = state.action || Boolean(state.takeoffReservation);
   }
 
   function calculationStatus(text = "") {
@@ -1770,6 +1771,13 @@
       button.type = "button"; button.id = `${prefix}-button`; button.dataset.calculatorSettingsSection = definition.id; button.setAttribute("aria-controls", prefix);
       panel.id = prefix; panel.setAttribute("role", "region"); panel.setAttribute("aria-labelledby", button.id);
       if (definition.note) panel.append(node("p", "calculator-technical-note calculator-settings-note", definition.note));
+      if (definition.defaults_action) {
+        const apply = uiNode("button", "secondary", definition.defaults_action.label);
+        apply.type = "button"; apply.dataset.calculatorDefaults = definition.id;
+        apply.disabled = state.action || Boolean(state.takeoffReservation);
+        apply.addEventListener("click", () => applySettingsDefaults(entry, definition));
+        panel.append(apply);
+      }
       button.addEventListener("click", () => {
         if (current() !== entry || currentPage(entry) !== page) return;
         entry.settingsSelection[page] = entry.settingsSelection[page] === definition.id ? null : definition.id;
@@ -2414,6 +2422,26 @@
       if (entry.definition.schedule) entry.scheduleRows = [entry.definition.schedule.first_row];
       entry.scheduleViewport = null; entry.removedRows = [];
       message(uiCopy("Calculator defaults restored in this draft. Use Save to keep them.")); await calculate();
+    } finally { state.action = false; updateStatus(); }
+  }
+
+  async function applySettingsDefaults(entry, section) {
+    const action = section.defaults_action, page = currentPage(entry);
+    if (!action?.settings || current() !== entry || entry.sheet !== "SETTINGS" || state.action || state.takeoffReservation
+        || entry.settingsSelection?.[page] !== section.id) return;
+    state.action = true; updateStatus(); const revision = entry.revision;
+    try {
+      if (!await confirmReplace(uiCopy(action.title), uiCopy(action.detail), uiCopy("Apply to draft"))) return;
+      if (current() !== entry || entry.revision !== revision || currentPage(entry) !== page
+          || entry.settingsSelection?.[page] !== section.id || state.takeoffReservation) {
+        message(uiCopy("The calculator changed while the confirmation was open. Review the latest draft and try again."), true); return;
+      }
+      const settings = clone(action.settings);
+      entry.inputs = { ...entry.inputs, SETTINGS: { ...(entry.inputs.SETTINGS || {}), ...settings } };
+      for (const address of Object.keys(settings)) entry.invalid.delete(`SETTINGS!${address}`);
+      entry.revision++; entry.pendingResult = null; entry.navigationCache = null; entry.needsRender = true;
+      clearTimeout(state.timer);
+      message(uiCopy("FX6010 kit defaults applied to this draft. Use Save to keep them.")); await calculate();
     } finally { state.action = false; updateStatus(); }
   }
 

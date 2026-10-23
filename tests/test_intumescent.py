@@ -7,17 +7,20 @@ Table selection has separate tests against the reviewed authority. A fixed
 from copy import deepcopy
 from io import BytesIO
 from types import SimpleNamespace
+from threading import RLock
 import unittest
 from unittest.mock import patch
 
 from openpyxl import load_workbook
 
 from estimator.catalog import ValidationError
+from estimator.calculator_defaults import default_calculator_inputs
 from estimator.intumescent import (CASES, FX5090, FX6010, PERIODS, PRODUCTS,
                                   REPORT_SHA256, SC902_SETTING_DEFAULTS,
                                   SETTING_DEFAULTS, IntumescentEngine, PRODUCT, model)
-from estimator.workbook_calculators import calculator_definition, calculate_worksheet, normalize_calculator_inputs
+from estimator.workbook_calculators import calculator_definition, calculate_page, calculate_worksheet, normalize_calculator_inputs
 from estimator.schedule_workbook import export_schedule_template, import_schedule_workbook
+from estimator.schedule_rows import empty_schedule_inputs
 
 
 ASSESSMENT = SimpleNamespace(digest='test', report_sha256='report', error='')
@@ -205,6 +208,13 @@ class MultiProductIntumescentTests(unittest.TestCase):
         values['SCHEDULE'][f'B{row}'] = product_name
         return values
 
+    def new_values(self, product_name=FX6010, *, row=10, area=10, **settings):
+        values = default_calculator_inputs('steel_intumescent')
+        row_inputs = self.values(product_name, row=row, area=area, **settings)
+        values['SCHEDULE'] = row_inputs['SCHEDULE']
+        values['SETTINGS'].update(row_inputs['SETTINGS'])
+        return values
+
     def test_legacy_settings_and_source_identity_are_retained(self):
         source = model()
         cells = next(sheet for sheet in source['sheets'] if sheet['name'] == 'SETTINGS')['cells']
@@ -252,18 +262,97 @@ class MultiProductIntumescentTests(unittest.TestCase):
         self.assertEqual(engine.value('SUMMARY', 'A7'), PRODUCT)
         self.assertEqual(engine.value('SUMMARY', 'A22'), FX5090)
 
-    def test_unverified_fx6010_quantities_are_withheld_without_blocking_other_product(self):
+    def test_sparse_fx6010_quantities_are_withheld_without_blocking_other_product(self):
         values = self.values(FX6010)
         values['SCHEDULE'].update(self.values(FX5090, row=11)['SCHEDULE'])
         engine = self.engine(values)
         self.assertEqual(engine.value('SCHEDULE', 'O10'), 1000)
         self.assertEqual(engine.value('SCHEDULE', 'P10'), '')
         self.assertEqual(engine.value('SCHEDULE', 'S10'), '')
-        self.assertIn('three-component', engine.value('SCHEDULE', 'W10'))
+        self.assertNotIn('QUANTIFIED', engine.value('SCHEDULE', 'W10'))
         self.assertEqual(engine.product_totals(FX6010)['pending'], 1)
         self.assertEqual(engine.product_totals(FX6010)['whole'], '')
         self.assertEqual(engine.product_totals(FX5090)['whole'], 1)
         self.assertEqual(engine.value('SCHEDULE', 'S5'), 1)
+
+    def test_new_and_reset_fx6010_defaults_use_volume_without_inventing_mass(self):
+        frozen_model = deepcopy(model())
+        for factory in (default_calculator_inputs, empty_schedule_inputs):
+            with self.subTest(factory=factory.__name__):
+                values = factory('steel_intumescent')
+                self.assertEqual(values['SETTINGS']['H67'], 18)
+                self.assertEqual(values['SETTINGS']['H68'], .92)
+                for address in ('H66', 'H72', 'H73', 'H74'):
+                    self.assertIsNone(values['SETTINGS'][address], address)
+                values.setdefault('SCHEDULE', {}).update(self.values(FX6010)['SCHEDULE'])
+                before = deepcopy(values)
+                engine = self.engine(values)
+                self.assertEqual(engine.value('SCHEDULE', 'O10'), 1000)
+                self.assertAlmostEqual(engine.value('SCHEDULE', 'P10'), 1000 / .92)
+                self.assertAlmostEqual(engine.value('SCHEDULE', 'S10'), 10 / .92)
+                self.assertAlmostEqual(engine.value('SCHEDULE', 'T10'), 10 / .92 / 18)
+                total = engine.product_totals(FX6010)
+                self.assertEqual(total['pending'], 0)
+                self.assertEqual(total['whole'], 1)
+                self.assertEqual(total['order_litres'], 18)
+                self.assertEqual(total['dry_litres'], 10)
+                for field in ('kg', 'pack_kg', 'part_a', 'part_b', 'part_c'):
+                    self.assertEqual(total[field], '', field)
+                self.assertEqual(values, before)
+        self.assertEqual(model(), frozen_model)
+
+    def test_saved_blank_fx6010_settings_are_not_replaced_by_new_defaults(self):
+        for settings in ({}, {'H67': None, 'H68': None},
+                         {'H67': None, 'H68': .92}, {'H67': 18, 'H68': None}):
+            with self.subTest(settings=settings):
+                values = self.values(FX6010, **settings)
+                before = deepcopy(values)
+                normalized = normalize_calculator_inputs('steel_intumescent', values)
+                self.assertEqual(normalized['SETTINGS'], settings)
+                engine = self.engine(normalized)
+                self.assertEqual(engine.value('SCHEDULE', 'O10'), 1000)
+                self.assertEqual(engine.value('SCHEDULE', 'S10'), '')
+                self.assertEqual(engine.product_totals(FX6010)['whole'], '')
+                self.assertEqual(values, before)
+
+    def test_kit_defaults_action_is_scoped_to_fx6010_and_preserves_waste_and_steel_density(self):
+        values = self.values(FX6010, D16=.15, F37=20, H69=.17, H70=8000, H74=.25)
+        before = deepcopy(values)
+        definition = calculator_definition('steel_intumescent', values)
+        settings = next(sheet for sheet in definition['sheets'] if sheet['name'] == 'SETTINGS')
+        sections = {section['product']: section for section in settings['settings_sections']}
+        self.assertNotIn('defaults_action', sections[PRODUCT])
+        self.assertNotIn('defaults_action', sections[FX5090])
+        action = sections[FX6010]['defaults_action']
+        self.assertEqual(action['label'], 'Use Australian kit defaults')
+        self.assertEqual(action['settings'], {'H66': None, 'H67': 18, 'H68': .92,
+                                            'H71': 'Pack volume (L)', 'H72': None,
+                                            'H73': None, 'H74': None})
+        self.assertNotIn('H69', action['settings'])
+        self.assertNotIn('H70', action['settings'])
+        self.assertEqual(definition['inputs']['SETTINGS'], before['SETTINGS'])
+        self.assertEqual(values, before)
+        action['settings']['H67'] = 1
+        fresh = calculator_definition('steel_intumescent', values)
+        fresh_settings = next(sheet for sheet in fresh['sheets'] if sheet['name'] == 'SETTINGS')
+        fresh_section = next(section for section in fresh_settings['settings_sections'] if section['product'] == FX6010)
+        self.assertEqual(fresh_section['defaults_action']['settings']['H67'], 18)
+
+    def test_legacy_part_c_rows_hide_only_for_blank_or_numeric_zero_without_losing_input(self):
+        for part_c in (None, 0, 0.0, .25, -1):
+            with self.subTest(part_c=part_c):
+                values = self.new_values(H74=part_c)
+                before = deepcopy(values)
+                engine = self.engine(values)
+                with patch('estimator.workbook_calculators.calculator_session',
+                           return_value=(values, engine, RLock())):
+                    settings = calculate_page('steel_intumescent', values, 'SETTINGS', 74, 1)
+                    summary = calculate_page('steel_intumescent', values, 'SUMMARY', 47, 1)
+                hidden = part_c is None or part_c == 0
+                self.assertEqual(74 in settings['omitted_rows'], hidden)
+                self.assertEqual(47 in summary['omitted_rows'], hidden)
+                self.assertEqual(settings['inputs']['SETTINGS']['H74'], part_c)
+                self.assertEqual(values, before)
 
     def test_fx6010_verified_pack_volume_can_order_litres_with_unknown_mass(self):
         engine = self.engine(self.values(FX6010, H67=8, H68=.8))
@@ -277,24 +366,99 @@ class MultiProductIntumescentTests(unittest.TestCase):
             self.assertEqual(total[field], '', field)
         self.assertEqual(total['dry_litres'], 10)
 
-    def test_fx6010_three_component_mass_basis_and_component_orders(self):
+    def test_fx6010_volume_basis_accepts_zero_c_without_component_masses(self):
+        baseline = self.engine(self.new_values()).product_totals(FX6010)
+        values = self.new_values(H74=0)
+        self.assertIsNone(values['SETTINGS']['H72'])
+        self.assertIsNone(values['SETTINGS']['H73'])
+        total = self.engine(values).product_totals(FX6010)
+        self.assertEqual(total, baseline)
+        self.assertEqual(total['whole'], 1)
+        self.assertEqual(total['part_c'], '')
+
+    def test_fx6010_two_component_mass_basis_accepts_blank_or_numeric_zero_c(self):
         values = self.values(FX6010, H66=1.25, H68=.8, H71='Component mass (kg)',
-                             H72=8, H73=1, H74=1)
+                             H72=8, H73=2)
+        baseline = None
+        for part_c in (None, '', 0, 0.0, -0.0):
+            with self.subTest(part_c=part_c):
+                values['SETTINGS']['H74'] = part_c
+                before = deepcopy(values)
+                engine = self.engine(values)
+                total = engine.product_totals(FX6010)
+                self.assertEqual(total['kit_litres'], 8)
+                self.assertEqual(total['pack_kg'], 10)
+                self.assertEqual(total['litres'], 12.5)
+                self.assertEqual(total['kg'], 15.625)
+                self.assertEqual(total['whole'], 2)
+                self.assertEqual((total['part_a'], total['part_b'], total['part_c']), (16, 4, ''))
+                self.assertEqual(engine.value('SUMMARY', 'D47'), '')
+                self.assertEqual(engine.value('SETTINGS', 'H80'), 10)
+                self.assertEqual(engine.value('SETTINGS', 'H81'), 8)
+                self.assertEqual(values, before)
+                if baseline is None:
+                    baseline = total
+                else:
+                    self.assertEqual(total, baseline)
+        for address in ('H66', 'H72', 'H73'):
+            with self.subTest(missing=address):
+                missing = deepcopy(values)
+                missing['SETTINGS'][address] = None
+                engine = self.engine(missing)
+                self.assertEqual(engine.value('SCHEDULE', 'O10'), 1000)
+                self.assertEqual(engine.value('SCHEDULE', 'S10'), '')
+                self.assertEqual(engine.product_totals(FX6010)['whole'], '')
+
+    def test_legacy_or_invalid_part_c_holds_both_quantity_bases_without_erasing_input(self):
+        for basis in ('Pack volume (L)', 'Component mass (kg)'):
+            for part_c in (.212345678901234, -1, True, False, '0', 'legacy', float('inf'), float('nan')):
+                with self.subTest(basis=basis, part_c=part_c):
+                    values = self.new_values(H66=1.25, H71=basis, H72=8, H73=2, H74=part_c)
+                    before = deepcopy(values)
+                    engine = self.engine(values)
+                    self.assertEqual(engine.value('SCHEDULE', 'O10'), 1000)
+                    self.assertAlmostEqual(engine.value('SCHEDULE', 'P10'), 1000 / .92)
+                    for column in ('S', 'T', 'U'):
+                        self.assertEqual(engine.value('SCHEDULE', column + '10'), '', column)
+                    self.assertIn('legacy Part C', engine.value('SCHEDULE', 'W10'))
+                    total = engine.product_totals(FX6010)
+                    self.assertEqual(total['pending'], 1)
+                    for field in ('whole', 'order_litres', 'part_a', 'part_b', 'part_c'):
+                        self.assertEqual(total[field], '', field)
+                    self.assertEqual(values, before)
+
+    def test_part_c_zero_normalizes_exactly_but_nonnumeric_and_nonfinite_values_reject(self):
+        for value in (0, 0.0, -0.0):
+            with self.subTest(value=value):
+                result = normalize_calculator_inputs('steel_intumescent', {'SETTINGS': {'H74': value}})
+                self.assertEqual(result['SETTINGS']['H74'], value)
+                self.assertIs(type(result['SETTINGS']['H74']), type(value))
+        for value in (True, False, '0', float('inf'), float('nan')):
+            with self.subTest(value=value), self.assertRaises(ValidationError):
+                normalize_calculator_inputs('steel_intumescent', {'SETTINGS': {'H74': value}})
+
+    def test_fx6010_volume_orders_pool_then_round_at_pack_boundary_and_apply_waste_once(self):
+        values = self.new_values(area=8.28)
+        values['SCHEDULE'].update(self.values(FX6010, row=1009, area=8.28)['SCHEDULE'])
+        values['SCHEDULE'].update(self.values(FX5090, row=11)['SCHEDULE'])
+        values['SCHEDULE'].update(self.values(PRODUCT, row=12)['SCHEDULE'])
         engine = self.engine(values)
+        self.assertEqual(sum(engine.value('SCHEDULE', f'U{row}') for row in (10, 1009)), 2)
         total = engine.product_totals(FX6010)
-        self.assertEqual(total['kit_litres'], 8)
-        self.assertEqual(total['pack_kg'], 10)
-        self.assertEqual(total['kg'], 15.625)
-        self.assertEqual(total['whole'], 2)
-        self.assertEqual((total['part_a'], total['part_b'], total['part_c']), (16,2,2))
-        self.assertEqual(engine.value('SUMMARY', 'D47'), 2)
-        self.assertEqual(engine.value('SETTINGS', 'H80'), 10)
-        self.assertEqual(engine.value('SETTINGS', 'H81'), 8)
-        values['SETTINGS']['H74'] = None
-        missing_c = self.engine(values)
-        self.assertEqual(missing_c.value('SCHEDULE', 'O10'), 1000)
-        self.assertEqual(missing_c.value('SCHEDULE', 'S10'), '')
-        self.assertEqual(missing_c.product_totals(FX6010)['whole'], '')
+        self.assertEqual(total['used'], 2)
+        self.assertAlmostEqual(total['litres'], 18)
+        self.assertEqual(total['whole'], 1)
+        self.assertEqual(total['order_litres'], 18)
+        self.assertEqual(engine.product_totals(FX5090)['whole'], 1)
+        self.assertEqual(engine.product_totals(PRODUCT)['whole'], 1)
+        values['SETTINGS']['H69'] = .1
+        with_waste = self.engine(values)
+        self.assertEqual(with_waste.product_totals(FX6010)['whole'], 2)
+        self.assertEqual(with_waste.product_totals(FX6010)['order_litres'], 36)
+        self.assertEqual(with_waste.product_totals(FX5090)['whole'], 1)
+        self.assertEqual(with_waste.product_totals(PRODUCT)['whole'], 1)
+        just_over = self.engine(self.new_values(area=16.560001))
+        self.assertEqual(just_over.product_totals(FX6010)['whole'], 2)
 
     def test_product_waste_is_pooled_once_including_last_schedule_row(self):
         values = self.values(area=1, F39=.1)
@@ -396,7 +560,7 @@ class MultiProductIntumescentTests(unittest.TestCase):
 
     def test_component_mass_overflow_does_not_escape_into_derived_settings(self):
         values = self.values(FX6010,H66=1,H68=.8,H71='Component mass (kg)',
-                             H72=1e308,H73=1e308,H74=1e308)
+                             H72=1e308,H73=1e308,H74=0)
         engine = self.engine(values)
         self.assertEqual(engine.value('SETTINGS','H80'),'')
         self.assertEqual(engine.value('SETTINGS','H81'),'')

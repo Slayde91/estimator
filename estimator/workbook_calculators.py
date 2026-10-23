@@ -606,8 +606,15 @@ def _sheet_metadata(model, sheet):
     page = (model['id'], sheet['name'])
     settings_sections = deepcopy(_SETTINGS_SECTIONS.get(page, []))
     if page == ('steel_intumescent', 'SETTINGS'):
-        from .intumescent import SETTINGS_BLOCKS
+        from .intumescent import SETTINGS_BLOCKS, FX6010, FX6010_KIT_DEFAULTS
         settings_sections = deepcopy(list(SETTINGS_BLOCKS))
+        for section in settings_sections:
+            if section['product'] == FX6010:
+                section['defaults_action'] = {
+                    'label': 'Use Australian kit defaults',
+                    'title': 'Apply FX6010 kit defaults?',
+                    'detail': 'Use the Australian 18 L kit with 92% volume solids. This replaces FX6010 pack values and clears any old Part C entry. Waste and steel density stay as entered.',
+                    'settings': deepcopy(FX6010_KIT_DEFAULTS)}
     for section in settings_sections:
         address = section.get('title_address')
         if address:
@@ -787,6 +794,10 @@ def _render_sheet(calculator_id, inputs, source, metadata, start_row, end_row,
                if include_advanced or column not in metadata['hidden_columns']]
     option_sets, option_keys, option_cache = {}, {}, {}
     with lock:
+        if calculator_id == 'steel_intumescent' and sheet in ('SETTINGS', 'SUMMARY'):
+            legacy_c = engine.value('SETTINGS', 'H74')
+            if legacy_c is None or legacy_c == '' or type(legacy_c) in (int, float) and legacy_c == 0:
+                metadata = {**metadata, 'omitted_rows': [*metadata['omitted_rows'], 74 if sheet == 'SETTINGS' else 47]}
         if calculator_id == 'steel_vermiculite' and sheet == 'SETTINGS' and engine.assessment.error:
             metadata = {**metadata, 'display_text': {**metadata['display_text'],
                         'L261': 'ASSESSMENT DATA UNAVAILABLE — H4 results blocked'}}

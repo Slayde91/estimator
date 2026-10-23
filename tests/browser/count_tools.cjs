@@ -158,7 +158,13 @@ async function countCursor() {
   await response(() => clickProjectControl(page, 'Save'), '/api/project/save-as'); const saved = JSON.parse(fs.readFileSync(info.project, 'utf8')); assert.deepEqual(saved.takeoffs.physical, physicalBeforeSave);
   await response(() => clickProjectControl(page, 'Load'), '/api/project/open'); await page.getByRole('dialog').getByRole('button', { name: 'Load Project', exact: true }).click(); await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); await chooseTakeoff(page, 'PENETRATIONS'); current = await snapshot(); assert.deepEqual(current.physical, physicalBeforeSave); assert.deepEqual(await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()), calculators);
+  // Reopen starts a PDF render outside the mutation-busy indicator. Let it
+  // finish before requesting another page, so its page-one result cannot race
+  // this action or satisfy renderDrawing's replacement-canvas check.
+  await expect.poll(() => page.evaluate(() => window.CeasefireActivity.active)).toBe(false);
+  await expect(page.locator('.takeoff-progress')).toContainText('Original source');
   await renderDrawing(page, async () => { await page.getByLabel('Page number', { exact: true }).fill('3'); await page.getByLabel('Page number', { exact: true }).press('Tab'); }, 3);
+  await expect(page.locator('.takeoff-progress')).toContainText('Page 3 · Original source');
   await renderDrawing(page, () => page.getByRole('button', { name: 'Fit page', exact: true }).click(), 3); await page.setViewportSize({ width: 764, height: 764 }); await page.locator('.takeoff-viewer').scrollIntoViewIfNeeded();
   await page.screenshot({ path: path.join(output, 'retained-defect-source-location-764.png') }); evidence.savedReopened = true;
   assert.equal(hash(info.fixture), sourceHash); assert.deepEqual(errors, []);

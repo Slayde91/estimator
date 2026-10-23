@@ -233,7 +233,7 @@ def project_calculator_report(calculator_id, inputs=None):
                          'FIRETEX factors below the first or above the last row are withheld; blanks and case-specific fire periods are retained. '
                          'Four-sided FIRETEX beams have separate thickness and section-factor limits. '
                          'Wet film = DFT / volume solids. Quantities follow independent editable product settings. '
-                         'FX6010 pack values need confirmation for the three-component product described by the supplied certificate. '
+                         'FX6010 uses the two-component Australian kit: 18 L and 92% volume solids. Density and component masses require verified entries for kilogram estimates. '
                          'SC902 RHS/SHS columns require mesh. Primers, topcoats and other system allowances are separate.')
         evidence, receipts = [], []
         used_products = {item['values']['B'] for item in rows}

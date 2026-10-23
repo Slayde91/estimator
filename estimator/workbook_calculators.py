@@ -346,7 +346,7 @@ _PREVIOUS_REVIEWED_REFERENCES = {
     'D240': 'ad0f6efdd12eec484a81b6381f986a885597a178d380b80a5139fbb00b4e00ec',
 }
 
-_PRESENTATION_HEADERS['steel_intumescent'] = {'SUMMARY': [6]}
+_PRESENTATION_HEADERS['steel_intumescent'] = {'SUMMARY': [6, 21, 36]}
 _PRESENTATION_SECTIONS['steel_intumescent'] = {'START': ['A4', 'A7', 'A10', 'A13']}
 _DISPLAY_COLUMN_ORDER['steel_intumescent'] = {'SCHEDULE': [26, 27, *range(1, 26)]}
 _OMITTED_ROWS['steel_intumescent'] = {'SCHEDULE': [1, 2, 3, 8]}
@@ -512,15 +512,18 @@ def validate_calculator_edits(calculator_id, inputs, saved_inputs):
     return normalized
 
 
-def calculator_engine(calculator_id, normalized_inputs, *, assessment=None, perlifoc_assessment=None):
+def calculator_engine(calculator_id, normalized_inputs, *, assessment=None, perlifoc_assessment=None,
+                      firetex_assessments=None):
     """One application evaluation path for the UI, PDF and XLSX projection."""
     model = source_model(calculator_id)
     overrides = approved_formula_overrides(calculator_id)
     if calculator_id == 'steel_intumescent':
         from .intumescent import IntumescentEngine
         from .sc902_assessment import load_assessment
+        from .firetex_assessment import load_assessments
         return IntumescentEngine(model, normalized_inputs, overrides,
-                                 assessment=load_assessment() if assessment is None else assessment)
+                                 assessment=load_assessment() if assessment is None else assessment,
+                                 firetex_assessments=load_assessments() if firetex_assessments is None else firetex_assessments)
     if calculator_id == 'steel_vermiculite':
         from .monokote_hollow import load_assessment
         from .perlifoc_assessment import PerlifocEngine, load_assessment as load_perlifoc_assessment
@@ -535,24 +538,27 @@ def calculator_engine(calculator_id, normalized_inputs, *, assessment=None, perl
 
 
 @lru_cache(maxsize=6)
-def _session(calculator_id, serialized_inputs, assessment=None, perlifoc_assessment=None):
+def _session(calculator_id, serialized_inputs, assessment=None, perlifoc_assessment=None, firetex_assessments=None):
     return calculator_engine(calculator_id, json.loads(serialized_inputs), assessment=assessment,
-                             perlifoc_assessment=perlifoc_assessment), EvaluationLock()
+                             perlifoc_assessment=perlifoc_assessment,
+                             firetex_assessments=firetex_assessments), EvaluationLock()
 
 
 def calculator_session(calculator_id, inputs):
     normalized = normalize_calculator_inputs(calculator_id, inputs)
-    assessment = perlifoc_assessment = None
+    assessment = perlifoc_assessment = firetex_assessments = None
     if calculator_id == 'steel_intumescent':
         from .sc902_assessment import load_assessment
+        from .firetex_assessment import load_assessments
         assessment = load_assessment()
+        firetex_assessments = load_assessments()
     if calculator_id == 'steel_vermiculite':
         from .monokote_hollow import load_assessment
         assessment = load_assessment()
         from .perlifoc_assessment import load_assessment as load_perlifoc_assessment
         perlifoc_assessment = load_perlifoc_assessment()
     engine, lock = _session(calculator_id, json.dumps(normalized, sort_keys=True, ensure_ascii=False, allow_nan=False),
-                            assessment, perlifoc_assessment)
+                             assessment, perlifoc_assessment, firetex_assessments)
     return normalized, engine, lock
 
 
@@ -599,6 +605,9 @@ def _sheet_metadata(model, sheet):
     labels = [{'column': column_number(field['column']), 'label': field['label']} for field in schedule['columns']] if sheet['name'] == schedule['sheet'] else []
     page = (model['id'], sheet['name'])
     settings_sections = deepcopy(_SETTINGS_SECTIONS.get(page, []))
+    if page == ('steel_intumescent', 'SETTINGS'):
+        from .intumescent import SETTINGS_BLOCKS
+        settings_sections = deepcopy(list(SETTINGS_BLOCKS))
     for section in settings_sections:
         address = section.get('title_address')
         if address:

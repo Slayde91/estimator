@@ -191,8 +191,8 @@ def _summary(data, workbook):
         for product, basis, interpretation in summary.get('qualifications', []):
             _band(sheet, row, '\n'.join(str(value) for value in (product, basis, interpretation) if value not in (None, '')), len(widths))
             row += 1
-    _band(sheet, row, ('Source assessment: ' if data['id'] == 'steel_intumescent' else 'Source workbook: ') + data['source']['filename'], len(widths))
-    _band(sheet, row + 1, 'Source SHA-256: ' + data['source']['sha256'], len(widths))
+    _band(sheet, row, ('Calculator compatibility identity: ' if data['id'] == 'steel_intumescent' else 'Source workbook: ') + data['source']['filename'], len(widths))
+    _band(sheet, row + 1, ('Compatibility SHA-256: ' if data['id'] == 'steel_intumescent' else 'Source SHA-256: ') + data['source']['sha256'], len(widths))
     sheet.freeze_panes = 'B5'
     sheet.print_title_rows = '1:2'
 

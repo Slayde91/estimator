@@ -5,6 +5,52 @@
   "sections": {
     "steel_intumescent": [
       {
+        "title": "FIRETEX FX5090 — FC20571/01/C1, 8 April 2025",
+        "kind": "Supplied certificate and loading tables",
+        "reference_only": true,
+        "products": ["FIRETEX FX5090"],
+        "region": "Australia",
+        "verified_date": "2026-10-24",
+        "availability": "Supplied PDF retained privately",
+        "reference_coverage": "Tables 1–40. I/H three-sided beams and four-sided columns/beams; RHS/SHS three-sided beams; fully exposed hollow columns and RHS/SHS four-sided beams. Published periods vary by member case, through 180 minutes for I/H cases.",
+        "notes": "Thickness is intumescent only. Three-sided beams require concrete slab contact. Four-sided beam caps: I/H 5.282 mm; RHS/SHS 5.180 mm. Exact printed temperatures only; no extrapolation or filling unavailable cells. Table 23 prints 0.192 mm despite the cover's 0.201 mm beam minimum; the table value is retained. Referenced full assessment: FC20571-01-1.",
+        "source_sha256": "3e26ff0c292717614fa8a6b5a691913b9f6ddfd0b8f44158d174ec74219fe07a"
+      },
+      {
+        "title": "FIRETEX FX6010 — FC21221-01-1-C1, 31 October 2025",
+        "kind": "Supplied certificate and loading tables",
+        "reference_only": true,
+        "products": ["FIRETEX FX6010"],
+        "region": "Australia",
+        "verified_date": "2026-10-24",
+        "availability": "Supplied PDF retained privately",
+        "reference_coverage": "Tables 1–46. I/H beams/columns, RHS/SHS beams/columns and CHS columns. Case-specific periods include 20, 75 and 105 minutes; 150 minutes is tabulated for I/H columns.",
+        "notes": "Three-sided beams require concrete slab contact. Four-sided beam caps: I/H 5.770 mm and factor 400 m⁻¹; RHS/SHS 5.661 mm and factor 350 m⁻¹. Exact printed temperatures only. The certificate describes three components; current Australian two-component pack data is not used as a default. Referenced full assessment: FC21221-01-1.",
+        "source_sha256": "3b3703934511e1e30c86474fb023aee343f66a172537e9adcbcc1588cad6c5c3"
+      },
+      {
+        "title": "FIRETEX FX5090 — Australian Product Data Sheet, PC112 January 2026",
+        "kind": "Product data sheet",
+        "url": "https://www.duluxprotectivecoatings.com.au/media/2d2oftc5/firetex_fx5090_jan_2026.pdf",
+        "products": ["FIRETEX FX5090"],
+        "region": "Australia",
+        "verified_date": "2026-10-24",
+        "availability": "Public PDF",
+        "reference_coverage": "Single component; 69% volume solids; 18 L pack; 1.39 kg/L transport weight used only as an editable mass estimate.",
+        "notes": "Product quantities remain separate from the supplied certificate thickness tables. Confirm delivered product and application losses."
+      },
+      {
+        "title": "FIRETEX FX6010 — Australian Product Data Sheet, PC115 March 2026",
+        "kind": "Product data sheet — formulation comparison",
+        "url": "https://www.duluxprotectivecoatings.com.au/media/a4xpo0tq/firetex_fx6010_march_2026.pdf",
+        "products": ["FIRETEX FX6010"],
+        "region": "Australia",
+        "verified_date": "2026-10-24",
+        "availability": "Public PDF",
+        "reference_coverage": "Current Australian sheet describes two components, while the supplied certificate describes three.",
+        "notes": "Confirm the pack and formulation matching the supplied certificate before entering FX6010 quantity settings. This sheet does not populate those defaults or replace the certificate loading tables."
+      },
+      {
         "title": "Nullifire SC902 — FC18580-01-01, 20 March 2024",
         "kind": "Fire assessment",
         "url": "https://www.tremco.com.au/TremcoAustralia/media/SiteAssets/Products/Certification%20and%20LEED%20Letters/Nullifire%20SC902/FC18580-01-01-Nullifire-SC902-2020-REPORT-Final.pdf?ext=.pdf",

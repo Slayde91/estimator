@@ -2,11 +2,12 @@
 
 A local estimating application reproducing `Quote.xlsm`'s Calculator and `Penetration_Calculator.xlsx` with shared pricing from `Inventory_list.xlsm`, plus the three supplied ductwork and structural-steel workbooks.
 
-Steel also includes **Steel (intumescent)** for Nullifire SC902. Its START,
-SCHEDULE, SUMMARY and SETTINGS pages use the supplied FC18580-01-01 assessment
-and the current Tremco product data sheet. DFT is displayed in microns; A/V,
+Steel also includes **Steel (intumescent)** for Nullifire SC902, FIRETEX FX5090 and FX6010. Its START,
+SCHEDULE, SUMMARY and SETTINGS pages use each product's supplied assessment tables
+and independent estimating settings. DFT is displayed in microns; A/V,
 Hp/A and converted ESA/M inputs are supported. See the
 [SC902 calculation and evidence policy](docs/NULLIFIRE_SC902.md).
+FIRETEX DFT uses the supplied FC20571/01/C1 and FC21221-01-1-C1 tables, with separate member cases, fire periods and four-sided beam caps. See the [FIRETEX evidence and quantity policy](docs/FIRETEX_ASSESSMENTS.md). FX6010 pack settings require confirmation for the supplied certificate's three-component product.
 
 ## Windows desktop edition
 

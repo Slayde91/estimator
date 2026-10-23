@@ -20,6 +20,7 @@ def main():
     paths.append(ROOT / 'docs' / 'LANGUAGES.md')
     paths.append(ROOT / 'docs' / 'PERLIFOC_ASSESSMENT.md')
     paths.append(ROOT / 'docs' / 'NULLIFIRE_SC902.md')
+    paths.append(ROOT / 'docs' / 'FIRETEX_ASSESSMENTS.md')
     paths.append(ROOT / 'scripts' / 'build_language_catalog.py')
     for path in paths:
         if path.suffix == ".py":

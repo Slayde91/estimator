@@ -116,11 +116,18 @@ class WorkbookCalculatorApiTests(unittest.TestCase):
         with self.store.connect() as db:
             return db.execute("SELECT id,data,updated_at FROM calculator_states ORDER BY id").fetchall()
 
-    def test_definitions_expose_exact_twelve_pages_and_official_documents(self):
+    def test_registry_includes_native_calculator_and_retains_twelve_workbook_pages(self):
         listing = self.json_request("GET", "/api/calculators")
-        self.assertEqual([item["id"] for item in listing["calculators"]], list(PAGES))
+        self.assertEqual([item["id"] for item in listing["calculators"]],
+                         ['steel_vermiculite', 'steel_board', 'steel_intumescent', 'ductwork'])
         self.assertEqual([item['title'] for item in listing['calculators']],
-                         ['Steel (spray)', 'Steel (board)', 'Ductwork (spray/wrap)'])
+                         ['Steel (spray)', 'Steel (board)', 'Steel (intumescent)', 'Ductwork (spray/wrap)'])
+        native = self.definition('steel_intumescent')
+        self.assertEqual(native['pages'], ['START', 'SCHEDULE', 'SUMMARY', 'SETTINGS'])
+        self.assertEqual([sheet['name'] for sheet in native['sheets']], native['pages'])
+        self.assertEqual(native['inputs'], empty_schedule_inputs('steel_intumescent'))
+        self.assertTrue(any('FC18580-01-01' in document['title']
+                            for document in native['documents']))
         total_pages = 0
         for identity, pages in PAGES.items():
             with self.subTest(identity=identity):

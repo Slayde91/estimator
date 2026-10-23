@@ -212,6 +212,8 @@ def project_calculator_report(calculator_id, inputs=None):
         pools = engine.product_totals()
         summary = table('Product orders', 'SUMMARY', 6, 7, 7, 'ABCDEFGHI',
             note='Kits are pooled separately by product; waste and rounding apply once. Unresolved items withhold that product order.')
+        summary['labels'].update(C='Required coating (kg)', D='Required coating (L)',
+                                 E='Net packs', G='Whole packs')
         summary['rows'], summary['qualifications'] = [], []
         for index, (name, total) in enumerate(pools.items(), 7):
             summary['rows'].append({'row': index, 'values': dict(zip('ABCDEFGHI',
@@ -390,7 +392,7 @@ class _ScheduleReport(_Report):
             self.story.append(self.p(data['assessment_scope'], 'small'))
         if data.get('assessment_receipt'):
             self.story.append(self.p(data['assessment_receipt'], 'small'))
-        if data.get('assessment_notes'):
+        if data.get('assessment_notes') and not (materials and data['id'] == 'steel_intumescent'):
             self.story.append(self.p('Steel protection assessment basis', 'subheading'))
             self.story.extend(self.p(note, 'small') for note in data['assessment_notes'])
         if data.get('application_notes') and not materials:

@@ -52,6 +52,10 @@ class FiretexExportTests(unittest.TestCase):
                 self.assertIn(name, text)
             self.assertIn('INCOMPLETE' if builder == build_calculator_summary_report else 'DFT', text)
             self.assertIn('dataset SHA-256', text)
+            if builder == build_calculator_summary_report:
+                self.assertNotIn('Steel protection assessment basis', text)
+                self.assertIn('Whole packs', text)
+                self.assertNotIn('Whole kits', text)
         workbook = load_workbook(BytesIO(build_calculator_register('steel_intumescent', values)))
         text = '\n'.join(str(cell.value) for sheet in workbook for row in sheet for cell in row if cell.value is not None)
         for name in PRODUCTS:

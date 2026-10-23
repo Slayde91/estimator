@@ -136,6 +136,14 @@ class IntumescentTests(unittest.TestCase):
         self.assertEqual(engine.value('SCHEDULE', 'S10'), '')
         self.assertEqual(engine.value('SUMMARY', 'G7'), '')
 
+    def test_unrepresentable_positive_quantities_do_not_become_zero_orders(self):
+        for values in (inputs(area=5e-324, D15=5e-324), inputs(area=5e-324, D9=1e100)):
+            with self.subTest(values=values):
+                engine = self.engine(values)
+                self.assertEqual(engine.value('SCHEDULE', 'O10'), 1000)
+                self.assertEqual(engine.value('SCHEDULE', 'S10'), '')
+                self.assertEqual(engine.value('SUMMARY', 'G7'), '')
+
     def test_model_has_four_pages_and_read_only_outputs(self):
         definition = calculator_definition('steel_intumescent')
         self.assertEqual(definition['pages'], ['START', 'SCHEDULE', 'SUMMARY', 'SETTINGS'])

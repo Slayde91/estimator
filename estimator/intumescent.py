@@ -30,7 +30,7 @@ def quotient(numerator, denominator):
     if not number(numerator) or not number(denominator) or denominator <= 0:
         return ''
     value = numerator / denominator
-    return value if number(value) else ''
+    return value if number(value) and (numerator == 0 or value != 0) else ''
 
 
 def product(*values):
@@ -282,7 +282,8 @@ class IntumescentEngine(WorkbookEngine):
         else:
             mass = area * out['O'] / 1000 * consumption
             litres, kits = quotient(mass, sg), quotient(mass, a + b)
-            if number(litres) and number(kits) and number(kits * (1 + waste)):
+            if (number(mass) and mass > 0 and number(litres) and litres > 0
+                    and number(kits) and kits > 0 and number(kits * (1 + waste))):
                 out.update(S=litres, T=kits, U=math.ceil(kits * (1 + waste)), W='QUANTIFIED - estimate')
             else:
                 out['W'] = 'Quantity exceeds the supported numeric range'

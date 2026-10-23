@@ -31,7 +31,7 @@ def _schedule(calculator_id):
     schedule = catalog["schedule"]
     columns = [column for column in schedule["columns"]
                if column.get("editable") and not column.get("advanced")]
-    location = "AA" if calculator_id == "steel_vermiculite" else None
+    location = "AA" if calculator_id in {"steel_vermiculite", "steel_intumescent"} else None
     if location:
         columns.sort(key=lambda field: field["column"] != location)
     return catalog, schedule, columns
@@ -40,7 +40,7 @@ def _schedule(calculator_id):
 def _all_input_columns(calculator_id, schedule):
     """Return every accepted schedule input, including legacy advanced fields."""
     columns = [column for column in schedule["columns"] if column.get("editable")]
-    if calculator_id == "steel_vermiculite":
+    if calculator_id in {"steel_vermiculite", "steel_intumescent"}:
         columns.sort(key=lambda field: field["column"] != "AA")
     return columns
 
@@ -264,7 +264,8 @@ def import_schedule_workbook(calculator_id, payload, filename, current_inputs=No
         sheet = workbook[schedule["sheet"]]
         sheet.reset_dimensions()
         sheet.calculate_dimension(force=True)
-        legacy_columns = [field for field in load_workbook_catalog(calculator_id)["schedule"]["columns"] if field.get("editable")]
+        legacy_columns = ([field for field in load_workbook_catalog(calculator_id)["schedule"]["columns"] if field.get("editable")]
+                          if calculator_id != 'steel_intumescent' else all_columns)
         accepted_columns = [columns, all_columns, legacy_columns]
         max_columns = max(len(fields) for fields in accepted_columns) + 1
         if sheet.max_row > capacity + 1 or sheet.max_column > max_columns:

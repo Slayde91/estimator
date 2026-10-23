@@ -113,7 +113,7 @@ async function worksheetReady(title, label) {
   await calculatorsButton.click();await calculatorsButton.click();
   const count=pathname=>navigationRequests.filter(value=>value===pathname).length;
   await expect(page.locator('#calculator-steel-hub')).toBeVisible();
-  await expect(page.locator('#calculator-steel-hub [data-steel-calculator]')).toHaveCount(2);
+  await expect(page.locator('#calculator-steel-hub [data-steel-calculator]')).toHaveCount(3);
   assert.equal(count('/api/calculators/steel_vermiculite'),0);
   await page.locator('#calculator-steel-hub').getByRole('button',{name:'Steel (spray)',exact:true}).click();
   await expect.poll(()=>count('/api/calculators/steel_vermiculite')).toBe(1);

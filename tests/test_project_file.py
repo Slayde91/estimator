@@ -15,7 +15,7 @@ from estimator.calculator_defaults import default_calculator_inputs
 from estimator.schedule_rows import blank_schedule_defaults, empty_schedule_inputs
 from estimator.catalog import ValidationError, baseline, effective_catalog
 from estimator.project_file import (
-    CALCULATOR_IDS, ESTIMATE_FIELDS, PROJECT_FILENAME, export_project, import_project,
+    CALCULATOR_IDS, LEGACY_CALCULATOR_IDS, ESTIMATE_FIELDS, PROJECT_FILENAME, export_project, import_project,
 )
 from estimator.server import create_server
 from estimator.storage import Store
@@ -108,6 +108,71 @@ class ProjectFileTests(unittest.TestCase):
         self.assertEqual(stored_rows(self.sender), before)
         self.assertNotIn("result", snapshot["estimate"])
         self.assertNotIn("id", snapshot["estimate"])
+
+    def test_legacy_three_calculator_project_gets_only_an_empty_new_draft(self):
+        snapshot = json.loads(self.original)
+        snapshot['calculators'].pop('steel_intumescent')
+        original_maps = deepcopy(snapshot['calculators'])
+        original_prices = deepcopy(snapshot['estimate']['configuration'])
+        self.receiver.save_calculator_state('steel_intumescent', {
+            'SCHEDULE': {'A10': 'Unrelated saved SC902', 'AA1009': 'Keep the other project'}})
+        self.receiver.save_quote({'title': 'Separate frozen quote'})
+        before = stored_rows(self.receiver)
+        loaded = self.load(json.dumps(snapshot).encode())
+        self.assertEqual(stored_rows(self.receiver), before)
+        self.assertEqual(set(loaded['calculators']), set(CALCULATOR_IDS))
+        self.assertEqual(loaded['calculators']['steel_intumescent']['inputs'],
+                         empty_schedule_inputs('steel_intumescent'))
+        self.assertEqual(loaded['estimate']['configuration'], original_prices)
+        for identity in LEGACY_CALCULATOR_IDS:
+            self.assertEqual(loaded['calculators'][identity], original_maps[identity])
+        # An older client may re-export exactly its original three draft maps.
+        second = export_project(self.receiver, {
+            'estimate': {key: loaded['estimate'][key] for key in ESTIMATE_FIELDS},
+            'calculators': {key: {'inputs': value['inputs'], 'schedule_rows': value['schedule_rows']}
+                           for key, value in loaded['calculators'].items() if key in LEGACY_CALCULATOR_IDS}})
+        exported = json.loads(second)
+        self.assertEqual({key: exported['calculators'][key] for key in LEGACY_CALCULATOR_IDS}, original_maps)
+        self.assertEqual(exported['calculators']['steel_intumescent']['inputs'],
+                         empty_schedule_inputs('steel_intumescent'))
+        self.assertEqual(exported['estimate']['configuration'], original_prices)
+        self.assertEqual(stored_rows(self.receiver), before)
+
+    def test_four_calculators_round_trip_sc902_precision_and_schedule_rows_without_writes(self):
+        inputs = {'SCHEDULE': {'A10': 'SC902 / literal <mark>', 'B10': 'Nullifire SC902',
+                              'C10': 'I/H beam - 3 sides', 'D10': 550, 'E10': 'A/V',
+                              'G10': 122.1234567890123, 'H10': 120, 'I10': 2,
+                              'J10': 12.3456789012345, 'K10': .812345678901234,
+                              'AA1009': 'Last SC902 location'},
+                  'SETTINGS': {'D14': .851234567890123, 'D16': .071234567890123}}
+        before_sender, before_receiver = stored_rows(self.sender), stored_rows(self.receiver)
+        payload = export_project(self.sender, {'estimate': {}, 'calculators': {
+            'steel_intumescent': {'inputs': inputs, 'schedule_rows': [10, 1009]}}})
+        loaded = self.load(payload)
+        self.assertEqual(set(loaded['calculators']), set(CALCULATOR_IDS))
+        current = loaded['calculators']['steel_intumescent']
+        self.assertEqual(current['inputs'], blank_schedule_defaults('steel_intumescent', inputs))
+        self.assertEqual(current['schedule_rows'], [10, 1009])
+        self.assertEqual(current['source_sha256'], source_model('steel_intumescent')['source']['sha256'])
+        second = export_project(self.receiver, {
+            'estimate': {key: loaded['estimate'][key] for key in ESTIMATE_FIELDS},
+            'calculators': {key: {'inputs': value['inputs'], 'schedule_rows': value['schedule_rows']}
+                           for key, value in loaded['calculators'].items()}})
+        self.assertEqual(json.loads(second), json.loads(payload))
+        self.assertEqual(stored_rows(self.sender), before_sender)
+        self.assertEqual(stored_rows(self.receiver), before_receiver)
+        self.assertEqual(inputs['SCHEDULE']['G10'], 122.1234567890123)
+
+    def test_new_calculator_source_outputs_unknown_ids_and_missing_legacy_maps_reject(self):
+        cases = [lambda d: d['calculators']['steel_intumescent'].update(source_sha256='0' * 64),
+                 lambda d: d['calculators']['steel_intumescent'].update(inputs={'SCHEDULE': {'O10': 999}}),
+                 lambda d: d['calculators'].update(unknown_intumescent={}),
+                 lambda d: d['calculators'].pop('steel_board')]
+        before = stored_rows(self.receiver)
+        for edit in cases:
+            with self.subTest(edit=edit), self.assertRaises(ValidationError):
+                self.load(self.altered(edit))
+            self.assertEqual(stored_rows(self.receiver), before)
 
     def test_standalone_product_service_survives_quote_and_project_snapshots(self):
         catalog = baseline()

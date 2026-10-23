@@ -3,6 +3,42 @@
   "verified_date": "2026-09-13",
   "purpose": "Official Australian document links for the products named in the source calculators. Links are reference resources; they do not change the packaged workbook rules or establish project suitability.",
   "sections": {
+    "steel_intumescent": [
+      {
+        "title": "Nullifire SC902 — FC18580-01-01, 20 March 2024",
+        "kind": "Fire assessment",
+        "url": "https://www.tremco.com.au/TremcoAustralia/media/SiteAssets/Products/Certification%20and%20LEED%20Letters/Nullifire%20SC902/FC18580-01-01-Nullifire-SC902-2020-REPORT-Final.pdf?ext=.pdf",
+        "products": ["Nullifire SC902"],
+        "region": "Australia",
+        "verified_date": "2026-10-23",
+        "availability": "Public PDF; supplied report retained privately",
+        "reference_coverage": "Tables 3–34: dry film thickness in microns for three-sided I/H beams, four-sided I/H beams and columns, RHS/SHS columns and CHS columns; 15–120 minutes including 75 and 105 minutes.",
+        "notes": "Assessment uses A/V (m⁻¹). RHS/SHS mesh is required. Table limits and unavailable values are retained. The 2020 filename is not the report issue date.",
+        "source_sha256": "3bf3499358d6f2e4b75a8ed1402995cba8f9f72142ee81e79ed22fc73e4a4344"
+      },
+      {
+        "title": "Nullifire SC902 Product Data Sheet — V002-070826",
+        "kind": "Product data sheet",
+        "url": "https://www.tremco.com.au/TremcoAustralia/media/SiteAssets/Datasheets/Nullifire-SC902-Data-Sheet.pdf?ext=.pdf",
+        "products": ["Nullifire SC902"],
+        "region": "Australia",
+        "verified_date": "2026-10-23",
+        "availability": "Public PDF",
+        "reference_coverage": "Pack masses, component and mixed specific gravity, volume solids, theoretical consumption and application guidance.",
+        "notes": "Quantity settings start with published values and remain separate from assessed DFT. Confirm current delivered pack and application specification."
+      },
+      {
+        "title": "Nullifire SC902 — Tremco Australia",
+        "kind": "Manufacturer product page",
+        "url": "https://www.tremco.com.au/products/nullifire-sc902",
+        "products": ["Nullifire SC902"],
+        "region": "Australia",
+        "verified_date": "2026-10-23",
+        "availability": "Manufacturer product and document portal",
+        "reference_coverage": "Current Australian product resources and contact details.",
+        "notes": "The calculator is limited to the supplied assessment tables. Broader product-page uses need their own assessment."
+      }
+    ],
     "steel_vermiculite": [
       {
         "title": "CAFCO 300 Australian technical and product data sheet (2025)",

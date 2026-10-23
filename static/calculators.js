@@ -26,6 +26,9 @@
         left: ["D36:F41", "D69:F74", "D101:F106", "D178:F183", "D234:F239", "D561:F566"], // Product quantity settings
       },
     },
+    steel_intumescent: {
+      SCHEDULE: { column_order: ["Z", "AA", "A", "E", "F", "C", "D", "B", "H", "I", "J", "G"] },
+    },
     steel_board: {
       CALCULATOR: { omit_columns: ["L"] }, // Keep retained row waste in calculations and exports.
       START: { hide: ["A1"], text: { A1: "", D13: "Previously saved additional-board allowances remain included in purchasing totals.", A27: "Use START, SCHEDULE, BOARD SUMMARY and SETTINGS. Supporting reference data is retained by the application.", A31: "Saved additional-board allowances remain included in the board summary." } },
@@ -1259,7 +1262,7 @@
     const closedSetting = closedDuctSetting || closedMonokoteSetting;
     const searchableSteel = cell.type === "select" && options.some(option => typeof option === "string") && schedule && coordinates && entry.sheet === schedule.sheet
       && coordinates.row >= schedule.first_row && coordinates.row <= schedule.last_row
-      && (entry.definition.id === "steel_vermiculite" && coordinates.column === 6 || entry.definition.id === "steel_board" && coordinates.column === 4);
+      && (["steel_vermiculite", "steel_intumescent"].includes(entry.definition.id) && coordinates.column === 6 || entry.definition.id === "steel_board" && coordinates.column === 4);
     const listedChoice = listedDuctChoice || closedSetting;
     const allowOther = !listedChoice && (cell.allow_other || ["warning", "information"].includes(cell.error_style || cell.validation?.error_style || cell.validation?.errorStyle));
     // A dropdown may mix numbers and text (60 and "60/60/60"). Its current
@@ -1451,7 +1454,7 @@
     if (!listed || !calculatorChoiceTerms.has(item)) return false;
     const position = parseAddress(address), schedule = entry.definition.schedule;
     if (schedule?.sheet === entry.sheet && position?.row >= schedule.first_row && position.row <= schedule.last_row) {
-      const columns = { steel_vermiculite: [3, 5], steel_board: [9, 11, 13, 15, 16, 17], ductwork: [8, 9] };
+      const columns = { steel_vermiculite: [3, 5], steel_intumescent: [3, 5], steel_board: [9, 11, 13, 15, 16, 17], ductwork: [8, 9] };
       return (columns[entry.definition.id] || []).includes(position.column);
     }
     return entry.definition.id === "steel_vermiculite" && (entry.sheet === "CALCULATOR" && ["D7", "D9"].includes(address)
@@ -1459,10 +1462,49 @@
       || entry.definition.id === "ductwork" && entry.sheet === "PRODUCT SETTINGS" && ["B35", "B65", "B73"].includes(address);
   }
 
+  let basisDialogBinding = null;
+  function scheduleBasis(entry, address, value) {
+    const position = parseAddress(address), schedule = entry?.definition.schedule;
+    if (!["steel_vermiculite", "steel_intumescent"].includes(entry?.definition.id)
+        || entry.sheet !== schedule?.sheet || position?.column !== 25
+        || position.row < schedule.first_row || position.row > schedule.last_row
+        || typeof value !== "string" || !value.trim()) return null;
+    const cells = entry.result?.rows?.find(row => row.row === position.row)?.cells || [];
+    const at = column => cells.find(cell => cell.column === column)?.value;
+    const thickness = at(15), status = at(22), quantity = at(23), source = at(24);
+    const firstSentence = value.split(/\r?\n/)[0].split(/[.!?]\s/)[0];
+    const thicknessText = isNumber(thickness) ? `${thickness} ${entry.definition.id === "steel_intumescent" ? "µm" : "mm"}` : "";
+    const sourceText = typeof source === "string" ? source.split(";")[0].replace(/ Table /g, " T") : "";
+    const unavailable = typeof status === "string" && !/^(PUBLISHED|ESTIMATE)/.test(status) ? status : "";
+    const estimate = typeof status === "string" && status.startsWith("ESTIMATE") ? window.CeasefireI18n.translate("Estimate") : "";
+    const quantityIssue = typeof quantity === "string" && quantity && !quantity.startsWith("QUANTIFIED") ? quantity : "";
+    const parts = [unavailable || thicknessText, sourceText, estimate, quantityIssue].filter(Boolean);
+    const preview = (parts.length ? parts.join(" · ") : firstSentence).replace(/\s+/g, " ").trim();
+    const full = [[window.CeasefireI18n.translate("Thickness status"), status], [window.CeasefireI18n.translate("Quantity status"), quantity], [window.CeasefireI18n.translate("Source"), source]]
+      .filter(([, text]) => text !== null && text !== undefined && text !== "")
+      .map(([label, text]) => `${label}: ${text}`).join("\n");
+    return { preview, full: (full ? full + "\n\n" : "") + value,
+      line: position.row - schedule.first_row + 1, address };
+  }
+
+  function showBasisDetails(entry, basis, trigger) {
+    const dialog = $("calculator-basis-dialog");
+    uiText($("calculator-basis-context"), uiCopy("Line {0}", [basis.line]));
+    $("calculator-basis-full").textContent = basis.full;
+    basisDialogBinding = { id: entry.definition.id, sheet: entry.sheet, address: basis.address, trigger };
+    if (!dialog.open) dialog.showModal();
+  }
+
+  $("calculator-basis-dialog").addEventListener("close", () => {
+    const binding = basisDialogBinding; basisDialogBinding = null;
+    binding?.trigger.focus?.();
+  });
+
   function updateOutputCell(element, cell) {
     const address = cell.address || element.dataset.calculatorOutput, entry = current();
     const value = sourceDisplayText(cell.value, entry, address), suffix = entry && (entry.result?.display_cells || sheetMetadata(entry).display_cells)?.[address]?.suffix;
     const schedule = entry?.definition.schedule, position = parseAddress(address);
+    const basis = scheduleBasis(entry, address, value);
     const lineNumber = schedule && entry.sheet === schedule.sheet && position?.column === columnNumber(schedule.line_id_column) && position.row >= schedule.first_row && position.row <= schedule.last_row;
     element.textContent = (lineNumber && Number.isInteger(value) ? String(value) : displayValue(value, cell)) + (isNumber(value) && !cell.error && typeof suffix === "string" ? suffix : "");
     if (cell.calculated && browserPresentation[entry?.definition.id]?.[entry?.sheet]?.split_status?.includes(address)) {
@@ -1485,7 +1527,20 @@
       if (element.calculatorValueCard) outputState(element.calculatorValueCard, cell.value);
     }
     const translatedLabel = bindCalculatorLabel(element, cell, entry, address, value);
-    if (element.dataset.calculatorVirtualOutput === "true") {
+    if (basis) {
+      const button = node("button", "calculator-basis-preview", basis.preview + " · " + window.CeasefireI18n.translate("Details"));
+      button.type = "button";
+      button.setAttribute("aria-haspopup", "dialog"); button.setAttribute("aria-controls", "calculator-basis-dialog");
+      button.setAttribute("aria-label", `${window.CeasefireI18n.translate("Basis / review note")} · ${window.CeasefireI18n.translate("Line {0}", [basis.line])}: ${basis.preview}`);
+      button.addEventListener("click", () => showBasisDetails(entry, basis, button));
+      element.replaceChildren(button); element.classList.add("calculator-compact-basis");
+      if ($("calculator-basis-dialog").open && basisDialogBinding?.id === entry.definition.id
+          && basisDialogBinding.sheet === entry.sheet && basisDialogBinding.address === address) {
+        $("calculator-basis-full").textContent = basis.full;
+        basisDialogBinding.trigger = button;
+      }
+    } else element.classList.toggle("calculator-compact-basis", false);
+    if (element.dataset.calculatorVirtualOutput === "true" && !basis) {
       const content = node("div", "calculator-virtual-output", element.textContent); element.replaceChildren(content);
       if (translatedLabel) bindCalculatorLabel(content, cell, entry, address, value);
     }
@@ -2286,7 +2341,7 @@
   function renderChoices() {
     const firestopping = Boolean(window.CeasefireProposalCalculators?.isFirestopping?.());
     for (const button of $("calculator-navigation-menu")?.querySelectorAll("[data-calculator-id]") || []) {
-      button.setAttribute("aria-pressed", String(button.dataset.calculatorId === "penetration" ? firestopping : !firestopping && (button.dataset.calculatorId === "steel" ? window.CeasefireProposalCalculators?.isSteelHub?.() || ["steel_vermiculite", "steel_board"].includes(state.current) : button.dataset.calculatorId === state.current)));
+      button.setAttribute("aria-pressed", String(button.dataset.calculatorId === "penetration" ? firestopping : !firestopping && (button.dataset.calculatorId === "steel" ? window.CeasefireProposalCalculators?.isSteelHub?.() || ["steel_vermiculite", "steel_intumescent", "steel_board"].includes(state.current) : button.dataset.calculatorId === state.current)));
     }
   }
 

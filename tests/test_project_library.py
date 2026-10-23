@@ -14,7 +14,7 @@ from unittest.mock import patch
 
 from estimator.catalog import ValidationError, baseline
 from estimator.native_dialogs import NativeDialogs, SaveSelection
-from estimator.project_file import export_project, project_filename, project_download_header
+from estimator.project_file import export_project, project_filename, project_download_header, LEGACY_CALCULATOR_IDS
 from estimator.schedule_rows import blank_schedule_defaults
 from estimator.project_library import ProjectLibrary, file_fingerprint, _DIALOG_LOCK, _linked
 from estimator.server import create_server
@@ -352,6 +352,87 @@ class ProjectLibraryTests(unittest.TestCase):
             self.library.save(request)
         self.assertFalse(target.exists())
         self.assertEqual(database_rows(self.store), before)
+
+    def test_legacy_three_calculator_save_preserves_original_maps_and_pricing(self):
+        snapshot = json.loads(self.payload)
+        snapshot['calculators'].pop('steel_intumescent')
+        target = self.folder / 'Legacy.cf.json'
+        target.write_text(json.dumps(snapshot), encoding='utf-8')
+        self.dialogs.opened = str(target)
+        opened = self.library.open_file()
+        request = {'save_token': opened['file']['save_token'], 'estimate': snapshot['estimate'],
+                   'calculators': {key: {'inputs': value['inputs'], 'schedule_rows': value['schedule_rows']}
+                                  for key, value in snapshot['calculators'].items()}}
+        before = database_rows(self.store)
+        self.library.save(request)
+        saved = json.loads(target.read_bytes())
+        for identity in LEGACY_CALCULATOR_IDS:
+            self.assertEqual(saved['calculators'][identity], snapshot['calculators'][identity])
+        self.assertEqual(saved['estimate']['configuration'], snapshot['estimate']['configuration'])
+        self.assertIn('steel_intumescent', saved['calculators'])
+        self.assertEqual(database_rows(self.store), before)
+
+    def test_older_three_draft_browser_cannot_erase_existing_sc902_on_save_or_save_as(self):
+        target = self.folder / 'Contains SC902.cf.json'
+        snapshot = json.loads(self.payload)
+        snapshot['calculators']['steel_intumescent']['inputs']['SCHEDULE']['A10'] = 'Keep this SC902 draft'
+        payload = json.dumps(snapshot).encode()
+        target.write_bytes(payload)
+        self.dialogs.opened = str(target)
+        opened = self.library.open_file()
+        request = copy.deepcopy(self.request)
+        request['calculators'].pop('steel_intumescent')
+        before = database_rows(self.store)
+        with self.assertRaisesRegex(ValidationError, 'steel intumescent'):
+            self.library.save({**request, 'save_token': opened['file']['save_token']})
+        self.assertEqual(target.read_bytes(), payload)
+        self.dialogs.selection = SaveSelection(str(target), file_fingerprint(target))
+        with self.assertRaisesRegex(ValidationError, 'steel intumescent'):
+            self.library.save_as(request)
+        self.assertEqual(target.read_bytes(), payload)
+        self.assertEqual(database_rows(self.store), before)
+
+    def test_older_browser_cannot_erase_nondefault_sc902_settings_without_rows(self):
+        snapshot = json.loads(self.payload)
+        snapshot['calculators']['steel_intumescent']['inputs']['SETTINGS']['D16'] = .1234567890123
+        target = self.folder / 'SC902 settings.cf.json'
+        payload = json.dumps(snapshot).encode()
+        target.write_bytes(payload)
+        self.dialogs.opened = str(target)
+        opened = self.library.open_file()
+        request = copy.deepcopy(self.request)
+        request['calculators'].pop('steel_intumescent')
+        before = database_rows(self.store)
+        with self.assertRaisesRegex(ValidationError, 'steel intumescent'):
+            self.library.save({**request, 'save_token': opened['file']['save_token']})
+        self.assertEqual(target.read_bytes(), payload)
+        self.assertEqual(database_rows(self.store), before)
+
+    def test_older_browser_preserves_added_sc902_blank_rows_but_can_save_default_row(self):
+        before = database_rows(self.store)
+        for rows in ([10], [10, 11]):
+            with self.subTest(rows=rows):
+                snapshot = json.loads(self.payload)
+                snapshot['calculators']['steel_intumescent']['schedule_rows'] = rows
+                target = self.folder / ('SC902 rows ' + str(len(rows)) + '.cf.json')
+                payload = json.dumps(snapshot).encode()
+                target.write_bytes(payload)
+                self.dialogs.opened = str(target)
+                opened = self.library.open_file()
+                request = copy.deepcopy(self.request)
+                request['calculators'].pop('steel_intumescent')
+                if rows == [10]:
+                    self.library.save({**request, 'save_token': opened['file']['save_token']})
+                    self.assertEqual(json.loads(target.read_bytes())['calculators']['steel_intumescent']['schedule_rows'], [10])
+                else:
+                    with self.assertRaisesRegex(ValidationError, 'steel intumescent'):
+                        self.library.save({**request, 'save_token': opened['file']['save_token']})
+                    self.assertEqual(target.read_bytes(), payload)
+                    self.dialogs.selection = SaveSelection(str(target), file_fingerprint(target))
+                    with self.assertRaisesRegex(ValidationError, 'steel intumescent'):
+                        self.library.save_as(request)
+                    self.assertEqual(target.read_bytes(), payload)
+                self.assertEqual(database_rows(self.store), before)
 
     def test_save_failure_is_atomic_and_retains_target_for_retry(self):
         target = self.folder / "Existing.cf.json"

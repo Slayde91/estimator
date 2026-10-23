@@ -924,7 +924,7 @@
       const [prepared, penetration, takeoffs] = await Promise.all([window.CeasefireCalculators.prepareDefaults(), quote.penetration
         ? window.CeasefirePenetrations?.prepareProject(quote.penetration, quote.configuration || state.configuration)
         : window.CeasefirePenetrations?.prepareDefaults(quote.configuration || state.configuration), window.CeasefireTakeoffs?.prepareDefaults()]);
-      const scope = quote.penetration ? "This record contains the estimate, its firestopping schedule and original pricing. The current item and other calculators will start from defaults." : "This record contains the estimate and its original pricing only. The penetration schedule and all three calculators will start from defaults.";
+      const scope = quote.penetration ? "This record contains the estimate, its firestopping schedule and original pricing. The current item and other calculators will start from defaults." : "This record contains the estimate and its original pricing only. The penetration schedule and all calculators will start from defaults.";
       if (!await confirmReplace(uiCopy("Open this older estimate?"), uiCopy("{0} The current estimate will be replaced. Save can then save them together.", [window.CeasefireI18n.term(scope)]), uiCopy("Open older estimate"))) return;
       if (captured !== projectStamp()) throw new Error("The current project changed during review. Open the older estimate again when ready.");
       if (loadRevision !== state.quoteLoadRevision) return;
@@ -1051,7 +1051,7 @@
     return true;
   }
   async function requestCalculatorNavigation(id = state.calculatorKind) {
-    if (!["steel", "steel_vermiculite", "steel_board", "ductwork", "penetration"].includes(id)) return false;
+    if (!["steel", "steel_vermiculite", "steel_intumescent", "steel_board", "ductwork", "penetration"].includes(id)) return false;
     document.activeElement?.blur?.();
     if (state.currentView !== "calculators" && !await confirmLeavePricingLibrary()) return false;
     if (window.CeasefireCalculators?.hasPendingOperation?.()) {

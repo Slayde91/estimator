@@ -2,6 +2,12 @@
 
 A local estimating application reproducing `Quote.xlsm`'s Calculator and `Penetration_Calculator.xlsx` with shared pricing from `Inventory_list.xlsm`, plus the three supplied ductwork and structural-steel workbooks.
 
+Steel also includes **Steel (intumescent)** for Nullifire SC902. Its START,
+SCHEDULE, SUMMARY and SETTINGS pages use the supplied FC18580-01-01 assessment
+and the current Tremco product data sheet. DFT is displayed in microns; A/V,
+Hp/A and converted ESA/M inputs are supported. See the
+[SC902 calculation and evidence policy](docs/NULLIFIRE_SC902.md).
+
 ## Windows desktop edition
 
 The separately built Windows installer opens ESTIMATOR in its own window with

@@ -346,14 +346,22 @@ _PREVIOUS_REVIEWED_REFERENCES = {
     'D240': 'ad0f6efdd12eec484a81b6381f986a885597a178d380b80a5139fbb00b4e00ec',
 }
 
+_PRESENTATION_HEADERS['steel_intumescent'] = {'SUMMARY': [6]}
+_PRESENTATION_SECTIONS['steel_intumescent'] = {'START': ['A4', 'A7', 'A10', 'A13']}
+_DISPLAY_COLUMN_ORDER['steel_intumescent'] = {'SCHEDULE': [26, 27, *range(1, 26)]}
+_OMITTED_ROWS['steel_intumescent'] = {'SCHEDULE': [1, 2, 3, 8]}
+_OMITTED_COLUMNS['steel_intumescent'] = {'SCHEDULE': [22, 23, 24]}
+_DISPLAY_CELLS['steel_intumescent'] = {
+    'SCHEDULE': {f'Y{row}': {'bold': False} for row in range(10, 1010)}}
 
-@lru_cache(maxsize=3)
+
+@lru_cache(maxsize=4)
 def source_model(calculator_id):
     # Caller-owned model is private to this module and never mutated or exposed.
     return _application_catalog(calculator_id)
 
 
-@lru_cache(maxsize=3)
+@lru_cache(maxsize=4)
 def approved_formula_overrides(calculator_id):
     if calculator_id == 'steel_vermiculite':
         from .monokote_pfc import application_formula_overrides
@@ -396,7 +404,7 @@ def _validation(sheet, address):
     return None
 
 
-@lru_cache(maxsize=3)
+@lru_cache(maxsize=4)
 def _field_maps(calculator_id):
     model = source_model(calculator_id)
     return {(sheet, field['cell']): field for sheet, fields in model.get('fields', {}).items() for field in fields}
@@ -508,6 +516,11 @@ def calculator_engine(calculator_id, normalized_inputs, *, assessment=None, perl
     """One application evaluation path for the UI, PDF and XLSX projection."""
     model = source_model(calculator_id)
     overrides = approved_formula_overrides(calculator_id)
+    if calculator_id == 'steel_intumescent':
+        from .intumescent import IntumescentEngine
+        from .sc902_assessment import load_assessment
+        return IntumescentEngine(model, normalized_inputs, overrides,
+                                 assessment=load_assessment() if assessment is None else assessment)
     if calculator_id == 'steel_vermiculite':
         from .monokote_hollow import load_assessment
         from .perlifoc_assessment import PerlifocEngine, load_assessment as load_perlifoc_assessment
@@ -530,6 +543,9 @@ def _session(calculator_id, serialized_inputs, assessment=None, perlifoc_assessm
 def calculator_session(calculator_id, inputs):
     normalized = normalize_calculator_inputs(calculator_id, inputs)
     assessment = perlifoc_assessment = None
+    if calculator_id == 'steel_intumescent':
+        from .sc902_assessment import load_assessment
+        assessment = load_assessment()
     if calculator_id == 'steel_vermiculite':
         from .monokote_hollow import load_assessment
         assessment = load_assessment()
@@ -597,7 +613,7 @@ def _sheet_metadata(model, sheet):
                                  'sections': deepcopy(_DUCT_TECHNICAL_BASIS)}
                                 if page == ('ductwork', 'PRODUCT SETTINGS') else None),
             'display_table_order': [1, 0] if page == ('steel_vermiculite', 'BAGS') else [],
-            'schedule_heading': 'MEMBER SCHEDULE' if page == ('steel_vermiculite', 'SCHEDULE') else '',
+            'schedule_heading': 'MEMBER SCHEDULE' if page in {('steel_vermiculite', 'SCHEDULE'), ('steel_intumescent', 'SCHEDULE')} else '',
             'expand_tables': page == ('steel_board', 'START'),
             'section_spacing': page == ('ductwork', 'SUMMARY'),
             'omitted_rows': list(_OMITTED_ROWS.get(model['id'], {}).get(sheet['name'], [])),

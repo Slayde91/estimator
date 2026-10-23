@@ -44,7 +44,7 @@ let source = fs.readFileSync('static/calculators.js', 'utf8');
 source = source.replace('  window.CeasefireCalculators = { open, projectSnapshot, projectFingerprint, prepareProject, applyProject };', `
   globalThis.audit = {state,current,dirty,displayValue,numericInputValue,makeControl,setInput,calculate,save,reset,importSchedule,open,
      addScheduleRow,removeScheduleRow,requestRemoveScheduleRow,refreshScheduleDeleteControls,undoScheduleRemove,projectSnapshot,projectFingerprint,prepareDefaults,markProjectSaved,choiceSignature,
-     exportTemplate,downloadSchedulePdf,downloadExcelRegister,downloadMaterialsSummaryPdf,selectCalculator,selectPage,prepareProject,applyProject,headerLabels,safeDocumentUrl,renderGrid,renderOverview,renderProductTotals,outputState,updateOutputCell,renderDocuments,renderChoices,sourceDisplayText,hiddenColumns,
+      exportTemplate,downloadSchedulePdf,downloadExcelRegister,downloadMaterialsSummaryPdf,selectCalculator,selectPage,prepareProject,applyProject,headerLabels,safeDocumentUrl,renderGrid,renderOverview,renderProductTotals,outputState,updateOutputCell,renderDocuments,renderChoices,sourceDisplayText,hiddenColumns,displayPages,
     setRequest(fn){request=fn;},setFetch(fn){globalThis.fetch=fn;},setRender(fn){renderGrid=fn;}};
   window.CeasefireCalculators = { open };`);
 vm.runInContext(source, context);
@@ -861,7 +861,7 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
   assert.deepEqual(descendants(byId('calculator-grid')).filter(node=>node.dataset?.sourceRow).map(node=>node.dataset.sourceRow),['36']);
   assert.equal(JSON.stringify(entry.result),preservedSource);assert.equal(renderedControls().length,1);passed++;
 
-  // Schedule title prose and V/W/X stay hidden; summary metrics move off Schedule and detailed Y notes remain.
+  // Raw V/W/X columns stay hidden; Y can show a compact preview with full notes on request.
   entry=setup();entry.definition.id='steel_vermiculite';entry.sheet='SCHEDULE';entry.definition.schedule.sheet='SCHEDULE';
   entry.definition.schedule.header_row=9;entry.definition.schedule.first_row=10;
   entry.definition.sheets=[{name:'SCHEDULE',header_rows:[9],merges:[],omitted_rows:[1,2,3,8],omitted_columns:[22,23,24]}];
@@ -872,11 +872,55 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
     {row:10,cells:[{column:1,address:'A10',value:'Member',editable:true,type:'text'},...[22,23,24,25].map(column=>({column,address:`${String.fromCharCode(64+column)}10`,value:column===25?'Visible detailed note':`Hidden source ${column}`,calculated:true}))]}]});
   const fullResult=JSON.stringify(entry.result);
   realRender(entry);const rendered=descendants(byId('calculator-grid'));
-  assert.ok(!rendered.some(node=>/^Removed introductory line|^Hidden source/.test(node.textContent||'')));
+  assert.ok(!rendered.some(node=>/^Removed introductory line/.test(node.textContent||'')));
+  assert.ok(!rendered.some(node=>['V10','W10','X10'].includes(node.dataset?.calculatorOutput)));
   assert.ok(rendered.some(node=>node.dataset?.calculatorOutput==='Y10'));
   assert.equal(renderedControls().length,1);assert.equal(entry.productTotalsElement,null);
   assert.equal(rendered.filter(node=>node.calculatorValueCard).length,0);
   assert.equal(JSON.stringify(entry.result),fullResult);passed++;
+
+  // Steel coating notes have one line of context, with complete, safely rendered
+  // source qualifications in a keyboard-accessible dialog. No draft is edited.
+  for(const identity of ['steel_vermiculite','steel_intumescent']){
+    entry=setup({SCHEDULE:{A10:'Exact saved mark',G10:200.123456789}});entry.definition.id=identity;entry.sheet='SCHEDULE';
+    entry.definition.schedule={sheet:'SCHEDULE',first_row:10,last_row:1009,header_row:9};
+    const fullNote='19 mm from the published table. Confirm the engineer-specified critical temperature and slab contact. <img src=x onerror=alert(1)> remains literal source text.';
+    const cells=[{column:15,address:'O10',value:identity==='steel_intumescent'?1234:19},
+      {column:22,address:'V10',value:'PUBLISHED - ASSESSMENT TABLE'},
+      {column:23,address:'W10',value:'QUANTIFIED - ESTIMATE'},
+      {column:24,address:'X10',value:'FC21278-01-1 p15 Table 9; 550C; Hp/A 200'},
+      {column:25,address:'Y10',value:fullNote,calculated:true}];
+    entry.result={sheet:'SCHEDULE',rows:[{row:10,cells}]};
+    const output=element('td');output.dataset.calculatorVirtualOutput='true';
+    const immutableInputs=JSON.stringify(entry.inputs),immutableResult=JSON.stringify(entry.result);
+    audit.updateOutputCell(output,cells[4]);
+    const preview=output.children.find(node=>node.tagName==='button');assert.ok(preview);
+    assert.match(preview.textContent,identity==='steel_intumescent'?/^1234 µm/:/^19 mm/);
+    assert.match(preview.textContent,/FC21278-01-1 p15 T9/);assert.ok(!preview.textContent.includes('engineer-specified'));
+    assert.equal(preview.getAttribute('aria-haspopup'),'dialog');assert.equal(preview.getAttribute('aria-controls'),'calculator-basis-dialog');
+    let refocused=false;preview.focus=()=>{refocused=true;};await preview.emit('click');
+    assert.equal(byId('calculator-basis-dialog').open,true);assert.equal(byId('calculator-basis-context').textContent,'Line 1');
+    assert.ok(byId('calculator-basis-full').textContent.includes(fullNote));
+    assert.ok(byId('calculator-basis-full').textContent.includes('Thickness status: PUBLISHED - ASSESSMENT TABLE'));
+    assert.ok(!byId('calculator-basis-full').children.some(node=>node.tagName==='img'));
+    assert.equal(JSON.stringify(entry.inputs),immutableInputs);assert.equal(JSON.stringify(entry.result),immutableResult);
+    cells[4]={...cells[4],value:'Updated full qualification retained verbatim.'};
+    audit.updateOutputCell(output,cells[4]);assert.ok(byId('calculator-basis-full').textContent.includes(cells[4].value));
+    output.children[0].focus=()=>{refocused=true;};await byId('calculator-basis-dialog').close('close');assert.equal(refocused,true);
+    assert.equal(JSON.stringify(entry.inputs),immutableInputs);assert.notEqual(JSON.stringify(entry.result),immutableResult,'only the synthetic response was intentionally replaced');
+    assert.equal(cells[4].value,'Updated full qualification retained verbatim.');passed++;
+  }
+  entry=setup();entry.definition.id='steel_intumescent';entry.definition.pages=['START','SCHEDULE','SUMMARY','SETTINGS'];
+  assert.deepEqual(copy(audit.displayPages(entry.definition)).map(page=>page.label),['START','SCHEDULE','SUMMARY','SETTINGS']);
+  const intumescentNavigation=element('button'),steelNavigation=element('button');
+  intumescentNavigation.dataset.calculatorId='steel_intumescent';steelNavigation.dataset.calculatorId='steel';
+  byId('calculator-navigation-menu').replaceChildren(steelNavigation,intumescentNavigation);
+  audit.state.current='steel_intumescent';audit.renderChoices();
+  assert.equal(intumescentNavigation.getAttribute('aria-pressed'),'true');assert.equal(steelNavigation.getAttribute('aria-pressed'),'true');
+  const markup=englishMarkup(fs.readFileSync('static/index.html','utf8'));
+  assert.match(markup,/data-calculator-id="steel_intumescent"/);assert.match(markup,/data-steel-calculator="steel_intumescent"/);
+  assert.match(markup,/id="calculator-basis-dialog" aria-labelledby="calculator-basis-title"/);
+  assert.match(fs.readFileSync('static/app.js','utf8'),/\["steel", "steel_vermiculite", "steel_intumescent", "steel_board", "ductwork", "penetration"\]/);passed++;
 
   // Settings banners are omitted from display; source titles and other notes remain unchanged.
   for(const [id,sheet] of [['steel_vermiculite','SETTINGS'],['ductwork','PRODUCT SETTINGS'],['steel_board','SETTINGS']]){

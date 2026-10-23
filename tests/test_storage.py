@@ -17,6 +17,34 @@ class StorageTests(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.store = Store(Path(self.temp.name) / "quotes.sqlite3")
 
+    def test_sc902_defaults_are_read_only_and_new_state_does_not_rewrite_old_saved_bytes(self):
+        from estimator.schedule_rows import empty_schedule_inputs
+        from estimator.workbook_calculators import source_model
+        self.store.save_quote({'title': 'Frozen before SC902', 'inputs': {'B15': 10}})
+        self.store.save_calculator_state('ductwork', {'CALCULATOR': {'B11': 'Keep existing duct inputs'}})
+        def rows():
+            with self.store.connect() as db:
+                return {name: db.execute('SELECT * FROM ' + name + ' ORDER BY id').fetchall()
+                        for name in ('settings', 'quotes', 'calculator_states')}
+        before = rows()
+        state = self.store.calculator_state('steel_intumescent')
+        self.assertEqual(state['inputs'], empty_schedule_inputs('steel_intumescent'))
+        self.assertEqual(state['source_sha256'], source_model('steel_intumescent')['source']['sha256'])
+        self.assertEqual(rows(), before)
+        inputs = {'SCHEDULE': {'A1009': 'SC902 last row', 'G1009': 123.1234567890123},
+                  'SETTINGS': {'D16': .071234567890123}}
+        saved = self.store.save_calculator_state('steel_intumescent', inputs, [10, 1009])
+        self.assertEqual(self.store.calculator_state('steel_intumescent'), saved)
+        after = rows()
+        self.assertEqual(after['quotes'], before['quotes'])
+        self.assertEqual(after['settings'], before['settings'])
+        self.assertEqual([row for row in after['calculator_states'] if row[0] != 'steel_intumescent'],
+                         before['calculator_states'])
+        self.assertEqual(saved['schedule_rows'], [10, 1009])
+        with self.assertRaises(ValidationError):
+            self.store.calculator_state('unknown_sc902')
+        self.assertEqual(rows(), after)
+
     def test_quote_pricing_is_frozen_across_settings_changes_and_restart(self):
         original = self.store.save_quote({"title": "Duct quote", "inputs": {"B15": 10}})
         rate = baseline()["rate_groups"]["sprays"][1]

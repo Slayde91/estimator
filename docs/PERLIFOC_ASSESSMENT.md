@@ -50,8 +50,8 @@ integer millimetres or null. The production digest is pinned in
 `estimator/perlifoc_assessment.py`, together with the source report digest.
 
 For source installations, set `CEASEFIRE_CALCULATOR_EVIDENCE_DIRECTORY` to an
-absolute directory outside the checkout containing both reviewed Perlifoc and
-Monokote datasets. Full desktop installers require both artifacts and verify
+absolute directory outside the checkout containing the reviewed Perlifoc,
+Monokote and SC902 datasets. Full desktop installers require all three artifacts and verify
 their exact bytes before staging and after freezing. The source distribution
 does not include either private matrix.
 

@@ -41,7 +41,7 @@ async function workbook(title) {
   await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()); await idle();
   const saveReply = page.waitForResponse(reply => new URL(reply.url()).pathname === '/api/project/save-as' && reply.request().method() === 'POST');
   await clickProjectControl(page, 'Save'); assert.equal((await saveReply).status(), 200); await idle();
-  await page.getByRole('button', { name: 'Calculators', exact: true }).click(); await expect(page.locator('#calculator-steel-hub')).toBeVisible(); await expect(page.locator('#calculator-workspace')).toBeHidden(); await expect(page.locator('#calculator-steel-hub [data-steel-calculator]')).toHaveCount(2);
+  await page.getByRole('button', { name: 'Calculators', exact: true }).click(); await expect(page.locator('#calculator-steel-hub')).toBeVisible(); await expect(page.locator('#calculator-workspace')).toBeHidden(); await expect(page.locator('#calculator-steel-hub [data-steel-calculator]')).toHaveCount(3);
   await page.getByRole('button', { name: 'Home', exact: true }).click();
   evidence.initialCalculator = 'Steel landing page';
   const calculationRequests = () => requests.filter(item => item.path.startsWith('/api/calculators/')).length;
@@ -74,7 +74,11 @@ async function workbook(title) {
   await page.keyboard.press('Home'); await expect(menu.getByRole('button').first()).toBeFocused();
   await page.keyboard.press('Escape'); await expect(toggle).toBeFocused(); await expect(toggle).toHaveAttribute('aria-expanded', 'false'); await expect(menu).toBeHidden();
   assert.deepEqual(await snapshots(), before);
-  await toggle.press('ArrowDown');await page.keyboard.press('End');await expect(steel).toBeFocused();await page.keyboard.press('Enter');await expect(steelMenu).toBeVisible();await page.keyboard.press('ArrowRight');await page.keyboard.press('ArrowDown');await expect(steelMenu.getByRole('button',{name:'Steel (board)',exact:true})).toBeFocused();await page.keyboard.press('Escape');await expect(steel).toBeFocused();await expect(steelMenu).toBeHidden();await page.keyboard.press('ArrowRight');await page.keyboard.press('ArrowDown');await page.keyboard.press('Enter');await workbook('Steel (board)');
+  await toggle.press('ArrowDown');await page.keyboard.press('End');await expect(steel).toBeFocused();await page.keyboard.press('Enter');await expect(steelMenu).toBeVisible();
+  await page.keyboard.press('ArrowRight');await page.keyboard.press('ArrowDown');await expect(steelMenu.getByRole('button',{name:'Steel (intumescent)',exact:true})).toBeFocused();
+  await page.keyboard.press('ArrowDown');await expect(steelMenu.getByRole('button',{name:'Steel (board)',exact:true})).toBeFocused();
+  await page.keyboard.press('Escape');await expect(steel).toBeFocused();await expect(steelMenu).toBeHidden();
+  await page.keyboard.press('ArrowRight');await page.keyboard.press('ArrowDown');await page.keyboard.press('ArrowDown');await page.keyboard.press('Enter');await workbook('Steel (board)');
   assert.deepEqual(await snapshots(), before); evidence.keyboard = { focus: true, arrows: true, homeEnd: true, escapeReturnsFocus: true, enterSelectsCalculator: true, changedDrafts: false };
   await page.getByRole('button', { name: 'Home', exact: true }).click(); await toggle.click(); await workbook('Steel (board)');
   assert.deepEqual(await snapshots(), before);

@@ -25,7 +25,7 @@ from .board_steel_area import board_net_steel_areas, steel_area_display
 _WIDTH, _HEIGHT = landscape(A4)
 _MARGIN = 32
 _CONTENT = _WIDTH - 2 * _MARGIN
-_OUTPUT_LAST = {'ductwork': 43, 'steel_vermiculite': 27, 'steel_board': 48}
+_OUTPUT_LAST = {'ductwork': 43, 'steel_vermiculite': 27, 'steel_board': 48, 'steel_intumescent': 27}
 _BOARD_DIRECTIONS = (
     ('Family (K)', 'Family (ESA input)'), ('Clear K to use', 'Clear Family (ESA input) to use'),
     ('Thickness lookup (P)', 'Thickness lookup'),
@@ -187,6 +187,11 @@ def project_calculator_report(calculator_id, inputs=None):
             elif (str(values['B']).casefold() in ('monokote mk-6 hy', 'monokote z106')
                     and str(values['C']).casefold() == 'pfc web to slab - 3 sides'):
                 record['source_reference'] = values['X']
+        elif calculator_id == 'steel_intumescent':
+            values['B'] = values['B'] or engine.value('SETTINGS', 'D6')
+            record['complete'] = str(values['W']).startswith('QUANTIFIED')
+            record['assessment_reference'] = values['X']
+            record['assessment_source'] = values['Y']
         else:
             record['complete'] = values['AR'] == 'CLADDING ESTIMATE'
         rows.append(record)
@@ -201,7 +206,38 @@ def project_calculator_report(calculator_id, inputs=None):
     data = {'id': calculator_id, 'title': model['title'], 'source': deepcopy(model['source']),
             'inputs': normalized, 'sheet': sheet_name, 'rows': rows, 'summaries': [],
             'extra_rows': [], 'incomplete_rows': sum(not row['complete'] for row in rows)}
-    if calculator_id == 'ductwork':
+    if calculator_id == 'steel_intumescent':
+        data['title'] += ' - Nullifire SC902'
+        data['summaries'] = [table('SC902 product order', 'SUMMARY', 6, 7, 7, 'ABCDEFGHI',
+            note='Kits are pooled by product; waste and rounding apply once. An unresolved item withholds the complete order.')]
+        total = engine.totals()
+        data['summaries'][0]['qualifications'] = [(
+            'SC902 packs',
+            'Part A to order: ' + _number(total['part_a'], blank='Unavailable') + ' kg; '
+            'Part B to order: ' + _number(total['part_b'], blank='Unavailable') + ' kg.',
+            'Mixed kit: ' + _number(total['pack_kg'], blank='Unavailable') + ' kg / '
+            + _number(total['kit_litres'], blank='Unavailable') + ' L.')]
+        data['totals'] = [('Available coating area (m²)', total['area']),
+                          ('Available mixed coating (kg)', total['kg']),
+                          ('Available mixed coating (L)', total['litres']),
+                          ('Pooled whole kits', total['whole']),
+                          ('Part A to order (kg)', total['part_a']),
+                          ('Part B to order (kg)', total['part_b'])]
+        data['basis'] = ('DFT is in microns (µm), converted exactly from the millimetre tables in FC18580-01-01 dated 20 March 2024. '
+                         'A/V uses the next higher factor row and next lower published temperature; '
+                         'the minimum row applies below the minimum A/V. Only published fire periods are used. '
+                         'Mixed kg = area × DFT(mm) × editable theoretical consumption; litres = kg / mixed density. '
+                         'Wet film = DFT / volume solids. RHS/SHS columns require mesh.')
+        data['assessment_evidence'] = {'id': 'nullifire-sc902-fc18580-01-01',
+            'dataset_sha256': engine.assessment.digest,
+            'source_report_sha256': engine.assessment.report_sha256,
+            'available': not bool(engine.assessment.error)}
+        data['assessment_receipt'] = ('SC902 dataset SHA-256: ' + engine.assessment.digest
+                                     + '; source report SHA-256: ' + engine.assessment.report_sha256)
+        data['assessment_notes'] = ['Schedule line ' + str(item['line']) + ': '
+                                   + str(item['values']['X'] or '') + ' ' + str(item['values']['Y'] or '')
+                                   for item in rows]
+    elif calculator_id == 'ductwork':
         data['application_summary_note'] = FYREWRAP_DIRECTION_NOTE if any(row['wrap'] for row in rows) else ''
         data['application_notes'] = list(dict.fromkeys(
             row['values']['AP'] for row in rows
@@ -368,6 +404,11 @@ class _ScheduleReport(_Report):
                     self.p(self.display(v['E']), 'cell'), self.p(thickness, 'numeric'), self.numeric(v['K']),
                     self.numeric('N/A' if item['wrap'] else v['M']), self.numeric(v['N'] if item['wrap'] else 'N/A'),
                     self.numeric(v['O'] if item['wrap'] else 'N/A'), self.p(v['J'] or 'No calculated status returned', 'cell')])
+            elif data['id'] == 'steel_intumescent':
+                rows.append([self.p(identity, 'cell'), self.p(v['AA'], 'cell'), self.p(v['A'], 'cell'),
+                    self.p(v['C'], 'cell'), self.numeric(v['H']), self.numeric(v['D']),
+                    self.numeric(v['O']), self.numeric(v['R']),
+                    self.p(str(v['V']) + '; ' + str(v['W']), 'cell')])
             elif data['id'] == 'steel_vermiculite':
                 rows.append([self.p(identity, 'cell'), self.p(v['AA'], 'cell'), self.p(v['A'], 'cell'),
                     self.p(v['B'] or 'Product missing', 'cell'), self.p(v['F'], 'cell'),
@@ -381,6 +422,9 @@ class _ScheduleReport(_Report):
         if data['id'] == 'ductwork':
             heads = ['Line', 'Product / duct mm', 'Length m', 'FRL', 'Thickness mm', 'Duct m²', 'Net spray bags', 'Wrap m²', 'Roll eq.', 'Status']
             fractions = [.05, .16, .065, .085, .08, .085, .085, .085, .075, .23]
+        elif data['id'] == 'steel_intumescent':
+            heads = ['Line', 'Location', 'Item / mark', 'Member case', 'Period (min)', 'Critical °C', 'DFT (µm)', 'Area (m²)', 'Status']
+            fractions = [.05, .12, .11, .16, .08, .08, .08, .08, .24]
         elif data['id'] == 'steel_vermiculite':
             heads = ['Line', 'Location', 'Item / mark', 'Product', 'Section', 'Quantity', 'Length (m)', 'Thickness (mm)']
             fractions = [.06, .15, .13, .17, .18, .08, .10, .13]
@@ -436,7 +480,7 @@ class _ScheduleReport(_Report):
                 continue
             self.note_block(_source_text(data['id'], 'BOARD SUMMARY', 'A8', value))
         unresolved = {}
-        product_column = 'B' if data['id'] == 'steel_vermiculite' else 'C'
+        product_column = 'B' if data['id'] in {'steel_vermiculite', 'steel_intumescent'} else 'C'
         for item in data['rows']:
             if not item['complete']:
                 product = _text(item['values'].get(product_column) or 'Product missing')
@@ -479,7 +523,7 @@ class _ScheduleReport(_Report):
                     value = summary_display_value(data, summary, item, column)
                     if data['id'] == 'ductwork' and summary['title'] == 'Product totals' and ((item['row'] < 11 and column in 'EFG') or (item['row'] == 11 and column == 'D')):
                         value = 'N/A'
-                    formatted.append(self.numeric(value, blank='-', percent=data['id'] == 'steel_vermiculite' and column == 'F') if _numeric(value) else self.p(self.display(value, blank='-'), 'cell'))
+                    formatted.append(self.numeric(value, blank='-', percent=data['id'] in {'steel_vermiculite', 'steel_intumescent'} and column == 'F') if _numeric(value) else self.p(self.display(value, blank='-'), 'cell'))
                 rows.append(formatted)
             material_table = self.table([labels[column] for column in columns], rows, widths, compact=True)
             # Keep the steel counting basis with its table instead of orphaning
@@ -496,7 +540,10 @@ class _ScheduleReport(_Report):
                     self.story.append(self.pairs([(str(product), value) for value in (basis, interpretation) if _has_value(value)]))
             self.story.append(Spacer(1, 9))
         if not data.get('board_net_steel_areas'):
-            self.story.append(self.p(f"{data['incomplete_rows']} schedule item(s) have incomplete or unavailable primary quantities. Displayed product quantities retain the source workbook's exclusions; review the item statuses in the calculator before ordering.", 'small'))
+            if data['id'] == 'steel_intumescent':
+                self.story.append(self.p(f"{data['incomplete_rows']} schedule item(s) have incomplete or unavailable primary quantities. Displayed quantities follow the assessment and estimating settings. Review the item statuses before ordering.", 'small'))
+            else:
+                self.story.append(self.p(f"{data['incomplete_rows']} schedule item(s) have incomplete or unavailable primary quantities. Displayed product quantities retain the source workbook's exclusions; review the item statuses in the calculator before ordering.", 'small'))
 
 def build_calculator_report(calculator_id, inputs=None, *, project_details=None, company=None, include_project_details=True, project_report_title=None):
     """Return the full schedule only; reading a draft never saves it."""

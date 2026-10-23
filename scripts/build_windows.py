@@ -89,12 +89,12 @@ def verify_seed(seed):
 def _read_calculator_evidence(directory, *, private_input=False):
     """Read fixed assessment files through their independent runtime authority gates."""
     from estimator.desktop_seed import safe_directory
-    from estimator import monokote_hollow, perlifoc_assessment
+    from estimator import monokote_hollow, perlifoc_assessment, sc902_assessment
     directory = safe_directory(Path(directory).absolute()).resolve(strict=True)
     if private_input and directory.is_relative_to(ROOT.resolve()):
         raise ValueError('Private calculator evidence must remain outside the repository.')
     payloads, receipts = {}, []
-    for authority in (monokote_hollow, perlifoc_assessment):
+    for authority in (monokote_hollow, perlifoc_assessment, sc902_assessment):
         path = directory / authority.DATASET_FILENAME
         try:
             info = path.lstat()
@@ -128,16 +128,17 @@ def verify_calculator_evidence(directory, expected, *, private_input=False):
 
 
 def stage_calculator_evidence(directory, destination, *, required=False):
-    """Stage only reviewed snapshots; deliverable installers require both assessments."""
+    """Stage only reviewed snapshots; deliverable installers require every assessment."""
     if directory is None:
         if required:
             raise ValueError('A deliverable installer requires explicit --calculator-evidence.')
         return None
     payloads, receipt = _read_calculator_evidence(directory, private_input=True)
     if required:
-        from estimator import monokote_hollow, perlifoc_assessment
-        if set(payloads) != {monokote_hollow.DATASET_FILENAME, perlifoc_assessment.DATASET_FILENAME}:
-            raise ValueError('A deliverable installer requires both reviewed calculator assessments.')
+        from estimator import monokote_hollow, perlifoc_assessment, sc902_assessment
+        if set(payloads) != {authority.DATASET_FILENAME for authority in (
+                monokote_hollow, perlifoc_assessment, sc902_assessment)}:
+            raise ValueError('A deliverable installer requires all reviewed calculator assessments.')
     from estimator.desktop_seed import safe_directory
     destination = safe_directory(Path(destination).absolute())
     if destination.resolve().is_relative_to(ROOT.resolve()):
@@ -338,7 +339,7 @@ def main():
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--seed', type=Path)
     parser.add_argument('--calculator-evidence', type=Path,
-        help='External directory containing reviewed Monokote and Perlifoc assessment JSON files.')
+        help='External directory containing reviewed Monokote, Perlifoc and SC902 assessment JSON files.')
     parser.add_argument('--iscc', type=Path)
     parser.add_argument('--webview2-installer', type=Path)
     parser.add_argument('--webview2-arm64-installer', type=Path)

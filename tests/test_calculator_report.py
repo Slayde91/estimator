@@ -10,6 +10,8 @@ from pypdf import PdfReader
 
 from estimator.calculator_report import build_calculator_report, build_calculator_summary_report, project_calculator_report, _material_rows, _source_text
 from estimator.catalog import ValidationError
+from estimator.excel_engine import WorkbookEngine
+from estimator.perlifoc_assessment import Assessment as PerlifocAssessment
 from estimator.workbook_calculators import source_model
 from tests.test_workbook_parity import read_fixture, scenario_inputs, excel_equal
 
@@ -20,6 +22,32 @@ REMOVED_SECTIONS = (
     'Manual bag calculation - separate from the schedule',
     'Settings used for this report',
 )
+
+MISSING_PERLIFOC_EVIDENCE = PerlifocAssessment('missing', error='Synthetic missing Perlifoc assessment.')
+
+
+def assert_missing_perlifoc_projection(test, data):
+    """Current exports withhold Perlifoc demand; historical Excel remains separate."""
+    rows = [row for row in data['rows'] if row['values'].get('B') == 'PERLIFOC HP ECO+']
+    if not rows:
+        return
+    receipt = next(item for item in data['assessment_evidences'] if item['id'] == 'perlifoc-fc21278-01-1')
+    test.assertEqual(receipt['dataset_sha256'], 'missing')
+    test.assertFalse(receipt['available'])
+    for row in rows:
+        test.assertFalse(row['complete'])
+        for column in ('O', 'P', 'S', 'T', 'U'):
+            test.assertEqual(row['values'][column], '', (row['row'], column))
+        test.assertEqual(row['values']['V'], 'ASSESSMENT DATA UNAVAILABLE')
+        test.assertEqual(row['values']['W'], 'THICKNESS NOT AVAILABLE')
+        test.assertIn(MISSING_PERLIFOC_EVIDENCE.error, row['values']['Y'])
+        test.assertIn('FC21278-01-1', row['assessment_source'])
+    summary = next(row['values'] for table in data['summaries'] for row in table['rows']
+                   if row['values'].get('A') == 'PERLIFOC HP ECO+')
+    test.assertEqual(summary['D'], 0)
+    test.assertEqual(summary['E'], 0)
+    test.assertEqual(summary['F'], 0)
+    test.assertEqual(summary['I'], 'INCOMPLETE - CHECK SCHEDULE')
 
 
 def cleared_inputs(identity):
@@ -46,6 +74,9 @@ def blank_projection(identity):
 class CalculatorReportTests(unittest.TestCase):
     def assert_native_projection(self, identity, projected, expected):
         comparisons = 0
+        original = None
+        if identity == 'steel_vermiculite':
+            assert_missing_perlifoc_projection(self, projected)
         for row in projected['rows']:
             for column, actual in row['values'].items():
                 address = column + str(row['row'])
@@ -54,6 +85,18 @@ class CalculatorReportTests(unittest.TestCase):
                         # Fixing text has its own native fixture. The new directional
                         # application notes are asserted in test_fyrewrap_rules;
                         # all quantity outputs here still match the original oracle.
+                        continue
+                    if (identity == 'steel_vermiculite' and row['values'].get('B') == 'PERLIFOC HP ECO+'
+                            and column in ('V', 'Y')):
+                        # The current missing-assessment status replaces this old
+                        # status/note only. Still verify the untouched raw model
+                        # against both historical oracle cells; all input, geometry,
+                        # quantity and summary comparisons below remain unchanged.
+                        if original is None:
+                            original = WorkbookEngine(source_model(identity), projected['inputs'])
+                        self.assertTrue(excel_equal(original.value(projected['sheet'], address),
+                                                    expected[projected['sheet']][address]), address)
+                        comparisons += 1
                         continue
                     self.assertTrue(excel_equal(actual, expected[projected['sheet']][address]), (identity, address, actual, expected[projected['sheet']][address]))
                     comparisons += 1
@@ -97,7 +140,8 @@ class CalculatorReportTests(unittest.TestCase):
         self.assertNotIn('context', changed)
         self.assertNotIn('settings', changed)
 
-    def test_native_changed_yields_rounding_unresolved_rows_and_extra_board_stock(self):
+    @patch('estimator.perlifoc_assessment.load_assessment', return_value=MISSING_PERLIFOC_EVIDENCE)
+    def test_native_changed_yields_rounding_unresolved_rows_and_extra_board_stock(self, _perlifoc_evidence):
         cases = [('ductwork', 'calibration_reference_precision'),
                  ('steel_vermiculite', 'missing_yield_and_zero_area'),
                  ('steel_vermiculite', 'rounding_manual_bags_and_helpers'),

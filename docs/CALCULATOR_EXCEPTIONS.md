@@ -136,6 +136,17 @@ Missing Z106 settings fall back to its new runtime defaults without rewriting
 the saved file. Reset Calc applies the startup profile and a blank schedule to
 the draft; Save or Save As is required to persist that draft.
 
+## Reviewed Perlifoc assessment
+
+FC21278-01-1 (4 November 2025) now governs PERLIFOC HP ECO+ application
+thicknesses, including hollow beams and published 360-minute results. The
+application uses a separately verified private assessment and retains the
+original FC15622 workbook bytes and Excel oracle as historical evidence.
+Missing or invalid assessment data blocks Perlifoc thicknesses and quantities;
+the former 120-to-180-minute substitutions do not apply to the new route.
+See [Perlifoc assessment policy](PERLIFOC_ASSESSMENT.md) for cases, limits,
+private installation, calculation checks and saved-project preservation.
+
 ## Reviewed Monokote fully exposed hollow-column assessment
 
 The 29 September 2026 instruction makes FAR4856 Issue 2 the governing thickness

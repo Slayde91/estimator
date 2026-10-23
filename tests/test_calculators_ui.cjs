@@ -545,6 +545,9 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
   assert.equal(audit.safeDocumentUrl('javascript:alert(1)'), null);
   assert.equal(audit.safeDocumentUrl('file:///C:/secret'), null);
   assert.equal(audit.safeDocumentUrl('https://example.com/report.pdf'), 'https://example.com/report.pdf'); passed++;
+  assert.equal(audit.safeDocumentUrl(null), null);
+  assert.equal(audit.safeDocumentUrl(undefined), null);
+  assert.equal(audit.safeDocumentUrl(''), null);
 
   // Manufacturer document requests remain visibly distinct from downloadable reports.
   entry.definition.documents = [
@@ -558,6 +561,13 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
   assert.match(documentCards[1].children[0].textContent,/Manufacturer document request.*Request from manufacturer/);
   assert.equal(documentCards[1].classList.contains('calculator-document-request'),true);
   assert.equal(documentCards[1].children.at(-1).textContent,'A product listing is not a report.'); passed++;
+  entry.definition.documents = [{title:'Supplied assessment',kind:'Assessment report',availability:'Held privately',
+    products:['Example spray'],url:null,reference_only:true,reference_coverage:'Current thickness basis.'}];
+  audit.renderDocuments(entry);
+  const privateCard=byId('calculator-document-list').children[0].children[1].children[0];
+  assert.equal(privateCard.children[1].tagName,'p');
+  assert.equal(privateCard.children[1].textContent,'Supplied assessment');
+  assert.equal(privateCard.children[1].href,undefined); passed++;
 
   // Only explicit directions in their identified source cells receive business labels.
   entry=setup();const warning='No quantity: wastage must be between 0% and 100%. Check L, or the default on SETTINGS when L is blank.';

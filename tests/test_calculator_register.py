@@ -13,7 +13,8 @@ from openpyxl import load_workbook
 from estimator.calculator_register import build_calculator_register
 from estimator.calculator_report import project_calculator_report, _source_text
 from estimator.workbook_calculators import source_model
-from tests.test_calculator_report import cleared_inputs, REMOVED_SECTIONS
+from tests.test_calculator_report import (cleared_inputs, REMOVED_SECTIONS,
+    assert_missing_perlifoc_projection, MISSING_PERLIFOC_EVIDENCE)
 from tests.test_workbook_parity import read_fixture, scenario_inputs, excel_equal
 
 
@@ -107,6 +108,10 @@ class CalculatorRegisterTests(unittest.TestCase):
                 columns = ('V', 'W') if identity == 'steel_vermiculite' else ('AR', 'AS')
                 status = '\n'.join(str(item['values'][column]) for column in columns
                                    if item['values'][column] not in (None, '')) or 'No calculated status returned'
+                if identity == 'steel_vermiculite':
+                    provenance = item.get('assessment_source') or item.get('source_reference')
+                    if provenance:
+                        status += '\n' + provenance
             self.assert_cell_value(sheet.cell(target_row, headers['Status']), status)
             if identity == 'steel_vermiculite':
                 # Removing presentation columns must not alter their underlying
@@ -162,7 +167,9 @@ class CalculatorRegisterTests(unittest.TestCase):
                 self.assertIn(_source_text(identity, 'BOARD SUMMARY', 'A8', note), text)
         self.assertGreater(comparisons, 20)
 
-    def test_defaults_and_changed_native_scenarios_retain_calculated_values(self):
+    @patch('estimator.perlifoc_assessment.load_assessment', return_value=MISSING_PERLIFOC_EVIDENCE)
+    def test_defaults_and_changed_native_scenarios_retain_calculated_values(self, _perlifoc_evidence):
+        snapshot.cache_clear()
         for identity in IDS:
             for kind in ('default', 'variations'):
                 with self.subTest(identity=identity, kind=kind):
@@ -177,6 +184,8 @@ class CalculatorRegisterTests(unittest.TestCase):
                                     self.assertEqual(cell.alignment.vertical, 'center', (page.title, cell.coordinate))
                     self.assert_schedule(identity, data, workbook, native)
                     self.assert_summaries(identity, data, workbook, native)
+                    if identity == 'steel_vermiculite':
+                        assert_missing_perlifoc_projection(self, data)
                     if identity == 'steel_board':
                         self.assert_extras(data, workbook, native)
 

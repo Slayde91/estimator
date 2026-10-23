@@ -2253,6 +2253,7 @@
   }
 
   function safeDocumentUrl(value) {
+    if (typeof value !== "string" || !value.trim()) return null;
     try { const url = new URL(value, window.location.origin); return ["https:", "http:"].includes(url.protocol) ? url.href : null; }
     catch { return null; }
   }
@@ -2260,15 +2261,16 @@
   function renderDocuments(entry) {
     const groups = new Map();
     for (const document of entry.definition.documents || []) {
-      const url = safeDocumentUrl(document.url); if (!url) continue;
+      const url = safeDocumentUrl(document.url); if (!url && document.reference_only !== true) continue;
       const product = Array.isArray(document.products) && document.products.length ? document.products.join(" / ") : "Source information";
       if (!groups.has(product)) groups.set(product, []);
       const card = node("article", "calculator-document-card");
       if (/request/i.test(`${document.kind || ""} ${document.availability || ""}`)) card.classList.add("calculator-document-request");
       const metadata = [document.kind, document.availability].filter(Boolean).join(" · ");
       if (metadata) card.append(node("p", "calculator-document-meta", metadata));
-      const link = node("a", "calculator-document-link", document.title || "Technical document");
-      link.href = url; link.target = "_blank"; link.rel = "noopener noreferrer"; card.append(link);
+      const link = node(url ? "a" : "p", "calculator-document-link", document.title || "Technical document");
+      if (url) { link.href = url; link.target = "_blank"; link.rel = "noopener noreferrer"; }
+      card.append(link);
       if (document.reference_coverage) card.append(node("p", "calculator-document-coverage", document.reference_coverage));
       if (document.notes && document.notes !== document.reference_coverage) card.append(node("p", "calculator-document-notes", document.notes));
       groups.get(product).push(card);

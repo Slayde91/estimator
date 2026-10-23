@@ -12,7 +12,7 @@ from pathlib import Path
 import unittest
 
 from estimator.excel_engine import WorkbookEngine
-from estimator.workbook_calculators import source_model
+from estimator.workbook_catalog import load_workbook_catalog
 from tests.test_workbook_parity import excel_equal, scenario_inputs
 
 
@@ -38,7 +38,7 @@ class ReviewedYieldFixtureTests(unittest.TestCase):
         capture = json.loads(raw.decode("utf-8-sig"))
         self.assertEqual(hashlib.sha256(payload).hexdigest(), manifest["gzip_sha256"])
         self.assertEqual(hashlib.sha256(raw).hexdigest(), manifest["capture_sha256"])
-        self.assertEqual(capture["source_sha256"], source_model("steel_vermiculite")["source"]["sha256"])
+        self.assertEqual(capture["source_sha256"], load_workbook_catalog("steel_vermiculite")["source"]["sha256"])
         self.assertEqual(capture["source_sha256"], manifest["source_sha256"])
         self.assertEqual(capture["oracle"]["application"], "Microsoft Excel")
         for field in ("version", "build", "captured_utc"):
@@ -85,7 +85,10 @@ class ReviewedYieldFixtureTests(unittest.TestCase):
 
 class ReviewedYieldNativeParityTests(unittest.TestCase):
     def test_all_reviewed_yield_scenarios_match_native_excel(self):
-        model = source_model("steel_vermiculite")
+        # Native Excel captures describe the immutable workbook, including its
+        # historical Perlifoc coverage labels. Application assessment policy is
+        # checked separately without replacing any captured expected values.
+        model = load_workbook_catalog("steel_vermiculite")
         for scenario in read_capture()["scenarios"]:
             with self.subTest(scenario=scenario["id"]):
                 engine = WorkbookEngine(model, scenario_inputs(scenario), scenario["formula_overrides"])

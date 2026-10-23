@@ -387,6 +387,51 @@ def _add_monokote_application_basis(model):
     cells['D239'].pop('cached_value', None)
 
 
+def _add_perlifoc_assessment(model):
+    """Expose the reviewed policy without rewriting imported workbook evidence."""
+    sheets = {sheet['name']: sheet for sheet in model['sheets']}
+    cells = sheets['SETTINGS']['cells']
+
+    def replace(address, value):
+        original = cells.get(address, {})
+        cells[address] = {'data_type': 'n' if type(value) in (int, float) else 's',
+                          'style': original.get('style', 0), 'value': value}
+
+    replace('BI14', 360)
+    model['defined_names']['PeriodList'] = 'SETTINGS!$BI$6:$BI$14'
+    for record in model.get('defined_name_records', []):
+        if record.get('name') == 'PeriodList':
+            record['formula'] = model['defined_names']['PeriodList']
+    replacements = {
+        'A174': 'FC21278-01-1 | 4 November 2025', 'D175': 'FC21278-01-1',
+        'A176': 'FC21278-01-1_Carboline PERLIFOC AS 4100 Report FINAL.pdf',
+        'D187': 'PERLIFOC HP ECO+ only. FC21278-01-1 governs I/H and re-entrant sections, RHS/SHS beams and RHS/SHS/CHS columns. Check the member and exposure against the report.',
+        'A189': 'Availability depends on the exact exposure, temperature, section factor and fire period. Blank report cells remain unavailable. Tables already include hollow-section corrections.',
+        'A194': 'CURRENT THICKNESS BASIS',
+        'D194': 'FC21278-01-1 replaces the inherited Perlifoc thickness route, including the former 120-to-180-minute substitutions. The original workbook remains retained as historical evidence.',
+    }
+    for address, value in replacements.items():
+        replace(address, value)
+    cases = ('Hollow - 4 sides', 'Hollow - 3 sides', 'Re-entrant - 3 sides', 'Re-entrant - 4 sides')
+    for row in range(197, 224):
+        for column in ('A', 'D', 'E', 'F', 'G', 'J', 'L'):
+            replace(f'{column}{row}', '')
+    for row, case in enumerate(cases, 197):
+        values = {'A': case, 'D': '350-750 (50 C steps)', 'E': 68, 'F': 476,
+                  'G': '15, 30, 45, 60, 90, 120, 180, 240, 360',
+                  'J': 'FC21278-01-1; Hp/A / converted', 'L': 'Check live result'}
+        for column, value in values.items():
+            replace(f'{column}{row}', value)
+    calculator = sheets['CALCULATOR']['cells']
+    for row in (28, 29, 30):
+        calculator[f'J{row}'] = deepcopy(calculator[f'I{row}'])
+        calculator[f'J{row}'].pop('cached_value', None)
+    calculator['J28']['value'] = 360
+    # The assessment engine supplies these outputs, including unsupported cells.
+    calculator['J29']['formula'] = '""'
+    calculator['J30']['formula'] = '""'
+
+
 @lru_cache(maxsize=3)
 def _application_catalog(calculator_id):
     """Private, shared model; consumers must treat it as immutable."""
@@ -404,6 +449,7 @@ def _application_catalog(calculator_id):
         _add_spray_location(model)
         _add_monokote_z106(model)
         _add_monokote_application_basis(model)
+        _add_perlifoc_assessment(model)
     elif calculator_id == 'steel_board':
         schedule['line_numbers'] = True
         schedule['location_column'] = 'B'

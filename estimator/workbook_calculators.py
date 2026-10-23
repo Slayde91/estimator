@@ -504,14 +504,16 @@ def validate_calculator_edits(calculator_id, inputs, saved_inputs):
     return normalized
 
 
-def calculator_engine(calculator_id, normalized_inputs, *, assessment=None):
+def calculator_engine(calculator_id, normalized_inputs, *, assessment=None, perlifoc_assessment=None):
     """One application evaluation path for the UI, PDF and XLSX projection."""
     model = source_model(calculator_id)
     overrides = approved_formula_overrides(calculator_id)
     if calculator_id == 'steel_vermiculite':
-        from .monokote_hollow import MonokoteHollowEngine, load_assessment
-        engine = MonokoteHollowEngine(model, normalized_inputs, overrides,
-                                    assessment=load_assessment() if assessment is None else assessment)
+        from .monokote_hollow import load_assessment
+        from .perlifoc_assessment import PerlifocEngine, load_assessment as load_perlifoc_assessment
+        engine = PerlifocEngine(model, normalized_inputs, overrides,
+                               assessment=load_assessment() if assessment is None else assessment,
+                               perlifoc_assessment=load_perlifoc_assessment() if perlifoc_assessment is None else perlifoc_assessment)
     else:
         engine = WorkbookEngine(model, normalized_inputs, overrides)
     if calculator_id in ('steel_vermiculite', 'steel_board'):
@@ -520,17 +522,21 @@ def calculator_engine(calculator_id, normalized_inputs, *, assessment=None):
 
 
 @lru_cache(maxsize=6)
-def _session(calculator_id, serialized_inputs, assessment=None):
-    return calculator_engine(calculator_id, json.loads(serialized_inputs), assessment=assessment), EvaluationLock()
+def _session(calculator_id, serialized_inputs, assessment=None, perlifoc_assessment=None):
+    return calculator_engine(calculator_id, json.loads(serialized_inputs), assessment=assessment,
+                             perlifoc_assessment=perlifoc_assessment), EvaluationLock()
 
 
 def calculator_session(calculator_id, inputs):
     normalized = normalize_calculator_inputs(calculator_id, inputs)
-    assessment = None
+    assessment = perlifoc_assessment = None
     if calculator_id == 'steel_vermiculite':
         from .monokote_hollow import load_assessment
         assessment = load_assessment()
-    engine, lock = _session(calculator_id, json.dumps(normalized, sort_keys=True, ensure_ascii=False, allow_nan=False), assessment)
+        from .perlifoc_assessment import load_assessment as load_perlifoc_assessment
+        perlifoc_assessment = load_perlifoc_assessment()
+    engine, lock = _session(calculator_id, json.dumps(normalized, sort_keys=True, ensure_ascii=False, allow_nan=False),
+                            assessment, perlifoc_assessment)
     return normalized, engine, lock
 
 
@@ -544,6 +550,9 @@ def validation_options(engine, sheet, address, validation, cache=None):
     first = validation['sqref'].split()[0].split(':')[0].replace('$', '')
     translated = Translator('=' + formula, origin=first).translate_formula(address).lstrip('=')
     key = (sheet, translated)
+    if formula.casefold() == 'periodlist' and engine.model['id'] == 'steel_vermiculite':
+        product = engine.value('CALCULATOR', 'D6') if sheet == 'CALCULATOR' else engine.value('SCHEDULE', 'B' + str(coordinates(address)[0]))
+        key += (str(product).casefold() == 'perlifoc hp eco+',)
     if cache is not None and key in cache:
         return cache[key]
     row, column = coordinates(address)
@@ -553,6 +562,8 @@ def validation_options(engine, sheet, address, validation, cache=None):
     for value in items:
         if value not in (None, '') and value not in unique:
             unique.append(value)
+    if len(key) == 3 and not key[2]:
+        unique = [value for value in unique if value != 360]
     if cache is not None:
         cache[key] = unique
     return unique
@@ -754,11 +765,24 @@ def _render_sheet(calculator_id, inputs, source, metadata, start_row, end_row,
         if calculator_id == 'steel_vermiculite' and sheet == 'SETTINGS' and engine.assessment.error:
             metadata = {**metadata, 'display_text': {**metadata['display_text'],
                         'L261': 'ASSESSMENT DATA UNAVAILABLE — H4 results blocked'}}
-        if calculator_id == 'steel_vermiculite' and sheet == 'CALCULATOR' and engine.hollow_scope_active(2):
+        if calculator_id == 'steel_vermiculite' and sheet == 'SETTINGS' and engine.perlifoc_assessment.error:
+            metadata = {**metadata, 'display_text': {**metadata['display_text'],
+                        **{f'L{row}': 'ASSESSMENT DATA UNAVAILABLE - Perlifoc results blocked' for row in range(197, 201)}}}
+        perlifoc_active = calculator_id == 'steel_vermiculite' and sheet == 'CALCULATOR' and engine.perlifoc_scope_active(2)
+        if calculator_id == 'steel_vermiculite' and sheet == 'CALCULATOR' and (engine.hollow_scope_active(2) or perlifoc_active):
             # The assessment replaces the formerly hidden manual citation.
             # Its scope and blocked outcomes must be visible with the result.
             metadata = {**metadata, 'omitted_ranges': [value for value in metadata['omitted_ranges']
                                                      if value != 'H23:N24']}
+        if perlifoc_active:
+            metadata = deepcopy(metadata)
+            metadata['merges'] = [value for value in metadata['merges'] if value != 'J28:N30']
+            metadata['omitted_ranges'] = [value for value in metadata['omitted_ranges']
+                                          if value not in ('J28:N30', 'B28:B30', 'D28:D30')]
+            metadata['omitted_ranges'].append('K28:N30')
+            comparison = metadata['presentation_tables'][2]
+            comparison['columns'] = list(range(1, 11))
+            comparison['column_widths'] = [190, *([100] * 9)]
         for row in range(start_row, end_row + 1) if selected_rows is None else selected_rows:
             cells = []
             for column in columns:

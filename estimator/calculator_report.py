@@ -173,8 +173,11 @@ def project_calculator_report(calculator_id, inputs=None):
             record['complete'] = _numeric(values['N'] if record['wrap'] else values['M'])
         elif calculator_id == 'steel_vermiculite':
             record['complete'] = isinstance(values['W'], str) and values['W'].startswith('QUANTIFIED')
-            if (str(values['B']).casefold() in ('monokote mk-6 hy', 'monokote z106')
-                    and str(values['C']).casefold() == 'hollow - 4 sides'):
+            if ((str(values['B']).casefold() in ('monokote mk-6 hy', 'monokote z106')
+                    and str(values['C']).casefold() == 'hollow - 4 sides')
+                    or str(values['B']).casefold() == 'perlifoc hp eco+'):
+                record['assessment_id'] = ('perlifoc-fc21278-01-1' if str(values['B']).casefold() == 'perlifoc hp eco+'
+                                           else 'monokote-far4856-issue2')
                 record['assessment_reference'] = values['X']
                 # Y binds the retained input factor to the new thickness basis.
                 # Blocked results can have a separate X source locator.
@@ -225,16 +228,27 @@ def project_calculator_report(calculator_id, inputs=None):
                           ('Available pooled whole bags (incomplete products excluded)', _sum_values(item['values']['G'] for item in data['summaries'][0]['rows']))]
         data['basis'] = 'Spray surface follows the selected exposure, member quantity, length, girth and any area override. Published thickness and usable estimating thickness are reported separately. Unresolved rows remain listed.'
         if any('assessment_source' in row for row in rows):
-            from .monokote_hollow import DATASET_ID, SCOPE
-            data['assessment_scope'] = SCOPE
-            data['basis'] += ' ' + SCOPE
-            data['assessment_evidence'] = {'id': DATASET_ID, 'dataset_sha256': engine.assessment.digest,
-                                           'source_report_sha256': engine.assessment.report_sha256,
-                                           'available': not bool(engine.assessment.error)}
-            data['assessment_receipt'] = (
-                'FAR4856 Issue2 dataset SHA-256: ' + engine.assessment.digest
-                + '; source report SHA-256: ' + engine.assessment.report_sha256
-                if not engine.assessment.error else engine.assessment.error)
+            from .monokote_hollow import SCOPE
+            evidence, scopes, receipts = [], [], []
+            for identity, assessment, title, scope in (
+                    ('monokote-far4856-issue2', engine.assessment, 'FAR4856 Issue2', SCOPE),
+                    ('perlifoc-fc21278-01-1', engine.perlifoc_assessment, 'FC21278-01-1',
+                     'PERLIFOC HP ECO+ only. Match member type, exposed sides and slab contact to FC21278-01-1; report blanks remain unavailable.')):
+                if not any(row.get('assessment_id') == identity for row in rows):
+                    continue
+                evidence.append({'id': identity, 'dataset_sha256': assessment.digest,
+                                 'source_report_sha256': assessment.report_sha256,
+                                 'available': not bool(assessment.error)})
+                scopes.append(scope)
+                receipts.append(title + ' dataset SHA-256: ' + assessment.digest
+                                + '; source report SHA-256: ' + assessment.report_sha256
+                                if not assessment.error else assessment.error)
+            data['assessment_scope'] = ' '.join(scopes)
+            data['basis'] += ' ' + data['assessment_scope']
+            # Retain the legacy single-assessment object for existing consumers.
+            data['assessment_evidence'] = evidence[0]
+            data['assessment_evidences'] = evidence
+            data['assessment_receipt'] = '\n'.join(receipts)
             assessment_bases = {}
             for row in rows:
                 if 'assessment_source' in row:
@@ -326,7 +340,7 @@ class _ScheduleReport(_Report):
         if data.get('assessment_receipt'):
             self.story.append(self.p(data['assessment_receipt'], 'small'))
         if data.get('assessment_notes'):
-            self.story.append(self.p('Monokote hollow-column assessment basis', 'subheading'))
+            self.story.append(self.p('Steel protection assessment basis', 'subheading'))
             self.story.extend(self.p(note, 'small') for note in data['assessment_notes'])
         if data.get('application_notes') and not materials:
             heading = self.p('FyreWrap application notes', 'subheading')

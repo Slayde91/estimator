@@ -74,7 +74,11 @@ async function workbook(title) {
   await page.keyboard.press('Home'); await expect(menu.getByRole('button').first()).toBeFocused();
   await page.keyboard.press('Escape'); await expect(toggle).toBeFocused(); await expect(toggle).toHaveAttribute('aria-expanded', 'false'); await expect(menu).toBeHidden();
   assert.deepEqual(await snapshots(), before);
-  await toggle.press('ArrowDown');await page.keyboard.press('End');await expect(steel).toBeFocused();await page.keyboard.press('Enter');await expect(steelMenu).toBeVisible();await page.keyboard.press('ArrowRight');await page.keyboard.press('ArrowDown');await expect(steelMenu.getByRole('button',{name:'Steel (board)',exact:true})).toBeFocused();await page.keyboard.press('Escape');await expect(steel).toBeFocused();await expect(steelMenu).toBeHidden();await page.keyboard.press('ArrowRight');await page.keyboard.press('ArrowDown');await page.keyboard.press('Enter');await workbook('Steel (board)');
+  await toggle.press('ArrowDown');await page.keyboard.press('End');await expect(steel).toBeFocused();await page.keyboard.press('Enter');await expect(steelMenu).toBeVisible();
+  await page.keyboard.press('ArrowRight');await page.keyboard.press('ArrowDown');await expect(steelMenu.getByRole('button',{name:'Steel (intumescent)',exact:true})).toBeFocused();
+  await page.keyboard.press('ArrowDown');await expect(steelMenu.getByRole('button',{name:'Steel (board)',exact:true})).toBeFocused();
+  await page.keyboard.press('Escape');await expect(steel).toBeFocused();await expect(steelMenu).toBeHidden();
+  await page.keyboard.press('ArrowRight');await page.keyboard.press('ArrowDown');await page.keyboard.press('ArrowDown');await page.keyboard.press('Enter');await workbook('Steel (board)');
   assert.deepEqual(await snapshots(), before); evidence.keyboard = { focus: true, arrows: true, homeEnd: true, escapeReturnsFocus: true, enterSelectsCalculator: true, changedDrafts: false };
   await page.getByRole('button', { name: 'Home', exact: true }).click(); await toggle.click(); await workbook('Steel (board)');
   assert.deepEqual(await snapshots(), before);

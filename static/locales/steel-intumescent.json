@@ -13,5 +13,12 @@
     "افتح حاسبة الطلاء المنتفخ لحماية الفولاذ.",
     "เปิดเครื่องคำนวณสีทนไฟชนิดพองตัวสำหรับเหล็ก"
   ],
-  "Close": ["关闭", "बंद करें", "Cerrar", "إغلاق", "ปิด"]
+  "Close": ["关闭", "बंद करें", "Cerrar", "إغلاق", "ปิด"],
+  "This record contains the estimate and its original pricing only. The penetration schedule and all calculators will start from defaults.": [
+    "此记录仅包含估算及其原始定价。贯穿部位清单和所有计算器将从默认值开始。",
+    "इस रिकॉर्ड में केवल अनुमान और मूल मूल्य हैं। पेनेट्रेशन अनुसूची और सभी कैलकुलेटर डिफ़ॉल्ट से शुरू होंगे।",
+    "Este registro solo contiene el presupuesto y sus precios originales. La programación de penetraciones y todas las calculadoras comenzarán con valores predeterminados.",
+    "يتضمن السجل التقدير وتسعيره الأصلي فقط. سيبدأ جدول الاختراقات وجميع الحاسبات بالإعدادات الافتراضية.",
+    "บันทึกนี้รวมเฉพาะประมาณการและราคาเดิม ตารางช่องทะลุและเครื่องคำนวณทั้งหมดจะเริ่มจากค่าเริ่มต้น"
+  ]
 }

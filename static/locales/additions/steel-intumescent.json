@@ -9,5 +9,10 @@
     "Buksan ang kalkulador ng intumescent para sa bakal.",
     "Mở công cụ tính sơn chống cháy trương nở cho thép."
   ],
-  "Close": ["닫기", "Isara", "Đóng"]
+  "Close": ["닫기", "Isara", "Đóng"],
+  "This record contains the estimate and its original pricing only. The penetration schedule and all calculators will start from defaults.": [
+    "이 기록에는 견적과 원래 가격만 포함됩니다. 관통부 일람표와 모든 계산기는 기본값으로 시작합니다.",
+    "Pagtatantiya at orihinal na presyo lamang ang nasa talang ito. Magsisimula sa mga default ang talaan ng butas na dinaanan at lahat ng kalkulador.",
+    "Hồ sơ này chỉ gồm dự toán và đơn giá gốc. Bảng kê lỗ xuyên và tất cả bộ tính sẽ bắt đầu từ mặc định."
+  ]
 }

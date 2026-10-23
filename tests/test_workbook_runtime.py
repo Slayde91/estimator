@@ -37,7 +37,8 @@ class WorkbookRuntimeTests(unittest.TestCase):
     def test_runtime_capacity_titles_and_source_evidence_are_separate(self):
         before = {path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in DATA_DIRECTORY.glob('*') if path.is_file()}
         self.assertEqual([(entry['id'], entry['title']) for entry in calculator_list()['calculators']],
-                         [('steel_vermiculite', 'Steel (spray)'), ('steel_board', 'Steel (board)'), ('ductwork', 'Ductwork (spray/wrap)')])
+                         [('steel_vermiculite', 'Steel (spray)'), ('steel_board', 'Steel (board)'),
+                          ('steel_intumescent', 'Steel (intumescent)'), ('ductwork', 'Ductwork (spray/wrap)')])
         for identity, original_end, runtime_end in (('steel_vermiculite', 1009, 1009), ('steel_board', 208, 1008), ('ductwork', 310, 1010)):
             with self.subTest(identity=identity):
                 raw = load_workbook_catalog(identity)

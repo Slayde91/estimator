@@ -16,7 +16,7 @@ class TakeoffDistributionTests(unittest.TestCase):
                          'scripts/install_reference_library.py', 'scripts/build_language_catalog.py',
                          'scripts/install_library_replicas.py', 'docs/LIBRARY_REPLICAS.md',
                          'scripts/import_boss_matrix.py', 'docs/BOSS_MATRIX_IMPORT.md',
-                         'docs/TAKEOFFS.md', 'docs/LANGUAGES.md',
+                         'docs/TAKEOFFS.md', 'docs/LANGUAGES.md', 'docs/PERLIFOC_ASSESSMENT.md',
                          'estimator/__init__.py', 'static/takeoffs.js', 'data/public.json'):
                 path = root / name; path.parent.mkdir(parents=True, exist_ok=True); path.write_text('')
             for name in ('estimator', 'static', 'data'):
@@ -29,6 +29,7 @@ class TakeoffDistributionTests(unittest.TestCase):
                 self.assertIn('static/takeoffs.js', names)
                 self.assertIn('docs/TAKEOFFS.md', names)
                 self.assertIn('docs/LANGUAGES.md', names)
+                self.assertIn('docs/PERLIFOC_ASSESSMENT.md', names)
                 self.assertIn('scripts/build_language_catalog.py', names)
                 self.assertIn('scripts/install_library_replicas.py', names)
                 self.assertIn('docs/LIBRARY_REPLICAS.md', names)

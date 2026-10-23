@@ -87,22 +87,36 @@ def verify_seed(seed):
 
 
 def _read_calculator_evidence(directory, *, private_input=False):
-    """Read only the fixed, bounded assessment file through its runtime authority gate."""
+    """Read fixed assessment files through their independent runtime authority gates."""
     from estimator.desktop_seed import safe_directory
-    from estimator.monokote_hollow import (DATASET_FILENAME, DATASET_ID,
-        MAX_DATASET_BYTES, validate_assessment_payload)
+    from estimator import monokote_hollow, perlifoc_assessment
     directory = safe_directory(Path(directory).absolute()).resolve(strict=True)
     if private_input and directory.is_relative_to(ROOT.resolve()):
         raise ValueError('Private calculator evidence must remain outside the repository.')
-    path = directory / DATASET_FILENAME
-    info = path.lstat()
-    if not stat.S_ISREG(info.st_mode) or getattr(info, 'st_file_attributes', 0) & 0x400:
-        raise ValueError('Calculator evidence cannot be a linked or nonregular file.')
-    with path.open('rb') as stream:
-        payload = stream.read(MAX_DATASET_BYTES + 1)
-    assessment = validate_assessment_payload(payload)
-    return payload, {'id':DATASET_ID, 'filename':DATASET_FILENAME,
-        'sha256':assessment.digest, 'bytes':len(payload), 'report_sha256':assessment.report_sha256}
+    payloads, receipts = {}, []
+    for authority in (monokote_hollow, perlifoc_assessment):
+        path = directory / authority.DATASET_FILENAME
+        try:
+            info = path.lstat()
+        except FileNotFoundError:
+            continue
+        if not stat.S_ISREG(info.st_mode) or getattr(info, 'st_file_attributes', 0) & 0x400:
+            raise ValueError('Calculator evidence cannot be a linked or nonregular file.')
+        with path.open('rb') as stream:
+            payload = stream.read(authority.MAX_DATASET_BYTES + 1)
+        assessment = authority.validate_assessment_payload(payload)
+        payloads[authority.DATASET_FILENAME] = payload
+        receipts.append({'id': authority.DATASET_ID, 'filename': authority.DATASET_FILENAME,
+            'sha256': assessment.digest, 'bytes': len(payload), 'report_sha256': assessment.report_sha256})
+    if not receipts:
+        raise FileNotFoundError('No reviewed calculator assessment file was supplied.')
+    # Retain the historical single-assessment receipt for diagnostic builds.
+    receipt = receipts[0] if len(receipts) == 1 else {'schema_version': 1, 'datasets': receipts}
+    return payloads, receipt
+
+
+def _assessment_receipts(receipt):
+    return receipt['datasets'] if 'datasets' in receipt else [receipt]
 
 
 def verify_calculator_evidence(directory, expected, *, private_input=False):
@@ -114,26 +128,31 @@ def verify_calculator_evidence(directory, expected, *, private_input=False):
 
 
 def stage_calculator_evidence(directory, destination, *, required=False):
-    """Stage one reviewed JSON snapshot, never neighboring private reports or files."""
+    """Stage only reviewed snapshots; deliverable installers require both assessments."""
     if directory is None:
         if required:
             raise ValueError('A deliverable installer requires explicit --calculator-evidence.')
         return None
-    payload, receipt = _read_calculator_evidence(directory, private_input=True)
+    payloads, receipt = _read_calculator_evidence(directory, private_input=True)
+    if required:
+        from estimator import monokote_hollow, perlifoc_assessment
+        if set(payloads) != {monokote_hollow.DATASET_FILENAME, perlifoc_assessment.DATASET_FILENAME}:
+            raise ValueError('A deliverable installer requires both reviewed calculator assessments.')
     from estimator.desktop_seed import safe_directory
     destination = safe_directory(Path(destination).absolute())
     if destination.resolve().is_relative_to(ROOT.resolve()):
         raise ValueError('Private calculator evidence staging must remain outside the repository.')
     destination.mkdir()
-    with (destination / receipt['filename']).open('xb') as stream:
-        stream.write(payload)
+    for filename, payload in payloads.items():
+        with (destination / filename).open('xb') as stream:
+            stream.write(payload)
     verify_calculator_evidence(directory, receipt, private_input=True)
     verify_calculator_evidence(destination, receipt)
     return receipt
 
 
 def verify_packaged_calculator_evidence(bundle, expected):
-    """The frozen application must contain exactly the reviewed optional snapshot."""
+    """The frozen application must contain exactly the recorded optional snapshots."""
     from estimator.desktop_seed import safe_directory
     directory = bundle / '_internal/calculator-evidence'
     if expected is None:
@@ -141,7 +160,7 @@ def verify_packaged_calculator_evidence(bundle, expected):
             raise ValueError('Unexpected calculator evidence was included in the frozen bundle.')
         return None
     safe_directory(directory)
-    if {path.name for path in directory.iterdir()} != {expected['filename']}:
+    if {path.name for path in directory.iterdir()} != {item['filename'] for item in _assessment_receipts(expected)}:
         raise ValueError('Frozen calculator evidence contains missing or unexpected files.')
     return verify_calculator_evidence(directory, expected)
 
@@ -319,7 +338,7 @@ def main():
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--seed', type=Path)
     parser.add_argument('--calculator-evidence', type=Path,
-        help='External directory containing the reviewed private calculator assessment JSON.')
+        help='External directory containing reviewed Monokote and Perlifoc assessment JSON files.')
     parser.add_argument('--iscc', type=Path)
     parser.add_argument('--webview2-installer', type=Path)
     parser.add_argument('--webview2-arm64-installer', type=Path)
@@ -356,7 +375,7 @@ def main():
         + "[StringStruct('CompanyName','CEASEFIRE'),StringStruct('FileDescription','CEASEFIRE Estimator'),StringStruct('ProductName','CEASEFIRE Estimator'),StringStruct('FileVersion','"
         + args.version + "'),StringStruct('ProductVersion','" + args.version + "')])]),VarFileInfo([VarStruct('Translation',[1033,1200])])])", encoding='utf-8')
     config = {'root':str(ROOT),'resources':resources,'seed':str(seed),'notices':str(notices),'version_file':str(version_file),
-        'calculator_evidence':str(evidence_stage / evidence['filename']) if evidence else None,
+        'calculator_evidence':str(evidence_stage) if evidence else None,
         'excluded_modules':['estimator.' + path.stem for path in (ROOT/'estimator').glob('takeoff*.py')]}
     config_path = output / 'build-config.json'
     config_path.write_text(json.dumps(config, indent=2), encoding='utf-8')

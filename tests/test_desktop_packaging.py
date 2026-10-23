@@ -56,7 +56,7 @@ class CalculatorEvidencePackagingTests(unittest.TestCase):
         (self.source / 'source-report.pdf').write_bytes(b'private neighboring report')
         (self.source / 'unrelated.json').write_text('{}')
         with patch('estimator.monokote_hollow.validate_assessment_payload', side_effect=self.synthetic_authority):
-            receipt = stage_calculator_evidence(self.source, self.stage, required=True)
+            receipt = stage_calculator_evidence(self.source, self.stage)
             self.assertEqual(receipt, {'id':DATASET_ID, 'filename':self.filename,
                 'sha256':hashlib.sha256(self.payload).hexdigest(), 'bytes':len(self.payload),
                 'report_sha256':'0' * 64})
@@ -66,6 +66,46 @@ class CalculatorEvidencePackagingTests(unittest.TestCase):
             # Existing staged output must never be overwritten.
             with self.assertRaises(FileExistsError):
                 stage_calculator_evidence(self.source, self.stage)
+
+    def test_deliverable_requires_both_and_stages_only_verified_snapshots(self):
+        from estimator import monokote_hollow, perlifoc_assessment
+        with patch('estimator.monokote_hollow.validate_assessment_payload', side_effect=self.synthetic_authority), \
+                patch('estimator.perlifoc_assessment.validate_assessment_payload', side_effect=self.synthetic_authority):
+            with self.assertRaisesRegex(ValueError, 'both reviewed'):
+                stage_calculator_evidence(self.source, self.stage, required=True)
+            self.assertFalse(self.stage.exists())
+            perlifoc_payload = b'{"synthetic_perlifoc_packaging_fixture":true}'
+            (self.source / perlifoc_assessment.DATASET_FILENAME).write_bytes(perlifoc_payload)
+            (self.source / 'private-report.pdf').write_bytes(b'not for packaging')
+            receipt = stage_calculator_evidence(self.source, self.stage, required=True)
+            self.assertEqual(receipt['schema_version'], 1)
+            self.assertEqual([item['id'] for item in receipt['datasets']],
+                             [monokote_hollow.DATASET_ID, perlifoc_assessment.DATASET_ID])
+            self.assertEqual({item.name for item in self.stage.iterdir()},
+                             {self.filename, perlifoc_assessment.DATASET_FILENAME})
+            self.assertEqual(verify_calculator_evidence(self.source, receipt), receipt)
+            bundle = self.root / 'multi-bundle'
+            frozen = bundle / '_internal/calculator-evidence'
+            shutil.copytree(self.stage, frozen)
+            self.assertEqual(verify_packaged_calculator_evidence(bundle, receipt), receipt)
+            for directory in (self.source, self.stage, frozen):
+                path = directory / perlifoc_assessment.DATASET_FILENAME
+                path.write_bytes(perlifoc_payload + b' ')
+                with self.assertRaisesRegex(ValueError, 'changed during the build'):
+                    verify_calculator_evidence(directory, receipt)
+                path.write_bytes(perlifoc_payload)
+            (frozen / self.filename).unlink()
+            with self.assertRaisesRegex(ValueError, 'missing or unexpected files'):
+                verify_packaged_calculator_evidence(bundle, receipt)
+
+    def test_an_optional_single_perlifoc_snapshot_has_a_compatible_receipt(self):
+        from estimator import perlifoc_assessment
+        (self.source / self.filename).unlink()
+        (self.source / perlifoc_assessment.DATASET_FILENAME).write_bytes(self.payload)
+        with patch('estimator.perlifoc_assessment.validate_assessment_payload', side_effect=self.synthetic_authority):
+            receipt = stage_calculator_evidence(self.source, self.stage)
+            self.assertEqual(receipt['id'], perlifoc_assessment.DATASET_ID)
+            self.assertEqual(verify_calculator_evidence(self.stage, receipt), receipt)
 
     def test_synthetic_omission_is_explicit_but_deliverable_requires_evidence(self):
         self.assertIsNone(stage_calculator_evidence(None, self.stage))

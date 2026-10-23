@@ -185,22 +185,18 @@
         }
       },
       {
-        "title": "PERLIFOC HP ECO+ steel assessment FC15622 Issue 4",
+        "title": "PERLIFOC HP ECO+ steel assessment FC21278-01-1 (4 November 2025)",
         "kind": "Assessment report",
-        "url": "https://www.tremco.com.au/TremcoAustralia/media/SiteAssets/Products/Certification%20and%20Technical%20Documents/Perlifoc%20HP%20ECO/FC15622-Issue-4-Tremco-PERLIFOC-AS-4100-Report-FINAL.pdf?ext=.pdf",
+        "url": null,
+        "reference_only": true,
         "products": [
           "PERLIFOC HP ECO+"
         ],
         "region": "Australia",
-        "verified_date": "2026-09-13",
-        "availability": "Public PDF",
-        "reference_coverage": "Australian AS4100 steel assessment and published thickness tables.",
-        "notes": "",
-        "link_verification": {
-          "status": 200,
-          "content_type": "application/pdf",
-          "method": "HEAD"
-        }
+        "verified_date": "2026-10-23",
+        "availability": "Supplied report; held privately",
+        "reference_coverage": "Current Perlifoc thickness basis: Tables 5-40, pages 11-46; I/H beams and columns, RHS/SHS beams and RHS/SHS/CHS columns; 350-750 C and published periods through 360 minutes.",
+        "notes": "Use the complete supplied report and its construction limits. Unpublished combinations remain unavailable. The original FC15622 workbook tables are retained as historical evidence."
       },
       {
         "title": "PERLIFOC HP ECO+ Australian safety data sheet",

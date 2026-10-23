@@ -1772,7 +1772,7 @@
       panel.id = prefix; panel.setAttribute("role", "region"); panel.setAttribute("aria-labelledby", button.id);
       if (definition.note) panel.append(node("p", "calculator-technical-note calculator-settings-note", definition.note));
       if (definition.defaults_action) {
-        const apply = uiNode("button", "secondary", definition.defaults_action.label);
+        const apply = uiNode("button", "button secondary", definition.defaults_action.label);
         apply.type = "button"; apply.dataset.calculatorDefaults = definition.id;
         apply.disabled = state.action || Boolean(state.takeoffReservation);
         apply.addEventListener("click", () => applySettingsDefaults(entry, definition));

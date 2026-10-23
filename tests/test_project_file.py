@@ -163,6 +163,30 @@ class ProjectFileTests(unittest.TestCase):
         self.assertEqual(stored_rows(self.receiver), before_receiver)
         self.assertEqual(inputs['SCHEDULE']['G10'], 122.1234567890123)
 
+    def test_mixed_intumescent_project_retains_independent_settings_precision_and_legacy_identity(self):
+        inputs = {'SCHEDULE': {'B10': 'Nullifire SC902', 'B11': 'FIRETEX FX5090',
+                              'B1009': 'FIRETEX FX6010', 'AA1009': 'Three-component pack',
+                              'G1009': 122.1234567890123},
+                  'SETTINGS': {'D16': .071234567890123, 'F38': .691234567890123,
+                               'F37': 18.1234567890123, 'H66': 1.4234567890123,
+                               'H71': 'Component mass (kg)', 'H72': 24.1234567890123,
+                               'H73': 1.23456789012345, 'H74': .212345678901234}}
+        before_sender, before_receiver = stored_rows(self.sender), stored_rows(self.receiver)
+        payload = export_project(self.sender, {'estimate': {}, 'calculators': {
+            'steel_intumescent': {'inputs': inputs, 'schedule_rows': [10, 11, 1009]}}})
+        loaded = self.load(payload)
+        current = loaded['calculators']['steel_intumescent']
+        self.assertEqual(current['inputs'], blank_schedule_defaults('steel_intumescent', inputs))
+        self.assertEqual(current['schedule_rows'], [10, 11, 1009])
+        self.assertEqual(current['source_sha256'], '3bf3499358d6f2e4b75a8ed1402995cba8f9f72142ee81e79ed22fc73e4a4344')
+        self.assertEqual(stored_rows(self.sender), before_sender)
+        self.assertEqual(stored_rows(self.receiver), before_receiver)
+        second = export_project(self.receiver, {
+            'estimate': {key: loaded['estimate'][key] for key in ESTIMATE_FIELDS},
+            'calculators': {key: {'inputs': value['inputs'], 'schedule_rows': value['schedule_rows']}
+                           for key, value in loaded['calculators'].items()}})
+        self.assertEqual(json.loads(second), json.loads(payload))
+
     def test_new_calculator_source_outputs_unknown_ids_and_missing_legacy_maps_reject(self):
         cases = [lambda d: d['calculators']['steel_intumescent'].update(source_sha256='0' * 64),
                  lambda d: d['calculators']['steel_intumescent'].update(inputs={'SCHEDULE': {'O10': 999}}),

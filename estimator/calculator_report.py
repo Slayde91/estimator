@@ -207,33 +207,50 @@ def project_calculator_report(calculator_id, inputs=None):
             'inputs': normalized, 'sheet': sheet_name, 'rows': rows, 'summaries': [],
             'extra_rows': [], 'incomplete_rows': sum(not row['complete'] for row in rows)}
     if calculator_id == 'steel_intumescent':
-        data['title'] += ' - Nullifire SC902'
-        data['summaries'] = [table('SC902 product order', 'SUMMARY', 6, 7, 7, 'ABCDEFGHI',
-            note='Kits are pooled by product; waste and rounding apply once. An unresolved item withholds the complete order.')]
-        total = engine.totals()
-        data['summaries'][0]['qualifications'] = [(
-            'SC902 packs',
-            'Part A to order: ' + _number(total['part_a'], blank='Unavailable') + ' kg; '
-            'Part B to order: ' + _number(total['part_b'], blank='Unavailable') + ' kg.',
-            'Mixed kit: ' + _number(total['pack_kg'], blank='Unavailable') + ' kg / '
-            + _number(total['kit_litres'], blank='Unavailable') + ' L.')]
-        data['totals'] = [('Available coating area (m²)', total['area']),
-                          ('Available mixed coating (kg)', total['kg']),
-                          ('Available mixed coating (L)', total['litres']),
-                          ('Pooled whole kits', total['whole']),
-                          ('Part A to order (kg)', total['part_a']),
-                          ('Part B to order (kg)', total['part_b'])]
-        data['basis'] = ('DFT is in microns (µm), converted exactly from the millimetre tables in FC18580-01-01 dated 20 March 2024. '
-                         'A/V uses the next higher factor row and next lower published temperature; '
-                         'the minimum row applies below the minimum A/V. Only published fire periods are used. '
-                         'Mixed kg = area × DFT(mm) × editable theoretical consumption; litres = kg / mixed density. '
-                         'Wet film = DFT / volume solids. RHS/SHS columns require mesh.')
-        data['assessment_evidence'] = {'id': 'nullifire-sc902-fc18580-01-01',
-            'dataset_sha256': engine.assessment.digest,
-            'source_report_sha256': engine.assessment.report_sha256,
-            'available': not bool(engine.assessment.error)}
-        data['assessment_receipt'] = ('SC902 dataset SHA-256: ' + engine.assessment.digest
-                                     + '; source report SHA-256: ' + engine.assessment.report_sha256)
+        from .intumescent import PRODUCTS
+        from .firetex_assessment import authority_for
+        pools = engine.product_totals()
+        summary = table('Product orders', 'SUMMARY', 6, 7, 7, 'ABCDEFGHI',
+            note='Kits are pooled separately by product; waste and rounding apply once. Unresolved items withhold that product order.')
+        summary['labels'].update(C='Required coating (kg)', D='Required coating (L)',
+                                 E='Net packs', G='Whole packs')
+        summary['rows'], summary['qualifications'] = [], []
+        for index, (name, total) in enumerate(pools.items(), 7):
+            summary['rows'].append({'row': index, 'values': dict(zip('ABCDEFGHI',
+                [name, total['area'], total['kg'], total['litres'], total['net'], total['waste'],
+                 total['whole'], total['order_litres'], total['status']]))})
+            components = '; '.join('Part ' + part.upper() + ': ' + _number(total.get('part_' + part), blank='Unavailable') + ' kg'
+                                   for part in ('a', 'b', 'c') if total.get('part_' + part) not in (None, ''))
+            summary['qualifications'].append((name, components,
+                'Pack: ' + _number(total['pack_kg'], blank='Unavailable') + ' kg / '
+                + _number(total['kit_litres'], blank='Unavailable') + ' L.'))
+        data['summaries'] = [summary]
+        data['totals'] = [('Available coating area (m²)', _sum_values(t['area'] for t in pools.values())),
+                          ('Available mixed coating (L)', _sum_values(t['litres'] for t in pools.values()))]
+        data['basis'] = ('DFT is in microns (µm), converted exactly from the selected product certificate/assessment millimetre tables. '
+                         'FIRETEX requires an exact printed temperature and uses the next higher section-factor row; no interpolation. '
+                         'SC902 retains its next lower printed temperature and minimum-factor rules. '
+                         'FIRETEX factors below the first or above the last row are withheld; blanks and case-specific fire periods are retained. '
+                         'Four-sided FIRETEX beams have separate thickness and section-factor limits. '
+                         'Wet film = DFT / volume solids. Quantities follow independent editable product settings. '
+                         'FX6010 pack values need confirmation for the three-component product described by the supplied certificate. '
+                         'SC902 RHS/SHS columns require mesh. Primers, topcoats and other system allowances are separate.')
+        evidence, receipts = [], []
+        used_products = {item['values']['B'] for item in rows}
+        for name in PRODUCTS:
+            if name not in used_products:
+                continue
+            assessment = engine.product_assessment(name)
+            authority = authority_for(name)
+            identity = authority.DATASET_ID if authority else 'nullifire-sc902-fc18580-01-01'
+            evidence.append({'id': identity, 'product': name, 'dataset_sha256': assessment.digest,
+                'source_report_sha256': assessment.report_sha256, 'available': not bool(assessment.error)})
+            receipts.append(name + ' dataset SHA-256: ' + assessment.digest
+                            + '; source report SHA-256: ' + assessment.report_sha256)
+        data['assessment_evidences'] = evidence
+        if evidence:
+            data['assessment_evidence'] = evidence[0]
+        data['assessment_receipt'] = '\n'.join(receipts)
         data['assessment_notes'] = ['Schedule line ' + str(item['line']) + ': '
                                    + str(item['values']['X'] or '') + ' ' + str(item['values']['Y'] or '')
                                    for item in rows]
@@ -375,7 +392,7 @@ class _ScheduleReport(_Report):
             self.story.append(self.p(data['assessment_scope'], 'small'))
         if data.get('assessment_receipt'):
             self.story.append(self.p(data['assessment_receipt'], 'small'))
-        if data.get('assessment_notes'):
+        if data.get('assessment_notes') and not (materials and data['id'] == 'steel_intumescent'):
             self.story.append(self.p('Steel protection assessment basis', 'subheading'))
             self.story.extend(self.p(note, 'small') for note in data['assessment_notes'])
         if data.get('application_notes') and not materials:
@@ -406,7 +423,7 @@ class _ScheduleReport(_Report):
                     self.numeric(v['O'] if item['wrap'] else 'N/A'), self.p(v['J'] or 'No calculated status returned', 'cell')])
             elif data['id'] == 'steel_intumescent':
                 rows.append([self.p(identity, 'cell'), self.p(v['AA'], 'cell'), self.p(v['A'], 'cell'),
-                    self.p(v['C'], 'cell'), self.numeric(v['H']), self.numeric(v['D']),
+                    self.detail(v['B'] or 'Product missing', v['C']), self.numeric(v['H']), self.numeric(v['D']),
                     self.numeric(v['O']), self.numeric(v['R']),
                     self.p(str(v['V']) + '; ' + str(v['W']), 'cell')])
             elif data['id'] == 'steel_vermiculite':
@@ -423,7 +440,7 @@ class _ScheduleReport(_Report):
             heads = ['Line', 'Product / duct mm', 'Length m', 'FRL', 'Thickness mm', 'Duct m²', 'Net spray bags', 'Wrap m²', 'Roll eq.', 'Status']
             fractions = [.05, .16, .065, .085, .08, .085, .085, .085, .075, .23]
         elif data['id'] == 'steel_intumescent':
-            heads = ['Line', 'Location', 'Item / mark', 'Member case', 'Period (min)', 'Critical °C', 'DFT (µm)', 'Area (m²)', 'Status']
+            heads = ['Line', 'Location', 'Item / mark', 'Product / member case', 'Period (min)', 'Critical °C', 'DFT (µm)', 'Area (m²)', 'Status']
             fractions = [.05, .12, .11, .16, .08, .08, .08, .08, .24]
         elif data['id'] == 'steel_vermiculite':
             heads = ['Line', 'Location', 'Item / mark', 'Product', 'Section', 'Quantity', 'Length (m)', 'Thickness (mm)']

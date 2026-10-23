@@ -148,6 +148,11 @@ class IntumescentTests(unittest.TestCase):
         definition = calculator_definition('steel_intumescent')
         self.assertEqual(definition['pages'], ['START', 'SCHEDULE', 'SUMMARY', 'SETTINGS'])
         self.assertEqual(definition['title'], 'Steel (intumescent)')
+        values = inputs()
+        values['SCHEDULE']['C10'] = 'I/H beam/column - 4 sides'
+        with patch('estimator.sc902_assessment.lookup', return_value=FIXED_RESULT) as selected:
+            self.assertEqual(self.engine(values).value('SCHEDULE', 'O10'), 1000)
+            self.assertEqual(selected.call_args.kwargs['case'], 'R4')
         with self.assertRaises(ValidationError):
             normalize_calculator_inputs('steel_intumescent', {'SCHEDULE': {'O10': 1}})
         for invalid in (float('inf'), True, '=1+1'):

@@ -12,7 +12,7 @@
         "region": "Australia",
         "verified_date": "2026-10-23",
         "availability": "Public PDF; supplied report retained privately",
-        "reference_coverage": "Tables 3–34: dry film thickness in microns for I/H beams, I/H columns, RHS/SHS columns and CHS columns; 15–120 minutes including 75 and 105 minutes.",
+        "reference_coverage": "Tables 3–34: dry film thickness in microns for three-sided I/H beams, four-sided I/H beams and columns, RHS/SHS columns and CHS columns; 15–120 minutes including 75 and 105 minutes.",
         "notes": "Assessment uses A/V (m⁻¹). RHS/SHS mesh is required. Table limits and unavailable values are retained. The 2020 filename is not the report issue date.",
         "source_sha256": "3bf3499358d6f2e4b75a8ed1402995cba8f9f72142ee81e79ed22fc73e4a4344"
       },

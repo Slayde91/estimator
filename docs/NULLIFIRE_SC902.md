@@ -11,7 +11,8 @@ saved projects and frozen prices are retained.
 BRANZ FC18580-01-01, issued 20 March 2024, is the DFT authority. The 2020 in the
 supplied filename describes the standard, not the issue date. Report Tables
 3-34 cover I/H beams protected on three sides, I/H columns protected on four
-sides, RHS/SHS columns and CHS columns. Hollow beams, cellular beams, filled
+sides (including four-sided I/H beams under report page 8), RHS/SHS columns
+and CHS columns. Hollow beams, cellular beams, filled
 columns and tension rods are not enabled by broader product-page statements.
 RHS/SHS columns require reinforcing mesh.
 

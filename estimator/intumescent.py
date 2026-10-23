@@ -14,7 +14,7 @@ IDENTITY = 'steel_intumescent'
 PRODUCT = 'Nullifire SC902'
 REPORT_SHA256 = '3bf3499358d6f2e4b75a8ed1402995cba8f9f72142ee81e79ed22fc73e4a4344'
 REPORT_FILENAME = 'FC18580-01-01-Nullifire-SC902-2020-REPORT-Final.pdf'
-CASES = {'I/H beam - 3 sides': 'R3', 'I/H column - 4 sides': 'R4',
+CASES = {'I/H beam - 3 sides': 'R3', 'I/H beam/column - 4 sides': 'R4',
          'RHS/SHS column - 4 sides': 'RHS', 'CHS column - 4 sides': 'CHS'}
 PERIODS = (15, 30, 45, 60, 75, 90, 105, 120)
 TEMPERATURES = (350, 400, 450, 500, 520, 550, 580, 600, 620, 650, 700, 750)

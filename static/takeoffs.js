@@ -3746,7 +3746,7 @@
   }
   function nativeDrawingThickness(item, preferred = state.ui?.target?.value, strict = false) {
     if (!linkedThickness || linkedThickness.pending || linkedThickness.key !== thicknessContext()?.key) return { value: null };
-    const records = linkedThickness.results[item.id] || [], ids = item.mode === "duct" ? ["ductwork"] : strict ? [preferred] : [...new Set([preferred, ...steelCalculators])];
+    const records = linkedThickness.results[item.id] || [], ids = item.mode === "duct" ? ["ductwork"] : strict ? [preferred] : [...new Set([preferred, "steel_vermiculite", "steel_board", "steel_intumescent"])];
     for (const id of ids) {
       const record = records.find(value => value.calculator_id === id && value.status === "Current"), value = record?.[thicknessKeys[id]];
       if (Number.isFinite(value) && value > 0) return { value };

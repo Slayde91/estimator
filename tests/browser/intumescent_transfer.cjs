@@ -108,6 +108,8 @@ async function transfer(id) {
   }
   await page.screenshot({ path: path.join(output, 'intumescent-linked-dft.png') });
   const first = evidence.members[0];
+  await thickness(first.id).scrollIntoViewIfNeeded();
+  await page.screenshot({ path: path.join(output, 'intumescent-linked-dft-values.png') });
   await editInput(`J${first.row}`, first.length + .125); await expect(thickness(first.id)).toHaveText('Unavailable');
   await expect(thickness(first.id)).toHaveAttribute('title', /linked row was edited/);
   await editInput(`J${first.row}`, first.length); await expect(thickness(first.id)).toHaveText(String(first.thickness_mm));

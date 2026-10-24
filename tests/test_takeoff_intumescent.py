@@ -213,6 +213,25 @@ class IntumescentTakeoffTests(unittest.TestCase):
         self.assertEqual(self.read(drafts)[identity], [])
         self.assertEqual(drafts, original)
 
+    def test_intumescent_register_format_retains_submillimetre_dft_display(self):
+        self.lookup.return_value = {**ASSESSED, 'dft': 548}
+        identity, drafts = self.linked()
+        payload = self.case.service.export_workspace(self.case.sid, 'register-xlsx', {
+            'expected_revision': self.case.state['revision'], 'mode': 'steel',
+            'target': 'steel_intumescent', 'calculator_drafts': drafts})[0]
+        workbook = load_workbook(BytesIO(payload))
+        try:
+            sheet = workbook.active
+            columns = {cell.value: cell.column for cell in sheet[1]}
+            thickness = sheet.cell(2, columns['Thickness (mm)'])
+            self.assertEqual(thickness.value, .548)
+            self.assertEqual(thickness.data_type, 'n')
+            self.assertEqual(thickness.number_format, '0.000############')
+            self.assertEqual(sheet.cell(2, columns['Length each (m)']).number_format, '#,##0.00')
+            self.assertEqual(sheet.cell(2, columns['Qty']).number_format, '#,##0')
+        finally:
+            workbook.close()
+
     def test_no_silent_spray_exposure_alias_is_created(self):
         identity = self.create(exposure='Re-entrant - 3 sides')
         with self.assertRaisesRegex(ValidationError, 'exact supported'):

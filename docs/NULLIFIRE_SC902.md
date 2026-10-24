@@ -92,3 +92,30 @@ a newer project.
 Spray and intumescent schedule basis notes use a single-line preview with a
 keyboard-accessible Details dialog. Full provenance and review notes remain
 in the API and exports. This change affects browser presentation only.
+
+SC902's compact settings form now exposes mixed density, mixed pack volume,
+solids, waste, steel density, pack basis, Part A/B masses and three derived pack
+outputs. Existing input addresses, including hidden specific gravities,
+default-row product and published consumption D15, remain accepted and saved.
+The blank new volume D24 derives from the saved A+B mass divided by density;
+browsing the form does not persist that derived value. D25 selects pack volume
+or component mass. Existing projects retain their exact mass-based pack count
+until an explicit pack volume is entered. An inconsistent explicit volume
+withholds component orders while retaining valid coating litres and packs.
+SC902 coverage still uses the published kg/m²/mm consumption, rather than
+replacing it with density divided by volume solids.
+
+The browser SUMMARY shows one row per product in one table, including quantities,
+pack sizes, component orders and unresolved items. It reads the same unrounded
+product pools as the retained source cells and PDF/XLSX exports; no unlike pack
+types or products are pooled together.
+
+For I/H columns exposed on three sides, the selected estimating rule uses the
+four-sided column table. A named section uses its four-sided section factor for
+DFT and its three-sided perimeter for coating area; material use follows that
+three-sided area and the selected DFT. The result is explicitly marked
+`ESTIMATE - FOUR-SIDED COLUMN TABLE`, retains the actual report/table reference,
+and states the split basis in its review note. Direct A/V, Hp/A and ESA/M inputs
+remain the supplied DFT lookup factor; a fourth-face factor is not inferred
+from an entered three-sided factor. See `INTUMESCENT_COLUMN_SCOPE.md` for report
+scope and the selected estimating rule.

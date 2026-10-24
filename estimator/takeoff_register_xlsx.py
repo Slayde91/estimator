@@ -28,7 +28,7 @@ def _width(header):
     return max(14, min(26, len(header) + 3))
 
 
-def register_workbook(tables, title='Current Takeoffs', *, subject='Current register copy'):
+def register_workbook(tables, title='Current Takeoffs', *, subject='Current register copy', number_formats=None):
     """One presentation sheet with the exact current register columns.
 
     Values stay typed and exact; number formats only control their display.
@@ -80,7 +80,7 @@ def register_workbook(tables, title='Current Takeoffs', *, subject='Current regi
                     cell.border = Border(bottom=Side(style='thin', color='E8E2E3'),
                                          right=Side(style='thin', color='FFFFFF') if is_header else Side())
                     if not is_header and header in numeric_headers:
-                        cell.number_format = '#,##0' if header in whole else '#,##0.00'
+                        cell.number_format = (number_formats or {}).get(header, '#,##0' if header in whole else '#,##0.00')
                     width = _width(header)
                     letter = cell.column_letter
                     sheet.column_dimensions[letter].width = max(sheet.column_dimensions[letter].width or 0, width)
@@ -131,7 +131,7 @@ def export_current_register(snapshot, selected, results, confirmations, linked, 
             record = next((value for value in linked[item['id']] if value['calculator_id'] == target), None)
             if mode == 'duct':
                 row.append(record.get('duct_surface_m2') if record and record.get('duct_surface_status') == 'Current' else None)
-            key = {'steel_vermiculite': 'estimating_thickness_mm', 'steel_board': 'total_thickness_mm', 'ductwork': 'duct_thickness_mm'}[target]
+            key = {'steel_vermiculite': 'estimating_thickness_mm', 'steel_intumescent': 'intumescent_thickness_mm', 'steel_board': 'total_thickness_mm', 'ductwork': 'duct_thickness_mm'}[target]
             row.append(record.get(key) if record and record['status'] == 'Current' else None)
         geometry = item['geometry']
         evidence = f'{documents[geometry["document_id"]]["name"]} · p{geometry["page"]}' if geometry else 'Source markup missing'
@@ -146,7 +146,8 @@ def export_current_register(snapshot, selected, results, confirmations, linked, 
              _size(item['fields']), item['fields'].get('frl'), item['fields'].get('orientation'),
              item['quantity'] if item['purpose'] == 'count-only' else results[item['id']].get('length_m')]
             for item in lengths]))
-    payload = register_workbook(tables)
+    formats = {'Thickness (mm)': '0.000############'} if mode == 'steel' and target == 'steel_intumescent' else None
+    payload = register_workbook(tables, number_formats=formats)
     label = 'Walls-Floors' if area else mode.title()
     suffix = '' if confirmation == 'all' else f'-{confirmation.title()}'
     return payload, MIME, f'CEASEFIRE-{label}{suffix}-Takeoffs.xlsx'

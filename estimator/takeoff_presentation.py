@@ -35,7 +35,7 @@ def thickness_colour(value):
 
 
 def thickness_value(records, calculator):
-    key = {'steel_vermiculite': 'estimating_thickness_mm', 'steel_board': 'total_thickness_mm',
+    key = {'steel_vermiculite': 'estimating_thickness_mm', 'steel_intumescent': 'intumescent_thickness_mm', 'steel_board': 'total_thickness_mm',
            'ductwork': 'duct_thickness_mm'}.get(calculator)
     result = next((row for row in records if row['calculator_id'] == calculator and row['status'] == 'Current'), {})
     value = result.get(key)
@@ -55,7 +55,7 @@ def validate_presentation(snapshot):
     for mode in state['colour_modes']:
         object_fields(mode, {'document_id', 'calculator_id', 'originals'}, 'Thickness colour mode', {'document_id', 'calculator_id', 'originals'})
         page_metadata(snapshot, mode['document_id'], 1)
-        if mode['document_id'] in seen or mode['calculator_id'] not in ('steel_vermiculite', 'steel_board'):
+        if mode['document_id'] in seen or mode['calculator_id'] not in ('steel_vermiculite', 'steel_intumescent', 'steel_board'):
             raise ValidationError('Use one Steel colour mode per source document.')
         seen.add(mode['document_id'])
         if not isinstance(mode['originals'], list) or len(mode['originals']) > 10000:
@@ -68,7 +68,7 @@ def validate_presentation(snapshot):
             keys = {'item_id', 'item_version', 'colours', 'thickness_mm', 'colour', 'item_digest', 'calculator_id'}
             object_fields(row, keys, 'Original markup colours', keys)
             number(row['item_version'], 'Markup version', positive=True, integer=True)
-            if row['calculator_id'] not in ('steel_vermiculite', 'steel_board'):
+            if row['calculator_id'] not in ('steel_vermiculite', 'steel_intumescent', 'steel_board'):
                 raise ValidationError('Retain the native Steel thickness source.')
             identity(row['item_id']); validate_appearance(row['colours'])
             if set(row['colours']) != set(COLOURS) or row['item_id'] in ids:
@@ -126,7 +126,7 @@ def apply_presentation(snapshot, request, linked=None):
         state['colour_modes'].remove(active)
         return
     calculator = request['calculator_id']
-    if calculator not in ('steel_vermiculite', 'steel_board'):
+    if calculator not in ('steel_vermiculite', 'steel_intumescent', 'steel_board'):
         raise ValidationError('Thickness colours require a Steel calculator.')
     rows = []
     for item in snapshot['items']:
@@ -136,7 +136,7 @@ def apply_presentation(snapshot, request, linked=None):
             continue
         appearance = markup_appearance(item)
         records = (linked or {}).get(item['id'], [])
-        native = next((key for key in (calculator, *('steel_board', 'steel_vermiculite')) if thickness_value(records, key) is not None), calculator)
+        native = next((key for key in (calculator, *('steel_board', 'steel_vermiculite', 'steel_intumescent')) if thickness_value(records, key) is not None), calculator)
         value = thickness_value(records, native)
         rows.append({'item_id': item['id'], 'item_version': item['version'], 'colours': {key: appearance.get(key, appearance['stroke_color']) for key in COLOURS},
                      'thickness_mm': value, 'colour': thickness_colour(value), 'item_digest': item_digest(item, snapshot), 'calculator_id': native})
@@ -173,7 +173,7 @@ def legend_rows(snapshot, legend, results, linked, *, viewer=False, calculator_i
             calculator = next((value['calculator_id'] for value in records if value['status'] == 'Current'), 'steel_vermiculite')
         thickness = thickness_value(records, original['calculator_id'] if original else calculator)
         if item['mode'] == 'steel' and thickness is None and original is None:
-            thickness = next((value for key in ('steel_vermiculite', 'steel_board') if (value := thickness_value(records, key)) is not None), None)
+            thickness = next((value for key in ('steel_vermiculite', 'steel_board', 'steel_intumescent') if (value := thickness_value(records, key)) is not None), None)
         colour = effective_appearance(snapshot, item, linked)['stroke_color']
         description = field.get('mark') or item['id'][:8]
         if item['mode'] == 'steel':

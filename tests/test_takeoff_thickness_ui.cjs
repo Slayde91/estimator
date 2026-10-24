@@ -100,6 +100,25 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
       assert.equal(h.audit.linkedThicknessFor(h.item).text, 'Unavailable'); assert.equal(h.audit.registerFilterValue(h.item, 'thickness'), '');
     }
   });
+  await check('Intumescent destination reads exact native DFT mm and keeps assessment provenance', async () => {
+    const h = harness(); h.state.ui.target.value = 'steel_intumescent';
+    Object.assign(h.binding, { calculator_id: 'steel_intumescent' });
+    Object.assign(h.record, { calculator_id: 'steel_intumescent', intumescent_dft_um: 1234.56789012345,
+      intumescent_thickness_mm: 1.23456789012345, intumescent_thickness_status: 'PUBLISHED - CERTIFICATE TABLE',
+      intumescent_thickness_source: 'FC21221-01-1-C1 Table 1' });
+    const before = copy(h.state.session); await h.start();
+    assert.ok(h.calls[0].body.calculator_drafts.steel_intumescent);
+    h.finish(); await waitFor(() => !h.audit.cache().pending);
+    const result = h.audit.linkedThicknessFor(h.item);
+    assert.equal(result.value, h.record.intumescent_thickness_mm);
+    assert.equal(result.text, String(h.record.intumescent_thickness_mm));
+    assert.equal(result.filter, result.text);
+    assert.match(result.detail, /Dry film thickness: 1234\.56789012345 µm.*FC21221-01-1-C1 Table 1/);
+    assert.equal(h.audit.registerFilterValue(h.item, 'thickness'), result.text);
+    assert.deepEqual(copy(h.state.session), before);
+    h.state.ui.target.value = 'steel_vermiculite';
+    assert.equal(h.audit.linkedThicknessFor(h.item).text, '—');
+  });
   await check('Calculator changes invalidate visibly before a delayed obsolete response returns', async () => {
     const h = harness(); await h.start(); const oldResponse = h.reply();
     h.controls.fingerprint = 'draft-two'; h.audit.calculatorDraftChanged();

@@ -67,6 +67,21 @@ class TakeoffHTTPTests(unittest.TestCase):
             self.assertIn(temperature, field['options'])
             self.assertNotIn(550 if temperature == 620 else 620, field['options'])
 
+    def test_intumescent_temperature_choices_use_product_and_exposure(self):
+        from estimator.intumescent import FX6010
+        from estimator.workbook_calculators import calculator_session
+        for exposure in ('I/H beam - 3 sides', 'I/H column - 4 sides', 'CHS column - 4 sides'):
+            query = urlencode({'calculator': 'steel_intumescent', 'product': FX6010, 'exposure': exposure})
+            status, _, payload = self.request('GET', '/api/takeoffs/options?' + query)
+            self.assertEqual(status, 200, payload)
+            fields = {field['column']: field for field in json.loads(payload)['columns']}
+            _, engine, lock = calculator_session('steel_intumescent', {'SCHEDULE': {'B10': FX6010, 'C10': exposure}})
+            with lock:
+                self.assertEqual(fields['D']['options'], list(engine.temperature_options(10)))
+            self.assertIn(FX6010, fields['B']['options'])
+            self.assertIn(exposure, fields['C']['options'])
+            self.assertTrue(fields['F']['options'])
+
     def test_pdf_tools_downloads_captured_pages_without_changing_session(self):
         from pypdf import PdfReader
         _, _, payload = self.request('POST', '/api/takeoffs/sessions', {})

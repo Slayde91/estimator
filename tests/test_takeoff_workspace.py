@@ -96,13 +96,13 @@ class TakeoffWorkspaceTests(unittest.TestCase):
         self.command('review_items', item_ids=[identity]); self.command('confirm_items', item_ids=[identity])
 
     def preview(self, item_id, calculator_id='steel_vermiculite', inputs=None, rows=None, update=False):
-        first = {'steel_vermiculite': 10, 'steel_board': 9, 'ductwork': 11}[calculator_id]
+        first = {'steel_vermiculite': 10, 'steel_intumescent': 10, 'steel_board': 9, 'ductwork': 11}[calculator_id]
         return self.service.preview_transfer(self.sid, {'expected_revision': self.state['revision'],
             'calculator_id': calculator_id, 'inputs': inputs if inputs is not None else empty_schedule_inputs(calculator_id),
             'schedule_rows': rows or [first], 'item_ids': [item_id], 'update_linked': update})
 
     def apply(self, preview, inputs=None, rows=None):
-        calculator_id = preview['calculator_id']; first = {'steel_vermiculite': 10, 'steel_board': 9, 'ductwork': 11}[calculator_id]
+        calculator_id = preview['calculator_id']; first = {'steel_vermiculite': 10, 'steel_intumescent': 10, 'steel_board': 9, 'ductwork': 11}[calculator_id]
         request = {'expected_revision': self.state['revision'], 'request_id': str(uuid4()), 'preview_id': preview['preview_id'],
                    'inputs': inputs if inputs is not None else empty_schedule_inputs(calculator_id), 'schedule_rows': rows or [first]}
         self.state = self.service.apply_transfer(self.sid, request)

@@ -18,7 +18,8 @@ const ready = new Promise((resolve, reject) => {
   server.stdout.on('data', value => { data += value; if (data.includes('\n')) { clearTimeout(timer); resolve(JSON.parse(data.split('\n')[0])); } });
   server.once('error', reject); server.once('exit', code => { clearTimeout(timer); reject(new Error(`Fixture exited ${code}`)); });
 });
-const errors = [], evidence = { widths: [], headerOnlyWidths: [320], headerGeometry: [], calculators: [], libraries: [], takeoffs: [] };
+const steelChoices = ['Steel (spray)', 'Steel (intumescent)', 'Steel (board)', 'Factor Calcs'];
+const errors = [], evidence = { widths: [], headerOnlyWidths: [320], headerGeometry: [], calculators: [], libraries: [], takeoffs: [], steelKeyboardWidths: [] };
 async function idle(target = page) { await target.waitForFunction(() => { const s = window.CeasefireDesktop?.status(); return s?.ready && !s.busy; }); }
 async function snapshot() { await idle(); return page.evaluate(() => ({ calculators: window.CeasefireCalculators.projectSnapshot(), penetration: window.CeasefirePenetrations.projectSnapshot(), pricing: window.CeasefireProject.configuration(), takeoffs: window.CeasefireTakeoffs.projectSnapshot() })); }
 const box = locator => locator.boundingBox();
@@ -142,8 +143,13 @@ async function inspectHeader(width) {
       await toggle.focus(); await toggle.press('ArrowDown'); await expect(menu.getByRole('button').first()).toBeFocused();
       await page.keyboard.press('End'); await expect(id === 'takeoff' ? page.locator('#penetration-navigation-toggle') : id === 'calculator' ? page.locator('#steel-calculator-navigation-toggle') : menu.getByRole('button').last()).toBeFocused();
       if(id === 'calculator') {
-        await page.keyboard.press('ArrowRight');await expect(page.locator('#steel-calculator-navigation-menu').getByRole('button',{name:'Steel (spray)',exact:true})).toBeFocused();
-        await page.keyboard.press('End');await expect(page.locator('#steel-calculator-navigation-menu').getByRole('button',{name:'Steel (board)',exact:true})).toBeFocused();
+        const steel = page.locator('#steel-calculator-navigation-menu');
+        await page.keyboard.press('ArrowRight');await expect(steel.getByRole('button')).toHaveText(steelChoices);
+        await expect(steel.getByRole('button',{name:'Steel (spray)',exact:true})).toBeFocused();
+        await page.keyboard.press('ArrowDown');await expect(steel.getByRole('button',{name:'Steel (intumescent)',exact:true})).toBeFocused();
+        await page.keyboard.press('ArrowDown');await expect(steel.getByRole('button',{name:'Steel (board)',exact:true})).toBeFocused();
+        await page.keyboard.press('End');await expect(steel.getByRole('button',{name:'Factor Calcs',exact:true})).toBeFocused();
+        evidence.steelKeyboardWidths.push({ width, choices: steelChoices, boardViaArrowDown: true, end: 'Factor Calcs' });
       }
       if(id === 'takeoff') {
         await page.keyboard.press('ArrowRight');

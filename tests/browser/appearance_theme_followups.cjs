@@ -65,8 +65,8 @@ async function readonlyAlignmentViewports(tolerance=false,summary=false){
   await page.setViewportSize(viewport);
   const values=await page.locator('#calculator-grid .calculator-settings-panel .calculator-form-table:not(.calculator-projection-table) td[data-calculator-value]').evaluateAll(nodes=>nodes.filter(el=>el.getClientRects().length).map(el=>({cell:el.dataset.calculatorOutput||'',text:el.textContent.trim(),align:getComputedStyle(el).textAlign,last:getComputedStyle(el).textAlignLast,table:el.closest('table').className})));
   for(const value of values){assert.equal(value.align,'left',JSON.stringify({viewport,...value}));assert.equal(value.last,'left',JSON.stringify({viewport,...value}));}
-  if(tolerance){const d15=values.find(value=>value.cell==='D15');assert.ok(d15,'Visible Global Settings includes its actual Comparison tolerance D15 output');assert.ok(!d15.table.includes('calculator-projection-table'));assert.ok(!d15.table.includes('calculator-responsive-form'),'D15 exercises the ordinary wide form omitted by the former selector');}
-  evidence.push({viewport,readonlyValues:values.length,tolerance:values.find(value=>value.cell==='D15'),examples:values.slice(0,4),publishedNumeric:await publishedNumericAlignment(summary)});
+  if(tolerance){const d19=values.find(value=>value.cell==='D19');assert.ok(d19,'Visible Global Settings retains its Lookup method D19 guidance');assert.ok(!d19.table.includes('calculator-projection-table'));assert.ok(!d19.table.includes('calculator-responsive-form'),'D19 exercises the ordinary wide form omitted by the former selector');assert.ok(!values.some(value=>value.cell==='D15'),'Comparison tolerance is hidden only in the browser');}
+  evidence.push({viewport,readonlyValues:values.length,globalGuidance:values.find(value=>value.cell==='D19'),examples:values.slice(0,4),publishedNumeric:await publishedNumericAlignment(summary)});
  }}finally{await page.setViewportSize(original);}
  return evidence;
 }

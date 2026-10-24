@@ -36,7 +36,8 @@ def presentation_fixture(mode, target=None, *, recorded_fields=None):
                        'total_area_m2': 60.66, 'issues': []}}
     linked = {'one': [] if area else [{'calculator_id': target, 'status': 'Current',
         'estimating_thickness_mm': 28.123456789, 'total_thickness_mm': 50, 'duct_thickness_mm': 38,
-        'duct_surface_status': 'Current', 'duct_surface_m2': 31.123456789012345}]}
+        'duct_surface_status': 'Current', 'duct_surface_m2': 31.123456789012345,
+        'report_references': [{'label': '=Literal report', 'url': 'https://tfire.com.au/documents/report.pdf'}, {'label': 'Private report', 'url': None}]}]}
     return export_current_register(snapshot, [item], results, {'one': False}, linked,
         mode=mode, target=target, confirmation='all')
 
@@ -45,9 +46,9 @@ class RegisterCopyTests(unittest.TestCase):
     def test_each_register_has_exact_data_headers_and_one_sheet(self):
         steel = ('Confirmation', 'Member mark', 'Level', 'Member type', 'Steel section', 'Product',
                  'Fire period (min)', 'Crit. Temp (°C)', 'Exposure')
-        length = ('Qty', 'Length each (m)', 'Total (m)', 'Thickness (mm)', 'Evidence / issues')
+        length = ('Qty', 'Length each (m)', 'Total (m)', 'Thickness (mm)', 'Report', 'Evidence / issues')
         duct = ('Confirmation', 'Item', 'Level', 'WxH (mm)', 'FRL', 'Orientation', 'Product',
-                'Qty', 'Length each (m)', 'Total (m)', 'Duct surface (m²)', 'Thickness (mm)', 'Evidence / issues')
+                'Qty', 'Length each (m)', 'Total (m)', 'Duct surface (m²)', 'Thickness (mm)', 'Report', 'Evidence / issues')
         cases = [('steel', 'steel_vermiculite', steel + length),
                  ('steel', 'steel_board', steel + ('Exposed sides',) + length),
                  ('duct', 'ductwork', duct), ('walls_floors', None, SURFACE + AREA)]
@@ -70,6 +71,9 @@ class RegisterCopyTests(unittest.TestCase):
                     self.assertEqual(sheet.page_setup.orientation, 'landscape')
                     self.assertGreaterEqual(sheet.row_dimensions[1].height, 32)
                     if not mode == 'walls_floors':
+                        report = sheet.cell(2, rows[0].index('Report') + 1)
+                        self.assertEqual(report.value, '=Literal report — https://tfire.com.au/documents/report.pdf | Private report')
+                        self.assertEqual(report.data_type, 's'); self.assertIsNone(report.hyperlink)
                         index = rows[0].index('Length each (m)')
                         self.assertEqual(rows[1][index], 7.123456789012345)
                         self.assertEqual(sheet.cell(2, index+1).number_format, '#,##0.00')
@@ -182,7 +186,7 @@ class RegisterCopyTests(unittest.TestCase):
         try:
             self.assertEqual(workbook.sheetnames, ['Defect Reports'])
             self.assertEqual(rows[0], ('Defect ID', 'Barrier ID', 'Service ID', 'Confirmation', 'Location', 'FRL',
-                'Substrate', 'Orientation', 'Category', 'Service type', 'Service quantity', 'Service Size (mm)', 'Source evidence'))
+                'Substrate', 'Orientation', 'Category', 'Service type', 'Service quantity', 'Service Size (mm)', 'Report', 'System', 'Source evidence'))
             self.assertEqual([row[:3] for row in rows[1:]], [('D-0001', None, None), ('D-0001', 'B-0001', None),
                 ('D-0001', 'B-0001', 'S-0001'), ('D-0001', 'B-0002', None)])
             self.assertTrue(all(row[3] == 'Confirmed' for row in rows[1:]))
@@ -200,8 +204,23 @@ class RegisterCopyTests(unittest.TestCase):
         workbook, sheet, rows = read(export_physical_register(case.graph, confirmation='confirmed')[0])
         try:
             self.assertEqual(len(rows), 1)
-            self.assertEqual(sheet.auto_filter.ref, 'A1:M1')
+            self.assertEqual(sheet.auto_filter.ref, 'A1:O1')
         finally: workbook.close()
+
+    def test_physical_reference_cells_are_literal_complete_and_do_not_change_graph(self):
+        case = physical_fixtures.PhysicalV2ExportTests(); case.setUp(); before = deepcopy(case.graph)
+        references = {uid(3): {'reports': [{'label': '=Exact Rev A', 'url': 'https://tfire.com.au/documents/report.pdf'},
+                                           {'label': 'Private report', 'url': None}],
+                               'systems': [{'id': 'test-1', 'manufacturer': 'Alpha', 'number': 1},
+                                           {'id': 'test-2', 'manufacturer': 'Alpha', 'number': 2}]}}
+        workbook, sheet, rows = read(export_physical_register(case.graph, references=references)[0])
+        try:
+            row = next(row for row in rows[1:] if row[2] == 'S-0001')
+            self.assertEqual(row[rows[0].index('Report')], '=Exact Rev A — https://tfire.com.au/documents/report.pdf | Private report')
+            self.assertEqual(row[rows[0].index('System')], 'Alpha-1 (test-1), 2 (test-2)')
+            self.assertFalse(any(cell.data_type == 'f' or cell.hyperlink for cells in sheet for cell in cells))
+        finally: workbook.close()
+        self.assertEqual(case.graph, before)
 
     def test_service_size_does_not_infer_a_blank_display_field_from_dimensions(self):
         case = physical_fixtures.PhysicalV2ExportTests(); case.setUp()

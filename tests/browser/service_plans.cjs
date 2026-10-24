@@ -12,7 +12,7 @@ const { spawn, spawnSync } = require('node:child_process');
 const { createHash } = require('node:crypto');
 const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
 const root = path.resolve(__dirname, '../..');
-const output = path.join(root, '.runtime/browser-qa', `service-plans-${Date.now()}`);
+const output = process.env.CEASEFIRE_BROWSER_OUTPUT || path.join(root, '.runtime/browser-qa', `service-plans-${Date.now()}`);
 const python = process.env.CEASEFIRE_PYTHON || 'python';
 fs.mkdirSync(output, { recursive: true });
 const server = spawn(python, [path.join(__dirname, 'fixtures.py'), '--directory', output], { cwd: root, windowsHide: true });
@@ -336,6 +336,17 @@ async function controls() {
   await summaryContains(barrier, '5 ×'); evidence.savedReopenedGraphsAndMarkers = true;
   console.log('Scoped marks and exact Save As / reopen graph preservation passed.');
 
+  // This fixture creates physical facts without a Firestopping assignment.
+  // Verify its actual context has no Technical candidates before expecting
+  // empty Report/System export cells; a known substrate alone may match.
+  await snapshot();
+  const referenceIds = [barrier, service, secondBarrier], referenceRevision = state.revision;
+  const referenceSession = await page.evaluate(() => window.CeasefireTakeoffs.sessionId());
+  const referenceReply = await page.request.post(`${origin}/api/takeoffs/sessions/${referenceSession}/register-references`, { data: { scope: 'service_plans', expected_revision: referenceRevision, entity_ids: referenceIds } });
+  assert.equal(referenceReply.status(), 200, await referenceReply.text()); const references = await referenceReply.json();
+  assert.equal(references.revision, referenceRevision); assert.deepEqual(Object.keys(references.row_references).sort(), [...referenceIds].sort());
+  for (const id of referenceIds) { const reference = references.row_references[id]; assert.equal(reference.total, 0); assert.equal(reference.report_total, 0); assert.deepEqual(reference.systems, []); assert.deepEqual(reference.reports, []); }
+  evidence.emptyExportReferences = { revision: referenceRevision, entityIds: referenceIds, systems: 0, reports: 0 };
   const viewerLines=await page.locator('.takeoff-physical-callout tspan').allTextContents();
   const csv = await exportDraft('CSV'), xlsx = await exportDraft('XLSX'), pdf = await downloadDrawing();
   await page.locator('.takeoff-workspace-heading .takeoff-physical-document-host').getByRole('button',{name:'Document',exact:true}).click();
@@ -343,7 +354,7 @@ async function controls() {
   const matrixDownload=await matrixWait,matrix=path.join(output,matrixDownload.suggestedFilename());await matrixDownload.saveAs(matrix);
   const csvText = fs.readFileSync(csv, 'utf8'); assert.ok(csvText.includes(barrier)); assert.ok(csvText.includes(service)); assert.ok(!csvText.includes(defect)); assert.ok(!csvText.includes(reportBarrier)); assert.ok(!csvText.split('\n')[0].includes('defect'));
   const workbook = pythonJson("import json,sys\nfrom openpyxl import load_workbook\nw=load_workbook(sys.argv[1],data_only=False)\ns=w.active;v=list(s.values)\nprint(json.dumps({'sheets':w.sheetnames,'headers':v[0],'rows':v[1:],'string_cells':[{'coordinate':c.coordinate,'value':c.value,'type':c.data_type} for sh in w for r in sh for c in r if isinstance(c.value,str)],'formulas':[c.coordinate for sh in w for r in sh for c in r if c.data_type=='f']}))\nw.close()", xlsx);
-  const registerHeaders = ['Barrier ID', 'Service ID', 'Confirmation', 'Location', 'FRL', 'Substrate', 'Orientation', 'Category', 'Service type', 'Service quantity', 'Service Size (mm)', 'Source evidence'];
+  const registerHeaders = ['Barrier ID', 'Service ID', 'Confirmation', 'Location', 'FRL', 'Substrate', 'Orientation', 'Category', 'Service type', 'Service quantity', 'Service Size (mm)', 'Report', 'System', 'Source evidence'];
   const visibleHeaders = await page.locator('.takeoff-physical-register thead th').evaluateAll(cells => cells.map(cell => [...cell.childNodes].filter(child => child.nodeType === Node.TEXT_NODE).map(child => child.textContent).join('').trim()));
   assert.deepEqual(visibleHeaders, ['Select', 'Hide', 'View/Edit', ...registerHeaders, 'Delete']);
   assert.deepEqual(workbook.sheets, ['Service Plans']); assert.deepEqual(workbook.headers, registerHeaders); assert.deepEqual(workbook.formulas, []);
@@ -351,9 +362,9 @@ async function controls() {
   assert.equal(first.confirmation, 'unconfirmed'); assert.equal(child.barrier_id, first.id);
   for (const id of [barrier, service, secondBarrier]) await expect(row(id).locator('.takeoff-state')).toHaveText('Unconfirmed');
   assert.deepEqual(workbook.rows, [
-    [first.display_id, null, 'Unconfirmed', first.fields.location, first.fields.frl, blank(first.fields.substrate), blank(first.fields.orientation), null, null, null, null, `${first.evidence.length} source associations`],
-    [first.display_id, child.display_id, 'Unconfirmed', first.fields.location, first.fields.frl, blank(first.fields.substrate), blank(first.fields.orientation), blank(child.fields.service), blank(child.fields.service_type), child.quantity, blank(child.fields.size), `${child.evidence.length} source associations`],
-    [second.display_id, null, 'Unconfirmed', second.fields.location, second.fields.frl, blank(second.fields.substrate), blank(second.fields.orientation), null, null, null, null, `${second.evidence.length} source associations`],
+    [first.display_id, null, 'Unconfirmed', first.fields.location, first.fields.frl, blank(first.fields.substrate), blank(first.fields.orientation), null, null, null, null, null, null, `${first.evidence.length} source associations`],
+    [first.display_id, child.display_id, 'Unconfirmed', first.fields.location, first.fields.frl, blank(first.fields.substrate), blank(first.fields.orientation), blank(child.fields.service), blank(child.fields.service_type), child.quantity, blank(child.fields.size), null, null, `${child.evidence.length} source associations`],
+    [second.display_id, null, 'Unconfirmed', second.fields.location, second.fields.frl, blank(second.fields.substrate), blank(second.fields.orientation), null, null, null, null, null, null, `${second.evidence.length} source associations`],
   ], 'Public register keeps parent-before-child order, inherited barrier facts and exact service quantity/size without Defect Reports rows.');
   assert.ok(workbook.string_cells.length > 0); assert.ok(workbook.string_cells.every(cell => cell.type === 's'));
   assert.deepEqual(workbook.string_cells.find(cell => cell.value === '=PLAN-B'), { coordinate: 'D4', value: '=PLAN-B', type: 's' });

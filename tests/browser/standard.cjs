@@ -5,7 +5,7 @@ const { chromium, expect } = require('@playwright/test');
 const { spawn } = require('node:child_process');
 const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
 const root = path.resolve(__dirname, '../..');
-const output = path.join(root, '.runtime/browser-qa', `standard-${Date.now()}`);
+const output = process.env.CEASEFIRE_BROWSER_OUTPUT || path.join(root, '.runtime/browser-qa', `standard-${Date.now()}`);
 fs.mkdirSync(output, { recursive: true });
 const server = spawn(process.env.CEASEFIRE_PYTHON || 'python', [path.join(__dirname, 'standard_fixture.py'), '--directory', output], { cwd: root, windowsHide: true });
 let logs = '', browser, page;
@@ -40,7 +40,7 @@ async function worksheetReady(title, label) {
   assert.ok(!await page.locator('#calculator-message').evaluate(element => element.classList.contains('error') && !element.hidden));
 }
 (async () => {
-  const info = await ready; browser = await chromium.launch({headless:true});
+  const info = await ready; assert.notEqual(info.port,8765); browser = await chromium.launch({headless:true});
   page = await browser.newPage({viewport:{width:1440,height:1000}}); page.setDefaultTimeout(45000);
   page.on('pageerror', error => errors.push(error.message));
   page.on('request', request => requests.push(new URL(request.url()).pathname));
@@ -113,12 +113,15 @@ async function worksheetReady(title, label) {
   await calculatorsButton.click();await calculatorsButton.click();
   const count=pathname=>navigationRequests.filter(value=>value===pathname).length;
   await expect(page.locator('#calculator-steel-hub')).toBeVisible();
-  await expect(page.locator('#calculator-steel-hub [data-steel-calculator]')).toHaveCount(3);
+  const steelChoices=page.locator('#calculator-steel-hub [data-steel-calculator]');
+  await expect(steelChoices).toHaveCount(4);
+  assert.deepEqual(await steelChoices.evaluateAll(choices=>choices.map(choice=>choice.dataset.steelCalculator)),['steel_vermiculite','steel_intumescent','steel_board','steel_factors']);
   assert.equal(count('/api/calculators/steel_vermiculite'),0);
   await page.locator('#calculator-steel-hub').getByRole('button',{name:'Steel (spray)',exact:true}).click();
   await expect.poll(()=>count('/api/calculators/steel_vermiculite')).toBe(1);
   await calculatorsButton.click();await calculatorsButton.click();releaseDefinition();
-  await worksheetReady('Steel (spray)','START');
+  await worksheetReady('Steel (spray)','SCHEDULE');
+  await expect(page.locator('#calculator-pages').getByRole('button',{name:'START',exact:true})).toHaveCount(0);
   assert.equal(count('/api/calculators'),0);assert.equal(count('/api/calculators/steel_vermiculite'),1);assert.equal(count('/api/calculators/steel_vermiculite/worksheet'),1);
   await page.unroute('**/api/calculators/steel_vermiculite');
   const destinations=['Steel (spray)','Duct','Steel (board)'],lastPages=[];
@@ -133,9 +136,19 @@ async function worksheetReady(title, label) {
   }
   assert.equal(navigationRequests.filter(value=>value.endsWith('/worksheet')).length,beforeRevisit);
   assert.deepEqual(await page.evaluate(()=>window.CeasefireCalculators.projectSnapshot()),snapshot);
+  await chooseCalculator(page,'Factor Calcs');await worksheetReady('Factor Calcs','Factor Calcs');
+  await expect(page.locator('#calculator-pages')).toBeHidden();
+  await expect(page.locator('#calculator-workspace')).toHaveAttribute('data-calculator-kind','steel_vermiculite');
+  await page.locator('[data-calculator-settings-section="A341"]').click();
+  await expect(page.locator('[data-calculator-cell="D346"]')).toBeVisible();
+  assert.deepEqual(await page.evaluate(()=>window.CeasefireCalculators.projectSnapshot()),snapshot);
+  assert.equal('steel_factors' in snapshot,false);
+  await chooseCalculator(page,'Steel (spray)');await worksheetReady('Steel (spray)',lastPages[0]);
+  await expect(page.locator('#calculator-pages')).toBeVisible();
+  assert.deepEqual(await page.evaluate(()=>window.CeasefireCalculators.projectSnapshot()),snapshot);
   assert.deepEqual(errors,[]);assert.deepEqual(await page.evaluate(()=>window.qaCsp),[]);
   await page.screenshot({path:path.join(output,'calculator-navigation.png'),fullPage:true});
-  fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({completed:true,edition:'standard',legacyRoundtrip:true,frozenPricingPreserved:true,calculatorSnapshotsPreserved:true,takeoffLoadRejected:true,takeoffOverwriteRejected:true,coldRequestsCoalesced:true,warmNavigationWithoutRequests:true,navigationRequests,errors,csp:[],requests},null,2));
+  fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({completed:true,edition:'standard',legacyRoundtrip:true,frozenPricingPreserved:true,calculatorSnapshotsPreserved:true,takeoffLoadRejected:true,takeoffOverwriteRejected:true,coldRequestsCoalesced:true,warmNavigationWithoutRequests:true,steelDestinations:['steel_vermiculite','steel_intumescent','steel_board','steel_factors'],initialSpraySchedule:true,factorSharedInputsPreserved:true,navigationRequests,errors,csp:[],requests},null,2));
   console.log(`PASS: standard edition preserves saved data, rejects incompatible projects, coalesces cold calculator requests and reuses rendered worksheets without requests. Evidence: ${output}`);
 })().catch(async error => { console.error(error); console.error(logs.slice(-5000)); if(page) await page.screenshot({path:path.join(output,'failure.png'),fullPage:true}).catch(()=>{}); process.exitCode=1;
 }).finally(async () => { fs.writeFileSync(path.join(output,'server.log'),logs); if(browser) await browser.close(); server.kill(); });

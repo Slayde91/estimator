@@ -10,6 +10,7 @@ from openpyxl.worksheet.page import PageMargins
 from .calculator_report import (project_calculator_report, _source_text,
                                 summary_display_columns, summary_display_value)
 from .pricing_workbook import _serialize_exact
+from .assessment_references import report_reference_text
 
 
 _RED = '941321'
@@ -126,6 +127,10 @@ def _schedule(data, workbook):
         records = [[item['line'], v['A'], v['B'], v['C'], v['D'], v['F'], v['CJ'], v['AN'], v['AO'], v['Z'], v['AB'], v['AD'], v['AE'], v['AF'], v['AG'],
                     '\n'.join(str(value) for value in (v['AR'], v['AS'], v['AT']) if value not in (None, '')) or 'No calculated status returned']
                    for item in data['rows'] for v in [item['values']]]
+    labels.insert(len(labels) - 1, 'Report')
+    widths.insert(len(widths) - 1, 32)
+    for values, item in zip(records, data['rows']):
+        values.insert(len(values) - 1, report_reference_text(item['report_references'], urls=True))
     sheet = _sheet(workbook, 'Schedule', data['title'] + ' — Schedule', widths)
     _band(sheet, 3, f"{len(records)} used schedule items. {data['incomplete_rows']} item(s) have incomplete or unavailable primary quantities.", len(widths))
     _table(sheet, 5, labels, records, widths, formats={1: '0'}, filtered=True)

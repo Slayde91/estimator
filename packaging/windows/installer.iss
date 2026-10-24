@@ -13,7 +13,7 @@
 #endif
 [Setup]
 AppId={{8D5B7B2D-0153-4C48-A140-CE479A972D19}
-AppName=CEASEFIRE Estimator
+AppName=CLASSIFIRE | Passive Fire Intelligence
 AppVersion={#AppVersion}
 AppPublisher=CEASEFIRE
 DefaultDirName={localappdata}\Programs\CEASEFIRE Estimator
@@ -26,7 +26,7 @@ OutputBaseFilename=CEASEFIRE-Estimator-{#AppVersion}-Setup-x64
 Compression=lzma2/normal
 SolidCompression=yes
 WizardStyle=modern
-SetupIconFile={#SourceRoot}\static\ceasefire-app.ico
+SetupIconFile={#SourceRoot}\static\classifire-app.ico
 UninstallDisplayIcon={app}\CEASEFIRE Estimator.exe
 CloseApplications=no
 AppMutex=Local\CEASEFIRE.Estimator.Desktop.Running
@@ -34,9 +34,9 @@ SetupMutex=Local\CEASEFIRE.Estimator.Desktop.Setup
 RestartApplications=no
 AllowNoIcons=yes
 DisableProgramGroupPage=yes
-UninstallDisplayName=CEASEFIRE Estimator
-VersionInfoDescription=CEASEFIRE Estimator Setup
-VersionInfoProductName=CEASEFIRE Estimator
+UninstallDisplayName=CLASSIFIRE | Passive Fire Intelligence
+VersionInfoDescription=CLASSIFIRE | Passive Fire Intelligence
+VersionInfoProductName=CLASSIFIRE | Passive Fire Intelligence
 VersionInfoVersion={#AppVersion}
 
 [Tasks]

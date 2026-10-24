@@ -211,6 +211,10 @@ class TakeoffHTTP:
             if query:
                 raise ValidationError('Linked register results accept a structured request only.')
             result = self.service.linked_register_results(session_id, body)
+        elif action == 'register-references':
+            if query:
+                raise ValidationError('Register references accept a structured request only.')
+            result = self.service.register_references(session_id, body)
         elif action == 'transfer-apply':
             result = self.service.apply_transfer(session_id, body)
         elif action == 'linked-delete':

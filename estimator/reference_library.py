@@ -475,6 +475,13 @@ class ReferenceLibrary:
                     'counts': counts, 'filters': filters,
                     'notice': data['libraries'][kind].get('notice', '') if data else 'No local reference library has been installed.'}
 
+    def register_references(self, contexts, *, offset=0, limit=100, report_offset=0, expected_revision=None, excel=False):
+        """Project current reference candidates without pricing or record edits."""
+        from .register_references import library_batch
+        with self._lock:
+            return library_batch(self, contexts, offset=offset, limit=limit,
+                                 report_offset=report_offset, expected_revision=expected_revision, excel=excel)
+
     def detail(self, kind, key):
         with self._lock:
             identifier(key)

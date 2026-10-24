@@ -964,6 +964,14 @@
       scope: () => scope, inspectorContainer: state.ui.physicalDetails, documentMenuContainer: state.ui.physicalDocumentHost,
       libraryCommand: async (op, values) => { const reply = await command(op, values); return { ...reply, snapshot: physicalSnapshot(reply.snapshot) }; },
       libraryPreview: previewLibraryLink,
+      registerReferences: async (entity_ids, options = {}) => {
+        const sessionId = state.session?.session_id, revision = state.session?.revision, projectId = snapshot()?.project_id;
+        if (!sessionId || state.physicalScope !== scope) throw new Error("Choose the current physical register again.");
+        const reply = await api(`/sessions/${sessionId}/register-references`, { expected_revision: revision, scope, entity_ids, ...options });
+        if (sessionId !== state.session?.session_id || revision !== state.session?.revision || scope !== state.physicalScope
+            || reply.project_id !== projectId || reply.revision !== revision || reply.scope !== scope) throw new Error("The Takeoffs draft changed. Read its current register references again.");
+        return reply;
+      },
       libraryApply: applyLibraryLink,
       transferConfirmedLibraryRegister,
       editLibraryRow: async (rowId, libraryId) => {
@@ -3779,6 +3787,14 @@
     if (["Unavailable", "Checking…"].includes(surface.text)) window.CeasefireI18n.text(cell, surface.text);
     window.CeasefireI18n.attr(cell, "aria-label", "Duct surface (m²): {0}. {1}", [surface.text, surface.detail]);
   }
+  function updateLinkedReportCell(cell, item) {
+    const calculatorId = state.ui?.target?.value, binding = (snapshot()?.transfers || []).find(value => value.item_id === item.id && value.calculator_id === calculatorId);
+    const record = binding && linkedThickness?.key === thicknessContext()?.key && !linkedThickness.pending
+      ? (linkedThickness.results[item.id] || []).find(value => value.calculator_id === calculatorId && value.binding_id === binding.id && value.row === binding.row && value.sheet === binding.sheet) : null;
+    const references = binding?.status === "current" && binding.item_version === item.version && reviewStatus(item).key === "confirmed"
+      && record?.status === "Current" && record.calculator_source_sha256 === binding.source_sha256 && /^[0-9a-f]{64}$/.test(record.calculator_draft_sha256 || "") ? record.report_references || [] : [];
+    cell.replaceChildren(window.CeasefireRegisterReferences?.renderReports(references) || node("span", "", "—"));
+  }
   function updateLinkedThicknessPresentation() {
     if (!["steel", "duct"].includes(state.mode) || !state.ui || state.ui.root.closest?.("[hidden]")) return;
     const active = document.activeElement, editing = ["INPUT", "SELECT", "TEXTAREA"].includes(active?.tagName) && state.ui.tableWrap?.contains?.(active);
@@ -3791,6 +3807,9 @@
     }
     for (const cell of state.ui.tableWrap?.querySelectorAll("[data-duct-surface-item-id]") || []) {
       const item = items().find(value => value.id === cell.dataset.ductSurfaceItemId); if (item) updateLinkedDuctSurfaceCell(cell, item);
+    }
+    for (const cell of state.ui.tableWrap?.querySelectorAll("[data-report-item-id]") || []) {
+      const item = items().find(value => value.id === cell.dataset.reportItemId); if (item) updateLinkedReportCell(cell, item);
     }
     if (filtered) {
       state.thicknessFilterNeedsRender = true;
@@ -4052,7 +4071,7 @@
     state.ui.bulk.hidden = !selected.length; window.CeasefireI18n.text(state.ui.selectionCount, "{0} selected", [selected.length]);
     const table = node("table"), head = node("thead"), header = node("tr"), body = node("tbody"); window.CeasefireI18n.attr(table, "aria-label", "{0} editable takeoff register", [window.CeasefireI18n.term(labels[state.mode])]);
     const area = isArea(), columns = area ? ["mark", "surface_type", "level", "surface_basis", "substrate", "treatment", "system", "product", "frl", "layers"] : state.mode === "steel" ? ["mark", "level", "member_type", "section", "product", "fire_period_min", "critical_temperature", "exposure", ...(state.ui.target?.value === "steel_board" ? ["sides"] : [])] : ["mark", "level", "duct_size", "frl", "orientation", "product"];
-    const headings = ["Select", "Hide", "View/Edit", "Confirmation", ...columns.map(key => area && key === "mark" ? "Surface ID" : key === "surface_type" ? "Surface type" : fields[state.mode].find(field => field[0] === key)?.[1] || key), ...(area ? ["Gross (m²)", "Excluded (m²)", "Net (m²)", "Total (m²)"] : ["Qty", "Length each (m)", "Total (m)"]), ...(state.mode === "duct" ? ["Duct surface (m²)"] : []), ...(["steel", "duct"].includes(state.mode) ? ["Thickness (mm)"] : []), "Evidence / issues", "Delete"];
+    const headings = ["Select", "Hide", "View/Edit", "Confirmation", ...columns.map(key => area && key === "mark" ? "Surface ID" : key === "surface_type" ? "Surface type" : fields[state.mode].find(field => field[0] === key)?.[1] || key), ...(area ? ["Gross (m²)", "Excluded (m²)", "Net (m²)", "Total (m²)"] : ["Qty", "Length each (m)", "Total (m)"]), ...(state.mode === "duct" ? ["Duct surface (m²)"] : []), ...(["steel", "duct"].includes(state.mode) ? ["Thickness (mm)", "Report"] : []), "Evidence / issues", "Delete"];
     for (const title of headings) {
       const cell = uiNode("th", "", title);
       if (usesColumnFilters()) { const filterColumns = registerFilterColumns[state.mode], key = Object.keys(filterColumns).find(key => filterColumns[key] === title); if (key) cell.append(registerColumnFilterButton(key)); }
@@ -4092,6 +4111,7 @@
         if (state.mode === "duct") { const surface = node("td", "takeoff-linked-duct-surface"); surface.dataset.ductSurfaceItemId = item.id; updateLinkedDuctSurfaceCell(surface, item); row.append(surface); }
         const cell = node("td", "takeoff-linked-thickness"); cell.dataset.thicknessItemId = item.id;
         updateLinkedThicknessCell(cell, item); row.append(cell);
+        const reports = node("td"); reports.dataset.reportItemId = item.id; updateLinkedReportCell(reports, item); row.append(reports);
       }
       const evidence = node("td"); evidence.append(node("span", "", item.geometry ? `${documentById(item.geometry.document_id)?.name || "Missing document"} · p${item.geometry.page}` : "Source markup missing")); if (!isStandalone(item) && item.mode === "duct" && item.fields.shape !== "rectangular") evidence.append(uiNode("span", "takeoff-row-issue", "Retained non-rectangular duct; calculator transfer unavailable.")); for (const issue of result.issues || []) evidence.append(node("span", "takeoff-row-issue", issueText(issue))); row.append(evidence, registerDeleteCell(item)); body.append(row);
       if (!area && calculator && rowFields.some(field => field.control.tagName === "SELECT" && ["frl", "fire_period_min"].includes(field.control.name))) {

@@ -82,6 +82,34 @@ function overlayHarness(value,controller){
 let passed=0;
 async function check(label,test){await test();passed++;console.log(`ok - ${label}`);}
 (async()=>{
+  await check('Read-only reference cells preserve private labels, guarded navigation and stale draft isolation',async()=>{
+    const previous=global.CeasefireRegisterReferences,oldNavigation=global.CeasefireLibraryNavigation;
+    global.CeasefireRegisterReferences=require('../static/register-references.js');const navigation=[],requests=[];
+    global.CeasefireLibraryNavigation={open:async(kind,id)=>navigation.push([kind,id])};let h;
+    try{
+      h=component(graph(),{registerReferences:async ids=>{const pending=defer();requests.push({ids,pending});return pending.promise;}});await flush();
+      assert.equal(requests.length,1);const before=copy(h.current);
+      const fields=['Report','System','Source evidence','Delete'],table=h.all().find(el=>el.tagName==='TABLE'&&el.attributes['aria-label']==='Draft penetration hierarchy register');assert.ok(table);assert.deepEqual(table.querySelectorAll('th').slice(-4).map(el=>el.textContent),fields);
+      const reply=(request,label)=>({library_revision:'e'.repeat(64),row_references:Object.fromEntries(request.ids.map(id=>[id,{basis:'filtered',reports:[{label,url:null},{label:'Public report',url:'https://tfire.com.au/documents/test.pdf'}],systems:[{id:'system-one',manufacturer:'Alpha',number:1,title:'Actual Technical record'}],total:1,offset:0,limit:100,has_more:false}]))});
+      h.current.revision++;h.current.physical.revision++;h.controller.render(copy(h.current));await flush();assert.equal(requests.length,2);const priorChanged=h.calls.changed;
+      requests[0].pending.resolve(reply(requests[0],'Stale private caption'));await flush();assert.ok(!h.all().some(el=>el.textContent==='Stale private caption'));
+      requests[1].pending.resolve(reply(requests[1],'Exact private caption'));await flush();
+      const label=h.all().find(el=>el.tagName==='SPAN'&&el.textContent==='Exact private caption');assert.ok(label);assert.equal(label.href,undefined);
+      assert.ok(h.all().some(el=>el.tagName==='A'&&el.href==='https://tfire.com.au/documents/test.pdf'));
+      h.all().find(el=>el.dataset.technicalReference==='system-one').emit('click');await flush();assert.deepEqual(navigation,[['technical','system-one']]);
+      assert.equal(h.calls.previews.length,0);assert.equal(h.calls.applied.length,0);assert.equal(h.calls.changed,priorChanged);
+      const expected=copy(before);expected.revision++;expected.physical.revision++;assert.deepEqual(h.current,expected);
+    }finally{h?.controller.destroy();global.CeasefireRegisterReferences=previous;global.CeasefireLibraryNavigation=oldNavigation;}
+  });
+  await check('Shared reference rendering rejects unsafe URLs, retains literal labels and expands manufacturer numbers without loss',async()=>{
+    const refs=require('../static/register-references.js'),dom=documentHarness(),document=dom.container.ownerDocument;
+    const reports=refs.renderReports([{label:'<script>literal</script>',url:'javascript:alert(1)'},{label:'Private',url:null},{label:'Wrong credentials',url:'https://user:secret@example.com/report.pdf'},{label:'Actual public',url:'https://tfire.com.au/documents/test.pdf'}],{document});
+    assert.equal(reports.querySelectorAll('a').length,1);assert.equal(reports.querySelectorAll('script').length,0);assert.ok(reports.textContent.includes('<script>literal</script>'));
+    const paged=refs.renderReports([{label:'Private',url:null}],{document,pagination:{report_offset:0,report_total:2,report_has_more:true},loadMore:async report_offset=>{assert.equal(report_offset,1);return{reports:[{label:'Public',url:'https://tfire.com.au/documents/test.pdf'}],report_offset:1,report_total:2,report_has_more:false};}});
+    paged.querySelectorAll('button')[0].emit('click');await flush();assert.equal(paged.textContent,'Private | Public');assert.equal(paged.querySelectorAll('a').length,1);assert.equal(paged.querySelectorAll('button').length,0);
+    const systems=refs.renderSystems({systems:[{id:'one',manufacturer:'Alpha',number:1,title:'One'}],total:2,offset:0,limit:1,has_more:true},{document,loadMore:async offset=>{assert.equal(offset,1);return{systems:[{id:'two',manufacturer:'Alpha',number:2,title:'Two'}],total:2,offset:1,limit:1,has_more:false};}});
+    systems.querySelectorAll('button').at(-1).emit('click');await flush();assert.equal(systems.textContent,'Alpha-1, 2');assert.equal(systems.querySelectorAll('button').length,2);
+  });
   await check('Mandarin physical table IDs and status translate without changing retained labels or graph values',async()=>{
     const previous=global.CeasefireI18n;global.CeasefireI18n=require('./helpers/localized_i18n.cjs')();
     let h;

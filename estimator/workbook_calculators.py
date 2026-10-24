@@ -16,6 +16,7 @@ from .workbook_runtime import _application_catalog, list_application_catalogs, a
 from .calculator_defaults import (default_calculator_inputs, yield_review,
                                   MONOKOTE_APPLICATION_BASIS_CELLS, MONOKOTE_APPLICATION_BASES)
 from .ductwork_policy import canonical_ductwork_value, normalize_schedule_choices
+from .assessment_references import schedule_report_references
 
 
 FYREWRAP_DIRECTION_NOTE = (
@@ -978,7 +979,11 @@ def _render_sheet(calculator_id, inputs, source, metadata, start_row, end_row,
                 if isinstance(value, str) and value in {'#N/A', '#VALUE!', '#DIV/0!', '#REF!', '#NUM!', '#NAME?', '#NULL!'}:
                     cell['error'] = value
                 cells.append(cell)
-            rows.append({'row': row, 'cells': cells})
+            rendered_row = {'row': row, 'cells': cells}
+            if schedule_row:
+                rendered_row['report_references'] = (schedule_report_references(calculator_id, engine, row)
+                                                     if row_entered else [])
+            rows.append(rendered_row)
         # Read the workbook's existing pooled product totals, including its
         # blocked/invalid status and whole-bag rounding. Never sum rounded rows.
         product_totals = [

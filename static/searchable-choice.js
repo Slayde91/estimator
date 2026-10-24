@@ -49,7 +49,7 @@ window.CeasefireSearchableChoice = function (input, values) {
   input.addEventListener("keydown", event => {
     if (event.isComposing) return;
     if (["ArrowDown", "ArrowUp"].includes(event.key)) {
-      event.preventDefault(); event.stopPropagation(); if (popup.hidden) open("");
+      event.preventDefault(); event.stopPropagation(); if (popup.hidden) open(input.value !== committed ? input.value : "");
       if (matches.length) highlight(Math.max(0, Math.min(matches.length - 1, active + (event.key === "ArrowDown" ? 1 : -1))));
     } else if (event.key === "Enter" && !popup.hidden) {
       event.preventDefault(); event.stopPropagation(); commit(active >= 0 ? matches[active] : input.value);

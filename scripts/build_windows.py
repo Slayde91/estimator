@@ -36,6 +36,7 @@ STATIC_FILES = (
     'cursors/README.txt', 'cursors/LICENSE.txt', 'cursors/COPYRIGHT.txt',
     'app.js', 'activity.js', 'calculation-queue.js', 'searchable-choice.js', 'penetration-presentation.js',
     'calculators.css', 'calculators.js', 'ceasefire-logo.png', 'classifire-logo.png',
+    'brand-boot.css', 'brand-boot.js', 'classifire-app.ico', 'classifire-app-icon.png', 'register-references.js',
     'downloads.js', 'downloads.css', 'main-layout.js',
     'index.html', 'libraries.css', 'libraries.js', 'library-detail-text.js', 'library-editor.css',
     'library-editor.js', 'penetration-breakdown.js', 'penetration.css', 'penetration.js', 'styles.css',
@@ -379,7 +380,7 @@ def main():
     numbers = tuple(int(n) for n in args.version.split('.')) + (0,)
     version_file.write_text("VSVersionInfo(ffi=FixedFileInfo(filevers=" + repr(numbers) + ",prodvers=" + repr(numbers)
         + ",mask=0x3f,flags=0,OS=0x40004,fileType=1,subtype=0,date=(0,0)),kids=[StringFileInfo([StringTable('040904B0',"
-        + "[StringStruct('CompanyName','CEASEFIRE'),StringStruct('FileDescription','CEASEFIRE Estimator'),StringStruct('ProductName','CEASEFIRE Estimator'),StringStruct('FileVersion','"
+        + "[StringStruct('CompanyName','CEASEFIRE'),StringStruct('FileDescription','CLASSIFIRE | Passive Fire Intelligence'),StringStruct('ProductName','CLASSIFIRE | Passive Fire Intelligence'),StringStruct('FileVersion','"
         + args.version + "'),StringStruct('ProductVersion','" + args.version + "')])]),VarFileInfo([VarStruct('Translation',[1033,1200])])])", encoding='utf-8')
     config = {'root':str(ROOT),'resources':resources,'seed':str(seed),'notices':str(notices),'version_file':str(version_file),
         'calculator_evidence':str(evidence_stage) if evidence else None,
@@ -397,7 +398,7 @@ def main():
     report = {'version':args.version,'seed':seed_info,'private_seed':bool(args.seed),'bundle':verify_bundle(bundle),
         'packaged_content':verify_packaged_content(bundle, resources, seed_info, notices),
         'calculator_evidence':verify_packaged_calculator_evidence(bundle, evidence),
-        'executable_icon':verify_icon(bundle/'CEASEFIRE Estimator.exe', ROOT/'static/ceasefire-app.ico'),
+        'executable_icon':verify_icon(bundle/'CEASEFIRE Estimator.exe', ROOT/'static/classifire-app.ico'),
         'executable_sha256':checksum(bundle/'CEASEFIRE Estimator.exe'),'signed_by_ceasefire':False,
         'source_files':fingerprints,'python_version':sys.version,
         'source_revision':revision,
@@ -419,7 +420,7 @@ def main():
         verify_runtime_fingerprints(runtime_paths, runtimes)
         installer=next((output/'installer').glob('*.exe'))
         report['installer']={'filename':installer.name,'bytes':installer.stat().st_size,'sha256':checksum(installer),
-            'icon':verify_icon(installer, ROOT/'static/ceasefire-app.ico')}
+            'icon':verify_icon(installer, ROOT/'static/classifire-app.ico')}
     if evidence:
         verify_calculator_evidence(args.calculator_evidence, evidence, private_input=True)
         verify_calculator_evidence(evidence_stage, evidence)

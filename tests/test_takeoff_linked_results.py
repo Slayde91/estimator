@@ -56,6 +56,7 @@ class TakeoffLinkedResultTests(unittest.TestCase):
             self.assertEqual(result['estimating_thickness_mm'], engine.value('SCHEDULE', f"P{binding['row']}"))
             self.assertEqual(result['published_thickness_mm'], engine.value('SCHEDULE', f"O{binding['row']}"))
         self.assertEqual(result['status'], 'Current')
+        self.assertEqual([reference['label'] for reference in result['report_references']], ['FAR4853 Issue 3'])
         self.assertEqual(result['binding_id'], binding['id'])
         self.assertEqual(result['sheet'], binding['sheet'])
         self.assertEqual(result['calculator_source_sha256'], binding['source_sha256'])
@@ -72,6 +73,7 @@ class TakeoffLinkedResultTests(unittest.TestCase):
             for key, column in (('total_thickness_mm', 'AB'), ('board_stack_mm', 'Z'), ('board_layers', 'AA')):
                 self.assertEqual(result[key], engine.value('CALCULATOR', f"{column}{binding['row']}"))
         self.assertEqual(result['status'], 'Current')
+        self.assertEqual([reference['label'] for reference in result['report_references']], ['FAS200445 R2.0'])
         self.assertIsNone(result['estimating_thickness_mm'])
 
     def test_duct_returns_native_continuous_wrap_thickness_and_withholds_stale_rows(self):

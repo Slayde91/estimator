@@ -5,7 +5,7 @@ const { spawn } = require('node:child_process');
 const fs = require('node:fs'), path = require('node:path'), crypto = require('node:crypto'), assert = require('node:assert/strict');
 const root = path.resolve(__dirname, '../..'), output = path.join(root, '.runtime/browser-qa', `header-tagline-${Date.now()}`);
 fs.mkdirSync(output, { recursive: true });
-const assets = ['static/app.js', 'static/styles.css', 'static/index.html', 'static/header-tagline-media.js', 'static/header-tagline-character.gif', 'static/header-tagline-character-still.png'];
+const assets = ['static/app.js', 'static/styles.css', 'static/index.html', 'static/brand-boot.js', 'static/brand-boot.css', 'static/header-tagline-media.js', 'static/header-tagline-character.gif', 'static/header-tagline-character-still.png'];
 const assetHashes = Object.fromEntries(assets.map(name => [name, crypto.createHash('sha256').update(fs.readFileSync(path.join(root, name))).digest('hex')]));
 const server = spawn(process.env.CEASEFIRE_PYTHON || 'python', [path.join(__dirname, 'fixtures.py'), '--directory', output], { cwd: root, windowsHide: true });
 let logs = '', browser, page;
@@ -17,7 +17,7 @@ const ready = new Promise((resolve, reject) => {
 });
 const phrase = "I'm an expert at reading plans and looking at photos - a site visit would just be a waste of my time.";
 const newPhrase = 'CLASSIFIRE | Passive Fire Intelligence | Talk FRL to me.';
-const errors = [], evidence = {}, csp = [];
+const errors = [], evidence = {}, csp = [], bootReadiness = [];
 const pendingRequests = new WeakMap();
 const clockOrigin = Date.parse('2026-10-04T00:00:00Z');
 const delay = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
@@ -42,6 +42,20 @@ async function installPausedClock() {
   // Pausing before loading also prevents slow CI startup from finishing the phrase early.
   await page.clock.install({ time: clockOrigin });
   await page.clock.pauseAt(clockOrigin + 60000);
+}
+async function finishBootFrames() {
+  await expect.poll(() => page.evaluate(() => document.readyState === 'complete' && !!window.CeasefireDesktop?.status().ready), { timeout: 30000 }).toBe(true);
+  await page.evaluate(async () => { await document.fonts.ready; await document.querySelector('#classifire-boot img').decode(); });
+  let frames = 0;
+  // The real boot gate waits for two paint frames. Advance only this small
+  // bounded frame window; the production typing clock remains paused afterwards.
+  while (frames < 4 && await page.evaluate(() => window.ClassifireBoot.state === 'pending')) {
+    await page.clock.runFor(16); frames++;
+  }
+  const observed = await page.evaluate(() => ({ state: window.ClassifireBoot.state, attribute: document.documentElement.getAttribute('data-brand-boot'),
+    overlayHidden: document.querySelector('#classifire-boot').hidden, characterVisibility: getComputedStyle(document.querySelector('#header-tagline-character')).visibility, width: innerWidth }));
+  assert.equal(observed.state, 'ready'); assert.equal(observed.attribute, null); assert.equal(observed.overlayHidden, true); assert.equal(observed.characterVisibility, 'visible');
+  bootReadiness.push({ ...observed, frames, advancedMs: frames * 16 });
 }
 async function layout() {
   return page.evaluate(() => {
@@ -200,8 +214,11 @@ async function presentationNavigation(initial) {
   await toggle.hover(); await menu.getByRole('button', { name: 'Steel', exact: true }).click();
   await expect(page.locator('#steel-calculator-navigation-menu')).toBeVisible();
   assert.equal((await layout()).accessible,previous,'Opening Steel only discloses its choices');
+  const boardWorksheet = page.waitForResponse(response => response.request().method() === 'POST' && new URL(response.url()).pathname === '/api/calculators/steel_board/worksheet', { timeout: 30000 });
   await page.locator('#steel-calculator-navigation-menu').getByRole('button',{name:'Steel (board)',exact:true}).click();
   await expect(page.locator('#calculator-title')).toHaveText('Steel (board)');
+  assert.equal((await boardWorksheet).status(), 200);
+  await expect(page.locator('#calculator-grid')).toHaveAttribute('aria-busy', 'false', { timeout: 30000 });
   await expect.poll(() => page.locator('#header-tagline-label').textContent()).not.toBe(previous);
   const selected = await layout(); sameHeader(initial, selected);
   await typeUntilFinished(selected, selected.accessible, await bootstrap(selected, selected.accessible));
@@ -242,6 +259,7 @@ async function presentationNavigation(initial) {
     const response = await page.goto(`http://127.0.0.1:${info.port}/`); assert.equal(response.status(), 200);
     assert.match(response.headers()['content-security-policy'], /(?:^|;\s*)script-src 'self'(?:;|$)/);
     await page.evaluate(() => document.fonts.ready);
+    await finishBootFrames();
     const initial = await layout(); assert.equal(initial.accessible, phrase); assert.equal(initial.italic, 'italic');
     assert.ok(phrase.startsWith(initial.typed)); assert.notEqual(initial.typed, phrase, 'Actual typing must still be in progress');
     assert.ok(initial.tagline.y >= initial.logo.bottom - (width > 720 ? 20 : 0) && initial.tagline.x >= initial.brand.x && initial.tagline.x + initial.tagline.width <= initial.brand.x + initial.brand.width + .1, 'Tagline remains directly beneath the CLASSIFIRE logo in its left group'); assert.ok(initial.overflow <= 1);
@@ -260,6 +278,7 @@ async function presentationNavigation(initial) {
       evidence.navigation = await presentationNavigation(initial);
       const previous = await page.locator('#header-tagline-label').textContent();
       await page.reload();
+      await finishBootFrames();
       const second = await page.locator('#header-tagline-label').textContent(); assert.notEqual(second, previous);
       const nextInitial = await layout();
       await typeUntilFinished(nextInitial, second, await bootstrap(nextInitial, second)); await clean();
@@ -274,7 +293,7 @@ async function presentationNavigation(initial) {
     const context = await browser.newContext({ viewport: { width: 1146, height: 900 } });
     await instrument(context, { random: index / 54 + .001 }); // Fifty-four choices; preserve the prior phrase check and exercise the first addition.
     page = await context.newPage(); watch(page); await installPausedClock();
-    await page.goto(`http://127.0.0.1:${info.port}/`); await page.evaluate(() => document.fonts.ready);
+    await page.goto(`http://127.0.0.1:${info.port}/`); await page.evaluate(() => document.fonts.ready); await finishBootFrames();
     const initial = await layout(); assert.equal(initial.accessible, selectedPhrase);
     assert.ok(selectedPhrase.startsWith(initial.typed)); assert.notEqual(initial.typed, selectedPhrase);
     const typingBlink = await blinking(initial, selectedPhrase, 'while typing the selected phrase');
@@ -288,7 +307,7 @@ async function presentationNavigation(initial) {
   for (const blocked of [false, true]) {
     const context = await browser.newContext({ viewport: { width: 390, height: 844 }, reducedMotion: 'reduce' });
     await instrument(context, { blocked });
-    page = await context.newPage(); const gifRequests = []; page.on('request', request => { if (new URL(request.url()).pathname === '/header-tagline-character.gif') gifRequests.push(request.url()); }); watch(page); await installPausedClock(); await page.goto(`http://127.0.0.1:${info.port}/`); await page.evaluate(() => document.fonts.ready);
+    page = await context.newPage(); const gifRequests = []; page.on('request', request => { if (new URL(request.url()).pathname === '/header-tagline-character.gif') gifRequests.push(request.url()); }); watch(page); await installPausedClock(); await page.goto(`http://127.0.0.1:${info.port}/`); await page.evaluate(() => document.fonts.ready); await finishBootFrames();
     const reduced = await layout(); assert.equal(reduced.typed, phrase); assert.equal(reduced.accessible, phrase);
     assert.equal(reduced.cursorAnimation, 'none'); await bootstrap(reduced, phrase); await clean();
     const expiry = await expireCursor(reduced, phrase, { animated: false }); await clean();
@@ -299,7 +318,7 @@ async function presentationNavigation(initial) {
   }
   {
     const context = await browser.newContext({ viewport: { width: 1146, height: 900 } }); await instrument(context);
-    page = await context.newPage(); watch(page); await installPausedClock(); await page.goto(`http://127.0.0.1:${info.port}/`); await page.evaluate(() => document.fonts.ready);
+    page = await context.newPage(); watch(page); await installPausedClock(); await page.goto(`http://127.0.0.1:${info.port}/`); await page.evaluate(() => document.fonts.ready); await finishBootFrames();
     const initial = await layout(); assert.equal(initial.mediaState, 'playing'); assert.notEqual(initial.typed, phrase);
     await page.emulateMedia({ reducedMotion: 'reduce' }); await expect.poll(() => page.locator('#header-tagline-character').getAttribute('data-tagline-motion')).toBe('reduced');
     const reduced = await layout(); assert.equal(reduced.typed, phrase); assert.equal(reduced.cursorHidden, true); assert.equal(reduced.mediaSrc, '/header-tagline-character-still.png'); sameHeader(initial, reduced);
@@ -308,7 +327,7 @@ async function presentationNavigation(initial) {
   }
   assert.deepEqual(errors, []); assert.deepEqual(csp, []);
   for (const name of assets) assert.equal(crypto.createHash('sha256').update(fs.readFileSync(path.join(root, name))).digest('hex'), assetHashes[name], `${name} changed during native acceptance`);
-  fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ completed: true, fixturePort: info.port, assetHashes, evidence, errors, csp,
+  fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ completed: true, fixturePort: info.port, assetHashes, evidence, bootReadiness, errors, csp,
     limits: ['Disposable browser fixture only; no live port 8765 interaction.', 'Playwright clock advances production JS typing/expiry callbacks; CSS opacity transitions are sampled in real Chromium frames.', 'All 54 exact phrases and preference-change timer cancellation are additionally verified by focused unit checks.'] }, null, 2));
   console.log(`Header navigation tagline browser acceptance passed: ${output}`);
 })().catch(async error => {

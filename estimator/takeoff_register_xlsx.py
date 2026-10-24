@@ -14,14 +14,14 @@ STEEL = ('Confirmation', 'Member mark', 'Level', 'Member type', 'Steel section',
 DUCT = ('Confirmation', 'Item', 'Level', 'WxH (mm)', 'FRL', 'Orientation', 'Product')
 SURFACE = ('Confirmation', 'Surface ID', 'Surface type', 'Level', 'Surface basis', 'Substrate',
            'Treatment', 'Protection system', 'Protection product', 'FRL / fire rating', 'Number of layers')
-LENGTH = ('Qty', 'Length each (m)', 'Total (m)', 'Thickness (mm)', 'Evidence / issues')
+LENGTH = ('Qty', 'Length each (m)', 'Total (m)', 'Thickness (mm)', 'Report', 'Evidence / issues')
 DUCT_LENGTH = LENGTH[:3] + ('Duct surface (m²)',) + LENGTH[3:]
 AREA = ('Gross (m²)', 'Excluded (m²)', 'Net (m²)', 'Total (m²)', 'Evidence / issues')
 STANDALONE = ('Confirmation', 'Item', 'Level', 'WxH (mm)', 'FRL', 'Orientation')
 
 
 def _width(header):
-    if header in ('Evidence / issues', 'Source evidence', 'Legacy hierarchy / label'):
+    if header in ('Evidence / issues', 'Source evidence', 'Legacy hierarchy / label', 'Report', 'System'):
         return 58
     if header in ('Protection system', 'Protection product', 'Substrate', 'Surface basis', 'Service type'):
         return 30
@@ -133,6 +133,8 @@ def export_current_register(snapshot, selected, results, confirmations, linked, 
                 row.append(record.get('duct_surface_m2') if record and record.get('duct_surface_status') == 'Current' else None)
             key = {'steel_vermiculite': 'estimating_thickness_mm', 'steel_intumescent': 'intumescent_thickness_mm', 'steel_board': 'total_thickness_mm', 'ductwork': 'duct_thickness_mm'}[target]
             row.append(record.get(key) if record and record['status'] == 'Current' else None)
+            from .register_references import report_text
+            row.append(report_text(record.get('report_references', [])) if record and record['status'] == 'Current' else '')
         geometry = item['geometry']
         evidence = f'{documents[geometry["document_id"]]["name"]} · p{geometry["page"]}' if geometry else 'Source markup missing'
         if item['mode'] == 'duct' and item.get('purpose') != 'count-only' and fields.get('shape') != 'rectangular':
@@ -153,7 +155,8 @@ def export_current_register(snapshot, selected, results, confirmations, linked, 
     return payload, MIME, f'CEASEFIRE-{label}{suffix}-Takeoffs.xlsx'
 
 
-def export_physical_register(graph, *, confirmation='all'):
+def export_physical_register(graph, *, confirmation='all', references=None):
+    from .register_references import report_text, system_text
     from .takeoff_physical import effective_confirmation, graph_collections, graph_parents, validate_graph
     from .takeoff_physical_exports import _stable_archive
     if not isinstance(confirmation, str) or confirmation not in ('all', 'confirmed', 'unconfirmed'):
@@ -165,7 +168,7 @@ def export_physical_register(graph, *, confirmation='all'):
     kinds = ['barrier', 'defect', 'opening', 'service'] if legacy else ['barrier', 'service'] if plans else ['defect', 'barrier', 'service']
     headers = (*(['Legacy hierarchy / label'] if legacy else []), *[f'{kind.title()} ID' for kind in kinds],
                'Confirmation', 'Location', 'FRL', *(['Opening type', 'Opening size'] if legacy else []),
-               'Substrate', 'Orientation', 'Category', 'Service type', 'Service quantity', 'Service Size (mm)', 'Source evidence')
+               'Substrate', 'Orientation', 'Category', 'Service type', 'Service quantity', 'Service Size (mm)', 'Report', 'System', 'Source evidence')
     children = {}
     for kind, entry in index.values():
         parent = entry[parents[kind][1]] if kind in parents else None
@@ -189,9 +192,10 @@ def export_physical_register(graph, *, confirmation='all'):
             if legacy:
                 opening = relation.get('opening', {}).get('fields', {})
                 row += [opening.get('opening_type'), opening.get('size')]
+            reference = (references or {}).get(entity['id'], {})
             row += [barrier.get('substrate'), barrier.get('orientation'), service.get('service'), service.get('service_type'),
                     (entity['quantity'] if entity['quantity'] is not None else 'Unknown') if kind == 'service' else None,
-                    size, f'{len(entity["evidence"])} source associations']
+                    size, report_text(reference.get('reports', [])), system_text(reference), f'{len(entity["evidence"])} source associations']
             rows.append(row)
         for child_kind, child in children.get(entity['id'], []):
             visit(child_kind, child, relation)

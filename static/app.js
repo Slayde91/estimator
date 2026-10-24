@@ -1051,12 +1051,13 @@
     return true;
   }
   async function requestCalculatorNavigation(id = state.calculatorKind) {
-    if (!["steel", "steel_vermiculite", "steel_intumescent", "steel_board", "ductwork", "penetration"].includes(id)) return false;
+    if (!["steel", "steel_vermiculite", "steel_intumescent", "steel_board", "steel_factors", "ductwork", "penetration"].includes(id)) return false;
     document.activeElement?.blur?.();
     if (state.currentView !== "calculators" && !await confirmLeavePricingLibrary()) return false;
     if (window.CeasefireCalculators?.hasPendingOperation?.()) {
       message(uiCopy("Finish the current calculator action before choosing another calculator."), true); return false;
     }
+    if (window.CeasefireCalculators?.canSelect?.(id) === false) return false;
     state.estimatorKind = "estimate";
     await showView("calculators", undefined, id);
     if (state.currentView === "calculators") window.CeasefireHeaderTagline?.next();
@@ -1866,7 +1867,8 @@
       $("header-project-actions").hidden = false;
       showView("home");
       state.initialized = true;
-    } catch (error) { window.CeasefireI18n.text($("loading-state"), "The estimator could not be loaded. Reload after the local server is available."); message(error.message, true); }
+      window.ClassifireBoot?.ready();
+    } catch (error) { window.CeasefireI18n.text($("loading-state"), "The estimator could not be loaded. Reload after the local server is available."); message(error.message, true); window.ClassifireBoot?.failed(); }
     } finally { endActivity?.(); }
   }
 

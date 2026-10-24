@@ -51,8 +51,8 @@ async function tab(name){await page.locator('#calculator-pages').getByRole('butt
  assert.ok((await stock.locator('[data-board-steel-row]').allTextContents()).every(text=>text==='0.00'));
  await expect(page.locator('#calculator-board-steel-notes')).toContainText('total lineal metres');
  await page.screenshot({path:path.join(output,'board-summary.png'),fullPage:true});
- // Remove only the nine requested browser notes; their source/API content and
- // adjacent quantity tables, documentary rows and editable controls survive.
+ // The browser keeps product totals and concise operating settings. Complete
+ // source/API tables, hidden assumptions and saved calculator inputs survive.
  await chooseCalculator(page,'Ductwork (spray/wrap)');await idle();await tab('SUMMARY');
  const worksheet=async sheet=>{const response=await page.request.post(`http://127.0.0.1:${info.port}/api/calculators/ductwork/worksheet`,{data:{sheet}});assert.equal(response.status(),200);return response.json();};
  const rawSummary=await worksheet('SUMMARY'),summaryCells=new Map(rawSummary.rows.flatMap(row=>row.cells.map(cell=>[cell.address,cell]))),noteChecks=[];
@@ -61,17 +61,68 @@ async function tab(name){await page.locator('#calculator-pages').getByRole('butt
    await expect(page.locator(`#calculator-grid [data-calculator-output="${address}"]`)).toHaveCount(0);await expect(page.locator('#calculator-grid')).not.toContainText(prefix);
    noteChecks.push({sheet:'SUMMARY',address,sourceNoteRetained:true,browserNoteRemoved:true});
  }
- for(const label of ['Product totals','Penetration angle totals','Working yields','Maxilite cutting totals'])await expect(page.getByRole('table',{name:label,exact:true})).toHaveCount(1);
- for(const address of ['A17','A29','A38','D9','D19','F40'])await expect(page.locator(`#calculator-grid [data-calculator-output="${address}"]`)).toHaveCount(1);
+ await expect(page.getByRole('table',{name:'Product totals',exact:true})).toHaveCount(1);
+ for(const label of ['Penetration angle totals','Working yields','Maxilite cutting totals'])await expect(page.getByRole('table',{name:label,exact:true})).toHaveCount(0);
+ await expect(page.locator('#calculator-grid [data-calculator-output="D9"]')).toHaveCount(1);
+ for(const address of ['A17','A29','A38','D19','F40']){
+   assert.ok(summaryCells.has(address),`${address}: hidden summary data remains in API`);
+   await expect(page.locator(`#calculator-grid [data-calculator-output="${address}"]`)).toHaveCount(0);
+ }
  await tab('PRODUCT SETTINGS');const rawSettings=await worksheet('PRODUCT SETTINGS');
- for(const [id,prefix,adjacent] of [['A6','Use the assessed construction and fire direction.','[data-calculator-cell="B35"]'],['A48','Check the assessed duct size, steel, supports, wall and floor details.','[data-calculator-cell="B65"]'],['A94','Use matching barrier, gap and fixing details.','[data-calculator-cell="B96"]'],['J94','FyreWrap application FRLs preserve directional requirements:','[data-calculator-output="J96"]'],['J115','Counts cover standard four-sided details:','[data-calculator-output="J117"]']]){
+ await expect(page.locator('[data-calculator-settings-section]')).toHaveCount(3);
+ for(const id of ['J94','J115'])await expect(page.locator(`[data-calculator-settings-section="${id}"]`)).toHaveCount(0);
+ for(const [id,prefix,adjacent] of [['A6','Use the assessed construction and fire direction.','[data-calculator-cell="B35"]'],['A48','Check the assessed duct size, steel, supports, wall and floor details.','[data-calculator-cell="B65"]'],['A94','Use matching barrier, gap and fixing details.','[data-calculator-cell="B96"]']]){
    const choice=page.locator(`[data-calculator-settings-section="${id}"]`);await choice.click();const panel=page.locator(`#${await choice.getAttribute('aria-controls')}`);await expect(panel).toBeVisible();
-   const projected=id==='J94',source=projected?rawSettings.presentation_tables.find(table=>table.title_address===id):rawSettings.settings_sections.find(section=>section.id===id);
+   const source=rawSettings.settings_sections.find(section=>section.id===id);
    assert.ok(source.note.startsWith(prefix),`${id}: the full technical note remains in API metadata`);
-   await expect(panel.locator(projected?'.calculator-projected-note.calculator-technical-note':'.calculator-settings-note')).toHaveCount(0);await expect(panel).not.toContainText(prefix);await expect(panel.locator(adjacent)).toBeVisible();
+   await expect(panel.locator('.calculator-settings-note')).toHaveCount(0);await expect(panel).not.toContainText(prefix);await expect(panel.locator(adjacent)).toBeVisible();
+   if(id==='A48'){
+     const rows=await panel.locator('tr[data-source-row]').evaluateAll(nodes=>nodes.map(node=>Number(node.dataset.sourceRow)));
+     assert.deepEqual(rows,[48,49,65,73,90,91,92,163,164,68,69]);
+     await page.screenshot({path:path.join(output,'duct-monokote-core-settings.png'),fullPage:true});
+   }
+   if(id==='A94'){
+     const form=panel.getByRole('table',{name:'FYREWRAP',exact:true});
+     const rows=await form.locator('tr[data-source-row]').evaluateAll(nodes=>nodes.map(node=>Number(node.dataset.sourceRow)));
+     assert.deepEqual(rows,[95,96,97,98,99,100,111,112]);
+     await expect(panel.locator('[data-calculator-output="J94"]')).toHaveText('FYREWRAP APPLICATION TABLE');
+     await expect(panel.locator('[data-calculator-output="J96"]')).toBeVisible();
+     await expect(panel.locator('.calculator-projected-note.calculator-technical-note')).toHaveCount(0);
+     for(const address of ['A101','A115','A117','J115','J117'])await expect(panel.locator(`[data-calculator-output="${address}"]`)).toHaveCount(0);
+   }
    noteChecks.push({sheet:'PRODUCT SETTINGS',id,sourceNoteRetained:true,browserNoteRemoved:true,adjacentControlOrOutputVisible:true});
  }
- await page.screenshot({path:path.join(output,'duct-settings-notes-removed.png'),fullPage:true});
+ assert.ok(rawSettings.presentation_tables.find(table=>table.title_address==='J94').note.startsWith('FyreWrap application FRLs preserve directional requirements:'));
+ assert.ok(rawSettings.settings_sections.find(section=>section.id==='J115').note.startsWith('Counts cover standard four-sided details:'));
+ const settingsCells=new Map(rawSettings.rows.flatMap(row=>row.cells.map(cell=>[cell.address,cell])));
+ for(const address of ['B50','B101','A115','A117','J115','J117'])assert.ok(settingsCells.has(address),`${address}: hidden settings remain in API`);
+ await page.screenshot({path:path.join(output,'duct-fyrewrap-core-and-application.png'),fullPage:true});
+ // SC902 uses the same compact pack form and shared product summary. Opening
+ // either page leaves raw settings, retained legacy inputs and drafts intact.
+ await chooseCalculator(page,'Steel (intumescent)');await idle();await tab('SETTINGS');
+ const intumSettingsResponse=await page.request.post(`http://127.0.0.1:${info.port}/api/calculators/steel_intumescent/worksheet`,{data:{sheet:'SETTINGS'}});assert.equal(intumSettingsResponse.status(),200);
+ const intumSettings=await intumSettingsResponse.json(),intumSettingsRaw=JSON.stringify(intumSettings),intumCells=new Map(intumSettings.rows.flatMap(row=>row.cells.map(cell=>[cell.address,cell])));
+ await page.locator('[data-calculator-settings-section="A4"]').click();
+ const sc902=page.locator('#calculator-settings-steel_intumescent-SETTINGS-A4');await expect(sc902).toBeVisible();
+ const sc902Form=sc902.getByRole('table',{name:'Nullifire SC902 settings',exact:true});
+ const sc902Rows=await sc902Form.locator('tr[data-source-row]').evaluateAll(nodes=>nodes.map(node=>Number(node.dataset.sourceRow)).filter(row=>row!==4));
+ assert.deepEqual(sc902Rows,[9,24,14,16,17,25,10,11,21,22,23]);
+ for(const address of ['D9','D24','D14','D16','D17','D25','D10','D11'])await expect(sc902.locator(`[data-calculator-cell="${address}"]`)).toBeVisible();
+ for(const [address,label] of [['D21','Total Part A + B mass estimate (kg)'],['D22','Mixed pack volume used (L)'],['D23','Theoretical pack coverage (m² at 1 mm DFT)']]){
+   await expect(sc902.locator(`[data-calculator-output="${address}"]`)).toBeVisible();await expect(sc902).toContainText(label);
+ }
+ for(const address of ['D6','D8','D12','D15']){
+   assert.ok(intumCells.has(address),`${address}: SC902 legacy setting remains in API`);
+   await expect(sc902.locator(`[data-calculator-cell="${address}"]`)).toHaveCount(0);
+ }
+ for(const address of ['A26','A27','A28','A29','A30'])await expect(sc902.locator(`[data-calculator-output="${address}"]`)).toHaveCount(0);
+ await page.screenshot({path:path.join(output,'sc902-compact-pack-settings.png'),fullPage:true});
+ assert.equal(JSON.stringify(intumSettings),intumSettingsRaw);
+ await tab('SUMMARY');
+ const intumSummary=page.getByRole('table',{name:'Intumescent product summary',exact:true});await expect(intumSummary).toBeVisible();
+ await expect(page.locator('#calculator-grid table')).toHaveCount(1);await expect(intumSummary.getByRole('columnheader')).toHaveCount(15);await expect(intumSummary.locator('tbody tr')).toHaveCount(3);
+ for(const product of ['Nullifire SC902','FIRETEX FX5090','FIRETEX FX6010'])await expect(intumSummary).toContainText(product);
+ await page.screenshot({path:path.join(output,'intumescent-unified-product-summary.png'),fullPage:true});
  assert.deepEqual(await page.evaluate(()=>window.CeasefireCalculators.completeProjectSnapshot()),before);assert.deepEqual(errors,[]);
  // Enter a new board schedule using public controls, including blank custom design selectors.
  await chooseCalculator(page,'Steel (board)');await idle();

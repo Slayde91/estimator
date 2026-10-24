@@ -131,7 +131,7 @@ def export_current_register(snapshot, selected, results, confirmations, linked, 
             record = next((value for value in linked[item['id']] if value['calculator_id'] == target), None)
             if mode == 'duct':
                 row.append(record.get('duct_surface_m2') if record and record.get('duct_surface_status') == 'Current' else None)
-            key = {'steel_vermiculite': 'estimating_thickness_mm', 'steel_board': 'total_thickness_mm', 'ductwork': 'duct_thickness_mm'}[target]
+            key = {'steel_vermiculite': 'estimating_thickness_mm', 'steel_intumescent': 'intumescent_thickness_mm', 'steel_board': 'total_thickness_mm', 'ductwork': 'duct_thickness_mm'}[target]
             row.append(record.get(key) if record and record['status'] == 'Current' else None)
         geometry = item['geometry']
         evidence = f'{documents[geometry["document_id"]]["name"]} · p{geometry["page"]}' if geometry else 'Source markup missing'

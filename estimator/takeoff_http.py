@@ -75,9 +75,9 @@ class TakeoffHTTP:
                 for index, (name, colour) in enumerate(PALETTE)]})
             return True
         if route == '/api/takeoffs/options' and handler.command == 'GET':
-            if set(query) - {'calculator', 'product', 'member_type'}:
-                raise ValidationError('Choose a calculator and optional product/member type.')
-            fields = {key: query[key] for key in ('product', 'member_type') if key in query}
+            if set(query) - {'calculator', 'product', 'member_type', 'exposure'}:
+                raise ValidationError('Choose a calculator and optional product/member type/exposure.')
+            fields = {key: query[key] for key in ('product', 'member_type', 'exposure') if key in query}
             handler.send_payload(200, self.service.options(query.get('calculator', ''), fields))
             return True
         if route == '/api/takeoffs/profiles' and handler.command == 'GET':

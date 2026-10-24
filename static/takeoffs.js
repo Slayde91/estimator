@@ -22,6 +22,9 @@
   // Presentation only: snapshots, evidence digests and calculator inputs retain full precision.
   const formatLength = value => Number.isFinite(value) ? lengthUnits.format(value) : "—";
   const labels = { steel: "Steel", duct: "Duct", wall: "Walls/Floors", slab: "Walls/Floors", walls_floors: "Walls/Floors", physical: "Penetrations" };
+  const steelTargets = [["steel_vermiculite", "Steel Spray Schedule"], ["steel_intumescent", "Steel Intumescent Schedule"], ["steel_board", "Steel Board Schedule"]];
+  const steelCalculators = steelTargets.map(([id]) => id);
+  const thicknessKeys = { steel_vermiculite: "estimating_thickness_mm", steel_intumescent: "intumescent_thickness_mm", steel_board: "total_thickness_mm", ductwork: "duct_thickness_mm" };
   const physicalUnfinished = () => !!state.physicalUI?.hasUnfinishedChanges();
   const isArea = (mode = state.mode) => mode === "wall" || mode === "slab";
   // The combined workspace never changes a stored wall/slab measurement type.
@@ -684,7 +687,7 @@
     ui.bulk.append(ui.selectionCount, ui.bulkField, ui.bulkValue, uiButton("Apply to selected", bulkEdit), uiButton("Confirm", confirmSelected), uiButton("Unconfirm", () => selectedCommand("unconfirm_items")), uiButton("Delete", deleteSelected));
     // Historical operations remain available to integrations, outside this toolbar.
     ui.split = uiButton("Split", splitSelected); ui.merge = uiButton("Merge", mergeSelected);
-    const exports = node("div", "takeoff-register-controls"); ui.target = uiSelect([["steel_vermiculite", "Steel Spray Schedule"], ["steel_board", "Steel Board Schedule"]], refreshRegisterOptions); window.CeasefireI18n.attr(ui.target, "aria-label", "Destination schedule");
+    const exports = node("div", "takeoff-register-controls"); ui.target = uiSelect(steelTargets, refreshRegisterOptions); window.CeasefireI18n.attr(ui.target, "aria-label", "Destination schedule");
     ui.transferControls = [ui.target, uiButton("Preview transfer", () => transfer(false)), uiButton("Update linked rows", () => transfer(true)), uiButton("Detach links", detachSelected)];
     ui.areaNotice = uiNode("p", "helper takeoff-area-notice", "Area records export as m². Existing steel and duct calculators do not accept surface areas. Split/merge is unavailable for surfaces; group separate physical surfaces without changing their identities.");
     exports.append(...ui.transferControls, ui.areaNotice);
@@ -885,7 +888,7 @@
     const sortChoices = [["mark", "Sort: Mark"], ["level", "Sort: Level"], [area ? "area" : "length", area ? "Sort: Total area" : "Sort: Length"], ["state", "Sort: Confirmation"]];
     if (!sortChoices.some(([key]) => key === state.sort)) state.sort = "mark";
     state.ui.sort.replaceChildren(...sortChoices.map(([key, label]) => uiOption(key, label))); state.ui.sort.value = state.sort;
-    const targets = area ? [] : state.mode === "steel" ? [["steel_vermiculite", "Steel Spray Schedule"], ["steel_board", "Steel Board Schedule"]] : [["ductwork", "Ductwork Schedule"]];
+    const targets = area ? [] : state.mode === "steel" ? steelTargets : [["ductwork", "Ductwork Schedule"]];
     const target = state.ui.target.value; state.ui.target.replaceChildren(...targets.map(([id, label]) => uiOption(id, label))); if (targets.some(([id]) => id === target)) state.ui.target.value = target;
     if (state.mode === "steel" && state.ui.target.value !== target) { registerFilters().delete("thickness"); invalidateLinkedThickness(); }
     syncBulkFields();
@@ -1132,8 +1135,8 @@
   async function loadSettingsOptions(editor) {
     const item = settingsSelectedItems()[0]; if (!item || isSurface(item)) return;
     const calculator = isStandalone(item) ? "firestopping" : state.ui.target.value, request = editor.optionRequest = (editor.optionRequest || 0) + 1;
-    const product = editor.fields.find(field => field.control.name === "product")?.control.value || "", member = editor.fields.find(field => field.control.name === "member_type")?.control.value || "";
-    const choices = await loadCalculatorOptions(calculator, product, member);
+    const product = editor.fields.find(field => field.control.name === "product")?.control.value || "", member = editor.fields.find(field => field.control.name === "member_type")?.control.value || "", exposure = editor.fields.find(field => field.control.name === "exposure")?.control.value || "";
+    const choices = await loadCalculatorOptions(calculator, product, member, exposure);
     if (state.settingsEditor !== editor || request !== editor.optionRequest || (!isStandalone(item) && calculator !== state.ui.target.value)) return;
     populateCalculatorOptions(editor.fields, choices, calculator);
   }
@@ -1172,7 +1175,7 @@
     content.append(uiNode("h4", "", "Item details"));
     // Hide this legacy source field only in the inspector. Untouched citations
     // remain in the item and its evidence; unrelated edits send touched fields only.
-    editor.fields = commonItemFields(selected, itemFields).filter(([key]) => !["surface_citation", "surface_basis"].includes(key)).map(def => { const field = formField(def, def[0] === "duct_size" ? formatDuctSize(first.fields) : (def[0] === "layers" ? first.fields.layers ?? 1 : first.fields[def[0]])); bindSetting(editor, field, `fields:${def[0]}`); if (def[0] === "sides") field.wrapper.hidden = state.ui.target.value !== "steel_board"; if (["product", "member_type"].includes(def[0])) field.control.addEventListener("change", () => void safely(() => loadSettingsOptions(editor))); content.append(field.wrapper); return field; });
+    editor.fields = commonItemFields(selected, itemFields).filter(([key]) => !["surface_citation", "surface_basis"].includes(key)).map(def => { const field = formField(def, def[0] === "duct_size" ? formatDuctSize(first.fields) : (def[0] === "layers" ? first.fields.layers ?? 1 : first.fields[def[0]])); bindSetting(editor, field, `fields:${def[0]}`); if (def[0] === "sides") field.wrapper.hidden = state.ui.target.value !== "steel_board"; if (["product", "member_type", "exposure"].includes(def[0])) field.control.addEventListener("change", () => void safely(() => loadSettingsOptions(editor))); content.append(field.wrapper); return field; });
     if (selected.some(isCount)) {
       const counted = selected.filter(item => isCount(item) && !isStandalone(item));
       counted.forEach((item, index) => {
@@ -2454,8 +2457,8 @@
       return [name, key === "product" ? "Product" : label, type || "text", "", key === "mark"];
     }), ["quantity", "Count/QTY", "number", "", true]];
   }
-  const calculatorFieldColumns = { firestopping: { frl: "N" }, steel_vermiculite: { product: "B", exposure: "C", critical_temperature: "D", section: "F", fire_period_min: "H" }, steel_board: { product: "C", section: "D", sides: "G", fire_period_min: "H", member_type: "I", critical_temperature: "J" }, ductwork: { product: "C", frl: "E", exposure: "H", orientation: "I" } };
-  async function loadCalculatorOptions(calculator, product = "", member = "") {
+  const calculatorFieldColumns = { firestopping: { frl: "N" }, steel_vermiculite: { product: "B", exposure: "C", critical_temperature: "D", section: "F", fire_period_min: "H" }, steel_intumescent: { product: "B", exposure: "C", critical_temperature: "D", section: "F", fire_period_min: "H" }, steel_board: { product: "C", section: "D", sides: "G", fire_period_min: "H", member_type: "I", critical_temperature: "J" }, ductwork: { product: "C", frl: "E", exposure: "H", orientation: "I" } };
+  async function loadCalculatorOptions(calculator, product = "", member = "", exposure = "") {
     if (calculator === "firestopping") {
       const configuration = clone(window.CeasefireProject?.configuration?.() || { inventory: {}, rates: {} });
       const response = await fetch("/api/penetration/definition", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ configuration }) });
@@ -2463,14 +2466,14 @@
       if (!response.ok || field?.type !== "select" || !Array.isArray(field.options) || !field.options.length || field.options.some(value => typeof value !== "string")) throw new Error(definition.error || "The Firestopping FRL choices could not be loaded.");
       return { columns: [field] };
     }
-    const requested = api(`/options?calculator=${encodeURIComponent(calculator)}&product=${encodeURIComponent(product)}&member_type=${encodeURIComponent(member)}`);
+    const requested = api(`/options?calculator=${encodeURIComponent(calculator)}&product=${encodeURIComponent(product)}&member_type=${encodeURIComponent(member)}&exposure=${encodeURIComponent(exposure)}`);
     if (calculator !== "steel_board") return requested;
     // Physical steel exposure remains required by takeoff review. Board's
     // separate exposure_layout field is not a replacement for that property.
     const [choices, steel] = await Promise.all([requested, api("/options?calculator=steel_vermiculite")]);
-    const exposure = steel.columns.find(column => column.column === "C");
-    if (!Array.isArray(exposure?.options)) throw new Error("The steel Exposure choices are unavailable.");
-    return { ...choices, physical_exposure_options: exposure.options };
+    const physicalExposure = steel.columns.find(column => column.column === "C");
+    if (!Array.isArray(physicalExposure?.options)) throw new Error("The steel Exposure choices are unavailable.");
+    return { ...choices, physical_exposure_options: physicalExposure.options };
   }
   function populateCalculatorOptions(controls, choices, calculator) {
     for (const field of controls) {
@@ -2485,13 +2488,13 @@
   async function configureSteelCreation(controls, calculator, ready = () => {}) {
     const sessionId = state.session?.session_id; let request = 0;
     const refresh = async () => {
-      const id = ++request, product = controls.find(field => field.control.name === "product")?.control.value || "", member = controls.find(field => field.control.name === "member_type")?.control.value || "";
+      const id = ++request, product = controls.find(field => field.control.name === "product")?.control.value || "", member = controls.find(field => field.control.name === "member_type")?.control.value || "", exposure = controls.find(field => field.control.name === "exposure")?.control.value || "";
       ready(false);
-      const choices = await loadCalculatorOptions(calculator, product, member);
+      const choices = await loadCalculatorOptions(calculator, product, member, exposure);
       if (id !== request || sessionId !== state.session?.session_id) return;
       populateCalculatorOptions(controls, choices, calculator); ready(true);
     };
-    for (const key of ["product", "member_type"]) controls.find(field => field.control.name === key)?.control.addEventListener("change", () => void safely(refresh));
+    for (const key of ["product", "member_type", "exposure"]) controls.find(field => field.control.name === key)?.control.addEventListener("change", () => void safely(refresh));
     await refresh();
   }
   async function finishTrace() {
@@ -3593,7 +3596,7 @@
     if (!active) {
       const draft = await window.CeasefireCalculators.captureTakeoffTarget(calculatorId);
       drafts[calculatorId] = { inputs: draft.inputs, schedule_rows: draft.schedule_rows };
-      for (const id of ["steel_vermiculite", "steel_board"].filter(id => id !== calculatorId && (snapshot().transfers || []).some(binding => binding.calculator_id === id))) {
+      for (const id of steelCalculators.filter(id => id !== calculatorId && (snapshot().transfers || []).some(binding => binding.calculator_id === id))) {
         try { const native = window.CeasefireCalculators.readTakeoffTarget(id); drafts[id] = { inputs: native.inputs, schedule_rows: native.schedule_rows }; } catch { /* Unavailable native drafts remain explicitly missing. */ }
       }
       fingerprint = draft.fingerprint;
@@ -3698,7 +3701,7 @@
   let linkedThickness = null, linkedThicknessTimer = null, linkedThicknessGeneration = 0;
   function thicknessContext() {
     const calculatorId = state.ui?.target?.value, bridge = window.CeasefireCalculators;
-    if (!state.session || !["steel_vermiculite", "steel_board", "ductwork"].includes(calculatorId) || typeof bridge?.projectFingerprint !== "function") return null;
+    if (!state.session || ![...steelCalculators, "ductwork"].includes(calculatorId) || typeof bridge?.projectFingerprint !== "function") return null;
     const fingerprint = bridge.projectFingerprint(), sessionId = state.session.session_id, revision = state.session.revision;
     return { calculatorId, fingerprint, sessionId, revision, key: JSON.stringify([sessionId, revision, calculatorId, fingerprint]) };
   }
@@ -3708,7 +3711,7 @@
   function scheduleLinkedThickness(force = false) {
     if (!["steel", "duct"].includes(state.mode) || !state.active || !state.ui || state.ui.root.closest?.("[hidden]") || state.busy || window.CeasefireCalculators?.hasPendingOperation?.()) return;
     const context = thicknessContext();
-    if (!context || !items().some(item => item.mode === state.mode && (snapshot().transfers || []).some(binding => binding.item_id === item.id && (state.mode === "steel" ? ["steel_vermiculite", "steel_board"].includes(binding.calculator_id) : binding.calculator_id === context.calculatorId)))) return;
+    if (!context || !items().some(item => item.mode === state.mode && (snapshot().transfers || []).some(binding => binding.item_id === item.id && (state.mode === "steel" ? steelCalculators.includes(binding.calculator_id) : binding.calculator_id === context.calculatorId)))) return;
     if (!force && linkedThickness?.key === context.key) return;
     clearTimeout(linkedThicknessTimer);
     const generation = ++linkedThicknessGeneration;
@@ -3721,7 +3724,7 @@
       const draft = window.CeasefireCalculators.readTakeoffTarget(context.calculatorId);
       if (!stillCurrent() || draft.fingerprint !== context.fingerprint) return;
       const drafts = { [context.calculatorId]: { inputs: draft.inputs, schedule_rows: draft.schedule_rows } };
-      if (state.mode === "steel") for (const id of ["steel_vermiculite", "steel_board"].filter(id => id !== context.calculatorId && (snapshot().transfers || []).some(binding => binding.calculator_id === id))) {
+      if (state.mode === "steel") for (const id of steelCalculators.filter(id => id !== context.calculatorId && (snapshot().transfers || []).some(binding => binding.calculator_id === id))) {
         try { const native = window.CeasefireCalculators.readTakeoffTarget(id); if (native.fingerprint === context.fingerprint) drafts[id] = { inputs: native.inputs, schedule_rows: native.schedule_rows }; } catch { /* Withhold unavailable native results. */ }
       }
       const response = await api(`/sessions/${context.sessionId}/linked-results`, { expected_revision: context.revision,
@@ -3743,9 +3746,9 @@
   }
   function nativeDrawingThickness(item, preferred = state.ui?.target?.value, strict = false) {
     if (!linkedThickness || linkedThickness.pending || linkedThickness.key !== thicknessContext()?.key) return { value: null };
-    const records = linkedThickness.results[item.id] || [], ids = item.mode === "duct" ? ["ductwork"] : strict ? [preferred] : [...new Set([preferred, "steel_vermiculite", "steel_board"])];
+    const records = linkedThickness.results[item.id] || [], ids = item.mode === "duct" ? ["ductwork"] : strict ? [preferred] : [...new Set([preferred, ...steelCalculators])];
     for (const id of ids) {
-      const record = records.find(value => value.calculator_id === id && value.status === "Current"), key = { steel_vermiculite: "estimating_thickness_mm", steel_board: "total_thickness_mm", ductwork: "duct_thickness_mm" }[id], value = record?.[key];
+      const record = records.find(value => value.calculator_id === id && value.status === "Current"), value = record?.[thicknessKeys[id]];
       if (Number.isFinite(value) && value > 0) return { value };
     }
     return { value: null };
@@ -3760,10 +3763,10 @@
     if (!context || linkedThickness?.key !== context.key || linkedThickness.pending) return { text: "Checking…", filter: "", detail: "Checking the current calculator draft and source link." };
     if (linkedThickness.error) return unavailable(linkedThickness.error);
     const records = linkedThickness.results[item.id], result = Array.isArray(records) ? records.find(value => value.calculator_id === calculatorId && value.binding_id === binding.id && value.row === binding.row && value.sheet === binding.sheet) : null;
-    const value = surface ? result?.duct_surface_m2 : calculatorId === "steel_vermiculite" ? result?.estimating_thickness_mm : calculatorId === "ductwork" ? result?.duct_thickness_mm : result?.total_thickness_mm;
+    const value = surface ? result?.duct_surface_m2 : result?.[thicknessKeys[calculatorId]];
     if ((surface ? result?.duct_surface_status : result?.status) !== "Current" || !Number.isFinite(value) || value <= 0 || result.calculator_source_sha256 !== binding.source_sha256 || !/^[0-9a-f]{64}$/.test(result.calculator_draft_sha256 || "")) return unavailable(result?.reason || `The existing calculator has no usable ${surface ? "duct surface" : "thickness"} result.`);
     // Keep the native numeric result; this is not a new thickness calculation.
-    const basis = surface ? "Duct surface from the current Ductwork calculator row." : calculatorId === "steel_vermiculite" ? `Estimating thickness. Published thickness: ${result.published_thickness_mm ?? "unavailable"} mm.` : calculatorId === "ductwork" ? result.duct_thickness_basis : `Total board thickness. Stack: ${result.board_stack_mm}; layers: ${result.board_layers ?? "unavailable"}.`;
+    const basis = surface ? "Duct surface from the current Ductwork calculator row." : calculatorId === "steel_vermiculite" ? `Estimating thickness. Published thickness: ${result.published_thickness_mm ?? "unavailable"} mm.` : calculatorId === "steel_intumescent" ? `Dry film thickness: ${result.intumescent_dft_um} µm. ${result.intumescent_thickness_status}. ${result.intumescent_thickness_source}.` : calculatorId === "ductwork" ? result.duct_thickness_basis : `Total board thickness. Stack: ${result.board_stack_mm}; layers: ${result.board_layers ?? "unavailable"}.`;
     return { value, text: surface ? formatLength(value) : String(value), filter: String(value), detail: `${calculatorName(calculatorId)} · ${binding.sheet} row ${binding.row}. ${basis} Calculator source SHA-256: ${result.calculator_source_sha256}. Current draft SHA-256: ${result.calculator_draft_sha256}.` };
   }
   function updateLinkedThicknessCell(cell, item) {
@@ -4763,7 +4766,7 @@
     try { const result = await api(`/sessions/${sessionId}/transfer-apply`, { expected_revision: state.session.revision, request_id: uuid(), preview_id: preview.preview_id, inputs: target.inputs, schedule_rows: target.schedule_rows }); window.CeasefireCalculators.applyTakeoffTarget(calculatorId, result.transfer, reservation); accept(result); renderData(); message(`Confirmed quantities applied to the calculator draft.${skipped ? ` Skipped ${skipped} already-linked item${skipped === 1 ? "" : "s"}; their rows were unchanged.` : ""} Save the project to retain both the schedule and its source links.`); }
     finally { window.CeasefireCalculators.releaseTakeoffTarget(reservation); working(false); }
   }
-  function calculatorName(id) { return { steel_vermiculite: "Steel Spray", steel_board: "Steel Board", ductwork: "Ductwork" }[id] || id; }
+  function calculatorName(id) { return { steel_vermiculite: "Steel Spray", steel_intumescent: "Steel Intumescent", steel_board: "Steel Board", ductwork: "Ductwork" }[id] || id; }
   function boundInputDetails(binding, columns) {
     const labels = new Map(columns.map(column => [column.column, column.label]));
     return Object.entries(binding.values || {}).filter(([, value]) => value !== null && value !== undefined && value !== "").map(([address, value]) => { const label = labels.get(address.replace(/\d+$/, "")) || address; return `${label}: ${typeof value === "number" && /\b(length|lineal|girth)\b/i.test(label) ? formatLength(value) : String(value)}`; }).join("\n");
@@ -4834,7 +4837,7 @@
         await Promise.all([document.fonts.load("9px CeasefireDrawing"), document.fonts.load("700 9px CeasefireDrawing")]);
         if (!document.fonts.check("9px CeasefireDrawing") || !document.fonts.check("700 9px CeasefireDrawing")) throw new Error("The drawing fonts could not load. Retry after the drawing finishes loading.");
       }
-      const calculatorDrafts = {}, calculatorFingerprints = [], destinations = aggregate ? ["steel_vermiculite", "steel_board", "ductwork"] : mode === "steel" ? ["steel_vermiculite", "steel_board"] : mode === "duct" ? ["ductwork"] : [];
+      const calculatorDrafts = {}, calculatorFingerprints = [], destinations = aggregate ? [...steelCalculators, "ductwork"] : mode === "steel" ? steelCalculators : mode === "duct" ? ["ductwork"] : [];
       for (const id of destinations) {
         try { const draft = await window.CeasefireCalculators?.captureTakeoffTarget?.(id); if (draft) { calculatorDrafts[id] = { inputs: draft.inputs, schedule_rows: draft.schedule_rows }; calculatorFingerprints.push(draft.fingerprint); } }
         catch { /* An unavailable/invalid calculator cannot supply coating or layer values. */ }

@@ -170,7 +170,7 @@ def _calculator_drafts(value):
     from .takeoff_transfer import DESTINATIONS
     from .workbook_calculators import normalize_calculator_inputs
     if not isinstance(value, dict) or set(value) - set(DESTINATIONS):
-        raise ValidationError('Export accepts the current inputs of the three existing calculators only.')
+        raise ValidationError('Export accepts current inputs of supported Steel and Ductwork calculators only.')
     drafts = {}
     for calculator_id, supplied in value.items():
         object_fields(supplied, {'inputs', 'schedule_rows'}, 'Current calculator draft', {'inputs', 'schedule_rows'})
@@ -206,6 +206,8 @@ def _linked_results(snapshot, selected, confirmations, registered_bindings, draf
                       'sheet': binding['sheet'], 'row': binding['row'], 'status': 'Unavailable',
                       'reason': 'Current confirmed source and matching calculator draft are required.',
                       'published_thickness_mm': None, 'estimating_thickness_mm': None,
+                      'intumescent_dft_um': None, 'intumescent_thickness_mm': None,
+                      'intumescent_thickness_status': None, 'intumescent_thickness_source': None,
                       'board_stack_mm': None, 'board_layers': None, 'total_thickness_mm': None,
                       'duct_thickness_mm': None, 'duct_thickness_basis': None,
                       'duct_surface_m2': None, 'duct_surface_status': 'Unavailable',
@@ -235,6 +237,17 @@ def _linked_results(snapshot, selected, confirmations, registered_bindings, draf
                             continue
                         result.update(published_thickness_mm=published if number(published) else None,
                                       estimating_thickness_mm=estimating)
+                    elif calculator_id == 'steel_intumescent':
+                        status, dft, source = value('V'), value('O'), value('X')
+                        if (status not in ('PUBLISHED - ASSESSMENT TABLE', 'ESTIMATE - CONSERVATIVE ASSESSMENT',
+                                           'PUBLISHED - CERTIFICATE TABLE', 'ESTIMATE - CONSERVATIVE TABLE')
+                                or not number(dft) or dft <= 0):
+                            result['reason'] = str(status or 'The calculator has no usable assessed DFT.')
+                            continue
+                        # Native dry-film microns projected into register mm.
+                        # Quantity holds (W), wet film (P) and pack settings do not select DFT.
+                        result.update(intumescent_dft_um=dft, intumescent_thickness_mm=dft / 1000,
+                                      intumescent_thickness_status=status, intumescent_thickness_source=source)
                     elif calculator_id == 'steel_board':
                         status, stack, total, layers = value('AR'), value('Z'), value('AB'), value('AA')
                         if status != 'CLADDING ESTIMATE' or not number(total) or total <= 0:
@@ -298,13 +311,16 @@ def linked_result_text(results):
     """Human-readable result values; unknowns never become zero thickness."""
     sections = []
     for result in results:
-        label = {'steel_vermiculite': 'Spray', 'steel_board': 'Board', 'ductwork': 'Ductwork'}[result['calculator_id']]
+        label = {'steel_vermiculite': 'Spray', 'steel_intumescent': 'Intumescent', 'steel_board': 'Board', 'ductwork': 'Ductwork'}[result['calculator_id']]
         if result['status'] != 'Current':
             sections.append(f"{label}: Unavailable ({result['reason']})")
         elif result['calculator_id'] == 'steel_vermiculite':
             published = result['published_thickness_mm']
             sections.append(f"Spray: {result['estimating_thickness_mm']:.2f} mm estimating"
                             + (f"; {published:.2f} mm published" if published is not None else '; published thickness unavailable'))
+        elif result['calculator_id'] == 'steel_intumescent':
+            sections.append(f"Intumescent: {result['intumescent_thickness_mm']:g} mm DFT; "
+                            + f"{result['intumescent_thickness_status']}; {result['intumescent_thickness_source']}")
         elif result['calculator_id'] == 'ductwork':
             sections.append(f"Ductwork: {result['duct_thickness_mm']:.2f} mm; {result['duct_thickness_basis']}")
         else:
@@ -417,7 +433,7 @@ def export_workspace(snapshot, request, format, *, documents, store, markup_opti
         raise ValidationError('Choose the active Steel, Duct or Walls/Floors register.')
     modes = ('wall', 'slab') if request['mode'] == 'walls_floors' else (request['mode'],)
     target = request.get('target', 'steel_vermiculite' if request['mode'] == 'steel' else 'ductwork' if request['mode'] == 'duct' else None)
-    if format == 'register-xlsx' and (not (target is None or isinstance(target, str)) or target not in ({'steel_vermiculite', 'steel_board'} if request['mode'] == 'steel' else {'ductwork'} if request['mode'] == 'duct' else {None})):
+    if format == 'register-xlsx' and (not (target is None or isinstance(target, str)) or target not in ({'steel_vermiculite', 'steel_intumescent', 'steel_board'} if request['mode'] == 'steel' else {'ductwork'} if request['mode'] == 'duct' else {None})):
         raise ValidationError('Choose the current register calculator target for this download.')
     active = sorted((item for item in snapshot['items'] if item['mode'] in modes), key=is_standalone_count)
     confirmation_filter = request.get('confirmation', 'all')

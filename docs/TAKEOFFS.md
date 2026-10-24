@@ -533,8 +533,8 @@ required by the later approval workflow.
 ## Transferring to calculators
 
 Choose the explicit destination and exact database section/product choices.
-Steel spray and steel board have separate section databases; no fuzzy mapping
-is performed. Preview shows normalized inputs and proposed changes before they
+Each Steel destination supplies its own exact section/product options; no fuzzy
+mapping is performed. Preview shows normalized inputs and proposed changes before they
 are applied to the current project draft.
 For Steel Board, preview also evaluates the proposed rows with the existing
 calculator. An unavailable board design blocks the batch and shows the
@@ -544,8 +544,25 @@ preview; the application never changes project requirements to find a match.
 | Destination | Inputs supplied by the register |
 | --- | --- |
 | Steel spray | Physical quantity and per-member length, exact section, product, exposure, fire period and critical temperature |
+| Steel intumescent | Physical quantity and per-member length, exact section, intumescent product, member/exposure case, fire period and critical temperature |
 | Steel board | Total lineal metres once, exact section, board product, sides, fire period, beam/column and critical temperature |
 | Ductwork | Rectangular width/height, run length, product, FRL, exposure, orientation and explicit wall/floor penetration counts |
+
+**Steel Intumescent Schedule** supports Nullifire SC902, FIRETEX FX5090 and FIRETEX
+FX6010. Product and exposure determine its printed critical-temperature choices.
+Existing spray exposure names are retained as entered and require an explicit
+supported intumescent selection before transfer; the application does not alias them.
+The three-sided I/H column option retains its own input identity and withholds
+DFT until a matching assessment is confirmed.
+
+The register's **Thickness (mm)** is a read-only projection of native intumescent
+dry-film thickness (`SCHEDULE` O, µm ÷ 1000), with its native thickness status (V)
+and report reference (X). Wet film and material quantities do not select DFT;
+an independent material-quantity hold does not discard valid assessed thickness.
+The same value is used in register XLSX, drawing colours and legends. Results
+require unchanged confirmations, local transfer receipts, exact source identity
+and the current linked calculator row. Editing, removing or omitting that row
+withholds the result; missing/unsupported values are unavailable, never zero.
 
 Circular ducts can be recorded, reviewed and exported, but the current calculator
 accepts rectangular ducts only. A repeated duct group must be split into its

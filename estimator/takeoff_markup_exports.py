@@ -94,7 +94,7 @@ def prepare_copies(snapshot, request, documents, store):
     renderings = {key: _rendering(value, docs[key]) for key, value in renderings.items()}
     targets = request.get('targets', {})
     if (not isinstance(targets, dict) or set(targets) - {'steel', 'duct'}
-            or 'steel' in targets and targets['steel'] not in ('steel_vermiculite', 'steel_board')
+            or 'steel' in targets and targets['steel'] not in ('steel_vermiculite', 'steel_intumescent', 'steel_board')
             or 'duct' in targets and targets['duct'] != 'ductwork'):
         raise ValidationError('Drawing legend targets must be supported Steel or Duct calculators.')
     copies, pages, size, geometry_cost = [], 0, 0, 0

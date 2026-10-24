@@ -626,7 +626,7 @@ class MultiProductIntumescentTests(unittest.TestCase):
                       'I/H column - 4 sides':sc_open, 'I/H beam - 4 sides':sc_open,
                       'RHS/SHS column - 4 sides':TEMPERATURES, 'CHS column - 4 sides':TEMPERATURES,
                       'RHS/SHS beam - 3 sides':(), 'RHS/SHS beam - 4 sides':()},
-            FX5090: {label:fx5090 for label in CASES},
+            FX5090: {label:() if case == 'R3C' else fx5090 for label,case in CASES.items()},
             FX6010: {'I/H beam - 3 sides':sc_open, 'I/H beam/column - 4 sides':fx6010_r4,
                      'I/H column - 4 sides':fx6010_r4, 'I/H beam - 4 sides':fx6010_r4,
                      'RHS/SHS beam - 3 sides':fx6010_h3,

@@ -20,13 +20,15 @@ REPORT_SHA256 = '3bf3499358d6f2e4b75a8ed1402995cba8f9f72142ee81e79ed22fc73e4a434
 REPORT_FILENAME = 'FC18580-01-01-Nullifire-SC902-2020-REPORT-Final.pdf'
 CASES = {'I/H beam - 3 sides': 'R3', 'I/H beam/column - 4 sides': 'R4',
          'RHS/SHS column - 4 sides': 'RHS', 'CHS column - 4 sides': 'CHS',
+         'I/H column - 3 sides': 'R3C',
          'I/H column - 4 sides': 'R4C', 'I/H beam - 4 sides': 'R4B',
          'RHS/SHS beam - 3 sides': 'H3', 'RHS/SHS beam - 4 sides': 'H4B'}
 CASE_CHOICES = tuple(label for label in CASES if label != 'I/H beam/column - 4 sides')
 PERIODS = (15, 20, 30, 45, 60, 75, 90, 105, 120, 150, 180)
 TEMPERATURES = (350, 400, 450, 500, 520, 550, 580, 600, 620, 650, 700, 750)
 SC902_SETTING_DEFAULTS = {'D6': PRODUCT, 'D8': 1.55, 'D9': 1.46, 'D10': 22.3, 'D11': 2.7, 'D12': .99,
-                         'D14': .85, 'D15': 1.75, 'D16': 0, 'D17': 7850}
+                         'D14': .85, 'D15': 1.75, 'D16': 0, 'D17': 7850,
+                         'D24': None, 'D25': 'Pack volume (L)'}
 # Addresses are persistent project inputs. Browsing a settings panel never
 # copies values between products or changes the saved default-row product D6.
 SETTING_DEFAULTS = {**SC902_SETTING_DEFAULTS,
@@ -53,7 +55,8 @@ _TEMPERATURE_OPTIONS = {
              'H4': tuple(t for t in TEMPERATURES if t not in (580, 620)),
              'CHS': tuple(t for t in TEMPERATURES if t not in (580, 620))}}
 SETTINGS_BLOCKS = (
-    {'product': PRODUCT, 'id': 'A4', 'title_address': 'A4', 'ranges': ['A4:D30'], 'display_columns': [1, 2, 3, 4]},
+    {'product': PRODUCT, 'id': 'A4', 'title_address': 'A4', 'ranges': ['A4:D30'], 'display_columns': [1, 2, 3, 4],
+     'promote_rows': [9, 24, 14, 16, 17, 25, 10, 11, 21, 22, 23]},
     {'product': FX5090, 'id': 'A34', 'title_address': 'A34', 'ranges': ['A34:F57'], 'display_columns': [1, 2, 3, 4, 5, 6]},
     {'product': FX6010, 'id': 'A64', 'title_address': 'A64', 'ranges': ['A64:H93'], 'display_columns': list(range(1, 9))})
 _QUANTITY_SETTINGS = {
@@ -174,10 +177,11 @@ def model():
         sheets['SCHEDULE']['cells'][address] = _literal(text)
     for address in ('A5', 'G5', 'S5'):
         sheets['SCHEDULE']['cells'][address] = {'formula': '""', 'style': 0}
-    setting_labels = {'D6': 'Default product for blank schedule rows', 'D8': 'Part A specific gravity', 'D9': 'Mixed specific gravity', 'D10': 'Part A (kg / kit)',
-                      'D11': 'Part B (kg / kit)', 'D12': 'Part B specific gravity', 'D14': 'Volume solids (%)',
+    setting_labels = {'D6': 'Default product for blank schedule rows', 'D8': 'Part A specific gravity', 'D9': 'Nominal mixed density estimate (kg/L)', 'D10': 'Nominal Part A mass estimate (kg / pack)',
+                      'D11': 'Nominal Part B mass estimate (kg / pack)', 'D12': 'Part B specific gravity', 'D14': 'Volume solids (%)',
                       'D15': 'Theoretical consumption (kg/m² at 1 mm DFT)',
-                      'D16': 'Waste allowance (%)', 'D17': 'Steel density (kg/m³)'}
+                      'D16': 'Waste allowance (%)', 'D17': 'Steel density (kg/m³)',
+                      'D24': 'Mixed pack volume (L)', 'D25': 'Pack quantity basis'}
     fields['SETTINGS'] = []
     sheets['SETTINGS']['cells']['A4'] = _literal(PRODUCT)
     sheets['SETTINGS']['merges'].append('A4:D4')
@@ -187,16 +191,17 @@ def model():
         sheets['SETTINGS']['cells'][f'A{row}'] = _literal(setting_labels[address])
         sheets['SETTINGS']['merges'].append(f'A{row}:C{row}')
         field = {'cell': address, 'label': setting_labels[address],
-                 'type': 'select' if address == 'D6' else 'number', 'setting': True}
-        if address == 'D6':
-            validation = {'type': 'list', 'sqref': address, 'formula1': 'BChoices',
+                 'type': 'select' if address in ('D6', 'D25') else 'number', 'setting': True}
+        if address in ('D6', 'D25'):
+            validation = {'type': 'list', 'sqref': address,
+                          'formula1': 'BChoices' if address == 'D6' else '"Pack volume (L),Component mass (kg)"',
                           'showErrorMessage': '1', 'errorStyle': 'stop'}
             field['validation'] = validation
             sheets['SETTINGS']['validations'].append(validation)
         fields['SETTINGS'].append(field)
     for row, label in [(18, 'Part A volume (L)'), (19, 'Part B volume (L)'),
-                       (20, 'Mixed density (kg/L)'), (21, 'Total mixed kit (kg)'),
-                       (22, 'Mixed kit volume (L)'), (23, 'Theoretical kit coverage (m² at 1 mm DFT)')]:
+                       (20, 'Mixed density (kg/L)'), (21, 'Total Part A + B mass estimate (kg)'),
+                       (22, 'Mixed pack volume used (L)'), (23, 'Theoretical pack coverage (m² at 1 mm DFT)')]:
         sheets['SETTINGS']['cells'][f'A{row}'] = _literal(label)
         sheets['SETTINGS']['merges'].append(f'A{row}:C{row}')
         sheets['SETTINGS']['cells'][f'D{row}'] = {'formula': '""', 'style': 0}
@@ -315,6 +320,8 @@ class IntumescentEngine(WorkbookEngine):
         if label in (None, ''):
             return tuple(sorted({value for options in product_options.values() for value in options}))
         case = CASES.get(label)
+        if case == 'R3C':
+            return ()
         if self.row_product(row) == PRODUCT:
             case = 'R4' if case in ('R4B', 'R4C') else case
         else:
@@ -335,8 +342,21 @@ class IntumescentEngine(WorkbookEngine):
             a,b = self._setting('D10'),self._setting('D11')
             mass = a+b if all(number(v) and v>0 for v in (a,b)) else ''
             mass = mass if number(mass) else ''
-            profile.update(pack_kg=mass,pack_litres=quotient(mass,profile['density']),
-                           part_a=a,part_b=b,part_c='',consumption=self._setting('D15'))
+            volume = self._setting('D24')
+            basis = self._setting('D25')
+            derived_volume = quotient(mass, profile['density'])
+            # Blank new fields retain historical component-mass pack sizing.
+            # Published SC902 consumption remains the material-use authority.
+            explicit_volume = basis == 'Pack volume (L)' and volume not in (None, '')
+            litres = (volume if explicit_volume else derived_volume
+                      if basis in ('Pack volume (L)', 'Component mass (kg)') else '')
+            volume_mass = product(litres, profile['density'])
+            consistent = (all(number(v) and v > 0 for v in (mass, volume_mass))
+                          and math.isclose(mass, volume_mass, rel_tol=.005, abs_tol=0))
+            profile.update(pack_kg=mass,pack_litres=litres,
+                           part_a=a,part_b=b,part_c='',consumption=self._setting('D15'),
+                           explicit_volume=explicit_volume,
+                           component_order_note='' if consistent else _COMPONENT_ORDER_REVIEW)
         elif product_name == FX5090:
             profile.update(pack_kg=product(profile['pack_litres'],profile['density']),
                            part_a='',part_b='',part_c='')
@@ -382,13 +402,13 @@ class IntumescentEngine(WorkbookEngine):
             return None, None, 'The retained section identity is excluded; enter a verified A/V and area.'
         family = geometry.value('SECTIONS', f'B{row}')
         if ((case in ('RHS','H3','H4B') and family not in ('RHS','SHS')) or (case == 'CHS' and family != 'CHS')
-                or (case in ('R3','R4','R4C','R4B') and family in ('RHS','SHS','CHS'))):
+                or (case in ('R3','R3C','R4','R4C','R4B') and family in ('RHS','SHS','CHS'))):
             return None, None, 'Steel family does not match the selected member case.'
         if family not in ('UB', 'UC', 'WB', 'WC', 'PFC', 'EA', 'UA', 'RHS', 'SHS', 'CHS', 'T', 'BT', 'CT'):
             return None, None, 'This steel family needs an assessed section factor.'
-        if product_name != PRODUCT and case in ('R3', 'R4C', 'R4B') and family not in ('UB', 'UC', 'WB', 'WC'):
+        if product_name != PRODUCT and case in ('R3', 'R3C', 'R4C', 'R4B') and family not in ('UB', 'UC', 'WB', 'WC'):
             return None, None, 'For FIRETEX this family needs a verified A/V and assessed member case.'
-        side3 = case in ('R3','H3')
+        side3 = case in ('R3','R3C','H3')
         hold = geometry.value('SECTIONS', f'{"BA" if side3 else "BB"}{row}')
         if ((number(hold) and hold > 0)
                 or isinstance(hold, str) and hold and ('HOLD' in hold.upper() or 'REVIEW' in hold.upper())):
@@ -428,7 +448,12 @@ class IntumescentEngine(WorkbookEngine):
             basis = 'A/V = ESA/M × steel density / 1000.'
         elif method not in ('A/V', 'Hp/A'):
             error = 'Choose Section, A/V, Hp/A or ESA/M.'
-        if product_name == PRODUCT:
+        if case == 'R3C' and product_name in PRODUCTS:
+            # No reviewed product table unambiguously covers this column case.
+            # Keep its geometry/input identity without borrowing a beam table.
+            result = {'dft': None, 'status': 'CONFIRM ASSESSMENT',
+                      'note': '3-sided I/H column: assessment confirmation required.'}
+        elif product_name == PRODUCT:
             from .sc902_assessment import lookup
             selected_case = 'R4' if case in ('R4C','R4B') else case
             result = lookup(self.assessment, factor, values['D'], values['H'], case=selected_case)
@@ -465,7 +490,7 @@ class IntumescentEngine(WorkbookEngine):
         valid_settings = (number(solids) and 0<solids<=1 and number(waste) and 0<=waste<=1)
         if product_name == PRODUCT:
             valid_settings = valid_settings and all(number(v) and v>0 for v in
-                (sg,consumption,profile['part_a'],profile['part_b']))
+                (sg,consumption,profile['part_a'],profile['part_b'],profile['pack_litres']))
         elif product_name in (FX5090,FX6010):
             valid_settings = valid_settings and number(profile['pack_litres']) and profile['pack_litres']>0
             optional = [sg] + ([profile[key] for key in ('part_a','part_b')] if product_name==FX6010 else [])
@@ -485,7 +510,9 @@ class IntumescentEngine(WorkbookEngine):
         else:
             if product_name == PRODUCT:
                 mass = area*out['O']/1000*consumption
-                litres,kits = quotient(mass,sg),quotient(mass,profile['pack_kg'])
+                litres = quotient(mass,sg)
+                kits = (quotient(litres,profile['pack_litres']) if profile['explicit_volume']
+                        else quotient(mass,profile['pack_kg']))
             else:
                 litres = quotient(area*out['O']/1000,solids)
                 kits = quotient(litres,profile['pack_litres'])
@@ -563,16 +590,23 @@ class IntumescentEngine(WorkbookEngine):
                 key = {'A': 'area', 'G': 'litres'}[col]
                 value = sum(pool[key] for pool in pools if number(pool[key]))
                 return value if number(value) else ''
+        if name == 'SETTINGS' and col == 'D' and row == 24:
+            value = self._setting('D24')
+            return self._quantity_profile(PRODUCT)['pack_litres'] if value in (None, '') else value
         if name == 'SETTINGS' and col == 'D' and 18 <= row <= 23:
             a, b, sg, consumption = (self._setting(c) for c in ('D10', 'D11', 'D9', 'D15'))
             pack = a + b if number(a) and a > 0 and number(b) and b > 0 else None
             pack = pack if number(pack) else None
             part_a_sg, part_b_sg = self._setting('D8'), self._setting('D12')
+            profile = self._quantity_profile(PRODUCT)
+            pack_litres = profile['pack_litres']
+            coverage = ((quotient(product(pack_litres, sg), consumption)
+                         if profile['explicit_volume'] else quotient(pack, consumption))
+                        if all(number(v) and v > 0 for v in (pack_litres, sg, consumption)) else '')
             return {18: quotient(a, part_a_sg) if number(a) and a > 0 else '',
                     19: quotient(b, part_b_sg) if number(b) and b > 0 else '',
                     20: sg if number(sg) and sg > 0 else '', 21: pack or '',
-                    22: quotient(pack, sg),
-                    23: quotient(pack, consumption)}[row]
+                    22: pack_litres, 23: coverage}[row]
         if name == 'SETTINGS' and col == 'F' and row in (42,43,44):
             profile = self._quantity_profile(FX5090)
             return {42:quotient(profile['density'],profile['solids']),43:profile['pack_kg'],

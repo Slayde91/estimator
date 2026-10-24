@@ -963,10 +963,10 @@ def validate_snapshot(value, *, copy_result=True):
             raise ValidationError('Standalone counts and lengths cannot retain calculator transfer bindings.')
         number(transfer['item_version'], 'Transfer item version', positive=True, integer=True)
         number(transfer['row'], 'Transfer row', positive=True, integer=True)
-        if transfer['calculator_id'] not in ('steel_vermiculite', 'steel_board', 'ductwork') or transfer['status'] not in ('current', 'stale', 'conflict', 'deleted'):
+        if transfer['calculator_id'] not in ('steel_vermiculite', 'steel_intumescent', 'steel_board', 'ductwork') or transfer['status'] not in ('current', 'stale', 'conflict', 'deleted'):
             raise ValidationError('Transfer target or status is unsupported.')
-        first = {'steel_vermiculite': 10, 'steel_board': 9, 'ductwork': 11}[transfer['calculator_id']]
-        expected_sheet = 'SCHEDULE' if transfer['calculator_id'] == 'steel_vermiculite' else 'CALCULATOR'
+        first = {'steel_vermiculite': 10, 'steel_intumescent': 10, 'steel_board': 9, 'ductwork': 11}[transfer['calculator_id']]
+        expected_sheet = 'SCHEDULE' if transfer['calculator_id'] in ('steel_vermiculite', 'steel_intumescent') else 'CALCULATOR'
         if transfer['sheet'] != expected_sheet or not first <= transfer['row'] < first+1000:
             raise ValidationError('The transfer does not identify a valid calculator schedule row.')
         for name in ('item_digest', 'source_sha256', 'input_hash'):

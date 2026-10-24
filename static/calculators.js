@@ -28,6 +28,7 @@
     },
     steel_intumescent: {
       SCHEDULE: { column_order: ["Z", "AA", "A", "E", "F", "C", "D", "B", "H", "I", "J", "G"] },
+      SETTINGS: { omit: ["A6:D8", "A12:D13", "A15:D15", "A18:D20", "A26:H30"] },
     },
     steel_board: {
       CALCULATOR: { omit_columns: ["L"] }, // Keep retained row waste in calculations and exports.
@@ -36,10 +37,10 @@
       SETTINGS: { center: ["A5:C34", "G5:N10"], text: { Q5: "Description" }, omit: ["A1", "A3"] }, // 23–25
     },
     ductwork: {
-      CALCULATOR: { column_order: ["A", "B", "D", "E", "H", "I", "F", "G", "C"] },
-      SUMMARY: { center: ["A8:J11", "A18:F26", "A30:C32", "A39:G41"], text: { A17: "PENETRATION ANGLES" }, omit: ["A4:L5", "A14:L15", "A35:L37", "A43:L45"] }, // Retain source notes in worksheet data and exports.
+      CALCULATOR: { column_order: ["A", "B", "D", "E", "H", "I", "F", "G", "C"], text: { A3: "For FyreWrap, Internal, External and Both use the exhaust application rules. Select pressurisation separately." } },
+      SUMMARY: { center: ["A8:J11"], text: { A17: "PENETRATION ANGLES" }, omit: ["A4:L5", "A14:L15", "A17:L45"] }, // Retain source tables and notes in worksheet data and exports.
       "PRODUCT SETTINGS": {
-        omit: ["A1"],
+        omit: ["A1", "A50:H64", "A66:H67", "A70:H72", "A74:H89", "A101:H110", "A113:H151", "J115:Q149"],
         omit_section_notes: ["A6", "A48", "A94", "J115"],
         omit_table_notes: ["J94"],
         center: ["A36:H39", "B7:D35", "B44:D46", "B90:D92", "A74:H79", "B49:D73", "B95:D115",
@@ -1243,6 +1244,10 @@
 
   function effectiveControlValue(entry, sheet, address, fallback) {
     const value = Object.prototype.hasOwnProperty.call(entry.inputs[sheet] || {}, address) ? entry.inputs[sheet][address] : fallback;
+    // The new SC902 pack-volume input derives its blank value from the saved
+    // component masses and density. Displaying it never rewrites those inputs.
+    if (entry.definition.id === "steel_intumescent" && sheet === "SETTINGS" && address === "D24"
+        && (value === undefined || value === null || value === "")) return fallback;
     const defaults = entry.definition.automatic_defaults?.[sheet];
     return (value === undefined || value === null || value === "") && defaults && Object.prototype.hasOwnProperty.call(defaults, address) ? defaults[address] : value;
   }
@@ -1574,10 +1579,22 @@
       const common = settingsSections.find(section => section.id === "A17");
       settingsSections = settingsSections.filter(section => section.id !== "A17").map(section => section.id === "A9" && common ? { ...section, ranges: [...section.ranges, ...common.ranges] } : section);
     }
+    const ductSettings = entry.definition.id === "ductwork" && entry.sheet === "PRODUCT SETTINGS";
+    const ductSummary = entry.definition.id === "ductwork" && entry.sheet === "SUMMARY";
+    if (ductSettings) {
+      const application = settingsSections.find(section => section.id === "J94");
+      settingsSections = settingsSections.filter(section => !["J94", "J115"].includes(section.id))
+        .map(section => section.id === "A94" && application ? { ...section,
+          ranges: [...section.ranges, ...application.ranges],
+          display_columns: [...new Set([...(section.display_columns?.length ? section.display_columns : [1, 2, 3, 4, 5, 6, 7, 8]), ...(application.display_columns?.length ? application.display_columns : [10, 13, 14, 15])])],
+        } : section);
+    }
     // These are browser display copies; retained API metadata and source notes stay intact.
     settingsSections = settingsSections.map(section => browser.omit_section_notes?.includes(section.id) ? { ...section, note: "" } : section);
     const presentationTables = (result?.presentation_tables || metadata.presentation_tables || [])
       .filter(table => !spraySummary || table.title_address !== "A17")
+      .filter(table => !ductSummary || table.first_row === 8)
+      .filter(table => !ductSettings || table.title_address !== "J115")
       .map(table => browser.omit_table_notes?.includes(table.title_address) ? { ...table, note: "" } : table);
     return { ...metadata, omitted_rows: result?.omitted_rows || metadata.omitted_rows || [], omitted_columns: omittedColumns, omitted_ranges: omittedRanges, hidden_addresses: browserPresentation[entry.definition.id]?.[entry.sheet]?.hide || [], presentation_tables: presentationTables, table_layout: result?.table_layout || metadata.table_layout, display_column_order: columnOrder, display_text: result?.display_text || metadata.display_text || {}, display_cells: result?.display_cells || metadata.display_cells || {}, navigation_mode: result?.navigation_mode ?? metadata.navigation_mode ?? "links", settings_sections: settingsSections, display_table_order: result?.display_table_order ?? metadata.display_table_order ?? [], schedule_heading: result?.schedule_heading ?? metadata.schedule_heading ?? "", expand_tables: result?.expand_tables ?? metadata.expand_tables ?? false };
   }
@@ -1709,6 +1726,30 @@
 
   function renderProductTotals(result, container, overview = null) {
     if (!container) return;
+    if (Array.isArray(result?.intumescent_product_totals)) {
+      const columns = [["product", "Product"], ["area", "Coating area (m²)"], ["kg", "Required mixed (kg)"],
+        ["litres", "Required mixed (L)"], ["net", "Net packs"], ["waste", "Waste (%)"], ["whole", "Whole packs"],
+        ["order_litres", "Order volume (L)"], ["part_a", "Part A to order (kg)"], ["part_b", "Part B to order (kg)"],
+        ["pack_kg", "Pack mass (kg)"], ["kit_litres", "Mixed pack volume (L)"], ["dry_litres", "Dry coating volume (L)"],
+        ["pending", "Unresolved items"], ["status", "Order status"]];
+      const scroll = node("div", "calculator-product-totals-scroll"), table = node("table", "calculator-centered-data-table"), head = node("thead"), header = node("tr"), body = node("tbody");
+      window.CeasefireI18n.attr(table, "aria-label", "Intumescent product summary");
+      for (const [, label] of columns) { const cell = uiNode("th", "", label); cell.scope = "col"; header.append(cell); }
+      head.append(header);
+      for (const total of result.intumescent_product_totals) {
+        const row = node("tr");
+        for (const [key] of columns) {
+          const cell = node(key === "product" ? "th" : "td", key === "status" ? "calculator-product-order-status" : "");
+          if (key === "product") cell.scope = "row";
+          cell.dataset.calculatorValue = "true";
+          updateOutputCell(cell, {value: total[key], number_format: key === "waste" ? "0.00%" : "0.00"}); row.append(cell);
+        }
+        body.append(row);
+      }
+      table.append(head, body); scroll.append(table);
+      const note = uiNode("p", "helper", "Whole packs are rounded once per product after waste. Review unresolved items before ordering. Mesh, primers and topcoats are separate allowances.");
+      container.hidden = false; container.replaceChildren(scroll, note); return;
+    }
     overview ||= [...(container.children || [])].find((child) => child.classList?.contains("calculator-overview")) || null;
     const board = Array.isArray(result?.board_product_totals);
     const totals = (board ? result.board_product_totals : result?.product_totals) || [];
@@ -1819,6 +1860,13 @@
     entry.productTotalsElement = null;
     entry.boardSteelNotesElement = null;
     const scrollLeft = grid.scrollLeft, scrollTop = grid.scrollTop;
+    if (entry.definition.id === "steel_intumescent" && entry.sheet === "SUMMARY" && Array.isArray(result.intumescent_product_totals)) {
+      const totals = node("section", "calculator-product-totals"); totals.id = "calculator-product-totals";
+      entry.productTotalsElement = totals; renderProductTotals(result, totals);
+      grid.replaceChildren(totals); grid.scrollLeft = scrollLeft; grid.scrollTop = scrollTop;
+      entry.renderedSheet = entry.sheet; entry.renderedPage = currentPage(entry); entry.choiceSignature = choiceSignature(result); entry.needsRender = false;
+      state.gridEntry = entry; return;
+    }
     const hidden = hiddenColumns(metadata);
     const omittedRows = new Set(metadata.omitted_rows), omittedColumns = new Set(metadata.omitted_columns), hiddenAddresses = new Set(metadata.hidden_addresses || []), isOmitted = omittedCell(metadata);
     const visibleRows = result.rows.filter((row) => !omittedRows.has(row.row)).map((row) => ({ ...row, cells: row.cells.filter((cell) => !isOmitted(row.row, cell.column)) }));

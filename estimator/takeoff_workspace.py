@@ -1263,7 +1263,7 @@ class TakeoffService:
             elif op == 'delete_items':
                 self._remove(after, self._items(after, request['item_ids']))
             elif op == 'detach_transfers':
-                if request['calculator_id'] not in ('steel_vermiculite', 'steel_board', 'ductwork'):
+                if request['calculator_id'] not in ('steel_vermiculite', 'steel_intumescent', 'steel_board', 'ductwork'):
                     raise ValidationError('Choose a supported calculator to detach.')
                 requested = request['item_ids']
                 if not isinstance(requested, list) or not 1 <= len(requested) <= MAX_ITEMS:

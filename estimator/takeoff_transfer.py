@@ -11,7 +11,8 @@ from .workbook_calculators import (source_model, calculator_session,
                                   validate_calculator_edits, validation_options)
 from .ductwork_policy import application_frl
 
-DESTINATIONS = ('steel_vermiculite', 'steel_board', 'ductwork')
+STEEL_DESTINATIONS = ('steel_vermiculite', 'steel_intumescent', 'steel_board')
+DESTINATIONS = (*STEEL_DESTINATIONS, 'ductwork')
 
 
 def calculator_options(calculator_id, fields=None):
@@ -20,8 +21,10 @@ def calculator_options(calculator_id, fields=None):
     model = source_model(calculator_id)
     schedule = model['schedule']
     row = schedule['first_row']
-    product_column = 'B' if calculator_id == 'steel_vermiculite' else 'C'
+    product_column = 'B' if calculator_id in ('steel_vermiculite', 'steel_intumescent') else 'C'
     inputs = {schedule['sheet']: {product_column+str(row): fields['product']}} if fields and fields.get('product') else {}
+    if calculator_id == 'steel_intumescent' and fields and fields.get('exposure'):
+        inputs.setdefault(schedule['sheet'], {})['C'+str(row)] = fields['exposure']
     if calculator_id == 'steel_board' and fields and fields.get('member_type'):
         inputs.setdefault(schedule['sheet'], {})['I'+str(row)] = fields['member_type']
     _, engine, lock = calculator_session(calculator_id, inputs)
@@ -29,17 +32,19 @@ def calculator_options(calculator_id, fields=None):
         columns = [{'column': f['column'], 'label': f['label'], 'type': f['type'],
                     'options': validation_options(engine, schedule['sheet'], f['column']+str(row), f.get('validation'))}
                    for f in schedule['columns'] if f.get('editable') and not f.get('generated')]
+        if calculator_id == 'steel_intumescent':
+            next(field for field in columns if field['column'] == 'D')['options'] = list(engine.temperature_options(row))
     return {'calculator_id': calculator_id, 'source_sha256': model['source']['sha256'], 'columns': columns}
 
 
-@lru_cache(maxsize=2)
+@lru_cache(maxsize=3)
 def _profiles(calculator_id):
-    column = 'F' if calculator_id == 'steel_vermiculite' else 'D'
+    column = 'F' if calculator_id in ('steel_vermiculite', 'steel_intumescent') else 'D'
     return tuple(next(f['options'] for f in calculator_options(calculator_id)['columns'] if f['column'] == column))
 
 
 def profiles(calculator_id, query='', offset=0, limit=50):
-    if calculator_id not in DESTINATIONS[:2]:
+    if calculator_id not in STEEL_DESTINATIONS:
         raise ValidationError('Profiles are available for the steel calculators.')
     if not isinstance(query, str) or len(query) > 200 or type(offset) is not int or offset < 0 or type(limit) is not int or not 1 <= limit <= 100:
         raise ValidationError('Profile search requires a bounded query and page size.')
@@ -60,7 +65,7 @@ def mapped_values(item, snapshot, calculator_id, row):
     if is_standalone_item(item):
         raise ValidationError('Count-only and length-only measurements cannot be transferred to any calculator.')
     fields = item['fields']
-    expected_mode = {'steel_vermiculite': 'steel', 'steel_board': 'steel', 'ductwork': 'duct'}.get(calculator_id)
+    expected_mode = 'steel' if calculator_id in STEEL_DESTINATIONS else 'duct' if calculator_id == 'ductwork' else None
     if item['mode'] in ('wall', 'slab'):
         raise ValidationError('Wall and slab areas remain in the confirmed takeoff register; no approved calculator transfer mapping exists for these surfaces.')
     if expected_mode is None or item['mode'] != expected_mode:
@@ -72,7 +77,7 @@ def mapped_values(item, snapshot, calculator_id, row):
         raise ValidationError('Transfer requires an explicit positive physical quantity.')
     normalizations = []
     location = ' / '.join(str(fields[k]) for k in ('level', 'zone') if fields.get(k))
-    if calculator_id == 'steel_vermiculite':
+    if calculator_id in ('steel_vermiculite', 'steel_intumescent'):
         _required(fields, ('section', 'exposure', 'critical_temperature', 'fire_period_min'))
         values = {'A': fields.get('mark'), 'AA': location or None, 'B': fields['product'],
                   'C': fields['exposure'], 'D': fields['critical_temperature'],

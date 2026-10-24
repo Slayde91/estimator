@@ -7,7 +7,7 @@ async function chooseCalculator(page, name) {
   await toggle.hover();
   const menu = page.getByRole('group', { name: 'Choose a calculator', exact: true });
   await expect(menu).toBeVisible();
-  if (['Steel (spray)', 'Steel (board)'].includes(name)) {
+  if (['Steel (spray)', 'Steel (intumescent)', 'Steel (board)'].includes(name)) {
     await page.locator('#steel-calculator-navigation-toggle').click();
     await page.locator('#steel-calculator-navigation-menu').getByRole('button', { name, exact: true }).click();
   } else await menu.getByRole('button', { name: firestopping ? 'Firestopping' : name === 'Ductwork (spray/wrap)' ? 'Duct' : name, exact: true }).click();

@@ -150,6 +150,7 @@ jobs:
       - run: npm run test:page-rotation
       - run: npm run test:viewer-pan-scale
       - run: npm run test:linked-thickness
+      - run: node tests/browser/intumescent_transfer.cjs
       - run: npm run test:appearance-values
       - run: npm run test:project-controls
       - run: npm run test:markup-selection-defaults

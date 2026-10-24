@@ -495,6 +495,9 @@ class DesktopPackagingTests(unittest.TestCase):
         self.assertEqual(template.controls['calculator-navigation-toggle']['aria-controls'], 'calculator-navigation-menu')
         self.assertEqual(set(template.cards), {'steel_vermiculite', 'steel_board', 'steel_intumescent', 'steel_factors'})
         self.assertEqual(template.controls['steel-calculator-navigation-toggle']['aria-controls'], 'steel-calculator-navigation-menu')
+        self.assertEqual({identifier for identifier, parents in template.parents.items()
+                          if 'steel-calculator-navigation-menu' in parents},
+                         {'steel_vermiculite', 'steel_board', 'steel_intumescent', 'steel_factors'})
         for identifier, _ in destinations:
             parts = []
             for part in selector.values:

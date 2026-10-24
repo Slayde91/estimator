@@ -282,7 +282,7 @@ def self_test(data_directory, output_report):
                     probe.wait('!document.querySelector("#calculator-navigation-menu").hidden')
                     if steel:
                         probe.click('#steel-calculator-navigation-toggle')
-                        probe.wait('!document.querySelector("#steel-calculator-navigation-menu").hidden && document.querySelectorAll("#steel-calculator-navigation-menu button").length === 3')
+                        probe.wait('!document.querySelector("#steel-calculator-navigation-menu").hidden && JSON.stringify([...document.querySelectorAll("#steel-calculator-navigation-menu button")].map(button=>button.dataset.calculatorId).sort()) === JSON.stringify(["steel_intumescent","steel_vermiculite","steel_board","steel_factors"].sort())')
                     selector = f'#calculator-navigation-menu button[data-calculator-id="{calculator_id}"]'
                     probe.wait(f'!!document.querySelector({json.dumps(selector)}).getClientRects().length')
                     probe.click(selector)
@@ -299,6 +299,28 @@ def self_test(data_directory, output_report):
                     with zipfile.ZipFile(outputs.pop()) as archive:
                         assert 'xl/workbook.xml' in archive.namelist()
                     report['checks'].append(label + ' native XLSX export wrote a verified workbook')
+                # Factor Calcs is a view of the existing spray calculator, not
+                # another persisted calculator or a separate input draft.
+                shared_inputs = probe.script('window.CeasefireCalculators.projectSnapshot()')
+                assert 'steel_vermiculite' in shared_inputs and 'steel_factors' not in shared_inputs
+                probe.click('#calculator-navigation-toggle')
+                probe.wait('!document.querySelector("#calculator-navigation-menu").hidden')
+                probe.click('#steel-calculator-navigation-toggle')
+                probe.wait('!document.querySelector("#steel-calculator-navigation-menu").hidden')
+                probe.click('#steel-calculator-navigation-menu button[data-calculator-id="steel_factors"]')
+                probe.wait('document.querySelector("#steel-calculator-navigation-menu button[data-calculator-id=steel_factors]").getAttribute("aria-pressed") === "true" && document.querySelector("#calculator-title").textContent === "Factor Calcs" && document.querySelector("#calculator-workspace").dataset.calculatorKind === "steel_vermiculite" && document.querySelector("#calculator-grid").getAttribute("aria-busy") === "false" && !!document.querySelector("#calculator-grid table")')
+                assert probe.script('document.querySelector("#calculator-pages").hidden') is True
+                probe.click('[data-calculator-settings-section="A341"]')
+                probe.wait('!!document.querySelector("[data-calculator-cell=D346]")?.getClientRects().length')
+                assert probe.script('window.CeasefireCalculators.projectSnapshot()') == shared_inputs
+                probe.click('#calculator-navigation-toggle')
+                probe.wait('!document.querySelector("#calculator-navigation-menu").hidden')
+                probe.click('#steel-calculator-navigation-toggle')
+                probe.wait('!document.querySelector("#steel-calculator-navigation-menu").hidden')
+                probe.click('#steel-calculator-navigation-menu button[data-calculator-id="steel_vermiculite"]')
+                probe.wait('document.querySelector("#steel-calculator-navigation-menu button[data-calculator-id=steel_vermiculite]").getAttribute("aria-pressed") === "true" && !document.querySelector("#calculator-pages").hidden && document.querySelector("#calculator-sheet-title").textContent === "SCHEDULE" && document.querySelector("#calculator-grid").getAttribute("aria-busy") === "false" && !!document.querySelector("#calculator-grid table")')
+                assert probe.script('window.CeasefireCalculators.projectSnapshot()') == shared_inputs
+                report['checks'].append('Factor Calcs is reachable and returns to the spray schedule with the exact shared inputs and no separate saved calculator')
                 report['checks'].append('PDF export wrote verified bytes through controlled download API')
                 probe.click('[data-view="estimate"]')
                 probe.wait('window.CeasefireDesktop.status().busy === false')

@@ -177,7 +177,7 @@ function retainedScopes(value) { return { pricing: value.pricing, calculators: v
   const style = element => ({ color: getComputedStyle(element).color, background: getComputedStyle(element).backgroundColor });
   assert.deepEqual(await fresh.evaluate(style), await page.locator('#penetration-add').evaluate(style), 'Both Firestopping schedules retain the same new-item styling');
   const description = page.locator('#penetration-row-fields [data-penetration-field="T"]'), quantity = page.locator('#penetration-item-quantity [data-penetration-field="O"]');
-  for (const [column, value] of [['J', 'Plumbing & Hydraulic'], ['K', 'Copper Pipes'], ['L', 'Core Hole'], ['M', 'Vertical'], ['N', '-/120/120'], ['P', 'Concrete/masonry wall']]) await page.locator(`#penetration-row-fields [data-penetration-field="${column}"]`).selectOption(value);
+  for (const [column, value] of [['J', 'Plumbing & Hydraulic'], ['K', 'Copper Pipes'], ['L', 'Core hole'], ['M', 'Vertical'], ['N', '-/120/120'], ['P', 'Concrete/masonry wall']]) await page.locator(`#penetration-row-fields [data-penetration-field="${column}"]`).selectOption(value);
   await page.locator('#penetration-input-groups').getByRole('tab', { name: 'Products and labour', exact: true }).click();
   const crew = page.locator('#penetration-row-fields [data-penetration-field="W"]'); await crew.selectOption(await crew.locator('option').evaluateAll(options => options.find(option => option.value && !option.disabled).value));
   await page.locator('#penetration-input-groups').getByRole('tab', { name: 'OTHER', exact: true }).click(); const labour = page.locator('#penetration-row-fields [data-penetration-field="AH"]'); await labour.fill('1'); await labour.press('Tab');

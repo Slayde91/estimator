@@ -49,7 +49,7 @@ async function dropdown(control, expected) {
 async function physicalForm(kind, scope) {
   if (kind === 'barrier') {
     for (const label of ['Barrier label', 'Thickness (mm)']) await expect(scope.getByLabel(label, { exact: true })).toHaveCount(0);
-    await dropdown(scope.getByLabel('Barrier type', { exact: true }), ['Empty Opening', 'Core hole', 'Oversized']);
+    await dropdown(scope.getByLabel('Barrier type', { exact: true }), ['Core hole', 'Oversized core hole']);
     await dropdown(scope.getByLabel('Substrate', { exact: true }), physicalChoices.substrate);
     await dropdown(scope.getByLabel('Substrate orientation', { exact: true }), physicalChoices.orientation);
   } else if (kind === 'service') {

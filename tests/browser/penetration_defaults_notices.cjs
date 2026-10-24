@@ -64,10 +64,10 @@ async function clear() {
   }
   await clear(); await select('K', cases[2][1]); await select('P', 'Concrete/masonry wall'); assert.equal((await snapshot()).firestopping.composer.rows[0].inputs.AN, 2);
   await select('P', 'Concrete/masonry floor'); assert.equal((await snapshot()).firestopping.composer.rows[0].inputs.AN, 1); checks.substrateOrientation = true;
-  await select('L', 'Oversized'); await tab('Substrate').click(); await expect(control('AY')).toHaveValue('2.00'); await fill('AY', '3.98765432109876'); await details();
+  await select('L', 'Oversized core hole'); await tab('Substrate').click(); await expect(control('AY')).toHaveValue('2.00'); await fill('AY', '3.98765432109876'); await details();
   await select('J', 'Bulkheads'); await tab('Bulkhead').click(); await expect(control('BE')).toHaveValue('2.00'); await fill('BE', '4.12345678901234'); await details();
   await select('M', 'Vertical'); const multipliers = (await snapshot()).firestopping.composer.rows[0].inputs; assert.equal(multipliers.AY, 3.98765432109876); assert.equal(multipliers.BE, 4.12345678901234); checks.boardAndBulkhead = true;
-  await clear(); await select('J', 'Plumbing & Hydraulic'); await select('K', cases[2][1]); await select('L', 'Core Hole'); await select('M', 'Vertical'); await select('N', '-/120/120'); await select('P', 'Concrete/masonry wall'); await fill('O', '1');
+  await clear(); await select('J', 'Plumbing & Hydraulic'); await select('K', cases[2][1]); await select('L', 'Core hole'); await select('M', 'Vertical'); await select('N', '-/120/120'); await select('P', 'Concrete/masonry wall'); await fill('O', '1');
   await tab('Products and labour').click(); const collar = await control('Y').locator('option').evaluateAll(options => options.find(option => option.value && !option.disabled).value); await select('Y', collar);
   await tab('Plastic Pipes').click(); await fill('AN', ''); await details(); await expect(page.locator('#app-message')).toContainText('Please enter collar Diameter and Multiplier'); await expect(page.locator('#app-message')).toHaveAttribute('role', 'alert');
   assert.equal(await page.getByRole('dialog').count(), 0); await tab('Products and labour').click(); await expect(tab('Products and labour')).toHaveAttribute('aria-selected', 'true'); await details();
@@ -87,7 +87,7 @@ async function clear() {
   const latest = calculations.at(-1); assert.ok(latest); const replay = await page.request.post(`http://127.0.0.1:${info.port}/api/penetration/calculate`, { data: latest.payload }); assert.equal(replay.status(), 200); assert.deepEqual(await replay.json(), latest.response, 'Repeated native calculation is exactly deterministic'); checks.nativeCalculationParity = true;
   assert.deepEqual((await snapshot()).firestopping.draft, initial.firestopping.draft, 'Defaults and notifications leave the independent Schedule unchanged');
   await page.setViewportSize({ width: 1146, height: 900 }); await clear();
-  for (const [column, value] of [['J', 'Plumbing & Hydraulic'], ['K', cases[0][1]], ['L', 'Core Hole'], ['M', 'Vertical'], ['N', '-/120/120'], ['P', 'Concrete/masonry wall']]) await select(column, value);
+  for (const [column, value] of [['J', 'Plumbing & Hydraulic'], ['K', cases[0][1]], ['L', 'Core hole'], ['M', 'Vertical'], ['N', '-/120/120'], ['P', 'Concrete/masonry wall']]) await select(column, value);
   await fill('O', '2.34567890123456'); await fill('T', 'Synthetic retained Delete and Undo proof'); await page.locator('#penetration-add-to-schedule').click();
   await expect(page.locator('#penetration-add-to-schedule')).toHaveAttribute('aria-busy', 'false'); await expect(page.locator('#penetration-estimator-schedule-body > tr')).toHaveCount(1); await settled();
   const beforeDelete = await snapshot();

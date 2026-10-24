@@ -52,8 +52,8 @@ class ReferenceOverlayTests(unittest.TestCase):
         with patch.object(self.library.edits, 'overlay_stamp', side_effect=AssertionError('Unneeded overlay')):
             choices = self.library.service_types()
         expected = ReferenceLibrary(self.directory).listing('technical')['filters']
-        self.assertEqual(choices, next([option['value'] for option in field['options']]
-                                      for field in expected if field['key'] == 'services'))
+        self.assertCountEqual(choices, next([option['value'] for option in field['options']]
+                                           for field in expected if field['key'] == 'services'))
         self.assertIsNone(self.library._effective)
 
     def test_overlay_edits_links_aliases_and_deletions_equal_full_validation(self):

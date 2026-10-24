@@ -87,8 +87,11 @@ def mapped_values(item, snapshot, calculator_id, row):
         values.update({c: fields[k] for c, k in (('K', 'girth_override_m'), ('L', 'area_override_m2')) if fields.get(k) is not None})
     elif calculator_id == 'steel_board':
         _required(fields, ('section', 'sides', 'member_type', 'critical_temperature', 'fire_period_min'))
+        # F already contains every physical member's length. The calculator's
+        # row repetition counts this aggregated transfer once, not once again
+        # for each retained physical member.
         values = {'A': fields.get('mark'), 'B': location or None, 'C': fields['product'], 'D': fields['section'],
-                  'F': length * quantity, 'G': fields['sides'], 'H': fields['fire_period_min'],
+                  'F': length * quantity, 'CJ': 1, 'G': fields['sides'], 'H': fields['fire_period_min'],
                   'I': fields['member_type'], 'J': fields['critical_temperature']}
         optional = {'L': 'waste_fraction', 'M': 'exposure_layout', 'N': 'partial_depth_mm', 'O': 'layer_preference',
                     'P': 'thickness_lookup', 'Q': 'installation_detail', 'R': 'depth_mm', 'S': 'width_mm',
@@ -112,7 +115,7 @@ def mapped_values(item, snapshot, calculator_id, row):
         # defaults round to six significant digits and would change geometry.
         dimension = lambda value: str(int(value)) if value == int(value) else repr(value)
         values = {'B': f"{dimension(fields['width_mm'])}x{dimension(fields['height_mm'])}", 'C': fields['product'],
-                  'D': length * quantity, 'E': frl, 'F': fields['wall_penetrations'],
+                  'D': length * quantity, 'CM': 1, 'E': frl, 'F': fields['wall_penetrations'],
                   'G': fields['floor_penetrations'], 'H': fields['exposure'], 'I': fields['orientation']}
     options = calculator_options(calculator_id, fields)
     for field in options['columns']:
@@ -127,9 +130,13 @@ def mapped_values(item, snapshot, calculator_id, row):
 
 
 def row_values(inputs, schedule, row):
-    """Hash every editable cell, including advanced fields and explicit blanks."""
+    """Hash editable cells without expanding a pre-Quantity saved identity."""
     cells = inputs.get(schedule['sheet'], {})
-    return {f['column']+str(row): cells.get(f['column']+str(row)) for f in schedule['columns'] if f.get('editable')}
+    # Old links never contained the added Quantity address. Keep their exact
+    # original hash; a present blank or unit value remains part of a new hash.
+    return {f['column']+str(row): cells.get(f['column']+str(row)) for f in schedule['columns']
+            if f.get('editable') and (f['column'] != schedule.get('quantity_column')
+                                      or f['column']+str(row) in cells)}
 
 
 def _board_review(inputs, bindings, items):

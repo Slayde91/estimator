@@ -1,11 +1,13 @@
 """Runtime capacity and descriptive inputs preserve independently captured rules."""
 from collections import Counter, defaultdict
+from copy import deepcopy
 import hashlib
 import math
 import unittest
 
 from estimator.catalog import ValidationError
 from estimator.excel_engine import WorkbookEngine
+from estimator.schedule_quantity import quantity_engine_inputs
 from estimator.workbook_catalog import DATA_DIRECTORY, CATALOG_SPECS, editable_cells, load_workbook_catalog
 from estimator.workbook_calculators import (approved_formula_overrides, calculator_definition,
     calculator_list, normalize_calculator_inputs, source_model, _board_product_totals)
@@ -65,6 +67,16 @@ class WorkbookRuntimeTests(unittest.TestCase):
 
     def test_ductwork_uncalibrated_yields_use_editable_mass_and_density(self):
         model = source_model('ductwork')
+        def evaluated(inputs):
+            normalized = normalize_calculator_inputs('ductwork', inputs)
+            before = deepcopy(normalized)
+            # Low-level evaluation mirrors the application's private fallback
+            # for legacy rows, without writing Quantity into their saved maps.
+            engine = WorkbookEngine(model, quantity_engine_inputs(model, normalized),
+                                    approved_formula_overrides('ductwork'))
+            self.assertEqual(normalized, before)
+            self.assertNotIn('CM11', normalized.get('CALCULATOR', {}))
+            return engine
         original = load_workbook_catalog('ductwork')
         settings = sheet(model, 'PRODUCT SETTINGS')['cells']
         self.assertTrue({f'E{row}:H{row}' for row in range(161, 165)}.issubset(
@@ -76,24 +88,22 @@ class WorkbookRuntimeTests(unittest.TestCase):
             self.assertNotIn(address, editable_cells('ductwork', 'PRODUCT SETTINGS'))
         self.assertEqual([settings[address]['value'] for address in ('B161', 'B162', 'B163', 'B164')],
                          [20, 308, 21.8, 344])
-        calibrated = WorkbookEngine(model, {}, approved_formula_overrides('ductwork'))
+        calibrated = evaluated({})
         self.assertTrue(excel_equal(calibrated.value('PRODUCT SETTINGS', 'B25'), 10 * .060 / 11.7))
         self.assertTrue(excel_equal(calibrated.value('PRODUCT SETTINGS', 'B69'), 10 * .061 / 11.7))
         inputs = {'PRODUCT SETTINGS': {'B35': 'Uncalibrated', 'B73': 'Uncalibrated'}}
-        baseline = WorkbookEngine(model, normalize_calculator_inputs('ductwork', inputs), approved_formula_overrides('ductwork'))
+        baseline = evaluated(inputs)
         self.assertTrue(excel_equal(baseline.value('PRODUCT SETTINGS', 'B25'), 20 / 308))
         self.assertTrue(excel_equal(baseline.value('PRODUCT SETTINGS', 'B69'), 21.8 / 344))
         edited = {'PRODUCT SETTINGS': {**inputs['PRODUCT SETTINGS'], 'B161': 25, 'B162': 500,
                                        'B163': 20, 'B164': 400}}
-        adjusted = WorkbookEngine(model, normalize_calculator_inputs('ductwork', edited), approved_formula_overrides('ductwork'))
+        adjusted = evaluated(edited)
         self.assertTrue(excel_equal(adjusted.value('PRODUCT SETTINGS', 'B25'), .05))
         self.assertTrue(excel_equal(adjusted.value('PRODUCT SETTINGS', 'B69'), .05))
         for row in (11, 12):
             self.assertEqual(baseline.value('CALCULATOR', f'L{row}'), adjusted.value('CALCULATOR', f'L{row}'))
             self.assertNotEqual(baseline.value('CALCULATOR', f'M{row}'), adjusted.value('CALCULATOR', f'M{row}'))
-        injected = WorkbookEngine(model, normalize_calculator_inputs('ductwork',
-                                  {'PRODUCT SETTINGS': {**edited['PRODUCT SETTINGS'], 'B65': 'Injected'}}),
-                                  approved_formula_overrides('ductwork'))
+        injected = evaluated({'PRODUCT SETTINGS': {**edited['PRODUCT SETTINGS'], 'B65': 'Injected'}})
         self.assertTrue(excel_equal(injected.value('PRODUCT SETTINGS', 'B69'), .05 * 40 / 27))
 
     def test_derived_models_are_caller_owned_and_new_rows_keep_validations_and_line_identity(self):
@@ -207,11 +217,17 @@ class WorkbookRuntimeTests(unittest.TestCase):
             row, sample = line + 11, (11, 12, 13)[line % 3]
             assignments[row] = sample
             values.update({f'{column}{row}': source[f'{column}{sample}'].get('value') for column in 'BCDEFGHI'})
+            values[f'CM{row}'] = 1  # Newly generated runs have an explicit count.
         incomplete_row = 311
         incomplete_product = values[f'C{incomplete_row}']
         for column in 'BCDEFGHI':
             values[f'{column}{incomplete_row}'] = incomplete_product if column == 'C' else None
-        engine = WorkbookEngine(model, normalize_calculator_inputs('ductwork', {'CALCULATOR': values}), approved_formula_overrides('ductwork'))
+        before = deepcopy(values)
+        normalized = normalize_calculator_inputs('ductwork', {'CALCULATOR': values})
+        normalized_before = deepcopy(normalized)
+        engine = WorkbookEngine(model, normalized, approved_formula_overrides('ductwork'))
+        self.assertEqual(values, before)
+        self.assertEqual(normalized, normalized_before)
         counts = Counter(sample for row, sample in assignments.items() if row != incomplete_row)
         for row, sample in assignments.items():
             self.assertEqual(engine.value('CALCULATOR', f'A{row}'), row - 10)

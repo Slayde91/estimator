@@ -19,6 +19,13 @@ does not enter saved maps or turn blank padding into entered schedule rows.
 New rows and material edits explicitly retain a blank Quantity until entered.
 The schedule exchange template and PDF/Excel registers include Quantity.
 
+Takeoff transfers keep their existing physical aggregation: a board row's lineal
+metres already include all measured members, while ducts retain their separate-run
+transfer policy. Generated calculator rows therefore use Quantity 1. The physical
+member count and identities remain in Takeoffs; they are not multiplied twice.
+Unchanged older links retain their original hashes when Quantity is absent.
+An explicitly blank or edited Quantity remains part of the linked-row comparison.
+
 Spray and intumescent required inputs are Input method, Exposure/member case,
 Critical temperature, Product, Fire period, Quantity and Length/member. A valid
 existing area override replaces the member Quantity and Length requirement.

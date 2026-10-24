@@ -972,7 +972,13 @@ def validate_snapshot(value, *, copy_result=True):
         for name in ('item_digest', 'source_sha256', 'input_hash'):
             if not isinstance(transfer[name], str) or not HASH.fullmatch(transfer[name]):
                 raise ValidationError('Transfer hashes must be SHA-256 digests.')
-        if not isinstance(transfer['values'], dict) or len(transfer['values']) > 24:
+        values = transfer['values']
+        # Board rows gained one application Quantity input. Retained old
+        # patches keep their original bound; only that exact new address may
+        # occupy the additional slot.
+        has_board_quantity = (transfer['calculator_id'] == 'steel_board' and isinstance(values, dict)
+                              and f"CJ{transfer['row']}" in values)
+        if not isinstance(values, dict) or len(values) > (25 if has_board_quantity else 24):
             raise ValidationError('Transfer values must contain a bounded input patch.')
         for address, field in transfer['values'].items():
             if not re.fullmatch(r'[A-Z]{1,2}[1-9]\d*', address):

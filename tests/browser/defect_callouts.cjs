@@ -125,9 +125,37 @@ async function physicalThemeLabels(kind) {
   await page.getByRole('button', { name: 'Close Item Details', exact: true }).click(); await fit(); const savedGraph = structuredClone((await snapshot()).physical);
   const download = waitForTakeoffDownload(page); await page.evaluate(() => window.CeasefireTakeoffs.downloadDrawing()); const pdf = await download; await pdf.saveAs(path.join(output, 'defect-callout.pdf')); assert.ok(fs.statSync(path.join(output, 'defect-callout.pdf')).size > 1000); assert.deepEqual((await snapshot()).physical, savedGraph);
   await response(() => clickProjectControl(page, 'Save'), '/api/project/save-as'); const saved = JSON.parse(fs.readFileSync(info.project, 'utf8')); assert.deepEqual(saved.takeoffs.physical, savedGraph);
+  // Reopen retains the old canvas while its new worker reads the PDF. Delay
+  // that read and its render-proof reply independently so navigation must wait
+  // for both, rather than editing a page field an older render can replace.
+  const reopened = { delayedSource: false, delayedProof: false, proofReleased: false };
+  const sourceRoute = /\/api\/takeoffs\/sessions\/[^/]+\/documents\/[^/]+\/file$/;
+  const proofRoute = /\/api\/takeoffs\/sessions\/[^/]+\/commands$/;
+  const sourcePending = page.waitForRequest(sourceRoute); sourcePending.catch(() => {});
+  const delaySource = async route => {
+    reopened.delayedSource = true;
+    await new Promise(resolve => setTimeout(resolve, 250)); await route.continue();
+  };
+  const delayProof = async route => {
+    const command = route.request().postDataJSON();
+    if (command.op !== 'record_render' || command.page !== 1) return route.continue();
+    reopened.delayedProof = true;
+    const reply = await route.fetch();
+    await new Promise(resolve => setTimeout(resolve, 250)); reopened.proofReleased = true;
+    await route.fulfill({ response: reply });
+  };
+  await page.route(sourceRoute, delaySource); await page.route(proofRoute, delayProof);
   await response(() => clickProjectControl(page, 'Load'), '/api/project/open'); await page.getByRole('dialog').getByRole('button', { name: 'Load Project', exact: true }).click(); await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); await chooseTakeoff(page, 'PENETRATIONS'); assert.deepEqual((await snapshot()).physical, savedGraph); assert.deepEqual(await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()), calculators);
-  await renderDrawing(page, async () => { await page.getByLabel('Page number', { exact: true }).fill('3'); await page.getByLabel('Page number', { exact: true }).press('Tab'); }, 3); await fit(); await expect(callout()).toContainText('UPDATED-FRAMED-DEFECT'); await textFits(); evidence.saveReopenAndPdf = true;
+  await sourcePending;
+  await renderDrawing(page, async () => {
+    assert.equal(reopened.proofReleased, true, 'Page navigation starts after the reopened source and render proof settle');
+    await page.getByLabel('Page number', { exact: true }).fill('3'); await page.getByLabel('Page number', { exact: true }).press('Tab');
+  }, 3);
+  await page.unroute(sourceRoute, delaySource); await page.unroute(proofRoute, delayProof);
+  assert.deepEqual(reopened, { delayedSource: true, delayedProof: true, proofReleased: true });
+  evidence.delayedReopenSourceAndProofSettled = reopened;
+  await fit(); await expect(callout()).toContainText('UPDATED-FRAMED-DEFECT'); await textFits(); evidence.saveReopenAndPdf = true;
   for (const width of [1146, 764]) { await page.setViewportSize({ width, height: 900 }); await fit(); await callout().scrollIntoViewIfNeeded(); await textFits(); await page.screenshot({ path: path.join(output, `defect-callout-${width}.png`) }); }
   await page.setViewportSize({ width: 1146, height: 900 }); await fit(); await page.waitForTimeout(550); await marker().dblclick({ delay: 100 }); await expect(details()).toBeVisible();
   const annotationBeforeLinks = structuredClone((await snapshot()).physical.defects[0].annotation);

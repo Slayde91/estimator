@@ -1470,7 +1470,8 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
     ...[154,155,156,157,158,159].map(row=>({row,cells:[{column:1,address:`A${row}`,value:`Omitted use note ${row}`,presentation:{role:'note'}}]})),
   ].reduce((rows,row)=>{const existing=rows.find(other=>other.row===row.row);if(existing)existing.cells.push(...row.cells);else rows.push(row);return rows;},[]).sort((a,b)=>a.row-b.row)});
   const ductProjectionRaw=JSON.stringify(entry.result);realRender(entry);audit.setRender(realRender);
-  assert.equal(renderedControls().length,5);assert.equal(new Set(renderedControls().map(node=>node.dataset.calculatorCell)).size,5);
+  assert.equal(renderedControls().length,4);assert.equal(new Set(renderedControls().map(node=>node.dataset.calculatorCell)).size,4);
+  assert.ok(!renderedControls().some(node=>node.dataset.calculatorCell==='B8')); // CAFCO report-only rows are hidden; raw cells remain below.
   const ductAddresses=byId('calculator-grid').querySelectorAll('[data-calculator-output]').map(node=>node.dataset.calculatorOutput);
   for(const address of ['A6','A48','A94','J94','J114'])assert.equal(ductAddresses.filter(value=>value===address).length,1,address);
   for(const address of ['A117','J115','J116','J117','J123','J137','K137','J149'])assert.ok(!ductAddresses.includes(address),address);
@@ -1570,13 +1571,13 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
     assert.equal(chooserButtons().length,sectionCount);assert.equal(chooserPanels().length,sectionCount);assert.equal(openPanels().length,0);
     assert.ok(!descendants(byId('calculator-grid')).some(node=>node.className==='calculator-contents'));
     for(const [index,button] of chooserButtons().entries()){assert.equal(button.tagName,'button');assert.equal(button.type,'button');assert.equal(button.getAttribute('aria-expanded'),'false');assert.equal(button.getAttribute('aria-controls'),chooserPanels()[index].id);assert.equal(chooserPanels()[index].getAttribute('aria-labelledby'),button.id);}
-    const sourceControls=scenario.rows.flatMap(row=>row.cells.filter(cell=>cell.editable&&!(scenario.id==='ductwork'&&cell.address==='B50')).map(cell=>cell.address)).sort();
+    const sourceControls=scenario.rows.flatMap(row=>row.cells.filter(cell=>cell.editable&&!(scenario.id==='ductwork'&&['B8','B50'].includes(cell.address))).map(cell=>cell.address)).sort();
     assert.deepEqual(renderedControls().map(control=>control.dataset.calculatorCell).sort(),sourceControls);
     for(const control of renderedControls())assert.equal(chooserPanels().filter(panel=>descendants(panel).includes(control)).length,1);
     if(scenario.id==='ductwork') {
       const panelById=id=>chooserPanels().find(panel=>panel.id.endsWith(`-${id}`));
       const panelRows=id=>descendants(panelById(id)).filter(node=>node.tagName==='tr'&&node.dataset?.sourceRow).map(node=>Number(node.dataset.sourceRow));
-      assert.deepEqual(panelRows('A6').slice(0,9),[6,7,35,44,45,46,161,162,25]);
+      assert.deepEqual(panelRows('A6'),[6,7,35,44,45,46,161,162,25]);
       assert.deepEqual(panelRows('A48'),[48,49,65,73,90,91,92,163,164,68,69]);
       const fyrewrapRows=panelRows('A94'),joint=fyrewrapRows.indexOf(100);
       assert.deepEqual(fyrewrapRows.slice(joint,joint+3),[100,111,112]);

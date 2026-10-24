@@ -93,11 +93,13 @@ class FyreWrapOutputTests(unittest.TestCase):
             self.assertNotIn('full selected FRL', text)
             self.assertIn('Wrap total withheld: matching penetration detail required.', text)
             schedule = workbook['Schedule']
-            self.assertAlmostEqual(schedule['J6'].value, 16.7076, places=8)
-            self.assertAlmostEqual(schedule['J8'].value, 37.0328, places=8)
-            self.assertIsNone(schedule['J9'].value)
-            self.assertAlmostEqual(schedule['J10'].value, 20.636, places=8)
-            self.assertEqual(schedule['L9'].value, self.data['rows'][3]['values']['J'])
+            headers = {cell.value: cell.column for cell in schedule[5]}
+            wrap_column = headers['Wrap material (m²)']
+            self.assertAlmostEqual(schedule.cell(6, wrap_column).value, 16.7076, places=8)
+            self.assertAlmostEqual(schedule.cell(8, wrap_column).value, 37.0328, places=8)
+            self.assertIsNone(schedule.cell(9, wrap_column).value)
+            self.assertAlmostEqual(schedule.cell(10, wrap_column).value, 20.636, places=8)
+            self.assertEqual(schedule.cell(9, headers['Status']).value, self.data['rows'][3]['values']['J'])
             self.assertNotIn('FyreWrap application notes', [cell.value for row in schedule for cell in row])
         finally:
             workbook.close()

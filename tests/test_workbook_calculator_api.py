@@ -258,9 +258,11 @@ class WorkbookCalculatorApiTests(unittest.TestCase):
         self.assertEqual(int(headers["Content-Length"]), len(payload))
         workbook = load_workbook(BytesIO(payload))
         self.assertEqual(workbook.sheetnames, ["CALCULATOR", "Instructions"])
-        self.assertEqual(workbook["CALCULATOR"].max_column, 8)
+        self.assertEqual(workbook["CALCULATOR"].max_column, 9)
         self.assertEqual(workbook["CALCULATOR"].max_row, 1001)
-        self.assertNotIn('Line', [cell.value for cell in workbook["CALCULATOR"][1]])
+        headers = [cell.value for cell in workbook["CALCULATOR"][1]]
+        self.assertNotIn('Line', headers)
+        self.assertEqual(headers[headers.index('Length (m)') + 1], 'Quantity')
         self.assertIsNone(workbook["CALCULATOR"]["A1001"].value)
         self.assertFalse(any(cell.data_type == "f" for sheet in workbook for row in sheet for cell in row))
         workbook.close()
@@ -273,9 +275,13 @@ class WorkbookCalculatorApiTests(unittest.TestCase):
         before = self.stored_rows()
         workbook = load_workbook(BytesIO(self.exported()))
         sheet = workbook["CALCULATOR"]
-        for column, value in enumerate(["250x250", "CAFCO 300", 0.12345678901234566, "120/120/120", 0, 0, "External", "Horizontal"], 1):
-            sheet.cell(2, column, value)
-        sheet["A1001"] = "500x250"
+        headers = {cell.value: cell.column for cell in sheet[1]}
+        fields = {field['column']: field['label'] for field in source_model('ductwork')['schedule']['columns']}
+        for source_column, value in {'B': '250x250', 'C': 'CAFCO 300', 'D': 0.12345678901234566,
+                                     'CM': 1, 'E': '120/120/120', 'F': 0, 'G': 0,
+                                     'H': 'External', 'I': 'Horizontal'}.items():
+            sheet.cell(2, headers[fields[source_column]], value)
+        sheet.cell(1001, headers[fields['B']], '500x250')
         sheet.row_dimensions[1001].hidden = True
         payload = _serialize_exact(workbook)
         workbook.close()
@@ -283,6 +289,7 @@ class WorkbookCalculatorApiTests(unittest.TestCase):
         self.assertEqual(proposed["imported_rows"], 2)
         self.assertEqual(proposed["source_sha256"], hashlib.sha256(payload).hexdigest())
         self.assertEqual(proposed["inputs"]["CALCULATOR"]["D11"], 0.12345678901234566)
+        self.assertEqual(proposed["inputs"]["CALCULATOR"]["CM11"], 1)
         self.assertEqual(proposed["inputs"]["CALCULATOR"]["F11"], 0)
         self.assertEqual(proposed["inputs"]["CALCULATOR"]["B1010"], "500x250")
         self.assertIsNone(proposed["inputs"]["CALCULATOR"]["B12"])

@@ -353,11 +353,14 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
       if(kind==='technical'){const link=nodes.find(n=>n.className==='library-configuration-link');await link.emit('click');assert.equal(h.context.document.activeElement,nodes.find(n=>n.className==='library-field-table-scroll'));}
     }
   });
-  await check('Promat main IDs show only the number without changing stored source identifiers',async h=>{
-    for(const [manufacturer,id,expected] of [['Promat','sys_var_1138716_au (+19 variants listed below)','1138716'],['Promat','sys_var_123_au','123'],['Promat','123','123'],['Promat','custom-ID','custom-ID'],['Other','sys_var_123_au','sys_var_123_au']]) {
-      const fields=[{label:'ID',value:id},{label:'Manufacturer',value:manufacturer}],before=copy(fields);
-      h.setRoute(path=>path==='/api/libraries'?meta():({...detail('technical','display-id'),fields,images:[]}));await h.api.open('technical','display-id');
-      assert.equal(walk(h.pane('technical').detailPanel).find(n=>n.tagName==='dd').textContent,expected);assert.deepEqual(fields,before);
+  await check('Only Promat and Trafalgar Technical ID fields are hidden while titles and source IDs stay exact',async h=>{
+    for(const kind of ['technical','penetration'])for(const manufacturer of ['Promat','Trafalgar','BOSS','Firefly','Other']) {
+      const id='sys_var_123_au',fields=[{label:' ID ',value:id},{label:'Manufacturer',value:manufacturer},{label:'Report ID',value:'Reference 123'}],before=copy(fields);
+      h.setRoute(path=>path==='/api/libraries'?meta():({...detail(kind,'display-id'),title:'Original '+id,fields,images:[]}));await h.api.open(kind,'display-id');
+      const pane=h.pane(kind),labels=walk(pane.detailPanel).filter(n=>n.tagName==='dt').map(n=>n.textContent);
+      assert.equal(labels.includes(' ID '),!(kind==='technical'&&['Promat','Trafalgar'].includes(manufacturer)));
+      assert.ok(labels.includes('Report ID'));assert.equal(walk(pane.detailPanel).find(n=>n.tagName==='h3').textContent,'Original '+id);
+      assert.deepEqual(fields,before);assert.equal(pane.detail.fields[0].value,id);assert.equal(pane.detail.id,'display-id');
     }
   });
   await check('Installation Details and Local Protection use paragraphs and real lists in both libraries without exposing page headings',async h=>{
@@ -695,6 +698,33 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     await h.api.open('penetration');const pane=h.pane('penetration');await walk(pane.results).find(n=>n.dataset.libraryLink).emit('click');await flush();const type=walk(pane.linkSession.filterControls).find(n=>n.dataset.libraryLinkFilter==='type');
     assert.equal(pane.linkSession.filterControls.children.find(n=>n.children[1]===type).children[0].textContent,'one:Type');assert.equal(type.children[0].textContent,'one:All one:Type');
     locale='two';bindings.forEach(update=>update());assert.equal(select.children[0].textContent,'two:All two:Type');assert.equal(type.children[0].textContent,'two:All two:Type');assert.equal(substrate.children[1].getAttribute('label'),'two:Walls');assert.equal(type.children[1].value,'Core hole');
+  });
+  await check('Service, centre-FRL and manufacturer groups retain exact values in main filters and the document-key link picker',async h=>{
+    const definitions=[
+      {key:'document',label:'Report',options:[{value:'Shared report',label:'Shared report'},{value:'Report & / A',label:'Report & / A',group:'Promat'}]},
+      {key:'services',label:'Services',options:[{value:'N/A',label:'N/A'},{value:'Mixed Services',label:'Mixed Services'},{value:'Power Cables',label:'Power Cables',group:'Electrical & communications'},{value:'Pair Coils',label:'Pair Coils',group:'Mechanical'},{value:'Copper Pipes',label:'Copper Pipes',group:'Unlagged metal pipes'}]},
+      {key:'frl',label:'FRL',options:[{value:'-/90/60',label:'-/90/60',group:'90'},{value:'240/120/30',label:'240/120/30',group:'120'},{value:'-/300/180',label:'-/300/180',group:'300'}]},
+    ],original=copy(definitions);
+    h.setRoute(path=>path==='/api/libraries'?meta():({...records(path.includes('technical')?'technical':'penetration'),filters:definitions}));
+    await h.api.open('technical');const main=h.pane('technical'),control=(root,key,attr)=>walk(root).find(n=>n.dataset[attr]===key);
+    const report=control(main.filterControls,'document','libraryFilter'),services=control(main.filterControls,'services','libraryFilter'),frl=control(main.filterControls,'frl','libraryFilter');
+    assert.deepEqual(report.children.map(n=>n.tagName),['option','option','optgroup']);assert.equal(report.children[2].getAttribute('label'),'Promat');
+    assert.deepEqual(services.children.filter(n=>n.tagName==='optgroup').map(n=>n.getAttribute('label')),['Electrical & communications','Mechanical','Unlagged metal pipes']);
+    assert.deepEqual(frl.children.slice(1).map(n=>n.getAttribute('label')),['90 minutes','120 minutes','300 minutes']);
+    for(const[key,value]of[['document','Report & / A'],['services','Pair Coils'],['frl','240/120/30']]){const select=control(main.filterControls,key,'libraryFilter');select.value=value;await select.emit('change');await flush();}
+    const query=new URL('http://local'+h.calls.at(-1).path).searchParams;assert.equal(query.get('document'),'Report & / A');assert.equal(query.get('services'),'Pair Coils');assert.equal(query.get('frl'),'240/120/30');
+    await h.api.open('penetration');const pane=h.pane('penetration');await walk(pane.results).find(n=>n.dataset.libraryLink).emit('click');await flush();
+    const pickerReport=control(pane.linkSession.filterControls,'document','libraryLinkFilter');assert.ok(pickerReport);assert.equal(pickerReport.disabled,false);assert.equal(pickerReport.children[2].getAttribute('label'),'Promat');
+    pickerReport.value='Report & / A';await pickerReport.emit('change');await flush();const picked=new URL('http://local'+h.calls.at(-1).path).searchParams;assert.equal(picked.get('document'),'Report & / A');assert.equal(picked.has('report'),false);
+    assert.deepEqual(definitions,original);
+  });
+  await check('New application group labels rebind locale while manufacturer names and canonical query values stay literal',async h=>{
+    let locale='one';const bindings=[],translated=(source,args=[])=>`${locale}:${String(source).replace(/\{(\d+)\}/g,(match,index)=>index<args.length?String(typeof args[index]==='function'?args[index]():args[index]):match)}`;
+    h.context.window.CeasefireI18n={translate:translated,term:source=>()=>translated(source),text(el,source,args){const update=()=>{el.textContent=translated(source,args);};bindings.push(update);update();return el;},attr(el,name,source,args){const update=()=>el.setAttribute(name,translated(source,args));bindings.push(update);update();return el;}};
+    const definitions=[{key:'document',label:'Report',options:[{value:'R1',label:'R1',group:'Promat'}]},{key:'services',label:'Services',options:[{value:'Copper Pipes',label:'Copper Pipes',group:'Unlagged metal pipes'}]},{key:'frl',label:'FRL',options:[{value:'-/120/30',label:'-/120/30',group:'120'}]}];
+    h.setRoute(path=>path==='/api/libraries'?meta():({...records('technical'),filters:definitions}));await h.api.open('technical');
+    const groups=walk(h.pane('technical').filterControls).filter(n=>n.tagName==='optgroup');assert.deepEqual(groups.map(n=>n.getAttribute('label')),['Promat','one:Unlagged metal pipes','one:120 minutes']);
+    locale='two';bindings.forEach(update=>update());assert.deepEqual(groups.map(n=>n.getAttribute('label')),['Promat','two:Unlagged metal pipes','two:120 minutes']);assert.deepEqual(groups.map(n=>n.children[0].value),['R1','Copper Pipes','-/120/30']);
   });
   await check('Technical Document menu handles inside/outside events and keyboard focus, then removes obsolete document listeners',async h=>{
     await h.api.open('technical','technical-1');const pane=h.pane('technical'),doc=h.context.document;

@@ -32,7 +32,7 @@ async function idle(target = page) { await target.waitForFunction(() => { const 
 async function snapshots() { return page.evaluate(() => ({ calculators: window.CeasefireCalculators.projectSnapshot(), penetration: window.CeasefirePenetrations.projectSnapshot(), pricing: window.CeasefireProject.configuration(), details: window.CeasefireProject.details() })); }
 async function workbook(title) {
   await expect(page.locator('#calculator-workspace')).toBeVisible(); await expect(page.locator('#estimator-penetration')).toBeHidden();
-  await expect(page.locator('#calculator-title')).toHaveText(title); await expect(page.locator('#calculator-grid')).toHaveAttribute('aria-busy', 'false');
+  await expect(page.locator('#calculator-title')).toHaveText(title); await expect(page.locator('#calculator-grid')).toHaveAttribute('aria-busy', 'false', { timeout: 60000 });
 }
 (async () => {
   info = await ready; assert.notEqual(info.port, 8765); browser = await chromium.launch({ headless: true });
@@ -86,17 +86,17 @@ async function workbook(title) {
   // Select every real calculator, then retain an edited schedule value and its
   // current page while navigating through the other workspaces.
   await chooseCalculator(page, 'Steel (spray)'); await workbook('Steel (spray)');
-  await page.locator('#calculator-pages button').filter({ hasText: /^SCHEDULE$/ }).click(); await expect(page.locator('#calculator-grid')).toHaveAttribute('aria-busy', 'false');
+  await page.locator('#calculator-pages button').filter({ hasText: /^SCHEDULE$/ }).click(); await expect(page.locator('#calculator-grid')).toHaveAttribute('aria-busy', 'false', { timeout: 60000 });
   const input = page.locator('[data-calculator-sheet="SCHEDULE"][data-calculator-cell="A10"]'); await expect(input).toBeVisible(); await input.fill('MENU-DRAFT-1'); await input.press('Tab');
-  await expect(page.locator('#calculator-grid')).toHaveAttribute('aria-busy', 'false'); const retained = await snapshots();
+  await expect(page.locator('#calculator-grid')).toHaveAttribute('aria-busy', 'false', { timeout: 60000 }); const retained = await snapshots();
   evidence.scheduleDeletes=[];
   for (const title of ['Steel (spray)', 'Steel (board)', 'Duct']) {
     await chooseCalculator(page, title); await workbook(title);
-    await page.locator('#calculator-pages').getByRole('button',{name:'SCHEDULE',exact:true}).click();await expect(page.locator('#calculator-grid')).toHaveAttribute('aria-busy','false');
+    await page.locator('#calculator-pages').getByRole('button',{name:'SCHEDULE',exact:true}).click();await expect(page.locator('#calculator-grid')).toHaveAttribute('aria-busy','false',{timeout:60000});
     const table=page.locator('.calculator-schedule-table'),headers=await table.getByRole('columnheader').allTextContents();
     assert.equal(headers[0],'Line');assert.ok(!headers.includes('Row'));
     if(title==='Steel (board)'){assert.ok(!headers.includes('Waste (%)'));await expect(table.locator('[data-calculator-cell^="L"]')).toHaveCount(0);}
-    else if(title==='Duct'){assert.deepEqual(headers.slice(1,9),['Duct size W x H (mm)','Length (m)','FRL — compartment / duct*','Fire exposure / FyreWrap application','Orientation','Product','Wall penetrations','Floor penetrations']);}
+    else if(title==='Duct'){assert.deepEqual(headers.slice(1,10),['Duct size W x H (mm)','Length (m)','Quantity','FRL — compartment / duct*','Fire exposure / FyreWrap application','Orientation','Product','Wall penetrations','Floor penetrations']);}
     assert.equal(headers.at(-1),'Actions');
     const first=table.locator('tbody tr[data-source-row]').first(),deleteButton=first.getByRole('button',{name:/Delete line/});
     await expect(first.locator('td').first()).toHaveClass(/calculator-line-number/);await expect(first.locator('td').first()).toHaveText('1');

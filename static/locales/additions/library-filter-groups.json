@@ -1,0 +1,9 @@
+{
+  "Electrical & communications": ["전기 및 통신", "Elektrikal at komunikasyon", "Điện và thông tin liên lạc"],
+  "Mechanical": ["기계 설비", "Mekanikal", "Cơ khí"],
+  "HVAC": ["냉난방 및 환기", "Pagpapainit, bentilasyon at air conditioning", "Điều hòa không khí và thông gió"],
+  "Plastic pipes": ["플라스틱 배관", "Mga plastik na tubo", "Ống nhựa"],
+  "Lagged metal pipes": ["보온 금속 배관", "Mga metal na tubong may insulasyon", "Ống kim loại có bảo ôn"],
+  "Unlagged metal pipes": ["비보온 금속 배관", "Mga metal na tubong walang insulasyon", "Ống kim loại không bảo ôn"],
+  "{0} minutes": ["{0}분", "{0} minuto", "{0} phút"]
+}

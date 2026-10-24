@@ -362,6 +362,51 @@ _PRESENTATION_TABLES['steel_intumescent'] = {'SETTINGS': [
         (34, 57, 6, 'FIRETEX FX5090 settings'),
         (64, 93, 8, 'FIRETEX FX6010 settings'))]}
 
+_REQUIRED_SCHEDULE_COLUMNS = {
+    'steel_vermiculite': frozenset(('E', 'C', 'D', 'B', 'H', 'I', 'J')),
+    'steel_intumescent': frozenset(('E', 'C', 'D', 'B', 'H', 'I', 'J')),
+    'steel_board': frozenset(('C', 'F', 'CJ', 'G', 'H', 'I', 'J')),
+    'ductwork': frozenset(('CM',)),
+}
+
+
+def _schedule_definition(model):
+    schedule = deepcopy(model['schedule'])
+    required = _REQUIRED_SCHEDULE_COLUMNS.get(model['id'], ())
+    for field in schedule['columns']:
+        field['required'] = field['column'] in required
+        if model['id'] in {'steel_vermiculite', 'steel_intumescent'} and field['column'] in {'I', 'J'}:
+            field['required_unless_area_override'] = True
+    schedule['requirements_note'] = (
+        'Fields marked * are required. A valid area override replaces quantity and member length.'
+        if model['id'] in {'steel_vermiculite', 'steel_intumescent'} else 'Fields marked * are required.')
+    if model['id'] == 'ductwork':
+        schedule['quantity_help'] = 'Quantity repeats the complete duct run, including its length, wall penetrations and floor penetrations. Enter penetration counts for one run; overlaps are calculated for each run.'
+    elif model['id'] == 'steel_board':
+        schedule['quantity_help'] = 'Quantity multiplies the lineal metres for this row. Existing saved rows without Quantity retain one; enter Quantity when editing a member.'
+    return schedule
+
+
+def _missing_schedule_fields(model, inputs):
+    schedule = model['schedule']
+    values = inputs.get(schedule['sheet'], {})
+    rows = {coordinates(address)[0] for address, value in values.items() if value not in (None, '')}
+    required = _REQUIRED_SCHEDULE_COLUMNS.get(model['id'], ())
+    fields = {field['column']: field['label'] for field in schedule['columns']}
+    missing = {}
+    for row in rows:
+        if not schedule['first_row'] <= row <= schedule['last_row']:
+            continue
+        area = values.get(f'L{row}') if model['id'] in {'steel_vermiculite', 'steel_intumescent'} else None
+        area_valid = type(area) in (int, float) and math.isfinite(area) and area > 0
+        columns = [column for column in required
+                   if not (area_valid and column in {'I', 'J'})
+                   and not (column == schedule.get('quantity_column') and f'{column}{row}' not in values)
+                   and values.get(f'{column}{row}') in (None, '')]
+        if columns:
+            missing[row] = [fields[column] for column in fields if column in columns]
+    return missing
+
 
 @lru_cache(maxsize=4)
 def source_model(calculator_id):
@@ -373,6 +418,9 @@ def source_model(calculator_id):
 def approved_formula_overrides(calculator_id):
     if calculator_id == 'steel_vermiculite':
         from .monokote_pfc import application_formula_overrides
+        return application_formula_overrides(source_model(calculator_id))
+    if calculator_id == 'steel_board':
+        from .schedule_quantity import application_formula_overrides
         return application_formula_overrides(source_model(calculator_id))
     if calculator_id != 'ductwork':
         return {}
@@ -387,7 +435,8 @@ def approved_formula_overrides(calculator_id):
     overrides['CALCULATOR'].update({
         f'AL{row}': translator.translate_formula(f'AL{row}').lstrip('=')
         for row in range(12, model['schedule']['last_row'] + 1)})
-    return overrides
+    from .schedule_quantity import application_formula_overrides as quantity_overrides
+    return quantity_overrides(model, overrides)
 
 
 def calculator_list():
@@ -476,6 +525,9 @@ def normalize_calculator_inputs(calculator_id, inputs=None):
                 raise ValidationError(f"{field['label']}: text must be at most 2,000 characters without control characters.")
             if field['type'] == 'number' and not isinstance(value, (int, float)):
                 raise ValidationError(f"{field['label']}: enter a number or leave the input blank.")
+            if field.get('quantity'):
+                from .schedule_quantity import validate_quantity
+                validate_quantity(value)
             if calculator_id == 'ductwork' and name == model['schedule']['sheet']:
                 value = canonical_ductwork_value(address.rstrip('0123456789'), value)
             normalized[name][address] = value
@@ -525,23 +577,44 @@ def calculator_engine(calculator_id, normalized_inputs, *, assessment=None, perl
     """One application evaluation path for the UI, PDF and XLSX projection."""
     model = source_model(calculator_id)
     overrides = approved_formula_overrides(calculator_id)
+    from .schedule_quantity import quantity_engine_inputs
+    engine_inputs = quantity_engine_inputs(model, normalized_inputs)
+    missing = _missing_schedule_fields(model, normalized_inputs)
+    new_board_missing = ({row: labels for row, labels in missing.items()
+                          if f"{model['schedule']['quantity_column']}{row}" in normalized_inputs.get(model['schedule']['sheet'], {})}
+                         if calculator_id == 'steel_board' else {})
+    if new_board_missing:
+        overrides = {**overrides, 'CALCULATOR': {**overrides.get('CALCULATOR', {})}}
+        for row, labels in new_board_missing.items():
+            review = 'Review required: ' + ', '.join(labels)
+            for column in ('BR', 'AI'):
+                overrides['CALCULATOR'][f'{column}{row}'] = '"' + review.replace('"', '""') + '"'
+            overrides['CALCULATOR'][f'AR{row}'] = '"REVIEW REQUIRED"'
     if calculator_id == 'steel_intumescent':
         from .intumescent import IntumescentEngine
         from .sc902_assessment import load_assessment
         from .firetex_assessment import load_assessments
-        return IntumescentEngine(model, normalized_inputs, overrides,
-                                 assessment=load_assessment() if assessment is None else assessment,
-                                 firetex_assessments=load_assessments() if firetex_assessments is None else firetex_assessments)
+        engine = IntumescentEngine(model, normalized_inputs, overrides,
+                                   assessment=load_assessment() if assessment is None else assessment,
+                                   firetex_assessments=load_assessments() if firetex_assessments is None else firetex_assessments)
+        engine.required_missing_by_row = {}
+        engine.all_required_missing_by_row = missing
+        return engine
     if calculator_id == 'steel_vermiculite':
         from .monokote_hollow import load_assessment
         from .perlifoc_assessment import PerlifocEngine, load_assessment as load_perlifoc_assessment
         engine = PerlifocEngine(model, normalized_inputs, overrides,
                                assessment=load_assessment() if assessment is None else assessment,
                                perlifoc_assessment=load_perlifoc_assessment() if perlifoc_assessment is None else perlifoc_assessment)
+    elif calculator_id == 'steel_board':
+        from .promat_board_assessment import PromatBoardEngine
+        engine = PromatBoardEngine(model, engine_inputs, overrides)
     else:
-        engine = WorkbookEngine(model, normalized_inputs, overrides)
+        engine = WorkbookEngine(model, engine_inputs, overrides)
     if calculator_id in ('steel_vermiculite', 'steel_board'):
         engine.criteria_matcher = steel_criteria_matches
+    engine.required_missing_by_row = new_board_missing
+    engine.all_required_missing_by_row = missing
     return engine
 
 
@@ -610,7 +683,9 @@ def _sheet_metadata(model, sheet):
             else:
                 hidden.discard(column)
     schedule = model['schedule']
-    labels = [{'column': column_number(field['column']), 'label': field['label']} for field in schedule['columns']] if sheet['name'] == schedule['sheet'] else []
+    labels = [{'column': column_number(field['column']), 'label': field['label'],
+               'required': field['column'] in _REQUIRED_SCHEDULE_COLUMNS.get(model['id'], ())}
+              for field in schedule['columns']] if sheet['name'] == schedule['sheet'] else []
     page = (model['id'], sheet['name'])
     settings_sections = deepcopy(_SETTINGS_SECTIONS.get(page, []))
     if page == ('steel_intumescent', 'SETTINGS'):
@@ -622,6 +697,8 @@ def _sheet_metadata(model, sheet):
             section['label'] = _DISPLAY_TEXT.get(model['id'], {}).get(sheet['name'], {}).get(
                 address, sheet['cells'][address].get('value', ''))
     return {'name': sheet['name'], 'max_row': r2, 'max_column': c2,
+            **({'application_display_columns': list(sheet['application_display_columns'])}
+               if 'application_display_columns' in sheet else {}),
             'navigation_mode': 'select' if settings_sections else 'hidden' if page in {
                 ('steel_vermiculite', 'CALCULATOR'), ('steel_vermiculite', 'BAGS'),
                 ('steel_board', 'START'), ('ductwork', 'SUMMARY')} else 'links',
@@ -661,7 +738,7 @@ def calculator_definition(calculator_id, inputs=None, schedule_rows=None):
     return {'id': calculator_id, 'title': model['title'], 'pages': model['pages'],
             'display_pages': deepcopy(_DISPLAY_PAGES.get(calculator_id, [
                 {'id': name, 'label': name, 'sheet': name} for name in model['pages']])),
-            'source': model['source'], 'schedule': deepcopy(model['schedule']),
+            'source': model['source'], 'schedule': _schedule_definition(model),
             'automatic_defaults': deepcopy(model.get('automatic_defaults', {})),
             'sheets': [_sheet_metadata(model, sheet) for sheet in model['sheets'] if sheet['name'] in model['pages']],
             'inputs': normalize_calculator_inputs(calculator_id, inputs), 'documents': documents,
@@ -792,8 +869,14 @@ def _render_sheet(calculator_id, inputs, source, metadata, start_row, end_row,
     rows, warnings = [], []
     styles = model['styles']['cell_styles']
     allowed = editable_cells(calculator_id, sheet)
-    columns = [column for column in range(1, metadata['max_column'] + 1)
+    columns = [column for column in metadata.get('application_display_columns', range(1, metadata['max_column'] + 1))
                if include_advanced or column not in metadata['hidden_columns']]
+    schedule = model['schedule']
+    entered_rows = ({coordinates(address)[0] for address, value in normalized.get(sheet, {}).items()
+                     if value not in (None, '')}
+                    if sheet == schedule['sheet'] else set())
+    all_required_missing = _missing_schedule_fields(model, normalized)
+    required_missing = all_required_missing if sheet == schedule['sheet'] else {}
     option_sets, option_keys, option_cache = {}, {}, {}
     with lock:
         if calculator_id == 'steel_intumescent' and sheet in ('SETTINGS', 'SUMMARY'):
@@ -823,11 +906,17 @@ def _render_sheet(calculator_id, inputs, source, metadata, start_row, end_row,
             comparison['column_widths'] = [190, *([100] * 9)]
         for row in range(start_row, end_row + 1) if selected_rows is None else selected_rows:
             cells = []
+            schedule_row = sheet == schedule['sheet'] and schedule['first_row'] <= row <= schedule['last_row']
+            row_entered = schedule_row and row in entered_rows
+            area_override = normalized.get(sheet, {}).get(f'L{row}') if model['id'] in {'steel_vermiculite', 'steel_intumescent'} and schedule_row else None
+            area_override_valid = type(area_override) in (int, float) and math.isfinite(area_override) and area_override > 0
             for column in columns:
                 address = column_name(column) + str(row)
                 original = source['cells'].get(address, {})
                 value = engine.value(sheet, address)
                 field = input_field(calculator_id, source, address) if address in allowed else {}
+                if field.get('quantity') and not row_entered:
+                    value = None
                 editable = address in allowed and not field.get('read_only')
                 style = styles[int(original.get('style', 0))]
                 cell = {'column': column, 'address': address, 'value': value, 'editable': editable,
@@ -841,6 +930,14 @@ def _render_sheet(calculator_id, inputs, source, metadata, start_row, end_row,
                     cell.update(read_only=True, output=True)
                 if field:
                     cell['label'] = field.get('label', 'Input')
+                    if field.get('quantity'):
+                        cell['quantity'] = True
+                    required = schedule_row and column_name(column) in _REQUIRED_SCHEDULE_COLUMNS.get(calculator_id, ())
+                    if area_override_valid and column_name(column) in {'I', 'J'} and calculator_id in {'steel_vermiculite', 'steel_intumescent'}:
+                        required = False
+                    cell['required'] = required
+                    cell['required_active'] = bool(required and row_entered)
+                    cell['required_missing'] = bool(required and cell['label'] in required_missing.get(row, ()))
                     if field.get('multiline'):
                         cell['multiline'] = True
                     validation = _validation(source, address)
@@ -850,6 +947,21 @@ def _render_sheet(calculator_id, inputs, source, metadata, start_row, end_row,
                         cell['allow_other'] = cell['error_style'] in ('warning', 'information') or validation.get('showErrorMessage') not in ('1', True)
                         try:
                             options = validation_options(engine, sheet, address, validation, option_cache)
+                            if calculator_id == 'steel_board' and sheet == model['schedule']['sheet'] and column == 4:
+                                from .promat_board_assessment import steel_id_choices
+                                options = steel_id_choices(model)
+                            if calculator_id == 'steel_board' and sheet == model['schedule']['sheet'] and column in (8, 10):
+                                from .promat_board_assessment import canonical_product, PERIODS, TEMPERATURES
+                                if canonical_product(engine.value(sheet, f'C{row}')) is not None:
+                                    table_member = ('Beam' if engine.value(sheet, f'I{row}') == 'Beam'
+                                                    and engine.value(sheet, f'G{row}') == 3 else 'Column')
+                                    options = list(PERIODS if column == 8 else TEMPERATURES[table_member])
+                            if calculator_id == 'steel_board' and sheet == 'EXTRA BOARDS' and column == 3:
+                                from .promat_board_assessment import stock_choices
+                                stock = stock_choices(engine.value(sheet, f'B{row}'))
+                                if stock:
+                                    options = list(stock)
+                                    cell['strict_options'] = True
                             if calculator_id == 'steel_intumescent' and sheet == 'SCHEDULE' and column == 4:
                                 options = list(engine.temperature_options(row))
                             if shared_options:
@@ -889,6 +1001,7 @@ def _render_sheet(calculator_id, inputs, source, metadata, start_row, end_row,
             board_steel_areas = board_net_steel_areas(engine)
     return {**metadata, 'sheet': sheet, 'start_row': start_row, 'end_row': end_row,
             'rows': rows, 'inputs': normalized, 'warnings': warnings,
+            'required_review_rows': [{'row': row, 'fields': fields} for row, fields in sorted(all_required_missing.items())],
             **({'product_totals': product_totals} if product_totals is not None else {}),
             **({'spray_schedule_totals': spray_schedule_totals} if spray_schedule_totals is not None else {}),
             **({'board_product_totals': board_product_totals} if board_product_totals is not None else {}),

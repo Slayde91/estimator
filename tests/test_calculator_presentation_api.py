@@ -22,8 +22,8 @@ from estimator.workbook_calculators import source_model
 
 EXTENTS = {
     "steel_vermiculite": {"CALCULATOR": (41, 14), "SCHEDULE": (1009, 27), "BAGS": (29, 14), "SETTINGS": (570, 65)},
-    "ductwork": {"CALCULATOR": (1010, 90), "SUMMARY": (45, 12), "PRODUCT SETTINGS": (164, 17)},
-    "steel_board": {"START": (100, 12), "CALCULATOR": (1008, 35), "BOARD SUMMARY": (38, 12), "EXTRA BOARDS": (45, 14), "SETTINGS": (51, 17)},
+    "ductwork": {"CALCULATOR": (1010, 91), "SUMMARY": (45, 12), "PRODUCT SETTINGS": (164, 17)},
+    "steel_board": {"START": (100, 12), "CALCULATOR": (1008, 88), "BOARD SUMMARY": (38, 12), "EXTRA BOARDS": (45, 14), "SETTINGS": (51, 17)},
 }
 
 
@@ -215,19 +215,25 @@ class CalculatorPresentationApiTests(unittest.TestCase):
         self.assertEqual(self.stored_rows(), before)
 
     def test_dropdowns_share_full_lists_and_keep_dependent_numeric_choices(self):
-        inputs = {"CALCULATOR": {"C9": "TRAFALGAR COREX", "C10": "PROMATECT 250", "I9": "Beam", "I10": "Column"}}
+        inputs = {"CALCULATOR": {"C9": "TRAFALGAR COREX", "C10": "PROMATECT 250", "I9": "Beam", "I10": "Column",
+                                 'C11': 'PROMATECT 100', 'I11': 'Beam', 'G11': 3,
+                                 'C12': 'PROMATECT 100', 'I12': 'Beam', 'G12': 4}}
         result = self.worksheet("steel_board", "CALCULATOR", inputs=inputs)
         cells = self.cells(result)
         choices = lambda address: result["option_sets"][cells[address]["options_ref"]]
         self.assertEqual(choices("C9"), ["TRAFALGAR COREX", "PROMATECT 250", "PROMATECT 100", "PROMATECT-XS"])
         self.assertEqual(cells["C9"]["options_ref"], cells["C1008"]["options_ref"])
         self.assertEqual(cells["D9"]["options_ref"], cells["D1008"]["options_ref"])
-        self.assertEqual(len(choices("D9")), 1342)
+        self.assertFalse(any('[P100]' in value for value in choices('D9')))
+        self.assertIn('200UC46', choices('D9'))
+        self.assertIn('CHS168.3x5', choices('D9'))
         self.assertEqual(choices("H9"), [30, 60, 90, 120, 180])
-        self.assertEqual(choices("H10"), [60, 90, 120, 180])
+        self.assertEqual(choices("H10"), [30, 60, 90, 120, 180])
         self.assertTrue(all(type(value) in (int, float) for value in choices("H9")))
         self.assertEqual(choices("J9"), [620])
-        self.assertEqual(choices("J10"), [550])
+        self.assertEqual(choices("J10"), [350, 400, 450, 500, 520, 550, 600, 650, 700])
+        self.assertEqual(choices('J11'), [350, 400, 450, 500, 520, 550, 600, 620, 650, 700])
+        self.assertEqual(choices('J12'), choices('J10'))
         self.assertTrue(cells["H9"]["allow_other"])
         self.assertEqual(cells["H9"]["error_style"], "warning")
         self.assertFalse(cells["C9"]["allow_other"])
@@ -239,11 +245,16 @@ class CalculatorPresentationApiTests(unittest.TestCase):
         advanced = self.worksheet("steel_board", "CALCULATOR", include_advanced=True)
         self.assertNotIn("M9", self.cells(normal))
         self.assertNotIn("X1008", self.cells(normal))
-        self.assertEqual(advanced["visible_columns"], list(range(1, 36)))
+        self.assertEqual(advanced["visible_columns"], [*range(1, 36), 88])
+        self.assertIn('CJ9', self.cells(advanced))
+        self.assertNotIn('CF9', self.cells(advanced))
+        self.assertNotIn('CK9', self.cells(advanced))
         self.assertTrue(self.cells(advanced)["X1008"]["editable"])
         self.assertFalse(self.cells(advanced)["AI1008"]["editable"])
         duct = self.worksheet("ductwork", "CALCULATOR", include_advanced=True)
-        self.assertEqual(duct["visible_columns"], list(range(1, 91)))
+        self.assertEqual(duct["visible_columns"], list(range(1, 92)))
+        self.assertIn('CM11', self.cells(duct))
+        self.assertNotIn('CN11', self.cells(duct))
         self.assertFalse(self.cells(duct)["CL1010"]["editable"])
         self.assertTrue(self.cells(duct)["CL1010"]["calculated"])
 
@@ -317,6 +328,8 @@ class CalculatorPresentationApiTests(unittest.TestCase):
             address = column + str(schedule["first_row"])
             cells[address] = sheet["cells"].get(address, {}).get("value")
         row = schedule["first_row"]
+        if schedule.get('quantity_column'):
+            cells[f"{schedule['quantity_column']}{row}"] = 1
         if identity == "ductwork":
             cells[f"B{row}"] = "333x222"
             cells[f"D{row}"] = 12.345678901234567

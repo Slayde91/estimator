@@ -11,6 +11,7 @@ from zipfile import ZipFile
 from openpyxl import load_workbook
 
 from estimator.calculator_register import build_calculator_register
+from estimator.excel_engine import WorkbookEngine, column_number
 from estimator.calculator_report import project_calculator_report, _source_text
 from estimator.workbook_calculators import source_model
 from tests.test_calculator_report import (cleared_inputs, REMOVED_SECTIONS,
@@ -25,12 +26,12 @@ VARIATIONS = {
     'steel_board': 'advanced_choices_boundaries_and_all_stock',
 }
 SCHEDULE_COLUMNS = {
-    'ductwork': {'Product': 'C', 'Duct dimensions (mm)': 'B', 'Length (m)': 'D',
+    'ductwork': {'Product': 'C', 'Duct dimensions (mm)': 'B', 'Length (m)': 'D', 'Quantity': 'CM',
                  'FRL': 'E', 'Duct surface (m²)': 'K'},
     'steel_vermiculite': {'Location': 'AA', 'Mark': 'A', 'Product': 'B', 'Section': 'F', 'Quantity': 'I',
                          'Length (m)': 'J', 'Published thickness (mm)': 'O',
                          'Spray surface (m²)': 'R'},
-    'steel_board': {'Mark': 'A', 'Location': 'B', 'Product': 'C', 'Section': 'D', 'Design period (min)': 'AN',
+    'steel_board': {'Mark': 'A', 'Location': 'B', 'Product': 'C', 'Section': 'D', 'Lineal metres': 'F', 'Quantity': 'CJ', 'Design period (min)': 'AN',
                     'Critical temperature (°C)': 'AO', 'Board stack (mm)': 'Z',
                     'Total thickness (mm)': 'AB', 'Box reference area (m²)': 'AD',
                     'Net board area (m²)': 'AE', 'Area with waste (m²)': 'AF', 'Sheets per line': 'AG'},
@@ -70,6 +71,7 @@ class CalculatorRegisterTests(unittest.TestCase):
 
     def assert_schedule(self, identity, data, workbook, native):
         sheet = workbook['Schedule']
+        historical = WorkbookEngine(source_model(identity), data['inputs']) if identity == 'steel_board' else None
         headers = {cell.value: cell.column for cell in sheet[5]}
         if identity == 'steel_vermiculite':
             self.assertEqual(set(headers), {'Line', 'Location', 'Mark', 'Product', 'Section', 'Quantity',
@@ -85,6 +87,10 @@ class CalculatorRegisterTests(unittest.TestCase):
                 if address in native.get(data['sheet'], {}):
                     expected = native[data['sheet']][address]
                     actual = '' if cell.value is None and cell.data_type == 'inlineStr' else cell.value
+                    if identity == 'steel_board' and item['values'].get('C') in {'PROMATECT 100', 'PROMATECT 250'} and column_number(column) > 24:
+                        # The register must match the current application above;
+                        # the old assessment remains a separate immutable oracle.
+                        actual = historical.value(data['sheet'], address)
                     self.assertTrue(excel_equal(actual, expected), (identity, address, actual, expected))
                     comparisons += 1
             if identity == 'ductwork':
@@ -105,7 +111,7 @@ class CalculatorRegisterTests(unittest.TestCase):
                         comparisons += 1
                 status = output['J'] or 'No calculated status returned'
             else:
-                columns = ('V', 'W') if identity == 'steel_vermiculite' else ('AR', 'AS')
+                columns = ('V', 'W') if identity == 'steel_vermiculite' else ('AR', 'AS', 'AT')
                 status = '\n'.join(str(item['values'][column]) for column in columns
                                    if item['values'][column] not in (None, '')) or 'No calculated status returned'
                 if identity == 'steel_vermiculite':
@@ -125,6 +131,7 @@ class CalculatorRegisterTests(unittest.TestCase):
 
     def assert_summaries(self, identity, data, workbook, native):
         sheet = workbook['Summary']
+        historical = WorkbookEngine(source_model(identity), data['inputs']) if identity == 'steel_board' else None
         for row, (label, value) in enumerate(data['totals'], 5):
             self.assertEqual(sheet.cell(row, 1).value, label)
             self.assert_cell_value(sheet.cell(row, 5), value)
@@ -156,6 +163,9 @@ class CalculatorRegisterTests(unittest.TestCase):
                     if not unavailable and address in native.get(table['sheet'], {}):
                         expected_native = _source_text(identity, table['sheet'], address, native[table['sheet']][address])
                         actual = '' if cell.value is None and cell.data_type == 'inlineStr' else cell.value
+                        if identity == 'steel_board' and item['values'].get('A') in {'PROMATECT 100', 'PROMATECT 250'}:
+                            actual = _source_text(identity, table['sheet'], address,
+                                historical.value(table['sheet'], address))
                         self.assertTrue(excel_equal(actual, expected_native), (identity, table['sheet'], address))
                         comparisons += 1
             for qualification in table.get('qualifications', []):
@@ -191,6 +201,7 @@ class CalculatorRegisterTests(unittest.TestCase):
 
     def assert_extras(self, data, workbook, native=None):
         sheet = workbook['Extra boards']
+        historical = WorkbookEngine(source_model('steel_board'), data['inputs'])
         columns = list('ABCDEFGHIJK') + ['M', 'N']
         if not data['extra_rows']:
             self.assertIn('No extra-board inputs are entered.', sheet_text(sheet))
@@ -204,6 +215,8 @@ class CalculatorRegisterTests(unittest.TestCase):
                 address = column + str(item['row'])
                 if native and address in native.get('EXTRA BOARDS', {}):
                     actual = '' if cell.value is None and cell.data_type == 'inlineStr' else cell.value
+                    if item['values'].get('B') in {'PROMATECT 100', 'PROMATECT 250'} and column_number(column) >= 10:
+                        actual = historical.value('EXTRA BOARDS', address)
                     self.assertTrue(excel_equal(actual, native['EXTRA BOARDS'][address]), address)
 
     def test_pooled_orders_keep_the_native_rounding_and_duct_fractions(self):
@@ -216,8 +229,10 @@ class CalculatorRegisterTests(unittest.TestCase):
         self.assertEqual(workbook['Summary']['E8'].value, 219)
         self.assertEqual(workbook['Summary']['E7'].value, 218.37775141101426)
         data, workbook, _, _ = snapshot('ductwork')
-        self.assertEqual(workbook['Schedule']['I6'].value, data['rows'][0]['values']['M'])
-        self.assertNotEqual(workbook['Schedule']['I6'].value, round(workbook['Schedule']['I6'].value))
+        headers = {cell.value: cell.column for cell in workbook['Schedule'][5]}
+        bags = workbook['Schedule'].cell(6, headers['Net spray bags']).value
+        self.assertEqual(bags, data['rows'][0]['values']['M'])
+        self.assertNotEqual(bags, round(bags))
 
     def test_last_rows_zero_and_hidden_input_only_items_remain_incomplete(self):
         for identity, address, value in [('ductwork', 'D1010', 0),

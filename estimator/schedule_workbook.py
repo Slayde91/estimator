@@ -34,6 +34,12 @@ def _schedule(calculator_id):
     location = "AA" if calculator_id in {"steel_vermiculite", "steel_intumescent"} else None
     if location:
         columns.sort(key=lambda field: field["column"] != location)
+    quantity_column = schedule.get('quantity_column')
+    if quantity_column:
+        quantity_field = next(field for field in columns if field['column'] == quantity_column)
+        columns.remove(quantity_field)
+        length_index = next(index for index, field in enumerate(columns) if field['column'] == schedule['quantity_length_column'])
+        columns.insert(length_index + 1, quantity_field)
     return catalog, schedule, columns
 
 
@@ -93,6 +99,8 @@ def export_schedule_template(calculator_id):
     instructions.append(["Values only", "Enter values, not Excel formulas. Do not add worksheets or calculated columns. Keep the headings and worksheet name unchanged."])
     instructions.append(["Numbers", "Keep numbers numeric. Display uses at most two decimal places; stored precision is retained. Enter percentage values as percentages, for example 10%."])
     instructions.append(["Dropdowns", "Lists reproduce the source workbook choices. Source warning dropdowns allow specified intermediate values; the calculator reports unsupported cases."])
+    if schedule.get('quantity_column'):
+        instructions.append(["Quantity", "Enter a positive whole quantity for each entered row. Quantity multiplies the row length; duct wall and floor penetration counts also repeat for each run. Older templates without Quantity retain one."])
     instructions.append(["Reference lists", "The following lists support the template dropdowns. Import ignores this sheet and never changes the application reference data."])
     instructions.column_dimensions["A"].width = 32
     instructions.column_dimensions["B"].width = 110
@@ -197,6 +205,9 @@ def _value(cell, field, row_number):
     if isinstance(value, (int, float)):
         if not math.isfinite(value) or abs(value) > 1e12:
             raise ValidationError(f"{label}: numbers must be finite and no larger than 1 trillion in magnitude.")
+        if field.get('quantity'):
+            from .schedule_quantity import validate_quantity
+            validate_quantity(value)
         return value
     if not isinstance(value, str) or len(value) > 1000 or any(ord(char) < 32 and char not in "\n\r\t" for char in value):
         raise ValidationError(f"{label}: enter text of at most 1000 characters or a number.")
@@ -266,7 +277,9 @@ def import_schedule_workbook(calculator_id, payload, filename, current_inputs=No
         sheet.calculate_dimension(force=True)
         legacy_columns = ([field for field in load_workbook_catalog(calculator_id)["schedule"]["columns"] if field.get("editable")]
                           if calculator_id != 'steel_intumescent' else all_columns)
-        accepted_columns = [columns, all_columns, legacy_columns]
+        accepted_columns = [columns, all_columns, legacy_columns,
+                            [field for field in columns if not field.get('quantity')],
+                            [field for field in all_columns if not field.get('quantity')]]
         max_columns = max(len(fields) for fields in accepted_columns) + 1
         if sheet.max_row > capacity + 1 or sheet.max_column > max_columns:
             raise ValidationError(f"The schedule must contain at most {capacity} rows and only the exported input columns.")
@@ -279,6 +292,11 @@ def import_schedule_workbook(calculator_id, payload, filename, current_inputs=No
         if selected is None:
             raise ValidationError("Schedule headers must match the selected calculator's exported template exactly.")
         columns = selected
+        if schedule.get('quantity_column') and not any(field.get('quantity') for field in columns):
+            # A pre-quantity template is explicit legacy evidence. Keep the
+            # omitted key, rather than converting it to a new explicit blank.
+            for row in range(schedule['first_row'], schedule['last_row'] + 1):
+                target.pop(f"{schedule['quantity_column']}{row}", None)
         imported_rows = 0
         last_populated_row = schedule['first_row']
         for row_index, row in enumerate(rows, 2):

@@ -22,12 +22,18 @@ from prepare_desktop_seed import prepare
 
 DATA_FILES = (
     'baseline.json', 'calculator.json', 'calculator_documents.json', 'penetration.json.gz',
+    'promat_board_fc15555_01_03.json',
     'vermiculite_yield_defaults.json', 'calculators/index.json', 'calculators/ductwork.json.gz',
     'calculators/steel_board.json.gz', 'calculators/steel_vermiculite.json.gz',
 )
 STATIC_FILES = (
     'travel.js', 'travel.css', 'maps-setup.html',
     'pointer-effects.js', 'pointer-effects.css', 'pdf-cursors.css', 'laser-reticle.svg',
+    'cursors/busy.png', 'cursors/handwriting.png', 'cursors/link.png', 'cursors/move.png',
+    'cursors/pointer.png', 'cursors/precision.png', 'cursors/resize-horizontal.png',
+    'cursors/resize-nesw.png', 'cursors/resize-nwse.png', 'cursors/resize-vertical.png',
+    'cursors/text.png', 'cursors/unavailable.png',
+    'cursors/README.txt', 'cursors/LICENSE.txt', 'cursors/COPYRIGHT.txt',
     'app.js', 'activity.js', 'calculation-queue.js', 'searchable-choice.js', 'penetration-presentation.js',
     'calculators.css', 'calculators.js', 'ceasefire-logo.png', 'classifire-logo.png',
     'downloads.js', 'downloads.css', 'main-layout.js',

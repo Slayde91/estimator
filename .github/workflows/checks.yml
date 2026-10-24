@@ -142,9 +142,11 @@ jobs:
       - run: npm run test:penetration-defaults-notices
       - run: npm run test:takeoff-row-delete
       - run: node tests/browser/calculator_schedule_scroll.cjs
+      - run: node tests/browser/schedule_member_followups.cjs
       - run: npm run test:document-menus
       - run: npm run test:library-documents
       - run: npm run test:library-link-picker
+      - run: node tests/browser/library_filter_groups.cjs
       - run: npm run test:penetration-item-exports
       - run: npm run test:technical-item-documents
       - run: npm run test:calculator-cleanup

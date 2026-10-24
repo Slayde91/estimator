@@ -12,6 +12,7 @@ sys.path[:0] = [str(ROOT), str(ROOT / 'tests')]
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--directory', type=Path, required=True)
+    parser.add_argument('--filter-groups', action='store_true')
     args = parser.parse_args()
     from test_firestopping_library import editable_library
     from estimator.server import create_server
@@ -40,6 +41,21 @@ def main():
                               'manufacturer': ['Synthetic manufacturer' if primary else 'Alternate manufacturer'],
                               'orientation': ['Vertical' if primary else 'Horizontal']}})
     data['libraries']['technical']['items'] = records
+    if args.filter_groups:
+        # This mode exercises the installed document key and native grouped
+        # controls with invented brands/reports/IDs only. Default link fixtures
+        # retain their existing 45-record query and pagination contract.
+        data['libraries']['technical']['filters'][0]['key'] = 'document'
+        for index, item in enumerate(records):
+            manufacturer = ('Promat', 'Trafalgar', 'BOSS', 'Firefly')[index % 4]
+            item['fields'].extend([{'label': 'Manufacturer', 'value': manufacturer},
+                                   {'label': 'ID', 'value': f'synthetic-source-{index + 1}'}])
+            item['filter_values'].pop('report')
+            item['filter_values']['document'] = [f'{manufacturer} synthetic report']
+            item['filter_values']['manufacturer'] = [manufacturer]
+            rating = ('-/30/30', '-/60/60', '-/90/60', '-/120/30',
+                      '-/180/120', '-/240/180', '-/300/180')[index % 7]
+            next(field for field in item['fields'] if field['label'] == 'FRL')['value'] = rating
     data['links'] = []
     # This original, immutable JSON is deliberately distinct from the saved
     # overlay where explicit reference links belong.

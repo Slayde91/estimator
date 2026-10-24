@@ -58,6 +58,11 @@ class ScheduleWorkbookTests(unittest.TestCase):
                            if field["editable"] and not field.get("advanced")]
                 if identity == "steel_vermiculite":
                     columns.sort(key=lambda field: field["column"] != "AA")
+                if schedule.get('quantity_column'):
+                    quantity = next(field for field in columns if field['column'] == schedule['quantity_column'])
+                    columns.remove(quantity)
+                    index = next(index for index, field in enumerate(columns) if field['column'] == schedule['quantity_length_column'])
+                    columns.insert(index + 1, quantity)
                 workbook = load_workbook(BytesIO(self.templates[identity]))
                 self.assertEqual(workbook.sheetnames, [schedule["sheet"], "Instructions"])
                 sheet = workbook[schedule["sheet"]]
@@ -92,11 +97,12 @@ class ScheduleWorkbookTests(unittest.TestCase):
         precise = 0.12345678901234566
         def fill(workbook):
             sheet = workbook["CALCULATOR"]
-            for index, value in enumerate(["250x250", "FyreWrap", precise, "120/120/120", 0, 1, "Internal", "Mixed"], 1):
+            for index, value in enumerate(["250x250", "FyreWrap", precise, 1, "120/120/120", 0, 1, "Internal", "Mixed"], 1):
                 sheet.cell(2, index, value)
         payload = edit(self.templates["ductwork"], fill)
         result = self.imported(payload=payload, current={"PRODUCT SETTINGS": {"B97": 1.22}})
         self.assertEqual(result["inputs"]["CALCULATOR"]["D11"], precise)
+        self.assertEqual(result['inputs']['CALCULATOR']['CM11'], 1)
         self.assertEqual(result["inputs"]["CALCULATOR"]["F11"], 0)
         self.assertEqual(result["inputs"]["CALCULATOR"]["G11"], 1)
         self.assertEqual(result["inputs"]["CALCULATOR"]["B11"], "250x250")
@@ -221,10 +227,10 @@ class ScheduleWorkbookTests(unittest.TestCase):
         sheet = workbook["CALCULATOR"]
         self.assertEqual([cell.value for cell in sheet[1]], [
             "Member mark", "Location", "Product", "Steel ID", "ESA/M input (m2/t)",
-            "Lineal metres", "Sides", "FRL required (min)", "Beam or Column",
+            "Lineal metres", "Quantity", "Sides", "FRL required (min)", "Beam or Column",
             "Critical temp (C)", "Family (ESA input)", "Waste (%)",
         ])
-        self.assertEqual(sheet.max_column, 12)
+        self.assertEqual(sheet.max_column, 13)
         self.assertNotIn("Exposure layout", [cell.value for cell in sheet[1]])
         self.assertNotIn("Design reference", [cell.value for cell in sheet[1]])
         workbook.close()
@@ -232,13 +238,13 @@ class ScheduleWorkbookTests(unittest.TestCase):
     def test_dropdowns_reference_local_lists_and_preserve_dependent_choices(self):
         board = load_workbook(BytesIO(self.templates["steel_board"]))
         rules = {str(rule.sqref).split(":")[0]: rule for rule in board["CALCULATOR"].data_validations.dataValidation}
-        self.assertIn('$C2="TRAFALGAR COREX"', rules["H2"].formula1)
-        self.assertIn('$I2="Column"', rules["J2"].formula1)
-        self.assertNotIn("SETTINGS!", rules["H2"].formula1)
-        self.assertEqual(rules["H2"].errorStyle, "warning")
+        self.assertIn('$C2="TRAFALGAR COREX"', rules["I2"].formula1)
+        self.assertIn('$J2="Column"', rules["K2"].formula1)
+        self.assertNotIn("SETTINGS!", rules["I2"].formula1)
+        self.assertEqual(rules["I2"].errorStyle, "warning")
         self.assertGreater(len(board.defined_names), 5)
-        self.assertEqual(board["CALCULATOR"]["L2"].number_format, "0.00%")
-        self.assertIn("H1001", str(rules["H2"].sqref))
+        self.assertEqual(board["CALCULATOR"]["M2"].number_format, "0.00%")
+        self.assertIn("I1001", str(rules["I2"].sqref))
         board.close()
         duct = load_workbook(BytesIO(self.templates["ductwork"]))
         rules = {str(rule.sqref).split(":")[0]: rule for rule in duct["CALCULATOR"].data_validations.dataValidation}
@@ -246,9 +252,9 @@ class ScheduleWorkbookTests(unittest.TestCase):
         # dependent board lists above, they need no copied reference lookup.
         expected = {
             "B2": '"CAFCO 300,MONOKOTE,FyreWrap"',
-            "D2": '"60/60/60,90/90/90,120/120/120,180/180/180,240/240/180"',
-            "G2": '"Internal,External,Both,Stair pressurisation,Other pressurisation"',
-            "H2": '"Horizontal,Vertical,Both"',
+            "E2": '"60/60/60,90/90/90,120/120/120,180/180/180,240/240/180"',
+            "H2": '"Internal,External,Both,Stair pressurisation,Other pressurisation"',
+            "I2": '"Horizontal,Vertical,Both"',
         }
         for address, choices in expected.items():
             self.assertEqual(rules[address].formula1, choices)

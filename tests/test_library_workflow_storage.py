@@ -108,7 +108,7 @@ class LibraryWorkflowStorageTests(unittest.TestCase):
         self.assertEqual(created['draft'], normalize_draft(request['draft']))
         self.assertIn('catalog', created['configuration'])
         self.assertEqual(created['draft']['rows'][0]['inputs']['K'], 'Unknown saved service Ø65')
-        self.assertEqual(self.library.service_types(), [option['value']
+        self.assertCountEqual(self.library.service_types(), [option['value']
                          for field in self.library.listing('technical')['filters']
                          if field['key'] == 'services' for option in field['options']])
         edit = {key: deepcopy(created[key]) for key in ('draft', 'revision', 'pricing_token')}
@@ -245,12 +245,12 @@ class LibraryWorkflowStorageTests(unittest.TestCase):
         item['filter_values']['service_type'] = ['Fallback service']
         self.index.write_text(json.dumps(self.data), encoding='utf-8')
         expected = [option['value'] for field in self.library.listing('technical')['filters'] if field['key'] == 'services' for option in field['options']]
-        self.assertEqual(self.library.service_types(), expected)
+        self.assertCountEqual(self.library.service_types(), expected)
         edit = self.library.edit(item['id'])
         body = {key: deepcopy(edit[key]) for key in ('draft', 'revision', 'pricing_token')}
         body['draft']['rows'][0]['inputs']['K'] = 'Saved service Ø65'
         self.library.action(item['id'], 'save', body)
-        self.assertEqual(self.library.service_types(), expected)
+        self.assertCountEqual(self.library.service_types(), expected)
         self.assertEqual(self.library.edit(item['id'])['draft']['rows'][0]['inputs']['K'], 'Saved service Ø65')
 
     def test_invalid_reference_bundle_cannot_disable_estimator_http_endpoints(self):

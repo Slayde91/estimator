@@ -297,7 +297,7 @@ class FacetIntegrationTests(unittest.TestCase):
         self.assertEqual(self.library.listing('technical', services='Lagged Pipes')['total'], 2)
         choices = next(entry['options'] for entry in self.library.listing('technical')['filters']
                        if entry['key'] == 'services')
-        self.assertEqual([entry['value'] for entry in choices], REQUESTED_SERVICES)
+        self.assertCountEqual([entry['value'] for entry in choices], REQUESTED_SERVICES)
         self.assertEqual((self.root / 'library.json').read_bytes(), source_bytes)
 
     def test_canonical_filter_finds_records_imported_with_each_alias(self):

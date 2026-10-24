@@ -131,9 +131,17 @@
       if (typeof value !== "string" || !value.trim() || !["string", "undefined"].includes(typeof text) || seen.has(value)) continue;
       const entry = key === "type" ? uiNode("option", "", text ?? value) : node("option", "", window.CeasefirePenetrationPresentation?.serviceLabel(text ?? value) ?? text ?? value);
       entry.value = value; seen.add(value);
-      const name = key === "substrate" && ["Walls", "Floors", "Ceilings", "Other"].includes(option?.group) ? option.group : null;
+      const name = typeof option?.group === "string" && option.group.trim() && (
+        key === "substrate" && ["Walls", "Floors", "Ceilings", "Other"].includes(option.group) ||
+        ["services", "service_type", "report", "document"].includes(key) || key === "frl" && /^\d+$/.test(option.group)) ? option.group : null;
       if (name) {
-        if (!groups.has(name)) { const group = node("optgroup"); uiAttr(group, "label", name); groups.set(name, group); control.append(group); }
+        if (!groups.has(name)) {
+          const group = node("optgroup");
+          if (["report", "document"].includes(key)) group.setAttribute("label", name);
+          else if (key === "frl") uiAttr(group, "label", "{0} minutes", [name]);
+          else uiAttr(group, "label", name);
+          groups.set(name, group); control.append(group);
+        }
         groups.get(name).append(entry);
       } else control.append(entry);
     }
@@ -298,21 +306,22 @@
     session.filterDefinitions = filters;
     const definitions = new Map();
     for (const filter of Array.isArray(filters) ? filters : []) {
-      if (!filter || !linkFacets.some(([key]) => key === filter.key) || !Array.isArray(filter.options)) continue;
-      if (definitions.has(filter.key)) { definitions.set(filter.key, null); continue; }
-      definitions.set(filter.key, filter);
+      if (!filter || ![...linkFacets.map(([key]) => key), "document"].includes(filter.key) || !Array.isArray(filter.options)) continue;
+      const facet = filter.key === "document" ? "report" : filter.key;
+      if (definitions.has(facet)) { definitions.set(facet, null); continue; }
+      definitions.set(facet, filter);
     }
     session.filterInputs = [];
     session.filterControls.replaceChildren(...linkFacets.map(([key, title]) => {
-      const definition = definitions.get(key), label = node("label", "field"), control = node("select"), all = uiNode("option", "", ...(definition ? ["All {0}", [uiTerm(title)]] : ["{0} unavailable", [uiTerm(title)]])); all.value = "";
-      control.dataset.libraryLinkFilter = key; control.append(all); control.disabled = !definition || session.saving;
-      appendFilterOptions(control, definition?.options, key);
-      const selected = session.filters[key] || "";
+      const definition = definitions.get(key), queryKey = definition?.key || key, label = node("label", "field"), control = node("select"), all = uiNode("option", "", ...(definition ? ["All {0}", [uiTerm(title)]] : ["{0} unavailable", [uiTerm(title)]])); all.value = "";
+      control.dataset.libraryLinkFilter = queryKey; control.append(all); control.disabled = !definition || session.saving;
+      appendFilterOptions(control, definition?.options, queryKey);
+      const selected = session.filters[queryKey] || "";
       if (selected && !filterOptions(control).some(item => item.value === selected)) { const retained = node("option", "", selected); retained.value = selected; control.append(retained); }
       control.value = selected;
       control.addEventListener("change", () => {
         if (pane.linkSession !== session || session.saving || control.disabled) return;
-        session.filters[key] = control.value; session.offset = 0; loadLinkResults(pane, session);
+        session.filters[queryKey] = control.value; session.offset = 0; loadLinkResults(pane, session);
       });
       session.filterInputs.push(control); label.append(uiNode("span", "", title), control); return label;
     }));
@@ -355,7 +364,7 @@
     session.busy = true; session.available = false; session.save.disabled = session.previous.disabled = session.next.disabled = true;
     session.choices = []; session.results.replaceChildren(); session.results.setAttribute("aria-busy", "true"); uiText(session.count, "Searching…"); linkMessage(session);
     const query = new URLSearchParams({ search: session.search, offset: String(session.offset), limit: String(session.limit) });
-    for (const [key] of linkFacets) if (session.filters[key]) query.set(key, session.filters[key]);
+    for (const key of [...linkFacets.map(([key]) => key), "document"]) if (session.filters[key]) query.set(key, session.filters[key]);
     try {
       const data = await request(`/api/libraries/technical?${query}`, session.abort.signal);
       if (pane.linkSession !== session || revision !== session.revision) return;
@@ -707,13 +716,13 @@
     }
     if (data.notice) content.push(node("p", "library-record-notice", display(data.notice)));
     const fields = node("dl", "library-record-fields");
-    const promat = /^promat-/i.test(String(data.id)) || (data.fields || []).some(field => String(field.label).trim().toLowerCase() === "manufacturer" && /^promat$/i.test(String(field.value).trim()));
-    // Keep source IDs intact for search and provenance; simplify only their display.
-    const visibleFields = (data.fields || []).filter(field => visibleField(pane.kind, field)).map(field => {
-      if (!promat || String(field.label).trim().toLowerCase() !== "id") return field;
-      const match = String(field.value ?? "").trim().match(/^sys_var_(\d+)_au(?:\s+\(\+\d+ variants listed below\))?$/i);
-      return match ? { ...field, value: match[1] } : field;
-    });
+    const supplierIdHidden = pane.kind === "technical" && (/^(?:promat-|trafalgar-selector-)/i.test(String(data.id)) ||
+      (data.fields || []).some(field => String(field.label).trim().toLowerCase() === "manufacturer" &&
+        String(field.value).split(/\r?\n/).some(name => /^(?:promat|trafalgar)$/i.test(name.trim()))));
+    // Omit only this visible field. Titles, detail data, source identifiers,
+    // exports and durable manual-reference targets retain their exact IDs.
+    const visibleFields = (data.fields || []).filter(field => visibleField(pane.kind, field) &&
+      !(supplierIdHidden && String(field.label).trim().toLowerCase() === "id"));
     const tablesByField = new Map(visibleFields.map(field => [field, fieldTables(field).map((table, index, tables) => {
       if (!validFieldTable(table) || !displayedColumns(table).length) return null;
       const target = fieldTable({ ...field, table }, index, tables.length, pane.kind);

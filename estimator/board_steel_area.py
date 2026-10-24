@@ -62,7 +62,9 @@ def _line_area(engine, row, profiles):
     def value(column):
         return engine.value('CALCULATOR', f'{column}{row}')
 
-    if not _positive(value('F')):
+    from .schedule_quantity import total_length
+    length = total_length(engine, row)
+    if not _positive(length):
         return None, 'Enter positive total lineal metres.'
     section = value('D')
     if not isinstance(section, str) or not section:
@@ -85,10 +87,41 @@ def _line_area(engine, row, profiles):
     girth = profile['girths'][sides]
     if profile['holds'][sides] or not _positive(girth):
         return None, f'No usable retained {sides}-side profile girth for Steel ID {section}.'
-    area = girth * value('F')
+    area = girth * length
     if not math.isfinite(area):
         return None, 'Steel surface area exceeds the supported numeric range.'
     return area, None
+
+
+def boxed_girth(depth_mm, width_mm, sides, *, rotated=False):
+    """Inside rectangular board perimeter, independent of the steel profile.
+
+    A circular member is still enclosed by four flat boards: callers supply
+    its diameter as both dimensions. This cutting perimeter is deliberately
+    separate from any assessed heated perimeter used to select thickness.
+    """
+    if not all(_positive(value) for value in (depth_mm, width_mm)) or sides not in (1, 2, 3, 4):
+        return None
+    depth, width = (width_mm, depth_mm) if rotated else (depth_mm, width_mm)
+    return (width, width + depth, width + 2 * depth, 2 * (width + depth))[int(sides) - 1] / 1000
+
+
+def board_layer_girths(depth_mm, width_mm, sides, layers, *, rotated=False):
+    """Flat-board cutting widths with butt-joint laps, inner layer first.
+
+    Each corner contributes one board thickness to a layer's cutting width.
+    An outer layer also surrounds twice the preceding layer thickness.
+    Supports, soldiers and cover strips are separate quantities.
+    """
+    inside = boxed_girth(depth_mm, width_mm, sides, rotated=rotated)
+    if inside is None or not layers or not all(_positive(value) for value in layers):
+        return None
+    corners = (0, 1, 2, 4)[int(sides) - 1]
+    previous, result = 0, []
+    for thickness in layers:
+        result.append(inside + corners * (2 * previous + thickness) / 1000)
+        previous += thickness
+    return tuple(result)
 
 
 def board_net_steel_areas(engine):

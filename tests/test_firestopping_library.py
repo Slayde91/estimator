@@ -56,7 +56,7 @@ class FirestoppingLibraryTests(unittest.TestCase):
         expected = next(field['options'] for field in listing['filters'] if field['key'] == 'services')
         choices = self.library.service_types()
         self.assertEqual(choices, REQUESTED_SERVICES)
-        self.assertEqual(choices, [entry['value'] for entry in expected])
+        self.assertCountEqual(choices, [entry['value'] for entry in expected])
         field = next(field for field in definition(service_types=choices)['row_fields'] if field['column'] == 'K')
         self.assertEqual(field['options'], choices)
         self.assertNotIn('Downlight Box', choices)

@@ -10,7 +10,7 @@ from pypdf import PdfReader
 
 from estimator.calculator_report import build_calculator_report, build_calculator_summary_report, project_calculator_report, _material_rows, _source_text
 from estimator.catalog import ValidationError
-from estimator.excel_engine import WorkbookEngine
+from estimator.excel_engine import WorkbookEngine, column_number
 from estimator.perlifoc_assessment import Assessment as PerlifocAssessment
 from estimator.workbook_calculators import source_model
 from tests.test_workbook_parity import read_fixture, scenario_inputs, excel_equal
@@ -75,12 +75,23 @@ class CalculatorReportTests(unittest.TestCase):
     def assert_native_projection(self, identity, projected, expected):
         comparisons = 0
         original = None
+        def retained_value(sheet, address):
+            nonlocal original
+            if original is None:
+                original = WorkbookEngine(source_model(identity), projected['inputs'])
+            return original.value(sheet, address)
         if identity == 'steel_vermiculite':
             assert_missing_perlifoc_projection(self, projected)
         for row in projected['rows']:
             for column, actual in row['values'].items():
                 address = column + str(row['row'])
                 if address in expected.get(projected['sheet'], {}):
+                    if (identity == 'steel_board' and row['values'].get('C') in {'PROMATECT 100', 'PROMATECT 250'}
+                            and column_number(column) > 24):
+                        # The new assessment deliberately replaces these application
+                        # outputs. Preserve the complete historical Excel oracle;
+                        # test the current assessment separately with published cells.
+                        actual = retained_value(projected['sheet'], address)
                     if identity == 'ductwork' and (column == 'AL' or (row['wrap'] and column in ('AP', 'AQ'))):
                         # Fixing text has its own native fixture. The new directional
                         # application notes are asserted in test_fyrewrap_rules;
@@ -105,12 +116,16 @@ class CalculatorReportTests(unittest.TestCase):
                 for column, actual in row['values'].items():
                     address = column + str(row['row'])
                     if address in expected.get(table['sheet'], {}):
+                        if identity == 'steel_board' and row['values'].get('A') in {'PROMATECT 100', 'PROMATECT 250'}:
+                            actual = retained_value(table['sheet'], address)
                         self.assertTrue(excel_equal(actual, expected[table['sheet']][address]), (identity, table['sheet'], address))
                         comparisons += 1
         for row in projected['extra_rows']:
             for column, actual in row['values'].items():
                 address = column + str(row['row'])
                 if address in expected.get('EXTRA BOARDS', {}):
+                    if identity == 'steel_board' and row['values'].get('B') in {'PROMATECT 100', 'PROMATECT 250'} and column_number(column) >= 10:
+                        actual = retained_value('EXTRA BOARDS', address)
                     self.assertTrue(excel_equal(actual, expected['EXTRA BOARDS'][address]), ('EXTRA BOARDS', address))
                     comparisons += 1
         self.assertGreater(comparisons, 20)
@@ -124,7 +139,9 @@ class CalculatorReportTests(unittest.TestCase):
                 self.assert_native_projection(identity, data, expected)
         board = default_projection('steel_board')
         self.assertTrue(excel_equal(dict(board['totals'])['Reference box area (m²)'], read_fixture('steel_board', 'default')['scenarios'][0]['expected']['CALCULATOR']['AA4']))
-        self.assertEqual(dict(board['totals'])['Pooled whole sheets'], 27)
+        self.assertEqual(WorkbookEngine(source_model('steel_board'), {}).value('BOARD SUMMARY', 'E6'), 27)
+        self.assertEqual(dict(board['totals'])['Pooled whole sheets'],
+                         sum(row['values']['I'] for row in board['summaries'][0]['rows']))
         verm = default_projection('steel_vermiculite')
         self.assertAlmostEqual(verm['summaries'][0]['rows'][0]['values']['E'], 218.37775141101426)
         self.assertEqual(verm['summaries'][0]['rows'][0]['values']['G'], 219)
@@ -180,8 +197,11 @@ class CalculatorReportTests(unittest.TestCase):
         self.assertTrue(data['extra_rows'])
         expected = scenario['expected']['BOARD SUMMARY']
         totals = dict(data['totals'])
+        historical = WorkbookEngine(source_model('steel_board'), scenario_inputs(scenario))
         for label, cell in [('Required net board including extras (m²)', 'A6'), ('Pooled whole sheets', 'E6'), ('Pooled purchase area (m²)', 'I6')]:
-            self.assertTrue(excel_equal(totals[label], expected[cell]))
+            self.assertTrue(excel_equal(historical.value('BOARD SUMMARY', cell), expected[cell]))
+        for label, column in [('Required net board including extras (m²)', 'G'), ('Pooled whole sheets', 'I'), ('Pooled purchase area (m²)', 'J')]:
+            self.assertAlmostEqual(totals[label], sum(row['values'][column] for row in data['summaries'][0]['rows']))
         self.assertNotEqual(totals['Pooled whole sheets'], sum(row['values']['AG'] for row in data['rows'] if type(row['values']['AG']) in (int, float)))
 
     def test_both_pdfs_preserve_branding_precision_and_separate_schedule_from_materials(self):
@@ -205,8 +225,13 @@ class CalculatorReportTests(unittest.TestCase):
                     self.assertTrue(all(f'Page {number}' in content for number, content in enumerate(texts, 1)))
                     self.assertTrue(all(page.images for page in reader.pages))
                     if builder is build_calculator_report:
-                        self.assertTrue(all(sum(line.strip() == 'Line' for line in content.splitlines()) == 1
-                                            for content in texts))
+                        counts = [sum(line.strip() == 'Line' for line in content.splitlines()) for content in texts]
+                        self.assertIn(1, counts)
+                        for content, count in zip(texts, counts):
+                            if identity == 'steel_board' and count == 0:
+                                self.assertIn('FC15555-01-03', content)  # An assessment evidence page.
+                            else:
+                                self.assertEqual(count, 1)
                     for page in reader.pages:
                         positions = {}
                         def located(value, cm, tm, font, size):
@@ -310,7 +335,7 @@ class CalculatorReportTests(unittest.TestCase):
         expected = {
             'ductwork': [[9, 10, 11], [19, 23, 25], [40]],
             'steel_vermiculite': [[20]],
-            'steel_board': [[12, 13, 14, 15, 18, 23, 25, 26, 27, 28]],
+            'steel_board': [[12, 13, 14, 15, 19, 23, 25, 27, 28]],
         }
         for identity, wanted in expected.items():
             data = default_projection(identity)
@@ -520,11 +545,11 @@ class CalculatorReportTests(unittest.TestCase):
 
     def test_extra_only_board_quantities_and_incomplete_extra_evidence_survive_filtering(self):
         inputs = cleared_inputs('steel_board')
-        inputs['EXTRA BOARDS'].update({'A6': 'Extra stock only', 'B6': 'PROMATECT 250', 'C6': 15,
+        inputs['EXTRA BOARDS'].update({'A6': 'Extra stock only', 'B6': 'PROMATECT 250', 'C6': 30,
                                        'G6': 0.0000001, 'N7': 'Allowance still under review'})
         data = project_calculator_report('steel_board', inputs)
         self.assertEqual(data['rows'], [])
-        self.assertGreater(data['summaries'][0]['rows'][4]['values']['F'], 0)
+        self.assertGreater(data['summaries'][0]['rows'][7]['values']['F'], 0)
         with patch('estimator.calculator_report.project_calculator_report', return_value=data):
             text = ' '.join(page.extract_text() for page in PdfReader(BytesIO(
                 build_calculator_summary_report('steel_board'))).pages)

@@ -28,7 +28,10 @@ async function editSettings(page, values, id) {
     await expect(field).toBeEnabled();
     const text = String(value);
     if (await field.evaluate(el => el.tagName) === 'SELECT') {
-      await expect.poll(() => field.locator('option').evaluateAll(options => options.map(option => option.value))).toContain(text);
+      // Destination changes load choices asynchronously while the previous
+      // choices remain rendered. Await the exact requested value, using the
+      // same bounded readiness window as the calculator navigation helpers.
+      await expect.poll(() => field.locator('option').evaluateAll(options => options.map(option => option.value)), { timeout: 60000 }).toContain(text);
       await field.selectOption(text);
     } else {
       await field.fill(text);

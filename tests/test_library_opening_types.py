@@ -2,6 +2,8 @@
 from copy import deepcopy
 import json
 from pathlib import Path
+import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -87,6 +89,59 @@ class OpeningTypeTests(unittest.TestCase):
         for raw in ({}, {'fields': []}, item(System_Products=''), item(System_Products='Sealant')):
             self.assertEqual(opening_type(raw), 'Core hole')
             self.assertEqual(opening_type_evidence(raw), [])
+
+    def test_dimension_modifiers_retain_valid_material_meanings(self):
+        for dimension in ('19mm', '19 mm', '19.5mm', '19.5 mm', '.5mm', '.5 mm'):
+            with self.subTest(dimension=dimension):
+                self.assertEqual(opening_type(item(System_Products=f'No {dimension} thick board')), 'Core hole')
+                self.assertEqual(opening_type(item(Installation_Details=f'Install {dimension} board')), 'Oversized core hole')
+                self.assertEqual(opening_type(item(Installation_Details=f'Do not omit {dimension} board')), 'Oversized core hole')
+        for name in ('PROMATECT 100', 'PROMATECT® 100', 'PROMATECT-100', 'PROMATECT® - 100', 'PROMATECT 100/250'):
+            with self.subTest(name=name):
+                self.assertEqual(opening_type(item(System_Products=name)), 'Oversized core hole')
+
+    def test_adversarial_material_and_numeric_modifiers_finish_in_a_bounded_process(self):
+        # Exercise all three modifier prefixes through the public classifier.
+        # A timeout kills only the child, so a regression cannot hang the suite.
+        program = '''
+from estimator.library_opening_types import opening_type
+for prefix in ('No ', 'Do not omit ', 'Install '):
+    for token in ('1' * 40000 + 'x ', '1.' * 20000 + 'x ', '1 ' * 15000 + 'x ', '1mm ' * 10000 + 'x '):
+        result = opening_type({'fields': [{'label': 'Installation Details', 'value': prefix + token + 'board'}]})
+        assert result in ('Core hole', 'Oversized core hole')
+# Preserve the originally reported product-field attack as a direct fixture.
+assert opening_type({'fields': [{'label': 'System Products', 'value': 'No ' + '1' * 30 + 'x board'}]}) == 'Oversized core hole'
+assert opening_type({'fields': [{'label': 'System Products', 'value': 'PROMATECT' + ' ' * 20000 + 'x board'}]}) == 'Oversized core hole'
+assert opening_type({'fields': [{'label': 'Installation Details', 'value': 'replace ' * 5000 + 'x board'}]}) == 'Core hole'
+print('bounded modifiers passed')
+'''
+        result = subprocess.run([sys.executable, '-B', '-c', program],
+                                cwd=Path(__file__).resolve().parents[1],
+                                capture_output=True, text=True, timeout=5, check=True)
+        self.assertEqual(result.stdout.strip(), 'bounded modifiers passed')
+
+    def test_repeated_materials_and_chained_negation_keep_both_apis_bounded(self):
+        program = '''
+from estimator.library_opening_types import opening_type, opening_type_evidence
+cases = [
+    ('System Products', 'board ' * 16000, 'Oversized core hole', 1),
+    ('System Products', 'No ' + ('batt or ' * 11000) + 'board', 'Core hole', 0),
+    ('System Products', ('batt or ' * 11000) + 'board are not required', 'Core hole', 0),
+    ('System Products', ('batt or ' * 11000) + 'board are not required, install batt', 'Oversized core hole', 1),
+    ('Installation Details', 'No ' + ('batt or ' * 11000) + 'board, install board', 'Oversized core hole', 1),
+    ('Installation Details', 'board ' * 16000, 'Core hole', 0),
+]
+for label, value, expected, evidence_count in cases:
+    assert len(value) <= 100000  # The accepted source-field limit, not a truncation.
+    record = {'fields': [{'label': label, 'value': value}]}
+    assert opening_type(record) == expected
+    assert len(opening_type_evidence(record)) == evidence_count
+print('bounded repeated materials passed')
+'''
+        result = subprocess.run([sys.executable, '-B', '-c', program],
+                                cwd=Path(__file__).resolve().parents[1],
+                                capture_output=True, text=True, timeout=10, check=True)
+        self.assertEqual(result.stdout.strip(), 'bounded repeated materials passed')
 
     def test_substrate_options_keep_every_exact_value_in_alphabetical_groups(self):
         values = ['Z wall', 'B floor', 'A wall', 'A ceiling', 'Saved custom', 'A floor']

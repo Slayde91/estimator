@@ -177,8 +177,12 @@ class DuctworkPolicyTests(unittest.TestCase):
     def test_excel_template_has_same_canonical_lists_and_stop_validation(self):
         workbook = load_workbook(BytesIO(export_schedule_template('ductwork')))
         try:
-            rules = {str(rule.sqref): rule for rule in workbook['CALCULATOR'].data_validations.dataValidation}
-            for source_column, template_column in [('C', 'B'), ('E', 'D'), ('H', 'G'), ('I', 'H')]:
+            sheet = workbook['CALCULATOR']
+            headers = {cell.value: cell.column_letter for cell in sheet[1]}
+            fields = {field['column']: field for field in load_application_catalog('ductwork')['schedule']['columns']}
+            rules = {str(rule.sqref): rule for rule in sheet.data_validations.dataValidation}
+            for source_column in DUCTWORK_CHOICES:
+                template_column = headers[fields[source_column]['label']]
                 rule = rules[f'{template_column}2:{template_column}1001']
                 self.assertEqual(rule.formula1, '"' + ','.join(DUCTWORK_CHOICES[source_column]) + '"')
                 self.assertEqual(rule.errorStyle, 'stop')

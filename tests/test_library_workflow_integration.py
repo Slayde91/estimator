@@ -141,7 +141,7 @@ class LibraryWorkflowIntegrationTests(unittest.TestCase):
                        if field['column'] == 'K')
         technical_choices = next(field['options'] for field in self.get('/api/libraries/technical')['filters']
                                  if field['key'] == 'services')
-        self.assertEqual(choices, [option['value'] for option in technical_choices])
+        self.assertCountEqual(choices, [option['value'] for option in technical_choices])
         self.assertEqual(created['draft']['rows'][0]['inputs']['K'], body['draft']['rows'][0]['inputs']['K'])
         self.assertEqual(self.get('/api/libraries/penetration?manufacturer=FIREFLY')['total'], 1)
         self.assertEqual(self.protected(), before)

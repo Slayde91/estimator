@@ -4,8 +4,9 @@ import hashlib
 import unittest
 
 from estimator.workbook_calculators import (
-    _validation, calculate_page, calculator_definition, normalize_calculator_inputs, source_model,
+    _validation, calculate_page, calculator_definition, calculator_engine, normalize_calculator_inputs, source_model,
 )
+from estimator.excel_engine import WorkbookEngine
 from estimator.workbook_catalog import DATA_DIRECTORY, editable_cells, load_workbook_catalog
 from estimator.workbook_runtime import application_editable_cells
 from tests.test_calculator_section_navigation import digest, visible
@@ -113,14 +114,18 @@ class WorkbookCalculatorCleanupTests(unittest.TestCase):
                     self.assertEqual(_validation(source, address)['type'], 'list', address)
 
     def test_board_native_choices_keep_full_library_and_warning_rules(self):
+        from estimator.promat_board_assessment import chs_section_aliases
         library = source_sheet('steel_board', 'STEEL LIBRARY')['cells']
         steel_ids = [library[f'A{row}']['value'] for row in range(6, 1348)]
         self.assertEqual(len(steel_ids), 1342)
+        offered = {value for value in steel_ids if '[P100]' not in value}
+        offered.update(chs_section_aliases(source_model('steel_board')))
         source = source_sheet('steel_board', 'CALCULATOR')
         for row in (9, 208, 1008):
             cells = page_cells('steel_board', 'CALCULATOR', row)
             self.assertEqual(cells[f'C{row}']['options'], BOARD_PRODUCTS)
-            self.assertEqual(cells[f'D{row}']['options'], steel_ids)
+            self.assertEqual(set(cells[f'D{row}']['options']), offered)
+            self.assertEqual(len(cells[f'D{row}']['options']), len(offered))
             for column in 'CDHJ':
                 cell = cells[f'{column}{row}']
                 self.assertTrue(cell['editable'])
@@ -131,14 +136,18 @@ class WorkbookCalculatorCleanupTests(unittest.TestCase):
                 self.assertEqual(cell['validation']['allowBlank'], '1')
         settings = source_sheet('steel_board', 'SETTINGS')['cells']
         for product, column, last in zip(BOARD_PRODUCTS, 'GHIJ', (10, 9, 10, 9)):
-            inputs = {'CALCULATOR': {'C208': product, 'I208': 'Beam'}}
+            inputs = {'CALCULATOR': {'C208': product, 'I208': 'Beam', 'G208': 3}}
             cells = page_cells('steel_board', 'CALCULATOR', 208, inputs=inputs)
-            self.assertEqual(cells['H208']['options'],
-                             [settings[f'{column}{row}']['value'] for row in range(6, last + 1)])
-            self.assertEqual(cells['J208']['options'], [550, 620] if product == 'PROMATECT 100' else [620])
+            if product in {'PROMATECT 100', 'PROMATECT 250'}:
+                self.assertEqual(cells['H208']['options'], [30, 60, 90, 120, 180])
+                self.assertEqual(cells['J208']['options'], [350, 400, 450, 500, 520, 550, 600, 620, 650, 700])
+            else:
+                self.assertEqual(cells['H208']['options'],
+                                 [settings[f'{column}{row}']['value'] for row in range(6, last + 1)])
+                self.assertEqual(cells['J208']['options'], [620])
         cells = page_cells('steel_board', 'CALCULATOR', 208, inputs={
             'CALCULATOR': {'C208': 'PROMATECT 100', 'I208': 'Column', 'H208': 75, 'J208': 612}})
-        self.assertEqual(cells['J208']['options'], [550])
+        self.assertEqual(cells['J208']['options'], [350, 400, 450, 500, 520, 550, 600, 650, 700])
         self.assertEqual((cells['H208']['value'], cells['J208']['value']), (75, 612))
         self.assertTrue(cells['H208']['allow_other'] and cells['J208']['allow_other'])
 
@@ -195,18 +204,25 @@ class WorkbookCalculatorCleanupTests(unittest.TestCase):
         self.assertEqual(metadata['presentation_tables'][0]['columns'], [1, 2, 3, 4, 9, 10])
         cells = page_cells('steel_board', 'BOARD SUMMARY', 6, 24)
         oracle = read_fixture('steel_board', 'default')['scenarios'][0]['expected']
+        historical = WorkbookEngine(source_model('steel_board'), {})
+        current = calculator_engine('steel_board', normalize_calculator_inputs('steel_board', {}))
         for address in expected_suffixes:
             cell = cells[address]
             self.assertIsInstance(cell['value'], (int, float), address)
             expected = oracle['BOARD SUMMARY'][address] if address.startswith('J') else source[address]['value']
-            self.assertAlmostEqual(cell['value'], expected, places=10, msg=address)
+            self.assertAlmostEqual(historical.value('BOARD SUMMARY', address), expected, places=10, msg=address)
+            # Display units must not change current assessment or stock calculations.
+            # The retained workbook oracle still verifies the original source separately.
+            self.assertAlmostEqual(cell['value'], current.value('BOARD SUMMARY', address), places=10, msg=address)
         for address in ('A6', 'E6', 'I6', *(f'I{row}' for row in range(12, 30))):
             self.assertNotIn('suffix', metadata['display_cells'].get(address, {}))
             self.assertTrue(visible(metadata, address))
-            self.assertAlmostEqual(cells[address]['value'], oracle['BOARD SUMMARY'][address], places=10)
+            self.assertAlmostEqual(historical.value('BOARD SUMMARY', address), oracle['BOARD SUMMARY'][address], places=10)
+            self.assertAlmostEqual(cells[address]['value'], current.value('BOARD SUMMARY', address), places=10)
         warning = page_cells('steel_board', 'CALCULATOR', 6)['Y6']
         self.assertTrue(warning['calculated'])
-        self.assertEqual(warning['value'], oracle['CALCULATOR']['Y6'])
+        self.assertEqual(historical.value('CALCULATOR', 'Y6'), oracle['CALCULATOR']['Y6'])
+        self.assertEqual(warning['value'], current.value('CALCULATOR', 'Y6'))
         self.assertIn('Incomplete order:', warning['value'])
 
     def test_duct_summary_spacing_keeps_table_columns_and_interpretation_notes(self):

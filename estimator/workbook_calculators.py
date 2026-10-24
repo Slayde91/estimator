@@ -349,10 +349,18 @@ _PREVIOUS_REVIEWED_REFERENCES = {
 _PRESENTATION_HEADERS['steel_intumescent'] = {'SUMMARY': [6, 21, 36]}
 _PRESENTATION_SECTIONS['steel_intumescent'] = {'START': ['A4', 'A7', 'A10', 'A13']}
 _DISPLAY_COLUMN_ORDER['steel_intumescent'] = {'SCHEDULE': [26, 27, *range(1, 26)]}
-_OMITTED_ROWS['steel_intumescent'] = {'SCHEDULE': [1, 2, 3, 8]}
+_OMITTED_ROWS['steel_intumescent'] = {'SCHEDULE': [1, 2, 3, 4, 5, 8]}
 _OMITTED_COLUMNS['steel_intumescent'] = {'SCHEDULE': [22, 23, 24]}
 _DISPLAY_CELLS['steel_intumescent'] = {
     'SCHEDULE': {f'Y{row}': {'bold': False} for row in range(10, 1010)}}
+_PRESENTATION_TABLES['steel_intumescent'] = {'SETTINGS': [
+    {'first_row': first, 'last_row': last, 'columns': [1, value_column],
+     'column_widths': [70, 30], 'width_mode': 'fit', 'table_kind': 'form',
+     'header_row': None, 'label': label}
+    for first, last, value_column, label in (
+        (4, 30, 4, 'Nullifire SC902 settings'),
+        (34, 57, 6, 'FIRETEX FX5090 settings'),
+        (64, 93, 8, 'FIRETEX FX6010 settings'))]}
 
 
 @lru_cache(maxsize=4)
@@ -606,15 +614,8 @@ def _sheet_metadata(model, sheet):
     page = (model['id'], sheet['name'])
     settings_sections = deepcopy(_SETTINGS_SECTIONS.get(page, []))
     if page == ('steel_intumescent', 'SETTINGS'):
-        from .intumescent import SETTINGS_BLOCKS, FX6010, FX6010_KIT_DEFAULTS
+        from .intumescent import SETTINGS_BLOCKS
         settings_sections = deepcopy(list(SETTINGS_BLOCKS))
-        for section in settings_sections:
-            if section['product'] == FX6010:
-                section['defaults_action'] = {
-                    'label': 'Use Australian kit defaults',
-                    'title': 'Apply FX6010 kit defaults?',
-                    'detail': 'Use the Australian 18 L kit with 92% volume solids. This replaces FX6010 pack values and clears any old Part C entry. Waste and steel density stay as entered.',
-                    'settings': deepcopy(FX6010_KIT_DEFAULTS)}
     for section in settings_sections:
         address = section.get('title_address')
         if address:
@@ -661,6 +662,7 @@ def calculator_definition(calculator_id, inputs=None, schedule_rows=None):
             'display_pages': deepcopy(_DISPLAY_PAGES.get(calculator_id, [
                 {'id': name, 'label': name, 'sheet': name} for name in model['pages']])),
             'source': model['source'], 'schedule': deepcopy(model['schedule']),
+            'automatic_defaults': deepcopy(model.get('automatic_defaults', {})),
             'sheets': [_sheet_metadata(model, sheet) for sheet in model['sheets'] if sheet['name'] in model['pages']],
             'inputs': normalize_calculator_inputs(calculator_id, inputs), 'documents': documents,
             'schedule_rows': normalize_schedule_rows(calculator_id, inputs, schedule_rows),
@@ -848,6 +850,8 @@ def _render_sheet(calculator_id, inputs, source, metadata, start_row, end_row,
                         cell['allow_other'] = cell['error_style'] in ('warning', 'information') or validation.get('showErrorMessage') not in ('1', True)
                         try:
                             options = validation_options(engine, sheet, address, validation, option_cache)
+                            if calculator_id == 'steel_intumescent' and sheet == 'SCHEDULE' and column == 4:
+                                options = list(engine.temperature_options(row))
                             if shared_options:
                                 key = json.dumps(options, ensure_ascii=False, allow_nan=False)
                                 if key not in option_keys:

@@ -48,7 +48,8 @@
         "verified_date": "2026-10-24",
         "availability": "Public PDF",
         "reference_coverage": "Two components; 18 L kit; A:B 71:1 by volume; 92% volume solids. Published theoretical spreading rate is 0.92 m²/L at 1000 µm DFT.",
-        "notes": "New/reset estimates use 18 L and 92% solids. Saved settings remain unchanged until explicitly edited or updated. The 1.46 kg/L transport average is not treated as verified mixed density or used to invent component masses. DFT still comes only from the supplied certificate tables."
+        "notes": "Missing or blank FX6010 kit settings automatically use Australian 18 L / 92% defaults. Nominal mass and density estimates are derived from the linked AU SDS component volumes and typical specific gravities, not the PDS transport average. Saved numeric custom values and raw saved maps are retained. DFT still comes only from the supplied certificate tables.",
+        "source_sha256": "3fd9b9399e00ce1db7227bdef9abf292a013539090fcaef76d7b416402f8dbe9"
       },
       {
         "title": "FIRETEX FX6010 — Australian Part A Safety Data Sheet",
@@ -58,8 +59,9 @@
         "region": "Australia",
         "verified_date": "2026-10-24",
         "availability": "Public PDF linked by Dulux",
-        "reference_coverage": "Part A code 783-H0379; nominal 17.75 L pack.",
-        "notes": "Component volume identifies the Australian kit. Typical SDS specific gravity is not an exact component fill mass."
+        "reference_coverage": "Part A code 783-H0379; nominal 17.75 L pack. Section 9, page 5: typical specific gravity 1.46. SDS issued 10 August 2023, version 1.1.",
+        "notes": "Nominal Part A mass estimate: 17.75 L × 1.46 = 25.915 kg, treating specific gravity numerically as kg/L for estimating. This is derived from typical SDS properties, not an exact batch fill mass.",
+        "source_sha256": "72b090b51663bbc482d1b1bec66f298a651be02c79721cf518e0dcde7ffcf17b"
       },
       {
         "title": "FIRETEX FX6010 — Australian Part B Safety Data Sheet",
@@ -69,8 +71,9 @@
         "region": "Australia",
         "verified_date": "2026-10-24",
         "availability": "Public PDF linked by Dulux",
-        "reference_coverage": "Part B catalyst code 976-H0393; nominal 0.25 L pack.",
-        "notes": "Mix the complete matched kit in accordance with the product instructions. No third FX6010 component is required."
+        "reference_coverage": "Part B catalyst code 976-H0393; nominal 0.25 L pack. Section 9, pages 4–5: typical specific gravity 1.2. SDS issued 10 August 2023, version 1.1.",
+        "notes": "Nominal Part B mass estimate: 0.25 L × 1.2 = 0.300 kg. Combined nominal mass is 26.215 kg and the mixed density estimate is 26.215 / 18 kg/L; these are derived estimates, not exact batch measurements. Mix the complete matched two-component kit; no third FX6010 component is required.",
+        "source_sha256": "de936c25aad5aaebb2b0c49b070b7a6fd770309e6af8983247037d843eeea5b3"
       },
       {
         "title": "Nullifire SC902 — FC18580-01-01, 20 March 2024",

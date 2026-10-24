@@ -123,7 +123,7 @@ class WorkbookCalculatorApiTests(unittest.TestCase):
         self.assertEqual([item['title'] for item in listing['calculators']],
                          ['Steel (spray)', 'Steel (board)', 'Steel (intumescent)', 'Ductwork (spray/wrap)'])
         native = self.definition('steel_intumescent')
-        self.assertEqual(native['pages'], ['START', 'SCHEDULE', 'SUMMARY', 'SETTINGS'])
+        self.assertEqual(native['pages'], ['SCHEDULE', 'SUMMARY', 'SETTINGS'])
         self.assertEqual([sheet['name'] for sheet in native['sheets']], native['pages'])
         self.assertEqual(native['inputs'], empty_schedule_inputs('steel_intumescent'))
         self.assertTrue(any('FC18580-01-01' in document['title']

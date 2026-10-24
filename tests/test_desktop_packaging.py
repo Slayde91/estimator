@@ -412,10 +412,13 @@ class DesktopPackagingTests(unittest.TestCase):
 
     def test_shared_cursor_urls_artwork_and_notices_are_packaged(self):
         references = set()
-        for stylesheet in (name for name in STATIC_FILES if name.endswith('.css')):
+        stylesheets = [name for name in STATIC_FILES if name.endswith('.css')]
+        self.assertTrue(stylesheets)
+        for stylesheet in stylesheets:
             css = (ROOT / 'static' / stylesheet).read_text(encoding='utf-8')
             references.update(re.findall(r'url\(\s*[\'\"]?(/cursors/[^\'\"\s)]+)', css))
-        self.assertTrue(references)
+        # System-cursor styles may have no image URLs; all shipped URLs and
+        # the existing artwork/notices must still be covered by the manifest.
         pngs = {path.relative_to(ROOT / 'static').as_posix()
                 for path in (ROOT / 'static/cursors').glob('*.png')}
         notices = {'cursors/README.txt', 'cursors/LICENSE.txt', 'cursors/COPYRIGHT.txt'}

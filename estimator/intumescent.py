@@ -7,7 +7,7 @@ material quantities, never fire performance or the published table values.
 from functools import lru_cache
 import math
 
-from .excel_engine import WorkbookEngine, column_name, column_number
+from .excel_engine import FormulaError, WorkbookEngine, column_name, column_number
 
 
 IDENTITY = 'steel_intumescent'
@@ -31,6 +31,11 @@ SETTING_DEFAULTS = {**SC902_SETTING_DEFAULTS,
                     'F36': 1.39, 'F37': 18, 'F38': .69, 'F39': 0, 'F40': 7850,
                     'H66': None, 'H67': None, 'H68': None, 'H69': 0, 'H70': 7850,
                     'H71': 'Pack volume (L)', 'H72': None, 'H73': None, 'H74': None}
+# Freeze the model fallbacks above: omitted settings in an older saved project
+# must retain their previous blank assumptions. Only a new/reset estimate or
+# explicit product-only apply action receives these current kit defaults.
+FX6010_KIT_DEFAULTS = {'H66': None, 'H67': 18, 'H68': .92, 'H71': 'Pack volume (L)',
+                      'H72': None, 'H73': None, 'H74': None}
 SETTINGS_BLOCKS = (
     {'product': PRODUCT, 'id': 'A4', 'title_address': 'A4', 'ranges': ['A4:D30'], 'display_columns': [1, 2, 3, 4]},
     {'product': FX5090, 'id': 'A34', 'title_address': 'A34', 'ranges': ['A34:F57'], 'display_columns': [1, 2, 3, 4, 5, 6]},
@@ -93,7 +98,7 @@ def model():
         13: 'TABLE SELECTION',
         14: 'SC902 retains FC18580-01-01 and its page 8 selection rules. FIRETEX requires an exact published temperature for the selected table. Any next-higher factor selection is an estimating policy; there is no interpolation or extrapolation. Missing cells, scope limits and beam caps withhold DFT.',
         16: 'For FIRETEX, choose an explicit four-sided beam or column case. The older combined I/H beam/column case is for SC902. SC902 RHS/SHS columns require mesh; its hollow beams remain outside scope. Verify every product report and installation condition.',
-        17: 'SETTINGS retains separate product assumptions. SUMMARY pools orders by product and applies each product waste allowance once. FX6010 quantities require verified data matching the assessed three-component product.'}
+        17: 'SETTINGS retains separate product assumptions. SUMMARY pools orders by product and applies each product waste allowance once. FX6010 uses a two-component Australian 18 L kit with 92% volume solids. Existing saved assumptions remain unchanged until edited or deliberately replaced.'}
     for row, text in intro.items():
         sheets['START']['cells'][f'A{row}'] = _literal(text)
         sheets['START']['merges'].append(f'A{row}:H{row}')
@@ -177,7 +182,7 @@ def model():
                   'H66': 'Verified mixed density (kg/L)', 'H67': 'Verified mixed pack volume (L)',
                   'H68': 'Verified volume solids (%)', 'H69': 'Waste allowance (%)', 'H70': 'Steel density (kg/m³)',
                   'H71': 'Verified pack quantity basis', 'H72': 'Verified Part A (kg / pack)',
-                  'H73': 'Verified Part B (kg / pack)', 'H74': 'Verified Part C (kg / pack)'}
+                  'H73': 'Verified Part B (kg / pack)', 'H74': 'Legacy Part C (kg) - clear for current kit'}
     for address, label in new_labels.items():
         row, col = int(address[1:]), address[0]
         sheets['SETTINGS']['cells'][f'A{row}'] = _literal(label)
@@ -194,13 +199,13 @@ def model():
         (48, 'Starting estimates: Dulux FIRETEX FX5090 PC112, January 2026: one component, 69% volume solids, 18 L pail. The 1.39 kg/L transport weight is an estimating density, not an assessed DFT input.', 'F'),
         (52, 'Coating litres = area × DFT(mm) / volume-solids fraction. Pails are pooled before waste and rounded once. Confirm delivered pack, density and site losses.', 'F'),
         (64, FX6010, 'H'),
-        (86, 'The supplied certificate describes three components; the current Australian two-component pack is not confirmed for the assessed product. Enter verified pack data. DFT remains separate from quantity assumptions.', 'H'),
-        (90, 'Pack-volume basis requires verified mixed pack litres and volume solids. Component-mass basis additionally requires verified Parts A, B and C masses and mixed density. Do not substitute another formulation.', 'H'),
-        (93, 'Component quantities are order estimates only. Follow manufacturer instructions for complete-pack mixing, installation and application losses.', 'H')]:
+        (86, 'Dulux FIRETEX FX6010 PC115, March 2026: two components, 92% volume solids, 18 L mixed kit (17.75 L Part A + 0.25 L Part B). The supplied certificate\'s three-component wording is a typographical error. DFT remains separate from quantity assumptions.', 'H'),
+        (90, 'Coating litres = area × DFT(mm) / volume-solids fraction. Pack-volume basis uses mixed kit litres. Component-mass basis requires verified Part A and B masses and mixed density. Exact component masses and mixed density remain blank until verified.', 'H'),
+        (93, 'A retained nonzero Part C value holds material quantities for review. Use Australian kit defaults to clear it deliberately. Component orders are estimates; follow manufacturer instructions for complete-kit mixing and application losses.', 'H')]:
         sheets['SETTINGS']['cells'][f'A{row}'] = _literal(text)
         sheets['SETTINGS']['merges'].append(f'A{row}:{last}{row}')
     for address, label in {'F42':'Derived consumption (kg/m² at 1 mm DFT)', 'F43':'Pail mass estimate (kg)',
-                            'F44':'Theoretical pail coverage (m² at 1 mm DFT)', 'H80':'Total verified component mass (kg)',
+                            'F44':'Theoretical pail coverage (m² at 1 mm DFT)', 'H80':'Total verified Part A + B mass (kg)',
                             'H81':'Mixed pack volume used (L)', 'H82':'Theoretical pack coverage (m² at 1 mm DFT)'}.items():
         row, col = int(address[1:]), address[0]
         sheets['SETTINGS']['cells'][f'A{row}'] = _literal(label)
@@ -240,7 +245,7 @@ def model():
             sheets['SUMMARY']['merges'].append(f'A{row}:C{row}')
         summary[f'A{note_row}'] = _literal('Packs are pooled for this product only; waste and rounding apply once. Unresolved items withhold its complete order.')
         sheets['SUMMARY']['merges'].append(f'A{note_row}:I{note_row}')
-    summary['A47'] = _literal('Part C to order (kg)')
+    summary['A47'] = _literal('Legacy Part C - review in SETTINGS')
     summary['D47'] = {'formula':'""','style':0}
     sheets['SUMMARY']['merges'].append('A47:C47')
     return {'id': IDENTITY, 'title': 'Steel (intumescent)', 'schema_version': 1,
@@ -292,15 +297,24 @@ class IntumescentEngine(WorkbookEngine):
             profile.update(pack_kg=product(profile['pack_litres'],profile['density']),
                            part_a='',part_b='',part_c='')
         else:
-            a,b,c = (self._setting(address) for address in ('H72','H73','H74'))
-            mass = a+b+c if all(number(v) and v>0 for v in (a,b,c)) else ''
+            a,b = (self._setting(address) for address in ('H72','H73'))
+            try:
+                legacy_c = self._setting('H74')
+            except FormulaError:
+                # The public normalizer rejects nonfinite values. A retained
+                # invalid C must still withhold quantities rather than DFT.
+                legacy_c = 'invalid legacy value'
+            mass = a+b if all(number(v) and v>0 for v in (a,b)) else ''
             mass = mass if number(mass) else ''
             basis = self._setting('H71')
             if basis == 'Component mass (kg)':
                 profile['pack_litres'] = quotient(mass,profile['density'])
             elif basis != 'Pack volume (L)':
                 profile['pack_litres'] = ''
-            profile.update(pack_kg=mass,part_a=a,part_b=b,part_c=c,basis=basis)
+            profile.update(pack_kg=mass,part_a=a,part_b=b,part_c='',basis=basis,
+                           legacy_c=legacy_c,
+                           legacy_c_clear=(legacy_c is None or type(legacy_c) is str and legacy_c == ''
+                                           or number(legacy_c) and legacy_c == 0))
         return profile
 
     def _geometry(self, member, case, product_name=PRODUCT):
@@ -404,16 +418,19 @@ class IntumescentEngine(WorkbookEngine):
                 (sg,consumption,profile['part_a'],profile['part_b']))
         elif product_name in (FX5090,FX6010):
             valid_settings = valid_settings and number(profile['pack_litres']) and profile['pack_litres']>0
-            optional = [sg] + ([profile[key] for key in ('part_a','part_b','part_c')] if product_name==FX6010 else [])
+            optional = [sg] + ([profile[key] for key in ('part_a','part_b')] if product_name==FX6010 else [])
             valid_settings = valid_settings and all(v in (None,'') or number(v) and v>0 for v in optional)
         if not number(out['O']):
             out['W'] = 'DFT unavailable'
+        elif product_name == FX6010 and not profile['legacy_c_clear']:
+            out['W'] = ('Review legacy Part C: the current FX6010 kit has two components. '
+                        'Clear Part C or use Australian kit defaults.')
         elif invalid_override:
             out['W'] = 'Enter a positive girth / area override or clear it'
         elif not number(out['R']):
             out['W'] = 'Enter coating area or quantity, length and girth'
         elif not valid_settings:
-            out['W'] = ('Enter verified FX6010 pack data matching the assessed three-component product'
+            out['W'] = ('Enter FX6010 kit volume and volume solids, or verified Part A/B masses and mixed density'
                         if product_name==FX6010 else 'Check product quantity settings')
         else:
             if product_name == PRODUCT:

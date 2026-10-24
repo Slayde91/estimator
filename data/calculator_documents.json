@@ -25,7 +25,7 @@
         "verified_date": "2026-10-24",
         "availability": "Supplied PDF retained privately",
         "reference_coverage": "Tables 1–46. I/H beams/columns, RHS/SHS beams/columns and CHS columns. Case-specific periods include 20, 75 and 105 minutes; 150 minutes is tabulated for I/H columns.",
-        "notes": "Three-sided beams require concrete slab contact. Four-sided beam caps: I/H 5.770 mm and factor 400 m⁻¹; RHS/SHS 5.661 mm and factor 350 m⁻¹. Exact printed temperatures only. The certificate describes three components; current Australian two-component pack data is not used as a default. Referenced full assessment: FC21221-01-1.",
+        "notes": "Three-sided beams require concrete slab contact. Four-sided beam caps: I/H 5.770 mm and factor 400 m⁻¹; RHS/SHS 5.661 mm and factor 350 m⁻¹. Exact printed temperatures only. FX6010 has two components per PC115; the project owner confirmed on 24 October 2026 that the certificate's three-component wording is a typo. Original certificate and tables are retained. Referenced full assessment: FC21221-01-1.",
         "source_sha256": "3b3703934511e1e30c86474fb023aee343f66a172537e9adcbcc1588cad6c5c3"
       },
       {
@@ -41,14 +41,36 @@
       },
       {
         "title": "FIRETEX FX6010 — Australian Product Data Sheet, PC115 March 2026",
-        "kind": "Product data sheet — formulation comparison",
+        "kind": "Product data sheet — quantity settings",
         "url": "https://www.duluxprotectivecoatings.com.au/media/a4xpo0tq/firetex_fx6010_march_2026.pdf",
         "products": ["FIRETEX FX6010"],
         "region": "Australia",
         "verified_date": "2026-10-24",
         "availability": "Public PDF",
-        "reference_coverage": "Current Australian sheet describes two components, while the supplied certificate describes three.",
-        "notes": "Confirm the pack and formulation matching the supplied certificate before entering FX6010 quantity settings. This sheet does not populate those defaults or replace the certificate loading tables."
+        "reference_coverage": "Two components; 18 L kit; A:B 71:1 by volume; 92% volume solids. Published theoretical spreading rate is 0.92 m²/L at 1000 µm DFT.",
+        "notes": "New/reset estimates use 18 L and 92% solids. Saved settings remain unchanged until explicitly edited or updated. The 1.46 kg/L transport average is not treated as verified mixed density or used to invent component masses. DFT still comes only from the supplied certificate tables."
+      },
+      {
+        "title": "FIRETEX FX6010 — Australian Part A Safety Data Sheet",
+        "kind": "Safety data sheet — nominal pack identification",
+        "url": "https://go.lupinsys.com/duluxgroup/harms/pm/3739868c196437476cf0724526e2d06b-published/attachment/aus-ghs.pdf",
+        "products": ["FIRETEX FX6010"],
+        "region": "Australia",
+        "verified_date": "2026-10-24",
+        "availability": "Public PDF linked by Dulux",
+        "reference_coverage": "Part A code 783-H0379; nominal 17.75 L pack.",
+        "notes": "Component volume identifies the Australian kit. Typical SDS specific gravity is not an exact component fill mass."
+      },
+      {
+        "title": "FIRETEX FX6010 — Australian Part B Safety Data Sheet",
+        "kind": "Safety data sheet — nominal pack identification",
+        "url": "https://go.lupinsys.com/duluxgroup/harms/pm/a32eba52f1e98495a8d32cd6af2bbb30-published/attachment/aus-ghs.pdf",
+        "products": ["FIRETEX FX6010"],
+        "region": "Australia",
+        "verified_date": "2026-10-24",
+        "availability": "Public PDF linked by Dulux",
+        "reference_coverage": "Part B catalyst code 976-H0393; nominal 0.25 L pack.",
+        "notes": "Mix the complete matched kit in accordance with the product instructions. No third FX6010 component is required."
       },
       {
         "title": "Nullifire SC902 — FC18580-01-01, 20 March 2024",

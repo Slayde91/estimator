@@ -42,7 +42,7 @@ vm.runInContext(fs.readFileSync('static/calculation-queue.js','utf8'),context);
   vm.runInContext(fs.readFileSync('static/downloads.js','utf8'),context);
 let source = fs.readFileSync('static/calculators.js', 'utf8');
 source = source.replace('  window.CeasefireCalculators = { open, projectSnapshot, projectFingerprint, prepareProject, applyProject };', `
-  globalThis.audit = {state,current,dirty,displayValue,numericInputValue,makeControl,setInput,calculate,save,reset,importSchedule,open,
+  globalThis.audit = {state,current,dirty,displayValue,numericInputValue,makeControl,setInput,calculate,save,reset,applySettingsDefaults,settingsPanels,importSchedule,open,
      addScheduleRow,removeScheduleRow,requestRemoveScheduleRow,refreshScheduleDeleteControls,undoScheduleRemove,projectSnapshot,projectFingerprint,prepareDefaults,markProjectSaved,choiceSignature,
       exportTemplate,downloadSchedulePdf,downloadExcelRegister,downloadMaterialsSummaryPdf,selectCalculator,selectPage,prepareProject,applyProject,headerLabels,safeDocumentUrl,renderGrid,renderOverview,renderProductTotals,outputState,updateOutputCell,renderDocuments,renderChoices,sourceDisplayText,hiddenColumns,displayPages,
     setRequest(fn){request=fn;},setFetch(fn){globalThis.fetch=fn;},setRender(fn){renderGrid=fn;}};
@@ -2324,6 +2324,157 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
   audit.state.action=true;assert.throws(()=>takeoffBridge.readTakeoffTarget('steel_board'),/unavailable/);audit.state.action=false;
   entry.scheduleRows=undefined;assert.throws(()=>takeoffBridge.readTakeoffTarget('steel_board'),/unavailable/);
   context.document.activeElement=null;passed++;
+
+  // Applying one product's kit defaults is an explicit draft edit. It cannot
+  // reset other product assumptions, precise schedule values or saved inputs.
+  const fxKitValues={H66:null,H67:18,H68:.92,H71:'Pack volume (L)',H72:null,H73:null,H74:null};
+  function fxKitScenario() {
+    const original={SETTINGS:{D6:'Nullifire SC902',D9:1.462345678901234,D15:1.751234567890123,
+      F36:1.392345678901234,F37:19.12345678901234,F38:.691234567890123,
+      H66:1.812345678901234,H67:9.123456789012345,H68:.812345678901234,
+      H69:.123456789012345,H70:7900.123456789012,H71:'Component mass (kg)',
+      H72:8.123456789012345,H73:1.123456789012345,H74:2.123456789012345},
+      SCHEDULE:{A10:'Precise retained member',B10:'FIRETEX FX6010',G10:100.1234567890123,
+        L10:12.3456789012345,A1009:'Retained last row',L1009:.123456789012345}};
+    const target=setup(original);
+    audit.state.entries.delete('steel_board');audit.state.entries.set('steel_intumescent',target);
+    audit.state.current='steel_intumescent';audit.state.takeoffReservation=null;
+    target.definition={...target.definition,id:'steel_intumescent',title:'Steel (intumescent)',pages:['SETTINGS','SCHEDULE'],
+      sheets:[{name:'SETTINGS',header_rows:[],merges:[]},{name:'SCHEDULE',header_rows:[9],merges:[]}],
+      schedule:{sheet:'SCHEDULE',first_row:10,last_row:1009,header_row:9,columns:[]}};
+    target.sheet='SETTINGS';target.page='SETTINGS';target.settingsSelection={SETTINGS:'A64'};
+    target.scheduleRows=[10,1009];target.savedRows=JSON.stringify(target.scheduleRows);
+    target.pendingResult={old:true};target.navigationCache={old:true};target.needsRender=false;
+    const section={id:'A64',label:'FIRETEX FX6010',ranges:['A64:H93'],defaults_action:{
+      label:'Use Australian kit defaults',title:'Apply FX6010 kit defaults?',
+      detail:'Use the Australian 18 L kit with 92% volume solids. Waste and steel density stay as entered.',
+      settings:copy(fxKitValues)}};
+    const other={definition:{id:'ductwork'},inputs:{CALCULATOR:{B11:4.123456789012345},
+      'PRODUCT SETTINGS':{B30:.234567890123456}},invalid:new Map(),revision:7};
+    other.saved=JSON.stringify(other.inputs);audit.state.entries.set('ductwork',other);
+    byId('calculator-grid').replaceChildren();
+    const calls=[];
+    audit.setRequest(async(path,options)=>{
+      const body=JSON.parse(options.body);calls.push({path,body});
+      assert.ok(path.endsWith('/steel_intumescent/worksheet'),'Applying defaults only recalculates the draft');
+      assert.equal(target.pendingResult,null);assert.equal(target.navigationCache,null);
+      assert.equal(target.needsRender,true);
+      return result(copy(body.inputs),{sheet:body.sheet,max_row:93,max_column:8});
+    });
+    return {target,section,original,calls,other};
+  }
+
+  let kit=fxKitScenario();
+  const kitDefinitions=[{id:'A4',label:'Nullifire SC902'},{id:'A34',label:'FIRETEX FX5090'},kit.section];
+  const kitDefinitionBefore=JSON.stringify(kitDefinitions),kitSaved=kit.target.saved,kitSavedRows=kit.target.savedRows;
+  const kitOriginalRef=kit.target.inputs,kitOtherBefore=JSON.stringify(kit.other.inputs);
+  const kitPanels=audit.settingsPanels(kit.target,kitDefinitions);
+  byId('calculator-grid').replaceChildren(kitPanels.chooser,...kitPanels.panels.values());
+  const kitButtons=descendants(byId('calculator-grid')).filter(node=>node.dataset?.calculatorDefaults);
+  assert.equal(kitButtons.length,1);assert.equal(kitButtons[0].dataset.calculatorDefaults,'A64');
+  assert.equal(kitButtons[0].textContent,'Use Australian kit defaults');assert.equal(kitButtons[0].type,'button');
+  assert.deepEqual(copy(kit.target.inputs),kit.original,'Rendering the action never applies it');
+  assert.equal(audit.dirty(kit.target),false);assert.equal(kitPanels.panels.get('A4').hidden,true);
+  assert.equal(kitPanels.panels.get('A64').hidden,false);
+  kit.target.invalid.set('SETTINGS!H67','invalid old pack');kit.target.invalid.set('SETTINGS!H74','invalid old third part');
+  const kitApplying=kitButtons[0].emit('click');await flush();
+  assert.equal(byId('calculator-confirm-dialog').open,true);assert.equal(kitButtons[0].disabled,true);
+  assert.equal(byId('calculator-confirm-title').textContent,'Apply FX6010 kit defaults?');
+  assert.equal(byId('calculator-confirm-button').textContent,'Apply to draft');
+  assert.deepEqual(copy(kit.target.inputs),kit.original,'Reviewing the action keeps every input');
+  await byId('calculator-confirm-dialog').close('confirm');await kitApplying;
+  const kitExpected={...copy(kit.original),SETTINGS:{...copy(kit.original.SETTINGS),...fxKitValues}};
+  assert.deepEqual(copy(kit.target.inputs),kitExpected);assert.deepEqual(copy(kitOriginalRef),kit.original,'The old input object is not partly edited');
+  assert.equal(kit.target.revision,1);assert.equal(kit.target.invalid.size,0);assert.equal(kit.calls.length,1);
+  assert.deepEqual(copy(kit.calls[0].body.inputs),kitExpected);assert.equal(kit.calls[0].body.sheet,'SETTINGS');
+  assert.equal(kit.target.saved,kitSaved);assert.equal(kit.target.savedRows,kitSavedRows);
+  assert.deepEqual(copy(kit.target.scheduleRows),[10,1009]);assert.equal(audit.dirty(kit.target),true);
+  assert.equal(JSON.stringify(kit.other.inputs),kitOtherBefore);assert.equal(kit.other.revision,7);
+  assert.equal(JSON.stringify(kitDefinitions),kitDefinitionBefore,'Metadata is never rewritten by applying defaults');
+  const kitProject=copy(audit.projectSnapshot());assert.deepEqual(kitProject.steel_intumescent.inputs,kitExpected);
+  assert.equal(kitProject.steel_intumescent.inputs.SCHEDULE.L10,12.3456789012345);
+  assert.equal(kitProject.steel_intumescent.inputs.SETTINGS.H69,.123456789012345);
+  assert.equal(kitProject.steel_intumescent.inputs.SETTINGS.H70,7900.123456789012);
+  assert.equal(kitButtons[0].disabled,false);assert.match(byId('calculator-save-status').textContent,/Unsaved/);passed++;
+
+  // Cancel retains the complete saved draft and all previous error/cache state.
+  kit=fxKitScenario();kit.target.invalid.set('SETTINGS!H67','old invalid pack');
+  const kitCancelBefore=JSON.stringify(kit.target.inputs),kitCancelSaved=kit.target.saved;
+  const kitCancelPending=kit.target.pendingResult,kitCancelCache=kit.target.navigationCache;
+  const kitCancelling=audit.applySettingsDefaults(kit.target,kit.section);await flush();
+  await byId('calculator-confirm-dialog').close('cancel');await kitCancelling;
+  assert.equal(JSON.stringify(kit.target.inputs),kitCancelBefore);assert.equal(kit.target.saved,kitCancelSaved);
+  assert.equal(kit.target.pendingResult,kitCancelPending);assert.equal(kit.target.navigationCache,kitCancelCache);
+  assert.equal(kit.target.invalid.get('SETTINGS!H67'),'old invalid pack');assert.equal(kit.target.revision,0);
+  assert.equal(kit.calls.length,0);assert.equal(audit.state.action,false);passed++;
+
+  // Only errors for addresses explicitly replaced by this metadata are cleared.
+  kit=fxKitScenario();kit.target.invalid.set('SETTINGS!H67','replaced');
+  kit.target.invalid.set('SETTINGS!H69','retain waste error');kit.target.invalid.set('SCHEDULE!G10','retain factor error');
+  const kitErrorApply=audit.applySettingsDefaults(kit.target,kit.section);await flush();
+  await byId('calculator-confirm-dialog').close('confirm');await kitErrorApply;
+  assert.equal(kit.target.invalid.has('SETTINGS!H67'),false);
+  assert.equal(kit.target.invalid.get('SETTINGS!H69'),'retain waste error');
+  assert.equal(kit.target.invalid.get('SCHEDULE!G10'),'retain factor error');
+  assert.equal(kit.target.inputs.SETTINGS.H69,.123456789012345);
+  assert.equal(kit.target.inputs.SCHEDULE.G10,100.1234567890123);
+  assert.equal(kit.calls.length,0,'Other invalid inputs still block recalculation');passed++;
+
+  // A confirmation belongs to its original project, page, selection and revision.
+  for(const mutation of ['project','sheet','page','selection','edit','reservation']) {
+    kit=fxKitScenario();
+    const reviewed=audit.applySettingsDefaults(kit.target,kit.section);await flush();
+    assert.equal(byId('calculator-confirm-dialog').open,true);
+    if(mutation==='project') {
+      const replacement={...kit.target,inputs:copy(kit.target.inputs),invalid:new Map()};
+      replacement.inputs.SETTINGS.H67=31.23456789012345;
+      audit.state.entries=new Map(audit.state.entries);audit.state.entries.set('steel_intumescent',replacement);
+      audit.state.loadRevision++;
+    }
+    if(mutation==='sheet'){kit.target.sheet='SCHEDULE';kit.target.page='SCHEDULE';}
+    if(mutation==='page')kit.target.page='ANOTHER SETTINGS PAGE';
+    if(mutation==='selection')kit.target.settingsSelection.SETTINGS='A34';
+    if(mutation==='edit')audit.setInput(kit.target,'SETTINGS','H67',27.12345678901234);
+    if(mutation==='reservation')audit.state.takeoffReservation={id:'new transfer lease'};
+    const latest=JSON.stringify(kit.target.inputs),latestCurrent=JSON.stringify(audit.current().inputs);
+    const latestRevision=kit.target.revision,latestSaved=kit.target.saved,reservation=audit.state.takeoffReservation;
+    await byId('calculator-confirm-dialog').close('confirm');await reviewed;
+    assert.equal(JSON.stringify(kit.target.inputs),latest,mutation+' retains the reviewed target');
+    assert.equal(JSON.stringify(audit.current().inputs),latestCurrent,mutation+' retains the latest draft');
+    assert.equal(kit.target.revision,latestRevision);assert.equal(kit.target.saved,latestSaved);
+    assert.equal(audit.state.takeoffReservation,reservation);assert.equal(kit.calls.length,0);
+    assert.match(byId('calculator-message').textContent,/changed while the confirmation was open/);passed++;
+  }
+
+  // An old hidden button cannot apply defaults to another panel or replacement project.
+  for(const mutation of ['other-panel','other-sheet','other-project']) {
+    kit=fxKitScenario();
+    const panels=audit.settingsPanels(kit.target,[{id:'A34',label:'FIRETEX FX5090'},kit.section]);
+    const oldButton=descendants(panels.panels.get('A64')).find(node=>node.dataset?.calculatorDefaults);
+    if(mutation==='other-panel')await panels.chooser.children[0].emit('click');
+    if(mutation==='other-sheet'){kit.target.sheet='SCHEDULE';kit.target.page='SCHEDULE';}
+    if(mutation==='other-project')audit.state.entries.set('steel_intumescent',{...kit.target,inputs:copy(kit.target.inputs),invalid:new Map()});
+    const oldInputs=JSON.stringify(kit.target.inputs),newInputs=JSON.stringify(audit.current().inputs);
+    await oldButton.emit('click');
+    assert.equal(byId('calculator-confirm-dialog').open,false);assert.equal(kit.calls.length,0);
+    assert.equal(JSON.stringify(kit.target.inputs),oldInputs);assert.equal(JSON.stringify(audit.current().inputs),newInputs);
+    assert.equal(kit.target.revision,0);passed++;
+  }
+
+  // Another action or Takeoffs lease rejects before opening a review dialog.
+  for(const blocker of ['action','reservation']) {
+    kit=fxKitScenario();
+    if(blocker==='action')audit.state.action=true;
+    else audit.state.takeoffReservation={id:'existing transfer lease'};
+    const before=JSON.stringify(kit.target.inputs),lease=audit.state.takeoffReservation;
+    const blockedPanels=audit.settingsPanels(kit.target,[kit.section]);
+    const blockedButton=descendants(blockedPanels.panels.get('A64')).find(node=>node.dataset?.calculatorDefaults);
+    assert.equal(blockedButton.disabled,true);await blockedButton.emit('click');
+    assert.equal(byId('calculator-confirm-dialog').open,false);assert.equal(JSON.stringify(kit.target.inputs),before);
+    assert.equal(audit.state.takeoffReservation,lease);assert.equal(kit.calls.length,0);
+    assert.equal(audit.state.action,blocker==='action');passed++;
+  }
+  audit.state.action=false;audit.state.takeoffReservation=null;byId('calculator-grid').replaceChildren();
 
   // Fixed workbook interface cells translate without granting ownership of
   // formula results, product text or editable cells that happen to match them.

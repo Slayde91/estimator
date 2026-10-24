@@ -1,6 +1,6 @@
 # FIRETEX intumescent calculation policy
 
-Steel (intumescent) supports FIRETEX FX5090 and FIRETEX FX6010 alongside Nullifire SC902. Existing calculator ID, schedule coordinates, SC902 settings and compatibility source hash remain unchanged. New product settings are independent persistent fields; browsing a settings panel does not copy values between products.
+Steel (intumescent) supports FIRETEX FX5090 and FIRETEX FX6010 alongside Nullifire SC902. It opens on SCHEDULE, with SUMMARY and SETTINGS tabs; the retained START worksheet is hidden from navigation. Existing calculator ID, schedule coordinates, SC902 settings and compatibility source hash remain unchanged. Product settings remain independent; browsing a settings panel does not copy values between products.
 
 ## Authority
 
@@ -36,9 +36,26 @@ FX5090 starts with [Dulux PC112 January 2026](https://www.duluxprotectivecoating
 
 FX6010 is the two-component Australian product described by [Dulux PC115 March 2026](https://www.duluxprotectivecoatings.com.au/media/a4xpo0tq/firetex_fx6010_march_2026.pdf): an 18 L kit, 71:1 A:B by volume and 92% volume solids. The project owner confirmed on 24 October 2026 that the certificate's three-component description is a typo. This clarification does not alter the retained certificate bytes or its DFT tables.
 
-New and explicitly reset estimates start with 18 L and 92% solids, so litres and whole kits can be calculated without density or component masses. The linked Australian SDS identify [Part A as 17.75 L, code 783-H0379](https://go.lupinsys.com/duluxgroup/harms/pm/3739868c196437476cf0724526e2d06b-published/attachment/aus-ghs.pdf) and [Part B catalyst as 0.25 L, code 976-H0393](https://go.lupinsys.com/duluxgroup/harms/pm/a32eba52f1e98495a8d32cd6af2bbb30-published/attachment/aus-ghs.pdf). These volumes are not kilograms. The PDS's 1.46 kg/L transportation average is not seeded as a verified mixed density; mixed density and exact A/B masses remain blank and editable. Component-mass basis uses A+B and requires positive A/B masses and mixed density. Missing masses or density leave the corresponding kilogram outputs unavailable without blocking volume-based kit orders.
+The [current Australian product page](https://www.duluxprotectivecoatings.com.au/products/explore-product-ranges/firetex/firetex-fx6010/) links the PDS and both component SDS. The SDS identify [Part A as 17.75 L, code 783-H0379](https://go.lupinsys.com/duluxgroup/harms/pm/3739868c196437476cf0724526e2d06b-published/attachment/aus-ghs.pdf) and [Part B catalyst as 0.25 L, code 976-H0393](https://go.lupinsys.com/duluxgroup/harms/pm/a32eba52f1e98495a8d32cd6af2bbb30-published/attachment/aus-ghs.pdf). Both SDS are dated 10 August 2023, version 1.1. Part A section 9 on page 5 gives specific gravity 1.46; Part B section 9 on page 4 gives 1.2, with the typical-values qualification continuing on page 5.
 
-Saved input values, including omitted fields and explicit blanks, are not filled or migrated on load. The FX6010-only **Use Australian kit defaults** action updates the pack settings after confirmation, preserves schedule rows, other products, waste and steel density, and remains unsaved until Save. The old H74 Part C address remains accepted for project compatibility. A retained nonzero or invalid Part C value holds FX6010 material quantities with a review message; it is never silently added to or discarded from the two-component kit. Blank or numeric zero C is accepted. The action explicitly clears that legacy value. DFT remains available during quantity review.
+Missing or blank FX6010 kit fields automatically use these Australian estimating defaults, with no apply button:
+
+| Field | Default | Basis |
+| --- | --- | --- |
+| Kit volume | 18 L | Published nominal Australian kit |
+| Volume solids | 92% | PC115 typical application data |
+| Pack quantity basis | Pack volume (L) | Litres and pack counts use the selected volume directly |
+| Nominal Part A mass estimate | 25.915 kg | 17.75 L × typical SG 1.46 |
+| Nominal Part B mass estimate | 0.300 kg | 0.25 L × typical SG 1.2 |
+| Nominal mixed density estimate | 26.215 / 18 kg/L (about 1.456389) | Sum of estimated component masses divided by the nominal kit volume |
+
+Specific gravity is converted numerically to kg/L using nominal water density of 1 kg/L; component volumes are taken to sum to the published 18 L kit. These are nominal estimates from typical properties, not measured component fill masses or a published exact mixed density. The PDS's 1.46 kg/L transportation average is retained as reference information rather than relabelled as an exact density. The calculator keeps full calculation precision and rounds only for display. Volume-based quantities use 18 L and 92% solids by default, avoiding reconstruction of kit litres from rounded mass estimates. Component-mass basis remains editable and uses A+B divided by the selected density.
+
+Defaults are supplied in an effective calculation/display copy for H66, H67, H68, H71, H72 and H73. Raw saved maps retain omitted fields and explicit blanks; saved numeric custom values are preserved exactly. Loading, calculating, navigation and export do not write these defaults into the saved project. Other products, waste and steel density keep their own entered settings.
+
+For pack-volume estimates, Part A/B order masses are withheld if their sum differs from pack volume × mixed density by more than 0.5%. This allows nominal rounding while preventing conflicting custom pack settings from producing component orders. Coating litres, kit counts and required mixed mass remain available when valid. Component-mass basis derives pack volume from A+B and density.
+
+The old H74 Part C address remains accepted for project compatibility and is excluded from automatic default filling. A retained nonzero or invalid Part C value holds FX6010 material quantities with a review message; it is never silently added to or discarded from the two-component kit. Blank or numeric zero C is accepted. DFT remains available during quantity review.
 
 SC902 retains its published consumption calculation. Each product pools demand independently, applies its own waste once, then rounds up packs once. Unresolved items withhold that product's complete order; another product's valid order remains available. Full schedule details and PDF/XLSX exports retain product identity, table locator, source hashes and held statuses.
 

@@ -1206,7 +1206,6 @@
     for (const button of $("calculator-grid").querySelectorAll("[data-schedule-add]")) button.disabled = state.action || hasErrors || entry.scheduleRows.length >= entry.definition.schedule.last_row - entry.definition.schedule.first_row + 1;
     for (const button of $("calculator-grid").querySelectorAll("[data-schedule-undo]")) button.disabled = state.action || hasErrors || !entry.removedRows?.length;
     for (const button of $("calculator-grid").querySelectorAll("[data-schedule-remove]")) button.disabled = state.action || hasErrors;
-    for (const button of $("calculator-grid").querySelectorAll("[data-calculator-defaults]")) button.disabled = state.action || Boolean(state.takeoffReservation);
   }
 
   function calculationStatus(text = "") {
@@ -1242,13 +1241,19 @@
     $("calculator-option-lists").append(list); state.optionLists.set(key, list.id); return list.id;
   }
 
+  function effectiveControlValue(entry, sheet, address, fallback) {
+    const value = Object.prototype.hasOwnProperty.call(entry.inputs[sheet] || {}, address) ? entry.inputs[sheet][address] : fallback;
+    const defaults = entry.definition.automatic_defaults?.[sheet];
+    return (value === undefined || value === null || value === "") && defaults && Object.prototype.hasOwnProperty.call(defaults, address) ? defaults[address] : value;
+  }
+
   function makeControl(cell, row, entry, label, item = null) {
     const address = cell.address || `${columnName(cell.column)}${row}`;
     const key = `${entry.sheet}!${address}`;
     const sourceSheet = entry.sheet;
     const rawValue = () => {
       const latest = entry.latestCells?.get(key);
-      return Object.prototype.hasOwnProperty.call(entry.inputs[sourceSheet] || {}, address) ? entry.inputs[sourceSheet][address] : latest ? latest.value : cell.value;
+      return effectiveControlValue(entry, sourceSheet, address, latest ? latest.value : cell.value);
     };
     const value = rawValue();
     const options = cellOptions(cell, entry);
@@ -1264,7 +1269,10 @@
     const searchableSteel = cell.type === "select" && options.some(option => typeof option === "string") && schedule && coordinates && entry.sheet === schedule.sheet
       && coordinates.row >= schedule.first_row && coordinates.row <= schedule.last_row
       && (["steel_vermiculite", "steel_intumescent"].includes(entry.definition.id) && coordinates.column === 6 || entry.definition.id === "steel_board" && coordinates.column === 4);
-    const listedChoice = listedDuctChoice || closedSetting;
+    const listedIntumescentChoice = cell.type === "select" && entry.definition.id === "steel_intumescent"
+      && entry.sheet === schedule?.sheet && coordinates?.row >= schedule.first_row
+      && coordinates.row <= schedule.last_row && [3, 4].includes(coordinates.column);
+    const listedChoice = listedDuctChoice || closedSetting || listedIntumescentChoice;
     const allowOther = !listedChoice && (cell.allow_other || ["warning", "information"].includes(cell.error_style || cell.validation?.error_style || cell.validation?.errorStyle));
     // A dropdown may mix numbers and text (60 and "60/60/60"). Its current
     // selection cannot determine the type of every other available option.
@@ -1592,7 +1600,7 @@
     for (const control of $("calculator-grid").querySelectorAll("[data-calculator-cell]")) {
       const address = control.dataset.calculatorCell, key = `${entry.sheet}!${address}`, cell = cells.get(address);
       if (!cell || control === document.activeElement || entry.invalid.has(key)) continue;
-      const value = Object.prototype.hasOwnProperty.call(entry.inputs[entry.sheet] || {}, address) ? entry.inputs[entry.sheet][address] : cell.value;
+      const value = effectiveControlValue(entry, entry.sheet, address, cell.value);
       if (control.calculatorSyncValue) control.calculatorSyncValue(value);
       else {
         control.calculatorEnsureOption?.(value);
@@ -1771,13 +1779,6 @@
       button.type = "button"; button.id = `${prefix}-button`; button.dataset.calculatorSettingsSection = definition.id; button.setAttribute("aria-controls", prefix);
       panel.id = prefix; panel.setAttribute("role", "region"); panel.setAttribute("aria-labelledby", button.id);
       if (definition.note) panel.append(node("p", "calculator-technical-note calculator-settings-note", definition.note));
-      if (definition.defaults_action) {
-        const apply = uiNode("button", "button secondary", definition.defaults_action.label);
-        apply.type = "button"; apply.dataset.calculatorDefaults = definition.id;
-        apply.disabled = state.action || Boolean(state.takeoffReservation);
-        apply.addEventListener("click", () => applySettingsDefaults(entry, definition));
-        panel.append(apply);
-      }
       button.addEventListener("click", () => {
         if (current() !== entry || currentPage(entry) !== page) return;
         entry.settingsSelection[page] = entry.settingsSelection[page] === definition.id ? null : definition.id;
@@ -2094,8 +2095,9 @@
     if (sectionLinks.length && metadata.navigation_mode === "links") content.push(renderContents(sectionLinks));
     const boardSchedule = Boolean(schedule && entry.definition.id === "steel_board" && entry.sheet === "CALCULATOR");
     const vermiculiteSchedule = Boolean(schedule && entry.definition.id === "steel_vermiculite" && entry.sheet === "SCHEDULE");
+    const intumescentSchedule = Boolean(schedule && entry.definition.id === "steel_intumescent" && entry.sheet === "SCHEDULE");
     const scheduleOverview = schedule ? renderOverview(visibleRows.filter((row) => row.row < schedule.header_row), entry, columns) : null;
-    if (scheduleOverview && !boardSchedule && !vermiculiteSchedule) content.push(scheduleOverview);
+    if (scheduleOverview && !boardSchedule && !vermiculiteSchedule && !intumescentSchedule) content.push(scheduleOverview);
     if (entry.definition.id === "steel_vermiculite" && entry.sheet === "BAGS") {
       const totals = node("section", "calculator-product-totals"); totals.id = "calculator-product-totals";
       entry.productTotalsElement = totals; renderProductTotals(result, totals); content.push(totals);
@@ -2422,26 +2424,6 @@
       if (entry.definition.schedule) entry.scheduleRows = [entry.definition.schedule.first_row];
       entry.scheduleViewport = null; entry.removedRows = [];
       message(uiCopy("Calculator defaults restored in this draft. Use Save to keep them.")); await calculate();
-    } finally { state.action = false; updateStatus(); }
-  }
-
-  async function applySettingsDefaults(entry, section) {
-    const action = section.defaults_action, page = currentPage(entry);
-    if (!action?.settings || current() !== entry || entry.sheet !== "SETTINGS" || state.action || state.takeoffReservation
-        || entry.settingsSelection?.[page] !== section.id) return;
-    state.action = true; updateStatus(); const revision = entry.revision;
-    try {
-      if (!await confirmReplace(uiCopy(action.title), uiCopy(action.detail), uiCopy("Apply to draft"))) return;
-      if (current() !== entry || entry.revision !== revision || currentPage(entry) !== page
-          || entry.settingsSelection?.[page] !== section.id || state.takeoffReservation) {
-        message(uiCopy("The calculator changed while the confirmation was open. Review the latest draft and try again."), true); return;
-      }
-      const settings = clone(action.settings);
-      entry.inputs = { ...entry.inputs, SETTINGS: { ...(entry.inputs.SETTINGS || {}), ...settings } };
-      for (const address of Object.keys(settings)) entry.invalid.delete(`SETTINGS!${address}`);
-      entry.revision++; entry.pendingResult = null; entry.navigationCache = null; entry.needsRender = true;
-      clearTimeout(state.timer);
-      message(uiCopy("FX6010 kit defaults applied to this draft. Use Save to keep them.")); await calculate();
     } finally { state.action = false; updateStatus(); }
   }
 

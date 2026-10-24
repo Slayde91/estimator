@@ -219,10 +219,11 @@ def project_calculator_report(calculator_id, inputs=None):
             summary['rows'].append({'row': index, 'values': dict(zip('ABCDEFGHI',
                 [name, total['area'], total['kg'], total['litres'], total['net'], total['waste'],
                  total['whole'], total['order_litres'], total['status']]))})
-            components = '; '.join('Part ' + part.upper() + ': ' + _number(total.get('part_' + part), blank='Unavailable') + ' kg'
+            estimate_label = 'Estimated ' if name == 'FIRETEX FX6010' else ''
+            components = '; '.join(estimate_label + 'Part ' + part.upper() + ': ' + _number(total.get('part_' + part), blank='Unavailable') + ' kg'
                                    for part in ('a', 'b', 'c') if total.get('part_' + part) not in (None, ''))
             summary['qualifications'].append((name, components,
-                'Pack: ' + _number(total['pack_kg'], blank='Unavailable') + ' kg / '
+                ('Estimated pack mass: ' if estimate_label else 'Pack: ') + _number(total['pack_kg'], blank='Unavailable') + ' kg / '
                 + _number(total['kit_litres'], blank='Unavailable') + ' L.'))
         data['summaries'] = [summary]
         data['totals'] = [('Available coating area (m²)', _sum_values(t['area'] for t in pools.values())),
@@ -233,7 +234,10 @@ def project_calculator_report(calculator_id, inputs=None):
                          'FIRETEX factors below the first or above the last row are withheld; blanks and case-specific fire periods are retained. '
                          'Four-sided FIRETEX beams have separate thickness and section-factor limits. '
                          'Wet film = DFT / volume solids. Quantities follow independent editable product settings. '
-                         'FX6010 uses the two-component Australian kit: 18 L and 92% volume solids. Density and component masses require verified entries for kilogram estimates. '
+                         'Blank FX6010 kit settings automatically use Australian 18 L / 92% defaults. Nominal Part A / B mass estimates are 25.915 / 0.300 kg; '
+                         'the mixed density estimate is 26.215 / 18 kg/L, derived from nominal AU component volumes and typical SDS specific gravities. '
+                         'These are editable estimates; saved custom values and raw saved inputs are retained. '
+                         'Conflicting pack volume, density and component mass settings withhold Part A/B orders; check the quantity review notes. '
                          'SC902 RHS/SHS columns require mesh. Primers, topcoats and other system allowances are separate.')
         evidence, receipts = [], []
         used_products = {item['values']['B'] for item in rows}

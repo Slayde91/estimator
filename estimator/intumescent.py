@@ -4,6 +4,7 @@ DFT comes exclusively from the reviewed assessment. Product settings affect
 material quantities, never fire performance or the published table values.
 """
 
+from copy import deepcopy
 from functools import lru_cache
 import math
 
@@ -21,6 +22,7 @@ CASES = {'I/H beam - 3 sides': 'R3', 'I/H beam/column - 4 sides': 'R4',
          'RHS/SHS column - 4 sides': 'RHS', 'CHS column - 4 sides': 'CHS',
          'I/H column - 4 sides': 'R4C', 'I/H beam - 4 sides': 'R4B',
          'RHS/SHS beam - 3 sides': 'H3', 'RHS/SHS beam - 4 sides': 'H4B'}
+CASE_CHOICES = tuple(label for label in CASES if label != 'I/H beam/column - 4 sides')
 PERIODS = (15, 20, 30, 45, 60, 75, 90, 105, 120, 150, 180)
 TEMPERATURES = (350, 400, 450, 500, 520, 550, 580, 600, 620, 650, 700, 750)
 SC902_SETTING_DEFAULTS = {'D6': PRODUCT, 'D8': 1.55, 'D9': 1.46, 'D10': 22.3, 'D11': 2.7, 'D12': .99,
@@ -31,11 +33,25 @@ SETTING_DEFAULTS = {**SC902_SETTING_DEFAULTS,
                     'F36': 1.39, 'F37': 18, 'F38': .69, 'F39': 0, 'F40': 7850,
                     'H66': None, 'H67': None, 'H68': None, 'H69': 0, 'H70': 7850,
                     'H71': 'Pack volume (L)', 'H72': None, 'H73': None, 'H74': None}
-# Freeze the model fallbacks above: omitted settings in an older saved project
-# must retain their previous blank assumptions. Only a new/reset estimate or
-# explicit product-only apply action receives these current kit defaults.
-FX6010_KIT_DEFAULTS = {'H66': None, 'H67': 18, 'H68': .92, 'H71': 'Pack volume (L)',
-                      'H72': None, 'H73': None, 'H74': None}
+# Nominal AU kit estimates derived from the published component volumes and
+# SDS specific gravities, not measured component masses or assessed DFT data.
+FX6010_KIT_DEFAULTS = {'H66': (17.75 * 1.46 + .25 * 1.2) / 18,
+                      'H67': 18, 'H68': .92, 'H71': 'Pack volume (L)',
+                      'H72': 17.75 * 1.46, 'H73': .25 * 1.2, 'H74': None}
+AUTOMATIC_DEFAULTS = {'SETTINGS': {address: value for address, value in FX6010_KIT_DEFAULTS.items()
+                                  if address != 'H74'}}
+_COMPONENT_ORDER_REVIEW = 'Component order withheld: check pack volume, density and Part A/B masses'
+_SC_OPEN_TEMPERATURES = tuple(t for t in TEMPERATURES if t != 520)
+_FX5090_TEMPERATURES = tuple(t for t in TEMPERATURES if t not in (520, 580, 620))
+_TEMPERATURE_OPTIONS = {
+    PRODUCT: {'R3': _SC_OPEN_TEMPERATURES, 'R4': _SC_OPEN_TEMPERATURES,
+              'RHS': TEMPERATURES, 'CHS': TEMPERATURES},
+    FX5090: {case: _FX5090_TEMPERATURES for case in ('R3', 'R4', 'H3', 'H4', 'CHS')},
+    FX6010: {'R3': _SC_OPEN_TEMPERATURES,
+             'R4': tuple(t for t in _SC_OPEN_TEMPERATURES if t != 620),
+             'H3': tuple(t for t in _SC_OPEN_TEMPERATURES if t != 580),
+             'H4': tuple(t for t in TEMPERATURES if t not in (580, 620)),
+             'CHS': tuple(t for t in TEMPERATURES if t not in (580, 620))}}
 SETTINGS_BLOCKS = (
     {'product': PRODUCT, 'id': 'A4', 'title_address': 'A4', 'ranges': ['A4:D30'], 'display_columns': [1, 2, 3, 4]},
     {'product': FX5090, 'id': 'A34', 'title_address': 'A34', 'ranges': ['A34:F57'], 'display_columns': [1, 2, 3, 4, 5, 6]},
@@ -48,6 +64,20 @@ _QUANTITY_SETTINGS = {
 
 def number(value):
     return type(value) in (int, float) and math.isfinite(value)
+
+
+def effective_inputs(inputs=None):
+    """Copy raw inputs and supply only missing/blank Australian kit estimates.
+
+    Saving and normalizing retain the original inputs. Explicit values,
+    including invalid values and legacy Part C, are never replaced here.
+    """
+    values = deepcopy(inputs) if inputs is not None else {}
+    settings = values.setdefault('SETTINGS', {})
+    for address, value in AUTOMATIC_DEFAULTS['SETTINGS'].items():
+        if address not in settings or settings[address] is None or settings[address] == '':
+            settings[address] = value
+    return values
 
 
 def quotient(numerator, denominator):
@@ -97,8 +127,8 @@ def model():
         11: 'A/V and Hp/A have the same numerical units (m⁻¹) for the same heated perimeter. ESA/M (m²/t) is converted using steel density: A/V = ESA/M × density / 1000. Named sections use retained geometry as an estimate.',
         13: 'TABLE SELECTION',
         14: 'SC902 retains FC18580-01-01 and its page 8 selection rules. FIRETEX requires an exact published temperature for the selected table. Any next-higher factor selection is an estimating policy; there is no interpolation or extrapolation. Missing cells, scope limits and beam caps withhold DFT.',
-        16: 'For FIRETEX, choose an explicit four-sided beam or column case. The older combined I/H beam/column case is for SC902. SC902 RHS/SHS columns require mesh; its hollow beams remain outside scope. Verify every product report and installation condition.',
-        17: 'SETTINGS retains separate product assumptions. SUMMARY pools orders by product and applies each product waste allowance once. FX6010 uses a two-component Australian 18 L kit with 92% volume solids. Existing saved assumptions remain unchanged until edited or deliberately replaced.'}
+        16: 'Choose the separate four-sided beam or column case. Retained SC902 combined-case inputs remain readable. SC902 RHS/SHS columns require mesh; its hollow beams remain outside scope. Verify every product report and installation condition.',
+        17: 'SETTINGS retains separate product assumptions. SUMMARY pools orders by product and applies each product waste allowance once. Blank FX6010 kit settings use Australian 18 L / 92% starting estimates; custom values and saved inputs remain intact.'}
     for row, text in intro.items():
         sheets['START']['cells'][f'A{row}'] = _literal(text)
         sheets['START']['merges'].append(f'A{row}:H{row}')
@@ -109,7 +139,7 @@ def model():
                 'Girth used (m)', 'Coating area (m²)', 'Coating volume (L)', 'Net packs',
                 'Whole packs incl. waste', 'Thickness status', 'Quantity status',
                 'Thickness source', 'Basis / review note', 'Line', 'Location']
-    choices = {'B': list(PRODUCTS), 'C': list(CASES), 'D': list(TEMPERATURES),
+    choices = {'B': list(PRODUCTS), 'C': list(CASE_CHOICES), 'D': list(TEMPERATURES),
                'E': ['Section', 'A/V', 'Hp/A', 'ESA/M'], 'H': list(PERIODS)}
     # Reuse only the existing canonical member list, never its product tables.
     from .workbook_runtime import _application_catalog
@@ -133,7 +163,7 @@ def model():
         if col in choices:
             validation = {'type': 'list', 'sqref': f'{col}10:{col}1009',
                           'formula1': f'{col}Choices', 'allowBlank': '1',
-                          'showErrorMessage': '1', 'errorStyle': 'warning' if col == 'D' else 'stop'}
+                          'showErrorMessage': '1', 'errorStyle': 'stop'}
             field['validation'] = validation
             sheets['SCHEDULE']['validations'].append(validation)
         schedule_fields.append(field)
@@ -179,10 +209,10 @@ def model():
     # persisted FIRETEX values. Source references are display-only literals.
     new_labels = {'F36': 'Transport-weight density estimate (kg/L)', 'F37': 'Pail volume (L)',
                   'F38': 'Volume solids (%)', 'F39': 'Waste allowance (%)', 'F40': 'Steel density (kg/m³)',
-                  'H66': 'Verified mixed density (kg/L)', 'H67': 'Verified mixed pack volume (L)',
-                  'H68': 'Verified volume solids (%)', 'H69': 'Waste allowance (%)', 'H70': 'Steel density (kg/m³)',
-                  'H71': 'Verified pack quantity basis', 'H72': 'Verified Part A (kg / pack)',
-                  'H73': 'Verified Part B (kg / pack)', 'H74': 'Legacy Part C (kg) - clear for current kit'}
+                  'H66': 'Nominal mixed density estimate (kg/L)', 'H67': 'Mixed pack volume (L)',
+                  'H68': 'Volume solids (%)', 'H69': 'Waste allowance (%)', 'H70': 'Steel density (kg/m³)',
+                  'H71': 'Pack quantity basis', 'H72': 'Nominal Part A mass estimate (kg / pack)',
+                  'H73': 'Nominal Part B mass estimate (kg / pack)', 'H74': 'Legacy Part C (kg) - clear for current kit'}
     for address, label in new_labels.items():
         row, col = int(address[1:]), address[0]
         sheets['SETTINGS']['cells'][f'A{row}'] = _literal(label)
@@ -200,12 +230,12 @@ def model():
         (52, 'Coating litres = area × DFT(mm) / volume-solids fraction. Pails are pooled before waste and rounded once. Confirm delivered pack, density and site losses.', 'F'),
         (64, FX6010, 'H'),
         (86, 'Dulux FIRETEX FX6010 PC115, March 2026: two components, 92% volume solids, 18 L mixed kit (17.75 L Part A + 0.25 L Part B). The supplied certificate\'s three-component wording is a typographical error. DFT remains separate from quantity assumptions.', 'H'),
-        (90, 'Coating litres = area × DFT(mm) / volume-solids fraction. Pack-volume basis uses mixed kit litres. Component-mass basis requires verified Part A and B masses and mixed density. Exact component masses and mixed density remain blank until verified.', 'H'),
-        (93, 'A retained nonzero Part C value holds material quantities for review. Use Australian kit defaults to clear it deliberately. Component orders are estimates; follow manufacturer instructions for complete-kit mixing and application losses.', 'H')]:
+        (90, 'Coating litres = area × DFT(mm) / volume-solids fraction. Blank kit settings use 18 L and 92% solids. Nominal Part A / B mass estimates are 17.75 L × 1.46 and 0.25 L × 1.2 kg/L; nominal mixed density is their total divided by 18 L. These are SDS-based estimates, not measured masses.', 'H'),
+        (93, 'Custom kit settings are retained. A saved nonzero Part C holds material quantities until reviewed and cleared. Inconsistent pack volume, density and Part A/B mass settings withhold component orders. Verify delivered packs and follow manufacturer instructions for complete-kit mixing and application losses.', 'H')]:
         sheets['SETTINGS']['cells'][f'A{row}'] = _literal(text)
         sheets['SETTINGS']['merges'].append(f'A{row}:{last}{row}')
     for address, label in {'F42':'Derived consumption (kg/m² at 1 mm DFT)', 'F43':'Pail mass estimate (kg)',
-                            'F44':'Theoretical pail coverage (m² at 1 mm DFT)', 'H80':'Total verified Part A + B mass (kg)',
+                            'F44':'Theoretical pail coverage (m² at 1 mm DFT)', 'H80':'Total Part A + B mass estimate (kg)',
                             'H81':'Mixed pack volume used (L)', 'H82':'Theoretical pack coverage (m² at 1 mm DFT)'}.items():
         row, col = int(address[1:]), address[0]
         sheets['SETTINGS']['cells'][f'A{row}'] = _literal(label)
@@ -250,7 +280,8 @@ def model():
     sheets['SUMMARY']['merges'].append('A47:C47')
     return {'id': IDENTITY, 'title': 'Steel (intumescent)', 'schema_version': 1,
             'source': {'filename': REPORT_FILENAME, 'sha256': REPORT_SHA256, 'policy_version': 1},
-            'pages': list(sheets), 'sheets': list(sheets.values()), 'fields': fields,
+            'pages': ['SCHEDULE', 'SUMMARY', 'SETTINGS'], 'sheets': list(sheets.values()), 'fields': fields,
+            'automatic_defaults': deepcopy(AUTOMATIC_DEFAULTS),
             'schedule': {'sheet': 'SCHEDULE', 'first_row': 10, 'last_row': 1009, 'header_row': 9,
                          'first_column': 'A', 'last_column': 'AA', 'input_last_column': 'L',
                          'line_id_column': 'Z', 'location_column': 'AA', 'columns': schedule_fields},
@@ -264,7 +295,7 @@ def model():
 
 class IntumescentEngine(WorkbookEngine):
     def __init__(self, source, inputs=None, formula_overrides=None, *, assessment, firetex_assessments=None):
-        super().__init__(source, inputs, formula_overrides)
+        super().__init__(source, effective_inputs(inputs), formula_overrides)
         self.assessment = assessment
         self.firetex_assessments = tuple(firetex_assessments or ())
         self._results = {}
@@ -276,6 +307,19 @@ class IntumescentEngine(WorkbookEngine):
 
     def row_product(self, row):
         return super().cell('SCHEDULE', row, 2) or self._setting('D6')
+
+    def temperature_options(self, row):
+        """Printed UI choices only; saved temperatures keep lookup semantics."""
+        product_options = _TEMPERATURE_OPTIONS.get(self.row_product(row), {})
+        label = super().cell('SCHEDULE', row, 3)
+        if label in (None, ''):
+            return tuple(sorted({value for options in product_options.values() for value in options}))
+        case = CASES.get(label)
+        if self.row_product(row) == PRODUCT:
+            case = 'R4' if case in ('R4B', 'R4C') else case
+        else:
+            case = {'R4B': 'R4', 'R4C': 'R4', 'RHS': 'H4', 'H4B': 'H4'}.get(case, case)
+        return product_options.get(case, ())
 
     def product_assessment(self, product_name):
         if product_name == PRODUCT:
@@ -311,7 +355,13 @@ class IntumescentEngine(WorkbookEngine):
                 profile['pack_litres'] = quotient(mass,profile['density'])
             elif basis != 'Pack volume (L)':
                 profile['pack_litres'] = ''
+            volume_mass = product(profile['pack_litres'], profile['density'])
+            # Allow nominal component/density rounding, never silently scale
+            # independently edited masses to match an unrelated pack volume.
+            consistent = (all(number(value) and value > 0 for value in (mass, volume_mass))
+                          and math.isclose(mass, volume_mass, rel_tol=.005, abs_tol=0))
             profile.update(pack_kg=mass,part_a=a,part_b=b,part_c='',basis=basis,
+                           component_order_note='' if consistent else _COMPONENT_ORDER_REVIEW,
                            legacy_c=legacy_c,
                            legacy_c_clear=(legacy_c is None or type(legacy_c) is str and legacy_c == ''
                                            or number(legacy_c) and legacy_c == 0))
@@ -424,7 +474,7 @@ class IntumescentEngine(WorkbookEngine):
             out['W'] = 'DFT unavailable'
         elif product_name == FX6010 and not profile['legacy_c_clear']:
             out['W'] = ('Review legacy Part C: the current FX6010 kit has two components. '
-                        'Clear Part C or use Australian kit defaults.')
+                        'Clear Part C after checking the saved assumptions.')
         elif invalid_override:
             out['W'] = 'Enter a positive girth / area override or clear it'
         elif not number(out['R']):
@@ -443,6 +493,9 @@ class IntumescentEngine(WorkbookEngine):
             if ((mass is None or number(mass) and mass>0) and number(litres) and litres > 0
                     and number(kits) and kits > 0 and number(kits * (1 + waste))):
                 out.update(S=litres, T=kits, U=math.ceil(kits * (1 + waste)), W='QUANTIFIED - estimate')
+                if profile.get('component_order_note'):
+                    out['W'] = 'QUANTIFIED - component orders held'
+                    out['Y'] = ' '.join(value for value in (out['Y'], profile['component_order_note']) if value)
             else:
                 out['W'] = 'Quantity exceeds the supported numeric range'
         self._results[row] = out
@@ -473,6 +526,9 @@ class IntumescentEngine(WorkbookEngine):
         whole = math.ceil(order_kits) if not pending and number(order_kits) else ''
         sg,a,b,c = (profile[key] for key in ('density','part_a','part_b','part_c'))
         pack,litres = profile['pack_kg'],profile['pack_litres']
+        component_note = profile.get('component_order_note', '')
+        if component_note:
+            pack = a = b = ''
         if not number(litres) or litres<=0:
             whole = ''
         dry_litres = sum(row['R']*row['O']/1000 for row in complete)
@@ -483,8 +539,10 @@ class IntumescentEngine(WorkbookEngine):
                 'net':net,'kg':product(sum_column('S'),sg),'dry_litres':dry_litres if number(dry_litres) else '',
                 'waste':waste,'whole':whole,'pending':pending,'kit_litres':litres,'pack_kg':pack,
                 'order_litres':order_litres,'part_a':product(whole,a),'part_b':product(whole,b),'part_c':product(whole,c),
+                'component_order_note':component_note,
                 'status':'INCOMPLETE - review schedule' if pending else 'No schedule items' if not used else
-                         'READY - estimating quantities' if number(whole) else 'QUANTITY RANGE - review settings'}
+                         ('READY - component orders held' if component_note else 'READY - estimating quantities')
+                         if number(whole) else 'QUANTITY RANGE - review settings'}
 
     def totals(self):
         """Retain the original SC902-only API and summary coordinates."""

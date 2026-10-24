@@ -4,6 +4,7 @@ import base64
 from copy import deepcopy
 import http.client
 import json
+import math
 from pathlib import Path
 import tempfile
 import threading
@@ -187,14 +188,24 @@ class ProjectFileTests(unittest.TestCase):
                            for key, value in loaded['calculators'].items()}})
         self.assertEqual(json.loads(second), json.loads(payload))
 
-    def test_fx6010_saved_sparse_blanks_and_legacy_part_c_round_trip_without_reseeding(self):
-        settings_cases = ({}, {'H67': None, 'H68': None, 'H74': 0.0},
+    def test_fx6010_saved_raw_settings_round_trip_while_reports_use_effective_defaults(self):
+        from estimator.calculator_report import project_calculator_report
+        from estimator.firetex_assessment import Assessment, PRODUCTS
+        settings_cases = ({}, dict.fromkeys(('H66', 'H67', 'H68', 'H71', 'H72', 'H73')),
+                          {'H67': None, 'H68': None, 'H74': 0.0},
+                          {'H66': 1.4234567890123, 'H67': 8.1234567890123,
+                           'H68': .812345678901234, 'H71': 'Pack volume (L)',
+                           'H72': 8.1234567890123, 'H73': 2.1234567890123,
+                           'H69': .071234567890123, 'H74': 0},
+                          {'H67': 0}, {'H71': 'Unrecognised pack basis'},
                           {'H67': 8.1234567890123, 'H68': .812345678901234,
                            'H71': 'Component mass (kg)', 'H72': 8.1234567890123,
                            'H73': 2.1234567890123, 'H74': .212345678901234})
         for settings in settings_cases:
             with self.subTest(settings=settings):
                 inputs = {'SCHEDULE': {'B1009': 'FIRETEX FX6010',
+                                       'C1009': 'I/H beam - 3 sides', 'D1009': 550,
+                                       'E1009': 'A/V', 'H1009': 60, 'L1009': 10,
                                        'G1009': 122.1234567890123,
                                        'AA1009': 'Retain saved quantity assumptions'},
                           'SETTINGS': deepcopy(settings)}
@@ -209,6 +220,33 @@ class ProjectFileTests(unittest.TestCase):
                 self.assertEqual(current['schedule_rows'], [1009])
                 self.assertEqual(current['source_sha256'],
                                  '3bf3499358d6f2e4b75a8ed1402995cba8f9f72142ee81e79ed22fc73e4a4344')
+                snapshots = tuple(Assessment(name, str(index) * 64, str(index + 2) * 64)
+                                  for index, name in enumerate(PRODUCTS, 1))
+                with patch('estimator.firetex_assessment.load_assessments', return_value=snapshots), \
+                     patch('estimator.firetex_assessment.lookup', return_value={
+                         'dft': 1000, 'factor': 125, 'status': 'PUBLISHED',
+                         'source': 'Synthetic certificate p2 Table 1', 'note': 'Invented 1000 µm test cell.'}):
+                    report = project_calculator_report('steel_intumescent', current['inputs'])
+                fx6010 = next(row['values'] for row in report['summaries'][0]['rows']
+                              if row['values']['A'] == 'FIRETEX FX6010')
+                held = settings.get('H74', 0) not in (None, 0) or settings.get('H67') == 0 or settings.get('H71') == 'Unrecognised pack basis'
+                if held:
+                    self.assertEqual(fx6010['G'], '')
+                    self.assertEqual(fx6010['H'], '')
+                    self.assertIn('INCOMPLETE', fx6010['I'])
+                else:
+                    solids = settings.get('H68') or .92
+                    litres = 10 / solids
+                    density = settings.get('H66') or (25.915 + .3) / 18
+                    pack = settings.get('H67') or 18
+                    whole = math.ceil(litres / pack * (1 + settings.get('H69', 0)))
+                    self.assertAlmostEqual(fx6010['C'], litres * density)
+                    self.assertAlmostEqual(fx6010['D'], litres)
+                    self.assertEqual(fx6010['G'], whole)
+                    self.assertAlmostEqual(fx6010['H'], whole * pack)
+                    self.assertIn('READY', fx6010['I'])
+                self.assertEqual(report['inputs']['SETTINGS'], settings)
+                self.assertEqual(current['inputs']['SETTINGS'], settings)
                 second = export_project(self.receiver, {
                     'estimate': {key: loaded['estimate'][key] for key in ESTIMATE_FIELDS},
                     'calculators': {key: {'inputs': value['inputs'], 'schedule_rows': value['schedule_rows']}
@@ -217,6 +255,45 @@ class ProjectFileTests(unittest.TestCase):
                 self.assertEqual(stored_rows(self.sender), before_sender)
                 self.assertEqual(stored_rows(self.receiver), before_receiver)
                 self.assertEqual(inputs, original)
+
+    def test_saved_fx6010_state_uses_effective_estimates_without_rewriting_database_rows(self):
+        from estimator.calculator_report import project_calculator_report
+        from estimator.firetex_assessment import Assessment, PRODUCTS
+        snapshots = tuple(Assessment(name, str(index) * 64, str(index + 2) * 64)
+                          for index, name in enumerate(PRODUCTS, 1))
+        for settings in ({}, dict.fromkeys(('H66', 'H67', 'H68', 'H71', 'H72', 'H73')),
+                         {'H74': .212345678901234}):
+            with self.subTest(settings=settings):
+                inputs = {'SCHEDULE': {'B1009': 'FIRETEX FX6010',
+                                       'C1009': 'I/H beam - 3 sides', 'D1009': 550,
+                                       'E1009': 'A/V', 'G1009': 100, 'H1009': 60,
+                                       'L1009': 10, 'AA1009': 'Preserve saved row'},
+                          'SETTINGS': deepcopy(settings)}
+                self.receiver.save_calculator_state('steel_intumescent', inputs, [1009])
+                before = stored_rows(self.receiver)
+                loaded = self.receiver.calculator_state('steel_intumescent')
+                with patch('estimator.firetex_assessment.load_assessments', return_value=snapshots), \
+                     patch('estimator.firetex_assessment.lookup', return_value={
+                         'dft': 1000, 'factor': 100, 'status': 'PUBLISHED',
+                         'source': 'Synthetic certificate p2 Table 1', 'note': 'Invented 1000 µm test cell.'}):
+                    report = project_calculator_report('steel_intumescent', loaded['inputs'])
+                fx6010 = next(row['values'] for row in report['summaries'][0]['rows']
+                              if row['values']['A'] == 'FIRETEX FX6010')
+                if settings.get('H74'):
+                    self.assertEqual(fx6010['G'], '')
+                    self.assertIn('INCOMPLETE', fx6010['I'])
+                else:
+                    self.assertEqual(fx6010['G'], 1)
+                    self.assertEqual(fx6010['H'], 18)
+                    self.assertAlmostEqual(fx6010['C'], 10 / .92 * ((25.915 + .3) / 18))
+                snapshot = json.loads(export_project(self.receiver, {'estimate': {}}))
+                saved = snapshot['calculators']['steel_intumescent']
+                self.assertEqual(saved['inputs']['SETTINGS'], settings)
+                self.assertEqual(saved['source_sha256'], loaded['source_sha256'])
+                self.assertEqual(saved['schedule_rows'], [1009])
+                self.assertEqual(report['inputs']['SETTINGS'], settings)
+                self.assertEqual(loaded['inputs']['SETTINGS'], settings)
+                self.assertEqual(stored_rows(self.receiver), before)
 
     def test_new_calculator_source_outputs_unknown_ids_and_missing_legacy_maps_reject(self):
         cases = [lambda d: d['calculators']['steel_intumescent'].update(source_sha256='0' * 64),

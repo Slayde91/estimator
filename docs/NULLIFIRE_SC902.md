@@ -1,9 +1,11 @@
 # Nullifire SC902 calculator
 
 Steel (intumescent) is an application model separate from the three retained
-workbooks. Its stable calculator ID is `steel_intumescent`. It has START,
-SCHEDULE, SUMMARY and SETTINGS pages and 1,000 schedule rows. It initially
-supports Nullifire SC902 only. Existing workbook packages, formula identities,
+workbooks. Its stable calculator ID is `steel_intumescent`. It opens on
+SCHEDULE, with SUMMARY and SETTINGS pages and 1,000 schedule rows. The internal
+START worksheet remains as a reference source. SC902 shares this calculator
+with the products described in [the FIRETEX policy](FIRETEX_ASSESSMENTS.md).
+Existing workbook packages, formula identities,
 saved projects and frozen prices are retained.
 
 ## Thickness authority

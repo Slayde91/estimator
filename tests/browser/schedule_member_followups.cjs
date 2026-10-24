@@ -1,9 +1,11 @@
 // Owned disposable server: member quantity, required-review and compact explanations.
 const {chromium,expect}=require('@playwright/test');
 const {spawn}=require('node:child_process');
-const fs=require('node:fs'),path=require('node:path'),os=require('node:os'),assert=require('node:assert/strict');
+const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
 const {chooseCalculator}=require('./calculator_actions.cjs');
-const root=path.resolve(__dirname,'../..'),output=fs.mkdtempSync(path.join(os.tmpdir(),'classifire-schedule-members-'));
+const root=path.resolve(__dirname,'../..'),evidenceRoot=path.join(root,'.runtime/browser-qa');
+fs.mkdirSync(evidenceRoot,{recursive:true});
+const output=fs.mkdtempSync(path.join(evidenceRoot,'schedule-members-'));
 const server=spawn(process.env.CEASEFIRE_PYTHON||'python',[path.join(__dirname,'monokote_fixture.py'),'--directory',output],{cwd:root,windowsHide:true});
 let logs='',browser,page,base;server.stderr.on('data',data=>logs+=data);
 const ready=new Promise((resolve,reject)=>{let value='';const timer=setTimeout(()=>reject(Error(logs)),120000);server.stdout.on('data',data=>{value+=data;if(value.includes('\n')){clearTimeout(timer);resolve(JSON.parse(value.split('\n')[0]));}});server.once('error',reject);server.once('exit',code=>{clearTimeout(timer);reject(Error(`Fixture exited ${code}: ${logs}`));});});
@@ -21,6 +23,26 @@ async function edit(address,value,id){
  assert.equal((await response).status(),200);await idle();
 }
 async function snapshot(){return page.evaluate(()=>window.CeasefireCalculators.completeProjectSnapshot());}
+async function focusSettled(field){
+ await field.focus();
+ // Focusing an off-screen member scrolls the register. The choice list closes
+ // on outside scrolling, so finish that movement before ONE keyboard action.
+ return field.evaluate(field=>new Promise((resolve,reject)=>{
+  let previous='',stable=0,frames=0,frame;
+  const fail=message=>{clearTimeout(timer);cancelAnimationFrame(frame);reject(Error(message));};
+  const timer=setTimeout(()=>fail('Member focus/scroll did not settle: '+previous),5000);
+  const sample=()=>{
+   if(!field.isConnected){fail('Member field detached before keyboard input');return;}
+   const ancestors=[];for(let node=field;node;node=node.parentElement)ancestors.push([node.scrollLeft,node.scrollTop]);
+   const position={rect:field.getBoundingClientRect().toJSON(),window:[scrollX,scrollY],ancestors};
+   const signature=JSON.stringify(position);stable=signature===previous?stable+1:0;previous=signature;frames++;
+   if(document.activeElement===field&&stable>=2){clearTimeout(timer);resolve({frames,stableFrames:stable,position});return;}
+   if(frames>=120){fail('Member focus/scroll did not settle: '+signature);return;}
+   frame=requestAnimationFrame(sample);
+  };
+  frame=requestAnimationFrame(sample);
+ }));
+}
 (async()=>{
  const info=await ready;assert.notEqual(info.port,8765);base=`http://127.0.0.1:${info.port}`;
  browser=await chromium.launch({headless:true});page=await browser.newPage({viewport:{width:1146,height:764}});page.setDefaultTimeout(60000);
@@ -82,8 +104,10 @@ async function snapshot(){return page.evaluate(()=>window.CeasefireCalculators.c
  await page.screenshot({path:path.join(output,'board-new-required-quantity.png'),fullPage:true});
  for(const [cell,value]of [['D10','200UC46'],['F10',7.25],['G10',4],['H10',120],['I10','Column'],['J10',550],['CJ10',3]])await edit(cell,value,'steel_board');
   const memberField=page.locator('[data-calculator-cell="D10"]'),memberMenu=memberField.locator('xpath=..'),beforeChoice=await snapshot();
-  await memberField.focus();await memberField.press('ArrowDown');
+  const committedChoiceFocus=await focusSettled(memberField);await memberField.press('ArrowDown');
   await expect(memberMenu.getByRole('option').first()).toHaveText('1000WB215');
+  await expect(memberField).toHaveAttribute('aria-expanded','true');
+  await expect(memberMenu.getByRole('option').first()).toHaveAttribute('aria-selected','true');
   await memberField.press('Escape');await expect(memberField).toHaveValue('200UC46');
   for(const closure of ['scroll','resize']){
    await memberField.fill(chsAlias);await expect(memberMenu.getByRole('option',{name:chsAlias,exact:true})).toBeVisible();
@@ -124,6 +148,6 @@ async function snapshot(){return page.evaluate(()=>window.CeasefireCalculators.c
  await chooseCalculator(page,'Steel (spray)');await idle();await tab('SCHEDULE');
  for(const cell of ['B10','C10','D10','E10','H10','I10','J10'])await expect(page.locator(`[data-calculator-cell="${cell}"]`)).toHaveAttribute('aria-required','true');
  assert.deepEqual(errors,[]);
-  fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({result:'PASS',legacyMapsUnchanged:true,newProductKeepsQuantityBlank:true,dialogFullSourceRetained:true,boardEsaBesideFamily:true,quantityBesideLength:true,cafcoRows:rows,areaOverrideException:true,typedSectionQuerySurvivesScrollAndResize:true,committedArrowKeepsAllChoices:true,escapePreservesDraft:true,errors},null,2));
+  fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({result:'PASS',legacyMapsUnchanged:true,newProductKeepsQuantityBlank:true,dialogFullSourceRetained:true,boardEsaBesideFamily:true,quantityBesideLength:true,cafcoRows:rows,areaOverrideException:true,typedSectionQuerySurvivesScrollAndResize:true,committedArrowKeepsAllChoices:true,committedChoiceFocus,escapePreservesDraft:true,errors},null,2));
  console.log(`PASS schedule member followups: ${output}`);
 })().catch(async error=>{console.error(error);console.error(logs.slice(-5000));if(page)await page.screenshot({path:path.join(output,'failure.png'),fullPage:true}).catch(()=>{});process.exitCode=1;}).finally(async()=>{if(browser)await browser.close();server.kill();});

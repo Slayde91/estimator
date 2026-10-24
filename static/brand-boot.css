@@ -1,0 +1,22 @@
+/* Startup presentation only. The supplied logo keeps its original alpha. */
+html[data-brand-boot="pending"], html[data-brand-boot="pending"] body { background: #fff !important; }
+html[data-brand-boot="pending"] body { overflow: hidden; }
+html[data-brand-boot="pending"] body > :not(#classifire-boot) { visibility: hidden; }
+#classifire-boot {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+}
+#classifire-boot[hidden] { display: none; }
+#classifire-boot img {
+  display: block;
+  width: min(850px, 90vw);
+  height: auto;
+  max-height: 70vh;
+  object-fit: contain;
+  background: transparent;
+}

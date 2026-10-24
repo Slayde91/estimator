@@ -549,7 +549,14 @@ class TakeoffService:
                 raise ValidationError('The Takeoffs draft changed before the document export. Retry from its current state.')
             if format == 'register-xlsx':
                 from .takeoff_register_xlsx import export_physical_register
-                return export_physical_register(current_graph(snapshot, scope), confirmation='all' if confirmation is None else confirmation)
+                from .register_references import physical_contexts
+                graph = current_graph(snapshot, scope)
+                identifiers = [entity['id'] for collection in graph_collections(graph).values()
+                               for entity in graph[collection] if not entity['deleted']]
+                contexts = physical_contexts(snapshot, scope, identifiers)
+                references = self.libraries.register_references(contexts, limit=50000, excel=True)['row_references'] if self.libraries else {}
+                return export_physical_register(graph, confirmation='all' if confirmation is None else confirmation,
+                                                references=references)
             return export_physical_graph(current_graph(snapshot, scope), format,
                                          {document['id']: document['name'] for document in snapshot['documents']}, confirmation=confirmation, company=self.store.company_settings())
 
@@ -1992,6 +1999,41 @@ class TakeoffService:
             self._session_evidence(session_id)
             self._assert_eligible(snapshot, selected, confirmed=True, session_id=session_id)
             return export_register(snapshot, selected, format)
+
+    def register_references(self, session_id, request):
+        """Read candidates from recorded row facts; never create a session/link."""
+        from .register_references import physical_contexts, ReferenceIndex
+        with self._lock:
+            object_fields(request, {'expected_revision', 'scope', 'entity_ids', 'offset', 'report_offset', 'limit', 'expected_library_revision'},
+                          'Register references', {'expected_revision', 'scope', 'entity_ids'})
+            snapshot = self._session(session_id)['snapshot']
+            if type(request['expected_revision']) is not int or request['expected_revision'] != snapshot['revision']:
+                raise ValidationError('The Takeoffs draft changed. Read its current register references again.')
+            identifiers = request['entity_ids']
+            if (not isinstance(identifiers, list) or len(identifiers) > 100
+                    or len(set(value for value in identifiers if isinstance(value, str))) != len(identifiers)):
+                raise ValidationError('Choose up to 100 unique current physical record IDs.')
+            for identifier in identifiers:
+                identity(identifier, 'Physical record ID')
+            offset, report_offset, limit = request.get('offset', 0), request.get('report_offset', 0), request.get('limit', 100)
+            if (type(offset) is not int or not 0 <= offset <= 50000 or type(report_offset) is not int or not 0 <= report_offset <= 1000000
+                    or type(limit) is not int or not 1 <= limit <= 100):
+                raise ValidationError('Choose a reference offset from 0 to 50000 and page size from 1 to 100.')
+            expected = request.get('expected_library_revision')
+            if expected is not None and (not isinstance(expected, str) or len(expected) != 64 or any(c not in '0123456789abcdef' for c in expected)):
+                raise ValidationError('Use the current reference library revision.')
+            self._physical_gate(session_id, snapshot)
+            contexts = physical_contexts(snapshot, request['scope'], identifiers)
+            if self.libraries:
+                result = self.libraries.register_references(contexts, offset=offset, report_offset=report_offset, limit=limit, expected_revision=expected)
+            else:
+                epoch = digest(None)
+                if expected is not None and expected != epoch:
+                    raise ValidationError('The reference library changed. Refresh the current register references.')
+                index = ReferenceIndex(None, epoch)
+                result = {'library_revision': epoch, 'row_references': {
+                    key: index.project(values, offset, limit, report_offset=report_offset) for key, values in contexts.items()}}
+            return {'project_id': snapshot['project_id'], 'revision': snapshot['revision'], 'scope': request['scope'], **result}
 
     def linked_register_results(self, session_id, request):
         """Read current linked thicknesses without changing drafts or receipts."""

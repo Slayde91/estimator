@@ -6,10 +6,10 @@ const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 async function waitFor(test) { for (let i = 0; i < 100; i++) { if (test()) return; await pause(20); } throw new Error('Projection did not settle'); }
 function harness() {
   const el = () => ({ children: [], dataset: {}, attributes: {}, classList: { add() {} },
-    append(...values) { this.children.push(...values); }, setAttribute(key, value) { this.attributes[key] = value; },
+    append(...values) { this.children.push(...values); }, replaceChildren(...values) { this.children = values; }, setAttribute(key, value) { this.attributes[key] = value; },
     addEventListener() {}, closest() { return null; } });
   const pending = [], calls = [], controls = { fingerprint: 'draft-one', action: false, invalid: false };
-  const window = { CeasefireCalculators: {
+  const window = { CeasefireRegisterReferences: { renderReports: refs => ({ references: copy(refs) }) }, CeasefireCalculators: {
     projectFingerprint: () => controls.fingerprint,
     hasPendingOperation: () => controls.action,
     readTakeoffTarget: () => { if (controls.invalid) throw new Error('Invalid current schedule input'); return { inputs: { SCHEDULE: { J10: 10 } }, schedule_rows: [10], fingerprint: controls.fingerprint }; }
@@ -20,7 +20,7 @@ function harness() {
       return new Promise(resolve => pending.push(value => resolve({ ok: true, json: async () => value })));
     } };
   if (context.window) context.window.CeasefireI18n = englishI18n(); vm.createContext(context);
-  const source = fs.readFileSync('static/takeoffs.js', 'utf8').replace('  window.CeasefireTakeoffs = {', `  globalThis.audit = { state, linkedThicknessFor, registerFilterValue, visibleItems, scheduleLinkedThickness, calculatorDraftChanged, invalidateLinkedThickness, thicknessContext,
+  const source = fs.readFileSync('static/takeoffs.js', 'utf8').replace('  window.CeasefireTakeoffs = {', `  globalThis.audit = { state, linkedThicknessFor, updateLinkedReportCell, registerFilterValue, visibleItems, scheduleLinkedThickness, calculatorDraftChanged, invalidateLinkedThickness, thicknessContext,
     cache:()=>linkedThickness, renderer:()=>{renderRegister=()=>{globalThis.renders=(globalThis.renders||0)+1;};} };
   window.CeasefireTakeoffs = {`);
   vm.runInContext(source, context);
@@ -31,7 +31,7 @@ function harness() {
   state.session = { session_id: 'session-one', revision: 8, snapshot: { project_id: 'project-one', revision: 8, items: [item], documents: [], transfers: [binding] } };
   const record = { calculator_id: 'steel_vermiculite', binding_id: binding.id, row: 10, sheet: 'SCHEDULE', status: 'Current',
     estimating_thickness_mm: 13.123456789012345, published_thickness_mm: 12.82, total_thickness_mm: null,
-    calculator_source_sha256: 'a'.repeat(64), calculator_draft_sha256: 'b'.repeat(64) };
+    calculator_source_sha256: 'a'.repeat(64), calculator_draft_sha256: 'b'.repeat(64), report_references: [{ label: 'Exact source Rev A', url: null }] };
   const reply = (results = [record]) => ({ project_id: state.session.snapshot.project_id, revision: state.session.revision, linked_results: { [item.id]: results } });
   audit.renderer();
   return { audit, context, state, item, binding, record, controls, pending, calls, reply, async start() { audit.scheduleLinkedThickness(); await waitFor(() => pending.length); }, finish(value = reply()) { pending.shift()(value); } };
@@ -39,6 +39,17 @@ function harness() {
 let passed = 0;
 async function check(label, test) { await test(); passed++; console.log(`ok - ${label}`); }
 (async () => {
+  await check('Report captions require the current exact destination, confirmation and source/draft gates', async () => {
+    const h=harness(),cell={replaceChildren(...children){this.children=children;}};await h.start();h.finish();await waitFor(()=>!h.audit.cache().pending);
+    const before=copy(h.state.session),render=()=>{h.audit.updateLinkedReportCell(cell,h.item);return copy(cell.children[0].references);};
+    assert.deepEqual(render(),[{label:'Exact source Rev A',url:null}]);
+    for(const fault of ['source','draft','status','version','confirmation','binding','destination']){
+      const record=h.audit.cache().results[h.item.id][0];Object.assign(record,{calculator_source_sha256:h.binding.source_sha256,calculator_draft_sha256:'b'.repeat(64),status:'Current'});h.binding.status='current';h.item.version=4;h.item.state='confirmed';h.state.ui.target.value='steel_vermiculite';
+      if(fault==='source')record.calculator_source_sha256='c'.repeat(64);if(fault==='draft')record.calculator_draft_sha256='';if(fault==='status')record.status='Unavailable';if(fault==='version')h.item.version++;if(fault==='confirmation')h.item.state='draft';if(fault==='binding')h.binding.status='stale';if(fault==='destination')h.state.ui.target.value='steel_board';
+      assert.deepEqual(render(),[],fault);
+    }
+    h.state.session=copy(before);assert.deepEqual(h.state.session,before);assert.equal(h.calls.length,1);
+  });
   await check('Unlinked rows stay blank without deriving from source fields or other schedules', () => {
     const h = harness(); h.state.session.snapshot.transfers = [];
     h.item.fields.thickness_mm = 99; assert.equal(h.audit.linkedThicknessFor(h.item).text, '—');

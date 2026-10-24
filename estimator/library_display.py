@@ -85,13 +85,24 @@ def _resolve_selector_seal_depth(item):
     return False
 
 
-def _clean_notice(value, resolved_seal=False):
+def verified_boss_report_equivalence(report, listed):
+    """The owner verified this exact edition pair on 25 October 2026."""
+    return (_notice_text(report).casefold() == 'fas190100 r2.1'
+            and _notice_text(listed).casefold() == 'wf fas 190100')
+
+
+_BOSS_VERIFIED_NOTICE = ('The matrix cites FAS190100 R2.1. BOSS currently lists WF FAS 190100. '
+                         'Revision equivalence has not been verified.')
+
+
+def _clean_notice(value, resolved_seal=False, resolved_boss=False):
     paragraphs = re.split(r'\n\s*\n|\n(?=Source (?:image|conflict|ambiguity):?\s)', value.strip())
     has_selector_notice = any(_SELECTOR_ONLY.fullmatch(_notice_text(p)) for p in paragraphs)
     retained = [p for p in paragraphs
                 if not _SELECTOR_ONLY.fullmatch(_notice_text(p))
                 and _notice_text(p) not in _RESOLVED_PARAGRAPHS
                 and not (resolved_seal and _notice_text(p) == _SEAL_NOTICE)
+                and not (resolved_boss and _notice_text(p) == _BOSS_VERIFIED_NOTICE)
                 and not (has_selector_notice and _notice_text(p) in _ROUTINE_PARAGRAPHS)]
     return '\n\n'.join(retained) if len(retained) != len(paragraphs) else value
 
@@ -103,6 +114,10 @@ def remove_resolved_source_notices(item):
     retain their other paragraphs, and the imported evidence is not rewritten.
     """
     resolved_seal = _resolve_selector_seal_depth(item)
+    resolved_boss = (item.get('id', '').startswith('boss-') and any(
+        field.get('label') == 'Report Number'
+        and verified_boss_report_equivalence(field.get('value', ''), 'WF FAS 190100')
+        for field in item.get('fields', [])))
     # Configuration rows can carry their own Source Issues column. Preserve
     # row order, identities and table indices while removing resolved cells.
     removed_issue_tables = set()
@@ -112,7 +127,7 @@ def remove_resolved_source_notices(item):
                 if table['columns'][index] != 'Source Issues':
                     continue
                 for row in table['rows']:
-                    row[index] = _clean_notice(row[index], resolved_seal)
+                    row[index] = _clean_notice(row[index], resolved_seal, resolved_boss)
                 if len(table['columns']) > 1 and not any(row[index].strip() for row in table['rows']):
                     table['columns'].pop(index)
                     for row in table['rows']:
@@ -121,7 +136,7 @@ def remove_resolved_source_notices(item):
     fields = []
     for field in item.get('fields', []):
         if field['label'] == 'Source Issues':
-            field['value'] = _clean_notice(field['value'], resolved_seal)
+            field['value'] = _clean_notice(field['value'], resolved_seal, resolved_boss)
             if not field['value'] and 'table_links' in field:
                 field['table_links'] = [link for link in field['table_links']
                     if (link['field'], link['table_index']) not in removed_issue_tables]

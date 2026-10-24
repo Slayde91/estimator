@@ -57,7 +57,7 @@ async function matches(ids) { const expected = [...ids].sort(); await expect.pol
 async function checkDocuments(scope, ids) {
   const before = await snapshot(), graph = before[scope === 'service_plans' ? 'service_plans' : 'physical'];
   const dataHeaders = [...(scope === 'defect_reports' ? ['Defect ID'] : []), 'Barrier ID', 'Service ID', 'Confirmation', 'Location', 'FRL',
-    'Substrate', 'Orientation', 'Category', 'Service type', 'Service quantity', 'Service Size (mm)', 'Source evidence'];
+    'Substrate', 'Orientation', 'Category', 'Service type', 'Service quantity', 'Service Size (mm)', 'Report', 'System', 'Source evidence'];
   const active = [...(graph.defects || []), ...graph.barriers, ...graph.services].filter(entry => !entry.deleted).map(entry => entry.id);
   const root = page.locator('.takeoff-physical-register'), documentMenu = page.locator('.takeoff-workspace-heading .takeoff-physical-document-host'), toggle = documentMenu.getByRole('button', { name: 'Document', exact: true }), list = documentMenu.locator('.calculator-document-actions');
   await toggle.press('ArrowDown'); await expect(list).toBeVisible(); await expect(list.getByRole('button', { name: 'Download confirmed items', exact: true })).toBeFocused();

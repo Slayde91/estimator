@@ -217,6 +217,8 @@ class CalculatorReportTests(unittest.TestCase):
                     reports.append(text)
                     self.assertTrue(payload.startswith(b'%PDF'))
                     self.assertTrue(all(float(page.mediabox.width) > float(page.mediabox.height) for page in reader.pages))
+                    expected_width = 1191 if identity == 'steel_board' and builder is build_calculator_report else 842
+                    self.assertTrue(all(round(float(page.mediabox.width)) == expected_width for page in reader.pages))
                     self.assertTrue(all('CALCULATORS | ' + header in content for content in texts))
                     for contact in ('ABN: 50 612 231 562', 'Phone: 1300 92 62 88', 'Email: sales@ceasefire.com.au'):
                         self.assertTrue(all(contact in content for content in texts))

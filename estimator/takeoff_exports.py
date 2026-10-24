@@ -192,6 +192,7 @@ def _calculator_drafts(value):
 def _linked_results(snapshot, selected, confirmations, registered_bindings, drafts):
     """Project original result cells only after verifying each current link."""
     from .takeoff_transfer import row_values
+    from .assessment_references import schedule_report_references
     from .excel_engine import FormulaError
     from .workbook_calculators import calculator_session, source_model
     output = {}; sessions = {}
@@ -211,7 +212,7 @@ def _linked_results(snapshot, selected, confirmations, registered_bindings, draf
                       'board_stack_mm': None, 'board_layers': None, 'total_thickness_mm': None,
                       'duct_thickness_mm': None, 'duct_thickness_basis': None,
                       'duct_surface_m2': None, 'duct_surface_status': 'Unavailable',
-                      'wrap_layers': None, 'wrap_layer_thickness_mm': None}
+                      'wrap_layers': None, 'wrap_layer_thickness_mm': None, 'report_references': []}
             results.append(result)
             if (not confirmations[item['id']] or binding['status'] != 'current'
                     or binding['item_version'] != item['version'] or binding['item_digest'] != item_digest(item, snapshot)
@@ -283,6 +284,7 @@ def _linked_results(snapshot, selected, confirmations, registered_bindings, draf
                                           wrap_layers=layers, wrap_layer_thickness_mm=layer_m * 1000)
                     result.update(status='Current', reason='', calculator_source_sha256=model['source']['sha256'],
                                   calculator_draft_sha256=draft['fingerprint'])
+                    result['report_references'] = schedule_report_references(calculator_id, engine, binding['row'])
             except (ValueError, ArithmeticError, TypeError, KeyError, FormulaError):
                 result['reason'] = 'The existing calculator could not return a usable result.'
         output[item['id']] = results

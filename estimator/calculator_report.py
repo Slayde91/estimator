@@ -11,9 +11,11 @@ from decimal import Decimal, ROUND_HALF_UP, localcontext
 from io import BytesIO
 from .company_settings import company_logo
 import re
+from xml.sax.saxutils import escape
 
-from reportlab.lib.pagesizes import A4, landscape
-from reportlab.platypus import PageBreak, SimpleDocTemplate, Spacer, TableStyle
+from reportlab.lib.pagesizes import A3, A4, landscape
+from reportlab.platypus import PageBreak, SimpleDocTemplate, Spacer, TableStyle, Paragraph
+from .assessment_references import schedule_report_references
 
 from .excel_engine import column_name
 from .report import _Report, _company_header, _register_fonts, _number, _numeric, _text, _LINE, _MUTED
@@ -202,6 +204,7 @@ def project_calculator_report(calculator_id, inputs=None):
             record['assessment_source'] = values['Y']
         else:
             record['complete'] = values['AR'] == 'CLADDING ESTIMATE'
+        record['report_references'] = schedule_report_references(calculator_id, engine, row)
         rows.append(record)
 
     def table(title, name, header, first, last, columns, *, note=''):
@@ -353,10 +356,12 @@ def project_calculator_report(calculator_id, inputs=None):
 
 
 class _ScheduleReport(_Report):
-    def __init__(self, data, project_details=None):
+    def __init__(self, data, project_details=None, page_size=landscape(A4)):
         super().__init__({})
         self.data = data
         self.project_details = project_details or {}
+        self.width, self.height = page_size
+        self.content_width = self.width - 2 * _MARGIN
 
     def p(self, text, style='body'):
         text = _text(text).translate({ord(character): '-' for character in '\u2010\u2011\u2012\u2013\u2014'})
@@ -378,6 +383,14 @@ class _ScheduleReport(_Report):
     def numeric(self, value, **formatting):
         return self.p(self.display(value, **formatting), 'numeric')
 
+    def report_links(self, references):
+        parts = []
+        for reference in references:
+            label = escape(reference['label'])
+            parts.append(f'<link href="{escape(reference["url"], {chr(34): "&quot;"})}">{label}</link>'
+                         if reference.get('url') else label)
+        return Paragraph(' | '.join(parts), self.styles['cell'])
+
     def pairs(self, values):
         # Paragraphs split safely even for 2,000-character notes or identifiers.
         return self.p(' | '.join(f'{label}: {self.display(value, blank="Blank")}' for label, value in values), 'small')
@@ -393,7 +406,7 @@ class _ScheduleReport(_Report):
                                       ('site_address', 'Site Address'))]
         if include_project_details:
             self.story.append(self.table(['Project details', 'Recorded value'], details,
-                                         [_CONTENT * .20, _CONTENT * .80]))
+                                         [self.content_width * .20, self.content_width * .80]))
             self.story.append(Spacer(1, 10))
         if project_report_title:
             self.story.append(self.p(data['title'], 'section'))
@@ -473,16 +486,30 @@ class _ScheduleReport(_Report):
         else:
             heads = ['Line', 'Item / mark', 'Location', 'Product', 'Section', 'Design min / °C', 'Board stack mm', 'Total thickness mm', 'Box ref. m²', 'Net board m²', 'With waste m²', 'Sheets / line', 'Status']
             fractions = [.055, .075, .08, .10, .07, .07, .075, .08, .065, .07, .07, .065, .125]
-        table = self.table(heads, rows, [_CONTENT * size for size in fractions], compact=True)
+        position = len(heads) if data['id'] == 'steel_vermiculite' else len(heads) - 1
+        heads.insert(position, 'Report')
+        if data['id'] == 'steel_vermiculite':
+            for index in (1, 2, 3, 4):
+                fractions[index] -= .025
+        elif data['id'] == 'steel_board':
+            # The 14-column board schedule uses landscape A3, matching its
+            # spreadsheet register, so identifiers and status remain readable.
+            fractions = [size / (sum(fractions) + .10) for size in fractions]
+        else:
+            fractions[-1] -= .10
+        fractions.insert(position, 1 - sum(fractions) if data['id'] == 'steel_board' else .10)
+        for cells, item in zip(rows, data['rows']):
+            cells.insert(position, self.report_links(item['report_references']))
+        table = self.table(heads, rows, [self.content_width * size for size in fractions], compact=True)
         # Allow long cells to split, but require space for a body line with its
         # padding. A one-point fragment can otherwise leave a header alone at
         # the bottom of the previous page before the row continues.
-        table.splitInRow = 20
+        table.splitInRow = 60 if data['id'] == 'steel_board' else 20
         # Centre ordinary cells. For a cell taller than a complete page, start
         # at the top so ReportLab does not carry centring padding into otherwise
         # empty continuation pages. Horizontal alignment remains centred.
         for row_index, row in enumerate(rows, 1):
-            if any(cell.wrap(_CONTENT * fractions[index] - 12, _HEIGHT)[1] > _HEIGHT - 180
+            if any(cell.wrap(self.content_width * fractions[index] - 12, self.height)[1] > self.height - 180
                    for index, cell in enumerate(row)):
                 table.setStyle(TableStyle([('VALIGN', (0, row_index), (-1, row_index), 'TOP')]))
         self.story.append(table)
@@ -557,7 +584,7 @@ class _ScheduleReport(_Report):
                          [.16, .12, .13, .15, .18, .26] if len(columns) == 6 else
                          [.095, .10, .10, .10, .10, .10, .11, .11, .185])
             # Normalize explicit width weights to avoid accumulated layout drift.
-            widths = [_CONTENT * value / sum(fractions) for value in fractions]
+            widths = [self.content_width * value / sum(fractions) for value in fractions]
             rows = []
             for item in material_rows:
                 formatted = []
@@ -603,7 +630,9 @@ def _build_calculator_pdf(calculator_id, inputs, *, materials, project_details=N
     data = project_calculator_report(calculator_id, inputs)
     _register_fonts()
     logo = company_logo(company)
-    report = _ScheduleReport(data, project_details)
+    page_size = landscape(A3 if calculator_id == 'steel_board' and not materials else A4)
+    width, height = page_size
+    report = _ScheduleReport(data, project_details, page_size)
     report.overview(materials=materials, include_project_details=include_project_details, project_report_title=project_report_title)
     if data.get('assessment_notes'):
         # Assessment evidence can occupy several pages. Start its quantities
@@ -621,21 +650,21 @@ def _build_calculator_pdf(calculator_id, inputs, *, materials, project_details=N
         report.story.pop()
     report_title = 'Material quantities and summary' if materials else 'Full schedule'
     output = BytesIO()
-    document = SimpleDocTemplate(output, pagesize=landscape(A4), leftMargin=_MARGIN, rightMargin=_MARGIN,
+    document = SimpleDocTemplate(output, pagesize=page_size, leftMargin=_MARGIN, rightMargin=_MARGIN,
         topMargin=91, bottomMargin=43, pageCompression=1, title='CLASSIFIRE - ' + data['title'] + ' - ' + report_title,
         author='CLASSIFIRE', subject=report_title)
 
     def decorate(canvas, doc):
         canvas.saveState()
-        _company_header(canvas, logo, _WIDTH, _HEIGHT, _MARGIN,
+        _company_header(canvas, logo, width, height, _MARGIN,
                         'CALCULATORS | ' + ('MATERIALS & SUMMARY' if materials else 'FULL SCHEDULE'),
                         label_below_logo=True, company=company)
         canvas.setStrokeColor(_LINE)
-        canvas.line(_MARGIN, 32, _WIDTH - _MARGIN, 32)
+        canvas.line(_MARGIN, 32, width - _MARGIN, 32)
         canvas.setFont('CeasefireVera', 7)
         canvas.setFillColor(_MUTED)
         canvas.drawString(_MARGIN, 20, 'CLASSIFIRE ESTIMATOR | ' + data['title'])
-        canvas.drawRightString(_WIDTH - _MARGIN, 20, f'Page {doc.page}')
+        canvas.drawRightString(width - _MARGIN, 20, f'Page {doc.page}')
         canvas.restoreState()
 
     document.build(report.story, onFirstPage=decorate, onLaterPages=decorate)

@@ -26,6 +26,7 @@ jobs:
       - run: node --test tests/test_annotation_controls.cjs
       - run: node --check static/calculation-queue.js && node --test tests/test_calculation_queue.cjs
       - run: node --check static/calculators.js
+      - run: node --check static/brand-boot.js && node --check static/register-references.js
       - run: node --check static/downloads.js
       - run: node --check static/main-layout.js
       - run: node --check static/penetration.js
@@ -143,6 +144,8 @@ jobs:
       - run: npm run test:takeoff-row-delete
       - run: node tests/browser/calculator_schedule_scroll.cjs
       - run: node tests/browser/schedule_member_followups.cjs
+      - run: node tests/browser/calculator_presentation_followups.cjs
+      - run: node tests/browser/brand_boot.cjs
       - run: npm run test:document-menus
       - run: npm run test:library-documents
       - run: npm run test:library-link-picker
@@ -192,6 +195,7 @@ jobs:
       - run: npm run test:service-plans
       - run: npm run test:physical-navigation
       - run: npm run test:physical-filters
+      - run: node tests/browser/register_references.cjs
       - run: npm run test:takeoffs-counts
       - run: npm run test:takeoffs-viewer-controls
       - run: npm run test:takeoffs-transfer-skip

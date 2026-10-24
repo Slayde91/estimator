@@ -14,9 +14,9 @@ async function tab(name){await page.locator('#calculator-pages').getByRole('butt
  const errors=[];page.on('pageerror',error=>errors.push(error.message));await page.goto(`http://127.0.0.1:${info.port}/`);await page.waitForFunction(()=>window.CeasefireDesktop?.status().ready);
  await expect(page.locator('.calculator-sheet-footer')).toHaveCount(0);await expect(page.locator('#calculator-option-lists')).toHaveCount(1);
  await chooseCalculator(page,'Steel (spray)');await idle();const before=await page.evaluate(()=>window.CeasefireCalculators.completeProjectSnapshot());
- // The marked START content is a virtual SETTINGS projection. Browser removals
- // leave original worksheet directions, retained neighbors and drafts intact.
- await expect(page.locator('#calculator-sheet-title')).toHaveText('START');
+ // START is hidden only in the spray/board browser; source instructions remain.
+ await expect(page.locator('#calculator-sheet-title')).toHaveText('SCHEDULE');
+ await expect(page.locator('#calculator-pages').getByRole('button',{name:'START',exact:true})).toHaveCount(0);
  const startResponse=await page.request.post(`http://127.0.0.1:${info.port}/api/calculators/steel_vermiculite/worksheet`,{data:{sheet:'SETTINGS'}});assert.equal(startResponse.status(),200);
  const startRaw=await startResponse.json(),startCells=new Map(startRaw.rows.flatMap(row=>row.cells.map(cell=>[cell.address,cell]))),startChecks=[];
  for(const [address,prefix] of [['A292','SCHEDULE AND SORTING'],['A293','Sort or filter the entire SCHEDULE table'],['A308','PROJECT RELEASE'],['A309','Have the designer confirm'],['A312','SOURCE CONTROL AND QUALITY'],['A313','The workbook records the supplied report editions']]){
@@ -29,11 +29,10 @@ async function tab(name){await page.locator('#calculator-pages').getByRole('butt
    ['A273','Use CALCULATOR for one member or SCHEDULE for up to 1,000 lines.','Use SCHEDULE for one member or SCHEDULE for up to 1,000 lines.','Select product, exposure, steel temperature and input method.'],
    ['A301','CAFCO uses an inherited assumption;','The original CAFCO workbook used an inherited assumption; new estimates use user-selected consumption settings.','The startup densities are estimating assumptions; verify product-specific site yield.']]){
    assert.ok(startCells.get(address).value.includes(sourceFragment),`${address}: original fragment retained in API`);
-   const output=page.locator(`#calculator-grid [data-calculator-output="${address}"]`);await expect(output).toContainText(retainedFragment);await expect(output).not.toContainText(removedFragment);
-   startChecks.push({address,sourceRetained:true,browserFragmentRemoved:true,remainingGuidanceRetained:true});
+   await expect(page.locator(`#calculator-grid [data-calculator-output="${address}"]`)).toHaveCount(0);
+   startChecks.push({address,sourceRetained:true,browserStartHidden:true});
  }
- await expect(page.locator('#calculator-grid')).toContainText('QUANTITIES');await expect(page.locator('#calculator-grid')).toContainText('BAG YIELDS AND ORDERS');
- await page.screenshot({path:path.join(output,'spray-start-selected-text-removed.png'),fullPage:true});
+ await page.screenshot({path:path.join(output,'spray-schedule-start-hidden.png'),fullPage:true});
  await expect(page.locator('#calculator-pages').getByRole('button',{name:'LOOKUP',exact:true})).toHaveCount(0);
  await tab('SCHEDULE');await expect(page.locator('#calculator-product-totals')).toHaveCount(0);
  await tab('SUMMARY');await expect(page.locator('#calculator-product-totals')).toContainText('PRODUCT SUMMARY');
@@ -42,7 +41,7 @@ async function tab(name){await page.locator('#calculator-pages').getByRole('butt
  await page.locator('#calculator-grid').getByRole('button',{name:'GLOBAL SETTINGS',exact:true}).click();
  const global=page.locator('#calculator-settings-steel_vermiculite-SETTINGS-A9');await expect(global).toContainText('COMMON CALCULATION RULES');await expect(global).toContainText('Lookup method');
  await page.screenshot({path:path.join(output,'global-settings.png'),fullPage:true});
- await chooseCalculator(page,'Steel (board)');await idle();await expect(page.locator('#calculator-pages').getByRole('button',{name:'EXTRA BOARDS',exact:true})).toHaveCount(0);
+ await chooseCalculator(page,'Steel (board)');await idle();await expect(page.locator('#calculator-pages').getByRole('button',{name:'START',exact:true})).toHaveCount(0);await expect(page.locator('#calculator-pages').getByRole('button',{name:'EXTRA BOARDS',exact:true})).toHaveCount(0);
  await tab('SCHEDULE');await expect(page.locator('#calculator-product-totals')).toHaveCount(0);await expect(page.locator('#calculator-grid')).toContainText('STRUCTURAL STEEL BOARD SCHEDULE');
  await tab('BOARD SUMMARY');await expect(page.locator('#calculator-grid .calculator-overview')).toHaveCount(0);await expect(page.locator('#calculator-grid')).toContainText('Purchase sqm');
  const stock=page.getByRole('table',{name:'Board purchasing totals',exact:true});

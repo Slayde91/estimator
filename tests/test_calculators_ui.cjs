@@ -641,7 +641,7 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
 
   // Form worksheets keep narrow source spacers; schedule controls retain usable widths.
   entry=setup();entry.result=result({}, {rows:[{row:9,cells:[{column:1,value:'Field'},{column:2,value:1},{column:3,value:'Units'}]}]});entry.definition.sheets[0].column_widths={1:13,2:3,3:13};
-  realRender(entry);assert.equal(renderedTable().children[0].children[1].style.width,'125px');
+  realRender(entry);assert.equal(renderedTable().children[0].children[1].style.width,'112px');
   entry.definition.schedule.sheet='SCHEDULE';realRender(entry);
   assert.equal(renderedTable().children[0].children[1].style.width,'24px');
   assert.equal(renderedTable().style.width,'206px');passed++;
@@ -918,9 +918,10 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
   audit.state.current='steel_intumescent';audit.renderChoices();
   assert.equal(intumescentNavigation.getAttribute('aria-pressed'),'true');assert.equal(steelNavigation.getAttribute('aria-pressed'),'true');
   const markup=englishMarkup(fs.readFileSync('static/index.html','utf8'));
+  assert.deepEqual(copy(audit.displayPages({id:'steel_intumescent',pages:['START','SCHEDULE']})).map(page=>page.id),['START','SCHEDULE']);
   assert.match(markup,/data-calculator-id="steel_intumescent"/);assert.match(markup,/data-steel-calculator="steel_intumescent"/);
   assert.match(markup,/id="calculator-basis-dialog" aria-labelledby="calculator-basis-title"/);
-  assert.match(fs.readFileSync('static/app.js','utf8'),/\["steel", "steel_vermiculite", "steel_intumescent", "steel_board", "ductwork", "penetration"\]/);passed++;
+  assert.match(fs.readFileSync('static/app.js','utf8'),/\["steel", "steel_vermiculite", "steel_intumescent", "steel_board", "steel_factors", "ductwork", "penetration"\]/);passed++;
 
   // Settings banners are omitted from display; source titles and other notes remain unchanged.
   for(const [id,sheet] of [['steel_vermiculite','SETTINGS'],['ductwork','PRODUCT SETTINGS'],['steel_board','SETTINGS']]){
@@ -1528,7 +1529,7 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
   const chooserCases=[
     {id:'steel_vermiculite',sheet:'SETTINGS',sections:chooserBounds.map(([first,last],index)=>({id:`A${first}`,label:`Section ${index+1}`,ranges:[`A${first}:N${last}`]})),metadata:{section_cells:chooserBounds.map(([first])=>`A${first}`),merges:chooserBounds.map(([first])=>`A${first}:N${first}`)},rows:[
       {row:1,cells:[{column:1,address:'A1',value:'Vermiculite settings',presentation:{role:'title'}}]},
-      ...chooserBounds.flatMap(([first],index)=>[{row:first,cells:[{column:1,address:`A${first}`,value:`Section ${index+1}`,presentation:{role:'section'}}]},{row:first+1,cells:[{column:1,address:`A${first+1}`,value:'Setting'},{column:4,address:`D${first+1}`,value:index+0.123456789,editable:true,type:'number'}]}]),
+      ...chooserBounds.flatMap(([first],index)=>{const inputRow=first===9?13:first+1;return [{row:first,cells:[{column:1,address:`A${first}`,value:`Section ${index+1}`,presentation:{role:'section'}}]},{row:inputRow,cells:[{column:1,address:`A${inputRow}`,value:'Setting'},{column:4,address:`D${inputRow}`,value:index+0.123456789,editable:true,type:'number'}]}];}),
       {row:42,cells:[{column:4,address:'D42',value:'Saved reference basis',read_only:true,presentation:{role:'note'}}]},
     ]},
     {id:'steel_board',sheet:'SETTINGS',sections:[{id:'table-0',label:'General settings',ranges:['A5:C34']},{id:'table-1',label:'Fire periods and temperatures',ranges:['G5:N10']},{id:'table-2',label:'Diagnostic messages',ranges:['P5:Q51']}],metadata:{table_layout:'stacked',presentation_tables:boardSettingTables,header_rows:[5]},rows:[
@@ -1626,7 +1627,7 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
 
   // Browser tabs partition one source Settings sheet without creating new input or API identities.
   entry=setup();const virtualBase=copy(entry.definition);audit.state.entries.clear();audit.state.current=null;
-  const virtualInputs={SETTINGS:{D10:1.23456789,D342:2.34567891,BF533:'Retained hidden input'},SCHEDULE:{A1009:'Last schedule mark'}};
+  const virtualInputs={SETTINGS:{D10:'Retained project reference',D13:1.23456789,D342:2.34567891,BF533:'Retained hidden input'},SCHEDULE:{A1009:'Last schedule mark'}};
   const virtualRows=copy(chooserCases[0].rows).map(row=>row.row===271?{...row,cells:row.cells.filter(cell=>!cell.editable)}:row);
   virtualRows.push({row:7,cells:[{column:1,address:'A7',value:'Factor helper starts at row 341.',presentation:{role:'note'}}]});virtualRows.sort((a,b)=>a.row-b.row);
   const virtualDefinition={...virtualBase,id:'steel_vermiculite',title:'Vermiculite',inputs:copy(virtualInputs),pages:['CALCULATOR','SCHEDULE','BAGS','SETTINGS'],
@@ -1642,21 +1643,18 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
     if(!options)return copy(virtualDefinition);
     const body=JSON.parse(options.body);virtualRequests.push({path,body});
     if(path.endsWith('/state'))return {inputs:body.inputs};
-    assert.equal(body.sheet,'SETTINGS');return virtualResult(body.inputs);
+    return body.sheet==='SETTINGS'?virtualResult(body.inputs):result(copy(body.inputs),{sheet:body.sheet,rows:[]});
   };
   audit.setRequest(serveVirtual);audit.setRender(realRender);await audit.selectCalculator('steel_vermiculite');entry=audit.current();
   const virtualButtons=()=>descendants(byId('calculator-grid')).filter(node=>node.className?.startsWith('calculator-settings-choice'));
   const virtualPanels=()=>byId('calculator-grid').children.filter(node=>node.className==='calculator-settings-panel');
   const virtualOutputs=()=>byId('calculator-grid').querySelectorAll('[data-calculator-output]').map(node=>node.dataset.calculatorOutput);
-  assert.equal(entry.page,'START');assert.equal(entry.sheet,'SETTINGS');assert.equal(byId('calculator-sheet-title').textContent,'START');
-  assert.deepEqual(byId('calculator-pages').children.map(button=>button.textContent),['START','SCHEDULE','SUMMARY','SETTINGS','FACTOR CALCS']);
-  assert.equal(virtualButtons().length,0);assert.equal(renderedControls().length,0);assert.ok(virtualOutputs().includes('A270'));
-  assert.equal(virtualOutputs().filter(address=>address==='A7').length,1);
-  const startBody=descendants(byId('calculator-grid')).find(node=>node.tagName==='tbody'&&node.children.some(row=>row.dataset.sourceRow==='270'));
-  assert.equal(startBody.children[startBody.children.findIndex(row=>row.dataset.sourceRow==='270')+1].children[0].dataset.calculatorOutput,'A7');
-  for(const address of ['A1','A9','A31','A341','D342'])assert.ok(!virtualOutputs().includes(address));
+  assert.equal(entry.page,'SCHEDULE');assert.equal(entry.sheet,'SCHEDULE');assert.equal(byId('calculator-sheet-title').textContent,'SCHEDULE');
+  assert.deepEqual(byId('calculator-pages').children.map(button=>button.textContent),['SCHEDULE','SUMMARY','SETTINGS']);
+  assert.equal(virtualButtons().length,0);assert.equal(renderedControls().length,0);
+  await audit.selectPage('START');assert.equal(entry.page,'SCHEDULE');
   assert.deepEqual(copy(entry.inputs),virtualInputs);assert.deepEqual(copy(entry.definition.pages),['CALCULATOR','SCHEDULE','BAGS','SETTINGS']);passed++;
-  const virtualNavigationStartRequests=virtualRequests.length;
+  await audit.selectPage('SETTINGS');const virtualNavigationStartRequests=virtualRequests.length;
   assert.equal(audit.sourceDisplayText('Factor helper starts at row 341.',entry,'A7'),'Open FACTOR CALCS for the Section Factor Helper.');
   assert.equal(audit.sourceDisplayText('CALCULATOR = one member | BAGS = ordering | Factor helper starts at row 341.',entry,'A7'),'SCHEDULE = members | SUMMARY = ordering | Open FACTOR CALCS for the Section Factor Helper.');
   assert.equal(audit.sourceDisplayText('Use CALCULATOR for one member and BAGS for ordering.',entry,'A9'),'Use SCHEDULE for one member and SUMMARY for ordering.');
@@ -1665,39 +1663,39 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
 
   // Settings and factor chooser selections are independent; hidden source inputs and invalid drafts survive switching.
   await audit.selectPage('SETTINGS');assert.equal(virtualButtons().length,6);assert.ok(virtualPanels().every(panel=>panel.hidden));assert.equal(renderedControls().length,7);
-  assert.equal(virtualRequests.length,virtualNavigationStartRequests); // Both browser tabs use the same unchanged source worksheet.
+  assert.equal(virtualRequests.length,virtualNavigationStartRequests);
   assert.ok(!virtualOutputs().includes('A1'));assert.ok(virtualOutputs().includes('D42'));for(const address of ['A7','A270','A341','A356','A370'])assert.ok(!virtualOutputs().includes(address));
-  await virtualButtons()[0].emit('click');const virtualSetting=renderedControls().find(control=>control.dataset.calculatorCell==='D10');
+  await virtualButtons()[0].emit('click');const virtualSetting=renderedControls().find(control=>control.dataset.calculatorCell==='D13');
   assert.equal(virtualSetting.dataset.calculatorSheet,'SETTINGS');virtualSetting.value='3.45678912';await virtualSetting.emit('input');
-  await audit.selectPage('FACTOR CALCS');assert.equal(virtualButtons().length,3);assert.ok(virtualPanels().every(panel=>panel.hidden));assert.equal(renderedControls().length,3);
+  await audit.selectCalculator('steel_factors');assert.equal(audit.current(),entry);assert.equal(audit.state.entries.size,1);assert.equal(audit.state.current,'steel_vermiculite');assert.equal(byId('calculator-title').textContent,'Factor Calcs');assert.equal(byId('calculator-pages').hidden,true);assert.equal(virtualButtons().length,2);assert.ok(virtualPanels().every(panel=>panel.hidden));assert.equal(renderedControls().length,2);assert.equal(virtualButtons()[1].textContent,'HOLLOW SECTIONS');assert.equal(audit.sourceDisplayText('Original hollow title',entry,'A356'),'HOLLOW SECTIONS');
   assert.ok(!virtualOutputs().includes('A1'));for(const address of ['A9','A31','A270','D42'])assert.ok(!virtualOutputs().includes(address));
   await virtualButtons()[0].emit('click');const virtualFactor=renderedControls().find(control=>control.dataset.calculatorCell==='D342');
   assert.equal(virtualFactor.dataset.calculatorSheet,'SETTINGS');virtualFactor.value='4.56789123';await virtualFactor.emit('input');
-  await audit.selectPage('SETTINGS');assert.equal(virtualButtons()[0].getAttribute('aria-expanded'),'true');assert.equal(entry.inputs.SETTINGS.D10,3.45678912);
-  await audit.selectPage('FACTOR CALCS');assert.equal(virtualButtons()[0].getAttribute('aria-expanded'),'true');assert.equal(entry.inputs.SETTINGS.D342,4.56789123);
+  await audit.selectCalculator('steel_vermiculite');assert.equal(entry.page,'SETTINGS');assert.equal(byId('calculator-pages').hidden,false);assert.equal(virtualButtons()[0].getAttribute('aria-expanded'),'true');assert.equal(entry.inputs.SETTINGS.D13,3.45678912);
+  await audit.selectCalculator('steel_factors');assert.equal(virtualButtons()[0].getAttribute('aria-expanded'),'true');assert.equal(entry.inputs.SETTINGS.D342,4.56789123);
   const invalidFactor=renderedControls().find(control=>control.dataset.calculatorCell==='D342');invalidFactor.value='not a number';await invalidFactor.emit('input');
-  const beforeBlockedTab=virtualRequests.length;await audit.selectPage('START');assert.equal(entry.page,'FACTOR CALCS');assert.equal(virtualRequests.length,beforeBlockedTab);assert.ok(entry.invalid.has('SETTINGS!D342'));
-  invalidFactor.value='4.56789123';await invalidFactor.emit('input');await audit.selectPage('START');assert.equal(entry.page,'START');assert.equal(entry.invalid.size,0);
+  const beforeBlockedTab=virtualRequests.length;await audit.selectCalculator('steel_vermiculite');assert.equal(entry.page,'FACTOR CALCS');assert.equal(virtualRequests.length,beforeBlockedTab);assert.ok(entry.invalid.has('SETTINGS!D342'));
+  invalidFactor.value='4.56789123';await invalidFactor.emit('input');await audit.selectCalculator('steel_vermiculite');assert.equal(entry.page,'SETTINGS');assert.equal(entry.invalid.size,0);
   assert.equal(entry.inputs.SETTINGS.BF533,'Retained hidden input');assert.equal(entry.inputs.SCHEDULE.A1009,'Last schedule mark');
-  assert.equal(entry.inputs.START,undefined);assert.equal(entry.inputs['FACTOR CALCS'],undefined);assert.ok(virtualRequests.every(request=>request.body.sheet==='SETTINGS'));passed++;
+  assert.equal(entry.inputs.SETTINGS.D10,'Retained project reference');assert.equal(entry.inputs.START,undefined);assert.equal(entry.inputs['FACTOR CALCS'],undefined);assert.ok(virtualRequests.every(request=>request.path.includes('/steel_vermiculite/')));passed++;
 
   // Late responses for another browser tab cannot replace the active tab even when both share SETTINGS.
   entry.navigationCache=null;
   const oldVirtual=deferred();let virtualCalls=0;
   audit.setRequest(async(path,options)=>{const body=JSON.parse(options.body);assert.equal(body.sheet,'SETTINGS');return ++virtualCalls===1?oldVirtual.promise:virtualResult(body.inputs);});
-  const oldVirtualRun=audit.selectPage('SETTINGS'), newestVirtualRun=audit.selectPage('FACTOR CALCS');
-  assert.equal(virtualCalls,1);oldVirtual.resolve(virtualResult({SETTINGS:{D10:-99}}));await Promise.all([oldVirtualRun,newestVirtualRun]);
+  const oldVirtualRun=audit.selectCalculator('steel_factors'), newestVirtualRun=audit.selectCalculator('steel_vermiculite');
+  assert.equal(virtualCalls,1);oldVirtual.resolve(virtualResult({SETTINGS:{D13:-99}}));await Promise.all([oldVirtualRun,newestVirtualRun]);
   assert.equal(virtualCalls,2);const freshVirtualResult=entry.result;
-  assert.equal(entry.page,'FACTOR CALCS');assert.equal(entry.renderedPage,'FACTOR CALCS');assert.equal(entry.result,freshVirtualResult);assert.equal(virtualButtons().length,3);assert.equal(entry.inputs.SETTINGS.D10,3.45678912);
+  assert.equal(entry.page,'SETTINGS');assert.equal(entry.renderedPage,'SETTINGS');assert.equal(entry.result,freshVirtualResult);assert.equal(virtualButtons().length,6);assert.equal(entry.inputs.SETTINGS.D13,3.45678912);
   const oldVirtualError=deferred();virtualCalls=0;
   entry.navigationCache=null;
   audit.setRequest(async(path,options)=>++virtualCalls===1?oldVirtualError.promise:virtualResult(JSON.parse(options.body).inputs));
-  const oldFailure=audit.selectPage('START'), newestAfterFailure=audit.selectPage('SETTINGS');
+  const oldFailure=audit.selectCalculator('steel_factors'), newestAfterFailure=audit.selectCalculator('steel_vermiculite');
   assert.equal(virtualCalls,1);oldVirtualError.reject(new Error('Obsolete START failure'));await Promise.all([oldFailure,newestAfterFailure]);assert.equal(virtualCalls,2);
   assert.equal(entry.page,'SETTINGS');assert.ok(!byId('calculator-message').textContent.includes('Obsolete START failure'));assert.equal(virtualButtons().length,6);passed++;
 
   // Saving, both downloads and reset from a virtual tab still use the complete source-keyed calculator draft.
-  audit.setRequest(serveVirtual);await audit.selectPage('FACTOR CALCS');const fullVirtualDraft=copy(entry.inputs);
+  audit.setRequest(serveVirtual);await audit.selectCalculator('steel_factors');const fullVirtualDraft=copy(entry.inputs);
   await audit.save();assert.deepEqual(virtualRequests.at(-1).body,{inputs:fullVirtualDraft});assert.equal(entry.saved,JSON.stringify(fullVirtualDraft));
   for(const [download,action,mime] of [[audit.downloadSchedulePdf,'report.pdf','application/pdf'],[audit.downloadExcelRegister,'register.xlsx','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']]) {
     let capturedVirtualDownload;audit.setFetch(async(path,options)=>{assert.ok(path.endsWith('/'+action));capturedVirtualDownload=JSON.parse(options.body);return fileSaved(action);});
@@ -2051,6 +2049,34 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
   entry = setup(); requests = 0; audit.setRequest(async () => { requests++; });
   byId('calculator-import-file').files = []; await audit.importSchedule();
   byId('calculator-import-file').files = [{ name: 'large.xlsx', size: 6 * 1024 * 1024 }]; await audit.importSchedule(); assert.equal(requests, 0); passed++;
+
+  // Report is a virtual display column: every engine keeps exact source cells,
+  // blank reports stay blank, recalculation refreshes links and virtual spans align.
+  for(const id of ['steel_vermiculite','steel_intumescent','steel_board','ductwork']) {
+    entry=setup({CALCULATOR:{A9:'Exact source mark',B9:12.3456789012345},SETTINGS:{D10:'Retained'}});
+    entry.definition.id=id;entry.scheduleRows=Array.from({length:61},(_,index)=>index+9);
+    entry.definition.schedule.last_row=1008;entry.definition.schedule.line_numbers=true;
+    entry.definition.schedule.columns=[{column:'A',label:'Member'},{column:'B',label:'Status'},{column:'C',label:'Source'}];
+    const reportRows=[{row:8,cells:[{column:1,value:'Member'},{column:2,value:'Status'},{column:3,value:'Source'}]},
+      {row:9,report_references:[{label:'Assessment A',url:'https://example.com/assessment.pdf'}],cells:[{column:1,address:'A9',value:'Exact source mark'},{column:2,address:'B9',value:12.3456789012345},{column:3,address:'C9',value:'Exact source'}]},
+      {row:10,report_references:[],cells:[{column:1,address:'A10',value:null},{column:2,address:'B10',value:null},{column:3,address:'C10',value:null}]}];
+    entry.result=result(copy(entry.inputs),{rows:reportRows,schedule_view:{offset:0,rows:entry.scheduleRows,total_rows:61,limit:60,capacity:1000}});
+    const beforeReports=JSON.stringify(entry.inputs),rawReports=JSON.stringify(entry.result);
+    const reportRenderCalls=[];context.window.CeasefireRegisterReferences={renderReports(refs){reportRenderCalls.push(copy(refs));const span=element('span');span.textContent=refs.map(ref=>ref.label).join('; ');return span;}};
+    realRender(entry);const reportTable=renderedTable(),reportHead=reportTable.children.find(node=>node.tagName==='thead').children[0];
+    assert.deepEqual(reportHead.children.map(cell=>cell.textContent),['Line','Member','Report','Status','Source','Actions']);
+    const reportBody=reportTable.children.find(node=>node.tagName==='tbody'),reportCells=byId('calculator-grid').querySelectorAll('[data-calculator-reports]');
+    assert.equal(reportCells.length,2);assert.equal(reportCells[0].dataset.calculatorOutput,undefined);assert.equal(reportCells[0].children[0].textContent,'Assessment A');assert.equal(reportCells[1].children.length,0);
+    assert.equal(reportTable.children[0].children[2].style.width,'144px');assert.equal(reportTable.children[0].children.length,6);
+    assert.ok(reportBody.children.filter(row=>row.className==='calculator-virtual-spacer').every(row=>row.children[0].colSpan===6));
+    assert.ok(reportBody.children.filter(row=>row.dataset.sourceRow).every(row=>row.children.length===6));
+    assert.equal(JSON.stringify(entry.result),rawReports);assert.equal(JSON.stringify(entry.inputs),beforeReports);
+    entry.result.rows[1].report_references=[{label:'Assessment B (private)',url:null}];entry.result.rows[2].report_references=[{label:'Assessment C',url:'https://example.com/c.pdf'}];audit.refreshOutputs(entry.result);
+    assert.equal(reportCells[0].children[0].textContent,'Assessment B (private)');assert.equal(reportCells[1].children[0].textContent,'Assessment C');assert.equal(JSON.stringify(entry.inputs),beforeReports);
+    entry.result.rows[1].report_references=[];audit.refreshOutputs(entry.result);assert.equal(reportCells[0].children.length,0);
+    assert.equal(reportRenderCalls.length,4);assert.equal(byId('calculator-grid').querySelectorAll('[data-calculator-output]').filter(cell=>cell.dataset.calculatorOutput==='B9').length,1);
+    delete context.window.CeasefireRegisterReferences;passed++;
+  }
 
   // Dynamic schedules keep source addresses, all hidden inputs and precise
   // values while creating only the bounded set of controls returned by the API.

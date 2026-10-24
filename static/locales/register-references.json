@@ -1,0 +1,7 @@
+{
+  "More reports ({0} of {1})": ["更多报告（{0}/{1}）", "अधिक रिपोर्ट ({1} में से {0})", "Más informes ({0} de {1})", "المزيد من التقارير ({0} من {1})", "รายงานเพิ่มเติม ({0} จาก {1})"],
+  "More systems ({0} of {1})": ["更多系统（{0}/{1}）", "अधिक सिस्टम ({1} में से {0})", "Más sistemas ({0} de {1})", "المزيد من الأنظمة ({0} من {1})", "ระบบเพิ่มเติม ({0} จาก {1})"],
+  "Reference candidates only; verify the actual configuration and report conditions.": ["仅供参考的候选项；请核实实际配置和报告条件。", "केवल संदर्भ के संभावित विकल्प; वास्तविक विन्यास और रिपोर्ट की शर्तें जाँचें।", "Solo referencias candidatas; compruebe la configuración real y las condiciones del informe.", "مراجع مرشحة فقط؛ تحقّق من التكوين الفعلي وشروط التقرير.", "เป็นเพียงข้อมูลอ้างอิงที่อาจตรงกัน โปรดตรวจสอบรูปแบบติดตั้งจริงและเงื่อนไขในรายงาน"],
+  "Manufacturer not recorded": ["未记录制造商", "निर्माता दर्ज नहीं", "Fabricante no registrado", "الشركة المصنّعة غير مسجلة", "ไม่ได้บันทึกผู้ผลิต"],
+  "Assessment not identified in source": ["来源中未注明评估报告", "स्रोत में आकलन की पहचान नहीं की गई", "Evaluación no identificada en la fuente", "لم يُحدَّد التقييم في المصدر", "ไม่ได้ระบุรายงานประเมินในแหล่งข้อมูล"]
+}

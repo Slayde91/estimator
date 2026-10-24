@@ -16,8 +16,8 @@ from urllib.parse import urlsplit
 import webbrowser
 
 from .catalog import ROOT
+from .brand_boot import TITLE, NativeBrandSplash, install_boot_listener
 
-TITLE = 'CEASEFIRE ESTIMATOR'
 LOGGER = logging.getLogger(__name__)
 REFERENCE = re.compile(r'/api/libraries/(?:documents/[a-z0-9][a-z0-9_-]{0,119}\.pdf|images/[a-z0-9][a-z0-9_-]{0,119})\Z')
 RUNNING_MUTEX = r'Local\CEASEFIRE.Estimator.Desktop.Running'
@@ -307,9 +307,11 @@ def run(*, data_directory=None, seed_directory=None, project_dialogs=None, hidde
     ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID('CEASEFIRE.Estimator.Standard')
     directory = data_directory or application_data_directory()
     kernel, handle = _single_instance(directory)
-    server, running = None, None
+    server, running, boot_listener = None, None, None
+    splash = NativeBrandSplash(ROOT / 'static' / 'classifire-logo.png', hidden=hidden)
     try:
         running = _installer_guard(kernel)
+        splash.start()
         initialize_data(seed_directory or ROOT / 'factory-seed', directory)
         logs, profile = safe_directory(directory / 'logs'), safe_directory(directory / 'webview')
         logs.mkdir(exist_ok=True); profile.mkdir(exist_ok=True)
@@ -335,16 +337,18 @@ def run(*, data_directory=None, seed_directory=None, project_dialogs=None, hidde
                 return False
         window.events.initialized += initialized
         def install_guards():
+            nonlocal boot_listener
             try:
                 from System.Drawing import Icon
                 fit_native_window(window)
-                window.native.Icon = Icon(str(ROOT / 'static' / 'ceasefire-app.ico'))
+                window.native.Icon = Icon(str(ROOT / 'static' / 'classifire-app.ico'))
                 if hidden:
                     # Hiding a WinForms WebView before first navigation can
                     # suspend its renderer. An invisible shown diagnostic form
                     # still exercises the actual native document lifecycle.
                     window.native.Opacity = 0
                 install_navigation_guard(window, origin, controller)
+                boot_listener = install_boot_listener(window, origin, main_document, splash)
                 def initialized_native(sender, event):
                     if not event.IsSuccess:
                         startup_errors.append('Microsoft Edge WebView2 could not initialize. Repair or reinstall its Runtime and try again.')
@@ -359,15 +363,26 @@ def run(*, data_directory=None, seed_directory=None, project_dialogs=None, hidde
         window.events.before_show += install_guards
         window.events.closing += controller.closing
         window.events.closed += controller.closed
+        window.events.closed += splash.close
         if on_window:
             on_window(window, controller, origin)
         try:
-            webview.start(gui='edgechromium', debug=False, private_mode=False, storage_path=str(directory / 'webview'), icon=str(ROOT / 'static' / 'ceasefire-app.ico'))
+            webview.start(gui='edgechromium', debug=False, private_mode=False, storage_path=str(directory / 'webview'), icon=str(ROOT / 'static' / 'classifire-app.ico'))
             if startup_errors:
                 raise RuntimeError(startup_errors[0])
         finally:
             controller.closed()
     finally:
+        if boot_listener:
+            try:
+                control, listener = boot_listener
+                control.WebMessageReceived -= listener
+            except Exception:
+                LOGGER.debug('Startup listener was already disposed', exc_info=True)
+        try:
+            splash.close()
+        except Exception:
+            LOGGER.exception('The owned startup artwork could not close cleanly')
         if server:
             server.shutdown()
             server.server_close()

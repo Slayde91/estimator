@@ -17,8 +17,9 @@
       CALCULATOR: { hide: ["A1"], text: { A1: "" }, center: ["A6:F24", "H6:N24"], split_status: ["H9", "H20"] }, // 4–5
       BAGS: { center: ["A6:N15", "A19:I25"] }, // Manual quantities and all six product totals
       SETTINGS: {
-        omit: ["A1", "A292:L295", "A308:L315"],
+        omit: ["A1", "A10:N12", "A15:N15", "A27:N27", "A292:L295", "A308:L315"],
         text: {
+          A356: "HOLLOW SECTIONS",
           A273: "Select product, exposure, steel temperature and input method. Enter the exact section or verified factor. Lower-web input is only for Fendolite castellated beams.",
           A301: "Verify pack size, method and site yield for each product. The startup densities are estimating assumptions; verify product-specific site yield. Add waste separately. See the historical product yield-source records on SETTINGS.",
         },
@@ -1149,15 +1150,25 @@
     return editing ? String(visible) : (cell.control_exact ? controlExactNumber : controlNumber).format(visible);
   }
 
+  function scheduleColumnWidth(column, label, lineColumn) {
+    if (column === lineColumn) return 60;
+    if (/notes?|status|requirements|basis|sources?/i.test(label)) return 224;
+    if (/product|steel id|section|member mark|item.*mark|location|duct use/i.test(label)) return 170;
+    if (/exposure|input method|orientation|frl/i.test(label)) return 156;
+    return 112;
+  }
+
   function sheetMetadata(entry) { return entry.definition.sheets.find((sheet) => sheet.name === entry.sheet) || {}; }
-  function displayPages(definition) {
+  function displayPages(definition, factorView = false) {
     const pages = definition.display_pages?.length ? definition.display_pages : definition.pages.map((sheet) => ({ id: sheet, label: sheet, sheet }));
-    return pages.filter(page => !(definition.id === "steel_vermiculite" && page.id === "CALCULATOR") && !(definition.id === "steel_board" && page.sheet === "EXTRA BOARDS")).map((page) => page.id === "CALCULATOR" && page.sheet === "CALCULATOR" ?
+    return pages.filter(page => !(["steel_vermiculite", "steel_board"].includes(definition.id) && page.id === "START")
+      && !(definition.id === "steel_vermiculite" && (factorView ? page.id !== "FACTOR CALCS" : ["CALCULATOR", "FACTOR CALCS"].includes(page.id)))
+      && !(definition.id === "steel_board" && page.sheet === "EXTRA BOARDS")).map((page) => page.id === "FACTOR CALCS" ? { ...page, label: "Factor Calcs", section_ids: page.section_ids.filter(id => id !== "A370") } : page.id === "CALCULATOR" && page.sheet === "CALCULATOR" ?
       { ...page, label: definition.id === "steel_vermiculite" ? "LOOKUP" : ["steel_board", "ductwork"].includes(definition.id) ? "SCHEDULE" : page.label }
       : definition.id === "steel_vermiculite" && page.id === "BAGS" ? { ...page, label: "SUMMARY" } : page);
   }
   function currentPage(entry) { return entry.page || entry.sheet; }
-  function pageDefinition(entry) { return displayPages(entry.definition).find((page) => page.id === currentPage(entry)) || { id: currentPage(entry), label: currentPage(entry), sheet: entry.sheet }; }
+  function pageDefinition(entry) { return displayPages(entry.definition, entry.factorView).find((page) => page.id === currentPage(entry)) || { id: currentPage(entry), label: currentPage(entry), sheet: entry.sheet }; }
   function hiddenColumns(metadata) {
     const hidden = new Set(metadata.hidden_columns || []);
     for (const [column, width] of Object.entries(metadata.column_widths || {})) if (Number.isFinite(Number(width)) && Number(width) <= 0) hidden.add(columnNumber(column));
@@ -1617,7 +1628,7 @@
     let settingsSections = result?.settings_sections ?? metadata.settings_sections ?? [];
     if (entry.definition.id === "steel_vermiculite" && entry.sheet === "SETTINGS") {
       const common = settingsSections.find(section => section.id === "A17");
-      settingsSections = settingsSections.filter(section => section.id !== "A17").map(section => section.id === "A9" && common ? { ...section, ranges: [...section.ranges, ...common.ranges] } : section);
+      settingsSections = settingsSections.filter(section => section.id !== "A17").map(section => section.id === "A9" && common ? { ...section, ranges: [...section.ranges, ...common.ranges] } : section.id === "A356" ? { ...section, label: "HOLLOW SECTIONS" } : section);
     }
     const ductSettings = entry.definition.id === "ductwork" && entry.sheet === "PRODUCT SETTINGS";
     const ductSummary = entry.definition.id === "ductwork" && entry.sheet === "SUMMARY";
@@ -1668,7 +1679,14 @@
       if (isNumber(value)) window.CeasefireI18n.attr(control, "title", "Exact value: {0}{1}", [numericInputValue(value, cell, true), window.CeasefireI18n.term(percent(cell) ? "%" : "")]);
     }
     renderProductTotals(result, entry.productTotalsElement);
+    const reportRows = new Map(result.rows.map(row => [row.row, row]));
+    for (const element of $("calculator-grid").querySelectorAll("[data-calculator-reports]")) renderReportReferences(element, reportRows.get(Number(element.dataset.calculatorReports))?.report_references || []);
     refreshBoardSteelAreas(result);
+  }
+
+  function renderReportReferences(element, references) {
+    const renderer = window.CeasefireRegisterReferences?.renderReports;
+    element.replaceChildren(...(references.length ? [renderer ? renderer(references) : node("span", "", references.map(reference => reference.label).join(" | "))] : []));
   }
 
   function boardSteelValue(result, row) {
@@ -1696,6 +1714,7 @@
     const content = rows.filter((row) => !schedule || row.row < schedule.header_row).map((row) => [row.row, row.cells.filter((cell) => !omittedColumns.has(cell.column) && !isOmitted(row.row, cell.column) && (cell.editable || (cell.value !== null && cell.value !== undefined && cell.value !== ""))).map((cell) => cell.column)]);
     const titleAddresses = new Set(metadata.presentation_tables.map((table) => table.title_address).filter(Boolean));
     const titles = rows.flatMap((row) => row.cells.filter((cell) => titleAddresses.has(cell.address || `${columnName(cell.column)}${row.row}`)).map((cell) => cell.value));
+    titles.push(result.rows.some(row => Object.prototype.hasOwnProperty.call(row, "report_references")));
     return JSON.stringify([{ ...pageDefinition(entry), section_spacing: result.section_spacing ?? metadata.section_spacing }, result.visible_columns, metadata.omitted_rows, metadata.omitted_columns, metadata.omitted_ranges, metadata.hidden_addresses, metadata.presentation_tables, metadata.table_layout, metadata.display_column_order, metadata.display_text, metadata.display_cells, metadata.navigation_mode, metadata.settings_sections, metadata.display_table_order, metadata.schedule_heading, metadata.expand_tables, titles, content, result.option_sets || {}, rows.map((row) => row.cells.filter((cell) => cell.editable && !omittedColumns.has(cell.column) && !isOmitted(row.row, cell.column)).map((cell) => [cell.address || `${columnName(cell.column)}${row.row}`, cell.type, cell.options_ref || cell.options, cell.allow_other, cell.error_style, cell.validation]))]);
   }
 
@@ -1924,11 +1943,13 @@
     }
     const labels = headerLabels(entry, result);
     const schedule = entry.definition.schedule?.sheet === entry.sheet ? entry.definition.schedule : entry.sheet === "EXTRA BOARDS" ? { first_row: 6, last_row: 45, header_row: 5 } : null;
+    const showReports = Boolean(schedule && ["steel_vermiculite", "steel_intumescent", "steel_board", "ductwork"].includes(entry.definition.id) && result.rows.some(row => Object.prototype.hasOwnProperty.call(row, "report_references")));
+    const reportBefore = showReports ? columns.find(column => /basis|status|sources?|requirements|notes?/i.test(labels[column] || "")) : null;
     const scheduleView = scheduleFor(entry) && result.schedule_view;
     const dynamicSchedule = Boolean(scheduleView && Array.isArray(entry.scheduleRows));
     const deleteReview = dynamicSchedule ? scheduleDeleteContext(entry) : null;
     const virtualSchedule = dynamicSchedule && entry.scheduleRows.length > scheduleWindowSize;
-    const syntheticLine = Boolean(schedule?.line_numbers), lineColumn = columnNumber(schedule?.line_id_column), lineWidth = 70;
+    const syntheticLine = Boolean(schedule?.line_numbers), lineColumn = columnNumber(schedule?.line_id_column), lineWidth = 60;
     const exposureColumns = new Set((schedule?.columns || []).filter((column) => column.editable && /exposure/i.test(column.label)).map((column) => columnNumber(column.column)));
     const presentationTables = metadata.presentation_tables;
     const stackedTables = metadata.table_layout === "stacked" && presentationTables.length > 0;
@@ -2082,9 +2103,9 @@
     const headRow = node("tr");
     if (syntheticLine) { const heading = uiNode("th", "calculator-line-number", "Line"); heading.scope = "col"; headRow.append(heading); }
     for (const column of columns) {
+      if (showReports && column === reportBefore) { const heading = uiNode("th", "calculator-report-column", "Report"); heading.scope = "col"; headRow.append(heading); }
       const label = String(labels[column] || "");
-      const minimum = !schedule ? 24 : /notes?|status|requirements|basis|sources?/i.test(label) ? 360 : /product|steel id|section|member mark|item.*mark|location|duct use/i.test(label) ? 220 : 125;
-      const width = schedule && column === lineColumn ? lineWidth : Math.max(minimum, Math.min(schedule ? 420 : 320, (Number(metadata.column_widths?.[column]) || 22) * 7));
+      const width = schedule ? scheduleColumnWidth(column, label, lineColumn) : Math.max(24, Math.min(320, (Number(metadata.column_widths?.[column]) || 22) * 7));
       widths.push(width);
       const heading = uiNode("th", "", labels[column] || ""); heading.scope = "col"; headRow.append(heading);
       if (schedule?.columns?.some(field => columnNumber(field.column) === column && field.required)) {
@@ -2092,6 +2113,7 @@
         window.CeasefireI18n.attr(heading, "aria-label", "{0} (required)", [window.CeasefireI18n.term(labels[column] || "")]);
       }
     }
+    if (showReports && !reportBefore) { const heading = uiNode("th", "calculator-report-column", "Report"); heading.scope = "col"; headRow.append(heading); }
     if (dynamicSchedule) { const heading = uiNode("th", "calculator-row-action", "Actions"); heading.scope = "col"; headRow.append(heading); }
     head.append(headRow);
     let introPlaced = false;
@@ -2099,6 +2121,7 @@
       const groupColumns = renderedGroup.columns;
       const tr = node("tr"), values = new Map(row.cells.map((cell) => [cell.column, cell]));
       const item = schedule ? row.row - schedule.first_row + 1 : "";
+      const reportCell = () => { const cell = node("td", "calculator-report-column"); cell.dataset.calculatorReports = String(row.row); renderReportReferences(cell, row.report_references || []); return cell; };
       tr.dataset.sourceRow = String(row.row);
       if (dynamicSchedule) {
         tr.setAttribute("aria-rowindex", String(entry.scheduleRows.indexOf(row.row) + 2));
@@ -2114,6 +2137,7 @@
       }
       for (const placement of rowLayout || groupColumns.map((column) => ({ column }))) {
         const column = placement.column;
+        if (showReports && column === reportBefore) tr.append(reportCell());
         if (boardSummary && column === 10 && row.row >= 11 && row.row <= 29) {
           const steelCell = node(row.row === 11 ? "th" : "td", "calculator-role-output calculator-center calculator-bold");
           if (row.row === 11) { steelCell.scope = "col"; window.CeasefireI18n.text(steelCell, "Net Steel sqm"); }
@@ -2167,6 +2191,7 @@
         }
         td.hidden = hiddenAddresses.has(address); tr.append(td);
       }
+      if (showReports && !groupColumns.includes(reportBefore)) tr.append(reportCell());
       if (dynamicSchedule) {
         const action = node("td", "calculator-row-action");
         for (const binding of window.CeasefireTakeoffs?.scheduleBindings(entry.definition.id, row.row) || []) {
@@ -2231,9 +2256,10 @@
       if (fitContent) table.classList.add("calculator-content-table");
       if (definition) table.classList.add("calculator-projection-table");
       const groupWidths = definition ? groupColumns.map((column) => definition.column_widths?.[definition.columns.map(columnNumber).indexOf(column)] || 125) : matrix && group === "matrix" ? groupColumns.map((column) => orderTable ? [19, 7, 9, 10, 8, 7, 11, 9, 20][column - 1] : column === 1 ? 100 : 88) : groupColumns.map((column) => widths[columns.indexOf(column)]);
+      if (showReports) groupWidths.splice(groupColumns.includes(reportBefore) ? groupColumns.indexOf(reportBefore) : groupWidths.length, 0, 144);
       if (boardSummary && definition?.first_row === 11 && groupColumns.includes(10)) groupWidths.splice(groupColumns.indexOf(10), 0, 170);
       if (syntheticLine) groupWidths.unshift(lineWidth);
-      if (dynamicSchedule) groupWidths.push(100);
+      if (dynamicSchedule) groupWidths.push(80);
       const totalWidth = groupWidths.reduce((sum, width) => sum + width, 0);
       for (const width of groupWidths) { const col = node("col"); col.style.width = `${fitWidth ? width / totalWidth * 100 : width}${legacyOrder || fitWidth ? "%" : "px"}`; colgroup.append(col); }
       table.style.width = legacyOrder || fitWidth ? "100%" : `${totalWidth}px`; table.append(colgroup);
@@ -2241,7 +2267,7 @@
       if (virtualSchedule) {
         const spacer = (count) => {
           const row = node("tr", "calculator-virtual-spacer"), cell = node("td"); row.setAttribute("aria-hidden", "true");
-          cell.colSpan = groupColumns.length + Number(syntheticLine) + Number(dynamicSchedule);
+          cell.colSpan = groupColumns.length + Number(syntheticLine) + Number(dynamicSchedule) + Number(showReports);
           cell.style.height = `${Math.max(0, count) * scheduleRowHeight}px`; row.append(cell); return row;
         };
         body.replaceChildren(spacer(scheduleView.offset), ...body.children, spacer(entry.scheduleRows.length - scheduleView.offset - rows.length));
@@ -2405,7 +2431,7 @@
   }
 
   async function selectPage(id) {
-    const entry = current(), page = entry && displayPages(entry.definition).find((item) => item.id === id); if (!page) return;
+    const entry = current(), page = entry && displayPages(entry.definition, entry.factorView).find((item) => item.id === id); if (!page) return;
     if (id === currentPage(entry) && state.gridEntry === entry && entry.result && !entry.needsRender) return;
     if (entry.invalid.size) { message(uiCopy("Correct the invalid number before changing pages."), true); return; }
     retainPage(entry);
@@ -2415,11 +2441,12 @@
   }
 
   function renderPages(entry) {
-    const buttons = displayPages(entry.definition).map((page) => {
+    const buttons = displayPages(entry.definition, entry.factorView).map((page) => {
       const button = uiNode("button", "calculator-page", page.label); button.type = "button";
       button.setAttribute("aria-pressed", String(page.id === currentPage(entry))); button.addEventListener("click", () => selectPage(page.id)); return button;
     });
     $("calculator-pages").replaceChildren(...buttons);
+    $("calculator-pages").hidden = Boolean(entry.factorView);
   }
 
   function safeDocumentUrl(value) {
@@ -2456,14 +2483,25 @@
   function renderChoices() {
     const firestopping = Boolean(window.CeasefireProposalCalculators?.isFirestopping?.());
     for (const button of $("calculator-navigation-menu")?.querySelectorAll("[data-calculator-id]") || []) {
-      button.setAttribute("aria-pressed", String(button.dataset.calculatorId === "penetration" ? firestopping : !firestopping && (button.dataset.calculatorId === "steel" ? window.CeasefireProposalCalculators?.isSteelHub?.() || ["steel_vermiculite", "steel_intumescent", "steel_board"].includes(state.current) : button.dataset.calculatorId === state.current)));
+      const selected = current()?.factorView ? "steel_factors" : state.current;
+      button.setAttribute("aria-pressed", String(button.dataset.calculatorId === "penetration" ? firestopping : !firestopping && (button.dataset.calculatorId === "steel" ? window.CeasefireProposalCalculators?.isSteelHub?.() || ["steel_vermiculite", "steel_intumescent", "steel_board"].includes(state.current) : button.dataset.calculatorId === selected)));
     }
   }
 
-  async function selectCalculator(id) {
+  function canSelect(id) {
+    const entry = current(), canonical = id === "steel_factors" ? "steel_vermiculite" : id;
+    if (entry && canonical === state.current && Boolean(entry.factorView) !== (id === "steel_factors") && entry.invalid.size) {
+      message(uiCopy("Correct the invalid number before changing pages."), true); return false;
+    }
+    return true;
+  }
+
+  async function selectCalculator(requestedId) {
+    if (!canSelect(requestedId)) return;
+    const factorView = requestedId === "steel_factors", id = factorView ? "steel_vermiculite" : requestedId;
     const serial = ++state.loadRevision;
     window.CeasefireProposalCalculators?.showWorkbook?.();
-    if (id === state.current && state.gridEntry === current() && current()?.result && !current().needsRender) {
+    if (id === state.current && Boolean(current()?.factorView) === factorView && state.gridEntry === current() && current()?.result && !current().needsRender) {
       refreshScheduleDeleteControls(current());
       $("calculator-workspace").hidden = false; renderChoices(); return;
     }
@@ -2479,8 +2517,15 @@
       }
       if (serial !== state.loadRevision || window.CeasefireProposalCalculators?.isFirestopping?.()) return;
       retainPage(current());
+      if (Boolean(entry.factorView) !== factorView) {
+        if (factorView) entry.standardPage = currentPage(entry);
+        entry.factorView = factorView;
+        const pages = displayPages(entry.definition, factorView);
+        const page = pages.find(page => page.id === (factorView ? "FACTOR CALCS" : entry.standardPage)) || pages[0];
+        entry.page = page.id; entry.sheet = page.sheet;
+      }
       state.current = id; ++state.requestRevision; clearTimeout(state.timer);
-      $("calculator-workspace").hidden = false; $("calculator-workspace").dataset.calculatorKind = entry.definition.id; window.CeasefireI18n.text($("calculator-title"), entry.definition.id === "ductwork" ? "Duct" : entry.definition.title);
+      $("calculator-workspace").hidden = false; $("calculator-workspace").dataset.calculatorKind = entry.definition.id; window.CeasefireI18n.text($("calculator-title"), factorView ? "Factor Calcs" : entry.definition.id === "ductwork" ? "Duct" : entry.definition.title);
       window.CeasefireI18n.text($("calculator-workspace").querySelector(".eyebrow"), entry.definition.id === "ductwork" ? "DUCT CALCULATOR" : "STEEL CALCULATOR");
       window.CeasefireI18n.text($("calculator-sheet-title"), pageDefinition(entry).label);
       renderChoices(); renderPages(entry); renderDocuments(entry); updateStatus(entry); message();
@@ -2822,7 +2867,7 @@
   }
 
   window.CeasefireCalculators = { open, projectSnapshot, projectFingerprint, prepareProject, applyProject };
-  Object.assign(window.CeasefireCalculators, { select: selectCalculator, refreshNavigation: renderChoices, hide() { ++state.loadRevision; $("calculator-workspace").hidden = true; } });
+  Object.assign(window.CeasefireCalculators, { select: selectCalculator, canSelect, refreshNavigation: renderChoices, hide() { ++state.loadRevision; $("calculator-workspace").hidden = true; } });
   Object.assign(window.CeasefireCalculators, { prepareDefaults, markProjectSaved, hasUnsavedChanges, completeProjectSnapshot });
   Object.assign(window.CeasefireCalculators, { hasPendingOperation: () => !!state.action });
   Object.assign(window.CeasefireCalculators, { readTakeoffTarget, captureTakeoffTarget, reserveTakeoffTarget, applyTakeoffTarget, releaseTakeoffTarget });

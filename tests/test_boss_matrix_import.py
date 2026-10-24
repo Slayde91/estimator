@@ -33,6 +33,14 @@ def sample(**changes):
 
 
 class BossMatrixTests(unittest.TestCase):
+    def test_owner_verified_edition_pair_does_not_create_revision_issue(self):
+        catalog = {'FAS190100': [{'label': 'WF FAS 190100',
+                    'url': 'https://bossfire.com/documents/test-reports/WF-FAS-190100.pdf'}]}
+        item = make_entry(SOURCE, sample(BK='FAS190100 R2.1'), catalog)
+        self.assertFalse(any('Revision equivalence' in field.get('value', '') for field in item['fields']))
+        other = make_entry(SOURCE, sample(BK='FAS190100 R2.2'), catalog)
+        self.assertTrue(any('Revision equivalence' in field.get('value', '') for field in other['fields']))
+
     def test_mapping_reuses_existing_broad_groups_and_holds_fixture_types(self):
         before=(SERVICES,CATEGORIES)
         for subtype,expected in [('PPR','Plastic Pipes'),('PP','Plastic Pipes'),('PEX-AL','Plastic Pipes'),

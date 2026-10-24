@@ -13,6 +13,7 @@ from openpyxl import load_workbook
 from estimator.calculator_register import build_calculator_register
 from estimator.excel_engine import WorkbookEngine, column_number
 from estimator.calculator_report import project_calculator_report, _source_text
+from estimator.assessment_references import report_reference_text
 from estimator.workbook_calculators import source_model
 from tests.test_calculator_report import (cleared_inputs, REMOVED_SECTIONS,
     assert_missing_perlifoc_projection, MISSING_PERLIFOC_EVIDENCE)
@@ -75,11 +76,14 @@ class CalculatorRegisterTests(unittest.TestCase):
         headers = {cell.value: cell.column for cell in sheet[5]}
         if identity == 'steel_vermiculite':
             self.assertEqual(set(headers), {'Line', 'Location', 'Mark', 'Product', 'Section', 'Quantity',
-                                           'Length (m)', 'Published thickness (mm)', 'Spray surface (m²)', 'Status'})
+                                           'Length (m)', 'Published thickness (mm)', 'Spray surface (m²)', 'Report', 'Status'})
+        self.assertEqual(headers['Report'] + 1, headers['Status'])
         self.assertEqual(sheet.max_row, 5 + len(data['rows']))
         comparisons = 0
         for target_row, item in enumerate(data['rows'], 6):
             self.assert_cell_value(sheet.cell(target_row, headers['Line']), item['line'])
+            self.assert_cell_value(sheet.cell(target_row, headers['Report']),
+                                   report_reference_text(item['report_references'], urls=True))
             for label, column in SCHEDULE_COLUMNS[identity].items():
                 cell = sheet.cell(target_row, headers[label])
                 self.assert_cell_value(cell, item['values'][column])

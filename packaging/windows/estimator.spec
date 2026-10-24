@@ -28,5 +28,5 @@ pyz = PYZ(a.pure)
 exe = EXE(pyz, a.scripts, [], exclude_binaries=True, name='CEASEFIRE Estimator',
     debug=False, bootloader_ignore_signals=False, strip=False, upx=False,
     console=False, disable_windowed_traceback=False,
-    icon=str(root / 'static' / 'ceasefire-app.ico'), version=config['version_file'])
+    icon=str(root / 'static' / 'classifire-app.ico'), version=config['version_file'])
 coll = COLLECT(exe, a.binaries, a.datas, strip=False, upx=False, name='CEASEFIRE Estimator')

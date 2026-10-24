@@ -893,11 +893,51 @@
       const active = state.columnFilters.has(key), label = filterColumns[key], control = button(`Filter ${label}`, () => openColumnFilter(key, control), `takeoff-column-filter-button${active ? " active" : ""}`), icon = actionIcon(["M3 5h18l-7 8v6l-4 2v-8z"]);
       icon.classList.add?.("takeoff-column-filter-icon"); icon.setAttribute("class", "takeoff-column-filter-icon"); icon.setAttribute("fill", active ? "currentColor" : "none"); icon.setAttribute("stroke", "currentColor"); icon.setAttribute("stroke-width", "1.8"); icon.setAttribute("stroke-linejoin", "round"); control.replaceChildren(icon); root.CeasefireI18n.attr(control, "aria-label", "Filter {0}", [root.CeasefireI18n.term(label)]); control.setAttribute("aria-haspopup", "dialog"); control.setAttribute("aria-expanded", "false"); control.setAttribute("aria-pressed", String(active)); root.CeasefireI18n.attr(control, "title", active ? "{0}: filter applied" : "Filter {0}", [root.CeasefireI18n.term(label)]); return control;
     }
+    async function populateReferences(table, targets) {
+      if (!bridge.registerReferences || !root.CeasefireRegisterReferences || !targets.size) return;
+      const key = `${graphKey()}/${state.snapshot?.revision}`;
+      let libraryRevision = null;
+      const current = () => !state.destroyed && key === `${graphKey()}/${state.snapshot?.revision}` && ui.table.contains(table);
+      function show(identifier, reference) {
+        if (!current()) return;
+        const [reports, systems] = targets.get(identifier);
+        root.CeasefireI18n.attr(reports, "title", "Reference candidates only; verify the actual configuration and report conditions.");
+        root.CeasefireI18n.attr(systems, "title", "Reference candidates only; verify the actual configuration and report conditions.");
+        reports.replaceChildren(root.CeasefireRegisterReferences.renderReports(reference.reports, { document, pagination: reference, notify: bridge.notify, isCurrent: current,
+          loadMore: async report_offset => {
+            const reply = await bridge.registerReferences([identifier], { report_offset, expected_library_revision: libraryRevision });
+            if (!current() || reply.library_revision !== libraryRevision) throw new Error("The register references changed. Refresh the current register.");
+            return reply.row_references[identifier];
+          } }));
+        systems.replaceChildren(root.CeasefireRegisterReferences.renderSystems(reference, { document, notify: bridge.notify, isCurrent: current,
+          loadMore: async offset => {
+            const reply = await bridge.registerReferences([identifier], { offset, expected_library_revision: libraryRevision });
+            if (!current() || reply.library_revision !== libraryRevision) throw new Error("The register references changed. Refresh the current register.");
+            return reply.row_references[identifier];
+          } }));
+      }
+      const missing = [];
+      for (const identifier of targets.keys()) {
+        missing.push(identifier); for (const cell of targets.get(identifier)) root.CeasefireI18n.text(cell, "Checking…");
+      }
+      try {
+        for (let offset = 0; offset < missing.length && current(); offset += 100) {
+          const identifiers = missing.slice(offset, offset + 100), reply = await bridge.registerReferences(identifiers, libraryRevision ? { expected_library_revision: libraryRevision } : {});
+          if (!current()) return;
+          if (libraryRevision && libraryRevision !== reply.library_revision) throw new Error("The register references changed. Refresh the current register.");
+          libraryRevision = reply.library_revision;
+          for (const identifier of identifiers) show(identifier, reply.row_references[identifier]);
+        }
+      } catch (error) {
+        if (current()) for (const identifier of missing) for (const cell of targets.get(identifier)) { root.CeasefireI18n.text(cell, "Unavailable"); cell.title = error.message; }
+      }
+    }
     function renderTable() {
       const rows = hierarchyRows(graph(), state); state.offset = Math.max(0, Math.min(state.offset, Math.max(0, Math.floor((rows.length - 1) / 100) * 100)));
       const page = hierarchyPage(rows, state.index, state.offset), table = node("table"), head = node("thead"), header = node("tr"), body = node("tbody"); root.CeasefireI18n.attr(table, "aria-label", "Draft penetration hierarchy register");
       const legacy = legacyReadOnly(), rowKinds = legacy ? legacyKinds : servicePlans() ? ["barrier", "service"] : kinds;
-      const headings = ["Select", "Hide", "View/Edit", ...(legacy ? ["Legacy hierarchy / label"] : []), ...rowKinds.map(kind => `${titles[kind]} ID`), "Confirmation", "Location", "FRL", ...(legacy ? ["Opening type", "Opening size"] : []), "Substrate", "Orientation", "Category", "Service type", "Service quantity", "Service Size (mm)", "Source evidence", "Delete"];
+      const referenceTargets = new Map();
+      const headings = ["Select", "Hide", "View/Edit", ...(legacy ? ["Legacy hierarchy / label"] : []), ...rowKinds.map(kind => `${titles[kind]} ID`), "Confirmation", "Location", "FRL", ...(legacy ? ["Opening type", "Opening size"] : []), "Substrate", "Orientation", "Category", "Service type", "Service quantity", "Service Size (mm)", "Report", "System", "Source evidence", "Delete"];
       for (const label of headings) {
         const cell = uiNode("th", "", label), filterKey = Object.keys(filterColumns).find(key => filterColumns[key] === label);
         if (filterKey) cell.append(columnFilterButton(filterKey));
@@ -957,6 +997,8 @@
         if (legacy) line.append(textCell(relation.opening?.entity.fields.opening_type), textCell(relation.opening?.entity.fields.size));
         line.append(kind === "barrier" ? editableCell(row, "substrate") : textCell(relation.barrier?.entity.fields.substrate), kind === "barrier" ? editableCell(row, "orientation") : textCell(relation.barrier?.entity.fields.orientation));
         for (const field of ["service", "service_type", "quantity", "size"]) line.append(kind === "service" ? editableCell(row, field) : textCell(null, "Only a service record has this property."));
+        const reports = textCell(null), systems = textCell(null); reports.dataset.referenceReportId = entity.id; systems.dataset.referenceSystemId = entity.id;
+        line.append(reports, systems); if (!entity.deleted) referenceTargets.set(entity.id, [reports, systems]);
         const evidence = node("td"); evidence.append(uiNode("span", "helper", "{0} source associations", [entity.evidence.length])); if (entity.evidence[0]) evidence.append(uiButton("Open source", () => bridge.source(copy(entity.evidence[0])), "text-button"));
         const sourceIdentity = () => JSON.stringify([scope(), state.snapshot?.project_id, graph()?.id, graph()?.version]);
         const deleteSource = { key: graphKey(), identity: sourceIdentity(), entry: row, stamp: copy(entity) };
@@ -986,6 +1028,7 @@
       ui.table.replaceChildren(table); if (!rows.length) ui.table.append(node("p", "takeoff-register-empty", graph() ? "No matching physical records. Adjust the filter or create an explicitly linked draft record." : `Create ${servicePlans() ? "a substrate" : "a defect"} to begin the physical hierarchy. Uploaded images never create physical records automatically.`));
       ui.pagination.replaceChildren(uiButton("Previous 100 records", () => { ensureAvailable(); state.offset = Math.max(0, state.offset - 100); renderTable(); }), uiNode("span", "helper", "{0}–{1} of {2} visible hierarchy records. Ancestor context may repeat across pages.", [rows.length ? state.offset + 1 : 0, Math.min(state.offset + 100, rows.length), rows.length]), uiButton("Next 100 records", () => { ensureAvailable(); if (state.offset + 100 < rows.length) state.offset += 100; renderTable(); }));
       bridge.viewChanged?.(rows.map(row => row.entity.id), [...state.selected], [...state.hidden]);
+      void populateReferences(table, referenceTargets);
     }
     function defectFor(entry) {
       return entry?.kind === "defect" ? entry : entry && ancestors(entry, state.index).find(parent => parent.kind === "defect");

@@ -18,6 +18,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 from estimator.reference_library import ReferenceLibrary, MAX_INDEX
 from estimator.library_report_links import valid_report_url
+from estimator.library_display import verified_boss_report_equivalence
 from estimator.technical_fields import normalize_technical_item
 from estimator.technical_field_reviewed import review_fingerprint
 from estimator.technical_brand_presentation import boss_product_names
@@ -234,7 +235,9 @@ def make_entry(source,row,catalog):
         issues.append('No approved substrate is marked in matrix columns K–AQ. The originally tested construction has not been substituted as an approved alternative.')
     if len({r['url'] for r in candidates})==1:
         link=candidates[0];fields[-1]['report_links']=[{'label':report,'url':link['url']}]
-        if re.search(r'\bR\d|Rev|Issue|V\d',report,re.I) and re.sub(r'\W','',report).casefold() not in re.sub(r'\W','',link['label']).casefold():
+        if (re.search(r'\bR\d|Rev|Issue|V\d',report,re.I)
+                and re.sub(r'\W','',report).casefold() not in re.sub(r'\W','',link['label']).casefold()
+                and not verified_boss_report_equivalence(report, link['label'])):
             issues.append('The matrix cites '+report+'. BOSS currently lists '+link['label']+'. Revision equivalence has not been verified.')
     else:
         issues.append('The matrix cites '+report+', which is not uniquely listed in section 6 of the captured BOSS resources page. No report PDF link has been assigned.')

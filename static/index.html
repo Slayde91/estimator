@@ -1,11 +1,12 @@
 <!doctype html>
-<html lang="en-AU">
+<html lang="en-AU" data-brand-boot="pending">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light">
-  <title>Ceasefire Estimator</title>
-  <link rel="icon" href="/ceasefire-app.ico">
+  <title>CLASSIFIRE | Passive Fire Intelligence</title>
+  <link rel="icon" href="/classifire-app.ico">
+  <link rel="stylesheet" href="/brand-boot.css">
   <link rel="stylesheet" href="/styles.css">
   <link rel="stylesheet" href="/downloads.css">
   <link rel="stylesheet" href="/calculators.css">
@@ -36,7 +37,9 @@
   <script src="/header-tagline-media.js" defer></script>
   <script src="/penetration-presentation.js" defer></script>
   <script src="/travel.js" defer></script>
+  <script src="/brand-boot.js" defer></script>
   <script src="/app.js" defer></script>
+  <script src="/register-references.js" defer></script>
   <script src="/calculators.js" defer></script>
   <!-- TAKEOFFS:START -->
   <script src="/takeoff-geometry.js" defer></script>
@@ -61,6 +64,10 @@
   <script src="/help-glossary.js" defer></script>
 </head>
 <body>
+  <div id="classifire-boot" role="status" aria-live="polite">
+    <img src="/classifire-logo.png" width="2172" height="724" alt="CLASSIFIRE">
+    <span class="sr-only" data-i18n="Loading the estimator and pricing library…">Loading the estimator and pricing library…</span>
+  </div>
   <!-- Derive the supplied grayscale character's alpha at render time. The
        original GIF frames, timing and stopped frame remain unchanged. -->
   <svg class="header-artwork-filters" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
@@ -133,6 +140,7 @@ SOFTWARE. -->
               <button type="button" class="calculator-navigation-choice" data-calculator-id="steel_vermiculite" aria-pressed="false" data-i18n="Steel (spray)">Steel (spray)</button>
               <button type="button" class="calculator-navigation-choice" data-calculator-id="steel_intumescent" aria-pressed="false" data-i18n="Steel (intumescent)">Steel (intumescent)</button>
               <button type="button" class="calculator-navigation-choice" data-calculator-id="steel_board" aria-pressed="false" data-i18n="Steel (board)">Steel (board)</button>
+              <button type="button" class="calculator-navigation-choice" data-calculator-id="steel_factors" aria-pressed="false" data-i18n="Factor Calcs">Factor Calcs</button>
             </div>
           </div>
         </div>
@@ -292,6 +300,7 @@ SOFTWARE. -->
           <button type="button" class="home-card" data-steel-calculator="steel_vermiculite" aria-label="Steel (spray)" data-i18n-aria-label="Steel (spray)"><strong data-i18n="Steel (spray)">Steel (spray)</strong><span data-i18n="Open the steel spray calculator.">Open the steel spray calculator.</span></button>
           <button type="button" class="home-card" data-steel-calculator="steel_intumescent" aria-label="Steel (intumescent)" data-i18n-aria-label="Steel (intumescent)"><strong data-i18n="Steel (intumescent)">Steel (intumescent)</strong><span data-i18n="Open the steel intumescent calculator.">Open the steel intumescent calculator.</span></button>
           <button type="button" class="home-card" data-steel-calculator="steel_board" aria-label="Steel (board)" data-i18n-aria-label="Steel (board)"><strong data-i18n="Steel (board)">Steel (board)</strong><span data-i18n="Open the steel board calculator.">Open the steel board calculator.</span></button>
+          <button type="button" class="home-card" data-steel-calculator="steel_factors" aria-label="Factor Calcs" data-i18n-aria-label="Factor Calcs"><strong data-i18n="Factor Calcs">Factor Calcs</strong></button>
         </div>
       </section>
       <section id="calculator-workspace" class="card calculator-workspace" aria-labelledby="calculator-title" hidden>

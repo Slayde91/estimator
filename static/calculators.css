@@ -60,6 +60,10 @@
 .calculator-grid .calculator-basis-preview{display:block;width:100%;min-width:0;max-width:100%;padding:6px 8px;border:1px solid var(--line);border-radius:5px;background:transparent;color:inherit;font:inherit;text-align:start;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
 .calculator-grid .calculator-basis-preview:hover{background:var(--surface,#fff4ef)}
 .calculator-grid .calculator-basis-preview:focus-visible{outline:2px solid var(--red);outline-offset:2px}
+.calculator-grid .calculator-required-heading::after{content:" *";color:var(--red)}
+.calculator-grid .calculator-required-missing{border-color:var(--red)!important;box-shadow:inset 0 0 0 1px var(--red)}
+.calculator-schedule-guidance{padding:0 24px 16px}
+.calculator-schedule-guidance p{margin:4px 0}
 #calculator-basis-dialog{width:min(760px,calc(100vw - 40px));max-width:760px}
 .calculator-basis-full{max-height:min(65vh,640px);overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.65;padding:12px 0;margin:10px 0}
 .calculator-basis-full:focus-visible{outline:2px solid var(--red);outline-offset:3px}

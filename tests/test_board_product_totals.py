@@ -86,9 +86,10 @@ class BoardProductTotalsTests(unittest.TestCase):
                 with self.subTest(product=product, field=field):
                     self.assertAlmostEqual(actual[product][field], expected[product][field], places=9)
 
-    def test_default_worksheet_totals_match_workbook_caches_and_known_orders(self):
-        page = calculate_worksheet('steel_board', {}, 'CALCULATOR')
-        actual = {row['product']: row for row in page['board_product_totals']}
+    def test_retained_source_default_totals_match_workbook_caches_and_known_orders(self):
+        # The raw workbook remains the complete historical oracle. Promat's
+        # application selection now uses FC15555-01-03, independently tested.
+        actual = product_totals({})
         self.assert_totals(actual, retained_expectations(source_model('steel_board')))
         known = {
             'TRAFALGAR COREX': (13.456, 21.014, 11, 5),
@@ -102,6 +103,15 @@ class BoardProductTotalsTests(unittest.TestCase):
         self.assertEqual(sum(row['whole_sheets'] for row in actual.values()), 27)
         self.assertNotEqual(actual['PROMATECT-XS']['box_reference_area'],
                             actual['PROMATECT-XS']['net_board_area'])
+
+    def test_application_non_promat_default_totals_retain_native_oracle(self):
+        page = calculate_worksheet('steel_board', {}, 'CALCULATOR')
+        actual = {row['product']: row for row in page['board_product_totals']}
+        expected = retained_expectations(source_model('steel_board'))
+        for product in ('TRAFALGAR COREX', 'PROMATECT-XS'):
+            for field in FIELDS:
+                with self.subTest(product=product, field=field):
+                    self.assertAlmostEqual(actual[product][field], expected[product][field], places=9)
 
     def test_varied_native_captures_cover_all_stock_invalid_extras_and_zero_waste(self):
         scenarios = read_fixture('steel_board', 'variations')['scenarios']

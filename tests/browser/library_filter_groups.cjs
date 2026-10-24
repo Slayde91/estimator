@@ -1,0 +1,83 @@
+"use strict";
+// All records, database files, chooser DOM and browser state are disposable.
+const {chromium,expect}=require('@playwright/test');
+const {spawn}=require('node:child_process');
+const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict'),{createHash}=require('node:crypto');
+const {chooseLibrary}=require('./section_navigation.cjs');
+const root=path.resolve(__dirname,'../..'),output=path.join(root,'.runtime/browser-qa',`library-filter-groups-${Date.now()}`);
+const locales=['en','zh-Hans','hi','es','ar','th','ko','tl','vi'];
+const base=JSON.parse(fs.readFileSync(path.join(root,'static/locales/library-filter-groups.json'),'utf8'));
+const extra=JSON.parse(fs.readFileSync(path.join(root,'static/locales/additions/library-filter-groups.json'),'utf8'));
+const translated=(source,locale,args=[])=>String(locale==='en'?source:[...base[source],...extra[source]][locales.indexOf(locale)-1]).replace(/\{(\d+)\}/g,(_,n)=>args[n]);
+const serviceGroups=['Electrical & communications','Mechanical','HVAC','Plastic pipes','Lagged metal pipes','Unlagged metal pipes'];
+const sourceFiles=['estimator/library_filter_groups.py','estimator/reference_library.py','estimator/firestopping_library.py','static/libraries.js','static/takeoff-library-links.js','static/language-catalog.js','static/locales/library-filter-groups.json','static/locales/additions/library-filter-groups.json','tests/browser/library_link_picker_fixture.py','tests/browser/library_filter_groups.cjs'];
+const hash=file=>createHash('sha256').update(fs.readFileSync(file)).digest('hex'),bindings=()=>Object.fromEntries(sourceFiles.map(file=>[file,hash(path.join(root,file))]));
+const sourceBefore=bindings(),server=spawn(process.env.CEASEFIRE_PYTHON||'python',[path.join(__dirname,'library_link_picker_fixture.py'),'--directory',output,'--filter-groups'],{cwd:root,windowsHide:true});
+let logs='',browser,page,info;const evidence={synthetic:true,locales:[],layouts:[],page_errors:[],blocked_requests:[],sourceBefore,original_tabs_accessed:false,takeoff_sessions_created:false};
+server.stderr.on('data',data=>logs+=data);
+const ready=new Promise((resolve,reject)=>{let raw='';const timer=setTimeout(()=>reject(Error(`Fixture startup: ${logs}`)),120000);server.stdout.on('data',value=>{raw+=value;if(raw.includes('\n')){clearTimeout(timer);try{resolve(JSON.parse(raw.split('\n')[0]));}catch(error){reject(error);}}});server.once('error',reject);server.once('exit',code=>{clearTimeout(timer);reject(Error(`Fixture exit ${code}: ${logs}`));});});
+async function idle(){await page.waitForFunction(()=>{const s=window.CeasefireDesktop?.status();return s?.ready&&!s.busy;});}
+async function snapshot(){await idle();return page.evaluate(()=>({calculators:window.CeasefireCalculators.projectSnapshot(),penetration:window.CeasefirePenetrations.projectSnapshot(),configuration:window.CeasefireProject.configuration(),details:window.CeasefireProject.details(),dirty:window.CeasefireDesktop.status().dirty}));}
+const main=()=>page.locator('#technical-library-workspace'),picker=()=>page.locator('.library-link-picker:visible');
+async function groupLabels(scope,key,attribute='data-library-filter'){return scope.locator(`select[${attribute}="${key}"] optgroup`).evaluateAll(nodes=>nodes.map(node=>node.label));}
+async function checkGroups(scope,locale,attribute){
+ assert.deepEqual(await groupLabels(scope,'services',attribute),serviceGroups.map(name=>translated(name,locale)));
+ assert.deepEqual(await groupLabels(scope,'frl',attribute),[30,60,90,120,180,240,300].map(value=>translated('{0} minutes',locale,[String(value)])));
+ assert.deepEqual(await groupLabels(scope,'document',attribute),['BOSS','Firefly','Promat','Trafalgar']);
+ const values=await scope.locator(`select[${attribute}="services"]`).evaluate(node=>[...node.options].map(option=>option.value));
+ assert.equal(values.length,31);assert.equal(new Set(values).size,31);assert.deepEqual(values.slice(0,3),['','N/A','Mixed Services']);assert.ok(values.includes('Copper Pipes'));assert.ok(values.includes('Pair Coils'));
+ const standalone=await scope.locator(`select[${attribute}="services"] > option`).evaluateAll(nodes=>nodes.map(node=>node.value));assert.deepEqual(standalone,['','N/A','Mixed Services']);
+}
+async function layout(scope,label,locale,width){
+ await page.setViewportSize({width,height:900});await scope.scrollIntoViewIfNeeded();
+ const geometry=await scope.evaluate(root=>({overflow:document.documentElement.scrollWidth-innerWidth,controls:[...root.querySelectorAll('select')].map(node=>{const b=node.getBoundingClientRect();return{left:b.left,right:b.right,width:b.width};})}));
+ assert.ok(geometry.overflow<=1,`${label}/${locale}/${width}: no viewport overflow`);assert.ok(geometry.controls.every(box=>box.left>=-1&&box.right<=width+1),`${label}/${locale}/${width}: native controls fit`);
+ evidence.layouts.push({label,locale,width,...geometry});
+ if(['en','ar'].includes(locale))await page.screenshot({path:path.join(output,`${label}-${locale}-${width}.png`),fullPage:true});
+}
+async function setFilter(scope,key,value,attribute='data-library-filter',limit='50'){
+ const waiting=page.waitForResponse(response=>{const url=new URL(response.url());return url.pathname==='/api/libraries/technical'&&(value?url.searchParams.get(key)===value:!url.searchParams.has(key))&&url.searchParams.get('limit')===limit;});
+ await scope.locator(`select[${attribute}="${key}"]`).selectOption(value);const response=await waiting;assert.equal(response.status(),200);const data=await response.json();
+ await expect(scope.locator(attribute==='data-library-filter'?'.library-results':'.library-link-results')).toHaveAttribute('aria-busy','false');return data;
+}
+(async()=>{
+ info=await ready;assert.notEqual(info.port,8765);assert.equal(path.resolve(info.directory),output);const index=path.join(info.library,'library.json'),indexBefore=hash(index),origin=`http://127.0.0.1:${info.port}`;
+ browser=await chromium.launch({headless:true});page=await browser.newPage({viewport:{width:1146,height:900},reducedMotion:'reduce'});page.setDefaultTimeout(60000);
+ await page.route('**/*',route=>{const request=route.request(),url=new URL(request.url()),method=request.method(),pure=method==='POST'&&(['/api/calculate','/api/penetration/calculate','/api/penetration/definition'].includes(url.pathname)||/^\/api\/calculators\/(?:steel_vermiculite|steel_board|steel_intumescent|ductwork)\/(?:worksheet|calculate)$/.test(url.pathname));if(url.origin===origin&&(['GET','HEAD'].includes(method)||pure))return route.continue();evidence.blocked_requests.push({method,path:url.pathname});return route.abort('blockedbyclient');});
+ page.on('pageerror',error=>evidence.page_errors.push(error.message));await page.goto(origin);await expect(page.locator('#view-home')).toBeVisible();await idle();await page.evaluate(async()=>{await window.CeasefireCalculators.completeProjectSnapshot();await window.CeasefirePenetrations.completeProjectSnapshot();});
+ const before=await snapshot();await chooseLibrary(page,'technical');await expect(main().locator('[data-library-filter="document"]')).toBeVisible();
+ for(const locale of locales){await page.evaluate(locale=>window.CeasefireI18n.setLanguage(locale,false),locale);await checkGroups(main(),locale,'data-library-filter');for(const width of [1146,390])await layout(main(),'main',locale,width);assert.deepEqual(await snapshot(),before);evidence.locales.push(locale);}
+ await page.evaluate(()=>window.CeasefireI18n.setLanguage('en',false));await page.setViewportSize({width:1146,height:900});
+ await setFilter(main(),'services','Pair Coils');await expect(main().locator('[data-library-record]')).toHaveCount(0);await setFilter(main(),'services','');
+ await setFilter(main(),'document','Promat synthetic report');const queried=await setFilter(main(),'frl','-/90/60');assert.equal(queried.total,2);await expect(main().locator('[data-library-record]')).toHaveCount(2);assert.deepEqual(await main().locator('[data-library-record]').evaluateAll(nodes=>nodes.map(node=>node.dataset.libraryRecord)),queried.items.map(item=>item.id));
+ await main().locator('[data-library-record]').first().click();await main().getByRole('button',{name:'Back to results',exact:true}).click();await expect(main().locator('[data-library-filter="document"]')).toHaveValue('Promat synthetic report');await expect(main().locator('[data-library-filter="frl"]')).toHaveValue('-/90/60');
+ evidence.exactGroupedQueriesAndBack=true;
+ // API identities and ID fields remain available for every brand. Only the
+ // requested Technical detail field is omitted; the record title is retained.
+ for(const [id,hidden]of [['technical-001',true],['technical-002',true],['technical-003',false],['technical-004',false]]){
+  const response=await page.request.get(`${origin}/api/libraries/technical/${id}`);assert.equal(response.status(),200);const data=await response.json();assert.equal(data.id,id);assert.ok(data.fields.some(field=>field.label==='ID'));
+  await page.evaluate(id=>window.CeasefireLibraries.open('technical',id),id);await expect(main().locator('h3')).toHaveText(data.title);
+  assert.equal(await main().locator('dt').filter({hasText:/^ID$/}).count(),hidden?0:1);
+ }
+ evidence.technicalIDFieldOnlyOmission=true;
+ await chooseLibrary(page,'penetration');const penetration=page.locator('#penetration-library-workspace');await penetration.locator(`[data-library-link="${info.item_id}"]`).click();await expect(picker().locator('.library-link-results')).toHaveAttribute('aria-busy','false');
+ for(const locale of locales){await page.evaluate(locale=>window.CeasefireI18n.setLanguage(locale,false),locale);await checkGroups(picker(),locale,'data-library-link-filter');for(const width of [1146,390])await layout(picker(),'picker',locale,width);assert.deepEqual(await snapshot(),before);}
+ await page.evaluate(()=>window.CeasefireI18n.setLanguage('en',false));await page.setViewportSize({width:1146,height:900});const selected=await setFilter(picker(),'document','Promat synthetic report','data-library-link-filter','20');await expect(picker().locator('[data-library-link-choice]')).toHaveCount(selected.items.length);evidence.documentKeyPickerQueries=true;
+ await picker().getByRole('button',{name:'Cancel',exact:true}).click();
+ // Exercise the production shared Firestopping chooser renderer in an owned
+ // DOM mount, cancelling without a Takeoff session or an import command.
+ await page.evaluate(()=>{
+  window.__groupMount=document.createElement('section');window.__groupMount.id='synthetic-shared-chooser';document.querySelector('#penetration-library-workspace').append(window.__groupMount);
+  window.__groupChooser=window.CeasefireTakeoffLibraryLinks.choose({ask:async(title,fields,message,submit,setup)=>{
+   const controls=fields.map(field=>{const label=document.createElement('label'),control=document.createElement(field[0]==='search'?'input':'select');label.className='field';control.name=field[0];label.append(control);window.__groupMount.append(label);return{control};});
+   await setup(controls,()=>{});window.__groupChooserReady=true;return await new Promise(resolve=>{window.__cancelGroupChooser=()=>resolve(null);});
+  }},true);
+ });
+ await page.waitForFunction(()=>window.__groupChooserReady===true);const shared=page.locator('#synthetic-shared-chooser');
+ const response=await page.request.get(`${origin}/api/libraries/penetration`),data=await response.json(),apiOptions=data.filters.find(field=>field.key==='service_type').options;
+ assert.deepEqual(await shared.locator('[data-library-filter="service_type"]').evaluate(node=>[...node.options].slice(1).map(option=>({value:option.value,group:option.parentElement.tagName==='OPTGROUP'?option.parentElement.label:null}))),apiOptions.map(option=>({value:option.value,group:option.group||null})));
+ for(const locale of locales){await page.evaluate(locale=>window.CeasefireI18n.setLanguage(locale,false),locale);assert.deepEqual(await groupLabels(shared,'service_type'),serviceGroups.map(name=>translated(name,locale)));}
+ await page.evaluate(async()=>{window.__cancelGroupChooser();await window.__groupChooser;window.__groupMount.remove();window.CeasefireI18n.setLanguage('en',false);});evidence.sharedChooserGroupsAndLocaleRebinding=true;
+ assert.deepEqual(await snapshot(),before);assert.equal(hash(index),indexBefore);assert.deepEqual(bindings(),sourceBefore);assert.deepEqual(evidence.page_errors,[]);assert.deepEqual(evidence.blocked_requests,[]);
+ evidence.result='PASS';evidence.sourceIndexUnchanged=true;evidence.draftsUnchanged=true;evidence.sourceAfter=bindings();fs.writeFileSync(path.join(output,'result.json'),JSON.stringify(evidence,null,2));console.log(JSON.stringify({result:'PASS',output,locales:locales.length,layouts:evidence.layouts.length,draftsUnchanged:true}));
+})().catch(async error=>{fs.mkdirSync(output,{recursive:true});if(page)await page.screenshot({path:path.join(output,'failure.png'),fullPage:true}).catch(()=>{});fs.writeFileSync(path.join(output,'failure.json'),JSON.stringify({...evidence,error:String(error),logs},null,2));console.error(error);process.exitCode=1;}).finally(async()=>{if(browser)await browser.close();server.kill();fs.mkdirSync(output,{recursive:true});fs.writeFileSync(path.join(output,'server.log'),logs);});

@@ -94,10 +94,10 @@ def _table(sheet, row, labels, records, widths, *, formats=None, filtered=False)
 def _schedule(data, workbook):
     identity = data['id']
     if identity == 'ductwork':
-        labels = ['Line', 'Product', 'Duct dimensions (mm)', 'Length (m)', 'FRL', 'Thickness (mm)',
+        labels = ['Line', 'Product', 'Duct dimensions (mm)', 'Length (m)', 'Quantity', 'FRL', 'Thickness (mm)',
                   'Thickness basis', 'Duct surface (m²)', 'Net spray bags', 'Wrap material (m²)', 'Roll equivalents', 'Status']
-        widths = [9, 26, 23, 16, 18, 17, 19, 19, 18, 20, 18, 65]
-        records = [[item['line'], v['C'], v['B'], v['D'], v['E'],
+        widths = [9, 26, 23, 16, 14, 18, 17, 19, 19, 18, 20, 18, 65]
+        records = [[item['line'], v['C'], v['B'], v['D'], v['CM'], v['E'],
                     item['wrap_layer_mm'] if item['wrap'] else v['L'], 'Per layer' if item['wrap'] else 'Coating',
                     v['K'], 'N/A' if item['wrap'] else v['M'], v['N'] if item['wrap'] else 'N/A',
                     v['O'] if item['wrap'] else 'N/A', v['J'] or 'No calculated status returned']
@@ -119,12 +119,12 @@ def _schedule(data, workbook):
                     '\n'.join(str(value) for value in (v['V'], v['W'], item.get('assessment_source') or item.get('source_reference')) if value not in (None, '')) or 'No calculated status returned']
                    for item in data['rows'] for v in [item['values']]]
     else:
-        labels = ['Line', 'Mark', 'Location', 'Product', 'Section', 'Design period (min)', 'Critical temperature (°C)', 'Board stack (mm)',
+        labels = ['Line', 'Mark', 'Location', 'Product', 'Section', 'Lineal metres', 'Quantity', 'Design period (min)', 'Critical temperature (°C)', 'Board stack (mm)',
                   'Total thickness (mm)', 'Box reference area (m²)', 'Net board area (m²)', 'Area with waste (m²)',
                   'Sheets per line', 'Status']
-        widths = [9, 25, 28, 26, 24, 19, 21, 20, 20, 21, 20, 20, 17, 65]
-        records = [[item['line'], v['A'], v['B'], v['C'], v['D'], v['AN'], v['AO'], v['Z'], v['AB'], v['AD'], v['AE'], v['AF'], v['AG'],
-                    '\n'.join(str(value) for value in (v['AR'], v['AS']) if value not in (None, '')) or 'No calculated status returned']
+        widths = [9, 25, 28, 26, 24, 18, 14, 19, 21, 20, 20, 21, 20, 20, 17, 65]
+        records = [[item['line'], v['A'], v['B'], v['C'], v['D'], v['F'], v['CJ'], v['AN'], v['AO'], v['Z'], v['AB'], v['AD'], v['AE'], v['AF'], v['AG'],
+                    '\n'.join(str(value) for value in (v['AR'], v['AS'], v['AT']) if value not in (None, '')) or 'No calculated status returned']
                    for item in data['rows'] for v in [item['values']]]
     sheet = _sheet(workbook, 'Schedule', data['title'] + ' — Schedule', widths)
     _band(sheet, 3, f"{len(records)} used schedule items. {data['incomplete_rows']} item(s) have incomplete or unavailable primary quantities.", len(widths))

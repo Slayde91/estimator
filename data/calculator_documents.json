@@ -8,7 +8,9 @@
         "title": "FIRETEX FX5090 — FC20571/01/C1, 8 April 2025",
         "kind": "Supplied certificate and loading tables",
         "reference_only": true,
-        "products": ["FIRETEX FX5090"],
+        "products": [
+          "FIRETEX FX5090"
+        ],
         "region": "Australia",
         "verified_date": "2026-10-24",
         "availability": "Supplied PDF retained privately",
@@ -20,7 +22,9 @@
         "title": "FIRETEX FX6010 — FC21221-01-1-C1, 31 October 2025",
         "kind": "Supplied certificate and loading tables",
         "reference_only": true,
-        "products": ["FIRETEX FX6010"],
+        "products": [
+          "FIRETEX FX6010"
+        ],
         "region": "Australia",
         "verified_date": "2026-10-24",
         "availability": "Supplied PDF retained privately",
@@ -32,7 +36,9 @@
         "title": "FIRETEX FX5090 — Australian Product Data Sheet, PC112 January 2026",
         "kind": "Product data sheet",
         "url": "https://www.duluxprotectivecoatings.com.au/media/2d2oftc5/firetex_fx5090_jan_2026.pdf",
-        "products": ["FIRETEX FX5090"],
+        "products": [
+          "FIRETEX FX5090"
+        ],
         "region": "Australia",
         "verified_date": "2026-10-24",
         "availability": "Public PDF",
@@ -43,7 +49,9 @@
         "title": "FIRETEX FX6010 — Australian Product Data Sheet, PC115 March 2026",
         "kind": "Product data sheet — quantity settings",
         "url": "https://www.duluxprotectivecoatings.com.au/media/a4xpo0tq/firetex_fx6010_march_2026.pdf",
-        "products": ["FIRETEX FX6010"],
+        "products": [
+          "FIRETEX FX6010"
+        ],
         "region": "Australia",
         "verified_date": "2026-10-24",
         "availability": "Public PDF",
@@ -55,7 +63,9 @@
         "title": "FIRETEX FX6010 — Australian Part A Safety Data Sheet",
         "kind": "Safety data sheet — nominal pack identification",
         "url": "https://go.lupinsys.com/duluxgroup/harms/pm/3739868c196437476cf0724526e2d06b-published/attachment/aus-ghs.pdf",
-        "products": ["FIRETEX FX6010"],
+        "products": [
+          "FIRETEX FX6010"
+        ],
         "region": "Australia",
         "verified_date": "2026-10-24",
         "availability": "Public PDF linked by Dulux",
@@ -67,7 +77,9 @@
         "title": "FIRETEX FX6010 — Australian Part B Safety Data Sheet",
         "kind": "Safety data sheet — nominal pack identification",
         "url": "https://go.lupinsys.com/duluxgroup/harms/pm/a32eba52f1e98495a8d32cd6af2bbb30-published/attachment/aus-ghs.pdf",
-        "products": ["FIRETEX FX6010"],
+        "products": [
+          "FIRETEX FX6010"
+        ],
         "region": "Australia",
         "verified_date": "2026-10-24",
         "availability": "Public PDF linked by Dulux",
@@ -79,7 +91,9 @@
         "title": "Nullifire SC902 — FC18580-01-01, 20 March 2024",
         "kind": "Fire assessment",
         "url": "https://www.tremco.com.au/TremcoAustralia/media/SiteAssets/Products/Certification%20and%20LEED%20Letters/Nullifire%20SC902/FC18580-01-01-Nullifire-SC902-2020-REPORT-Final.pdf?ext=.pdf",
-        "products": ["Nullifire SC902"],
+        "products": [
+          "Nullifire SC902"
+        ],
         "region": "Australia",
         "verified_date": "2026-10-23",
         "availability": "Public PDF; supplied report retained privately",
@@ -91,7 +105,9 @@
         "title": "Nullifire SC902 Product Data Sheet — V002-070826",
         "kind": "Product data sheet",
         "url": "https://www.tremco.com.au/TremcoAustralia/media/SiteAssets/Datasheets/Nullifire-SC902-Data-Sheet.pdf?ext=.pdf",
-        "products": ["Nullifire SC902"],
+        "products": [
+          "Nullifire SC902"
+        ],
         "region": "Australia",
         "verified_date": "2026-10-23",
         "availability": "Public PDF",
@@ -102,7 +118,9 @@
         "title": "Nullifire SC902 — Tremco Australia",
         "kind": "Manufacturer product page",
         "url": "https://www.tremco.com.au/products/nullifire-sc902",
-        "products": ["Nullifire SC902"],
+        "products": [
+          "Nullifire SC902"
+        ],
         "region": "Australia",
         "verified_date": "2026-10-23",
         "availability": "Manufacturer product and document portal",
@@ -706,21 +724,23 @@
         }
       },
       {
-        "title": "PROMATECT 250 Australian steel protection handbook",
-        "kind": "Technical manual",
-        "url": "https://media.promat.com/pi9201/original/1931937606/promat-promatect-250-steel-protection.-en-au",
+        "title": "PROMATECT 100 and 250 — FC15555-01-03, 13 August 2025",
+        "kind": "Fire assessment — thickness authority",
+        "url": "https://media.promat.com/cert_371265_au/original/2114005927/promatect-250--100-as4100-final-fc15555-01-02.pdf?brand=promatconstruction&market=au",
         "products": [
+          "PROMATECT 100",
           "PROMATECT 250"
         ],
         "region": "Australia",
-        "verified_date": "2026-09-13",
+        "verified_date": "2026-10-24",
         "availability": "Public PDF",
-        "reference_coverage": "Australian product properties, steel tables, installation details and application limitations.",
-        "notes": "",
+        "reference_coverage": "Tables 5–23; three-sided beams and four-sided beams/columns, including re-entrant and hollow sections; 30–180 minutes, 350–700°C, published section factors through 300 m⁻¹.",
+        "notes": "Sole thickness authority for these two products. The supplied URL filename says 01-02; its downloaded PDF identifies revision FC15555-01-03. Lookup uses the next higher published section factor and fire period, and the next lower published temperature. Unavailable cells and unsupported constructions remain for review. PROMATECT 250 uses 30 mm stock; PROMATECT 100 uses 15/20 mm stock within the assessed single/double-layer construction.",
+        "source_sha256": "e2b47d71893d5837625a4280aca6ee7939c6c23bf53018e954e54ba32894128e",
         "link_verification": {
           "status": 200,
           "content_type": "application/pdf",
-          "method": "GET (headers and 4-byte signature only)"
+          "method": "GET (complete document and SHA-256)"
         }
       },
       {
@@ -735,24 +755,6 @@
         "availability": "Public PDF",
         "reference_coverage": "Promat Australia SDS for PROMATECT-250, dated 25 May 2021.",
         "notes": "",
-        "link_verification": {
-          "status": 200,
-          "content_type": "application/pdf",
-          "method": "GET (headers and 4-byte signature only)"
-        }
-      },
-      {
-        "title": "PROMATECT 100 Australian handbook 2023",
-        "kind": "Technical manual",
-        "url": "https://media.promat.com/pi9217/original/306051383/promatect-100-handbook-au---2023.pdf",
-        "products": [
-          "PROMATECT 100"
-        ],
-        "region": "Australia",
-        "verified_date": "2026-09-13",
-        "availability": "Public PDF",
-        "reference_coverage": "Exact Australian 2023 handbook edition named by the source workbook; steel protection, product properties and installation details.",
-        "notes": "PROMATECT 100 is retained as the source product; PROMATECT 100X is not substituted.",
         "link_verification": {
           "status": 200,
           "content_type": "application/pdf",

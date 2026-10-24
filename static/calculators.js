@@ -35,16 +35,16 @@
       },
     },
     steel_board: {
-      CALCULATOR: { omit_columns: ["L"] }, // Keep retained row waste in calculations and exports.
+      CALCULATOR: { omit_columns: ["L"], column_order: ["A", "B", "C", "D", "F", "CJ", "G", "H", "I", "J", "K", "E"] }, // Retain source input identities and saved row waste.
       START: { hide: ["A1"], text: { A1: "", D13: "Previously saved additional-board allowances remain included in purchasing totals.", A27: "Use START, SCHEDULE, BOARD SUMMARY and SETTINGS. Supporting reference data is retained by the application.", A31: "Saved additional-board allowances remain included in the board summary." } },
       "BOARD SUMMARY": { center: ["A11:D29", "I11:J29"], text: { A1: "SUMMARY" } }, // 22
       SETTINGS: { center: ["A5:C34", "G5:N10"], text: { Q5: "Description" }, omit: ["A1", "A3"] }, // 23–25
     },
     ductwork: {
-      CALCULATOR: { column_order: ["A", "B", "D", "E", "H", "I", "F", "G", "C"], text: { A3: "For FyreWrap, Internal, External and Both use the exhaust application rules. Select pressurisation separately." } },
+      CALCULATOR: { column_order: ["A", "B", "D", "CM", "E", "H", "I", "F", "G", "C"], text: { A3: "For FyreWrap, Internal, External and Both use the exhaust application rules. Select pressurisation separately." } },
       SUMMARY: { center: ["A8:J11"], text: { A17: "PENETRATION ANGLES" }, omit: ["A4:L5", "A14:L15", "A17:L45"] }, // Retain source tables and notes in worksheet data and exports.
       "PRODUCT SETTINGS": {
-        omit: ["A1", "A50:H64", "A66:H67", "A70:H72", "A74:H89", "A101:H110", "A113:H151", "J115:Q149"],
+        omit: ["A1", "A8:H24", "A26:H34", "A36:H43", "A50:H64", "A66:H67", "A70:H72", "A74:H89", "A101:H110", "A113:H151", "J115:Q149"],
         omit_section_notes: ["A6", "A48", "A94", "J115"],
         omit_table_notes: ["J94"],
         center: ["A36:H39", "B7:D35", "B44:D46", "B90:D92", "A74:H79", "B49:D73", "B95:D115",
@@ -1221,6 +1221,16 @@
   function setInput(entry, sheet, address, value) {
     if (state.takeoffReservation) { message(uiCopy("Wait for the takeoff transfer to finish before editing the schedule.")); return; }
     entry.inputs[sheet] ||= {};
+    const schedule = entry.definition.schedule, position = parseAddress(address);
+    if (sheet === schedule?.sheet && schedule.quantity_column && position
+        && position.row >= schedule.first_row && position.row <= schedule.last_row
+        && ![schedule.quantity_column, schedule.location_column, schedule.line_id_column].includes(columnName(position.column))
+        && !(entry.definition.id === "steel_board" && position.column === 1)) {
+      // Loading an older member keeps its omitted Quantity as one. A new
+      // material edit requires an explicit choice; descriptive edits do not.
+      const quantityAddress = `${schedule.quantity_column}${position.row}`;
+      if (!Object.prototype.hasOwnProperty.call(entry.inputs[sheet], quantityAddress)) entry.inputs[sheet][quantityAddress] = null;
+    }
     entry.inputs[sheet][address] = value;
     // Reusing a removed source row is a new draft. Undo must never overwrite
     // fresh edits entered into the one-row placeholder (or a stale DOM row).
@@ -1257,6 +1267,12 @@
     return (value === undefined || value === null || value === "") && defaults && Object.prototype.hasOwnProperty.call(defaults, address) ? defaults[address] : value;
   }
 
+  function applyRequiredState(control, cell) {
+    control.required = Boolean(cell.required_active);
+    control.setAttribute("aria-required", String(Boolean(cell.required)));
+    control.classList.toggle("calculator-required-missing", Boolean(cell.required_missing));
+  }
+
   function makeControl(cell, row, entry, label, item = null) {
     const address = cell.address || `${columnName(cell.column)}${row}`;
     const key = `${entry.sheet}!${address}`;
@@ -1282,7 +1298,7 @@
     const listedIntumescentChoice = cell.type === "select" && entry.definition.id === "steel_intumescent"
       && entry.sheet === schedule?.sheet && coordinates?.row >= schedule.first_row
       && coordinates.row <= schedule.last_row && [3, 4].includes(coordinates.column);
-    const listedChoice = listedDuctChoice || closedSetting || listedIntumescentChoice;
+    const listedChoice = listedDuctChoice || closedSetting || listedIntumescentChoice || Boolean(cell.strict_options);
     const allowOther = !listedChoice && (cell.allow_other || ["warning", "information"].includes(cell.error_style || cell.validation?.error_style || cell.validation?.errorStyle));
     // A dropdown may mix numbers and text (60 and "60/60/60"). Its current
     // selection cannot determine the type of every other available option.
@@ -1311,6 +1327,8 @@
     const selectOptions = [];
     control.dataset.calculatorCell = address;
     control.dataset.calculatorSheet = entry.sheet;
+    applyRequiredState(control, cell);
+    if (custom) applyRequiredState(custom, cell);
     window.CeasefireI18n.attr(control, "aria-label", "{0}{1}", [controlLabel, window.CeasefireI18n.term(percent(cell) ? " in percent" : "")]);
     if (select) {
       const appendOption = (item) => {
@@ -1399,6 +1417,11 @@
           }
           if (percent(cell)) next = decimalShift(next, -2);
         }
+        if (cell.quantity && next !== "" && (typeof next !== "number" || !Number.isFinite(next) || next <= 0 || !Number.isInteger(next))) {
+          entry.invalid.set(key, editor.value); editor.setAttribute("aria-invalid", "true");
+          entry.revision++; entry.pendingResult = null; entry.navigationCache = null; clearTimeout(state.timer); updateStatus(entry);
+          calculationStatus(uiCopy("Quantity: enter a positive whole number.")); return;
+        }
         entry.invalid.delete(key); control.removeAttribute("aria-invalid"); custom?.removeAttribute("aria-invalid");
         if (isNumber(next)) window.CeasefireI18n.attr(editor, "title", "Exact value: {0}{1}", [numericInputValue(next, cell, true), window.CeasefireI18n.term(percent(cell) ? "%" : "")]);
         else editor.removeAttribute("title");
@@ -1485,11 +1508,22 @@
   let basisDialogBinding = null;
   function scheduleBasis(entry, address, value) {
     const position = parseAddress(address), schedule = entry?.definition.schedule;
-    if (!["steel_vermiculite", "steel_intumescent"].includes(entry?.definition.id)
-        || entry.sheet !== schedule?.sheet || position?.column !== 25
-        || position.row < schedule.first_row || position.row > schedule.last_row
-        || typeof value !== "string" || !value.trim()) return null;
+    if (entry.sheet !== schedule?.sheet || !position
+        || position.row < schedule.first_row || position.row > schedule.last_row) return null;
+    const compactOutput = entry.definition.id === "steel_board" && position.column === 35
+      || entry.definition.id === "ductwork" && position.column === 39;
+    const steelBasis = ["steel_vermiculite", "steel_intumescent"].includes(entry.definition.id) && position.column === 25;
+    if (!compactOutput && !steelBasis) return null;
     const cells = entry.result?.rows?.find(row => row.row === position.row)?.cells || [];
+    const missing = [...new Set(cells.filter(cell => cell.required_missing).map(cell => window.CeasefireI18n.term(cell.label)))];
+    const review = missing.length ? window.CeasefireI18n.translate("Review required: {0}", [missing.join(", ")]) : "";
+    value = typeof value === "string" ? value : "";
+    if (!value.trim() && !review) return null;
+    if (compactOutput) {
+      const sentence = (review || value.split(/\r?\n/)[0].split(/[.!?]\s/)[0]).replace(/\s+/g, " ").trim();
+      const preview = sentence.length > 96 ? sentence.slice(0, 93).trimEnd() + "…" : sentence;
+      return { preview, full: [review, value].filter(Boolean).join("\n\n"), line: position.row - schedule.first_row + 1, address };
+    }
     const at = column => cells.find(cell => cell.column === column)?.value;
     const thickness = at(15), status = at(22), quantity = at(23), source = at(24);
     const firstSentence = value.split(/\r?\n/)[0].split(/[.!?]\s/)[0];
@@ -1499,11 +1533,11 @@
     const estimate = typeof status === "string" && status.startsWith("ESTIMATE") ? window.CeasefireI18n.translate("Estimate") : "";
     const quantityIssue = typeof quantity === "string" && quantity && !quantity.startsWith("QUANTIFIED") ? quantity : "";
     const parts = [unavailable || thicknessText, sourceText, estimate, quantityIssue].filter(Boolean);
-    const preview = (parts.length ? parts.join(" · ") : firstSentence).replace(/\s+/g, " ").trim();
+    const preview = (review || (parts.length ? parts.join(" · ") : firstSentence)).replace(/\s+/g, " ").trim();
     const full = [[window.CeasefireI18n.translate("Thickness status"), status], [window.CeasefireI18n.translate("Quantity status"), quantity], [window.CeasefireI18n.translate("Source"), source]]
       .filter(([, text]) => text !== null && text !== undefined && text !== "")
       .map(([label, text]) => `${label}: ${text}`).join("\n");
-    return { preview, full: (full ? full + "\n\n" : "") + value,
+    return { preview, full: [review, full, value].filter(Boolean).join("\n\n"),
       line: position.row - schedule.first_row + 1, address };
   }
 
@@ -1622,6 +1656,7 @@
     const entry = current();
     for (const control of $("calculator-grid").querySelectorAll("[data-calculator-cell]")) {
       const address = control.dataset.calculatorCell, key = `${entry.sheet}!${address}`, cell = cells.get(address);
+      if (cell) applyRequiredState(control, cell);
       if (!cell || control === document.activeElement || entry.invalid.has(key)) continue;
       const value = effectiveControlValue(entry, entry.sheet, address, cell.value);
       if (control.calculatorSyncValue) control.calculatorSyncValue(value);
@@ -2052,6 +2087,10 @@
       const width = schedule && column === lineColumn ? lineWidth : Math.max(minimum, Math.min(schedule ? 420 : 320, (Number(metadata.column_widths?.[column]) || 22) * 7));
       widths.push(width);
       const heading = uiNode("th", "", labels[column] || ""); heading.scope = "col"; headRow.append(heading);
+      if (schedule?.columns?.some(field => columnNumber(field.column) === column && field.required)) {
+        heading.classList.add("calculator-required-heading");
+        window.CeasefireI18n.attr(heading, "aria-label", "{0} (required)", [window.CeasefireI18n.term(labels[column] || "")]);
+      }
     }
     if (dynamicSchedule) { const heading = uiNode("th", "calculator-row-action", "Actions"); heading.scope = "col"; headRow.append(heading); }
     head.append(headRow);
@@ -2163,6 +2202,11 @@
       entry.productTotalsElement = totals; renderProductTotals(result, totals); content.push(totals);
     }
     if (boardSchedule) content.push(scheduleOverview);
+    if (schedule?.requirements_note || schedule?.quantity_help) {
+      const guidance = node("div", "calculator-schedule-guidance");
+      for (const text of [schedule.requirements_note, schedule.quantity_help].filter(Boolean)) guidance.append(uiNode("p", "helper", text));
+      content.push(guidance);
+    }
     const logicalSections = new Map();
     const displayGroups = [...sections], tableSlots = displayGroups.map(([, group], index) => group.definition ? index : -1).filter((index) => index >= 0);
     if (metadata.display_table_order.length) {
@@ -2283,6 +2327,7 @@
     const copiedFixingNote = "The copied fixing instructions use the first schedule row’s fixed technical references on every row. This is the approved correction to the source workbook; quantity formulas are unchanged.";
     const hideCopiedFixingNote = entry.definition.id === "ductwork" && ["CALCULATOR", "SUMMARY", "PRODUCT SETTINGS"].includes(entry.sheet);
     const warnings = (result.warnings || []).map((warning) => typeof warning === "string" ? warning : warning.message || warning.label || "").filter((warning) => warning && !(hideCopiedFixingNote && warning === copiedFixingNote));
+    if (result.required_review_rows?.length) warnings.unshift(window.CeasefireI18n.translate("Complete required fields on {0} schedule row(s).", [result.required_review_rows.length]));
     $("calculator-warnings").textContent = warnings.join("\n"); $("calculator-warnings").hidden = !warnings.length;
     calculationStatus(); updateStatus(entry);
   }

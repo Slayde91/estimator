@@ -23,6 +23,7 @@ from .technical_brand_presentation import present_manufacturer_fields
 from .library_diagram_names import validate_drawing_name, drawing_source_names, apply_drawing_names
 from .library_report_links import FIREFLY_REPORTS_URL, validate_report_links
 from .library_facets import FACETS, classify_facets, facet_options
+from .library_filter_groups import grouped_filter_options
 from .technical_presentation import present_options, technical_title
 from .technical_discovery import (HIDDEN_FRL_CHOICES, canonical_frl, discovery_facets,
                                   present_frl_text, present_technical)
@@ -371,6 +372,15 @@ class ReferenceLibrary:
                 entry['options'] = (substrate_options(observed) if entry['key'] == 'substrate' else
                                     [{'value': value, 'label': value}
                                      for value in facet_options(entry['key'], observed)])
+        # Group only filter metadata, after source-bound duplicate reviews and
+        # discovery construction. Record fields/facets and link identities stay
+        # unchanged, including when a saved Firestopping overlay is loaded.
+        for kind in KINDS:
+            if kind == 'technical' and reuse_technical:
+                continue
+            for entry in filters[kind]:
+                entry['options'] = grouped_filter_options(
+                    entry['key'], entry['options'], records[kind].values())
         links = {kind: {key: [] for key in records[kind]} for kind in KINDS}
         seen = set()
         if not isinstance(data['links'], list) or len(data['links']) > 500000:

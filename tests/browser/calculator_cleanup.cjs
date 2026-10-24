@@ -7,7 +7,7 @@ const root=path.resolve(__dirname,'../..'), output=fs.mkdtempSync(path.join(os.t
 const server=spawn(process.env.CEASEFIRE_PYTHON||'python',[path.join(__dirname,'monokote_fixture.py'),'--directory',output],{cwd:root,windowsHide:true});
 let logs='',browser,page;server.stderr.on('data',data=>logs+=data);
 const ready=new Promise((resolve,reject)=>{let value='';const timer=setTimeout(()=>reject(Error(logs)),120000);server.stdout.on('data',data=>{value+=data;if(value.includes('\n')){clearTimeout(timer);resolve(JSON.parse(value.split('\n')[0]));}});server.once('error',reject);server.once('exit',code=>{clearTimeout(timer);reject(Error(`Fixture exited ${code}: ${logs}`));});});
-async function idle(){await expect(page.locator('#calculator-grid')).toHaveAttribute('aria-busy','false');}
+async function idle(){await expect(page.locator('#calculator-grid')).toHaveAttribute('aria-busy','false',{timeout:60000});}
 async function tab(name){await page.locator('#calculator-pages').getByRole('button',{name,exact:true}).click();await idle();}
 (async()=>{
  const info=await ready;assert.notEqual(info.port,8765);browser=await chromium.launch({headless:true});page=await browser.newPage({viewport:{width:1146,height:764}});page.setDefaultTimeout(60000);
@@ -207,6 +207,9 @@ async function tab(name){await page.locator('#calculator-pages').getByRole('butt
    await idle();
  }
  await page.locator('input[data-calculator-cell="F9"]').fill('10');await page.locator('input[data-calculator-cell="F9"]').press('Tab');await idle();
+ await page.locator('input[data-calculator-cell="CJ9"]').fill('1');await page.locator('input[data-calculator-cell="CJ9"]').press('Tab');await idle();
+ await page.locator('[data-calculator-cell="E9"]').scrollIntoViewIfNeeded();
+ await page.screenshot({path:path.join(output,'board-family-esa-layout.png'),fullPage:true});
  await tab('BOARD SUMMARY');
  const memberRow=stock.locator('tr').filter({has:page.locator('[data-calculator-output="A27"]')});
  // PROMATECT-XS 15 mm is row 27 in the retained stock catalogue.

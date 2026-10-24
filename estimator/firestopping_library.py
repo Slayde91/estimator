@@ -30,6 +30,7 @@ from .reference_library import ReferenceLibrary, ReferenceNotFound, identifier
 from .service_dimensions import FIELD_LABEL, service_size_field
 from .firestopping_taxonomy import canonical_opening_type, category_service, display_details, is_blank_seal
 from .library_facets import CATEGORIES, SERVICES
+from .library_filter_groups import grouped_filter_options
 from .library_opening_types import OPENING_TYPES
 
 
@@ -478,7 +479,8 @@ class FirestoppingLibrary(ReferenceLibrary):
         preferred = {'category': CATEGORIES, 'service_type': SERVICES, 'penetration_type': OPENING_TYPES}
         for field in data['_filters']['penetration']:
             if field['key'] in preferred:
-                field['options'] = [{'value': value, 'label': value} for value in preferred[field['key']]]
+                field['options'] = grouped_filter_options(field['key'], [
+                    {'value': value, 'label': value} for value in preferred[field['key']]])
         for related in data['_links']['technical'].values():
             for link in related:
                 key = link['id']
@@ -797,11 +799,13 @@ class FirestoppingLibrary(ReferenceLibrary):
                 return []
             if not data:
                 return []
-            # Use the same ordered choices as Technical Library discovery.
+            # Use the same canonical vocabulary as Technical Library discovery.
             # Saved custom descriptions remain accepted in existing rows.
             services = next((entry for entry in data['_filters']['technical']
                              if entry['key'] == 'services'), None)
-            return [entry['value'] for entry in services['options']] if services else []
+            # Optgroups organise library filters only. Keep the independent
+            # calculator's existing ordered choices exactly as before.
+            return list(SERVICES) if services else []
 
     @staticmethod
     def _technical_source(item, data):

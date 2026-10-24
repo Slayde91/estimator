@@ -1,0 +1,10 @@
+{
+  "{0} (required)": ["{0} (필수)", "{0} (kailangan)", "{0} (bắt buộc)"],
+  "Fields marked * are required.": ["* 표시 항목은 필수입니다.", "Kailangan ang mga field na may *.", "Các trường có dấu * là bắt buộc."],
+  "Fields marked * are required. A valid area override replaces quantity and member length.": ["* 표시 항목은 필수입니다. 유효한 면적 직접 입력값은 수량과 부재 길이를 대신합니다.", "Kailangan ang mga field na may *. Pinapalitan ng wastong manu-manong lawak ang dami at haba ng miyembro.", "Các trường có dấu * là bắt buộc. Diện tích nhập trực tiếp hợp lệ thay thế số lượng và chiều dài cấu kiện."],
+  "Quantity repeats the complete duct run, including its length, wall penetrations and floor penetrations. Enter penetration counts for one run; overlaps are calculated for each run.": ["수량은 길이와 벽·바닥 관통부를 포함한 전체 덕트 구간을 반복합니다. 한 구간의 관통부 수를 입력하세요. 겹침은 구간별로 계산됩니다.", "Inuulit ng dami ang buong takbo ng duct, kasama ang haba at mga tagusan sa pader at sahig. Ilagay ang bilang para sa isang takbo; hiwalay na kinakalkula ang mga patong sa bawat takbo.", "Số lượng lặp lại toàn bộ tuyến ống gió, gồm chiều dài và các lỗ xuyên tường, sàn. Nhập số lỗ cho một tuyến; phần chồng mí được tính riêng cho từng tuyến."],
+  "Quantity multiplies the lineal metres for this row. Existing saved rows without Quantity retain one; enter Quantity when editing a member.": ["수량은 이 행의 길이에 곱해집니다. 수량 없이 저장된 기존 행은 1을 유지합니다. 부재를 수정할 때 수량을 입력하세요.", "Minumultiply ng dami ang metrong haba sa hanay na ito. Mananatiling isa ang mga naka-save na hanay na walang dami; ilagay ang dami kapag ine-edit ang miyembro.", "Số lượng nhân với mét dài của dòng này. Dòng đã lưu không có số lượng vẫn dùng một; hãy nhập số lượng khi sửa cấu kiện."],
+  "Quantity: enter a positive whole number.": ["수량: 양의 정수를 입력하세요.", "Dami: maglagay ng positibong buong bilang.", "Số lượng: nhập một số nguyên dương."],
+  "Review required: {0}": ["검토 필요: {0}", "Kailangang suriin: {0}", "Cần xem xét: {0}"],
+  "Complete required fields on {0} schedule row(s).": ["일람표 {0}개 행의 필수 항목을 입력하세요.", "Kumpletuhin ang mga kailangang field sa {0} hanay ng iskedyul.", "Điền các trường bắt buộc trên {0} dòng của bảng."]
+}

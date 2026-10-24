@@ -22,6 +22,7 @@ from prepare_desktop_seed import prepare
 
 DATA_FILES = (
     'baseline.json', 'calculator.json', 'calculator_documents.json', 'penetration.json.gz',
+    'promat_board_fc15555_01_03.json',
     'vermiculite_yield_defaults.json', 'calculators/index.json', 'calculators/ductwork.json.gz',
     'calculators/steel_board.json.gz', 'calculators/steel_vermiculite.json.gz',
 )

@@ -158,12 +158,20 @@ def project_calculator_report(calculator_id, inputs=None):
     labels = {column_name(column): sheet['cells'].get(column_name(column) + str(schedule['header_row']), {}).get('value', '')
               for column in range(1, _OUTPUT_LAST[calculator_id] + 1)}
     rows = []
+    quantity_column = schedule.get('quantity_column')
     for row in range(schedule['first_row'], schedule['last_row'] + 1):
         supplied = {column: engine.value(sheet_name, column + str(row)) for column in input_columns}
-        if not any(_has_value(value) for value in supplied.values()):
+        # A private legacy fallback of one is not an entered schedule item.
+        # An explicitly entered quantity still activates its own incomplete row.
+        entered = dict(supplied)
+        if quantity_column and f'{quantity_column}{row}' not in normalized.get(sheet_name, {}):
+            entered.pop(quantity_column, None)
+        if not any(_has_value(value) for value in entered.values()):
             continue
         values = {column_name(column): engine.value(sheet_name, column_name(column) + str(row))
                   for column in range(1, _OUTPUT_LAST[calculator_id] + 1)}
+        if quantity_column:
+            values[quantity_column] = supplied[quantity_column]
         record = {'row': row, 'line': row - schedule['first_row'] + 1, 'values': values,
                   'input_columns': input_columns, 'labels': labels}
         if calculator_id == 'ductwork':
@@ -276,6 +284,7 @@ def project_calculator_report(calculator_id, inputs=None):
                           ('Available wrap roll equivalents', _sum_values(r['values']['O'] for r in rows) if any(r['wrap'] for r in rows) else 'N/A'),
                           ('Available Maxilite net area at 60 mm (m²)', _sum_values(r['values']['P'] for r in rows) if any(r['wrap'] for r in rows) else 'N/A')]
         data['basis'] = 'Duct surface is the measured duct area. Wrap material includes the calculated layers and overlaps. Spray bags cover the duct body only. Bags do not apply to FyreWrap or Maxilite.'
+        data['basis'] += ' Quantity repeats the complete run, including its length, wall penetrations and floor penetrations; overlaps are calculated for each run.'
     elif calculator_id == 'steel_vermiculite':
         data['summaries'] = [table('Product order totals', 'BAGS', 19, 20, 25, 'ABCDEFGHI',
             note='Whole bags per product are pooled from net bags, then the product waste allowance and rounding are applied once. They are not the sum of the schedule line bag counts.')]
@@ -324,6 +333,14 @@ def project_calculator_report(calculator_id, inputs=None):
                           ('Pooled whole sheets', engine.value('BOARD SUMMARY', 'E6')),
                           ('Pooled purchase area (m²)', engine.value('BOARD SUMMARY', 'I6'))]
         data['basis'] = 'Reference box area is not steel profile area or board purchasing area. Required board area includes all calculated board layers; valid EXTRA BOARDS are included in pooled stock totals. Bags are not applicable to board products.'
+        data['basis'] += ' Quantity multiplies the entered lineal metres for each row. Existing saved rows without Quantity retain one.'
+        from .promat_board_assessment import canonical_product
+        if any(canonical_product(item['values']['C']) for item in rows):
+            from .promat_board_assessment import DATASET_SHA256, REPORT, REPORT_DATE, REPORT_SHA256
+            data['assessment_receipt'] = (f'{REPORT}, {REPORT_DATE}; dataset SHA-256: {DATASET_SHA256}; '
+                                          f'source report SHA-256: {REPORT_SHA256}')
+            data['assessment_notes'] = [f"Schedule line {item['line']}: {engine.promat_result(item['row'])['source']}"
+                                        for item in rows if canonical_product(item['values']['C'])]
         extras = sheets['EXTRA BOARDS']
         extra_columns = list('ABCDEFGHI') + ['N']
         for row in range(6, 46):
@@ -421,7 +438,8 @@ class _ScheduleReport(_Report):
             identity = str(item['line'])
             if data['id'] == 'ductwork':
                 thickness = self.display(item['wrap_layer_mm']) + ' per layer' if item['wrap'] else self.display(v['L'])
-                rows.append([self.p(identity, 'cell'), self.detail(v['C'] or 'Product missing', v['B']), self.numeric(v['D']),
+                rows.append([self.p(identity, 'cell'), self.detail(v['C'] or 'Product missing', v['B']),
+                    self.p(self.display(v['D']) + ' × ' + self.display(v['CM']), 'numeric'),
                     self.p(self.display(v['E']), 'cell'), self.p(thickness, 'numeric'), self.numeric(v['K']),
                     self.numeric('N/A' if item['wrap'] else v['M']), self.numeric(v['N'] if item['wrap'] else 'N/A'),
                     self.numeric(v['O'] if item['wrap'] else 'N/A'), self.p(v['J'] or 'No calculated status returned', 'cell')])
@@ -436,12 +454,13 @@ class _ScheduleReport(_Report):
                     self.numeric(v['I']), self.numeric(v['J']), self.numeric(v['O'])])
             else:
                 rows.append([self.p(identity, 'cell'), self.p(v['A'], 'cell'), self.p(v['B'], 'cell'),
-                    self.p(v['C'] or 'Product missing', 'cell'), self.p(v['D'], 'cell'),
+                    self.p(v['C'] or 'Product missing', 'cell'), self.detail(v['D'],
+                        'Length ' + self.display(v['F']) + ' m × Quantity ' + self.display(v['CJ'])),
                     self.p(self.display(v['AN']) + ' / ' + self.display(v['AO']), 'numeric'), self.p(self.display(v['Z']), 'cell'),
                     self.numeric(v['AB']), self.numeric(v['AD']), self.numeric(v['AE']), self.numeric(v['AF']), self.numeric(v['AG']),
                     self.p('\n'.join(str(value) for value in (v['AR'], v['AS']) if _has_value(value)) or 'No calculated status returned', 'cell')])
         if data['id'] == 'ductwork':
-            heads = ['Line', 'Product / duct mm', 'Length m', 'FRL', 'Thickness mm', 'Duct m²', 'Net spray bags', 'Wrap m²', 'Roll eq.', 'Status']
+            heads = ['Line', 'Product / duct mm', 'Length m × qty', 'FRL', 'Thickness mm', 'Duct m²', 'Net spray bags', 'Wrap m²', 'Roll eq.', 'Status']
             fractions = [.05, .16, .065, .085, .08, .085, .085, .085, .075, .23]
         elif data['id'] == 'steel_intumescent':
             heads = ['Line', 'Location', 'Item / mark', 'Product / member case', 'Period (min)', 'Critical °C', 'DFT (µm)', 'Area (m²)', 'Status']

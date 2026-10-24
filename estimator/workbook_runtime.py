@@ -461,6 +461,9 @@ def _application_catalog(calculator_id):
         apply_ductwork_choices(model)
         _add_ductwork_estimating_yields(model)
         _add_ductwork_fyrewrap_inputs(model)
+    if calculator_id in {'steel_board', 'ductwork'}:
+        from .schedule_quantity import add_quantity_inputs
+        add_quantity_inputs(model)
     return model
 
 

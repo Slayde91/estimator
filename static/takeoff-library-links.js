@@ -53,7 +53,23 @@
               if(!field){const label=doc.createElement("label"),caption=doc.createElement("span"),control=doc.createElement("select");label.className="field";caption.textContent=definition.label||definition.key;control.name=`library_filter_${definition.key}`;control.setAttribute("aria-label",definition.label||definition.key);control.dataset.libraryFilter=definition.key;label.append(caption,control);facets.append(label);field={control,stamp:null};facetControls.set(definition.key,field);control.addEventListener("change",()=>{filters[definition.key]=control.value;offset=0;void load();});}
               const options=[{value:"",label:`All ${definition.label||definition.key}`},...definition.options.map(option=>typeof option==="object"?option:{value:option,label:option})];
               const selectedValue=filters[definition.key]||"";if(selectedValue&&!options.some(option=>String(option.value)===selectedValue))options.push({value:selectedValue,label:selectedValue});
-              const stamp=JSON.stringify([options,selectedValue]);if(field.stamp!==stamp){field.stamp=stamp;field.control.replaceChildren(...options.map(option=>{const value=doc.createElement("option");value.value=String(option.value);const label=option.label??option.value;value.textContent=String(definition.key==="service_type"?(root.CeasefirePenetrationPresentation?.serviceLabel(label)??label):label);return value;}));field.control.value=selectedValue;}
+              const stamp=JSON.stringify([options,selectedValue]);if(field.stamp!==stamp){
+                field.stamp=stamp;field.control.replaceChildren();const groups=new Map();
+                for(const option of options){
+                  const value=doc.createElement("option");value.value=String(option.value);const label=option.label??option.value;value.textContent=String(definition.key==="service_type"?(root.CeasefirePenetrationPresentation?.serviceLabel(label)??label):label);
+                  const name=typeof option.group==="string"&&option.group.trim()&&(["services","service_type","report","document"].includes(definition.key)||definition.key==="frl"&&/^\d+$/.test(option.group))?option.group:null;
+                  if(!name){field.control.append(value);continue;}
+                  if(!groups.has(name)){
+                    const group=doc.createElement("optgroup");
+                    if(["report","document"].includes(definition.key))group.label=name;
+                    else if(root.CeasefireI18n?.attr)root.CeasefireI18n.attr(group,"label",definition.key==="frl"?"{0} minutes":name,definition.key==="frl"?[name]:[]);
+                    else group.label=definition.key==="frl"?`${name} minutes`:name;
+                    groups.set(name,group);field.control.append(group);
+                  }
+                  groups.get(name).append(value);
+                }
+                field.control.value=selectedValue;
+              }
             }
           };
           const load=async()=>{

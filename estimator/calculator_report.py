@@ -415,7 +415,9 @@ class _ScheduleReport(_Report):
             self.story.append(self.p(data['assessment_receipt'], 'small'))
         if data.get('assessment_notes') and not (materials and data['id'] == 'steel_intumescent'):
             self.story.append(self.p('Steel protection assessment basis', 'subheading'))
-            self.story.extend(self.p(note, 'small') for note in data['assessment_notes'])
+            # The embedded PDF font has no superscript minus glyph. Keep source
+            # text intact and spell its reciprocal-metre unit legibly in PDFs.
+            self.story.extend(self.p(note.replace('m⁻¹', '1/m'), 'small') for note in data['assessment_notes'])
         if data.get('application_notes') and not materials:
             heading = self.p('FyreWrap application notes', 'subheading')
             heading.keepWithNext = True

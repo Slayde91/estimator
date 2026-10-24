@@ -21,14 +21,29 @@ const ready = new Promise((resolve, reject) => {
   server.once('exit', code => { clearTimeout(timer); reject(new Error(`Fixture exited ${code}: ${logs}`)); });
 });
 const services = ["N/A", "Busbar Trunking", "Cable Bundles", "Cable Trays", "Coaxial Cables", "Conduits", "D1 Power Cables", "D2 Comms Cables", "Data Cables", "Downlights", "Fibre Optic", "Fire Dampers", "Fire Resistant Cables", "Flexible Ducts", "Lagged Copper Pipes", "Lagged Steel Pipes", "Mixed Services", "Pair Coils", "uPVC pipe", "uPVC floorwaste", "PEX pipe", "HDPE pipe", "Power Cables", "Single Cables", "TPS & Fire Alarm Cables", "Copper Pipes", "Steel Pipes", "Air Transfer Grilles", "Communications Cables", "Wall Sockets"];
+// Discovery filters group the same30 exact values; editor/composer choices keep
+// their independently specified original flat order and saved-value fallback.
+const serviceGroups = [
+  ['Electrical & communications', ['Busbar Trunking', 'Cable Bundles', 'Cable Trays', 'Coaxial Cables', 'Conduits', 'D1 Power Cables', 'D2 Comms Cables', 'Data Cables', 'Downlights', 'Fibre Optic', 'Fire Resistant Cables', 'Power Cables', 'Single Cables', 'TPS & Fire Alarm Cables', 'Communications Cables', 'Wall Sockets']],
+  ['Mechanical', ['Pair Coils']],
+  ['HVAC', ['Fire Dampers', 'Flexible Ducts', 'Air Transfer Grilles']],
+  ['Plastic pipes', ['uPVC pipe', 'uPVC floorwaste', 'PEX pipe', 'HDPE pipe']],
+  ['Lagged metal pipes', ['Lagged Copper Pipes', 'Lagged Steel Pipes']],
+  ['Unlagged metal pipes', ['Copper Pipes', 'Steel Pipes']],
+];
 const errors = [], evidence = {};
 const sha = bytes => createHash('sha256').update(bytes).digest('hex');
 const copy = value => JSON.parse(JSON.stringify(value));
-async function options(control, legacy) {
+async function options(control, legacy, grouped = false) {
   await expect(control).toBeVisible();
   await expect(control).toBeEnabled();
   const actual = await control.locator('option').evaluateAll(rows => rows.filter(row => row.value).map(row => ({ value: row.value, disabled: row.disabled, label: row.textContent })));
-  assert.deepEqual(actual.filter(row => row.value !== legacy).map(row => row.value), services);
+  const expected = grouped ? ['N/A', 'Mixed Services', ...serviceGroups.flatMap(([, values]) => values)] : services;
+  assert.deepEqual(actual.filter(row => row.value !== legacy).map(row => row.value), expected);
+  if (grouped) {
+    assert.deepEqual(await control.locator('optgroup').evaluateAll(groups => groups.map(group => [group.label, [...group.children].map(option => option.value)])), serviceGroups);
+    assert.deepEqual([...expected].sort(), [...services].sort(), 'Grouping retains all30 source service values exactly');
+  }
   if (legacy) { assert.equal(actual.at(-1).value, legacy); await expect(control).toHaveValue(legacy); }
   return actual;
 }
@@ -73,7 +88,7 @@ async function takeoffSnapshot() { const session = await page.evaluate(() => win
   const databaseBefore = protectedDatabase(), sharedBefore = await api(`/api/libraries/penetration/${info.item_id}/edit`);
 
   await page.getByRole('button', { name: 'Libraries', exact: true }).click(); await chooseLibrary(page, 'technical');
-  const technical = page.locator('#library-technical [data-library-filter=services]'); evidence.technicalOptions = await options(technical);
+  const technical = page.locator('#library-technical [data-library-filter=services]'); evidence.technicalOptions = await options(technical, undefined, true);
   await technical.selectOption('HDPE pipe'); await expect(page.locator('#library-technical [data-library-record]')).toHaveCount(1); await expect(page.locator('#library-technical [data-library-record]')).toHaveAttribute('data-library-record', 'report-a-v1');
   await technical.selectOption('PEX pipe'); await expect(page.locator('#library-technical [data-library-record]')).toHaveCount(0);
   await technical.selectOption('Copper Pipes'); await expect(page.locator('#library-technical [data-library-record]')).toHaveCount(2); assert.deepEqual((await page.locator('#library-technical [data-library-record]').evaluateAll(rows=>rows.map(row=>row.dataset.libraryRecord))).sort(), ['copper-pipe','mixed-conduit']);

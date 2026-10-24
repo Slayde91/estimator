@@ -8,7 +8,7 @@ from openpyxl import load_workbook
 from pypdf import PdfReader
 
 from estimator.calculator_register import build_calculator_register
-from estimator.calculator_report import build_calculator_report, project_calculator_report
+from estimator.calculator_report import build_calculator_report, build_calculator_summary_report, project_calculator_report
 from estimator.schedule_rows import empty_schedule_inputs
 from tests.test_fyrewrap_rules import schedule_input
 
@@ -24,12 +24,18 @@ class ScheduleFollowupReportTests(unittest.TestCase):
         self.assertEqual(data['rows'][0]['values']['C'], 'promatect 100')
         self.assertIn('FC15555-01-03', data['assessment_receipt'])
         self.assertIn('Table ', data['assessment_notes'][0])
+        self.assertIn('m⁻¹', data['assessment_notes'][0])
         workbook = load_workbook(BytesIO(build_calculator_register('steel_board', inputs)))
         sheet = workbook['Schedule']
         headers = {cell.value: cell.column for cell in sheet[5]}
         self.assertEqual(headers['Quantity'], headers['Lineal metres'] + 1)
         self.assertEqual(sheet.cell(6, headers['Quantity']).value, 2)
         self.assertIn('FC15555-01-03', sheet.cell(6, headers['Status']).value)
+        self.assertIn('m⁻¹', sheet.cell(6, headers['Status']).value)
+        for builder in (build_calculator_report, build_calculator_summary_report):
+            text = '\n'.join(page.extract_text() or '' for page in PdfReader(BytesIO(builder('steel_board', inputs))).pages)
+            self.assertIn('1/m', text)
+            self.assertNotIn('m⁻¹', text)
 
     def test_implicit_legacy_quantity_does_not_create_blank_report_rows(self):
         for identity in ('ductwork', 'steel_board'):

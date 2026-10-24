@@ -125,13 +125,13 @@
   }
   #header-project-actions .button.project-attachment-zone {
     color: #fff;
-    background: #146c43;
-    border-color: #146c43;
+    background: #6b7280;
+    border-color: #6b7280;
   }
   #header-project-actions .button.project-attachment-zone:hover,
   #header-project-actions .button.project-attachment-zone.is-dragover {
     color: #fff;
-    background: #105735;
+    background: #4b5563;
     border-color: #fff;
   }
   #header-project-actions .button:focus-visible { outline: 3px solid var(--theme-focus); outline-offset: 3px; }

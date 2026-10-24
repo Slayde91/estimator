@@ -56,9 +56,9 @@
 
 /* Explicit surfaces avoid filters, canvas/image overrides and semantic status colors. */
 @media screen {
-  :root[data-theme] .app-header .button.project-attachment-zone { background:#146c43; color:#fff; border-color:#146c43; }
-  :root[data-theme] .app-header .button.project-attachment-zone:hover { background:#105735; color:#fff; border-color:#105735; }
-  :root[data-theme] .app-header .button.project-attachment-zone.is-dragover { background:#105735; color:#fff; border-color:#fff; box-shadow:0 0 0 3px #146c43; }
+  :root[data-theme] .app-header .button.project-attachment-zone { background:#6b7280; color:#fff; border-color:#6b7280; }
+  :root[data-theme] .app-header .button.project-attachment-zone:hover { background:#4b5563; color:#fff; border-color:#4b5563; }
+  :root[data-theme] .app-header .button.project-attachment-zone.is-dragover { background:#4b5563; color:#fff; border-color:#fff; box-shadow:0 0 0 3px #6b7280; }
   :root[data-theme] .app-header .button.project-attachment-zone:focus-visible { outline:3px solid var(--theme-focus); outline-offset:3px; }
   :root[data-theme]:not([data-theme="ceasefire"]) body { background:var(--canvas); }
   :root[data-theme]:not([data-theme="ceasefire"]) .app-header { background:var(--theme-header); border-color:var(--line); }

@@ -8,6 +8,7 @@ import io
 import inspect
 import json
 from pathlib import Path
+import re
 import sqlite3
 import shutil
 import sys
@@ -408,6 +409,51 @@ class DesktopPackagingTests(unittest.TestCase):
         self.assertEqual(page.paths - set(STATIC_FILES), set())
         for asset in page.paths:
             self.assertTrue((ROOT / 'static' / asset).is_file(), asset)
+
+    def test_shared_cursor_urls_artwork_and_notices_are_packaged(self):
+        references = set()
+        for stylesheet in (name for name in STATIC_FILES if name.endswith('.css')):
+            css = (ROOT / 'static' / stylesheet).read_text(encoding='utf-8')
+            references.update(re.findall(r'url\(\s*[\'\"]?(/cursors/[^\'\"\s)]+)', css))
+        self.assertTrue(references)
+        pngs = {path.relative_to(ROOT / 'static').as_posix()
+                for path in (ROOT / 'static/cursors').glob('*.png')}
+        notices = {'cursors/README.txt', 'cursors/LICENSE.txt', 'cursors/COPYRIGHT.txt'}
+        self.assertEqual(len(pngs), 12)
+        self.assertLessEqual({url.lstrip('/') for url in references}, pngs)
+        packaged = [name for name in STATIC_FILES if name.startswith('cursors/')]
+        self.assertCountEqual(packaged, pngs | notices)
+        for name in pngs:
+            self.assertEqual((ROOT / 'static' / name).read_bytes()[:8], b'\x89PNG\r\n\x1a\n')
+        for name in notices:
+            self.assertTrue((ROOT / 'static' / name).read_text(encoding='utf-8').strip())
+
+    def test_frozen_cursor_bytes_and_licence_are_verified(self):
+        import reportlab
+        resources = ['static/' + name for name in STATIC_FILES if name.startswith('cursors/')]
+        self.assertEqual(len(resources), 15)
+        bundle = self.root / 'cursor-bundle'
+        internal = bundle / '_internal'
+        for resource in resources:
+            target = internal / resource
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(ROOT / resource, target)
+        notices = self.root / 'cursor-notices'
+        notices.mkdir()
+        shutil.copytree(Path(reportlab.__file__).parent / 'fonts', internal / 'reportlab/fonts')
+        prepare(internal / 'factory-seed')
+        seed_info = verify_seed(internal / 'factory-seed')
+        proof = verify_packaged_content(bundle, resources, seed_info, notices)
+        self.assertEqual(proof['matched_assets'], 15 + proof['export_fonts'])
+        cursor = internal / 'static/cursors/pointer.png'
+        original = cursor.read_bytes()
+        cursor.write_bytes(original[:-1] + bytes([original[-1] ^ 1]))
+        with self.assertRaisesRegex(ValueError, 'Frozen asset'):
+            verify_packaged_content(bundle, resources, seed_info, notices)
+        cursor.write_bytes(original)
+        (internal / 'static/cursors/LICENSE.txt').unlink()
+        with self.assertRaisesRegex(ValueError, 'Frozen asset'):
+            verify_packaged_content(bundle, resources, seed_info, notices)
 
     def test_signature_and_default_icons_remain_full_edition_only(self):
         from estimator.edition import TAKEOFF_ASSETS

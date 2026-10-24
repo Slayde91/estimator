@@ -252,7 +252,7 @@ def settings_schema():
             for key, spec in LABOUR_BAND_SPECS.items()
         ],
         'structured_global_keys': ['service_routes', 'labour_bands', 'detail_options'],
-        'detail_option_columns': ['J', 'K', 'L', 'M', 'N', 'P', 'V'],
+        'detail_option_columns': ['J', 'K', 'M', 'N', 'P', 'V'],
     }
 
 

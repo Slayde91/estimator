@@ -90,7 +90,9 @@ def discovery_facets(item, *, imported_services=None):
         categories.discard('Blank Seal')
     categories.update(moved)
     services = sorted({'Conduits' if value == 'Junction Box' else value for value in services
-                       if value not in MOVED_SERVICE_CATEGORIES}) or ['N/A']
+                       if value not in MOVED_SERVICE_CATEGORIES})
+    if not services and moved:
+        services = ['N/A']
     return {'category': sorted(categories), 'services': services,
             'frl': sorted({canonical_frl(value) for value in frl_values(item)})}
 

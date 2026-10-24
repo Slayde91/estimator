@@ -68,6 +68,14 @@ class DiscoveryTests(unittest.TestCase):
         self.assertFalse(MOVED_SERVICE_CATEGORIES & set(SERVICES))
         self.assertEqual(discovery_facets(record(Service='Junction box'))['services'], ['Conduits'])
 
+    def test_unrecognized_real_service_does_not_mean_not_applicable(self):
+        item = record(Service='Specialist device47')
+        before = deepcopy(item)
+        self.assertEqual(discovery_facets(item)['services'], [])
+        self.assertEqual(item, before)
+        self.assertEqual(discovery_facets({'fields': [], 'filter_values': {'services': ['N/A']}})['services'],
+                         ['N/A'])
+
     def test_report_type_uses_structured_basis_and_does_not_search_notes(self):
         for report, expected in (('FAS190234', 'Oversized core hole'),
                                  ('FAS190235', 'Oversized core hole'),

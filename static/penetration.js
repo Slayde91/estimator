@@ -592,7 +592,7 @@
   }
   function renderDetailOptions() {
     const section = node("section", "penetration-settings-section");
-    section.append(uiNode("h4", "penetration-settings-subheading", "DETAILS DROPDOWN VALUES"), uiNode("p", "helper", "Separate values with a semicolon, e.g. Core hole; Oversized core hole. Saved item values are retained."));
+    section.append(uiNode("h4", "penetration-settings-subheading", "DETAILS DROPDOWN VALUES"), uiNode("p", "helper", "Separate values with a semicolon, e.g. Conduits; Power Cables. Saved item values are retained."));
     for (const column of state.definition.settings?.detail_option_columns || []) {
       const field = state.definition.row_fields.find(value => value.column === column);
       if (!field) continue;

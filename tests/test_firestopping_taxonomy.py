@@ -54,6 +54,17 @@ class FirestoppingTaxonomyTests(unittest.TestCase):
         self.assertFalse(any(error.get('cell') == 'L4' for error in result['rows'][0]['errors']))
         self.assertEqual(result['draft']['rows'][0]['inputs']['L'], 'Oversized')
 
+    def test_fixed_type_choices_have_no_setting_and_keep_historical_custom_values(self):
+        self.assertEqual(definition()['settings']['detail_option_columns'], ['J', 'K', 'M', 'N', 'P', 'V'])
+        raw = {'globals': {'detail_options': {'L': ['Empty Opening', 'Custom saved type']}},
+               'rows': [{'id': 'saved', 'inputs': {'L': 'Custom saved type'}}]}
+        before = deepcopy(raw)
+        normalized = normalize_draft(raw)
+        self.assertEqual(normalized['globals']['detail_options']['L'], raw['globals']['detail_options']['L'])
+        self.assertEqual(normalized['rows'][0]['inputs']['L'], 'Custom saved type')
+        self.assertEqual(calculate(raw)['draft']['globals']['detail_options']['L'], raw['globals']['detail_options']['L'])
+        self.assertEqual(raw, before)
+
     def test_every_source_and_saved_record_projects_filters_without_rewriting_inputs(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

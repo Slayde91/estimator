@@ -35,7 +35,7 @@
   }
   const effectiveConfirmation = (entry, index) => recordConfirmation(confirmationOwner(entry, index)?.entity);
   const definitions = {
-    barrier: [["location", "Location"], ["barrier_type", "Barrier type", ["Empty Opening", "Core hole", "Oversized"].map(value => [value, value])], ["substrate", "Substrate"], ["orientation", "Substrate orientation"], ["notes", "Notes", "textarea"]],
+    barrier: [["location", "Location"], ["barrier_type", "Barrier type", ["Core hole", "Oversized core hole"].map(value => [value, value])], ["substrate", "Substrate"], ["orientation", "Substrate orientation"], ["notes", "Notes", "textarea"]],
     defect: [["label", "Defect Ref."], ["location", "Location"], ["frl", "FRL"], ["notes", "Notes", "textarea"]],
     service: [["service", "Category"], ["service_type", "Service type"], ["size", "Service Size (mm)"], ["notes", "Notes", "textarea"]],
   };

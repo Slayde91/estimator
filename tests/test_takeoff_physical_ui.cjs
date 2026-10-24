@@ -399,14 +399,14 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
     const h=component(value);await flush();
     await h.click('Add barrier to D-0001');const barrier=h.calls.asks.at(-1).definitions;
     assert.ok(!barrier.some(([key])=>['label','thickness_mm'].includes(key)));
-    assert.deepEqual(definitionOptions(barrier.find(([key])=>key==='barrier_type')),['Empty Opening','Core hole','Oversized']);
+    assert.deepEqual(definitionOptions(barrier.find(([key])=>key==='barrier_type')),['Core hole','Oversized core hole']);
     for(const key of ['substrate','orientation'])assert.deepEqual(definitionOptions(barrier.find(([name])=>name===key)),fieldChoices[key]);
     await h.click('Add service to B-0001');const service=h.calls.asks.at(-1).definitions;
     assert.ok(!service.some(([key])=>key==='label'));assert.equal(service.find(([key])=>key==='service')[1],'Category');assert.equal(service.find(([key])=>key==='size')[1],'Service Size (mm)');
     assert.equal(service.findIndex(([key])=>key==='quantity'),service.findIndex(([key])=>key==='service_type')+1);
     for(const key of ['service','service_type'])assert.deepEqual(definitionOptions(service.find(([name])=>name===key)),fieldChoices[key]);
     await h.select(1);
-    for(const [label,choices] of [['Barrier type',['Empty Opening','Core hole','Oversized']],['Substrate',fieldChoices.substrate],['Substrate orientation',fieldChoices.orientation]]){const control=h.input(label);assert.equal(control.tagName,'SELECT');assert.deepEqual(optionsOf(control),choices);}
+    for(const [label,choices] of [['Barrier type',['Core hole','Oversized core hole']],['Substrate',fieldChoices.substrate],['Substrate orientation',fieldChoices.orientation]]){const control=h.input(label);assert.equal(control.tagName,'SELECT');assert.deepEqual(optionsOf(control),choices);}
     for(const label of ['Barrier label','Thickness (mm)'])assert.ok(!h.all().some(control=>control.attributes['aria-label']===label));
     for(const [label,choices] of [['Substrate for Wall A',fieldChoices.substrate],['Substrate orientation for Wall A',fieldChoices.orientation]]){const control=h.input(label);assert.equal(control.tagName,'SELECT');assert.deepEqual(optionsOf(control),choices);}
     await h.controller.clearSelection();await h.select(5);

@@ -24,6 +24,8 @@ from .library_diagram_names import validate_drawing_name, drawing_source_names, 
 from .library_report_links import FIREFLY_REPORTS_URL, validate_report_links
 from .library_facets import FACETS, classify_facets, facet_options
 from .technical_presentation import present_options, technical_title
+from .technical_discovery import (HIDDEN_FRL_CHOICES, canonical_frl, discovery_facets,
+                                  present_frl_text, present_technical)
 from .technical_fields import (FIELD_LABELS, LEGACY_LABELS,
                                is_hidden_technical_label, normalize_technical_item)
 
@@ -351,6 +353,24 @@ class ReferenceLibrary:
                 for key in members:
                     records['technical'][key]['consolidated_ids'] = list(members)
                     records['technical'][key]['canonical_id'] = canonical
+        # Discovery aliases are applied after source-bound duplicate review.
+        # Keep _records and its reviewed fields/facets unchanged: manual-link
+        # fingerprints and duplicate reviews still see their original inputs.
+        if reuse_technical:
+            discovery = validated_source['_technical_discovery']
+        else:
+            imported_services = {item['id']: item.get('filter_values', {}).get('services', [])
+                                 for item in data['libraries']['technical']['items']}
+            discovery = {key: {**item.get('filter_values', {}),
+                               **discovery_facets(item, imported_services=imported_services[key])}
+                         for key, item in records['technical'].items()}
+            for entry in filters['technical']:
+                observed = {value for values in discovery.values() for value in values.get(entry['key'], [])}
+                if entry['key'] == 'frl':
+                    observed -= HIDDEN_FRL_CHOICES
+                entry['options'] = (substrate_options(observed) if entry['key'] == 'substrate' else
+                                    [{'value': value, 'label': value}
+                                     for value in facet_options(entry['key'], observed)])
         links = {kind: {key: [] for key in records[kind]} for kind in KINDS}
         seen = set()
         if not isinstance(data['links'], list) or len(data['links']) > 500000:
@@ -371,6 +391,7 @@ class ReferenceLibrary:
             for entry in entries:
                 entry['title'] = records['technical'][entry['id']]['title']
         data['_aliases'], data['_groups'], data['_visible'] = aliases, groups, visible
+        data['_technical_discovery'] = discovery
         data['_records'], data['_searches'], data['_filters'], data['_links'], data['_assets'] = records, searches, filters, links, assets
 
     def overview(self):
@@ -403,6 +424,10 @@ class ReferenceLibrary:
                 return number(int(raw), minimum, maximum)
             offset, limit = page_value('offset', 0, 0, 1000000), page_value('limit', 50, 1, 100)
             chosen = {key: string(query[key], 1000) for key in filter_keys if query.get(key)}
+            if kind == 'technical' and 'frl' in chosen:
+                chosen['frl'] = canonical_frl(chosen['frl'])
+            if kind == 'technical' and chosen.get('services') == 'Junction Box':
+                chosen['services'] = 'Conduits'
             items = []
             if data:
                 for key in data['_visible'][kind]:
@@ -410,7 +435,11 @@ class ReferenceLibrary:
                     linked = bool(data['_links'][kind][key])
                     if (reference == 'linked' and not linked) or (reference == 'unlinked' and linked):
                         continue
-                    if all(token in data['_searches'][kind][key] for token in search.split()) and all(value in item.get('filter_values', {}).get(name, []) for name, value in chosen.items()):
+                    values = data['_technical_discovery'][key] if kind == 'technical' else item.get('filter_values', {})
+                    search_text = data['_searches'][kind][key]
+                    if kind == 'technical':
+                        search_text += '\n' + '\n'.join(values.get('frl', []))
+                    if all(token in search_text for token in search.split()) and all(value in values.get(name, []) for name, value in chosen.items()):
                         items.append({**{name: item.get(name, '') for name in ('id', 'title', 'subtitle', 'summary', 'source_label')},
                                       **{name: deepcopy(item[name]) for name in ('library_id', 'price', 'editable') if name in item},
                                       'related_count': len(data['_links'][kind][key])})
@@ -428,7 +457,11 @@ class ReferenceLibrary:
             if kind == 'penetration':
                 filters.append({'key': 'technical_reference', 'label': 'Technical reference', 'options': [
                     {'value': 'any', 'label': 'Any'}, {'value': 'linked', 'label': 'Linked'}, {'value': 'unlinked', 'label': 'No linked reference'}]})
-            return {'items': items[offset:offset + limit], 'total': len(items), 'offset': offset, 'limit': limit,
+            shown = items[offset:offset + limit]
+            if kind == 'technical':
+                shown = [present_technical(item, source_ratings=data['_records'][kind][item['id']]
+                                           .get('filter_values', {}).get('frl', [])) for item in shown]
+            return {'items': shown, 'total': len(items), 'offset': offset, 'limit': limit,
                     'counts': counts, 'filters': filters,
                     'notice': data['libraries'][kind].get('notice', '') if data else 'No local reference library has been installed.'}
 
@@ -439,8 +472,14 @@ class ReferenceLibrary:
             if not data or kind not in KINDS or key not in data['_records'][kind]:
                 raise ReferenceNotFound()
             item = deepcopy(data['_records'][kind][key])
+            if kind == 'technical':
+                item = present_technical(item)
             item.pop('filter_values', None)
             item['links'] = deepcopy(data['_links'][kind][key])
+            for link in item['links']:
+                if link['kind'] == 'technical':
+                    ratings = data['_records']['technical'][link['id']].get('filter_values', {}).get('frl', [])
+                    link['title'] = present_frl_text(link['title'], known_ratings=ratings)
             return item
 
     def image_replicas(self):

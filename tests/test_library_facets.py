@@ -13,16 +13,15 @@ def record(**values):
 
 
 REQUESTED_SERVICES = [
-    'Access Panel', 'Blank Seal', 'Busbar Trunking', 'Cable Bundles',
+    'N/A', 'Busbar Trunking', 'Cable Bundles',
     'Cable Trays', 'Coaxial Cables', 'Conduits', 'D1 Power Cables',
     'D2 Comms Cables', 'Data Cables', 'Downlights', 'Fibre Optic',
-    'Fire Dampers', 'Fire Resistant Cables', 'Flexible Ducts', 'Junction Box',
-    'Lagged Copper Pipes', 'Lagged Steel Pipes', 'Linear Joints',
-    'Mixed Services', 'Movement Joints', 'Pair Coils', 'uPVC pipe',
+    'Fire Dampers', 'Fire Resistant Cables', 'Flexible Ducts',
+    'Lagged Copper Pipes', 'Lagged Steel Pipes',
+    'Mixed Services', 'Pair Coils', 'uPVC pipe',
     'uPVC floorwaste', 'PEX pipe', 'HDPE pipe', 'Power Cables', 'Single Cables',
     'TPS & Fire Alarm Cables', 'Copper Pipes', 'Steel Pipes',
-    'Air Transfer Grilles', 'Communications Cables', 'Structural Steel',
-    'Structural Timber', 'Wall Sockets',
+    'Air Transfer Grilles', 'Communications Cables', 'Wall Sockets',
 ]
 
 
@@ -64,8 +63,8 @@ class LibraryFacetTests(unittest.TestCase):
                 self.assertIn(legacy, result['services'])
                 self.assertEqual(result['category'], ['Plumbing & Hydraulic'])
                 self.assertEqual(item, before)
-        precise = set(REQUESTED_SERVICES[16:18] + REQUESTED_SERVICES[22:26]
-                      + ['Copper Pipes', 'Steel Pipes'])
+        precise = {'Lagged Copper Pipes', 'Lagged Steel Pipes', 'uPVC pipe', 'uPVC floorwaste',
+                   'PEX pipe', 'HDPE pipe', 'Copper Pipes', 'Steel Pipes'}
         for source in ('Plastic pipes', 'Lagged pipes', 'Unlagged pipes',
                        'PVC pipe', 'LDPE pipe', 'Pair coil with copper pipe'):
             with self.subTest(source=source):

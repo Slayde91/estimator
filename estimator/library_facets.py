@@ -12,18 +12,20 @@ from .library_opening_types import OPENING_TYPES
 
 CATEGORIES = ('Electrical & Communications', 'Mechanical', 'HVAC',
               'Plumbing & Hydraulic', 'Structural Steel', 'Access Panel',
-              'Blank Seal', 'Bulkheads')
-SERVICES = ('Access Panel', 'Blank Seal', 'Busbar Trunking', 'Cable Bundles',
+              'Blank Seal', 'Bulkheads', 'Linear Joints', 'Movement Joints',
+              'Structural Timber')
+MOVED_SERVICE_CATEGORIES = frozenset({'Access Panel', 'Blank Seal', 'Linear Joints',
+                                    'Movement Joints', 'Structural Steel', 'Structural Timber'})
+SERVICES = ('N/A', 'Busbar Trunking', 'Cable Bundles',
             'Cable Trays', 'Coaxial Cables', 'Conduits', 'D1 Power Cables',
             'D2 Comms Cables', 'Data Cables',
             'Downlights', 'Fibre Optic', 'Fire Dampers', 'Fire Resistant Cables',
-            'Flexible Ducts', 'Junction Box', 'Lagged Copper Pipes',
-            'Lagged Steel Pipes', 'Linear Joints', 'Mixed Services',
-            'Movement Joints', 'Pair Coils', 'uPVC pipe', 'uPVC floorwaste',
+            'Flexible Ducts', 'Lagged Copper Pipes',
+            'Lagged Steel Pipes', 'Mixed Services',
+            'Pair Coils', 'uPVC pipe', 'uPVC floorwaste',
             'PEX pipe', 'HDPE pipe', 'Power Cables', 'Single Cables',
             'TPS & Fire Alarm Cables', 'Copper Pipes', 'Steel Pipes',
-            'Air Transfer Grilles', 'Communications Cables',
-            'Structural Steel', 'Structural Timber', 'Wall Sockets')
+            'Air Transfer Grilles', 'Communications Cables', 'Wall Sockets')
 # Descriptive subtypes share existing calculator groups, never source approval.
 PLASTIC_PIPE_TYPES = ('uPVC pipe', 'uPVC floorwaste', 'PEX pipe', 'HDPE pipe')
 UNLAGGED_PIPE_TYPES = ('Copper Pipes', 'Steel Pipes')

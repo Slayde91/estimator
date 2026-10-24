@@ -215,7 +215,7 @@ class FirestoppingLibraryTests(unittest.TestCase):
         source = path.read_bytes()
         library = FirestoppingLibrary(self.root / 'library', self.store)
         detail = library.detail('penetration', 'pkb-001')
-        self.assertEqual(next(field['value'] for field in detail['fields'] if field.get('label') == 'Service Type'), 'Conduits')
+        self.assertEqual(next(field['value'] for field in detail['fields'] if field.get('label') == 'Services'), 'Conduits')
         self.assertEqual(library.edit('pkb-001')['draft']['rows'][0]['inputs']['K'], 'Conduits')
         self.assertEqual(library.service_types().count('Conduits'), 1)
         self.assertNotIn('Conduit', library.service_types())

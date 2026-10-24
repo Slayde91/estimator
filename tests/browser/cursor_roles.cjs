@@ -20,7 +20,7 @@ let browser;const evidence=[],errors=[];
   await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));assert.notEqual(server.address().port,8765);
   browser=await chromium.launch({headless:true});const page=await browser.newPage({viewport:{width:1000,height:850}});
   page.on('pageerror',error=>errors.push(error.message));await page.goto(`http://127.0.0.1:${server.address().port}/`,{waitUntil:'networkidle'});
-  const check=async(selector,role)=>{const target=page.locator(selector);await expect(target).toHaveCSS('cursor',new RegExp(role==='reticle'?'laser-reticle\\.svg':'cursors/'+role+'\\.png'));evidence.push({selector,role,cursor:await target.evaluate(el=>getComputedStyle(el).cursor)});};
+  const check=async(selector,role)=>{const target=page.locator(selector);await expect(target).toHaveCSS('cursor',new RegExp(role==='reticle'?'laser-reticle\\.svg':'^'+({pointer:'default',link:'pointer',text:'text',move:'move',grab:'grab',unavailable:'not-allowed',busy:'progress',precision:'crosshair',handwriting:'crosshair','resize-nwse':'nwse-resize','resize-nesw':'nesw-resize'}[role])+'$'));evidence.push({selector,role,cursor:await target.evaluate(el=>getComputedStyle(el).cursor)});};
   for(const selector of ['#nav','#nav svg','#nav-choice'])await check(selector,'reticle');
   for(const selector of ['#action','#tab','#link','#library-choice','#library-choice-text'])await check(selector,'link');
   await check('h1','pointer');await check('#text','text');
@@ -34,7 +34,7 @@ let browser;const evidence=[],errors=[];
   for(const id of ['length','measure','polyline','rectangle','area','textbox','callout','count']){
     const box=await page.locator('#'+id).boundingBox();assert.equal(await page.evaluate(([x,y])=>document.elementFromPoint(x,y)?.id,[box.x+box.width/2,box.y+box.height/2]),id,'Cursor role belongs to the actual pointer hit target');
   }
-  for(const [tool,role] of [['count','precision'],['trace','precision'],['measure','precision'],['graphic-polyline','precision'],['pan','move'],['text','text'],['signature','handwriting']]){
+  for(const [tool,role] of [['count','precision'],['trace','precision'],['measure','precision'],['graphic-polyline','precision'],['pan','grab'],['text','text'],['signature','handwriting']]){
     await page.locator('#takeoff-viewport').evaluate((el,tool)=>el.dataset.tool=tool,tool);
     for(const selector of ['#takeoff-viewport','#length','#measure','#count','#pdf-text-layer','#pdf-text','#pdf-break'])await check(selector,role);
     if(tool==='text'){const box=await page.locator('#pdf-text').boundingBox();assert.equal(await page.evaluate(([x,y])=>document.elementFromPoint(x,y)?.id,[box.x+box.width/2,box.y+box.height/2]),'pdf-text','PDF text cursor belongs to its real hit target');}

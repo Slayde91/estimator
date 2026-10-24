@@ -8,7 +8,7 @@
   :root.app-busy,:root.app-busy *,
   :root [aria-busy="true"],:root [aria-busy="true"] *,
   :root [data-cursor-role="busy"],:root [data-cursor-role="busy"] * {
-    cursor:var(--app-cursor-busy,url('/cursors/busy.png') 7 2,progress)!important;
+    cursor:var(--app-cursor-busy,progress)!important;
   }
 }
 

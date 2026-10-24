@@ -122,6 +122,22 @@ async function tab(name){await page.locator('#calculator-pages').getByRole('butt
  const intumSummary=page.getByRole('table',{name:'Intumescent product summary',exact:true});await expect(intumSummary).toBeVisible();
  await expect(page.locator('#calculator-grid table')).toHaveCount(1);await expect(intumSummary.getByRole('columnheader')).toHaveCount(15);await expect(intumSummary.locator('tbody tr')).toHaveCount(3);
  for(const product of ['Nullifire SC902','FIRETEX FX5090','FIRETEX FX6010'])await expect(intumSummary).toContainText(product);
+ const summaryViewport=page.getByRole('region',{name:'Intumescent product summary · scroll horizontally for all columns',exact:true});
+ await expect(summaryViewport).toHaveAttribute('tabindex','0');
+ const summaryLayout=await intumSummary.evaluate(table=>{
+   const headers=table.querySelectorAll('thead th'),viewport=table.parentElement;
+   return {tableWidth:table.getBoundingClientRect().width,viewportWidth:viewport.clientWidth,scrollWidth:viewport.scrollWidth,
+     productWidth:headers[0].getBoundingClientRect().width,statusWidth:headers[headers.length-1].getBoundingClientRect().width,
+     productWrap:getComputedStyle(headers[0]).whiteSpace};
+ });
+ assert.ok(summaryLayout.tableWidth>=2200);assert.ok(summaryLayout.scrollWidth>summaryLayout.viewportWidth);
+ assert.ok(summaryLayout.productWidth>=180);assert.ok(summaryLayout.statusWidth>=220);assert.equal(summaryLayout.productWrap,'nowrap');
+ await summaryViewport.focus();await summaryViewport.press('ArrowRight');
+ await expect.poll(()=>summaryViewport.evaluate(viewport=>viewport.scrollLeft)).toBeGreaterThan(0);
+ await summaryViewport.evaluate(viewport=>{viewport.scrollLeft=viewport.scrollWidth;});
+ await expect(intumSummary.getByRole('columnheader',{name:'Order status',exact:true})).toBeInViewport();
+ await page.screenshot({path:path.join(output,'intumescent-unified-summary-order-columns.png'),fullPage:true});
+ await summaryViewport.evaluate(viewport=>{viewport.scrollLeft=0;});
  await page.screenshot({path:path.join(output,'intumescent-unified-product-summary.png'),fullPage:true});
  assert.deepEqual(await page.evaluate(()=>window.CeasefireCalculators.completeProjectSnapshot()),before);assert.deepEqual(errors,[]);
  // Enter a new board schedule using public controls, including blank custom design selectors.

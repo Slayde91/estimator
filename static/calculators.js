@@ -1732,7 +1732,9 @@
         ["order_litres", "Order volume (L)"], ["part_a", "Part A to order (kg)"], ["part_b", "Part B to order (kg)"],
         ["pack_kg", "Pack mass (kg)"], ["kit_litres", "Mixed pack volume (L)"], ["dry_litres", "Dry coating volume (L)"],
         ["pending", "Unresolved items"], ["status", "Order status"]];
-      const scroll = node("div", "calculator-product-totals-scroll"), table = node("table", "calculator-centered-data-table"), head = node("thead"), header = node("tr"), body = node("tbody");
+      const scroll = node("div", "calculator-product-totals-scroll"), table = node("table", "calculator-centered-data-table calculator-intumescent-totals"), head = node("thead"), header = node("tr"), body = node("tbody");
+      scroll.setAttribute("role", "region"); scroll.tabIndex = 0;
+      window.CeasefireI18n.attr(scroll, "aria-label", "Intumescent product summary · scroll horizontally for all columns");
       window.CeasefireI18n.attr(table, "aria-label", "Intumescent product summary");
       for (const [, label] of columns) { const cell = uiNode("th", "", label); cell.scope = "col"; header.append(cell); }
       head.append(header);

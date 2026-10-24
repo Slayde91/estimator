@@ -124,7 +124,7 @@ class TakeoffLibraryDisplayTests(unittest.TestCase):
         self.assertEqual(shown['display_fields'], selected['display_fields'])
         self.assertEqual(shown['display_fields']['frl'], '120/120/120')
         self.assertEqual(shown['display_fields']['substrate'], 'Concrete literal')
-        self.assertEqual(shown['display_fields']['penetration_type'], 'Core Hole')
+        self.assertEqual(shown['display_fields']['penetration_type'], 'Core hole')
         self.assertEqual(self.path.read_bytes(), original)
 
     def test_stale_saved_source_is_withheld_from_literal_search_projection(self):
@@ -141,7 +141,7 @@ class TakeoffLibraryDisplayTests(unittest.TestCase):
         with self.assertRaises(LibraryConflict):
             library.takeoff_record('pkb-001')
         shown = next(item for item in library.listing('penetration')['items'] if item['id'] == 'pkb-001')
-        self.assertEqual(shown['display_fields']['penetration_type'], 'Core Hole')
+        self.assertEqual(shown['display_fields']['penetration_type'], 'Core hole')
         self.assertFalse(shown['editable'])
         self.assertEqual(self.path.read_bytes(), original)
 

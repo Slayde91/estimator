@@ -40,7 +40,7 @@ async function fill(column, value) { const field = page.locator(`[data-penetrati
   await pipe().locator(':scope > summary').click(); await expect(pipe()).toHaveJSProperty('open', false);
   await detailsTab(); await page.locator('#penetration-settings').click(); await expect(pipe()).toHaveJSProperty('open', false);
   assert.deepEqual((await snapshot()).penetration.draft.globals, settingsBefore); await detailsTab();
-  for (const [column, value] of [['J','Plumbing & Hydraulic'],['K','Copper Pipes'],['L','Core Hole'],['M','Vertical'],['N','-/120/120'],['P','Concrete/masonry wall']]) await page.locator(`#penetration-row-fields [data-penetration-field="${column}"]`).selectOption(value);
+  for (const [column, value] of [['J','Plumbing & Hydraulic'],['K','Copper Pipes'],['L','Core hole'],['M','Vertical'],['N','-/120/120'],['P','Concrete/masonry wall']]) await page.locator(`#penetration-row-fields [data-penetration-field="${column}"]`).selectOption(value);
   await fill('T', 'SCHEDULE ONLY - RETAIN THIS ROW'); await fill('O', '4');
   await page.locator('#penetration-add-to-schedule').click(); await expect(page.locator('#penetration-add-to-schedule')).toHaveAttribute('aria-busy', 'false'); await settled();
   const scheduled = (await snapshot()).penetration.draft.rows; assert.equal(scheduled.length, 1);

@@ -20,7 +20,7 @@ const ready = new Promise((resolve, reject) => {
   server.once('error', error => { clearTimeout(timer); reject(error); });
   server.once('exit', code => { clearTimeout(timer); reject(new Error(`Fixture exited ${code}: ${logs}`)); });
 });
-const services = ['Access Panel','Blank Seal','Busbar Trunking','Cable Bundles','Cable Trays','Coaxial Cables','Conduits','D1 Power Cables','D2 Comms Cables','Data Cables','Downlights','Fibre Optic','Fire Dampers','Fire Resistant Cables','Flexible Ducts','Junction Box','Lagged Copper Pipes','Lagged Steel Pipes','Linear Joints','Mixed Services','Movement Joints','Pair Coils','uPVC pipe','uPVC floorwaste','PEX pipe','HDPE pipe','Power Cables','Single Cables','TPS & Fire Alarm Cables','Copper Pipes','Steel Pipes','Air Transfer Grilles','Communications Cables','Structural Steel','Structural Timber','Wall Sockets'];
+const services = ["N/A", "Busbar Trunking", "Cable Bundles", "Cable Trays", "Coaxial Cables", "Conduits", "D1 Power Cables", "D2 Comms Cables", "Data Cables", "Downlights", "Fibre Optic", "Fire Dampers", "Fire Resistant Cables", "Flexible Ducts", "Lagged Copper Pipes", "Lagged Steel Pipes", "Mixed Services", "Pair Coils", "uPVC pipe", "uPVC floorwaste", "PEX pipe", "HDPE pipe", "Power Cables", "Single Cables", "TPS & Fire Alarm Cables", "Copper Pipes", "Steel Pipes", "Air Transfer Grilles", "Communications Cables", "Wall Sockets"];
 const errors = [], evidence = {};
 const sha = bytes => createHash('sha256').update(bytes).digest('hex');
 const copy = value => JSON.parse(JSON.stringify(value));
@@ -84,7 +84,16 @@ async function takeoffSnapshot() { const session = await page.evaluate(() => win
   }
   await page.screenshot({ path: path.join(output, 'technical-services.png') });
 
-  await chooseLibrary(page, 'penetration'); await page.locator(`[data-library-edit="${info.item_id}"]`).first().click();
+  await chooseLibrary(page, 'penetration');
+  const firestoppingFilters = await api('/api/libraries/penetration?limit=1&offset=0');
+  const filterKeys = firestoppingFilters.filters.map(field => field.key);
+  assert.equal(filterKeys.indexOf('category') + 1, filterKeys.indexOf('service_type'));
+  assert.equal(firestoppingFilters.filters.find(field => field.key === 'service_type').label, 'Services');
+  assert.equal(firestoppingFilters.filters.find(field => field.key === 'penetration_type').label, 'Type');
+  assert.deepEqual(firestoppingFilters.filters.find(field => field.key === 'penetration_type').options.map(option => option.value), ['Core hole', 'Oversized core hole']);
+  await expect(page.locator('#library-penetration [data-library-filter=category]')).toBeVisible();
+  evidence.firestoppingFilters = firestoppingFilters.filters;
+  await page.locator(`[data-library-edit="${info.item_id}"]`).first().click();
   const librarySettings=page.locator('#library-editor-settings'),detailsTab=page.locator('#library-editor-groups').getByRole('tab',{name:'DETAILS',exact:true});
   await expect(librarySettings).toBeVisible();await expect(detailsTab).toBeVisible();
   const settingsBox=await librarySettings.boundingBox(),detailsBox=await detailsTab.boundingBox();assert.ok(settingsBox.x+settingsBox.width<=detailsBox.x,'Library Settings icon must be left of DETAILS');
@@ -143,6 +152,6 @@ async function takeoffSnapshot() { const session = await page.evaluate(() => win
   await details.getByLabel('Service type', { exact: true }).selectOption('HDPE pipe'); await expect.poll(async () => (await takeoffSnapshot()).physical.services[0].fields.service_type).toBe('HDPE pipe'); assert.equal((await takeoffSnapshot()).physical.services[0].id, ids.service);
   assert.deepEqual(protectedDatabase(), databaseBefore); assert.deepEqual(await api(`/api/libraries/penetration/${info.item_id}/edit`), sharedBefore); assert.deepEqual(fs.readFileSync(sourcePath), sourceBefore); assert.deepEqual(fs.readFileSync(info.diagram), sourceImageBefore); assert.deepEqual(errors, []); assert.deepEqual(await page.evaluate(() => window.qaCsp), []);
   fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ completed: true, exactServices: services, ...evidence, ids, legacy_save_reopen_precise_identity: true, broad_type_not_expanded_to_subtypes: true, shared_database_preserved: true, shared_library_preserved: true, source_sha256: sha(sourceBefore), image_sha256: sha(sourceImageBefore), errors, csp: [] }, null, 2));
-  console.log(`PASS: exact 36 Services choices in Technical Library, library editor, Firestopping composer and Takeoffs; explicit scoped filtering; legacy descriptions, precision and IDs retained across Save/Open; source/shared database unchanged. Evidence: ${output}`);
+  console.log(`PASS: exact ${services.length} Services choices in Technical Library, library editor, Firestopping composer and Takeoffs; explicit scoped filtering; legacy descriptions, precision and IDs retained across Save/Open; source/shared database unchanged. Evidence: ${output}`);
 })().catch(async error => { console.error(error); console.error(logs.slice(-5000)); if (page) { await page.screenshot({ path: path.join(output, 'failure.png'), fullPage: true }).catch(() => {}); fs.writeFileSync(path.join(output, 'failure.txt'), await page.locator('body').innerText().catch(() => '')); } process.exitCode = 1;
 }).finally(async () => { fs.writeFileSync(path.join(output, 'server.log'), logs); if (browser) await browser.close(); server.kill(); });

@@ -313,7 +313,7 @@ async function controls() {
   await page.getByRole('button', { name: 'Call-out', exact: true }).click(); await page.mouse.click(...await screen([440, 360]));
   await chooseNewPhysicalItem(page,'barrier');
   // A formula-looking location must remain literal in the public XLSX register.
-  const secondPreview = await response(() => dialog('Create draft barrier', { 'Location': '=PLAN-B', 'Barrier type': 'Empty Opening', 'FRL': '-/60/60' }, 'Preview new draft'), '/physical/preview');
+  const secondPreview = await response(() => dialog('Create draft barrier', { 'Location': '=PLAN-B', 'Barrier type': 'Core hole', 'FRL': '-/60/60' }, 'Preview new draft'), '/physical/preview');
   await apply('Create one draft barrier?'); const secondBarrier = secondPreview.changed_ids[0];
   assert.equal(entity(secondBarrier).display_id, 'B-0002'); assert.equal(state.service_plans.services.length, 1); await summaryContains(secondBarrier, '0 services');
   assert.deepEqual(state.physical, reportBefore); evidence.countCreatesIndependentBarrier = secondBarrier;

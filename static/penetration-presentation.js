@@ -4,9 +4,31 @@
 // canonical so old projects and source calculations keep their identity.
 (function (root) {
   const labels = Object.freeze({ K: "Services", L: "Type", M: "Orientation", X: "Board", Z: "Framing", AA: "Wrap", AB: "Mastic", Y: "Collars" });
-  const serviceLabels = new Map([["Copper Pipes", "Unlagged Copper Pipes"], ["Steel Pipes", "Unlagged Steel Pipes"]]);
+  const serviceLabels = new Map([["Copper Pipes", "Unlagged Copper Pipes"], ["Steel Pipes", "Unlagged Steel Pipes"], ["Junction Box", "Conduits"]]);
+  const categoryOnly = new Set(["Access Panel", "Blank Seal", "Linear Joints", "Movement Joints", "Structural Steel", "Structural Timber"]);
+  const key = value => String(value ?? "").trim().toLowerCase();
+  const moved = new Map([...categoryOnly].map(value => [key(value), value]));
+  const categories = new Map(["Electrical & Communications", "Mechanical", "HVAC", "Plumbing & Hydraulic", "Structural Steel", "Access Panel", "Blank Seal", "Bulkheads", "Linear Joints", "Movement Joints", "Structural Timber"].map(value => [key(value), value]));
+  const openingTypes = ["Core hole", "Oversized core hole"];
+  const openingType = value => ({ "core hole": openingTypes[0], oversized: openingTypes[1], "oversized core hole": openingTypes[1] })[String(value ?? "").trim().toLowerCase()] || value;
   const serviceLabel = value => serviceLabels.get(value) || value;
-  const optionLabel = (field, value) => field.column === "K" ? serviceLabel(value) : value;
+  const optionLabel = (field, value) => field.column === "K" ? serviceLabel(value) : field.column === "L" ? openingType(value) : value;
+  function details(inputs) {
+    const result = { ...inputs };
+    result.J = categories.get(key(inputs.J)) || String(inputs.J ?? "").trim();
+    if (moved.has(key(inputs.K))) { result.J = moved.get(key(inputs.K)); result.K = "N/A"; }
+    else if (!key(inputs.K) && categoryOnly.has(result.J)) result.K = "N/A";
+    else if (["junction box", "conduit", "conduits"].includes(key(inputs.K))) result.K = "Conduits";
+    else result.K = key(inputs.K) === "n/a" ? "N/A" : String(inputs.K ?? "").trim();
+    result.L = openingType(inputs.L); return result;
+  }
+  function choiceOptions(field, configured) {
+    if (field.column === "L") return [...openingTypes];
+    const values = configured ?? field.options ?? [];
+    if (field.column === "J") return [...new Set([...(field.options || []), ...values])];
+    if (field.column === "K") return [...new Set(["N/A", ...values.filter(value => !moved.has(key(value))).map(value => ["junction box", "conduit", "conduits"].includes(key(value)) ? "Conduits" : key(value) === "n/a" ? "N/A" : value)])];
+    return values;
+  }
   const vertical = new Set(["Plasterboard wall", "Concrete/masonry wall", "Hebel wall", "Speedpanel wall", "Dincel wall", "AFS wall", "CLT wall", "Insulated panel wall"]);
   const horizontal = new Set(["Plasterboard ceiling", "Concrete/masonry floor", "Bondek floor", "Hebel floor", "CLT floor"]);
   const orientation = substrate => vertical.has(substrate) ? "Vertical" : horizontal.has(substrate) ? "Horizontal" : null;
@@ -45,7 +67,7 @@
     control.addEventListener("input", grow);
     root?.requestAnimationFrame?.(grow);
   }
-  const api = Object.freeze({ labels, serviceLabel, optionLabel, orientation, serviceSize, fieldGroups, growTextarea });
+  const api = Object.freeze({ labels, serviceLabel, optionLabel, openingType, details, choiceOptions, orientation, serviceSize, fieldGroups, growTextarea });
   if (typeof module === "object" && module.exports) module.exports = api;
   if (root) root.CeasefirePenetrationPresentation = api;
 })(typeof window === "object" ? window : null);

@@ -235,6 +235,7 @@
   function inputValue(field, rowId, scope = state) { return (rowId === null ? scope.draft.globals : rowById(rowId, scope)?.inputs)?.[field.column] ?? null; }
   function displayedInput(field, rowId, scope = state) {
     const raw = inputValue(field, rowId, scope);
+    if (rowId !== null && ["J", "K", "L"].includes(field.column)) return window.CeasefirePenetrationPresentation?.details(rowById(rowId, scope)?.inputs || {})?.[field.column] ?? raw;
     return field.automatic_default && (raw === null || raw === "")
       ? scope.result?.rows.find(row => row.id === rowId)?.input_defaults?.[field.column] ?? null : raw;
   }
@@ -318,12 +319,16 @@
     }
     const pending = scope.invalid.get(key), raw = inputValue(field, rowId, scope);
     const manufacturer = rowId !== null && manufacturerLabel(field, raw);
-    const options = [...new Set((scope.draft.globals.detail_options?.[field.column] ?? field.options ?? []).map(value => manufacturer && manufacturerLabel(field, value) === manufacturer ? raw : value))];
+    const configured = scope.draft.globals.detail_options?.[field.column];
+    const choices = window.CeasefirePenetrationPresentation?.choiceOptions(field, configured) || configured || field.options || [];
+    const options = [...new Set(choices.map(value => manufacturer && manufacturerLabel(field, value) === manufacturer ? raw : value))];
+    const projected = rowId === null ? raw : window.CeasefirePenetrationPresentation?.details(rowById(rowId, scope)?.inputs || {})?.[field.column];
     if (field.type === "select") {
       const empty = uiNode("option", "", "Choose…"); empty.value = ""; control.append(empty);
       for (const value of options) { const option = node("option", "", manufacturerLabel(field, value) || window.CeasefirePenetrationPresentation?.optionLabel(field, value) || value); option.value = String(value); control.append(option); }
-      if (raw !== null && raw !== "" && !options.some(value => String(value) === String(raw))) {
-        const option = node("option", "", manufacturer || `Saved value: ${raw} (choose a listed value)`); option.value = String(raw); option.disabled = true; control.append(option);
+      if (raw !== null && raw !== "" && !options.some(value => String(value) === String(raw) || String(value) === String(projected))) {
+        const label = manufacturer || (projected && String(projected) !== String(raw) ? window.CeasefirePenetrationPresentation?.optionLabel(field, projected) || projected : `Saved value: ${raw} (choose a listed value)`);
+        const option = node("option", "", label); option.value = String(raw); option.disabled = true; control.append(option);
       }
     } else {
       if (field.type === "number") {
@@ -369,7 +374,16 @@
         if (value === undefined) error = "Choose a listed value.";
       }
       if (error) scope.invalid.set(key, { value: control.value, error });
-      else { scope.invalid.delete(key); (rowId === null ? scope.draft.globals : rowById(rowId, scope).inputs)[field.column] = value; }
+      else {
+        scope.invalid.delete(key);
+        const target = rowId === null ? scope.draft.globals : rowById(rowId, scope).inputs;
+        if (rowId !== null && ["J", "K"].includes(field.column)) {
+          const shown = window.CeasefirePenetrationPresentation?.details(target);
+          if (shown) { target.J = shown.J; target.K = shown.K; }
+        }
+        target[field.column] = value;
+        if (rowId !== null && field.column === "J" && window.CeasefirePenetrationPresentation?.details({ J: value }).K === "N/A") target.K = "N/A";
+      }
       if (!error && field.column === "P" && rowId !== null) {
         const orientation = window.CeasefirePenetrationPresentation?.orientation(value);
         if (orientation) rowById(rowId, scope).inputs.M = orientation;
@@ -578,7 +592,7 @@
   }
   function renderDetailOptions() {
     const section = node("section", "penetration-settings-section");
-    section.append(uiNode("h4", "penetration-settings-subheading", "DETAILS DROPDOWN VALUES"), uiNode("p", "helper", "Separate values with a semicolon, e.g. Core hole; Oversized. Saved item values are retained."));
+    section.append(uiNode("h4", "penetration-settings-subheading", "DETAILS DROPDOWN VALUES"), uiNode("p", "helper", "Separate values with a semicolon, e.g. Conduits; Power Cables. Saved item values are retained."));
     for (const column of state.definition.settings?.detail_option_columns || []) {
       const field = state.definition.row_fields.find(value => value.column === column);
       if (!field) continue;
@@ -713,7 +727,8 @@
     });
     $("penetration-input-groups").replaceChildren(...buttons);
     $("penetration-settings").setAttribute("aria-pressed", String(state.group === "SETTINGS"));
-    const identity = [row.inputs.J, row.inputs.K].filter(value => value !== null && value !== undefined && String(value).trim()).join(" · ");
+    const shown = window.CeasefirePenetrationPresentation?.details(row.inputs) || row.inputs;
+    const identity = [shown.J, shown.K].filter(value => value !== null && value !== undefined && String(value).trim()).join(" · ");
     uiText($("penetration-row-heading"), state.edit ? "Editing schedule item · {0}" : "Current item · {0}", [identity || (() => window.CeasefireI18n?.translate("Item details") || "Item details")]);
     const settings = state.group === "SETTINGS";
     const quantityField = state.definition.row_fields.find(field => field.column === "O"), quantity = $("penetration-item-quantity");
@@ -1059,7 +1074,8 @@
           diagramCell.replaceChildren(image);
         } else diagramCell.replaceChildren(node("span", "helper", "—"));
       }
-      const values = [line, window.CeasefirePenetrationPresentation.serviceLabel(row.inputs.K) || "—", window.CeasefirePenetrationPresentation.serviceSize(row.inputs, row.takeoff_source), row.inputs.L || "—", row.inputs.M || "—", row.inputs.N || "—", null, display(result?.outputs.H, "currency"), null];
+      const shown = window.CeasefirePenetrationPresentation.details(row.inputs);
+      const values = [line, window.CeasefirePenetrationPresentation.serviceLabel(shown.K) || "—", window.CeasefirePenetrationPresentation.serviceSize(row.inputs, row.takeoff_source), shown.L || "—", row.inputs.M || "—", row.inputs.N || "—", null, display(result?.outputs.H, "currency"), null];
       values.forEach((value, column) => { if (column !== 6 && column !== 8) tr.children[column].textContent = String(value); });
       if (!quantityField) tr.children[6].textContent = display(row.inputs.O);
       for (const control of tr.children[6].querySelectorAll("[data-penetration-field]")) uiAttr(control, "aria-label", "Item {0}: {1}", [line, uiTerm(fieldLabel(quantityField))]);

@@ -22,7 +22,8 @@ async function modal(title,values,submit){await expect(dialog().getByRole('headi
 async function selectLibrary(command=null){
   await expect(dialog().getByRole('heading',{name:'Search Firestopping Library',exact:true})).toBeVisible();
   const select=dialog().getByLabel('Library item',{exact:true});await expect(select).toBeEnabled();
-  await expect(select.locator(`option[value="${info.item_id}"]`)).toHaveText('FL-ID-001; Core Hole; Concrete; Vertical; Copper service; -/90/90');evidence.sixLiteralPickerFields=true;
+  // The picker shows the current Type alias; import assertions below retain raw Core Hole.
+  await expect(select.locator(`option[value="${info.item_id}"]`)).toHaveText('FL-ID-001; Core hole; Concrete; Vertical; Copper service; -/90/90');evidence.sixLiteralPickerFields=true;
   const response=command?page.waitForResponse(reply=>reply.url().endsWith('/commands')&&reply.request().postDataJSON()?.op===command):null;
   await select.selectOption(info.item_id);await expect(dialog().getByRole('heading',{name:'Complete selected item details',exact:true})).toBeVisible();
   const quantity=dialog().getByLabel('Item QTY',{exact:true});await expect(quantity).toHaveAttribute('min','1');await expect(quantity).toHaveAttribute('step','1');await expect(dialog()).toContainText('physical service count');

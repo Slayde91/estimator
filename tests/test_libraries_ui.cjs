@@ -44,6 +44,17 @@ function harness(){
 let passed=0;
 async function check(name,fn){await fn(harness());passed++;console.log('ok - '+name);}
 (async()=>{
+  await check('Firestopping Category and opening Type keep distinct detail labels',async h=>{
+    const fields=[{label:'Category',column:'J',value:'Electrical & Communications'},
+      {label:'Services',column:'K',value:'D1 Power Cables'},
+      {label:'Type',column:'L',value:'Oversized core hole'},
+      {label:'Type',column:'J',value:'Legacy category'}],before=copy(fields);
+    h.setRoute(path=>path==='/api/libraries'?meta():{...detail('penetration','penetration-1'),fields});
+    await h.api.open('penetration','penetration-1');
+    const labels=walk(h.pane('penetration').detailPanel).filter(node=>node.tagName==='dt').map(node=>node.textContent);
+    assert.deepEqual(labels,['Category','Services','Type','Category']);
+    assert.deepEqual(fields,before);
+  });
   await check('Compact list and link-picker wording preserves source objects and exact record IDs',async h=>{
     const item={...records('technical').items[0],title:'FIREFLYPenowrap with minimum 50 mm',subtitle:'Maximum 120 mm only',summary:'Use the wall requirements.',source_label:'Penowrap with report 123'},before=copy(item);
     h.setRoute(path=>path==='/api/libraries'?meta():path.startsWith('/api/libraries/technical')?{...records('technical'),items:[item]}:records('penetration'));

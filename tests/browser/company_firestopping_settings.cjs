@@ -75,12 +75,38 @@ async function inputGroup(group){await page.locator(`#penetration-input-groups [
   await inputGroup('Penetration');await select('M',{label:'Horizontal'});current=await inputs();assert.equal(current.AT,3.12345678901234);assert.equal(current.AN,undefined);
   await select('M',{label:'Vertical'});assert.equal((await inputs()).AT,3.12345678901234);
   evidence.multiplierDefaults={sourceDefaultsRetained:true,blankServiceDoesNotInventUnusedInputs:true,laggedService:lagged,trayService:tray,vertical:2,horizontal:1,manualTrayPrecision:3.12345678901234};
+  const typeChoices=['Core hole','Oversized core hole'],historicalTypes=['Core Hole','Oversized','Fixture opening'];
+  assert.deepEqual(await field('L').locator('option').evaluateAll(nodes=>nodes.filter(node=>node.value&&!node.disabled).map(node=>node.value)),typeChoices);
+  // Open a historical project snapshot rather than editing the now-fixed Type
+  // vocabulary. Its custom list and selected value must remain recoverable.
+  await page.evaluate(async historicalTypes=>{
+    const api=window.CeasefirePenetrations,snapshot=api.projectSnapshot();
+    snapshot.draft.globals.detail_options.L=historicalTypes;
+    snapshot.composer.globals.detail_options.L=historicalTypes;
+    snapshot.composer.rows[0].inputs.L='Fixture opening';
+    api.applyProject(await api.prepareProject(snapshot));
+  },historicalTypes);
+  await expect(field('L')).toHaveValue('Fixture opening');
+  await expect(field('L').locator('option[value="Fixture opening"]')).toHaveJSProperty('disabled',true);
+  const retainedInputs=await inputs();
   await page.locator('#penetration-settings').click();
-  for(const column of ['J','K','L','M','N','P','V'])await expect(page.locator(`[data-penetration-detail-options="${column}"]`)).toBeVisible();
+  const editableDetailColumns=['J','K','M','N','P','V'];
+  assert.deepEqual(definition.settings.detail_option_columns,editableDetailColumns);
+  for(const column of editableDetailColumns)await expect(page.locator(`[data-penetration-detail-options="${column}"]`)).toBeVisible();
+  await expect(page.locator('[data-penetration-detail-options="L"]')).toHaveCount(0);
   const waste=await page.locator('[data-penetration-field^="waste_"]').evaluateAll(nodes=>nodes.map(node=>node.value));assert.equal(waste.length,9);assert.ok(waste.every(value=>Number(value)===30));
-  await page.locator('[data-penetration-detail-options="L"]').fill('Core hole; Oversized; Fixture opening');await page.locator('[data-penetration-detail-options="L"]').press('Tab');
-  await page.getByRole('tab',{name:'DETAILS',exact:true}).click();await expect(field('L').locator('option')).toHaveText(['Choose…','Core hole','Oversized','Fixture opening']);
-  await field('L').selectOption('Fixture opening');await field('T').fill('Retain on Cancel');await field('T').press('Tab');await penetrationSettled();const beforeClear=await inputs();
+  const serviceOptions=page.locator('[data-penetration-detail-options="K"]'),editedServices=[...services,'Fixture service'];
+  const settingsCalculated=page.waitForResponse(response=>new URL(response.url()).pathname==='/api/penetration/calculate'&&response.request().method()==='POST'&&response.request().postDataJSON()?.draft?.globals?.detail_options?.K?.includes('Fixture service'));
+  await serviceOptions.fill(editedServices.join('; '));await serviceOptions.press('Tab');
+  const settingsReply=await settingsCalculated;assert.equal(settingsReply.status(),200);await settingsReply.finished();await penetrationSettled();
+  const retained=await page.evaluate(()=>window.CeasefirePenetrations.projectSnapshot());
+  for(const scope of ['draft','composer']){assert.deepEqual(retained[scope].globals.detail_options.L,historicalTypes);assert.deepEqual(retained[scope].globals.detail_options.K,editedServices);}
+  assert.deepEqual(retained.composer.rows[0].inputs,retainedInputs);
+  await page.getByRole('tab',{name:'DETAILS',exact:true}).click();
+  assert.deepEqual(await field('L').locator('option').evaluateAll(nodes=>nodes.filter(node=>node.value&&!node.disabled).map(node=>node.value)),typeChoices);
+  await expect(field('L')).toHaveValue('Fixture opening');await expect(field('L').locator('option[value="Fixture opening"]')).toHaveJSProperty('disabled',true);
+  evidence.fixedTypeSettings={choices:typeChoices,editableDetailColumns,historicalTypes,selectedHistoricalType:retained.composer.rows[0].inputs.L,composerAndScheduleListsRetained:true,unrelatedServiceEditRetainsInputs:true};
+  await field('T').fill('Retain on Cancel');await field('T').press('Tab');await penetrationSettled();const beforeClear=await inputs();
   await page.locator('#penetration-clear').click();await page.getByRole('dialog').getByRole('button',{name:'Cancel',exact:true}).click();await expect(field('T')).toHaveValue('Retain on Cancel');
   assert.deepEqual(await inputs(),beforeClear);
   await page.locator('#penetration-clear').click();await page.getByRole('dialog').getByRole('button',{name:'Yes',exact:true}).click();await expect(field('T')).toHaveValue('');

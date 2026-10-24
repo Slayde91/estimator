@@ -15,8 +15,9 @@ import re
 
 from .catalog import FIRESTOPPING_GROUPS, ValidationError, effective_catalog
 from .penetration_entry import required_item_fields
-from .library_facets import (LAGGED_PIPE_TYPES, PLASTIC_PIPE_TYPES, SERVICES,
+from .library_facets import (CATEGORIES, LAGGED_PIPE_TYPES, PLASTIC_PIPE_TYPES, SERVICES,
                              UNLAGGED_PIPE_TYPES, facet_options)
+from .library_opening_types import OPENING_TYPES
 from .excel_engine import (WorkbookEngine, CellRange, FormulaError, column_name,
                            column_number, coordinates, comparison, numeric, scalar)
 from .penetration_labour import (APP_INPUT_FIELDS, LEGACY_APP_INPUT_FIELDS,
@@ -123,7 +124,8 @@ GROUP_VISIBILITY = {
     'Bulkhead': {'column': 'J', 'values': ('Bulkheads',)},
     'Cabletrays': {'column': 'K', 'values': CABLETRAY_SERVICE_TYPES},
     'Substrate': {'any': (
-        {'column': 'L', 'values': ('Oversized',)},
+        {'column': 'L', 'values': ('Oversized', 'Oversized core hole')},
+        {'column': 'J', 'values': ('Access Panel', 'Blank Seal', 'Linear Joints', 'Movement Joints')},
         {'column': 'K', 'values': (
             'Access Panel', 'Blank Seal', 'Fire Dampers', 'Linear Joints',
             'Movement Joints',
@@ -250,7 +252,7 @@ def settings_schema():
             for key, spec in LABOUR_BAND_SPECS.items()
         ],
         'structured_global_keys': ['service_routes', 'labour_bands', 'detail_options'],
-        'detail_option_columns': ['J', 'K', 'L', 'M', 'N', 'P', 'V'],
+        'detail_option_columns': ['J', 'K', 'M', 'N', 'P', 'V'],
     }
 
 
@@ -389,6 +391,8 @@ def _definition(inventory, service_types=None):
             options = (selections[PRICE_COLUMNS[col]] if col in PRICE_COLUMNS else
                        list(FRL_OPTIONS) if col == 'N' else
                        list(SUBSTRATE_OPTIONS) if col == 'P' else
+                       list(CATEGORIES) if col == 'J' else
+                       list(OPENING_TYPES) if col == 'L' else
                        _named_options(CHOICE_NAMES[col]) if col in CHOICE_NAMES else descriptions.get(col, []))
             label = {'J': 'Category', 'T': 'Description', 'U': 'System/Install Details',
                      'W': 'Teams/Crews', 'X': 'Board/Batt Type', 'Z': 'Framing Type',
@@ -902,6 +906,10 @@ def _calculate(draft, configuration, *, service_types=None):
     spec = _definition(inventory, service_types)
     option_sets = {field['column']: frozenset(value.casefold() for value in field['options'])
                    for field in spec['row_fields']}
+    # Historical inputs remain valid calculation descriptions even though new
+    # selections use the reviewed display vocabulary. Do not add warnings to
+    # saved Oversized rows merely because its visible label was expanded.
+    option_sets['L'] |= frozenset(value.casefold() for value in _named_options('pentype'))
     rows, errors = [], []
     for index, row in enumerate(draft['rows'], 4):
         output, row_errors = {}, []

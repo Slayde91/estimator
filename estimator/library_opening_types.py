@@ -7,6 +7,27 @@ import re
 
 
 OPENING_TYPES = ('Core hole', 'Oversized core hole')
+_REPORT_TYPES = {'FAS190234': OPENING_TYPES[1], 'FAS190235': OPENING_TYPES[1],
+                 'FAS190236': OPENING_TYPES[0]}
+
+
+def report_opening_type(item):
+    """Use a record's structured report basis, never incidental installation prose."""
+    reports = set()
+    for value in item.get('filter_values', {}).get('document', []):
+        if isinstance(value, str) and value.strip().upper() in _REPORT_TYPES:
+            reports.add(value.strip().upper())
+    for field in item.get('fields', []):
+        if field.get('label') == 'Report Number' and isinstance(field.get('value'), str):
+            reports.update(re.findall(r'\bFAS19023[456]\b', field['value'].upper()))
+    for source in item.get('sources', []):
+        value = source.get('document_id', '')
+        if isinstance(value, str) and value.upper() in _REPORT_TYPES:
+            reports.add(value.upper())
+    types = {_REPORT_TYPES[report] for report in reports}
+    if len(types) != 1:
+        return None
+    return {'type': types.pop(), 'reports': sorted(reports)}
 _COMPONENT_FIELDS = {
     'System Products', 'Product', 'System Recommendation',
     'Installation Details', 'Install Notes', 'Penetration seal description',
@@ -184,4 +205,7 @@ def opening_type_evidence(item):
 
 
 def opening_type(item):
+    report = report_opening_type(item)
+    if report is not None:
+        return report['type']
     return OPENING_TYPES[bool(opening_type_evidence(item))]

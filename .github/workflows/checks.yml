@@ -116,6 +116,7 @@ jobs:
       - run: npm run test:languages-browser
       - run: npm run test:themes-browser
       - run: npm run test:help-glossary
+      - run: node tests/browser/help_contact.cjs
       - run: npm run test:help-glossary -- --standard
       - run: npm run test:takeoffs-icons
       - run: npm run test:takeoffs-measure-icon

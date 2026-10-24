@@ -29,8 +29,8 @@
     if (hiddenFields.has(label) || kind === "technical" && hiddenTechnicalFields.has(label)) return false;
     return kind !== "technical" || String(field.value ?? "").trim() !== "" || field.images?.length || field.table || field.tables?.length || field.table_links?.length;
   };
-  const fieldLabel = (kind, label) => kind !== "penetration" ? label
-    : label === "Type" ? "Category"
+  const fieldLabel = (kind, label, column) => kind !== "penetration" ? label
+    : label === "Type" && column === "J" ? "Category"
     : ["Item(s)", "Items/Services"].includes(label) ? "Description"
     : ["System", "System Install", "System/Install"].includes(label) ? "System/Install Details" : label;
   const diagramCaption = (kind, caption) => (kind === "penetration" ? String(caption || "").replace(/(?:^|\s+|\s*[·|—–-]\s*)(?:'?CALC'?!\$?[A-Z]{1,3}\$?\d+(?::\$?[A-Z]{1,3}\$?\d+)?|CALC\s+row\s+\d+)\s*$/i, "").trim() : caption) || "Source diagram";
@@ -766,7 +766,7 @@
       if (tables.length) { pair.className += " library-record-field-table"; value.append(...tables); }
       if (links.length) { const navigation = node("div", "library-table-links"); navigation.append(...links); value.append(navigation); }
       if (images.length) { const gallery = node("div", "library-images library-field-images"); gallery.append(...images.map(item => imageNode(item, pane.kind, imageOnly, pane.detail.image_replicas))); value.append(gallery); }
-      pair.append(uiNode("dt", "", display(fieldLabel(pane.kind, field.label) || "Field")), value); fields.append(pair);
+      pair.append(uiNode("dt", "", display(fieldLabel(pane.kind, field.label, field.column) || "Field")), value); fields.append(pair);
     }
     content.push(fields);
     if (pane.kind === "technical" && data.diagram_status && !diagramStatusShown) content.push(node("p", "helper library-diagram-status", display(data.diagram_status)));

@@ -28,14 +28,18 @@ from .penetration_calculator import (CALCULATION_POLICY_VERSION, calculate, cano
                                      engine_for_draft, normalize_draft, source_model)
 from .reference_library import ReferenceLibrary, ReferenceNotFound, identifier
 from .service_dimensions import FIELD_LABEL, service_size_field
+from .firestopping_taxonomy import canonical_opening_type, category_service, display_details, is_blank_seal
+from .library_facets import CATEGORIES, SERVICES
+from .library_opening_types import OPENING_TYPES
 
 
 class LibraryConflict(ValidationError):
     pass
 
 
-FILTER_COLUMNS = {'manufacturer': ('Manufacturer', 'V'), 'service_type': ('Service type', 'K'),
-                  'penetration_type': ('Penetration type', 'L'), 'orientation': ('Orientation', 'M'),
+FILTER_COLUMNS = {'manufacturer': ('Manufacturer', 'V'), 'category': ('Category', 'J'),
+                  'service_type': ('Services', 'K'),
+                  'penetration_type': ('Type', 'L'), 'orientation': ('Orientation', 'M'),
                   'frl': ('FRL', 'N'), 'substrate': ('Substrate', 'P')}
 MANUAL_RELATIONSHIP = 'Manually linked.'
 # Supplier aliases retain their existing numbers. User aliases have a separate
@@ -377,8 +381,8 @@ class FirestoppingLibrary(ReferenceLibrary):
         library['items'] = [item for item in library['items'] if item['id'] not in deleted]
         data['links'] = [link for link in data['links']
                          if link['penetration_id'] not in deleted]
-        filter_keys = {entry['key'] for entry in library.get('filters', [])}
-        library.setdefault('filters', []).extend({'key': key, 'label': label} for key, (label, _) in FILTER_COLUMNS.items() if key not in filter_keys)
+        library['filters'] = ([{'key': key, 'label': label} for key, (label, _) in FILTER_COLUMNS.items()]
+                              + [entry for entry in library.get('filters', []) if entry['key'] not in FILTER_COLUMNS])
         aliases = set()
         for index, item in enumerate(data['libraries']['penetration']['items'], 1):
             alias = item.setdefault('library_id', f'FL-ID-{index:03d}')
@@ -445,6 +449,8 @@ class FirestoppingLibrary(ReferenceLibrary):
                 else:
                     self._apply_edit(item, edit, source_sha256=source_hash if not own else None)
             item['fields'] = [field for field in item['fields'] if field.get('column') not in ('Q', 'R')]
+            self._taxonomy_projection(item, edit['draft']['rows'][0]['inputs']
+                if edit and edit['source_sha256'] == source_hash else source_inputs)
         items = {item['id']: item for item in library['items']}
         technical = {item['id']: item for item in data['libraries']['technical']['items']}
         pairs = {(link['penetration_id'], link['technical_id']) for link in data['links']}
@@ -469,6 +475,10 @@ class FirestoppingLibrary(ReferenceLibrary):
             data['links'] = [link for link in data['links'] if (link['penetration_id'], link['technical_id']) != (left, right)]
             pairs.discard((left, right))
         self._validate(data, validated_source=base)
+        preferred = {'category': CATEGORIES, 'service_type': SERVICES, 'penetration_type': OPENING_TYPES}
+        for field in data['_filters']['penetration']:
+            if field['key'] in preferred:
+                field['options'] = [{'value': value, 'label': value} for value in preferred[field['key']]]
         for related in data['_links']['technical'].values():
             for link in related:
                 key = link['id']
@@ -498,11 +508,32 @@ class FirestoppingLibrary(ReferenceLibrary):
         item['fields'].insert(position, field)
 
     @staticmethod
+    def _taxonomy_projection(item, inputs):
+        """Display and match reviewed labels while keeping authoritative J/K/L."""
+        values = dict(inputs)
+        for column in ('J', 'K', 'L'):
+            if column not in values:
+                values[column] = next((field['value'] for field in item.get('fields', [])
+                                       if field.get('column') == column), '')
+        shown = display_details(values)
+        for key, (label, column) in FILTER_COLUMNS.items():
+            if column not in ('J', 'K', 'L'):
+                continue
+            value = shown.get(column) or ''
+            fields = [field for field in item['fields'] if field.get('column') == column]
+            for field in fields:
+                field.update(label=label, value=str(value))
+            if not fields and value:
+                item['fields'].append({'label': label, 'column': column, 'value': str(value)})
+            item.setdefault('filter_values', {})[key] = [str(value)] if value else []
+
+    @staticmethod
     def _takeoff_display_fields(item, inputs=None):
         """Literal display projection; no title parsing or calculator changes."""
         columns = {'service_type': 'K', 'penetration_type': 'L', 'substrate': 'P',
                    'orientation': 'M', 'frl': 'N'}
         if inputs is not None:
+            inputs = display_details(inputs)
             values = {key: inputs.get(column) for key, column in columns.items()}
             values['service_size'] = service_size_field(inputs)['value']
         else:
@@ -653,6 +684,15 @@ class FirestoppingLibrary(ReferenceLibrary):
 
     def listing(self, kind, **query):
         with self._lock:
+            if kind == 'penetration':
+                if query.get('penetration_type'):
+                    query['penetration_type'] = canonical_opening_type(query['penetration_type'])
+                if query.get('service_type'):
+                    category, service = category_service(query.get('category'), query['service_type'])
+                    if not query.get('category') or query['category'] == category:
+                        if category:
+                            query['category'] = category
+                        query['service_type'] = service
             result = super().listing(kind, **query)
             if kind == 'penetration':
                 data = self._load()
@@ -974,7 +1014,7 @@ class FirestoppingLibrary(ReferenceLibrary):
                 # Physical Barrier type is the retained penetration designation
                 # (Core hole/Oversized/Empty Opening), not inferred construction.
                 fields['barrier']['barrier_type'] = clean(inputs['L'])
-            if inputs.get('K') and canonical_service_type(inputs.get('K')) != 'Blank Seal':
+            if inputs.get('K') and not is_blank_seal(inputs):
                 size = service_size_evidence(inputs)
                 fields['service'] = {'service_type': clean(inputs['K']), 'service': clean(inputs.get('J')), 'notes': note}
                 if size['decision'] == 'calculator_only':

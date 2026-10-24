@@ -281,10 +281,10 @@ class PenetrationCalculationTests(unittest.TestCase):
         self.assertEqual(spec['group_labels'], {'Penetration': 'DETAILS', 'Cabletrays': 'CABLE TRAYS',
             'Cables/Bundles': 'BUNDLES', 'Additional Allowances': 'OTHER'})
         self.assertEqual(spec['group_visibility']['Bulkhead'], {'column': 'J', 'values': ['Bulkheads']})
-        self.assertEqual(spec['group_visibility']['Substrate']['any'][0], {'column': 'L', 'values': ['Oversized']})
-        self.assertEqual(spec['group_visibility']['Substrate']['any'][1]['column'], 'K')
+        self.assertEqual(spec['group_visibility']['Substrate']['any'][0], {'column': 'L', 'values': ['Oversized', 'Oversized core hole']})
+        self.assertEqual(spec['group_visibility']['Substrate']['any'][2]['column'], 'K')
         for service in ('Access Panel', 'Blank Seal', 'Fire Dampers', 'Linear Joints', 'Movement Joints'):
-            self.assertIn(service, spec['group_visibility']['Substrate']['any'][1]['values'])
+            self.assertIn(service, spec['group_visibility']['Substrate']['any'][2]['values'])
         self.assertEqual(spec['group_visibility']['Cabletrays']['column'], 'K')
         self.assertEqual(spec['group_visibility']['Cabletrays']['route_key'], 'Cabletrays')
         for service in ('D1 Power Cables', 'D2 Comms Cables', 'Data Cable Bundles',

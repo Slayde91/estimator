@@ -199,7 +199,7 @@ class FiretexExportTests(unittest.TestCase):
         self.assertIn('Unavailable kg', qualification[2])
         for builder in (build_calculator_report, build_calculator_summary_report):
             text = '\n'.join(page.extract_text() for page in PdfReader(BytesIO(builder('steel_intumescent', values))).pages)
-            self.assertIn('component orders held', text)
+            self.assertIn('component orders held', ' '.join(text.split()))
         workbook = load_workbook(BytesIO(build_calculator_register('steel_intumescent', values)))
         exported = next(row for row in workbook['Summary'] if row[0].value == PRODUCTS[1])
         self.assertAlmostEqual(exported[2].value, record['C'])

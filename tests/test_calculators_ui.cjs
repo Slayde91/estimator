@@ -692,7 +692,7 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
   assert.doesNotMatch(html,/calculator-(?:previous|next|row-page)/);
   assert.doesNotMatch(html,/Show advanced columns|calculator-advanced/);
   assert.doesNotMatch(source,/Show advanced columns|calculator-advanced|entry\.advanced|renderedAdvanced/);
-  assert.match(html,/Add or remove schedule rows as needed · Imports create their rows automatically/);assert.doesNotMatch(html,/Highlighted fields are editable/);passed++;
+  assert.doesNotMatch(html,/Add or remove schedule rows as needed · Imports create their rows automatically/);assert.doesNotMatch(html,/Highlighted fields are editable/);passed++;
 
   // A Location edit on the final row survives recalculation without rebuilding 11,000 visible controls.
   const retainedControl=renderedControls()[0],lastBoardLocation=renderedControls().find(control=>control.dataset.calculatorCell==='B1008');
@@ -2434,6 +2434,28 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
   const invalidSCVolume=audit.makeControl({address:'D24',column:4,type:'number',value:17},24,entry,'Mixed pack volume (L)');
   assert.equal(invalidSCVolume.value,'0.00');assert.equal(entry.inputs.SETTINGS.D24,0);passed++;
 
+  // Product chooser labels already identify the compact forms. Hide only the
+  // repeated title and lower explanatory rows, retaining source data and values.
+  entry=auScenario({SETTINGS:{F36:1.391234567890123,F37:18,H67:18}});
+  const densitySource='Transport-weight density estimate (kg/L)',densityDisplay='Nominal mixed density estimate (kg/L)';
+  entry.result=result({}, {sheet:'SETTINGS',max_row:93,max_column:8,rows:[
+    ...[[4,'Nullifire SC902'],[34,'FIRETEX FX5090'],[64,'FIRETEX FX6010'],[48,'FX5090 source note'],
+      [52,'FX5090 quantity note'],[86,'FX6010 source note'],[90,'FX6010 quantity note'],[93,'FX6010 custom note']]
+      .map(([row,value])=>({row,cells:[{column:1,address:`A${row}`,value}]})),
+    {row:36,cells:[{column:1,address:'A36',value:densitySource},{column:6,address:'F36',label:densitySource,value:1.391234567890123,editable:true,type:'number'}]},
+    {row:44,cells:[{column:1,address:'A44',value:'Theoretical pail coverage (m² at 1 mm DFT)'},{column:6,address:'F44',value:12.42,calculated:true}]},
+    {row:82,cells:[{column:1,address:'A82',value:'Theoretical pack coverage (m² at 1 mm DFT)'},{column:8,address:'H82',value:16.56,calculated:true}]}]});
+  const rawSettingsResult=JSON.stringify(entry.result),rawSettingsInputs=JSON.stringify(entry.inputs);realRender(entry);
+  for(const address of ['A4','A34','A64','A48','A52','A86','A90','A93'])assert.equal(descendants(byId('calculator-grid')).some(node=>node.dataset?.calculatorOutput===address),false);
+  const densityLabel=descendants(byId('calculator-grid')).find(node=>node.dataset?.calculatorOutput==='A36');
+  const densityControl=renderedControls().find(node=>node.dataset.calculatorCell==='F36');
+  assert.equal(densityLabel.textContent,densityDisplay);assert.equal(densityControl.getAttribute('aria-label'),densityDisplay);
+  assert.equal(densityControl.value,'1.39');
+  for(const address of ['F44','H82'])assert.ok(descendants(byId('calculator-grid')).some(node=>node.dataset?.calculatorOutput===address));
+  assert.equal(JSON.stringify(entry.result),rawSettingsResult);assert.equal(JSON.stringify(entry.inputs),rawSettingsInputs);passed++;
+  const calculatorMarkup=englishMarkup(fs.readFileSync('static/index.html','utf8'));
+  assert.doesNotMatch(calculatorMarkup,/class="calculator-sheet-footer"/);assert.match(calculatorMarkup,/id="calculator-option-lists"/);passed++;
+
   // One shared summary table carries every product and refreshes its pools.
   entry=auScenario();entry.sheet='SUMMARY';entry.page='SUMMARY';
   entry.definition.sheets.push({name:'SUMMARY',header_rows:[6,21,36],merges:[]});
@@ -2444,10 +2466,21 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
   const rawSummary=JSON.stringify(entry.result),rawInputs=JSON.stringify(entry.inputs);realRender(entry);
   let intumSummaryTables=descendants(byId('calculator-grid')).filter(node=>node.tagName==='table');
   assert.equal(intumSummaryTables.length,1);assert.equal(intumSummaryTables[0].children.find(node=>node.tagName==='tbody').children.length,3);
+  const summaryHeadings=[['Product','Product'],['Coating area (m²)','Coating area (m²)'],['Required (kg)','Required mixed (kg)'],
+    ['Required (L)','Required mixed (L)'],['Net packs','Net packs'],['Waste (%)','Waste (%)'],['Whole packs','Whole packs'],
+    ['Order (L)','Order volume (L)'],['Part A (kg)','Part A to order (kg)'],['Part B (kg)','Part B to order (kg)'],
+    ['Pack mass (kg)','Pack mass (kg)'],['Pack volume (L)','Mixed pack volume (L)'],['Dry volume (L)','Dry coating volume (L)'],
+    ['Unresolved','Unresolved items'],['Status','Order status']];
+  const assertSummaryHeadings=()=>{
+    const headings=intumSummaryTables[0].children.find(node=>node.tagName==='thead').children[0].children;
+    assert.deepEqual(headings.map(node=>[node.textContent,node.getAttribute('title'),node.getAttribute('aria-label')]),summaryHeadings.map(([short,full])=>[short,full,full]));
+  };
+  assertSummaryHeadings();
   for(const product of summaryPools.map(pool=>pool.product))assert.ok(descendants(intumSummaryTables[0]).some(node=>node.textContent===product));
   const updated=copy(entry.result);updated.intumescent_product_totals[2].part_a='';updated.intumescent_product_totals[2].pending=1;updated.intumescent_product_totals[2].status='INCOMPLETE - review schedule';
   audit.refreshOutputs(updated);intumSummaryTables=descendants(byId('calculator-grid')).filter(node=>node.tagName==='table');
   assert.equal(intumSummaryTables.length,1);assert.ok(descendants(intumSummaryTables[0]).some(node=>node.textContent==='INCOMPLETE - review schedule'));
+  assertSummaryHeadings();
   assert.equal(JSON.stringify(entry.result),rawSummary);assert.equal(JSON.stringify(entry.inputs),rawInputs);passed++;
   }
 

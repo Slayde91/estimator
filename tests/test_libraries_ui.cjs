@@ -552,8 +552,8 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     await h.api.open('penetration');const pane=h.pane('penetration');await walk(pane.results).find(node=>node.dataset.libraryLink).emit('click');await flush();const session=pane.linkSession,choice=walk(session.results).find(node=>node.dataset.libraryLinkChoice);choice.checked=true;await choice.emit('change');const saving=session.save.emit('click');await flush();assert.equal(session.cancel.disabled,true);assert(session.choices.every(choice=>choice.disabled));await h.api.open('technical','other');pending.resolve({linked:true,penetration_id:'penetration-1',technical_ids:['technical-1'],created_ids:['technical-1'],existing_ids:[]});await saving;
     assert.equal(pane.linkSession,null);assert.equal(pane.linkPanel.hidden,true);assert.equal(h.context.audit.state.current,'technical');assert.equal(h.pane('technical').selected,'other');assert.match(text(h.pane('technical').detailPanel),/Synthetic other/);assert.equal(h.pane('technical').data,null);
   });
-  await check('All seven picker facets delegate exact server values and remain separate from explicit selected links',async h=>{
-    const keys=['report','substrate','orientation','manufacturer','category','services','frl'],labels=['Report','Substrate','Orientation','Manufacturer','Category','Services','FRL'];
+  await check('All eight picker facets delegate exact server values and remain separate from explicit selected links',async h=>{
+    const keys=['report','substrate','orientation','manufacturer','type','category','services','frl'],labels=['Report','Substrate','Orientation','Manufacturer','Type','Category','Services','FRL'];
     const definitions=keys.map((key,index)=>({key,label:labels[index],options:[{value:`${key} & / literal`,label:`Exact ${labels[index]}`}]})),before=copy(definitions);let saved;
     h.setRoute((path,options)=>{if(path==='/api/libraries')return meta();if(path.endsWith('/links')){saved=JSON.parse(options.body);return{linked:true,penetration_id:'penetration-1',technical_ids:saved.technical_ids,created_ids:[],existing_ids:saved.technical_ids};}if(path.includes('/technical?')){const query=new URL('http://local'+path).searchParams,offset=Number(query.get('offset'));return{items:[{id:offset?'second':'first',title:offset?'Second page':'First page'}],offset,total:45,filters:definitions};}return records('penetration');});
     await h.api.open('penetration');const pane=h.pane('penetration');await walk(pane.results).find(n=>n.dataset.libraryLink).emit('click');await flush();const s=pane.linkSession;
@@ -655,6 +655,35 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     const pane=h.pane('technical');pane.filters.services='Plastic Pipes';await h.api.open('technical');
     const control=walk(pane.filterControls).find(el=>el.tagName==='select');assert.equal(control.value,'Plastic Pipes');assert.deepEqual(control.children.slice(1,-1).map(el=>el.value),choices);assert.equal(control.children.at(-1).value,'Plastic Pipes');assert.match(h.calls.at(-1).path,/services=Plastic\+Pipes/);
     control.value='HDPE pipe';await control.emit('change');await flush();assert.equal(pane.filters.services,'HDPE pipe');assert.match(h.calls.at(-1).path,/services=HDPE\+pipe/);
+  });
+  await check('Grouped substrates and Type preserve exact filters through search, details and Back',async h=>{
+    const definitions=[{key:'report',label:'Report',options:['R1']},
+      {key:'substrate',label:'Substrate',options:[{value:'A wall',label:'A wall',group:'Walls'},{value:'B floor',label:'B floor',group:'Floors'},{value:'C ceiling',label:'C ceiling',group:'Ceilings'},{value:'Saved custom',label:'Saved custom',group:'Other'}]},
+      {key:'type',label:'Type',options:['Core hole','Oversized core hole']}],original=copy(definitions);
+    h.setRoute(path=>path==='/api/libraries'?meta():path.includes('/technical?')?{...records('technical'),filters:definitions}:detail('technical','technical-1'));
+    await h.api.open('technical');const pane=h.pane('technical'),control=key=>walk(pane.filterControls).find(node=>node.dataset.libraryFilter===key);
+    assert.deepEqual(control('substrate').children.slice(1).map(group=>group.getAttribute('label')),['Walls','Floors','Ceilings','Other']);
+    for(const[key,value]of[['report','R1'],['substrate','B floor'],['type','Oversized core hole']]){control(key).value=value;await control(key).emit('change');await flush();}
+    assert.equal(walk(control('substrate')).filter(node=>node.tagName==='option'&&node.value==='B floor').length,1);
+    pane.searchInput.value='test';await pane.searchInput.emit('input');await h.runTimers();
+    const query=new URL('http://local'+h.calls.at(-1).path).searchParams;assert.equal(query.get('report'),'R1');assert.equal(query.get('substrate'),'B floor');assert.equal(query.get('type'),'Oversized core hole');
+    await walk(pane.results).find(node=>node.dataset.libraryRecord).emit('click');await flush();
+    await walk(pane.detailPanel).find(node=>node.dataset.libraryBackToResults!==undefined).emit('click');await flush();
+    assert.equal(control('substrate').value,'B floor');assert.equal(control('type').value,'Oversized core hole');assert.equal(pane.searchInput.value,'test');
+    pane.filters.substrate='Retained legacy wall';await h.context.audit.refresh(pane);await flush();assert.equal(control('substrate').value,'Retained legacy wall');assert.equal(walk(control('substrate')).filter(node=>node.tagName==='option'&&node.value==='Retained legacy wall').length,1);
+    assert.deepEqual(definitions,original);
+  });
+  await check('Generated Type and substrate groups localize while canonical values stay exact',async h=>{
+    let locale='one';const bindings=[];
+    const translated=(source,args=[])=>`${locale}:${String(source).replace(/\{(\d+)\}/g,(match,index)=>index<args.length?String(typeof args[index]==='function'?args[index]():args[index]):match)}`;
+    h.context.window.CeasefireI18n={translate:translated,term:source=>()=>`${locale}:${source}`,text(el,source,args){const update=()=>{el.textContent=translated(source,args);};bindings.push(update);update();return el;},attr(el,name,source,args){const update=()=>el.setAttribute(name,translated(source,args));bindings.push(update);update();return el;}};
+    const definitions=[{key:'type',label:'Type',options:['Core hole','Oversized core hole']},{key:'substrate',label:'Substrate',options:[{value:'Exact wall',label:'Exact wall',group:'Walls'}]}];
+    h.setRoute(path=>path==='/api/libraries'?meta():({...records(path.includes('technical')?'technical':'penetration'),filters:definitions}));
+    await h.api.open('technical');const main=h.pane('technical'),select=walk(main.filterControls).find(n=>n.dataset.libraryFilter==='type'),substrate=walk(main.filterControls).find(n=>n.dataset.libraryFilter==='substrate');
+    assert.equal(select.children[0].textContent,'one:All one:Type');assert.equal(select.children[1].textContent,'one:Core hole');assert.equal(select.children[1].value,'Core hole');assert.equal(substrate.children[1].getAttribute('label'),'one:Walls');assert.equal(substrate.children[1].children[0].textContent,'Exact wall');
+    await h.api.open('penetration');const pane=h.pane('penetration');await walk(pane.results).find(n=>n.dataset.libraryLink).emit('click');await flush();const type=walk(pane.linkSession.filterControls).find(n=>n.dataset.libraryLinkFilter==='type');
+    assert.equal(pane.linkSession.filterControls.children.find(n=>n.children[1]===type).children[0].textContent,'one:Type');assert.equal(type.children[0].textContent,'one:All one:Type');
+    locale='two';bindings.forEach(update=>update());assert.equal(select.children[0].textContent,'two:All two:Type');assert.equal(type.children[0].textContent,'two:All two:Type');assert.equal(substrate.children[1].getAttribute('label'),'two:Walls');assert.equal(type.children[1].value,'Core hole');
   });
   await check('Technical Document menu handles inside/outside events and keyboard focus, then removes obsolete document listeners',async h=>{
     await h.api.open('technical','technical-1');const pane=h.pane('technical'),doc=h.context.document;

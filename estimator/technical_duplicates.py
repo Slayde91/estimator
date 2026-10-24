@@ -8,6 +8,11 @@ import re
 
 def review_fingerprint(source, projected, assets):
     """Bind review to the complete source, display and referenced asset metadata."""
+    # Type is a user-defined discovery facet added after the source reviews.
+    # Keep its search-only projection outside the original display identity;
+    # the source record (including any original filter metadata) stays bound.
+    projected = deepcopy(projected)
+    projected.get('filter_values', {}).pop('type', None)
     references = set()
 
     def visit(value):

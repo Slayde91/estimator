@@ -16,7 +16,8 @@ from .technical_configuration_review import validate_configuration_review
 from .technical_duplicates import reviewed_groups, consolidate_links
 from .technical_table_navigation import validate_table_navigation
 from .technical_orientation import prepare_selector_orientation_context
-from .library_substrates import classify_substrates
+from .library_substrates import classify_substrates, substrate_options
+from .library_opening_types import opening_type
 from .library_display import display_subtitle, remove_resolved_source_notices
 from .technical_brand_presentation import present_manufacturer_fields
 from .library_diagram_names import validate_drawing_name, drawing_source_names, apply_drawing_names
@@ -308,6 +309,7 @@ class ReferenceLibrary:
                 if kind == 'technical':
                     values['manufacturer'] = manufacturer_values(item, assets)
                     values.update(classify_facets(item))
+                    values['type'] = [opening_type(item)]
                     item['title'] = technical_title(item)
                     text.append(item['title'])
                     if values['manufacturer'] == ['Firefly']:
@@ -336,7 +338,7 @@ class ReferenceLibrary:
                         filter_values[field].add(string(value, 1000))
                 records[kind][key] = item
                 searches[kind][key] = '\n'.join(text).casefold()
-            filters[kind] = [{'key': key, 'label': label, 'options': [{'value': value, 'label': value} for value in (facet_options(key, filter_values[key]) if kind == 'technical' else sorted(filter_values[key], key=str.casefold))]} for key, label in filter_labels.items()
+            filters[kind] = [{'key': key, 'label': label, 'options': (substrate_options(filter_values[key]) if kind == 'technical' and key == 'substrate' else [{'value': value, 'label': value} for value in (facet_options(key, filter_values[key]) if kind == 'technical' else sorted(filter_values[key], key=str.casefold))])} for key, label in filter_labels.items()
                              if kind != 'technical' or key != 'trafalgar_category']
         aliases, groups = ((validated_source['_aliases'], validated_source['_groups']) if reuse_technical
                            else reviewed_groups(data, records['technical'], assets))

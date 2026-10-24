@@ -1,10 +1,9 @@
 // Presentation-only cleanup against a disposable synthetic workbook fixture.
 const {chromium,expect}=require('@playwright/test');
 const {spawn}=require('node:child_process');
-const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
+const fs=require('node:fs'),path=require('node:path'),os=require('node:os'),assert=require('node:assert/strict');
 const {chooseCalculator}=require('./calculator_actions.cjs');
-const root=path.resolve(__dirname,'../..'), output=path.join(root,'.runtime/browser-qa',`calculator-cleanup-${Date.now()}`);
-fs.mkdirSync(output,{recursive:true});
+const root=path.resolve(__dirname,'../..'), output=fs.mkdtempSync(path.join(os.tmpdir(),'classifire-calculator-cleanup-'));
 const server=spawn(process.env.CEASEFIRE_PYTHON||'python',[path.join(__dirname,'monokote_fixture.py'),'--directory',output],{cwd:root,windowsHide:true});
 let logs='',browser,page;server.stderr.on('data',data=>logs+=data);
 const ready=new Promise((resolve,reject)=>{let value='';const timer=setTimeout(()=>reject(Error(logs)),120000);server.stdout.on('data',data=>{value+=data;if(value.includes('\n')){clearTimeout(timer);resolve(JSON.parse(value.split('\n')[0]));}});server.once('error',reject);server.once('exit',code=>{clearTimeout(timer);reject(Error(`Fixture exited ${code}: ${logs}`));});});
@@ -13,6 +12,7 @@ async function tab(name){await page.locator('#calculator-pages').getByRole('butt
 (async()=>{
  const info=await ready;assert.notEqual(info.port,8765);browser=await chromium.launch({headless:true});page=await browser.newPage({viewport:{width:1146,height:764}});page.setDefaultTimeout(60000);
  const errors=[];page.on('pageerror',error=>errors.push(error.message));await page.goto(`http://127.0.0.1:${info.port}/`);await page.waitForFunction(()=>window.CeasefireDesktop?.status().ready);
+ await expect(page.locator('.calculator-sheet-footer')).toHaveCount(0);await expect(page.locator('#calculator-option-lists')).toHaveCount(1);
  await chooseCalculator(page,'Steel (spray)');await idle();const before=await page.evaluate(()=>window.CeasefireCalculators.completeProjectSnapshot());
  // The marked START content is a virtual SETTINGS projection. Browser removals
  // leave original worksheet directions, retained neighbors and drafts intact.
@@ -105,7 +105,7 @@ async function tab(name){await page.locator('#calculator-pages').getByRole('butt
  await page.locator('[data-calculator-settings-section="A4"]').click();
  const sc902=page.locator('#calculator-settings-steel_intumescent-SETTINGS-A4');await expect(sc902).toBeVisible();
  const sc902Form=sc902.getByRole('table',{name:'Nullifire SC902 settings',exact:true});
- const sc902Rows=await sc902Form.locator('tr[data-source-row]').evaluateAll(nodes=>nodes.map(node=>Number(node.dataset.sourceRow)).filter(row=>row!==4));
+ const sc902Rows=await sc902Form.locator('tr[data-source-row]').evaluateAll(nodes=>nodes.map(node=>Number(node.dataset.sourceRow)));
  assert.deepEqual(sc902Rows,[9,24,14,16,17,25,10,11,21,22,23]);
  for(const address of ['D9','D24','D14','D16','D17','D25','D10','D11'])await expect(sc902.locator(`[data-calculator-cell="${address}"]`)).toBeVisible();
  for(const [address,label] of [['D21','Total Part A + B mass estimate (kg)'],['D22','Mixed pack volume used (L)'],['D23','Theoretical pack coverage (m² at 1 mm DFT)']]){
@@ -116,6 +116,29 @@ async function tab(name){await page.locator('#calculator-pages').getByRole('butt
    await expect(sc902.locator(`[data-calculator-cell="${address}"]`)).toHaveCount(0);
  }
  for(const address of ['A26','A27','A28','A29','A30'])await expect(sc902.locator(`[data-calculator-output="${address}"]`)).toHaveCount(0);
+ const intumSettingsChecks=[];
+ for(const [id,product,hiddenRows,retainedOutput] of [['A4','Nullifire SC902',[4],'D23'],
+   ['A34','FIRETEX FX5090',[34,48,52],'F44'],['A64','FIRETEX FX6010',[64,86,90,93],'H82']]){
+   const panel=page.locator(`#calculator-settings-steel_intumescent-SETTINGS-${id}`);
+   if(!await panel.isVisible())await page.locator(`[data-calculator-settings-section="${id}"]`).click();await expect(panel).toBeVisible();
+   for(const row of hiddenRows){assert.ok(intumCells.has(`A${row}`),`${id}: original product/note source remains in API`);await expect(panel.locator(`[data-calculator-output="A${row}"]`)).toHaveCount(0);}
+   await expect(panel.locator(`[data-calculator-output="${retainedOutput}"]`)).toBeVisible();
+   if(id==='A34'){
+     assert.equal(intumCells.get('A36').value,'Transport-weight density estimate (kg/L)');
+     await expect(panel.locator('[data-calculator-output="A36"]')).toHaveText('Nominal mixed density estimate (kg/L)');
+     await expect(panel.locator('[data-calculator-cell="F36"]')).toHaveAttribute('aria-label','Nominal mixed density estimate (kg/L)');
+     for(const locale of ['es','ar']){
+       await page.evaluate(locale=>window.CeasefireI18n.setLanguage(locale,false),locale);
+       const translated=await page.evaluate(()=>window.CeasefireI18n.translate('Nominal mixed density estimate (kg/L)'));
+       assert.notEqual(translated,'Nominal mixed density estimate (kg/L)');
+       await expect(panel.locator('[data-calculator-output="A36"]')).toHaveText(translated);
+       await expect(panel.locator('[data-calculator-cell="F36"]')).toHaveAttribute('aria-label',translated);
+     }
+     await page.evaluate(()=>window.CeasefireI18n.setLanguage('en',false));
+   }
+   intumSettingsChecks.push({product,sourceRowsRetained:true,browserRowsRemoved:hiddenRows,adjacentOutputVisible:true});
+ }
+ await page.locator('[data-calculator-settings-section="A4"]').click();
  await page.screenshot({path:path.join(output,'sc902-compact-pack-settings.png'),fullPage:true});
  assert.equal(JSON.stringify(intumSettings),intumSettingsRaw);
  await tab('SUMMARY');
@@ -124,21 +147,44 @@ async function tab(name){await page.locator('#calculator-pages').getByRole('butt
  for(const product of ['Nullifire SC902','FIRETEX FX5090','FIRETEX FX6010'])await expect(intumSummary).toContainText(product);
  const summaryViewport=page.getByRole('region',{name:'Intumescent product summary · scroll horizontally for all columns',exact:true});
  await expect(summaryViewport).toHaveAttribute('tabindex','0');
+ const summaryHeadings=[['Product','Product'],['Coating area (m²)','Coating area (m²)'],['Required (kg)','Required mixed (kg)'],
+   ['Required (L)','Required mixed (L)'],['Net packs','Net packs'],['Waste (%)','Waste (%)'],['Whole packs','Whole packs'],
+   ['Order (L)','Order volume (L)'],['Part A (kg)','Part A to order (kg)'],['Part B (kg)','Part B to order (kg)'],
+   ['Pack mass (kg)','Pack mass (kg)'],['Pack volume (L)','Mixed pack volume (L)'],['Dry volume (L)','Dry coating volume (L)'],
+   ['Unresolved','Unresolved items'],['Status','Order status']];
+ const checkSummaryHeadings=async()=>{
+   const expected=await page.evaluate(pairs=>pairs.map(([short,full])=>[window.CeasefireI18n.translate(short),window.CeasefireI18n.translate(full),window.CeasefireI18n.translate(full)]),summaryHeadings);
+   assert.deepEqual(await intumSummary.locator('thead th').evaluateAll(headers=>headers.map(header=>[header.textContent,header.title,header.getAttribute('aria-label')])),expected);
+ };
+ await checkSummaryHeadings();
+ const summaryValues=await intumSummary.locator('tbody').textContent();
  const summaryLayout=await intumSummary.evaluate(table=>{
    const headers=table.querySelectorAll('thead th'),viewport=table.parentElement;
    return {tableWidth:table.getBoundingClientRect().width,viewportWidth:viewport.clientWidth,scrollWidth:viewport.scrollWidth,
-     productWidth:headers[0].getBoundingClientRect().width,statusWidth:headers[headers.length-1].getBoundingClientRect().width,
-     productWrap:getComputedStyle(headers[0]).whiteSpace};
+     minimumWidth:getComputedStyle(table).minWidth,
+     allValuesFit:[...table.querySelectorAll('tbody :is(th,td)')].every(cell=>cell.scrollWidth<=cell.clientWidth+1)};
  });
- assert.ok(summaryLayout.tableWidth>=2200);assert.ok(summaryLayout.scrollWidth>summaryLayout.viewportWidth);
- assert.ok(summaryLayout.productWidth>=180);assert.ok(summaryLayout.statusWidth>=220);assert.equal(summaryLayout.productWrap,'nowrap');
+ assert.equal(summaryLayout.minimumWidth,'0px');assert.ok(summaryLayout.tableWidth<=summaryLayout.viewportWidth+1);
+ assert.ok(summaryLayout.allValuesFit,'Actual product, quantity and status values fit their cells');
+ await page.screenshot({path:path.join(output,'intumescent-unified-product-summary.png'),fullPage:true});
+ await page.setViewportSize({width:760,height:764});
+ const narrowLayout=await summaryViewport.evaluate(viewport=>({clientWidth:viewport.clientWidth,scrollWidth:viewport.scrollWidth}));
+ assert.ok(narrowLayout.scrollWidth>narrowLayout.clientWidth,'Narrow screens retain a horizontal scroll path for all columns');
  await summaryViewport.focus();await summaryViewport.press('ArrowRight');
  await expect.poll(()=>summaryViewport.evaluate(viewport=>viewport.scrollLeft)).toBeGreaterThan(0);
  await summaryViewport.evaluate(viewport=>{viewport.scrollLeft=viewport.scrollWidth;});
  await expect(intumSummary.getByRole('columnheader',{name:'Order status',exact:true})).toBeInViewport();
  await page.screenshot({path:path.join(output,'intumescent-unified-summary-order-columns.png'),fullPage:true});
- await summaryViewport.evaluate(viewport=>{viewport.scrollLeft=0;});
- await page.screenshot({path:path.join(output,'intumescent-unified-product-summary.png'),fullPage:true});
+ await page.setViewportSize({width:1146,height:764});
+ const summaryLocales=[];
+ for(const locale of ['en','zh-Hans','hi','es','ar','th','ko','tl','vi']){
+   await page.evaluate(locale=>window.CeasefireI18n.setLanguage(locale,false),locale);await checkSummaryHeadings();
+   await page.locator('#calculator-recalculate').click();await idle();await checkSummaryHeadings();
+   assert.equal(await intumSummary.locator('tbody').textContent(),summaryValues,'Language and recalculation preserve original summary values');
+   if(locale!=='en')assert.ok((await page.evaluate(pairs=>pairs.map(([short,full])=>[window.CeasefireI18n.translate(short)!==short,window.CeasefireI18n.translate(full)!==full]),summaryHeadings)).every(pair=>pair.every(Boolean)),`${locale}: short and full column headings are translated`);
+   summaryLocales.push(locale);
+ }
+ await page.evaluate(()=>window.CeasefireI18n.setLanguage('en',false));await checkSummaryHeadings();
  assert.deepEqual(await page.evaluate(()=>window.CeasefireCalculators.completeProjectSnapshot()),before);assert.deepEqual(errors,[]);
  // Enter a new board schedule using public controls, including blank custom design selectors.
  await chooseCalculator(page,'Steel (board)');await idle();
@@ -168,5 +214,6 @@ async function tab(name){await page.locator('#calculator-pages').getByRole('butt
  const filled=await page.evaluate(()=>window.CeasefireCalculators.completeProjectSnapshot());
  await tab('SCHEDULE');await tab('BOARD SUMMARY');assert.deepEqual(await page.evaluate(()=>window.CeasefireCalculators.completeProjectSnapshot()),filled);
  await page.screenshot({path:path.join(output,'net-steel-double-layer.png'),fullPage:true});assert.deepEqual(errors,[]);
- fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({completed:true,unchangedInputs:true,requestedSprayInstructions:startChecks,requestedDuctNotes:noteChecks,errors},null,2));console.log(`PASS calculator cleanup: ${output}`);
+ fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({completed:true,unchangedInputs:true,requestedSprayInstructions:startChecks,requestedDuctNotes:noteChecks,
+   requestedIntumescentSettings:intumSettingsChecks,intumescentSummary:{columns:15,allFullHeadingsRetained:true,summaryLayout,narrowLayout,summaryLocales,valuesUnchanged:true},errors},null,2));console.log(`PASS calculator cleanup: ${output}`);
 })().catch(async error=>{console.error(error);console.error(logs.slice(-3000));if(page)await page.screenshot({path:path.join(output,'failure.png'),fullPage:true}).catch(()=>{});process.exitCode=1;}).finally(async()=>{if(browser)await browser.close();server.kill();});

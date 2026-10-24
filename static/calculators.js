@@ -28,7 +28,11 @@
     },
     steel_intumescent: {
       SCHEDULE: { column_order: ["Z", "AA", "A", "E", "F", "C", "D", "B", "H", "I", "J", "G"] },
-      SETTINGS: { omit: ["A6:D8", "A12:D13", "A15:D15", "A18:D20", "A26:H30"] },
+      SETTINGS: {
+        omit: ["A4:D4", "A6:D8", "A12:D13", "A15:D15", "A18:D20", "A26:H30", "A34:F34", "A48:F52", "A64:H64", "A86:H93"],
+        text: { A36: "Nominal mixed density estimate (kg/L)" },
+        control_labels: { F36: "Nominal mixed density estimate (kg/L)" },
+      },
     },
     steel_board: {
       CALCULATOR: { omit_columns: ["L"] }, // Keep retained row waste in calculations and exports.
@@ -52,6 +56,7 @@
   // source coordinates and original text; formula results, products and draft values
   // retain their canonical text even when it happens to equal a translated label.
   const calculatorLabelSources = {
+    "steel_intumescent": { "SETTINGS": { "A36": "Transport-weight density estimate (kg/L)" } },
     "steel_vermiculite": {
       "CALCULATOR": {
         "A1": "CEASEFIRE  |  STEEL FIRE PROTECTION",
@@ -1294,7 +1299,8 @@
     const custom = customAllowed ? node("input", numeric ? "calculator-number" : "") : null;
     let customMode = false, customToken = "__calculator_custom_value__", customOption;
     while (options.some((option) => String(option) === customToken) || String(value) === customToken) customToken += "_";
-    const controlLabel = item ? window.CeasefireI18n.term("{0}, item {1}", [window.CeasefireI18n.term(label), item]) : window.CeasefireI18n.term(label);
+    const displayedLabel = browserPresentation[entry.definition.id]?.[sourceSheet]?.control_labels?.[address] || label;
+    const controlLabel = item ? window.CeasefireI18n.term("{0}, item {1}", [window.CeasefireI18n.term(displayedLabel), item]) : window.CeasefireI18n.term(displayedLabel);
     if (custom) {
       custom.type = "text"; custom.hidden = true; custom.autocomplete = "off";
       custom.dataset.calculatorCustomCell = address; custom.dataset.calculatorSheet = sourceSheet;
@@ -1727,16 +1733,20 @@
   function renderProductTotals(result, container, overview = null) {
     if (!container) return;
     if (Array.isArray(result?.intumescent_product_totals)) {
-      const columns = [["product", "Product"], ["area", "Coating area (m²)"], ["kg", "Required mixed (kg)"],
-        ["litres", "Required mixed (L)"], ["net", "Net packs"], ["waste", "Waste (%)"], ["whole", "Whole packs"],
-        ["order_litres", "Order volume (L)"], ["part_a", "Part A to order (kg)"], ["part_b", "Part B to order (kg)"],
-        ["pack_kg", "Pack mass (kg)"], ["kit_litres", "Mixed pack volume (L)"], ["dry_litres", "Dry coating volume (L)"],
-        ["pending", "Unresolved items"], ["status", "Order status"]];
+      const columns = [["product", "Product"], ["area", "Coating area (m²)"], ["kg", "Required (kg)", "Required mixed (kg)"],
+        ["litres", "Required (L)", "Required mixed (L)"], ["net", "Net packs"], ["waste", "Waste (%)"], ["whole", "Whole packs"],
+        ["order_litres", "Order (L)", "Order volume (L)"], ["part_a", "Part A (kg)", "Part A to order (kg)"], ["part_b", "Part B (kg)", "Part B to order (kg)"],
+        ["pack_kg", "Pack mass (kg)"], ["kit_litres", "Pack volume (L)", "Mixed pack volume (L)"], ["dry_litres", "Dry volume (L)", "Dry coating volume (L)"],
+        ["pending", "Unresolved", "Unresolved items"], ["status", "Status", "Order status"]];
       const scroll = node("div", "calculator-product-totals-scroll"), table = node("table", "calculator-centered-data-table calculator-intumescent-totals"), head = node("thead"), header = node("tr"), body = node("tbody");
       scroll.setAttribute("role", "region"); scroll.tabIndex = 0;
       window.CeasefireI18n.attr(scroll, "aria-label", "Intumescent product summary · scroll horizontally for all columns");
       window.CeasefireI18n.attr(table, "aria-label", "Intumescent product summary");
-      for (const [, label] of columns) { const cell = uiNode("th", "", label); cell.scope = "col"; header.append(cell); }
+      for (const [, label, fullLabel = label] of columns) {
+        const cell = uiNode("th", "", label); cell.scope = "col";
+        window.CeasefireI18n.attr(cell, "title", fullLabel);
+        window.CeasefireI18n.attr(cell, "aria-label", fullLabel); header.append(cell);
+      }
       head.append(header);
       for (const total of result.intumescent_product_totals) {
         const row = node("tr");

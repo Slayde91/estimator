@@ -388,3 +388,21 @@ def classify_substrates(source, projected, *, selector_capture=None, source_docu
     """Return stable, unique search categories from record-bound evidence."""
     labels = {row['substrate'] for row in classification_evidence(source, projected, selector_capture=selector_capture, source_documents=source_documents)}
     return sorted(labels, key=lambda label: (_LABELS.index(label) if label in _LABELS else len(_LABELS), label.casefold()))
+
+
+SUBSTRATE_GROUPS = ('Walls', 'Floors', 'Ceilings', 'Other')
+
+
+def substrate_group(value):
+    for expression, group in ((r'\bwalls?\b', 'Walls'), (r'\bfloors?\b', 'Floors'),
+                              (r'\bceilings?\b', 'Ceilings')):
+        if re.search(expression, value, re.I):
+            return group
+    return 'Other'
+
+
+def substrate_options(values):
+    """Flat, value-preserving options with additive native-select grouping."""
+    return [{'value': value, 'label': value, 'group': substrate_group(value)}
+            for value in sorted(set(values), key=lambda value: (
+                SUBSTRATE_GROUPS.index(substrate_group(value)), value.casefold(), value))]

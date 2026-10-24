@@ -55,7 +55,26 @@ async function snapshot(){return page.evaluate(()=>window.CeasefireCalculators.c
  await expect(page.locator('[data-calculator-output="AI10"] .calculator-basis-preview')).toContainText('Review required');
  await page.screenshot({path:path.join(output,'board-new-required-quantity.png'),fullPage:true});
  for(const [cell,value]of [['D10','200UC46'],['F10',7.25],['G10',4],['H10',120],['I10','Column'],['J10',550],['CJ10',3]])await edit(cell,value,'steel_board');
- await edit('D10',chsAlias,'steel_board');await expect(page.locator('[data-calculator-cell="D10"]')).toHaveValue(chsAlias);
+  const memberField=page.locator('[data-calculator-cell="D10"]'),memberMenu=memberField.locator('xpath=..'),beforeChoice=await snapshot();
+  await memberField.focus();await memberField.press('ArrowDown');
+  await expect(memberMenu.getByRole('option').first()).toHaveText('1000WB215');
+  await memberField.press('Escape');await expect(memberField).toHaveValue('200UC46');
+  for(const closure of ['scroll','resize']){
+   await memberField.fill(chsAlias);await expect(memberMenu.getByRole('option',{name:chsAlias,exact:true})).toBeVisible();
+   await memberField.evaluate((field,kind)=>{
+    if(kind==='scroll')field.closest('[data-schedule-viewport]').dispatchEvent(new Event('scroll',{bubbles:true}));
+    else window.dispatchEvent(new Event('resize'));
+   },closure);
+   await expect(memberField).toHaveAttribute('aria-expanded','false');
+   await memberField.press('ArrowDown');await expect(memberMenu.getByRole('option',{name:chsAlias,exact:true})).toHaveAttribute('aria-selected','true');
+   if(closure==='scroll'){
+    await memberField.press('Escape');await expect(memberField).toHaveValue('200UC46');assert.deepEqual(await snapshot(),beforeChoice);
+   }else{
+    const selected=page.waitForResponse(r=>r.request().method()==='POST'&&r.url()===`${base}/api/calculators/steel_board/worksheet`);
+    await memberField.press('Enter');assert.equal((await selected).status(),200);await idle();
+   }
+  }
+  await expect(memberField).toHaveValue(chsAlias);
  await edit('D10','200UC46','steel_board');
  await expect(page.locator('[data-calculator-cell="F10"]')).toHaveValue('7.25');await expect(page.locator('[data-calculator-cell="CJ10"]')).toHaveValue('3.00');
  await expect(page.locator('[data-calculator-cell="CJ10"]')).not.toHaveClass(/calculator-required-missing/);
@@ -79,6 +98,6 @@ async function snapshot(){return page.evaluate(()=>window.CeasefireCalculators.c
  await chooseCalculator(page,'Steel (spray)');await idle();await tab('SCHEDULE');
  for(const cell of ['B10','C10','D10','E10','H10','I10','J10'])await expect(page.locator(`[data-calculator-cell="${cell}"]`)).toHaveAttribute('aria-required','true');
  assert.deepEqual(errors,[]);
- fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({result:'PASS',legacyMapsUnchanged:true,newProductKeepsQuantityBlank:true,dialogFullSourceRetained:true,boardEsaBesideFamily:true,quantityBesideLength:true,cafcoRows:rows,areaOverrideException:true,errors},null,2));
+  fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({result:'PASS',legacyMapsUnchanged:true,newProductKeepsQuantityBlank:true,dialogFullSourceRetained:true,boardEsaBesideFamily:true,quantityBesideLength:true,cafcoRows:rows,areaOverrideException:true,typedSectionQuerySurvivesScrollAndResize:true,committedArrowKeepsAllChoices:true,escapePreservesDraft:true,errors},null,2));
  console.log(`PASS schedule member followups: ${output}`);
 })().catch(async error=>{console.error(error);console.error(logs.slice(-5000));if(page)await page.screenshot({path:path.join(output,'failure.png'),fullPage:true}).catch(()=>{});process.exitCode=1;}).finally(async()=>{if(browser)await browser.close();server.kill();});

@@ -138,8 +138,55 @@ function clearedExpected(original, bindings) {
   for (const name of ['Add rise / drop', 'Clone', 'New draft', 'Replace source on current page']) await expect(panel.getByRole('button', { name, exact: true })).toHaveCount(0);
   await expect(page.locator('#view-takeoffs').getByRole('button', { name: 'Settings', exact: true }).locator('svg')).toHaveCount(1);
   await confirmItem(); await transfer();
-  await page.getByLabel('Destination schedule', { exact: true }).selectOption('steel_board');
-  await editSettings(page, {'Product':'TRAFALGAR COREX','Crit. Temp (\u00b0C)':620,'Exposed sides':3}); await confirmItem(); await transfer();
+  // A destination change loads its real settings choices asynchronously. Hold
+  // the board reply beyond the default five-second assertion window: editing
+  // must wait for those choices without applying a stale spray product.
+  const beforeBoardOptions = await snapshot(), beforeBoardCommands = requests.length;
+  const boardOptions = url => url.pathname === '/api/takeoffs/options'
+    && url.searchParams.get('calculator') === 'steel_board' && url.searchParams.get('product') === 'CAFCO 300'
+    && url.searchParams.has('exposure');
+  const heldBoardOptions = [], pendingBoardOptions = new Set(), boardOptionErrors = [];
+  let releaseBoardOptions, boardOptionsReleased = false, editingBoard, editingBoardSettled = false, editingBoardError;
+  const boardOptionsGate = new Promise(resolve => { releaseBoardOptions = () => { boardOptionsReleased = true; resolve(); }; });
+  const holdBoardOptions = route => {
+    const pending = (async () => {
+      if (boardOptionsReleased) { await route.continue(); return; }
+      const native = await route.fetch(); assert.equal(native.status(), 200);
+      const choices = await native.json(), products = choices.columns.find(column => column.column === 'C').options;
+      assert.ok(products.includes('TRAFALGAR COREX'), 'The real board reply must contain the requested product');
+      heldBoardOptions.push(products); await boardOptionsGate;
+      await route.fulfill({ response: native });
+    })().catch(async error => { boardOptionErrors.push(error); await route.abort().catch(() => {}); });
+    pendingBoardOptions.add(pending);
+    void pending.finally(() => pendingBoardOptions.delete(pending));
+    return pending;
+  };
+  await page.route(boardOptions, holdBoardOptions);
+  try {
+    await page.getByLabel('Destination schedule', { exact: true }).selectOption('steel_board');
+    editingBoard = editSettings(page, {'Product':'TRAFALGAR COREX','Crit. Temp (\u00b0C)':620,'Exposed sides':3})
+      .then(() => { editingBoardSettled = true; }, error => { editingBoardSettled = true; editingBoardError = error; });
+    await expect.poll(() => heldBoardOptions.length, { timeout: 60000 }).toBeGreaterThan(0);
+    const heldAt = Date.now();
+    await new Promise(resolve => setTimeout(resolve, 5500));
+    if (editingBoardError) throw editingBoardError;
+    assert.equal(editingBoardSettled, false, 'The settings edit must await the held native board options');
+    const displayedProducts = await panel.getByLabel('Product', { exact: true }).locator('option').evaluateAll(options => options.map(option => option.value));
+    assert.ok(displayedProducts.includes('CAFCO 300')); assert.ok(!displayedProducts.includes('TRAFALGAR COREX'));
+    assert.deepEqual(await snapshot(), beforeBoardOptions, 'Loading destination choices must not mutate the item');
+    assert.equal(requests.length, beforeBoardCommands, 'No settings command may use stale destination choices');
+    const heldMs = Date.now() - heldAt;
+    releaseBoardOptions();
+    await Promise.all([...pendingBoardOptions]); if (boardOptionErrors.length) throw boardOptionErrors[0];
+    await page.unroute(boardOptions, holdBoardOptions);
+    await editingBoard; if (editingBoardError) throw editingBoardError;
+    await expect(panel.getByLabel('Product', { exact: true })).toHaveValue('TRAFALGAR COREX');
+    evidence.destinationSettingsAwaitNativeOptions = { held_ms: heldMs, native_products: heldBoardOptions[0], no_command_before_release: true };
+  } finally {
+    releaseBoardOptions(); await Promise.all([...pendingBoardOptions]); if (editingBoard) await editingBoard;
+    await page.unroute(boardOptions, holdBoardOptions);
+  }
+  await confirmItem(); await transfer();
   let state = await snapshot(), bindings = state.transfers;
   assert.equal(bindings.length, 2); assert.equal(bindings.find(value => value.calculator_id === 'steel_vermiculite').status, 'stale');
   console.log('The same source item has two actual linked calculator rows.');

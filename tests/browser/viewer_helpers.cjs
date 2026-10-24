@@ -4,6 +4,9 @@ const { expect } = require('@playwright/test');
 const { settingsSettled } = require('./settings_helpers.cjs');
 
 async function renderDrawing(page, action, pageNumber) {
+  // Reopen can still be loading its worker while the old canvas is present.
+  // Finish that render before an action edits a page field it may reset.
+  await page.waitForFunction(() => window.CeasefireActivity?.active === false);
   const canvas = page.locator('.takeoff-viewport canvas');
   const previous = await canvas.count() ? await canvas.elementHandle() : null;
   try {
@@ -16,6 +19,8 @@ async function renderDrawing(page, action, pageNumber) {
     }, previous);
     await expect(page.locator('.takeoff-viewport canvas')).toBeVisible();
     await expect(page.locator('.takeoff-progress')).toContainText('Original source');
+    // Canvas replacement precedes record_render and auto-calibration replies.
+    await page.waitForFunction(() => window.CeasefireActivity?.active === false);
     await expect(page.locator('#takeoffs-workspace')).not.toHaveAttribute('aria-busy', 'true');
     if (pageNumber !== undefined) await expect(page.getByLabel('Page number', { exact: true })).toHaveValue(String(pageNumber));
   } finally { await previous?.dispose(); }

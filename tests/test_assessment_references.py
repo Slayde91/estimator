@@ -12,7 +12,7 @@ class Engine:
         self.values = values
 
     def value(self, sheet, address):
-        return self.values.get(address, '')
+        return self.values.get(f'{sheet}!{address}', self.values.get(address, ''))
 
 
 class AssessmentReferenceTests(unittest.TestCase):
@@ -45,6 +45,19 @@ class AssessmentReferenceTests(unittest.TestCase):
         self.assertEqual(corex[0]['label'], 'FAS200445 R2.0')
         unknown = self.refs('steel_board', C11='PROMATECT-XS', AT11='XS p16 section schedule')
         self.assertEqual(unknown, [{'label': 'Assessment not identified in source', 'url': None}])
+
+    def test_xs_uses_the_assessment_explicitly_cited_by_its_actual_tables(self):
+        cells = {'C11': 'PROMATECT-XS', 'AT11': 'XS p.16 | section schedule',
+                 'PRODUCTS!G9': 'FAS230021'}
+        expected = [{'label': 'FAS230021', 'url': None}]
+        self.assertEqual(self.refs('steel_board', **cells), expected)
+        cells.update(C11='promatect-xs', AT11='XS p.15 | general table')
+        self.assertEqual(self.refs('steel_board', **cells), expected)
+        cells['PRODUCTS!G9'] = 'Unidentified'
+        self.assertEqual(self.refs('steel_board', **cells),
+                         [{'label': 'Assessment not identified in source', 'url': None}])
+        cells.update(AT11='', **{'PRODUCTS!G9': 'FAS230021'})
+        self.assertEqual(self.refs('steel_board', **cells), [])
 
     def test_only_actual_report_documents_are_eligible(self):
         urls = list(_links().values())

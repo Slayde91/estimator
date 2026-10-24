@@ -46,6 +46,13 @@ PROMATECT 100/250 retain FC15555-01-03. Its public URL still contains `-02` in t
 filename, but the downloaded PDF identifies `-03`; its SHA-256 remains
 `e2b47d71893d5837625a4280aca6ee7939c6c23bf53018e954e54ba32894128e`.
 
+PROMATECT-XS retains the plain **FAS230021** assessment identifier explicitly
+cited in `PRODUCTS!G9` (Assessment cited). Its actual section/general thickness
+routes identify XS pages 16/15. No report edition or public assessment PDF is
+established in the retained evidence, so the brochure is not used as a Report
+hyperlink. CAFCO 300 steel and MANDOLITE retain their manual table identifiers;
+those source records do not identify an assessment number.
+
 Report captions/URLs remain literal strings in XLSX. PDF links escape both
 captions and URLs. The 14-column board full schedule uses landscape A3 for
 readability, matching the spreadsheet register. Other PDFs retain landscape A4.

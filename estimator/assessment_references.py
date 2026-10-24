@@ -66,6 +66,13 @@ def schedule_report_references(calculator_id, engine, row):
         # COREX section/general tables and stock rules share the explicitly
         # recorded assessment in SETTINGS D23:D31. AT retains the page locator.
         return _references(['FAS200445 R2.0'])
+    if (calculator_id == 'steel_board' and product.casefold() == 'promatect-xs'
+            and source.casefold().startswith('xs p')
+            and str(engine.value('PRODUCTS', 'G9') or '').strip() == 'FAS230021'):
+        # PRODUCTS G9 explicitly cites this assessment for the XS section and
+        # general tables. Its report edition/PDF is unavailable; never link the
+        # brochure instead, or invent a reference when source metadata differs.
+        return _references(['FAS230021'])
     compact = re.sub(r'[^a-z0-9]', '', source.casefold())
     candidates = [
         ('fc185800101', 'FC18580-01-01'), ('fc2057101c1', 'FC20571/01/C1'),

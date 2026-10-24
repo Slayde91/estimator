@@ -36,7 +36,11 @@
       },
     },
     steel_board: {
-      CALCULATOR: { omit_columns: ["L"], column_order: ["A", "B", "C", "D", "F", "CJ", "G", "H", "I", "J", "K", "E"] }, // Retain source input identities and saved row waste.
+      CALCULATOR: {
+        omit_columns: ["L"], schedule_omit_columns: ["Y", "AA", "AC", "AD"],
+        column_order: ["A", "B", "C", "D", "F", "CJ", "G", "H", "I", "J", "K", "E"],
+        text: { AE8: "Board net (m2)", AG8: "Sheets", AH8: "Purchase area (m2)" },
+      }, // Retain source inputs, calculated outputs and saved row waste.
       START: { hide: ["A1"], text: { A1: "", D13: "Previously saved additional-board allowances remain included in purchasing totals.", A27: "Use START, SCHEDULE, BOARD SUMMARY and SETTINGS. Supporting reference data is retained by the application.", A31: "Saved additional-board allowances remain included in the board summary." } },
       "BOARD SUMMARY": { center: ["A11:D29", "I11:J29"], text: { A1: "SUMMARY" } }, // 22
       SETTINGS: { center: ["A5:C34", "G5:N10"], text: { Q5: "Description" }, omit: ["A1", "A3"] }, // 23–25
@@ -1937,6 +1941,13 @@
     const omittedRows = new Set(metadata.omitted_rows), omittedColumns = new Set(metadata.omitted_columns), hiddenAddresses = new Set(metadata.hidden_addresses || []), isOmitted = omittedCell(metadata);
     const visibleRows = result.rows.filter((row) => !omittedRows.has(row.row)).map((row) => ({ ...row, cells: row.cells.filter((cell) => !isOmitted(row.row, cell.column)) }));
     let columns = (result.visible_columns || Array.from({ length: result.max_column }, (_, index) => index + 1).filter((column) => !hidden.has(column))).filter((column) => !omittedColumns.has(column));
+    const overviewColumns = columns;
+    // Schedule-only display columns must not hide overview warnings in the
+    // same source columns above the register (for example board warning Y6).
+    if (entry.sheet === entry.definition.schedule?.sheet) {
+      const scheduleOmissions = new Set((browserPresentation[entry.definition.id]?.[entry.sheet]?.schedule_omit_columns || []).map(columnNumber));
+      columns = columns.filter(column => !scheduleOmissions.has(column));
+    }
     columns = [...new Set([...metadata.display_column_order.map(columnNumber).filter((column) => columns.includes(column)), ...columns])];
     if (entry.definition.id === "ductwork" && entry.sheet === entry.definition.schedule?.sheet && columns.includes(3) && columns.includes(9)) {
       columns = columns.filter(column => column !== 3); columns.splice(columns.indexOf(9) + 1, 0, 3);
@@ -2220,7 +2231,7 @@
     const boardSchedule = Boolean(schedule && entry.definition.id === "steel_board" && entry.sheet === "CALCULATOR");
     const vermiculiteSchedule = Boolean(schedule && entry.definition.id === "steel_vermiculite" && entry.sheet === "SCHEDULE");
     const intumescentSchedule = Boolean(schedule && entry.definition.id === "steel_intumescent" && entry.sheet === "SCHEDULE");
-    const scheduleOverview = schedule ? renderOverview(visibleRows.filter((row) => row.row < schedule.header_row), entry, columns) : null;
+    const scheduleOverview = schedule ? renderOverview(visibleRows.filter((row) => row.row < schedule.header_row), entry, overviewColumns) : null;
     if (scheduleOverview && !boardSchedule && !vermiculiteSchedule && !intumescentSchedule) content.push(scheduleOverview);
     if (entry.definition.id === "steel_vermiculite" && entry.sheet === "BAGS") {
       const totals = node("section", "calculator-product-totals"); totals.id = "calculator-product-totals";

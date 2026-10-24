@@ -131,10 +131,9 @@
 .calculator-grid .calculator-product-totals tbody td{background:#fff;font-size:12px}
 .calculator-grid .calculator-product-totals .calculator-number{color:#7c1724;font-weight:750;white-space:nowrap}
 .calculator-grid .calculator-product-totals .calculator-product-order-status{font-size:10px;color:#69505a}
-.calculator-grid .calculator-product-totals .calculator-intumescent-totals{min-width:2200px}
+.calculator-grid .calculator-product-totals .calculator-intumescent-totals{min-width:0}
+.calculator-grid .calculator-product-totals .calculator-intumescent-totals :is(th,td){padding:8px}
 .calculator-grid .calculator-intumescent-totals :is(th,td){word-break:normal;overflow-wrap:normal}
-.calculator-grid .calculator-intumescent-totals :is(th,td):first-child{min-width:180px;white-space:nowrap}
-.calculator-grid .calculator-intumescent-totals :is(th,td):last-child{min-width:220px}
 .calculator-section-theme-0{--section-ink:#751622;--section-bg:#fdebef;--section-edge:#d15465}
 .calculator-section-theme-1{--section-ink:#653b05;--section-bg:#fff2cd;--section-edge:#d4a43b}
 .calculator-section-theme-2{--section-ink:#773111;--section-bg:#ffeadb;--section-edge:#d47b42}

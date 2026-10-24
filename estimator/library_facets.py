@@ -8,6 +8,7 @@ import re
 
 from .technical_rating_summary import summarize_ratings
 from .technical_table_navigation import field_tables
+from .library_opening_types import OPENING_TYPES
 
 CATEGORIES = ('Electrical & Communications', 'Mechanical', 'HVAC',
               'Plumbing & Hydraulic', 'Structural Steel', 'Access Panel',
@@ -43,7 +44,7 @@ SERVICE_DISCOVERY_GENERALIZATIONS = {
     'tps & fire alarm cable bundles': 'TPS & Fire Alarm Cables',
 }
 HIDDEN_SERVICES = {'Floor/Deck Boxes', 'Downlight Box'}
-FACETS = {'category': ('Category', CATEGORIES), 'services': ('Services', SERVICES),
+FACETS = {'type': ('Type', OPENING_TYPES), 'category': ('Category', CATEGORIES), 'services': ('Services', SERVICES),
           'frl': ('FRL', FRLS)}
 
 

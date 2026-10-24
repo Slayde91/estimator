@@ -82,6 +82,28 @@ class TechnicalDuplicateTests(unittest.TestCase):
         self.write()
         self.assertEqual(self.library.listing('technical')['total'], 2)
 
+    def test_discovery_type_does_not_change_review_fingerprint_or_source_identity(self):
+        loaded = ReferenceLibrary(self.directory)._load()
+        source = self.data['libraries']['technical']['items'][0]
+        projected = deepcopy(loaded['_records']['technical'][source['id']])
+        projected.pop('canonical_id', None)
+        projected.pop('consolidated_ids', None)
+        projected['filter_values'].pop('type', None)
+        original = deepcopy(projected)
+        expected = review_fingerprint(source, projected, loaded['_assets'])
+        for value in ('Core hole', 'Oversized core hole'):
+            projected['filter_values']['type'] = [value]
+            self.assertEqual(review_fingerprint(source, projected, loaded['_assets']), expected)
+        self.assertEqual(original, {**projected, 'filter_values': {key: value for key, value in projected['filter_values'].items() if key != 'type'}})
+        changed_source = deepcopy(source)
+        changed_source.setdefault('filter_values', {})['type'] = ['Source-authored designation']
+        self.assertNotEqual(review_fingerprint(changed_source, projected, loaded['_assets']), expected)
+        changed_display = deepcopy(projected)
+        changed_display['fields'].append({'label': 'Installation Details', 'value': 'A changed condition'})
+        self.assertNotEqual(review_fingerprint(source, changed_display, loaded['_assets']), expected)
+        self.assertEqual(self.library.listing('technical', type='Core hole')['total'], 1)
+        self.assertEqual(self.library.detail('technical', 'report-a-v2')['canonical_id'], 'report-a-v1')
+
     def test_historical_manual_and_imported_links_remain_reciprocal(self):
         data = self.library._load()
         source = self.library._technical_source(data['_records']['technical']['report-a-v2'], data)

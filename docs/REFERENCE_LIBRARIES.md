@@ -367,6 +367,21 @@ library kinds stay `penetration` and `technical`. PDF sources
 use a registered `document_id` and one-based `page`. Filter values are lists of
 exact source labels. Top-level `links` stores each penetration/technical pair
 once, with a human-readable `relationship` explaining its basis.
+
+Technical discovery adds a derived `Type` facet: `Oversized core hole` when
+the selected system uses batt or board as firestopping material, otherwise
+`Core hole`. The projection reads attributed product, installation, local
+protection and direct batt-barrier text; a supporting plasterboard/COREX wall,
+cavity insulation, negated material, generic optional build-up and unselected
+source tables do not select a material. A local board patch, pattress, infill or
+thickening does. This user-defined discovery label does not change source
+opening designations, assessment applicability, Takeoff inputs or saved links.
+Every Technical item receives one value without modifying the private index.
+Substrate options remain a flat API list with exact values and an additive
+`group` property. Native dropdown groups appear as Walls, Floors, Ceilings,
+then Other, alphabetically within each group. Existing selected values survive
+search, paging, record navigation and manual link selection.
+
 Individual fields may include registered `images: [{id, caption}]`; related
 links may include a `notice` beside their relationship text.
 The detail page shows system fields and diagrams before related records and

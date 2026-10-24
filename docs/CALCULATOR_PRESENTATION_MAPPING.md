@@ -681,6 +681,44 @@ Default source examples are three duct rows, 36 board rows and one vermiculite s
 
 This document records inspected source facts and implementation recommendations. Final UI, endpoint and report verification belongs in the current session evidence; this mapping alone does not claim those checks have passed.
 
+## Compact intumescent browser presentation
+
+The consolidated summary retains all fifteen product-total keys, their order,
+unrounded values, API responses and export headings. Only these browser headings
+are shortened; each heading, including unchanged headings, has its original full
+label bound independently to translated `title` and `aria-label` attributes.
+
+| Product-total key | Browser heading | Original full heading |
+| --- | --- | --- |
+| kg | Required (kg) | Required mixed (kg) |
+| litres | Required (L) | Required mixed (L) |
+| order_litres | Order (L) | Order volume (L) |
+| part_a | Part A (kg) | Part A to order (kg) |
+| part_b | Part B (kg) | Part B to order (kg) |
+| kit_litres | Pack volume (L) | Mixed pack volume (L) |
+| dry_litres | Dry volume (L) | Dry coating volume (L) |
+| pending | Unresolved | Unresolved items |
+| status | Status | Order status |
+
+Product, Coating area (m²), Net packs, Waste (%), Whole packs and Pack mass (kg)
+retain their visible names and use those same names for their full heading.
+The browser table uses content-based column sizing and compact cell padding,
+without a fixed large minimum width or forced Product/Status column widths.
+The labelled, keyboard-focusable horizontal scrolling region remains available
+when the content exceeds its viewport. Values are never clipped or truncated.
+
+SETTINGS omits only the repeated product-name source ranges A4:D4, A34:F34 and
+A64:H64, plus the existing SC902 omissions and lower FX5090 A48:F52 / FX6010
+A86:H93 note ranges. The product chooser still identifies each form. Retained
+source A36 and F36 field metadata keep their original transport-weight density
+label; the browser alone displays and announces “Nominal mixed density estimate
+(kg/L)”. Original notes, labels, values and controls remain in the API and
+reports. No input is added, removed or rewritten by these presentation aliases.
+
+The generic calculator sheet-footer instruction is removed from the shared HTML
+for every calculator page; the shared option-list container, schedule row
+controls and technical-document section remain intact.
+
 The September 2026 Monokote follow-up extends the existing summary alignment
 through Z106 at BAGS row 25 and applies the product-settings left alignment to
 D561:F566. The six product totals and their original cell identities are unchanged.

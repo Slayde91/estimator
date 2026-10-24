@@ -33,6 +33,7 @@ def main():
             'id': f'technical-{index:03d}', 'title': f'Synthetic reference {index:03d}',
             'summary': 'Synthetic & / reference; no actual passive-fire applicability.',
             'fields': [{'label': 'Service', 'value': 'Copper pipe' if primary else 'Power cables'},
+                       {'label': 'System Products', 'value': 'FIREFLYBatt' if primary else 'Sealant'},
                        {'label': 'Barrier Construction', 'value': 'Concrete wall' if primary else 'Concrete floor'},
                        {'label': 'FRL', 'value': '-/120/120' if primary else '-/60/60'}],
             'filter_values': {'report': ['Synthetic report & / fixture' if primary else 'Alternate report'],

@@ -36,7 +36,11 @@
       },
     },
     steel_board: {
-      CALCULATOR: { omit_columns: ["L"], column_order: ["A", "B", "C", "D", "F", "CJ", "G", "H", "I", "J", "K", "E"] }, // Retain source input identities and saved row waste.
+      CALCULATOR: {
+        omit_columns: ["L", "Y", "AA", "AC", "AD"],
+        column_order: ["A", "B", "C", "D", "F", "CJ", "G", "H", "I", "J", "K", "E"],
+        text: { AE8: "Board net (m2)", AG8: "Sheets", AH8: "Purchase area (m2)" },
+      }, // Retain source inputs, calculated outputs and saved row waste.
       START: { hide: ["A1"], text: { A1: "", D13: "Previously saved additional-board allowances remain included in purchasing totals.", A27: "Use START, SCHEDULE, BOARD SUMMARY and SETTINGS. Supporting reference data is retained by the application.", A31: "Saved additional-board allowances remain included in the board summary." } },
       "BOARD SUMMARY": { center: ["A11:D29", "I11:J29"], text: { A1: "SUMMARY" } }, // 22
       SETTINGS: { center: ["A5:C34", "G5:N10"], text: { Q5: "Description" }, omit: ["A1", "A3"] }, // 23–25

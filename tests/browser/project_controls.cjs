@@ -9,7 +9,7 @@ const output = path.join(root, '.runtime/browser-qa', `project-controls-${Date.n
 fs.mkdirSync(output, { recursive: true });
 const sha256 = value => crypto.createHash('sha256').update(value).digest('hex');
 const deferred = () => { let resolve; const promise = new Promise(yes => { resolve = yes; }); return { promise, resolve }; };
-const assets = ['static/app.js','static/index.html','static/styles.css'];
+const assets = ['static/app.js','static/index.html','static/styles.css','static/theme.js','static/theme.css','static/laser.css','static/header-layout.css'];
 const assetHashes = Object.fromEntries(assets.map(name => [name,sha256(fs.readFileSync(path.join(root,name)))]));
 const server = spawn(process.env.CEASEFIRE_PYTHON || 'python', [path.join(__dirname,'fixtures.py'),'--directory',output], { cwd:root, windowsHide:true });
 let logs = '', browser, page, info;
@@ -46,6 +46,19 @@ async function drop(name,content,eventName = 'drop') {
   try { await page.locator('#project-attachment-zone').dispatchEvent(eventName,{dataTransfer:transfer}); }
   finally { await transfer.dispose(); }
 }
+async function appearance(control) {
+  return control.evaluate(element => {
+    const style = getComputedStyle(element), box = element.getBoundingClientRect();
+    return {color:style.color,background:style.backgroundColor,border:style.borderColor,outline:style.outlineStyle,outlineWidth:style.outlineWidth,outlineColor:style.outlineColor,focusColor:getComputedStyle(document.documentElement).getPropertyValue('--theme-focus').trim(),width:box.width,height:box.height,opacity:style.opacity,svgVisibility:getComputedStyle(element.querySelector('svg')).visibility};
+  });
+}
+function contrast(a,b) {
+  const luminance = rgb => {
+    const values = rgb.match(/[\d.]+/g).slice(0,3).map(Number).map(value => value/255).map(value => value <= .04045 ? value/12.92 : ((value+.055)/1.055)**2.4);
+    return .2126*values[0]+.7152*values[1]+.0722*values[2];
+  };
+  const x=luminance(a),y=luminance(b); return (Math.max(x,y)+.05)/(Math.min(x,y)+.05);
+}
 
 (async () => {
   info = await ready; assert.notEqual(info.port,8765);
@@ -63,6 +76,41 @@ async function drop(name,content,eventName = 'drop') {
   const tools = page.locator('#project-tools'), button = page.getByRole('button',{name:'Project files',exact:true});
   const description = page.locator('#project-attachment-status');
   await expect(tools).toBeHidden(); await expect(button).toBeVisible();
+  const beforeThemes = await snapshot(), save = page.locator('#save-current-project');
+  await page.getByRole('button',{name:'Settings',exact:true}).click(); await idle();
+  evidence.appearance = [];
+  for (const theme of ['ceasefire','midnight','ocean','forest','slate']) {
+    await expect(page.locator('html')).toHaveAttribute('data-theme',theme);
+    for (const width of [1600,764,390,320]) {
+      await page.setViewportSize({width,height:1000}); await page.mouse.move(1,1);
+      await expect(button).toHaveCSS('background-color','rgb(107, 114, 128)');
+      await expect(button).toHaveCSS('color','rgb(255, 255, 255)');
+      const normal = await appearance(button), saveStyle = await appearance(save);
+      assert.ok(contrast(normal.color,normal.background)>=4.5,'The grey button keeps readable icon contrast');
+      assert.equal(normal.width,width<=720?44:48); assert.equal(normal.height,normal.width);
+      assert.equal(saveStyle.background,'rgb(255, 219, 102)','Save retains its yellow background');
+      assert.equal(saveStyle.color,'rgb(51, 38, 0)');
+      await button.hover(); await expect(button).toHaveCSS('background-color','rgb(75, 85, 99)');
+      const hover = await appearance(button); assert.ok(contrast(hover.color,hover.background)>=4.5);
+      await page.mouse.move(1,1); await drop('appearance.txt','Not uploaded','dragenter');
+      await expect(button).toHaveClass(/is-dragover/); await expect(button).toHaveCSS('background-color','rgb(75, 85, 99)');
+      await expect(button).toHaveCSS('border-color','rgb(255, 255, 255)'); const drag = await appearance(button);
+      await drop('appearance.txt','Not uploaded','dragleave'); await expect(button).not.toHaveClass(/is-dragover/);
+      await save.focus(); await page.keyboard.press('Tab'); await expect(button).toBeFocused();
+      const focus = await appearance(button); assert.equal(focus.outline,'solid'); assert.equal(focus.outlineWidth,'3px');
+      assert.equal(await button.evaluate(element => element.matches(':focus-visible')),true);
+      assert.match(focus.focusColor,/^#[a-f\d]{6}$/i);
+      const themeFocus = 'rgb('+focus.focusColor.slice(1).match(/../g).map(value=>parseInt(value,16)).join(', ')+')';
+      assert.equal(focus.outlineColor,themeFocus,'The button retains the active theme focus colour');
+      const screenshot = path.join(output,`project-actions-${theme}-${width}.png`);
+      await page.locator('#header-project-actions').screenshot({path:screenshot});
+      evidence.appearance.push({theme,width,normal,hover,drag,focus,save:saveStyle,screenshot});
+    }
+    await page.locator('#theme-toggle').click();
+  }
+  await expect(page.locator('html')).toHaveAttribute('data-theme','ceasefire');
+  assert.deepEqual(await snapshot(),beforeThemes,'Theme and responsive checks retain all project drafts');
+  assert.equal(requests.length,0,'Appearance and drag-enter checks never upload a file');
   evidence.navigation = [];
   for (const width of [1600,764,390]) {
     await page.setViewportSize({width,height:1000});
@@ -126,8 +174,11 @@ async function drop(name,content,eventName = 'drop') {
 
   const entered = deferred(), release = deferred();
   await page.route('**/api/project/attachment',async route => { entered.resolve(); await release.promise; const response = await route.fetch(); await route.fulfill({response}); });
+  await page.mouse.move(1,1);
   const heldUpload = upload(() => drop('held.txt','SYNTHETIC HELD FILE\n')); heldUpload.catch(() => {}); await entered.promise;
   await expect(button).toBeDisabled(); await expect(button).toHaveAttribute('aria-busy','true');
+  await expect(button).toHaveCSS('background-color','rgb(107, 114, 128)');
+  await expect(button).toHaveCSS('opacity','0.65'); await expect(button.locator('svg')).toHaveCSS('visibility','hidden');
   await expect(page.locator('#project-attachment-input')).toBeDisabled();
   await expect(description).toHaveText('Saving 1 of 1: held.txt');
   const heldCount = requests.length; await drop('ignored.txt','Must not be written','dragover'); await expect(button).not.toHaveClass(/is-dragover/);

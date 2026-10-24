@@ -37,9 +37,35 @@ async function snapshot(){return page.evaluate(()=>window.CeasefireCalculators.c
  const headings=await page.locator('.calculator-schedule-table thead th').allTextContents();
  assert.equal(headings[headings.indexOf('Lineal metres')+1],'Quantity');
  assert.match(headings[headings.indexOf('Family (ESA input)')+1],/^ESA\/M input/);
+ for(const label of ['ESA/M used (m2/t)','Layers','Bare box girth (m)','Box reference area (m2)'])assert.ok(!headings.includes(label));
+ for(const label of ['Board net (m2)','Sheets','Purchase area (m2)'])assert.ok(headings.includes(label));
+ for(const column of ['Y','AA','AC','AD'])await expect(page.locator(`[data-calculator-output="${column}9"]`)).toHaveCount(0);
  const originalStatus=page.locator('[data-calculator-output="AI9"] .calculator-basis-preview');await expect(originalStatus).toBeVisible();
- const raw=await page.request.post(`${base}/api/calculators/steel_board/worksheet`,{data:{sheet:'CALCULATOR',inputs:boardLegacy,schedule_view:{rows:[9],offset:0,limit:1}}});assert.equal(raw.status(),200);
- const source=(await raw.json()).rows.find(row=>row.row===9).cells.find(cell=>cell.address==='AI9').value;
+ const worksheetRequest={sheet:'CALCULATOR',inputs:boardLegacy,include_advanced:true,schedule_view:{rows:[9],offset:0,limit:1}};
+ const raw=await page.request.post(`${base}/api/calculators/steel_board/worksheet`,{data:worksheetRequest});assert.equal(raw.status(),200);
+ const sourceCells=(await raw.json()).rows.find(row=>row.row===9).cells;
+ assert.deepEqual(sourceCells.map(cell=>cell.column),[...Array.from({length:35},(_,index)=>index+1),88]);
+ const sourceValues=Object.fromEntries(sourceCells.map(cell=>[cell.address,cell.value]));
+ const source=sourceValues.AI9;
+ for(const column of ['Y','AA','AC','AD','AE','AG','AH'])assert.equal(typeof sourceValues[`${column}9`],'number');
+ for(const width of [1146,390]){
+  await page.setViewportSize({width,height:764});
+  for(const label of ['Board net (m2)','Sheets','Purchase area (m2)'])await expect(page.getByRole('columnheader',{name:label,exact:true})).toHaveCount(1);
+  for(const column of ['AE','AG','AH'])await expect(page.locator(`[data-calculator-output="${column}9"]`)).toHaveText(new Intl.NumberFormat('en-AU',{minimumFractionDigits:2,maximumFractionDigits:2}).format(sourceValues[`${column}9`]));
+ }
+ for(const language of ['zh-Hans','hi','es','ar','th','ko','tl','vi']){
+  await page.evaluate(language=>window.CeasefireI18n.setLanguage(language,false),language);
+  const labels=await page.evaluate(()=>['Board net (m2)','Sheets','Purchase area (m2)'].map(label=>window.CeasefireI18n.translate(label)));
+  for(const [index,label]of labels.entries()){
+   assert.notEqual(label,['Board net (m2)','Sheets','Purchase area (m2)'][index]);
+   await expect(page.getByRole('columnheader',{name:label,exact:true})).toHaveCount(1);
+  }
+  assert.deepEqual(await snapshot(),legacyBefore);
+ }
+ await page.evaluate(()=>window.CeasefireI18n.setLanguage('en',false));await page.setViewportSize({width:1146,height:764});
+ const rawAfter=await page.request.post(`${base}/api/calculators/steel_board/worksheet`,{data:worksheetRequest});assert.equal(rawAfter.status(),200);
+ assert.deepEqual((await rawAfter.json()).rows.find(row=>row.row===9).cells,sourceCells);
+ assert.deepEqual(await snapshot(),legacyBefore);
  const sections=page.locator('[data-calculator-cell="D9"]');await sections.focus();await sections.fill('[P100]');
  await expect(page.locator('.searchable-choice-list [role="option"]')).toHaveCount(0);
  await sections.fill('CHS');await expect(page.getByRole('option').filter({hasText:'CHS'}).first()).toBeVisible();

@@ -70,12 +70,12 @@ async function transfer(id) {
       const result = await reply.json(); if (!reply.ok) throw Error(JSON.stringify(result)); current = result.snapshot;
     };
     for (const [index, product] of ['Nullifire SC902', 'FIRETEX FX5090', 'FIRETEX FX6010', 'FIRETEX FX6010'].entries()) {
-      const held = index === 3, length = 7.123456789012345;
+      const threeSidedColumn = index === 3, length = 7.123456789012345;
       await command('create_item', { item: { mode: 'steel', geometry: { document_id: doc.id, page: 1, points: [[100, 400-index*65], [500, 400-index*65]] },
         measurement: { method: 'cited', length_m: length, citation: 'Synthetic explicit per-member dimension' }, quantity: 3,
-        fields: { mark: held ? 'UNASSESSED-COLUMN' : `INTUM-${index+1}`, product, section: '360UB45', member_type: held ? 'Column' : 'Beam', exposure: held ? 'I/H column - 3 sides' : 'I/H beam - 3 sides', critical_temperature: 550, fire_period_min: 60 },
+        fields: { mark: threeSidedColumn ? 'COLUMN-ESTIMATE' : `INTUM-${index+1}`, product, section: '360UB45', member_type: threeSidedColumn ? 'Column' : 'Beam', exposure: threeSidedColumn ? 'I/H column - 3 sides' : 'I/H beam - 3 sides', critical_temperature: 550, fire_period_min: 60 },
         evidence: [{ document_id: doc.id, page: 1, note: 'Synthetic transfer fixture only' }] } });
-      members.push({ id: current.items.at(-1).id, product, length, held });
+      members.push({ id: current.items.at(-1).id, product, length, threeSidedColumn });
     }
     await command('confirm_items', { item_ids: members.map(member => member.id) });
     takeoffs.applyProject(await takeoffs.prepareProject(current, session)); await takeoffs.open(); return members;
@@ -93,18 +93,28 @@ async function transfer(id) {
     assert.equal(inputs.A10, 'MANUAL-PRESERVED'); assert.equal(inputs.J10, .123456789012345);
     const native = await page.request.post(`http://127.0.0.1:${info.port}/api/calculators/steel_intumescent/calculate`, { data: { inputs: drafts.steel_intumescent.inputs, sheet: 'SCHEDULE', start_row: binding.row, row_count: 1 } });
     assert.equal(native.status(), 200); const cells = (await native.json()).rows.flatMap(row => row.cells), cell = column => cells.find(value => value.address === column+binding.row).value;
-    if (member.held) {
-      assert.equal(cell('O'), ''); assert.equal(cell('V'), 'CONFIRM ASSESSMENT');
-      await expect(thickness(member.id)).toHaveText('Unavailable');
-      await expect(thickness(member.id)).toHaveAttribute('title', /CONFIRM ASSESSMENT/);
-    } else {
-      const mm = cell('O') / 1000; assert.equal(cell('O'), info.dft_um[member.product]);
-      assert.notEqual(mm, cell('P') / 1000);
-      await expect(thickness(member.id)).toHaveText(String(mm));
-      await expect(thickness(member.id)).toHaveAttribute('title', /Dry film thickness:.*SYNTHETIC TRANSFER FIXTURE.*Calculator source SHA-256/);
-      assert.equal(await thickness(member.id).locator('input').count(), 0);
-      evidence.members.push({ ...member, row: binding.row, dft_um: cell('O'), thickness_mm: mm });
+    const mm = cell('O') / 1000; assert.equal(cell('O'), (member.threeSidedColumn ? info.column_dft_um : info.dft_um)[member.product]);
+    assert.notEqual(mm, cell('P') / 1000);
+    await expect(thickness(member.id)).toHaveText(String(mm));
+    await expect(thickness(member.id)).toHaveAttribute('title', /Dry film thickness:.*SYNTHETIC TRANSFER FIXTURE.*Calculator source SHA-256/);
+    assert.equal(await thickness(member.id).locator('input').count(), 0);
+    if (member.threeSidedColumn) {
+      assert.equal(cell('V'), 'ESTIMATE - FOUR-SIDED COLUMN TABLE');
+      assert.match(cell('X'), /case R4;/);
+      await expect(thickness(member.id)).toHaveAttribute('title', /ESTIMATE - FOUR-SIDED COLUMN TABLE/);
+      const beam = evidence.members.find(value => value.product === member.product && !value.threeSidedColumn);
+      assert.equal(cell('M'), beam.input_factor_m_inv);
+      assert.equal(cell('Q'), beam.girth_m); assert.equal(cell('R'), beam.area_m2);
+      assert.ok(Math.abs(cell('S') - cell('R') * mm / .92) < 1e-10, 'Quantity uses three-sided area and selected DFT');
+      const fourInputs = structuredClone(drafts.steel_intumescent.inputs); fourInputs.SCHEDULE[`C${binding.row}`] = 'I/H column - 4 sides';
+      const fourResponse = await page.request.post(`http://127.0.0.1:${info.port}/api/calculators/steel_intumescent/calculate`, { data: { inputs: fourInputs, sheet: 'SCHEDULE', start_row: binding.row, row_count: 1 } });
+      assert.equal(fourResponse.status(), 200); const fourCells = (await fourResponse.json()).rows.flatMap(row => row.cells), fourCell = column => fourCells.find(value => value.address === column+binding.row).value;
+      for (const column of ['N', 'O']) assert.equal(cell(column), fourCell(column), `DFT column ${column} matches complete four-sided-column calculation`);
+      assert.ok(cell('M') < fourCell('M'), 'Input factor keeps three exposed sides');
+      assert.match(cell('Y'), new RegExp(`A/V ${String(fourCell('M')).replaceAll('.', '\\.')}[;]`));
+      assert.ok(cell('Q') < fourCell('Q'), 'Material perimeter keeps three exposed sides');
     }
+    evidence.members.push({ ...member, row: binding.row, dft_um: cell('O'), thickness_mm: mm, input_factor_m_inv: cell('M'), girth_m: cell('Q'), area_m2: cell('R'), mixed_litres: cell('S'), thickness_status: cell('V'), thickness_source: cell('X') });
   }
   await page.screenshot({ path: path.join(output, 'intumescent-linked-dft.png') });
   const first = evidence.members[0];
@@ -122,10 +132,10 @@ async function transfer(id) {
   await destination.selectOption('steel_intumescent');
   await expect(thickness(first.id)).toHaveText(String(first.thickness_mm));
   assert.deepEqual((await snapshot()).transfers, before.transfers); assert.deepEqual(await calculators(), draftsBefore);
-  evidence.dirtyRowWithheld = true; evidence.exactRestoreRechecked = true; evidence.savedDraftAndLinksPreserved = true; evidence.unassessedColumnHeld = true;
+  evidence.dirtyRowWithheld = true; evidence.exactRestoreRechecked = true; evidence.savedDraftAndLinksPreserved = true; evidence.fourSidedColumnDftWithThreeSidedArea = true;
   const csp = await page.evaluate(() => window.qaCsp); assert.deepEqual(errors, []); assert.deepEqual(csp, []);
   fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ completed: true, synthetic: true, evidence, errors, csp, savedProject: info.project }, null, 2));
-  console.log(`PASS: all intumescent destinations transfer exact members, return native DFT/1000 mm, withhold edited/unassessed rows, preserve manual row and Save/Load. Evidence: ${output}`);
+  console.log(`PASS: intumescent transfers return native DFT/1000 mm, keep four-sided-column DFT/three-sided quantities, withhold edited rows and preserve manual row/Save/Load. Evidence: ${output}`);
 })().catch(async error => {
   console.error(error); console.error(logs.slice(-4000));
   if (page) { await page.screenshot({ path: path.join(output, 'failure.png'), fullPage: true }).catch(() => {}); fs.writeFileSync(path.join(output, 'failure.txt'), await page.locator('body').innerText().catch(() => '')); fs.writeFileSync(path.join(output, 'failure-calculators.json'), JSON.stringify(await calculators().catch(() => ({})), null, 2)); }

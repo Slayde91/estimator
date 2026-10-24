@@ -320,12 +320,10 @@ class IntumescentEngine(WorkbookEngine):
         if label in (None, ''):
             return tuple(sorted({value for options in product_options.values() for value in options}))
         case = CASES.get(label)
-        if case == 'R3C':
-            return ()
         if self.row_product(row) == PRODUCT:
-            case = 'R4' if case in ('R4B', 'R4C') else case
+            case = 'R4' if case in ('R3C', 'R4B', 'R4C') else case
         else:
-            case = {'R4B': 'R4', 'R4C': 'R4', 'RHS': 'H4', 'H4B': 'H4'}.get(case, case)
+            case = {'R3C': 'R4', 'R4B': 'R4', 'R4C': 'R4', 'RHS': 'H4', 'H4B': 'H4'}.get(case, case)
         return product_options.get(case, ())
 
     def product_assessment(self, product_name):
@@ -401,6 +399,8 @@ class IntumescentEngine(WorkbookEngine):
         if isinstance(identity, str) and 'EXCLUDED' in identity.upper():
             return None, None, 'The retained section identity is excluded; enter a verified A/V and area.'
         family = geometry.value('SECTIONS', f'B{row}')
+        if case == 'R3C' and family not in ('UB', 'UC', 'WB', 'WC'):
+            return None, None, 'Select an I/H section for the three-sided column estimate.'
         if ((case in ('RHS','H3','H4B') and family not in ('RHS','SHS')) or (case == 'CHS' and family != 'CHS')
                 or (case in ('R3','R3C','R4','R4C','R4B') and family in ('RHS','SHS','CHS'))):
             return None, None, 'Steel family does not match the selected member case.'
@@ -448,23 +448,36 @@ class IntumescentEngine(WorkbookEngine):
             basis = 'A/V = ESA/M × steel density / 1000.'
         elif method not in ('A/V', 'Hp/A'):
             error = 'Choose Section, A/V, Hp/A or ESA/M.'
-        if case == 'R3C' and product_name in PRODUCTS:
-            # No reviewed product table unambiguously covers this column case.
-            # Keep its geometry/input identity without borrowing a beam table.
-            result = {'dft': None, 'status': 'CONFIRM ASSESSMENT',
-                      'note': '3-sided I/H column: assessment confirmation required.'}
-        elif product_name == PRODUCT:
+        lookup_factor = factor
+        if case == 'R3C' and method == 'Section' and not error:
+            # The user-selected estimate must match a complete four-sided
+            # column DFT calculation, while coating uses three-sided geometry.
+            lookup_factor, _, dft_geometry_basis = self._geometry(values['F'], 'R4C', product_name)
+            if not number(lookup_factor) or lookup_factor <= 0:
+                error = 'Four-sided column DFT geometry: ' + dft_geometry_basis
+        elif case == 'R3C' and method in ('A/V', 'Hp/A', 'ESA/M'):
+            basis = ' '.join(part for part in (
+                basis, 'Entered or converted factor is used for four-sided column DFT.') if part)
+        if product_name == PRODUCT:
             from .sc902_assessment import lookup
-            selected_case = 'R4' if case in ('R4C','R4B') else case
-            result = lookup(self.assessment, factor, values['D'], values['H'], case=selected_case)
+            selected_case = 'R4' if case in ('R3C','R4C','R4B') else case
+            result = lookup(self.assessment, lookup_factor, values['D'], values['H'], case=selected_case)
         elif product_name in (FX5090,FX6010):
             from .firetex_assessment import lookup
-            selected_case = 'R4' if case == 'R4C' else 'H4' if case == 'RHS' else case
+            selected_case = 'R4' if case in ('R3C','R4C') else 'H4' if case == 'RHS' else case
             assessment = self.product_assessment(product_name)
-            result = (lookup(assessment,factor,values['D'],values['H'],case=selected_case) if assessment is not None else
+            result = (lookup(assessment,lookup_factor,values['D'],values['H'],case=selected_case) if assessment is not None else
                       {'dft':None,'status':'ASSESSMENT DATA UNAVAILABLE','note':'Reviewed FIRETEX data is not installed; DFT and quantities are withheld.'})
         else:
             result = {'dft':None,'status':'CHECK INPUT','note':error}
+        if case == 'R3C' and number(lookup_factor) and lookup_factor > 0:
+            # Explicit estimating policy; the report source remains the actual
+            # four-sided column table, while coating geometry stays three-sided.
+            result = {**result, 'note': ' '.join(part for part in (
+                          f'Estimate: four-sided column DFT at A/V {lookup_factor}; three-sided coating area and quantities.',
+                          result.get('note', '')) if part)}
+            if number(result.get('dft')) and result['dft'] > 0:
+                result['status'] = 'ESTIMATE - FOUR-SIDED COLUMN TABLE'
         if error:
             result = {'dft': None, 'status': 'CHECK INPUT', 'note': error}
         out.update(M=factor if number(factor) else '', N=result.get('factor', ''),

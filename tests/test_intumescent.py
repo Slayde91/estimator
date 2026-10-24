@@ -582,6 +582,7 @@ class MultiProductIntumescentTests(unittest.TestCase):
 
     def test_explicit_cases_dispatch_without_changing_legacy_sc902_case(self):
         expected = {'I/H beam - 3 sides':'R3', 'I/H column - 4 sides':'R4',
+                    'I/H column - 3 sides':'R4',
                     'I/H beam - 4 sides':'R4B', 'RHS/SHS column - 4 sides':'H4',
                     'RHS/SHS beam - 3 sides':'H3', 'RHS/SHS beam - 4 sides':'H4B',
                     'CHS column - 4 sides':'CHS'}
@@ -596,7 +597,7 @@ class MultiProductIntumescentTests(unittest.TestCase):
         self.assertEqual(blocked.value('SCHEDULE', 'O10'), '')
         self.assertEqual(blocked.value('SCHEDULE', 'X10'), '')
         self.assertIn('separate', blocked.value('SCHEDULE', 'Y10'))
-        for label in ('I/H beam/column - 4 sides','I/H column - 4 sides','I/H beam - 4 sides'):
+        for label in ('I/H beam/column - 4 sides','I/H column - 4 sides','I/H beam - 4 sides','I/H column - 3 sides'):
             values['SCHEDULE'].update(B10=PRODUCT, C10=label)
             self.assertEqual(self.engine(values).value('SCHEDULE', 'O10'), 1000)
             self.assertEqual(self.sc_lookup.call_args.kwargs['case'], 'R4')
@@ -623,11 +624,13 @@ class MultiProductIntumescentTests(unittest.TestCase):
         fx6010_h4 = (350,400,450,500,520,550,600,650,700,750)
         expected = {
             PRODUCT: {'I/H beam - 3 sides':sc_open, 'I/H beam/column - 4 sides':sc_open,
+                      'I/H column - 3 sides':sc_open,
                       'I/H column - 4 sides':sc_open, 'I/H beam - 4 sides':sc_open,
                       'RHS/SHS column - 4 sides':TEMPERATURES, 'CHS column - 4 sides':TEMPERATURES,
                       'RHS/SHS beam - 3 sides':(), 'RHS/SHS beam - 4 sides':()},
-            FX5090: {label:() if case == 'R3C' else fx5090 for label,case in CASES.items()},
+            FX5090: {label:fx5090 for label in CASES},
             FX6010: {'I/H beam - 3 sides':sc_open, 'I/H beam/column - 4 sides':fx6010_r4,
+                     'I/H column - 3 sides':fx6010_r4,
                      'I/H column - 4 sides':fx6010_r4, 'I/H beam - 4 sides':fx6010_r4,
                      'RHS/SHS beam - 3 sides':fx6010_h3,
                      'RHS/SHS column - 4 sides':fx6010_h4,

@@ -118,6 +118,41 @@ class IntumescentTakeoffTests(unittest.TestCase):
         self.assertEqual(result['status'], 'Current')
         self.assertEqual(result['intumescent_thickness_mm'], DFT / 1000)
 
+    def test_three_sided_column_projects_four_sided_dft_estimate_with_native_source_and_area(self):
+        for product in (PRODUCT, FX5090, FX6010):
+            with self.subTest(product=product):
+                identity, drafts = self.linked(product, exposure='I/H column - 3 sides', member_type='Column')
+                binding = next(row for row in self.case.state['snapshot']['transfers'] if row['item_id'] == identity)
+                row = binding['row']
+                result = self.read(drafts)[identity][0]
+                _, engine, lock = calculator_session('steel_intumescent', drafts['steel_intumescent']['inputs'])
+                with lock:
+                    native = {column: engine.value('SCHEDULE', column+str(row)) for column in ('M', 'N', 'O', 'Q', 'R', 'V', 'X', 'Y')}
+                self.assertEqual(result['status'], 'Current')
+                self.assertEqual(result['intumescent_thickness_status'], 'ESTIMATE - FOUR-SIDED COLUMN TABLE')
+                self.assertEqual(result['intumescent_dft_um'], native['O'])
+                self.assertEqual(result['intumescent_thickness_mm'], native['O'] / 1000)
+                self.assertEqual(result['intumescent_thickness_source'], native['X'])
+                lookup = self.lookup if product == PRODUCT else self.firetex
+                self.assertEqual(lookup.call_args.kwargs['case'], 'R4')
+                self.assertIn('four-sided column DFT at A/V', native['Y'])
+                self.assertIn('three-sided coating area and quantities', native['Y'])
+                beam = deepcopy(drafts['steel_intumescent']['inputs'])
+                beam['SCHEDULE']['C'+str(row)] = 'I/H beam - 3 sides'
+                _, beam_engine, beam_lock = calculator_session('steel_intumescent', beam)
+                with beam_lock:
+                    self.assertEqual(native['M'], beam_engine.value('SCHEDULE', 'M'+str(row)))
+                    self.assertEqual(native['Q'], beam_engine.value('SCHEDULE', 'Q'+str(row)))
+                    self.assertEqual(native['R'], beam_engine.value('SCHEDULE', 'R'+str(row)))
+                four_side = deepcopy(drafts['steel_intumescent']['inputs'])
+                four_side['SCHEDULE']['C'+str(row)] = 'I/H column - 4 sides'
+                _, four_engine, four_lock = calculator_session('steel_intumescent', four_side)
+                with four_lock:
+                    for column in ('N', 'O'):
+                        self.assertEqual(native[column], four_engine.value('SCHEDULE', column+str(row)))
+                    self.assertIn(f"A/V {four_engine.value('SCHEDULE', 'M'+str(row))};", native['Y'])
+                    self.assertLess(native['Q'], four_engine.value('SCHEDULE', 'Q'+str(row)))
+
     def test_blocked_thickness_never_becomes_zero_or_usable_result(self):
         for status in ('NP - NOT PUBLISHED', 'BEAM THICKNESS LIMIT', 'UNSUPPORTED CASE', 'ASSESSMENT DATA UNAVAILABLE'):
             with self.subTest(status=status):

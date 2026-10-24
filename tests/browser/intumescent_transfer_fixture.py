@@ -19,11 +19,12 @@ from estimator.project_library import file_fingerprint
 from estimator.intumescent import PRODUCT, FX5090, FX6010
 
 DFT = {PRODUCT: 1234.56789012345, FX5090: 789.1234567890123, FX6010: 2012.345678901234}
+COLUMN_DFT = {product: value + 111.111111111111 for product, value in DFT.items()}
 
 
-def synthetic_result(product, factor):
-    return {'dft': DFT[product], 'factor': factor, 'status': 'PUBLISHED - ASSESSMENT TABLE',
-            'source': 'SYNTHETIC TRANSFER FIXTURE - no assessed design',
+def synthetic_result(product, factor, case):
+    return {'dft': (COLUMN_DFT if case == 'R4' else DFT)[product], 'factor': factor, 'status': 'PUBLISHED - ASSESSMENT TABLE',
+            'source': f'SYNTHETIC TRANSFER FIXTURE - case {case}; no assessed design',
             'note': 'Synthetic native output for bridge precision and unit checks only.'}
 
 
@@ -48,13 +49,13 @@ def main():
 
     with ExitStack() as stack:
         stack.enter_context(patch('estimator.sc902_assessment.lookup',
-            side_effect=lambda assessment, factor, temperature, period, **kwargs: synthetic_result(PRODUCT, factor)))
+            side_effect=lambda assessment, factor, temperature, period, **kwargs: synthetic_result(PRODUCT, factor, kwargs.get('case'))))
         stack.enter_context(patch('estimator.firetex_assessment.lookup',
-            side_effect=lambda assessment, factor, temperature, period, **kwargs: synthetic_result(assessment.product, factor)))
+            side_effect=lambda assessment, factor, temperature, period, **kwargs: synthetic_result(assessment.product, factor, kwargs.get('case'))))
         stack.enter_context(patch('estimator.download_files.standard_downloads_directory', return_value=folder / 'native-downloads'))
         server = create_server(0, folder / 'qa.sqlite3', project_dialogs=Dialogs())
         print(json.dumps({'port': server.server_port, 'fixture': str(fixture), 'project': str(project),
-                          'dft_um': DFT, 'synthetic': True}), flush=True)
+                          'dft_um': DFT, 'column_dft_um': COLUMN_DFT, 'synthetic': True}), flush=True)
         try:
             server.serve_forever()
         finally:

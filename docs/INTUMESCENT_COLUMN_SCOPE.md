@@ -1,17 +1,22 @@
 # Three-sided I/H columns
 
 The schedule includes **I/H column - 3 sides** as the distinct case `R3C`.
-The application retains the selected case and can calculate its section factor,
-girth and area, but displays **CONFIRM ASSESSMENT** and withholds DFT, coating
-quantities and complete orders for all three current products. It supplies no
-temperature choices from another member case. Existing saved case labels and
-their mappings remain unchanged.
+Following the user's explicit estimating instruction, this case uses each
+product's **four-sided I/H column table for DFT**, while **three-sided exposed
+perimeter and area determine coating quantities**. Its status is
+**ESTIMATE - FOUR-SIDED COLUMN TABLE**. The source continues to identify the
+actual report, four-sided column table, selected factor, temperature and period.
+Its temperature choices match the four-sided column case. Existing case labels
+and their mappings remain unchanged.
 
-This is a deliberate assessment hold. The supplied evidence does not establish
-one unambiguous table-selection rule for this column case. A three-sided column
-must not silently become a three-sided beam with slab contact or a four-sided
-column. Enabling DFT requires a reviewed product-specific assessment rule and
-the associated protection/shielding conditions.
+This is an explicit estimating policy, not a statement that the reports assess
+the three-sided column configuration. The supplied evidence does not establish
+one unambiguous report rule for that configuration. The application does not
+use three-sided beam/slab-contact identity, a four-sided beam transfer or beam
+caps for this case. Every underlying column-table hold still applies, including
+missing evidence, unpublished periods/temperatures/cells and section-factor
+limits. A usable table result can produce material quantities under the existing
+independent product settings and quantity checks.
 
 ## Source findings
 
@@ -31,8 +36,8 @@ BRANZ **FC18580-01-01**, issued **20 March 2024**:
   extend results to other re-entrant sections according to protected sides.
 
 Those provisions are broader than a simple prohibition, but they do not expressly
-identify a three-sided I/H column and its shielding detail. The application does
-not resolve that ambiguity by assigning `R3C` to either published table family.
+identify a three-sided I/H column and its shielding detail. The user-selected
+estimate uses Tables 11–18 and retains that distinction in its result status.
 
 Source file: `FC18580-01-01-Nullifire-SC902-2020-REPORT-Final.pdf` (53 pages).
 SHA-256: `3bf3499358d6f2e4b75a8ed1402995cba8f9f72142ee81e79ed22fc73e4a4344`.
@@ -75,7 +80,25 @@ SHA-256: `3b3703934511e1e30c86474fb023aee343f66a172537e9adcbcc1588cad6c5c3`.
 
 ## Geometry and persistence
 
-`R3C` uses the retained three-sided section factor, exposed perimeter and geometry
-review flag. This is geometry only and does not grant a product/table approval.
-Direct A/V, Hp/A and ESA/M inputs likewise do not release DFT. No assessment
-matrix, source PDF or existing saved-project input is rewritten by this change.
+For a named section, `R3C` uses the complete four-sided column section factor
+for DFT. It independently uses the three-sided exposed perimeter for coating
+area and quantities. Both the three-sided and four-sided geometry review flags
+must be clear. Only recognised I/H families are accepted for this named case.
+
+The schedule retains the actual three-sided section factor in input A/V (`M`),
+the selected four-sided published table factor in table A/V (`N`), and the exact
+R4 source in `X`. The basis note (`Y`) states the full-precision four-sided
+lookup factor and three-sided coating basis. For example, retained 310UB40.4
+geometry has three-sided A/V 211.95 m⁻¹ and girth 1.0908 m, but the DFT lookup
+uses its four-sided A/V 244.01064356435646 m⁻¹. The next higher published row is
+selected by the existing product policy. Its DFT matches the complete four-sided
+column calculation; its coating area remains quantity × length × 1.0908 m.
+
+With direct A/V or Hp/A input, the entered number is the four-sided-column DFT
+lookup factor. ESA/M is converted to A/V using the selected product's steel
+density, then used as that DFT factor. The application cannot infer a different
+four-sided factor from a manually entered three-sided factor. Explicit girth or
+area overrides affect quantities independently and do not change DFT selection.
+
+No assessment matrix, source PDF or existing saved-project input is rewritten.
+Saved `R3C` rows recalculate under this explicitly requested estimating policy.

@@ -240,7 +240,8 @@ def _linked_results(snapshot, selected, confirmations, registered_bindings, draf
                     elif calculator_id == 'steel_intumescent':
                         status, dft, source = value('V'), value('O'), value('X')
                         if (status not in ('PUBLISHED - ASSESSMENT TABLE', 'ESTIMATE - CONSERVATIVE ASSESSMENT',
-                                           'PUBLISHED - CERTIFICATE TABLE', 'ESTIMATE - CONSERVATIVE TABLE')
+                                           'PUBLISHED - CERTIFICATE TABLE', 'ESTIMATE - CONSERVATIVE TABLE',
+                                           'ESTIMATE - FOUR-SIDED COLUMN TABLE')
                                 or not number(dft) or dft <= 0):
                             result['reason'] = str(status or 'The calculator has no usable assessed DFT.')
                             continue

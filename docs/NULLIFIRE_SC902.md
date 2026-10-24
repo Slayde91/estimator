@@ -109,3 +109,13 @@ The browser SUMMARY shows one row per product in one table, including quantities
 pack sizes, component orders and unresolved items. It reads the same unrounded
 product pools as the retained source cells and PDF/XLSX exports; no unlike pack
 types or products are pooled together.
+
+For I/H columns exposed on three sides, the selected estimating rule uses the
+four-sided column table. A named section uses its four-sided section factor for
+DFT and its three-sided perimeter for coating area; material use follows that
+three-sided area and the selected DFT. The result is explicitly marked
+`ESTIMATE - FOUR-SIDED COLUMN TABLE`, retains the actual report/table reference,
+and states the split basis in its review note. Direct A/V, Hp/A and ESA/M inputs
+remain the supplied DFT lookup factor; a fourth-face factor is not inferred
+from an entered three-sided factor. See `INTUMESCENT_COLUMN_SCOPE.md` for report
+scope and the selected estimating rule.

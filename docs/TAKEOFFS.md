@@ -552,8 +552,9 @@ preview; the application never changes project requirements to find a match.
 FX6010. Product and exposure determine its printed critical-temperature choices.
 Existing spray exposure names are retained as entered and require an explicit
 supported intumescent selection before transfer; the application does not alias them.
-The three-sided I/H column option retains its own input identity and withholds
-DFT until a matching assessment is confirmed.
+The three-sided I/H column option retains its own input identity. Its DFT uses
+the selected product's four-sided column table as an explicitly labelled estimate;
+coating area and material quantities retain the three-sided exposed girth.
 
 The register's **Thickness (mm)** is a read-only projection of native intumescent
 dry-film thickness (`SCHEDULE` O, µm ÷ 1000), with its native thickness status (V)

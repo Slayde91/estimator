@@ -2266,6 +2266,7 @@
     if (button.disabled || state.projectBusy) return;
     const context = state.quoteContext;
     button.disabled = true; button.setAttribute("aria-busy", "true");
+    const endSound = window.CeasefireDownloadSound?.begin();
     try {
       await Promise.all([window.CeasefireCalculators.completeProjectSnapshot(), window.CeasefirePenetrations.completeProjectSnapshot()]);
       if (context !== state.quoteContext) throw new Error("The project changed. Download the report again.");
@@ -2275,7 +2276,7 @@
       const saved = await window.CeasefireDownloads.save(`/api/project/${materials ? "full-product-summary" : "full-schedule"}.pdf`, payload, { button });
       message(uiCopy("PDF saved to {0}. It includes the schedule inputs captured when the download was prepared.", [saved.path]));
     } catch (error) { message(error.message, true); }
-    finally { button.disabled = false; button.removeAttribute("aria-busy"); }
+    finally { endSound?.(); button.disabled = false; button.removeAttribute("aria-busy"); }
   }
 
   async function downloadQuotePdf() {

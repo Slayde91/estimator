@@ -90,6 +90,33 @@ const countItem=(id,countId,length,points)=>({id,count_id:countId,version:1,stat
 let passed=0;
 async function check(label, test) { await test(); passed++; console.log(`ok - ${label}`); }
 (async()=>{
+  await check('Takeoff download audio spans font and calculator preparation before the shared file receipt',async()=>{
+    const h=harness(),value=blank(),fonts=deferred(),capture=deferred(),artifact=deferred(),feedback=require('./helpers/download_sound_vm.cjs').downloadSoundHarness();
+    value.documents=[{id:'doc',name:'Fixture drawing',pages:[{page:1,view:[0,0,200,200]}]}];h.audit.accept(response(value));
+    Object.assign(h.audit.state,{mode:'steel',document:'doc',page:1,ui:null});
+    h.context.window.CeasefireDownloadSound=feedback.sound;h.context.document.fonts.load=()=>fonts.promise;
+    let captures=0,requests=0;
+    h.context.window.CeasefireCalculators={captureTakeoffTarget(){captures++;return captures===1?capture.promise:Promise.resolve({inputs:{},schedule_rows:[],fingerprint:'stable'});},projectFingerprint:()=> 'stable'};
+    vm.runInContext(fs.readFileSync('static/downloads.js','utf8'),h.context);
+    const json=value=>({ok:true,status:200,headers:{get:()=> 'application/json'},json:async()=>value});
+    h.context.fetch=async path=>path==='/api/download-progress'?json({token:'fixture-progress'}):path.startsWith('/api/download-progress/')?json({percent:10,state:'preparing'}):(requests++,artifact.promise);
+    const operation=h.audit.downloadTakeoff('marked-pdf');
+    assert.equal(feedback.audio.plays,1);assert.equal(feedback.audio.paused,false);assert.equal(captures,0);assert.equal(requests,0);
+    fonts.resolve([]);await flush();assert.equal(captures,1);assert.equal(requests,0);assert.equal(feedback.audio.paused,false);
+    capture.resolve({inputs:{},schedule_rows:[],fingerprint:'stable'});for(let step=0;step<20&&!requests;step++)await flush();
+    assert.ok(captures>1);assert.equal(requests,1);assert.equal(feedback.audio.plays,1);assert.equal(feedback.audio.paused,false);
+    artifact.resolve(json({saved:true,path:'fixture/drawing.pdf',filename:'drawing.pdf',destination:'downloads'}));
+    assert.equal((await operation).saved,true);assert.equal(feedback.audio.paused,true);assert.equal(h.audit.state.busy,false);
+  });
+  await check('Takeoff preparation failure stops its loop before a document request exists',async()=>{
+    const h=harness(),value=blank(),fonts=deferred(),feedback=require('./helpers/download_sound_vm.cjs').downloadSoundHarness();
+    value.documents=[{id:'doc',pages:[{page:1,view:[0,0,200,200]}]}];h.audit.accept(response(value));
+    Object.assign(h.audit.state,{mode:'steel',document:'doc',page:1,ui:null});h.context.window.CeasefireDownloadSound=feedback.sound;
+    h.context.document.fonts.load=()=>fonts.promise;let requests=0;h.context.fetch=async()=>{requests++;throw Error('Must not export');};
+    const operation=h.audit.downloadTakeoff('marked-pdf');assert.equal(feedback.audio.paused,false);
+    fonts.reject(new Error('Fixture drawing fonts cancelled'));await assert.rejects(operation,/fonts cancelled/);
+    assert.equal(feedback.audio.paused,true);assert.equal(requests,0);assert.equal(h.audit.state.busy,false);
+  });
   await check('Takeoff notices and ordinary alerts expire after five seconds; protected recovery notices remain visible',()=>{
     const h=harness(),dom=attachMinimalDom(h),timers=[];h.context.setTimeout=(callback,delay)=>{timers.push({callback,delay});return timers.length;};h.context.clearTimeout=()=>{};
     dom.ui.messageSlot=dom.element();dom.ui.messageSlot.style={};let height=70.59375;dom.ui.messageSlot.getBoundingClientRect=()=>({height});

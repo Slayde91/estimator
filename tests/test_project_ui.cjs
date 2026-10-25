@@ -69,7 +69,7 @@ vm.createContext(context);
   const appEnd = /  bootstrap\(\);\s*\}\)\(\);\s*$/;
   assert.ok(appEnd.test(appSource), 'Estimator test hook must replace bootstrap only');
   appSource = appSource.replace(appEnd, `
-    globalThis.appAudit = {state, saveProject, loadProject, openNativeProject, newQuote, projectStamp, saveQuote, openQuote, calculate, reportPayload, projectEstimate,
+    globalThis.appAudit = {state, saveProject, loadProject, openNativeProject, newQuote, projectStamp, saveQuote, openQuote, calculate, reportPayload, projectEstimate, downloadFullReport,
       applyProjectPricing,savePricing,switchPricingScope,useCurrentPricing,loadProjects,linkProjectFolder,openProjectFile,openProjectBrowser,loadProjectFiles,openProjectFolderFile,closeProjectBrowser,projectPricingChanged,resetProjectPricing,pricingInputProblem,updateProjectStatus,showView,requestCalculatorNavigation,uploadProjectFiles,reviewDesktopClose,
       renderInputs, selectMainSection, setRequest(fn) { request = fn; }};
   })();`);
@@ -106,6 +106,36 @@ async function penetrationCheck(name, fn) {
   await deadline(name,()=>fn(h));passed++;console.log(`ok - ${name}`);
 }
 (async () => {
+  await check('Full-report audio begins during snapshot preparation and spans the shared save without restarting', async h => {
+    const prepare = deferred(), artifact = deferred(), feedback = require('./helpers/download_sound_vm.cjs').downloadSoundHarness();
+    h.context.window.CeasefireDownloadSound = feedback.sound;
+    h.bridgeApi.completeProjectSnapshot = () => prepare.promise;
+    h.context.window.CeasefirePenetrations = { completeProjectSnapshot: async () => ({}), projectSnapshot: () => ({ draft: { rows: [] } }) };
+    let requests = 0;
+    h.context.fetch = async path => { assert.equal(path, '/api/project/full-schedule.pdf'); requests++; return artifact.promise; };
+    const button = h.byId('download-full-schedule'), operation = h.app.downloadFullReport(false, button);
+    assert.equal(feedback.audio.plays, 1); assert.equal(feedback.audio.paused, false); assert.equal(requests, 0);
+    await flush(); assert.equal(requests, 0, 'Pending project snapshots precede the shared file request');
+    prepare.resolve(h.bridgeApi.projectSnapshot()); await flush();
+    assert.equal(requests, 1); assert.equal(feedback.audio.plays, 1, 'Nested downloader keeps the original loop');
+    assert.equal(feedback.audio.paused, false); assert.equal(button.disabled, true);
+    artifact.resolve(fileResponse('pdf')); await operation;
+    assert.equal(feedback.audio.paused, true); assert.equal(button.disabled, false);
+  });
+  for (const phase of ['snapshot', 'file']) await check(`Full-report audio stops after a ${phase} preparation failure`, async h => {
+    const prepare = deferred(), artifact = deferred(), feedback = require('./helpers/download_sound_vm.cjs').downloadSoundHarness();
+    h.context.window.CeasefireDownloadSound = feedback.sound;
+    h.bridgeApi.completeProjectSnapshot = () => prepare.promise;
+    h.context.window.CeasefirePenetrations = { completeProjectSnapshot: async () => ({}), projectSnapshot: () => ({ draft: { rows: [] } }) };
+    let requests = 0; h.context.fetch = async () => { requests++; return artifact.promise; };
+    const button = h.byId('download-full-product-summary'), operation = h.app.downloadFullReport(true, button);
+    assert.equal(feedback.audio.paused, false);
+    if (phase === 'snapshot') prepare.reject(new Error('Fixture snapshot cancelled'));
+    else { prepare.resolve(h.bridgeApi.projectSnapshot()); await flush(); artifact.reject(new Error('Fixture file cancelled')); }
+    await operation;
+    assert.equal(feedback.audio.paused, true); assert.equal(feedback.audio.plays, 1); assert.equal(button.disabled, false);
+    assert.equal(requests, phase === 'snapshot' ? 0 : 1); assert.match(h.byId('app-message').textContent, /cancelled/);
+  });
   await check('Desktop close cancellation keeps all unsaved project and pricing drafts', async h => {
     h.app.state.initialized = true; const before = h.snapshot();
     const closing = h.app.reviewDesktopClose(); await flush();

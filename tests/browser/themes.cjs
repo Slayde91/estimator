@@ -20,13 +20,71 @@ const ready = new Promise((resolve,reject) => {
   server.stdout.on('data', value => { text+=value; if(text.includes('\n')) { clearTimeout(timer); try { resolve(JSON.parse(text.split('\n')[0])); } catch(error) { reject(error); } } });
   server.once('error',reject); server.once('exit',code => { clearTimeout(timer); reject(Error(`Fixture exited ${code}: ${logs}`)); });
 });
-const errors=[], networkFailures=[], evidence={ themes:[], layouts:[], iconToolbars:[], keyboard:false, persistence:false, deniedStorage:false, calculator:false, drawings:false }, mutationRequests=[];
+const errors=[], networkFailures=[], evidence={ themes:[], layouts:[], iconToolbars:[], reloadBoundaries:[], keyboard:false, persistence:false, deniedStorage:false, calculator:false, drawings:false }, mutationRequests=[];
+const pendingRequests=new Set(), requestIds=new WeakMap(), intentionalReloadRequests=new WeakMap();let nextRequestId=0;
+const deliberateReloadLabels=new Set(['theme-preference-persistence','denied-storage-fallback']);
+const soundPaths=new Set(['/sounds/mgs1-menu-move.mp3','/sounds/mgs-confirm2.mp3','/sounds/hover.mp3','/sounds/select.mp3','/sounds/select-2.mp3','/sounds/checkpoint.ogg','/sounds/new-explosion.mp3','/sounds/mixkit-vintage-dot-printing-1371.wav','/sounds/loading.mp3']);
+function permittedReloadCancellation(row,origin) {
+  if(row.failure?.errorText!=='net::ERR_ABORTED'||!deliberateReloadLabels.has(row.reloadBoundary?.label))return false;
+  if(!Number.isSafeInteger(row.requestId)||row.requestId<=0||row.reloadBoundary.requestId!==row.requestId)return false;
+  if(row.method==='POST'&&row.resourceType==='fetch'&&row.url===origin+'/api/calculate')return true;
+  return row.method==='GET'&&row.resourceType==='media'&&[...soundPaths].some(sound=>row.url===origin+sound);
+}
+function checkCancellationGate() {
+  const origin='http://127.0.0.1:43210', base={requestId:1,url:origin+'/sounds/loading.mp3',method:'GET',resourceType:'media',failure:{errorText:'net::ERR_ABORTED'},reloadBoundary:{label:'theme-preference-persistence',requestId:1,markedAt:1}};
+  const accepted=[];
+  for(const label of deliberateReloadLabels) {
+    for(const sound of soundPaths)accepted.push({...base,url:origin+sound,reloadBoundary:{...base.reloadBoundary,label}});
+    accepted.push({...base,url:origin+'/api/calculate',method:'POST',resourceType:'fetch',reloadBoundary:{...base.reloadBoundary,label}});
+  }
+  accepted.push({...base,scenario:'late-terminal-event',failedAt:3,reloadBoundary:{...base.reloadBoundary,completedAt:2}});
+  const rejected=[
+    {...base,scenario:'unmarked-old-document-request',reloadBoundary:null},
+    {...base,scenario:'new-document-request-while-reload-awaits',requestId:2,reloadBoundary:null},
+    {...base,reloadBoundary:{...base.reloadBoundary,requestId:2}}, {...base,requestId:undefined},
+    {...base,requestId:0,reloadBoundary:{...base.reloadBoundary,requestId:0}},
+    {...base,requestId:Number.MAX_SAFE_INTEGER+1,reloadBoundary:{...base.reloadBoundary,requestId:Number.MAX_SAFE_INTEGER+1}},
+    {...base,reloadBoundary:{...base.reloadBoundary,label:'ordinary-navigation'}},
+    {...base,failure:{errorText:'net::ERR_CONNECTION_RESET'}},
+    {...base,resourceType:'fetch'}, {...base,method:'POST'},
+    {...base,url:origin+'/sounds/unknown.mp3'}, {...base,url:'http://127.0.0.1:43211/sounds/loading.mp3'},
+    {...base,url:base.url+'?unexpected=1'}, {...base,url:origin+'/api/calculate'},
+    {...base,url:origin+'/api/calculate',method:'POST',resourceType:'xhr'},
+  ];
+  for(const row of accepted)assert.equal(permittedReloadCancellation(row,origin),true,JSON.stringify(row));
+  for(const row of rejected)assert.equal(permittedReloadCancellation(row,origin),false,JSON.stringify(row));
+  return {accepted:accepted.length,rejected:rejected.length,requestIdentityBinding:'Only Request objects pending immediately before a deliberate reload receive a boundary marker.'};
+}
+evidence.cancellationGate=checkCancellationGate();
 async function idle() { await page.waitForFunction(() => { const s=window.CeasefireDesktop?.status(); return s?.ready&&!s.busy; }); }
 async function snapshot() {
   return page.evaluate(() => ({ calculators:window.CeasefireCalculators.projectSnapshot(), penetration:window.CeasefirePenetrations.projectSnapshot(), pricing:window.CeasefireProject.configuration(), takeoffs:window.CeasefireTakeoffs.projectSnapshot(), dirty:window.CeasefireDesktop.status().dirty,
     inputs:[...document.querySelectorAll('#view-estimate input,#view-estimate textarea,#view-estimate select')].map(el => [el.id,el.value,el.selectionStart,el.selectionEnd]) }));
 }
-function watch(target) { target.on('pageerror',e => errors.push({message:e.message})); target.on('console',m => { if(m.type()==='error') errors.push({message:m.text(),location:m.location()}); }); target.on('requestfailed',r => networkFailures.push({url:r.url(),failure:r.failure()})); target.on('request',r => { if(!['GET','HEAD'].includes(r.method())) mutationRequests.push({ method:r.method(),url:r.url() }); }); }
+function requestDetails(r) { return {requestId:requestIds.get(r),url:r.url(),method:r.method(),resourceType:r.resourceType()}; }
+function watch(target) {
+  target.on('pageerror',e => errors.push({message:e.message}));
+  target.on('console',m => { if(m.type()==='error') errors.push({message:m.text(),location:m.location()}); });
+  target.on('request',r => {
+    requestIds.set(r,++nextRequestId);pendingRequests.add(r);
+    if(!['GET','HEAD'].includes(r.method()))mutationRequests.push({method:r.method(),url:r.url()});
+  });
+  target.on('requestfinished',r => pendingRequests.delete(r));
+  target.on('requestfailed',r => {
+    networkFailures.push({...requestDetails(r),failure:r.failure(),failedAt:Date.now(),reloadBoundary:intentionalReloadRequests.get(r)||null});
+    pendingRequests.delete(r);
+  });
+}
+async function deliberateReload(label) {
+  assert.ok(deliberateReloadLabels.has(label));
+  const boundary={label,markedAt:Date.now(),pending:[...pendingRequests].map(requestDetails)};
+  // Bind actual old-document Request identities before reload, with no await in
+  // between. Late terminal events keep their marker; new requests never get it.
+  for(const request of pendingRequests)if(!intentionalReloadRequests.has(request))intentionalReloadRequests.set(request,{label,markedAt:boundary.markedAt,requestId:requestIds.get(request)});
+  evidence.reloadBoundaries.push(boundary);
+  try { await page.reload({waitUntil:'networkidle'}); }
+  finally { boundary.completedAt=Date.now(); }
+}
 async function settings() { await page.locator('nav [data-view="settings"]').click(); await idle(); }
 async function theme(id) {
   const view = await page.locator('.view:not([hidden])').getAttribute('id');
@@ -107,7 +165,7 @@ async function readableMidnightIcon(control) {
   await theme('slate');
   await settings(); await page.locator('#theme-toggle').focus(); await page.keyboard.press('Enter'); await expect(page.locator('html')).toHaveAttribute('data-theme','ceasefire'); await expect(page.locator('#theme-toggle')).toBeFocused();
   await page.keyboard.press('Space'); await expect(page.locator('html')).toHaveAttribute('data-theme','midnight'); evidence.keyboard=true;
-  await page.reload({waitUntil:'networkidle'}); await idle(); await expect(page.locator('html')).toHaveAttribute('data-theme','midnight'); evidence.persistence=true;
+  await deliberateReload('theme-preference-persistence'); await idle(); await expect(page.locator('html')).toHaveAttribute('data-theme','midnight'); evidence.persistence=true;
   await chooseCalculator(page,'Steel (spray)'); await idle(); await expect(page.locator('#calculator-grid')).toHaveAttribute('aria-busy','false',{timeout:60000});
   const calculatorBefore=await snapshot(); await theme('forest'); await theme('midnight'); assert.deepEqual(await snapshot(),calculatorBefore); const grid=await colors('.calculator-grid'); assert.ok(contrast(grid.color,grid.background)>=4.5); evidence.calculator={preserved:true,grid};
   await page.locator('#calculator-pages').getByRole('button',{name:'SCHEDULE',exact:true}).click(); await idle(); await expect(page.locator('#calculator-grid')).toHaveAttribute('aria-busy','false');
@@ -180,8 +238,10 @@ async function readableMidnightIcon(control) {
   // A fresh document with denied storage exercises the real fallback, including
   // an existing saved preference that is inaccessible to the controller.
   await page.addInitScript(() => Object.defineProperty(window,'localStorage',{get(){throw new DOMException('Denied','SecurityError');}}));
-  await page.reload({waitUntil:'networkidle'}); await expect(page.locator('html')).toHaveAttribute('data-theme','ceasefire'); await settings(); await page.locator('#theme-toggle').click(); await expect(page.locator('html')).toHaveAttribute('data-theme','midnight'); evidence.deniedStorage=true;
+  await deliberateReload('denied-storage-fallback'); await expect(page.locator('html')).toHaveAttribute('data-theme','ceasefire'); await settings(); await page.locator('#theme-toggle').click(); await expect(page.locator('html')).toHaveAttribute('data-theme','midnight'); evidence.deniedStorage=true;
   assert.deepEqual(hashes(),assetHashes,'Source assets must remain unchanged during QA'); assert.deepEqual(errors,[]);
-  assert.ok(networkFailures.every(r=>r.failure?.errorText==='net::ERR_ABORTED'&&r.url===`http://127.0.0.1:${fixture.port}/api/calculate`),'Only calculation cancellation during deliberate disposable reload is permitted');
+  const rejectedFailures=networkFailures.filter(row=>!permittedReloadCancellation(row,`http://127.0.0.1:${fixture.port}`));
+  assert.deepEqual(rejectedFailures,[],'Only exact pending media/calculation requests cancelled by deliberate disposable reload are permitted. Actual failures: '+JSON.stringify(networkFailures));
+  console.log(JSON.stringify({reloadCancellationGate:evidence.cancellationGate,expectedReloadCancellationCount:networkFailures.length,expectedReloadCancellations:networkFailures.slice(0,32)}));
   fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,assetHashes,evidence,errors,networkFailures,mutationRequests,fixturePort:fixture.port},null,2)); console.log(`PASS themes: ${output}`);
 })().catch(async error => { console.error(error); if(page) await page.screenshot({path:path.join(output,'failure.png'),fullPage:true}).catch(()=>{}); fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:false,error:String(error),assetHashes,evidence,errors,networkFailures,serverExit},null,2)); process.exitCode=1; }).finally(async () => { fs.writeFileSync(path.join(output,'server.log'),logs); if(browser) await browser.close(); server.kill(); });

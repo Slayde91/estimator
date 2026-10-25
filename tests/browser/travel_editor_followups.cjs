@@ -3,13 +3,14 @@ const {chromium,expect}=require('@playwright/test'),assert=require('node:assert/
 const {spawn}=require('node:child_process'),fs=require('node:fs'),path=require('node:path');
 const {chooseCalculator}=require('./calculator_actions.cjs'),{chooseTakeoff}=require('./section_navigation.cjs');
 const {renderDrawing}=require('./viewer_helpers.cjs');
-const root=path.resolve(__dirname,'../..'),output=path.join(root,'.runtime/browser-qa',`travel-editor-${Date.now()}`);fs.mkdirSync(output,{recursive:true});
+const root=path.resolve(__dirname,'../..'),output=process.env.CEASEFIRE_BROWSER_OUTPUT||path.join(root,'.runtime/browser-qa',`travel-editor-${Date.now()}`);fs.mkdirSync(output,{recursive:true});
 const server=spawn(process.env.CEASEFIRE_PYTHON||'python',[path.join(__dirname,'fixtures.py'),'--directory',output],{cwd:root,windowsHide:true,env:{...process.env,CEASEFIRE_GOOGLE_MAPS_API_KEY:''}});
 let logs='',browser,page;server.stderr.on('data',d=>logs+=d);
 const ready=new Promise((resolve,reject)=>{let text='';const timer=setTimeout(()=>reject(Error('Fixture startup: '+logs)),120000);server.stdout.on('data',d=>{text+=d;if(text.includes('\n')){clearTimeout(timer);resolve(JSON.parse(text.split('\n')[0]));}});server.on('error',reject);server.on('exit',code=>{clearTimeout(timer);reject(Error('Fixture exited '+code+logs));});});
 const errors=[],evidence={};
 async function idle(){await page.waitForFunction(()=>{const s=window.CeasefireDesktop?.status();return s?.ready&&!s.busy;});}
 async function snapshot(){return page.evaluate(()=>({details:window.CeasefireProject.details(),pricing:window.CeasefireProject.configuration(),calculators:window.CeasefireCalculators.projectSnapshot(),firestopping:window.CeasefirePenetrations.projectSnapshot()}));}
+async function mapsSettingsHidden(){await expect(page.locator('#view-settings [aria-labelledby="google-maps-heading"]')).toHaveAttribute('hidden','');for(const selector of ['#google-maps-heading','#google-maps-status','#google-maps-refresh','#view-settings a[href="/maps-setup.html"]'])await expect(page.locator(selector)).toBeHidden();}
 (async()=>{
  const info=await ready;assert.notEqual(info.port,8765);browser=await chromium.launch({headless:true});
  const context=await browser.newContext({viewport:{width:1384,height:900}});page=await context.newPage();page.setDefaultTimeout(60000);page.on('pageerror',e=>errors.push(e.message));
@@ -47,6 +48,7 @@ async function snapshot(){return page.evaluate(()=>({details:window.CeasefirePro
  await page.mouse.move(241,173);await expect(page.locator('#cursor-position')).toHaveText('X241Y173');await expect(page.locator('#cursor-position')).toHaveCSS('color','rgb(255, 0, 0)');
  await page.screenshot({path:path.join(output,'firestopping-first-row.png')});
  await page.locator('nav [data-view="settings"]').click();await idle();
+ await mapsSettingsHidden();
  for(const width of [1384,1020,390]){await page.setViewportSize({width,height:900});const cards=await page.locator('.settings-preferences-grid > .card').all(),a=await cards[0].boundingBox(),b=await cards[1].boundingBox();if(width>=800){assert.ok(Math.abs(a.y-b.y)<1);assert.ok(a.x+a.width<=b.x);}else assert.ok(a.y+a.height<=b.y);assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth-innerWidth)<=1);await page.screenshot({path:path.join(output,`settings-${width}.png`)});}
  await page.setViewportSize({width:1384,height:900});
  await page.getByRole('button',{name:'Estimates',exact:true}).click();await idle();await page.locator('#site-address').fill('Fixture Project Road, Sydney NSW');
@@ -62,8 +64,8 @@ async function snapshot(){return page.evaluate(()=>({details:window.CeasefirePro
  const costInputs=()=>page.locator('#main-panel-access-travel [data-cell]').evaluateAll((controls,cells)=>Object.fromEntries(controls.filter(control=>cells.includes(control.dataset.cell)).map(control=>[control.dataset.cell,control.value])),costCells);
  const costsBefore=await costInputs();assert.deepEqual(Object.keys(costsBefore),costCells);
  const before=await snapshot();
- await page.route('**/api/travel/status',r=>r.fulfill({json:{configured:true,provider:'Google Maps'}}));
- await page.locator('nav [data-view="settings"]').click();await page.locator('#google-maps-refresh').click();await expect(page.locator('#google-maps-status')).toHaveText('Google Maps is configured.');
+ await page.locator('nav [data-view="settings"]').click();await mapsSettingsHidden();
+ const retainedStatus=await page.request.get(new URL('/api/travel/status',page.url()).href);assert.equal(retainedStatus.status(),200);assert.deepEqual(await retainedStatus.json(),{configured:false,provider:'Google Maps'});
  await page.getByRole('button',{name:'Estimates',exact:true}).click();await idle();
  await expect(page.locator('#project-travel')).toHaveCount(0);
  assert.deepEqual(await costInputs(),costsBefore,'Navigation preserves all existing Access & Travel cost values');
@@ -78,16 +80,16 @@ async function snapshot(){return page.evaluate(()=>({details:window.CeasefirePro
  await page.locator('#main-panel-access-travel').screenshot({path:path.join(output,'project-travel-removed.png')});
  for(const locale of ['zh-Hans','hi','es','ar','th','ko','tl','vi']){
   await page.locator('nav [data-view="settings"]').click();await page.locator('#application-language').selectOption(locale);
-  await expect(page.locator('#google-maps-status')).not.toHaveText('Google Maps is configured.');
+  await mapsSettingsHidden();
   await page.locator('nav [data-view="estimate"]').click();await idle();
   await expect(page.locator('#project-travel')).toHaveCount(0);
   assert.deepEqual(await costInputs(),costsBefore,`${locale} preserves the existing Access & Travel cost values`);
   assert.deepEqual(await snapshot(),before,'Language changes preserve source addresses, pricing and calculator data');
   assert.deepEqual(routeRequests,[],'Navigation, input rerender and language changes do not send route lookups');
  }
- await page.locator('nav [data-view="settings"]').click();await page.locator('#application-language').selectOption('en');await page.locator('nav [data-view="estimate"]').click();await idle();
+ await page.locator('nav [data-view="settings"]').click();await page.locator('#application-language').selectOption('en');await mapsSettingsHidden();await page.locator('nav [data-view="estimate"]').click();await idle();
  await expect(page.locator('#project-travel')).toHaveCount(0);assert.deepEqual(await costInputs(),costsBefore);assert.deepEqual(await snapshot(),before);assert.deepEqual(routeRequests,[]);
- evidence.travelLanguages=8;evidence.projectTravelRemoved=true;evidence.existingTravelCostInputsPreserved=true;evidence.inputRerenderPreserved=true;evidence.routeRequests=routeRequests.length;
+ evidence.travelLanguages=8;evidence.googleMapsSettingsHidden=true;evidence.googleMapsStatusApiRetained=true;evidence.projectTravelRemoved=true;evidence.existingTravelCostInputsPreserved=true;evidence.inputRerenderPreserved=true;evidence.routeRequests=routeRequests.length;
  await chooseTakeoff(page,'Steel');await renderDrawing(page,()=>page.locator('#takeoff-upload').setInputFiles(info.fixture));
  await expect(page.locator('#view-takeoffs')).toHaveCSS('cursor',/cursors\/pointer\.png/);
  await expect(page.locator('main')).toHaveCSS('cursor',/cursors\/pointer\.png/);

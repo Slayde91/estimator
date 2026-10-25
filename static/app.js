@@ -1083,7 +1083,9 @@
     menu.style.left = "0px";
     const bounds = menu.getBoundingClientRect(), scale = bounds.width / menu.offsetWidth;
     if (!Number.isFinite(scale) || scale <= 0) return;
-    const left = Math.max(14, Math.min(bounds.left, window.innerWidth - 14 - bounds.width));
+    // A temporarily overflowing menu can widen innerWidth on mobile browsers.
+    const viewportWidth = document.documentElement.clientWidth > 0 ? document.documentElement.clientWidth : window.innerWidth;
+    const left = Math.max(14, Math.min(bounds.left, viewportWidth - 14 - bounds.width));
     menu.style.left = `${(left - bounds.left) / scale}px`;
   }
   function setCalculatorMenuOpen(open) {

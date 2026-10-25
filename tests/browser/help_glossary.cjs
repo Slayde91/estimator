@@ -91,6 +91,10 @@ async function theme(id) { for (let index = 0; index < 5 && await page.locator('
       await page.setViewportSize({ width, height: 1000 });
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `${themeId}/${width}: Help stays within viewport`);
       await page.getByRole('button', { name: 'Estimates', exact: true }).click(); await idle();
+      // Main navigation and Document are separate disclosures. Leave the
+      // header menu before the keyboard-only Document journey below.
+      await page.locator('#estimate-navigation-toggle').press('Escape'); await page.mouse.move(0, 0);
+      await expect(page.locator('#estimate-navigation-menu')).toBeHidden();
       const menuRequestCount = requests.length;
       await toggle.focus(); await toggle.press('ArrowDown'); await expect(summary).toBeFocused(); await expect(summary).toHaveAccessibleName('Estimate Summary');
       await expect(menu.getByRole('button')).toHaveCount(5); await expect(summary.locator('span').last()).toHaveText('Estimate Summary');
@@ -111,7 +115,9 @@ async function theme(id) { for (let index = 0; index < 5 && await page.locator('
   const navigationRequests = requests.slice(requestCount);
   assert.ok(navigationRequests.every(route => route === '/api/penetration/calculate'), 'Repeated Main navigation uses only its existing read-only Firestopping calculation');
   evidence.navigationCalculations = navigationRequests.length;
-  await page.getByRole('button', { name: 'Estimates', exact: true }).click(); await idle(); await toggle.click();
+  await page.getByRole('button', { name: 'Estimates', exact: true }).click(); await idle();
+  await page.locator('#estimate-navigation-toggle').press('Escape'); await page.mouse.move(0, 0);
+  await expect(page.locator('#estimate-navigation-menu')).toBeHidden(); await toggle.click();
   const download = page.waitForResponse(response => response.request().method() === 'POST' && (/^\/api\/quote-report$/.test(new URL(response.url()).pathname) || /^\/api\/quotes\/[^/]+\/report\.pdf$/.test(new URL(response.url()).pathname)));
   await summary.click(); const response = await download; assert.equal(response.status(), 200); const file = await response.json();
   assert.equal(file.saved, true); assert.equal(file.destination, 'project');

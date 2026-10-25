@@ -148,6 +148,46 @@ async function enterSubmenu(parent, submenu) {
   await idle(touch); await expect(touch.locator('#calculator-title')).toHaveText('Factor Calcs');
   evidence.touch.push({ width: 390, calculatorSubmenu: true });
   await context.close();
+  for (const width of [320, 390, 671]) {
+    const context = await browser.newContext({ viewport: { width, height: 844 }, hasTouch: true, isMobile: true });
+    const mobile = await context.newPage();
+    mobile.on('pageerror', error => errors.push(error.message));
+    await mobile.addInitScript(() => { window.qaCsp = []; document.addEventListener('securitypolicyviolation', event => window.qaCsp.push(event.effectiveDirective)); });
+    await mobile.goto(`http://127.0.0.1:${info.port}/`); await idle(mobile);
+    const geometry = async id => {
+      const value = await mobile.locator(id).evaluate(menu => {
+        const bounds = menu.getBoundingClientRect(), viewport = visualViewport;
+        const owner = document.getElementById(menu.id.replace(/-menu$/, '-toggle')).getBoundingClientRect();
+        return { left: bounds.left, right: bounds.right, top: bounds.top, ownerBottom: owner.bottom, viewportWidth: document.documentElement.clientWidth,
+          documentWidth: document.documentElement.scrollWidth, innerWidth, scrollX,
+          visualWidth: viewport.width, visualOffsetLeft: viewport.offsetLeft, visualOffsetTop: viewport.offsetTop };
+      });
+      assert.equal(value.viewportWidth, width);
+      assert.ok(value.left >= 0 && value.right <= width, `Touch menu stays inside the actual viewport: ${JSON.stringify(value)}`);
+      assert.ok(Math.abs(value.top - value.ownerBottom) < 1, 'The touch menu stays directly below its actual owner');
+      assert.ok(value.documentWidth <= width + 1 && value.innerWidth <= width + 1, 'Opening a menu does not widen the mobile layout');
+      assert.equal(value.scrollX, 0); assert.equal(value.visualOffsetLeft, 0); assert.equal(value.visualOffsetTop, 0);
+      return value;
+    };
+    await mobile.locator('#library-navigation-toggle').tap(); await idle(mobile);
+    await expect(mobile.locator('#library-navigation-menu')).toBeVisible();
+    const library = await geometry('#library-navigation-menu');
+    await mobile.locator('#library-navigation-menu').getByRole('button', { name: 'Technical Library', exact: true }).tap();
+    await expect(mobile.locator('#library-technical')).toBeVisible();
+    await mobile.locator('#takeoff-navigation-toggle').tap(); await idle(mobile);
+    await expect(mobile.locator('#takeoff-navigation-menu')).toBeVisible();
+    const takeoffs = await geometry('#takeoff-navigation-menu');
+    await mobile.locator('#penetration-navigation-toggle').tap();
+    await expect(mobile.locator('#penetration-navigation-menu')).toBeVisible();
+    const penetrations = await geometry('#takeoff-navigation-menu');
+    await mobile.screenshot({ path: path.join(output, `touch-takeoff-menu-${width}.png`) });
+    await mobile.locator('#penetration-navigation-menu').getByRole('button', { name: 'Service Plans', exact: true }).tap();
+    await idle(mobile); await expect(mobile.locator('.takeoff-physical-register')).toBeVisible();
+    await expect(mobile.locator('#takeoff-navigation-menu')).toBeHidden();
+    assert.deepEqual(await mobile.evaluate(() => window.qaCsp), []);
+    evidence.touch.push({ width, technicalLibraryToServicePlans: true, library, takeoffs, penetrations });
+    await context.close();
+  }
   assert.deepEqual(errors, []); assert.deepEqual(await page.evaluate(() => window.qaCsp), []);
   fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ passed: true, evidence, errors, csp: [] }, null, 2));
   console.log(`PASS: stacked navigation pointer paths, view selection, keyboard/touch and Home card cursors. Evidence: ${output}`);

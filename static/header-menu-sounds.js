@@ -81,7 +81,7 @@
     function enabled(button) {
       return button && !button.disabled && !button.matches?.(":disabled") && button.getAttribute?.("aria-disabled") !== "true" && !button.closest?.("[inert]");
     }
-    function contains(button, target) { try { return !!target && button.contains(target); } catch { return false; } }
+    function contains(button, target) { try { return !!button && !!target && button.contains(target); } catch { return false; } }
     function route(button, click) {
       if (closed || document.hidden || !enabled(button)) return;
       // The header's direct listeners own its sounds. Home shares the same

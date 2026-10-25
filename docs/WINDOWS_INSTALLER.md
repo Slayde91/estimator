@@ -76,14 +76,15 @@ private review metadata and pricing remain local build inputs and must never be
 committed or uploaded with public CI artifacts.
 
 `--calculator-evidence` names a separate directory outside the source checkout.
-Only `monokote-far4856-issue2.json` is copied; neighboring reports, workbooks and
-other files are excluded. The same bounded schema and pinned SHA-256 validator
-used at runtime must accept it before packaging. The build stages the exact
-bytes, checks the original and staged inputs again during the build, and verifies
-the frozen `_internal/calculator-evidence/monokote-far4856-issue2.json` against
-that receipt. Missing, changed or extra bundled evidence fails the build.
-`BUILD_REPORT.json` records its dataset identity, filename, byte count, exact
-SHA-256 and source-report SHA-256; it does not include the private table rows.
+Only the six fixed, reviewed JSON files for Monokote hollow sections, Perlifoc,
+SC902, FIRETEX FX5090, FIRETEX FX6010 and Promat steel sprays are copied;
+neighboring reports, workbooks and other files are excluded. Each runtime
+authority's bounded schema and pinned SHA-256 validator must accept its file
+before packaging. The build stages the exact bytes, rechecks the original and
+staged inputs, and verifies the frozen `_internal/calculator-evidence/` files
+against the receipt. Missing, changed or extra bundled evidence fails the build.
+`BUILD_REPORT.json` records each dataset identity, filename, byte count, exact
+SHA-256 and source-report hash or hashes; it does not include private table rows.
 Keep the assessment JSON and private build reports outside the public repository.
 For source-only QA, `CEASEFIRE_CALCULATOR_EVIDENCE_DIRECTORY` may point to the
 external evidence directory. It is ignored by frozen runtime lookup and removed

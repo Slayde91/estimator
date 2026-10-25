@@ -10,7 +10,7 @@ function sourceHashes(){
  walk('static',()=>true);walk('estimator',name=>name.endsWith('.py'));walk('data',()=>true);
  return Object.fromEntries(files.sort().map(name=>[name,createHash('sha256').update(fs.readFileSync(path.join(root,name))).digest('hex')]));
 }
-const evidence={source_sha256:sourceHashes(),registers:[],locales:[],themes:[],errors:[]};let logs='',browser,page,base,calculations=0;
+const evidence={source_sha256:sourceHashes(),registers:[],locales:[],themes:[],served_css:[],errors:[]},cssResponses=[];let logs='',browser,page,base,calculations=0;
 const server=spawn(process.env.CEASEFIRE_PYTHON||'python',[path.join(__dirname,'monokote_fixture.py'),'--directory',output],{cwd:root,windowsHide:true});server.stderr.on('data',value=>logs+=value);
 const ready=new Promise((resolve,reject)=>{let text='';const timeout=setTimeout(()=>reject(Error(logs||'Fixture startup timed out')),120000);server.stdout.on('data',value=>{text+=value;if(text.includes('\n')){clearTimeout(timeout);resolve(JSON.parse(text.split('\n')[0]));}});server.once('error',reject);server.once('exit',code=>{clearTimeout(timeout);reject(Error(`Fixture exited ${code}: ${logs}`));});});
 async function idle(){await expect(page.locator('#calculator-grid')).toHaveAttribute('aria-busy','false',{timeout:60000});await page.waitForFunction(()=>!window.CeasefireActivity?.active);}
@@ -18,12 +18,19 @@ async function snapshot(){return page.evaluate(()=>window.CeasefireCalculators.c
 async function boot(){await page.waitForFunction(()=>window.CeasefireDesktop?.status().ready&&window.ClassifireBoot?.state==='ready');await page.waitForFunction(()=>!window.CeasefireActivity?.active);}
 async function chooser(){const button=page.locator('#calculator-pages .schedule-column-toggle');await button.click();const panel=page.locator('#'+await button.getAttribute('aria-controls'));await expect(panel).toBeVisible();return panel;}
 const nativeCell=(id)=>page.locator(`.calculator-schedule-table thead [data-schedule-column="${id}"]`);
-async function selectAll(panel,checked){await panel.locator('[data-schedule-select-all]').setChecked(checked);}
+async function selectAll(panel,checked){
+ const all=panel.locator('[data-schedule-select-all]');
+ // Native mixed checkboxes have checked=false. setChecked(false) would do
+ // nothing, so perform the actual select-all action before deselecting it.
+ if(!checked&&await all.evaluate(input=>input.indeterminate))await all.check();
+ await all.setChecked(checked);await expect(all).toHaveJSProperty('indeterminate',false);
+}
 async function screenshot(name){await page.screenshot({path:path.join(output,name),fullPage:true});}
 (async()=>{
  const info=await ready;assert.notEqual(info.port,8765);base=`http://127.0.0.1:${info.port}`;evidence.fixturePort=info.port;
  browser=await chromium.launch({headless:true});page=await browser.newPage({viewport:{width:1146,height:850}});page.setDefaultTimeout(30000);
  page.on('pageerror',error=>evidence.errors.push(error.message));page.on('request',request=>{if(request.method()==='POST'&&/\/(worksheet|calculate)$/.test(new URL(request.url()).pathname))calculations++;});
+ page.on('response',response=>{const url=new URL(response.url());if(url.origin===base&&['/calculators.css','/penetration.css'].includes(url.pathname))cssResponses.push((async()=>{assert.equal(response.status(),200);const bytes=await response.body();evidence.served_css.push({url:response.url(),source:`static${url.pathname}`,sha256:createHash('sha256').update(bytes).digest('hex'),size:bytes.length});})().catch(error=>evidence.errors.push(String(error))));});
  for(const [id,inputs,row]of [
   ['steel_board',{CALCULATOR:{A9:'Column chooser precise fixture',C9:'TRAFALGAR COREX',D9:'200UC46',F9:1.23456789012345,G9:4,H9:120,I9:'Column',J9:550}},9],
   ['ductwork',{CALCULATOR:{B11:'300 x 200',C11:'CAFCO 300',D11:1.23456789012345,E11:'120/120/120',F11:1,G11:0,H11:'Internal',I11:'Horizontal'}},11],
@@ -108,6 +115,7 @@ async function screenshot(name){await page.screenshot({path:path.join(output,nam
  for(const id of ['penetration-schedule-body','penetration-estimator-schedule-body'])assert.deepEqual(await page.locator('#'+id).evaluate(body=>[...body.children[0].children].filter(cell=>cell.hidden).map(cell=>cell.dataset.scheduleColumn)),['diagram','actions','delete']);
  await selectAll(firePanel,false);await selectAll(firePanel,true);await firePanel.press('Escape');assert.deepEqual(await page.evaluate(()=>window.CeasefirePenetrations.projectSnapshot()),fireBefore);assert.equal(calculations,fireRequests);
  evidence.firestopping={bothViewsSharePreference:true,all11Choices:true,precisionAndDraftUnchanged:true,noCalculationRequests:true};
+ await Promise.all(cssResponses);for(const source of ['static/calculators.css','static/penetration.css']){const served=evidence.served_css.filter(row=>row.source===source);assert.ok(served.length>0);assert.ok(served.every(row=>row.sha256===evidence.source_sha256[source]));}
  evidence.source_sha256_after=sourceHashes();assert.deepEqual(evidence.source_sha256_after,evidence.source_sha256);assert.deepEqual(evidence.errors,[]);evidence.passed=true;
  fs.writeFileSync(path.join(output,'result.json'),JSON.stringify(evidence,null,2));console.log(`PASS schedule columns: ${output}`);
 })().catch(async error=>{evidence.passed=false;evidence.failure=String(error.stack||error);evidence.source_sha256_after=sourceHashes();fs.writeFileSync(path.join(output,'result.json'),JSON.stringify(evidence,null,2));console.error(error);console.error(logs.slice(-5000));if(page)await page.screenshot({path:path.join(output,'failure.png'),fullPage:true}).catch(()=>{});process.exitCode=1;}).finally(async()=>{if(browser)await browser.close();server.kill();fs.writeFileSync(path.join(output,'server.log'),logs);});

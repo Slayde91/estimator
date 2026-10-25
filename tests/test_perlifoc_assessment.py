@@ -323,7 +323,14 @@ class PerlifocAssessmentTests(unittest.TestCase):
             cells = {cell['address']: cell for row in page['rows'] for cell in row['cells']}
             options = page['option_sets'][cells['D12']['options_ref']]
             with self.subTest(product=product):
-                self.assertEqual(options, list(policy.PERIODS if product == 'PERLIFOC HP ECO+' else policy.PERIODS[:-1]))
+                # CAFCO uses FC13107-01-05's six printed periods; this fixture
+                # selects 120, so no retained 15/45 value belongs in its choices.
+                expected_periods = policy.PERIODS if product == 'PERLIFOC HP ECO+' else (30, 60, 90, 120, 180, 240)
+                self.assertEqual(options, list(expected_periods))
+                self.assertEqual(cells['D12']['value'], 120)
+                if product == 'CAFCO 300':
+                    self.assertNotIn(15, options)
+                    self.assertNotIn(45, options)
                 self.assertEqual([cells[f'{column}28']['value'] for column in 'BCDEFGHIJ'], list(policy.PERIODS))
                 if product == 'PERLIFOC HP ECO+':
                     for omitted in ('J28:N30', 'B28:B30', 'D28:D30', 'H23:N24'):

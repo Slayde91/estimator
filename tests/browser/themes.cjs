@@ -36,7 +36,14 @@ async function theme(id) {
   for(let i=0;i<5 && await page.locator('html').getAttribute('data-theme')!==id;i++) await page.locator('#theme-toggle').click();
   await expect(page.locator('html')).toHaveAttribute('data-theme',id);
   assert.equal(mutationRequests.length, beforeThemeRequests, 'The theme control itself sends no mutation request');
-  if(view !== 'view-settings') await page.locator(`nav [data-view="${view.replace('view-','')}"]`).click();
+  if(view !== 'view-settings') {
+    const destination=page.locator(`nav [data-view="${view.replace('view-','')}"]`);
+    await destination.click();
+    // Returning through a header disclosure opens its foreground menu. Dismiss
+    // it before the next Settings click, including when the header has two rows.
+    if(await destination.getAttribute('aria-expanded')==='true') await destination.press('Escape');
+    await page.mouse.move(0,0);
+  }
   await idle();
 }
 function luminance(rgb) { const c=rgb.match(/[\d.]+/g).slice(0,3).map(Number).map(v => v/255).map(v => v<=.04045?v/12.92:((v+.055)/1.055)**2.4); return .2126*c[0]+.7152*c[1]+.0722*c[2]; }

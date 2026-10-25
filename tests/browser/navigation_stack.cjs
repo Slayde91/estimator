@@ -60,7 +60,7 @@ async function enterSubmenu(parent, submenu) {
   page.setDefaultTimeout(60000); page.on('pageerror', error => errors.push(error.message));
   await page.addInitScript(() => { window.qaCsp = []; document.addEventListener('securitypolicyviolation', event => window.qaCsp.push(event.effectiveDirective)); });
   await page.goto(`http://127.0.0.1:${info.port}/`); await idle();
-  for (const width of [320, 390, 671, 910, 1084, 1440]) {
+  for (const width of [320, 390, 671, 720, 910, 1084, 1440]) {
     await page.setViewportSize({ width, height: 764 });
     await page.getByRole('button', { name: 'Home', exact: true }).click(); await idle();
     const rows = await page.locator('.app-header nav > .nav-button, .app-header nav > div > .nav-button').evaluateAll(nodes => [...new Set(nodes.map(el => Math.round(el.getBoundingClientRect().y)))]);
@@ -94,6 +94,25 @@ async function enterSubmenu(parent, submenu) {
     // Direct buttons on the second row also remain native click targets.
     await page.getByRole('button', { name: 'Settings', exact: true }).click();
     await expect(page.locator('#view-settings')).toBeVisible();
+    let disclosureDismissal = null;
+    if (width <= 720) {
+      const calculator = page.locator('#calculator-navigation-toggle'), menu = page.locator('#calculator-navigation-menu');
+      const settings = page.locator('nav [data-view="settings"]');
+      // A returned-to workspace can leave its disclosure open. The menu must
+      // receive clicks over the lower row; clicking through would break choices.
+      await calculator.click(); await idle(); await expect(menu).toBeVisible();
+      const menuOwnsSettingsPoint = await settings.evaluate(button => {
+        const box = button.getBoundingClientRect(), hit = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2);
+        return document.getElementById('calculator-navigation-menu').contains(hit);
+      });
+      assert.equal(menuOwnsSettingsPoint, true, 'The foreground disclosure owns its actual overlapping pointer target');
+      await calculator.press('Escape'); await expect(menu).toBeHidden();
+      await settings.click(); await idle(); await expect(page.locator('#view-settings')).toBeVisible();
+      await calculator.hover(); await expect(menu).toBeVisible();
+      await page.mouse.move(0, 0); await expect(menu).toBeHidden();
+      await settings.click(); await expect(page.locator('#view-settings')).toBeVisible();
+      disclosureDismissal = { menuOwnsSettingsPoint, escapeRestoresSettingsClick: true, mouseAwayRestoresSettingsClick: true };
+    }
 
     await page.getByRole('button', { name: 'Home', exact: true }).click(); await idle();
     const cards = page.locator('#view-home .home-card');
@@ -105,7 +124,7 @@ async function enterSubmenu(parent, submenu) {
     }
     await openMenu('calculator-navigation', width);
     await page.screenshot({ path: path.join(output, `stacked-menu-${width}.png`) });
-    evidence.widths.push({ width, rows: rows.length, estimate: true, calculatorSubmenu: true, servicePlansSubmenu: true, library: true, directButton: true, homeCardReticles: 6 });
+    evidence.widths.push({ width, rows: rows.length, estimate: true, calculatorSubmenu: true, servicePlansSubmenu: true, library: true, directButton: true, disclosureDismissal, homeCardReticles: 6 });
     await page.mouse.move(0, 0);
   }
 

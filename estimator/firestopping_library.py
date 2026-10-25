@@ -454,7 +454,8 @@ class FirestoppingLibrary(ReferenceLibrary):
                 if edit and edit['source_sha256'] == source_hash else source_inputs)
         items = {item['id']: item for item in library['items']}
         technical = {item['id']: item for item in data['libraries']['technical']['items']}
-        pairs = {(link['penetration_id'], link['technical_id']) for link in data['links']}
+        link_edges = {(link['penetration_id'], link['technical_id']): link for link in data['links']}
+        pairs = set(link_edges)
         for left, right, left_source, right_source in self.edits.links():
             if left not in items or right not in technical:
                 continue
@@ -462,10 +463,17 @@ class FirestoppingLibrary(ReferenceLibrary):
             if left_source != current_left or right_source != self._technical_source(technical[right], data):
                 items[left]['notice'] = 'A saved manual reference uses another source version and is withheld. Its original provenance is retained for review.'
                 continue
+            manual = {'penetration_id': left, 'technical_id': right,
+                      'relationship': MANUAL_RELATIONSHIP, 'origin': 'user'}
             if (left, right) not in pairs:
-                data['links'].append({'penetration_id': left, 'technical_id': right,
-                                      'relationship': MANUAL_RELATIONSHIP, 'origin': 'user'})
+                data['links'].append(manual)
                 pairs.add((left, right))
+                link_edges[left, right] = manual
+            else:
+                # A new supplier review can select an already saved manual
+                # pair. Keep its validated user provenance visible without
+                # duplicating the edge or changing its database record.
+                link_edges[left, right].update(relationship=MANUAL_RELATIONSHIP, origin='user')
         for left, right, left_source, right_source in self.edits.unlinks():
             if left not in items or right not in technical:
                 continue

@@ -14,6 +14,7 @@ from estimator.catalog import validate_configuration
 from estimator.desktop_seed_content import encoded, export_library_edits, validate_library_edits, empty_library_edits
 from estimator.reference_library import ReferenceLibrary
 from estimator.firestopping_library import empty_library
+from estimator.firefly_reference_review import PLAN_NAME, MAX_PLAN_BYTES, plan_stamp, load_review
 
 
 def regular_path(path, directory=False):
@@ -48,6 +49,20 @@ def prepare(output, library=None, database=None):
         ReferenceLibrary(library)._validate(data)
         # The original index, including required reviewed evidence, stays local.
         (reference / 'library.json').write_bytes(payload)
+        review_stamp = plan_stamp(library)
+        if review_stamp is not None:
+            review = regular_path(library / 'reviews' / PLAN_NAME)
+            with review.open('rb') as incoming:
+                reviewed_payload = incoming.read(MAX_PLAN_BYTES + 1)
+            if len(reviewed_payload) > MAX_PLAN_BYTES:
+                raise ValueError('Factory Firefly review exceeds its size limit.')
+            load_review(library, data, hashlib.sha256(payload).hexdigest(), review_stamp)
+            ReferenceLibrary(library)._validate(data)
+            if review.read_bytes() != reviewed_payload or plan_stamp(library) != review_stamp:
+                raise ValueError('Factory Firefly review changed during validation.')
+            (reference / 'reviews').mkdir()
+            with (reference / 'reviews' / PLAN_NAME).open('xb') as outgoing:
+                outgoing.write(reviewed_payload)
         for records, folder, default_extension in ((data['documents'], 'documents', '.pdf'), (data.get('images', []), 'images', None)):
             (reference / folder).mkdir()
             for record in records:

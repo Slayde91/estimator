@@ -168,6 +168,30 @@ class ServerTests(unittest.TestCase):
                 self.assertEqual(headers['Content-Type'], 'image/png')
                 self.assertEqual(body, path.read_bytes())
 
+    def test_header_menu_sounds_have_exact_bytes_and_audio_mime_without_wider_file_access(self):
+        import hashlib
+        expected = {
+            'mgs1-menu-move.mp3': (8313, 'ac2d686c78fa5dabc2415a0f3b39f4ced124f5fc1613ba3918e06daa7b47f8d0'),
+            'mgs-confirm2.mp3': (32391, 'e9e7e156e24a4fde706f922ee135e88df51dc5ba94eed6344e66bbd6298e3e86'),
+        }
+        for name, (size, digest) in expected.items():
+            with self.subTest(name=name):
+                status, headers, body = self.request('GET', '/sounds/' + name)
+                self.assertEqual(status, 200)
+                self.assertEqual(headers['Content-Type'], 'audio/mpeg')
+                self.assertEqual(headers['X-Content-Type-Options'], 'nosniff')
+                self.assertEqual(body, (ROOT / 'static/sounds' / name).read_bytes())
+                self.assertEqual(len(body), size)
+                self.assertEqual(hashlib.sha256(body).hexdigest(), digest)
+                self.assertNotIn('unsafe-inline', headers['Content-Security-Policy'])
+        status, headers, body = self.request('GET', '/header-menu-sounds.js')
+        self.assertEqual(status, 200)
+        self.assertEqual(headers['Content-Type'], 'text/javascript; charset=utf-8')
+        self.assertEqual(body, (ROOT / 'static/header-menu-sounds.js').read_bytes())
+        for route in ('/sounds/other.mp3', '/sounds/../app.js', '/sounds/%2e%2e/app.js', '/sounds/'):
+            with self.subTest(route=route):
+                self.assertEqual(self.request('GET', route)[0], 404)
+
     def test_official_logo_is_served_unchanged_with_image_content_type(self):
         status, headers, body = self.request("GET", "/ceasefire-logo.png")
         self.assertEqual(status, 200)

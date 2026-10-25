@@ -174,6 +174,33 @@ class ServicePlansModelTests(unittest.TestCase):
         snapshot['service_plans'] = self.graph()
         with self.assertRaisesRegex(ValidationError, 'distinct across'): validate_snapshot(snapshot)
 
+    def test_service_annotations_are_optional_v3_only_and_preserve_explicit_parent_quantity(self):
+        service = deepcopy(self.service); service['entity']['annotation'] = self.marker
+        result = prepare_changes(self.snapshot, [self.barrier, service], scope='service_plans')['graph']
+        self.assertEqual(result['services'][0]['annotation'], self.marker)
+        self.assertEqual(result['services'][0]['barrier_id'], self.barrier['entity']['id'])
+        self.assertEqual(result['services'][0]['quantity'], 4)
+        before = deepcopy(result)
+        moved = v2.apply(result, {'op': 'update', 'entity_id': service['entity']['id'],
+                                'changes': {'annotation': {**self.marker, 'point': [80, 90]}}})
+        self.assertEqual(moved['services'][0]['quantity'], 4)
+        self.assertEqual(result, before)
+        defect = v2.create('defect'); barrier = v2.create('barrier', defect['entity']['id'])
+        invalid = v2.create('service', barrier['entity']['id']); invalid['entity']['annotation'] = self.marker
+        with self.assertRaises(ValidationError): prepare_changes(self.snapshot, [defect, barrier, invalid])
+        invalid = deepcopy(self.barrier); invalid['entity']['annotation'] = self.marker
+        with self.assertRaises(ValidationError): prepare_changes(self.snapshot, [invalid], scope='service_plans')
+
+    def test_service_annotation_source_bounds_and_legacy_records_remain_strict(self):
+        before = deepcopy(self.snapshot)
+        for patch in ({'document_sha256': 'f'*64}, {'point': [1e12, 0]}, {'page': 999}, {'page': True},
+                      {'point': [float('nan'), 0]}, {'quantity': 1}):
+            service = deepcopy(self.service); service['entity']['annotation'] = {**self.marker, **patch}
+            with self.subTest(patch=patch), self.assertRaises(ValidationError):
+                prepare_changes(self.snapshot, [self.barrier, service], scope='service_plans')
+            self.assertEqual(self.snapshot, before)
+        self.assertNotIn('annotation', self.graph()['services'][0])
+
 
 class ServicePlansWorkspaceTests(unittest.TestCase):
     def setUp(self):
@@ -184,6 +211,27 @@ class ServicePlansWorkspaceTests(unittest.TestCase):
         self.barrier = create(marker=self.marker, frl='-/120/120')
 
     def state(self): return self.service.get(self.sid, verify_evidence=False)
+
+    def test_visual_service_batch_is_atomic_and_stale_preview_cannot_apply(self):
+        self.apply([self.barrier])
+        commands = [create('service', self.barrier['entity']['id'], service='Pipe', quantity=2) for _ in range(3)]
+        for index, command in enumerate(commands):
+            command['entity']['annotation'] = {**self.marker, 'point': [50+index*20, 60]}
+            command['entity']['evidence'] = [{key: value for key, value in self.marker.items() if key != 'point'} |
+                                            {'region': [[40+index*20,50],[60+index*20,50],[60+index*20,70],[40+index*20,70]]}]
+        before = self.state(); broken = deepcopy(commands); broken[-1]['entity']['annotation']['document_sha256'] = 'f'*64
+        with self.assertRaises(ValidationError): self.apply(broken)
+        self.assertEqual(self.state(), before)
+        preview = self.service.preview_physical(self.sid, {'expected_revision': before['revision'], 'scope': 'service_plans', 'commands': commands})
+        self.apply([create(frl='-/60/60')])
+        current = self.state()
+        with self.assertRaises(ValidationError):
+            self.service.apply_physical(self.sid, {'expected_revision': current['revision'], 'scope':'service_plans', 'request_id':str(uuid4()), 'preview_id':preview['preview_id']})
+        self.assertEqual(self.state(), current)
+        result, request = self.apply(commands)
+        self.assertEqual(len(result['snapshot']['service_plans']['services']), 3)
+        self.assertTrue(all(value['quantity'] == 2 and value['annotation']['document_sha256'] == self.marker['document_sha256'] for value in result['snapshot']['service_plans']['services']))
+        self.assertEqual(self.service.apply_physical(self.sid, request), result)
 
     def apply(self, commands, scope='service_plans'):
         preview = self.service.preview_physical(self.sid, {'expected_revision': self.state()['revision'], 'commands': commands, 'scope': scope})
@@ -299,6 +347,34 @@ class ServicePlansProjectTests(unittest.TestCase):
             self.assertEqual(before[key], saved['takeoffs'][key]); self.assertEqual(before[key], reopened['takeoffs'][key])
         for key in ('estimate', 'calculators'):
             self.assertEqual(saved[key], json.loads(case.legacy)[key])
+        case.documents.validate_audit(reopened['takeoffs'])
+
+    def test_service_visual_callout_exports_and_reopens_without_changing_source_or_quantity(self):
+        from estimator.takeoff_markup_exports import _selection
+        case = self.case
+        locator = {**self.marker, 'point': [160, 280],
+                   'callout': {'offset': [35, -20], 'width': 200, 'height': 70}}
+        self.apply([{'op': 'update', 'entity_id': self.pipe['entity']['id'], 'changes': {'annotation': locator}}])
+        before = deepcopy(case.session['snapshot']); source_path = case.documents.document_path(self.doc)
+        original = source_path.read_bytes()
+        selected = _selection(before, 'service_plans', self.doc['id'])
+        self.assertIn(self.pipe['entity']['id'], selected['item_ids'])
+        payload = self.export(item_ids=[self.pipe['entity']['id']])[0]
+        text = ' '.join(' '.join(page.extract_text().split()) for page in PdfReader(BytesIO(payload)).pages)
+        for expected in ('B-0001', 'S-0001', 'Plan barrier', 'FRL -/120/120', 'Pipe', '3 ×'):
+            self.assertIn(expected, text)
+        self.assertEqual(source_path.read_bytes(), original)
+        self.assertEqual(case.service.get(case.session['session_id'])['snapshot'], before)
+        csv_bytes = export_physical_graph(before['service_plans'], 'csv')[0]
+        details = list(csv.DictReader(StringIO(csv_bytes.decode('utf-8-sig'))))
+        row = next(value for value in details if value['entity_type'] == 'service')
+        self.assertEqual(json.loads(row['annotation_json']), locator)
+        case.library.save_as({**deepcopy(case.base), 'takeoffs': before, 'takeoffs_session_id': case.session['session_id']})
+        case.dialogs.opened = str(case.target); reopened = case.library.open_file()
+        self.assertEqual(reopened['takeoffs_issues'], [])
+        self.assertEqual(reopened['takeoffs']['service_plans'], before['service_plans'])
+        for key in ('estimate', 'calculators'):
+            self.assertEqual(json.loads(case.target.read_bytes())[key], json.loads(case.legacy)[key])
         case.documents.validate_audit(reopened['takeoffs'])
 
     def test_marked_pdf_contains_automatic_summary_and_does_not_mutate_source(self):

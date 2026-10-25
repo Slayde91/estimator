@@ -1,0 +1,16 @@
+.takeoff-search-controls { position: relative; }
+.takeoff-visual-search-panel { position: absolute; top: calc(100% + .5rem); right: 0; z-index: 70; width: min(700px, calc(100vw - 3rem)); max-height: min(72vh, 720px); overflow: auto; padding: 1rem; border: 1px solid var(--border, #465264); border-radius: 12px; background: var(--card, #191f28); box-shadow: 0 12px 40px #0008; }
+.takeoff-visual-heading, .takeoff-visual-options, .takeoff-visual-actions { display: flex; align-items: center; gap: .65rem; flex-wrap: wrap; }
+.takeoff-visual-heading { justify-content: space-between; }
+.takeoff-visual-heading h3 { margin: 0; }
+.takeoff-visual-option { display: inline-flex; align-items: center; gap: .45rem; }
+.takeoff-visual-option input[type=checkbox], .takeoff-visual-result > input { width: 18px; height: 18px; flex: 0 0 auto; }
+.takeoff-visual-option input[type=range] { width: 100px; }
+.takeoff-visual-sample { display: block; max-width: 160px; max-height: 120px; border: 1px solid var(--border, #465264); margin: .75rem 0; background: white; }
+.takeoff-visual-results { display: grid; gap: .45rem; margin-top: .65rem; }
+.takeoff-visual-result { display: flex; align-items: center; gap: .5rem; }
+.takeoff-visual-jump { flex: 1; display: flex; align-items: center; gap: .75rem; text-align: left; min-width: 0; white-space: normal; }
+.takeoff-visual-jump img { width: 64px; height: 52px; object-fit: contain; background: white; flex: 0 0 auto; }
+.takeoff-visual-selection { position: absolute; inset: 0; z-index: 85; cursor: crosshair; touch-action: none; background: #006fff08; }
+.takeoff-visual-selection-box { position: absolute; border: 2px dashed #00aaff; background: #00aaff22; pointer-events: none; }
+@media (max-width: 640px) { .takeoff-visual-search-panel { position: fixed; top: 16%; right: 1rem; left: 1rem; width: auto; max-height: 76vh; } .takeoff-visual-option { width: 100%; } }

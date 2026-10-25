@@ -1,7 +1,7 @@
 "use strict";
 const assert = require("node:assert/strict"), { test } = require("node:test");
 const fs = require("node:fs"), path = require("node:path"), { createHash } = require("node:crypto");
-const { create, sources } = require("../static/header-menu-sounds.js");
+const { create, sources, createFeedback, feedbackSources, createPrinting, printingSource } = require("../static/header-menu-sounds.js");
 
 function target() {
   const events = new Map();
@@ -116,4 +116,153 @@ test("the exact supplied MP3 bytes are retained and the module is loaded before 
   const html = fs.readFileSync(path.join(__dirname, "../static/index.html"), "utf8");
   assert.equal((html.match(/<script src="\/header-menu-sounds\.js" defer><\/script>/g) || []).length, 1);
   assert.ok(html.indexOf('src="/header-menu-sounds.js"') < html.indexOf('src="/app.js"'));
+});
+
+function audioHarness() {
+  const host = target(), document = target(), motion = target(), players = [], calls = [];
+  document.hidden = false; document.takeoffsActive = false;
+  document.body = { classList: { contains(name) { assert.equal(name, "takeoffs-active"); return document.takeoffsActive; } } };
+  motion.matches = false;
+  host.Audio = class {
+    constructor() { Object.assign(this, target()); this.readyState = 4; this.currentTime = 0; this.paused = true; players.push(this); }
+    load() { calls.push(["load", this.src]); }
+    pause() { this.paused = true; }
+    play() {
+      calls.push(["play", this.src, this.currentTime]); this.paused = false;
+      if (this.failure === "throw") throw Error("Decoder failure");
+      if (this.failure === "reject") return Promise.reject(Error("NotAllowedError"));
+      if (this.failure === "pending") return new Promise((resolve, reject) => { this.reject = reject; });
+      return Promise.resolve();
+    }
+  };
+  const menu = { calls: [], stops: 0, play(kind) { this.calls.push(kind); }, stop() { this.stops++; } };
+  return { host, document, motion, players, calls, menu, plays: () => calls.filter(row => row[0] === "play") };
+}
+function element(parent, { control = false, zone = "", brand = false } = {}) {
+  return {
+    parentElement: parent, control, zone, brand, disabled: false, fieldsetDisabled: false, inert: false, attributes: {},
+    matches(selector) { assert.equal(selector, ":disabled"); return this.fieldsetDisabled; },
+    getAttribute(name) { return this.attributes[name] ?? null; },
+    contains(other) { for (let node = other; node; node = node.parentElement) if (node === this) return true; return false; },
+    closest(selector) {
+      for (let node = this; node; node = node.parentElement) {
+        if ((selector.startsWith("button,") && node.control)
+          || (selector === ".app-header .brand" && node.brand)
+          || (selector === ".app-header" && node.zone === "header")
+          || (selector === "#view-home" && node.zone === "home")
+          || (selector === "#view-takeoffs" && node.zone === "takeoff")
+          || (selector === 'dialog, [role="dialog"]' && node.zone === "dialog")
+          || (selector === "[inert]" && node.inert)) return node;
+      }
+      return null;
+    },
+  };
+}
+
+test("delegated feedback covers dynamic buttons, icons and button-like links once in the current event", () => {
+  const h = audioHarness(), controller = createFeedback(h.document, h.host, h.menu);
+  assert.equal(h.players.length, 4); assert.equal(h.plays().length, 0);
+  const button = element(null, { control: true }), icon = element(button), label = element(button);
+  h.document.emit("pointerover", { target: icon, pointerType: "mouse", relatedTarget: null });
+  h.document.emit("pointerover", { target: label, pointerType: "mouse", relatedTarget: icon });
+  assert.deepEqual(h.plays(), [["play", feedbackSources.hover, 0]]);
+  h.document.emit("click", { target: icon, detail: 0, preventDefault() { throw Error("Do not delay the action"); } });
+  assert.equal(h.plays().at(-1)[1], feedbackSources.selectOther);
+  const dynamic = element(null, { control: true });
+  h.document.emit("click", { target: dynamic });
+  assert.equal(h.plays().length, 3); assert.equal(h.players.length, 4);
+  assert.ok(h.menu.stops >= 3, "Ordinary buttons stop the previous header/Home clip");
+  controller.close(); h.document.emit("click", { target: dynamic });
+  assert.equal(h.plays().length, 3); assert.ok(h.players.every(player => player.paused));
+});
+
+test("Home shares header clips, while the logo, Takeoff controls and other-page controls remain distinct", () => {
+  const h = audioHarness(); createFeedback(h.document, h.host, h.menu);
+  const homeButton = element(element(null, { zone: "home" }), { control: true });
+  h.document.emit("pointerover", { target: homeButton, pointerType: "mouse" }); h.document.emit("click", { target: homeButton });
+  assert.deepEqual(h.menu.calls, ["move", "confirm"]); assert.equal(h.plays().length, 0);
+  const header = element(null, { zone: "header" }), headerButton = element(header, { control: true });
+  h.document.emit("pointerover", { target: headerButton, pointerType: "mouse" }); h.document.emit("click", { target: headerButton });
+  assert.equal(h.plays().length, 0); assert.equal(h.menu.calls.length, 2, "Header direct listeners remain the only owner");
+  const logo = element(element(header, { brand: true })); h.document.emit("click", { target: logo });
+  assert.equal(h.plays().at(-1)[1], feedbackSources.explosion); assert.equal(h.menu.calls.length, 2);
+  const takeoff = element(element(null, { zone: "takeoff" }), { control: true }); h.document.emit("click", { target: takeoff });
+  assert.equal(h.plays().at(-1)[1], feedbackSources.select);
+  const outsideDialogButton = element(element(null, { zone: "dialog" }), { control: true }); h.document.takeoffsActive = true;
+  h.document.emit("click", { target: outsideDialogButton }); assert.equal(h.plays().at(-1)[1], feedbackSources.select);
+  h.document.takeoffsActive = false; h.document.emit("click", { target: outsideDialogButton });
+  assert.equal(h.plays().at(-1)[1], feedbackSources.selectOther);
+  h.document.emit("click", { target: element(null, { control: true }) });
+  assert.equal(h.plays().at(-1)[1], feedbackSources.selectOther, "A calculator hub card outside #view-home uses normal feedback");
+});
+
+test("disabled, inert and touch-hover controls stay silent; hidden pages stop their feedback", () => {
+  const h = audioHarness(); createFeedback(h.document, h.host, h.menu);
+  const button = element(null, { control: true });
+  h.document.emit("pointerover", { target: button, pointerType: "touch" });
+  for (const kind of ["disabled", "fieldsetDisabled", "aria", "inert"]) {
+    button.disabled = kind === "disabled"; button.fieldsetDisabled = kind === "fieldsetDisabled";
+    button.attributes["aria-disabled"] = kind === "aria" ? "true" : "false"; button.inert = kind === "inert";
+    h.document.emit("pointerover", { target: button, pointerType: "pen" }); h.document.emit("click", { target: button });
+  }
+  assert.equal(h.plays().length, 0);
+  button.inert = false; h.document.emit("click", { target: button }); assert.equal(h.plays().length, 1);
+  h.document.hidden = true; h.document.emit("visibilitychange"); assert.ok(h.players.every(player => player.paused));
+  h.document.emit("click", { target: button }); assert.equal(h.plays().length, 1);
+  h.document.hidden = false; h.document.emit("click", { target: button }); h.host.emit("pagehide");
+  assert.equal(h.plays().length, 2); assert.ok(h.players.every(player => player.paused));
+});
+
+test("ordinary feedback never queues unloaded audio or replays rejected interactions", async () => {
+  const h = audioHarness(); createFeedback(h.document, h.host, h.menu);
+  const button = element(null, { control: true }), hover = h.players.find(player => player.src === feedbackSources.hover);
+  hover.readyState = 0; h.document.emit("pointerover", { target: button, pointerType: "mouse" });
+  hover.readyState = 4; hover.emit("canplay"); assert.equal(h.plays().length, 0);
+  const select = h.players.find(player => player.src === feedbackSources.selectOther); select.failure = "reject";
+  h.document.emit("click", { target: button }); await Promise.resolve(); assert.equal(select.paused, true);
+  hover.emit("canplay"); assert.equal(h.plays().length, 1);
+  select.failure = "pending"; h.document.emit("click", { target: button });
+  h.document.emit("pointerover", { target: button, pointerType: "mouse" }); select.reject(Error("Old attempt")); await Promise.resolve();
+  assert.equal(hover.paused, false, "A stale select rejection cannot stop the latest hover");
+});
+
+test("printer audio loops only during the active phrase and never starts after it has finished", () => {
+  const h = audioHarness(), printer = createPrinting(h.motion, h.host, h.document), audio = h.players[0];
+  assert.equal(audio.src, printingSource); assert.equal(audio.loop, true); assert.equal(audio.preload, "auto"); assert.equal(h.plays().length, 0);
+  printer.start(); assert.equal(h.plays().length, 1); assert.equal(audio.paused, false);
+  printer.stop(); assert.equal(audio.paused, true); assert.equal(audio.currentTime, 0);
+  audio.readyState = 0; printer.start(); assert.equal(h.plays().length, 1);
+  printer.stop(); audio.readyState = 4; audio.emit("canplay"); assert.equal(h.plays().length, 1, "Readiness after finish cannot replay the phrase");
+  audio.readyState = 0; printer.start(); audio.readyState = 4; audio.emit("canplay"); audio.emit("canplay");
+  assert.equal(h.plays().length, 2, "A still-printing phrase can start once when decoded");
+  printer.stop(); printer.start(); assert.equal(h.plays().length, 3, "A replacement phrase restarts its loop");
+});
+
+test("printer blocks stale promises, reduced motion, hidden documents and pagehide without changing typing", async () => {
+  const h = audioHarness(), printer = createPrinting(h.motion, h.host, h.document), audio = h.players[0];
+  audio.failure = "pending"; printer.start(); const reject = audio.reject;
+  audio.failure = undefined; printer.start(); reject(Error("Old blocked phrase")); await Promise.resolve(); assert.equal(audio.paused, false);
+  h.motion.matches = true; h.motion.emit("change", { matches: true }); assert.equal(audio.paused, true);
+  printer.start(); assert.equal(h.plays().length, 2); h.motion.matches = false;
+  printer.start(); h.document.hidden = true; h.document.emit("visibilitychange"); assert.equal(audio.paused, true);
+  h.document.hidden = false; audio.emit("canplay"); assert.equal(h.plays().length, 3, "Unhiding does not revive a cancelled phrase");
+  audio.failure = "reject"; printer.start(); await Promise.resolve(); audio.emit("canplay");
+  assert.equal(h.plays().length, 4); assert.equal(audio.paused, true, "A blocked phrase has no gesture replay");
+  audio.failure = undefined; printer.start(); h.host.emit("pagehide"); printer.start(); audio.emit("canplay");
+  assert.equal(h.plays().length, 5); assert.equal(audio.paused, true);
+  assert.doesNotThrow(() => createPrinting(null, null).start()); assert.doesNotThrow(() => createFeedback(null, null).close());
+});
+
+test("all five new supplied assets retain their exact bytes", () => {
+  const supplied = {
+    "new-explosion.mp3": [73398, "1ed5c489c6e7ab08caacf1cba198e7aae07cb7a904be51a4800c56eb32512c21"],
+    "hover.mp3": [5015, "052d0d7f3fb41ddb67766dedd8f4c237b46c8b18745dfad0a73a14c8afb6fad5"],
+    "select.mp3": [11520, "60e089eeac138ce5301fb59dc9d649c0404a556499c8f78c15c81a7cdfde1969"],
+    "select-2.mp3": [192768, "37e5c8645aa76e11dc8039545940436ea9201e533b1c946fbc9dfc3845efeb7b"],
+    "mixkit-vintage-dot-printing-1371.wav": [249332, "5c39082dfe0aa5c24cae5faa0ba616bfb1354d8b7686b0b0784fa32689a9decf"],
+  };
+  for (const [name, [size, digest]] of Object.entries(supplied)) {
+    const bytes = fs.readFileSync(path.join(__dirname, "../static/sounds", name));
+    assert.equal(bytes.length, size); assert.equal(createHash("sha256").update(bytes).digest("hex"), digest);
+  }
 });

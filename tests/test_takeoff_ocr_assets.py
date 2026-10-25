@@ -45,11 +45,13 @@ class LocalOCRAssetTests(unittest.TestCase):
         self.assertEqual(manifest['model'], '4.0.0_best_int')
         self.assertEqual(manifest['runtime'], 'local-only')
         self.assertEqual(manifest['authority'], 'approximate-search-only')
-        self.assertEqual(len(manifest['packages']), 3)
+        self.assertEqual(manifest['languages'], ['eng', 'fra', 'deu', 'spa'])
+        self.assertEqual(len(manifest['packages']), 6)
         self.assertTrue(all(entry['source_url'].startswith('https://registry.npmjs.org/') and entry['integrity'].startswith('sha512-') for entry in manifest['packages']))
         required = {'worker.min.js', 'lang/eng.traineddata.gz', 'TESSERACT-JS-LICENSE.md',
                     'CORE-LICENSE.txt', 'MODEL-LICENSE.txt', 'WORKER-NOTICES.txt', 'NOTICE.txt'}
         required.update('core/tesseract-core' + variant + '-lstm.wasm.js' for variant in ('', '-simd', '-relaxedsimd'))
+        required.update('lang/' + code + '.traineddata.gz' for code in ('fra', 'deu', 'spa'))
         self.assertTrue(required <= set(manifest['files']))
         for name, entry in manifest['files'].items():
             with self.subTest(name=name):

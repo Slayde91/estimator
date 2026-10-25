@@ -339,7 +339,8 @@ def export_physical_graph(graph, format, source_names=None, *, confirmation=None
     current = graph['version'] in (2, 3)
     common_headers = {1: COMMON_HEADERS, 2: V2_COMMON_HEADERS, 3: V3_COMMON_HEADERS}[graph['version']]
     details_headers = DETAIL_HEADERS + (('marker_json',) if graph['version'] == 3 or any('marker' in entry for entry in graph['barriers']) else ())
-    if graph['version'] == 2 and any('annotation' in entry for entry in graph['defects']):
+    if ((graph['version'] == 2 and any('annotation' in entry for entry in graph['defects']))
+            or (graph['version'] == 3 and any('annotation' in entry for entry in graph['services']))):
         details_headers += ('annotation_json',)
     if any('library_quantity' in entry for entry in graph['services']):
         details_headers += ('library_quantity_json',)

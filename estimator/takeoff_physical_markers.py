@@ -79,6 +79,12 @@ def barrier_summary(graph, barrier):
     return [*header, *_barrier_lines(graph, barrier)]
 
 
+def service_annotation_summary(graph, service):
+    """One explicit service below its existing barrier, without sibling counts."""
+    barrier = next(value for value in graph['barriers'] if value['id'] == service['barrier_id'])
+    return [_barrier_lines(graph, barrier)[0], service_summary(service)]
+
+
 def defect_annotation(defect, document_id):
     """Read old source regions without rewriting their evidence or graph."""
     if 'annotation' in defect:
@@ -146,6 +152,9 @@ def export_physical_pdf(snapshot, request, documents, *, markup_options=None):
             annotation = defect_annotation(value, document['id'])
             if not value['deleted'] and annotation:
                 callouts[value['id']] = (value, annotation, defect_summary)
+    else:
+        callouts.update({value['id']: (value, value['annotation'], service_annotation_summary)
+                         for value in graph['services'] if not value['deleted'] and value.get('annotation')})
     if (not isinstance(identifiers, list) or len(identifiers) > 10000
             or any(not isinstance(value, str) for value in identifiers)
             or len(identifiers) != len(set(identifiers)) or set(identifiers) - callouts.keys()):
@@ -165,7 +174,7 @@ def export_physical_pdf(snapshot, request, documents, *, markup_options=None):
                            'stroke_width': 5, 'opacity': 1, 'marker_shape': 'circle', 'marker_size': 25,
                            **marker.get('appearance', {})},
             'mark': entity['display_id'], 'physical_summary': summary(graph, entity),
-            'physical_summary_kind': 'defect' if summary is defect_summary else 'barrier',
+            'physical_summary_kind': 'defect' if summary is defect_summary else 'service' if summary is service_annotation_summary else 'barrier',
             'callout': marker.get('callout'),
             'confirmed': False})
     from .takeoff_markup_pdf import export_marked_pdf

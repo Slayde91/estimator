@@ -405,6 +405,11 @@ class DesktopPackagingTests(unittest.TestCase):
         supplied = {
             'sounds/mgs1-menu-move.mp3': (8313, 'ac2d686c78fa5dabc2415a0f3b39f4ced124f5fc1613ba3918e06daa7b47f8d0'),
             'sounds/mgs-confirm2.mp3': (32391, 'e9e7e156e24a4fde706f922ee135e88df51dc5ba94eed6344e66bbd6298e3e86'),
+            'sounds/new-explosion.mp3': (73398, '1ed5c489c6e7ab08caacf1cba198e7aae07cb7a904be51a4800c56eb32512c21'),
+            'sounds/hover.mp3': (5015, '052d0d7f3fb41ddb67766dedd8f4c237b46c8b18745dfad0a73a14c8afb6fad5'),
+            'sounds/select.mp3': (11520, '60e089eeac138ce5301fb59dc9d649c0404a556499c8f78c15c81a7cdfde1969'),
+            'sounds/select-2.mp3': (192768, '37e5c8645aa76e11dc8039545940436ea9201e533b1c946fbc9dfc3845efeb7b'),
+            'sounds/mixkit-vintage-dot-printing-1371.wav': (249332, '5c39082dfe0aa5c24cae5faa0ba616bfb1354d8b7686b0b0784fa32689a9decf'),
         }
         self.assertEqual(STATIC_FILES.count('header-menu-sounds.js'), 1)
         for asset, (size, digest) in supplied.items():

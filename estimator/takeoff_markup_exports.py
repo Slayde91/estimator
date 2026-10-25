@@ -45,6 +45,9 @@ def _selection(snapshot, scope, document_id):
         if graph['version'] == 2:
             identifiers += [value['id'] for value in graph['defects'] if not value['deleted']
                             and defect_annotation(value, document_id)]
+        elif graph['version'] == 3:
+            identifiers += [value['id'] for value in graph['services'] if not value['deleted']
+                            and (value.get('annotation') or {}).get('document_id') == document_id]
     else:
         identifiers = [value['id'] for value in snapshot['items'] if value['mode'] in modes
                        and (value.get('geometry') or {}).get('document_id') == document_id]

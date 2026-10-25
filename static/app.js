@@ -105,6 +105,7 @@
     cursor.hidden = true;
   }
   function finish() {
+    window.CeasefireHeaderTaglineSound?.stop();
     if (closed || motion?.matches) window.CeasefireHeaderTaglineMedia?.stop();
     else if (!complete) window.CeasefireHeaderTaglineMedia?.finish();
     clearTimeout(typingTimer);
@@ -121,6 +122,7 @@
     else finish();
   }
   function close() {
+    window.CeasefireHeaderTaglineSound?.close();
     window.CeasefireHeaderTaglineMedia?.close();
     closed = true;
     finish();
@@ -137,12 +139,13 @@
     displayPhrase();
   }
   function displayPhrase() {
+    window.CeasefireHeaderTaglineSound?.stop();
     clearTimeout(typingTimer); typingTimer = null; stopCursor();
     displayedPhrase = window.CeasefireI18n.translate(phrase);
     label.textContent = displayedPhrase;
     characters = Array.from(displayedPhrase); count = 0; complete = false;
     typed.textContent = ""; cursor.hidden = false;
-    if (motion?.matches) finish(); else { window.CeasefireHeaderTaglineMedia?.start(); typeNext(); }
+    if (motion?.matches) finish(); else { window.CeasefireHeaderTaglineSound?.start(); window.CeasefireHeaderTaglineMedia?.start(); typeNext(); }
   }
   nextPhrase();
   window.addEventListener("ceasefire:languagechange", () => { sizePhrases(); if (!closed) displayPhrase(); });

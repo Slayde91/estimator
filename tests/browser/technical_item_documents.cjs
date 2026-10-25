@@ -65,7 +65,9 @@ async function exported(extension){
       assert.ok(geometry.left>=0&&geometry.right<=width+1,'Technical Document menu fits viewport');assert.ok(geometry.overflow<=1,'Technical details never overflow viewport');
       await page.screenshot({path:path.join(output,`technical-menu-${theme}-${width}.png`)});
       await detail.locator('h3').click();await expect(menu).toBeHidden();
-      const values={};for(const selector of ['.library-related-record .library-record-link','.library-related-record .helper','.library-record-notice','.library-source span','.library-image figcaption']){
+      await expect(detail.locator('.library-related-record .helper')).toHaveCount(0);
+      await expect(detail.locator('.library-record-notice')).toHaveText('Synthetic evidence only; retain every source condition.');
+      const values={};for(const selector of ['.library-related-record .library-record-link','.library-record-notice','.library-source span','.library-image figcaption']){
         values[selector]=await contrast(selector);assert.ok(values[selector].ratio>=4.5,`${theme} ${selector} contrast ${values[selector].ratio}`);
       }
       assert.equal(await detail.locator('.library-image img').first().evaluate(e=>getComputedStyle(e).filter),'none','Retained diagram pixels are not theme tinted');

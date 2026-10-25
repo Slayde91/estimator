@@ -83,7 +83,10 @@ jobs:
       - run: node tests/test_takeoff_parent_controls.cjs
       - run: node tests/test_takeoff_search.cjs
       - run: node --test tests/test_takeoff_ocr.cjs
+      - run: node --test tests/test_takeoff_ocr_layer.cjs
+      - run: node --test tests/test_takeoff_visual_search.cjs
       - run: node tests/test_takeoff_search_ui.cjs
+      - run: node --test tests/test_takeoff_search_tools_ui.cjs
       - run: node tests/test_takeoff_shortcuts_ui.cjs
       - run: node tests/test_takeoff_upload_ui.cjs
       - run: node tests/test_takeoff_annotation_ui.cjs
@@ -103,6 +106,8 @@ jobs:
       - run: npm ci
       - run: npx playwright install --with-deps chromium
       - run: node tests/browser/header_menu_sounds.cjs
+      - run: node tests/browser/ocr_layer.cjs
+      - run: node tests/browser/visual_search.cjs
       - run: node tests/browser/schedule_columns.cjs
       - run: node tests/browser/calculation_queue.cjs
       - run: npm run test:project-library-drafts

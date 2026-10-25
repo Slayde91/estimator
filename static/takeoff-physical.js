@@ -444,6 +444,46 @@
       const entity = { id: root.crypto.randomUUID(), fields: fieldsFromValues(kind, answer, {}, scope()), evidence, uncertainty: { state: "not_assessed", note: "" }, ...(kind === (servicePlans() ? "barrier" : "defect") && answer.confirmation === "confirmed" ? { confirmation: "confirmed" } : {}), ...(parent ? { [parentRelations()[kind][1]]: parent } : {}), ...(kind === "service" ? { quantity: fieldValue(kind, "quantity", answer.quantity) } : {}), ...(marker !== undefined ? { marker: copy(marker) } : {}), ...(annotation !== undefined ? { annotation: copy(annotation) } : {}) };
       if (await perform([{ op: "create", kind, entity }], `Create one draft ${kind}?`, false, true, requireSource)) { await selectEntity(entity.id, false, marker === undefined && !evidence.length); return entity.id; }
     }
+    async function createFromVisualSearch(kind, hits) {
+      ensureEditable(); ensureAvailable();
+      if (!servicePlans() || !["barrier", "service"].includes(kind)) throw new Error("Visual callouts are available in Service Plans only.");
+      if (!Array.isArray(hits) || hits.length < 1 || hits.length > 100) throw new Error("Choose one to 100 reviewed visual matches per batch.");
+      const key = graphKey(), sources = copy(hits), unique = new Set();
+      const requireSources = () => {
+        if (!servicePlans() || graphKey() !== key) throw new Error("The physical draft changed. Review the visual matches again.");
+        for (const hit of sources) {
+          const source = state.snapshot?.documents?.find(value => value.id === hit.document_id);
+          if (!source || source.sha256 !== hit.document_sha256 || !Number.isInteger(hit.page) || hit.page < 1 || hit.page > source.pages.length
+              || !Array.isArray(hit.point) || hit.point.length !== 2 || !hit.point.every(Number.isFinite)
+              || !Array.isArray(hit.region) || hit.region.length !== 4 || hit.region.some(point => !Array.isArray(point) || point.length !== 2 || !point.every(Number.isFinite))) throw new Error("A visual match no longer identifies an exact original PDF location. Search again.");
+        }
+      };
+      requireSources();
+      for (const hit of sources) { const identity = JSON.stringify([hit.document_id, hit.document_sha256, hit.page, hit.point, hit.region]); if (unique.has(identity)) throw new Error("The visual batch contains a repeated source match."); unique.add(identity); }
+      await ensureFieldOptions(kind); ensureAvailable(); requireSources();
+      let parent = null;
+      if (kind === "service") {
+        const selected = selectedBarrier();
+        parent = selected && !selected.deleted ? selected.id : await chooseEntity("barrier", "Choose parent barrier for these services", [...state.index.values()].filter(entry => entry.kind === "barrier" && !entry.entity.deleted));
+        if (!parent) return [];
+        requireSources(); const entry = state.index.get(parent);
+        if (!entry || entry.kind !== "barrier" || entry.entity.deleted) throw new Error("Choose an existing active barrier for the service callouts.");
+      }
+      const fields = fieldDefinitions(null, kind).filter(([name]) => name !== "confirmation");
+      const answer = await ask(`Create ${sources.length} draft ${kind} callouts`, fields,
+        `${sources.length} explicitly checked visual matches will each create one unconfirmed ${kind} record at its exact PDF location.${parent ? `\nAll services belong to existing barrier ${displayId(state.index.get(parent))}. Enter the service quantity for EACH match.` : ""}\nA visual match does not identify a product, fire rating or approved installation. Review the resulting preview before applying the whole batch.`, "Preview selected callouts");
+      if (!answer) return [];
+      requireSources(); const values = fieldsFromValues(kind, answer, {}, scope());
+      const quantity = kind === "service" ? fieldValue("service", "quantity", answer.quantity) : null;
+      const commands = sources.map(hit => {
+        const locator = { document_id: hit.document_id, document_sha256: hit.document_sha256, page: hit.page, point: copy(hit.point), ...(hit.appearance ? { appearance: copy(hit.appearance) } : {}) };
+        return { op: "create", kind, entity: { id: root.crypto.randomUUID(), fields: copy(values), evidence: [{ document_id: hit.document_id, document_sha256: hit.document_sha256, page: hit.page, region: copy(hit.region) }], uncertainty: { state: "not_assessed", note: "" }, ...(kind === "barrier" ? { marker: locator } : { annotation: locator, barrier_id: parent, quantity }) } };
+      });
+      if (!await perform(commands, `Add ${commands.length} reviewed ${kind} callouts?`, false, true, requireSources, "Add selected callouts")) return [];
+      state.selected = new Set(commands.map(command => command.entity.id)); state.inspectedId = null; renderData();
+      await bridge.selection?.([...state.selected], null, false, false);
+      return commands.map(command => command.entity.id);
+    }
     async function createLibraryDraft(library, evidence, annotation, guard, details = {}, marker) {
       if (typeof bridge.libraryCommand !== "function") throw new Error("The project-owned library link bridge is unavailable.");
       const initial = copy(library.import_fields.defect); if (details.draft_location && !initial.location) initial.location = details.draft_location;
@@ -691,6 +731,7 @@
       }
       const barrier = entry.kind === "barrier" ? entry : ancestors(entry, state.index).find(parent => parent.kind === "barrier"); if (!barrier || barrier.entity.deleted) return "";
       const defect = ancestors(barrier, state.index).find(parent => parent.kind === "defect");
+      if (entry.kind === "service" && servicePlans() && entry.entity.annotation) return [barrierLines(barrier)[0], serviceLine(entry)].join("\n");
       return [...(defect ? [defectLine(defect)] : []), ...barrierLines(barrier)].join("\n");
     }
     async function setMarker(id, marker) {
@@ -703,9 +744,9 @@
     async function setAnnotation(id, annotation) {
       await completePendingEdits();
       ensureEditable(); ensureAvailable(); const entry = state.index.get(id);
-      if (!entry || entry.kind !== "defect" || graph().version !== 2 || entry.entity.deleted) throw new Error("Select an active defect for this source annotation.");
+      if (!entry || !((entry.kind === "defect" && graph().version === 2) || (entry.kind === "service" && graph().version === 3)) || entry.entity.deleted) throw new Error("Select an active defect or Service Plans service for this source annotation.");
       requireCurrent(entry); if (Object.hasOwn(entry.entity, "annotation") && sameValue(entry.entity.annotation, annotation)) return false;
-      return perform([{ op: "update", entity_id: id, changes: { annotation: copy(annotation) } }], annotation ? "Move defect source annotation" : "Remove defect source annotation?", false, annotation === null);
+      return perform([{ op: "update", entity_id: id, changes: { annotation: copy(annotation) } }], annotation ? "Move source annotation" : "Remove source annotation?", false, annotation === null);
     }
     async function editField(entry, key, control) {
       ensureAvailable(true); requireCurrent(entry);
@@ -1336,7 +1377,7 @@
     ui.bulkApply = uiMutationButton("Apply to selected", applyBulkValue); ui.bulkConfirm = uiMutationButton("Confirm", () => confirmSelectedRecords("confirmed")); ui.bulkUnconfirm = uiMutationButton("Unconfirm", () => confirmSelectedRecords("unconfirmed")); ui.bulk.append(ui.selection, ui.associate, ui.bulkField, ui.bulkValue, ui.bulkApply, ui.bulkConfirm, ui.bulkUnconfirm, deleteSelection); ui.root.append(ui.bulk);
     ui.table = node("div", "takeoff-register-table"); const addRow = node("div", "takeoff-physical-add-row"); ui.add = mutationButton("+", () => create(servicePlans() ? "barrier" : "defect"), "button secondary takeoff-physical-add-child takeoff-physical-add-defect"); addRow.append(ui.add); addRow.hidden = !servicePlans();
     ui.pagination = node("div", "takeoff-register-controls"); ui.inspector = node("aside", "takeoff-inspector takeoff-physical-inspector"); root.CeasefireI18n.attr(ui.inspector, "aria-label", "Item Details"); ui.root.append(ui.table, addRow, ui.pagination); if (bridge.inspectorContainer) bridge.inspectorContainer.append(ui.inspector); else ui.root.append(ui.inspector); container.replaceChildren(ui.root); renderData(); void safe(loadFieldOptions);
-    return { render, restoreHidden() { state.hidden.clear(); renderData(); bridge.viewChanged?.(hierarchyRows(graph(), state).map(row => row.entity.id), [...state.selected], []); }, select: selectEntity, selectDrawing, clearSelection, create, createFromSelection, setMarker, setAnnotation, deleteDrawing, copyDrawing, pasteDrawing, selectedBarrier, selection: () => [...state.selected], inspectedId: () => inspectedEntry()?.entity.id || null, summary, hover, completePendingEdits, isAutoApplying: () => state.autoRoutine, editRevision: () => state.editRevision, hasUnfinishedChanges: () => !state.destroyed && (state.busy || state.pending.size > 0), destroy() { state.destroyed = true; state.busy = false; cancelAutomatic(); documents.destroy(); documents.root.remove(); inspectorMenu?.destroy(); state.filterDialog?.close("cancel"); container.replaceChildren(); if (bridge.inspectorContainer) ui.inspector.remove(); state.pending.clear(); changed(); } };
+    return { render, restoreHidden() { state.hidden.clear(); renderData(); bridge.viewChanged?.(hierarchyRows(graph(), state).map(row => row.entity.id), [...state.selected], []); }, select: selectEntity, selectDrawing, clearSelection, create, createFromSelection, createFromVisualSearch, setMarker, setAnnotation, deleteDrawing, copyDrawing, pasteDrawing, selectedBarrier, selection: () => [...state.selected], inspectedId: () => inspectedEntry()?.entity.id || null, summary, hover, completePendingEdits, isAutoApplying: () => state.autoRoutine, editRevision: () => state.editRevision, hasUnfinishedChanges: () => !state.destroyed && (state.busy || state.pending.size > 0), destroy() { state.destroyed = true; state.busy = false; cancelAutomatic(); documents.destroy(); documents.root.remove(); inspectorMenu?.destroy(); state.filterDialog?.close("cancel"); container.replaceChildren(); if (bridge.inspectorContainer) ui.inspector.remove(); state.pending.clear(); changed(); } };
   }
 
   const api = { mount, confirmationOwner, effectiveConfirmation, indexGraph, hierarchyRows, hierarchyPage, columnValue, fieldValue, fieldsFromValues, changedFields, bulkCommands, deletionPlan, formatDimensions, parseDimensions, imageEvidence, previewText, commandText };

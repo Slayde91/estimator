@@ -19,6 +19,7 @@ class TakeoffDistributionTests(unittest.TestCase):
                          'docs/TAKEOFFS.md', 'docs/LANGUAGES.md', 'docs/PERLIFOC_ASSESSMENT.md', 'docs/NULLIFIRE_SC902.md', 'docs/FIRETEX_ASSESSMENTS.md',
                           'docs/CALCULATOR_REPORT_UPDATES.md', 'docs/MONOKOTE_DUCT_ASSESSMENT.md',
                           'docs/FIREFLY_REFERENCE_REVIEW.md',
+                          'docs/TAKEOFFS_VISUAL_SEARCH.md', 'docs/LOCAL_OCR_TEXT_LAYERS.md',
                           'scripts/import_promat_spray_assessments.py', 'requirements-import.txt',
                          'estimator/__init__.py', 'static/takeoffs.js', 'data/public.json'):
                 path = root / name; path.parent.mkdir(parents=True, exist_ok=True); path.write_text('')

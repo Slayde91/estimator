@@ -77,6 +77,18 @@ function equalOriginalQuads(actual, expected) {
   });
   page = await context.newPage(); page.setDefaultTimeout(30000); page.on('pageerror', error => errors.push(error.message));
   await page.goto(`http://127.0.0.1:${info.port}/`); await page.waitForFunction(() => window.CeasefireDesktop?.status().ready);
+  // This journey deliberately holds/restarts the recognition worker. Isolate
+  // its engine ownership from the new durable presentation cache; the separate
+  // ocr_layer journey verifies real IndexedDB restoration and cached searches.
+  await page.evaluate(() => {
+    const original = window.CeasefireTakeoffOcrLayer;
+    window.CeasefireTakeoffOcrLayer = Object.freeze({ ...original,
+      create: dependencies => original.create({ ...dependencies, store: {
+        get: async () => null, put: async result => ({ result, persistent: false }),
+      } }),
+    });
+  });
+  evidence.durableCacheIsolatedForForcedRecognition = true;
   await page.getByRole('button', {name: 'Takeoffs', exact: true}).click();
   await expect(page.getByLabel('Include drawing labels', {exact: true})).toBeChecked();
   await page.locator('#takeoff-upload').setInputFiles(info.fixture); await expect(page.locator('.takeoff-page>canvas')).toBeVisible(); await settingsSettled(page);

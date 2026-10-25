@@ -347,6 +347,8 @@
       for (const control of state.ui.pageControls?.querySelectorAll("button,input") || []) control.disabled = value;
       for (const control of state.ui.searchResults?.querySelectorAll("button") || []) control.disabled = value;
       if (state.ui.documentSelect) state.ui.documentSelect.disabled = value || !documents().length;
+      if (state.ui.ocrButton) state.ui.ocrButton.disabled = value || !state.document;
+      state.visualSearch?.sync();
       for (const control of state.ui.tableWrap?.querySelectorAll("input,select") || []) if (!control.closest(".takeoff-register-editor")) control.disabled = value || control.dataset.countReadOnly === "true";
       syncRegisterDeleteControls();
       window.CeasefireI18n.text(state.ui.status, value ? "Working…" : "{0} items · {1} documents · Revision {2}", value ? [] : [items().length, documents().length, state.session?.revision || 0]);
@@ -650,6 +652,7 @@
     ui.searchOcr = node("input"); ui.searchOcr.type = "checkbox"; ui.searchOcr.checked = true; ui.searchOcr.addEventListener("change", () => scheduleSearch());
     const ocrOption = node("label", "takeoff-search-ocr"); window.CeasefireI18n.attr(ocrOption, "title", "Recognize drawing labels locally. Results are approximate; recognition may take up to 60 seconds per page and covers at most eight pages per search."); ocrOption.append(ui.searchOcr, uiNode("span", "", "Include drawing labels"));
     searchAnchor.append(ui.search, ui.searchResults); searchControls.append(searchAnchor, ui.searchScope, ocrOption, uiButton("Search", runSearch), uiButton("Stop search", () => cancelSearch(true, "Search stopped; input, results and highlights cleared.")));
+    installDrawingSearchTools(searchControls);
     document.addEventListener("pointerdown", event => { if (state.active && !searchControls.contains(event.target)) hideSearchResults(); }, { capture: true });
     const viewerTop = ui.viewerTop = node("div", "takeoff-toolbar takeoff-viewer-controls takeoff-viewer-top"); viewerTop.append(scaleAnchor, navigation, searchControls);
     const scaleControls = ui.scaleControls = node("div", "takeoff-toolbar takeoff-scale-controls"); scaleControls.id = "takeoff-scale-controls"; scaleControls.hidden = true; scaleControls.setAttribute("role", "group"); window.CeasefireI18n.attr(scaleControls, "aria-label", "Drawing scale"); scaleControls.append(ui.calibration, ui.tools.calibrate, ui.editCalibration); scaleAnchor.append(scaleControls);
@@ -839,6 +842,8 @@
   async function discardEditor() { await state.physicalUI?.completePendingEdits?.(); await flushSettings(); if (physicalUnfinished()) throw new Error("Apply or discard unfinished physical edits and finish their review first."); if (!state.formDirty && !state.settingsDirty && !state.gesture && !state.points.length && !state.pendingViewport && !state.signatureDraft) { if (state.retraceId || state.exclusionItemId || state.calibrationTarget) cancelTrace(); return true; } if (!await confirm("Discard unfinished edits?", "The item form, settings or current drawing has unapplied changes. Saved takeoff items are retained.", "Discard edits")) return false; state.formDirty = false; state.settingsDirty = false; state.settingsEditor = null; cancelTrace(); return true; }
   function renderData() {
     if (!state.ui) return;
+    state.visualSearch?.sync();
+    if (state.ui.ocrButton) state.ui.ocrButton.disabled = !state.document || state.busy;
     scheduleLinkedThickness();
     refreshNavigation();
     const physical = state.mode === "physical";
@@ -1579,13 +1584,15 @@
     state.ui.overlay.setAttribute("viewBox", `0 0 ${viewport.width} ${viewport.height}`);
     state.ui.overlay.setAttribute("width", String(viewport.width)); state.ui.overlay.setAttribute("height", String(viewport.height));
     positionPdfTextLayer(viewport);
+    state.ocrLayer?.reposition?.();
     if (anchor) { const point = G.transform(anchor.point, viewport.transform); positionPage(anchor.offset[0] - point[0], anchor.offset[1] - point[1]); }
     else positionPage(Math.max(24, (state.ui.viewport.clientWidth - viewport.width) / 2), Math.max(24, (state.ui.viewport.clientHeight - viewport.height) / 2));
     state.ui.zoom.textContent = `${Math.round(state.zoom * 100)}%`; renderOverlay();
   }
   function clearPdfTextSelection() {
     const selection = window.getSelection?.(), container = state.pdfText?.container;
-    if (container && (container.contains(selection?.anchorNode) || container.contains(selection?.focusNode))) selection.removeAllRanges();
+    const recognized = state.ui?.pageWrap?.querySelector?.(".takeoff-ocr-text-layer");
+    if ([container, recognized].some(layer => layer && (layer.contains(selection?.anchorNode) || layer.contains(selection?.focusNode)))) selection.removeAllRanges();
   }
   function clearPdfTextLayer() {
     clearPdfTextSelection(); state.pdfTextGeneration = (state.pdfTextGeneration || 0) + 1;
@@ -1604,7 +1611,8 @@
   function pdfTextProgress() {
     if (state.tool !== "text") return;
     const text = state.pdfText;
-    setProgress(text?.status === "empty" ? "This page has no selectable PDF text. Image-only pages cannot be copied as text."
+    setProgress(state.ui.pageWrap.querySelector?.(".takeoff-ocr-text-layer span") ? "Drag over recognized text to select it, then press Ctrl+C to copy. OCR can contain mistakes; check the original drawing."
+      : text?.status === "empty" ? "This page has no selectable PDF text yet. Use OCR to recognize scanned text."
       : text?.status === "error" ? "PDF text selection is unavailable on this page. The original drawing remains visible."
       : text?.status === "ready" ? "Drag over PDF text to select it, then press Ctrl+C to copy (⌘C on Mac)."
       : "Loading selectable PDF text…");
@@ -1630,6 +1638,7 @@
         text.divs = task.textDivs.filter((div, index) => task.textContentItemsStr[index]);
         text.status = content.items.some(item => item.str?.trim()) ? "ready" : "empty";
         container.dataset.textState = text.status; positionPdfTextLayer(); state.ui.pageWrap.append(container); pdfTextProgress();
+        void state.ocrLayer?.render();
       } catch (error) {
         if (!current()) return;
         text.task?.cancel(); text.container?.remove(); text.container = null; text.status = "error"; pdfTextProgress();
@@ -1641,6 +1650,7 @@
     const endActivity = window.CeasefireActivity?.begin();
     try {
     invalidateSearchContext();
+    if (state.visualSample && state.visualSample.key !== pageDisplayKey()) state.visualSample.cancel();
     cancelQueuedZoom();
     if (!state.ui || !state.document) { clearPdfTextLayer(); ++state.renderId; state.pending?.cancel?.(); state.pending = null; state.displayPage = null; state.displayKey = null; state.viewport = null; if (state.ui) { state.ui.pageWrap.hidden = true; state.ui.empty.hidden = false; } return; }
     const contextKey = JSON.stringify([state.session?.session_id, state.document, state.page, state.mode, pageRotation()]);
@@ -1685,6 +1695,8 @@
       if (!warnings.length) await autoCalibratePage(docId, pageNumber, sessionId, renderId);
       if (renderId === state.renderId && state.tool === "text") void ensurePdfTextLayer();
       if (renderId === state.renderId && state.searchHits.length) void updateSearchGeometry();
+      if (renderId === state.renderId) void state.ocrLayer?.render();
+      state.visualSearch?.sync();
       void renderThumbnails(pdf, renderId, docId);
     } catch (error) {
       if (renderId !== state.renderId || error.name === "RenderingCancelledException") return;
@@ -1726,8 +1738,10 @@
       if (!current() || docId !== state.document || pageNumber !== state.page || sessionId !== state.session?.session_id) return;
       const gutter = Math.max(25, (state.ui.viewerTop?.offsetHeight || 0) + 20, (state.ui.pageControls?.offsetHeight || 0) + 20);
       state.zoom = Math.max(0.05, Math.min((state.ui.viewport.clientWidth - 50) / viewport.width, Math.max(50, state.ui.viewport.clientHeight - gutter * 2) / viewport.height));
+      const expectedRender = state.renderId + 1;
       if (state.displayKey === pageDisplayKey() && state.viewport) { cancelQueuedZoom(); displayViewport(pageViewport(page, state.zoom), null); await renderPage(null, { refine: true }); }
       else await renderPage();
+      if (fitId === state.fitId && expectedRender === state.renderId && docId === state.document && pageNumber === state.page && sessionId === state.session?.session_id && state.displayKey === pageDisplayKey()) return { fitId, renderId: expectedRender, displayKey: state.displayKey };
     } catch (error) { await recordPdfFailure(docId, pageNumber, error, sessionId, true, current); }
   }
   async function zoomBy(factor, cursor) {
@@ -1800,7 +1814,7 @@
     if (tool === "pdf-count") setProgress("Click each marker and enter its length manually. Enter or double-click finishes the count. These marks stay on the PDF and do not add register rows.");
     if (tool === "text") void ensurePdfTextLayer();
   }
-  function cancelTrace() { graphicsUI?.cancel?.(true); initialPagesUI?.cancel(); state.signatureDraft = null; clearPdfTextSelection(); state.physicalPlacementTarget = null; cancelSelectionGesture(); resetCountDraft(); state.pendingViewport = null; state.calibrationTarget = null; state.retraceId = null; state.exclusionItemId = null; state.points = []; state.traceCursor = null; state.markupMenu = null; state.doubleClickEndpointValid = false; state.tool = "select"; if (state.ui) { state.ui.viewport.dataset.tool = "select"; for (const el of state.ui.root?.querySelectorAll("button[data-tool]") || []) el.classList.toggle("takeoff-tool-active", el.dataset.tool === "select"); renderOverlay(); } window.CeasefireProject?.changed?.(); }
+  function cancelTrace() { state.visualSample?.cancel(); graphicsUI?.cancel?.(true); initialPagesUI?.cancel(); state.signatureDraft = null; clearPdfTextSelection(); state.physicalPlacementTarget = null; cancelSelectionGesture(); resetCountDraft(); state.pendingViewport = null; state.calibrationTarget = null; state.retraceId = null; state.exclusionItemId = null; state.points = []; state.traceCursor = null; state.markupMenu = null; state.doubleClickEndpointValid = false; state.tool = "select"; if (state.ui) { state.ui.viewport.dataset.tool = "select"; for (const el of state.ui.root?.querySelectorAll("button[data-tool]") || []) el.classList.toggle("takeoff-tool-active", el.dataset.tool === "select"); renderOverlay(); } window.CeasefireProject?.changed?.(); }
   function resetCountDraft() {
     for (const entry of state.countEntries) clearTimeout(entry.timer);
     state.countGeneration++; state.countEntries = []; state.countDefaultLength = null; state.countFields = null; state.countLastClick = null; state.countFinishing = false; state.countQueue = Promise.resolve(); state.countContinuation = null;
@@ -3293,12 +3307,13 @@
     }
     return null;
   }
-  function physicalDrawingEntity(id) { return [...(physicalGraph()?.barriers || []), ...(physicalGraph()?.defects || [])].find(value => value.id === id && !value.deleted); }
+  function physicalDrawingKind(entity) { return physicalGraph()?.defects?.some(value => value.id === entity.id) ? "defect" : physicalGraph()?.services?.some(value => value.id === entity.id) ? "service" : "barrier"; }
+  function physicalDrawingEntity(id) { return [...(physicalGraph()?.barriers || []), ...(physicalGraph()?.defects || []), ...(physicalGraph()?.services || []).filter(value => value.annotation)].find(value => value.id === id && !value.deleted); }
   function physicalMarkerReference(entity) {
-    return { id: entity.id, kind: physicalGraph()?.defects?.some(value => value.id === entity.id) ? "defect" : "barrier", sessionId: state.session?.session_id, scope: state.physicalScope, documentId: state.document, page: state.page, revision: entity.revision, marker: JSON.stringify(physicalDrawingLocator(entity)) };
+    return { id: entity.id, kind: physicalDrawingKind(entity), sessionId: state.session?.session_id, scope: state.physicalScope, documentId: state.document, page: state.page, revision: entity.revision, marker: JSON.stringify(physicalDrawingLocator(entity)) };
   }
   function physicalMarkerTarget(reference) {
-    const collection = reference.kind === "defect" ? "defects" : "barriers", entity = physicalGraph()?.[collection]?.find(value => value.id === reference.id && !value.deleted), locator = entity && physicalDrawingLocator(entity);
+    const collection = reference.kind === "defect" ? "defects" : reference.kind === "service" ? "services" : "barriers", entity = physicalGraph()?.[collection]?.find(value => value.id === reference.id && !value.deleted), locator = entity && physicalDrawingLocator(entity);
     if (!locator || state.mode !== "physical" || reference.sessionId !== state.session?.session_id || reference.scope !== state.physicalScope || reference.documentId !== state.document || reference.page !== state.page || reference.revision !== entity.revision || reference.marker !== JSON.stringify(locator)) throw new Error("The source annotation or drawing changed. Select the current marker again.");
     return entity;
   }
@@ -3332,7 +3347,7 @@
           if (!marker.callout?.offset) { const pdfScale = Math.hypot(state.viewport.transform[0], state.viewport.transform[1]), point = G.transform(marker.point, state.viewport.transform), box = physicalCalloutBox(current, point, Math.max(pdfScale/(pageMetadata()?.user_unit || 1), 1.2), pdfScale); marker.callout = { ...marker.callout, offset: G.inverse([box.x, box.y], state.viewport.transform).map((number, axis) => number-marker.point[axis]), width: box.width/pdfScale, height: box.height/pdfScale }; }
           marker.callout.appearance = { ...defaults, ...marker.callout.appearance, [def[0]]: value };
         } else marker.appearance = { ...defaults, ...marker.appearance, [def[0]]: value };
-        await (physicalGraph().defects?.some(record => record.id === entity.id) ? controller.setAnnotation(entity.id, marker) : controller.setMarker(entity.id, marker));
+        await (physicalDrawingKind(entity) !== "barrier" ? controller.setAnnotation(entity.id, marker) : controller.setMarker(entity.id, marker));
       }));
     }
     appendAppearanceFields(fields, styleFields);
@@ -3452,7 +3467,7 @@
           const anchor = G.inverse([gesture.box.x, gesture.box.y], state.viewport.transform), pdfScale = Math.hypot(state.viewport.transform[0], state.viewport.transform[1]);
           marker.callout = { ...marker.callout, offset: anchor.map((value, axis) => value - marker.point[axis]), width: gesture.box.width / pdfScale, height: gesture.box.height / pdfScale };
         }
-        await (reference.kind === "defect" ? controller.setAnnotation(entity.id, marker) : controller.setMarker(entity.id, marker));
+        await (reference.kind !== "barrier" ? controller.setAnnotation(entity.id, marker) : controller.setMarker(entity.id, marker));
         await controller.selectDrawing(entity.id, false, false, false);
       }).finally(() => { if (state.gesture === gesture) cancelSelectionGesture(); renderOverlay(); window.CeasefireProject?.changed?.(); });
     };
@@ -3475,7 +3490,7 @@
     try { await ready; } catch (error) { if (state.gesture === gesture) cancelSelectionGesture(); throw error; }
   }
   function renderPhysicalMarker(overlay, entity, selectedIds) {
-    const locator = physicalDrawingLocator(entity), defect = physicalGraph()?.defects?.some(value => value.id === entity.id);
+    const locator = physicalDrawingLocator(entity), defect = physicalDrawingKind(entity) !== "barrier";
     const selected = selectedIds.has(entity.id), gesture = state.gesture?.id === entity.id ? state.gesture : null, moved = gesture?.kind === "physical-marker" && gesture.moved;
     const sourcePoint = locator.point.map((value, axis) => value + (moved ? gesture.delta[axis] : 0)), point = G.transform(sourcePoint, state.viewport.transform);
     const pdfScale = Math.hypot(state.viewport.transform[0], state.viewport.transform[1]), markerScale = pdfScale / (pageMetadata()?.user_unit || 1), radius = Math.max(4, (locator.appearance?.marker_size || 25) * markerScale / 2), scale = Math.max(markerScale, 1.2);
@@ -3517,8 +3532,8 @@
     if (!state.markupMenu?.physical || state.gesture) return;
     const { reference, point } = state.markupMenu;
     try { physicalMarkerTarget(reference); } catch { state.markupMenu = null; return; }
-    const defect = reference.kind === "defect", menu = node("div", "takeoff-control-menu takeoff-markup-menu"); menu.setAttribute("role", "menu"); window.CeasefireI18n.attr(menu, "aria-label", defect ? "Defect annotation actions" : "Barrier marker actions");
-    const remove = button(defect ? "Delete" : "Remove count marker", async () => { requireFinishedEdits(); physicalMarkerTarget(reference); state.markupMenu = null; await (defect ? state.physicalUI.deleteDrawing(reference.id) : state.physicalUI.setMarker(reference.id, null)); renderOverlay(); }); remove.setAttribute("role", "menuitem"); menu.append(remove); appendPlanMenu(overlay, point, menu);
+    const defect = reference.kind === "defect", service = reference.kind === "service", menu = node("div", "takeoff-control-menu takeoff-markup-menu"); menu.setAttribute("role", "menu"); window.CeasefireI18n.attr(menu, "aria-label", defect ? "Defect annotation actions" : service ? "Service annotation actions" : "Barrier marker actions");
+    const remove = button(defect ? "Delete" : service ? "Remove service annotation" : "Remove count marker", async () => { requireFinishedEdits(); physicalMarkerTarget(reference); state.markupMenu = null; await (defect ? state.physicalUI.deleteDrawing(reference.id) : service ? state.physicalUI.setAnnotation(reference.id, null) : state.physicalUI.setMarker(reference.id, null)); renderOverlay(); }); remove.setAttribute("role", "menuitem"); menu.append(remove); appendPlanMenu(overlay, point, menu);
   }
   function samePhysicalLocator(left, right) {
     if (left === right) return true;
@@ -3540,7 +3555,7 @@
     return state.physicalHidden.has(entity.id) || inheritedLibraryBarrierMarker(entity, state.physicalHidden);
   }
   function physicalPageAnnotations(includeHidden = false) {
-    return (physicalGraph()?.defects || []).filter(entity => { const locator = physicalDrawingLocator(entity); return !entity.deleted && (includeHidden || !state.physicalHidden.has(entity.id)) && (state.physicalVisible.has(entity.id) || state.physicalSelected.has(entity.id)) && locator?.document_id === state.document && locator.page === state.page; });
+    return [...(physicalGraph()?.defects || []), ...(physicalGraph()?.services || []).filter(entity => entity.annotation)].filter(entity => { const locator = physicalDrawingLocator(entity); return !entity.deleted && (includeHidden || !state.physicalHidden.has(entity.id)) && (state.physicalVisible.has(entity.id) || state.physicalSelected.has(entity.id)) && locator?.document_id === state.document && locator.page === state.page; });
   }
   function renderPhysicalOverlay(overlay) {
     if (!state.physicalUI) return;
@@ -3554,7 +3569,7 @@
     }
     regions.sort((a, b) => Number(state.physicalSelected.has(b.entity.id)) - Number(state.physicalSelected.has(a.entity.id)));
     for (const { entity, kind, reference } of regions.slice(0, 500)) {
-      const annotation = kind === "Defect" && physicalDrawingLocator(entity);
+      const annotation = ["Defect", "Service"].includes(kind) && physicalDrawingLocator(entity);
       if (annotation && annotation.document_id === state.document && annotation.page === state.page) continue;
       const path = G.polygonPath({ kind: "polygon", points: reference.region, exclusions: [] }, state.viewport.transform), first = G.transform(reference.region[0], state.viewport.transform);
       const shape = svg("path", { d: path, class: `takeoff-shape takeoff-physical-shape${state.physicalSelected.has(entity.id) ? " selected" : ""}${state.physicalHovered === entity.id ? " hovered" : ""}` });
@@ -3570,11 +3585,11 @@
     // The parent's summary already includes its imported barriers/services.
     // Hiding that callout must not resurrect its untouched inherited copy.
     const annotationOwnerIds = new Set(physicalPageAnnotations(true).map(entity => entity.id)), drawnMarkers = markers.filter(entity => !inheritedLibraryBarrierMarker(entity, annotationOwnerIds));
-    const selectedIds = new Set(state.physicalSelected); for (const service of physicalGraph()?.services || []) if (state.physicalSelected.has(service.id)) selectedIds.add(service.barrier_id);
-    drawnMarkers.sort((a, b) => Number(selectedIds.has(a.id)) - Number(selectedIds.has(b.id)));
-    for (const entity of [...annotations, ...drawnMarkers]) renderPhysicalMarker(overlay, entity, selectedIds);
+    const selectedIds = new Set(state.physicalSelected); for (const service of physicalGraph()?.services || []) if (state.physicalSelected.has(service.id) && !physicalDrawingLocator(service)) selectedIds.add(service.barrier_id);
+    const drawings = [...annotations, ...drawnMarkers].sort((a, b) => Number(selectedIds.has(a.id)) - Number(selectedIds.has(b.id)));
+    for (const entity of drawings) renderPhysicalMarker(overlay, entity, selectedIds);
     renderPhysicalMarkerMenu(overlay);
-    state.ui.physicalOverlayStatus.textContent = `${drawnMarkers.length} barrier count markers and ${annotations.length} defect source annotations on this page. ` + (regions.length > 500 ? `Showing 500 of ${regions.length} linked source regions. Select a register record to prioritize its evidence.` : `${regions.length} linked physical source regions.`) + " These are unapproved draft associations; markers do not multiply service quantities.";
+    state.ui.physicalOverlayStatus.textContent = `${drawnMarkers.length} barrier count markers and ${annotations.length} source annotations on this page. ` + (regions.length > 500 ? `Showing 500 of ${regions.length} linked source regions. Select a register record to prioritize its evidence.` : `${regions.length} linked physical source regions.`) + " These are unapproved draft associations; markers do not multiply service quantities.";
   }
   function itemResult(item) { return state.resultMap.get(item.id) || {}; }
   const presentation = () => snapshot()?.drawing_presentation;
@@ -4506,6 +4521,75 @@
       working(false); renderData(); if (state.document) await fitPage();
     }
   }
+  function drawingSearchVisible() { return state.active && !!state.ui && !state.ui.root.closest("[hidden]"); }
+  function drawingSearchContext() {
+    const doc = currentDocument();
+    return { enabled: drawingSearchVisible() && state.mode === "physical" && state.physicalScope === "service_plans", busy: state.busy || state.modal, session_id: state.session?.session_id, project_id: snapshot()?.project_id, revision: state.session?.revision,
+      document_id: doc?.id, document_sha256: doc?.sha256, page: state.page,
+      documents: documents().map(value => ({ id: value.id, sha256: value.sha256, name: value.name, pages: value.pages.map(page => page.page) })) };
+  }
+  async function renderOriginalSearchPage(documentId, pageNumber, { signal, maxPixels = 2400000 } = {}) {
+    const sessionId = state.session?.session_id, source = documentById(documentId), hash = source?.sha256;
+    if (!source || !Number.isInteger(pageNumber) || !source.pages.some(page => page.page === pageNumber) || !Number.isFinite(maxPixels) || maxPixels < 20000 || maxPixels > 2400000) throw new Error("Choose a retained source page for Visual Search.");
+    const current = () => { if (signal?.aborted) throw new DOMException("Visual Search cancelled.", "AbortError"); if (state.session?.session_id !== sessionId || documentById(documentId)?.sha256 !== hash) throw new Error("The source changed during Visual Search."); };
+    current(); const pdf = await pdfDocument(documentId), page = await pdfPage(pdf, documentId, pageNumber, sessionId); current();
+    const natural = page.getViewport({ scale: 1, rotation: 0 });
+    if (![natural.width, natural.height].every(value => Number.isFinite(value) && value > 0)) throw new Error("The source page dimensions are invalid.");
+    const scale = Math.min(2.5, 8192 / Math.max(natural.width, natural.height), Math.sqrt((maxPixels - 10000) / (natural.width * natural.height)));
+    const viewport = page.getViewport({ scale, rotation: 0 }), canvas = node("canvas"); canvas.width = Math.max(1, Math.ceil(viewport.width)); canvas.height = Math.max(1, Math.ceil(viewport.height));
+    if (canvas.width * canvas.height > maxPixels) throw new Error("The source page exceeds the bounded Visual Search render.");
+    const task = page.render({ canvasContext: canvas.getContext("2d"), viewport }), stop = () => task.cancel(); signal?.addEventListener("abort", stop, { once: true });
+    try { await boundedPdf(task.promise, "Rendering original page for Visual Search", stop); current(); return { canvas, viewport: { width: viewport.width, height: viewport.height, transform: [...viewport.transform] } }; }
+    finally { signal?.removeEventListener("abort", stop); }
+  }
+  async function selectVisualSample() {
+    if (state.busy || state.modal) throw new Error("Finish the current operation before selecting a Visual Search example.");
+    await state.physicalUI?.completePendingEdits?.(); requireFinishedEdits();
+    if (!drawingSearchContext().enabled || !state.viewport || state.displayKey !== pageDisplayKey()) throw new Error("Open a Service Plans source page before selecting an example.");
+    state.visualSample?.cancel(); cancelTrace();
+    const key = pageDisplayKey(), source = currentDocument(), page = state.page, viewport = state.viewport, layer = node("div", "takeoff-visual-selection"), box = node("div", "takeoff-visual-selection-box");
+    layer.setAttribute("role", "region"); layer.setAttribute("aria-label", "Select visual search example; drag a rectangle or press Escape to cancel"); layer.tabIndex = 0; layer.append(box); state.ui.pageWrap.append(layer); layer.focus(); setProgress("Drag a rectangle around one symbol. Press Escape to cancel.");
+    return new Promise(resolve => {
+      let start = null, pointerId = null, settled = false;
+      const position = event => { const rect = layer.getBoundingClientRect(); return [Math.max(0, Math.min(rect.width, event.clientX - rect.left)) * viewport.width / rect.width, Math.max(0, Math.min(rect.height, event.clientY - rect.top)) * viewport.height / rect.height]; };
+      const finish = result => { if (settled) return; settled = true; layer.remove(); if (state.visualSample?.key === key) state.visualSample = null; resolve(result); };
+      state.visualSample = { key, cancel: () => finish(null) };
+      layer.addEventListener("keydown", event => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); finish(null); } });
+      layer.addEventListener("pointerdown", event => { event.stopPropagation(); event.preventDefault(); if (event.button !== 0 || start) return; start = position(event); pointerId = event.pointerId; layer.setPointerCapture(pointerId); });
+      layer.addEventListener("pointermove", event => { event.stopPropagation(); if (!start || event.pointerId !== pointerId) return; const end = position(event); box.style.left = `${Math.min(start[0], end[0]) / viewport.width * 100}%`; box.style.top = `${Math.min(start[1], end[1]) / viewport.height * 100}%`; box.style.width = `${Math.abs(end[0] - start[0]) / viewport.width * 100}%`; box.style.height = `${Math.abs(end[1] - start[1]) / viewport.height * 100}%`; });
+      layer.addEventListener("pointerup", event => { event.stopPropagation(); if (!start || event.pointerId !== pointerId) return; if (key !== pageDisplayKey() || source.sha256 !== currentDocument()?.sha256) { finish(null); return; } const end = position(event), x0 = Math.min(start[0], end[0]), y0 = Math.min(start[1], end[1]), x1 = Math.max(start[0], end[0]), y1 = Math.max(start[1], end[1]); if (x1 - x0 < 8 || y1 - y0 < 8) { setProgress("Select an example at least eight screen pixels wide and high."); finish(null); return; } finish({ document_id: source.id, document_sha256: source.sha256, page, region: [[x0, y0], [x1, y0], [x1, y1], [x0, y1]].map(point => G.inverse(point, viewport.transform)) }); });
+      layer.addEventListener("pointercancel", () => finish(null));
+    });
+  }
+  function installDrawingSearchTools(searchControls) {
+    state.ocrLayer = window.CeasefireTakeoffOcrLayer?.create({
+      getContext: () => { const source = currentDocument(); return drawingSearchVisible() && source && state.viewport && state.displayKey === pageDisplayKey() ? { sessionId: state.session?.session_id, documentId: source.id, sha256: source.sha256, pageNumber: state.page, host: state.ui.pageWrap, viewport: state.viewport, sourcePage: state.displayPage, tool: state.tool } : null; },
+      getPages: async scope => { const sessionId = state.session?.session_id, selected = scope === "all" ? documents() : [currentDocument()].filter(Boolean); return selected.flatMap(source => source.pages.filter(metadata => scope !== "page" || metadata.page === state.page).map(metadata => ({ documentId: source.id, sha256: source.sha256, name: source.name, pageNumber: metadata.page, load: async () => { if (state.session?.session_id !== sessionId || documentById(source.id)?.sha256 !== source.sha256) throw new Error("The source changed during OCR."); return pdfPage(await pdfDocument(source.id), source.id, metadata.page, sessionId); } }))); },
+      setProgress,
+      onResult: async () => { await state.ocrLayer?.render(); cancelSearch(false); pdfTextProgress(); },
+    });
+    const openOcr = () => { requireFinishedEdits(); cancelSearch(false); state.visualSearch?.close(); return state.ocrLayer?.open(); };
+    if (state.ocrLayer) { state.ui.ocrButton = uiButton("OCR", openOcr); searchControls.append(state.ui.ocrButton); }
+    state.visualSearch = window.CeasefireTakeoffVisualSearch?.mount(searchControls, {
+      context: drawingSearchContext, selectSample: selectVisualSample, render: renderOriginalSearchPage,
+      focus: focusVisualSearchHit,
+      create: async (kind, hits) => { requireFinishedEdits(); ensurePhysicalUI(); return state.physicalUI.createFromVisualSearch(kind, hits); }, notify: message,
+    });
+    document.addEventListener("keydown", event => { if (drawingSearchVisible() && (event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === "o") { event.preventDefault(); event.stopPropagation(); void safely(openOcr); } }, { capture: true });
+    if (typeof MutationObserver === "function") new MutationObserver(() => { if (!drawingSearchVisible()) { state.visualSample?.cancel(); state.visualSearch?.close(); state.ocrLayer?.close(); } }).observe($("view-takeoffs") || state.ui.root, { attributes: true, attributeFilter: ["hidden"] });
+  }
+  async function focusVisualSearchHit(hit) {
+    requireFinishedEdits();
+    if (state.busy || state.modal || !drawingSearchContext().enabled) throw new Error("Open Service Plans and finish the current operation before viewing a match.");
+    if (documentById(hit.document_id)?.sha256 !== hit.document_sha256) throw new Error("The source for this result has changed.");
+    const generation = state.visualFocusGeneration = (state.visualFocusGeneration || 0) + 1, sessionId = state.session?.session_id, projectId = snapshot()?.project_id;
+    state.document = hit.document_id; state.page = hit.page;
+    const displayKey = pageDisplayKey(), fitted = await fitPage();
+    if (!fitted || generation !== state.visualFocusGeneration || sessionId !== state.session?.session_id || projectId !== snapshot()?.project_id || !drawingSearchContext().enabled || state.busy || state.modal || !state.viewport ||
+        state.document !== hit.document_id || state.page !== hit.page || documentById(hit.document_id)?.sha256 !== hit.document_sha256 || displayKey !== pageDisplayKey() || state.displayKey !== displayKey || fitted.displayKey !== displayKey || fitted.renderId !== state.renderId || fitted.fitId !== state.fitId) return;
+    const centre = G.transform(hit.point, state.viewport.transform);
+    positionPage(state.ui.viewport.clientWidth / 2 - centre[0], state.ui.viewport.clientHeight / 2 - centre[1]);
+  }
   const textSearch = () => window.CeasefireTakeoffSearch;
   function searchContextKey() {
     if (!state.ui || !state.session) return "";
@@ -4667,14 +4751,21 @@
             page = await waitSearch(pdfPage(pdf, doc.id, metadata.page, token.session), token); const content = await readSearchText(page, token, doc, pdf);
             if (!searchCurrent(token)) return;
             checked++; if (!content.items.some(item => item.str?.trim())) empty++;
-            if (token.includeOcr) {
+            const cached = await waitSearch(state.ocrLayer?.getCached({ sha256: doc.sha256, pageNumber: metadata.page }), token);
+            if (!searchCurrent(token)) return;
+            const cachedCurrent = cached && !cached.partial && JSON.stringify(cached.options) === JSON.stringify(state.ocrLayer?.options);
+            if (cachedCurrent) ocrChecked++;
+            if (cached?.partial) ocrNotes.add("Some retained OCR pages are partial; coverage is incomplete.");
+            if (token.includeOcr && !cachedCurrent) {
               const priority = doc.id === token.document ? metadata.page === token.page ? 0 : 1 : 2;
               ocrPages.push({ doc, metadata, priority }); ocrPages.sort((a, b) => a.priority - b.priority);
               if (ocrPages.length > textSearch().OCR_LIMITS.pages) ocrPages.pop();
             }
             const index = textSearch().indexText(content.items), hits = textSearch().find(index, token.query, 500 - state.searchHits.length);
             for (const hit of hits) state.searchHits.push({ ...hit, id: doc.id + ":" + metadata.page + ":" + hit.start + ":" + hit.end, document_id: doc.id, document_name: doc.name, page: metadata.page });
-            if (hits.length) { renderSearchResults(); renderOverlay(); }
+            const retainedHits = cached ? textSearch().findOcr(cached, token.query, hits, 500 - state.searchHits.length) : [];
+            for (const hit of retainedHits) state.searchHits.push({ ...hit, id: "ocr:" + doc.id + ":" + metadata.page + ":" + JSON.stringify(hit.matchQuads), document_id: doc.id, document_name: doc.name, page: metadata.page });
+            if (hits.length || retainedHits.length) { renderSearchResults(); renderOverlay(); }
           } catch (error) {
             if (!searchCurrent(token)) return;
             failed++; if (error.name === "PdfTimeoutError") { timedOut = true; failed += doc.pages.length - metadata.page; await recordPdfFailure(doc.id, metadata.page, error, token.session, false, () => searchCurrent(token)); }
@@ -4714,12 +4805,14 @@
               renderSearchResults(); renderOverlay();
               if (result.inProgress) setProgress(state.searchSummary + " Local OCR: " + doc.name + " · p" + metadata.page + " · " + result.processedTiles + "/" + result.totalTiles + " passes inspected · " + state.searchHits.length + " matches so far. Recognition is still running; coverage is incomplete. Results are approximate.");
             };
-            const result = await waitSearch(state.ocrSearch.recognizePage(page, { sha256: doc.sha256, items: content.items, signal: token.ocrAbort.signal, budget,
+            const result = await waitSearch(state.ocrSearch.recognizePage(page, { sha256: doc.sha256, items: content.items, signal: token.ocrAbort.signal, budget, options: state.ocrLayer?.options,
               onProgress: detail => { if (searchCurrent(token)) setProgress(state.searchSummary + " Local OCR: " + doc.name + " · p" + metadata.page + " · " + (detail.status || "recognizing drawing labels") + (Number.isFinite(detail.progress) ? " " + Math.round(detail.progress * 100) + "%" : "") + ". Recognition is still running; coverage is incomplete. Results are approximate."); },
               onPartial: publishOcr
             }), token);
             if (!searchCurrent(token)) return;
             ocrChecked++;
+            await waitSearch(state.ocrLayer?.retain(result), token);
+            if (!searchCurrent(token)) return;
             if (result.limitedResolution) ocrNotes.add("Recognition resolution was bounded.");
             if (result.partial) ocrNotes.add("Some recognition passes did not finish; OCR coverage is incomplete.");
             for (const reason of result.partialReasons || []) ocrNotes.add(reason);
@@ -4737,7 +4830,7 @@
       token.finished = true; state.searchComplete = true; renderSearchResults(); await updateSearchGeometry();
       if (!searchCurrent(token)) return;
       const fallback = state.searchHits.filter(hit => hit.document_id === state.document && hit.page === state.page && hit.geometry === "text-run-fallback").length;
-      state.searchSummary = "Text search complete: " + checked + "/" + total + " pages inspected · " + state.searchHits.length + " matches · " + empty + " without searchable text · " + failed + " failed." + (token.includeOcr ? " Local OCR: " + ocrChecked + "/" + total + " pages inspected · " + ocrFailed + " failed. Approximate recognition requires visual verification." + (ocrChecked < total ? " OCR coverage is incomplete; current-page labels are prioritized, with at most eight pages and 150 seconds per search." : "") + (ocrNotes.size ? " " + [...ocrNotes].join(" ") : "") : " Drawing-label OCR is off; scanned or outlined labels require visual inspection.") + (limited ? " Stopped at 500 matches; coverage is incomplete." : "") + (fallback ? " " + fallback + " matches have text-run context only; exact word bounds unavailable." : "") + (state.searchHits.some(hit => hit.contextTruncated) ? " Long sentence context is bounded to 800 characters." : "");
+      state.searchSummary = "Text search complete: " + checked + "/" + total + " pages inspected · " + state.searchHits.length + " matches · " + empty + " without searchable text · " + failed + " failed." + (token.includeOcr ? " Local OCR: " + ocrChecked + "/" + total + " pages inspected · " + ocrFailed + " failed. Approximate recognition requires visual verification." + (ocrChecked < total ? " OCR coverage is incomplete; current-page labels are prioritized, with at most eight pages and 150 seconds per search." : "") + (ocrNotes.size ? " " + [...ocrNotes].join(" ") : "") : " Drawing-label recognition is off; previously retained OCR text is still searched. Other scanned labels require visual inspection.") + (limited ? " Stopped at 500 matches; coverage is incomplete." : "") + (fallback ? " " + fallback + " matches have text-run context only; exact word bounds unavailable." : "") + (state.searchHits.some(hit => hit.contextTruncated) ? " Long sentence context is bounded to 800 characters." : "");
       setProgress(state.searchSummary);
     } finally { token.finished = true; token.nativeReady(); }
   }
@@ -4848,7 +4941,7 @@
     const mode = state.mode, scope = state.physicalScope, sessionId = state.session.session_id, revision = state.session.revision, documentId = state.document;
     if (mode === "physical" && !["marked-pdf", "markup-pdf"].includes(format)) throw new Error("Use the physical draft CSV/XLSX export controls for penetration records.");
     if (markupKind !== null && !["current-all", "current-marked", "all-all", "all-marked"].includes(markupKind)) throw new Error("Choose a supported markup PDF download.");
-    const aggregate = markupKind?.startsWith("all-"), pdf = format === "marked-pdf" || format === "markup-pdf", list = mode === "physical" ? state.markupsHidden ? [] : [...(physicalGraph()?.barriers || []), ...(physicalGraph()?.defects || [])].filter(entity => !entity.deleted && !physicalEntityHidden(entity) && physicalDrawingLocator(entity, documentId)?.document_id === documentId) : pdf ? state.markupsHidden ? [] : visibleItems().filter(item => (item.measurement || isCount(item)) && !state.hidden.has(item.id) && item.geometry?.document_id === documentId) : items().filter(item => inWorkspace(item.mode, mode));
+    const aggregate = markupKind?.startsWith("all-"), pdf = format === "marked-pdf" || format === "markup-pdf", list = mode === "physical" ? state.markupsHidden ? [] : [...(physicalGraph()?.barriers || []), ...(physicalGraph()?.defects || []), ...(physicalGraph()?.services || []).filter(entity => entity.annotation)].filter(entity => !entity.deleted && !physicalEntityHidden(entity) && physicalDrawingLocator(entity, documentId)?.document_id === documentId) : pdf ? state.markupsHidden ? [] : visibleItems().filter(item => (item.measurement || isCount(item)) && !state.hidden.has(item.id) && item.geometry?.document_id === documentId) : items().filter(item => inWorkspace(item.mode, mode));
     if (pdf && !documentId && !aggregate) throw new Error("Open the PDF to download its visible markups.");
     if (!list.length && !pdf) throw new Error("There are no items in this takeoff type to download.");
     working(true);
@@ -4913,6 +5006,7 @@
     if (state.pageError?.notice && state.ui?.message?.getAttribute("role") === "alert" && window.CeasefireI18n.source(state.ui.message) === state.pageError.notice) message();
     if (state.ui?.message.hidden) releaseMessageSpace();
     state.graphicHidden = new Set(); state.signatureHidden = new Set(); state.signatureDraft = null; state.annotationHidden = new Set(); state.annotationSelected = null; state.graphicSelected = null; state.signatureSelected = null; state.graphicSelected = null;
+    state.visualSample?.cancel(); state.visualSearch?.close(); state.ocrLayer?.close();
     cancelSearch(true);
     invalidateLinkedThickness();
     state.thicknessFilterNeedsRender = false; state.thicknessFilterEditor = null;

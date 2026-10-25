@@ -7,7 +7,8 @@ const fs = require('node:fs'), path = require('node:path'), crypto = require('no
 const root = path.resolve(__dirname, '../..'), output = path.join(root, '.runtime/browser-qa', `themes-${Date.now()}`);
 fs.mkdirSync(output, { recursive:true });
 const measureAsset='static/icons/takeoff-measure.png',measureSha256='fc053970adcdb00965ae9aba71063f1b659a2391f57a39f8301ed0573f1d8130';
-const assets = ['tests/browser/themes.cjs','static/theme.js','static/theme.css','static/index.html','static/app.js','static/calculators.js','static/takeoffs.js','static/takeoff-physical.js','static/takeoffs.css','static/icons/document.png','static/icons/takeoff-transfer.png','static/icons/takeoff-visibility.png','static/icons/takeoff-callout.png','static/icons/takeoff-legend.png','static/icons/takeoff-colour-wheel.png','static/ceasefire-logo.png',measureAsset];
+const soundPaths=new Set(['/sounds/mgs1-menu-move.mp3','/sounds/mgs-confirm2.mp3','/sounds/hover.mp3','/sounds/select.mp3','/sounds/select-2.mp3','/sounds/checkpoint.ogg','/sounds/new-explosion.mp3','/sounds/mixkit-vintage-dot-printing-1371.wav','/sounds/loading.mp3']);
+const assets = ['tests/browser/themes.cjs','static/theme.js','static/theme.css','static/index.html','static/app.js','static/calculators.js','static/takeoffs.js','static/takeoff-physical.js','static/takeoffs.css','static/header-menu-sounds.js','static/icons/document.png','static/icons/takeoff-transfer.png','static/icons/takeoff-visibility.png','static/icons/takeoff-callout.png','static/icons/takeoff-legend.png','static/icons/takeoff-colour-wheel.png','static/ceasefire-logo.png',measureAsset,...[...soundPaths].map(source=>'static'+source)];
 const hashes = () => Object.fromEntries(assets.map(name => [name,crypto.createHash('sha256').update(fs.readFileSync(path.join(root,name))).digest('hex')]));
 const assetHashes = hashes();
 assert.equal(assetHashes[measureAsset],measureSha256,'Measure retains the exact original user image bytes');
@@ -20,40 +21,41 @@ const ready = new Promise((resolve,reject) => {
   server.stdout.on('data', value => { text+=value; if(text.includes('\n')) { clearTimeout(timer); try { resolve(JSON.parse(text.split('\n')[0])); } catch(error) { reject(error); } } });
   server.once('error',reject); server.once('exit',code => { clearTimeout(timer); reject(Error(`Fixture exited ${code}: ${logs}`)); });
 });
-const errors=[], networkFailures=[], evidence={ themes:[], layouts:[], iconToolbars:[], reloadBoundaries:[], keyboard:false, persistence:false, deniedStorage:false, calculator:false, drawings:false }, mutationRequests=[];
-const pendingRequests=new Set(), requestIds=new WeakMap(), intentionalReloadRequests=new WeakMap();let nextRequestId=0;
+const errors=[], networkFailures=[], evidence={ themes:[], layouts:[], iconToolbars:[], reloadBoundaries:[], audioDocuments:[], keyboard:false, persistence:false, deniedStorage:false, calculator:false, drawings:false }, mutationRequests=[];
+const pendingRequests=new Set(), requestIds=new WeakMap(), requestDocuments=new WeakMap(), intentionalReloadRequests=new WeakMap();let nextRequestId=0,documentGeneration=-1;
 const deliberateReloadLabels=new Set(['theme-preference-persistence','denied-storage-fallback']);
-const soundPaths=new Set(['/sounds/mgs1-menu-move.mp3','/sounds/mgs-confirm2.mp3','/sounds/hover.mp3','/sounds/select.mp3','/sounds/select-2.mp3','/sounds/checkpoint.ogg','/sounds/new-explosion.mp3','/sounds/mixkit-vintage-dot-printing-1371.wav','/sounds/loading.mp3']);
-function permittedReloadCancellation(row,origin) {
-  if(row.failure?.errorText!=='net::ERR_ABORTED'||!deliberateReloadLabels.has(row.reloadBoundary?.label))return false;
-  if(!Number.isSafeInteger(row.requestId)||row.requestId<=0||row.reloadBoundary.requestId!==row.requestId)return false;
-  if(row.method==='POST'&&row.resourceType==='fetch'&&row.url===origin+'/api/calculate')return true;
-  return row.method==='GET'&&row.resourceType==='media'&&[...soundPaths].some(sound=>row.url===origin+sound);
+function cancellationClass(row,origin) {
+  if(row.failure?.errorText!=='net::ERR_ABORTED'||!Number.isSafeInteger(row.requestId)||row.requestId<=0||!Number.isSafeInteger(row.documentGeneration)||row.documentGeneration<0)return null;
+  // A browser may stop fetching media without a decode error. Keep this narrow
+  // transport class separate from the independently proven document reloads.
+  if(row.method==='GET'&&row.resourceType==='media'&&[...soundPaths].some(sound=>row.url===origin+sound))return 'known-media-cancellation';
+  if(row.method==='POST'&&row.resourceType==='fetch'&&row.url===origin+'/api/calculate'&&deliberateReloadLabels.has(row.reloadBoundary?.label)&&row.reloadBoundary.requestId===row.requestId&&row.reloadBoundary.documentGeneration===row.documentGeneration)return 'intentional-reload-calculation-cancellation';
+  return null;
 }
 function checkCancellationGate() {
-  const origin='http://127.0.0.1:43210', base={requestId:1,url:origin+'/sounds/loading.mp3',method:'GET',resourceType:'media',failure:{errorText:'net::ERR_ABORTED'},reloadBoundary:{label:'theme-preference-persistence',requestId:1,markedAt:1}};
-  const accepted=[];
-  for(const label of deliberateReloadLabels) {
-    for(const sound of soundPaths)accepted.push({...base,url:origin+sound,reloadBoundary:{...base.reloadBoundary,label}});
-    accepted.push({...base,url:origin+'/api/calculate',method:'POST',resourceType:'fetch',reloadBoundary:{...base.reloadBoundary,label}});
-  }
-  accepted.push({...base,scenario:'late-terminal-event',failedAt:3,reloadBoundary:{...base.reloadBoundary,completedAt:2}});
+  const origin='http://127.0.0.1:43210', media={requestId:1,documentGeneration:0,url:origin+'/sounds/loading.mp3',method:'GET',resourceType:'media',failure:{errorText:'net::ERR_ABORTED'},reloadBoundary:null};
+  const calculate={...media,url:origin+'/api/calculate',method:'POST',resourceType:'fetch',reloadBoundary:{label:'theme-preference-persistence',requestId:1,documentGeneration:0,markedAt:1}};
+  const mediaAccepted=[...soundPaths].map(sound=>({...media,url:origin+sound}));
+  const calculationAccepted=[...deliberateReloadLabels].map(label=>({...calculate,reloadBoundary:{...calculate.reloadBoundary,label}}));
+  calculationAccepted.push({...calculate,scenario:'late-terminal-event',failedAt:3,reloadBoundary:{...calculate.reloadBoundary,completedAt:2}});
   const rejected=[
-    {...base,scenario:'unmarked-old-document-request',reloadBoundary:null},
-    {...base,scenario:'new-document-request-while-reload-awaits',requestId:2,reloadBoundary:null},
-    {...base,reloadBoundary:{...base.reloadBoundary,requestId:2}}, {...base,requestId:undefined},
-    {...base,requestId:0,reloadBoundary:{...base.reloadBoundary,requestId:0}},
-    {...base,requestId:Number.MAX_SAFE_INTEGER+1,reloadBoundary:{...base.reloadBoundary,requestId:Number.MAX_SAFE_INTEGER+1}},
-    {...base,reloadBoundary:{...base.reloadBoundary,label:'ordinary-navigation'}},
-    {...base,failure:{errorText:'net::ERR_CONNECTION_RESET'}},
-    {...base,resourceType:'fetch'}, {...base,method:'POST'},
-    {...base,url:origin+'/sounds/unknown.mp3'}, {...base,url:'http://127.0.0.1:43211/sounds/loading.mp3'},
-    {...base,url:base.url+'?unexpected=1'}, {...base,url:origin+'/api/calculate'},
-    {...base,url:origin+'/api/calculate',method:'POST',resourceType:'xhr'},
+    {...calculate,scenario:'unmarked-old-document-calculation',reloadBoundary:null},
+    {...calculate,scenario:'new-document-calculation-while-reload-awaits',requestId:2,reloadBoundary:null},
+    {...calculate,reloadBoundary:{...calculate.reloadBoundary,requestId:2}},
+    {...calculate,reloadBoundary:{...calculate.reloadBoundary,documentGeneration:1}},
+    {...calculate,reloadBoundary:{...calculate.reloadBoundary,label:'ordinary-navigation'}},
+    {...calculate,url:calculate.url+'?unexpected=1'}, {...calculate,resourceType:'xhr'},
+    {...media,requestId:undefined}, {...media,requestId:0}, {...media,requestId:Number.MAX_SAFE_INTEGER+1},
+    {...media,documentGeneration:undefined}, {...media,documentGeneration:-1},
+    {...media,failure:{errorText:'net::ERR_CONNECTION_RESET'}},
+    {...media,resourceType:'fetch'}, {...media,method:'POST'},
+    {...media,url:origin+'/sounds/unknown.mp3'}, {...media,url:'http://127.0.0.1:43211/sounds/loading.mp3'},
+    {...media,url:media.url+'?unexpected=1'}, {...media,url:origin+'/api/calculate'},
   ];
-  for(const row of accepted)assert.equal(permittedReloadCancellation(row,origin),true,JSON.stringify(row));
-  for(const row of rejected)assert.equal(permittedReloadCancellation(row,origin),false,JSON.stringify(row));
-  return {accepted:accepted.length,rejected:rejected.length,requestIdentityBinding:'Only Request objects pending immediately before a deliberate reload receive a boundary marker.'};
+  for(const row of mediaAccepted)assert.equal(cancellationClass(row,origin),'known-media-cancellation',JSON.stringify(row));
+  for(const row of calculationAccepted)assert.equal(cancellationClass(row,origin),'intentional-reload-calculation-cancellation',JSON.stringify(row));
+  for(const row of rejected)assert.equal(cancellationClass(row,origin),null,JSON.stringify(row));
+  return {accepted:mediaAccepted.length+calculationAccepted.length,mediaAccepted:mediaAccepted.length,calculationAccepted:calculationAccepted.length,rejected:rejected.length,requestIdentityBinding:'Calculation cancellations require a Request pending immediately before a deliberate reload; known media cancellations are classified separately.'};
 }
 evidence.cancellationGate=checkCancellationGate();
 async function idle() { await page.waitForFunction(() => { const s=window.CeasefireDesktop?.status(); return s?.ready&&!s.busy; }); }
@@ -61,12 +63,13 @@ async function snapshot() {
   return page.evaluate(() => ({ calculators:window.CeasefireCalculators.projectSnapshot(), penetration:window.CeasefirePenetrations.projectSnapshot(), pricing:window.CeasefireProject.configuration(), takeoffs:window.CeasefireTakeoffs.projectSnapshot(), dirty:window.CeasefireDesktop.status().dirty,
     inputs:[...document.querySelectorAll('#view-estimate input,#view-estimate textarea,#view-estimate select')].map(el => [el.id,el.value,el.selectionStart,el.selectionEnd]) }));
 }
-function requestDetails(r) { return {requestId:requestIds.get(r),url:r.url(),method:r.method(),resourceType:r.resourceType()}; }
+function requestDetails(r) { return {requestId:requestIds.get(r),documentGeneration:requestDocuments.get(r),url:r.url(),method:r.method(),resourceType:r.resourceType()}; }
 function watch(target) {
   target.on('pageerror',e => errors.push({message:e.message}));
   target.on('console',m => { if(m.type()==='error') errors.push({message:m.text(),location:m.location()}); });
   target.on('request',r => {
-    requestIds.set(r,++nextRequestId);pendingRequests.add(r);
+    if(r.isNavigationRequest()&&r.frame()===target.mainFrame())documentGeneration++;
+    requestIds.set(r,++nextRequestId);requestDocuments.set(r,documentGeneration);pendingRequests.add(r);
     if(!['GET','HEAD'].includes(r.method()))mutationRequests.push({method:r.method(),url:r.url()});
   });
   target.on('requestfinished',r => pendingRequests.delete(r));
@@ -77,13 +80,29 @@ function watch(target) {
 }
 async function deliberateReload(label) {
   assert.ok(deliberateReloadLabels.has(label));
-  const boundary={label,markedAt:Date.now(),pending:[...pendingRequests].map(requestDetails)};
+  await checkAudioErrors();
+  const boundary={label,documentGeneration,markedAt:Date.now(),pending:[...pendingRequests].map(requestDetails)};
   // Bind actual old-document Request identities before reload, with no await in
   // between. Late terminal events keep their marker; new requests never get it.
-  for(const request of pendingRequests)if(!intentionalReloadRequests.has(request))intentionalReloadRequests.set(request,{label,markedAt:boundary.markedAt,requestId:requestIds.get(request)});
+  for(const request of pendingRequests)if(!intentionalReloadRequests.has(request))intentionalReloadRequests.set(request,{label,markedAt:boundary.markedAt,requestId:requestIds.get(request),documentGeneration:requestDocuments.get(request)});
   evidence.reloadBoundaries.push(boundary);
   try { await page.reload({waitUntil:'networkidle'}); }
   finally { boundary.completedAt=Date.now(); }
+  await observeAudioDocument(label);
+}
+async function checkAudioErrors() {
+  const current=await page.evaluate(()=>window.themeAudioErrors);
+  const document=evidence.audioDocuments.find(row=>row.generation===documentGeneration);
+  if(document){document.errors=current;document.errorsObservedAt=Date.now();}
+  assert.deepEqual(current,[],'Native audio errors must not be hidden by transport cancellation classification');
+}
+async function observeAudioDocument(label) {
+  await page.waitForFunction(()=>window.themeAudioErrors.length>0||(window.themeAudio.length===9&&window.themeAudio.every(audio=>audio.readyState>=2&&!audio.error&&Number.isFinite(audio.duration)&&audio.duration>0)),null,{timeout:30000});
+  const state=await page.evaluate(()=>({timeOrigin:performance.timeOrigin,observedAt:Date.now(),errors:window.themeAudioErrors,media:window.themeAudio.map(audio=>({source:new URL(audio.currentSrc||audio.src).pathname,url:audio.currentSrc||audio.src,readyState:audio.readyState,duration:audio.duration,error:audio.error?.code||null,preload:audio.preload}))}));
+  evidence.audioDocuments.push({generation:documentGeneration,label,...state});
+  assert.deepEqual(state.media.map(row=>row.source).sort(),[...soundPaths].sort(),'All nine real audio elements must be observed');
+  assert.deepEqual(state.errors,[]);
+  assert.ok(state.media.every(row=>row.readyState>=2&&row.error===null&&Number.isFinite(row.duration)&&row.duration>0&&row.preload==='auto'),'Every real clip must decode successfully');
 }
 async function settings() { await page.locator('nav [data-view="settings"]').click(); await idle(); }
 async function theme(id) {
@@ -131,9 +150,20 @@ async function readableMidnightIcon(control) {
   const fixture=await ready; assert.notEqual(fixture.port,8765);
   browser=await chromium.launch({ headless:true });
   const context=await browser.newContext({ viewport:{ width:1146,height:1000 }, reducedMotion:'reduce' });
-  await context.addInitScript(() => { window.themeCsp=[]; document.addEventListener('securitypolicyviolation',e => window.themeCsp.push(e.effectiveDirective)); });
+  await context.addInitScript(paths => {
+    window.themeCsp=[];document.addEventListener('securitypolicyviolation',e=>window.themeCsp.push(e.effectiveDirective));
+    window.themeAudio=[];window.themeAudioErrors=[];
+    const load=HTMLMediaElement.prototype.load;
+    HTMLMediaElement.prototype.load=function(...args) {
+      if(paths.some(source=>this.src===location.origin+source)&&!window.themeAudio.includes(this)) {
+        window.themeAudio.push(this);
+        this.addEventListener('error',()=>window.themeAudioErrors.push({source:this.currentSrc||this.src,code:this.error?.code||null,message:this.error?.message||''}));
+      }
+      return Reflect.apply(load,this,args);
+    };
+  },[...soundPaths]);
   page=await context.newPage(); watch(page);
-  await page.goto(`http://127.0.0.1:${fixture.port}`,{waitUntil:'networkidle'}); await idle();
+  await page.goto(`http://127.0.0.1:${fixture.port}`,{waitUntil:'networkidle'}); await idle();await observeAudioDocument('initial');
   await settings(); await expect(page.locator('#theme-toggle')).toHaveAccessibleName('Theme: CLASSIFIRE. Next theme: Midnight.');
   await page.getByRole('button',{name:'Estimates',exact:true}).click(); await idle();
   await expect(page.locator('#project-no')).toBeVisible();
@@ -240,8 +270,12 @@ async function readableMidnightIcon(control) {
   await page.addInitScript(() => Object.defineProperty(window,'localStorage',{get(){throw new DOMException('Denied','SecurityError');}}));
   await deliberateReload('denied-storage-fallback'); await expect(page.locator('html')).toHaveAttribute('data-theme','ceasefire'); await settings(); await page.locator('#theme-toggle').click(); await expect(page.locator('html')).toHaveAttribute('data-theme','midnight'); evidence.deniedStorage=true;
   assert.deepEqual(hashes(),assetHashes,'Source assets must remain unchanged during QA'); assert.deepEqual(errors,[]);
-  const rejectedFailures=networkFailures.filter(row=>!permittedReloadCancellation(row,`http://127.0.0.1:${fixture.port}`));
-  assert.deepEqual(rejectedFailures,[],'Only exact pending media/calculation requests cancelled by deliberate disposable reload are permitted. Actual failures: '+JSON.stringify(networkFailures));
-  console.log(JSON.stringify({reloadCancellationGate:evidence.cancellationGate,expectedReloadCancellationCount:networkFailures.length,expectedReloadCancellations:networkFailures.slice(0,32)}));
+  await checkAudioErrors();
+  assert.deepEqual(evidence.audioDocuments.map(row=>row.generation),[0,1,2],'All three real documents must have error-free decoded media');
+  const decodedDocuments=new Set(evidence.audioDocuments.map(row=>row.generation));
+  evidence.cancellationClassifications=networkFailures.map(row=>({requestId:row.requestId,documentGeneration:row.documentGeneration,classification:cancellationClass(row,`http://127.0.0.1:${fixture.port}`)}));
+  const rejectedFailures=networkFailures.filter((row,index)=>!evidence.cancellationClassifications[index].classification||!decodedDocuments.has(row.documentGeneration));
+  assert.deepEqual(rejectedFailures,[],'Only exact known media cancellations with decoded audio, or proven reload calculation cancellations, are permitted. Actual failures: '+JSON.stringify(networkFailures));
+  console.log(JSON.stringify({cancellationGate:evidence.cancellationGate,cancellationCount:networkFailures.length,cancellationClassifications:evidence.cancellationClassifications.slice(0,32),cancelledRequests:networkFailures.slice(0,32),audioDocuments:evidence.audioDocuments.map(row=>({generation:row.generation,label:row.label,decoded:row.media.length,errors:row.errors}))}));
   fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,assetHashes,evidence,errors,networkFailures,mutationRequests,fixturePort:fixture.port},null,2)); console.log(`PASS themes: ${output}`);
 })().catch(async error => { console.error(error); if(page) await page.screenshot({path:path.join(output,'failure.png'),fullPage:true}).catch(()=>{}); fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:false,error:String(error),assetHashes,evidence,errors,networkFailures,serverExit},null,2)); process.exitCode=1; }).finally(async () => { fs.writeFileSync(path.join(output,'server.log'),logs); if(browser) await browser.close(); server.kill(); });

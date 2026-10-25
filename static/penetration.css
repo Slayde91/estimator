@@ -157,3 +157,6 @@
 .penetration-field-pair>.field{min-width:0}
 
 .penetration-fields textarea{min-height:46px;resize:vertical;overflow-y:auto}
+.penetration-schedule-recalculate-tools>.schedule-column-chooser{margin-inline-start:auto}
+.penetration-schedule table[data-column-choices]{min-width:0}
+.penetration-schedule [data-schedule-column][hidden],.penetration-schedule table[data-column-choices][hidden]{display:none!important}

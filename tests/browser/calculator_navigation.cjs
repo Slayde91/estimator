@@ -95,7 +95,7 @@ async function workbook(title) {
     await page.locator('#calculator-pages').getByRole('button',{name:'SCHEDULE',exact:true}).click();await expect(page.locator('#calculator-grid')).toHaveAttribute('aria-busy','false',{timeout:60000});
     const table=page.locator('.calculator-schedule-table'),headers=await table.getByRole('columnheader').allTextContents();
     assert.equal(headers[0],'Line');assert.ok(!headers.includes('Row'));
-    if(title==='Steel (board)'){assert.ok(!headers.includes('Waste (%)'));await expect(table.locator('[data-calculator-cell^="L"]')).toHaveCount(0);}
+    if(title==='Steel (board)'){await expect(table.getByRole('columnheader',{name:'Waste (%)',exact:true})).toBeVisible();await expect(table.locator('[data-calculator-cell="L9"]')).toBeVisible();}
     else if(title==='Duct'){assert.deepEqual(headers.slice(1,10),['Duct size W x H (mm)','Length (m)','Quantity','FRL — compartment / duct*','Fire exposure / FyreWrap application','Orientation','Product','Wall penetrations','Floor penetrations']);}
     assert.equal(headers.at(-1),'Actions');
     const first=table.locator('tbody tr[data-source-row]').first(),deleteButton=first.getByRole('button',{name:/Delete line/});

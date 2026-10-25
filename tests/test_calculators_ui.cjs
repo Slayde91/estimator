@@ -569,6 +569,10 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
   assert.equal(privateCard.children[1].textContent,'Supplied assessment');
   assert.equal(privateCard.children[1].href,undefined); passed++;
 
+  // The approved browser caption uses the exact unit; raw source/user text stays exact.
+  entry=setup({CALCULATOR:{A9:'Board net (m2)'}});const boardCaptionSource={rows:[{row:8,cells:[{column:31,address:'AE8',value:'Board net (m2)'}]}]},boardCaptionBefore=JSON.stringify(boardCaptionSource);
+  assert.equal(audit.headerLabels(entry,boardCaptionSource)[31],'Board net (m²)');assert.equal(JSON.stringify(boardCaptionSource),boardCaptionBefore);assert.equal(audit.sourceDisplayText(entry.inputs.CALCULATOR.A9,entry,'A9'),'Board net (m2)');passed++;
+
   // Only explicit directions in their identified source cells receive business labels.
   entry=setup();const warning='No quantity: wastage must be between 0% and 100%. Check L, or the default on SETTINGS when L is blank.';
   assert.match(audit.sourceDisplayText(warning,entry,'AI9'),/Check Waste \(%\).*Default wastage/);
@@ -735,10 +739,10 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
   await audit.calculate();assert.equal(renderedControls()[0],derived);assert.equal(derived.value,'3.25');
   await derived.emit('focus');assert.equal(derived.value,'3.24689');assert.deepEqual(copy(entry.inputs),{});passed++;
 
-  // Worksheet calls request a bounded view while retaining saved hidden inputs.
+  // Registers request every supported column in a bounded row view, retaining saved inputs.
   entry=setup({CALCULATOR:{B9:2,M9:'Saved optional layout'}});let worksheetBody;
   audit.setRender(()=>{});audit.setRequest(async(path,options)=>{assert.match(path,/\/worksheet$/);worksheetBody=JSON.parse(options.body);return result();});
-  await audit.calculate();assert.deepEqual(worksheetBody,{inputs:{CALCULATOR:{B9:2,M9:'Saved optional layout'}},sheet:'CALCULATOR',include_advanced:false,schedule_view:{offset:0,limit:60}});passed++;
+  await audit.calculate();assert.deepEqual(worksheetBody,{inputs:{CALCULATOR:{B9:2,M9:'Saved optional layout'}},sheet:'CALCULATOR',include_advanced:true,schedule_view:{offset:0,limit:60}});passed++;
 
   // Schedule summaries retain relationships and zero values; the scope-block metric is display-only removed.
   entry=setup();entry.definition.id='steel_vermiculite';entry.sheet='SCHEDULE';
@@ -909,6 +913,26 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
     output.children[0].focus=()=>{refocused=true;};await byId('calculator-basis-dialog').close('close');assert.equal(refocused,true);
     assert.equal(JSON.stringify(entry.inputs),immutableInputs);assert.notEqual(JSON.stringify(entry.result),immutableResult,'only the synthetic response was intentionally replaced');
     assert.equal(cells[4].value,'Updated full qualification retained verbatim.');passed++;
+  }
+  // Real owned translation terms are objects. Missing-field labels must be
+  // readable strings, with duplicate labels removed before the preview joins.
+  entry=setup({SCHEDULE:{A10:'Retained exact mark'}});entry.definition.id='steel_vermiculite';entry.sheet='SCHEDULE';entry.definition.schedule={sheet:'SCHEDULE',first_row:10,last_row:1009,header_row:9};
+  const requiredNote={column:25,address:'Y10',value:'Retain this exact source qualification.',calculated:true};
+  entry.result={sheet:'SCHEDULE',rows:[{row:10,cells:[{column:2,required_missing:true,label:'Product'},{column:4,required_missing:true,label:'Length (m)'},{column:5,required_missing:true,label:'Product'},requiredNote]}]};
+  const requiredBefore=JSON.stringify({inputs:entry.inputs,result:entry.result}),requiredOutput=element('td');audit.updateOutputCell(requiredOutput,requiredNote);const requiredPreview=requiredOutput.children.find(node=>node.tagName==='button');
+  assert.match(requiredPreview.textContent,/^Review required: Product, Length \(m\)/);assert.doesNotMatch(requiredPreview.textContent,/\[object Object\]/);await requiredPreview.emit('click');assert.ok(byId('calculator-basis-full').textContent.includes(requiredNote.value));await byId('calculator-basis-dialog').close('close');assert.equal(JSON.stringify({inputs:entry.inputs,result:entry.result}),requiredBefore);passed++;
+
+  // Restored duct fixing/application notes retain complete literal source text
+  // in the existing dialog rather than stretching every input in the row.
+  for(const [column,address] of [[38,'AL11'],[42,'AP11']]){
+    entry=setup({CALCULATOR:{B11:'300 x 200',D11:10.123456789}});entry.definition.id='ductwork';entry.sheet='CALCULATOR';
+    entry.definition.schedule={sheet:'CALCULATOR',first_row:11,last_row:1010,header_row:10};
+    const fullNote='Retain the complete installation qualification. '+('Source requirement and limitation; '.repeat(20))+'<img src=x onerror=alert(1)> remains literal.';
+    const cell={column,address,value:fullNote,calculated:true};entry.result={sheet:'CALCULATOR',rows:[{row:11,cells:[cell]}]};
+    const beforeInputs=JSON.stringify(entry.inputs),beforeResult=JSON.stringify(entry.result),output=element('td');audit.updateOutputCell(output,cell);
+    const preview=output.children.find(node=>node.tagName==='button');assert.ok(preview);assert.ok(preview.textContent.length<130);assert.equal(preview.getAttribute('aria-haspopup'),'dialog');
+    await preview.emit('click');assert.equal(byId('calculator-basis-full').textContent,fullNote);assert.ok(!byId('calculator-basis-full').children.some(node=>node.tagName==='img'));
+    await byId('calculator-basis-dialog').close('close');assert.equal(JSON.stringify(entry.inputs),beforeInputs);assert.equal(JSON.stringify(entry.result),beforeResult);passed++;
   }
   entry=setup();entry.definition.id='steel_intumescent';entry.definition.pages=['SCHEDULE','SUMMARY','SETTINGS'];
   assert.deepEqual(copy(audit.displayPages(entry.definition)).map(page=>page.label),['SCHEDULE','SUMMARY','SETTINGS']);
@@ -1260,6 +1284,12 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
   const wasteDownloads=[];audit.setFetch(async(url,options)=>{wasteDownloads.push(JSON.parse(options.body).inputs);return fileSaved(url.endsWith('.pdf')?'APPENDIX A.pdf':'APPENDIX A.xlsx');});
   await audit.downloadSchedulePdf();await audit.downloadExcelRegister();assert.equal(wasteDownloads.length,2);for(const captured of wasteDownloads)assert.deepEqual(captured,retainedWaste);
   assert.deepEqual(copy(entry.inputs),retainedWaste);assert.equal(entry.saved,wasteSaved);passed++;
+  // An explicit register universe supersedes source/browser column hides only
+  // inside schedule rows; stored waste and advanced inputs are not rewritten.
+  entry.result.register_columns=boardWasteColumns;
+  realRender(entry);
+  assert.ok(renderedControls().some(control=>control.dataset.calculatorCell==='L9'));
+  assert.deepEqual(copy(entry.inputs),retainedWaste);assert.equal(entry.saved,wasteSaved);passed++;
 
   // Spray schedule presentation moves inputs without changing their source addresses or returned workbook data.
   entry=setup({SCHEDULE:{A10:'First member',E10:'Hp/A',G10:123.456789012345,AA1009:'Last location'}});
@@ -1282,6 +1312,11 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
   await sprayFactor.emit('focus');assert.equal(sprayFactor.value,'123.456789012345');sprayFactor.value='321.123456789012';await sprayFactor.emit('input');await sprayFactor.emit('blur');
   assert.equal(entry.inputs.SCHEDULE.G10,321.123456789012);assert.equal(entry.inputs.SCHEDULE.AA1009,'Last location');
   assert.equal(JSON.stringify(entry.definition),sprayDefinition);assert.equal(JSON.stringify(entry.result),spraySource);passed++;
+  const expandedInputs=JSON.stringify(entry.inputs);
+  entry.result.register_columns=[26,27,...sprayColumns.slice(0,25)];realRender(entry);
+  assert.equal(renderedTable().children[1].children[0].children.length,27);
+  for(const column of ['V','W','X'])assert.ok(descendants(byId('calculator-grid')).some(node=>node.dataset?.calculatorOutput===`${column}10`));
+  assert.equal(JSON.stringify(entry.inputs),expandedInputs);assert.equal(JSON.stringify(entry.definition),sprayDefinition);passed++;
 
   // Browser text overrides cover headers and contents, while omitted titles,
   // raw data and output-state classification stay unchanged.
@@ -1650,7 +1685,7 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
   const virtualPanels=()=>byId('calculator-grid').children.filter(node=>node.className==='calculator-settings-panel');
   const virtualOutputs=()=>byId('calculator-grid').querySelectorAll('[data-calculator-output]').map(node=>node.dataset.calculatorOutput);
   assert.equal(entry.page,'SCHEDULE');assert.equal(entry.sheet,'SCHEDULE');assert.equal(byId('calculator-sheet-title').textContent,'SCHEDULE');
-  assert.deepEqual(byId('calculator-pages').children.map(button=>button.textContent),['SCHEDULE','SUMMARY','SETTINGS']);
+  assert.deepEqual(byId('calculator-pages').children.filter(button=>button.className==='calculator-page').map(button=>button.textContent),['SCHEDULE','SUMMARY','SETTINGS']);
   assert.equal(virtualButtons().length,0);assert.equal(renderedControls().length,0);
   await audit.selectPage('START');assert.equal(entry.page,'SCHEDULE');
   assert.deepEqual(copy(entry.inputs),virtualInputs);assert.deepEqual(copy(entry.definition.pages),['CALCULATOR','SCHEDULE','BAGS','SETTINGS']);passed++;

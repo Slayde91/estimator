@@ -303,8 +303,22 @@ class MonokoteHollowTests(unittest.TestCase):
         for inputs in controls:
             original = WorkbookEngine(source_model('steel_vermiculite'), inputs)
             engine = self.engine(inputs)
+            # CAFCO now has its own current assessment route. Keep this
+            # Monokote layer's fallback oracle independent of that new route.
+            fallback = (policy.MonokoteHollowEngine(source_model('steel_vermiculite'), inputs,
+                                                   assessment=policy.load_assessment())
+                        if inputs['SCHEDULE']['B10'] == 'CAFCO 300' else engine)
             for column in ('M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y'):
-                self.assertEqual(engine.value('SCHEDULE', column + '10'), original.value('SCHEDULE', column + '10'))
+                self.assertEqual(fallback.value('SCHEDULE', column + '10'), original.value('SCHEDULE', column + '10'))
+            if inputs['SCHEDULE']['B10'] == 'CAFCO 300':
+                for column in ('M', 'N', 'O', 'P', 'S', 'T', 'U'):
+                    self.assertEqual(engine.value('SCHEDULE', column + '10'), '')
+                for column in ('Q', 'R'):
+                    self.assertEqual(engine.value('SCHEDULE', column + '10'), original.value('SCHEDULE', column + '10'))
+                self.assertEqual(engine.value('SCHEDULE', 'V10'), 'ASSESSMENT DATA UNAVAILABLE')
+                self.assertEqual(engine.value('SCHEDULE', 'W10'), 'THICKNESS NOT AVAILABLE')
+                self.assertEqual(engine.value('SCHEDULE', 'X10'), 'FC13107-01-05')
+                self.assertIn('ASSESSMENT DATA UNAVAILABLE', engine.value('SCHEDULE', 'Y10'))
 
     def test_last_row_blank_zero_quantity_and_invalid_yield_still_withhold_bags(self):
         engine = self.engine(row_inputs(row=1009))

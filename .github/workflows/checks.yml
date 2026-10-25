@@ -64,6 +64,7 @@ jobs:
       - run: node tests/test_takeoff_library_display.cjs
       - run: node tests/test_takeoff_library_bridge_ui.cjs
       - run: node tests/test_calculators_ui.cjs
+      - run: node tests/test_schedule_columns_ui.cjs
       - run: node tests/test_project_ui.cjs
       - run: node tests/test_downloads_ui.cjs
       - run: node tests/test_penetration_ui.cjs
@@ -100,6 +101,7 @@ jobs:
       - run: python -m pip install -r requirements-dev.txt
       - run: npm ci
       - run: npx playwright install --with-deps chromium
+      - run: node tests/browser/schedule_columns.cjs
       - run: node tests/browser/calculation_queue.cjs
       - run: npm run test:project-library-drafts
       - run: node tests/browser/pdf_render_gate.cjs

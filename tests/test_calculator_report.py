@@ -12,6 +12,7 @@ from estimator.calculator_report import build_calculator_report, build_calculato
 from estimator.catalog import ValidationError
 from estimator.excel_engine import WorkbookEngine, column_number
 from estimator.perlifoc_assessment import Assessment as PerlifocAssessment
+from estimator.promat_spray_assessment import Assessment as PromatAssessment
 from estimator.workbook_calculators import source_model
 from tests.test_workbook_parity import read_fixture, scenario_inputs, excel_equal
 
@@ -24,6 +25,51 @@ REMOVED_SECTIONS = (
 )
 
 MISSING_PERLIFOC_EVIDENCE = PerlifocAssessment('missing', error='Synthetic missing Perlifoc assessment.')
+MISSING_PROMAT_EVIDENCE = PromatAssessment('missing', error='Synthetic missing Promat spray assessment.')
+PROMAT_REPORTS = {'CAFCO 300': 'FC13107-01-05', 'MANDOLITE CP2': 'FC21286-01-01',
+                  'FENDOLITE MII': 'FAR3541 Issue 7'}
+PROMAT_REPLACED_COLUMNS = frozenset(('M', 'N', 'O', 'P', 'S', 'T', 'U', 'V', 'W', 'X', 'Y'))
+PROMAT_REPLACED_SUMMARY_COLUMNS = frozenset(('D', 'E', 'G', 'H', 'I'))
+
+
+def assert_missing_promat_projection(test, data):
+    """Missing current evidence withholds demand; no historical numeric fallback."""
+    rows = [row for row in data['rows'] if row['values'].get('B') in PROMAT_REPORTS]
+    if not rows:
+        return
+    receipt = next(item for item in data['assessment_evidences'] if item['id'] == 'promat-steel-spray-reports-v1')
+    test.assertEqual(receipt['dataset_sha256'], 'missing')
+    test.assertEqual(receipt['source_report_sha256s'], [])
+    test.assertFalse(receipt['available'])
+    test.assertIn(MISSING_PROMAT_EVIDENCE.error, data['assessment_receipt'])
+    historical = None
+    for row in rows:
+        product = row['values']['B']
+        test.assertFalse(row['complete'])
+        for column in ('M', 'N', 'O', 'P', 'S', 'T', 'U'):
+            test.assertEqual(row['values'][column], '', (row['row'], column))
+        test.assertEqual(row['values']['V'], 'ASSESSMENT DATA UNAVAILABLE')
+        if row['values']['W'] != 'THICKNESS NOT AVAILABLE':
+            # Existing member/geometry guards have priority over missing
+            # thickness. They must remain the exact historical guard, while
+            # every quantity and the assessment status above stay withheld.
+            test.assertIn(row['values']['W'], ('CHECK WHOLE MEMBER QUANTITY', 'EXPERT REVIEW - GIRTH >5%'))
+            if historical is None:
+                historical = WorkbookEngine(source_model('steel_vermiculite'), data['inputs'])
+            test.assertEqual(row['values']['W'], historical.value('SCHEDULE', 'W' + str(row['row'])))
+        test.assertEqual(row['values']['X'], PROMAT_REPORTS[product])
+        test.assertEqual(row['assessment_id'], 'promat-steel-spray-reports-v1')
+        test.assertEqual(row['assessment_reference'], PROMAT_REPORTS[product])
+        test.assertIn(MISSING_PROMAT_EVIDENCE.error, row['assessment_source'])
+        test.assertEqual([reference['label'] for reference in row['report_references']], [PROMAT_REPORTS[product]])
+    for product in {row['values']['B'] for row in rows}:
+        summary = next(row['values'] for table in data['summaries'] for row in table['rows']
+                       if row['values'].get('A') == product)
+        test.assertEqual(summary['D'], 0)
+        test.assertEqual(summary['E'], 0)
+        test.assertEqual(summary['G'], 'INCOMPLETE')
+        test.assertEqual(summary['H'], sum(row['values']['B'] == product for row in data['rows']))
+        test.assertEqual(summary['I'], 'INCOMPLETE - CHECK SCHEDULE')
 
 
 def assert_missing_perlifoc_projection(test, data):
@@ -72,6 +118,15 @@ def blank_projection(identity):
 
 
 class CalculatorReportTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        missing = patch('estimator.promat_spray_assessment.load_assessment', return_value=MISSING_PROMAT_EVIDENCE)
+        missing.start()
+        cls.addClassCleanup(missing.stop)
+        default_projection.cache_clear()
+        blank_projection.cache_clear()
+
     def assert_native_projection(self, identity, projected, expected):
         comparisons = 0
         original = None
@@ -82,15 +137,32 @@ class CalculatorReportTests(unittest.TestCase):
             return original.value(sheet, address)
         if identity == 'steel_vermiculite':
             assert_missing_perlifoc_projection(self, projected)
+            assert_missing_promat_projection(self, projected)
         for row in projected['rows']:
             for column, actual in row['values'].items():
                 address = column + str(row['row'])
                 if address in expected.get(projected['sheet'], {}):
+                    if (identity == 'ductwork' and row['values'].get('C') == 'MONOKOTE'
+                            and column in {'AM', 'AP', 'AQ'}):
+                        # The current assessment changes these three descriptions.
+                        # Still check their complete historical Excel oracle;
+                        # every numeric/default quantity comparison stays below.
+                        if column == 'AM' and actual == '':
+                            self.assertIn(row['values']['L'], ('', None))
+                        else:
+                            self.assertIn('FC15909-01-03' if column in {'AP', 'AQ'} else '8:1', actual)
+                        actual = retained_value(projected['sheet'], address)
                     if (identity == 'steel_board' and row['values'].get('C') in {'PROMATECT 100', 'PROMATECT 250'}
                             and column_number(column) > 24):
                         # The new assessment deliberately replaces these application
                         # outputs. Preserve the complete historical Excel oracle;
                         # test the current assessment separately with published cells.
+                        actual = retained_value(projected['sheet'], address)
+                    if (identity == 'steel_vermiculite' and row['values'].get('B') in PROMAT_REPORTS
+                            and column in PROMAT_REPLACED_COLUMNS):
+                        # Current reviewed tables replace these result/provenance
+                        # fields. Keep every original Excel comparison via the
+                        # bare engine, alongside the explicit fail-closed checks.
                         actual = retained_value(projected['sheet'], address)
                     if identity == 'ductwork' and (column == 'AL' or (row['wrap'] and column in ('AP', 'AQ'))):
                         # Fixing text has its own native fixture. The new directional
@@ -118,6 +190,9 @@ class CalculatorReportTests(unittest.TestCase):
                     if address in expected.get(table['sheet'], {}):
                         if identity == 'steel_board' and row['values'].get('A') in {'PROMATECT 100', 'PROMATECT 250'}:
                             actual = retained_value(table['sheet'], address)
+                        if (identity == 'steel_vermiculite' and row['values'].get('A') in PROMAT_REPORTS
+                                and column in PROMAT_REPLACED_SUMMARY_COLUMNS):
+                            actual = retained_value(table['sheet'], address)
                         self.assertTrue(excel_equal(actual, expected[table['sheet']][address]), (identity, table['sheet'], address))
                         comparisons += 1
         for row in projected['extra_rows']:
@@ -143,8 +218,29 @@ class CalculatorReportTests(unittest.TestCase):
         self.assertEqual(dict(board['totals'])['Pooled whole sheets'],
                          sum(row['values']['I'] for row in board['summaries'][0]['rows']))
         verm = default_projection('steel_vermiculite')
-        self.assertAlmostEqual(verm['summaries'][0]['rows'][0]['values']['E'], 218.37775141101426)
-        self.assertEqual(verm['summaries'][0]['rows'][0]['values']['G'], 219)
+        historical = WorkbookEngine(source_model('steel_vermiculite'), {})
+        self.assertAlmostEqual(historical.value('BAGS', 'E20'), 218.37775141101426)
+        self.assertEqual(historical.value('BAGS', 'G20'), 219)
+        assert_missing_promat_projection(self, verm)
+
+    def test_monokote_current_report_changes_thickness_and_keeps_raw_source_oracle(self):
+        inputs = {'CALCULATOR': {'B12': '1000 x 250', 'C12': 'MONOKOTE', 'D12': 10,
+                                'E12': '180/180/180', 'F12': 0, 'G12': 0,
+                                'H12': 'Internal', 'I12': 'Horizontal', 'CM12': 1}}
+        before = deepcopy(inputs)
+        data = project_calculator_report('ductwork', inputs)
+        row = next(item for item in data['rows'] if item['row'] == 12)
+        self.assertEqual(row['values']['L'], 73)
+        self.assertEqual(row['values']['AN'], row['values']['K'] * 73 / 1000)
+        self.assertEqual(row['values']['M'], row['values']['AN'] / row['values']['AO'])
+        self.assertIn('FC15909-01-03', row['values']['AQ'])
+        self.assertEqual(row['report_references'][0]['label'], 'FC15909-01-03')
+        historical = WorkbookEngine(source_model('ductwork'), inputs)
+        self.assertEqual(historical.value('CALCULATOR', 'L12'), 64)
+        self.assertIn('FC15909-01-2', historical.value('CALCULATOR', 'AQ12'))
+        pdf = PdfReader(BytesIO(build_calculator_report('ductwork', inputs)))
+        self.assertIn('FC15909-01-03', '\n'.join(page.extract_text() or '' for page in pdf.pages))
+        self.assertEqual(inputs, before)
 
     def test_separate_helpers_do_not_change_schedule_projection_or_product_orders(self):
         default = default_projection('steel_vermiculite')
@@ -230,8 +326,10 @@ class CalculatorReportTests(unittest.TestCase):
                         counts = [sum(line.strip() == 'Line' for line in content.splitlines()) for content in texts]
                         self.assertIn(1, counts)
                         for content, count in zip(texts, counts):
-                            if identity == 'steel_board' and count == 0:
-                                self.assertIn('FC15555-01-03', content)  # An assessment evidence page.
+                            if identity in ('steel_board', 'steel_vermiculite') and count == 0:
+                                # Detailed current assessment evidence can occupy
+                                # its own page; actual schedule pages keep Line.
+                                self.assertIn('FC15555-01-03' if identity == 'steel_board' else 'FC13107-01-05', content)
                             else:
                                 self.assertEqual(count, 1)
                     for page in reader.pages:
@@ -282,8 +380,13 @@ class CalculatorReportTests(unittest.TestCase):
                                     'Confirm penetration steel sizes and layout'):
                         self.assertNotIn(removed, summary)
                 elif identity == 'steel_vermiculite':
-                    for retained in ('165.00', '2.00', '26.00'):
+                    for retained in ('165.00', '2.00'):
                         self.assertIn(retained, text)
+                    historical = WorkbookEngine(source_model(identity), {})
+                    self.assertEqual(historical.value('SCHEDULE', 'O10'), 26)
+                    self.assertNotIn('26.00', text)
+                    self.assertIn('FC13107-01-05', text)
+                    assert_missing_promat_projection(self, default_projection(identity))
                     self.assertNotIn('Product order totals', text)
                     self.assertNotIn('Product order totals', summary)
                     for removed in ('Totals use available source results', 'Display rounding is limited',
@@ -291,8 +394,12 @@ class CalculatorReportTests(unittest.TestCase):
                         self.assertNotIn(removed, summary)
                     self.assertIn('CAFCO 300', summary)
                     self.assertNotIn('Order status', summary)
+                    # The new shared authority paragraph names all three
+                    # products; it must not create unused material stock rows.
+                    stock_summary = ' '.join(summary.split()).replace(
+                        ' '.join(default_projection(identity)['assessment_scope'].split()), '')
                     for unused in ('MONOKOTE MK-6 HY', 'MANDOLITE CP2', 'FENDOLITE MII', 'PERLIFOC HP ECO+'):
-                        self.assertNotIn(unused, summary)
+                        self.assertNotIn(unused, stock_summary)
                 else:
                     self.assertIn('30.00', text)
                     self.assertIn('Total thickness mm', ' '.join(text.split()))
@@ -374,7 +481,17 @@ class CalculatorReportTests(unittest.TestCase):
     def test_spray_summary_uses_source_pooled_whole_bags_and_retains_incomplete_values(self):
         scenario = next(s for s in read_fixture('steel_vermiculite', 'variations')['scenarios']
                         if s['id'] == 'rounding_manual_bags_and_helpers')
-        for data in (deepcopy(default_projection('steel_vermiculite')),
+        # Preserve the positive pooled-rounding rendering case as a controlled
+        # historical fixture, never as an application calculation fallback.
+        historical_data = deepcopy(default_projection('steel_vermiculite'))
+        historical = WorkbookEngine(source_model('steel_vermiculite'), historical_data['inputs'])
+        for table in historical_data['summaries']:
+            for row in table['rows']:
+                row['values'] = {column: historical.value(table['sheet'], column + str(row['row']))
+                                 for column in table['columns']}
+        historical_data['incomplete_rows'] = 0
+        self.assertEqual(historical_data['summaries'][0]['rows'][0]['values']['G'], 219)
+        for data in (historical_data, deepcopy(default_projection('steel_vermiculite')),
                      project_calculator_report('steel_vermiculite', scenario_inputs(scenario))):
             before = deepcopy(data)
             with self.subTest(incomplete_rows=data['incomplete_rows']), patch(
@@ -395,6 +512,7 @@ class CalculatorReportTests(unittest.TestCase):
                     self.assertIn('INCOMPLETE', lines)
                     self.assertNotIn('5.54', lines)
                     self.assertIn('Unresolved material requirements:', text)
+                    assert_missing_promat_projection(self, data)
                 self.assertEqual(data, before)
 
     def test_steel_material_pdfs_omit_requested_fields_and_keep_unresolved_warning(self):
@@ -410,9 +528,15 @@ class CalculatorReportTests(unittest.TestCase):
                 text = ' '.join(page.extract_text() for page in PdfReader(BytesIO(
                     build_calculator_summary_report(identity))).pages)
             normalized = ' '.join(text.split())
+            layout_text = normalized
+            if identity == 'steel_vermiculite':
+                for note in data.get('assessment_notes', []):
+                    rendered_note = ' '.join(note.replace('m⁻¹', '1/m').split())
+                    self.assertIn(rendered_note, normalized)
+                    layout_text = layout_text.replace(rendered_note, '')
             for removed in ('used schedule items.', 'Review the schedule PDF for individual items and their statuses.',
                             'Whole bags / product', 'Incomplete rows', 'Order status', 'Schedule lines'):
-                self.assertNotIn(removed, normalized)
+                self.assertNotIn(removed, layout_text)
             if identity == 'steel_vermiculite':
                 self.assertNotIn('Waste', normalized)
                 self.assertNotIn('estimating thickness are reported separately.', normalized)
@@ -488,10 +612,13 @@ class CalculatorReportTests(unittest.TestCase):
                 text = ' '.join(page.extract_text() for page in PdfReader(BytesIO(
                     build_calculator_summary_report(identity))).pages)
             self.assertIn(product, text)
+            stock_text = ' '.join(text.split())
+            if identity == 'steel_vermiculite':
+                stock_text = stock_text.replace(' '.join(data['assessment_scope'].split()), '')
             for table in data['summaries'][:1]:
                 for row in table['rows']:
                     if row['values']['A'] != product:
-                        self.assertNotIn(row['values']['A'], text)
+                        self.assertNotIn(row['values']['A'], stock_text)
             self.assertEqual(data, before)
 
     def test_material_summary_preserves_tiny_negative_and_unknown_demand(self):
@@ -623,7 +750,7 @@ class CalculatorReportTests(unittest.TestCase):
                 for heading in REMOVED_SECTIONS:
                     self.assertNotIn(heading, text)
 
-    def test_complete_thousand_row_spray_schedule_uses_native_per_line_results(self):
+    def test_thousand_row_spray_schedule_retains_raw_oracle_and_missing_assessment_holds(self):
         identity = 'steel_vermiculite'
         source = next(sheet for sheet in source_model(identity)['sheets'] if sheet['name'] == 'SCHEDULE')
         inputs = cleared_inputs(identity)
@@ -634,11 +761,15 @@ class CalculatorReportTests(unittest.TestCase):
         data = project_calculator_report(identity, inputs)
         native = read_fixture(identity, 'default')['scenarios'][0]['expected']['SCHEDULE']
         self.assertEqual(len(data['rows']), 1000)
-        self.assertEqual(data['incomplete_rows'], 0)
+        self.assertEqual(data['incomplete_rows'], 1000)
         self.assertEqual(data['rows'][-1]['line'], 1000)
+        assert_missing_promat_projection(self, data)
+        historical = WorkbookEngine(source_model(identity), inputs)
         for row in data['rows']:
             for column in 'OPRSTU':
-                self.assertTrue(excel_equal(row['values'][column], native[column + '10']))
+                actual = (row['values'][column] if column == 'R' else
+                          historical.value('SCHEDULE', column + str(row['row'])))
+                self.assertTrue(excel_equal(actual, native[column + '10']))
 
     def test_steel_locations_and_distinct_line_columns_reach_schedule_only(self):
         for identity, sheet, row, location in [('steel_vermiculite', 'SCHEDULE', 1009, 'AA'),

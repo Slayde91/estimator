@@ -32,6 +32,9 @@ class AssessmentReferenceTests(unittest.TestCase):
     def test_replaced_public_edition_is_not_linked_to_old_calculation(self):
         self.assertEqual(self.refs('ductwork', C11='MONOKOTE', AQ11='FC15909-01-2: Tables 2–4'),
                          [{'label': 'FC15909-01-2', 'url': None}])
+        current = self.refs('ductwork', C11='MONOKOTE', AQ11='FC15909-01-03: Tables 2–4')
+        self.assertEqual(current, [{'label': 'FC15909-01-03',
+                                   'url': 'https://tfire.com.au/documents/monokote-gcp-test-report'}])
 
     def test_source_is_bound_to_used_row_and_private_reports_stay_plain(self):
         self.assertEqual(self.refs('steel_intumescent', B11='FIRETEX FX5090', X11='FC20571/01/C1 p10 Table 2'),
@@ -49,7 +52,8 @@ class AssessmentReferenceTests(unittest.TestCase):
     def test_xs_uses_the_assessment_explicitly_cited_by_its_actual_tables(self):
         cells = {'C11': 'PROMATECT-XS', 'AT11': 'XS p.16 | section schedule',
                  'PRODUCTS!G9': 'FAS230021'}
-        expected = [{'label': 'FAS230021', 'url': None}]
+        expected = [{'label': 'FAS230021 RIR1.4', 'url': _links()['FAS230021 RIR1.4']}]
+        self.assertIn('rir1.4.pdf', expected[0]['url'])
         self.assertEqual(self.refs('steel_board', **cells), expected)
         cells.update(C11='promatect-xs', AT11='XS p.15 | general table')
         self.assertEqual(self.refs('steel_board', **cells), expected)
@@ -58,6 +62,16 @@ class AssessmentReferenceTests(unittest.TestCase):
                          [{'label': 'Assessment not identified in source', 'url': None}])
         cells.update(AT11='', **{'PRODUCTS!G9': 'FAS230021'})
         self.assertEqual(self.refs('steel_board', **cells), [])
+
+    def test_promat_reports_require_current_evaluated_source_identity(self):
+        for product, label in [('CAFCO 300', 'FC13107-01-05'), ('MANDOLITE CP2', 'FC21286-01-01'),
+                               ('FENDOLITE MII', 'FAR3541 Issue 7')]:
+            with self.subTest(product=product):
+                refs = self.refs('steel_vermiculite', B11=product, X11=label + ' p10 Table 3')
+                self.assertEqual(refs, [{'label': label, 'url': _links()[label]}])
+                self.assertIn('media.promat.com/cert_', refs[0]['url'])
+        self.assertEqual(self.refs('steel_vermiculite', B11='FENDOLITE MII', X11='FAR3541 Issue 6 p70'),
+                         [{'label': 'FAR3541 Issue 6', 'url': None}])
 
     def test_only_actual_report_documents_are_eligible(self):
         urls = list(_links().values())

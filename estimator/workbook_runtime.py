@@ -454,6 +454,8 @@ def _application_catalog(calculator_id):
         _add_monokote_z106(model)
         _add_monokote_application_basis(model)
         _add_perlifoc_assessment(model)
+        from .promat_spray_assessment import apply_model_metadata
+        apply_model_metadata(model)
     elif calculator_id == 'steel_board':
         schedule['line_numbers'] = True
         schedule['location_column'] = 'B'

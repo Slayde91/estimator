@@ -160,7 +160,9 @@ class CalculatorPresentationApiTests(unittest.TestCase):
         self.assertEqual(calculator['navigation_mode'], 'hidden')
         self.assertEqual(calculator['display_text']['L6'], 'PUBLISHED VALUE')
         self.assertIn('mm', cells['L6']['value'])
-        self.assertIsInstance(cells['H6']['value'], (int, float))
+        self.assertEqual(cells['H6']['value'], '')
+        self.assertIn('FC13107-01-05', cells['H23']['value'])
+        self.assertIn('not installed', cells['H23']['value'])
         self.assertEqual(calculator['display_cells']['H6']['suffix'], ' mm')
         bags = self.worksheet('steel_vermiculite', 'BAGS')
         self.assertEqual(bags['display_table_order'], [1, 0])
@@ -245,18 +247,37 @@ class CalculatorPresentationApiTests(unittest.TestCase):
         advanced = self.worksheet("steel_board", "CALCULATOR", include_advanced=True)
         self.assertNotIn("M9", self.cells(normal))
         self.assertNotIn("X1008", self.cells(normal))
-        self.assertEqual(advanced["visible_columns"], [*range(1, 36), 88])
+        self.assertEqual(advanced["visible_columns"], [*range(1, 7), 88, *range(7, 36)])
         self.assertIn('CJ9', self.cells(advanced))
         self.assertNotIn('CF9', self.cells(advanced))
         self.assertNotIn('CK9', self.cells(advanced))
         self.assertTrue(self.cells(advanced)["X1008"]["editable"])
         self.assertFalse(self.cells(advanced)["AI1008"]["editable"])
         duct = self.worksheet("ductwork", "CALCULATOR", include_advanced=True)
-        self.assertEqual(duct["visible_columns"], list(range(1, 92)))
+        self.assertEqual(duct["visible_columns"], [*range(1, 5), 91, *range(5, 37),
+                                                 40, 41, 37, 38, 39, 42, 43, 86, 87, 88])
         self.assertIn('CM11', self.cells(duct))
         self.assertNotIn('CN11', self.cells(duct))
-        self.assertFalse(self.cells(duct)["CL1010"]["editable"])
-        self.assertTrue(self.cells(duct)["CL1010"]["calculated"])
+        self.assertNotIn('CL1010', self.cells(duct))
+        self.assertNotIn('AS11', self.cells(duct))
+        self.assertTrue(self.cells(duct)["CH1010"]["calculated"])
+
+    def test_register_column_choices_include_real_fields_and_exclude_internal_keys(self):
+        cases = [('steel_vermiculite', 'SCHEDULE', 10, 27), ('steel_intumescent', 'SCHEDULE', 10, 27),
+                 ('steel_board', 'CALCULATOR', 9, 36), ('ductwork', 'CALCULATOR', 11, 47)]
+        for identity, sheet, first, count in cases:
+            with self.subTest(identity=identity):
+                result = self.worksheet(identity, sheet, include_advanced=True,
+                                        schedule_view={'rows': [first], 'offset': 0, 'limit': 1})
+                self.assertEqual(result['visible_columns'], result['register_columns'])
+                self.assertEqual(len(result['register_columns']), count)
+                self.assertEqual(len(set(result['register_columns'])), count)
+                self.assertTrue(all([cell['column'] for cell in row['cells']] == result['register_columns']
+                                    for row in result['rows']))
+                self.assertTrue(all('report_references' in row for row in result['rows'] if row['row'] == first))
+        settings = self.worksheet('ductwork', 'PRODUCT SETTINGS')
+        self.assertEqual((settings['display_text']['C78'], settings['display_text']['C79']), (73, 73))
+        self.assertIn('FC15909-01-03', settings['display_text']['B88'])
 
     def test_current_draft_and_saved_inputs_are_separate(self):
         saved = self.store.save_calculator_state("ductwork", {"CALCULATOR": {"D11": 3}})

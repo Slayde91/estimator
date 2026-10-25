@@ -66,6 +66,16 @@ _OMITTED_COLUMNS = {'steel_vermiculite': {'SCHEDULE': [22, 23, 24]},
 # Column identities remain source coordinates; this order is browser-only.
 _DISPLAY_COLUMN_ORDER = {'ductwork': {'CALCULATOR': [*range(1, 37), 40, 41, 37, 38, 39, 42, 43, 44]},
                          'steel_vermiculite': {'SCHEDULE': [26, 27, *range(1, 26)]}}
+# User-facing register fields, including advanced inputs and material outputs.
+# Worksheet flags, lookup keys, blank spacers and quantity helpers stay private.
+# These coordinates do not change any formula, editable identity or saved map.
+_REGISTER_COLUMNS = {
+    'steel_vermiculite': [26, 27, *range(1, 26)],
+    'steel_intumescent': [26, 27, *range(1, 26)],
+    'steel_board': [*range(1, 7), 88, *range(7, 36)],
+    'ductwork': [*range(1, 5), 91, *range(5, 37), 40, 41, 37, 38, 39,
+                 42, 43, 86, 87, 88],
+}
 _DISPLAY_TEXT = {
     'steel_vermiculite': {'BAGS': {'A1': 'MATERIAL QUANTITIES'},
                          'CALCULATOR': {'A1': 'QUICK CALCULATOR', 'L6': 'PUBLISHED VALUE'},
@@ -92,7 +102,7 @@ _DISPLAY_TEXT = {
                                       'A356': 'IDEALISED HOLLOW GEOMETRY',
                                       'A370': 'FENDOLITE CASTELLATED SECTION',
                                       'A285': 'For Monokote MK-6 HY and Z106 fully exposed hollow columns (Hollow - 4 sides), FAR4856 Issue 2 governs thickness. Named members supply a retained section factor; Hp/A and ESA/M inputs use the same assessment tables. Other cases retain their named-member and factor-table rules.',
-                                      'A289': 'Match the exposed sides, slab-contact face and engineer\'s critical temperature. Monokote Hollow - 4 sides covers fully exposed SHS, RHS and CHS columns only; missing assessment data and unresolved table entries block quantities. Three-sided Monokote hollow cases and channels against slabs keep their existing named-section rules. CAFCO/Mandolite hollow tables remain column cases.'},
+                                      'A289': 'Match the exposed sides, slab-contact face and engineer\'s critical temperature. Monokote Hollow - 4 sides covers fully exposed SHS, RHS and CHS columns only; missing assessment data and unresolved table entries block quantities. Three-sided Monokote hollow cases and channels against slabs keep their existing named-section rules. Promat sprays follow their current report limits; only CP2 includes the reviewed three-sided RHS/SHS route.'},
                          'SCHEDULE': {'Z9': 'Line', 'A4': 'TOTAL ENTERED SPRAY AREA (m²)',
                                       'G4': 'COATING VOLUME QUANTIFIED (m³)'}},
     'steel_board': {'START': {
@@ -437,7 +447,8 @@ def approved_formula_overrides(calculator_id):
         f'AL{row}': translator.translate_formula(f'AL{row}').lstrip('=')
         for row in range(12, model['schedule']['last_row'] + 1)})
     from .schedule_quantity import application_formula_overrides as quantity_overrides
-    return quantity_overrides(model, overrides)
+    from .monokote_duct_assessment import application_formula_overrides as monokote_duct_overrides
+    return monokote_duct_overrides(model, quantity_overrides(model, overrides))
 
 
 def calculator_list():
@@ -574,7 +585,7 @@ def validate_calculator_edits(calculator_id, inputs, saved_inputs):
 
 
 def calculator_engine(calculator_id, normalized_inputs, *, assessment=None, perlifoc_assessment=None,
-                      firetex_assessments=None):
+                      firetex_assessments=None, promat_assessment=None):
     """One application evaluation path for the UI, PDF and XLSX projection."""
     model = source_model(calculator_id)
     overrides = approved_formula_overrides(calculator_id)
@@ -603,10 +614,12 @@ def calculator_engine(calculator_id, normalized_inputs, *, assessment=None, perl
         return engine
     if calculator_id == 'steel_vermiculite':
         from .monokote_hollow import load_assessment
-        from .perlifoc_assessment import PerlifocEngine, load_assessment as load_perlifoc_assessment
-        engine = PerlifocEngine(model, normalized_inputs, overrides,
+        from .perlifoc_assessment import load_assessment as load_perlifoc_assessment
+        from .promat_spray_assessment import PromatSprayEngine, load_assessment as load_promat_assessment
+        engine = PromatSprayEngine(model, normalized_inputs, overrides,
                                assessment=load_assessment() if assessment is None else assessment,
-                               perlifoc_assessment=load_perlifoc_assessment() if perlifoc_assessment is None else perlifoc_assessment)
+                               perlifoc_assessment=load_perlifoc_assessment() if perlifoc_assessment is None else perlifoc_assessment,
+                               promat_assessment=load_promat_assessment() if promat_assessment is None else promat_assessment)
     elif calculator_id == 'steel_board':
         from .promat_board_assessment import PromatBoardEngine
         engine = PromatBoardEngine(model, engine_inputs, overrides)
@@ -620,15 +633,16 @@ def calculator_engine(calculator_id, normalized_inputs, *, assessment=None, perl
 
 
 @lru_cache(maxsize=6)
-def _session(calculator_id, serialized_inputs, assessment=None, perlifoc_assessment=None, firetex_assessments=None):
+def _session(calculator_id, serialized_inputs, assessment=None, perlifoc_assessment=None, firetex_assessments=None, promat_assessment=None):
     return calculator_engine(calculator_id, json.loads(serialized_inputs), assessment=assessment,
                              perlifoc_assessment=perlifoc_assessment,
-                             firetex_assessments=firetex_assessments), EvaluationLock()
+                             firetex_assessments=firetex_assessments,
+                             promat_assessment=promat_assessment), EvaluationLock()
 
 
 def calculator_session(calculator_id, inputs):
     normalized = normalize_calculator_inputs(calculator_id, inputs)
-    assessment = perlifoc_assessment = firetex_assessments = None
+    assessment = perlifoc_assessment = firetex_assessments = promat_assessment = None
     if calculator_id == 'steel_intumescent':
         from .sc902_assessment import load_assessment
         from .firetex_assessment import load_assessments
@@ -639,8 +653,10 @@ def calculator_session(calculator_id, inputs):
         assessment = load_assessment()
         from .perlifoc_assessment import load_assessment as load_perlifoc_assessment
         perlifoc_assessment = load_perlifoc_assessment()
+        from .promat_spray_assessment import load_assessment as load_promat_assessment
+        promat_assessment = load_promat_assessment()
     engine, lock = _session(calculator_id, json.dumps(normalized, sort_keys=True, ensure_ascii=False, allow_nan=False),
-                             assessment, perlifoc_assessment, firetex_assessments)
+                             assessment, perlifoc_assessment, firetex_assessments, promat_assessment)
     return normalized, engine, lock
 
 
@@ -654,6 +670,22 @@ def validation_options(engine, sheet, address, validation, cache=None):
     first = validation['sqref'].split()[0].split(':')[0].replace('$', '')
     translated = Translator('=' + formula, origin=first).translate_formula(address).lstrip('=')
     key = (sheet, translated)
+    if engine.model['id'] == 'steel_vermiculite' and formula.casefold() in ('templist', 'periodlist'):
+        row = coordinates(address)[0]
+        product = str(engine.value('CALCULATOR', 'D6') if sheet == 'CALCULATOR'
+                      else engine.value('SCHEDULE', f'B{row}') or '').strip().upper()
+        if product in {'CAFCO 300', 'MANDOLITE CP2', 'FENDOLITE MII'}:
+            from .promat_spray_assessment import temperature_options, period_options
+            temperature = (engine.value('CALCULATOR', 'D8') if sheet == 'CALCULATOR'
+                           else engine.value('SCHEDULE', f'D{row}'))
+            key += (product, temperature)
+            if cache is not None and key in cache:
+                return cache[key]
+            choices = list(temperature_options(product) if formula.casefold() == 'templist'
+                           else period_options(product, temperature))
+            if cache is not None:
+                cache[key] = choices
+            return choices
     if formula.casefold() == 'periodlist' and engine.model['id'] == 'steel_vermiculite':
         product = engine.value('CALCULATOR', 'D6') if sheet == 'CALCULATOR' else engine.value('SCHEDULE', 'B' + str(coordinates(address)[0]))
         key += (str(product).casefold() == 'perlifoc hp eco+',)
@@ -697,7 +729,13 @@ def _sheet_metadata(model, sheet):
         if address:
             section['label'] = _DISPLAY_TEXT.get(model['id'], {}).get(sheet['name'], {}).get(
                 address, sheet['cells'][address].get('value', ''))
+    display_text = dict(_DISPLAY_TEXT.get(model['id'], {}).get(sheet['name'], {}))
+    if page == ('ductwork', 'PRODUCT SETTINGS'):
+        from .monokote_duct_assessment import SETTINGS_DISPLAY_TEXT
+        display_text.update(SETTINGS_DISPLAY_TEXT)
     return {'name': sheet['name'], 'max_row': r2, 'max_column': c2,
+            **({'register_columns': list(_REGISTER_COLUMNS[model['id']])}
+               if sheet['name'] == schedule['sheet'] else {}),
             **({'application_display_columns': list(sheet['application_display_columns'])}
                if 'application_display_columns' in sheet else {}),
             'navigation_mode': 'select' if settings_sections else 'hidden' if page in {
@@ -715,7 +753,7 @@ def _sheet_metadata(model, sheet):
             'omitted_columns': list(_OMITTED_COLUMNS.get(model['id'], {}).get(sheet['name'], [])),
             'omitted_ranges': list(_OMITTED_RANGES.get(model['id'], {}).get(sheet['name'], [])),
             'display_column_order': list(_DISPLAY_COLUMN_ORDER.get(model['id'], {}).get(sheet['name'], [])),
-            'display_text': dict(_DISPLAY_TEXT.get(model['id'], {}).get(sheet['name'], {})),
+            'display_text': display_text,
             'display_cells': deepcopy(_DISPLAY_CELLS.get(model['id'], {}).get(sheet['name'], {})),
             'presentation_tables': deepcopy(_PRESENTATION_TABLES.get(model['id'], {}).get(sheet['name'], [])),
             'table_layout': ('projected' if (model['id'], sheet['name']) in {
@@ -870,7 +908,9 @@ def _render_sheet(calculator_id, inputs, source, metadata, start_row, end_row,
     rows, warnings = [], []
     styles = model['styles']['cell_styles']
     allowed = editable_cells(calculator_id, sheet)
-    columns = [column for column in metadata.get('application_display_columns', range(1, metadata['max_column'] + 1))
+    display_columns = (metadata['register_columns'] if include_advanced and metadata.get('register_columns')
+                       else metadata.get('application_display_columns', range(1, metadata['max_column'] + 1)))
+    columns = [column for column in display_columns
                if include_advanced or column not in metadata['hidden_columns']]
     schedule = model['schedule']
     entered_rows = ({coordinates(address)[0] for address, value in normalized.get(sheet, {}).items()
@@ -891,7 +931,8 @@ def _render_sheet(calculator_id, inputs, source, metadata, start_row, end_row,
             metadata = {**metadata, 'display_text': {**metadata['display_text'],
                         **{f'L{row}': 'ASSESSMENT DATA UNAVAILABLE - Perlifoc results blocked' for row in range(197, 201)}}}
         perlifoc_active = calculator_id == 'steel_vermiculite' and sheet == 'CALCULATOR' and engine.perlifoc_scope_active(2)
-        if calculator_id == 'steel_vermiculite' and sheet == 'CALCULATOR' and (engine.hollow_scope_active(2) or perlifoc_active):
+        promat_active = calculator_id == 'steel_vermiculite' and sheet == 'CALCULATOR' and engine.promat_scope_active(2)
+        if calculator_id == 'steel_vermiculite' and sheet == 'CALCULATOR' and (engine.hollow_scope_active(2) or perlifoc_active or promat_active):
             # The assessment replaces the formerly hidden manual citation.
             # Its scope and blocked outcomes must be visible with the result.
             metadata = {**metadata, 'omitted_ranges': [value for value in metadata['omitted_ranges']

@@ -26,3 +26,21 @@ value. The shared reference renderer links approved public report URLs and shows
 private captions as text. Recalculation refreshes references without editing
 source cells; blank references produce a blank cell. Header, body, column widths
 and virtual spacer spans include this display column.
+
+The Columns control at the right of each register toolbar lists the supported
+native schedule columns plus its existing Line, Report and Actions projections.
+Every choice starts checked. This supersedes earlier schedule-only omissions,
+including board waste and the four board calculation outputs; other worksheet
+presentation rules remain in place. Internal lookup/validation/quantity helpers
+and a second copy of the Line identity are excluded by the server's explicit
+`register_columns` list. Detailed source-provenance fields remain distinct from
+the virtual Report document caption.
+
+Visibility is a local browser preference under
+`ceasefire.scheduleColumns.v1.<calculator>:<sheet>`. Only hidden stable column
+IDs are stored, so new columns start visible. Invalid or unavailable storage
+leaves all columns visible. Both Firestopping schedule views share one preference.
+The control changes existing table cells, widths and virtual spacer spans without
+changing calculation inputs, project state, source cells, exports or making a
+calculation request. Select all restores the complete register. Report cells and
+basis buttons use red backgrounds with white text on hover and keyboard focus.

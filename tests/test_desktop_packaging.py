@@ -68,12 +68,15 @@ class CalculatorEvidencePackagingTests(unittest.TestCase):
             with self.assertRaises(FileExistsError):
                 stage_calculator_evidence(self.source, self.stage)
 
-    def test_deliverable_requires_all_five_and_stages_only_verified_snapshots(self):
-        from estimator import monokote_hollow, perlifoc_assessment, sc902_assessment, firetex_assessment
+    def test_deliverable_requires_all_six_and_stages_only_verified_snapshots(self):
+        from estimator import monokote_hollow, perlifoc_assessment, sc902_assessment, firetex_assessment, promat_spray_assessment
+        def synthetic_promat(payload):
+            return SimpleNamespace(digest=hashlib.sha256(payload).hexdigest(), report_sha256s=('1' * 64, '2' * 64, '3' * 64))
         with patch('estimator.monokote_hollow.validate_assessment_payload', side_effect=self.synthetic_authority), \
                 patch('estimator.perlifoc_assessment.validate_assessment_payload', side_effect=self.synthetic_authority), \
                 patch('estimator.sc902_assessment.validate_assessment_payload', side_effect=self.synthetic_authority), \
-                patch('estimator.firetex_assessment.Authority.validate_assessment_payload', side_effect=self.synthetic_authority):
+                patch('estimator.firetex_assessment.Authority.validate_assessment_payload', side_effect=self.synthetic_authority), \
+                patch('estimator.promat_spray_assessment.validate_assessment_payload', side_effect=synthetic_promat):
             with self.assertRaisesRegex(ValueError, 'all reviewed'):
                 stage_calculator_evidence(self.source, self.stage, required=True)
             self.assertFalse(self.stage.exists())
@@ -89,22 +92,28 @@ class CalculatorEvidencePackagingTests(unittest.TestCase):
                     stage_calculator_evidence(self.source, self.stage, required=True)
                 self.assertFalse(self.stage.exists())
                 (self.source / authority.DATASET_FILENAME).write_bytes(b'{"synthetic_firetex_fixture":true}')
+            with self.assertRaisesRegex(ValueError, 'all reviewed'):
+                stage_calculator_evidence(self.source, self.stage, required=True)
+            promat_payload = b'{"synthetic_promat_fixture":true}'
+            (self.source / promat_spray_assessment.DATASET_FILENAME).write_bytes(promat_payload)
             (self.source / 'private-report.pdf').write_bytes(b'not for packaging')
             receipt = stage_calculator_evidence(self.source, self.stage, required=True)
             self.assertEqual(receipt['schema_version'], 1)
             self.assertEqual([item['id'] for item in receipt['datasets']],
                              [monokote_hollow.DATASET_ID, perlifoc_assessment.DATASET_ID, sc902_assessment.DATASET_ID,
-                              *(a.DATASET_ID for a in firetex_assessment.AUTHORITIES)])
+                              *(a.DATASET_ID for a in firetex_assessment.AUTHORITIES), promat_spray_assessment.DATASET_ID])
+            self.assertEqual(receipt['datasets'][-1]['report_sha256s'], ['1' * 64, '2' * 64, '3' * 64])
             self.assertEqual({item.name for item in self.stage.iterdir()},
                              {self.filename, perlifoc_assessment.DATASET_FILENAME, sc902_assessment.DATASET_FILENAME,
-                              *(a.DATASET_FILENAME for a in firetex_assessment.AUTHORITIES)})
+                              *(a.DATASET_FILENAME for a in firetex_assessment.AUTHORITIES), promat_spray_assessment.DATASET_FILENAME})
             self.assertEqual(verify_calculator_evidence(self.source, receipt), receipt)
             bundle = self.root / 'multi-bundle'
             frozen = bundle / '_internal/calculator-evidence'
             shutil.copytree(self.stage, frozen)
             self.assertEqual(verify_packaged_calculator_evidence(bundle, receipt), receipt)
             for authority, payload in ((perlifoc_assessment, perlifoc_payload), (sc902_assessment, sc902_payload),
-                                       *((a, b'{"synthetic_firetex_fixture":true}') for a in firetex_assessment.AUTHORITIES)):
+                                       *((a, b'{"synthetic_firetex_fixture":true}') for a in firetex_assessment.AUTHORITIES),
+                                       (promat_spray_assessment, promat_payload)):
                 for directory in (self.source, self.stage, frozen):
                     path = directory / authority.DATASET_FILENAME
                     path.write_bytes(payload + b' ')

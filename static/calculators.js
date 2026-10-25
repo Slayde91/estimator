@@ -1,5 +1,129 @@
 "use strict";
 
+// Column choices belong to this browser, never to a project or calculation.
+// Both workbook registers and the Firestopping schedule use this same control.
+window.CeasefireScheduleColumns = (() => {
+  const prefix = "ceasefire.scheduleColumns.v1.", preferences = new Map(), controls = new Set();
+  let nextId = 0, opened = null;
+  const text = (element, source) => window.CeasefireI18n?.text(element, source) || (element.textContent = source, element);
+  function read(key) {
+    if (!preferences.has(key)) {
+      let hidden = [];
+      try {
+        const stored = JSON.parse(window.localStorage.getItem(prefix + key));
+        if (stored?.version === 1 && Array.isArray(stored.hidden) && stored.hidden.length <= 128
+          && stored.hidden.every(id => typeof id === "string" && /^[a-zA-Z0-9:_-]{1,64}$/.test(id))) hidden = stored.hidden;
+      } catch (_) { /* Unavailable or invalid preferences leave every column visible. */ }
+      preferences.set(key, new Set(hidden));
+    }
+    return preferences.get(key);
+  }
+  function save(key, hidden) {
+    preferences.set(key, hidden);
+    try { window.localStorage.setItem(prefix + key, JSON.stringify({ version: 1, hidden: [...hidden] })); } catch (_) {}
+    for (const control of controls) if (control.key === key) { control.refresh(); control.changed?.(hidden); }
+  }
+  function create() {
+    const host = document.createElement("div"), button = document.createElement("button"), panel = document.createElement("div");
+    host.className = "schedule-column-chooser"; button.className = "calculator-page schedule-column-toggle"; button.type = "button";
+    panel.className = "schedule-column-panel"; panel.id = `schedule-column-panel-${++nextId}`; panel.hidden = true; panel.setAttribute("role", "group");
+    text(button, "Columns"); window.CeasefireI18n?.attr(panel, "aria-label", "Visible columns");
+    button.setAttribute("aria-expanded", "false"); button.setAttribute("aria-controls", panel.id); host.append(button, panel);
+    const control = { host, button, panel, key: null, columns: [], changed: null, inputs: [],
+      close(focus = false) { panel.hidden = true; button.setAttribute("aria-expanded", "false"); if (opened === control) opened = null; if (focus) button.focus({ preventScroll: true }); },
+      position() {
+        const rect = button.getBoundingClientRect(), width = Math.min(340, window.innerWidth - 24);
+        const rtl = document.documentElement.dir === "rtl", left = Math.max(12, Math.min(rtl ? rect.left : rect.right - width, window.innerWidth - width - 12));
+        panel.style.width = `${width}px`; panel.style.left = `${left}px`;
+        panel.style.top = `${Math.max(12, Math.min(rect.bottom + 6, window.innerHeight - 160))}px`;
+        panel.style.maxHeight = `${Math.max(120, window.innerHeight - parseFloat(panel.style.top) - 12)}px`;
+      },
+      refresh() {
+        const hidden = read(control.key), shown = control.columns.filter(column => !hidden.has(column.id)).length;
+        control.inputs.forEach(({ input, id }) => { input.checked = !hidden.has(id); });
+        if (control.all) { control.all.checked = shown === control.columns.length; control.all.indeterminate = shown > 0 && shown < control.columns.length; }
+      },
+      bind(key, columns, changed) {
+        if (control.key !== key) control.close();
+        // Cached page navigation can detach this persistent control. Reclaim
+        // its UI labels after the language layer releases detached bindings.
+        text(button, "Columns"); window.CeasefireI18n?.attr(panel, "aria-label", "Visible columns");
+        const focused = !panel.hidden && panel.contains(document.activeElement) ? document.activeElement : null;
+        const focusId = focused?.dataset.scheduleColumnChoice, focusAll = focused === control.all, scrollTop = panel.scrollTop;
+        control.key = key; control.columns = columns; control.changed = changed;
+        const label = document.createElement("label"), all = document.createElement("input"), caption = document.createElement("span");
+        label.className = "schedule-column-all"; all.type = "checkbox"; all.dataset.scheduleSelectAll = "true"; text(caption, "Select all"); label.append(all, caption);
+        all.addEventListener("change", () => {
+          const hidden = new Set(read(key)); columns.forEach(column => all.checked ? hidden.delete(column.id) : hidden.add(column.id)); save(key, hidden);
+        });
+        control.all = all; control.inputs = []; panel.replaceChildren(label);
+        for (const column of columns) {
+          const item = document.createElement("label"), input = document.createElement("input"), caption = document.createElement("span");
+          input.type = "checkbox"; input.dataset.scheduleColumnChoice = column.id; text(caption, column.label); item.append(input, caption);
+          input.addEventListener("change", () => { const hidden = new Set(read(key)); input.checked ? hidden.delete(column.id) : hidden.add(column.id); save(key, hidden); });
+          panel.append(item); control.inputs.push({ input, id: column.id });
+        }
+        control.refresh();
+        if (focused) { (focusAll ? all : control.inputs.find(item => item.id === focusId)?.input || all).focus({ preventScroll: true }); panel.scrollTop = scrollTop; }
+        return read(key);
+      },
+    };
+    button.addEventListener("click", () => {
+      if (!panel.hidden) return control.close();
+      opened?.close(); document.body.append(panel); control.position(); panel.hidden = false; opened = control; button.setAttribute("aria-expanded", "true"); control.all?.focus({ preventScroll: true });
+    });
+    panel.addEventListener("keydown", event => {
+      if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); control.close(true); }
+      // The panel is portalled outside the scrolling page tabs. Keep Tab order
+      // beside its toggle rather than sending it to the end of the document.
+      if (event.key === "Tab") {
+        const inputs = [control.all, ...control.inputs.map(item => item.input)], active = document.activeElement;
+        if (event.shiftKey && active === inputs[0]) { event.preventDefault(); control.close(true); }
+        else if (!event.shiftKey && active === inputs.at(-1)) { control.close(); button.focus(); }
+      }
+    });
+    controls.add(control); return control;
+  }
+  function applyTable(table, hidden) {
+    const layout = table.scheduleColumnLayout;
+    if (!layout) return;
+    const scroll = table.parentElement, retained = table.hidden && table.scheduleColumnsScroll;
+    const left = retained ? retained.left : scroll?.scrollLeft, top = retained ? retained.top : scroll?.scrollTop;
+    for (const cell of table.querySelectorAll("[data-schedule-column]")) cell.hidden = hidden.has(cell.dataset.scheduleColumn);
+    const visible = layout.filter(column => !hidden.has(column.id)), colgroup = table.querySelector("colgroup");
+    if (colgroup) colgroup.replaceChildren(...visible.map(column => { const col = document.createElement("col"); col.style.width = `${column.width}px`; return col; }));
+    table.style.width = `${visible.reduce((sum, column) => sum + column.width, 0)}px`;
+    for (const cell of table.querySelectorAll("[data-schedule-spacer]")) cell.colSpan = Math.max(1, visible.length);
+    if (!visible.length) table.scheduleColumnsScroll = { left, top };
+    else table.scheduleColumnsScroll = null;
+    table.hidden = !visible.length;
+    if (!table.scheduleColumnsEmpty && scroll) {
+      const empty = document.createElement("p"); empty.className = "schedule-columns-empty helper"; scroll.append(empty); table.scheduleColumnsEmpty = empty;
+    }
+    if (table.scheduleColumnsEmpty) { text(table.scheduleColumnsEmpty, "Select a column to show the schedule."); table.scheduleColumnsEmpty.hidden = Boolean(visible.length); }
+    if (scroll) {
+      scroll.scrollLeft = left; scroll.scrollTop = top;
+      // Hiding the entire table can clamp native scroll positions. Ignore only
+      // this exact projection position; a different user scroll remains active.
+      scroll.scheduleColumnProjection = { left: scroll.scrollLeft, top: scroll.scrollTop };
+    }
+  }
+  const isProjectionScroll = target => Boolean(target?.scheduleColumnProjection
+    && target.scrollTop === target.scheduleColumnProjection.top && target.scrollLeft === target.scheduleColumnProjection.left);
+  window.addEventListener("pointerdown", event => { if (opened && !opened.host.contains(event.target) && !opened.panel.contains(event.target)) opened.close(); });
+  window.addEventListener("keydown", event => { if (event.key === "Escape" && opened) { event.preventDefault(); opened.close(true); } });
+  window.addEventListener("resize", () => opened?.position());
+  window.addEventListener("scroll", event => {
+    const target = event.target;
+    if (!opened || isProjectionScroll(target) || target !== window && opened.panel.contains(target)) return;
+    // Text inputs can scroll internally when a precise value blurs. That does
+    // not move this disclosure. Page/tab scrolling moves its anchor instead.
+    if (target === window || target === document || target.contains?.(opened.button)) opened.position();
+    else if (target.matches?.("[data-schedule-viewport], .calculator-table-scroll, .table-scroll")) opened.close();
+  }, true);
+  return { create, applyTable, hidden: read, isProjectionScroll };
+})();
+
 (() => {
   const $ = (id) => document.getElementById(id);
   const calculationQueue = window.CeasefireCalculationQueue.create();
@@ -39,7 +163,7 @@
       CALCULATOR: {
         omit_columns: ["L"], schedule_omit_columns: ["Y", "AA", "AC", "AD"],
         column_order: ["A", "B", "C", "D", "F", "CJ", "G", "H", "I", "J", "K", "E"],
-        text: { AE8: "Board net (m2)", AG8: "Sheets", AH8: "Purchase area (m2)" },
+        text: { AE8: "Board net (m²)", AG8: "Sheets", AH8: "Purchase area (m2)" },
       }, // Retain source inputs, calculated outputs and saved row waste.
       START: { hide: ["A1"], text: { A1: "", D13: "Previously saved additional-board allowances remain included in purchasing totals.", A27: "Use START, SCHEDULE, BOARD SUMMARY and SETTINGS. Supporting reference data is retained by the application.", A31: "Saved additional-board allowances remain included in the board summary." } },
       "BOARD SUMMARY": { center: ["A11:D29", "I11:J29"], text: { A1: "SUMMARY" } }, // 22
@@ -1014,6 +1138,8 @@
     let timer;
     const onScroll = () => {
       if (entry !== current() || scheduleFor(entry)?.sheet !== entry.sheet) return;
+      if (window.CeasefireScheduleColumns.isProjectionScroll(scroll)) return;
+      scroll.scheduleColumnProjection = null;
       const previousTop = viewport.top || 0, previousLeft = viewport.left || 0;
       viewport.top = scroll.scrollTop; viewport.left = scroll.scrollLeft;
       clearTimeout(timer);
@@ -1526,11 +1652,11 @@
     if (entry.sheet !== schedule?.sheet || !position
         || position.row < schedule.first_row || position.row > schedule.last_row) return null;
     const compactOutput = entry.definition.id === "steel_board" && position.column === 35
-      || entry.definition.id === "ductwork" && position.column === 39;
+      || entry.definition.id === "ductwork" && [38, 39, 42].includes(position.column);
     const steelBasis = ["steel_vermiculite", "steel_intumescent"].includes(entry.definition.id) && position.column === 25;
     if (!compactOutput && !steelBasis) return null;
     const cells = entry.result?.rows?.find(row => row.row === position.row)?.cells || [];
-    const missing = [...new Set(cells.filter(cell => cell.required_missing).map(cell => window.CeasefireI18n.term(cell.label)))];
+    const missing = [...new Set(cells.filter(cell => cell.required_missing).map(cell => window.CeasefireI18n.translate(cell.label)))];
     const review = missing.length ? window.CeasefireI18n.translate("Review required: {0}", [missing.join(", ")]) : "";
     value = typeof value === "string" ? value : "";
     if (!value.trim() && !review) return null;
@@ -1719,7 +1845,7 @@
     const titleAddresses = new Set(metadata.presentation_tables.map((table) => table.title_address).filter(Boolean));
     const titles = rows.flatMap((row) => row.cells.filter((cell) => titleAddresses.has(cell.address || `${columnName(cell.column)}${row.row}`)).map((cell) => cell.value));
     titles.push(result.rows.some(row => Object.prototype.hasOwnProperty.call(row, "report_references")));
-    return JSON.stringify([{ ...pageDefinition(entry), section_spacing: result.section_spacing ?? metadata.section_spacing }, result.visible_columns, metadata.omitted_rows, metadata.omitted_columns, metadata.omitted_ranges, metadata.hidden_addresses, metadata.presentation_tables, metadata.table_layout, metadata.display_column_order, metadata.display_text, metadata.display_cells, metadata.navigation_mode, metadata.settings_sections, metadata.display_table_order, metadata.schedule_heading, metadata.expand_tables, titles, content, result.option_sets || {}, rows.map((row) => row.cells.filter((cell) => cell.editable && !omittedColumns.has(cell.column) && !isOmitted(row.row, cell.column)).map((cell) => [cell.address || `${columnName(cell.column)}${row.row}`, cell.type, cell.options_ref || cell.options, cell.allow_other, cell.error_style, cell.validation]))]);
+    return JSON.stringify([{ ...pageDefinition(entry), section_spacing: result.section_spacing ?? metadata.section_spacing }, result.register_columns, result.visible_columns, metadata.omitted_rows, metadata.omitted_columns, metadata.omitted_ranges, metadata.hidden_addresses, metadata.presentation_tables, metadata.table_layout, metadata.display_column_order, metadata.display_text, metadata.display_cells, metadata.navigation_mode, metadata.settings_sections, metadata.display_table_order, metadata.schedule_heading, metadata.expand_tables, titles, content, result.option_sets || {}, rows.map((row) => row.cells.filter((cell) => cell.editable && !omittedColumns.has(cell.column) && !isOmitted(row.row, cell.column)).map((cell) => [cell.address || `${columnName(cell.column)}${row.row}`, cell.type, cell.options_ref || cell.options, cell.allow_other, cell.error_style, cell.validation]))]);
   }
 
   function presentationRole(cell) {
@@ -1938,13 +2064,17 @@
       state.gridEntry = entry; return;
     }
     const hidden = hiddenColumns(metadata);
-    const omittedRows = new Set(metadata.omitted_rows), omittedColumns = new Set(metadata.omitted_columns), hiddenAddresses = new Set(metadata.hidden_addresses || []), isOmitted = omittedCell(metadata);
+    const registerColumns = entry.sheet === entry.definition.schedule?.sheet && Array.isArray(result.register_columns) ? result.register_columns : null;
+    const registerSet = new Set(registerColumns || []), register = entry.definition.schedule;
+    const omittedRows = new Set(metadata.omitted_rows), omittedColumns = new Set(metadata.omitted_columns), hiddenAddresses = new Set(metadata.hidden_addresses || []), sourceOmitted = omittedCell(metadata);
+    const isOmitted = (row, column) => registerColumns && row >= register.header_row && row <= register.last_row ? !registerSet.has(column) : sourceOmitted(row, column);
     const visibleRows = result.rows.filter((row) => !omittedRows.has(row.row)).map((row) => ({ ...row, cells: row.cells.filter((cell) => !isOmitted(row.row, cell.column)) }));
     let columns = (result.visible_columns || Array.from({ length: result.max_column }, (_, index) => index + 1).filter((column) => !hidden.has(column))).filter((column) => !omittedColumns.has(column));
     const overviewColumns = columns;
     // Schedule-only display columns must not hide overview warnings in the
     // same source columns above the register (for example board warning Y6).
-    if (entry.sheet === entry.definition.schedule?.sheet) {
+    if (registerColumns) columns = [...registerColumns];
+    else if (entry.sheet === entry.definition.schedule?.sheet) {
       const scheduleOmissions = new Set((browserPresentation[entry.definition.id]?.[entry.sheet]?.schedule_omit_columns || []).map(columnNumber));
       columns = columns.filter(column => !scheduleOmissions.has(column));
     }
@@ -2112,32 +2242,36 @@
       }
     }
     const headRow = node("tr");
-    if (syntheticLine) { const heading = uiNode("th", "calculator-line-number", "Line"); heading.scope = "col"; headRow.append(heading); }
+    if (syntheticLine) { const heading = uiNode("th", "calculator-line-number", "Line"); heading.scope = "col"; heading.dataset.scheduleColumn = "virtual:line"; headRow.append(heading); }
     for (const column of columns) {
-      if (showReports && column === reportBefore) { const heading = uiNode("th", "calculator-report-column", "Report"); heading.scope = "col"; headRow.append(heading); }
+      if (showReports && column === reportBefore) { const heading = uiNode("th", "calculator-report-column", "Report"); heading.scope = "col"; heading.dataset.scheduleColumn = "virtual:report"; headRow.append(heading); }
       const label = String(labels[column] || "");
       const width = schedule ? scheduleColumnWidth(column, label, lineColumn) : Math.max(24, Math.min(320, (Number(metadata.column_widths?.[column]) || 22) * 7));
       widths.push(width);
       const heading = uiNode("th", "", labels[column] || ""); heading.scope = "col"; headRow.append(heading);
+      if (schedule) heading.dataset.scheduleColumn = `column:${columnName(column)}`;
       if (schedule?.columns?.some(field => columnNumber(field.column) === column && field.required)) {
         heading.classList.add("calculator-required-heading");
         window.CeasefireI18n.attr(heading, "aria-label", "{0} (required)", [window.CeasefireI18n.term(labels[column] || "")]);
       }
     }
-    if (showReports && !reportBefore) { const heading = uiNode("th", "calculator-report-column", "Report"); heading.scope = "col"; headRow.append(heading); }
-    if (dynamicSchedule) { const heading = uiNode("th", "calculator-row-action", "Actions"); heading.scope = "col"; headRow.append(heading); }
+    if (showReports && !reportBefore) { const heading = uiNode("th", "calculator-report-column", "Report"); heading.scope = "col"; heading.dataset.scheduleColumn = "virtual:report"; headRow.append(heading); }
+    if (dynamicSchedule) { const heading = uiNode("th", "calculator-row-action", "Actions"); heading.scope = "col"; heading.dataset.scheduleColumn = "virtual:actions"; headRow.append(heading); }
+    if (schedule) entry.scheduleColumnChoices = [...(syntheticLine ? [{ id: "virtual:line", label: "Line" }] : []),
+      ...columns.flatMap(column => [...(showReports && column === reportBefore ? [{ id: "virtual:report", label: "Report" }] : []), { id: `column:${columnName(column)}`, label: labels[column] || columnName(column) }]),
+      ...(showReports && !reportBefore ? [{ id: "virtual:report", label: "Report" }] : []), ...(dynamicSchedule ? [{ id: "virtual:actions", label: "Actions" }] : [])];
     head.append(headRow);
     let introPlaced = false;
     for (const [group, renderedGroup] of sections) for (const row of renderedGroup.sourceRows) {
       const groupColumns = renderedGroup.columns;
       const tr = node("tr"), values = new Map(row.cells.map((cell) => [cell.column, cell]));
       const item = schedule ? row.row - schedule.first_row + 1 : "";
-      const reportCell = () => { const cell = node("td", "calculator-report-column"); cell.dataset.calculatorReports = String(row.row); renderReportReferences(cell, row.report_references || []); return cell; };
+      const reportCell = () => { const cell = node("td", "calculator-report-column"); cell.dataset.scheduleColumn = "virtual:report"; cell.dataset.calculatorReports = String(row.row); renderReportReferences(cell, row.report_references || []); return cell; };
       tr.dataset.sourceRow = String(row.row);
       if (dynamicSchedule) {
         tr.setAttribute("aria-rowindex", String(entry.scheduleRows.indexOf(row.row) + 2));
       }
-      if (syntheticLine) tr.append(node("td", "calculator-line-number", item));
+      if (syntheticLine) { const cell = node("td", "calculator-line-number", item); cell.dataset.scheduleColumn = "virtual:line"; tr.append(cell); }
       const requestedLayout = renderedGroup.definition?.row_layouts?.[row.row];
       let rowLayout = null;
       if (Array.isArray(requestedLayout) && requestedLayout.length) {
@@ -2173,6 +2307,7 @@
         const explicitHeading = matrixHeading || sourceHeading || Boolean(section) || role === "title";
         if (!explicitHeading && (cell.calculated || cell.output || cell.read_only)) role = "output";
         const td = node(matrixHeading ? "th" : "td", `calculator-role-${role}`);
+        if (schedule) td.dataset.scheduleColumn = `column:${columnName(column)}`;
         if (schedule && column === lineColumn) td.classList.add("calculator-line-number");
         if (matrixHeading) td.scope = "col";
         if (section) { td.id = section.id; td.classList.add("calculator-section-anchor", `calculator-section-theme-${section.theme}`); }
@@ -2205,6 +2340,7 @@
       if (showReports && !groupColumns.includes(reportBefore)) tr.append(reportCell());
       if (dynamicSchedule) {
         const action = node("td", "calculator-row-action");
+        action.dataset.scheduleColumn = "virtual:actions";
         for (const binding of window.CeasefireTakeoffs?.scheduleBindings(entry.definition.id, row.row) || []) {
           const source = uiNode("button", "takeoff-source-indicator", "Source"); source.type = "button";
           window.CeasefireI18n.attr(source, "title", "Open takeoff {0}", [binding.item_id]); window.CeasefireI18n.attr(source, "aria-label", "Open takeoff {0}", [binding.item_id]);
@@ -2271,6 +2407,7 @@
       if (boardSummary && definition?.first_row === 11 && groupColumns.includes(10)) groupWidths.splice(groupColumns.indexOf(10), 0, 170);
       if (syntheticLine) groupWidths.unshift(lineWidth);
       if (dynamicSchedule) groupWidths.push(80);
+      if (schedule) table.scheduleColumnLayout = entry.scheduleColumnChoices.map((column, index) => ({ id: column.id, width: groupWidths[index] }));
       const totalWidth = groupWidths.reduce((sum, width) => sum + width, 0);
       for (const width of groupWidths) { const col = node("col"); col.style.width = `${fitWidth ? width / totalWidth * 100 : width}${legacyOrder || fitWidth ? "%" : "px"}`; colgroup.append(col); }
       table.style.width = legacyOrder || fitWidth ? "100%" : `${totalWidth}px`; table.append(colgroup);
@@ -2279,6 +2416,7 @@
         const spacer = (count) => {
           const row = node("tr", "calculator-virtual-spacer"), cell = node("td"); row.setAttribute("aria-hidden", "true");
           cell.colSpan = groupColumns.length + Number(syntheticLine) + Number(dynamicSchedule) + Number(showReports);
+          cell.dataset.scheduleSpacer = "true";
           cell.style.height = `${Math.max(0, count) * scheduleRowHeight}px`; row.append(cell); return row;
         };
         body.replaceChildren(spacer(scheduleView.offset), ...body.children, spacer(entry.scheduleRows.length - scheduleView.offset - rows.length));
@@ -2336,6 +2474,21 @@
     if (dynamicSchedule) for (const scroll of grid.querySelectorAll("[data-schedule-viewport]")) { scroll.scrollTop = entry.scheduleViewport?.top || 0; scroll.scrollLeft = entry.scheduleViewport?.left || 0; }
     entry.renderedSheet = entry.sheet; entry.renderedPage = currentPage(entry); entry.choiceSignature = choiceSignature(result); entry.needsRender = false;
     state.gridEntry = entry;
+    syncScheduleColumns(entry);
+  }
+
+  let scheduleColumnChooser = null;
+  function syncScheduleColumns(entry) {
+    const active = entry === current() && entry.sheet === entry.definition.schedule?.sheet && entry.scheduleColumnChoices?.length && !entry.factorView;
+    if (!active) { if (scheduleColumnChooser) { scheduleColumnChooser.close(); scheduleColumnChooser.host.hidden = true; } return; }
+    scheduleColumnChooser ||= window.CeasefireScheduleColumns.create();
+    const key = `${entry.definition.id}:${entry.sheet}`;
+    const apply = hidden => {
+      if (entry !== current() || entry.sheet !== entry.definition.schedule.sheet) return;
+      for (const table of $("calculator-grid").querySelectorAll("table")) window.CeasefireScheduleColumns.applyTable(table, hidden);
+    };
+    const hidden = scheduleColumnChooser.bind(key, entry.scheduleColumnChoices, apply);
+    scheduleColumnChooser.host.hidden = false; $("calculator-pages").append(scheduleColumnChooser.host); apply(hidden);
   }
 
   function navigationCache(entry, create = false) {
@@ -2394,6 +2547,7 @@
         entry.productTotalsElement = view.totals; entry.boardSteelNotesElement = view.steelNotes; entry.choiceSignature = view.signature;
         entry.renderedSheet = entry.sheet; entry.renderedPage = page; entry.needsRender = false; state.gridEntry = entry;
         refreshScheduleDeleteControls(entry);
+        syncScheduleColumns(entry);
         retainRecent(cache.pages, page, view, 3);
       } else renderGrid(entry);
       $("calculator-grid").setAttribute("aria-busy", "false"); showCalculationStatus(entry, result); return;
@@ -2413,7 +2567,7 @@
     $("calculator-grid").setAttribute("aria-busy", "true");
     try {
       const schedule = scheduleFor(entry);
-      const body = JSON.stringify({ inputs: clone(entry.inputs), sheet, include_advanced: false,
+      const body = JSON.stringify({ inputs: clone(entry.inputs), sheet, include_advanced: Boolean(schedule),
         ...(schedule ? { schedule_view: { ...(Array.isArray(entry.scheduleRows) ? { rows: [...entry.scheduleRows] } : {}), offset: entry.scheduleViewport?.offset || 0, limit: scheduleWindowSize } } : {}) });
       const result = await calculationQueue.run(() => request(endpoint(entry.definition.id, "worksheet"), { method: "POST", body }),
         () => current() === entry && serial === state.requestRevision && revision === entry.revision && sheet === entry.sheet && page === currentPage(entry) && !entry.invalid.size);
@@ -2458,6 +2612,7 @@
     });
     $("calculator-pages").replaceChildren(...buttons);
     $("calculator-pages").hidden = Boolean(entry.factorView);
+    syncScheduleColumns(entry);
   }
 
   function safeDocumentUrl(value) {
@@ -2878,7 +3033,7 @@
   }
 
   window.CeasefireCalculators = { open, projectSnapshot, projectFingerprint, prepareProject, applyProject };
-  Object.assign(window.CeasefireCalculators, { select: selectCalculator, canSelect, refreshNavigation: renderChoices, hide() { ++state.loadRevision; $("calculator-workspace").hidden = true; } });
+  Object.assign(window.CeasefireCalculators, { select: selectCalculator, canSelect, refreshNavigation: renderChoices, hide() { ++state.loadRevision; scheduleColumnChooser?.close(); $("calculator-workspace").hidden = true; } });
   Object.assign(window.CeasefireCalculators, { prepareDefaults, markProjectSaved, hasUnsavedChanges, completeProjectSnapshot });
   Object.assign(window.CeasefireCalculators, { hasPendingOperation: () => !!state.action });
   Object.assign(window.CeasefireCalculators, { readTakeoffTarget, captureTakeoffTarget, reserveTakeoffTarget, applyTakeoffTarget, releaseTakeoffTarget });

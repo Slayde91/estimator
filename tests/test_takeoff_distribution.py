@@ -17,6 +17,8 @@ class TakeoffDistributionTests(unittest.TestCase):
                          'scripts/install_library_replicas.py', 'docs/LIBRARY_REPLICAS.md',
                          'scripts/import_boss_matrix.py', 'docs/BOSS_MATRIX_IMPORT.md',
                          'docs/TAKEOFFS.md', 'docs/LANGUAGES.md', 'docs/PERLIFOC_ASSESSMENT.md', 'docs/NULLIFIRE_SC902.md', 'docs/FIRETEX_ASSESSMENTS.md',
+                          'docs/CALCULATOR_REPORT_UPDATES.md', 'docs/MONOKOTE_DUCT_ASSESSMENT.md',
+                          'scripts/import_promat_spray_assessments.py', 'requirements-import.txt',
                          'estimator/__init__.py', 'static/takeoffs.js', 'data/public.json'):
                 path = root / name; path.parent.mkdir(parents=True, exist_ok=True); path.write_text('')
             for name in ('estimator', 'static', 'data'):
@@ -32,6 +34,10 @@ class TakeoffDistributionTests(unittest.TestCase):
                 self.assertIn('docs/PERLIFOC_ASSESSMENT.md', names)
                 self.assertIn('docs/NULLIFIRE_SC902.md', names)
                 self.assertIn('docs/FIRETEX_ASSESSMENTS.md', names)
+                self.assertIn('docs/CALCULATOR_REPORT_UPDATES.md', names)
+                self.assertIn('docs/MONOKOTE_DUCT_ASSESSMENT.md', names)
+                self.assertIn('scripts/import_promat_spray_assessments.py', names)
+                self.assertIn('requirements-import.txt', names)
                 self.assertIn('scripts/build_language_catalog.py', names)
                 self.assertIn('scripts/install_library_replicas.py', names)
                 self.assertIn('docs/LIBRARY_REPLICAS.md', names)

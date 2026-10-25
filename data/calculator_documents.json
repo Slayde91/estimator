@@ -130,6 +130,42 @@
     ],
     "steel_vermiculite": [
       {
+        "title": "CAFCO 300 steel assessment FC13107-01-05, 8 July 2025",
+        "kind": "Fire assessment — thickness authority",
+        "url": "https://media.promat.com/cert_371264_au/original/1504631188/c300---steel-protection-fc13107-01-05-promat-final.pdf?brand=promatconstruction&market=au",
+        "products": ["CAFCO 300"],
+        "region": "Australia",
+        "verified_date": "2026-10-25",
+        "availability": "Public PDF; downloaded edition verified",
+        "reference_coverage": "Steel protection thickness tables; exact temperature, period, section factor and member-case coverage apply.",
+        "notes": "Reviewed application tables supersede the retained manual thickness lookup for this product. Unpublished cells remain unavailable; installation conditions still apply.",
+        "source_sha256": "5c6e6addde93d93b01b8b9a5f43823316996208a40eacb3d58d7e2381cc5b6f3"
+      },
+      {
+        "title": "MANDOLITE CP2 steel assessment FC21286-01-01, 22 December 2025",
+        "kind": "Fire assessment — thickness authority",
+        "url": "https://media.promat.com/cert_371268_au/original/-950972560/cp2-cafco-mandolite-cp2-steel-as4100-and-1530.4-2014-branz-fc21286-01-01.pdf?brand=promatconstruction&market=au",
+        "products": ["MANDOLITE CP2"],
+        "region": "Australia",
+        "verified_date": "2026-10-25",
+        "availability": "Public PDF; downloaded edition verified",
+        "reference_coverage": "Steel protection thickness tables; exact temperature, period, section factor and member-case coverage apply.",
+        "notes": "Reviewed application tables supersede the retained manual thickness lookup for this product. Unpublished cells remain unavailable; installation conditions still apply.",
+        "source_sha256": "6c3a868b2706eca612b61607ca952aca505bcab143d6d1e7fab3a42d847c18ac"
+      },
+      {
+        "title": "FENDOLITE MII steel assessment FAR3541 Issue 7, 7 October 2025",
+        "kind": "Fire assessment — thickness authority",
+        "url": "https://media.promat.com/cert_371266_au/original/-954949072/fendolite-far3541-issue-7-fc21151-report-final.pdf?brand=promatconstruction&market=au",
+        "products": ["FENDOLITE MII"],
+        "region": "Australia",
+        "verified_date": "2026-10-25",
+        "availability": "Public PDF; downloaded edition verified",
+        "reference_coverage": "Steel protection thickness tables including member-specific limitations and castellated provisions.",
+        "notes": "Issue 7 supersedes the retained Issue 6 thickness lookup. Exact published temperatures, periods and unavailable cells are preserved.",
+        "source_sha256": "1b2eefa601cdf49c45a4332cf40145928529c8d7a29520a3323e473faba7e992"
+      },
+      {
         "title": "CAFCO 300 Australian technical and product data sheet (2025)",
         "kind": "Technical manual",
         "url": "https://media.promat.com/doc_367862_au/original/-1912786977/cafco-300-tds-en-au-2025-current.pdf",
@@ -560,17 +596,18 @@
         }
       },
       {
-        "title": "MONOKOTE duct assessment FC15909-01-2",
+        "title": "MONOKOTE duct assessment FC15909-01-03, 24 February 2026",
         "kind": "Assessment report",
         "url": "https://tfire.com.au/documents/monokote-gcp-test-report",
         "products": [
           "MONOKOTE MK-6 HY"
         ],
         "region": "Australia",
-        "verified_date": "2026-09-13",
-        "availability": "Public PDF",
-        "reference_coverage": "Australian AS1530.4:2014 duct report; source workbook FC15909 reference family.",
-        "notes": "",
+        "verified_date": "2026-10-25",
+        "availability": "Public PDF; downloaded edition verified",
+        "reference_coverage": "BRANZ FC15909-01-03, Tables 2–4. Current calculator retains four-sided ducts and its five existing FRL choices.",
+        "notes": "Reviewed current-report thickness and scope replace the superseded workbook values. Other construction types in the report do not expand calculator choices.",
+        "source_sha256": "474e3d3ca6abfe6b7d3017bccba6a4a8874b3a91751ffeb08b7f78baf712cd4c",
         "link_verification": {
           "status": 200,
           "content_type": "application/pdf",
@@ -778,6 +815,18 @@
           "content_type": "application/pdf",
           "method": "GET (headers and 4-byte signature only)"
         }
+      },
+      {
+        "title": "PROMATECT-XS — FAS230021 RIR1.4, 20 February 2025",
+        "kind": "Assessment report",
+        "url": "https://media.promat.com/cert_371267_au/original/2143168301/promatect-xs--as4100-2020--as1530.4-2014-fas230021-rir1.4.pdf?brand=promatconstruction&market=au",
+        "products": ["PROMATECT-XS"],
+        "region": "Australia",
+        "verified_date": "2026-10-25",
+        "availability": "Public Regulatory Information Report",
+        "reference_coverage": "FAS230021 RIR1.4 identifies the underlying FAS230021 R1.4 assessment for second-generation PROMATECT-XS steel protection.",
+        "notes": "Issued 20 February 2025; expires 31 August 2028. This public RIR link identifies the cited assessment family; it does not expand the retained brochure-derived calculator choices.",
+        "source_sha256": "1a24d65f1e65aadbc1e4f6bd0a0afab63cd6541cf1b6cb0bc66afa89fe65cb0d"
       },
       {
         "title": "PROMATECT-XS Australian brochure and technical information (June 2025)",

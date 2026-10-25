@@ -39,9 +39,11 @@ class ScheduleQuantityTests(unittest.TestCase):
             result = calculate_worksheet(identity, {}, 'CALCULATOR', include_advanced=True,
                                          schedule_view={'rows': [source_model(identity)['schedule']['first_row']],
                                                         'offset': 0, 'limit': 1})
-            expected = [*range(1, original_last + 1), quantity_column]
+            expected = ([*range(1, 7), 88, *range(7, 36)] if identity == 'steel_board' else
+                        [*range(1, 5), 91, *range(5, 37), 40, 41, 37, 38, 39, 42, 43, 86, 87, 88])
             self.assertEqual(result['visible_columns'], expected)
-            self.assertEqual(result['application_display_columns'], expected)
+            self.assertEqual(result['register_columns'], expected)
+            self.assertEqual(result['application_display_columns'], [*range(1, original_last + 1), quantity_column])
             self.assertEqual(result['max_column'], quantity_column)
             self.assertTrue(all(cell['column'] in expected for row in result['rows'] for cell in row['cells']))
 

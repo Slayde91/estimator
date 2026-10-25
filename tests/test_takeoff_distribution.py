@@ -18,6 +18,7 @@ class TakeoffDistributionTests(unittest.TestCase):
                          'scripts/import_boss_matrix.py', 'docs/BOSS_MATRIX_IMPORT.md',
                          'docs/TAKEOFFS.md', 'docs/LANGUAGES.md', 'docs/PERLIFOC_ASSESSMENT.md', 'docs/NULLIFIRE_SC902.md', 'docs/FIRETEX_ASSESSMENTS.md',
                           'docs/CALCULATOR_REPORT_UPDATES.md', 'docs/MONOKOTE_DUCT_ASSESSMENT.md',
+                          'docs/FIREFLY_REFERENCE_REVIEW.md',
                           'scripts/import_promat_spray_assessments.py', 'requirements-import.txt',
                          'estimator/__init__.py', 'static/takeoffs.js', 'data/public.json'):
                 path = root / name; path.parent.mkdir(parents=True, exist_ok=True); path.write_text('')
@@ -36,6 +37,7 @@ class TakeoffDistributionTests(unittest.TestCase):
                 self.assertIn('docs/FIRETEX_ASSESSMENTS.md', names)
                 self.assertIn('docs/CALCULATOR_REPORT_UPDATES.md', names)
                 self.assertIn('docs/MONOKOTE_DUCT_ASSESSMENT.md', names)
+                self.assertIn('docs/FIREFLY_REFERENCE_REVIEW.md', names)
                 self.assertIn('scripts/import_promat_spray_assessments.py', names)
                 self.assertIn('requirements-import.txt', names)
                 self.assertIn('scripts/build_language_catalog.py', names)

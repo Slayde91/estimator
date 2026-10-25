@@ -401,6 +401,19 @@ class DesktopPackagingTests(unittest.TestCase):
             self.assertNotIn('icons/' + name, STATIC_FILES)
             self.assertTrue((ROOT / 'static/icons' / name).is_file())
 
+    def test_header_menu_audio_is_packaged_with_exact_supplied_bytes(self):
+        supplied = {
+            'sounds/mgs1-menu-move.mp3': (8313, 'ac2d686c78fa5dabc2415a0f3b39f4ced124f5fc1613ba3918e06daa7b47f8d0'),
+            'sounds/mgs-confirm2.mp3': (32391, 'e9e7e156e24a4fde706f922ee135e88df51dc5ba94eed6344e66bbd6298e3e86'),
+        }
+        self.assertEqual(STATIC_FILES.count('header-menu-sounds.js'), 1)
+        for asset, (size, digest) in supplied.items():
+            with self.subTest(asset=asset):
+                self.assertEqual(STATIC_FILES.count(asset), 1)
+                payload = (ROOT / 'static' / asset).read_bytes()
+                self.assertEqual(len(payload), size)
+                self.assertEqual(hashlib.sha256(payload).hexdigest(), digest)
+
     def test_standard_page_scripts_and_styles_are_packaged(self):
         from estimator.edition import render_index
 

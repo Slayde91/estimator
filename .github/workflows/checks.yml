@@ -51,6 +51,7 @@ jobs:
       - run: node --test tests/test_help_glossary.cjs tests/test_takeoff_signatures.cjs tests/test_takeoff_area_copy_visibility_ui.cjs
       - run: node --check static/takeoff-library-links.js
       - run: node --check static/header-tagline-media.js
+      - run: node --check static/header-menu-sounds.js && node --test tests/test_header_menu_sounds.cjs
       - run: node --check static/takeoff-search.js
       - run: node --check static/takeoff-shortcuts.js
       - run: node --check static/takeoff-pdf-worker.mjs
@@ -101,6 +102,7 @@ jobs:
       - run: python -m pip install -r requirements-dev.txt
       - run: npm ci
       - run: npx playwright install --with-deps chromium
+      - run: node tests/browser/header_menu_sounds.cjs
       - run: node tests/browser/schedule_columns.cjs
       - run: node tests/browser/calculation_queue.cjs
       - run: npm run test:project-library-drafts

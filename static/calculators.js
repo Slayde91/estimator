@@ -2612,6 +2612,14 @@ window.CeasefireScheduleColumns = (() => {
     });
     $("calculator-pages").replaceChildren(...buttons);
     $("calculator-pages").hidden = Boolean(entry.factorView);
+    const documentActions = $("calculator-document-toggle")?.closest?.(".calculator-document-menu");
+    if (documentActions) {
+      documentActions.hidden = Boolean(entry.factorView);
+      if (entry.factorView) {
+        $("calculator-document-menu").hidden = true;
+        $("calculator-document-toggle").setAttribute("aria-expanded", "false");
+      }
+    }
     syncScheduleColumns(entry);
   }
 

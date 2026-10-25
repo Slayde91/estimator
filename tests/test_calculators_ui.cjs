@@ -1702,15 +1702,22 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
   assert.ok(!virtualOutputs().includes('A1'));assert.ok(virtualOutputs().includes('D42'));for(const address of ['A7','A270','A341','A356','A370'])assert.ok(!virtualOutputs().includes(address));
   await virtualButtons()[0].emit('click');const virtualSetting=renderedControls().find(control=>control.dataset.calculatorCell==='D13');
   assert.equal(virtualSetting.dataset.calculatorSheet,'SETTINGS');virtualSetting.value='3.45678912';await virtualSetting.emit('input');
+  const factorDocumentRoot=element();
+  byId('calculator-document-toggle').closest=selector=>selector==='.calculator-document-menu'?factorDocumentRoot:null;
+  byId('calculator-document-menu').hidden=false;byId('calculator-document-toggle').setAttribute('aria-expanded','true');
   await audit.selectCalculator('steel_factors');assert.equal(audit.current(),entry);assert.equal(audit.state.entries.size,1);assert.equal(audit.state.current,'steel_vermiculite');assert.equal(byId('calculator-title').textContent,'Factor Calcs');assert.equal(byId('calculator-pages').hidden,true);assert.equal(virtualButtons().length,2);assert.ok(virtualPanels().every(panel=>panel.hidden));assert.equal(renderedControls().length,2);assert.equal(virtualButtons()[1].textContent,'HOLLOW SECTIONS');assert.equal(audit.sourceDisplayText('Original hollow title',entry,'A356'),'HOLLOW SECTIONS');
+  assert.equal(factorDocumentRoot.hidden,true);assert.equal(byId('calculator-document-menu').hidden,true);assert.equal(byId('calculator-document-toggle').getAttribute('aria-expanded'),'false');
   assert.ok(!virtualOutputs().includes('A1'));for(const address of ['A9','A31','A270','D42'])assert.ok(!virtualOutputs().includes(address));
   await virtualButtons()[0].emit('click');const virtualFactor=renderedControls().find(control=>control.dataset.calculatorCell==='D342');
   assert.equal(virtualFactor.dataset.calculatorSheet,'SETTINGS');virtualFactor.value='4.56789123';await virtualFactor.emit('input');
   await audit.selectCalculator('steel_vermiculite');assert.equal(entry.page,'SETTINGS');assert.equal(byId('calculator-pages').hidden,false);assert.equal(virtualButtons()[0].getAttribute('aria-expanded'),'true');assert.equal(entry.inputs.SETTINGS.D13,3.45678912);
+  assert.equal(factorDocumentRoot.hidden,false);assert.equal(byId('calculator-document-menu').hidden,true);
   await audit.selectCalculator('steel_factors');assert.equal(virtualButtons()[0].getAttribute('aria-expanded'),'true');assert.equal(entry.inputs.SETTINGS.D342,4.56789123);
   const invalidFactor=renderedControls().find(control=>control.dataset.calculatorCell==='D342');invalidFactor.value='not a number';await invalidFactor.emit('input');
   const beforeBlockedTab=virtualRequests.length;await audit.selectCalculator('steel_vermiculite');assert.equal(entry.page,'FACTOR CALCS');assert.equal(virtualRequests.length,beforeBlockedTab);assert.ok(entry.invalid.has('SETTINGS!D342'));
+  assert.equal(factorDocumentRoot.hidden,true,'Blocked navigation keeps Factor Calcs without Document');
   invalidFactor.value='4.56789123';await invalidFactor.emit('input');await audit.selectCalculator('steel_vermiculite');assert.equal(entry.page,'SETTINGS');assert.equal(entry.invalid.size,0);
+  assert.equal(factorDocumentRoot.hidden,false);
   assert.equal(entry.inputs.SETTINGS.BF533,'Retained hidden input');assert.equal(entry.inputs.SCHEDULE.A1009,'Last schedule mark');
   assert.equal(entry.inputs.SETTINGS.D10,'Retained project reference');assert.equal(entry.inputs.START,undefined);assert.equal(entry.inputs['FACTOR CALCS'],undefined);assert.ok(virtualRequests.every(request=>request.path.includes('/steel_vermiculite/')));passed++;
 

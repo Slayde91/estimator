@@ -29,6 +29,7 @@ from .technical_discovery import (HIDDEN_FRL_CHOICES, canonical_frl, discovery_f
                                   present_frl_text, present_technical)
 from .technical_fields import (FIELD_LABELS, LEGACY_LABELS,
                                is_hidden_technical_label, normalize_technical_item)
+from .firefly_reference_review import plan_stamp, load_review
 
 KINDS = {'penetration': 'Firestopping Library', 'technical': 'Technical Library'}
 IDENTIFIER = re.compile(r'[a-z0-9][a-z0-9_-]{0,119}\Z')
@@ -143,13 +144,14 @@ class ReferenceLibrary:
         index = self.directory / 'library.json'
         try:
             info = index.stat()
+            review_stamp = plan_stamp(self.directory)
         except FileNotFoundError:
             self._data = None
             self._stamp = None
             return None
-        except OSError as exc:
+        except (OSError, ValueError) as exc:
             raise ValidationError('The local reference library could not be read. Rebuild it from the source files.') from exc
-        stamp = (info.st_mtime_ns, info.st_size, info.st_ctime_ns)
+        stamp = (info.st_mtime_ns, info.st_size, info.st_ctime_ns, review_stamp)
         if self._data is not None and stamp == self._stamp:
             return self._data
         if info.st_size > MAX_INDEX or not index.resolve().is_relative_to(self.directory.resolve()):
@@ -160,6 +162,7 @@ class ReferenceLibrary:
             if len(payload) > MAX_INDEX:
                 raise ValueError('Index limit')
             data = json.loads(payload, parse_constant=lambda _: (_ for _ in ()).throw(ValueError()))
+            load_review(self.directory, data, hashlib.sha256(payload).hexdigest(), review_stamp)
             self._validate(data)
         except (OSError, UnicodeError, ValueError, KeyError, TypeError, AttributeError) as exc:
             raise ValidationError('The local reference library could not be read. Rebuild it from the source files.') from exc

@@ -50,6 +50,18 @@ async function responseTo(action, suffix) {
   const review=page.getByRole('dialog');await expect(review.getByRole('heading')).toHaveText('Load this project?');await review.getByRole('button',{name:'Load Project',exact:true}).click();await expect(review).toBeHidden();await idle();
   const before = await snapshot(), savedProject = fs.readFileSync(info.project);assert.equal(before.calculators.steel_board.inputs.CALCULATOR.L9,0.123456789012345);
   evidence.importedWasteRetained=0.123456789012345;
+  await chooseCalculator(page,'Steel (spray)');await idle();
+  await page.locator('#calculator-document-toggle').click();
+  await expect(page.locator('#calculator-document-menu')).toBeVisible();
+  await chooseCalculator(page,'Factor Calcs');await idle();
+  await expect(page.locator('#calculator-title')).toHaveText('Factor Calcs');
+  await expect(page.locator('#calculator-document-toggle')).toBeHidden();
+  await expect(page.locator('#calculator-document-menu')).toBeHidden();
+  await expect(page.locator('#calculator-document-toggle')).toHaveAttribute('aria-expanded','false');
+  await expect(page.locator('#calculator-reset')).toBeVisible();
+  await expect(page.locator('#calculator-recalculate')).toBeVisible();
+  assert.deepEqual(await snapshot(),before,'Factor Calcs hides Document without changing calculator drafts or prices');
+  evidence.factorCalcsDocumentHidden=true;
   for (const [id, title] of [['steel_vermiculite', 'Steel (spray)'], ['steel_board', 'Steel (board)'], ['ductwork', 'Duct']]) {
     await chooseCalculator(page, title); await idle();
     await expect(page.locator('#calculator-title')).toHaveText(title); await expect(page.locator('#calculator-grid')).toHaveAttribute('aria-busy', 'false');

@@ -75,6 +75,7 @@
 .schedule-column-panel>.schedule-column-all{font-weight:700;border-bottom:1px solid #ded4d7;border-radius:0;margin-bottom:4px}
 .schedule-columns-empty{padding:16px}
 .calculator-grid [data-schedule-column][hidden],.calculator-grid .calculator-schedule-table[hidden]{display:none!important}
+.calculator-grid tbody td.calculator-report-column{background:var(--calculator-body-bg,#fff);color:var(--ink,#171217)}
 .calculator-grid .calculator-report-column:is(:hover,:focus-within),.calculator-grid .calculator-report-column:is(:hover,:focus-within) :is(a,span),.calculator-grid .calculator-basis-preview:is(:hover,:focus-visible){color:#fff!important;background:#a31222!important}
 .calculator-grid .calculator-required-heading::after{content:" *";color:var(--red)}
 .calculator-grid .calculator-required-missing{border-color:var(--red)!important;box-shadow:inset 0 0 0 1px var(--red)}

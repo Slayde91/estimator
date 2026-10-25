@@ -2094,24 +2094,34 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
 
   // Report is a virtual display column: every engine keeps exact source cells,
   // blank reports stay blank, recalculation refreshes links and virtual spans align.
-  for(const id of ['steel_vermiculite','steel_intumescent','steel_board','ductwork']) {
+  for(const id of ['steel_vermiculite','steel_intumescent','steel_board','ductwork']) for(const sourcePlacement of ['none','last','middle']) {
     entry=setup({CALCULATOR:{A9:'Exact source mark',B9:12.3456789012345},SETTINGS:{D10:'Retained'}});
     entry.definition.id=id;entry.scheduleRows=Array.from({length:61},(_,index)=>index+9);
     entry.definition.schedule.last_row=1008;entry.definition.schedule.line_numbers=true;
-    entry.definition.schedule.columns=[{column:'A',label:'Member'},{column:'B',label:'Status'},{column:'C',label:'Source'}];
-    const reportRows=[{row:8,cells:[{column:1,value:'Member'},{column:2,value:'Status'},{column:3,value:'Source'}]},
+    const sourceLabel=sourcePlacement==='none'?'Source':'Thickness source';
+    entry.definition.schedule.columns=[{column:'A',label:'Member'},{column:'B',label:'Status'},{column:'C',label:sourceLabel},...(sourcePlacement==='middle'?[{column:'D',label:'Notes'}]:[])];
+    const reportRows=[{row:8,cells:[{column:1,value:'Member'},{column:2,value:'Status'},{column:3,value:sourceLabel}]},
       {row:9,report_references:[{label:'Assessment A',url:'https://example.com/assessment.pdf'}],cells:[{column:1,address:'A9',value:'Exact source mark'},{column:2,address:'B9',value:12.3456789012345},{column:3,address:'C9',value:'Exact source'}]},
       {row:10,report_references:[],cells:[{column:1,address:'A10',value:null},{column:2,address:'B10',value:null},{column:3,address:'C10',value:null}]}];
-    entry.result=result(copy(entry.inputs),{rows:reportRows,schedule_view:{offset:0,rows:entry.scheduleRows,total_rows:61,limit:60,capacity:1000}});
+    if(sourcePlacement==='middle')for(const row of reportRows)row.cells.push({column:4,address:`D${row.row}`,value:row.row===8?'Notes':'Retained note'});
+    entry.result=result(copy(entry.inputs),{max_column:sourcePlacement==='middle'?4:3,rows:reportRows,schedule_view:{offset:0,rows:entry.scheduleRows,total_rows:61,limit:60,capacity:1000}});
     const beforeReports=JSON.stringify(entry.inputs),rawReports=JSON.stringify(entry.result);
     const reportRenderCalls=[];context.window.CeasefireRegisterReferences={renderReports(refs){reportRenderCalls.push(copy(refs));const span=element('span');span.textContent=refs.map(ref=>ref.label).join('; ');return span;}};
     realRender(entry);const reportTable=renderedTable(),reportHead=reportTable.children.find(node=>node.tagName==='thead').children[0];
-    assert.deepEqual(reportHead.children.map(cell=>cell.textContent),['Line','Member','Report','Status','Source','Actions']);
+    // Duct already places its source C column after D; replacement follows
+    // the existing presentation order rather than reordering source fields.
+    const expectedHead=sourcePlacement==='none'?['Line','Member','Report','Status','Source','Actions']
+      :sourcePlacement==='middle'&&id==='ductwork'?['Line','Member','Status','Notes','Report','Actions']
+      :['Line','Member','Status','Report',...(sourcePlacement==='middle'?['Notes']:[]),'Actions'];
+    assert.deepEqual(reportHead.children.map(cell=>cell.textContent),expectedHead,`${id}/${sourcePlacement}`);
+    assert.deepEqual(copy(entry.scheduleColumnChoices).map(column=>column.label),expectedHead);
+    assert.equal(entry.scheduleColumnChoices.some(column=>column.label==='Thickness source'),false);
     const reportBody=reportTable.children.find(node=>node.tagName==='tbody'),reportCells=byId('calculator-grid').querySelectorAll('[data-calculator-reports]');
     assert.equal(reportCells.length,2);assert.equal(reportCells[0].dataset.calculatorOutput,undefined);assert.equal(reportCells[0].children[0].textContent,'Assessment A');assert.equal(reportCells[1].children.length,0);
-    assert.equal(reportTable.children[0].children[2].style.width,'144px');assert.equal(reportTable.children[0].children.length,6);
-    assert.ok(reportBody.children.filter(row=>row.className==='calculator-virtual-spacer').every(row=>row.children[0].colSpan===6));
-    assert.ok(reportBody.children.filter(row=>row.dataset.sourceRow).every(row=>row.children.length===6));
+    assert.equal(reportTable.children[0].children[expectedHead.indexOf('Report')].style.width,'144px');assert.equal(reportTable.children[0].children.length,expectedHead.length);
+    assert.ok(reportBody.children.filter(row=>row.className==='calculator-virtual-spacer').every(row=>row.children[0].colSpan===expectedHead.length));
+    assert.ok(reportBody.children.filter(row=>row.dataset.sourceRow).every(row=>row.children.length===expectedHead.length));
+    if(sourcePlacement!=='none')assert.equal(byId('calculator-grid').querySelectorAll('[data-schedule-column]').some(cell=>cell.dataset.scheduleColumn==='column:C'),false);
     assert.equal(JSON.stringify(entry.result),rawReports);assert.equal(JSON.stringify(entry.inputs),beforeReports);
     entry.result.rows[1].report_references=[{label:'Assessment B (private)',url:null}];entry.result.rows[2].report_references=[{label:'Assessment C',url:'https://example.com/c.pdf'}];audit.refreshOutputs(entry.result);
     assert.equal(reportCells[0].children[0].textContent,'Assessment B (private)');assert.equal(reportCells[1].children[0].textContent,'Assessment C');assert.equal(JSON.stringify(entry.inputs),beforeReports);

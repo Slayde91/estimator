@@ -12,7 +12,7 @@ const source = fs.readFileSync('static/downloads.js','utf8');
 function progressHarness({ reducedMotion = false } = {}) {
   const history = [], timers = new Map(), frames = new Map();
   let now = 0, nextId = 0, latest = {percent:10,state:'preparing'}, pollResponse = null;
-  let beginCount = 0, endCount = 0;
+  let beginCount = 0, endCount = 0, soundBegin = 0, soundEnd = 0;
   class Element {
     constructor(tag) { this.tagName=tag;this.children=[];this.attributes=new Map();this.dataset={};this.parentElement=null;this.textContent=''; }
     append(...children) { for(const child of children){child.parentElement=this;this.children.push(child);} }
@@ -26,7 +26,7 @@ function progressHarness({ reducedMotion = false } = {}) {
   }
   const host=new Element('div'), button={closest:()=>host}, pending=deferred();
   const context={
-    window:{matchMedia:()=>({matches:reducedMotion}),CeasefireActivity:{begin:()=>{beginCount++;return()=>{endCount++;};}}},
+    window:{matchMedia:()=>({matches:reducedMotion}),CeasefireActivity:{begin:()=>{beginCount++;return()=>{endCount++;};}},CeasefireDownloadSound:{begin:()=>{soundBegin++;return()=>{soundEnd++;};}}},
     document:{activeElement:button,createElement:tag=>new Element(tag)},
     setTimeout:(callback,delay)=>{const id=++nextId;timers.set(id,{callback,at:now+delay});return id;},
     clearTimeout:id=>timers.delete(id),requestAnimationFrame:callback=>{const id=++nextId;frames.set(id,callback);return id;},
@@ -43,6 +43,7 @@ function progressHarness({ reducedMotion = false } = {}) {
     host, history, context, pending, settle, frames,
     get view(){const box=host.children[0];return box?{box,label:box.children[0],bar:box.children[1].children[0]}:null;},
     get activity(){return{begin:beginCount,end:endCount};},
+    get sound(){return{begin:soundBegin,end:soundEnd};},
     setProgress(value){latest=value;},holdPoll(value){pollResponse=value;},
     start(){return context.window.CeasefireDownloads.save('/fixture-export',{}, {button});},
     frame(elapsed){now+=elapsed;const callbacks=[...frames.values()];frames.clear();callbacks.forEach(callback=>callback(now));},
@@ -58,6 +59,7 @@ function progressHarness({ reducedMotion = false } = {}) {
 async function checkVisualProgress() {
   let checks=0;
   const h=progressHarness(), saved=h.start();await h.settle();
+  assert.deepEqual(h.sound,{begin:1,end:0},'Sound begins with preparation, before the original response');
   assert.equal(h.view.box.dataset.indeterminate,'true');assert.equal(h.view.bar.hasAttribute('value'),false);
   assert.equal(h.view.label.textContent,'Preparing file');assert.equal(h.view.label.getAttribute('role'),'status');
   await h.advance(8000);
@@ -82,10 +84,12 @@ async function checkVisualProgress() {
   h.setProgress({percent:100,state:'saved'});await h.advance(400);
   assert.equal(h.view.label.textContent,'Confirming file save');assert.equal(h.view.bar.hasAttribute('value'),false);
   assert.equal(h.history.includes(100),false,'A polled saved state cannot authorize 100% before the original receipt');checks++;
+  assert.deepEqual(h.sound,{begin:1,end:0},'A polled 100% cannot end audio before the file-save receipt');
 
   h.pending.resolve(response(receipt));assert.deepEqual(await saved,receipt);
   assert.equal(h.view.bar.value,100);assert.equal(h.view.label.textContent,'File saved · 100%');
   assert.equal(h.view.box.dataset.indeterminate,'false');assert.deepEqual(h.activity,{begin:1,end:1});
+  assert.deepEqual(h.sound,{begin:1,end:1},'The original saved receipt stops the loop immediately, before the 500ms completion grace');
   assert.equal(h.frames.size,0);await h.advance(499);assert.ok(h.view);await h.advance(1);assert.equal(h.view,null);checks++;
 
   const reduced=progressHarness({reducedMotion:true}), reducedSaved=reduced.start();await reduced.settle();
@@ -99,6 +103,7 @@ async function checkVisualProgress() {
   await late.advance(500);assert.equal(late.view,null);
   polling.resolve(response({percent:85,state:'preparing'}));await late.settle();await late.advance(1000);
   assert.equal(late.view,null);assert.deepEqual(late.activity,{begin:1,end:1});checks++;
+  assert.deepEqual(late.sound,{begin:1,end:1},'Late polls cannot restart completed audio');
 
   for(const [value,extra,pattern]of[
     [{error:'File preparation was cancelled.'},{ok:false,status:400},/cancelled/],
@@ -111,6 +116,7 @@ async function checkVisualProgress() {
     assert.equal(failed.view,null);assert.equal(failed.frames.size,0);
     await failed.advance(2000);assert.equal(failed.history.includes(100),false);
     assert.deepEqual(failed.activity,{begin:1,end:1});checks++;
+    assert.deepEqual(failed.sound,{begin:1,end:1},'Cancelled, invalid and failed responses stop their loading audio');
   }
   const aborted=progressHarness(), abortedOperation=aborted.start();await aborted.settle();
   // Native request cancellation is an error path; it must retire the activity
@@ -118,6 +124,7 @@ async function checkVisualProgress() {
   aborted.pending.resolve(Promise.reject(Object.assign(new Error('Request cancelled'),{name:'AbortError'})));
   await assert.rejects(abortedOperation,/Request cancelled/);assert.equal(aborted.view,null);
   await aborted.advance(2000);assert.equal(aborted.history.includes(100),false);assert.deepEqual(aborted.activity,{begin:1,end:1});checks++;
+  assert.deepEqual(aborted.sound,{begin:1,end:1},'Native cancellation stops audio');
   return checks;
 }
 let projectToken = 'selected-project', calls = [], next = response(receipt);

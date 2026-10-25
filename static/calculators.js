@@ -2085,7 +2085,14 @@ window.CeasefireScheduleColumns = (() => {
     const labels = headerLabels(entry, result);
     const schedule = entry.definition.schedule?.sheet === entry.sheet ? entry.definition.schedule : entry.sheet === "EXTRA BOARDS" ? { first_row: 6, last_row: 45, header_row: 5 } : null;
     const showReports = Boolean(schedule && ["steel_vermiculite", "steel_intumescent", "steel_board", "ductwork"].includes(entry.definition.id) && result.rows.some(row => Object.prototype.hasOwnProperty.call(row, "report_references")));
-    const reportBefore = showReports ? columns.find(column => /basis|status|sources?|requirements|notes?/i.test(labels[column] || "")) : null;
+    // Report replaces the redundant thickness-source display column. Keep the
+    // source cell/result intact, and use the following visible column as the
+    // insertion anchor so the report occupies the same register position.
+    const thicknessSource = showReports ? columns.find(column => /^thickness source$/i.test(String(labels[column] || "").trim())) : null;
+    const sourcePosition = columns.indexOf(thicknessSource);
+    if (sourcePosition >= 0) columns = columns.filter(column => column !== thicknessSource);
+    const reportBefore = showReports ? sourcePosition >= 0 ? columns[sourcePosition] ?? null
+      : columns.find(column => /basis|status|sources?|requirements|notes?/i.test(labels[column] || "")) : null;
     const scheduleView = scheduleFor(entry) && result.schedule_view;
     const dynamicSchedule = Boolean(scheduleView && Array.isArray(entry.scheduleRows));
     const deleteReview = dynamicSchedule ? scheduleDeleteContext(entry) : null;

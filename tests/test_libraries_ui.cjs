@@ -186,9 +186,9 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     assert.equal(images.length,1);assert.equal(images[0].src,'/api/libraries/penetration/penetration-1/image');assert.equal(images[0].alt,'Source diagram');
     assert.equal(links.length,1);assert.equal(links[0].target,'_blank');assert.equal(links[0].rel,'noopener noreferrer');assert.doesNotMatch(images[0].src,/original-source/);
   });
-  await check('Untrusted asset IDs never become fetchable links; unavailable relationship text remains visible',async h=>{
+  await check('Untrusted asset IDs never become fetchable links; unresolved titles remain while relationship helpers stay hidden',async h=>{
     h.setRoute(path=>path==='/api/libraries'?meta():({...detail('technical','technical-1'),diagram:{custom:true,url:'https://remote/image'},sources:[{filename:'Unavailable report',document_id:'../../private',page:-1}],images:[{id:'https://remote/image'},{id:'../private'}],links:[{title:'Unresolved original reference',relationship:'Ambiguous source association'}]}));
-    await h.api.open('technical','technical-1');const nodes=walk(h.pane('technical').detailPanel);assert.equal(sourceImages(nodes).length,0);assert.equal(nodes.filter(node=>node.tagName==='a').length,0);assert.match(text(h.pane('technical').detailPanel),/Unresolved original reference.*Ambiguous source association/);
+    await h.api.open('technical','technical-1');const nodes=walk(h.pane('technical').detailPanel);assert.equal(sourceImages(nodes).length,0);assert.equal(nodes.filter(node=>node.tagName==='a').length,0);assert.match(text(h.pane('technical').detailPanel),/Unresolved original reference/);assert.doesNotMatch(text(h.pane('technical').detailPanel),/Ambiguous source association/);
   });
   await check('Structured source fields keep exact text and validated diagrams inside their field',async h=>{
     h.setRoute(path=>path==='/api/libraries'?meta():({...detail('technical','technical-1'),images:[],fields:[
@@ -205,13 +205,16 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     const opened=[];h.context.window.CeasefireLibraryEditor={open:async id=>opened.push(id)};
     h.setRoute(path=>path==='/api/libraries'?meta():path.includes('?')?({...records('penetration'),items:[{id:'legacy-row-4',title:'FL-ID-001',price:{amount:123.456789,label:'Workbook price'},editable:true}]}):({...detail('technical','technical-1'),links:[{kind:'penetration',id:'legacy-row-4',title:'FL-ID-001',relationship:'Original source entry',notice:'This item has saved edits; the technical reference describes its original workbook entry.'}]}));
     await h.api.open('penetration');const pane=h.pane('penetration');assert.match(text(pane.results),/FL-ID-001.*Library price: \$123\.46/);assert.doesNotMatch(text(pane.results),/Workbook price/);const edit=walk(pane.results).find(node=>node.dataset.libraryEdit);assert.equal(edit.textContent,'Edit');await edit.emit('click');assert.deepEqual(opened,['legacy-row-4']);
-    await h.api.open('technical','technical-1');const related=walk(h.pane('technical').detailPanel).find(node=>node.className==='library-related-record');assert.match(text(related),/FL-ID-001.*Original source entry.*saved edits/);assert.equal(walk(h.pane('technical').detailPanel).filter(node=>node.dataset.libraryEdit).length,0);
+    await h.api.open('technical','technical-1');const related=walk(h.pane('technical').detailPanel).find(node=>node.className==='library-related-record');assert.match(text(related),/FL-ID-001.*saved edits/);assert.doesNotMatch(text(related),/Original source entry/);assert.equal(walk(h.pane('technical').detailPanel).filter(node=>node.dataset.libraryEdit).length,0);
   });
   await check('Presentation cleanup hides requested metadata without changing source evidence or main-table conditions',async h=>{
     const source={...detail('technical','source'),price:{amount:25.123456,label:'Workbook price'},fields:[
       {label:'Diagram captions (visually checked)',value:'Internal caption review'},
       {label:' workbook report revision ',value:'Internal workbook revision'},
       {label:'REFERENCE REVIEW',value:'Internal link review'},
+      {label:'Reference qualification',value:'Internal reference qualification'},
+      {label:'Workbook / source differences',value:'Internal source difference'},
+      {label:'Workbook / source difference',value:'Internal singular source difference'},
       {label:'Source table notes',value:'Underlying shared table condition'},
       {label:'Source option alignment',value:'Internal option mapping'},
       {label:'Service',value:'Ordinary main-table condition',table:{columns:['Service','FRL'],rows:[['A','-/60/60'],['B','-/120/120']]}}
@@ -219,7 +222,7 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     h.setRoute(path=>path==='/api/libraries'?meta():source);
     for(const kind of ['penetration','technical']){
       await h.api.open(kind,'source');const pane=h.pane(kind),nodes=walk(pane.detailPanel),content=text(pane.detailPanel);
-      assert.doesNotMatch(content,/Internal caption review|Internal workbook revision|Internal link review|Source fingerprint|synthetic-hash|Workbook price/);assert.match(content,/Library price: \$25\.12/);assert.match(content,/Ordinary main-table condition/);
+      assert.doesNotMatch(content,/Internal caption review|Internal workbook revision|Internal link review|Internal reference qualification|Internal source difference|Internal singular source difference|Source fingerprint|synthetic-hash|Workbook price/);assert.match(content,/Library price: \$25\.12/);assert.match(content,/Ordinary main-table condition/);
       assert.deepEqual(copy(nodes.find(node=>node.tagName==='tbody').children.map(row=>row.children.map(cell=>cell.textContent))),[['A','-/60/60'],['B','-/120/120']]);
       if(kind==='technical'){assert.doesNotMatch(content,/Source table notes|Underlying shared table condition|Source option alignment|Internal option mapping/);assert.match(content,/Source information/);assert.match(content,/Synthetic source reference/);assert.equal(nodes.filter(node=>node.tagName==='a'&&node.href.includes('documents/')).length,0);}
       else{assert.doesNotMatch(content,/Source information|Synthetic source reference|synthetic.pdf/);assert.equal(nodes.filter(node=>node.tagName==='a'&&node.href.includes('documents/')).length,0);assert.match(content,/Underlying shared table condition/);}

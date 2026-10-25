@@ -36,6 +36,16 @@ for(const value of ['{broken','{"version":2,"hidden":["column:A"]}','{"version":
  const fresh=harness({'ceasefire.scheduleColumns.v1.board:SCHEDULE':value}),control=fresh.api.create();control.bind('board:SCHEDULE',columns,()=>{});assert.ok(control.inputs.every(({input})=>input.checked));
 }passed++;
 const denied=harness({},true),d=denied.api.create();d.bind('board:SCHEDULE',columns,()=>{});d.inputs[0].input.checked=false;assert.doesNotThrow(()=>d.inputs[0].input.emit('change'));assert.equal(d.inputs[0].input.checked,false);passed++;
+// Removing a redundant source display column does not reassign its saved
+// hidden choice to Report, and an existing Report choice keeps its identity.
+for(const hidden of [['column:X'],['column:X','virtual:report']]){
+ const old=harness({'ceasefire.scheduleColumns.v1.spray:SCHEDULE':JSON.stringify({version:1,hidden})}),control=old.api.create();
+ control.bind('spray:SCHEDULE',columns,()=>{});
+ assert.equal(control.inputs.some(({id})=>id==='column:X'),false);
+ assert.equal(control.inputs.find(({id})=>id==='virtual:report').input.checked,!hidden.includes('virtual:report'));
+ assert.ok(control.inputs.filter(({id})=>id!=='virtual:report').every(({input})=>input.checked));
+ assert.equal(old.writes(),0);
+}passed++;
 c.button.emit('click');assert.equal(c.button.getAttribute('aria-expanded'),'true');assert.equal(h.document.activeElement,c.all);assert.equal(c.panel.parentElement,h.document.body);
 let prevented=false;c.panel.emit('keydown',{key:'Escape',preventDefault(){prevented=true;},stopPropagation(){}});assert.ok(prevented);assert.equal(c.panel.hidden,true);assert.equal(h.document.activeElement,c.button);passed++;
 h.document.documentElement.dir='rtl';c.button.emit('click');assert.equal(c.panel.style.left,'448px');h.events.pointerdown({target:h.document.body});assert.equal(c.panel.hidden,true);passed++;

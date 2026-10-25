@@ -83,8 +83,10 @@
     text-align: center;
   }
   .app-header .section-navigation,
-  .app-header .calculator-navigation { display: flex; min-width: 0; }
-  .app-header #library-navigation-menu { inset-inline-start: auto; inset-inline-end: 0; transform: none; }
+  .app-header .calculator-navigation { display: flex; min-width: 0; position: relative; }
+  /* The open owner's menu must paint above the next row of navigation buttons. */
+  .app-header :is(.section-navigation, .calculator-navigation):has(> button[aria-expanded="true"]) { z-index: 22; }
+  .app-header :is(.section-navigation-menu, .calculator-navigation-menu) { inset-inline-start: auto; inset-inline-end: auto; left: 0; right: auto; transform: none; }
   /* The right-aligned navigation leaves less room for a right-hand flyout. */
   @media (min-width: 1021px) {
     .app-header :is(#takeoff-navigation-menu, #calculator-navigation-menu) .section-navigation-subgroup { left: auto; right: 100%; border-radius: 11px 0 11px 11px; }
@@ -155,9 +157,8 @@
     .app-header .header-navigation { width: 78%; }
     .app-header nav { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); width: 100%; gap: 4px; }
     .app-header .nav-icon { width: 100%; min-width: 44px; height: auto; min-height: 68px; padding: 6px 4px; font-size: 11px; }
-    .app-header .section-navigation,
-    .app-header .calculator-navigation { position: static; }
-    .app-header :is(.section-navigation-menu, .calculator-navigation-menu) { left: auto; right: 0; inset-inline-start: auto; inset-inline-end: 0; top: 100%; max-width: calc(100vw - 28px); }
+    /* Keep the menu directly below its button, including the first grid row. */
+    .app-header :is(.section-navigation-menu, .calculator-navigation-menu) { top: 100%; max-width: calc(100vw - 28px); }
     .app-header .section-navigation-subgroup { position: static; width: 100%; border-radius: 7px; box-shadow: none; }
     #header-project-actions { right: max(10px, env(safe-area-inset-right)); bottom: max(10px, env(safe-area-inset-bottom)); gap: 7px; padding: 7px; }
     #header-project-actions .button,

@@ -4945,6 +4945,7 @@
     if (pdf && !documentId && !aggregate) throw new Error("Open the PDF to download its visible markups.");
     if (!list.length && !pdf) throw new Error("There are no items in this takeoff type to download.");
     working(true);
+    const endSound = window.CeasefireDownloadSound?.begin();
     try {
       if (pdf) {
         await Promise.all([document.fonts.load("9px CeasefireDrawing"), document.fonts.load("700 9px CeasefireDrawing")]);
@@ -4972,7 +4973,7 @@
       const laterCalculatorEdits = calculatorFingerprints.some(fingerprint => fingerprint !== window.CeasefireCalculators?.projectFingerprint?.());
       message(`Saved ${saved.filename} to ${saved.path}.${laterCalculatorEdits ? " Later calculator edits are not included; review the current draft before relying on this file." : ""}`, laterCalculatorEdits);
       return saved;
-    } finally { working(false); }
+    } finally { endSound?.(); working(false); }
   }
   async function showAudit() {
     const sessionId = state.session.session_id; let offset = 0;

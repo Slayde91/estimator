@@ -44,6 +44,7 @@ async function screenshot(name){await page.screenshot({path:path.join(output,nam
   ['steel_vermiculite',{SCHEDULE:{A10:'Spray fixture',B10:'CAFCO 300',J10:1.23456789012345,I10:2}},10],
   ['steel_intumescent',{SCHEDULE:{A10:'Intumescent fixture',B10:'SC902',J10:1.23456789012345,I10:2}},10],
  ]){const reply=await page.request.put(`${base}/api/calculators/${id}/state`,{data:{inputs,schedule_rows:[row]}});assert.equal(reply.status(),200);}
+ await page.addInitScript(()=>localStorage.setItem('ceasefire.scheduleColumns.v1.steel_vermiculite:SCHEDULE',JSON.stringify({version:1,hidden:['column:X']})));
  await page.goto(base);await boot();
  for(const [id,title]of [['steel_vermiculite','Steel (spray)'],['steel_intumescent','Steel (intumescent)'],['steel_board','Steel (board)'],['ductwork','Duct']]){
   await chooseCalculator(page,title);await idle();
@@ -52,7 +53,13 @@ async function screenshot(name){await page.screenshot({path:path.join(output,nam
   const headers=await table.locator('thead [data-schedule-column]').evaluateAll(nodes=>nodes.map(node=>({id:node.dataset.scheduleColumn,label:node.textContent})));
   const native=headers.filter(column=>column.id.startsWith('column:')).map(column=>column.id.slice(7));
   const number=column=>[...column].reduce((sum,letter)=>sum*26+letter.charCodeAt(0)-64,0);
-  assert.deepEqual(native.map(number).sort((a,b)=>a-b),[...expected].sort((a,b)=>a-b));
+  const removedSources=definition.schedule.columns.filter(column=>/^thickness source$/i.test(column.label.trim())).map(column=>number(column.column));
+  assert.deepEqual(native.map(number).sort((a,b)=>a-b),expected.filter(column=>!removedSources.includes(column)).sort((a,b)=>a-b));
+  assert.ok(headers.every(column=>!/^thickness source$/i.test(column.label.trim())));
+  if(['steel_vermiculite','steel_intumescent'].includes(id)){
+   const reportIndex=headers.findIndex(column=>column.id==='virtual:report');
+   assert.equal(headers[reportIndex-1].id,'column:W');assert.equal(headers[reportIndex+1].id,'column:Y');
+  }
   assert.equal(new Set(headers.map(column=>column.id)).size,headers.length);assert.ok(headers.some(column=>column.id==='virtual:report'));assert.ok(headers.some(column=>column.id==='virtual:actions'));
   const before=await snapshot(),requests=calculations,panel=await chooser();
   const choices=panel.locator('[data-schedule-column-choice]');assert.equal(await choices.count(),headers.length);
@@ -60,7 +67,7 @@ async function screenshot(name){await page.screenshot({path:path.join(output,nam
   await selectAll(panel,false);await expect(table).toBeHidden();await expect(page.locator('#calculator-grid .schedule-columns-empty')).toBeVisible();await selectAll(panel,true);await expect(table).toBeVisible();
   await panel.press('Escape');await expect(panel).toBeHidden();await expect(page.locator('#calculator-pages .schedule-column-toggle')).toBeFocused();
   assert.deepEqual(await snapshot(),before);assert.equal(calculations,requests,'Column choices must not calculate');
-  evidence.registers.push({id,columns:headers,allColumnsIndividuallyToggle:true,selectAllAndNone:true,inputsUnchanged:true,noCalculationRequests:true});
+  evidence.registers.push({id,columns:headers,removedDisplaySources:removedSources,reportReplacesThicknessSource:['steel_vermiculite','steel_intumescent'].includes(id),allColumnsIndividuallyToggle:true,selectAllAndNone:true,inputsUnchanged:true,noCalculationRequests:true});
   console.log(`PASS column choices: ${id} (${headers.length})`);
  }
  // Precise advanced inputs stay mounted, retaining unsaved text/selection.
@@ -102,12 +109,18 @@ async function screenshot(name){await page.screenshot({path:path.join(output,nam
  for(const title of ['Steel (spray)','Steel (intumescent)','Steel (board)','Duct']){
   await chooseCalculator(page,title);await idle();const cell=page.locator('.calculator-report-column[data-calculator-reports]').first(),basis=page.locator('.calculator-basis-preview').first();await expect(basis).toBeVisible();assert.doesNotMatch(await basis.textContent(),/\[object Object\]/);
   for(let theme=0;theme<5;theme++){
-   const name=await page.locator('html').getAttribute('data-theme');await cell.hover();const report=await cell.evaluate(node=>({background:getComputedStyle(node).backgroundColor,color:getComputedStyle(node).color}));
+   const name=await page.locator('html').getAttribute('data-theme');await page.mouse.move(1,1);await cell.evaluate(node=>node.blur());
+   const normalReport=await cell.evaluate(node=>({background:getComputedStyle(node).backgroundColor,color:getComputedStyle(node).color}));
+   const neighbor=cell.locator('xpath=preceding-sibling::td[1]');await neighbor.hover();
+   const rowHoveredReport=await cell.evaluate(node=>({background:getComputedStyle(node).backgroundColor,color:getComputedStyle(node).color,rowHovered:node.closest('tr').matches(':hover'),directHovered:node.matches(':hover')}));
+   assert.ok(rowHoveredReport.rowHovered&&!rowHoveredReport.directHovered);assert.deepEqual({background:rowHoveredReport.background,color:rowHoveredReport.color},normalReport);
+   assert.notEqual(normalReport.background,'rgba(0, 0, 0, 0)','Report must have an opaque body surface');
+   await cell.hover();const report=await cell.evaluate(node=>({background:getComputedStyle(node).backgroundColor,color:getComputedStyle(node).color}));
    if(theme===0)await cell.screenshot({path:path.join(output,`${title.replace(/\W/g,'-')}-report-red.png`)});
    await basis.hover();const hover=await basis.evaluate(node=>({background:getComputedStyle(node).backgroundColor,color:getComputedStyle(node).color}));if(theme===0)await basis.screenshot({path:path.join(output,`${title.replace(/\W/g,'-')}-basis-red.png`)});
    await page.mouse.move(1,1);await page.keyboard.press('Tab');await basis.focus();assert.equal(await basis.evaluate(node=>node.matches(':focus-visible')),true);const focus=await basis.evaluate(node=>({background:getComputedStyle(node).backgroundColor,color:getComputedStyle(node).color}));
    for(const style of [report,hover,focus])assert.deepEqual(style,{background:'rgb(163, 18, 34)',color:'rgb(255, 255, 255)'});
-   evidence.themes.push({title,name,report,hover,focus});await cycleTheme(page);
+   evidence.themes.push({title,name,normalReport,rowHoveredReport,report,hover,focus});await cycleTheme(page);
   }
  }
  await chooseCalculator(page,'Steel (board)');await idle();const reloadReview=async dialog=>{assert.equal(dialog.type(),'beforeunload');await dialog.accept();};page.once('dialog',reloadReview);await page.reload();page.off('dialog',reloadReview);await boot();await chooseCalculator(page,'Steel (board)');await idle();await expect(nativeCell('column:M')).toBeHidden();

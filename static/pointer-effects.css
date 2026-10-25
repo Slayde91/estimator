@@ -1,7 +1,7 @@
 /* Browsers may report touch hardware even with an active desktop mouse.
    Native cursors already render only when a pointing device uses them. */
 @media screen {
-  html:not(.app-busy) .app-header nav button:enabled:not([aria-disabled="true"]):not([aria-busy="true"]) {
+  html:not(.app-busy) :is(.app-header nav button, #view-home .home-card):enabled:not([aria-disabled="true"]):not([aria-busy="true"]) {
     cursor:url('/laser-reticle.svg') 16 16,pointer;
   }
   /* Activity owns loading state; this also covers dialogs outside the view. */

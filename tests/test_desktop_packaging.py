@@ -410,6 +410,8 @@ class DesktopPackagingTests(unittest.TestCase):
             'sounds/select.mp3': (11520, '60e089eeac138ce5301fb59dc9d649c0404a556499c8f78c15c81a7cdfde1969'),
             'sounds/select-2.mp3': (192768, '37e5c8645aa76e11dc8039545940436ea9201e533b1c946fbc9dfc3845efeb7b'),
             'sounds/mixkit-vintage-dot-printing-1371.wav': (249332, '5c39082dfe0aa5c24cae5faa0ba616bfb1354d8b7686b0b0784fa32689a9decf'),
+            'sounds/checkpoint.ogg': (39539, '60acfb941abf427378e87e7ae6660ae29491f8d5efaae2681d7eb9a52af3c935'),
+            'sounds/loading.mp3': (649508, '2c245208c0a4e9668b36e17d16227be81f6409398de1ece8b37be648e0ac60a8'),
         }
         self.assertEqual(STATIC_FILES.count('header-menu-sounds.js'), 1)
         for asset, (size, digest) in supplied.items():

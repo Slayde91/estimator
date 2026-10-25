@@ -1,7 +1,7 @@
 "use strict";
 const assert = require("node:assert/strict"), { test } = require("node:test");
 const fs = require("node:fs"), path = require("node:path"), { createHash } = require("node:crypto");
-const { create, sources, createFeedback, feedbackSources, createPrinting, printingSource } = require("../static/header-menu-sounds.js");
+const { create, sources, createFeedback, feedbackSources, createPrinting, printingSource, createDownloadSound, loadingSource } = require("../static/header-menu-sounds.js");
 
 function target() {
   const events = new Map();
@@ -161,7 +161,7 @@ function element(parent, { control = false, zone = "", brand = false } = {}) {
 
 test("delegated feedback covers dynamic buttons, icons and button-like links once in the current event", () => {
   const h = audioHarness(), controller = createFeedback(h.document, h.host, h.menu);
-  assert.equal(h.players.length, 4); assert.equal(h.plays().length, 0);
+  assert.equal(h.players.length, 5); assert.equal(h.plays().length, 0);
   const button = element(null, { control: true }), icon = element(button), label = element(button);
   h.document.emit("pointerover", { target: icon, pointerType: "mouse", relatedTarget: null });
   h.document.emit("pointerover", { target: label, pointerType: "mouse", relatedTarget: icon });
@@ -170,7 +170,7 @@ test("delegated feedback covers dynamic buttons, icons and button-like links onc
   assert.equal(h.plays().at(-1)[1], feedbackSources.selectOther);
   const dynamic = element(null, { control: true });
   h.document.emit("click", { target: dynamic });
-  assert.equal(h.plays().length, 3); assert.equal(h.players.length, 4);
+  assert.equal(h.plays().length, 3); assert.equal(h.players.length, 5);
   assert.ok(h.menu.stops >= 3, "Ordinary buttons stop the previous header/Home clip");
   controller.close(); h.document.emit("click", { target: dynamic });
   assert.equal(h.plays().length, 3); assert.ok(h.players.every(player => player.paused));
@@ -226,6 +226,50 @@ test("ordinary feedback never queues unloaded audio or replays rejected interact
   assert.equal(hover.paused, false, "A stale select rejection cannot stop the latest hover");
 });
 
+test("the global Save button owns one immediate checkpoint click on every page", () => {
+  const h = audioHarness(); createFeedback(h.document, h.host, h.menu);
+  for (const zone of ["", "home", "header", "takeoff"]) {
+    const button = element(element(null, { zone }), { control: true }); button.id = "save-current-project";
+    const icon = element(button), before = h.plays().length, menuBefore = h.menu.calls.length;
+    h.document.emit("click", { target: icon, detail: 0 });
+    assert.equal(h.plays().length, before + 1);
+    assert.equal(h.plays().at(-1)[1], feedbackSources.checkpoint);
+    assert.equal(h.menu.calls.length, menuBefore, "No header/Home confirmation is emitted by delegated Save");
+    button.disabled = true; h.document.emit("click", { target: icon });
+    assert.equal(h.plays().length, before + 1, "Disabled Save stays silent");
+  }
+});
+
+test("download loading has one preloaded loop with independent, idempotent operation tokens", () => {
+  const h = audioHarness(), sound = createDownloadSound(h.host), audio = h.players[0];
+  assert.equal(audio.src, loadingSource); assert.equal(audio.loop, true); assert.equal(audio.preload, "auto");
+  assert.equal(h.plays().length, 0);
+  const first = sound.begin(); assert.equal(h.plays().length, 1); assert.equal(audio.paused, false);
+  const second = sound.begin(); assert.equal(h.players.length, 1); assert.equal(h.plays().length, 1);
+  first(); first(); assert.equal(audio.paused, false, "Finishing the older file keeps the second file audible");
+  second(); assert.equal(audio.paused, true); assert.equal(audio.currentTime, 0);
+  audio.emit("canplay"); assert.equal(h.plays().length, 1, "A completed operation cannot restart later");
+  const third = sound.begin(); assert.equal(h.plays().length, 2);
+  h.host.emit("pagehide"); assert.equal(audio.paused, true); third(); sound.begin(); audio.emit("canplay");
+  assert.equal(h.plays().length, 2, "Leaving the page invalidates every remaining token");
+});
+
+test("download readiness and blocked/stale attempts cannot outlive the file they belong to", async () => {
+  const h = audioHarness(), sound = createDownloadSound(h.host), audio = h.players[0];
+  audio.readyState = 0; const finished = sound.begin(); finished(); audio.readyState = 4; audio.emit("canplay");
+  assert.equal(h.plays().length, 0);
+  audio.readyState = 0; const waiting = sound.begin(); audio.readyState = 4; audio.emit("canplay"); audio.emit("canplay");
+  assert.equal(h.plays().length, 1, "Decoding may start only a still-pending download"); waiting();
+  audio.failure = "pending"; const old = sound.begin(), reject = audio.reject; old();
+  audio.failure = undefined; const current = sound.begin(); reject(Error("Old blocked attempt")); await Promise.resolve();
+  assert.equal(audio.paused, false, "A stale rejection cannot stop the new file's loop"); current();
+  audio.failure = "reject"; const blocked = sound.begin(); await Promise.resolve();
+  const count = h.plays().length; audio.emit("canplay"); assert.equal(h.plays().length, count);
+  assert.equal(audio.paused, true, "Blocked playback is not queued for a later gesture"); blocked();
+  audio.failure = "throw"; assert.doesNotThrow(() => sound.begin()()); assert.equal(audio.paused, true);
+  assert.doesNotThrow(() => createDownloadSound(null).begin()());
+});
+
 test("printer audio loops only during the active phrase and never starts after it has finished", () => {
   const h = audioHarness(), printer = createPrinting(h.motion, h.host, h.document), audio = h.players[0];
   assert.equal(audio.src, printingSource); assert.equal(audio.loop, true); assert.equal(audio.preload, "auto"); assert.equal(h.plays().length, 0);
@@ -253,13 +297,15 @@ test("printer blocks stale promises, reduced motion, hidden documents and pagehi
   assert.doesNotThrow(() => createPrinting(null, null).start()); assert.doesNotThrow(() => createFeedback(null, null).close());
 });
 
-test("all five new supplied assets retain their exact bytes", () => {
+test("all supplied feedback assets retain their exact bytes", () => {
   const supplied = {
     "new-explosion.mp3": [73398, "1ed5c489c6e7ab08caacf1cba198e7aae07cb7a904be51a4800c56eb32512c21"],
     "hover.mp3": [5015, "052d0d7f3fb41ddb67766dedd8f4c237b46c8b18745dfad0a73a14c8afb6fad5"],
     "select.mp3": [11520, "60e089eeac138ce5301fb59dc9d649c0404a556499c8f78c15c81a7cdfde1969"],
     "select-2.mp3": [192768, "37e5c8645aa76e11dc8039545940436ea9201e533b1c946fbc9dfc3845efeb7b"],
     "mixkit-vintage-dot-printing-1371.wav": [249332, "5c39082dfe0aa5c24cae5faa0ba616bfb1354d8b7686b0b0784fa32689a9decf"],
+    "checkpoint.ogg": [39539, "60acfb941abf427378e87e7ae6660ae29491f8d5efaae2681d7eb9a52af3c935"],
+    "loading.mp3": [649508, "2c245208c0a4e9668b36e17d16227be81f6409398de1ece8b37be648e0ac60a8"],
   };
   for (const [name, [size, digest]] of Object.entries(supplied)) {
     const bytes = fs.readFileSync(path.join(__dirname, "../static/sounds", name));

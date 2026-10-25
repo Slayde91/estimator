@@ -75,10 +75,11 @@
 
   async function save(path, payload = {}, { button = document.activeElement } = {}) {
     const endActivity = window.CeasefireActivity?.begin();
-    const view = progressView(button);
-    let poll = null, finished = false, token = null;
-    view.update(0, 'waiting');
+    let endSound, view, poll = null, finished = false, token = null;
     try {
+    view = progressView(button);
+    endSound = window.CeasefireDownloadSound?.begin();
+    view.update(0, 'waiting');
     // Capture the destination with the clicked draft. Later Save As, New or
     // Open actions must not redirect a file that is already being prepared.
     const download = window.CeasefireProject?.downloadTarget?.() || { project_token: null };
@@ -116,8 +117,9 @@
     setTimeout(() => view.remove(), 500);
     return result;
     } finally {
-      if (!finished) view.remove();
-      finished = true; clearTimeout(poll); endActivity?.();
+      clearTimeout(poll); endSound?.(); endActivity?.();
+      if (!finished) view?.remove();
+      finished = true;
     }
   }
 

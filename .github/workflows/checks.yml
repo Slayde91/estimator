@@ -114,6 +114,7 @@ jobs:
       - run: node tests/browser/pdf_render_gate.cjs
       - run: node tests/browser/header_artwork.cjs
       - run: node tests/browser/header_layout_followups.cjs
+      - run: node tests/browser/navigation_stack.cjs
       - run: node tests/browser/appearance_theme_followups.cjs
       - run: node tests/browser/active_tools_lightning.cjs
       - run: node tests/browser/travel_editor_followups.cjs

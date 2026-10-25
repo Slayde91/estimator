@@ -1077,12 +1077,24 @@
     if (state.currentView === "estimate") window.CeasefireHeaderTagline?.next();
     return true;
   }
+  function positionNavigationMenu(menu) {
+    // Relative positioning keeps wrapped menus beside their actual owner.
+    // Clamp only the horizontal edge, accounting for the header's native zoom.
+    menu.style.left = "0px";
+    const bounds = menu.getBoundingClientRect(), scale = bounds.width / menu.offsetWidth;
+    if (!Number.isFinite(scale) || scale <= 0) return;
+    // A temporarily overflowing menu can widen innerWidth on mobile browsers.
+    const viewportWidth = document.documentElement.clientWidth > 0 ? document.documentElement.clientWidth : window.innerWidth;
+    const left = Math.max(14, Math.min(bounds.left, viewportWidth - 14 - bounds.width));
+    menu.style.left = `${(left - bounds.left) / scale}px`;
+  }
   function setCalculatorMenuOpen(open) {
     const menu = $("calculator-navigation-menu"), toggle = $("calculator-navigation-toggle");
     if (!menu || !toggle) return;
     if (open) closeNavigationMenus("calculator-navigation");
     menu.hidden = !open; toggle.setAttribute("aria-expanded", String(open));
     if (open) window.CeasefireCalculators?.refreshNavigation?.();
+    if (open) positionNavigationMenu(menu);
     if (!open) {
       const submenu = $("steel-calculator-navigation-menu"), parent = $("steel-calculator-navigation-toggle");
       if (submenu && parent) { submenu.hidden = true; parent.setAttribute("aria-expanded", "false"); }
@@ -1127,6 +1139,7 @@
     if (open) closeNavigationMenus(id);
     menu.hidden = !open; toggle.setAttribute("aria-expanded", String(open));
     if (open && id === "takeoff-navigation") window.CeasefireTakeoffs?.refreshNavigation?.();
+    if (open) positionNavigationMenu(menu);
   }
   function closeNavigationMenus(except) {
     for (const id of ["estimate-navigation", "calculator-navigation", "library-navigation", "takeoff-navigation"]) {
@@ -1137,6 +1150,12 @@
     }
   }
   function setupCalculatorNavigation() {
+    window.addEventListener("resize", () => {
+      for (const id of ["estimate-navigation", "calculator-navigation", "library-navigation", "takeoff-navigation"]) {
+        const menu = $(id + "-menu");
+        if (menu && !menu.hidden) positionNavigationMenu(menu);
+      }
+    });
     for (const id of ["penetration-navigation", "steel-calculator-navigation"]) {
       const branch = $(id), parent = $(id + "-toggle"), submenu = $(id + "-menu");
       if (branch && parent && submenu) {
@@ -2249,6 +2268,7 @@
     if (button.disabled || state.projectBusy) return;
     const context = state.quoteContext;
     button.disabled = true; button.setAttribute("aria-busy", "true");
+    const endSound = window.CeasefireDownloadSound?.begin();
     try {
       await Promise.all([window.CeasefireCalculators.completeProjectSnapshot(), window.CeasefirePenetrations.completeProjectSnapshot()]);
       if (context !== state.quoteContext) throw new Error("The project changed. Download the report again.");
@@ -2258,7 +2278,7 @@
       const saved = await window.CeasefireDownloads.save(`/api/project/${materials ? "full-product-summary" : "full-schedule"}.pdf`, payload, { button });
       message(uiCopy("PDF saved to {0}. It includes the schedule inputs captured when the download was prepared.", [saved.path]));
     } catch (error) { message(error.message, true); }
-    finally { button.disabled = false; button.removeAttribute("aria-busy"); }
+    finally { endSound?.(); button.disabled = false; button.removeAttribute("aria-busy"); }
   }
 
   async function downloadQuotePdf() {

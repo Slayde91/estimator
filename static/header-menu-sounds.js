@@ -10,9 +10,11 @@
     hover: "/sounds/hover.mp3",
     select: "/sounds/select.mp3",
     selectOther: "/sounds/select-2.mp3",
+    checkpoint: "/sounds/checkpoint.ogg",
     explosion: "/sounds/new-explosion.mp3",
   });
   const printingSource = "/sounds/mixkit-vintage-dot-printing-1371.wav";
+  const loadingSource = "/sounds/loading.mp3";
 
   function stopAudio(audio) {
     try { audio?.pause(); if (audio && audio.currentTime !== 0) audio.currentTime = 0; } catch { /* Media failure must not affect a control. */ }
@@ -84,6 +86,9 @@
     function contains(button, target) { try { return !!button && !!target && button.contains(target); } catch { return false; } }
     function route(button, click) {
       if (closed || document.hidden || !enabled(button)) return;
+      // The global Save control owns one distinct click, regardless of the
+      // page behind it. Do not also emit that page's ordinary selection clip.
+      if (click && button.id === "save-current-project") { menu.stop?.(); players.play("checkpoint"); return; }
       // The header's direct listeners own its sounds. Home shares the same
       // two players; a calculator hub card outside Home uses ordinary feedback.
       if (button.closest(".app-header")) { players.stop(); return; }
@@ -166,10 +171,41 @@
     return Object.freeze({ start, stop, close });
   }
 
-  if (typeof module === "object" && module.exports) module.exports = Object.freeze({ create, sources, createFeedback, feedbackSources, createPrinting, printingSource });
+  function createDownloadSound(host = root) {
+    if (typeof host?.Audio !== "function") return Object.freeze({ begin: () => () => {}, close() {} });
+    let audio;
+    try { audio = new host.Audio(); audio.preload = "auto"; audio.loop = true; audio.src = loadingSource; audio.load(); }
+    catch { return Object.freeze({ begin: () => () => {}, close() {} }); }
+    const pending = new Set();
+    let generation = 0, attempted = -1, closed = false;
+    function stop() { ++generation; stopAudio(audio); }
+    function failed() { stop(); attempted = generation; }
+    function playCurrent() {
+      if (closed || !pending.size || audio.error || audio.readyState < 2 || attempted === generation) return;
+      const attempt = attempted = generation;
+      try { audio.play()?.catch?.(() => { if (attempt === generation) failed(); }); }
+      catch { failed(); }
+    }
+    function begin() {
+      if (closed) return () => {};
+      const token = {}; pending.add(token);
+      // Concurrent exports share one bounded loop. An earlier completion must
+      // not stop audio while another file is still being prepared or saved.
+      if (pending.size === 1) { stop(); playCurrent(); }
+      return () => { if (pending.delete(token) && !pending.size) stop(); };
+    }
+    function close() { closed = true; pending.clear(); stop(); audio.removeEventListener?.("canplay", playCurrent); audio.removeEventListener?.("error", failed); host.removeEventListener?.("pagehide", close); }
+    audio.addEventListener?.("canplay", playCurrent);
+    audio.addEventListener?.("error", failed);
+    host.addEventListener?.("pagehide", close);
+    return Object.freeze({ begin, close });
+  }
+
+  if (typeof module === "object" && module.exports) module.exports = Object.freeze({ create, sources, createFeedback, feedbackSources, createPrinting, printingSource, createDownloadSound, loadingSource });
   if (root) {
     root.CeasefireHeaderMenuSounds = create(root.document.querySelector(".app-header nav"), root);
     root.CeasefireButtonSounds = createFeedback(root.document, root, root.CeasefireHeaderMenuSounds);
     root.CeasefireHeaderTaglineSound = createPrinting(root.matchMedia?.("(prefers-reduced-motion: reduce)"), root, root.document);
+    root.CeasefireDownloadSound = createDownloadSound(root);
   }
 })(typeof window === "object" ? window : null);

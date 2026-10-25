@@ -82,6 +82,25 @@ function overlayHarness(value,controller){
 let passed=0;
 async function check(label,test){await test();passed++;console.log(`ok - ${label}`);}
 (async()=>{
+  await check('Visual Search creates checked service callouts through one guarded preview and explicit quantity form',async()=>{
+    const h=component(servicePlanGraph(),{scope:()=> 'service_plans'});await flush();await h.controller.select(uuid(1),false,false);
+    const hits=[40,120].map(x=>({document_id:uuid(80),document_sha256:'d'.repeat(64),page:1,point:[x,60],region:[[x-8,52],[x+8,52],[x+8,68],[x-8,68]],score:.98,rotation:0}));
+    h.answers.push({service:'Mechanical',service_type:'Copper pipe',size:'25 mm',quantity:'2'});
+    const ids=await h.controller.createFromVisualSearch('service',hits);assert.equal(ids.length,2);assert.equal(h.calls.previews.length,1);assert.equal(h.calls.applied.length,1);assert.equal(h.calls.confirmations.length,1);
+    const commands=h.calls.previews[0];assert.ok(commands.every(c=>c.kind==='service'&&c.entity.barrier_id===uuid(1)&&c.entity.quantity===2&&c.entity.uncertainty.state==='not_assessed'&&!('confirmation' in c.entity)));
+    assert.deepEqual(commands.map(c=>c.entity.annotation.point),hits.map(h=>h.point));assert.deepEqual(commands.map(c=>c.entity.evidence[0].region),hits.map(h=>h.region));
+    assert.equal(h.current.physical.barriers.length,2);assert.equal(h.current.physical.services.length,4);assert.ok(h.calls.asks[0].text.includes('EACH match'));
+    const summary=h.controller.summary(ids[0]);assert.ok(summary.includes('Copper pipe'));assert.ok(!summary.includes('Cable bundle'));
+  });
+  await check('Visual Search cancellation, stale sources, duplicates, scope and batch bounds do not apply records',async()=>{
+    const h=component(servicePlanGraph(),{scope:()=> 'service_plans'});await flush();const hit={document_id:uuid(80),document_sha256:'d'.repeat(64),page:1,point:[40,60],region:[[32,52],[48,52],[48,68],[32,68]]};
+    assert.deepEqual(await h.controller.createFromVisualSearch('barrier',[hit]),[]);assert.equal(h.calls.previews.length,0);
+    await assert.rejects(h.controller.createFromVisualSearch('barrier',[{...hit,document_sha256:'f'.repeat(64)}]),/original PDF location/);
+    await assert.rejects(h.controller.createFromVisualSearch('barrier',[hit,hit]),/repeated source match/);
+    await assert.rejects(h.controller.createFromVisualSearch('barrier',Array(101).fill(hit)),/one to 100/);
+    const other=component(graph());await flush();await assert.rejects(other.controller.createFromVisualSearch('barrier',[hit]),/Service Plans only/);
+    assert.equal(h.calls.applied.length,0);assert.equal(other.calls.applied.length,0);
+  });
   await check('Read-only reference cells preserve private labels, guarded navigation and stale draft isolation',async()=>{
     const previous=global.CeasefireRegisterReferences,oldNavigation=global.CeasefireLibraryNavigation;
     global.CeasefireRegisterReferences=require('../static/register-references.js');const navigation=[],requests=[];
@@ -851,7 +870,7 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
     value.defects[0].annotation=annotation;value.barriers[0].marker=reordered(annotation);const before=copy(value),h=component(value);await flush();const drawing=overlayHarness(value,h.controller);
     drawing.audit.state.session.snapshot.library_assignments={version:1,records:[{version:4,scope:'defect_reports',barrier_selection:{version:1,choice:'new',defect_id:uuid(2),barrier_id:uuid(1)}}]};const snapshotBefore=copy(drawing.audit.state.session.snapshot);drawing.render();
     const callouts=drawing.all().filter(el=>el.className==='takeoff-physical-callout');assert.equal(callouts.length,1);assert.equal(callouts[0].attributes['data-physical-id'],uuid(2));for(const text of ['D-0001','B-0001','Concrete','B-0002','S-0001','S-0002'])assert.ok(callouts[0].textContent.includes(text));
-    assert.match(drawing.status.textContent,/0 barrier count markers and 1 defect source annotations/);assert.deepEqual(copy(drawing.audit.state.session.snapshot),snapshotBefore);assert.deepEqual(value,before);h.controller.destroy();
+    assert.match(drawing.status.textContent,/0 barrier count markers and 1 source annotations/);assert.deepEqual(copy(drawing.audit.state.session.snapshot),snapshotBefore);assert.deepEqual(value,before);h.controller.destroy();
   });
   await check('Inherited Barrier markers remain drawn when parent is filtered, absent, moved or provenance is not an exact new-library choice',async()=>{
     const cases=[['parent filtered',drawing=>drawing.audit.state.physicalVisible.clear()],['parent deleted',drawing=>drawing.audit.state.session.snapshot.physical.defects[0].deleted=true],['parent absent',drawing=>drawing.audit.state.session.snapshot.physical.defects=[]],['parent annotation removed',drawing=>drawing.audit.state.session.snapshot.physical.defects[0].annotation=null],['parent on another page',drawing=>drawing.audit.state.session.snapshot.physical.defects[0].annotation.page=2],['marker moved',drawing=>drawing.audit.state.session.snapshot.physical.barriers[0].marker.point[0]+=.000001],['marker resized',drawing=>drawing.audit.state.session.snapshot.physical.barriers[0].marker.callout.width+=1],['marker appearance edited',drawing=>drawing.audit.state.session.snapshot.physical.barriers[0].marker.callout.appearance.opacity=.7],['parent appearance edited',drawing=>drawing.audit.state.session.snapshot.physical.defects[0].annotation.appearance.stroke_color='#0000ff'],['no assignment',drawing=>drawing.audit.state.session.snapshot.library_assignments.records=[]],['other assignment scope',drawing=>drawing.audit.state.session.snapshot.library_assignments.records[0].scope='service_plans'],['other selection version',drawing=>drawing.audit.state.session.snapshot.library_assignments.records[0].barrier_selection.version=2],['existing choice',drawing=>drawing.audit.state.session.snapshot.library_assignments.records[0].barrier_selection.choice='existing'],['other Defect ID',drawing=>drawing.audit.state.session.snapshot.library_assignments.records[0].barrier_selection.defect_id=uuid(900)],['other Barrier ID',drawing=>drawing.audit.state.session.snapshot.library_assignments.records[0].barrier_selection.barrier_id=uuid(900)]];

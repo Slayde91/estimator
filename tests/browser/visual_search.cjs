@@ -1,0 +1,70 @@
+"use strict";
+const { chromium, expect } = require('@playwright/test');
+const { chooseTakeoff } = require('./section_navigation.cjs');
+const { clickProjectControl } = require('./project_actions.cjs');
+const { settingsSettled } = require('./settings_helpers.cjs');
+const { waitForTakeoffDownload } = require('./native_download_helpers.cjs');
+const { spawn, spawnSync } = require('node:child_process');
+const { createHash } = require('node:crypto');
+const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
+const root = path.resolve(__dirname, '../..');
+const output = process.env.CEASEFIRE_BROWSER_OUTPUT || path.join(root, '.runtime/browser-qa', `visual-search-${Date.now()}`);
+const python = process.env.CEASEFIRE_PYTHON || 'python'; fs.mkdirSync(output, { recursive: true });
+const server = spawn(python, [path.join(__dirname, 'visual_search_fixture.py'), '--directory', output], { cwd: root, windowsHide: true });
+let browser, page, logs = ''; const errors = [], evidence = {};
+server.stderr.on('data', value => { logs += value; });
+const ready = new Promise((resolve, reject) => { let stdout = ''; const timer = setTimeout(() => reject(Error(`Fixture startup: ${logs}`)),120000); server.stdout.on('data', chunk => { stdout += chunk; if (stdout.includes('\n')) { clearTimeout(timer); try { resolve(JSON.parse(stdout.split('\n')[0])); } catch(error) { reject(error); } } }); server.once('error', reject); server.once('exit', code => { clearTimeout(timer); reject(Error(`Fixture exited ${code}: ${logs}`)); }); });
+const snapshot = () => page.evaluate(() => window.CeasefireTakeoffs.projectSnapshot());
+const panel = () => page.locator('#takeoff-visual-search-panel');
+async function response(action, suffix) { const pending = page.waitForResponse(reply => new URL(reply.url()).pathname.endsWith(suffix)); pending.catch(()=>{}); await action(); const reply = await pending; const body=await reply.json(); assert.equal(reply.status(),200,JSON.stringify(body)); return body; }
+async function fillDialog(fields, action) { const dialog = page.getByRole('dialog'); for(const [label,value] of Object.entries(fields)){ const input=dialog.getByLabel(label,{exact:true}); if(await input.evaluate(el=>el.tagName)==='SELECT')await input.selectOption(String(value));else await input.fill(String(value)); }await dialog.getByRole('button',{name:action,exact:true}).click(); }
+async function search(rotations) { await panel().getByLabel('Search multiple rotations',{exact:true}).setChecked(rotations); await panel().getByRole('button',{name:'Search',exact:true}).click(); await expect(panel().locator('[role=status]')).toContainText('possible matches.',{timeout:180000}); }
+async function showPanel() { if(!await panel().isVisible())await page.getByRole('button',{name:'Visual Search',exact:true}).click();await expect(panel()).toBeVisible(); }
+function sha(file){return createHash('sha256').update(fs.readFileSync(file)).digest('hex');}
+(async()=>{
+  const info=await ready;assert.notEqual(info.port,8765);
+  browser=await chromium.launch({headless:true});page=await browser.newPage({viewport:{width:1500,height:1050}});page.setDefaultTimeout(30000);
+  page.on('pageerror',error=>errors.push(error.message));await page.addInitScript(()=>{window.visualCsp=[];document.addEventListener('securitypolicyviolation',event=>window.visualCsp.push(event.effectiveDirective));});
+  await page.goto(`http://127.0.0.1:${info.port}/`);await page.waitForFunction(()=>window.CeasefireDesktop?.status().ready);
+  await chooseTakeoff(page,'Steel');await expect(page.getByRole('button',{name:'Visual Search',exact:true})).toBeHidden();
+  await chooseTakeoff(page,'Defect Reports');await expect(page.getByRole('button',{name:'Visual Search',exact:true})).toBeHidden();
+  await chooseTakeoff(page,'Service Plans');await expect(page.getByRole('button',{name:'Visual Search',exact:true})).toBeDisabled();
+  await page.locator('#takeoff-upload').setInputFiles(info.fixture);await expect(page.locator('.takeoff-page>canvas')).toBeVisible();await page.waitForFunction(()=>window.CeasefireActivity?.active===false);await settingsSettled(page);
+  const before=await snapshot();await showPanel();await panel().getByRole('button',{name:'Select example',exact:true}).click();await expect(panel()).toBeHidden();await page.locator('.takeoff-visual-selection').press('Escape');await expect(page.locator('.takeoff-visual-selection')).toHaveCount(0);await expect(panel()).toBeVisible();assert.deepEqual(await snapshot(),before);evidence.sampleCancelPreservesSnapshot=true;
+  await panel().getByRole('button',{name:'Select example',exact:true}).click();await expect(panel()).toBeHidden();
+  const layer=page.locator('.takeoff-visual-selection');await expect(layer).toBeVisible();await layer.scrollIntoViewIfNeeded();
+  await page.locator('.takeoff-viewport').evaluate(el=>{const header=document.querySelector('header').getBoundingClientRect();window.scrollBy(0,el.getBoundingClientRect().top-header.bottom-12);});
+  const box=await layer.boundingBox(),start=[box.x+74/600*box.width,box.y+(500-330)/500*box.height],end=[box.x+114/600*box.width,box.y+(500-294)/500*box.height];
+  await page.mouse.move(...start);await page.mouse.down();await page.mouse.move(...end,{steps:12});await page.mouse.up();await expect(layer).toHaveCount(0);await expect(panel()).toBeVisible();
+  const sensitivity=panel().getByLabel('Visual search sensitivity',{exact:true});await sensitivity.focus();await sensitivity.press('End');for(let i=0;i<5;i++)await sensitivity.press('ArrowLeft');await expect(sensitivity).toHaveValue('94');
+  await panel().getByRole('button',{name:'Search',exact:true}).click();await panel().getByRole('button',{name:'Stop',exact:true}).click();await expect(panel().locator('[role=status]')).toContainText('Visual search stopped.');await expect(panel().locator('.takeoff-visual-result')).toHaveCount(0);evidence.stopCancelsWithoutPartialResults=true;
+  await search(false);await expect(panel().locator('.takeoff-visual-result')).toHaveCount(2);evidence.unrotated=2;
+  await panel().getByLabel('Select all visual matches',{exact:true}).check();
+  await panel().getByRole('button',{name:'Add selected as barriers',exact:true}).click();await fillDialog({'Location':'Graphical example'},'Preview selected callouts');
+  const reviewed=page.getByRole('dialog');await expect(reviewed).toContainText('2 changed records');await expect(reviewed).toContainText('unapproved draft');
+  await response(()=>reviewed.getByRole('button',{name:'Add selected callouts',exact:true}).click(),'/physical/apply');await settingsSettled(page);
+  const barriers=(await snapshot()).service_plans.barriers;assert.equal(barriers.length,2);assert.ok(barriers.every(value=>value.marker&&value.evidence[0].region.length===4&&!value.confirmation));evidence.barriers=barriers.map(value=>({id:value.id,point:value.marker.point}));
+  await showPanel();await search(true);await expect(panel().locator('.takeoff-visual-result')).toHaveCount(3);evidence.rotated=3;
+  await panel().getByLabel('Select visual match 3',{exact:true}).check();await panel().getByRole('button',{name:'Add selected as services',exact:true}).click();
+  await fillDialog({'Find barrier by label, location or ID':barriers[0].id},'Find parents');await fillDialog({'Physical parent':barriers[0].id},'Use parent');
+  await fillDialog({'Category':'Mechanical','Explicit service quantity':'2','Service Size (mm)':'25'},'Preview selected callouts');
+  await response(()=>page.getByRole('dialog').getByRole('button',{name:'Add selected callouts',exact:true}).click(),'/physical/apply');await settingsSettled(page);
+  let after=await snapshot();const service=after.service_plans.services[0];assert.equal(after.service_plans.barriers.length,2);assert.equal(after.service_plans.services.length,1);assert.equal(service.barrier_id,barriers[0].id);assert.equal(service.quantity,2);assert.ok(service.annotation&&service.evidence[0].region);assert.equal(service.uncertainty.state,'not_assessed');evidence.service={id:service.id,parent:service.barrier_id,quantity:service.quantity,annotation:service.annotation};
+  await panel().getByRole('button',{name:'Close Visual Search',exact:true}).click();await expect(page.locator(`.takeoff-physical-callout[data-physical-id="${service.id}"]`)).toBeVisible();
+  await page.locator(`tr[data-physical-id="${service.id}"] .takeoff-row-link`).click();await page.getByRole('button',{name:'Close Item Details',exact:true}).click();await settingsSettled(page);
+  const barriersBeforeDrag=(await snapshot()).service_plans.barriers;
+  const marker=page.locator(`.takeoff-physical-marker-hit[data-physical-id="${service.id}"]`);await marker.scrollIntoViewIfNeeded();const markerBox=await marker.boundingBox();
+  await response(async()=>{await page.mouse.move(markerBox.x+markerBox.width/2,markerBox.y+markerBox.height/2);await page.mouse.down();await page.mouse.move(markerBox.x+markerBox.width/2+24,markerBox.y+markerBox.height/2+18,{steps:16});await page.mouse.up();},'/physical/apply');await settingsSettled(page);
+  after=await snapshot();const moved=after.service_plans.services[0];assert.notDeepEqual(moved.annotation.point,service.annotation.point);assert.deepEqual(moved.evidence,service.evidence);assert.equal(moved.quantity,2);assert.deepEqual(after.service_plans.barriers,barriersBeforeDrag);evidence.serviceMarkerDragPreservesEvidenceAndQuantity=true;evidence.serviceMarkerDragPreservesBarriers=true;
+  await page.locator(`tr[data-physical-id="${service.id}"] .takeoff-row-link`).click();const details=page.getByRole('complementary',{name:'Item Details',exact:true});await expect(details).toBeVisible();
+  await response(async()=>{const size=details.getByLabel('Service Size (mm)',{exact:true});await size.fill('32');await size.press('Tab');},'/physical/apply');await settingsSettled(page);after=await snapshot();assert.equal(after.service_plans.services[0].quantity,2);assert.equal(after.service_plans.services[0].fields.size,'32');evidence.serviceFieldsEditable=true;
+  await page.screenshot({path:path.join(output,'visible-service-callout.png'),fullPage:true});
+  const download=waitForTakeoffDownload(page);await page.evaluate(()=>window.CeasefireTakeoffs.downloadDrawing());const saved=await download;const marked=path.join(output,saved.suggestedFilename());await saved.saveAs(marked);
+  const parsed=spawnSync(python,['-c',"import json,sys; from pypdf import PdfReader; print(json.dumps(' '.join(page.extract_text() for page in PdfReader(sys.argv[1]).pages)))",marked],{cwd:root,encoding:'utf8',windowsHide:true});assert.equal(parsed.status,0,parsed.stderr);assert.match(JSON.parse(parsed.stdout),/S-0001/);assert.equal(sha(info.fixture),info.source_sha256);evidence.markedPdfSourceExact=true;
+  await response(()=>clickProjectControl(page,'Save'),'/api/project/save-as');const savedProject=JSON.parse(fs.readFileSync(info.project,'utf8'));assert.deepEqual(savedProject.takeoffs.service_plans,after.service_plans);
+  await response(()=>clickProjectControl(page,'Load'),'/api/project/open');await page.getByRole('dialog').getByRole('button',{name:'Load Project',exact:true}).click();await chooseTakeoff(page,'Service Plans');await page.waitForFunction(()=>window.CeasefireActivity?.active===false);await settingsSettled(page);const reopened=await snapshot();assert.deepEqual(reopened.service_plans,after.service_plans);evidence.nativeSaveReopenExact=true;
+  for(const key of ['items','documents','calibrations','transfers'])assert.deepEqual(after[key],before[key],`Visual callouts preserve ${key}`);
+  if(before.physical===undefined){assert.equal(before.version,1);assert.equal(after.version,2);assert.equal(after.physical,null);evidence.nativeOptionalGraphUpgrade='absent v1 physical becomes explicit v2 null; no physical records created';}else assert.deepEqual(after.physical,before.physical);
+  assert.deepEqual(errors,[]);assert.deepEqual(await page.evaluate(()=>window.visualCsp),[]);
+  fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({completed:true,evidence,errors,source_sha256:info.source_sha256},null,2));console.log(`PASS original PDF graphical matching, rotation, reviewed barrier/service batch, visible service callout, native save/reopen/export. ${output}`);
+})().catch(async error=>{console.error(error);if(page){await page.screenshot({path:path.join(output,'failure.png'),fullPage:true}).catch(()=>{});fs.writeFileSync(path.join(output,'failure.txt'),await page.locator('body').innerText().catch(()=>''));}fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({completed:false,evidence,error:String(error),errors},null,2));process.exitCode=1;}).finally(async()=>{fs.writeFileSync(path.join(output,'server.log'),logs);await browser?.close();server.kill();});

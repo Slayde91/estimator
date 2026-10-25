@@ -42,6 +42,8 @@ STATIC_FILES = (
     'library-editor.js', 'penetration-breakdown.js', 'penetration.css', 'penetration.js', 'styles.css',
     'header-tagline-media.js', 'header-tagline-character.gif', 'header-tagline-character-still.png',
     'header-menu-sounds.js', 'sounds/mgs1-menu-move.mp3', 'sounds/mgs-confirm2.mp3',
+    'sounds/new-explosion.mp3', 'sounds/hover.mp3', 'sounds/select.mp3', 'sounds/select-2.mp3',
+    'sounds/mixkit-vintage-dot-printing-1371.wav',
     'help-glossary.js', 'help-glossary.css', 'company-settings.js', 'theme.js', 'theme.css', 'language.js', 'language-catalog.js', 'language.css', 'laser.css', 'laser-steel.svg', 'home-steel-frame.png',
     'header-layout.css', 'workspace-art.css', 'header-steel-spray.png', 'header-steel-board.png', 'header-ductwork.png', 'header-firestopping.png', 'header-estimate.png', 'header-projects.png', 'projects-evidence-banner.png', 'header-firestopping-library.png', 'header-technical-library.png',
     'fonts/Montserrat-Italic-Variable.ttf', 'fonts/Montserrat-Variable.ttf', 'fonts/OFL.txt',

@@ -315,7 +315,7 @@ def _properties(entity, kind, parents):
     if 'marker' in entity:
         _marker(entity['marker'])
     if 'annotation' in entity:
-        _marker(entity['annotation'], 'Defect source annotation')
+        _marker(entity['annotation'], 'Physical source annotation')
     for key, value in fields.items():
         if key in DIMENSIONS:
             _number(value, key, minimum=0)
@@ -373,7 +373,7 @@ def validate_graph(graph, *, copy_result=True):
                 keys |= {'display_id'}
             if kind == 'service':
                 keys |= {'quantity'}
-            optional = {'copied_from'} | ({'marker'} if kind == 'barrier' and graph['version'] in (2, 3) else {'annotation'} if kind == 'defect' and graph['version'] == 2 else set())
+            optional = {'copied_from'} | ({'marker'} if kind == 'barrier' and graph['version'] in (2, 3) else {'annotation'} if (kind == 'defect' and graph['version'] == 2) or (kind == 'service' and graph['version'] == 3) else set())
             if graph['version'] in (2, 3):
                 optional.add('confirmation')
             if kind == 'service' and graph['version'] in (2, 3):
@@ -502,7 +502,7 @@ def _command(graph, command):
             keys.add(parents[kind][1])
         if kind == 'service':
             keys.add('quantity')
-        optional = {'copied_from'} | ({'marker'} if kind == 'barrier' and graph['version'] in (2, 3) else {'annotation'} if kind == 'defect' and graph['version'] == 2 else set())
+        optional = {'copied_from'} | ({'marker'} if kind == 'barrier' and graph['version'] in (2, 3) else {'annotation'} if (kind == 'defect' and graph['version'] == 2) or (kind == 'service' and graph['version'] == 3) else set())
         if graph['version'] in (2, 3):
             optional.add('confirmation')
         if kind == 'service' and graph['version'] in (2, 3):
@@ -546,7 +546,7 @@ def _command(graph, command):
                 allowed.add('confirmation')
             if kind == 'barrier' and graph['version'] in (2, 3):
                 allowed.add('marker')
-            if kind == 'defect' and graph['version'] == 2:
+            if (kind == 'defect' and graph['version'] == 2) or (kind == 'service' and graph['version'] == 3):
                 allowed.add('annotation')
             changes = _object(command['changes'], allowed, (), 'Physical property changes')
             if 'confirmation' in changes and kind != confirmation_owner_kind(graph):

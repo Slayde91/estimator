@@ -1,0 +1,13 @@
+.takeoff-ocr-dialog{width:min(660px,calc(100vw - 40px));max-height:calc(100vh - 48px);overflow:auto;color:var(--text,#edf1f7);background:var(--panel,#191e26);border:1px solid var(--border,#536071);border-top:3px solid #e40020;border-radius:16px;padding:24px;box-shadow:0 18px 70px #0008}
+.takeoff-ocr-dialog::backdrop{background:#0009}
+.takeoff-ocr-dialog h2{margin-top:0}.takeoff-ocr-dialog p{line-height:1.5}
+.takeoff-ocr-options{display:grid;grid-template-columns:1fr 1fr;gap:14px 20px;margin:20px 0}
+.takeoff-ocr-options>label{display:flex;flex-direction:column;gap:7px;min-width:0}
+.takeoff-ocr-options select,.takeoff-ocr-options input[type=number]{width:100%;min-width:0;padding:10px;border:1px solid #667385;border-radius:7px;background:var(--input,#212731);color:inherit}
+.takeoff-ocr-options>.takeoff-ocr-check{flex-direction:row;align-items:center}.takeoff-ocr-check input{width:18px;height:18px;flex:none}
+.takeoff-ocr-dialog .actions{display:flex;gap:10px;flex-wrap:wrap}.takeoff-ocr-dialog .actions button{min-height:42px}
+.takeoff-ocr-text-layer{position:absolute;inset:0;z-index:3;overflow:hidden;pointer-events:none;user-select:none;line-height:1;transform-origin:0 0;text-size-adjust:none;forced-color-adjust:none}
+.takeoff-ocr-text-layer span{position:absolute;top:0;left:0;transform-origin:0 0;font:1px/1 Arial,sans-serif;white-space:pre;color:transparent;cursor:text;pointer-events:none}
+.takeoff-viewport[data-tool=text] .takeoff-ocr-text-layer span{pointer-events:auto;user-select:text}
+.takeoff-ocr-text-layer ::selection{background:#5ca9ff66;color:transparent}
+@media(max-width:600px){.takeoff-ocr-options{grid-template-columns:1fr}.takeoff-ocr-dialog{padding:18px}}

@@ -22,7 +22,7 @@
   const money = new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" });
   const priceText = price => typeof price?.amount === "number" && Number.isFinite(price.amount) ? money.format(price.amount) : "Price unavailable";
   const priceLabel = price => String(price?.label || "").trim().toLowerCase() === "workbook price" ? "Library price" : price?.label || "Library price";
-  const hiddenFields = new Set(["diagram captions (visually checked)", "workbook report revision", "reference review"]);
+  const hiddenFields = new Set(["diagram captions (visually checked)", "workbook report revision", "reference review", "reference qualification", "workbook / source differences", "workbook / source difference"]);
   const hiddenTechnicalFields = new Set(["source table notes", "source option alignment", "technical basis", "lead time"]);
   const visibleField = (kind, field) => {
     const label = String(field.label || "").trim().toLowerCase();
@@ -790,7 +790,6 @@
       const box = node("div", "library-related-record"), details = node("div", "library-related-content");
       if (kinds.includes(link.kind) && validId(link.id)) { const action = button(display(link.title || link.id), () => navigate(link.kind, link.id), "library-record-link"); action.dataset.libraryRelated = link.id; details.append(action); }
       else details.append(node("p", "", display(link.title || "Reference unavailable")));
-      if (link.relationship) details.append(node("p", "helper", display(link.relationship)));
       if (link.notice) details.append(node("p", "library-related-notice", display(link.notice)));
       const penetrationId = pane.kind === "penetration" ? data.id : link.id, technicalId = pane.kind === "technical" ? data.id : link.id, key = `${penetrationId}:${technicalId}`;
       const label = pane.kind === "penetration" ? `Unlink technical reference ${link.title || link.id}` : `Unlink firestopping record ${link.title || link.id}`;

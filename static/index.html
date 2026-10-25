@@ -16,6 +16,8 @@
   <!-- TAKEOFFS:START -->
   <link rel="stylesheet" href="/takeoffs.css">
   <link rel="stylesheet" href="/takeoff-pdf-tools.css">
+  <link rel="stylesheet" href="/takeoff-visual-search.css">
+  <link rel="stylesheet" href="/takeoff-ocr-layer.css">
   <!-- TAKEOFFS:END -->
   <link rel="stylesheet" href="/pdf-cursors.css">
   <link rel="stylesheet" href="/theme.css">
@@ -48,6 +50,8 @@
   <script src="/takeoff-library-links.js" defer></script>
   <script src="/takeoff-annotations.js" defer></script>
   <script src="/takeoff-search.js" defer></script>
+  <script src="/takeoff-ocr-layer.js" defer></script>
+  <script src="/takeoff-visual-search.js" defer></script>
   <script src="/takeoff-shortcuts.js" defer></script>
   <script src="/takeoff-signatures.js" defer></script>
   <script src="/takeoff-graphics.js" defer></script>
@@ -194,7 +198,7 @@ SOFTWARE. -->
 <form id="company-settings-form"><div class="fields"><label class="field"><span data-i18n="Company name">Company name</span><input id="company-name" maxlength="120"></label><label class="field"><span>ABN</span><input id="company-abn" maxlength="120"></label><label class="field"><span data-i18n="Phone">Phone</span><input id="company-phone" maxlength="120"></label><label class="field"><span data-i18n="Email">Email</span><input id="company-email" maxlength="120" type="email"></label></div>
 <div class="company-logo-controls"><img id="company-logo-preview" src="/classifire-logo.png" alt="Company logo preview" data-i18n-alt="Company logo preview"><label class="field"><span data-i18n="Company logo (PNG or JPEG, up to 2 MB)">Company logo (PNG or JPEG, up to 2 MB)</span><input id="company-logo" type="file" accept="image/png,image/jpeg"></label><button id="company-logo-delete" type="button" class="button secondary icon-only" aria-label="Delete company logo" title="Delete company logo" data-i18n-title="Delete company logo" data-i18n-aria-label="Delete company logo"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"></path></svg></button></div>
 <div class="actions"><button id="company-settings-save" type="submit" class="button" disabled data-i18n="Save company details">Save company details</button><span id="company-settings-status" class="status-label calculator-status" role="status" data-i18n="Loading…">Loading…</span></div></form></section>
-<section class="card" aria-labelledby="google-maps-heading"><h2 id="google-maps-heading">Google Maps</h2><p id="google-maps-status" class="helper" role="status" data-i18n="Checking Google Maps setup…">Checking Google Maps setup…</p><p class="helper" data-i18n="Driving estimates use your current location and the project Site Address. They do not change quote travel charges.">Driving estimates use your current location and the project Site Address. They do not change quote travel charges.</p><div class="actions"><a class="button secondary" href="/maps-setup.html" target="_blank" rel="noopener" data-i18n="Open setup guide">Open setup guide</a><button id="google-maps-refresh" class="button secondary" type="button" data-i18n="Refresh Google Maps status">Refresh Google Maps status</button></div></section></section>
+<section class="card" hidden aria-labelledby="google-maps-heading"><h2 id="google-maps-heading">Google Maps</h2><p id="google-maps-status" class="helper" role="status" data-i18n="Checking Google Maps setup…">Checking Google Maps setup…</p><p class="helper" data-i18n="Driving estimates use your current location and the project Site Address. They do not change quote travel charges.">Driving estimates use your current location and the project Site Address. They do not change quote travel charges.</p><div class="actions"><a class="button secondary" href="/maps-setup.html" target="_blank" rel="noopener" data-i18n="Open setup guide">Open setup guide</a><button id="google-maps-refresh" class="button secondary" type="button" data-i18n="Refresh Google Maps status">Refresh Google Maps status</button></div></section></section>
     <div id="app-message-slot" class="message-slot"><div id="app-message" class="message" role="status" hidden></div></div>
     <div id="loading-state" class="empty-state" data-i18n="Loading the estimator and pricing library…">Loading the estimator and pricing library…</div>
     <section id="project-tools" class="project-tools" aria-label="Project file" hidden data-i18n-aria-label="Project file">

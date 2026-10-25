@@ -96,11 +96,48 @@
     }
     return nearest;
   }
-  // OCR is an in-memory, approximate search aid. It never creates a PDF text
-  // layer, annotation, register item, quantity, approval or calculator input.
+  // OCR readings are approximate presentation data. A separate source-bound
+  // local text layer may retain them; they never create quantities or approval.
   const OCR_LIMITS = Object.freeze({ pixels: 18000000, edge: 6000, tile: 2048, overlap: 128,
     pageMs: 60000, runMs: 150000, pages: 8, words: 20000, cachePages: 8, cacheBytes: 2000000, confidence: 35 });
-  const OCR_VERSION = "tesseract-7.0.0-eng-best-int-v1";
+  const OCR_VERSION = "tesseract-7.0.0-local-profiles-v2";
+  const OCR_LANGUAGES = Object.freeze({ eng: "English", fra: "French", deu: "German", spa: "Spanish" });
+  const OCR_DEFAULTS = Object.freeze({ language: "eng", documentType: "cad", quality: "accuracy", correctSkew: false, detectOrientation: true, detectVertical: true, detectGraphics: true });
+  function ocrOptions(value = {}) {
+    if (!value || typeof value !== "object" || Array.isArray(value) || Object.keys(value).some(key => !Object.hasOwn(OCR_DEFAULTS,key))) throw new Error("Choose supported OCR settings.");
+    const result = { ...OCR_DEFAULTS, ...value };
+    if (!Object.hasOwn(OCR_LANGUAGES,result.language) || !["cad", "text"].includes(result.documentType) || !["accuracy", "speed"].includes(result.quality)
+      || ["correctSkew", "detectOrientation", "detectVertical", "detectGraphics"].some(key => typeof result[key] !== "boolean")) throw new Error("Choose supported OCR settings.");
+    return Object.freeze(result);
+  }
+  function multiplyTransform(a, b) { return [a[0]*b[0]+a[2]*b[1],a[1]*b[0]+a[3]*b[1],a[0]*b[2]+a[2]*b[3],a[1]*b[2]+a[3]*b[3],a[0]*b[4]+a[2]*b[5]+a[4],a[1]*b[4]+a[3]*b[5]+a[5]]; }
+  function skewAngle(image, width, height) {
+    // A bounded projection profile detects the small skew of scan text. Pixel
+    // coordinates remain explicit so the rotation can be inverted for quads.
+    if (!image || image.length !== width * height * 4 || width > 900 || height > 900) return 0;
+    const ink = [];
+    for (let y=1;y<height-1;y+=2) for (let x=1;x<width-1;x+=2) {
+      const i=(y*width+x)*4;
+      if (image[i]*.299+image[i+1]*.587+image[i+2]*.114<150) ink.push([x-width/2,y-height/2]);
+    }
+    if (ink.length<40 || ink.length>width*height*.15) return 0;
+    const score = degrees => { const radians=degrees*Math.PI/180,s=Math.sin(radians),c=Math.cos(radians),rows=new Uint32Array(height+width+4); for(const [x,y] of ink){const row=Math.round(s*x+c*y)+(height+width)/2|0;if(row>=0&&row<rows.length)rows[row]++;} let total=0;for(const n of rows)total+=n*n;return total; };
+    const baseline=score(0); let best=baseline, angle=0;
+    for(let degrees=-5;degrees<=5;degrees+=.5){const candidate=score(degrees);if(candidate>best){best=candidate;angle=degrees;}}
+    return best>baseline*1.08?angle:0;
+  }
+  function skewTransform(degrees,width,height) { const angle=degrees*Math.PI/180,c=Math.cos(angle),s=Math.sin(angle);return [c,s,-s,c,width/2-c*width/2+s*height/2,height/2-s*width/2-c*height/2]; }
+  function imageQuads(list, ops) {
+    if (!list || !ops || !Array.isArray(list.fnArray) || list.fnArray.length>1000000) return [];
+    const result=[],stack=[];let ctm=[1,0,0,1,0,0];
+    for(let i=0;i<list.fnArray.length;i++) { const fn=list.fnArray[i],args=list.argsArray[i];
+      if(fn===ops.save){if(stack.length>128)break;stack.push([...ctm]);}
+      else if(fn===ops.restore)ctm=stack.pop()||[1,0,0,1,0,0];
+      else if(fn===ops.transform && Array.isArray(args) && args.length===6 && args.every(Number.isFinite))ctm=multiplyTransform(ctm,args);
+      else if(fn===ops.paintImageXObject || fn===ops.paintInlineImageXObject || fn===ops.paintImageMaskXObject) {result.push([[0,0],[1,0],[1,1],[0,1]].map(point=>pointTransform(point,ctm)));if(result.length>=4096)break;}
+    }
+    return result;
+  }
   function ocrError(name, message) { const error = new Error(message); error.name = name; return error; }
   function createOcrBudget() { return { pages: 0, started: Date.now() }; }
   function pointTransform(point, t) { return [point[0] * t[0] + point[1] * t[2] + t[4], point[0] * t[1] + point[1] * t[3] + t[5]]; }
@@ -221,10 +258,10 @@
   function createOcrSearch(dependencies = {}) {
     const clock = dependencies.clock || Date.now, workerFactory = dependencies.workerFactory || (url => new Worker(url));
     const canvasFactory = dependencies.canvasFactory || (() => document.createElement("canvas"));
-    const cache = new Map(); let cacheBytes = 0, worker = null, pending = null, ready = false, busy = false, job = 0, idle = null, disposed = false, activeAbort = null;
+    const cache = new Map(); let cacheBytes = 0, worker = null, pending = null, ready = false, busy = false, job = 0, idle = null, disposed = false, activeAbort = null, workerProfile = "";
     const absolute = path => dependencies.baseUrl ? new URL(path, dependencies.baseUrl).href : new URL(path, window.location.href).href;
     function destroy(error = ocrError("SearchCancelled", "Local OCR search cancelled.")) {
-      clearTimeout(idle); idle = null; worker?.terminate(); worker = null; ready = false;
+      clearTimeout(idle); idle = null; worker?.terminate(); worker = null; ready = false; workerProfile = "";
       if (pending) { const current = pending; pending = null; clearTimeout(current.timer); current.reject(error); }
     }
     function rpc(action, payload, deadline, progress) {
@@ -236,8 +273,10 @@
         pending = { id, resolve, reject, timer, progress }; worker.postMessage({ workerId: "ceasefire-search", jobId: id, action, payload });
       });
     }
-    async function initialize(deadline, progress) {
-      if (ready) return;
+    async function initialize(deadline, progress, options) {
+      const profile = JSON.stringify([options.language, options.documentType, options.quality]);
+      if (ready && workerProfile === profile) return;
+      if (worker) destroy();
       worker = workerFactory(absolute("/vendor/ocr/worker.min.js"));
       // Own the pinned v7 native worker from creation, so cancellation also
       // terminates model/core initialization. No blob worker or CDN fallback.
@@ -250,28 +289,31 @@
       };
       worker.onerror = event => { event.preventDefault?.(); destroy(ocrError("OcrRecognitionError", "Local OCR engine could not start; coverage is incomplete.")); };
       await rpc("load", { options: { lstmOnly: true, corePath: absolute("/vendor/ocr/core"), logging: false } }, deadline, progress);
-      await rpc("loadLanguage", { langs: "eng", options: { langPath: absolute("/vendor/ocr/lang"), cacheMethod: "none", gzip: true, lstmOnly: true } }, deadline, progress);
-      await rpc("initialize", { langs: "eng", oem: 1, config: {} }, deadline, progress);
-      await rpc("setParameters", { params: { tessedit_pageseg_mode: "11", preserve_interword_spaces: "1", user_defined_dpi: "144" } }, deadline, progress);
-      ready = true;
+      await rpc("loadLanguage", { langs: options.language, options: { langPath: absolute("/vendor/ocr/lang"), cacheMethod: "none", gzip: true, lstmOnly: true } }, deadline, progress);
+      await rpc("initialize", { langs: options.language, oem: 1, config: { load_system_dawg: options.documentType === "text" ? "1" : "0", load_freq_dawg: options.documentType === "text" ? "1" : "0" } }, deadline, progress);
+      await rpc("setParameters", { params: { tessedit_pageseg_mode: options.documentType === "text" ? "3" : "11", preserve_interword_spaces: "1", user_defined_dpi: options.quality === "speed" ? "90" : "144" } }, deadline, progress);
+      ready = true; workerProfile = profile;
     }
-    async function recognizePage(page, { sha256, items = [], signal, budget = createOcrBudget(), onProgress, onPartial } = {}) {
+    async function recognizePage(page, { sha256, items = [], signal, budget = createOcrBudget(), onProgress, onPartial, options: suppliedOptions, refresh = false } = {}) {
+      const options = ocrOptions(suppliedOptions);
       if (disposed) throw ocrError("SearchCancelled", "Local OCR search is closed.");
       if (signal?.aborted) throw ocrError("SearchCancelled", "Local OCR search cancelled.");
       if (!/^[a-f0-9]{64}$/u.test(sha256 || "")) throw ocrError("OcrGeometryError", "Local OCR requires the retained PDF fingerprint.");
-      const base = page.getViewport({ scale: 1 }), scale = Math.min(2, Math.sqrt(OCR_LIMITS.pixels / (base.width * base.height)), OCR_LIMITS.edge / Math.max(base.width, base.height));
+      const targetScale = options.quality === "speed" ? 1.25 : 2;
+      const base = page.getViewport({ scale: 1 }), scale = Math.min(targetScale, Math.sqrt(OCR_LIMITS.pixels / (base.width * base.height)), OCR_LIMITS.edge / Math.max(base.width, base.height));
       const viewport = page.getViewport({ scale });
       if (!(scale > 0) || !Number.isFinite(scale) || !Array.isArray(viewport.transform) || !viewport.transform.every(Number.isFinite)) throw ocrError("OcrGeometryError", "Local OCR requires a valid original PDF page viewport.");
       const width = Math.floor(viewport.width), height = Math.floor(viewport.height);
       if (!width || !height || width * height > OCR_LIMITS.pixels || Math.max(width, height) > OCR_LIMITS.edge) throw ocrError("OcrLimitError", "PDF page exceeds bounded local OCR rendering; coverage is incomplete.");
-      const key = JSON.stringify([OCR_VERSION, sha256, page.pageNumber, viewport.transform, width, height]);
+      const key = JSON.stringify([OCR_VERSION, sha256, page.pageNumber, viewport.transform, width, height, options]);
+      if (refresh && cache.has(key)) { cacheBytes -= cache.get(key).bytes; cache.delete(key); }
       if (cache.has(key)) { const saved = cache.get(key); cache.delete(key); cache.set(key, saved); return saved.result; }
       if (busy) throw ocrError("OcrBusyError", "Local OCR is finishing the previous operation. Search again.");
       if (budget.pages >= OCR_LIMITS.pages || clock() - budget.started >= OCR_LIMITS.runMs) throw ocrError("OcrLimitError", "Local OCR search page/time limit reached; coverage is incomplete.");
       budget.pages++; busy = true; clearTimeout(idle); idle = null;
       const parentSignal = signal, controller = new AbortController(), relayAbort = () => controller.abort(); signal = controller.signal;
       parentSignal?.addEventListener("abort", relayAbort, { once: true }); activeAbort = relayAbort;
-      const started = clock(), deadline = Math.min(started + OCR_LIMITS.pageMs, budget.started + OCR_LIMITS.runMs), canvas = canvasFactory(), tile = canvasFactory(); let renderTask, renderFinished = false, renderCancelled = false;
+      const started = clock(), deadline = Math.min(started + OCR_LIMITS.pageMs, budget.started + OCR_LIMITS.runMs), canvas = canvasFactory(), tile = canvasFactory(); let renderTask, renderFinished = false, renderCancelled = false, preview = null;
       const abort = () => { if (renderTask && !renderFinished && !renderCancelled) { renderCancelled = true; renderTask.cancel(); } destroy(); };
       signal?.addEventListener("abort", abort, { once: true });
       const check = () => { if (signal?.aborted || disposed) throw ocrError("SearchCancelled", "Local OCR search cancelled."); if (clock() >= deadline) throw ocrError("OcrTimeoutError", "Local OCR page time limit reached; coverage is incomplete."); };
@@ -288,7 +330,7 @@
         const context = canvas.getContext("2d"); renderTask = page.render({ canvasContext: context, viewport, background: "#ffffff" });
         // The retained PDF raster and local engine startup are independent.
         // Both still share this page's deadline and cancellation ownership.
-        await Promise.all([bounded(renderTask.promise).then(() => { renderFinished = true; }), initialize(deadline, onProgress)]); check();
+        await Promise.all([bounded(renderTask.promise).then(() => { renderFinished = true; }), initialize(deadline, onProgress, options)]); check();
         // Native text always wins. Mask its retained run quads only on this
         // disposable recognition image, never on the viewer or original PDF.
         context.fillStyle = "#ffffff";
@@ -297,17 +339,36 @@
           const points = quad.map(point => pointTransform(point, viewport.transform)), x = Math.min(...points.map(p => p[0])) - 2, y = Math.min(...points.map(p => p[1])) - 2;
           context.fillRect(x, y, Math.max(...points.map(p => p[0])) - x + 2, Math.max(...points.map(p => p[1])) - y + 2);
         }
-        const words = [], stride = OCR_LIMITS.tile - OCR_LIMITS.overlap, completedRotations = [], totalTiles = Math.ceil(width / stride) * Math.ceil(height / stride) * 4;
+        let embeddedImagesSkipped = 0;
+        if (!options.detectGraphics && typeof page.getOperatorList === "function") {
+          const ops = dependencies.pdfOps || (await bounded(import("/vendor/pdfjs/build/pdf.mjs"))).OPS;
+          for (const quad of imageQuads(await bounded(page.getOperatorList()), ops)) {
+            const points=quad.map(point=>pointTransform(point,viewport.transform));
+            const x=Math.max(0,Math.min(...points.map(p=>p[0]))),y=Math.max(0,Math.min(...points.map(p=>p[1])));
+            const w=Math.min(width,Math.max(...points.map(p=>p[0])))-x,h=Math.min(height,Math.max(...points.map(p=>p[1])))-y;
+            // Keep full-page image scans. The option excludes smaller embedded
+            // pictures, not the scanned document's own page image.
+            if(w>0&&h>0&&w*h<width*height*.8){context.fillRect(x,y,w,h);embeddedImagesSkipped++;}
+          }
+        }
+        let correction = 0;
+        if (options.correctSkew) {
+          preview=canvasFactory(); const ratio=Math.min(1,800/Math.max(width,height));preview.width=Math.max(1,Math.round(width*ratio));preview.height=Math.max(1,Math.round(height*ratio));
+          const sample=preview.getContext("2d",{willReadFrequently:true});sample.drawImage(canvas,0,0,preview.width,preview.height);
+          correction=skewAngle(sample.getImageData(0,0,preview.width,preview.height).data,preview.width,preview.height);
+        }
+        const rotations=options.detectOrientation||options.detectVertical?[0,90,180,270]:[0];
+        const words = [], stride = OCR_LIMITS.tile - OCR_LIMITS.overlap, completedRotations = [], totalTiles = Math.ceil(width / stride) * Math.ceil(height / stride) * rotations.length;
         let partialReason = "", textSize = 0, processedTiles = 0;
         const snapshot = (partial, reasons, inProgress = false) => ({ version: 1, source: "local-ocr", engine: OCR_VERSION, sha256, page: page.pageNumber, width, height,
-          transform: [...viewport.transform], scale, limitedResolution: scale < 2, partial, partialReasons: reasons, completedRotations: [...completedRotations],
+          transform: [...viewport.transform], scale, limitedResolution: scale < targetScale, options: {...options}, skewCorrectionDegrees: correction, embeddedImagesSkipped, partial, partialReasons: reasons, completedRotations: [...completedRotations],
           processedTiles, totalTiles, inProgress, words: mergeOcrWords(words), elapsedMs: clock() - started });
-        try { for (const rotation of [0, 90, 180, 270]) {
+        try { for (const rotation of rotations) {
         for (let y = 0; y < height; y += stride) for (let x = 0; x < width; x += stride) {
           check(); tile.width = Math.min(OCR_LIMITS.tile, width - x); tile.height = Math.min(OCR_LIMITS.tile, height - y);
-          const tileWidth = tile.width, tileHeight = tile.height, rotationMatrix = rotationTransform(rotation, tileWidth, tileHeight);
+          const tileWidth = tile.width, tileHeight = tile.height, rotationMatrix = multiplyTransform(rotationTransform(rotation, tileWidth, tileHeight),skewTransform(correction,tileWidth,tileHeight));
           if (rotation === 90 || rotation === 270) { tile.width = tileHeight; tile.height = tileWidth; }
-          const tileContext = tile.getContext("2d"); tileContext.setTransform(...rotationMatrix); tileContext.drawImage(canvas, x, y, tileWidth, tileHeight, 0, 0, tileWidth, tileHeight); tileContext.setTransform(1, 0, 0, 1, 0, 0);
+          const tileContext = tile.getContext("2d"); tileContext.fillStyle="#ffffff";tileContext.fillRect(0,0,tile.width,tile.height);tileContext.setTransform(...rotationMatrix); tileContext.drawImage(canvas, x, y, tileWidth, tileHeight, 0, 0, tileWidth, tileHeight); tileContext.setTransform(1, 0, 0, 1, 0, 0);
           const blob = await bounded(new Promise((resolve, reject) => tile.toBlob(value => value ? resolve(value) : reject(ocrError("OcrRecognitionError", "Local OCR could not prepare this page.")), "image/png")));
           const image = new Uint8Array(await bounded(blob.arrayBuffer())); check();
           const data = await rpc("recognize", { image, options: { rotateAuto: false }, output: { text: false, blocks: true } }, deadline, onProgress); check();
@@ -337,12 +398,14 @@
         }
         const result = snapshot(!!partialReason, partialReason ? [partialReason] : []);
         const bytes = JSON.stringify(result).length * 2;
-        if (bytes <= OCR_LIMITS.cacheBytes) { cache.set(key, { result, bytes }); cacheBytes += bytes; }
+        // A partial result remains searchable, but its next recognition must
+        // retry the unfinished coverage rather than reusing that partial cache.
+        if (!result.partial && bytes <= OCR_LIMITS.cacheBytes) { cache.set(key, { result, bytes }); cacheBytes += bytes; }
         while (cache.size > OCR_LIMITS.cachePages || cacheBytes > OCR_LIMITS.cacheBytes) { const oldest = cache.keys().next().value; cacheBytes -= cache.get(oldest).bytes; cache.delete(oldest); }
         return result;
       } catch (error) { controller.abort(); destroy(error); throw error; }
       finally {
-        signal?.removeEventListener("abort", abort); canvas.width = canvas.height = tile.width = tile.height = 1; busy = false;
+        signal?.removeEventListener("abort", abort); canvas.width = canvas.height = tile.width = tile.height = 1; if(preview)preview.width=preview.height=1;busy = false;
         parentSignal?.removeEventListener("abort", relayAbort); if (activeAbort === relayAbort) activeAbort = null;
         if (worker) idle = setTimeout(() => destroy(), 20000);
       }
@@ -350,7 +413,8 @@
     return { recognizePage, cancel: () => { activeAbort?.(); destroy(); }, dispose: () => { disposed = true; activeAbort?.(); destroy(); cache.clear(); cacheBytes = 0; } };
   }
   const api = { normalize, indexText, find, choose, runQuad, MAX_PAGE_TEXT, MAX_QUERY,
-    createOcrSearch, createOcrBudget, findOcr, reconcileOcrHits, mergeOcrWords, rectangleQuad, OCR_LIMITS, OCR_VERSION };
+    createOcrSearch, createOcrBudget, findOcr, reconcileOcrHits, mergeOcrWords, rectangleQuad, OCR_LIMITS, OCR_VERSION,
+    OCR_LANGUAGES, OCR_DEFAULTS, ocrOptions, skewAngle, skewTransform, multiplyTransform, imageQuads };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else window.CeasefireTakeoffSearch = api;
 })();

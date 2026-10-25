@@ -33,10 +33,23 @@ PACKAGES = {
     },
 }
 
+for language, name, integrity in (
+    ('fra', 'French', 'sha512-pp58gMaoyidoBBLd5y5rnf0WW0Y1994QrGqZrYatITqIU/AReUJMykD+YY3JDgvnmgz7uAx1UmhjjuyEmV8JEA=='),
+    ('deu', 'German', 'sha512-3ter1p2gFAiCd5CMC+PodZ9YY2UDomkKj+ytlKeeZqOUmhLx1SDnYPf5zog0g5MBbxYveW+8omI3PUflqHfZ4Q=='),
+    ('spa', 'Spanish', 'sha512-9Ln+QKq/TNu4Hy4aOp5b4nXo9U0C6IqJMzNDpAJZe/fNtz6jXG9G/hQgR/Irxj+RGf0M7Xy1MNx1yl4wQUIfeg=='),
+):
+    PACKAGES[f'tesseract.js-data-{language}-1.0.0.tgz'] = {
+        'package': f'@tesseract.js-data/{language}', 'version': '1.0.0',
+        'source_url': f'https://registry.npmjs.org/@tesseract.js-data/{language}/-/{language}-1.0.0.tgz',
+        'integrity': integrity,
+        'files': {f'4.0.0_best_int/{language}.traineddata.gz': f'lang/{language}.traineddata.gz',
+                  'README.md': f'{name.upper()}-MODEL-README.md', 'package.json': f'{name.upper()}-MODEL-PACKAGE.json'},
+    }
+
 
 def vendor(directory):
     manifest = {'version': 1, 'engine': 'Tesseract.js', 'engine_version': '7.0.0',
-                'core_version': '7.0.0', 'language': 'eng', 'model': '4.0.0_best_int',
+                'core_version': '7.0.0', 'language': 'eng', 'languages': ['eng', 'fra', 'deu', 'spa'], 'model': '4.0.0_best_int',
                 'runtime': 'local-only', 'authority': 'approximate-search-only', 'packages': [], 'files': {}}
     for filename, entry in PACKAGES.items():
         archive = Path(directory) / filename
@@ -58,8 +71,8 @@ def vendor(directory):
                 manifest['files'][relative] = {'sha256': hashlib.sha256(data).hexdigest(), 'size': len(data)}
     notices = ('Local drawing-label OCR uses unmodified Tesseract.js 7.0.0 worker and Tesseract.js-core 7.0.0 LSTM builds.\n'
                'Their exact upstream Apache-2.0 licenses and bundled worker dependency notices are retained alongside these assets.\n'
-               'The official @tesseract.js-data/eng 1.0.0 package supplies the 4.0.0_best_int full English model.\n'
-               'Its npm package declares MIT; its underlying Tesseract trained data is Apache-2.0.\n'
+               'Official @tesseract.js-data 1.0.0 packages supply the 4.0.0_best_int English, French, German and Spanish models.\n'
+               'Their npm packages declare MIT; the underlying Tesseract trained data is Apache-2.0.\n'
                'Package metadata, upstream model license and hashes are retained.\n'
                'Recognition stays on this computer and is only an approximate search aid; no physical or calculator authority.\n'
                'The pinned worker message adapter follows upstream src/createWorker.js at v7.0.0.\n'

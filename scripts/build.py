@@ -24,6 +24,8 @@ def main():
     paths.append(ROOT / 'docs' / 'CALCULATOR_REPORT_UPDATES.md')
     paths.append(ROOT / 'docs' / 'MONOKOTE_DUCT_ASSESSMENT.md')
     paths.append(ROOT / 'docs' / 'FIREFLY_REFERENCE_REVIEW.md')
+    paths.append(ROOT / 'docs' / 'TAKEOFFS_VISUAL_SEARCH.md')
+    paths.append(ROOT / 'docs' / 'LOCAL_OCR_TEXT_LAYERS.md')
     paths.append(ROOT / 'scripts' / 'import_promat_spray_assessments.py')
     paths.append(ROOT / 'requirements-import.txt')
     paths.append(ROOT / 'scripts' / 'build_language_catalog.py')

@@ -4,6 +4,12 @@
   "engine_version": "7.0.0",
   "core_version": "7.0.0",
   "language": "eng",
+  "languages": [
+    "eng",
+    "fra",
+    "deu",
+    "spa"
+  ],
   "model": "4.0.0_best_int",
   "runtime": "local-only",
   "authority": "approximate-search-only",
@@ -28,6 +34,27 @@
       "source_url": "https://registry.npmjs.org/@tesseract.js-data/eng/-/eng-1.0.0.tgz",
       "integrity": "sha512-mbTumm6KQPUHyzTPQaF3ObXYnx0SqqfV2nabqFVQBwD6Kl7PhGSLSzOlfFTWy0P3BjghaSKA2W9GB19Jk+ZcTg==",
       "archive_sha256": "c9bddf2e2f0a214ac7918f3f4a3caf45e09ce8674fe26662ae7787ac8927f7bb"
+    },
+    {
+      "package": "@tesseract.js-data/fra",
+      "version": "1.0.0",
+      "source_url": "https://registry.npmjs.org/@tesseract.js-data/fra/-/fra-1.0.0.tgz",
+      "integrity": "sha512-pp58gMaoyidoBBLd5y5rnf0WW0Y1994QrGqZrYatITqIU/AReUJMykD+YY3JDgvnmgz7uAx1UmhjjuyEmV8JEA==",
+      "archive_sha256": "ffcef66c64e763499d56ea3f8d7470215390b7c3ab8f33df19a2ab0f2d88c0e5"
+    },
+    {
+      "package": "@tesseract.js-data/deu",
+      "version": "1.0.0",
+      "source_url": "https://registry.npmjs.org/@tesseract.js-data/deu/-/deu-1.0.0.tgz",
+      "integrity": "sha512-3ter1p2gFAiCd5CMC+PodZ9YY2UDomkKj+ytlKeeZqOUmhLx1SDnYPf5zog0g5MBbxYveW+8omI3PUflqHfZ4Q==",
+      "archive_sha256": "929782d1d505ae09a568c41f2ea73182e84bb323205340abd72654584cd27b2c"
+    },
+    {
+      "package": "@tesseract.js-data/spa",
+      "version": "1.0.0",
+      "source_url": "https://registry.npmjs.org/@tesseract.js-data/spa/-/spa-1.0.0.tgz",
+      "integrity": "sha512-9Ln+QKq/TNu4Hy4aOp5b4nXo9U0C6IqJMzNDpAJZe/fNtz6jXG9G/hQgR/Irxj+RGf0M7Xy1MNx1yl4wQUIfeg==",
+      "archive_sha256": "b6814aa0f4f672c6772b9a5323b85c19887d030ffcf571e5c41a8b066fbb9d16"
     }
   ],
   "files": {
@@ -79,9 +106,45 @@
       "sha256": "b603509212196b5d09e10519bf252c1e344b79704d065e0d62886846f8554c80",
       "size": 530
     },
+    "lang/fra.traineddata.gz": {
+      "sha256": "d611139672b3752c7097e671e4a1d9209dfd37f2aeb081ef6487fba3351e9255",
+      "size": 707406
+    },
+    "FRENCH-MODEL-README.md": {
+      "sha256": "22298684801f0225788c1fa128cf90df49a383907ac71d5d2e3fe79601b1800a",
+      "size": 381
+    },
+    "FRENCH-MODEL-PACKAGE.json": {
+      "sha256": "e98c3164e4cb9dbdd9259161509aaa73e6070f4c051b9b6dd292742bf43fd3aa",
+      "size": 530
+    },
+    "lang/deu.traineddata.gz": {
+      "sha256": "306c4280d0cbed46fbff727486bd43b92730181bae80f56941a091f363bdf28b",
+      "size": 1333102
+    },
+    "GERMAN-MODEL-README.md": {
+      "sha256": "db11100b63fc16eae02300fc6cebfb7d77a6689d9259df8ece7ae21dc9855ace",
+      "size": 381
+    },
+    "GERMAN-MODEL-PACKAGE.json": {
+      "sha256": "a3d09f790a918237b6323f45fb5e50ea729a298d05a4bbe2b89af036f55360af",
+      "size": 530
+    },
+    "lang/spa.traineddata.gz": {
+      "sha256": "40be52f97b5d4eb7460073dc1f94cd546b27150333c0bf854ed7e7132db6bceb",
+      "size": 2100190
+    },
+    "SPANISH-MODEL-README.md": {
+      "sha256": "abd1fc2d32ea38d3db6d61722eefd14049be9ab2f142334a78f7235d4e5093aa",
+      "size": 381
+    },
+    "SPANISH-MODEL-PACKAGE.json": {
+      "sha256": "a9ccbacb85fb63951e1746f32318ee01114acf9f4c26f222082b1de942501171",
+      "size": 530
+    },
     "NOTICE.txt": {
-      "sha256": "ef99f7ca9cec02fe1fe640586db9567c36f57c712a52cbfdd9353ea83297f6f5",
-      "size": 835
+      "sha256": "19a0ce4add06c8462a46d81a509b48c3f84791777b6f556af1d33547042d1fe2",
+      "size": 852
     },
     "MODEL-LICENSE.txt": {
       "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",

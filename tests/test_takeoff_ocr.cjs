@@ -176,6 +176,19 @@ test('Completed OCR cache is source/page/transform specific and bounded; no reco
   } finally {h.manager.dispose();}
 });
 
+test('Explicit reprocessing renders and recognizes the same source/options again', async () => {
+  const h = harness();
+  try {
+    const first = await h.manager.recognizePage(h.page(1), {sha256});
+    const before = h.messages.filter(message => message.action === 'recognize').length;
+    const refreshed = await h.manager.recognizePage(h.page(1), {sha256, refresh: true});
+    assert.notEqual(first, refreshed); assert.equal(h.counts().rendered, 2);
+    assert.equal(h.messages.filter(message => message.action === 'recognize').length, before * 2);
+    assert.equal(await h.manager.recognizePage(h.page(1), {sha256}), refreshed);
+    assert.equal(h.counts().rendered, 2, 'The refreshed complete result replaces the old cache entry');
+  } finally {h.manager.dispose();}
+});
+
 test('Deadline expiry destroys the worker and releases bitmaps without waiting for an unbounded engine', async () => {
   let now = Date.now(); const h = harness({clock: () => now});
   const original = h.page(1), render = original.render;
@@ -192,6 +205,9 @@ test('Later orientation timeout retains completed tiles with explicit partial co
     assert.equal(result.partial, true); assert.match(result.partialReasons[0], /time limit.*incomplete/);
     assert.deepEqual(result.completedRotations, [0]); assert.equal(S.findOcr(result, 'AIR CONDITIONER').length, 1);
     assert.equal(h.workers[0].terminated, 1);
+    const retried = await h.manager.recognizePage(h.page(1), {sha256});
+    assert.equal(h.counts().rendered, 2, 'A partial timeout cannot pin the same page to incomplete memory-cache coverage');
+    assert.equal(retried.partial, false); assert.deepEqual(retried.completedRotations, [0, 90, 180, 270]);
   } finally {h.manager.dispose();}
   const loading = harness({hold: 'load'}), pending = loading.manager.recognizePage(loading.page(1), {sha256});
   const rejected = assert.rejects(pending, error => error.name === 'SearchCancelled'); while (!loading.messages.length) await tick();

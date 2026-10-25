@@ -3,7 +3,7 @@ const { chromium, expect } = require("@playwright/test");
 const { spawn } = require("node:child_process"), fs = require("node:fs"), path = require("node:path"), assert = require("node:assert/strict"), { createHash } = require("node:crypto");
 const root = path.resolve(__dirname, "../.."), output = process.env.CEASEFIRE_BROWSER_OUTPUT || path.join(root, ".runtime/browser-qa", `header-menu-sounds-${Date.now()}`);
 fs.mkdirSync(output, { recursive: true });
-const sourceFiles = ["static/header-menu-sounds.js", "static/index.html", "estimator/server.py", "scripts/build_windows.py", "static/sounds/mgs1-menu-move.mp3", "static/sounds/mgs-confirm2.mp3", "tests/browser/header_menu_sounds.cjs", "tests/browser/header_menu_sounds_fixture.py"];
+const sourceFiles = ["static/header-menu-sounds.js", "static/app.js", "static/sounds/mgs1-menu-move.mp3", "static/sounds/mgs-confirm2.mp3", "static/sounds/new-explosion.mp3", "static/sounds/hover.mp3", "static/sounds/select.mp3", "static/sounds/select-2.mp3", "static/sounds/mixkit-vintage-dot-printing-1371.wav", "tests/browser/header_menu_sounds.cjs", "tests/browser/header_menu_sounds_fixture.py"];
 const digest = value => createHash("sha256").update(value).digest("hex");
 const sourceHashes = () => Object.fromEntries(sourceFiles.map(file => [file, digest(fs.readFileSync(path.join(root, file)))]));
 const evidence = { passed: false, source_sha256: sourceHashes(), normal_autoplay_policy: true, autoplay_override_flags: [], physical_audibility_claimed: false, checks: {}, errors: [], blocked_requests: [], assets: [] };
@@ -68,22 +68,23 @@ async function played(source, prior) {
     if (reply.exceptionDetails) throw Error(JSON.stringify(reply.exceptionDetails));
     return reply.result.value;
   }
-  await expect.poll(() => unactivatedProbe("Boolean(window.CeasefireDesktop?.status().ready && !window.CeasefireDesktop.status().busy && window.ClassifireBoot?.state === 'ready' && window.qaMenuAudio.media.length === 2 && window.qaMenuAudio.media.every(media => media.readyState >= 2 && Number.isFinite(media.duration) && media.duration > 0))"), { timeout: 30000 }).toBe(true);
+  await expect.poll(() => unactivatedProbe("Boolean(window.CeasefireDesktop?.status().ready && !window.CeasefireDesktop.status().busy && window.ClassifireBoot?.state === 'ready' && window.qaMenuAudio.media.length === 7 && window.qaMenuAudio.media.every(media => media.readyState >= 2 && Number.isFinite(media.duration) && media.duration > 0))"), { timeout: 30000 }).toBe(true);
   evidence.checks.preloadedDecodedMedia = await unactivatedProbe("window.qaMenuAudio.media.map(media => ({source:new URL(media.src).pathname,readyState:media.readyState,duration:media.duration,preload:media.preload}))");
-  for (const [file, expected] of [["mgs1-menu-move.mp3", "ac2d686c78fa5dabc2415a0f3b39f4ced124f5fc1613ba3918e06daa7b47f8d0"], ["mgs-confirm2.mp3", "e9e7e156e24a4fde706f922ee135e88df51dc5ba94eed6344e66bbd6298e3e86"]]) {
+  for (const [file, expected] of [["mgs1-menu-move.mp3", "ac2d686c78fa5dabc2415a0f3b39f4ced124f5fc1613ba3918e06daa7b47f8d0"], ["mgs-confirm2.mp3", "e9e7e156e24a4fde706f922ee135e88df51dc5ba94eed6344e66bbd6298e3e86"], ["new-explosion.mp3", "1ed5c489c6e7ab08caacf1cba198e7aae07cb7a904be51a4800c56eb32512c21"], ["hover.mp3", "052d0d7f3fb41ddb67766dedd8f4c237b46c8b18745dfad0a73a14c8afb6fad5"], ["select.mp3", "60e089eeac138ce5301fb59dc9d649c0404a556499c8f78c15c81a7cdfde1969"], ["select-2.mp3", "37e5c8645aa76e11dc8039545940436ea9201e533b1c946fbc9dfc3845efeb7b"], ["mixkit-vintage-dot-printing-1371.wav", "5c39082dfe0aa5c24cae5faa0ba616bfb1354d8b7686b0b0784fa32689a9decf"]]) {
     const response = await page.request.get(`${origin}/sounds/${file}`), bytes = await response.body();
-    assert.equal(response.status(), 200); assert.equal(response.headers()["content-type"], "audio/mpeg"); assert.equal(digest(bytes), expected);
+    assert.equal(response.status(), 200); assert.equal(response.headers()["content-type"], file.endsWith(".wav") ? "audio/wav" : "audio/mpeg"); assert.equal(digest(bytes), expected);
     evidence.assets.push({ url: response.url(), status: response.status(), sha256: digest(bytes), size: bytes.length, content_type: response.headers()["content-type"] });
   }
   const before = await unactivatedProbe("({calculators:window.CeasefireCalculators.projectFingerprint(),penetration:window.CeasefirePenetrations.projectFingerprint(),pricing:window.CeasefireProject.configuration(),details:window.CeasefireProject.details()})"), home = page.locator('.app-header nav [data-view="home"]');
   assert.equal(await unactivatedProbe("navigator.userActivation.hasBeenActive"), false);
   const homeCentre = await unactivatedProbe("(() => { const bounds=document.querySelector('.app-header nav [data-view=home]').getBoundingClientRect(); return {x:bounds.x+bounds.width/2,y:bounds.y+bounds.height/2}; })()");
+  const firstHoverStart = await unactivatedProbe("window.qaMenuAudio.calls.length");
   // Send genuine pointer movement without Playwright's actionability evaluation,
   // which also supplies a DevTools gesture in Chromium before the hover.
   await protocol.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: 0, y: 0 });
   await protocol.send("Input.dispatchMouseEvent", { type: "mouseMoved", ...homeCentre });
-  await expect.poll(() => unactivatedProbe("Boolean(window.qaMenuAudio.calls.length && window.qaMenuAudio.calls[0].outcome !== 'pending')")).toBe(true);
-  evidence.checks.firstHoverPolicyObservation = await unactivatedProbe("({...window.qaMenuAudio.calls[0]})");
+  await expect.poll(() => unactivatedProbe(`Boolean(window.qaMenuAudio.calls.slice(${firstHoverStart}).some(row => row.source === '/sounds/mgs1-menu-move.mp3' && row.outcome !== 'pending'))`)).toBe(true);
+  evidence.checks.firstHoverPolicyObservation = await unactivatedProbe(`({...window.qaMenuAudio.calls.slice(${firstHoverStart}).find(row => row.source === '/sounds/mgs1-menu-move.mp3')})`);
   assert.equal(evidence.checks.firstHoverPolicyObservation.source, "/sounds/mgs1-menu-move.mp3");
   assert.equal(evidence.checks.firstHoverPolicyObservation.activation, false);
   // A real click supplies activation; the native playing event proves decoding/playback, not speaker output.
@@ -101,10 +102,59 @@ async function played(source, prior) {
   prior = await page.evaluate(() => window.qaMenuAudio.playing.filter(row => row.source.endsWith("mgs-confirm2.mp3")).length);
   await home.press("Enter"); await played("/sounds/mgs-confirm2.mp3", prior); await idle();
   evidence.checks.keyboardClickAndNestedHover = true;
+  // Home cards retain the header clips, rather than the ordinary button pair.
+  await home.click(); await idle();
+  const homeHelp = page.locator('#view-home [data-home-view="help"]');
+  prior = await page.evaluate(() => window.qaMenuAudio.playing.filter(row => row.source.endsWith("mgs1-menu-move.mp3")).length);
+  await homeHelp.hover(); await played("/sounds/mgs1-menu-move.mp3", prior);
+  prior = await page.evaluate(() => window.qaMenuAudio.playing.filter(row => row.source.endsWith("mgs-confirm2.mp3")).length);
+  await homeHelp.click(); await played("/sounds/mgs-confirm2.mp3", prior); await idle();
+  evidence.checks.homeCardsShareHeaderClips = true;
+  // A real ordinary control exercises delegated native pointer/click events.
+  await page.locator('.app-header nav [data-view="settings"]').click(); await idle();
+  const theme = page.locator("#theme-toggle");
+  prior = await page.evaluate(() => window.qaMenuAudio.playing.filter(row => row.source.endsWith("hover.mp3")).length);
+  await theme.hover(); await played("/sounds/hover.mp3", prior);
+  prior = await page.evaluate(() => window.qaMenuAudio.playing.filter(row => row.source.endsWith("select-2.mp3")).length);
+  await theme.click(); await played("/sounds/select-2.mp3", prior);
+  evidence.checks.otherPageHoverAndSelect2 = true;
+  // These owned lightweight controls isolate delegated routing from Takeoff
+  // document/session operations, which have their own browser acceptance gates.
+  await page.evaluate(() => {
+    const dialog = document.createElement("dialog"); dialog.id = "qa-takeoff-audio-dialog";
+    const button = document.createElement("button"); button.textContent = "Audio routing check"; button.id = "qa-takeoff-audio-button";
+    const icon = document.createElement("span"); icon.textContent = "Nested icon"; icon.id = "qa-takeoff-audio-icon";
+    button.append(icon); dialog.append(button); document.body.append(dialog); document.body.classList.add("takeoffs-active"); dialog.showModal();
+  });
+  const scoped = page.locator("#qa-takeoff-audio-button");
+  prior = await page.evaluate(() => window.qaMenuAudio.playing.filter(row => row.source.endsWith("select.mp3")).length);
+  await scoped.click(); await played("/sounds/select.mp3", prior);
+  await page.evaluate(() => document.body.classList.remove("takeoffs-active"));
+  prior = await page.evaluate(() => window.qaMenuAudio.playing.filter(row => row.source.endsWith("select-2.mp3")).length);
+  await scoped.click(); await played("/sounds/select-2.mp3", prior);
+  const hoverCount = await page.evaluate(() => window.qaMenuAudio.calls.filter(row => row.source.endsWith("hover.mp3")).length);
+  await page.locator("#qa-takeoff-audio-icon").hover();
+  assert.equal(await page.evaluate(() => window.qaMenuAudio.calls.filter(row => row.source.endsWith("hover.mp3")).length), hoverCount, "Moving within a dynamic button is silent");
+  await page.evaluate(() => { const dialog = document.getElementById("qa-takeoff-audio-dialog"); dialog.close(); dialog.remove(); });
+  evidence.checks.dynamicTakeoffModalAndOtherContextRouting = true;
   await page.mouse.move(0, 0);
   prior = await page.evaluate(() => window.qaMenuAudio.calls.length);
   await page.locator(".app-header .brand").hover();
-  assert.equal(await page.evaluate(() => window.qaMenuAudio.calls.length), prior, "Header controls outside navigation stay silent");
+  assert.equal(await page.evaluate(() => window.qaMenuAudio.calls.length), prior, "The logo has no hover sound");
+  prior = await page.evaluate(() => window.qaMenuAudio.playing.filter(row => row.source.endsWith("new-explosion.mp3")).length);
+  await page.locator(".app-header .brand").click(); await played("/sounds/new-explosion.mp3", prior); await idle();
+  evidence.checks.logoClickExplosion = true;
+  // The native loop is scoped to characters printing, not the GIF's grace.
+  await home.click(); await idle();
+  await page.waitForFunction(() => {
+    const media = window.qaMenuAudio.media.find(audio => audio.src.endsWith("mixkit-vintage-dot-printing-1371.wav"));
+    return media && media.loop && !media.paused && document.getElementById("header-tagline-typed").textContent !== document.getElementById("header-tagline-label").textContent;
+  });
+  await page.waitForFunction(() => document.getElementById("header-tagline-typed").textContent === document.getElementById("header-tagline-label").textContent);
+  assert.equal(await page.evaluate(() => window.qaMenuAudio.media.find(audio => audio.src.endsWith("mixkit-vintage-dot-printing-1371.wav")).paused), true);
+  evidence.checks.printingLoopStopsAtFinalCharacter = true;
+  assert.ok((await page.evaluate(() => window.qaMenuAudio.calls.filter(row => !row.source.endsWith("mixkit-vintage-dot-printing-1371.wav"))))
+    .every(row => ["pointerenter", "pointerover", "click"].includes(row.event)), "Button playback attempts occur in their input event");
   await page.mouse.move(0, 0);
   await page.screenshot({ path: path.join(output, "header-menu-audio.png") });
   assert.deepEqual(await snapshot(), before, "Menu audio preserves the entire initialized calculator, pricing and project draft");
@@ -112,7 +162,7 @@ async function played(source, prior) {
   evidence.audio_events = await page.evaluate(() => ({ calls: window.qaMenuAudio.calls, playing: window.qaMenuAudio.playing, csp: window.qaMenuAudio.csp }));
   assert.deepEqual(evidence.audio_events.csp, []); assert.deepEqual(evidence.errors, []); assert.deepEqual(evidence.blocked_requests, []);
   evidence.source_sha256_after = sourceHashes(); assert.deepEqual(evidence.source_sha256_after, evidence.source_sha256);
-  evidence.limits = ["Native media playing events and exact decoded assets are verified; physical speaker audibility and hardware latency are not measured.", "The first hover policy result is this fresh browser observation only; browsers may block unactivated audio. Blocked or unloaded interactions are never queued for later playback.", "Only a fresh owned browser context and random-port fixture were used; the live application and existing tabs were untouched."];
+  evidence.limits = ["Native media playing events and exact decoded assets are verified; physical speaker audibility and hardware latency are not measured.", "The first hover policy result is this fresh browser observation only; browsers may block unactivated audio. Blocked or unloaded button interactions are never queued for later playback.", "Takeoff/modal context routing uses owned lightweight DOM controls here; actual Takeoff document and callout behavior belongs to separate acceptance gates.", "Only a fresh owned browser context and random-port fixture were used; the live application and existing tabs were untouched."];
   evidence.passed = true; fs.writeFileSync(path.join(output, "result.json"), JSON.stringify(evidence, null, 2));
   console.log(JSON.stringify({ passed: true, output, port: info.port, firstHover: evidence.checks.firstHoverPolicyObservation }));
 })().catch(async error => {

@@ -569,6 +569,10 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
   assert.equal(privateCard.children[1].textContent,'Supplied assessment');
   assert.equal(privateCard.children[1].href,undefined); passed++;
 
+  // The approved browser caption uses the exact unit; raw source/user text stays exact.
+  entry=setup({CALCULATOR:{A9:'Board net (m2)'}});const boardCaptionSource={rows:[{row:8,cells:[{column:31,address:'AE8',value:'Board net (m2)'}]}]},boardCaptionBefore=JSON.stringify(boardCaptionSource);
+  assert.equal(audit.headerLabels(entry,boardCaptionSource)[31],'Board net (m²)');assert.equal(JSON.stringify(boardCaptionSource),boardCaptionBefore);assert.equal(audit.sourceDisplayText(entry.inputs.CALCULATOR.A9,entry,'A9'),'Board net (m2)');passed++;
+
   // Only explicit directions in their identified source cells receive business labels.
   entry=setup();const warning='No quantity: wastage must be between 0% and 100%. Check L, or the default on SETTINGS when L is blank.';
   assert.match(audit.sourceDisplayText(warning,entry,'AI9'),/Check Waste \(%\).*Default wastage/);
@@ -909,6 +913,26 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
     output.children[0].focus=()=>{refocused=true;};await byId('calculator-basis-dialog').close('close');assert.equal(refocused,true);
     assert.equal(JSON.stringify(entry.inputs),immutableInputs);assert.notEqual(JSON.stringify(entry.result),immutableResult,'only the synthetic response was intentionally replaced');
     assert.equal(cells[4].value,'Updated full qualification retained verbatim.');passed++;
+  }
+  // Real owned translation terms are objects. Missing-field labels must be
+  // readable strings, with duplicate labels removed before the preview joins.
+  entry=setup({SCHEDULE:{A10:'Retained exact mark'}});entry.definition.id='steel_vermiculite';entry.sheet='SCHEDULE';entry.definition.schedule={sheet:'SCHEDULE',first_row:10,last_row:1009,header_row:9};
+  const requiredNote={column:25,address:'Y10',value:'Retain this exact source qualification.',calculated:true};
+  entry.result={sheet:'SCHEDULE',rows:[{row:10,cells:[{column:2,required_missing:true,label:'Product'},{column:4,required_missing:true,label:'Length (m)'},{column:5,required_missing:true,label:'Product'},requiredNote]}]};
+  const requiredBefore=JSON.stringify({inputs:entry.inputs,result:entry.result}),requiredOutput=element('td');audit.updateOutputCell(requiredOutput,requiredNote);const requiredPreview=requiredOutput.children.find(node=>node.tagName==='button');
+  assert.match(requiredPreview.textContent,/^Review required: Product, Length \(m\)/);assert.doesNotMatch(requiredPreview.textContent,/\[object Object\]/);await requiredPreview.emit('click');assert.ok(byId('calculator-basis-full').textContent.includes(requiredNote.value));await byId('calculator-basis-dialog').close('close');assert.equal(JSON.stringify({inputs:entry.inputs,result:entry.result}),requiredBefore);passed++;
+
+  // Restored duct fixing/application notes retain complete literal source text
+  // in the existing dialog rather than stretching every input in the row.
+  for(const [column,address] of [[38,'AL11'],[42,'AP11']]){
+    entry=setup({CALCULATOR:{B11:'300 x 200',D11:10.123456789}});entry.definition.id='ductwork';entry.sheet='CALCULATOR';
+    entry.definition.schedule={sheet:'CALCULATOR',first_row:11,last_row:1010,header_row:10};
+    const fullNote='Retain the complete installation qualification. '+('Source requirement and limitation; '.repeat(20))+'<img src=x onerror=alert(1)> remains literal.';
+    const cell={column,address,value:fullNote,calculated:true};entry.result={sheet:'CALCULATOR',rows:[{row:11,cells:[cell]}]};
+    const beforeInputs=JSON.stringify(entry.inputs),beforeResult=JSON.stringify(entry.result),output=element('td');audit.updateOutputCell(output,cell);
+    const preview=output.children.find(node=>node.tagName==='button');assert.ok(preview);assert.ok(preview.textContent.length<130);assert.equal(preview.getAttribute('aria-haspopup'),'dialog');
+    await preview.emit('click');assert.equal(byId('calculator-basis-full').textContent,fullNote);assert.ok(!byId('calculator-basis-full').children.some(node=>node.tagName==='img'));
+    await byId('calculator-basis-dialog').close('close');assert.equal(JSON.stringify(entry.inputs),beforeInputs);assert.equal(JSON.stringify(entry.result),beforeResult);passed++;
   }
   entry=setup();entry.definition.id='steel_intumescent';entry.definition.pages=['SCHEDULE','SUMMARY','SETTINGS'];
   assert.deepEqual(copy(audit.displayPages(entry.definition)).map(page=>page.label),['SCHEDULE','SUMMARY','SETTINGS']);

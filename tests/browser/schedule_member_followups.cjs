@@ -60,7 +60,7 @@ async function focusSettled(field){
  assert.equal(headings[headings.indexOf('Lineal metres')+1],'Quantity');
  assert.match(headings[headings.indexOf('Family (ESA input)')+1],/^ESA\/M input/);
  for(const label of ['ESA/M used (m2/t)','Layers','Bare box girth (m)','Box reference area (m2)'])assert.ok(headings.includes(label));
- for(const label of ['Board net (m2)','Sheets','Purchase area (m2)'])assert.ok(headings.includes(label));
+ for(const label of ['Board net (m²)','Sheets','Purchase area (m2)'])assert.ok(headings.includes(label));
  for(const column of ['Y','AA','AC','AD'])await expect(page.locator(`[data-calculator-output="${column}9"]`)).toHaveCount(1);
  const originalStatus=page.locator('[data-calculator-output="AI9"] .calculator-basis-preview');await expect(originalStatus).toBeVisible();
  const worksheetRequest={sheet:'CALCULATOR',inputs:boardLegacy,include_advanced:true,schedule_view:{rows:[9],offset:0,limit:1}};
@@ -72,14 +72,14 @@ async function focusSettled(field){
  for(const column of ['Y','AA','AC','AD','AE','AG','AH'])assert.equal(typeof sourceValues[`${column}9`],'number');
  for(const width of [1146,390]){
   await page.setViewportSize({width,height:764});
-  for(const label of ['Board net (m2)','Sheets','Purchase area (m2)'])await expect(page.getByRole('columnheader',{name:label,exact:true})).toHaveCount(1);
+  for(const label of ['Board net (m²)','Sheets','Purchase area (m2)'])await expect(page.getByRole('columnheader',{name:label,exact:true})).toHaveCount(1);
   for(const column of ['AE','AG','AH'])await expect(page.locator(`[data-calculator-output="${column}9"]`)).toHaveText(new Intl.NumberFormat('en-AU',{minimumFractionDigits:2,maximumFractionDigits:2}).format(sourceValues[`${column}9`]));
  }
  for(const language of ['zh-Hans','hi','es','ar','th','ko','tl','vi']){
   await page.evaluate(language=>window.CeasefireI18n.setLanguage(language,false),language);
-  const labels=await page.evaluate(()=>['Board net (m2)','Sheets','Purchase area (m2)'].map(label=>window.CeasefireI18n.translate(label)));
+  const labels=await page.evaluate(()=>['Board net (m²)','Sheets','Purchase area (m2)'].map(label=>window.CeasefireI18n.translate(label)));
   for(const [index,label]of labels.entries()){
-   assert.notEqual(label,['Board net (m2)','Sheets','Purchase area (m2)'][index]);
+   assert.notEqual(label,['Board net (m²)','Sheets','Purchase area (m2)'][index]);
    await expect(page.getByRole('columnheader',{name:label,exact:true})).toHaveCount(1);
   }
   assert.deepEqual(await snapshot(),legacyBefore);
@@ -135,6 +135,23 @@ async function focusSettled(field){
  const guide=page.locator('[data-calculator-output="AM11"] .calculator-basis-preview');await expect(guide).toBeVisible();
  const guideRow=await guide.locator('xpath=ancestor::tr').boundingBox();assert.ok(guideRow.height<140,`Compact guide row grew to ${guideRow.height}`);
  await guide.click();await expect(page.locator('#calculator-basis-full')).toContainText('Use the pin and mesh details');await page.getByRole('dialog').getByRole('button',{name:'Close',exact:true}).click();assert.deepEqual(await snapshot(),beforeDuct);
+ // Newly visible fixing/application notes remain compact for every duct
+ // product, with the exact native text retained in the shared dialog.
+ const noteProducts=[[11,'CAFCO 300'],[12,'MONOKOTE'],[13,'FyreWrap']],noteProject=structuredClone(beforeDuct),ductNotesLayout=[];
+ noteProject.ductwork.schedule_rows=noteProducts.map(([row])=>row);
+ for(const [row,product]of noteProducts)for(const [column,value]of Object.entries({B:'300 x 200',C:product,D:10,E:'120/120/120',F:1,G:0,H:'Internal',I:'Horizontal'}))noteProject.ductwork.inputs.CALCULATOR[column+row]=value;
+ const notesResponse=page.waitForResponse(reply=>reply.request().method()==='POST'&&reply.url()===`${base}/api/calculators/ductwork/worksheet`&&reply.request().postDataJSON()?.schedule_view?.rows?.includes(13),{timeout:60000});
+ await page.evaluate(async copy=>{const api=window.CeasefireCalculators;api.applyProject(await api.prepareProject(copy));},noteProject);await chooseCalculator(page,'Duct');
+ const notesReply=await notesResponse;assert.equal(notesReply.status(),200);const notesWorksheet=await notesReply.json();await idle();const exactNotesDraft=await snapshot();
+ for(const [row,product]of noteProducts){
+  const sourceRow=notesWorksheet.rows.find(item=>item.row===row),sources=Object.fromEntries(sourceRow.cells.map(cell=>[cell.address,cell.value]));
+  const nativeRow=page.locator(`[data-calculator-output="AL${row}"]`).locator('xpath=ancestor::tr'),shape=await nativeRow.boundingBox();assert.ok(shape.height<140,`${product} note row grew to ${shape.height}`);
+  for(const column of ['AL','AP']){const note=page.locator(`[data-calculator-output="${column}${row}"] .calculator-basis-preview`);await expect(note).toBeVisible();assert.equal(typeof sources[column+row],'string');await note.click();await expect(page.locator('#calculator-basis-full')).toHaveText(sources[column+row]);await page.getByRole('dialog').getByRole('button',{name:'Close',exact:true}).click();}
+  await expect(page.locator(`[data-calculator-output="AQ${row}"]`)).toHaveText(sources[`AQ${row}`]);
+  ductNotesLayout.push({product,row,height:shape.height,fullFixingAndApplicationTextRetained:true,sourceReferencesUnchanged:true});
+ }
+ assert.deepEqual(await snapshot(),exactNotesDraft);
+ const restoredDuct=page.waitForResponse(reply=>reply.request().method()==='POST'&&reply.url()===`${base}/api/calculators/ductwork/worksheet`,{timeout:60000});await page.evaluate(async copy=>{const api=window.CeasefireCalculators;api.applyProject(await api.prepareProject(copy));},beforeDuct);await chooseCalculator(page,'Duct');assert.equal((await restoredDuct).status(),200);await idle();assert.deepEqual(await snapshot(),beforeDuct);
  await tab('PRODUCT SETTINGS');await page.locator('[data-calculator-settings-section="A6"]').click();
  const cafco=page.locator('#calculator-settings-ductwork-PRODUCT-SETTINGS-A6');
  const rows=await cafco.locator('tr[data-source-row]').evaluateAll(nodes=>nodes.map(node=>Number(node.dataset.sourceRow)));
@@ -148,6 +165,6 @@ async function focusSettled(field){
  await chooseCalculator(page,'Steel (spray)');await idle();await tab('SCHEDULE');
  for(const cell of ['B10','C10','D10','E10','H10','I10','J10'])await expect(page.locator(`[data-calculator-cell="${cell}"]`)).toHaveAttribute('aria-required','true');
  assert.deepEqual(errors,[]);
-  fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({result:'PASS',legacyMapsUnchanged:true,newProductKeepsQuantityBlank:true,dialogFullSourceRetained:true,boardEsaBesideFamily:true,quantityBesideLength:true,cafcoRows:rows,areaOverrideException:true,typedSectionQuerySurvivesScrollAndResize:true,committedArrowKeepsAllChoices:true,committedChoiceFocus,escapePreservesDraft:true,errors},null,2));
+  fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({result:'PASS',legacyMapsUnchanged:true,newProductKeepsQuantityBlank:true,dialogFullSourceRetained:true,ductNotesLayout,boardEsaBesideFamily:true,quantityBesideLength:true,cafcoRows:rows,areaOverrideException:true,typedSectionQuerySurvivesScrollAndResize:true,committedArrowKeepsAllChoices:true,committedChoiceFocus,escapePreservesDraft:true,errors},null,2));
  console.log(`PASS schedule member followups: ${output}`);
 })().catch(async error=>{console.error(error);console.error(logs.slice(-5000));if(page)await page.screenshot({path:path.join(output,'failure.png'),fullPage:true}).catch(()=>{});process.exitCode=1;}).finally(async()=>{if(browser)await browser.close();server.kill();});

@@ -1,4 +1,5 @@
 {
+  "Board net (m²)": ["순 보드 면적 (m²)", "Netong tabla (m²)", "Diện tích tấm thuần (m²)"],
   "Columns": ["열", "Mga column", "Cột"],
   "Visible columns": ["표시할 열", "Mga nakikitang column", "Cột hiển thị"],
   "Select a column to show the schedule.": ["일람표를 표시할 열을 선택하세요.", "Pumili ng column upang ipakita ang iskedyul.", "Chọn một cột để hiển thị bảng."]

@@ -94,7 +94,7 @@ async function screenshot(name){await page.screenshot({path:path.join(output,nam
  await page.evaluate(()=>window.CeasefireI18n.setLanguage('en',false));await page.setViewportSize({width:1146,height:850});
  console.log('PASS column chooser: all9 languages at desktop and narrow widths');
  for(const title of ['Steel (spray)','Steel (intumescent)','Steel (board)','Duct']){
-  await chooseCalculator(page,title);await idle();const cell=page.locator('.calculator-report-column[data-calculator-reports]').first(),basis=page.locator('.calculator-basis-preview').first();await expect(basis).toBeVisible();
+  await chooseCalculator(page,title);await idle();const cell=page.locator('.calculator-report-column[data-calculator-reports]').first(),basis=page.locator('.calculator-basis-preview').first();await expect(basis).toBeVisible();assert.doesNotMatch(await basis.textContent(),/\[object Object\]/);
   for(let theme=0;theme<5;theme++){
    const name=await page.locator('html').getAttribute('data-theme');await cell.hover();const report=await cell.evaluate(node=>({background:getComputedStyle(node).backgroundColor,color:getComputedStyle(node).color}));
    if(theme===0)await cell.screenshot({path:path.join(output,`${title.replace(/\W/g,'-')}-report-red.png`)});

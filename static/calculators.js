@@ -163,7 +163,7 @@ window.CeasefireScheduleColumns = (() => {
       CALCULATOR: {
         omit_columns: ["L"], schedule_omit_columns: ["Y", "AA", "AC", "AD"],
         column_order: ["A", "B", "C", "D", "F", "CJ", "G", "H", "I", "J", "K", "E"],
-        text: { AE8: "Board net (m2)", AG8: "Sheets", AH8: "Purchase area (m2)" },
+        text: { AE8: "Board net (m²)", AG8: "Sheets", AH8: "Purchase area (m2)" },
       }, // Retain source inputs, calculated outputs and saved row waste.
       START: { hide: ["A1"], text: { A1: "", D13: "Previously saved additional-board allowances remain included in purchasing totals.", A27: "Use START, SCHEDULE, BOARD SUMMARY and SETTINGS. Supporting reference data is retained by the application.", A31: "Saved additional-board allowances remain included in the board summary." } },
       "BOARD SUMMARY": { center: ["A11:D29", "I11:J29"], text: { A1: "SUMMARY" } }, // 22
@@ -1652,11 +1652,11 @@ window.CeasefireScheduleColumns = (() => {
     if (entry.sheet !== schedule?.sheet || !position
         || position.row < schedule.first_row || position.row > schedule.last_row) return null;
     const compactOutput = entry.definition.id === "steel_board" && position.column === 35
-      || entry.definition.id === "ductwork" && position.column === 39;
+      || entry.definition.id === "ductwork" && [38, 39, 42].includes(position.column);
     const steelBasis = ["steel_vermiculite", "steel_intumescent"].includes(entry.definition.id) && position.column === 25;
     if (!compactOutput && !steelBasis) return null;
     const cells = entry.result?.rows?.find(row => row.row === position.row)?.cells || [];
-    const missing = [...new Set(cells.filter(cell => cell.required_missing).map(cell => window.CeasefireI18n.term(cell.label)))];
+    const missing = [...new Set(cells.filter(cell => cell.required_missing).map(cell => window.CeasefireI18n.translate(cell.label)))];
     const review = missing.length ? window.CeasefireI18n.translate("Review required: {0}", [missing.join(", ")]) : "";
     value = typeof value === "string" ? value : "";
     if (!value.trim() && !review) return null;

@@ -53,7 +53,7 @@ async function responseTo(action, suffix) {
   for (const [id, title] of [['steel_vermiculite', 'Steel (spray)'], ['steel_board', 'Steel (board)'], ['ductwork', 'Duct']]) {
     await chooseCalculator(page, title); await idle();
     await expect(page.locator('#calculator-title')).toHaveText(title); await expect(page.locator('#calculator-grid')).toHaveAttribute('aria-busy', 'false');
-    if(id==='steel_board'){await page.locator('#calculator-pages').getByRole('button',{name:'SCHEDULE',exact:true}).click();await expect(page.locator('#calculator-grid')).toHaveAttribute('aria-busy','false');await expect(page.locator('[data-calculator-cell="L9"]')).toHaveCount(0);assert.ok(!(await page.locator('.calculator-schedule-table').getByRole('columnheader').allTextContents()).includes('Waste (%)'));}
+    if(id==='steel_board'){await page.locator('#calculator-pages').getByRole('button',{name:'SCHEDULE',exact:true}).click();await expect(page.locator('#calculator-grid')).toHaveAttribute('aria-busy','false');await expect(page.locator('[data-calculator-cell="L9"]')).toBeVisible();assert.ok((await page.locator('.calculator-schedule-table').getByRole('columnheader').allTextContents()).includes('Waste (%)'));}
     const requestsBeforeMenu = calculatorRequests.length;
     const toggle = page.locator('#calculator-document-toggle'), menu = page.locator('#calculator-document-menu');
     await expect(toggle).toHaveText('Document'); await expect(toggle.locator('svg')).toBeVisible(); await expect(menu).toBeHidden();

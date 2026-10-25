@@ -97,10 +97,11 @@ async function screenshot(name,fixture) {
   const sourceDefinition = await (await page.request.get(`http://127.0.0.1:${info.port}/api/calculators/steel_vermiculite`)).json();
   const sourceSheet = sourceDefinition.sheets.find(sheet => sheet.name === 'SCHEDULE');
   const sourceColumn = number => number === 27 ? 'AA' : String.fromCharCode(64 + number);
-  const displayColumns = ['Z','AA','A','E','F','C','D','B','H','I','J','G','K','L','M','N','O','P','Q','R','S','T','U','Y'];
+  const displayColumns = ['Z','AA','A','E','F','C','D','B','H','I','J','G','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y'];
   const scheduleTable = page.locator('#calculator-grid .calculator-schedule-table');
   const fieldLabels = Object.fromEntries(sourceDefinition.schedule.columns.map(field => [field.column, field.label]));
-  await expect(scheduleTable.locator('thead th')).toHaveText([...displayColumns.slice(0,-1).map(column => fieldLabels[column]), 'Report', fieldLabels.Y, 'Actions']);
+  const reportIndex = displayColumns.indexOf('V');
+  await expect(scheduleTable.locator('thead th')).toHaveText([...displayColumns.slice(0,reportIndex).map(column => fieldLabels[column]), 'Report', ...displayColumns.slice(reportIndex).map(column => fieldLabels[column]), 'Actions']);
   const rowAddresses = await scheduleTable.locator('tbody tr[data-source-row="10"] td').evaluateAll(cells => cells
     .map(cell => cell.querySelector('[data-calculator-cell]')?.dataset.calculatorCell || cell.dataset.calculatorOutput).filter(Boolean));
   assert.deepEqual(rowAddresses, displayColumns.map(column => `${column}10`));

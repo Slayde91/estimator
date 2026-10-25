@@ -182,12 +182,15 @@ class CalculatorDisplayTabsTests(unittest.TestCase):
         self.assertIn('H23:N24', source['merges'])
         period_page = calculate_page('steel_vermiculite', {}, 'CALCULATOR', 12, 1)
         period = next(cell for cell in period_page['rows'][0]['cells'] if cell['address'] == 'D12')
-        self.assertEqual(period['options'], [15, 30, 45, 60, 90, 120, 180, 240])
+        self.assertEqual(period['options'], [30, 60, 90, 120, 180, 240])
         result = calculate_page('steel_vermiculite', {}, 'CALCULATOR', 23, 8)
         values = {cell['address']: cell for row in result['rows'] for cell in row['cells']}
         for address in ('H23', 'B28', 'D28', 'B29', 'B30', 'D29', 'D30'):
             self.assertIn(address, values)
-        self.assertEqual(values['H23']['value'], 'C300-2021 p4')
+        self.assertIn('FC13107-01-05', values['H23']['value'])
+        self.assertNotIn('H23:N24', result['omitted_ranges'])
+        from estimator.excel_engine import WorkbookEngine
+        self.assertEqual(WorkbookEngine(source_model('steel_vermiculite'), {}).value('CALCULATOR', 'H23'), 'C300-2021 p4')
         self.assertEqual(values['B28']['value'], 15)
         self.assertEqual(values['D28']['value'], 45)
         self.assertEqual(digest(source), before)
@@ -242,8 +245,13 @@ class CalculatorDisplayTabsTests(unittest.TestCase):
         self.assertEqual(calculator['display_text']['L6'], 'PUBLISHED VALUE')
         result = calculate_page('steel_vermiculite', {}, 'CALCULATOR', 6, 1)
         thickness = next(cell for cell in result['rows'][0]['cells'] if cell['address'] == 'H6')
-        self.assertEqual(thickness['value'], 26)
-        self.assertIsInstance(thickness['value'], (int, float))
+        # Uninstalled private evidence withholds current thickness; the old
+        # number remains verifiable only in the unchanged workbook graph.
+        self.assertEqual(thickness['value'], '')
+        from estimator.excel_engine import WorkbookEngine
+        historical = WorkbookEngine(source_model('steel_vermiculite'), {}).value('CALCULATOR', 'H6')
+        self.assertEqual(historical, 26)
+        self.assertIsInstance(historical, (int, float))
         board = self.metadata('steel_board', 'SETTINGS')['display_cells']
         self.assertEqual({address for address, display in board.items() if display.get('bold') is True},
                          {f'A{row}' for row in range(6, 35)} | {f'P{row}' for row in range(6, 52)})

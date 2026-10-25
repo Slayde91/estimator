@@ -59,14 +59,14 @@ async function focusSettled(field){
  const headings=await page.locator('.calculator-schedule-table thead th').allTextContents();
  assert.equal(headings[headings.indexOf('Lineal metres')+1],'Quantity');
  assert.match(headings[headings.indexOf('Family (ESA input)')+1],/^ESA\/M input/);
- for(const label of ['ESA/M used (m2/t)','Layers','Bare box girth (m)','Box reference area (m2)'])assert.ok(!headings.includes(label));
+ for(const label of ['ESA/M used (m2/t)','Layers','Bare box girth (m)','Box reference area (m2)'])assert.ok(headings.includes(label));
  for(const label of ['Board net (m2)','Sheets','Purchase area (m2)'])assert.ok(headings.includes(label));
- for(const column of ['Y','AA','AC','AD'])await expect(page.locator(`[data-calculator-output="${column}9"]`)).toHaveCount(0);
+ for(const column of ['Y','AA','AC','AD'])await expect(page.locator(`[data-calculator-output="${column}9"]`)).toHaveCount(1);
  const originalStatus=page.locator('[data-calculator-output="AI9"] .calculator-basis-preview');await expect(originalStatus).toBeVisible();
  const worksheetRequest={sheet:'CALCULATOR',inputs:boardLegacy,include_advanced:true,schedule_view:{rows:[9],offset:0,limit:1}};
  const raw=await page.request.post(`${base}/api/calculators/steel_board/worksheet`,{data:worksheetRequest});assert.equal(raw.status(),200);
  const sourceCells=(await raw.json()).rows.find(row=>row.row===9).cells;
- assert.deepEqual(sourceCells.map(cell=>cell.column),[...Array.from({length:35},(_,index)=>index+1),88]);
+ assert.deepEqual(sourceCells.map(cell=>cell.column),[1,2,3,4,5,6,88,...Array.from({length:29},(_,index)=>index+7)]);
  const sourceValues=Object.fromEntries(sourceCells.map(cell=>[cell.address,cell.value]));
  const source=sourceValues.AI9;
  for(const column of ['Y','AA','AC','AD','AE','AG','AH'])assert.equal(typeof sourceValues[`${column}9`],'number');

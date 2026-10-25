@@ -64,6 +64,7 @@ jobs:
       - run: node tests/test_takeoff_library_display.cjs
       - run: node tests/test_takeoff_library_bridge_ui.cjs
       - run: node tests/test_calculators_ui.cjs
+      - run: node tests/test_schedule_columns_ui.cjs
       - run: node tests/test_project_ui.cjs
       - run: node tests/test_downloads_ui.cjs
       - run: node tests/test_penetration_ui.cjs
@@ -144,6 +145,7 @@ jobs:
       - run: npm run test:takeoff-row-delete
       - run: node tests/browser/calculator_schedule_scroll.cjs
       - run: node tests/browser/schedule_member_followups.cjs
+      - run: node tests/browser/schedule_columns.cjs
       - run: node tests/browser/calculator_presentation_followups.cjs
       - run: node tests/browser/brand_boot.cjs
       - run: npm run test:document-menus

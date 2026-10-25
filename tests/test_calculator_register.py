@@ -16,7 +16,9 @@ from estimator.calculator_report import project_calculator_report, _source_text
 from estimator.assessment_references import report_reference_text
 from estimator.workbook_calculators import source_model
 from tests.test_calculator_report import (cleared_inputs, REMOVED_SECTIONS,
-    assert_missing_perlifoc_projection, MISSING_PERLIFOC_EVIDENCE)
+    assert_missing_perlifoc_projection, MISSING_PERLIFOC_EVIDENCE,
+    assert_missing_promat_projection, MISSING_PROMAT_EVIDENCE, PROMAT_REPORTS,
+    PROMAT_REPLACED_COLUMNS, PROMAT_REPLACED_SUMMARY_COLUMNS)
 from tests.test_workbook_parity import read_fixture, scenario_inputs, excel_equal
 
 
@@ -59,6 +61,14 @@ def values(workbook):
 
 
 class CalculatorRegisterTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        missing = patch('estimator.promat_spray_assessment.load_assessment', return_value=MISSING_PROMAT_EVIDENCE)
+        missing.start()
+        cls.addClassCleanup(missing.stop)
+        snapshot.cache_clear()
+
     def assert_cell_value(self, cell, expected):
         if expected == '':
             self.assertIsNone(cell.value, cell.coordinate)
@@ -72,7 +82,7 @@ class CalculatorRegisterTests(unittest.TestCase):
 
     def assert_schedule(self, identity, data, workbook, native):
         sheet = workbook['Schedule']
-        historical = WorkbookEngine(source_model(identity), data['inputs']) if identity == 'steel_board' else None
+        historical = WorkbookEngine(source_model(identity), data['inputs']) if identity in {'steel_board', 'steel_vermiculite'} else None
         headers = {cell.value: cell.column for cell in sheet[5]}
         if identity == 'steel_vermiculite':
             self.assertEqual(set(headers), {'Line', 'Location', 'Mark', 'Product', 'Section', 'Quantity',
@@ -94,6 +104,9 @@ class CalculatorRegisterTests(unittest.TestCase):
                     if identity == 'steel_board' and item['values'].get('C') in {'PROMATECT 100', 'PROMATECT 250'} and column_number(column) > 24:
                         # The register must match the current application above;
                         # the old assessment remains a separate immutable oracle.
+                        actual = historical.value(data['sheet'], address)
+                    if (identity == 'steel_vermiculite' and item['values'].get('B') in PROMAT_REPORTS
+                            and column in PROMAT_REPLACED_COLUMNS):
                         actual = historical.value(data['sheet'], address)
                     self.assertTrue(excel_equal(actual, expected), (identity, address, actual, expected))
                     comparisons += 1
@@ -129,13 +142,15 @@ class CalculatorRegisterTests(unittest.TestCase):
                 for column in ('P', 'T', 'U'):
                     address = column + str(item['row'])
                     if address in native.get(data['sheet'], {}):
-                        self.assertTrue(excel_equal(item['values'][column], native[data['sheet']][address]))
+                        actual = (historical.value(data['sheet'], address) if item['values'].get('B') in PROMAT_REPORTS
+                                  else item['values'][column])
+                        self.assertTrue(excel_equal(actual, native[data['sheet']][address]))
                         comparisons += 1
         self.assertGreaterEqual(comparisons, 5)
 
     def assert_summaries(self, identity, data, workbook, native):
         sheet = workbook['Summary']
-        historical = WorkbookEngine(source_model(identity), data['inputs']) if identity == 'steel_board' else None
+        historical = WorkbookEngine(source_model(identity), data['inputs']) if identity in {'steel_board', 'steel_vermiculite'} else None
         for row, (label, value) in enumerate(data['totals'], 5):
             self.assertEqual(sheet.cell(row, 1).value, label)
             self.assert_cell_value(sheet.cell(row, 5), value)
@@ -170,6 +185,10 @@ class CalculatorRegisterTests(unittest.TestCase):
                         if identity == 'steel_board' and item['values'].get('A') in {'PROMATECT 100', 'PROMATECT 250'}:
                             actual = _source_text(identity, table['sheet'], address,
                                 historical.value(table['sheet'], address))
+                        if (identity == 'steel_vermiculite' and item['values'].get('A') in PROMAT_REPORTS
+                                and column in PROMAT_REPLACED_SUMMARY_COLUMNS):
+                            actual = _source_text(identity, table['sheet'], address,
+                                historical.value(table['sheet'], address))
                         self.assertTrue(excel_equal(actual, expected_native), (identity, table['sheet'], address))
                         comparisons += 1
             for qualification in table.get('qualifications', []):
@@ -200,8 +219,27 @@ class CalculatorRegisterTests(unittest.TestCase):
                     self.assert_summaries(identity, data, workbook, native)
                     if identity == 'steel_vermiculite':
                         assert_missing_perlifoc_projection(self, data)
+                        assert_missing_promat_projection(self, data)
                     if identity == 'steel_board':
                         self.assert_extras(data, workbook, native)
+
+    def test_monokote_register_uses_current_report_and_keeps_historical_source(self):
+        inputs = {'CALCULATOR': {'B12': '1000 x 250', 'C12': 'MONOKOTE', 'D12': 10,
+                                'E12': '180/180/180', 'F12': 0, 'G12': 0,
+                                'H12': 'Internal', 'I12': 'Horizontal', 'CM12': 1}}
+        before = deepcopy(inputs)
+        data = project_calculator_report('ductwork', inputs)
+        workbook = load_workbook(BytesIO(build_calculator_register('ductwork', inputs)))
+        sheet = workbook['Schedule']
+        headers = {cell.value: cell.column for cell in sheet[5]}
+        index, row = next((index, item) for index, item in enumerate(data['rows'], 6) if item['row'] == 12)
+        self.assertEqual(sheet.cell(index, headers['Thickness (mm)']).value, 73)
+        self.assertEqual(sheet.cell(index, headers['Net spray bags']).value, row['values']['M'])
+        caption = sheet.cell(index, headers['Report']).value
+        self.assertIn('FC15909-01-03', caption)
+        self.assertIn('https://tfire.com.au/documents/monokote-gcp-test-report', caption)
+        self.assertEqual(WorkbookEngine(source_model('ductwork'), inputs).value('CALCULATOR', 'L12'), 64)
+        self.assertEqual(inputs, before)
 
     def assert_extras(self, data, workbook, native=None):
         sheet = workbook['Extra boards']
@@ -229,9 +267,13 @@ class CalculatorRegisterTests(unittest.TestCase):
         self.assertNotEqual(pooled, sum(item['values']['AG'] for item in data['rows']
                                        if type(item['values']['AG']) in (int, float)))
         self.assertEqual(workbook['Summary']['E7'].value, pooled)
-        _, workbook, _, _ = snapshot('steel_vermiculite')
-        self.assertEqual(workbook['Summary']['E8'].value, 219)
-        self.assertEqual(workbook['Summary']['E7'].value, 218.37775141101426)
+        spray, workbook, _, _ = snapshot('steel_vermiculite')
+        historical = WorkbookEngine(source_model('steel_vermiculite'), spray['inputs'])
+        self.assertEqual(historical.value('BAGS', 'G20'), 219)
+        self.assertEqual(historical.value('BAGS', 'E20'), 218.37775141101426)
+        self.assertEqual(workbook['Summary']['E8'].value, 0)
+        self.assertEqual(workbook['Summary']['E7'].value, 0)
+        assert_missing_promat_projection(self, spray)
         data, workbook, _, _ = snapshot('ductwork')
         headers = {cell.value: cell.column for cell in workbook['Schedule'][5]}
         bags = workbook['Schedule'].cell(6, headers['Net spray bags']).value

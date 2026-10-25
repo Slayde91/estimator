@@ -197,6 +197,11 @@ def project_calculator_report(calculator_id, inputs=None):
             elif (str(values['B']).casefold() in ('monokote mk-6 hy', 'monokote z106')
                     and str(values['C']).casefold() == 'pfc web to slab - 3 sides'):
                 record['source_reference'] = values['X']
+            elif str(values['B']).casefold() in ('cafco 300', 'mandolite cp2', 'fendolite mii'):
+                record['assessment_id'] = 'promat-steel-spray-reports-v1'
+                record['assessment_reference'] = values['X']
+                record['assessment_source'] = '\n'.join(str(value) for value in (values['X'], values['Y'])
+                                                       if value not in (None, ''))
         elif calculator_id == 'steel_intumescent':
             values['B'] = values['B'] or engine.value('SETTINGS', 'D6')
             record['complete'] = str(values['W']).startswith('QUANTIFIED')
@@ -273,7 +278,8 @@ def project_calculator_report(calculator_id, inputs=None):
         data['application_summary_note'] = FYREWRAP_DIRECTION_NOTE if any(row['wrap'] for row in rows) else ''
         data['application_notes'] = list(dict.fromkeys(
             row['values']['AP'] for row in rows
-            if row['wrap'] and isinstance(row['values']['AP'], str) and row['values']['AP'].strip()))
+            if (row['wrap'] or row['product_code'] == 2)
+            and isinstance(row['values']['AP'], str) and row['values']['AP'].strip()))
         data['summaries'] = [
             table('Product totals', 'SUMMARY', 8, 9, 11, 'ABCDEFGHIJ', note='Net spray bags and wrap roll equivalents remain fractional. The source has no whole-bag or whole-roll purchasing rule.'),
             table('Penetration angles by size and location', 'SUMMARY', 18, 19, 26, 'ABCDEF'),
@@ -288,6 +294,10 @@ def project_calculator_report(calculator_id, inputs=None):
                           ('Available Maxilite net area at 60 mm (m²)', _sum_values(r['values']['P'] for r in rows) if any(r['wrap'] for r in rows) else 'N/A')]
         data['basis'] = 'Duct surface is the measured duct area. Wrap material includes the calculated layers and overlaps. Spray bags cover the duct body only. Bags do not apply to FyreWrap or Maxilite.'
         data['basis'] += ' Quantity repeats the complete run, including its length, wall penetrations and floor penetrations; overlaps are calculated for each run.'
+        if any(row['product_code'] == 2 for row in rows):
+            from .monokote_duct_assessment import REPORT, ISSUED, REPORT_SHA256, THICKNESS_BASIS
+            data['basis'] += ' ' + THICKNESS_BASIS
+            data['assessment_receipt'] = f'{REPORT}, {ISSUED}; source report SHA-256: {REPORT_SHA256}'
     elif calculator_id == 'steel_vermiculite':
         data['summaries'] = [table('Product order totals', 'BAGS', 19, 20, 25, 'ABCDEFGHI',
             note='Whole bags per product are pooled from net bags, then the product waste allowance and rounding are applied once. They are not the sum of the schedule line bag counts.')]
@@ -311,6 +321,17 @@ def project_calculator_report(calculator_id, inputs=None):
                 scopes.append(scope)
                 receipts.append(title + ' dataset SHA-256: ' + assessment.digest
                                 + '; source report SHA-256: ' + assessment.report_sha256
+                                if not assessment.error else assessment.error)
+            if any(row.get('assessment_id') == 'promat-steel-spray-reports-v1' for row in rows):
+                assessment = engine.promat_assessment
+                evidence.append({'id': 'promat-steel-spray-reports-v1', 'dataset_sha256': assessment.digest,
+                                 'source_report_sha256s': list(assessment.report_sha256s),
+                                 'available': not bool(assessment.error)})
+                scopes.append('CAFCO 300, MANDOLITE CP2 and FENDOLITE MII use the reviewed report tables. '
+                              'Member cases, fire periods and report temperature rules apply. CAFCO and CP2 may conservatively use a lower printed temperature; '
+                              'FENDOLITE requires an exact printed temperature. Unavailable cells withhold quantities.')
+                receipts.append('Promat steel spray dataset SHA-256: ' + assessment.digest
+                                + '; source report SHA-256s: ' + ', '.join(assessment.report_sha256s)
                                 if not assessment.error else assessment.error)
             data['assessment_scope'] = ' '.join(scopes)
             data['basis'] += ' ' + data['assessment_scope']

@@ -96,12 +96,12 @@ def verify_seed(seed):
 def _read_calculator_evidence(directory, *, private_input=False):
     """Read fixed assessment files through their independent runtime authority gates."""
     from estimator.desktop_seed import safe_directory
-    from estimator import monokote_hollow, perlifoc_assessment, sc902_assessment, firetex_assessment
+    from estimator import monokote_hollow, perlifoc_assessment, sc902_assessment, firetex_assessment, promat_spray_assessment
     directory = safe_directory(Path(directory).absolute()).resolve(strict=True)
     if private_input and directory.is_relative_to(ROOT.resolve()):
         raise ValueError('Private calculator evidence must remain outside the repository.')
     payloads, receipts = {}, []
-    for authority in (monokote_hollow, perlifoc_assessment, sc902_assessment, *firetex_assessment.AUTHORITIES):
+    for authority in (monokote_hollow, perlifoc_assessment, sc902_assessment, *firetex_assessment.AUTHORITIES, promat_spray_assessment):
         path = directory / authority.DATASET_FILENAME
         try:
             info = path.lstat()
@@ -113,8 +113,10 @@ def _read_calculator_evidence(directory, *, private_input=False):
             payload = stream.read(authority.MAX_DATASET_BYTES + 1)
         assessment = authority.validate_assessment_payload(payload)
         payloads[authority.DATASET_FILENAME] = payload
+        source_receipt = ({'report_sha256s': list(assessment.report_sha256s)}
+                          if hasattr(assessment, 'report_sha256s') else {'report_sha256': assessment.report_sha256})
         receipts.append({'id': authority.DATASET_ID, 'filename': authority.DATASET_FILENAME,
-            'sha256': assessment.digest, 'bytes': len(payload), 'report_sha256': assessment.report_sha256})
+            'sha256': assessment.digest, 'bytes': len(payload), **source_receipt})
     if not receipts:
         raise FileNotFoundError('No reviewed calculator assessment file was supplied.')
     # Retain the historical single-assessment receipt for diagnostic builds.
@@ -142,9 +144,9 @@ def stage_calculator_evidence(directory, destination, *, required=False):
         return None
     payloads, receipt = _read_calculator_evidence(directory, private_input=True)
     if required:
-        from estimator import monokote_hollow, perlifoc_assessment, sc902_assessment, firetex_assessment
+        from estimator import monokote_hollow, perlifoc_assessment, sc902_assessment, firetex_assessment, promat_spray_assessment
         if set(payloads) != {authority.DATASET_FILENAME for authority in (
-                monokote_hollow, perlifoc_assessment, sc902_assessment, *firetex_assessment.AUTHORITIES)}:
+                monokote_hollow, perlifoc_assessment, sc902_assessment, *firetex_assessment.AUTHORITIES, promat_spray_assessment)}:
             raise ValueError('A deliverable installer requires all reviewed calculator assessments.')
     from estimator.desktop_seed import safe_directory
     destination = safe_directory(Path(destination).absolute())
@@ -346,7 +348,7 @@ def main():
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--seed', type=Path)
     parser.add_argument('--calculator-evidence', type=Path,
-        help='External directory containing all reviewed Monokote, Perlifoc, SC902 and FIRETEX assessment JSON files.')
+        help='External directory containing all reviewed Monokote, Perlifoc, SC902, FIRETEX and Promat spray assessment JSON files.')
     parser.add_argument('--iscc', type=Path)
     parser.add_argument('--webview2-installer', type=Path)
     parser.add_argument('--webview2-arm64-installer', type=Path)

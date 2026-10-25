@@ -1111,6 +1111,30 @@
     for (const id of ["penetration-schedule-body", "penetration-estimator-schedule-body"]) renderScheduleBody(id);
     refreshControls();
     for (const id of ["penetration-row-count", "penetration-estimator-row-count"]) renderScheduleCount(id);
+    renderScheduleColumns();
+  }
+  const scheduleColumnChoosers = new Map();
+  function renderScheduleColumns() {
+    const api = window.CeasefireScheduleColumns;
+    if (!api) return;
+    const ids = ["item", "services", "size", "type", "orientation", "frl", "quantity", "total", "diagram", "actions", "delete"];
+    const widths = [180, 132, 96, 120, 104, 80, 90, 90, 96, 72, 56], tables = [];
+    for (const id of ["penetration-schedule-body", "penetration-estimator-schedule-body"]) {
+      const body = $(id), table = body.closest?.("table");
+      if (!table) continue;
+      const section = table.closest(".penetration-schedule"), toolbar = section?.querySelector(".penetration-schedule-recalculate-tools");
+      if (!toolbar) continue;
+      const headings = [...table.querySelectorAll("thead th")];
+      const columns = headings.map((heading, index) => ({ id: ids[index], label: heading.getAttribute("data-i18n") || heading.textContent }));
+      for (const row of table.querySelectorAll("tr")) [...row.children].forEach((cell, index) => { cell.dataset.scheduleColumn = ids[index]; });
+      table.scheduleColumnLayout = columns.map((column, index) => ({ id: column.id, width: widths[index] })); table.dataset.columnChoices = "true";
+      if (!table.querySelector("colgroup")) table.prepend(document.createElement("colgroup"));
+      let chooser = scheduleColumnChoosers.get(id);
+      if (!chooser) { chooser = api.create(); scheduleColumnChoosers.set(id, chooser); toolbar.append(chooser.host); }
+      tables.push(table);
+      chooser.bind("penetration:SCHEDULE", columns, hidden => { for (const table of tables) api.applyTable(table, hidden); });
+    }
+    for (const table of tables) api.applyTable(table, api.hidden("penetration:SCHEDULE"));
   }
   function renderSummary(scope = state) {
     const prefix = scope === state ? "penetration" : "penetration-schedule";

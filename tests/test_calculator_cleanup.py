@@ -216,7 +216,7 @@ class CalculatorCleanupTests(unittest.TestCase):
                                     "L262": "Named section at 620 °C; no generic factor table",
                                     "D568": "MK-6 HY technical coverage is shared, including FAR4856 Issue 2 for fully exposed hollow columns; see the MK-6 HY coverage table. Z106 bag quantities use its own settings.",
                                     "A285": "For Monokote MK-6 HY and Z106 fully exposed hollow columns (Hollow - 4 sides), FAR4856 Issue 2 governs thickness. Named members supply a retained section factor; Hp/A and ESA/M inputs use the same assessment tables. Other cases retain their named-member and factor-table rules.",
-                                    "A289": "Match the exposed sides, slab-contact face and engineer's critical temperature. Monokote Hollow - 4 sides covers fully exposed SHS, RHS and CHS columns only; missing assessment data and unresolved table entries block quantities. Three-sided Monokote hollow cases and channels against slabs keep their existing named-section rules. CAFCO/Mandolite hollow tables remain column cases.",
+                                    "A289": "Match the exposed sides, slab-contact face and engineer's critical temperature. Monokote Hollow - 4 sides covers fully exposed SHS, RHS and CHS columns only; missing assessment data and unresolved table entries block quantities. Three-sided Monokote hollow cases and channels against slabs keep their existing named-section rules. Promat sprays follow their current report limits; only CP2 includes the reviewed three-sided RHS/SHS route.",
                                     "A356": "IDEALISED HOLLOW GEOMETRY", "A370": "FENDOLITE CASTELLATED SECTION"},
                        "SCHEDULE": {"Z9": "Line", "A4": "TOTAL ENTERED SPRAY AREA (m²)", "G4": "COATING VOLUME QUANTIFIED (m³)"}}
             self.assertEqual(sheet["display_text"], aliases.get(sheet["name"], {}))
@@ -257,6 +257,8 @@ class CalculatorCleanupTests(unittest.TestCase):
                         "A28": "Schedules support up to 1,000 rows. Every entered row is included in the calculations and purchasing totals, including rows outside the current view.",
                     }
                 if identity == "ductwork" and sheet["name"] == "PRODUCT SETTINGS":
+                    from estimator.monokote_duct_assessment import SETTINGS_DISPLAY_TEXT
+                    aliases.update(SETTINGS_DISPLAY_TEXT)
                     aliases['A22'] = 'Published CAFCO bag mass'
                     aliases['A23'] = 'Historical theoretical coverage'
                     aliases['A70'] = 'Published MK-6 HY bag mass'
@@ -465,6 +467,18 @@ class CalculatorCleanupTests(unittest.TestCase):
                              identity=identity, expected=400)
 
     def test_hidden_quantity_status_and_visible_review_note_still_block_incomplete_orders(self):
+        # Yield gating needs a usable assessment result. Keep this fixture
+        # invented and explicit; missing real evidence has its own hold tests.
+        from hashlib import sha256
+        from unittest.mock import patch
+        from estimator import promat_spray_assessment as policy
+        from tests.test_promat_spray_assessment import synthetic_dataset, encoded
+        payload = encoded(synthetic_dataset())
+        with patch.object(policy, 'DATASET_SHA256', sha256(payload).hexdigest()):
+            assessment = policy.validate_assessment_payload(payload)
+        loader = patch.object(policy, 'load_assessment', return_value=assessment)
+        loader.start()
+        self.addCleanup(loader.stop)
         draft = default_calculator_inputs(IDENTITY)
         schedule = self.model['schedule']
         source_schedule = next(sheet for sheet in self.model['sheets'] if sheet['name'] == schedule['sheet'])

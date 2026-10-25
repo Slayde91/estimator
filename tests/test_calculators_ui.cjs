@@ -735,10 +735,10 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
   await audit.calculate();assert.equal(renderedControls()[0],derived);assert.equal(derived.value,'3.25');
   await derived.emit('focus');assert.equal(derived.value,'3.24689');assert.deepEqual(copy(entry.inputs),{});passed++;
 
-  // Worksheet calls request a bounded view while retaining saved hidden inputs.
+  // Registers request every supported column in a bounded row view, retaining saved inputs.
   entry=setup({CALCULATOR:{B9:2,M9:'Saved optional layout'}});let worksheetBody;
   audit.setRender(()=>{});audit.setRequest(async(path,options)=>{assert.match(path,/\/worksheet$/);worksheetBody=JSON.parse(options.body);return result();});
-  await audit.calculate();assert.deepEqual(worksheetBody,{inputs:{CALCULATOR:{B9:2,M9:'Saved optional layout'}},sheet:'CALCULATOR',include_advanced:false,schedule_view:{offset:0,limit:60}});passed++;
+  await audit.calculate();assert.deepEqual(worksheetBody,{inputs:{CALCULATOR:{B9:2,M9:'Saved optional layout'}},sheet:'CALCULATOR',include_advanced:true,schedule_view:{offset:0,limit:60}});passed++;
 
   // Schedule summaries retain relationships and zero values; the scope-block metric is display-only removed.
   entry=setup();entry.definition.id='steel_vermiculite';entry.sheet='SCHEDULE';
@@ -1260,6 +1260,12 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
   const wasteDownloads=[];audit.setFetch(async(url,options)=>{wasteDownloads.push(JSON.parse(options.body).inputs);return fileSaved(url.endsWith('.pdf')?'APPENDIX A.pdf':'APPENDIX A.xlsx');});
   await audit.downloadSchedulePdf();await audit.downloadExcelRegister();assert.equal(wasteDownloads.length,2);for(const captured of wasteDownloads)assert.deepEqual(captured,retainedWaste);
   assert.deepEqual(copy(entry.inputs),retainedWaste);assert.equal(entry.saved,wasteSaved);passed++;
+  // An explicit register universe supersedes source/browser column hides only
+  // inside schedule rows; stored waste and advanced inputs are not rewritten.
+  entry.result.register_columns=boardWasteColumns;
+  realRender(entry);
+  assert.ok(renderedControls().some(control=>control.dataset.calculatorCell==='L9'));
+  assert.deepEqual(copy(entry.inputs),retainedWaste);assert.equal(entry.saved,wasteSaved);passed++;
 
   // Spray schedule presentation moves inputs without changing their source addresses or returned workbook data.
   entry=setup({SCHEDULE:{A10:'First member',E10:'Hp/A',G10:123.456789012345,AA1009:'Last location'}});
@@ -1282,6 +1288,11 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
   await sprayFactor.emit('focus');assert.equal(sprayFactor.value,'123.456789012345');sprayFactor.value='321.123456789012';await sprayFactor.emit('input');await sprayFactor.emit('blur');
   assert.equal(entry.inputs.SCHEDULE.G10,321.123456789012);assert.equal(entry.inputs.SCHEDULE.AA1009,'Last location');
   assert.equal(JSON.stringify(entry.definition),sprayDefinition);assert.equal(JSON.stringify(entry.result),spraySource);passed++;
+  const expandedInputs=JSON.stringify(entry.inputs);
+  entry.result.register_columns=[26,27,...sprayColumns.slice(0,25)];realRender(entry);
+  assert.equal(renderedTable().children[1].children[0].children.length,27);
+  for(const column of ['V','W','X'])assert.ok(descendants(byId('calculator-grid')).some(node=>node.dataset?.calculatorOutput===`${column}10`));
+  assert.equal(JSON.stringify(entry.inputs),expandedInputs);assert.equal(JSON.stringify(entry.definition),sprayDefinition);passed++;
 
   // Browser text overrides cover headers and contents, while omitted titles,
   // raw data and output-state classification stay unchanged.
@@ -1650,7 +1661,7 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
   const virtualPanels=()=>byId('calculator-grid').children.filter(node=>node.className==='calculator-settings-panel');
   const virtualOutputs=()=>byId('calculator-grid').querySelectorAll('[data-calculator-output]').map(node=>node.dataset.calculatorOutput);
   assert.equal(entry.page,'SCHEDULE');assert.equal(entry.sheet,'SCHEDULE');assert.equal(byId('calculator-sheet-title').textContent,'SCHEDULE');
-  assert.deepEqual(byId('calculator-pages').children.map(button=>button.textContent),['SCHEDULE','SUMMARY','SETTINGS']);
+  assert.deepEqual(byId('calculator-pages').children.filter(button=>button.className==='calculator-page').map(button=>button.textContent),['SCHEDULE','SUMMARY','SETTINGS']);
   assert.equal(virtualButtons().length,0);assert.equal(renderedControls().length,0);
   await audit.selectPage('START');assert.equal(entry.page,'SCHEDULE');
   assert.deepEqual(copy(entry.inputs),virtualInputs);assert.deepEqual(copy(entry.definition.pages),['CALCULATOR','SCHEDULE','BAGS','SETTINGS']);passed++;

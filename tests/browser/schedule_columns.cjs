@@ -2,10 +2,11 @@
 const {chromium,expect}=require('@playwright/test'),{spawn}=require('node:child_process');
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict'),{createHash}=require('node:crypto');
 const {chooseCalculator}=require('./calculator_actions.cjs');
+const {cycleTheme}=require('./theme_navigation.cjs');
 const root=path.resolve(__dirname,'../..'),parent=path.join(root,'.runtime/browser-qa');fs.mkdirSync(parent,{recursive:true});
 const output=process.env.CEASEFIRE_COLUMNS_OUTPUT||path.join(parent,`schedule-columns-${Date.now()}`);fs.mkdirSync(output,{recursive:false});
 function sourceHashes(){
- const files=['tests/browser/schedule_columns.cjs','tests/browser/calculator_actions.cjs','tests/browser/monokote_fixture.py','tests/browser/standard_fixture.py','tests/test_monokote_hollow.py','package.json','package-lock.json','requirements.txt','requirements-dev.txt'].filter(name=>fs.existsSync(path.join(root,name)));
+ const files=['tests/browser/schedule_columns.cjs','tests/browser/calculator_actions.cjs','tests/browser/theme_navigation.cjs','tests/browser/monokote_fixture.py','tests/browser/standard_fixture.py','tests/test_monokote_hollow.py','package.json','package-lock.json','requirements.txt','requirements-dev.txt'].filter(name=>fs.existsSync(path.join(root,name)));
  function walk(directory,include){for(const entry of fs.readdirSync(path.join(root,directory),{withFileTypes:true})){const name=`${directory}/${entry.name}`;if(entry.isDirectory())walk(name,include);else if(entry.isFile()&&include(name))files.push(name);}}
  walk('static',()=>true);walk('estimator',name=>name.endsWith('.py'));walk('data',()=>true);
  return Object.fromEntries(files.sort().map(name=>[name,createHash('sha256').update(fs.readFileSync(path.join(root,name))).digest('hex')]));
@@ -100,7 +101,7 @@ async function screenshot(name){await page.screenshot({path:path.join(output,nam
    await basis.hover();const hover=await basis.evaluate(node=>({background:getComputedStyle(node).backgroundColor,color:getComputedStyle(node).color}));if(theme===0)await basis.screenshot({path:path.join(output,`${title.replace(/\W/g,'-')}-basis-red.png`)});
    await page.mouse.move(1,1);await page.keyboard.press('Tab');await basis.focus();assert.equal(await basis.evaluate(node=>node.matches(':focus-visible')),true);const focus=await basis.evaluate(node=>({background:getComputedStyle(node).backgroundColor,color:getComputedStyle(node).color}));
    for(const style of [report,hover,focus])assert.deepEqual(style,{background:'rgb(163, 18, 34)',color:'rgb(255, 255, 255)'});
-   evidence.themes.push({title,name,report,hover,focus});await page.locator('#theme-toggle').click();
+   evidence.themes.push({title,name,report,hover,focus});await cycleTheme(page);
   }
  }
  await chooseCalculator(page,'Steel (board)');await idle();const reloadReview=async dialog=>{assert.equal(dialog.type(),'beforeunload');await dialog.accept();};page.once('dialog',reloadReview);await page.reload();page.off('dialog',reloadReview);await boot();await chooseCalculator(page,'Steel (board)');await idle();await expect(nativeCell('column:M')).toBeHidden();
@@ -109,12 +110,17 @@ async function screenshot(name){await page.screenshot({path:path.join(output,nam
  await chooseCalculator(page,'Firestopping');await page.waitForFunction(()=>!window.CeasefireActivity?.active);
  await page.evaluate(async()=>{const api=window.CeasefirePenetrations,snapshot=api.projectSnapshot(),row=structuredClone(snapshot.composer.rows[0]);row.id='column-choices-fire';row.inputs.O=2.3456789012345;row.inputs.T='Column fixture';snapshot.draft.rows=[row];api.applyProject(await api.prepareProject(snapshot));await window.CeasefirePenetrationNavigation.showSchedule();});await page.waitForFunction(()=>!window.CeasefireActivity?.active);
  const fireBefore=await page.evaluate(()=>window.CeasefirePenetrations.projectSnapshot()),fireRequests=calculations;
- const toggle=page.locator('.penetration-estimator-schedule .schedule-column-toggle');await toggle.click();const firePanel=page.locator('#'+await toggle.getAttribute('aria-controls'));
+ const toggle=page.locator('#penetration-schedule-workspace .schedule-column-toggle');await toggle.click();const firePanel=page.locator('#'+await toggle.getAttribute('aria-controls'));
  assert.equal(await firePanel.locator('[data-schedule-column-choice]').count(),11);
  await firePanel.locator('[data-schedule-column-choice="diagram"]').uncheck();await firePanel.locator('[data-schedule-column-choice="actions"]').uncheck();await firePanel.locator('[data-schedule-column-choice="delete"]').uncheck();
  for(const id of ['penetration-schedule-body','penetration-estimator-schedule-body'])assert.deepEqual(await page.locator('#'+id).evaluate(body=>[...body.children[0].children].filter(cell=>cell.hidden).map(cell=>cell.dataset.scheduleColumn)),['diagram','actions','delete']);
- await selectAll(firePanel,false);await selectAll(firePanel,true);await firePanel.press('Escape');assert.deepEqual(await page.evaluate(()=>window.CeasefirePenetrations.projectSnapshot()),fireBefore);assert.equal(calculations,fireRequests);
- evidence.firestopping={bothViewsSharePreference:true,all11Choices:true,precisionAndDraftUnchanged:true,noCalculationRequests:true};
+ await selectAll(firePanel,false);await expect(page.locator('#penetration-schedule-body').locator('xpath=ancestor::table')).toBeHidden();await expect(firePanel).toBeVisible();await selectAll(firePanel,true);await firePanel.press('Escape');assert.deepEqual(await page.evaluate(()=>window.CeasefirePenetrations.projectSnapshot()),fireBefore);assert.equal(calculations,fireRequests);
+ await chooseCalculator(page,'Firestopping');await page.waitForFunction(()=>!window.CeasefireActivity?.active);
+ const secondRequests=calculations,secondToggle=page.locator('.penetration-estimator-schedule .schedule-column-toggle');await secondToggle.click();const secondPanel=page.locator('#'+await secondToggle.getAttribute('aria-controls'));
+ assert.equal(await secondPanel.locator('[data-schedule-column-choice]').count(),11);for(const box of await secondPanel.locator('[data-schedule-column-choice]').all())await expect(box).toBeChecked();
+ await secondPanel.locator('[data-schedule-column-choice="total"]').uncheck();for(const id of ['penetration-schedule-body','penetration-estimator-schedule-body'])await expect(page.locator('#'+id+' [data-schedule-column="total"]')).toBeHidden();
+ await selectAll(secondPanel,false);await expect(page.locator('#penetration-estimator-schedule-body').locator('xpath=ancestor::table')).toBeHidden();await expect(secondPanel).toBeVisible();await selectAll(secondPanel,true);await secondPanel.press('Escape');assert.deepEqual(await page.evaluate(()=>window.CeasefirePenetrations.projectSnapshot()),fireBefore);assert.equal(calculations,secondRequests);
+ evidence.firestopping={bothViewsSharePreference:true,bothViewsExercised:true,all11Choices:true,precisionAndDraftUnchanged:true,noCalculationRequests:true};
  await Promise.all(cssResponses);for(const source of ['static/calculators.css','static/penetration.css']){const served=evidence.served_css.filter(row=>row.source===source);assert.ok(served.length>0);assert.ok(served.every(row=>row.sha256===evidence.source_sha256[source]));}
  evidence.source_sha256_after=sourceHashes();assert.deepEqual(evidence.source_sha256_after,evidence.source_sha256);assert.deepEqual(evidence.errors,[]);evidence.passed=true;
  fs.writeFileSync(path.join(output,'result.json'),JSON.stringify(evidence,null,2));console.log(`PASS schedule columns: ${output}`);

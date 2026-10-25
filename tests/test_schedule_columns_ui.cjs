@@ -56,4 +56,10 @@ assert.equal(h.api.isProjectionScroll(scroll),true);c.button.emit('click');h.eve
 scroll.scrollTop++;assert.equal(h.api.isProjectionScroll(scroll),false);h.events.scroll({target:scroll});assert.equal(c.panel.hidden,true);passed++;
 h.api.applyTable(table,new Set(columns.map(column=>column.id)));assert.equal(table.hidden,true);assert.equal(table.scheduleColumnsEmpty.hidden,false);assert.equal(spacer.colSpan,1);
 h.api.applyTable(table,new Set());assert.equal(table.hidden,false);assert.equal(cols.children.length,4);assert.equal(table.scheduleColumnsEmpty.hidden,true);assert.equal(body.children[0].children[0],input);passed++;
+// Detached cached controls lose language bindings. A reused view must reclaim
+// its owned labels without changing preferences, inputs or callback counts.
+const localized=harness(),translations={Columns:'列','Visible columns':'可见列','Select a column to show the schedule.':'选择要显示的列。'};let chinese=false;
+localized.window.CeasefireI18n={text(element,source){element.textContent=chinese?translations[source]||source:source;return element;},attr(element,attribute,source){element.setAttribute(attribute,chinese?translations[source]||source:source);return element;}};
+const cached=localized.api.create();let localizedChanges=0;cached.bind('board:SCHEDULE',columns,()=>localizedChanges++);assert.equal(cached.button.textContent,'Columns');
+chinese=true;cached.bind('board:SCHEDULE',columns,()=>localizedChanges++);assert.equal(cached.button.textContent,'列');assert.equal(cached.panel.getAttribute('aria-label'),'可见列');assert.equal(localizedChanges,0);assert.equal(localized.writes(),0);passed++;
 console.log(`${passed} schedule column controller checks passed.`);

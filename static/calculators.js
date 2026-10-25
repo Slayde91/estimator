@@ -45,6 +45,9 @@ window.CeasefireScheduleColumns = (() => {
       },
       bind(key, columns, changed) {
         if (control.key !== key) control.close();
+        // Cached page navigation can detach this persistent control. Reclaim
+        // its UI labels after the language layer releases detached bindings.
+        text(button, "Columns"); window.CeasefireI18n?.attr(panel, "aria-label", "Visible columns");
         const focused = !panel.hidden && panel.contains(document.activeElement) ? document.activeElement : null;
         const focusId = focused?.dataset.scheduleColumnChoice, focusAll = focused === control.all, scrollTop = panel.scrollTop;
         control.key = key; control.columns = columns; control.changed = changed;
@@ -95,9 +98,9 @@ window.CeasefireScheduleColumns = (() => {
     else table.scheduleColumnsScroll = null;
     table.hidden = !visible.length;
     if (!table.scheduleColumnsEmpty && scroll) {
-      const empty = document.createElement("p"); empty.className = "schedule-columns-empty helper"; text(empty, "Select a column to show the schedule."); scroll.append(empty); table.scheduleColumnsEmpty = empty;
+      const empty = document.createElement("p"); empty.className = "schedule-columns-empty helper"; scroll.append(empty); table.scheduleColumnsEmpty = empty;
     }
-    if (table.scheduleColumnsEmpty) table.scheduleColumnsEmpty.hidden = Boolean(visible.length);
+    if (table.scheduleColumnsEmpty) { text(table.scheduleColumnsEmpty, "Select a column to show the schedule."); table.scheduleColumnsEmpty.hidden = Boolean(visible.length); }
     if (scroll) {
       scroll.scrollLeft = left; scroll.scrollTop = top;
       // Hiding the entire table can clamp native scroll positions. Ignore only

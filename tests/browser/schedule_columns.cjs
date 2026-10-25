@@ -11,10 +11,16 @@ function sourceHashes(){
  walk('static',()=>true);walk('estimator',name=>name.endsWith('.py'));walk('data',()=>true);
  return Object.fromEntries(files.sort().map(name=>[name,createHash('sha256').update(fs.readFileSync(path.join(root,name))).digest('hex')]));
 }
-const evidence={source_sha256:sourceHashes(),registers:[],locales:[],themes:[],served_css:[],errors:[]},cssResponses=[];let logs='',browser,page,base,calculations=0;
+const evidence={source_sha256:sourceHashes(),registers:[],locales:[],themes:[],served_css:[],calculation_requests:[],errors:[]},cssResponses=[];let logs='',browser,page,base,calculations=0;
 const server=spawn(process.env.CEASEFIRE_PYTHON||'python',[path.join(__dirname,'monokote_fixture.py'),'--directory',output],{cwd:root,windowsHide:true});server.stderr.on('data',value=>logs+=value);
 const ready=new Promise((resolve,reject)=>{let text='';const timeout=setTimeout(()=>reject(Error(logs||'Fixture startup timed out')),120000);server.stdout.on('data',value=>{text+=value;if(text.includes('\n')){clearTimeout(timeout);resolve(JSON.parse(text.split('\n')[0]));}});server.once('error',reject);server.once('exit',code=>{clearTimeout(timeout);reject(Error(`Fixture exited ${code}: ${logs}`));});});
 async function idle(){await expect(page.locator('#calculator-grid')).toHaveAttribute('aria-busy','false',{timeout:60000});await page.waitForFunction(()=>!window.CeasefireActivity?.active);}
+async function fireIdle(){
+ // Applying a Firestopping draft schedules the Main estimate after 180 ms.
+ // Activity covers fetches, so it can be idle while that timer is pending.
+ for(const id of ['penetration-recalculate','penetration-schedule-recalculate','main-estimate-summary'])await expect(page.locator('#'+id)).toHaveAttribute('aria-busy','false',{timeout:60000});
+ await page.waitForFunction(()=>!window.CeasefireActivity?.active);
+}
 async function snapshot(){return page.evaluate(()=>window.CeasefireCalculators.completeProjectSnapshot());}
 async function boot(){await page.waitForFunction(()=>window.CeasefireDesktop?.status().ready&&window.ClassifireBoot?.state==='ready');await page.waitForFunction(()=>!window.CeasefireActivity?.active);}
 async function chooser(){const button=page.locator('#calculator-pages .schedule-column-toggle');await button.click();const panel=page.locator('#'+await button.getAttribute('aria-controls'));await expect(panel).toBeVisible();return panel;}
@@ -30,7 +36,7 @@ async function screenshot(name){await page.screenshot({path:path.join(output,nam
 (async()=>{
  const info=await ready;assert.notEqual(info.port,8765);base=`http://127.0.0.1:${info.port}`;evidence.fixturePort=info.port;
  browser=await chromium.launch({headless:true});page=await browser.newPage({viewport:{width:1146,height:850}});page.setDefaultTimeout(30000);
- page.on('pageerror',error=>evidence.errors.push(error.message));page.on('request',request=>{if(request.method()==='POST'&&/\/(worksheet|calculate)$/.test(new URL(request.url()).pathname))calculations++;});
+ page.on('pageerror',error=>evidence.errors.push(error.message));page.on('request',request=>{const pathname=new URL(request.url()).pathname;if(request.method()==='POST'&&/\/(worksheet|calculate)$/.test(pathname)){calculations++;evidence.calculation_requests.push(pathname);}});
  page.on('response',response=>{const url=new URL(response.url());if(url.origin===base&&['/calculators.css','/penetration.css'].includes(url.pathname))cssResponses.push((async()=>{assert.equal(response.status(),200);const bytes=await response.body();evidence.served_css.push({url:response.url(),source:`static${url.pathname}`,sha256:createHash('sha256').update(bytes).digest('hex'),size:bytes.length});})().catch(error=>evidence.errors.push(String(error))));});
  for(const [id,inputs,row]of [
   ['steel_board',{CALCULATOR:{A9:'Column chooser precise fixture',C9:'TRAFALGAR COREX',D9:'200UC46',F9:1.23456789012345,G9:4,H9:120,I9:'Column',J9:550}},9],
@@ -107,15 +113,17 @@ async function screenshot(name){await page.screenshot({path:path.join(output,nam
  await chooseCalculator(page,'Steel (board)');await idle();const reloadReview=async dialog=>{assert.equal(dialog.type(),'beforeunload');await dialog.accept();};page.once('dialog',reloadReview);await page.reload();page.off('dialog',reloadReview);await boot();await chooseCalculator(page,'Steel (board)');await idle();await expect(nativeCell('column:M')).toBeHidden();
  const restoredPanel=await chooser();await selectAll(restoredPanel,true);await restoredPanel.press('Escape');await expect(nativeCell('column:M')).toBeVisible();
  // Firestopping has two projections of the same schedule and preference.
- await chooseCalculator(page,'Firestopping');await page.waitForFunction(()=>!window.CeasefireActivity?.active);
- await page.evaluate(async()=>{const api=window.CeasefirePenetrations,snapshot=api.projectSnapshot(),row=structuredClone(snapshot.composer.rows[0]);row.id='column-choices-fire';row.inputs.O=2.3456789012345;row.inputs.T='Column fixture';snapshot.draft.rows=[row];api.applyProject(await api.prepareProject(snapshot));await window.CeasefirePenetrationNavigation.showSchedule();});await page.waitForFunction(()=>!window.CeasefireActivity?.active);
+ await chooseCalculator(page,'Firestopping');await fireIdle();
+ const setupEstimate=page.waitForResponse(response=>response.request().method()==='POST'&&response.url()===`${base}/api/calculate`&&response.request().postDataJSON()?.penetration?.draft?.rows?.some(row=>row.id==='column-choices-fire'));
+ await page.evaluate(async()=>{const api=window.CeasefirePenetrations,snapshot=api.projectSnapshot(),row=structuredClone(snapshot.composer.rows[0]);row.id='column-choices-fire';row.inputs.O=2.3456789012345;row.inputs.T='Column fixture';snapshot.draft.rows=[row];api.applyProject(await api.prepareProject(snapshot));await window.CeasefirePenetrationNavigation.showSchedule();});await fireIdle();
+ const setupResponse=await setupEstimate;assert.equal(setupResponse.status(),200);await setupResponse.finished();evidence.firestopping_setup={mainEstimateCompleted:true,requestPath:new URL(setupResponse.url()).pathname};
  const fireBefore=await page.evaluate(()=>window.CeasefirePenetrations.projectSnapshot()),fireRequests=calculations;
  const toggle=page.locator('#penetration-schedule-workspace .schedule-column-toggle');await toggle.click();const firePanel=page.locator('#'+await toggle.getAttribute('aria-controls'));
  assert.equal(await firePanel.locator('[data-schedule-column-choice]').count(),11);
  await firePanel.locator('[data-schedule-column-choice="diagram"]').uncheck();await firePanel.locator('[data-schedule-column-choice="actions"]').uncheck();await firePanel.locator('[data-schedule-column-choice="delete"]').uncheck();
  for(const id of ['penetration-schedule-body','penetration-estimator-schedule-body'])assert.deepEqual(await page.locator('#'+id).evaluate(body=>[...body.children[0].children].filter(cell=>cell.hidden).map(cell=>cell.dataset.scheduleColumn)),['diagram','actions','delete']);
  await selectAll(firePanel,false);await expect(page.locator('#penetration-schedule-body').locator('xpath=ancestor::table')).toBeHidden();await expect(firePanel).toBeVisible();await selectAll(firePanel,true);await firePanel.press('Escape');assert.deepEqual(await page.evaluate(()=>window.CeasefirePenetrations.projectSnapshot()),fireBefore);assert.equal(calculations,fireRequests);
- await chooseCalculator(page,'Firestopping');await page.waitForFunction(()=>!window.CeasefireActivity?.active);
+ await chooseCalculator(page,'Firestopping');await fireIdle();
  const secondRequests=calculations,secondToggle=page.locator('.penetration-estimator-schedule .schedule-column-toggle');await secondToggle.click();const secondPanel=page.locator('#'+await secondToggle.getAttribute('aria-controls'));
  assert.equal(await secondPanel.locator('[data-schedule-column-choice]').count(),11);for(const box of await secondPanel.locator('[data-schedule-column-choice]').all())await expect(box).toBeChecked();
  await secondPanel.locator('[data-schedule-column-choice="total"]').uncheck();for(const id of ['penetration-schedule-body','penetration-estimator-schedule-body'])await expect(page.locator('#'+id+' [data-schedule-column="total"]')).toBeHidden();

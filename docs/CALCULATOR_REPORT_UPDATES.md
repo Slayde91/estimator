@@ -71,6 +71,11 @@ controls the full list; individual checkboxes hide or show their own column.
 Internal lookup keys, validation flags, blank spacers and duplicate identities
 are not user-facing columns.
 
+The board schedule also omits the nine advanced inputs M:U (Exposure layout
+through Steel mass) from the browser table and Columns menu. Select all does
+not restore them. Their source cells, API data, saved inputs, calculation rules
+and exports are retained; V:X and other supported columns remain available.
+
 Choices are local browser preferences, scoped to the calculator register.
 They do not change project drafts, saved calculator inputs, required-field
 checks, calculations or exported schedules. New columns start visible. Invalid

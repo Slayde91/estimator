@@ -447,7 +447,8 @@ per product under **CALCULATED SUMMARY**. This heading change does not remove th
 three cards on the separate BOARD SUMMARY page. Row 8 supplies the schedule
 column labels. All 200 rows 9–208 remain in one table. A:L are normal inputs;
 M:X are advanced source inputs retained through the worksheet API and saved
-state; they have no browser toggle. Y:AI are the primary results.
+state. The browser omits M:U from both the schedule and Columns menu; V:X remain
+available through the Columns menu. Y:AI are the primary results.
 
 Product C9:C208, section D9:D208, FRL H9:H208 and member J9:J208 use native
 selects. The 1,342 source steel choices are populated on opening to keep the
@@ -490,9 +491,9 @@ custom selectors start blank. New numeric entries retain full precision and
 invalid numeric text is rejected; this does not rewrite retained project inputs
 or change the source's design lookup rules.
 
-Exposure layout M9:M208 uses normal-weight body text when rendered; the M8
-heading remains unchanged. This advanced source input stays hidden in the
-normal browser projection, with its values retained by the API and saved draft.
+Exposure layout M9:M208 and the other advanced inputs through U9:U208 are
+omitted from the browser schedule and its Columns menu. Their values remain
+retained by the API and saved draft, and continue to feed the existing rules.
 
 The required output distinctions are stack Z, layer count AA, total thickness AB, box girth AC, reference box area AD, actual net board AE, board with waste AF, standalone sheets AG, standalone purchase area AH and row notes AI. Do not relabel reference box area as board requirement. Hidden AJ:CI are retained calculation dependencies; the current source page extent intentionally presents only through AI.
 

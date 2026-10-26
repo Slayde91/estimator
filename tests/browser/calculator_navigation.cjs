@@ -101,7 +101,8 @@ async function workbook(title) {
     const first=table.locator('tbody tr[data-source-row]').first(),deleteButton=first.getByRole('button',{name:/Delete line/});
     await expect(first.locator('td').first()).toHaveClass(/calculator-line-number/);await expect(first.locator('td').first()).toHaveText('1');
     assert.equal(await table.locator('colgroup col').count(),headers.length);
-    assert.equal(await first.locator('td').count(),headers.length);
+    assert.equal(await first.locator('td:not([hidden])').count(),headers.length);
+    assert.equal(await first.locator('td').count(),await table.locator('thead th').count(),'Complete retained header/body DOM stays aligned separately from visible columns');
     const lineOutput=await first.locator('td').first().getAttribute('data-calculator-output');
     assert.equal(lineOutput,title==='Steel (spray)'?'Z10':title==='Duct'?'A11':null);
     await expect(first.locator('td').first().getByRole('button',{name:/Delete line/})).toHaveCount(0);await expect(first.locator('td').last().getByRole('button',{name:/Delete line/})).toHaveCount(1);

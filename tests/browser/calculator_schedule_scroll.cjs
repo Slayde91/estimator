@@ -31,7 +31,7 @@ async function snapshot(){return page.evaluate(()=>window.CeasefireCalculators.p
     const before=await snapshot();
     for(const width of [1146,390]){
       await page.setViewportSize({width,height:764});
-      const table=viewport().locator('table'),headers=await table.locator('thead th').allTextContents();
+      const table=viewport().locator('table'),headers=await table.locator('thead th:not([hidden])').allTextContents(),allColumnCount=await table.locator('thead th').count();
       assert.equal(headers[0],'Line');assert.ok(!headers.includes('Row'));assert.equal(headers.at(-1),'Actions');
       const columnCount=headers.length;assert.equal(await table.locator('colgroup col').count(),columnCount);
       const geometry=await viewport().evaluate(el=>({height:el.clientHeight,scrollHeight:el.scrollHeight,overflow:getComputedStyle(el).overflowY}));
@@ -44,14 +44,16 @@ async function snapshot(){return page.evaluate(()=>window.CeasefireCalculators.p
         await expect(control).toHaveCount(1);await idle();
         await control.scrollIntoViewIfNeeded();await expect(control).toBeVisible();
         assert.ok(await page.locator('.calculator-virtual-schedule tbody tr:not(.calculator-virtual-spacer)').count()<=60);
-        const alignment=await table.locator('tbody tr').evaluateAll((rows,count)=>rows.every(row=>[...row.cells].reduce((total,cell)=>total+cell.colSpan,0)===count),columnCount);
+        const alignment=await table.locator('tbody tr').evaluateAll((rows,count)=>rows.every(row=>[...row.cells].filter(cell=>!cell.hidden).reduce((total,cell)=>total+cell.colSpan,0)===count),columnCount);
         assert.equal(alignment,true,`${id}/${width}/line ${line}: data and virtual spacer cells align with every visible header`);
+        const completeAlignment=await table.locator('tbody tr[data-source-row]').evaluateAll((rows,count)=>rows.every(row=>[...row.cells].reduce((total,cell)=>total+cell.colSpan,0)===count),allColumnCount);
+        assert.equal(completeAlignment,true,`${id}/${width}/line ${line}: complete retained data rows align with every header DOM node`);
         const lineCell=control.locator('xpath=ancestor::tr').locator('td').first();await expect(lineCell).toHaveText(String(line));
         const centred=await lineCell.evaluate(cell=>{const text=document.createTreeWalker(cell,NodeFilter.SHOW_TEXT).nextNode(),range=document.createRange();range.selectNodeContents(text);const ink=range.getBoundingClientRect(),box=cell.getBoundingClientRect();return{alignment:getComputedStyle(cell).textAlign,inkWidth:ink.width,error:Math.abs(ink.x+ink.width/2-box.x-box.width/2)};});
         assert.equal(centred.alignment,'center');assert.ok(centred.inkWidth>0&&centred.error<1,`${id}/${width}/line ${line}: actual virtualized Line text remains centred`);
       }
       assert.deepEqual(await snapshot(),before,'Scrolling must preserve every draft input');
-      evidence.push({id,width,...geometry,columns:columnCount,lineIdentityAndSpacerAlignment:true,lineTextCentred:true,lines:[61,500,1000,1]});
+      evidence.push({id,width,...geometry,columns:columnCount,completeDomColumns:allColumnCount,completeDomAlignment:true,lineIdentityAndSpacerAlignment:true,lineTextCentred:true,lines:[61,500,1000,1]});
     }
     await viewport().evaluate(el=>{el.scrollTop=el.scrollHeight;});
     const last=page.locator(`[data-calculator-cell="${column}${first+999}"]`);await expect(last).toHaveCount(1);await idle();

@@ -295,7 +295,7 @@ async function standardCalculatorButton() {
   assert.equal(generated.status, 0, generated.stderr); const pdfBefore = hash(pdf);
   browser = await chromium.launch({ headless: true }); page = await browser.newPage({ viewport: { width: 1384, height: 764 } }); page.setDefaultTimeout(30000);
   page.on("pageerror", error => errors.push(error.message)); page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
-  page.on("requestfailed", request => networkFailures.push({ stage, url: request.url(), failure: request.failure() }));
+  page.on("requestfailed", request => networkFailures.push({ stage, url: request.url(), method: request.method(), resourceType: request.resourceType(), observedAt: new Date().toISOString(), failure: request.failure() }));
   page.on("request", request => { if (request.method() === "POST") requests.push(new URL(request.url()).pathname); });
   await page.addInitScript(() => { window.uiCsp = []; document.addEventListener("securitypolicyviolation", event => window.uiCsp.push(event.effectiveDirective)); });
   stage = "initial load"; await page.goto(`http://127.0.0.1:${info.port}/`); await page.waitForFunction(() => window.CeasefireDesktop?.status().ready && !window.CeasefireDesktop.status().busy);
@@ -354,7 +354,7 @@ async function standardCalculatorButton() {
   // Both requests own explicit AbortControllers: the debounced estimate replaces
   // old calculation requests; switching PDF workspaces releases its source load.
   const cancellable = new Set([`http://127.0.0.1:${info.port}/api/calculate`, evidence.navigation.originalPDFURL]);
-  assert.ok(networkFailures.every(request => request.failure?.errorText === "net::ERR_ABORTED" && cancellable.has(request.url)), "Only explicit cancellation of this fixture's calculation or exact source PDF is permitted");
+  assert.ok(networkFailures.every(request => request.failure?.errorText === "net::ERR_ABORTED" && cancellable.has(request.url)), `Only explicit cancellation of this fixture's calculation or exact source PDF is permitted. Recorded failures: ${JSON.stringify(networkFailures)}`);
   csp.push(...await page.evaluate(() => window.uiCsp)); assert.deepEqual(csp, []);
   assert.deepEqual(hashes(), sourceBefore, "The UI fixture never edits source files");
   fs.writeFileSync(path.join(output, "result.json"), JSON.stringify({ completed: true, fixture_port: info.port, evidence, requests, errors, csp, networkFailures, pdf_sha256: pdfBefore, source_before_sha256: sourceBefore, source_after_sha256: hashes() }, null, 2));

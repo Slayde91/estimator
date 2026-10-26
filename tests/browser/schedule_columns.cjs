@@ -25,6 +25,10 @@ async function snapshot(){return page.evaluate(()=>window.CeasefireCalculators.c
 async function boot(){await page.waitForFunction(()=>window.CeasefireDesktop?.status().ready&&window.ClassifireBoot?.state==='ready');await page.waitForFunction(()=>!window.CeasefireActivity?.active);}
 async function chooser(){const button=page.locator('#calculator-pages .schedule-column-toggle');await button.click();const panel=page.locator('#'+await button.getAttribute('aria-controls'));await expect(panel).toBeVisible();return panel;}
 const nativeCell=(id)=>page.locator(`.calculator-schedule-table thead [data-schedule-column="${id}"]`);
+const removedBoardColumns='MNOPQRSTU'.split(''),retainedBoardInputs={M9:'Standard',N9:null,O9:'Auto',P9:'Published first',Q9:'Standard box',R9:203.123456789012,S9:203.234567890123,T9:58.1234567890123,U9:46.1234567890123};
+async function assertBoardColumnsRemoved(panel){
+ for(const column of removedBoardColumns){await expect(nativeCell(`column:${column}`)).toHaveCount(0);if(panel)await expect(panel.locator(`[data-schedule-column-choice="column:${column}"]`)).toHaveCount(0);}
+}
 async function selectAll(panel,checked){
  const all=panel.locator('[data-schedule-select-all]');
  // Native mixed checkboxes have checked=false. setChecked(false) would do
@@ -39,7 +43,7 @@ async function screenshot(name){await page.screenshot({path:path.join(output,nam
  page.on('pageerror',error=>evidence.errors.push(error.message));page.on('request',request=>{const pathname=new URL(request.url()).pathname;if(request.method()==='POST'&&/\/(worksheet|calculate)$/.test(pathname)){calculations++;evidence.calculation_requests.push(pathname);}});
  page.on('response',response=>{const url=new URL(response.url());if(url.origin===base&&['/calculators.css','/penetration.css'].includes(url.pathname))cssResponses.push((async()=>{assert.equal(response.status(),200);const bytes=await response.body();evidence.served_css.push({url:response.url(),source:`static${url.pathname}`,sha256:createHash('sha256').update(bytes).digest('hex'),size:bytes.length});})().catch(error=>evidence.errors.push(String(error))));});
  for(const [id,inputs,row]of [
-  ['steel_board',{CALCULATOR:{A9:'Column chooser precise fixture',C9:'TRAFALGAR COREX',D9:'200UC46',F9:1.23456789012345,G9:4,H9:120,I9:'Column',J9:550}},9],
+   ['steel_board',{CALCULATOR:{A9:'Column chooser precise fixture',C9:'TRAFALGAR COREX',D9:'200UC46',F9:1.23456789012345,G9:4,H9:120,I9:'Column',J9:550,...retainedBoardInputs}},9],
   ['ductwork',{CALCULATOR:{B11:'300 x 200',C11:'CAFCO 300',D11:1.23456789012345,E11:'120/120/120',F11:1,G11:0,H11:'Internal',I11:'Horizontal'}},11],
   ['steel_vermiculite',{SCHEDULE:{A10:'Spray fixture',B10:'CAFCO 300',J10:1.23456789012345,I10:2}},10],
   ['steel_intumescent',{SCHEDULE:{A10:'Intumescent fixture',B10:'SC902',J10:1.23456789012345,I10:2}},10],
@@ -54,7 +58,8 @@ async function screenshot(name){await page.screenshot({path:path.join(output,nam
   const native=headers.filter(column=>column.id.startsWith('column:')).map(column=>column.id.slice(7));
   const number=column=>[...column].reduce((sum,letter)=>sum*26+letter.charCodeAt(0)-64,0);
   const removedSources=definition.schedule.columns.filter(column=>/^thickness source$/i.test(column.label.trim())).map(column=>number(column.column));
-  assert.deepEqual(native.map(number).sort((a,b)=>a-b),expected.filter(column=>!removedSources.includes(column)).sort((a,b)=>a-b));
+   const browserOmissions=id==='steel_board'?removedBoardColumns.map(number):[];
+   assert.deepEqual(native.map(number).sort((a,b)=>a-b),expected.filter(column=>!removedSources.includes(column)&&!browserOmissions.includes(column)).sort((a,b)=>a-b));
   assert.ok(headers.every(column=>!/^thickness source$/i.test(column.label.trim())));
   if(['steel_vermiculite','steel_intumescent'].includes(id)){
    const reportIndex=headers.findIndex(column=>column.id==='virtual:report');
@@ -63,36 +68,46 @@ async function screenshot(name){await page.screenshot({path:path.join(output,nam
   assert.equal(new Set(headers.map(column=>column.id)).size,headers.length);assert.ok(headers.some(column=>column.id==='virtual:report'));assert.ok(headers.some(column=>column.id==='virtual:actions'));
   const before=await snapshot(),requests=calculations,panel=await chooser();
   const choices=panel.locator('[data-schedule-column-choice]');assert.equal(await choices.count(),headers.length);
+   if(id==='steel_board'){
+    await assertBoardColumnsRemoved(panel);for(const column of removedBoardColumns)assert.ok(expected.includes(number(column)),'Source API retains optional inputs');
+    for(const column of ['L','V','W','X','Y','AA','AC','AD'])await expect(panel.locator(`[data-schedule-column-choice="column:${column}"]`)).toBeChecked();
+    for(const [address,value]of Object.entries(retainedBoardInputs))assert.equal(before.steel_board.inputs.CALCULATOR[address],value);
+   }
   for(const header of headers){const checkbox=panel.locator(`[data-schedule-column-choice="${header.id}"]`);await expect(checkbox).toBeChecked();await checkbox.uncheck();await expect(nativeCell(header.id)).toBeHidden();await checkbox.check();await expect(nativeCell(header.id)).toBeVisible();}
   await selectAll(panel,false);await expect(table).toBeHidden();await expect(page.locator('#calculator-grid .schedule-columns-empty')).toBeVisible();await selectAll(panel,true);await expect(table).toBeVisible();
+   if(id==='steel_board')await assertBoardColumnsRemoved(panel);
   await panel.press('Escape');await expect(panel).toBeHidden();await expect(page.locator('#calculator-pages .schedule-column-toggle')).toBeFocused();
   assert.deepEqual(await snapshot(),before);assert.equal(calculations,requests,'Column choices must not calculate');
   evidence.registers.push({id,columns:headers,removedDisplaySources:removedSources,reportReplacesThicknessSource:['steel_vermiculite','steel_intumescent'].includes(id),allColumnsIndividuallyToggle:true,selectAllAndNone:true,inputsUnchanged:true,noCalculationRequests:true});
   console.log(`PASS column choices: ${id} (${headers.length})`);
  }
- // Precise advanced inputs stay mounted, retaining unsaved text/selection.
+  // Column changes retain unsaved text/selection and all removed optional values.
  await chooseCalculator(page,'Steel (board)');await idle();const before=await snapshot(),draftField=page.locator('[data-calculator-cell="A9"]'),handle=await draftField.elementHandle();
  await draftField.fill('Uncommitted exact text · 1.123456789012345');await draftField.evaluate(node=>node.setSelectionRange(3,12));
- const panel=await chooser();await panel.locator('[data-schedule-column-choice="column:M"]').uncheck();await panel.press('Escape');
+  const panel=await chooser();await panel.locator('[data-schedule-column-choice="column:V"]').uncheck();await panel.press('Escape');
  assert.equal(await draftField.evaluate((node,original)=>node===original,handle),true);await expect(draftField).toHaveValue('Uncommitted exact text · 1.123456789012345');await idle();
  const edited=await snapshot();assert.equal(edited.steel_board.inputs.CALCULATOR.A9,'Uncommitted exact text · 1.123456789012345');
- const preferenceKey='ceasefire.scheduleColumns.v1.steel_board:CALCULATOR';assert.deepEqual(await page.evaluate(key=>JSON.parse(localStorage.getItem(key)),preferenceKey),{version:1,hidden:['column:M']});
+  const preferenceKey='ceasefire.scheduleColumns.v1.steel_board:CALCULATOR';assert.deepEqual(await page.evaluate(key=>JSON.parse(localStorage.getItem(key)),preferenceKey),{version:1,hidden:['column:V']});
  // Cached navigation, real recalculation, locale changes and reload preserve choices.
- await page.locator('#calculator-pages').getByRole('button',{name:'BOARD SUMMARY',exact:true}).click();await idle();await page.locator('#calculator-pages').getByRole('button',{name:'SCHEDULE',exact:true}).click();await idle();await expect(nativeCell('column:M')).toBeHidden();
- await page.locator('#calculator-recalculate').click();await idle();await expect(nativeCell('column:M')).toBeHidden();assert.deepEqual(await snapshot(),edited);
+  await page.locator('#calculator-pages').getByRole('button',{name:'BOARD SUMMARY',exact:true}).click();await idle();await page.locator('#calculator-pages').getByRole('button',{name:'SCHEDULE',exact:true}).click();await idle();await expect(nativeCell('column:V')).toBeHidden();await assertBoardColumnsRemoved();
+  const recalculated=page.waitForRequest(request=>request.method()==='POST'&&request.url()===`${base}/api/calculators/steel_board/worksheet`);
+  await page.locator('#calculator-recalculate').click();const calculationInputs=(await recalculated).postDataJSON().inputs.CALCULATOR;
+  for(const [address,value]of Object.entries(retainedBoardInputs))assert.equal(calculationInputs[address],value);
+  await idle();await expect(nativeCell('column:V')).toBeHidden();await assertBoardColumnsRemoved();assert.deepEqual(await snapshot(),edited);
  // Rebuilt virtual rows use the same hidden IDs and exact visible colspan.
  await page.evaluate(async()=>{const api=window.CeasefireCalculators,copy=await api.completeProjectSnapshot();copy.steel_board.schedule_rows=Array.from({length:101},(_,index)=>index+9);api.applyProject(await api.prepareProject(copy));});
  await chooseCalculator(page,'Steel (board)');await idle();const virtualBefore=await snapshot();await expect(page.locator('.calculator-virtual-schedule')).toBeVisible();
  const virtualPanel=await chooser();await virtualPanel.locator('[data-schedule-column-choice="virtual:report"]').uncheck();await virtualPanel.press('Escape');
  const scrolled=page.waitForResponse(response=>response.request().method()==='POST'&&response.url()===`${base}/api/calculators/steel_board/worksheet`&&response.request().postDataJSON()?.schedule_view?.offset>0);
  await page.locator('[data-schedule-viewport]').evaluate(node=>node.scrollTop=6500);const virtualResponse=await scrolled;assert.equal(virtualResponse.status(),200);await virtualResponse.finished();await idle();
- const virtualShape=await page.locator('.calculator-virtual-schedule').evaluate(table=>({columns:table.querySelectorAll('thead th:not([hidden])').length,spacers:[...table.querySelectorAll('[data-schedule-spacer]')].map(cell=>cell.colSpan),hidden:[...table.querySelectorAll('[data-schedule-column="column:M"],[data-schedule-column="virtual:report"]')].every(cell=>cell.hidden)}));
+  const virtualShape=await page.locator('.calculator-virtual-schedule').evaluate(table=>({columns:table.querySelectorAll('thead th:not([hidden])').length,spacers:[...table.querySelectorAll('[data-schedule-spacer]')].map(cell=>cell.colSpan),hidden:[...table.querySelectorAll('[data-schedule-column="column:V"],[data-schedule-column="virtual:report"]')].every(cell=>cell.hidden)}));
+  await assertBoardColumnsRemoved();
  assert.ok(virtualShape.hidden);assert.ok(virtualShape.spacers.every(span=>span===virtualShape.columns));assert.deepEqual(await snapshot(),virtualBefore);evidence.virtualRows={...virtualShape,exactDraftUnchanged:true};
  const virtualTop=await page.locator('[data-schedule-viewport]').evaluate(node=>node.scrollTop),virtualRequests=calculations,allVirtual=await chooser();
  await selectAll(allVirtual,false);await expect(page.locator('.calculator-virtual-schedule')).toBeHidden();await expect(allVirtual).toBeVisible();
  await page.waitForTimeout(250);assert.equal(calculations,virtualRequests,'Visibility-induced scroll clamping must not request another window');
  await selectAll(allVirtual,true);await expect(page.locator('.calculator-virtual-schedule')).toBeVisible();await expect(page.locator('[data-schedule-viewport]')).toHaveJSProperty('scrollTop',virtualTop);
- await allVirtual.locator('[data-schedule-column-choice="column:M"]').uncheck();await allVirtual.press('Escape');assert.equal(calculations,virtualRequests);assert.deepEqual(await snapshot(),virtualBefore);
+  await assertBoardColumnsRemoved(allVirtual);await allVirtual.locator('[data-schedule-column-choice="column:V"]').uncheck();await allVirtual.press('Escape');assert.equal(calculations,virtualRequests);assert.deepEqual(await snapshot(),virtualBefore);
  evidence.virtualRows.allHiddenNoCalculation=true;evidence.virtualRows.restoredScrollTop=virtualTop;
  console.log('PASS virtual columns: no calculation on all-hidden, exact draft and scroll restored');
  await page.evaluate(async copy=>{const api=window.CeasefireCalculators;api.applyProject(await api.prepareProject(copy));},edited);await chooseCalculator(page,'Steel (board)');await idle();
@@ -101,7 +116,7 @@ async function screenshot(name){await page.screenshot({path:path.join(output,nam
   await page.setViewportSize({width,height:850});await page.evaluate(language=>window.CeasefireI18n.setLanguage(language,false),language);
   const panel=await chooser(),labels=await page.evaluate(()=>['Columns','Visible columns','Select all'].map(label=>window.CeasefireI18n.translate(label)));
   await expect(page.locator('#calculator-pages .schedule-column-toggle')).toHaveText(labels[0]);assert.equal(await panel.getAttribute('aria-label'),labels[1]);await expect(panel.locator('.schedule-column-all span')).toHaveText(labels[2]);
-  const rect=await panel.boundingBox();assert.ok(rect.x>=0&&rect.x+rect.width<=width&&rect.y>=0);assert.ok(rect.height<=850);await expect(panel.locator('[data-schedule-column-choice="column:M"]')).not.toBeChecked();
+   const rect=await panel.boundingBox();assert.ok(rect.x>=0&&rect.x+rect.width<=width&&rect.y>=0);assert.ok(rect.height<=850);await expect(panel.locator('[data-schedule-column-choice="column:V"]')).not.toBeChecked();await assertBoardColumnsRemoved(panel);
   assert.deepEqual(await snapshot(),edited);evidence.locales.push({language,width,labels,rect});if(['en','ar'].includes(language))await screenshot(`columns-${language}-${width}.png`);await panel.press('Escape');
  }
  await page.evaluate(()=>window.CeasefireI18n.setLanguage('en',false));await page.setViewportSize({width:1146,height:850});
@@ -123,8 +138,8 @@ async function screenshot(name){await page.screenshot({path:path.join(output,nam
    evidence.themes.push({title,name,normalReport,rowHoveredReport,report,hover,focus});await cycleTheme(page);
   }
  }
- await chooseCalculator(page,'Steel (board)');await idle();const reloadReview=async dialog=>{assert.equal(dialog.type(),'beforeunload');await dialog.accept();};page.once('dialog',reloadReview);await page.reload();page.off('dialog',reloadReview);await boot();await chooseCalculator(page,'Steel (board)');await idle();await expect(nativeCell('column:M')).toBeHidden();
- const restoredPanel=await chooser();await selectAll(restoredPanel,true);await restoredPanel.press('Escape');await expect(nativeCell('column:M')).toBeVisible();
+  await chooseCalculator(page,'Steel (board)');await idle();const reloadReview=async dialog=>{assert.equal(dialog.type(),'beforeunload');await dialog.accept();};page.once('dialog',reloadReview);await page.reload();page.off('dialog',reloadReview);await boot();await chooseCalculator(page,'Steel (board)');await idle();await expect(nativeCell('column:V')).toBeHidden();
+  const restoredPanel=await chooser();await selectAll(restoredPanel,true);await assertBoardColumnsRemoved(restoredPanel);await restoredPanel.press('Escape');await expect(nativeCell('column:V')).toBeVisible();
  // Firestopping has two projections of the same schedule and preference.
  await chooseCalculator(page,'Firestopping');await fireIdle();
  const setupEstimate=page.waitForResponse(response=>response.request().method()==='POST'&&response.url()===`${base}/api/calculate`&&response.request().postDataJSON()?.penetration?.draft?.rows?.some(row=>row.id==='column-choices-fire'));

@@ -1269,26 +1269,40 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
   for(const [index,row] of [11,1010].entries())assert.deepEqual(ductInputRows[index].children.map(cell=>cell.children[0]?.dataset.calculatorCell||cell.dataset.calculatorOutput),ductInputOrder.map(column=>`${ductName(column)}${row}`));
   assert.equal(JSON.stringify(entry.result),ductInputSource);assert.equal(JSON.stringify(entry.definition),ductInputDefinition);assert.equal(JSON.stringify(entry.inputs),ductInputSnapshot);passed++;
 
-  // Hiding board row waste keeps precise overrides in snapshots and both export payloads.
-  const retainedWaste={CALCULATOR:{A9:'Retained member',L9:0.123456789012345,L1008:0.234567890123456},SETTINGS:{B6:0.12}};
-  entry=setup(retainedWaste);const boardWasteColumns=[1,11,12,13,14],boardWasteLabels={1:'Member mark',11:'Family (ESA input)',12:'Waste (%)',13:'Exposure layout',14:'Existing omitted column'};
-  entry.definition.schedule.columns=boardWasteColumns.map(column=>({column:String.fromCharCode(64+column),label:boardWasteLabels[column]}));
+  // Removed board inputs keep precise overrides in snapshots, calculations and both exports.
+  const retainedWaste={CALCULATOR:{A9:'Retained member',L9:0.123456789012345,L1008:0.234567890123456,M9:'Rotate',N9:123.456789012345,O9:'Double',P9:'General only',Q9:'Special / engineered',R9:203.123456789012,S9:204.123456789012,T9:58.1234567890123,U9:46.1234567890123,V9:1.23456789012345,W9:0.123456789012345,X1008:'Retained design reference'},SETTINGS:{B6:0.12}};
+  entry=setup(retainedWaste);const removedBoardColumns=Array.from({length:9},(_,index)=>index+13),boardWasteColumns=[1,11,12,...Array.from({length:23},(_,index)=>index+13)],boardWasteLabels={1:'Member mark',11:'Family (ESA input)',12:'Waste (%)',13:'Exposure layout',14:'Partial depth (mm)',15:'Layer preference',16:'Thickness lookup',17:'Installation detail',18:'Depth or OD (mm)',19:'Width B (mm)',20:'Steel area (cm2)',21:'Steel mass (kg/m)',22:'Box girth override (m)',23:'Added girth (m)',24:'Design reference',25:'ESA/M used (m2/t)',26:'Board stack (mm)',27:'Layers',28:'Total thickness (mm)',29:'Bare box girth (m)',30:'Box reference area (m2)',31:'Board net (m²)',32:'Board incl waste (m2)',33:'Sheets',34:'Purchase area (m2)',35:'Row status'};
+  const boardColumnName=column=>column>26?`A${String.fromCharCode(64+column-26)}`:String.fromCharCode(64+column);
+  entry.definition.schedule.columns=boardWasteColumns.map(column=>({column:boardColumnName(column),label:boardWasteLabels[column]}));
   entry.definition.schedule.last_row=1008;entry.definition.sheets=[{name:'CALCULATOR',header_rows:[8],omitted_columns:[14],merges:[]}];
-  entry.result=result(copy(entry.inputs),{max_column:14,visible_columns:boardWasteColumns,rows:[
-    {row:8,cells:boardWasteColumns.map(column=>({column,address:`${String.fromCharCode(64+column)}8`,value:boardWasteLabels[column]}))},
-    ...[9,1008].map(row=>({row,cells:boardWasteColumns.map(column=>({column,address:`${String.fromCharCode(64+column)}${row}`,value:retainedWaste.CALCULATOR[`${String.fromCharCode(64+column)}${row}`]??null,editable:true,type:'text'}))}))]});
+  entry.result=result(copy(entry.inputs),{max_column:35,visible_columns:boardWasteColumns,rows:[
+    {row:8,cells:boardWasteColumns.map(column=>({column,address:`${boardColumnName(column)}8`,value:boardWasteLabels[column]}))},
+    ...[9,1008].map(row=>({row,cells:boardWasteColumns.map(column=>({column,address:`${boardColumnName(column)}${row}`,value:retainedWaste.CALCULATOR[`${boardColumnName(column)}${row}`]??null,editable:true,type:'text'}))}))]});
   const wasteSource=JSON.stringify(entry.result),wasteDefinition=JSON.stringify(entry.definition),wasteSaved=entry.saved;
-  realRender(entry);assert.deepEqual(renderedTable().children[1].children[0].children.map(cell=>cell.textContent),['Member mark','Family (ESA input)','Exposure layout']);
+  const legacyBoardColumns=boardWasteColumns.filter(column=>![12,...removedBoardColumns,25,27,29,30].includes(column));
+  realRender(entry);assert.deepEqual(renderedTable().children[1].children[0].children.map(cell=>cell.textContent),legacyBoardColumns.map(column=>boardWasteLabels[column]));
   assert.ok(renderedControls().every(control=>!/^L/.test(control.dataset.calculatorCell)));assert.equal(JSON.stringify(entry.result),wasteSource);assert.equal(JSON.stringify(entry.definition),wasteDefinition);
   assert.deepEqual(copy(audit.projectSnapshot().steel_board.inputs),retainedWaste);assert.equal(entry.saved,wasteSaved);
   const wasteDownloads=[];audit.setFetch(async(url,options)=>{wasteDownloads.push(JSON.parse(options.body).inputs);return fileSaved(url.endsWith('.pdf')?'APPENDIX A.pdf':'APPENDIX A.xlsx');});
   await audit.downloadSchedulePdf();await audit.downloadExcelRegister();assert.equal(wasteDownloads.length,2);for(const captured of wasteDownloads)assert.deepEqual(captured,retainedWaste);
   assert.deepEqual(copy(entry.inputs),retainedWaste);assert.equal(entry.saved,wasteSaved);passed++;
-  // An explicit register universe supersedes source/browser column hides only
-  // inside schedule rows; stored waste and advanced inputs are not rewritten.
+  // Explicit registers retain their other native columns; the nine removed
+  // inputs cannot return through the chooser, re-render or recalculation.
   entry.result.register_columns=boardWasteColumns;
   realRender(entry);
+  const visibleBoardColumns=boardWasteColumns.filter(column=>!removedBoardColumns.includes(column)),removedBoardNames='MNOPQRSTU'.split('');
+  assert.deepEqual(renderedTable().children[1].children[0].children.map(cell=>cell.textContent),visibleBoardColumns.map(column=>boardWasteLabels[column]));
+  assert.ok(entry.scheduleColumnChoices.every(choice=>!removedBoardNames.some(column=>choice.id===`column:${column}`)));
+  for(const column of ['L','V','W','X','Y','AA','AC','AD'])assert.ok(entry.scheduleColumnChoices.some(choice=>choice.id===`column:${column}`));
+  assert.ok(renderedControls().every(control=>!removedBoardNames.some(column=>control.dataset.calculatorCell===`${column}9`||control.dataset.calculatorCell===`${column}1008`)));
   assert.ok(renderedControls().some(control=>control.dataset.calculatorCell==='L9'));
+  const advancedSource=JSON.stringify(entry.result),advancedDefinition=JSON.stringify(entry.definition),boardCalculationRequests=[];
+  audit.setRequest(async(path,options)=>{boardCalculationRequests.push({path,body:JSON.parse(options.body)});return copy(entry.result);});
+  await audit.calculate();realRender(entry);
+  assert.equal(boardCalculationRequests.length,1);assert.equal(boardCalculationRequests[0].path,'/api/calculators/steel_board/worksheet');
+  assert.deepEqual(boardCalculationRequests[0].body.inputs,retainedWaste);assert.equal(boardCalculationRequests[0].body.include_advanced,true);
+  assert.deepEqual(copy(entry.scheduleColumnChoices.filter(choice=>choice.id.startsWith('column:')).map(choice=>choice.id)),visibleBoardColumns.map(column=>`column:${boardColumnName(column)}`));
+  assert.equal(JSON.stringify(entry.result),advancedSource);assert.equal(JSON.stringify(entry.definition),advancedDefinition);
   assert.deepEqual(copy(entry.inputs),retainedWaste);assert.equal(entry.saved,wasteSaved);passed++;
 
   // Spray schedule presentation moves inputs without changing their source addresses or returned workbook data.
@@ -1851,7 +1865,6 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
   // Only Exposure input column data is normal weight; headers and diagnostics retain their source emphasis.
   for(const [id,sheet,column,firstRow,label] of [
     ['steel_vermiculite','SCHEDULE',3,10,'Exposure / member case'],
-    ['steel_board','CALCULATOR',13,9,'Exposure layout'],
     ['ductwork','CALCULATOR',8,11,'Fire exposure / FyreWrap application']]) {
     entry=setup();entry.definition.id=id;entry.sheet=sheet;
     const name=number=>String.fromCharCode(64+number),address=`${name(column)}${firstRow}`;

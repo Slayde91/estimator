@@ -574,8 +574,22 @@ The batch is rejected before application if an item is unsupported, invalid or
 unconfirmed, or the 1,000-row schedule capacity is exceeded. Appending uses only
 entirely empty, unowned rows, including hidden inputs. An identical repeat is a
 no-op. Changed source items require fresh confirmation and **Update linked
-rows**. Manual destination edits, deletion, imports and stale previews create
-conflicts. Detach links explicitly retains the row as a manual entry and keeps
+rows**. If supported details were changed in the calculator, **Update linked
+rows** first offers a preview to copy those details back into the selected linked
+Takeoff items. Drawing geometry, measured lengths, physical quantities and source
+evidence are retained; calculator inputs are not changed. Refreshed items return
+to Draft and must be reviewed and confirmed again. Save the project to retain the
+refresh. If no calculator details have changed, the button updates the calculator
+from the confirmed Takeoff items as before.
+
+Conflicting edits on both sides, unsupported quantity or measurement edits,
+shared count groups, missing bindings and stale previews block the refresh.
+Deleted or replaced destination rows must be resolved explicitly. A refresh cannot
+be reversed with Takeoff-only Undo, because its linked receipt must remain aligned
+with the calculator. If its response is interrupted, keep the page open and use
+**Retry linked change** before making further edits.
+
+Detach links explicitly retains the row as a manual entry and keeps
 its historical lineage. There is no automatic transfer to the priced quote.
 After split/merge, successor transfers are blocked while a predecessor still has
 an occupied linked row in that destination. Resolve the prior row explicitly;

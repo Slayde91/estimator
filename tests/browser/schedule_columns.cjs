@@ -57,28 +57,40 @@ async function screenshot(name){await page.screenshot({path:path.join(output,nam
   const headers=await table.locator('thead [data-schedule-column]').evaluateAll(nodes=>nodes.map(node=>({id:node.dataset.scheduleColumn,label:node.textContent})));
   const native=headers.filter(column=>column.id.startsWith('column:')).map(column=>column.id.slice(7));
   const number=column=>[...column].reduce((sum,letter)=>sum*26+letter.charCodeAt(0)-64,0);
-  const removedSources=definition.schedule.columns.filter(column=>/^thickness source$/i.test(column.label.trim())).map(column=>number(column.column));
-   const browserOmissions=id==='steel_board'?removedBoardColumns.map(number):[];
-   assert.deepEqual(native.map(number).sort((a,b)=>a-b),expected.filter(column=>!removedSources.includes(column)&&!browserOmissions.includes(column)).sort((a,b)=>a-b));
+  const removedSources=[...definition.schedule.columns.filter(column=>/^thickness source$/i.test(column.label.trim())).map(column=>number(column.column)),...(id==='ductwork'?[42,43]:[])];
+  const browserOmissions=id==='steel_board'?removedBoardColumns.map(number):[];
+  assert.deepEqual(native.map(number).sort((a,b)=>a-b),expected.filter(column=>!removedSources.includes(column)&&!browserOmissions.includes(column)).sort((a,b)=>a-b));
   assert.ok(headers.every(column=>!/^thickness source$/i.test(column.label.trim())));
   if(['steel_vermiculite','steel_intumescent'].includes(id)){
    const reportIndex=headers.findIndex(column=>column.id==='virtual:report');
-   assert.equal(headers[reportIndex-1].id,'column:W');assert.equal(headers[reportIndex+1].id,'column:Y');
+   assert.equal(headers[reportIndex-1].id,'column:J');assert.equal(headers[reportIndex+1].id,'column:Y');
   }
   assert.equal(new Set(headers.map(column=>column.id)).size,headers.length);assert.ok(headers.some(column=>column.id==='virtual:report'));assert.ok(headers.some(column=>column.id==='virtual:actions'));
   const before=await snapshot(),requests=calculations,panel=await chooser();
   const choices=panel.locator('[data-schedule-column-choice]');assert.equal(await choices.count(),headers.length);
-   if(id==='steel_board'){
-    await assertBoardColumnsRemoved(panel);for(const column of removedBoardColumns)assert.ok(expected.includes(number(column)),'Source API retains optional inputs');
-    for(const column of ['L','V','W','X','Y','AA','AC','AD'])await expect(panel.locator(`[data-schedule-column-choice="column:${column}"]`)).toBeChecked();
-    for(const [address,value]of Object.entries(retainedBoardInputs))assert.equal(before.steel_board.inputs.CALCULATOR[address],value);
-   }
-  for(const header of headers){const checkbox=panel.locator(`[data-schedule-column-choice="${header.id}"]`);await expect(checkbox).toBeChecked();await checkbox.uncheck();await expect(nativeCell(header.id)).toBeHidden();await checkbox.check();await expect(nativeCell(header.id)).toBeVisible();}
+  // Spray has a deliberately retained version-1 preference above; it overrides
+  // new defaults. The other fresh profiles use only the requested hidden IDs.
+  const expectedHidden=id==='ductwork'?['V','W','X','AA','AB','AC','AD']:id==='steel_intumescent'?['G','K','L','M','N','Q','T']:[];
+  const initiallyHidden=await choices.evaluateAll(nodes=>nodes.filter(node=>!node.checked).map(node=>node.dataset.scheduleColumnChoice));
+  assert.deepEqual(initiallyHidden.slice().sort(),expectedHidden.map(column=>'column:'+column).sort());
+  if(['ductwork','steel_vermiculite'].includes(id))await expect(page.locator('#calculator-grid > .calculator-schedule-guidance')).toHaveCount(0);
+  if(id==='steel_vermiculite')assert.equal(headers.find(column=>column.id==='column:O').label,'DFT (mm)');
+  if(id==='ductwork'){
+   const note=page.locator('.calculator-schedule-tools .calculator-schedule-overview-note');
+   await expect(note).toHaveText('For FyreWrap, Internal, External and Both use the exhaust application rules. Select pressurisation separately.');
+   assert.equal(await note.evaluate(node=>node.previousElementSibling.classList.contains('calculator-schedule-help')),true);
+  }
+  if(id==='steel_board'){
+   await assertBoardColumnsRemoved(panel);for(const column of removedBoardColumns)assert.ok(expected.includes(number(column)),'Source API retains optional inputs');
+   for(const column of ['L','V','W','X','Y','AA','AC','AD'])await expect(panel.locator(`[data-schedule-column-choice="column:${column}"]`)).toBeChecked();
+   for(const [address,value]of Object.entries(retainedBoardInputs))assert.equal(before.steel_board.inputs.CALCULATOR[address],value);
+  }
+  for(const header of headers){const checkbox=panel.locator(`[data-schedule-column-choice="${header.id}"]`);await checkbox.check();await expect(nativeCell(header.id)).toBeVisible();await checkbox.uncheck();await expect(nativeCell(header.id)).toBeHidden();await checkbox.check();await expect(nativeCell(header.id)).toBeVisible();}
   await selectAll(panel,false);await expect(table).toBeHidden();await expect(page.locator('#calculator-grid .schedule-columns-empty')).toBeVisible();await selectAll(panel,true);await expect(table).toBeVisible();
    if(id==='steel_board')await assertBoardColumnsRemoved(panel);
   await panel.press('Escape');await expect(panel).toBeHidden();await expect(page.locator('#calculator-pages .schedule-column-toggle')).toBeFocused();
   assert.deepEqual(await snapshot(),before);assert.equal(calculations,requests,'Column choices must not calculate');
-  evidence.registers.push({id,columns:headers,removedDisplaySources:removedSources,reportReplacesThicknessSource:['steel_vermiculite','steel_intumescent'].includes(id),allColumnsIndividuallyToggle:true,selectAllAndNone:true,inputsUnchanged:true,noCalculationRequests:true});
+  evidence.registers.push({id,columns:headers,removedDisplaySources:removedSources,initiallyHidden,reportReplacesThicknessSource:['steel_vermiculite','steel_intumescent'].includes(id),allColumnsIndividuallyToggle:true,selectAllAndNone:true,inputsUnchanged:true,noCalculationRequests:true});
   console.log(`PASS column choices: ${id} (${headers.length})`);
  }
   // Column changes retain unsaved text/selection and all removed optional values.

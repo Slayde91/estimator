@@ -3,7 +3,7 @@ const { chromium, expect } = require("@playwright/test");
 const { spawn } = require("node:child_process"), fs = require("node:fs"), path = require("node:path"), assert = require("node:assert/strict"), { createHash } = require("node:crypto");
 const root = path.resolve(__dirname, "../.."), output = process.env.CEASEFIRE_BROWSER_OUTPUT || path.join(root, ".runtime/browser-qa", `header-menu-sounds-${Date.now()}`);
 fs.mkdirSync(output, { recursive: true });
-const sourceFiles = ["static/header-menu-sounds.js", "static/downloads.js", "static/calculators.js", "static/penetration.js", "static/app.js", "estimator/server.py", "static/sounds/mgs1-menu-move.mp3", "static/sounds/mgs-confirm2.mp3", "static/sounds/new-explosion.mp3", "static/sounds/hover.mp3", "static/sounds/select.mp3", "static/sounds/select-2.mp3", "static/sounds/mixkit-vintage-dot-printing-1371.wav", "static/sounds/checkpoint.ogg", "static/sounds/loading.mp3", "tests/browser/header_menu_sounds.cjs", "tests/browser/header_menu_sounds_fixture.py"];
+const sourceFiles = ["static/header-menu-sounds.js", "static/downloads.js", "static/calculators.js", "static/penetration.js", "static/app.js", "estimator/server.py", "static/sounds/mgs1-menu-move.mp3", "static/sounds/mgs-confirm2.mp3", "static/sounds/flame-whoosh.wav", "static/sounds/hover.mp3", "static/sounds/select.mp3", "static/sounds/select-2.mp3", "static/sounds/type.mp3", "static/sounds/checkpoint.ogg", "static/sounds/loading.mp3", "tests/browser/header_menu_sounds.cjs", "tests/browser/header_menu_sounds_fixture.py"];
 const digest = value => createHash("sha256").update(value).digest("hex");
 const sourceHashes = () => Object.fromEntries(sourceFiles.map(file => [file, digest(fs.readFileSync(path.join(root, file)))]));
 const evidence = { passed: false, source_sha256: sourceHashes(), normal_autoplay_policy: true, autoplay_override_flags: [], physical_audibility_claimed: false, checks: {}, errors: [], blocked_requests: [], assets: [] };
@@ -78,7 +78,7 @@ async function played(source, prior) {
   }
   await expect.poll(() => unactivatedProbe("Boolean(window.CeasefireDesktop?.status().ready && !window.CeasefireDesktop.status().busy && window.ClassifireBoot?.state === 'ready' && window.qaMenuAudio.media.length === 9 && window.qaMenuAudio.media.every(media => media.readyState >= 2 && Number.isFinite(media.duration) && media.duration > 0))"), { timeout: 30000 }).toBe(true);
   evidence.checks.preloadedDecodedMedia = await unactivatedProbe("window.qaMenuAudio.media.map(media => ({source:new URL(media.src).pathname,readyState:media.readyState,duration:media.duration,preload:media.preload}))");
-  for (const [file, expected] of [["mgs1-menu-move.mp3", "ac2d686c78fa5dabc2415a0f3b39f4ced124f5fc1613ba3918e06daa7b47f8d0"], ["mgs-confirm2.mp3", "e9e7e156e24a4fde706f922ee135e88df51dc5ba94eed6344e66bbd6298e3e86"], ["new-explosion.mp3", "42de6e27397a942bda71b98b9b564c6a4543ebe88473fac35c10e1335099a1b4"], ["hover.mp3", "052d0d7f3fb41ddb67766dedd8f4c237b46c8b18745dfad0a73a14c8afb6fad5"], ["select.mp3", "60e089eeac138ce5301fb59dc9d649c0404a556499c8f78c15c81a7cdfde1969"], ["select-2.mp3", "37e5c8645aa76e11dc8039545940436ea9201e533b1c946fbc9dfc3845efeb7b"], ["mixkit-vintage-dot-printing-1371.wav", "5c39082dfe0aa5c24cae5faa0ba616bfb1354d8b7686b0b0784fa32689a9decf"], ["checkpoint.ogg", "60acfb941abf427378e87e7ae6660ae29491f8d5efaae2681d7eb9a52af3c935"], ["loading.mp3", "2c245208c0a4e9668b36e17d16227be81f6409398de1ece8b37be648e0ac60a8"]]) {
+  for (const [file, expected] of [["mgs1-menu-move.mp3", "ac2d686c78fa5dabc2415a0f3b39f4ced124f5fc1613ba3918e06daa7b47f8d0"], ["mgs-confirm2.mp3", "e9e7e156e24a4fde706f922ee135e88df51dc5ba94eed6344e66bbd6298e3e86"], ["flame-whoosh.wav", "988f40b00194f865d8ca84ef30d0d3b882c08a25a8597a9ebe2aa54524ab966b"], ["hover.mp3", "052d0d7f3fb41ddb67766dedd8f4c237b46c8b18745dfad0a73a14c8afb6fad5"], ["select.mp3", "60e089eeac138ce5301fb59dc9d649c0404a556499c8f78c15c81a7cdfde1969"], ["select-2.mp3", "37e5c8645aa76e11dc8039545940436ea9201e533b1c946fbc9dfc3845efeb7b"], ["type.mp3", "0a78627d0f914dd96d222afcc27e06c8d7777a2d219cef872e8f56a16dcb1c14"], ["checkpoint.ogg", "60acfb941abf427378e87e7ae6660ae29491f8d5efaae2681d7eb9a52af3c935"], ["loading.mp3", "2c245208c0a4e9668b36e17d16227be81f6409398de1ece8b37be648e0ac60a8"]]) {
     const response = await page.request.get(`${origin}/sounds/${file}`), bytes = await response.body();
     assert.equal(response.status(), 200); assert.equal(response.headers()["content-type"], file.endsWith(".wav") ? "audio/wav" : file.endsWith(".ogg") ? "audio/ogg" : "audio/mpeg"); assert.equal(digest(bytes), expected);
     evidence.assets.push({ url: response.url(), status: response.status(), sha256: digest(bytes), size: bytes.length, content_type: response.headers()["content-type"] });
@@ -265,30 +265,44 @@ async function played(source, prior) {
   prior = await page.evaluate(() => window.qaMenuAudio.calls.length);
   await page.locator(".app-header .brand").hover();
   assert.equal(await page.evaluate(() => window.qaMenuAudio.calls.length), prior, "The logo has no hover sound");
-  prior = await page.evaluate(() => window.qaMenuAudio.playing.filter(row => row.source.endsWith("new-explosion.mp3")).length);
-  await page.locator(".app-header .brand").click(); await played("/sounds/new-explosion.mp3", prior); await idle();
-  evidence.checks.logoClickSuppliedFlameWhoosh = true;
-  // Taglines still type after a trusted click, but never request printing playback.
-  await home.click(); await idle();
+  prior = await page.evaluate(() => window.qaMenuAudio.playing.filter(row => row.source.endsWith("flame-whoosh.wav")).length);
+  await page.locator(".app-header .brand").click(); await played("/sounds/flame-whoosh.wav", prior); await idle();
+  const logoOnset = await page.evaluate(async () => {
+    const bytes = await (await fetch('/sounds/flame-whoosh.wav')).arrayBuffer();
+    const context = new OfflineAudioContext(2, 1, 44100), audio = await context.decodeAudioData(bytes);
+    let firstPeak = 0;
+    for (let channel = 0; channel < audio.numberOfChannels; channel++)
+      for (const sample of audio.getChannelData(channel).subarray(0, 441)) firstPeak = Math.max(firstPeak, Math.abs(sample));
+    return { first10msPeak: firstPeak, sampleRate: audio.sampleRate, frames: audio.length, duration: audio.duration };
+  });
+  assert.ok(logoOnset.first10msPeak >= .01); assert.equal(logoOnset.frames, 184218);
+  const logoAttempt = await page.evaluate(() => window.qaMenuAudio.calls.filter(row => row.source.endsWith('flame-whoosh.wav')).at(-1));
+  assert.equal(logoAttempt.event, 'click', 'The preloaded logo clip starts in the original click handler');
+  evidence.checks.logoClickTrimmedFlameWhoosh = { ...logoOnset, sameClickEvent: true, leadingSecondsRemoved: 38118 / 44100 };
+  // A trusted navigation starts the supplied printing loop only for its active phrase.
+  prior = await page.evaluate(() => window.qaMenuAudio.playing.filter(row => row.source.endsWith('type.mp3')).length);
+  await home.click(); await played('/sounds/type.mp3', prior); await idle();
   const printingObservation = await page.waitForFunction(() => {
     const typed = document.getElementById("header-tagline-typed").textContent;
     const label = document.getElementById("header-tagline-label").textContent;
     if (!typed.length || typed === label) return false;
     return {
       typed, label,
-      paused: window.qaMenuAudio.media.find(audio => audio.src.endsWith("mixkit-vintage-dot-printing-1371.wav")).paused,
-      attempts: window.qaMenuAudio.calls.filter(row => row.source.endsWith("mixkit-vintage-dot-printing-1371.wav")).length,
+      paused: window.qaMenuAudio.media.find(audio => audio.src.endsWith("type.mp3")).paused,
+      loop: window.qaMenuAudio.media.find(audio => audio.src.endsWith("type.mp3")).loop,
+      attempts: window.qaMenuAudio.calls.filter(row => row.source.endsWith("type.mp3")).length,
     };
   });
-  const silentPrinting = await printingObservation.jsonValue();
+  const activePrinting = await printingObservation.jsonValue();
   await printingObservation.dispose();
-  assert.ok(silentPrinting.typed.length > 0 && silentPrinting.typed !== silentPrinting.label);
-  assert.equal(silentPrinting.paused, true); assert.equal(silentPrinting.attempts, 0);
+  assert.ok(activePrinting.typed.length > 0 && activePrinting.typed !== activePrinting.label);
+  assert.equal(activePrinting.paused, false); assert.equal(activePrinting.loop, true); assert.ok(activePrinting.attempts > 0);
   await page.waitForFunction(() => document.getElementById("header-tagline-typed").textContent === document.getElementById("header-tagline-label").textContent);
-  assert.equal(await page.evaluate(() => window.qaMenuAudio.media.find(audio => audio.src.endsWith("mixkit-vintage-dot-printing-1371.wav")).paused), true);
-  assert.equal(await page.evaluate(() => window.qaMenuAudio.calls.filter(row => row.source.endsWith("mixkit-vintage-dot-printing-1371.wav")).length), 0, "No printing playback attempt occurs anywhere in the native journey");
-  evidence.checks.silentTaglineTyping = { ...silentPrinting, finished: true };
-  assert.ok((await page.evaluate(() => window.qaMenuAudio.calls.filter(row => !row.source.endsWith("mixkit-vintage-dot-printing-1371.wav"))))
+  assert.equal(await page.evaluate(() => window.qaMenuAudio.media.find(audio => audio.src.endsWith("type.mp3")).paused), true);
+  assert.equal(await page.evaluate(() => window.qaMenuAudio.media.find(audio => audio.src.endsWith("type.mp3")).currentTime), 0);
+  assert.equal(await page.evaluate(() => window.qaMenuAudio.calls.filter(row => row.source.endsWith("type.mp3")).length), activePrinting.attempts, "Completing a phrase stops its loop without another playback attempt");
+  evidence.checks.taglinePrintingLoop = { ...activePrinting, stoppedAtFinish: true };
+  assert.ok((await page.evaluate(() => window.qaMenuAudio.calls.filter(row => !row.source.endsWith("type.mp3"))))
     .every(row => ["pointerenter", "pointerover", "click"].includes(row.event)), "Button playback attempts occur in their input event");
   await page.mouse.move(0, 0);
   await page.screenshot({ path: path.join(output, "header-menu-audio.png") });

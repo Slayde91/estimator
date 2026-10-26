@@ -97,11 +97,12 @@ async function screenshot(name,fixture) {
   const sourceDefinition = await (await page.request.get(`http://127.0.0.1:${info.port}/api/calculators/steel_vermiculite`)).json();
   const sourceSheet = sourceDefinition.sheets.find(sheet => sheet.name === 'SCHEDULE');
   const sourceColumn = number => number === 27 ? 'AA' : String.fromCharCode(64 + number);
-  const displayColumns = ['Z','AA','A','E','F','C','D','B','H','I','J','G','K','L','M','N','O','P','Q','R','S','T','U','V','W','Y'];
+  const displayColumns = ['Z','AA','A','E','F','C','D','B','H','I','J','Y','G','K','L','M','N','O','P','Q','R','S','T','U','V','W'];
   const scheduleTable = page.locator('#calculator-grid .calculator-schedule-table');
   const fieldLabels = Object.fromEntries(sourceDefinition.schedule.columns.map(field => [field.column, field.label]));
+  const browserFieldLabels = {...fieldLabels, O: 'DFT (mm)'};
   const reportIndex = displayColumns.indexOf('Y');
-  await expect(scheduleTable.locator('thead th')).toHaveText([...displayColumns.slice(0,reportIndex).map(column => fieldLabels[column]), 'Report', ...displayColumns.slice(reportIndex).map(column => fieldLabels[column]), 'Actions']);
+  await expect(scheduleTable.locator('thead th')).toHaveText([...displayColumns.slice(0,reportIndex).map(column => browserFieldLabels[column]), 'Report', ...displayColumns.slice(reportIndex).map(column => browserFieldLabels[column]), 'Actions']);
   const rowAddresses = await scheduleTable.locator('tbody tr[data-source-row="10"] td').evaluateAll(cells => cells
     .map(cell => cell.querySelector('[data-calculator-cell]')?.dataset.calculatorCell || cell.dataset.calculatorOutput).filter(Boolean));
   assert.deepEqual(rowAddresses, displayColumns.map(column => `${column}10`));
@@ -165,6 +166,11 @@ async function screenshot(name,fixture) {
   applicationBasis={placements,choices:['Injected','Uninjected'],mk6Factor:40/27,z106Factor:1,baselineBags:[baseline.T10,baseline.T11],injectedBags:[injected.T10,injected.T11],draftExports:exportedDrafts,savedProjectRoundtrip:true,noImplicitSave:true,restoredUninjected:true};
   console.log('Verified exact basis selectors below Waste, MK6 40/27, independent Z106, unsaved draft PDF/XLSX and saved-project roundtrip.');
   await page.getByRole('button',{name:'Add row',exact:true}).click();
+  const columnsToggle=page.locator('#calculator-pages .schedule-column-toggle');await columnsToggle.click();
+  const columnsPanel=page.locator('#'+await columnsToggle.getAttribute('aria-controls'));await expect(columnsPanel).toBeVisible();
+  for(const column of ['G','K']){const choice=columnsPanel.locator(`[data-schedule-column-choice="column:${column}"]`);await expect(choice).not.toBeChecked();await choice.check();}
+  await columnsPanel.locator('[data-schedule-column-choice="column:K"]').press('Escape');await expect(columnsPanel).toBeHidden();
+  for(const address of ['G12','K12'])await expect(control('SCHEDULE',address)).toBeVisible();
   await fill('SCHEDULE',{A12:'SYNTHETIC-BLOCKED',B12:'MONOKOTE Z106',C12:'Hollow - 4 sides',D12:650,E12:'Hp/A',G12:250,H12:240,I12:1,J12:1,K12:1});
   let scheduled=await recalculate('SCHEDULE');
   for(const address of ['O12','P12','S12','T12','U12']) assert.equal(scheduled[address],'',`blocked schedule ${address}`);

@@ -5,7 +5,7 @@ const { renderDrawing } = require('./viewer_helpers.cjs');
 const { chooseTakeoff } = require('./section_navigation.cjs');
 const { spawn } = require('node:child_process');
 const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
-const root = path.resolve(__dirname, '../..'), output = path.join(root, '.runtime/browser-qa', `text-search-${Date.now()}`);
+const root = path.resolve(__dirname, '../..'), output = process.env.CEASEFIRE_BROWSER_OUTPUT || path.join(root, '.runtime/browser-qa', `text-search-${Date.now()}`);
 fs.mkdirSync(output, { recursive: true });
 const server = spawn(process.env.CEASEFIRE_PYTHON || 'python', [path.join(__dirname, 'search_fixture.py'), '--directory', output], { cwd: root, windowsHide: true });
 let logs = '', browser, page; server.stderr.on('data', value => { logs += value; });
@@ -56,7 +56,7 @@ async function pageInputDuringZoomRefinement(value) {
   }
 }
 (async () => {
-  const info = await ready; assert.notEqual(info.port, 8765);
+  const info = await ready; assert.notEqual(info.port, 8765); evidence.fixturePort=info.port;
   browser = await chromium.launch({ headless: true }); page = await browser.newPage({ viewport: { width: 1500, height: 1000 } }); page.setDefaultTimeout(30000);
   page.on('pageerror', error => errors.push(error.message));
   await page.addInitScript(() => { window.searchCsp = []; document.addEventListener('securitypolicyviolation', event => window.searchCsp.push(event.effectiveDirective)); });
@@ -72,6 +72,7 @@ async function pageInputDuringZoomRefinement(value) {
   await expect(page.locator('.takeoff-progress')).toContainText('Text search complete:', { timeout: 60000 }); await expect(results()).toHaveCount(4);
   await expect(page.locator('.takeoff-search-results')).toBeHidden(); await expect(input()).toHaveValue('fire rated wall');
   await input().click(); await expect(page.locator('.takeoff-search-results')).toBeVisible();
+  evidence.resultReadability=await results().first().evaluate(el=>{const css=getComputedStyle(el);return{color:css.color,background:css.backgroundColor,fontSize:css.fontSize,whiteSpace:css.whiteSpace};});assert.equal(evidence.resultReadability.color,'rgb(39, 35, 28)');assert.ok(parseFloat(evidence.resultReadability.fontSize)>=12);assert.equal(evidence.resultReadability.whiteSpace,'normal');
   assert.equal(await results().first().locator('mark').allTextContents().then(parts => parts.join('')), 'fire rated wall', 'Dropdown emphasizes actual matched source words across text runs');
   evidence.outsideDismissalSurvivesBackgroundResults = true;
   const boxes = await page.evaluate(() => { const input = document.querySelector('.takeoff-search-anchor>input').getBoundingClientRect(), list = document.querySelector('.takeoff-search-results').getBoundingClientRect(); return { input: { x: input.x, y: input.y, bottom: input.bottom }, list: { x: list.x, y: list.y } }; });
@@ -97,7 +98,9 @@ async function pageInputDuringZoomRefinement(value) {
   await query('fire rated wall'); await goPage(2); await page.getByRole('button', { name: 'Search', exact: true }).click();
   await expect(page.locator('.takeoff-progress')).toContainText('No searchable matches on the current page'); await expect(page.getByLabel('Page number', { exact: true })).toHaveValue('2');
   await results().filter({ hasText: 'p3:' }).click(); await expect(page.getByLabel('Page number', { exact: true })).toHaveValue('3'); await expect(page.locator('.takeoff-search-match')).toHaveCount(1);
-  await settingsSettled(page); const beforeZoom = await page.locator('.takeoff-page>canvas').boundingBox(); await page.getByRole('button', { name: '+', exact: true }).click();
+  await expect(page.locator('.takeoff-search-results')).toBeHidden();await settingsSettled(page);const matchJump=await page.locator('.takeoff-search-match').boundingBox(),viewerJump=await page.locator('#takeoff-viewport').evaluate(el=>{const r=el.getBoundingClientRect();return{x:r.x+el.clientLeft+el.clientWidth/2,y:r.y+el.clientTop+el.clientHeight/2};});evidence.resultJump={closed:true,match:matchJump,viewerCenter:viewerJump};assert.ok(Math.abs(matchJump.x+matchJump.width/2-viewerJump.x)<3);assert.ok(Math.abs(matchJump.y+matchJump.height/2-viewerJump.y)<3);assert.ok(matchJump.height>24);await page.screenshot({path:path.join(output,'text-match-zoom.png')});
+  await renderDrawing(page,()=>page.getByRole('button',{name:'−',exact:true}).click());
+  const beforeZoom = await page.locator('.takeoff-page>canvas').boundingBox(); await page.getByRole('button', { name: '+', exact: true }).click();
   await expect.poll(async () => (await page.locator('.takeoff-page>canvas').boundingBox())?.width / beforeZoom.width || 0).toBeGreaterThan(1.24);
   await expect(page.locator('.takeoff-search-match')).toHaveCount(1);
   const alignment = await page.evaluate(() => {

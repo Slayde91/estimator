@@ -145,7 +145,7 @@
     label.textContent = displayedPhrase;
     characters = Array.from(displayedPhrase); count = 0; complete = false;
     typed.textContent = ""; cursor.hidden = false;
-    if (motion?.matches) finish(); else { window.CeasefireHeaderTaglineMedia?.start(); typeNext(); }
+    if (motion?.matches) finish(); else { window.CeasefireHeaderTaglineMedia?.start(); window.CeasefireHeaderTaglineSound?.start(); typeNext(); }
   }
   nextPhrase();
   window.addEventListener("ceasefire:languagechange", () => { sizePhrases(); if (!closed) displayPhrase(); });

@@ -40,6 +40,7 @@
   }
   .calculator-workspace-heading .workspace-header-art { display:none; inset-inline:14% 16%; width:70%; overflow:hidden; }
   #calculator-workspace[data-calculator-kind="steel_vermiculite"] .workspace-header-art--spray,
+  #calculator-workspace[data-calculator-kind="steel_intumescent"] .workspace-header-art--intumescent,
   #calculator-workspace[data-calculator-kind="steel_board"] .workspace-header-art--board,
   #calculator-workspace[data-calculator-kind="ductwork"] .workspace-header-art--ductwork { display:block; }
   /* Keep the wide frame and header height. The inner frame follows the actual
@@ -108,6 +109,10 @@
     left:auto; right:0; top:0; width:calc(100% / .6); height:100%; object-fit:cover; object-position:right center;
   }
   .calculator-heading-art-slot .workspace-header-art--spray .workspace-banner-image { width:100%; object-position:center 78%; }
+  .calculator-heading-art-slot .workspace-header-art--intumescent .workspace-banner-image { width:100%; object-position:center 48%; }
+  /* The longer intumescent title leaves no usable picture slot on phones.
+     Keep its title and controls readable instead of squeezing decorative art. */
+  @media(max-width:480px) { #calculator-workspace[data-calculator-kind="steel_intumescent"] .workspace-header-art--intumescent { display:none; } }
   /* The art has no intrinsic layout size. The original title and actions still
      determine the row height and its wrap point. */
   .takeoff-heading-copy { display:flex; flex:1 0 auto; align-items:center; align-self:stretch; min-width:0; }

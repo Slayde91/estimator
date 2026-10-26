@@ -420,10 +420,12 @@ test("printer blocks stale promises, reduced motion, hidden documents and pagehi
   assert.doesNotThrow(() => createPrinting(null, null).start()); assert.doesNotThrow(() => createFeedback(null, null).close());
 });
 
-test("all supplied feedback assets retain their exact bytes", () => {
+test("supplied feedback assets and the trimmed logo clip retain verified bytes", () => {
   const supplied = {
     // The existing served logo slot contains the exact supplied flame_whoosh.mp3.
     "new-explosion.mp3": [161332, "42de6e27397a942bda71b98b9b564c6a4543ebe88473fac35c10e1335099a1b4"],
+    "flame-whoosh.wav": [736916, "988f40b00194f865d8ca84ef30d0d3b882c08a25a8597a9ebe2aa54524ab966b"],
+    "type.mp3": [149760, "0a78627d0f914dd96d222afcc27e06c8d7777a2d219cef872e8f56a16dcb1c14"],
     "hover.mp3": [5015, "052d0d7f3fb41ddb67766dedd8f4c237b46c8b18745dfad0a73a14c8afb6fad5"],
     "select.mp3": [11520, "60e089eeac138ce5301fb59dc9d649c0404a556499c8f78c15c81a7cdfde1969"],
     "select-2.mp3": [192768, "37e5c8645aa76e11dc8039545940436ea9201e533b1c946fbc9dfc3845efeb7b"],
@@ -435,4 +437,18 @@ test("all supplied feedback assets retain their exact bytes", () => {
     const bytes = fs.readFileSync(path.join(__dirname, "../static/sounds", name));
     assert.equal(bytes.length, size); assert.equal(createHash("sha256").update(bytes).digest("hex"), digest);
   }
+});
+
+test("the preloaded logo PCM begins with audible signal instead of the supplied silent lead", () => {
+  assert.equal(feedbackSources.explosion, "/sounds/flame-whoosh.wav");
+  assert.equal(printingSource, "/sounds/type.mp3");
+  const wav = fs.readFileSync(path.join(__dirname, "../static/sounds/flame-whoosh.wav"));
+  assert.equal(wav.toString("ascii", 0, 4), "RIFF"); assert.equal(wav.toString("ascii", 8, 12), "WAVE");
+  assert.equal(wav.readUInt16LE(20), 1); assert.equal(wav.readUInt16LE(22), 2);
+  assert.equal(wav.readUInt32LE(24), 44100); assert.equal(wav.readUInt16LE(34), 16);
+  assert.equal(wav.readUInt32LE(40), wav.length - 44);
+  let firstPeak = 0;
+  for (let i = 44; i < 44 + 441 * 4; i += 2) firstPeak = Math.max(firstPeak, Math.abs(wav.readInt16LE(i)) / 32768);
+  assert.ok(firstPeak >= .01, "The first 10 ms contains a signal peak above -40 dBFS");
+  assert.equal((wav.length - 44) / 4, 184218, "Only the measured leading 38,118 frames were removed");
 });

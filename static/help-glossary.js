@@ -108,7 +108,7 @@
       add("Register and selection", "Undo last edit", "Undo the latest available Takeoff edit.", { text: "↶" });
       add("Register and selection", "Delete", "Delete selected items after the displayed confirmation.", { path: "bin" });
       add("Register and selection", "Preview transfer / Transfer", "Review selected quantities before applying them to the destination calculator schedule.", { asset: "takeoff-transfer.png" });
-      add("Register and selection", "Update linked rows", "Review and update existing linked calculator rows from their Takeoff items.", { path: "update" });
+      add("Register and selection", "Update linked rows", "Review supported calculator edits and copy them into linked Takeoff items, keeping drawing measurements and quantities unchanged. Confirm the refreshed items again. If the calculator has no edits, update its linked rows from confirmed Takeoff items.", { path: "update" });
       add("Register and selection", "Detach links / Unlink from Firestopping Schedule", "Remove the selected Takeoff-to-schedule links using the displayed prompt.", { path: "unlink" });
       add("Register and selection", "Add substrate / Add defect / Add service", "Create the next physical record in the current Penetration, Defect Report or Service Plan.", { text: "+" });
       add("Register and selection", "Document downloads", "Download confirmed, unconfirmed or all items from the current register as XLSX.", { format: "XLSX" });

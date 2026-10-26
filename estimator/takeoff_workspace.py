@@ -641,6 +641,8 @@ class TakeoffService:
 
     def _request_response(self, session_id, prior):
         response = self._response(session_id)
+        if prior.get('applied_calculator_refresh') and prior['applied_revision'] != response['revision']:
+            raise ValidationError('This calculator refresh was already applied. The workspace changed; inspect the current linked details before continuing. It will not be applied twice.')
         if prior.get('applied_library_link'):
             if 'payload' not in prior or prior['applied_revision'] != response['revision']:
                 raise ValidationError('This commercial link was already applied. Its response expired or the workspace changed; review the retained schedule association. It will not be applied twice.')
@@ -1444,6 +1446,8 @@ class TakeoffService:
                     raise ValidationError('This retained commercial library association cannot be reversed by Takeoff-only Undo. Use Confirm link and quantity or Remove schedule link in Item Details so its contribution stays coordinated with Firestopping.')
                 if event['op'] in ('apply_transfer', 'undo', 'record_render', 'detach_transfers', 'extract_images', 'linked_delete', 'linked_undo'):
                     raise ValidationError('Schedule transfers, source-render observations and undo receipts cannot be reversed by takeoff-only undo.')
+                if event['op'] == 'apply_calculator_refresh':
+                    raise ValidationError('Calculator refresh cannot be reversed by Takeoff-only Undo. Change the calculator details and use Update linked rows again to keep the two records in sync.')
                 after = deepcopy(event['before']); after['audit_head'] = before['audit_head']
                 if 'library_assignments' in before:
                     after['library_assignments'] = deepcopy(before['library_assignments'])
@@ -1972,7 +1976,7 @@ class TakeoffService:
             if not cached:
                 raise ValidationError('This transfer preview expired. Review a new preview.')
             preview = cached['payload']
-            if preview.get('kind') == 'physical':
+            if preview.get('kind') not in (None, 'calculator_transfer'):
                 raise ValidationError('Choose a calculator transfer preview, not a physical edit preview.')
             before = session['snapshot']; result = preview['result']
             if not result['bindings'] or not result['changes']:
@@ -1987,6 +1991,70 @@ class TakeoffService:
             response['calculator'] = {'id': result['calculator_id'], 'inputs': deepcopy(result['inputs']), 'schedule_rows': deepcopy(result['schedule_rows'])}
             session['requests'][request['request_id']].update(applied_transfer=True, applied_revision=response['revision'])
             self._cache_payload(session_id, 'requests', request['request_id'], response['transfer'])
+            return response
+
+    def _calculator_refresh(self, session_id, request):
+        from .takeoff_refresh import refresh_preview
+        snapshot = self._session(session_id)['snapshot']
+        self._items(snapshot, request['item_ids'])
+        self._session_evidence(session_id)
+        self.documents.assert_documents(snapshot['documents'], owner=session_id)
+        self._verify_audit_head(snapshot, owner=session_id)
+        with self.store.connect() as db:
+            registered = set(db.execute('SELECT binding_id,digest FROM takeoff_transfer_receipts WHERE project_id=?',
+                                        (snapshot['project_id'],)))
+        return refresh_preview(snapshot, request, registered)
+
+    def preview_calculator_refresh(self, session_id, request):
+        with self._lock:
+            required = {'expected_revision', 'calculator_id', 'inputs', 'schedule_rows', 'item_ids'}
+            object_fields(request, required, 'Linked calculator refresh', required)
+            session = self._session(session_id); snapshot = session['snapshot']
+            if type(request['expected_revision']) is not int or request['expected_revision'] != snapshot['revision']:
+                raise ValidationError('The Takeoffs draft changed before refreshing linked rows.')
+            result = self._calculator_refresh(session_id, request)
+            preview_id = str(uuid4()) if result['changes'] else None
+            if preview_id:
+                self._cache_payload(session_id, 'previews', preview_id,
+                                    {'kind': 'calculator_refresh', 'request': request, 'result': result})
+            return {**deepcopy(result), 'preview_id': preview_id, 'revision': snapshot['revision']}
+
+    def apply_calculator_refresh(self, session_id, request):
+        with self._lock:
+            required = {'expected_revision', 'request_id', 'preview_id', 'inputs', 'schedule_rows'}
+            object_fields(request, required, 'Apply linked calculator refresh', required)
+            actual = {**request, 'op': 'apply_calculator_refresh'}
+            session, prior = self._start(session_id, actual)
+            if prior:
+                return prior
+            identity(request['preview_id'], 'Calculator refresh preview ID')
+            preview = session['previews'].get(request['preview_id'], {}).get('payload')
+            if not preview or preview.get('kind') != 'calculator_refresh':
+                raise ValidationError('This calculator refresh preview expired. Preview the linked rows again.')
+            result = preview['result']
+            if digest({'inputs': request['inputs'], 'schedule_rows': request['schedule_rows']}) != result['base_fingerprint']:
+                raise ValidationError('The calculator changed during refresh review. No Takeoffs rows were changed.')
+            refreshed = self._calculator_refresh(session_id, {**preview['request'], 'inputs': request['inputs'],
+                                                              'schedule_rows': request['schedule_rows']})
+            if refreshed != result or not result['changes']:
+                raise ValidationError('The linked source changed during refresh review. Preview again.')
+            before = session['snapshot']; after = deepcopy(before)
+            items = {item['id']: item for item in after['items']}; bindings = {entry['id']: entry for entry in after['transfers']}
+            changed_bindings = []
+            for change in result['changes']:
+                item = items[change['item_id']]; item['fields'].update(deepcopy(change['fields']))
+                self._invalidate(after, item)
+                validate_item(item, after, copy_result=False)
+                binding = bindings[change['binding_id']]
+                binding.update(item_version=item['version'], item_digest=item_digest(item, after),
+                               values=deepcopy(change['values']), input_hash=digest(change['values']), status='current')
+                changed_bindings.append(binding)
+            response = self._commit(session_id, actual, before, after, transfers=changed_bindings)
+            metadata = {'linked_refresh': {'calculator_id': result['calculator_id'],
+                                         'item_ids': [change['item_id'] for change in result['changes']]}}
+            session['requests'][request['request_id']]['metadata'] = deepcopy(metadata)
+            session['requests'][request['request_id']].update(applied_calculator_refresh=True, applied_revision=response['revision'])
+            response.update(metadata)
             return response
 
     def export(self, session_id, format, selected_ids=None):

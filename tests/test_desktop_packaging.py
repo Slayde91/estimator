@@ -400,6 +400,10 @@ class DesktopPackagingTests(unittest.TestCase):
             self.assertIn('/icons/' + name, TAKEOFF_ASSETS)
             self.assertNotIn('icons/' + name, STATIC_FILES)
             self.assertTrue((ROOT / 'static/icons' / name).is_file())
+        for name in ('takeoff-visual-search-icon.png', 'takeoff-ocr-icon.png'):
+            self.assertIn('/' + name, TAKEOFF_ASSETS)
+            self.assertNotIn(name, STATIC_FILES)
+            self.assertTrue((ROOT / 'static' / name).is_file())
 
     def test_header_menu_audio_is_packaged_with_exact_supplied_bytes(self):
         supplied = {
@@ -407,6 +411,8 @@ class DesktopPackagingTests(unittest.TestCase):
             'sounds/mgs-confirm2.mp3': (32391, 'e9e7e156e24a4fde706f922ee135e88df51dc5ba94eed6344e66bbd6298e3e86'),
             # The retained logo URL serves the supplied flame_whoosh.mp3 bytes.
             'sounds/new-explosion.mp3': (161332, '42de6e27397a942bda71b98b9b564c6a4543ebe88473fac35c10e1335099a1b4'),
+            'sounds/flame-whoosh.wav': (736916, '988f40b00194f865d8ca84ef30d0d3b882c08a25a8597a9ebe2aa54524ab966b'),
+            'sounds/type.mp3': (149760, '0a78627d0f914dd96d222afcc27e06c8d7777a2d219cef872e8f56a16dcb1c14'),
             'sounds/hover.mp3': (5015, '052d0d7f3fb41ddb67766dedd8f4c237b46c8b18745dfad0a73a14c8afb6fad5'),
             'sounds/select.mp3': (11520, '60e089eeac138ce5301fb59dc9d649c0404a556499c8f78c15c81a7cdfde1969'),
             'sounds/select-2.mp3': (192768, '37e5c8645aa76e11dc8039545940436ea9201e533b1c946fbc9dfc3845efeb7b'),

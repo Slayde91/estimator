@@ -135,8 +135,8 @@ async function focusSettled(field){
  const guide=page.locator('[data-calculator-output="AM11"] .calculator-basis-preview');await expect(guide).toBeVisible();
  const guideRow=await guide.locator('xpath=ancestor::tr').boundingBox();assert.ok(guideRow.height<140,`Compact guide row grew to ${guideRow.height}`);
  await guide.click();await expect(page.locator('#calculator-basis-full')).toContainText('Use the pin and mesh details');await page.getByRole('dialog').getByRole('button',{name:'Close',exact:true}).click();assert.deepEqual(await snapshot(),beforeDuct);
- // Newly visible fixing/application notes remain compact for every duct
- // product, with the exact native text retained in the shared dialog.
+ // Fixing/application notes remain compact for every duct product. The two
+ // omitted source columns stay in the worksheet, with AL retained in-dialog.
  const noteProducts=[[11,'CAFCO 300'],[12,'MONOKOTE'],[13,'FyreWrap']],noteProject=structuredClone(beforeDuct),ductNotesLayout=[];
  noteProject.ductwork.schedule_rows=noteProducts.map(([row])=>row);
  for(const [row,product]of noteProducts)for(const [column,value]of Object.entries({B:'300 x 200',C:product,D:10,E:'120/120/120',F:1,G:0,H:'Internal',I:'Horizontal'}))noteProject.ductwork.inputs.CALCULATOR[column+row]=value;
@@ -146,9 +146,10 @@ async function focusSettled(field){
  for(const [row,product]of noteProducts){
   const sourceRow=notesWorksheet.rows.find(item=>item.row===row),sources=Object.fromEntries(sourceRow.cells.map(cell=>[cell.address,cell.value]));
   const nativeRow=page.locator(`[data-calculator-output="AL${row}"]`).locator('xpath=ancestor::tr'),shape=await nativeRow.boundingBox();assert.ok(shape.height<140,`${product} note row grew to ${shape.height}`);
-  for(const column of ['AL','AP']){const note=page.locator(`[data-calculator-output="${column}${row}"] .calculator-basis-preview`);await expect(note).toBeVisible();assert.equal(typeof sources[column+row],'string');await note.click();await expect(page.locator('#calculator-basis-full')).toHaveText(sources[column+row]);await page.getByRole('dialog').getByRole('button',{name:'Close',exact:true}).click();}
-  await expect(page.locator(`[data-calculator-output="AQ${row}"]`)).toHaveText(sources[`AQ${row}`]);
-  ductNotesLayout.push({product,row,height:shape.height,fullFixingAndApplicationTextRetained:true,sourceReferencesUnchanged:true});
+  for(const column of ['AL','AP','AQ']){assert.equal(typeof sources[column+row],'string');assert.ok(sources[column+row].length,`${product}: ${column} source text remains available`);}
+  const note=page.locator(`[data-calculator-output="AL${row}"] .calculator-basis-preview`);await expect(note).toBeVisible();await note.click();await expect(page.locator('#calculator-basis-full')).toHaveText(sources[`AL${row}`]);await page.getByRole('dialog').getByRole('button',{name:'Close',exact:true}).click();
+  for(const column of ['AP','AQ'])await expect(page.locator(`[data-calculator-output="${column}${row}"]`)).toHaveCount(0);
+  ductNotesLayout.push({product,row,height:shape.height,fullFixingAndApplicationTextRetained:true,sourceReferencesUnchanged:true,sourceColumnsOmittedFromBrowser:true});
  }
  assert.deepEqual(await snapshot(),exactNotesDraft);
  const restoredDuct=page.waitForResponse(reply=>reply.request().method()==='POST'&&reply.url()===`${base}/api/calculators/ductwork/worksheet`,{timeout:60000});await page.evaluate(async copy=>{const api=window.CeasefireCalculators;api.applyProject(await api.prepareProject(copy));},beforeDuct);await chooseCalculator(page,'Duct');assert.equal((await restoredDuct).status(),200);await idle();assert.deepEqual(await snapshot(),beforeDuct);
@@ -159,7 +160,9 @@ async function focusSettled(field){
  await expect(cafco.locator('[data-calculator-output="A26"]')).toHaveCount(0);await expect(cafco.locator('[data-calculator-cell="B44"]')).toBeVisible();
  await page.screenshot({path:path.join(output,'cafco-seven-settings.png'),fullPage:true});
  await chooseCalculator(page,'Steel (intumescent)');await idle();await tab('SCHEDULE');
- await edit('B10','Nullifire SC902','steel_intumescent');await edit('L10',3.5,'steel_intumescent');
+ await edit('B10','Nullifire SC902','steel_intumescent');
+ const columnsButton=page.locator('#calculator-pages .schedule-column-toggle');await columnsButton.click();const columnsPanel=page.locator('#'+await columnsButton.getAttribute('aria-controls'));await expect(columnsPanel).toBeVisible();
+ const areaChoice=columnsPanel.locator('[data-schedule-column-choice="column:L"]');await expect(areaChoice).not.toBeChecked();await areaChoice.check();await areaChoice.press('Escape');await expect(columnsPanel).toBeHidden();await expect(page.locator('[data-calculator-cell="L10"]')).toBeVisible();await edit('L10',3.5,'steel_intumescent');
  for(const cell of ['I10','J10']){await expect(page.locator(`[data-calculator-cell="${cell}"]`)).toHaveAttribute('aria-required','false');await expect(page.locator(`[data-calculator-cell="${cell}"]`)).not.toHaveClass(/calculator-required-missing/);}
  for(const cell of ['B10','C10','D10','E10','H10'])await expect(page.locator(`[data-calculator-cell="${cell}"]`)).toHaveAttribute('aria-required','true');
  await chooseCalculator(page,'Steel (spray)');await idle();await tab('SCHEDULE');

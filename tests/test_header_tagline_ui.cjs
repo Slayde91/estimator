@@ -122,13 +122,13 @@ for (let index = 0; index < phrases.length; index++) {
   assert.equal(h.label.textContent, phrase); assert.deepEqual(h.sizer.children.map(line => line.textContent), phrases.map(line => line + '_'));
   assert.equal(h.typed.textContent, Array.from(phrase)[0]); assert.deepEqual(h.writes, [phrase]);
   assert.equal(h.media.playing, true, 'The supplied character starts with phrase typing');
-  assert.equal(h.printing.starts, 0, 'Every phrase types without starting printing audio');
-  assert.equal(h.printing.playing, false);
+  assert.equal(h.printing.starts, 1, 'Every typed phrase starts its printing loop once');
+  assert.equal(h.printing.playing, true);
   h.finishTyping();
   assert.equal(h.now(), (Array.from(phrase).length - 1) * 35);
   assert.equal(h.cursor.hidden, true, 'Cursor stops as soon as the final character prints');
   assert.equal(h.media.playing, true, 'The supplied character continues after the final character');
-  assert.equal(h.printing.starts, 0, 'Printing stays silent through the final character');
+  assert.equal(h.printing.starts, 1, 'The loop stops at the final character without another playback attempt');
   assert.equal(h.printing.playing, false);
   assert.equal(h.typed.textContent, phrase); assert.equal(h.label.textContent, phrase);
   assert.deepEqual(h.frames, ['', ...Array.from(phrase, (_, i) => Array.from(phrase).slice(0, i + 1).join(''))]);
@@ -238,12 +238,12 @@ for (let index = 0; index < phrases.length; index++) {
 }
 {
   const h = harness(); h.tick(); const stops = h.printing.stops;
-  h.nextPhrase(); assert.equal(h.printing.starts, 0); assert.ok(h.printing.stops > stops);
-  assert.equal(h.printing.playing, false); h.finishTyping(); assert.equal(h.printing.playing, false);
+  h.nextPhrase(); assert.equal(h.printing.starts, 2); assert.ok(h.printing.stops > stops);
+  assert.equal(h.printing.playing, true); h.finishTyping(); assert.equal(h.printing.playing, false);
   const original = h.label.textContent; h.changeLanguage({ [original]: 'Printing replacement' });
-  assert.equal(h.printing.starts, 0); assert.equal(h.printing.playing, false); h.changeMotion(true); assert.equal(h.printing.playing, false);
+  assert.equal(h.printing.starts, 3); assert.equal(h.printing.playing, true); h.changeMotion(true); assert.equal(h.printing.playing, false);
   h.nextPhrase(); assert.equal(h.printing.playing, false); h.changeMotion(false); h.nextPhrase();
-  assert.equal(h.printing.starts, 0); assert.equal(h.printing.playing, false); h.pagehide(); assert.equal(h.printing.playing, false); passed++;
+  assert.equal(h.printing.starts, 4); assert.equal(h.printing.playing, true); h.pagehide(); assert.equal(h.printing.playing, false); passed++;
 }
 const html = fs.readFileSync('static/index.html', 'utf8');
 assert.match(html, /id="header-tagline-character"[^>]*alt=""[^>]*aria-hidden="true"/, 'The decorative supplied character stays out of the accessibility tree');

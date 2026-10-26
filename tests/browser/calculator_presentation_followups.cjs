@@ -31,12 +31,13 @@ async function screenshot(name){
 async function geometry(title,width){
  await page.setViewportSize({width,height:850});
  const result=await page.locator('#calculator-grid .calculator-schedule-table').evaluate(table=>{
-  const scroll=table.closest('.calculator-table-scroll'),rect=table.getBoundingClientRect(),headers=[...table.querySelectorAll('thead th')],row=table.querySelector('tbody tr[data-source-row]');
-  return {width:rect.width,declaredWidth:parseFloat(table.style.width),headers:headers.map(cell=>cell.textContent),widths:[...table.querySelectorAll('col')].map(col=>parseFloat(col.style.width)),columns:headers.length,cells:row?.children.length,
+  const scroll=table.closest('.calculator-table-scroll'),rect=table.getBoundingClientRect(),allHeaders=[...table.querySelectorAll('thead th')],headers=allHeaders.filter(cell=>!cell.hidden),row=table.querySelector('tbody tr[data-source-row]');
+  return {width:rect.width,declaredWidth:parseFloat(table.style.width),headers:headers.map(cell=>cell.textContent),widths:[...table.querySelectorAll('col')].map(col=>parseFloat(col.style.width)),columns:headers.length,cells:row?[...row.children].filter(cell=>!cell.hidden).length:undefined,completeDomColumns:allHeaders.length,completeDomCells:row?.children.length,
    scroll:{width:scroll.clientWidth,content:scroll.scrollWidth,tabIndex:scroll.tabIndex},controls:[...table.querySelectorAll('input,select,textarea')].filter(control=>control.getClientRects().length).map(control=>({cell:control.dataset.calculatorCell,width:control.getBoundingClientRect().width,height:control.getBoundingClientRect().height,cellWidth:control.closest('td').getBoundingClientRect().width})),
    headerWrap:headers.every(header=>getComputedStyle(header).whiteSpace==='normal')};
  });
  assert.equal(result.columns,result.cells);assert.equal(result.columns,result.widths.length);assert.ok(result.headerWrap);
+ assert.equal(result.completeDomColumns,result.completeDomCells,'Complete retained header/body DOM stays aligned separately from visible layout');
  assert.ok(result.widths.every(value=>value<=224));assert.ok(result.widths.includes(144),'Virtual Report has a compact dedicated width');
  assert.ok(result.controls.length);for(const control of result.controls){assert.ok(control.width>=60,JSON.stringify(control));assert.ok(control.width<=control.cellWidth,JSON.stringify(control));assert.ok(control.height>=32,JSON.stringify(control));}
  assert.equal(result.scroll.tabIndex,0);if(width===390){assert.ok(result.scroll.content>result.scroll.width);const scroll=page.locator('#calculator-grid .calculator-table-scroll').filter({has:page.locator('.calculator-schedule-table')});await scroll.evaluate(el=>el.scrollLeft=0);await scroll.focus();await page.keyboard.press('ArrowRight');await expect.poll(()=>scroll.evaluate(el=>el.scrollLeft)).toBeGreaterThan(0);}

@@ -217,6 +217,14 @@ class TakeoffHTTP:
             result = self.service.register_references(session_id, body)
         elif action == 'transfer-apply':
             result = self.service.apply_transfer(session_id, body)
+        elif action == 'calculator-refresh-preview':
+            if query:
+                raise ValidationError('Linked calculator refresh accepts a structured request only.')
+            result = self.service.preview_calculator_refresh(session_id, body)
+        elif action == 'calculator-refresh-apply':
+            if query:
+                raise ValidationError('Linked calculator refresh accepts a structured request only.')
+            result = self.service.apply_calculator_refresh(session_id, body)
         elif action == 'linked-delete':
             result = self.service.delete_linked_items(session_id, body)
         elif action == 'linked-undo':

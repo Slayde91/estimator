@@ -36,6 +36,31 @@ for(const value of ['{broken','{"version":2,"hidden":["column:A"]}','{"version":
  const fresh=harness({'ceasefire.scheduleColumns.v1.board:SCHEDULE':value}),control=fresh.api.create();control.bind('board:SCHEDULE',columns,()=>{});assert.ok(control.inputs.every(({input})=>input.checked));
 }passed++;
 const denied=harness({},true),d=denied.api.create();d.bind('board:SCHEDULE',columns,()=>{});d.inputs[0].input.checked=false;assert.doesNotThrow(()=>d.inputs[0].input.emit('change'));assert.equal(d.inputs[0].input.checked,false);passed++;
+// Only the choices explicitly shown in the requested starting views change.
+// Persisted choices (even Show all) override those defaults without a migration.
+for(const [key,unchecked,checked] of [
+ ['ductwork:CALCULATOR',['V','W','X','AA','AB','AC','AD'],['Y','Z']],
+ ['steel_vermiculite:SCHEDULE',['G','K','L','M','N','P'],['C','D','B','H','I','J','O']],
+ ['steel_intumescent:SCHEDULE',['G','K','L','M','N','Q','T'],['I','J','O','P','R','S','U']],
+]){
+ const choices=[...unchecked,...checked,'AZ'].map(column=>({id:`column:${column}`,label:column}));
+ const hidden=unchecked.map(column=>`column:${column}`);
+ for(const initial of [{},{['ceasefire.scheduleColumns.v1.'+key]:'{broken'}]){
+  const fresh=harness(initial),control=fresh.api.create();control.bind(key,choices,()=>{});
+  assert.deepEqual(Array.from(control.inputs).filter(({input})=>!input.checked).map(({id})=>id),hidden);
+  assert.equal(control.inputs.at(-1).input.checked,true,'An unshown option keeps its previous visible default');
+  assert.equal(fresh.writes(),0,'Reading defaults never rewrites preferences');
+ }
+ for(const savedHidden of [[],[choices.at(-1).id]]){
+  const storedValue=JSON.stringify({version:1,hidden:savedHidden}),saved=harness({['ceasefire.scheduleColumns.v1.'+key]:storedValue}),control=saved.api.create();
+  control.bind(key,choices,()=>{});
+  assert.deepEqual(Array.from(control.inputs).filter(({input})=>!input.checked).map(({id})=>id),savedHidden);
+  assert.equal(saved.stored.get('ceasefire.scheduleColumns.v1.'+key),storedValue);assert.equal(saved.writes(),0);
+ }
+ const unavailable=harness({},true),control=unavailable.api.create();control.bind(key,choices,()=>{});
+ assert.deepEqual(Array.from(control.inputs).filter(({input})=>!input.checked).map(({id})=>id),hidden);
+ passed++;
+}
 // Removing a redundant source display column does not reassign its saved
 // hidden choice to Report, and an existing Report choice keeps its identity.
 for(const hidden of [['column:X'],['column:X','virtual:report']]){

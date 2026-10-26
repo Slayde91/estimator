@@ -38,7 +38,7 @@ async function played(source, prior) {
       await route.continue(); return;
     }
     if (url.origin === origin && url.pathname === "/api/project/save-as" && request.method() === "POST") saveRequests++;
-    if (url.origin === origin && !["GET", "HEAD"].includes(request.method()) && !/^\/api\/(?:calculate|download-progress|project\/save-as|penetration\/(?:definition|calculate)|calculators\/[^/]+\/(?:worksheet|calculate))$/.test(url.pathname)) {
+    if (url.origin === origin && !["GET", "HEAD"].includes(request.method()) && !/^\/api\/(?:calculate|download-progress|project\/save-as|penetration\/(?:definition|calculate|references)|calculators\/[^/]+\/(?:worksheet|calculate))$/.test(url.pathname)) {
       evidence.blocked_requests.push({ method: request.method(), path: url.pathname }); await route.abort(); return;
     }
     await route.continue();
@@ -162,7 +162,8 @@ async function played(source, prior) {
   await submenu.hover(); await page.locator("#steel-calculator-navigation-toggle").hover();
   await page.locator('#steel-calculator-navigation-menu [data-calculator-id="steel_board"]').click(); await idle();
   const tabIds = await page.locator('#calculator-pages button[data-calculator-page]').evaluateAll(buttons => buttons.map(button => button.dataset.calculatorPage));
-  assert.ok(tabIds.length >= 3);
+  assert.deepEqual(tabIds, ["CALCULATOR", "BOARD SUMMARY"], "Board exposes its schedule and purchasing summary; Settings stays hidden");
+  await expect(page.locator('#calculator-pages button[data-calculator-page]')).toHaveText(["SCHEDULE", "BOARD SUMMARY"]);
   for (const id of [...tabIds.slice(1), tabIds[0]]) {
     const selected = page.locator(`#calculator-pages button[data-calculator-page="${id}"]`), original = await selected.elementHandle();
     const start = await page.evaluate(() => window.qaMenuAudio.calls.length);
@@ -174,7 +175,7 @@ async function played(source, prior) {
     assert.deepEqual(await page.evaluate(start => window.qaMenuAudio.calls.slice(start).filter(row => row.event === "click").map(row => row.source), start), ["/sounds/select-2.mp3"], "A tab owns exactly one immediate click sound");
     await original.dispose();
   }
-  evidence.checks.calculatorTabNativeClickWithoutReplacementInterruption = { pages: tabIds.length, minimumPlaybackSeconds: 0.2 };
+  evidence.checks.calculatorTabNativeClickWithoutReplacementInterruption = { pages: tabIds.length, pageIds: tabIds, minimumPlaybackSeconds: 0.2 };
   await page.locator("#calculator-document-toggle").click();
   templateActions.push({ hold: true });
   prior = await page.evaluate(() => window.qaMenuAudio.playing.filter(row => row.source.endsWith("loading.mp3")).length);

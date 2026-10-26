@@ -29,7 +29,7 @@ async function snapshot(){await idle();return page.evaluate(()=>({
  const origin=`http://127.0.0.1:${info.port}`;
  await page.route('**/*',route=>{
   const request=route.request(),url=new URL(request.url()),method=request.method();
-  const purePost=method==='POST'&&(['/api/calculate','/api/penetration/calculate','/api/penetration/definition'].includes(url.pathname)||/^\/api\/calculators\/(?:steel_vermiculite|steel_board|steel_intumescent|ductwork)\/(?:worksheet|calculate)$/.test(url.pathname));
+  const purePost=method==='POST'&&(['/api/calculate','/api/penetration/calculate','/api/penetration/definition','/api/penetration/references'].includes(url.pathname)||/^\/api\/calculators\/(?:steel_vermiculite|steel_board|steel_intumescent|ductwork)\/(?:worksheet|calculate)$/.test(url.pathname));
   if(url.origin===origin&&(['GET','HEAD'].includes(method)||purePost))return route.continue();
   evidence.blocked_requests.push({method,path:url.pathname});return route.abort('blockedbyclient');
  });

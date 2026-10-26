@@ -29,7 +29,6 @@ from reportlab.platypus import (
 )
 
 from .calculator import masking_breakdown
-from .presentation import calculation_error_details
 from .company_settings import company_logo, contact_lines, DEFAULTS as COMPANY_DEFAULTS
 
 
@@ -130,7 +129,7 @@ def _numeric(value):
 def _number(value, *, money=False, percent=False, blank="Unavailable"):
     if not _numeric(value):
         if isinstance(value, str) and value.startswith("#"):
-            return "Unavailable: " + value
+            return "Unavailable"
         if isinstance(value, (int, float)) and not isinstance(value, bool):
             return "Unavailable: non-finite value"
         return blank if value is None or value == "" else _text(value)
@@ -213,7 +212,7 @@ class _Report:
 
     def value(self, cell, **formatting):
         if cell in self.errors:
-            return "Unavailable: " + _text(self.errors[cell])
+            return "Unavailable"
         return _number(self.cells.get(cell), **formatting)
 
     def total_cells(self, cells, **formatting):
@@ -221,7 +220,7 @@ class _Report:
         values = []
         for cell in cells:
             if cell in self.errors:
-                return "Unavailable: " + _text(self.errors[cell])
+                return "Unavailable"
             value = self.cells.get(cell)
             if value in (None, ""):
                 value = 0
@@ -344,7 +343,7 @@ class _Report:
             alert = Table([[self.p("CALCULATION INCOMPLETE", "alert")], [self.p(
                 "Some results are unavailable because the estimate contains calculation errors. "
                 "Available values are shown as recorded; unavailable values are never replaced with zero. "
-                "The complete error list is in the quote notes section.", "body")]],
+                "Review the estimate inputs before relying on the totals.", "body")]],
                 colWidths=[_WIDTH])
             alert.setStyle(TableStyle([
                 ("BACKGROUND", (0, 0), (-1, -1), colors.white),
@@ -567,14 +566,7 @@ class _Report:
 
     def notes(self):
         if self.errors:
-            # Removing the requested notes section must not hide the complete
-            # recorded calculation-error list for an unavailable quote result.
-            self.story.append(PageBreak())
-            self.story.append(self.p("Calculation errors - complete list", "subheading"))
-            error_rows = [[self.p(error["label"], "cell"), self.p(error["code"], "cell")]
-                          for error in calculation_error_details(self.result)]
-            self.story.append(self.table(["Affected calculation", "Recorded error"], error_rows,
-                                         [_WIDTH * .55, _WIDTH * .45], compact=True))
+            self.story.append(self.p("Some results are unavailable. Review the estimate inputs before relying on the totals.", "alert"))
 
 
 def render_quote_pdf(quote: dict, *, company=None) -> bytes:

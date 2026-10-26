@@ -1,6 +1,7 @@
 """Penetration exports project one calculated snapshot, never recalculate totals."""
 
 from io import BytesIO
+from xml.sax.saxutils import escape, quoteattr
 from .company_settings import company_logo
 
 from openpyxl import Workbook
@@ -13,6 +14,9 @@ from .pricing_workbook import _serialize_exact
 from .report import _Report, _company_header, _register_fonts, _number, _numeric, _LINE, _MUTED
 from .reference_library import ReferenceNotFound
 from .service_dimensions import service_size_evidence
+from .penetration_references import resolve_schedule_references
+from .library_report_links import valid_report_url
+from .catalog import ValidationError
 
 
 SCHEDULE = (
@@ -119,7 +123,8 @@ def render_penetration_pdf(result, definition, project_details, *, library=None,
     report.story.append(report.p('Schedule', 'subheading'))
     fields_by_column = {field['column']: field for field in definition['row_fields'] + definition['output_fields']}
     source_rows = {row['id']: row for row in result.get('draft', {}).get('rows', [])}
-    widths = [content * part for part in (.045, .10, .18, .07, .11, .17, .13, .195)]
+    references = resolve_schedule_references(result['draft'], library)['row_references']
+    widths = [content * part for part in (.04, .08, .18, .075, .09, .13, .11, .145, .15)]
     schedule_rows = []
     for index, row in enumerate(result['rows'], 1):
         thumbnail = report.p('', 'cell')
@@ -137,9 +142,14 @@ def render_penetration_pdf(result, definition, project_details, *, library=None,
                 # A removed or unreadable optional diagram must not prevent
                 # the calculated schedule from being downloaded.
                 pass
+        captions = []
+        for reference in references[row['id']]['reports']:
+            label, url = escape(reference['label']), reference.get('url')
+            captions.append(f'<link href={quoteattr(url)}>{label}</link>' if valid_report_url(url) else label)
         schedule_rows.append([report.p(str(index), 'cell'), thumbnail] +
-            [report.p(_display(_value(row, col), fields_by_column.get(col)), 'cell') for _, col in SCHEDULE])
-    schedule_table = report.table(['Line', 'Source image'] + [label for label, _ in SCHEDULE],
+            [report.p(_display(_value(row, col), fields_by_column.get(col)), 'cell') for _, col in SCHEDULE] +
+            [report.rich(' | '.join(captions), 'cell')])
+    schedule_table = report.table(['Line', 'Diagram'] + [label for label, _ in SCHEDULE] + ['Report'],
                                   schedule_rows, widths, compact=True)
     # Split a long row within the first page fragment instead of adding a
     # second repeated header below the preceding complete rows on that page.
@@ -154,11 +164,10 @@ def render_penetration_pdf(result, definition, project_details, *, library=None,
             schedule_table.setStyle(TableStyle([('VALIGN', (0, row_index), (-1, row_index), 'TOP')]))
     report.story.append(schedule_table)
     for index, row in enumerate(result['rows'], 1):
-        for error in row.get('errors', []):
-            report.story.append(report.p(f"Line {index} · {error['cell']}: {error['message']}", 'alert'))
-    for error in result.get('errors', []):
-        if not error.get('row_id'):
-            report.story.append(report.p(f"{error['cell']}: {error['message']}", 'alert'))
+        if row.get('errors'):
+            report.story.append(report.p(f'Line {index}: Check the entered values; a result is unavailable.', 'alert'))
+    if any(not error.get('row_id') for error in result.get('errors', [])):
+        report.story.append(report.p('Check the schedule; a summary result is unavailable.', 'alert'))
 
     output = BytesIO()
     document = SimpleDocTemplate(output, pagesize=landscape(A4), leftMargin=margin, rightMargin=margin,
@@ -226,7 +235,7 @@ def render_penetration_summary_pdf(result, definition, project_details, *, libra
     return output.getvalue()
 
 
-def build_penetration_register(result, definition, project_details):
+def build_penetration_register(result, definition, project_details, *, library=None):
     """Values-only Excel export; user text cannot become formulas or links."""
     workbook = Workbook()
     workbook.remove(workbook.active)
@@ -236,13 +245,29 @@ def build_penetration_register(result, definition, project_details):
     row = _table(summary, 4, ['Project details', 'Value'],
                  [[label, project_details.get(key, '')] for label, key in
                   [('Project No.', 'project_no'), ('Client', 'client'), ('Site Address', 'site_address')]], [36, 64])
-    widths = [9, 35, 14, 22, 36, 24, 28]
+    references = resolve_schedule_references(result['draft'], library)['row_references']
+    widths = [9, 35, 14, 22, 36, 24, 28, 45]
+    if any(len(' | '.join(reference['label'] for reference in value['reports'])) > 32767 for value in references.values()):
+        raise ValidationError('This report list is too long for an Excel cell. Choose fewer references or use PDF.')
     schedule = _sheet(workbook, 'Schedule', 'PENETRATION SCHEDULE', widths)
     fields_by_column = {field['column']: field for field in definition['row_fields'] + definition['output_fields']}
-    _table(schedule, 4, ['Line'] + [label for label, _ in SCHEDULE],
-           [[index] + [_value(row, column) for _, column in SCHEDULE]
+    _table(schedule, 4, ['Line'] + [label for label, _ in SCHEDULE] + ['Report'],
+           [[index] + [_value(row, column) for _, column in SCHEDULE] +
+            [' | '.join(reference['label'] for reference in references[row['id']]['reports'])]
             for index, row in enumerate(result['rows'], 1)], widths,
            formats={index: _excel_format(fields_by_column.get(column, {})) for index, (_, column) in enumerate(SCHEDULE, 2)}, filtered=True)
+    report_rows = [(index, reference) for index, row in enumerate(result['rows'], 1)
+                   for reference in references[row['id']]['reports']]
+    if report_rows:
+        report_sheet = _sheet(workbook, 'Reports', 'REPORT REFERENCES', [12, 65])
+        _table(report_sheet, 4, ['Line', 'Report'], [[index, reference['label']] for index, reference in report_rows], [12, 65])
+        for offset, (_, reference) in enumerate(report_rows, 5):
+            if valid_report_url(reference.get('url')):
+                report_sheet.cell(offset, 2).hyperlink = reference['url']
+        for offset, row in enumerate(result['rows'], 5):
+            values = references[row['id']]['reports']
+            if len(values) == 1 and valid_report_url(values[0].get('url')):
+                schedule.cell(offset, 8).hyperlink = values[0]['url']
     settings_fields, settings_schema = definition.get('global_fields', []), definition.get('settings', {})
     if settings_fields or settings_schema:
         settings = _sheet(workbook, 'Settings', 'FIRESTOPPING SETTINGS', [36, 70, 18, 18])
@@ -278,16 +303,18 @@ def build_penetration_register(result, definition, project_details):
                 _input_records(row, fields) if key == 'inputs' else
                 ((item, row[key].get(item['column']), '') for item in fields))
         ]
-        _table(sheet, 4, ['Line', 'Parameter', 'Value', 'Units'] + (['Basis'] if key == 'inputs' else []),
+        _table(sheet, 4, ['Line', 'Parameter', 'Value', 'Units'] + (['Entry mode'] if key == 'inputs' else []),
                [[index, field['label'], value, field.get('units', '')] + ([basis] if key == 'inputs' else [])
                 for index, field, value, basis in records], widths, filtered=True)
         for offset, (_, field, _, _) in enumerate(records, 5):
             sheet.cell(offset, 3).number_format = _excel_format(field)
     if result.get('errors'):
-        widths = [24, 22, 85]
+        widths = [24, 85]
         sheet = _sheet(workbook, 'Calculation errors', 'CALCULATION ERRORS', widths)
-        _table(sheet, 4, ['Line ID', 'Cell', 'Error'],
-               [[error.get('row_id', ''), error['cell'], error['message']] for error in result['errors']], widths)
+        _table(sheet, 4, ['Line', 'Review'],
+               [[index, 'Check the entered values; a result is unavailable.']
+                for index, row in enumerate(result['rows'], 1) if row.get('errors')] +
+               ([['Summary', 'A result is unavailable.']] if any(not error.get('row_id') for error in result['errors']) else []), widths)
     for sheet in workbook:
         sheet.print_area = sheet.dimensions
     return _serialize_exact(workbook)

@@ -2273,8 +2273,9 @@
       await Promise.all([window.CeasefireCalculators.completeProjectSnapshot(), window.CeasefirePenetrations.completeProjectSnapshot()]);
       if (context !== state.quoteContext) throw new Error("The project changed. Download the report again.");
       const calculators = Object.fromEntries(Object.entries(window.CeasefireCalculators.projectSnapshot()).map(([id, value]) => [id, { inputs: value.inputs }]));
+      const takeoffSession = window.CeasefireTakeoffs?.sessionId?.();
       const payload = { calculators, penetration: window.CeasefirePenetrations.projectSnapshot().draft,
-        configuration: clone(state.quoteConfiguration || state.configuration), project_details: quoteDetails() };
+        configuration: clone(state.quoteConfiguration || state.configuration), project_details: quoteDetails(), ...(takeoffSession ? { takeoff_session_id: takeoffSession } : {}) };
       const saved = await window.CeasefireDownloads.save(`/api/project/${materials ? "full-product-summary" : "full-schedule"}.pdf`, payload, { button });
       message(uiCopy("PDF saved to {0}. It includes the schedule inputs captured when the download was prepared.", [saved.path]));
     } catch (error) { message(error.message, true); }

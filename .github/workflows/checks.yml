@@ -30,6 +30,7 @@ jobs:
       - run: node --check static/downloads.js
       - run: node --check static/main-layout.js
       - run: node --check static/penetration.js
+      - run: node --check static/penetration-references.js && node --test tests/test_penetration_references_ui.cjs
       - run: node --check static/penetration-breakdown.js
       - run: node --check static/libraries.js
       - run: node --check static/library-detail-text.js
@@ -109,6 +110,7 @@ jobs:
       - run: node tests/browser/ocr_layer.cjs
       - run: node tests/browser/visual_search.cjs
       - run: node tests/browser/schedule_columns.cjs
+      - run: node tests/browser/penetration_references.cjs
       - run: node tests/browser/calculation_queue.cjs
       - run: npm run test:project-library-drafts
       - run: node tests/browser/pdf_render_gate.cjs

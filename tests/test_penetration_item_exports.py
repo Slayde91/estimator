@@ -140,11 +140,11 @@ class CurrentItemExportTests(unittest.TestCase):
         workbook = load_workbook(BytesIO(build_item_xlsx(snapshot)), data_only=False)
         self.assertEqual(snapshot, before)
         self.assertNotIn('Schedule', workbook.sheetnames)
-        rows = {row[2].value: row for row in workbook['Inputs'].iter_rows(min_row=5)}
-        self.assertEqual(rows['AW'][3].value, value['item']['inputs']['AW'])
-        self.assertEqual(rows['AX'][3].value, value['item']['inputs']['AX'])
-        self.assertEqual(rows['T'][3].value, value['item']['inputs']['T'])
-        self.assertEqual(rows['T'][3].data_type, 's')
+        rows = {field['column']: row for field, row in zip(definition({})['row_fields'], workbook['Inputs'].iter_rows(min_row=5))}
+        self.assertEqual(rows['AW'][2].value, value['item']['inputs']['AW'])
+        self.assertEqual(rows['AX'][2].value, value['item']['inputs']['AX'])
+        self.assertEqual(rows['T'][2].value, value['item']['inputs']['T'])
+        self.assertEqual(rows['T'][2].data_type, 's')
         self.assertEqual(len(rows), len(definition({})['row_fields']))
         self.assertTrue(all(cell.data_type != 'f' and cell.hyperlink is None for sheet in workbook for row in sheet for cell in row))
         self.assertEqual(workbook['Item']['B5'].value, 'unsaved-current-item')
@@ -160,7 +160,7 @@ class CurrentItemExportTests(unittest.TestCase):
         self.assertIn('Current Firestopping item', text)
         self.assertIn('Current item only', text)
         self.assertIn('Unsaved system details', text)
-        self.assertIn(sha256(payload).hexdigest(), text)
+        self.assertNotIn(sha256(payload).hexdigest(), text)
         self.assertNotIn('Schedule', text)
         # First-page source image plus company logo; the source is 320x160.
         dimensions = [(image.image.width, image.image.height) for page in reader.pages for image in page.images]
@@ -177,9 +177,9 @@ class CurrentItemExportTests(unittest.TestCase):
         value['item']['library_item_id'] = 'pfp-no-image'
         snapshot = prepare_item_snapshot(value, library=DiagramLibrary(), default_configuration={}, require_diagram=False)
         workbook = load_workbook(BytesIO(build_item_xlsx(snapshot)), data_only=False)
-        identity = dict(workbook['Source'].iter_rows(min_row=5, values_only=True))
-        self.assertEqual(identity['library_item_id'], 'pfp-no-image')
-        self.assertEqual(identity['status'], 'unavailable')
+        self.assertNotIn('Source', workbook.sheetnames)
+        self.assertEqual(snapshot['diagram_identity']['library_item_id'], 'pfp-no-image')
+        self.assertEqual(snapshot['diagram_identity']['status'], 'unavailable')
         self.assertEqual(workbook['Item']['B5'].value, value['item']['id'])
         with self.assertRaisesRegex(ValidationError, 'unavailable'):
             render_item_pdf(snapshot)

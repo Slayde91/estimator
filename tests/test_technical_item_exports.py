@@ -79,7 +79,7 @@ class TechnicalItemExportsTests(unittest.TestCase):
             self.assertIn('ABN: 50 612 231 562', page.extract_text())
             self.assertIn('TECHNICAL ITEM', page.extract_text())
         text = '\n'.join(page.extract_text() for page in reader.pages)
-        for value in ('SYN-123', 'Unlinked source report', '=Literal source text', 'Copper pipe 25 mm', 'Source information'):
+        for value in ('SYN-123', 'Unlinked source report', '=Literal source text', 'Copper pipe 25 mm'):
             self.assertIn(value, text)
         for value in ('Item ID: ', 'Source SHA256:', snapshot['images'][0]['source_sha256'],
                       snapshot['images'][0]['filename'], snapshot['images'][0]['caption'],
@@ -89,10 +89,12 @@ class TechnicalItemExportsTests(unittest.TestCase):
         self.assertFalse(any(cell.value == snapshot['images'][0]['filename'] for cell in cells))
         self.assertNotIn('Filename', [cell.value for cell in cells])
         self.assertFalse(any(cell.value in {'Id', 'Title', 'Subtitle', 'Source SHA256'} for row in workbook['Item Details'] for cell in row))
-        self.assertIn(snapshot['record']['notice'], text)
+        self.assertNotIn(snapshot['record']['notice'], text)
+        self.assertNotIn('Source information', text)
+        self.assertNotIn('Source Information', workbook.sheetnames)
         for label, filename, document_id, page, sheet, row in snapshot['sources']:
             if label:
-                self.assertIn(label, text)
+                self.assertNotIn(label, text)
         uris = [annotation.get_object()['/A']['/URI'] for page in reader.pages for annotation in page.get('/Annots', []) if '/A' in annotation.get_object() and '/URI' in annotation.get_object()['/A']]
         self.assertEqual(uris, [REPORT_URL])
         source_images = [image.image for page in reader.pages for image in page.images if image.image.size == (640, 360)]
@@ -108,13 +110,13 @@ class TechnicalItemExportsTests(unittest.TestCase):
                                'rows': [[f'row{row}-column{column}' for column in range(1, 21)] for row in (1, 2)]}]
         reader = PdfReader(BytesIO(render_technical_item_pdf(snapshot)))
         text = '\n'.join(page.extract_text() for page in reader.pages)
-        self.assertIn('source row numbers align these parts.', text)
+        self.assertIn('row numbers align these parts.', text)
         for row in (1, 2):
             for column in range(1, 21):
                 self.assertIn(f'row{row}-column{column}', text)
         workbook = load_workbook(BytesIO(build_technical_item_xlsx(snapshot)))
-        self.assertEqual(workbook['Source Table 1']['A3'].value, snapshot['tables'][0]['caption'])
-        self.assertEqual(list(workbook['Source Table 1'].iter_rows(min_row=6, max_row=7, values_only=True)), [tuple(row) for row in snapshot['tables'][0]['rows']])
+        self.assertIsNone(workbook['Installation Table 1']['A3'].value)
+        self.assertEqual(list(workbook['Installation Table 1'].iter_rows(min_row=5, max_row=6, values_only=True)), [tuple(row) for row in snapshot['tables'][0]['rows']])
 
     def test_tampered_registered_image_fails_closed_before_export(self):
         (self.root / 'images/diagram-a.png').write_bytes(b'changed original')
@@ -136,7 +138,7 @@ class TechnicalItemExportsTests(unittest.TestCase):
     def test_record_without_diagram_explicit_in_both_formats(self):
         snapshot = self.capture({'id': 'report-a-v2'})
         text = '\n'.join(page.extract_text() for page in PdfReader(BytesIO(render_technical_item_pdf(snapshot))).pages)
-        self.assertIn('No source diagram is recorded.', text)
+        self.assertIn('No diagram is recorded.', text)
         workbook = load_workbook(BytesIO(build_technical_item_xlsx(snapshot)))
         self.assertEqual(len(workbook['Source Diagrams']._images), 0)
 
@@ -152,11 +154,10 @@ class TechnicalItemExportsTests(unittest.TestCase):
         cells = [str(cell.value) for sheet in workbook for row in sheet for cell in row if cell.value is not None]
         xlsx = '\n'.join(cells)
         for text in (pdf, xlsx):
-            for expected in ('Batt w/ min. 12.3456789012345 mm; max. 50 mm only.',
-                             'Wrap w/ min. 25 mm; not approved for 50 mm.',
-                             'Intubatt w/ 60 mm', 'min. 120 minutes p/ side',
-                             'Only to aperture of damper.', 'pkb-001'):
+            for expected in ('Batt w/ min. 12.3456789012345 mm; max. 50 mm only.',):
                 self.assertIn(expected, text)
+            for hidden in ('Wrap w/ min. 25 mm; not approved for 50 mm.', 'pkb-001'):
+                self.assertNotIn(hidden, text)
             self.assertNotIn('FIREFLY', text)
         self.assertEqual(snapshot, before)
 

@@ -144,7 +144,7 @@ window.CeasefireScheduleColumns = (() => {
   const browserPresentation = {
     steel_vermiculite: {
       START: { text: { A7: "Use SCHEDULE to enter members and SUMMARY to review product quantities. Open FACTOR CALCS for the Section Factor Helper." } },
-      SCHEDULE: { column_order: ["Z", "AA", "A", "E", "F", "C", "D", "B", "H", "I", "J", "Y", "G"], text: { O9: "DFT (mm)" } },
+      SCHEDULE: { register_omit_columns: ["V", "W", "Y"], column_order: ["Z", "AA", "A", "E", "F", "C", "D", "B", "H", "I", "J", "G"], text: { O9: "DFT (mm)" } },
       CALCULATOR: { hide: ["A1"], text: { A1: "" }, center: ["A6:F24", "H6:N24"], split_status: ["H9", "H20"] }, // 4–5
       BAGS: { center: ["A6:N15", "A19:I25"] }, // Manual quantities and all six product totals
       SETTINGS: {
@@ -159,7 +159,7 @@ window.CeasefireScheduleColumns = (() => {
       },
     },
     steel_intumescent: {
-      SCHEDULE: { column_order: ["Z", "AA", "A", "E", "F", "C", "D", "B", "H", "I", "J", "Y", "G"] },
+      SCHEDULE: { register_omit_columns: ["V", "W", "Y"], column_order: ["Z", "AA", "A", "E", "F", "C", "D", "B", "H", "I", "J", "G"] },
       SETTINGS: {
         omit: ["A4:D4", "A6:D8", "A12:D13", "A15:D15", "A18:D20", "A26:H30", "A34:F34", "A48:F52", "A64:H64", "A86:H93"],
         text: { A36: "Nominal mixed density estimate (kg/L)" },
@@ -169,7 +169,7 @@ window.CeasefireScheduleColumns = (() => {
     steel_board: {
       CALCULATOR: {
         omit_columns: ["L"], schedule_omit_columns: ["Y", "AA", "AC", "AD"],
-        register_omit_columns: ["M", "N", "O", "P", "Q", "R", "S", "T", "U"],
+        register_omit_columns: ["M", "N", "O", "P", "Q", "R", "S", "T", "U", "X", "AI"],
         column_order: ["A", "B", "C", "D", "F", "CJ", "G", "H", "I", "J", "K", "E"],
         text: { AE8: "Board net (m²)", AG8: "Sheets", AH8: "Purchase area (m2)" },
       }, // Retain source inputs, calculated outputs and saved row waste.
@@ -1003,7 +1003,7 @@ window.CeasefireScheduleColumns = (() => {
         A6: [["Only START, CALCULATOR and BOARD SUMMARY are visible. See START for optional columns and hidden supporting sheets.", "Use START for guidance, BOARD SUMMARY for purchasing, and SETTINGS for configuration. Previously saved additional-board allowances remain included."]],
         Y2: [["AD = reference box only  |  AE = all board layers, net  |  AF = board including wastage", "Box reference area is for reference only  |  Board required - net includes all layers  |  Board incl waste includes wastage"]],
         Y5: [["AI gives the issue and action directly.", "Row status gives the issue and action directly."]],
-        Y6: [["their notes in AI", "their Row status notes"]],
+        Y6: [["AI gives the reason and next action for each row.", "Review the selected report for installation details."], ["Resolve their notes in AI", "Review the selected report"], ["stated in AI", "stated in the selected report"]],
       },
       SETTINGS: { A3: [["Blue wastage", "The wastage setting"]] },
       "BOARD SUMMARY": {
@@ -1305,7 +1305,7 @@ window.CeasefireScheduleColumns = (() => {
     const pages = definition.display_pages?.length ? definition.display_pages : definition.pages.map((sheet) => ({ id: sheet, label: sheet, sheet }));
     return pages.filter(page => !(["steel_vermiculite", "steel_board"].includes(definition.id) && page.id === "START")
       && !(definition.id === "steel_vermiculite" && (factorView ? page.id !== "FACTOR CALCS" : ["CALCULATOR", "FACTOR CALCS"].includes(page.id)))
-      && !(definition.id === "steel_board" && page.sheet === "EXTRA BOARDS")).map((page) => page.id === "FACTOR CALCS" ? { ...page, label: "Factor Calcs", section_ids: page.section_ids.filter(id => id !== "A370") } : page.id === "CALCULATOR" && page.sheet === "CALCULATOR" ?
+      && !(definition.id === "steel_board" && ["EXTRA BOARDS", "SETTINGS"].includes(page.sheet))).map((page) => page.id === "FACTOR CALCS" ? { ...page, label: "Factor Calcs", section_ids: page.section_ids.filter(id => id !== "A370") } : page.id === "CALCULATOR" && page.sheet === "CALCULATOR" ?
       { ...page, label: definition.id === "steel_vermiculite" ? "LOOKUP" : ["steel_board", "ductwork"].includes(definition.id) ? "SCHEDULE" : page.label }
       : definition.id === "steel_vermiculite" && page.id === "BAGS" ? { ...page, label: "SUMMARY" } : page);
   }
@@ -1638,6 +1638,15 @@ window.CeasefireScheduleColumns = (() => {
   }
 
   function bindCalculatorLabel(element, cell, entry, address, display = cell.value) {
+    if (entry?.definition.id === "steel_board" && entry.sheet === "CALCULATOR" && address === "Y6" && typeof display === "string") {
+      const incomplete = display.match(/^Incomplete order: (\d+) row\(s\) have no board quantity\. Review the selected report before ordering\.$/);
+      if (incomplete) {
+        window.CeasefireI18n.text(element, "Incomplete order: {0} row(s) have no board quantity. Review the selected report before ordering.", [incomplete[1]]); return true;
+      }
+      if (["Enter a steel schedule. Review the selected report for installation details.", "Board layers calculated; complete the checks and extra-board allowances stated in the selected report."].includes(display)) {
+        window.CeasefireI18n.text(element, display); return true;
+      }
+    }
     if (!cell.editable && !cell.calculated && typeof cell.value === "string"
       && calculatorLabelSources[entry?.definition.id]?.[entry?.sheet]?.[address] === cell.value) {
       window.CeasefireI18n.text(element, display); return true;
@@ -2542,7 +2551,7 @@ window.CeasefireScheduleColumns = (() => {
     const copiedFixingNote = "The copied fixing instructions use the first schedule row’s fixed technical references on every row. This is the approved correction to the source workbook; quantity formulas are unchanged.";
     const hideCopiedFixingNote = entry.definition.id === "ductwork" && ["CALCULATOR", "SUMMARY", "PRODUCT SETTINGS"].includes(entry.sheet);
     const warnings = (result.warnings || []).map((warning) => typeof warning === "string" ? warning : warning.message || warning.label || "").filter((warning) => warning && !(hideCopiedFixingNote && warning === copiedFixingNote));
-    if (result.required_review_rows?.length) warnings.unshift(window.CeasefireI18n.translate("Complete required fields on {0} schedule row(s).", [result.required_review_rows.length]));
+    if (!entry.factorView && result.required_review_rows?.length) warnings.unshift(window.CeasefireI18n.translate("Complete required fields on {0} schedule row(s).", [result.required_review_rows.length]));
     $("calculator-warnings").textContent = warnings.join("\n"); $("calculator-warnings").hidden = !warnings.length;
     calculationStatus(); updateStatus(entry);
   }
@@ -2706,7 +2715,8 @@ window.CeasefireScheduleColumns = (() => {
     const factorView = requestedId === "steel_factors", id = factorView ? "steel_vermiculite" : requestedId;
     const serial = ++state.loadRevision;
     window.CeasefireProposalCalculators?.showWorkbook?.();
-    if (id === state.current && Boolean(current()?.factorView) === factorView && state.gridEntry === current() && current()?.result && !current().needsRender) {
+    if (id === state.current && Boolean(current()?.factorView) === factorView && state.gridEntry === current() && current()?.result && !current().needsRender
+        && displayPages(current().definition, factorView).some(page => page.id === currentPage(current()))) {
       refreshScheduleDeleteControls(current());
       $("calculator-workspace").hidden = false; renderChoices(); return;
     }
@@ -2728,6 +2738,11 @@ window.CeasefireScheduleColumns = (() => {
         const pages = displayPages(entry.definition, factorView);
         const page = pages.find(page => page.id === (factorView ? "FACTOR CALCS" : entry.standardPage)) || pages[0];
         entry.page = page.id; entry.sheet = page.sheet;
+      }
+      const availablePages = displayPages(entry.definition, factorView);
+      if (!availablePages.some(page => page.id === currentPage(entry))) {
+        const page = availablePages[0];
+        entry.page = page.id; entry.sheet = page.sheet; entry.needsRender = true;
       }
       state.current = id; ++state.requestRevision; clearTimeout(state.timer);
       $("calculator-workspace").hidden = false; $("calculator-workspace").dataset.calculatorKind = entry.definition.id; window.CeasefireI18n.text($("calculator-title"), factorView ? "Factor Calcs" : entry.definition.id === "ductwork" ? "Duct" : entry.definition.title);

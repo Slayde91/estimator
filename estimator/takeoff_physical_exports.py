@@ -68,7 +68,8 @@ _EXCEL_DATE = (2000, 1, 1, 0, 0, 0)
 
 
 def _json(value):
-    return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(',', ':'), allow_nan=False)
+    from .download_disclosure import without_fingerprints
+    return json.dumps(without_fingerprints(value), ensure_ascii=False, sort_keys=True, separators=(',', ':'), allow_nan=False)
 
 
 def _names(value):
@@ -174,6 +175,7 @@ def _put(cell, value):
 
 
 def _sheet(workbook, title, headers, rows, details, *, record_key='entity_id'):
+    headers = tuple(label for label in headers if not label.endswith('sha256'))
     sheet = workbook.create_sheet(title)
     for column, label in enumerate(headers, 1):
         cell = sheet.cell(1, column)
@@ -344,7 +346,8 @@ def export_physical_graph(graph, format, source_names=None, *, confirmation=None
         details_headers += ('annotation_json',)
     if any('library_quantity' in entry for entry in graph['services']):
         details_headers += ('library_quantity_json',)
-    csv_headers = common_headers + (V2_FIELD_HEADERS if current else FIELD_HEADERS) + details_headers
+    csv_headers = tuple(label for label in common_headers + (V2_FIELD_HEADERS if current else FIELD_HEADERS) + details_headers
+                        if not label.endswith('sha256'))
     evidence_headers = common_headers + EVIDENCE_HEADERS[len(COMMON_HEADERS):]
     names = _names(source_names)
     rows, associations, fingerprint = _rows(graph, names)
@@ -392,7 +395,7 @@ def export_physical_graph(graph, format, source_names=None, *, confirmation=None
             ('Authority', 'No approval, technical suitability, human review acceptance, or Physical Model Lock is asserted.'),
             ('Source status', 'Evidence locators, source names and uncertainty are unverified assertions. This formatter does not read or verify source bytes.'),
             ('Project ID', graph['project_id']), ('Physical graph ID', graph['id']),
-            ('Physical graph revision', graph['revision']), ('Physical graph SHA-256', fingerprint),
+            ('Physical graph revision', graph['revision']),
             ('State', 'draft'),
             ('Hierarchy', ('Barrier -> Service. FRL belongs to the Barrier; service FRL is displayed from its current parent.' if graph['version'] == 3 else 'Defect -> Barrier -> Service. Numbered IDs are project-local display IDs; entity_id, parent_id and *_uuid retain exact UUID links.' if current else
                            'Barrier -> Defect -> Opening -> Service. Typed parent and ancestor IDs are explicit links.')),
@@ -404,8 +407,8 @@ def export_physical_graph(graph, format, source_names=None, *, confirmation=None
                           'Only services carry explicit positive quantities. Empty openings have no service row or quantity. Images and repeated views never create counts.')),
             ('History', 'All retained entities are included. XLSX typed sheets contain active entities; Historical Entities contains tombstones. Evidence includes associations of both.' if confirmation is None else
                         f'Active {confirmation} items only. Deleted records are excluded. Confirmation is inherited manual draft review: Defect owns Defect Reports; Barrier owns Service Plans. Missing owner confirmation means unconfirmed. Historical child values remain in the stored graph. Parent IDs and UUIDs are preserved even when a parent is outside this selection. Evidence includes only selected records.'),
-            ('Evidence associations', 'association_index identifies the retained list position, not physical quantity. Image UUID, SHA-256 and occurrence UUID remain distinct.'),
-            ('Long text', 'Provenance Detail stores ordered exact text chunks identified by sheet, record ID and column. Concatenate in part order and check the recorded SHA-256.'),
+            ('Evidence associations', 'association_index identifies the retained list position, not physical quantity. Image UUID and occurrence UUID remain distinct.'),
+            ('Long text', 'Provenance Detail stores ordered text chunks identified by sheet, record ID and column. Concatenate in part order.'),
             ('File metadata time', 'Fixed serialization timestamp 2000-01-01; not a source, review or export event time.'),
         ), 1):
             for column, value in enumerate(row, 1):

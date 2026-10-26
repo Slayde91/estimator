@@ -60,9 +60,9 @@ class FiretexExportTests(unittest.TestCase):
             text = '\n'.join(page.extract_text() for page in PdfReader(BytesIO(payload)).pages)
             for name in PRODUCTS:
                 self.assertIn(name, text)
-            self.assertIn('READY' if builder == build_calculator_summary_report else 'DFT', text)
+            self.assertIn('Whole packs' if builder == build_calculator_summary_report else 'DFT', text)
             self.assertNotIn('INCOMPLETE', text)
-            self.assertIn('dataset SHA-256', text)
+            self.assertNotIn('dataset SHA-256', text)
             if builder == build_calculator_summary_report:
                 self.assertNotIn('Steel protection assessment basis', text)
                 self.assertIn('Whole packs', text)
@@ -71,9 +71,9 @@ class FiretexExportTests(unittest.TestCase):
         text = '\n'.join(str(cell.value) for sheet in workbook for row in sheet for cell in row if cell.value is not None)
         for name in PRODUCTS:
             self.assertIn(name, text)
-        self.assertIn('READY', text)
+        self.assertNotIn('READY', text)
         self.assertNotIn('INCOMPLETE', text)
-        self.assertIn('Compatibility SHA-256', text)
+        self.assertNotIn('Compatibility SHA-256', text)
         fx6010 = next(row for row in workbook['Summary'] if row[0].value == PRODUCTS[1])
         self.assertAlmostEqual(fx6010[2].value, 10 / .92 * FX6010_DENSITY_ESTIMATE)
         self.assertAlmostEqual(fx6010[3].value, 10 / .92)
@@ -99,16 +99,15 @@ class FiretexExportTests(unittest.TestCase):
             text = '\n'.join(page.extract_text() for page in PdfReader(BytesIO(builder('steel_intumescent', values))).pages)
             for name in PRODUCTS:
                 self.assertIn(name, text)
-            self.assertIn('INCOMPLETE' if builder == build_calculator_summary_report else 'DFT', text)
-            self.assertIn('dataset SHA-256', text)
+            self.assertIn('incomplete' if builder == build_calculator_summary_report else 'DFT', text)
+            self.assertNotIn('dataset SHA-256', text)
         workbook = load_workbook(BytesIO(build_calculator_register('steel_intumescent', values)))
         record = next(row for row in workbook['Summary'] if row[0].value == PRODUCTS[1])
         self.assertIsNone(record[6].value)
         self.assertIsNone(record[7].value)
-        self.assertIn('INCOMPLETE', record[8].value)
         text = '\n'.join(str(cell.value) for sheet in workbook for row in sheet for cell in row if cell.value is not None)
-        self.assertIn('INCOMPLETE', text)
-        self.assertIn('Compatibility SHA-256', text)
+        self.assertIn('incomplete', text)
+        self.assertNotIn('Compatibility SHA-256', text)
         self.assertEqual(values, before)
 
     def test_sparse_saved_export_uses_effective_kit_estimates_without_rewriting_raw_settings(self):
@@ -140,7 +139,7 @@ class FiretexExportTests(unittest.TestCase):
             if builder == build_calculator_summary_report:
                 self.assertRegex(text, r'(?i)(nominal|estimated)')
             else:
-                self.assertIn('QUANTIFIED', text)
+                self.assertIn('DFT', text)
         workbook = load_workbook(BytesIO(build_calculator_register('steel_intumescent', values)))
         record = next(row for row in workbook['Summary'] if row[0].value == PRODUCTS[1])
         self.assertAlmostEqual(record[2].value, 10 / .92 * FX6010_DENSITY_ESTIMATE)
@@ -199,14 +198,16 @@ class FiretexExportTests(unittest.TestCase):
         self.assertIn('Unavailable kg', qualification[2])
         for builder in (build_calculator_report, build_calculator_summary_report):
             text = '\n'.join(page.extract_text() for page in PdfReader(BytesIO(builder('steel_intumescent', values))).pages)
-            self.assertIn('component orders held', ' '.join(text.split()))
+            self.assertIn('Component quantities are unavailable.', ' '.join(text.split()))
+            self.assertNotIn('component orders held', text)
         workbook = load_workbook(BytesIO(build_calculator_register('steel_intumescent', values)))
         exported = next(row for row in workbook['Summary'] if row[0].value == PRODUCTS[1])
         self.assertAlmostEqual(exported[2].value, record['C'])
         self.assertAlmostEqual(exported[3].value, record['D'])
         self.assertEqual(exported[6].value, 2)
         self.assertEqual(exported[7].value, 18)
-        self.assertEqual(exported[8].value, 'READY - component orders held')
+        self.assertNotIn('READY - component orders held', [cell.value for sheet in workbook for row in sheet for cell in row])
+        self.assertTrue(any('Component quantities are unavailable.' in str(cell.value) for sheet in workbook for row in sheet for cell in row))
         self.assertEqual(values, before)
         self.assertEqual(data['inputs']['SETTINGS'], {'H67': 9})
 

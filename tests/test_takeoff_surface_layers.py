@@ -58,7 +58,8 @@ class TakeoffSurfaceLayersTests(unittest.TestCase):
         self.assertEqual(item_digest(restored['items'][0], restored), digest)
         self.assertEqual(self.case.service.open(before, source_path='verified.json')['snapshot']['items'][0], original)
         payload = self.case.service.export(self.case.sid, 'csv', [identifier])[0]
-        self.assertEqual(tuple(next(csv.reader(StringIO(payload.decode('utf-8-sig'))))), HEADERS)
+        self.assertEqual(tuple(next(csv.reader(StringIO(payload.decode('utf-8-sig'))))),
+                         tuple(label for label in HEADERS if label not in {'Source SHA-256', 'Confirmation digest'}))
         self.assertNotIn('Number of layers', self.rows(self.export()[0])[1])
         self.assertEqual(self.case.service.get(self.case.sid)['snapshot'], before)
 
@@ -172,7 +173,7 @@ class TakeoffSurfaceLayersTests(unittest.TestCase):
                                     ('Net area m2', 'net_area_m2'), ('Number of layers', 'layers'), ('Total area m2', 'total_area_m2')):
                     self.assertEqual(row[column], result[key])
                 self.assertEqual(row['Quantity'], 1); self.assertEqual(row['Mode'], item['mode'])
-                self.assertEqual(row['Source SHA-256'], self.case.doc['sha256'])
+                self.assertNotIn('Source SHA-256', row)
         for mode, identifier in (('wall', wall), ('slab', floor)):
             rows, _ = self.rows(self.export(mode=mode)[0])
             self.assertEqual([row['Item ID'] for row in rows], [identifier])

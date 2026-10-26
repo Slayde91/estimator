@@ -25,6 +25,7 @@ from .penetration_report import _display, _excel_format, _input_basis, _input_va
 from .pricing_workbook import _serialize_exact
 from .reference_library import ReferenceNotFound
 from .report import _Report, _company_header, _register_fonts, _LINE, _MUTED
+from .penetration_references import resolve_schedule_references
 
 
 def prepare_item_snapshot(body, *, library, default_configuration, require_diagram=True):
@@ -37,6 +38,7 @@ def prepare_item_snapshot(body, *, library, default_configuration, require_diagr
     configuration = validate_configuration(body.get('configuration', default_configuration))
     result = calculate(draft, configuration)
     metadata = definition(configuration)
+    report_references = resolve_schedule_references(draft, library if callable(getattr(library, 'register_references', None)) else None)['row_references'][draft['rows'][0]['id']]['reports']
     diagram = None
     identity = {'kind': 'none', 'library_item_id': draft['rows'][0].get('library_item_id')}
     if 'diagram' in body and body['diagram'] is None:
@@ -59,13 +61,15 @@ def prepare_item_snapshot(body, *, library, default_configuration, require_diagr
             if require_diagram:
                 raise ValidationError('The linked current item source diagram is unavailable. Choose a retained diagram before downloading this item PDF.') from exc
             identity = {'kind': 'managed library image', 'library_item_id': key, 'status': 'unavailable'}
-            return {'result': result, 'definition': metadata, 'diagram': None, 'diagram_identity': identity}
+            return {'result': result, 'definition': metadata, 'diagram': None, 'diagram_identity': identity,
+                    'report_references': report_references}
         if not 0 < len(payload) <= MAX_DIAGRAM_BYTES or mime not in {'image/png', 'image/jpeg', 'image/webp'}:
             raise ValidationError('The linked source diagram must be a PNG, JPEG or WebP image no larger than 15 MB.')
         diagram = _render_diagram(payload)
         identity = {'kind': 'managed library image', 'library_item_id': key, 'filename': filename,
                     'source_sha256': sha256(payload).hexdigest(), 'rendered_sha256': diagram['sha256']}
-    return {'result': result, 'definition': metadata, 'diagram': diagram, 'diagram_identity': identity}
+    return {'result': result, 'definition': metadata, 'diagram': diagram, 'diagram_identity': identity,
+            'report_references': report_references}
 
 
 def _inputs(snapshot):
@@ -86,30 +90,33 @@ def build_item_xlsx(snapshot):
     _table(summary, 4, ['Field', 'Value'], [['Item ID', row['id']]] +
            [[label, result['summary'].get(name)] for label, name in
             (('Labour', 'labour'), ('Materials', 'materials'), ('Item total', 'grand_total'), ('Total days', 'total_days'))], [32, 72])
-    widths = [22, 34, 18, 22, 22, 14, 24]
+    references = snapshot.get('report_references', [])
+    if references:
+        reports = _sheet(workbook, 'Reports', 'REPORT REFERENCES', [54])
+        _table(reports, 4, ['Report'], [[item['label']] for item in references], [54])
+        for offset, item in enumerate(references, 5):
+            if item.get('url'):
+                reports.cell(offset, 1).hyperlink = item['url']
+    widths = [22, 34, 22, 22, 14]
     inputs = _sheet(workbook, 'Inputs', 'CAPTURED CURRENT ITEM INPUTS', widths)
     records = list(_inputs(snapshot))
-    _table(inputs, 4, ['Section', 'Field', 'Source column', 'Raw input', 'Effective value', 'Units', 'Basis'],
-           [[field['group'], field['label'], field['column'], raw, effective, field.get('units', ''), basis]
+    _table(inputs, 4, ['Section', 'Field', 'Raw input', 'Effective value', 'Units'],
+           [[field['group'], field['label'], raw, effective, field.get('units', '')]
             for field, raw, effective, basis in records], widths, filtered=True)
     for offset, (field, _, _, _) in enumerate(records, 5):
-        for column in (4, 5):
+        for column in (3, 4):
             inputs.cell(offset, column).number_format = _excel_format(field)
-    output = _sheet(workbook, 'Calculated detail', 'CURRENT ITEM CALCULATED VALUES', [40, 26, 18, 18])
-    _table(output, 4, ['Field', 'Value', 'Units', 'Source cell'],
-           [[field['label'], row['outputs'].get(field['column']), field.get('units', ''), field['address']]
-            for field in _visible_outputs(metadata)], [40, 26, 18, 18], filtered=True)
+    output = _sheet(workbook, 'Calculated detail', 'CURRENT ITEM CALCULATED VALUES', [40, 26, 18])
+    _table(output, 4, ['Field', 'Value', 'Units'],
+           [[field['label'], row['outputs'].get(field['column']), field.get('units', '')]
+            for field in _visible_outputs(metadata)], [40, 26, 18], filtered=True)
     settings = _sheet(workbook, 'Settings', 'CAPTURED SETTINGS FOR THIS ITEM', [40, 90])
     _table(settings, 4, ['Setting', 'Captured value'],
            [[name, json.dumps(value, ensure_ascii=False, sort_keys=True) if isinstance(value, (dict, list)) else value]
             for name, value in result['draft']['globals'].items()], [40, 90])
-    source = _sheet(workbook, 'Source', 'CURRENT ITEM SOURCE IDENTITY', [34, 100])
-    _table(source, 4, ['Identity', 'Value'],
-           [['Calculator source SHA256', result['source_sha256']], ['Calculation policy', metadata['calculation_policy']]] +
-           list(map(list, snapshot['diagram_identity'].items())), [34, 100])
     if result.get('errors'):
-        errors = _sheet(workbook, 'Calculation errors', 'CURRENT ITEM CALCULATION ERRORS', [20, 90])
-        _table(errors, 4, ['Cell', 'Error'], [[error['cell'], error['message']] for error in result['errors']], [20, 90])
+        errors = _sheet(workbook, 'Review', 'CURRENT ITEM REVIEW', [90])
+        _table(errors, 4, ['Review'], [['Some quantities are unavailable. Review this item in the application.']], [90])
     for sheet in workbook:
         sheet.print_area = sheet.dimensions
     return _serialize_exact(workbook)
@@ -128,6 +135,11 @@ def render_item_pdf(snapshot, *, company=None):
     row = result['rows'][0]
     report.story.append(report.p('Current Firestopping item', 'title'))
     report.story.append(report.p(f"Item ID: {row['id']}", 'body'))
+    if snapshot.get('report_references'):
+        from html import escape
+        parts = [f'<link href="{escape(item["url"], quote=True)}"><u>{escape(item["label"])}</u></link>'
+                 if item.get('url') else escape(item['label']) for item in snapshot['report_references']]
+        report.story.append(report.rich('Report: ' + ' | '.join(parts)))
     report.story.append(report.table(['Calculated item', 'Value'],
         [[report.p(label, 'cell'), report.p(_display(result['summary'].get(name), {'format': 'currency' if name != 'total_days' else 'number'}), 'cell')]
          for label, name in (('Labour', 'labour'), ('Materials', 'materials'), ('Item total', 'grand_total'), ('Total days', 'total_days'))],
@@ -139,24 +151,20 @@ def render_item_pdf(snapshot, *, company=None):
     else:
         scale = min(content / diagram['width'], 230 / diagram['height'])
         report.story.append(Image(BytesIO(diagram['image_data']), width=diagram['width'] * scale, height=diagram['height'] * scale))
-        identity = snapshot['diagram_identity']
-        report.story.append(report.p(identity.get('filename', '') + (' | ' + identity['library_item_id'] if identity.get('library_item_id') else ''), 'small'))
-        report.story.append(report.p('Source SHA256: ' + identity['source_sha256'], 'small'))
     report.story.append(Spacer(1, 10))
     grouped = {}
     for field, raw, effective, basis in _inputs(snapshot):
         if effective not in (None, '') or field['column'] in {'J', 'K', 'L', 'M', 'N', 'O', 'P', 'T', 'U'}:
             grouped.setdefault(field['group'], []).append([
                 report.p(field['label'], 'cell'), report.p(_display(effective, field), 'cell'),
-                report.p(field.get('units', '') + ('; ' + basis if basis else ''), 'cell')])
+                report.p(field.get('units', ''), 'cell')])
     for group, rows in grouped.items():
         report.story.append(report.p(group, 'subheading'))
-        report.story.append(report.table(['Item field', 'Captured / effective value', 'Units / basis'], rows,
+        report.story.append(report.table(['Item field', 'Captured / effective value', 'Units'], rows,
                                          [content * .38, content * .4, content * .22]))
     if result.get('errors'):
         report.story.append(report.p('Review calculation', 'subheading'))
-        for error in result['errors']:
-            report.story.append(report.p(f"{error['cell']}: {error['message']}", 'alert'))
+        report.story.append(report.p('Some quantities are unavailable. Review this item in the application.', 'alert'))
     logo = company_logo(company)
     output = BytesIO()
     document = SimpleDocTemplate(

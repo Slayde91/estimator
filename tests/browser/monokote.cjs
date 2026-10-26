@@ -97,11 +97,11 @@ async function screenshot(name,fixture) {
   const sourceDefinition = await (await page.request.get(`http://127.0.0.1:${info.port}/api/calculators/steel_vermiculite`)).json();
   const sourceSheet = sourceDefinition.sheets.find(sheet => sheet.name === 'SCHEDULE');
   const sourceColumn = number => number === 27 ? 'AA' : String.fromCharCode(64 + number);
-  const displayColumns = ['Z','AA','A','E','F','C','D','B','H','I','J','Y','G','K','L','M','N','O','P','Q','R','S','T','U','V','W'];
+  const displayColumns = ['Z','AA','A','E','F','C','D','B','H','I','J','G','K','L','M','N','O','P','Q','R','S','T','U'];
   const scheduleTable = page.locator('#calculator-grid .calculator-schedule-table');
   const fieldLabels = Object.fromEntries(sourceDefinition.schedule.columns.map(field => [field.column, field.label]));
   const browserFieldLabels = {...fieldLabels, O: 'DFT (mm)'};
-  const reportIndex = displayColumns.indexOf('Y');
+  const reportIndex = displayColumns.indexOf('J') + 1;
   await expect(scheduleTable.locator('thead th')).toHaveText([...displayColumns.slice(0,reportIndex).map(column => browserFieldLabels[column]), 'Report', ...displayColumns.slice(reportIndex).map(column => browserFieldLabels[column]), 'Actions']);
   const rowAddresses = await scheduleTable.locator('tbody tr[data-source-row="10"] td').evaluateAll(cells => cells
     .map(cell => cell.querySelector('[data-calculator-cell]')?.dataset.calculatorCell || cell.dataset.calculatorOutput).filter(Boolean));
@@ -174,7 +174,8 @@ async function screenshot(name,fixture) {
   await fill('SCHEDULE',{A12:'SYNTHETIC-BLOCKED',B12:'MONOKOTE Z106',C12:'Hollow - 4 sides',D12:650,E12:'Hp/A',G12:250,H12:240,I12:1,J12:1,K12:1});
   let scheduled=await recalculate('SCHEDULE');
   for(const address of ['O12','P12','S12','T12','U12']) assert.equal(scheduled[address],'',`blocked schedule ${address}`);
-  assert.match(scheduled.V12,/BLOCKED - SOURCE REVIEW/);await expect(rendered('Y12')).toContainText('BLOCKED - SOURCE REVIEW');
+  assert.match(scheduled.V12,/BLOCKED - SOURCE REVIEW/);
+  for(const address of ['V12','W12','X12','Y12'])await expect(rendered(address)).toHaveCount(0);
   await page.getByRole('button',{name:'Add row',exact:true}).click();
   for(const [product,mass,density] of products) {
     await fill('SCHEDULE',{A13:'SYNTHETIC-PFC',B13:product,C13:'PFC web to slab - 3 sides',D13:620,E13:'Section',F13:'250X90PFC',H13:120,I13:2,J13:3});
@@ -188,7 +189,7 @@ async function screenshot(name,fixture) {
     pfcJourneys.push({product,thickness:19,netBags:scheduled.T13,source:scheduled.X13,unsupported30MinutesWithheld:true});
     await fill('SCHEDULE',{H13:120});scheduled=await recalculate('SCHEDULE');
   }
-  await expect(rendered('Y13')).not.toContainText('CALCULATION ERROR');
+  assert.doesNotMatch(scheduled.Y13,/CALCULATION ERROR/);await expect(rendered('Y13')).toHaveCount(0);
   await screenshot('schedule.png',fixture);
   const orderProducts=['CAFCO 300','MANDOLITE CP2','FENDOLITE MII','PERLIFOC HP ECO+','MONOKOTE MK-6 HY','MONOKOTE Z106'];
   await expect(page.locator('#calculator-product-totals')).toHaveCount(0);
@@ -239,21 +240,22 @@ async function screenshot(name,fixture) {
   assert.ok(within(output,path.resolve(exported.path)));
   const inspected=spawnSync(python,['-c','import json,sys;from openpyxl import load_workbook;w=load_workbook(sys.argv[1],data_only=False);print(json.dumps({"rows":{s.title:list(s.values) for s in w},"formulas":sum(c.data_type=="f" for s in w for row in s for c in row)}))',exported.path],{cwd:root,encoding:'utf8',windowsHide:true});
   assert.equal(inspected.status,0,inspected.stderr);const workbook=JSON.parse(inspected.stdout);
-  assert.equal(workbook.formulas,0);const exportText=JSON.stringify(workbook.rows);assert.match(exportText,/FAR4856 Issue2/);assert.match(exportText,/BLOCKED - SOURCE REVIEW/);assert.match(exportText,/MONOKOTE Z106/);
+  assert.equal(workbook.formulas,0);const exportText=JSON.stringify(workbook.rows);assert.match(exportText,/FAR4856 Issue 2/);assert.match(exportText,/MONOKOTE Z106/);
+  for(const privateText of [/BLOCKED - SOURCE REVIEW/,/FAR4856 Issue2 p12 Table 4/,/MK6-030521 p15/,/Source SHA-256/,/Source workbook/])assert.doesNotMatch(exportText,privateText);
   const originalExportHeaders = ['Line','Location','Mark','Product','Section','Quantity','Length (m)','Published thickness (mm)',
-    'Spray surface (m²)','Report','Status'];
+    'Spray surface (m²)','Report'];
   assert.deepEqual(workbook.rows.Schedule[4], originalExportHeaders, 'XLSX exports the requested schedule columns');
   schedulePresentation.exportHeaders = originalExportHeaders;
   for(const index of [0,1]) {
     const row=workbook.rows.Schedule.find(row=>row[2]===`SYNTHETIC-${index+1}`);
     assert.ok(row);closeNumber(row[7],thickness,'exported published thickness');closeNumber(row[8],scheduled[`R${index+10}`],'exported spray surface');
-    assert.equal(row[9],'FAR4856 Issue 2 (https://tfire.com.au/documents/Internal-Fire-Hollow-Steel-Sections-FAR4856)');assert.match(row[10],/FAR4856 Issue2 p12 Table 4/);
+    assert.equal(row[9],'FAR4856 Issue 2 (https://tfire.com.au/documents/Internal-Fire-Hollow-Steel-Sections-FAR4856)');assert.equal(row.length,originalExportHeaders.length);
   }
   const blockedRow=workbook.rows.Schedule.find(row=>row[2]==='SYNTHETIC-BLOCKED');assert.ok(blockedRow);
   assert.equal(blockedRow[7],null,'blocked published thickness');
   const pfcRow=workbook.rows.Schedule.find(row=>row[2]==='SYNTHETIC-PFC');assert.ok(pfcRow);
   closeNumber(pfcRow[7],19,'exported PFC published thickness');closeNumber(pfcRow[8],scheduled.R13,'exported PFC spray surface');
-  assert.equal(pfcRow[9],'FAR4853 Issue 3 (https://tfire.com.au/documents/Monokote-Internal-Fire-Solid-Steel-Sections-FAR4853)');assert.match(pfcRow[10],/MK6-030521 p15/);
+  assert.equal(pfcRow[9],'FAR4853 Issue 3 (https://tfire.com.au/documents/Monokote-Internal-Fire-Solid-Steel-Sections-FAR4853)');assert.equal(pfcRow.length,originalExportHeaders.length);
   assert.deepEqual(errors,[]);assert.deepEqual(await page.evaluate(()=>window.qaCsp),[]);assert.deepEqual(sourceHashes(),sourceBefore);
   fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({completed:true,...fixture,sourceHashes:sourceBefore,schedulePresentation,applicationBasis,journeys,pfcJourneys,blockedQuantitiesWithheld:true,schedule:true,pfcSchedule:true,pfcSaveReopen:true,pfcExport:true,allSixProductTotals:true,z106SummaryCentered:true,z106SettingsLeftAligned:true,hollowAssessmentCoverage:true,pfcNamedOnlyCoverage:true,saveReopen:true,valuesOnlyExport:true,errors,csp:[]},null,2));
   console.log(`PASS: ${fixture.evidence_mode}; MONOKOTE hollow/PFC schedule, bags, blocked source, schedule, save/reopen and values-only XLSX. Evidence: ${output}`);

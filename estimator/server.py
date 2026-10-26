@@ -53,6 +53,30 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
     if takeoffs is not None:
         takeoffs.libraries = libraries
 
+    def reference_download_body(body, key):
+        """Capture legacy Takeoffs links into this download, without saving edits."""
+        if not isinstance(body, dict) or 'takeoff_session_id' not in body:
+            return body
+        from copy import deepcopy
+        from .penetration_calculator import normalize_draft
+        from .takeoff_model import identity
+        session_id = body['takeoff_session_id']
+        if takeoffs is None or not isinstance(session_id, str):
+            raise ValidationError('Open the current Takeoffs session before downloading its references.')
+        identity(session_id, 'Takeoff session ID')
+        draft = {'globals': body.get('globals', {}), 'rows': [body.get('item')]} if key == 'item' else body.get(key)
+        result = deepcopy(body)
+        result.pop('takeoff_session_id')
+        if draft is None:
+            return result
+        draft = normalize_draft(draft)
+        references = takeoffs.firestopping_references(session_id, draft)['row_references']
+        for row in draft['rows']:
+            if row.get('takeoff_source') and not any(field in row for field in ('technical_reference_ids', 'takeoff_reference_ids')):
+                row['takeoff_reference_ids'] = [item['id'] for item in references[row['id']]['systems']]
+        result[key] = draft['rows'][0] if key == 'item' else draft
+        return result
+
     class Handler(BaseHTTPRequestHandler):
         server_version = "CeasefireEstimator"
 
@@ -242,7 +266,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     self.send_report(store.quote(route[len("/api/quotes/"):-len("/report.pdf")]), "Saved quote")
                 elif route.startswith("/api/quotes/"):
                     self.send_quote(200, store.quote(route.removeprefix("/api/quotes/")))
-                elif route in {'/sounds/type.mp3', '/sounds/flame-whoosh.wav', '/takeoff-visual-search-icon.png', '/takeoff-ocr-icon.png', '/header-steel-intumescent.png', '/sounds/checkpoint.ogg', '/sounds/loading.mp3', '/sounds/new-explosion.mp3', '/sounds/hover.mp3', '/sounds/select.mp3', '/sounds/select-2.mp3', '/sounds/mixkit-vintage-dot-printing-1371.wav', '/takeoff-visual-search.js', '/takeoff-visual-search.css', '/takeoff-ocr-layer.js', '/takeoff-ocr-layer.css', '/header-menu-sounds.js', '/sounds/mgs1-menu-move.mp3', '/sounds/mgs-confirm2.mp3', '/brand-boot.js', '/brand-boot.css', '/classifire-app.ico', '/register-references.js', '/travel.js', '/travel.css', '/maps-setup.html', '/pdf-cursors.css', '/cursors/pointer.png', '/cursors/precision.png', '/cursors/move.png', '/cursors/text.png', '/cursors/handwriting.png', '/cursors/link.png', '/cursors/resize-nwse.png', '/cursors/resize-nesw.png', '/cursors/resize-horizontal.png', '/cursors/resize-vertical.png', '/cursors/unavailable.png', '/cursors/busy.png', "/", "/index.html", "/company-settings.js", "/classifire-logo.png", "/main-layout.js", "/downloads.css", "/activity.js", "/calculation-queue.js", "/searchable-choice.js", "/penetration-presentation.js", "/icons/navigation-takeoffs.svg", "/icons/navigation-takeoffs.jpg", "/icons/navigation-help.jpg", "/theme.js", "/language.js", "/language-catalog.js", "/language.css", "/theme.css", "/laser.css", "/laser-steel.svg", "/home-steel-frame.png", "/header-layout.css", "/workspace-art.css", "/pointer-effects.css", "/pointer-effects.js", "/laser-reticle.svg", "/takeoff-header-steel.png", "/takeoff-header-ductwork.png", "/takeoff-header-physical.png", "/takeoff-header-service-plans.png", "/header-steel-spray.png", "/header-steel-board.png", "/header-ductwork.png", "/header-firestopping.png", "/header-estimate.png", "/header-projects.png", "/projects-evidence-banner.png", "/header-firestopping-library.png", "/header-technical-library.png", "/app.js", "/downloads.js", "/styles.css", "/calculators.js", "/calculators.css", "/penetration-breakdown.js", "/penetration.js", "/penetration.css", "/libraries.js", "/library-detail-text.js", "/libraries.css", "/library-editor.js", "/library-editor.css", "/icons/navigation-home.png", "/icons/document.png", "/icons/schedule-add.png", "/icons/navigation-help.png", "/icons/navigation-takeoffs.png", "/icons/takeoff-visibility.jpg", "/icons/takeoff-colour-wheel.png", "/icons/takeoff-legend.png", "/ceasefire-logo.png", "/ceasefire-app.ico", "/fonts/Montserrat-Variable.ttf", "/fonts/Vera.ttf", "/fonts/VeraBd.ttf", "/fonts/Montserrat-Italic-Variable.ttf", "/takeoffs.js", "/takeoffs.css", "/takeoff-geometry.js", "/takeoff-physical.js", "/takeoff-annotations.js", "/takeoff-signatures.js", "/takeoff-graphics.js", "/takeoff-graphics-ui.js", "/takeoff-pane-resize.js", "/takeoff-initial-pages.js", "/takeoff-pdf-tools.js", "/takeoff-pdf-tools.css", "/icons/default-memory.svg", "/icons/takeoff-set-default.png", "/icons/signature.svg", "/help-glossary.js", "/help-glossary.css", "/takeoff-search.js", "/takeoff-shortcuts.js", "/icons/takeoff-callout.png", "/takeoff-pdf-worker.mjs", "/takeoff-library-links.js", "/icons/takeoff-visibility.png", "/icons/takeoff-bullet-list.png", "/icons/takeoff-numbered-list.png", "/icons/takeoff-add-service.png", "/icons/takeoff-add-barrier.png", "/icons/takeoff-transfer.png", "/icons/takeoff-measure.png", "/header-tagline-media.js", "/header-tagline-character.gif", "/header-tagline-character-still.png"}:
+                elif route in {'/penetration-references.js', '/sounds/type.mp3', '/sounds/flame-whoosh.wav', '/takeoff-visual-search-icon.png', '/takeoff-ocr-icon.png', '/header-steel-intumescent.png', '/sounds/checkpoint.ogg', '/sounds/loading.mp3', '/sounds/new-explosion.mp3', '/sounds/hover.mp3', '/sounds/select.mp3', '/sounds/select-2.mp3', '/sounds/mixkit-vintage-dot-printing-1371.wav', '/takeoff-visual-search.js', '/takeoff-visual-search.css', '/takeoff-ocr-layer.js', '/takeoff-ocr-layer.css', '/header-menu-sounds.js', '/sounds/mgs1-menu-move.mp3', '/sounds/mgs-confirm2.mp3', '/brand-boot.js', '/brand-boot.css', '/classifire-app.ico', '/register-references.js', '/travel.js', '/travel.css', '/maps-setup.html', '/pdf-cursors.css', '/cursors/pointer.png', '/cursors/precision.png', '/cursors/move.png', '/cursors/text.png', '/cursors/handwriting.png', '/cursors/link.png', '/cursors/resize-nwse.png', '/cursors/resize-nesw.png', '/cursors/resize-horizontal.png', '/cursors/resize-vertical.png', '/cursors/unavailable.png', '/cursors/busy.png', "/", "/index.html", "/company-settings.js", "/classifire-logo.png", "/main-layout.js", "/downloads.css", "/activity.js", "/calculation-queue.js", "/searchable-choice.js", "/penetration-presentation.js", "/icons/navigation-takeoffs.svg", "/icons/navigation-takeoffs.jpg", "/icons/navigation-help.jpg", "/theme.js", "/language.js", "/language-catalog.js", "/language.css", "/theme.css", "/laser.css", "/laser-steel.svg", "/home-steel-frame.png", "/header-layout.css", "/workspace-art.css", "/pointer-effects.css", "/pointer-effects.js", "/laser-reticle.svg", "/takeoff-header-steel.png", "/takeoff-header-ductwork.png", "/takeoff-header-physical.png", "/takeoff-header-service-plans.png", "/header-steel-spray.png", "/header-steel-board.png", "/header-ductwork.png", "/header-firestopping.png", "/header-estimate.png", "/header-projects.png", "/projects-evidence-banner.png", "/header-firestopping-library.png", "/header-technical-library.png", "/app.js", "/downloads.js", "/styles.css", "/calculators.js", "/calculators.css", "/penetration-breakdown.js", "/penetration.js", "/penetration.css", "/libraries.js", "/library-detail-text.js", "/libraries.css", "/library-editor.js", "/library-editor.css", "/icons/navigation-home.png", "/icons/document.png", "/icons/schedule-add.png", "/icons/navigation-help.png", "/icons/navigation-takeoffs.png", "/icons/takeoff-visibility.jpg", "/icons/takeoff-colour-wheel.png", "/icons/takeoff-legend.png", "/ceasefire-logo.png", "/ceasefire-app.ico", "/fonts/Montserrat-Variable.ttf", "/fonts/Vera.ttf", "/fonts/VeraBd.ttf", "/fonts/Montserrat-Italic-Variable.ttf", "/takeoffs.js", "/takeoffs.css", "/takeoff-geometry.js", "/takeoff-physical.js", "/takeoff-annotations.js", "/takeoff-signatures.js", "/takeoff-graphics.js", "/takeoff-graphics-ui.js", "/takeoff-pane-resize.js", "/takeoff-initial-pages.js", "/takeoff-pdf-tools.js", "/takeoff-pdf-tools.css", "/icons/default-memory.svg", "/icons/takeoff-set-default.png", "/icons/signature.svg", "/help-glossary.js", "/help-glossary.css", "/takeoff-search.js", "/takeoff-shortcuts.js", "/icons/takeoff-callout.png", "/takeoff-pdf-worker.mjs", "/takeoff-library-links.js", "/icons/takeoff-visibility.png", "/icons/takeoff-bullet-list.png", "/icons/takeoff-numbered-list.png", "/icons/takeoff-add-service.png", "/icons/takeoff-add-barrier.png", "/icons/takeoff-transfer.png", "/icons/takeoff-measure.png", "/header-tagline-media.js", "/header-tagline-character.gif", "/header-tagline-character-still.png"}:
                     name = "index.html" if route == "/" else route[1:]
                     path = ROOT / "static" / name
                     kind = {".ogg": "audio/ogg", ".wav": "audio/wav", ".mp3": "audio/mpeg", ".js": "text/javascript; charset=utf-8", ".mjs": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".html": "text/html; charset=utf-8", ".png": "image/png", ".svg": "image/svg+xml", ".jpg": "image/jpeg", ".gif": "image/gif", ".avif": "image/avif", ".ico": "image/x-icon", ".ttf": "font/ttf"}[path.suffix]
@@ -262,6 +286,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                 elif route in {'/api/project/full-schedule.pdf', '/api/project/full-product-summary.pdf'} and self.command == 'POST':
                     from .project_file import CALCULATOR_IDS, project_details
                     from .project_reports import build_project_report
+                    body = reference_download_body(body, 'penetration')
                     if set(body) - {'calculators', 'penetration', 'configuration', 'project_details', 'download'}:
                         raise ValidationError('Include the project schedule snapshots only.')
                     destination = self.capture_download(body['download']) if 'download' in body else None
@@ -332,18 +357,33 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                         self.send_payload(405, {'error': 'Method not allowed.'})
                         return
                     from .penetration_item_exports import prepare_item_snapshot, render_item_pdf, build_item_xlsx
+                    body = reference_download_body(body, 'item')
                     snapshot = prepare_item_snapshot(body, library=libraries, default_configuration=store.configuration(), require_diagram=route.endswith('.pdf'))
                     destination = self.capture_download(body['download']) if 'download' in body else None
                     if route.endswith('.pdf'):
                         self.send_download(render_item_pdf(snapshot, company=store.company_settings()), 'application/pdf', 'CEASEFIRE-Firestopping-Item.pdf', destination)
                     else:
                         self.send_download(build_item_xlsx(snapshot), 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'CEASEFIRE-Firestopping-Item.xlsx', destination)
+                elif route == '/api/penetration/references' and self.command == 'POST':
+                    from .penetration_references import resolve_schedule_references
+                    if not isinstance(body, dict) or set(body) - {'draft', 'takeoff_session_id'} or 'draft' not in body:
+                        raise ValidationError('Include the Firestopping draft and optional Takeoffs session only.')
+                    session_id = body.get('takeoff_session_id')
+                    if session_id is not None:
+                        if takeoffs is None or not isinstance(session_id, str):
+                            raise ValidationError('Open the current Takeoffs session before reading its references.')
+                        result = takeoffs.firestopping_references(session_id, body['draft'])
+                    else:
+                        result = resolve_schedule_references(body['draft'], libraries)
+                    self.send_payload(200, result)
                 elif route in {'/api/penetration/definition', '/api/penetration/validate-item', '/api/penetration/calculate', '/api/penetration/report.pdf', '/api/penetration/register.xlsx'}:
                     if self.command != 'POST':
                         self.send_payload(405, {'error': 'Method not allowed.'})
                         return
                     from .penetration_calculator import calculate as calculate_penetration, definition
                     action = route.rsplit('/', 1)[1]
+                    if action in {'report.pdf', 'register.xlsx'}:
+                        body = reference_download_body(body, 'draft')
                     allowed = {'configuration'} if action == 'definition' else {'draft', 'configuration'}
                     if action in {'report.pdf', 'register.xlsx'}:
                         allowed |= {'project_details', 'download'}
@@ -369,7 +409,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                             report = render_penetration_pdf(result, result['definition'], details, library=libraries, company=store.company_settings())
                             self.send_download(report, 'application/pdf', 'CEASEFIRE-Firestopping-Estimate.pdf', destination)
                         else:
-                            report = build_penetration_register(result, result['definition'], details)
+                            report = build_penetration_register(result, result['definition'], details, library=libraries)
                             self.send_download(report, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'CEASEFIRE-Firestopping-Schedule.xlsx', destination)
                 elif route == '/api/project/export' and self.command == 'POST':
                     from .project_file import export_project, project_filename, project_download_header

@@ -140,7 +140,7 @@ class PenetrationLabourExportTests(unittest.TestCase):
         self.assertEqual(records['Pipe Labour'], ('Unavailable', 'Manual value required'))
         text = pdf_text(render_penetration_pdf(result, result['definition'], {}))
         self.assertNotIn('Unavailable (Manual value required)', text)
-        self.assertIn('Enter Pipe Labour hours', text)
+        self.assertIn('Check the entered values; a result is unavailable.', text)
         result = calculate(draft(Y=None, AL=None))
         records = input_records(build_penetration_register(result, result['definition'], {}))
         self.assertEqual(records['Pipe Labour'], ('Not applicable', 'Automatic; no collar selected'))

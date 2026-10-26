@@ -15,9 +15,8 @@ def assert_row(row, item, source, transfers):
         'Length per item m': 10, 'Total length m': 10 * item['quantity'],
         'FRL': '120/120/120', 'Product': 'FyreWrap', 'Exposure': 'Internal',
         'Source document ID': source['id'], 'Source document': source['name'],
-        'Source SHA-256': source['sha256'], 'Source page': item['geometry']['page'],
+        'Source page': item['geometry']['page'],
         'Confirmation ID': item['confirmation']['id'],
-        'Confirmation digest': item['confirmation']['digest'],
     }
     for key, value in expected.items():
         actual = row[key]
@@ -25,6 +24,8 @@ def assert_row(row, item, source, transfers):
             assert float(actual) == value, (key, actual, value)
         else:
             assert actual == value, (key, actual, value)
+    assert 'Source SHA-256' not in row
+    assert 'Confirmation digest' not in row
     assert json.loads(row['Geometry PDF points']) == item['geometry']['points']
     assert json.loads(row['Measurement basis']) == item['measurement']
     references = json.loads(row['Evidence references'])

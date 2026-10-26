@@ -62,7 +62,8 @@ async function focusSettled(field){
  for(const label of ['ESA/M used (m2/t)','Layers','Bare box girth (m)','Box reference area (m2)'])assert.ok(headings.includes(label));
  for(const label of ['Board net (m²)','Sheets','Purchase area (m2)'])assert.ok(headings.includes(label));
  for(const column of ['Y','AA','AC','AD'])await expect(page.locator(`[data-calculator-output="${column}9"]`)).toHaveCount(1);
- const originalStatus=page.locator('[data-calculator-output="AI9"] .calculator-basis-preview');await expect(originalStatus).toBeVisible();
+ await expect(page.locator('[data-calculator-output="AI9"]')).toHaveCount(0);
+ await expect(page.locator('#calculator-pages').getByRole('button',{name:'SETTINGS',exact:true})).toHaveCount(0);
  const worksheetRequest={sheet:'CALCULATOR',inputs:boardLegacy,include_advanced:true,schedule_view:{rows:[9],offset:0,limit:1}};
  const raw=await page.request.post(`${base}/api/calculators/steel_board/worksheet`,{data:worksheetRequest});assert.equal(raw.status(),200);
  const sourceCells=(await raw.json()).rows.find(row=>row.row===9).cells;
@@ -93,14 +94,14 @@ async function focusSettled(field){
  await sections.fill('CHS');await expect(page.getByRole('option').filter({hasText:'CHS'}).first()).toBeVisible();
  const chsAlias=await page.getByRole('option').filter({hasText:'CHS'}).first().textContent();assert.ok(!chsAlias.includes('[P100]'));
  await sections.press('Escape');await sections.fill('200UC46');await sections.press('Escape');
- await originalStatus.click();await expect(page.locator('#calculator-basis-full')).toContainText(source);await page.getByRole('dialog').getByRole('button',{name:'Close',exact:true}).click();
+ await expect(page.locator('[data-calculator-output="AI9"]')).toHaveCount(0);assert.equal(typeof source,'string');assert.ok(source.length>0);
  assert.deepEqual(await snapshot(),legacyBefore);
  const addResponse=page.waitForResponse(r=>r.request().method()==='POST'&&r.url()===`${base}/api/calculators/steel_board/worksheet`);
  await page.getByRole('button',{name:'Add row',exact:true}).click();await addResponse;await idle();
  await edit('C10','TRAFALGAR COREX','steel_board');
  await expect(page.locator('[data-calculator-cell="CJ10"]')).toHaveValue('');await expect(page.locator('[data-calculator-cell="CJ10"]')).toHaveClass(/calculator-required-missing/);
  assert.equal((await snapshot()).steel_board.inputs.CALCULATOR.CJ10,null);
- await expect(page.locator('[data-calculator-output="AI10"] .calculator-basis-preview')).toContainText('Review required');
+ await expect(page.locator('[data-calculator-output="AI10"]')).toHaveCount(0);
  await page.screenshot({path:path.join(output,'board-new-required-quantity.png'),fullPage:true});
  for(const [cell,value]of [['D10','200UC46'],['F10',7.25],['G10',4],['H10',120],['I10','Column'],['J10',550],['CJ10',3]])await edit(cell,value,'steel_board');
   const memberField=page.locator('[data-calculator-cell="D10"]'),memberMenu=memberField.locator('xpath=..'),beforeChoice=await snapshot();

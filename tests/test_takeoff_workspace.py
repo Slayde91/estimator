@@ -526,7 +526,7 @@ class TakeoffWorkspaceTests(unittest.TestCase):
         self.assertEqual(sheet.cell(2, headers['Item ID']).value, identity)
         self.assertEqual(sheet.cell(2, headers['Mark / run']).value, '=HYPERLINK("bad")')
         self.assertEqual(sheet.cell(2, headers['Mark / run']).data_type, 's')
-        self.assertEqual(sheet.cell(2, headers['Source SHA-256']).value, 'a'*64)
+        self.assertNotIn('Source SHA-256', headers)
         self.assertEqual(sheet.cell(2, headers['Length per item m']).value, 7.123456789012345)
         self.assertFalse(any(c.data_type == 'f' for page in workbook for row in page for c in row))
         workbook.close()

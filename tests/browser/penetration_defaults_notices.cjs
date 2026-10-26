@@ -92,8 +92,8 @@ async function clear() {
   await expect(page.locator('#penetration-add-to-schedule')).toHaveAttribute('aria-busy', 'false'); await expect(page.locator('#penetration-estimator-schedule-body > tr')).toHaveCount(1); await settled();
   const beforeDelete = await snapshot();
   for (const body of ['penetration-estimator-schedule-body', 'penetration-schedule-body']) {
-    const shape = await page.locator(`#${body}`).evaluate(element => ({ columns: element.children[0].children.length, header: element.closest('table').querySelector('thead tr').lastElementChild.textContent.trim(), actions: [...element.children[0].children[9].querySelectorAll('button')].map(button => button.textContent.trim()), trash: element.children[0].children[10].querySelector('button').getAttribute('aria-label') }));
-    assert.equal(shape.columns, 11); assert.equal(shape.header, 'Delete'); assert.deepEqual(shape.actions, ['Edit']); assert.equal(shape.trash, 'Delete firestopping item 1');
+    const shape = await page.locator(`#${body}`).evaluate(element => ({ columns: element.children[0].children.length, header: element.closest('table').querySelector('thead tr').lastElementChild.textContent.trim(), actions: [...element.children[0].children[11].querySelectorAll('button')].map(button => button.textContent.trim()), trash: element.children[0].children[12].querySelector('button').getAttribute('aria-label') }));
+    assert.equal(shape.columns, 13); assert.equal(shape.header, 'Delete'); assert.deepEqual(shape.actions, ['Edit']); assert.equal(shape.trash, 'Delete firestopping item 1');
   }
   async function reviewedDelete(body, decision) {
     await page.locator(`#${body} > tr td:last-child button`).click(); const dialog = page.getByRole('dialog');

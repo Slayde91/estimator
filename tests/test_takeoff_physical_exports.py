@@ -78,7 +78,7 @@ class PhysicalExportTests(unittest.TestCase):
         self.assertEqual(by_id[uid(3)]['opening_size'], '100 mm')
         self.assertEqual(by_id[uid(3)]['opening_type'], 'Corehole')
         self.assertEqual(json.loads(service['fields_json']), self.graph['services'][0]['fields'])
-        self.assertEqual(service['graph_sha256'], physical.graph_digest(self.graph))
+        self.assertNotIn('graph_sha256', service)
         self.assertTrue(all(row[exports.STATUS_COLUMN] == exports.STATUS for row in rows))
 
     def test_empty_opening_keeps_its_row_without_placeholder_service_or_quantity(self):
@@ -104,7 +104,7 @@ class PhysicalExportTests(unittest.TestCase):
         self.assertIn('does not read or verify source bytes', info['Source status'])
         self.assertIn('No approval', info['Authority'])
         self.assertEqual(info['State'], 'draft')
-        self.assertEqual(info['Physical graph SHA-256'], physical.graph_digest(self.graph))
+        self.assertNotIn('Physical graph SHA-256', info)
         self.assertFalse(any(cell.data_type == 'f' for sheet in workbook for row in sheet for cell in row))
         for sheet in ('Barriers', 'Defects', 'Openings', 'Services', 'Evidence', 'Historical Entities'):
             self.assertIn('UNAPPROVED DRAFT', workbook[sheet]['A1'].value)
@@ -136,16 +136,19 @@ class PhysicalExportTests(unittest.TestCase):
         names = {uid(100): 'Original report.pdf', uid(999): 'Unused name'}
         rows = self.csv(names)
         opening = next(row for row in rows if row['entity_id'] == uid(3))
-        self.assertEqual(json.loads(opening['evidence_json']), [ref])
+        public_ref = {key: value for key, value in ref.items() if not key.endswith('sha256')}
+        self.assertEqual(json.loads(opening['evidence_json']), [public_ref])
         self.assertEqual(json.loads(opening['source_names_json']), {uid(100): 'Original report.pdf'})
         workbook = self.xlsx(names)
         association = next(row for row in records(workbook['Evidence']) if row['entity_id'] == uid(3))
-        self.assertEqual((association['document_id'], association['document_name'], association['document_sha256'],
-                          association['page'], association['image_id'], association['image_sha256'], association['occurrence_id']),
-                         (uid(100), 'Original report.pdf', 'a'*64, 1, uid(102), 'b'*64, uid(101)))
+        self.assertEqual((association['document_id'], association['document_name'],
+                          association['page'], association['image_id'], association['occurrence_id']),
+                         (uid(100), 'Original report.pdf', 1, uid(102), uid(101)))
+        self.assertNotIn('document_sha256', association)
+        self.assertNotIn('image_sha256', association)
         self.assertEqual(json.loads(association['region_json']), ref['region'])
         self.assertEqual(json.loads(association['supported_fields_json']), ref['fields'])
-        self.assertEqual(json.loads(association['association_json']), ref)
+        self.assertEqual(json.loads(association['association_json']), public_ref)
         self.assertEqual(association['association_key'], f'{uid(3)}/1')
         self.assertEqual(association[exports.SOURCE_STATUS_COLUMN], 'UNVERIFIED ASSERTIONS')
 
@@ -207,8 +210,8 @@ class PhysicalExportTests(unittest.TestCase):
         self.assertTrue(all(part['total_parts'] == len(parts) for part in parts))
         restored = ''.join(part[exports.CHUNK_HEADERS[-1]] for part in parts)
         self.assertEqual(restored, original)
-        self.assertEqual(json.loads(restored), refs)
-        self.assertTrue(all(part['sha256'] == sha256(original.encode()).hexdigest() for part in parts))
+        self.assertEqual(json.loads(restored), [{key: value for key, value in ref.items() if not key.endswith('sha256')} for ref in refs])
+        self.assertTrue(all('sha256' not in part for part in parts))
         self.assertTrue(all(len(part[exports.CHUNK_HEADERS[-1]].encode('utf-16-le')) <= 60000 for part in parts))
         self.assertEqual(len(records(workbook['Evidence'])), 33)
         csv_row = next(row for row in self.csv() if row['entity_id'] == uid(3))
@@ -231,7 +234,7 @@ class PhysicalExportTests(unittest.TestCase):
         first = self.csv(names)
         names[uid(100)] = 'Changed display name'
         second = self.csv(names)
-        self.assertEqual([row['graph_sha256'] for row in first], [row['graph_sha256'] for row in second])
+        self.assertTrue(all('graph_sha256' not in row for row in first + second))
         self.assertNotEqual(first[2]['source_names_json'], second[2]['source_names_json'])
         self.xlsx(original_names)
         self.assertEqual(self.graph, original)

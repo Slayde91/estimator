@@ -156,7 +156,7 @@ def export_current_register(snapshot, selected, results, confirmations, linked, 
 
 
 def export_physical_register(graph, *, confirmation='all', references=None):
-    from .register_references import report_text, system_text
+    from .register_references import report_text
     from .takeoff_physical import effective_confirmation, graph_collections, graph_parents, validate_graph
     from .takeoff_physical_exports import _stable_archive
     if not isinstance(confirmation, str) or confirmation not in ('all', 'confirmed', 'unconfirmed'):
@@ -168,7 +168,7 @@ def export_physical_register(graph, *, confirmation='all', references=None):
     kinds = ['barrier', 'defect', 'opening', 'service'] if legacy else ['barrier', 'service'] if plans else ['defect', 'barrier', 'service']
     headers = (*(['Legacy hierarchy / label'] if legacy else []), *[f'{kind.title()} ID' for kind in kinds],
                'Confirmation', 'Location', 'FRL', *(['Opening type', 'Opening size'] if legacy else []),
-               'Substrate', 'Orientation', 'Category', 'Service type', 'Service quantity', 'Service Size (mm)', 'Report', 'System', 'Source evidence')
+               'Substrate', 'Orientation', 'Category', 'Service type', 'Service quantity', 'Service Size (mm)', 'Report', 'Source evidence')
     children = {}
     for kind, entry in index.values():
         parent = entry[parents[kind][1]] if kind in parents else None
@@ -195,7 +195,7 @@ def export_physical_register(graph, *, confirmation='all', references=None):
             reference = (references or {}).get(entity['id'], {})
             row += [barrier.get('substrate'), barrier.get('orientation'), service.get('service'), service.get('service_type'),
                     (entity['quantity'] if entity['quantity'] is not None else 'Unknown') if kind == 'service' else None,
-                    size, report_text(reference.get('reports', [])), system_text(reference), f'{len(entity["evidence"])} source associations']
+                    size, report_text(reference.get('reports', [])), f'{len(entity["evidence"])} source associations']
             rows.append(row)
         for child_kind, child in children.get(entity['id'], []):
             visit(child_kind, child, relation)

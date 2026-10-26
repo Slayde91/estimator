@@ -121,6 +121,18 @@ compact schedule PDF includes project details, totals, the
 schedule and any calculation errors; Settings, Line Inputs and Calculated detail
 appendices remain available in the XLSX register instead of the PDF.
 
+Both Firestopping schedules show **Report** and **System** links. Rows retain
+their Takeoffs references or inherit the Firestopping Library item's linked
+Technical Library records. **Choose reports** opens a filtered, multi-selection
+Technical Library search for manual items; **Change reports** edits a selection.
+Selections are saved with the project and do not change calculations or pricing.
+System numbers open individual library records; report links open the report.
+
+Generated documents disclose report references without internal assessment
+narratives, lookup/table/page details, source fingerprints or workbook provenance.
+PDF and Excel exports retain the intended quantities and commercial content.
+Original source reports and portable project/recovery files remain intact.
+
 The **Libraries** tab has **Pricing Library**, **Firestopping Library** and
 **Technical Library** tiles. The two reference libraries support search,
 filters, original diagrams, report/page references and navigation between related
@@ -270,7 +282,7 @@ An existing export is never overwritten: duplicate filenames receive a numbered 
 
 Choose **Calculators**, then **Steel (spray)**, **Steel (board)**, **Steel (intumescent)** or **Ductwork (spray/wrap)**. New main schedules start with one blank row and support up to 1,000 rows. **Add row** and **Undo remove** sit below each main schedule table; each row has its own **Remove** button. Removing a row clears all its editable inputs, including advanced fields, while its formula addresses and the remaining line numbers stay fixed. Added blank rows and removed rows are retained in project files. Editing a cleared row or reusing its slot retires its removal undo history so newer inputs cannot be overwritten. Steel schedules show a read-only Line column, and the spray and intumescent schedules have an editable Location column after it.
 
-Steel spray has **START**, **SCHEDULE**, **SUMMARY**, **SETTINGS** and **FACTOR CALCS** tabs. Steel board has **START**, **SCHEDULE**, **BOARD SUMMARY** and **SETTINGS**; its former EXTRA BOARDS tab is hidden. The former spray LOOKUP tab is also hidden. Their source inputs, formulas and saved values remain intact, including historical additional-board allowances. Spray SUMMARY uses the original `BAGS` worksheet; board and duct SCHEDULE use their original `CALCULATOR` worksheet identities. Large schedules load a moving window of up to 60 rows as you scroll; every entered row still contributes to calculations, saved projects and reports. Editable fields have controls; calculated outputs distinguish populated values from blanks, with a separate highlight for published thickness. Zero is a populated value. Main sections use white text on red headings. Forms fit a phone, with comparison tables scrolling separately.
+Steel spray has **START**, **SCHEDULE**, **SUMMARY**, **SETTINGS** and **FACTOR CALCS** tabs. Steel board has **START**, **SCHEDULE** and **BOARD SUMMARY**; SETTINGS and EXTRA BOARDS are hidden while their saved inputs remain active. The former spray LOOKUP tab is also hidden. Their source inputs, formulas and saved values remain intact, including historical additional-board allowances. Spray SUMMARY uses the original `BAGS` worksheet; board and duct SCHEDULE use their original `CALCULATOR` worksheet identities. Large schedules load a moving window of up to 60 rows as you scroll; every entered row still contributes to calculations, saved projects and reports. Editable fields have controls; calculated outputs distinguish populated values from blanks, with a separate highlight for published thickness. Zero is a populated value. Main sections use white text on red headings. Forms fit a phone, with comparison tables scrolling separately.
 
 Steel (intumescent) opens on **SCHEDULE**, with **SUMMARY** and **SETTINGS** tabs. Member choices distinguish I/H beams and columns so the applicable FIRETEX beam limits remain explicit. Missing or blank FX6010 kit fields display and calculate with Australian estimates without rewriting the stored input map; other entered values remain editable. Nonzero or invalid legacy Part C still holds FX6010 quantities for review while DFT remains available.
 
@@ -279,8 +291,8 @@ Recently viewed calculator tabs reopen faster while their inputs remain unchange
 Vermiculite **START** shows the operating rules directly. **SETTINGS** has six
 global/product sections; Common Calculation Rules appear under Global Settings.
 **FACTOR CALCS** has three helper sections. Choose a
-folder tab to open a section; only that section is shown. Duct and board Settings
-use the same folder-tab presentation and selection behavior. Other settings still affect calculations and are
+folder tab to open a section; only that section is shown. Duct Product Settings
+uses the same folder-tab presentation and selection behavior. Board Settings is hidden. Other settings still affect calculations and are
 retained when you save or download. The browser remembers the open section while
 you switch tabs. In vermiculite SCHEDULE, Section ID opens a native list of source
 sections. SUMMARY shows the product summary first, then the **MATERIAL QUANTITIES**

@@ -15,6 +15,7 @@ import threading
 import unittest
 from unittest.mock import patch
 from uuid import uuid4
+from zipfile import ZipFile
 
 from openpyxl import load_workbook
 from pypdf import PdfReader
@@ -818,22 +819,31 @@ class TakeoffLibraryLinkTests(unittest.TestCase):
             with self.assertRaises(ValidationError):
                 validate_graph(wrong)
 
-    def test_unknown_service_portable_project_and_diagnostic_exports_preserve_provenance(self):
+    def test_unknown_service_downloads_omit_fingerprints_but_portable_project_preserves_provenance(self):
         commands, identifier, _ = self.unknown_import(); result = self.physical(commands)
         service = deepcopy(result['snapshot']['physical']['services'][0])
+        quantity = {key: value for key, value in service['library_quantity'].items() if key != 'metadata_sha256'}
+        fingerprint = service['library_quantity']['metadata_sha256']
         payload, _, _ = self.service.export_physical(self.sid, 'csv')
+        self.assertNotIn('metadata_sha256', payload.decode('utf-8-sig'))
+        self.assertNotIn(fingerprint, payload.decode('utf-8-sig'))
         rows = list(csv.DictReader(StringIO(payload.decode('utf-8-sig'))))
         exported = next(row for row in rows if row['entity_id'] == identifier)
         self.assertEqual(exported['quantity'], '')
-        self.assertEqual(json.loads(exported['library_quantity_json']), service['library_quantity'])
+        self.assertEqual(json.loads(exported['library_quantity_json']), quantity)
         self.assertEqual(exported['display_id'], 'S-0001')
         payload, _, _ = self.service.export_physical(self.sid, 'xlsx')
+        with ZipFile(BytesIO(payload)) as archive:
+            xml = '\n'.join(archive.read(name).decode('utf-8') for name in archive.namelist()
+                            if name.endswith(('.xml', '.rels')))
+        self.assertNotIn('metadata_sha256', xml)
+        self.assertNotIn(fingerprint, xml)
         workbook = load_workbook(BytesIO(payload), data_only=False)
         try:
             values = list(workbook['Services'].values)
             exported = dict(zip(values[0], values[1]))
             self.assertIsNone(exported['quantity'])
-            self.assertEqual(json.loads(exported['library_quantity_json']), service['library_quantity'])
+            self.assertEqual(json.loads(exported['library_quantity_json']), quantity)
             self.assertEqual(exported['display_id'], 'S-0001')
         finally:
             workbook.close()

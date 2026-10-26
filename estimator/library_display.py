@@ -6,10 +6,10 @@ from .technical_table_navigation import field_tables
 
 
 def display_subtitle(value):
-    """Hide standalone source-table segments, retaining the other metadata."""
+    """Hide standalone source-table and selector-count presentation segments."""
     return ' · '.join(part.strip() for part in value.split('·')
                       if part.strip() and not re.fullmatch(
-                          r'Tables?\s+\d+[A-Za-z]?(?:\s*(?:[-–,/]|and)\s*\d+[A-Za-z]?)*',
+                          r'(?:Tables?\s+\d+[A-Za-z]?(?:\s*(?:[-–,/]|and)\s*\d+[A-Za-z]?)*|\d+\s+selector\s+variants?)',
                           part.strip(), re.I))
 
 

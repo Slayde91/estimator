@@ -88,6 +88,36 @@ class ConfirmedRegisterTransferTests(unittest.TestCase):
         self.links.library.action(library_id, 'save', {'draft': draft, 'revision': edit['revision'],
                                                      'pricing_token': edit['pricing_token']})
 
+    def test_custom_library_report_choice_survives_confirmed_transfer_in_both_scopes(self):
+        from estimator.penetration_references import resolve_schedule_references
+        from estimator.takeoff_model import digest
+        library = self.links.library
+        choice = next(field['options'][0]['value'] for field in library.listing('technical')['filters']
+                      if field['key'] == 'report')
+        for scope in ('defect_reports', 'service_plans'):
+            with self.subTest(scope=scope):
+                original = library.edit('pkb-001')
+                draft = deepcopy(original['draft'])
+                draft['rows'][0]['report_reference'] = choice
+                created = library.create({'draft': draft, 'configuration': original['configuration'],
+                                          'idempotency_key': f'report-transfer-{scope}'})
+                selected = library.takeoff_record(created['id'])
+                self.assertEqual(selected['report_reference'], choice)
+                metadata = {key: selected[key] for key in ('id', 'library_id', 'title', 'source_sha256',
+                                                         'revision', 'inputs', 'report_reference')}
+                self.assertEqual(selected['metadata_sha256'], digest(metadata))
+                barrier, services = self.branch(scope, (3,))
+                self.associate([barrier, *services], scope=scope, library_id=created['id'])
+                result, request = self.transfer(scope)
+                row = next(row for row in self.links.draft['rows'] if row.get('library_item_id') == created['id'])
+                self.assertEqual(row['report_reference'], choice)
+                self.assertEqual(row['inputs'], {**draft['rows'][0]['inputs'], 'O': 3})
+                references = resolve_schedule_references(self.links.draft, library)['row_references'][row['id']]
+                self.assertEqual([report['label'] for report in references['reports']], [choice])
+                self.assertEqual(references['systems'], [])
+                self.assertEqual(self.service.transfer_confirmed_library(self.sid, request), result)
+        self.links.assert_source_unchanged()
+
     def test_all_confirmed_assignments_in_scope_transfer_once_using_service_counts(self):
         for scope in ('defect_reports', 'service_plans'):
             with self.subTest(scope=scope):

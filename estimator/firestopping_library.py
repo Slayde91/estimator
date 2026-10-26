@@ -998,12 +998,16 @@ class FirestoppingLibrary(ReferenceLibrary):
         from .service_dimensions import service_size_evidence
         with self._lock:
             item, source, saved, _, _ = self._context(key)
-            inputs = deepcopy((saved['draft'] if saved else item['estimate']['draft'])['rows'][0]['inputs'])
+            draft_row = (saved['draft'] if saved else item['estimate']['draft'])['rows'][0]
+            inputs = deepcopy(draft_row['inputs'])
             revision = saved['revision'] if saved else 0
             record = {'id': key, 'library_id': item['library_id'],
                       'title': str(inputs.get('T') or item['title']),
                       'source_sha256': source['source_sha256'], 'revision': revision,
                       'inputs': inputs}
+            if 'report_reference' in draft_row:
+                from .penetration_references import validate_report_reference
+                record['report_reference'] = validate_report_reference(draft_row['report_reference'])
             record['metadata_sha256'] = digest(record)
             record['display_fields'] = self._takeoff_display_fields(item, inputs)
             clean = lambda value: str(value) if value is not None else ''

@@ -5,6 +5,34 @@
   const maximum = 128;
   const labels = { report: "Report", document: "Report", category: "Category", services: "Service Type", type: "Penetration Type", orientation: "Orientation", substrate: "Substrate", frl: "FRL", manufacturer: "Manufacturer" };
   const text = value => value == null ? "" : String(value);
+  const displayTitle = item => root.LibraryDetailText?.displayTitle(item) || item.title || item.id;
+  const displaySubtitle = item => root.LibraryDetailText?.displaySubtitle(item) ?? item.subtitle;
+  let reportOptionsRequest;
+  async function reportOptions() {
+    if (!reportOptionsRequest) {
+      reportOptionsRequest = (async () => {
+        const response = await root.fetch("/api/libraries/technical?limit=1", { headers: { Accept: "application/json" } });
+        const data = await response.json(); if (!response.ok) throw new Error(data.error || "Technical records unavailable.");
+        const filters = data.filters || [];
+        return filters.find(item => item.key === "report") || filters.find(item => item.key === "document") || { key: "report", options: [] };
+      })().finally(() => { reportOptionsRequest = null; });
+    }
+    return reportOptionsRequest;
+  }
+  function appendReportOptions(control, definition) {
+    const groups = new Map(), seen = new Set();
+    for (const option of definition.options || []) {
+      const value = typeof option === "string" ? option : option?.value;
+      if (typeof value !== "string" || !value.trim() || seen.has(value)) continue;
+      seen.add(value); const entry = node(control.ownerDocument, "option", "", option.label || value); entry.value = value;
+      const group = typeof option.group === "string" ? option.group.trim() : "";
+      if (!group) control.append(entry);
+      else {
+        if (!groups.has(group)) { const host = node(control.ownerDocument, "optgroup"); host.label = group; groups.set(group, host); control.append(host); }
+        groups.get(group).append(entry);
+      }
+    }
+  }
   function node(document, tag, className, value) {
     const result = document.createElement(tag); if (className) result.className = className; if (value !== undefined) result.textContent = text(value); return result;
   }
@@ -26,8 +54,8 @@
     for (const [index, item] of systems.entries()) {
       if (index) result.append(node(document, "span", "", " | "));
       const control = node(document, "button", "text-button", index + 1); control.type = "button";
-      control.dataset.technicalReference = item.id; control.title = text(item.title || item.id);
-      uiAttr(control, "aria-label", "System {0}: {1}", [index + 1, item.title || item.id]);
+      control.dataset.technicalReference = item.id; control.title = text(displayTitle(item));
+      uiAttr(control, "aria-label", "System {0}: {1}", [index + 1, displayTitle(item)]);
       control.addEventListener("click", async () => {
         if (options.isCurrent && !options.isCurrent()) return;
         try { await root.CeasefireLibraryNavigation?.open("technical", item.id); } catch (error) { options.notify?.(error.message, true); }
@@ -41,7 +69,7 @@
   }
   function open(options) {
     const document = options.document || root.document;
-    const known = new Map((options.reference?.systems || []).filter(item => validId(item?.id)).map(item => [item.id, { id: item.id, title: item.title || item.id }]));
+    const known = new Map((options.reference?.systems || []).filter(item => validId(item?.id)).map(item => [item.id, { id: item.id, title: displayTitle(item) }]));
     const selected = new Map((options.selectedIds || [...known.keys()]).map(id => [id, known.get(id) || { id, title: id }]));
     validateIds([...selected.keys()]);
     const dialog = node(document, "dialog", "penetration-reference-picker"); uiAttr(dialog, "aria-label", "Choose Technical Library references");
@@ -111,9 +139,9 @@
         for (const item of data.items) {
           const row = node(document, "div", "penetration-reference-choice"), label = node(document, "label"), checkbox = node(document, "input"), caption = node(document, "span");
           checkbox.type = "checkbox"; checkbox.value = item.id; checkbox.checked = selected.has(item.id); checkbox.dataset.penetrationReferenceChoice = item.id;
-          caption.append(node(document, "strong", "", item.title || item.id)); if (item.subtitle) caption.append(node(document, "span", "helper", item.subtitle));
+          caption.append(node(document, "strong", "", displayTitle(item))); if (displaySubtitle(item)) caption.append(node(document, "span", "helper", displaySubtitle(item)));
           checkbox.addEventListener("change", () => {
-            try { if (!current() || state.saving || revision !== state.revision) return; if (checkbox.checked) { validateIds([...selected.keys(), ...(selected.has(item.id) ? [] : [item.id])]); selected.set(item.id, { id: item.id, title: item.title || item.id }); } else selected.delete(item.id); selections(); }
+            try { if (!current() || state.saving || revision !== state.revision) return; if (checkbox.checked) { validateIds([...selected.keys(), ...(selected.has(item.id) ? [] : [item.id])]); selected.set(item.id, { id: item.id, title: displayTitle(item) }); } else selected.delete(item.id); selections(); }
             catch (error) { checkbox.checked = selected.has(item.id); inform(error.message, true); }
           });
           const preview = node(document, "section", "penetration-reference-preview"); preview.hidden = true;
@@ -129,8 +157,8 @@
               if (revision !== state.revision || !current()) return;
               if (detail.id !== item.id || !Array.isArray(detail.fields)) throw new Error("The Technical Library returned an invalid item.");
               const fields = node(document, "dl", "library-record-fields");
-              for (const field of detail.fields) { const entry = node(document, "div", "library-record-field"); entry.append(node(document, "dt", "", field.label), node(document, "dd", "", field.value)); fields.append(entry); }
-              preview.replaceChildren(node(document, "h4", "", detail.title || item.id), fields); previewLoaded = true; inspect.setAttribute("aria-expanded", "true");
+              for (const field of detail.fields.filter(field => root.LibraryDetailText?.visibleField?.(detail, field, "technical") ?? true)) { const entry = node(document, "div", "library-record-field"); entry.append(node(document, "dt", "", field.label), node(document, "dd", "", field.value)); fields.append(entry); }
+              preview.replaceChildren(node(document, "h4", "", displayTitle(detail)), fields); previewLoaded = true; inspect.setAttribute("aria-expanded", "true");
             } catch (error) { if (!state.closed && revision === state.revision && error.name !== "AbortError") { preview.replaceChildren(node(document, "p", "message error", error.message)); } }
             finally { previewLoading = false; inspect.disabled = state.saving; }
           }); inspect.setAttribute("aria-expanded", "false");
@@ -155,7 +183,7 @@
     dialog.append(heading, note, controls, filterHost, message, count, resultHost, pages, selectionHost, actions); document.body.append(dialog);
     dialog.showModal(); selections(); void load(); return promise;
   }
-  const api = { open, renderSystems, validateIds, validId, filterOptions };
+  const api = { open, renderSystems, validateIds, validId, filterOptions, reportOptions, appendReportOptions };
   root.CeasefirePenetrationReferences = api;
   if (typeof module === "object" && module.exports) module.exports = api;
 })(typeof window === "object" ? window : globalThis);

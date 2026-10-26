@@ -27,12 +27,12 @@
     "افتح نسخة الذكاء الاصطناعي بالحجم الكامل (علامة تبويب جديدة)",
     "เปิดภาพจำลอง AI ขนาดเต็ม (แท็บใหม่)"
   ],
-  "AI replica — illustrative; check original for installation detail.": [
-    "AI 复制图 — 仅供示意；安装细节请查看原图。",
-    "AI प्रतिकृति — चित्रण के लिए; स्थापना विवरण मूल चित्र में देखें।",
-    "Réplica de IA: ilustrativa; consulte el original para los detalles de instalación.",
-    "نسخة بالذكاء الاصطناعي للتوضيح؛ راجع الأصل لتفاصيل التركيب.",
-    "ภาพจำลอง AI เพื่อประกอบความเข้าใจ โปรดดูรายละเอียดการติดตั้งจากต้นฉบับ"
+  "Illustrative AI generated asset only. Confirm installation details with the manufacturer.": [
+    "AI 生成的素材，仅供示意。请向制造商确认安装细节。",
+    "यह AI द्वारा बनाई गई सामग्री केवल चित्रण के लिए है। स्थापना विवरण निर्माता से पुष्टि करें।",
+    "Recurso generado por IA, solo ilustrativo. Confirme los detalles de instalación con el fabricante.",
+    "مادة مولّدة بالذكاء الاصطناعي للتوضيح فقط. أكّد تفاصيل التركيب مع الشركة المصنّعة.",
+    "สื่อที่สร้างโดย AI เพื่อประกอบความเข้าใจเท่านั้น โปรดยืนยันรายละเอียดการติดตั้งกับผู้ผลิต"
   ],
   "CALCULATORS": [
     "计算器",

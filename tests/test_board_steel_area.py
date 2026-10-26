@@ -130,9 +130,10 @@ class BoardSteelAreaTests(unittest.TestCase):
         self.assertAlmostEqual(summary.cell(target, labels['Net Steel sqm']).value, 11.838283271233896)
         self.assertEqual(summary.cell(target, labels['Purchase sqm']).value, purchase)
         text = '\n'.join(page.extract_text() for page in PdfReader(BytesIO(build_calculator_summary_report('steel_board', inputs))).pages)
-        self.assertIn('Net Steel sqm', text)
+        self.assertIn('Net Steel sqm', ' '.join(text.split()))
         self.assertIn('11.84', text)
-        self.assertIn('Different thickness rows can include the same member', text)
+        self.assertNotIn('Different thickness rows can include the same member', text)
+        self.assertIn('FAS230021 RIR1.4', text)
         self.assertNotIn('SHA-256', text)
         self.assertTrue(data['board_net_steel_areas']['profile_source']['sha256'])
 

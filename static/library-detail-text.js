@@ -103,6 +103,31 @@
     });
   }
 
+  const selectorRecord = record => /^(?:promat-|trafalgar-selector-)/i.test(String(record?.id || ""));
+  function displayTitle(record) {
+    const title = String(record?.title || record?.id || "");
+    // Only supplier selector numbers are presentation noise. Technical IDs,
+    // dimensions and ratings remain literal, and navigation keeps record.id.
+    return selectorRecord(record) ? title.replace(/^\s*(Promat|Trafalgar)(?:\s*:\s*|\s+)\d+\s*[—–-]\s*/i, "$1 — ") : title;
+  }
+  function displaySubtitle(record) {
+    const subtitle = String(record?.subtitle || "");
+    return selectorRecord(record) ? subtitle.split("·").map(part => part.trim())
+      .filter(part => part && !/^\d+\s+selector variants?$/i.test(part)).join(" · ") : subtitle;
+  }
+  const hiddenFields = new Set(["diagram captions (visually checked)", "workbook report revision", "reference review", "reference qualification", "workbook / source differences", "workbook / source difference", "source information"]);
+  const hiddenTechnicalFields = new Set(["source table notes", "source option alignment", "technical basis", "lead time"]);
+  function visibleField(record, field, kind = "technical") {
+    const label = String(field.label || "").trim().toLowerCase();
+    if (hiddenFields.has(label) || kind === "technical" && hiddenTechnicalFields.has(label)) return false;
+    const selectorSupplier = selectorRecord(record) || (record.fields || []).some(item =>
+      String(item.label).trim().toLowerCase() === "manufacturer" && String(item.value).split(/\r?\n/)
+        .some(name => /^(?:promat|trafalgar)$/i.test(name.trim())));
+    if (kind === "technical" && selectorSupplier && label === "id" &&
+        /^(?:\d+|sys_var_\d+_au)(?:\s*\(\+\d+ variants listed below\))?$/i.test(String(field.value).trim())) return false;
+    return kind !== "technical" || String(field.value ?? "").trim() !== "" || Boolean(field.images?.length || field.table || field.tables?.length || field.table_links?.length);
+  }
+
   function installationHeading(lines, index) {
     if (!/^Installation (?:through|against)\b/.test(lines[index] || "")) return null;
     let text = "";
@@ -244,7 +269,7 @@
     return parse(value, options).map(renderBlock);
   }
 
-  const api = Object.freeze({ parse, render, compact });
+  const api = Object.freeze({ parse, render, compact, displayTitle, displaySubtitle, visibleField });
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   if (root) root.LibraryDetailText = api;
 })(typeof window !== "undefined" ? window : globalThis);

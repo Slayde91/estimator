@@ -89,7 +89,8 @@ class AssessmentReferenceTests(unittest.TestCase):
         self.assertEqual(report_reference_text(refs), 'FC123 <review>')
         self.assertIn('https://example.org', report_reference_text(refs, urls=True))
         _register_fonts()
-        paragraph = _ScheduleReport({}).report_links(refs)
+        paragraph = _ScheduleReport({'id': 'steel_vermiculite', 'summaries': [],
+                                     'rows': [], 'extra_rows': []}).report_links(refs)
         self.assertIn('&lt;review&gt;', paragraph.text)
         self.assertIn('&amp;', paragraph.text)
 

@@ -22,13 +22,6 @@
   const money = new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" });
   const priceText = price => typeof price?.amount === "number" && Number.isFinite(price.amount) ? money.format(price.amount) : "Price unavailable";
   const priceLabel = price => String(price?.label || "").trim().toLowerCase() === "workbook price" ? "Library price" : price?.label || "Library price";
-  const hiddenFields = new Set(["diagram captions (visually checked)", "workbook report revision", "reference review", "reference qualification", "workbook / source differences", "workbook / source difference"]);
-  const hiddenTechnicalFields = new Set(["source table notes", "source option alignment", "technical basis", "lead time"]);
-  const visibleField = (kind, field) => {
-    const label = String(field.label || "").trim().toLowerCase();
-    if (hiddenFields.has(label) || kind === "technical" && hiddenTechnicalFields.has(label)) return false;
-    return kind !== "technical" || String(field.value ?? "").trim() !== "" || field.images?.length || field.table || field.tables?.length || field.table_links?.length;
-  };
   const fieldLabel = (kind, label, column) => kind !== "penetration" ? label
     : label === "Type" && column === "J" ? "Category"
     : ["Item(s)", "Items/Services"].includes(label) ? "Description"
@@ -173,14 +166,14 @@
     for (const key of pane.deleteButtons.keys()) if (key.startsWith("list:")) pane.deleteButtons.delete(key);
     for (const key of pane.quantityBadges.keys()) if (key.startsWith("list:")) pane.quantityBadges.delete(key);
     pane.results.replaceChildren(...(items.length ? items.map(item => {
-      const card = node("article", "library-result"), title = button(display(item.title || item.id), () => navigate(pane.kind, item.id), "library-record-link");
+      const card = node("article", "library-result"), title = button(display(window.LibraryDetailText.displayTitle(item)), () => navigate(pane.kind, item.id), "library-record-link");
       title.dataset.libraryRecord = item.id;
       if (pane.kind === "penetration") { const heading = node("div", "library-record-heading"); heading.append(title, quantityBadge(pane, item.id, "list")); card.append(heading); }
       else { title.classList.add("library-frl-value"); card.append(title); }
-      if (item.subtitle) card.append(node("p", "library-subtitle library-frl-value", display(item.subtitle)));
+      const subtitle = window.LibraryDetailText.displaySubtitle(item);
+      if (subtitle) card.append(node("p", "library-subtitle library-frl-value", display(subtitle)));
       if (item.price) card.append(node("p", "library-record-price", `${priceLabel(item.price)}: ${priceText(item.price)}`));
       if (item.summary) card.append(node("p", "library-excerpt", display(item.summary)));
-      if (pane.kind !== "penetration" && item.source_label) card.append(node("p", "helper", display(item.source_label)));
       if (Number.isSafeInteger(item.related_count)) card.append(uiNode("p", "helper", "{0} related {1}", [item.related_count, () => window.CeasefireI18n?.translate(pane.kind === "penetration" ? "technical references" : "firestopping records") || (pane.kind === "penetration" ? "technical references" : "firestopping records")]));
       if (pane.kind === "penetration") card.append(itemActions(pane, item, "list"));
       return card;
@@ -378,7 +371,9 @@
       uiText(session.count, ...(session.total ? ["Showing {0}–{1} of {2} technical records", [session.offset + 1, session.offset + items.length, session.total]] : ["No matching technical records.", []]));
       session.results.replaceChildren(...items.map(item => {
         const choice = node("label", "library-link-choice"), input = node("input"), description = node("span"); input.type = "checkbox"; input.value = item.id; input.checked = session.selected.has(item.id); input.dataset.libraryLinkChoice = item.id;
-        description.append(node("strong", "library-frl-value", compactTechnical(item.title || item.id))); if (item.subtitle) description.append(node("span", "helper library-frl-value", compactTechnical(item.subtitle))); if (item.source_label) description.append(node("span", "helper", compactTechnical(item.source_label)));
+        description.append(node("strong", "library-frl-value", compactTechnical(window.LibraryDetailText.displayTitle(item))));
+        const subtitle = window.LibraryDetailText.displaySubtitle(item);
+        if (subtitle) description.append(node("span", "helper library-frl-value", compactTechnical(subtitle)));
         input.addEventListener("change", () => { if (pane.linkSession !== session || revision !== session.revision || session.busy || session.saving) return; if (input.checked) session.selected.add(item.id); else session.selected.delete(item.id); updateLinkSave(session); }); session.choices.push(input); choice.append(input, description); return choice;
       }));
     } catch (error) { if (pane.linkSession === session && revision === session.revision && error.name !== "AbortError") { session.total = 0; uiText(session.count, "Technical records unavailable."); linkMessage(session, `${error.message} Use Search to retry.`, true); } }
@@ -481,29 +476,27 @@
     renderFilters(pane, pane.data.filters || libraryInfo(pane)?.filters || []); setBusy(pane, false);
   }
   const compactTechnical = value => window.LibraryDetailText.compact(valueText(value));
-  function sourceNode(source) {
-    const box = node("article", "library-source"), heading = source.label || source.filename || "Source reference";
-    box.append(node("span", "", compactTechnical(heading)));
-    return box;
-  }
   function imageNode(item, kind, imageOnly = false, replicas = {}) {
     const figure = node("figure", "library-image"), link = node("a"), image = node("img");
     const captionText = kind === "technical" ? compactTechnical(diagramCaption(kind, item.caption)) : diagramCaption(kind, item.caption);
     const caption = kind === "technical" && item.role ? compactTechnical(`${item.role} — ${captionText}`) : captionText;
     const savedUrl = kind === "penetration" && validDiagramUrl(item.url) ? item.url : null;
-    link.href = savedUrl || `/api/libraries/images/${encodeURIComponent(item.id)}`; link.target = "_blank"; link.rel = "noopener noreferrer";
-    uiAttr(link, "aria-label", "Open {0} at full size (new tab)", [caption]);
-    image.src = link.href; image.alt = caption; image.loading = "lazy"; image.decoding = "async";
-    link.append(image); figure.append(link);
     const replica = replicas[item.id], expected = `/api/libraries/replicas/${encodeURIComponent(item.id)}`;
-    if (!savedUrl && replica === expected) {
-      const original = node("a", "helper"); original.href = link.href; original.target = "_blank"; original.rel = "noopener noreferrer";
-      uiText(original, "Open original source image");
-      link.href = replica; image.src = replica;
-      uiAttr(link, "aria-label", "Open AI replica at full size (new tab)");
-      image.alt = `${caption} — AI replica`;
-      image.addEventListener("error", () => { image.src = original.href; link.href = original.href; image.alt = caption; }, { once: true });
-      figure.append(uiNode("figcaption", "helper", "AI replica — illustrative; check original for installation detail."), original);
+    const useReplica = !savedUrl && replica === expected;
+    // Resolve the final asset before assigning src; even a detached image can
+    // start a request, so AI blocks must never briefly load the original.
+    link.href = savedUrl || (useReplica ? replica : `/api/libraries/images/${encodeURIComponent(item.id)}`);
+    link.target = "_blank"; link.rel = "noopener noreferrer";
+    if (useReplica) uiAttr(link, "aria-label", "Open AI replica at full size (new tab)");
+    else uiAttr(link, "aria-label", "Open {0} at full size (new tab)", [caption]);
+    image.src = link.href; image.alt = useReplica ? `${caption} — AI replica` : caption;
+    image.loading = "lazy"; image.decoding = "async";
+    link.append(image); figure.append(link);
+    if (useReplica) {
+      // A missing replica must never silently substitute an original image
+      // underneath an AI caption. Originals remain in the retained record.
+      figure.append(uiNode("figcaption", "helper", "Illustrative AI generated asset only. Confirm installation details with the manufacturer."));
+      return figure;
     }
     if (!imageOnly) figure.append(node("figcaption", "helper", caption));
     return figure;
@@ -695,7 +688,7 @@
   function renderDetail(pane) {
     pane.documentCleanup?.();
     const display = ["technical", "penetration"].includes(pane.kind) ? compactTechnical : valueText;
-    const data = pane.detail, heading = node("h3", "", display(data.title || data.id));
+    const data = pane.detail, heading = node("h3", "", display(window.LibraryDetailText.displayTitle(data)));
     if (pane.kind === "technical") heading.classList.add("library-frl-value");
     // Legacy Firefly report imports predate the Manufacturer field.
     const firefly = /^fas19023[456]-/i.test(String(data.id)) || (data.fields || []).some(field => String(field.label).trim().toLowerCase() === "manufacturer" && /\bfirefly\b/i.test(String(field.value)));
@@ -704,7 +697,8 @@
     const title = node("div", `library-record-heading${pane.kind === "technical" ? " library-technical-heading" : ""}`);
     title.append(heading, pane.kind === "penetration" ? quantityBadge(pane, data.id, "detail") : technicalDocumentMenu(pane, data));
     const content = [detailNavigation(pane), title];
-    if (data.subtitle) content.push(node("p", "library-subtitle library-frl-value", display(data.subtitle)));
+    const subtitle = window.LibraryDetailText.displaySubtitle(data);
+    if (subtitle) content.push(node("p", "library-subtitle library-frl-value", display(subtitle)));
     for (const key of pane.scheduleButtons.keys()) if (key.startsWith("detail:")) { pane.scheduleButtons.delete(key); pane.actionMessages.delete(key); }
     for (const key of pane.deleteButtons.keys()) if (key.startsWith("detail:")) pane.deleteButtons.delete(key);
     pane.unlinkButtons.clear();
@@ -716,13 +710,9 @@
     }
     if (data.notice) content.push(node("p", "library-record-notice", display(data.notice)));
     const fields = node("dl", "library-record-fields");
-    const supplierIdHidden = pane.kind === "technical" && (/^(?:promat-|trafalgar-selector-)/i.test(String(data.id)) ||
-      (data.fields || []).some(field => String(field.label).trim().toLowerCase() === "manufacturer" &&
-        String(field.value).split(/\r?\n/).some(name => /^(?:promat|trafalgar)$/i.test(name.trim()))));
-    // Omit only this visible field. Titles, detail data, source identifiers,
-    // exports and durable manual-reference targets retain their exact IDs.
-    const visibleFields = (data.fields || []).filter(field => visibleField(pane.kind, field) &&
-      !(supplierIdHidden && String(field.label).trim().toLowerCase() === "id"));
+    // Omit only supplier selector numbers. Real technical IDs remain visible;
+    // all original fields and durable reference targets retain their exact IDs.
+    const visibleFields = (data.fields || []).filter(field => window.LibraryDetailText.visibleField(data, field, pane.kind));
     const tablesByField = new Map(visibleFields.map(field => [field, fieldTables(field).map((table, index, tables) => {
       if (!validFieldTable(table) || !displayedColumns(table).length) return null;
       const target = fieldTable({ ...field, table }, index, tables.length, pane.kind);
@@ -788,21 +778,17 @@
     if (!links.length) related.append(uiNode("p", "helper", "No related records are recorded."));
     for (const link of links) {
       const box = node("div", "library-related-record"), details = node("div", "library-related-content");
-      if (kinds.includes(link.kind) && validId(link.id)) { const action = button(display(link.title || link.id), () => navigate(link.kind, link.id), "library-record-link"); action.dataset.libraryRelated = link.id; details.append(action); }
-      else details.append(node("p", "", display(link.title || "Reference unavailable")));
+      const relatedTitle = window.LibraryDetailText.displayTitle(link) || "Reference unavailable";
+      if (kinds.includes(link.kind) && validId(link.id)) { const action = button(display(relatedTitle), () => navigate(link.kind, link.id), "library-record-link"); action.dataset.libraryRelated = link.id; details.append(action); }
+      else details.append(node("p", "", display(relatedTitle)));
       if (link.notice) details.append(node("p", "library-related-notice", display(link.notice)));
       const penetrationId = pane.kind === "penetration" ? data.id : link.id, technicalId = pane.kind === "technical" ? data.id : link.id, key = `${penetrationId}:${technicalId}`;
-      const label = pane.kind === "penetration" ? `Unlink technical reference ${link.title || link.id}` : `Unlink firestopping record ${link.title || link.id}`;
+      const label = pane.kind === "penetration" ? `Unlink technical reference ${relatedTitle}` : `Unlink firestopping record ${relatedTitle}`;
       const remove = symbolButton("🗑", label, () => unlinkReference(pane, data, link)); remove.className += " library-unlink"; remove.dataset.libraryUnlink = key; remove.disabled = pane.unlinkPending.has(key); pane.unlinkButtons.set(`${data.id}:${key}`, remove);
       box.append(details, remove);
       related.append(box);
     }
     content.push(related);
-    if (pane.kind === "technical") {
-      const sources = node("section", "library-detail-section"); sources.append(uiNode("h4", "", "Source information"));
-      if (data.consolidated_ids?.length > 1) sources.append(uiNode("p", "helper", "Consolidated source IDs: {0}", [data.consolidated_ids.join(", ")]));
-      sources.append(...(data.sources?.length ? data.sources.map(sourceNode) : [uiNode("p", "helper", "No source reference is recorded for this item.")])); content.push(sources);
-    }
     // Item qualifications belong in the card that receives navigation focus;
     // keep only the general library notices above that card.
     pane.detailPanel.replaceChildren(...content); updateNotice(pane, {});

@@ -78,19 +78,51 @@ class TechnicalPresentationTests(unittest.TestCase):
         self.assertEqual(owner['table_row_ids'], [['old'], ['option-1']])
         self.assertEqual(owner['tables'][0]['rows'], [['Another wall', '-/90/90']])
 
-    def test_title_uses_all_observed_ratings_and_readable_promat_id(self):
-        item = {'id': 'internal-id', 'fields': [field('ID', 'sys_var_123456_au'), field('Service', 'Metal pipe')],
+    def test_title_uses_all_observed_ratings_without_internal_promat_selector_id(self):
+        item = {'id': 'promat-123456', 'fields': [field('ID', 'sys_var_123456_au'), field('Service', 'Metal pipe')],
                 'filter_values': {'manufacturer': ['Promat'], 'frl': ['-/120/120', '-/30/30', '-/90/90'], 'orientation': ['Vertical']}}
-        self.assertEqual(technical_title(item), 'Promat: 123456 — Metal pipe — -/30/30 to -/120/120 — Vertical')
+        original = deepcopy(item)
+        self.assertEqual(technical_title(item), 'Promat — Metal pipe — -/30/30 to -/120/120 — Vertical')
+        self.assertEqual(item, original)
         item['filter_values']['frl'] = ['-/120/-']
         self.assertIn(' — -/120/- — ', technical_title(item))
         item['fields'][0]['value'] += ' (+3 variants listed below)'
-        self.assertTrue(technical_title(item).startswith('Promat: 123456 — '))
+        self.assertTrue(technical_title(item).startswith('Promat — '))
+        self.assertEqual(item['fields'][0]['value'], 'sys_var_123456_au (+3 variants listed below)')
 
     def test_blank_seal_title_uses_classified_service_without_inventing_identity(self):
         item = {'id': 'sample', 'fields': [field('ID', 'V1')], 'filter_values': {
             'manufacturer': ['Firefly'], 'services': ['Blank Seal'], 'frl': ['-/60/60'], 'orientation': ['Vertical']}}
         self.assertEqual(technical_title(item), 'Firefly: V1 — Blank Seal — -/60/60 — Vertical')
+
+    def test_selector_api_titles_and_subtitles_hide_import_metadata_without_source_mutation(self):
+        with tempfile.TemporaryDirectory() as folder:
+            data, _, _ = sample_library(Path(folder))
+            data['libraries']['technical']['filters'].append({'key': 'manufacturer', 'label': 'Manufacturer'})
+            records = data['libraries']['technical']['items']
+            for key, manufacturer, identity in (('promat-1138716', 'Promat', 'sys_var_1138716_au'),
+                                                  ('trafalgar-selector-1165', 'Trafalgar', '1165')):
+                item = deepcopy(records[0])
+                item.update(id=key, subtitle='Penetration seal · 9 selector variants · Vertical')
+                item['fields'] = [field('ID', identity), field('Manufacturer', manufacturer),
+                                  field('Service', 'Copper pipe 25 mm'), field('FRL', '-/120/120')]
+                item['filter_values']['manufacturer'] = [manufacturer]
+                records.append(item)
+            original = deepcopy(data['libraries'])
+            ReferenceLibrary(Path(folder))._validate(data)
+            for key, manufacturer in (('promat-1138716', 'Promat'), ('trafalgar-selector-1165', 'Trafalgar')):
+                projected = data['_records']['technical'][key]
+                self.assertTrue(projected['title'].startswith(manufacturer + ' — Copper pipe — '))
+                self.assertEqual(next(f['value'] for f in projected['fields'] if f['label'] == 'Service Size / Configuration'),
+                                 'Copper pipe 25 mm')
+                self.assertEqual(projected['subtitle'], 'Penetration seal · Vertical')
+                self.assertTrue(any(f['label'] == 'ID' for f in projected['technical_basis']['source_fields']))
+            self.assertEqual(data['libraries'], original)
+
+    def test_title_without_technical_id_does_not_fall_back_to_internal_record_key(self):
+        item = {'id': 'private-storage-key', 'fields': [field('Manufacturer', 'Example'), field('Service', 'Copper pipe')],
+                'filter_values': {'frl': ['-/120/120'], 'orientation': ['Vertical']}}
+        self.assertEqual(technical_title(item), 'Example — Copper pipe — -/120/120 — Vertical')
 
     def test_removed_dropdown_values_cannot_reappear_from_source_data(self):
         options = facet_options('frl', ['-/120/0', '-/180/80', 'N/A', 'Not specified', '-/120/-'])

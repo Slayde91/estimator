@@ -91,6 +91,70 @@ class PenetrationReferenceTests(unittest.TestCase):
         self.assertEqual(value['systems'], [])
         self.assertEqual(value['initial_filters']['orientation'], 'Vertical')
 
+    def test_report_dropdown_choice_is_report_only_and_filters_the_system_picker(self):
+        for item in self.data['libraries']['technical']['items']:
+            item['filter_values']['report'] = [item['fields'][-1]['value']]
+        self.write()
+        value = self.resolve(report_reference='TEST-100 Rev A')
+        self.assertEqual(value['reports'], [{'label': 'TEST-100 Rev A', 'url': URL}])
+        self.assertEqual(value['systems'], [])
+        self.assertEqual(value['initial_filters']['report'], 'TEST-100 Rev A')
+        linked = self.resolve(report_reference='TEST-100 Rev A', technical_reference_ids=['report-a-v1'])
+        self.assertEqual(len(linked['reports']), 1)
+        self.assertEqual([item['id'] for item in linked['systems']], ['report-a-v1'])
+        changed = self.resolve(report_reference='TEST-200 Rev B', technical_reference_ids=['report-a-v1'])
+        self.assertEqual([item['label'] for item in changed['reports']], ['TEST-100 Rev A', 'TEST-200 Rev B'])
+        self.assertEqual([item['id'] for item in changed['systems']], ['report-a-v1'])
+
+    def test_missing_report_is_retained_without_publishing_invented_references(self):
+        missing = self.resolve(report_reference='No longer available')
+        self.assertEqual(missing['reports'], [])
+        self.assertEqual(missing['systems'], [])
+        self.assertEqual(missing['missing_report'], 'No longer available')
+        self.assertNotIn('report', missing['initial_filters'])
+
+    def test_report_choice_validation_and_portable_roundtrip_preserve_calculations(self):
+        expected = calculate(self.draft)['rows']
+        draft = deepcopy(self.draft)
+        draft['rows'][0]['report_reference'] = 'TEST-100 Rev A'
+        normalized = normalize_draft(draft)
+        self.assertEqual(normalized['rows'][0]['report_reference'], 'TEST-100 Rev A')
+        self.assertEqual(calculate(draft)['rows'], expected)
+        self.assertEqual(normalize_draft(json.loads(json.dumps(normalized))), normalized)
+        for value in [None, 1, [], {}, '', ' padded ', 'a\nb', '\x7f', 'a' * 1001]:
+            draft['rows'][0]['report_reference'] = value
+            with self.subTest(value=repr(value)[:30]), self.assertRaises(ValidationError):
+                normalize_draft(draft)
+
+    def test_report_dropdown_does_not_guess_between_conflicting_pdf_links(self):
+        for item in self.data['libraries']['technical']['items']:
+            item['filter_values']['report'] = ['TEST-100 Rev A']
+            item['fields'][-1] = {'label': 'Report Number', 'value': 'TEST-100 Rev A',
+                                 'report_links': [{'label': 'TEST-100 Rev A', 'url': URL if item['id'] == 'report-a-v1' else 'https://tfire.com.au/documents/other.pdf'}]}
+        self.write()
+        self.assertEqual(self.resolve(report_reference='TEST-100 Rev A')['reports'], [{'label': 'TEST-100 Rev A', 'url': None}])
+
+    def test_report_choice_survives_add_to_library_save_and_reopen(self):
+        from estimator.firestopping_library import FirestoppingLibrary
+        from tests.test_firestopping_library import editable_library
+        library_root = self.root / 'portable-library'
+        editable_library(library_root, complete_entries=True)
+        library = FirestoppingLibrary(library_root, Store(self.root / 'portable.sqlite3'))
+        original = library.edit('pkb-001')
+        draft = deepcopy(original['draft'])
+        choice = next(field['options'][0]['value'] for field in library.listing('technical')['filters'] if field['key'] == 'report')
+        draft['rows'][0]['report_reference'] = choice
+        created = library.create({'draft': draft, 'configuration': original['configuration'], 'idempotency_key': 'report-dropdown-create-1'})
+        opened = library.edit(created['id'])
+        self.assertEqual(opened['draft']['rows'][0]['report_reference'], choice)
+        self.assertEqual(opened['draft']['rows'][0]['inputs'], draft['rows'][0]['inputs'])
+        saved_body = {key: deepcopy(opened[key]) for key in ('draft', 'revision', 'pricing_token')}
+        saved_body['draft']['rows'][0]['inputs']['T'] = 'Saved report choice'
+        library.action(created['id'], 'save', saved_body)
+        reopened = FirestoppingLibrary(library_root, Store(self.root / 'portable.sqlite3')).edit(created['id'])
+        self.assertEqual(reopened['draft']['rows'][0]['report_reference'], choice)
+        self.assertEqual(reopened['draft']['rows'][0]['inputs']['T'], 'Saved report choice')
+
     def test_library_links_are_inherited(self):
         value = self.resolve(library_item_id='pkb-001')
         self.assertEqual(value['basis'], 'library')

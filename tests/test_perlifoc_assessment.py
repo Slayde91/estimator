@@ -261,7 +261,7 @@ class PerlifocAssessmentTests(unittest.TestCase):
         self.assertEqual(missing.value('SCHEDULE', 'V10'), 'ASSESSMENT DATA UNAVAILABLE')
         self.assertEqual(inputs, before)
 
-    def test_pdf_and_xlsx_use_the_same_new_values_and_evidence_receipt(self):
+    def test_pdf_and_xlsx_keep_values_and_report_without_evidence_receipt(self):
         inputs = row_inputs('H3', period=360)
         expected = self.direct_engine(inputs).value('SCHEDULE', 'P10')
         data = project_calculator_report('steel_vermiculite', inputs)
@@ -271,15 +271,16 @@ class PerlifocAssessmentTests(unittest.TestCase):
         workbook = load_workbook(BytesIO(build_calculator_register('steel_vermiculite', inputs)))
         text = '\n'.join(str(cell.value) for sheet in workbook for row in sheet for cell in row)
         self.assertIn('FC21278-01-1', text)
-        self.assertIn(digest, text)
+        self.assertNotIn(digest, text)
+        self.assertNotIn('Status', [cell.value for cell in workbook['Schedule'][5]])
         self.assertIn(expected, [cell.value for row in workbook['Schedule'] for cell in row])
         for build in (build_calculator_report, build_calculator_summary_report):
             pdf = PdfReader(BytesIO(build('steel_vermiculite', inputs)))
             text = '\n'.join(page.extract_text() for page in pdf.pages)
             self.assertIn('FC21278-01-1', text)
-            self.assertIn(digest, text.replace('\n', ''))
+            self.assertNotIn(digest, text.replace('\n', ''))
 
-    def test_mixed_monokote_perlifoc_reports_keep_independent_receipts_and_fail_closed(self):
+    def test_mixed_reports_keep_internal_receipts_but_publish_report_only_and_fail_closed(self):
         from estimator import monokote_hollow as monokote
         from tests.test_monokote_hollow import synthetic_dataset as synthetic_monokote
 
@@ -304,17 +305,18 @@ class PerlifocAssessmentTests(unittest.TestCase):
                 self.assertEqual(data['rows'][1]['values']['P'], 41.94)
                 workbook = load_workbook(BytesIO(build_calculator_register('steel_vermiculite', inputs)))
                 text = '\n'.join(str(cell.value) for sheet in workbook for row in sheet for cell in row)
-                self.assertIn('FC21278-01-1', text)
+                self.assertEqual('FC21278-01-1' in text, available)
                 self.assertIn('FAR4856', text)
-                self.assertIn(monokote_digest, text)
-                self.assertIn(sha256(self.payload).hexdigest() if available else 'data is not installed', text)
+                private_details = (monokote_digest, sha256(self.payload).hexdigest(), 'data is not installed')
+                for detail in private_details:
+                    self.assertNotIn(detail, text)
                 for build in (build_calculator_report, build_calculator_summary_report):
                     pdf = PdfReader(BytesIO(build('steel_vermiculite', inputs)))
                     text = '\n'.join(page.extract_text() for page in pdf.pages).replace('\n', '')
-                    self.assertIn('FC21278-01-1', text)
+                    self.assertEqual('FC21278-01-1' in text, available)
                     self.assertIn('FAR4856', text)
-                    self.assertIn(monokote_digest, text)
-                    self.assertIn(sha256(self.payload).hexdigest() if available else 'data is not installed', text)
+                    for detail in private_details:
+                        self.assertNotIn(detail, text)
 
     def test_perlifoc_options_and_comparison_expose_all_periods_only_for_perlifoc(self):
         for product in ('PERLIFOC HP ECO+', 'CAFCO 300'):

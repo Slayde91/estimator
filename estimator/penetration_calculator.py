@@ -642,7 +642,7 @@ def normalize_draft(draft):
         globals_out['register_allowance_hours'] = checked_register[0]
     result, seen, library_ids = [], set(), set()
     for row in rows:
-        if not isinstance(row, dict) or set(row) - {'id', 'inputs', 'library_item_id', 'takeoff_source', 'technical_reference_ids', 'takeoff_reference_ids'}:
+        if not isinstance(row, dict) or set(row) - {'id', 'inputs', 'library_item_id', 'takeoff_source', 'technical_reference_ids', 'takeoff_reference_ids', 'report_reference'}:
             raise ValidationError('Each penetration row must contain id, inputs and optional library/source identities only.')
         identifier, inputs = row.get('id'), row.get('inputs', {})
         if not isinstance(identifier, str) or not identifier or len(identifier) > 128 or identifier in seen:
@@ -682,10 +682,12 @@ def normalize_draft(draft):
         if 'takeoff_source' in row:
             from .penetration_source import validate_source
             normalized['takeoff_source'] = validate_source(row['takeoff_source'])
-        from .penetration_references import REFERENCE_FIELDS, validate_reference_ids
+        from .penetration_references import REFERENCE_FIELDS, validate_reference_ids, validate_report_reference
         for name in REFERENCE_FIELDS:
             if name in row:
                 normalized[name] = validate_reference_ids(row[name])
+        if 'report_reference' in row:
+            normalized['report_reference'] = validate_report_reference(row['report_reference'])
         result.append(normalized)
     return {'globals': globals_out, 'rows': result}
 

@@ -134,7 +134,7 @@ class MonokotePfcTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'Unexpected Monokote named-lookup guard'):
             application_formula_overrides(model)
 
-    def test_pfc_register_and_pdf_retain_source_and_quantities_without_hollow_receipt(self):
+    def test_pfc_register_and_pdf_retain_report_and_quantities_without_lookup_details(self):
         for product in ('MONOKOTE MK-6 HY', 'monokote z106'):
             inputs = row_inputs(product, C='pfc web to slab - 3 sides')
             data = project_calculator_report('steel_vermiculite', inputs)
@@ -147,11 +147,14 @@ class MonokotePfcTests(unittest.TestCase):
             self.assertNotIn('Estimating thickness (mm)', exported)
             self.assertEqual(data['rows'][0]['values']['P'], 19)
             self.assertEqual(exported['Spray surface (m²)'], data['rows'][0]['values']['R'])
-            self.assertIn('MK6-030521 p15', exported['Status'])
+            self.assertNotIn('Status', exported)
+            self.assertEqual(exported['Report'].split(' (')[0], 'FAR4853 Issue 3')
+            self.assertNotIn('MK6-030521 p15', '\n'.join(str(cell.value) for sheet in workbook for row in sheet for cell in row))
             self.assertFalse(any(cell.data_type == 'f' for sheet in workbook for row in sheet for cell in row))
             pdf = PdfReader(BytesIO(build_calculator_report('steel_vermiculite', inputs)))
             text = '\n'.join(page.extract_text() for page in pdf.pages)
-            self.assertIn('MK6-030521 p15', text)
+            self.assertNotIn('MK6-030521 p15', text)
+            self.assertIn('FAR4853 Issue 3', text)
             self.assertNotIn('FAR4856 Issue2 dataset', text)
 
 

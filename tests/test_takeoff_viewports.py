@@ -159,7 +159,11 @@ class TakeoffViewportTests(unittest.TestCase):
         self.assertEqual(float(row['Base length per item m']), 10)
         self.assertEqual(float(row['Riser/drop additions per item m']), 1.75)
         evidence = json.loads(row['Riser/drop source dimensions'])
-        self.assertEqual(evidence[0]['document_sha256'], self.case.doc['sha256'])
+        self.assertNotIn('document_sha256', evidence[0])
+        self.assertEqual(evidence[0]['document_id'], self.case.doc['id'])
+        self.assertEqual(evidence[0]['length_mm'], 1500)
+        self.assertEqual(evidence[0]['note'], additions[0]['note'])
+        self.assertNotIn(self.case.doc['sha256'], payload.decode('utf-8-sig'))
         payload, _, _ = self.case.service.export(self.case.sid, 'xlsx', [identifier])
         workbook = load_workbook(BytesIO(payload)); self.addCleanup(workbook.close)
         sheet = workbook['Confirmed Takeoffs']; headers = {cell.value: cell.column for cell in sheet[1]}

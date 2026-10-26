@@ -66,6 +66,45 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     assert.equal(fire.linkSession.choices[0].value,'technical-1');assert.match(text(fire.linkSession.results),/Wrap w\/ min\. 50 mm/);assert.doesNotMatch(text(fire.linkSession.results),/Penowrap/i);
     assert.deepEqual(item,before);
   });
+  await check('Selector display titles omit only numeric IDs and counts across lists, details, related rows and picker',async h=>{
+    const items=[
+      {id:'promat-123',title:'Promat: 123 — Cable — -/120/120',subtitle:'FC12345 · Wall · 2 selector variants',source_label:'Promat Australian Selector'},
+      {id:'trafalgar-selector-456',title:'Trafalgar: 456 — Pipe — 50 mm',subtitle:'Wall · 1 selector variant',source_label:'Trafalgar selector'},
+      {id:'fas190235-v11a',title:'Firefly: V11A — Cable',subtitle:'FAS190235 · -/120/120',source_label:'Firefly report'},
+      {id:'boss-123',title:'BOSS: 123 — 50 mm pipe',subtitle:'-/120/120',source_label:'BOSS source'},
+    ];
+    const expected=['Promat — Cable — -/120/120','Trafalgar — Pipe — 50 mm','Firefly: V11A — Cable','BOSS: 123 — 50 mm pipe'];
+    const sources=items.map(item=>({...detail('technical',item.id),...item,fields:[{label:'ID',value:item.id==='promat-123'?'sys_var_123_au (+2 variants listed below)':item.id==='trafalgar-selector-456'?'456':item.id==='boss-123'?'123':'V11A'},{label:'Service size',value:'50 mm'}]}));
+    const fire={...detail('penetration','penetration-1'),links:items.map(item=>({...item,kind:'technical'}))};
+    const before=copy({items,sources,fire});
+    h.setRoute(path=>path==='/api/libraries'?meta():path.startsWith('/api/libraries/technical?')?{...records('technical'),items,total:items.length}:path.startsWith('/api/libraries/technical/')?sources.find(item=>path.endsWith('/'+item.id)):path.startsWith('/api/libraries/penetration?')?records('penetration'):fire);
+    await h.api.open('technical');let pane=h.pane('technical');
+    assert.deepEqual(walk(pane.results).filter(n=>n.dataset.libraryRecord).map(n=>n.textContent),expected);
+    assert.doesNotMatch(text(pane.results),/selector variants?|Australian Selector|Trafalgar selector|Firefly report|BOSS source/);
+    assert.match(text(pane.results),/FC12345/);
+    for(const [index,source] of sources.entries()){
+      await h.api.open('technical',source.id);pane=h.pane('technical');const nodes=walk(pane.detailPanel);
+      assert.equal(nodes.find(n=>n.tagName==='h3').textContent,expected[index]);
+      assert.equal(nodes.filter(n=>n.tagName==='dt'&&n.textContent==='ID').length,index<2?0:1);
+      assert.match(text(pane.detailPanel),/50 mm/);assert.equal(pane.selected,source.id);
+      assert.doesNotMatch(text(pane.detailPanel),/selector variants?|Source information|Synthetic source reference/);
+    }
+    await h.api.open('penetration','penetration-1');pane=h.pane('penetration');
+    assert.deepEqual(walk(pane.detailPanel).filter(n=>n.dataset.libraryRelated).map(n=>n.textContent),expected);
+    assert.deepEqual(walk(pane.detailPanel).filter(n=>n.dataset.libraryRelated).map(n=>n.dataset.libraryRelated),items.map(item=>item.id));
+    await h.api.open('penetration',{list:true});pane=h.pane('penetration');await walk(pane.results).find(n=>n.dataset.libraryLink).emit('click');await flush();
+    assert.deepEqual(walk(pane.linkSession.results).filter(n=>n.tagName==='strong').map(n=>n.textContent),expected);
+    assert.deepEqual(copy(pane.linkSession.choices.map(n=>n.value)),items.map(item=>item.id));
+    assert.doesNotMatch(text(pane.linkSession.results),/selector variants?|Australian Selector|Trafalgar selector|Firefly report|BOSS source/);
+    assert.deepEqual({items,sources,fire},before);
+  });
+  await check('Promat and Trafalgar real technical IDs remain visible and source-information fields stay hidden in both libraries',async h=>{
+    for(const kind of ['technical','penetration'])for(const id of ['promat-v11a','trafalgar-selector-h28a']){
+      const source={...detail(kind,id),title:'Promat: V11A — Pipe',fields:[{label:'ID',value:'V11A'},{label:'Source information',value:'Internal source note'}]},before=copy(source);
+      h.setRoute(path=>path==='/api/libraries'?meta():source);await h.api.open(kind,id);
+      assert.match(text(h.pane(kind).detailPanel),/ID V11A/);assert.doesNotMatch(text(h.pane(kind).detailPanel),/Source information|Internal source note/);assert.deepEqual(source,before);
+    }
+  });
   await check('Mandarin library headings and generated reference choices translate while source table columns stay literal',async h=>{
     h.context.window.CeasefireI18n=require('./helpers/localized_i18n.cjs')();
     await h.api.open('penetration');const pane=h.pane('penetration');
@@ -129,36 +168,45 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     const query=new URL('http://local'+h.calls.at(-1).path).searchParams;
     assert.equal(query.get('substrate'),'Concrete/masonry wall');assert.equal(query.get('search'),'synthetic');assert.equal(query.get('offset'),'50');
   });
-  await check('Full detail retains plain source information and accessible diagram links',async h=>{
+  await check('Full detail hides source information and retains accessible source-only diagram links',async h=>{
     await h.api.open('technical','technical-1');const pane=h.pane('technical'),nodes=walk(pane.detailPanel);
     assert.match(text(pane.detailPanel),/<img src=x onerror=alert\(1\)>/);assert.match(text(pane.detailPanel),/Literal second line/);assert.doesNotMatch(text(pane.detailPanel),/Not recorded/);assert.match(text(pane.detailPanel),/Zero 0/);
     assert.equal(nodes.filter(node=>node.tagName==='a'&&node.href.includes('documents/')).length,0);
-    const sourceCard=nodes.find(node=>node.className==='library-source');assert.equal(sourceCard.children.length,1);assert.equal(sourceCard.children[0].textContent,'Synthetic source reference');assert.equal(sourceCard.children[0].tagName,'span');assert.equal(walk(sourceCard).filter(node=>['a','dl','dt','dd','button'].includes(node.tagName)).length,0);assert.doesNotMatch(text(sourceCard),/Open PDF|synthetic\.pdf|Synthetic sheet/);
+    assert.equal(nodes.filter(node=>node.className==='library-source').length,0);assert.doesNotMatch(text(pane.detailPanel),/Source information|Synthetic source reference|synthetic\.pdf|Synthetic sheet|AI generated|AI replica/);
+    assert.equal(pane.detail.sources[0].filename,'synthetic.pdf');
     const image=nodes.find(node=>node.tagName==='img'&&node.src==='/api/libraries/images/synthetic_image-1');assert.equal(image.loading,'lazy');assert.equal(image.alt,'Synthetic diagram');
     const children=pane.detailPanel.children,fields=children.find(node=>node.tagName==='dl'),gallery=children.find(node=>node.getAttribute('aria-label')==='Source diagrams');
     const sections=children.filter(node=>node.className==='library-detail-section');
     assert.ok(children.indexOf(fields)<children.indexOf(gallery));assert.ok(children.indexOf(gallery)<children.indexOf(sections[0]));
-    assert.match(text(sections[0]),/Related firestopping records/);assert.match(text(sections[1]),/Source information/);
+    assert.match(text(sections[0]),/Related firestopping records/);assert.equal(sections.length,1);
     assertSourceHtmlSafe(nodes);assert.equal(nodes.filter(node=>node.innerHTML!==undefined).length,1);assert.doesNotMatch(text(pane.detailPanel),/Source fingerprint|synthetic-hash/);assert.match(text(pane.detailPanel),/Related firestopping records/);
     const heading=nodes.find(node=>node.tagName==='h3');assert.equal(heading.focusOptions.preventScroll,true);assert.equal(pane.detailPanel.scrolled,true);assert.equal(heading.scrolled,undefined,'Keep Back navigation above the heading inside the scrolled view.');
     assert.equal(pane.detailPanel.children.filter(node=>node.textContent==='Record-specific source qualification.').length,1);assert.doesNotMatch(pane.notice.textContent,/Record-specific/);assert.equal(h.byId('technical-library-workspace').contains(pane.notice),false,'The generic technical-library notice is absent from the page.');assert.equal(h.byId('technical-library-workspace').contains(pane.detailPanel),true);
   });
-  await check('Reviewed AI replicas retain original image access for both field and gallery images',async h=>{
+  await check('Reviewed AI replicas show the exact caption without original links or source-image fallback',async h=>{
+    const assignedSources=[],create=h.context.document.createElement;
+    h.context.document.createElement=tag=>{const el=create(tag);if(tag==='img'){let src;Object.defineProperty(el,'src',{get(){return src;},set(value){src=value;assignedSources.push(value);}});}return el;};
     const source={...detail('technical','technical-1'),image_replicas:{'synthetic_image-1':'/api/libraries/replicas/synthetic_image-1','field-image':'/api/libraries/replicas/field-image'},fields:[{label:'Installation Concept',value:'',images:[{id:'field-image',caption:'Field detail'}]}]};
     const before=copy(source);h.setRoute(path=>path==='/api/libraries'?meta():source);await h.api.open('technical','technical-1');const nodes=walk(h.pane('technical').detailPanel);
     assert.equal(nodes.filter(node=>node.tagName==='img'&&node.src?.startsWith('/api/libraries/replicas/')).length,2);
-    const originals=nodes.filter(node=>node.tagName==='a'&&node.textContent==='Open original source image');assert.equal(originals.length,2);assert.ok(originals.every(node=>node.href.startsWith('/api/libraries/images/')));assert.match(text(h.pane('technical').detailPanel),/AI replica — illustrative/);assert.deepEqual(source,before);
+    assert.deepEqual(assignedSources.filter(src=>src.startsWith('/api/libraries/')),['/api/libraries/replicas/field-image','/api/libraries/replicas/synthetic_image-1'],'No original image URL is assigned even transiently');
+    assert.equal(nodes.filter(node=>node.tagName==='a'&&node.href.startsWith('/api/libraries/images/')).length,0);
+    assert.deepEqual(nodes.filter(node=>node.tagName==='figcaption').map(node=>node.textContent),Array(2).fill('Illustrative AI generated asset only. Confirm installation details with the manufacturer.'));
+    const replicaImages=nodes.filter(node=>node.tagName==='img'&&node.src?.startsWith('/api/libraries/replicas/'));
+    for(const image of replicaImages){const url=image.src;await image.emit('error');assert.equal(image.src,url);}
+    assert.doesNotMatch(text(h.pane('technical').detailPanel),/Open original source image|check original/);assert.deepEqual(source,before);
   });
   await check('Technical general notices stay absent while record errors and retry controls remain visible',async h=>{
     h.setRoute(path=>path==='/api/libraries'?meta():path.includes('?')?records('technical'):{error:'This linked library record was removed.'});await h.api.open('technical');const pane=h.pane('technical');assert.equal(h.byId('technical-library-workspace').contains(pane.notice),false);
     await h.api.open('technical','removed record');assert.match(h.calls.at(-1).path,/\/technical\/removed%20record$/);assert.match(text(pane.detailPanel),/linked library record was removed/);assert.equal(pane.detailPanel.getAttribute('aria-busy'),'false');assert.equal(h.byId('technical-library-workspace').contains(pane.notice),false);
     h.setRoute(path=>path==='/api/libraries'?meta():detail('technical','removed record'));await walk(pane.detailPanel).find(node=>node.textContent==='Retry record').emit('click');await flush();assert.match(text(pane.detailPanel),/Record-specific source qualification/);assert.doesNotMatch(text(pane.detailPanel),/linked library record was removed/);assert.equal(h.byId('technical-library-workspace').contains(pane.notice),false);
   });
-  await check('Consolidated details expose every reviewed source ID without changing historical navigation',async h=>{
+  await check('Consolidated source IDs stay internal without changing historical navigation',async h=>{
     const source={...detail('technical','alias-source'),consolidated_ids:['canonical-source','alias-source'],canonical_id:'canonical-source'};
     h.setRoute(path=>path==='/api/libraries'?meta():source);
     await h.api.open('technical','alias-source');
-    assert.match(text(h.pane('technical').detailPanel),/Consolidated source IDs: canonical-source, alias-source/);
+    assert.doesNotMatch(text(h.pane('technical').detailPanel),/Consolidated source IDs|canonical-source/);
+    assert.deepEqual(h.pane('technical').detail.consolidated_ids,['canonical-source','alias-source']);
     assert.equal(h.pane('technical').detail.id,'alias-source');
     assert.equal(h.pane('technical').selected,'alias-source');
   });
@@ -224,7 +272,7 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
       await h.api.open(kind,'source');const pane=h.pane(kind),nodes=walk(pane.detailPanel),content=text(pane.detailPanel);
       assert.doesNotMatch(content,/Internal caption review|Internal workbook revision|Internal link review|Internal reference qualification|Internal source difference|Internal singular source difference|Source fingerprint|synthetic-hash|Workbook price/);assert.match(content,/Library price: \$25\.12/);assert.match(content,/Ordinary main-table condition/);
       assert.deepEqual(copy(nodes.find(node=>node.tagName==='tbody').children.map(row=>row.children.map(cell=>cell.textContent))),[['A','-/60/60'],['B','-/120/120']]);
-      if(kind==='technical'){assert.doesNotMatch(content,/Source table notes|Underlying shared table condition|Source option alignment|Internal option mapping/);assert.match(content,/Source information/);assert.match(content,/Synthetic source reference/);assert.equal(nodes.filter(node=>node.tagName==='a'&&node.href.includes('documents/')).length,0);}
+      if(kind==='technical'){assert.doesNotMatch(content,/Source table notes|Underlying shared table condition|Source option alignment|Internal option mapping|Source information|Synthetic source reference/);assert.equal(nodes.filter(node=>node.tagName==='a'&&node.href.includes('documents/')).length,0);}
       else{assert.doesNotMatch(content,/Source information|Synthetic source reference|synthetic.pdf/);assert.equal(nodes.filter(node=>node.tagName==='a'&&node.href.includes('documents/')).length,0);assert.match(content,/Underlying shared table condition/);}
       assert.deepEqual(source,before);assert.equal(pane.detail.sources[0].sha256,'synthetic-hash');
     }

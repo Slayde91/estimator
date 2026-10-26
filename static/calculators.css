@@ -254,7 +254,8 @@
 .calculator-schedule-tools{display:flex;align-items:center;flex-wrap:wrap;gap:10px;padding:14px 20px;background:#fffaf2;border-block:1px solid #d8c9bc}
 .calculator-schedule-tools button{white-space:nowrap}
 .calculator-schedule-tools :is([data-schedule-add],[data-schedule-undo]){width:48px;min-width:48px;height:48px;padding:0}
-.calculator-schedule-help{flex-basis:100%;font-size:11px}
+.calculator-schedule-help,.calculator-schedule-overview-note{flex-basis:100%;font-size:11px}
+.calculator-schedule-overview-note{margin:0}
 .calculator-grid .calculator-row-action{width:100px;padding:7px!important}
 .calculator-grid td.calculator-row-action{background:#fff!important}
 .calculator-row-action button{padding:8px;font-size:11px;min-height:36px}

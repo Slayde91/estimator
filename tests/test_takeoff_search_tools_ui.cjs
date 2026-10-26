@@ -48,12 +48,12 @@ function viewerState() {
     active: true, mode: "physical", physicalScope: "service_plans", busy: false, modal: null,
     session: { session_id: "session-a", revision: 3 }, document: "drawing-a", page: 1,
     pageRotations: new Map(), renderId: 10, fitId: 0, zoom: 1, viewport: originalViewport(),
-    ui: { root: { closest: () => null }, viewport: { clientWidth: 800, clientHeight: 600 } },
+    ui: { root: { closest: () => null }, viewport: { clientWidth: 800, clientHeight: 600, focus() {} } },
   };
 }
 
-function focusHarness() {
-  const state = viewerState(), fits = [], pans = [], models = {
+function focusHarness({ delayedZoom = false } = {}) {
+  const state = viewerState(), fits = [], pans = [], zooms = [], models = {
     project: "project-a", hidden: false,
     docs: [{ id: "drawing-a", sha256: "source-a", name: "A", pages: [{ page: 1 }, { page: 2 }, { page: 3 }] }, { id: "drawing-b", sha256: "source-b", name: "B", pages: [{ page: 1 }] }],
   };
@@ -68,16 +68,17 @@ function focusHarness() {
       const proof = { fitId: ++state.fitId, renderId: ++state.renderId, displayKey: api.pageDisplayKey() };
       fits.push({ gate, proof }); return gate.promise;
     },
-    G: { transform }, positionPage: (...args) => pans.push(args),
+    G: { transform, bounds: points => [Math.min(...points.map(p=>p[0])), Math.min(...points.map(p=>p[1])), Math.max(...points.map(p=>p[0])), Math.max(...points.map(p=>p[1]))] }, positionPage: (...args) => pans.push(args), cancelQueuedZoom() {},
+    async renderPage() { ++state.renderId; state.viewport = originalViewport(); state.viewport.transform = [2*state.zoom,0,0,2*state.zoom,10,20]; if (delayedZoom) { const gate=deferred();zooms.push(gate);await gate.promise; } },
   };
-  api = loadFunctions([...keyFunctions, "drawingSearchVisible", "drawingSearchContext", "focusVisualSearchHit"], env);
+  api = loadFunctions([...keyFunctions, "drawingSearchVisible", "drawingSearchContext", "focusSearchRegion", "focusVisualSearchHit"], env);
   state.displayKey = api.pageDisplayKey();
-  const hit = { document_id: "drawing-a", document_sha256: "source-a", page: 2, point: [15, 25] };
+  const hit = { document_id: "drawing-a", document_sha256: "source-a", page: 2, point: [15, 25], region: [[10,20],[20,20],[20,30],[10,30]] };
   function finish(index = 0, mutate = () => {}, proof = fits[index].proof) {
     state.viewport = originalViewport(); state.displayKey = fits[index].proof.displayKey;
     mutate(state, models, fits[index]); fits[index].gate.resolve(proof);
   }
-  return { state, models, fits, pans, hit, api, finish, env };
+  return { state, models, fits, pans, zooms, hit, api, finish, env };
 }
 
 test("Visual Search mounts the named guarded viewer adapter", () => {
@@ -88,7 +89,7 @@ test("Visual Search pans a completed matching render to its PDF-space hit", asyn
   const h = focusHarness(), pending = h.api.focusVisualSearchHit(h.hit);
   assert.equal(h.state.page, 2); assert.equal(h.fits.length, 1); assert.deepEqual(h.pans, []);
   h.finish(); await pending;
-  assert.deepEqual(h.pans, [[360, 230]]);
+  assert.equal(h.state.zoom,8); assert.deepEqual(h.pans, [[150, -120]]);
 });
 
 for (const [name, mutate] of [
@@ -155,9 +156,27 @@ test("Visual Search rejects a stale source before fitting", async () => {
 
 test("only the latest of overlapping Visual Search requests can pan", async () => {
   const h = focusHarness(), first = h.api.focusVisualSearchHit(h.hit);
-  const second = h.api.focusVisualSearchHit({ ...h.hit, page: 3, point: [25, 35] });
+  const second = h.api.focusVisualSearchHit({ ...h.hit, page: 3, point: [25, 35], region:[[20,30],[30,30],[30,40],[20,40]] });
   h.finish(0); await first; assert.deepEqual(h.pans, []);
-  h.finish(1); await second; assert.deepEqual(h.pans, [[340, 210]]);
+  h.finish(1); await second; assert.deepEqual(h.pans, [[-10, -280]]);
+});
+
+for (const [name, mutate] of [
+  ["changed document", h=>{h.state.document="drawing-b";}],
+  ["changed page", h=>{h.state.page=3;}],
+  ["changed source", h=>{h.models.docs[0].sha256="new-source";}],
+  ["changed session", h=>{h.state.session.session_id="session-b";}],
+  ["changed project", h=>{h.models.project="project-b";}],
+  ["hidden workspace", h=>{h.models.hidden=true;}],
+  ["changed physical scope", h=>{h.state.physicalScope="barrier_plans";}],
+  ["opened modal", h=>{h.state.modal={};}],
+  ["new operation", h=>{h.state.busy=true;}],
+  ["new fit", h=>{h.state.fitId++;}],
+  ["new render", h=>{h.state.renderId++;}],
+  ["changed rotation", h=>{h.state.pageRotations.set(JSON.stringify(["session-a","drawing-a",2]),90);}],
+]) test(`Visual Search cannot pan after its zoom render sees ${name}`,async()=>{
+  const h=focusHarness({delayedZoom:true}),pending=h.api.focusVisualSearchHit(h.hit);h.finish();
+  for(let i=0;i<5;i++)await Promise.resolve();assert.equal(h.zooms.length,1);mutate(h);h.zooms[0].resolve();await pending;assert.deepEqual(h.pans,[]);
 });
 
 function fitHarness({ refine = false, delayedDocument = false, nativeRender = true } = {}) {

@@ -8,7 +8,7 @@ const { clickProjectControl } = require('./project_actions.cjs');
 const { chooseTakeoff } = require('./section_navigation.cjs');
 const { spawn } = require('node:child_process');
 const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
-const root = path.resolve(__dirname, '../..'), output = path.join(root, '.runtime/browser-qa', `linked-thickness-${Date.now()}`);
+const root = path.resolve(__dirname, '../..'), output = process.env.CEASEFIRE_BROWSER_OUTPUT || path.join(root, '.runtime/browser-qa', `linked-thickness-${Date.now()}`);
 fs.mkdirSync(output, { recursive: true });
 const server = spawn(process.env.CEASEFIRE_PYTHON || 'python', [path.join(__dirname, 'fixtures.py'), '--directory', output], { cwd: root, windowsHide: true });
 let logs = '', browser, page;
@@ -85,7 +85,7 @@ async function editSprayLength(binding, value) {
   await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); await idle();
 }
 (async () => {
-  const info = await ready; assert.notEqual(info.port, 8765);
+  const info = await ready; assert.notEqual(info.port, 8765); evidence.fixturePort=info.port;
   browser = await chromium.launch({ headless: true }); page = await browser.newPage({ viewport: { width: 1146, height: 764 }, deviceScaleFactor: 1 }); page.setDefaultTimeout(45000);
   page.on('pageerror', error => errors.push(error.message));
   page.on('request', request => { if (/\/(commands|transfer-apply|linked-results)$/.test(request.url())) requests.push({ endpoint: request.url().split('/').pop(), body: request.postDataJSON() }); });
@@ -230,6 +230,20 @@ async function editSprayLength(binding, value) {
   await response(() => page.getByRole('button', { name: 'Legend', exact: true }).click(), '/commands');
   const ductLegend = page.getByRole('button', { name: 'Duct Legend', exact: true }); await expect(ductLegend).toContainText('250 x 250 mm'); await expect(ductLegend).toContainText('10.00 m'); await expect(ductLegend).toContainText(/38\s*mm/);
   await page.screenshot({ path: path.join(output, 'duct-thickness-legend.png') }); evidence.ductNativeThickness = 38;
+  const exposureField=row(ductId).getByLabel('Exposure',{exact:true}),wallField=row(ductId).getByLabel('Wall penetrations',{exact:true}),floorField=row(ductId).getByLabel('Floor penetrations',{exact:true});
+  assert.equal(await exposureField.evaluate(el=>el.tagName),'SELECT');for(const field of [wallField,floorField]){await expect(field).toHaveAttribute('type','number');await expect(field).toHaveAttribute('step','1');await expect(field).toHaveAttribute('min','0');}
+  const itemBeforeRefresh=(await snapshot()).items.find(item=>item.id===ductId);
+  await chooseCalculator(page,'Duct');await expect(page.locator('#calculator-grid')).not.toHaveAttribute('aria-busy','true');
+  for(const [column,value] of [['F','2'],['G','1'],['H','Both']]){const control=page.locator(`[data-calculator-sheet="CALCULATOR"][data-calculator-cell="${column}${ductBinding.row}"]`);if(await control.evaluate(el=>el.tagName)==='SELECT')await control.selectOption(value);else{await control.fill(value);await control.press('Tab');}await expect(page.locator('#calculator-grid')).not.toHaveAttribute('aria-busy','true');}
+  const refreshedCalculator=await calculators();await chooseTakeoff(page,'duct');await idle();await select(ductId);await page.getByLabel('Destination schedule',{exact:true}).selectOption('ductwork');
+  await response(()=>page.getByRole('button',{name:'Update linked rows',exact:true}).click(),'/calculator-refresh-preview');await expect(page.getByRole('dialog')).toContainText('Copy them into Takeoffs');
+  const refreshRequests=[];await page.route('**/calculator-refresh-apply',async route=>{refreshRequests.push(route.request().postDataJSON());const replied=await route.fetch();assert.equal(replied.status(),200);await route.abort('failed');});
+  await page.getByRole('dialog').getByRole('button',{name:'Refresh from calculator',exact:true}).click();await expect(page.getByRole('button',{name:'Retry linked change',exact:true})).toBeVisible();assert.equal(refreshRequests.length,2);assert.deepEqual(refreshRequests[0],refreshRequests[1]);
+  const recoveryBlocked=await page.evaluate(()=>{try{window.CeasefireTakeoffs.projectSnapshot();return false;}catch(error){return /current takeoff operation|pending linked change/.test(error.message);}});assert.equal(recoveryBlocked,true,'An uncertain refresh prevents saving a stale Takeoffs snapshot');
+  await page.unroute('**/calculator-refresh-apply');await response(()=>page.getByRole('button',{name:'Retry linked change',exact:true}).click(),'/calculator-refresh-apply');evidence.calculatorRefreshLostResponseRecovery=true;
+  const refreshed=(await snapshot()).items.find(item=>item.id===ductId);assert.equal(refreshed.fields.exposure,'Both');assert.equal(refreshed.fields.wall_penetrations,2);assert.equal(refreshed.fields.floor_penetrations,1);assert.equal(refreshed.state,'draft');assert.equal(refreshed.review,null);assert.equal(refreshed.confirmation,null);
+  for(const key of ['id','geometry','measurement','quantity','evidence'])assert.deepEqual(refreshed[key],itemBeforeRefresh[key]);assert.deepEqual(await calculators(),refreshedCalculator);await expect(exposureField).toHaveValue('Both');await expect(wallField).toHaveValue('2');await expect(floorField).toHaveValue('1');await expect(thickness(ductId)).toHaveText('Unavailable');
+  await page.screenshot({path:path.join(output,'duct-refreshed-from-calculator.png')});await page.getByRole('button',{name:'Confirm',exact:true}).click();await response(()=>page.getByRole('dialog').getByRole('button',{name:'Confirm items',exact:true}).click(),'/commands');await expect(thickness(ductId)).toHaveText('38');evidence.calculatorRefreshPreservesEvidenceAndQuantities=true;
   await chooseTakeoff(page, 'steel'); await idle(); await page.getByLabel('Destination schedule', { exact: true }).selectOption('steel_vermiculite'); await expect(thickness(sprayId)).toHaveText(String(sprayValue));
   const savedBefore = await snapshot(), calculatorsBeforeSave = await calculators();
   await response(() => clickProjectControl(page, 'Save'), '/api/project/save-as');
@@ -247,5 +261,6 @@ async function editSprayLength(binding, value) {
 })().catch(async error => {
   console.error(error); console.error(logs.slice(-5000));
   if (page) { await page.screenshot({ path: path.join(output, 'failure.png'), fullPage: true }).catch(() => {}); fs.writeFileSync(path.join(output, 'failure.txt'), await page.locator('body').innerText().catch(() => '')); }
+  fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({completed:false,evidence,error:String(error),errors},null,2));
   process.exitCode = 1;
 }).finally(async () => { fs.writeFileSync(path.join(output, 'server.log'), logs); if (browser) await browser.close(); server.kill(); });

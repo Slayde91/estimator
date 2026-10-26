@@ -316,7 +316,8 @@ dialog.takeoff-column-filter{position:fixed;box-sizing:border-box;width:280px;ma
 .takeoff-search-anchor{position:relative;flex:1 1 120px;min-width:80px}
 .takeoff-search-controls .takeoff-search-anchor>input{display:block;width:100%;max-width:none}
 .takeoff-search-anchor>.takeoff-search-results{position:absolute;top:calc(100% + 4px);left:0;min-width:100%;width:min(430px,calc(100vw - 100px));max-height:230px;z-index:20;margin:0;padding:5px;background:#fff;border:1px solid #c6bc99;border-radius:6px;box-shadow:0 4px 15px #0003;line-height:1.4}
-.takeoff-search-result{overflow-wrap:anywhere;white-space:normal}
+.takeoff-search-anchor .takeoff-search-results .takeoff-search-result{overflow-wrap:anywhere;white-space:normal;color:#27231c;background:#fff9dc;font-size:12px;line-height:1.5;height:auto;min-height:44px}
+.takeoff-search-anchor .takeoff-search-result:hover,.takeoff-search-anchor .takeoff-search-result:focus-visible{color:#27231c;background:#fff0aa}
 .takeoff-search-result .takeoff-search-word{background:#ffe27a;color:#27231c;font-weight:700;padding:0 1px}
 .takeoff-search-result[aria-current=true]{border-color:#184574;box-shadow:inset 3px 0 #184574;background:#fff4b5}
 .takeoff-search-result:focus-visible{outline:2px solid #184574;outline-offset:-2px}

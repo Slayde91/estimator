@@ -128,8 +128,8 @@
     const node = (tag, className = "", text = "") => { const el = doc.createElement(tag); el.className = className; if (text && root.CeasefireI18n?.text) root.CeasefireI18n.text(el, text); else el.textContent = text; return el; };
     const attr = (el, name, text, args = []) => { if (root.CeasefireI18n?.attr) root.CeasefireI18n.attr(el, name, text, args); else el.setAttribute(name, text.replace(/\{(\d+)\}/g, (_, index) => String(args[index] ?? ""))); };
     const label = (text, control) => { const el = node("label", "takeoff-visual-option"); el.append(node("span", "", text), control); return el; };
-    const button = (text, action) => { const el = node("button", "button secondary", text); el.type = "button"; el.addEventListener("click", () => void safe(action)); return el; };
-    const toggle = button("Visual Search", () => { sync(); if (toggle.disabled) return; panel.hidden = !panel.hidden; toggle.setAttribute("aria-expanded", String(!panel.hidden)); });
+    const button = (text, action, icon = null) => { if (icon && bridge.iconButton) return bridge.iconButton(text, () => safe(action), icon); const el = node("button", "button secondary", text); el.type = "button"; el.addEventListener("click", () => void safe(action)); return el; };
+    const toggle = button("Visual Search", () => { sync(); if (toggle.disabled) return; panel.hidden = !panel.hidden; toggle.setAttribute("aria-expanded", String(!panel.hidden)); }, "Visual Search");
     toggle.setAttribute("aria-expanded", "false"); toggle.setAttribute("aria-controls", "takeoff-visual-search-panel");
     const panel = node("section", "takeoff-visual-search-panel"); panel.id = "takeoff-visual-search-panel"; panel.hidden = true; attr(panel, "aria-label", "Visual Search");
     const heading = node("div", "takeoff-visual-heading"); heading.append(node("h3", "", "Visual Search"), button("Close Visual Search", close));
@@ -145,7 +145,7 @@
     const scope = node("select"); for (const [value, text] of [["page", "Current page"], ["document", "Current document"], ["all", "All documents"]]) { const option = node("option", "", text); option.value = value; scope.append(option); } attr(scope, "aria-label", "Visual search scope");
     const sensitivity = node("input"); sensitivity.type = "range"; sensitivity.min = "60"; sensitivity.max = "99"; sensitivity.value = "88"; attr(sensitivity, "aria-label", "Visual search sensitivity"); const sensitivityValue = node("span", "", "88%"); sensitivity.addEventListener("input", () => { sensitivityValue.textContent = `${sensitivity.value}%`; });
     const rotations = node("input"); rotations.type = "checkbox"; attr(rotations, "aria-label", "Search multiple rotations");
-    const search = button("Search", run), stop = button("Stop", () => { cancel(); status.textContent = "Visual search stopped. Start a new search to add callouts."; state.results = []; state.selected.clear(); renderResults(); });
+    const search = button("Search", run, "Search"), stop = button("Stop", () => { cancel(); status.textContent = "Visual search stopped. Start a new search to add callouts."; state.results = []; state.selected.clear(); renderResults(); }, "Stop search");
     const options = node("div", "takeoff-visual-options"); const sensitivityLabel = label("Sensitivity", sensitivity); sensitivityLabel.append(sensitivityValue); options.append(selectSample, label("Search in", scope), sensitivityLabel, label("Multiple rotations", rotations), search, stop);
     const status = node("p", "helper"); status.setAttribute("role", "status"); status.textContent = "Select a clear symbol with a small margin around it.";
     const all = node("input"); all.type = "checkbox"; attr(all, "aria-label", "Select all visual matches"); all.addEventListener("change", () => { state.selected = new Set(all.checked ? state.results.map((_, i) => i) : []); renderResults(); });
@@ -158,7 +158,7 @@
     function close() { cancel(); panel.hidden = true; toggle.setAttribute("aria-expanded", "false"); }
     function sync() {
       const context = bridge.context(), key = sourceKey(context);
-      if (key !== state.key) { close(); state.key = key; state.sample = null; state.results = []; state.selected.clear(); sample.hidden = true; renderResults(); }
+      if (key !== state.key) { close(); state.key = key; state.sample = null; state.results = []; state.selected.clear(); sample.hidden = true; status.textContent = "Select a clear symbol with a small margin around it."; renderResults(); }
       toggle.hidden = !context?.enabled; toggle.disabled = !context?.enabled || !context?.document_id || !!context?.busy || state.applying;
       const locked = !!context?.busy || state.applying || !!state.controller;
       for (const control of [selectSample, scope, sensitivity, rotations, search]) control.disabled = locked || !context?.enabled || !context?.document_id;
@@ -177,7 +177,7 @@
       state.results.forEach((hit, index) => {
         const row = node("div", "takeoff-visual-result"), checkbox = node("input"); checkbox.type = "checkbox"; checkbox.checked = state.selected.has(index); checkbox.disabled = locked; attr(checkbox, "aria-label", "Select visual match {0}", [index + 1]);
         checkbox.addEventListener("change", () => { checkbox.checked ? state.selected.add(index) : state.selected.delete(index); renderResults(); });
-        const jump = button(`${hit.name} · page ${hit.page} · similarity ${Math.round(hit.score * 100)}% · ${hit.rotation}°`, () => bridge.focus(hit)); jump.classList.add("takeoff-visual-jump");
+        const jump = button(`${hit.name} · page ${hit.page} · similarity ${Math.round(hit.score * 100)}% · ${hit.rotation}°`, async () => { close(); await bridge.focus(hit); }); jump.classList.add("takeoff-visual-jump");
         jump.disabled = locked;
         if (hit.thumbnail) { const img = node("img"); img.src = hit.thumbnail; img.alt = `Visual match ${index + 1}`; jump.prepend(img); }
         row.append(checkbox, jump); results.append(row);
@@ -207,7 +207,12 @@
             const matches = await find(image(canvasImage(rendered.canvas)), scaledTemplate, { sensitivity: Number(sensitivity.value) / 100, rotations: rotations.checked, signal: controller.signal, deadline, maximum: limits.results - state.results.length });
             for (const match of matches) {
               const region = sourceRegion(match, rendered.viewport.transform), point = inverse([match.x + match.width / 2, match.y + match.height / 2], rendered.viewport.transform);
-              const thumbnail = doc.createElement("canvas"); const scale = Math.min(1, 80 / Math.max(match.width, match.height)); thumbnail.width = Math.max(1, Math.round(match.width * scale)); thumbnail.height = Math.max(1, Math.round(match.height * scale)); thumbnail.getContext("2d").drawImage(rendered.canvas, match.x, match.y, match.width, match.height, 0, 0, thumbnail.width, thumbnail.height);
+              // Each preview is the matched region itself, enlarged into a
+              // bounded square instead of shrinking a narrow symbol to a few pixels.
+              const thumbnail = doc.createElement("canvas"); thumbnail.width = thumbnail.height = 128;
+              const thumb = thumbnail.getContext("2d"), scale = 116 / Math.max(match.width, match.height), width = match.width * scale, height = match.height * scale;
+              thumb.fillStyle = "white"; thumb.fillRect(0, 0, 128, 128); thumb.imageSmoothingEnabled = true;
+              thumb.drawImage(rendered.canvas, match.x, match.y, match.width, match.height, (128 - width) / 2, (128 - height) / 2, width, height);
               state.results.push({ document_id: current.document.id, document_sha256: current.document.sha256, page: current.page, region, point, score: match.score, rotation: match.rotation, name: current.document.name, thumbnail: thumbnail.toDataURL("image/png") });
             }
           } finally { rendered.release?.(); }

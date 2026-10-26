@@ -181,6 +181,10 @@
       el.title = label; el.setAttribute("aria-label", label);
       const symbol = node("span", `takeoff-action-icon takeoff-${kind}-icon`); symbol.setAttribute("aria-hidden", "true");
       el.append(symbol, node("span", "sr-only", label));
+    } else if (["OCR", "Visual Search"].includes(iconName)) {
+      el.classList.add("icon-only", "takeoff-icon-button"); el.title = label; el.setAttribute("aria-label", label);
+      const symbol = node("span", `takeoff-search-image-icon ${iconName === "OCR" ? "ocr" : "visual"}`); symbol.setAttribute("aria-hidden", "true");
+      el.append(symbol, node("span", "sr-only", label));
     } else if (icon || schedule) {
       el.classList.add("icon-only", "takeoff-icon-button"); el.title = label; el.setAttribute("aria-label", label);
       if (label === "Apply item edits") el.classList.add("save-button");
@@ -398,11 +402,12 @@
     }
     if (!Array.isArray(kind) && kind !== "textarea") control.type = ["number", "color", "checkbox"].includes(kind) ? kind : "text";
     if (kind === "number") control.step = "any";
+    if (["wall_penetrations", "floor_penetrations"].includes(key)) { control.min = "0"; control.step = "1"; }
     if (key === "layers") { control.min = "1"; control.max = "1000000000000"; control.step = "1"; }
     if (Array.isArray(kind) && initial !== "" && initial != null && !kind.some(value => (Array.isArray(value) ? value[0] : value) === initial)) control.append(option(initial, `${initial} (retained)`));
     control.name = key; control.value = initial ?? ""; if (kind === "checkbox") control.checked = !!initial; control.dataset.field = key; window.CeasefireI18n.attr(control, "aria-label", title); wrapper.append(control);
     if (key === "duct_size") { control.placeholder = "100x100"; control.pattern = ductSizePattern; }
-    const field = { wrapper, control, read: () => { if (kind === "checkbox") return control.checked; if (!numeric) return Array.isArray(kind) ? control.value : control.value.trim(); if (control.validity?.badInput) throw new Error(`${title}: enter a valid number.`); if (control.value.trim() === "") { if (key === "layers") throw new Error("Number of layers: enter a positive whole number."); return null; } const value = Number(control.value); if (!Number.isFinite(value)) throw new Error(`${title}: enter a finite number.`); if (key === "layers" && (!Number.isSafeInteger(value) || value < 1 || value > 1e12)) throw new Error("Number of layers: enter a positive whole number."); return value; } };
+    const field = { wrapper, control, read: () => { if (kind === "checkbox") return control.checked; if (!numeric) return Array.isArray(kind) ? control.value : control.value.trim(); if (control.validity?.badInput) throw new Error(`${title}: enter a valid number.`); if (control.value.trim() === "") { if (key === "layers") throw new Error("Number of layers: enter a positive whole number."); return null; } const value = Number(control.value); if (!Number.isFinite(value)) throw new Error(`${title}: enter a finite number.`); if (["wall_penetrations", "floor_penetrations"].includes(key) && (!Number.isSafeInteger(value) || value < 0)) throw new Error(`${title}: enter a non-negative whole number.`); if (key === "layers" && (!Number.isSafeInteger(value) || value < 1 || value > 1e12)) throw new Error("Number of layers: enter a positive whole number."); return value; } };
     if (key === "section" && !Array.isArray(kind)) sectionSearch(field, initial ?? "");
     return field;
   }
@@ -4085,7 +4090,7 @@
     window.CeasefireI18n.attr(state.ui.merge, "title", isArea() ? "Surface merging is unavailable. Group separate physical surfaces without changing their identities." : state.mode === "steel" ? "Combine compatible repeated-member groups while retaining every physical member identity." : "Merge adjoining measured segments of one individual duct run.");
     state.ui.bulk.hidden = !selected.length; window.CeasefireI18n.text(state.ui.selectionCount, "{0} selected", [selected.length]);
     const table = node("table"), head = node("thead"), header = node("tr"), body = node("tbody"); window.CeasefireI18n.attr(table, "aria-label", "{0} editable takeoff register", [window.CeasefireI18n.term(labels[state.mode])]);
-    const area = isArea(), columns = area ? ["mark", "surface_type", "level", "surface_basis", "substrate", "treatment", "system", "product", "frl", "layers"] : state.mode === "steel" ? ["mark", "level", "member_type", "section", "product", "fire_period_min", "critical_temperature", "exposure", ...(state.ui.target?.value === "steel_board" ? ["sides"] : [])] : ["mark", "level", "duct_size", "frl", "orientation", "product"];
+    const area = isArea(), columns = area ? ["mark", "surface_type", "level", "surface_basis", "substrate", "treatment", "system", "product", "frl", "layers"] : state.mode === "steel" ? ["mark", "level", "member_type", "section", "product", "fire_period_min", "critical_temperature", "exposure", ...(state.ui.target?.value === "steel_board" ? ["sides"] : [])] : ["mark", "level", "duct_size", "frl", "exposure", "wall_penetrations", "floor_penetrations", "orientation", "product"];
     const headings = ["Select", "Hide", "View/Edit", "Confirmation", ...columns.map(key => area && key === "mark" ? "Surface ID" : key === "surface_type" ? "Surface type" : fields[state.mode].find(field => field[0] === key)?.[1] || key), ...(area ? ["Gross (m²)", "Excluded (m²)", "Net (m²)", "Total (m²)"] : ["Qty", "Length each (m)", "Total (m)"]), ...(state.mode === "duct" ? ["Duct surface (m²)"] : []), ...(["steel", "duct"].includes(state.mode) ? ["Thickness (mm)", "Report"] : []), "Evidence / issues", "Delete"];
     for (const title of headings) {
       const cell = uiNode("th", "", title);
@@ -4308,7 +4313,7 @@
         reply.item_results.some(result => !result?.id)) throw new Error("The linked edit response is incomplete.");
     if (!pending.calculatorsApplied) {
       if (pending.type === "library") window.CeasefirePenetrations.applyTakeoffSchedule(reply.penetration, pending.reservation);
-      else window.CeasefireCalculators.applyTakeoffTargets(reply.calculators, pending.reservation);
+      else if (pending.type !== "calculator-refresh") window.CeasefireCalculators.applyTakeoffTargets(reply.calculators, pending.reservation);
       pending.calculatorsApplied = true;
     }
     accept(reply); renderData();
@@ -4572,6 +4577,7 @@
     if (state.ocrLayer) { state.ui.ocrButton = uiButton("OCR", openOcr); searchControls.append(state.ui.ocrButton); }
     state.visualSearch = window.CeasefireTakeoffVisualSearch?.mount(searchControls, {
       context: drawingSearchContext, selectSample: selectVisualSample, render: renderOriginalSearchPage,
+      iconButton: (label, action, icon) => uiButton(label, action, "button secondary", icon),
       focus: focusVisualSearchHit,
       create: async (kind, hits) => { requireFinishedEdits(); ensurePhysicalUI(); return state.physicalUI.createFromVisualSearch(kind, hits); }, notify: message,
     });
@@ -4587,8 +4593,23 @@
     const displayKey = pageDisplayKey(), fitted = await fitPage();
     if (!fitted || generation !== state.visualFocusGeneration || sessionId !== state.session?.session_id || projectId !== snapshot()?.project_id || !drawingSearchContext().enabled || state.busy || state.modal || !state.viewport ||
         state.document !== hit.document_id || state.page !== hit.page || documentById(hit.document_id)?.sha256 !== hit.document_sha256 || displayKey !== pageDisplayKey() || state.displayKey !== displayKey || fitted.displayKey !== displayKey || fitted.renderId !== state.renderId || fitted.fitId !== state.fitId) return;
-    const centre = G.transform(hit.point, state.viewport.transform);
-    positionPage(state.ui.viewport.clientWidth / 2 - centre[0], state.ui.viewport.clientHeight / 2 - centre[1]);
+    await focusSearchRegion(hit.region, () => generation === state.visualFocusGeneration && sessionId === state.session?.session_id && projectId === snapshot()?.project_id && drawingSearchContext().enabled && !state.busy && !state.modal && fitted.fitId === state.fitId && displayKey === pageDisplayKey() && state.displayKey === displayKey && state.document === hit.document_id && state.page === hit.page && documentById(hit.document_id)?.sha256 === hit.document_sha256);
+  }
+  async function focusSearchRegion(points, current) {
+    if (!current() || !state.viewport || !Array.isArray(points) || !points.length || points.some(point => !Array.isArray(point) || point.length !== 2 || !point.every(Number.isFinite))) return;
+    const viewer = state.ui.viewport, initial = G.bounds(points.map(point => G.transform(point, state.viewport.transform)));
+    const availableWidth = Math.max(120, viewer.clientWidth - 160), availableHeight = Math.max(120, viewer.clientHeight - 220);
+    const desired = Math.max(.05, Math.min(8, state.zoom * Math.min(availableWidth / Math.max(32, initial[2] - initial[0]), availableHeight / Math.max(32, initial[3] - initial[1]))));
+    cancelQueuedZoom();
+    if (Math.abs(desired - state.zoom) > .01) {
+      state.zoom = desired; const rendering = renderPage(), renderId = state.renderId;
+      await rendering;
+      if (renderId !== state.renderId) return;
+    }
+    if (!current() || !state.viewport) return;
+    const bounds = G.bounds(points.map(point => G.transform(point, state.viewport.transform)));
+    positionPage(viewer.clientWidth / 2 - (bounds[0] + bounds[2]) / 2, viewer.clientHeight / 2 - (bounds[1] + bounds[3]) / 2);
+    viewer.focus({ preventScroll: true });
   }
   const textSearch = () => window.CeasefireTakeoffSearch;
   function searchContextKey() {
@@ -4720,8 +4741,11 @@
     state.searchActiveId = hit.id; state.searchActivePage = state.document + ":" + state.page;
     await updateSearchGeometry(); if (run !== state.searchId || !state.searchHits.includes(hit) || state.document !== hit.document_id || state.page !== hit.page || !state.viewport) return;
     const points = hit.matchQuads?.flat().length ? hit.matchQuads.flat() : hit.points;
-    if (points.length) { const box = G.bounds(points.map(point => G.transform(point, state.viewport.transform))); positionPage(state.ui.viewport.clientWidth / 2 - (box[0] + box[2]) / 2, state.ui.viewport.clientHeight / 2 - (box[1] + box[3]) / 2); }
+    if (navigate) await focusSearchRegion(points, () => run === state.searchId && state.searchHits.includes(hit) && state.document === hit.document_id && state.page === hit.page);
+    else if (points.length) { const box = G.bounds(points.map(point => G.transform(point, state.viewport.transform))); positionPage(state.ui.viewport.clientWidth / 2 - (box[0] + box[2]) / 2, state.ui.viewport.clientHeight / 2 - (box[1] + box[3]) / 2); }
+    if (run !== state.searchId || !state.searchHits.includes(hit) || state.document !== hit.document_id || state.page !== hit.page) return;
     renderOverlay(); renderSearchResults();
+    if (navigate) hideSearchResults();
     setProgress((state.searchSummary ? state.searchSummary + " " : "") + "Current-page match " + (state.searchHits.filter(value => value.document_id === state.document && value.page === state.page).indexOf(hit) + 1) + ". Search advances on this page and wraps." + (hit.source === "local-ocr" ? " Local OCR: approximate word bounds, confidence " + Math.round(hit.confidence) + "%. Verify against the drawing." : hit.geometry === "text-run-fallback" ? " Exact word bounds unavailable; yellow text-run context only." : ""));
   }
   async function startSearch() {
@@ -4867,6 +4891,35 @@
     const calculatorId = state.ui.target.value, sessionId = state.session.session_id, revision = state.session.revision;
     const current = () => { requireFinishedEdits(); if (sessionId !== state.session?.session_id || revision !== state.session.revision || calculatorId !== state.ui.target.value) throw new Error("Takeoffs or the destination changed during transfer review. Preview again."); };
     const target = await window.CeasefireCalculators.captureTakeoffTarget(calculatorId); current();
+    if (updateLinked) {
+      const refresh = await api(`/sessions/${sessionId}/calculator-refresh-preview`, { expected_revision: revision, calculator_id: calculatorId, inputs: target.inputs, schedule_rows: target.schedule_rows, item_ids: selected.map(item => item.id) }); current();
+      if (refresh.changes.length) {
+        const details = refresh.changes.map(change => {
+          const item = selected.find(value => value.id === change.item_id);
+          return `${item?.fields.mark || change.item_id} · calculator row ${change.row}\n` + change.details.map(detail => `${fields[item.mode].find(field => field[0] === detail.field)?.[1] || detail.field}: ${detail.before ?? "(blank)"} → ${detail.after ?? "(blank)"}`).join("\n");
+        }).join("\n\n");
+        const accepted = await confirm(`Refresh ${refresh.changes.length} linked Takeoffs rows?`, details + "\n\nThese details changed in the calculator. Copy them into Takeoffs, keeping drawing geometry, measured lengths and physical quantities unchanged. Refreshed items return to Draft for review and confirmation. Calculator inputs remain unchanged.", "Refresh from calculator");
+        if (!accepted) return; current();
+        const reservation = window.CeasefireCalculators.reserveTakeoffTarget(calculatorId, target.fingerprint); working(true);
+        const pending = { type: "calculator-refresh", sessionId, endpoint: "calculator-refresh-apply", reservation,
+          lockedControls: [...state.ui.root.querySelectorAll("input,select,textarea,button")].map(control => [control, control.disabled]),
+          payload: { expected_revision: revision, request_id: uuid(), preview_id: refresh.preview_id, inputs: target.inputs, schedule_rows: target.schedule_rows } };
+        for (const [control] of pending.lockedControls) control.disabled = true;
+        try {
+          let result;
+          try { result = await api(`/sessions/${sessionId}/${pending.endpoint}`, pending.payload); }
+          catch (error) {
+            if (!uncertainLinkedOutcome(error)) throw error;
+            try { result = await api(`/sessions/${sessionId}/${pending.endpoint}`, pending.payload); }
+            catch { state.linkedRecovery = pending; throw new Error("The calculator refresh needs a response. Keep this page open and choose Retry linked change."); }
+          }
+          try { finishLinkedOperation(pending, result); }
+          catch (error) { state.linkedRecovery = pending; throw new Error(`The calculator refresh response needs recovery. Keep this page open and choose Retry linked change. ${error.message}`); }
+          message(`${refresh.changes.length} linked Takeoffs rows refreshed from the calculator. Review and confirm the changed details, then save the project to retain them.`);
+        } finally { if (!state.linkedRecovery) releaseLinkedOperation(pending); }
+        return;
+      }
+    }
     const preview = await api(`/sessions/${sessionId}/transfer-preview`, { expected_revision: revision, calculator_id: calculatorId, inputs: target.inputs, schedule_rows: target.schedule_rows, item_ids: selected.map(item => item.id), update_linked: updateLinked }); current();
     const skipped = preview.skipped?.length || 0, actionable = new Set(preview.changes.map(change => change.item_id)), transferring = selected.filter(item => actionable.has(item.id));
     if (!transferring.length) { message(`All ${skipped} selected item${skipped === 1 ? " is" : "s are"} already linked to ${calculatorName(calculatorId)}. No rows were added or changed.`); return; }

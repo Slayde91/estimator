@@ -4,16 +4,23 @@
 // Both workbook registers and the Firestopping schedule use this same control.
 window.CeasefireScheduleColumns = (() => {
   const prefix = "ceasefire.scheduleColumns.v1.", preferences = new Map(), controls = new Set();
+  // Apply the requested starting view only when this browser has no valid
+  // choice for the schedule. Stored choices, including Show all, stay exact.
+  const defaultHidden = {
+    "ductwork:CALCULATOR": ["column:V", "column:W", "column:X", "column:AA", "column:AB", "column:AC", "column:AD"],
+    "steel_vermiculite:SCHEDULE": ["column:G", "column:K", "column:L", "column:M", "column:N", "column:P"],
+    "steel_intumescent:SCHEDULE": ["column:G", "column:K", "column:L", "column:M", "column:N", "column:Q", "column:T"],
+  };
   let nextId = 0, opened = null;
   const text = (element, source) => window.CeasefireI18n?.text(element, source) || (element.textContent = source, element);
   function read(key) {
     if (!preferences.has(key)) {
-      let hidden = [];
+      let hidden = defaultHidden[key] || [];
       try {
         const stored = JSON.parse(window.localStorage.getItem(prefix + key));
         if (stored?.version === 1 && Array.isArray(stored.hidden) && stored.hidden.length <= 128
           && stored.hidden.every(id => typeof id === "string" && /^[a-zA-Z0-9:_-]{1,64}$/.test(id))) hidden = stored.hidden;
-      } catch (_) { /* Unavailable or invalid preferences leave every column visible. */ }
+      } catch (_) { /* Unavailable or invalid storage keeps the schedule defaults. */ }
       preferences.set(key, new Set(hidden));
     }
     return preferences.get(key);
@@ -137,7 +144,7 @@ window.CeasefireScheduleColumns = (() => {
   const browserPresentation = {
     steel_vermiculite: {
       START: { text: { A7: "Use SCHEDULE to enter members and SUMMARY to review product quantities. Open FACTOR CALCS for the Section Factor Helper." } },
-      SCHEDULE: { column_order: ["Z", "AA", "A", "E", "F", "C", "D", "B", "H", "I", "J", "G"] },
+      SCHEDULE: { column_order: ["Z", "AA", "A", "E", "F", "C", "D", "B", "H", "I", "J", "Y", "G"], text: { O9: "DFT (mm)" } },
       CALCULATOR: { hide: ["A1"], text: { A1: "" }, center: ["A6:F24", "H6:N24"], split_status: ["H9", "H20"] }, // 4–5
       BAGS: { center: ["A6:N15", "A19:I25"] }, // Manual quantities and all six product totals
       SETTINGS: {
@@ -152,7 +159,7 @@ window.CeasefireScheduleColumns = (() => {
       },
     },
     steel_intumescent: {
-      SCHEDULE: { column_order: ["Z", "AA", "A", "E", "F", "C", "D", "B", "H", "I", "J", "G"] },
+      SCHEDULE: { column_order: ["Z", "AA", "A", "E", "F", "C", "D", "B", "H", "I", "J", "Y", "G"] },
       SETTINGS: {
         omit: ["A4:D4", "A6:D8", "A12:D13", "A15:D15", "A18:D20", "A26:H30", "A34:F34", "A48:F52", "A64:H64", "A86:H93"],
         text: { A36: "Nominal mixed density estimate (kg/L)" },
@@ -170,7 +177,7 @@ window.CeasefireScheduleColumns = (() => {
       SETTINGS: { center: ["A5:C34", "G5:N10"], text: { Q5: "Description" }, omit: ["A1", "A3"] }, // 23–25
     },
     ductwork: {
-      CALCULATOR: { column_order: ["A", "B", "D", "CM", "E", "H", "I", "F", "G", "C"], text: { A3: "For FyreWrap, Internal, External and Both use the exhaust application rules. Select pressurisation separately." } },
+      CALCULATOR: { column_order: ["A", "B", "D", "CM", "E", "H", "I", "F", "G", "C"], schedule_omit_columns: ["AP", "AQ"], omit: ["A3"], text: { A3: "For FyreWrap, Internal, External and Both use the exhaust application rules. Select pressurisation separately." } },
       SUMMARY: { center: ["A8:J11"], text: { A17: "PENETRATION ANGLES" }, omit: ["A4:L5", "A14:L15", "A17:L45"] }, // Retain source tables and notes in worksheet data and exports.
       "PRODUCT SETTINGS": {
         omit: ["A1", "A8:H24", "A26:H34", "A36:H43", "A50:H64", "A66:H67", "A70:H72", "A74:H89", "A101:H110", "A113:H151", "J115:Q149"],
@@ -1128,7 +1135,11 @@ window.CeasefireScheduleColumns = (() => {
     add.addEventListener("click", () => addScheduleRow(entry)); undo.addEventListener("click", () => undoScheduleRemove(entry));
     const count = uiNode("span", "helper", "{0} {1} · Capacity {2}", [entry.scheduleRows.length.toLocaleString("en-AU"), window.CeasefireI18n.term(entry.scheduleRows.length === 1 ? "row" : "rows"), capacity.toLocaleString("en-AU")]);
     const help = uiNode("span", "helper calculator-schedule-help", "Line numbers stay with their items. Removing a row clears its inputs; Undo remove restores them.");
-    toolbar.append(add, undo, count, help); return toolbar;
+    toolbar.append(add, undo, count, help);
+    if (entry.definition.id === "ductwork" && entry.sheet === "CALCULATOR") {
+      toolbar.append(uiNode("p", "helper calculator-overview-note calculator-schedule-overview-note", browserPresentation.ductwork.CALCULATOR.text.A3));
+    }
+    return toolbar;
   }
 
   function bindScheduleScroll(scroll, entry, view) {
@@ -2074,7 +2085,7 @@ window.CeasefireScheduleColumns = (() => {
     // Schedule-only display columns must not hide overview warnings in the
     // same source columns above the register (for example board warning Y6).
     if (registerColumns) columns = [...registerColumns];
-    else if (entry.sheet === entry.definition.schedule?.sheet) {
+    if ((!registerColumns || entry.definition.id === "ductwork") && entry.sheet === entry.definition.schedule?.sheet) {
       const scheduleOmissions = new Set((browserPresentation[entry.definition.id]?.[entry.sheet]?.schedule_omit_columns || []).map(columnNumber));
       columns = columns.filter(column => !scheduleOmissions.has(column));
     }
@@ -2091,8 +2102,10 @@ window.CeasefireScheduleColumns = (() => {
     const thicknessSource = showReports ? columns.find(column => /^thickness source$/i.test(String(labels[column] || "").trim())) : null;
     const sourcePosition = columns.indexOf(thicknessSource);
     if (sourcePosition >= 0) columns = columns.filter(column => column !== thicknessSource);
-    const reportBefore = showReports ? sourcePosition >= 0 ? columns[sourcePosition] ?? null
-      : columns.find(column => /basis|status|sources?|requirements|notes?/i.test(labels[column] || "")) : null;
+    const steelSchedule = schedule && ["steel_vermiculite", "steel_intumescent"].includes(entry.definition.id) && entry.sheet === "SCHEDULE";
+    const reportBefore = showReports ? steelSchedule && columns.includes(10) ? columns[columns.indexOf(10) + 1] ?? null
+      : sourcePosition >= 0 ? columns[sourcePosition] ?? null
+        : columns.find(column => /basis|status|sources?|requirements|notes?/i.test(labels[column] || "")) : null;
     const scheduleView = scheduleFor(entry) && result.schedule_view;
     const dynamicSchedule = Boolean(scheduleView && Array.isArray(entry.scheduleRows));
     const deleteReview = dynamicSchedule ? scheduleDeleteContext(entry) : null;
@@ -2381,7 +2394,8 @@ window.CeasefireScheduleColumns = (() => {
       entry.productTotalsElement = totals; renderProductTotals(result, totals); content.push(totals);
     }
     if (boardSchedule) content.push(scheduleOverview);
-    if (schedule?.requirements_note || schedule?.quantity_help) {
+    const hideScheduleGuidance = schedule && (entry.definition.id === "ductwork" && entry.sheet === "CALCULATOR" || vermiculiteSchedule);
+    if (!hideScheduleGuidance && (schedule?.requirements_note || schedule?.quantity_help)) {
       const guidance = node("div", "calculator-schedule-guidance");
       for (const text of [schedule.requirements_note, schedule.quantity_help].filter(Boolean)) guidance.append(uiNode("p", "helper", text));
       content.push(guidance);

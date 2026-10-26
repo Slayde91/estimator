@@ -1240,8 +1240,9 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
   entry.result=result(copy(entry.inputs),{max_row:310,max_column:43,visible_columns:ductColumns,rows:reorderedRows});
   const reorderedSource=JSON.stringify(entry.result);realRender(entry);audit.setRender(realRender);
   let ductTable=renderedTable(),firstDuctRow=ductTable.children.at(-1).children[0];
-  assert.deepEqual(ductTable.children[1].children[0].children.map(node=>node.textContent),[2,4,3,36,40,41,39,42,43].map(column=>ductLabels[column]));
-  assert.deepEqual(firstDuctRow.children.slice(3).map(node=>node.dataset.calculatorOutput),['AJ11','AN11','AO11','AM11','AP11','AQ11']);
+  assert.deepEqual(ductTable.children[1].children[0].children.map(node=>node.textContent),[2,4,3,36,40,41,39].map(column=>ductLabels[column]));
+  assert.deepEqual(firstDuctRow.children.slice(3).map(node=>node.dataset.calculatorOutput),['AJ11','AN11','AO11','AM11']);
+  assert.ok(!entry.scheduleColumnChoices.some(column=>['column:AP','column:AQ'].includes(column.id)));
   assert.equal(ductTable.children.at(-1).children.length,300);assert.equal(renderedControls().length,900);
   assert.ok(!byId('calculator-grid').querySelectorAll('[data-calculator-output]').some(node=>/^A[KL]/.test(node.dataset.calculatorOutput)));
   assert.equal(JSON.stringify(entry.result),reorderedSource);assert.equal(entry.inputs.CALCULATOR.D11,2.3456789);
@@ -1250,7 +1251,11 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
   audit.setRequest(async()=>changedDuct);await audit.calculate();assert.equal(renderedControls().find(node=>node.dataset.calculatorCell==='D11'),retainedDuctLength);
   assert.equal(byId('calculator-grid').querySelectorAll('[data-calculator-output]').find(node=>node.dataset.calculatorOutput==='AN11').textContent,'0.12');
   changedDuct.display_column_order=['B','C','D','AJ','AO','AN','AN','ZZ'];await audit.calculate();ductTable=renderedTable();
-  assert.deepEqual(ductTable.children[1].children[0].children.map(node=>node.textContent),[2,4,3,36,41,40,39,42,43].map(column=>ductLabels[column]));assert.equal(renderedControls().length,900);passed++;
+  assert.deepEqual(ductTable.children[1].children[0].children.map(node=>node.textContent),[2,4,3,36,41,40,39].map(column=>ductLabels[column]));assert.equal(renderedControls().length,900);
+  entry.result.register_columns=ductColumns;
+  const advancedDuctSource=JSON.stringify(entry.result);realRender(entry);
+  assert.ok(!entry.scheduleColumnChoices.some(column=>['column:AP','column:AQ'].includes(column.id)),'An expanded register response cannot restore the two removed display columns');
+  assert.equal(JSON.stringify(entry.result),advancedDuctSource);passed++;
 
   // Duct input movement preserves original addresses and exact retained rows.
   const retainedDuctInputs={CALCULATOR:{B11:'700x500',C11:'FyreWrap',D11:2.34567890123456,E11:'120/120/120',F11:2,G11:3,H11:'Internal',I11:'Horizontal',D1010:9.87654321098765}};
@@ -1302,10 +1307,10 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
     {row:9,cells:sprayColumns.map(column=>({column,address:`${sprayColumnName(column)}9`,value:sprayLabels[column-1]}))},
     ...[10,1009].map(row=>({row,cells:sprayColumns.map(column=>({column,address:`${sprayColumnName(column)}${row}`,value:entry.inputs.SCHEDULE[`${sprayColumnName(column)}${row}`]??null,editable:column<=12||column===27,type:column===7?'number':'text',calculated:column>=13&&column<=25}))}))]});
   const spraySource=JSON.stringify(entry.result),sprayDefinition=JSON.stringify(entry.definition),sprayInputs=JSON.stringify(entry.inputs);
-  const sprayDisplayOrder=[26,27,1,5,6,3,4,2,8,9,10,7,11,12,13,14,15,16,17,18,19,20,21,25];
+  const sprayDisplayOrder=[26,27,1,5,6,3,4,2,8,9,10,25,7,11,12,13,14,15,16,17,18,19,20,21];
   realRender(entry);audit.setRender(realRender);
   const sprayTable=renderedTable(),sprayRows=sprayTable.children.at(-1).children;
-  assert.deepEqual(sprayTable.children[1].children[0].children.map(node=>node.textContent),sprayDisplayOrder.map(column=>sprayLabels[column-1]));
+  assert.deepEqual(sprayTable.children[1].children[0].children.map(node=>node.textContent),sprayDisplayOrder.map(column=>column===15?'DFT (mm)':sprayLabels[column-1]));
   for(const [index,row] of [10,1009].entries()) assert.deepEqual(sprayRows[index].children.map(cell=>cell.children[0]?.dataset.calculatorCell||cell.dataset.calculatorOutput),sprayDisplayOrder.map(column=>`${sprayColumnName(column)}${row}`));
   assert.equal(JSON.stringify(entry.result),spraySource);assert.equal(JSON.stringify(entry.definition),sprayDefinition);assert.equal(JSON.stringify(entry.inputs),sprayInputs);
   const sprayFactor=renderedControls().find(control=>control.dataset.calculatorCell==='G10');
@@ -1797,19 +1802,56 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
   const noteOverview=audit.renderOverview([{row:2,cells:[{column:1,address:'A2',value:'Overview note',presentation:{role:'note'}}]},{row:3,cells:[{column:1,address:'A3',value:'Overview heading',presentation:{role:'section'}}]}],entry,[1]);
   assert.equal(descendants(noteOverview).find(node=>node.dataset?.calculatorOutput==='A2').classList.contains('calculator-value-present'),true);assert.equal(descendants(noteOverview).find(node=>node.dataset?.calculatorOutput==='A3').dataset.calculatorValue,undefined);passed++;
 
-  // The duct introduction is a full-width note even when its retained source style says section heading.
+  // The duct introduction follows the row-help note, while the source value
+  // and original source heading style remain untouched in the result.
   entry=setup();entry.definition.id='ductwork';entry.definition.schedule.header_row=10;entry.definition.schedule.first_row=11;
+  entry.scheduleRows=[11];
   entry.definition.sheets=[{name:'CALCULATOR',header_rows:[10],display_cells:{A3:{role:'note',bold:false,align:'left'}},merges:['A1:C1','A3:C3']}];
   entry.result=result({}, {rows:[{row:1,cells:[{column:1,address:'A1',value:'DUCT PROTECTION CALCULATOR',presentation:{role:'title'}}]},
     {row:3,cells:[{column:1,address:'A3',value:'For FyreWrap, Internal, External and Both use the exhaust application rules. Select pressurisation separately. Application FRLs retain the directional requirements shown above and in the reports. No waste is added.',presentation:{role:'section',bold:true}}]},
-    {row:11,cells:[{column:2,address:'B11',value:1,editable:true,type:'number'}]}]});
+    {row:11,cells:[{column:2,address:'B11',value:1,editable:true,type:'number'}]}],schedule_view:{offset:0,rows:[11],total_rows:1}});
   const rawDuctIntro=JSON.stringify(entry.result);realRender(entry);
   const ductOverview=descendants(byId('calculator-grid')).find(node=>node.className==='calculator-overview');assert.equal(ductOverview.classList.contains('calculator-overview-full'),true);
-  const ductIntro=descendants(ductOverview).find(node=>node.dataset?.calculatorOutput==='A3');
-  assert.equal(ductIntro.tagName,'p');assert.equal(ductIntro.className,'calculator-overview-note');assert.equal(ductIntro.classList.contains('calculator-value-present'),true);
-  assert.equal(ductIntro.classList.contains('calculator-normal'),true);assert.equal(ductIntro.classList.contains('calculator-bold'),false);assert.equal(ductIntro.classList.contains('calculator-align-left'),true);
+  assert.ok(!descendants(ductOverview).some(node=>node.dataset?.calculatorOutput==='A3'));
+  const footer=descendants(byId('calculator-grid')).find(node=>node.className==='calculator-schedule-tools'),ductIntro=footer.children.at(-1);
+  assert.equal(ductIntro.tagName,'p');assert.ok(ductIntro.className.includes('calculator-schedule-overview-note'));
+  assert.equal(footer.children.at(-2).textContent,'Line numbers stay with their items. Removing a row clears its inputs; Undo remove restores them.');
   assert.equal(ductIntro.textContent,'For FyreWrap, Internal, External and Both use the exhaust application rules. Select pressurisation separately.');assert.equal(JSON.stringify(entry.result),rawDuctIntro);
   assert.equal(renderedControls().length,1);passed++;
+
+  // Only the two requested guidance blocks are hidden. Other calculators keep
+  // their required-field notes, and definitions/results remain exportable.
+  for(const [id,sheet,hidden] of [['ductwork','CALCULATOR',true],['steel_vermiculite','SCHEDULE',true],['steel_intumescent','SCHEDULE',false],['steel_board','CALCULATOR',false]]){
+    entry=setup();entry.definition.id=id;entry.sheet=sheet;entry.definition.schedule.sheet=sheet;
+    entry.definition.schedule.requirements_note='Fields marked * are required.';
+    entry.definition.schedule.quantity_help='Retained source quantity guidance.';
+    entry.definition.sheets=[{name:sheet,header_rows:[8],merges:[]}];
+    entry.result=result({}, {sheet,max_column:2,rows:[{row:8,cells:[{column:1,value:'Member'},{column:2,value:'Length'}]},{row:9,cells:[{column:1,address:'A9',value:'Exact item',editable:true,type:'text'}]}]});
+    const rawDefinition=JSON.stringify(entry.definition),rawResult=JSON.stringify(entry.result);realRender(entry);
+    assert.equal(descendants(byId('calculator-grid')).some(node=>node.className==='calculator-schedule-guidance'),!hidden,id);
+    assert.equal(JSON.stringify(entry.definition),rawDefinition);assert.equal(JSON.stringify(entry.result),rawResult);passed++;
+  }
+
+  // Steel Report and basis follow member length together. Headers, source cells,
+  // widths and removal controls keep the same identities in both steel views.
+  for(const id of ['steel_vermiculite','steel_intumescent']){
+    entry=setup({SCHEDULE:{I10:2,J10:1.23456789012345}});entry.definition.id=id;entry.sheet='SCHEDULE';entry.scheduleRows=[10];
+    const labels={1:'Item / mark',9:'Quantity',10:'Length / member (m)',15:id==='steel_vermiculite'?'Published thickness (mm)':'DFT (µm)',24:'Thickness source',25:'Basis / review note'};
+    const columns=[1,9,10,15,24,25],letters=column=>String.fromCharCode(64+column);
+    entry.definition.schedule={sheet:'SCHEDULE',header_row:9,first_row:10,last_row:1009,columns:columns.map(column=>({column:letters(column),label:labels[column]}))};
+    entry.definition.sheets=[{name:'SCHEDULE',header_rows:[9],merges:[]}];
+    entry.result=result(copy(entry.inputs),{sheet:'SCHEDULE',max_column:25,register_columns:columns,schedule_view:{offset:0,rows:[10],total_rows:1},rows:[
+      {row:9,cells:columns.map(column=>({column,address:`${letters(column)}9`,value:labels[column]}))},
+      {row:10,report_references:[],cells:columns.map(column=>({column,address:`${letters(column)}10`,value:column===10?1.23456789012345:column===24?'Retained source reference':column===25?'Retained basis note':2,calculated:column>=15}))},
+    ]});
+    const rawResult=JSON.stringify(entry.result),rawInputs=JSON.stringify(entry.inputs);realRender(entry);
+    const table=renderedTable(),ids=['column:A','column:I','column:J','virtual:report','column:Y','column:O','virtual:actions'];
+    assert.deepEqual(table.children.find(node=>node.tagName==='thead').children[0].children.map(cell=>cell.dataset.scheduleColumn),ids);
+    assert.deepEqual(table.children.find(node=>node.tagName==='tbody').children[0].children.map(cell=>cell.dataset.scheduleColumn),ids);
+    assert.equal(table.children[0].children.length,ids.length);assert.deepEqual(copy(entry.scheduleColumnChoices).map(column=>column.id),ids);
+    assert.equal(entry.scheduleColumnChoices.find(column=>column.id==='column:O').label,id==='steel_vermiculite'?'DFT (mm)':'DFT (µm)');
+    assert.equal(JSON.stringify(entry.result),rawResult);assert.equal(JSON.stringify(entry.inputs),rawInputs);passed++;
+  }
 
   // Calculator tables always leave vertical wheel scrolling to the page;
   // selecting an input must not collapse a table into an inner viewport.

@@ -10,7 +10,7 @@ function harness() {
   const element = tag => ({ tag, value: '', dataset: {}, hidden: false, textContent: '', children: [], replaceChildren(...children) { this.children = children; }, append(...children) { this.children.push(...children); }, contains(value) { return !!value && this.children.includes(value); }, addEventListener() {}, setAttribute() {}, classList: { toggle() {} } });
   const context = { window: { CeasefireTakeoffSearch: S, CeasefireTakeoffGeometry: G }, document: { getElementById() {}, createElement: element }, setTimeout, clearTimeout, AbortController, Error, console };
   if (context.window) context.window.CeasefireI18n = englishI18n(); vm.createContext(context);
-  const source = fs.readFileSync('static/takeoffs.js', 'utf8').replace('  window.CeasefireTakeoffs = {', `  globalThis.audit={state,searchContextKey,searchCurrent,readSearchText,cancelSearch,waitSearch,invalidateSearchContext,runSearch,hideSearchResults,showSearchResults,renderSearchResults,scheduleSearch,productionSelect:selectSearchHit,noRender(){renderOverlay=()=>{};},geometry(fn){updateSearchGeometry=fn;},select(fn){selectSearchHit=fn;},navigate(fn){navigateDocument=fn;},position(fn){positionPage=fn;}};
+  const source = fs.readFileSync('static/takeoffs.js', 'utf8').replace('  window.CeasefireTakeoffs = {', `  globalThis.audit={state,searchContextKey,searchCurrent,readSearchText,cancelSearch,waitSearch,invalidateSearchContext,runSearch,hideSearchResults,showSearchResults,renderSearchResults,scheduleSearch,productionSelect:selectSearchHit,noRender(){renderOverlay=()=>{};renderPage=async()=>{};},geometry(fn){updateSearchGeometry=fn;},select(fn){selectSearchHit=fn;},navigate(fn){navigateDocument=fn;},position(fn){positionPage=fn;}};
   window.CeasefireTakeoffs = {`);
   vm.runInContext(source, context);
   const { audit } = context; audit.noRender();
@@ -93,7 +93,7 @@ function harness() {
     const progressive = harness(), navigation = deferred();
     const reading = {id: 'early-label', source: 'local-ocr', document_id: 'doc', document_name: 'Drawing.pdf', page: 1, confidence: 70, points: [[10, 10]], matchQuads: [[[0, 0], [100, 0], [100, 10], [0, 10]]]};
     Object.assign(progressive.state, {document: 'another-document', page: 1, searchHits: [reading], searchActiveId: null, viewport: {transform: [1, 0, 0, 1, 0, 0]}});
-    progressive.state.ui.viewport = {clientWidth: 100, clientHeight: 100}; progressive.audit.position(() => {}); progressive.audit.geometry(() => Promise.resolve());
+    progressive.state.ui.viewport = {clientWidth: 100, clientHeight: 100, focus() {}}; progressive.audit.position(() => {}); progressive.audit.geometry(() => Promise.resolve());
     progressive.audit.navigate(() => navigation.promise); const activation = progressive.audit.productionSelect(reading, true);
     progressive.state.searchHits = keepReading ? S.reconcileOcrHits([reading], [{...reading, id: 'refined-label', confidence: 92, matchQuads: [[[1, 0], [101, 0], [101, 10], [1, 10]]]}]) : [];
     progressive.state.document = 'doc'; navigation.resolve(true); await activation;

@@ -22,6 +22,7 @@ const assetContract={
  '/header-projects.png':{sha256:'1a04d966cd48b61d77f28548344ca153d4f864f7c506dbe672dc2aa28fced31a',natural:[1254, 1254]},
  '/takeoff-header-service-plans.png':{sha256:'7e2c1c1a554201852151c27bc030624b9d7e63722c15c260d9f0f218ca6fbfea',natural:[2172,724]},
  '/header-steel-spray.png':{sha256:'291c15eb430d5fa3dfad5b05b1aacb3f0c49da30a841189fe3d7203afc7707a3',natural:[1254,1254]},
+ '/header-steel-intumescent.png':{sha256:'c157e493d65964cda91344e4fb47c3eb628963fb4a0e475b97059aa9a056e164',natural:[1536,1024]},
  '/header-steel-board.png':{sha256:'c033e82dda0f1f82071eb600019423cb74dc562702abaaff9b50d09b32928bef',natural:[2172,724]},
  '/header-ductwork.png':{sha256:'3858a2d0997569021153c717f0cd74c57cf7b195ef838dbce48966fdf36c4a28',natural:[2172,724]},
  '/header-estimate.png':{sha256:'f0924181f62ff1ac5bab85f86d645d6516752e2f028467e1bd22ed627d151303',natural:[2172,724]},
@@ -41,7 +42,7 @@ async function translatedTakeoff(name){
  await choice.click();await expect(choice).toHaveAttribute('aria-pressed','true');await page.mouse.move(0,0);await expect(page.locator('#takeoff-navigation-menu')).toBeHidden();await takeoffIdle();
 }
 async function translatedCalculator(id){
- await page.locator('#calculator-navigation-toggle').hover();const menu=page.locator('#calculator-navigation-menu');await expect(menu).toBeVisible();const steel=["steel_vermiculite","steel_board"].includes(id);if(steel)await page.locator('#steel-calculator-navigation-toggle').click();const choice=menu.locator(`[data-calculator-id="${id}"]`);await choice.click();await expect(choice).toHaveAttribute('aria-pressed','true');await page.mouse.move(0,0);await expect(menu).toBeHidden();await idle();
+ await page.locator('#calculator-navigation-toggle').hover();const menu=page.locator('#calculator-navigation-menu');await expect(menu).toBeVisible();const steel=["steel_vermiculite","steel_intumescent","steel_board"].includes(id);if(steel)await page.locator('#steel-calculator-navigation-toggle').click();const choice=menu.locator(`[data-calculator-id="${id}"]`);await choice.click();await expect(choice).toHaveAttribute('aria-pressed','true');await page.mouse.move(0,0);await expect(menu).toBeHidden();await idle();
 }
 async function theme(id,name){
  if(await page.locator('html').getAttribute('data-theme')===id)return;
@@ -134,6 +135,12 @@ async function calculatorFraming(kind,name,themes=['ceasefire','midnight','ocean
   for(const width of widths){
    await page.setViewportSize({width,height:764});await page.evaluate(()=>scrollTo(0,0));
    const toggle=page.locator('#calculator-document-toggle');await toggle.click({trial:true});
+   if(kind==='intumescent'&&width<=480){
+    await expect(heading.locator('.workspace-header-art--intumescent')).toBeHidden();
+    await toggle.click();const menu=page.locator('#calculator-document-menu');await expect(menu).toBeVisible();await menu.locator('button:visible').first().click({trial:true});await toggle.press('Escape');
+    assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth-innerWidth<=1),'Phone title and controls stay within the viewport');
+    evidence.push({name:name+'-adjacent-framing',theme:themeId,viewport:width,decorativeArtHiddenForNarrowTitle:true,documentMenuReachable:true});await page.screenshot({path:path.join(output,`${name}-adjacent-${themeId}-phone-${width}.png`)});continue;
+   }
    const value=await heading.evaluate(el=>{
     const box=n=>{const r=n.getBoundingClientRect();return{x:r.x,y:r.y,right:r.right,bottom:r.bottom,width:r.width,height:r.height};};
     const copy=el.querySelector('.calculator-heading-copy'),text=el.querySelector('.calculator-heading-text'),slot=el.querySelector('.calculator-heading-art-slot'),bolt=slot.querySelector('svg'),frames=[...slot.querySelectorAll('.workspace-header-art')],frame=frames.find(n=>getComputedStyle(n).display!=='none'),img=frame.querySelector('img'),actions=el.querySelector('.calculator-header-actions'),title=el.querySelector('h2');
@@ -147,7 +154,7 @@ async function calculatorFraming(kind,name,themes=['ceasefire','midnight','ocean
     const css=getComputedStyle(frame),imageCSS=getComputedStyle(img),boltCSS=getComputedStyle(bolt.querySelector('path')),r=toggle=>{const b=toggle.getBoundingClientRect(),hit=document.elementFromPoint(b.x+b.width/2,b.y+b.height/2);return!!hit&&(hit===toggle||toggle.contains(hit));};
     return{actual,actualLayout,baseline,...art,slot:box(slot),bolt:{...box(bolt),stretch:bolt.getAttribute('preserveAspectRatio'),path:bolt.querySelector('path').getAttribute('d'),start:(()=>{const p=bolt.querySelector('path'),q=p.getPointAtLength(0).matrixTransform(p.getScreenCTM());return{x:q.x,y:q.y};})(),end:(()=>{const p=bolt.querySelector('path'),q=p.getPointAtLength(p.getTotalLength()).matrixTransform(p.getScreenCTM());return{x:q.x,y:q.y};})(),stroke:boltCSS.stroke,length:bolt.querySelector('path').getTotalLength(),hidden:bolt.getAttribute('aria-hidden'),focusable:bolt.getAttribute('focusable'),pointer:getComputedStyle(bolt).pointerEvents},src:img.getAttribute('src'),natural:[img.naturalWidth,img.naturalHeight],alt:img.alt,hidden:slot.getAttribute('aria-hidden'),pointer:css.pointerEvents,imagePointer:imageCSS.pointerEvents,mask:css.maskImage,composite:css.maskComposite,position:css.position,aspect:css.aspectRatio,direction:getComputedStyle(el).direction,restored:html===el.outerHTML,documentHit:r(el.querySelector('#calculator-document-toggle')),overflow:document.documentElement.scrollWidth-innerWidth};
    });
-   assert.equal(value.src,'/header-'+(kind==='spray'?'steel-spray':kind==='board'?'steel-board':'ductwork')+'.png');assert.deepEqual(value.natural,assetContract[value.src].natural);assert.equal(value.alt,'');assert.equal(value.hidden,'true');assert.equal(value.pointer,'none');assert.equal(value.imagePointer,'none');assert.equal(value.position,'absolute');assert.match(value.mask,/linear-gradient/);assert.match(value.composite,/intersect/);assert.equal(value.fit,'cover');assert.equal(value.restored,true,'The shipped layout probe restores exact source nodes and inline markup');
+   assert.equal(value.src,'/header-'+(kind==='spray'?'steel-spray':kind==='board'?'steel-board':kind==='intumescent'?'steel-intumescent':'ductwork')+'.png');assert.deepEqual(value.natural,assetContract[value.src].natural);assert.equal(value.alt,'');assert.equal(value.hidden,'true');assert.equal(value.pointer,'none');assert.equal(value.imagePointer,'none');assert.equal(value.position,'absolute');assert.match(value.mask,/linear-gradient/);assert.match(value.composite,/intersect/);assert.equal(value.fit,'cover');assert.equal(value.restored,true,'The shipped layout probe restores exact source nodes and inline markup');
    for(const part of ['heading','copy','title','actions'])for(const axis of ['x','y','width','height'])assert.ok(Math.abs(value.actual[part][axis]-value.baseline.geometry[part][axis])<.1,`${name}/${themeId}/${width} preserves original ${part}.${axis}: ${JSON.stringify(value)}`);
    assert.deepEqual(value.actualLayout,value.baseline.layout,'Moving artwork preserves the calculator, worksheet and full page flow');
    assert.equal(value.documentHit,true,'The real Document toggle receives native pointer input');assert.ok(value.overflow<=1);
@@ -157,6 +164,7 @@ async function calculatorFraming(kind,name,themes=['ceasefire','midnight','ocean
    if(value.actual.actions.y<value.actual.title.bottom)assert.ok(value.direction==='rtl'?value.frame.x>=value.actual.actions.right:value.frame.right<=value.actual.actions.x,'The image leaves same-row controls clear');else assert.ok(value.frame.bottom<=value.actual.actions.y+.1,'Phone artwork stays above the original controls');
    assert.ok(Math.abs(value.visiblePaint.left-value.crop.x)<.25&&Math.abs(value.visiblePaint.right-value.crop.right)<.25&&Math.abs(value.visiblePaint.top-value.crop.y)<.25&&Math.abs(value.visiblePaint.bottom-value.crop.bottom)<.25,'The four-edge mask follows the actual clipped scene');
    if(kind==='spray'){assert.ok(value.sourceCrop.fraction>=.625-.001,'The square spray scene retains at least62.5percent of its source');assert.ok(value.sourceCrop.top<=400&&value.sourceCrop.top+value.sourceCrop.height>=1100,'Both beam flanges remain visible');}
+   else if(kind==='intumescent'){assert.ok(value.sourceCrop.left>=-.25&&value.sourceCrop.left+value.sourceCrop.width<=value.natural[0]+.25,'New supplied scene stays within its source bounds');if(width>=1384)assert.ok(value.sourceCrop.fraction>.45,'Wide header retains the steel frame and its surroundings');}
    else{assert.ok(value.sourceCrop.left>=value.natural[0]*.399&&Math.abs(value.sourceCrop.left+value.sourceCrop.width-value.natural[0])<.25,'Only the useful right scene is retained after trimming at least40percent empty left canvas');if(width>760&&value.frame.width>=value.frame.height*2.7-.1)assert.ok(Math.abs(value.scale-value.baseline.art.scale)<.001,'Unconstrained cropping preserves the shipped useful-scene scale');}
    // Open the real disclosure in every theme/width, including RTL, and hit-test
    // its first native action above the artwork and later sticky worksheet cells.
@@ -262,7 +270,7 @@ async function takeoffHeading(name,route,themes=['ceasefire','midnight','ocean',
  await documentActions('[aria-controls="firestopping-document-actions"]',['download-full-schedule','download-full-product-summary'],'estimate');
  }
  if(!takeoffWidthOnly&&!rtlCalculatorMenusOnly){
- for(const [name,id,kind]of [['Steel (spray)','steel_vermiculite','spray'],['Steel (board)','steel_board','board'],['Ductwork (spray/wrap)','ductwork','ductwork']]){
+ for(const [name,id,kind]of [['Steel (spray)','steel_vermiculite','spray'],['Steel (intumescent)','steel_intumescent','intumescent'],['Steel (board)','steel_board','board'],['Ductwork (spray/wrap)','ductwork','ductwork']]){
   await chooseCalculator(page,name);await idle();await expect(page.locator('#calculator-workspace')).toHaveAttribute('data-calculator-kind',id);
   await expect(page.locator('#calculator-workspace .workspace-header-art:visible')).toHaveCount(1);await art('.workspace-header-art--'+kind,id,true);
   await calculatorFraming(kind,id);

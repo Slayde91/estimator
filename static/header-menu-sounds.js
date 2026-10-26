@@ -11,10 +11,11 @@
     select: "/sounds/select.mp3",
     selectOther: "/sounds/select-2.mp3",
     checkpoint: "/sounds/checkpoint.ogg",
-    // Keep the existing served asset slot; its bytes are the supplied flame_whoosh.mp3.
-    explosion: "/sounds/new-explosion.mp3",
+    // The supplied whoosh has its silent lead trimmed and uses PCM to avoid
+    // adding MP3 encoder padding before the first audible sample.
+    explosion: "/sounds/flame-whoosh.wav",
   });
-  const printingSource = "/sounds/mixkit-vintage-dot-printing-1371.wav";
+  const printingSource = "/sounds/type.mp3";
   const loadingSource = "/sounds/loading.mp3";
 
   function stopAudio(audio) {

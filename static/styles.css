@@ -373,8 +373,12 @@ dialog .actions{justify-content:flex-end}
 .pricing-table th,.pricing-table td{padding:9px 6px;overflow-wrap:anywhere}.pricing-table th:nth-child(3){width:7%}.pricing-table th:nth-child(4){width:8%}.pricing-table th:nth-child(5),.pricing-table th:nth-child(6){width:19%}.pricing-table th:nth-child(7){width:8%}.pricing-table th:nth-child(8){width:8%}.pricing-table .pricing-row-actions{white-space:normal}.pricing-table .pricing-row-actions .reset-button{padding:5px 0}.pricing-table .pricing-row-actions .icon-only{width:28px;min-width:28px;height:28px;padding:5px}
 
 .calculator-status{display:inline-block;background:#fff1bf;color:#775300;width:fit-content}
-.company-logo-controls{display:flex;align-items:center;gap:20px;flex-wrap:wrap;margin:20px 0}
-#company-logo-preview{width:200px;height:80px;object-fit:contain;background:#fff}
+.company-logo-controls{display:flex;align-items:flex-end;gap:20px;flex-wrap:wrap;margin:20px 0}
+.company-logo-upload-row{display:flex;align-items:flex-end;gap:12px;flex:1 1 280px;min-width:0}
+.company-logo-upload-row>.field{flex:1 1 auto;min-width:0}
+.company-logo-upload-row input[type=file]{height:48px;min-width:0}
+.company-logo-upload-row>#company-logo-delete{flex:0 0 48px;width:48px;height:48px;min-height:48px}
+#company-logo-preview{width:200px;height:80px;object-fit:contain;background:#e5e7eb}
 #company-settings-form{max-width:850px}
 [data-price-id]{scroll-margin-top:200px}
 

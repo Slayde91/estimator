@@ -221,6 +221,7 @@ jobs:
             .runtime/browser-qa/**/*.png
             .runtime/browser-qa/**/result.json
             .runtime/browser-qa/markup-downloads-*/failure.json
+            .runtime/browser-qa/pdf-markup-ui-*/failure.json
             .runtime/browser-qa/**/export-readiness.json
             .runtime/browser-qa/**/export-content.json
             .runtime/browser-qa/pdf-render-gate.json

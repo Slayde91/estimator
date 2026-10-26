@@ -12,6 +12,7 @@ import tempfile
 import threading
 import unittest
 from unittest.mock import patch
+from zipfile import ZipFile
 
 from openpyxl import load_workbook
 from pypdf import PdfReader
@@ -20,6 +21,7 @@ from estimator.catalog import ValidationError
 from estimator.reference_library import ReferenceLibrary
 from estimator.server import create_server
 from estimator.technical_item_exports import prepare_technical_item, build_technical_item_xlsx, render_technical_item_pdf
+from estimator.technical_display import display_technical_title
 from technical_item_fixture_data import technical_library, REPORT_URL
 
 
@@ -117,6 +119,65 @@ class TechnicalItemExportsTests(unittest.TestCase):
         workbook = load_workbook(BytesIO(build_technical_item_xlsx(snapshot)))
         self.assertIsNone(workbook['Installation Table 1']['A3'].value)
         self.assertEqual(list(workbook['Installation Table 1'].iter_rows(min_row=5, max_row=6, values_only=True)), [tuple(row) for row in snapshot['tables'][0]['rows']])
+
+    def test_downloads_never_publish_related_records_source_metadata_or_notices(self):
+        snapshot = self.capture()
+        private = 'INTERNAL-PROVENANCE-DO-NOT-PUBLISH'
+        snapshot['record'].update(notice=private, subtitle=private, diagram_status=private)
+        snapshot['sources'] = [[private, private + '.pdf', private, 123, private, 456]]
+        snapshot['related'] = [[private, private, private, private]]
+        for image in snapshot['images']:
+            image.update(caption=private, filename=private + '.png', source_sha256=private)
+        before = deepcopy(snapshot)
+        reader = PdfReader(BytesIO(render_technical_item_pdf(snapshot)))
+        pdf = '\n'.join(page.extract_text() for page in reader.pages) + str(reader.metadata)
+        payload = build_technical_item_xlsx(snapshot)
+        with ZipFile(BytesIO(payload)) as archive:
+            xlsx = '\n'.join(archive.read(name).decode('utf-8') for name in archive.namelist()
+                             if name.endswith(('.xml', '.rels')))
+        for output in (pdf, xlsx):
+            for value in (private, 'Related firestopping records', 'Related Records', 'Source information', 'Source Information'):
+                self.assertNotIn(value, output)
+            self.assertIn('SYN-123', output)
+            self.assertIn('Copper pipe 25 mm', output)
+            self.assertIn('Retain original conditions.', output)
+        self.assertEqual(snapshot, before)
+
+    def test_selector_numeric_title_prefix_is_display_only_and_technical_ids_survive(self):
+        for identity, title, expected in (
+            ('promat-1138716', 'Promat: 1138716 — Copper pipe — -/120/120', 'Promat — Copper pipe — -/120/120'),
+            ('promat-sys-var-1138716', 'Promat:1138716 — Copper pipe', 'Promat — Copper pipe'),
+            ('trafalgar-selector-1165', 'Trafalgar: 1165 — Cable tray', 'Trafalgar — Cable tray'),
+            ('trafalgar-selector-1165', 'Trafalgar 1165 — Cable tray', 'Trafalgar — Cable tray'),
+            ('report-v11a', 'V11A — Cable tray 25 mm', 'V11A — Cable tray 25 mm'),
+            ('promat-1138716', 'Promat: V11A — Cable tray', 'Promat: V11A — Cable tray'),
+            ('unrelated-1165', 'Trafalgar: 1165 — Source title', 'Trafalgar: 1165 — Source title'),
+        ):
+            with self.subTest(identity=identity, title=title):
+                record = {'id': identity, 'title': title}
+                self.assertEqual(display_technical_title(record), expected)
+                self.assertEqual(record['title'], title)
+        for identity, title in (('promat-1138716', 'Promat: 1138716 — Copper pipe 25 mm'),
+                                ('trafalgar-selector-1165', 'Trafalgar: 1165 — Copper pipe 25 mm')):
+            snapshot = self.capture()
+            snapshot['record'].update(id=identity, title=title)
+            selector = 'sys_var_1138716_au (+3 variants listed below)' if identity.startswith('promat-') else '1165'
+            snapshot['fields'].append({'label': 'ID', 'value': selector, 'report_links': []})
+            text = '\n'.join(page.extract_text() for page in PdfReader(BytesIO(render_technical_item_pdf(snapshot))).pages)
+            self.assertIn('Copper pipe 25 mm', text)
+            self.assertNotIn(title.split(' — ')[0], text)
+            self.assertNotIn(selector, text)
+            workbook = load_workbook(BytesIO(build_technical_item_xlsx(snapshot)))
+            self.assertFalse(any(cell.value == selector for sheet in workbook for row in sheet for cell in row))
+            workbook.close()
+            snapshot['fields'][-1]['value'] = 'V11A'
+            text = '\n'.join(page.extract_text() for page in PdfReader(BytesIO(render_technical_item_pdf(snapshot))).pages)
+            self.assertIn('V11A', text)
+            self.assertEqual(snapshot['record']['title'], title)
+        snapshot['record'].update(id='private-record-identity', title='')
+        text = '\n'.join(page.extract_text() for page in PdfReader(BytesIO(render_technical_item_pdf(snapshot))).pages)
+        self.assertIn('Technical Library item', text)
+        self.assertNotIn('private-record-identity', text)
 
     def test_tampered_registered_image_fails_closed_before_export(self):
         (self.root / 'images/diagram-a.png').write_bytes(b'changed original')

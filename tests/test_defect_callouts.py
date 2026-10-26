@@ -153,15 +153,17 @@ class DefectCalloutModelTests(unittest.TestCase):
         self.assertEqual(defect_summary(graph, graph['defects'][0])[-1],
                          'S-0001 · 7 × · Pipe · Service type not recorded')
 
-    def test_csv_xlsx_retain_separate_annotation_bytes_without_new_evidence_rows(self):
+    def test_csv_xlsx_retain_annotation_geometry_without_private_hashes_or_new_evidence_rows(self):
         graph = self.graph(); before = deepcopy(graph)
+        annotation = {key: value for key, value in self.annotation.items() if key != 'document_sha256'}
+        evidence = {key: value for key, value in self.evidence.items() if key != 'document_sha256'}
         rows = list(csv.DictReader(StringIO(export_physical_graph(graph, 'csv')[0].decode('utf-8-sig'))))
         defect = next(row for row in rows if row['entity_type'] == 'defect')
-        self.assertEqual(json.loads(defect['annotation_json']), self.annotation)
-        self.assertEqual(json.loads(defect['evidence_json']), [self.evidence]); self.assertEqual(defect['quantity'], '')
+        self.assertEqual(json.loads(defect['annotation_json']), annotation)
+        self.assertEqual(json.loads(defect['evidence_json']), [evidence]); self.assertEqual(defect['quantity'], '')
         workbook = load_workbook(BytesIO(export_physical_graph(graph, 'xlsx')[0])); self.addCleanup(workbook.close)
         rows = list(workbook['Defects'].values); row = dict(zip(rows[0], rows[1]))
-        self.assertEqual(json.loads(row['annotation_json']), self.annotation)
+        self.assertEqual(json.loads(row['annotation_json']), annotation)
         self.assertEqual(workbook['Evidence'].max_row, 2); self.assertEqual(graph, before)
 
 

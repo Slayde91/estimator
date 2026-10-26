@@ -42,6 +42,15 @@ function setup() {
     const h = setup(); for (const ids of [null, ['same', 'same'], ['a/b'], ['<script>'], Array.from({ length: 129 }, (_, i) => 'id-' + i)]) assert.throws(() => h.refs.validateIds(ids));
     assert.deepEqual(copy(h.refs.validateIds(['b', 'a'])), ['b', 'a']);
   });
+  await check('Report dropdown reads the unfiltered Technical listing and preserves exact labels, values and groups', async () => {
+    const h = setup(), calls = [], definition = { key: 'report', options: [{ value: 'REPORT A Rev 1', label: 'REPORT A Rev 1', group: 'Supplier A' }, { value: 'REPORT B', label: 'Report B label', group: 'Supplier B' }] };
+    h.context.window.fetch = async url => { calls.push(url); return reply({ filters: [definition], items: [] }); };
+    const [first, second] = await Promise.all([h.refs.reportOptions(), h.refs.reportOptions()]);
+    assert.deepEqual(copy(first), definition); assert.deepEqual(copy(second), definition); assert.deepEqual(calls, ['/api/libraries/technical?limit=1']);
+    const control = h.context.document.createElement('select'); control.ownerDocument = h.context.document; h.refs.appendReportOptions(control, first);
+    assert.deepEqual(control.children.map(group => [group.label, group.children[0].value, group.children[0].textContent]), [['Supplier A', 'REPORT A Rev 1', 'REPORT A Rev 1'], ['Supplier B', 'REPORT B', 'Report B label']]);
+    await h.refs.reportOptions(); assert.equal(calls.length, 2, 'A new editor render reads current library options rather than stale cached choices');
+  });
   await check('Picker starts with recorded filters, preserves choices across pages and saves ordered IDs only', async () => {
     const h = setup(), calls = [], applied = [];
     const fetch = async url => { calls.push(url); const offset = Number(new URL(url, 'http://localhost').searchParams.get('offset')); return reply(page([record(offset ? 'second' : 'first')], offset, 21)); };

@@ -189,6 +189,24 @@ class TakeoffLibraryLinkTests(unittest.TestCase):
         self.assertEqual(row['inputs'], {**original, 'O': 5.1234567890123})
         self.assertIsNone(row['inputs']['J'])
 
+    def test_library_report_only_initializes_new_row_and_preserves_later_user_choices(self):
+        edit = self.library.edit('pkb-001')
+        edit['draft']['rows'][0]['report_reference'] = 'Retained library report'
+        self.library.action('pkb-001', 'save', {
+            name: edit[name] for name in ('draft', 'revision', 'pricing_token')})
+        identifier, _, _ = self.assignment([self.member()])
+        self.review_members(identifier)
+        self.confirm(identifier, 2)
+        self.assertEqual(self.draft['rows'][0]['report_reference'], 'Retained library report')
+        self.draft['rows'][0]['report_reference'] = 'Explicit schedule report'
+        self.confirm(identifier, 3)
+        self.assertEqual(self.draft['rows'][0]['report_reference'], 'Explicit schedule report')
+        del self.draft['rows'][0]['report_reference']
+        self.confirm(identifier, 4)
+        self.assertNotIn('report_reference', self.draft['rows'][0])
+        self.assertEqual(self.draft['rows'][0]['inputs']['O'], 4)
+        self.assert_source_unchanged()
+
     def test_preview_is_read_only_and_requires_reviewed_finite_positive_quantity(self):
         identifier, _, _ = self.assignment([self.member()])
         self.review_members(identifier)

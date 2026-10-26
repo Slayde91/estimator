@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 import sqlite3
 import sys
+from zipfile import ZipFile
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path[:0] = [str(ROOT), str(ROOT / 'tests')]
@@ -29,6 +30,13 @@ def inspect(pdf, xlsx):
     workbook = load_workbook(xlsx, data_only=False)
     cells = [cell for sheet in workbook for row in sheet for cell in row]
     links = [(cell.value, cell.hyperlink.target) for cell in cells if cell.hyperlink]
+    with ZipFile(xlsx) as archive:
+        xml = '\n'.join(archive.read(name).decode('utf-8') for name in archive.namelist()
+                        if name.endswith(('.xml', '.rels')))
+    private = ('Related firestopping records', 'Related Records', 'Source information', 'Source Information',
+               'pkb-001', 'A source relationship does not establish suitability.',
+               'Synthetic evidence only; retain every source condition.', 'Synthetic retained source diagram',
+               'diagram-a.png')
     checks = {
         'pdf_source_image': any(image.image.size == (640, 360) for page in reader.pages for image in page.images),
         'pdf_report_hyperlink': uris == [REPORT_URL],
@@ -41,6 +49,8 @@ def inspect(pdf, xlsx):
         'xlsx_literal_text': any(cell.value == '=Literal source text' and cell.data_type == 's' for cell in cells),
         'xlsx_no_formulas': all(cell.data_type != 'f' for cell in cells),
         'xlsx_source_table': any(cell.value == 'Copper pipe 25 mm' for cell in cells),
+        'pdf_source_metadata_omitted': all(value not in text + str(reader.metadata) for value in private),
+        'xlsx_source_metadata_omitted': all(value not in xml for value in private),
     }
     assert all(checks.values()), checks
     return {'passed': True, 'checks': checks, 'pdf_pages': len(reader.pages), 'pdf': str(pdf), 'xlsx': str(xlsx),

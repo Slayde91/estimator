@@ -67,7 +67,8 @@ async function exported(extension){
       await detail.locator('h3').click();await expect(menu).toBeHidden();
       await expect(detail.locator('.library-related-record .helper')).toHaveCount(0);
       await expect(detail.locator('.library-record-notice')).toHaveText('Synthetic evidence only; retain every source condition.');
-      const values={};for(const selector of ['.library-related-record .library-record-link','.library-record-notice','.library-source span','.library-image figcaption']){
+      await expect(detail.locator('.library-source')).toHaveCount(0);
+      const values={};for(const selector of ['.library-related-record .library-record-link','.library-record-notice','.library-image figcaption']){
         values[selector]=await contrast(selector);assert.ok(values[selector].ratio>=4.5,`${theme} ${selector} contrast ${values[selector].ratio}`);
       }
       assert.equal(await detail.locator('.library-image img').first().evaluate(e=>getComputedStyle(e).filter),'none','Retained diagram pixels are not theme tinted');
@@ -83,7 +84,7 @@ async function exported(extension){
   await page.route('**/api/technical/item.pdf',async route=>{started(JSON.parse(route.request().postData()));await new Promise(resolve=>{releaseHeld=resolve;});await route.continue();});
   await toggle.click();await menu.getByRole('button').first().click();const captured=await observed;assert.equal(captured.id,'report-a-v1');await expect(toggle).toBeDisabled();
   await detail.getByRole('button',{name:'Back to results',exact:true}).click();await page.locator('[data-library-record="report-a-v2"]').click();
-  await expect(detail.locator('h3')).toContainText('report-a-v2');await expect(detail.locator('dd').first()).toHaveText('Separate second item');await expect(toggle).toBeDisabled();
+  await expect(detail.locator('h3')).not.toContainText('report-a-v2');await expect(detail.locator('dd').first()).toHaveText('Separate second item');await expect(toggle).toBeDisabled();
   const completed=page.waitForResponse(r=>new URL(r.url()).pathname==='/api/technical/item.pdf');releaseHeld();releaseHeld=null;assert.equal((await completed).status(),200);
   await expect(toggle).toBeEnabled();await expect(page.locator('#technical-library-workspace>.message')).toBeHidden();await page.unroute('**/api/technical/item.pdf');checks.push('held export retains captured id and does not clobber newer item');
   await chooseLibrary(page,'penetration');await page.locator('[data-library-record="pkb-001"]').click();

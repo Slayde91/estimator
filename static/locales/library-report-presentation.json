@@ -1,0 +1,17 @@
+{
+  "Adds a report reference; existing system references stay unchanged.": [
+    "添加报告参考资料；现有系统参考资料保持不变。",
+    "रिपोर्ट संदर्भ जोड़ता है; मौजूदा सिस्टम संदर्भ नहीं बदलते।",
+    "Añade una referencia de informe; las referencias de sistemas existentes se mantienen.",
+    "يضيف مرجع تقرير؛ تبقى مراجع الأنظمة الحالية كما هي.",
+    "เพิ่มข้อมูลอ้างอิงรายงาน โดยคงข้อมูลอ้างอิงระบบเดิมไว้"
+  ],
+  "{0} (unavailable)": ["{0}（不可用）", "{0} (अनुपलब्ध)", "{0} (no disponible)", "{0} (غير متاح)", "{0} (ไม่พร้อมใช้งาน)"],
+  "Choose a valid Technical Library report.": [
+    "请选择技术资料库中的有效报告。",
+    "तकनीकी लाइब्रेरी से एक मान्य रिपोर्ट चुनें।",
+    "Elija un informe válido de la Biblioteca técnica.",
+    "اختر تقريرًا صالحًا من المكتبة الفنية.",
+    "เลือกรายงานที่ถูกต้องจากคลังข้อมูลทางเทคนิค"
+  ]
+}

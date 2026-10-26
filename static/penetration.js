@@ -23,6 +23,7 @@
     diagramChange: undefined, diagramRead: 0, diagramReading: null, diagramVersion: 0, takeoffLease: null, takeoffApplying: false,
     schedule: { draft: null, result: null, revision: 0, requestRevision: 0, invalid: new Map(), timer: null, calculating: false }, rowEpochs: new Map(), nextEpoch: 0 };
   const definitions = new Map(), diagramVersions = new Map(), pageSize = 50;
+  const referenceMetadata = ["technical_reference_ids", "takeoff_reference_ids", "report_reference"];
   const calculationQueues = new Map([state, state.schedule].map(scope => [scope, window.CeasefireCalculationQueue.create()]));
   let controlSequence = 0;
   const number = new Intl.NumberFormat("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -46,7 +47,7 @@
     ? Object.fromEntries(Object.keys(value).sort().map(key => [key, ordered(value[key])])) : value;
   const stable = value => JSON.stringify(ordered(value));
   const canonicalValues = values => ordered(Object.fromEntries(Object.entries(values).map(([key, value]) => [key, value === "" ? null : value])));
-  const canonicalRow = row => row && ({ id: row.id, inputs: canonicalValues(row.inputs), ...(row.library_item_id ? { library_item_id: row.library_item_id } : {}), ...(row.takeoff_source ? { takeoff_source: clone(row.takeoff_source) } : {}), ...Object.fromEntries(["technical_reference_ids", "takeoff_reference_ids"].filter(key => Object.hasOwn(row, key)).map(key => [key, clone(row[key])])) });
+  const canonicalRow = row => row && ({ id: row.id, inputs: canonicalValues(row.inputs), ...(row.library_item_id ? { library_item_id: row.library_item_id } : {}), ...(row.takeoff_source ? { takeoff_source: clone(row.takeoff_source) } : {}), ...Object.fromEntries(referenceMetadata.filter(key => Object.hasOwn(row, key)).map(key => [key, clone(row[key])])) });
   function canonicalDraft(draft, definition = state.definition) {
     return draft && { globals: canonicalValues({ ...definition.defaults.globals, ...draft.globals }), rows: draft.rows.map(canonicalRow) };
   }
@@ -146,7 +147,7 @@
     }
     if ($("penetration-diagram-file")) $("penetration-diagram-file").disabled = state.creatingLibrary;
     if ($("penetration-diagram-remove")) $("penetration-diagram-remove").disabled = state.creatingLibrary;
-    if (state.takeoffLease) for (const control of document.querySelectorAll('[data-penetration-field],[data-penetration-band],[data-penetration-service-route]')) control.disabled = true;
+    if (state.takeoffLease) for (const control of document.querySelectorAll('[data-penetration-field],[data-penetration-report],[data-penetration-band],[data-penetration-service-route]')) control.disabled = true;
     window.CeasefireProject?.changed?.();
   }
   async function definitionFor(pricing) {
@@ -166,6 +167,7 @@
       if (Object.hasOwn(row, "library_item_id") && (typeof row.library_item_id !== "string" || !/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,199}$/.test(row.library_item_id))) throw new Error("The schedule contains an invalid library item ID.");
       if (row.library_item_id && libraryIds.has(row.library_item_id)) throw new Error("The schedule contains a repeated library item ID.");
       if (row.library_item_id) libraryIds.add(row.library_item_id);
+      if (Object.hasOwn(row, "report_reference") && (typeof row.report_reference !== "string" || !row.report_reference.trim() || row.report_reference !== row.report_reference.trim() || row.report_reference.length > 1000 || /[\x00-\x1f\x7f]/.test(row.report_reference))) throw new Error("Choose a valid Technical Library report.");
       for (const key of ["technical_reference_ids", "takeoff_reference_ids"]) if (Object.hasOwn(row, key)) {
         if (!Array.isArray(row[key]) || row[key].length > 128 || new Set(row[key]).size !== row[key].length || row[key].some(id => typeof id !== "string" || !/^[a-z0-9][a-z0-9_-]{0,119}$/.test(id))) throw new Error("The schedule contains invalid Technical Library references.");
       }
@@ -719,6 +721,29 @@
     }
     scroll.append(table); root.append(intro, scroll, renderDetailOptions(), renderServiceRoutes(), renderLabourBands()); return root;
   }
+  function makeReportControl(row) {
+    const label = node("label", "field"), control = node("select"), empty = uiNode("option", "", "Use linked references"), help = uiNode("small", "helper", "Adds a report reference; existing system references stay unchanged.");
+    const context = state.context, epoch = state.composerEpoch; empty.value = ""; control.append(empty); control.dataset.penetrationReport = ""; control.disabled = true;
+    label.append(uiNode("span", "", "Report"), control, help);
+    const current = () => control.isConnected && context === state.context && epoch === state.composerEpoch && selected()?.id === row.id;
+    const retained = () => {
+      const value = selected()?.report_reference;
+      if (value && ![...control.options].some(option => option.value === value)) { const option = uiNode("option", "", "{0} (unavailable)", [value]); option.value = value; control.append(option); }
+      control.value = value || "";
+    };
+    control.addEventListener("change", () => {
+      if (!current() || state.takeoffLease) return;
+      if (control.value) selected().report_reference = control.value; else delete selected().report_reference;
+      changed(row.id);
+    });
+    const optionsRequest = window.CeasefirePenetrationReferences?.reportOptions?.();
+    if (!optionsRequest) return label;
+    optionsRequest.then(definition => {
+      if (!current()) return;
+      window.CeasefirePenetrationReferences.appendReportOptions(control, definition); retained(); control.disabled = !!state.takeoffLease;
+    }).catch(() => { if (current()) { retained(); uiText(help, "Technical records unavailable."); } });
+    return label;
+  }
   function renderFields() {
     if (!state.draft) return;
     const row = selected(), groups = visibleGroups(row.inputs);
@@ -751,6 +776,7 @@
         }
         if (host !== fields) fields.append(host);
       }
+      if (visible.some(field => field.column === "J")) fields.append(makeReportControl(row));
       $("penetration-row-fields").replaceChildren(fields);
     }
     renderDiagram();
@@ -844,7 +870,7 @@
   function libraryDraft(row) {
     const normalized = values => Object.fromEntries(Object.entries(values).map(([key, value]) => [key, value === "" ? null : value]));
     return { globals: normalized({ ...state.definition.defaults.globals, ...clone(state.draft.globals) }),
-      rows: row ? [{ id: row.id, inputs: normalized(clone(row.inputs)) }] : [] };
+      rows: row ? [{ id: row.id, inputs: normalized(clone(row.inputs)), ...(row.report_reference ? { report_reference: row.report_reference } : {}) }] : [] };
   }
   function librarySignature(context, payload) {
     const ordered = value => Array.isArray(value) ? value.map(ordered) : value && typeof value === "object"
@@ -948,7 +974,7 @@
       if (validation.valid !== true) throw new Error("The item details could not be validated. Nothing was added.");
       if (context !== state.context || epoch !== state.composerEpoch || stamp !== composerStamp() || pricing !== configStamp() || edit !== state.edit) throw new Error("The current item or pricing changed while checking its details. Review it and add it again.");
       const row = appendSchedule(selected().inputs, independentCopy ? null : selected().library_item_id);
-      for (const key of ["technical_reference_ids", "takeoff_reference_ids"]) if (Object.hasOwn(selected(), key)) row[key] = clone(selected()[key]);
+      for (const key of referenceMetadata) if (Object.hasOwn(selected(), key)) row[key] = clone(selected()[key]);
       const receipt = await scheduleReceipt(row, "Current item", context);
       if (context === state.context && epoch === state.composerEpoch) message(receipt.message + (revision !== state.revision ? " Later edits to the current item are not included." : ""), receipt.total === null);
       return receipt;
@@ -980,7 +1006,7 @@
     if (masticProblem(selected().inputs)) { message(masticProblem(selected().inputs), true); return; }
     const context = state.context, epoch = state.composerEpoch, edit = state.edit, row = scheduleRow(edit.id); row.inputs = clone(selected().inputs);
     if (selected().library_item_id) row.library_item_id = selected().library_item_id; else delete row.library_item_id;
-    for (const key of ["technical_reference_ids", "takeoff_reference_ids"]) {
+    for (const key of referenceMetadata) {
       if (Object.hasOwn(selected(), key)) row[key] = clone(selected()[key]); else delete row[key];
     }
     state.updatingSchedule = true;
@@ -1014,6 +1040,7 @@
       checkDraft(record.draft, state.definition, true);
       if (record.definition?.source_sha256 !== state.definition.source_sha256) throw new Error("This library item does not match the current Firestopping Estimator calculation source.");
       const row = addLibraryQuantity(id, record.draft.rows[0].inputs);
+      if (record.draft.rows[0].report_reference) { row.report_reference = record.draft.rows[0].report_reference; changed(row.id, state.schedule); }
       return await scheduleReceipt(row, record.library_id, targetContext);
     } finally { state.addingLibrary = false; }
   }

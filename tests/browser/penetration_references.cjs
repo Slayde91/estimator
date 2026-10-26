@@ -60,9 +60,34 @@ async function choose(id) { await row(id).locator('[data-penetration-references]
   const retained = await snapshot(), save = page.waitForResponse(response => ['/api/project/save', '/api/project/save-as'].includes(new URL(response.url()).pathname)); await clickProjectControl(page, 'Save'); assert.equal((await save).status(), 200); await settled();
   const opening = page.waitForResponse(response => response.url().endsWith('/api/project/open')); await clickProjectControl(page, 'Load'); assert.equal((await opening).status(), 200); await page.getByRole('dialog').getByRole('button', { name: 'Load Project', exact: true }).click(); await chooseCalculator(page, 'Firestopping'); await settled();
   assert.deepEqual(await snapshot(), retained); evidence.saveOpenExact = true;
-  await row('line-2').locator('[data-technical-reference="system-22"]').click(); await expect(page.locator('#technical-library-detail-heading')).toContainText('system-22'); assert.deepEqual(await snapshot(), retained); evidence.systemNavigationExact = true;
+  const systemDetail = page.waitForResponse(response => response.url().endsWith('/api/libraries/technical/system-22'));
+  await row('line-2').locator('[data-technical-reference="system-22"]').click(); assert.equal((await (await systemDetail).json()).id, 'system-22'); await expect(page.locator('#technical-library-detail-heading')).toBeVisible(); assert.deepEqual(await snapshot(), retained); evidence.systemNavigationExact = true;
   await chooseCalculator(page, 'Firestopping'); await settled(); await choose('line-1'); await dialog().getByRole('button', { name: /^Remove system / }).first().click(); await dialog().getByRole('button', { name: 'Use selected references', exact: true }).click(); await expect(dialog()).toHaveCount(0); await settled();
   await expect(row('line-1').locator('.register-report-references')).toHaveText('SYN-01 Rev A'); await choose('line-1'); await dialog().getByRole('button', { name: 'Use linked references', exact: true }).click(); await expect(dialog()).toHaveCount(0); await settled(); await expect(row('line-1').locator('.register-report-references')).toHaveText('SYN-00 Rev A | SYN-01 Rev A'); assert.equal(Object.hasOwn((await snapshot()).draft.rows[0], 'technical_reference_ids'), false); evidence.restoreInheritance = true;
+  // The Details select uses the exact live main-library Report choices, including groups.
+  await page.evaluate(() => window.CeasefireLibraryNavigation.open('technical', { list: true }));
+  const mainReports = page.locator('#technical-library-workspace [data-library-filter="report"]'); await expect(mainReports).toBeVisible();
+  const options = control => control.locator('option').evaluateAll(nodes => nodes.filter(node => node.value).map(node => ({ value: node.value, label: node.textContent, group: node.parentElement.tagName === 'OPTGROUP' ? node.parentElement.label : '' })));
+  const expectedReports = await options(mainReports); assert.equal(expectedReports.length, 23);
+  await chooseCalculator(page, 'Firestopping'); await settled();
+  await row('line-2').getByRole('button', { name: 'Edit firestopping item 2', exact: true }).click();
+  const reportChoice = page.locator('[data-penetration-report]'); await expect(reportChoice).toBeEnabled(); assert.deepEqual(await options(reportChoice), expectedReports);
+  const beforeReport = await snapshot(); await reportChoice.selectOption('SYN-05 Rev A'); await settled();
+  assert.equal((await snapshot()).composer.rows[0].report_reference, 'SYN-05 Rev A');
+  assert.deepEqual((await snapshot()).composer.rows[0].inputs, beforeReport.composer.rows[0].inputs);
+  await reportChoice.selectOption('SYN-06 Rev A'); await settled(); await page.locator('#penetration-update-schedule').click(); await settled();
+  await expect(row('line-2').locator('.register-report-references')).toHaveText('SYN-02 Rev A | SYN-22 Rev A | SYN-06 Rev A');
+  assert.deepEqual((await snapshot()).draft.rows[1].technical_reference_ids, ['system-02', 'system-22']);
+  await choose('line-2'); await expect(dialog().locator('[data-penetration-reference-filter="report"]')).toHaveValue('SYN-06 Rev A'); await dialog().getByRole('button', { name: 'Cancel', exact: true }).click();
+  const savedReport = await snapshot(), saveReport = page.waitForResponse(response => ['/api/project/save', '/api/project/save-as'].includes(new URL(response.url()).pathname)); await clickProjectControl(page, 'Save'); assert.equal((await saveReport).status(), 200); await settled();
+  const reopenReport = page.waitForResponse(response => response.url().endsWith('/api/project/open')); await clickProjectControl(page, 'Load'); assert.equal((await reopenReport).status(), 200); await page.getByRole('dialog').getByRole('button', { name: 'Load Project', exact: true }).click(); await chooseCalculator(page, 'Firestopping'); await settled(); assert.deepEqual(await snapshot(), savedReport);
+  await row('line-2').getByRole('button', { name: 'Edit firestopping item 2', exact: true }).click();
+  // Reopening a saved current item can require acknowledging replacement.
+  const confirmEdit = page.getByRole('dialog').getByRole('button', { name: 'Edit item', exact: true }); await expect(confirmEdit).toBeVisible(); await confirmEdit.click();
+  await expect(page.locator('#penetration-update-schedule')).toBeVisible();
+  await expect(reportChoice).toHaveValue('SYN-06 Rev A'); await reportChoice.selectOption(''); await settled(); assert.equal(Object.hasOwn((await snapshot()).composer.rows[0], 'report_reference'), false); await page.locator('#penetration-update-schedule').click(); await settled();
+  await expect(row('line-2').locator('.register-report-references')).toHaveText('SYN-02 Rev A | SYN-22 Rev A'); assert.equal(Object.hasOwn((await snapshot()).draft.rows[1], 'report_reference'), false);
+  evidence.reportDropdownExactOptionsAndGrouping = true; evidence.reportOnlyChoicePreservesSystemsAndInputs = true; evidence.reportChoiceChangeClearAndSaveReopen = true;
   await row('line-1').scrollIntoViewIfNeeded(); await page.screenshot({ path: path.join(output, 'shared-schedule.png') });
   assert.deepEqual(fs.readFileSync(path.join(info.library, 'library.json')), libraryBytes); assert.deepEqual(errors, []);
   fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ completed: true, evidence, errors, librarySha256: crypto.createHash('sha256').update(libraryBytes).digest('hex') }, null, 2)); console.log(`PASS: Firestopping Report/System picker and persistence. ${output}`);

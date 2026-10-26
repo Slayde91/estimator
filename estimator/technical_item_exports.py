@@ -11,6 +11,7 @@ from html import escape
 from io import BytesIO
 from .company_settings import company_logo
 import json
+import re
 
 from openpyxl import Workbook
 from openpyxl.drawing.image import Image as ExcelImage
@@ -27,7 +28,7 @@ from .pricing_workbook import _serialize_exact
 from .reference_library import identifier
 from .report import _Report, _company_header, _escaped, _register_fonts, _LINE, _MUTED
 from .technical_fields import is_hidden_technical_label
-from .technical_display import compact_technical_text
+from .technical_display import compact_technical_text, display_technical_title
 
 _NOTE = 'Technical Library item details.'
 _HIDDEN = {'diagram captions (visually checked)', 'workbook report revision', 'reference review',
@@ -40,12 +41,20 @@ MAX_IMAGE_BYTES = 60 * 1_048_576
 MAX_IMAGE_PIXELS = 80_000_000
 MAX_CELLS = 20_000
 MAX_TEXT_BYTES = 2 * 1_048_576
+_SELECTOR_ID = re.compile(r'^(?:\d+|sys_var_\d+_au)(?:\s*\(\+\d+ variants listed below\))?$', re.I)
 
 
 def _text(value):
     if value is None:
         return ''
     return json.dumps(value, ensure_ascii=False) if isinstance(value, (list, dict)) else str(value)
+
+
+def _hidden_field(record, field):
+    label = field['label'].strip().casefold()
+    return (is_hidden_technical_label(label) or label in _HIDDEN
+            or (label == 'id' and record.get('id', '').lower().startswith(('promat-', 'trafalgar-selector-'))
+                and _SELECTOR_ID.fullmatch(_text(field.get('value')).strip())))
 
 
 def prepare_technical_item(body, *, library):
@@ -66,7 +75,7 @@ def prepare_technical_item(body, *, library):
     account([record.get(name, '') for name in ('id', 'title', 'subtitle', 'notice', 'diagram_status')])
     for field in record.get('fields', []):
         label = field['label']
-        if is_hidden_technical_label(label) or label.strip().casefold() in _HIDDEN:
+        if _hidden_field(record, field):
             continue
         if not _text(field.get('value')).strip() and not any(field.get(name) for name in ('images', 'table', 'tables', 'table_links')):
             continue
@@ -129,7 +138,7 @@ def prepare_technical_item(body, *, library):
 
 def _field_rows(snapshot):
     for field in snapshot['fields']:
-        if field['label'].strip().casefold() in _HIDDEN or is_hidden_technical_label(field['label']):
+        if _hidden_field(snapshot['record'], field):
             continue
         links = {link['label']: link['url'] for link in field['report_links']}
         if links:
@@ -227,7 +236,7 @@ def render_technical_item_pdf(snapshot, *, company=None):
     width, height = A4
     margin, content = 32, width - 64
     record = snapshot['record']
-    report.story.append(report.p(compact_technical_text(record['title'] or record['id']), 'subheading'))
+    report.story.append(report.p(compact_technical_text(display_technical_title(record) or 'Technical Library item'), 'subheading'))
     rows = []
     for label, value, url in _field_rows(snapshot):
         cell = report.rich(f'<link href="{escape(url, quote=True)}" color="#BD0018"><u>{_escaped(value)}</u></link>') if url else report.p(value, 'cell')

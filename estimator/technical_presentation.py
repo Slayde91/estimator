@@ -9,6 +9,7 @@ import re
 from .technical_rating_summary import summarize_ratings
 from .technical_table_navigation import field_tables, validate_table_navigation
 from .library_facets import frl_values, UNWRAPPED_RATING
+from .technical_display import display_technical_title
 
 
 _OPTION = re.compile(r'\bSource options?\s+(\d+(?:\s*(?:,|and)\s*\d+)*)\s*:\s*', re.I)
@@ -105,7 +106,7 @@ def technical_title(item):
     fields = {field['label']: field['value'] for field in item.get('fields', [])}
     facets = item.get('filter_values', {})
     manufacturer = ', '.join(facets.get('manufacturer', [])) or fields.get('Manufacturer') or 'Unknown manufacturer'
-    identity = fields.get('ID') or item['id']
+    identity = fields.get('ID') or ''
     identity = re.sub(r'^sys_var_(\d+)_au(?:\s+\(\+\d+ variants listed below\))?$', r'\1', identity.strip(), flags=re.I)
     service = fields.get('Service') or ', '.join(facets.get('services', [])) or fields.get('Installation Type') or 'Service not specified'
     ratings = facets.get('frl', [])
@@ -118,5 +119,7 @@ def technical_title(item):
             ratings = standard
     rating = summarize_ratings(ratings)['summary'] or '; '.join(ratings) or 'FRL not specified'
     orientation = ', '.join(facets.get('orientation', [])) or fields.get('Orientation') or 'Orientation not specified'
-    return ' — '.join(' '.join(value.split()) for value in
-                      (f'{manufacturer}: {identity}', service, rating, orientation))
+    heading = f'{manufacturer}: {identity}' if identity else manufacturer
+    title = ' — '.join(' '.join(value.split()) for value in
+                       (heading, service, rating, orientation))
+    return display_technical_title({'id': item['id'], 'title': title})

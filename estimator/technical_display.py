@@ -7,6 +7,15 @@ _PROTECTED = re.compile(
 _SENTENCE_START = re.compile(r'''\.(["'\u2019\u201d)\]]*\s+["'\u2018\u201c(\[]*)([a-z])''')
 _ABBREVIATION = re.compile(r'\b(?:min|max|incl|approx|figs?|sec|no|vs|etc|e\.g|i\.e)\.$', re.I)
 _LEADING_LETTER = re.compile(r'''^([\s"'\u2018\u201c(\[]*)([A-Za-z])''')
+_SELECTOR_TITLE = re.compile(r'^\s*(Promat|Trafalgar)(?:\s*:\s*|\s+)\d+\s*[\u2014\u2013-]\s*', re.I)
+
+
+def display_technical_title(record):
+    """Hide numeric selector keys in headings, retaining the canonical record."""
+    title = record.get('title') or ''
+    if str(record.get('id', '')).lower().startswith(('promat-', 'trafalgar-selector-')):
+        title = _SELECTOR_TITLE.sub(r'\1 — ', title, count=1)
+    return title
 
 
 def _capitalise_sentences(text, source):

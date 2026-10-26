@@ -823,6 +823,8 @@ def confirmation_preview(snapshot, assignment_id, quantity, draft, library, conf
         while f'line-{ordinal}' in used:
             ordinal += 1
         row = {'id': f'line-{ordinal}', 'library_item_id': library['id'], 'inputs': {**deepcopy(library['inputs']), 'O': quantity}}
+        if 'report_reference' in library:
+            row['report_reference'] = library['report_reference']
         from .penetration_entry import validate_item_for_add
         validate_item_for_add({'globals': output['globals'], 'rows': [row]})
         rows.append(row); current = 0; proposed = quantity; action = 'insert'

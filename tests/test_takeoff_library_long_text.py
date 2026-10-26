@@ -168,7 +168,9 @@ class LibraryLongTextTests(unittest.TestCase):
                         and row['column'] == 'notes'), key=lambda row: row['part'])
         self.assertGreater(len(parts), 1)
         self.assertEqual(''.join(row['exact_text [concatenate in part order]'] for row in parts), note)
-        self.assertTrue(all(row['sha256'] == sha256(note.encode()).hexdigest() for row in parts))
+        self.assertTrue(all('sha256' not in row for row in parts))
+        self.assertFalse(any(sha256(note.encode()).hexdigest() in str(cell.value)
+                             for sheet in workbook for row in sheet for cell in row))
         self.links.assert_source_unchanged()
 
     def test_global_note_budget_failure_rolls_back_the_entire_library_import(self):

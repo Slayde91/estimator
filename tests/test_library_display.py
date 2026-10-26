@@ -14,6 +14,12 @@ class LibraryDisplayTests(unittest.TestCase):
                          'Table-mounted equipment · Report')
         self.assertEqual(display_subtitle('Report · Table 4A'), 'Report')
 
+    def test_subtitle_hides_only_standalone_selector_variant_counts(self):
+        self.assertEqual(display_subtitle('Penetration seal · 9 selector variants · Vertical'), 'Penetration seal · Vertical')
+        self.assertEqual(display_subtitle('1 selector variant · Horizontal'), 'Horizontal')
+        self.assertEqual(display_subtitle('9 service variants · 120 minutes · 9 selector variants require review'),
+                         '9 service variants · 120 minutes · 9 selector variants require review')
+
     def test_resolved_selector_paragraph_does_not_hide_a_separate_issue(self):
         routine = ('example.pdf: the available diagram does not verify a service/wrap '
                    'configuration table for this entry. The service and wrap summary '

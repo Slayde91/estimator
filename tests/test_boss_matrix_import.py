@@ -167,8 +167,10 @@ class BossMatrixTests(unittest.TestCase):
             reader=PdfReader(BytesIO(render_technical_item_pdf(snapshot)))
             pdf_text=' '.join(' '.join(page.extract_text() for page in reader.pages).split())
             for value in ['-/90/60 - RISF 24 min','exposed-side condition','Sealant depth (mm): 0',
-                          'Revision equivalence','FAS990001 R2.0','32 mm PPR pipe.']:
+                          'FAS990001 R2.0','32 mm PPR pipe.']:
                 self.assertIn(value,pdf_text)
+            self.assertNotIn('Revision equivalence', pdf_text)
+            self.assertFalse(any('Revision equivalence' in str(cell.value) for cell in cells))
             links=[annotation.get_object()['/A']['/URI'] for page in reader.pages for annotation in page.get('/Annots',[])
                    if '/A' in annotation.get_object() and '/URI' in annotation.get_object()['/A']]
             self.assertEqual(links,[REPORT])

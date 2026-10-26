@@ -177,11 +177,11 @@ class MonokoteHollowTests(unittest.TestCase):
         self.assertEqual(policy.lookup(assessment, 125, 550, 120, policy=' Exact only').status, 'CHECK LOOKUP POLICY')
         self.assertEqual(self.engine(row_inputs(E='Section ')).value('SCHEDULE', 'V10'), 'CHECK METHOD')
 
-    def test_case_variant_pdf_and_xlsx_keep_valid_and_missing_evidence_receipts(self):
+    def test_case_variant_exports_keep_report_and_quantities_without_evidence_receipts(self):
         for available in (True, False):
             if not available:
                 self.path.unlink()
-            expected_receipt = sha256(self.payload).hexdigest() if available else 'data is not installed'
+            private_details = (sha256(self.payload).hexdigest(), 'data is not installed', 'columns only', 'p12 Table 4')
             for product in ('monokote mk-6 hy', 'MoNoKoTe Mk-6 Hy', 'monokote z106', 'MoNoKoTe Z106'):
                 with self.subTest(available=available, product=product):
                     inputs = row_inputs(product, C='hollow - 4 sides')
@@ -197,14 +197,16 @@ class MonokoteHollowTests(unittest.TestCase):
                         self.assertEqual(self.engine(inputs).value('CALCULATOR', 'G29'), '')
                     workbook = load_workbook(BytesIO(build_calculator_register('steel_vermiculite', inputs)))
                     text = '\n'.join(str(cell.value) for sheet in workbook for row in sheet for cell in row)
-                    self.assertIn(expected_receipt, text)
-                    self.assertIn('columns only', text)
+                    self.assertEqual('FAR4856 Issue 2' in text, available)
+                    for detail in private_details:
+                        self.assertNotIn(detail, text)
                     self.assertIn(product, text)
                     for build in (build_calculator_report, build_calculator_summary_report):
                         pdf = PdfReader(BytesIO(build('steel_vermiculite', inputs)))
                         text = '\n'.join(page.extract_text() for page in pdf.pages)
-                        self.assertIn(expected_receipt, text.replace('\n', ''))
-                        self.assertIn('columns only', text)
+                        self.assertEqual('FAR4856 Issue 2' in text, available)
+                        for detail in private_details:
+                            self.assertNotIn(detail, text.replace('\n', ''))
                         if build is build_calculator_report:
                             self.assertIn(product, text)
                         else:
@@ -334,7 +336,7 @@ class MonokoteHollowTests(unittest.TestCase):
         self.assertEqual(engine.value('SCHEDULE', 'T10'), '')
         self.assertEqual(engine.value('SCHEDULE', 'W10'), 'ENTER VERIFIED YIELD')
 
-    def test_report_and_values_only_xlsx_share_corrected_snapshot_and_basis(self):
+    def test_report_and_values_only_xlsx_keep_quantities_and_report_but_omit_private_basis(self):
         inputs = row_inputs()
         original_inputs = deepcopy(inputs)
         data = project_calculator_report('steel_vermiculite', inputs)
@@ -346,27 +348,24 @@ class MonokoteHollowTests(unittest.TestCase):
         workbook = load_workbook(BytesIO(build_calculator_register('steel_vermiculite', inputs)))
         cells = [cell for sheet in workbook for row in sheet for cell in row]
         self.assertTrue(any(cell.value == 41.94 for cell in cells))
-        self.assertTrue(any('FAR4856 Issue2 p12 Table 4' in str(cell.value) for cell in cells))
-        self.assertTrue(any('Retained printed section factor 122' in str(cell.value) for cell in cells))
-        self.assertTrue(any('columns only' in str(cell.value) for cell in cells))
-        self.assertTrue(any(sha256(self.payload).hexdigest() in str(cell.value) for cell in cells))
+        self.assertTrue(any(str(cell.value).startswith('FAR4856 Issue 2') for cell in cells))
+        private_details = ('FAR4856 Issue2 p12 Table 4', 'Retained printed section factor 122',
+                           'columns only', sha256(self.payload).hexdigest())
+        for detail in private_details:
+            self.assertFalse(any(detail in str(cell.value) for cell in cells))
+        self.assertNotIn('Status', [cell.value for cell in workbook['Schedule'][5]])
         self.assertFalse(any(cell.data_type == 'f' for cell in cells))
         pdf = PdfReader(BytesIO(build_calculator_report('steel_vermiculite', inputs)))
         text = '\n'.join(page.extract_text() for page in pdf.pages)
-        self.assertGreaterEqual(len(pdf.pages), 2)
-        self.assertNotIn('Full schedule', pdf.pages[0].extract_text())
-        self.assertIn('Full schedule', pdf.pages[1].extract_text())
-        self.assertIn('100X100X9SHS', pdf.pages[1].extract_text())
+        self.assertIn('Full schedule', text)
+        self.assertIn('100X100X9SHS', text)
         self.assertIn('41.94', text)
-        self.assertIn('FAR4856', text)
-        self.assertIn('columns only', text)
-        self.assertIn('Retained printed section factor 122', ' '.join(text.split()))
-        self.assertIn(sha256(self.payload).hexdigest(), text.replace('\n', ''))
+        self.assertIn('FAR4856 Issue 2', text)
+        for detail in private_details:
+            self.assertNotIn(detail, text.replace('\n', ''))
         summary = PdfReader(BytesIO(build_calculator_summary_report('steel_vermiculite', inputs)))
         summary_text = '\n'.join(page.extract_text() for page in summary.pages)
-        self.assertGreaterEqual(len(summary.pages), 2)
-        self.assertNotIn('Whole bags', summary.pages[0].extract_text())
-        material_text = summary.pages[1].extract_text()
+        material_text = summary_text
         self.assertIn('Whole bags', material_text)
         self.assertNotIn('Net bags', summary_text)
         self.assertIn('MONOKOTE MK-6 HY', material_text)
@@ -377,9 +376,9 @@ class MonokoteHollowTests(unittest.TestCase):
         self.assertNotEqual(product['G'], product['E'])
         self.assertIn(f"{product['G']:.2f}", material_text)
         self.assertNotIn(f"{product['E']:.2f}", material_text)
-        self.assertIn('columns only', summary_text)
-        self.assertIn('Retained printed section factor 122', ' '.join(summary_text.split()))
-        self.assertIn(sha256(self.payload).hexdigest(), summary_text.replace('\n', ''))
+        self.assertIn('FAR4856 Issue 2', summary_text)
+        for detail in private_details:
+            self.assertNotIn(detail, summary_text.replace('\n', ''))
         self.assertEqual(inputs, original_inputs)
         self.assertEqual(project_calculator_report('steel_vermiculite', inputs), original_data)
         self.path.unlink()

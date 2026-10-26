@@ -1,0 +1,13 @@
+{
+  "Adds a report reference; existing system references stay unchanged.": [
+    "보고서 참조를 추가하며 기존 시스템 참조는 유지됩니다.",
+    "Nagdaragdag ng sanggunian sa ulat; hindi binabago ang mga kasalukuyang sanggunian sa sistema.",
+    "Thêm tài liệu tham chiếu báo cáo; các tham chiếu hệ thống hiện có được giữ nguyên."
+  ],
+  "{0} (unavailable)": ["{0} (사용 불가)", "{0} (hindi available)", "{0} (không khả dụng)"],
+  "Choose a valid Technical Library report.": [
+    "기술 자료실에서 유효한 보고서를 선택하세요.",
+    "Pumili ng wastong ulat mula sa Teknikal na Aklatan.",
+    "Chọn một báo cáo hợp lệ trong Thư viện kỹ thuật."
+  ]
+}

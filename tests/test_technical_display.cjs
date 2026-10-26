@@ -3,6 +3,31 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const detail = require("../static/library-detail-text.js");
+for (const [id, title, expected] of [
+  ['promat-123', 'Promat: 123 — Cables — -/120/120 — Vertical', 'Promat — Cables — -/120/120 — Vertical'],
+  ['trafalgar-selector-456', 'Trafalgar 456 — 50 mm pipe', 'Trafalgar — 50 mm pipe'],
+  ['trafalgar-selector-456', 'Trafalgar:456 – 50 mm pipe', 'Trafalgar — 50 mm pipe'],
+  ['promat-123', 'Promat: V11A — 2 layers', 'Promat: V11A — 2 layers'],
+  ['boss-123', 'BOSS: 123 — Pipe', 'BOSS: 123 — Pipe'],
+  ['firefly-123', 'Promat: 123 — Pipe', 'Promat: 123 — Pipe'],
+  ['promat-123', 'PROMASEAL 123 mm — Pipe', 'PROMASEAL 123 mm — Pipe'],
+]) {
+  const record = {id, title}, before = JSON.stringify(record);
+  assert.equal(detail.displayTitle(record), expected);
+  assert.equal(detail.displayTitle({...record, title: expected}), expected);
+  assert.equal(JSON.stringify(record), before);
+}
+assert.equal(detail.displaySubtitle({id:'promat-123',subtitle:'FC12345 — 120 minutes · Wall · 12 selector variants'}), 'FC12345 — 120 minutes · Wall');
+assert.equal(detail.displaySubtitle({id:'trafalgar-selector-456',subtitle:'1 selector variant'}), '');
+assert.equal(detail.displaySubtitle({id:'boss-123',subtitle:'3 selector variants · 50 mm'}), '3 selector variants · 50 mm');
+assert.equal(detail.displaySubtitle({id:'promat-123',subtitle:'3 selector variants require 50 mm wrap'}), '3 selector variants require 50 mm wrap');
+assert.equal(detail.visibleField({id:'promat-123'}, {label:'ID',value:'123'}), false);
+assert.equal(detail.visibleField({id:'trafalgar-selector-456'}, {label:'ID',value:'V11A'}), true);
+assert.equal(detail.visibleField({id:'boss-123'}, {label:'ID',value:'123'}), true);
+assert.equal(detail.visibleField({id:'promat-123'}, {label:'Pipe size',value:'123 mm'}), true);
+assert.equal(detail.visibleField({id:'promat-123'}, {label:'Source Information',value:'Internal source'}), false);
+assert.equal(detail.visibleField({id:'source'}, {label:'Source Information',value:'Internal source'}, 'penetration'), false);
+assert.equal(detail.visibleField({id:'source'}, {label:'Service',value:'',table:{columns:['Size'],rows:[['50 mm']]}}), true);
 const vectors = JSON.parse(fs.readFileSync(path.join(__dirname, "fixtures/technical-compact-display.json"), "utf8"));
 for (const entry of vectors) {
   assert.equal(detail.compact(entry.source), entry.display);

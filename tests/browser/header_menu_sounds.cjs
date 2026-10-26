@@ -3,7 +3,7 @@ const { chromium, expect } = require("@playwright/test");
 const { spawn } = require("node:child_process"), fs = require("node:fs"), path = require("node:path"), assert = require("node:assert/strict"), { createHash } = require("node:crypto");
 const root = path.resolve(__dirname, "../.."), output = process.env.CEASEFIRE_BROWSER_OUTPUT || path.join(root, ".runtime/browser-qa", `header-menu-sounds-${Date.now()}`);
 fs.mkdirSync(output, { recursive: true });
-const sourceFiles = ["static/header-menu-sounds.js", "static/downloads.js", "static/calculators.js", "static/app.js", "estimator/server.py", "static/sounds/mgs1-menu-move.mp3", "static/sounds/mgs-confirm2.mp3", "static/sounds/new-explosion.mp3", "static/sounds/hover.mp3", "static/sounds/select.mp3", "static/sounds/select-2.mp3", "static/sounds/mixkit-vintage-dot-printing-1371.wav", "static/sounds/checkpoint.ogg", "static/sounds/loading.mp3", "tests/browser/header_menu_sounds.cjs", "tests/browser/header_menu_sounds_fixture.py"];
+const sourceFiles = ["static/header-menu-sounds.js", "static/downloads.js", "static/calculators.js", "static/penetration.js", "static/app.js", "estimator/server.py", "static/sounds/mgs1-menu-move.mp3", "static/sounds/mgs-confirm2.mp3", "static/sounds/new-explosion.mp3", "static/sounds/hover.mp3", "static/sounds/select.mp3", "static/sounds/select-2.mp3", "static/sounds/mixkit-vintage-dot-printing-1371.wav", "static/sounds/checkpoint.ogg", "static/sounds/loading.mp3", "tests/browser/header_menu_sounds.cjs", "tests/browser/header_menu_sounds_fixture.py"];
 const digest = value => createHash("sha256").update(value).digest("hex");
 const sourceHashes = () => Object.fromEntries(sourceFiles.map(file => [file, digest(fs.readFileSync(path.join(root, file)))]));
 const evidence = { passed: false, source_sha256: sourceHashes(), normal_autoplay_policy: true, autoplay_override_flags: [], physical_audibility_claimed: false, checks: {}, errors: [], blocked_requests: [], assets: [] };
@@ -220,6 +220,47 @@ async function played(source, prior) {
   assert.match(concurrent.find(result => result.index === 1).error, /cancelled/);
   await page.evaluate(() => document.getElementById("qa-concurrent-documents").remove());
   evidence.checks.concurrentDocumentSuccessAndCancellation = true;
+  // These real tabs replace their buttons synchronously on selection. Native
+  // replacement boundary events must leave the click's selection clip playing.
+  await submenu.hover();
+  await page.locator('#calculator-navigation-menu').getByRole('button', { name: 'Firestopping', exact: true }).click(); await idle();
+  const groupTab = group => page.locator(`#penetration-input-groups button[data-penetration-group="${group}"]`);
+  const originalGroup = await page.locator('#penetration-input-groups button[aria-selected="true"]').getAttribute('data-penetration-group');
+  const firestoppingBefore = await snapshot(), rebuiltTabs = [];
+  for (const group of ['Additional Allowances', 'Penetration']) {
+    await page.mouse.move(0, 0);
+    const tab = groupTab(group), original = await tab.elementHandle();
+    await tab.hover();
+    const start = await page.evaluate(() => window.qaMenuAudio.calls.length);
+    prior = await page.evaluate(() => window.qaMenuAudio.playing.filter(row => row.source.endsWith('select-2.mp3')).length);
+    await tab.click(); await played('/sounds/select-2.mp3', prior); await page.waitForTimeout(400);
+    await expect(tab).toHaveAttribute('aria-selected', 'true');
+    assert.equal(await original.evaluate(button => button.isConnected), false, 'The native regression exercises an actual replaced tab');
+    const observation = await page.evaluate(start => ({
+      calls: window.qaMenuAudio.calls.slice(start),
+      selection: (() => { const audio = window.qaMenuAudio.media.find(audio => audio.src.endsWith('select-2.mp3')); return { paused: audio.paused, currentTime: audio.currentTime, error: audio.error?.code || null }; })(),
+    }), start);
+    assert.deepEqual(observation.calls.map(row => row.source), ['/sounds/select-2.mp3'], 'Stationary replacement hover never reaches sound routing');
+    assert.equal(observation.selection.paused, false); assert.ok(observation.selection.currentTime > 0.2); assert.equal(observation.selection.error, null);
+    rebuiltTabs.push({ group, ...observation }); await original.dispose();
+    // Moving to the neighbouring tab and away/back must still produce genuine
+    // hover, with no timer or global "skip next hover" suppressing the entry.
+    const neighbour = groupTab(group === 'Penetration' ? 'Additional Allowances' : 'Penetration');
+    prior = await page.evaluate(() => window.qaMenuAudio.playing.filter(row => row.source.endsWith('hover.mp3')).length);
+    await neighbour.hover(); await played('/sounds/hover.mp3', prior);
+    await page.mouse.move(0, 0);
+    prior = await page.evaluate(() => window.qaMenuAudio.playing.filter(row => row.source.endsWith('hover.mp3')).length);
+    await neighbour.hover(); await played('/sounds/hover.mp3', prior);
+  }
+  await page.mouse.move(0, 0);
+  const keyboardGroup = groupTab('Additional Allowances'); await keyboardGroup.focus();
+  prior = await page.evaluate(() => window.qaMenuAudio.playing.filter(row => row.source.endsWith('select-2.mp3')).length);
+  await keyboardGroup.press('Enter'); await played('/sounds/select-2.mp3', prior); await page.waitForTimeout(400);
+  assert.equal(await page.evaluate(() => window.qaMenuAudio.media.find(audio => audio.src.endsWith('select-2.mp3')).paused), false);
+  await expect(keyboardGroup).toHaveAttribute('aria-selected', 'true');
+  await groupTab(originalGroup).focus(); await groupTab(originalGroup).press('Enter');
+  assert.deepEqual(await snapshot(), firestoppingBefore, 'Tab feedback preserves the initialized Firestopping draft');
+  evidence.checks.rebuiltFirestoppingTabsPreserveSelection = { mouse: rebuiltTabs, keyboard: true, genuineNeighbourAndReentryHover: true, minimumObservationMs: 400 };
   await page.mouse.move(0, 0);
   prior = await page.evaluate(() => window.qaMenuAudio.calls.length);
   await page.locator(".app-header .brand").hover();

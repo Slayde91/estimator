@@ -71,6 +71,17 @@ test("native seeking readiness changes do not suppress a loaded clip's immediate
   assert.deepEqual(h.plays(), [["play", sources.move, 0]], "Readiness is established before seeking and play remains in the current event");
   assert.equal(h.players[1].readyState, 4, "An unused clip already at zero is not needlessly sought");
 });
+test("hover pauses the previous confirmation without seeking away its readiness for the next click", () => {
+  const h = harness(), confirm = h.players[1]; let time = 0;
+  Object.defineProperty(confirm, "currentTime", { get() { return time; }, set(value) { time = value; confirm.readyState = 1; } });
+  h.buttons[0].emit("click"); time = 0.5;
+  h.buttons[1].emit("pointerenter", { pointerType: "mouse" });
+  assert.equal(confirm.paused, true); assert.equal(confirm.currentTime, 0.5); assert.equal(confirm.readyState, 4, "An unrelated hover does not start a seek on confirmation audio");
+  h.buttons[1].emit("click");
+  assert.deepEqual(h.plays().map(([, source]) => source), [sources.confirm, sources.move, sources.confirm]);
+  assert.equal(h.plays().at(-1)[2], 0, "The next confirmation restarts synchronously in its own click");
+});
+
 test("unloaded and broken audio are discarded instead of queued for readiness or a later gesture", async () => {
   const h = harness(); h.players[0].readyState = 0;
   h.buttons[0].emit("pointerenter", { pointerType: "mouse" });
@@ -151,6 +162,8 @@ function element(parent, { control = false, zone = "", brand = false } = {}) {
           || (selector === ".app-header" && node.zone === "header")
           || (selector === "#view-home" && node.zone === "home")
           || (selector === "#view-takeoffs" && node.zone === "takeoff")
+          || (selector === "#takeoff-viewport" && node.zone === "drawing")
+          || (selector === ".takeoff-control-menu" && node.zone === "drawing-menu")
           || (selector === 'dialog, [role="dialog"]' && node.zone === "dialog")
           || (selector === "[inert]" && node.inert)) return node;
       }
@@ -194,6 +207,33 @@ test("Home shares header clips, while the logo, Takeoff controls and other-page 
   assert.equal(h.plays().at(-1)[1], feedbackSources.selectOther);
   h.document.emit("click", { target: element(null, { control: true }) });
   assert.equal(h.plays().at(-1)[1], feedbackSources.selectOther, "A calculator hub card outside #view-home uses normal feedback");
+});
+
+test("PDF drawing hits and handles are silent while pane and explicit context-menu buttons keep Takeoff feedback", () => {
+  const h = audioHarness(); createFeedback(h.document, h.host, h.menu);
+  const takeoff = element(null, { zone: "takeoff" }), drawing = element(takeoff, { zone: "drawing" });
+  const pane = element(takeoff, { control: true });
+  h.document.emit("click", { target: pane });
+  assert.equal(h.plays().at(-1)[1], feedbackSources.select);
+  // SVG hits and nested handles expose role=button for editing accessibility.
+  // The event target, rather than a particular shape/handle class, owns silence.
+  for (const hit of [drawing, element(drawing, { control: true }), element(element(drawing, { control: true }))]) {
+    const before = h.plays().length;
+    h.document.emit("pointerover", { target: hit, pointerType: "mouse" });
+    assert.ok(h.players.every(player => player.paused), "Entering the drawing stops previous feedback");
+    h.document.emit("click", { target: hit, detail: 0 });
+    assert.equal(h.plays().length, before, "Mouse and keyboard drawing edits never request a clip");
+  }
+  const command = element(element(drawing, { zone: "drawing-menu" }), { control: true });
+  h.document.emit("pointerover", { target: command, pointerType: "pen" });
+  assert.equal(h.plays().at(-1)[1], feedbackSources.hover);
+  h.document.emit("click", { target: element(command) });
+  assert.equal(h.plays().at(-1)[1], feedbackSources.select, "An explicit drawing context command remains a button action");
+  h.document.emit("pointerover", { target: drawing, pointerType: "touch" });
+  assert.ok(h.players.every(player => player.paused), "A touch entering the drawing also stops prior tool feedback");
+  h.document.emit("pointerover", { target: pane, pointerType: "mouse" });
+  h.document.emit("click", { target: pane });
+  assert.deepEqual(h.plays().slice(-2).map(row => row[1]), [feedbackSources.hover, feedbackSources.select], "Returning to a tool pane restores ordinary feedback");
 });
 
 test("disabled, inert and touch-hover controls stay silent; hidden pages stop their feedback", () => {
@@ -299,7 +339,8 @@ test("printer blocks stale promises, reduced motion, hidden documents and pagehi
 
 test("all supplied feedback assets retain their exact bytes", () => {
   const supplied = {
-    "new-explosion.mp3": [73398, "1ed5c489c6e7ab08caacf1cba198e7aae07cb7a904be51a4800c56eb32512c21"],
+    // The existing served logo slot contains the exact supplied flame_whoosh.mp3.
+    "new-explosion.mp3": [161332, "42de6e27397a942bda71b98b9b564c6a4543ebe88473fac35c10e1335099a1b4"],
     "hover.mp3": [5015, "052d0d7f3fb41ddb67766dedd8f4c237b46c8b18745dfad0a73a14c8afb6fad5"],
     "select.mp3": [11520, "60e089eeac138ce5301fb59dc9d649c0404a556499c8f78c15c81a7cdfde1969"],
     "select-2.mp3": [192768, "37e5c8645aa76e11dc8039545940436ea9201e533b1c946fbc9dfc3845efeb7b"],

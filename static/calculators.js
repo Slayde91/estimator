@@ -2609,12 +2609,18 @@ window.CeasefireScheduleColumns = (() => {
     retainPage(entry);
     entry.page = page.id; entry.sheet = page.sheet;
     window.CeasefireI18n.text($("calculator-sheet-title"), page.label);
-    renderPages(entry); message(); await navigateWorksheet(entry);
+    // Keep the pressed tab under the pointer (and keyboard focus). Replacing
+    // it creates a fresh hover that interrupts its selection sound.
+    for (const button of $("calculator-pages").querySelectorAll("button[data-calculator-page]")) {
+      button.setAttribute("aria-pressed", String(button.dataset.calculatorPage === page.id));
+    }
+    syncScheduleColumns(entry); message(); await navigateWorksheet(entry);
   }
 
   function renderPages(entry) {
     const buttons = displayPages(entry.definition, entry.factorView).map((page) => {
       const button = uiNode("button", "calculator-page", page.label); button.type = "button";
+      button.dataset.calculatorPage = page.id;
       button.setAttribute("aria-pressed", String(page.id === currentPage(entry))); button.addEventListener("click", () => selectPage(page.id)); return button;
     });
     $("calculator-pages").replaceChildren(...buttons);

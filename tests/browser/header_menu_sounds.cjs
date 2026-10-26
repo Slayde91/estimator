@@ -3,7 +3,7 @@ const { chromium, expect } = require("@playwright/test");
 const { spawn } = require("node:child_process"), fs = require("node:fs"), path = require("node:path"), assert = require("node:assert/strict"), { createHash } = require("node:crypto");
 const root = path.resolve(__dirname, "../.."), output = process.env.CEASEFIRE_BROWSER_OUTPUT || path.join(root, ".runtime/browser-qa", `header-menu-sounds-${Date.now()}`);
 fs.mkdirSync(output, { recursive: true });
-const sourceFiles = ["static/header-menu-sounds.js", "static/downloads.js", "static/app.js", "estimator/server.py", "static/sounds/mgs1-menu-move.mp3", "static/sounds/mgs-confirm2.mp3", "static/sounds/new-explosion.mp3", "static/sounds/hover.mp3", "static/sounds/select.mp3", "static/sounds/select-2.mp3", "static/sounds/mixkit-vintage-dot-printing-1371.wav", "static/sounds/checkpoint.ogg", "static/sounds/loading.mp3", "tests/browser/header_menu_sounds.cjs", "tests/browser/header_menu_sounds_fixture.py"];
+const sourceFiles = ["static/header-menu-sounds.js", "static/downloads.js", "static/calculators.js", "static/app.js", "estimator/server.py", "static/sounds/mgs1-menu-move.mp3", "static/sounds/mgs-confirm2.mp3", "static/sounds/new-explosion.mp3", "static/sounds/hover.mp3", "static/sounds/select.mp3", "static/sounds/select-2.mp3", "static/sounds/mixkit-vintage-dot-printing-1371.wav", "static/sounds/checkpoint.ogg", "static/sounds/loading.mp3", "tests/browser/header_menu_sounds.cjs", "tests/browser/header_menu_sounds_fixture.py"];
 const digest = value => createHash("sha256").update(value).digest("hex");
 const sourceHashes = () => Object.fromEntries(sourceFiles.map(file => [file, digest(fs.readFileSync(path.join(root, file)))]));
 const evidence = { passed: false, source_sha256: sourceHashes(), normal_autoplay_policy: true, autoplay_override_flags: [], physical_audibility_claimed: false, checks: {}, errors: [], blocked_requests: [], assets: [] };
@@ -78,7 +78,7 @@ async function played(source, prior) {
   }
   await expect.poll(() => unactivatedProbe("Boolean(window.CeasefireDesktop?.status().ready && !window.CeasefireDesktop.status().busy && window.ClassifireBoot?.state === 'ready' && window.qaMenuAudio.media.length === 9 && window.qaMenuAudio.media.every(media => media.readyState >= 2 && Number.isFinite(media.duration) && media.duration > 0))"), { timeout: 30000 }).toBe(true);
   evidence.checks.preloadedDecodedMedia = await unactivatedProbe("window.qaMenuAudio.media.map(media => ({source:new URL(media.src).pathname,readyState:media.readyState,duration:media.duration,preload:media.preload}))");
-  for (const [file, expected] of [["mgs1-menu-move.mp3", "ac2d686c78fa5dabc2415a0f3b39f4ced124f5fc1613ba3918e06daa7b47f8d0"], ["mgs-confirm2.mp3", "e9e7e156e24a4fde706f922ee135e88df51dc5ba94eed6344e66bbd6298e3e86"], ["new-explosion.mp3", "1ed5c489c6e7ab08caacf1cba198e7aae07cb7a904be51a4800c56eb32512c21"], ["hover.mp3", "052d0d7f3fb41ddb67766dedd8f4c237b46c8b18745dfad0a73a14c8afb6fad5"], ["select.mp3", "60e089eeac138ce5301fb59dc9d649c0404a556499c8f78c15c81a7cdfde1969"], ["select-2.mp3", "37e5c8645aa76e11dc8039545940436ea9201e533b1c946fbc9dfc3845efeb7b"], ["mixkit-vintage-dot-printing-1371.wav", "5c39082dfe0aa5c24cae5faa0ba616bfb1354d8b7686b0b0784fa32689a9decf"], ["checkpoint.ogg", "60acfb941abf427378e87e7ae6660ae29491f8d5efaae2681d7eb9a52af3c935"], ["loading.mp3", "2c245208c0a4e9668b36e17d16227be81f6409398de1ece8b37be648e0ac60a8"]]) {
+  for (const [file, expected] of [["mgs1-menu-move.mp3", "ac2d686c78fa5dabc2415a0f3b39f4ced124f5fc1613ba3918e06daa7b47f8d0"], ["mgs-confirm2.mp3", "e9e7e156e24a4fde706f922ee135e88df51dc5ba94eed6344e66bbd6298e3e86"], ["new-explosion.mp3", "42de6e27397a942bda71b98b9b564c6a4543ebe88473fac35c10e1335099a1b4"], ["hover.mp3", "052d0d7f3fb41ddb67766dedd8f4c237b46c8b18745dfad0a73a14c8afb6fad5"], ["select.mp3", "60e089eeac138ce5301fb59dc9d649c0404a556499c8f78c15c81a7cdfde1969"], ["select-2.mp3", "37e5c8645aa76e11dc8039545940436ea9201e533b1c946fbc9dfc3845efeb7b"], ["mixkit-vintage-dot-printing-1371.wav", "5c39082dfe0aa5c24cae5faa0ba616bfb1354d8b7686b0b0784fa32689a9decf"], ["checkpoint.ogg", "60acfb941abf427378e87e7ae6660ae29491f8d5efaae2681d7eb9a52af3c935"], ["loading.mp3", "2c245208c0a4e9668b36e17d16227be81f6409398de1ece8b37be648e0ac60a8"]]) {
     const response = await page.request.get(`${origin}/sounds/${file}`), bytes = await response.body();
     assert.equal(response.status(), 200); assert.equal(response.headers()["content-type"], file.endsWith(".wav") ? "audio/wav" : file.endsWith(".ogg") ? "audio/ogg" : "audio/mpeg"); assert.equal(digest(bytes), expected);
     evidence.assets.push({ url: response.url(), status: response.status(), sha256: digest(bytes), size: bytes.length, content_type: response.headers()["content-type"] });
@@ -161,6 +161,20 @@ async function played(source, prior) {
   // machine cannot hide a loop that accidentally ends before preparation.
   await submenu.hover(); await page.locator("#steel-calculator-navigation-toggle").hover();
   await page.locator('#steel-calculator-navigation-menu [data-calculator-id="steel_board"]').click(); await idle();
+  const tabIds = await page.locator('#calculator-pages button[data-calculator-page]').evaluateAll(buttons => buttons.map(button => button.dataset.calculatorPage));
+  assert.ok(tabIds.length >= 3);
+  for (const id of [...tabIds.slice(1), tabIds[0]]) {
+    const selected = page.locator(`#calculator-pages button[data-calculator-page="${id}"]`), original = await selected.elementHandle();
+    const start = await page.evaluate(() => window.qaMenuAudio.calls.length);
+    prior = await page.evaluate(() => window.qaMenuAudio.playing.filter(row => row.source.endsWith("select-2.mp3")).length);
+    await selected.click(); await played("/sounds/select-2.mp3", prior);
+    await expect(selected).toHaveAttribute("aria-pressed", "true");
+    assert.equal(await original.evaluate((button, id) => button === document.querySelector(`#calculator-pages button[data-calculator-page="${id}"]`), id), true, "Changing pages retains the clicked native button and its focus");
+    await expect.poll(() => page.evaluate(() => window.qaMenuAudio.media.find(audio => audio.src.endsWith("select-2.mp3")).currentTime)).toBeGreaterThan(0.2);
+    assert.deepEqual(await page.evaluate(start => window.qaMenuAudio.calls.slice(start).filter(row => row.event === "click").map(row => row.source), start), ["/sounds/select-2.mp3"], "A tab owns exactly one immediate click sound");
+    await original.dispose();
+  }
+  evidence.checks.calculatorTabNativeClickWithoutReplacementInterruption = { pages: tabIds.length, minimumPlaybackSeconds: 0.2 };
   await page.locator("#calculator-document-toggle").click();
   templateActions.push({ hold: true });
   prior = await page.evaluate(() => window.qaMenuAudio.playing.filter(row => row.source.endsWith("loading.mp3")).length);
@@ -212,7 +226,7 @@ async function played(source, prior) {
   assert.equal(await page.evaluate(() => window.qaMenuAudio.calls.length), prior, "The logo has no hover sound");
   prior = await page.evaluate(() => window.qaMenuAudio.playing.filter(row => row.source.endsWith("new-explosion.mp3")).length);
   await page.locator(".app-header .brand").click(); await played("/sounds/new-explosion.mp3", prior); await idle();
-  evidence.checks.logoClickExplosion = true;
+  evidence.checks.logoClickSuppliedFlameWhoosh = true;
   // Taglines still type after a trusted click, but never request printing playback.
   await home.click(); await idle();
   const printingObservation = await page.waitForFunction(() => {

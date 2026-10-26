@@ -11,6 +11,7 @@
     select: "/sounds/select.mp3",
     selectOther: "/sounds/select-2.mp3",
     checkpoint: "/sounds/checkpoint.ogg",
+    // Keep the existing served asset slot; its bytes are the supplied flame_whoosh.mp3.
     explosion: "/sounds/new-explosion.mp3",
   });
   const printingSource = "/sounds/mixkit-vintage-dot-printing-1371.wav";
@@ -37,7 +38,13 @@
       // Seeking a decoded clip can temporarily lower readyState. Check before
       // rewinding, then start that loaded clip directly in this same event.
       const loaded = audio && !audio.error && audio.readyState >= 2;
-      stop();
+      ++generation;
+      // Pause other clips without seeking them. A hover just before a click
+      // must not leave that click's already-decoded clip temporarily unready.
+      for (const player of Object.values(players)) {
+        if (player === audio) stopAudio(player);
+        else { try { player?.pause(); } catch { /* Feedback must not affect the control. */ } }
+      }
       const attempt = generation;
       // Skip unloaded audio instead of letting it begin after this interaction.
       if (!loaded) return;
@@ -84,6 +91,11 @@
       return button && !button.disabled && !button.matches?.(":disabled") && button.getAttribute?.("aria-disabled") !== "true" && !button.closest?.("[inert]");
     }
     function contains(button, target) { try { return !!button && !!target && button.contains(target); } catch { return false; } }
+    function drawingTarget(target) {
+      // SVG markups and handles use role=button for editing. Only explicit
+      // context-menu commands participate in button feedback inside the PDF.
+      return target?.closest?.("#takeoff-viewport") && !target.closest(".takeoff-control-menu");
+    }
     function route(button, click) {
       if (closed || document.hidden || !enabled(button)) return;
       // The global Save control owns one distinct click, regardless of the
@@ -101,13 +113,16 @@
       }
     }
     function over(event) {
+      const target = element(event.target);
+      if (drawingTarget(target)) { stop(); return; }
       if (event.pointerType === "touch") return;
-      const button = element(event.target)?.closest?.(selector);
+      const button = target?.closest?.(selector);
       // Moving between a button's icon and label is not another entry.
       if (!contains(button, event.relatedTarget)) route(button, false);
     }
     function click(event) {
       const target = element(event.target);
+      if (drawingTarget(target)) { stop(); return; }
       if (!closed && !document.hidden && target?.closest?.(".app-header .brand")) {
         menu.stop?.(); players.play("explosion"); return;
       }

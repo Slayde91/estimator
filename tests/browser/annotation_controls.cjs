@@ -16,6 +16,16 @@ const snap=()=>page.evaluate(()=>window.CeasefireTakeoffs.projectSnapshot());
 async function point(x,y){const overlay=page.locator(".takeoff-overlay");await overlay.scrollIntoViewIfNeeded();await overlay.evaluate(el=>window.scrollTo(0,window.scrollY+el.getBoundingClientRect().top-190));const b=await overlay.boundingBox();return[b.x+b.width*x,b.y+b.height*y];}
 (async()=>{
   info=await ready;assert.notEqual(info.port,8765);browser=await chromium.launch({headless:true});page=await browser.newPage({viewport:{width:1440,height:1050}});page.setDefaultTimeout(45000);page.on("pageerror",error=>errors.push(String(error)));
+  await page.addInitScript(() => {
+    window.qaDrawingSounds = { calls: [], playing: [] };
+    const nativePlay = HTMLMediaElement.prototype.play;
+    HTMLMediaElement.prototype.play = function (...args) {
+      const source = new URL(this.src, location.href).pathname;
+      window.qaDrawingSounds.calls.push({ source, event: window.event?.type || null });
+      this.addEventListener("playing", event => window.qaDrawingSounds.playing.push({ source, trusted: event.isTrusted }), { once: true });
+      return Reflect.apply(nativePlay, this, args);
+    };
+  });
   await page.goto(`http://127.0.0.1:${info.port}/`);await idle();
   stage="Main notes layout";await page.locator('nav [data-view="estimate"]').click();await idle();
   const measure=await page.locator('#project-input-fields [data-cell="B8"]').boundingBox(),notes=await page.locator('#measurements').boundingBox();
@@ -50,12 +60,25 @@ async function point(x,y){const overlay=page.locator(".takeoff-overlay");await o
   stage="Drawing shortcuts and line settings";await chooseTakeoff(page,"steel");await renderDrawing(page,()=>page.locator("#takeoff-upload").setInputFiles(info.area_fixture),1);await settingsSettled(page);
   const viewport=page.locator(".takeoff-viewport");await viewport.focus();await page.keyboard.press("q");await expect(viewport).toHaveAttribute("data-tool","callout");await page.keyboard.press("h");await expect(viewport).toHaveAttribute("data-tool","select");
   await page.keyboard.press("Control+'");await expect(viewport).toHaveAttribute("data-tool","select");
-  await page.keyboard.press("r");await expect(viewport).toHaveAttribute("data-tool","graphic-rectangle");await page.mouse.click(...await point(.3,.35));await page.mouse.click(...await point(.55,.6));await settingsSettled(page);
+  await page.keyboard.press("r");await expect(viewport).toHaveAttribute("data-tool","graphic-rectangle");
+  let drawingSoundStart=await page.evaluate(()=>window.qaDrawingSounds.calls.length);
+  await page.mouse.click(...await point(.3,.35));await page.mouse.click(...await point(.55,.6));await settingsSettled(page);
+  assert.equal(await page.evaluate(()=>window.qaDrawingSounds.calls.length),drawingSoundStart,"Drawing on a real rendered PDF is silent");
   const panel=page.locator("#takeoff-markup-settings");await expect(panel.getByLabel("Line Enabled",{exact:true})).toBeChecked();await panel.getByLabel("Line Enabled",{exact:true}).uncheck();await settingsSettled(page);let snapshot=await snap();assert.equal(snapshot.graphics.records.at(-1).appearance.stroke_enabled,false);
   assert.equal(await page.locator(".takeoff-graphic>g rect").first().getAttribute("stroke"),"none");
-  await page.getByRole("button",{name:"Textbox",exact:true}).click();await page.mouse.click(...await point(.35,.25));await page.getByRole("dialog").getByRole("textbox",{name:"Textbox text",exact:true}).fill("Double click settings");await page.getByRole("dialog").getByRole("button",{name:"Place markup",exact:true}).click();await settingsSettled(page);snapshot=await snap();const textbox=snapshot.graphics.records.at(-1);
+  const toolSoundStart=await page.evaluate(()=>window.qaDrawingSounds.playing.length);
+  await page.getByRole("button",{name:"Textbox",exact:true}).click();
+  await page.waitForFunction(start=>window.qaDrawingSounds.playing.slice(start).some(row=>row.source==="/sounds/select.mp3"&&row.trusted),toolSoundStart);
+  drawingSoundStart=await page.evaluate(()=>window.qaDrawingSounds.calls.length);
+  await page.mouse.click(...await point(.35,.25));await expect(page.getByRole("dialog").getByRole("textbox",{name:"Textbox text",exact:true})).toBeVisible();
+  assert.equal(await page.evaluate(()=>window.qaDrawingSounds.calls.length),drawingSoundStart,"Placing the textbox on the PDF is silent; its explicit dialog buttons keep feedback");
+  await page.getByRole("dialog").getByRole("textbox",{name:"Textbox text",exact:true}).fill("Double click settings");await page.getByRole("dialog").getByRole("button",{name:"Place markup",exact:true}).click();await settingsSettled(page);snapshot=await snap();const textbox=snapshot.graphics.records.at(-1);
   await panel.getByRole("button",{name:"Close settings",exact:true}).click();await viewport.focus();await page.keyboard.press("h");
-  const hit=page.locator(`[data-graphic-id="${textbox.id}"] [data-graphic-part="move"]`);await hit.scrollIntoViewIfNeeded();const b=await hit.boundingBox();await page.mouse.click(b.x+b.width/2,b.y+b.height/2);await page.mouse.click(b.x+b.width/2,b.y+b.height/2,{delay:100});await expect(panel).toBeVisible();await expect(panel.getByRole("heading",{name:"Textbox Settings",exact:true})).toBeVisible();evidence.doubleClick=true;
+  const hit=page.locator(`[data-graphic-id="${textbox.id}"] [data-graphic-part="move"]`);await hit.scrollIntoViewIfNeeded();const b=await hit.boundingBox();
+  drawingSoundStart=await page.evaluate(()=>window.qaDrawingSounds.calls.length);
+  await page.mouse.click(b.x+b.width/2,b.y+b.height/2);await page.mouse.click(b.x+b.width/2,b.y+b.height/2,{delay:100});await expect(panel).toBeVisible();await expect(panel.getByRole("heading",{name:"Textbox Settings",exact:true})).toBeVisible();evidence.doubleClick=true;
+  assert.equal(await page.evaluate(()=>window.qaDrawingSounds.calls.length),drawingSoundStart,"Hovering and editing an accessible SVG button on the PDF never requests button audio");
+  evidence.drawingAudio={rectangleSilent:true,textPlacementSilent:true,svgHitSilent:true,toolPaneNativePlaying:true};
   await page.screenshot({path:path.join(output,"drawing-settings.png")});
   assert.deepEqual(errors,[]);fs.writeFileSync(path.join(output,"result.json"),JSON.stringify({completed:true,fixture_port:info.port,evidence,errors},null,2));console.log(`PASS ${output}`);
 })().catch(async error=>{process.exitCode=1;console.error(stage,error);if(page){await page.screenshot({path:path.join(output,"failure.png"),fullPage:true}).catch(()=>{});fs.writeFileSync(path.join(output,"failure.json"),JSON.stringify({stage,error:String(error),errors,body:await page.locator("body").innerText().catch(()=>"")},null,2));}}).finally(async()=>{fs.writeFileSync(path.join(output,"server.log"),logs);await browser?.close();server.kill();});

@@ -14,6 +14,7 @@ from estimator.calculator_register import build_calculator_register
 from estimator.excel_engine import WorkbookEngine, column_number
 from estimator.calculator_report import project_calculator_report, _source_text
 from estimator.assessment_references import report_reference_text
+from estimator.download_disclosure import calculator_download_data
 from estimator.workbook_calculators import source_model
 from tests.test_calculator_report import (cleared_inputs, REMOVED_SECTIONS,
     assert_missing_perlifoc_projection, MISSING_PERLIFOC_EVIDENCE,
@@ -86,8 +87,9 @@ class CalculatorRegisterTests(unittest.TestCase):
         headers = {cell.value: cell.column for cell in sheet[5]}
         if identity == 'steel_vermiculite':
             self.assertEqual(set(headers), {'Line', 'Location', 'Mark', 'Product', 'Section', 'Quantity',
-                                           'Length (m)', 'Published thickness (mm)', 'Spray surface (m²)', 'Report', 'Status'})
-        self.assertEqual(headers['Report'] + 1, headers['Status'])
+                                           'Length (m)', 'Published thickness (mm)', 'Spray surface (m²)', 'Report'})
+        self.assertNotIn('Status', headers)
+        self.assertEqual(headers['Report'], len(headers))
         self.assertEqual(sheet.max_row, 5 + len(data['rows']))
         comparisons = 0
         for target_row, item in enumerate(data['rows'], 6):
@@ -135,7 +137,7 @@ class CalculatorRegisterTests(unittest.TestCase):
                     provenance = item.get('assessment_source') or item.get('source_reference')
                     if provenance:
                         status += '\n' + provenance
-            self.assert_cell_value(sheet.cell(target_row, headers['Status']), status)
+            self.assertNotIn(status, [cell.value for cell in sheet[target_row]])
             if identity == 'steel_vermiculite':
                 # Removing presentation columns must not alter their underlying
                 # calculation or the product totals still exported in Summary.
@@ -155,11 +157,11 @@ class CalculatorRegisterTests(unittest.TestCase):
             self.assertEqual(sheet.cell(row, 1).value, label)
             self.assert_cell_value(sheet.cell(row, 5), value)
         text = sheet_text(sheet)
-        self.assertIn(data['basis'], text)
-        self.assertIn(data['source']['filename'], text)
-        self.assertIn(data['source']['sha256'], text)
+        self.assertNotIn(data['basis'], text)
+        self.assertNotIn(data['source']['filename'], text)
+        self.assertNotIn(data['source']['sha256'], text)
         comparisons = 0
-        for table in data['summaries']:
+        for table in calculator_download_data(data)['summaries']:
             title_row = next(cell.row for row in sheet for cell in row if cell.value == table['title'])
             labels = [table['labels'][column] for column in table['columns']]
             if identity == 'steel_board':
@@ -197,7 +199,7 @@ class CalculatorRegisterTests(unittest.TestCase):
                         self.assertIn(str(note), text)
         for note in data.get('summary_notes', []):
             if note:
-                self.assertIn(_source_text(identity, 'BOARD SUMMARY', 'A8', note), text)
+                self.assertNotIn(_source_text(identity, 'BOARD SUMMARY', 'A8', note), text)
         self.assertGreater(comparisons, 20)
 
     @patch('estimator.perlifoc_assessment.load_assessment', return_value=MISSING_PERLIFOC_EVIDENCE)
@@ -244,7 +246,7 @@ class CalculatorRegisterTests(unittest.TestCase):
     def assert_extras(self, data, workbook, native=None):
         sheet = workbook['Extra boards']
         historical = WorkbookEngine(source_model('steel_board'), data['inputs'])
-        columns = list('ABCDEFGHIJK') + ['M', 'N']
+        columns = list('ABCDEFGHIJKN')
         if not data['extra_rows']:
             self.assertIn('No extra-board inputs are entered.', sheet_text(sheet))
             return
@@ -293,7 +295,7 @@ class CalculatorRegisterTests(unittest.TestCase):
                 self.assertEqual(sheet.max_row, 6)
                 self.assertEqual(sheet['A6'].value, schedule['last_row'] - schedule['first_row'] + 1)
                 self.assertIn('1 used schedule items. 1 item(s)', sheet['A3'].value)
-                self.assertTrue(sheet.cell(6, sheet.max_column).value)
+                self.assertEqual(sheet.cell(5, sheet.max_column).value, 'Report')
                 if identity == 'ductwork':
                     self.assert_cell_value(sheet['D6'], 0)
                     self.assertIsNone(sheet['B6'].value)
@@ -344,7 +346,7 @@ class CalculatorRegisterTests(unittest.TestCase):
         self.assert_cell_value(extras['H6'], precise)
         self.assert_cell_value(extras['I6'], inputs['EXTRA BOARDS']['H45'])
         self.assertEqual(extras['I6'].number_format, '0.00%')
-        self.assert_cell_value(extras['N6'], long_note)
+        self.assertIn(long_note, sheet_text(extras))
         self.assertEqual(inputs, before)
         for sheet in workbook:
             for row in sheet:
@@ -366,7 +368,7 @@ class CalculatorRegisterTests(unittest.TestCase):
         workbook = load_workbook(BytesIO(build_calculator_register('steel_board', inputs)))
         self.assert_extras(data, workbook)
         self.assertEqual(workbook['Extra boards']['A6'].value, 40)
-        self.assertEqual(workbook['Extra boards']['N6'].value, inputs['EXTRA BOARDS']['N45'])
+        self.assertEqual(workbook['Extra boards']['M6'].value, inputs['EXTRA BOARDS']['N45'])
         self.assertIsNone(workbook['Extra boards']['K6'].value)
         self.assertEqual(workbook['Summary']['E6'].value, 0)
 
@@ -376,7 +378,7 @@ class CalculatorRegisterTests(unittest.TestCase):
                 workbook = load_workbook(BytesIO(build_calculator_register(identity, cleared_inputs(identity))))
                 self.assertEqual(workbook['Schedule']['A6'].value, 'No schedule inputs are entered.')
                 self.assertIn('0 used schedule items. 0 item(s)', workbook['Schedule']['A3'].value)
-                self.assertIn('Source SHA-256:', sheet_text(workbook['Summary']))
+                self.assertNotIn('Source SHA-256:', sheet_text(workbook['Summary']))
                 if identity == 'steel_board':
                     self.assertEqual(workbook['Extra boards']['A5'].value, 'No extra-board inputs are entered.')
 

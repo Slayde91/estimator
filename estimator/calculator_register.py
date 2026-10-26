@@ -11,6 +11,7 @@ from .calculator_report import (project_calculator_report, _source_text,
                                 summary_display_columns, summary_display_value)
 from .pricing_workbook import _serialize_exact
 from .assessment_references import report_reference_text
+from .download_disclosure import calculator_download_data
 
 
 _RED = '941321'
@@ -127,10 +128,22 @@ def _schedule(data, workbook):
         records = [[item['line'], v['A'], v['B'], v['C'], v['D'], v['F'], v['CJ'], v['AN'], v['AO'], v['Z'], v['AB'], v['AD'], v['AE'], v['AF'], v['AG'],
                     '\n'.join(str(value) for value in (v['AR'], v['AS'], v['AT']) if value not in (None, '')) or 'No calculated status returned']
                    for item in data['rows'] for v in [item['values']]]
-    labels.insert(len(labels) - 1, 'Report')
-    widths.insert(len(widths) - 1, 32)
+    # The diagnostic last column is not a customer-facing schedule field.
+    labels.pop()
+    widths.pop()
+    for values in records:
+        values.pop()
+    if identity == 'steel_intumescent':
+        for label in ('Input A/V (m⁻¹)', 'Table A/V (m⁻¹)'):
+            index = labels.index(label)
+            labels.pop(index)
+            widths.pop(index)
+            for values in records:
+                values.pop(index)
+    labels.append('Report')
+    widths.append(32)
     for values, item in zip(records, data['rows']):
-        values.insert(len(values) - 1, report_reference_text(item['report_references'], urls=True))
+        values.append(report_reference_text(item['report_references'], urls=True))
     sheet = _sheet(workbook, 'Schedule', data['title'] + ' — Schedule', widths)
     _band(sheet, 3, f"{len(records)} used schedule items. {data['incomplete_rows']} item(s) have incomplete or unavailable primary quantities.", len(widths))
     _table(sheet, 5, labels, records, widths, formats={1: '0'}, filtered=True)
@@ -141,8 +154,10 @@ def _schedule(data, workbook):
 def _summary(data, workbook):
     widths = [36] + [19] * (11 if data.get('board_net_steel_areas') else 10)
     sheet = _sheet(workbook, 'Summary', data['title'] + ' — Excel register', widths)
-    _band(sheet, 3, data['basis'], len(widths))
     row = 5
+    for notice in data['quantity_notices']:
+        _band(sheet, row, notice, len(widths))
+        row += 1
     # Keep the overview compact while accommodating descriptive measure labels.
     for label, value in data['totals']:
         sheet.merge_cells(start_row=row, start_column=1, end_row=row, end_column=4)
@@ -196,16 +211,21 @@ def _summary(data, workbook):
         for product, basis, interpretation in summary.get('qualifications', []):
             _band(sheet, row, '\n'.join(str(value) for value in (product, basis, interpretation) if value not in (None, '')), len(widths))
             row += 1
-    _band(sheet, row, ('Calculator compatibility identity: ' if data['id'] == 'steel_intumescent' else 'Source workbook: ') + data['source']['filename'], len(widths))
-    _band(sheet, row + 1, ('Compatibility SHA-256: ' if data['id'] == 'steel_intumescent' else 'Source SHA-256: ') + data['source']['sha256'], len(widths))
+    references = []
+    for item in data['rows']:
+        for reference in item['report_references']:
+            if reference not in references:
+                references.append(reference)
+    if references:
+        _band(sheet, row, 'Report: ' + report_reference_text(references, urls=True), len(widths))
     sheet.freeze_panes = 'B5'
     sheet.print_title_rows = '1:2'
 
 
 def _extras(data, workbook):
-    # Match the PDF: the unused internal column L is excluded; evidence stays.
-    columns = list('ABCDEFGHIJK') + ['M', 'N']
-    widths = [9, 25, 26, 18, 15, 18, 18, 18, 16, 28, 19, 20, 55, 90]
+    # Retain the user's allowance note; omit generated status and stock keys.
+    columns = list('ABCDEFGHIJKN')
+    widths = [9, 25, 26, 18, 15, 18, 18, 18, 16, 28, 19, 20, 46]
     sheet = _sheet(workbook, 'Extra boards', 'EXTRA BOARDS', widths)
     _band(sheet, 3, 'Valid allowances are included in final board stock totals. Incomplete entries remain listed and are excluded by the workbook rules.', len(widths))
     if data['extra_rows']:
@@ -218,7 +238,7 @@ def _extras(data, workbook):
 
 def build_calculator_register(calculator_id, inputs=None):
     """Export the current draft's report results without saving or Excel logic."""
-    data = project_calculator_report(calculator_id, inputs)
+    data = calculator_download_data(project_calculator_report(calculator_id, inputs))
     workbook = Workbook()
     workbook.remove(workbook.active)
     workbook.properties.creator = 'Ceasefire'

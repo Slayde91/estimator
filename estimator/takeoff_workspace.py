@@ -1928,6 +1928,9 @@ class TakeoffService:
             configuration = validate_configuration(request['configuration'])
             compiled = confirmed_transfer_preview(before, request['scope'], request['draft'],
                                                    self._selected_library, configuration)
+            from .penetration_references import capture_transfer_references
+            compiled['penetration']['draft'] = capture_transfer_references(
+                compiled['penetration']['draft'], request['draft'], before, self.libraries)
             payload = {key: compiled[key] for key in ('penetration', 'library_link')}
             # Fail before committing if a retry response cannot be retained.
             if len(json.dumps(payload, ensure_ascii=False, separators=(',', ':'), allow_nan=False).encode()) > SESSION_CACHE_BYTES:
@@ -2067,6 +2070,13 @@ class TakeoffService:
             self._session_evidence(session_id)
             self._assert_eligible(snapshot, selected, confirmed=True, session_id=session_id)
             return export_register(snapshot, selected, format)
+
+    def firestopping_references(self, session_id, draft):
+        """Read report navigation from this session without editing its graph."""
+        from .penetration_references import resolve_schedule_references
+        with self._lock:
+            return resolve_schedule_references(draft, self.libraries,
+                                               snapshot=self._session(session_id)['snapshot'])
 
     def register_references(self, session_id, request):
         """Read candidates from recorded row facts; never create a session/link."""

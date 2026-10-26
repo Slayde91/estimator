@@ -25,7 +25,7 @@ async function snapshot(){return page.evaluate(()=>window.CeasefireCalculators.c
 async function boot(){await page.waitForFunction(()=>window.CeasefireDesktop?.status().ready&&window.ClassifireBoot?.state==='ready');await page.waitForFunction(()=>!window.CeasefireActivity?.active);}
 async function chooser(){const button=page.locator('#calculator-pages .schedule-column-toggle');await button.click();const panel=page.locator('#'+await button.getAttribute('aria-controls'));await expect(panel).toBeVisible();return panel;}
 const nativeCell=(id)=>page.locator(`.calculator-schedule-table thead [data-schedule-column="${id}"]`);
-const removedBoardColumns='MNOPQRSTU'.split(''),retainedBoardInputs={M9:'Standard',N9:null,O9:'Auto',P9:'Published first',Q9:'Standard box',R9:203.123456789012,S9:203.234567890123,T9:58.1234567890123,U9:46.1234567890123};
+const removedBoardColumns=[...'MNOPQRSTU','X','AI'],retainedBoardInputs={M9:'Standard',N9:null,O9:'Auto',P9:'Published first',Q9:'Standard box',R9:203.123456789012,S9:203.234567890123,T9:58.1234567890123,U9:46.1234567890123,X9:'Retained original design reference'};
 async function assertBoardColumnsRemoved(panel){
  for(const column of removedBoardColumns){await expect(nativeCell(`column:${column}`)).toHaveCount(0);if(panel)await expect(panel.locator(`[data-schedule-column-choice="column:${column}"]`)).toHaveCount(0);}
 }
@@ -48,7 +48,11 @@ async function screenshot(name){await page.screenshot({path:path.join(output,nam
   ['steel_vermiculite',{SCHEDULE:{A10:'Spray fixture',B10:'CAFCO 300',J10:1.23456789012345,I10:2}},10],
   ['steel_intumescent',{SCHEDULE:{A10:'Intumescent fixture',B10:'SC902',J10:1.23456789012345,I10:2}},10],
  ]){const reply=await page.request.put(`${base}/api/calculators/${id}/state`,{data:{inputs,schedule_rows:[row]}});assert.equal(reply.status(),200);}
- await page.addInitScript(()=>localStorage.setItem('ceasefire.scheduleColumns.v1.steel_vermiculite:SCHEDULE',JSON.stringify({version:1,hidden:['column:X']})));
+ await page.addInitScript(()=>{
+  // Legacy all-visible preferences must not restore removed columns.
+  localStorage.setItem('ceasefire.scheduleColumns.v1.steel_vermiculite:SCHEDULE',JSON.stringify({version:1,hidden:['column:X']}));
+  if(!localStorage.getItem('ceasefire.scheduleColumns.v1.steel_board:CALCULATOR'))localStorage.setItem('ceasefire.scheduleColumns.v1.steel_board:CALCULATOR',JSON.stringify({version:1,hidden:[]}));
+ });
  await page.goto(base);await boot();
  for(const [id,title]of [['steel_vermiculite','Steel (spray)'],['steel_intumescent','Steel (intumescent)'],['steel_board','Steel (board)'],['ductwork','Duct']]){
   await chooseCalculator(page,title);await idle();
@@ -58,12 +62,12 @@ async function screenshot(name){await page.screenshot({path:path.join(output,nam
   const native=headers.filter(column=>column.id.startsWith('column:')).map(column=>column.id.slice(7));
   const number=column=>[...column].reduce((sum,letter)=>sum*26+letter.charCodeAt(0)-64,0);
   const removedSources=[...definition.schedule.columns.filter(column=>/^thickness source$/i.test(column.label.trim())).map(column=>number(column.column)),...(id==='ductwork'?[42,43]:[])];
-  const browserOmissions=id==='steel_board'?removedBoardColumns.map(number):[];
+  const browserOmissions=id==='steel_board'?removedBoardColumns.map(number):['steel_vermiculite','steel_intumescent'].includes(id)?[22,23,25]:[];
   assert.deepEqual(native.map(number).sort((a,b)=>a-b),expected.filter(column=>!removedSources.includes(column)&&!browserOmissions.includes(column)).sort((a,b)=>a-b));
   assert.ok(headers.every(column=>!/^thickness source$/i.test(column.label.trim())));
   if(['steel_vermiculite','steel_intumescent'].includes(id)){
    const reportIndex=headers.findIndex(column=>column.id==='virtual:report');
-   assert.equal(headers[reportIndex-1].id,'column:J');assert.equal(headers[reportIndex+1].id,'column:Y');
+   assert.equal(headers[reportIndex-1].id,'column:J');assert.ok(headers.every(column=>!['column:V','column:W','column:Y'].includes(column.id)));
   }
   assert.equal(new Set(headers.map(column=>column.id)).size,headers.length);assert.ok(headers.some(column=>column.id==='virtual:report'));assert.ok(headers.some(column=>column.id==='virtual:actions'));
   const before=await snapshot(),requests=calculations,panel=await chooser();
@@ -81,8 +85,9 @@ async function screenshot(name){await page.screenshot({path:path.join(output,nam
    assert.equal(await note.evaluate(node=>node.previousElementSibling.classList.contains('calculator-schedule-help')),true);
   }
   if(id==='steel_board'){
+   await expect(page.locator('#calculator-pages').getByRole('button',{name:'SETTINGS',exact:true})).toHaveCount(0);
    await assertBoardColumnsRemoved(panel);for(const column of removedBoardColumns)assert.ok(expected.includes(number(column)),'Source API retains optional inputs');
-   for(const column of ['L','V','W','X','Y','AA','AC','AD'])await expect(panel.locator(`[data-schedule-column-choice="column:${column}"]`)).toBeChecked();
+   for(const column of ['L','V','W','Y','AA','AC','AD'])await expect(panel.locator(`[data-schedule-column-choice="column:${column}"]`)).toBeChecked();
    for(const [address,value]of Object.entries(retainedBoardInputs))assert.equal(before.steel_board.inputs.CALCULATOR[address],value);
   }
   for(const header of headers){const checkbox=panel.locator(`[data-schedule-column-choice="${header.id}"]`);await checkbox.check();await expect(nativeCell(header.id)).toBeVisible();await checkbox.uncheck();await expect(nativeCell(header.id)).toBeHidden();await checkbox.check();await expect(nativeCell(header.id)).toBeVisible();}
@@ -93,6 +98,14 @@ async function screenshot(name){await page.screenshot({path:path.join(output,nam
   evidence.registers.push({id,columns:headers,removedDisplaySources:removedSources,initiallyHidden,reportReplacesThicknessSource:['steel_vermiculite','steel_intumescent'].includes(id),allColumnsIndividuallyToggle:true,selectAllAndNone:true,inputsUnchanged:true,noCalculationRequests:true});
   console.log(`PASS column choices: ${id} (${headers.length})`);
  }
+ // An incomplete member remains a schedule concern, never a Factor Calcs notice.
+ await chooseCalculator(page,'Steel (spray)');await idle();
+ await expect(page.locator('#calculator-warnings')).toContainText(/Complete required fields on \d+ schedule row\(s\)\./);
+ const beforeFactor=await snapshot();await chooseCalculator(page,'Factor Calcs');await idle();
+ await expect(page.locator('#calculator-warnings')).not.toContainText('Complete required fields on');
+ assert.deepEqual(await snapshot(),beforeFactor);await chooseCalculator(page,'Steel (spray)');await idle();
+ await expect(page.locator('#calculator-warnings')).toContainText(/Complete required fields on \d+ schedule row\(s\)\./);
+ evidence.factorWarnings={scheduleNoticeRetained:true,helperSuppressesScheduleNotice:true,draftUnchanged:true};
   // Column changes retain unsaved text/selection and all removed optional values.
  await chooseCalculator(page,'Steel (board)');await idle();const before=await snapshot(),draftField=page.locator('[data-calculator-cell="A9"]'),handle=await draftField.elementHandle();
  await draftField.fill('Uncommitted exact text · 1.123456789012345');await draftField.evaluate(node=>node.setSelectionRange(3,12));
@@ -134,7 +147,8 @@ async function screenshot(name){await page.screenshot({path:path.join(output,nam
  await page.evaluate(()=>window.CeasefireI18n.setLanguage('en',false));await page.setViewportSize({width:1146,height:850});
  console.log('PASS column chooser: all9 languages at desktop and narrow widths');
  for(const title of ['Steel (spray)','Steel (intumescent)','Steel (board)','Duct']){
-  await chooseCalculator(page,title);await idle();const cell=page.locator('.calculator-report-column[data-calculator-reports]').first(),basis=page.locator('.calculator-basis-preview').first();await expect(basis).toBeVisible();assert.doesNotMatch(await basis.textContent(),/\[object Object\]/);
+  await chooseCalculator(page,title);await idle();const cell=page.locator('.calculator-report-column[data-calculator-reports]').first(),basis=page.locator('.calculator-basis-preview').first();
+  if(title==='Duct'){await expect(basis).toBeVisible();assert.doesNotMatch(await basis.textContent(),/\[object Object\]/);}else await expect(basis).toHaveCount(0);
   for(let theme=0;theme<5;theme++){
    const name=await page.locator('html').getAttribute('data-theme');await page.mouse.move(1,1);await cell.evaluate(node=>node.blur());
    const normalReport=await cell.evaluate(node=>({background:getComputedStyle(node).backgroundColor,color:getComputedStyle(node).color}));
@@ -144,9 +158,12 @@ async function screenshot(name){await page.screenshot({path:path.join(output,nam
    assert.notEqual(normalReport.background,'rgba(0, 0, 0, 0)','Report must have an opaque body surface');
    await cell.hover();const report=await cell.evaluate(node=>({background:getComputedStyle(node).backgroundColor,color:getComputedStyle(node).color}));
    if(theme===0)await cell.screenshot({path:path.join(output,`${title.replace(/\W/g,'-')}-report-red.png`)});
-   await basis.hover();const hover=await basis.evaluate(node=>({background:getComputedStyle(node).backgroundColor,color:getComputedStyle(node).color}));if(theme===0)await basis.screenshot({path:path.join(output,`${title.replace(/\W/g,'-')}-basis-red.png`)});
-   await page.mouse.move(1,1);await page.keyboard.press('Tab');await basis.focus();assert.equal(await basis.evaluate(node=>node.matches(':focus-visible')),true);const focus=await basis.evaluate(node=>({background:getComputedStyle(node).backgroundColor,color:getComputedStyle(node).color}));
-   for(const style of [report,hover,focus])assert.deepEqual(style,{background:'rgb(163, 18, 34)',color:'rgb(255, 255, 255)'});
+   let hover=null,focus=null;
+   if(title==='Duct'){
+    await basis.hover();hover=await basis.evaluate(node=>({background:getComputedStyle(node).backgroundColor,color:getComputedStyle(node).color}));if(theme===0)await basis.screenshot({path:path.join(output,`${title.replace(/\W/g,'-')}-basis-red.png`)});
+    await page.mouse.move(1,1);await page.keyboard.press('Tab');await basis.focus();assert.equal(await basis.evaluate(node=>node.matches(':focus-visible')),true);focus=await basis.evaluate(node=>({background:getComputedStyle(node).backgroundColor,color:getComputedStyle(node).color}));
+   }
+   for(const style of [report,hover,focus].filter(Boolean))assert.deepEqual(style,{background:'rgb(163, 18, 34)',color:'rgb(255, 255, 255)'});
    evidence.themes.push({title,name,normalReport,rowHoveredReport,report,hover,focus});await cycleTheme(page);
   }
  }
@@ -159,16 +176,16 @@ async function screenshot(name){await page.screenshot({path:path.join(output,nam
  const setupResponse=await setupEstimate;assert.equal(setupResponse.status(),200);await setupResponse.finished();evidence.firestopping_setup={mainEstimateCompleted:true,requestPath:new URL(setupResponse.url()).pathname};
  const fireBefore=await page.evaluate(()=>window.CeasefirePenetrations.projectSnapshot()),fireRequests=calculations;
  const toggle=page.locator('#penetration-schedule-workspace .schedule-column-toggle');await toggle.click();const firePanel=page.locator('#'+await toggle.getAttribute('aria-controls'));
- assert.equal(await firePanel.locator('[data-schedule-column-choice]').count(),11);
+ assert.equal(await firePanel.locator('[data-schedule-column-choice]').count(),13);
  await firePanel.locator('[data-schedule-column-choice="diagram"]').uncheck();await firePanel.locator('[data-schedule-column-choice="actions"]').uncheck();await firePanel.locator('[data-schedule-column-choice="delete"]').uncheck();
  for(const id of ['penetration-schedule-body','penetration-estimator-schedule-body'])assert.deepEqual(await page.locator('#'+id).evaluate(body=>[...body.children[0].children].filter(cell=>cell.hidden).map(cell=>cell.dataset.scheduleColumn)),['diagram','actions','delete']);
  await selectAll(firePanel,false);await expect(page.locator('#penetration-schedule-body').locator('xpath=ancestor::table')).toBeHidden();await expect(firePanel).toBeVisible();await selectAll(firePanel,true);await firePanel.press('Escape');assert.deepEqual(await page.evaluate(()=>window.CeasefirePenetrations.projectSnapshot()),fireBefore);assert.equal(calculations,fireRequests);
  await chooseCalculator(page,'Firestopping');await fireIdle();
  const secondRequests=calculations,secondToggle=page.locator('.penetration-estimator-schedule .schedule-column-toggle');await secondToggle.click();const secondPanel=page.locator('#'+await secondToggle.getAttribute('aria-controls'));
- assert.equal(await secondPanel.locator('[data-schedule-column-choice]').count(),11);for(const box of await secondPanel.locator('[data-schedule-column-choice]').all())await expect(box).toBeChecked();
+ assert.equal(await secondPanel.locator('[data-schedule-column-choice]').count(),13);for(const box of await secondPanel.locator('[data-schedule-column-choice]').all())await expect(box).toBeChecked();
  await secondPanel.locator('[data-schedule-column-choice="total"]').uncheck();for(const id of ['penetration-schedule-body','penetration-estimator-schedule-body'])await expect(page.locator('#'+id+' [data-schedule-column="total"]')).toBeHidden();
  await selectAll(secondPanel,false);await expect(page.locator('#penetration-estimator-schedule-body').locator('xpath=ancestor::table')).toBeHidden();await expect(secondPanel).toBeVisible();await selectAll(secondPanel,true);await secondPanel.press('Escape');assert.deepEqual(await page.evaluate(()=>window.CeasefirePenetrations.projectSnapshot()),fireBefore);assert.equal(calculations,secondRequests);
- evidence.firestopping={bothViewsSharePreference:true,bothViewsExercised:true,all11Choices:true,precisionAndDraftUnchanged:true,noCalculationRequests:true};
+ evidence.firestopping={bothViewsSharePreference:true,bothViewsExercised:true,all13Choices:true,precisionAndDraftUnchanged:true,noCalculationRequests:true};
  await Promise.all(cssResponses);for(const source of ['static/calculators.css','static/penetration.css']){const served=evidence.served_css.filter(row=>row.source===source);assert.ok(served.length>0);assert.ok(served.every(row=>row.sha256===evidence.source_sha256[source]));}
  evidence.source_sha256_after=sourceHashes();assert.deepEqual(evidence.source_sha256_after,evidence.source_sha256);assert.deepEqual(evidence.errors,[]);evidence.passed=true;
  fs.writeFileSync(path.join(output,'result.json'),JSON.stringify(evidence,null,2));console.log(`PASS schedule columns: ${output}`);

@@ -463,7 +463,7 @@ separate BOARD SUMMARY cards retain their existing behavior.
 The board CALCULATOR, BOARD SUMMARY and EXTRA BOARDS overviews use full-width
 title and note rows. The BOARD SUMMARY cards remain within that expanded layout.
 
-Split input groups into member/location, product/section or ESA/M, total lineal metres/exposure/FRL/member/temperature, then optional design/geometry controls. Row status AI9:AI208 remains visible and wrapped in normal font weight; the AI8 column heading stays bold. This presentation override does not alter the source style metadata or status text. Source Y:AI headers should not appear twice as ordinary body cells.
+Split input groups into member/location, product/section or ESA/M, total lineal metres/exposure/FRL/member/temperature, then optional geometry controls. Design reference X and Row status AI are omitted from the browser schedule and its Columns menu. Their stored values and calculation dependencies remain intact. Source Y:AI headers should not appear twice as ordinary body cells.
 
 The approved **Net Steel sqm** column appears immediately before Purchase sqm in
 BOARD SUMMARY and its PDF/values-only XLSX stock tables. Its separate read-only
@@ -578,8 +578,8 @@ Keep the alternative entry methods visibly grouped: pieces D × cut length E × 
 
 ### SETTINGS
 
-Present three independent choices in this order, with no section shown until
-the user selects it:
+The Board SETTINGS tab is hidden. Its source values remain in validation, saved
+drafts, reset and calculation dependencies. The retained internal mapping is:
 
 | Table | Visible source range | Behavior |
 | --- | --- | --- |
@@ -625,6 +625,14 @@ These four sections remain excluded from both PDFs:
 - Manual bag calculation - separate from the schedule.
 - Settings used for this report.
 
+Generated PDF and Excel documents also omit assessment narratives, workbook
+coordinates, page/table lookup evidence, diagnostic status columns, reference
+qualifications and source/data fingerprints. Report captions are the public
+reference field. Export projections leave the captured calculation snapshot and
+original report files unchanged; quantities, dimensions and commercial inputs
+remain available in their existing report scope. Portable project files are
+recovery data and retain the complete state.
+
 The single-member and manual-bag calculators and numeric editable settings remain
 available in the app. Settings still affect report quantities through the
 captured input overlay; removing their appendix does not alter calculation.
@@ -665,8 +673,8 @@ Default source examples are three duct rows, 36 board rows and one vermiculite s
 - The schedule PDF retains every populated main-schedule item and its status; the materials & summary PDF retains applicable extras, product/ancillary tables and closing totals. The four removed appendix/helper sections stay absent from both. The complete shared projection and Excel register retain all quantities, invalid/withheld states and source ordering rules; manual BAGS results are never added to schedule totals.
 - Schedule product totals match BAGS net/pooled whole quantities, contents links target their declared source sections, and all eight fire-period columns remain aligned. Read-only basis values preserve existing saved text; arbitrary new changes are rejected at HTTP/storage-save boundaries while source/default reset values remain valid.
 - Populated and blank outputs use their two prescribed highlight states consistently; zero and error text are populated. Hiding SCHEDULE V/W/X does not bypass W-dependent withheld orders or change PDF statuses. Settings source metadata and CALCULATOR third-section notes remain in source data despite their browser omission.
-- Duct SUMMARY keeps four independent tables with the visible ranges above; hiding commentary in one table does not remove angle-table E:F or alter totals. PRODUCT SETTINGS omits introductory rows, Both/Mixed block J6:Q21, USE NOTES rows 153–159 and the hidden Technical Basis ranges specified above. Board START omits its requested rows and Sources contents link, while board CALCULATOR retains every AI status in normal weight beneath a bold heading. These changes leave source formulas, input keys and PDFs unchanged.
-- All picker pages initially hide their sections, expose exactly one selected panel and retain that client selection across recalculation and page switching. Vermiculite has seven Settings and three Factor choices; START directly shows operating rules. Together they cover the same eleven source rectangles, including adjacent/helper notes. Duct and board retain five/three choices. Board SETTINGS keeps all 28 editable values, dependent dropdowns and diagnostic lookups; hidden sections remain in the complete draft, validation, save, reset and both report scopes.
+- Duct SUMMARY keeps four independent tables with the visible ranges above; hiding commentary in one table does not remove angle-table E:F or alter totals. PRODUCT SETTINGS omits introductory rows, Both/Mixed block J6:Q21, USE NOTES rows 153–159 and the hidden Technical Basis ranges specified above. Board START omits its requested rows and Sources contents link, while board CALCULATOR omits Design reference X and Row status AI. These browser changes preserve source formulas and input keys; generated downloads use the separate disclosure projection described above.
+- All picker pages initially hide their sections, expose exactly one selected panel and retain that client selection across recalculation and page switching. Vermiculite has seven Settings and three Factor choices; START directly shows operating rules. Together they cover the same eleven source rectangles, including adjacent/helper notes. Duct retains five choices. Board SETTINGS is hidden; all 28 source values, dependent dropdowns and diagnostic lookups remain in the complete draft, validation, save, reset and calculations.
 - BOARD SUMMARY cards use their source totals without duplicated card rows. CALCULATOR product totals retain the box-reference area label, valid extras, original stock rounding and incomplete counts; incomplete/unknown-product rows must not silently become complete orders.
 - BOARD SUMMARY shows only A:D and I:J within rows 11–29, retaining all eighteen stock rows, three source-total cards, the live qualification and notes A31/A35. EXTRA BOARDS hides N while retaining all forty rows and editable A:I. Saving an unrelated visible edit preserves existing N6:N45 evidence and advanced input values. Complete API results, pooled quantities and PDF contents remain unchanged.
 - Board CALCULATOR retains Y6 and every prepared input row after its introductory omissions; its CALCULATED SUMMARY section does not replace the three BOARD SUMMARY cards. Duct CALCULATOR's column order keeps header/value identities aligned, retains the underlying quantity holds and approved AL correction, and changes no source formula or report. A1 title aliases do not rename worksheet/input keys.
@@ -757,3 +765,7 @@ expectation and one HTTP error awaiting its exact trace. No clean full Python,
 build or refreshed-runtime pass is claimed here. Commit/push, PR, exact-head
 CI/review and merge remain pending at this checkpoint. Later verified Git/checks
 and `.runtime/labour-controls-qa/publication.json` supersede this record.
+
+### Report navigation and schedule cleanup (October 2026)
+
+Spray and intumescent schedules omit Thickness status, Quantity status and Basis / review note from both the table and Columns menu. Factor Calcs omits schedule-row completeness notices while retaining helper validation. Both Firestopping schedules share Report and numbered System columns with a bounded multi-selection Technical Library picker. Explicit selections and inherited Takeoffs identities are portable row metadata; library links provide the fallback. Context filters narrow the picker without automatically assigning a report to manual rows.

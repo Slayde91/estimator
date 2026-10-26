@@ -39,7 +39,7 @@ STATIC_FILES = (
     'brand-boot.css', 'brand-boot.js', 'classifire-app.ico', 'classifire-app-icon.png', 'register-references.js',
     'downloads.js', 'downloads.css', 'main-layout.js',
     'index.html', 'libraries.css', 'libraries.js', 'library-detail-text.js', 'library-editor.css',
-    'library-editor.js', 'penetration-breakdown.js', 'penetration.css', 'penetration.js', 'styles.css',
+    'library-editor.js', 'penetration-breakdown.js', 'penetration.css', 'penetration.js', 'penetration-references.js', 'styles.css',
     'header-tagline-media.js', 'header-tagline-character.gif', 'header-tagline-character-still.png',
     'header-menu-sounds.js', 'sounds/mgs1-menu-move.mp3', 'sounds/mgs-confirm2.mp3',
     'sounds/new-explosion.mp3', 'sounds/flame-whoosh.wav', 'sounds/type.mp3', 'sounds/hover.mp3', 'sounds/select.mp3', 'sounds/select-2.mp3',

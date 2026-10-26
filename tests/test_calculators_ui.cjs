@@ -44,7 +44,7 @@ let source = fs.readFileSync('static/calculators.js', 'utf8');
 source = source.replace('  window.CeasefireCalculators = { open, projectSnapshot, projectFingerprint, prepareProject, applyProject };', `
   globalThis.audit = {state,current,dirty,displayValue,numericInputValue,makeControl,refreshOutputs,setInput,calculate,save,reset,settingsPanels,importSchedule,open,
      addScheduleRow,removeScheduleRow,requestRemoveScheduleRow,refreshScheduleDeleteControls,undoScheduleRemove,projectSnapshot,projectFingerprint,prepareDefaults,markProjectSaved,choiceSignature,
-      exportTemplate,downloadSchedulePdf,downloadExcelRegister,downloadMaterialsSummaryPdf,selectCalculator,selectPage,prepareProject,applyProject,headerLabels,safeDocumentUrl,renderGrid,renderOverview,renderProductTotals,outputState,updateOutputCell,renderDocuments,renderChoices,sourceDisplayText,hiddenColumns,displayPages,
+      exportTemplate,downloadSchedulePdf,downloadExcelRegister,downloadMaterialsSummaryPdf,selectCalculator,selectPage,prepareProject,applyProject,headerLabels,safeDocumentUrl,renderGrid,renderOverview,renderProductTotals,outputState,updateOutputCell,renderDocuments,renderChoices,sourceDisplayText,hiddenColumns,displayPages,showCalculationStatus,
     setRequest(fn){request=fn;},setFetch(fn){globalThis.fetch=fn;},setRender(fn){renderGrid=fn;}};
   window.CeasefireCalculators = { open };`);
 vm.runInContext(source, context);
@@ -428,7 +428,9 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
 
   // Returning to unchanged pages reuses exact results and existing controls, including scroll position.
   entry=setup({CALCULATOR:{B9:1.23456789123},SETTINGS:{B9:.123456789}});audit.setRender(realRender);
+  audit.state.entries.delete('steel_board');audit.state.entries.set('steel_intumescent',entry);audit.state.current='steel_intumescent';entry.definition.id='steel_intumescent';
   entry.definition.pages.push('SUMMARY');entry.definition.sheets.push({name:'SUMMARY',header_rows:[],hidden_columns:[],merges:[]});
+  audit.state.list=[{id:'steel_intumescent',title:'Steel (intumescent)'}];audit.state.definitionRequests.set('steel_intumescent',Promise.resolve(entry.definition));
   const navigationRequests=[];
   const navigationResult=(inputs,sheet)=>result(copy(inputs),{sheet,warnings:[`${sheet} warning`],rows:[{row:9,cells:[
     {column:1,address:'A9',type:'select',editable:true,value:'Alpha',options:['Alpha','Beta'],allow_other:true},
@@ -443,13 +445,13 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
   assert.equal(byId('calculator-option-lists').children[0],originalNavigationList);assert.equal(originalNavigationChoice.getAttribute('list'),originalNavigationList.id);
   assert.deepEqual(originalNavigationList.children.map(option=>option.value),['Alpha','Beta']);assert.ok([...audit.state.optionLists.values()].includes(originalNavigationList.id));
   assert.equal(byId('calculator-warnings').textContent,'CALCULATOR warning');assert.equal(entry.inputs.CALCULATOR.B9,1.23456789123);
-  assert.equal(byId('calculator-sheet-title').textContent,'SCHEDULE');assert.equal(navigationRequests[0].sheet,'CALCULATOR');
-  const unchangedGrid=byId('calculator-grid').children;await audit.selectPage('CALCULATOR');await audit.selectCalculator('steel_board');
+  assert.equal(byId('calculator-sheet-title').textContent,'CALCULATOR');assert.equal(navigationRequests[0].sheet,'CALCULATOR');
+  const unchangedGrid=byId('calculator-grid').children;await audit.selectPage('CALCULATOR');await audit.selectCalculator('steel_intumescent');
   assert.equal(byId('calculator-grid').children,unchangedGrid);assert.equal(navigationRequests.length,2);passed++;
 
   // The removed Steel Spray LOOKUP cannot be selected, and its source inputs remain intact.
   entry.definition.id='steel_vermiculite';await audit.selectPage('SETTINGS');assert.equal(byId('calculator-grid').classList.contains('calculator-steel-lookup'),false);
-  await audit.selectPage('CALCULATOR');assert.equal(entry.sheet,'SETTINGS');assert.equal(entry.inputs.CALCULATOR.B9,1.23456789123);assert.equal(byId('calculator-grid').classList.contains('calculator-steel-lookup'),false);entry.definition.id='steel_board';await audit.selectPage('CALCULATOR');passed++;
+  await audit.selectPage('CALCULATOR');assert.equal(entry.sheet,'SETTINGS');assert.equal(entry.inputs.CALCULATOR.B9,1.23456789123);assert.equal(byId('calculator-grid').classList.contains('calculator-steel-lookup'),false);entry.definition.id='steel_intumescent';await audit.selectPage('CALCULATOR');passed++;
 
   // Explicit recalculate always requests; any sheet's precise edit invalidates dependent pages.
   await audit.calculate();assert.equal(navigationRequests.length,3);
@@ -476,18 +478,18 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
   assert.equal(navigationRequests.length,beforeReplacementRequests+1);assert.equal(navigationRequests.at(-1).inputs.CALCULATOR.B9,9.87654321987);passed++;
 
   // Calculator switching keeps independent warm pages and invalid text in the original draft.
-  const navigationEntry=entry,otherNavigationEntry={definition:{...copy(entry.definition),id:'ductwork',title:'Ductwork'},inputs:{CALCULATOR:{B9:44.123456789}},saved:'{}',revision:0,sheet:'CALCULATOR',page:'CALCULATOR',invalid:new Map(),result:null,needsRender:true};
+  const navigationEntry=entry,otherNavigationEntry={definition:{...copy(entry.definition),id:'ductwork',title:'Ductwork'},inputs:{CALCULATOR:{B9:44.123456789}},saved:'{}',revision:0,sheet:'CALCULATOR',page:'CALCULATOR',invalid:new Map(),labels:{},result:null,needsRender:true};
   audit.state.entries.set('ductwork',otherNavigationEntry);await audit.selectCalculator('ductwork');const afterOtherOpen=navigationRequests.length;
-  await audit.selectCalculator('steel_board');assert.equal(navigationRequests.length,afterOtherOpen);assert.equal(otherNavigationEntry.inputs.CALCULATOR.B9,44.123456789);
+  await audit.selectCalculator('steel_intumescent');assert.equal(navigationRequests.length,afterOtherOpen);assert.equal(otherNavigationEntry.inputs.CALCULATOR.B9,44.123456789);
   const invalidNavigationControl=navigationControl();invalidNavigationControl.value='invalid';await invalidNavigationControl.emit('input');
   const blockedNavigationPage=navigationEntry.page;await audit.selectPage('SETTINGS');assert.equal(navigationEntry.page,blockedNavigationPage);
-  await audit.selectCalculator('ductwork');await audit.selectCalculator('steel_board');
+  await audit.selectCalculator('ductwork');await audit.selectCalculator('steel_intumescent');
   assert.equal(navigationRequests.length,afterOtherOpen);assert.equal(navigationControl().value,'invalid');assert.equal(navigationEntry.inputs.CALCULATOR.B9,9.87654321987);
   navigationControl().value='9.87654321987';await navigationControl().emit('input');passed++;
 
   // A loaded project cannot inherit retained DOM/results from the previous project's entries.
-  const previousProjectControl=renderedControls()[0],preparedNavigation=await audit.prepareProject({steel_board:{inputs:{CALCULATOR:{B9:7.65432198765}}}});
-  audit.applyProject(preparedNavigation);const beforeProjectOpen=navigationRequests.length;await audit.selectCalculator('steel_board');
+  const previousProjectControl=renderedControls()[0],preparedNavigation=await audit.prepareProject({steel_intumescent:{inputs:{CALCULATOR:{B9:7.65432198765}}}});
+  audit.applyProject(preparedNavigation);const beforeProjectOpen=navigationRequests.length;await audit.selectCalculator('steel_intumescent');
   assert.equal(navigationRequests.length,beforeProjectOpen+1);assert.notEqual(renderedControls()[0],previousProjectControl);assert.equal(audit.current().inputs.CALCULATOR.B9,7.65432198765);passed++;
 
   // Confirmed reset/import must not reuse a dependent page from the previous draft.
@@ -635,6 +637,7 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
   assert.equal(updated,'Use START, SCHEDULE, BOARD SUMMARY and SETTINGS. Supporting reference data is retained by the application.');
   const optionalDirections='Unhide M:X for advanced inputs. M:Q controls layout, layers, lookup and installation detail. R/S = depth/width; T = area; U = mass; V = INSIDE box girth; W = added girth; X = design reference. AI gives the action directly. AJ:AV retains detailed outputs and notes.';
   assert.equal(audit.sourceDisplayText(optionalDirections,entry,'A26'),'Row status gives the required action. Saved optional inputs, detailed calculation outputs and notes remain part of the workbook rules.');
+  entry.sheet='CALCULATOR';assert.equal(audit.sourceDisplayText('Board layers calculated; complete the checks and extra-board allowances stated in AI.',entry,'Y6'),'Board layers calculated; complete the checks and extra-board allowances stated in the selected report.');
   entry.definition.id='steel_vermiculite';entry.sheet='CALCULATOR';
   assert.equal(audit.sourceDisplayText('Edit the blue cells. Check the result.',entry,'A20'),'Edit the input fields. Check the result.');
   assert.equal(audit.sourceDisplayText('Edit the blue cells. Check the result.',entry,'A21'),'Edit the blue cells. Check the result.');
@@ -865,7 +868,7 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
   assert.deepEqual(descendants(byId('calculator-grid')).filter(node=>node.dataset?.sourceRow).map(node=>node.dataset.sourceRow),['36']);
   assert.equal(JSON.stringify(entry.result),preservedSource);assert.equal(renderedControls().length,1);passed++;
 
-  // Raw V/W/X columns stay hidden; Y can show a compact preview with full notes on request.
+  // Status, source and basis columns remain in source data but are absent from this view.
   entry=setup();entry.definition.id='steel_vermiculite';entry.sheet='SCHEDULE';entry.definition.schedule.sheet='SCHEDULE';
   entry.definition.schedule.header_row=9;entry.definition.schedule.first_row=10;
   entry.definition.sheets=[{name:'SCHEDULE',header_rows:[9],merges:[],omitted_rows:[1,2,3,8],omitted_columns:[22,23,24]}];
@@ -878,7 +881,7 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
   realRender(entry);const rendered=descendants(byId('calculator-grid'));
   assert.ok(!rendered.some(node=>/^Removed introductory line/.test(node.textContent||'')));
   assert.ok(!rendered.some(node=>['V10','W10','X10'].includes(node.dataset?.calculatorOutput)));
-  assert.ok(rendered.some(node=>node.dataset?.calculatorOutput==='Y10'));
+  assert.ok(!rendered.some(node=>node.dataset?.calculatorOutput==='Y10'));
   assert.equal(renderedControls().length,1);assert.equal(entry.productTotalsElement,null);
   assert.equal(rendered.filter(node=>node.calculatorValueCard).length,0);
   assert.equal(JSON.stringify(entry.result),fullResult);passed++;
@@ -1080,19 +1083,17 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
   audit.setRender(realRender);audit.setRequest(async()=>({...entry.result,omitted_ranges:[]}));await audit.calculate();
   settingsNodes=descendants(byId('calculator-grid'));assert.ok(settingsNodes.some(node=>node.dataset?.calculatorOutput==='J6'));passed++;
 
-  // Board status body cells are normal weight on render and refresh, while the schedule header remains bold.
+  // Board row status stays in calculated source results but never renders, including refresh.
   entry=setup();entry.definition.sheets[0].max_column=35;
   entry.result=result({}, {max_column:35,visible_columns:[1,35],rows:[{row:8,cells:[{column:35,address:'AI8',value:'Row status',presentation:{role:'column_header',bold:true}}]},
     ...[9,208].map(row=>({row,cells:[{column:35,address:`AI${row}`,value:'Review required',calculated:true,presentation:{role:'output',bold:true}}]}))]});
   realRender(entry);audit.setRender(realRender);
   const statusOutputs=byId('calculator-grid').querySelectorAll('[data-calculator-output]');
-  for(const address of ['AI9','AI208']) assert.equal(statusOutputs.find(node=>node.dataset.calculatorOutput===address).classList.contains('calculator-row-status'),true);
-  assert.ok(descendants(byId('calculator-grid')).filter(node=>node.tagName==='th').every(node=>!node.classList.contains('calculator-row-status')));
-  const retainedStatus=statusOutputs.find(node=>node.dataset.calculatorOutput==='AI9');
+  for(const address of ['AI9','AI208']) assert.ok(!statusOutputs.some(node=>node.dataset.calculatorOutput===address));
+  assert.ok(!descendants(byId('calculator-grid')).some(node=>node.tagName==='th'&&node.textContent==='Row status'));
   const statusResult=copy(entry.result);statusResult.rows.find(row=>row.row===9).cells[0].value='Ready';audit.setRequest(async()=>statusResult);await audit.calculate();
-  assert.equal(byId('calculator-grid').querySelectorAll('[data-calculator-output]').find(node=>node.dataset.calculatorOutput==='AI9'),retainedStatus);
-  assert.equal(retainedStatus.textContent,'Ready');assert.equal(retainedStatus.classList.contains('calculator-row-status'),true);
-  assert.match(fs.readFileSync('static/calculators.css','utf8'),/td\.calculator-row-status\s*\{\s*font-weight:\s*400\s*!important/);passed++;
+  assert.ok(!byId('calculator-grid').querySelectorAll('[data-calculator-output]').some(node=>node.dataset.calculatorOutput==='AI9'));
+  assert.equal(entry.result.rows.find(row=>row.row===9).cells[0].value,'Ready');passed++;
 
   // Overlapping board settings source rows become three ordered tables, with every primary control exactly once.
   entry=setup();entry.sheet='SETTINGS';
@@ -1276,7 +1277,7 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
 
   // Removed board inputs keep precise overrides in snapshots, calculations and both exports.
   const retainedWaste={CALCULATOR:{A9:'Retained member',L9:0.123456789012345,L1008:0.234567890123456,M9:'Rotate',N9:123.456789012345,O9:'Double',P9:'General only',Q9:'Special / engineered',R9:203.123456789012,S9:204.123456789012,T9:58.1234567890123,U9:46.1234567890123,V9:1.23456789012345,W9:0.123456789012345,X1008:'Retained design reference'},SETTINGS:{B6:0.12}};
-  entry=setup(retainedWaste);const removedBoardColumns=Array.from({length:9},(_,index)=>index+13),boardWasteColumns=[1,11,12,...Array.from({length:23},(_,index)=>index+13)],boardWasteLabels={1:'Member mark',11:'Family (ESA input)',12:'Waste (%)',13:'Exposure layout',14:'Partial depth (mm)',15:'Layer preference',16:'Thickness lookup',17:'Installation detail',18:'Depth or OD (mm)',19:'Width B (mm)',20:'Steel area (cm2)',21:'Steel mass (kg/m)',22:'Box girth override (m)',23:'Added girth (m)',24:'Design reference',25:'ESA/M used (m2/t)',26:'Board stack (mm)',27:'Layers',28:'Total thickness (mm)',29:'Bare box girth (m)',30:'Box reference area (m2)',31:'Board net (m²)',32:'Board incl waste (m2)',33:'Sheets',34:'Purchase area (m2)',35:'Row status'};
+  entry=setup(retainedWaste);const removedBoardColumns=[...Array.from({length:9},(_,index)=>index+13),24,35],boardWasteColumns=[1,11,12,...Array.from({length:23},(_,index)=>index+13)],boardWasteLabels={1:'Member mark',11:'Family (ESA input)',12:'Waste (%)',13:'Exposure layout',14:'Partial depth (mm)',15:'Layer preference',16:'Thickness lookup',17:'Installation detail',18:'Depth or OD (mm)',19:'Width B (mm)',20:'Steel area (cm2)',21:'Steel mass (kg/m)',22:'Box girth override (m)',23:'Added girth (m)',24:'Design reference',25:'ESA/M used (m2/t)',26:'Board stack (mm)',27:'Layers',28:'Total thickness (mm)',29:'Bare box girth (m)',30:'Box reference area (m2)',31:'Board net (m²)',32:'Board incl waste (m2)',33:'Sheets',34:'Purchase area (m2)',35:'Row status'};
   const boardColumnName=column=>column>26?`A${String.fromCharCode(64+column-26)}`:String.fromCharCode(64+column);
   entry.definition.schedule.columns=boardWasteColumns.map(column=>({column:boardColumnName(column),label:boardWasteLabels[column]}));
   entry.definition.schedule.last_row=1008;entry.definition.sheets=[{name:'CALCULATOR',header_rows:[8],omitted_columns:[14],merges:[]}];
@@ -1291,14 +1292,14 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
   const wasteDownloads=[];audit.setFetch(async(url,options)=>{wasteDownloads.push(JSON.parse(options.body).inputs);return fileSaved(url.endsWith('.pdf')?'APPENDIX A.pdf':'APPENDIX A.xlsx');});
   await audit.downloadSchedulePdf();await audit.downloadExcelRegister();assert.equal(wasteDownloads.length,2);for(const captured of wasteDownloads)assert.deepEqual(captured,retainedWaste);
   assert.deepEqual(copy(entry.inputs),retainedWaste);assert.equal(entry.saved,wasteSaved);passed++;
-  // Explicit registers retain their other native columns; the nine removed
+  // Explicit registers retain their other native columns; the removed
   // inputs cannot return through the chooser, re-render or recalculation.
   entry.result.register_columns=boardWasteColumns;
   realRender(entry);
-  const visibleBoardColumns=boardWasteColumns.filter(column=>!removedBoardColumns.includes(column)),removedBoardNames='MNOPQRSTU'.split('');
+  const visibleBoardColumns=boardWasteColumns.filter(column=>!removedBoardColumns.includes(column)),removedBoardNames=[...'MNOPQRSTU','X','AI'];
   assert.deepEqual(renderedTable().children[1].children[0].children.map(cell=>cell.textContent),visibleBoardColumns.map(column=>boardWasteLabels[column]));
   assert.ok(entry.scheduleColumnChoices.every(choice=>!removedBoardNames.some(column=>choice.id===`column:${column}`)));
-  for(const column of ['L','V','W','X','Y','AA','AC','AD'])assert.ok(entry.scheduleColumnChoices.some(choice=>choice.id===`column:${column}`));
+  for(const column of ['L','V','W','Y','AA','AC','AD'])assert.ok(entry.scheduleColumnChoices.some(choice=>choice.id===`column:${column}`));
   assert.ok(renderedControls().every(control=>!removedBoardNames.some(column=>control.dataset.calculatorCell===`${column}9`||control.dataset.calculatorCell===`${column}1008`)));
   assert.ok(renderedControls().some(control=>control.dataset.calculatorCell==='L9'));
   const advancedSource=JSON.stringify(entry.result),advancedDefinition=JSON.stringify(entry.definition),boardCalculationRequests=[];
@@ -1321,7 +1322,7 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
     {row:9,cells:sprayColumns.map(column=>({column,address:`${sprayColumnName(column)}9`,value:sprayLabels[column-1]}))},
     ...[10,1009].map(row=>({row,cells:sprayColumns.map(column=>({column,address:`${sprayColumnName(column)}${row}`,value:entry.inputs.SCHEDULE[`${sprayColumnName(column)}${row}`]??null,editable:column<=12||column===27,type:column===7?'number':'text',calculated:column>=13&&column<=25}))}))]});
   const spraySource=JSON.stringify(entry.result),sprayDefinition=JSON.stringify(entry.definition),sprayInputs=JSON.stringify(entry.inputs);
-  const sprayDisplayOrder=[26,27,1,5,6,3,4,2,8,9,10,25,7,11,12,13,14,15,16,17,18,19,20,21];
+  const sprayDisplayOrder=[26,27,1,5,6,3,4,2,8,9,10,7,11,12,13,14,15,16,17,18,19,20,21];
   realRender(entry);audit.setRender(realRender);
   const sprayTable=renderedTable(),sprayRows=sprayTable.children.at(-1).children;
   assert.deepEqual(sprayTable.children[1].children[0].children.map(node=>node.textContent),sprayDisplayOrder.map(column=>column===15?'DFT (mm)':sprayLabels[column-1]));
@@ -1333,8 +1334,9 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
   assert.equal(JSON.stringify(entry.definition),sprayDefinition);assert.equal(JSON.stringify(entry.result),spraySource);passed++;
   const expandedInputs=JSON.stringify(entry.inputs);
   entry.result.register_columns=[26,27,...sprayColumns.slice(0,25)];realRender(entry);
-  assert.equal(renderedTable().children[1].children[0].children.length,27);
-  for(const column of ['V','W','X'])assert.ok(descendants(byId('calculator-grid')).some(node=>node.dataset?.calculatorOutput===`${column}10`));
+  assert.equal(renderedTable().children[1].children[0].children.length,24);
+  for(const column of ['V','W','Y'])assert.ok(!descendants(byId('calculator-grid')).some(node=>node.dataset?.calculatorOutput===`${column}10`));
+  assert.ok(descendants(byId('calculator-grid')).some(node=>node.dataset?.calculatorOutput==='X10'));
   assert.equal(JSON.stringify(entry.inputs),expandedInputs);assert.equal(JSON.stringify(entry.definition),sprayDefinition);passed++;
 
   // Browser text overrides cover headers and contents, while omitted titles,
@@ -1613,7 +1615,7 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
       {row:117,cells:[{column:1,address:'A117',value:'Another FyreWrap setting'},{column:10,address:'J117',value:'Penetration source record'}]},
     ].sort((left,right)=>left.row-right.row)},
   ];
-  for(const scenario of chooserCases) {
+  for(const scenario of chooserCases.filter(scenario=>scenario.id!=='steel_board')) {
     entry=setup();audit.state.entries.delete('steel_board');audit.state.entries.set(scenario.id,entry);audit.state.current=scenario.id;
     entry.definition.id=scenario.id;entry.sheet=scenario.sheet;entry.definition.pages=[scenario.sheet,'CALCULATOR'];entry.definition.schedule.sheet='CALCULATOR';
     entry.definition.sheets=[{name:scenario.sheet,header_rows:[],merges:[],...copy(scenario.metadata),navigation_mode:'select',settings_sections:copy(scenario.sections)},{name:'CALCULATOR',header_rows:[8],merges:[]}];
@@ -1846,12 +1848,12 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
     assert.equal(JSON.stringify(entry.definition),rawDefinition);assert.equal(JSON.stringify(entry.result),rawResult);passed++;
   }
 
-  // Steel Report and basis follow member length together. Headers, source cells,
+  // Steel Report follows member length. Removed status/basis source cells remain
   // widths and removal controls keep the same identities in both steel views.
   for(const id of ['steel_vermiculite','steel_intumescent']){
     entry=setup({SCHEDULE:{I10:2,J10:1.23456789012345}});entry.definition.id=id;entry.sheet='SCHEDULE';entry.scheduleRows=[10];
-    const labels={1:'Item / mark',9:'Quantity',10:'Length / member (m)',15:id==='steel_vermiculite'?'Published thickness (mm)':'DFT (µm)',24:'Thickness source',25:'Basis / review note'};
-    const columns=[1,9,10,15,24,25],letters=column=>String.fromCharCode(64+column);
+    const labels={1:'Item / mark',9:'Quantity',10:'Length / member (m)',15:id==='steel_vermiculite'?'Published thickness (mm)':'DFT (µm)',22:'Thickness status',23:'Quantity status',24:'Thickness source',25:'Basis / review note'};
+    const columns=[1,9,10,15,22,23,24,25],letters=column=>String.fromCharCode(64+column);
     entry.definition.schedule={sheet:'SCHEDULE',header_row:9,first_row:10,last_row:1009,columns:columns.map(column=>({column:letters(column),label:labels[column]}))};
     entry.definition.sheets=[{name:'SCHEDULE',header_rows:[9],merges:[]}];
     entry.result=result(copy(entry.inputs),{sheet:'SCHEDULE',max_column:25,register_columns:columns,schedule_view:{offset:0,rows:[10],total_rows:1},rows:[
@@ -1859,13 +1861,36 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
       {row:10,report_references:[],cells:columns.map(column=>({column,address:`${letters(column)}10`,value:column===10?1.23456789012345:column===24?'Retained source reference':column===25?'Retained basis note':2,calculated:column>=15}))},
     ]});
     const rawResult=JSON.stringify(entry.result),rawInputs=JSON.stringify(entry.inputs);realRender(entry);
-    const table=renderedTable(),ids=['column:A','column:I','column:J','virtual:report','column:Y','column:O','virtual:actions'];
+    const table=renderedTable(),ids=['column:A','column:I','column:J','virtual:report','column:O','virtual:actions'];
     assert.deepEqual(table.children.find(node=>node.tagName==='thead').children[0].children.map(cell=>cell.dataset.scheduleColumn),ids);
     assert.deepEqual(table.children.find(node=>node.tagName==='tbody').children[0].children.map(cell=>cell.dataset.scheduleColumn),ids);
     assert.equal(table.children[0].children.length,ids.length);assert.deepEqual(copy(entry.scheduleColumnChoices).map(column=>column.id),ids);
     assert.equal(entry.scheduleColumnChoices.find(column=>column.id==='column:O').label,id==='steel_vermiculite'?'DFT (mm)':'DFT (µm)');
     assert.equal(JSON.stringify(entry.result),rawResult);assert.equal(JSON.stringify(entry.inputs),rawInputs);passed++;
   }
+
+  // A former Board Settings selection returns to the schedule, with the complete
+  // saved settings and hidden design reference retained in the draft.
+  entry=setup({CALCULATOR:{X9:'Existing design reference'},SETTINGS:{B6:0.1234567890123}});
+  entry.definition.pages.push('BOARD SUMMARY');entry.definition.sheets.push({name:'BOARD SUMMARY',header_rows:[],merges:[]});
+  entry.page='SETTINGS';entry.sheet='SETTINGS';entry.scheduleRows=[];entry.result=result(copy(entry.inputs),{sheet:'SETTINGS'});entry.needsRender=false;audit.state.gridEntry=entry;
+  const hiddenPageDefinition=JSON.stringify(entry.definition),hiddenPageInputs=JSON.stringify(entry.inputs),hiddenPageRequests=[];
+  audit.setRequest(async(path,options)=>{const body=JSON.parse(options.body);hiddenPageRequests.push(body);return result(copy(body.inputs),{sheet:body.sheet});});
+  await audit.selectCalculator('steel_board');assert.equal(entry.page,'CALCULATOR');assert.equal(entry.sheet,'CALCULATOR');
+  assert.equal(hiddenPageRequests.length,1,byId('calculator-message').textContent);assert.equal(hiddenPageRequests[0].sheet,'CALCULATOR');
+  assert.deepEqual(copy(audit.displayPages(entry.definition)).map(page=>page.id),['CALCULATOR','BOARD SUMMARY']);
+  await audit.selectPage('SETTINGS');assert.equal(entry.page,'CALCULATOR');assert.equal(hiddenPageRequests.length,1);
+  assert.equal(JSON.stringify(entry.inputs),hiddenPageInputs);assert.equal(JSON.stringify(entry.definition),hiddenPageDefinition);passed++;
+
+  // Factor helpers suppress only the unrelated schedule-completion summary.
+  // Returning to a schedule restores it, and genuine worksheet warnings remain.
+  entry=setup();entry.definition.id='steel_vermiculite';entry.factorView=true;entry.scheduleRows=[];
+  const reviewResult={warnings:['Specific helper warning'],required_review_rows:[10,11]},reviewSource=JSON.stringify(reviewResult);
+  audit.showCalculationStatus(entry,reviewResult);assert.equal(byId('calculator-warnings').textContent,'Specific helper warning');
+  entry.factorView=false;audit.showCalculationStatus(entry,reviewResult);assert.match(byId('calculator-warnings').textContent,/Complete required fields on 2 schedule row\(s\)\./);
+  assert.ok(byId('calculator-warnings').textContent.includes('Specific helper warning'));
+  entry.factorView=true;audit.showCalculationStatus(entry,{required_review_rows:[10,11]});assert.equal(byId('calculator-warnings').hidden,true);
+  assert.equal(JSON.stringify(reviewResult),reviewSource);passed++;
 
   // Calculator tables always leave vertical wheel scrolling to the page;
   // selecting an input must not collapse a table into an inner viewport.
@@ -2642,6 +2667,13 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
     audit.updateOutputCell(heading, {address: 'A6', value: 'Nominal steel density', presentation: {role: 'body'}});
     assert.equal(heading.textContent, messages['Nominal steel density'][localeIndex], 'plain-weight settings row labels are translated');
     entry.sheet = 'CALCULATOR';
+    const boardNote = {address: 'Y6', calculated: true, value: 'Incomplete order: 2 row(s) have no board quantity. Resolve their notes in AI before ordering.'};
+    const boardNoteBefore = JSON.stringify(boardNote);
+    audit.updateOutputCell(heading, boardNote);
+    assert.equal(heading.textContent, translate('Incomplete order: {0} row(s) have no board quantity. Review the selected report before ordering.', [2]));
+    assert.equal(JSON.stringify(boardNote), boardNoteBefore, 'translated board guidance retains the original formula result');
+    audit.updateOutputCell(heading, {...boardNote, address: 'A9'});
+    assert.equal(heading.textContent, boardNote.value, 'an identical user member mark is not translated');
     const before = JSON.stringify(entry.inputs), beam = audit.makeControl({address: 'I9', column: 9, type: 'select', value: 'Beam', options: ['Beam', 'Column']}, 9, entry, 'Beam or Column');
     assert.equal(beam.value, 'Beam'); assert.equal(JSON.stringify(entry.inputs), before);
     assert.equal(beam.children.find(option => option.value === 'Beam').textContent, messages.Beam[localeIndex]);

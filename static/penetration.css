@@ -29,8 +29,10 @@
 .penetration-schedule :is(th,td):nth-child(6){width:80px}
 .penetration-schedule :is(th,td):nth-child(7){width:90px}
 .penetration-schedule :is(th,td):nth-child(8){width:90px}
-.penetration-schedule :is(th,td):nth-child(10){width:72px}
-.penetration-schedule :is(th,td):nth-child(11){width:56px}
+.penetration-schedule :is(th,td):nth-child(10){width:190px}
+.penetration-schedule :is(th,td):nth-child(11){width:100px}
+.penetration-schedule :is(th,td):nth-child(12){width:72px}
+.penetration-schedule :is(th,td):nth-child(13){width:56px}
 .penetration-schedule :is(input,select){width:100%;min-width:0;max-width:100%;box-sizing:border-box;min-height:44px}
 .penetration-schedule td{vertical-align:middle;max-width:300px;overflow-wrap:anywhere}
 .penetration-schedule td:nth-child(7),.penetration-schedule td:nth-child(8){text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
@@ -160,3 +162,17 @@
 .penetration-schedule-recalculate-tools>.schedule-column-chooser{margin-inline-start:auto}
 .penetration-schedule table[data-column-choices]{min-width:0}
 .penetration-schedule [data-schedule-column][hidden],.penetration-schedule table[data-column-choices][hidden]{display:none!important}
+.penetration-schedule-reports,.penetration-schedule-systems{overflow-wrap:anywhere;white-space:normal}
+.penetration-schedule-reports .penetration-choose-references{display:inline-block;margin-top:6px}
+.penetration-reference-picker{width:min(960px,calc(100vw - 36px));max-width:960px;max-height:90vh;overflow:auto;background:var(--surface,var(--paper,#fff))}
+.penetration-reference-picker .penetration-reference-search{display:flex;align-items:end;gap:12px;flex-wrap:wrap}
+.penetration-reference-search>.field{flex:1;min-width:200px}
+.penetration-reference-filters{display:grid;grid-template-columns:repeat(auto-fit,minmax(175px,1fr));gap:12px;margin:16px 0}
+.penetration-reference-choice{display:flex;align-items:center;flex-wrap:wrap;gap:12px;border-bottom:1px solid var(--line);padding:12px 0}
+.penetration-reference-choice>label{display:flex;align-items:flex-start;gap:12px;flex:1;min-width:0}
+.penetration-reference-choice>label>input{flex:0 0 auto;width:20px;height:20px}
+.penetration-reference-choice strong,.penetration-reference-choice .helper{display:block;overflow-wrap:anywhere}
+.penetration-reference-preview{flex-basis:100%;padding:12px;border:1px solid var(--line);border-radius:8px;min-width:0;overflow-wrap:anywhere}
+.penetration-reference-selection{border-top:1px solid var(--line);margin-top:18px;padding-top:12px}
+.penetration-reference-selection-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:6px 0;overflow-wrap:anywhere}
+.penetration-reference-picker>.actions{flex-wrap:wrap;margin-top:16px}

@@ -128,7 +128,7 @@ class PhysicalV2ExportTests(unittest.TestCase):
                         self.assertTrue(all(row['record_scope'] == 'active' for row in rows))
                         if selection != 'all':
                             self.assertTrue(all(row['confirmation'] == selection for row in rows))
-                        self.assertTrue(all(row['graph_sha256'] == physical.graph_digest(graph) for row in rows))
+                        self.assertTrue(all('graph_sha256' not in row for row in rows))
                         self.assertEqual(records(workbook['Historical Entities']), [])
                         self.assertEqual({row['entity_id'] for row in records(workbook['Evidence'])}, expected & {uid(3), uid(5)})
                         service = next((row for row in rows if row['entity_id'] == uid(3)), None)

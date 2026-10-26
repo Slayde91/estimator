@@ -186,7 +186,7 @@ class RegisterCopyTests(unittest.TestCase):
         try:
             self.assertEqual(workbook.sheetnames, ['Defect Reports'])
             self.assertEqual(rows[0], ('Defect ID', 'Barrier ID', 'Service ID', 'Confirmation', 'Location', 'FRL',
-                'Substrate', 'Orientation', 'Category', 'Service type', 'Service quantity', 'Service Size (mm)', 'Report', 'System', 'Source evidence'))
+                'Substrate', 'Orientation', 'Category', 'Service type', 'Service quantity', 'Service Size (mm)', 'Report', 'Source evidence'))
             self.assertEqual([row[:3] for row in rows[1:]], [('D-0001', None, None), ('D-0001', 'B-0001', None),
                 ('D-0001', 'B-0001', 'S-0001'), ('D-0001', 'B-0002', None)])
             self.assertTrue(all(row[3] == 'Confirmed' for row in rows[1:]))
@@ -204,7 +204,7 @@ class RegisterCopyTests(unittest.TestCase):
         workbook, sheet, rows = read(export_physical_register(case.graph, confirmation='confirmed')[0])
         try:
             self.assertEqual(len(rows), 1)
-            self.assertEqual(sheet.auto_filter.ref, 'A1:O1')
+            self.assertEqual(sheet.auto_filter.ref, 'A1:N1')
         finally: workbook.close()
 
     def test_physical_reference_cells_are_literal_complete_and_do_not_change_graph(self):
@@ -217,7 +217,7 @@ class RegisterCopyTests(unittest.TestCase):
         try:
             row = next(row for row in rows[1:] if row[2] == 'S-0001')
             self.assertEqual(row[rows[0].index('Report')], '=Exact Rev A — https://tfire.com.au/documents/report.pdf | Private report')
-            self.assertEqual(row[rows[0].index('System')], 'Alpha-1 (test-1), 2 (test-2)')
+            self.assertNotIn('System', rows[0])
             self.assertFalse(any(cell.data_type == 'f' or cell.hyperlink for cells in sheet for cell in cells))
         finally: workbook.close()
         self.assertEqual(case.graph, before)

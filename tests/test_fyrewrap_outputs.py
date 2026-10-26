@@ -65,15 +65,15 @@ class FyreWrapOutputTests(unittest.TestCase):
                     self.assertIn('Primary qty withheld', text)
                     self.assertIn('91.08', text)
                     continue
-                self.assertIn('FyreWrap application notes', text)
-                self.assertEqual(text.count(' '.join(FYREWRAP_DIRECTION_NOTE.split())), 1)
+                self.assertNotIn('FyreWrap application notes', text)
+                self.assertEqual(text.count(' '.join(FYREWRAP_DIRECTION_NOTE.split())), 0)
                 for note in self.data['application_notes']:
-                    self.assertEqual(text.count(' '.join(note.split())), 1)
-                self.assertIn('internal 120/120/120; external 120/120/-', text)
-                self.assertIn('external 120/120/60; internal not required', text)
-                self.assertIn('external 120/120/-; internal not selected', text)
+                    self.assertEqual(text.count(' '.join(note.split())), 0)
+                self.assertNotIn('internal 120/120/120; external 120/120/-', text)
+                self.assertNotIn('external 120/120/60; internal not required', text)
+                self.assertNotIn('external 120/120/-; internal not selected', text)
                 self.assertNotIn('full selected FRL', text)
-                self.assertIn('Wrap total withheld: matching penetration detail required.', text)
+                self.assertNotIn('Wrap total withheld: matching penetration detail required.', text)
         self.assertEqual(self.data, before)
 
     def test_excel_summary_discloses_exact_notes_and_schedule_quantities_stay_separate(self):
@@ -83,15 +83,15 @@ class FyreWrapOutputTests(unittest.TestCase):
         try:
             summary = workbook['Summary']
             note_cells = [cell for row in summary for cell in row if cell.value in self.data['application_notes']]
-            self.assertEqual([cell.value for cell in note_cells], self.data['application_notes'])
+            self.assertEqual(note_cells, [])
             self.assertTrue(all(cell.data_type == 's' and cell.alignment.wrap_text for cell in note_cells))
             text = ' '.join(str(cell.value) for row in summary for cell in row if cell.value is not None)
-            self.assertIn('FyreWrap application notes', text)
-            self.assertIn('internal 120/120/120; external 120/120/-', text)
-            self.assertIn('external 120/120/60; internal not required', text)
-            self.assertIn('external 120/120/-; internal not selected', text)
+            self.assertNotIn('FyreWrap application notes', text)
+            self.assertNotIn('internal 120/120/120; external 120/120/-', text)
+            self.assertNotIn('external 120/120/60; internal not required', text)
+            self.assertNotIn('external 120/120/-; internal not selected', text)
             self.assertNotIn('full selected FRL', text)
-            self.assertIn('Wrap total withheld: matching penetration detail required.', text)
+            self.assertNotIn('Wrap total withheld: matching penetration detail required.', text)
             schedule = workbook['Schedule']
             headers = {cell.value: cell.column for cell in schedule[5]}
             wrap_column = headers['Wrap material (m²)']
@@ -99,7 +99,7 @@ class FyreWrapOutputTests(unittest.TestCase):
             self.assertAlmostEqual(schedule.cell(8, wrap_column).value, 37.0328, places=8)
             self.assertIsNone(schedule.cell(9, wrap_column).value)
             self.assertAlmostEqual(schedule.cell(10, wrap_column).value, 20.636, places=8)
-            self.assertEqual(schedule.cell(9, headers['Status']).value, self.data['rows'][3]['values']['J'])
+            self.assertNotIn('Status', headers)
             self.assertNotIn('FyreWrap application notes', [cell.value for row in schedule for cell in row])
         finally:
             workbook.close()

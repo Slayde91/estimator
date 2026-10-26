@@ -22,6 +22,7 @@ from .report import _Report, _company_header, _register_fonts, _number, _numeric
 from .workbook_calculators import (FYREWRAP_DIRECTION_NOTE, calculator_engine,
                                    normalize_calculator_inputs, source_model)
 from .board_steel_area import board_net_steel_areas, steel_area_display
+from .download_disclosure import calculator_download_data
 
 
 _WIDTH, _HEIGHT = landscape(A4)
@@ -379,7 +380,7 @@ def project_calculator_report(calculator_id, inputs=None):
 class _ScheduleReport(_Report):
     def __init__(self, data, project_details=None, page_size=landscape(A4)):
         super().__init__({})
-        self.data = data
+        self.data = calculator_download_data(data)
         self.project_details = project_details or {}
         self.width, self.height = page_size
         self.content_width = self.width - 2 * _MARGIN
@@ -461,9 +462,20 @@ class _ScheduleReport(_Report):
             self.story.extend(self.p(note, 'small') for note in data['application_notes'])
         if materials and data['id'] not in {'steel_vermiculite', 'ductwork'}:
             self.story.append(self.p('Totals use available source results and can exclude unresolved quantities. Read each item status and the product order summary before ordering.', 'small'))
+        if materials:
+            references = []
+            for item in data['rows']:
+                for reference in item['report_references']:
+                    if reference not in references:
+                        references.append(reference)
+            if references:
+                self.story.append(self.p('Report', 'subheading'))
+                self.story.append(self.report_links(references))
 
     def schedule(self):
         data = self.data
+        for notice in data['quantity_notices']:
+            self.story.append(self.p(notice, 'alert'))
         self.story.append(self.p('Full schedule', 'section'))
         if not data['rows']:
             self.story.append(self.p('No schedule inputs are entered.'))
@@ -507,18 +519,15 @@ class _ScheduleReport(_Report):
         else:
             heads = ['Line', 'Item / mark', 'Location', 'Product', 'Section', 'Design min / °C', 'Board stack mm', 'Total thickness mm', 'Box ref. m²', 'Net board m²', 'With waste m²', 'Sheets / line', 'Status']
             fractions = [.055, .075, .08, .10, .07, .07, .075, .08, .065, .07, .07, .065, .125]
-        position = len(heads) if data['id'] == 'steel_vermiculite' else len(heads) - 1
+        if heads[-1] == 'Status':
+            heads.pop()
+            fractions.pop()
+            for cells in rows:
+                cells.pop()
+        position = len(heads)
         heads.insert(position, 'Report')
-        if data['id'] == 'steel_vermiculite':
-            for index in (1, 2, 3, 4):
-                fractions[index] -= .025
-        elif data['id'] == 'steel_board':
-            # The 14-column board schedule uses landscape A3, matching its
-            # spreadsheet register, so identifiers and status remain readable.
-            fractions = [size / (sum(fractions) + .10) for size in fractions]
-        else:
-            fractions[-1] -= .10
-        fractions.insert(position, 1 - sum(fractions) if data['id'] == 'steel_board' else .10)
+        fractions.append(.12)
+        fractions = [size / sum(fractions) for size in fractions]
         for cells, item in zip(rows, data['rows']):
             cells.insert(position, self.report_links(item['report_references']))
         table = self.table(heads, rows, [self.content_width * size for size in fractions], compact=True)
@@ -534,15 +543,6 @@ class _ScheduleReport(_Report):
                    for index, cell in enumerate(row)):
                 table.setStyle(TableStyle([('VALIGN', (0, row_index), (-1, row_index), 'TOP')]))
         self.story.append(table)
-        if data['id'] == 'steel_vermiculite':
-            references = {}
-            for item in data['rows']:
-                reference = item.get('assessment_reference') or item.get('source_reference')
-                if reference:
-                    references.setdefault(reference, []).append(str(item['line']))
-            for reference, lines in references.items():
-                self.story.append(self.p('Thickness source for schedule lines ' +
-                                         ', '.join(lines) + ': ' + reference, 'small'))
 
     def extras(self):
         data = self.data
@@ -555,6 +555,8 @@ class _ScheduleReport(_Report):
 
     def product_totals(self):
         data = self.data
+        for notice in data['quantity_notices']:
+            self.story.append(self.p(notice, 'alert'))
         summaries = [(summary, _material_rows(data['id'], summary)) for summary in data['summaries']
                      if not (data['id'] == 'ductwork' and summary['title'] in {
                          'Working spray yields', 'Penetration angles by size and location',
@@ -598,12 +600,7 @@ class _ScheduleReport(_Report):
                 # Excel export retain every source quantity and order field.
                 columns = ['A', 'C', 'D', 'G']
                 labels['G'] = 'Whole bags'
-            fractions = ([.17, .065, .085, .085, .09, .07, .09, .065, .065, .095, .105, .11]
-                         if data['id'] == 'steel_board' else
-                         [.40, .20, .20, .20] if data['id'] == 'steel_vermiculite' else
-                         [.16, .045, .09, .085, .08, .075, .095, .08, .14, .15] if len(columns) == 10 else
-                         [.16, .12, .13, .15, .18, .26] if len(columns) == 6 else
-                         [.095, .10, .10, .10, .10, .10, .11, .11, .185])
+            fractions = [.40, .20, .20, .20] if data['id'] == 'steel_vermiculite' else [.22] + [.10] * (len(columns) - 1)
             # Normalize explicit width weights to avoid accumulated layout drift.
             widths = [self.content_width * value / sum(fractions) for value in fractions]
             rows = []
@@ -654,6 +651,7 @@ def _build_calculator_pdf(calculator_id, inputs, *, materials, project_details=N
     page_size = landscape(A3 if calculator_id == 'steel_board' and not materials else A4)
     width, height = page_size
     report = _ScheduleReport(data, project_details, page_size)
+    data = report.data
     report.overview(materials=materials, include_project_details=include_project_details, project_report_title=project_report_title)
     if data.get('assessment_notes'):
         # Assessment evidence can occupy several pages. Start its quantities

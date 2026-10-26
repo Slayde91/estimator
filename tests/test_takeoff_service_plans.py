@@ -161,7 +161,7 @@ class ServicePlansModelTests(unittest.TestCase):
         self.assertNotIn('frl', json.loads(service['fields_json']))
         self.assertEqual(barrier_summary(graph, graph['barriers'][0])[-1], '0 services')
         self.assertIn('4 ×', barrier_summary(graph, graph['barriers'][1])[-1])
-        self.assertEqual(json.loads(rows[0]['marker_json']), self.marker)
+        self.assertEqual(json.loads(rows[0]['marker_json']), {key: value for key, value in self.marker.items() if key != 'document_sha256'})
         workbook = load_workbook(BytesIO(export_physical_graph(graph, 'xlsx')[0])); self.addCleanup(workbook.close)
         self.assertNotIn('Defects', workbook.sheetnames)
         self.assertIn('frl', [cell.value for cell in workbook['Barriers'][1]])
@@ -368,7 +368,7 @@ class ServicePlansProjectTests(unittest.TestCase):
         csv_bytes = export_physical_graph(before['service_plans'], 'csv')[0]
         details = list(csv.DictReader(StringIO(csv_bytes.decode('utf-8-sig'))))
         row = next(value for value in details if value['entity_type'] == 'service')
-        self.assertEqual(json.loads(row['annotation_json']), locator)
+        self.assertEqual(json.loads(row['annotation_json']), {key: value for key, value in locator.items() if key != 'document_sha256'})
         case.library.save_as({**deepcopy(case.base), 'takeoffs': before, 'takeoffs_session_id': case.session['session_id']})
         case.dialogs.opened = str(case.target); reopened = case.library.open_file()
         self.assertEqual(reopened['takeoffs_issues'], [])

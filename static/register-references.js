@@ -10,6 +10,7 @@
   const caption = value => ["Manufacturer not recorded", "Assessment not identified in source"].includes(value) && root.CeasefireI18n?.translate ? root.CeasefireI18n.translate(value) : value;
   function publicURL(value) {
     if (typeof value !== "string" || !value || /[\s<>"\\\x00-\x1f\x7f]/.test(value)) return null;
+    if (/^\/api\/libraries\/documents\/[A-Za-z0-9][A-Za-z0-9_.:-]{0,199}\.pdf$/.test(value)) return value;
     try { const url = new URL(value); return url.protocol === "https:" && !url.username && !url.password ? value : null; } catch (_) { return null; }
   }
   function renderReports(references, options = {}) {

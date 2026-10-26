@@ -15,7 +15,7 @@ from pypdf.generic import ArrayObject, DecodedStreamObject, DictionaryObject, Fl
 from reportlab.pdfgen import canvas
 
 from estimator.catalog import ValidationError
-from estimator.takeoff_exports import export_workspace
+from estimator.takeoff_exports import export_workspace, linked_register_results, linked_result_text
 from estimator.takeoff_markup_pdf_worker import page_transform, transform
 from tests import test_takeoff_workspace as fixtures
 from tests import test_takeoff_project as project_fixtures
@@ -80,7 +80,7 @@ class TakeoffCurrentExportTests(unittest.TestCase):
         self.assertEqual(rows[0]['Exposed sides'], 3); self.assertEqual(rows[0]['Critical temperature C'], 550)
         self.assertEqual(rows[0]['Notes'], 'Retained notes'); self.assertEqual(rows[0]['Zone'], 'Z9')
         self.assertIsNone(rows[1]['Quantity']); self.assertIsNone(rows[1]['Total length m'])
-        self.assertTrue(rows[1]['Issues']); self.assertIsNone(rows[1]['Confirmation digest'])
+        self.assertTrue(rows[1]['Issues']); self.assertNotIn('Confirmation digest', rows[1])
         self.assertEqual(json.loads(rows[0]['All item properties'])['critical_temperature'], 550)
         self.assertEqual(self.case.service.get(self.case.sid)['snapshot'], before)
         with self.assertRaisesRegex(ValidationError, 'every item'):
@@ -94,7 +94,11 @@ class TakeoffCurrentExportTests(unittest.TestCase):
         self.case.apply(self.case.preview(identifier))
         draft = self.case.state['calculator']; supplied = {draft['id']: {key: draft[key] for key in ('inputs', 'schedule_rows')}}
         row = self.rows(self.export(calculator_drafts=supplied)[0])[0]
-        data = json.loads(row['Calculator result provenance'])[0]
+        self.assertNotIn('Calculator result provenance', row)
+        state = self.case.state['snapshot']
+        data = linked_register_results(state, {'expected_revision': state['revision'], 'calculator_drafts': supplied},
+                                       store=self.case.store)['linked_results'][identifier][0]
+        self.assertEqual(row['Linked calculator result'], linked_result_text([data]))
         self.assertEqual(data['status'], 'Current'); self.assertGreater(data['estimating_thickness_mm'], 0)
         self.assertIn('mm estimating', row['Linked calculator result'])
         from estimator.workbook_calculators import calculator_session
@@ -114,7 +118,12 @@ class TakeoffCurrentExportTests(unittest.TestCase):
         self.case.command('update_item', item_id=identifier, changes={'fields': {'product': 'TRAFALGAR COREX', 'critical_temperature': 620}})
         self.case.command('confirm_items', item_ids=[identifier]); self.case.apply(self.case.preview(identifier, 'steel_board'))
         draft = self.case.state['calculator']; supplied = {draft['id']: {key: draft[key] for key in ('inputs', 'schedule_rows')}}
-        record = json.loads(self.rows(self.export(calculator_drafts=supplied)[0])[0]['Calculator result provenance'])[0]
+        row = self.rows(self.export(calculator_drafts=supplied)[0])[0]
+        self.assertNotIn('Calculator result provenance', row)
+        state = self.case.state['snapshot']
+        record = linked_register_results(state, {'expected_revision': state['revision'], 'calculator_drafts': supplied},
+                                         store=self.case.store)['linked_results'][identifier][0]
+        self.assertEqual(row['Linked calculator result'], linked_result_text([record]))
         from estimator.workbook_calculators import calculator_session
         _, engine, lock = calculator_session('steel_board', draft['inputs'])
         with lock:
@@ -166,9 +175,9 @@ class TakeoffCurrentExportTests(unittest.TestCase):
         payload = self.export()[0]; row = self.rows(payload)[0]
         for key in ('Supporting evidence', 'Riser/drop additions'):
             source = json.loads(row[key])[0]
-            self.assertEqual(source['document_sha256'], other['sha256']); self.assertEqual(source['document_name'], other['name'])
+            self.assertNotIn('document_sha256', source); self.assertEqual(source['document_name'], other['name'])
         basis = json.loads(row['Measurement basis'])['calibration']
-        self.assertEqual(basis['document_sha256'], self.case.doc['sha256']); self.assertEqual(basis['id'], self.case.calibration_id)
+        self.assertNotIn('document_sha256', basis); self.assertEqual(basis['id'], self.case.calibration_id)
         self.assertEqual(json.loads(row['Physical member IDs']), self.case.state['snapshot']['items'][0]['member_ids'])
         workbook = load_workbook(BytesIO(payload)); self.addCleanup(workbook.close)
         cells = dict(zip([cell.value for cell in workbook['Current Takeoffs'][1]], workbook['Current Takeoffs'][2]))

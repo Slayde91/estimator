@@ -285,9 +285,9 @@ class ReportTests(unittest.TestCase):
         before = deepcopy(quote)
         text = pdf_text(render_quote_pdf(quote))
         self.assertNotIn('Generated material and allowance notes', text)
-        self.assertIn('Calculation errors - complete list', text)
-        self.assertIn('Generated material notes', text)
-        self.assertIn('#N/A', text)
+        self.assertIn('Some results are unavailable.', text)
+        self.assertNotIn('Generated material notes', text)
+        self.assertNotIn('#N/A', text)
         self.assertEqual(quote, before)
 
     def test_numeric_formatter_handles_rounding_negatives_tiny_and_large_values(self):
@@ -311,8 +311,8 @@ class ReportTests(unittest.TestCase):
                 text = pdf_text(render_quote_pdf(quote))
                 self.assertIn("CALCULATION INCOMPLETE", text)
                 for error in calculation_error_details(quote["result"]):
-                    self.assertIn("".join(error["label"].split()), "".join(text.split()))
-                    self.assertIn(error["code"], text)
+                    self.assertNotIn(error["code"], text)
+                self.assertIn('Review the estimate inputs', text)
                 self.assertNotIn("Calculator!", text)
         quote = deepcopy(self.quote)
         quote["result"] = calculate({"B8": 0})

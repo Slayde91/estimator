@@ -20,7 +20,7 @@ from estimator.penetration_calculator import (
     normalize_composer, normalize_draft, source_model,
 )
 from estimator.penetration_report import build_penetration_register, render_penetration_pdf
-from estimator.reference_library import ReferenceNotFound
+from estimator.reference_library import ReferenceLibrary, ReferenceNotFound
 from estimator.project_file import export_project, load_project_bytes
 from estimator.storage import Store
 
@@ -92,14 +92,14 @@ class PenetrationScheduleTests(unittest.TestCase):
         result = calculate(source)
         before = deepcopy(result)
         pdf = PdfReader(BytesIO(render_penetration_pdf(result, result['definition'], {})))
-        text = '\n'.join(page.extract_text() for page in pdf.pages)
+        text = ' '.join(' '.join(page.extract_text() for page in pdf.pages).split())
         for value in ('Service size', 'Orientation', 'FRL', '65 mm', '450 mm wide', '100 mm deep', 'Wall', 'Floor', '-/120/120', '-/60/60'):
             self.assertIn(value, text)
         for value in ('$', 'Grand total', 'Item total', '9876.54', '8765.43'):
             self.assertNotIn(value, text)
         workbook = load_workbook(BytesIO(build_penetration_register(result, result['definition'], {})))
         headers = [cell.value for cell in workbook['Schedule'][4]]
-        self.assertEqual(headers, ['Line', 'Service', 'Quantity', 'FRL', 'Service size', 'Orientation', 'Substrate'])
+        self.assertEqual(headers, ['Line', 'Service', 'Quantity', 'FRL', 'Service size', 'Orientation', 'Substrate', 'Report'])
         self.assertEqual(workbook['Schedule']['E5'].value, '65 mm')
         self.assertEqual(workbook['Schedule']['F6'].value, 'Floor')
         for sheet in workbook:
@@ -115,18 +115,22 @@ class PenetrationScheduleTests(unittest.TestCase):
         source = BytesIO()
         PILImage.new('RGB', (320, 180), '#c62828').save(source, format='PNG')
 
-        class Library:
+        class Library(ReferenceLibrary):
             calls = []
+
+            def __init__(self):
+                super().__init__(Path(self_path) / 'missing-reference-library')
 
             def diagram_asset(self, key, thumbnail):
                 self.calls.append((key, thumbnail))
                 return source.getvalue(), 'image/png', 'source.png'
 
+        self_path = self.temporary.name
         library = Library()
         before = deepcopy(result)
         pdf = PdfReader(BytesIO(render_penetration_pdf(result, result['definition'], {}, library=library)))
         self.assertEqual(library.calls, [('linked-source', True)])
-        self.assertIn('Source image', '\n'.join(page.extract_text() for page in pdf.pages))
+        self.assertIn('Diagram', '\n'.join(page.extract_text() for page in pdf.pages))
         images = [asset.get_object() for page in pdf.pages
                   for asset in page['/Resources']['/XObject'].values()]
         self.assertTrue(any(image.get('/Subtype') == '/Image' and image.get('/Width') == 320
@@ -135,7 +139,7 @@ class PenetrationScheduleTests(unittest.TestCase):
 
         library.diagram_asset = lambda key, thumbnail: (_ for _ in ()).throw(ReferenceNotFound())
         missing = render_penetration_pdf(result, result['definition'], {}, library=library)
-        self.assertIn('Source image', '\n'.join(page.extract_text()
+        self.assertIn('Diagram', '\n'.join(page.extract_text()
             for page in PdfReader(BytesIO(missing)).pages))
 
     def test_schedule_page_breaks_have_one_header_with_body_and_preserve_long_rows(self):
@@ -144,8 +148,11 @@ class PenetrationScheduleTests(unittest.TestCase):
         source = BytesIO()
         PILImage.new('RGB', (320, 180), '#c62828').save(source, format='PNG')
 
-        class Library:
+        self_path = self.temporary.name
+
+        class Library(ReferenceLibrary):
             def __init__(self):
+                super().__init__(Path(self_path) / 'missing-reference-library')
                 self.calls = []
 
             def diagram_asset(self, key, thumbnail):
@@ -159,10 +166,10 @@ class PenetrationScheduleTests(unittest.TestCase):
                 rows.append({'id': str(index), 'inputs': {'K': service, 'O': 1.234567890123,
                             'P': 'Concrete wall'}, 'outputs': {'F': 1.234567890123,
                             'G': 2.345678901234, 'H': 3.456789012345}})
-                draft_rows.append({'id': str(index), 'library_item_id': f'source-{index}'})
+                draft_rows.append({'id': str(index), 'inputs': {}, 'library_item_id': f'source-{index}'})
             result = {'summary': {'labour': 3.456789012345, 'materials': 7.036,
                       'grand_total': 10.493, 'total_days': .012345678901},
-                      'rows': rows, 'draft': {'rows': draft_rows}, 'errors': []}
+                      'rows': rows, 'draft': {'globals': {}, 'rows': draft_rows}, 'errors': []}
             before = deepcopy(result)
             library = Library()
             with self.subTest(long_lines=long_lines):

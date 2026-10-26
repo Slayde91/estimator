@@ -46,7 +46,7 @@
     ? Object.fromEntries(Object.keys(value).sort().map(key => [key, ordered(value[key])])) : value;
   const stable = value => JSON.stringify(ordered(value));
   const canonicalValues = values => ordered(Object.fromEntries(Object.entries(values).map(([key, value]) => [key, value === "" ? null : value])));
-  const canonicalRow = row => row && ({ id: row.id, inputs: canonicalValues(row.inputs), ...(row.library_item_id ? { library_item_id: row.library_item_id } : {}), ...(row.takeoff_source ? { takeoff_source: clone(row.takeoff_source) } : {}) });
+  const canonicalRow = row => row && ({ id: row.id, inputs: canonicalValues(row.inputs), ...(row.library_item_id ? { library_item_id: row.library_item_id } : {}), ...(row.takeoff_source ? { takeoff_source: clone(row.takeoff_source) } : {}), ...Object.fromEntries(["technical_reference_ids", "takeoff_reference_ids"].filter(key => Object.hasOwn(row, key)).map(key => [key, clone(row[key])])) });
   function canonicalDraft(draft, definition = state.definition) {
     return draft && { globals: canonicalValues({ ...definition.defaults.globals, ...draft.globals }), rows: draft.rows.map(canonicalRow) };
   }
@@ -166,6 +166,9 @@
       if (Object.hasOwn(row, "library_item_id") && (typeof row.library_item_id !== "string" || !/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,199}$/.test(row.library_item_id))) throw new Error("The schedule contains an invalid library item ID.");
       if (row.library_item_id && libraryIds.has(row.library_item_id)) throw new Error("The schedule contains a repeated library item ID.");
       if (row.library_item_id) libraryIds.add(row.library_item_id);
+      for (const key of ["technical_reference_ids", "takeoff_reference_ids"]) if (Object.hasOwn(row, key)) {
+        if (!Array.isArray(row[key]) || row[key].length > 128 || new Set(row[key]).size !== row[key].length || row[key].some(id => typeof id !== "string" || !/^[a-z0-9][a-z0-9_-]{0,119}$/.test(id))) throw new Error("The schedule contains invalid Technical Library references.");
+      }
       ids.add(row.id);
     }
   }
@@ -944,7 +947,9 @@
       const validation = await request("/api/penetration/validate-item", { draft: libraryDraft(selected()), configuration: configuration() });
       if (validation.valid !== true) throw new Error("The item details could not be validated. Nothing was added.");
       if (context !== state.context || epoch !== state.composerEpoch || stamp !== composerStamp() || pricing !== configStamp() || edit !== state.edit) throw new Error("The current item or pricing changed while checking its details. Review it and add it again.");
-      const row = appendSchedule(selected().inputs, independentCopy ? null : selected().library_item_id), receipt = await scheduleReceipt(row, "Current item", context);
+      const row = appendSchedule(selected().inputs, independentCopy ? null : selected().library_item_id);
+      for (const key of ["technical_reference_ids", "takeoff_reference_ids"]) if (Object.hasOwn(selected(), key)) row[key] = clone(selected()[key]);
+      const receipt = await scheduleReceipt(row, "Current item", context);
       if (context === state.context && epoch === state.composerEpoch) message(receipt.message + (revision !== state.revision ? " Later edits to the current item are not included." : ""), receipt.total === null);
       return receipt;
     }
@@ -975,6 +980,9 @@
     if (masticProblem(selected().inputs)) { message(masticProblem(selected().inputs), true); return; }
     const context = state.context, epoch = state.composerEpoch, edit = state.edit, row = scheduleRow(edit.id); row.inputs = clone(selected().inputs);
     if (selected().library_item_id) row.library_item_id = selected().library_item_id; else delete row.library_item_id;
+    for (const key of ["technical_reference_ids", "takeoff_reference_ids"]) {
+      if (Object.hasOwn(selected(), key)) row[key] = clone(selected()[key]); else delete row[key];
+    }
     state.updatingSchedule = true;
     state.edit = null;
     try { changed(row.id, state.schedule); renderFields(); await calculate(state.schedule);
@@ -1050,6 +1058,69 @@
     state.rowEpochs.set(removed.row.id, ++state.nextEpoch); state.page = Math.floor(removed.index / pageSize);
     changed(null, scope); calculate(scope);
   }
+  const scheduleReferences = { key: null, rows: {}, pending: null, picker: false, error: "" };
+  function referencesPayload(rows) {
+    const session = window.CeasefireTakeoffs?.sessionId?.();
+    return { draft: { globals: clone(state.schedule.draft.globals), rows: rows.map(canonicalRow) }, ...(session ? { takeoff_session_id: session } : {}) };
+  }
+  function referenceScope() {
+    const rows = state.schedule.draft.rows.slice(state.page * pageSize, (state.page + 1) * pageSize);
+    return { context: state.context, takeoffRevision: window.CeasefireTakeoffs?.referenceRevision?.(), payload: referencesPayload(rows) };
+  }
+  function scheduleReferenceKey() { return stable(referenceScope()); }
+  function loadScheduleReferences() {
+    if (!window.CeasefirePenetrationReferences || !state.schedule.draft) return;
+    const scope = referenceScope(), key = stable(scope);
+    if (scheduleReferences.key === key || scheduleReferences.pending === key) return;
+    scheduleReferences.pending = key; scheduleReferences.error = "";
+    void request("/api/penetration/references", scope.payload).then(reply => {
+      if (scheduleReferences.pending !== key || scheduleReferenceKey() !== key) return;
+      if (!reply?.row_references || typeof reply.row_references !== "object" || scope.payload.draft.rows.some(row => !reply.row_references[row.id])) throw new Error("The schedule references could not be loaded.");
+      scheduleReferences.key = key; scheduleReferences.rows = reply.row_references;
+    }).catch(error => {
+      if (scheduleReferences.pending === key && scheduleReferenceKey() === key) { scheduleReferences.key = key; scheduleReferences.rows = {}; scheduleReferences.error = error.message; }
+    }).finally(() => {
+      if (scheduleReferences.pending !== key) return;
+      scheduleReferences.pending = null;
+      if (scheduleReferenceKey() === key) for (const id of ["penetration-schedule-body", "penetration-estimator-schedule-body"]) renderScheduleBody(id);
+    });
+  }
+  function paintScheduleReferences(tr, row, line) {
+    const reports = tr.children[9], systems = tr.children[10], api = window.CeasefirePenetrationReferences;
+    reports.className = "penetration-schedule-reports"; systems.className = "penetration-schedule-systems";
+    const reference = scheduleReferences.key === scheduleReferenceKey() ? scheduleReferences.rows[row.id] : null;
+    reports.replaceChildren(reference && window.CeasefireRegisterReferences ? window.CeasefireRegisterReferences.renderReports(reference.reports) : node("span", "helper", api ? scheduleReferences.error ? "References unavailable" : "Loading…" : "—"));
+    const context = state.context, stamp = rowStamp(row), epoch = state.rowEpochs.get(row.id);
+    const isCurrent = () => context === state.context && epoch === state.rowEpochs.get(row.id) && rowStamp(scheduleRow(row.id)) === stamp;
+    systems.replaceChildren(api ? api.renderSystems(reference, { isCurrent, notify: (text, error) => message(text, error, state.schedule) }) : node("span", "helper", "—"));
+    if (!api) return;
+    const choose = uiNode("button", "text-button penetration-choose-references", reference?.reports?.length ? "Change reports" : "Choose reports"); choose.type = "button"; choose.dataset.penetrationReferences = row.id;
+    uiAttr(choose, "aria-label", "Choose reports for firestopping item {0}", [line]); choose.disabled = !!state.takeoffLease || !!state.edit || state.schedule.invalid.size > 0 || scheduleReferences.picker;
+    choose.addEventListener("click", () => chooseScheduleReferences(row.id, choose, isCurrent)); reports.append(node("br"), choose);
+  }
+  async function chooseScheduleReferences(id, opener, renderedCurrent) {
+    if (scheduleReferences.picker) return;
+    const context = state.context, epoch = state.rowEpochs.get(id), original = rowStamp(scheduleRow(id));
+    const takeoffSession = window.CeasefireTakeoffs?.sessionId?.(), takeoffRevision = window.CeasefireTakeoffs?.referenceRevision?.();
+    const isCurrent = () => context === state.context && epoch === state.rowEpochs.get(id) && original === rowStamp(scheduleRow(id)) && takeoffSession === window.CeasefireTakeoffs?.sessionId?.() && takeoffRevision === window.CeasefireTakeoffs?.referenceRevision?.() && !state.takeoffLease && !state.edit && !state.schedule.invalid.size;
+    const guard = () => { assertTakeoffWritable(); if (!renderedCurrent() || !isCurrent()) throw new Error("This schedule item changed. Review its current references and try again."); };
+    try {
+      document.activeElement?.blur?.(); guard(); scheduleReferences.picker = true; renderSchedule();
+      const response = await request("/api/penetration/references", referencesPayload([scheduleRow(id)])); guard();
+      const reference = response?.row_references?.[id]; if (!reference) throw new Error("The schedule references could not be loaded.");
+      await window.CeasefirePenetrationReferences.open({ reference, opener, isCurrent, selectedIds: scheduleRow(id).technical_reference_ids,
+        notify: (text, error) => message(text, error, state.schedule),
+        apply: async ids => {
+          guard(); const proposed = canonicalRow(scheduleRow(id));
+          if (ids === undefined) delete proposed.technical_reference_ids; else proposed.technical_reference_ids = ids;
+          const checked = await request("/api/penetration/references", referencesPayload([proposed])); guard();
+          if (!checked?.row_references?.[id] || checked.row_references[id].missing_ids?.length) throw new Error("A selected Technical Library record is unavailable. Remove it or choose another item.");
+          if (ids === undefined) delete scheduleRow(id).technical_reference_ids; else scheduleRow(id).technical_reference_ids = [...ids];
+          scheduleReferences.key = null; changed(id, state.schedule);
+        } });
+    } catch (error) { if (context === state.context) message(error.message, true, state.schedule); }
+    finally { scheduleReferences.picker = false; if (context === state.context) renderSchedule(); }
+  }
   function renderScheduleBody(bodyId) {
     const body = $(bodyId), previous = [...body.children];
     const existing = new Map(previous.filter(row => row.dataset.penetrationContext === String(state.context)).map(row => [row.dataset.penetrationId, row]));
@@ -1060,7 +1131,7 @@
       tr.className = row.id === state.edit?.id ? "penetration-selected-row" : "";
       const invalid = [...state.schedule.invalid.keys()].some(key => JSON.parse(key)[0] === row.id);
       if (!tr.children.length) {
-        for (let column = 0; column < 9; column++) tr.append(node("td"));
+        for (let column = 0; column < 11; column++) tr.append(node("td"));
         tr.children[8].className = "penetration-schedule-diagram";
         if (quantityField) tr.children[6].append(makeControl(quantityField, row.id, true, state.schedule));
       }
@@ -1077,6 +1148,7 @@
       const shown = window.CeasefirePenetrationPresentation.details(row.inputs);
       const values = [line, window.CeasefirePenetrationPresentation.serviceLabel(shown.K) || "—", window.CeasefirePenetrationPresentation.serviceSize(row.inputs, row.takeoff_source), shown.L || "—", row.inputs.M || "—", row.inputs.N || "—", null, display(result?.outputs.H, "currency"), null];
       values.forEach((value, column) => { if (column !== 6 && column !== 8) tr.children[column].textContent = String(value); });
+      paintScheduleReferences(tr, row, line);
       if (!quantityField) tr.children[6].textContent = display(row.inputs.O);
       for (const control of tr.children[6].querySelectorAll("[data-penetration-field]")) uiAttr(control, "aria-label", "Item {0}: {1}", [line, uiTerm(fieldLabel(quantityField))]);
       const actions = node("td", "penetration-item-actions"), edit = uiNode("button", "button secondary", "Edit"); edit.type = "button"; uiAttr(edit, "aria-label", "Edit firestopping item {0}", [line]); edit.addEventListener("click", () => selectRow(row.id));
@@ -1086,8 +1158,8 @@
       const deleteContext = state.context, deleteEpoch = state.rowEpochs.get(row.id), deleteRow = rowStamp(row);
       remove.append(icon); remove.type = "button"; remove.dataset.penetrationRemove = row.id; uiAttr(remove, "title", "Delete item {0}", [line]); uiAttr(remove, "aria-label", "Delete firestopping item {0}", [line]); remove.disabled = !!state.takeoffLease || state.schedule.invalid.size > 0 || state.pendingDeletes.has(row.id); remove.setAttribute("aria-busy", String(state.pendingDeletes.has(row.id))); remove.addEventListener("click", () => requestRemoveRow(row.id, deleteContext, deleteEpoch, deleteRow));
       actions.append(edit); deletion.append(remove);
-      if (tr.children[9]) tr.children[9].replaceChildren(edit); else tr.append(actions);
-      if (tr.children[10]) tr.children[10].replaceChildren(remove); else tr.append(deletion);
+      if (tr.children[11]) tr.children[11].replaceChildren(edit); else tr.append(actions);
+      if (tr.children[12]) tr.children[12].replaceChildren(remove); else tr.append(deletion);
       return tr;
     });
     // Keeping unchanged rows attached preserves the active quantity editor and
@@ -1112,13 +1184,14 @@
     refreshControls();
     for (const id of ["penetration-row-count", "penetration-estimator-row-count"]) renderScheduleCount(id);
     renderScheduleColumns();
+    loadScheduleReferences();
   }
   const scheduleColumnChoosers = new Map();
   function renderScheduleColumns() {
     const api = window.CeasefireScheduleColumns;
     if (!api) return;
-    const ids = ["item", "services", "size", "type", "orientation", "frl", "quantity", "total", "diagram", "actions", "delete"];
-    const widths = [180, 132, 96, 120, 104, 80, 90, 90, 96, 72, 56], tables = [];
+    const ids = ["item", "services", "size", "type", "orientation", "frl", "quantity", "total", "diagram", "report", "system", "actions", "delete"];
+    const widths = [180, 132, 96, 120, 104, 80, 90, 90, 96, 190, 100, 72, 56], tables = [];
     for (const id of ["penetration-schedule-body", "penetration-estimator-schedule-body"]) {
       const body = $(id), table = body.closest?.("table");
       if (!table) continue;
@@ -1240,7 +1313,8 @@
       const snapshot = projectSnapshot();
       const pricing = configuration(), details = clone(window.CeasefireProject?.details?.() || {}), captured = projectFingerprint(), pricingKey = JSON.stringify(pricing);
       state.downloading = true; state.downloadKind = kind; status();
-      const saved = await window.CeasefireDownloads.save(`/api/penetration/${kind === "pdf" ? "report.pdf" : "register.xlsx"}`, { draft: snapshot.draft, configuration: pricing, project_details: details }, { button });
+      const takeoffSession = window.CeasefireTakeoffs?.sessionId?.();
+      const saved = await window.CeasefireDownloads.save(`/api/penetration/${kind === "pdf" ? "report.pdf" : "register.xlsx"}`, { draft: snapshot.draft, configuration: pricing, project_details: details, ...(takeoffSession ? { takeoff_session_id: takeoffSession } : {}) }, { button });
       const changed = captured !== projectFingerprint() || pricingKey !== configStamp() || JSON.stringify(details) !== JSON.stringify(window.CeasefireProject?.details?.() || {});
       message("File saved to {0}.{1}", false, state.schedule, true, [saved.path, changed ? " It uses the inputs and prices captured when you clicked Download; later changes are not included." : ""]);
     } catch (error) { message("The schedule file was not saved. {0}", true, state.schedule, true, [() => window.CeasefireI18n?.translate(error.message) || error.message]); }
@@ -1254,12 +1328,14 @@
       const item = selected();
       if (!item || state.draft.rows.length !== 1) throw new Error("Choose exactly one current Firestopping item.");
       if (masticProblem(item.inputs)) throw new Error(masticProblem(item.inputs));
-      const payload = { item: clone(item), globals: clone(state.draft.globals), configuration: configuration(),
+      const takeoffSession = window.CeasefireTakeoffs?.sessionId?.();
+      const payload = { item: clone(item), globals: clone(state.draft.globals), configuration: configuration(), ...(takeoffSession ? { takeoff_session_id: takeoffSession } : {}),
         ...(state.diagramChange === undefined ? {} : { diagram: clone(state.diagramChange) }) };
       const captured = stable(payload);
       state.downloading = true; state.downloadKind = kind; status();
       const saved = await window.CeasefireDownloads.save(`/api/penetration/item.${kind}`, payload, { button });
-      const current = { item: selected(), globals: state.draft?.globals, configuration: configuration(),
+      const currentSession = window.CeasefireTakeoffs?.sessionId?.();
+      const current = { item: selected(), globals: state.draft?.globals, configuration: configuration(), ...(currentSession ? { takeoff_session_id: currentSession } : {}),
         ...(state.diagramChange === undefined ? {} : { diagram: state.diagramChange }) };
       message("File saved to {0}.{1}", false, state, true, [saved.path, captured !== stable(current) ? " It uses the item, source diagram and prices captured when you clicked Download; later changes are not included." : ""]);
     } catch (error) { message("The current item file was not saved. {0}", true, state, true, [() => window.CeasefireI18n?.translate(error.message) || error.message]); }
@@ -1326,5 +1402,5 @@
   async function editScheduleRow(id,libraryId){assertTakeoffWritable();await initialize();const row=scheduleRow(id);if(!row||row.library_item_id!==libraryId)throw new Error("The retained linked schedule row was removed or replaced. Review its association before opening another item.");return selectRow(id);}
   window.CeasefirePenetrations = { open, openSchedule, projectSnapshot, projectFingerprint, quoteSnapshot, quoteFingerprint, scheduleProblem, completeProjectSnapshot, prepareProject, prepareDefaults, applyProject, markProjectSaved, hasUnsavedChanges, pricingChanged, inputProblem, addLibraryItem, libraryQuantity, libraryDiagramChanged,
     captureTakeoffSchedule,reserveTakeoffSchedule,validateTakeoffScheduleReservation,applyTakeoffSchedule,releaseTakeoffSchedule,editScheduleRow,hasTakeoffReservation:()=>!!state.takeoffLease,hasUnfinishedChanges:()=>!!state.takeoffLease };
-  Object.assign(window.CeasefirePenetrations, { hasPendingOperation: () => !!(state.takeoffLease || state.creatingLibrary || state.addingSchedule || state.updatingSchedule || state.addingLibrary || state.loading || state.downloading) });
+  Object.assign(window.CeasefirePenetrations, { hasPendingOperation: () => !!(state.takeoffLease || state.creatingLibrary || state.addingSchedule || state.updatingSchedule || state.addingLibrary || state.loading || state.downloading || scheduleReferences.picker) });
 })();

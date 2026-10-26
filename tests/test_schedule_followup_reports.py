@@ -30,11 +30,12 @@ class ScheduleFollowupReportTests(unittest.TestCase):
         headers = {cell.value: cell.column for cell in sheet[5]}
         self.assertEqual(headers['Quantity'], headers['Lineal metres'] + 1)
         self.assertEqual(sheet.cell(6, headers['Quantity']).value, 2)
-        self.assertIn('FC15555-01-03', sheet.cell(6, headers['Status']).value)
-        self.assertIn('m⁻¹', sheet.cell(6, headers['Status']).value)
+        self.assertIn('FC15555-01-03', sheet.cell(6, headers['Report']).value)
+        self.assertNotIn('Status', headers)
         for builder in (build_calculator_report, build_calculator_summary_report):
             text = '\n'.join(page.extract_text() or '' for page in PdfReader(BytesIO(builder('steel_board', inputs))).pages)
-            self.assertIn('1/m', text)
+            self.assertIn('FC15555-01-03', text)
+            self.assertNotIn('1/m', text)
             self.assertNotIn('m⁻¹', text)
 
     def test_implicit_legacy_quantity_does_not_create_blank_report_rows(self):

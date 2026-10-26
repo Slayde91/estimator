@@ -259,7 +259,7 @@ class TakeoffAreaTests(unittest.TestCase):
                 self.assertEqual(row[column], result[key])
             self.assertEqual(json.loads(row['Geometry']), item['geometry'])
             self.assertEqual(json.loads(row['All item properties']), item['fields'])
-            self.assertEqual(row['Source SHA-256'], self.case.doc['sha256'])
+            self.assertNotIn('Source SHA-256', row)
         self.assertEqual([row['Item ID'] for row in export('walls_floors', 'confirmed')[0]], [wall])
         self.assertEqual([row['Item ID'] for row in export('walls_floors', 'unconfirmed')[0]], [floor])
         for mode, identity in [('wall', wall), ('slab', floor)]:

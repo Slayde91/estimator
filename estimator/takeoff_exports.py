@@ -14,6 +14,7 @@ from .takeoff_area import measured_area
 from .takeoff_model import (area_layers, base_length, has_explicit_area_layers, item_digest, length_additions, measured_length, is_area_item, is_standalone_count,
                            validate_measurement_scope, digest, item_result, object_fields)
 from .pricing_workbook import _serialize_exact
+from .download_disclosure import without_fingerprints
 
 
 HEADERS = ('Item ID', 'Item version', 'Mode', 'Mark / run', 'Level', 'Zone', 'Group',
@@ -83,6 +84,14 @@ def export_register(snapshot, items, format):
     include_layers = any(has_explicit_area_layers(item) for item in items)
     headers = HEADERS + (('Number of layers', 'Total area m2') if include_layers else ())
     rows = register_rows(snapshot, items, include_layers=include_layers)
+    json_headers = {'Measurement basis', 'Evidence references', 'Transfer references',
+                    'Confirmation checks', 'Riser/drop source dimensions'}
+    retained = [index for index, label in enumerate(headers)
+                if label not in {'Source SHA-256', 'Confirmation digest'}]
+    rows = [[json.dumps(without_fingerprints(json.loads(row[index])), ensure_ascii=False, sort_keys=True)
+             if headers[index] in json_headers and row[index] else row[index] for index in retained]
+            for row in rows]
+    headers = tuple(headers[index] for index in retained)
     if format == 'csv':
         output = StringIO(newline='')
         writer = csv.writer(output)
@@ -128,13 +137,12 @@ def export_register(snapshot, items, format):
             detail_sheet.column_dimensions[column].width = width
     info = workbook.create_sheet('Provenance')
     for row in [('Project ID', snapshot['project_id']), ('Takeoff revision', snapshot['revision']),
-                ('Audit head SHA-256', snapshot['audit_head']),
                 ('Scope', 'Confirmed takeoff records. Technical suitability requires separate assessment.'),
                 ('Coordinates', 'Unrotated source PDF coordinates. Traces use the retained calibration or cited dimension; Steel counts retain independent member markers and an explicitly entered manual length, without requiring a scale.'),
                 ('Quantity', 'Explicit physical quantity; never inferred from photographs. Steel count quantity is derived from its retained member markers, with ordered point/member-ID correspondence. Linear total length is quantity times the sum of base length and each explicitly entered riser/drop addition per member. A wall/slab polygon remains one physical surface; net area is gross area less explicit exclusions. Number of layers is an explicit positive whole number, defaulting to one when absent; total area is net area times layers. No additional face or physical member is inferred.'),
                 ('Surface basis', 'Polygon areas use the traced source projection. Historical surface basis, treatment and citation properties remain as entered. Calibration scale is squared for area. Printed presets include PDF UserUnit once; manual known-distance calibration is direct. Rendering zoom and rotation do not change quantities.'),
                 ('Calculator links', 'Transfer statuses describe retained receipts. This register export does not recheck the current calculator draft; stale/conflicting links do not become current by exporting.'),
-                ('Source links', 'Document IDs, page numbers and hashes identify the retained source originals.')]:
+                ('Source links', 'Document IDs and page numbers identify the retained source originals.')]:
         info.append(row)
     info.column_dimensions['A'].width = 28; info.column_dimensions['B'].width = 100
     for row in info:
@@ -316,14 +324,13 @@ def linked_result_text(results):
     for result in results:
         label = {'steel_vermiculite': 'Spray', 'steel_intumescent': 'Intumescent', 'steel_board': 'Board', 'ductwork': 'Ductwork'}[result['calculator_id']]
         if result['status'] != 'Current':
-            sections.append(f"{label}: Unavailable ({result['reason']})")
+            sections.append(f"{label}: Unavailable. Review this item in the application.")
         elif result['calculator_id'] == 'steel_vermiculite':
             published = result['published_thickness_mm']
             sections.append(f"Spray: {result['estimating_thickness_mm']:.2f} mm estimating"
                             + (f"; {published:.2f} mm published" if published is not None else '; published thickness unavailable'))
         elif result['calculator_id'] == 'steel_intumescent':
-            sections.append(f"Intumescent: {result['intumescent_thickness_mm']:g} mm DFT; "
-                            + f"{result['intumescent_thickness_status']}; {result['intumescent_thickness_source']}")
+            sections.append(f"Intumescent: {result['intumescent_thickness_mm']:g} mm DFT")
         elif result['calculator_id'] == 'ductwork':
             sections.append(f"Ductwork: {result['duct_thickness_mm']:.2f} mm; {result['duct_thickness_basis']}")
         else:
@@ -348,7 +355,10 @@ def _schedule_xlsx(snapshot, selected, results, confirmations, linked, *, mode, 
     if include_layers:
         headers.extend(['Number of layers', 'Total area m2'])
     workbook = Workbook(); sheet = workbook.active; sheet.title = 'Current Takeoffs'
-    sheet.append(headers); details = []
+    retained = [index for index, label in enumerate(headers)
+                if label not in {'Source SHA-256', 'Confirmation digest', 'Calculator result provenance'}]
+    public_headers = [headers[index] for index in retained]
+    sheet.append(public_headers); details = []
     for item in selected:
         field, geometry = item['fields'], item['geometry']; result = results[item['id']]
         doc = documents[geometry['document_id']] if geometry else None
@@ -371,18 +381,19 @@ def _schedule_xlsx(snapshot, selected, results, confirmations, linked, *, mode, 
                doc['name'] if doc else None, geometry['page'] if geometry else None, doc['sha256'] if doc else None,
                linked_result_text(linked[item['id']]), '\n'.join(issue['message'] for issue in result['issues']),
                confirmation['id'] if confirmation else None, confirmation['digest'] if confirmation else None]
-        row.extend(json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(',', ':')) if value is not None else None
+        row.extend(json.dumps(without_fingerprints(value), ensure_ascii=False, sort_keys=True, separators=(',', ':')) if value is not None else None
                    for value in (geometry, basis, field, evidence, additions,
                                  linked[item['id']], item.get('appearance'), item['member_ids'],
                                  doc['pages'][geometry['page']-1] if doc else None, confirmation))
         row.extend([item.get('count_id'), item.get('purpose')])
         if include_layers:
             row.extend([result.get('layers'), result.get('total_area_m2')])
+        row = [row[index] for index in retained]
         for index, value in enumerate(row):
             if isinstance(value, str) and len(value.encode('utf-16-le')) > 60000:
                 parts = [value[start:start+15000] for start in range(0, len(value), 15000)]
-                details.extend([[item['id'], headers[index], i+1, len(parts), part] for i, part in enumerate(parts)])
-                row[index] = f'See Provenance Detail: {item["id"]} / {headers[index]} ({len(parts)} ordered parts)'
+                details.extend([[item['id'], public_headers[index], i+1, len(parts), part] for i, part in enumerate(parts)])
+                row[index] = f'See Provenance Detail: {item["id"]} / {public_headers[index]} ({len(parts)} ordered parts)'
         sheet.append(row)
     if details:
         detail = workbook.create_sheet('Provenance Detail')
@@ -390,7 +401,7 @@ def _schedule_xlsx(snapshot, selected, results, confirmations, linked, *, mode, 
         for row in details: detail.append(row)
     info = workbook.create_sheet('Export scope')
     for row in [('Project ID', snapshot['project_id']), ('Takeoff revision', snapshot['revision']),
-                ('Audit SHA-256', snapshot['audit_head']), ('Register', mode), ('Confirmation category', confirmation_filter),
+                ('Register', mode), ('Confirmation category', confirmation_filter),
                 ('Scope', 'All items in the selected register and confirmation category, including hidden rows. Wall and slab records retain their original measurement types.'),
                 ('Approval', 'Unconfirmed items are drafts. Unknown quantities remain blank. Export does not confirm an item or authorize technical suitability.'),
                 ('Surface layers', 'Physical surface quantity remains one. Total area equals net measured area times the explicitly entered number of layers, defaulting to one when absent. Gross, excluded and net areas are unchanged; extra faces are not inferred.'),
@@ -407,7 +418,7 @@ def _schedule_xlsx(snapshot, selected, results, confirmations, linked, *, mode, 
                     cell.font = Font(bold=True, color='FFFFFF'); cell.fill = PatternFill('solid', fgColor='1F2937')
                 elif isinstance(cell.value, (float, int)):
                     measurement_headers = {'Width mm', 'Height mm', 'Diameter mm', 'Length per item m', 'Total length m', 'Gross area m2', 'Excluded area m2', 'Net area m2', 'Total area m2'}
-                    cell.number_format = '0.00' if table.title == 'Current Takeoffs' and headers[cell.column-1] in measurement_headers else '0'
+                    cell.number_format = '0.00' if table.title == 'Current Takeoffs' and public_headers[cell.column-1] in measurement_headers else '0'
         for column in table.columns: table.column_dimensions[column[0].column_letter].width = 24
     payload = _serialize_exact(workbook); workbook.close()
     label = 'Walls-Floors' if mode == 'walls_floors' else mode.title()

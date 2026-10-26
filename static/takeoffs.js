@@ -5092,7 +5092,7 @@
   window.CeasefireTakeoffs = { open, selectWorkspace, refreshNavigation, projectSnapshot, projectFingerprint, prepareProject, applyProject, prepareDefaults, markProjectSaved, hasUnsavedChanges, completeProjectSnapshot,
     hasPendingOperation: () => !!(state.busy || state.linkedRecovery),
     hasLinkedRecovery: () => !!state.linkedRecovery,
-    sessionId: () => state.session?.session_id, scheduleBindings, showSource, discardPreparedSession, calculatorDraftChanged,
+    sessionId: () => state.session?.session_id, referenceRevision: () => state.session?.revision, scheduleBindings, showSource, discardPreparedSession, calculatorDraftChanged,
     exportRegister: format => safely(() => { if (state.busy || state.modal || !state.session) throw new Error("Finish the current takeoff operation before downloading."); return exportRegister(format); }),
     exportPhysical: format => safely(async () => {
       if (state.busy || state.modal || !state.session || state.mode !== "physical") throw new Error("Finish the current physical operation before downloading.");

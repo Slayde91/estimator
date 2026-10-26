@@ -8,11 +8,17 @@ const { renderDrawing } = require("./viewer_helpers.cjs");
 const { settingsSettled } = require("./settings_helpers.cjs");
 const { spawn, spawnSync } = require("node:child_process");
 const fs = require("node:fs"), path = require("node:path"), crypto = require("node:crypto"), assert = require("node:assert/strict");
+const { sources, feedbackSources, printingSource, loadingSource } = require("../../static/header-menu-sounds.js");
+const { verifiedPreloadCancellation } = require("../helpers/media_preload_guard.cjs");
+const preloadPaths = [...Object.values(sources), ...Object.values(feedbackSources), printingSource, loadingSource];
+// Only these two startup media cancellations have been observed in Chromium CI.
+const cancellablePreloadPaths = [feedbackSources.selectOther, loadingSource];
 
 const root = path.resolve(__dirname, "../.."), output = path.join(root, ".runtime/browser-qa", `pdf-markup-ui-${Date.now()}`);
 const python = process.env.CEASEFIRE_PYTHON || "python";
 const assets = ["static/app.js", "static/takeoffs.js", "static/takeoffs.css", "static/takeoff-pane-resize.js", "static/takeoff-graphics.js", "static/takeoff-graphics-ui.js", "static/takeoff-physical.js", "static/takeoff-annotations.js", "static/penetration.js", "static/penetration.css", "static/libraries.css", "static/index.html", "static/styles.css", "static/theme.css", "static/laser.css", "static/icons/takeoff-bullet-list.png", "static/icons/takeoff-numbered-list.png", "static/icons/takeoff-transfer.png", "static/icons/schedule-add.png", "estimator/takeoff_pdf_measure.py", "estimator/takeoff_textbox_layout.py", "estimator/takeoff_deleted_items.py", "estimator/takeoff_graphics.py", "estimator/takeoff_workspace.py", "estimator/takeoff_http.py", "estimator/takeoff_markup_pdf.py", "estimator/takeoff_markup_pdf_worker.py", "tests/browser/pdf_markup_ui.cjs"];
 const hash = file => crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex");
+assets.push("static/header-menu-sounds.js", "tests/helpers/media_preload_guard.cjs", ...cancellablePreloadPaths.map(url => `static${url}`));
 const hashes = () => Object.fromEntries(assets.map(file => [file, hash(path.join(root, file))]));
 const sourceBefore = hashes(), evidence = { layouts: [], menus: [], heights: [], textSettings: [], library: [], pointerTargets: [] }, errors = [], csp = [], requests = [], networkFailures = [];
 function contrast(foreground, background) {
@@ -297,8 +303,32 @@ async function standardCalculatorButton() {
   page.on("pageerror", error => errors.push(error.message)); page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
   page.on("requestfailed", request => networkFailures.push({ stage, url: request.url(), method: request.method(), resourceType: request.resourceType(), observedAt: new Date().toISOString(), failure: request.failure() }));
   page.on("request", request => { if (request.method() === "POST") requests.push(new URL(request.url()).pathname); });
-  await page.addInitScript(() => { window.uiCsp = []; document.addEventListener("securitypolicyviolation", event => window.uiCsp.push(event.effectiveDirective)); });
+  await page.addInitScript(paths => {
+    window.uiCsp = []; document.addEventListener("securitypolicyviolation", event => window.uiCsp.push(event.effectiveDirective));
+    window.uiMediaPreloads = [];
+    const load = HTMLMediaElement.prototype.load;
+    HTMLMediaElement.prototype.load = function (...args) {
+      const url = new URL(this.src, location.href);
+      if (url.origin === location.origin && paths.includes(url.pathname) && !window.uiMediaPreloads.some(entry => entry.media === this)) {
+        const entry = { media: this, events: [] }; window.uiMediaPreloads.push(entry);
+        for (const type of ["loadeddata", "canplay", "suspend", "abort", "error"]) this.addEventListener(type, event => entry.events.push({ type, trusted: event.isTrusted, readyState: this.readyState, networkState: this.networkState, error: this.error?.code || null }));
+      }
+      return Reflect.apply(load, this, args);
+    };
+  }, preloadPaths);
   stage = "initial load"; await page.goto(`http://127.0.0.1:${info.port}/`); await page.waitForFunction(() => window.CeasefireDesktop?.status().ready && !window.CeasefireDesktop.status().busy);
+  // A media preload may be cancelled by Chromium after buffering or replaced
+  // by its native media loader. A cancellation alone does not prove delivery
+  // failed: require actual decoded data in every original player, not a mock.
+  await page.waitForFunction(count => window.uiMediaPreloads.length === count && window.uiMediaPreloads.every(({ media, events }) => !media.error && media.readyState >= 2 && Number.isFinite(media.duration) && media.duration > 0 && events.some(event => event.type === "loadeddata" && event.trusted)), preloadPaths.length);
+  evidence.mediaPreloads = await page.evaluate(() => window.uiMediaPreloads.map(({ media, events }) => ({ url: media.src, readyState: media.readyState, duration: media.duration, error: media.error?.code || null, events })));
+  evidence.mediaAssets = [];
+  for (const source of cancellablePreloadPaths) {
+    const response = await page.request.get(`http://127.0.0.1:${info.port}${source}`), bytes = await response.body();
+    assert.equal(response.status(), 200); assert.equal(response.headers()["content-type"], "audio/mpeg");
+    const sha256 = crypto.createHash("sha256").update(bytes).digest("hex"); assert.equal(sha256, sourceBefore[`static${source}`]);
+    evidence.mediaAssets.push({ url: response.url(), status: response.status(), contentType: response.headers()["content-type"], sha256, bytes: bytes.length });
+  }
   const calculators = await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot());
   stage = "header Takeoffs click"; await page.getByRole("button", { name: "Takeoffs", exact: true }).click();
   stage = "Steel choice"; await chooseTakeoff(page, "steel");
@@ -354,7 +384,10 @@ async function standardCalculatorButton() {
   // Both requests own explicit AbortControllers: the debounced estimate replaces
   // old calculation requests; switching PDF workspaces releases its source load.
   const cancellable = new Set([`http://127.0.0.1:${info.port}/api/calculate`, evidence.navigation.originalPDFURL]);
-  assert.ok(networkFailures.every(request => request.failure?.errorText === "net::ERR_ABORTED" && cancellable.has(request.url)), `Only explicit cancellation of this fixture's calculation or exact source PDF is permitted. Recorded failures: ${JSON.stringify(networkFailures)}`);
+  const mediaErrors = await page.evaluate(() => window.uiMediaPreloads.flatMap(({ media, events }) => events.filter(event => event.type === "error" || event.error).map(event => ({ url: media.src, ...event }))));
+  assert.deepEqual(mediaErrors, [], "Native sound decoding/delivery failures are never ignored");
+  const benignPreload = request => verifiedPreloadCancellation(request, { origin: `http://127.0.0.1:${info.port}`, paths: cancellablePreloadPaths, preloads: evidence.mediaPreloads, assets: evidence.mediaAssets, hashes: sourceBefore });
+  assert.ok(networkFailures.every(request => request.failure?.errorText === "net::ERR_ABORTED" && (cancellable.has(request.url) || benignPreload(request))), `Only explicit calculation/source-PDF cancellation or the two verified decoded startup media preloads is permitted. Recorded failures: ${JSON.stringify(networkFailures)}`);
   csp.push(...await page.evaluate(() => window.uiCsp)); assert.deepEqual(csp, []);
   assert.deepEqual(hashes(), sourceBefore, "The UI fixture never edits source files");
   fs.writeFileSync(path.join(output, "result.json"), JSON.stringify({ completed: true, fixture_port: info.port, evidence, requests, errors, csp, networkFailures, pdf_sha256: pdfBefore, source_before_sha256: sourceBefore, source_after_sha256: hashes() }, null, 2));

@@ -169,6 +169,7 @@ window.CeasefireScheduleColumns = (() => {
     steel_board: {
       CALCULATOR: {
         omit_columns: ["L"], schedule_omit_columns: ["Y", "AA", "AC", "AD"],
+        register_omit_columns: ["M", "N", "O", "P", "Q", "R", "S", "T", "U"],
         column_order: ["A", "B", "C", "D", "F", "CJ", "G", "H", "I", "J", "K", "E"],
         text: { AE8: "Board net (m²)", AG8: "Sheets", AH8: "Purchase area (m2)" },
       }, // Retain source inputs, calculated outputs and saved row waste.
@@ -2075,7 +2076,9 @@ window.CeasefireScheduleColumns = (() => {
       state.gridEntry = entry; return;
     }
     const hidden = hiddenColumns(metadata);
-    const registerColumns = entry.sheet === entry.definition.schedule?.sheet && Array.isArray(result.register_columns) ? result.register_columns : null;
+    const registerOmissions = new Set((browserPresentation[entry.definition.id]?.[entry.sheet]?.register_omit_columns || []).map(columnNumber));
+    const registerColumns = entry.sheet === entry.definition.schedule?.sheet && Array.isArray(result.register_columns)
+      ? result.register_columns.filter(column => !registerOmissions.has(column)) : null;
     const registerSet = new Set(registerColumns || []), register = entry.definition.schedule;
     const omittedRows = new Set(metadata.omitted_rows), omittedColumns = new Set(metadata.omitted_columns), hiddenAddresses = new Set(metadata.hidden_addresses || []), sourceOmitted = omittedCell(metadata);
     const isOmitted = (row, column) => registerColumns && row >= register.header_row && row <= register.last_row ? !registerSet.has(column) : sourceOmitted(row, column);
@@ -2089,6 +2092,7 @@ window.CeasefireScheduleColumns = (() => {
       const scheduleOmissions = new Set((browserPresentation[entry.definition.id]?.[entry.sheet]?.schedule_omit_columns || []).map(columnNumber));
       columns = columns.filter(column => !scheduleOmissions.has(column));
     }
+    if (entry.sheet === entry.definition.schedule?.sheet) columns = columns.filter(column => !registerOmissions.has(column));
     columns = [...new Set([...metadata.display_column_order.map(columnNumber).filter((column) => columns.includes(column)), ...columns])];
     if (entry.definition.id === "ductwork" && entry.sheet === entry.definition.schedule?.sheet && columns.includes(3) && columns.includes(9)) {
       columns = columns.filter(column => column !== 3); columns.splice(columns.indexOf(9) + 1, 0, 3);

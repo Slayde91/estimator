@@ -213,15 +213,26 @@ async function played(source, prior) {
   prior = await page.evaluate(() => window.qaMenuAudio.playing.filter(row => row.source.endsWith("new-explosion.mp3")).length);
   await page.locator(".app-header .brand").click(); await played("/sounds/new-explosion.mp3", prior); await idle();
   evidence.checks.logoClickExplosion = true;
-  // The native loop is scoped to characters printing, not the GIF's grace.
+  // Taglines still type after a trusted click, but never request printing playback.
   await home.click(); await idle();
-  await page.waitForFunction(() => {
-    const media = window.qaMenuAudio.media.find(audio => audio.src.endsWith("mixkit-vintage-dot-printing-1371.wav"));
-    return media && media.loop && !media.paused && document.getElementById("header-tagline-typed").textContent !== document.getElementById("header-tagline-label").textContent;
+  const printingObservation = await page.waitForFunction(() => {
+    const typed = document.getElementById("header-tagline-typed").textContent;
+    const label = document.getElementById("header-tagline-label").textContent;
+    if (!typed.length || typed === label) return false;
+    return {
+      typed, label,
+      paused: window.qaMenuAudio.media.find(audio => audio.src.endsWith("mixkit-vintage-dot-printing-1371.wav")).paused,
+      attempts: window.qaMenuAudio.calls.filter(row => row.source.endsWith("mixkit-vintage-dot-printing-1371.wav")).length,
+    };
   });
+  const silentPrinting = await printingObservation.jsonValue();
+  await printingObservation.dispose();
+  assert.ok(silentPrinting.typed.length > 0 && silentPrinting.typed !== silentPrinting.label);
+  assert.equal(silentPrinting.paused, true); assert.equal(silentPrinting.attempts, 0);
   await page.waitForFunction(() => document.getElementById("header-tagline-typed").textContent === document.getElementById("header-tagline-label").textContent);
   assert.equal(await page.evaluate(() => window.qaMenuAudio.media.find(audio => audio.src.endsWith("mixkit-vintage-dot-printing-1371.wav")).paused), true);
-  evidence.checks.printingLoopStopsAtFinalCharacter = true;
+  assert.equal(await page.evaluate(() => window.qaMenuAudio.calls.filter(row => row.source.endsWith("mixkit-vintage-dot-printing-1371.wav")).length), 0, "No printing playback attempt occurs anywhere in the native journey");
+  evidence.checks.silentTaglineTyping = { ...silentPrinting, finished: true };
   assert.ok((await page.evaluate(() => window.qaMenuAudio.calls.filter(row => !row.source.endsWith("mixkit-vintage-dot-printing-1371.wav"))))
     .every(row => ["pointerenter", "pointerover", "click"].includes(row.event)), "Button playback attempts occur in their input event");
   await page.mouse.move(0, 0);

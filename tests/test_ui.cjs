@@ -667,7 +667,7 @@ let passed=0;
   assert.match(html,/data-home-view="estimate"/);assert.match(html,/data-home-view="pricing"/);assert.match(html,/data-home-view="calculators"/);assert.match(html,/data-home-view="quotes"/);
   assert.match(html,/id="penetration-add"[^>]*penetration-new-item-action[^>]*title="Add new item"/);
   assert.ok(html.indexOf('id="penetration-schedule-heading"')<html.indexOf('id="penetration-schedule-recalculate"'));assert.ok(html.indexOf('id="penetration-schedule-recalculate"')<html.indexOf('<div class="table-scroll"><table><thead><tr><th scope="col">Item</th>'));
-  assert.match(html,/<th scope="col">Total<\/th><th scope="col">Diagram<\/th><th scope="col">Actions<\/th>/);
+  assert.equal((html.match(/<th scope="col">Total<\/th><th scope="col">Diagram<\/th><th scope="col">Report<\/th><th scope="col">System<\/th><th scope="col">Actions<\/th>/g)||[]).length,2,'Both Firestopping schedules expose matching Report and System columns');
   assert.doesNotMatch(html,/<th scope="col">Status<\/th>/);
   assert.match(html,/<section class="card firestopping-breakdown"[^>]*>\s*<div class="section-heading"><h2>Firestopping Breakdown<\/h2><\/div>/);
   assert.doesNotMatch(html,/firestopping-breakdown-part|Schedule breakdown/);

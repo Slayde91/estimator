@@ -85,8 +85,21 @@
     if (!document?.addEventListener || typeof host?.Audio !== "function") return silent;
     const players = createPlayers(feedbackSources, host);
     const selector = 'button, a.button, [role="button"], input[type="button"], input[type="submit"], input[type="reset"], input[type="image"], summary';
-    let closed = false;
+    let closed = false, pointer = null;
     const element = target => target?.nodeType === 3 ? target.parentElement : target;
+    function position(event) {
+      return Number.isFinite(event.clientX) && Number.isFinite(event.clientY)
+        ? { x: event.clientX, y: event.clientY, id: event.pointerId, type: event.pointerType } : null;
+    }
+    function move(event) {
+      // Keep native fractional pointer coordinates. Mouse/keyboard click
+      // coordinates can be rounded or zero and must not replace this position.
+      pointer = event.pointerType === "touch" ? null : position(event);
+    }
+    function clearPointer() { pointer = null; }
+    function leave(event) {
+      if (event.target === document || event.target === document.documentElement) clearPointer();
+    }
     function enabled(button) {
       return button && !button.disabled && !button.matches?.(":disabled") && button.getAttribute?.("aria-disabled") !== "true" && !button.closest?.("[inert]");
     }
@@ -115,7 +128,13 @@
     function over(event) {
       const target = element(event.target);
       if (drawingTarget(target)) { stop(); return; }
-      if (event.pointerType === "touch") return;
+      if (event.pointerType === "touch") { clearPointer(); return; }
+      const next = position(event), stationary = next && pointer && next.x === pointer.x && next.y === pointer.y
+        && next.id === pointer.id && next.type === pointer.type;
+      if (next) pointer = next;
+      // Rebuilt controls can receive a native boundary event without movement.
+      // That hover must not pause the selection clip started by their click.
+      if (stationary) return;
       const button = target?.closest?.(selector);
       // Moving between a button's icon and label is not another entry.
       if (!contains(button, event.relatedTarget)) route(button, false);
@@ -128,19 +147,25 @@
       }
       route(target?.closest?.(selector), true);
     }
-    function stop() { players.stop(); menu.stop?.(); }
+    function stop() { clearPointer(); players.stop(); menu.stop?.(); }
     function visibility() { if (document.hidden) stop(); }
     // Delegation covers buttons created after load, including dialogs and
     // library results. Capture plays before their navigation/render handlers.
     document.addEventListener("pointerover", over, { capture: true, passive: true });
+    document.addEventListener("pointermove", move, { capture: true, passive: true });
+    document.addEventListener("pointerleave", leave, { capture: true, passive: true });
     document.addEventListener("click", click, { capture: true, passive: true });
     document.addEventListener("visibilitychange", visibility);
+    host.addEventListener?.("blur", clearPointer);
     host.addEventListener?.("pagehide", stop);
     function close() {
-      closed = true; players.close(); menu.stop?.();
+      closed = true; clearPointer(); players.close(); menu.stop?.();
       document.removeEventListener("pointerover", over, true);
+      document.removeEventListener("pointermove", move, true);
+      document.removeEventListener("pointerleave", leave, true);
       document.removeEventListener("click", click, true);
       document.removeEventListener("visibilitychange", visibility);
+      host.removeEventListener?.("blur", clearPointer);
       host.removeEventListener?.("pagehide", stop);
     }
     return Object.freeze({ stop, close });

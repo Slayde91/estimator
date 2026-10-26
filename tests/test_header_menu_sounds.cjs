@@ -189,6 +189,89 @@ test("delegated feedback covers dynamic buttons, icons and button-like links onc
   assert.equal(h.plays().length, 3); assert.ok(h.players.every(player => player.paused));
 });
 
+test("stationary replacement hover leaves the clicked tab's selection playing, including rounded click coordinates", () => {
+  const h = audioHarness(); createFeedback(h.document, h.host, h.menu);
+  const old = element(null, { control: true }), replacement = element(null, { control: true });
+  const pointer = { clientX: 438.35, clientY: 498.12, pointerId: 1, pointerType: "mouse", isTrusted: true };
+  h.document.emit("pointerover", { ...pointer, target: old });
+  h.document.emit("pointermove", { ...pointer, target: old });
+  h.document.emit("click", { target: old, clientX: 438, clientY: 498, detail: 1 });
+  const select = h.players.find(player => player.src === feedbackSources.selectOther);
+  select.currentTime = 0.1;
+  const count = h.plays().length, stops = h.menu.stops;
+  // A replacement still interrupted selection when its hover clip was unready.
+  h.players.find(player => player.src === feedbackSources.hover).readyState = 0;
+  h.document.emit("pointerover", { ...pointer, target: element(null) });
+  h.document.emit("pointerover", { ...pointer, target: replacement });
+  assert.equal(h.plays().length, count); assert.equal(h.menu.stops, stops, "No replacement hover reaches routing");
+  assert.equal(select.paused, false); assert.equal(select.currentTime, 0.1);
+});
+
+test("real neighbouring movement and leaving then returning to the same position retain immediate hover", () => {
+  const h = audioHarness(); createFeedback(h.document, h.host, h.menu);
+  const first = element(null, { control: true }), next = element(null, { control: true });
+  const pointer = { clientX: 10.5, clientY: 20.25, pointerId: 1, pointerType: "mouse" };
+  h.document.emit("pointerover", { ...pointer, target: first });
+  h.document.emit("click", { target: first });
+  h.document.emit("pointerover", { ...pointer, clientX: 40.5, target: next, relatedTarget: first });
+  assert.deepEqual(h.plays().map(row => row[1]), [feedbackSources.hover, feedbackSources.selectOther, feedbackSources.hover]);
+  h.document.emit("pointermove", { ...pointer, clientX: 80.5, target: element(null) });
+  h.document.emit("pointerover", { ...pointer, target: first, relatedTarget: next });
+  assert.equal(h.plays().length, 4, "Returning to an earlier coordinate follows actual movement");
+  h.document.emit("pointerover", { ...pointer, clientX: 11.5, target: element(first), relatedTarget: first });
+  assert.equal(h.plays().length, 4, "Nested icon/label boundaries are still one entry");
+});
+
+test("keyboard clicks do not overwrite the resting pointer and missing coordinates keep legacy hover routing", () => {
+  const h = audioHarness(); createFeedback(h.document, h.host, h.menu);
+  const first = element(null, { control: true }), replacement = element(null, { control: true });
+  const pointer = { clientX: 10.75, clientY: 20.5, pointerId: 1, pointerType: "mouse" };
+  h.document.emit("pointerover", { ...pointer, target: first });
+  h.document.emit("click", { target: replacement, detail: 0, clientX: 0, clientY: 0 });
+  h.document.emit("pointerover", { ...pointer, target: replacement });
+  assert.deepEqual(h.plays().map(row => row[1]), [feedbackSources.hover, feedbackSources.selectOther]);
+  assert.equal(h.players.find(player => player.src === feedbackSources.selectOther).paused, false);
+  h.document.emit("pointerover", { target: first, pointerType: "mouse" });
+  h.document.emit("pointerover", { target: replacement, pointerType: "mouse" });
+  assert.equal(h.plays().length, 4, "Coordinate-free compatibility events are not suppressed");
+  h.document.emit("pointerover", { ...pointer, pointerId: 2, target: first });
+  h.document.emit("pointerover", { ...pointer, pointerId: 2, pointerType: "pen", target: replacement });
+  assert.equal(h.plays().length, 6, "A different pointer is a new entry even at the same coordinate");
+});
+
+test("only leaving the document clears stationary pointer history; blur, visibility and pagehide also reset it", () => {
+  for (const reset of ["leave", "blur", "hidden", "pagehide"]) {
+    const h = audioHarness(), controller = createFeedback(h.document, h.host, h.menu);
+    h.document.documentElement = element(null);
+    const old = element(null, { control: true }), replacement = element(null, { control: true });
+    const pointer = { clientX: 10.5, clientY: 20.5, pointerId: 1, pointerType: "mouse" };
+    h.document.emit("pointerover", { ...pointer, target: old }); h.document.emit("click", { target: old });
+    h.document.emit("pointerleave", { ...pointer, target: old });
+    h.document.emit("pointerover", { ...pointer, target: replacement });
+    assert.equal(h.plays().length, 2, "Leaving a removed child does not erase the physical position");
+    if (reset === "leave") h.document.emit("pointerleave", { target: h.document.documentElement });
+    if (reset === "blur") h.host.emit("blur");
+    if (reset === "hidden") { h.document.hidden = true; h.document.emit("visibilitychange"); h.document.hidden = false; }
+    if (reset === "pagehide") h.host.emit("pagehide");
+    h.document.emit("pointerover", { ...pointer, target: old });
+    assert.equal(h.plays().length, 3, `${reset} allows a fresh entry at the same position`);
+    controller.close(); h.document.emit("pointermove", { ...pointer, clientX: 50 }); h.document.emit("pointerover", { ...pointer, target: replacement });
+    assert.equal(h.plays().length, 3); assert.ok(h.players.every(player => player.paused));
+  }
+});
+
+test("stationary drawing boundaries still stop feedback and keep explicit drawing-menu commands usable", () => {
+  const h = audioHarness(); createFeedback(h.document, h.host, h.menu);
+  const pane = element(null, { control: true }), drawing = element(null, { zone: "drawing" });
+  const pointer = { clientX: 10.5, clientY: 20.5, pointerId: 1, pointerType: "mouse" };
+  h.document.emit("pointerover", { ...pointer, target: pane }); h.document.emit("click", { target: pane });
+  h.document.emit("pointerover", { ...pointer, target: drawing });
+  assert.ok(h.players.every(player => player.paused));
+  const command = element(element(drawing, { zone: "drawing-menu" }), { control: true });
+  h.document.emit("pointerover", { ...pointer, target: command });
+  assert.equal(h.plays().at(-1)[1], feedbackSources.hover);
+});
+
 test("Home shares header clips, while the logo, Takeoff controls and other-page controls remain distinct", () => {
   const h = audioHarness(); createFeedback(h.document, h.host, h.menu);
   const homeButton = element(element(null, { zone: "home" }), { control: true });

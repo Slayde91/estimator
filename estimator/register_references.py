@@ -142,7 +142,7 @@ class ReferenceIndex:
     def __init__(self, data, revision):
         from .penetration_calculator import canonical_service_type, canonical_substrate
         self.revision, self.data = revision, data
-        self.records = data['_records']['technical'] if data else {}
+        self.records = data.get('_technical_public_records', data['_records']['technical']) if data else {}
         self.visible = set(data['_visible']['technical']) if data else set()
         self.facets, self.matches, self.reports = defaultdict(set), OrderedDict(), OrderedDict()
         self.match_bytes, self.report_bytes = 0, 0

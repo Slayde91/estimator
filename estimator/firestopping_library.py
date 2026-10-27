@@ -842,7 +842,7 @@ class FirestoppingLibrary(ReferenceLibrary):
             if len(set(rights)) != len(rights):
                 raise ValidationError('Choose each Technical Library item only once.')
             data = self._load()
-            if not data or key not in data['_records']['penetration'] or any(right not in data['_records']['technical'] for right in rights):
+            if not data or key not in data['_records']['penetration'] or any(right not in data['_technical_public_records'] for right in rights):
                 raise ReferenceNotFound()
             existing = {link['id'] for link in data['_links']['penetration'][key]}
             own = self.edits.created().get(key)

@@ -14,6 +14,7 @@ from threading import RLock
 from .catalog import ROOT, ValidationError
 from .technical_configuration_review import validate_configuration_review
 from .technical_duplicates import reviewed_groups, consolidate_links
+from .technical_catalog_policy import public_records
 from .technical_table_navigation import validate_table_navigation
 from .technical_orientation import prepare_selector_orientation_context
 from .library_substrates import classify_substrates, substrate_options
@@ -357,6 +358,19 @@ class ReferenceLibrary:
                 for key in members:
                     records['technical'][key]['consolidated_ids'] = list(members)
                     records['technical'][key]['canonical_id'] = canonical
+        # Public product/report decisions must not change the records bound to
+        # source reviews or the original records used by durable manual links.
+        if reuse_technical:
+            public_technical = validated_source['_technical_public_records']
+        else:
+            report_keys = [entry['key'] for entry in filters['technical'] if entry['key'] in {'report', 'document'}]
+            public_technical = public_records(records['technical'], aliases, report_keys or ['report'])
+            if not report_keys and any('report' in item.get('filter_values', {}) for item in public_technical.values()):
+                filters['technical'].append({'key': 'report', 'label': 'Report', 'options': []})
+            searches['technical'] = {key: searches['technical'][key] + '\n' + '\n'.join(
+                field.get('value', '') for field in item.get('fields', []) if field.get('label') == 'Report Number').casefold()
+                for key, item in public_technical.items()}
+        visible['technical'] = [key for key in visible['technical'] if key in public_technical]
         # Discovery aliases are applied after source-bound duplicate review.
         # Keep _records and its reviewed fields/facets unchanged: manual-link
         # fingerprints and duplicate reviews still see their original inputs.
@@ -367,7 +381,7 @@ class ReferenceLibrary:
                                  for item in data['libraries']['technical']['items']}
             discovery = {key: {**item.get('filter_values', {}),
                                **discovery_facets(item, imported_services=imported_services[key])}
-                         for key, item in records['technical'].items()}
+                         for key, item in public_technical.items()}
             for entry in filters['technical']:
                 observed = {value for values in discovery.values() for value in values.get(entry['key'], [])}
                 if entry['key'] == 'frl':
@@ -383,7 +397,7 @@ class ReferenceLibrary:
                 continue
             for entry in filters[kind]:
                 entry['options'] = grouped_filter_options(
-                    entry['key'], entry['options'], records[kind].values())
+                    entry['key'], entry['options'], (public_technical if kind == 'technical' else records[kind]).values())
         links = {kind: {key: [] for key in records[kind]} for kind in KINDS}
         seen = set()
         if not isinstance(data['links'], list) or len(data['links']) > 500000:
@@ -395,6 +409,12 @@ class ReferenceLibrary:
                 raise ValueError('Duplicate link')
             seen.add(pair)
             relationship = string(link['relationship'], 4000)
+            # Validate both original endpoints even when a public catalog
+            # exclusion hides this retained edge from the reciprocal lists.
+            if left not in records['penetration'] or right not in records['technical']:
+                raise ValueError('Missing link endpoint')
+            if right not in public_technical:
+                continue
             for kind, source, target_kind, target in [('penetration', left, 'technical', right), ('technical', right, 'penetration', left)]:
                 title = records[target_kind][target]['title']
                 links[kind][source].append({'kind': target_kind, 'id': target, 'title': title, 'relationship': relationship,
@@ -405,6 +425,7 @@ class ReferenceLibrary:
                 entry['title'] = records['technical'][entry['id']]['title']
         data['_aliases'], data['_groups'], data['_visible'] = aliases, groups, visible
         data['_technical_discovery'] = discovery
+        data['_technical_public_records'] = public_technical
         data['_records'], data['_searches'], data['_filters'], data['_links'], data['_assets'] = records, searches, filters, links, assets
 
     def overview(self):
@@ -444,7 +465,7 @@ class ReferenceLibrary:
             items = []
             if data:
                 for key in data['_visible'][kind]:
-                    item = data['_records'][kind][key]
+                    item = data['_technical_public_records'][key] if kind == 'technical' else data['_records'][kind][key]
                     linked = bool(data['_links'][kind][key])
                     if (reference == 'linked' and not linked) or (reference == 'unlinked' and linked):
                         continue
@@ -491,7 +512,9 @@ class ReferenceLibrary:
             data = self._load()
             if not data or kind not in KINDS or key not in data['_records'][kind]:
                 raise ReferenceNotFound()
-            item = deepcopy(data['_records'][kind][key])
+            if kind == 'technical' and key not in data['_technical_public_records']:
+                raise ReferenceNotFound()
+            item = deepcopy(data['_technical_public_records'][key] if kind == 'technical' else data['_records'][kind][key])
             if kind == 'technical':
                 item = present_technical(item)
             item.pop('filter_values', None)

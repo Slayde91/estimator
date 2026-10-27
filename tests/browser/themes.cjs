@@ -97,10 +97,11 @@ async function checkAudioErrors() {
   assert.deepEqual(current,[],'Native audio errors must not be hidden by transport cancellation classification');
 }
 async function observeAudioDocument(label) {
-  await page.waitForFunction(()=>window.themeAudioErrors.length>0||(window.themeAudio.length===9&&window.themeAudio.every(audio=>audio.readyState>=2&&!audio.error&&Number.isFinite(audio.duration)&&audio.duration>0)),null,{timeout:30000});
+  // Keep readiness bound to the exact active clip list as sounds are removed.
+  await page.waitForFunction(expectedCount=>window.themeAudioErrors.length>0||(window.themeAudio.length===expectedCount&&window.themeAudio.every(audio=>audio.readyState>=2&&!audio.error&&Number.isFinite(audio.duration)&&audio.duration>0)),soundPaths.size,{timeout:30000});
   const state=await page.evaluate(()=>({timeOrigin:performance.timeOrigin,observedAt:Date.now(),errors:window.themeAudioErrors,media:window.themeAudio.map(audio=>({source:new URL(audio.currentSrc||audio.src).pathname,url:audio.currentSrc||audio.src,readyState:audio.readyState,duration:audio.duration,error:audio.error?.code||null,preload:audio.preload}))}));
   evidence.audioDocuments.push({generation:documentGeneration,label,...state});
-  assert.deepEqual(state.media.map(row=>row.source).sort(),[...soundPaths].sort(),'All nine real audio elements must be observed');
+  assert.deepEqual(state.media.map(row=>row.source).sort(),[...soundPaths].sort(),'Every active real audio element must be observed');
   assert.deepEqual(state.errors,[]);
   assert.ok(state.media.every(row=>row.readyState>=2&&row.error===null&&Number.isFinite(row.duration)&&row.duration>0&&row.preload==='auto'),'Every real clip must decode successfully');
 }

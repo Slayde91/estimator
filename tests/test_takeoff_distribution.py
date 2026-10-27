@@ -19,6 +19,7 @@ class TakeoffDistributionTests(unittest.TestCase):
                          'docs/TAKEOFFS.md', 'docs/LANGUAGES.md', 'docs/PERLIFOC_ASSESSMENT.md', 'docs/NULLIFIRE_SC902.md', 'docs/FIRETEX_ASSESSMENTS.md',
                           'docs/CALCULATOR_REPORT_UPDATES.md', 'docs/MONOKOTE_DUCT_ASSESSMENT.md',
                           'docs/FIREFLY_REFERENCE_REVIEW.md',
+                          'docs/FIREFLY_TECHNICAL_REVIEW.md',
                           'docs/TAKEOFFS_VISUAL_SEARCH.md', 'docs/LOCAL_OCR_TEXT_LAYERS.md',
                           'scripts/import_promat_spray_assessments.py', 'requirements-import.txt',
                          'estimator/__init__.py', 'static/takeoffs.js', 'data/public.json'):
@@ -39,6 +40,7 @@ class TakeoffDistributionTests(unittest.TestCase):
                 self.assertIn('docs/CALCULATOR_REPORT_UPDATES.md', names)
                 self.assertIn('docs/MONOKOTE_DUCT_ASSESSMENT.md', names)
                 self.assertIn('docs/FIREFLY_REFERENCE_REVIEW.md', names)
+                self.assertIn('docs/FIREFLY_TECHNICAL_REVIEW.md', names)
                 self.assertIn('scripts/import_promat_spray_assessments.py', names)
                 self.assertIn('requirements-import.txt', names)
                 self.assertIn('scripts/build_language_catalog.py', names)

@@ -174,7 +174,7 @@ window.CeasefireScheduleColumns = (() => {
         text: { AE8: "Board net (m²)", AG8: "Sheets", AH8: "Purchase area (m2)" },
       }, // Retain source inputs, calculated outputs and saved row waste.
       START: { hide: ["A1"], text: { A1: "", D13: "Previously saved additional-board allowances remain included in purchasing totals.", A27: "Use START, SCHEDULE, BOARD SUMMARY and SETTINGS. Supporting reference data is retained by the application.", A31: "Saved additional-board allowances remain included in the board summary." } },
-      "BOARD SUMMARY": { center: ["A11:D29", "I11:J29"], text: { A1: "SUMMARY" } }, // 22
+      "BOARD SUMMARY": { center: ["A11:D29", "I11:J29"], omit: ["A31:L31", "A35:L35"], text: { A1: "SUMMARY" } }, // 22
       SETTINGS: { center: ["A5:C34", "G5:N10"], text: { Q5: "Description" }, omit: ["A1", "A3"] }, // 23–25
     },
     ductwork: {
@@ -1292,12 +1292,54 @@ window.CeasefireScheduleColumns = (() => {
     return editing ? String(visible) : (cell.control_exact ? controlExactNumber : controlNumber).format(visible);
   }
 
-  function scheduleColumnWidth(column, label, lineColumn) {
+  let columnMeasureContext;
+  function columnTextWidth(value, bold = false) {
+    columnMeasureContext ??= document.createElement("canvas").getContext?.("2d") || false;
+    const text = String(value ?? "");
+    if (columnMeasureContext) {
+      columnMeasureContext.font = `${bold ? 700 : 400} 12px Montserrat, Arial, sans-serif`;
+      return Math.ceil(columnMeasureContext.measureText(text).width);
+    }
+    return Math.ceil(text.length * (bold ? 7.2 : 6.8));
+  }
+
+  function intumescentExposureLabel(entry, address, value) {
+    const position = parseAddress(address), schedule = entry?.definition.schedule;
+    if (entry?.definition.id !== "steel_intumescent" || entry.sheet !== schedule?.sheet
+        || position?.column !== 3 || position.row < schedule.first_row || position.row > schedule.last_row) return null;
+    const match = String(value).match(/^(I\/H|RHS\/SHS|CHS) (beam|column) - ([34]) sides$/);
+    if (!match) return null;
+    const family = `${match[1] === "I/H" ? "Re-entrant" : "Hollow"} - ${match[3]} sides`;
+    const member = window.CeasefireI18n.term(match[2] === "beam" ? "Beam" : "Column");
+    return { key: "{0} · {1}", args: [window.CeasefireI18n.term(family), match[1] === "I/H" ? member : window.CeasefireI18n.term("{0} · {1}", [match[1], member])] };
+  }
+
+  function scheduleColumnWidth(column, label, lineColumn, entry, result) {
     if (column === lineColumn) return 60;
-    if (/notes?|status|requirements|basis|sources?/i.test(label)) return 224;
-    if (/product|steel id|section|member mark|item.*mark|location|duct use/i.test(label)) return 170;
-    if (/exposure|input method|orientation|frl/i.test(label)) return 156;
-    return 112;
+    const header = Math.max(88, Math.min(112, columnTextWidth(window.CeasefireI18n.translate(label), true) + 24));
+    const cells = result.rows.flatMap(row => row.cells.filter(cell => cell.column === column && cell.editable));
+    const lists = new Set(cells.filter(cell => cell.type === "select").map(cell => cellOptions(cell, entry)));
+    if (lists.size) {
+      let longest = columnTextWidth(window.CeasefireI18n.translate("(blank)"));
+      const displayCells = result.display_cells || sheetMetadata(entry).display_cells || {};
+      if (cells.some(cell => !cell.strict_options && displayCells[cell.address]?.control === "select"
+          && (cell.allow_other || ["warning", "information"].includes(cell.error_style || cell.validation?.error_style || cell.validation?.errorStyle)))) {
+        longest = Math.max(longest, columnTextWidth(window.CeasefireI18n.translate("Enter custom value…")));
+      }
+      for (const options of lists) for (const option of options) {
+        const address = cells.find(cell => cell.type === "select")?.address || `${columnName(column)}${entry.definition.schedule.first_row}`;
+        const exposure = intumescentExposureLabel(entry, address, option);
+        const shown = exposure ? window.CeasefireI18n.translate(exposure.key, exposure.args) : (isNumber(option) ? numericInputValue(option, cells[0]) : window.CeasefireI18n.translate(String(option)));
+        longest = Math.max(longest, columnTextWidth(shown));
+      }
+      // Native arrows, input padding and cell borders remain outside the text.
+      return Math.max(header, longest + 56);
+    }
+    if (/notes?|status|requirements|basis|sources?/i.test(label)) return Math.max(header, 176);
+    if (/member mark|item.*mark|location/i.test(label)) return 156;
+    if (/steel id|section/i.test(label)) return Math.max(header, 144);
+    if (cells.some(cell => cell.type === "text" || cell.multiline)) return Math.max(header, 144);
+    return header;
   }
 
   function sheetMetadata(entry) { return entry.definition.sheets.find((sheet) => sheet.name === entry.sheet) || {}; }
@@ -1488,8 +1530,10 @@ window.CeasefireScheduleColumns = (() => {
         // Historical inputs stay visible and exact, without becoming new choices.
         const unavailable = listedChoice && item !== "" && !options.some((choice) => String(choice) === String(item));
         const option = node("option"); option.value = String(item);
+        const exposure = intumescentExposureLabel(entry, address, item);
         if (unavailable) window.CeasefireI18n.text(option, "Saved value: {0} (choose a listed value)", [item]);
         else if (item === "") window.CeasefireI18n.text(option, "(blank)");
+        else if (exposure) window.CeasefireI18n.text(option, exposure.key, exposure.args);
         else if (calculatorChoiceLabel(entry, address, item, options.some((choice) => String(choice) === String(item)))) window.CeasefireI18n.text(option, item);
         else option.textContent = displayValue(item, cell);
         if (unavailable) option.disabled = true;
@@ -1719,6 +1763,9 @@ window.CeasefireScheduleColumns = (() => {
   function updateOutputCell(element, cell) {
     const address = cell.address || element.dataset.calculatorOutput, entry = current();
     const value = sourceDisplayText(cell.value, entry, address), suffix = entry && (entry.result?.display_cells || sheetMetadata(entry).display_cells)?.[address]?.suffix;
+    if (entry?.definition.id === "steel_board" && entry.sheet === "CALCULATOR" && address === "Y6") {
+      element.hidden = value === "Enter a steel schedule. Review the selected report for installation details.";
+    }
     const schedule = entry?.definition.schedule, position = parseAddress(address);
     const basis = scheduleBasis(entry, address, value);
     const lineNumber = schedule && entry.sheet === schedule.sheet && position?.column === columnNumber(schedule.line_id_column) && position.row >= schedule.first_row && position.row <= schedule.last_row;
@@ -1852,7 +1899,7 @@ window.CeasefireScheduleColumns = (() => {
     const notes = current()?.boardSteelNotesElement;
     if (notes) {
       const areas = result.board_net_steel_areas;
-      notes.replaceChildren(...(areas ? [areas.basis, ...(areas.notes || [])] : []).map(text => node("p", "helper", text)));
+      notes.replaceChildren(...(areas?.notes || []).map(text => node("p", "helper", text)));
     }
   }
 
@@ -1964,8 +2011,7 @@ window.CeasefireScheduleColumns = (() => {
         body.append(row);
       }
       table.append(head, body); scroll.append(table);
-      const note = uiNode("p", "helper", "Whole packs are rounded once per product after waste. Review unresolved items before ordering. Mesh, primers and topcoats are separate allowances.");
-      container.hidden = false; container.replaceChildren(scroll, note); return;
+      container.hidden = false; container.replaceChildren(scroll); return;
     }
     overview ||= [...(container.children || [])].find((child) => child.classList?.contains("calculator-overview")) || null;
     const board = Array.isArray(result?.board_product_totals);
@@ -2116,7 +2162,8 @@ window.CeasefireScheduleColumns = (() => {
     const sourcePosition = columns.indexOf(thicknessSource);
     if (sourcePosition >= 0) columns = columns.filter(column => column !== thicknessSource);
     const steelSchedule = schedule && ["steel_vermiculite", "steel_intumescent"].includes(entry.definition.id) && entry.sheet === "SCHEDULE";
-    const reportBefore = showReports ? steelSchedule && columns.includes(10) ? columns[columns.indexOf(10) + 1] ?? null
+    const reportBefore = showReports ? entry.definition.id === "steel_board" && columns.includes(25) ? 25
+      : steelSchedule && columns.includes(10) ? columns[columns.indexOf(10) + 1] ?? null
       : sourcePosition >= 0 ? columns[sourcePosition] ?? null
         : columns.find(column => /basis|status|sources?|requirements|notes?/i.test(labels[column] || "")) : null;
     const scheduleView = scheduleFor(entry) && result.schedule_view;
@@ -2279,7 +2326,7 @@ window.CeasefireScheduleColumns = (() => {
     for (const column of columns) {
       if (showReports && column === reportBefore) { const heading = uiNode("th", "calculator-report-column", "Report"); heading.scope = "col"; heading.dataset.scheduleColumn = "virtual:report"; headRow.append(heading); }
       const label = String(labels[column] || "");
-      const width = schedule ? scheduleColumnWidth(column, label, lineColumn) : Math.max(24, Math.min(320, (Number(metadata.column_widths?.[column]) || 22) * 7));
+      const width = schedule ? scheduleColumnWidth(column, label, lineColumn, entry, result) : Math.max(24, Math.min(320, (Number(metadata.column_widths?.[column]) || 22) * 7));
       widths.push(width);
       const heading = uiNode("th", "", labels[column] || ""); heading.scope = "col"; headRow.append(heading);
       if (schedule) heading.dataset.scheduleColumn = `column:${columnName(column)}`;
@@ -2317,7 +2364,7 @@ window.CeasefireScheduleColumns = (() => {
         const column = placement.column;
         if (showReports && column === reportBefore) tr.append(reportCell());
         if (boardSummary && column === 10 && row.row >= 11 && row.row <= 29) {
-          const steelCell = node(row.row === 11 ? "th" : "td", "calculator-role-output calculator-center calculator-bold");
+          const steelCell = node(row.row === 11 ? "th" : "td", "calculator-role-output calculator-center calculator-align-center calculator-bold");
           if (row.row === 11) { steelCell.scope = "col"; window.CeasefireI18n.text(steelCell, "Net Steel sqm"); }
           else { steelCell.dataset.boardSteelRow = String(row.row); steelCell.dataset.calculatorValue = "true"; updateOutputCell(steelCell, { value: boardSteelValue(result, row.row) }); }
           tr.append(steelCell);
@@ -2407,7 +2454,7 @@ window.CeasefireScheduleColumns = (() => {
       entry.productTotalsElement = totals; renderProductTotals(result, totals); content.push(totals);
     }
     if (boardSchedule) content.push(scheduleOverview);
-    const hideScheduleGuidance = schedule && (entry.definition.id === "ductwork" && entry.sheet === "CALCULATOR" || vermiculiteSchedule);
+    const hideScheduleGuidance = schedule && (entry.definition.id === "ductwork" && entry.sheet === "CALCULATOR" || vermiculiteSchedule || intumescentSchedule || boardSchedule);
     if (!hideScheduleGuidance && (schedule?.requirements_note || schedule?.quantity_help)) {
       const guidance = node("div", "calculator-schedule-guidance");
       for (const text of [schedule.requirements_note, schedule.quantity_help].filter(Boolean)) guidance.append(uiNode("p", "helper", text));
@@ -2437,8 +2484,15 @@ window.CeasefireScheduleColumns = (() => {
       if (fitContent) table.classList.add("calculator-content-table");
       if (definition) table.classList.add("calculator-projection-table");
       const groupWidths = definition ? groupColumns.map((column) => definition.column_widths?.[definition.columns.map(columnNumber).indexOf(column)] || 125) : matrix && group === "matrix" ? groupColumns.map((column) => orderTable ? [19, 7, 9, 10, 8, 7, 11, 9, 20][column - 1] : column === 1 ? 100 : 88) : groupColumns.map((column) => widths[columns.indexOf(column)]);
+      if (boardSummary && definition?.first_row === 11) {
+        table.classList.add("calculator-board-purchasing-table");
+        for (const [index, column] of groupColumns.entries()) {
+          const values = renderedGroup.sourceRows.flatMap(row => row.cells.filter(cell => cell.column === column).map(cell => row.row === 11 ? window.CeasefireI18n.translate(String(cell.value || "")) : displayValue(cell.value, cell)));
+          groupWidths[index] = Math.max(96, ...values.map(value => columnTextWidth(value, column === 1) + 30));
+        }
+      }
       if (showReports) groupWidths.splice(groupColumns.includes(reportBefore) ? groupColumns.indexOf(reportBefore) : groupWidths.length, 0, 144);
-      if (boardSummary && definition?.first_row === 11 && groupColumns.includes(10)) groupWidths.splice(groupColumns.indexOf(10), 0, 170);
+      if (boardSummary && definition?.first_row === 11 && groupColumns.includes(10)) groupWidths.splice(groupColumns.indexOf(10), 0, columnTextWidth(window.CeasefireI18n.translate("Net Steel sqm"), true) + 30);
       if (syntheticLine) groupWidths.unshift(lineWidth);
       if (dynamicSchedule) groupWidths.push(80);
       if (schedule) table.scheduleColumnLayout = entry.scheduleColumnChoices.map((column, index) => ({ id: column.id, width: groupWidths[index] }));
@@ -2464,7 +2518,7 @@ window.CeasefireScheduleColumns = (() => {
       if (boardSummary && definition?.first_row === 11) {
         const notes = node("div"); notes.id = "calculator-board-steel-notes";
         entry.boardSteelNotesElement = notes;
-        notes.append(...(result.board_net_steel_areas ? [result.board_net_steel_areas.basis, ...(result.board_net_steel_areas.notes || [])] : []).map(text => node("p", "helper", text)));
+        notes.append(...(result.board_net_steel_areas?.notes || []).map(text => node("p", "helper", text)));
         scroll.append(notes);
       }
       if (dynamicSchedule) {
@@ -2671,8 +2725,10 @@ window.CeasefireScheduleColumns = (() => {
 
   function renderDocuments(entry) {
     const groups = new Map();
-    for (const document of entry.definition.documents || []) {
-      const url = safeDocumentUrl(document.url); if (!url && document.reference_only !== true) continue;
+    for (const document of entry.factorView ? [] : entry.definition.documents || []) {
+      const url = safeDocumentUrl(document.url);
+      if (!url || document.reference_only === true || !/^Public PDF\b/i.test(document.availability || "")
+          || new URL(url).origin === window.location.origin) continue;
       const product = Array.isArray(document.products) && document.products.length ? document.products.join(" / ") : "Source information";
       if (!groups.has(product)) groups.set(product, []);
       const card = node("article", "calculator-document-card");

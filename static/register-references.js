@@ -51,16 +51,19 @@
       const groups = new Map();
       for (const item of current.systems || []) {
         if (!item || !/^[a-z0-9][a-z0-9_-]{0,119}$/.test(item.id || "") || !Number.isSafeInteger(item.number) || item.number < 1) continue;
-        const manufacturer = text(item.manufacturer) || "Manufacturer not recorded";
+        const manufacturer = options.plainNumbers ? "" : text(item.manufacturer) || "Manufacturer not recorded";
         if (!groups.has(manufacturer)) groups.set(manufacturer, []); groups.get(manufacturer).push(item);
       }
+      let sequence = current.offset || 0;
       for (const [manufacturer, systems] of groups) {
         if (result.children.length) result.append(node(document, "span", " | "));
-        const group = node(document, "span"), prefix = node(document, "span", `${caption(manufacturer)}-`); group.append(prefix);
+        const group = node(document, "span"); if (!options.plainNumbers) group.append(node(document, "span", `${caption(manufacturer)}-`));
         for (const [index, item] of systems.entries()) {
-          if (index) group.append(node(document, "span", ", "));
-          const control = node(document, "button", item.number); control.type = "button"; control.className = "text-button";
-          control.dataset.technicalReference = item.id; control.title = item.title; control.setAttribute("aria-label", `${caption(manufacturer)}: ${item.number}. ${item.title}`);
+          if (index) group.append(node(document, "span", options.plainNumbers ? " | " : ", "));
+          const number = options.plainNumbers ? ++sequence : item.number;
+          const control = node(document, "button", number); control.type = "button"; control.className = "text-button";
+          control.dataset.technicalReference = item.id; control.title = item.title;
+          control.setAttribute("aria-label", options.plainNumbers ? `${number}. ${item.title}` : `${caption(manufacturer)}: ${item.number}. ${item.title}`);
           control.addEventListener("click", async () => { if (options.isCurrent && !options.isCurrent()) return; try { await root.CeasefireLibraryNavigation?.open("technical", item.id); } catch (error) { options.notify?.(error.message, true); } });
           group.append(control);
         }

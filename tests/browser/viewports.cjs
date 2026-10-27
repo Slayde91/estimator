@@ -466,7 +466,9 @@ function closePoint(actual, expected, tolerance = 0.9) { actual.forEach((n, i) =
       assert.ok(Math.abs(Number(row['Base length per item m']) - base) < 1e-11); assert.equal(Number(row['Riser/drop additions per item m']), additionLength);
       assert.ok(Math.abs(Number(row['Length per item m']) - base - additionLength) < 1e-11); assert.ok(Math.abs(Number(row['Total length m']) - total) < 1e-11);
       const dimensions = JSON.parse(row['Riser/drop source dimensions']);
-      assert.equal(dimensions[0].document_sha256, doc.sha256); assert.equal(dimensions[0].document_id, doc.id);
+      assert.ok(!Object.hasOwn(dimensions[0], 'document_sha256'), 'Downloads omit internal source fingerprints.');
+      assert.equal((await snapshot()).documents.find(value => value.id === doc.id).sha256, doc.sha256, 'The retained original source still has its exact hash.');
+      assert.equal(dimensions[0].document_id, doc.id);
       assert.equal(dimensions[0].page, 3); assert.ok(Number.isInteger(dimensions[0].anchor.point_index));
       assert.equal(dimensions[0].length_mm, additionLength * 1000);
     }

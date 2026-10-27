@@ -44,7 +44,7 @@ let source = fs.readFileSync('static/calculators.js', 'utf8');
 source = source.replace('  window.CeasefireCalculators = { open, projectSnapshot, projectFingerprint, prepareProject, applyProject };', `
   globalThis.audit = {state,current,dirty,displayValue,numericInputValue,makeControl,refreshOutputs,setInput,calculate,save,reset,settingsPanels,importSchedule,open,
      addScheduleRow,removeScheduleRow,requestRemoveScheduleRow,refreshScheduleDeleteControls,undoScheduleRemove,projectSnapshot,projectFingerprint,prepareDefaults,markProjectSaved,choiceSignature,
-      exportTemplate,downloadSchedulePdf,downloadExcelRegister,downloadMaterialsSummaryPdf,selectCalculator,selectPage,prepareProject,applyProject,headerLabels,safeDocumentUrl,renderGrid,renderOverview,renderProductTotals,outputState,updateOutputCell,renderDocuments,renderChoices,sourceDisplayText,hiddenColumns,displayPages,showCalculationStatus,
+      exportTemplate,downloadSchedulePdf,downloadExcelRegister,downloadMaterialsSummaryPdf,selectCalculator,selectPage,prepareProject,applyProject,headerLabels,safeDocumentUrl,renderGrid,renderOverview,renderProductTotals,outputState,updateOutputCell,renderDocuments,renderChoices,sourceDisplayText,hiddenColumns,displayPages,showCalculationStatus,scheduleColumnWidth,intumescentExposureLabel,
     setRequest(fn){request=fn;},setFetch(fn){globalThis.fetch=fn;},setRender(fn){renderGrid=fn;}};
   window.CeasefireCalculators = { open };`);
 vm.runInContext(source, context);
@@ -551,25 +551,28 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
   assert.equal(audit.safeDocumentUrl(undefined), null);
   assert.equal(audit.safeDocumentUrl(''), null);
 
-  // Manufacturer document requests remain visibly distinct from downloadable reports.
+  // The source list exposes public PDF links only; retained private assessments
+  // and manufacturer contact/portal cards remain in the immutable definition.
   entry.definition.documents = [
     { title:'Product assessment',kind:'Assessment report',availability:'Public PDF',products:['Example board'],url:'https://example.com/report.pdf',reference_coverage:'Tested construction details.' },
     { title:'Supporting documents',kind:'Manufacturer document request',availability:'Request from manufacturer',products:['Example board'],url:'https://example.com/contact',reference_coverage:'Ask for the exact arrangement.',notes:'A product listing is not a report.' },
-    { title:'Unsafe',url:'javascript:alert(1)' },
+    { title:'Unsafe',availability:'Public PDF',url:'javascript:alert(1)' },
+    { title:'Local private source',availability:'Public PDF',url:'/api/private/report.pdf' },
+    { title:'Private with a URL',availability:'Supplied PDF retained privately',url:'https://example.com/private.pdf' },
   ];
+  const documentDefinition=JSON.stringify(entry.definition);
   audit.renderDocuments(entry);
   const documentGroup = byId('calculator-document-list').children[0], documentCards = documentGroup.children[1].children;
-  assert.equal(documentCards.length,2); assert.equal(documentGroup.children[0].textContent,'Example board');
-  assert.match(documentCards[1].children[0].textContent,/Manufacturer document request.*Request from manufacturer/);
-  assert.equal(documentCards[1].classList.contains('calculator-document-request'),true);
-  assert.equal(documentCards[1].children.at(-1).textContent,'A product listing is not a report.'); passed++;
+  assert.equal(documentCards.length,1); assert.equal(documentGroup.children[0].textContent,'Example board');
+  assert.equal(documentCards[0].children[1].href,'https://example.com/report.pdf');
+  assert.equal(JSON.stringify(entry.definition),documentDefinition);
+  entry.factorView=true;audit.renderDocuments(entry);assert.equal(byId('calculator-documents').hidden,true);assert.equal(byId('calculator-document-list').children.length,0);
+  entry.factorView=false;audit.renderDocuments(entry);assert.equal(byId('calculator-documents').hidden,false);passed++;
   entry.definition.documents = [{title:'Supplied assessment',kind:'Assessment report',availability:'Held privately',
     products:['Example spray'],url:null,reference_only:true,reference_coverage:'Current thickness basis.'}];
   audit.renderDocuments(entry);
-  const privateCard=byId('calculator-document-list').children[0].children[1].children[0];
-  assert.equal(privateCard.children[1].tagName,'p');
-  assert.equal(privateCard.children[1].textContent,'Supplied assessment');
-  assert.equal(privateCard.children[1].href,undefined); passed++;
+  assert.equal(byId('calculator-documents').hidden,true);
+  assert.equal(byId('calculator-document-list').children.length,0); passed++;
 
   // The approved browser caption uses the exact unit; raw source/user text stays exact.
   entry=setup({CALCULATOR:{A9:'Board net (m2)'}});const boardCaptionSource={rows:[{row:8,cells:[{column:31,address:'AE8',value:'Board net (m2)'}]}]},boardCaptionBefore=JSON.stringify(boardCaptionSource);
@@ -1160,13 +1163,17 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
   const steelCells=byId('calculator-grid').querySelectorAll('[data-board-steel-row]');
   assert.equal(steelCells.length,2);assert.equal(steelCells[0].textContent,'11.84');assert.equal(steelCells[1].textContent,'Unavailable (1 line)');
   assert.ok(descendants(entry.boardSteelNotesElement).some(node=>node.textContent.includes('Missing profile')));
+  assert.ok(!descendants(entry.boardSteelNotesElement).some(node=>node.textContent.includes('Exposed profile surface')));
+  assert.ok(steelCells.every(node=>node.className.split(' ').includes('calculator-align-center')));
+  assert.ok(Number.parseFloat(purchasingTable.children[0].children[0].style.width)<240);
+  assert.ok(Number.parseFloat(purchasingTable.children[0].children[5].style.width)<170);
   const purchasingOutputAddresses=byId('calculator-grid').querySelectorAll('[data-calculator-output]').map(node=>node.dataset.calculatorOutput);
   for(const row of [12,29]) {
     for(const column of ['E','F','G','H','K','L'])assert.ok(!purchasingOutputAddresses.includes(`${column}${row}`));
     for(const column of ['A','B','C','D','I','J'])assert.ok(purchasingOutputAddresses.includes(`${column}${row}`));
   }
   for(const address of ['A6','E6','I6'])assert.ok(!purchasingOutputAddresses.includes(address));
-  for(const address of ['A31','A35'])assert.ok(purchasingOutputAddresses.includes(address));
+  for(const address of ['A31','A35'])assert.ok(!purchasingOutputAddresses.includes(address));
   assert.equal(JSON.stringify(entry.result),sourceBoardSummary);
   for(const row of descendants(byId('calculator-grid')).filter(node=>node.dataset?.sourceRow)) assert.ok(Number(row.dataset.sourceRow)>=11);
   const updatedSummary=copy(entry.result);updatedSummary.board_net_steel_areas.rows[0].net_steel_sqm=99.9999;updatedSummary.board_net_steel_areas.rows[1]={row:29,net_steel_sqm:0,issues:[]};updatedSummary.board_net_steel_areas.notes=[];updatedSummary.rows.find(row=>row.row===6).cells[0].value=0;updatedSummary.rows.find(row=>row.row===8).cells[0].value='No incomplete rows';audit.setRequest(async()=>updatedSummary);await audit.calculate();
@@ -1835,9 +1842,9 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
   assert.equal(ductIntro.textContent,'For FyreWrap, Internal, External and Both use the exhaust application rules. Select pressurisation separately.');assert.equal(JSON.stringify(entry.result),rawDuctIntro);
   assert.equal(renderedControls().length,1);passed++;
 
-  // Only the two requested guidance blocks are hidden. Other calculators keep
-  // their required-field notes, and definitions/results remain exportable.
-  for(const [id,sheet,hidden] of [['ductwork','CALCULATOR',true],['steel_vermiculite','SCHEDULE',true],['steel_intumescent','SCHEDULE',false],['steel_board','CALCULATOR',false]]){
+  // Guidance is omitted across the requested schedules without changing any
+  // source definition, input, calculation response or export value.
+  for(const [id,sheet,hidden] of [['ductwork','CALCULATOR',true],['steel_vermiculite','SCHEDULE',true],['steel_intumescent','SCHEDULE',true],['steel_board','CALCULATOR',true]]){
     entry=setup();entry.definition.id=id;entry.sheet=sheet;entry.definition.schedule.sheet=sheet;
     entry.definition.schedule.requirements_note='Fields marked * are required.';
     entry.definition.schedule.quantity_help='Retained source quantity guidance.';
@@ -2564,6 +2571,72 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
     if(savedCase){assert.equal(combined.disabled,true);assert.match(combined.textContent,/Saved value/);}else assert.equal(combined,undefined);
     assert.equal(JSON.stringify(entry.inputs),before);passed++;
   }
+  // Shared exposure families are labels only. Every existing assessed member
+  // case still posts its exact distinct backend value and preserves precision.
+  const exposureLabels={
+    'I/H beam - 3 sides':'Re-entrant - 3 sides · Beam',
+    'I/H column - 3 sides':'Re-entrant - 3 sides · Column',
+    'I/H beam - 4 sides':'Re-entrant - 4 sides · Beam',
+    'I/H column - 4 sides':'Re-entrant - 4 sides · Column',
+    'RHS/SHS beam - 3 sides':'Hollow - 3 sides · RHS/SHS · Beam',
+    'RHS/SHS beam - 4 sides':'Hollow - 4 sides · RHS/SHS · Beam',
+    'RHS/SHS column - 4 sides':'Hollow - 4 sides · RHS/SHS · Column',
+    'CHS column - 4 sides':'Hollow - 4 sides · CHS · Column',
+  };
+  for(const [stored,label] of Object.entries(exposureLabels)) {
+    entry=auScenario({SCHEDULE:{C10:stored,J10:1.23456789012345}});entry.sheet='SCHEDULE';
+    const unchanged=JSON.stringify(entry.inputs);
+    const control=audit.makeControl({address:'C10',column:3,type:'select',value:stored,options:Object.keys(exposureLabels)},10,entry,'Exposure / member case',1);
+    assert.equal(control.value,stored);assert.equal(control.children.find(option=>option.value===stored).textContent,label);
+    assert.equal(JSON.stringify(entry.inputs),unchanged);
+    control.value=stored;await control.emit('change');assert.equal(entry.inputs.SCHEDULE.C10,stored);assert.equal(entry.inputs.SCHEDULE.J10,1.23456789012345);passed++;
+  }
+  entry=auScenario();entry.sheet='SCHEDULE';
+  const widthSource={rows:[{row:10,cells:[{column:3,address:'C10',editable:true,type:'select',options:['I/H beam - 3 sides','RHS/SHS column - 4 sides']}]}]};
+  const widthBefore=JSON.stringify(widthSource),exposureWidth=audit.scheduleColumnWidth(3,'Exposure / member case',26,entry,widthSource);
+  assert.ok(exposureWidth>250);assert.ok(exposureWidth<350);assert.equal(JSON.stringify(widthSource),widthBefore);
+  assert.equal(audit.scheduleColumnWidth(26,'Line',26,entry,widthSource),60);passed++;
+  // Generated native options take real space too, even when the source list
+  // contains only short numbers or no published choices.
+  entry=setup();
+  const generatedWidthSource={display_cells:{H9:{control:'select'}},rows:[{row:9,cells:[
+    {column:7,address:'G9',editable:true,type:'select',options:[1]},
+    {column:8,address:'H9',editable:true,type:'select',allow_other:true,options:[]},
+  ]}]};
+  assert.ok(audit.scheduleColumnWidth(7,'FRL',99,entry,generatedWidthSource)>=100);
+  assert.ok(audit.scheduleColumnWidth(8,'Temp',99,entry,generatedWidthSource)>=180);passed++;
+  const exposureEnglishI18n=context.window.CeasefireI18n;
+  for(const locale of ['zh-Hans','hi','es','ar','th','ko','tl','vi']){
+    context.window.CeasefireI18n=require('./helpers/localized_i18n.cjs')(locale);
+    entry=auScenario({SCHEDULE:{C10:'RHS/SHS column - 4 sides'}});entry.sheet='SCHEDULE';
+    const unchanged=JSON.stringify(entry.inputs),field=audit.makeControl({address:'C10',column:3,type:'select',value:'RHS/SHS column - 4 sides',options:Object.keys(exposureLabels)},10,entry,'Exposure / member case',1);
+    const label=field.children.find(option=>option.value==='RHS/SHS column - 4 sides').textContent;
+    assert.ok(label.includes(context.window.CeasefireI18n.translate('Hollow - 4 sides')));assert.ok(label.includes(context.window.CeasefireI18n.translate('Column')));
+    assert.ok(label.includes('RHS/SHS'));assert.ok(!label.includes('[object Object]'));assert.equal(field.value,'RHS/SHS column - 4 sides');assert.equal(JSON.stringify(entry.inputs),unchanged);passed++;
+  }
+  context.window.CeasefireI18n=exposureEnglishI18n;
+
+  // The board Report column precedes ESA/M in both headings and row cells;
+  // no source column, stored field or calculation result is rewritten.
+  entry=setup({CALCULATOR:{E9:12.3456789012345}});entry.scheduleRows=[9];
+  entry.definition.schedule.columns=[{column:'E',label:'ESA/M input'},{column:'Y',label:'ESA/M used (m2/t)'},{column:'Z',label:'Board stack (mm)'}];
+  entry.result=result(copy(entry.inputs),{max_column:26,register_columns:[5,25,26],schedule_view:{offset:0,rows:[9],total_rows:1},rows:[
+    {row:8,cells:[{column:5,value:'ESA/M input'},{column:25,value:'ESA/M used (m2/t)'},{column:26,value:'Board stack (mm)'}]},
+    {row:9,report_references:[{label:'Board assessment',url:'https://example.com/board.pdf'}],cells:[{column:5,address:'E9',value:12.3456789012345},{column:25,address:'Y9',value:42},{column:26,address:'Z9',value:30}]},
+  ]});
+  const boardReportBefore=JSON.stringify(entry.result);realRender(entry);
+  const boardReportChoices=copy(entry.scheduleColumnChoices).map(column=>column.label),boardReportTable=renderedTable();
+  assert.equal(boardReportChoices[boardReportChoices.indexOf('ESA/M used (m2/t)')-1],'Report');
+  assert.ok(boardReportTable.children.find(node=>node.tagName==='tbody').children.every(row=>row.children.length===boardReportChoices.length));
+  assert.equal(JSON.stringify(entry.result),boardReportBefore);assert.equal(entry.inputs.CALCULATOR.E9,12.3456789012345);passed++;
+
+  // Removing the empty schedule prompt must not suppress a later incomplete-
+  // order warning in the same calculated output cell after recalculation.
+  entry=setup();const overviewStatus=element('p');overviewStatus.dataset.calculatorOutput='Y6';
+  audit.updateOutputCell(overviewStatus,{address:'Y6',column:25,value:'Enter a steel schedule. Review the selected report for installation details.',calculated:true});
+  assert.equal(overviewStatus.hidden,true);
+  audit.updateOutputCell(overviewStatus,{address:'Y6',column:25,value:'Incomplete order: 1 row(s) have no board quantity. Review the selected report before ordering.',calculated:true});
+  assert.equal(overviewStatus.hidden,false);assert.match(overviewStatus.textContent,/Incomplete order: 1/);passed++;
   // The schedule has no metric strip, while the underlying metric response is retained.
   entry=auScenario();entry.sheet='SCHEDULE';entry.page='SCHEDULE';
   entry.result=result({}, {sheet:'SCHEDULE',max_row:1009,max_column:4,rows:[

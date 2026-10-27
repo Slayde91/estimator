@@ -17,7 +17,8 @@ from .technical_duplicates import reviewed_groups, consolidate_links
 from .technical_catalog_policy import public_records
 from .technical_table_navigation import validate_table_navigation
 from .technical_orientation import prepare_selector_orientation_context
-from .library_substrates import classify_substrates, substrate_options
+from .library_substrates import canonical_substrate, classify_substrates, substrate_options
+from .technical_record_corrections import correct_report_captions
 from .library_opening_types import opening_type
 from .library_display import display_subtitle, remove_resolved_source_notices
 from .technical_brand_presentation import present_manufacturer_fields
@@ -379,6 +380,7 @@ class ReferenceLibrary:
         else:
             report_keys = [entry['key'] for entry in filters['technical'] if entry['key'] in {'report', 'document'}]
             public_technical = public_records(records['technical'], aliases, report_keys or ['report'])
+            public_technical = {key: correct_report_captions(item) for key, item in public_technical.items()}
             public_technical, technical_related, reviewed_substrates = project_firefly_technical(
                 public_technical, records['technical'], aliases, data.get(REVIEW_KEY), report_keys or ['report'])
             if not report_keys and any('report' in item.get('filter_values', {}) for item in public_technical.values()):
@@ -479,6 +481,8 @@ class ReferenceLibrary:
             chosen = {key: string(query[key], 1000) for key in filter_keys if query.get(key)}
             if kind == 'technical' and 'frl' in chosen:
                 chosen['frl'] = canonical_frl(chosen['frl'])
+            if kind == 'technical' and 'substrate' in chosen:
+                chosen['substrate'] = canonical_substrate(chosen['substrate'])
             if kind == 'technical' and chosen.get('services') == 'Junction Box':
                 chosen['services'] = 'Conduits'
             items = []

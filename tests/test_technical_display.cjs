@@ -3,6 +3,10 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const detail = require("../static/library-detail-text.js");
+for (const entry of require('./fixtures/technical-reference-display.json')) {
+  assert.equal(detail.compact(entry.source), entry.display, entry.source);
+  assert.equal(detail.compact(entry.display), entry.display, 'Repeated locator cleanup is stable');
+}
 for (const [id, title, expected] of [
   ['promat-123', 'Promat: 123 — Cables — -/120/120 — Vertical', 'Promat — Cables — -/120/120 — Vertical'],
   ['trafalgar-selector-456', 'Trafalgar 456 — 50 mm pipe', 'Trafalgar — 50 mm pipe'],

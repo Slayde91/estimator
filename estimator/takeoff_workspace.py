@@ -368,6 +368,20 @@ class TakeoffService:
         if links:
             self._validate_physical_links(session_id, snapshot)
 
+    def _validate_physical_reference_choices(self, commands):
+        """Recheck newly chosen IDs at preview/apply, never rewrite old metadata."""
+        selected = set()
+        for command in commands:
+            values = command.get('entity', {}) if command.get('op') == 'create' else command.get('changes', {})
+            selected.update(values.get('technical_reference_ids') or [])
+        if not selected:
+            return
+        data = self.libraries._load() if self.libraries else None
+        aliases = (data or {}).get('_aliases', {})
+        visible = (data or {}).get('_visible', {}).get('technical', ())
+        if any(aliases.get(value, value) not in visible for value in selected):
+            raise ValidationError('A selected Technical Library record is unavailable. Remove it or choose another item.')
+
     def preview_physical(self, session_id, request):
         with self._lock, self._library_lock():
             object_fields(request, {'expected_revision', 'commands', 'scope'}, 'Physical preview', {'expected_revision', 'commands'})
@@ -378,6 +392,7 @@ class TakeoffService:
             self._physical_editable(snapshot, scope)
             self._physical_gate(session_id, snapshot, links=False)
             prepared = prepare_changes(snapshot, request['commands'], lambda reference: None, scope=scope)
+            self._validate_physical_reference_choices(request['commands'])
             self._validate_imported_service_quantities(request['commands'], snapshot, scope)
             from .takeoff_model import upgrade_snapshot
             self._validate_physical_links(session_id, {**upgrade_snapshot(snapshot), key: prepared['graph']})
@@ -409,6 +424,7 @@ class TakeoffService:
             before = session['snapshot']
             self._physical_gate(session_id, before, links=False)
             prepared = prepare_changes(before, cached['summary']['commands'], lambda reference: None, scope=scope)
+            self._validate_physical_reference_choices(cached['summary']['commands'])
             self._validate_imported_service_quantities(cached['summary']['commands'], before, scope)
             self._validate_physical_links(session_id, {**upgrade_snapshot(before), key: prepared['graph']})
             if prepared['summary']['digest'] != cached['summary']['digest']:
@@ -2079,7 +2095,7 @@ class TakeoffService:
                                                snapshot=self._session(session_id)['snapshot'])
 
     def register_references(self, session_id, request):
-        """Read candidates from recorded row facts; never create a session/link."""
+        """Read selected/linked reports; facts only prefilter a manual chooser."""
         from .register_references import physical_contexts, ReferenceIndex
         with self._lock:
             object_fields(request, {'expected_revision', 'scope', 'entity_ids', 'offset', 'report_offset', 'limit', 'expected_library_revision'},

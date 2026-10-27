@@ -108,7 +108,7 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
     try{
       h=component(graph(),{registerReferences:async ids=>{const pending=defer();requests.push({ids,pending});return pending.promise;}});await flush();
       assert.equal(requests.length,1);const before=copy(h.current);
-      const fields=['Report','System','Source evidence','Delete'],table=h.all().find(el=>el.tagName==='TABLE'&&el.attributes['aria-label']==='Draft penetration hierarchy register');assert.ok(table);assert.deepEqual(table.querySelectorAll('th').slice(-4).map(el=>el.textContent),fields);
+      const fields=['Report','System','Delete'],table=h.all().find(el=>el.tagName==='TABLE'&&el.attributes['aria-label']==='Draft penetration hierarchy register');assert.ok(table);assert.deepEqual(table.querySelectorAll('th').slice(-3).map(el=>el.textContent),fields);assert.ok(!table.querySelectorAll('th').some(el=>el.textContent==='Source evidence'));
       const reply=(request,label)=>({library_revision:'e'.repeat(64),row_references:Object.fromEntries(request.ids.map(id=>[id,{basis:'filtered',reports:[{label,url:null},{label:'Public report',url:'https://tfire.com.au/documents/test.pdf'}],systems:[{id:'system-one',manufacturer:'Alpha',number:1,title:'Actual Technical record'}],total:1,offset:0,limit:100,has_more:false}]))});
       h.current.revision++;h.current.physical.revision++;h.controller.render(copy(h.current));await flush();assert.equal(requests.length,2);const priorChanged=h.calls.changed;
       requests[0].pending.resolve(reply(requests[0],'Stale private caption'));await flush();assert.ok(!h.all().some(el=>el.textContent==='Stale private caption'));
@@ -128,6 +128,27 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
     paged.querySelectorAll('button')[0].emit('click');await flush();assert.equal(paged.textContent,'Private | Public');assert.equal(paged.querySelectorAll('a').length,1);assert.equal(paged.querySelectorAll('button').length,0);
     const systems=refs.renderSystems({systems:[{id:'one',manufacturer:'Alpha',number:1,title:'One'}],total:2,offset:0,limit:1,has_more:true},{document,loadMore:async offset=>{assert.equal(offset,1);return{systems:[{id:'two',manufacturer:'Alpha',number:2,title:'Two'}],total:2,offset:1,limit:1,has_more:false};}});
     systems.querySelectorAll('button').at(-1).emit('click');await flush();assert.equal(systems.textContent,'Alpha-1, 2');assert.equal(systems.querySelectorAll('button').length,2);
+    const sequential=refs.renderSystems({systems:[{id:'one',manufacturer:'Alpha',number:1,title:'One'},{id:'two',manufacturer:'Zulu',number:1,title:'Two'}]},{document,plainNumbers:true});assert.equal(sequential.textContent,'1 | 2');assert.deepEqual(sequential.querySelectorAll('button').map(button=>button.textContent),['1','2']);
+  });
+  await check('Physical Report uses the shared explicit chooser, applies once and preserves cancellation and stale guards',async()=>{
+    const previous=global.CeasefireRegisterReferences,oldPicker=global.CeasefirePenetrationReferences;
+    global.CeasefireRegisterReferences=require('../static/register-references.js');
+    let opened,h;
+    global.CeasefirePenetrationReferences={validateIds(values){assert.ok(Array.isArray(values)&&values.length<=128);return values;},open:async options=>{opened=options;}};
+    try{
+      const references=async ids=>({library_revision:'e'.repeat(64),row_references:Object.fromEntries(ids.map(id=>{
+        const selected=physical.indexGraph(h.current.physical).get(id).entity.technical_reference_ids||[];
+        return[id,{reports:selected.map(value=>({label:'Exact report',url:null})),systems:selected.map((value,index)=>({id:value,title:'Exact system',number:index+1})),total:selected.length,offset:0,has_more:false,initial_filters:{substrate:'Concrete/masonry wall'}}];
+      }))});
+      h=component(graph(),{registerReferences:ids=>Promise.resolve().then(()=>references(ids))});await flush();
+      const choose=()=>h.all().find(el=>el.dataset.physicalReferences===uuid(5));
+      assert.equal(choose().textContent,'Choose reports');const original=copy(h.current);
+      choose().emit('click');await flush();assert.deepEqual(opened.reference.initial_filters,{substrate:'Concrete/masonry wall'});assert.deepEqual(h.current,original);assert.equal(h.calls.applied.length,0,'Opening/cancelling never selects candidates');
+      global.CeasefirePenetrationReferences.open=async options=>{opened=options;await options.apply(['system-one']);};
+      choose().emit('click');await flush();assert.deepEqual(h.current.physical.services[0].technical_reference_ids,['system-one']);assert.equal(h.calls.previews.length,1);assert.equal(h.calls.applied.length,1);assert.equal(h.calls.confirmations.length,0,'Use selected references is the explicit confirmation');assert.equal(choose().textContent,'Change reports');
+      const gate=defer();global.CeasefirePenetrationReferences.open=async options=>{opened=options;await gate.promise;};choose().emit('click');await flush();assert.equal(h.controller.hasUnfinishedChanges(),true);
+      h.current.revision++;h.current.physical.revision++;h.controller.render(copy(h.current));const before=copy(h.current);await assert.rejects(opened.apply(['system-two']),/physical draft changed/);assert.deepEqual(h.current,before);assert.equal(h.calls.applied.length,1);gate.resolve();await flush();
+    }finally{h?.controller.destroy();global.CeasefireRegisterReferences=previous;global.CeasefirePenetrationReferences=oldPicker;}
   });
   await check('Mandarin physical table IDs and status translate without changing retained labels or graph values',async()=>{
     const previous=global.CeasefireI18n;global.CeasefireI18n=require('./helpers/localized_i18n.cjs')();

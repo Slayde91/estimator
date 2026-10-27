@@ -6,19 +6,19 @@ library assignments, source workbooks or purchasing calculations.
 
 ## Physical registers
 
-Report and System appear before Source evidence in Defect Reports and Service
-Plans. An explicit Firestopping Library assignment uses its Technical links;
-an assignment with no links produces no inferred substitute. Otherwise the
-projection intersects all known service/barrier facets, including the full FRL
-when recorded. A scalar fire period narrows the middle FRL criterion only.
-FRL alone cannot produce an unfiltered list. Parent rows union real descendant
-contexts; fields from different services are never combined into a fictitious
-configuration.
+Report and System appear in Defect Reports and Service Plans; Source evidence is
+hidden in the register only. Manual rows require the shared Choose reports / Change
+reports picker. Their facets prefilter choices without selecting them. Explicit
+choices persist through preview/apply, history, Save/reopen and transfer. An explicit
+empty selection blocks library inheritance; Use linked references restores it.
+An existing Firestopping Library assignment uses its Technical links, including
+an assignment without links. Parents union real descendant contexts; fields from
+different services never combine into a fictitious configuration.
 
-Matches are reference candidates. They do not establish dimensional or
-installation-table suitability. Canonical Technical identities and explicit
-aliases control deduplication. Manufacturer groups and their numbered entry
-links remain stable through pagination. Report captions retain edition identity;
+Reference choices do not establish dimensional or installation-table suitability.
+Canonical Technical identities and explicit aliases control deduplication.
+Explicit choice order and sequential System links remain stable through pagination.
+Report captions retain edition identity;
 conflicting URLs for one caption produce one plain caption.
 
 The bounded, read-only register-references endpoint derives context from the

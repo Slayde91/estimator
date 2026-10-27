@@ -10,7 +10,7 @@ const base=JSON.parse(fs.readFileSync(path.join(root,'static/locales/library-fil
 const extra=JSON.parse(fs.readFileSync(path.join(root,'static/locales/additions/library-filter-groups.json'),'utf8'));
 const translated=(source,locale,args=[])=>String(locale==='en'?source:[...base[source],...extra[source]][locales.indexOf(locale)-1]).replace(/\{(\d+)\}/g,(_,n)=>args[n]);
 const serviceGroups=['Electrical & communications','Mechanical','HVAC','Plastic pipes','Lagged metal pipes','Unlagged metal pipes'];
-const sourceFiles=['estimator/library_filter_groups.py','estimator/reference_library.py','estimator/firestopping_library.py','static/libraries.js','static/takeoff-library-links.js','static/language-catalog.js','static/locales/library-filter-groups.json','static/locales/additions/library-filter-groups.json','tests/browser/library_link_picker_fixture.py','tests/browser/library_filter_groups.cjs'];
+const sourceFiles=['estimator/library_filter_groups.py','estimator/reference_library.py','estimator/firestopping_library.py','static/libraries.js','static/penetration-references.js','static/takeoff-library-links.js','static/language-catalog.js','static/locales/library-filter-groups.json','static/locales/additions/library-filter-groups.json','tests/browser/library_link_picker_fixture.py','tests/browser/library_filter_groups.cjs'];
 const hash=file=>createHash('sha256').update(fs.readFileSync(file)).digest('hex'),bindings=()=>Object.fromEntries(sourceFiles.map(file=>[file,hash(path.join(root,file))]));
 const sourceBefore=bindings(),server=spawn(process.env.CEASEFIRE_PYTHON||'python',[path.join(__dirname,'library_link_picker_fixture.py'),'--directory',output,'--filter-groups'],{cwd:root,windowsHide:true});
 let logs='',browser,page,info;const evidence={synthetic:true,locales:[],layouts:[],page_errors:[],blocked_requests:[],sourceBefore,original_tabs_accessed:false,takeoff_sessions_created:false};
@@ -48,16 +48,34 @@ async function setFilter(scope,key,value,attribute='data-library-filter',limit='
  const before=await snapshot();await chooseLibrary(page,'technical');await expect(main().locator('[data-library-filter="document"]')).toBeVisible();
  for(const locale of locales){await page.evaluate(locale=>window.CeasefireI18n.setLanguage(locale,false),locale);await checkGroups(main(),locale,'data-library-filter');for(const width of [1146,390])await layout(main(),'main',locale,width);assert.deepEqual(await snapshot(),before);evidence.locales.push(locale);}
  await page.evaluate(()=>window.CeasefireI18n.setLanguage('en',false));await page.setViewportSize({width:1146,height:900});
+ // The Firestopping schedule reference picker uses the same renderer and exact
+ // authoritative choices. No schedule selection is applied by this check.
+ const referenceKeys=['document','substrate','services','frl'],choices=control=>control.locator('option').evaluateAll(nodes=>nodes.filter(node=>node.value).map(node=>({value:node.value,label:node.textContent,group:node.parentElement.tagName==='OPTGROUP'?node.parentElement.label:''})));
+ const initialFilters=Object.fromEntries(await Promise.all(referenceKeys.map(async key=>[key,(await choices(main().locator(`[data-library-filter="${key}"]`))).find(option=>option.group).value])));
+ await page.evaluate(initial_filters=>{window.__referenceGroupPicker=window.CeasefirePenetrationReferences.open({reference:{systems:[],initial_filters},apply:async()=>{throw Error('This read-only group fixture must never apply a reference');}});},initialFilters);
+ const references=page.locator('.penetration-reference-picker');await expect(references.locator('[data-penetration-reference-apply]')).toBeEnabled();
+ for(const locale of locales){
+  await page.evaluate(locale=>window.CeasefireI18n.setLanguage(locale,false),locale);
+  for(const key of referenceKeys){
+   const control=references.locator(`[data-penetration-reference-filter="${key}"]`),expected=await choices(main().locator(`[data-library-filter="${key}"]`));
+   assert.deepEqual(await choices(control),expected,`${key}/${locale}: reference picker matches main Library values, labels, groups and order`);await expect(control).toHaveValue(initialFilters[key]);
+   assert.ok(await control.locator('optgroup').count()>0,`${key}/${locale}: native option groups remain present`);
+  }
+  if(['en','ar'].includes(locale))for(const width of [1146,390])await layout(references,'references',locale,width);
+ }
+ await page.evaluate(()=>window.CeasefireI18n.setLanguage('en',false));await references.getByRole('button',{name:'Cancel',exact:true}).click();await page.evaluate(()=>window.__referenceGroupPicker);assert.deepEqual(await snapshot(),before);evidence.referencePickerMatchesAllGroupedFacets=true;
+ await page.setViewportSize({width:1146,height:900});
  await setFilter(main(),'services','Pair Coils');await expect(main().locator('[data-library-record]')).toHaveCount(0);await setFilter(main(),'services','');
  await setFilter(main(),'document','Promat synthetic report');const queried=await setFilter(main(),'frl','-/90/60');assert.equal(queried.total,2);await expect(main().locator('[data-library-record]')).toHaveCount(2);assert.deepEqual(await main().locator('[data-library-record]').evaluateAll(nodes=>nodes.map(node=>node.dataset.libraryRecord)),queried.items.map(item=>item.id));
  await main().locator('[data-library-record]').first().click();await main().getByRole('button',{name:'Back to results',exact:true}).click();await expect(main().locator('[data-library-filter="document"]')).toHaveValue('Promat synthetic report');await expect(main().locator('[data-library-filter="frl"]')).toHaveValue('-/90/60');
  evidence.exactGroupedQueriesAndBack=true;
- // API identities and ID fields remain available for every brand. Only the
- // requested Technical detail field is omitted; the record title is retained.
- for(const [id,hidden]of [['technical-001',true],['technical-002',true],['technical-003',false],['technical-004',false]]){
+ // Numeric supplier selector IDs are hidden; actual technical IDs are retained,
+ // including Promat and Trafalgar records. All API identities remain exact.
+ for(const [id,hidden]of [['technical-001',true],['technical-002',true],['technical-003',false],['technical-004',false],['technical-005',false],['technical-006',false]]){
   const response=await page.request.get(`${origin}/api/libraries/technical/${id}`);assert.equal(response.status(),200);const data=await response.json();assert.equal(data.id,id);assert.ok(data.fields.some(field=>field.label==='ID'));
   await page.evaluate(id=>window.CeasefireLibraries.open('technical',id),id);await expect(main().locator('h3')).toHaveText(data.title);
-  assert.equal(await main().locator('dt').filter({hasText:/^ID$/}).count(),hidden?0:1);
+  const field=main().locator('.library-record-field').filter({has:page.locator('dt').filter({hasText:/^ID$/})});
+  await expect(field).toHaveCount(hidden?0:1);if(!hidden)await expect(field.locator('dd')).toHaveText(data.fields.find(field=>field.label==='ID').value);
  }
  evidence.technicalIDFieldOnlyOmission=true;
  await chooseLibrary(page,'penetration');const penetration=page.locator('#penetration-library-workspace');await penetration.locator(`[data-library-link="${info.item_id}"]`).click();await expect(picker().locator('.library-link-results')).toHaveAttribute('aria-busy','false');

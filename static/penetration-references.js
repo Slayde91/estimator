@@ -20,18 +20,7 @@
     return reportOptionsRequest;
   }
   function appendReportOptions(control, definition) {
-    const groups = new Map(), seen = new Set();
-    for (const option of definition.options || []) {
-      const value = typeof option === "string" ? option : option?.value;
-      if (typeof value !== "string" || !value.trim() || seen.has(value)) continue;
-      seen.add(value); const entry = node(control.ownerDocument, "option", "", option.label || value); entry.value = value;
-      const group = typeof option.group === "string" ? option.group.trim() : "";
-      if (!group) control.append(entry);
-      else {
-        if (!groups.has(group)) { const host = node(control.ownerDocument, "optgroup"); host.label = group; groups.set(group, host); control.append(host); }
-        groups.get(group).append(entry);
-      }
-    }
+    root.CeasefireLibraries.appendFilterOptions(control, definition.options, definition.key || "report");
   }
   function node(document, tag, className, value) {
     const result = document.createElement(tag); if (className) result.className = className; if (value !== undefined) result.textContent = text(value); return result;
@@ -115,7 +104,7 @@
       filterHost.replaceChildren(...state.definitions.map(definition => {
         const label = node(document, "label", "field"), control = node(document, "select"), any = ui(node(document, "option"), "Any"); any.value = ""; control.append(any); control.dataset.penetrationReferenceFilter = definition.key;
         const values = filterOptions(definition);
-        for (const option of values) { const value = node(document, "option", "", option.label); value.value = option.value; control.append(value); }
+        root.CeasefireLibraries.appendFilterOptions(control, definition.options, definition.key);
         const saved = state.filters[definition.key] || "";
         if (saved && !values.some(value => value.value === saved)) { const value = node(document, "option", "", saved); value.value = saved; control.append(value); }
         control.value = saved;

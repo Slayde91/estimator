@@ -445,6 +445,12 @@ class DesktopPackagingTests(unittest.TestCase):
         self.assertEqual(page.paths - set(STATIC_FILES), set())
         for asset in page.paths:
             self.assertTrue((ROOT / 'static' / asset).is_file(), asset)
+        # Ship the live game's dependency graph exactly once. Removed game
+        # scripts must not linger in the offline bundle as unused assets.
+        game_assets = {asset for asset in page.paths if asset.startswith('games/')}
+        self.assertTrue(game_assets)
+        self.assertCountEqual([asset for asset in STATIC_FILES if asset.startswith('games/')], game_assets)
+        self.assertNotIn('games/overspray.js', STATIC_FILES)
 
     def test_shared_cursor_urls_artwork_and_notices_are_packaged(self):
         references = set()

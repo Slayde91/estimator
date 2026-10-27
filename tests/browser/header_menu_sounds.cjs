@@ -6,7 +6,7 @@ fs.mkdirSync(output, { recursive: true });
 const sourceFiles = ["static/header-menu-sounds.js", "static/downloads.js", "static/calculators.js", "static/penetration.js", "static/app.js", "estimator/server.py", "static/sounds/mgs1-menu-move.mp3", "static/sounds/mgs-confirm2.mp3", "static/sounds/flame-whoosh.wav", "static/sounds/hover.mp3", "static/sounds/select.mp3", "static/sounds/select-2.mp3", "static/sounds/type.mp3", "static/sounds/checkpoint.ogg", "static/sounds/loading.mp3", "tests/browser/header_menu_sounds.cjs", "tests/browser/header_menu_sounds_fixture.py"];
 const digest = value => createHash("sha256").update(value).digest("hex");
 const sourceHashes = () => Object.fromEntries(sourceFiles.map(file => [file, digest(fs.readFileSync(path.join(root, file)))]));
-const evidence = { passed: false, source_sha256: sourceHashes(), normal_autoplay_policy: true, autoplay_override_flags: [], physical_audibility_claimed: false, checks: {}, errors: [], blocked_requests: [], assets: [] };
+const evidence = { passed: false, source_sha256: sourceHashes(), normal_autoplay_policy: true, autoplay_override_flags: [], physical_audibility_claimed: false, checks: {}, errors: [], blocked_requests: [], loading_requests: [], assets: [] };
 const server = spawn(process.env.CEASEFIRE_PYTHON || "python", [path.join(__dirname, "header_menu_sounds_fixture.py"), "--directory", output], { cwd: root, windowsHide: true });
 let logs = "", browser, page, saveRequests = 0;
 const templateActions = [], heldTemplates = [];
@@ -22,6 +22,13 @@ const idle = () => page.waitForFunction(() => { const status = window.CeasefireD
 async function played(source, prior) {
   await page.waitForFunction(({ source, prior }) => window.qaMenuAudio.playing.filter(row => row.source === source && row.trusted).length > prior, { source, prior });
 }
+async function noDownloadAudio() {
+  assert.deepEqual(await page.evaluate(() => ({
+    players: window.qaMenuAudio.media.filter(audio => audio.src.endsWith("loading.mp3")).length,
+    attempts: window.qaMenuAudio.calls.filter(row => row.source.endsWith("loading.mp3")).length,
+  })), { players: 0, attempts: 0 });
+  assert.deepEqual(evidence.loading_requests, [], "No loading clip is fetched, even during concurrent exports");
+}
 (async () => {
   const info = await started; assert.notEqual(info.port, 8765); evidence.port = info.port;
   const origin = `http://127.0.0.1:${info.port}`;
@@ -31,6 +38,7 @@ async function played(source, prior) {
   page.on("pageerror", error => evidence.errors.push(error.message));
   await page.route("**/*", async route => {
     const request = route.request(), url = new URL(request.url());
+    if (url.origin === origin && url.pathname === "/sounds/loading.mp3") evidence.loading_requests.push({ method: request.method(), path: url.pathname });
     if (url.origin === origin && request.method() === "POST" && /^\/api\/calculators\/[^/]+\/template$/.test(url.pathname)) {
       const action = templateActions.shift() || {};
       if (action.hold) await new Promise(resolve => heldTemplates.push({ release: resolve, path: url.pathname }));
@@ -76,9 +84,9 @@ async function played(source, prior) {
     if (reply.exceptionDetails) throw Error(JSON.stringify(reply.exceptionDetails));
     return reply.result.value;
   }
-  await expect.poll(() => unactivatedProbe("Boolean(window.CeasefireDesktop?.status().ready && !window.CeasefireDesktop.status().busy && window.ClassifireBoot?.state === 'ready' && window.qaMenuAudio.media.length === 9 && window.qaMenuAudio.media.every(media => media.readyState >= 2 && Number.isFinite(media.duration) && media.duration > 0))"), { timeout: 30000 }).toBe(true);
+  await expect.poll(() => unactivatedProbe("Boolean(window.CeasefireDesktop?.status().ready && !window.CeasefireDesktop.status().busy && window.ClassifireBoot?.state === 'ready' && window.qaMenuAudio.media.length === 8 && window.qaMenuAudio.media.every(media => media.readyState >= 2 && Number.isFinite(media.duration) && media.duration > 0))"), { timeout: 30000 }).toBe(true);
   evidence.checks.preloadedDecodedMedia = await unactivatedProbe("window.qaMenuAudio.media.map(media => ({source:new URL(media.src).pathname,readyState:media.readyState,duration:media.duration,preload:media.preload}))");
-  for (const [file, expected] of [["mgs1-menu-move.mp3", "ac2d686c78fa5dabc2415a0f3b39f4ced124f5fc1613ba3918e06daa7b47f8d0"], ["mgs-confirm2.mp3", "e9e7e156e24a4fde706f922ee135e88df51dc5ba94eed6344e66bbd6298e3e86"], ["flame-whoosh.wav", "988f40b00194f865d8ca84ef30d0d3b882c08a25a8597a9ebe2aa54524ab966b"], ["hover.mp3", "052d0d7f3fb41ddb67766dedd8f4c237b46c8b18745dfad0a73a14c8afb6fad5"], ["select.mp3", "60e089eeac138ce5301fb59dc9d649c0404a556499c8f78c15c81a7cdfde1969"], ["select-2.mp3", "37e5c8645aa76e11dc8039545940436ea9201e533b1c946fbc9dfc3845efeb7b"], ["type.mp3", "0a78627d0f914dd96d222afcc27e06c8d7777a2d219cef872e8f56a16dcb1c14"], ["checkpoint.ogg", "60acfb941abf427378e87e7ae6660ae29491f8d5efaae2681d7eb9a52af3c935"], ["loading.mp3", "2c245208c0a4e9668b36e17d16227be81f6409398de1ece8b37be648e0ac60a8"]]) {
+  for (const [file, expected] of [["mgs1-menu-move.mp3", "ac2d686c78fa5dabc2415a0f3b39f4ced124f5fc1613ba3918e06daa7b47f8d0"], ["mgs-confirm2.mp3", "e9e7e156e24a4fde706f922ee135e88df51dc5ba94eed6344e66bbd6298e3e86"], ["flame-whoosh.wav", "988f40b00194f865d8ca84ef30d0d3b882c08a25a8597a9ebe2aa54524ab966b"], ["hover.mp3", "052d0d7f3fb41ddb67766dedd8f4c237b46c8b18745dfad0a73a14c8afb6fad5"], ["select.mp3", "60e089eeac138ce5301fb59dc9d649c0404a556499c8f78c15c81a7cdfde1969"], ["select-2.mp3", "37e5c8645aa76e11dc8039545940436ea9201e533b1c946fbc9dfc3845efeb7b"], ["type.mp3", "0a78627d0f914dd96d222afcc27e06c8d7777a2d219cef872e8f56a16dcb1c14"], ["checkpoint.ogg", "60acfb941abf427378e87e7ae6660ae29491f8d5efaae2681d7eb9a52af3c935"]]) {
     const response = await page.request.get(`${origin}/sounds/${file}`), bytes = await response.body();
     assert.equal(response.status(), 200); assert.equal(response.headers()["content-type"], file.endsWith(".wav") ? "audio/wav" : file.endsWith(".ogg") ? "audio/ogg" : "audio/mpeg"); assert.equal(digest(bytes), expected);
     evidence.assets.push({ url: response.url(), status: response.status(), sha256: digest(bytes), size: bytes.length, content_type: response.headers()["content-type"] });
@@ -157,8 +165,8 @@ async function played(source, prior) {
   await page.evaluate(() => { const dialog = document.getElementById("qa-takeoff-audio-dialog"); dialog.close(); dialog.remove(); });
   evidence.checks.dynamicTakeoffModalAndOtherContextRouting = true;
   // A genuine calculator Document action exercises the shared preparation,
-  // progress and native file-save receipt. Hold its export request so a fast
-  // machine cannot hide a loop that accidentally ends before preparation.
+  // progress and native file-save receipt. Hold its export request to verify
+  // preparation is silent while its visual progress remains visible.
   await submenu.hover(); await page.locator("#steel-calculator-navigation-toggle").hover();
   await page.locator('#steel-calculator-navigation-menu [data-calculator-id="steel_board"]').click(); await idle();
   const tabIds = await page.locator('#calculator-pages button[data-calculator-page]').evaluateAll(buttons => buttons.map(button => button.dataset.calculatorPage));
@@ -178,11 +186,11 @@ async function played(source, prior) {
   evidence.checks.calculatorTabNativeClickWithoutReplacementInterruption = { pages: tabIds.length, pageIds: tabIds, minimumPlaybackSeconds: 0.2 };
   await page.locator("#calculator-document-toggle").click();
   templateActions.push({ hold: true });
-  prior = await page.evaluate(() => window.qaMenuAudio.playing.filter(row => row.source.endsWith("loading.mp3")).length);
-  await page.locator("#calculator-template").click();
-  await expect.poll(() => heldTemplates.length).toBe(1); await played("/sounds/loading.mp3", prior);
+  prior = await page.evaluate(() => window.qaMenuAudio.playing.filter(row => row.source.endsWith("select-2.mp3")).length);
+  await page.locator("#calculator-template").click(); await played("/sounds/select-2.mp3", prior);
+  await expect.poll(() => heldTemplates.length).toBe(1); await noDownloadAudio();
   await expect(page.locator(".document-download-progress")).toBeVisible();
-  assert.equal(await page.evaluate(() => window.qaMenuAudio.media.find(audio => audio.src.endsWith("loading.mp3")).paused), false);
+  await expect(page.locator("#calculator-template")).toBeDisabled();
   const templateResponse = page.waitForResponse(reply => new URL(reply.url()).pathname === "/api/calculators/steel_board/template" && reply.request().method() === "POST");
   heldTemplates[0].release(); const templateReceipt = await (await templateResponse).json();
   assert.equal(templateReceipt.saved, true);
@@ -190,11 +198,12 @@ async function played(source, prior) {
   assert.ok(templateRelative && !templateRelative.startsWith("..") && !path.isAbsolute(templateRelative));
   assert.equal(fs.readFileSync(templateReceipt.path).subarray(0, 2).toString(), "PK");
   await expect(page.locator("#calculator-template")).toBeEnabled();
-  await expect.poll(() => page.evaluate(() => window.qaMenuAudio.media.find(audio => audio.src.endsWith("loading.mp3")).paused)).toBe(true);
-  evidence.checks.realDocumentDownloadLoopsUntilNativeSave = { filename: templateReceipt.filename, destination: templateReceipt.destination };
+  await expect(page.locator(".document-download-progress")).toHaveCount(0);
+  await noDownloadAudio();
+  evidence.checks.realDocumentDownloadSilentUntilNativeSave = { filename: templateReceipt.filename, destination: templateReceipt.destination, ordinaryClickPreserved: true, visualProgressPreserved: true };
   // Independent Document consumers share the same downloader. Native owned
-  // controls trigger two real requests; one success must not silence the other,
-  // and the final cancellation must release the loop without creating a file.
+  // controls trigger two real requests; successful and cancelled preparations
+  // stay silent and retain their independent progress and receipt handling.
   await page.evaluate(() => {
     const menu = document.createElement("div"); menu.id = "qa-concurrent-documents"; menu.className = "calculator-document-menu";
     window.qaMenuAudio.exportResults = [];
@@ -206,16 +215,15 @@ async function played(source, prior) {
     document.body.append(menu);
   });
   templateActions.push({ hold: true }, { hold: true, fail: true });
-  const beforeConcurrent = await page.evaluate(() => window.qaMenuAudio.calls.filter(row => row.source.endsWith("loading.mp3")).length);
   await page.locator("#qa-export-0").click(); await expect.poll(() => heldTemplates.length).toBe(2);
   await page.locator("#qa-export-1").click(); await expect.poll(() => heldTemplates.length).toBe(3);
-  assert.equal(await page.evaluate(() => window.qaMenuAudio.calls.filter(row => row.source.endsWith("loading.mp3")).length), beforeConcurrent + 1);
+  await noDownloadAudio(); await expect(page.locator(".document-download-progress")).toHaveCount(2);
   heldTemplates[1].release();
   await page.waitForFunction(() => window.qaMenuAudio.exportResults.some(result => result.index === 0));
-  assert.equal(await page.evaluate(() => window.qaMenuAudio.media.find(audio => audio.src.endsWith("loading.mp3")).paused), false);
+  await noDownloadAudio();
   heldTemplates[2].release();
   await page.waitForFunction(() => window.qaMenuAudio.exportResults.length === 2);
-  await expect.poll(() => page.evaluate(() => window.qaMenuAudio.media.find(audio => audio.src.endsWith("loading.mp3")).paused)).toBe(true);
+  await noDownloadAudio();
   const concurrent = await page.evaluate(() => window.qaMenuAudio.exportResults);
   assert.equal(concurrent.find(result => result.index === 0).saved.saved, true);
   assert.match(concurrent.find(result => result.index === 1).error, /cancelled/);
@@ -310,9 +318,10 @@ async function played(source, prior) {
   assert.deepEqual(await snapshot(), before, "Menu audio preserves the entire initialized calculator, pricing and project draft");
   evidence.checks.draftsPreserved = true;
   evidence.audio_events = await page.evaluate(() => ({ calls: window.qaMenuAudio.calls, playing: window.qaMenuAudio.playing, csp: window.qaMenuAudio.csp }));
+  await noDownloadAudio();
   assert.deepEqual(evidence.audio_events.csp, []); assert.deepEqual(evidence.errors, []); assert.deepEqual(evidence.blocked_requests, []);
   evidence.source_sha256_after = sourceHashes(); assert.deepEqual(evidence.source_sha256_after, evidence.source_sha256);
-  evidence.limits = ["Native media playing events and exact decoded assets are verified; physical speaker audibility and hardware latency are not measured.", "The first hover policy result is this fresh browser observation only; browsers may block unactivated audio. Blocked or unloaded button interactions are never queued for later playback.", "Takeoff/modal context routing and concurrent exports use owned lightweight DOM controls; the representative calculator Document export and global Save cancellation use the real application controls.", "Only a fresh owned browser context and random-port fixture with a private download destination were used; the live application and existing tabs were untouched."];
+  evidence.limits = ["Native media playing events and exact decoded assets are verified; physical speaker audibility and hardware latency are not measured.", "The first hover policy result is this fresh browser observation only; browsers may block unactivated audio. Blocked or unloaded button interactions are never queued for later playback.", "Takeoff/modal context routing and concurrent exports use owned lightweight DOM controls; the representative calculator Document export and global Save cancellation use the real application controls. Downloads never load or play the removed loading clip; their ordinary button click remains enabled.", "Only a fresh owned browser context and random-port fixture with a private download destination were used; the live application and existing tabs were untouched."];
   evidence.passed = true; fs.writeFileSync(path.join(output, "result.json"), JSON.stringify(evidence, null, 2));
   console.log(JSON.stringify({ passed: true, output, port: info.port, firstHover: evidence.checks.firstHoverPolicyObservation }));
 })().catch(async error => {

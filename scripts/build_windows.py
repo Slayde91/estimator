@@ -38,6 +38,7 @@ STATIC_FILES = (
     'calculators.css', 'calculators.js', 'ceasefire-logo.png', 'classifire-logo.png',
     'brand-boot.css', 'brand-boot.js', 'classifire-app.ico', 'classifire-app-icon.png', 'register-references.js',
     'downloads.js', 'downloads.css', 'main-layout.js',
+    'games/play.css', 'games/fireline-art.js', 'games/fireline.js', 'games/play.js',
     'index.html', 'libraries.css', 'libraries.js', 'library-detail-text.js', 'library-editor.css',
     'library-editor.js', 'penetration-breakdown.js', 'penetration.css', 'penetration.js', 'penetration-references.js', 'styles.css',
     'header-tagline-media.js', 'header-tagline-character.gif', 'header-tagline-character-still.png',

@@ -9,6 +9,7 @@ import json
 import re
 
 from .technical_orientation import prepare_selector_orientation_context, trafalgar_orientations
+from .technical_record_corrections import reviewed_boss_construction
 
 
 # Reviewed merged cells and explicit supporting-table references. Only IDs and
@@ -333,6 +334,10 @@ def _construction_bullet(value):
 def classification_evidence(source, projected, *, selector_capture=None, source_documents=None):
     """Return classified evidence for diagnostics without changing any record."""
     if source.get('boss_matrix_source'):
+        construction = reviewed_boss_construction(source)
+        current = {field['label']: field.get('value', '') for field in projected.get('fields', [])}
+        if construction and current.get('Barrier Construction') == construction and current.get('Barrier Type') == 'Wall':
+            return [{'substrate': 'Plasterboard wall', 'source': 'User-reviewed BF-3391 construction', 'text': construction}]
         # The importer keeps every approved matrix alternative as its own bullet.
         # Installation build-up and the originally tested construction must not
         # become extra approved substrates.
@@ -391,6 +396,13 @@ def classify_substrates(source, projected, *, selector_capture=None, source_docu
 
 
 SUBSTRATE_GROUPS = ('Walls', 'Floors', 'Ceilings', 'Other')
+
+
+def canonical_substrate(value):
+    """User-requested search grouping, separate from exact source construction."""
+    if value in {'Rigid wall', 'Solid gypsum block wall'}:
+        return 'Concrete/masonry wall'
+    return value
 
 
 def substrate_group(value):

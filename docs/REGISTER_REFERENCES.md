@@ -1,20 +1,22 @@
 # Register references
 
-Physical Defect Reports and Service Plans show Report and System immediately
-before Source evidence. These are reference candidates, not approval, quantities,
-installation selection or a dimensional/table match.
+Physical Defect Reports and Service Plans show Report and System. Source evidence
+is hidden in the register while the underlying evidence remains retained. Reports
+are explicit reference choices, not approval, quantities or a dimensional/table match.
 
-An explicit Firestopping Library assignment takes priority, including an item
-without Technical links. Otherwise each actual Service/Barrier context intersects
-all recorded canonical facets. At least a non-N/A Service type or Substrate is needed;
-category, orientation, opening type or FRL alone cannot trigger a broad listing.
-Parents union real child contexts rather than combining fields across siblings.
-Full FRL triples keep every criterion; stored scalar minutes constrain only the
-centre criterion. No source records, assignments or calculator inputs are changed.
+Manual physical rows have no suggested Report or System. Choose reports / Change
+reports opens the same Technical Library picker as the Firestopping Schedule;
+recorded facts only prefilter that picker. Applying a choice saves bounded optional
+technical_reference_ids through physical preview/apply, history and portable Save.
+An explicit empty list blocks inheritance; removing that optional field restores
+the existing Firestopping Library links. An assigned library item without Technical
+links never receives an inferred substitute. Parents union real child contexts
+rather than combining facts across siblings. Reference-only edits retain physical
+facts, quantities and confirmation; stale or unavailable newly chosen IDs are rejected.
 
 Canonical Technical IDs and existing verified aliases deduplicate systems. They
-are sorted by manufacturer and ID, numbered from 1 within each manufacturer and
-presented as `Manufacturer-1, 2 | Manufacturer-1`. More systems and More reports
+retain explicit choice order. Physical registers display sequential `1 | 2` System
+links, while generic discovery callers retain their manufacturer grouping. More systems and More reports
 load their respective next 100 with an exact library-epoch guard; they do not
 silently omit the remaining IDs or captions.
 Only Report Number fields supply physical reports. Case/whitespace-equivalent

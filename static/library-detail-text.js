@@ -11,6 +11,27 @@
   const heading = line => /^[A-Za-z][A-Za-z /-]{0,60}:$/.test(line) || /^OR$/.test(line);
   const longHeading = line => line.length > 61 && /^[A-Za-z][^.!?]*:$/.test(line);
   const endsInConnector = text => /(?:\b(?:of|the|and|or|with|using|in|to|on|at|by|from|for|as|a|an|into|either|each)|[×,])$/i.test(text);
+  const referenceNumber = "\\d+(?:\\s*[A-Za-z]\\b)?(?:\\s*(?:[-\u2013\u2014/,;&]|\\band\\b|\\bor\\b|\\bto\\b)\\s*\\d+(?:\\s*[A-Za-z]\\b)?)*";
+  const sourceLocator = new RegExp("\\b(?:(?:see|refer\\s+to|as\\s+per)\\s+)?(?:tables?|items?|figures?|figs?\\.?)\\s+" + referenceNumber, "gi");
+  const generatedTable = new RegExp("^\\s*(?:Service Size\\s*/\\s*Configuration|Barrier Construction)\\s+table\\s+" + referenceNumber + "\\s*[;,]?\\s*", "i");
+  function withoutCrossReferences(text) {
+    const cleaned = text.replace(/\(([^()]*)\)/g, (match, original) => {
+      if (/^\s*(?:see|refer\s+to)\s+(?:tables?|items?|figures?|figs?\.?)\s*$/i.test(original)) return "";
+      let value = original.replace(generatedTable, "");
+      const locatorOnly = !value.replace(sourceLocator, "").replace(/^[\s,;:/]+|[\s,;:/]+$/g, "");
+      const explicitList = /^\s*(?:see|refer\s+to|as\s+per)\s+/i.test(value);
+      value = value.replace(sourceLocator, (reference, offset, body) => {
+        const before = body.slice(0, offset).replace(sourceLocator, "").replace(/^[\s,;:/]+|[\s,;:/]+$/g, "");
+        const explicit = /^(?:see|refer\s+to|as\s+per)\s+/i.test(reference), product = /^FRF\s+\d+(?:\.\d+)?$/i.test(before);
+        const units = /^\s*(?:mm|cm|m|µm|um|kg|g|l|litres?|layers?)(?:[²³23])?(?=$|[\s,;:/).])/i.test(body.slice(offset + reference.length)) || /\d\s*[mgl]\b/i.test(reference);
+        return !units && (!before && (locatorOnly || explicitList) || explicit || product) ? "" : reference;
+      });
+      if (value === original) return match;
+      value = value.replace(/^\s*(?:see|refer\s+to|as\s+per)\s*/i, "").replace(/^[\s,;:/]+|[\s,;:/]+$/g, "");
+      return !value || /^frl$/i.test(value) ? "" : `(${value})`;
+    });
+    return cleaned === text ? text : cleaned.replace(/[\t ]{2,}/g, " ").replace(/[\t ]+([,.;:])/g, "$1");
+  }
 
   // Keep these ordered rules aligned with estimator/technical_display.py.
   const compactRules = [
@@ -79,7 +100,7 @@
 
   function compact(value) {
     const text = String(value ?? ""), protectedText = /https?:\/\/[^\s<>]+|[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}|\b[\w.-]+\.(?:pdf|xlsx?|docx?|png|jpe?g|json)\b/gi;
-    const prose = part => compactRules.reduce((text, [expression, replacement]) => text.replace(expression, replacement), part);
+    const prose = part => compactRules.reduce((text, [expression, replacement]) => text.replace(expression, replacement), withoutCrossReferences(part));
     let result = "", cursor = 0;
     for (const match of text.matchAll(protectedText)) {
       result += prose(text.slice(cursor, match.index)) + match[0]; cursor = match.index + match[0].length;

@@ -48,7 +48,7 @@ async function tab(name){await page.locator('#calculator-pages').getByRole('butt
  const headers=await stock.getByRole('columnheader').allTextContents();assert.equal(headers[headers.indexOf('Net Steel sqm')+1],'Purchase sqm');
  await expect(stock.locator('[data-board-steel-row]')).toHaveCount(18);
  assert.ok((await stock.locator('[data-board-steel-row]').allTextContents()).every(text=>text==='0.00'));
- await expect(page.locator('#calculator-board-steel-notes')).toContainText('total lineal metres');
+ await expect(page.locator('#calculator-board-steel-notes')).not.toContainText('total lineal metres');
  await page.screenshot({path:path.join(output,'board-summary.png'),fullPage:true});
  // The browser keeps product totals and concise operating settings. Complete
  // source/API tables, hidden assumptions and saved calculator inputs survive.

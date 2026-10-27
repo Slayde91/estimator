@@ -8,6 +8,7 @@ import re
 
 from .technical_rating_summary import summarize_ratings
 from .technical_table_navigation import field_tables, validate_table_navigation
+from .technical_record_corrections import reviewed_boss_construction, reviewed_promat_table
 
 
 _HIDDEN_COLUMNS = {'id', 'configuration', 'source configuration'}
@@ -120,6 +121,7 @@ def _promat_fields(fields):
         original_tables = field_tables(field)
         kept, inventories, captions = [], [], []
         for ordinal, table in enumerate(original_tables):
+            table = reviewed_promat_table(table)
             columns = table['columns']
             rows = [[_clean_value(name, cell) for name, cell in zip(columns, row)] for row in table['rows']]
             row_ids = field.get('table_row_ids', [[]] * len(original_tables))[ordinal]
@@ -190,9 +192,16 @@ def present_manufacturer_fields(item):
     """Mutate an already-copied display item, never its retained source basis."""
     manufacturer = _manufacturer(item)
     if manufacturer == {'boss'}:
+        construction = reviewed_boss_construction(item)
         for field in item.get('fields', []):
             if field['label'] == 'System Products':
                 field['value'] = boss_product_names(field['value'])
+            elif construction and field['label'] == 'Barrier Construction':
+                field['value'] = construction
+            elif construction and field['label'] == 'Source Issues':
+                field['value'] = field['value'].replace(
+                    'No approved substrate is marked in matrix columns K–AQ. '
+                    'The originally tested construction has not been substituted as an approved alternative.\n', '')
     elif manufacturer == {'promat'}:
         _promat_fields(item.get('fields', []))
     return item

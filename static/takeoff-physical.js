@@ -233,7 +233,7 @@
     const document = container.ownerDocument || root.document;
     const state = { snapshot: null, index: new Map(), servicesByBarrier: new Map(), selected: new Set(), hidden: new Set(), inspectedId: null, collapsed: new Set(), filter: "", columnFilters: new Map(), filterDialog: null, offset: 0, showDeleted: false, busy: false, destroyed: false, editRevision: 0, pending: new Map(), bindings: new WeakMap(), pendingApply: new WeakMap(), autoApplyPromise: null, autoRoutine: false, autoTimer: null, pointerAction: null, inspectorEdit: null, fieldOptions: null, fieldOptionsPromise: null };
     const ui = {};
-    let inspectorMenu, inspectorRefresh = false;
+    let inspectorMenu, inspectorRefresh = false, referencePicker = false;
     const changed = () => bridge.changed?.();
     const graph = () => state.snapshot?.physical || null;
     const scope = () => bridge.scope?.() || (graph()?.version === 3 ? "service_plans" : "defect_reports");
@@ -942,15 +942,20 @@
       function show(identifier, reference) {
         if (!current()) return;
         const [reports, systems] = targets.get(identifier);
-        root.CeasefireI18n.attr(reports, "title", "Reference candidates only; verify the actual configuration and report conditions.");
-        root.CeasefireI18n.attr(systems, "title", "Reference candidates only; verify the actual configuration and report conditions.");
         reports.replaceChildren(root.CeasefireRegisterReferences.renderReports(reference.reports, { document, pagination: reference, notify: bridge.notify, isCurrent: current,
           loadMore: async report_offset => {
             const reply = await bridge.registerReferences([identifier], { report_offset, expected_library_revision: libraryRevision });
             if (!current() || reply.library_revision !== libraryRevision) throw new Error("The register references changed. Refresh the current register.");
             return reply.row_references[identifier];
           } }));
-        systems.replaceChildren(root.CeasefireRegisterReferences.renderSystems(reference, { document, notify: bridge.notify, isCurrent: current,
+        if (root.CeasefirePenetrationReferences) {
+          const choose = uiMutationButton(reference.reports?.length ? "Change reports" : "Choose reports", () => chooseReports(identifier, choose, current), "text-button penetration-choose-references");
+          choose.dataset.physicalReferences = identifier;
+          root.CeasefireI18n.attr(choose, "aria-label", "Choose reports for {0}", [displayId(state.index.get(identifier))]);
+          choose.dataset.locked = String(referencePicker || legacyReadOnly()); choose.disabled = state.busy || referencePicker || legacyReadOnly();
+          reports.append(node("br"), choose);
+        }
+        systems.replaceChildren(root.CeasefireRegisterReferences.renderSystems(reference, { document, plainNumbers: true, notify: bridge.notify, isCurrent: current,
           loadMore: async offset => {
             const reply = await bridge.registerReferences([identifier], { offset, expected_library_revision: libraryRevision });
             if (!current() || reply.library_revision !== libraryRevision) throw new Error("The register references changed. Refresh the current register.");
@@ -973,12 +978,48 @@
         if (current()) for (const identifier of missing) for (const cell of targets.get(identifier)) { root.CeasefireI18n.text(cell, "Unavailable"); cell.title = error.message; }
       }
     }
+    async function chooseReports(identifier, opener, renderedCurrent) {
+      if (referencePicker) return;
+      ensureEditable(); ensureAvailable();
+      const entry = state.index.get(identifier), key = graphKey(), revision = state.snapshot?.revision;
+      if (!entry || entry.entity.deleted) throw new Error("The physical draft changed. Read its current register references again.");
+      const stamp = JSON.stringify(entry.entity), api = root.CeasefirePenetrationReferences;
+      if (!api || !bridge.registerReferences) throw new Error("The schedule references could not be loaded.");
+      const isCurrent = () => !state.destroyed && key === graphKey() && revision === state.snapshot?.revision && JSON.stringify(state.index.get(identifier)?.entity) === stamp;
+      const guard = () => { if (!isCurrent() || !renderedCurrent()) throw new Error("The physical draft changed. Read its current register references again."); };
+      try {
+        guard(); referencePicker = true; changed();
+        let response = await bridge.registerReferences([identifier], { limit: 100 }); guard();
+        let reference = response.row_references?.[identifier];
+        if (!reference) throw new Error("The schedule references could not be loaded.");
+        // The picker must retain every existing selection, including the last
+        // page. Never replace a linked set with only the first visible page.
+        const libraryRevision = response.library_revision;
+        while (reference.has_more) {
+          api.validateIds(reference.systems.map(item => item.id));
+          response = await bridge.registerReferences([identifier], { offset: reference.offset + reference.systems.length, limit: 100, expected_library_revision: libraryRevision }); guard();
+          if (response.library_revision !== libraryRevision || !response.row_references?.[identifier]) throw new Error("The register references changed. Refresh the current register.");
+          const next = response.row_references[identifier];
+          reference = { ...next, offset: 0, systems: [...reference.systems, ...next.systems], reports: reference.reports };
+        }
+        api.validateIds(reference.systems.map(item => item.id));
+        await api.open({ document, reference, opener, isCurrent,
+          selectedIds: entry.entity.technical_reference_ids,
+          apply: async ids => {
+            guard();
+            if (ids !== undefined) api.validateIds(ids);
+            const value = ids === undefined ? null : [...ids];
+            if (ids === undefined && !Object.hasOwn(entry.entity, "technical_reference_ids") || JSON.stringify(value) === JSON.stringify(entry.entity.technical_reference_ids)) return;
+            await perform([{ op: "update", entity_id: identifier, changes: { technical_reference_ids: value } }], "Use selected references", false, false, guard);
+          } });
+      } finally { referencePicker = false; changed(); if (!state.destroyed && !state.pending.size) renderData(); }
+    }
     function renderTable() {
       const rows = hierarchyRows(graph(), state); state.offset = Math.max(0, Math.min(state.offset, Math.max(0, Math.floor((rows.length - 1) / 100) * 100)));
       const page = hierarchyPage(rows, state.index, state.offset), table = node("table"), head = node("thead"), header = node("tr"), body = node("tbody"); root.CeasefireI18n.attr(table, "aria-label", "Draft penetration hierarchy register");
       const legacy = legacyReadOnly(), rowKinds = legacy ? legacyKinds : servicePlans() ? ["barrier", "service"] : kinds;
       const referenceTargets = new Map();
-      const headings = ["Select", "Hide", "View/Edit", ...(legacy ? ["Legacy hierarchy / label"] : []), ...rowKinds.map(kind => `${titles[kind]} ID`), "Confirmation", "Location", "FRL", ...(legacy ? ["Opening type", "Opening size"] : []), "Substrate", "Orientation", "Category", "Service type", "Service quantity", "Service Size (mm)", "Report", "System", "Source evidence", "Delete"];
+      const headings = ["Select", "Hide", "View/Edit", ...(legacy ? ["Legacy hierarchy / label"] : []), ...rowKinds.map(kind => `${titles[kind]} ID`), "Confirmation", "Location", "FRL", ...(legacy ? ["Opening type", "Opening size"] : []), "Substrate", "Orientation", "Category", "Service type", "Service quantity", "Service Size (mm)", "Report", "System", "Delete"];
       for (const label of headings) {
         const cell = uiNode("th", "", label), filterKey = Object.keys(filterColumns).find(key => filterColumns[key] === label);
         if (filterKey) cell.append(columnFilterButton(filterKey));
@@ -1040,7 +1081,6 @@
         for (const field of ["service", "service_type", "quantity", "size"]) line.append(kind === "service" ? editableCell(row, field) : textCell(null, "Only a service record has this property."));
         const reports = textCell(null), systems = textCell(null); reports.dataset.referenceReportId = entity.id; systems.dataset.referenceSystemId = entity.id;
         line.append(reports, systems); if (!entity.deleted) referenceTargets.set(entity.id, [reports, systems]);
-        const evidence = node("td"); evidence.append(uiNode("span", "helper", "{0} source associations", [entity.evidence.length])); if (entity.evidence[0]) evidence.append(uiButton("Open source", () => bridge.source(copy(entity.evidence[0])), "text-button"));
         const sourceIdentity = () => JSON.stringify([scope(), state.snapshot?.project_id, graph()?.id, graph()?.version]);
         const deleteSource = { key: graphKey(), identity: sourceIdentity(), entry: row, stamp: copy(entity) };
         const requireDeleteSource = () => {
@@ -1064,7 +1104,7 @@
         remove.replaceChildren(icon); root.CeasefireI18n.attr(remove, "aria-label", "Delete {0}", [displayId(row)]); remove.dataset.physicalDeleteId = entity.id;
         remove.dataset.locked = String(legacy || entity.deleted || row.context); remove.disabled = state.busy || legacy || entity.deleted || row.context;
         remove.title = legacy || entity.deleted ? "Retained read-only record; deletion is unavailable." : row.context ? "Ancestor context; adjust the filter to delete this item." : `Delete ${displayId(row)}`;
-        removeCell.append(remove); line.append(evidence, removeCell); body.append(line);
+        removeCell.append(remove); line.append(removeCell); body.append(line);
       }
       ui.table.replaceChildren(table); if (!rows.length) ui.table.append(node("p", "takeoff-register-empty", graph() ? "No matching physical records. Adjust the filter or create an explicitly linked draft record." : `Create ${servicePlans() ? "a substrate" : "a defect"} to begin the physical hierarchy. Uploaded images never create physical records automatically.`));
       ui.pagination.replaceChildren(uiButton("Previous 100 records", () => { ensureAvailable(); state.offset = Math.max(0, state.offset - 100); renderTable(); }), uiNode("span", "helper", "{0}–{1} of {2} visible hierarchy records. Ancestor context may repeat across pages.", [rows.length ? state.offset + 1 : 0, Math.min(state.offset + 100, rows.length), rows.length]), uiButton("Next 100 records", () => { ensureAvailable(); if (state.offset + 100 < rows.length) state.offset += 100; renderTable(); }));
@@ -1377,7 +1417,7 @@
     ui.bulkApply = uiMutationButton("Apply to selected", applyBulkValue); ui.bulkConfirm = uiMutationButton("Confirm", () => confirmSelectedRecords("confirmed")); ui.bulkUnconfirm = uiMutationButton("Unconfirm", () => confirmSelectedRecords("unconfirmed")); ui.bulk.append(ui.selection, ui.associate, ui.bulkField, ui.bulkValue, ui.bulkApply, ui.bulkConfirm, ui.bulkUnconfirm, deleteSelection); ui.root.append(ui.bulk);
     ui.table = node("div", "takeoff-register-table"); const addRow = node("div", "takeoff-physical-add-row"); ui.add = mutationButton("+", () => create(servicePlans() ? "barrier" : "defect"), "button secondary takeoff-physical-add-child takeoff-physical-add-defect"); addRow.append(ui.add); addRow.hidden = !servicePlans();
     ui.pagination = node("div", "takeoff-register-controls"); ui.inspector = node("aside", "takeoff-inspector takeoff-physical-inspector"); root.CeasefireI18n.attr(ui.inspector, "aria-label", "Item Details"); ui.root.append(ui.table, addRow, ui.pagination); if (bridge.inspectorContainer) bridge.inspectorContainer.append(ui.inspector); else ui.root.append(ui.inspector); container.replaceChildren(ui.root); renderData(); void safe(loadFieldOptions);
-    return { render, restoreHidden() { state.hidden.clear(); renderData(); bridge.viewChanged?.(hierarchyRows(graph(), state).map(row => row.entity.id), [...state.selected], []); }, select: selectEntity, selectDrawing, clearSelection, create, createFromSelection, createFromVisualSearch, setMarker, setAnnotation, deleteDrawing, copyDrawing, pasteDrawing, selectedBarrier, selection: () => [...state.selected], inspectedId: () => inspectedEntry()?.entity.id || null, summary, hover, completePendingEdits, isAutoApplying: () => state.autoRoutine, editRevision: () => state.editRevision, hasUnfinishedChanges: () => !state.destroyed && (state.busy || state.pending.size > 0), destroy() { state.destroyed = true; state.busy = false; cancelAutomatic(); documents.destroy(); documents.root.remove(); inspectorMenu?.destroy(); state.filterDialog?.close("cancel"); container.replaceChildren(); if (bridge.inspectorContainer) ui.inspector.remove(); state.pending.clear(); changed(); } };
+    return { render, restoreHidden() { state.hidden.clear(); renderData(); bridge.viewChanged?.(hierarchyRows(graph(), state).map(row => row.entity.id), [...state.selected], []); }, select: selectEntity, selectDrawing, clearSelection, create, createFromSelection, createFromVisualSearch, setMarker, setAnnotation, deleteDrawing, copyDrawing, pasteDrawing, selectedBarrier, selection: () => [...state.selected], inspectedId: () => inspectedEntry()?.entity.id || null, summary, hover, completePendingEdits, isAutoApplying: () => state.autoRoutine, editRevision: () => state.editRevision, hasUnfinishedChanges: () => !state.destroyed && (state.busy || referencePicker || state.pending.size > 0), destroy() { state.destroyed = true; state.busy = false; cancelAutomatic(); documents.destroy(); documents.root.remove(); inspectorMenu?.destroy(); state.filterDialog?.close("cancel"); container.replaceChildren(); if (bridge.inspectorContainer) ui.inspector.remove(); state.pending.clear(); changed(); } };
   }
 
   const api = { mount, confirmationOwner, effectiveConfirmation, indexGraph, hierarchyRows, hierarchyPage, columnValue, fieldValue, fieldsFromValues, changedFields, bulkCommands, deletionPlan, formatDimensions, parseDimensions, imageEvidence, previewText, commandText };

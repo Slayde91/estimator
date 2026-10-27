@@ -1,8 +1,9 @@
-"""Read-only reference candidates, separate from installations and approval.
+"""Read-only reference projections, separate from installations and approval.
 
 Explicit library associations win even when they have no Technical links.
-Otherwise intersect recorded facets; never combine different service contexts
-or infer dimensional/table suitability. Nothing here changes retained records.
+Manual physical contexts require explicit selections; their recorded facets only
+prefilter the picker. Generic discovery callers can still intersect facets.
+Never infer dimensional/table suitability or change retained records.
 """
 from collections import OrderedDict, defaultdict
 from copy import deepcopy
@@ -112,7 +113,10 @@ def physical_contexts(snapshot, scope, identifiers):
                 break
             current = entity[parents[kind][1]]
         owner = lineage.get('barrier' if graph['version'] == 3 else 'defect', {})
-        return {'library_ids': sorted(associations[identifier]),
+        entity = index[identifier][1]
+        return {'library_ids': sorted(associations[identifier]), 'selected_only': True,
+                **({'technical_reference_ids': list(entity['technical_reference_ids'])}
+                   if 'technical_reference_ids' in entity else {}),
                 'criteria': criteria_for(lineage.get('service', {}), lineage.get('barrier', {}),
                                          owner, lineage.get('opening'))}
 
@@ -126,12 +130,13 @@ def physical_contexts(snapshot, scope, identifiers):
             current = pending.pop()
             kind, _ = index[current]
             descendants = children.get(current, [])
-            if associations[current] or kind == 'service' or not descendants:
+            explicit = 'technical_reference_ids' in index[current][1]
+            if explicit or associations[current] or kind == 'service' or not descendants:
                 contexts.append(context(current))
             # A direct assignment owns this row's reference context, including
             # the deliberate absence of Technical links. Do not dilute it with
             # inferred descendant matches.
-            if not associations[current]:
+            if not explicit and not associations[current]:
                 pending.extend(descendants)
         result[identifier] = contexts
     return result
@@ -177,14 +182,20 @@ class ReferenceIndex:
         found, modes = set(), set()
         for context in contexts:
             library_ids, criteria = context.get('library_ids', []), context.get('criteria', {})
-            if library_ids:
+            if 'technical_reference_ids' in context:
+                modes.add('selected')
+                for value in context['technical_reference_ids']:
+                    identifier = self.aliases.get(value, value)
+                    if identifier in self.visible:
+                        found.add(identifier)
+            elif library_ids:
                 modes.add('linked')
                 for library_id in library_ids:
                     for link in self.data['_links']['penetration'].get(library_id, []) if self.data else ():
                         identifier = self.aliases.get(link['id'], link['id'])
                         if link['kind'] == 'technical' and identifier in self.visible:
                             found.add(identifier)
-            elif (token(criteria.get('services')) not in _PLACEHOLDERS
+            elif not context.get('selected_only') and (token(criteria.get('services')) not in _PLACEHOLDERS
                   or token(criteria.get('substrate')) not in _PLACEHOLDERS):
                 modes.add('filtered')
                 selected = None
@@ -194,6 +205,12 @@ class ReferenceIndex:
                     selected = set(candidates) if selected is None else selected.intersection(candidates)
                 found.update(selected or ())
         ordered = sorted(found, key=lambda key: (self.manufacturer(key).casefold(), key))
+        if modes == {'selected'}:
+            # An explicit selection retains the user's order, just like the
+            # Firestopping Schedule; aliases never duplicate a system.
+            ordered = list(dict.fromkeys(self.aliases.get(value, value)
+                           for context in contexts for value in context.get('technical_reference_ids', [])
+                           if self.aliases.get(value, value) in found))
         result = (tuple(ordered), 'mixed' if len(modes) > 1 else next(iter(modes), 'none'))
         size = len(cache_key) + sum(len(key.encode('utf-8')) + 8 for key in ordered)
         _bounded(size, MAX_CACHE_BYTES)
@@ -232,6 +249,19 @@ class ReferenceIndex:
                 'report_limit': report_limit, 'report_has_more': report_offset + report_limit < len(reports),
                 'total': len(identifiers), 'offset': offset, 'limit': limit,
                 'has_more': offset + limit < len(identifiers)}
+        if any(context.get('selected_only') for context in contexts):
+            # Facts prefilter the chooser; no fact selects a report. A parent
+            # with unlike services must not join their different facts.
+            initial = dict(contexts[0].get('criteria', {})) if contexts else {}
+            for context in contexts[1:]:
+                initial = {name: value for name, value in initial.items()
+                           if context.get('criteria', {}).get(name) == value}
+            available = {entry['key']: {token(option['value']): option['value']
+                                       for option in entry.get('options', [])}
+                         for entry in (self.data or {}).get('_filters', {}).get('technical', [])}
+            result['initial_filters'] = {name: available[name][token(value)]
+                                         for name, value in initial.items()
+                                         if name in available and token(value) in available[name]}
         size, report_characters, system_characters, previous_manufacturer = len(_encoded(result)), 0, 0, None
         for value in reports[report_offset:report_offset + report_limit]:
             size += len(_encoded(value)) + (2 if result['reports'] else 0); _bounded(size, MAX_RESPONSE_BYTES)

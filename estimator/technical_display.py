@@ -8,6 +8,41 @@ _SENTENCE_START = re.compile(r'''\.(["'\u2019\u201d)\]]*\s+["'\u2018\u201c(\[]*)
 _ABBREVIATION = re.compile(r'\b(?:min|max|incl|approx|figs?|sec|no|vs|etc|e\.g|i\.e)\.$', re.I)
 _LEADING_LETTER = re.compile(r'''^([\s"'\u2018\u201c(\[]*)([A-Za-z])''')
 _SELECTOR_TITLE = re.compile(r'^\s*(Promat|Trafalgar)(?:\s*:\s*|\s+)\d+\s*[\u2014\u2013-]\s*', re.I)
+_BRACKETED = re.compile(r'\(([^()]*)\)')
+_REFERENCE_NUMBER = r'\d+(?:\s*[A-Za-z]\b)?(?:\s*(?:[-\u2013\u2014/,;&]|\band\b|\bor\b|\bto\b)\s*\d+(?:\s*[A-Za-z]\b)?)*'
+_LOCATOR = re.compile(r'\b(?:(?:see|refer\s+to|as\s+per)\s+)?(?:tables?|items?|figures?|figs?\.?)\s+' + _REFERENCE_NUMBER, re.I)
+_GENERATED_TABLE = re.compile(r'^\s*(?:Service Size\s*/\s*Configuration|Barrier Construction)\s+table\s+' + _REFERENCE_NUMBER + r'\s*[;,]?\s*', re.I)
+
+
+def _without_cross_references(text):
+    """Omit parenthetical source locators, retaining their actual conditions."""
+    def clean(match):
+        if re.fullmatch(r'\s*(?:see|refer\s+to)\s+(?:tables?|items?|figures?|figs?\.?)\s*', match[1], re.I):
+            return ''
+        value = _GENERATED_TABLE.sub('', match[1])
+        locator_only = not _LOCATOR.sub('', value).strip(' \t\r\n,;:/')
+        explicit_list = re.match(r'^\s*(?:see|refer\s+to|as\s+per)\s+', value, re.I)
+        def locator(found):
+            # "2 items 4 mm thick" describes a quantity and dimension. Only
+            # explicit source pointers or leading locator lists are removable.
+            before = _LOCATOR.sub('', value[:found.start()]).strip(' \t\r\n,;:/')
+            explicit = re.match(r'^(?:see|refer\s+to|as\s+per)\s+', found[0], re.I)
+            product = re.fullmatch(r'FRF\s+\d+(?:\.\d+)?', before, re.I)
+            units = re.match(r'^\s*(?:mm|cm|m|µm|um|kg|g|l|litres?|layers?)(?:[²³23])?(?=$|[\s,;:/).])', value[found.end():], re.I)
+            units = units or re.search(r'\d\s*[mgl]\b', found[0], re.I)
+            return '' if not units and (not before and (locator_only or explicit_list) or explicit or product) else found[0]
+        value = _LOCATOR.sub(locator, value)
+        if value == match[1]:
+            return match[0]
+        value = re.sub(r'^\s*(?:see|refer\s+to|as\s+per)\s*', '', value, flags=re.I)
+        value = value.strip(' \t\r\n,;:/')
+        if not value or value.casefold() == 'frl':
+            return ''
+        return '(' + value + ')'
+    cleaned = _BRACKETED.sub(clean, text)
+    if cleaned == text:
+        return text
+    return re.sub(r'[ \t]+([,.;:])', r'\1', re.sub(r'[ \t]{2,}', ' ', cleaned))
 
 
 def display_technical_title(record):
@@ -38,7 +73,7 @@ def _capitalise_sentences(text, source):
 
 # Keep these ordered rules aligned with LibraryDetailText.compact. Shared
 # fixtures exercise both implementations, including their second application.
-# Never remove modals, negations, alternatives, measurements or source markers.
+# Never remove modals, negations, alternatives or installation measurements.
 _RULES = tuple((re.compile(expression, re.I), replacement) for expression, replacement in (
     (r'\bFIREFLY(?:TM\b|\u2122)[ \t]*', ''),
     (r'\b(Roc)TM\b', r'\1'),
@@ -114,6 +149,7 @@ def compact_technical_text(value):
         return value
 
     def compact(text):
+        text = _without_cross_references(text)
         for expression, replacement in _RULES:
             text = expression.sub(replacement, text)
         return text

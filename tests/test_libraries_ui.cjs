@@ -85,11 +85,33 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     await h.api.open('technical',source.id);const pane=h.pane('technical'),section=pane.detailPanel.children.find(node=>node.className==='library-detail-section library-technical-related');
     const targets=()=>walk(section).filter(node=>node.dataset.libraryTechnicalTarget);
     const more=walk(section).find(node=>node.tagName==='button'&&node.textContent==='Show more related records');
-    assert.equal(targets().length,50);assert.equal(more.hidden,false);
-    for(const count of [100,150,200]){await more.emit('click');assert.equal(targets().length,count);assert.equal(h.context.document.activeElement.dataset.libraryTechnicalTarget,related[count-50].id);}
+    assert.equal(targets().length,2);assert.equal(more.hidden,false);assert.equal(more.getAttribute('aria-expanded'),'false');
+    let previous=2;
+    for(const count of [52,102,152,200]){await more.emit('click');assert.equal(targets().length,count);assert.equal(h.context.document.activeElement.dataset.libraryTechnicalTarget,related[previous].id);previous=count;}
+    assert.equal(more.getAttribute('aria-expanded'),'true');
     assert.equal(more.hidden,true);assert.deepEqual(targets().map(node=>node.dataset.libraryTechnicalTarget),related.map(row=>row.id));
     assert.equal(walk(section).some(node=>node.dataset.libraryUnlink),false);assert.deepEqual(source,before);
     assert.ok(h.calls.every(call=>!call.options?.method||call.options.method==='GET'));
+  });
+  await check('Related Firestopping lists start at two and expand without changing links or unlink authority',async h=>{
+    for(const count of [0,1,2,3,117]){
+      const links=Array.from({length:count},(_,index)=>({kind:'penetration',id:`penetration-${index}`,title:`Related item ${index}`,relationship:'Retained source'}));
+      const source={...detail('technical','technical-1'),links},before=copy(source);
+      h.setRoute(path=>path==='/api/libraries'?meta():source);
+      await h.api.open('technical',source.id);const pane=h.pane('technical');
+      const section=pane.detailPanel.children.find(node=>node.className==='library-detail-section');
+      const targets=()=>walk(section).filter(node=>node.dataset.libraryRelated);
+      const more=walk(section).find(node=>node.tagName==='button'&&node.textContent==='Show more related records');
+      assert.equal(targets().length,Math.min(count,2));assert.equal(Boolean(more),count>2);
+      if(more){
+        assert.equal(more.getAttribute('aria-expanded'),'false');let shown=2;
+        while(!more.hidden){await more.emit('click');assert.equal(h.context.document.activeElement.dataset.libraryRelated,links[shown].id);shown=Math.min(count,shown+50);assert.equal(targets().length,shown);}
+        assert.equal(more.getAttribute('aria-expanded'),'true');
+      }
+      assert.equal(walk(section).filter(node=>node.dataset.libraryUnlink).length,count);
+      assert.deepEqual(targets().map(node=>node.dataset.libraryRelated),links.map(link=>link.id));
+      assert.deepEqual(source,before);assert.ok(h.calls.every(call=>!call.options?.method||call.options.method==='GET'));
+    }
   });
   await check('Firestopping Category and opening Type keep distinct detail labels',async h=>{
     const fields=[{label:'Category',column:'J',value:'Electrical & Communications'},
@@ -137,6 +159,8 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
       assert.doesNotMatch(text(pane.detailPanel),/selector variants?|Source information|Synthetic source reference/);
     }
     await h.api.open('penetration','penetration-1');pane=h.pane('penetration');
+    const more=walk(pane.detailPanel).find(n=>n.tagName==='button'&&n.textContent==='Show more related records');
+    assert.equal(walk(pane.detailPanel).filter(n=>n.dataset.libraryRelated).length,2);await more.emit('click');
     assert.deepEqual(walk(pane.detailPanel).filter(n=>n.dataset.libraryRelated).map(n=>n.textContent),expected);
     assert.deepEqual(walk(pane.detailPanel).filter(n=>n.dataset.libraryRelated).map(n=>n.dataset.libraryRelated),items.map(item=>item.id));
     await h.api.open('penetration',{list:true});pane=h.pane('penetration');await walk(pane.results).find(n=>n.dataset.libraryLink).emit('click');await flush();
@@ -496,25 +520,26 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
       h.setRoute(path=>path==='/api/libraries'?meta():({...detail('technical','incomparable'),fields,images:[]}));await h.api.open('technical','incomparable');assert.equal(walk(h.pane('technical').detailPanel).find(n=>n.tagName==='dd').textContent,ratings.join('; '));assert.deepEqual(fields,before);
     }
   });
-  await check('FRL keeps unsupported, missing, malformed and mismatched source scopes verbatim',async h=>{
+  await check('FRL keeps unsupported source qualifications while omitting requested table locators',async h=>{
     const base={label:'FRL',value:'-/120/120 — observed source service ratings (Barrier Construction table 1).',table_links:[{field:'Barrier Construction',table_index:0}]},table={columns:['Substrate','FRL'],rows:[['Wall','-/120/120']]};
     const cases=[{links:{}},{links:[null,{field:'Barrier Construction',table_index:0,extra:true}]},{links:[{field:'Barrier Construction',table_index:2}]},{table:{columns:['FRL'],rows:[null]}},{table:{columns:['FRL'],rows:[['-/60/60']]}},{value:'-/120/120 — source substrate alternatives (Barrier Construction table 1; FRL Without Wrap). The entry selection remains separate.'},{value:'-/120/120 — matched source barrier row (Barrier Construction table 1; Substrate: Floor).'}, {value:'-/120/120 — observed source service ratings (Barrier Construction table 1; unknown scope).'}];
+    const expected=[...Array(5).fill('-/120/120 — observed source service ratings.'),'-/120/120 — source substrate alternatives (FRL Without Wrap). Entry selection remains separate.','-/120/120 — matched source barrier row (Substrate: Floor).','-/120/120 — observed source service ratings (unknown scope).'];
     for(const [index,item] of cases.entries()) {
       const fields=[{...base,value:item.value||base.value,table_links:item.links??base.table_links},{label:'Barrier Construction',value:'',table:item.table||table}],before=copy(fields);
-      h.setRoute(path=>path==='/api/libraries'?meta():({...detail('technical','invalid-frl-'+index),fields,images:[]}));await h.api.open('technical','invalid-frl-'+index);assert.equal(walk(h.pane('technical').detailPanel).find(n=>n.tagName==='dd').textContent,fields[0].value.replace('The entry selection','Entry selection'));assert.deepEqual(fields,before);
+      h.setRoute(path=>path==='/api/libraries'?meta():({...detail('technical','invalid-frl-'+index),fields,images:[]}));await h.api.open('technical','invalid-frl-'+index);assert.equal(walk(h.pane('technical').detailPanel).find(n=>n.tagName==='dd').textContent,expected[index]);assert.deepEqual(fields,before);
     }
   });
   await check('FRL authored qualifications and non-applicability survive concise linked-table summaries',async h=>{
     const authored='-/120/120 RISF 81; use the lower rating of the supporting construction.\n\nUp to -/180/120 (-/180/90 without wrap).\n\nBoard thickness must be at least 40 mm.\n\n-/120/120 — observed concrete-slab service ratings (Service Size / Configuration table 1; applicability to the CLT entry is not established).';
     const fields=[{label:'FRL',value:authored+'\n\n-/60/60 to -/120/120 — observed source service ratings (Service Size / Configuration table 1).\n\nSource configuration ratings remain subject to the stated barrier construction and installation conditions.',table_links:[{field:'Service Size / Configuration',table_index:0}]},{label:'Service Size / Configuration',value:'',table:{columns:['FRL'],rows:[['-/60/60'],['-/120/120']]}}],before=copy(fields);
-    h.setRoute(path=>path==='/api/libraries'?meta():({...detail('technical','authored'),fields,images:[]}));await h.api.open('technical','authored');assert.equal(walk(h.pane('technical').detailPanel).find(n=>n.tagName==='dd').textContent,authored.replace('at least','min.')+'\n\n-/60/60 to -/120/120');assert.deepEqual(fields,before);
+    h.setRoute(path=>path==='/api/libraries'?meta():({...detail('technical','authored'),fields,images:[]}));await h.api.open('technical','authored');assert.equal(walk(h.pane('technical').detailPanel).find(n=>n.tagName==='dd').textContent,authored.replace('at least','min.').replace('Service Size / Configuration table 1; ','')+'\n\n-/60/60 to -/120/120');assert.deepEqual(fields,before);
   });
   await check('FRL qualified source references are concise only when the linked table retains the qualified rating',async h=>{
     const qualification='Up to -/120/120, subject to the supporting barrier.',reference='Source substrate alternatives (Barrier Construction table 1; FRL): retain the qualified source ratings as shown; no range is inferred.';
     const fields=[{label:'FRL',value:qualification+'\n\n'+reference,table_links:[{field:'Barrier Construction',table_index:0}]},{label:'Barrier Construction',value:'',table:{columns:['Substrate','FRL'],rows:[['Wall',qualification]]}}],before=copy(fields);
     h.setRoute(path=>path==='/api/libraries'?meta():({...detail('technical','unresolved'),fields,images:[]}));await h.api.open('technical','unresolved');let nodes=walk(h.pane('technical').detailPanel);
     assert.equal(nodes.find(n=>n.tagName==='dd').textContent,qualification);assert.equal(nodes.filter(n=>n.className==='library-configuration-link').length,1);assert.deepEqual(nodes.filter(n=>n.tagName==='td').map(n=>n.textContent),['Wall',qualification]);assert.deepEqual(fields,before);
-    fields[1].table.rows=[['Wall','']];h.context.audit.renderDetail(h.pane('technical'));nodes=walk(h.pane('technical').detailPanel);assert.equal(nodes.find(n=>n.tagName==='dd').textContent,qualification+'\n\n'+reference);
+    fields[1].table.rows=[['Wall','']];h.context.audit.renderDetail(h.pane('technical'));nodes=walk(h.pane('technical').detailPanel);assert.equal(nodes.find(n=>n.tagName==='dd').textContent,qualification+'\n\nSource substrate alternatives: retain the qualified source ratings as shown; no range is inferred.');
   });
   await check('Firefly service fields are formatted and Diagrams & Figures displays images without reference copy',async h=>{
     const fields=[{label:'Manufacturer',value:'TBA FIREFLY'},{label:'Service Wrap',value:'1. Wrap the service.\n2. Secure both ends.'},{label:'Service Size / Configuration',value:'First line of\na service description.'},{label:'Diagrams & Figures',value:'Reference figures: 1, 2, 3',images:[{id:'figure-1',role:'Reference figure',caption:'Refer Figure - PDF page 12'}]}],before=copy(fields);

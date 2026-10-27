@@ -696,11 +696,14 @@
     const section = node("section", "library-detail-section library-technical-related");
     section.append(uiNode("h4", "", "Related Technical records"));
     const list = node("div", "library-technical-related-list"); section.append(list);
+    list.id = `library-technical-related-${data.id}`;
     let shown = 0;
     const more = uiButton("Show more related records", () => appendPage(true), "button secondary");
+    more.setAttribute("aria-controls", list.id); more.setAttribute("aria-expanded", "false");
     function appendPage(focus = false) {
       let first = null;
-      for (const link of records.slice(shown, shown + 50)) {
+      const end = Math.min(records.length, shown + (shown ? 50 : 2));
+      for (const link of records.slice(shown, end)) {
         const row = node("div", "library-related-record"), details = node("div", "library-related-content");
         const title = window.LibraryDetailText.displayTitle(link) || "Reference unavailable";
         const action = button(display(title), () => navigate("technical", link.id), "library-record-link");
@@ -708,11 +711,12 @@
         first ||= action;
         details.append(action); row.append(details); list.append(row);
       }
-      shown = Math.min(records.length, shown + 50); more.hidden = shown >= records.length;
+      shown = end; more.hidden = shown >= records.length;
+      if (focus) more.setAttribute("aria-expanded", "true");
       if (focus) first?.focus({ preventScroll: true });
     }
     appendPage();
-    if (records.length > 50) section.append(more);
+    if (records.length > 2) section.append(more);
     return section;
   }
   function renderDetail(pane) {
@@ -814,18 +818,30 @@
     const related = node("section", "library-detail-section"), links = data.links || [];
     related.append(uiNode("h4", "", pane.kind === "penetration" ? "Related technical references" : "Related firestopping records"));
     if (!links.length) related.append(uiNode("p", "helper", "No related records are recorded."));
-    for (const link of links) {
-      const box = node("div", "library-related-record"), details = node("div", "library-related-content");
-      const relatedTitle = window.LibraryDetailText.displayTitle(link) || "Reference unavailable";
-      if (kinds.includes(link.kind) && validId(link.id)) { const action = button(display(relatedTitle), () => navigate(link.kind, link.id), "library-record-link"); action.dataset.libraryRelated = link.id; details.append(action); }
-      else details.append(node("p", "", display(relatedTitle)));
-      if (link.notice) details.append(node("p", "library-related-notice", display(link.notice)));
-      const penetrationId = pane.kind === "penetration" ? data.id : link.id, technicalId = pane.kind === "technical" ? data.id : link.id, key = `${penetrationId}:${technicalId}`;
-      const label = pane.kind === "penetration" ? `Unlink technical reference ${relatedTitle}` : `Unlink firestopping record ${relatedTitle}`;
-      const remove = symbolButton("🗑", label, () => unlinkReference(pane, data, link)); remove.className += " library-unlink"; remove.dataset.libraryUnlink = key; remove.disabled = pane.unlinkPending.has(key); pane.unlinkButtons.set(`${data.id}:${key}`, remove);
-      box.append(details, remove);
-      related.append(box);
+    const relatedList = node("div", "library-related-list"); relatedList.id = `library-related-${pane.kind}-${data.id}`;
+    const moreRelated = uiButton("Show more related records", () => appendRelated(true), "button secondary");
+    moreRelated.setAttribute("aria-controls", relatedList.id); moreRelated.setAttribute("aria-expanded", "false");
+    let shownRelated = 0;
+    function appendRelated(focus = false) {
+      let first = null;
+      const end = Math.min(links.length, shownRelated + (shownRelated ? 50 : 2));
+      for (const link of links.slice(shownRelated, end)) {
+        const box = node("div", "library-related-record"), details = node("div", "library-related-content");
+        const relatedTitle = window.LibraryDetailText.displayTitle(link) || "Reference unavailable";
+        if (kinds.includes(link.kind) && validId(link.id)) { const action = button(display(relatedTitle), () => navigate(link.kind, link.id), "library-record-link"); action.dataset.libraryRelated = link.id; first ||= action; details.append(action); }
+        else details.append(node("p", "", display(relatedTitle)));
+        if (link.notice) details.append(node("p", "library-related-notice", display(link.notice)));
+        const penetrationId = pane.kind === "penetration" ? data.id : link.id, technicalId = pane.kind === "technical" ? data.id : link.id, key = `${penetrationId}:${technicalId}`;
+        const label = pane.kind === "penetration" ? `Unlink technical reference ${relatedTitle}` : `Unlink firestopping record ${relatedTitle}`;
+        const remove = symbolButton("🗑", label, () => unlinkReference(pane, data, link)); remove.className += " library-unlink"; remove.dataset.libraryUnlink = key; remove.disabled = pane.unlinkPending.has(key); pane.unlinkButtons.set(`${data.id}:${key}`, remove);
+        box.append(details, remove);
+        relatedList.append(box);
+      }
+      shownRelated = end; moreRelated.hidden = shownRelated >= links.length;
+      if (focus) { moreRelated.setAttribute("aria-expanded", "true"); first?.focus({ preventScroll: true }); }
     }
+    if (links.length) { appendRelated(); related.append(relatedList); }
+    if (links.length > 2) related.append(moreRelated);
     content.push(related);
     // Item qualifications belong in the card that receives navigation focus;
     // keep only the general library notices above that card.

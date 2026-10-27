@@ -128,7 +128,7 @@ def effective_confirmation(graph, identifier, *, _index=None):
 def _review_facts(entity):
     """Keep source identity in review facts and appearance outside it."""
     result = {key: value for key, value in entity.items()
-              if key not in ('confirmation', 'revision')}
+              if key not in ('confirmation', 'revision', 'technical_reference_ids')}
     for source in ('marker', 'annotation'):
         if isinstance(result.get(source), dict):
             result[source] = {key: value for key, value in result[source].items()
@@ -302,6 +302,9 @@ def _evidence(value, kind, parents):
 
 
 def _properties(entity, kind, parents):
+    if 'technical_reference_ids' in entity:
+        from .penetration_references import validate_reference_ids
+        validate_reference_ids(entity['technical_reference_ids'])
     if 'confirmation' in entity:
         if (not isinstance(entity['confirmation'], str)
                 or entity['confirmation'] not in CONFIRMATION_STATES):
@@ -375,7 +378,7 @@ def validate_graph(graph, *, copy_result=True):
                 keys |= {'quantity'}
             optional = {'copied_from'} | ({'marker'} if kind == 'barrier' and graph['version'] in (2, 3) else {'annotation'} if (kind == 'defect' and graph['version'] == 2) or (kind == 'service' and graph['version'] == 3) else set())
             if graph['version'] in (2, 3):
-                optional.add('confirmation')
+                optional |= {'confirmation', 'technical_reference_ids'}
             if kind == 'service' and graph['version'] in (2, 3):
                 optional.add('library_quantity')
             _object(entity, keys | optional, keys, 'Physical entity')
@@ -408,6 +411,7 @@ def validate_graph(graph, *, copy_result=True):
             evidence_count += len(entity['evidence'])
             text_count += sum(len(value) for value in entity['fields'].values() if isinstance(value, str))
             text_count += len(entity['uncertainty']['note'])
+            text_count += sum(len(value) for value in entity.get('technical_reference_ids', []))
             if evidence_count > MAX_TOTAL_EVIDENCE:
                 raise ValidationError('The physical graph exceeds its total evidence association limit.')
             for evidence in entity_references(entity):
@@ -504,7 +508,7 @@ def _command(graph, command):
             keys.add('quantity')
         optional = {'copied_from'} | ({'marker'} if kind == 'barrier' and graph['version'] in (2, 3) else {'annotation'} if (kind == 'defect' and graph['version'] == 2) or (kind == 'service' and graph['version'] == 3) else set())
         if graph['version'] in (2, 3):
-            optional.add('confirmation')
+            optional |= {'confirmation', 'technical_reference_ids'}
         if kind == 'service' and graph['version'] in (2, 3):
             optional.add('library_quantity')
         source = _object(command['entity'], keys | optional, keys, 'New physical entity')
@@ -543,7 +547,7 @@ def _command(graph, command):
         if op == 'update':
             allowed = {'fields', 'evidence', 'uncertainty'} | ({'quantity'} if kind == 'service' else set())
             if graph['version'] in (2, 3):
-                allowed.add('confirmation')
+                allowed |= {'confirmation', 'technical_reference_ids'}
             if kind == 'barrier' and graph['version'] in (2, 3):
                 allowed.add('marker')
             if (kind == 'defect' and graph['version'] == 2) or (kind == 'service' and graph['version'] == 3):
@@ -554,6 +558,8 @@ def _command(graph, command):
             if not changes:
                 raise ValidationError('A physical update requires explicit changes.')
             prospective = {**entity, **changes}
+            if changes.get('technical_reference_ids', False) is None:
+                prospective.pop('technical_reference_ids', None)
             if kind == 'service' and 'quantity' in changes and changes['quantity'] is not None:
                 prospective.pop('library_quantity', None)
             _properties(prospective, kind, parents)
@@ -562,7 +568,10 @@ def _command(graph, command):
             for key, value in changes.items():
                 # A supplied fields object replaces the typed field set. This
                 # makes clearing an unknown field explicit and lossless.
-                entity[key] = deepcopy(value)
+                if key == 'technical_reference_ids' and value is None:
+                    entity.pop(key, None)
+                else:
+                    entity[key] = deepcopy(value)
         elif op == 'reparent':
             if kind not in parents:
                 raise ValidationError(f'A {kind} has no physical parent to change.')

@@ -214,7 +214,7 @@ class PenetrationReferenceTests(unittest.TestCase):
         self.assertEqual(value['missing_ids'], ['report-a-v1'])
         self.assertEqual(normalize_draft(draft)['rows'][0]['technical_reference_ids'], ['report-a-v1'])
 
-    def test_legacy_manual_takeoff_uses_exact_source_context_in_both_workspaces(self):
+    def test_legacy_manual_takeoff_does_not_publish_unselected_candidates_in_both_workspaces(self):
         for scope in ('defect_reports', 'service_plans'):
             with self.subTest(scope=scope):
                 draft, snapshot = self.legacy_takeoff(scope)
@@ -225,7 +225,8 @@ class PenetrationReferenceTests(unittest.TestCase):
                 row_id = draft['rows'][0]['id']
                 value = resolve_schedule_references(draft, self.library, snapshot=snapshot)['row_references'][row_id]
                 self.assertEqual(value['basis'], 'takeoff')
-                self.assertEqual([entry['id'] for entry in value['systems']], ['report-a-v1', 'report-a-v2'])
+                self.assertEqual(value['systems'], [])
+                self.assertEqual(value['reports'], [])
                 self.assertEqual(draft, before_draft)
                 self.assertEqual(snapshot, before_snapshot)
 
@@ -266,6 +267,8 @@ class PenetrationReferenceTests(unittest.TestCase):
         for scope in ('defect_reports', 'service_plans'):
             with self.subTest(scope=scope):
                 draft, snapshot = self.legacy_takeoff(scope)
+                graph = snapshot['physical' if scope == 'defect_reports' else 'service_plans']
+                graph['services'][0]['technical_reference_ids'] = ['report-a-v1', 'report-a-v2']
                 existing = {'id': 'already-selected', 'inputs': {}, 'technical_reference_ids': ['report-a-v2']}
                 previous = {'globals': {}, 'rows': [existing]}
                 draft['rows'].insert(0, deepcopy(existing))

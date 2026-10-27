@@ -9,6 +9,7 @@ import re
 
 from .library_facets import (MOVED_SERVICE_CATEGORIES, SERVICE_DISCOVERY_GENERALIZATIONS,
                              canonical_services, category_values, frl_values, service_values)
+from .library_substrates import canonical_substrate
 
 
 FRL_ALIASES = {
@@ -94,12 +95,16 @@ def discovery_facets(item, *, imported_services=None):
     if not services and moved:
         services = ['N/A']
     return {'category': sorted(categories), 'services': services,
+            'substrate': list(dict.fromkeys(canonical_substrate(value) for value in item.get('filter_values', {}).get('substrate', []))),
             'frl': sorted({canonical_frl(value) for value in frl_values(item)})}
 
 
 def present_technical(item, *, source_ratings=None):
     """Return a display copy; retained technical_basis and sources stay verbatim."""
     result = deepcopy(item)
+    if 'substrate' in result.get('filter_values', {}):
+        result['filter_values']['substrate'] = list(dict.fromkeys(canonical_substrate(value)
+            for value in result['filter_values']['substrate']))
     source_ratings = frl_values(item) if source_ratings is None else source_ratings
     for key in ('title', 'subtitle', 'summary'):
         if key in result:

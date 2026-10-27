@@ -6,6 +6,7 @@ import re
 from .catalog import ValidationError
 from .library_report_links import FIREFLY_REPORTS_URL, valid_report_url
 from .register_references import ReferenceIndex, criteria_for, physical_contexts, token
+from .technical_catalog_policy import assigned_report_url
 
 MAX_SELECTIONS = 128
 REFERENCE_FIELDS = ('technical_reference_ids', 'takeoff_reference_ids')
@@ -62,6 +63,10 @@ def _reports(ids, index, data):
         if len(captions) == 1:
             local_links.setdefault(token(captions[0]['label']), set()).update(documents)
     for report in reports:
+        # A catalog-assigned supplier report is not the individual source
+        # diagram PDF. Different diagram assets cannot cancel that exact link.
+        if report['url'] and report['url'] == assigned_report_url(report['label']):
+            continue
         documents = local_links.get(token(report['label']), set())
         if len(documents) > 1 or len(public_links.get(token(report['label']), set())) > 1:
             report['url'] = None

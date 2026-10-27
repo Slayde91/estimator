@@ -7,7 +7,7 @@ const fs = require('node:fs'), path = require('node:path'), crypto = require('no
 const root = path.resolve(__dirname, '../..'), output = path.join(root, '.runtime/browser-qa', `themes-${Date.now()}`);
 fs.mkdirSync(output, { recursive:true });
 const measureAsset='static/icons/takeoff-measure.png',measureSha256='fc053970adcdb00965ae9aba71063f1b659a2391f57a39f8301ed0573f1d8130';
-const soundPaths=new Set(['/sounds/type.mp3','/sounds/flame-whoosh.wav','/sounds/mgs1-menu-move.mp3','/sounds/mgs-confirm2.mp3','/sounds/hover.mp3','/sounds/select.mp3','/sounds/select-2.mp3','/sounds/checkpoint.ogg','/sounds/loading.mp3']);
+const soundPaths=new Set(['/sounds/type.mp3','/sounds/flame-whoosh.wav','/sounds/mgs1-menu-move.mp3','/sounds/mgs-confirm2.mp3','/sounds/hover.mp3','/sounds/select.mp3','/sounds/select-2.mp3','/sounds/checkpoint.ogg']);
 const assets = ['tests/browser/themes.cjs','static/theme.js','static/theme.css','static/index.html','static/app.js','static/calculators.js','static/takeoffs.js','static/takeoff-physical.js','static/takeoffs.css','static/header-menu-sounds.js','static/icons/document.png','static/icons/takeoff-transfer.png','static/icons/takeoff-visibility.png','static/icons/takeoff-callout.png','static/icons/takeoff-legend.png','static/icons/takeoff-colour-wheel.png','static/ceasefire-logo.png',measureAsset,...[...soundPaths].map(source=>'static'+source)];
 const hashes = () => Object.fromEntries(assets.map(name => [name,crypto.createHash('sha256').update(fs.readFileSync(path.join(root,name))).digest('hex')]));
 const assetHashes = hashes();
@@ -33,7 +33,7 @@ function cancellationClass(row,origin) {
   return null;
 }
 function checkCancellationGate() {
-  const origin='http://127.0.0.1:43210', media={requestId:1,documentGeneration:0,url:origin+'/sounds/loading.mp3',method:'GET',resourceType:'media',failure:{errorText:'net::ERR_ABORTED'},reloadBoundary:null};
+  const origin='http://127.0.0.1:43210', media={requestId:1,documentGeneration:0,url:origin+'/sounds/select-2.mp3',method:'GET',resourceType:'media',failure:{errorText:'net::ERR_ABORTED'},reloadBoundary:null};
   const calculate={...media,url:origin+'/api/calculate',method:'POST',resourceType:'fetch',reloadBoundary:{label:'theme-preference-persistence',requestId:1,documentGeneration:0,markedAt:1}};
   const mediaAccepted=[...soundPaths].map(sound=>({...media,url:origin+sound}));
   const calculationAccepted=[...deliberateReloadLabels].map(label=>({...calculate,reloadBoundary:{...calculate.reloadBoundary,label}}));
@@ -49,7 +49,7 @@ function checkCancellationGate() {
     {...media,documentGeneration:undefined}, {...media,documentGeneration:-1},
     {...media,failure:{errorText:'net::ERR_CONNECTION_RESET'}},
     {...media,resourceType:'fetch'}, {...media,method:'POST'},
-    {...media,url:origin+'/sounds/unknown.mp3'}, {...media,url:'http://127.0.0.1:43211/sounds/loading.mp3'},
+    {...media,url:origin+'/sounds/unknown.mp3'}, {...media,url:origin+'/sounds/loading.mp3'}, {...media,url:'http://127.0.0.1:43211/sounds/select-2.mp3'},
     {...media,url:media.url+'?unexpected=1'}, {...media,url:origin+'/api/calculate'},
   ];
   for(const row of mediaAccepted)assert.equal(cancellationClass(row,origin),'known-media-cancellation',JSON.stringify(row));

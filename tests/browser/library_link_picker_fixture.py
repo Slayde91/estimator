@@ -48,8 +48,9 @@ def main():
         data['libraries']['technical']['filters'][0]['key'] = 'document'
         for index, item in enumerate(records):
             manufacturer = ('Promat', 'Trafalgar', 'BOSS', 'Firefly')[index % 4]
+            identity = str(index + 1) if index == 0 else 'sys_var_2_au' if index == 1 else f'synthetic-source-{index + 1}'
             item['fields'].extend([{'label': 'Manufacturer', 'value': manufacturer},
-                                   {'label': 'ID', 'value': f'synthetic-source-{index + 1}'}])
+                                   {'label': 'ID', 'value': identity}])
             item['filter_values'].pop('report')
             item['filter_values']['document'] = [f'{manufacturer} synthetic report']
             item['filter_values']['manufacturer'] = [manufacturer]

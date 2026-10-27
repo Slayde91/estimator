@@ -149,7 +149,7 @@
     lastActions = lastStats = lastMessages = lastPhase = "";
     $("play-hub").hidden = true; $("play-session").hidden = false; $("play-pause-overlay").hidden = true;
     $("play-pause").textContent = "Pause"; $("play-pause").setAttribute("aria-pressed", "false");
-    $("play-keys").textContent = "WASD move · Mouse aim · Hold left click to fire or clear pink foam · Space dash · Q suppression foam · E barricade · R Overdrive · Esc pause";
+    $("play-keys").textContent = "WASD move · Mouse aim · Hold left click to fire or clear pink foam · Space dash · Q suppression foam · E firestop · R Overdrive · Esc pause";
     $("play-feed-title").textContent = "Site radio";
     syncHud(); game.draw(context); focusArena(); startFrame();
   }

@@ -12,7 +12,7 @@
   const UPGRADES = [
     { id: "control", label: "Wide suppression", detail: "+25% cone width and stronger knockback" },
     { id: "pressure", label: "Pressure specialist", detail: "+30% recovery and +15% damage" },
-    { id: "defender", label: "Defender", detail: "+45% barricade strength and 25% less injury" }
+    { id: "defender", label: "Defender", detail: "+45% firestop strength and 25% less injury" }
   ];
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const length = (x, y) => Math.hypot(x, y);
@@ -85,8 +85,8 @@
       const p = s.player; let gate = -1, nearest = 92;
       GATES.forEach((g, i) => { const d = dist(p, g); if (d < nearest) { gate = i; nearest = d; } });
       if (gate < 0) { radio("Move close to a striped breach, then press E to seal it."); return; }
-      if (s.barriers[gate].foam > 0) { radio("Penetration clogged with pink foam. Spray it clear before barricading. No supplies spent."); return; }
-      if (p.supplies < 1) { radio("Barricade supplies recharge every 28 seconds."); return; }
+      if (s.barriers[gate].foam > 0) { radio("Penetration clogged with pink foam. Spray it clear before firestopping. No supplies spent."); return; }
+      if (p.supplies < 1) { radio("Firestop supplies recharge every 28 seconds."); return; }
       const b = s.barriers[gate]; if (b.hp > b.max * .9) { radio("This breach is already sealed."); return; }
       if (inRect(p, gateRect(gate), 11)) { radio("Step clear of the striped breach, then press E to seal it from beside the opening."); return; }
       p.supplies--; b.max = 110 * (1 + s.upgrades.defender * .45); b.hp = b.max;
@@ -191,7 +191,7 @@
         const friendly = s.zones.some(z => dist(z, gate) < z.radius);
         if (friendly || s.shooting && pointInCone(p, gate, p.angle, sprayRange + 18, spread + .06) && !lineBlockedByBuilding(p, gate)) {
           b.foam = Math.max(0, b.foam - dt * (friendly ? 65 : 48) * (p.boost > 0 ? 1.5 : 1));
-          if (!b.foam) { s.foamCleared++; p.overdrive = Math.min(100, p.overdrive + 12); radio("Pink foam removed. This penetration can be barricaded again."); spark(gate.x, gate.y, "#ffb7de", 16); }
+          if (!b.foam) { s.foamCleared++; p.overdrive = Math.min(100, p.overdrive + 12); radio("Pink foam removed. This penetration can be firestopped again."); spark(gate.x, gate.y, "#ffb7de", 16); }
         }
       }
       for (const f of s.pinkFoam) {
@@ -224,7 +224,7 @@
         }
         if (e.hp <= 0) { s.kills++; s.combo++; s.comboTime = 6; s.bestCombo = Math.max(s.bestCombo, s.combo); s.streakBonus += Math.min(4, s.combo - 1) * 25; p.health = Math.min(100, p.health + (e.type === "boss" ? 0 : 2.5)); p.overdrive = Math.min(100, p.overdrive + 7); spark(e.x, e.y, e.type === "boss" ? "#ff8ec8" : "#ffbf70", 18); continue; }
         const nearbyGate = s.barriers.findIndex((b, i) => b.hp > 0 && inRect(e, gateRect(i), e.radius + 7));
-        if (nearbyGate >= 0) { s.barriers[nearbyGate].hp = Math.max(0, s.barriers[nearbyGate].hp - (e.type === "boss" ? 33 : 11) * dt); if (s.barriers[nearbyGate].hp === 0) radio("Barricade breached. The temporary works are now very temporary."); }
+        if (nearbyGate >= 0) { s.barriers[nearbyGate].hp = Math.max(0, s.barriers[nearbyGate].hp - (e.type === "boss" ? 33 : 11) * dt); if (s.barriers[nearbyGate].hp === 0) radio("Firestop breached. The temporary works are now very temporary."); }
         else {
           let target = dist(e, p) < 215 || e.type === "boss" || e.type === "runner" ? p : { x: 480, y: 300 };
           if (e.type === "drone") target = dist(e, p) < 145 ? { x: e.x + (e.x - p.x), y: e.y + (e.y - p.y) } : p;
@@ -326,10 +326,10 @@
         { label: "Combo", value: s.combo > 1 ? `${s.combo} STREAK` : "BUILD A STREAK" }, { label: "Overdrive", value: p.boost > 0 ? "ACTIVE" : `${Math.floor(p.overdrive)}%` }
       ];
       let actions = [], subtitle;
-      if (s.phase === "brief") { actions = [{ id: "start", label: "Start shift" }]; subtitle = "WASD move · mouse aim · hold left click to spray · Space dash · Q foam · E barricade · R Overdrive. Clear three quick waves, then stop the Pink Foam Monster. Blast pink plugs off penetrations before barricading."; }
+      if (s.phase === "brief") { actions = [{ id: "start", label: "Start shift" }]; subtitle = "WASD move · mouse aim · hold left click to spray · Space dash · Q foam · E firestop · R Overdrive. Clear three quick waves, then stop the Pink Foam Monster. Blast pink plugs off penetrations before firestopping."; }
       else if (s.phase === "upgrade") { actions = UPGRADES.map(u => ({ id: u.id, label: `${u.label} — ${u.detail}` })); subtitle = "Choose one upgrade. +20 health, pressure refilled, and extra supplies arrive for the next wave."; }
-      else if (s.phase === "result") { actions = [{ id: "retry", label: "Another shift" }]; subtitle = `${s.kills} attackers stopped · Best streak ${s.bestCombo} · ${s.foamCleared} pink plugs cleared · ${s.sealed} barricades placed · Score ${s.score.toLocaleString("en-US")}`; }
-      else { actions = [{ id: "foam", label: `Foam [Q] · ${p.foam}`, disabled: !p.foam }, { id: "barricade", label: `Barricade [E] · ${p.supplies}`, disabled: !p.supplies }, { id: "overdrive", label: "Overdrive [R]", disabled: p.overdrive < 100 || p.boost > 0 }]; subtitle = `${s.wave < 4 ? `Reinforcements end in ${Math.max(0, Math.ceil(WAVE_SECONDS[s.wave - 1] - s.waveTime))}s` : "Pink Foam Monster: dodge pink shots; attack while he deflates; spray plugs clear before E"} · ${s.enemies.length} threats · Release fire to recharge · Space dash${p.dashCooldown > 0 ? ` (${p.dashCooldown.toFixed(1)}s)` : " ready"}`; }
+      else if (s.phase === "result") { actions = [{ id: "retry", label: "Another shift" }]; subtitle = `${s.kills} attackers stopped · Best streak ${s.bestCombo} · ${s.foamCleared} pink plugs cleared · ${s.sealed} firestops placed · Score ${s.score.toLocaleString("en-US")}`; }
+      else { actions = [{ id: "foam", label: `Foam [Q] · ${p.foam}`, disabled: !p.foam }, { id: "barricade", label: `Firestop [E] · ${p.supplies}`, disabled: !p.supplies }, { id: "overdrive", label: "Overdrive [R]", disabled: p.overdrive < 100 || p.boost > 0 }]; subtitle = `${s.wave < 4 ? `Reinforcements end in ${Math.max(0, Math.ceil(WAVE_SECONDS[s.wave - 1] - s.waveTime))}s` : "Pink Foam Monster: dodge pink shots; attack while he deflates; spray plugs clear before E"} · ${s.enemies.length} threats · Release fire to recharge · Space dash${p.dashCooldown > 0 ? ` (${p.dashCooldown.toFixed(1)}s)` : " ready"}`; }
       return { phase: s.phase, title: "FIRELINE", subtitle, stats, actions, messages: s.radio.slice(), ...(s.result ? { result: { ...s.result } } : {}) };
     }
     function rect(ctx, x, y, w, h, fill, stroke) { ctx.fillStyle = fill; ctx.fillRect(x, y, w, h); if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = 1.5; ctx.strokeRect(x, y, w, h); } }
@@ -365,7 +365,7 @@
           rect(ctx, g.x - 29, g.y + 26, 58, 5, "#401931"); rect(ctx, g.x - 29, g.y + 26, 58 * b.foam / b.maxFoam, 5, "#ffb2db");
           text(ctx, "CLOGGED", g.x, g.y - 27, "#ffb7df", 10, "800", "center");
         }
-        if (dist(p, g) < 92 && s.phase === "playing") text(ctx, b.foam > 0 ? "SPRAY TO CLEAR" : b.hp > 0 ? "E · REPAIR" : "E · BARRICADE", g.x, g.y + 34, b.foam > 0 ? "#ffd0e9" : "#e4d49f", 10, "700", "center");
+        if (dist(p, g) < 92 && s.phase === "playing") text(ctx, b.foam > 0 ? "SPRAY TO CLEAR" : b.hp > 0 ? "E · REPAIR" : "E · FIRESTOP", g.x, g.y + 34, b.foam > 0 ? "#ffd0e9" : "#e4d49f", 10, "700", "center");
       }
       for (const f of s.fires) {
         if (f.warning > 0) { ctx.setLineDash([5, 4]); rect(ctx, f.x - 18, f.y - 18, 36, 36, "#ffae2712", "#ffb54c"); ctx.setLineDash([]); text(ctx, "!", f.x, f.y + 6, "#ffca73", 20, "800", "center"); }
@@ -443,7 +443,7 @@
       }
       if (s.combo > 1) text(ctx, `${s.combo} STREAK +${Math.min(4,s.combo - 1) * 25}`, 480, 553, "#ffe2a0", 15, "800", "center");
       if (s.sputter) text(ctx, "PRESSURE LOW — RELEASE TO RECHARGE", 480, 576, "#ffd381", 13, "800", "center");
-      else text(ctx, "WASD move   ·   SPACE dash   ·   Q foam   ·   E barricade   ·   R Overdrive", 480, 579, "#91a8b7", 11, "600", "center");
+      else text(ctx, "WASD move   ·   SPACE dash   ·   Q foam   ·   E firestop   ·   R Overdrive", 480, 579, "#91a8b7", 11, "600", "center");
       if (s.phase !== "playing") {
         rect(ctx, 0, 0, W, H, "#06111ba8");
         const title = s.phase === "brief" ? "SURVIVE THE SHIFT" : s.phase === "upgrade" ? "BREATHING ROOM" : s.result?.won ? "SITE SECURED" : "SHIFT OVER";

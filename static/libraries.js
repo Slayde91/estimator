@@ -857,5 +857,5 @@
     pane.projectDrafts.append(choices);
   }
   function projectChanged() { for (const pane of state.panes.values()) renderProjectDrafts(pane); }
-  window.CeasefireLibraries = { open, invalidate, scheduleChanged, projectChanged };
+  window.CeasefireLibraries = { open, invalidate, scheduleChanged, projectChanged, appendFilterOptions };
 })();

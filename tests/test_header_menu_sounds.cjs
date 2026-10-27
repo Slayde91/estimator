@@ -2,12 +2,12 @@
 const { verifiedPreloadCancellation } = require("./helpers/media_preload_guard.cjs");
 const assert = require("node:assert/strict"), { test } = require("node:test");
 const fs = require("node:fs"), path = require("node:path"), { createHash } = require("node:crypto");
-const { create, sources, createFeedback, feedbackSources, createPrinting, printingSource, createDownloadSound, loadingSource } = require("../static/header-menu-sounds.js");
+const { create, sources, createFeedback, feedbackSources, createPrinting, printingSource, createDownloadSound } = require("../static/header-menu-sounds.js");
 
 test("startup media cancellation requires exact request identity, delivered bytes and trusted decoding proof", () => {
   const origin = "http://127.0.0.1:54321", source = feedbackSources.selectOther, url = origin + source, sha256 = "a".repeat(64);
   const request = { stage: "initial load", method: "GET", resourceType: "media", url, failure: { errorText: "net::ERR_ABORTED" } };
-  const proof = { origin, paths: [source, loadingSource], hashes: { [`static${source}`]: sha256 },
+  const proof = { origin, paths: [source], hashes: { [`static${source}`]: sha256 },
     assets: [{ url, status: 200, contentType: "audio/mpeg", sha256, bytes: 123 }],
     preloads: [{ url, error: null, readyState: 4, duration: 6, events: [{ type: "loadeddata", trusted: true }, { type: "suspend", error: null }] }] };
   assert.equal(verifiedPreloadCancellation(request, proof), true);
@@ -391,33 +391,19 @@ test("the global Save button owns one immediate checkpoint click on every page",
   }
 });
 
-test("download loading has one preloaded loop with independent, idempotent operation tokens", () => {
-  const h = audioHarness(), sound = createDownloadSound(h.host), audio = h.players[0];
-  assert.equal(audio.src, loadingSource); assert.equal(audio.loop, true); assert.equal(audio.preload, "auto");
-  assert.equal(h.plays().length, 0);
-  const first = sound.begin(); assert.equal(h.plays().length, 1); assert.equal(audio.paused, false);
-  const second = sound.begin(); assert.equal(h.players.length, 1); assert.equal(h.plays().length, 1);
-  first(); first(); assert.equal(audio.paused, false, "Finishing the older file keeps the second file audible");
-  second(); assert.equal(audio.paused, true); assert.equal(audio.currentTime, 0);
-  audio.emit("canplay"); assert.equal(h.plays().length, 1, "A completed operation cannot restart later");
-  const third = sound.begin(); assert.equal(h.plays().length, 2);
-  h.host.emit("pagehide"); assert.equal(audio.paused, true); third(); sound.begin(); audio.emit("canplay");
-  assert.equal(h.plays().length, 2, "Leaving the page invalidates every remaining token");
+test("downloads stay silent through concurrent operations, completion and page lifecycle", () => {
+  const h = audioHarness(), sound = createDownloadSound(h.host);
+  const first = sound.begin(), second = sound.begin();
+  assert.equal(typeof first, "function"); assert.equal(typeof second, "function");
+  first(); first(); sound.close(); second(); h.host.emit("pagehide"); sound.begin()(); sound.close();
+  assert.deepEqual(h.players, [], "Downloads never create or preload a media player");
+  assert.deepEqual(h.plays(), [], "Pending, completed and cancelled exports never play audio");
 });
 
-test("download readiness and blocked/stale attempts cannot outlive the file they belong to", async () => {
-  const h = audioHarness(), sound = createDownloadSound(h.host), audio = h.players[0];
-  audio.readyState = 0; const finished = sound.begin(); finished(); audio.readyState = 4; audio.emit("canplay");
-  assert.equal(h.plays().length, 0);
-  audio.readyState = 0; const waiting = sound.begin(); audio.readyState = 4; audio.emit("canplay"); audio.emit("canplay");
-  assert.equal(h.plays().length, 1, "Decoding may start only a still-pending download"); waiting();
-  audio.failure = "pending"; const old = sound.begin(), reject = audio.reject; old();
-  audio.failure = undefined; const current = sound.begin(); reject(Error("Old blocked attempt")); await Promise.resolve();
-  assert.equal(audio.paused, false, "A stale rejection cannot stop the new file's loop"); current();
-  audio.failure = "reject"; const blocked = sound.begin(); await Promise.resolve();
-  const count = h.plays().length; audio.emit("canplay"); assert.equal(h.plays().length, count);
-  assert.equal(audio.paused, true, "Blocked playback is not queued for a later gesture"); blocked();
-  audio.failure = "throw"; assert.doesNotThrow(() => sound.begin()()); assert.equal(audio.paused, true);
+test("download compatibility hooks never access audio or register deferred playback listeners", () => {
+  const inaccessible = new Proxy({}, { get() { throw Error("Download hooks must not inspect media or lifecycle state"); } });
+  const sound = createDownloadSound(inaccessible);
+  assert.doesNotThrow(() => { const finish = sound.begin(); sound.close(); finish(); finish(); sound.begin()(); });
   assert.doesNotThrow(() => createDownloadSound(null).begin()());
 });
 

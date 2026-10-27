@@ -8,9 +8,9 @@ const { renderDrawing } = require("./viewer_helpers.cjs");
 const { settingsSettled } = require("./settings_helpers.cjs");
 const { spawn, spawnSync } = require("node:child_process");
 const fs = require("node:fs"), path = require("node:path"), crypto = require("node:crypto"), assert = require("node:assert/strict");
-const { sources, feedbackSources, printingSource, loadingSource } = require("../../static/header-menu-sounds.js");
+const { sources, feedbackSources, printingSource } = require("../../static/header-menu-sounds.js");
 const { verifiedPreloadCancellation } = require("../helpers/media_preload_guard.cjs");
-const preloadPaths = [...Object.values(sources), ...Object.values(feedbackSources), printingSource, loadingSource];
+const preloadPaths = [...Object.values(sources), ...Object.values(feedbackSources), printingSource];
 // Chromium may cancel any decoded startup media preload. Every allowed asset
 // still requires exact identity, delivered bytes and trusted native decoding.
 const cancellablePreloadPaths = preloadPaths;

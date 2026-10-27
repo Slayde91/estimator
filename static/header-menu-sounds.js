@@ -16,7 +16,6 @@
     explosion: "/sounds/flame-whoosh.wav",
   });
   const printingSource = "/sounds/type.mp3";
-  const loadingSource = "/sounds/loading.mp3";
 
   function stopAudio(audio) {
     try { audio?.pause(); if (audio && audio.currentTime !== 0) audio.currentTime = 0; } catch { /* Media failure must not affect a control. */ }
@@ -212,37 +211,13 @@
     return Object.freeze({ start, stop, close });
   }
 
-  function createDownloadSound(host = root) {
-    if (typeof host?.Audio !== "function") return Object.freeze({ begin: () => () => {}, close() {} });
-    let audio;
-    try { audio = new host.Audio(); audio.preload = "auto"; audio.loop = true; audio.src = loadingSource; audio.load(); }
-    catch { return Object.freeze({ begin: () => () => {}, close() {} }); }
-    const pending = new Set();
-    let generation = 0, attempted = -1, closed = false;
-    function stop() { ++generation; stopAudio(audio); }
-    function failed() { stop(); attempted = generation; }
-    function playCurrent() {
-      if (closed || !pending.size || audio.error || audio.readyState < 2 || attempted === generation) return;
-      const attempt = attempted = generation;
-      try { audio.play()?.catch?.(() => { if (attempt === generation) failed(); }); }
-      catch { failed(); }
-    }
-    function begin() {
-      if (closed) return () => {};
-      const token = {}; pending.add(token);
-      // Concurrent exports share one bounded loop. An earlier completion must
-      // not stop audio while another file is still being prepared or saved.
-      if (pending.size === 1) { stop(); playCurrent(); }
-      return () => { if (pending.delete(token) && !pending.size) stop(); };
-    }
-    function close() { closed = true; pending.clear(); stop(); audio.removeEventListener?.("canplay", playCurrent); audio.removeEventListener?.("error", failed); host.removeEventListener?.("pagehide", close); }
-    audio.addEventListener?.("canplay", playCurrent);
-    audio.addEventListener?.("error", failed);
-    host.addEventListener?.("pagehide", close);
-    return Object.freeze({ begin, close });
+  function createDownloadSound() {
+    // Existing exporters retain their paired begin/end hooks, but downloading
+    // never creates, preloads or plays audio. Visual progress owns its lifecycle.
+    return Object.freeze({ begin: () => () => {}, close() {} });
   }
 
-  if (typeof module === "object" && module.exports) module.exports = Object.freeze({ create, sources, createFeedback, feedbackSources, createPrinting, printingSource, createDownloadSound, loadingSource });
+  if (typeof module === "object" && module.exports) module.exports = Object.freeze({ create, sources, createFeedback, feedbackSources, createPrinting, printingSource, createDownloadSound });
   if (root) {
     root.CeasefireHeaderMenuSounds = create(root.document.querySelector(".app-header nav"), root);
     root.CeasefireButtonSounds = createFeedback(root.document, root, root.CeasefireHeaderMenuSounds);

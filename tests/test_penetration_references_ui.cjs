@@ -14,6 +14,7 @@ function setup() {
   };
   doc.body = doc.createElement('body'); Object.assign(h.context, { AbortController, URLSearchParams });
   Object.assign(h.context.window, { document: doc });
+  vm.runInContext(fs.readFileSync('static/libraries.js', 'utf8'), h.context);
   vm.runInContext(fs.readFileSync('static/register-references.js', 'utf8'), h.context);
   vm.runInContext(fs.readFileSync('static/penetration-references.js', 'utf8'), h.context);
   h.refs = h.context.window.CeasefirePenetrationReferences;
@@ -48,8 +49,33 @@ function setup() {
     const [first, second] = await Promise.all([h.refs.reportOptions(), h.refs.reportOptions()]);
     assert.deepEqual(copy(first), definition); assert.deepEqual(copy(second), definition); assert.deepEqual(calls, ['/api/libraries/technical?limit=1']);
     const control = h.context.document.createElement('select'); control.ownerDocument = h.context.document; h.refs.appendReportOptions(control, first);
-    assert.deepEqual(control.children.map(group => [group.label, group.children[0].value, group.children[0].textContent]), [['Supplier A', 'REPORT A Rev 1', 'REPORT A Rev 1'], ['Supplier B', 'REPORT B', 'Report B label']]);
+    assert.deepEqual(control.children.map(group => [group.getAttribute('label'), group.children[0].value, group.children[0].textContent]), [['Supplier A', 'REPORT A Rev 1', 'REPORT A Rev 1'], ['Supplier B', 'REPORT B', 'Report B label']]);
     await h.refs.reportOptions(); assert.equal(calls.length, 2, 'A new editor render reads current library options rather than stale cached choices');
+  });
+  await check('Picker shares Technical Library option groups, labels and order while retaining filters and pending systems', async () => {
+    const h = setup(), calls = [], applied = [], definitions = [
+      { key: 'report', options: [{ value: 'REPORT B', label: 'Report B label', group: 'Supplier B' }, { value: 'REPORT A', group: 'Supplier A' }] },
+      { key: 'substrate', options: [{ value: 'wall', label: 'Concrete wall', group: 'Walls' }, { value: 'floor', label: 'Concrete floor', group: 'Floors' }] },
+      { key: 'services', options: [{ value: 'N/A' }, { value: 'Copper Pipes', group: 'Unlagged metal pipes' }, { value: 'Power Cables', group: 'Electrical & communications' }] },
+      { key: 'frl', options: [{ value: '-/60/60', group: '60' }, { value: '-/120/30', group: '120' }, { value: '-/120/120', group: '120' }] },
+    ], before = copy(definitions), initial_filters = { report: 'REPORT A', substrate: 'wall', services: 'Copper Pipes', frl: '-/120/120' };
+    const flatten = control => control.children.flatMap(child => child.tagName === 'optgroup' ? child.children.map(option => ({ value: option.value, label: option.textContent, group: child.getAttribute('label') })) : child.value ? [{ value: child.value, label: child.textContent, group: '' }] : []);
+    const pending = h.refs.open({ reference: { systems: [record('selected')], initial_filters }, fetch: async url => { calls.push(url); return reply({ ...page([record('selected')]), filters: definitions }); }, apply: async ids => applied.push(ids) }); await flush();
+    for (const definition of definitions) {
+      const control = h.find(el => el.dataset.penetrationReferenceFilter === definition.key), main = h.context.document.createElement('select');
+      h.context.window.CeasefireLibraries.appendFilterOptions(main, definition.options, definition.key);
+      assert.deepEqual(flatten(control), flatten(main)); assert.equal(control.value, initial_filters[definition.key]);
+      assert.ok(control.children.some(child => child.tagName === 'optgroup')); assert.equal(control.children[0].value, '');
+      assert.equal(new URL(calls[0], 'http://localhost').searchParams.get(definition.key), initial_filters[definition.key]);
+    }
+    const services = h.find(el => el.dataset.penetrationReferenceFilter === 'services');
+    assert.equal(flatten(services).find(option => option.value === 'Copper Pipes').label, 'Unlagged Copper Pipes');
+    const frl = h.find(el => el.dataset.penetrationReferenceFilter === 'frl');
+    assert.deepEqual(frl.children.slice(1).map(group => group.getAttribute('label')), ['60 minutes', '120 minutes']);
+    frl.value = '-/60/60'; await frl.emit('change'); await flush();
+    assert.equal(new URL(calls.at(-1), 'http://localhost').searchParams.get('frl'), '-/60/60');
+    assert.equal(h.find(el => el.dataset.penetrationReferenceChoice === 'selected').checked, true);
+    await h.button('Use selected references').emit('click'); await pending; assert.deepEqual(copy(applied), [['selected']]); assert.deepEqual(definitions, before);
   });
   await check('Picker starts with recorded filters, preserves choices across pages and saves ordered IDs only', async () => {
     const h = setup(), calls = [], applied = [];

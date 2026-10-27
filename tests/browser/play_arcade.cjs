@@ -8,7 +8,7 @@ const root = path.resolve(__dirname, "../..");
 const output = process.env.CEASEFIRE_BROWSER_OUTPUT || path.join(root, ".runtime/browser-qa", `play-arcade-${Date.now()}`);
 fs.mkdirSync(output, { recursive: true });
 const digest = value => createHash("sha256").update(value).digest("hex");
-const sourceFiles = ["static/index.html", "static/app.js", "static/games/play.js", "static/games/play.css", "static/games/overspray.js", "static/games/fireline.js", "estimator/server.py"];
+const sourceFiles = ["static/index.html", "static/app.js", "static/games/play.js", "static/games/play.css", "static/games/fireline-art.js", "static/games/fireline.js", "estimator/server.py"];
 const sourceHashes = () => Object.fromEntries(sourceFiles.map(file => [file, digest(fs.readFileSync(path.join(root, file)))]));
 const evidence = { passed: false, source_sha256: sourceHashes(), checks: {}, errors: [], unexpectedWrites: [], csp: [] };
 const server = spawn(process.env.CEASEFIRE_PYTHON || "python", [path.join(__dirname, "fixtures.py"), "--directory", output], { cwd: root, windowsHide: true });
@@ -33,12 +33,12 @@ const snapshots = () => page.evaluate(() => ({
   penetration: window.CeasefirePenetrations.projectFingerprint(),
   pricing: window.CeasefireProject.configuration(), details: window.CeasefireProject.details(),
 }));
-const storage = () => page.evaluate(() => Object.fromEntries(Object.keys(localStorage).filter(key => key !== "ceasefire.headerTagline.last" && key !== "classifire.play.v1").sort().map(key => [key, localStorage.getItem(key)])));
+const storage = () => page.evaluate(() => Object.fromEntries(Object.keys(localStorage).filter(key => key !== "ceasefire.headerTagline.last" && key !== "classifire.play.v2").sort().map(key => [key, localStorage.getItem(key)])));
 const pixels = () => page.locator("#play-canvas").evaluate(canvas => canvas.toDataURL());
 const stats = () => page.locator("#play-stats").innerText();
 const stat = label => page.locator("#play-stats .play-stat").filter({ has: page.locator("dt", { hasText: label }) }).locator("dd").innerText();
 async function openGame(id) {
-  await page.locator(`[data-game="${id}"]`).click();
+  await page.locator(`button[data-game="${id}"]`).click();
   await expect(page.locator("#play-session")).toBeVisible();
   await expect(page.locator("#play-canvas")).toBeVisible();
   await expect(page.locator("#play-session")).toHaveAttribute("data-game", id);
@@ -84,6 +84,7 @@ async function noHorizontalOverflow() {
   page.setDefaultTimeout(30000);
   page.on("pageerror", error => evidence.errors.push(error.message));
   await page.addInitScript(() => {
+    localStorage.setItem("classifire.play.v1", JSON.stringify({ overspray: { best: 12345, runs: 4, wins: 3 }, fireline: { best: 999999, runs: 3, wins: 2 } }));
     window.qaPlayCsp = [];
     document.addEventListener("securitypolicyviolation", event => window.qaPlayCsp.push({ directive: event.effectiveDirective, blocked: event.blockedURI }));
   });
@@ -107,31 +108,18 @@ async function noHorizontalOverflow() {
   await page.locator("#settings-play-button").click();
   await expect(page.locator("#view-play")).toBeVisible();
   await expect(page.locator("#play-hub")).toBeVisible();
-  await expect(page.locator("#play-hub [data-game]")).toHaveCount(2);
+  await expect(page.locator("#play-hub [data-game]")).toHaveCount(1);
+  await expect(page.locator('#play-hub [data-game="overspray"]')).toHaveCount(0);
+  assert.equal(await page.locator('script[src*="overspray"]').count(), 0);
+  assert.equal((await page.request.get(origin + "/games/overspray.js")).status(), 404, "Removed game asset is not served");
+  await expect(page.locator("#play-hub")).not.toContainText(/OVERSPRAY|Firestarter/);
   await page.screenshot({ path: path.join(output, "game-select.png"), fullPage: true });
-  evidence.checks.settingsEntryAndTwoGames = true;
+  await expect(page.locator("#play-best-fireline")).not.toContainText("999,999");
+  evidence.checks.settingsEntryAndFirelineOnly = true;
 
-  await openGame("overspray"); await start();
-  const initial = await stat("Material left"), point = await canvasPoint(480, 420);
-  await page.mouse.move(point.x, point.y); await page.mouse.down();
-  await page.waitForTimeout(650); await page.mouse.up();
-  await expect.poll(() => stat("Material left")).not.toBe(initial);
-  await pauseAndCheck();
-  await page.screenshot({ path: path.join(output, "overspray.png"), fullPage: true });
-  evidence.checks.overspraySpraysAndPauses = true;
-  await page.locator('#play-actions [data-game-action="finish"]').click();
-  await expect(page.locator("#play-result")).toBeVisible();
-  await expect(page.locator("#play-result")).toContainText("Not eligible for a high score");
-  const savedScore = await page.evaluate(() => JSON.parse(localStorage.getItem("classifire.play.v1")));
-  assert.equal(savedScore.overspray.best, 0, "An under-coated job never earns a high score");
-  assert.equal(savedScore.overspray.runs, 1);
-  await page.waitForTimeout(250);
-  assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem("classifire.play.v1"))), savedScore, "Results are recorded exactly once");
-  evidence.checks.scoreQualificationAndSingleRecord = true;
-  await page.locator("#play-back").click(); await expect(page.locator("#play-hub")).toBeVisible();
-  await expect(page.locator("#play-session")).toBeHidden();
-
-  await openGame("fireline"); await start();
+  await openGame("fireline");
+  await expect(page.locator("#play-game-subtitle")).toContainText("Pink Foam Monster");
+  await start();
   const fireStart = await pixels();
   await page.locator("#play-canvas").focus();
   await page.keyboard.down("KeyD"); await page.waitForTimeout(300); await page.keyboard.up("KeyD");
@@ -151,6 +139,19 @@ async function noHorizontalOverflow() {
   await pauseAndCheck();
   await page.screenshot({ path: path.join(output, "fireline.png"), fullPage: true });
   evidence.checks.firelineMovementFireAbilitiesAndPause = true;
+
+  // A real idle loss exercises host result persistence without exposing mutable engine hooks.
+  await expect(page.locator("#play-result")).toBeVisible({ timeout: 100000 });
+  await expect(page.locator("#play-result")).toContainText("Not eligible for a high score");
+  const savedScore = await page.evaluate(() => JSON.parse(localStorage.getItem("classifire.play.v2")));
+  assert.equal(savedScore.fireline.best, 0, "A lost shift never earns a high score");
+  assert.equal(savedScore.fireline.runs, 1);
+  assert.deepEqual(Object.keys(savedScore), ["fireline"]);
+  await page.waitForTimeout(300);
+  assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem("classifire.play.v2"))), savedScore, "Results are recorded exactly once");
+  evidence.checks.scoreQualificationAndSingleRecord = true;
+  await page.locator('#play-actions [data-game-action="retry"]').click();
+  await expect(page.locator("#play-session")).toHaveAttribute("data-phase", "playing");
 
   // Exercise the window-loss event itself; navigation below is native app input.
   await page.evaluate(() => window.dispatchEvent(new Event("blur")));
@@ -175,13 +176,10 @@ async function noHorizontalOverflow() {
   evidence.checks.navigationStopsGameAndReleasesKeyboard = true;
 
   await page.setViewportSize({ width: 671, height: 850 });
-  await openGame("overspray"); await noHorizontalOverflow();
-  await page.screenshot({ path: path.join(output, "overspray-narrow.png"), fullPage: true });
-  await page.locator("#play-back").click();
   await openGame("fireline"); await noHorizontalOverflow();
   await page.screenshot({ path: path.join(output, "fireline-narrow.png"), fullPage: true });
   await page.locator("#play-back").click();
-  evidence.checks.narrowBothGames = true;
+  evidence.checks.narrowFireline = true;
   assert.deepEqual(await snapshots(), baseline, "Gameplay and leaving games preserve every estimating/calculator snapshot");
   assert.deepEqual(await storage(), storageBefore, "No unrelated local storage changes");
   assert.deepEqual(evidence.unexpectedWrites, [], "Games issue no API writes");
@@ -190,7 +188,7 @@ async function noHorizontalOverflow() {
   assert.deepEqual(sourceHashes(), evidence.source_sha256, "Tested production source remains fixed");
   evidence.checks.estimatingStateAndStoragePreserved = true;
   evidence.passed = true;
-  console.log(`PASS: Play entry, both games, native pointer/keyboard, pause, exit, narrow layout and estimate isolation. Evidence: ${output}`);
+  console.log(`PASS: Play entry, FIRELINE only, native pointer/keyboard, pause, exit, narrow layout and estimate isolation. Evidence: ${output}`);
 })().catch(async error => {
   evidence.error = error.stack || String(error); console.error(evidence.error);
   if (page) await page.screenshot({ path: path.join(output, "failure.png"), fullPage: true }).catch(() => {});

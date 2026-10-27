@@ -1,4 +1,12 @@
 {
-  "Play": ["플레이", "Maglaro", "Chơi"],
-  "Take a break with OVERSPRAY and FIRELINE.": ["OVERSPRAY와 FIRELINE으로 잠시 쉬어 가세요.", "Magpahinga muna sa OVERSPRAY at FIRELINE.", "Nghỉ ngơi một chút với OVERSPRAY và FIRELINE."]
+  "Play": [
+    "플레이",
+    "Maglaro",
+    "Chơi"
+  ],
+  "Take a break with FIRELINE.": [
+    "FIRELINE으로 잠시 쉬어 가세요.",
+    "Magpahinga muna sa FIRELINE.",
+    "Nghỉ ngơi một chút với FIRELINE."
+  ]
 }

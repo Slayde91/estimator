@@ -30,16 +30,30 @@ async function screenshot(name){
 }
 async function geometry(title,width){
  await page.setViewportSize({width,height:850});
+ await page.evaluate(()=>document.fonts.ready);
+ // Native options and searchable datalists are hydrated on focus.
+ const choices=page.locator('#calculator-grid .calculator-schedule-table select:visible,#calculator-grid .calculator-schedule-table input[list]:visible');
+ for(let index=0;index<await choices.count();index++)await choices.nth(index).focus();await idle();
  const result=await page.locator('#calculator-grid .calculator-schedule-table').evaluate(table=>{
   const scroll=table.closest('.calculator-table-scroll'),rect=table.getBoundingClientRect(),allHeaders=[...table.querySelectorAll('thead th')],headers=allHeaders.filter(cell=>!cell.hidden),row=table.querySelector('tbody tr[data-source-row]');
+  const context=document.createElement('canvas').getContext('2d'),number=value=>parseFloat(value)||0;
   return {width:rect.width,declaredWidth:parseFloat(table.style.width),headers:headers.map(cell=>cell.textContent),widths:[...table.querySelectorAll('col')].map(col=>parseFloat(col.style.width)),columns:headers.length,cells:row?[...row.children].filter(cell=>!cell.hidden).length:undefined,completeDomColumns:allHeaders.length,completeDomCells:row?.children.length,
-   scroll:{width:scroll.clientWidth,content:scroll.scrollWidth,tabIndex:scroll.tabIndex},controls:[...table.querySelectorAll('input,select,textarea')].filter(control=>control.getClientRects().length).map(control=>({cell:control.dataset.calculatorCell,width:control.getBoundingClientRect().width,height:control.getBoundingClientRect().height,cellWidth:control.closest('td').getBoundingClientRect().width})),
+   scroll:{width:scroll.clientWidth,content:scroll.scrollWidth,tabIndex:scroll.tabIndex},controls:[...table.querySelectorAll('input,select,textarea')].filter(control=>control.getClientRects().length).map(control=>{
+    const cell=control.closest('td'),box=control.getBoundingClientRect(),style=getComputedStyle(control),options=control.tagName==='SELECT'?control.options:control.list?.options;
+    context.font=style.font;const captions=options?[...options].map(option=>control.tagName==='SELECT'?option.textContent:option.label||option.value):[];
+    return {cell:control.dataset.calculatorCell,column:headers.findIndex(header=>header.dataset.scheduleColumn===cell.dataset.scheduleColumn),width:box.width,height:box.height,cellWidth:cell.getBoundingClientRect().width,font:style.font,optionCount:captions.length,
+     maxOptionWidth:options?Math.max(...captions.map(caption=>context.measureText(caption).width+Math.max(0,caption.length-1)*number(style.letterSpacing))):null,
+     usableWidth:box.width-number(style.paddingLeft)-number(style.paddingRight)-number(style.borderLeftWidth)-number(style.borderRightWidth)-(options?24:0)};
+   }),
    headerWrap:headers.every(header=>getComputedStyle(header).whiteSpace==='normal')};
  });
  assert.equal(result.columns,result.cells);assert.equal(result.columns,result.widths.length);assert.ok(result.headerWrap);
  assert.equal(result.completeDomColumns,result.completeDomCells,'Complete retained header/body DOM stays aligned separately from visible layout');
- assert.ok(result.widths.every(value=>value<=224));assert.ok(result.widths.includes(144),'Virtual Report has a compact dedicated width');
- assert.ok(result.controls.length);for(const control of result.controls){assert.ok(control.width>=60,JSON.stringify(control));assert.ok(control.width<=control.cellWidth,JSON.stringify(control));assert.ok(control.height>=32,JSON.stringify(control));}
+ // Long native captions may exceed the former fixed ceiling. Bound their
+ // chrome instead, while retaining the ceiling for columns without choices.
+ for(const [index,value]of result.widths.entries()){const options=result.controls.filter(control=>control.column===index&&control.maxOptionWidth!==null);const maximum=options.length?Math.max(112,...options.map(control=>Math.ceil(control.maxOptionWidth)+60)):224;assert.ok(value<=maximum,JSON.stringify({header:result.headers[index],width:value,maximum}));}
+ assert.ok(result.widths.includes(144),'Virtual Report has a compact dedicated width');
+ assert.ok(result.controls.length);for(const control of result.controls){assert.ok(control.width>=60,JSON.stringify(control));assert.ok(control.width<=control.cellWidth,JSON.stringify(control));assert.ok(control.height>=32,JSON.stringify(control));assert.ok(control.cellWidth-control.width<=24,JSON.stringify(control));if(control.maxOptionWidth!==null){assert.ok(control.optionCount>0,JSON.stringify(control));assert.ok(control.maxOptionWidth<=control.usableWidth+2,JSON.stringify(control));}}
  assert.equal(result.scroll.tabIndex,0);if(width===390){assert.ok(result.scroll.content>result.scroll.width);const scroll=page.locator('#calculator-grid .calculator-table-scroll').filter({has:page.locator('.calculator-schedule-table')});await scroll.evaluate(el=>el.scrollLeft=0);await scroll.focus();await page.keyboard.press('ArrowRight');await expect.poll(()=>scroll.evaluate(el=>el.scrollLeft)).toBeGreaterThan(0);}
  evidence.layouts.push({title,viewport:width,...result});
  await screenshot(`${title.replace(/\W/g,'-')}-${width}.png`);

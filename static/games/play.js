@@ -1,8 +1,9 @@
 "use strict";
 
 (function (root) {
-  const STORAGE_KEY = "classifire.play.v1";
-  const gameIds = ["overspray", "fireline"];
+  // New balance has its own leaderboard; previous arcade scores remain untouched.
+  const STORAGE_KEY = "classifire.play.v2";
+  const gameIds = ["fireline"];
   function cleanScores(value) {
     const result = {};
     for (const id of gameIds) {
@@ -29,6 +30,26 @@
   const $ = id => document.getElementById(id);
   const view = $("view-play"), canvas = $("play-canvas"), context = canvas?.getContext("2d", { alpha: false });
   if (!view || !canvas || !context) return;
+  // The lobby uses the same character drawings as the game, without an idle loop.
+  const cover = $("fireline-cover"), art = root.ClassifireFirelineArt;
+  if (cover && art) {
+    const c = cover.getContext("2d");
+    const backdrop = c.createLinearGradient(0, 0, 960, 360);
+    backdrop.addColorStop(0, "#142c37"); backdrop.addColorStop(1, "#35192c");
+    c.fillStyle = backdrop; c.fillRect(0, 0, 960, 360);
+    c.strokeStyle = "#ffffff0b"; c.lineWidth = 1;
+    for (let x = 0; x < 960; x += 60) { c.beginPath(); c.moveTo(x, 0); c.lineTo(x, 360); c.stroke(); }
+    for (let y = 60; y < 360; y += 60) { c.beginPath(); c.moveTo(0, y); c.lineTo(960, y); c.stroke(); }
+    c.fillStyle = "#060c1680"; c.fillRect(0, 280, 960, 80);
+    art.drawPortrait(c, 180, 212, 3.2, "player", 0.3);
+    art.drawPortrait(c, 350, 235, 2, "mob", 0.8);
+    art.drawPortrait(c, 453, 245, 2, "runner", 0.3);
+    art.drawPortrait(c, 555, 205, 2, "drone", 0.6);
+    art.drawPortrait(c, 770, 198, 2.35, "boss", 0.5);
+    c.font = "700 13px sans-serif"; c.textAlign = "center";
+    c.fillStyle = "#c7f4f5"; c.fillText("YOU / CLASSIFIRE OPERATIVE", 180, 328);
+    c.fillStyle = "#f4b9d8"; c.fillText("PINK FOAM MONSTER", 770, 328);
+  }
   let storage;
   try { storage = root.localStorage; } catch { /* Private browser mode can deny storage. */ }
   if (!storage) $("play-storage-note").textContent = "Scores are available for this visit. This browser cannot save them.";
@@ -86,7 +107,7 @@
       $("play-result").textContent = state.result.message + " · Score " + Math.round(state.result.score).toLocaleString("en-AU") + (state.result.eligible ? "" : " · Not eligible for a high score");
       if (!resultRecorded) { resultRecorded = true; saveResult(state.result); }
     } else resultRecorded = false;
-    $("play-pause").disabled = !["playing", "masking", "brief", "upgrade"].includes(state.phase);
+    $("play-pause").disabled = !["playing", "brief", "upgrade"].includes(state.phase);
   }
   function tick(time) {
     frame = 0;
@@ -100,7 +121,7 @@
       frame = root.requestAnimationFrame(tick);
     } catch (error) {
       stopFrame(); game = null;
-      $("play-status").textContent = "This game could not continue. Choose Games to return to the arcade.";
+      $("play-status").textContent = "This game could not continue. Choose Lobby to return to Play.";
       $("play-result").hidden = false; $("play-result").textContent = $("play-status").textContent;
       $("play-actions").replaceChildren(); $("play-pause").disabled = true;
       root.console?.error("Play stopped", error);
@@ -128,15 +149,15 @@
     lastActions = lastStats = lastMessages = lastPhase = "";
     $("play-hub").hidden = true; $("play-session").hidden = false; $("play-pause-overlay").hidden = true;
     $("play-pause").textContent = "Pause"; $("play-pause").setAttribute("aria-pressed", "false");
-    $("play-keys").textContent = id === "overspray" ? "Aim with the mouse. Hold left click to spray or clean. Click a surface to place or remove covers before starting. N nozzle · I inspection · C cleanup · Esc pause" : "WASD move · Mouse aim · Hold left click to fire · Space dash · Q foam · E barricade · R Overdrive · Esc pause";
-    $("play-feed-title").textContent = id === "overspray" ? "Site inbox" : "Site radio";
+    $("play-keys").textContent = "WASD move · Mouse aim · Hold left click to fire or clear pink foam · Space dash · Q suppression foam · E barricade · R Overdrive · Esc pause";
+    $("play-feed-title").textContent = "Site radio";
     syncHud(); game.draw(context); focusArena(); startFrame();
   }
   function showHub() {
     stopFrame(); game = null; gameId = ""; paused = false;
     document.body.classList.remove("play-game-active");
     $("play-session").hidden = true; $("play-hub").hidden = false; $("play-pause-overlay").hidden = true;
-    $("play-status").textContent = "Choose a game.";
+    $("play-status").textContent = "FIRELINE is ready. Start your next shift.";
     $("play-heading").focus({ preventScroll: true });
     root.scrollTo({ top: 0, behavior: "instant" });
   }
@@ -162,7 +183,7 @@
   canvas.addEventListener("lostpointercapture", () => { input.pointer.down = false; });
   canvas.addEventListener("pointercancel", clearInput);
   canvas.addEventListener("pointerleave", () => { input.pointer.inside = false; input.pointer.down = false; });
-  const gameKeys = new Set(["KeyW", "KeyA", "KeyS", "KeyD", "Space", "KeyQ", "KeyE", "KeyR", "KeyN", "KeyI", "KeyC"]);
+  const gameKeys = new Set(["KeyW", "KeyA", "KeyS", "KeyD", "Space", "KeyQ", "KeyE", "KeyR"]);
   root.addEventListener("keydown", event => {
     if (!visible || !game || event.ctrlKey || event.altKey || event.metaKey) return;
     if (event.code === "Escape" && !event.repeat && $("play-session").contains(document.activeElement)) { event.preventDefault(); setPaused(!paused); return; }

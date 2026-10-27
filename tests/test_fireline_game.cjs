@@ -120,11 +120,11 @@ function route(from, to) {
   let next = 5; if (!Number.isFinite(costs[next])) return to;
   while (previous[next] > 0) next = previous[next]; return nodes[next];
 }
-function pilot(g, limit = 620) {
-  let phases = [], coolingDamage = false, shieldSeen = false, firstBossHealth = null;
+function pilot(g, limit = 420, stop = () => false) {
+  let phases = [], coolingDamage = false, shieldSeen = false, firstBossHealth = null, enragedSeen = false, pinkShotsSeen = false, clogWarningSeen = false;
   for (let t = 0; t < limit; t += .1) {
     const s = g.inspect(); if (!phases.includes(s.phase + s.wave)) phases.push(s.phase + s.wave);
-    if (s.phase === "result") return { state: s, phases, shieldSeen, coolingDamage };
+    if (s.phase === "result" || stop(s)) return { state: s, phases, shieldSeen, coolingDamage, enragedSeen, pinkShotsSeen, clogWarningSeen };
     if (s.phase === "upgrade") { g.action(s.wave === 2 ? "control" : "pressure"); continue; }
     const p = s.player;
     const visible = s.enemies.filter(e => clearLine(p, e)).sort((a, b) => Math.hypot(a.x - p.x, a.y - p.y) - Math.hypot(b.x - p.x, b.y - p.y));
@@ -140,7 +140,7 @@ function pilot(g, limit = 620) {
     else if (goal === target && distance < 185) { dx = 0; dy = 0; }
     // Move out of impact circles, active flames and the boss's locked attack lane.
     const boss = s.enemies.find(e => e.type === "boss");
-    const danger = s.markers.find(m => Math.hypot(m.x - p.x, m.y - p.y) < m.radius + 20) || s.fires.find(f => f.heat > 1 && Math.hypot(f.x - p.x, f.y - p.y) < 28);
+    const danger = s.markers.find(m => Math.hypot(m.x - p.x, m.y - p.y) < m.radius + 20) || s.foamShots.find(f => Math.hypot(f.x - p.x, f.y - p.y) < 45) || s.pinkFoam.find(f => Math.hypot(f.x - p.x, f.y - p.y) < f.radius + 14) || s.fires.find(f => f.heat > 1 && Math.hypot(f.x - p.x, f.y - p.y) < 28);
     if (danger) { dx = p.x - danger.x || 1; dy = p.y - danger.y || 1; }
     if (boss && clearLine(p, boss)) {
       const choices = [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1], [.7, .7], [.7, -.7], [-.7, .7], [-.7, -.7]];
@@ -148,23 +148,118 @@ function pilot(g, limit = 620) {
         const x = p.x + v[0] * 60, y = p.y + v[1] * 60, d = Math.hypot(x - boss.x, y - boss.y);
         if (x < 45 || x > 915 || y < 45 || y > 555 || x > 375 && x < 585 && y > 205 && y < 395) return 1e7;
         const angle = Math.atan2(y - boss.y, x - boss.x), diff = Math.abs(Math.atan2(Math.sin(angle - boss.angle), Math.cos(angle - boss.angle)));
-        return Math.abs(d - 175) + (d < 110 ? 1200 : 0) + (boss.strike > 0 && d < 255 && diff < .5 ? 800 : 0) + s.fires.reduce((sum, f) => sum + (f.heat > 1 && Math.hypot(x - f.x, y - f.y) < 32 ? 90 : 0), 0);
+        return Math.abs(d - 175) + (d < 110 ? 1200 : 0) + (boss.strike > 0 && d < 255 && diff < .5 ? 800 : 0) + s.foamShots.reduce((sum, f) => sum + (Math.hypot(x - f.x - f.vx * .25, y - f.y - f.vy * .25) < 40 ? 400 : 0), 0) + s.pinkFoam.reduce((sum, f) => sum + (Math.hypot(x - f.x, y - f.y) < f.radius + 15 ? 150 : 0), 0) + s.fires.reduce((sum, f) => sum + (f.heat > 1 && Math.hypot(x - f.x, y - f.y) < 32 ? 90 : 0), 0);
       }
       choices.sort((a, b) => cost(a) - cost(b)); dx = choices[0][0] * 100; dy = choices[0][1] * 100;
     }
-    if (boss) { shieldSeen ||= boss.shield; firstBossHealth ??= boss.hp; if (!boss.shield && boss.hp < firstBossHealth - 20) coolingDamage = true; }
+    pinkShotsSeen ||= s.foamShots.length > 0; clogWarningSeen ||= s.markers.some(m => m.kind === "clog");
+    if (boss) { enragedSeen ||= boss.enraged; shieldSeen ||= boss.shield; firstBossHealth ??= boss.hp; if (!boss.shield && boss.hp < firstBossHealth - 20) coolingDamage = true; }
     const keys = new Set(); if (dx > 10) keys.add("KeyD"); if (dx < -10) keys.add("KeyA"); if (dy > 10) keys.add("KeyS"); if (dy < -10) keys.add("KeyW");
     const pressed = new Set(); if (p.overdrive >= 100) pressed.add("KeyR"); if (p.foam > 0 && (distance < 210 && target.type || fires.length > 3)) pressed.add("KeyQ");
     if (danger && p.dashCooldown <= 0) pressed.add("Space");
     if (boss && boss.strike > 1.2 && p.dashCooldown <= 0) pressed.add("Space");
     g.update(.1, { keys, pressed, pointer: { x: target.x, y: target.y, down: distance < 235 && clearLine(p, target) && !target.shield, inside: true } });
   }
-  return { state: g.inspect(), phases, shieldSeen, coolingDamage };
+  return { state: g.inspect(), phases, shieldSeen, coolingDamage, enragedSeen, pinkShotsSeen, clogWarningSeen };
 }
-test("a complete input-only run reaches upgrades and defeats the Firestarter during cooling", () => {
+test("a complete input-only run clears escalating waves and both Pink Foam Monster phases", () => {
   const g = active(42); const result = pilot(g);
   assert.ok(result.phases.includes("upgrade1"), JSON.stringify({ phase: result.state.phase, wave: result.state.wave, health: result.state.player.health, integrity: result.state.integrity, time: result.state.time }));
   assert.ok(result.phases.includes("upgrade3")); assert.ok(result.shieldSeen); assert.ok(result.coolingDamage);
   assert.equal(result.state.result?.won, true, JSON.stringify({ phase: result.state.phase, wave: result.state.wave, health: result.state.player.health, integrity: result.state.integrity, time: result.state.time }));
-  assert.ok(result.state.time > 285 && result.state.time < 620); assert.ok(result.state.kills > 30); assert.ok(result.state.suppressed > 10);
+  assert.ok(result.enragedSeen, "boss reaches his second phase"); assert.ok(result.pinkShotsSeen, "boss shoots real pink projectiles"); assert.ok(result.clogWarningSeen, "boss warns before clogging penetrations");
+  assert.ok(result.state.time > 150 && result.state.time < 420); assert.ok(result.state.kills > 30); assert.ok(result.state.suppressed > 1, "the faster run still suppresses real fire");
+  assert.ok(result.state.bestCombo > 1, "successive attackers build a combo");
+});
+
+function reachBoss() {
+  const g = active(42);
+  const reached = pilot(g, 260, state => state.wave === 4);
+  assert.equal(reached.state.wave, 4, "input-only pilot must reach the boss before testing its mechanics");
+  assert.equal(reached.state.phase, "playing");
+  return g;
+}
+function walkTo(g, destination, maxSeconds = 8) {
+  for (let t = 0; t < maxSeconds; t += .05) {
+    const state = g.inspect(), p = state.player;
+    if (Math.hypot(destination.x - p.x, destination.y - p.y) < 7) return;
+    const waypoint = clearLine(p, destination) ? destination : route(p, destination);
+    const keys = new Set();
+    if (waypoint.x > p.x + 4) keys.add("KeyD"); if (waypoint.x < p.x - 4) keys.add("KeyA");
+    if (waypoint.y > p.y + 4) keys.add("KeyS"); if (waypoint.y < p.y - 4) keys.add("KeyW");
+    g.update(.05, { ...quiet(), keys });
+  }
+  assert.fail(`Could not walk to ${JSON.stringify(destination)}; at ${JSON.stringify(g.inspect().player)}`);
+}
+
+test("boss identity and foam barrage are visible before all penetrations are clogged", () => {
+  assert.match(create().snapshot().subtitle, /Pink Foam Monster/);
+  const g = reachBoss();
+  const initial = g.inspect();
+  assert.match(initial.radio.join(" "), /Pink Foam Monster/);
+  assert.equal(initial.enemies.find(e => e.type === "boss").enraged, false);
+  advance(g, 4.6);
+  const warning = g.inspect();
+  assert.equal(warning.markers.filter(m => m.kind === "clog").length, 4);
+  assert.ok(warning.markers.filter(m => m.kind === "clog").every(m => m.left > 1.9));
+  assert.ok(warning.barriers.every(b => b.foam === 0), "warning must precede any blockage");
+  advance(g, 2.2);
+  assert.ok(g.inspect().barriers.every(b => b.foam > 0), "barrage plugs all four penetrations");
+  assert.ok(g.inspect().pinkFoam.length > 0, "barrage leaves visibly pink ground foam");
+});
+
+test("a pink plug blocks barricades without spending supplies and spraying restores deployment", () => {
+  const g = reachBoss();
+  walkTo(g, { x: 480, y: 448 });
+  for (let t = 0; t < 8 && g.inspect().barriers[2].foam === 0; t += .05) g.update(.05, quiet());
+  const before = g.inspect();
+  assert.ok(before.barriers[2].foam > 0, "south penetration is plugged");
+  assert.ok(before.player.supplies > 0);
+  g.action("barricade");
+  const rejected = g.inspect();
+  assert.equal(rejected.player.supplies, before.player.supplies);
+  assert.equal(rejected.barriers[2].hp, 0);
+  assert.match(rejected.radio.at(-1), /clogged.*pink foam/i);
+  advance(g, 2.4, firing(g, 480, 524));
+  const clear = g.inspect();
+  assert.equal(clear.barriers[2].foam, 0, "ordinary spray clears the pink plug");
+  assert.ok(clear.foamCleared > 0);
+  g.action("barricade");
+  const sealed = g.inspect();
+  assert.ok(sealed.barriers[2].hp > 0);
+  assert.equal(sealed.player.supplies, clear.player.supplies - 1);
+  assert.equal(sealed.phase, "playing");
+});
+
+
+test("pink projectiles respect solid building walls and grant a short impact grace period", () => {
+  const g = reachBoss();
+  let firstHit = null, previous = g.inspect();
+  for (let t = 0; t < 15 && !firstHit; t += 1 / 60) {
+    g.update(1 / 60, quiet());
+    const current = g.inspect();
+    assert.ok(current.foamShots.every(shot => !(shot.x > 392 && shot.x < 568 && shot.y > 222 && shot.y < 378)), "shots cannot travel inside the protected building");
+    if (current.player.impactCooldown > previous.player.impactCooldown) firstHit = { before: previous, after: current };
+    previous = current;
+  }
+  assert.ok(firstHit, "a real aimed pink projectile must reach an idle player");
+  const injury = firstHit.before.player.health - firstHit.after.player.health;
+  assert.ok(injury > 0 && injury <= 8.1, "one fan contact cannot inflict stacked projectile damage");
+  assert.equal(firstHit.after.player.impactCooldown, .4);
+  advance(g, .1);
+  assert.ok(g.inspect().player.impactCooldown > .25 && g.inspect().player.impactCooldown < .4);
+  assert.ok(firstHit.after.player.health - g.inspect().player.health < 1, "only gentle ground damage applies during the impact grace period");
+});
+
+
+test("the Pink Foam Monster routes around the central building instead of stalling behind it", () => {
+  const g = reachBoss(), before = g.inspect(), first = before.enemies.find(e => e.type === "boss");
+  assert.equal(clearLine(first, before.player), false, "the player begins on the far side of the building");
+  const originalDistance = Math.hypot(first.x - before.player.x, first.y - before.player.y);
+  advance(g, 10);
+  const after = g.inspect(), boss = after.enemies.find(e => e.type === "boss");
+  assert.ok(boss.x > 568 + boss.radius, "the boss takes the right-hand route around the wall");
+  assert.ok(boss.y > 222);
+  assert.ok(Math.hypot(boss.x - after.player.x, boss.y - after.player.y) < originalDistance - 180, "the boss closes the gap without walking through walls");
+  assert.equal(after.phase, "playing");
 });

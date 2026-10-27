@@ -21,7 +21,7 @@
 .penetration-schedule table{width:100%;min-width:960px;table-layout:fixed}
 .penetration-schedule :is(th,td){padding:8px;line-height:1.4;white-space:normal;overflow-wrap:anywhere}
 .penetration-schedule th{overflow-wrap:normal}
-.penetration-schedule :is(th,td):first-child{width:44px}
+.penetration-schedule :is(th,td):first-child{width:60px}
 .penetration-schedule :is(th,td):nth-child(2){width:132px}
 .penetration-schedule :is(th,td):nth-child(3){width:96px}
 .penetration-schedule :is(th,td):nth-child(4){width:120px}

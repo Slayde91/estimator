@@ -2164,10 +2164,25 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
   assert.equal(statusOutput('H9'),retainedAnnotationStatus);assert.equal(retainedAnnotationStatus.children[0].children[0].textContent,'HOLD - REVIEW SOURCE');
   assert.equal(retainedAnnotationStatus.children.length,1);assert.equal(entry.inputs.CALCULATOR.D6,12.3456789012345);passed++;
 
-  // The two browser labels are aliases at exact coordinates, never raw data edits.
-  for(const [id,sheet,address,raw,shown] of [['steel_board','SETTINGS','Q5','Plain-English message (display only)','Description'],['ductwork','SUMMARY','A17','PENETRATION ANGLES — LENGTH BY SIZE AND LOCATION','PENETRATION ANGLES']]){
+  // Browser labels are aliases at exact coordinates, never raw data edits.
+  for(const [id,sheet,address,raw,shown] of [['steel_board','SETTINGS','Q5','Plain-English message (display only)','Description'],['ductwork','SUMMARY','A17','PENETRATION ANGLES — LENGTH BY SIZE AND LOCATION','PENETRATION ANGLES'],
+    ['ductwork','PRODUCT SETTINGS','E96','Manual p.5 default is 38 mm per layer. Confirm the selected blanket detail before changing.','Default is 38 mm per layer. Confirm the selected blanket detail before changing.'],
+    ['ductwork','PRODUCT SETTINGS','E97','Choose 0.61 or 1.22 m. Roll width affects overlaps and roll count. Manual pp.5 and 21.','Choose 0.61 or 1.22 m. Roll width affects overlaps and roll count.'],
+    ['ductwork','PRODUCT SETTINGS','E98','Manual p.21 default is 7.62 m. Enter the actual supplied roll length.','Default is 7.62 m. Enter the actual supplied roll length.'],
+    ['ductwork','PRODUCT SETTINGS','E99','Manual pp.10–13 default is 100 mm. Confirm the selected detail before changing.','Default is 100 mm. Confirm the selected detail before changing.'],
+    ['ductwork','PRODUCT SETTINGS','E100','A 5–10 mm sealed gap between board strips, not between the duct and opening. Manual p.27.','A 5–10 mm sealed gap between board strips, not between the duct and opening.'],
+  ]){
     entry=setup();entry.definition.id=id;entry.sheet=sheet;
     assert.equal(audit.sourceDisplayText(raw,entry,address),shown);assert.equal(audit.sourceDisplayText(raw,entry,'Z99'),raw);
+    if(id==='ductwork'&&sheet==='PRODUCT SETTINGS'){
+      const cell={value:raw,editable:false,calculated:false},output=element();output.dataset.calculatorOutput=address;
+      entry.result=result({}, {sheet,rows:[{row:Number(address.slice(1)),cells:[{...cell,address,column:5}]}]});const beforeNote=JSON.stringify(entry.result);
+      const noteI18n=context.window.CeasefireI18n,bindings=[];context.window.CeasefireI18n={...noteI18n,text(element,source,args){bindings.push(source);return noteI18n.text(element,source,args);}};
+      try{audit.updateOutputCell(output,cell);}finally{context.window.CeasefireI18n=noteI18n;}
+      assert.equal(output.textContent,shown);assert.deepEqual(bindings,[shown],'Fixed setting notes use the language runtime');
+      assert.equal(JSON.stringify(entry.result),beforeNote);assert.deepEqual(copy(entry.inputs),{});
+      entry.definition.id='steel_board';assert.equal(audit.sourceDisplayText(raw,entry,address),raw);
+    }
   }passed++;
   entry=setup();entry.definition.id='ductwork';entry.sheet='CALCULATOR';
   const originalDuctOverview='For FyreWrap, Internal, External and Both use the exhaust application rules. Select pressurisation separately. Application FRLs retain the directional requirements shown above and in the reports. No waste is added.';

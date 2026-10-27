@@ -194,6 +194,29 @@ class BrandPresentationTests(unittest.TestCase):
             self.assertEqual(normalize_technical_item(detail), detail)
             self.assertEqual((root / 'library.json').read_bytes(), payload)
 
+    def test_equal_diameter_export_is_compact_while_source_and_other_measurements_remain(self):
+        raw = ('Diameter range (mm): 20\nMinimum diameter (mm): 20\n'
+               'Maximum diameter (mm): 20\nWall thickness (mm): 2.2')
+        source = record(('Service Size / Configuration', raw), brand='BOSS')
+        original = deepcopy(source)
+        projected = self.project(source)
+        before = deepcopy(projected)
+        self.assertEqual(values(projected)['Service Size / Configuration'], raw)
+        class Library:
+            def detail(self, kind, key):
+                return projected
+        snapshot = prepare_technical_item({'id': 'sample'}, library=Library())
+        pdf = '\n'.join(page.extract_text() for page in PdfReader(BytesIO(render_technical_item_pdf(snapshot))).pages)
+        workbook = load_workbook(BytesIO(build_technical_item_xlsx(snapshot)))
+        xlsx = '\n'.join(str(cell.value) for sheet in workbook for row in sheet for cell in row if cell.value)
+        for text in (pdf, xlsx):
+            self.assertIn('Diameter (mm): 20', text)
+            self.assertIn('Wall thickness (mm): 2.2', text)
+            self.assertNotIn('diameter (mm)', text)
+        self.assertEqual(source, original)
+        self.assertEqual(projected, before)
+        self.assertEqual(projected['technical_basis']['source_fields'], source['fields'])
+
 
 if __name__ == '__main__':
     unittest.main()

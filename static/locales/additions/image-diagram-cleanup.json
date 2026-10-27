@@ -1,0 +1,102 @@
+{
+  "Image/Diagram": [
+    "이미지/도면",
+    "Larawan/diagram",
+    "Hình ảnh/sơ đồ"
+  ],
+  "Current item image/diagram preview": [
+    "현재 항목 이미지/도면 미리 보기",
+    "Preview ng larawan/diagram ng kasalukuyang item",
+    "Xem trước hình ảnh/sơ đồ của hạng mục hiện tại"
+  ],
+  "No image/diagram is attached to this item.": [
+    "이 항목에 첨부된 이미지/도면이 없습니다.",
+    "Walang nakalakip na larawan/diagram sa item na ito.",
+    "Hạng mục này chưa đính kèm hình ảnh/sơ đồ."
+  ],
+  "Choose image/diagram": [
+    "이미지/도면 선택",
+    "Pumili ng larawan/diagram",
+    "Chọn hình ảnh/sơ đồ"
+  ],
+  "Discard selected image/diagram": [
+    "선택한 이미지/도면 버리기",
+    "Itapon ang napiling larawan/diagram",
+    "Bỏ hình ảnh/sơ đồ đã chọn"
+  ],
+  "PNG, JPEG or WebP, up to 15 MB. Add the item to the Firestopping Library to save the compressed image/diagram and schedule thumbnail.": [
+    "PNG, JPEG 또는 WebP, 최대 15 MB. 압축 이미지/도면과 일람표 썸네일을 저장하려면 항목을 방화 관통부 밀봉 라이브러리에 추가하세요.",
+    "PNG, JPEG o WebP, hanggang 15 MB. Idagdag ang item sa Library ng Pagseselyong panlaban sa sunog upang i-save ang compressed na larawan/diagram at thumbnail sa talaan.",
+    "PNG, JPEG hoặc WebP, tối đa 15 MB. Thêm hạng mục vào Thư viện Bịt kín chống cháy để lưu hình ảnh/sơ đồ đã nén và hình thu nhỏ trong bảng kê."
+  ],
+  "Add the selected image/diagram to the Firestopping Library or discard it before saving the project.": [
+    "프로젝트를 저장하기 전에 선택한 이미지/도면을 방화 관통부 밀봉 라이브러리에 추가하거나 버리세요.",
+    "Idagdag ang napiling larawan/diagram sa Library ng Pagseselyong panlaban sa sunog o itapon ito bago i-save ang proyekto.",
+    "Thêm hình ảnh/sơ đồ đã chọn vào Thư viện Bịt kín chống cháy hoặc bỏ hình trước khi lưu dự án."
+  ],
+  "Saved Firestopping Library image/diagram.": [
+    "방화 관통부 밀봉 라이브러리에 저장된 이미지/도면.",
+    "Naka-save na larawan/diagram sa Library ng Pagseselyong panlaban sa sunog.",
+    "Hình ảnh/sơ đồ đã lưu trong Thư viện Bịt kín chống cháy."
+  ],
+  "No image/diagram is saved for this library item.": [
+    "이 라이브러리 항목에 저장된 이미지/도면이 없습니다.",
+    "Walang naka-save na larawan/diagram para sa item na ito sa library.",
+    "Hạng mục thư viện này chưa lưu hình ảnh/sơ đồ."
+  ],
+  "Choose a PNG, JPEG or WebP image/diagram.": [
+    "PNG, JPEG 또는 WebP 이미지/도면을 선택하세요.",
+    "Pumili ng PNG, JPEG o WebP na larawan/diagram.",
+    "Chọn hình ảnh/sơ đồ PNG, JPEG hoặc WebP."
+  ],
+  "The image/diagram must be no larger than 15 MB.": [
+    "이미지/도면 크기는 15 MB 이하여야 합니다.",
+    "Hindi dapat lumampas sa 15 MB ang larawan/diagram.",
+    "Hình ảnh/sơ đồ không được vượt quá 15 MB."
+  ],
+  "The image/diagram could not be read.": [
+    "이미지/도면을 읽지 못했습니다.",
+    "Hindi mabasa ang larawan/diagram.",
+    "Không đọc được hình ảnh/sơ đồ."
+  ],
+  "The image/diagram is ready. Add this item to the Firestopping Library to save it.": [
+    "이미지/도면이 준비되었습니다. 저장하려면 이 항목을 방화 관통부 밀봉 라이브러리에 추가하세요.",
+    "Handa na ang larawan/diagram. Idagdag ang item na ito sa Library ng Pagseselyong panlaban sa sunog upang i-save ito.",
+    "Hình ảnh/sơ đồ đã sẵn sàng. Thêm hạng mục này vào Thư viện Bịt kín chống cháy để lưu."
+  ],
+  "The pending image/diagram was discarded.": [
+    "대기 중인 이미지/도면을 버렸습니다.",
+    "Itinapon ang nakabinbing larawan/diagram.",
+    "Đã bỏ hình ảnh/sơ đồ đang chờ."
+  ],
+  " It uses the item, image/diagram and prices captured when you clicked Download; later changes are not included.": [
+    " 다운로드를 클릭한 시점의 항목, 이미지/도면, 단가를 사용하며 이후 변경 내용은 포함되지 않습니다.",
+    " Ginagamit nito ang item, larawan/diagram at mga presyo noong pinindot mo ang Download; hindi kasama ang mga pagbabago pagkatapos nito.",
+    " Sử dụng hạng mục, hình ảnh/sơ đồ và giá tại thời điểm nhấp Tải xuống; không gồm các thay đổi sau đó."
+  ],
+  "Default is 38 mm per layer. Confirm the selected blanket detail before changing.": [
+    "기본값은 층당 38 mm입니다. 변경 전에 선택한 블랭킷 상세를 확인하세요.",
+    "Ang default ay 38 mm bawat layer. Tiyakin ang napiling detalye ng blanket bago baguhin.",
+    "Mặc định là 38 mm mỗi lớp. Xác nhận chi tiết chăn cách nhiệt đã chọn trước khi thay đổi."
+  ],
+  "Choose 0.61 or 1.22 m. Roll width affects overlaps and roll count.": [
+    "0.61 또는 1.22 m를 선택하세요. 롤 폭은 겹침과 롤 수에 영향을 줍니다.",
+    "Pumili ng 0.61 o 1.22 m. Nakaaapekto ang lapad ng roll sa mga overlap at bilang ng roll.",
+    "Chọn 0.61 hoặc 1.22 m. Chiều rộng cuộn ảnh hưởng đến phần chồng mí và số cuộn."
+  ],
+  "Default is 7.62 m. Enter the actual supplied roll length.": [
+    "기본값은 7.62 m입니다. 실제 공급된 롤 길이를 입력하세요.",
+    "Ang default ay 7.62 m. Ilagay ang aktuwal na haba ng ibinigay na roll.",
+    "Mặc định là 7.62 m. Nhập chiều dài thực tế của cuộn được cung cấp."
+  ],
+  "Default is 100 mm. Confirm the selected detail before changing.": [
+    "기본값은 100 mm입니다. 변경 전에 선택한 상세를 확인하세요.",
+    "Ang default ay 100 mm. Tiyakin ang napiling detalye bago baguhin.",
+    "Mặc định là 100 mm. Xác nhận chi tiết đã chọn trước khi thay đổi."
+  ],
+  "A 5–10 mm sealed gap between board strips, not between the duct and opening.": [
+    "보드 스트립 사이의 5–10 mm 밀봉 틈이며, 덕트와 개구부 사이의 틈이 아닙니다.",
+    "Isang selyadong puwang na 5–10 mm sa pagitan ng mga board strip, hindi sa pagitan ng duct at ng bukasan.",
+    "Khe kín 5–10 mm giữa các dải tấm, không phải giữa ống gió và lỗ mở."
+  ]
+}

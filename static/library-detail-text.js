@@ -14,6 +14,20 @@
   const referenceNumber = "\\d+(?:\\s*[A-Za-z]\\b)?(?:\\s*(?:[-\u2013\u2014/,;&]|\\band\\b|\\bor\\b|\\bto\\b)\\s*\\d+(?:\\s*[A-Za-z]\\b)?)*";
   const sourceLocator = new RegExp("\\b(?:(?:see|refer\\s+to|as\\s+per)\\s+)?(?:tables?|items?|figures?|figs?\\.?)\\s+" + referenceNumber, "gi");
   const generatedTable = new RegExp("^\\s*(?:Service Size\\s*/\\s*Configuration|Barrier Construction)\\s+table\\s+" + referenceNumber + "\\s*[;,]?\\s*", "i");
+  const diameterNumber = "(?:[0-9]+(?:\\.[0-9]*)?|\\.[0-9]+)", diameterValue = `(${diameterNumber})[ \\t]*(?:mm)?`;
+  const equalDiameters = new RegExp("^([ \\t]*)Diameter[ \\t]+range[ \\t]*\\([ \\t]*mm[ \\t]*\\)[ \\t]*:[ \\t]*" + diameterValue
+    + "(?:[ \\t]*(?:[-\u2013\u2014]|to)[ \\t]*" + diameterValue + ")?[ \\t]*\\r?\\n"
+    + "[ \\t]*(?:min\\.?|minimum)[ \\t]+diameter[ \\t]*\\([ \\t]*mm[ \\t]*\\)[ \\t]*:[ \\t]*" + diameterValue + "[ \\t]*\\r?\\n"
+    + "[ \\t]*(?:max\\.?|maximum)[ \\t]+diameter[ \\t]*\\([ \\t]*mm[ \\t]*\\)[ \\t]*:[ \\t]*" + diameterValue + "[ \\t]*(?=\\r?$)", "gim");
+  function singleDiameter(text) {
+    const decimal = value => {
+      let [integer, fraction = ""] = value.split(".");
+      integer = integer.replace(/^0+/, "") || "0"; fraction = fraction.replace(/0+$/, "");
+      return integer + (fraction ? `.${fraction}` : "");
+    };
+    return text.replace(equalDiameters, (match, indent, first, end, minimum, maximum) =>
+      new Set([first, end || first, minimum, maximum].map(decimal)).size === 1 ? `${indent}Diameter (mm): ${first}` : match);
+  }
   function withoutCrossReferences(text) {
     const cleaned = text.replace(/\(([^()]*)\)/g, (match, original) => {
       if (/^\s*(?:see|refer\s+to)\s+(?:tables?|items?|figures?|figs?\.?)\s*$/i.test(original)) return "";
@@ -100,7 +114,7 @@
 
   function compact(value) {
     const text = String(value ?? ""), protectedText = /https?:\/\/[^\s<>]+|[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}|\b[\w.-]+\.(?:pdf|xlsx?|docx?|png|jpe?g|json)\b/gi;
-    const prose = part => compactRules.reduce((text, [expression, replacement]) => text.replace(expression, replacement), withoutCrossReferences(part));
+    const prose = part => compactRules.reduce((text, [expression, replacement]) => text.replace(expression, replacement), withoutCrossReferences(singleDiameter(part)));
     let result = "", cursor = 0;
     for (const match of text.matchAll(protectedText)) {
       result += prose(text.slice(cursor, match.index)) + match[0]; cursor = match.index + match[0].length;
@@ -287,7 +301,9 @@
       }
       return list;
     };
-    return parse(value, options).map(renderBlock);
+    // Complete field lines must be compared before wrapped-line parsing joins
+    // them into prose. This is a display copy; parse(value) keeps the source.
+    return parse(options?.compact ? singleDiameter(String(value ?? "")) : value, options).map(renderBlock);
   }
 
   const api = Object.freeze({ parse, render, compact, displayTitle, displaySubtitle, visibleField });

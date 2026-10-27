@@ -12,6 +12,31 @@ _BRACKETED = re.compile(r'\(([^()]*)\)')
 _REFERENCE_NUMBER = r'\d+(?:\s*[A-Za-z]\b)?(?:\s*(?:[-\u2013\u2014/,;&]|\band\b|\bor\b|\bto\b)\s*\d+(?:\s*[A-Za-z]\b)?)*'
 _LOCATOR = re.compile(r'\b(?:(?:see|refer\s+to|as\s+per)\s+)?(?:tables?|items?|figures?|figs?\.?)\s+' + _REFERENCE_NUMBER, re.I)
 _GENERATED_TABLE = re.compile(r'^\s*(?:Service Size\s*/\s*Configuration|Barrier Construction)\s+table\s+' + _REFERENCE_NUMBER + r'\s*[;,]?\s*', re.I)
+_DIAMETER_NUMBER = r'(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)'
+_DIAMETER_VALUE = '(' + _DIAMETER_NUMBER + r')[ \t]*(?:mm)?'
+_EQUAL_DIAMETERS = re.compile(
+    r'^([ \t]*)Diameter[ \t]+range[ \t]*\([ \t]*mm[ \t]*\)[ \t]*:[ \t]*' + _DIAMETER_VALUE
+    + r'(?:[ \t]*(?:[-\u2013\u2014]|to)[ \t]*' + _DIAMETER_VALUE + r')?[ \t]*\r?\n'
+    + r'[ \t]*(?:min\.?|minimum)[ \t]+diameter[ \t]*\([ \t]*mm[ \t]*\)[ \t]*:[ \t]*' + _DIAMETER_VALUE + r'[ \t]*\r?\n'
+    + r'[ \t]*(?:max\.?|maximum)[ \t]+diameter[ \t]*\([ \t]*mm[ \t]*\)[ \t]*:[ \t]*' + _DIAMETER_VALUE + r'[ \t]*(?=\r?$)',
+    re.I | re.M)
+
+
+def _single_diameter(text):
+    """Collapse only a complete, consecutive, exactly equal millimetre trio."""
+    def decimal(value):
+        integer, _, fraction = value.partition('.')
+        integer, fraction = integer.lstrip('0') or '0', fraction.rstrip('0')
+        return integer + ('.' + fraction if fraction else '')
+
+    def collapse(match):
+        _, first, end, minimum, maximum = match.groups()
+        values = (first, end or first, minimum, maximum)
+        if len({decimal(value) for value in values}) != 1:
+            return match[0]
+        return match[1] + 'Diameter (mm): ' + first
+
+    return _EQUAL_DIAMETERS.sub(collapse, text)
 
 
 def _without_cross_references(text):
@@ -149,6 +174,7 @@ def compact_technical_text(value):
         return value
 
     def compact(text):
+        text = _single_diameter(text)
         text = _without_cross_references(text)
         for expression, replacement in _RULES:
             text = expression.sub(replacement, text)

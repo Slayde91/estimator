@@ -1,0 +1,74 @@
+[
+  {
+    "source": "Diameter range (mm): 20\nMinimum diameter (mm): 20\nMaximum diameter (mm): 20",
+    "display": "Diameter (mm): 20"
+  },
+  {
+    "source": "Diameter range (mm): 20\nmin. diameter (mm): 20\nmax. diameter (mm): 20",
+    "display": "Diameter (mm): 20"
+  },
+  {
+    "source": "Diameter range (mm): 20.00\nMinimum diameter (mm): 020\nMaximum diameter (mm): 20.0",
+    "display": "Diameter (mm): 20.00"
+  },
+  {
+    "source": "Diameter range (mm): 20 mm - 20.0 mm\nMinimum diameter (mm): 20.00 mm\nMaximum diameter (mm): 020 mm",
+    "display": "Diameter (mm): 20"
+  },
+  {
+    "source": "Diameter range (mm): .50 to 0.5\nMinimum diameter (mm): 0.500\nMaximum diameter (mm): .5",
+    "display": "Diameter (mm): .50"
+  },
+  {
+    "source": "Copper pipe:\nDiameter range (mm): 20\nMinimum diameter (mm): 20\nMaximum diameter (mm): 20\nWall thickness (mm): 2.2",
+    "display": "Copper pipe:\nDiameter (mm): 20\nWall thickness (mm): 2.2"
+  },
+  {
+    "source": "Diameter range (mm): 20\r\nMinimum diameter (mm): 20\r\nMaximum diameter (mm): 20\r\nLength (mm): 300",
+    "display": "Diameter (mm): 20\r\nLength (mm): 300"
+  },
+  {
+    "source": "Diameter range (mm): 20 - 25\nMinimum diameter (mm): 20\nMaximum diameter (mm): 25",
+    "display": "Diameter range (mm): 20 - 25\nmin. diameter (mm): 20\nmax. diameter (mm): 25"
+  },
+  {
+    "source": "Diameter range (mm): 20 - 25\nMinimum diameter (mm): 20\nMaximum diameter (mm): 20",
+    "display": "Diameter range (mm): 20 - 25\nmin. diameter (mm): 20\nmax. diameter (mm): 20"
+  },
+  {
+    "source": "Diameter range (mm): 20\nMinimum diameter (mm): 20.000000000000001\nMaximum diameter (mm): 20",
+    "display": "Diameter range (mm): 20\nmin. diameter (mm): 20.000000000000001\nmax. diameter (mm): 20"
+  },
+  {
+    "source": "Diameter range (mm): 9007199254740992\nMinimum diameter (mm): 9007199254740993\nMaximum diameter (mm): 9007199254740992",
+    "display": "Diameter range (mm): 9007199254740992\nmin. diameter (mm): 9007199254740993\nmax. diameter (mm): 9007199254740992"
+  },
+  {
+    "source": "Diameter range (mm): 20\nMinimum diameter (cm): 20\nMaximum diameter (mm): 20",
+    "display": "Diameter range (mm): 20\nmin. diameter (cm): 20\nmax. diameter (mm): 20"
+  },
+  {
+    "source": "Diameter range (mm): 20 cm\nMinimum diameter (mm): 20\nMaximum diameter (mm): 20",
+    "display": "Diameter range (mm): 20 cm\nmin. diameter (mm): 20\nmax. diameter (mm): 20"
+  },
+  {
+    "source": "Diameter range (mm): 20\nMinimum diameter (mm): 20 nominal\nMaximum diameter (mm): 20",
+    "display": "Diameter range (mm): 20\nmin. diameter (mm): 20 nominal\nmax. diameter (mm): 20"
+  },
+  {
+    "source": "Diameter range (mm): 20\nMinimum diameter (mm): 20\nMaximum diameter (mm): 20 unless insulated",
+    "display": "Diameter range (mm): 20\nmin. diameter (mm): 20\nmax. diameter (mm): 20 unless insulated"
+  },
+  {
+    "source": "Diameter range (mm): 20\nService: Copper pipe\nMinimum diameter (mm): 20\nMaximum diameter (mm): 20",
+    "display": "Diameter range (mm): 20\nService: Copper pipe\nmin. diameter (mm): 20\nmax. diameter (mm): 20"
+  },
+  {
+    "source": "Diameter range (mm): 20\nMaximum diameter (mm): 20\nMinimum diameter (mm): 20",
+    "display": "Diameter range (mm): 20\nmax. diameter (mm): 20\nmin. diameter (mm): 20"
+  },
+  {
+    "source": "Report https://example.com/Diameter-range-20.pdf\nDiameter range (mm): 20\nMinimum diameter (mm): 20\nMaximum diameter (mm): 20",
+    "display": "Report https://example.com/Diameter-range-20.pdf\nDiameter (mm): 20"
+  }
+]

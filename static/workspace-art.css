@@ -81,19 +81,12 @@
     width:auto; height:100px; max-width:calc(100% - 24px); object-fit:contain; object-position:left center; pointer-events:none;
   }
   .calculator-heading-art-slot { position:relative; flex:1 1 0; align-self:stretch; min-width:0; pointer-events:none; }
-  .calculator-heading-lightning {
-    position:absolute; inset-block:50% auto; inset-inline:18px auto; width:48px; height:96px;
-    /* Keep the direction, height and reserved gaps; reduce the lean by 30%. */
-    transform:translateY(-50%) scaleX(-.7); color:#35bfff; pointer-events:none;
-    filter:drop-shadow(0 0 1px #b9f3ff) drop-shadow(0 0 3px #00c8ff) drop-shadow(0 0 7px #1677ff);
-  }
-  .calculator-heading-lightning .lightning-branches { stroke-width:.65; opacity:.8; }
-  .calculator-heading-lightning .lightning-core { stroke:#edfcff; stroke-width:.5; }
+  .calculator-heading-lightning { display:none; }
   .calculator-steel-cards { grid-template-columns:repeat(2,minmax(0,1fr)); }
   @media(max-width:570px) { .calculator-steel-cards { grid-template-columns:1fr; } }
   .calculator-heading-art-slot .workspace-header-art {
-    inset-block:calc(50% - 2.5px) auto; inset-inline:84px auto; width:auto;
-    height:calc(100% + 45px); max-width:calc(100% - 84px); aspect-ratio:2.7;
+    inset-block:calc(50% - 2.5px) auto; inset-inline:18px auto; width:auto;
+    height:calc(100% + 45px); max-width:calc(100% - 18px); aspect-ratio:2.7;
     transform:translateY(-50%);
     -webkit-mask-image:linear-gradient(90deg,transparent,#000 20%,#000 80%,transparent),linear-gradient(transparent,#000 22%,#000 78%,transparent);
     mask-image:linear-gradient(90deg,transparent,#000 20%,#000 80%,transparent),linear-gradient(transparent,#000 22%,#000 78%,transparent);
@@ -151,7 +144,7 @@
   .penetration-banner-heading > :not(.penetration-workspace-art) { position:relative; z-index:1; }
   .penetration-banner-heading > .actions { position:absolute; inset-block-start:0; inset-inline-end:0; }
   .penetration-workspace-art {
-    position:absolute; inset-block:-12px; inset-inline:84px auto; width:210px; max-width:calc(100% - 84px); height:calc(100% + 24px);
+    position:absolute; inset-block:-12px; inset-inline:18px auto; width:210px; max-width:calc(100% - 18px); height:calc(100% + 24px);
     margin:0; overflow:hidden; pointer-events:none;
     -webkit-mask-image:linear-gradient(90deg,transparent,#000 22%,#000 78%,transparent),linear-gradient(transparent,#000 24%,#000 76%,transparent);
     mask-image:linear-gradient(90deg,transparent,#000 22%,#000 78%,transparent),linear-gradient(transparent,#000 24%,#000 76%,transparent);
@@ -160,7 +153,7 @@
   /* Enlarge the painted penetration inside the existing black heading column. */
   .penetration-workspace-art .workspace-banner-crop { aspect-ratio:2.1; }
   /* At least 136% height fills the frame after its 63% focal-point shift,
-     including the narrower phone slot beside the diagonal lightning. */
+     including the narrower phone slot beside the title. */
   .penetration-workspace-art .workspace-banner-image { top:50%; height:auto; min-height:136%; object-fit:cover; transform:translateY(-63%); }
   @media (max-width:880px) {
     .workspace-header-art { inset-inline:30% 0; width:70%; opacity:.55; }

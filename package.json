@@ -77,6 +77,7 @@
     "test:library-documents": "node tests/browser/library_documents.cjs",
     "test:library-link-picker": "node tests/browser/library_link_picker.cjs",
     "test:fyreshield-reports-browser": "node tests/browser/fyreshield_reports.cjs",
+    "test:promat-report-filters-browser": "node tests/browser/promat_report_filters.cjs",
     "test:penetration-item-exports": "node tests/browser/penetration_item_exports.cjs",
     "test:technical-item-documents": "node tests/browser/technical_item_documents.cjs",
     "test:languages-browser": "node tests/browser/languages.cjs"

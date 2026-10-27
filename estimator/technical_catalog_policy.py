@@ -11,6 +11,10 @@ FYRESHIELD_REPORT = 'FAS200221 R3.0'
 FYRESHIELD_REPORT_URL = 'https://tfire.com.au/documents/FyreSHIELD-Range-Test-Report'
 _FYRESHIELD = {'fyreshield', 'fyreshield plus', 'fyreshield screw fixed', 'fyreshield plus screw fixed'}
 _RETIRED = {'frss', 'frss screw fixed'}
+_REPORT_PLACEHOLDERS = {'n/a', 'na', 'n.a', 'none', 'nil', 'null', 'unknown', 'unavailable',
+                        'not applicable', 'not available', 'not recorded', 'not supplied',
+                        'not provided', 'not identified', 'not specified', 'pending',
+                        'to be confirmed', 'to be determined', 'tbc', 'tbd', 'no report'}
 
 
 def _name(value):
@@ -36,6 +40,38 @@ def assigned_report_url(label):
     return FYRESHIELD_REPORT_URL if label.strip().casefold() == FYRESHIELD_REPORT.casefold() else None
 
 
+def _report_caption(value):
+    """Keep literal explicit captions; missing-value labels are not reports."""
+    caption = value.strip()
+    if len(caption) > 1000:
+        return None
+    key = ' '.join(caption.casefold().split()).rstrip('.')
+    key = re.sub(r'^report(?: number| reference)?\s*:?\s+', '', key)
+    if not any(character.isalnum() for character in caption) or key in _REPORT_PLACEHOLDERS:
+        return None
+    return caption
+
+
+def _promat_report_facets(item, report_keys):
+    """Repair missing discovery assignments from explicit report fields only."""
+    manufacturers = {_name(value) for value in item.get('filter_values', {}).get('manufacturer', [])}
+    if manufacturers != {'promat'}:
+        return item
+    captions = list(dict.fromkeys(caption for field in item.get('fields', [])
+                                  if field.get('label') == 'Report Number'
+                                  for value in field.get('value', '').splitlines()
+                                  if (caption := _report_caption(value)) is not None))
+    missing = [key for key in report_keys if not any(
+        _report_caption(value) for value in item.get('filter_values', {}).get(key, []))]
+    if not captions or not missing:
+        return item
+    result = deepcopy(item)
+    for key in missing:
+        values = result.setdefault('filter_values', {}).setdefault(key, [])
+        values.extend(value for value in captions if value not in values)
+    return result
+
+
 def public_records(records, aliases, report_keys):
     """Copy only changed records; never mutate reviewed records or raw sources."""
     excluded = {key for key, item in records.items() if retired(item)}
@@ -44,6 +80,7 @@ def public_records(records, aliases, report_keys):
     for key, item in records.items():
         if key in excluded:
             continue
+        item = _promat_report_facets(item, report_keys)
         if product_family(item) not in _FYRESHIELD:
             result[key] = item
             continue

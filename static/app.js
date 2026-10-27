@@ -995,8 +995,9 @@
     document.body.classList.toggle("takeoffs-active", view === "takeoffs");
     clearTimeout(state.projectsTimer); ++state.projectsRevision;
     for (const section of document.querySelectorAll(".view")) section.hidden = section.id !== `view-${view}`;
+    window.CeasefirePlay?.setVisible(view === "play");
     for (const button of document.querySelectorAll("[data-view]")) {
-      const active = button.dataset.view === view;
+      const active = button.dataset.view === view || (view === "play" && button.dataset.view === "settings");
       button.classList.toggle("active", active);
       if (active) button.setAttribute("aria-current", "page"); else button.removeAttribute("aria-current");
     }

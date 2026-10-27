@@ -14,7 +14,7 @@
     // Real pointer clicks only: keyboard and forwarded .click() activations
     // must not create a second burst or paint an invented cursor position.
     if (!event.isTrusted || event.detail === 0 || motion.matches || document.hidden || !Element.prototype.animate) return;
-    if (document.querySelector('#view-takeoffs:not([hidden])') || event.target.closest?.("#takeoff-viewport,.takeoff-drawing-layout,.takeoff-viewer-controls,.takeoff-toolbar")) return;
+    if (document.querySelector('#view-takeoffs:not([hidden])') || event.target.closest?.("#play-canvas,#takeoff-viewport,.takeoff-drawing-layout,.takeoff-viewer-controls,.takeoff-toolbar")) return;
     const x = event.clientX, y = event.clientY;
     // Let the action finish first, including opening/closing a native dialog.
     queueMicrotask(() => {

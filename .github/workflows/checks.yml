@@ -21,6 +21,7 @@ jobs:
       - run: node --check static/theme.js
       - run: node --check static/company-settings.js
       - run: node --check static/app.js
+      - run: node --check static/games/play.js && node --test tests/test_play_host.cjs tests/test_overspray_game.cjs tests/test_fireline_game.cjs
       - run: node --check static/pointer-effects.js
       - run: node --check static/activity.js && node --check static/searchable-choice.js && node --check static/penetration-presentation.js
       - run: node --test tests/test_annotation_controls.cjs
@@ -106,6 +107,7 @@ jobs:
       - run: python -m pip install -r requirements-dev.txt
       - run: npm ci
       - run: npx playwright install --with-deps chromium
+      - run: node tests/browser/play_arcade.cjs
       - run: node tests/browser/header_menu_sounds.cjs
       - run: node tests/browser/ocr_layer.cjs
       - run: node tests/browser/visual_search.cjs

@@ -11,6 +11,12 @@ test("startup media cancellation requires exact request identity, delivered byte
     assets: [{ url, status: 200, contentType: "audio/mpeg", sha256, bytes: 123 }],
     preloads: [{ url, error: null, readyState: 4, duration: 6, events: [{ type: "loadeddata", trusted: true }, { type: "suspend", error: null }] }] };
   assert.equal(verifiedPreloadCancellation(request, proof), true);
+  for (const [clip, mime] of [[feedbackSources.explosion, "audio/wav"], [feedbackSources.checkpoint, "audio/ogg"], [printingSource, "audio/mpeg"]]) {
+    const address = origin + clip;
+    const typed = { ...proof, paths: [clip], hashes: { [`static${clip}`]: sha256 }, assets: [{ ...proof.assets[0], url: address, contentType: mime }], preloads: [{ ...proof.preloads[0], url: address }] };
+    assert.equal(verifiedPreloadCancellation({ ...request, url: address }, typed), true);
+    assert.equal(verifiedPreloadCancellation({ ...request, url: address }, { ...typed, assets: [{ ...typed.assets[0], contentType: "text/plain" }] }), false);
+  }
   for (const changed of [{ stage: "drawing upload" }, { method: "POST" }, { resourceType: "fetch" },
     { url: origin + feedbackSources.hover }, { url: "http://127.0.0.1:54322" + source }, { url: url + "?other=1" },
     { failure: { errorText: "net::ERR_FAILED" } }, { failure: null }]) {

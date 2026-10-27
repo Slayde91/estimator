@@ -58,6 +58,7 @@ async function checkDocuments(scope, ids) {
   const before = await snapshot(), graph = before[scope === 'service_plans' ? 'service_plans' : 'physical'];
   const dataHeaders = [...(scope === 'defect_reports' ? ['Defect ID'] : []), 'Barrier ID', 'Service ID', 'Confirmation', 'Location', 'FRL',
     'Substrate', 'Orientation', 'Category', 'Service type', 'Service quantity', 'Service Size (mm)', 'Report', 'System', 'Source evidence'];
+  const exportHeaders = dataHeaders.filter(header => header !== 'System');
   const active = [...(graph.defects || []), ...graph.barriers, ...graph.services].filter(entry => !entry.deleted).map(entry => entry.id);
   const root = page.locator('.takeoff-physical-register'), documentMenu = page.locator('.takeoff-workspace-heading .takeoff-physical-document-host'), toggle = documentMenu.getByRole('button', { name: 'Document', exact: true }), list = documentMenu.locator('.calculator-document-actions');
   await toggle.press('ArrowDown'); await expect(list).toBeVisible(); await expect(list.getByRole('button', { name: 'Download confirmed items', exact: true })).toBeFocused();
@@ -77,8 +78,10 @@ async function checkDocuments(scope, ids) {
     // Delete is an explicitly checked UI action; the stable XLSX contract
     // exports only data columns, including quantities and source evidence.
     const uiHeaders = (await root.getByRole('columnheader').allTextContents()).map(value => value.trim());
-    assert.deepEqual(uiHeaders, ['Select', 'Hide', 'View/Edit', ...dataHeaders, 'Delete']);
-    assert.deepEqual(result.headers, dataHeaders); assert.equal(result.headers.includes('Delete'), false);
+    assert.deepEqual(uiHeaders, ['Select', 'Hide', 'View/Edit', ...dataHeaders.filter(header => header !== 'Source evidence'), 'Delete']);
+    await expect(root.getByRole('columnheader', { name: 'Source evidence', exact: true })).toBeHidden();
+    assert.deepEqual(result.headers, exportHeaders); assert.equal(result.headers.includes('Delete'), false);
+    assert.equal(result.headers.includes('System'), false);
     await expect(root.locator('thead th').last()).toHaveText('Delete');
     const deleteCells = await root.locator('tbody tr').evaluateAll(rows => rows.map(row => ({ id: row.dataset.physicalId,
       cells: row.children.length, deleteId: row.lastElementChild.querySelector('[data-physical-delete-id]')?.dataset.physicalDeleteId,

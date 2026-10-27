@@ -27,3 +27,10 @@ class TechnicalDisplayTests(unittest.TestCase):
             with self.subTest(source=entry['source']):
                 self.assertEqual(compact_technical_text(entry['source']), entry['display'])
                 self.assertEqual(compact_technical_text(entry['display']), entry['display'])
+
+    def test_equal_diameter_display_requires_exact_values_units_and_complete_lines(self):
+        vectors = json.loads((Path(__file__).parent / 'fixtures/technical-diameter-display.json').read_text(encoding='utf-8'))
+        for entry in vectors:
+            with self.subTest(source=entry['source']):
+                self.assertEqual(compact_technical_text(entry['source']), entry['display'])
+                self.assertEqual(compact_technical_text(entry['display']), entry['display'])

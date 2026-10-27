@@ -3,6 +3,10 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const detail = require("../static/library-detail-text.js");
+for (const entry of require('./fixtures/technical-diameter-display.json')) {
+  assert.equal(detail.compact(entry.source), entry.display, entry.source);
+  assert.equal(detail.compact(entry.display), entry.display, 'Repeated diameter cleanup is stable');
+}
 for (const entry of require('./fixtures/technical-reference-display.json')) {
   assert.equal(detail.compact(entry.source), entry.display, entry.source);
   assert.equal(detail.compact(entry.display), entry.display, 'Repeated locator cleanup is stable');
@@ -46,6 +50,13 @@ const document = { createElement(tag) { return { tag, children: [], setAttribute
 const rendered = detail.render(document, source, { compact: true });
 assert.deepEqual(detail.parse(source), before);
 assert.equal(rendered.at(-1).children[0].textContent, "Apply min. 50 mm w/ 2 fixings p/ 300 mm.");
+const diameterSource = 'Diameter range (mm): 20\nMinimum diameter (mm): 20\nMaximum diameter (mm): 20';
+const diameterParsed = detail.parse(diameterSource);
+assert.equal(detail.render(document, diameterSource, {compact:true})[0].textContent, 'Diameter (mm): 20');
+assert.deepEqual(detail.parse(diameterSource), diameterParsed, 'Display cleanup does not mutate original parsing');
+assert.match(detail.render(document, diameterSource, {compact:false})[0].textContent, /Minimum diameter/);
+const measuredSource = 'Diameter range (mm): 20\nMinimum diameter (mm): 20\nMaximum diameter (mm): 20\nWall thickness (mm): 2.2';
+assert.equal(detail.render(document, measuredSource, {compact:true})[0].textContent, 'Diameter (mm): 20 Wall thickness (mm): 2.2');
 console.log("PASS Technical display text, exact numbers/conditions, protected links and original list parsing");
 
 // Numbering is removed before each text node is formatted in the browser.

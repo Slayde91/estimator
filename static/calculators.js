@@ -184,6 +184,13 @@ window.CeasefireScheduleColumns = (() => {
         omit: ["A1", "A8:H24", "A26:H34", "A36:H43", "A50:H64", "A66:H67", "A70:H72", "A74:H89", "A101:H110", "A113:H151", "J115:Q149"],
         omit_section_notes: ["A6", "A48", "A94", "J115"],
         omit_table_notes: ["J94"],
+        text: {
+          E96: "Default is 38 mm per layer. Confirm the selected blanket detail before changing.",
+          E97: "Choose 0.61 or 1.22 m. Roll width affects overlaps and roll count.",
+          E98: "Default is 7.62 m. Enter the actual supplied roll length.",
+          E99: "Default is 100 mm. Confirm the selected detail before changing.",
+          E100: "A 5–10 mm sealed gap between board strips, not between the duct and opening.",
+        },
         center: ["A36:H39", "B7:D35", "B44:D46", "B90:D92", "A74:H79", "B49:D73", "B95:D115",
           "A117:H121", "A123:H127", "A129:H134", "A136:H141", "J95:Q104", "J116:Q130"], // 31–43
       },
@@ -726,6 +733,11 @@ window.CeasefireScheduleColumns = (() => {
         "H39": "Area identity check"
       },
       "PRODUCT SETTINGS": {
+        "E96": "Manual p.5 default is 38 mm per layer. Confirm the selected blanket detail before changing.",
+        "E97": "Choose 0.61 or 1.22 m. Roll width affects overlaps and roll count. Manual pp.5 and 21.",
+        "E98": "Manual p.21 default is 7.62 m. Enter the actual supplied roll length.",
+        "E99": "Manual pp.10–13 default is 100 mm. Confirm the selected detail before changing.",
+        "E100": "A 5–10 mm sealed gap between board strips, not between the duct and opening. Manual p.27.",
         "D7": "Basis",
         "D49": "Basis",
         "D95": "Basis",

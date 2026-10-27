@@ -215,7 +215,7 @@
   function quoteSnapshot() { return state.schedule.draft ? { draft: canonicalDraft(state.schedule.draft) } : undefined; }
   function quoteFingerprint() { return stable({ context: state.context, ...quoteSnapshot(), invalid: [...state.schedule.invalid] }); }
   function scheduleProblem() { return state.schedule.invalid.size ? "Correct the firestopping schedule input marked invalid before calculating the quote." : (state.schedule.draft?.rows || []).map(row => masticProblem(row.inputs)).find(Boolean) || ""; }
-  function inputProblem() { return state.diagramChange !== undefined ? "Add the selected source diagram to the Firestopping Library or discard it before saving the project." : state.invalid.size || state.schedule.invalid.size ? "Correct the firestopping input marked invalid before saving." : masticProblem(selected()?.inputs || {}) || scheduleProblem(); }
+  function inputProblem() { return state.diagramChange !== undefined ? "Add the selected image/diagram to the Firestopping Library or discard it before saving the project." : state.invalid.size || state.schedule.invalid.size ? "Correct the firestopping input marked invalid before saving." : masticProblem(selected()?.inputs || {}) || scheduleProblem(); }
   function projectFingerprint() { return stable({ context: state.context, ...canonicalSnapshot(persisted()), invalid: [...state.invalid].sort(([a], [b]) => a.localeCompare(b)), scheduleInvalid: [...state.schedule.invalid].sort(([a], [b]) => a.localeCompare(b)), edit: state.edit && { id: state.edit.id, epoch: state.edit.epoch }, composerEpoch: state.composerEpoch, pendingDiagram: state.diagramChange === undefined ? null : { filename: state.diagramChange.filename, version: state.diagramVersion } }); }
   async function completeProjectSnapshot() { assertTakeoffWritable(); await initialize(); if (inputProblem()) throw new Error(inputProblem()); return projectSnapshot(); }
   function acceptDraft(scope, draft, captured) {
@@ -446,40 +446,40 @@
     } else if (libraryId) {
       const version = diagramVersions.get(libraryId) || 0;
       source = `/api/libraries/penetration/${encodeURIComponent(libraryId)}/image${version ? `?v=${version}` : ""}`;
-      text = "Saved Firestopping Library source diagram.";
+      text = "Saved Firestopping Library image/diagram.";
     }
     preview.hidden = !source; empty.hidden = !!source;
     image.onerror = null;
     if (source) {
       image.src = source; caption.textContent = text;
-      if (libraryId && pending === undefined) image.onerror = () => { preview.hidden = true; empty.hidden = false; uiText(empty, "No source diagram is saved for this library item."); };
-    } else { image.removeAttribute?.("src"); uiText(caption, "", []); uiText(empty, "No source diagram is attached to this item."); }
+      if (libraryId && pending === undefined) image.onerror = () => { preview.hidden = true; empty.hidden = false; uiText(empty, "No image/diagram is saved for this library item."); };
+    } else { image.removeAttribute?.("src"); uiText(caption, "", []); uiText(empty, "No image/diagram is attached to this item."); }
     remove.hidden = !(pending && typeof pending === "object");
     $("penetration-diagram-file").disabled = state.creatingLibrary;
   }
   function queueDiagram(filename, content) {
     assertTakeoffWritable();
-    if (!state.draft || typeof filename !== "string" || !/\.(?:png|jpe?g|webp)$/i.test(filename)) throw new Error("Choose a PNG, JPEG or WebP source diagram.");
-    if (typeof content !== "string" || !content || content.length > 20 * 1_048_576) throw new Error("The source diagram must be no larger than 15 MB.");
+    if (!state.draft || typeof filename !== "string" || !/\.(?:png|jpe?g|webp)$/i.test(filename)) throw new Error("Choose a PNG, JPEG or WebP image/diagram.");
+    if (typeof content !== "string" || !content || content.length > 20 * 1_048_576) throw new Error("The image/diagram must be no larger than 15 MB.");
     state.diagramChange = { filename, content_base64: content }; state.diagramVersion++; renderDiagram(); status();
   }
   function fileBase64(file) {
     return new Promise((resolve, reject) => {
-      const reader = new FileReader(); reader.onerror = () => reject(new Error("The source diagram could not be read."));
-      reader.onload = () => { const value = String(reader.result || ""), comma = value.indexOf(","); comma < 0 ? reject(new Error("The source diagram could not be read.")) : resolve(value.slice(comma + 1)); };
+      const reader = new FileReader(); reader.onerror = () => reject(new Error("The image/diagram could not be read."));
+      reader.onload = () => { const value = String(reader.result || ""), comma = value.indexOf(","); comma < 0 ? reject(new Error("The image/diagram could not be read.")) : resolve(value.slice(comma + 1)); };
       reader.readAsDataURL(file);
     });
   }
   async function chooseDiagram(file) {
     assertTakeoffWritable();
     if (!file) return;
-    if (file.size > 15 * 1_048_576) throw new Error("The source diagram must be no larger than 15 MB.");
+    if (file.size > 15 * 1_048_576) throw new Error("The image/diagram must be no larger than 15 MB.");
     const context = state.context, read = ++state.diagramRead;
     state.diagramReading = read; status();
     try {
       const content = await fileBase64(file);
       if (!state.draft || context !== state.context || read !== state.diagramRead) return;
-      queueDiagram(file.name, content); message("The source diagram is ready. Add this item to the Firestopping Library to save it.");
+      queueDiagram(file.name, content); message("The image/diagram is ready. Add this item to the Firestopping Library to save it.");
     } finally { if (state.diagramReading === read) { state.diagramReading = null; status(); } }
   }
   function fieldsActive() { return !!document.activeElement?.dataset?.penetrationField; }
@@ -721,29 +721,6 @@
     }
     scroll.append(table); root.append(intro, scroll, renderDetailOptions(), renderServiceRoutes(), renderLabourBands()); return root;
   }
-  function makeReportControl(row) {
-    const label = node("label", "field"), control = node("select"), empty = uiNode("option", "", "Use linked references"), help = uiNode("small", "helper", "Adds a report reference; existing system references stay unchanged.");
-    const context = state.context, epoch = state.composerEpoch; empty.value = ""; control.append(empty); control.dataset.penetrationReport = ""; control.disabled = true;
-    label.append(uiNode("span", "", "Report"), control, help);
-    const current = () => control.isConnected && context === state.context && epoch === state.composerEpoch && selected()?.id === row.id;
-    const retained = () => {
-      const value = selected()?.report_reference;
-      if (value && ![...control.options].some(option => option.value === value)) { const option = uiNode("option", "", "{0} (unavailable)", [value]); option.value = value; control.append(option); }
-      control.value = value || "";
-    };
-    control.addEventListener("change", () => {
-      if (!current() || state.takeoffLease) return;
-      if (control.value) selected().report_reference = control.value; else delete selected().report_reference;
-      changed(row.id);
-    });
-    const optionsRequest = window.CeasefirePenetrationReferences?.reportOptions?.();
-    if (!optionsRequest) return label;
-    optionsRequest.then(definition => {
-      if (!current()) return;
-      window.CeasefirePenetrationReferences.appendReportOptions(control, definition); retained(); control.disabled = !!state.takeoffLease;
-    }).catch(() => { if (current()) { retained(); uiText(help, "Technical records unavailable."); } });
-    return label;
-  }
   function renderFields() {
     if (!state.draft) return;
     const row = selected(), groups = visibleGroups(row.inputs);
@@ -776,7 +753,6 @@
         }
         if (host !== fields) fields.append(host);
       }
-      if (visible.some(field => field.column === "J")) fields.append(makeReportControl(row));
       $("penetration-row-fields").replaceChildren(fields);
     }
     renderDiagram();
@@ -1167,7 +1143,7 @@
       if (diagramCell.dataset.libraryDiagram !== diagramStamp) {
         diagramCell.dataset.libraryDiagram = diagramStamp;
         if (diagramId) {
-          const image = node("img"); image.src = `/api/libraries/penetration/${encodeURIComponent(diagramId)}/thumbnail${diagramVersion ? `?v=${diagramVersion}` : ""}`; image.alt = `${row.inputs.T || row.inputs.K || "Firestopping item"} source diagram`; image.loading = "lazy"; image.decoding = "async";
+          const image = node("img"); image.src = `/api/libraries/penetration/${encodeURIComponent(diagramId)}/thumbnail${diagramVersion ? `?v=${diagramVersion}` : ""}`; image.alt = `${row.inputs.T || row.inputs.K || "Firestopping item"} image/diagram`; image.loading = "lazy"; image.decoding = "async";
           image.addEventListener("error", () => { if (diagramCell.dataset.libraryDiagram === diagramStamp) diagramCell.replaceChildren(uiNode("span", "helper", "No diagram")); });
           diagramCell.replaceChildren(image);
         } else diagramCell.replaceChildren(node("span", "helper", "—"));
@@ -1218,7 +1194,7 @@
     const api = window.CeasefireScheduleColumns;
     if (!api) return;
     const ids = ["item", "services", "size", "type", "orientation", "frl", "quantity", "total", "diagram", "report", "system", "actions", "delete"];
-    const widths = [180, 132, 96, 120, 104, 80, 90, 90, 96, 190, 100, 72, 56], tables = [];
+    const widths = [60, 132, 96, 120, 104, 80, 90, 90, 96, 190, 100, 72, 56], tables = [];
     for (const id of ["penetration-schedule-body", "penetration-estimator-schedule-body"]) {
       const body = $(id), table = body.closest?.("table");
       if (!table) continue;
@@ -1364,7 +1340,7 @@
       const currentSession = window.CeasefireTakeoffs?.sessionId?.();
       const current = { item: selected(), globals: state.draft?.globals, configuration: configuration(), ...(currentSession ? { takeoff_session_id: currentSession } : {}),
         ...(state.diagramChange === undefined ? {} : { diagram: state.diagramChange }) };
-      message("File saved to {0}.{1}", false, state, true, [saved.path, captured !== stable(current) ? " It uses the item, source diagram and prices captured when you clicked Download; later changes are not included." : ""]);
+      message("File saved to {0}.{1}", false, state, true, [saved.path, captured !== stable(current) ? " It uses the item, image/diagram and prices captured when you clicked Download; later changes are not included." : ""]);
     } catch (error) { message("The current item file was not saved. {0}", true, state, true, [() => window.CeasefireI18n?.translate(error.message) || error.message]); }
     finally { state.downloading = false; state.downloadKind = null; status(); }
   }
@@ -1381,7 +1357,7 @@
   });
   $("penetration-diagram-remove").addEventListener("click", () => {
     if (state.diagramChange === undefined) return;
-    state.diagramChange = undefined; state.diagramRead++; state.diagramReading = null; state.diagramVersion++; renderDiagram(); message("The pending source diagram was discarded."); status();
+    state.diagramChange = undefined; state.diagramRead++; state.diagramReading = null; state.diagramVersion++; renderDiagram(); message("The pending image/diagram was discarded."); status();
   });
   for (const id of ["penetration-schedule-recalculate", "penetration-estimator-schedule-recalculate"]) $(id).addEventListener("click", calculateSchedule);
   $("penetration-add-to-schedule").addEventListener("click", requestAddToSchedule);

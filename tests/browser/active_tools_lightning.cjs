@@ -1,4 +1,4 @@
-// Selected tool styling and rendered lightning direction, on disposable data.
+// Selected tool styling and calculator headers without lightning, on disposable data.
 const {chromium,expect}=require('@playwright/test');
 const {chooseTakeoff}=require('./section_navigation.cjs'),{chooseCalculator}=require('./calculator_actions.cjs');
 const {renderDrawing}=require('./viewer_helpers.cjs');
@@ -31,13 +31,13 @@ const paint=locator=>locator.evaluate(el=>{const c=getComputedStyle(el),r=el.get
   }
  }
  await page.setViewportSize({width:1384,height:900});
- for(const [name,selector] of [['Steel (spray)','.calculator-workspace-heading'],['Steel (board)','.calculator-workspace-heading'],['Ductwork (spray/wrap)','.calculator-workspace-heading'],['Firestopping','.penetration-banner-heading']]){
+ for(const [name,selector] of [['Steel (spray)','.calculator-workspace-heading'],['Steel (intumescent)','.calculator-workspace-heading'],['Steel (board)','.calculator-workspace-heading'],['Ductwork (spray/wrap)','.calculator-workspace-heading'],['Factor Calcs','.calculator-workspace-heading'],['Firestopping','.penetration-banner-heading']]){
   await chooseCalculator(page,name);await idle();
   if(name==='Firestopping')await expect(page.locator('#penetration-heading')).toHaveCSS('font-size','23px');
   for(const width of [1384,390]){
    await page.setViewportSize({width,height:900});
-   const value=await page.locator(selector).evaluate(el=>{const bolt=el.querySelector('.calculator-heading-lightning'),p=bolt.querySelector('.lightning-channel'),m=p.getScreenCTM(),a=p.getPointAtLength(0).matrixTransform(m),b=p.getPointAtLength(p.getTotalLength()).matrixTransform(m),r=bolt.getBoundingClientRect(),text=el.querySelector('.calculator-heading-text').getBoundingClientRect(),art=el.querySelector('.workspace-header-art:not([style*="display: none"]),.penetration-workspace-art');return{start:{x:a.x,y:a.y},end:{x:b.x,y:b.y},height:r.height,gap:r.left-text.right};});
-   assert.ok(value.start.x>value.end.x&&value.start.y<value.end.y,'Lightning leans toward the top right');assert.ok(Math.abs(value.start.x-value.end.x-23.8)<.1,'The lean is reduced by 30 percent');assert.equal(value.height,96);assert.ok(value.gap>=17.9);evidence.push({name,width,...value});
+   const value=await page.locator(selector).evaluate(el=>{const bolt=el.querySelector('.calculator-heading-lightning'),r=bolt.getBoundingClientRect(),slot=el.querySelector('.calculator-heading-art-slot').getBoundingClientRect(),art=[...el.querySelectorAll('.workspace-header-art,.penetration-workspace-art')].find(n=>getComputedStyle(n).display!=='none'),a=art?.getBoundingClientRect();return{display:getComputedStyle(bolt).display,width:r.width,height:r.height,artGap:a?getComputedStyle(el).direction==='rtl'?slot.right-a.right:a.left-slot.left:null};});
+   assert.equal(value.display,'none','Calculator lightning is hidden');assert.equal(value.width,0);assert.equal(value.height,0);if(value.artGap!==null)assert.ok(Math.abs(value.artGap-18)<.1,'Artwork follows the copy without the former bolt gap');evidence.push({name,width,...value});
   }
  }
  assert.deepEqual(await page.evaluate(()=>window.CeasefireTakeoffs.projectSnapshot()),before,'Visual selection and calculator navigation preserve the drawing');assert.deepEqual(errors,[]);

@@ -1,0 +1,142 @@
+{
+  "Image/Diagram": [
+    "图像/示意图",
+    "छवि/आरेख",
+    "Imagen/diagrama",
+    "صورة/رسم تخطيطي",
+    "รูปภาพ/แผนภาพ"
+  ],
+  "Current item image/diagram preview": [
+    "当前项目图像/示意图预览",
+    "वर्तमान मद की छवि/आरेख का पूर्वावलोकन",
+    "Vista previa de la imagen/diagrama de la partida actual",
+    "معاينة صورة/رسم البند الحالي",
+    "ตัวอย่างรูปภาพ/แผนภาพของรายการปัจจุบัน"
+  ],
+  "No image/diagram is attached to this item.": [
+    "此项目未附图像/示意图。",
+    "इस मद में कोई छवि/आरेख संलग्न नहीं है।",
+    "Esta partida no tiene ninguna imagen/diagrama adjunto.",
+    "لا توجد صورة/رسم تخطيطي مرفق بهذا البند.",
+    "ไม่มีรูปภาพ/แผนภาพแนบกับรายการนี้"
+  ],
+  "Choose image/diagram": [
+    "选择图像/示意图",
+    "छवि/आरेख चुनें",
+    "Elegir imagen/diagrama",
+    "اختيار صورة/رسم تخطيطي",
+    "เลือกรูปภาพ/แผนภาพ"
+  ],
+  "Discard selected image/diagram": [
+    "放弃选定的图像/示意图",
+    "चुनी गई छवि/आरेख हटाएँ",
+    "Descartar imagen/diagrama seleccionado",
+    "تجاهل الصورة/الرسم المحدد",
+    "ละทิ้งรูปภาพ/แผนภาพที่เลือก"
+  ],
+  "PNG, JPEG or WebP, up to 15 MB. Add the item to the Firestopping Library to save the compressed image/diagram and schedule thumbnail.": [
+    "PNG、JPEG或WebP，最大15 MB。将项目添加到防火封堵库以保存压缩图像/示意图及明细表缩略图。",
+    "PNG, JPEG या WebP, अधिकतम 15 MB। संपीड़ित छवि/आरेख और अनुसूची थंबनेल सहेजने के लिए मद को अग्निरोधन लाइब्रेरी में जोड़ें।",
+    "PNG, JPEG o WebP, hasta 15 MB. Añada la partida a la biblioteca cortafuego para guardar la imagen/diagrama comprimido y su miniatura en el listado.",
+    "PNG أو JPEG أو WebP، حتى 15 MB. أضف البند إلى مكتبة سد الاختراقات لحفظ الصورة/الرسم المضغوط والصورة المصغرة للجدول.",
+    "PNG, JPEG หรือ WebP ขนาดไม่เกิน 15 MB เพิ่มรายการลงในคลังงานกันไฟเพื่อบันทึกรูปภาพ/แผนภาพที่บีบอัดและภาพย่อในตาราง"
+  ],
+  "Add the selected image/diagram to the Firestopping Library or discard it before saving the project.": [
+    "保存项目前，请将选定图像/示意图添加到防火封堵库或放弃它。",
+    "परियोजना सहेजने से पहले चुनी गई छवि/आरेख को अग्निरोधन लाइब्रेरी में जोड़ें या हटा दें।",
+    "Añada la imagen/diagrama seleccionado a la biblioteca cortafuego o descártelo antes de guardar el proyecto.",
+    "أضف الصورة/الرسم المحدد إلى مكتبة سد الاختراقات أو تجاهله قبل حفظ المشروع.",
+    "เพิ่มรูปภาพ/แผนภาพที่เลือกลงในคลังงานกันไฟหรือละทิ้งก่อนบันทึกโครงการ"
+  ],
+  "Saved Firestopping Library image/diagram.": [
+    "已保存的防火封堵库图像/示意图。",
+    "अग्निरोधन लाइब्रेरी में सहेजी गई छवि/आरेख।",
+    "Imagen/diagrama guardado en la biblioteca cortafuego.",
+    "صورة/رسم محفوظ في مكتبة سد الاختراقات.",
+    "รูปภาพ/แผนภาพที่บันทึกไว้ในคลังงานกันไฟ"
+  ],
+  "No image/diagram is saved for this library item.": [
+    "此库项目未保存图像/示意图。",
+    "इस लाइब्रेरी मद के लिए कोई छवि/आरेख सहेजी नहीं गई है।",
+    "Este elemento de la biblioteca no tiene ninguna imagen/diagrama guardado.",
+    "لا توجد صورة/رسم محفوظ لهذا البند في المكتبة.",
+    "ไม่มีรูปภาพ/แผนภาพที่บันทึกไว้สำหรับรายการในคลังนี้"
+  ],
+  "Choose a PNG, JPEG or WebP image/diagram.": [
+    "请选择PNG、JPEG或WebP图像/示意图。",
+    "PNG, JPEG या WebP छवि/आरेख चुनें।",
+    "Elija una imagen/diagrama PNG, JPEG o WebP.",
+    "اختر صورة/رسمًا بصيغة PNG أو JPEG أو WebP.",
+    "เลือกรูปภาพ/แผนภาพ PNG, JPEG หรือ WebP"
+  ],
+  "The image/diagram must be no larger than 15 MB.": [
+    "图像/示意图不得超过15 MB。",
+    "छवि/आरेख का आकार 15 MB से अधिक नहीं होना चाहिए।",
+    "La imagen/diagrama no debe superar los 15 MB.",
+    "يجب ألا يتجاوز حجم الصورة/الرسم 15 MB.",
+    "รูปภาพ/แผนภาพต้องมีขนาดไม่เกิน 15 MB"
+  ],
+  "The image/diagram could not be read.": [
+    "无法读取图像/示意图。",
+    "छवि/आरेख पढ़ा नहीं जा सका।",
+    "No se pudo leer la imagen/diagrama.",
+    "تعذرت قراءة الصورة/الرسم.",
+    "อ่านรูปภาพ/แผนภาพไม่ได้"
+  ],
+  "The image/diagram is ready. Add this item to the Firestopping Library to save it.": [
+    "图像/示意图已就绪。将此项目添加到防火封堵库以保存它。",
+    "छवि/आरेख तैयार है। इसे सहेजने के लिए मद को अग्निरोधन लाइब्रेरी में जोड़ें।",
+    "La imagen/diagrama está listo. Añada esta partida a la biblioteca cortafuego para guardarlo.",
+    "الصورة/الرسم جاهز. أضف هذا البند إلى مكتبة سد الاختراقات لحفظه.",
+    "รูปภาพ/แผนภาพพร้อมแล้ว เพิ่มรายการนี้ลงในคลังงานกันไฟเพื่อบันทึก"
+  ],
+  "The pending image/diagram was discarded.": [
+    "已放弃待处理的图像/示意图。",
+    "लंबित छवि/आरेख हटा दिया गया।",
+    "Se descartó la imagen/diagrama pendiente.",
+    "تم تجاهل الصورة/الرسم المعلق.",
+    "ละทิ้งรูปภาพ/แผนภาพที่ค้างแล้ว"
+  ],
+  " It uses the item, image/diagram and prices captured when you clicked Download; later changes are not included.": [
+    " 使用点击“下载”时捕获的项目、图像/示意图及价格；不包含之后的更改。",
+    " इसमें डाउनलोड क्लिक करते समय की मद, छवि/आरेख और मूल्य हैं; बाद के बदलाव शामिल नहीं हैं।",
+    " Usa la partida, imagen/diagrama y precios capturados al pulsar Descargar; no incluye cambios posteriores.",
+    " يستخدم البند والصورة/الرسم والأسعار المسجلة عند النقر على تنزيل؛ لا يشمل التغييرات اللاحقة.",
+    " ใช้รายการ รูปภาพ/แผนภาพ และราคาขณะคลิกดาวน์โหลด ไม่รวมการเปลี่ยนแปลงภายหลัง"
+  ],
+  "Default is 38 mm per layer. Confirm the selected blanket detail before changing.": [
+    "默认每层38 mm。更改前请确认所选毯材构造。",
+    "डिफ़ॉल्ट प्रति परत 38 mm है। बदलने से पहले चुने गए ब्लैंकेट विवरण की पुष्टि करें।",
+    "El valor predeterminado es 38 mm por capa. Confirme el detalle de la manta seleccionada antes de cambiarlo.",
+    "القيمة الافتراضية 38 mm لكل طبقة. تحقق من تفصيل البطانية المحدد قبل التغيير.",
+    "ค่าเริ่มต้นคือ 38 mm ต่อชั้น ยืนยันรายละเอียดวัสดุหุ้มที่เลือกก่อนเปลี่ยน"
+  ],
+  "Choose 0.61 or 1.22 m. Roll width affects overlaps and roll count.": [
+    "选择0.61或1.22 m。卷材宽度影响搭接及卷数。",
+    "0.61 या 1.22 m चुनें। रोल की चौड़ाई ओवरलैप और रोल की संख्या को प्रभावित करती है।",
+    "Elija 0.61 o 1.22 m. El ancho del rollo afecta a los solapes y al número de rollos.",
+    "اختر 0.61 أو 1.22 m. يؤثر عرض اللفة في التراكب وعدد اللفات.",
+    "เลือก 0.61 หรือ 1.22 m ความกว้างม้วนมีผลต่อระยะซ้อนทับและจำนวนม้วน"
+  ],
+  "Default is 7.62 m. Enter the actual supplied roll length.": [
+    "默认为7.62 m。请输入实际供货卷长。",
+    "डिफ़ॉल्ट 7.62 m है। आपूर्ति किए गए रोल की वास्तविक लंबाई दर्ज करें।",
+    "El valor predeterminado es 7.62 m. Introduzca la longitud real del rollo suministrado.",
+    "القيمة الافتراضية 7.62 m. أدخل الطول الفعلي للفة الموردة.",
+    "ค่าเริ่มต้นคือ 7.62 m ป้อนความยาวจริงของม้วนที่ได้รับ"
+  ],
+  "Default is 100 mm. Confirm the selected detail before changing.": [
+    "默认为100 mm。更改前请确认所选构造。",
+    "डिफ़ॉल्ट 100 mm है। बदलने से पहले चुने गए विवरण की पुष्टि करें।",
+    "El valor predeterminado es 100 mm. Confirme el detalle seleccionado antes de cambiarlo.",
+    "القيمة الافتراضية 100 mm. تحقق من التفصيل المحدد قبل التغيير.",
+    "ค่าเริ่มต้นคือ 100 mm ยืนยันรายละเอียดที่เลือกก่อนเปลี่ยน"
+  ],
+  "A 5–10 mm sealed gap between board strips, not between the duct and opening.": [
+    "板条之间的5–10 mm密封间隙，并非风管与洞口之间的间隙。",
+    "बोर्ड पट्टियों के बीच 5–10 mm का सील किया हुआ अंतर, डक्ट और ओपनिंग के बीच नहीं।",
+    "Una junta sellada de 5–10 mm entre tiras de placa, no entre el conducto y el hueco.",
+    "فجوة محكمة بعرض 5–10 mm بين شرائح الألواح، وليست بين مجرى الهواء والفتحة.",
+    "ช่องว่างอุดปิดขนาด 5–10 mm ระหว่างแถบแผ่น ไม่ใช่ระหว่างท่อลมกับช่องเปิด"
+  ]
+}

@@ -27,6 +27,16 @@ const text=node=>[node.textContent,...node.children.map(text)].join(' ');
 let passed=0;
 async function check(name,fn){const h=harness();h.api.applyProject(await h.api.prepareDefaults());await fn(h);passed++;console.log(`ok - ${name}`);}
 (async()=>{
+  await check('Composer hides Report without discarding retained report and system selections through edit, update and reopen',async h=>{
+    const saved=copy(h.api.projectSnapshot());Object.assign(saved.composer.rows[0],{report_reference:'Retained report Rev A',technical_reference_ids:['saved-system'],takeoff_reference_ids:['linked-system']});saved.composer.rows[0].inputs={T:'Retained item',O:2.34567890123456};
+    h.api.applyProject(await h.api.prepareProject(saved));const before=copy(h.api.projectSnapshot());
+    const nodes=node=>[node,...node.children.flatMap(nodes)];assert.equal(nodes(h.byId('penetration-row-fields')).some(node=>Object.hasOwn(node.dataset,'penetrationReport')),false);
+    h.audit.renderFields();assert.deepEqual(copy(h.api.projectSnapshot()),before);await h.audit.addToSchedule();
+    for(const key of ['report_reference','technical_reference_ids','takeoff_reference_ids'])assert.deepEqual(copy(h.api.projectSnapshot().draft.rows[0][key]),saved.composer.rows[0][key]);
+    await h.audit.selectRow(h.api.projectSnapshot().draft.rows[0].id);await composerField(h,'T','Edited description');await h.audit.updateSchedule();
+    const updated=copy(h.api.projectSnapshot());for(const key of ['report_reference','technical_reference_ids','takeoff_reference_ids'])assert.deepEqual(updated.draft.rows[0][key],saved.composer.rows[0][key]);assert.equal(updated.draft.rows[0].inputs.O,2.34567890123456);
+    h.api.applyProject(await h.api.prepareProject(updated));assert.deepEqual(copy(h.api.projectSnapshot()),updated);assert.equal(nodes(h.byId('penetration-row-fields')).some(node=>Object.hasOwn(node.dataset,'penetrationReport')),false);
+  });
   await check('Manual Takeoff provenance and literal size survive project save, schedule editing and cancellation', async h=>{
     const source={version:1,scope:'service_plans',project_id:'11111111-1111-4111-8111-111111111111',graph_id:'22222222-2222-4222-8222-222222222222',service_id:'33333333-3333-4333-8333-333333333333',service_revision:2,barrier_id:'44444444-4444-4444-8444-444444444444',barrier_revision:3,context_sha256:'a'.repeat(64),service_size:'600'};
     const snapshot=copy(h.api.projectSnapshot());snapshot.draft.rows=[{id:'physical-source',inputs:{O:2,T:'Manual Takeoff draft'},takeoff_source:source}];
@@ -480,7 +490,7 @@ async function check(name,fn){const h=harness();h.api.applyProject(await h.api.p
   });
   await check('Current-item source diagram is saved with its new library record and follows that identity into the schedule',async h=>{
     h.context.crypto={randomUUID:()=>`source-diagram-${'1'.repeat(24)}`};h.audit.state.draft.rows[0].inputs={T:'Diagram item',O:1};
-    assert.equal(h.byId('penetration-diagram').hidden,false);h.audit.queueDiagram('site detail.png','QUFB');assert.match(h.api.inputProblem(),/source diagram/);assert.equal(h.byId('penetration-add-to-schedule').disabled,true);assert.match(h.byId('penetration-diagram-image').src,/^data:image\/png;base64,QUFB$/);
+    assert.equal(h.byId('penetration-diagram').hidden,false);assert.equal(h.byId('penetration-diagram-empty').textContent,'No image/diagram is attached to this item.');h.audit.queueDiagram('site detail.png','QUFB');assert.match(h.api.inputProblem(),/image\/diagram/);assert.equal(h.byId('penetration-add-to-schedule').disabled,true);assert.match(h.byId('penetration-diagram-image').src,/^data:image\/png;base64,QUFB$/);
     h.audit.state.group='Products and labour';h.audit.renderFields();assert.equal(h.byId('penetration-diagram').hidden,true);assert.equal(h.audit.state.diagramChange.filename,'site detail.png');
     h.audit.state.group='Additional Allowances';h.audit.renderFields();assert.equal(h.byId('penetration-diagram').hidden,true);assert.equal(h.audit.state.diagramChange.content_base64,'QUFB');
     h.audit.state.group='Penetration';h.audit.renderFields();assert.equal(h.byId('penetration-diagram').hidden,false);assert.match(h.byId('penetration-diagram-image').src,/^data:image\/png;base64,QUFB$/);
@@ -787,7 +797,7 @@ async function check(name,fn){const h=harness();h.api.applyProject(await h.api.p
     h.audit.setRequest(async(path,payload)=>{if(path.endsWith('/edit')){reads++;return copy(item);}const response=result(payload.draft);response.rows[0].outputs.H=payload.draft.rows[0].inputs.O*10;return response;});
     assert.equal(h.api.libraryQuantity('pkb-002'),undefined);
     for(let qty=1;qty<=4;qty++){const receipt=await h.api.addLibraryItem('pkb-002');assert.equal(receipt.quantity,qty);assert.equal(receipt.total,qty*10);assert.equal(h.api.libraryQuantity('pkb-002'),qty);assert.equal(h.api.projectSnapshot().draft.rows.length,1);}
-    const thumbnail=h.byId('penetration-schedule-body').children[0].children[8].children[0];assert.equal(thumbnail.tagName,'img');assert.equal(thumbnail.src,'/api/libraries/penetration/pkb-002/thumbnail');assert.match(thumbnail.alt,/Library pipe source diagram/);
+    const thumbnail=h.byId('penetration-schedule-body').children[0].children[8].children[0];assert.equal(thumbnail.tagName,'img');assert.equal(thumbnail.src,'/api/libraries/penetration/pkb-002/thumbnail');assert.match(thumbnail.alt,/Library pipe image\/diagram/);
     h.api.libraryDiagramChanged('pkb-002');const refreshed=h.byId('penetration-schedule-body').children[0].children[8].children[0];assert.notEqual(refreshed,thumbnail);assert.equal(refreshed.src,'/api/libraries/penetration/pkb-002/thumbnail?v=1');
     assert.equal(reads,1);assert.equal(item.draft.rows[0].inputs.O,8);assert.equal(h.api.projectSnapshot().draft.globals.L,.17);assert.equal(h.api.projectSnapshot().draft.rows[0].library_item_id,'pkb-002');
   });

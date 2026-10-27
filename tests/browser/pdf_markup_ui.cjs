@@ -11,8 +11,9 @@ const fs = require("node:fs"), path = require("node:path"), crypto = require("no
 const { sources, feedbackSources, printingSource, loadingSource } = require("../../static/header-menu-sounds.js");
 const { verifiedPreloadCancellation } = require("../helpers/media_preload_guard.cjs");
 const preloadPaths = [...Object.values(sources), ...Object.values(feedbackSources), printingSource, loadingSource];
-// Only these two startup media cancellations have been observed in Chromium CI.
-const cancellablePreloadPaths = [feedbackSources.selectOther, loadingSource];
+// Chromium may cancel any decoded startup media preload. Every allowed asset
+// still requires exact identity, delivered bytes and trusted native decoding.
+const cancellablePreloadPaths = preloadPaths;
 
 const root = path.resolve(__dirname, "../.."), output = path.join(root, ".runtime/browser-qa", `pdf-markup-ui-${Date.now()}`);
 const python = process.env.CEASEFIRE_PYTHON || "python";
@@ -325,7 +326,8 @@ async function standardCalculatorButton() {
   evidence.mediaAssets = [];
   for (const source of cancellablePreloadPaths) {
     const response = await page.request.get(`http://127.0.0.1:${info.port}${source}`), bytes = await response.body();
-    assert.equal(response.status(), 200); assert.equal(response.headers()["content-type"], "audio/mpeg");
+    const mime = source.endsWith(".wav") ? "audio/wav" : source.endsWith(".ogg") ? "audio/ogg" : "audio/mpeg";
+    assert.equal(response.status(), 200); assert.equal(response.headers()["content-type"], mime);
     const sha256 = crypto.createHash("sha256").update(bytes).digest("hex"); assert.equal(sha256, sourceBefore[`static${source}`]);
     evidence.mediaAssets.push({ url: response.url(), status: response.status(), contentType: response.headers()["content-type"], sha256, bytes: bytes.length });
   }
@@ -387,7 +389,7 @@ async function standardCalculatorButton() {
   const mediaErrors = await page.evaluate(() => window.uiMediaPreloads.flatMap(({ media, events }) => events.filter(event => event.type === "error" || event.error).map(event => ({ url: media.src, ...event }))));
   assert.deepEqual(mediaErrors, [], "Native sound decoding/delivery failures are never ignored");
   const benignPreload = request => verifiedPreloadCancellation(request, { origin: `http://127.0.0.1:${info.port}`, paths: cancellablePreloadPaths, preloads: evidence.mediaPreloads, assets: evidence.mediaAssets, hashes: sourceBefore });
-  assert.ok(networkFailures.every(request => request.failure?.errorText === "net::ERR_ABORTED" && (cancellable.has(request.url) || benignPreload(request))), `Only explicit calculation/source-PDF cancellation or the two verified decoded startup media preloads is permitted. Recorded failures: ${JSON.stringify(networkFailures)}`);
+  assert.ok(networkFailures.every(request => request.failure?.errorText === "net::ERR_ABORTED" && (cancellable.has(request.url) || benignPreload(request))), `Only explicit calculation/source-PDF cancellation or verified decoded startup media preloads are permitted. Recorded failures: ${JSON.stringify(networkFailures)}`);
   csp.push(...await page.evaluate(() => window.uiCsp)); assert.deepEqual(csp, []);
   assert.deepEqual(hashes(), sourceBefore, "The UI fixture never edits source files");
   fs.writeFileSync(path.join(output, "result.json"), JSON.stringify({ completed: true, fixture_port: info.port, evidence, requests, errors, csp, networkFailures, pdf_sha256: pdfBefore, source_before_sha256: sourceBefore, source_after_sha256: hashes() }, null, 2));

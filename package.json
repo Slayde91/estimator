@@ -2,6 +2,8 @@
   "name": "ceasefire-estimator-browser-tests",
   "private": true,
   "scripts": {
+    "test:play": "node --test tests/test_play_host.cjs tests/test_overspray_game.cjs tests/test_fireline_game.cjs",
+    "test:play-browser": "node tests/browser/play_arcade.cjs",
     "test:annotation-controls": "node tests/browser/annotation_controls.cjs",
     "test:takeoffs-initial-pages": "node tests/browser/initial_pages.cjs",
     "test:pdf-markup-ui": "node tests/browser/pdf_markup_ui.cjs",

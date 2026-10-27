@@ -7,10 +7,12 @@ function verifiedPreloadCancellation(request, { origin, paths, preloads, assets,
       || request.failure?.errorText !== "net::ERR_ABORTED") return false;
   const source = paths.find(path => `${origin}${path}` === request.url);
   if (!source) return false;
+  const mime = source.endsWith(".mp3") ? "audio/mpeg" : source.endsWith(".wav") ? "audio/wav" : source.endsWith(".ogg") ? "audio/ogg" : null;
+  if (!mime) return false;
   const expected = hashes[`static${source}`];
   if (typeof expected !== "string" || !/^[a-f0-9]{64}$/.test(expected)) return false;
   const asset = assets.find(asset => asset.url === request.url);
-  if (!asset || asset.status !== 200 || asset.contentType !== "audio/mpeg" || asset.sha256 !== expected
+  if (!asset || asset.status !== 200 || asset.contentType !== mime || asset.sha256 !== expected
       || !Number.isSafeInteger(asset.bytes) || asset.bytes <= 0) return false;
   const media = preloads.find(media => media.url === request.url);
   return !!media && media.error === null && media.readyState >= 2 && Number.isFinite(media.duration) && media.duration > 0

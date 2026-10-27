@@ -685,6 +685,36 @@
     };
     return wrapper;
   }
+  function relatedTechnicalSection(data, display) {
+    if (!Array.isArray(data.related_technical_records)) return null;
+    if (data.related_technical_records.length > 5000) return null;
+    const seen = new Set(), records = data.related_technical_records.filter(link => {
+      if (link?.kind !== "technical" || typeof link.id !== "string" || !/^[a-z0-9][a-z0-9_-]{0,119}$/.test(link.id) || seen.has(link.id)) return false;
+      seen.add(link.id); return true;
+    });
+    if (!records.length) return null;
+    const section = node("section", "library-detail-section library-technical-related");
+    section.append(uiNode("h4", "", "Related Technical records"));
+    const list = node("div", "library-technical-related-list"); section.append(list);
+    let shown = 0;
+    const more = uiButton("Show more related records", () => appendPage(true), "button secondary");
+    function appendPage(focus = false) {
+      let first = null;
+      for (const link of records.slice(shown, shown + 50)) {
+        const row = node("div", "library-related-record"), details = node("div", "library-related-content");
+        const title = window.LibraryDetailText.displayTitle(link) || "Reference unavailable";
+        const action = button(display(title), () => navigate("technical", link.id), "library-record-link");
+        action.dataset.libraryTechnicalTarget = link.id;
+        first ||= action;
+        details.append(action); row.append(details); list.append(row);
+      }
+      shown = Math.min(records.length, shown + 50); more.hidden = shown >= records.length;
+      if (focus) first?.focus({ preventScroll: true });
+    }
+    appendPage();
+    if (records.length > 50) section.append(more);
+    return section;
+  }
   function renderDetail(pane) {
     pane.documentCleanup?.();
     const display = ["technical", "penetration"].includes(pane.kind) ? compactTechnical : valueText;
@@ -748,12 +778,18 @@
         ); } catch { return false; }
       });
       if (validReports) {
-        for (const label of reportLabels) {
-          const p = node("p"), report = reportLinks.find(link => link.label === label);
+        // Captions retain separate canonical lines for every API/export parser.
+        // Only the reviewed display requests a safe literal inline separator.
+        const inline = field.report_separator === " | ", paragraph = inline ? node("p") : null;
+        for (const [index, label] of reportLabels.entries()) {
+          const p = paragraph || node("p"), report = reportLinks.find(link => link.label === label);
+          if (inline && index) p.append(node("span", "", " | "));
           if (report) { const a = node("a", "", display(label)); a.href = report.url; a.target = "_blank"; a.rel = "noopener noreferrer"; p.append(a); }
+          else if (inline) p.append(node("span", "", display(label)));
           else p.textContent = display(label);
-          value.append(p);
+          if (!inline) value.append(p);
         }
+        if (paragraph) value.append(paragraph);
       } else if (formatted) {
         const blocks = window.LibraryDetailText.render(document, field.value ?? "", { sourceMarkers: firefly, compact: ["technical", "penetration"].includes(pane.kind) });
         if (blocks.length) { const prose = node("div", "library-detail-text"); prose.append(...blocks); value.append(prose); }
@@ -773,6 +809,8 @@
       ? [{ url: data.diagram.url, caption: "Source diagram" }]
       : (data.images || []).filter(item => validAssetId(item.id));
     if (images.length) { const gallery = node("section", "library-images"); uiAttr(gallery, "aria-label", "Source diagrams"); gallery.append(...images.map(item => imageNode(item, pane.kind, false, pane.detail.image_replicas))); content.push(gallery); }
+    const technicalRelated = pane.kind === "technical" ? relatedTechnicalSection(data, display) : null;
+    if (technicalRelated) content.push(technicalRelated);
     const related = node("section", "library-detail-section"), links = data.links || [];
     related.append(uiNode("h4", "", pane.kind === "penetration" ? "Related technical references" : "Related firestopping records"));
     if (!links.length) related.append(uiNode("p", "helper", "No related records are recorded."));

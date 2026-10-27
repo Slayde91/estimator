@@ -44,6 +44,53 @@ function harness(){
 let passed=0;
 async function check(name,fn){await fn(harness());passed++;console.log('ok - '+name);}
 (async()=>{
+  await check('Reviewed Technical navigation is one-way read-only and precedes Firestopping links',async h=>{
+    const source={...detail('technical','fas190235-system-v1'),related_technical_records:[
+      {kind:'technical',id:'fas190234-system-v1',title:'V1 <source title>'},
+      {kind:'technical',id:'fas190234-system-v1',title:'Duplicate'},
+      {kind:'penetration',id:'penetration-1',title:'Wrong relation kind'},
+      {kind:'technical',id:'../invalid',title:'Invalid target'}]},before=copy(source);
+    const target={...detail('technical','fas190234-system-v1')};
+    h.setRoute(path=>path==='/api/libraries'?meta():path.endsWith('/fas190235-system-v1')?source:target);
+    await h.api.open('technical',source.id);const pane=h.pane('technical'),sections=pane.detailPanel.children;
+    const section=sections.find(node=>node.className==='library-detail-section library-technical-related');
+    assert.ok(section);assert.equal(section.children[0].textContent,'Related Technical records');
+    assert.ok(sections.indexOf(section)<sections.findIndex(node=>node.className==='library-detail-section'));
+    const buttons=walk(section).filter(node=>node.tagName==='button');assert.equal(buttons.length,1);
+    assert.equal(buttons[0].dataset.libraryTechnicalTarget,target.id);assert.equal(buttons[0].textContent,'V1 <source title>');
+    assert.equal(walk(section).some(node=>node.dataset.libraryUnlink),false);assertSourceHtmlSafe(walk(section));
+    await buttons[0].emit('click');await flush();assert.equal(pane.selected,target.id);
+    assert.equal(pane.detailPanel.children.some(node=>node.className==='library-detail-section library-technical-related'),false);
+    assert.ok(h.calls.every(call=>!call.options?.method||call.options.method==='GET'));
+    assert.deepEqual(source,before);
+  });
+  await check('Reviewed report pipes are literal presentation while captions and native links stay separate',async h=>{
+    const labels=['FAS190234','FAS190235'],url='https://systems.tbafirefly.com.au/reports';
+    const report={label:'Report Number',value:labels.join('\n'),report_separator:' | ',report_links:labels.map(label=>({label,url}))},before=copy(report);
+    h.setRoute(path=>path==='/api/libraries'?meta():({...detail('technical','fas190235-system-v1'),fields:[report]}));
+    await h.api.open('technical','fas190235-system-v1');const pane=h.pane('technical');
+    const pair=walk(pane.detailPanel).find(node=>node.className==='library-record-field'),paragraph=pair.children[1].children[0];
+    assert.equal(pair.children[1].children.length,1);assert.deepEqual(paragraph.children.map(node=>node.tagName),['a','span','a']);
+    assert.deepEqual(paragraph.children.map(node=>node.textContent),[labels[0],' | ',labels[1]]);
+    for(const anchor of paragraph.children.filter(node=>node.tagName==='a')){assert.equal(anchor.href,url);assert.equal(anchor.target,'_blank');assert.equal(anchor.rel,'noopener noreferrer');}
+    assert.deepEqual(report,before);assertSourceHtmlSafe(walk(pair));
+    report.report_links[0].url='javascript:alert(1)';h.context.audit.renderDetail(pane);
+    const unsafePair=walk(pane.detailPanel).find(node=>node.className==='library-record-field');
+    assert.equal(walk(unsafePair).filter(node=>node.tagName==='a').length,0,'Unsafe report URLs never become native links');
+  });
+  await check('Every reviewed Technical target remains reachable through bounded read-only pages',async h=>{
+    const related=Array.from({length:200},(_,index)=>({kind:'technical',id:`fas190234-system-v${index}`,title:`Synthetic supporting record ${index}`}));
+    const source={...detail('technical','fas190235-system-v1'),related_technical_records:related},before=copy(source);
+    h.setRoute(path=>path==='/api/libraries'?meta():source);
+    await h.api.open('technical',source.id);const pane=h.pane('technical'),section=pane.detailPanel.children.find(node=>node.className==='library-detail-section library-technical-related');
+    const targets=()=>walk(section).filter(node=>node.dataset.libraryTechnicalTarget);
+    const more=walk(section).find(node=>node.tagName==='button'&&node.textContent==='Show more related records');
+    assert.equal(targets().length,50);assert.equal(more.hidden,false);
+    for(const count of [100,150,200]){await more.emit('click');assert.equal(targets().length,count);assert.equal(h.context.document.activeElement.dataset.libraryTechnicalTarget,related[count-50].id);}
+    assert.equal(more.hidden,true);assert.deepEqual(targets().map(node=>node.dataset.libraryTechnicalTarget),related.map(row=>row.id));
+    assert.equal(walk(section).some(node=>node.dataset.libraryUnlink),false);assert.deepEqual(source,before);
+    assert.ok(h.calls.every(call=>!call.options?.method||call.options.method==='GET'));
+  });
   await check('Firestopping Category and opening Type keep distinct detail labels',async h=>{
     const fields=[{label:'Category',column:'J',value:'Electrical & Communications'},
       {label:'Services',column:'K',value:'D1 Power Cables'},

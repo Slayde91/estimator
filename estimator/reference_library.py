@@ -31,6 +31,9 @@ from .technical_discovery import (HIDDEN_FRL_CHOICES, canonical_frl, discovery_f
 from .technical_fields import (FIELD_LABELS, LEGACY_LABELS,
                                is_hidden_technical_label, normalize_technical_item)
 from .firefly_reference_review import plan_stamp, load_review
+from .firefly_technical_review import (REVIEW_KEY, ValidatedReview,
+    plan_stamp as technical_plan_stamp, load_review as load_technical_review,
+    project as project_firefly_technical)
 
 KINDS = {'penetration': 'Firestopping Library', 'technical': 'Technical Library'}
 IDENTIFIER = re.compile(r'[a-z0-9][a-z0-9_-]{0,119}\Z')
@@ -146,13 +149,14 @@ class ReferenceLibrary:
         try:
             info = index.stat()
             review_stamp = plan_stamp(self.directory)
+            technical_stamp = technical_plan_stamp(self.directory)
         except FileNotFoundError:
             self._data = None
             self._stamp = None
             return None
         except (OSError, ValueError) as exc:
             raise ValidationError('The local reference library could not be read. Rebuild it from the source files.') from exc
-        stamp = (info.st_mtime_ns, info.st_size, info.st_ctime_ns, review_stamp)
+        stamp = (info.st_mtime_ns, info.st_size, info.st_ctime_ns, review_stamp, technical_stamp)
         if self._data is not None and stamp == self._stamp:
             return self._data
         if info.st_size > MAX_INDEX or not index.resolve().is_relative_to(self.directory.resolve()):
@@ -163,7 +167,11 @@ class ReferenceLibrary:
             if len(payload) > MAX_INDEX:
                 raise ValueError('Index limit')
             data = json.loads(payload, parse_constant=lambda _: (_ for _ in ()).throw(ValueError()))
+            if REVIEW_KEY in data:
+                raise ValueError('Imported Firefly technical runtime marker')
             load_review(self.directory, data, hashlib.sha256(payload).hexdigest(), review_stamp)
+            data[REVIEW_KEY] = load_technical_review(
+                self.directory, data, hashlib.sha256(payload).hexdigest(), technical_stamp)
             self._validate(data)
         except (OSError, UnicodeError, ValueError, KeyError, TypeError, AttributeError) as exc:
             raise ValidationError('The local reference library could not be read. Rebuild it from the source files.') from exc
@@ -178,11 +186,13 @@ class ReferenceLibrary:
         return (source is not None and source is self._data
                 and data['libraries']['technical'] is source['libraries']['technical']
                 and all(data.get(key) is source.get(key) for key in (
-                    'documents', 'images', 'trafalgar_selector_import', 'technical_duplicate_reviews')))
+                    'documents', 'images', 'trafalgar_selector_import', 'technical_duplicate_reviews', REVIEW_KEY)))
 
     def _validate(self, data, *, validated_source=None):
         if not isinstance(data, dict) or type(data['schema_version']) is not int or data['schema_version'] != 1:
             raise ValueError('Unsupported library schema')
+        if data.get(REVIEW_KEY) is not None and not isinstance(data[REVIEW_KEY], ValidatedReview):
+            raise ValueError('Imported Firefly technical review capability')
         reuse_technical = self._same_technical_source(data, validated_source)
         documents = data['documents']
         images = data.get('images', [])
@@ -250,6 +260,8 @@ class ReferenceLibrary:
             records[kind], searches[kind] = {}, {}
             filter_values = {key: set() for key in filter_labels}
             for item in items:
+                if kind == 'technical' and 'related_technical_records' in item:
+                    raise ValueError('Related Technical records are computed runtime metadata')
                 if kind == 'technical' and 'technical_basis' in item:
                     # Only the runtime creates this metadata. Trusting a marker
                     # imported from an index would bypass source projection and
@@ -362,13 +374,18 @@ class ReferenceLibrary:
         # source reviews or the original records used by durable manual links.
         if reuse_technical:
             public_technical = validated_source['_technical_public_records']
+            technical_related = validated_source['_technical_related_records']
+            reviewed_substrates = validated_source['_technical_reviewed_substrates']
         else:
             report_keys = [entry['key'] for entry in filters['technical'] if entry['key'] in {'report', 'document'}]
             public_technical = public_records(records['technical'], aliases, report_keys or ['report'])
+            public_technical, technical_related, reviewed_substrates = project_firefly_technical(
+                public_technical, records['technical'], aliases, data.get(REVIEW_KEY), report_keys or ['report'])
             if not report_keys and any('report' in item.get('filter_values', {}) for item in public_technical.values()):
                 filters['technical'].append({'key': 'report', 'label': 'Report', 'options': []})
             searches['technical'] = {key: searches['technical'][key] + '\n' + '\n'.join(
                 field.get('value', '') for field in item.get('fields', []) if field.get('label') == 'Report Number').casefold()
+                + '\n' + '\n'.join(reviewed_substrates.get(key, [])).casefold()
                 for key, item in public_technical.items()}
         visible['technical'] = [key for key in visible['technical'] if key in public_technical]
         # Discovery aliases are applied after source-bound duplicate review.
@@ -426,6 +443,8 @@ class ReferenceLibrary:
         data['_aliases'], data['_groups'], data['_visible'] = aliases, groups, visible
         data['_technical_discovery'] = discovery
         data['_technical_public_records'] = public_technical
+        data['_technical_related_records'] = technical_related
+        data['_technical_reviewed_substrates'] = reviewed_substrates
         data['_records'], data['_searches'], data['_filters'], data['_links'], data['_assets'] = records, searches, filters, links, assets
 
     def overview(self):
@@ -519,6 +538,12 @@ class ReferenceLibrary:
                 item = present_technical(item)
             item.pop('filter_values', None)
             item['links'] = deepcopy(data['_links'][kind][key])
+            if kind == 'technical' and key in data['_technical_related_records']:
+                item['related_technical_records'] = [
+                    {'kind': 'technical', 'id': target,
+                     'title': present_frl_text(data['_technical_public_records'][target]['title'],
+                         known_ratings=data['_records']['technical'][target].get('filter_values', {}).get('frl', []))}
+                    for target in data['_technical_related_records'][key]]
             for link in item['links']:
                 if link['kind'] == 'technical':
                     ratings = data['_records']['technical'][link['id']].get('filter_values', {}).get('frl', [])

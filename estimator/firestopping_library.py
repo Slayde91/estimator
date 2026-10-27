@@ -361,6 +361,10 @@ class FirestoppingLibrary(ReferenceLibrary):
         data['libraries'] = {**source['libraries'],
                              'penetration': deepcopy(source['libraries']['penetration'])}
         data['links'] = deepcopy(source['links'])
+        # Keep the Python-only validated sidecar capability through a full
+        # overlay validation without permitting imported JSON to forge it.
+        from .firefly_technical_review import REVIEW_KEY
+        data[REVIEW_KEY] = source.get(REVIEW_KEY)
         return data
 
     def _load(self):

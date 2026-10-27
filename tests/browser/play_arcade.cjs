@@ -38,7 +38,7 @@ const pixels = () => page.locator("#play-canvas").evaluate(canvas => canvas.toDa
 const stats = () => page.locator("#play-stats").innerText();
 const stat = label => page.locator("#play-stats .play-stat").filter({ has: page.locator("dt", { hasText: label }) }).locator("dd").innerText();
 async function openGame(id) {
-  await page.locator(`[data-game="${id}"]`).click();
+  await page.locator(`button[data-game="${id}"]`).click();
   await expect(page.locator("#play-session")).toBeVisible();
   await expect(page.locator("#play-canvas")).toBeVisible();
   await expect(page.locator("#play-session")).toHaveAttribute("data-game", id);

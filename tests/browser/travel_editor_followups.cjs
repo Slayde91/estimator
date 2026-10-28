@@ -41,7 +41,8 @@ async function mapsSettingsHidden(){await expect(page.locator('#view-settings [a
  await page.locator('#penetration-settings').click();
  for(const theme of ['ceasefire','midnight','ocean','forest','slate']){
   await page.locator('html').evaluate((el,theme)=>el.dataset.theme=theme,theme);
-  const headings=page.locator('.penetration-settings-subheading');assert.equal(await headings.count(),3);
+  const headings=page.locator('.penetration-settings-subheading');await expect(headings).toHaveText(['SERVICE-TAB ROUTING','PRECALCULATED TASK-HOUR BANDS']);
+  await expect(page.locator('[data-penetration-detail-options]')).toHaveCount(0);
   for(const heading of await headings.all()){await expect(heading).toHaveCSS('background-color','rgb(255, 224, 102)');await expect(heading).toHaveCSS('color','rgb(0, 0, 0)');}
  }
  await page.locator('html').evaluate(el=>el.dataset.theme='ceasefire');await page.locator('#penetration-settings').click();

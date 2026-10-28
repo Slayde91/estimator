@@ -15,10 +15,8 @@ from .firefly_reference_review import fingerprint
 from .reference_library import ReferenceNotFound, identifier
 from .library_report_links import valid_manual_report_url
 from .library_facets import MOVED_SERVICE_CATEGORIES
+from .library_classifications import FACETS, classification_filters
 
-FACETS = (('report', 'Report'), ('substrate', 'Substrate'), ('orientation', 'Orientation'),
-          ('manufacturer', 'Manufacturer'), ('type', 'Type'), ('category', 'Category'),
-          ('services', 'Services'), ('frl', 'FRL'))
 PENETRATION_KEYS = {'type': 'penetration_type', 'services': 'service_type'}
 FIELD_FACETS = {'Manufacturer': 'manufacturer', 'Substrate': 'substrate',
                 'Orientation': 'orientation', 'Type': 'type', 'Category': 'category',
@@ -97,12 +95,7 @@ class ManualTechnicalLibrary(FirestoppingLibrary):
 
     @staticmethod
     def _canonical(data):
-        definitions = {entry['key']: entry for entry in data['_filters']['technical']}
-        result = []
-        for key, label in FACETS:
-            source = definitions.get(key) or (definitions.get('document') if key == 'report' else None)
-            result.append({'key': key, 'label': label, 'options': deepcopy(source.get('options', [])) if source else []})
-        return result
+        return classification_filters(data['_filters']['technical'])
 
     def _identity(self, key, base, saved):
         if key in saved and saved[key]['created']:
@@ -119,8 +112,6 @@ class ManualTechnicalLibrary(FirestoppingLibrary):
             return self._manual_data
         saved, edges = self.technical_edits.read()
         if base is None:
-            if not any(row['created'] and not row['deleted'] for row in saved.values()):
-                return None
             base = empty_library()
             self._validate(base)
         data = dict(base)
@@ -202,6 +193,8 @@ class ManualTechnicalLibrary(FirestoppingLibrary):
         data = self._load()
         for library in result['libraries']:
             library['filters'] = deepcopy(data['_filters'][library['id']]) if data else []
+            if data and not data.get('_index_sha256'):
+                library['source_count'] = 0
         return result
 
     def listing(self, kind, **query):
@@ -225,8 +218,6 @@ class ManualTechnicalLibrary(FirestoppingLibrary):
     def technical_edit(self, key=None):
         with self._lock:
             data = self._load()
-            if data is None:
-                raise ValidationError('Install the Technical Library before adding an item.')
             saved, _ = self.technical_edits.read()
             if key is None:
                 record = {'title': '', 'fields': [{'label': label, 'value': ''} for label in NEW_FIELDS],

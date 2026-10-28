@@ -16,6 +16,8 @@ from estimator.storage import Store
 from estimator.technical_library_edits import ManualTechnicalLibrary, FACETS
 from estimator.technical_item_exports import prepare_technical_item
 from estimator.server import create_server
+from estimator.library_classifications import classification_filters
+from estimator.technical_service_options import TECHNICAL_SERVICES
 from test_firestopping_library import editable_library
 
 
@@ -247,3 +249,23 @@ class TechnicalLibraryEditTests(unittest.TestCase):
             self.library.technical_link(key, {'penetration_ids': ['pkb-002']})
             self.assertIn(key, [item['id'] for item in self.library.detail('penetration', 'pkb-002')['links']])
         self.protected()
+
+    def test_no_installed_bundle_still_has_shared_choices_and_durable_manual_authoring(self):
+        absent = self.root / 'no-installed-bundle'; store = Store(self.root / 'no-bundle.sqlite3')
+        library = ManualTechnicalLibrary(absent, store)
+        metadata = library.overview()['libraries']
+        technical = next(item for item in metadata if item['id'] == 'technical')
+        firestopping = next(item for item in metadata if item['id'] == 'penetration')
+        self.assertTrue(technical['available']); self.assertTrue(firestopping['available'])
+        self.assertEqual(technical['count'], 0); self.assertEqual(technical['source_count'], 0)
+        self.assertEqual(technical['filters'], classification_filters())
+        rename = {'service_type':'services','penetration_type':'type'}
+        self.assertEqual(technical['filters'], [{**entry,'key':rename.get(entry['key'],entry['key'])} for entry in firestopping['filters']])
+        options = {entry['key']:entry['options'] for entry in technical['filters']}
+        self.assertTrue(options['substrate']); self.assertIn('Mechanical', [entry['value'] for entry in options['category']])
+        self.assertCountEqual([entry['value'] for entry in options['services']], TECHNICAL_SERVICES)
+        self.assertEqual(library.technical_edit()['filters'], technical['filters'])
+        body = self.body(); created = library.technical_save(None, body)
+        reopened = ManualTechnicalLibrary(absent, store)
+        self.assertEqual(reopened.detail('technical', created['id'])['title'], body['title'])
+        self.assertFalse(absent.exists(), 'Manual authoring must not fabricate or install a supplier bundle.')

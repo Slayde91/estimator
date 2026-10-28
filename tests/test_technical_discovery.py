@@ -76,6 +76,38 @@ class DiscoveryTests(unittest.TestCase):
         self.assertEqual(discovery_facets({'fields': [], 'filter_values': {'services': ['N/A']}})['services'],
                          ['N/A'])
 
+    def test_each_non_service_category_requires_na_even_with_a_retained_penetrant(self):
+        for category in MOVED_SERVICE_CATEGORIES:
+            with self.subTest(category=category):
+                item = record(Service='Copper pipe')
+                item['filter_values'] = {'services': [category, 'Copper Pipes']}
+                before = deepcopy(item)
+                result = discovery_facets(item)
+                self.assertIn(category, result['category'])
+                self.assertIn('Plumbing & Hydraulic', result['category'])
+                self.assertEqual(result['services'], ['N/A'])
+                self.assertEqual(item, before)
+
+    def test_blank_and_joint_primary_records_keep_na_when_configuration_mentions_services(self):
+        for service, installation, configuration, category in (
+                ('Blank Seal', 'Blank Seal', '32 mm uPVC pipe cast flush.', 'Blank Seal'),
+                ('Linear Joints', 'Linear Joint', 'Fire damper overlap at the joint.', 'Linear Joints')):
+            with self.subTest(category=category):
+                item = record(**{'Service': service, 'Installation Type': installation,
+                                 'Service Size / Configuration': configuration})
+                before = deepcopy(item)
+                result = discovery_facets(item)
+                self.assertIn(category, result['category'])
+                self.assertEqual(result['services'], ['N/A'])
+                self.assertEqual(item, before)
+
+    def test_unrelated_mixed_penetrants_keep_their_services(self):
+        item = record(Service='Mixed services: copper pipes and TPS cables')
+        result = discovery_facets(item)
+        self.assertFalse(set(result['category']) & MOVED_SERVICE_CATEGORIES)
+        self.assertTrue({'Mixed Services', 'Copper Pipes', 'Power Cables'} <= set(result['services']))
+        self.assertNotIn('N/A', result['services'])
+
     def test_report_type_uses_structured_basis_and_does_not_search_notes(self):
         for report, expected in (('FAS190234', 'Oversized core hole'),
                                  ('FAS190235', 'Oversized core hole'),

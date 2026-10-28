@@ -364,7 +364,9 @@ class FirestoppingLibrary(ReferenceLibrary):
         # Keep the Python-only validated sidecar capability through a full
         # overlay validation without permitting imported JSON to forge it.
         from .firefly_technical_review import REVIEW_KEY
+        from .technical_service_review import REVIEW_KEY as SERVICES_REVIEW_KEY
         data[REVIEW_KEY] = source.get(REVIEW_KEY)
+        data[SERVICES_REVIEW_KEY] = source.get(SERVICES_REVIEW_KEY)
         return data
 
     def _load(self):
@@ -811,7 +813,7 @@ class FirestoppingLibrary(ReferenceLibrary):
                 return []
             if not data:
                 return []
-            # Use the same canonical vocabulary as Technical Library discovery.
+            # Keep calculator choices separate from added Technical Library descriptions.
             # Saved custom descriptions remain accepted in existing rows.
             services = next((entry for entry in data['_filters']['technical']
                              if entry['key'] == 'services'), None)

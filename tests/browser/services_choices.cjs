@@ -20,16 +20,17 @@ const ready = new Promise((resolve, reject) => {
   server.once('error', error => { clearTimeout(timer); reject(error); });
   server.once('exit', code => { clearTimeout(timer); reject(new Error(`Fixture exited ${code}: ${logs}`)); });
 });
-const services = ["N/A", "Busbar Trunking", "Cable Bundles", "Cable Trays", "Coaxial Cables", "Conduits", "D1 Power Cables", "D2 Comms Cables", "Data Cables", "Downlights", "Fibre Optic", "Fire Dampers", "Fire Resistant Cables", "Flexible Ducts", "Lagged Copper Pipes", "Lagged Steel Pipes", "Mixed Services", "Pair Coils", "uPVC pipe", "uPVC floorwaste", "PEX pipe", "HDPE pipe", "Power Cables", "Single Cables", "TPS & Fire Alarm Cables", "Copper Pipes", "Steel Pipes", "Air Transfer Grilles", "Communications Cables", "Wall Sockets"];
-// Discovery filters group the same30 exact values; editor/composer choices keep
-// their independently specified original flat order and saved-value fallback.
-const serviceGroups = [
-  ['Electrical & communications', ['Busbar Trunking', 'Cable Bundles', 'Cable Trays', 'Coaxial Cables', 'Conduits', 'D1 Power Cables', 'D2 Comms Cables', 'Data Cables', 'Downlights', 'Fibre Optic', 'Fire Resistant Cables', 'Power Cables', 'Single Cables', 'TPS & Fire Alarm Cables', 'Communications Cables', 'Wall Sockets']],
-  ['Mechanical', ['Pair Coils']],
+const calculatorServices = ["N/A", "Busbar Trunking", "Cable Bundles", "Cable Trays", "Coaxial Cables", "Conduits", "D1 Power Cables", "D2 Comms Cables", "Data Cables", "Downlights", "Fibre Optic", "Fire Dampers", "Fire Resistant Cables", "Flexible Ducts", "Lagged Copper Pipes", "Lagged Steel Pipes", "Mixed Services", "Pair Coils", "uPVC pipe", "uPVC floorwaste", "PEX pipe", "HDPE pipe", "Power Cables", "Single Cables", "TPS & Fire Alarm Cables", "Copper Pipes", "Steel Pipes", "Air Transfer Grilles", "Communications Cables", "Wall Sockets"];
+// Independent expected values: library-only descriptions do not expand any
+// calculator, editor or Takeoffs input choices or their saved-value fallback.
+const technicalServices = ["N/A", "Busbar Trunking", "Cable Bundles", "Cable Trays", "Coaxial Cables", "Conduits", "D1 Power Cables", "D2 Comms Cables", "Data Cables", "Downlights", "Fibre Optic", "Fire Dampers", "Fire Resistant Cables", "Flexible Ducts", "Lagged Copper Pipes", "Lagged Steel Pipes", "Mixed Services", "Pair Coils", "uPVC pipe", "uPVC floorwaste", "PEX pipe", "HDPE pipe", "Power Cables", "Single Cables", "TPS & Fire Alarm Cables", "Copper Pipes", "Steel Pipes", "Air Transfer Grilles", "Communications Cables", "Wall Sockets", "PP pipe", "CPVC pipe", "Unlagged Iron Pipes", "Lagged Iron Pipes", "Beverage / Beer Lines", "Raupiano Plus pipe", "Unlagged Brass Pipes", "dBlue pipe", "PU air line", "Concentric plastic pipe", "Smoke Sampling Tubes", "ABS pipe", "PB pipe", "Insulated Gas Lines", "Kelox / KeKilit pipe"];
+const technicalServiceGroups = [
+  ['Electrical & communications', ['Busbar Trunking', 'Cable Bundles', 'Cable Trays', 'Coaxial Cables', 'Conduits', 'D1 Power Cables', 'D2 Comms Cables', 'Data Cables', 'Downlights', 'Fibre Optic', 'Fire Resistant Cables', 'Power Cables', 'Single Cables', 'TPS & Fire Alarm Cables', 'Communications Cables', 'Wall Sockets', 'Smoke Sampling Tubes']],
+  ['Mechanical', ['Pair Coils', 'Beverage / Beer Lines', 'Insulated Gas Lines']],
   ['HVAC', ['Fire Dampers', 'Flexible Ducts', 'Air Transfer Grilles']],
-  ['Plastic pipes', ['uPVC pipe', 'uPVC floorwaste', 'PEX pipe', 'HDPE pipe']],
-  ['Lagged metal pipes', ['Lagged Copper Pipes', 'Lagged Steel Pipes']],
-  ['Unlagged metal pipes', ['Copper Pipes', 'Steel Pipes']],
+  ['Plastic pipes', ['uPVC pipe', 'uPVC floorwaste', 'PEX pipe', 'HDPE pipe', 'PP pipe', 'CPVC pipe', 'Raupiano Plus pipe', 'dBlue pipe', 'PU air line', 'Concentric plastic pipe', 'ABS pipe', 'PB pipe', 'Kelox / KeKilit pipe']],
+  ['Lagged metal pipes', ['Lagged Copper Pipes', 'Lagged Steel Pipes', 'Lagged Iron Pipes']],
+  ['Unlagged metal pipes', ['Copper Pipes', 'Steel Pipes', 'Unlagged Iron Pipes', 'Unlagged Brass Pipes']],
 ];
 const errors = [], evidence = {};
 const sha = bytes => createHash('sha256').update(bytes).digest('hex');
@@ -38,11 +39,15 @@ async function options(control, legacy, grouped = false) {
   await expect(control).toBeVisible();
   await expect(control).toBeEnabled();
   const actual = await control.locator('option').evaluateAll(rows => rows.filter(row => row.value).map(row => ({ value: row.value, disabled: row.disabled, label: row.textContent })));
-  const expected = grouped ? ['N/A', 'Mixed Services', ...serviceGroups.flatMap(([, values]) => values)] : services;
+  const expected = grouped ? ['N/A', 'Mixed Services', ...technicalServiceGroups.flatMap(([, values]) => values)] : calculatorServices;
   assert.deepEqual(actual.filter(row => row.value !== legacy).map(row => row.value), expected);
   if (grouped) {
-    assert.deepEqual(await control.locator('optgroup').evaluateAll(groups => groups.map(group => [group.label, [...group.children].map(option => option.value)])), serviceGroups);
-    assert.deepEqual([...expected].sort(), [...services].sort(), 'Grouping retains all30 source service values exactly');
+    assert.deepEqual(await control.locator('optgroup').evaluateAll(groups => groups.map(group => [group.label, [...group.children].map(option => option.value)])), technicalServiceGroups);
+    assert.equal(expected.length, 45);
+    assert.deepEqual([...expected].sort(), [...technicalServices].sort(), 'Technical Library retains exactly the 45 approved values');
+  } else {
+    assert.equal(expected.length, 30, 'Calculator/editor/Takeoffs retain the original 30 choices');
+    assert.ok(technicalServices.filter(value => !calculatorServices.includes(value)).every(value => !actual.some(row => row.value === value)), 'Library-only descriptions do not become calculator inputs');
   }
   if (legacy) { assert.equal(actual.at(-1).value, legacy); await expect(control).toHaveValue(legacy); }
   return actual;
@@ -77,6 +82,7 @@ async function takeoffSnapshot() { const session = await page.evaluate(() => win
     ['mixed-conduit','uPVC conduits and copper pipes',null], ['mixed-hdpe-conduit','uPVC pipe and HDPE cable conduits',null], ['mixed-floorwaste','uPVC pipe and copper floor waste',null],
     ['legacy-data','', 'Data Cable Bundles'], ['legacy-alarm','', 'TPS & Fire Alarm Cable Bundles'],
     ['mixed-data-pipe','Data pipes and power cable bundles',null], ['mixed-tps-pipe','TPS pipes and coaxial cables',null],
+    ['approved-cpvc','CPVC sprinkler pipe','CPVC pipe'], ['approved-iron','Iron pipe','Unlagged Iron Pipes'],
   ].map(([id, service, legacy]) => ({ ...copy(template), id, title: id, fields: [...copy(template.fields), { label: 'Service', value: service }], filter_values: { ...copy(template.filter_values), ...(legacy ? { services: [legacy] } : {}) } }));
   fs.writeFileSync(sourcePath, JSON.stringify(source)); const sourceBefore = fs.readFileSync(sourcePath), sourceImageBefore = fs.readFileSync(info.diagram);
   const seed = JSON.parse(fs.readFileSync(info.seed)); seed.penetration.composer.rows[0].inputs.K = 'Plastic Pipes'; fs.writeFileSync(info.seed, JSON.stringify(seed));
@@ -97,6 +103,9 @@ async function takeoffSnapshot() { const session = await page.evaluate(() => win
   for (const [label, id] of [['Data Cables','legacy-data'], ['TPS & Fire Alarm Cables','legacy-alarm']]) {
     await technical.selectOption(label); await expect(page.locator('#library-technical [data-library-record]')).toHaveCount(1); await expect(page.locator('#library-technical [data-library-record]')).toHaveAttribute('data-library-record', id);
   }
+  for (const [label, id] of [['CPVC pipe','approved-cpvc'], ['Unlagged Iron Pipes','approved-iron']]) {
+    await technical.selectOption(label); await expect(page.locator('#library-technical [data-library-record]')).toHaveCount(1); await expect(page.locator('#library-technical [data-library-record]')).toHaveAttribute('data-library-record', id);
+  }
   await page.screenshot({ path: path.join(output, 'technical-services.png') });
 
   await chooseLibrary(page, 'penetration');
@@ -105,6 +114,7 @@ async function takeoffSnapshot() { const session = await page.evaluate(() => win
   assert.equal(filterKeys.indexOf('category') + 1, filterKeys.indexOf('service_type'));
   assert.equal(firestoppingFilters.filters.find(field => field.key === 'service_type').label, 'Services');
   assert.equal(firestoppingFilters.filters.find(field => field.key === 'penetration_type').label, 'Type');
+  assert.deepEqual(firestoppingFilters.filters.find(field => field.key === 'service_type').options.map(option => option.value).sort(), [...calculatorServices].sort(), 'Firestopping filters retain exactly the original 30 Services choices');
   assert.deepEqual(firestoppingFilters.filters.find(field => field.key === 'penetration_type').options.map(option => option.value), ['Core hole', 'Oversized core hole']);
   await expect(page.locator('#library-penetration [data-library-filter=category]')).toBeVisible();
   evidence.firestoppingFilters = firestoppingFilters.filters;
@@ -166,7 +176,7 @@ async function takeoffSnapshot() { const session = await page.evaluate(() => win
   } finally { releaseDefinition(); await page.unroute('**/api/penetration/definition', heldDefinition); }
   await details.getByLabel('Service type', { exact: true }).selectOption('HDPE pipe'); await expect.poll(async () => (await takeoffSnapshot()).physical.services[0].fields.service_type).toBe('HDPE pipe'); assert.equal((await takeoffSnapshot()).physical.services[0].id, ids.service);
   assert.deepEqual(protectedDatabase(), databaseBefore); assert.deepEqual(await api(`/api/libraries/penetration/${info.item_id}/edit`), sharedBefore); assert.deepEqual(fs.readFileSync(sourcePath), sourceBefore); assert.deepEqual(fs.readFileSync(info.diagram), sourceImageBefore); assert.deepEqual(errors, []); assert.deepEqual(await page.evaluate(() => window.qaCsp), []);
-  fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ completed: true, exactServices: services, ...evidence, ids, legacy_save_reopen_precise_identity: true, broad_type_not_expanded_to_subtypes: true, shared_database_preserved: true, shared_library_preserved: true, source_sha256: sha(sourceBefore), image_sha256: sha(sourceImageBefore), errors, csp: [] }, null, 2));
-  console.log(`PASS: exact ${services.length} Services choices in Technical Library, library editor, Firestopping composer and Takeoffs; explicit scoped filtering; legacy descriptions, precision and IDs retained across Save/Open; source/shared database unchanged. Evidence: ${output}`);
+  fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ completed: true, exactServices: calculatorServices, technicalServices, ...evidence, ids, legacy_save_reopen_precise_identity: true, broad_type_not_expanded_to_subtypes: true, shared_database_preserved: true, shared_library_preserved: true, source_sha256: sha(sourceBefore), image_sha256: sha(sourceImageBefore), errors, csp: [] }, null, 2));
+  console.log(`PASS: exact ${technicalServices.length} Technical Library choices and original ${calculatorServices.length} calculator/editor/Takeoffs choices; explicit scoped filtering; legacy descriptions, precision and IDs retained across Save/Open; source/shared database unchanged. Evidence: ${output}`);
 })().catch(async error => { console.error(error); console.error(logs.slice(-5000)); if (page) { await page.screenshot({ path: path.join(output, 'failure.png'), fullPage: true }).catch(() => {}); fs.writeFileSync(path.join(output, 'failure.txt'), await page.locator('body').innerText().catch(() => '')); } process.exitCode = 1;
 }).finally(async () => { fs.writeFileSync(path.join(output, 'server.log'), logs); if (browser) await browser.close(); server.kill(); });

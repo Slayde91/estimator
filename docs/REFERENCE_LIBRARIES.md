@@ -377,6 +377,26 @@ source tables do not select a material. A local board patch, pattress, infill or
 thickening does. This user-defined discovery label does not change source
 opening designations, assessment applicability, Takeoff inputs or saved links.
 Every Technical item receives one value without modifying the private index.
+Services for Structural Steel, Access Panel, Blank Seal, Linear Joints,
+Movement Joints and Structural Timber are always `N/A`, including when a
+retained configuration also mentions a penetrant. Category is calculated before
+this Services projection and is preserved.
+
+Source-reviewed Services selections can be installed privately as
+`reviews/technical-services-plan-v1.json` beside the library index. The reader
+binds every selected record to its original-item and full public-projection
+SHA-256, validates its attributed field/table or linked PDF-page evidence, and
+selects only existing Services options. It never edits original supplier
+records, assessed conditions, prices, calculator inputs or durable link
+identities. New dropdown options require a separate approved vocabulary change.
+The Technical Library's approved Services vocabulary includes its additional
+pipe-material and specialist-service descriptions. These library choices do
+not add calculator dropdown choices or new pricing/quantity routes; the
+calculator's original ordered Services vocabulary is preserved separately.
+Keep this private review with library backups. The installer retains its
+validated payload and rechecks the staged projection before replacing a library.
+Adding unrelated records or reserializing an index does not invalidate unchanged
+reviewed items; changed reviewed evidence requires a fresh review.
 Substrate options remain a flat API list with exact values and an additive
 `group` property. Native dropdown groups appear as Walls, Floors, Ceilings,
 then Other, alphabetically within each group. Existing selected values survive

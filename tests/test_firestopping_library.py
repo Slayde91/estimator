@@ -19,6 +19,8 @@ from estimator.catalog import ValidationError, configuration_catalog, validate_c
 from estimator.firestopping_library import FirestoppingLibrary, LibraryConflict
 from estimator.reference_library import ReferenceNotFound
 from estimator.penetration_calculator import definition, source_model
+from estimator.library_facets import SERVICES
+from estimator.technical_service_options import TECHNICAL_SERVICES
 from tests.test_library_facets import REQUESTED_SERVICES
 from estimator.server import create_server
 from estimator.storage import Store
@@ -51,15 +53,20 @@ def editable_library(root, *, complete_entries=False):
 
 
 class FirestoppingLibraryTests(unittest.TestCase):
-    def test_service_choices_match_technical_library_exactly(self):
+    def test_technical_service_choices_preserve_independent_calculator_vocabulary(self):
         listing = self.library.listing('technical')
         expected = next(field['options'] for field in listing['filters'] if field['key'] == 'services')
         choices = self.library.service_types()
+        # Approved Technical Library descriptions do not create calculator
+        # choices or new pricing/quantity routes.
+        self.assertEqual(choices, list(SERVICES))
         self.assertEqual(choices, REQUESTED_SERVICES)
-        self.assertCountEqual(choices, [entry['value'] for entry in expected])
+        self.assertCountEqual(TECHNICAL_SERVICES, [entry['value'] for entry in expected])
+        self.assertEqual(list(TECHNICAL_SERVICES[:len(SERVICES)]), choices)
         field = next(field for field in definition(service_types=choices)['row_fields'] if field['column'] == 'K')
         self.assertEqual(field['options'], choices)
         self.assertNotIn('Downlight Box', choices)
+        self.assertNotIn('CPVC pipe', choices)
 
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()

@@ -13,13 +13,16 @@ import tempfile
 from .storage import Store
 from .firefly_reference_review import PLAN_NAME, MAX_PLAN_BYTES
 from .firefly_technical_review import PLAN_NAME as TECHNICAL_PLAN_NAME, MAX_PLAN_BYTES as MAX_TECHNICAL_PLAN_BYTES
+from .technical_service_review import PLAN_NAME as SERVICES_PLAN_NAME, MAX_PLAN_BYTES as MAX_SERVICES_PLAN_BYTES
 
 MAX_MANIFEST = 8 * 1024 * 1024
 MAX_SEED_BYTES = 8 * 1024 ** 3
 ASSET = re.compile(r'reference-library/(?:documents/[a-z0-9][a-z0-9_-]{0,119}\.pdf|images/[a-z0-9][a-z0-9_.-]{0,150}\.(?:png|jpg|jpeg|webp))\Z')
 FIREFLY_REVIEW = 'reference-library/reviews/' + PLAN_NAME
 FIREFLY_TECHNICAL_REVIEW = 'reference-library/reviews/' + TECHNICAL_PLAN_NAME
-REVIEW_LIMITS = {FIREFLY_REVIEW: MAX_PLAN_BYTES, FIREFLY_TECHNICAL_REVIEW: MAX_TECHNICAL_PLAN_BYTES}
+TECHNICAL_SERVICES_REVIEW = 'reference-library/reviews/' + SERVICES_PLAN_NAME
+REVIEW_LIMITS = {FIREFLY_REVIEW: MAX_PLAN_BYTES, FIREFLY_TECHNICAL_REVIEW: MAX_TECHNICAL_PLAN_BYTES,
+                 TECHNICAL_SERVICES_REVIEW: MAX_SERVICES_PLAN_BYTES}
 
 
 def safe_directory(path):
@@ -76,7 +79,7 @@ def verified_manifest(root):
         if name.casefold() in names or type(record['size']) is not int or not 0 <= record['size'] <= 128 * 1024 * 1024 or not isinstance(record['sha256'], str) or not re.fullmatch('[a-f0-9]{64}', record['sha256']):
             raise ValueError('The installer seed contains an invalid or repeated file record.')
         if name in REVIEW_LIMITS and record['size'] > REVIEW_LIMITS[name]:
-            raise ValueError('The installer Firefly review exceeds its size limit.')
+            raise ValueError('The installer library review exceeds its size limit.')
         names.add(name.casefold()); total += record['size']
         if total > MAX_SEED_BYTES:
             raise ValueError('The installer seed exceeds its total size limit.')

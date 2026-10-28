@@ -5,12 +5,13 @@ const { clickProjectControl } = require('./project_actions.cjs');
 const { renderDrawing } = require('./viewer_helpers.cjs');
 // Rendered manual topology and retained-image API compatibility. All sources and storage are disposable.
 const { chromium, expect } = require('@playwright/test');
-const { spawn } = require('node:child_process');
+const { spawn, spawnSync } = require('node:child_process');
 const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
 const { createHash, randomUUID } = require('node:crypto');
 const root = path.resolve(__dirname, '../..'), output = path.join(root, '.runtime', 'browser-qa', `penetrations-${Date.now()}`);
 fs.mkdirSync(output, { recursive: true });
-const server = spawn(process.env.CEASEFIRE_PYTHON || 'python', [path.join(__dirname, 'fixtures.py'), '--directory', output, '--physical-legacy'], { cwd: root, windowsHide: true });
+const python = process.env.CEASEFIRE_PYTHON || 'python';
+const server = spawn(python, [path.join(__dirname, 'fixtures.py'), '--directory', output, '--physical-legacy'], { cwd: root, windowsHide: true });
 let logs = '', browser, page, state, physicalChoices;
 server.stderr.on('data', data => { logs += data; });
 const ready = new Promise((resolve, reject) => {
@@ -245,7 +246,30 @@ async function associateImage(id, image) {
   assert.deepEqual(retainedEvidenceChecks.reopenedBitmap, retainedEvidenceChecks.originalBitmap); assert.deepEqual((await canonicalState()).snapshot.image_extractions, saved.takeoffs.image_extractions);
   const afterReopen = await create('service', serviceFields, 'Add service to B-0001'); await identifier(afterReopen, 'S-0005'); await undo(); assert.equal(record(afterReopen).deleted, true); assert.deepEqual(identities().filter(entity => entity.id !== afterReopen), savedIdentities);
   await select(cable); assert.deepEqual(record(cable).evidence[0], evidence);
-  for (const format of ['CSV', 'XLSX']) { const download = waitForTakeoffDownload(page); await page.evaluate(format => window.CeasefireTakeoffs.exportPhysical(format.toLowerCase()), format); const file = await download; assert.ok(file.suggestedFilename().includes('UNAPPROVED-DRAFT')); const filename = path.join(output, file.suggestedFilename()); await file.saveAs(filename); assert.ok(fs.statSync(filename).size > 100); if (format === 'CSV') { const csv = fs.readFileSync(filename, 'utf8'); for (const value of [defect, otherDefect, empty, occupied, pipe, cable, 'D-0001', 'D-0002', 'B-0001', 'B-0002', 'S-0001', 'S-0005', evidence.image_sha256, 'UNAPPROVED DRAFT']) assert.ok(csv.includes(value), value); assert.ok(!/opening/i.test(csv), 'New exports must omit Opening fields and relationships'); } await idle(); }
+  const internalEvidenceBeforeExports = structuredClone(record(cable).evidence);
+  for (const format of ['CSV', 'XLSX']) {
+    const download = waitForTakeoffDownload(page);
+    await page.evaluate(format => window.CeasefireTakeoffs.exportPhysical(format.toLowerCase()), format);
+    const file = await download; assert.ok(file.suggestedFilename().includes('UNAPPROVED-DRAFT'));
+    const filename = path.join(output, file.suggestedFilename()); await file.saveAs(filename);
+    assert.ok(fs.statSync(filename).size > 100);
+    if (format === 'CSV') {
+      const csv = fs.readFileSync(filename, 'utf8');
+      for (const value of [defect, otherDefect, empty, occupied, pipe, cable, 'D-0001', 'D-0002', 'B-0001', 'B-0002', 'S-0001', 'S-0005', 'UNAPPROVED DRAFT']) assert.ok(csv.includes(value), value);
+      assert.ok(!/opening/i.test(csv), 'New exports must omit Opening fields and relationships');
+      const parsed = spawnSync(python, ['-B', '-c', "import csv,json,sys\nwith open(sys.argv[1],encoding='utf-8-sig',newline='') as stream: print(json.dumps([row for row in csv.DictReader(stream) if row['entity_id']==sys.argv[2]]))", filename, cable], { cwd: root, windowsHide: true, encoding: 'utf8' });
+      assert.equal(parsed.status, 0, parsed.stderr);
+      const cableRows = JSON.parse(parsed.stdout); assert.equal(cableRows.length, 1, 'CSV contains the exact associated cable row');
+      const publicReference = Object.fromEntries(Object.entries(evidence).filter(([key]) => !['document_sha256', 'image_sha256'].includes(key)));
+      assert.deepEqual(JSON.parse(cableRows[0].evidence_json), [publicReference], 'Export retains exact source IDs, page, region, supported fields and note');
+      for (const value of ['document_sha256', 'image_sha256', evidence.document_sha256, evidence.image_sha256]) assert.ok(!csv.includes(value), 'Public CSV omits internal document and image fingerprints');
+      retainedEvidenceChecks.publicCsvLocatorWithoutFingerprints = true;
+    }
+    await idle();
+    const afterExport = await canonicalState();
+    assert.deepEqual(afterExport.snapshot.physical.services.find(entity => entity.id === cable).evidence, internalEvidenceBeforeExports, `${format} export preserves the complete internal image association and hashes`);
+  }
+  retainedEvidenceChecks.exportsPreserveInternalEvidence = true;
   assert.ok(inventoryRequests.length); assert.ok(inventoryRequests.every(request => request.extraction && request.limit === '100')); assert.deepEqual(await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()), calculators); assert.deepEqual(errors, []); assert.deepEqual(await page.evaluate(() => window.qaCsp), []);
   await page.screenshot({ path: path.join(output, 'reopened-draft.png'), fullPage: true });
   await page.locator('.takeoff-viewport').scrollIntoViewIfNeeded(); await page.screenshot({ path: path.join(output, 'drawing-viewport.png') });

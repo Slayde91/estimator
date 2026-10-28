@@ -9,8 +9,20 @@ const locales=['en','zh-Hans','hi','es','ar','th','ko','tl','vi'];
 const base=JSON.parse(fs.readFileSync(path.join(root,'static/locales/library-filter-groups.json'),'utf8'));
 const extra=JSON.parse(fs.readFileSync(path.join(root,'static/locales/additions/library-filter-groups.json'),'utf8'));
 const translated=(source,locale,args=[])=>String(locale==='en'?source:[...base[source],...extra[source]][locales.indexOf(locale)-1]).replace(/\{(\d+)\}/g,(_,n)=>args[n]);
+// Independently specified contracts: Technical reference pickers expose the 45
+// approved descriptions; Firestopping/calculator inputs keep their original 30.
+const calculatorServices = ["N/A", "Busbar Trunking", "Cable Bundles", "Cable Trays", "Coaxial Cables", "Conduits", "D1 Power Cables", "D2 Comms Cables", "Data Cables", "Downlights", "Fibre Optic", "Fire Dampers", "Fire Resistant Cables", "Flexible Ducts", "Lagged Copper Pipes", "Lagged Steel Pipes", "Mixed Services", "Pair Coils", "uPVC pipe", "uPVC floorwaste", "PEX pipe", "HDPE pipe", "Power Cables", "Single Cables", "TPS & Fire Alarm Cables", "Copper Pipes", "Steel Pipes", "Air Transfer Grilles", "Communications Cables", "Wall Sockets"];
+const technicalServiceGroups = [
+ ['Electrical & communications',['Busbar Trunking','Cable Bundles','Cable Trays','Coaxial Cables','Conduits','D1 Power Cables','D2 Comms Cables','Data Cables','Downlights','Fibre Optic','Fire Resistant Cables','Power Cables','Single Cables','TPS & Fire Alarm Cables','Communications Cables','Wall Sockets','Smoke Sampling Tubes']],
+ ['Mechanical',['Pair Coils','Beverage / Beer Lines','Insulated Gas Lines']],
+ ['HVAC',['Fire Dampers','Flexible Ducts','Air Transfer Grilles']],
+ ['Plastic pipes',['uPVC pipe','uPVC floorwaste','PEX pipe','HDPE pipe','PP pipe','CPVC pipe','Raupiano Plus pipe','dBlue pipe','PU air line','Concentric plastic pipe','ABS pipe','PB pipe','Kelox / KeKilit pipe']],
+ ['Lagged metal pipes',['Lagged Copper Pipes','Lagged Steel Pipes','Lagged Iron Pipes']],
+ ['Unlagged metal pipes',['Copper Pipes','Steel Pipes','Unlagged Iron Pipes','Unlagged Brass Pipes']],
+];
+const technicalServices = ['N/A','Mixed Services',...technicalServiceGroups.flatMap(([,values])=>values)];
 const serviceGroups=['Electrical & communications','Mechanical','HVAC','Plastic pipes','Lagged metal pipes','Unlagged metal pipes'];
-const sourceFiles=['estimator/library_filter_groups.py','estimator/reference_library.py','estimator/firestopping_library.py','static/libraries.js','static/penetration-references.js','static/takeoff-library-links.js','static/language-catalog.js','static/locales/library-filter-groups.json','static/locales/additions/library-filter-groups.json','tests/browser/library_link_picker_fixture.py','tests/browser/library_filter_groups.cjs'];
+const sourceFiles=['estimator/library_filter_groups.py','estimator/reference_library.py','estimator/firestopping_library.py','estimator/technical_service_options.py','static/libraries.js','static/penetration-references.js','static/takeoff-library-links.js','static/language-catalog.js','static/locales/library-filter-groups.json','static/locales/additions/library-filter-groups.json','tests/browser/library_link_picker_fixture.py','tests/browser/library_filter_groups.cjs'];
 const hash=file=>createHash('sha256').update(fs.readFileSync(file)).digest('hex'),bindings=()=>Object.fromEntries(sourceFiles.map(file=>[file,hash(path.join(root,file))]));
 const sourceBefore=bindings(),server=spawn(process.env.CEASEFIRE_PYTHON||'python',[path.join(__dirname,'library_link_picker_fixture.py'),'--directory',output,'--filter-groups'],{cwd:root,windowsHide:true});
 let logs='',browser,page,info;const evidence={synthetic:true,locales:[],layouts:[],page_errors:[],blocked_requests:[],sourceBefore,original_tabs_accessed:false,takeoff_sessions_created:false};
@@ -25,7 +37,9 @@ async function checkGroups(scope,locale,attribute){
  assert.deepEqual(await groupLabels(scope,'frl',attribute),[30,60,90,120,180,240,300].map(value=>translated('{0} minutes',locale,[String(value)])));
  assert.deepEqual(await groupLabels(scope,'document',attribute),['BOSS','Firefly','Promat','Trafalgar']);
  const values=await scope.locator(`select[${attribute}="services"]`).evaluate(node=>[...node.options].map(option=>option.value));
- assert.equal(values.length,31);assert.equal(new Set(values).size,31);assert.deepEqual(values.slice(0,3),['','N/A','Mixed Services']);assert.ok(values.includes('Copper Pipes'));assert.ok(values.includes('Pair Coils'));
+ assert.equal(values.length,46);assert.equal(new Set(values).size,46);assert.deepEqual(values,['',...technicalServices]);
+ const groups=await scope.locator(`select[${attribute}="services"] optgroup`).evaluateAll(nodes=>nodes.map(group=>[group.label,[...group.children].map(option=>option.value)]));
+ assert.deepEqual(groups,technicalServiceGroups.map(([label,options])=>[translated(label,locale),options]));
  const standalone=await scope.locator(`select[${attribute}="services"] > option`).evaluateAll(nodes=>nodes.map(node=>node.value));assert.deepEqual(standalone,['','N/A','Mixed Services']);
 }
 async function layout(scope,label,locale,width){
@@ -93,6 +107,7 @@ async function setFilter(scope,key,value,attribute='data-library-filter',limit='
  });
  await page.waitForFunction(()=>window.__groupChooserReady===true);const shared=page.locator('#synthetic-shared-chooser');
  const response=await page.request.get(`${origin}/api/libraries/penetration`),data=await response.json(),apiOptions=data.filters.find(field=>field.key==='service_type').options;
+ assert.deepEqual(apiOptions.map(option=>option.value).sort(),[...calculatorServices].sort(),'Firestopping retains exactly the original 30 choices; Technical Library additions do not expand calculator routes');
  assert.deepEqual(await shared.locator('[data-library-filter="service_type"]').evaluate(node=>[...node.options].slice(1).map(option=>({value:option.value,group:option.parentElement.tagName==='OPTGROUP'?option.parentElement.label:null}))),apiOptions.map(option=>({value:option.value,group:option.group||null})));
  for(const locale of locales){await page.evaluate(locale=>window.CeasefireI18n.setLanguage(locale,false),locale);assert.deepEqual(await groupLabels(shared,'service_type'),serviceGroups.map(name=>translated(name,locale)));}
  await page.evaluate(async()=>{window.__cancelGroupChooser();await window.__groupChooser;window.__groupMount.remove();window.CeasefireI18n.setLanguage('en',false);});evidence.sharedChooserGroupsAndLocaleRebinding=true;

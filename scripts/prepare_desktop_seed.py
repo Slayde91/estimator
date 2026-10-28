@@ -18,6 +18,9 @@ from estimator.firefly_reference_review import PLAN_NAME, MAX_PLAN_BYTES, plan_s
 from estimator.firefly_technical_review import (PLAN_NAME as TECHNICAL_PLAN_NAME,
     MAX_PLAN_BYTES as MAX_TECHNICAL_PLAN_BYTES, REVIEW_KEY,
     plan_stamp as technical_plan_stamp, load_review as load_technical_review)
+from estimator.technical_service_review import (PLAN_NAME as SERVICES_PLAN_NAME,
+    MAX_PLAN_BYTES as MAX_SERVICES_PLAN_BYTES, REVIEW_KEY as SERVICES_REVIEW_KEY,
+    plan_stamp as services_plan_stamp, load_review as load_services_review)
 
 
 def regular_path(path, directory=False):
@@ -54,7 +57,8 @@ def prepare(output, library=None, database=None):
         (reference / 'library.json').write_bytes(payload)
         for name, maximum, stamp_reader, reader, capability_key in (
                 (PLAN_NAME, MAX_PLAN_BYTES, plan_stamp, load_review, None),
-                (TECHNICAL_PLAN_NAME, MAX_TECHNICAL_PLAN_BYTES, technical_plan_stamp, load_technical_review, REVIEW_KEY)):
+                (TECHNICAL_PLAN_NAME, MAX_TECHNICAL_PLAN_BYTES, technical_plan_stamp, load_technical_review, REVIEW_KEY),
+                (SERVICES_PLAN_NAME, MAX_SERVICES_PLAN_BYTES, services_plan_stamp, load_services_review, SERVICES_REVIEW_KEY)):
             review_stamp = stamp_reader(library)
             if review_stamp is None:
                 continue
@@ -62,13 +66,13 @@ def prepare(output, library=None, database=None):
             with review.open('rb') as incoming:
                 reviewed_payload = incoming.read(maximum + 1)
             if len(reviewed_payload) > maximum:
-                raise ValueError('Factory Firefly review exceeds its size limit.')
+                raise ValueError('Factory library review exceeds its size limit.')
             capability = reader(library, data, hashlib.sha256(payload).hexdigest(), review_stamp)
             if capability_key:
                 data[capability_key] = capability
             ReferenceLibrary(library)._validate(data)
             if review.read_bytes() != reviewed_payload or stamp_reader(library) != review_stamp:
-                raise ValueError('Factory Firefly review changed during validation.')
+                raise ValueError('Factory library review changed during validation.')
             (reference / 'reviews').mkdir(exist_ok=True)
             with (reference / 'reviews' / name).open('xb') as outgoing:
                 outgoing.write(reviewed_payload)
@@ -85,6 +89,12 @@ def prepare(output, library=None, database=None):
                         outgoing.write(chunk)
                 if checksum.hexdigest() != record['sha256']:
                     raise ValueError('A factory library source asset has changed.')
+        with index.open('rb') as incoming:
+            if incoming.read(len(payload) + 1) != payload:
+                raise ValueError('Factory library index changed during preparation.')
+        # Read the copied index and every optional review together, including
+        # projection dependencies between Firefly and Services decisions.
+        ReferenceLibrary(reference)._load()
     else:
         (reference / 'library.json').write_text(encoded(empty_library()), encoding='utf-8')
     pricing = {'inventory': {}, 'rates': {}}

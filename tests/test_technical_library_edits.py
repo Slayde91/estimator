@@ -18,6 +18,8 @@ from estimator.technical_item_exports import prepare_technical_item
 from estimator.server import create_server
 from estimator.library_classifications import classification_filters
 from estimator.technical_service_options import TECHNICAL_SERVICES
+from estimator.technical_duplicates import review_fingerprint
+from estimator.penetration_references import resolve_schedule_references
 from test_firestopping_library import editable_library
 
 
@@ -65,6 +67,96 @@ class TechnicalLibraryEditTests(unittest.TestCase):
         with self.store.connect() as db:
             self.assertEqual(db.execute('SELECT count(*) FROM calculator_states').fetchone()[0], 0)
             self.assertEqual(db.execute('SELECT count(*) FROM quotes').fetchone()[0], 0)
+
+    def install_alias(self):
+        """A real source-bound group retains different descriptive wording."""
+        data = json.loads(self.source.read_text(encoding='utf-8'))
+        duplicate = deepcopy(data['libraries']['technical']['items'][0])
+        duplicate['id'] = 'report-a-alias'
+        duplicate['fields'].append({'label': 'Configuration', 'value': 'Historical wording'})
+        data['libraries']['technical']['items'].append(duplicate)
+        self.source.write_text(json.dumps(data), encoding='utf-8')
+        loaded = ReferenceLibrary(self.root / 'library')._load()
+        members = [{'id': item['id'], 'sha256': review_fingerprint(
+            item, loaded['_records']['technical'][item['id']], loaded['_assets'])}
+            for item in data['libraries']['technical']['items']]
+        data['technical_duplicate_reviews'] = [{'canonical_id': 'report-a-v1', 'members': members}]
+        self.source.write_text(json.dumps(data), encoding='utf-8')
+        self.original_source = self.source.read_bytes()
+        self.library = ManualTechnicalLibrary(self.root / 'library', self.store)
+        self.assertEqual(self.library._load()['_aliases']['report-a-alias'], 'report-a-v1')
+
+    def test_alias_edit_export_links_schedule_and_delete_share_one_record(self):
+        self.install_alias()
+        alias, canonical = 'report-a-alias', 'report-a-v1'
+        self.assertEqual(self.library.detail('technical', alias), self.library.detail('technical', canonical))
+        original_images = self.library.detail('technical', canonical).get('images')
+        original_source = self.library._original_technical_source(canonical, self.library._load())
+        stale = self.body(canonical)
+        body = self.body(alias)
+        body['title'] = 'One reviewed system'
+        body['facets']['services'] = ['Steel Pipes']
+        saved = self.library.technical_save(alias, body)
+        self.assertEqual(saved['id'], canonical)
+        self.assertEqual(set(self.library.technical_edits.read()[0]), {canonical})
+        reopened = ManualTechnicalLibrary(self.root / 'library', self.store)
+        detail = reopened.detail('technical', alias)
+        self.assertEqual(detail, reopened.detail('technical', canonical))
+        self.assertEqual(detail['title'], body['title'])
+        self.assertEqual(next(field['value'] for field in detail['fields'] if field['label'] == 'Services'), 'Steel Pipes')
+        self.assertEqual(detail.get('images'), original_images)
+        self.assertEqual(reopened._original_technical_source(canonical, reopened._load()), original_source)
+        self.assertEqual(reopened.technical_edit(alias)['record']['filter_values']['services'], ['Steel Pipes'])
+        with self.assertRaises(LibraryConflict):
+            reopened.technical_save(alias, stale)
+        self.assertEqual(prepare_technical_item({'id': alias}, library=reopened),
+                         prepare_technical_item({'id': canonical}, library=reopened))
+        reopened.technical_link(alias, {'penetration_ids': ['pkb-002']})
+        self.assertEqual([link['id'] for link in reopened.detail('penetration', 'pkb-002')['links']], [canonical])
+        reopened.remove_link('pkb-002', {'technical_id': alias})
+        reopened.add_link('pkb-002', {'technical_ids': [alias]})
+        self.assertEqual([link['id'] for link in reopened.detail('penetration', 'pkb-002')['links']], [canonical])
+        draft = {'globals': {}, 'rows': [{'id': 'row-1', 'inputs': {}, 'technical_reference_ids': [alias]}]}
+        references = resolve_schedule_references(draft, reopened)['row_references']['row-1']
+        self.assertEqual(references['systems'], [{'id': canonical, 'title': body['title'], 'number': 1}])
+        self.assertEqual(reopened.listing('technical', search=alias)['total'], 1)
+        edit = reopened.technical_edit(alias)
+        self.assertEqual(reopened.technical_delete(alias, {key: edit[key] for key in ('revision', 'source_sha256')})['id'], canonical)
+        final = ManualTechnicalLibrary(self.root / 'library', self.store)
+        for key in (alias, canonical):
+            with self.assertRaises(ReferenceNotFound):
+                final.detail('technical', key)
+            with self.assertRaises(ReferenceNotFound):
+                final.technical_edit(key)
+            with self.assertRaises(ReferenceNotFound):
+                final.add_link('pkb-002', {'technical_id': key})
+        self.assertEqual(final.listing('technical')['total'], 0)
+        self.assertFalse(final.detail('penetration', 'pkb-001')['links'])
+        self.assertFalse(final.detail('penetration', 'pkb-002')['links'])
+        references = resolve_schedule_references(draft, final)['row_references']['row-1']
+        self.assertEqual(references['systems'], [])
+        self.assertEqual(references['missing_ids'], [alias])
+        self.protected()
+
+    def test_shared_filter_values_match_canonical_case_without_changing_source_inputs(self):
+        data = json.loads(self.source.read_text(encoding='utf-8'))
+        data['libraries']['technical']['items'][0]['filter_values']['manufacturer'] = ['Firefly']
+        data['libraries']['technical']['items'][0]['fields'][1] = {'label': 'Manufacturer', 'value': 'Firefly'}
+        second = deepcopy(data['libraries']['technical']['items'][0])
+        second['id'] = 'report-b'; second['filter_values']['manufacturer'] = ['Trafalgar']
+        second['fields'][1] = {'label': 'Manufacturer', 'value': 'Trafalgar'}
+        data['libraries']['technical']['items'].append(second)
+        for item, manufacturer in zip(data['libraries']['penetration']['items'], ('FIREFLY', 'TRAFALGAR')):
+            item['filter_values']['manufacturer'] = [manufacturer]
+            item['estimate']['draft']['rows'][0]['inputs']['V'] = manufacturer
+        self.source.write_text(json.dumps(data), encoding='utf-8')
+        self.original_source = self.source.read_bytes()
+        library = ManualTechnicalLibrary(self.root / 'library', self.store)
+        for value, key in [('Firefly', 'pkb-001'), ('Trafalgar', 'pkb-002')]:
+            self.assertEqual([item['id'] for item in library.listing('penetration', manufacturer=value)['items']], [key])
+            self.assertEqual(library._load()['_records']['penetration'][key]['filter_values']['manufacturer'], [value])
+            self.assertEqual(library.edit(key)['draft']['rows'][0]['inputs']['V'], value.upper())
+        self.protected()
 
     def test_create_is_durable_searchable_and_retry_is_idempotent(self):
         body = self.body()

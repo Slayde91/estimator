@@ -97,6 +97,17 @@ class ManualTechnicalLibrary(FirestoppingLibrary):
     def _canonical(data):
         return classification_filters(data['_filters']['technical'])
 
+    @staticmethod
+    def _technical_key(key, data):
+        """Historical IDs address the one current editable record in a group."""
+        identifier(key)
+        if data is None:
+            raise ReferenceNotFound()
+        key = data['_aliases'].get(key, key)
+        if key not in data['_technical_public_records']:
+            raise ReferenceNotFound()
+        return key
+
     def _identity(self, key, base, saved):
         if key in saved and saved[key]['created']:
             return saved[key]['source_sha256']
@@ -133,17 +144,22 @@ class ManualTechnicalLibrary(FirestoppingLibrary):
                 # record. An edit cannot silently acquire another source.
                 continue
             if edit['deleted']:
-                data['_technical_public_records'].pop(key, None)
-                data['_visible']['technical'] = [value for value in data['_visible']['technical'] if value != key]
+                members = set(data['_groups'].get(key, [key]))
+                for member in members:
+                    data['_technical_public_records'].pop(member, None)
+                data['_visible']['technical'] = [value for value in data['_visible']['technical'] if value not in members]
                 continue
             record = deepcopy(edit['record'])
             data['_manual_technical_sources'][key] = edit['source_sha256']
             data['_technical_public_records'][key] = record
             data['_records']['technical'][key] = record
             data['_technical_discovery'][key] = deepcopy(record['filter_values'])
-            data['_searches']['technical'][key] = '\n'.join([key, record['title'], *(f.get('value', '') for f in record.get('fields', []))]).casefold()
-            data['_aliases'][key] = key
-            data['_groups'][key] = [key]
+            data['_searches']['technical'][key] = '\n'.join([*data['_groups'].get(key, [key]), record['title'], *(f.get('value', '') for f in record.get('fields', []))]).casefold()
+            # Preserve the source-reviewed group when its canonical record
+            # is edited. Only a newly authored record starts its own group.
+            if edit['created']:
+                data['_aliases'][key] = key
+                data['_groups'][key] = [key]
             data['_links']['technical'].setdefault(key, [])
             if key not in data['_visible']['technical']:
                 data['_visible']['technical'].append(key)
@@ -151,6 +167,8 @@ class ManualTechnicalLibrary(FirestoppingLibrary):
         data['_links']['technical'] = {key: values for key, values in data['_links']['technical'].items() if key in present}
         for values in data['_links']['penetration'].values():
             values[:] = [link for link in values if link['id'] in present]
+            for link in values:
+                link['title'] = data['_technical_public_records'][link['id']]['title']
         created_penetrations = self.edits.created()
         for left, right, left_source, right_source, linked in edges:
             if left not in data['_records']['penetration'] or right not in present:
@@ -179,11 +197,19 @@ class ManualTechnicalLibrary(FirestoppingLibrary):
         data['_canonical_library_filters'] = canonical
         data['_filters']['technical'] = deepcopy(canonical)
         data['_filters']['penetration'] = [{**deepcopy(entry), 'key': PENETRATION_KEYS.get(entry['key'], entry['key'])} for entry in canonical]
+        facet_spellings = {PENETRATION_KEYS.get(entry['key'], entry['key']): {
+            option['value'].casefold(): option['value'] for option in entry['options']}
+            for entry in canonical}
         for key, record in list(data['_records']['penetration'].items()):
             record = deepcopy(record)
             values = record.setdefault('filter_values', {})
             values['report'] = list(dict.fromkeys(value for link in data['_links']['penetration'].get(key, [])
                 for value in data['_technical_discovery'].get(link['id'], {}).get('report', data['_technical_discovery'].get(link['id'], {}).get('document', []))))
+            # These are descriptive search facets, not workbook/pricing
+            # inputs. Their spelling must match the shared dropdown values.
+            for facet, spellings in facet_spellings.items():
+                if facet in values:
+                    values[facet] = list(dict.fromkeys(spellings.get(value.casefold(), value) for value in values[facet]))
             data['_records']['penetration'][key] = record
         self._manual_stamp, self._manual_data, self._manual_base = stamp, data, base
         return data
@@ -209,11 +235,14 @@ class ManualTechnicalLibrary(FirestoppingLibrary):
         return result
 
     def detail(self, kind, key):
-        result = super().detail(kind, key)
-        if kind == 'technical':
-            result['editable'] = True
-            result['user_authored'] = key in self._load().get('_manual_technical_sources', {})
-        return result
+        with self._lock:
+            if kind == 'technical':
+                key = self._technical_key(key, self._load())
+            result = super().detail(kind, key)
+            if kind == 'technical':
+                result['editable'] = True
+                result['user_authored'] = key in self._load().get('_manual_technical_sources', {})
+            return result
 
     def technical_edit(self, key=None):
         with self._lock:
@@ -224,9 +253,7 @@ class ManualTechnicalLibrary(FirestoppingLibrary):
                           'filter_values': {key: [] for key, _ in FACETS}, 'sources': []}
                 revision, source = 0, None
             else:
-                identifier(key)
-                if key not in data['_technical_public_records']:
-                    raise ReferenceNotFound()
+                key = self._technical_key(key, data)
                 base = super()._load()
                 source = self._identity(key, base, saved)
                 if key in saved and saved[key]['source_sha256'] != source:
@@ -311,6 +338,7 @@ class ManualTechnicalLibrary(FirestoppingLibrary):
                 source = hashlib.sha256(key.encode()).hexdigest()
                 record.update(id=key, subtitle='', summary='', source_label='User-created Technical Library item')
             else:
+                key = context['record']['id']
                 source = context['source_sha256']
             record.update(title=title, fields=normalized, filter_values=chosen, editable=True)
             record['notice'] = ('User-created Technical Library item.' if created else
@@ -331,6 +359,7 @@ class ManualTechnicalLibrary(FirestoppingLibrary):
             context = self.technical_edit(key)
             if isinstance(body['revision'], bool) or body['revision'] != context['revision'] or body['source_sha256'] != context['source_sha256']:
                 raise LibraryConflict('This Technical Library item changed. Reopen it before removing it.')
+            key = context['record']['id']
             self.technical_edits.save(key, context['revision'], context['source_sha256'], context['record'], deleted=True)
             return {'deleted': True, 'id': key}
 
@@ -343,6 +372,7 @@ class ManualTechnicalLibrary(FirestoppingLibrary):
             if len(set(ids)) != len(ids):
                 raise ValidationError('Choose each Firestopping Library item once.')
             data = self._load()
+            key = self._technical_key(key, data)
             if not data or key not in data['_technical_public_records'] or any(value not in data['_records']['penetration'] for value in ids):
                 raise ReferenceNotFound()
             saved, _ = self.technical_edits.read()
@@ -356,17 +386,21 @@ class ManualTechnicalLibrary(FirestoppingLibrary):
             return {'linked': True, 'technical_id': key, 'penetration_ids': ids}
 
     def add_link(self, key, body):
-        saved, _ = self.technical_edits.read()
         values = ([body.get('technical_id')] if isinstance(body, dict) and set(body) == {'technical_id'} else
                   body.get('technical_ids') if isinstance(body, dict) and set(body) == {'technical_ids'} else None)
-        if not isinstance(values, list) or not any(saved.get(value, {}).get('created') for value in values if isinstance(value, str)):
+        if not isinstance(values, list):
             return super().add_link(key, body)
         with self._lock:
             identifier(key)
             if not 1 <= len(values) <= 100 or any(not isinstance(value, str) for value in values) or len(set(values)) != len(values):
                 raise ValidationError('Choose each Technical Library item once.')
-            rights = [identifier(value) for value in values]
             data = self._load()
+            rights = list(dict.fromkeys(self._technical_key(value, data) for value in values))
+            canonical_body = {'technical_id': rights[0]} if 'technical_id' in body else {'technical_ids': rights}
+            saved, edges = self.technical_edits.read()
+            owned_edges = {right for left, right, *_ in edges if left == key}
+            if not any(saved.get(value, {}).get('created') or value in owned_edges for value in rights):
+                return super().add_link(key, canonical_body)
             if not data or key not in data['_records']['penetration'] or any(value not in data['_technical_public_records'] for value in rights):
                 raise ReferenceNotFound()
             base = super()._load(); created = self.edits.created(); left_source = created[key]['source_sha256'] if key in created else self._source_hash(base)
@@ -383,11 +417,12 @@ class ManualTechnicalLibrary(FirestoppingLibrary):
     def remove_link(self, key, body):
         if not isinstance(body, dict) or set(body) != {'technical_id'}:
             return super().remove_link(key, body)
-        right = identifier(body['technical_id']); identifier(key)
         with self._lock:
+            identifier(key)
+            right = self._technical_key(body['technical_id'], self._load())
             _, links = self.technical_edits.read()
             if not any(left == key and target == right for left, target, *_ in links):
-                return super().remove_link(key, body)
+                return super().remove_link(key, {'technical_id': right})
             with self.technical_edits.store.connect() as db:
                 db.execute('UPDATE technical_library_links SET linked=0,updated_at=?,revision=revision+1 WHERE penetration_id=? AND technical_id=?', (timestamp(), key, right))
             return {'unlinked': True, 'penetration_id': key, 'technical_id': right}

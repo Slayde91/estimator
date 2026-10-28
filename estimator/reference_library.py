@@ -35,6 +35,9 @@ from .firefly_reference_review import plan_stamp, load_review
 from .firefly_technical_review import (REVIEW_KEY, ValidatedReview,
     plan_stamp as technical_plan_stamp, load_review as load_technical_review,
     project as project_firefly_technical)
+from .technical_service_review import (REVIEW_KEY as SERVICE_REVIEW_KEY,
+    ValidatedReview as ValidatedServiceReview, plan_stamp as service_plan_stamp,
+    load_review as load_service_review, project as project_service_review)
 
 KINDS = {'penetration': 'Firestopping Library', 'technical': 'Technical Library'}
 IDENTIFIER = re.compile(r'[a-z0-9][a-z0-9_-]{0,119}\Z')
@@ -151,13 +154,14 @@ class ReferenceLibrary:
             info = index.stat()
             review_stamp = plan_stamp(self.directory)
             technical_stamp = technical_plan_stamp(self.directory)
+            service_stamp = service_plan_stamp(self.directory)
         except FileNotFoundError:
             self._data = None
             self._stamp = None
             return None
         except (OSError, ValueError) as exc:
             raise ValidationError('The local reference library could not be read. Rebuild it from the source files.') from exc
-        stamp = (info.st_mtime_ns, info.st_size, info.st_ctime_ns, review_stamp, technical_stamp)
+        stamp = (info.st_mtime_ns, info.st_size, info.st_ctime_ns, review_stamp, technical_stamp, service_stamp)
         if self._data is not None and stamp == self._stamp:
             return self._data
         if info.st_size > MAX_INDEX or not index.resolve().is_relative_to(self.directory.resolve()):
@@ -168,11 +172,14 @@ class ReferenceLibrary:
             if len(payload) > MAX_INDEX:
                 raise ValueError('Index limit')
             data = json.loads(payload, parse_constant=lambda _: (_ for _ in ()).throw(ValueError()))
-            if REVIEW_KEY in data:
-                raise ValueError('Imported Firefly technical runtime marker')
-            load_review(self.directory, data, hashlib.sha256(payload).hexdigest(), review_stamp)
+            if REVIEW_KEY in data or SERVICE_REVIEW_KEY in data:
+                raise ValueError('Imported technical runtime marker')
+            index_sha256 = hashlib.sha256(payload).hexdigest()
+            load_review(self.directory, data, index_sha256, review_stamp)
             data[REVIEW_KEY] = load_technical_review(
-                self.directory, data, hashlib.sha256(payload).hexdigest(), technical_stamp)
+                self.directory, data, index_sha256, technical_stamp)
+            data[SERVICE_REVIEW_KEY] = load_service_review(
+                self.directory, data, index_sha256, service_stamp)
             self._validate(data)
         except (OSError, UnicodeError, ValueError, KeyError, TypeError, AttributeError) as exc:
             raise ValidationError('The local reference library could not be read. Rebuild it from the source files.') from exc
@@ -187,13 +194,16 @@ class ReferenceLibrary:
         return (source is not None and source is self._data
                 and data['libraries']['technical'] is source['libraries']['technical']
                 and all(data.get(key) is source.get(key) for key in (
-                    'documents', 'images', 'trafalgar_selector_import', 'technical_duplicate_reviews', REVIEW_KEY)))
+                    'documents', 'images', 'trafalgar_selector_import', 'technical_duplicate_reviews',
+                    REVIEW_KEY, SERVICE_REVIEW_KEY)))
 
     def _validate(self, data, *, validated_source=None):
         if not isinstance(data, dict) or type(data['schema_version']) is not int or data['schema_version'] != 1:
             raise ValueError('Unsupported library schema')
         if data.get(REVIEW_KEY) is not None and not isinstance(data[REVIEW_KEY], ValidatedReview):
             raise ValueError('Imported Firefly technical review capability')
+        if data.get(SERVICE_REVIEW_KEY) is not None and not isinstance(data[SERVICE_REVIEW_KEY], ValidatedServiceReview):
+            raise ValueError('Imported technical Services review capability')
         reuse_technical = self._same_technical_source(data, validated_source)
         documents = data['documents']
         images = data.get('images', [])
@@ -401,6 +411,7 @@ class ReferenceLibrary:
             discovery = {key: {**item.get('filter_values', {}),
                                **discovery_facets(item, imported_services=imported_services[key])}
                          for key, item in public_technical.items()}
+            discovery = project_service_review(public_technical, discovery, data.get(SERVICE_REVIEW_KEY))
             for entry in filters['technical']:
                 observed = {value for values in discovery.values() for value in values.get(entry['key'], [])}
                 if entry['key'] == 'frl':

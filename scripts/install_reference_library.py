@@ -16,6 +16,7 @@ import uuid
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 from estimator.reference_library import ReferenceLibrary
+from estimator.technical_service_review import PLAN_NAME as SERVICES_PLAN_NAME, REVIEW_KEY as SERVICES_REVIEW_KEY
 
 
 def install(source, destination, replace=False):
@@ -51,6 +52,12 @@ def install(source, destination, replace=False):
         # of a source index that could have changed during asset copying.
         (stage / 'library.json').write_bytes((json.dumps(public_data, ensure_ascii=False,
             separators=(',', ':'), allow_nan=False) + '\n').encode('utf-8'))
+        services_review = data.get(SERVICES_REVIEW_KEY)
+        if services_review is not None:
+            # Retain the already validated private review, including its source
+            # proof. Staged validation below rejects any changed projection.
+            (stage / 'reviews').mkdir(exist_ok=True)
+            (stage / 'reviews' / SERVICES_PLAN_NAME).write_text(services_review.payload + '\n', encoding='utf-8')
         staged = ReferenceLibrary(stage)
         summary = staged.overview()
         for asset in data['_assets'].values():

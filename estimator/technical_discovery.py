@@ -92,7 +92,9 @@ def discovery_facets(item, *, imported_services=None):
     categories.update(moved)
     services = sorted({'Conduits' if value == 'Junction Box' else value for value in services
                        if value not in MOVED_SERVICE_CATEGORIES})
-    if not services and moved:
+    # These are barrier/opening categories, even when a retained configuration
+    # mentions a penetrant. Category is derived first and remains unchanged.
+    if categories & MOVED_SERVICE_CATEGORIES:
         services = ['N/A']
     return {'category': sorted(categories), 'services': services,
             'substrate': list(dict.fromkeys(canonical_substrate(value) for value in item.get('filter_values', {}).get('substrate', []))),

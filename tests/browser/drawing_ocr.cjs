@@ -20,6 +20,10 @@ async function waitSearch() {await expect(page.locator('.takeoff-progress')).toC
 async function navigateOcrResult(result, pageNumber) {
   const previous = await page.locator('.takeoff-page>canvas').elementHandle();
   try {
+    // A completed selection dismisses the list. Reopen it through the input
+    // before choosing the next result, as a user would.
+    await input().click();
+    await expect(result).toBeVisible();
     await result.click();
     // Selection becomes current only after navigateDocument has awaited both
     // replacement rendering and its evidence commands. Input/quad updates can

@@ -172,9 +172,10 @@ class ReferenceLibrary:
             if len(payload) > MAX_INDEX:
                 raise ValueError('Index limit')
             data = json.loads(payload, parse_constant=lambda _: (_ for _ in ()).throw(ValueError()))
-            if REVIEW_KEY in data or SERVICE_REVIEW_KEY in data:
+            if REVIEW_KEY in data or SERVICE_REVIEW_KEY in data or '_index_sha256' in data:
                 raise ValueError('Imported technical runtime marker')
             index_sha256 = hashlib.sha256(payload).hexdigest()
+            data['_index_sha256'] = index_sha256
             load_review(self.directory, data, index_sha256, review_stamp)
             data[REVIEW_KEY] = load_technical_review(
                 self.directory, data, index_sha256, technical_stamp)

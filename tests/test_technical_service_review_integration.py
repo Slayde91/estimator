@@ -7,7 +7,9 @@ from pathlib import Path
 import unittest
 
 from estimator.firefly_reference_review import fingerprint
+from estimator.firestopping_library import FirestoppingLibrary
 from estimator.reference_library import ReferenceLibrary
+from estimator.storage import Store
 from estimator.technical_duplicates import review_fingerprint
 from estimator.technical_service_review import PLAN_NAME, REVIEW_KEY, projection_fingerprint
 from tests import test_reference_library as fixtures
@@ -90,7 +92,7 @@ class ServicesReviewIntegrationTests(unittest.TestCase):
         copied[REVIEW_KEY] = None
         self.assertFalse(self.library._same_technical_source(copied, loaded))
 
-    def test_install_preserves_private_review_after_safe_index_reserialization(self):
+    def test_install_preserves_private_review_with_the_original_source_index(self):
         _, _, plan = self.prepare()
         self.save_plan(plan)
         script = Path(__file__).resolve().parents[1] / 'scripts' / 'install_reference_library.py'
@@ -103,6 +105,34 @@ class ServicesReviewIntegrationTests(unittest.TestCase):
         self.assertTrue((destination / 'reviews' / PLAN_NAME).is_file())
         installed = ReferenceLibrary(destination)
         self.assertEqual(installed.listing('technical', services='Copper Pipes')['total'], 1)
+
+    def test_actual_server_library_keeps_review_when_saved_link_overlay_changes(self):
+        from test_firestopping_library import editable_library
+        self.data = editable_library(self.root)
+        source, _, plan = self.prepare()
+        self.save_plan(plan)
+        store = Store(self.root.parent / 'services-overlay.sqlite3')
+        library = FirestoppingLibrary(self.root, store)
+        self.assertEqual(library.listing('technical', services='Copper Pipes')['total'], 1)
+        self.assertEqual(library.listing('technical', services='Unlagged Pipes')['total'], 0)
+        source_bytes = (self.root / 'library.json').read_bytes()
+        library.remove_link('pkb-001', {'technical_id': source['id']})
+        self.assertEqual(library.listing('technical', services='Copper Pipes')['total'], 1)
+        self.assertEqual((self.root / 'library.json').read_bytes(), source_bytes)
+
+    def test_actual_server_library_keeps_capability_during_full_overlay_validation(self):
+        from test_firestopping_library import editable_library
+        self.data = editable_library(self.root)
+        _, _, plan = self.prepare()
+        self.save_plan(plan)
+        store = Store(self.root.parent / 'services-full-overlay.sqlite3')
+
+        class FullyValidatedLibrary(FirestoppingLibrary):
+            def _validate(self, data, *, validated_source=None):
+                super()._validate(data)
+
+        library = FullyValidatedLibrary(self.root, store)
+        self.assertEqual(library.listing('technical', services='Copper Pipes')['total'], 1)
 
 
 if __name__ == '__main__':

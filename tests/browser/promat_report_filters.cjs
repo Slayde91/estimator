@@ -39,8 +39,8 @@ async function drafts() {
 async function settled(scope, selector = '.library-results') { await expect(scope.locator(selector)).toHaveAttribute('aria-busy', 'false'); }
 async function reportFilter(scope, picker = false) {
   const attribute = picker ? 'data-library-link-filter' : 'data-library-filter';
-  const reply = page.waitForResponse(response => { const u = new URL(response.url()); return u.pathname === '/api/libraries/technical' && u.searchParams.get('document') === info.report && u.searchParams.get('limit') === (picker ? '20' : '50'); });
-  reply.catch(() => {}); await scope.locator(`[${attribute}="document"]`).selectOption(info.report);
+  const reply = page.waitForResponse(response => { const u = new URL(response.url()); return u.pathname === '/api/libraries/technical' && u.searchParams.get('report') === info.report && u.searchParams.get('limit') === (picker ? '20' : '50'); });
+  reply.catch(() => {}); await scope.locator(`[${attribute}="report"]`).selectOption(info.report);
   const response = await reply; assert.equal(response.status(), 200, await response.text());
   const query = Object.fromEntries(new URL(response.url()).searchParams); assert.equal(query.manufacturer, undefined, 'Report selection alone must find all 18 records');
   evidence.queries.push(query); await settled(scope, picker ? '.library-link-results' : '.library-results'); return response.json();
@@ -76,7 +76,7 @@ async function existingReportLink(scope, id) {
   await page.goto(origin); await page.waitForFunction(() => { const state = window.CeasefireDesktop?.status(); return state?.ready && !state.busy; });
   const beforeDrafts = await drafts(), beforeDisk = diskSnapshot(), beforeSave = await page.locator('#project-save-state').textContent();
   const all = await api('/api/libraries/technical?limit=100'); assert.equal(all.total, info.raw_count);
-  const option = all.filters.find(field => field.key === 'document');
+  const option = all.filters.find(field => field.key === 'report');
   assert.deepEqual(option.options.map(value => value.value).sort(), [info.report, 'SYN-KEEP Rev A'].sort(), 'Placeholders and another supplier must not gain report choices');
   assert.deepEqual(option.options.find(value => value.value === info.report), { value: info.report, label: info.report, group: 'Promat' });
   const reportOnly = await api(`/api/libraries/technical?document=${info.report}&limit=100`);
@@ -95,7 +95,7 @@ async function existingReportLink(scope, id) {
   evidence.checks.exact17RecoveredAndExistingAssignmentPreserved = true;
   evidence.checks.foreignPlaceholderAndAssignedOtherFacetUnchanged = true;
   await chooseLibrary(page, 'technical'); const technical = page.locator('#technical-library-workspace'); await settled(technical);
-  const grouped = technical.locator('[data-library-filter="document"] optgroup[label="Promat"] option[value="148393"]'); await expect(grouped).toHaveCount(1);
+  const grouped = technical.locator('[data-library-filter="report"] optgroup[label="Promat"] option[value="148393"]'); await expect(grouped).toHaveCount(1);
   await expect(technical.locator('[data-library-filter="manufacturer"]')).toHaveValue('');
   const filtered = await reportFilter(technical); assert.equal(filtered.total, 18);
   assert.deepEqual(await technical.locator('[data-library-record]').evaluateAll(buttons => buttons.map(button => button.dataset.libraryRecord).sort()), [...expected].sort());
@@ -106,11 +106,11 @@ async function existingReportLink(scope, id) {
     evidence.checks.nativeLinks.push(await existingReportLink(detail, id));
     await page.screenshot({ path: path.join(output, `report-link-${evidence.checks.nativeLinks.length}.png`) });
     await detail.getByRole('button', { name: 'Back to results', exact: true }).click(); await settled(technical);
-    await expect(technical.locator('[data-library-filter="document"]')).toHaveValue(info.report);
+    await expect(technical.locator('[data-library-filter="report"]')).toHaveValue(info.report);
   }
   await chooseLibrary(page, 'penetration'); const penetration = page.locator('#penetration-library-workspace'); await settled(penetration);
   await penetration.locator(`[data-library-link="${info.penetration_id}"]`).click(); const picker = penetration.locator('.library-link-picker:visible'); await settled(picker, '.library-link-results');
-  await expect(picker.locator('[data-library-link-filter="document"] optgroup[label="Promat"] option[value="148393"]')).toHaveCount(1);
+  await expect(picker.locator('[data-library-link-filter="report"] optgroup[label="Promat"] option[value="148393"]')).toHaveCount(1);
   await expect(picker.locator('[data-library-link-filter="manufacturer"]')).toHaveValue('');
   const choices = await reportFilter(picker, true); assert.equal(choices.total, 18);
   assert.deepEqual(await picker.locator('[data-library-link-choice]').evaluateAll(inputs => inputs.map(input => input.value).sort()), [...expected].sort());

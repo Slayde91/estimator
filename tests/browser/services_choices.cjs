@@ -22,7 +22,7 @@ const ready = new Promise((resolve, reject) => {
 });
 const calculatorServices = ["N/A", "Busbar Trunking", "Cable Bundles", "Cable Trays", "Coaxial Cables", "Conduits", "D1 Power Cables", "D2 Comms Cables", "Data Cables", "Downlights", "Fibre Optic", "Fire Dampers", "Fire Resistant Cables", "Flexible Ducts", "Lagged Copper Pipes", "Lagged Steel Pipes", "Mixed Services", "Pair Coils", "uPVC pipe", "uPVC floorwaste", "PEX pipe", "HDPE pipe", "Power Cables", "Single Cables", "TPS & Fire Alarm Cables", "Copper Pipes", "Steel Pipes", "Air Transfer Grilles", "Communications Cables", "Wall Sockets"];
 // Independent expected values: library-only descriptions do not expand any
-// calculator, editor or Takeoffs input choices or their saved-value fallback.
+// calculator pricing choices. Library editors and Takeoffs share canonical metadata.
 const technicalServices = ["N/A", "Busbar Trunking", "Cable Bundles", "Cable Trays", "Coaxial Cables", "Conduits", "D1 Power Cables", "D2 Comms Cables", "Data Cables", "Downlights", "Fibre Optic", "Fire Dampers", "Fire Resistant Cables", "Flexible Ducts", "Lagged Copper Pipes", "Lagged Steel Pipes", "Mixed Services", "Pair Coils", "uPVC pipe", "uPVC floorwaste", "PEX pipe", "HDPE pipe", "Power Cables", "Single Cables", "TPS & Fire Alarm Cables", "Copper Pipes", "Steel Pipes", "Air Transfer Grilles", "Communications Cables", "Wall Sockets", "PP pipe", "CPVC pipe", "Unlagged Iron Pipes", "Lagged Iron Pipes", "Beverage / Beer Lines", "Raupiano Plus pipe", "Unlagged Brass Pipes", "dBlue pipe", "PU air line", "Concentric plastic pipe", "Smoke Sampling Tubes", "ABS pipe", "PB pipe", "Insulated Gas Lines", "Kelox / KeKilit pipe"];
 const technicalServiceGroups = [
   ['Electrical & communications', ['Busbar Trunking', 'Cable Bundles', 'Cable Trays', 'Coaxial Cables', 'Conduits', 'D1 Power Cables', 'D2 Comms Cables', 'Data Cables', 'Downlights', 'Fibre Optic', 'Fire Resistant Cables', 'Power Cables', 'Single Cables', 'TPS & Fire Alarm Cables', 'Communications Cables', 'Wall Sockets', 'Smoke Sampling Tubes']],
@@ -46,7 +46,7 @@ async function options(control, legacy, grouped = false) {
     assert.equal(expected.length, 45);
     assert.deepEqual([...expected].sort(), [...technicalServices].sort(), 'Technical Library retains exactly the 45 approved values');
   } else {
-    assert.equal(expected.length, 30, 'Calculator/editor/Takeoffs retain the original 30 choices');
+    assert.equal(expected.length, 30, 'The independent calculator retains the original 30 choices');
     assert.ok(technicalServices.filter(value => !calculatorServices.includes(value)).every(value => !actual.some(row => row.value === value)), 'Library-only descriptions do not become calculator inputs');
   }
   if (legacy) { assert.equal(actual.at(-1).value, legacy); await expect(control).toHaveValue(legacy); }
@@ -114,7 +114,7 @@ async function takeoffSnapshot() { const session = await page.evaluate(() => win
   assert.equal(filterKeys.indexOf('category') + 1, filterKeys.indexOf('service_type'));
   assert.equal(firestoppingFilters.filters.find(field => field.key === 'service_type').label, 'Services');
   assert.equal(firestoppingFilters.filters.find(field => field.key === 'penetration_type').label, 'Type');
-  assert.deepEqual(firestoppingFilters.filters.find(field => field.key === 'service_type').options.map(option => option.value).sort(), [...calculatorServices].sort(), 'Firestopping filters retain exactly the original 30 Services choices');
+  assert.deepEqual(firestoppingFilters.filters.find(field => field.key === 'service_type').options.map(option => option.value).sort(), [...technicalServices].sort(), 'Firestopping filters share all 45 Technical Library Services choices');
   assert.deepEqual(firestoppingFilters.filters.find(field => field.key === 'penetration_type').options.map(option => option.value), ['Core hole', 'Oversized core hole']);
   await expect(page.locator('#library-penetration [data-library-filter=category]')).toBeVisible();
   evidence.firestoppingFilters = firestoppingFilters.filters;
@@ -123,7 +123,7 @@ async function takeoffSnapshot() { const session = await page.evaluate(() => win
   await expect(librarySettings).toBeVisible();await expect(detailsTab).toBeVisible();
   const settingsBox=await librarySettings.boundingBox(),detailsBox=await detailsTab.boundingBox();assert.ok(settingsBox.x+settingsBox.width<=detailsBox.x,'Library Settings icon must be left of DETAILS');
   const beforeSettings=await page.evaluate(()=>window.CeasefireLibraryEditor.projectFingerprint());await librarySettings.click();await expect(librarySettings).toHaveAttribute('aria-pressed','true');await detailsTab.click();await expect(librarySettings).toHaveAttribute('aria-pressed','false');assert.equal(await page.evaluate(()=>window.CeasefireLibraryEditor.projectFingerprint()),beforeSettings);evidence.librarySettings={leftOfDetails:true,nativeToggle:true,draftUnchanged:true};
-  const libraryService = page.locator('[data-library-editor-field=K]'); evidence.libraryOptions = await options(libraryService, 'Copper service'); assert.equal(evidence.libraryOptions.at(-1).disabled, true);
+  const libraryService = page.locator('[data-library-editor-field=K]'); evidence.libraryOptions = await options(libraryService, 'Copper service', true); assert.equal(evidence.libraryOptions.at(-1).disabled, true);
   const libraryDraft = await page.evaluate(() => window.CeasefireLibraryEditor.projectFingerprint()); await libraryService.focus(); await libraryService.press('Tab'); assert.equal(await page.evaluate(() => window.CeasefireLibraryEditor.projectFingerprint()), libraryDraft);
   await page.screenshot({ path: path.join(output, 'library-saved-service.png') }); await page.locator('#library-editor-cancel').click();
   await chooseCalculator(page, 'Firestopping Estimator');
@@ -147,8 +147,8 @@ async function takeoffSnapshot() { const session = await page.evaluate(() => win
   const applyReply = await page.request.post(`${origin}/api/takeoffs/sessions/${sid}/physical/apply`, { data: { scope: 'defect_reports', expected_revision: preview.revision, request_id: randomUUID(), preview_id: preview.preview_id } }); assert.equal(applyReply.status(), 200, await applyReply.text()); const applied = await applyReply.json();
   await page.evaluate(async value => { const t = window.CeasefireTakeoffs; t.applyProject(await t.prepareProject(value, t.sessionId())); await t.open(); }, applied.snapshot); await chooseTakeoff(page, 'physical'); await physicalIdle();
   await page.locator(`tr[data-physical-id="${ids.barrier}"] .takeoff-row-link`).click(); await clickInspectorAdd(page.getByRole('complementary',{name:'Item Details',exact:true}), 'Add service in Item Details');
-  const modal = page.getByRole('dialog'); await expect(modal.getByRole('heading', { name: 'Create draft service', exact: true })).toBeVisible(); evidence.takeoffNewOptions = await options(modal.getByLabel('Service type', { exact: true })); await modal.getByRole('button', { name: 'Cancel', exact: true }).click();
-  await page.locator(`tr[data-physical-id="${ids.service}"] .takeoff-row-link`).click(); const details = page.getByRole('complementary', { name: 'Item Details', exact: true }); evidence.takeoffSavedOptions = await options(details.getByLabel('Service type', { exact: true }), 'Plastic Pipes');
+  const modal = page.getByRole('dialog'); await expect(modal.getByRole('heading', { name: 'Create draft service', exact: true })).toBeVisible(); evidence.takeoffNewOptions = await options(modal.getByLabel('Service type', { exact: true }), undefined, true); await modal.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await page.locator(`tr[data-physical-id="${ids.service}"] .takeoff-row-link`).click(); const details = page.getByRole('complementary', { name: 'Item Details', exact: true }); evidence.takeoffSavedOptions = await options(details.getByLabel('Service type', { exact: true }), 'Plastic Pipes', true);
   await expect(details.getByLabel('Notes', { exact: true })).toHaveCount(0);
   await details.getByLabel('Service Size (mm)', { exact: true }).fill('12.3456789012345 mm source designation'); await details.getByLabel('Service Size (mm)', { exact: true }).press('Tab'); await expect.poll(async () => (await takeoffSnapshot()).physical.services[0].fields.size).toBe('12.3456789012345 mm source designation');
   assert.equal((await takeoffSnapshot()).physical.services[0].fields.notes, 'Retained original service note');
@@ -171,12 +171,12 @@ async function takeoffSnapshot() { const session = await page.evaluate(() => win
     const pendingOptions = await reopenedService.locator('option').evaluateAll(rows => rows.filter(row => row.value && row.value !== 'Plastic Pipes').map(row => row.value));
     assert.deepEqual(pendingOptions, []); assert.deepEqual((await takeoffSnapshot()).physical.services[0], saved.takeoffs.physical.services[0]);
     await page.screenshot({ path: path.join(output, 'takeoff-reopened-choices-pending.png') });
-    releaseDefinition(); evidence.takeoffReopenedOptions = await options(reopenedService, 'Plastic Pipes');
+    releaseDefinition(); evidence.takeoffReopenedOptions = await options(reopenedService, 'Plastic Pipes', true);
     evidence.reopenedChoiceReadiness = { definition_response_held: true, retained_value_visible_and_disabled: true, pending_general_options: pendingOptions, saved_service_unchanged: true, enabled_after_definition: true };
   } finally { releaseDefinition(); await page.unroute('**/api/penetration/definition', heldDefinition); }
   await details.getByLabel('Service type', { exact: true }).selectOption('HDPE pipe'); await expect.poll(async () => (await takeoffSnapshot()).physical.services[0].fields.service_type).toBe('HDPE pipe'); assert.equal((await takeoffSnapshot()).physical.services[0].id, ids.service);
   assert.deepEqual(protectedDatabase(), databaseBefore); assert.deepEqual(await api(`/api/libraries/penetration/${info.item_id}/edit`), sharedBefore); assert.deepEqual(fs.readFileSync(sourcePath), sourceBefore); assert.deepEqual(fs.readFileSync(info.diagram), sourceImageBefore); assert.deepEqual(errors, []); assert.deepEqual(await page.evaluate(() => window.qaCsp), []);
   fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ completed: true, exactServices: calculatorServices, technicalServices, ...evidence, ids, legacy_save_reopen_precise_identity: true, broad_type_not_expanded_to_subtypes: true, shared_database_preserved: true, shared_library_preserved: true, source_sha256: sha(sourceBefore), image_sha256: sha(sourceImageBefore), errors, csp: [] }, null, 2));
-  console.log(`PASS: exact ${technicalServices.length} Technical Library choices and original ${calculatorServices.length} calculator/editor/Takeoffs choices; explicit scoped filtering; legacy descriptions, precision and IDs retained across Save/Open; source/shared database unchanged. Evidence: ${output}`);
+  console.log(`PASS: exact ${technicalServices.length} shared Library/editor/Takeoffs metadata choices and original ${calculatorServices.length} calculator pricing choices; explicit scoped filtering; legacy descriptions, precision and IDs retained across Save/Open; source/shared database unchanged. Evidence: ${output}`);
 })().catch(async error => { console.error(error); console.error(logs.slice(-5000)); if (page) { await page.screenshot({ path: path.join(output, 'failure.png'), fullPage: true }).catch(() => {}); fs.writeFileSync(path.join(output, 'failure.txt'), await page.locator('body').innerText().catch(() => '')); } process.exitCode = 1;
 }).finally(async () => { fs.writeFileSync(path.join(output, 'server.log'), logs); if (browser) await browser.close(); server.kill(); });

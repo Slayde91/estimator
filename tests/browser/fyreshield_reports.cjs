@@ -100,10 +100,10 @@ async function reportLink(scope, label, url) {
   }
   evidence.checks.sixtyAssignedReportsAndUnchangedLookalikes = true;
   await chooseLibrary(page, 'technical'); const technical = page.locator('#technical-library-workspace'); await settled(technical);
-  const reportOption = technical.locator('[data-library-filter="document"] optgroup[label="Trafalgar"] option').filter({ hasText: new RegExp(`^${info.report.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`) });
+  const reportOption = technical.locator('[data-library-filter="report"] optgroup[label="Trafalgar"] option').filter({ hasText: new RegExp(`^${info.report.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`) });
   await expect(reportOption).toHaveCount(1); await expect(reportOption).toHaveAttribute('value', info.report);
   const hidden = await search(technical, 'FRSS'); assert.equal(hidden.total, 0); await expect(technical.locator('[data-library-record]')).toHaveCount(0);
-  await search(technical, ''); const filtered = await filter(technical, 'document', info.report); assert.equal(filtered.total, 60);
+  await search(technical, ''); const filtered = await filter(technical, 'report', info.report); assert.equal(filtered.total, 60);
   await expect(technical.locator('[data-library-record]')).toHaveCount(50);
   evidence.checks.nativeReportGroupFilterAndFrssSearch = true; evidence.checks.familyLinks = [];
   for (const [family, ids] of Object.entries(info.family_ids)) {
@@ -112,19 +112,19 @@ async function reportLink(scope, label, url) {
     evidence.checks.familyLinks.push({ family, id: ids[0], ...await reportLink(detail, info.report, info.report_url) });
     await page.screenshot({ path: path.join(output, `family-${evidence.checks.familyLinks.length}.png`) });
     await detail.getByRole('button', { name: 'Back to results', exact: true }).click(); await settled(technical);
-    await expect(technical.locator('[data-library-filter="document"]')).toHaveValue(info.report);
+    await expect(technical.locator('[data-library-filter="report"]')).toHaveValue(info.report);
   }
   await chooseLibrary(page, 'penetration'); const penetration = page.locator('#penetration-library-workspace'); await settled(penetration);
   await penetration.locator(`[data-library-link="${info.penetration_id}"]`).click(); const picker = penetration.locator('.library-link-picker:visible');
   await settled(picker, '.library-link-results');
-  const pickerReport = picker.locator('[data-library-link-filter="document"] optgroup[label="Trafalgar"] option[value="' + info.report + '"]');
+  const pickerReport = picker.locator('[data-library-link-filter="report"] optgroup[label="Trafalgar"] option[value="' + info.report + '"]');
   await expect(pickerReport).toHaveCount(1);
-  const pickerData = await filter(picker, 'document', info.report, true);
+  const pickerData = await filter(picker, 'report', info.report, true);
   assert.equal(pickerData.total, 60); await expect(picker.locator('[data-library-link-choice]')).toHaveCount(20);
   const pickedIds = pickerData.items.map(item => item.id);
   assert.ok(pickerData.items.every(item => familyIds.includes(item.id)));
   for (const offset of [20, 40]) {
-    const next = page.waitForResponse(response => { const url = new URL(response.url()); return url.pathname === '/api/libraries/technical' && url.searchParams.get('document') === info.report && url.searchParams.get('offset') === String(offset) && url.searchParams.get('limit') === '20'; });
+    const next = page.waitForResponse(response => { const url = new URL(response.url()); return url.pathname === '/api/libraries/technical' && url.searchParams.get('report') === info.report && url.searchParams.get('offset') === String(offset) && url.searchParams.get('limit') === '20'; });
     next.catch(() => {}); await picker.getByRole('button', { name: 'Next', exact: true }).click();
     const reply = await next; assert.equal(reply.status(), 200); const values = await reply.json();
     assert.equal(values.total, 60); await settled(picker, '.library-link-results');

@@ -2098,7 +2098,7 @@ class TakeoffService:
         """Read selected/linked reports; facts only prefilter a manual chooser."""
         from .register_references import physical_contexts, ReferenceIndex
         with self._lock:
-            object_fields(request, {'expected_revision', 'scope', 'entity_ids', 'offset', 'report_offset', 'limit', 'expected_library_revision'},
+            object_fields(request, {'expected_revision', 'scope', 'entity_ids', 'offset', 'report_offset', 'limit', 'expected_library_revision', 'own_only'},
                           'Register references', {'expected_revision', 'scope', 'entity_ids'})
             snapshot = self._session(session_id)['snapshot']
             if type(request['expected_revision']) is not int or request['expected_revision'] != snapshot['revision']:
@@ -2117,7 +2117,10 @@ class TakeoffService:
             if expected is not None and (not isinstance(expected, str) or len(expected) != 64 or any(c not in '0123456789abcdef' for c in expected)):
                 raise ValidationError('Use the current reference library revision.')
             self._physical_gate(session_id, snapshot)
-            contexts = physical_contexts(snapshot, request['scope'], identifiers)
+            own_only = request.get('own_only', False)
+            if type(own_only) is not bool:
+                raise ValidationError('Choose whether to read only this record\'s own references.')
+            contexts = physical_contexts(snapshot, request['scope'], identifiers, own_only=own_only)
             if self.libraries:
                 result = self.libraries.register_references(contexts, offset=offset, report_offset=report_offset, limit=limit, expected_revision=expected)
             else:

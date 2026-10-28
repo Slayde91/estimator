@@ -15,7 +15,7 @@ const graph = () => ({version:2,id:uuid(99),project_id:uuid(98),revision:1,state
 const servicePlanGraph = () => { const value=graph();value.version=3;value.id=uuid(97);delete value.defects;for(const barrier of value.barriers){delete barrier.defect_id;barrier.fields.frl='-/90/90';}return value; };
 const snapshot = value => ({version:1,project_id:uuid(98),revision:1,documents:[{id:uuid(80),sha256:'d'.repeat(64),name:'Inspection.pdf',pages:[{page:1},{page:2}]}],physical:value,image_extractions:[{id:uuid(90),document_id:uuid(80),pages:[1]}]});
 const fieldChoices = {substrate:['Concrete','Masonry','Custom library substrate'],orientation:['Horizontal','Vertical'],service:['Mechanical','Electrical & Communications'],service_type:['Copper pipe','Cable bundle','Custom library service'],frl:['N/A','-/60/60','-/90/90','-/120/120','-/180/180','-/240/240']};
-const optionsOf = control => control.children.filter(child=>child.tagName==='OPTION').map(child=>child.value).filter(value=>value!=='');
+const optionsOf = control => control.children.flatMap(child=>child.tagName==='OPTGROUP'?child.children:[child]).filter(child=>child.tagName==='OPTION').map(child=>child.value).filter(value=>value!=='');
 const definitionOptions = definition => definition[2].map(option=>Array.isArray(option)?option[0]:option);
 function documentHarness(){
   let doc;
@@ -133,17 +133,17 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
   await check('Physical Report uses the shared explicit chooser, applies once and preserves cancellation and stale guards',async()=>{
     const previous=global.CeasefireRegisterReferences,oldPicker=global.CeasefirePenetrationReferences;
     global.CeasefireRegisterReferences=require('../static/register-references.js');
-    let opened,h;
+    let opened,h;const referenceRequests=[];
     global.CeasefirePenetrationReferences={validateIds(values){assert.ok(Array.isArray(values)&&values.length<=128);return values;},open:async options=>{opened=options;}};
     try{
       const references=async ids=>({library_revision:'e'.repeat(64),row_references:Object.fromEntries(ids.map(id=>{
         const selected=physical.indexGraph(h.current.physical).get(id).entity.technical_reference_ids||[];
         return[id,{reports:selected.map(value=>({label:'Exact report',url:null})),systems:selected.map((value,index)=>({id:value,title:'Exact system',number:index+1})),total:selected.length,offset:0,has_more:false,initial_filters:{substrate:'Concrete/masonry wall'}}];
       }))});
-      h=component(graph(),{registerReferences:ids=>Promise.resolve().then(()=>references(ids))});await flush();
+      h=component(graph(),{registerReferences:(ids,options)=>{referenceRequests.push(copy(options||{}));return Promise.resolve().then(()=>references(ids));}});await flush();
       const choose=()=>h.all().find(el=>el.dataset.physicalReferences===uuid(5));
       assert.equal(choose().textContent,'Choose reports');const original=copy(h.current);
-      choose().emit('click');await flush();assert.deepEqual(opened.reference.initial_filters,{substrate:'Concrete/masonry wall'});assert.deepEqual(h.current,original);assert.equal(h.calls.applied.length,0,'Opening/cancelling never selects candidates');
+      choose().emit('click');await flush();assert.deepEqual(opened.reference.initial_filters,{substrate:'Concrete/masonry wall'});assert.ok(referenceRequests.some(request=>request.own_only===true),'The picker reads own selections, never copies inherited child reports');assert.deepEqual(h.current,original);assert.equal(h.calls.applied.length,0,'Opening/cancelling never selects candidates');
       global.CeasefirePenetrationReferences.open=async options=>{opened=options;await options.apply(['system-one']);};
       choose().emit('click');await flush();assert.deepEqual(h.current.physical.services[0].technical_reference_ids,['system-one']);assert.equal(h.calls.previews.length,1);assert.equal(h.calls.applied.length,1);assert.equal(h.calls.confirmations.length,0,'Use selected references is the explicit confirmation');assert.equal(choose().textContent,'Change reports');
       const gate=defer();global.CeasefirePenetrationReferences.open=async options=>{opened=options;await gate.promise;};choose().emit('click');await flush();assert.equal(h.controller.hasUnfinishedChanges(),true);
@@ -482,6 +482,18 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
     const inspector=h.all().find(control=>control.tagName==='ASIDE'),controls=h.dom.all(inspector).filter(control=>['INPUT','SELECT','TEXTAREA'].includes(control.tagName));
     assert.equal(controls.findIndex(control=>control.name==='quantity'),controls.findIndex(control=>control.name==='service_type')+1);assert.equal(h.input('Service Size (mm)').value,'25 mm');assert.ok(!h.all().some(control=>control.attributes['aria-label']==='Service label'));
     h.controller.destroy();
+  });
+  await check('Canonical grouped choices and automatic orientation preserve quantities, IDs and retained facts',async()=>{
+    const choices={...copy(fieldChoices),substrate:['Concrete/masonry wall','Concrete/masonry floor','Plasterboard ceiling'],option_details:{substrate:[{value:'Concrete/masonry wall',label:'Concrete/masonry wall',group:'Walls'},{value:'Concrete/masonry floor',label:'Concrete/masonry floor',group:'Floors'},{value:'Plasterboard ceiling',label:'Plasterboard ceiling',group:'Ceilings'}],service_type:[{value:'Copper pipe',label:'Copper pipe',group:'Unlagged Pipes'},{value:'Cable bundle',label:'Cable bundle',group:'Cables'}]}};
+    const h=component(graph(),{fieldOptions:async()=>choices});await flush();await h.select(1);
+    const substrate=h.input('Substrate');assert.deepEqual(optionsOf(substrate).filter(value=>value!=='Concrete'),choices.substrate);assert.deepEqual(substrate.children.filter(child=>child.tagName==='OPTGROUP').map(group=>group.attributes.label),['Walls','Floors','Ceilings']);
+    const before=copy(h.current.physical);substrate.value='Concrete/masonry floor';substrate.emit('change');await flush();await h.controller.completePendingEdits();
+    assert.equal(h.current.physical.barriers[0].fields.orientation,'Horizontal');assert.equal(h.current.physical.barriers[0].id,before.barriers[0].id);assert.deepEqual(h.current.physical.services,before.services);
+    for(const [value,orientation] of [['Hebel wall','Vertical'],['CLT floor','Horizontal'],['Plasterboard ceiling','Horizontal']]){
+      assert.equal(physical.fieldsFromValues('barrier',{substrate:value,orientation:'retained contrary orientation'},{},'service_plans').orientation,orientation);
+      assert.equal(physical.changedFields(physical.indexGraph(graph()).get(uuid(1)),'substrate',value).fields.orientation,orientation);
+    }
+    assert.equal(physical.fieldsFromValues('barrier',{substrate:'Historic board',orientation:'Historic orientation'},{}).orientation,'Historic orientation');h.controller.destroy();
   });
   await check('Hidden labels and barrier thickness survive visible-field edits and old dropdown values remain explicit',async()=>{
     const value=graph();Object.assign(value.barriers[0].fields,{thickness_mm:175,substrate:' Historic substrate ',orientation:'Historic orientation',barrier_type:'Historic barrier',future_property:'retained barrier data',location:'Retained old child location'});Object.assign(value.services[0].fields,{service:'Historic category',service_type:'Historic type',future_property:'retained service data'});

@@ -48,8 +48,9 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
     from .download_progress import DownloadProgress
     download_progress = DownloadProgress()
     from .reference_library import ReferenceNotFound
-    from .firestopping_library import FirestoppingLibrary, LibraryConflict
-    libraries = FirestoppingLibrary(library_directory, store)
+    from .firestopping_library import LibraryConflict
+    from .technical_library_edits import ManualTechnicalLibrary
+    libraries = ManualTechnicalLibrary(library_directory, store)
     if takeoffs is not None:
         takeoffs.libraries = libraries
 
@@ -202,6 +203,10 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     self.send_payload(200, store.company_settings())
                 elif route == '/api/libraries':
                     self.send_payload(200, libraries.overview())
+                elif route == '/api/libraries/technical/new':
+                    self.send_payload(200, libraries.technical_edit())
+                elif re.fullmatch(r'/api/libraries/technical/[a-z0-9][a-z0-9_-]{0,119}/edit', route):
+                    self.send_payload(200, libraries.technical_edit(route.split('/')[-2]))
                 elif route in {'/api/libraries/penetration', '/api/libraries/technical'}:
                     query = parse_qs(urlsplit(self.path).query, keep_blank_values=True)
                     if any(len(values) != 1 for values in query.values()):
@@ -311,6 +316,18 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                         self.send_payload(405, {'error': 'Method not allowed.'})
                         return
                     self.send_payload(200, libraries.create(body))
+                elif route == '/api/libraries/technical':
+                    if self.command != 'POST':
+                        self.send_payload(405, {'error': 'Method not allowed.'})
+                        return
+                    self.send_payload(200, libraries.technical_save(None, body))
+                elif re.fullmatch(r'/api/libraries/technical/[a-z0-9][a-z0-9_-]{0,119}/(save|delete|links)', route):
+                    if self.command != 'POST':
+                        self.send_payload(405, {'error': 'Method not allowed.'})
+                        return
+                    key, action = route.split('/')[-2:]
+                    method = {'save': libraries.technical_save, 'delete': libraries.technical_delete, 'links': libraries.technical_link}[action]
+                    self.send_payload(200, method(key, body))
                 elif re.fullmatch(r'/api/libraries/penetration/[a-z0-9][a-z0-9_-]{0,119}/links/remove', route):
                     if self.command != 'POST':
                         self.send_payload(405, {'error': 'Method not allowed.'})

@@ -113,7 +113,7 @@
   ];
 
   function compact(value) {
-    const text = String(value ?? ""), protectedText = /https?:\/\/[^\s<>]+|[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}|\b[\w.-]+\.(?:pdf|xlsx?|docx?|png|jpe?g|json)\b/gi;
+    const text = String(value ?? "").replace(/^[ \t]*(?:Source[ \t]+)?Pages?[ \t]+\d+(?:[ \t]*(?:,|&|and|[-–—])[ \t]*\d+)*[ \t]*:[ \t]*/gim, ""), protectedText = /https?:\/\/[^\s<>]+|[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}|\b[\w.-]+\.(?:pdf|xlsx?|docx?|png|jpe?g|json)\b/gi;
     const prose = part => compactRules.reduce((text, [expression, replacement]) => text.replace(expression, replacement), withoutCrossReferences(singleDiameter(part)));
     let result = "", cursor = 0;
     for (const match of text.matchAll(protectedText)) {

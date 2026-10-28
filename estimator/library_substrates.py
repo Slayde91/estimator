@@ -418,3 +418,8 @@ def substrate_options(values):
     return [{'value': value, 'label': value, 'group': substrate_group(value)}
             for value in sorted(set(values), key=lambda value: (
                 SUBSTRATE_GROUPS.index(substrate_group(value)), value.casefold(), value))]
+
+
+def classification_substrate_options():
+    """Existing canonical taxonomy, available before a record bundle is installed."""
+    return substrate_options(canonical_substrate(value) for value in _LABELS)

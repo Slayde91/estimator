@@ -6,8 +6,8 @@ const flush=async()=>{for(let i=0;i<30;i++)await Promise.resolve();};
 const walk=node=>[node,...node.children.flatMap(walk)];
 const text=node=>walk(node).map(el=>el.textContent).join(' ');
 const documentChevron='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="m6 9 6 6 6-6"></path></svg>';
-const sourceImages=nodes=>nodes.filter(node=>node.tagName==='img'&&!(node.className==='calculator-document-icon'&&node.src==='/icons/document.png'&&node.alt===''));
-function assertSourceHtmlSafe(nodes){for(const node of nodes)if(node.innerHTML!==undefined){assert.equal(node.className,'calculator-document-chevron');assert.equal(node.innerHTML,documentChevron);}}
+const sourceImages=nodes=>nodes.filter(node=>node.tagName==='img'&&node.getAttribute('aria-hidden')!=='true'&&!(node.className==='calculator-document-icon'&&node.src==='/icons/document.png'&&node.alt===''));
+function assertSourceHtmlSafe(nodes){for(const node of nodes)if(node.innerHTML!==undefined){if(node.className==='library-trash-icon'){assert.equal(node.innerHTML,'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="M4 7h16M9 7V4h6v3M6.5 7l1 13h9l1-13M10 10.5v6M14 10.5v6"></path></svg>');}else{assert.equal(node.className,'calculator-document-chevron');assert.equal(node.innerHTML,documentChevron);}}}
 const meta=()=>({notice:'Synthetic local reference library.',libraries:['penetration','technical'].map(id=>({id,title:id,available:true,count:2}))});
 const filters=[{key:'category',label:'Category',options:[{value:'sample & test',label:'Sample & test'}]}];
 const records=kind=>({items:[{id:kind+'-1',title:'Synthetic '+kind+' record',subtitle:'Source row 10',summary:'Synthetic summary',source_label:'Synthetic source',related_count:1}],offset:0,limit:50,total:1,filters});
@@ -25,13 +25,14 @@ function harness(){
         contains(name){return tokens().includes(name);},
         toggle(name,force){const active=force===undefined?!this.contains(name):Boolean(force);if(active)this.add(name);else this.remove(name);return active;},
       };},
-      append(...children){this.children.push(...children);},replaceChildren(...children){this.children=[];this.append(...children);},
+      append(...children){for(const child of children){child.parentElement=this;child.parentNode=this;this.children.push(child);}},replaceChildren(...children){this.children=[];this.append(...children);},
+      querySelectorAll(selector){const tags=selector.split(',');return walk(this).slice(1).filter(child=>tags.includes(child.tagName));},
       addEventListener(name,fn){(this.listeners[name]||=[]).push(fn);},removeEventListener(name,fn){this.listeners[name]=(this.listeners[name]||[]).filter(listener=>listener!==fn);},contains(target){return walk(this).includes(target);},async emit(name,options={}){const event={target:this,defaultPrevented:false,propagationStopped:false,preventDefault(){this.defaultPrevented=true;},stopPropagation(){this.propagationStopped=true;},...options};for(const fn of [...this.listeners[name]||[]])await fn(event);return event;},
       setAttribute(name,value){attributes.set(name,String(value));},getAttribute(name){return attributes.get(name);},focus(options){this.focused=true;this.focusOptions=options;context.document.activeElement=this;},scrollIntoView(options){this.scrolled=true;this.scrollOptions=options;},getBoundingClientRect(){return this.rect||{bottom:96};}};
   }
   const byId=id=>{if(!elements.has(id))elements.set(id,element());return elements.get(id);};
   let route=path=>{if(path==='/api/libraries')return meta();const [, , ,kind,id]=path.split('/');return id?detail(kind,decodeURIComponent(id)):records(kind.split('?')[0]);};
-  const context={document:{...element('document'),getElementById:byId,createElement:element,querySelector:selector=>selector==='.app-header'?byId('synthetic-header'):null},window:{},URL,URLSearchParams,AbortController,Map,Set,JSON,Number,String,Object,Array,Promise,Error,console,
+  const context={document:{...element('document'),getElementById:byId,createElement:element,querySelector:selector=>selector==='.app-header'?byId('synthetic-header'):null},window:{crypto:{randomUUID:()=> '01234567-89ab-cdef-0123-456789abcdef'}},URL,URLSearchParams,AbortController,Map,Set,JSON,Number,String,Object,Array,Promise,Error,console,
     setTimeout(fn){timers.set(++timerId,fn);return timerId;},clearTimeout(id){timers.delete(id);},fetch:async(path,options)=>{calls.push({path,options});const data=await route(path,options);return{ok:!data?.error,status:data?.error?400:200,json:async()=>data};}};
   vm.createContext(context);vm.runInContext(fs.readFileSync('static/library-detail-text.js','utf8'),context);
   vm.runInContext(fs.readFileSync('static/libraries.js','utf8').replace(/\}\)\(\);\s*$/,`globalThis.audit={state,paneFor,loadList,loadDetail,navigate,back,refresh,showList,renderDetail};})();`),context);
@@ -176,13 +177,13 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
       assert.match(text(h.pane(kind).detailPanel),/ID V11A/);assert.doesNotMatch(text(h.pane(kind).detailPanel),/Source information|Internal source note/);assert.deepEqual(source,before);
     }
   });
-  await check('Mandarin library headings and generated reference choices translate while source table columns stay literal',async h=>{
+  await check('Mandarin library headings and shared filter choices translate while source table columns stay literal',async h=>{
     h.context.window.CeasefireI18n=require('./helpers/localized_i18n.cjs')();
     await h.api.open('penetration');const pane=h.pane('penetration');
     assert.ok(text(pane.list).includes(h.context.window.CeasefireI18n.translate('Search {0}',[h.context.window.CeasefireI18n.term('Firestopping Library')])));
-    const reference=walk(pane.filterControls).find(el=>el.dataset.libraryFilter==='technical_reference');
-    assert.deepEqual(reference.children.map(el=>el.value),['any','linked','unlinked']);
-    assert.equal(reference.children[1].textContent,h.context.window.CeasefireI18n.translate('Linked Technical References'));
+    assert.equal(walk(pane.filterControls).find(el=>el.dataset.libraryFilter==='technical_reference'),undefined);
+    const category=walk(pane.filterControls).find(el=>el.dataset.libraryFilter==='category');assert.equal(category.children[0].value,'');
+    assert.equal(category.children[0].textContent,h.context.window.CeasefireI18n.translate('All {0}',[h.context.window.CeasefireI18n.term('Category')]));
     h.setRoute(path=>path==='/api/libraries'?meta():{...detail('technical','technical-1'),fields:[{label:'Source data',table:{columns:['Board','Primer','Home'],rows:[['Home','Board','Primer']]}}]});
     await h.api.open('technical','technical-1');const headings=walk(h.pane('technical').detailPanel).filter(el=>el.tagName==='th');
     assert.deepEqual(headings.map(el=>el.textContent),['Board','Primer','Home']);
@@ -250,7 +251,7 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     const sections=children.filter(node=>node.className==='library-detail-section');
     assert.ok(children.indexOf(fields)<children.indexOf(gallery));assert.ok(children.indexOf(gallery)<children.indexOf(sections[0]));
     assert.match(text(sections[0]),/Related firestopping records/);assert.equal(sections.length,1);
-    assertSourceHtmlSafe(nodes);assert.equal(nodes.filter(node=>node.innerHTML!==undefined).length,1);assert.doesNotMatch(text(pane.detailPanel),/Source fingerprint|synthetic-hash/);assert.match(text(pane.detailPanel),/Related firestopping records/);
+    assertSourceHtmlSafe(nodes);assert.equal(nodes.filter(node=>node.innerHTML!==undefined).length,2);assert.doesNotMatch(text(pane.detailPanel),/Source fingerprint|synthetic-hash/);assert.match(text(pane.detailPanel),/Related firestopping records/);
     const heading=nodes.find(node=>node.tagName==='h3');assert.equal(heading.focusOptions.preventScroll,true);assert.equal(pane.detailPanel.scrolled,true);assert.equal(heading.scrolled,undefined,'Keep Back navigation above the heading inside the scrolled view.');
     assert.equal(pane.detailPanel.children.filter(node=>node.textContent==='Record-specific source qualification.').length,1);assert.doesNotMatch(pane.notice.textContent,/Record-specific/);assert.equal(h.byId('technical-library-workspace').contains(pane.notice),false,'The generic technical-library notice is absent from the page.');assert.equal(h.byId('technical-library-workspace').contains(pane.detailPanel),true);
   });
@@ -324,7 +325,7 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     const opened=[];h.context.window.CeasefireLibraryEditor={open:async id=>opened.push(id)};
     h.setRoute(path=>path==='/api/libraries'?meta():path.includes('?')?({...records('penetration'),items:[{id:'legacy-row-4',title:'FL-ID-001',price:{amount:123.456789,label:'Workbook price'},editable:true}]}):({...detail('technical','technical-1'),links:[{kind:'penetration',id:'legacy-row-4',title:'FL-ID-001',relationship:'Original source entry',notice:'This item has saved edits; the technical reference describes its original workbook entry.'}]}));
     await h.api.open('penetration');const pane=h.pane('penetration');assert.match(text(pane.results),/FL-ID-001.*Library price: \$123\.46/);assert.doesNotMatch(text(pane.results),/Workbook price/);const edit=walk(pane.results).find(node=>node.dataset.libraryEdit);assert.equal(edit.textContent,'Edit');await edit.emit('click');assert.deepEqual(opened,['legacy-row-4']);
-    await h.api.open('technical','technical-1');const related=walk(h.pane('technical').detailPanel).find(node=>node.className==='library-related-record');assert.match(text(related),/FL-ID-001.*saved edits/);assert.doesNotMatch(text(related),/Original source entry/);assert.equal(walk(h.pane('technical').detailPanel).filter(node=>node.dataset.libraryEdit).length,0);
+    await h.api.open('technical','technical-1');const related=walk(h.pane('technical').detailPanel).find(node=>node.className==='library-related-record');assert.match(text(related),/FL-ID-001.*saved edits/);assert.doesNotMatch(text(related),/Original source entry/);assert.deepEqual(walk(h.pane('technical').detailPanel).filter(node=>node.dataset.libraryEdit).map(node=>node.dataset.libraryEdit),['technical-1']);
   });
   await check('Presentation cleanup hides requested metadata without changing source evidence or main-table conditions',async h=>{
     const source={...detail('technical','source'),price:{amount:25.123456,label:'Workbook price'},fields:[
@@ -620,12 +621,13 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     h.setRoute(path=>path==='/api/libraries'?meta():({...records('technical'),items:path.includes('offset=100')?[]:[{id:'remaining',title:'Remaining record'}],total:20,offset:path.includes('offset=100')?100:0}));
     await pane.refresh.emit('click');await flush();assert.equal(pane.offset,0);assert.match(text(pane.results),/Remaining record/);assert.match(h.calls.at(-1).path,/search=kept/);assert.equal(pane.previous.disabled,true);
   });
-  await check('Firestopping summary stays catalog-wide while the exact reference filter combines with search and other filters',async h=>{
+  await check('Firestopping bars omit the extra reference dropdown while retained backend query compatibility and summary stay exact',async h=>{
     h.setRoute(path=>path==='/api/libraries'?{libraries:[{id:'penetration',available:true,count:100,unlinked_count:24}]}:({...records('penetration'),counts:{total:100,linked:76,unlinked:24,manufacturers:[{name:'Boss',count:40},{name:'Promat',count:60}]},filters:[...filters,{key:'technical_reference',label:'Server label',options:['any','linked','unlinked']}]}));
     await h.api.open('penetration');const pane=h.pane('penetration');assert.deepEqual(walk(pane.summary).filter(node=>node.tagName==='td').map(node=>node.textContent),['100','40','60','24']);assert.match(text(pane.summary),/Total records.*Boss.*Promat.*No related technical references/);assert.match(pane.count.textContent,/of 1 records/);
-    const ref=walk(pane.filterControls).find(node=>node.dataset.libraryFilter==='technical_reference');assert.deepEqual(ref.children.map(node=>[node.value,node.textContent]),[['any','Any'],['linked','Linked Technical References'],['unlinked','No Linked Technical References']]);assert.equal(ref.value,'any');
+    assert.equal(walk(pane.filterControls).find(node=>node.dataset.libraryFilter==='technical_reference'),undefined);
     pane.searchInput.value='kept search';await pane.searchInput.emit('input');await h.runTimers();const category=walk(pane.filterControls).find(node=>node.dataset.libraryFilter==='category');category.value='sample & test';await category.emit('change');await flush();
-    for(const value of ['linked','unlinked','any']){const control=walk(pane.filterControls).find(node=>node.dataset.libraryFilter==='technical_reference');control.value=value;await control.emit('change');await flush();assert.match(h.calls.at(-1).path,new RegExp('technical_reference='+value));assert.match(h.calls.at(-1).path,/search=kept\+search.*category=sample\+%26\+test/);assert.deepEqual(walk(pane.summary).filter(node=>node.tagName==='td').map(node=>node.textContent),['100','40','60','24']);}
+    assert.equal(walk(pane.filterControls).find(node=>node.dataset.libraryFilter==='category').classList.contains('library-filter-active'),true);
+    for(const value of ['linked','unlinked','any']){pane.filters.technical_reference=value;await h.context.audit.loadList(pane);assert.match(h.calls.at(-1).path,new RegExp('technical_reference='+value));assert.match(h.calls.at(-1).path,/search=kept\+search.*category=sample\+%26\+test/);assert.deepEqual(walk(pane.summary).filter(node=>node.tagName==='td').map(node=>node.textContent),['100','40','60','24']);}
   });
   await check('Every Firestopping card and detail has link and schedule actions; Add guards duplicates and reports errors next to the action',async h=>{
     const pending=deferred(),ids=[];h.context.window.CeasefirePenetrations={addLibraryItem:id=>{ids.push(id);return pending.promise}};
@@ -633,19 +635,20 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     await h.api.open('penetration');const pane=h.pane('penetration');const add=walk(pane.results).find(node=>node.dataset.libraryAdd),link=walk(pane.results).find(node=>node.dataset.libraryLink),edit=walk(pane.results).find(node=>node.dataset.libraryEdit),remove=walk(pane.results).find(node=>node.dataset.libraryDelete);assert.ok(link);assert.equal(link.getAttribute('aria-label'),'Link Library Item');assert.equal(link.textContent,'');assert.match(link.className,/link-action-button/);assert.match(edit.className,/library-edit-button/);assert.match(remove.className,/library-delete-button/);assert.match(add.className,/secondary takeoff-physical-icon-action library-add-transfer/);assert.equal(add.getAttribute('aria-label'),'Add to Schedule');assert.equal(add.children[0].tagName,'img');assert.equal(add.children[0].src,'/icons/takeoff-transfer.png');assert.equal(add.children[0].className,'takeoff-transfer-icon');assert.equal(add.children[0].width,24);assert.equal(add.children[0].height,24);assert.equal(add.children[0].alt,'');assert.equal(add.children[0].getAttribute('aria-hidden'),'true');assert.match(add.children[1].className,/sr-only/);const work=add.emit('click');await flush();assert.equal(add.disabled,true);await add.emit('click');assert.deepEqual(ids,['penetration-1']);pending.reject(new Error('Keep the invalid schedule value until corrected.'));await work;
     assert.equal(add.disabled,false);assert.match(text(pane.results),/could not be added.*invalid schedule value/);assert.equal(pane.selected,null);assert.equal(pane.list.hidden,false);
     await h.api.open('penetration','penetration-1');assert.ok(walk(pane.detailPanel).find(node=>node.dataset.libraryLink));assert.ok(walk(pane.detailPanel).find(node=>node.dataset.libraryAdd));
-    await h.api.open('technical','technical-1');assert.equal(walk(h.pane('technical').detailPanel).filter(node=>node.dataset.libraryLink||node.dataset.libraryAdd).length,0);
+    await h.api.open('technical','technical-1');assert.equal(walk(h.pane('technical').detailPanel).filter(node=>node.dataset.libraryLink||node.dataset.libraryAdd).length,2);
   });
   await check('Every Firestopping item has an accessible trash icon and deletion requires confirmation',async h=>{
     const answers=[false,true],confirmations=[];h.context.window.CeasefirePenetrationNavigation={confirm:async(...args)=>{confirmations.push(args);return answers.shift();}};
     let deleted=false;h.setRoute((path,options)=>{
       if(path==='/api/libraries')return meta();
+      if(path.includes('/technical/'))return detail('technical','technical-1');
       if(path.endsWith('/delete')){assert.equal(options.method,'POST');assert.deepEqual(JSON.parse(options.body),{});deleted=true;return{deleted:true,id:'penetration-1'};}
       return deleted?{...records('penetration'),items:[],total:0}:{...records('penetration'),items:[{...records('penetration').items[0],title:'FL-ID-001 — Synthetic item'}]};
     });
     await h.api.open('penetration');const pane=h.pane('penetration'),remove=walk(pane.results).find(node=>node.dataset.libraryDelete==='penetration-1');assert.ok(remove);assert.match(remove.title,/Remove FL-ID-001/);assert.equal(remove.getAttribute('aria-label'),remove.title);const trash=walk(remove).find(node=>node.className==='library-trash-icon');assert.match(trash.innerHTML,/<svg viewBox="0 0 24 24"/);assert.equal(trash.getAttribute('aria-hidden'),'true');
     await remove.emit('click');assert.equal(deleted,false);assert.equal(confirmations.length,1);assert.deepEqual(confirmations[0],['Remove Firestopping Library item?','FL-ID-001 — Synthetic item will be removed from the Firestopping Library.','Remove item']);
     await remove.emit('click');await flush();assert.equal(deleted,true);assert.equal(pane.selected,null);assert.equal(pane.results.children[0].className,'empty-state');assert.match(pane.message.textContent,/was removed from the Firestopping Library/);
-    await h.api.open('technical','technical-1');assert.equal(walk(h.pane('technical').detailPanel).filter(node=>node.dataset.libraryDelete).length,0);
+    await h.api.open('technical','technical-1');assert.equal(walk(h.pane('technical').detailPanel).filter(node=>node.dataset.libraryDelete).length,1);
   });
   await check('A late Add failure cannot replace a newer record or leak its error into that record',async h=>{
     const pending=deferred();h.context.window.CeasefirePenetrations={addLibraryItem:()=>pending.promise};await h.api.open('penetration','first');const pane=h.pane('penetration'),work=walk(pane.detailPanel).find(node=>node.dataset.libraryAdd).emit('click');await flush();await h.api.open('penetration','second');pending.reject(new Error('Stale failure'));await work;
@@ -668,7 +671,7 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
       if(path.includes('/technical?'))return{...records('technical'),items:[{id:'technical-1',title:'First choice'},{id:'technical-2',title:'Second choice'}],total:2};if(path.includes('?'))return{...records('penetration'),counts:{total:2,linked:saved?2:1,unlinked:saved?0:1}};
       return{...detail('technical','technical-1'),links:saved?[{kind:'penetration',id:'penetration-1',title:'New reciprocal link'}]:[]};
     });
-    await h.api.open('technical','technical-1');await h.api.open('penetration');const pane=h.pane('penetration');pane.searchInput.value='keep';await pane.searchInput.emit('input');await h.runTimers();const ref=walk(pane.filterControls).find(node=>node.dataset.libraryFilter==='technical_reference');ref.value='any';await ref.emit('change');await flush();
+    await h.api.open('technical','technical-1');await h.api.open('penetration');const pane=h.pane('penetration');pane.searchInput.value='keep';await pane.searchInput.emit('input');await h.runTimers();pane.filters.technical_reference='any';await h.context.audit.loadList(pane);
     await walk(pane.results).find(node=>node.dataset.libraryLink).emit('click');await flush();const session=pane.linkSession,choices=walk(session.results).filter(node=>node.dataset.libraryLinkChoice);assert.equal(pane.list.hidden,true);assert.equal(session.save.disabled,true);for(const choice of choices){choice.checked=true;await choice.emit('change');}assert.equal(session.save.disabled,false);assert.equal(session.save.textContent,'Save links (2)');await session.save.emit('click');await flush();
     assert.equal(pane.linkSession,null);assert.equal(pane.list.hidden,false);assert.equal(pane.searchInput.value,'keep');assert.equal(pane.filters.technical_reference,'any');assert.match(pane.message.textContent,/2 technical references linked/);assert.deepEqual(walk(pane.summary).filter(node=>node.tagName==='td').map(node=>node.textContent),['2','0']);
     await h.api.open('technical','technical-1');assert.match(text(h.pane('technical').detailPanel),/New reciprocal link/);
@@ -868,6 +871,24 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     await h.api.open('technical','technical-2');assert.notEqual(menu(),wrapper);assert.equal(doc.listeners.pointerdown.length,1);assert.equal(doc.listeners.focusin.length,1);assert.ok(!doc.listeners.pointerdown.includes(oldPointer));assert.ok(!doc.listeners.focusin.includes(oldFocus));
     const next=menu();await next.children[0].emit('click');assert.equal(next.children[1].hidden,false);
     await h.context.audit.showList(pane);assert.equal(next.children[1].hidden,true);assert.equal(doc.listeners.pointerdown.length,0);assert.equal(doc.listeners.focusin.length,0);assert.equal(pane.documentCleanup,null);
+  });
+  await check('Technical add form preserves full text and canonical grouped selections in a real save request',async h=>{
+    const keys=['report','substrate','orientation','manufacturer','type','category','services','frl'];
+    const definitions=keys.map(key=>({key,label:key,options:[{value:key+'-one',label:key+' one',...(key==='services'?{group:'Plastic Pipes'}:{})}]}));
+    let captured;h.setRoute((path,options)=>{
+      if(path==='/api/libraries')return meta();
+      if(path==='/api/libraries/technical/new')return{revision:0,source_sha256:null,filters:definitions,record:{title:'',fields:[{label:'Installation Details',value:'Full literal installation text'}],filter_values:{}}};
+      if(path==='/api/libraries/technical'&&options?.method==='POST'){captured=JSON.parse(options.body);return{saved:true,id:'user-technical-new',revision:1};}
+      return path.includes('/technical/user-technical-new')?detail('technical','user-technical-new'):records('technical');
+    });
+    await h.api.open('technical');const pane=h.pane('technical'),add=walk(pane.list).find(node=>node.dataset.libraryCreate==='technical');assert.ok(add);await add.emit('click');
+    const form=pane.technicalEditorPanel.children[1],labels=form.children.filter(node=>node.tagName==='label');
+    labels.find(label=>label.children[0].textContent==='Title').children[1].value='My technical item';
+    labels.find(label=>label.children[0].textContent==='Manufacturer').children[1].value='My manufacturer';
+    labels.find(label=>label.children[0].textContent==='Report number').children[1].value='REPORT-123';labels.find(label=>label.children[0].textContent==='Report URL (optional)').children[1].value='https://example.test/report.pdf';
+    for(const select of walk(form).filter(node=>node.tagName==='select')){const options=select.children.flatMap(child=>child.tagName==='optgroup'?child.children:[child]);options[0].selected=true;}
+    assert.ok(walk(form).some(node=>node.tagName==='optgroup'&&node.getAttribute('label')==='Plastic Pipes'));
+    await form.emit('submit');assert.equal(captured.title,'My technical item');assert.equal(captured.fields[0].value,'Full literal installation text');assert.deepEqual(captured.facets.services,['services-one']);assert.equal(captured.report.url,'https://example.test/report.pdf');assert.equal(captured.request_key,'0123456789abcdef0123456789abcdef');assert.equal(pane.technicalEditorPanel.hidden,true);
   });
   console.log(`${passed} library UI regression checks passed.`);
 })().catch(error=>{console.error(error);process.exitCode=1;});

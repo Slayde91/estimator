@@ -80,7 +80,7 @@ def prepare_technical_item(body, *, library):
         if not _text(field.get('value')).strip() and not any(field.get(name) for name in ('images', 'table', 'tables', 'table_links')):
             continue
         try:
-            validate_report_links(field)
+            validate_report_links(field, user_authored=record.get('user_authored') is True)
         except (ValueError, TypeError, KeyError) as exc:
             raise ValidationError('The technical item contains an invalid report reference.') from exc
         captured = {'label': label, 'value': _text(field.get('value')), 'report_links': deepcopy(field.get('report_links', []))}

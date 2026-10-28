@@ -25,6 +25,9 @@ from estimator.firefly_technical_review import (PLAN_NAME as TECHNICAL_PLAN_NAME
 from estimator.technical_service_review import (PLAN_NAME as SERVICES_PLAN_NAME,
     MAX_PLAN_BYTES as MAX_SERVICES_PLAN_BYTES, REVIEW_KEY as SERVICES_REVIEW_KEY,
     plan_stamp as services_plan_stamp)
+from estimator.technical_variants import (PLAN_NAME as VARIANT_PLAN_NAME,
+    MAX_PLAN_BYTES as MAX_VARIANT_PLAN_BYTES, REVIEW_KEY as VARIANT_REVIEW_KEY,
+    plan_stamp as variant_plan_stamp)
 
 
 def _index_snapshot(library, data, expected_stamp):
@@ -48,6 +51,7 @@ def _copy_reviews(library, data, stage, expected_stamp):
         (REFERENCE_PLAN_NAME, MAX_REFERENCE_PLAN_BYTES, reference_plan_stamp, None),
         (TECHNICAL_PLAN_NAME, MAX_TECHNICAL_PLAN_BYTES, technical_plan_stamp, TECHNICAL_REVIEW_KEY),
         (SERVICES_PLAN_NAME, MAX_SERVICES_PLAN_BYTES, services_plan_stamp, SERVICES_REVIEW_KEY),
+        (VARIANT_PLAN_NAME, MAX_VARIANT_PLAN_BYTES, variant_plan_stamp, VARIANT_REVIEW_KEY),
     )
     for position, (name, maximum, stamp_reader, capability_key) in enumerate(reviews, 3):
         stamp = expected_stamp[position]

@@ -166,12 +166,12 @@ async function check(name,fn){const h=harness();h.api.applyProject(await h.api.p
     h.control('K').value='Power Cables';await h.control('K').emit('change');h.control('J').value='Blank Seal';await h.control('J').emit('change');assert.equal(h.api.projectSnapshot().composer.rows[0].inputs.K,'N/A');assert.equal(h.api.projectSnapshot().composer.rows[0].inputs.O,1.1234567890123);
     Object.assign(h.audit.state.draft.rows[0].inputs,{L:'Empty Opening'});h.audit.renderFields();assert.equal(h.control('L').value,'Empty Opening');assert.ok(h.control('L').children.some(option=>option.value==='Empty Opening'&&option.disabled));assert.equal(h.api.projectSnapshot().composer.rows[0].inputs.L,'Empty Opening');
   });
-  await check('Fixed Type has no editable setting while historical custom Type lists survive other settings edits',async h=>{
+  await check('Raw Details dropdown settings are hidden while historical custom lists remain unchanged',async h=>{
     const metadata=allowanceDefinition();metadata.settings={detail_option_columns:['J','K','M','N','P','V']};metadata.row_fields.push({column:'K',label:'Service Type',group:'Penetration',type:'select',format:'text',units:'',options:['N/A','Conduits','Power Cables'],default:null},{column:'L',label:'Penetration Type',group:'Penetration',type:'select',format:'text',units:'',options:['Core hole','Oversized core hole'],default:null});
     h.audit.state.definition=metadata;for(const scope of [h.audit.state,h.audit.state.schedule])scope.draft.globals.detail_options={L:['Empty Opening','Custom saved type'],K:['Conduits','Power Cables']};
     h.audit.state.group='SETTINGS';h.audit.renderFields();const walk=node=>[node,...node.children.flatMap(walk)];const controls=walk(h.byId('penetration-row-fields'));
-    assert.ok(!controls.some(control=>control.dataset.penetrationDetailOptions==='L'));const services=controls.find(control=>control.dataset.penetrationDetailOptions==='K');assert.ok(services);assert.match(text(h.byId('penetration-row-fields')),/Conduits; Power Cables/);
-    services.value='Power Cables; Conduits';await services.emit('change');for(const scope of ['composer','draft'])assert.deepEqual(copy(h.api.projectSnapshot()[scope].globals.detail_options.L),['Empty Opening','Custom saved type']);
+    assert.ok(!controls.some(control=>control.dataset.penetrationDetailOptions));assert.doesNotMatch(text(h.byId('penetration-row-fields')),/DETAILS DROPDOWN VALUES/);
+    for(const scope of ['composer','draft']){assert.deepEqual(copy(h.api.projectSnapshot()[scope].globals.detail_options.L),['Empty Opening','Custom saved type']);assert.deepEqual(copy(h.api.projectSnapshot()[scope].globals.detail_options.K),['Conduits','Power Cables']);}
     h.audit.state.group='Penetration';h.audit.renderFields();assert.deepEqual(h.control('L').children.filter(option=>option.value&&!option.disabled).map(option=>option.value),['Core hole','Oversized core hole']);
   });
   await check('Conditional Firestopping groups follow Type and Service Type without changing inputs',async h=>{
@@ -464,7 +464,7 @@ async function check(name,fn){const h=harness();h.api.applyProject(await h.api.p
     const settingsRoot=h.byId('penetration-row-fields');
     assert.match(text(settingsRoot),/Setting.*Applies to.*Value.*Labour allowances.*Every Firestopping item.*Material waste.*SERVICE-TAB ROUTING.*PRECALCULATED TASK-HOUR BANDS.*Board Task Hours.*Wrap Task Hours/);
     assert.doesNotMatch(text(settingsRoot),/Separate service types with semicolons|Edit both thresholds and hours/);
-    const settingNodes=node=>[node,...node.children.flatMap(settingNodes)],settingsHeadings=settingNodes(settingsRoot).filter(node=>node.className==='penetration-settings-subheading');assert.deepEqual(settingsHeadings.map(node=>node.textContent),['DETAILS DROPDOWN VALUES','SERVICE-TAB ROUTING','PRECALCULATED TASK-HOUR BANDS']);
+    const settingNodes=node=>[node,...node.children.flatMap(settingNodes)],settingsHeadings=settingNodes(settingsRoot).filter(node=>node.className==='penetration-settings-subheading');assert.deepEqual(settingsHeadings.map(node=>node.textContent),['SERVICE-TAB ROUTING','PRECALCULATED TASK-HOUR BANDS']);
     const settingsCss=fs.readFileSync('static/penetration.css','utf8');assert.match(settingsCss,/\.penetration-settings-subheading\{[^}]*background:#ffe066[^}]*color:#000[^}]*text-transform:uppercase/);assert.match(settingsCss,/\.penetration-settings-table\{[^}]*min-width:0[^}]*table-layout:fixed/);
     const waste=h.control('waste_lagged_pipes',null),register=h.control('register_allowance_hours',null);assert.ok(waste&&register);assert.equal(waste.parentNode.children[0].textContent,'Waste (%)');assert.match(waste.title,/Lagged Pipes/);assert.equal(register.parentNode.children[0].textContent,'Register Allowance (hrs)');
     for(const key of ['waste_unlagged_pipes','waste_lagged_pipes','waste_plastic_pipes','waste_bundles'])assert.ok(h.control(key,null));
@@ -853,6 +853,32 @@ async function check(name,fn){const h=harness();h.api.applyProject(await h.api.p
       h.control('T').value='Independent description';await h.control('T').emit('input');let captured;h.audit.setRequest(async(path,payload)=>{captured=copy(payload.draft);return result(payload.draft,metadata);});await h.audit.calculate();assert.equal(captured.rows[0].inputs.K,raw);assert.equal(h.api.projectSnapshot().composer.rows[0].inputs.K,raw);
       const current=h.control('K');current.value='HDPE pipe';await current.emit('change');assert.equal(h.api.inputProblem(),'');assert.equal(h.api.projectSnapshot().composer.rows[0].inputs.K,'HDPE pipe');
     }
+  });
+  await check('Technical Library assignment explicitly selects multiple rows and preserves all pricing inputs',async h=>{
+    const state=h.audit.state;state.schedule.draft.rows=[
+      {id:'row-one',inputs:{T:'First item',O:1.123456789},technical_reference_ids:['existing-system']},
+      {id:'row-two',inputs:{T:'Unselected item',O:2.234567891}},
+      {id:'row-three',inputs:{T:'Third item',O:3.345678912}}];
+    const before=copy(state.schedule.draft),pricing=copy(h.pricing),calls=[];
+    h.audit.setRequest(async(path,payload)=>{calls.push({path,payload:copy(payload)});return{row_references:Object.fromEntries(payload.draft.rows.map(row=>[row.id,{systems:(row.technical_reference_ids??['automatic-system']).map(id=>({id})),missing_ids:[]}]))};});
+    const pending=h.api.applyTechnicalReference('chosen-system');await flush();
+    const dialog=h.context.document.body.children.at(-1),choices=dialog.children[2],actions=dialog.children[4];
+    assert.equal(dialog.open,true);assert.equal(actions.children[0].disabled,true);assert.equal(choices.children.length,3);
+    for(const index of [0,2]){choices.children[index].children[0].checked=true;await choices.children[index].children[0].emit('change');}
+    await actions.children[0].emit('click');const receipt=await pending;
+    assert.deepEqual(copy(receipt.row_ids),['row-one','row-three']);assert.equal(receipt.applied,true);
+    assert.deepEqual(copy(state.schedule.draft.rows.map(row=>row.inputs)),before.rows.map(row=>row.inputs));assert.deepEqual(copy(state.schedule.draft.globals),before.globals);assert.deepEqual(h.pricing,pricing);
+    assert.deepEqual(copy(state.schedule.draft.rows[0].technical_reference_ids),['existing-system','chosen-system']);
+    assert.equal(Object.hasOwn(state.schedule.draft.rows[1],'technical_reference_ids'),false);
+    assert.deepEqual(copy(state.schedule.draft.rows[2].technical_reference_ids),['automatic-system','chosen-system']);
+    assert.equal(calls.length,2);assert.ok(calls.every(call=>call.path==='/api/penetration/references'));assert.equal(dialog.open,false);
+  });
+  await check('Technical assignment rejects a replaced schedule before any reference mutation',async h=>{
+    h.audit.state.schedule.draft.rows=[{id:'one',inputs:{T:'Original',O:1}}];let calls=0;h.audit.setRequest(async()=>{calls++;throw new Error('Unexpected request');});
+    const pending=h.api.applyTechnicalReference('chosen-system');await flush();const dialog=h.context.document.body.children.at(-1),choice=dialog.children[2].children[0].children[0],actions=dialog.children[4];
+    choice.checked=true;await choice.emit('change');h.audit.state.schedule.draft.rows[0].inputs.O=2;
+    await actions.children[0].emit('click');assert.equal(calls,0);assert.equal(Object.hasOwn(h.audit.state.schedule.draft.rows[0],'technical_reference_ids'),false);assert.match(dialog.children[3].textContent,/schedule changed/);
+    await actions.children[1].emit('click');assert.equal((await pending).applied,false);
   });
   console.log(`${passed} penetration UI regression checks passed.`);
 })().catch(error=>{console.error(error);process.exitCode=1;});

@@ -84,7 +84,9 @@
     pane.searchInput.dataset.librarySearch = kind;
     label.append(uiNode("span", "", "Search {0}", [uiTerm(titles[kind])]), pane.searchInput);
     pane.refresh = symbolButton("↻", "Refresh", () => refresh(pane)); pane.refresh.className += " refresh-button"; pane.refresh.dataset.libraryRefresh = kind;
-    controls.append(label, pane.refresh); pane.filterControls = node("div", "library-filters");
+    controls.append(label, pane.refresh);
+    if (kind === "technical") { const add = symbolButton("+", "Add Technical Library item", () => openTechnicalEditor(pane)); add.dataset.libraryCreate = kind; controls.append(add); }
+    pane.filterControls = node("div", "library-filters");
     pane.count = node("p", "helper library-count"); pane.count.setAttribute("role", "status"); pane.count.dataset.libraryCount = kind;
     pane.results = node("div", "library-results"); pane.results.dataset.libraryResults = kind;
     pane.results.setAttribute("aria-busy", "false");
@@ -141,7 +143,6 @@
   }
   function renderFilters(pane, filters) {
     const safeFilters = (Array.isArray(filters) ? filters : []).filter(filter => typeof filter.key === "string" && !["search", "offset", "limit", "technical_reference"].includes(filter.key));
-    if (pane.kind === "penetration") safeFilters.push({ key: "technical_reference", label: "Technical Reference", options: [{ value: "linked", label: "Linked Technical References" }, { value: "unlinked", label: "No Linked Technical References" }] });
     const stamp = JSON.stringify([safeFilters, pane.filters]); if (stamp === pane.filterStamp) return;
     pane.filterStamp = stamp;
     pane.filterControls.replaceChildren(...safeFilters.map(filter => {
@@ -152,7 +153,8 @@
       const selected = pane.filters[filter.key] || (reference ? "any" : "");
       if (selected && !filterOptions(control).some(option => option.value === selected)) { const el = node("option", "", selected); el.value = selected; control.append(el); }
       control.value = selected;
-      control.addEventListener("change", () => { pane.filters[filter.key] = control.value; pane.offset = 0; loadList(pane); });
+      control.classList.toggle("library-filter-active", !!selected && selected !== "any");
+      control.addEventListener("change", () => { control.classList.toggle("library-filter-active", !!control.value && control.value !== "any"); pane.filters[filter.key] = control.value; pane.offset = 0; loadList(pane); });
       label.append(uiNode("span", "", filter.label || filter.key), control); return label;
     }));
   }
@@ -175,7 +177,7 @@
       if (item.price) card.append(node("p", "library-record-price", `${priceLabel(item.price)}: ${priceText(item.price)}`));
       if (item.summary) card.append(node("p", "library-excerpt", display(item.summary)));
       if (Number.isSafeInteger(item.related_count)) card.append(uiNode("p", "helper", "{0} related {1}", [item.related_count, () => window.CeasefireI18n?.translate(pane.kind === "penetration" ? "technical references" : "firestopping records") || (pane.kind === "penetration" ? "technical references" : "firestopping records")]));
-      if (pane.kind === "penetration") card.append(itemActions(pane, item, "list"));
+      card.append(itemActions(pane, item, "list"));
       return card;
     }) : [uiNode("p", "empty-state", "Try a different search or filter.")]));
     renderFilters(pane, data.filters || libraryInfo(pane)?.filters || []); renderSummary(pane); setBusy(pane, false);
@@ -212,9 +214,9 @@
   }
   function itemActions(pane, item, place) {
     const actions = node("div", "library-item-actions");
-    if (item.editable) { const edit = uiButton("Edit", () => editItem(pane, item.id), "button library-edit-button"); edit.dataset.libraryEdit = item.id; actions.append(edit); }
+    if (item.editable || pane.kind === "technical") { const edit = uiButton("Edit", () => pane.kind === "technical" ? openTechnicalEditor(pane, item.id) : editItem(pane, item.id), "button library-edit-button"); edit.dataset.libraryEdit = item.id; actions.append(edit); }
     const link = symbolButton("🔗︎", "Link Library Item", () => openLinkPicker(pane, item, link)); link.className += " link-action-button"; link.dataset.libraryLink = item.id;
-    const add = button("", () => addToSchedule(pane, item.id), "button secondary takeoff-physical-icon-action library-add-transfer");
+    const add = button("", () => pane.kind === "technical" ? applyTechnicalToSchedule(pane, item) : addToSchedule(pane, item.id), "button secondary takeoff-physical-icon-action library-add-transfer");
     const transfer = node("img", "takeoff-transfer-icon"); transfer.src = "/icons/takeoff-transfer.png"; transfer.alt = ""; transfer.width = transfer.height = 24; transfer.setAttribute("aria-hidden", "true");
     add.append(transfer, uiNode("span", "sr-only", "Add to Schedule"));
     add.dataset.libraryAdd = item.id; uiAttr(add, "title", "Add to Schedule"); uiAttr(add, "aria-label", "Add to Schedule");
@@ -223,8 +225,8 @@
     const icon = node("span", "library-trash-icon");
     icon.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="M4 7h16M9 7V4h6v3M6.5 7l1 13h9l1-13M10 10.5v6M14 10.5v6"></path></svg>';
     icon.setAttribute("aria-hidden", "true"); remove.append(icon);
-    uiAttr(remove, "title", "Remove {0} from the Firestopping Library", [item.title || item.id]);
-    uiAttr(remove, "aria-label", "Remove {0} from the Firestopping Library", [item.title || item.id]); remove.dataset.libraryDelete = item.id;
+    uiAttr(remove, "title", "Remove {0} from the {1}", [item.title || item.id, titles[pane.kind]]);
+    uiAttr(remove, "aria-label", "Remove {0} from the {1}", [item.title || item.id, titles[pane.kind]]); remove.dataset.libraryDelete = item.id;
     remove.disabled = pane.deletePending.has(item.id); pane.deleteButtons.set(`${place}:${item.id}`, remove);
     add.disabled = pane.addPending.has(item.id); pane.scheduleButtons.set(`${place}:${item.id}`, add); pane.actionMessages.set(`${place}:${item.id}`, status); actions.append(remove, link, add, status); return actions;
   }
@@ -233,18 +235,19 @@
     if (pane.deletePending.has(id)) return;
     const confirm = window.CeasefirePenetrationNavigation?.confirm;
     if (!confirm) { message(pane, "The deletion confirmation is unavailable. Reload the application and try again.", true); return; }
-    if (!await confirm("Remove Firestopping Library item?", uiTerm("{0} will be removed from the Firestopping Library.", [item.title || id]), "Remove item")) return;
+    if (!await confirm(`Remove ${titles[pane.kind]} item?`, uiTerm("{0} will be removed from the {1}.", [item.title || id, titles[pane.kind]]), "Remove item")) return;
     pane.deletePending.add(id);
     for (const control of pane.deleteButtons.values()) if (control.dataset.libraryDelete === id) control.disabled = true;
     try {
-      const receipt = await request(`/api/libraries/penetration/${encodeURIComponent(id)}/delete`, null, {});
+      const context = pane.kind === "technical" ? await request(`/api/libraries/technical/${encodeURIComponent(id)}/edit`) : null;
+      const receipt = await request(`/api/libraries/${pane.kind}/${encodeURIComponent(id)}/delete`, null, context ? { revision: context.revision, source_sha256: context.source_sha256 } : {});
       if (receipt.deleted !== true || receipt.id !== id) throw new Error("The server did not confirm the deletion.");
-      const stillViewingDeletedItem = state.current === "penetration" && (pane.selected === id || pane.selected === null);
+      const stillViewingDeletedItem = state.current === pane.kind && (pane.selected === id || pane.selected === null);
       invalidate();
       if (stillViewingDeletedItem) {
         pane.selected = null; pane.detail = null; state.history = [];
-        await open("penetration", { list: true });
-        message(pane, "{0} was removed from the Firestopping Library.", false, [item.title || id]);
+        await open(pane.kind, { list: true });
+        message(pane, "{0} was removed from the {1}.", false, [item.title || id, titles[pane.kind]]);
       }
     } catch (error) {
       message(pane, "The library item was not removed. {0}", true, [() => window.CeasefireI18n?.translate(error.message) || error.message]);
@@ -279,6 +282,80 @@
       for (const control of pane.scheduleButtons.values()) if (control.dataset.libraryAdd === id) control.disabled = false;
     }
   }
+  async function applyTechnicalToSchedule(pane, item) {
+    try {
+      if (!window.CeasefirePenetrations?.applyTechnicalReference) throw new Error("The Firestopping Schedule is unavailable.");
+      const receipt = await window.CeasefirePenetrations.applyTechnicalReference(item.id);
+      if (receipt?.applied) message(pane, "The selected report and system were assigned to {0} schedule rows.", false, [receipt.row_ids.length]);
+    } catch (error) { message(pane, error.message, true); }
+  }
+  async function openTechnicalEditor(pane, id = null) {
+    if (pane.technicalEditor?.saving) { message(pane, "Wait for the current item save to finish.", true); return; }
+    if (pane.technicalEditor?.dirty && !await window.CeasefirePenetrationNavigation?.confirm?.("Discard unsaved Technical Library edits?", "The current form has unsaved changes.", "Discard edits")) return;
+    const token = {}; pane.technicalEditor = token; message(pane);
+    let panel = pane.technicalEditorPanel;
+    if (!panel) { panel = pane.technicalEditorPanel = node("section", "card library-technical-editor"); $("technical-library-workspace").append(panel); }
+    pane.list.hidden = pane.detailPanel.hidden = pane.linkPanel.hidden = true; panel.hidden = false;
+    panel.replaceChildren(uiNode("p", "helper", "Loading editable fields…"));
+    try {
+      const context = await request(id ? `/api/libraries/technical/${encodeURIComponent(id)}/edit` : "/api/libraries/technical/new");
+      if (pane.technicalEditor !== token) return;
+      const requestKey = id ? null : window.crypto.randomUUID().replace(/-/g, "");
+      const record = context.record, form = node("form", "library-technical-form"), heading = uiNode("h3", "", id ? "Edit Technical Library item" : "Add Technical Library item");
+      form.addEventListener("input", () => { token.dirty = true; }); form.addEventListener("change", () => { token.dirty = true; });
+      heading.tabIndex = -1;
+      const problems = node("p", "message error"); problems.hidden = true; problems.setAttribute("role", "alert");
+      const field = (label, value, multiline = false) => {
+        const wrapper = node("label", "field"), control = node(multiline ? "textarea" : "input");
+        control.value = value || ""; control.maxLength = multiline ? 40000 : 1000; if (multiline) control.rows = 4;
+        wrapper.append(uiNode("span", "", label), control); form.append(wrapper); return control;
+      };
+      const title = field("Title", record.title); title.required = true;
+      const facetFields = new Set(["Manufacturer", "Substrate", "Orientation", "Type", "Category", "Services", "FRL", "Report Number"]);
+      const fields = [];
+      for (const source of record.fields || []) {
+        if (facetFields.has(source.label)) continue;
+        const control = field(source.label, source.value, true); fields.push({ label: source.label, control });
+        if (["ID", "Technical Library ID"].includes(source.label)) { control.readOnly = true; control.parentElement.hidden = true; }
+        if (fieldTables(source).length) control.parentElement.append(uiNode("small", "helper", "The existing configuration tables and source references are retained."));
+      }
+      const facets = {}, currentFacets = record.filter_values || {};
+      const manufacturer = field("Manufacturer", (currentFacets.manufacturer || []).join("\n"), true);
+      facets.manufacturer = () => manufacturer.value.split(/\r?\n/).map(value => value.trim()).filter(Boolean);
+      for (const [key, label] of linkFacets.filter(([key]) => !["report", "manufacturer"].includes(key))) {
+        const wrapper = node("label", "field"), control = node("select"); control.multiple = true; control.size = 4; control.dataset.technicalEditorFacet = key;
+        const definition = context.filters.find(entry => entry.key === key);
+        appendFilterOptions(control, definition?.options || [], key);
+        const selected = currentFacets[key] || [];
+        for (const value of selected) if (!filterOptions(control).some(option => option.value === value)) { const retained = node("option", "", value); retained.value = value; control.append(retained); }
+        for (const option of filterOptions(control)) option.selected = selected.includes(option.value);
+        wrapper.append(uiNode("span", "", label), control, uiNode("small", "helper", "Select all values that apply.")); form.append(wrapper);
+        facets[key] = () => filterOptions(control).filter(option => option.selected).map(option => option.value);
+      }
+      const report = (record.fields || []).find(value => value.label === "Report Number"), reports = report?.report_links || [];
+      const reportNumber = field("Report number", report?.value || (currentFacets.report || currentFacets.document || []).join("\n"), true); reportNumber.required = true;
+      const reportUrl = field("Report URL (optional)", reports[0]?.url || ""); reportUrl.type = "url"; reportUrl.maxLength = 4000;
+      const actions = node("div", "actions"), save = uiButton("Save item", () => {}), cancel = uiButton("Cancel", () => {
+        if (token.saving) return; pane.technicalEditor = null; panel.hidden = true; open("technical", id || { list: true });
+      }); save.type = "submit"; save.dataset.technicalEditorSave = ""; actions.append(save, cancel); form.append(problems, actions);
+      form.addEventListener("submit", async event => {
+        event.preventDefault(); if (token.saving || pane.technicalEditor !== token) return;
+        const selected = Object.fromEntries(Object.entries(facets).map(([key, read]) => [key, read()])); selected.report = [reportNumber.value.trim()];
+        const payload = { revision: context.revision, source_sha256: context.source_sha256, request_key: requestKey, title: title.value,
+          fields: fields.map(({label, control}) => ({label, value:control.value})), facets: selected,
+          report: {number:reportNumber.value, url:reportUrl.value} };
+        token.saving = true; problems.hidden = true; for (const control of form.querySelectorAll("input,select,textarea,button")) control.disabled = true;
+        try {
+          const receipt = await request(id ? `/api/libraries/technical/${encodeURIComponent(id)}/save` : "/api/libraries/technical", null, payload);
+          if (!receipt.saved || !validId(receipt.id)) throw new Error("The server did not confirm the saved item.");
+          if (pane.technicalEditor !== token) return;
+          pane.technicalEditor = null; panel.hidden = true; invalidate(); await open("technical", receipt.id); message(pane, "Technical Library item saved.");
+        } catch (error) { if (pane.technicalEditor === token) { problems.textContent = error.message; problems.hidden = false; } }
+        finally { token.saving = false; if (pane.technicalEditor === token) for (const control of form.querySelectorAll("input,select,textarea,button")) control.disabled = false; }
+      });
+      panel.replaceChildren(heading, form); heading.focus({preventScroll:true}); panel.scrollIntoView?.({block:"start"});
+    } catch (error) { if (pane.technicalEditor === token) panel.replaceChildren(node("p", "message error", error.message), uiButton("Back", () => { panel.hidden = true; open("technical", id || {list:true}); })); }
+  }
   function closeLinkPicker(pane) {
     const session = pane.linkSession; if (!session) return;
     clearTimeout(session.timer); session.abort?.abort(); ++session.revision; pane.linkSession = null; pane.linkPanel.hidden = true;
@@ -299,8 +376,8 @@
     session.filterDefinitions = filters;
     const definitions = new Map();
     for (const filter of Array.isArray(filters) ? filters : []) {
-      if (!filter || ![...linkFacets.map(([key]) => key), "document"].includes(filter.key) || !Array.isArray(filter.options)) continue;
-      const facet = filter.key === "document" ? "report" : filter.key;
+      if (!filter || ![...linkFacets.map(([key]) => key), "document", "service_type", "penetration_type"].includes(filter.key) || !Array.isArray(filter.options)) continue;
+      const facet = ({document:"report",service_type:"services",penetration_type:"type"})[filter.key] || filter.key;
       if (definitions.has(facet)) { definitions.set(facet, null); continue; }
       definitions.set(facet, filter);
     }
@@ -312,16 +389,17 @@
       const selected = session.filters[queryKey] || "";
       if (selected && !filterOptions(control).some(item => item.value === selected)) { const retained = node("option", "", selected); retained.value = selected; control.append(retained); }
       control.value = selected;
+      control.classList.toggle("library-filter-active", !!selected);
       control.addEventListener("change", () => {
         if (pane.linkSession !== session || session.saving || control.disabled) return;
-        session.filters[queryKey] = control.value; session.offset = 0; loadLinkResults(pane, session);
+        control.classList.toggle("library-filter-active", !!control.value); session.filters[queryKey] = control.value; session.offset = 0; loadLinkResults(pane, session);
       });
       session.filterInputs.push(control); label.append(uiNode("span", "", title), control); return label;
     }));
   }
   function openLinkPicker(pane, item, opener) {
     closeLinkPicker(pane); invalidateList(pane); message(pane);
-    const session = { id: item.id, search: "", filters: {}, offset: 0, limit: 20, total: 0, selected: new Set(), revision: 0, abort: null, timer: null, busy: false, saving: false, available: false, choices: [], filterInputs: [] };
+    const session = { id: item.id, targetKind: pane.kind === "technical" ? "penetration" : "technical", search: "", filters: {}, offset: 0, limit: 20, total: 0, selected: new Set(), revision: 0, abort: null, timer: null, busy: false, saving: false, available: false, choices: [], filterInputs: [] };
     pane.linkSession = session; pane.list.hidden = pane.detailPanel.hidden = true; pane.linkPanel.hidden = false;
     const heading = uiNode("h3", "", "Link Library Item"); heading.id = "library-link-heading"; heading.tabIndex = -1; pane.linkPanel.setAttribute("aria-labelledby", heading.id);
     const cancel = uiButton("Cancel", async () => {
@@ -330,7 +408,7 @@
       if (state.current === pane.kind && pane.openRevision === revision && !pane.linkSession) (opener.isConnected === false ? pane.searchInput : opener).focus({ preventScroll: true });
     }, "button secondary"); cancel.dataset.libraryLinkCancel = ""; session.cancel = cancel;
     const controls = node("div", "library-controls"), label = node("label", "field library-search"); session.searchInput = node("input"); session.searchInput.type = "search"; session.searchInput.maxLength = 400; session.searchInput.dataset.libraryLinkSearch = "";
-    label.append(uiNode("span", "", "Search Technical Library"), session.searchInput);
+    label.append(uiNode("span", "", "Search {0}", [titles[session.targetKind]]), session.searchInput);
     session.refresh = uiButton("Search", () => loadLinkResults(pane, session), "button secondary"); controls.append(label, session.refresh);
     session.clear = uiButton("Clear filters", () => { if (pane.linkSession !== session || session.saving) return; session.search = ""; session.searchInput.value = ""; session.filters = {}; session.offset = 0; loadLinkResults(pane, session); }, "button secondary"); session.clear.dataset.libraryLinkClear = ""; controls.append(session.clear);
     session.filterControls = node("div", "library-filters library-link-filters");
@@ -342,8 +420,8 @@
     session.save = uiButton("Save links", () => saveLink(pane, session), "button link-action-button"); session.save.dataset.libraryLinkSave = ""; session.save.disabled = true;
     const pages = node("nav", "library-pagination"); uiAttr(pages, "aria-label", "Technical reference choices"); pages.append(session.previous, session.next);
     const actions = node("div", "library-item-actions"); actions.append(session.save, cancel);
-    pane.linkPanel.replaceChildren(heading, node("p", "library-subtitle", item.title || item.id), uiNode("p", "helper", "Choose one or more Technical Library items to link."), controls, session.filterControls, session.message, session.count, session.selectionCount, session.results, pages, actions);
-    renderLinkFilters(pane, session, state.metadata?.libraries?.find(library => library.id === "technical")?.filters); updateLinkSave(session);
+    pane.linkPanel.replaceChildren(heading, node("p", "library-subtitle", item.title || item.id), uiNode("p", "helper", "Choose one or more items from {0} to link.", [titles[session.targetKind]]), controls, session.filterControls, session.message, session.count, session.selectionCount, session.results, pages, actions);
+    renderLinkFilters(pane, session, state.metadata?.libraries?.find(library => library.id === session.targetKind)?.filters); updateLinkSave(session);
     session.searchInput.addEventListener("input", () => {
       if (session.saving || pane.linkSession !== session) return;
       session.search = session.searchInput.value.trim(); session.offset = 0; session.busy = true; ++session.revision; session.abort?.abort(); clearTimeout(session.timer); session.save.disabled = session.previous.disabled = session.next.disabled = true; uiText(session.count, "Searching…");
@@ -357,9 +435,9 @@
     session.busy = true; session.available = false; session.save.disabled = session.previous.disabled = session.next.disabled = true;
     session.choices = []; session.results.replaceChildren(); session.results.setAttribute("aria-busy", "true"); uiText(session.count, "Searching…"); linkMessage(session);
     const query = new URLSearchParams({ search: session.search, offset: String(session.offset), limit: String(session.limit) });
-    for (const key of [...linkFacets.map(([key]) => key), "document"]) if (session.filters[key]) query.set(key, session.filters[key]);
+    for (const key of [...linkFacets.map(([key]) => key), "document", "service_type", "penetration_type"]) if (session.filters[key]) query.set(key, session.filters[key]);
     try {
-      const data = await request(`/api/libraries/technical?${query}`, session.abort.signal);
+      const data = await request(`/api/libraries/${session.targetKind || "technical"}?${query}`, session.abort.signal);
       if (pane.linkSession !== session || revision !== session.revision) return;
       if (!data || !Array.isArray(data.items) || !Number.isSafeInteger(data.total) || data.total < 0 || !Number.isSafeInteger(data.offset) || data.offset < 0 || data.items.some(item => !item || !validId(item.id)) || new Set(data.items.map(item => item.id)).size !== data.items.length) throw new Error("The Technical Library returned an invalid result page.");
       if (data.offset !== session.offset || data.items.length > session.limit) throw new Error("The Technical Library returned an unexpected result page.");
@@ -387,14 +465,16 @@
     for (const control of session.filterInputs) control.disabled = true;
     for (const choice of session.choices) choice.disabled = true;
     try {
-      const receipt = await request(`/api/libraries/penetration/${encodeURIComponent(session.id)}/links`, null, { technical_ids: technicalIds });
-      if (receipt.linked !== true || receipt.penetration_id !== session.id || !Array.isArray(receipt.technical_ids) || receipt.technical_ids.length !== technicalIds.length || technicalIds.some(id => !receipt.technical_ids.includes(id))) throw new Error("The server did not confirm the saved reference links.");
+      const reverse = pane.kind === "technical";
+      const receipt = await request(`/api/libraries/${pane.kind}/${encodeURIComponent(session.id)}/links`, null, reverse ? { penetration_ids: technicalIds } : { technical_ids: technicalIds });
+      const receivedIds = reverse ? receipt.penetration_ids : receipt.technical_ids;
+      if (receipt.linked !== true || (reverse ? receipt.technical_id : receipt.penetration_id) !== session.id || !Array.isArray(receivedIds) || receivedIds.length !== technicalIds.length || technicalIds.some(id => !receivedIds.includes(id))) throw new Error("The server did not confirm the saved reference links.");
       invalidate();
       if (pane.linkSession !== session || state.current !== pane.kind) return;
       closeLinkPicker(pane); const revision = pane.openRevision + 1; await open(pane.kind, pane.selected || { list: true });
       if (state.current === pane.kind && pane.openRevision === revision) {
         const created = Array.isArray(receipt.created_ids) ? receipt.created_ids.length : 0;
-        message(pane, created ? `${created} technical ${created === 1 ? "reference" : "references"} linked.` : "The selected technical references are already linked.");
+        message(pane, reverse ? "The selected Firestopping Library items are linked." : created ? `${created} technical ${created === 1 ? "reference" : "references"} linked.` : "The selected technical references are already linked.");
       }
     } catch (error) { if (pane.linkSession === session) linkMessage(session, `Saving the reference links was not confirmed. ${error.message} Retry to check the same links.`, true); }
     finally {
@@ -736,10 +816,10 @@
     for (const key of pane.scheduleButtons.keys()) if (key.startsWith("detail:")) { pane.scheduleButtons.delete(key); pane.actionMessages.delete(key); }
     for (const key of pane.deleteButtons.keys()) if (key.startsWith("detail:")) pane.deleteButtons.delete(key);
     pane.unlinkButtons.clear();
-    if (data.price || pane.kind === "penetration") {
+    if (data.price || kinds.includes(pane.kind)) {
       const commercial = node("div", "library-record-commercial");
       if (data.price) commercial.append(node("p", "library-record-price", `${priceLabel(data.price)}: ${priceText(data.price)}`));
-      if (pane.kind === "penetration") commercial.append(itemActions(pane, data, "detail"));
+      commercial.append(itemActions(pane, data, "detail"));
       content.push(commercial);
     }
     if (data.notice) content.push(node("p", "library-record-notice", display(data.notice)));
@@ -774,6 +854,7 @@
       const reportPositions = reportLinks.map(link => reportLabels.indexOf(link?.label));
       const validReports = reportLinks.length > 0 && reportLinks.length <= 20 && new Set(reportLabels).size === reportLabels.length && reportLinks.every((link, i) => {
         if (reportPositions[i] < 0 || i > 0 && reportPositions[i] <= reportPositions[i - 1] || typeof link.url !== "string" || /[\s<>"\\\x00-\x1f\x7f]/.test(link.url)) return false;
+        if (data.user_authored === true) { try { const url = new URL(link.url); return ["http:", "https:"].includes(url.protocol) && !!url.hostname && !url.username && !url.password; } catch { return false; } }
         if (link.url === "https://systems.tbafirefly.com.au/reports") return true;
         try { const u = new URL(link.url); return u.protocol === "https:" && !u.username && !u.password && (
           ["media.promat.com", "etex.azureedge.net"].includes(u.host) && /\.pdf$/i.test(u.pathname) ||
@@ -867,7 +948,13 @@
   }
   async function open(kind, selection) {
     if (!kinds.includes(kind)) return;
-    for (const existing of state.panes.values()) { closeLinkPicker(existing); existing.documentCleanup?.(); }
+    const editing = [...state.panes.values()].find(pane => pane.technicalEditor);
+    if (editing) {
+      if (kind === editing.kind && !selection) { state.current = kind; return; }
+      if (editing.technicalEditor.saving) { message(editing, "Wait for the current item save to finish.", true); return; }
+      if (editing.technicalEditor.dirty && !await window.CeasefirePenetrationNavigation?.confirm?.("Discard unsaved Technical Library edits?", "The current form has unsaved changes.", "Discard edits")) return;
+    }
+    for (const existing of state.panes.values()) { closeLinkPicker(existing); existing.documentCleanup?.(); if (existing.technicalEditorPanel) { existing.technicalEditor = null; existing.technicalEditorPanel.hidden = true; } }
     state.current = kind; const pane = paneFor(kind), revision = ++pane.openRevision;
     renderProjectDrafts(pane);
     if (kind === "penetration" && validId(selection) && window.CeasefireLibraryEditor?.projectRecords?.().some(record => record.id === selection)) {

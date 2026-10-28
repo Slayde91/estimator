@@ -8,6 +8,12 @@ from estimator.technical_display import compact_technical_text
 
 
 class TechnicalDisplayTests(unittest.TestCase):
+    def test_page_prefix_is_omitted_without_removing_installation_numbers(self):
+        source = 'Page 1, 2, 3: 1. Cut board with 100mm overlap.\n\nPage 2: Seal to 60mm. See Pages 2-3 for details.'
+        expected = '1. Cut board w/ 100mm overlap.\n\nSeal to 60mm. See Pages 2-3 for details.'
+        self.assertEqual(compact_technical_text(source), expected)
+        self.assertEqual(compact_technical_text('Page 2 mm: retain this dimension'), 'Page 2 mm: retain this dimension')
+
     def test_authorized_display_vectors_preserve_every_numeric_token(self):
         vectors = json.loads((Path(__file__).parent / 'fixtures/technical-compact-display.json').read_text(encoding='utf-8'))
         for entry in vectors:

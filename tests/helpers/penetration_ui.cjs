@@ -49,7 +49,7 @@ function harness() {
   function element(tagName='div') {
     const attrs=new Map();
     return {tagName,dataset:{},children:[],listeners:{},style:{},value:'',textContent:'',hidden:false,isConnected:true,
-      setAttribute(key,value){attrs.set(key,String(value));},getAttribute(key){return attrs.get(key);},
+      setAttribute(key,value){attrs.set(key,String(value));},getAttribute(key){return attrs.get(key);},showModal(){this.open=true;},close(){this.open=false;},
       append(...nodes){for(const child of nodes){child.parentNode=this;child.parentElement=this;this.children.push(child);}},replaceChildren(...nodes){this.children=[];this.append(...nodes);},
       closest(){return null;},remove(){if(this.parentNode)this.parentNode.children=this.parentNode.children.filter(child=>child!==this);this.parentNode=null;this.parentElement=null;},
       querySelectorAll(selector){return this.children.flatMap(child=>[...(matches(child,selector)?[child]:[]),...child.querySelectorAll(selector)]);},
@@ -58,7 +58,7 @@ function harness() {
     };
   }
   const byId=id=>{if(!elements.has(id))elements.set(id,element());return elements.get(id);};
-  Object.assign(document,{getElementById:byId,createElement:element,querySelectorAll(selector){return [...elements.values()].flatMap(root=>[...(matches(root,selector)?[root]:[]),...root.querySelectorAll(selector)]);}});
+  Object.assign(document,{body:element('body'),getElementById:byId,createElement:element,querySelectorAll(selector){return [...elements.values()].flatMap(root=>[...(matches(root,selector)?[root]:[]),...root.querySelectorAll(selector)]);}});
   const pricing={inventory:{},rates:{original:{price:1}}},details={client:'Original client'},target={project_token:'original-token'};
   const context={document,window:{CeasefireProject:{configuration:()=>copy(pricing),details:()=>copy(details),downloadTarget:()=>copy(target),changed(){}},CeasefirePenetrationNavigation:{confirm:async()=>true,confirmDelete:async()=>true,notify:async()=>{},show(){},showSchedule(){}}},Intl,Number,String,JSON,Object,Set,Map,Array,Promise,Error,console,
     setTimeout(fn){timers.set(++timerId,fn);return timerId;},clearTimeout(id){timers.delete(id);}};

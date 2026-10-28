@@ -57,7 +57,7 @@ async function confirmSelected(count) {
   return command(() => dialog(`Confirm ${count} items?`, {}, 'Confirm items'), 'confirm_items');
 }
 async function preview(status = 200, update = false) {
-  return response(() => page.getByRole('button', { name: update ? 'Update linked rows' : 'Preview transfer', exact: true }).click(), '/transfer-preview', status);
+  return response(() => page.getByRole('button', { name: update ? 'Update linked rows' : 'Preview transfer', exact: true }).click(), update ? '/calculator-refresh-preview' : '/transfer-preview', status);
 }
 async function apply(count) {
   return response(() => dialog(`Transfer ${count} confirmed items?`, {}, 'Add to schedule'), '/transfer-apply');
@@ -80,7 +80,7 @@ function assertSkipped(preview, binding) {
   const info = await ready; assert.notEqual(info.port, 8765);
   browser = await chromium.launch({ headless: true }); page = await browser.newPage({ viewport: { width: 1600, height: 1100 }, deviceScaleFactor: 2 }); page.setDefaultTimeout(30000);
   page.on('pageerror', error => errors.push(error.message));
-  page.on('request', request => { if (/\/(commands|transfer-preview|transfer-apply)$/.test(request.url())) requests.push({ endpoint: request.url().split('/').pop(), body: request.postDataJSON() }); });
+  page.on('request', request => { if (/\/(commands|transfer-preview|transfer-apply|calculator-refresh-preview|calculator-refresh-apply)$/.test(request.url())) requests.push({ endpoint: request.url().split('/').pop(), body: request.postDataJSON() }); });
   await page.addInitScript(() => { window.qaCsp = []; document.addEventListener('securitypolicyviolation', event => window.qaCsp.push({ directive: event.effectiveDirective, blocked: event.blockedURI })); });
   const initial = await page.goto(`http://127.0.0.1:${info.port}/`); assert.ok(!initial.headers()['content-security-policy'].includes('unsafe-inline'));
   await page.waitForFunction(()=>window.CeasefireDesktop?.status().ready);
@@ -134,9 +134,13 @@ function assertSkipped(preview, binding) {
   evidence.allLinkedNoOp = true;
   // Explicit Update still refuses the edited row; Add did not weaken overwrite guards.
   await select([a.id]); await confirmSelected(1);
-  const updateBefore = await snapshot(); await preview(400, true);
-  await expect(page.locator('#takeoffs-workspace [role="alert"]')).toContainText(/row was edited|conflict/i);
-  assert.deepEqual(await snapshot(), updateBefore); assert.deepEqual(await calculators(), afterCalculators); evidence.explicitUpdateConflictPreserved = true;
+  const updateBefore = await snapshot(), updateCalculatorsBefore = await calculators(), requestsBeforeUpdate = requests.length;
+  const conflict = 'Both Takeoffs and the calculator changed. Resolve which details to keep before updating linked rows.';
+  const rejected = await preview(400, true); assert.equal(rejected.error, conflict);
+  await expect(page.locator('#takeoffs-workspace [role="alert"]')).toContainText(conflict);
+  assert.deepEqual(requests.slice(requestsBeforeUpdate).map(request => request.endpoint), ['calculator-refresh-preview'], 'Rejected Update sends no forward transfer preview, transfer apply or calculator refresh apply');
+  assert.deepEqual(await snapshot(), updateBefore); assert.deepEqual(await calculators(), updateCalculatorsBefore);
+  assert.deepEqual(updateCalculatorsBefore, afterCalculators); evidence.explicitUpdateConflictPreserved = true;
   await response(() => clickProjectControl(page, 'Save'), '/api/project/save'); await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   const saved = JSON.parse(fs.readFileSync(info.project, 'utf8')); assert.deepEqual(saved.takeoffs.transfers, updateBefore.transfers);
   await response(() => clickProjectControl(page, 'Load'), '/api/project/open'); await page.getByRole('dialog').getByRole('button', { name: 'Load Project', exact: true }).click();

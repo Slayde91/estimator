@@ -719,7 +719,7 @@
       }
       table.append(body);
     }
-    scroll.append(table); root.append(intro, scroll, renderDetailOptions(), renderServiceRoutes(), renderLabourBands()); return root;
+    scroll.append(table); root.append(intro, scroll, renderServiceRoutes(), renderLabourBands()); return root;
   }
   function renderFields() {
     if (!state.draft) return;
@@ -1124,6 +1124,47 @@
     } catch (error) { if (context === state.context) message(error.message, true, state.schedule); }
     finally { scheduleReferences.picker = false; if (context === state.context) renderSchedule(); }
   }
+  async function applyTechnicalReference(technicalId) {
+    assertTakeoffWritable(); await initialize();
+    if (!/^[a-z0-9][a-z0-9_-]{0,119}$/.test(technicalId)) throw new Error("Choose an available Technical Library item.");
+    if (state.edit || state.schedule.invalid.size || scheduleReferences.picker || state.loading || state.addingSchedule || state.updatingSchedule) throw new Error("Finish the current schedule edit before assigning a report and system.");
+    const rows = state.schedule.draft.rows;
+    if (!rows.length) throw new Error("Add items to the Firestopping Schedule before assigning a report and system.");
+    const context = state.context, original = quoteFingerprint(), session = window.CeasefireTakeoffs?.sessionId?.(), takeoffRevision = window.CeasefireTakeoffs?.referenceRevision?.();
+    const current = () => context === state.context && quoteFingerprint() === original && !state.takeoffLease && !state.edit && !state.schedule.invalid.size
+      && session === window.CeasefireTakeoffs?.sessionId?.() && takeoffRevision === window.CeasefireTakeoffs?.referenceRevision?.();
+    const guard = () => { if (!current()) throw new Error("The schedule changed during selection. Close this form and choose the current rows again."); };
+    scheduleReferences.picker = true;
+    const dialog = node("dialog", "library-schedule-target-dialog"), title = uiNode("h3", "", "Assign report and system to schedule items"), choices = node("div", "library-schedule-targets"), problem = node("p", "message error");
+    title.id = "library-schedule-target-heading"; dialog.setAttribute("aria-labelledby", title.id); problem.hidden = true; problem.setAttribute("role", "alert");
+    const inputs = [];
+    rows.forEach((row, index) => { const label = node("label"), control = node("input"); control.type = "checkbox"; control.value = row.id; control.dataset.libraryScheduleTarget = row.id;
+      label.append(control, node("span", "", `${index + 1}. ${row.inputs.T || row.inputs.K || "Firestopping item"}`)); choices.append(label); inputs.push(control); });
+    const actions = node("div", "actions"), apply = uiNode("button", "button", "Apply to selected rows"), cancel = uiNode("button", "button secondary", "Cancel"); apply.type = cancel.type = "button"; apply.disabled = true; actions.append(apply, cancel);
+    dialog.append(title, uiNode("p", "helper", "Choose every schedule item that should retain this report and system. Existing references are retained."), choices, problem, actions); document.body.append(dialog); dialog.showModal();
+    return new Promise(resolve => {
+      let busy = false, finished = false;
+      const finish = receipt => { if (finished) return; finished = true; dialog.close(); dialog.remove(); scheduleReferences.picker = false; if (context === state.context) renderSchedule(); resolve(receipt); };
+      for (const control of inputs) control.addEventListener("change", () => { apply.disabled = busy || !inputs.some(input => input.checked); });
+      cancel.addEventListener("click", () => { if (!busy) finish({applied:false}); });
+      dialog.addEventListener("cancel", event => { event.preventDefault(); if (!busy) finish({applied:false}); });
+      apply.addEventListener("click", async () => {
+        if (busy) return; busy = true; apply.disabled = cancel.disabled = true; problem.hidden = true;
+        try {
+          guard(); const ids = inputs.filter(input => input.checked).map(input => input.value);
+          if (!ids.length) throw new Error("Select at least one schedule item.");
+          const originals = ids.map(id => scheduleRow(id)), existing = await request("/api/penetration/references", referencesPayload(originals)); guard();
+          const proposed = originals.map(row => { const value = canonicalRow(row), currentIds = row.technical_reference_ids ?? existing.row_references?.[row.id]?.systems?.map(system => system.id) ?? [];
+            value.technical_reference_ids = [...new Set([...currentIds, technicalId])]; return value; });
+          const checked = await request("/api/penetration/references", referencesPayload(proposed)); guard();
+          if (proposed.some(row => !checked.row_references?.[row.id] || checked.row_references[row.id].missing_ids?.length || !checked.row_references[row.id].systems?.some(system => system.id === technicalId))) throw new Error("The selected Technical Library item is unavailable. Refresh the Library and try again.");
+          for (const row of proposed) { scheduleRow(row.id).technical_reference_ids = [...row.technical_reference_ids]; state.rowEpochs.set(row.id, ++state.nextEpoch); }
+          scheduleReferences.key = null; changed(null, state.schedule); finish({applied:true, row_ids:ids, technical_id:technicalId});
+        } catch (error) { problem.textContent = error.message; problem.hidden = false; }
+        finally { busy = false; if (!finished) { cancel.disabled = false; apply.disabled = !inputs.some(input => input.checked); } }
+      });
+    });
+  }
   function renderScheduleBody(bodyId) {
     const body = $(bodyId), previous = [...body.children];
     const existing = new Map(previous.filter(row => row.dataset.penetrationContext === String(state.context)).map(row => [row.dataset.penetrationId, row]));
@@ -1403,7 +1444,7 @@
     status();if(!reservation.recalculated){reservation.recalculated=true;void calculate(state.schedule);}
   }
   async function editScheduleRow(id,libraryId){assertTakeoffWritable();await initialize();const row=scheduleRow(id);if(!row||row.library_item_id!==libraryId)throw new Error("The retained linked schedule row was removed or replaced. Review its association before opening another item.");return selectRow(id);}
-  window.CeasefirePenetrations = { open, openSchedule, projectSnapshot, projectFingerprint, quoteSnapshot, quoteFingerprint, scheduleProblem, completeProjectSnapshot, prepareProject, prepareDefaults, applyProject, markProjectSaved, hasUnsavedChanges, pricingChanged, inputProblem, addLibraryItem, libraryQuantity, libraryDiagramChanged,
+  window.CeasefirePenetrations = { open, openSchedule, projectSnapshot, projectFingerprint, quoteSnapshot, quoteFingerprint, scheduleProblem, completeProjectSnapshot, prepareProject, prepareDefaults, applyProject, markProjectSaved, hasUnsavedChanges, pricingChanged, inputProblem, addLibraryItem, libraryQuantity, libraryDiagramChanged, applyTechnicalReference,
     captureTakeoffSchedule,reserveTakeoffSchedule,validateTakeoffScheduleReservation,applyTakeoffSchedule,releaseTakeoffSchedule,editScheduleRow,hasTakeoffReservation:()=>!!state.takeoffLease,hasUnfinishedChanges:()=>!!state.takeoffLease };
   Object.assign(window.CeasefirePenetrations, { hasPendingOperation: () => !!(state.takeoffLease || state.creatingLibrary || state.addingSchedule || state.updatingSchedule || state.addingLibrary || state.loading || state.downloading || scheduleReferences.picker) });
 })();

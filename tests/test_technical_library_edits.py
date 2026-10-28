@@ -1,0 +1,249 @@
+"""Technical CRUD is persistent metadata, with no supplier/pricing authority."""
+from copy import deepcopy
+import json
+import http.client
+from pathlib import Path
+import tempfile
+import unittest
+import threading
+from uuid import uuid4
+from unittest.mock import patch
+
+from estimator.catalog import ValidationError
+from estimator.firestopping_library import FirestoppingLibrary, LibraryConflict
+from estimator.reference_library import ReferenceLibrary, ReferenceNotFound
+from estimator.storage import Store
+from estimator.technical_library_edits import ManualTechnicalLibrary, FACETS
+from estimator.technical_item_exports import prepare_technical_item
+from estimator.server import create_server
+from test_firestopping_library import editable_library
+
+
+class TechnicalLibraryEditTests(unittest.TestCase):
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name)
+        data = editable_library(self.root / 'library', complete_entries=True)
+        technical = data['libraries']['technical']
+        technical['filters'] = [{'key': key, 'label': label} for key, label in FACETS]
+        technical['items'][0]['filter_values'].update(manufacturer=['Sample manufacturer'],
+            substrate=['Concrete/masonry wall'], orientation=['Vertical'], type=['Core hole'],
+            category=['Plumbing & Hydraulic'], services=['Copper Pipes'], frl=['-/120/120'])
+        technical['items'][0]['fields'].extend([
+            {'label': 'Manufacturer', 'value': 'Sample manufacturer'},
+            {'label': 'Barrier Construction', 'value': 'Concrete wall'},
+            {'label': 'Orientation', 'value': 'Vertical'},
+            {'label': 'FRL', 'value': '-/120/120'},
+            {'label': 'Report Number', 'value': 'Sample report', 'report_links': [{'label': 'Sample report', 'url': 'https://media.promat.com/sample.pdf'}]}])
+        self.source = self.root / 'library/library.json'
+        self.source.write_text(json.dumps(data), encoding='utf-8')
+        self.original_source = self.source.read_bytes()
+        self.store = Store(self.root / 'state.sqlite3')
+        self.library = ManualTechnicalLibrary(self.root / 'library', self.store)
+        self.configuration = deepcopy(self.store.configuration())
+
+    def body(self, key=None):
+        edit = self.library.technical_edit(key)
+        facets = deepcopy(edit['record']['filter_values'])
+        for definition in edit['filters']:
+            if not facets.get(definition['key']):
+                self.assertTrue(definition['options'], definition['key'])
+                facets[definition['key']] = [definition['options'][0]['value']]
+        facets = {key: facets[key] for key, _ in FACETS}
+        return {'revision': edit['revision'], 'source_sha256': edit['source_sha256'],
+                'request_key': None if key else uuid4().hex,
+                'title': edit['record']['title'] or 'A new technical system',
+                'fields': [{'label': field['label'], 'value': field.get('value', '')} for field in edit['record']['fields']],
+                'facets': facets, 'report': {'number': 'Sample report', 'url': 'https://example.test/report.pdf'}}
+
+    def protected(self):
+        self.assertEqual(self.source.read_bytes(), self.original_source)
+        self.assertEqual(self.store.configuration(), self.configuration)
+        with self.store.connect() as db:
+            self.assertEqual(db.execute('SELECT count(*) FROM calculator_states').fetchone()[0], 0)
+            self.assertEqual(db.execute('SELECT count(*) FROM quotes').fetchone()[0], 0)
+
+    def test_create_is_durable_searchable_and_retry_is_idempotent(self):
+        body = self.body()
+        result = self.library.technical_save(None, body)
+        self.assertEqual(self.library.technical_save(None, body), result)
+        reopened = ManualTechnicalLibrary(self.root / 'library', self.store)
+        self.assertEqual(reopened.detail('technical', result['id'])['title'], body['title'])
+        self.assertIn(result['id'], [row['id'] for row in reopened.listing('technical', search='new technical')['items']])
+        self.assertEqual(len(reopened.technical_edits.read()[0]), 1)
+        altered = deepcopy(body); altered['title'] = 'Another item'
+        with self.assertRaises(LibraryConflict):
+            reopened.technical_save(None, altered)
+        self.protected()
+
+    def test_supplier_edit_preserves_raw_source_and_rejects_stale_editor(self):
+        body = self.body('report-a-v1'); stale = deepcopy(body)
+        body['title'] = 'Reviewed user title'
+        self.library.technical_save('report-a-v1', body)
+        self.assertEqual(self.library.detail('technical', 'report-a-v1')['title'], body['title'])
+        with self.assertRaises(LibraryConflict):
+            self.library.technical_save('report-a-v1', stale)
+        raw = self.library._load()['libraries']['technical']['items'][0]
+        self.assertEqual(raw['title'], 'V1 — Copper service')
+        self.protected()
+
+    def test_delete_hides_item_and_reciprocal_links_without_deleting_evidence(self):
+        edit = self.library.technical_edit('report-a-v1')
+        self.library.technical_delete('report-a-v1', {key: edit[key] for key in ('revision', 'source_sha256')})
+        with self.assertRaises(ReferenceNotFound):
+            self.library.detail('technical', 'report-a-v1')
+        self.assertFalse(self.library.detail('penetration', 'pkb-001')['links'])
+        reopened = ManualTechnicalLibrary(self.root / 'library', self.store)
+        self.assertEqual(reopened.listing('technical')['total'], 0)
+        self.protected()
+
+    def test_link_new_item_both_directions_and_unlink_survives_reopen(self):
+        result = self.library.technical_save(None, self.body()); key = result['id']
+        self.library.technical_link(key, {'penetration_ids': ['pkb-001', 'pkb-002']})
+        self.assertEqual({row['id'] for row in self.library.detail('technical', key)['links']}, {'pkb-001', 'pkb-002'})
+        self.library.remove_link('pkb-002', {'technical_id': key})
+        self.assertEqual([row['id'] for row in self.library.detail('technical', key)['links']], ['pkb-001'])
+        self.library.add_link('pkb-002', {'technical_ids': [key]})
+        reopened = ManualTechnicalLibrary(self.root / 'library', self.store)
+        self.assertIn(key, [row['id'] for row in reopened.detail('penetration', 'pkb-002')['links']])
+        self.protected()
+
+    def test_library_filters_and_editor_use_exact_canonical_options_and_groups(self):
+        overview = self.library.overview()['libraries']
+        technical, penetration = [next(row for row in overview if row['id'] == kind)['filters'] for kind in ('technical', 'penetration')]
+        rename = {'penetration_type': 'type', 'service_type': 'services'}
+        self.assertEqual(technical, [{**row, 'key': rename.get(row['key'], row['key'])} for row in penetration])
+        edit = self.library.edit('pkb-001')
+        columns = {'J':'category','K':'services','L':'type','M':'orientation','N':'frl','P':'substrate','V':'manufacturer'}
+        options = {row['key']:row['options'] for row in technical}
+        for field in edit['definition']['row_fields']:
+            if field['column'] in columns:
+                self.assertEqual(field['library_option_groups'], options[columns[field['column']]])
+        self.protected()
+
+    def test_unknown_classifications_unsafe_urls_and_forged_source_fields_are_rejected(self):
+        for mutate in (lambda body: body['facets']['services'].append('Invented unapproved pipe'),
+                       lambda body: body['facets']['services'].append({}),
+                       lambda body: body['report'].update(url='javascript:alert(1)'),
+                       lambda body: body.update(technical_basis={'source_fields': []})):
+            body = self.body(); mutate(body)
+            with self.assertRaises(ValidationError):
+                self.library.technical_save(None, body)
+        self.assertFalse(self.library.technical_edits.read()[0])
+        self.protected()
+
+    def test_changed_supplier_source_withholds_old_overlay(self):
+        body = self.body('report-a-v1'); body['title'] = 'Old edited title'
+        self.library.technical_save('report-a-v1', body)
+        data = json.loads(self.source.read_bytes()); data['libraries']['technical']['items'][0]['title'] = 'New supplier source'
+        self.source.write_text(json.dumps(data), encoding='utf-8')
+        current = ReferenceLibrary(self.root / 'library').detail('technical', 'report-a-v1')['title']
+        self.assertEqual(self.library.detail('technical', 'report-a-v1')['title'], current)
+        self.assertNotEqual(current, 'Old edited title')
+        with self.assertRaises(LibraryConflict):
+            self.library.technical_edit('report-a-v1')
+
+    def test_manual_report_url_exports_but_imported_authority_marker_is_rejected(self):
+        result = self.library.technical_save(None, self.body())
+        detail = self.library.detail('technical', result['id'])
+        self.assertTrue(detail['user_authored'])
+        snapshot = prepare_technical_item({'id': result['id']}, library=self.library)
+        report = next(field for field in snapshot['fields'] if field['label'] == 'Report Number')
+        self.assertEqual(report['report_links'][0]['url'], 'https://example.test/report.pdf')
+        self.protected()
+        data = json.loads(self.source.read_bytes()); data['libraries']['technical']['items'][0]['user_authored'] = True
+        self.source.write_text(json.dumps(data), encoding='utf-8')
+        with self.assertRaises(ValidationError):
+            ReferenceLibrary(self.root / 'library').listing('technical')
+
+    def test_http_crud_routes_validate_revision_and_persist_across_library_reopen(self):
+        server = create_server(0, database=self.store.path, library_directory=self.root / 'library')
+        thread = threading.Thread(target=server.serve_forever, daemon=True); thread.start()
+        def close():
+            server.shutdown(); server.server_close(); thread.join(timeout=5)
+        self.addCleanup(close)
+        def request(method, path, body=None):
+            connection = http.client.HTTPConnection('127.0.0.1', server.server_port)
+            connection.request(method, path, body=json.dumps(body) if body is not None else None,
+                               headers={'Content-Type': 'application/json'} if body is not None else {})
+            response = connection.getresponse(); result = response.status, json.loads(response.read()); connection.close(); return result
+        status, context = request('GET', '/api/libraries/technical/new')
+        self.assertEqual(status, 200); self.assertEqual(len(context['filters']), 8)
+        body = self.body(); status, receipt = request('POST', '/api/libraries/technical', body)
+        self.assertEqual(status, 200); key = receipt['id']
+        self.assertEqual(ManualTechnicalLibrary(self.root / 'library', self.store).detail('technical', key)['title'], body['title'])
+        stale = self.body(key); fresh = deepcopy(stale); fresh['title'] = 'HTTP updated title'
+        self.assertEqual(request('POST', f'/api/libraries/technical/{key}/save', fresh)[0], 200)
+        self.assertEqual(request('POST', f'/api/libraries/technical/{key}/save', stale)[0], 409)
+        status, current = request('GET', f'/api/libraries/technical/{key}/edit')
+        self.assertEqual(status, 200)
+        self.assertEqual(request('POST', f'/api/libraries/technical/{key}/delete', {name:current[name] for name in ('revision','source_sha256')})[0], 200)
+        self.assertEqual(request('GET', f'/api/libraries/technical/{key}')[0], 404)
+        self.protected()
+
+    def test_initialization_adds_only_two_tables_and_crud_preserves_every_existing_row(self):
+        store = Store(self.root / 'existing.sqlite3')
+        FirestoppingLibrary(self.root / 'library', store)
+        with store.connect() as db:
+            db.execute("INSERT INTO quotes VALUES ('retained','Existing quote','original-time','{}')")
+            db.execute("INSERT INTO calculator_states VALUES ('retained-calculator','{}','original-time')")
+        def snapshot():
+            with store.connect() as db:
+                schema = dict(db.execute("SELECT name,sql FROM sqlite_master WHERE type='table'"))
+                rows = {name: db.execute('SELECT * FROM "' + name.replace('"', '""') + '"').fetchall() for name in schema}
+                return schema, rows
+        old_schema, old_rows = snapshot()
+        library = ManualTechnicalLibrary(self.root / 'library', store)
+        result = library.technical_save(None, self.body())
+        library.technical_link(result['id'], {'penetration_ids': ['pkb-002']})
+        context = library.technical_edit(result['id'])
+        library.technical_delete(result['id'], {key:context[key] for key in ('revision','source_sha256')})
+        schema, rows = snapshot()
+        self.assertEqual(set(schema) - set(old_schema), {'technical_library_items', 'technical_library_links'})
+        for name in old_schema:
+            self.assertEqual(schema[name], old_schema[name]); self.assertEqual(rows[name], old_rows[name])
+        self.protected()
+
+    def test_report_filters_preserve_document_alias_and_linked_firestopping_membership(self):
+        data = json.loads(self.source.read_bytes())
+        technical = data['libraries']['technical']
+        next(entry for entry in technical['filters'] if entry['key'] == 'report')['key'] = 'document'
+        item = technical['items'][0]; item['filter_values']['document'] = item['filter_values'].pop('report')
+        self.source.write_text(json.dumps(data), encoding='utf-8')
+        self.assertEqual(self.library.listing('technical', report='Sample report')['total'], 1)
+        self.assertEqual(self.library.listing('technical', document='Sample report')['total'], 1)
+        self.assertEqual([row['id'] for row in self.library.listing('penetration', report='Sample report')['items']], ['pkb-001'])
+
+    def test_blank_report_url_saves_and_exports_as_plaintext_but_number_is_required(self):
+        body = self.body(); body['report']['url'] = ''
+        result = self.library.technical_save(None, body)
+        snapshot = prepare_technical_item({'id': result['id']}, library=self.library)
+        report = next(field for field in snapshot['fields'] if field['label'] == 'Report Number')
+        self.assertEqual(report['value'], 'Sample report'); self.assertEqual(report['report_links'], [])
+        invalid = self.body(); invalid['report'] = {'number': '', 'url': ''}
+        with self.assertRaises(ValidationError):
+            self.library.technical_save(None, invalid)
+        self.protected()
+
+    def test_unchanged_multiple_report_links_survive_an_unrelated_edit(self):
+        data = json.loads(self.source.read_bytes())
+        report = next(field for field in data['libraries']['technical']['items'][0]['fields'] if field['label'] == 'Report Number')
+        report['value'] = 'Sample report\nOther report'; report['report_links'].append({'label': 'Other report', 'url': 'https://media.promat.com/other.pdf'})
+        self.source.write_text(json.dumps(data), encoding='utf-8'); self.original_source = self.source.read_bytes()
+        body = self.body('report-a-v1'); body['title'] = 'Only the title changes'; body['report'] = {'number': report['value'], 'url': ''}
+        self.library.technical_save('report-a-v1', body)
+        saved = next(field for field in self.library.detail('technical', 'report-a-v1')['fields'] if field['label'] == 'Report Number')
+        self.assertEqual(saved['value'], report['value']); self.assertEqual(saved['report_links'], report['report_links'])
+        self.protected()
+
+    def test_link_cache_refreshes_for_same_key_changes_at_an_identical_timestamp(self):
+        key = self.library.technical_save(None, self.body())['id']
+        with patch('estimator.technical_library_edits.timestamp', return_value='fixed-clock-value'):
+            self.library.technical_link(key, {'penetration_ids': ['pkb-002']})
+            self.assertIn(key, [item['id'] for item in self.library.detail('penetration', 'pkb-002')['links']])
+            self.library.remove_link('pkb-002', {'technical_id': key})
+            self.assertNotIn(key, [item['id'] for item in self.library.detail('penetration', 'pkb-002')['links']])
+            self.library.technical_link(key, {'penetration_ids': ['pkb-002']})
+            self.assertIn(key, [item['id'] for item in self.library.detail('penetration', 'pkb-002')['links']])
+        self.protected()

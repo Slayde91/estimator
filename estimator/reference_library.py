@@ -39,6 +39,9 @@ from .firefly_technical_review import (REVIEW_KEY, ValidatedReview,
 from .technical_service_review import (REVIEW_KEY as SERVICE_REVIEW_KEY,
     ValidatedReview as ValidatedServiceReview, plan_stamp as service_plan_stamp,
     load_review as load_service_review, project as project_service_review)
+from .technical_variants import (REVIEW_KEY as VARIANT_REVIEW_KEY,
+    ValidatedReview as ValidatedVariantReview, plan_stamp as variant_plan_stamp,
+    load_review as load_variant_review, project as project_variants)
 
 KINDS = {'penetration': 'Firestopping Library', 'technical': 'Technical Library'}
 IDENTIFIER = re.compile(r'[a-z0-9][a-z0-9_-]{0,119}\Z')
@@ -156,13 +159,14 @@ class ReferenceLibrary:
             review_stamp = plan_stamp(self.directory)
             technical_stamp = technical_plan_stamp(self.directory)
             service_stamp = service_plan_stamp(self.directory)
+            variant_stamp = variant_plan_stamp(self.directory)
         except FileNotFoundError:
             self._data = None
             self._stamp = None
             return None
         except (OSError, ValueError) as exc:
             raise ValidationError('The local reference library could not be read. Rebuild it from the source files.') from exc
-        stamp = (info.st_mtime_ns, info.st_size, info.st_ctime_ns, review_stamp, technical_stamp, service_stamp)
+        stamp = (info.st_mtime_ns, info.st_size, info.st_ctime_ns, review_stamp, technical_stamp, service_stamp, variant_stamp)
         if self._data is not None and stamp == self._stamp:
             return self._data
         if info.st_size > MAX_INDEX or not index.resolve().is_relative_to(self.directory.resolve()):
@@ -173,7 +177,7 @@ class ReferenceLibrary:
             if len(payload) > MAX_INDEX:
                 raise ValueError('Index limit')
             data = json.loads(payload, parse_constant=lambda _: (_ for _ in ()).throw(ValueError()))
-            if REVIEW_KEY in data or SERVICE_REVIEW_KEY in data or '_index_sha256' in data:
+            if REVIEW_KEY in data or SERVICE_REVIEW_KEY in data or VARIANT_REVIEW_KEY in data or '_index_sha256' in data:
                 raise ValueError('Imported technical runtime marker')
             index_sha256 = hashlib.sha256(payload).hexdigest()
             data['_index_sha256'] = index_sha256
@@ -182,6 +186,8 @@ class ReferenceLibrary:
                 self.directory, data, index_sha256, technical_stamp)
             data[SERVICE_REVIEW_KEY] = load_service_review(
                 self.directory, data, index_sha256, service_stamp)
+            data[VARIANT_REVIEW_KEY] = load_variant_review(
+                self.directory, data, index_sha256, variant_stamp)
             self._validate(data)
         except (OSError, UnicodeError, ValueError, KeyError, TypeError, AttributeError) as exc:
             raise ValidationError('The local reference library could not be read. Rebuild it from the source files.') from exc
@@ -197,7 +203,7 @@ class ReferenceLibrary:
                 and data['libraries']['technical'] is source['libraries']['technical']
                 and all(data.get(key) is source.get(key) for key in (
                     'documents', 'images', 'trafalgar_selector_import', 'technical_duplicate_reviews',
-                    REVIEW_KEY, SERVICE_REVIEW_KEY)))
+                    REVIEW_KEY, SERVICE_REVIEW_KEY, VARIANT_REVIEW_KEY)))
 
     def _validate(self, data, *, validated_source=None):
         if not isinstance(data, dict) or type(data['schema_version']) is not int or data['schema_version'] != 1:
@@ -206,6 +212,8 @@ class ReferenceLibrary:
             raise ValueError('Imported Firefly technical review capability')
         if data.get(SERVICE_REVIEW_KEY) is not None and not isinstance(data[SERVICE_REVIEW_KEY], ValidatedServiceReview):
             raise ValueError('Imported technical Services review capability')
+        if data.get(VARIANT_REVIEW_KEY) is not None and not isinstance(data[VARIANT_REVIEW_KEY], ValidatedVariantReview):
+            raise ValueError('Imported technical variant review capability')
         reuse_technical = self._same_technical_source(data, validated_source)
         documents = data['documents']
         images = data.get('images', [])
@@ -275,6 +283,10 @@ class ReferenceLibrary:
             for item in items:
                 if kind == 'technical' and 'related_technical_records' in item:
                     raise ValueError('Related Technical records are computed runtime metadata')
+                if kind == 'technical' and 'variant_source' in item:
+                    raise ValueError('Technical variant sources are computed runtime metadata')
+                if kind == 'technical' and 'user_authored' in item:
+                    raise ValueError('Manual Technical identity is computed runtime metadata')
                 if kind == 'technical' and 'technical_basis' in item:
                     # Only the runtime creates this metadata. Trusting a marker
                     # imported from an index would bypass source projection and
@@ -414,6 +426,42 @@ class ReferenceLibrary:
                                **discovery_facets(item, imported_services=imported_services[key])}
                          for key, item in public_technical.items()}
             discovery = project_service_review(public_technical, discovery, data.get(SERVICE_REVIEW_KEY))
+            variant_projection = project_variants(public_technical, discovery, data.get(VARIANT_REVIEW_KEY),
+                source_records={item['id']: item for item in data['libraries']['technical']['items']}, assets=assets)
+            public_technical, discovery = variant_projection.records, variant_projection.discovery
+            # Synthetic view records are lookup targets, never supplier items.
+            # Existing source projections remain unchanged for old review and
+            # durable manual-link identities.
+            for key, item in public_technical.items():
+                if key not in records['technical']:
+                    records['technical'][key] = deepcopy(item)
+                if key not in searches['technical'] or key in variant_projection.lineage:
+                    searches['technical'][key] = ('\n'.join(str(item.get(name, '')) for name in ('id', 'title', 'subtitle', 'summary')) + '\n' + '\n'.join(
+                        field.get('value', '') + '\n' + json.dumps([field.get('table'), field.get('tables')], ensure_ascii=False)
+                        for field in item.get('fields', []))).casefold()
+            if variant_projection.aliases:
+                aliases = dict(aliases)
+                aliases.update(variant_projection.aliases)
+                # Collapse retained aliases through newly reviewed canonical IDs.
+                for key in list(aliases):
+                    target, visited = aliases[key], {key}
+                    while target in aliases and aliases[target] != target:
+                        if target in visited:
+                            raise ValueError('Cyclic Technical variant alias')
+                        visited.add(target); target = aliases[target]
+                    aliases[key] = target
+                groups = {}
+                for key, canonical in aliases.items():
+                    members = groups.setdefault(canonical, [canonical])
+                    if key not in members:
+                        members.append(key)
+            for canonical, members in groups.items():
+                if variant_projection.lineage and canonical in searches['technical']:
+                    searches['technical'][canonical] += '\n' + '\n'.join(members).casefold()
+                for key in members:
+                    if key in public_technical:
+                        public_technical[key] = {**public_technical[key], 'canonical_id': canonical, 'consolidated_ids': list(members)}
+            visible['technical'] = [key for key in public_technical if aliases.get(key, key) == key]
             for entry in filters['technical']:
                 observed = {value for values in discovery.values() for value in values.get(entry['key'], [])}
                 if entry['key'] == 'frl':
@@ -449,19 +497,32 @@ class ReferenceLibrary:
             if right not in public_technical:
                 continue
             for kind, source, target_kind, target in [('penetration', left, 'technical', right), ('technical', right, 'penetration', left)]:
-                title = records[target_kind][target]['title']
+                title = (public_technical[target] if target_kind == 'technical' else records[target_kind][target])['title']
                 links[kind][source].append({'kind': target_kind, 'id': target, 'title': title, 'relationship': relationship,
                                           **({'origin': 'user'} if link.get('origin') == 'user' else {})})
         consolidate_links(links, aliases, groups)
         for entries in links['penetration'].values():
             for entry in entries:
-                entry['title'] = records['technical'][entry['id']]['title']
+                entry['title'] = public_technical[entry['id']]['title']
         data['_aliases'], data['_groups'], data['_visible'] = aliases, groups, visible
         data['_technical_discovery'] = discovery
         data['_technical_public_records'] = public_technical
         data['_technical_related_records'] = technical_related
         data['_technical_reviewed_substrates'] = reviewed_substrates
+        data['_technical_variant_lineage'] = (validated_source['_technical_variant_lineage'] if reuse_technical else variant_projection.lineage)
+        data['_technical_variant_sources'] = (validated_source['_technical_variant_sources'] if reuse_technical else variant_projection.sources)
         data['_records'], data['_searches'], data['_filters'], data['_links'], data['_assets'] = records, searches, filters, links, assets
+
+    @staticmethod
+    def technical_source_record(key, data):
+        """Resolve an immutable original or its reviewed synthetic descriptor."""
+        for source in data['libraries']['technical']['items']:
+            if source['id'] == key:
+                return source
+        source = data.get('_technical_variant_sources', {}).get(key)
+        if source is None:
+            raise ReferenceNotFound()
+        return source
 
     def overview(self):
         with self._lock:

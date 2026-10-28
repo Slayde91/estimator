@@ -365,8 +365,11 @@ class FirestoppingLibrary(ReferenceLibrary):
         # overlay validation without permitting imported JSON to forge it.
         from .firefly_technical_review import REVIEW_KEY
         from .technical_service_review import REVIEW_KEY as SERVICES_REVIEW_KEY
+        from .technical_variants import REVIEW_KEY as VARIANT_REVIEW_KEY
         data[REVIEW_KEY] = source.get(REVIEW_KEY)
         data[SERVICES_REVIEW_KEY] = source.get(SERVICES_REVIEW_KEY)
+        data[VARIANT_REVIEW_KEY] = source.get(VARIANT_REVIEW_KEY)
+        data['_technical_variant_sources'] = source.get('_technical_variant_sources', {})
         return data
 
     def _load(self):
@@ -460,6 +463,8 @@ class FirestoppingLibrary(ReferenceLibrary):
                 if edit and edit['source_sha256'] == source_hash else source_inputs)
         items = {item['id']: item for item in library['items']}
         technical = {item['id']: item for item in data['libraries']['technical']['items']}
+        if base:
+            technical.update(base.get('_technical_variant_sources', {}))
         link_edges = {(link['penetration_id'], link['technical_id']): link for link in data['links']}
         pairs = set(link_edges)
         for left, right, left_source, right_source in self.edits.links():
@@ -824,14 +829,17 @@ class FirestoppingLibrary(ReferenceLibrary):
     @staticmethod
     def _technical_source(item, data):
         documents = {value['id']: value['sha256'] for value in data['documents']}
-        return hashlib.sha256(encoded({'id': item['id'], 'sources': item.get('sources', []),
-                'documents': {s['document_id']: documents[s['document_id']] for s in item.get('sources', []) if 'document_id' in s}}).encode()).hexdigest()
+        payload = {'id': item['id'], 'sources': item.get('sources', []),
+                   'documents': {s['document_id']: documents[s['document_id']] for s in item.get('sources', []) if 'document_id' in s}}
+        if 'variant_source' in item:
+            payload['variant_source'] = item['variant_source']
+        return hashlib.sha256(encoded(payload).encode()).hexdigest()
 
     @classmethod
     def _original_technical_source(cls, key, data):
         # Display projection can rename source labels and filenames. Durable
         # edges must use the same immutable record checked during overlay load.
-        source = next(item for item in data['libraries']['technical']['items'] if item['id'] == key)
+        source = cls.technical_source_record(key, data)
         return cls._technical_source(source, data)
 
     def add_link(self, key, body):

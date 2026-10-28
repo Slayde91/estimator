@@ -21,6 +21,9 @@ from estimator.firefly_technical_review import (PLAN_NAME as TECHNICAL_PLAN_NAME
 from estimator.technical_service_review import (PLAN_NAME as SERVICES_PLAN_NAME,
     MAX_PLAN_BYTES as MAX_SERVICES_PLAN_BYTES, REVIEW_KEY as SERVICES_REVIEW_KEY,
     plan_stamp as services_plan_stamp, load_review as load_services_review)
+from estimator.technical_variants import (PLAN_NAME as VARIANT_PLAN_NAME,
+    MAX_PLAN_BYTES as MAX_VARIANT_PLAN_BYTES, REVIEW_KEY as VARIANT_REVIEW_KEY,
+    plan_stamp as variant_plan_stamp, load_review as load_variant_review)
 
 
 def regular_path(path, directory=False):
@@ -58,7 +61,8 @@ def prepare(output, library=None, database=None):
         for name, maximum, stamp_reader, reader, capability_key in (
                 (PLAN_NAME, MAX_PLAN_BYTES, plan_stamp, load_review, None),
                 (TECHNICAL_PLAN_NAME, MAX_TECHNICAL_PLAN_BYTES, technical_plan_stamp, load_technical_review, REVIEW_KEY),
-                (SERVICES_PLAN_NAME, MAX_SERVICES_PLAN_BYTES, services_plan_stamp, load_services_review, SERVICES_REVIEW_KEY)):
+                (SERVICES_PLAN_NAME, MAX_SERVICES_PLAN_BYTES, services_plan_stamp, load_services_review, SERVICES_REVIEW_KEY),
+                (VARIANT_PLAN_NAME, MAX_VARIANT_PLAN_BYTES, variant_plan_stamp, load_variant_review, VARIANT_REVIEW_KEY)):
             review_stamp = stamp_reader(library)
             if review_stamp is None:
                 continue

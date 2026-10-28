@@ -58,6 +58,12 @@
     return { width_mm, height_mm };
   }
   const fieldDisplay = (fields, key) => key === "width_height_mm" ? formatDimensions(fields) : fields?.[key];
+  function substrateOrientation(value) {
+    const text = String(value ?? "");
+    if (/\bwalls?\b/i.test(text)) return "Vertical";
+    if (/\b(?:floors?|ceilings?)\b/i.test(text)) return "Horizontal";
+    return null;
+  }
   const recordedQuantity = (entity, value) => entity.library_quantity && (value === "" || value == null) ? null : fieldValue("service", "quantity", value);
   const evidenceFields = key => key === "width_height_mm" ? ["width_mm", "height_mm"] : [key];
   const markerDescription = marker => marker ? `${marker.document_id} · p${marker.page} · (${marker.point?.join(", ")})` : "none";
@@ -144,6 +150,7 @@
     const fields = { ...entry.entity.fields };
     if (key === "width_height_mm") { delete fields.width_mm; delete fields.height_mm; Object.assign(fields, parsed); }
     else if (parsed === undefined) delete fields[key]; else fields[key] = parsed;
+    if (entry.kind === "barrier" && key === "substrate" && substrateOrientation(parsed)) fields.orientation = substrateOrientation(parsed);
     return { fields };
   }
   function fieldsFromValues(kind, values, retainedFields = {}, scope = "defect_reports") {
@@ -158,6 +165,7 @@
       if (Object.hasOwn(retainedFields, key) && String(values[key] ?? "") === String(retainedFields[key] ?? "")) continue;
       const value = fieldValue(kind, key, values[key], scope); if (value === undefined) delete result[key]; else result[key] = value;
     }
+    if (kind === "barrier" && result.substrate !== retainedFields.substrate && substrateOrientation(result.substrate)) result.orientation = substrateOrientation(result.substrate);
     return result;
   }
   function sameValue(a, b) {
@@ -297,14 +305,23 @@
     }
     function displayReply(reply) { const value = reply?.snapshot || (reply?.documents && "physical" in reply ? reply : null); if (value) render(value); }
     function fieldType(kind, key) {
-      if (sharedOptionKeys.has(key)) return (state.fieldOptions?.[key] || []).map(value => [value, key === "service_type" ? root.CeasefirePenetrationPresentation?.serviceLabel(value) || value : value]);
+      if (sharedOptionKeys.has(key)) return (state.fieldOptions?.[key] || []).map(value => {
+        const detail = state.fieldOptions?.option_details?.[key]?.find(option => option.value === value);
+        const label = detail?.label ?? value;
+        return [value, key === "service_type" ? root.CeasefirePenetrationPresentation?.serviceLabel(label) || label : label, detail?.group];
+      });
       const type = key === "quantity" ? "number" : fieldsFor(kind, scope()).find(definition => definition[0] === key)?.[2] || "text";
       return Array.isArray(type) ? copy(type) : type;
     }
     function populateSelect(control, options, initial) {
       const value = String(initial ?? "");
       control.replaceChildren(choice("", "Choose…"));
-      for (const [key, label] of options) control.append(choice(key, label));
+      const groups = new Map();
+      for (const [key, label, group] of options) {
+        let host = control;
+        if (typeof group === "string" && group.trim()) { if (!groups.has(group)) { const section = node("optgroup"); root.CeasefireI18n.attr(section, "label", group); groups.set(group, section); control.append(section); } host = groups.get(group); }
+        host.append(choice(key, label));
+      }
       if (value && !options.some(([key]) => String(key) === value)) control.append(choice(value, `${value} (retained)`));
       control.value = value;
     }
@@ -323,7 +340,7 @@
           state.fieldOptions = copy(options);
           // Refresh only dropdowns: a slow choices request must never replace a pending text edit.
           for (const control of controlsInWorkspace("[data-physical-options]")) {
-            populateSelect(control, state.fieldOptions[control.dataset.physicalOptions].map(value => [value, value]), control.value);
+            populateSelect(control, fieldType(null, control.dataset.physicalOptions), control.value);
             control.dataset.locked = "false"; control.disabled = state.busy;
           }
         } finally { state.fieldOptionsPromise = null; }
@@ -381,7 +398,11 @@
     }
     async function ask(title, fields, explanation, submit) {
       ensureAvailable(); const key = graphKey(); setBusy(true);
-      try { const answer = await bridge.ask(title, fields, explanation, submit); if (answer && (state.destroyed || graphKey() !== key)) throw new Error("The physical draft changed while this form was open. Repeat the edit."); return answer; }
+      const setup = controls => {
+        const substrate = controls.find(field => field.control.name === "substrate")?.control, orientation = controls.find(field => field.control.name === "orientation")?.control;
+        if (substrate && orientation) substrate.addEventListener("change", () => { const value = substrateOrientation(substrate.value); if (value) orientation.value = value; });
+      };
+      try { const answer = await bridge.ask(title, fields, explanation, submit, setup); if (answer && (state.destroyed || graphKey() !== key)) throw new Error("The physical draft changed while this form was open. Repeat the edit."); return answer; }
       finally { if (!state.destroyed) setBusy(false); }
     }
     function fieldDefinitions(entry, createKind) {
@@ -989,7 +1010,7 @@
       const guard = () => { if (!isCurrent() || !renderedCurrent()) throw new Error("The physical draft changed. Read its current register references again."); };
       try {
         guard(); referencePicker = true; changed();
-        let response = await bridge.registerReferences([identifier], { limit: 100 }); guard();
+        let response = await bridge.registerReferences([identifier], { limit: 100, own_only: true }); guard();
         let reference = response.row_references?.[identifier];
         if (!reference) throw new Error("The schedule references could not be loaded.");
         // The picker must retain every existing selection, including the last
@@ -997,7 +1018,7 @@
         const libraryRevision = response.library_revision;
         while (reference.has_more) {
           api.validateIds(reference.systems.map(item => item.id));
-          response = await bridge.registerReferences([identifier], { offset: reference.offset + reference.systems.length, limit: 100, expected_library_revision: libraryRevision }); guard();
+          response = await bridge.registerReferences([identifier], { offset: reference.offset + reference.systems.length, limit: 100, expected_library_revision: libraryRevision, own_only: true }); guard();
           if (response.library_revision !== libraryRevision || !response.row_references?.[identifier]) throw new Error("The register references changed. Refresh the current register.");
           const next = response.row_references[identifier];
           reference = { ...next, offset: 0, systems: [...reference.systems, ...next.systems], reports: reference.reports };
@@ -1420,6 +1441,6 @@
     return { render, restoreHidden() { state.hidden.clear(); renderData(); bridge.viewChanged?.(hierarchyRows(graph(), state).map(row => row.entity.id), [...state.selected], []); }, select: selectEntity, selectDrawing, clearSelection, create, createFromSelection, createFromVisualSearch, setMarker, setAnnotation, deleteDrawing, copyDrawing, pasteDrawing, selectedBarrier, selection: () => [...state.selected], inspectedId: () => inspectedEntry()?.entity.id || null, summary, hover, completePendingEdits, isAutoApplying: () => state.autoRoutine, editRevision: () => state.editRevision, hasUnfinishedChanges: () => !state.destroyed && (state.busy || referencePicker || state.pending.size > 0), destroy() { state.destroyed = true; state.busy = false; cancelAutomatic(); documents.destroy(); documents.root.remove(); inspectorMenu?.destroy(); state.filterDialog?.close("cancel"); container.replaceChildren(); if (bridge.inspectorContainer) ui.inspector.remove(); state.pending.clear(); changed(); } };
   }
 
-  const api = { mount, confirmationOwner, effectiveConfirmation, indexGraph, hierarchyRows, hierarchyPage, columnValue, fieldValue, fieldsFromValues, changedFields, bulkCommands, deletionPlan, formatDimensions, parseDimensions, imageEvidence, previewText, commandText };
+  const api = { mount, confirmationOwner, effectiveConfirmation, indexGraph, hierarchyRows, hierarchyPage, columnValue, fieldValue, fieldsFromValues, changedFields, substrateOrientation, bulkCommands, deletionPlan, formatDimensions, parseDimensions, imageEvidence, previewText, commandText };
   if (typeof module !== "undefined" && module.exports) module.exports = api; else root.CeasefireTakeoffPhysical = api;
 })(globalThis);

@@ -79,7 +79,7 @@ def criteria_for(service, barrier, owner, opening=None):
     return result
 
 
-def physical_contexts(snapshot, scope, identifiers):
+def physical_contexts(snapshot, scope, identifiers, *, own_only=False):
     """Each parent is the union of actual descendant contexts, never a join."""
     from .takeoff_physical import graph_collections, graph_parents
     key = {'defect_reports': 'physical', 'service_plans': 'service_plans'}.get(scope) if isinstance(scope, str) else None
@@ -131,12 +131,13 @@ def physical_contexts(snapshot, scope, identifiers):
             kind, _ = index[current]
             descendants = children.get(current, [])
             explicit = 'technical_reference_ids' in index[current][1]
-            if explicit or associations[current] or kind == 'service' or not descendants:
+            if own_only or explicit or associations[current] or kind == 'service' or not descendants:
                 contexts.append(context(current))
-            # A direct assignment owns this row's reference context, including
-            # the deliberate absence of Technical links. Do not dilute it with
-            # inferred descendant matches.
-            if not explicit and not associations[current]:
+            # Current parent rows display their own references plus every
+            # active descendant's recorded references. The picker requests
+            # own_only so an inherited report never becomes a copied selection.
+            # Preserve the original four-level hierarchy's read-only contract.
+            if not own_only and (graph['version'] != 1 or not explicit and not associations[current]):
                 pending.extend(descendants)
         result[identifier] = contexts
     return result

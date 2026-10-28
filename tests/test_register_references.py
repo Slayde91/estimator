@@ -177,7 +177,7 @@ class ReferenceProjectionTests(unittest.TestCase):
         self.assertFalse(any(row['criteria'].get('services') == 'Copper pipe' and row['criteria'].get('substrate') == 'Plasterboard wall' for row in contexts))
         snapshot['library_assignments'] = {'records': [{'scope': 'defect_reports', 'library': {'id': 'empty'}, 'members': [{'id': uid(1)}]}]}
         linked = physical_contexts(snapshot, 'defect_reports', [uid(1)])[uid(1)]
-        self.assertEqual(len(linked), 1); self.assertEqual(self.index.project(linked)['total'], 0)
+        self.assertEqual(len(linked), 3); self.assertEqual(self.index.project(linked)['total'], 0)
 
 
 class ReferenceLibraryEpochTests(unittest.TestCase):
@@ -251,7 +251,7 @@ class ReferenceWorkspaceTests(unittest.TestCase):
         for changes in ({'expected_revision': -1}, {'scope': 'steel'}, {'scope': []}, {'entity_ids': ['not-an-id']},
                         {'entity_ids': [self.identifier] * 2}, {'entity_ids': [str(uuid4())]}, {'limit': 101},
                         {'offset': True}, {'report_offset': -1}, {'report_offset': True}, {'report_offset': 1000001},
-                        {'expected_library_revision': 'invented'}, {'criteria': {'services': 'Copper pipe'}}):
+                        {'expected_library_revision': 'invented'}, {'own_only': 'yes'}, {'criteria': {'services': 'Copper pipe'}}):
             with self.subTest(changes=changes), self.assertRaises(ValidationError):
                 self.read(**changes)
 

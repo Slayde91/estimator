@@ -27,7 +27,18 @@ def valid_report_url(value):
         return False
 
 
-def validate_report_links(field):
+def valid_manual_report_url(value):
+    """An explicit user-authored hyperlink; never fetched by the server."""
+    if not isinstance(value, str) or not 1 <= len(value) <= 4000 or re.search(r'[\s<>"\\\x00-\x1f\x7f]', value):
+        return False
+    try:
+        url = urlsplit(value)
+        return url.scheme in ('https', 'http') and bool(url.hostname) and not url.username and not url.password
+    except ValueError:
+        return False
+
+
+def validate_report_links(field, *, user_authored=False):
     if 'report_links' not in field:
         return
     links = field['report_links']
@@ -39,7 +50,7 @@ def validate_report_links(field):
     positions = []
     for link in links:
         if (not isinstance(link, dict) or set(link) != {'label', 'url'}
-                or link['label'] not in labels or not valid_report_url(link['url'])):
+                or link['label'] not in labels or not (valid_report_url(link['url']) or user_authored and valid_manual_report_url(link['url']))):
             raise ValueError('Invalid report link or report number')
         positions.append(labels.index(link['label']))
     if positions != sorted(set(positions)):

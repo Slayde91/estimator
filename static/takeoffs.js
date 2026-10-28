@@ -218,7 +218,15 @@
     } else el.textContent = label;
     el.addEventListener("click", () => void safely(fn)); return el;
   }
-  function select(options, change, value) { const el = node("select"); options.forEach(([v, text]) => el.append(option(v, text))); if (value !== undefined) el.value = value; if (change) el.addEventListener("change", () => void safely(() => change(el.value))); return el; }
+  function select(options, change, value) {
+    const el = node("select"), groups = new Map();
+    for (const [v, text, group] of options) {
+      let host = el;
+      if (typeof group === "string" && group.trim()) { if (!groups.has(group)) { const section = node("optgroup"); window.CeasefireI18n.attr(section, "label", group); groups.set(group, section); el.append(section); } host = groups.get(group); }
+      host.append(option(v, text));
+    }
+    if (value !== undefined) el.value = value; if (change) el.addEventListener("change", () => void safely(() => change(el.value))); return el;
+  }
   function uiSelect(options, change, value) { const control = select(options, change, value), choices = control.options || control.children; for (let index = 0; index < options.length; index++) window.CeasefireI18n.text(choices[index], options[index][1]); return control; }
   function documentChevron() {
     const wrapper = node("span", "calculator-document-chevron"); wrapper.setAttribute("aria-hidden", "true");
@@ -998,15 +1006,27 @@
       selectionChanged: ({ selected, openDetails = true }) => { if (openDetails && state.mode === "physical") setPhysicalDetailsOpen(selected.length > 0); },
       fieldOptions: async () => {
         const configuration = clone(window.CeasefireProject?.configuration?.() || { inventory: {}, rates: {} });
-        const response = await fetch("/api/penetration/definition", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ configuration }) });
-        const definition = await response.json();
-        if (!response.ok) throw new Error(definition.error || "The Firestopping field choices could not be loaded.");
-        const columns = { substrate: "P", orientation: "M", service: "J", service_type: "K", frl: "N" };
-        return Object.fromEntries(Object.entries(columns).map(([key, column]) => {
+        const [response, catalogueResponse] = await Promise.all([
+          fetch("/api/penetration/definition", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ configuration }) }),
+          fetch("/api/libraries"),
+        ]);
+        const [definition, catalogue] = await Promise.all([response.json(), catalogueResponse.json()]);
+        if (!response.ok || !catalogueResponse.ok) throw new Error(definition.error || catalogue.error || "The current field choices could not be loaded.");
+        const columns = { orientation: "M", frl: "N" };
+        const choices = Object.fromEntries(Object.entries(columns).map(([key, column]) => {
           const field = definition.row_fields?.find(value => value.column === column);
           if (field?.type !== "select" || !Array.isArray(field.options) || !field.options.length || field.options.some(value => typeof value !== "string")) throw new Error(`The Firestopping ${key.replaceAll("_", " ")} choices are unavailable.`);
           return [key, [...field.options]];
         }));
+        choices.option_details = {};
+        const technical = catalogue.libraries?.find(library => library.id === "technical");
+        for (const [key, facet] of Object.entries({ substrate: "substrate", service: "category", service_type: "services" })) {
+          const field = technical?.filters?.find(value => value.key === facet);
+          if (!Array.isArray(field?.options) || !field.options.length || field.options.some(option => typeof option?.value !== "string" || !option.value.trim())) throw new Error(`The Technical Library ${facet} choices are unavailable.`);
+          choices[key] = field.options.map(option => option.value);
+          choices.option_details[key] = clone(field.options);
+        }
+        return choices;
       },
       preview: async commands => {
         const sessionId = state.session?.session_id, reply = await physicalRequest("physical/preview", { commands, scope }, { sessionId });

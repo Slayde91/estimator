@@ -90,6 +90,16 @@ const countItem=(id,countId,length,points)=>({id,count_id:countId,version:1,stat
 let passed=0;
 async function check(label, test) { await test(); passed++; console.log(`ok - ${label}`); }
 (async()=>{
+  await check('Physical entry choices use canonical Technical Library values and groups without expanding calculator inputs',async()=>{
+    const h=harness(),calls=[],canonical=Array.from({length:45},(_,i)=>({value:`Reviewed service ${i+1}`,label:`Reviewed service ${i+1}`,group:i<20?'Cables':'Plastic Pipes'}));let bridge;
+    h.audit.accept(response(blank()));h.audit.state.drawingFonts=Promise.resolve();h.audit.state.ui={physicalContainer:{},physicalDetails:{},physicalDocumentHost:{}};
+    h.context.window.CeasefireTakeoffPhysical={mount(_container,value){bridge=value;return{};}};
+    const configuration={inventory:{kept:1},rates:{kept:2}};h.context.window.CeasefireProject.configuration=()=>configuration;
+    h.context.fetch=async(path,options)=>{calls.push({path,options});return{ok:true,async json(){return path==='/api/libraries'?{libraries:[{id:'technical',filters:[{key:'substrate',options:[{value:'CLT floor',label:'CLT floor',group:'Floors'}]},{key:'category',options:[{value:'Mechanical',label:'Mechanical'}]},{key:'services',options:canonical}]}]}:{row_fields:[{column:'M',type:'select',options:['Horizontal','Vertical']},{column:'N',type:'select',options:['-/120/120']},{column:'K',type:'select',options:['Calculator only']} ]};}};};
+    const before=copy(h.audit.state.session);h.audit.ensurePhysicalUI();const choices=await bridge.fieldOptions();
+    assert.deepEqual(copy(choices.service_type),canonical.map(option=>option.value));assert.deepEqual(copy(choices.option_details.service_type),canonical);assert.deepEqual(copy(choices.option_details.substrate),[{value:'CLT floor',label:'CLT floor',group:'Floors'}]);assert.deepEqual(copy(choices.service),['Mechanical']);assert.ok(!choices.service_type.includes('Calculator only'));assert.equal(choices.service_type.length,45);
+    assert.deepEqual(calls.map(call=>call.path).sort(),['/api/libraries','/api/penetration/definition']);assert.deepEqual(copy(h.audit.state.session),before);assert.deepEqual(configuration,{inventory:{kept:1},rates:{kept:2}});
+  });
   await check('Takeoff download stays silent during font, calculator and shared file preparation',async()=>{
     const h=harness(),value=blank(),fonts=deferred(),capture=deferred(),artifact=deferred(),feedback=require('./helpers/download_sound_vm.cjs').downloadSoundHarness();
     value.documents=[{id:'doc',name:'Fixture drawing',pages:[{page:1,view:[0,0,200,200]}]}];h.audit.accept(response(value));

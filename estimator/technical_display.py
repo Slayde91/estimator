@@ -12,6 +12,7 @@ _BRACKETED = re.compile(r'\(([^()]*)\)')
 _REFERENCE_NUMBER = r'\d+(?:\s*[A-Za-z]\b)?(?:\s*(?:[-\u2013\u2014/,;&]|\band\b|\bor\b|\bto\b)\s*\d+(?:\s*[A-Za-z]\b)?)*'
 _LOCATOR = re.compile(r'\b(?:(?:see|refer\s+to|as\s+per)\s+)?(?:tables?|items?|figures?|figs?\.?)\s+' + _REFERENCE_NUMBER, re.I)
 _GENERATED_TABLE = re.compile(r'^\s*(?:Service Size\s*/\s*Configuration|Barrier Construction)\s+table\s+' + _REFERENCE_NUMBER + r'\s*[;,]?\s*', re.I)
+_PAGE_PREFIX = re.compile(r'^[ \t]*(?:Source[ \t]+)?Pages?[ \t]+\d+(?:[ \t]*(?:,|&|and|[-–—])[ \t]*\d+)*[ \t]*:[ \t]*', re.I | re.M)
 _DIAMETER_NUMBER = r'(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)'
 _DIAMETER_VALUE = '(' + _DIAMETER_NUMBER + r')[ \t]*(?:mm)?'
 _EQUAL_DIAMETERS = re.compile(
@@ -172,6 +173,9 @@ def compact_technical_text(value):
     """Shorten display prose; retain original evidence and technical qualifiers."""
     if not isinstance(value, str):
         return value
+    # Imported page labels are provenance, not part of the installation step.
+    # Keep inline references, source captions and every requirement unchanged.
+    value = _PAGE_PREFIX.sub('', value)
 
     def compact(text):
         text = _single_diameter(text)

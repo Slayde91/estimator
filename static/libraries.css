@@ -2,9 +2,18 @@
 .library-child[hidden]{display:none!important}
 .library-child>.page-heading h2{font-size:28px}
 .library-controls{display:flex;align-items:flex-end;gap:16px;margin-bottom:16px}
+.library-technical-editor[hidden]{display:none!important}
+.library-technical-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:18px}
+.library-technical-form textarea{width:100%;min-height:100px;resize:vertical}
+.library-technical-form select[multiple]{width:100%;min-height:120px}
+.library-technical-form>.actions,.library-technical-form>.message{grid-column:1/-1}
+.library-schedule-target-dialog{max-width:min(760px,94vw);width:760px;border:1px solid var(--line);border-radius:12px;padding:24px;background:var(--surface,#fff);color:var(--text,#171217)}
+.library-schedule-targets{display:grid;gap:10px;max-height:55vh;overflow:auto;margin:18px 0}
+.library-schedule-targets label{display:flex;gap:12px;align-items:center;padding:10px;border:1px solid var(--line);border-radius:6px}
 .library-search{flex:1}
 .library-filters{display:flex;flex-wrap:wrap;gap:14px;margin-bottom:18px}
 .library-filters>.field{flex:1;min-width:170px;max-width:340px}
+.library-filters select.library-filter-active,.library-link-filters select.library-filter-active{border-color:#f10d1b;box-shadow:0 0 0 2px #f10d1b55,0 0 14px #f10d1b55}
 #technical-library-workspace .library-filters{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr))}
 #technical-library-workspace .library-filters>.field{min-width:0;max-width:none}
 .library-link-picker .library-link-filters{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr))}

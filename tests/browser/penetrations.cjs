@@ -126,7 +126,9 @@ async function associateImage(id, image) {
   const initial = await page.goto(`http://127.0.0.1:${info.port}/`); assert.ok(!initial.headers()['content-security-policy'].includes('unsafe-inline'));
   await page.waitForFunction(() => window.CeasefireDesktop?.status().ready); await expect.poll(() => page.evaluate(() => window.CeasefireDesktop?.status().ready)).toBe(true); const calculators = await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot());
   const definitionReply=await page.request.post(`http://127.0.0.1:${info.port}/api/penetration/definition`,{data:{configuration:await page.evaluate(()=>window.CeasefireProject.configuration())}});assert.equal(definitionReply.status(),200);
-  const definition=await definitionReply.json();physicalChoices=Object.fromEntries(Object.entries({substrate:'P',orientation:'M',service:'J',service_type:'K',frl:'N'}).map(([key,column])=>[key,definition.row_fields.find(field=>field.column===column).options]));
+  const definition=await definitionReply.json();physicalChoices=Object.fromEntries(Object.entries({orientation:'M',frl:'N'}).map(([key,column])=>[key,definition.row_fields.find(field=>field.column===column).options]));
+  const catalogueReply=await page.request.get(`http://127.0.0.1:${info.port}/api/libraries`);assert.equal(catalogueReply.status(),200);const technical=(await catalogueReply.json()).libraries.find(library=>library.id==='technical');
+  for(const [key,facet] of Object.entries({substrate:'substrate',service:'category',service_type:'services'}))physicalChoices[key]=technical.filters.find(field=>field.key===facet).options.map(option=>option.value);
   await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); await chooseTakeoff(page, 'physical');
   await expect(page.getByRole('button', { name: 'Confirm', exact: true })).toBeHidden(); await expect(page.getByRole('button', { name: 'Preview transfer', exact: true })).toBeHidden();
   await expect(page.getByRole('button', { name: 'Add defect', exact: true })).toHaveCount(0);

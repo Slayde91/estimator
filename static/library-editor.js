@@ -280,7 +280,9 @@
     control.dataset.libraryEditorField = field.column; control.dataset.libraryEditorGlobal = String(global); uiAttr(control, "aria-label", "{0}: {1}", [() => window.CeasefireI18n?.translate(global ? "Item allowance" : "Library item") || (global ? "Item allowance" : "Library item"), () => (window.CeasefireI18n?.translate(fieldLabel(field)) || fieldLabel(field)) + (field.units ? ` (${field.units})` : field.format === "percent" ? " (%)" : "")]);
     if (field.type === "select") {
       const empty = uiNode("option", "", "Choose…"); empty.value = ""; control.append(empty);
-      for (const value of options) { const option = node("option", "", manufacturerLabel(field, value) || window.CeasefirePenetrationPresentation?.optionLabel(field, value) || value); option.value = String(value); control.append(option); }
+      if (field.library_option_groups && window.CeasefireLibraries?.appendFilterOptions) window.CeasefireLibraries.appendFilterOptions(control,
+        field.library_option_groups.map(option => manufacturer && manufacturerLabel(field, option.value) === manufacturer ? { ...option, value: raw } : option), field.library_filter_key);
+      else for (const value of options) { const option = node("option", "", manufacturerLabel(field, value) || window.CeasefirePenetrationPresentation?.optionLabel(field, value) || value); option.value = String(value); control.append(option); }
       if (raw !== null && raw !== "" && !options.some(value => String(value) === String(raw))) { const saved = node("option", "", manufacturer || `Saved value: ${raw} (choose a listed value)`); saved.value = String(raw); saved.disabled = true; control.append(saved); }
     } else {
       if (long) { control.rows = 3; control.maxLength = 2000; }

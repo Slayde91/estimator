@@ -14,6 +14,7 @@ from .storage import Store
 from .firefly_reference_review import PLAN_NAME, MAX_PLAN_BYTES
 from .firefly_technical_review import PLAN_NAME as TECHNICAL_PLAN_NAME, MAX_PLAN_BYTES as MAX_TECHNICAL_PLAN_BYTES
 from .technical_service_review import PLAN_NAME as SERVICES_PLAN_NAME, MAX_PLAN_BYTES as MAX_SERVICES_PLAN_BYTES
+from .technical_variants import PLAN_NAME as VARIANT_PLAN_NAME, MAX_PLAN_BYTES as MAX_VARIANT_PLAN_BYTES
 
 MAX_MANIFEST = 8 * 1024 * 1024
 MAX_SEED_BYTES = 8 * 1024 ** 3
@@ -21,8 +22,10 @@ ASSET = re.compile(r'reference-library/(?:documents/[a-z0-9][a-z0-9_-]{0,119}\.p
 FIREFLY_REVIEW = 'reference-library/reviews/' + PLAN_NAME
 FIREFLY_TECHNICAL_REVIEW = 'reference-library/reviews/' + TECHNICAL_PLAN_NAME
 TECHNICAL_SERVICES_REVIEW = 'reference-library/reviews/' + SERVICES_PLAN_NAME
+TECHNICAL_VARIANTS_REVIEW = 'reference-library/reviews/' + VARIANT_PLAN_NAME
 REVIEW_LIMITS = {FIREFLY_REVIEW: MAX_PLAN_BYTES, FIREFLY_TECHNICAL_REVIEW: MAX_TECHNICAL_PLAN_BYTES,
-                 TECHNICAL_SERVICES_REVIEW: MAX_SERVICES_PLAN_BYTES}
+                 TECHNICAL_SERVICES_REVIEW: MAX_SERVICES_PLAN_BYTES,
+                 TECHNICAL_VARIANTS_REVIEW: MAX_VARIANT_PLAN_BYTES}
 
 
 def safe_directory(path):

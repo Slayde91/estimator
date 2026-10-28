@@ -154,6 +154,8 @@ class TechnicalLibraryEditTests(unittest.TestCase):
         library = ManualTechnicalLibrary(self.root / 'library', self.store)
         for value, key in [('Firefly', 'pkb-001'), ('Trafalgar', 'pkb-002')]:
             self.assertEqual([item['id'] for item in library.listing('penetration', manufacturer=value)['items']], [key])
+            self.assertEqual([item['id'] for item in library.listing('penetration', manufacturer=value.upper())['items']], [key])
+            self.assertEqual([item['id'] for item in library.listing('penetration', manufacturer=value.lower())['items']], [key])
             self.assertEqual(library._load()['_records']['penetration'][key]['filter_values']['manufacturer'], [value])
             self.assertEqual(library.edit(key)['draft']['rows'][0]['inputs']['V'], value.upper())
         self.protected()

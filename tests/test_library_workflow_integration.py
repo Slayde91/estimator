@@ -149,6 +149,7 @@ class LibraryWorkflowIntegrationTests(unittest.TestCase):
         self.assertEqual((len(choices), len(technical_choices)), (30, 45))
         self.assertEqual(created['draft']['rows'][0]['inputs']['K'], body['draft']['rows'][0]['inputs']['K'])
         self.assertEqual(self.get('/api/libraries/penetration?manufacturer=FIREFLY')['total'], 1)
+        self.assertEqual(self.get('/api/libraries/penetration?manufacturer=Firefly')['total'], 1)
         self.assertEqual(self.protected(), before)
         self.restart_server()
         reopened = self.get(endpoint + '/edit')
@@ -351,7 +352,8 @@ class LibraryWorkflowIntegrationTests(unittest.TestCase):
         listing = self.get('/api/libraries/penetration?technical_reference=unlinked')
         self.assertEqual({key: listing['counts'][key] for key in ('total', 'linked', 'unlinked')},
                          {'total': 1, 'linked': 0, 'unlinked': 1})
-        self.assertEqual(listing['counts']['manufacturers'], [{'name': 'FIREFLY', 'count': 1}])
+        self.assertEqual(listing['counts']['manufacturers'], [{'name': 'Firefly', 'count': 1}])
+        self.assertEqual(self.get('/api/libraries/penetration?manufacturer=FIREFLY')['total'], 1)
         self.assertEqual(listing['items'][0]['id'], created['id'])
         self.assertEqual(self.get('/api/libraries/technical')['total'], 0)
         self.assertEqual(self.request('POST', endpoint + '/links', {'technical_id': 'report-a-v1'})[0], 404)

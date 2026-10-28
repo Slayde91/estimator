@@ -361,7 +361,7 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
   await check('Configuration links preserve target indices with concise table names and retained source metadata',async h=>{
     const source={...detail('technical','a/#<script>'),images:[],fields:[
       {label:'FRL',value:'See the rating for the matching configuration.',table_links:[{field:'Service Size / Configuration',table_index:1},{field:'Service Size / Configuration',table_index:0}]},
-      {label:'Service Size / Configuration',value:'',table:{columns:['Service','FRL'],rows:[['Service A','-/60/60']]},tables:[{columns:['Service','FRL'],rows:[['Service B','-/120/120']]}],table_captions:['Source A — page 1','Source B <img src=x onerror=alert(1)> — page 2']},
+      {label:'Service Size / Configuration',value:'',table:{columns:['Service','FRL'],rows:[['Service A','-/60/60'],['Service A2','-/90/90']]},tables:[{columns:['Service','FRL'],rows:[['Service B','-/120/120'],['Service B2','-/180/180']]}],table_captions:['Source A — page 1','Source B <img src=x onerror=alert(1)> — page 2']},
       {label:'Service Wrap',value:'',table_links:[{field:'Service Size / Configuration',table_index:1}]}
     ]},before=copy(source);
     h.setRoute(path=>path==='/api/libraries'?meta():source);await h.api.open('technical',source.id);
@@ -398,10 +398,25 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     assert.doesNotMatch(text(panel),/Source option|Source Configuration|private-option|retained for audit/);
     assertSourceHtmlSafe(nodes);assert.deepEqual(source,before);
   });
+  await check('Empty and single-row tables retain every source cell without redundant configuration links',async h=>{
+    for(const owner of ['Service Size / Configuration','Barrier Construction']) {
+      const source={...detail('technical','one-condition'),images:[],fields:[
+        {label:owner,value:'Source conditions remain applicable.',tables:[{columns:['Condition'],rows:[]},{columns:['Condition'],rows:[['Only approved condition']]},{columns:['Condition'],rows:[['Alternative A'],['Alternative B']]}]},
+        {label:'FRL',value:'-/120/120',table_links:[0,1,2].map(table_index=>({field:owner,table_index}))},
+        {label:'Service Wrap',value:'300 mm for this item.',table_links:[{field:owner,table_index:1}]}
+      ]},before=copy(source);
+      h.setRoute(path=>path==='/api/libraries'?meta():source);await h.api.open('technical',source.id);
+      const nodes=walk(h.pane('technical').detailPanel),tables=nodes.filter(n=>n.className==='library-field-table-scroll'),links=nodes.filter(n=>n.className==='library-configuration-link');
+      assert.equal(tables.length,3);assert.equal(links.length,1);assert.equal(links[0].href,'#'+tables[2].id);assert.match(links[0].textContent,/table 3$/);
+      assert.deepEqual(nodes.filter(n=>n.tagName==='td').map(n=>n.textContent),['Only approved condition','Alternative A','Alternative B']);
+      const wrap=nodes.find(n=>n.className==='library-record-field'&&n.children[0].textContent==='Service Wrap');assert.equal(wrap.children[1].textContent,'300 mm for this item.');
+      assert.deepEqual(source,before,'Presentation cannot alter source rows, references or conditions.');
+    }
+  });
   await check('Configuration links use native keyboard activation, focus the table and clear the sticky header',async h=>{
     h.setRoute(path=>path==='/api/libraries'?meta():({...detail('technical','focus'),images:[],fields:[
       {label:'Service Wrap',value:'',table_links:[{field:'Service Size / Configuration',table_index:0}]},
-      {label:'Service Size / Configuration',value:'',tables:[{columns:['Service'],rows:[['A']]}]}
+      {label:'Service Size / Configuration',value:'',tables:[{columns:['Service'],rows:[['A'],['B']]}]}
     ]}));
     await h.api.open('technical','focus');const nodes=walk(h.pane('technical').detailPanel),link=nodes.find(n=>n.className==='library-configuration-link'),target=nodes.find(n=>n.className==='library-field-table-scroll');
     assert.equal(link.tagName,'a');assert.equal(link.textContent,'View configuration table');assert.equal(link.href,'#'+target.id);assert.equal(link.target,undefined);
@@ -429,7 +444,7 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     assert.deepEqual(nodes.filter(n=>n.tagName==='caption').map(n=>n.textContent),field.table_captions,'Firestopping table caption behavior is unchanged.');assert.deepEqual(source,before);
   });
   await check('Malformed, unavailable, duplicate and out-of-range configuration references are ignored',async h=>{
-    const configuration={label:'Service Size / Configuration',value:'',tables:[{columns:['A'],rows:[['first']]},null,{columns:['B'],rows:[['third']]}],table_captions:['First','Invalid','Third'],table_links:[{field:'Service Size / Configuration',table_index:0}]};
+    const configuration={label:'Service Size / Configuration',value:'',tables:[{columns:['A'],rows:[['first']]},null,{columns:['B'],rows:[['third'],['third alternative']]}],table_captions:['First','Invalid','Third'],table_links:[{field:'Service Size / Configuration',table_index:0}]};
     const refs=[null,{}, {field:'javascript:alert(1)',table_index:0},{field:'Service Wrap',table_index:0},{field:'Service Size / Configuration',table_index:0,url:'javascript:alert(1)'},...[-1,1,3,0.5,'0',null].map(table_index=>({field:'Service Size / Configuration',table_index})),{field:'Service Size / Configuration',table_index:2},{field:'Service Size / Configuration',table_index:2}];
     let source={...detail('technical','invalid'),images:[],fields:[configuration,{label:'FRL',value:'Summary',table_links:refs},{label:'Absent links',value:'',table_links:[{field:'Service Size / Configuration',table_index:999}]}]};
     h.setRoute(path=>path==='/api/libraries'?meta():source);await h.api.open('technical','invalid');let nodes=walk(h.pane('technical').detailPanel),links=nodes.filter(n=>n.className==='library-configuration-link'),tables=nodes.filter(n=>n.className==='library-field-table-scroll');
@@ -438,7 +453,7 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     source={...source,fields:[configuration,copy(configuration),source.fields[0]]};h.pane('technical').detail=source;h.context.audit.renderDetail(h.pane('technical'));assert.equal(walk(h.pane('technical').detailPanel).filter(n=>n.className==='library-configuration-link').length,0,'Duplicate target labels are ambiguous.');
   });
   await check('Configuration anchors remain stable on rerender and cannot target another record',async h=>{
-    const fields=[{label:'Service Size / Configuration',value:'',table:{columns:['A'],rows:[['value']]}},{label:'Service Wrap',value:'',table_links:[{field:'Service Size / Configuration',table_index:0}]}];
+    const fields=[{label:'Service Size / Configuration',value:'',table:{columns:['A'],rows:[['value'],['alternative']]}},{label:'Service Wrap',value:'',table_links:[{field:'Service Size / Configuration',table_index:0}]}];
     h.setRoute(path=>path==='/api/libraries'?meta():({...detail('technical',decodeURIComponent(path.split('/').at(-1))),fields,images:[]}));
     await h.api.open('technical','first');const pane=h.pane('technical'),old=walk(pane.detailPanel).find(n=>n.className==='library-field-table-scroll');h.context.audit.renderDetail(pane);
     let nodes=walk(pane.detailPanel),next=nodes.find(n=>n.className==='library-field-table-scroll');assert.notEqual(next,old);assert.equal(next.id,old.id);await nodes.find(n=>n.className==='library-configuration-link').emit('click');assert.equal(h.context.document.activeElement,next);assert.equal(old.scrolled,undefined);
@@ -448,8 +463,8 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
   await check('Barrier and service links with equal table indices navigate to their distinct owners',async h=>{
     const fields=[
       {label:'FRL',value:'Use the matching service and substrate.',table_links:[{field:'Service Size / Configuration',table_index:0},{field:'Barrier Construction',table_index:0},{field:'Barrier Construction',table_index:1}]},
-      {label:'Service Size / Configuration',value:'',table:{columns:['Service','Wrap'],rows:[['Pipe','300 mm']]},table_row_ids:[['private-service-row']],table_links:[{field:'Barrier Construction',table_index:0}]},
-      {label:'Barrier Construction',value:'All source alternatives.',table:{columns:['Substrate','FRL'],rows:[['Masonry','-/120/120'],['Panel','-/90/90'],['Framed wall','-/60/60']]},tables:[{columns:['Substrate','FRL'],rows:[['Floor','-/120/90']]}],table_row_ids:[['private-wall-1','private-wall-2','private-wall-3'],['private-floor-1']],table_links:[{field:'Service Size / Configuration',table_index:0},{field:'Barrier Construction',table_index:0}]}
+      {label:'Service Size / Configuration',value:'',table:{columns:['Service','Wrap'],rows:[['Pipe','300 mm'],['Cable','200 mm']]},table_row_ids:[['private-service-row','private-service-row-2']],table_links:[{field:'Barrier Construction',table_index:0}]},
+      {label:'Barrier Construction',value:'All source alternatives.',table:{columns:['Substrate','FRL'],rows:[['Masonry','-/120/120'],['Panel','-/90/90'],['Framed wall','-/60/60']]},tables:[{columns:['Substrate','FRL'],rows:[['Floor','-/120/90'],['Thick floor','-/180/90']]}],table_row_ids:[['private-wall-1','private-wall-2','private-wall-3'],['private-floor-1','private-floor-2']],table_links:[{field:'Service Size / Configuration',table_index:0},{field:'Barrier Construction',table_index:0}]}
     ],before=copy(fields);
     h.setRoute(path=>path==='/api/libraries'?meta():({...detail('technical','owners'),fields,images:[]}));await h.api.open('technical','owners');
     const nodes=walk(h.pane('technical').detailPanel),links=nodes.filter(n=>n.className==='library-configuration-link'),tables=nodes.filter(n=>n.className==='library-field-table-scroll');
@@ -512,7 +527,7 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     for(const [index,item] of cases.entries()) {
       const fields=[{label:'FRL',value:`${item.rating} — ${item.suffix}`,table_links:[{field:'Barrier Construction',table_index:0}]},{label:'Barrier Construction',value:'',table:{columns:item.columns,rows:item.rows}}],before=copy(fields);
       h.setRoute(path=>path==='/api/libraries'?meta():({...detail('technical','qualified-'+index),fields,images:[]}));await h.api.open('technical','qualified-'+index);const nodes=walk(h.pane('technical').detailPanel);
-      assert.equal(nodes.find(n=>n.tagName==='dd').textContent,item.rating);assert.equal(nodes.filter(n=>n.className==='library-configuration-link').length,1);assert.deepEqual(nodes.filter(n=>n.tagName==='th').map(n=>n.textContent),item.displayColumns||item.columns);assert.deepEqual(nodes.filter(n=>n.tagName==='td').map(n=>n.textContent),item.rows.flat());assert.deepEqual(fields,before);
+      assert.equal(nodes.find(n=>n.tagName==='dd').textContent,item.rating);assert.equal(nodes.filter(n=>n.className==='library-configuration-link').length,item.rows.length>1?1:0);assert.deepEqual(nodes.filter(n=>n.tagName==='th').map(n=>n.textContent),item.displayColumns||item.columns);assert.deepEqual(nodes.filter(n=>n.tagName==='td').map(n=>n.textContent),item.rows.flat());assert.deepEqual(fields,before);
     }
   });
   await check('FRL never invents extrema for incomparable components or different dash masks',async h=>{
@@ -539,7 +554,7 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     const qualification='Up to -/120/120, subject to the supporting barrier.',reference='Source substrate alternatives (Barrier Construction table 1; FRL): retain the qualified source ratings as shown; no range is inferred.';
     const fields=[{label:'FRL',value:qualification+'\n\n'+reference,table_links:[{field:'Barrier Construction',table_index:0}]},{label:'Barrier Construction',value:'',table:{columns:['Substrate','FRL'],rows:[['Wall',qualification]]}}],before=copy(fields);
     h.setRoute(path=>path==='/api/libraries'?meta():({...detail('technical','unresolved'),fields,images:[]}));await h.api.open('technical','unresolved');let nodes=walk(h.pane('technical').detailPanel);
-    assert.equal(nodes.find(n=>n.tagName==='dd').textContent,qualification);assert.equal(nodes.filter(n=>n.className==='library-configuration-link').length,1);assert.deepEqual(nodes.filter(n=>n.tagName==='td').map(n=>n.textContent),['Wall',qualification]);assert.deepEqual(fields,before);
+    assert.equal(nodes.find(n=>n.tagName==='dd').textContent,qualification);assert.equal(nodes.filter(n=>n.className==='library-configuration-link').length,0);assert.deepEqual(nodes.filter(n=>n.tagName==='td').map(n=>n.textContent),['Wall',qualification]);assert.deepEqual(fields,before);
     fields[1].table.rows=[['Wall','']];h.context.audit.renderDetail(h.pane('technical'));nodes=walk(h.pane('technical').detailPanel);assert.equal(nodes.find(n=>n.tagName==='dd').textContent,qualification+'\n\nSource substrate alternatives: retain the qualified source ratings as shown; no range is inferred.');
   });
   await check('Firefly service fields are formatted and Diagrams & Figures displays images without reference copy',async h=>{

@@ -14,7 +14,8 @@ from .firestopping_library import FirestoppingLibrary, LibraryConflict, encoded,
 from .firefly_reference_review import fingerprint
 from .reference_library import ReferenceNotFound, identifier
 from .library_report_links import valid_manual_report_url
-from .library_facets import MOVED_SERVICE_CATEGORIES
+from .library_facets import (MOVED_SERVICE_CATEGORIES, canonical_services,
+                             SERVICE_DISCOVERY_GENERALIZATIONS)
 from .library_classifications import FACETS, classification_filters
 
 PENETRATION_KEYS = {'type': 'penetration_type', 'services': 'service_type'}
@@ -210,6 +211,15 @@ class ManualTechnicalLibrary(FirestoppingLibrary):
         for key, record in list(data['_records']['penetration'].items()):
             record = deepcopy(record)
             values = record.setdefault('filter_values', {})
+            source_services = values.get('service_type', [])
+            if source_services:
+                # Existing discovery aliases/generalizations also apply to
+                # Firestopping search. Keep historical tokens for old queries;
+                # never replace the source field or calculator K value.
+                values['service_type'] = list(dict.fromkeys([
+                    *source_services, *canonical_services(source_services),
+                    *(SERVICE_DISCOVERY_GENERALIZATIONS[value.strip().casefold()]
+                      for value in source_services if value.strip().casefold() in SERVICE_DISCOVERY_GENERALIZATIONS)]))
             values['report'] = list(dict.fromkeys(value for link in data['_links']['penetration'].get(key, [])
                 for value in data['_technical_discovery'].get(link['id'], {}).get('report', data['_technical_discovery'].get(link['id'], {}).get('document', []))))
             # These are descriptive search facets, not workbook/pricing

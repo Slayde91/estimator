@@ -179,6 +179,51 @@ class TechnicalLibraryEditTests(unittest.TestCase):
             self.assertEqual(detail['related_technical_records'], [])
         self.protected()
 
+    def test_shared_service_aliases_find_historical_and_current_rows_once(self):
+        data = json.loads(self.source.read_text(encoding='utf-8'))
+        prototype = data['libraries']['penetration']['items'][0]
+        services = ['Pair Coil Bundle', 'Pair Coils', 'Multi-service Bundle', 'Mixed Service Bundle',
+                    'Data Cable Bundles', 'Power Cable Bundles', 'TPS & Fire Alarm Cable Bundles',
+                    'Lagged Pipes', 'Unlagged Pipes', 'Plastic Pipes', 'Downlight Box']
+        rows = []
+        for index, service in enumerate(services, 1):
+            item = deepcopy(prototype)
+            item['id'] = 'service-' + str(index)
+            item['library_id'] = f'FL-ID-{index:03d}'
+            item['estimate']['draft']['rows'][0]['inputs']['K'] = service
+            rows.append(item)
+        data['libraries']['penetration']['items'] = rows
+        data['links'] = []
+        self.source.write_text(json.dumps(data), encoding='utf-8')
+        self.original_source = self.source.read_bytes()
+        library = ManualTechnicalLibrary(self.root / 'library', self.store)
+        expected = {'Pair Coils': ['service-1', 'service-2'],
+                    'Mixed Services': ['service-3', 'service-4'],
+                    'Data Cables': ['service-5'], 'Power Cables': ['service-6'],
+                    'TPS & Fire Alarm Cables': ['service-7']}
+        for choice, ids in expected.items():
+            result = library.listing('penetration', service_type=choice)
+            self.assertEqual(result['total'], len(ids))
+            self.assertCountEqual([item['id'] for item in result['items']], ids)
+        for index, service in enumerate(services, 1):
+            key = 'service-' + str(index)
+            self.assertIn(key, [item['id'] for item in library.listing('penetration', service_type=service)['items']])
+            self.assertEqual(library.edit(key)['draft']['rows'][0]['inputs']['K'], service)
+        for key in ['service-8', 'service-9', 'service-10', 'service-11']:
+            self.assertEqual(library._load()['_records']['penetration'][key]['filter_values']['service_type'],
+                             [services[int(key.split('-')[-1])-1]])
+        edit = library.edit('service-10')
+        before = deepcopy(edit['result']['rows'][0]['outputs'])
+        body = {key: deepcopy(edit[key]) for key in ('draft', 'revision', 'pricing_token')}
+        body['draft']['rows'][0]['inputs']['T'] = 'Unrelated description edit'
+        library.action('service-10', 'save', body)
+        reopened = ManualTechnicalLibrary(self.root / 'library', self.store).edit('service-10')
+        self.assertEqual(reopened['draft']['rows'][0]['inputs']['K'], 'Plastic Pipes')
+        self.assertEqual(reopened['draft']['rows'][0]['inputs']['T'], 'Unrelated description edit')
+        self.assertEqual(reopened['result']['rows'][0]['outputs'], before)
+        self.assertEqual(reopened['pricing_token'], edit['pricing_token'])
+        self.protected()
+
     def test_create_is_durable_searchable_and_retry_is_idempotent(self):
         body = self.body()
         result = self.library.technical_save(None, body)

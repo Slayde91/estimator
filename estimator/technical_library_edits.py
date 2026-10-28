@@ -241,15 +241,23 @@ class ManualTechnicalLibrary(FirestoppingLibrary):
         return result
 
     def listing(self, kind, **query):
-        if kind == 'technical' and 'document' in query:
-            if query.get('report') and query['report'] != query['document']:
-                raise ValidationError('Choose one Report filter value.')
-            query['report'] = query.pop('document')
-        result = super().listing(kind, **query)
-        if kind == 'technical':
-            for record in result['items']:
-                record['editable'] = True
-        return result
+        with self._lock:
+            if kind == 'technical' and 'document' in query:
+                if query.get('report') and query['report'] != query['document']:
+                    raise ValidationError('Choose one Report filter value.')
+                query['report'] = query.pop('document')
+            if kind == 'penetration' and isinstance(query.get('manufacturer'), str):
+                requested = query['manufacturer']
+                matches = {option['value'] for field in self._load()['_filters']['penetration']
+                           if field['key'] == 'manufacturer' for option in field['options']
+                           if option['value'].casefold() == requested.casefold()}
+                if len(matches) == 1:
+                    query['manufacturer'] = matches.pop()
+            result = super().listing(kind, **query)
+            if kind == 'technical':
+                for record in result['items']:
+                    record['editable'] = True
+            return result
 
     def detail(self, kind, key):
         with self._lock:

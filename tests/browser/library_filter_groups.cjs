@@ -10,7 +10,7 @@ const base=JSON.parse(fs.readFileSync(path.join(root,'static/locales/library-fil
 const extra=JSON.parse(fs.readFileSync(path.join(root,'static/locales/additions/library-filter-groups.json'),'utf8'));
 const translated=(source,locale,args=[])=>String(locale==='en'?source:[...base[source],...extra[source]][locales.indexOf(locale)-1]).replace(/\{(\d+)\}/g,(_,n)=>args[n]);
 // Independently specified contracts: Technical reference pickers expose the 45
-// approved descriptions; Firestopping/calculator inputs keep their original 30.
+// approved descriptions; the calculator's pricing inputs keep their original 30.
 const calculatorServices = ["N/A", "Busbar Trunking", "Cable Bundles", "Cable Trays", "Coaxial Cables", "Conduits", "D1 Power Cables", "D2 Comms Cables", "Data Cables", "Downlights", "Fibre Optic", "Fire Dampers", "Fire Resistant Cables", "Flexible Ducts", "Lagged Copper Pipes", "Lagged Steel Pipes", "Mixed Services", "Pair Coils", "uPVC pipe", "uPVC floorwaste", "PEX pipe", "HDPE pipe", "Power Cables", "Single Cables", "TPS & Fire Alarm Cables", "Copper Pipes", "Steel Pipes", "Air Transfer Grilles", "Communications Cables", "Wall Sockets"];
 const technicalServiceGroups = [
  ['Electrical & communications',['Busbar Trunking','Cable Bundles','Cable Trays','Coaxial Cables','Conduits','D1 Power Cables','D2 Comms Cables','Data Cables','Downlights','Fibre Optic','Fire Resistant Cables','Power Cables','Single Cables','TPS & Fire Alarm Cables','Communications Cables','Wall Sockets','Smoke Sampling Tubes']],
@@ -22,7 +22,7 @@ const technicalServiceGroups = [
 ];
 const technicalServices = ['N/A','Mixed Services',...technicalServiceGroups.flatMap(([,values])=>values)];
 const serviceGroups=['Electrical & communications','Mechanical','HVAC','Plastic pipes','Lagged metal pipes','Unlagged metal pipes'];
-const sourceFiles=['estimator/library_filter_groups.py','estimator/reference_library.py','estimator/firestopping_library.py','estimator/technical_service_options.py','static/libraries.js','static/penetration-references.js','static/takeoff-library-links.js','static/language-catalog.js','static/locales/library-filter-groups.json','static/locales/additions/library-filter-groups.json','tests/browser/library_link_picker_fixture.py','tests/browser/library_filter_groups.cjs'];
+const sourceFiles=['estimator/library_filter_groups.py','estimator/reference_library.py','estimator/firestopping_library.py','estimator/technical_service_options.py','static/libraries.js','static/libraries.css','static/theme.css','static/laser.css','static/penetration-references.js','static/takeoff-library-links.js','static/language-catalog.js','static/locales/library-filter-groups.json','static/locales/additions/library-filter-groups.json','tests/browser/library_link_picker_fixture.py','tests/browser/library_filter_groups.cjs'];
 const hash=file=>createHash('sha256').update(fs.readFileSync(file)).digest('hex'),bindings=()=>Object.fromEntries(sourceFiles.map(file=>[file,hash(path.join(root,file))]));
 const sourceBefore=bindings(),server=spawn(process.env.CEASEFIRE_PYTHON||'python',[path.join(__dirname,'library_link_picker_fixture.py'),'--directory',output,'--filter-groups'],{cwd:root,windowsHide:true});
 let logs='',browser,page,info;const evidence={synthetic:true,locales:[],layouts:[],page_errors:[],blocked_requests:[],sourceBefore,original_tabs_accessed:false,takeoff_sessions_created:false};
@@ -54,6 +54,16 @@ async function setFilter(scope,key,value,attribute='data-library-filter',limit='
  await scope.locator(`select[${attribute}="${key}"]`).selectOption(value);const response=await waiting;assert.equal(response.status(),200);const data=await response.json();
  await expect(scope.locator(attribute==='data-library-filter'?'.library-results':'.library-link-results')).toHaveAttribute('aria-busy','false');return data;
 }
+async function activeFilterPaint(scope,key,attribute='data-library-filter'){
+ const control=scope.locator(`select[${attribute}="${key}"]`),read=()=>control.evaluate(node=>{const s=getComputedStyle(node);return{border:s.borderColor,shadow:s.boxShadow,focused:document.activeElement===node};});
+ const checks=[];
+ for(const theme of [null,'ceasefire','midnight','ocean','forest','slate']){
+  await page.locator('html').evaluate((node,theme)=>{if(theme===null)node.removeAttribute('data-theme');else node.dataset.theme=theme;},theme);
+  await control.focus();await expect(control).toHaveCSS('border-color','rgb(241, 13, 27)');await expect(control).toHaveCSS('box-shadow',/241, 13, 27/);checks.push({theme,focused:await read()});
+  await control.press('Tab');await expect(control).not.toBeFocused();await expect(control).toHaveCSS('border-color','rgb(241, 13, 27)');await expect(control).toHaveCSS('box-shadow',/241, 13, 27/);checks.push({theme,unfocused:await read()});
+ }
+ await page.locator('html').evaluate(node=>node.dataset.theme='ceasefire');return checks;
+}
 (async()=>{
  info=await ready;assert.notEqual(info.port,8765);assert.equal(path.resolve(info.directory),output);const index=path.join(info.library,'library.json'),indexBefore=hash(index),origin=`http://127.0.0.1:${info.port}`;
  browser=await chromium.launch({headless:true});page=await browser.newPage({viewport:{width:1146,height:900},reducedMotion:'reduce'});page.setDefaultTimeout(60000);
@@ -62,6 +72,7 @@ async function setFilter(scope,key,value,attribute='data-library-filter',limit='
  const before=await snapshot();await chooseLibrary(page,'technical');await expect(main().locator('[data-library-filter="document"]')).toBeVisible();
  for(const locale of locales){await page.evaluate(locale=>window.CeasefireI18n.setLanguage(locale,false),locale);await checkGroups(main(),locale,'data-library-filter');for(const width of [1146,390])await layout(main(),'main',locale,width);assert.deepEqual(await snapshot(),before);evidence.locales.push(locale);}
  await page.evaluate(()=>window.CeasefireI18n.setLanguage('en',false));await page.setViewportSize({width:1146,height:900});
+ evidence.mainFilterGrid=await main().locator('.library-filters').evaluate(node=>{const s=getComputedStyle(node);return{display:s.display,columns:s.gridTemplateColumns,width:node.getBoundingClientRect().width};});assert.equal(evidence.mainFilterGrid.display,'grid');
  // The Firestopping schedule reference picker uses the same renderer and exact
  // authoritative choices. No schedule selection is applied by this check.
  const referenceKeys=['document','substrate','services','frl'],choices=control=>control.locator('option').evaluateAll(nodes=>nodes.filter(node=>node.value).map(node=>({value:node.value,label:node.textContent,group:node.parentElement.tagName==='OPTGROUP'?node.parentElement.label:''})));
@@ -79,7 +90,9 @@ async function setFilter(scope,key,value,attribute='data-library-filter',limit='
  }
  await page.evaluate(()=>window.CeasefireI18n.setLanguage('en',false));await references.getByRole('button',{name:'Cancel',exact:true}).click();await page.evaluate(()=>window.__referenceGroupPicker);assert.deepEqual(await snapshot(),before);evidence.referencePickerMatchesAllGroupedFacets=true;
  await page.setViewportSize({width:1146,height:900});
- await setFilter(main(),'services','Pair Coils');await expect(main().locator('[data-library-record]')).toHaveCount(0);await setFilter(main(),'services','');
+ await setFilter(main(),'services','Pair Coils');await expect(main().locator('[data-library-record]')).toHaveCount(0);
+ evidence.activeFilterPaint=await activeFilterPaint(main(),'services');await setFilter(main(),'services','');
+ await expect(main().locator('[data-library-filter="services"]')).not.toHaveClass(/library-filter-active/);await expect(main().locator('[data-library-filter="services"]')).not.toHaveCSS('border-color','rgb(241, 13, 27)');
  await setFilter(main(),'document','Promat synthetic report');const queried=await setFilter(main(),'frl','-/90/60');assert.equal(queried.total,2);await expect(main().locator('[data-library-record]')).toHaveCount(2);assert.deepEqual(await main().locator('[data-library-record]').evaluateAll(nodes=>nodes.map(node=>node.dataset.libraryRecord)),queried.items.map(item=>item.id));
  await main().locator('[data-library-record]').first().click();await main().getByRole('button',{name:'Back to results',exact:true}).click();await expect(main().locator('[data-library-filter="document"]')).toHaveValue('Promat synthetic report');await expect(main().locator('[data-library-filter="frl"]')).toHaveValue('-/90/60');
  evidence.exactGroupedQueriesAndBack=true;
@@ -92,9 +105,14 @@ async function setFilter(scope,key,value,attribute='data-library-filter',limit='
   await expect(field).toHaveCount(hidden?0:1);if(!hidden)await expect(field.locator('dd')).toHaveText(data.fields.find(field=>field.label==='ID').value);
  }
  evidence.technicalIDFieldOnlyOmission=true;
- await chooseLibrary(page,'penetration');const penetration=page.locator('#penetration-library-workspace');await penetration.locator(`[data-library-link="${info.item_id}"]`).click();await expect(picker().locator('.library-link-results')).toHaveAttribute('aria-busy','false');
+ await chooseLibrary(page,'penetration');const penetration=page.locator('#penetration-library-workspace');
+ await expect(penetration.locator('[data-library-filter="service_type"]')).toBeVisible();
+ evidence.firestoppingFilterGrid=await penetration.locator('.library-filters').evaluate(node=>{const s=getComputedStyle(node);return{display:s.display,columns:s.gridTemplateColumns,width:node.getBoundingClientRect().width};});assert.deepEqual(evidence.firestoppingFilterGrid,evidence.mainFilterGrid,'Both eight-filter bars use the same responsive grid');
+ await penetration.locator('[data-library-filter="service_type"]').selectOption('Pair Coils');await expect(penetration.locator('[data-library-filter="service_type"]')).toHaveClass(/library-filter-active/);evidence.firestoppingActiveFilterPaint=await activeFilterPaint(penetration,'service_type');
+ await penetration.locator('[data-library-filter="service_type"]').selectOption('');await expect(penetration.locator('[data-library-filter="service_type"]')).not.toHaveClass(/library-filter-active/);
+ await penetration.locator(`[data-library-link="${info.item_id}"]`).click();await expect(picker().locator('.library-link-results')).toHaveAttribute('aria-busy','false');
  for(const locale of locales){await page.evaluate(locale=>window.CeasefireI18n.setLanguage(locale,false),locale);await checkGroups(picker(),locale,'data-library-link-filter');for(const width of [1146,390])await layout(picker(),'picker',locale,width);assert.deepEqual(await snapshot(),before);}
- await page.evaluate(()=>window.CeasefireI18n.setLanguage('en',false));await page.setViewportSize({width:1146,height:900});const selected=await setFilter(picker(),'document','Promat synthetic report','data-library-link-filter','20');await expect(picker().locator('[data-library-link-choice]')).toHaveCount(selected.items.length);evidence.documentKeyPickerQueries=true;
+ await page.evaluate(()=>window.CeasefireI18n.setLanguage('en',false));await page.setViewportSize({width:1146,height:900});const selected=await setFilter(picker(),'document','Promat synthetic report','data-library-link-filter','20');await expect(picker().locator('[data-library-link-choice]')).toHaveCount(selected.items.length);evidence.pickerActiveFilterPaint=await activeFilterPaint(picker(),'document','data-library-link-filter');evidence.documentKeyPickerQueries=true;
  await picker().getByRole('button',{name:'Cancel',exact:true}).click();
  // Exercise the production shared Firestopping chooser renderer in an owned
  // DOM mount, cancelling without a Takeoff session or an import command.
@@ -107,7 +125,7 @@ async function setFilter(scope,key,value,attribute='data-library-filter',limit='
  });
  await page.waitForFunction(()=>window.__groupChooserReady===true);const shared=page.locator('#synthetic-shared-chooser');
  const response=await page.request.get(`${origin}/api/libraries/penetration`),data=await response.json(),apiOptions=data.filters.find(field=>field.key==='service_type').options;
- assert.deepEqual(apiOptions.map(option=>option.value).sort(),[...calculatorServices].sort(),'Firestopping retains exactly the original 30 choices; Technical Library additions do not expand calculator routes');
+ assert.deepEqual(apiOptions.map(option=>option.value).sort(),[...technicalServices].sort(),'Firestopping Library chooser matches the 45 approved Technical Library descriptions; calculator pricing routes remain separate');
  assert.deepEqual(await shared.locator('[data-library-filter="service_type"]').evaluate(node=>[...node.options].slice(1).map(option=>({value:option.value,group:option.parentElement.tagName==='OPTGROUP'?option.parentElement.label:null}))),apiOptions.map(option=>({value:option.value,group:option.group||null})));
  for(const locale of locales){await page.evaluate(locale=>window.CeasefireI18n.setLanguage(locale,false),locale);assert.deepEqual(await groupLabels(shared,'service_type'),serviceGroups.map(name=>translated(name,locale)));}
  await page.evaluate(async()=>{window.__cancelGroupChooser();await window.__groupChooser;window.__groupMount.remove();window.CeasefireI18n.setLanguage('en',false);});evidence.sharedChooserGroupsAndLocaleRebinding=true;

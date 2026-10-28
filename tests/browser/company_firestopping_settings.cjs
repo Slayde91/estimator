@@ -1,6 +1,7 @@
 // Full browser interactions against a disposable fixture; never port 8765.
 const {chromium,expect}=require('@playwright/test');
 const {chooseCalculator}=require('./calculator_actions.cjs');
+const {clickProjectControl}=require('./project_actions.cjs');
 const {spawn}=require('node:child_process');
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict'),crypto=require('node:crypto');
 const root=path.resolve(__dirname,'../..'), output=path.join(root,'.runtime/browser-qa',`company-firestopping-${Date.now()}`);
@@ -75,37 +76,56 @@ async function inputGroup(group){await page.locator(`#penetration-input-groups [
   await inputGroup('Penetration');await select('M',{label:'Horizontal'});current=await inputs();assert.equal(current.AT,3.12345678901234);assert.equal(current.AN,undefined);
   await select('M',{label:'Vertical'});assert.equal((await inputs()).AT,3.12345678901234);
   evidence.multiplierDefaults={sourceDefaultsRetained:true,blankServiceDoesNotInventUnusedInputs:true,laggedService:lagged,trayService:tray,vertical:2,horizontal:1,manualTrayPrecision:3.12345678901234};
-  const typeChoices=['Core hole','Oversized core hole'],historicalTypes=['Core Hole','Oversized','Fixture opening'];
+  const typeChoices=['Core hole','Oversized core hole'],historicalTypes=['Core Hole','Oversized','Fixture opening'],historicalServices=[...services,'Fixture service'];
   assert.deepEqual(await field('L').locator('option').evaluateAll(nodes=>nodes.filter(node=>node.value&&!node.disabled).map(node=>node.value)),typeChoices);
   // Open a historical project snapshot rather than editing the now-fixed Type
   // vocabulary. Its custom list and selected value must remain recoverable.
-  await page.evaluate(async historicalTypes=>{
+  await page.evaluate(async ({historicalTypes,historicalServices})=>{
     const api=window.CeasefirePenetrations,snapshot=api.projectSnapshot();
     snapshot.draft.globals.detail_options.L=historicalTypes;
     snapshot.composer.globals.detail_options.L=historicalTypes;
+    snapshot.draft.globals.detail_options.K=historicalServices;
+    snapshot.composer.globals.detail_options.K=historicalServices;
     snapshot.composer.rows[0].inputs.L='Fixture opening';
     api.applyProject(await api.prepareProject(snapshot));
-  },historicalTypes);
+  },{historicalTypes,historicalServices});
   await expect(field('L')).toHaveValue('Fixture opening');
   await expect(field('L').locator('option[value="Fixture opening"]')).toHaveJSProperty('disabled',true);
-  const retainedInputs=await inputs();
+  const retainedInputs=await inputs(),detailOptionsBefore=await page.evaluate(()=>{
+    const snapshot=window.CeasefirePenetrations.projectSnapshot();
+    return Object.fromEntries(['draft','composer'].map(scope=>[scope,snapshot[scope].globals.detail_options]));
+  });
   await page.locator('#penetration-settings').click();
   const editableDetailColumns=['J','K','M','N','P','V'];
   assert.deepEqual(definition.settings.detail_option_columns,editableDetailColumns);
-  for(const column of editableDetailColumns)await expect(page.locator(`[data-penetration-detail-options="${column}"]`)).toBeVisible();
-  await expect(page.locator('[data-penetration-detail-options="L"]')).toHaveCount(0);
+  // Raw dropdown editors are intentionally absent. Historical lists remain
+  // project data and must survive edits to the visible calculation settings.
+  await expect(page.locator('[data-penetration-detail-options]')).toHaveCount(0);
   const waste=await page.locator('[data-penetration-field^="waste_"]').evaluateAll(nodes=>nodes.map(node=>node.value));assert.equal(waste.length,9);assert.ok(waste.every(value=>Number(value)===30));
-  const serviceOptions=page.locator('[data-penetration-detail-options="K"]'),editedServices=[...services,'Fixture service'];
-  const settingsCalculated=page.waitForResponse(response=>new URL(response.url()).pathname==='/api/penetration/calculate'&&response.request().method()==='POST'&&response.request().postDataJSON()?.draft?.globals?.detail_options?.K?.includes('Fixture service'));
-  await serviceOptions.fill(editedServices.join('; '));await serviceOptions.press('Tab');
+  const wasteSetting=page.locator('[data-penetration-field="waste_lagged_pipes"]');
+  const settingsCalculated=page.waitForResponse(response=>new URL(response.url()).pathname==='/api/penetration/calculate'&&response.request().method()==='POST'&&response.request().postDataJSON()?.draft?.globals?.waste_lagged_pipes===.125);
+  await wasteSetting.fill('12.5');await wasteSetting.press('Tab');
   const settingsReply=await settingsCalculated;assert.equal(settingsReply.status(),200);await settingsReply.finished();await penetrationSettled();
   const retained=await page.evaluate(()=>window.CeasefirePenetrations.projectSnapshot());
-  for(const scope of ['draft','composer']){assert.deepEqual(retained[scope].globals.detail_options.L,historicalTypes);assert.deepEqual(retained[scope].globals.detail_options.K,editedServices);}
+  for(const scope of ['draft','composer']){assert.deepEqual(retained[scope].globals.detail_options,detailOptionsBefore[scope]);assert.equal(retained[scope].globals.waste_lagged_pipes,.125);}
   assert.deepEqual(retained.composer.rows[0].inputs,retainedInputs);
+  const saving=page.waitForResponse(response=>new URL(response.url()).pathname==='/api/project/save-as');
+  await clickProjectControl(page,'Save');const saveReply=await saving;assert.equal(saveReply.status(),200);await saveReply.finished();await idle();
+  const savedProject=JSON.parse(fs.readFileSync(fixture.project,'utf8'));
+  assert.equal(savedProject.penetration.source_sha256,definition.source_sha256);
+  for(const scope of ['draft','composer'])assert.deepEqual(savedProject.penetration[scope],retained[scope]);
+  const opening=page.waitForResponse(response=>new URL(response.url()).pathname==='/api/project/open');
+  await clickProjectControl(page,'Load');const openReply=await opening;assert.equal(openReply.status(),200);await openReply.finished();
+  await page.getByRole('dialog').getByRole('button',{name:'Load Project',exact:true}).click();await idle();
+  await chooseCalculator(page,'Firestopping');await penetrationSettled();
+  assert.deepEqual(await page.evaluate(()=>window.CeasefirePenetrations.projectSnapshot()),retained,'Native save/reopen retains hidden lists, current inputs and the unrelated setting exactly.');
+  if(await page.locator('#penetration-settings').getAttribute('aria-pressed')!=='true')await page.locator('#penetration-settings').click();
+  await expect(page.locator('[data-penetration-detail-options]')).toHaveCount(0);
+  assert.equal(await wasteSetting.evaluate(node=>Number(node.value)),12.5);
   await page.getByRole('tab',{name:'DETAILS',exact:true}).click();
   assert.deepEqual(await field('L').locator('option').evaluateAll(nodes=>nodes.filter(node=>node.value&&!node.disabled).map(node=>node.value)),typeChoices);
   await expect(field('L')).toHaveValue('Fixture opening');await expect(field('L').locator('option[value="Fixture opening"]')).toHaveJSProperty('disabled',true);
-  evidence.fixedTypeSettings={choices:typeChoices,editableDetailColumns,historicalTypes,selectedHistoricalType:retained.composer.rows[0].inputs.L,composerAndScheduleListsRetained:true,unrelatedServiceEditRetainsInputs:true};
+  evidence.fixedTypeSettings={choices:typeChoices,retainedDetailOptionColumns:editableDetailColumns,historicalTypes,historicalServices,selectedHistoricalType:retained.composer.rows[0].inputs.L,rawDropdownControlsAbsent:true,composerAndScheduleListsRetained:true,unrelatedWasteEditRetainsInputs:true,nativeSaveReopenExact:true};
   await field('T').fill('Retain on Cancel');await field('T').press('Tab');await penetrationSettled();const beforeClear=await inputs();
   await page.locator('#penetration-clear').click();await page.getByRole('dialog').getByRole('button',{name:'Cancel',exact:true}).click();await expect(field('T')).toHaveValue('Retain on Cancel');
   assert.deepEqual(await inputs(),beforeClear);

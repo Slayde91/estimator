@@ -836,7 +836,12 @@
     const configurationTargets = new Map();
     if (pane.kind === "technical") for (const label of tableTargetLabels.keys()) {
       const matches = visibleFields.filter(field => field.label === label);
-      if (matches.length === 1) configurationTargets.set(label, tablesByField.get(matches[0]));
+      if (matches.length === 1) {
+        const sourceTables = fieldTables(matches[0]);
+        // A one-row table already shows the item's complete configuration.
+        // Keep every table and source index, but offer jumps only for alternatives.
+        configurationTargets.set(label, tablesByField.get(matches[0]).map((target, index) => sourceTables[index]?.rows?.length > 1 ? target : null));
+      }
     }
     let diagramStatusShown = false;
     for (const field of visibleFields) {

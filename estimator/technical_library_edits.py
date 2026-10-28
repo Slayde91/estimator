@@ -164,6 +164,8 @@ class ManualTechnicalLibrary(FirestoppingLibrary):
             if key not in data['_visible']['technical']:
                 data['_visible']['technical'].append(key)
         present = set(data['_technical_public_records'])
+        data['_technical_related_records'] = {key: [target for target in values if target in present]
+            for key, values in data['_technical_related_records'].items() if key in present}
         data['_links']['technical'] = {key: values for key, values in data['_links']['technical'].items() if key in present}
         for values in data['_links']['penetration'].values():
             values[:] = [link for link in values if link['id'] in present]
@@ -197,9 +199,14 @@ class ManualTechnicalLibrary(FirestoppingLibrary):
         data['_canonical_library_filters'] = canonical
         data['_filters']['technical'] = deepcopy(canonical)
         data['_filters']['penetration'] = [{**deepcopy(entry), 'key': PENETRATION_KEYS.get(entry['key'], entry['key'])} for entry in canonical]
-        facet_spellings = {PENETRATION_KEYS.get(entry['key'], entry['key']): {
-            option['value'].casefold(): option['value'] for option in entry['options']}
-            for entry in canonical}
+        facet_spellings = {}
+        for entry in canonical:
+            matches = {}
+            for option in entry['options']:
+                matches.setdefault(option['value'].casefold(), set()).add(option['value'])
+            # An ambiguous case-fold match cannot select a different label.
+            facet_spellings[PENETRATION_KEYS.get(entry['key'], entry['key'])] = {
+                folded: next(iter(values)) for folded, values in matches.items() if len(values) == 1}
         for key, record in list(data['_records']['penetration'].items()):
             record = deepcopy(record)
             values = record.setdefault('filter_values', {})

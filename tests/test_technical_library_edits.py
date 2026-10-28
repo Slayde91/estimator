@@ -158,6 +158,27 @@ class TechnicalLibraryEditTests(unittest.TestCase):
             self.assertEqual(library.edit(key)['draft']['rows'][0]['inputs']['V'], value.upper())
         self.protected()
 
+    def test_deleting_canonical_removes_related_navigation_from_remaining_detail(self):
+        data = json.loads(self.source.read_text(encoding='utf-8'))
+        remaining = deepcopy(data['libraries']['technical']['items'][0])
+        remaining['id'] = 'remaining-system'
+        data['libraries']['technical']['items'].append(remaining)
+        self.source.write_text(json.dumps(data), encoding='utf-8')
+        self.original_source = self.source.read_bytes()
+        base = FirestoppingLibrary(self.root / 'library', self.store)._load()
+        # The source projector supplies this navigation map independently of
+        # CRUD. Exercise a surviving record pointing to a removed target.
+        base['_technical_related_records']['remaining-system'] = ['report-a-v1']
+        self.library = ManualTechnicalLibrary(self.root / 'library', self.store)
+        with patch.object(FirestoppingLibrary, '_load', return_value=base):
+            self.assertEqual(self.library.detail('technical', 'remaining-system')['related_technical_records'][0]['id'], 'report-a-v1')
+            edit = self.library.technical_edit('report-a-v1')
+            self.library.technical_delete('report-a-v1', {key: edit[key] for key in ('revision', 'source_sha256')})
+            detail = self.library.detail('technical', 'remaining-system')
+            self.assertEqual(detail['id'], 'remaining-system')
+            self.assertEqual(detail['related_technical_records'], [])
+        self.protected()
+
     def test_create_is_durable_searchable_and_retry_is_idempotent(self):
         body = self.body()
         result = self.library.technical_save(None, body)

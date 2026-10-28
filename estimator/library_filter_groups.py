@@ -12,13 +12,16 @@ SERVICE_GROUPS = (
         'Conduits', 'D1 Power Cables', 'D2 Comms Cables', 'Data Cables',
         'Downlights', 'Fibre Optic', 'Fire Resistant Cables', 'Power Cables',
         'Single Cables', 'TPS & Fire Alarm Cables', 'Communications Cables',
-        'Wall Sockets',
+        'Wall Sockets', 'Smoke Sampling Tubes',
     })),
-    ('Mechanical', frozenset({'Pair Coils'})),
+    ('Mechanical', frozenset({'Pair Coils', 'Beverage / Beer Lines', 'Insulated Gas Lines'})),
     ('HVAC', frozenset({'Fire Dampers', 'Flexible Ducts', 'Air Transfer Grilles'})),
-    ('Plastic pipes', frozenset({'uPVC pipe', 'uPVC floorwaste', 'PEX pipe', 'HDPE pipe'})),
-    ('Lagged metal pipes', frozenset({'Lagged Copper Pipes', 'Lagged Steel Pipes'})),
-    ('Unlagged metal pipes', frozenset({'Copper Pipes', 'Steel Pipes'})),
+    ('Plastic pipes', frozenset({'uPVC pipe', 'uPVC floorwaste', 'PEX pipe', 'HDPE pipe',
+                               'PP pipe', 'CPVC pipe', 'Raupiano Plus pipe', 'dBlue pipe',
+                               'PU air line', 'Concentric plastic pipe', 'ABS pipe', 'PB pipe',
+                               'Kelox / KeKilit pipe'})),
+    ('Lagged metal pipes', frozenset({'Lagged Copper Pipes', 'Lagged Steel Pipes', 'Lagged Iron Pipes'})),
+    ('Unlagged metal pipes', frozenset({'Copper Pipes', 'Steel Pipes', 'Unlagged Iron Pipes', 'Unlagged Brass Pipes'})),
 )
 _SERVICE_GROUP = {value: group for group, values in SERVICE_GROUPS for value in values}
 _SERVICE_ORDER = {group: index for index, (group, _) in enumerate(SERVICE_GROUPS)}

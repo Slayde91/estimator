@@ -11,7 +11,8 @@ from pathlib import Path
 import re
 
 from .firefly_reference_review import fingerprint
-from .library_facets import MOVED_SERVICE_CATEGORIES, SERVICES
+from .library_facets import MOVED_SERVICE_CATEGORIES
+from .technical_service_options import TECHNICAL_SERVICES
 
 PLAN_NAME = 'technical-services-plan-v1.json'
 REVIEW_KEY = '_technical_services_review'
@@ -23,7 +24,7 @@ _PLAN_KEYS = {'schema_version', 'review_id', 'reviewed_index_sha256', 'items'}
 _ITEM_KEYS = {'id', 'item_sha256', 'projection_sha256', 'services', 'evidence'}
 _FIELD_EVIDENCE_KEYS = {'field', 'quote', 'source_reference'}
 _DOCUMENT_EVIDENCE_KEYS = {'document_id', 'document_sha256', 'page', 'quote', 'source_reference'}
-_ALLOWED_SERVICES = frozenset(SERVICES) - {'N/A'}
+_ALLOWED_SERVICES = frozenset(TECHNICAL_SERVICES) - {'N/A'}
 
 
 @dataclass(frozen=True)

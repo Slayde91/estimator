@@ -5,6 +5,7 @@ from estimator.library_facets import (CATEGORIES, SERVICES, FRLS, classify_facet
                                       facet_options, frl_values, service_values)
 from estimator.library_report_links import valid_report_url, FIREFLY_REPORTS_URL
 from estimator.technical_frl_presentation import normalize_frl_presentation
+from estimator.technical_service_options import TECHNICAL_SERVICES
 from tests import test_reference_library as fixtures
 
 
@@ -297,7 +298,7 @@ class FacetIntegrationTests(unittest.TestCase):
         self.assertEqual(self.library.listing('technical', services='Lagged Pipes')['total'], 2)
         choices = next(entry['options'] for entry in self.library.listing('technical')['filters']
                        if entry['key'] == 'services')
-        self.assertCountEqual([entry['value'] for entry in choices], REQUESTED_SERVICES)
+        self.assertCountEqual([entry['value'] for entry in choices], TECHNICAL_SERVICES)
         self.assertEqual((self.root / 'library.json').read_bytes(), source_bytes)
 
     def test_canonical_filter_finds_records_imported_with_each_alias(self):

@@ -389,6 +389,10 @@ SHA-256, validates its attributed field/table or linked PDF-page evidence, and
 selects only existing Services options. It never edits original supplier
 records, assessed conditions, prices, calculator inputs or durable link
 identities. New dropdown options require a separate approved vocabulary change.
+The Technical Library's approved Services vocabulary includes its additional
+pipe-material and specialist-service descriptions. These library choices do
+not add calculator dropdown choices or new pricing/quantity routes; the
+calculator's original ordered Services vocabulary is preserved separately.
 Keep this private review with library backups. The installer retains its
 validated payload and rechecks the staged projection before replacing a library.
 Adding unrelated records or reserializing an index does not invalidate unchanged

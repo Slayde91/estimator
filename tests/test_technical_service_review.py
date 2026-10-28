@@ -87,7 +87,7 @@ class TechnicalServiceReviewTests(unittest.TestCase):
                 project(public, self.discovery, review)
 
     def test_new_option_na_empty_or_duplicate_services_are_rejected(self):
-        for services in (['Unlagged Pipes'], ['Unapproved Synthetic Service'], ['N/A'], [],
+        for services in (['Unlagged Pipes'], ['Unapproved specialist99'], ['N/A'], [],
                          ['Copper Pipes', 'Copper Pipes'], [' Copper Pipes'], [None]):
             plan = deepcopy(self.plan); plan['items'][0]['services'] = services
             with self.subTest(services=services), self.assertRaises(ValueError):

@@ -26,6 +26,7 @@ from .library_diagram_names import validate_drawing_name, drawing_source_names, 
 from .library_report_links import FIREFLY_REPORTS_URL, validate_report_links
 from .library_facets import FACETS, classify_facets, facet_options
 from .library_filter_groups import grouped_filter_options
+from .technical_service_options import options as technical_service_options
 from .technical_presentation import present_options, technical_title
 from .technical_discovery import (HIDDEN_FRL_CHOICES, canonical_frl, discovery_facets,
                                   present_frl_text, present_technical)
@@ -419,7 +420,8 @@ class ReferenceLibrary:
                     observed -= HIDDEN_FRL_CHOICES
                 entry['options'] = (substrate_options(observed) if entry['key'] == 'substrate' else
                                     [{'value': value, 'label': value}
-                                     for value in facet_options(entry['key'], observed)])
+                                     for value in (technical_service_options(observed) if entry['key'] == 'services'
+                                                   else facet_options(entry['key'], observed))])
         # Group only filter metadata, after source-bound duplicate reviews and
         # discovery construction. Record fields/facets and link identities stay
         # unchanged, including when a saved Firestopping overlay is loaded.

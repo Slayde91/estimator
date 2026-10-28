@@ -9,9 +9,11 @@ from unittest.mock import patch
 
 from estimator.catalog import ValidationError
 from estimator.firestopping_library import FirestoppingLibrary
+from estimator.library_facets import SERVICES
 from estimator.reference_library import ReferenceLibrary
 from estimator.storage import Store
 from estimator.technical_duplicates import review_fingerprint
+from estimator.technical_service_options import TECHNICAL_SERVICES
 from test_firestopping_library import editable_library
 
 
@@ -48,12 +50,16 @@ class ReferenceOverlayTests(unittest.TestCase):
         expected = FullyValidatedLibrary(self.directory, self.store)._load()
         self.assertEqual(self.library._load(), expected)
 
-    def test_choices_use_validated_technical_source_without_loading_saved_overlays(self):
+    def test_separate_choices_use_validated_source_without_loading_saved_overlays(self):
         with patch.object(self.library.edits, 'overlay_stamp', side_effect=AssertionError('Unneeded overlay')):
             choices = self.library.service_types()
         expected = ReferenceLibrary(self.directory).listing('technical')['filters']
-        self.assertCountEqual(choices, next([option['value'] for option in field['options']]
-                                           for field in expected if field['key'] == 'services'))
+        technical_choices = next([option['value'] for option in field['options']]
+                                 for field in expected if field['key'] == 'services')
+        self.assertEqual(choices, list(SERVICES))
+        self.assertEqual(len(choices), 30)
+        self.assertCountEqual(technical_choices, TECHNICAL_SERVICES)
+        self.assertEqual(len(technical_choices), 45)
         self.assertIsNone(self.library._effective)
 
     def test_overlay_edits_links_aliases_and_deletions_equal_full_validation(self):

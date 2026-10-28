@@ -813,7 +813,7 @@ class FirestoppingLibrary(ReferenceLibrary):
                 return []
             if not data:
                 return []
-            # Use the same canonical vocabulary as Technical Library discovery.
+            # Keep calculator choices separate from added Technical Library descriptions.
             # Saved custom descriptions remain accepted in existing rows.
             services = next((entry for entry in data['_filters']['technical']
                              if entry['key'] == 'services'), None)

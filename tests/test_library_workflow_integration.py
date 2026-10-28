@@ -14,9 +14,11 @@ import threading
 import unittest
 
 from estimator.catalog import validate_configuration
+from estimator.library_facets import SERVICES
 from estimator.penetration_calculator import definition, normalize_draft
 from estimator.server import create_server
 from estimator.storage import Store
+from estimator.technical_service_options import TECHNICAL_SERVICES
 from test_firestopping_library import editable_library
 
 
@@ -141,7 +143,10 @@ class LibraryWorkflowIntegrationTests(unittest.TestCase):
                        if field['column'] == 'K')
         technical_choices = next(field['options'] for field in self.get('/api/libraries/technical')['filters']
                                  if field['key'] == 'services')
-        self.assertCountEqual(choices, [option['value'] for option in technical_choices])
+        # Technical descriptions do not introduce calculator pricing routes.
+        self.assertEqual(choices, list(SERVICES))
+        self.assertCountEqual([option['value'] for option in technical_choices], TECHNICAL_SERVICES)
+        self.assertEqual((len(choices), len(technical_choices)), (30, 45))
         self.assertEqual(created['draft']['rows'][0]['inputs']['K'], body['draft']['rows'][0]['inputs']['K'])
         self.assertEqual(self.get('/api/libraries/penetration?manufacturer=FIREFLY')['total'], 1)
         self.assertEqual(self.protected(), before)

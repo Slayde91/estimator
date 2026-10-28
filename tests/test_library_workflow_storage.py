@@ -16,9 +16,11 @@ from PIL import Image
 
 from estimator.catalog import ValidationError
 from estimator.firestopping_library import FirestoppingLibrary, LibraryConflict
+from estimator.library_facets import SERVICES
 from estimator.penetration_calculator import normalize_draft
 from estimator.server import create_server
 from estimator.storage import Store
+from estimator.technical_service_options import TECHNICAL_SERVICES
 from test_firestopping_library import editable_library
 
 
@@ -108,9 +110,12 @@ class LibraryWorkflowStorageTests(unittest.TestCase):
         self.assertEqual(created['draft'], normalize_draft(request['draft']))
         self.assertIn('catalog', created['configuration'])
         self.assertEqual(created['draft']['rows'][0]['inputs']['K'], 'Unknown saved service Ø65')
-        self.assertCountEqual(self.library.service_types(), [option['value']
-                         for field in self.library.listing('technical')['filters']
-                         if field['key'] == 'services' for option in field['options']])
+        self.assertEqual(self.library.service_types(), list(SERVICES))
+        technical_choices = [option['value']
+                             for field in self.library.listing('technical')['filters']
+                             if field['key'] == 'services' for option in field['options']]
+        self.assertCountEqual(technical_choices, TECHNICAL_SERVICES)
+        self.assertEqual((len(self.library.service_types()), len(technical_choices)), (30, 45))
         edit = {key: deepcopy(created[key]) for key in ('draft', 'revision', 'pricing_token')}
         edit['draft']['rows'][0]['inputs'].update(K='Edited service', AI=75.987654321)
         saved = self.library.action(created['id'], 'save', edit)
@@ -237,20 +242,24 @@ class LibraryWorkflowStorageTests(unittest.TestCase):
             self.library.create(self.body())
         self.assertEqual(self.counts(), (0, 0, 0))
 
-    def test_service_choices_match_technical_library_without_changing_saved_custom_values(self):
+    def test_service_choices_preserve_independent_calculator_and_saved_custom_values(self):
         library = self.data['libraries']['penetration']
         library['filters'].append({'key': 'service_type', 'label': 'Service type'})
         item = library['items'][0]
         item['fields'] = [field for field in item['fields'] if field.get('column') != 'K']
         item['filter_values']['service_type'] = ['Fallback service']
         self.index.write_text(json.dumps(self.data), encoding='utf-8')
-        expected = [option['value'] for field in self.library.listing('technical')['filters'] if field['key'] == 'services' for option in field['options']]
-        self.assertCountEqual(self.library.service_types(), expected)
+        technical_choices = [option['value']
+                             for field in self.library.listing('technical')['filters']
+                             if field['key'] == 'services' for option in field['options']]
+        self.assertCountEqual(technical_choices, TECHNICAL_SERVICES)
+        self.assertEqual(self.library.service_types(), list(SERVICES))
+        self.assertEqual((len(self.library.service_types()), len(technical_choices)), (30, 45))
         edit = self.library.edit(item['id'])
         body = {key: deepcopy(edit[key]) for key in ('draft', 'revision', 'pricing_token')}
         body['draft']['rows'][0]['inputs']['K'] = 'Saved service Ø65'
         self.library.action(item['id'], 'save', body)
-        self.assertCountEqual(self.library.service_types(), expected)
+        self.assertEqual(self.library.service_types(), list(SERVICES))
         self.assertEqual(self.library.edit(item['id'])['draft']['rows'][0]['inputs']['K'], 'Saved service Ø65')
 
     def test_invalid_reference_bundle_cannot_disable_estimator_http_endpoints(self):

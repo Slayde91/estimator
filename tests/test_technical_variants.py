@@ -129,6 +129,20 @@ class TechnicalVariantTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'different technical facts'):
             self.project()
 
+    def test_same_report_caption_cannot_merge_different_urls_or_document_bytes(self):
+        record = deepcopy(self.record)
+        report = next(field for field in record['fields'] if field['label'] == 'Report Number')
+        report['report_links'] = [{'label': 'R1', 'url': 'https://example.com/revision-one.pdf'}]
+        signature = technical_signature(record, self.facets, self.assets)
+        changed = deepcopy(record)
+        next(field for field in changed['fields'] if field['label'] == 'Report Number')['report_links'][0]['url'] = 'https://example.com/revision-two.pdf'
+        self.assertNotEqual(signature, technical_signature(changed, self.facets, self.assets))
+        changed_assets = deepcopy(self.assets); changed_assets['report']['sha256'] = 'e' * 64
+        self.assertNotEqual(signature, technical_signature(record, self.facets, changed_assets))
+        changed['sources'][0]['page'] = 3
+        self.assertEqual(technical_signature(changed, self.facets, self.assets),
+                         technical_signature({**changed, 'sources': [{'document_id': 'report', 'page': 1}]}, self.facets, self.assets))
+
     def test_rating_columns_require_an_explicit_single_choice(self):
         table = self.record['fields'][-1]['table']
         table['columns'].append('FRL without protection')

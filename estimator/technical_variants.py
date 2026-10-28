@@ -338,6 +338,8 @@ def technical_signature(record, facets, assets):
         if field['label'] == 'ID':
             continue
         value = {'label': field['label'], 'value': field['value']}
+        if field.get('report_links'):
+            value['report_links'] = deepcopy(field['report_links'])
         tables = []
         for table in field_tables(field):
             columns = [index for index, label in enumerate(table['columns']) if label.casefold() not in {'id', 'configuration'}]
@@ -348,8 +350,12 @@ def technical_signature(record, facets, assets):
         if field.get('images'):
             value['images'] = images(field['images'])
         fields.append(value)
+    documents = sorted({(assets[source['document_id']]['sha256'], assets[source['document_id']]['pages'])
+                        for source in record.get('sources', [])
+                        if source.get('document_id') in assets and assets[source['document_id']]['pdf']})
     return source_fingerprint({'fields': sorted(fields, key=lambda field: field['label']),
                                'images': images(record.get('images', [])),
+                               'documents': documents,
                                'facets': {key: sorted(set(values)) for key, values in facets.items()}})
 
 

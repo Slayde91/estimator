@@ -3654,8 +3654,9 @@
       requireFinishedEdits(); if (sessionId !== state.session?.session_id || documentId !== state.document || state.mode !== "steel" || !active && fingerprint !== window.CeasefireCalculators.projectFingerprint()) throw new Error("The drawing or calculator changed. Click Markups again."); return true;
     });
     const missing = colourMode()?.originals.filter(row => row.thickness_mm == null).length || 0;
+    const outOfRange = colourMode()?.palette_version >= 2 && colourMode().originals.some(row => row.calculator_id === "steel_intumescent" && row.thickness_mm > 10);
     updatePresentationTools(); invalidateLinkedThickness(); scheduleLinkedThickness(true); renderOverlay();
-    message(active ? "Original markup colours restored." : missing ? `Markup is incomplete due to missing thickness values (${missing} markup${missing === 1 ? "" : "s"}). Available thickness colours were applied.` : "Thickness colours applied. Click Markups again to restore the original colours.", missing > 0);
+    message(active ? "Original markup colours restored." : outOfRange ? "Some DFT values exceed the 10,000 µm colour scale. Available thickness colours were applied; original colours were retained for unavailable or out-of-range values." : missing ? `Markup is incomplete due to missing thickness values (${missing} markup${missing === 1 ? "" : "s"}). Available thickness colours were applied.` : "Thickness colours applied. Click Markups again to restore the original colours.", missing > 0 || outOfRange);
   }
   async function toggleLegend() {
     requireFinishedEdits(); if (!["steel", "duct"].includes(state.mode) || !state.viewport) throw new Error("Open a Steel or Duct drawing first.");
@@ -3677,6 +3678,16 @@
     if (context !== pageDisplayKey()) return;
     state.legendSelected = legend.visible ? legend.id : null; updatePresentationTools(); renderOverlay();
   }
+  function dftMicronText(millimetres, nativeMicrons) {
+    const native = Number.isFinite(nativeMicrons) && nativeMicrons > 0;
+    const [mantissa, exponent = "0"] = String(native ? nativeMicrons : millimetres).toLowerCase().split("e");
+    const point = mantissa.includes(".") ? mantissa.indexOf(".") : mantissa.length;
+    const digits = mantissa.replace(".", ""), position = point + Number(exponent) + (native ? 0 : 3);
+    // Shift decimal text for display; multiplying a binary float can turn
+    // 1.007 mm into 1006.9999999999999 µm. Stored values are never rewritten.
+    const text = position <= 0 ? `0.${"0".repeat(-position)}${digits}` : position >= digits.length ? digits + "0".repeat(position - digits.length) : `${digits.slice(0, position)}.${digits.slice(position)}`;
+    return text.replace(/^0+(?=\d)/, "").replace(/(\.\d*?)0+$/, "$1").replace(/\.$/, "");
+  }
   function drawingLegendRows(legend) {
     const groups = new Map();
     for (const item of items().filter(item => item.mode === legend.mode && item.geometry?.document_id === legend.document_id && item.geometry.page === legend.page)) {
@@ -3685,7 +3696,9 @@
       let description = field.mark || item.id.slice(0, 8);
       if (item.mode === "steel") description += ` · ${field.section || "Section missing"}${item.quantity > 1 ? ` · ${item.quantity} members` : ""}`;
       else description += ` · ${formatDuctSize(field) || "WxH missing"} mm · ${formatLength(itemResult(item).total_length_m)} m`;
-      description += ` · ${thickness.value == null ? "Thickness missing/unavailable" : `${thickness.value} mm`}`;
+      const micronValue = thickness.calculatorId === "steel_intumescent" && thickness.value != null ? dftMicronText(thickness.value, thickness.microns) : null;
+      const outside = colourMode(legend.document_id)?.palette_version >= 2 && thickness.value > 10;
+      description += ` · ${thickness.value == null ? "Thickness missing/unavailable" : thickness.calculatorId === "steel_intumescent" ? `${micronValue} µm${outside ? " (outside 0–10,000 µm colour scale)" : ""}` : `${thickness.value} mm`}`;
       if (!groups.has(appearance.stroke_color)) groups.set(appearance.stroke_color, []); groups.get(appearance.stroke_color).push(description);
     }
     return [...groups].map(([colour, texts]) => ({ colour, text: texts.join("; ") }));
@@ -3797,7 +3810,7 @@
     const records = linkedThickness.results[item.id] || [], ids = item.mode === "duct" ? ["ductwork"] : strict ? [preferred] : [...new Set([preferred, "steel_vermiculite", "steel_board", "steel_intumescent"])];
     for (const id of ids) {
       const record = records.find(value => value.calculator_id === id && value.status === "Current"), value = record?.[thicknessKeys[id]];
-      if (Number.isFinite(value) && value > 0) return { value };
+      if (Number.isFinite(value) && value > 0) return { value, calculatorId: id, microns: Number.isFinite(record.intumescent_dft_um) && record.intumescent_dft_um > 0 ? record.intumescent_dft_um : undefined };
     }
     return { value: null };
   }

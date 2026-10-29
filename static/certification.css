@@ -18,3 +18,11 @@
 
 .certification-fields textarea[rows="2"]{min-height:74px}
 #company-cover-name{overflow-wrap:anywhere;min-width:0;flex:1 1 20rem;max-width:100%}
+.certification-scope-field{margin-block-start:1rem;max-width:46rem}
+.certification-scope-dropdown{position:relative;min-width:0}
+.certification-scope-dropdown summary{cursor:pointer;border:1px solid var(--border,#48525f);border-radius:9px;background:var(--input-bg,#202730);padding:.85rem 1rem;min-height:44px;box-sizing:border-box;overflow-wrap:anywhere}
+.certification-scope-dropdown summary:focus-visible{outline:3px solid var(--accent,#ed001b);outline-offset:3px}
+.certification-scope-choices{position:absolute;z-index:12;inset-inline:0;margin-top:.35rem;padding:.4rem;background:var(--surface,#171d25);border:1px solid var(--border,#48525f);border-radius:9px;box-shadow:0 10px 30px #0005}
+.certification-scope-choices label{display:flex;align-items:center;gap:.8rem;min-height:46px;padding:.5rem .7rem;cursor:pointer}
+.certification-scope-choices input{width:1.2rem;height:1.2rem;flex:0 0 auto}
+#certification-cover-name{overflow-wrap:anywhere;min-width:0;flex:1 1 20rem;max-width:100%}

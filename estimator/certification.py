@@ -24,6 +24,10 @@ FIELDS = (
 MAX_FIELD_CHARS = 8_000
 MAX_TOTAL_CHARS = 40_000
 MAX_REVISION_BYTES = 40 * 1024 * 1024
+SIGNER_FIELDS = ('name', 'position', 'qualification', 'accreditation')
+SCOPE_IDS = frozenset(('structural_steel', 'structural_steel_columns', 'ductwork', 'service_penetrations'))
+DEFAULT_OPTIONS = {'cover_pdf': None, 'cover_pdf_name': '', 'scopes': []}
+_MISSING = object()
 
 
 class CertificationConflict(ValidationError):
@@ -47,6 +51,32 @@ def validate_fields(value, *, partial=False):
     if sum(map(len, result.values())) > MAX_TOTAL_CHARS:
         raise ValidationError('Certification details must contain at most 40,000 characters in total.')
     return result
+
+
+def validate_options(value):
+    """Validate user-selected scope IDs and an optional certificate-only cover."""
+    if not isinstance(value, dict) or set(value) != set(DEFAULT_OPTIONS):
+        raise ValidationError('Include the certificate cover, cover filename and selected scopes only.')
+    name = value['cover_pdf_name']
+    if (not isinstance(name, str) or len(name) > 200
+            or any(ord(char) < 32 or 0xD800 <= ord(char) <= 0xDFFF for char in name)
+            or any(char in name for char in '/\\')):
+        raise ValidationError('The certificate cover filename is invalid.')
+    scopes = value['scopes']
+    if (not isinstance(scopes, list) or len(scopes) > len(SCOPE_IDS)
+            or any(not isinstance(scope, str) or scope not in SCOPE_IDS for scope in scopes)
+            or len(set(scopes)) != len(scopes)):
+        raise ValidationError('Choose each supported certification scope at most once.')
+    from .pdf_cover import validate_cover_pdf
+    cover, name = validate_cover_pdf(value['cover_pdf'], name)
+    return {'cover_pdf': cover, 'cover_pdf_name': name, 'scopes': scopes[:]}
+
+
+def validate_signer_fields(value):
+    if not isinstance(value, dict) or set(value) != set(SIGNER_FIELDS):
+        raise ValidationError('Include name, position, qualification and accreditation only.')
+    normalized = validate_fields(value, partial=True)
+    return {key: normalized[key] for key in SIGNER_FIELDS}
 
 
 def _identity(value, label='Certification ID'):
@@ -104,17 +134,38 @@ class CertificationService:
                     request_id TEXT NOT NULL, request_fingerprint TEXT NOT NULL,
                     PRIMARY KEY(document_id, revision), UNIQUE(document_id, request_id)
                 );
+                CREATE TABLE IF NOT EXISTS certification_signer_defaults (
+                    id INTEGER PRIMARY KEY CHECK(id=1), fields TEXT NOT NULL,
+                    version INTEGER NOT NULL CHECK(version >= 1), updated_at TEXT NOT NULL
+                );
             ''')
+            # Existing fields-only documents/revisions keep their identities,
+            # fingerprints and frozen PDFs. New metadata is purely additive.
+            db.execute('BEGIN IMMEDIATE')
+            for table in ('certification_documents', 'certification_revisions'):
+                columns = {row[1] for row in db.execute('PRAGMA table_info('+table+')')}
+                if 'options' not in columns:
+                    db.execute('ALTER TABLE '+table+" ADD COLUMN options TEXT NOT NULL DEFAULT '"+_json(DEFAULT_OPTIONS)+"'")
+            columns = {row[1] for row in db.execute('PRAGMA table_info(certification_documents)')}
+            if 'create_options' not in columns:
+                db.execute('ALTER TABLE certification_documents ADD COLUMN create_options TEXT')
+            if db.execute('SELECT 1 FROM certification_signer_defaults WHERE id=1').fetchone() is None:
+                latest = db.execute('SELECT fields FROM certification_documents '
+                                    'ORDER BY updated_at DESC,id LIMIT 1').fetchone()
+                source = json.loads(latest[0]) if latest else {}
+                signer = validate_signer_fields({key: source.get(key, '') for key in SIGNER_FIELDS})
+                db.execute('INSERT INTO certification_signer_defaults VALUES(1,?,?,?)',
+                           (_json(signer), 1, _now()))
 
     @staticmethod
     def _get(db, document_id):
-        row = db.execute('SELECT fields,version,created_at,updated_at FROM certification_documents WHERE id=?',
+        row = db.execute('SELECT fields,version,created_at,updated_at,options FROM certification_documents WHERE id=?',
                          (document_id,)).fetchone()
         if row is None:
             raise CertificationNotFound('This certification document could not be found.')
         revisions = db.execute('SELECT revision,created_at,sha256 FROM certification_revisions '
                                'WHERE document_id=? ORDER BY revision DESC', (document_id,)).fetchall()
-        return {'id': document_id, 'fields': json.loads(row[0]), 'version': row[1],
+        return {'id': document_id, 'fields': json.loads(row[0]), 'version': row[1], 'options': json.loads(row[4]),
                 'created_at': row[2], 'updated_at': row[3],
                 'revisions': [_revision_metadata(document_id, item) for item in revisions]}
 
@@ -132,16 +183,19 @@ class CertificationService:
                           'label': fields['project'].strip() or fields['client'].strip() or 'Untitled certification'})
         return {'items': items}
 
-    def create(self, fields, request_id=None):
+    def create(self, fields, request_id=None, *, options=_MISSING):
         """Return a stable creation receipt; get() reads current draft state."""
         fields = validate_fields(fields, partial=True)
         if request_id is not None:
             _identity(request_id, 'Create operation ID')
-        fingerprint = _fingerprint(fields)
+        supplied_options = options is not _MISSING
+        options = validate_options(options) if supplied_options else deepcopy(DEFAULT_OPTIONS)
+        # Preserve the exact old fingerprint format for old clients/retries.
+        fingerprint = _fingerprint({'fields': fields, 'options': options}) if supplied_options else _fingerprint(fields)
         with self.store.connect() as db:
             db.execute('BEGIN IMMEDIATE')
             if request_id is not None:
-                old = db.execute('SELECT id,create_request_fingerprint,created_at FROM certification_documents '
+                old = db.execute('SELECT id,create_request_fingerprint,created_at,create_options FROM certification_documents '
                                  'WHERE create_request_id=?', (request_id,)).fetchone()
                 if old:
                     if old[1] != fingerprint:
@@ -152,10 +206,14 @@ class CertificationService:
                     # another window has since changed this document. GET is
                     # the separate source of fresh current document state.
                     return {'id': old[0], 'fields': json.loads(_json(fields)), 'version': 1,
+                            'options': json.loads(old[3]) if old[3] is not None else deepcopy(DEFAULT_OPTIONS),
                             'created_at': old[2], 'updated_at': old[2], 'revisions': []}
             identity, timestamp = str(uuid.uuid4()), _now()
-            db.execute('INSERT INTO certification_documents VALUES(?,?,?,?,?,?,?)',
-                       (identity, _json(fields), 1, timestamp, timestamp, request_id, fingerprint))
+            db.execute('INSERT INTO certification_documents '
+                       '(id,fields,version,created_at,updated_at,create_request_id,create_request_fingerprint,options,create_options) '
+                       'VALUES(?,?,?,?,?,?,?,?,?)',
+                       (identity, _json(fields), 1, timestamp, timestamp, request_id, fingerprint,
+                        _json(options), _json(options)))
             return self._get(db, identity)
 
     def get(self, document_id):
@@ -164,21 +222,46 @@ class CertificationService:
             db.execute('BEGIN')
             return self._get(db, document_id)
 
-    def save(self, document_id, fields, expected_version):
+    def save(self, document_id, fields, expected_version, *, options=_MISSING):
         _identity(document_id); _version(expected_version)
         fields = validate_fields(fields)
+        if options is not _MISSING:
+            options = validate_options(options)
         with self.store.connect() as db:
             db.execute('BEGIN IMMEDIATE')
             current = self._get(db, document_id)
+            selected_options = current['options'] if options is _MISSING else options
             # An acknowledged or lost-response retry that already matches the
             # latest draft has nothing to overwrite, even if its version aged.
-            if current['fields'] == fields:
+            if current['fields'] == fields and current['options'] == selected_options:
                 return current
             if current['version'] != expected_version:
                 raise CertificationConflict('This certification changed in another window. Reload it before saving again.')
-            db.execute('UPDATE certification_documents SET fields=?,version=version+1,updated_at=? WHERE id=?',
-                       (_json(fields), _now(), document_id))
+            db.execute('UPDATE certification_documents SET fields=?,options=?,version=version+1,updated_at=? WHERE id=?',
+                       (_json(fields), _json(selected_options), _now(), document_id))
             return self._get(db, document_id)
+
+    @staticmethod
+    def _defaults(db):
+        fields, version = db.execute('SELECT fields,version FROM certification_signer_defaults WHERE id=1').fetchone()
+        return {'fields': json.loads(fields), 'version': version}
+
+    def get_defaults(self):
+        with self.store.connect() as db:
+            return self._defaults(db)
+
+    def save_defaults(self, fields, expected_version):
+        fields = validate_signer_fields(fields); _version(expected_version)
+        with self.store.connect() as db:
+            db.execute('BEGIN IMMEDIATE')
+            current = self._defaults(db)
+            if current['fields'] == fields:
+                return current
+            if current['version'] != expected_version:
+                raise CertificationConflict('The saved signer details changed in another window. Reload them before saving again.')
+            db.execute('UPDATE certification_signer_defaults SET fields=?,version=version+1,updated_at=? WHERE id=1',
+                       (_json(fields), _now()))
+            return self._defaults(db)
 
     @staticmethod
     def _replay(db, document_id, request_id, fingerprint):
@@ -190,10 +273,16 @@ class CertificationService:
             raise CertificationConflict('This generation operation was already used with different certification details.')
         return _revision_metadata(document_id, row[:3])
 
-    def generate(self, document_id, fields, expected_version, request_id, company):
+    def generate(self, document_id, fields, expected_version, request_id, company, *, options=_MISSING):
         _identity(document_id); _identity(request_id, 'Generation operation ID'); _version(expected_version)
         fields = validate_fields(fields)
-        fingerprint = _fingerprint({'fields': fields, 'expected_version': expected_version})
+        supplied_options = options is not _MISSING
+        if supplied_options:
+            options = validate_options(options)
+        request = {'fields': fields, 'expected_version': expected_version}
+        if supplied_options:
+            request['options'] = options
+        fingerprint = _fingerprint(request)
         # Capture and render outside the write transaction: a large cover or
         # long user entry must not hold up unrelated project saves.
         with self.store.connect() as db:
@@ -205,8 +294,12 @@ class CertificationService:
             if current['version'] != expected_version:
                 raise CertificationConflict('This certification changed in another window. Reload it before generating again.')
             revision = max((item['revision'] for item in current['revisions']), default=0) + 1
+            selected_options = deepcopy(current['options'] if options is _MISSING else options)
         from .company_settings import validate_company_settings
-        company = validate_company_settings(deepcopy(company))
+        company = deepcopy(company)
+        if isinstance(company, dict) and selected_options['cover_pdf'] is not None:
+            company.update(cover_pdf=selected_options['cover_pdf'], cover_pdf_name=selected_options['cover_pdf_name'])
+        company = validate_company_settings(company)
         from .certification_report import render_certificate_pdf
         from .pdf_cover import prepend_cover_pdf
         timestamp = _now()
@@ -230,11 +323,13 @@ class CertificationService:
                 return {'document': current, 'revision': replay}
             if current['version'] != expected_version:
                 raise CertificationConflict('This certification changed while the PDF was being created. No revision was saved.')
-            db.execute('INSERT INTO certification_revisions VALUES(?,?,?,?,?,?,?,?,?)',
+            db.execute('INSERT INTO certification_revisions '
+                       '(document_id,revision,created_at,fields,company,pdf,sha256,request_id,request_fingerprint,options) '
+                       'VALUES(?,?,?,?,?,?,?,?,?,?)',
                        (document_id, revision, timestamp, _json(fields), _json(company), payload,
-                        digest, request_id, fingerprint))
-            db.execute('UPDATE certification_documents SET fields=?,version=version+1,updated_at=? WHERE id=?',
-                       (_json(fields), timestamp, document_id))
+                        digest, request_id, fingerprint, _json(selected_options)))
+            db.execute('UPDATE certification_documents SET fields=?,options=?,version=version+1,updated_at=? WHERE id=?',
+                       (_json(fields), _json(selected_options), timestamp, document_id))
             return {'document': self._get(db, document_id),
                     'revision': _revision_metadata(document_id, (revision, timestamp, digest))}
 

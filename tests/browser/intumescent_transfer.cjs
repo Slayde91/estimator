@@ -2,7 +2,7 @@
 // Private table accuracy is tested separately; every saved file is disposable.
 const { chromium, expect } = require('@playwright/test');
 const { clickProjectControl } = require('./project_actions.cjs');
-const { spawn } = require('node:child_process');
+const { spawn, spawnSync } = require('node:child_process');
 const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
 const root = path.resolve(__dirname, '../..'), output = path.join(root, '.runtime/browser-qa', `intumescent-transfer-${Date.now()}`);
 fs.mkdirSync(output, { recursive: true });
@@ -123,6 +123,36 @@ async function transfer(id) {
   await editInput(`J${first.row}`, first.length + .125); await expect(thickness(first.id)).toHaveText('Unavailable');
   await expect(thickness(first.id)).toHaveAttribute('title', /linked row was edited/);
   await editInput(`J${first.row}`, first.length); await expect(thickness(first.id)).toHaveText(String(first.thickness_mm));
+  const originalDrawing = await snapshot(), originalColours = {};
+  const markupColour = id => page.locator(`.takeoff-hit[data-item-id="${id}"]`).evaluate(el => {
+    const shape = el.previousElementSibling;
+    return el.isConnected && shape?.isConnected && shape.classList.contains('takeoff-markup') ? shape.getAttribute('stroke') : null;
+  });
+  for (const member of evidence.members) await expect.poll(async () => { originalColours[member.id] = await markupColour(member.id); return originalColours[member.id]; }).toMatch(/^#[0-9a-f]{6}$/i);
+  await response(() => page.getByRole('button', { name: 'Markups', exact: true }).click(), '/commands');
+  const colourState = await snapshot(), colourMode = colourState.drawing_presentation.colour_modes[0];
+  assert.equal(colourMode.palette_version, 2); assert.deepEqual(colourState.items, originalDrawing.items);
+  const expectedColours = { 3: '#C06060', 4: '#A0A0A0', 8: '#23B6FE' };
+  for (const member of evidence.members) {
+    const retained = colourMode.originals.find(value => value.item_id === member.id);
+    const expected = expectedColours[Math.ceil(member.dft_um / 250) - 1]; assert.ok(expected);
+    assert.equal(retained.calculator_id, 'steel_intumescent'); assert.equal(retained.thickness_mm, member.thickness_mm); assert.equal(retained.colour, expected);
+    await expect.poll(() => markupColour(member.id)).toBe(expected);
+  }
+  await response(() => page.getByRole('button', { name: 'Legend', exact: true }).click(), '/commands');
+  const legend = page.getByRole('button', { name: 'Steel Legend', exact: true });
+  for (const member of evidence.members) await expect(legend).toContainText(`${member.dft_um} µm`);
+  await expect(legend).not.toContainText(' mm');
+  const exportSnapshot = await snapshot(), exportDrafts = await calculators(), session = await page.evaluate(() => window.CeasefireTakeoffs.sessionId());
+  const pdf = await page.request.post(`http://127.0.0.1:${info.port}/api/takeoffs/sessions/${session}/export/marked-pdf`, { data: {
+    expected_revision: exportSnapshot.revision, mode: 'steel', document_id: exportSnapshot.documents[0].id,
+    item_ids: evidence.members.map(value => value.id), calculator_drafts: Object.fromEntries(Object.entries(exportDrafts).map(([key,value]) => [key, { inputs: value.inputs, schedule_rows: value.schedule_rows }])) } });
+  assert.equal(pdf.status(), 200, await pdf.text());
+  const pdfPath = path.join(output, 'intumescent-micron-legend.pdf'); fs.writeFileSync(pdfPath, await pdf.body());
+  const extracted = spawnSync(process.env.CEASEFIRE_PYTHON || 'python', ['-c', 'import json,sys;from pypdf import PdfReader;print(json.dumps("\\n".join(p.extract_text() or "" for p in PdfReader(sys.argv[1]).pages)))', pdfPath], { encoding: 'utf8', windowsHide: true });
+  assert.equal(extracted.status, 0, extracted.stderr); const pdfText = JSON.parse(extracted.stdout).replaceAll('μ', 'µ').replace(/\s+/g, ' ');
+  for (const member of evidence.members) assert.ok(pdfText.includes(`${member.dft_um} µm`), 'Actual PDF retains native DFT and micron legend units');
+  assert.deepEqual(await calculators(), exportDrafts); assert.deepEqual((await snapshot()).items, exportSnapshot.items);
   const before = await snapshot(), draftsBefore = await calculators();
   await response(() => clickProjectControl(page, 'Save'), '/api/project/save-as');
   await response(() => clickProjectControl(page, 'Load'), '/api/project/open');
@@ -132,6 +162,30 @@ async function transfer(id) {
   await destination.selectOption('steel_intumescent');
   await expect(thickness(first.id)).toHaveText(String(first.thickness_mm));
   assert.deepEqual((await snapshot()).transfers, before.transfers); assert.deepEqual(await calculators(), draftsBefore);
+  assert.deepEqual((await snapshot()).drawing_presentation, before.drawing_presentation);
+  await response(() => page.getByRole('button', { name: 'Markups', exact: true }).click(), '/commands');
+  fs.writeFileSync(info.legacy_palette_flag, 'Emulate the historical writer in this disposable fixture only.');
+  try { await response(() => page.getByRole('button', { name: 'Markups', exact: true }).click(), '/commands'); }
+  finally { fs.unlinkSync(info.legacy_palette_flag); }
+  const legacyPresentation = (await snapshot()).drawing_presentation;
+  assert.equal(legacyPresentation.colour_modes[0].palette_version, undefined);
+  for (const retained of legacyPresentation.colour_modes[0].originals) assert.equal(retained.colour, '#6C4848');
+  await calculators(); await page.waitForFunction(() => !window.CeasefireCalculators.hasPendingOperation() && !window.CeasefireDesktop.status().busy);
+  await response(() => clickProjectControl(page, 'Save'), '/api/project/save');
+  await response(() => clickProjectControl(page, 'Load'), '/api/project/open');
+  await page.getByRole('dialog').getByRole('button', { name: 'Load Project', exact: true }).click();
+  await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); await destination.selectOption('steel_intumescent');
+  await expect(thickness(first.id)).toHaveText(String(first.thickness_mm));
+  assert.deepEqual((await snapshot()).drawing_presentation, legacyPresentation);
+  assert.equal((await snapshot()).drawing_presentation.colour_modes[0].palette_version, undefined);
+  for (const member of evidence.members) await expect.poll(() => markupColour(member.id)).toBe('#6C4848');
+  await response(() => page.getByRole('button', { name: 'Markups', exact: true }).click(), '/commands');
+  for (const member of evidence.members) await expect.poll(() => markupColour(member.id)).toBe(originalColours[member.id]);
+  await response(() => page.getByRole('button', { name: 'Markups', exact: true }).click(), '/commands');
+  assert.equal((await snapshot()).drawing_presentation.colour_modes[0].palette_version, 2);
+  for (const member of evidence.members) await expect.poll(() => markupColour(member.id)).toBe(expectedColours[Math.ceil(member.dft_um / 250) - 1]);
+  assert.deepEqual((await snapshot()).transfers, before.transfers); assert.deepEqual(await calculators(), draftsBefore);
+  evidence.micronPaletteAndPdf = true; evidence.nativeMillimetresUnchanged = true; evidence.legacyPaletteRetainedUntilNewToggle = true;
   evidence.dirtyRowWithheld = true; evidence.exactRestoreRechecked = true; evidence.savedDraftAndLinksPreserved = true; evidence.fourSidedColumnDftWithThreeSidedArea = true;
   const csp = await page.evaluate(() => window.qaCsp); assert.deepEqual(errors, []); assert.deepEqual(csp, []);
   fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ completed: true, synthetic: true, evidence, errors, csp, savedProject: info.project }, null, 2));

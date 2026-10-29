@@ -7,5 +7,10 @@
   {"source":"See https://example.test/page2.pdf. Page 2: Keep 20mm sealant and 2 layers.","display":"See https://example.test/page2.pdf. Keep 20mm sealant and 2 layers."},
   {"source":"Page 2 mm: retain this dimension. Install 2 items 4 mm thick.","display":"Page 2 mm: retain this dimension. Install 2 items 4 mm thick."},
   {"source":"Use 30mm board (Page 2, minimum 50mm overlap).","display":"Use 30mm board (Page 2, min. 50mm overlap)."},
-  {"source":"See source page 2 for approved services. Do not install unapproved services.","display":"See source page 2 for approved services. Do not install unapproved services."}
+  {"source":"See source page 2 for approved services. Do not install unapproved services.","display":"See source page 2 for approved services. Do not install unapproved services."},
+  {"source":"Sealant backed with foam backing rod. (Page 2).\nRetain the 25 mm depth.","display":"Sealant backed w/ foam backing rod.\nRetain the 25 mm depth."},
+  {"source":"System approved for both directions (AUSPEX PEX pipe). .\nHPE installed 13 mm deep.","display":"System approved for both directions (AUSPEX PEX pipe).\nHPE installed 13 mm deep."},
+  {"source":"Secure ties on both floor and ceiling sides. .\nFinish with a 30 mm fillet.","display":"Secure ties on both floor and ceiling sides.\nFinish w/ a 30 mm fillet."},
+  {"source":"Use 0.5 mm sheet, 1..2 mm gaps and 1 . . 2 mm test notation. Keep the 1–2 mm limit. Wait... Keep this . . . Notation. See https://example.test/a..b/page2.pdf.","display":"Use 0.5 mm sheet, 1..2 mm gaps and 1 . . 2 mm test notation. Keep the 1–2 mm limit. Wait... Keep this . . . Notation. See https://example.test/a..b/page2.pdf."},
+  {"source":"Seal the gap. (Page 2). Do not omit the 15 mm depth.\nKeep this ellipsis . . .\nWait...","display":"Seal gap. Do not omit the 15 mm depth.\nKeep this ellipsis . . .\nWait..."}
 ]

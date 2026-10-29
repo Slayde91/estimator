@@ -15,6 +15,7 @@ _GENERATED_TABLE = re.compile(r'^\s*(?:Service Size\s*/\s*Configuration|Barrier 
 _PAGE_PREFIX = re.compile(r'(^[ \t]*|(?<=[.!?])[ \t]+)(?:Source[ \t]+)?Pages?[ \t]+\d+(?:[ \t]*(?:,|&|and|[-–—])[ \t]*\d+)*[ \t]*:[ \t]*', re.I | re.M)
 _PAGE_POINTER = re.compile(r'\(\s*(?:(?:see|refer\s+to|as\s+per|per|p/)\s+)?(?:source\s+)?pages?\s+' + _REFERENCE_NUMBER + r'\s*\)', re.I)
 _PAGE_DETAILS = re.compile(r'(?<!\w)(?:See|Refer\s+to)\s+(?:source\s+)?pages?\s+' + _REFERENCE_NUMBER + r'\s+for\s+(?:further\s+)?details\.?', re.I)
+_SENTENCE_STOP_PAIR = re.compile(r'(?<=[A-Za-z)\]])\.[ \t]+\.(?![ \t]*\.)(?=[ \t]*(?:$|[A-Za-z]))', re.M)
 _DIAMETER_NUMBER = r'(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)'
 _DIAMETER_VALUE = '(' + _DIAMETER_NUMBER + r')[ \t]*(?:mm)?'
 _EQUAL_DIAMETERS = re.compile(
@@ -182,7 +183,12 @@ def compact_technical_text(value):
     def compact(text):
         text = _PAGE_POINTER.sub('', text)
         text = _PAGE_DETAILS.sub('', text)
-        text = re.sub(r'[ \t]+([,;:]|\.(?!\d))', r'\1', text)
+        # A removed parenthetical may leave two sentence stops. Restrict the
+        # repair to a word/closing bracket and sentence boundary: numeric ranges,
+        # decimals and both adjacent and spaced ellipses keep their punctuation.
+        text = _SENTENCE_STOP_PAIR.sub('.', text)
+        text = re.sub(r'[ \t]+([,;:])', r'\1', text)
+        text = re.sub(r'(?<=[A-Za-z)\]])[ \t]+\.(?![\d.]|[ \t]*\.)', '.', text)
         text = _single_diameter(text)
         text = _without_cross_references(text)
         for expression, replacement in _RULES:

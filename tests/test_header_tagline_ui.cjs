@@ -48,7 +48,7 @@ const phrases = [
   "I don't need a depth gauge when I have a perfectly good set of eyes.",
   "Proper Preparation Prevents Piss-Poor Performance",
   "CLASSIFIRE | Passive Fire Intelligence | Talk FRL to me.",
-  "CLASSIFIRE | Passive Fire Intelligence | Good with penetrations.",
+  "CLASSIFIRE | Passive Fire Intelligence | Let me fill your holes.",
   "CLASSIFIRE | Passive Fire Intelligence | I know my way around an opening.",
   "CLASSIFIRE | Passive Fire Intelligence | Looks aren’t everything. Size matters.",
   "CLASSIFIRE | Passive Fire Intelligence | Stop staring at my calculations.",

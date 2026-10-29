@@ -36,7 +36,7 @@
     nav("Calculators", "calculators", "Choose Firestopping, Steel Spray, Steel Board or Ductwork.");
     if (takeoffs) nav("Takeoffs", "takeoffs", "Choose Steel, Duct, Penetrations, Defect Reports, Service Plans or Walls/Floors.");
     nav("Libraries", "pricing", "Choose Pricing, Firestopping or Technical Library.");
-    nav("Projects", "quotes", "Find, load and browse project files.");
+    nav("Projects", "projects", "Find, load and browse project files.");
     nav("Help", "help", "Open the guide and this button glossary.");
     add("Navigation", "Theme", "Cycle through CLASSIFIRE, Midnight, Ocean, Forest and Slate.", { selector: "#theme-toggle" });
     add("Projects and files", "Save", "Choose a location for a new project, or update the selected .cf.json project file.", { selector: "#save-current-project" });

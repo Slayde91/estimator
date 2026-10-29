@@ -63,7 +63,7 @@ async function worksheetReady(title, label) {
   await page.waitForFunction(()=>!window.CeasefireDesktop.status().busy);
   const calculators = await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot());
   await page.getByLabel('Project No.', {exact:true}).fill('STANDARD-SAVED');
-  await page.getByLabel('Client', {exact:true}).fill('Offline Windows acceptance');
+  await page.locator('#main-estimate-form').getByLabel('Client', {exact:true}).fill('Offline Windows acceptance');
   choose({});
   const savedReply = await reply(() => clickProjectControl(page, 'Save'), '/api/project/save-as');
   assert.equal(savedReply.status,200,JSON.stringify(savedReply.body));
@@ -74,7 +74,7 @@ async function worksheetReady(title, label) {
   assert.deepEqual(saved.calculators,original.calculators);
   await load('saved');
   await expect(page.getByLabel('Project No.', {exact:true})).toHaveValue('STANDARD-SAVED');
-  await expect(page.getByLabel('Client', {exact:true})).toHaveValue('Offline Windows acceptance');
+  await expect(page.locator('#main-estimate-form').getByLabel('Client', {exact:true})).toHaveValue('Offline Windows acceptance');
   assert.deepEqual(await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()),calculators);
   await page.screenshot({path:path.join(output,'saved-legacy-project.png'),fullPage:true});
   const protectedBefore = fs.readFileSync(path.join(output,'protected-v2.cf.json'));

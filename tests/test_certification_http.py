@@ -153,11 +153,13 @@ class CertificationHTTPTests(unittest.TestCase):
         self.assertEqual(self.request('GET','/api/certifications/36a7dfcb-d73e-4536-aa24-df04827c63f3')[0],404)
         self.assertEqual(self.json('GET','/api/certifications'),{'items':[]})
 
-    def test_certificate_options_cover_override_and_frozen_retry_contract(self):
+    def test_certificate_global_cover_order_and_frozen_retry_contract(self):
         self.json('POST', '/api/company-settings', {**DEFAULTS, 'cover_pdf': cover('GLOBAL COVER'),
                   'cover_pdf_name': 'Global.pdf'})
         selected = {'cover_pdf': cover('LOCAL COVER'), 'cover_pdf_name': 'Local.pdf',
                     'scopes': ['service_penetrations', 'ductwork']}
+        self.json('POST', '/api/pdf-covers/certification', {'cover_pdf': cover('SETTINGS COVER'),
+                  'cover_pdf_name': 'Settings.pdf', 'expected_version': 1})
         doc = self.json('POST', '/api/certifications', {'fields': self.fields, 'options': selected,
                         'request_id': '3bad93f1-a4bb-4d95-98e1-bdfd0331ad52'}, expected=201)
         path = '/api/certifications/' + doc['id']
@@ -173,9 +175,10 @@ class CertificationHTTPTests(unittest.TestCase):
         with patch('estimator.certification_report.render_certificate_pdf', return_value=pdf('CERTIFICATE BODY')):
             generated = self.json('POST', path+'/revisions', request, expected=201)
         first = self.request('GET', generated['revision']['pdf_url'])[2]
-        self.assertEqual(len(texts(first)), 2)
-        self.assertIn('LOCAL COVER', texts(first)[0])
-        self.assertNotIn('GLOBAL COVER', ' '.join(texts(first)))
+        self.assertEqual(len(texts(first)), 3)
+        self.assertIn('GLOBAL COVER', texts(first)[0])
+        self.assertIn('SETTINGS COVER', texts(first)[1])
+        self.assertNotIn('LOCAL COVER', ' '.join(texts(first)))
         self.json('POST', '/api/company-settings', {**DEFAULTS, 'cover_pdf': cover('CHANGED GLOBAL'),
                   'cover_pdf_name': 'Changed.pdf'})
         replay = self.json('POST', path+'/revisions', request, expected=201)
@@ -188,12 +191,12 @@ class CertificationHTTPTests(unittest.TestCase):
 
     def test_signer_defaults_endpoint_cas_validation_and_document_isolation(self):
         initial = self.json('GET', '/api/certifications/defaults')
-        self.assertEqual(initial, {'fields': dict.fromkeys(SIGNER_FIELDS, ''), 'version': 1})
+        self.assertEqual(initial, {'fields': dict.fromkeys(SIGNER_FIELDS, ''), 'version': 1, 'signature_image': None, 'signature_name': ''})
         doc = self.json('POST', '/api/certifications', {'fields': self.fields}, expected=201)
         entered = {'name': 'Saved signer', 'position': 'Entered position',
                    'qualification': 'Entered qualification', 'accreditation': 'Entered accreditation'}
         saved = self.json('POST', '/api/certifications/defaults', {'fields': entered, 'expected_version': 1})
-        self.assertEqual(saved, {'fields': entered, 'version': 2})
+        self.assertEqual(saved, {'fields': entered, 'version': 2, 'signature_image': None, 'signature_name': ''})
         self.assertEqual(self.json('POST', '/api/certifications/defaults',
                                   {'fields': entered, 'expected_version': 1}), saved)
         self.json('POST', '/api/certifications/defaults', {'fields': {**entered, 'name': 'Other'},

@@ -1067,5 +1067,39 @@ async function penetrationCheck(name, fn) {
     assert.equal(h.app.state.currentView,'certification');assert.match(h.byId('app-message').textContent,/certification operation/);
     assert.deepEqual(h.snapshot(),before);
   });
+  await check('Settings lazily opens global Cover sheets and preserves its draft across navigation',async h=>{
+    let opens=0;const draft={name:'Entered cover.pdf',revision:7};
+    h.context.window.CeasefireCoverSheets={open:async()=>{opens++;},hasPendingOperation:()=>false,hasUnsavedChanges:()=>true,fingerprint:()=>JSON.stringify(draft)};
+    const before=h.snapshot();await h.app.requestViewNavigation('settings');assert.equal(opens,1);
+    await h.app.requestViewNavigation('home');assert.equal(h.app.state.currentView,'home');
+    assert.deepEqual(draft,{name:'Entered cover.pdf',revision:7});assert.deepEqual(h.snapshot(),before);
+  });
+  await check('Pending global cover uploads or saves block navigation and every project replacement entry point',async h=>{
+    const before=h.snapshot();let calls=0;h.app.state.currentView='settings';h.app.setRequest(async()=>{calls++;return project();});
+    h.context.window.CeasefireCoverSheets={hasPendingOperation:()=>true,fingerprint:()=> 'pending-cover'};
+    await h.app.requestViewNavigation('home');assert.equal(h.app.state.currentView,'settings');
+    await h.app.newQuote();await h.app.openNativeProject();h.chooseFile();await h.app.loadProject();
+    await h.app.openProjectFile({id:'opaque'},h.element('button'));await h.app.openQuote('old',h.element('button'));
+    assert.equal(calls,0);assert.match(h.byId('app-message').textContent,/cover-sheet operation/);assert.deepEqual(h.snapshot(),before);
+  });
+  await check('A changed global cover draft during project loading stops replacement and keeps both drafts',async h=>{
+    const pending=deferred();let coverRevision=1;const before=h.snapshot();
+    h.context.window.CeasefireCoverSheets={hasPendingOperation:()=>false,hasUnsavedChanges:()=>true,fingerprint:()=>String(coverRevision)};
+    h.app.setRequest(()=>pending.promise);h.chooseFile();const loading=h.app.loadProject();await flush();coverRevision++;
+    pending.resolve(project());await loading;assert.match(h.byId('app-message').textContent,/draft changed while reading/);
+    assert.deepEqual(h.snapshot(),before);assert.equal(coverRevision,2);
+  });
+  await check('Global cover drafts participate in unload and desktop close reviews without becoming saved project data',async h=>{
+    h.app.state.initialized=true;h.app.state.dirty=false;h.app.state.configuration={inventory:{},rates:{}};h.app.state.draft=copy(h.app.state.configuration);
+    h.app.state.quoteConfiguration=null;h.app.state.projectPricingDraft=null;h.context.window.CeasefireCalculators.hasUnsavedChanges=()=>false;
+    assert.equal(h.context.window.CeasefireDesktop.status().dirty,false);
+    let revision=1,pending=false;h.context.window.CeasefireCoverSheets={hasUnsavedChanges:()=>true,hasPendingOperation:()=>pending,fingerprint:()=>String(revision)};
+    const stamp=h.app.projectStamp();assert.equal(h.context.window.CeasefireDesktop.status().dirty,true);
+    let prevented=false;const event={preventDefault(){prevented=true;}};h.windowListeners.beforeunload[0](event);assert.equal(prevented,true);
+    let closing=h.app.reviewDesktopClose();await flush();assert.equal(h.byId('discard-dialog').open,true);
+    assert.match(h.byId('discard-dialog').querySelector('p').textContent,/cover-sheet edits/);revision++;
+    await h.byId('discard-dialog').close('confirm');assert.equal(await closing,false);assert.equal(h.app.projectStamp(),stamp);
+    pending=true;assert.equal(await h.app.reviewDesktopClose(),false);assert.equal(h.byId('discard-dialog').open,false);
+  });
   console.log(`${passed} project UI regression checks passed.`);
 })().catch(error => { console.error(error); process.exitCode = 1; });

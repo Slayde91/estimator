@@ -9,7 +9,7 @@
   const signerNames = ['name', 'position', 'qualification', 'accreditation'];
   const controls = Object.fromEntries(fieldNames.map(name => [name, $('certification-' + name)]));
   const selector = $('certification-document'), saveButton = $('certification-save'), generateButton = $('certification-generate');
-  const coverFile = $('certification-cover-pdf'), coverDelete = $('certification-cover-delete');
+  const signatureFile = $('certification-signature-image'), signatureDelete = $('certification-signature-delete');
   const statement = "This is to certify that the fire rated materials have been installed according to the manufacturer's specifications to provide the nominated fire resistance level for the items listed in the relevant schedule. All materials have been installed at the above location and comply with:";
   // These are the user's exact editable presets, not a determination of compliance.
   const as1530 = 'AS 1530.4: 2014 Methods for fire tests on building materials, components & structures';
@@ -25,12 +25,12 @@
       'BCA 2022: C4D16 Construction joints']}
   ];
   const scopeControls = scopes.map(scope => $('certification-scope-' + scope.id));
-  const emptyOptions = () => ({cover_pdf:null, cover_pdf_name:'', scopes:[]});
+  const emptyOptions = () => ({cover_pdf:null, cover_pdf_name:'', scopes:[],signature_image:null,signature_name:''});
   const state = {id:null, version:null, baseline:null, busy:false, pending:null, loaded:false,
-    items:[], listRevision:0, companyName:'', companyCoverName:'', opening:null, conflicted:false,
-    options:emptyOptions(), coverRevision:0, readingCover:false, touched:new Set(),
+    items:[], listRevision:0, companyName:'', opening:null, conflicted:false,
+    options:emptyOptions(), signatureRevision:0, readingSignature:false, signatureTouched:false, touched:new Set(),
     managed:{australian_standards:[], ncc_clauses:[]}, managedByDocument:new Map(),
-    defaults:{fields:Object.fromEntries(signerNames.map(name=>[name,''])), version:1},
+    defaults:{fields:Object.fromEntries(signerNames.map(name=>[name,''])),signature_image:null,signature_name:'',version:1},
     defaultsDesired:null, defaultsSaving:null, defaultsTimer:null, defaultsError:null};
   const fields = () => Object.fromEntries(fieldNames.map(name => [name, controls[name].value]));
   const options = () => ({...state.options, scopes:[...state.options.scopes]});
@@ -54,15 +54,16 @@
   function dirty() {
     return state.conflicted || !!state.defaultsDesired || !equal(fields(),state.baseline.fields) ||
       state.options.cover_pdf !== state.baseline.options.cover_pdf || state.options.cover_pdf_name !== state.baseline.options.cover_pdf_name ||
+      state.options.signature_image !== state.baseline.options.signature_image || state.options.signature_name !== state.baseline.options.signature_name ||
       !equal(state.options.scopes,state.baseline.options.scopes);
   }
   function updateControls() {
-    const locked = !state.loaded || !!state.opening || state.busy || !!state.pending || state.readingCover;
-    for (const control of [...Object.values(controls), ...scopeControls, selector, coverFile]) control.disabled = locked;
-    coverDelete.disabled = locked || !state.options.cover_pdf;
-    saveButton.disabled = !state.loaded || !!state.opening || state.busy || state.readingCover || (!!state.pending && state.pending.kind !== 'save');
-    generateButton.disabled = !state.loaded || !!state.opening || state.busy || state.readingCover || (!!state.pending && state.pending.kind !== 'generate');
-    form.setAttribute('aria-busy', String(state.busy || !!state.opening || state.readingCover));
+    const locked = !state.loaded || !!state.opening || state.busy || !!state.pending || state.readingSignature;
+    for (const control of [...Object.values(controls), ...scopeControls, selector, signatureFile]) control.disabled = locked;
+    signatureDelete.disabled = locked || !state.options.signature_image;
+    saveButton.disabled = !state.loaded || !!state.opening || state.busy || state.readingSignature || (!!state.pending && state.pending.kind !== 'save');
+    generateButton.disabled = !state.loaded || !!state.opening || state.busy || state.readingSignature || (!!state.pending && state.pending.kind !== 'generate');
+    form.setAttribute('aria-busy', String(state.busy || !!state.opening || state.readingSignature));
   }
   function companyText(name) {
     state.companyName = name;
@@ -84,6 +85,10 @@
   const post = (path, body) => request(path, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
   const uuid = () => window.crypto.randomUUID();
   const signerFields = () => Object.fromEntries(signerNames.map(name=>[name,controls[name].value]));
+  // Opening an older unsigned certificate must not clear the separately saved
+  // signature when the user only edits a name or qualification. Image changes
+  // enter the shared defaults only after an explicit upload or removal.
+  const signerSnapshot = () => ({fields:signerFields(),...(state.signatureTouched?{signature_image:state.options.signature_image,signature_name:state.options.signature_name}:{})});
   async function flushSignerDefaults({interactive=false}={}) {
     if (state.defaultsTimer) { clearTimeout(state.defaultsTimer); state.defaultsTimer=null; }
     if (state.defaultsSaving) { const succeeded=await state.defaultsSaving; return succeeded && state.defaultsDesired ? flushSignerDefaults({interactive}) : succeeded; }
@@ -99,7 +104,7 @@
     const desired={...state.defaultsDesired}, version=state.defaults.version;
     state.defaultsSaving=(async()=>{
       try {
-        const saved=await post('/api/certifications/defaults',{fields:desired,expected_version:version});
+        const saved=await post('/api/certifications/defaults',{...desired,expected_version:version});
         state.defaults=saved;state.defaultsError=null;
         if(equal(desired,state.defaultsDesired))state.defaultsDesired=null;
         signerMessage('Signer details saved for future certificates.');return true;
@@ -113,7 +118,7 @@
     return succeeded && state.defaultsDesired ? flushSignerDefaults({interactive}) : succeeded;
   }
   function queueSignerDefaults() {
-    state.defaultsDesired=signerFields();
+    state.defaultsDesired=signerSnapshot();
     signerMessage('Saving signer details…');
     if(state.defaultsTimer)clearTimeout(state.defaultsTimer);
     state.defaultsTimer=setTimeout(()=>{state.defaultsTimer=null;void flushSignerDefaults();},450);
@@ -129,11 +134,13 @@
     if(state.id){const reload=node('option');reload.value='__reload__';text(reload,'Reload saved details');saved.push(reload);}
     selector.replaceChildren(...(state.id?[fresh]:[draft,fresh]),...saved);selector.value=state.id||'__draft__';
   }
-  function renderCover() {
-    const host=$('certification-cover-name');
-    if(state.options.cover_pdf)text(host,'Cover sheet: {0}',[state.options.cover_pdf_name||'Cover sheet.pdf']);
-    else if(state.companyCoverName)text(host,'Company cover sheet will be used: {0}',[state.companyCoverName]);
-    else text(host,'No cover sheet selected.');
+  function renderSignature() {
+    const preview=$('certification-signature-preview');
+    preview.hidden=!state.options.signature_image;
+    if(state.options.signature_image)preview.src=state.options.signature_image;
+    else preview.removeAttribute('src');
+    if(state.options.signature_image)text($('certification-signature-name'),'Signature: {0}',[state.options.signature_name]);
+    else text($('certification-signature-name'),'No signature selected.');
   }
   function presetLines(selected,key) {return [...new Set(scopes.filter(scope=>selected.includes(scope.id)).flatMap(scope=>scope[key]))];}
   function renderScopes() {
@@ -173,14 +180,17 @@
   function normalizeOptions(value) {
     const result={...emptyOptions(),...(value||{})};
     if(!Array.isArray(result.scopes)||result.scopes.some(id=>!scopes.some(scope=>scope.id===id)))throw new Error('The saved certification scope is invalid.');
-    result.scopes=scopes.filter(scope=>result.scopes.includes(scope.id)).map(scope=>scope.id);return result;
+    result.scopes=scopes.filter(scope=>result.scopes.includes(scope.id)).map(scope=>scope.id);
+    if(typeof result.signature_name!=='string'||result.signature_name.length>200||/[\/\\\x00-\x1f]/.test(result.signature_name)||
+      result.signature_image!==null&&(typeof result.signature_image!=='string'||!/^data:image\/(png|jpeg);base64,[A-Za-z0-9+/=]+$/.test(result.signature_image)))throw new Error('Choose a PNG or JPEG signature smaller than 2 MB.');
+    return result;
   }
   function applyDocument(saved, {preserveManaged=false}={}) {
     const cached=state.managedByDocument.get(saved.id);
     const known=preserveManaged?state.managed:cached?.version===saved.version?cached.managed:null;
     ++state.listRevision;state.id=saved.id;state.version=saved.version;state.conflicted=false;state.touched.clear();
     for(const name of fieldNames)controls[name].value=saved.fields[name]||'';
-    state.options=normalizeOptions(saved.options);state.coverRevision++;
+    state.options=normalizeOptions(saved.options);state.signatureRevision++;state.signatureTouched=false;
     // Acknowledged local saves retain ownership. Unknown saved text is treated
     // as authored content, never silently deleted when a scope is cleared.
     state.managed=Object.fromEntries(['australian_standards','ncc_clauses'].map(name=>[name,
@@ -189,23 +199,30 @@
     state.baseline=snapshot();
     const index=state.items.findIndex(item=>item.id===saved.id);
     if(index<0)state.items.unshift(saved);else state.items[index]=saved;
-    renderDocuments();renderScopes();renderCover();renderRevisions(saved.revisions||[]);
+    renderDocuments();renderScopes();renderSignature();renderRevisions(saved.revisions||[]);
   }
   function acknowledgesAction(saved,action,version) {
     const savedOptions=normalizeOptions(saved.options);
     return saved.version===version && fieldNames.every(name=>saved.fields[name]===action.fields[name]) &&
       savedOptions.cover_pdf===action.options.cover_pdf && savedOptions.cover_pdf_name===action.options.cover_pdf_name &&
+      savedOptions.signature_image===action.options.signature_image && savedOptions.signature_name===action.options.signature_name &&
       equal(savedOptions.scopes,action.options.scopes);
   }
   function inheritedFields() {
     const project=window.CeasefireProject?.details?.()||{};
     return {client:project.client||'',project:project.project_no||'',address:project.site_address||'',
-      exclusions:'Project No.: '+(project.project_no||''),statement_of_compliance:statement,...state.defaults.fields};
+      exclusions:'Project No.: '+(project.project_no||''),statement_of_compliance:statement,
+      approved_design:'N/A',additional_standards:'N/A',other_references:'N/A',...state.defaults.fields};
   }
   function refreshInheritedFields() {
-    if(state.id||!state.loaded||state.busy||state.pending||state.readingCover)return;
+    if(state.id||!state.loaded||state.busy||state.pending||state.readingSignature)return;
     for(const [name,value]of Object.entries(inheritedFields()))if(!state.touched.has(name)){
       controls[name].value=value;state.baseline.fields[name]=value;
+    }
+    if(!state.signatureTouched){
+      state.options.signature_image=state.defaults.signature_image||null;state.options.signature_name=state.defaults.signature_name||'';
+      state.baseline.options.signature_image=state.options.signature_image;state.baseline.options.signature_name=state.options.signature_name;
+      renderSignature();
     }
   }
   async function confirmDiscard() {
@@ -214,7 +231,7 @@
     const accepted=await window.CeasefireDialogs.confirm('Unsaved certification details',
       'Continue without saving these certification details?','Continue without saving','Keep editing');
     if(!accepted)return false;
-    if(captured!==smallStamp(snapshot())||id!==state.id||state.busy||state.pending||state.readingCover){
+    if(captured!==smallStamp(snapshot())||id!==state.id||state.busy||state.pending||state.readingSignature){
       message('Certification details changed during the confirmation. Review the current fields first.',true);return false;
     }
     return true;
@@ -222,13 +239,14 @@
   function freshFields() {
     for(const name of fieldNames)controls[name].value='';
     Object.entries(inheritedFields()).forEach(([name,value])=>{controls[name].value=value;});
-    state.id=state.version=null;state.conflicted=false;state.touched.clear();state.options=emptyOptions();state.coverRevision++;
-    state.managed={australian_standards:[],ncc_clauses:[]};state.baseline=snapshot();coverFile.value='';
-    renderDocuments();renderScopes();renderCover();renderRevisions([]);updateControls();message('Enter the certification details.');
+    state.id=state.version=null;state.conflicted=false;state.touched.clear();state.signatureTouched=false;
+    state.options={...emptyOptions(),signature_image:state.defaults.signature_image||null,signature_name:state.defaults.signature_name||''};state.signatureRevision++;
+    state.managed={australian_standards:[],ncc_clauses:[]};state.baseline=snapshot();signatureFile.value='';
+    renderDocuments();renderScopes();renderSignature();renderRevisions([]);updateControls();message('Enter the certification details.');
   }
   async function loadDocument(id) {
-    if(state.busy||state.pending||state.opening||state.readingCover||!await confirmDiscard()){selector.value=state.id||'__draft__';return;}
-    if(state.busy||state.pending||state.opening||state.readingCover){selector.value=state.id||'__draft__';return;}
+    if(state.busy||state.pending||state.opening||state.readingSignature||!await confirmDiscard()){selector.value=state.id||'__draft__';return;}
+    if(state.busy||state.pending||state.opening||state.readingSignature){selector.value=state.id||'__draft__';return;}
     state.busy=true;updateControls();
     try{
       if(!await flushSignerDefaults({interactive:true})){selector.value=state.id||'__draft__';message('Signer details are still unsaved. Your certification details are kept.',true);return;}
@@ -246,16 +264,16 @@
     message('Loading certification…');
     state.opening=(async()=>{
       const [company,defaults]=await Promise.all([request('/api/company-settings'),request('/api/certifications/defaults')]);
-      companyText(company.name);state.companyCoverName=company.cover_pdf?(company.cover_pdf_name||'Cover sheet.pdf'):'';
+      companyText(company.name);
       if(!state.defaultsDesired&&!state.defaultsSaving)state.defaults=defaults;
       await loadList();
       if(!state.loaded){state.loaded=true;freshFields();}
-      else{refreshInheritedFields();renderCover();message(dirty()?'Unsaved certification details':'Saved certification details');}
+      else{refreshInheritedFields();renderSignature();message(dirty()?'Unsaved certification details':'Saved certification details');}
     })();updateControls();
     try{return await state.opening;}finally{state.opening=null;updateControls();}
   }
   async function perform(kind) {
-    if(!state.loaded||state.opening||state.busy||state.readingCover||(state.pending&&state.pending.kind!==kind))return;
+    if(!state.loaded||state.opening||state.busy||state.readingSignature||(state.pending&&state.pending.kind!==kind))return;
     if(!form.reportValidity())return;
     const action=state.pending||{kind,...snapshot(),id:state.id,version:state.version,createRequestId:uuid(),generationRequestId:uuid()};
     state.pending=action;state.busy=true;updateControls();
@@ -284,24 +302,32 @@
       message(state.pending?'The operation result could not be confirmed. Retry the same button to recover it without creating another revision.':error.message,true);
     }finally{state.busy=false;updateControls();endActivity?.();}
   }
-  coverFile.addEventListener('change',async()=>{
-    const chosen=coverFile.files?.[0];if(!chosen||state.busy||state.pending||state.opening||state.readingCover)return;
-    if((!/\.pdf$/i.test(chosen.name)&&chosen.type!=='application/pdf')||chosen.size>10*1024*1024||!chosen.size){message('Choose a PDF cover sheet smaller than 10 MB.',true);coverFile.value='';return;}
-    state.readingCover=true;updateControls();const endActivity=window.CeasefireActivity?.begin();
+  signatureFile.addEventListener('change',async()=>{
+    const chosen=signatureFile.files?.[0];if(!chosen||state.busy||state.pending||state.opening||state.readingSignature)return;
+    if(!['image/png','image/jpeg'].includes(chosen.type)||chosen.size>2*1024*1024||!chosen.size||chosen.name.length>200||/[\/\\\x00-\x1f]/.test(chosen.name)){
+      message('Choose a PNG or JPEG signature smaller than 2 MB.',true);signatureFile.value='';return;
+    }
+    state.readingSignature=true;updateControls();const endActivity=window.CeasefireActivity?.begin();
     try{
-      const value=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=()=>reject(new Error('The PDF cover sheet could not be read.'));reader.readAsDataURL(chosen);});
-      state.options.cover_pdf='data:application/pdf;base64,'+String(value).split(',')[1];state.options.cover_pdf_name=chosen.name;state.coverRevision++;
-      renderCover();message('Unsaved certification details');
-    }catch(error){message(error.message,true);}finally{state.readingCover=false;coverFile.value='';updateControls();endActivity?.();}
+      const value=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=()=>reject(new Error('The signature image could not be read.'));reader.readAsDataURL(chosen);});
+      const image='data:'+chosen.type+';base64,'+String(value).split(',')[1];
+      if(!/^data:image\/(png|jpeg);base64,[A-Za-z0-9+/=]+$/.test(image))throw new Error('The signature image could not be read.');
+      state.options.signature_image=image;state.options.signature_name=chosen.name;state.signatureRevision++;state.signatureTouched=true;
+      renderSignature();queueSignerDefaults();message('Unsaved certification details');
+    }catch(error){message(error.message,true);}finally{state.readingSignature=false;signatureFile.value='';updateControls();endActivity?.();}
   });
-  coverDelete.addEventListener('click',()=>{if(state.busy||state.pending||state.opening||state.readingCover)return;state.options.cover_pdf=null;state.options.cover_pdf_name='';state.coverRevision++;coverFile.value='';renderCover();updateControls();message(dirty()?'Unsaved certification details':'Saved certification details');});
-  scopeControls.forEach(control=>control.addEventListener('change',()=>{if(!state.busy&&!state.pending&&!state.opening&&!state.readingCover)scopeChange();}));
+  signatureDelete.addEventListener('click',()=>{
+    if(state.busy||state.pending||state.opening||state.readingSignature)return;
+    state.options.signature_image=null;state.options.signature_name='';state.signatureRevision++;state.signatureTouched=true;signatureFile.value='';
+    renderSignature();queueSignerDefaults();updateControls();message(dirty()?'Unsaved certification details':'Saved certification details');
+  });
+  scopeControls.forEach(control=>control.addEventListener('change',()=>{if(!state.busy&&!state.pending&&!state.opening&&!state.readingSignature)scopeChange();}));
   $('certification-scopes').addEventListener('keydown',event=>{
     if(event.key==='Escape'){$('certification-scopes').open=false;$('certification-scopes').querySelector('summary')?.focus();event.preventDefault();}
   });
   window.addEventListener('click',event=>{if(!$('certification-scopes').contains(event.target))$('certification-scopes').open=false;});
   for(const [name,control]of Object.entries(controls))control.addEventListener('input',()=>{
-    if(state.busy||state.pending||state.opening||state.readingCover)return;state.touched.add(name);
+    if(state.busy||state.pending||state.opening||state.readingSignature)return;state.touched.add(name);
     if(signerNames.includes(name))queueSignerDefaults();message(dirty()?'Unsaved certification details':'Saved certification details');
   });
   for(const id of ['client','site-address','project-no'])$(id)?.addEventListener('input',refreshInheritedFields);
@@ -312,7 +338,7 @@
   window.addEventListener('ceasefire:company-settings-saved',event=>{if(typeof event.detail?.name==='string')companyText(event.detail.name);});
   window.addEventListener('ceasefire:languagechange',renderScopes);
   window.CeasefireCertification={open,hasUnsavedChanges:()=>dirty()||!!state.pending,
-    hasPendingOperation:()=>!!state.opening||state.busy||state.readingCover||!!state.pending||!!state.defaultsSaving||!!state.defaultsTimer,
-    fingerprint:()=>JSON.stringify({id:state.id,version:state.version,fields:fields(),options:{scopes:state.options.scopes,cover_pdf_name:state.options.cover_pdf_name,cover_revision:state.coverRevision},pending:state.pending&&{kind:state.pending.kind,id:state.pending.id,version:state.pending.version,createRequestId:state.pending.createRequestId,generationRequestId:state.pending.generationRequestId},signerDefaultsPending:state.defaultsDesired})};
-  renderRevisions([]);renderScopes();renderCover();updateControls();
+    hasPendingOperation:()=>!!state.opening||state.busy||state.readingSignature||!!state.pending||!!state.defaultsSaving||!!state.defaultsTimer,
+    fingerprint:()=>JSON.stringify({id:state.id,version:state.version,fields:fields(),options:{scopes:state.options.scopes,cover_pdf_name:state.options.cover_pdf_name,signature_name:state.options.signature_name,signature_revision:state.signatureRevision},pending:state.pending&&{kind:state.pending.kind,id:state.pending.id,version:state.pending.version,createRequestId:state.pending.createRequestId,generationRequestId:state.pending.generationRequestId},signerDefaultsPending:state.defaultsDesired&&{fields:state.defaultsDesired.fields,signature_name:state.defaultsDesired.signature_name,signature_revision:state.signatureRevision}})};
+  renderRevisions([]);renderScopes();renderSignature();updateControls();
 })();

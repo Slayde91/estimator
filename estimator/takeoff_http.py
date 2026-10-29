@@ -203,8 +203,9 @@ class TakeoffHTTP:
             if not isinstance(body, dict) or set(body) - allowed:
                 raise ValidationError('Draft physical export accepts only its workspace scope and supported document selection.')
             payload, kind, filename = self.service.export_physical(session_id, format, body.get('scope', 'defect_reports'), body.get('expected_revision'), body.get('confirmation'),
-                                                                  company=handler.company_details())
-            handler.send_download(payload, kind, filename, destination) if destination is not None else handler.send_download(payload, kind, filename)
+                                                                  company=(handler.pdf_company_details('physical_matrix') if format == 'pdf' else handler.company_details()))
+            cover = {'pdf_kind': 'physical_matrix'} if format == 'pdf' else {}
+            handler.send_download(payload, kind, filename, destination, **cover) if destination is not None else handler.send_download(payload, kind, filename, **cover)
             return True
         elif action == 'transfer-preview':
             result = self.service.preview_transfer(session_id, body)
@@ -250,21 +251,26 @@ class TakeoffHTTP:
             if query:
                 raise ValidationError('Current Takeoffs exports accept a structured request only.')
             destination = handler.capture_download(body.pop('download')) if 'download' in body else None
+            if action == 'export/marked-pdf':
+                handler.pdf_company_details('takeoff_markups')
             payload, kind, filename = self.service.export_workspace(session_id, action.rsplit('/', 1)[1], body)
-            handler.send_download(payload, kind, filename, destination) if destination is not None else handler.send_download(payload, kind, filename)
+            cover = {'pdf_kind': 'takeoff_markups'} if action == 'export/marked-pdf' else {}
+            handler.send_download(payload, kind, filename, destination, **cover) if destination is not None else handler.send_download(payload, kind, filename, **cover)
             return True
         elif action == 'export/markup-pdf':
             if query:
                 raise ValidationError('Markup PDF exports accept a structured request only.')
             destination = handler.capture_download(body.pop('download')) if 'download' in body else None
+            handler.pdf_company_details('takeoff_markups')
             payload, kind, filename = self.service.export_markups(session_id, body, getattr(handler, 'download_progress', None))
-            handler.send_download(payload, kind, filename, destination) if destination is not None else handler.send_download(payload, kind, filename)
+            handler.send_download(payload, kind, filename, destination, pdf_kind='takeoff_markups') if destination is not None else handler.send_download(payload, kind, filename, pdf_kind='takeoff_markups')
             return True
         elif action == 'pdf-tools':
             if query:
                 raise ValidationError('PDF Tools accept a structured request only.')
+            handler.pdf_company_details('pdf_tools')
             payload, kind, filename = self.service.export_pdf_tools(session_id, body)
-            handler.send_download(payload, kind, filename)
+            handler.send_download(payload, kind, filename, pdf_kind='pdf_tools')
             return True
         else:
             handler.send_payload(404, {'error': 'Unknown takeoff operation.'})

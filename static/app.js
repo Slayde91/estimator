@@ -87,18 +87,44 @@
     "CLASSIFIRE | Passive Fire Intelligence | Depth. Thickness. Compatibility. I have standards.",
     "CLASSIFIRE | Passive Fire Intelligence | Looking for something long-term. Minimum 120 minutes.",
     "CLASSIFIRE | Passive Fire Intelligence | Let me help you spray your load.",
+    "Passive Fire Intelligence.",
   ];
+  const intelligencePhrase = "Passive Fire Intelligence.";
+  const scrambleAlphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789@#$%&*+=?";
+  const taglineNow = () => typeof performance === "object" ? performance.now() : Date.now();
+  // The brand line stays literal, like the matching website lockup.
+  const phraseText = value => value === intelligencePhrase ? value : window.CeasefireI18n.translate(value);
   const storageKey = "ceasefire.headerTagline.last";
   let previous;
   try { previous = window.localStorage.getItem(storageKey); } catch { /* Storage may be unavailable. */ }
   // All phrases share one hidden grid cell, reserving the tallest wrapping at
   // this width before typing or navigation can change the visible sentence.
   function sizePhrases() {
-    sizer.replaceChildren(...phrases.map(phrase => { const line = document.createElement("span"); line.textContent = window.CeasefireI18n.translate(phrase) + "_"; return line; }));
+    sizer.replaceChildren(...phrases.map(phrase => { const line = document.createElement("span"); line.textContent = phraseText(phrase) + "_"; return line; }));
   }
   sizePhrases();
   const motion = window.matchMedia?.("(prefers-reduced-motion: reduce)");
-  let phrase = "", displayedPhrase = "", characters = [], typingTimer = null, cursorTimer = null, count = 0, complete = false, closed = false;
+  let phrase = "", displayedPhrase = "", characters = [], typingTimer = null, cursorTimer = null, count = 0, complete = false, closed = false, scrambleStarted = 0;
+  let intelligenceAudio = null, soundGeneration = 0;
+  try {
+    if (typeof window.Audio === "function") {
+      intelligenceAudio = new window.Audio(); intelligenceAudio.preload = "auto";
+      intelligenceAudio.src = "/sounds/gameover.mp3"; intelligenceAudio.load();
+    }
+  } catch { /* Optional sound never affects the header. */ }
+  function stopIntelligenceSound() {
+    ++soundGeneration;
+    try { intelligenceAudio?.pause(); if (intelligenceAudio) intelligenceAudio.currentTime = 0; } catch { /* Media can be unavailable. */ }
+  }
+  function playIntelligenceSound() {
+    if (!intelligenceAudio || closed || document.hidden) return;
+    const attempt = ++soundGeneration;
+    try {
+      // One attempt for this appearance. Never retry a blocked clip after a
+      // later gesture or readiness event from a different phrase.
+      intelligenceAudio.play()?.catch?.(() => { if (attempt === soundGeneration) stopIntelligenceSound(); });
+    } catch { if (attempt === soundGeneration) stopIntelligenceSound(); }
+  }
   function stopCursor() {
     clearTimeout(cursorTimer);
     cursorTimer = null;
@@ -106,7 +132,7 @@
   }
   function finish() {
     window.CeasefireHeaderTaglineSound?.stop();
-    if (closed || motion?.matches) window.CeasefireHeaderTaglineMedia?.stop();
+    if (closed || motion?.matches || (phrase === intelligencePhrase && document.hidden)) window.CeasefireHeaderTaglineMedia?.stop();
     else if (!complete) window.CeasefireHeaderTaglineMedia?.finish();
     clearTimeout(typingTimer);
     typingTimer = null;
@@ -121,7 +147,20 @@
     if (count < characters.length) typingTimer = setTimeout(typeNext, 35);
     else finish();
   }
+  function scrambleNext() {
+    if (closed || complete) return;
+    if (motion?.matches || document.hidden) { finish(); return; }
+    const elapsed = taglineNow() - scrambleStarted;
+    if (elapsed >= 5000) { finish(); return; }
+    // Match the website: all words scramble for three seconds, then resolve
+    // left to right over two seconds. Keep word spaces and character count.
+    const resolved = Math.max(0, (elapsed - 3000) / 2000) * characters.length;
+    typed.textContent = characters.map((character, index) => character === " " || index < resolved
+      ? character : scrambleAlphabet[Math.floor(Math.random() * scrambleAlphabet.length)]).join("");
+    typingTimer = setTimeout(scrambleNext, 55);
+  }
   function close() {
+    stopIntelligenceSound();
     window.CeasefireHeaderTaglineSound?.close();
     window.CeasefireHeaderTaglineMedia?.close();
     closed = true;
@@ -132,25 +171,33 @@
     if (closed) return;
     clearTimeout(typingTimer);
     typingTimer = null;
+    stopIntelligenceSound();
     stopCursor();
     const choices = phrases.filter(choice => choice !== (phrase || previous));
     phrase = choices[Math.floor(Math.random() * choices.length)];
     try { window.localStorage.setItem(storageKey, phrase); } catch { /* The phrase still works without storage. */ }
-    displayPhrase();
+    displayPhrase(true);
   }
-  function displayPhrase() {
+  function displayPhrase(newAppearance = false) {
     window.CeasefireHeaderTaglineSound?.stop();
     clearTimeout(typingTimer); typingTimer = null; stopCursor();
-    displayedPhrase = window.CeasefireI18n.translate(phrase);
+    displayedPhrase = phraseText(phrase);
     label.textContent = displayedPhrase;
     characters = Array.from(displayedPhrase); count = 0; complete = false;
     typed.textContent = ""; cursor.hidden = false;
-    if (motion?.matches) finish(); else { window.CeasefireHeaderTaglineMedia?.start(); window.CeasefireHeaderTaglineSound?.start(); typeNext(); }
+    if (phrase === intelligencePhrase) {
+      if (newAppearance) playIntelligenceSound();
+      if (motion?.matches || document.hidden) finish();
+      else { window.CeasefireHeaderTaglineMedia?.start(); scrambleStarted = taglineNow(); scrambleNext(); }
+    } else if (motion?.matches) finish(); else { window.CeasefireHeaderTaglineMedia?.start(); window.CeasefireHeaderTaglineSound?.start(); typeNext(); }
   }
   nextPhrase();
   window.addEventListener("ceasefire:languagechange", () => { sizePhrases(); if (!closed) displayPhrase(); });
   window.CeasefireHeaderTagline = Object.freeze({ next: nextPhrase });
   motion?.addEventListener?.("change", event => { if (event.matches) finish(); });
+  document.addEventListener?.("visibilitychange", () => {
+    if (document.hidden && phrase === intelligencePhrase) { stopIntelligenceSound(); finish(); }
+  });
   window.addEventListener?.("pagehide", close, { once: true });
 })();
 // HEADER_TAGLINE:END
@@ -831,13 +878,14 @@
   async function notify(title, detail) { message(detail || title, true); }
 
   async function newQuote() {
-    if (state.projectBusy) return;
+    if (state.projectBusy || coverReplacementPending()) return;
     if (projectHasChanges() && !await confirmReplace(uiCopy("Start a new project?"), uiCopy("The Quote, Firestopping items, {0}project library drafts, project pricing and all three specialist calculator drafts will be replaced with defaults using your saved pricing library. Shared libraries stay unchanged.", [window.CeasefireI18n.term(takeoffContents())]), uiCopy("New project"))) return;
     if (state.initialized) {
       try {
-        const captured = projectStamp();
+        const captured = projectReplacementStamp();
         const [prepared, penetration, takeoffs, libraryDrafts] = await Promise.all([window.CeasefireCalculators.prepareDefaults(), window.CeasefirePenetrations?.prepareDefaults(state.configuration), window.CeasefireTakeoffs?.prepareDefaults(), window.CeasefireLibraryEditor?.prepareProject?.()]);
-        if (captured !== projectStamp()) throw new Error("The current project changed while preparing defaults. Try again when ready.");
+        if (coverReplacementPending()) return;
+        if (captured !== projectReplacementStamp()) throw new Error("The current project changed while preparing defaults. Try again when ready.");
         window.CeasefireCalculators.applyProject(prepared);
         if (penetration) window.CeasefirePenetrations.applyProject(penetration);
         if (takeoffs) window.CeasefireTakeoffs.applyProject(takeoffs);
@@ -917,19 +965,20 @@
   }
 
   async function openQuote(id, button) {
-    if (state.projectBusy) return;
+    if (state.projectBusy || coverReplacementPending()) return;
     button.disabled = true;
     const loadRevision = ++state.quoteLoadRevision;
     try {
       const quote = await request(`/api/quotes/${encodeURIComponent(id)}`);
       if (loadRevision !== state.quoteLoadRevision) return;
-      const captured = projectStamp();
+      const captured = projectReplacementStamp();
       const [prepared, penetration, takeoffs] = await Promise.all([window.CeasefireCalculators.prepareDefaults(), quote.penetration
         ? window.CeasefirePenetrations?.prepareProject(quote.penetration, quote.configuration || state.configuration)
         : window.CeasefirePenetrations?.prepareDefaults(quote.configuration || state.configuration), window.CeasefireTakeoffs?.prepareDefaults()]);
       const scope = quote.penetration ? "This record contains the estimate, its firestopping schedule and original pricing. The current item and other calculators will start from defaults." : "This record contains the estimate and its original pricing only. The penetration schedule and all calculators will start from defaults.";
       if (!await confirmReplace(uiCopy("Open this older estimate?"), uiCopy("{0} The current estimate will be replaced. Save can then save them together.", [window.CeasefireI18n.term(scope)]), uiCopy("Open older estimate"))) return;
-      if (captured !== projectStamp()) throw new Error("The current project changed during review. Open the older estimate again when ready.");
+      if (coverReplacementPending()) return;
+      if (captured !== projectReplacementStamp()) throw new Error("The current project changed during review. Open the older estimate again when ready.");
       if (loadRevision !== state.quoteLoadRevision) return;
       state.quoteContext++;
       state.inputErrors.clear(); state.inputDrafts.clear(); state.workItemErrors.clear(); state.workItemDrafts.clear();
@@ -986,6 +1035,7 @@
   }
 
   function showView(view, librarySelection, calculatorId) {
+    if (view !== state.currentView && window.CeasefireCoverSheets?.hasPendingOperation?.()) { message(uiCopy("Finish or retry the current cover-sheet operation before changing views."), true); return; }
     if (view !== state.currentView && window.CeasefireCertification?.hasPendingOperation?.()) { message(uiCopy("Finish or retry the current certification operation before changing views."), true); return; }
     if (window.CeasefirePenetrations?.hasTakeoffReservation?.() || window.CeasefireTakeoffs?.hasLinkedRecovery?.()) { message(uiCopy("Finish or recover the confirmed Takeoff library link before changing views."), true); return; }
     if (view === "takeoffs" && !state.takeoffsEnabled) { message(uiCopy("TAKEOFFS is not included in this edition."), true); return; }
@@ -1006,6 +1056,7 @@
     if (view === "quotes") loadProjects();
     if (view === "pricing") selectLibrary(state.libraryKind, librarySelection);
     let estimatorReady;
+    if (view === "settings") estimatorReady = window.CeasefireCoverSheets?.open?.()?.catch(error => message(error.message, true));
     if (view === "certification") estimatorReady = window.CeasefireCertification?.open().catch(error => message(error.message, true));
     if (view === "calculators") {
       calculatorId ||= state.calculatorKind;
@@ -1927,6 +1978,18 @@
       calculators: window.CeasefireCalculators.projectFingerprint(), penetration: window.CeasefirePenetrations?.projectFingerprint(), takeoffs: window.CeasefireTakeoffs?.projectFingerprint(), libraryDrafts: window.CeasefireLibraryEditor?.projectFingerprint?.() });
   }
 
+  // Cover defaults are global Settings, not part of a saved project. Their
+  // independent stamp protects replacement races without making project Save
+  // capture or clear an unrelated Settings draft.
+  function projectReplacementStamp() {
+    return JSON.stringify({project:projectStamp(),coverSheets:window.CeasefireCoverSheets?.fingerprint?.()});
+  }
+  function coverReplacementPending() {
+    if (!window.CeasefireCoverSheets?.hasPendingOperation?.()) return false;
+    message(uiCopy("Finish or retry the current cover-sheet operation before replacing a project."),true);
+    return true;
+  }
+
   function projectBusy(value, activeId = null) {
     state.projectBusy = value;
     for (const id of ["save-current-project", "load-project", "link-project-folder", "new-quote", "use-current-pricing"]) {
@@ -2001,10 +2064,10 @@
   }
 
   async function openNativeProject() {
-    if (state.projectBusy) return;
+    if (state.projectBusy || coverReplacementPending()) return;
     projectBusy(true, "load-project");
     try {
-      const captured = projectStamp();
+      const captured = projectReplacementStamp();
       const project = await request("/api/project/open", { method: "POST", body: "{}" });
       if (project.cancelled) { message(uiCopy("Project load cancelled. Your current drafts were kept.")); return; }
       await reviewAndLoadProject(project, project.file, captured);
@@ -2013,12 +2076,13 @@
   }
 
   async function loadProject() {
+    if (coverReplacementPending()) return;
     const input = $("project-import-file"), file = input.files?.[0]; input.value = "";
     if (!file || state.projectBusy) return;
     projectBusy(true, "load-project");
     try {
       if (!/\.cf\.json$/i.test(file.name) || !file.size || file.size > 16 * 1024 * 1024) throw new Error("Choose a .cf.json project file up to 16 MB.");
-      const captured = projectStamp();
+      const captured = projectReplacementStamp();
       const content_base64 = await fileBase64(file);
       const project = await request("/api/project/import", { method: "POST", body: JSON.stringify({ filename: file.name, content_base64 }) });
       await reviewAndLoadProject(project, { name: file.name, ...(file.lastModified ? { modified_at: new Date(file.lastModified).toISOString() } : {}) }, captured);
@@ -2068,13 +2132,16 @@
   async function reviewAndLoadProject(project, file, captured) {
     let takeoffsAdopted = false;
     try {
+      if (coverReplacementPending()) return;
       if (!state.takeoffsEnabled && (project.takeoffs || project.takeoffs_session_id)) throw new Error("This project contains TAKEOFFS data. Open it in the full edition; this edition cannot remove or overwrite that evidence.");
       const [prepared, penetration, takeoffs, libraryDrafts] = await Promise.all([window.CeasefireCalculators.prepareProject(project.calculators), window.CeasefirePenetrations?.prepareProject(project.penetration, project.estimate.configuration), window.CeasefireTakeoffs?.prepareProject(project.takeoffs, project.takeoffs_session_id), window.CeasefireLibraryEditor?.prepareProject?.(project.library_drafts)]);
-      if (captured !== projectStamp()) throw new Error("Your draft changed while reading the file. Load it again when ready.");
+      if (coverReplacementPending()) return;
+      if (captured !== projectReplacementStamp()) throw new Error("Your draft changed while reading the file. Load it again when ready.");
       const detail = project.project_details || {};
       const accepted = await confirmReplace(uiCopy("Load this project?"), uiCopy("{0}\nProject No.: {1}\nClient: {2}\nSite Address: {3}\n\nThis replaces the Quote, Firestopping items, {4}project library drafts, their pricing and all three specialist calculator drafts. Shared libraries stay unchanged.", [file.name, detail.project_no || "Not recorded", detail.client || "Not recorded", detail.site_address || "Not recorded", window.CeasefireI18n.term(takeoffContents())]), uiCopy("Load Project"));
       if (!accepted) { message(uiCopy("Project load cancelled. Your current drafts were kept.")); return; }
-      if (captured !== projectStamp()) throw new Error("Your draft changed during review. Load the file again to keep your latest edits safe.");
+      if (coverReplacementPending()) return;
+      if (captured !== projectReplacementStamp()) throw new Error("Your draft changed during review. Load the file again to keep your latest edits safe.");
       const estimate = project.estimate;
       // All validation and definition loading finish before either workspace changes.
       const inputs = clone(estimate.inputs), configuration = clone(estimate.configuration), fields = clone(project.fields);
@@ -2162,10 +2229,10 @@
   }
 
   async function openProjectFile(file, button) {
-    if (state.projectBusy) return;
+    if (state.projectBusy || coverReplacementPending()) return;
     projectBusy(true); button.disabled = true; button.setAttribute("aria-busy", "true");
     try {
-      const captured = projectStamp();
+      const captured = projectReplacementStamp();
       const project = await request("/api/projects/load", { method: "POST", body: JSON.stringify({ id: file.id }) });
       await reviewAndLoadProject(project, project.file || file, captured);
     } catch (error) { message(uiCopy("Project was not loaded. {0}", [error.message]), true); }
@@ -2378,7 +2445,7 @@
   });
   window.addEventListener("beforeunload", (event) => {
     const pricingChanged = sharedPricingChanged();
-    if (projectHasChanges() || pricingChanged || window.CeasefireLibraryEditor?.hasUnsavedChanges() || window.CeasefireCertification?.hasUnsavedChanges?.()) {
+    if (projectHasChanges() || pricingChanged || window.CeasefireLibraryEditor?.hasUnsavedChanges() || window.CeasefireCertification?.hasUnsavedChanges?.() || window.CeasefireCoverSheets?.hasUnsavedChanges?.()) {
       event.preventDefault(); event.returnValue = pricingChanged ? pricingUnsavedPrompt : "";
     }
   });
@@ -2387,20 +2454,20 @@
   let desktopInputRevision = 0, desktopClosePending = false;
   window.addEventListener("input", () => { desktopInputRevision++; }, true);
   window.addEventListener("change", () => { desktopInputRevision++; }, true);
-  function desktopCloseStamp() { return JSON.stringify({ project: projectStamp(), input: desktopInputRevision, pricing: sharedPricingDraft(), pricingRevision: state.pricingRevision, libraryDirty: !!window.CeasefireLibraryEditor?.hasUnsavedChanges(), certification: window.CeasefireCertification?.fingerprint?.() }); }
-  function desktopBusy() { return state.projectBusy || state.desktopRequests > 0 || !!document.querySelector('dialog[open], [aria-busy="true"]') || !state.initialized || !!window.CeasefireCalculators?.hasPendingOperation?.() || !!window.CeasefirePenetrations?.hasPendingOperation?.() || !!window.CeasefireTakeoffs?.hasPendingOperation?.() || !!window.CeasefireLibraryEditor?.hasPendingOperation?.() || !!window.CeasefireCertification?.hasPendingOperation?.(); }
+  function desktopCloseStamp() { return JSON.stringify({ project: projectStamp(), input: desktopInputRevision, pricing: sharedPricingDraft(), pricingRevision: state.pricingRevision, libraryDirty: !!window.CeasefireLibraryEditor?.hasUnsavedChanges(), certification: window.CeasefireCertification?.fingerprint?.(), coverSheets:window.CeasefireCoverSheets?.fingerprint?.() }); }
+  function desktopBusy() { return state.projectBusy || state.desktopRequests > 0 || !!document.querySelector('dialog[open], [aria-busy="true"]') || !state.initialized || !!window.CeasefireCalculators?.hasPendingOperation?.() || !!window.CeasefirePenetrations?.hasPendingOperation?.() || !!window.CeasefireTakeoffs?.hasPendingOperation?.() || !!window.CeasefireLibraryEditor?.hasPendingOperation?.() || !!window.CeasefireCertification?.hasPendingOperation?.() || !!window.CeasefireCoverSheets?.hasPendingOperation?.(); }
   async function reviewDesktopClose() {
     if (desktopBusy()) { message(uiCopy("Finish the current operation or dialog before closing ESTIMATOR."), true); return false; }
     const captured = desktopCloseStamp();
-    if (projectHasChanges() || sharedPricingChanged() || window.CeasefireLibraryEditor?.hasUnsavedChanges() || window.CeasefireCertification?.hasUnsavedChanges?.()) {
-      if (!await confirmReplace(uiCopy("Close ESTIMATOR?"), uiCopy("There are unsaved project, calculator, library or certification edits. Close without saving discards these edits. Keep editing to save them first."), uiCopy("Close without saving"))) return false;
+    if (projectHasChanges() || sharedPricingChanged() || window.CeasefireLibraryEditor?.hasUnsavedChanges() || window.CeasefireCertification?.hasUnsavedChanges?.() || window.CeasefireCoverSheets?.hasUnsavedChanges?.()) {
+      if (!await confirmReplace(uiCopy("Close ESTIMATOR?"), uiCopy("There are unsaved project, calculator, library, certification or cover-sheet edits. Close without saving discards these edits. Keep editing to save them first."), uiCopy("Close without saving"))) return false;
     }
     if (desktopBusy() || captured !== desktopCloseStamp()) { message(uiCopy("Your draft changed during the close review. Close again when ready to keep your latest edits safe."), true); return false; }
     return true;
   }
   window.CeasefireDesktop = {
     showHome() { showView("home"); },
-    status() { return { ready: state.initialized, takeoffs: state.takeoffsEnabled, dirty: !!(projectHasChanges() || sharedPricingChanged() || window.CeasefireLibraryEditor?.hasUnsavedChanges() || window.CeasefireCertification?.hasUnsavedChanges?.()), busy: desktopBusy() }; },
+    status() { return { ready: state.initialized, takeoffs: state.takeoffsEnabled, dirty: !!(projectHasChanges() || sharedPricingChanged() || window.CeasefireLibraryEditor?.hasUnsavedChanges() || window.CeasefireCertification?.hasUnsavedChanges?.() || window.CeasefireCoverSheets?.hasUnsavedChanges?.()), busy: desktopBusy() }; },
     async requestClose(nonce) {
       const host = window.chrome?.webview;
       if (!host || !/^[a-f0-9]{64}$/.test(nonce || "")) return;

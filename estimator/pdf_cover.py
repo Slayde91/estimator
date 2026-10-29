@@ -92,29 +92,33 @@ def decode_cover_pdf(value):
 
 
 def validate_cover_pdf(value, filename=''):
+    if (not isinstance(filename, str) or len(filename) > 200
+            or any(ord(char) < 32 or 0xD800 <= ord(char) <= 0xDFFF for char in filename)
+            or any(char in filename for char in '/\\')):
+        raise ValidationError('The PDF cover-sheet filename is invalid.')
     if value is None:
         return None, ''
-    if (not isinstance(filename, str) or len(filename) > 200
-            or any(ord(char) < 32 for char in filename) or any(char in filename for char in '/\\')):
-        raise ValidationError('The PDF cover-sheet filename is invalid.')
     decode_cover_pdf(value)
     return value, filename.strip() or 'Cover sheet.pdf'
 
 
-def prepend_cover_pdf(payload, company=None):
+def prepend_cover_pdf(payload, company=None, download_cover=None):
     """Return a covered copy; callers retain originals and freeze revisions.
 
     The function is intentionally not implicitly idempotent: identical cover
     artwork could occur inside a genuine report. Download routing owns the
     exactly-once policy and bypasses this for stored, already-covered revisions.
     """
-    cover = (company or {}).get('cover_pdf')
-    if not cover:
+    covers = [entry.get('cover_pdf') for entry in (company or {}, download_cover or {}) if entry.get('cover_pdf')]
+    if not covers:
         return payload
-    cover_bytes = decode_cover_pdf(cover)
+    # These are two explicitly assigned positions, even when their bytes are
+    # identical: company main first, download-specific second, content last.
+    cover_bytes = [decode_cover_pdf(cover) for cover in covers]
     try:
         writer = PdfWriter()
-        writer.append(_reader(cover_bytes), import_outline=False)
+        for data in cover_bytes:
+            writer.append(_reader(data), import_outline=False)
         body = _reader(payload, strict=False)
         writer.append(body)
         if body.metadata:

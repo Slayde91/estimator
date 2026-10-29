@@ -156,7 +156,8 @@ class TakeoffCurrentExportTests(unittest.TestCase):
             command = 'POST'
             path = '/api/takeoffs/sessions/' + self.case.sid + '/export/schedule-xlsx'
             def read_json(self): return request
-            def send_download(self, *values): self.download = values
+            def pdf_company_details(self, kind): return {}
+            def send_download(self, *values, **options): self.download, self.download_options = values, options
         handler = Handler()
         self.assertTrue(adapter.dispatch(handler, handler.path))
         self.assertTrue(handler.download[0].startswith(b'PK'))

@@ -54,8 +54,9 @@ def validate_fields(value, *, partial=False):
 
 
 def validate_options(value):
-    """Validate user-selected scope IDs and an optional certificate-only cover."""
-    if not isinstance(value, dict) or set(value) != set(DEFAULT_OPTIONS):
+    """Keep legacy option shapes; new clients snapshot signer artwork explicitly."""
+    signature_keys = {'signature_image', 'signature_name'}
+    if not isinstance(value, dict) or set(value) not in (set(DEFAULT_OPTIONS), set(DEFAULT_OPTIONS) | signature_keys):
         raise ValidationError('Include the certificate cover, cover filename and selected scopes only.')
     name = value['cover_pdf_name']
     if (not isinstance(name, str) or len(name) > 200
@@ -69,7 +70,11 @@ def validate_options(value):
         raise ValidationError('Choose each supported certification scope at most once.')
     from .pdf_cover import validate_cover_pdf
     cover, name = validate_cover_pdf(value['cover_pdf'], name)
-    return {'cover_pdf': cover, 'cover_pdf_name': name, 'scopes': scopes[:]}
+    result = {'cover_pdf': cover, 'cover_pdf_name': name, 'scopes': scopes[:]}
+    if signature_keys <= set(value):
+        from .certification_signature import validate_signature
+        result['signature_image'], result['signature_name'] = validate_signature(value['signature_image'], value['signature_name'])
+    return result
 
 
 def validate_signer_fields(value):
@@ -114,7 +119,7 @@ def _revision_metadata(document_id, row):
 
 
 class CertificationService:
-    def __init__(self, store, *, renderer=None, coverer=None):
+    def __init__(self, store, *, renderer=None, coverer=None, covers=None):
         self.store = store
         self.renderer = renderer
         self.coverer = coverer
@@ -149,13 +154,22 @@ class CertificationService:
             columns = {row[1] for row in db.execute('PRAGMA table_info(certification_documents)')}
             if 'create_options' not in columns:
                 db.execute('ALTER TABLE certification_documents ADD COLUMN create_options TEXT')
+            columns = {row[1] for row in db.execute('PRAGMA table_info(certification_signer_defaults)')}
+            if 'signature_image' not in columns:
+                db.execute('ALTER TABLE certification_signer_defaults ADD COLUMN signature_image TEXT')
+                db.execute("ALTER TABLE certification_signer_defaults ADD COLUMN signature_name TEXT NOT NULL DEFAULT ''")
+            columns = {row[1] for row in db.execute('PRAGMA table_info(certification_revisions)')}
+            if 'cover_settings' not in columns:
+                db.execute('ALTER TABLE certification_revisions ADD COLUMN cover_settings TEXT')
             if db.execute('SELECT 1 FROM certification_signer_defaults WHERE id=1').fetchone() is None:
                 latest = db.execute('SELECT fields FROM certification_documents '
                                     'ORDER BY updated_at DESC,id LIMIT 1').fetchone()
                 source = json.loads(latest[0]) if latest else {}
                 signer = validate_signer_fields({key: source.get(key, '') for key in SIGNER_FIELDS})
-                db.execute('INSERT INTO certification_signer_defaults VALUES(1,?,?,?)',
+                db.execute('INSERT INTO certification_signer_defaults(id,fields,version,updated_at) VALUES(1,?,?,?)',
                            (_json(signer), 1, _now()))
+        from .pdf_download_covers import PdfDownloadCovers
+        self.covers = covers or PdfDownloadCovers(store)
 
     @staticmethod
     def _get(db, document_id):
@@ -243,24 +257,31 @@ class CertificationService:
 
     @staticmethod
     def _defaults(db):
-        fields, version = db.execute('SELECT fields,version FROM certification_signer_defaults WHERE id=1').fetchone()
-        return {'fields': json.loads(fields), 'version': version}
+        fields, version, image, name = db.execute('SELECT fields,version,signature_image,signature_name FROM certification_signer_defaults WHERE id=1').fetchone()
+        return {'fields': json.loads(fields), 'version': version, 'signature_image': image, 'signature_name': name}
 
     def get_defaults(self):
         with self.store.connect() as db:
             return self._defaults(db)
 
-    def save_defaults(self, fields, expected_version):
+    def save_defaults(self, fields, expected_version, *, signature_image=_MISSING, signature_name=_MISSING):
         fields = validate_signer_fields(fields); _version(expected_version)
+        if (signature_image is _MISSING) != (signature_name is _MISSING):
+            raise ValidationError('Include both the signature image and filename.')
+        if signature_image is not _MISSING:
+            from .certification_signature import validate_signature
+            signature_image, signature_name = validate_signature(signature_image, signature_name)
         with self.store.connect() as db:
             db.execute('BEGIN IMMEDIATE')
             current = self._defaults(db)
-            if current['fields'] == fields:
+            image = current['signature_image'] if signature_image is _MISSING else signature_image
+            name = current['signature_name'] if signature_name is _MISSING else signature_name
+            if current['fields'] == fields and current['signature_image'] == image and current['signature_name'] == name:
                 return current
             if current['version'] != expected_version:
                 raise CertificationConflict('The saved signer details changed in another window. Reload them before saving again.')
-            db.execute('UPDATE certification_signer_defaults SET fields=?,version=version+1,updated_at=? WHERE id=1',
-                       (_json(fields), _now()))
+            db.execute('UPDATE certification_signer_defaults SET fields=?,signature_image=?,signature_name=?,version=version+1,updated_at=? WHERE id=1',
+                       (_json(fields), image, name, _now()))
             return self._defaults(db)
 
     @staticmethod
@@ -297,15 +318,18 @@ class CertificationService:
             selected_options = deepcopy(current['options'] if options is _MISSING else options)
         from .company_settings import validate_company_settings
         company = deepcopy(company)
-        if isinstance(company, dict) and selected_options['cover_pdf'] is not None:
-            company.update(cover_pdf=selected_options['cover_pdf'], cover_pdf_name=selected_options['cover_pdf_name'])
         company = validate_company_settings(company)
+        cover_snapshot = self.covers.get('certification')
         from .certification_report import render_certificate_pdf
         from .pdf_cover import prepend_cover_pdf
         timestamp = _now()
+        signature = {'signature': selected_options['signature_image']} if selected_options.get('signature_image') else {}
         payload = (self.renderer or render_certificate_pdf)(deepcopy(fields), company=deepcopy(company),
-                    certificate_id=document_id, revision=revision, created_at=timestamp)
-        payload = (self.coverer or prepend_cover_pdf)(payload, deepcopy(company))
+                    certificate_id=document_id, revision=revision, created_at=timestamp, **signature)
+        # Retain the historical two-argument injectable hook for failure tests;
+        # production composes main + explicit global download cover once.
+        payload = (self.coverer(payload, deepcopy(company)) if self.coverer else
+                   prepend_cover_pdf(payload, deepcopy(company), cover_snapshot))
         if not isinstance(payload, bytes) or not payload.startswith(b'%PDF-') or len(payload) > MAX_REVISION_BYTES:
             raise ValidationError('The certificate PDF could not be created within the supported size.')
         try:
@@ -324,10 +348,10 @@ class CertificationService:
             if current['version'] != expected_version:
                 raise CertificationConflict('This certification changed while the PDF was being created. No revision was saved.')
             db.execute('INSERT INTO certification_revisions '
-                       '(document_id,revision,created_at,fields,company,pdf,sha256,request_id,request_fingerprint,options) '
-                       'VALUES(?,?,?,?,?,?,?,?,?,?)',
+                       '(document_id,revision,created_at,fields,company,pdf,sha256,request_id,request_fingerprint,options,cover_settings) '
+                       'VALUES(?,?,?,?,?,?,?,?,?,?,?)',
                        (document_id, revision, timestamp, _json(fields), _json(company), payload,
-                        digest, request_id, fingerprint, _json(selected_options)))
+                        digest, request_id, fingerprint, _json(selected_options), _json(cover_snapshot)))
             db.execute('UPDATE certification_documents SET fields=?,options=?,version=version+1,updated_at=? WHERE id=?',
                        (_json(fields), _json(selected_options), timestamp, document_id))
             return {'document': self._get(db, document_id),

@@ -3,17 +3,19 @@ const fieldNames = ['client','project','address','location_area','statement_of_c
   'ncc_clauses','approved_design','additional_standards','other_references','exclusions','materials_manufacturers',
   'fire_resistance_level','name','position','qualification','accreditation'];
 const copy = value => JSON.parse(JSON.stringify(value));
+const signature = 'data:image/png;base64,c2lnbmF0dXJl';
+const coverData = 'data:application/pdf;base64,JVBERi0x';
 const blank = () => Object.fromEntries(fieldNames.map(key => [key, '']));
 const deferred = () => { let resolve, reject; const promise = new Promise((a,b)=>{resolve=a;reject=b;});return {promise,resolve,reject}; };
 const flush = async () => { for(let n=0;n<20;n++) await Promise.resolve(); };
 function harness() {
   const elements = new Map(), events = {}, calls = [], documents = new Map(), createKeys = new Map(), revisionKeys = new Map(), timers = new Map(), pendingReads=[];
-  let project={}, defaults={fields:Object.fromEntries(['name','position','qualification','accreditation'].map(key=>[key,''])),version:1};
+  let project={}, defaults={fields:Object.fromEntries(['name','position','qualification','accreditation'].map(key=>[key,''])),signature_image:null,signature_name:'',version:1};
   let serial = 0, creates = 0, approve = true, routeOverride = null, loseGeneratedReply = false, loseCreatedReply = false;
   const element = tag => ({tagName:tag,value:'',textContent:'',children:[],listeners:{},disabled:false,attributes:{},files:[],checked:false,open:false,
     contains(target){return target===this;},querySelector(){return {focus(){}};},
     append(...items){this.children.push(...items);},replaceChildren(...items){this.children=items;},
-    setAttribute(k,v){this.attributes[k]=v;},addEventListener(k,fn){(this.listeners[k]||=[]).push(fn);},
+    setAttribute(k,v){this.attributes[k]=v;},removeAttribute(k){delete this.attributes[k];delete this[k];},addEventListener(k,fn){(this.listeners[k]||=[]).push(fn);},
     async emit(k,event={}){for(const fn of this.listeners[k]||[])await fn(event);},
     reportValidity(){return true;}});
   const byId = id => { if(!elements.has(id))elements.set(id,element('div'));return elements.get(id); };
@@ -27,8 +29,10 @@ function harness() {
     if(path==='/api/company-settings')return response({name:'EXAMPLE & Sons'});
     if(path==='/api/certifications/defaults'){
       if(!body)return response(defaults);
-      if(body.expected_version!==defaults.version&&JSON.stringify(body.fields)!==JSON.stringify(defaults.fields))return serverError(409,'Signer details changed');
-      if(JSON.stringify(body.fields)!==JSON.stringify(defaults.fields))defaults={fields:copy(body.fields),version:defaults.version+1};
+      const image=Object.hasOwn(body,'signature_image')?body.signature_image:(defaults.signature_image||null),imageName=Object.hasOwn(body,'signature_name')?body.signature_name:(defaults.signature_name||'');
+      const same=JSON.stringify(body.fields)===JSON.stringify(defaults.fields)&&image===(defaults.signature_image||null)&&imageName===(defaults.signature_name||'');
+      if(body.expected_version!==defaults.version&&!same)return serverError(409,'Signer details changed');
+      if(!same)defaults={fields:copy(body.fields),signature_image:image,signature_name:imageName,version:defaults.version+1};
       return response(defaults);
     }
     if(path==='/api/certifications'&&!body)return response({items:[...documents.values()]});
@@ -55,7 +59,7 @@ function harness() {
   const window = {crypto:{randomUUID:()=> '00000000-0000-4000-8000-'+String(++serial).padStart(12,'0')},
     addEventListener(k,fn){(events[k]||=[]).push(fn);},CeasefireProject:{details:()=>copy(project)},
     CeasefireDialogs:{confirm:async()=>approve},CeasefireActivity:{begin:()=>()=>{}}};
-  class FileReader {readAsDataURL(file){this.result=file.dataURL||'data:application/pdf;base64,JVBERi0x';const done=()=>file.fail?this.onerror():this.onload();if(file.hold)pendingReads.push(done);else Promise.resolve().then(done);}}
+  class FileReader {readAsDataURL(file){this.result=file.dataURL||signature;const done=()=>file.fail?this.onerror():this.onload();if(file.hold)pendingReads.push(done);else Promise.resolve().then(done);}}
   const context={FileReader,setTimeout:fn=>{const id=++serial;timers.set(id,fn);return id;},clearTimeout:id=>timers.delete(id),window,document:{getElementById:byId,createElement:element},fetch,console,Date,JSON,Object,Array,Number,Error,encodeURIComponent};
   vm.createContext(context);vm.runInContext(fs.readFileSync('static/certification.js','utf8'),context);
   const api=window.CeasefireCertification;
@@ -63,7 +67,7 @@ function harness() {
     project:value=>{project=copy(value);},defaults:()=>copy(defaults),setDefaults:value=>{defaults=copy(value);},window,
     autoSave:async()=>{for(const [id,fn]of timers){timers.delete(id);fn();}await flush();},
     scope:async(ids)=>{for(const id of ['structural_steel','structural_steel_columns','ductwork','service_penetrations'])byId('certification-scope-'+id).checked=ids.includes(id);await byId('certification-scope-'+(ids[0]||'structural_steel')).emit('change');},
-    upload:async(file)=>{byId('certification-cover-pdf').files=[file];await byId('certification-cover-pdf').emit('change');},
+    upload:async(file)=>{byId('certification-signature-image').files=[file];await byId('certification-signature-image').emit('change');},
     completeFileRead:()=>pendingReads.shift()(),
     generate:()=>byId('certification-generate').emit('click'),save:()=>byId('certification-save').emit('click'),
     select:async id=>{byId('certification-document').value=id;await byId('certification-document').emit('change');},
@@ -264,27 +268,50 @@ async function check(name,fn,{open=true}={}){const h=harness();if(open)await h.a
     h.documents.set(legacy.id,legacy);await h.select(legacy.id);await h.api.open();
     assert.equal(h.byId('certification-client').value,'Legacy literal client');assert.equal(h.byId('certification-statement_of_compliance').value,'');
   });
-  await check('Per-certificate PDF cover is safely named, saved with options and removed without touching company settings',async h=>{
-    await h.scope(['ductwork']);await h.upload({name:'<literal cover>.pdf',type:'',size:10,dataURL:'data:application/octet-stream;base64,JVBERi0x'});
-    assert.match(h.byId('certification-cover-name').textContent,/<literal cover>\.pdf/);await h.save();
-    const doc=[...h.documents.values()][0];assert.deepEqual(doc.options,{cover_pdf:'data:application/pdf;base64,JVBERi0x',cover_pdf_name:'<literal cover>.pdf',scopes:['ductwork']});
+  await check('Signature is safely named, saved with signer defaults and snapshotted in document options',async h=>{
+    await h.scope(['ductwork']);await h.upload({name:'<literal signature>.png',type:'image/png',size:10});
+    assert.match(h.byId('certification-signature-name').textContent,/<literal signature>\.png/);await h.save();
+    const doc=[...h.documents.values()][0];assert.deepEqual(doc.options,{cover_pdf:null,cover_pdf_name:'',scopes:['ductwork'],signature_image:signature,signature_name:'<literal signature>.png'});
+    assert.equal(h.defaults().signature_image,signature);assert.equal(h.byId('certification-signature-preview').src,signature);
     assert.equal(h.calls.filter(c=>c.path==='/api/company-settings'&&c.body).length,0);
-    await h.byId('certification-cover-delete').emit('click');await h.save();assert.equal(doc.options.cover_pdf,null);assert.equal(doc.options.cover_pdf_name,'');
+    await h.byId('certification-signature-delete').emit('click');await h.save();assert.equal(doc.options.signature_image,null);assert.equal(doc.options.signature_name,'');assert.equal(h.defaults().signature_image,null);
   });
-  await check('Invalid cover selections retain the prior cover and file reading locks replacement and Save',async h=>{
-    await h.upload({name:'valid.pdf',type:'application/pdf',size:10});
-    await h.upload({name:'invalid.exe',type:'application/octet-stream',size:10});assert.match(h.byId('certification-cover-name').textContent,/valid.pdf/);
-    const upload=h.upload({name:'next.pdf',type:'application/pdf',size:10,hold:true});await flush();
+  await check('Invalid signature selections retain the prior image and file reading locks replacement and Save',async h=>{
+    await h.upload({name:'valid.png',type:'image/png',size:10});await h.autoSave();
+    await h.upload({name:'invalid.exe',type:'application/octet-stream',size:10});assert.match(h.byId('certification-signature-name').textContent,/valid.png/);
+    const upload=h.upload({name:'next.png',type:'image/png',size:10,hold:true});await flush();
     assert.equal(h.api.hasPendingOperation(),true);assert.equal(h.byId('certification-document').disabled,true);
     await h.save();await h.select('');assert.equal(h.documents.size,0);h.completeFileRead();await upload;
-    assert.match(h.byId('certification-cover-name').textContent,/next.pdf/);assert.equal(h.api.hasPendingOperation(),false);
+    assert.match(h.byId('certification-signature-name').textContent,/next.png/);await h.autoSave();assert.equal(h.api.hasPendingOperation(),false);
   });
-  await check('Lost creation and generation requests retain the exact cover and scope snapshot across retry',async h=>{
-    await h.scope(['structural_steel_columns','service_penetrations']);await h.upload({name:'retry.pdf',type:'application/pdf',size:10});
+  await check('Lost creation and generation requests retain the exact signature and scope snapshot across retry',async h=>{
+    await h.scope(['structural_steel_columns','service_penetrations']);await h.upload({name:'retry.png',type:'image/png',size:10});
     h.loseNextCreatedReply();await h.generate();await h.generate();
     const creates=h.calls.filter(c=>c.path==='/api/certifications'&&c.body);assert.deepEqual(creates[0].body,creates[1].body);
-    const doc=[...h.documents.values()][0];assert.equal(doc.revisions.length,1);assert.equal(doc.revisions[0].options.cover_pdf_name,'retry.pdf');
+    const doc=[...h.documents.values()][0];assert.equal(doc.revisions.length,1);assert.equal(doc.revisions[0].options.signature_name,'retry.png');assert.equal(doc.revisions[0].options.signature_image,signature);
     assert.deepEqual(doc.revisions[0].options.scopes,['structural_steel_columns','service_penetrations']);
+  });
+  await check('Only new certificates inherit N/A fields and a shared signature; old and manually edited values stay literal',async h=>{
+    h.setDefaults({fields:{name:'Signer',position:'',qualification:'',accreditation:''},signature_image:signature,signature_name:'Shared.png',version:2});await h.api.open();
+    for(const key of ['approved_design','additional_standards','other_references'])assert.equal(h.byId('certification-'+key).value,'N/A');
+    assert.equal(h.byId('certification-signature-preview').src,signature);h.field('approved_design','My manual approval text');h.field('additional_standards','');
+    await h.api.open();assert.equal(h.byId('certification-approved_design').value,'My manual approval text');assert.equal(h.byId('certification-additional_standards').value,'');
+    const old={id:'old-no-signature',version:1,fields:{...blank(),approved_design:'Old design'},options:{cover_pdf:coverData,cover_pdf_name:'Legacy.pdf',scopes:[]},revisions:[]};
+    h.documents.set(old.id,old);await h.select(old.id);assert.equal(h.byId('certification-approved_design').value,'Old design');assert.equal(h.byId('certification-additional_standards').value,'');
+    assert.equal(h.byId('certification-signature-preview').hidden,true);await h.save();assert.equal(old.options.cover_pdf,coverData);assert.equal(old.options.signature_image,null);
+  });
+  await check('New certificates and changed projects retain globally saved signer images without altering an old document',async h=>{
+    await h.upload({name:'Global.png',type:'image/png',size:10});await h.autoSave();await h.save();const old=[...h.documents.values()][0];
+    h.project({client:'A new project',site_address:'New address',project_no:'NEW'});await h.select('');assert.equal(h.byId('certification-client').value,'A new project');assert.equal(h.byId('certification-signature-preview').src,signature);
+    await h.byId('certification-signature-delete').emit('click');await h.autoSave();await h.select('');assert.equal(h.byId('certification-signature-preview').hidden,true);assert.equal(old.options.signature_image,signature);
+  });
+  await check('Editing an older unsigned certificate does not implicitly clear the shared future signature',async h=>{
+    h.setDefaults({fields:{name:'Shared signer',position:'',qualification:'',accreditation:''},signature_image:signature,signature_name:'Shared.png',version:2});
+    const old={id:'older-unsigned',version:1,fields:{...blank(),name:'Old signer'},revisions:[]};h.documents.set(old.id,old);await h.select(old.id);
+    assert.equal(h.byId('certification-signature-preview').hidden,true);h.field('name','Updated old signer');await h.autoSave();
+    assert.equal(h.defaults().signature_image,signature);assert.equal(h.defaults().signature_name,'Shared.png');
+    const post=h.calls.filter(call=>call.path==='/api/certifications/defaults'&&call.body).at(-1);assert.equal(Object.hasOwn(post.body,'signature_image'),false);
+    await h.select('');assert.equal(h.byId('certification-signature-preview').src,signature);
   });
   await check('Document conflict recovery works through the Saved certification reload option and respects cancellation',async h=>{
     h.field('project','Saved project');await h.save();h.field('project','Local unsaved project');
@@ -346,7 +373,9 @@ async function check(name,fn,{open=true}={}){const h=harness();if(open)await h.a
   }
   for(const key of fieldNames)assert.ok(html.includes('id="certification-'+key+'"'));
   assert.ok(!html.includes('id="certification-new"'));assert.ok(!html.includes('id="certification-reload"'));
-  assert.ok(html.includes('<details id="certification-scopes"'));assert.ok(html.includes('id="certification-cover-pdf"'));
+  assert.ok(html.includes('<details id="certification-scopes"'));assert.ok(!html.includes('id="certification-cover-pdf"'));
+  assert.ok(html.includes('id="certification-signature-image"'));assert.ok(html.includes('id="cover-sheets-settings"'));
+  for(const key of ['approved_design','additional_standards','other_references'])assert.match(html,new RegExp('id="certification-'+key+'" name="'+key+'" rows="1"'));
   const form=html.slice(html.indexOf('<form id="certification-form">'),html.indexOf('</form>',html.indexOf('<form id="certification-form">')));
   assert.ok(form.lastIndexOf('<button')===form.indexOf('<button id="certification-generate"'));
   console.log(passed+' Certification UI regression checks passed.');

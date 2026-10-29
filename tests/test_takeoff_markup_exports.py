@@ -149,12 +149,13 @@ class ViewerMarkupExportTests(unittest.TestCase):
             command = 'POST'
             path = '/api/takeoffs/sessions/' + self.case.session['session_id'] + '/export/markup-pdf'
             def read_json(self): return deepcopy(request)
+            def pdf_company_details(self, kind): return {}
             def capture_download(self, value):
                 self.selection = value
                 if value != {'project_token': None}: raise ValidationError('Invalid destination.')
                 return 'isolated-target'
             def download_progress(self, completed, total): self.progress = (completed, total)
-            def send_download(self, *values): self.download = values
+            def send_download(self, *values, **options): self.download, self.download_options = values, options
         handler = Handler(); self.assertTrue(adapter.dispatch(handler, handler.path))
         self.assertEqual(len(handler.download), 3); self.assertTrue(handler.download[0].startswith(b'%PDF-'))
         request['download'] = {'project_token': None}; handler = Handler()

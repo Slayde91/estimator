@@ -176,7 +176,10 @@ async function check(name,fn,{open=true}={}){const h=harness();if(open)await h.a
     h.approve(false);await h.byId('certification-new').emit('click');assert.equal(h.byId('certification-project').value,'Original creation');
   });
   const html=fs.readFileSync('static/index.html','utf8'),app=fs.readFileSync('static/app.js','utf8');
-  assert.equal((html.match(/data-project-section=/g)||[]).length,2);
+  for(const choiceClass of ['section-navigation-choice','projects-section-card']) {
+    const choices=[...html.matchAll(/<button\b[^>]*data-project-section="([^"]+)"[^>]*>/g)].filter(match=>match[0].includes('class="'+choiceClass+'"')).map(match=>match[1]);
+    assert.deepEqual(choices,['quotes','certification']);
+  }
   assert.ok(html.includes('data-project-section="quotes"'));assert.ok(html.includes('data-project-section="certification"'));
   for(const key of fieldNames)assert.ok(html.includes('id="certification-'+key+'"'));
   const form=html.slice(html.indexOf('<form id="certification-form">'),html.indexOf('</form>',html.indexOf('<form id="certification-form">')));

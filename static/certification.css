@@ -2,7 +2,6 @@
 .projects-section-card{display:flex;flex-direction:column;align-items:flex-start;gap:.7rem;text-align:start;padding:1.6rem;min-height:180px;color:inherit;border:1px solid var(--border,#48525f);border-top:3px solid var(--accent,#ed001b);border-radius:16px;background:var(--surface,#171d25);font:inherit;cursor:pointer}
 .projects-section-card strong{font-size:1.7rem}.projects-section-card span{line-height:1.6;max-width:42ch}
 .projects-section-card:focus-visible{outline:3px solid var(--accent,#ed001b);outline-offset:4px}
-.certification-heading-actions{display:flex;gap:.75rem;align-items:center;flex-wrap:wrap}
 .certification-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem 1.5rem}
 .certification-fields .field{min-width:0}.certification-fields .field.certification-wide{grid-column:1/-1}
 .certification-fields input,.certification-fields textarea{width:100%;min-width:0;box-sizing:border-box}
@@ -15,7 +14,7 @@
 .certification-document-actions{display:flex;align-items:flex-end;gap:1rem;flex-wrap:wrap}
 .certification-bottom-actions{justify-content:space-between;align-items:center;gap:1rem;margin-block:1.5rem}
 .certification-bottom-actions .button{min-height:48px}.certification-save-status{min-height:1.6em}
-@media(max-width:700px){.projects-section-cards,.certification-fields{grid-template-columns:1fr}.certification-fields .field.certification-wide{grid-column:auto}.certification-bottom-actions{align-items:stretch;flex-direction:column}.certification-heading-actions{width:100%}}
+@media(max-width:700px){.projects-section-cards,.certification-fields{grid-template-columns:1fr}.certification-fields .field.certification-wide{grid-column:auto}.certification-bottom-actions{align-items:stretch;flex-direction:column}}
 
 .certification-fields textarea[rows="2"]{min-height:74px}
 #company-cover-name{overflow-wrap:anywhere;min-width:0;flex:1 1 20rem;max-width:100%}

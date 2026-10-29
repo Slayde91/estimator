@@ -29,28 +29,36 @@ async function snapshot(){await idle();return page.evaluate(()=>({project:window
  await chooseTakeoff(page,'Steel');await idle();
  await page.locator('nav [data-view="estimate"]').click();await idle();
  await page.locator('#project-no').fill('CF-LANGUAGE');await page.locator('#client').fill('Home');await page.locator('#site-address').fill('原始ข้อมูล العربية हिन्दी <literal>');await page.locator('#site-address').blur();await idle();
- const baseline=await snapshot();await settings();
+ const baseline=await snapshot();
+ await page.locator('#projects-navigation-toggle').click();
+ await page.locator('#view-projects [data-project-section="certification"]').click();
+ await expect(page.locator('#certification-client')).toBeEnabled();
+ await page.locator('#certification-client').fill('Original client বাংলা اردو <literal>');
+ await page.locator('#certification-fire_resistance_level').fill('-/120/120');
+ await settings();
  const toggle=page.locator('#application-language-toggle'),menu=page.locator('#application-language-menu');
  await expect(toggle.locator('svg')).toHaveCount(1);await expect(toggle).toHaveAttribute('aria-haspopup','menu');
- assert.deepEqual(await menu.locator('[role="menuitemradio"]').allTextContents(),['English','普通话','हिन्दी','Español','العربية الفصحى','ไทย','한국어','Tagalog','Tiếng Việt']);
+ assert.deepEqual(await menu.locator('[role="menuitemradio"]').allTextContents(),['English','普通话','हिन्दी','Español','العربية الفصحى','ไทย','한국어','Tagalog','Tiếng Việt','Français','বাংলা','اردو']);
  await toggle.focus();await toggle.press('ArrowDown');await expect(menu.locator('[data-language-code="en"]')).toBeFocused();
  await page.screenshot({path:path.join(output,'globe-language-menu.png')});
- await page.keyboard.press('End');await expect(menu.locator('[data-language-code="vi"]')).toBeFocused();
+ await page.keyboard.press('End');await expect(menu.locator('[data-language-code="ur"]')).toBeFocused();
  await page.keyboard.press('Home');await expect(menu.locator('[data-language-code="en"]')).toBeFocused();
- await page.keyboard.press('ArrowUp');await expect(menu.locator('[data-language-code="vi"]')).toBeFocused();
+ await page.keyboard.press('ArrowUp');await expect(menu.locator('[data-language-code="ur"]')).toBeFocused();
  await page.keyboard.press('Escape');await expect(menu).toBeHidden();await expect(toggle).toBeFocused();
  await toggle.press('ArrowDown');await page.keyboard.press('End');await page.keyboard.press('Enter');
- await expect(page.locator('#application-language')).toHaveValue('vi');await expect(toggle).toBeFocused();await expect(page.locator('#application-language-code')).toHaveText('VI');
+ await expect(page.locator('#application-language')).toHaveValue('ur');await expect(toggle).toBeFocused();await expect(page.locator('#application-language-code')).toHaveText('UR');
  await toggle.click();await page.locator('#language-heading').click();await expect(menu).toBeHidden();
  await page.locator('#application-language').selectOption('en');await expect(page.locator('#application-language-code')).toHaveText('EN');
  evidence.menu={keyboardWrap:true,homeEnd:true,escapeFocus:true,enterSelect:true,outsideDismissal:true,nativeSelectCompatibility:true,nativeLanguageNames:true};
- const languages=[['en','Language','Settings'],['zh-Hans','语言','设置'],['hi','भाषा','सेटिंग्स'],['es','Idioma','Configuración'],['ar','اللغة','الإعدادات'],['th','ภาษา','การตั้งค่า'],['ko','언어','설정'],['tl','Wika','Mga setting'],['vi','Ngôn ngữ','Cài đặt']];
+ const languages=[['en','Language','Settings'],['zh-Hans','语言','设置'],['hi','भाषा','सेटिंग्स'],['es','Idioma','Configuración'],['ar','اللغة','الإعدادات'],['th','ภาษา','การตั้งค่า'],['ko','언어','설정'],['tl','Wika','Mga setting'],['vi','Ngôn ngữ','Cài đặt'],['fr','Langue','Paramètres'],['bn','ভাষা','সেটিংস'],['ur','زبان','ترتیبات']];
  for(const [locale,heading,settingsName] of languages){
   const before=evidence.requests.length;await chooseLanguage(locale);
-  await expect(page.locator('#language-heading')).toHaveText(heading);await expect(page.locator('html')).toHaveAttribute('lang',locale==='en'?'en-AU':locale);await expect(page.locator('html')).toHaveAttribute('dir',locale==='ar'?'rtl':'ltr');
+  await expect(page.locator('#language-heading')).toHaveText(heading);await expect(page.locator('html')).toHaveAttribute('lang',locale==='en'?'en-AU':locale);await expect(page.locator('html')).toHaveAttribute('dir',['ar','ur'].includes(locale)?'rtl':'ltr');
   await expect(page.locator('nav [data-view="settings"]')).toHaveAttribute('aria-label',settingsName);
+  await expect(page.locator('#certification-client')).toHaveValue('Original client বাংলা اردو <literal>');
+  await expect(page.locator('#certification-fire_resistance_level')).toHaveValue('-/120/120');
   assert.equal(evidence.requests.length,before,'language preference sends no mutation requests');
-  if(locale==='ar')for(const id of ['company-phone','company-abn'])await expect(page.locator('#'+id)).toHaveCSS('direction','ltr');
+  if(['ar','ur'].includes(locale))for(const id of ['company-phone','company-abn'])await expect(page.locator('#'+id)).toHaveCSS('direction','ltr');
   await page.locator('nav [data-view="estimate"]').click();await idle();assert.deepEqual(await snapshot(),baseline,'language changes preserve project inputs, canonical values and totals');
   if(locale==='en')await expect(page.locator('#estimate-heading')).toHaveText('Estimate');
   if(locale==='zh-Hans'){
@@ -67,9 +75,9 @@ async function snapshot(){await idle();return page.evaluate(()=>({project:window
    assert.deepEqual(await snapshot(),baseline,'Mandarin table labels preserve project values and totals');
    evidence.mandarinTables={taskRows:true,documentButton:true,notesRemoved:true,canonicalStateUnchanged:true};
   }
-  if(locale==='ar')await expect(page.locator('#input-B28')).toHaveCSS('direction','ltr');
+  if(['ar','ur'].includes(locale))await expect(page.locator('#input-B28')).toHaveCSS('direction','ltr');
   await expect(page.locator('#client')).toHaveValue('Home');
-  if(['ko','tl','vi'].includes(locale)){
+  if(['ko','tl','vi','fr','bn','ur'].includes(locale)){
    await page.locator('nav [data-view="help"]').click();
    const prose=await page.locator('#view-help .help-card p').evaluateAll(nodes=>nodes.map(el=>({source:window.CeasefireI18n.source(el),display:el.textContent})).filter(item=>item.source.length>60));
    assert.ok(prose.length>=5);for(const item of prose)assert.notEqual(item.display,item.source,`${locale} detailed Help is translated`);
@@ -91,8 +99,11 @@ async function snapshot(){await idle();return page.evaluate(()=>({project:window
  await settings();await chooseLanguage('ar');
  await page.locator('#takeoff-navigation-toggle').hover();await page.locator('#takeoff-navigation-menu [data-mode="steel"]').click();await idle();
  await expect(page.locator('.takeoff-viewport')).toHaveCSS('direction','ltr');await page.screenshot({path:path.join(output,'ar-drawing-direction.png')});
- await settings();await chooseLanguage('vi');await page.reload();await idle();await settings();await expect(page.locator('#application-language')).toHaveValue('vi');await expect(page.locator('#language-heading')).toHaveText('Ngôn ngữ');
+ await settings();await chooseLanguage('ur');
+ await page.locator('#takeoff-navigation-toggle').hover();await page.locator('#takeoff-navigation-menu [data-mode="steel"]').click();await idle();
+ await expect(page.locator('.takeoff-viewport')).toHaveCSS('direction','ltr');await page.screenshot({path:path.join(output,'ur-drawing-direction.png')});
+ await settings();await chooseLanguage('ur');await page.reload();await idle();await settings();await expect(page.locator('#application-language')).toHaveValue('ur');await expect(page.locator('#language-heading')).toHaveText('زبان');
  await page.setViewportSize({width:390,height:900});await toggle.click();const bounds=await menu.boundingBox();assert.ok(bounds.x>=0&&bounds.x+bounds.width<=390,'globe menu remains inside a narrow viewport');await page.keyboard.press('Escape');await page.setViewportSize({width:1366,height:1000});
  await chooseLanguage('en');await expect(page.locator('#language-heading')).toHaveText('Language');
- assert.deepEqual(errors,[]);fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({...evidence,errors,passed:true},null,2));console.log(`Languages passed: all nine locales, globe keyboard menu, immediate updates, canonical state, dynamic Takeoffs, Arabic drawing direction, reload persistence. ${output}`);
+ assert.deepEqual(errors,[]);fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({...evidence,errors,passed:true},null,2));console.log(`Languages passed: all twelve locales, globe keyboard menu, immediate updates, canonical state, dynamic Takeoffs, Arabic/Urdu drawing direction, reload persistence. ${output}`);
 })().catch(async e=>{console.error(e);console.error(logs);if(page)await page.screenshot({path:path.join(output,'failure.png')}).catch(()=>{});process.exitCode=1;}).finally(async()=>{await browser?.close();server.kill();});

@@ -117,6 +117,7 @@ jobs:
       - run: node tests/browser/penetration_references.cjs
       - run: node tests/browser/calculation_queue.cjs
       - run: npm run test:project-library-drafts
+      - run: node tests/browser/projects_navigation.cjs
       - run: node tests/browser/pdf_render_gate.cjs
       - run: node tests/browser/header_artwork.cjs
       - run: node tests/browser/header_layout_followups.cjs

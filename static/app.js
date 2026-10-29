@@ -166,12 +166,11 @@
     workflow: "", defaultWorkflow: "Intumescent spray to ductwork", inputErrors: new Map(), inputDrafts: new Map(), inputRevision: 0, projectBusy: false,
     pricingScope: "library", libraryDraft: null, projectPricingDraft: null, pricingRevision: 0,
     projectFile: null, projectsRevision: 0, initialized: false, currentView: "home", projectsOffset: 0, projectsTimer: null, desktopRequests: 0,
-    projectBrowserProject: null, projectBrowserPath: "", projectBrowserRevision: 0, projectsSection: null,
+    projectBrowserProject: null, projectBrowserPath: "", projectBrowserRevision: 0,
     pricingRender: null, estimatorKind: "estimate", calculatorKind: "steel", libraryKind: "pricing",
     workItems: [], workItemErrors: new Map(), workItemDrafts: new Map(), nextWorkItem: 1,
     pricingUsage: { firestopping: { label: "Firestopping Estimator", keywords: [], groups: [] } }, takeoffsEnabled: true,
   };
-  try { const section = window.localStorage.getItem("ceasefire.projects.section"); if (["quotes", "certification"].includes(section)) state.projectsSection = section; } catch { /* Navigation still works when browser storage is unavailable. */ }
   const money = new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" });
   const quantity = new Intl.NumberFormat("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const controlNumber = new Intl.NumberFormat("en-AU", { useGrouping: false, minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -992,7 +991,6 @@
     if (view === "takeoffs" && !state.takeoffsEnabled) { message(uiCopy("TAKEOFFS is not included in this edition."), true); return; }
     if (view !== state.currentView && $("app-message").hidden) releaseMessageSpace();
     state.currentView = view;
-    if (["quotes", "certification"].includes(view)) { state.projectsSection = view; try { window.localStorage.setItem("ceasefire.projects.section", view); } catch { /* Remember within this window when storage is unavailable. */ } }
     $("project-tools").hidden = view !== "quotes";
     closeNavigationMenus({ estimate: "estimate-navigation", calculators: "calculator-navigation", pricing: "library-navigation", takeoffs: "takeoff-navigation" }[view]);
     document.body.classList.toggle("takeoffs-active", view === "takeoffs");
@@ -1004,6 +1002,7 @@
       button.classList.toggle("active", active);
       if (active) button.setAttribute("aria-current", "page"); else button.removeAttribute("aria-current");
     }
+    for (const choice of document.querySelectorAll("#projects-navigation-menu [data-project-section]")) choice.setAttribute("aria-pressed", String(choice.dataset.projectSection === view));
     if (view === "quotes") loadProjects();
     if (view === "pricing") selectLibrary(state.libraryKind, librarySelection);
     let estimatorReady;
@@ -1052,8 +1051,7 @@
     }
     return true;
   }
-  async function requestViewNavigation(view, librarySelection, projectsHub = false) {
-    if (view === "projects" && !projectsHub) view = state.projectsSection || "projects";
+  async function requestViewNavigation(view, librarySelection) {
     if (view !== state.currentView && !await confirmLeavePricingLibrary()) return false;
     await showView(view, librarySelection);
     if (state.currentView === view) window.CeasefireHeaderTagline?.next();
@@ -1148,7 +1146,7 @@
     if (open) positionNavigationMenu(menu);
   }
   function closeNavigationMenus(except) {
-    for (const id of ["estimate-navigation", "calculator-navigation", "library-navigation", "takeoff-navigation"]) {
+    for (const id of ["estimate-navigation", "calculator-navigation", "library-navigation", "takeoff-navigation", "projects-navigation"]) {
       if (id === except) continue;
       if (id === "calculator-navigation") { setCalculatorMenuOpen(false); continue; }
       const menu = $(id + "-menu"), toggle = $(id + "-toggle");
@@ -1157,7 +1155,7 @@
   }
   function setupCalculatorNavigation() {
     window.addEventListener("resize", () => {
-      for (const id of ["estimate-navigation", "calculator-navigation", "library-navigation", "takeoff-navigation"]) {
+      for (const id of ["estimate-navigation", "calculator-navigation", "library-navigation", "takeoff-navigation", "projects-navigation"]) {
         const menu = $(id + "-menu");
         if (menu && !menu.hidden) positionNavigationMenu(menu);
       }
@@ -1180,6 +1178,7 @@
     setupSectionNavigation("calculator-navigation", "[data-calculator-id]", setCalculatorMenuOpen, choice => requestCalculatorNavigation(choice.dataset.calculatorId));
     setupSectionNavigation("library-navigation", "[data-library-kind]", open => setSectionMenuOpen("library-navigation", open), choice => requestLibraryNavigation(choice.dataset.libraryKind));
     setupSectionNavigation("takeoff-navigation", "[data-mode]", open => setSectionMenuOpen("takeoff-navigation", open), choice => requestTakeoffNavigation(choice.dataset.mode, choice.dataset.physicalScope));
+    setupSectionNavigation("projects-navigation", "[data-project-section]", open => setSectionMenuOpen("projects-navigation", open), choice => requestViewNavigation(choice.dataset.projectSection));
   }
   let takeoffNavigationPending = false;
   async function requestTakeoffNavigation(mode, scope) {
@@ -2314,8 +2313,7 @@
   }
 
   for (const button of document.querySelectorAll("[data-view]")) button.addEventListener("click", () => button.id === "calculator-navigation-toggle" ? requestCalculatorNavigation() : requestViewNavigation(button.dataset.view));
-  for (const card of document.querySelectorAll("[data-project-section]")) card.addEventListener("click", () => requestViewNavigation(card.dataset.projectSection));
-  for (const button of document.querySelectorAll("[data-projects-hub]")) button.addEventListener("click", () => requestViewNavigation("projects", undefined, true));
+  for (const card of document.querySelectorAll(".projects-section-card[data-project-section]")) card.addEventListener("click", () => requestViewNavigation(card.dataset.projectSection));
   for (const card of document.querySelectorAll("[data-steel-calculator]")) card.addEventListener("click", () => requestCalculatorNavigation(card.dataset.steelCalculator));
   setupCalculatorNavigation();
   for (const button of document.querySelectorAll("[data-home-view]")) button.addEventListener("click", () => requestViewNavigation(button.dataset.homeView));

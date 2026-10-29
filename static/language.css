@@ -1,7 +1,9 @@
-/* System fallback fonts cover CJK, Devanagari, Arabic and Thai offline. */
+/* System fallback fonts cover the supported scripts offline. */
 html[data-language="zh-Hans"] {font-family:"Microsoft YaHei","PingFang SC","Noto Sans CJK SC",sans-serif}
 html[data-language="hi"] {font-family:"Nirmala UI","Noto Sans Devanagari",sans-serif}
 html[data-language="ar"] {font-family:"Segoe UI",Tahoma,"Noto Sans Arabic",sans-serif}
+html[data-language="bn"] {font-family:"Nirmala UI","Vrinda","Noto Sans Bengali",sans-serif}
+html[data-language="ur"] {font-family:"Urdu Typesetting","Nirmala UI","Noto Nastaliq Urdu","Segoe UI",sans-serif}
 html[data-language="th"] {font-family:"Leelawadee UI",Tahoma,"Noto Sans Thai",sans-serif}
 html[data-language="ko"] {font-family:"Malgun Gothic","Apple SD Gothic Neo","Noto Sans KR",sans-serif}
 html[data-language="tl"],html[data-language="vi"] {font-family:"Segoe UI","Arial",sans-serif}
@@ -19,6 +21,7 @@ html:not([data-language="en"]) .quote-notes {font-family:inherit}
 .language-menu-option:hover,.language-menu-option:focus-visible {outline:2px solid var(--accent);outline-offset:-2px}
 .language-native-select {position:absolute!important;width:1px!important;height:1px!important;min-height:0!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
 html[dir="rtl"] .field,html[dir="rtl"] .page-heading,html[dir="rtl"] .card {text-align:start}
+html[dir="rtl"] .section-navigation-choice,html[dir="rtl"] .calculator-navigation-choice {text-align:start}
 html[dir="rtl"] input[type="number"],html[dir="rtl"] input[type="email"],html[dir="rtl"] input[type="url"],
 html[dir="rtl"] input[inputmode="decimal"],html[dir="rtl"] input[inputmode="numeric"],
 html[dir="rtl"] #company-phone,html[dir="rtl"] #company-abn,

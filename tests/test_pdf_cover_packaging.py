@@ -17,6 +17,7 @@ class PdfCoverPackagingTests(unittest.TestCase):
         requirements = (ROOT/'requirements-desktop.txt').read_text(encoding='utf-8').splitlines()
         self.assertIn('-r requirements.txt', requirements)
         self.assertIn('pypdf==6.10.0', (ROOT/'requirements.txt').read_text(encoding='utf-8').splitlines())
+        self.assertIn('tzdata==2026.5', (ROOT/'requirements.txt').read_text(encoding='utf-8').splitlines())
         source = ast.parse((ROOT/'packaging/windows/estimator.spec').read_text(encoding='utf-8'))
         excluded = next(node.value for node in source.body if isinstance(node, ast.Assign)
                         and any(isinstance(t, ast.Name) and t.id == 'excluded' for t in node.targets))
@@ -25,6 +26,14 @@ class PdfCoverPackagingTests(unittest.TestCase):
                         and isinstance(node.func, ast.Name) and node.func.id == 'Analysis')
         hidden = next(item.value for item in analysis.keywords if item.arg == 'hiddenimports')
         self.assertIn('pypdf', ast.literal_eval(hidden))
+        self.assertIn('tzdata', ast.literal_eval(hidden))
+        self.assertIn('tzdata.zoneinfo', ast.literal_eval(hidden))
+        self.assertIn('tzdata.zoneinfo.Australia', ast.literal_eval(hidden))
+        data_collections = [node for node in ast.walk(source) if isinstance(node, ast.Call)
+                            and isinstance(node.func, ast.Name) and node.func.id == 'collect_data_files']
+        self.assertTrue(any(node.args[0].value == 'tzdata'
+                            and any(keyword.arg == 'includes' and 'zoneinfo/**' in ast.literal_eval(keyword.value)
+                                    for keyword in node.keywords) for node in data_collections))
 
     @staticmethod
     def frozen_archive(names):

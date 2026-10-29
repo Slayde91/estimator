@@ -27,6 +27,9 @@
 .certification-scope-choices input{width:1.2rem;height:1.2rem;flex:0 0 auto}
 .certification-fields textarea[rows="1"]{min-height:48px;height:48px;overflow:auto}
 .certification-signature{margin-block-start:1.2rem;min-width:0}.certification-signature input{width:100%;box-sizing:border-box;min-width:0}
+.certification-signature-canvas{display:block;width:100%;max-width:900px;aspect-ratio:10/3;height:auto;touch-action:none;background:#fff;border:1px solid var(--border,#48525f);border-radius:8px;cursor:crosshair;box-sizing:border-box}
+.certification-signature-canvas:focus-visible{outline:3px solid var(--accent,#ed001b);outline-offset:3px}.certification-signature-canvas[aria-disabled="true"]{cursor:wait;opacity:.65}
+.certification-signature-actions{margin-block:1rem;gap:.7rem;flex-wrap:wrap}.certification-signature-actions .button{min-height:44px}
 .certification-signature-preview{display:block;max-width:min(100%,350px);max-height:130px;width:auto;height:auto;object-fit:contain;background:#fff;border:1px solid var(--border,#48525f);border-radius:8px;padding:10px;box-sizing:border-box;margin-block:1rem}
 .certification-signature-preview[hidden]{display:none}#certification-signature-name{overflow-wrap:anywhere;min-width:0;flex:1 1 20rem;max-width:100%}
 .cover-sheets-table-wrap{width:100%;min-width:0}.cover-sheets-table{width:100%;table-layout:fixed;border-collapse:collapse}

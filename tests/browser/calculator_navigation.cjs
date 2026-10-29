@@ -209,7 +209,7 @@ async function workbook(title) {
   evidence.firestoppingDocuments = [];
   for (const [headingId, prefix] of [['penetration-estimator-schedule-heading', 'penetration-item'], ['penetration-schedule-heading', 'penetration']]) {
     if (prefix === 'penetration') { await page.getByRole('button', { name: 'Estimates', exact: true }).click(); await idle(); }
-    if(prefix==='penetration')await page.locator('#main-tab-firestopping-schedule').click();
+    if(prefix==='penetration'){await expect(page.locator('#main-tab-firestopping-schedule')).toHaveCount(0);await expect(page.locator('#main-panel-firestopping-schedule')).toBeHidden();}
     const schedule = page.locator(`${prefix==='penetration'?'section':'details'}[aria-labelledby="${headingId}"]`);
     if (prefix!=='penetration'&&!await schedule.evaluate(element => element.open)) await schedule.locator(':scope > summary').click();
     const itemOnly=prefix==='penetration-item',actionsId=itemOnly?'firestopping-item-document-actions':'firestopping-document-actions';

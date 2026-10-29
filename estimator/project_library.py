@@ -300,12 +300,13 @@ def _atomic_write(selection, payload):
 
 
 class ProjectLibrary:
-    def __init__(self, store, dialogs=None, *, takeoffs=None, edition='full'):
+    def __init__(self, store, dialogs=None, *, takeoffs=None, certifications=None, edition='full'):
         self.edition = validate_edition(edition)
         if self.edition == 'standard' and takeoffs is not None:
             raise ValidationError('The standard edition cannot attach a TAKEOFFS service.')
         self.store = store
         self.takeoffs = takeoffs
+        self.certifications = certifications
         self.dialogs = dialogs if dialogs is not None else NativeDialogs()
         self._lock = threading.RLock()
         self._cache = {}
@@ -327,13 +328,18 @@ class ProjectLibrary:
             prepared['takeoffs'] = self.takeoffs.capture(request.get('takeoffs_session_id'), prepared['takeoffs'])
         elif 'takeoffs_session_id' in request:
             raise ValidationError('Include the takeoff snapshot with its workspace selection.')
+        if 'certifications' in prepared:
+            if self.certifications is None:
+                raise ValidationError('The project certificate workspace is unavailable. Reopen the project in the current application.')
+            prepared['certifications'] = self.certifications.capture(prepared['certifications'])
         return prepared
 
     def _publish_takeoffs(self, request, path):
-        if 'takeoffs' not in request:
-            return request
         prepared = dict(request)
-        prepared['takeoffs'] = self.takeoffs.documents.publish(request['takeoffs'], path)
+        if 'takeoffs' in request:
+            prepared['takeoffs'] = self.takeoffs.documents.publish(request['takeoffs'], path)
+        if 'certifications' in request:
+            prepared['certifications'] = self.certifications.publish(request['certifications'], path)
         return prepared
 
     def _saved_takeoff_source(self, request, captured, path):
@@ -349,6 +355,9 @@ class ProjectLibrary:
 
     def _restore_takeoffs(self, project, path):
         require_project_edition(project, self.edition)
+        if self.certifications is not None:
+            workspace = self.certifications.restore(project.get('certifications'), path)
+            project = {**project, 'certification_workspace_id': workspace['workspace_id']}
         if 'takeoffs' not in project:
             return project
         if self.takeoffs is None:
@@ -366,6 +375,8 @@ class ProjectLibrary:
             return
         if isinstance(snapshot, dict) and snapshot.get('format') == 'ceasefire-project' and 'takeoffs' in snapshot and 'takeoffs' not in request:
             raise ValidationError('Reload this project before saving; this window has not loaded its takeoffs.')
+        if isinstance(snapshot, dict) and snapshot.get('format') == 'ceasefire-project' and 'certifications' in snapshot and 'certifications' not in request:
+            raise ValidationError('Reload this project before saving; this window has not loaded its certificates. No saved revisions were removed.')
 
     def close(self):
         """Release a partially scanned directory when the server shuts down."""
@@ -765,7 +776,7 @@ class ProjectLibrary:
     def save(self, request):
         require_project_edition(request, self.edition)
         required = {"save_token", "estimate", "calculators"}
-        if not isinstance(request, dict) or not required <= set(request) or set(request) - required - {"penetration", "takeoffs", "takeoffs_session_id", "library_drafts"}:
+        if not isinstance(request, dict) or not required <= set(request) or set(request) - required - {"penetration", "takeoffs", "takeoffs_session_id", "library_drafts", "certifications"}:
             raise ValidationError("Save requires the current project selection and its complete estimate and calculators.")
         if (not isinstance(request["calculators"], dict)
                 or not set(LEGACY_CALCULATOR_IDS) <= set(request["calculators"])
@@ -782,7 +793,7 @@ class ProjectLibrary:
             if selection is None:
                 raise ValidationError('This project selection is no longer available. Use Load Project or "Save As".')
             selected_path = _project_save_path(selection)
-        captured = self._capture_takeoffs({key: request[key] for key in ("estimate", "calculators", "penetration", "takeoffs", "takeoffs_session_id", "library_drafts") if key in request})
+        captured = self._capture_takeoffs({key: request[key] for key in ("estimate", "calculators", "penetration", "takeoffs", "takeoffs_session_id", "library_drafts", "certifications") if key in request})
         payload = export_project(self.store, captured, edition=self.edition)
         project = load_project_bytes(self.store, payload, edition=self.edition)
         # Serialize writes and recheck the capability after preparation so two
@@ -798,7 +809,7 @@ class ProjectLibrary:
             _preserve_optional_calculators(path, request)
             self._preserve_takeoffs(path, request)
             selected_folder = self.store.project_folder()
-            if 'takeoffs' in captured:
+            if 'takeoffs' in captured or 'certifications' in captured:
                 captured = self._publish_takeoffs(captured, path)
                 payload = export_project(self.store, captured, edition=self.edition)
                 project = load_project_bytes(self.store, payload, edition=self.edition)
@@ -843,7 +854,7 @@ class ProjectLibrary:
                     _preserve_library_drafts(selected_path, request)
                     _preserve_optional_calculators(selected_path, request)
                     self._preserve_takeoffs(selected_path, request)
-                if 'takeoffs' in captured:
+                if 'takeoffs' in captured or 'certifications' in captured:
                     captured = self._publish_takeoffs(captured, selected_path)
                     payload = export_project(self.store, captured, edition=self.edition)
                     project = load_project_bytes(self.store, payload, edition=self.edition)

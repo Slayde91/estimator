@@ -92,3 +92,19 @@ class ProjectReportTests(unittest.TestCase):
         for value in ('Frozen product', '2.50', '$123.45', '$308.63'):
             self.assertIn(value, text)
         self.assertEqual(result, snapshot)
+
+    def test_full_product_summary_omits_firestopping_prices_units_and_references(self):
+        from estimator.penetration_calculator import calculate
+        result = calculate(draft())
+        result['material_breakdown'] = [{'name': 'Frozen product', 'context': 'Collars', 'quantity': 2.5,
+            'units': 'each', 'price': 123.45, 'total': 308.625}]
+        result['rows'][0]['report_reference'] = {'label': 'UNIQUE-REPORT-REF', 'url': 'https://example.test/report.pdf'}
+        before = deepcopy(result)
+        with patch('estimator.project_reports.calculate_penetration', return_value=result):
+            payload = build_project_report({}, draft(), {}, {}, materials=True)
+        text = '\n'.join(page.extract_text() for page in PdfReader(BytesIO(payload)).pages)
+        for value in ('Frozen product', 'Collars', '2.50'):
+            self.assertIn(value, text)
+        for value in ('Unit', 'Unit price', 'Material total', 'each', '$123.45', '$308.63', 'UNIQUE-REPORT-REF'):
+            self.assertNotIn(value, text)
+        self.assertEqual(result, before)

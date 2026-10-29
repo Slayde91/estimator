@@ -38,6 +38,8 @@ def build_project_report(calculators, penetration, configuration, project_detail
         if result['rows']:
             fire_builder = render_penetration_summary_pdf if materials else render_penetration_pdf
             options = {'include_project_details': not parts, 'project_report_title': report_title if not parts else None}
+            if materials:
+                options['include_prices'] = False
             parts.append(('Firestopping', fire_builder(result, definition(configuration), project_details, library=library, company=company, **options)))
     if not parts:
         raise ValidationError('Enter at least one schedule row before downloading this report.')

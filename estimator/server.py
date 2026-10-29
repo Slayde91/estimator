@@ -53,10 +53,25 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
     libraries = ManualTechnicalLibrary(library_directory, store)
     from .certification import CertificationService, CertificationConflict, CertificationNotFound
     certifications = CertificationService(store)
+    from .certification_projects import CertificationProjects
+    certification_projects = CertificationProjects(certifications)
+    projects.certifications = certification_projects
     from .pdf_download_covers import PdfCoverConflict
     pdf_covers = certifications.covers
     if takeoffs is not None:
         takeoffs.libraries = libraries
+
+    def certificate_context(path):
+        query = parse_qs(urlsplit(path).query, keep_blank_values=True)
+        if set(query) - {'workspace'} or any(len(values) != 1 for values in query.values()):
+            raise ValidationError('Choose exactly one current certificate workspace.')
+        token = query.get('workspace', [None])[0]
+        # The unscoped legacy store is retained for explicit recovery and old
+        # clients. The current Certification page always sends its capability.
+        return (certification_projects.service(token), token) if token is not None else (certifications, None)
+
+    def certificate_response(token, value):
+        return certification_projects.response(token, value) if token is not None else value
 
     def reference_download_body(body, key):
         """Capture legacy Takeoffs links into this download, without saving edits."""
@@ -228,17 +243,24 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                 elif route == '/api/pdf-covers':
                     self.send_payload(200, pdf_covers.list())
                 elif route == '/api/certifications':
-                    self.send_payload(200, certifications.list_documents())
+                    service, token = certificate_context(self.path)
+                    self.send_payload(200, certificate_response(token, service.list_documents()))
                 elif route == '/api/certifications/defaults':
                     self.send_payload(200, certifications.get_defaults())
+                elif route == '/api/certifications/legacy':
+                    self.send_payload(200, certifications.list_documents())
+                elif re.fullmatch(r'/api/certifications/workspaces/[a-z0-9-]{1,64}', route):
+                    self.send_payload(200, certification_projects.view(route.rsplit('/', 1)[1]))
                 elif re.fullmatch(r'/api/certifications/[a-z0-9-]{1,64}/revisions/[1-9][0-9]{0,9}\.pdf', route):
                     certificate_id, revision = route.split('/')[3], int(route.rsplit('/', 1)[1][:-4])
-                    payload = certifications.revision_pdf(certificate_id, revision)
+                    service, _ = certificate_context(self.path)
+                    payload = service.revision_pdf(certificate_id, revision)
                     # Immutable revisions already contain their original cover.
                     self.send_payload(200, payload, 'application/pdf',
                                       {'Content-Disposition': f'inline; filename="Installation-Certificate-Revision-{revision}.pdf"'})
                 elif re.fullmatch(r'/api/certifications/[a-z0-9-]{1,64}', route):
-                    self.send_payload(200, certifications.get(route.rsplit('/', 1)[1]))
+                    service, token = certificate_context(self.path)
+                    self.send_payload(200, certificate_response(token, service.get(route.rsplit('/', 1)[1])))
                 elif route == '/api/libraries':
                     self.send_payload(200, libraries.overview())
                 elif route == '/api/libraries/technical/new':
@@ -367,7 +389,20 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     if set(body) - {'fields', 'request_id', 'options'}:
                         raise ValidationError('Unknown certification fields.')
                     options = {'options': body['options']} if 'options' in body else {}
-                    self.send_payload(201, certifications.create(body.get('fields', {}), body.get('request_id'), **options))
+                    service, token = certificate_context(self.path)
+                    self.send_payload(201, certificate_response(token, service.create(body.get('fields', {}), body.get('request_id'), **options)))
+                elif route == '/api/certifications/workspaces':
+                    if self.command != 'POST' or body:
+                        raise ValidationError('Create a fresh certificate workspace without other fields.')
+                    self.send_payload(201, certification_projects.new())
+                elif re.fullmatch(r'/api/certifications/workspaces/[a-z0-9-]{1,64}/discard', route):
+                    if self.command != 'POST' or body:
+                        raise ValidationError('Discard the prepared certificate workspace without other fields.')
+                    self.send_payload(200, certification_projects.discard(route.split('/')[-2]))
+                elif re.fullmatch(r'/api/certifications/workspaces/[a-z0-9-]{1,64}/import', route):
+                    if self.command != 'POST' or set(body) != {'document_id'}:
+                        raise ValidationError('Choose one older certificate explicitly to add to this project.')
+                    self.send_payload(200, certification_projects.import_legacy(route.split('/')[-2], body['document_id']))
                 elif route == '/api/certifications/defaults':
                     if self.command != 'POST':
                         self.send_payload(405, {'error': 'Method not allowed.'})
@@ -383,9 +418,10 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     if not {'fields', 'expected_version', 'request_id'} <= set(body) <= {'fields', 'expected_version', 'request_id', 'options'}:
                         raise ValidationError('Include the certificate details, current version and generation request.')
                     options = {'options': body['options']} if 'options' in body else {}
-                    result = certifications.generate(route.split('/')[3], body['fields'], body['expected_version'],
+                    service, token = certificate_context(self.path)
+                    result = service.generate(route.split('/')[3], body['fields'], body['expected_version'],
                                                      body['request_id'], self.company_details(), **options)
-                    self.send_payload(201, result)
+                    self.send_payload(201, certificate_response(token, result))
                 elif re.fullmatch(r'/api/certifications/[a-z0-9-]{1,64}', route):
                     if self.command != 'POST':
                         self.send_payload(405, {'error': 'Method not allowed.'})
@@ -393,7 +429,8 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     if not {'fields', 'expected_version'} <= set(body) <= {'fields', 'expected_version', 'options'}:
                         raise ValidationError('Include the certificate details and current version.')
                     options = {'options': body['options']} if 'options' in body else {}
-                    self.send_payload(200, certifications.save(route.rsplit('/', 1)[1], body['fields'], body['expected_version'], **options))
+                    service, token = certificate_context(self.path)
+                    self.send_payload(200, certificate_response(token, service.save(route.rsplit('/', 1)[1], body['fields'], body['expected_version'], **options)))
                 elif route == '/api/libraries/penetration':
                     if self.command != 'POST':
                         self.send_payload(405, {'error': 'Method not allowed.'})
@@ -514,8 +551,8 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                 elif route == '/api/project/export' and self.command == 'POST':
                     from .project_file import export_project, project_filename, project_download_header
                     require_project_edition(body, edition)
-                    if 'takeoffs' in body:
-                        raise ValidationError('Use Save As to save the project together with its takeoff evidence folder.')
+                    if 'takeoffs' in body or 'certifications' in body:
+                        raise ValidationError('Use Save As to save the project together with its evidence and certificate companion folders.')
                     project = export_project(store, body, edition=edition)
                     filename = project_filename(json.loads(project)['estimate']['title'])
                     self.send_payload(200, project, 'application/octet-stream',
@@ -552,6 +589,8 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     if set(body) != {'filename', 'content_base64'}:
                         raise ValidationError('Include the project filename and file content only.')
                     project = import_project(store, body['filename'], body['content_base64'], edition=edition)
+                    workspace = certification_projects.restore(project.get('certifications'))
+                    project['certification_workspace_id'] = workspace['workspace_id']
                     if 'takeoffs' in project:
                         session = takeoffs.open(project['takeoffs'])
                         project.update(takeoffs=session['snapshot'], takeoffs_session_id=session['session_id'], takeoffs_issues=session.get('issues', []))

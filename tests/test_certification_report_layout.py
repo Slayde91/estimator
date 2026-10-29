@@ -14,13 +14,13 @@ from estimator.company_settings import DEFAULTS
 
 
 class CertificateLayoutTests(unittest.TestCase):
-    def render(self, *, signature=None, **values):
+    def render(self, *, signature=None, created_at='2026-10-30T01:00:00+11:00', **values):
         fields = {**dict.fromkeys(FIELDS, ''), **values}
         return render_certificate_pdf(fields, company={**DEFAULTS, 'name': 'Layout Company'},
             certificate_id='12345678-1234-4234-9234-123456789012', revision=2,
-            created_at='2026-10-30T01:00:00+11:00', signature=signature)
+            created_at=created_at, signature=signature)
 
-    def test_identity_uses_four_cells_in_one_row_and_only_signer_headers_are_red(self):
+    def test_identity_uses_four_cells_in_one_row_and_signer_table_stays_red(self):
         payload = self.render(client='ONLYCLIENT', project='ONLYPROJECT', address='ONLYADDRESS',
                               location_area='ONLYAREA', name='ONLYSIGNER', position='ONLYPOSITION',
                               qualification='ONLYQUALIFICATION', accreditation='ONLYACCREDITATION')
@@ -43,6 +43,43 @@ class CertificateLayoutTests(unittest.TestCase):
                 self.assertGreaterEqual(by_text[label]['top'], red[0]['top'])
                 self.assertLessEqual(by_text[label]['bottom'], red[0]['bottom'])
 
+    def test_titles_are_regular_red_and_small_duplicate_header_is_removed(self):
+        payload = self.render(client='BODYCLIENT', australian_standards='BODYSTANDARD', name='BODYSIGNER')
+        with pdfplumber.open(BytesIO(payload)) as document:
+            words = [word for page in document.pages
+                     for word in page.extract_words(extra_attrs=['fontname', 'non_stroking_color'])]
+            by_text = {word['text']: word for word in words}
+            for label in ('Installation', 'Statement', 'Client', 'Project', 'Address', 'Location/Area',
+                          'Exclusions', 'Materials/Manufacturers:', 'Date:'):
+                word = by_text[label]
+                self.assertNotIn('Bold', word['fontname'])
+                self.assertAlmostEqual(word['non_stroking_color'][0], 189/255, delta=.001)
+                self.assertEqual(word['non_stroking_color'][1], 0)
+            for label in ('Name', 'Position', 'Qualification', 'Accreditation'):
+                self.assertEqual(tuple(by_text[label]['non_stroking_color']), (1, 1, 1))
+                self.assertNotIn('Bold', by_text[label]['fontname'])
+            for value in ('BODYCLIENT', 'BODYSTANDARD', 'BODYSIGNER'):
+                self.assertEqual(tuple(by_text[value]['non_stroking_color']), (0, 0, 0))
+            text = '\n'.join(page.extract_text() for page in document.pages)
+            self.assertNotIn('INSTALLATION CERTIFICATE', text)
+            self.assertIn('Installation Certificate', text)
+            self.assertIn('Exclusions - Certification is strictly limited to works completed by Layout Company, as per:', text)
+
+    def test_signer_date_is_frozen_in_sydney_and_footer_remains_utc(self):
+        cases = [('2026-10-29T13:30:00Z', '30 October 2026', '29 Oct 2026, 13:30 UTC'),
+                 ('2026-06-29T14:30:00Z', '30 June 2026', '29 Jun 2026, 14:30 UTC'),
+                 ('2026-10-30T01:00:00+11:00', '30 October 2026', '29 Oct 2026, 14:00 UTC')]
+        for created_at, expected_date, expected_utc in cases:
+            with self.subTest(created_at=created_at):
+                payload = self.render(name='FROZENSIGNER', created_at=created_at)
+                with pdfplumber.open(BytesIO(payload)) as document:
+                    text = '\n'.join(page.extract_text() for page in document.pages)
+                    self.assertIn(expected_date, text)
+                    self.assertIn(expected_utc, text)
+                    signer_page = next(page for page in document.pages if 'FROZENSIGNER' in page.extract_text())
+                    words = {word['text']: word for word in signer_page.extract_words()}
+                    self.assertGreater(words['Date:']['top'], words['FROZENSIGNER']['bottom'])
+
     def test_signature_is_embedded_with_the_name_and_without_changing_other_fields(self):
         drawing = Image.new('RGBA', (360, 100), (255, 255, 255, 0))
         ImageDraw.Draw(drawing).line([(5, 70), (80, 20), (120, 80), (220, 35), (350, 60)], fill='black', width=4)
@@ -63,6 +100,30 @@ class CertificateLayoutTests(unittest.TestCase):
             self.assertGreater(artwork['top'], signer['bottom'])
             self.assertGreaterEqual(artwork['x0'], signer['x0']-.1)
             self.assertLess(artwork['x1'], position['x0'])
+
+    def test_complete_multiline_signed_certificate_keeps_name_signature_and_date_on_one_page(self):
+        drawing = Image.new('RGBA', (480, 140), (255, 255, 255, 0))
+        ImageDraw.Draw(drawing).line([(12, 104), (50, 27), (70, 108), (105, 43), (460, 43)], fill='black', width=3)
+        artwork = BytesIO(); drawing.save(artwork, format='PNG')
+        signature = 'data:image/png;base64,' + base64.b64encode(artwork.getvalue()).decode('ascii')
+        values = dict.fromkeys(FIELDS, 'N/A')
+        values.update(client='Example Client', project='Demonstration project',
+            address='123 Example Street, Sydney NSW', location_area='Ground floor - example only',
+            statement_of_compliance="This is to certify that the fire rated materials have been installed according to the manufacturer's specifications to provide the nominated fire resistance level for the items listed in the relevant schedule. All materials have been installed at the above location and comply with:",
+            australian_standards='AS 1530.4: 2014 Methods for fire tests on building materials, components & structures\nAS 4072.1: 2005 Protection of openings in fire-resistant separating elements',
+            ncc_clauses='BCA 2022: Specification 13, Penetration of walls, floors and ceilings by services\nBCA 2022: C4D13 Openings in floors and ceilings for services\nBCA 2022: C4D15 Openings for service installations\nBCA 2022: C4D16 Construction joints',
+            exclusions='Project No.: PREVIEW-001', materials_manufacturers='Example manufacturer',
+            fire_resistance_level='-/120/120', name='EXAMPLESIGNER', position='Installer',
+            qualification='Example qualification', accreditation='Example accreditation')
+        payload = self.render(signature=signature, **values)
+        with pdfplumber.open(BytesIO(payload)) as document:
+            self.assertEqual(len(document.pages), 1)
+            page = document.pages[0]
+            words = {word['text']: word for word in page.extract_words()}
+            image = next(image for image in page.images if image['srcsize'] == (480, 140))
+            self.assertGreater(image['top'], words['EXAMPLESIGNER']['bottom'])
+            self.assertGreater(words['Date:']['top'], image['bottom'])
+            self.assertLess(words['Date:']['bottom'], page.height - 44)
 
     def test_long_identity_cells_paginate_without_losing_text(self):
         payload = self.render(client='Client ZCLIENTTOKEN preserved. '*250,

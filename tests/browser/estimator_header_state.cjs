@@ -65,7 +65,10 @@ function retainedScopes(value) { return { pricing: value.pricing, calculators: v
   const tabKeys=await page.locator('#main-section-tabs [role="tab"]').evaluateAll(tabs=>tabs.map(tab=>tab.dataset.mainSectionTab));
   const outputKeys=await page.locator('#main-output-tabs [role="tab"]').evaluateAll(tabs=>tabs.map(tab=>tab.dataset.mainSectionTab));
   assert.deepEqual(tabKeys,['access-travel','teams-crews','materials','masking-cleaning','additions']);
-  assert.deepEqual(outputKeys,['firestopping-schedule','firestopping-breakdown','material-breakdown','labour-breakdown']);
+  assert.deepEqual(outputKeys,['firestopping-breakdown','material-breakdown','labour-breakdown']);
+  const choices=await page.locator('#estimator-main select[data-cell]').evaluateAll(selects=>selects.map(select=>({value:select.value,selected:select.selectedOptions[0]?.textContent,labels:[...select.options].map(option=>option.textContent)})));
+  assert.ok(choices.length>0);
+  for(const choice of choices){assert.ok(!choice.labels.includes('(blank)'));assert.equal(choice.labels.filter(label=>label==='N/A').length,1);if(choice.value==='')assert.equal(choice.selected,'N/A');}
   await mainTab('additions');await expect(page.locator('#main-panel-additions #main-panel-global-adjustments')).toBeVisible();
   await expect(page.locator('#main-tab-global-adjustments')).toHaveCount(0);
   await expect(page.locator('#main-tab-materials')).toHaveText('Materials');
@@ -86,7 +89,7 @@ function retainedScopes(value) { return { pricing: value.pricing, calculators: v
     const first=page.locator('#main-tab-access-travel'),lastInput=page.locator('#main-tab-additions');await first.focus();await first.press('End');await expect(lastInput).toBeFocused();await expect(lastInput).toHaveAttribute('aria-selected','true');
     await lastInput.press('ArrowRight');await expect(first).toBeFocused();await expect(first).toHaveAttribute('aria-selected','true');
     await first.press('ArrowLeft');await expect(lastInput).toBeFocused();await lastInput.press('Home');await expect(first).toBeFocused();
-    const firstOutput=page.locator('#main-tab-firestopping-schedule'),lastOutput=page.locator('#main-tab-labour-breakdown');await firstOutput.focus();await firstOutput.press('End');await expect(lastOutput).toBeFocused();await lastOutput.press('ArrowRight');await expect(firstOutput).toBeFocused();await firstOutput.press('ArrowLeft');await expect(lastOutput).toBeFocused();await lastOutput.press('Home');await expect(firstOutput).toBeFocused();await expect(first).toHaveAttribute('aria-selected','true');
+    const firstOutput=page.locator('#main-tab-firestopping-breakdown'),lastOutput=page.locator('#main-tab-labour-breakdown');await firstOutput.focus();await firstOutput.press('End');await expect(lastOutput).toBeFocused();await lastOutput.press('ArrowRight');await expect(firstOutput).toBeFocused();await firstOutput.press('ArrowLeft');await expect(lastOutput).toBeFocused();await lastOutput.press('Home');await expect(firstOutput).toBeFocused();await expect(first).toHaveAttribute('aria-selected','true');
     await mainTab('additions');await expect(page.locator('#input-F26')).toHaveValue('1.23');
     const geometry=await page.evaluate(()=>{const box=selector=>{const b=document.querySelector(selector).getBoundingClientRect();return{left:b.left,right:b.right,top:b.top,bottom:b.bottom}};return{project:box('[aria-labelledby="project-heading"]'),tabs:box('#main-section-tabs'),panel:box('#main-panel-additions'),outputs:box('#main-output-workspace'),summary:box('#estimator-main .summary-card'),pageWidth:document.documentElement.scrollWidth,details:document.querySelectorAll('.estimate-main details').length}});
     assert.equal(geometry.details,0);assert.ok(geometry.tabs.top>=geometry.project.bottom);assert.ok(geometry.tabs.left>=0&&geometry.tabs.right<=width+1);assert.ok(geometry.panel.right<=width+1);assert.ok(geometry.outputs.top>=geometry.panel.bottom,'Schedules and breakdowns stay below the visible input card');assert.ok(geometry.outputs.right<=width+1);assert.ok(geometry.pageWidth<=width);

@@ -42,6 +42,7 @@ class CertificationHTTPTests(unittest.TestCase):
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
         self.thread.start()
         self.fields = {name: '' for name in FIELDS}
+        self.fields.update(dict.fromkeys(FIELDS[:13], 'N/A'))
         self.fields.update(client='Example client', project='Example project', address='Example address',
                            name='Example preparer', statement_of_compliance='Entered by the user.')
 

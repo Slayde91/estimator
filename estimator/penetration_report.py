@@ -189,7 +189,7 @@ def render_penetration_pdf(result, definition, project_details, *, library=None,
     return output.getvalue()
 
 
-def render_penetration_summary_pdf(result, definition, project_details, *, library=None, company=None, include_project_details=True, project_report_title=None):
+def render_penetration_summary_pdf(result, definition, project_details, *, library=None, company=None, include_project_details=True, project_report_title=None, include_prices=True):
     """Use the canonical product totals, preserving captured rates and units."""
     _register_fonts()
     report = _Report({})
@@ -209,11 +209,18 @@ def render_penetration_summary_pdf(result, definition, project_details, *, libra
     for item in result['material_breakdown']:
         def show(value, currency=False):
             return 'Check schedule' if isinstance(value, str) and value.startswith('#') else _display(value, {'format': 'currency' if currency else 'number'})
-        rows.append([report.p(str(item['name']), 'cell'), report.p(item.get('context', ''), 'cell'),
-                     report.p(show(item['quantity']), 'numeric'), report.p(item.get('units', ''), 'cell'),
-                     report.p(show(item['price'], True), 'numeric'), report.p(show(item['total'], True), 'numeric')])
-    report.story.append(report.table(['Product', 'Use', 'Quantity', 'Unit', 'Unit price', 'Material total'], rows,
-                                    [content * part for part in (.26, .20, .12, .12, .15, .15)], compact=True))
+        row = [report.p(str(item['name']), 'cell'), report.p(item.get('context', ''), 'cell'),
+               report.p(show(item['quantity']), 'numeric')]
+        if include_prices:
+            row.extend([report.p(item.get('units', ''), 'cell'), report.p(show(item['price'], True), 'numeric'),
+                        report.p(show(item['total'], True), 'numeric')])
+        rows.append(row)
+    headers = ['Product', 'Use', 'Quantity']
+    widths = (.45, .35, .20)
+    if include_prices:
+        headers += ['Unit', 'Unit price', 'Material total']
+        widths = (.26, .20, .12, .12, .15, .15)
+    report.story.append(report.table(headers, rows, [content * part for part in widths], compact=True))
     if result.get('errors'):
         report.story.append(report.p('Some quantities are unavailable. Correct the affected schedule inputs before ordering.', 'alert'))
     output = BytesIO()

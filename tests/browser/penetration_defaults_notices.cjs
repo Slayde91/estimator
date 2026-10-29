@@ -103,10 +103,10 @@ async function clear() {
   await reviewedDelete('penetration-estimator-schedule-body', 'Cancel'); assert.ok(require('node:util').isDeepStrictEqual(await snapshot(), beforeDelete), 'Cancel leaves every retained value unchanged');
   await reviewedDelete('penetration-estimator-schedule-body', 'Yes'); await expect(page.locator('#penetration-estimator-schedule-body > tr')).toHaveCount(0); await page.locator('#penetration-estimator-undo').click(); await expect(page.locator('#penetration-estimator-schedule-body > tr')).toHaveCount(1); await settled();
   assert.ok(require('node:util').isDeepStrictEqual(await snapshot(), beforeDelete), 'Undo restores the exact native row, precision, composer and other draft scopes');
-  await page.locator('#estimate-navigation-toggle').hover(); await page.locator('#estimate-navigation-menu').getByRole('button', { name: 'Estimate', exact: true }).click(); await page.mouse.move(0, 0); await page.locator('#main-tab-firestopping-schedule').click();
-  await reviewedDelete('penetration-schedule-body', 'Cancel'); assert.ok(require('node:util').isDeepStrictEqual(await snapshot(), beforeDelete));
-  await reviewedDelete('penetration-schedule-body', 'Yes'); await expect(page.locator('#penetration-schedule-body > tr')).toHaveCount(0); await page.locator('#penetration-undo').click(); await expect(page.locator('#penetration-schedule-body > tr')).toHaveCount(1); await settled();
-  assert.ok(require('node:util').isDeepStrictEqual(await snapshot(), beforeDelete)); checks.confirmedDeleteBothSchedules = true; checks.cancelAndUndoExact = true;
+  await page.locator('#estimate-navigation-toggle').hover(); await page.locator('#estimate-navigation-menu').getByRole('button', { name: 'Estimate', exact: true }).click(); await page.mouse.move(0, 0);
+  await expect(page.locator('#main-tab-firestopping-schedule')).toHaveCount(0);
+  await expect(page.locator('#main-panel-firestopping-schedule')).toBeHidden();
+  assert.ok(require('node:util').isDeepStrictEqual(await snapshot(), beforeDelete)); checks.confirmedDeleteCalculatorSchedule = true; checks.cancelAndUndoExact = true;
   assert.deepEqual(errors, []);
   for (const [name, expected] of Object.entries(sourceHashes)) assert.equal(hash(fs.readFileSync(path.join(root, name))), expected);
   for (const [name, expected] of Object.entries(assetHashes)) assert.equal(hash(fs.readFileSync(path.join(root, name))), expected, `Tested runtime remains stable: ${name}`);

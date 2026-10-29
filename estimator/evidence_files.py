@@ -88,4 +88,3 @@ def _verified(path, digest, maximum, *, allow_empty=False):
     with _open_regular(path, maximum, allow_empty=allow_empty) as stream:
         if _hash_stream(stream) != _digest(digest):
             raise ValidationError("The retained evidence hash has changed.")
-

@@ -1,12 +1,13 @@
 """Company-branded installation certificates from explicit user-entered text."""
-from datetime import datetime
+from datetime import datetime, timezone
 from io import BytesIO
 from xml.sax.saxutils import escape
+from zoneinfo import ZoneInfo
 
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle
-from reportlab.platypus import Flowable, HRFlowable, LongTable, Paragraph, SimpleDocTemplate, Spacer, TableStyle
+from reportlab.platypus import Flowable, HRFlowable, KeepTogether, LongTable, Paragraph, SimpleDocTemplate, Spacer, TableStyle
 
 from .company_settings import company_logo
 from .report import _company_header, _register_fonts
@@ -16,8 +17,7 @@ ATTESTATION = ('{company} are approved by the manufacturers listed above to supp
                'products in accordance with tested and certified systems. I am a properly qualified person '
                'and have a good working knowledge of the relevant codes and standards referenced above. '
                'The information contained in this statement is true and accurate to the best of my knowledge.')
-EXCLUSIONS_INTRO = ('Certification is strictly limited to passive fire protection works completed by '
-                    '{company}, in accordance with:')
+EXCLUSIONS_INTRO = 'Certification is strictly limited to works completed by {company}, as per:'
 _RED = colors.HexColor('#BD0018')
 _LINE = colors.HexColor('#D7D7D7')
 _MARGIN = 36
@@ -42,20 +42,20 @@ def render_certificate_pdf(fields, *, company, certificate_id, revision, created
     _register_fonts()
     company_name = company.get('name', '')
     styles = {
-        'title': ParagraphStyle('CertificateTitle', fontName='CeasefireVeraBold', fontSize=15,
-                                leading=19, textColor=_RED, spaceAfter=12, keepWithNext=True),
-        'heading': ParagraphStyle('CertificateHeading', fontName='CeasefireVeraBold', fontSize=10.5,
-                                  leading=14, textColor=_RED, spaceBefore=10, spaceAfter=6, keepWithNext=True),
+        'title': ParagraphStyle('CertificateTitle', fontName='CeasefireVera', fontSize=15,
+                                leading=19, textColor=_RED, spaceAfter=9, keepWithNext=True),
+        'heading': ParagraphStyle('CertificateHeading', fontName='CeasefireVera', fontSize=10.5,
+                                  leading=14, textColor=_RED, spaceBefore=8, spaceAfter=5, keepWithNext=True),
         'body': ParagraphStyle('CertificateBody', fontName='CeasefireVera', fontSize=8.5,
-                               leading=12, spaceAfter=7, splitLongWords=True),
-        'label': ParagraphStyle('CertificateLabel', fontName='CeasefireVeraBold', fontSize=8.5,
-                                leading=12, spaceBefore=9, spaceAfter=3,
+                               leading=11.5, spaceAfter=5, splitLongWords=True),
+        'label': ParagraphStyle('CertificateLabel', fontName='CeasefireVera', fontSize=8.5,
+                                leading=11.5, textColor=_RED, spaceBefore=6, spaceAfter=2,
                                 keepWithNext=True, splitLongWords=True),
-        'cell_label': ParagraphStyle('CertificateCellLabel', fontName='CeasefireVeraBold', fontSize=8,
-                                    leading=11, spaceAfter=5, splitLongWords=True),
+        'cell_label': ParagraphStyle('CertificateCellLabel', fontName='CeasefireVera', fontSize=8,
+                                    leading=11, textColor=_RED, spaceAfter=5, splitLongWords=True),
         'cell': ParagraphStyle('CertificateCell', fontName='CeasefireVera', fontSize=8.2,
                               leading=11.5, splitLongWords=True),
-        'head': ParagraphStyle('CertificateHead', fontName='CeasefireVeraBold', fontSize=8,
+        'head': ParagraphStyle('CertificateHead', fontName='CeasefireVera', fontSize=8,
                               leading=11, textColor=colors.white, splitLongWords=True),
     }
     def p(value, style='body'):
@@ -73,11 +73,17 @@ def render_certificate_pdf(fields, *, company, certificate_id, revision, created
                                  topMargin=92, bottomMargin=44, title='Installation Certificate',
                                  author=company_name, creator='CLASSIFIRE',
                                  subject=f'Certificate {certificate_id} - Revision {revision}')
-    timestamp = datetime.fromisoformat(created_at.replace('Z', '+00:00')).strftime('%d %b %Y, %H:%M UTC')
+    issued = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+    # A revision's issue date is frozen at generation. Explicit timezone data
+    # keeps Sydney daylight saving correct on Windows and during later reads.
+    if issued.tzinfo is None:
+        issued = issued.replace(tzinfo=timezone.utc)
+    timestamp = issued.astimezone(timezone.utc).strftime('%d %b %Y, %H:%M UTC')
+    issue_date = issued.astimezone(ZoneInfo('Australia/Sydney')).strftime('%d %B %Y')
     short_id = certificate_id[:8].upper()
     logo = company_logo(company)
     def page(canvas, doc):
-        _company_header(canvas, logo, A4[0], A4[1], _MARGIN, 'INSTALLATION CERTIFICATE', company=company)
+        _company_header(canvas, logo, A4[0], A4[1], _MARGIN, '', company=company)
         canvas.saveState()
         canvas.setStrokeColor(_LINE); canvas.setLineWidth(.4)
         canvas.line(_MARGIN, 33, A4[0] - _MARGIN, 33)
@@ -113,15 +119,19 @@ def render_certificate_pdf(fields, *, company, certificate_id, revision, created
         # inside the same four-column signer table.
         signer_values[0] = [signer_values[0], Spacer(1, 5), _SignerImage(signature_reader(signature))]
     signatories = LongTable([[p(label, 'head') for label in ('Name', 'Position', 'Qualification', 'Accreditation')],
-                            signer_values],
+                            signer_values,
+                            [Paragraph('<font color="#BD0018">Date:</font> ' + escape(issue_date), styles['cell']), '', '', '']],
                            colWidths=[_WIDTH * .2, _WIDTH * .2, _WIDTH * .3, _WIDTH * .3],
                            repeatRows=1, hAlign='LEFT', splitByRow=1, splitInRow=1)
     signatories.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), _RED), ('GRID', (0, 0), (-1, -1), .4, _RED),
+        ('SPAN', (0, -1), (-1, -1)),
         ('VALIGN', (0, 0), (-1, -1), 'TOP'), ('LEFTPADDING', (0, 0), (-1, -1), 6),
         ('RIGHTPADDING', (0, 0), (-1, -1), 6), ('TOPPADDING', (0, 0), (-1, -1), 6),
         ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
     ]))
-    story.append(signatories)
+    # Keep ordinary signer details, artwork and their issue date together. A
+    # genuinely page-long qualification can still split without losing text.
+    story.append(KeepTogether([signatories]))
     document.build(story, onFirstPage=page, onLaterPages=page)
     return output.getvalue()

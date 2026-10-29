@@ -26,6 +26,9 @@ KINDS = (
     ('pdf_tools', 'PDF tools'),
 )
 LABELS = dict(KINDS)
+# PDF tools keeps its existing stored cover and export behavior, but no longer
+# appears as an editable Settings row. Never delete a previously saved asset.
+SETTINGS_KINDS = tuple(item for item in KINDS if item[0] != 'pdf_tools')
 
 
 class PdfCoverConflict(ValidationError):
@@ -88,7 +91,7 @@ class PdfDownloadCovers:
             db.execute('BEGIN')
             # Never transfer up to 18 PDF blobs to the browser just to display
             # names and Save/Trash controls. Internal get() owns PDF access.
-            return {'items': [self._get(db, kind, metadata_only=True) for kind, _ in KINDS]}
+            return {'items': [self._get(db, kind, metadata_only=True) for kind, _ in SETTINGS_KINDS]}
 
     def save(self, kind, cover_pdf, cover_pdf_name, expected_version):
         if kind not in LABELS:

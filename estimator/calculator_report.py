@@ -417,7 +417,7 @@ class _ScheduleReport(_Report):
         # Paragraphs split safely even for 2,000-character notes or identifiers.
         return self.p(' | '.join(f'{label}: {self.display(value, blank="Blank")}' for label, value in values), 'small')
 
-    def overview(self, *, materials=False, include_project_details=True, project_report_title=None):
+    def overview(self, *, materials=False, include_project_details=True, project_report_title=None, include_references=True):
         data = self.data
         if project_report_title:
             self.story.append(self.p(project_report_title, 'title'))
@@ -462,7 +462,7 @@ class _ScheduleReport(_Report):
             self.story.extend(self.p(note, 'small') for note in data['application_notes'])
         if materials and data['id'] not in {'steel_vermiculite', 'ductwork'}:
             self.story.append(self.p('Totals use available source results and can exclude unresolved quantities. Read each item status and the product order summary before ordering.', 'small'))
-        if materials:
+        if materials and include_references:
             references = []
             for item in data['rows']:
                 for reference in item['report_references']:
@@ -638,13 +638,14 @@ def build_calculator_report(calculator_id, inputs=None, *, project_details=None,
                                  include_project_details=include_project_details, project_report_title=project_report_title)
 
 
-def build_calculator_summary_report(calculator_id, inputs=None, *, project_details=None, company=None, include_project_details=True, project_report_title=None):
+def build_calculator_summary_report(calculator_id, inputs=None, *, project_details=None, company=None, include_project_details=True, project_report_title=None, include_references=True):
     """Return material quantities, pooled summaries and extra-board allowances."""
     return _build_calculator_pdf(calculator_id, inputs, materials=True, project_details=project_details, company=company,
-                                 include_project_details=include_project_details, project_report_title=project_report_title)
+                                 include_project_details=include_project_details, project_report_title=project_report_title,
+                                 include_references=include_references)
 
 
-def _build_calculator_pdf(calculator_id, inputs, *, materials, project_details=None, company=None, include_project_details=True, project_report_title=None):
+def _build_calculator_pdf(calculator_id, inputs, *, materials, project_details=None, company=None, include_project_details=True, project_report_title=None, include_references=True):
     data = project_calculator_report(calculator_id, inputs)
     _register_fonts()
     logo = company_logo(company)
@@ -652,7 +653,8 @@ def _build_calculator_pdf(calculator_id, inputs, *, materials, project_details=N
     width, height = page_size
     report = _ScheduleReport(data, project_details, page_size)
     data = report.data
-    report.overview(materials=materials, include_project_details=include_project_details, project_report_title=project_report_title)
+    report.overview(materials=materials, include_project_details=include_project_details, project_report_title=project_report_title,
+                    include_references=include_references)
     if data.get('assessment_notes'):
         # Assessment evidence can occupy several pages. Start its quantities
         # on a fresh page so neither a section title nor table header is left

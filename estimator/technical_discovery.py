@@ -101,6 +101,39 @@ def discovery_facets(item, *, imported_services=None):
             'frl': sorted({canonical_frl(value) for value in frl_values(item)})}
 
 
+def project_smoke_sampling_services(records, discovery, *, explicit_ids=(), lineage=None):
+    """Correct automatic microduct search matches after source-bound reviews.
+
+    Microducts explicitly carrying fibre-optic cables are not smoke tubes. The historical classifier
+    contributes a smoke-sampling alias for that word, but it is part of saved
+    source/review identities and cannot be changed before those are validated.
+    Correct only the final discovery copy. Explicit imported/reviewed Services
+    assignments, later manual edits, source records and variant evidence remain
+    authoritative and unchanged.
+    """
+    protected = set(explicit_ids)
+    lineage = lineage or {}
+    result = discovery
+    for key, facets in discovery.items():
+        if 'Smoke Sampling Tubes' not in facets.get('services', []):
+            continue
+        parent = lineage.get(key, {}).get('parent_id', key)
+        if key in protected or parent in protected:
+            continue
+        text = ' '.join(_primary_text(field.get('value', ''))
+                        for field in records[key].get('fields', [])
+                        if field.get('label') in {'Service', 'Service Size / Configuration'})
+        if (not re.search(r'\bmicroducts?\b', text, re.I)
+                or not re.search(r'\b(?:fibre|fiber)[\s-]+optic(?:al)?\b|\boptic(?:al)?[\s-]+(?:fibre|fiber)\b', text, re.I)
+                or re.search(r'\bvesda\b|\bsmoke[\s-]+sampling\b', text, re.I)):
+            continue
+        if result is discovery:
+            result = dict(discovery)
+        result[key] = {**facets, 'services': [value for value in facets['services']
+                                           if value != 'Smoke Sampling Tubes']}
+    return result
+
+
 def present_technical(item, *, source_ratings=None):
     """Return a display copy; retained technical_basis and sources stay verbatim."""
     result = deepcopy(item)

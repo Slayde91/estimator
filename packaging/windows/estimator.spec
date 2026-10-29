@@ -11,6 +11,7 @@ datas += [(config['seed'], 'factory-seed'), (config['notices'], 'THIRD_PARTY_LIC
 if config.get('calculator_evidence'):
     datas.append((config['calculator_evidence'], 'calculator-evidence'))
 datas += collect_data_files('reportlab', includes=['fonts/*'])
+datas += collect_data_files('tzdata', includes=['zoneinfo/**'])
 excluded = config['excluded_modules'] + [
     'PyQt5', 'PyQt6', 'PySide2', 'PySide6', 'cefpython3', 'gi', 'gtk',
     'webview.platforms.cef', 'webview.platforms.qt', 'webview.platforms.gtk',
@@ -20,7 +21,7 @@ excluded = config['excluded_modules'] + [
 a = Analysis(
     [str(root / 'scripts' / 'desktop_entry.py')], pathex=[str(root)],
     binaries=[], datas=datas,
-    hiddenimports=['webview.platforms.winforms', 'webview.platforms.edgechromium', 'pypdf'],
+    hiddenimports=['webview.platforms.winforms', 'webview.platforms.edgechromium', 'pypdf', 'tzdata', 'tzdata.zoneinfo', 'tzdata.zoneinfo.Australia'],
     hookspath=[], hooksconfig={}, runtime_hooks=[], excludes=excluded,
     noarchive=False, optimize=0,
 )

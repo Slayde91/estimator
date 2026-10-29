@@ -87,9 +87,9 @@
     "CLASSIFIRE | Passive Fire Intelligence | Depth. Thickness. Compatibility. I have standards.",
     "CLASSIFIRE | Passive Fire Intelligence | Looking for something long-term. Minimum 120 minutes.",
     "CLASSIFIRE | Passive Fire Intelligence | Let me help you spray your load.",
-    "Passive Fire Intelligence.",
+    "CLASSIFIRE: Passive Fire Intelligence",
   ];
-  const intelligencePhrase = "Passive Fire Intelligence.";
+  const intelligencePhrase = "CLASSIFIRE: Passive Fire Intelligence";
   const scrambleAlphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789@#$%&*+=?";
   const taglineNow = () => typeof performance === "object" ? performance.now() : Date.now();
   // The brand line stays literal, like the matching website lockup.
@@ -209,7 +209,7 @@
     fields: [], currentFields: [], inputs: {}, catalog: { inventory: [], rate_groups: {} }, baseline: { inventory: [], rate_groups: {} },
     configuration: { inventory: {}, rates: {} }, draft: { inventory: {}, rates: {} },
     quote: null, quoteConfiguration: null, quoteContext: 0, quoteLoadRevision: 0, dirty: false, pricingDirty: false,
-    result: null, revision: 0, timer: null, pricingExpanded: new Set(), mainSection: "access-travel", mainOutputSection: "firestopping-schedule", legacyTitle: "",
+    result: null, revision: 0, timer: null, pricingExpanded: new Set(), mainSection: "access-travel", mainOutputSection: "firestopping-breakdown", legacyTitle: "",
     workflow: "", defaultWorkflow: "Intumescent spray to ductwork", inputErrors: new Map(), inputDrafts: new Map(), inputRevision: 0, projectBusy: false,
     pricingScope: "library", libraryDraft: null, projectPricingDraft: null, pricingRevision: 0,
     projectFile: null, projectsRevision: 0, initialized: false, currentView: "home", projectsOffset: 0, projectsTimer: null, desktopRequests: 0,
@@ -459,12 +459,16 @@
     let control;
     if (field.type === "select" || Array.isArray(field.options)) {
       control = node("select");
-      const options = ["", ...(field.options || []).map(String).filter((option) => option !== "")];
       const current = String(state.inputs[field.cell] ?? "");
+      // A saved empty workbook value is displayed as N/A without rewriting
+      // historical inputs or introducing an unsupported calculation value.
+      const supplied = (field.options || []).map(String);
+      const unavailable = current === "N/A" || current !== "" && supplied.includes("N/A") ? "N/A" : "";
+      const options = [unavailable, ...supplied.filter(option => option !== "" && option !== "N/A")];
       if (!options.includes(current)) options.unshift(current);
       for (const value of options) {
         const label = Object.hasOwn(field.option_labels || {}, value) ? field.option_labels[value] : value;
-        const option = value ? node("option", "", label) : uiNode("option", "", "(blank)");
+        const option = value === unavailable ? uiNode("option", "", "N/A") : node("option", "", label);
         option.value = value;
         control.append(option);
       }
@@ -538,11 +542,13 @@
     let control;
     if (field.type === "select" || Array.isArray(field.options)) {
       control = node("select");
-      const options = ["", ...(field.options || []).map(String).filter(option => option !== "")];
       const current = String(item.inputs[column] ?? "");
+      const supplied = (field.options || []).map(String);
+      const unavailable = current === "N/A" || current !== "" && supplied.includes("N/A") ? "N/A" : "";
+      const options = [unavailable, ...supplied.filter(option => option !== "" && option !== "N/A")];
       if (!options.includes(current)) options.unshift(current);
       for (const value of options) {
-        const option = value ? node("option", "", field.option_labels?.[value] ?? value) : uiNode("option", "", "(blank)");
+        const option = value === unavailable ? uiNode("option", "", "N/A") : node("option", "", field.option_labels?.[value] ?? value);
         option.value = value; control.append(option);
       }
       control.value = current;
@@ -642,7 +648,7 @@
   }
 
   function mainSectionPanels(group = "input") {
-    if (group === "output") return [$("main-panel-firestopping-schedule"), $("main-panel-firestopping-breakdown"),
+    if (group === "output") return [$("main-panel-firestopping-breakdown"),
       $("main-panel-material-breakdown"), $("main-panel-labour-breakdown")].filter(section => section?.dataset.mainSection);
     const cards = id => [...$(id).children].filter(section => section.dataset.mainSection);
     return [...cards("input-sections"), $("main-panel-materials"), ...cards("post-material-input-sections"),
@@ -880,17 +886,21 @@
   async function newQuote() {
     if (state.projectBusy || coverReplacementPending()) return;
     if (projectHasChanges() && !await confirmReplace(uiCopy("Start a new project?"), uiCopy("The Quote, Firestopping items, {0}project library drafts, project pricing and all three specialist calculator drafts will be replaced with defaults using your saved pricing library. Shared libraries stay unchanged.", [window.CeasefireI18n.term(takeoffContents())]), uiCopy("New project"))) return;
+    projectBusy(true, "new-quote");
+    try {
+    let preparedCertification = null;
     if (state.initialized) {
       try {
         const captured = projectReplacementStamp();
+        preparedCertification = await window.CeasefireCertification?.prepareProject?.();
         const [prepared, penetration, takeoffs, libraryDrafts] = await Promise.all([window.CeasefireCalculators.prepareDefaults(), window.CeasefirePenetrations?.prepareDefaults(state.configuration), window.CeasefireTakeoffs?.prepareDefaults(), window.CeasefireLibraryEditor?.prepareProject?.()]);
-        if (coverReplacementPending()) return;
+        if (coverReplacementPending()) { await window.CeasefireCertification?.discardPreparedSession?.(preparedCertification?.workspace_id); return; }
         if (captured !== projectReplacementStamp()) throw new Error("The current project changed while preparing defaults. Try again when ready.");
         window.CeasefireCalculators.applyProject(prepared);
         if (penetration) window.CeasefirePenetrations.applyProject(penetration);
         if (takeoffs) window.CeasefireTakeoffs.applyProject(takeoffs);
         if (libraryDrafts) window.CeasefireLibraryEditor.applyProject(libraryDrafts);
-      } catch (error) { message(error.message, true); return; }
+      } catch (error) { await window.CeasefireCertification?.discardPreparedSession?.(preparedCertification?.workspace_id); message(error.message, true); return; }
     }
     state.quoteContext++;
     state.quoteLoadRevision++;
@@ -904,11 +914,13 @@
     state.legacyTitle = "";
     for (const id of ["client", "site-address", "project-no"]) $(id).value = "";
     updateQuoteTitle();
+    if (preparedCertification) window.CeasefireCertification.applyProject(preparedCertification);
     state.workflow = state.defaultWorkflow;
     $("measurements").value = "";
     $("snapshot-message").hidden = true;
     selectEstimator("estimate"); renderInputs(); updateDirty(false); message(uiCopy("")); showView("estimate"); scheduleCalculation();
     window.CeasefirePenetrations?.pricingChanged();
+    } finally { projectBusy(false); }
   }
 
   async function saveQuote() {
@@ -968,10 +980,12 @@
     if (state.projectBusy || coverReplacementPending()) return;
     button.disabled = true;
     const loadRevision = ++state.quoteLoadRevision;
+    let preparedCertification = null, certificationAdopted = false;
     try {
       const quote = await request(`/api/quotes/${encodeURIComponent(id)}`);
       if (loadRevision !== state.quoteLoadRevision) return;
       const captured = projectReplacementStamp();
+      preparedCertification = await window.CeasefireCertification?.prepareProject?.();
       const [prepared, penetration, takeoffs] = await Promise.all([window.CeasefireCalculators.prepareDefaults(), quote.penetration
         ? window.CeasefirePenetrations?.prepareProject(quote.penetration, quote.configuration || state.configuration)
         : window.CeasefirePenetrations?.prepareDefaults(quote.configuration || state.configuration), window.CeasefireTakeoffs?.prepareDefaults()]);
@@ -997,6 +1011,7 @@
       $("site-address").value = quote.site_address || "";
       $("project-no").value = quote.project_no || "";
       updateQuoteTitle();
+      if (preparedCertification) { window.CeasefireCertification.applyProject(preparedCertification); certificationAdopted = true; }
       state.workflow = typeof quote.workflow === "string" ? quote.workflow : state.defaultWorkflow;
       $("measurements").value = typeof quote.measurements === "string" ? quote.measurements : JSON.stringify(quote.measurements || "");
       $("snapshot-message").hidden = false;
@@ -1004,7 +1019,7 @@
       selectEstimator("estimate"); renderInputs(); updateDirty(false); message(uiCopy("")); showView("estimate"); scheduleCalculation();
       window.CeasefirePenetrations?.pricingChanged();
     } catch (error) { message(uiCopy("Could not open the quote. {0}", [error.message]), true); }
-    finally { button.disabled = false; }
+    finally { if (preparedCertification && !certificationAdopted) await window.CeasefireCertification?.discardPreparedSession?.(preparedCertification.workspace_id); button.disabled = false; }
   }
 
   function selectEstimator(kind) {
@@ -1264,7 +1279,7 @@
     switchPricingScope(scope); return true;
   }
   function projectPricingChanged() { return draftChanged(state.pricingScope === "project" ? state.draft : state.projectPricingDraft, state.quoteConfiguration || state.configuration); }
-  function projectHasChanges() { return state.dirty || projectPricingChanged() || window.CeasefireCalculators?.hasUnsavedChanges() || window.CeasefirePenetrations?.hasUnsavedChanges() || window.CeasefireTakeoffs?.hasUnsavedChanges() || window.CeasefireLibraryEditor?.hasProjectChanges?.(); }
+  function projectHasChanges() { return state.dirty || projectPricingChanged() || window.CeasefireCalculators?.hasUnsavedChanges() || window.CeasefirePenetrations?.hasUnsavedChanges() || window.CeasefireTakeoffs?.hasUnsavedChanges() || window.CeasefireLibraryEditor?.hasProjectChanges?.() || window.CeasefireCertification?.hasProjectChanges?.(); }
   function pricingScopeUi() {
     $("pricing-scope").value = state.pricingScope;
     const save = $("save-pricing"), project = state.pricingScope === "project";
@@ -1975,7 +1990,7 @@
       errors: [...state.inputErrors], inputDrafts: [...state.inputDrafts],
       pricing: state.pricingScope === "project" ? state.draft : state.projectPricingDraft,
       pricingPending: (state.pricingScope === "project" ? state.draft : state.projectPricingDraft) && [...pricingPendingFields(state.pricingScope === "project" ? state.draft : state.projectPricingDraft)],
-      calculators: window.CeasefireCalculators.projectFingerprint(), penetration: window.CeasefirePenetrations?.projectFingerprint(), takeoffs: window.CeasefireTakeoffs?.projectFingerprint(), libraryDrafts: window.CeasefireLibraryEditor?.projectFingerprint?.() });
+      calculators: window.CeasefireCalculators.projectFingerprint(), penetration: window.CeasefirePenetrations?.projectFingerprint(), takeoffs: window.CeasefireTakeoffs?.projectFingerprint(), libraryDrafts: window.CeasefireLibraryEditor?.projectFingerprint?.(), certifications: window.CeasefireCertification?.projectFingerprint?.() });
   }
 
   // Cover defaults are global Settings, not part of a saved project. Their
@@ -1985,6 +2000,10 @@
     return JSON.stringify({project:projectStamp(),coverSheets:window.CeasefireCoverSheets?.fingerprint?.()});
   }
   function coverReplacementPending() {
+    if (window.CeasefireCertification?.hasPendingOperation?.()) {
+      message(uiCopy("Finish or retry the current certification operation before replacing a project."), true);
+      return true;
+    }
     if (!window.CeasefireCoverSheets?.hasPendingOperation?.()) return false;
     message(uiCopy("Finish or retry the current cover-sheet operation before replacing a project."),true);
     return true;
@@ -2024,13 +2043,15 @@
       if (context !== state.quoteContext || target !== state.projectFile || inputProblem() || preparedPricing !== pricingStamp()) throw new Error(inputProblem() || "The project changed while preparing the file. Save again when ready.");
       if (JSON.stringify(calculators) !== JSON.stringify(window.CeasefireCalculators.projectSnapshot()) || penetration && JSON.stringify(penetration) !== JSON.stringify(window.CeasefirePenetrations.projectSnapshot())) throw new Error("The calculator drafts changed while preparing the file. Save again when ready.");
       const libraryDrafts = await window.CeasefireLibraryEditor?.completeProjectSnapshot?.(), libraryStamp = window.CeasefireLibraryEditor?.projectFingerprint?.();
+      const certifications = await window.CeasefireCertification?.completeProjectSnapshot?.(), certificationStamp = window.CeasefireCertification?.projectFingerprint?.();
       const takeoffs = await window.CeasefireTakeoffs?.completeProjectSnapshot();
       if (window.CeasefirePenetrations?.inputProblem()) throw new Error(window.CeasefirePenetrations.inputProblem());
       if (context !== state.quoteContext || target !== state.projectFile || inputProblem() || preparedPricing !== pricingStamp()) throw new Error(inputProblem() || "The project changed while preparing the file. Save again when ready.");
       if (JSON.stringify(calculators) !== JSON.stringify(window.CeasefireCalculators.projectSnapshot()) || penetration && JSON.stringify(penetration) !== JSON.stringify(window.CeasefirePenetrations.projectSnapshot())) throw new Error("The calculator drafts changed while preparing the file. Save again when ready.");
       if (JSON.stringify(takeoffs) !== JSON.stringify(window.CeasefireTakeoffs?.projectSnapshot())) throw new Error("Takeoffs changed while preparing the file. Save again when ready.");
       if (libraryStamp !== window.CeasefireLibraryEditor?.projectFingerprint?.()) throw new Error("Project library drafts changed while preparing the file. Save again when ready.");
-      const payload = { estimate: projectEstimate(), calculators, ...(penetration ? { penetration } : {}), ...(libraryDrafts ? { library_drafts: libraryDrafts } : {}), ...(takeoffs ? { takeoffs, takeoffs_session_id: window.CeasefireTakeoffs.sessionId() } : {}) };
+      if (certificationStamp !== window.CeasefireCertification?.projectFingerprint?.()) throw new Error("Project certificates changed while preparing the file. Save again when ready.");
+      const payload = { estimate: projectEstimate(), calculators, ...(penetration ? { penetration } : {}), ...(libraryDrafts ? { library_drafts: libraryDrafts } : {}), ...(certifications ? { certifications } : {}), ...(takeoffs ? { takeoffs, takeoffs_session_id: window.CeasefireTakeoffs.sessionId() } : {}) };
       if (pricing) payload.estimate.configuration = clone(pricing.configuration);
       if (!saveAs) payload.save_token = target.save_token;
       const captured = projectStamp();
@@ -2043,6 +2064,7 @@
         if (penetration) window.CeasefirePenetrations.markProjectSaved(saved.project.penetration, penetration);
         if (takeoffs) window.CeasefireTakeoffs.markProjectSaved(saved.project.takeoffs, takeoffs);
         if (libraryDrafts) window.CeasefireLibraryEditor.markProjectSaved(saved.project.library_drafts, libraryDrafts);
+        if (certifications) window.CeasefireCertification.markProjectSaved(saved.project.certifications, certifications);
         if (!changed) {
           state.quote = null; state.quoteConfiguration = clone(saved.project.estimate.configuration);
           state.fields = clone(saved.project.fields);
@@ -2130,11 +2152,12 @@
   }
 
   async function reviewAndLoadProject(project, file, captured) {
-    let takeoffsAdopted = false;
+    let takeoffsAdopted = false, certificationAdopted = false, preparedCertification = null;
     try {
       if (coverReplacementPending()) return;
       if (!state.takeoffsEnabled && (project.takeoffs || project.takeoffs_session_id)) throw new Error("This project contains TAKEOFFS data. Open it in the full edition; this edition cannot remove or overwrite that evidence.");
-      const [prepared, penetration, takeoffs, libraryDrafts] = await Promise.all([window.CeasefireCalculators.prepareProject(project.calculators), window.CeasefirePenetrations?.prepareProject(project.penetration, project.estimate.configuration), window.CeasefireTakeoffs?.prepareProject(project.takeoffs, project.takeoffs_session_id), window.CeasefireLibraryEditor?.prepareProject?.(project.library_drafts)]);
+      const [prepared, penetration, takeoffs, libraryDrafts, certification] = await Promise.all([window.CeasefireCalculators.prepareProject(project.calculators), window.CeasefirePenetrations?.prepareProject(project.penetration, project.estimate.configuration), window.CeasefireTakeoffs?.prepareProject(project.takeoffs, project.takeoffs_session_id), window.CeasefireLibraryEditor?.prepareProject?.(project.library_drafts), window.CeasefireCertification?.prepareProject?.(project.certifications, project.certification_workspace_id)]);
+      preparedCertification = certification;
       if (coverReplacementPending()) return;
       if (captured !== projectReplacementStamp()) throw new Error("Your draft changed while reading the file. Load it again when ready.");
       const detail = project.project_details || {};
@@ -2158,6 +2181,7 @@
       state.projectFile = { ...file, title: estimate.title }; resetProjectPricing("project");
       state.legacyTitle = [estimate.project_no, estimate.client, estimate.site_address].some(Boolean) ? "" : estimate.title || "";
       $("project-no").value = estimate.project_no || ""; $("client").value = estimate.client || ""; $("site-address").value = estimate.site_address || "";
+      if (certification) { window.CeasefireCertification.applyProject(certification); certificationAdopted = true; }
       state.workflow = estimate.workflow; $("measurements").value = estimate.measurements || "";
       updateQuoteTitle(); renderInputs(); updateDirty(false);
       $("snapshot-message").hidden = false; window.CeasefireI18n.text($("snapshot-message").querySelector("span"), "This project uses the pricing snapshot from its file.");
@@ -2166,6 +2190,7 @@
       message(file.save_token ? uiCopy("Project loaded with the Quote, Firestopping items, {0}original pricing and all three specialist calculators. Save updates this project file.", [window.CeasefireI18n.term(takeoffContents())]) : uiCopy("Project imported with the Quote, Firestopping items, {0}original pricing and all three specialist calculators. Use Save to choose its project file.", [window.CeasefireI18n.term(takeoffContents())]));
     } finally {
       if (!takeoffsAdopted) await window.CeasefireTakeoffs?.discardPreparedSession?.(project.takeoffs_session_id);
+      if (!certificationAdopted) await window.CeasefireCertification?.discardPreparedSession?.(preparedCertification?.workspace_id || project.certification_workspace_id);
     }
   }
 
@@ -2494,7 +2519,18 @@
   window.CeasefireTakeoffNavigation = { show() { return showView("takeoffs"); } };
   window.CeasefirePenetrationNavigation = {
     show() { return showView("calculators", undefined, "penetration"); },
-    showSchedule() { state.estimateKind = "estimate"; selectMainSection("firestopping-schedule"); return showView("estimate"); },
+    showSchedule() {
+      const quoteContext = state.quoteContext;
+      const opened = showView("calculators", undefined, "penetration");
+      // Retain schedule navigation's calculation contract after moving its
+      // visible table into Calculators. A blocked or superseded navigation
+      // must not start work in another view or a replacement project.
+      if (!opened) return opened;
+      return Promise.resolve(opened).then(() => {
+        if (quoteContext !== state.quoteContext || state.currentView !== "calculators" || state.calculatorKind !== "penetration") return;
+        return window.CeasefirePenetrations?.openSchedule?.();
+      });
+    },
     confirm: confirmReplace,
     confirmDelete() { return confirmReplace(uiCopy("Delete item?"), uiCopy("Are you sure you want to delete this item?"), uiCopy("Yes"), uiCopy("Cancel")); },
     message(text, error = false, args = []) { message(uiCopy(text, args), error); },

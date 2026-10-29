@@ -20,7 +20,7 @@ from estimator.storage import Store
 
 
 def fields(**values):
-    return {**dict.fromkeys(FIELDS, ''), **values}
+    return {**dict.fromkeys(FIELDS, ''), **dict.fromkeys(FIELDS[:13], 'N/A'), **values}
 
 
 def pdf(text='CERTIFICATE', **kwargs):
@@ -101,8 +101,8 @@ class CertificationTests(unittest.TestCase):
 
     def test_create_and_generate_replays_are_idempotent_even_after_version_changes(self):
         request = str(uuid.uuid4())
-        document = self.service.create({'project':'Retry'}, request)
-        self.assertEqual(self.service.create({'project':'Retry'}, request), document)
+        document = self.service.create(fields(project='Retry'), request)
+        self.assertEqual(self.service.create(fields(project='Retry'), request), document)
         with self.assertRaises(CertificationConflict): self.service.create({'project':'Different'},request)
         operation = str(uuid.uuid4())
         generated = self.service.generate(document['id'],document['fields'],1,operation,self.company)

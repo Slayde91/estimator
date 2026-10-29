@@ -25,6 +25,7 @@ MAX_FIELD_CHARS = 8_000
 MAX_TOTAL_CHARS = 40_000
 MAX_REVISION_BYTES = 40 * 1024 * 1024
 SIGNER_FIELDS = ('name', 'position', 'qualification', 'accreditation')
+REQUIRED_GENERATION_FIELDS = FIELDS[:13]
 SCOPE_IDS = frozenset(('structural_steel', 'structural_steel_columns', 'ductwork', 'service_penetrations'))
 DEFAULT_OPTIONS = {'cover_pdf': None, 'cover_pdf_name': '', 'scopes': []}
 _MISSING = object()
@@ -119,10 +120,11 @@ def _revision_metadata(document_id, row):
 
 
 class CertificationService:
-    def __init__(self, store, *, renderer=None, coverer=None, covers=None):
+    def __init__(self, store, *, renderer=None, coverer=None, covers=None, precommit=None):
         self.store = store
         self.renderer = renderer
         self.coverer = coverer
+        self.precommit = precommit
         with store.connect() as db:
             db.executescript('''
                 CREATE TABLE IF NOT EXISTS certification_documents (
@@ -228,6 +230,8 @@ class CertificationService:
                        'VALUES(?,?,?,?,?,?,?,?,?)',
                        (identity, _json(fields), 1, timestamp, timestamp, request_id, fingerprint,
                         _json(options), _json(options)))
+            if self.precommit is not None:
+                self.precommit(db, identity)
             return self._get(db, identity)
 
     def get(self, document_id):
@@ -253,6 +257,8 @@ class CertificationService:
                 raise CertificationConflict('This certification changed in another window. Reload it before saving again.')
             db.execute('UPDATE certification_documents SET fields=?,options=?,version=version+1,updated_at=? WHERE id=?',
                        (_json(fields), _json(selected_options), _now(), document_id))
+            if self.precommit is not None:
+                self.precommit(db, document_id)
             return self._get(db, document_id)
 
     @staticmethod
@@ -312,6 +318,12 @@ class CertificationService:
             replay = self._replay(db, document_id, request_id, fingerprint)
             if replay:
                 return {'document': current, 'revision': replay}
+            # Historical committed requests remain recoverable even if their
+            # older drafts were incomplete. Only a new revision must satisfy
+            # today's required certificate details.
+            missing = [key.replace('_', ' ') for key in REQUIRED_GENERATION_FIELDS if not fields[key].strip()]
+            if missing:
+                raise ValidationError('Complete all required certification fields before generating: ' + ', '.join(missing) + '.')
             if current['version'] != expected_version:
                 raise CertificationConflict('This certification changed in another window. Reload it before generating again.')
             revision = max((item['revision'] for item in current['revisions']), default=0) + 1
@@ -354,6 +366,8 @@ class CertificationService:
                         digest, request_id, fingerprint, _json(selected_options), _json(cover_snapshot)))
             db.execute('UPDATE certification_documents SET fields=?,options=?,version=version+1,updated_at=? WHERE id=?',
                        (_json(fields), _json(selected_options), timestamp, document_id))
+            if self.precommit is not None:
+                self.precommit(db, document_id)
             return {'document': self._get(db, document_id),
                     'revision': _revision_metadata(document_id, (revision, timestamp, digest))}
 

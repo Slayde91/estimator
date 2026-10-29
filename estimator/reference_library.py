@@ -29,7 +29,8 @@ from .library_filter_groups import grouped_filter_options
 from .technical_service_options import options as technical_service_options
 from .technical_presentation import present_options, technical_title
 from .technical_discovery import (HIDDEN_FRL_CHOICES, canonical_frl, discovery_facets,
-                                  present_frl_text, present_technical)
+                                  present_frl_text, present_technical,
+                                  project_smoke_sampling_services)
 from .technical_fields import (FIELD_LABELS, LEGACY_LABELS,
                                is_hidden_technical_label, normalize_technical_item)
 from .firefly_reference_review import plan_stamp, load_review
@@ -463,6 +464,13 @@ class ReferenceLibrary:
                     if key in public_technical:
                         public_technical[key] = {**public_technical[key], 'canonical_id': canonical, 'consolidated_ids': list(members)}
             visible['technical'] = [key for key in public_technical if aliases.get(key, key) == key]
+            explicit_smoke_ids = {key for key, values in imported_services.items()
+                                  if 'Smoke Sampling Tubes' in values}
+            if data.get(SERVICE_REVIEW_KEY) is not None:
+                explicit_smoke_ids.update(row['id'] for row in json.loads(data[SERVICE_REVIEW_KEY].payload)['items']
+                                          if 'Smoke Sampling Tubes' in row['services'])
+            discovery = project_smoke_sampling_services(public_technical, discovery,
+                explicit_ids=explicit_smoke_ids, lineage=variant_projection.lineage)
             for entry in filters['technical']:
                 observed = {value for values in discovery.values() for value in values.get(entry['key'], [])}
                 if entry['key'] == 'frl':

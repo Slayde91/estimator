@@ -59,7 +59,7 @@ const phrases = [
   "CLASSIFIRE | Passive Fire Intelligence | Depth. Thickness. Compatibility. I have standards.",
   "CLASSIFIRE | Passive Fire Intelligence | Looking for something long-term. Minimum 120 minutes.",
   "CLASSIFIRE | Passive Fire Intelligence | Let me help you spray your load.",
-  "Passive Fire Intelligence.",
+  "CLASSIFIRE: Passive Fire Intelligence",
 ];
 function harness({ random = 0, previous, reduced = false, blocked = false, missing = false, missingCursor = false, missingMotion = false, rejectSound = false } = {}) {
   const label = { textContent: '' }, sizer = { children: [], get textContent() { return this.children.map(line => line.textContent).join(''); }, replaceChildren(...lines) { this.children = lines; } }, cursor = { hidden: false }, frames = [], timers = new Map(), writes = [];
@@ -256,11 +256,11 @@ const html = fs.readFileSync('static/index.html', 'utf8');
 {
   const h=harness({random:.999});const phrase=phrases.at(-1);
   assert.equal(h.label.textContent,phrase);assert.equal(h.typed.textContent.length,phrase.length);
-  assert.notEqual(h.typed.textContent,phrase);assert.equal(h.typed.textContent[7],' ');assert.equal(h.typed.textContent[12],' ');
+  assert.notEqual(h.typed.textContent,phrase);for(let i=0;i<phrase.length;i++)if(phrase[i]===' ')assert.equal(h.typed.textContent[i],' ');
   assert.equal(h.printing.starts,0,'Scrambling never starts the typing loop');
   assert.equal(h.audio.src,'/sounds/gameover.mp3');assert.equal(h.audio.plays,1);
-  h.advance(2970);assert.notEqual(h.typed.textContent,phrase);assert.ok(!h.typed.textContent.startsWith('Passive'));
-  h.advance(330);assert.ok(h.typed.textContent.startsWith('Pass'));assert.notEqual(h.typed.textContent,phrase);
+  h.advance(2970);assert.notEqual(h.typed.textContent,phrase);assert.ok(!h.typed.textContent.startsWith(phrase.slice(0,7)));
+  h.advance(330);assert.ok(h.typed.textContent.startsWith(phrase.slice(0,4)));assert.notEqual(h.typed.textContent,phrase);
   h.advance(1750);assert.equal(h.typed.textContent,phrase);assert.equal(h.cursor.hidden,true);assert.equal(h.audio.plays,1);
   h.advance(10000);assert.equal(h.typed.textContent,phrase);assert.equal(h.audio.plays,1);passed++;
 }

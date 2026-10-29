@@ -103,6 +103,15 @@ let passed=0;
   const historical=audit.makeControl(audit.state.fields[0],true);
   assert.equal(historical.value,'Old spray');
   assert.ok(historical.options.some(x=>x.value==='Old spray'));
+  // Empty historical inputs display N/A without converting saved workbook
+  // values; the existing explicit N/A choice is never duplicated.
+  for(const current of ['', 'N/A', 'Old spray']){
+    audit.state.inputs.D15=current;
+    const control=audit.makeControl({cell:'D15',type:'select',options:['N/A','Old spray']},true);
+    assert.equal(control.value,current);assert.equal(audit.state.inputs.D15,current);
+    assert.equal(control.options.filter(option=>option.textContent==='N/A').length,1);
+    assert.ok(!control.options.some(option=>option.textContent==='(blank)'));
+  }
   await audit.newQuote();
   assert.equal(audit.state.quoteConfiguration,null);
   assert.equal(audit.state.fields[0].options[0],'New spray');
@@ -702,7 +711,7 @@ let passed=0;
   assert.doesNotMatch(mainHtml,/<details|<summary/);
   assert.ok(mainHtml.indexOf('id="project-heading"')<mainHtml.indexOf('id="main-section-tabs"'));
   assert.match(mainHtml,/id="main-panel-materials"[^>]*data-main-section="materials"/);
-  assert.match(mainHtml,/id="main-panel-firestopping-schedule"[^>]*data-main-section="firestopping-schedule"/);
+  assert.match(mainHtml,/id="main-panel-firestopping-schedule" hidden/);
   const additionSection=byId('adjustment-sections').children.find(section=>section.dataset.mainSection==='additions');
   const globalSection=additionSection.children.find(section=>section.dataset.inputSection==='global-adjustments');
   assert.ok(globalSection);assert.equal(globalSection.dataset.mainSection,undefined);
@@ -846,13 +855,25 @@ let passed=0;
   assert.deepEqual(copy({inputs:audit.state.inputs,draft:audit.state.draft}),protectedState);assert.equal(byId('estimator-penetration').getAttribute('aria-labelledby'),'penetration-heading');
   context.window.CeasefirePenetrations=priorPenetrations;context.window.CeasefireLibraries=priorLibraries;delete context.window.CeasefireLibraryEditor;passed++;
 
-  // Main Estimator navigation opens only the committed schedule calculation;
-  // the independent current item is opened explicitly in its own workspace.
+  // Schedule links retain their schedule recalculation contract while opening
+  // the retained Calculators workspace and respecting navigation guards.
   setup();const workspaceOpens=[];
-  context.window.CeasefirePenetrations={open(){workspaceOpens.push('item');},openSchedule(){workspaceOpens.push('schedule');}};
-  context.window.CeasefirePenetrationNavigation.showSchedule();assert.equal(audit.state.estimatorKind,'estimate');assert.equal(byId('estimator-main').hidden,false);
+  context.window.CeasefirePenetrations={open(){workspaceOpens.push('item');return Promise.resolve();},openSchedule(){workspaceOpens.push('schedule');return Promise.resolve();}};
+  await context.window.CeasefirePenetrationNavigation.showSchedule();assert.equal(audit.state.estimatorKind,'penetration');assert.equal(audit.state.currentView,'calculators');assert.equal(byId('estimator-main').hidden,true);
   context.window.CeasefirePenetrationNavigation.show();assert.equal(audit.state.estimatorKind,'penetration');
-  assert.deepEqual(workspaceOpens,['schedule','item']);context.window.CeasefirePenetrations=priorPenetrations;passed++;
+  assert.deepEqual(workspaceOpens,['item','schedule','item']);passed++;
+  audit.showView('home');const priorCertification=context.window.CeasefireCertification;
+  context.window.CeasefireCertification={hasPendingOperation:()=>true};
+  await context.window.CeasefirePenetrationNavigation.showSchedule();
+  assert.equal(audit.state.currentView,'home');assert.deepEqual(workspaceOpens,['item','schedule','item']);
+  context.window.CeasefireCertification=priorCertification;passed++;
+  for(const replacement of ['view','project']){
+    const ready=deferred();context.window.CeasefirePenetrations={open:()=>ready.promise,openSchedule:()=>workspaceOpens.push('unexpected schedule')};
+    const opening=context.window.CeasefirePenetrationNavigation.showSchedule();
+    if(replacement==='view')audit.showView('home');else audit.state.quoteContext++;
+    ready.resolve();await opening;assert.deepEqual(workspaceOpens,['item','schedule','item']);passed++;
+  }
+  context.window.CeasefirePenetrations=priorPenetrations;
 
   const markup=englishMarkup(fs.readFileSync('static/index.html','utf8'));
   const actionCss=fs.readFileSync('static/styles.css','utf8');

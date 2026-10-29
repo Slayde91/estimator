@@ -19,7 +19,7 @@ const row = (id, body = 'penetration-estimator-schedule-body') => page.locator(`
 const settled = () => page.waitForFunction(() => window.CeasefireDesktop?.status().ready && !window.CeasefireDesktop.status().busy);
 const dialog = () => page.getByRole('dialog', { name: 'Choose Technical Library references', exact: true });
 async function choose(id) { await row(id).locator('[data-penetration-references]').click(); await expect(dialog()).toBeVisible(); await expect(dialog().getByRole('button', { name: 'Use selected references', exact: true })).toBeEnabled(); }
-async function itemColumn(body, theme, width) {
+async function itemColumn(body, theme, width, entry='calculator') {
   await page.setViewportSize({ width, height: 850 }); await page.evaluate(() => document.fonts.ready);
   const table = page.locator(`#${body}`).locator('..'); await expect(table).toBeVisible();
   const layout = await table.evaluate(table => {
@@ -31,8 +31,8 @@ async function itemColumn(body, theme, width) {
   });
   assert.equal(layout.header, 'Item'); assert.ok(layout.width <= 64, JSON.stringify(layout));
   assert.ok(layout.width >= Math.max(layout.largestItem, layout.heading), JSON.stringify(layout)); assert.equal(layout.width, layout.cellWidth);
-  assert.ok(layout.pageWidth <= width + 1); (evidence.itemColumns ||= []).push({ body, theme, ...layout });
-  await table.locator('thead th').first().scrollIntoViewIfNeeded(); await page.screenshot({ path: path.join(output, `item-column-${body}-${theme}-${width}.png`) });
+  assert.ok(layout.pageWidth <= width + 1); (evidence.itemColumns ||= []).push({ body, theme, entry, ...layout });
+  await table.locator('thead th').first().scrollIntoViewIfNeeded(); await page.screenshot({ path: path.join(output, `item-column-${body}-${entry}-${theme}-${width}.png`) });
 }
 (async () => {
   info = await ready; assert.notEqual(info.port, 8765); const origin = `http://127.0.0.1:${info.port}`;
@@ -116,7 +116,9 @@ async function itemColumn(body, theme, width) {
     await page.setViewportSize({ width: 1450, height: 960 }); await page.locator('nav [data-view="settings"]').click();
     for (let n = 0; n < 5 && await page.locator('html').getAttribute('data-theme') !== theme; n++) await page.locator('#theme-toggle').click(); await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
     await chooseCalculator(page, 'Firestopping'); await settled(); for (const width of [1084, 390]) await itemColumn('penetration-estimator-schedule-body', theme, width);
-    await page.evaluate(() => window.CeasefirePenetrationNavigation.showSchedule()); await settled(); for (const width of [1084, 390]) await itemColumn('penetration-schedule-body', theme, width);
+    await page.evaluate(() => window.CeasefirePenetrationNavigation.showSchedule()); await settled();
+    await expect(page.locator('#view-calculators')).toBeVisible();await expect(page.locator('#main-tab-firestopping-schedule')).toHaveCount(0);await expect(page.locator('#main-panel-firestopping-schedule')).toBeHidden();
+    for (const width of [1084, 390]) await itemColumn('penetration-estimator-schedule-body', theme, width,'schedule-navigation');
   }
   assert.deepEqual(await snapshot(), beforeLayout); await page.setViewportSize({ width: 1450, height: 960 }); await chooseCalculator(page, 'Firestopping'); await settled();
   await row('line-1').scrollIntoViewIfNeeded(); await page.screenshot({ path: path.join(output, 'shared-schedule.png') });

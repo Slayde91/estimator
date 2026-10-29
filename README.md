@@ -254,6 +254,20 @@ The Estimator accepts whole-number edits for Access Qty, Sqm/Items, Masking/clea
 
 ## Save and load a project
 
+Certification documents belong to the open project. The normal certificate
+selector lists only that project's certificates; **Add older certificate…** lets
+you explicitly copy a certificate from the earlier shared list, including its
+saved PDF revisions. New projects start with an empty certificate list. Shared
+signer details, the saved drawn signature and Settings cover sheets remain
+available across projects. Save the project to retain certificate drafts and
+revisions. When copying a project, also copy the adjacent `.ceasefire-evidence`
+folder: certificate PDFs use verified, immutable companions there, as Takeoffs
+originals already do. Native Load always requires this companion and rejects a
+missing or changed archive. A browser-uploaded project JSON can restore its
+certificates only when the exact verified archive is already cached locally;
+otherwise use **Load Project** with the companion folder. Certificate drafts,
+signatures and revision history are never silently omitted.
+
 **Save As** opens the operating system's file dialog with the quote name, adding `.cf.json` automatically. **Save** overwrites the current project file with the same complete estimate, pricing and all-calculator snapshot. The separate **Save quote** and **Save calculator** buttons remain removed. Projects accepts only `.cf.json` filenames. Older project contents remain supported: rename a copy of an existing `.json` project to `.cf.json` before loading it. The app does not rename existing files. You can choose the folder and rename the file. The filename replaces characters that a filesystem cannot accept. Cancelling the dialog leaves existing files unchanged and keeps the current project open.
 
 The persistent **Current project** area shows the known location and last-saved time. Save state appears directly under the main logo, including when any estimate, project-pricing or calculator input has unsaved changes. Files opened through **Load Project** or **Projects** retain their save target for this app session. Imported browser-upload content has no authorized local path and requires **Save As**. If the app server restarts, reopen the file or use **Save As** before saving again. On Windows, native Save As, Load Project and folder dialogs are owned by the foreground application and the actual dialog, including overwrite prompts, is raised above it. Automated checks cover save/load behavior and native helper structure; native dialog foreground placement remains a manual visual check.

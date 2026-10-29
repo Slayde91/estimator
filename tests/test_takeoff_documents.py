@@ -447,7 +447,7 @@ class TakeoffDocumentTests(unittest.TestCase):
         else:
             with self.assertRaises(ValidationError):
                 TakeoffDocuments(link)
-        with patch("estimator.takeoff_documents._linked", return_value=True), self.assertRaises(ValidationError):
+        with patch("estimator.evidence_files._linked", return_value=True), self.assertRaises(ValidationError):
             TakeoffDocuments(self.root / "blocked-reparse")
 
     def test_duplicate_ids_and_project_capacity_are_not_silent(self):

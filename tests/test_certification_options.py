@@ -22,7 +22,7 @@ from estimator.storage import Store
 
 
 def fields(**patch):
-    return {**dict.fromkeys(FIELDS, ''), **patch}
+    return {**dict.fromkeys(FIELDS, ''), **dict.fromkeys(FIELDS[:13], 'N/A'), **patch}
 
 
 def pdf(text):

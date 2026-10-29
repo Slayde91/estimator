@@ -325,7 +325,7 @@ async function presentationNavigation(initial) {
     await context.close();
   }
   {
-    const expected='Passive Fire Intelligence.';
+    const expected='CLASSIFIRE: Passive Fire Intelligence';
     const context=await browser.newContext({viewport:{width:390,height:844}});await instrument(context,{random:.999});
     await context.addInitScript(()=>{
       window.qaBrandSound=[];
@@ -335,9 +335,9 @@ async function presentationNavigation(initial) {
     });
     page=await context.newPage();watch(page);await installPausedClock();await page.goto(`http://127.0.0.1:${info.port}/`);await finishBootFrames();
     const first=await layout();assert.equal(first.accessible,expected);assert.notEqual(first.typed,expected);assert.equal(first.typed.length,expected.length);
-    assert.equal(first.typed[7],' ');assert.equal(first.typed[12],' ');assert.equal(await page.evaluate(()=>window.qaBrandSound.filter(event=>event==='play').length),1);
+    for(let i=0;i<expected.length;i++)if(expected[i]===' ')assert.equal(first.typed[i],' ');assert.equal(await page.evaluate(()=>window.qaBrandSound.filter(event=>event==='play').length),1);
     await page.screenshot({path:path.join(output,'intelligence-scrambling-390.png')});
-    await page.clock.runFor(3300);const resolving=await layout();assert.ok(resolving.typed.startsWith('Pass'));assert.notEqual(resolving.typed,expected);sameHeader(first,resolving);
+    await page.clock.runFor(3300);const resolving=await layout();assert.ok(resolving.typed.startsWith(expected.slice(0,4)));assert.notEqual(resolving.typed,expected);sameHeader(first,resolving);
     await page.clock.runFor(2000);const settled=await layout();assert.equal(settled.typed,expected);assert.equal(settled.cursorHidden,true);sameHeader(first,settled);
     await page.evaluate(()=>window.CeasefireI18n.setLanguage('fr'));const brandFrench=await layout();assert.equal(brandFrench.accessible,expected);
     assert.equal(await page.evaluate(()=>window.qaBrandSound.filter(event=>event==='play').length),1,'Language refresh does not replay the appearance');

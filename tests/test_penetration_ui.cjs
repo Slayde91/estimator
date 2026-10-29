@@ -516,7 +516,7 @@ async function check(name,fn){const h=harness();h.api.applyProject(await h.api.p
     assert.deepEqual(copy(h.api.projectSnapshot().composer),composer);assert.deepEqual(copy(h.api.projectSnapshot().draft.rows[0].inputs),composer.rows[0].inputs);assert.equal(h.calls.at(-1).payload.draft.globals.L,.17);
     await h.audit.addToSchedule();assert.equal(h.api.projectSnapshot().draft.rows.length,2);assert.match(receipt.message,/current schedule prices/);assert.doesNotMatch(receipt.message,/allowances/);
   });
-  await check('The Firestopping Estimator and Quote render one shared schedule with synchronized controls',async h=>{
+  await check('The Calculator schedule retains synchronized data in the hidden compatibility projection',async h=>{
     h.audit.state.draft.rows[0].inputs={K:'Pair coil',L:'Core hole',M:'Wall',N:'120/120/120',O:1};await h.audit.addToSchedule();
     const quoteBody=h.byId('penetration-schedule-body'),estimatorBody=h.byId('penetration-estimator-schedule-body');
     assert.equal(quoteBody.children.length,1);assert.equal(estimatorBody.children.length,1);assert.notEqual(quoteBody.children[0],estimatorBody.children[0]);
@@ -527,14 +527,14 @@ async function check(name,fn){const h=harness();h.api.applyProject(await h.api.p
     await h.byId('penetration-estimator-undo').emit('click');await flush();assert.equal(quoteBody.children.length,1);assert.equal(estimatorBody.children.length,1);
   });
   await check('Inline schedule quantity retains focus, exact precision and stable DOM without touching the composer',async h=>{
-    await h.audit.addToSchedule();const body=h.byId('penetration-schedule-body'),row=body.children[0],quantity=row.children[6].querySelectorAll('[data-penetration-field]')[0];
+    await h.audit.addToSchedule();const body=h.byId('penetration-estimator-schedule-body'),row=body.children[0],quantity=row.children[6].querySelectorAll('[data-penetration-field]')[0];
     await quantity.focus();quantity.value='2.345678901234';quantity.selectionStart=quantity.selectionEnd=14;await quantity.emit('input');assert.equal(body.children[0],row);assert.equal(h.context.document.activeElement,quantity);assert.equal(quantity.selectionEnd,14);
     assert.equal(h.api.projectSnapshot().draft.rows[0].inputs.O,2.345678901234);assert.equal(h.api.projectSnapshot().composer.rows[0].inputs.O,undefined);
     h.audit.setRequest(async(path,payload)=>{const r=result(payload.draft);r.rows[0].outputs.H=payload.draft.rows[0].inputs.O*10;return r;});await h.audit.calculateSchedule();assert.equal(body.children[0],row);assert.equal(quantity.value,'2.345678901234');assert.equal(row.children[7].textContent,'$23.46');
     await quantity.blur();assert.equal(quantity.value,'2.35');await quantity.focus();assert.equal(quantity.value,'2.345678901234');
   });
   await check('Invalid text stays in its own scope, blocks persistence, and schedule exports ignore unrelated invalid composer input',async h=>{
-    await h.audit.addToSchedule();const quantity=h.byId('penetration-schedule-body').children[0].children[6].querySelectorAll('[data-penetration-field]')[0];
+    await h.audit.addToSchedule();const quantity=h.byId('penetration-estimator-schedule-body').children[0].children[6].querySelectorAll('[data-penetration-field]')[0];
     quantity.value='1e-';await quantity.emit('input');assert.equal(h.control('O').value,'');assert.equal(h.byId('penetration-pdf').disabled,true);await assert.rejects(h.api.completeProjectSnapshot(),/marked invalid/);
     quantity.value='3.14159265358979';await quantity.emit('input');h.control('O').value='bad';await h.control('O').emit('input');assert.equal(h.byId('penetration-pdf').disabled,false);assert.equal(quantity.value,'3.14');
     h.audit.state.group='Products and labour';h.audit.renderFields();h.audit.state.group='Penetration';h.audit.renderFields();assert.equal(h.control('O').value,'bad');assert.equal(h.api.projectSnapshot().draft.rows[0].inputs.O,3.14159265358979);
@@ -565,7 +565,7 @@ async function check(name,fn){const h=harness();h.api.applyProject(await h.api.p
   });
   await check('Deleted or changed schedule targets cannot be overwritten by an earlier edited copy, even after ID reuse or Undo',async h=>{
     await h.audit.addToSchedule();await h.audit.selectRow('line-1');h.control('T').value='Old edit';await h.control('T').emit('input');h.audit.removeRow('line-1');await flush();h.audit.undoRemove();await flush();await h.audit.updateSchedule();assert.equal(h.api.projectSnapshot().draft.rows[0].inputs.T,undefined);
-    await h.audit.selectRow('line-1');const qty=h.byId('penetration-schedule-body').children[0].children[6].querySelectorAll('[data-penetration-field]')[0];qty.value='4';await qty.emit('input');await h.audit.updateSchedule();assert.equal(h.api.projectSnapshot().draft.rows[0].inputs.O,4);
+    await h.audit.selectRow('line-1');const qty=h.byId('penetration-estimator-schedule-body').children[0].children[6].querySelectorAll('[data-penetration-field]')[0];qty.value='4';await qty.emit('input');await h.audit.updateSchedule();assert.equal(h.api.projectSnapshot().draft.rows[0].inputs.O,4);
   });
   await check('Add another copy while editing does not update the original target',async h=>{
     await h.audit.addToSchedule();await h.audit.selectRow('line-1');h.control('T').value='Copy';await h.control('T').emit('input');await h.audit.addToSchedule();assert.equal(h.api.projectSnapshot().draft.rows[0].inputs.T,undefined);assert.equal(h.api.projectSnapshot().draft.rows[1].inputs.T,'Copy');assert.equal(h.audit.state.edit.id,'line-1');
@@ -607,19 +607,20 @@ async function check(name,fn){const h=harness();h.api.applyProject(await h.api.p
     assert.equal(confirmations,1);assert.equal(h.calls.length,before);assert.equal(h.byId('penetration-add-to-library').disabled,false);assert.equal(h.audit.state.creatingLibrary,false);
   });
   await check('Remove and Undo allow a truly empty schedule and retain precision without affecting composer',async h=>{
-    h.audit.state.draft.rows[0].inputs={T:'Marker',AG:.123456789012345};await h.audit.addToSchedule();const composer=copy(h.api.projectSnapshot().composer),button=h.byId('penetration-schedule-body').querySelectorAll('[data-penetration-remove]')[0];assert.equal(button.title,'Delete item 1');assert.equal(button.getAttribute('aria-label'),'Delete firestopping item 1');
+    h.audit.state.draft.rows[0].inputs={T:'Marker',AG:.123456789012345};await h.audit.addToSchedule();const composer=copy(h.api.projectSnapshot().composer),button=h.byId('penetration-estimator-schedule-body').querySelectorAll('[data-penetration-remove]')[0];assert.equal(button.title,'Delete item 1');assert.equal(button.getAttribute('aria-label'),'Delete firestopping item 1');
     h.audit.removeRow('line-1');await flush();assert.equal(h.api.projectSnapshot().draft.rows.length,0);h.audit.undoRemove();await flush();assert.equal(h.api.projectSnapshot().draft.rows[0].inputs.AG,.123456789012345);assert.deepEqual(copy(h.api.projectSnapshot().composer),composer);
   });
-  await check('Both Firestopping schedules put Edit in Actions and a confirmed trash button in the final Delete cell',async h=>{
+  await check('The Calculator schedule exposes confirmed Delete and both projections retain the same action cells',async h=>{
     h.audit.state.draft.rows[0].inputs={T:'Linked source',O:2.34567890123456};await h.audit.addToSchedule();const before=copy(h.api.projectSnapshot()),calls=[];
     h.context.window.CeasefirePenetrationNavigation.confirmDelete=async(...args)=>{calls.push(args);return false;};
-    for(const id of ['penetration-schedule-body','penetration-estimator-schedule-body']){const row=h.byId(id).children[0];assert.equal(row.children.length,13);assert.equal(row.children[11].children.length,1);assert.equal(row.children[11].children[0].textContent,'Edit');assert.equal(row.children[12].children[0].getAttribute('aria-label'),'Delete firestopping item 1');await row.children[12].children[0].emit('click');assert.deepEqual(copy(h.api.projectSnapshot()),before);}
+    for(const id of ['penetration-schedule-body','penetration-estimator-schedule-body']){const row=h.byId(id).children[0];assert.equal(row.children.length,13);assert.equal(row.children[11].children.length,1);assert.equal(row.children[11].children[0].textContent,'Edit');assert.equal(row.children[12].children[0].getAttribute('aria-label'),'Delete firestopping item 1');}
+    for(let review=0;review<2;review++){await h.byId('penetration-estimator-schedule-body').children[0].children[12].children[0].emit('click');assert.deepEqual(copy(h.api.projectSnapshot()),before);}
     assert.equal(calls.length,2);h.context.window.CeasefirePenetrationNavigation.confirmDelete=async()=>true;await h.byId('penetration-estimator-schedule-body').children[0].children[12].children[0].emit('click');await flush();assert.equal(h.api.projectSnapshot().draft.rows.length,0);
-    await h.byId('penetration-undo').emit('click');await flush();assert.deepEqual(copy(h.api.projectSnapshot()),before);
+    await h.byId('penetration-estimator-undo').emit('click');await flush();assert.deepEqual(copy(h.api.projectSnapshot()),before);
   });
   for(const conflict of ['row edit','remove and reuse','Undo epoch','project replacement','price change','invalid input','destination lease'])await check(`Pending Firestopping deletion rejects ${conflict} without deleting current content`,async h=>{
     await h.audit.addToSchedule();const state=h.audit.state,pending=deferred();h.context.window.CeasefirePenetrationNavigation.confirmDelete=()=>pending.promise;
-    const deletion=h.byId('penetration-schedule-body').children[0].children[12].children[0].emit('click');await flush();assert.equal(h.byId('penetration-estimator-schedule-body').children[0].children[12].children[0].disabled,true);
+    const deletion=h.byId('penetration-estimator-schedule-body').children[0].children[12].children[0].emit('click');await flush();assert.equal(h.byId('penetration-estimator-schedule-body').children[0].children[12].children[0].disabled,true);
     if(conflict==='row edit'){state.schedule.draft.rows[0].inputs.O=9.98765432109876;state.schedule.revision++;}
     else if(conflict==='remove and reuse'){h.audit.removeRow('line-1');state.schedule.draft.rows.push({id:'line-1',inputs:{T:'Replacement'}});state.rowEpochs.set('line-1',++state.nextEpoch);}
     else if(conflict==='Undo epoch'){h.audit.removeRow('line-1');h.audit.undoRemove();}
@@ -630,15 +631,15 @@ async function check(name,fn){const h=harness();h.api.applyProject(await h.api.p
     const before=copy(h.api.projectSnapshot());pending.resolve(true);await deletion;assert.deepEqual(copy(h.api.projectSnapshot()),before);assert.match(h.byId('penetration-schedule-message').textContent,/Nothing was deleted|still applying/);assert.equal(state.pendingDeletes.size,0);
   });
   await check('Repeated trash clicks share one pending review and an unavailable confirmation API fails closed',async h=>{
-    await h.audit.addToSchedule();const pending=deferred();let count=0;h.context.window.CeasefirePenetrationNavigation.confirmDelete=()=>{count++;return pending.promise;};const button=h.byId('penetration-schedule-body').children[0].children[12].children[0],deletion=button.emit('click');await flush();await button.emit('click');assert.equal(count,1);pending.resolve(false);await deletion;assert.equal(h.api.projectSnapshot().draft.rows.length,1);
+    await h.audit.addToSchedule();const pending=deferred();let count=0;h.context.window.CeasefirePenetrationNavigation.confirmDelete=()=>{count++;return pending.promise;};const button=h.byId('penetration-estimator-schedule-body').children[0].children[12].children[0],deletion=button.emit('click');await flush();await button.emit('click');assert.equal(count,1);pending.resolve(false);await deletion;assert.equal(h.api.projectSnapshot().draft.rows.length,1);
     delete h.context.window.CeasefirePenetrationNavigation.confirmDelete;await button.emit('click');assert.equal(h.api.projectSnapshot().draft.rows.length,1);assert.match(h.byId('penetration-schedule-message').textContent,/confirmation is unavailable/);
   });
   await check('Detached Delete buttons cannot review or delete a replaced row with a reused ID',async h=>{
-    await h.audit.addToSchedule();const old=h.byId('penetration-schedule-body').children[0].children[12].children[0];let calls=0;h.context.window.CeasefirePenetrationNavigation.confirmDelete=async()=>{calls++;return true;};
+    await h.audit.addToSchedule();const old=h.byId('penetration-estimator-schedule-body').children[0].children[12].children[0];let calls=0;h.context.window.CeasefirePenetrationNavigation.confirmDelete=async()=>{calls++;return true;};
     h.api.applyProject(await h.api.prepareProject({draft:{...definition().schedule_defaults,rows:[{id:'line-1',inputs:{T:'Other project'}}]}}));let blurs=0;h.context.document.activeElement={blur(){blurs++;h.audit.state.schedule.draft.rows[0].inputs.T='A replacement input was wrongly flushed';}};const before=copy(h.api.projectSnapshot());await old.emit('click');assert.deepEqual(copy(h.api.projectSnapshot()),before);assert.equal(calls,0);assert.equal(blurs,0,'A detached old Delete control must reject before touching the replacement editor');assert.match(h.byId('penetration-schedule-message').textContent,/replaced or edited/);
   });
   await check('Firestopping Delete rechecks the rendered row after a current input blur before opening review',async h=>{
-    await h.audit.addToSchedule();const button=h.byId('penetration-schedule-body').children[0].children[12].children[0];let calls=0;h.context.window.CeasefirePenetrationNavigation.confirmDelete=async()=>{calls++;return true;};h.context.document.activeElement={blur(){h.audit.state.schedule.draft.rows[0].inputs.O=7.12345678901234;}};
+    await h.audit.addToSchedule();const button=h.byId('penetration-estimator-schedule-body').children[0].children[12].children[0];let calls=0;h.context.window.CeasefirePenetrationNavigation.confirmDelete=async()=>{calls++;return true;};h.context.document.activeElement={blur(){h.audit.state.schedule.draft.rows[0].inputs.O=7.12345678901234;}};
     await button.emit('click');assert.equal(calls,0);assert.equal(h.api.projectSnapshot().draft.rows[0].inputs.O,7.12345678901234);assert.match(h.byId('penetration-schedule-message').textContent,/replaced or edited/);
   });
   await check('A thousand scheduled rows render bounded pages and retain every precise row in calculations',async h=>{
@@ -647,16 +648,16 @@ async function check(name,fn){const h=harness();h.api.applyProject(await h.api.p
   });
   for(const transition of ['edit','new project','pricing'])await check(`Late schedule calculations cannot overwrite a later ${transition}`,async h=>{
     await h.audit.addToSchedule();const pending=deferred(),captured=copy(h.api.projectSnapshot().draft);h.audit.setRequest(()=>pending.promise);const calculating=h.audit.calculateSchedule();await flush();
-    if(transition==='edit'){const qty=h.byId('penetration-schedule-body').children[0].children[6].querySelectorAll('[data-penetration-field]')[0];qty.value='7.123456789';await qty.emit('input');}if(transition==='new project')h.api.applyProject(await h.api.prepareDefaults());if(transition==='pricing')h.pricing.rates.original.price=2;
+    if(transition==='edit'){const qty=h.byId('penetration-estimator-schedule-body').children[0].children[6].querySelectorAll('[data-penetration-field]')[0];qty.value='7.123456789';await qty.emit('input');}if(transition==='new project')h.api.applyProject(await h.api.prepareDefaults());if(transition==='pricing')h.pricing.rates.original.price=2;
     const stale=result(captured);stale.draft.rows[0].inputs.O=999;pending.resolve(stale);await calculating;assert.notEqual(h.api.projectSnapshot().draft.rows[0]?.inputs.O,999);
   });
   await check('Detached composer and schedule controls cannot mutate replacements with reused row IDs',async h=>{
-    await h.audit.addToSchedule();const oldComposer=h.control('T'),oldQty=h.byId('penetration-schedule-body').children[0].children[6].querySelectorAll('[data-penetration-field]')[0];await h.audit.addRow();oldComposer.value='stale';await oldComposer.emit('input');assert.equal(h.api.projectSnapshot().composer.rows[0].inputs.T,undefined);
+    await h.audit.addToSchedule();const oldComposer=h.control('T'),oldQty=h.byId('penetration-estimator-schedule-body').children[0].children[6].querySelectorAll('[data-penetration-field]')[0];await h.audit.addRow();oldComposer.value='stale';await oldComposer.emit('input');assert.equal(h.api.projectSnapshot().composer.rows[0].inputs.T,undefined);
     h.audit.removeRow('line-1');await flush();await h.audit.addToSchedule();oldQty.value='999';await oldQty.emit('input');assert.equal(h.api.projectSnapshot().draft.rows[0].inputs.O,undefined);
   });
   await check('Save receipts preserve both scopes, later edits and invalid text; reopening clears edit mode only',async h=>{
     await h.audit.addToSchedule();await h.audit.selectRow('line-1');const captured=h.api.projectSnapshot(),receipt=copy(captured);receipt.composer.rows[0].inputs.T='Canonical';h.api.markProjectSaved(receipt,captured);assert.equal(h.api.hasUnsavedChanges(),false);assert.equal(h.control('T').value,'Canonical');
-    const next=h.api.projectSnapshot();h.control('T').value='Later';await h.control('T').emit('input');const qty=h.byId('penetration-schedule-body').children[0].children[6].querySelectorAll('[data-penetration-field]')[0];qty.value='8.123456789';await qty.emit('input');h.api.markProjectSaved(next,next);assert.equal(h.control('T').value,'Later');assert.equal(h.api.projectSnapshot().draft.rows[0].inputs.O,8.123456789);assert.equal(h.api.hasUnsavedChanges(),true);
+    const next=h.api.projectSnapshot();h.control('T').value='Later';await h.control('T').emit('input');const qty=h.byId('penetration-estimator-schedule-body').children[0].children[6].querySelectorAll('[data-penetration-field]')[0];qty.value='8.123456789';await qty.emit('input');h.api.markProjectSaved(next,next);assert.equal(h.control('T').value,'Later');assert.equal(h.api.projectSnapshot().draft.rows[0].inputs.O,8.123456789);assert.equal(h.api.hasUnsavedChanges(),true);
     h.control('O').value='bad';await h.control('O').emit('input');h.api.markProjectSaved(next,next);assert.equal(h.control('O').value,'bad');const prepared=await h.api.prepareProject(h.api.projectSnapshot());h.api.applyProject(prepared);assert.equal(h.audit.state.edit,null);assert.equal(h.api.projectSnapshot().composer.rows[0].inputs.T,'Later');
   });
   await check('Legacy schedules stay exact and get a separate fresh composer; wrong source hashes reject',async h=>{
@@ -752,7 +753,7 @@ async function check(name,fn){const h=harness();h.api.applyProject(await h.api.p
     await h.audit.addToSchedule();await h.audit.selectRow('line-1');h.control('T').value='Updated';await h.control('T').emit('input');const pending=deferred();let calls=0,captured;h.audit.setRequest(async(path,payload)=>{calls++;captured=copy(payload.draft);return pending.promise;});const updating=h.audit.updateSchedule();await flush();await h.audit.updateSchedule();assert.equal(calls,1);assert.equal(h.api.projectSnapshot().draft.rows[0].inputs.T,'Updated');
     h.api.applyProject(await h.api.prepareDefaults());pending.resolve(result(captured));await updating;assert.equal(h.api.projectSnapshot().draft.rows.length,0);assert.doesNotMatch(h.byId('penetration-message').textContent,/updated/);
   });
-  await check('A schedule initialization failure reveals its error in the schedule workspace',async h=>{
+  await check('The compatibility schedule API retains its initialization failure diagnostic',async h=>{
     h.audit.state.draft=null;h.audit.state.schedule.draft=null;h.pricing.rates.original.price=99;h.audit.setRequest(async()=>{throw new Error('Definition unavailable');});h.byId('penetration-schedule-workspace').hidden=true;await h.api.openSchedule();assert.equal(h.byId('penetration-schedule-workspace').hidden,false);assert.match(h.byId('penetration-schedule-message').textContent,/Definition unavailable/);
   });
   for(const route of ['save','calculate'])await check(`Accepted ${route} normalization keeps a matching schedule Edit target usable`,async h=>{
@@ -764,7 +765,7 @@ async function check(name,fn){const h=harness();h.api.applyProject(await h.api.p
   });
   for(const route of ['save','calculate'])for(const conflict of ['later edit','removed and restored'])await check(`${route} normalization cannot unlock an Edit target after a ${conflict}`,async h=>{
     h.audit.state.draft.rows[0].inputs.T='';await h.audit.addToSchedule();await h.audit.selectRow('line-1');
-    if(conflict==='later edit'){const qty=h.byId('penetration-schedule-body').children[0].children[6].querySelectorAll('[data-penetration-field]')[0];qty.value='3.123456789';await qty.emit('input');}
+    if(conflict==='later edit'){const qty=h.byId('penetration-estimator-schedule-body').children[0].children[6].querySelectorAll('[data-penetration-field]')[0];qty.value='3.123456789';await qty.emit('input');}
     else{h.audit.removeRow('line-1');await flush();h.audit.undoRemove();await flush();}
     const captured=h.api.projectSnapshot(),canonical=copy(captured);canonical.draft.rows[0].inputs.T=null;
     if(route==='save')h.api.markProjectSaved(canonical,captured);
@@ -810,7 +811,7 @@ async function check(name,fn){const h=harness();h.api.applyProject(await h.api.p
   await check('Quantity notifications follow precise manual edits, invalid text, zero, remove, Undo and project replacement',async h=>{
     let notifications=0;h.context.window.CeasefireLibraries={scheduleChanged(){notifications++;}};
     h.audit.setRequest(async(path,payload)=>path.endsWith('/edit')?{library_id:'FL-ID-002',definition:definition(),draft:definition().defaults}:result(payload.draft));await h.api.addLibraryItem('pkb-002');
-    const quantity=h.byId('penetration-schedule-body').children[0].children[6].querySelectorAll('[data-penetration-field]')[0];quantity.value='2.1234567890123';await quantity.emit('input');assert.equal(h.api.libraryQuantity('pkb-002'),2.1234567890123);await h.api.addLibraryItem('pkb-002');assert.equal(h.api.libraryQuantity('pkb-002'),3.1234567890123);
+    const quantity=h.byId('penetration-estimator-schedule-body').children[0].children[6].querySelectorAll('[data-penetration-field]')[0];quantity.value='2.1234567890123';await quantity.emit('input');assert.equal(h.api.libraryQuantity('pkb-002'),2.1234567890123);await h.api.addLibraryItem('pkb-002');assert.equal(h.api.libraryQuantity('pkb-002'),3.1234567890123);
     quantity.value='1e-';await quantity.emit('input');assert.equal(h.api.libraryQuantity('pkb-002'),null);await assert.rejects(h.api.addLibraryItem('pkb-002'),/marked invalid/);
     quantity.value='0';await quantity.emit('input');assert.equal(h.api.libraryQuantity('pkb-002'),0);h.audit.removeRow('line-1');assert.equal(h.api.libraryQuantity('pkb-002'),undefined);h.audit.undoRemove();assert.equal(h.api.libraryQuantity('pkb-002'),0);
     h.api.applyProject(await h.api.prepareDefaults());assert.equal(h.api.libraryQuantity('pkb-002'),undefined);assert.ok(notifications>=7);

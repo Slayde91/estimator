@@ -98,6 +98,20 @@ vm.createContext(context);
 }
 
 let passed = 0;
+function projectCertificates(h) {
+  const state={workspace:'project-A',fields:{client:'Certificate A'},revision:1,pending:false,applied:[],discarded:[],saved:[],next:0};
+  const captures=new WeakMap(),fingerprint=()=>JSON.stringify({workspace:state.workspace,fields:state.fields,revision:state.revision});
+  state.baseline=fingerprint();
+  const api={projectFingerprint:fingerprint,hasProjectChanges:()=>state.baseline!==fingerprint(),hasPendingOperation:()=>state.pending,
+    fingerprint,hasUnsavedChanges:()=>state.baseline!==fingerprint(),
+    async completeProjectSnapshot(){const captured={workspace_id:state.workspace,draft:{id:null,version:null,fields:copy(state.fields),options:{scopes:[]}}};captures.set(captured,fingerprint());state.capture=captured;return captured;},
+    async prepareProject(manifest,workspace){return {workspace_id:workspace||`fresh-${++state.next}`,draft:manifest?.draft||null};},
+    applyProject(prepared){state.workspace=prepared.workspace_id;state.fields=copy(prepared.draft?.fields||{});state.revision=0;state.applied.push({workspace:state.workspace,details:copy(h.context.window.CeasefireProject.details())});state.baseline=fingerprint();},
+    async discardPreparedSession(workspace){if(workspace&&workspace!==state.workspace)state.discarded.push(workspace);},
+    markProjectSaved(manifest,captured){assert.equal(captured,state.capture,'Pass the original capture object so its complete fingerprint remains bound');state.saved.push(manifest);if(captures.get(captured)===fingerprint())state.baseline=fingerprint();},
+  };
+  h.context.window.CeasefireCertification=api;return {state,api};
+}
 async function deadline(name, run) { let timer; try { await Promise.race([run(),new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error(`Timed out: ${name}`)),5000);})]); } finally { clearTimeout(timer); } }
 async function check(name, fn) { await deadline(name,()=>fn(harness())); passed++; console.log(`ok - ${name}`); }
 async function penetrationCheck(name, fn) {
@@ -106,6 +120,47 @@ async function penetrationCheck(name, fn) {
   await deadline(name,()=>fn(h));passed++;console.log(`ok - ${name}`);
 }
 (async () => {
+  await check('Project Save captures its scoped certificate draft and acknowledges the original capture only',async h=>{
+    const cert=projectCertificates(h);let sent;
+    h.app.setRequest(async(path,options)=>{sent=JSON.parse(options.body);assert.equal(sent.certifications.workspace_id,'project-A');return {file:{path:'C:/saved/A.cf.json',save_token:'saved-A'},project:{...project(),estimate:sent.estimate,calculators:sent.calculators,certifications:{archive_sha256:'frozen-A'}}};});
+    await h.app.saveProject();assert.deepEqual(sent.certifications.draft.fields,{client:'Certificate A'});assert.deepEqual(cert.state.saved,[{archive_sha256:'frozen-A'}]);assert.equal(cert.api.hasProjectChanges(),false);
+  });
+  await check('Certificate edits during a pending project Save keep the later draft dirty',async h=>{
+    const cert=projectCertificates(h),pending=deferred();let sent;
+    h.app.setRequest((path,options)=>{sent=JSON.parse(options.body);return pending.promise;});const saving=h.app.saveProject();await flush();
+    cert.state.fields.client='Later certificate edit';cert.state.revision++;
+    pending.resolve({file:{path:'C:/saved/A.cf.json',save_token:'saved-A'},project:{...project(),estimate:sent.estimate,calculators:sent.calculators,certifications:{archive_sha256:'older-A'}}});await saving;
+    assert.equal(sent.certifications.draft.fields.client,'Certificate A');assert.equal(cert.state.fields.client,'Later certificate edit');assert.equal(cert.api.hasProjectChanges(),true);assert.match(h.byId('app-message').textContent,/Later edits are not included/);
+  });
+  await check('New project adopts a fresh empty certificate workspace after estimate details reset',async h=>{
+    const cert=projectCertificates(h);h.app.state.initialized=true;const signer={name:'Shared signer'},cover={name:'Shared cover'};
+    h.context.window.CeasefireCoverSheets={hasPendingOperation:()=>false,fingerprint:()=>JSON.stringify(cover)};
+    const creating=h.app.newQuote();await flush();await h.byId('discard-dialog').close('confirm');await creating;
+    assert.equal(cert.state.workspace,'fresh-1');assert.deepEqual(cert.state.fields,{});assert.deepEqual(cert.state.applied[0].details,{project_no:'',client:'',site_address:''});assert.deepEqual(signer,{name:'Shared signer'});assert.deepEqual(cover,{name:'Shared cover'});assert.equal(h.app.state.projectFile,null);
+  });
+  await check('Failed New-project preparation discards its prepared certificate workspace and keeps current drafts',async h=>{
+    const cert=projectCertificates(h);h.app.state.initialized=true;const before=h.snapshot();h.bridgeApi.prepareDefaults=async()=>{throw new Error('Calculator preparation failed');};
+    const creating=h.app.newQuote();await flush();await h.byId('discard-dialog').close('confirm');await creating;
+    assert.equal(cert.state.workspace,'project-A');assert.deepEqual(cert.state.discarded,['fresh-1']);assert.deepEqual(h.snapshot(),before);assert.match(h.byId('app-message').textContent,/Calculator preparation failed/);
+  });
+  await check('Project load cancellation discards only its prepared certificate workspace; acceptance adopts its membership',async h=>{
+    const cert=projectCertificates(h),incoming={...project(),certifications:{draft:{fields:{client:'Certificate B'}}},certification_workspace_id:'project-B',file:{name:'B.cf.json',save_token:'B'}};
+    h.app.setRequest(async()=>incoming);let loading=h.app.openNativeProject();await flush();await h.byId('discard-dialog').close('cancel');await loading;
+    assert.equal(cert.state.workspace,'project-A');assert.deepEqual(cert.state.discarded,['project-B']);assert.deepEqual(cert.state.applied,[]);
+    loading=h.app.openNativeProject();await flush();await h.byId('discard-dialog').close('confirm');await loading;
+    assert.equal(cert.state.workspace,'project-B');assert.deepEqual(cert.state.fields,{client:'Certificate B'});assert.equal(cert.state.applied[0].details.client,'Imported client');
+  });
+  await check('Certificate edits during pending project load stop adoption and discard the incoming workspace',async h=>{
+    const cert=projectCertificates(h),pending=deferred(),before=h.snapshot();h.app.setRequest(()=>pending.promise);
+    const loading=h.app.openNativeProject();await flush();cert.state.fields.client='Edit while native chooser was open';cert.state.revision++;
+    pending.resolve({...project(),certification_workspace_id:'project-B',file:{name:'B.cf.json'}});await loading;
+    assert.equal(cert.state.workspace,'project-A');assert.equal(cert.state.fields.client,'Edit while native chooser was open');assert.deepEqual(cert.state.discarded,['project-B']);assert.deepEqual(h.snapshot(),before);assert.match(h.byId('app-message').textContent,/draft changed while reading/);
+  });
+  await check('Pending certificate generation blocks project replacement before any file request',async h=>{
+    const cert=projectCertificates(h);cert.state.pending=true;let calls=0;h.app.setRequest(async()=>{calls++;return project();});
+    await h.app.newQuote();await h.app.openNativeProject();h.chooseFile();await h.app.loadProject();await h.app.openQuote('older',h.element('button'));
+    assert.equal(calls,0);assert.equal(cert.state.workspace,'project-A');assert.match(h.byId('app-message').textContent,/certification operation/);
+  });
   await check('Full-report preparation and shared save remain silent without changing their busy lifecycle', async h => {
     const prepare = deferred(), artifact = deferred(), feedback = require('./helpers/download_sound_vm.cjs').downloadSoundHarness();
     h.context.window.CeasefireDownloadSound = feedback.sound;
@@ -650,7 +705,7 @@ async function penetrationCheck(name, fn) {
   });
   await check('Main input and output tabs retain independent selection, keyboard bounds and original controls', async h => {
     const inputContainers=['input-sections','post-material-input-sections','adjustment-sections'].map(h.byId);
-    const outputKeys=['firestopping-schedule','firestopping-breakdown','material-breakdown','labour-breakdown'];
+    const outputKeys=['firestopping-breakdown','material-breakdown','labour-breakdown'];
     const outputs=outputKeys.map(key=>{const panel=h.byId(`main-panel-${key}`);panel.id=`main-panel-${key}`;panel.dataset.mainSection=key;panel.dataset.mainSectionTitle=key;return panel;});
     const materials=h.byId('main-panel-materials');materials.id='main-panel-materials';materials.dataset.mainSection='materials';
     h.app.state.fields=[['B2','Access'],['D2','Teams'],['D7','Masking teams'],['B9','Masking'],['B26','Global'],['E26','Addition'],['A50','Other']].map(([cell,label])=>({cell,label,type:cell==='D7'?'select':'number',options:cell==='D7'?['N/A','1']:undefined}));
@@ -662,7 +717,7 @@ async function penetrationCheck(name, fn) {
     const tabs=id=>h.byId(id).children,keys=id=>tabs(id).map(tab=>tab.dataset.mainSectionTab);
     h.app.renderInputs();const before=h.snapshot(),requests=h.calls.length,errors=[...h.app.state.inputErrors],drafts=[...h.app.state.inputDrafts];
     assert.deepEqual(keys('main-section-tabs'),['access-travel','teams-crews','materials','masking-cleaning','additions','other-inputs']);
-    assert.deepEqual(keys('main-output-tabs'),outputKeys);assert.deepEqual(visibleInputs(),['access-travel']);assert.deepEqual(visibleOutputs(),['firestopping-schedule']);
+    assert.deepEqual(keys('main-output-tabs'),outputKeys);assert.deepEqual(visibleInputs(),['access-travel']);assert.deepEqual(visibleOutputs(),['firestopping-breakdown']);
     h.app.selectMainSection('additions');const additions=inputCards().find(card=>card.dataset.mainSection==='additions');
     const fields=additions.children[1],controls=[...fields.children];
     for(const key of outputKeys){h.app.selectMainSection(key);assert.deepEqual(visibleInputs(),['additions']);assert.deepEqual(visibleOutputs(),[key]);assert.equal(h.app.state.mainSection,'additions');assert.equal(h.app.state.mainOutputSection,key);assert.deepEqual(fields.children,controls);}
@@ -671,12 +726,12 @@ async function penetrationCheck(name, fn) {
     await press(tabs('main-section-tabs')[0],'End');assert.equal(h.context.document.activeElement.dataset.mainSectionTab,'other-inputs');assert.deepEqual(visibleOutputs(),['labour-breakdown']);
     await press(tabs('main-section-tabs').at(-1),'ArrowRight');assert.equal(h.context.document.activeElement.dataset.mainSectionTab,'access-travel');
     await press(tabs('main-output-tabs')[0],'End');assert.equal(h.context.document.activeElement.dataset.mainSectionTab,'labour-breakdown');assert.deepEqual(visibleInputs(),['access-travel']);
-    await press(tabs('main-output-tabs').at(-1),'ArrowRight');assert.equal(h.context.document.activeElement.dataset.mainSectionTab,'firestopping-schedule');
+    await press(tabs('main-output-tabs').at(-1),'ArrowRight');assert.equal(h.context.document.activeElement.dataset.mainSectionTab,'firestopping-breakdown');
     await press(tabs('main-output-tabs')[0],'ArrowLeft');assert.equal(h.context.document.activeElement.dataset.mainSectionTab,'labour-breakdown');
-    await press(tabs('main-output-tabs').at(-1),'Home');assert.equal(h.context.document.activeElement.dataset.mainSectionTab,'firestopping-schedule');
+    await press(tabs('main-output-tabs').at(-1),'Home');assert.equal(h.context.document.activeElement.dataset.mainSectionTab,'firestopping-breakdown');
     for(const id of ['main-section-tabs','main-output-tabs'])assert.equal(tabs(id).filter(tab=>tab.tabIndex===0&&tab.getAttribute('aria-selected')==='true').length,1);
     for(const panel of [...inputCards(),...outputs])assert.equal(panel.getAttribute('aria-labelledby'),`main-tab-${panel.dataset.mainSection}`);
-    h.app.selectMainSection('unknown-section');assert.deepEqual(visibleInputs(),['access-travel']);assert.deepEqual(visibleOutputs(),['firestopping-schedule']);
+    h.app.selectMainSection('unknown-section');assert.deepEqual(visibleInputs(),['access-travel']);assert.deepEqual(visibleOutputs(),['firestopping-breakdown']);
     assert.deepEqual(h.snapshot(),before,'Tab navigation preserves project, prices, calculator drafts and exact precision');assert.equal(h.calls.length,requests,'Tab navigation makes no requests');
     assert.deepEqual([...h.app.state.inputErrors],errors);assert.deepEqual([...h.app.state.inputDrafts],drafts);
   });

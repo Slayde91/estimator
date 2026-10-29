@@ -20,6 +20,7 @@ const sourceHashes = () => Object.fromEntries(sourceFiles.map(file => [file, dig
 const evidence = { passed: false, source_sha256: sourceHashes(), normal_autoplay_policy: true, autoplay_override_flags: [], physical_audibility_claimed: false, checks: {}, errors: [], blocked_requests: [], loading_requests: [], assets: [] };
 const server = spawn(process.env.CEASEFIRE_PYTHON || "python", [path.join(__dirname, "header_menu_sounds_fixture.py"), "--directory", output], { cwd: root, windowsHide: true });
 let logs = "", browser, page, saveRequests = 0;
+const certificateWorkspaceRequests = [], savedCertificateWorkspaces = [];
 const templateActions = [], heldTemplates = [];
 server.stderr.on("data", data => logs += data);
 const started = new Promise((resolve, reject) => {
@@ -56,8 +57,12 @@ async function noDownloadAudio() {
       if (action.fail) { await route.fulfill({ status: 400, contentType: "application/json", body: JSON.stringify({ error: "Fixture document preparation cancelled." }) }); return; }
       await route.continue(); return;
     }
-    if (url.origin === origin && url.pathname === "/api/project/save-as" && request.method() === "POST") saveRequests++;
-    if (url.origin === origin && !["GET", "HEAD"].includes(request.method()) && !/^\/api\/(?:calculate|download-progress|project\/save-as|penetration\/(?:definition|calculate|references)|calculators\/[^/]+\/(?:worksheet|calculate))$/.test(url.pathname)) {
+    const certificateWorkspaceCreation = url.origin === origin && url.pathname === "/api/certifications/workspaces" && request.method() === "POST";
+    if (certificateWorkspaceCreation) certificateWorkspaceRequests.push(request.postDataJSON());
+    if (url.origin === origin && url.pathname === "/api/project/save-as" && request.method() === "POST") {
+      saveRequests++; savedCertificateWorkspaces.push(request.postDataJSON().certifications?.workspace_id);
+    }
+    if (url.origin === origin && !["GET", "HEAD"].includes(request.method()) && !certificateWorkspaceCreation && !/^\/api\/(?:calculate|download-progress|project\/save-as|penetration\/(?:definition|calculate|references)|calculators\/[^/]+\/(?:worksheet|calculate))$/.test(url.pathname)) {
       evidence.blocked_requests.push({ method: request.method(), path: url.pathname }); await route.abort(); return;
     }
     await route.continue();
@@ -156,8 +161,11 @@ async function noDownloadAudio() {
   await expect(page.locator("#app-message")).toContainText("Save cancelled. Your current project remains open.", { timeout: 60000 });
   await expect(page.locator("#save-current-project")).toBeEnabled();
   assert.equal(saveRequests, 1);
+  assert.deepEqual(certificateWorkspaceRequests, [{}], "Save prepares exactly one private project certificate workspace");
+  assert.deepEqual(savedCertificateWorkspaces, [await page.evaluate(() => window.CeasefireCertification.sessionId())], "Save passes its current certificate workspace to the real cancelled Save As request");
   assert.deepEqual(await page.evaluate(start => window.qaMenuAudio.calls.slice(start).filter(row => row.event === "click").map(row => row.source), beforeSaveCalls), ["/sounds/checkpoint.ogg"]);
   evidence.checks.globalSaveCheckpointWithoutGenericOverlap = true;
+  evidence.checks.cancelledSaveUsesProjectCertificateWorkspace = { creationRequests: certificateWorkspaceRequests.length, matchedCurrentWorkspace: true };
   // These owned lightweight controls isolate delegated routing from Takeoff
   // document/session operations, which have their own browser acceptance gates.
   await page.evaluate(() => {

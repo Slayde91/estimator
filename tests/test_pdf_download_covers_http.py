@@ -9,7 +9,7 @@ from unittest.mock import patch
 from pypdf import PdfReader
 
 from estimator.company_settings import DEFAULTS
-from estimator.pdf_download_covers import KINDS
+from estimator.pdf_download_covers import KINDS, SETTINGS_KINDS
 from estimator.project_library import ProjectLibrary
 from estimator.takeoff_workspace import TakeoffService
 import test_certification_http as helpers
@@ -25,7 +25,7 @@ class PdfDownloadCoversHTTPTests(unittest.TestCase):
 
     def test_cover_api_methods_origins_validation_cas_and_persistent_clear(self):
         items=self.json('GET','/api/pdf-covers')['items']
-        self.assertEqual([(row['kind'],row['label']) for row in items],list(KINDS))
+        self.assertEqual([(row['kind'],row['label']) for row in items],list(SETTINGS_KINDS))
         body={'cover_pdf':cover('SPECIFIC'),'cover_pdf_name':'Specific.pdf','expected_version':1}
         saved=self.json('POST','/api/pdf-covers/estimate',body)
         self.assertEqual(saved['version'],2)

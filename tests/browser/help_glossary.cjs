@@ -57,6 +57,11 @@ async function theme(id) { for (let index = 0; index < 5 && await page.locator('
   const symbols = await glossary.locator('.help-glossary-symbol').evaluateAll(nodes => nodes.map(node => ({ name: node.closest('[data-glossary-name]').dataset.glossaryName, artwork: !!node.querySelector('svg, img, .download-format-icon'), masked: node.classList.contains('help-signature-symbol') || node.classList.contains('help-default-symbol'), text: node.textContent.trim() })));
   const buttonSymbols = new Set(['+', '⧉', '↶', '− / +', '⊗', 'B I U', '🔗︎', '↻']);
   assert.deepEqual(symbols.filter(symbol => !symbol.artwork && !symbol.masked && !buttonSymbols.has(symbol.text)), [], 'Every glossary entry uses real artwork or an actual button symbol');
+  const projectsSymbol = glossary.locator('[data-glossary-name="Projects"] .help-glossary-symbol svg');
+  await expect(projectsSymbol).toHaveCount(1);
+  const glyphPaths = element => [...element.querySelectorAll('path')].map(node => node.getAttribute('d'));
+  assert.deepEqual(await projectsSymbol.evaluate(glyphPaths), await page.locator('#projects-navigation-toggle svg').evaluate(glyphPaths), 'Projects Help clones the actual navigation glyph');
+  evidence.projectsGlyphMatchesHeader = true;
   await expect(glossary.locator('[data-glossary-name="Theme"]')).toContainText('Cycle through CLASSIFIRE, Midnight, Ocean, Forest and Slate.');
   evidence.iconOnly = { excludedTextControls: textOnlyNames, everyEntryHasSymbol: true };
   const requestCount = requests.length;

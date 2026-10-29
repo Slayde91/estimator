@@ -191,7 +191,7 @@ async function presentationNavigation(initial) {
   const sections = [['Home', '#view-home'], ['Estimates', '#view-estimate'], ['Calculators', '#view-calculators'], ['Takeoffs', '#view-takeoffs'], ['Libraries', '#view-pricing'], ['Projects', '#view-projects'], ['Help', '#view-help']];
   for (const [name, selector] of sections) for (const repeated of [false, true]) {
     const previous = await page.locator('#header-tagline-label').textContent();
-    await page.locator('nav[aria-label="Main navigation"]').getByRole('button', { name, exact: true }).click();
+    await page.locator('nav[aria-label="Main navigation"]').getByRole('button', { name, exact: true }).and(page.locator('.nav-button')).click();
     await expect(page.locator(selector)).toBeVisible();
     await expect.poll(() => page.locator('#header-tagline-label').textContent()).not.toBe(previous);
     const started = await layout(), next = started.accessible; sameHeader(initial, started);

@@ -262,8 +262,11 @@ signer details, the saved drawn signature and Settings cover sheets remain
 available across projects. Save the project to retain certificate drafts and
 revisions. When copying a project, also copy the adjacent `.ceasefire-evidence`
 folder: certificate PDFs use verified, immutable companions there, as Takeoffs
-originals already do. A missing or changed companion blocks loading instead of
-silently dropping certificate history.
+originals already do. Native Load always requires this companion and rejects a
+missing or changed archive. A browser-uploaded project JSON can restore its
+certificates only when the exact verified archive is already cached locally;
+otherwise use **Load Project** with the companion folder. Certificate drafts,
+signatures and revision history are never silently omitted.
 
 **Save As** opens the operating system's file dialog with the quote name, adding `.cf.json` automatically. **Save** overwrites the current project file with the same complete estimate, pricing and all-calculator snapshot. The separate **Save quote** and **Save calculator** buttons remain removed. Projects accepts only `.cf.json` filenames. Older project contents remain supported: rename a copy of an existing `.json` project to `.cf.json` before loading it. The app does not rename existing files. You can choose the folder and rename the file. The filename replaces characters that a filesystem cannot accept. Cancelling the dialog leaves existing files unchanged and keeps the current project open.
 

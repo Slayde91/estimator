@@ -95,9 +95,19 @@ class CertificationProjectsHTTPTests(unittest.TestCase):
         self.assertEqual(restored['draft']['fields']['location_area'], 'Uncommitted current UI field')
         restored_doc = self.json('GET', '/api/certifications/' + document['id'] + '?workspace=' + restored['workspace_id'])
         self.assertEqual(self.request('GET', restored_doc['revisions'][0]['pdf_url'])[2], frozen)
-        # A browser-only upload cannot silently omit the companion's evidence.
+        # Local browser imports may use the exact verified internal archive,
+        # preserving every frozen revision and the unsaved selected draft.
+        uploaded = self.json('POST', '/api/project/import', {'filename': target.name,
+                  'content_base64': base64.b64encode(target.read_bytes()).decode()})
+        uploaded_workspace = self.json('GET', '/api/certifications/workspaces/' + uploaded['certification_workspace_id'])
+        self.assertEqual(uploaded_workspace['draft']['fields']['location_area'], 'Uncommitted current UI field')
+        uploaded_doc = self.json('GET', '/api/certifications/' + document['id'] + '?workspace=' + uploaded_workspace['workspace_id'])
+        self.assertEqual(self.request('GET', uploaded_doc['revisions'][0]['pdf_url'])[2], frozen)
+        cached = self.root / 'certification-projects' / 'archives' / (manifest['archive_sha256'] + '.zip')
+        cached.unlink()
         self.json('POST', '/api/project/import', {'filename': target.name,
                   'content_base64': base64.b64encode(target.read_bytes()).decode()}, expected=400)
+        self.json('POST', '/api/project/open', {})  # Verifies companion and repopulates cache.
         archive.unlink()
         self.assertEqual(self.request('POST', '/api/project/open', {})[0], 400)
         self.assertEqual(self.request('GET', generated['revision']['pdf_url'])[2], frozen)

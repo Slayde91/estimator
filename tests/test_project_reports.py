@@ -39,7 +39,8 @@ class ProjectReportTests(unittest.TestCase):
         company = {**DEFAULTS, 'name': 'Combined Fixture', 'email': 'combined@example.test'}
         for materials in (False, True):
             with self.subTest(materials=materials):
-                result = build_project_report(calculators, fire, {}, {'project_no': 'FULL-TEST'}, materials=materials, company=company)
+                with patch('estimator.calculator_report.schedule_report_references', return_value=[{'label':'UNIQUE-CALCULATOR-REPORT', 'url':'https://example.test/reference.pdf'}]):
+                    result = build_project_report(calculators, fire, {}, {'project_no': 'FULL-TEST'}, materials=materials, company=company)
                 reader = PdfReader(BytesIO(result))
                 self.assertEqual([entry.title for entry in reader.outline],
                                  ['Steel spray', 'Steel board', 'Ductwork', 'Steel intumescent', 'Firestopping'])
@@ -60,6 +61,12 @@ class ProjectReportTests(unittest.TestCase):
                 self.assertIn('Nullifire SC902', text)
                 if not materials:
                     self.assertIn('Captured SC902 fixture', ' '.join(text.split()))
+                    self.assertIn('UNIQUE-CALCULATOR-REPORT', text)
+                else:
+                    self.assertNotIn('UNIQUE-CALCULATOR-REPORT', text)
+                    for page in reader.pages:
+                        for annotation in page.get('/Annots', []):
+                            self.assertNotEqual(annotation.get_object().get('/A', {}).get('/URI'), 'https://example.test/reference.pdf')
                 if not materials:
                     for pricing in ('$', 'Grand total', 'Item total', 'Amount / quantity', 'Unit price'):
                         self.assertNotIn(pricing, text)

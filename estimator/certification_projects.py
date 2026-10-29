@@ -22,7 +22,7 @@ from .certification import (CertificationService, CertificationConflict, Certifi
                             _version, _json, validate_fields, validate_options,
                             MAX_REVISION_BYTES)
 from .storage import Store
-from .takeoff_documents import _directory, _open_regular, _verified
+from .evidence_files import _directory, _open_regular, _verified
 
 MAX_ARCHIVE_BYTES = 256 * 1024 * 1024
 MAX_METADATA_BYTES = 64 * 1024 * 1024
@@ -363,13 +363,21 @@ class CertificationProjects:
             return self.new()
         snapshot = validate_manifest(snapshot)
         if project_path is None:
-            raise ValidationError('This project includes certificate revisions. Use Load Project to open its .cf.json file together with its .ceasefire-evidence companion folder.')
-        parent = _directory(Path(project_path).absolute().parent)
-        source = parent / '.ceasefire-evidence' / snapshot['project_id'] / 'certifications' / (snapshot['archive_sha256'] + '.zip')
+            # A browser upload has no trustworthy filesystem path. It may use
+            # an exact immutable archive already verified in this runtime;
+            # it may never infer or search for another external companion.
+            source = self.root / 'archives' / (snapshot['archive_sha256'] + '.zip')
+        else:
+            # Native Load always verifies the selected file's own portable
+            # companion, even if the same archive also exists in our cache.
+            parent = _directory(Path(project_path).absolute().parent)
+            source = parent / '.ceasefire-evidence' / snapshot['project_id'] / 'certifications' / (snapshot['archive_sha256'] + '.zip')
         try:
             with _open_regular(source, MAX_ARCHIVE_BYTES) as stream:
                 payload = stream.read(MAX_ARCHIVE_BYTES + 1)
         except ValidationError as error:
+            if project_path is None:
+                raise ValidationError('This project certificate archive is not available locally. Use Load Project to open its .cf.json file together with its .ceasefire-evidence companion folder; no certificate evidence was omitted.') from error
             raise ValidationError('The saved certificate companion archive is missing or unavailable. Keep the .ceasefire-evidence folder beside this project; no certificate revisions were discarded.') from error
         if len(payload) != snapshot['archive_size'] or sha256(payload).hexdigest() != snapshot['archive_sha256']:
             raise ValidationError('The saved certificate companion failed its exact size or SHA-256 check.')

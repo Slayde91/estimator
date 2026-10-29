@@ -80,8 +80,10 @@ class CertificationProjectTests(unittest.TestCase):
     def test_missing_and_tampered_companions_and_path_injection_fail_explicitly(self):
         workspace, _ = self.prepared()
         snapshot = self.capture(workspace)
+        self.assertEqual(self.projects.restore(snapshot)['draft']['fields'], fields())
+        fresh = CertificationProjects(CertificationService(Store(self.root / 'fresh' / 'state.sqlite3')))
         with self.assertRaisesRegex(ValidationError, 'Load Project'):
-            self.projects.restore(snapshot)
+            fresh.restore(snapshot)
         with self.assertRaisesRegex(ValidationError, 'companion archive is missing'):
             self.projects.restore(snapshot, self.root / 'Missing.cf.json')
         self.projects.publish(snapshot, self.root / 'Saved.cf.json')
@@ -91,6 +93,25 @@ class CertificationProjectTests(unittest.TestCase):
             self.projects.restore(snapshot, self.root / 'Saved.cf.json')
         with self.assertRaises(ValidationError): validate_manifest({**snapshot, 'companion_folder': '../outside'})
         with self.assertRaises(ValidationError): self.projects.service('../outside')
+
+    def test_browser_import_cache_is_verified_and_preserves_edited_draft_and_signature(self):
+        from test_pdf_download_covers import signature
+        workspace, _ = self.prepared()
+        draft = {'id': None, 'version': None, 'fields': fields(location_area='Edited unsaved certificate draft'),
+                 'options': {**deepcopy(DEFAULT_OPTIONS), 'signature_image': signature(), 'signature_name': 'Saved drawing.png'}}
+        snapshot = self.projects.capture({'workspace_id': workspace['workspace_id'], 'draft': draft})
+        restored = self.projects.restore(snapshot)
+        self.assertEqual(restored['draft'], draft)
+        self.assertNotEqual(restored['workspace_id'], workspace['workspace_id'])
+        with self.assertRaisesRegex(ValidationError, 'companion archive is missing'):
+            self.projects.restore(snapshot, self.root / 'StillMissing.cf.json')
+        cached = self.projects.root / 'archives' / (snapshot['archive_sha256'] + '.zip')
+        cached.write_bytes(cached.read_bytes() + b'tampered')
+        with self.assertRaisesRegex(ValidationError, 'SHA-256'):
+            self.projects.restore(snapshot)
+        cached.unlink()
+        with self.assertRaisesRegex(ValidationError, 'Load Project'):
+            self.projects.restore(snapshot)
 
     def test_cancelled_save_as_preserves_current_project_and_new_project_is_empty(self):
         workspace, service = self.prepared()

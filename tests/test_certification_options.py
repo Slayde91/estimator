@@ -82,21 +82,24 @@ class CertificationOptionsTests(unittest.TestCase):
         self.assertEqual(saved['options'], changed['options'])
         self.assertEqual(saved['version'], 3)
 
-    def test_local_cover_replaces_global_once_and_revisions_freeze_effective_cover_and_options(self):
+    def test_global_specific_cover_follows_main_and_frozen_options_keep_legacy_data(self):
         first_options = options('FIRST LOCAL', ['structural_steel_columns'])
+        chosen = options('SETTINGS COVER')
+        self.service.covers.save('certification', chosen['cover_pdf'], chosen['cover_pdf_name'], 1)
         document = self.service.create(fields(project='Original'), options=first_options)
         company_before = deepcopy(self.company)
         # A fields-only legacy generation keeps this document's saved options.
         generated = self.service.generate(document['id'], document['fields'], 1, str(uuid.uuid4()), self.company)
         first = self.service.revision_pdf(document['id'], 1)
-        self.assertEqual(text_pages(first), ['FIRST LOCAL\n', 'CERTIFICATE BODY\n'])
+        self.assertEqual(text_pages(first), ['GLOBAL\n', 'SETTINGS COVER\n', 'CERTIFICATE BODY\n'])
         self.assertEqual(self.company, company_before)
         with self.store.connect() as db:
             frozen_company, frozen_options = db.execute('SELECT company,options FROM certification_revisions '
                 'WHERE document_id=? AND revision=1', (document['id'],)).fetchone()
         self.assertEqual(json.loads(frozen_options), first_options)
-        self.assertEqual(json.loads(frozen_company)['cover_pdf'], first_options['cover_pdf'])
-        # Removing the local cover restores global fallback for the next PDF.
+        self.assertEqual(json.loads(frozen_company)['cover_pdf'], self.company['cover_pdf'])
+        # Clearing Settings is authoritative; legacy document covers stay data.
+        self.service.covers.save('certification', None, '', 2)
         next_options = options(scopes=['ductwork'])
         self.company.update(cover_pdf=options('NEW GLOBAL')['cover_pdf'], cover_pdf_name='New global.pdf')
         second = self.service.generate(document['id'], generated['document']['fields'], 2,
@@ -121,6 +124,7 @@ class CertificationOptionsTests(unittest.TestCase):
     def test_parallel_generation_replay_freezes_one_options_snapshot(self):
         document = self.service.create(fields(project='Parallel')); gate = Barrier(2)
         selected = options('PARALLEL COVER', ['service_penetrations'])
+        self.service.covers.save('certification', selected['cover_pdf'], selected['cover_pdf_name'], 1)
         def render(*args, **kwargs):
             gate.wait(timeout=10); return pdf('PARALLEL BODY')
         service = CertificationService(self.store, renderer=render); request = str(uuid.uuid4())
@@ -135,7 +139,7 @@ class CertificationOptionsTests(unittest.TestCase):
             self.service.generate(document['id'], document['fields'], 1, request, self.company,
                                   options=options(scopes=['ductwork']))
         self.assertEqual(text_pages(self.service.revision_pdf(document['id'], 1)),
-                         ['PARALLEL COVER\n', 'PARALLEL BODY\n'])
+                         ['GLOBAL\n', 'PARALLEL COVER\n', 'PARALLEL BODY\n'])
 
     def test_options_change_during_render_cannot_be_overwritten_or_publish_a_revision(self):
         document = self.service.create(fields(project='Race'), options=options(scopes=['ductwork']))
@@ -157,10 +161,10 @@ class CertificationOptionsTests(unittest.TestCase):
         self.service.generate(document['id'], document['fields'], 1, str(uuid.uuid4()), self.company)
         before = self.service.get(document['id']); frozen = self.service.revision_pdf(document['id'], 1)
         initial = self.service.get_defaults()
-        self.assertEqual(initial, {'fields': dict.fromkeys(SIGNER_FIELDS, ''), 'version': 1})
+        self.assertEqual(initial, {'fields': dict.fromkeys(SIGNER_FIELDS, ''), 'version': 1, 'signature_image': None, 'signature_name': ''})
         entered = {'name': 'New signer', 'position': 'Installer', 'qualification': 'Entered qualification', 'accreditation': 'Entered accreditation'}
         saved = self.service.save_defaults(entered, 1)
-        self.assertEqual(saved, {'fields': entered, 'version': 2})
+        self.assertEqual(saved, {'fields': entered, 'version': 2, 'signature_image': None, 'signature_name': ''})
         self.assertEqual(self.service.save_defaults(entered, 1), saved)
         with self.assertRaises(CertificationConflict):
             self.service.save_defaults({**entered, 'name': 'Other window'}, 1)
@@ -210,7 +214,7 @@ class CertificationOptionsTests(unittest.TestCase):
                         sha256(payload).hexdigest(), generate_id, fingerprint({'fields': original, 'expected_version': 1})))
             before = db.execute('SELECT * FROM certification_revisions').fetchone()
         migrated = CertificationService(legacy)
-        self.assertEqual(migrated.get_defaults(), {'fields': {key: original[key] for key in SIGNER_FIELDS}, 'version': 1})
+        self.assertEqual(migrated.get_defaults(), {'fields': {key: original[key] for key in SIGNER_FIELDS}, 'version': 1, 'signature_image': None, 'signature_name': ''})
         self.assertEqual(migrated.get(document_id)['options'], DEFAULT_OPTIONS)
         self.assertEqual(migrated.revision_pdf(document_id, 1), payload)
         replay = migrated.generate(document_id, original, 1, generate_id, self.company)

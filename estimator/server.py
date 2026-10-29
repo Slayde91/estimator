@@ -53,6 +53,8 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
     libraries = ManualTechnicalLibrary(library_directory, store)
     from .certification import CertificationService, CertificationConflict, CertificationNotFound
     certifications = CertificationService(store)
+    from .pdf_download_covers import PdfCoverConflict
+    pdf_covers = certifications.covers
     if takeoffs is not None:
         takeoffs.libraries = libraries
 
@@ -91,6 +93,14 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                 self._company_settings_snapshot = store.company_settings()
             return deepcopy(self._company_settings_snapshot)
 
+        def pdf_company_details(self, kind):
+            # Freeze just this export's cover before a long renderer starts.
+            # The Settings table is metadata-only; bulk blobs are never loaded.
+            company = self.company_details()
+            if kind not in self._pdf_cover_settings_snapshot:
+                self._pdf_cover_settings_snapshot[kind] = pdf_covers.get(kind)
+            return company
+
         def send_payload(self, status, payload, content_type="application/json; charset=utf-8", headers=None, *, content_security_policy_override=None):
             if status >= 400:
                 download_progress.update(getattr(self, '_download_progress_token', None), 0, 'failed')
@@ -108,10 +118,11 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
             if self.command != 'HEAD':
                 self.wfile.write(body)
 
-        def send_download(self, payload, content_type, filename, destination=None, *, frozen_pdf=False):
+        def send_download(self, payload, content_type, filename, destination=None, *, frozen_pdf=False, pdf_kind=None):
             if content_type.split(';', 1)[0].strip() == 'application/pdf' and not frozen_pdf:
                 from .pdf_cover import prepend_cover_pdf
-                payload = prepend_cover_pdf(payload, self.company_details())
+                company = self.pdf_company_details(pdf_kind)
+                payload = prepend_cover_pdf(payload, company, self._pdf_cover_settings_snapshot[pdf_kind])
             token = getattr(self, '_download_progress_token', None)
             download_progress.update(token, 90, 'saving')
             if destination is not None:
@@ -151,8 +162,8 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
 
         def send_report(self, quote, report_kind, destination=None):
             from .report import render_quote_pdf
-            report = render_quote_pdf({**quote, "report_kind": report_kind}, company=self.company_details())
-            self.send_download(report, "application/pdf", "CEASEFIRE-Estimate.pdf", destination)
+            report = render_quote_pdf({**quote, "report_kind": report_kind}, company=self.pdf_company_details('estimate'))
+            self.send_download(report, "application/pdf", "CEASEFIRE-Estimate.pdf", destination, pdf_kind='estimate')
 
         def send_quote(self, status, quote):
             # Dropdown metadata belongs to the quote's own pricing snapshot.
@@ -214,6 +225,8 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     self.send_payload(200, travel.status())
                 elif route == '/api/company-settings':
                     self.send_payload(200, self.company_details())
+                elif route == '/api/pdf-covers':
+                    self.send_payload(200, pdf_covers.list())
                 elif route == '/api/certifications':
                     self.send_payload(200, certifications.list_documents())
                 elif route == '/api/certifications/defaults':
@@ -296,10 +309,10 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     self.send_report(store.quote(route[len("/api/quotes/"):-len("/report.pdf")]), "Saved quote")
                 elif route.startswith("/api/quotes/"):
                     self.send_quote(200, store.quote(route.removeprefix("/api/quotes/")))
-                elif route in {'/certification.js', '/certification.css'}:
+                elif route in {'/certification.js', '/certification.css', '/cover-sheets.js'}:
                     kind = 'text/javascript; charset=utf-8' if route.endswith('.js') else 'text/css; charset=utf-8'
                     self.send_payload(200, (ROOT / 'static' / route[1:]).read_bytes(), kind)
-                elif route in {'/games/play.js', '/games/play.css', '/games/fireline-art.js', '/games/fireline.js', '/penetration-references.js', '/sounds/type.mp3', '/sounds/flame-whoosh.wav', '/takeoff-visual-search-icon.png', '/takeoff-ocr-icon.png', '/header-steel-intumescent.png', '/sounds/checkpoint.ogg', '/sounds/loading.mp3', '/sounds/new-explosion.mp3', '/sounds/hover.mp3', '/sounds/select.mp3', '/sounds/select-2.mp3', '/sounds/mixkit-vintage-dot-printing-1371.wav', '/takeoff-visual-search.js', '/takeoff-visual-search.css', '/takeoff-ocr-layer.js', '/takeoff-ocr-layer.css', '/header-menu-sounds.js', '/sounds/mgs1-menu-move.mp3', '/sounds/mgs-confirm2.mp3', '/brand-boot.js', '/brand-boot.css', '/classifire-app.ico', '/register-references.js', '/travel.js', '/travel.css', '/maps-setup.html', '/pdf-cursors.css', '/cursors/pointer.png', '/cursors/precision.png', '/cursors/move.png', '/cursors/text.png', '/cursors/handwriting.png', '/cursors/link.png', '/cursors/resize-nwse.png', '/cursors/resize-nesw.png', '/cursors/resize-horizontal.png', '/cursors/resize-vertical.png', '/cursors/unavailable.png', '/cursors/busy.png', "/", "/index.html", "/company-settings.js", "/classifire-logo.png", "/main-layout.js", "/downloads.css", "/activity.js", "/calculation-queue.js", "/searchable-choice.js", "/penetration-presentation.js", "/icons/navigation-takeoffs.svg", "/icons/navigation-takeoffs.jpg", "/icons/navigation-help.jpg", "/theme.js", "/language.js", "/language-catalog.js", "/language.css", "/theme.css", "/laser.css", "/laser-steel.svg", "/home-steel-frame.png", "/header-layout.css", "/workspace-art.css", "/pointer-effects.css", "/pointer-effects.js", "/laser-reticle.svg", "/takeoff-header-steel.png", "/takeoff-header-ductwork.png", "/takeoff-header-physical.png", "/takeoff-header-service-plans.png", "/header-steel-spray.png", "/header-steel-board.png", "/header-ductwork.png", "/header-firestopping.png", "/header-estimate.png", "/header-projects.png", "/projects-evidence-banner.png", "/header-firestopping-library.png", "/header-technical-library.png", "/app.js", "/downloads.js", "/styles.css", "/calculators.js", "/calculators.css", "/penetration-breakdown.js", "/penetration.js", "/penetration.css", "/libraries.js", "/library-detail-text.js", "/libraries.css", "/library-editor.js", "/library-editor.css", "/icons/navigation-home.png", "/icons/document.png", "/icons/schedule-add.png", "/icons/navigation-help.png", "/icons/navigation-takeoffs.png", "/icons/takeoff-visibility.jpg", "/icons/takeoff-colour-wheel.png", "/icons/takeoff-legend.png", "/ceasefire-logo.png", "/ceasefire-app.ico", "/fonts/Montserrat-Variable.ttf", "/fonts/Vera.ttf", "/fonts/VeraBd.ttf", "/fonts/Montserrat-Italic-Variable.ttf", "/takeoffs.js", "/takeoffs.css", "/takeoff-geometry.js", "/takeoff-physical.js", "/takeoff-annotations.js", "/takeoff-signatures.js", "/takeoff-graphics.js", "/takeoff-graphics-ui.js", "/takeoff-pane-resize.js", "/takeoff-initial-pages.js", "/takeoff-pdf-tools.js", "/takeoff-pdf-tools.css", "/icons/default-memory.svg", "/icons/takeoff-set-default.png", "/icons/signature.svg", "/help-glossary.js", "/help-glossary.css", "/takeoff-search.js", "/takeoff-shortcuts.js", "/icons/takeoff-callout.png", "/takeoff-pdf-worker.mjs", "/takeoff-library-links.js", "/icons/takeoff-visibility.png", "/icons/takeoff-bullet-list.png", "/icons/takeoff-numbered-list.png", "/icons/takeoff-add-service.png", "/icons/takeoff-add-barrier.png", "/icons/takeoff-transfer.png", "/icons/takeoff-measure.png", "/header-tagline-media.js", "/header-tagline-character.gif", "/header-tagline-character-still.png"}:
+                elif route in {'/games/play.js', '/games/play.css', '/games/fireline-art.js', '/games/fireline.js', '/penetration-references.js', '/sounds/type.mp3', '/sounds/gameover.mp3', '/sounds/flame-whoosh.wav', '/takeoff-visual-search-icon.png', '/takeoff-ocr-icon.png', '/header-steel-intumescent.png', '/sounds/checkpoint.ogg', '/sounds/loading.mp3', '/sounds/new-explosion.mp3', '/sounds/hover.mp3', '/sounds/select.mp3', '/sounds/select-2.mp3', '/sounds/mixkit-vintage-dot-printing-1371.wav', '/takeoff-visual-search.js', '/takeoff-visual-search.css', '/takeoff-ocr-layer.js', '/takeoff-ocr-layer.css', '/header-menu-sounds.js', '/sounds/mgs1-menu-move.mp3', '/sounds/mgs-confirm2.mp3', '/brand-boot.js', '/brand-boot.css', '/classifire-app.ico', '/register-references.js', '/travel.js', '/travel.css', '/maps-setup.html', '/pdf-cursors.css', '/cursors/pointer.png', '/cursors/precision.png', '/cursors/move.png', '/cursors/text.png', '/cursors/handwriting.png', '/cursors/link.png', '/cursors/resize-nwse.png', '/cursors/resize-nesw.png', '/cursors/resize-horizontal.png', '/cursors/resize-vertical.png', '/cursors/unavailable.png', '/cursors/busy.png', "/", "/index.html", "/company-settings.js", "/classifire-logo.png", "/main-layout.js", "/downloads.css", "/activity.js", "/calculation-queue.js", "/searchable-choice.js", "/penetration-presentation.js", "/icons/navigation-takeoffs.svg", "/icons/navigation-takeoffs.jpg", "/icons/navigation-help.jpg", "/theme.js", "/language.js", "/language-catalog.js", "/language.css", "/theme.css", "/laser.css", "/laser-steel.svg", "/home-steel-frame.png", "/header-layout.css", "/workspace-art.css", "/pointer-effects.css", "/pointer-effects.js", "/laser-reticle.svg", "/takeoff-header-steel.png", "/takeoff-header-ductwork.png", "/takeoff-header-physical.png", "/takeoff-header-service-plans.png", "/header-steel-spray.png", "/header-steel-board.png", "/header-ductwork.png", "/header-firestopping.png", "/header-estimate.png", "/header-projects.png", "/projects-evidence-banner.png", "/header-firestopping-library.png", "/header-technical-library.png", "/app.js", "/downloads.js", "/styles.css", "/calculators.js", "/calculators.css", "/penetration-breakdown.js", "/penetration.js", "/penetration.css", "/libraries.js", "/library-detail-text.js", "/libraries.css", "/library-editor.js", "/library-editor.css", "/icons/navigation-home.png", "/icons/document.png", "/icons/schedule-add.png", "/icons/navigation-help.png", "/icons/navigation-takeoffs.png", "/icons/takeoff-visibility.jpg", "/icons/takeoff-colour-wheel.png", "/icons/takeoff-legend.png", "/ceasefire-logo.png", "/ceasefire-app.ico", "/fonts/Montserrat-Variable.ttf", "/fonts/Vera.ttf", "/fonts/VeraBd.ttf", "/fonts/Montserrat-Italic-Variable.ttf", "/takeoffs.js", "/takeoffs.css", "/takeoff-geometry.js", "/takeoff-physical.js", "/takeoff-annotations.js", "/takeoff-signatures.js", "/takeoff-graphics.js", "/takeoff-graphics-ui.js", "/takeoff-pane-resize.js", "/takeoff-initial-pages.js", "/takeoff-pdf-tools.js", "/takeoff-pdf-tools.css", "/icons/default-memory.svg", "/icons/takeoff-set-default.png", "/icons/signature.svg", "/help-glossary.js", "/help-glossary.css", "/takeoff-search.js", "/takeoff-shortcuts.js", "/icons/takeoff-callout.png", "/takeoff-pdf-worker.mjs", "/takeoff-library-links.js", "/icons/takeoff-visibility.png", "/icons/takeoff-bullet-list.png", "/icons/takeoff-numbered-list.png", "/icons/takeoff-add-service.png", "/icons/takeoff-add-barrier.png", "/icons/takeoff-transfer.png", "/icons/takeoff-measure.png", "/header-tagline-media.js", "/header-tagline-character.gif", "/header-tagline-character-still.png"}:
                     name = "index.html" if route == "/" else route[1:]
                     path = ROOT / "static" / name
                     kind = {".ogg": "audio/ogg", ".wav": "audio/wav", ".mp3": "audio/mpeg", ".js": "text/javascript; charset=utf-8", ".mjs": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".html": "text/html; charset=utf-8", ".png": "image/png", ".svg": "image/svg+xml", ".jpg": "image/jpeg", ".gif": "image/gif", ".avif": "image/avif", ".ico": "image/x-icon", ".ttf": "font/ttf"}[path.suffix]
@@ -326,9 +339,10 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     materials = route.endswith('full-product-summary.pdf')
                     report = build_project_report(body.get('calculators', {}), body.get('penetration'),
                         validate_configuration(body.get('configuration', store.configuration())), project_details(body.get('project_details')),
-                        materials=materials, library=libraries, company=self.company_details(),
+                        materials=materials, library=libraries, company=self.pdf_company_details('full_product_summary' if materials else 'full_schedule'),
                         saved_calculators={key: store.calculator_state(key)['inputs'] for key in CALCULATOR_IDS})
-                    self.send_download(report, 'application/pdf', 'CEASEFIRE-Full-Product-Summary.pdf' if materials else 'CEASEFIRE-Full-Schedule.pdf', destination)
+                    self.send_download(report, 'application/pdf', 'CEASEFIRE-Full-Product-Summary.pdf' if materials else 'CEASEFIRE-Full-Schedule.pdf', destination,
+                                       pdf_kind='full_product_summary' if materials else 'full_schedule')
                 elif route == '/api/travel/route':
                     if self.command != 'POST':
                         self.send_payload(405, {'error': 'Method not allowed.'})
@@ -339,6 +353,13 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                         self.send_payload(error.status, {'error': str(error)})
                 elif route == '/api/company-settings':
                     self.send_payload(200, store.save_company_settings(body))
+                elif re.fullmatch(r'/api/pdf-covers/[a-z_]+', route):
+                    if self.command != 'POST':
+                        self.send_payload(405, {'error': 'Method not allowed.'})
+                        return
+                    if set(body) != {'cover_pdf', 'cover_pdf_name', 'expected_version'}:
+                        raise ValidationError('Include the PDF cover, filename and current version only.')
+                    self.send_payload(200, pdf_covers.metadata(pdf_covers.save(route.rsplit('/', 1)[1], body['cover_pdf'], body['cover_pdf_name'], body['expected_version'])))
                 elif route == '/api/certifications':
                     if self.command != 'POST':
                         self.send_payload(405, {'error': 'Method not allowed.'})
@@ -351,9 +372,10 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     if self.command != 'POST':
                         self.send_payload(405, {'error': 'Method not allowed.'})
                         return
-                    if set(body) != {'fields', 'expected_version'}:
+                    if set(body) not in ({'fields', 'expected_version'}, {'fields', 'expected_version', 'signature_image', 'signature_name'}):
                         raise ValidationError('Include the signer details and current defaults version.')
-                    self.send_payload(200, certifications.save_defaults(body['fields'], body['expected_version']))
+                    signature = {key: body[key] for key in ('signature_image', 'signature_name') if key in body}
+                    self.send_payload(200, certifications.save_defaults(body['fields'], body['expected_version'], **signature))
                 elif re.fullmatch(r'/api/certifications/[a-z0-9-]{1,64}/revisions', route):
                     if self.command != 'POST':
                         self.send_payload(405, {'error': 'Method not allowed.'})
@@ -427,7 +449,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     snapshot = prepare_technical_item(body, library=libraries)
                     destination = self.capture_download(body['download']) if 'download' in body else None
                     if route.endswith('.pdf'):
-                        self.send_download(render_technical_item_pdf(snapshot, company=self.company_details()), 'application/pdf', 'CEASEFIRE-Technical-Item.pdf', destination)
+                        self.send_download(render_technical_item_pdf(snapshot, company=self.pdf_company_details('technical_library_item')), 'application/pdf', 'CEASEFIRE-Technical-Item.pdf', destination, pdf_kind='technical_library_item')
                     else:
                         self.send_download(build_technical_item_xlsx(snapshot), 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'CEASEFIRE-Technical-Item.xlsx', destination)
                 elif route in {'/api/penetration/item.pdf', '/api/penetration/item.xlsx'}:
@@ -439,7 +461,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     snapshot = prepare_item_snapshot(body, library=libraries, default_configuration=store.configuration(), require_diagram=route.endswith('.pdf'))
                     destination = self.capture_download(body['download']) if 'download' in body else None
                     if route.endswith('.pdf'):
-                        self.send_download(render_item_pdf(snapshot, company=self.company_details()), 'application/pdf', 'CEASEFIRE-Firestopping-Item.pdf', destination)
+                        self.send_download(render_item_pdf(snapshot, company=self.pdf_company_details('firestopping_library_item')), 'application/pdf', 'CEASEFIRE-Firestopping-Item.pdf', destination, pdf_kind='firestopping_library_item')
                     else:
                         self.send_download(build_item_xlsx(snapshot), 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'CEASEFIRE-Firestopping-Item.xlsx', destination)
                 elif route == '/api/penetration/references' and self.command == 'POST':
@@ -484,8 +506,8 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                         details = project_details(body.get('project_details'))
                         result = calculate_penetration(body['draft'], config)
                         if action == 'report.pdf':
-                            report = render_penetration_pdf(result, result['definition'], details, library=libraries, company=self.company_details())
-                            self.send_download(report, 'application/pdf', 'CEASEFIRE-Firestopping-Estimate.pdf', destination)
+                            report = render_penetration_pdf(result, result['definition'], details, library=libraries, company=self.pdf_company_details('firestopping_schedule'))
+                            self.send_download(report, 'application/pdf', 'CEASEFIRE-Firestopping-Estimate.pdf', destination, pdf_kind='firestopping_schedule')
                         else:
                             report = build_penetration_register(result, result['definition'], details, library=libraries)
                             self.send_download(report, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'CEASEFIRE-Firestopping-Schedule.xlsx', destination)
@@ -565,9 +587,11 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                         from .calculator_report import build_calculator_report, build_calculator_summary_report
                         from .project_file import project_details
                         builder = build_calculator_report if action == 'report.pdf' else build_calculator_summary_report
-                        report = builder(calculator_id, inputs, project_details=project_details(body.get('project_details')), company=self.company_details())
+                        report = builder(calculator_id, inputs, project_details=project_details(body.get('project_details')),
+                                         company=self.pdf_company_details(calculator_id + ('_schedule' if action == 'report.pdf' else '_product_summary')))
                         filename = 'APPENDIX A.pdf' if action == 'report.pdf' else f'ceasefire-{calculator_id}-materials-summary.pdf'
-                        self.send_download(report, 'application/pdf', filename, destination)
+                        self.send_download(report, 'application/pdf', filename, destination,
+                                           pdf_kind=calculator_id + ('_schedule' if action == 'report.pdf' else '_product_summary'))
                     elif action == 'register.xlsx':
                         from .calculator_register import build_calculator_register
                         workbook = build_calculator_register(calculator_id, inputs)
@@ -655,12 +679,15 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
         def handle_request(self):
             self._download_progress_token = None
             self._company_settings_snapshot = None
+            self._pdf_cover_settings_snapshot = {}
             self.connection.settimeout(15)
             try:
                 self.dispatch()
             except LibraryConflict as exc:
                 self.send_payload(409, {"error": str(exc)})
             except CertificationConflict as exc:
+                self.send_payload(409, {"error": str(exc)})
+            except PdfCoverConflict as exc:
                 self.send_payload(409, {"error": str(exc)})
             except CertificationNotFound as exc:
                 self.send_payload(404, {"error": str(exc)})

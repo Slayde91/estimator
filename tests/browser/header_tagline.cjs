@@ -5,7 +5,7 @@ const { spawn } = require('node:child_process');
 const fs = require('node:fs'), path = require('node:path'), crypto = require('node:crypto'), assert = require('node:assert/strict');
 const root = path.resolve(__dirname, '../..'), output = path.join(root, '.runtime/browser-qa', `header-tagline-${Date.now()}`);
 fs.mkdirSync(output, { recursive: true });
-const assets = ['static/app.js', 'static/styles.css', 'static/index.html', 'static/brand-boot.js', 'static/brand-boot.css', 'static/header-tagline-media.js', 'static/header-tagline-character.gif', 'static/header-tagline-character-still.png'];
+const assets = ['static/app.js', 'static/styles.css', 'static/index.html', 'static/brand-boot.js', 'static/brand-boot.css', 'static/header-tagline-media.js', 'static/header-tagline-character.gif', 'static/header-tagline-character-still.png', 'static/sounds/gameover.mp3'];
 const assetHashes = Object.fromEntries(assets.map(name => [name, crypto.createHash('sha256').update(fs.readFileSync(path.join(root, name))).digest('hex')]));
 const server = spawn(process.env.CEASEFIRE_PYTHON || 'python', [path.join(__dirname, 'fixtures.py'), '--directory', output], { cwd: root, windowsHide: true });
 let logs = '', browser, page;
@@ -21,7 +21,7 @@ const errors = [], evidence = {}, csp = [], bootReadiness = [];
 const pendingRequests = new WeakMap();
 const clockOrigin = Date.parse('2026-10-04T00:00:00Z');
 const delay = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
-async function instrument(context, { random = 2 / 54 + .001, blocked = false } = {}) {
+async function instrument(context, { random = 2 / 55 + .001, blocked = false } = {}) {
   await context.addInitScript(({ random, blocked }) => {
     Math.random = () => random;
     window.qaCsp = [];
@@ -299,7 +299,7 @@ async function presentationNavigation(initial) {
     [42, newPhrase, 'newPhrase'],
   ]) {
     const context = await browser.newContext({ viewport: { width: 1146, height: 900 } });
-    await instrument(context, { random: index / 54 + .001 }); // Fifty-four choices; preserve the prior phrase check and exercise the first addition.
+    await instrument(context, { random: index / 55 + .001 }); // Fifty-five choices; preserve the established phrase selections.
     page = await context.newPage(); watch(page); await installPausedClock();
     await page.goto(`http://127.0.0.1:${info.port}/`); await page.evaluate(() => document.fonts.ready); await finishBootFrames();
     const initial = await layout(); assert.equal(initial.accessible, selectedPhrase);
@@ -325,6 +325,31 @@ async function presentationNavigation(initial) {
     await context.close();
   }
   {
+    const expected='Passive Fire Intelligence.';
+    const context=await browser.newContext({viewport:{width:390,height:844}});await instrument(context,{random:.999});
+    await context.addInitScript(()=>{
+      window.qaBrandSound=[];
+      const play=HTMLMediaElement.prototype.play,pause=HTMLMediaElement.prototype.pause;
+      HTMLMediaElement.prototype.play=function(){if(this.src.endsWith('/sounds/gameover.mp3')){window.qaBrandSound.push('play');return Promise.resolve();}return play.call(this);};
+      HTMLMediaElement.prototype.pause=function(){if(this.src.endsWith('/sounds/gameover.mp3'))window.qaBrandSound.push('pause');return pause.call(this);};
+    });
+    page=await context.newPage();watch(page);await installPausedClock();await page.goto(`http://127.0.0.1:${info.port}/`);await finishBootFrames();
+    const first=await layout();assert.equal(first.accessible,expected);assert.notEqual(first.typed,expected);assert.equal(first.typed.length,expected.length);
+    assert.equal(first.typed[7],' ');assert.equal(first.typed[12],' ');assert.equal(await page.evaluate(()=>window.qaBrandSound.filter(event=>event==='play').length),1);
+    await page.screenshot({path:path.join(output,'intelligence-scrambling-390.png')});
+    await page.clock.runFor(3300);const resolving=await layout();assert.ok(resolving.typed.startsWith('Pass'));assert.notEqual(resolving.typed,expected);sameHeader(first,resolving);
+    await page.clock.runFor(2000);const settled=await layout();assert.equal(settled.typed,expected);assert.equal(settled.cursorHidden,true);sameHeader(first,settled);
+    await page.evaluate(()=>window.CeasefireI18n.setLanguage('fr'));const brandFrench=await layout();assert.equal(brandFrench.accessible,expected);
+    assert.equal(await page.evaluate(()=>window.qaBrandSound.filter(event=>event==='play').length),1,'Language refresh does not replay the appearance');
+    await page.clock.runFor(5050);assert.equal((await layout()).typed,expected);
+    await page.evaluate(()=>window.CeasefireI18n.setLanguage('en'));await page.clock.runFor(5050);assert.equal((await layout()).typed,expected);
+    await page.screenshot({path:path.join(output,'intelligence-resolved-390.png')});
+    const audio=await page.request.get(`http://127.0.0.1:${info.port}/sounds/gameover.mp3`);assert.equal(audio.status(),200);
+    assert.equal(crypto.createHash('sha256').update(await audio.body()).digest('hex'),assetHashes['static/sounds/gameover.mp3']);
+    assert.match(audio.headers()['content-type'],/audio\/mpeg/);
+    evidence.intelligence={first,resolving,settled,brandSoundPlays:1,literalInFrench:true,audioBytesVerified:true};csp.push(...await page.evaluate(()=>window.qaCsp));await context.close();
+  }
+  {
     const context = await browser.newContext({ viewport: { width: 1146, height: 900 } }); await instrument(context);
     page = await context.newPage(); watch(page); await installPausedClock(); await page.goto(`http://127.0.0.1:${info.port}/`); await page.evaluate(() => document.fonts.ready); await finishBootFrames();
     const initial = await layout(); assert.equal(initial.mediaState, 'playing'); assert.notEqual(initial.typed, phrase);
@@ -336,7 +361,7 @@ async function presentationNavigation(initial) {
   assert.deepEqual(errors, []); assert.deepEqual(csp, []);
   for (const name of assets) assert.equal(crypto.createHash('sha256').update(fs.readFileSync(path.join(root, name))).digest('hex'), assetHashes[name], `${name} changed during native acceptance`);
   fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ completed: true, fixturePort: info.port, assetHashes, evidence, bootReadiness, errors, csp,
-    limits: ['Disposable browser fixture only; no live port 8765 interaction.', 'Playwright clock advances production JS typing/expiry callbacks; CSS opacity transitions are sampled in real Chromium frames.', 'All 54 exact phrases and preference-change timer cancellation are additionally verified by focused unit checks.'] }, null, 2));
+    limits: ['Disposable browser fixture only; no live port 8765 interaction.', 'Playwright clock advances production JS typing/expiry callbacks; CSS opacity transitions are sampled in real Chromium frames.', 'All 55 exact phrases and preference-change timer cancellation are additionally verified by focused unit checks.', 'Brand clip bytes/MIME and one play invocation are verified; audible playback is not measured.'] }, null, 2));
   console.log(`Header navigation tagline browser acceptance passed: ${output}`);
 })().catch(async error => {
   fs.writeFileSync(path.join(output, 'failure-evidence.json'), JSON.stringify({ completed: false, error: String(error), assetHashes, evidence, errors, csp }, null, 2));

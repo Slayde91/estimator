@@ -59,10 +59,12 @@ const phrases = [
   "CLASSIFIRE | Passive Fire Intelligence | Depth. Thickness. Compatibility. I have standards.",
   "CLASSIFIRE | Passive Fire Intelligence | Looking for something long-term. Minimum 120 minutes.",
   "CLASSIFIRE | Passive Fire Intelligence | Let me help you spray your load.",
+  "Passive Fire Intelligence.",
 ];
-function harness({ random = 0, previous, reduced = false, blocked = false, missing = false, missingCursor = false, missingMotion = false } = {}) {
+function harness({ random = 0, previous, reduced = false, blocked = false, missing = false, missingCursor = false, missingMotion = false, rejectSound = false } = {}) {
   const label = { textContent: '' }, sizer = { children: [], get textContent() { return this.children.map(line => line.textContent).join(''); }, replaceChildren(...lines) { this.children = lines; } }, cursor = { hidden: false }, frames = [], timers = new Map(), writes = [];
-  let current = '', last = previous, nextTimer = 0, preference, pagehide, languagechange, now = 0;
+  let current = '', last = previous, nextTimer = 0, preference, pagehide, languagechange, visibilitychange, now = 0;
+  const audio = {plays:0,pauses:0,loads:0,currentTime:0,src:'',preload:'',load(){this.loads++;},pause(){this.pauses++;},play(){this.plays++;return {catch(callback){if(rejectSound)callback(Error('Autoplay blocked'));}};}};
   const typed = { get textContent() { return current; }, set textContent(value) { current = value; frames.push(value); } };
   const elements = { 'header-tagline-label': label, 'header-tagline-sizer': sizer, 'header-tagline-typed': typed };
   const motion = { matches: reduced, addEventListener(name, callback) { assert.equal(name, 'change'); preference = callback; } };
@@ -70,11 +72,13 @@ function harness({ random = 0, previous, reduced = false, blocked = false, missi
   const printing = { playing: false, starts: 0, stops: 0, closed: false, start() { this.starts++; this.playing = !this.closed && !motion.matches; }, stop() { this.stops++; this.playing = false; }, close() { this.closed = true; this.stop(); } };
   const context = {
     document: {
+      hidden:false, addEventListener(name,callback){assert.equal(name,'visibilitychange');visibilitychange=callback;},
       getElementById(id) { return missing ? null : elements[id]; },
       querySelector(selector) { assert.equal(selector, '#header-tagline .header-tagline-cursor'); return missing || missingCursor ? null : cursor; },
       createElement(tag) { assert.equal(tag, 'span'); return { textContent: '' }; },
     },
     window: {
+      Audio:function(){return audio;},
       CeasefireHeaderTaglineMedia: media,
       CeasefireHeaderTaglineSound: printing,
       CeasefireI18n: require('./english_i18n_fixture.cjs')(),
@@ -89,7 +93,8 @@ function harness({ random = 0, previous, reduced = false, blocked = false, missi
       dispatchEvent() { throw Error('Presentation must not emit input or change events'); },
     },
     Math: Object.create(Math),
-    setTimeout(callback, delay) { assert.ok(delay === 35 || delay === 1000 || delay === 2000); timers.set(++nextTimer, { callback, delay, deadline: now + delay }); return nextTimer; },
+    performance:{now:()=>now},
+    setTimeout(callback, delay) { assert.ok(delay === 35 || delay === 55 || delay === 1000 || delay === 2000); timers.set(++nextTimer, { callback, delay, deadline: now + delay }); return nextTimer; },
     clearTimeout(id) { timers.delete(id); },
   };
   context.Math.random = () => random;
@@ -112,18 +117,20 @@ function harness({ random = 0, previous, reduced = false, blocked = false, missi
   };
   const finish = () => { finishTyping(); advance(2000); };
   run();
-  return { label, sizer, typed, cursor, media, printing, frames, timers, writes, run, tick, finishTyping, finish, advance, nextPhrase() { context.window.CeasefireHeaderTagline.next(); },
+  return { label, sizer, typed, cursor, media, printing, audio, frames, timers, writes, run, tick, finishTyping, finish, advance, nextPhrase() { context.window.CeasefireHeaderTagline.next(); },
+    hide(){context.document.hidden=true;visibilitychange();},show(){context.document.hidden=false;visibilitychange();},
     changeLanguage(translation) { context.window.CeasefireI18n = { translate: value => translation[value] || value }; languagechange(); },
     now: () => now, changeMotion(matches = true) { motion.matches = matches; preference({ matches }); }, pagehide() { pagehide(); } };
 }
 let passed = 0;
-for (let index = 0; index < phrases.length; index++) {
+for (let index = 0; index < phrases.length-1; index++) {
   const h = harness({ random: (index + .01) / phrases.length }), phrase = phrases[index];
   assert.equal(h.label.textContent, phrase); assert.deepEqual(h.sizer.children.map(line => line.textContent), phrases.map(line => line + '_'));
   assert.equal(h.typed.textContent, Array.from(phrase)[0]); assert.deepEqual(h.writes, [phrase]);
   assert.equal(h.media.playing, true, 'The supplied character starts with phrase typing');
   assert.equal(h.printing.starts, 1, 'Every typed phrase starts its printing loop once');
   assert.equal(h.printing.playing, true);
+  assert.equal(h.audio.plays,0,'Ordinary phrases do not play the brand sound');
   h.finishTyping();
   assert.equal(h.now(), (Array.from(phrase).length - 1) * 35);
   assert.equal(h.cursor.hidden, true, 'Cursor stops as soon as the final character prints');
@@ -246,6 +253,46 @@ for (let index = 0; index < phrases.length; index++) {
   assert.equal(h.printing.starts, 4); assert.equal(h.printing.playing, true); h.pagehide(); assert.equal(h.printing.playing, false); passed++;
 }
 const html = fs.readFileSync('static/index.html', 'utf8');
+{
+  const h=harness({random:.999});const phrase=phrases.at(-1);
+  assert.equal(h.label.textContent,phrase);assert.equal(h.typed.textContent.length,phrase.length);
+  assert.notEqual(h.typed.textContent,phrase);assert.equal(h.typed.textContent[7],' ');assert.equal(h.typed.textContent[12],' ');
+  assert.equal(h.printing.starts,0,'Scrambling never starts the typing loop');
+  assert.equal(h.audio.src,'/sounds/gameover.mp3');assert.equal(h.audio.plays,1);
+  h.advance(2970);assert.notEqual(h.typed.textContent,phrase);assert.ok(!h.typed.textContent.startsWith('Passive'));
+  h.advance(330);assert.ok(h.typed.textContent.startsWith('Pass'));assert.notEqual(h.typed.textContent,phrase);
+  h.advance(1750);assert.equal(h.typed.textContent,phrase);assert.equal(h.cursor.hidden,true);assert.equal(h.audio.plays,1);
+  h.advance(10000);assert.equal(h.typed.textContent,phrase);assert.equal(h.audio.plays,1);passed++;
+}
+{
+  const h=harness({random:.999});h.advance(150);const writes=h.writes.slice();
+  h.changeLanguage({[phrases.at(-1)]:'Do not translate this brand line'});
+  assert.equal(h.label.textContent,phrases.at(-1));assert.equal(h.audio.plays,1,'Language refresh is not a new occurrence');
+  assert.equal(h.sizer.children.at(-1).textContent,phrases.at(-1)+'_');assert.deepEqual(h.writes,writes);
+  h.advance(5050);assert.equal(h.typed.textContent,phrases.at(-1));passed++;
+}
+{
+  const h=harness({random:.999,rejectSound:true});h.advance(5050);assert.equal(h.audio.plays,1);
+  assert.equal(h.typed.textContent,phrases.at(-1));h.advance(10000);assert.equal(h.audio.plays,1,'Blocked autoplay is never deferred or retried');passed++;
+}
+{
+  const h=harness({random:.999});h.advance(110);h.hide();const frames=h.frames.slice();
+  assert.equal(h.typed.textContent,phrases.at(-1));assert.equal(h.timers.size,0);assert.equal(h.media.playing,false);
+  assert.ok(h.audio.pauses>0);h.show();h.advance(10000);assert.equal(h.audio.plays,1);assert.deepEqual(h.frames,frames);passed++;
+}
+{
+  const h=harness({random:.999});h.advance(110);h.nextPhrase();const selected=h.label.textContent,plays=h.audio.plays;
+  assert.notEqual(selected,phrases.at(-1));assert.ok(h.audio.pauses>0);h.finish();h.advance(10000);
+  assert.equal(h.typed.textContent,selected);assert.equal(h.audio.plays,plays);passed++;
+}
+{
+  const h=harness({random:.999,reduced:true});assert.equal(h.typed.textContent,phrases.at(-1));
+  assert.equal(h.audio.plays,1);assert.equal(h.timers.size,0);assert.equal(h.media.playing,false);assert.equal(h.printing.starts,0);passed++;
+}
+{
+  const h=harness({random:.999});h.advance(110);h.pagehide();const frames=h.frames.slice();
+  h.advance(10000);h.nextPhrase();assert.deepEqual(h.frames,frames);assert.equal(h.timers.size,0);assert.equal(h.media.playing,false);assert.equal(h.audio.plays,1);passed++;
+}
 assert.match(html, /id="header-tagline-character"[^>]*alt=""[^>]*aria-hidden="true"/, 'The decorative supplied character stays out of the accessibility tree');
 assert.match(html, /id="header-tagline-label" class="sr-only"/);
 assert.match(html, /class="header-tagline-visual" aria-hidden="true"/);

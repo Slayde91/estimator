@@ -25,4 +25,13 @@
 .certification-scope-choices{position:absolute;z-index:12;inset-inline:0;margin-top:.35rem;padding:.4rem;background:var(--surface,#171d25);border:1px solid var(--border,#48525f);border-radius:9px;box-shadow:0 10px 30px #0005}
 .certification-scope-choices label{display:flex;align-items:center;gap:.8rem;min-height:46px;padding:.5rem .7rem;cursor:pointer}
 .certification-scope-choices input{width:1.2rem;height:1.2rem;flex:0 0 auto}
-#certification-cover-name{overflow-wrap:anywhere;min-width:0;flex:1 1 20rem;max-width:100%}
+.certification-fields textarea[rows="1"]{min-height:48px;height:48px;overflow:auto}
+.certification-signature{margin-block-start:1.2rem;min-width:0}.certification-signature input{width:100%;box-sizing:border-box;min-width:0}
+.certification-signature-preview{display:block;max-width:min(100%,350px);max-height:130px;width:auto;height:auto;object-fit:contain;background:#fff;border:1px solid var(--border,#48525f);border-radius:8px;padding:10px;box-sizing:border-box;margin-block:1rem}
+.certification-signature-preview[hidden]{display:none}#certification-signature-name{overflow-wrap:anywhere;min-width:0;flex:1 1 20rem;max-width:100%}
+.cover-sheets-table-wrap{width:100%;min-width:0}.cover-sheets-table{width:100%;table-layout:fixed;border-collapse:collapse}
+.cover-sheets-kind-col{width:26%}.cover-sheets-file-col{width:52%}.cover-sheets-action-col{width:22%}
+.cover-sheets-table th,.cover-sheets-table td{text-align:start;padding:1rem .65rem;border-bottom:1px solid var(--border,#48525f);vertical-align:top;white-space:normal;overflow-wrap:anywhere;word-break:normal}
+.cover-sheets-table input[type="file"]{width:100%;min-width:0;max-width:100%;box-sizing:border-box}.cover-sheets-table .helper{margin-block:.65rem 0;overflow-wrap:anywhere}
+.cover-sheet-actions{display:flex;gap:.5rem;flex-wrap:wrap}.cover-sheet-actions .button{min-height:44px;padding:.65rem .8rem}.cover-sheet-actions .icon-only{width:44px;min-width:44px;padding:.6rem}
+@media(max-width:650px){.cover-sheets-kind-col{width:28%}.cover-sheets-file-col{width:45%}.cover-sheets-action-col{width:27%}.cover-sheets-table th,.cover-sheets-table td{padding:.8rem .35rem;font-size:.84rem}.cover-sheet-actions{flex-direction:column;align-items:flex-start}.cover-sheets-table input[type="file"]{font-size:.78rem}}

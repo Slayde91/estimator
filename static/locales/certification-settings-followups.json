@@ -1,0 +1,373 @@
+{
+  "Cover sheets": [
+    "封面",
+    "कवर शीट",
+    "Portadas",
+    "صفحات الغلاف",
+    "ใบปะหน้า"
+  ],
+  "PDF download": [
+    "PDF下载",
+    "PDF डाउनलोड",
+    "Descarga PDF",
+    "تنزيل PDF",
+    "ดาวน์โหลด PDF"
+  ],
+  "PDF cover sheet": [
+    "PDF封面",
+    "PDF कवर शीट",
+    "Portada PDF",
+    "صفحة غلاف PDF",
+    "ใบปะหน้า PDF"
+  ],
+  "The main company cover sheet is first, followed by the cover for this download, then the PDF content. Saved covers are used for new certificates and projects.": [
+    "先放公司主封面，再放此下载的专用封面，最后放PDF正文。保存的封面将用于新证书和项目。",
+    "पहले कंपनी का मुख्य कवर, फिर इस डाउनलोड का कवर और उसके बाद PDF सामग्री होगी। सहेजे गए कवर नए प्रमाणपत्रों और परियोजनाओं में उपयोग होंगे।",
+    "Primero aparece la portada principal de la empresa, después la de esta descarga y luego el contenido PDF. Las portadas guardadas se usan en nuevos certificados y proyectos.",
+    "تظهر صفحة غلاف الشركة الرئيسية أولاً، ثم غلاف هذا التنزيل، ثم محتوى PDF. تُستخدم الأغلفة المحفوظة للشهادات والمشاريع الجديدة.",
+    "ใบปะหน้าหลักของบริษัทอยู่ก่อน ตามด้วยใบปะหน้าของการดาวน์โหลดนี้ แล้วจึงเป็นเนื้อหา PDF ใบปะหน้าที่บันทึกจะใช้กับใบรับรองและโครงการใหม่"
+  ],
+  "Loading cover sheets…": [
+    "正在加载封面…",
+    "कवर शीट लोड हो रही हैं…",
+    "Cargando portadas…",
+    "جارٍ تحميل صفحات الغلاف…",
+    "กำลังโหลดใบปะหน้า…"
+  ],
+  "Cover sheets could not be loaded. Open Settings again to retry.": [
+    "无法加载封面。请重新打开设置以重试。",
+    "कवर शीट लोड नहीं हो सकीं। पुनः प्रयास के लिए सेटिंग फिर खोलें।",
+    "No se pudieron cargar las portadas. Vuelva a abrir Configuración para reintentar.",
+    "تعذّر تحميل صفحات الغلاف. افتح الإعدادات مجدداً لإعادة المحاولة.",
+    "โหลดใบปะหน้าไม่ได้ เปิดการตั้งค่าอีกครั้งเพื่อลองใหม่"
+  ],
+  "PDF cover sheet for {0}": [
+    "{0}的PDF封面",
+    "{0} के लिए PDF कवर शीट",
+    "Portada PDF para {0}",
+    "صفحة غلاف PDF لـ {0}",
+    "ใบปะหน้า PDF สำหรับ {0}"
+  ],
+  "Save cover sheet for {0}": [
+    "保存{0}的封面",
+    "{0} की कवर शीट सहेजें",
+    "Guardar portada para {0}",
+    "حفظ صفحة الغلاف لـ {0}",
+    "บันทึกใบปะหน้าสำหรับ {0}"
+  ],
+  "Delete cover sheet for {0}": [
+    "删除{0}的封面",
+    "{0} की कवर शीट हटाएँ",
+    "Eliminar portada para {0}",
+    "حذف صفحة الغلاف لـ {0}",
+    "ลบใบปะหน้าสำหรับ {0}"
+  ],
+  "Cover sheet saved.": [
+    "封面已保存。",
+    "कवर शीट सहेजी गई।",
+    "Portada guardada.",
+    "تم حفظ صفحة الغلاف.",
+    "บันทึกใบปะหน้าแล้ว"
+  ],
+  "Cover sheet removed.": [
+    "封面已移除。",
+    "कवर शीट हटा दी गई।",
+    "Portada eliminada.",
+    "تمت إزالة صفحة الغلاف.",
+    "นำใบปะหน้าออกแล้ว"
+  ],
+  "Cover sheet changed": [
+    "封面已更改",
+    "कवर शीट बदल गई",
+    "Portada modificada",
+    "تغيّرت صفحة الغلاف",
+    "ใบปะหน้ามีการเปลี่ยนแปลง"
+  ],
+  "This cover sheet was changed in another window. Apply your cover-sheet change?": [
+    "此封面已在其他窗口更改。要应用您的封面更改吗？",
+    "यह कवर शीट दूसरी विंडो में बदली गई है। क्या आपका कवर परिवर्तन लागू करें?",
+    "Esta portada se modificó en otra ventana. ¿Aplicar su cambio de portada?",
+    "تم تغيير صفحة الغلاف هذه في نافذة أخرى. هل تريد تطبيق تغييرك عليها؟",
+    "ใบปะหน้านี้ถูกเปลี่ยนในอีกหน้าต่างหนึ่ง ต้องการใช้การเปลี่ยนแปลงของคุณหรือไม่"
+  ],
+  "Apply cover-sheet change": [
+    "应用封面更改",
+    "कवर परिवर्तन लागू करें",
+    "Aplicar cambio de portada",
+    "تطبيق تغيير الغلاف",
+    "ใช้การเปลี่ยนแปลงใบปะหน้า"
+  ],
+  "Cover sheet changed in another window. Your changes are kept. Retry to review and apply them.": [
+    "封面已在其他窗口更改。您的更改已保留。请重试以检查并应用。",
+    "कवर शीट दूसरी विंडो में बदल गई। आपके बदलाव सुरक्षित हैं। समीक्षा और लागू करने के लिए पुनः प्रयास करें।",
+    "La portada cambió en otra ventana. Sus cambios se conservan. Reintente para revisarlos y aplicarlos.",
+    "تغيّرت صفحة الغلاف في نافذة أخرى. تم الاحتفاظ بتغييراتك. أعد المحاولة لمراجعتها وتطبيقها.",
+    "ใบปะหน้าถูกเปลี่ยนในอีกหน้าต่างหนึ่ง การเปลี่ยนแปลงของคุณยังอยู่ ลองใหม่เพื่อตรวจสอบและนำไปใช้"
+  ],
+  "The cover sheet result could not be confirmed. Retry the same button to recover it.": [
+    "无法确认封面操作结果。请再次点击同一按钮以恢复结果。",
+    "कवर शीट का परिणाम पुष्ट नहीं हो सका। उसे प्राप्त करने के लिए वही बटन फिर दबाएँ।",
+    "No se pudo confirmar el resultado de la portada. Pulse el mismo botón para recuperarlo.",
+    "تعذّر تأكيد نتيجة عملية الغلاف. أعد المحاولة بالزر نفسه لاستعادتها.",
+    "ยืนยันผลการทำงานของใบปะหน้าไม่ได้ กดปุ่มเดิมอีกครั้งเพื่อกู้ผล"
+  ],
+  "Cover sheet settings could not be saved. Your selected file is kept.": [
+    "无法保存封面设置。已保留您选择的文件。",
+    "कवर शीट सेटिंग सहेजी नहीं जा सकीं। आपकी चुनी फ़ाइल सुरक्षित है।",
+    "No se pudieron guardar los ajustes de portada. Se conserva el archivo seleccionado.",
+    "تعذّر حفظ إعدادات الغلاف. تم الاحتفاظ بالملف الذي اخترته.",
+    "บันทึกการตั้งค่าใบปะหน้าไม่ได้ ไฟล์ที่เลือกยังอยู่"
+  ],
+  "The saved cover-sheet settings are invalid.": [
+    "已保存的封面设置无效。",
+    "सहेजी गई कवर शीट सेटिंग अमान्य हैं।",
+    "Los ajustes guardados de portada no son válidos.",
+    "إعدادات الغلاف المحفوظة غير صالحة.",
+    "การตั้งค่าใบปะหน้าที่บันทึกไว้ไม่ถูกต้อง"
+  ],
+  "Signature": [
+    "签名",
+    "हस्ताक्षर",
+    "Firma",
+    "التوقيع",
+    "ลายเซ็น"
+  ],
+  "Signature image (PNG or JPEG, up to 2 MB)": [
+    "签名图像（PNG或JPEG，最大2 MB）",
+    "हस्ताक्षर की छवि (PNG या JPEG, अधिकतम 2 MB)",
+    "Imagen de firma (PNG o JPEG, hasta 2 MB)",
+    "صورة التوقيع (PNG أو JPEG، حتى 2 ميغابايت)",
+    "ภาพลายเซ็น (PNG หรือ JPEG ไม่เกิน 2 MB)"
+  ],
+  "Signature preview": [
+    "签名预览",
+    "हस्ताक्षर पूर्वावलोकन",
+    "Vista previa de firma",
+    "معاينة التوقيع",
+    "ตัวอย่างลายเซ็น"
+  ],
+  "Remove signature": [
+    "移除签名",
+    "हस्ताक्षर हटाएँ",
+    "Quitar firma",
+    "إزالة التوقيع",
+    "นำลายเซ็นออก"
+  ],
+  "No signature selected.": [
+    "未选择签名。",
+    "कोई हस्ताक्षर नहीं चुना गया।",
+    "No se ha seleccionado ninguna firma.",
+    "لم يتم اختيار توقيع.",
+    "ยังไม่ได้เลือกลายเซ็น"
+  ],
+  "Signature: {0}": [
+    "签名：{0}",
+    "हस्ताक्षर: {0}",
+    "Firma: {0}",
+    "التوقيع: {0}",
+    "ลายเซ็น: {0}"
+  ],
+  "The signature is saved with your signer details for future certificates and projects.": [
+    "签名将与签署人资料一并保存，供今后的证书和项目使用。",
+    "हस्ताक्षर आपके हस्ताक्षरकर्ता विवरण के साथ भविष्य के प्रमाणपत्रों और परियोजनाओं के लिए सहेजा जाता है।",
+    "La firma se guarda con los datos del firmante para futuros certificados y proyectos.",
+    "يُحفظ التوقيع مع بيانات الموقّع لاستخدامه في الشهادات والمشاريع المستقبلية.",
+    "ลายเซ็นจะถูกบันทึกพร้อมรายละเอียดผู้ลงนามสำหรับใบรับรองและโครงการในอนาคต"
+  ],
+  "Choose a PNG or JPEG signature smaller than 2 MB.": [
+    "请选择小于2 MB的PNG或JPEG签名图像。",
+    "2 MB से छोटी PNG या JPEG हस्ताक्षर छवि चुनें।",
+    "Elija una firma PNG o JPEG de menos de 2 MB.",
+    "اختر صورة توقيع PNG أو JPEG بحجم أقل من 2 ميغابايت.",
+    "เลือกภาพลายเซ็น PNG หรือ JPEG ที่เล็กกว่า 2 MB"
+  ],
+  "The signature image could not be read.": [
+    "无法读取签名图像。",
+    "हस्ताक्षर की छवि पढ़ी नहीं जा सकी।",
+    "No se pudo leer la imagen de firma.",
+    "تعذّرت قراءة صورة التوقيع.",
+    "อ่านภาพลายเซ็นไม่ได้"
+  ],
+  "Full project schedule": [
+    "完整项目明细表",
+    "पूरी परियोजना अनुसूची",
+    "Listado completo del proyecto",
+    "جدول المشروع الكامل",
+    "ตารางโครงการฉบับเต็ม"
+  ],
+  "Full project product summary": [
+    "完整项目产品汇总",
+    "पूरी परियोजना का उत्पाद सारांश",
+    "Resumen completo de productos del proyecto",
+    "ملخص منتجات المشروع الكامل",
+    "สรุปผลิตภัณฑ์ของโครงการฉบับเต็ม"
+  ],
+  "Technical Library item": [
+    "技术资料库条目",
+    "तकनीकी लाइब्रेरी मद",
+    "Elemento de biblioteca técnica",
+    "عنصر المكتبة الفنية",
+    "รายการคลังข้อมูลทางเทคนิค"
+  ],
+  "Firestopping Library item": [
+    "防火封堵资料库条目",
+    "फायरस्टॉपिंग लाइब्रेरी मद",
+    "Elemento de biblioteca de sellados cortafuego",
+    "عنصر مكتبة سدّ الفتحات المقاومة للحريق",
+    "รายการคลังข้อมูลอุดช่องกันไฟ"
+  ],
+  "Firestopping schedule": [
+    "防火封堵明细表",
+    "फायरस्टॉपिंग अनुसूची",
+    "Listado de sellados cortafuego",
+    "جدول سدّ الفتحات المقاومة للحريق",
+    "ตารางอุดช่องกันไฟ"
+  ],
+  "Steel spray schedule": [
+    "钢结构喷涂明细表",
+    "स्टील स्प्रे अनुसूची",
+    "Listado de proyección para acero",
+    "جدول رش الفولاذ",
+    "ตารางพ่นป้องกันเหล็ก"
+  ],
+  "Steel spray product summary": [
+    "钢结构喷涂产品汇总",
+    "स्टील स्प्रे उत्पाद सारांश",
+    "Resumen de productos de proyección para acero",
+    "ملخص منتجات رش الفولاذ",
+    "สรุปผลิตภัณฑ์พ่นป้องกันเหล็ก"
+  ],
+  "Steel intumescent schedule": [
+    "钢结构膨胀型涂层明细表",
+    "स्टील इंट्यूमेसेंट अनुसूची",
+    "Listado de pintura intumescente para acero",
+    "جدول الطلاء الانتفاخي للفولاذ",
+    "ตารางสีทนไฟชนิดพองตัวสำหรับเหล็ก"
+  ],
+  "Steel intumescent product summary": [
+    "钢结构膨胀型涂层产品汇总",
+    "स्टील इंट्यूमेसेंट उत्पाद सारांश",
+    "Resumen de productos intumescentes para acero",
+    "ملخص منتجات الطلاء الانتفاخي للفولاذ",
+    "สรุปผลิตภัณฑ์สีทนไฟชนิดพองตัวสำหรับเหล็ก"
+  ],
+  "Steel board schedule": [
+    "钢结构板材明细表",
+    "स्टील बोर्ड अनुसूची",
+    "Listado de placas para acero",
+    "جدول ألواح حماية الفولاذ",
+    "ตารางแผ่นป้องกันเหล็ก"
+  ],
+  "Steel board product summary": [
+    "钢结构板材产品汇总",
+    "स्टील बोर्ड उत्पाद सारांश",
+    "Resumen de productos de placas para acero",
+    "ملخص منتجات ألواح حماية الفولاذ",
+    "สรุปผลิตภัณฑ์แผ่นป้องกันเหล็ก"
+  ],
+  "Ductwork schedule": [
+    "风管工程明细表",
+    "डक्टवर्क अनुसूची",
+    "Listado de conductos",
+    "جدول مجاري الهواء",
+    "ตารางงานท่อลม"
+  ],
+  "Ductwork product summary": [
+    "风管工程产品汇总",
+    "डक्टवर्क उत्पाद सारांश",
+    "Resumen de productos para conductos",
+    "ملخص منتجات مجاري الهواء",
+    "สรุปผลิตภัณฑ์งานท่อลม"
+  ],
+  "Passive fire matrix": [
+    "被动防火矩阵",
+    "निष्क्रिय अग्नि सुरक्षा मैट्रिक्स",
+    "Matriz de protección pasiva contra incendios",
+    "مصفوفة الحماية السلبية من الحريق",
+    "ตารางระบบป้องกันไฟเชิงรับ"
+  ],
+  "PDF tools": [
+    "PDF工具",
+    "PDF उपकरण",
+    "Herramientas PDF",
+    "أدوات PDF",
+    "เครื่องมือ PDF"
+  ],
+  "Finish or retry the current cover-sheet operation before changing views.": [
+    "切换视图前，请完成或重试当前封面操作。",
+    "दृश्य बदलने से पहले वर्तमान कवर शीट प्रक्रिया पूरी करें या पुनः प्रयास करें।",
+    "Complete o reintente la operación de portada actual antes de cambiar de vista.",
+    "أكمل عملية الغلاف الحالية أو أعد محاولتها قبل تغيير العرض.",
+    "ทำรายการใบปะหน้าปัจจุบันให้เสร็จหรือลองใหม่ก่อนเปลี่ยนหน้า"
+  ],
+  "Finish or retry the current cover-sheet operation before replacing a project.": [
+    "替换项目前，请完成或重试当前封面操作。",
+    "परियोजना बदलने से पहले वर्तमान कवर शीट प्रक्रिया पूरी करें या पुनः प्रयास करें।",
+    "Complete o reintente la operación de portada actual antes de reemplazar un proyecto.",
+    "أكمل عملية الغلاف الحالية أو أعد محاولتها قبل استبدال المشروع.",
+    "ทำรายการใบปะหน้าปัจจุบันให้เสร็จหรือลองใหม่ก่อนแทนที่โครงการ"
+  ],
+  "There are unsaved project, calculator, library, certification or cover-sheet edits. Close without saving discards these edits. Keep editing to save them first.": [
+    "项目、计算器、资料库、证书或封面有未保存的修改。不保存直接关闭将丢弃这些修改。请继续编辑并先保存。",
+    "परियोजना, कैलकुलेटर, लाइब्रेरी, प्रमाणपत्र या कवर शीट के बदलाव सहेजे नहीं गए हैं। बिना सहेजे बंद करने पर ये हट जाएँगे। पहले सहेजने के लिए संपादन जारी रखें।",
+    "Hay cambios sin guardar en el proyecto, las calculadoras, bibliotecas, certificados o portadas. Cerrar sin guardar los descarta. Continúe editando para guardarlos primero.",
+    "توجد تعديلات غير محفوظة في المشروع أو الحاسبة أو المكتبة أو الشهادة أو الغلاف. الإغلاق دون حفظ يلغيها. تابع التحرير لحفظها أولاً.",
+    "มีการแก้ไขโครงการ เครื่องคำนวณ คลังข้อมูล ใบรับรอง หรือใบปะหน้าที่ยังไม่บันทึก การปิดโดยไม่บันทึกจะทิ้งการแก้ไขเหล่านี้ แก้ไขต่อเพื่อบันทึกก่อน"
+  ],
+  "Choose a supported PDF download cover.": [
+    "请选择支持的PDF下载封面。",
+    "समर्थित PDF डाउनलोड कवर चुनें।",
+    "Elija una portada para un tipo de descarga PDF compatible.",
+    "اختر غلافاً لنوع تنزيل PDF مدعوم.",
+    "เลือกใบปะหน้าสำหรับประเภทดาวน์โหลด PDF ที่รองรับ"
+  ],
+  "The saved PDF cover settings are unavailable.": [
+    "已保存的PDF封面设置不可用。",
+    "सहेजी गई PDF कवर सेटिंग उपलब्ध नहीं हैं।",
+    "Los ajustes guardados de portada PDF no están disponibles.",
+    "إعدادات غلاف PDF المحفوظة غير متاحة.",
+    "การตั้งค่าใบปะหน้า PDF ที่บันทึกไว้ไม่พร้อมใช้งาน"
+  ],
+  "Include the current PDF cover version.": [
+    "请提供当前PDF封面版本。",
+    "वर्तमान PDF कवर संस्करण शामिल करें।",
+    "Incluya la versión actual de la portada PDF.",
+    "أدرج الإصدار الحالي لغلاف PDF.",
+    "ระบุเวอร์ชันใบปะหน้า PDF ปัจจุบัน"
+  ],
+  "This PDF cover changed in another window. Reload the saved cover before saving again.": [
+    "此PDF封面已在其他窗口更改。再次保存前请重新加载已保存的封面。",
+    "यह PDF कवर दूसरी विंडो में बदल गया। फिर सहेजने से पहले सहेजा गया कवर पुनः लोड करें।",
+    "Esta portada PDF cambió en otra ventana. Recargue la portada guardada antes de volver a guardar.",
+    "تغيّر غلاف PDF في نافذة أخرى. أعد تحميل الغلاف المحفوظ قبل الحفظ مجدداً.",
+    "ใบปะหน้า PDF นี้ถูกเปลี่ยนในอีกหน้าต่างหนึ่ง โหลดใบปะหน้าที่บันทึกไว้อีกครั้งก่อนบันทึกใหม่"
+  ],
+  "The signature filename is invalid.": [
+    "签名文件名无效。",
+    "हस्ताक्षर का फ़ाइल नाम अमान्य है।",
+    "El nombre del archivo de firma no es válido.",
+    "اسم ملف التوقيع غير صالح.",
+    "ชื่อไฟล์ลายเซ็นไม่ถูกต้อง"
+  ],
+  "The signature must be a valid PNG or JPEG, up to 2 MB and 4 million pixels.": [
+    "签名必须是有效的PNG或JPEG，最大2 MB、400万像素。",
+    "हस्ताक्षर की छवि मान्य PNG या JPEG होनी चाहिए, अधिकतम 2 MB और 40 लाख पिक्सेल।",
+    "La firma debe ser un PNG o JPEG válido, de hasta 2 MB y 4 millones de píxeles.",
+    "يجب أن يكون التوقيع صورة PNG أو JPEG صالحة، حتى 2 ميغابايت و4 ملايين بكسل.",
+    "ลายเซ็นต้องเป็น PNG หรือ JPEG ที่ถูกต้อง ขนาดไม่เกิน 2 MB และ 4 ล้านพิกเซล"
+  ],
+  "Include both the signature image and filename.": [
+    "请同时提供签名图像和文件名。",
+    "हस्ताक्षर की छवि और फ़ाइल नाम दोनों शामिल करें।",
+    "Incluya la imagen de firma y su nombre de archivo.",
+    "أدرج صورة التوقيع واسم الملف معاً.",
+    "ระบุทั้งภาพลายเซ็นและชื่อไฟล์"
+  ],
+  "Include the PDF cover, filename and current version only.": [
+    "请仅提供PDF封面、文件名和当前版本。",
+    "केवल PDF कवर, फ़ाइल नाम और वर्तमान संस्करण शामिल करें।",
+    "Incluya únicamente la portada PDF, el nombre de archivo y la versión actual.",
+    "أدرج غلاف PDF واسم الملف والإصدار الحالي فقط.",
+    "ระบุเฉพาะใบปะหน้า PDF ชื่อไฟล์ และเวอร์ชันปัจจุบัน"
+  ]
+}

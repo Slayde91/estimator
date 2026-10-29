@@ -31,7 +31,16 @@ class LanguageAssetsTests(unittest.TestCase):
         for key in ['Language', 'Application language', 'Home', 'Settings', 'Document', 'Recalculate']:
             self.assertIn(key, messages)
             self.assertEqual(len(messages[key]), 8)
-        self.assertEqual(builder['LANGUAGES'], ('zh-Hans', 'hi', 'es', 'ar', 'th', 'ko', 'tl', 'vi'))
+        self.assertEqual(builder['LANGUAGES'], ('zh-Hans', 'hi', 'es', 'ar', 'th', 'ko', 'tl', 'vi', 'fr', 'bn', 'ur'))
+        for locale in builder['EXTRA_LANGUAGES']:
+            extra = builder['read_catalog'](ROOT / f'static/locales/extra/{locale}.json')
+            self.assertEqual(set(extra), set(messages))
+            for source, translation in extra.items():
+                builder['validate_translations'](ROOT / f'{locale}.json', source, [translation], [locale])
+        compiled = json.loads(payload.split('Object.freeze(', 1)[1].rsplit(');', 1)[0])
+        self.assertTrue(all(len(translations) == 11 for translations in compiled.values()))
+        for source, original_translations in messages.items():
+            self.assertEqual(compiled[source][:8], original_translations)
         class Markers(HTMLParser):
             def handle_starttag(inner, tag, attrs):
                 for name, value in attrs:
@@ -66,7 +75,13 @@ class LanguageAssetsTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, 'source keys differ'):
                     build()
                 (locales / 'additions/test.json').write_text(json.dumps({'Home': ['홈', 'Simula', 'Trang chủ']}), encoding='utf-8')
+                (locales / 'extra').mkdir()
+                for locale, translation in [('fr', 'Accueil'), ('bn', 'হোম'), ('ur', 'ہوم')]:
+                    (locales / f'extra/{locale}.json').write_text(json.dumps({'Home': translation}), encoding='utf-8')
                 self.assertEqual(build()[1], 1)
+                (locales / 'extra/ur.json').write_text('{}', encoding='utf-8')
+                with self.assertRaisesRegex(ValueError, 'source keys differ'):
+                    build()
             finally:
                 build.__globals__['ROOT'] = original_root
 
@@ -96,7 +111,7 @@ class LanguageAssetsTests(unittest.TestCase):
                     status, _, body = get('/')
                     self.assertEqual(status, 200)
                     self.assertIn(b'id="application-language"', body)
-                    for locale in ['en', 'zh-Hans', 'hi', 'es', 'ar', 'th', 'ko', 'tl', 'vi']:
+                    for locale in ['en', 'zh-Hans', 'hi', 'es', 'ar', 'th', 'ko', 'tl', 'vi', 'fr', 'bn', 'ur']:
                         self.assertIn(f'value="{locale}"'.encode(), body)
                     if edition == 'standard': self.assertNotIn(b'/takeoffs.js', body)
                     self.assertEqual(before, hashlib.sha256(database.read_bytes()).hexdigest())

@@ -1049,18 +1049,17 @@ async function penetrationCheck(name, fn) {
     h.app.setRequest(async()=>({...project(),takeoffs:{version:1},takeoffs_session_id:'prepared-session'}));h.chooseFile();const loading=h.app.loadProject();await flush();revision++;pending.resolve({session:{session_id:'prepared-session'}});await loading;
     assert.match(h.byId('app-message').textContent,/draft changed/);assert.deepEqual(closed,['prepared-session']);assert.equal(h.app.state.inputs.B15,123);
   });
-  await check('Projects first opens its two-section hub and remembers Certification on return', async h => {
+  await check('Projects always opens its two-section hub after visiting Certification', async h => {
     const before=h.snapshot();let opened=0;h.context.window.CeasefireCertification={open:async()=>{opened++;},hasPendingOperation:()=>false};
-    await h.app.requestViewNavigation('projects');assert.equal(h.app.state.currentView,'projects');assert.equal(h.app.state.projectsSection,null);
+    await h.app.requestViewNavigation('projects');assert.equal(h.app.state.currentView,'projects');
     await h.app.requestViewNavigation('certification');assert.equal(h.app.state.currentView,'certification');assert.equal(opened,1);
-    await h.app.requestViewNavigation('home');await h.app.requestViewNavigation('projects');assert.equal(h.app.state.currentView,'certification');assert.equal(opened,2);
+    await h.app.requestViewNavigation('home');await h.app.requestViewNavigation('projects');assert.equal(h.app.state.currentView,'projects');assert.equal(opened,1);
     assert.deepEqual(h.snapshot(),before);
   });
-  await check('Projects hub remains reachable without replacing the most recent section', async h => {
+  await check('Projects always returns to its hub after visiting saved projects', async h => {
     h.app.setRequest(async()=>({files:[]}));await h.app.requestViewNavigation('quotes');await flush();
-    assert.equal(h.app.state.projectsSection,'quotes');await h.app.requestViewNavigation('projects',undefined,true);
-    assert.equal(h.app.state.currentView,'projects');assert.equal(h.app.state.projectsSection,'quotes');
-    await h.app.requestViewNavigation('home');await h.app.requestViewNavigation('projects');assert.equal(h.app.state.currentView,'quotes');
+    await h.app.requestViewNavigation('projects');assert.equal(h.app.state.currentView,'projects');
+    await h.app.requestViewNavigation('home');await h.app.requestViewNavigation('projects');assert.equal(h.app.state.currentView,'projects');
   });
   await check('Pending certification operation blocks navigation without touching project inputs', async h => {
     const before=h.snapshot();h.app.state.currentView='certification';

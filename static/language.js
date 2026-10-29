@@ -3,8 +3,8 @@
   'use strict';
   const root = document.documentElement;
   const key = 'ceasefire.ui.language.v1';
-  const languages = Object.freeze(['en', 'zh-Hans', 'hi', 'es', 'ar', 'th', 'ko', 'tl', 'vi']);
-  const languageCodes = Object.freeze({en: 'EN', 'zh-Hans': '中文', hi: 'HI', es: 'ES', ar: 'AR', th: 'TH', ko: 'KO', tl: 'TL', vi: 'VI'});
+  const languages = Object.freeze(['en', 'zh-Hans', 'hi', 'es', 'ar', 'th', 'ko', 'tl', 'vi', 'fr', 'bn', 'ur']);
+  const languageCodes = Object.freeze({en: 'EN', 'zh-Hans': '中文', hi: 'HI', es: 'ES', ar: 'AR', th: 'TH', ko: 'KO', tl: 'TL', vi: 'VI', fr: 'FR', bn: 'BN', ur: 'UR'});
   const messages = window.CeasefireMessages || {};
   const bindings = new Map();
   const termToken = Symbol('owned UI term');
@@ -93,7 +93,7 @@
     if (!languages.includes(next)) return false;
     language = next;
     root.lang = language === 'en' ? 'en-AU' : language;
-    root.dir = language === 'ar' ? 'rtl' : 'ltr';
+    root.dir = ['ar', 'ur'].includes(language) ? 'rtl' : 'ltr';
     root.dataset.language = language;
     refresh();
     const select = document.getElementById('application-language');

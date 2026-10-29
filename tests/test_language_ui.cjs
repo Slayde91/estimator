@@ -27,20 +27,20 @@ function harness(saved=null,denied=false,messages=null){
   const context={window,document,localStorage:store,CustomEvent:class{constructor(type,options){this.type=type;this.detail=options.detail;}},MutationObserver:class{constructor(fn){observer=fn;}observe(){}}};
   vm.createContext(context);vm.runInContext(runtime,context);return {ui:window.CeasefireI18n,context,root,select,status,events,writes,listeners,observe:n=>observer([{addedNodes:[n]}])};
 }
-function catalogs(){return Object.assign({},...fs.readdirSync(path.join(__dirname,'../static/locales')).filter(name=>name.endsWith('.json')).sort().map(name=>{
+function catalogs(){const extra=['fr','bn','ur'].map(locale=>JSON.parse(fs.readFileSync(path.join(__dirname,`../static/locales/extra/${locale}.json`),'utf8')));return Object.assign({},...fs.readdirSync(path.join(__dirname,'../static/locales')).filter(name=>name.endsWith('.json')).sort().map(name=>{
   const base=JSON.parse(fs.readFileSync(path.join(__dirname,'../static/locales',name),'utf8')), additions=JSON.parse(fs.readFileSync(path.join(__dirname,'../static/locales/additions',name),'utf8'));
-  return Object.fromEntries(Object.entries(base).map(([source,translations])=>[source,translations.concat(additions[source])]));
+  return Object.fromEntries(Object.entries(base).map(([source,translations])=>[source,translations.concat(additions[source],extra.map(catalog=>catalog[source]))]));
 }));}
-test('nine locales persist independently and invalid preference falls back to English',()=>{
+test('twelve locales persist independently and invalid preference falls back to English',()=>{
   const h=harness('invalid');assert.equal(h.ui.language,'en');assert.equal(h.root.lang,'en-AU');assert.equal(h.writes.length,0);
-  for(const locale of ['zh-Hans','hi','es','ar','th','ko','tl','vi','en']){assert.equal(h.ui.setLanguage(locale),true);assert.equal(h.select.value,locale);assert.equal(h.root.dir,locale==='ar'?'rtl':'ltr');assert.equal(h.writes.at(-1)[0],'ceasefire.ui.language.v1');}
-  assert.equal(h.ui.setLanguage('fr'),false);assert.equal(h.ui.language,'en');
+  for(const locale of ['zh-Hans','hi','es','ar','th','ko','tl','vi','fr','bn','ur','en']){assert.equal(h.ui.setLanguage(locale),true);assert.equal(h.select.value,locale);assert.equal(h.root.dir,['ar','ur'].includes(locale)?'rtl':'ltr');assert.equal(h.writes.at(-1)[0],'ceasefire.ui.language.v1');}
+  assert.equal(h.ui.setLanguage('invalid'),false);assert.equal(h.ui.language,'en');
 });
 test('new locales translate both navigation and detailed prose through the same owned bindings',()=>{
   const h=harness(null,false,catalogs()),home=new Element(),language=new Element(),details=new Element();
   const source='The interface language is saved in this browser. Project data, technical evidence and PDF/Excel exports keep their original language.';
   h.ui.text(home,'Home');h.ui.text(language,'Language');h.ui.text(details,source);
-  for(const [locale,homeText,languageText] of [['ko','홈','언어'],['tl','Simula','Wika'],['vi','Trang chủ','Ngôn ngữ']]){
+  for(const [locale,homeText,languageText] of [['ko','홈','언어'],['tl','Simula','Wika'],['vi','Trang chủ','Ngôn ngữ'],['fr','Accueil','Langue'],['bn','হোম','ভাষা'],['ur','ہوم','زبان']]){
     h.ui.setLanguage(locale);assert.equal(home.textContent,homeText);assert.equal(language.textContent,languageText);assert.notEqual(details.textContent,source);assert.ok(details.textContent.includes('PDF/Excel'));
   }
   h.ui.setLanguage('en');assert.equal(home.textContent,'Home');assert.equal(details.textContent,source);

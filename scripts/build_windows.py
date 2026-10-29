@@ -45,7 +45,7 @@ STATIC_FILES = (
     'header-menu-sounds.js', 'sounds/mgs1-menu-move.mp3', 'sounds/mgs-confirm2.mp3',
     'sounds/new-explosion.mp3', 'sounds/flame-whoosh.wav', 'sounds/type.mp3', 'sounds/hover.mp3', 'sounds/select.mp3', 'sounds/select-2.mp3',
     'sounds/mixkit-vintage-dot-printing-1371.wav', 'sounds/checkpoint.ogg', 'sounds/loading.mp3',
-    'help-glossary.js', 'help-glossary.css', 'company-settings.js', 'theme.js', 'theme.css', 'language.js', 'language-catalog.js', 'language.css', 'laser.css', 'laser-steel.svg', 'home-steel-frame.png',
+    'help-glossary.js', 'help-glossary.css', 'company-settings.js', 'certification.js', 'certification.css', 'theme.js', 'theme.css', 'language.js', 'language-catalog.js', 'language.css', 'laser.css', 'laser-steel.svg', 'home-steel-frame.png',
     'header-layout.css', 'workspace-art.css', 'header-steel-spray.png', 'header-steel-intumescent.png', 'header-steel-board.png', 'header-ductwork.png', 'header-firestopping.png', 'header-estimate.png', 'header-projects.png', 'projects-evidence-banner.png', 'header-firestopping-library.png', 'header-technical-library.png',
     'fonts/Montserrat-Italic-Variable.ttf', 'fonts/Montserrat-Variable.ttf', 'fonts/OFL.txt',
     'ceasefire-app.ico', 'ceasefire-app-icon.png',
@@ -230,6 +230,8 @@ def verify_bundle(bundle):
     archive = CArchiveReader(str(bundle / 'CEASEFIRE Estimator.exe'))
     pyz = archive.open_embedded_archive('PYZ.pyz')
     names = sorted(pyz.toc)
+    if 'pypdf' not in names:
+        raise ValueError('The standard desktop requires pypdf for PDF cover sheets and certificate revisions.')
     if any(name.startswith('estimator.takeoff') for name in names):
         raise ValueError('TAKEOFFS modules were included in the standard desktop executable.')
     files = [path for path in bundle.rglob('*') if path.is_file()]
@@ -238,7 +240,8 @@ def verify_bundle(bundle):
         if '/factory-seed/' not in relative and (path.name.lower().startswith('takeoff') or '/vendor/pdfjs/' in relative or '/vendor/ocr/' in relative):
             raise ValueError('TAKEOFFS assets were included in the standard desktop bundle.')
     return {'files':len(files),'bytes':sum(path.stat().st_size for path in files),
-        'takeoff_modules':0,'takeoff_assets':0,'module_count':len(names)}
+        'takeoff_modules':0,'takeoff_assets':0,'module_count':len(names),
+        'pdf_cover_modules':sum(name == 'pypdf' or name.startswith('pypdf.') for name in names)}
 
 
 def runtime_provenance(paths):

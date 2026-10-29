@@ -69,6 +69,8 @@ jobs:
       - run: node tests/test_calculators_ui.cjs
       - run: node tests/test_schedule_columns_ui.cjs
       - run: node tests/test_project_ui.cjs
+      - run: node tests/test_company_settings_ui.cjs
+      - run: node tests/test_certification_ui.cjs
       - run: node tests/test_downloads_ui.cjs
       - run: node tests/test_penetration_ui.cjs
       - run: node tests/test_libraries_ui.cjs

@@ -163,7 +163,7 @@ async function inspectHeader(width) {
     // The additional 320px case covers this header change; retained whole-workspace coverage starts at 390px.
     if (width === 320) continue;
     for (const section of ['Home', 'Estimates', 'Calculators', 'Takeoffs', 'Libraries', 'Projects', 'Help']) {
-      await page.getByRole('button', { name: section, exact: true }).click(); await idle();
+      await page.locator('nav[aria-label="Main navigation"]').getByRole('button', { name: section, exact: true }).click(); if(section==='Projects'&&await page.locator('#view-projects').isVisible())await page.locator('#view-projects [data-project-section="quotes"]').click(); await idle();
       const actions = page.locator('#header-project-actions'); await expect(actions).toBeVisible();
       for (const name of ['Save', 'Project files']) await expect(actions.getByRole('button', { name, exact: true })).toBeVisible();
       const bounds = await box(actions), header = await box(page.locator('.app-header'));

@@ -10,7 +10,7 @@ const homeAreas=[
   ['estimate','Estimates','Build the project material and labour estimates.'],
   ['pricing','Libraries','Manage pricing, firestopping records and technical references.'],
   ['calculators','Calculators','Use the specialist workbook calculators and export schedules.'],
-  ['quotes','Projects','Find and reopen project files from your linked folder.'],
+  ['projects','Projects','Find and reopen project files from your linked folder.'],
   ['takeoffs','Takeoffs','Measure original drawings and keep their source evidence with the project.'],
   ['help','Help','Read the guide to estimates, drawings, schedules and project files.'],
 ];

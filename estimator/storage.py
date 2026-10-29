@@ -55,10 +55,15 @@ class Store:
         from .company_settings import DEFAULTS
         with self.connect() as db:
             row = db.execute("SELECT value FROM app_preferences WHERE key='company_settings'").fetchone()
-        return json.loads(row[0]) if row else dict(DEFAULTS)
+        return {**DEFAULTS, **json.loads(row[0])} if row else dict(DEFAULTS)
 
     def save_company_settings(self, value):
         from .company_settings import validate_company_settings
+        # Legacy contact-only clients must not silently clear an uploaded cover.
+        # Unknown keys remain visible to the strict shared validator.
+        if isinstance(value, dict):
+            retained = self.company_settings()
+            value = {**{key: retained[key] for key in ('cover_pdf', 'cover_pdf_name')}, **value}
         value = validate_company_settings(value)
         with self.connect() as db:
             db.execute("INSERT INTO app_preferences(key,value) VALUES('company_settings',?) "

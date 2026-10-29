@@ -1,4 +1,5 @@
 # Rebuild the Windows bundle in an isolated venv; never use a live app runtime.
+# Shared pins include pypdf for cover sheets and saved certificate revisions in both editions.
 -r requirements.txt
 pywebview==6.2.1
 pyinstaller==6.22.3

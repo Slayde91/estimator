@@ -36,7 +36,7 @@ async function record(area){
   for(const title of ['Steel (spray)','Steel (board)','Ductwork (spray/wrap)','Firestopping']){await chooseCalculator(page,title);await record('calculator-'+title.split(' ')[0].toLowerCase()+(title.includes('board')?'-board':''));}
   for(const mode of ['Steel','Duct','Defect Reports','Service Plans','Walls/Floors']){await chooseTakeoff(page,mode);await record('takeoff-'+mode.toLowerCase().replaceAll(/[^a-z]+/g,'-'));}
   for(const kind of ['pricing','penetration','technical']){await chooseLibrary(page,kind);await record('library-'+kind);}
-  for(const view of ['quotes','help','settings']){await page.locator(`nav [data-view="${view}"]`).click();await record(view);}
+  for(const view of ['projects','help','settings']){await page.locator(`nav [data-view="${view}"]`).click();await record(view);}
   await page.locator('#estimate-navigation-toggle').click();await idle();await page.emulateMedia({media:'print'});await expect(page.locator('#view-estimate .card').first()).toHaveCSS('background-color','rgb(255, 255, 255)');await page.emulateMedia({media:'screen'});
   assert.deepEqual(errors,[]);fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,evidence,errors},null,2));console.log(`PASS: red headers/cards/selected tabs across ${evidence.length} full-app areas, preview icons and unchanged form inputs/print. ${output}`);
 })().catch(async error=>{console.error(error);process.exitCode=1;await page?.screenshot({path:path.join(output,'failure.png')}).catch(()=>{});fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:false,error:String(error),evidence,errors},null,2));}).finally(async()=>{fs.writeFileSync(path.join(output,'server.log'),logs);await browser?.close();server.kill();});

@@ -1,0 +1,297 @@
+{
+  "PDF cover sheet (PDF, up to 10 MB and 25 pages)": [
+    "PDF 표지(PDF, 최대 10MB 및 25페이지)",
+    "Pabalat na PDF (PDF, hanggang 10 MB at 25 pahina)",
+    "Trang bìa PDF (PDF, tối đa 10 MB và 25 trang)"
+  ],
+  "Remove cover sheet": [
+    "표지 제거",
+    "Alisin ang pabalat",
+    "Xóa trang bìa"
+  ],
+  "Prepended to new PDF exports. Saved certificate revisions retain their original cover.": [
+    "새로 내보내는 PDF 앞에 추가됩니다. 저장된 인증서 개정본은 원래 표지를 유지합니다.",
+    "Idinadagdag sa unahan ng mga bagong PDF export. Nananatili ang orihinal na pabalat ng mga naka-save na rebisyon.",
+    "Được thêm vào đầu các tệp PDF xuất mới. Các bản sửa đổi chứng nhận đã lưu giữ nguyên trang bìa gốc."
+  ],
+  "Find, open and manage saved project files.": [
+    "저장된 프로젝트 파일을 찾고 열고 관리합니다.",
+    "Hanapin, buksan at pamahalaan ang mga naka-save na file ng proyekto.",
+    "Tìm, mở và quản lý các tệp dự án đã lưu."
+  ],
+  "Certification": [
+    "인증",
+    "Sertipikasyon",
+    "Chứng nhận"
+  ],
+  "Prepare installation certificates and view their saved revisions.": [
+    "설치 인증서를 작성하고 저장된 개정본을 확인합니다.",
+    "Gumawa ng mga sertipiko ng pag-install at tingnan ang mga naka-save na rebisyon.",
+    "Soạn chứng nhận lắp đặt và xem các bản sửa đổi đã lưu."
+  ],
+  "Projects and Certification": [
+    "프로젝트 및 인증",
+    "Mga Proyekto at Sertipikasyon",
+    "Dự án và chứng nhận"
+  ],
+  "PROJECTS": [
+    "프로젝트",
+    "MGA PROYEKTO",
+    "DỰ ÁN"
+  ],
+  "Saved certification": [
+    "저장된 인증",
+    "Naka-save na sertipikasyon",
+    "Chứng nhận đã lưu"
+  ],
+  "New certificate": [
+    "새 인증서",
+    "Bagong sertipiko",
+    "Chứng nhận mới"
+  ],
+  "Reload saved details": [
+    "저장된 내용 다시 불러오기",
+    "I-load muli ang naka-save na detalye",
+    "Tải lại thông tin đã lưu"
+  ],
+  "Project": [
+    "프로젝트",
+    "Proyekto",
+    "Dự án"
+  ],
+  "Address": [
+    "주소",
+    "Address",
+    "Địa chỉ"
+  ],
+  "Location/Area": [
+    "위치/구역",
+    "Lokasyon/Lugar",
+    "Vị trí/Khu vực"
+  ],
+  "Statement of Compliance": [
+    "준수 진술서",
+    "Pahayag ng Pagsunod",
+    "Tuyên bố tuân thủ"
+  ],
+  "The relevant Australian Standards listed in the NCC as follows:": [
+    "NCC에 명시된 관련 호주 표준은 다음과 같습니다:",
+    "Ang mga kaugnay na Australian Standard na nakalista sa NCC ay ang mga sumusunod:",
+    "Các Tiêu chuẩn Úc liên quan được liệt kê trong NCC như sau:"
+  ],
+  "The relevant clauses of the NCC, as follows:": [
+    "관련 NCC 조항은 다음과 같습니다:",
+    "Ang mga kaugnay na sugnay ng NCC ay ang mga sumusunod:",
+    "Các điều khoản NCC liên quan như sau:"
+  ],
+  "The design detail submitted at the construction approval stage:": [
+    "건축 승인 단계에서 제출한 설계 상세:",
+    "Ang detalye ng disenyo na isinumite sa yugto ng pag-apruba ng konstruksyon:",
+    "Chi tiết thiết kế được nộp ở giai đoạn phê duyệt xây dựng:"
+  ],
+  "The following additional Australian Standards (if applicable)": [
+    "다음 추가 호주 표준(해당하는 경우)",
+    "Ang sumusunod na karagdagang Australian Standard (kung naaangkop)",
+    "Các Tiêu chuẩn Úc bổ sung sau đây (nếu áp dụng)"
+  ],
+  "Other practices, standards, or reports (such as Fire Safety or Disabled Access reports) relied upon or that modify the BCA or Australian standards for this certification": [
+    "이 인증에서 근거로 삼거나 BCA 또는 호주 표준을 수정하는 기타 관행, 표준 또는 보고서(예: 화재 안전 또는 장애인 접근성 보고서)",
+    "Iba pang mga gawain, pamantayan o ulat (gaya ng mga ulat sa kaligtasan sa sunog o pag-access ng may kapansanan) na pinagbatayan o nagbabago sa BCA o mga pamantayan ng Australia para sa sertipikasyong ito",
+    "Các thông lệ, tiêu chuẩn hoặc báo cáo khác (như báo cáo An toàn cháy hoặc Tiếp cận cho người khuyết tật) được sử dụng làm căn cứ hoặc sửa đổi BCA hay các tiêu chuẩn Úc cho chứng nhận này"
+  ],
+  "Exclusions": [
+    "제외 사항",
+    "Mga Hindi Saklaw",
+    "Các nội dung loại trừ"
+  ],
+  "Materials/Manufacturers:": [
+    "자재/제조업체:",
+    "Mga Materyal/Tagagawa:",
+    "Vật liệu/Nhà sản xuất:"
+  ],
+  "Fire Resistance Level:": [
+    "내화 등급:",
+    "Antas ng Paglaban sa Apoy:",
+    "Cấp độ chịu lửa:"
+  ],
+  "Name": [
+    "이름",
+    "Pangalan",
+    "Họ tên"
+  ],
+  "Position": [
+    "직위",
+    "Posisyon",
+    "Chức vụ"
+  ],
+  "Qualification": [
+    "자격",
+    "Kwalipikasyon",
+    "Trình độ chuyên môn"
+  ],
+  "Accreditation": [
+    "공인 자격",
+    "Akreditasyon",
+    "Công nhận"
+  ],
+  "Certificate revisions": [
+    "인증서 개정본",
+    "Mga Rebisyon ng Sertipiko",
+    "Các bản sửa đổi chứng nhận"
+  ],
+  "Every generated certificate is saved as a separate revision. Earlier PDFs retain the details and cover sheet used when they were created.": [
+    "생성한 인증서는 각각 별도의 개정본으로 저장됩니다. 이전 PDF는 생성 당시의 내용과 표지를 유지합니다.",
+    "Ang bawat nabuong sertipiko ay sine-save bilang hiwalay na rebisyon. Nananatili sa mga naunang PDF ang mga detalye at pabalat noong ginawa ang mga ito.",
+    "Mỗi chứng nhận được tạo sẽ được lưu thành một bản sửa đổi riêng. Các PDF trước đó giữ nguyên thông tin và trang bìa tại thời điểm tạo."
+  ],
+  "Save certification details": [
+    "인증 내용 저장",
+    "I-save ang detalye ng sertipikasyon",
+    "Lưu thông tin chứng nhận"
+  ],
+  "Generate Certificate": [
+    "인증서 생성",
+    "Bumuo ng Sertipiko",
+    "Tạo chứng nhận"
+  ],
+  "Cover sheet: {0}": [
+    "표지: {0}",
+    "Pabalat: {0}",
+    "Trang bìa: {0}"
+  ],
+  "No cover sheet selected.": [
+    "선택된 표지가 없습니다.",
+    "Walang napiling pabalat.",
+    "Chưa chọn trang bìa."
+  ],
+  "Choose a PDF cover sheet smaller than 10 MB.": [
+    "10MB보다 작은 PDF 표지를 선택하세요.",
+    "Pumili ng pabalat na PDF na mas maliit sa 10 MB.",
+    "Chọn trang bìa PDF nhỏ hơn 10 MB."
+  ],
+  "The PDF cover sheet could not be read.": [
+    "PDF 표지를 읽을 수 없습니다.",
+    "Hindi mabasa ang pabalat na PDF.",
+    "Không thể đọc trang bìa PDF."
+  ],
+  "The operation result could not be confirmed. Retry the same operation.": [
+    "작업 결과를 확인할 수 없습니다. 같은 작업을 다시 시도하세요.",
+    "Hindi makumpirma ang resulta. Subukang muli ang parehong operasyon.",
+    "Không thể xác nhận kết quả thao tác. Hãy thử lại cùng thao tác."
+  ],
+  "Certification details could not be saved.": [
+    "인증 내용을 저장할 수 없습니다.",
+    "Hindi ma-save ang detalye ng sertipikasyon.",
+    "Không thể lưu thông tin chứng nhận."
+  ],
+  "No certificates have been generated yet.": [
+    "아직 생성된 인증서가 없습니다.",
+    "Wala pang nabuong sertipiko.",
+    "Chưa có chứng nhận nào được tạo."
+  ],
+  "Revision": [
+    "개정",
+    "Rebisyon",
+    "Bản sửa đổi"
+  ],
+  "Generated": [
+    "생성됨",
+    "Nabuo",
+    "Đã tạo"
+  ],
+  "Certificate": [
+    "인증서",
+    "Sertipiko",
+    "Chứng nhận"
+  ],
+  "The saved certificate link is invalid.": [
+    "저장된 인증서 링크가 올바르지 않습니다.",
+    "Hindi wasto ang link ng naka-save na sertipiko.",
+    "Liên kết chứng nhận đã lưu không hợp lệ."
+  ],
+  "Open revision {0}": [
+    "개정본 {0} 열기",
+    "Buksan ang rebisyon {0}",
+    "Mở bản sửa đổi {0}"
+  ],
+  "Unsaved certification details": [
+    "저장하지 않은 인증 내용",
+    "Hindi pa naka-save na detalye ng sertipikasyon",
+    "Thông tin chứng nhận chưa lưu"
+  ],
+  "Continue without saving these certification details?": [
+    "이 인증 내용을 저장하지 않고 계속하시겠습니까?",
+    "Magpatuloy nang hindi sine-save ang mga detalyeng ito?",
+    "Tiếp tục mà không lưu thông tin chứng nhận này?"
+  ],
+  "Continue without saving": [
+    "저장하지 않고 계속",
+    "Magpatuloy nang hindi sine-save",
+    "Tiếp tục mà không lưu"
+  ],
+  "Certification details changed during the confirmation. Review the current fields first.": [
+    "확인 중 인증 내용이 변경되었습니다. 먼저 현재 필드를 검토하세요.",
+    "Nagbago ang detalye habang kinukumpirma. Suriin muna ang kasalukuyang mga field.",
+    "Thông tin chứng nhận đã thay đổi khi xác nhận. Hãy kiểm tra các trường hiện tại trước."
+  ],
+  "Enter the certification details.": [
+    "인증 내용을 입력하세요.",
+    "Ilagay ang detalye ng sertipikasyon.",
+    "Nhập thông tin chứng nhận."
+  ],
+  "Loading certification…": [
+    "인증 불러오는 중…",
+    "Nilo-load ang sertipikasyon…",
+    "Đang tải chứng nhận…"
+  ],
+  "Saved certification details": [
+    "저장된 인증 내용",
+    "Naka-save na detalye ng sertipikasyon",
+    "Thông tin chứng nhận đã lưu"
+  ],
+  "Generating and saving certificate revision…": [
+    "인증서 개정본 생성 및 저장 중…",
+    "Binubuo at sine-save ang rebisyon ng sertipiko…",
+    "Đang tạo và lưu bản sửa đổi chứng nhận…"
+  ],
+  "Saving certification details…": [
+    "인증 내용 저장 중…",
+    "Sine-save ang detalye ng sertipikasyon…",
+    "Đang lưu thông tin chứng nhận…"
+  ],
+  "Certification details saved.": [
+    "인증 내용이 저장되었습니다.",
+    "Na-save ang detalye ng sertipikasyon.",
+    "Đã lưu thông tin chứng nhận."
+  ],
+  "Revision {0} saved. Open it in Certificate revisions.": [
+    "개정본 {0}이 저장되었습니다. 인증서 개정본에서 여세요.",
+    "Na-save ang rebisyon {0}. Buksan ito sa Mga Rebisyon ng Sertipiko.",
+    "Đã lưu bản sửa đổi {0}. Mở trong Các bản sửa đổi chứng nhận."
+  ],
+  "The operation result could not be confirmed. Retry the same button to recover it without creating another revision.": [
+    "작업 결과를 확인할 수 없습니다. 다른 개정본을 만들지 않고 결과를 복구하려면 같은 버튼을 다시 누르세요.",
+    "Hindi makumpirma ang resulta. Pindutin muli ang parehong button upang mabawi ito nang walang dagdag na rebisyon.",
+    "Không thể xác nhận kết quả. Nhấn lại cùng nút để khôi phục mà không tạo thêm bản sửa đổi."
+  ],
+  "Finish or retry the current certification operation before changing views.": [
+    "화면을 바꾸기 전에 현재 인증 작업을 완료하거나 다시 시도하세요.",
+    "Tapusin o subukang muli ang kasalukuyang operasyon ng sertipikasyon bago lumipat ng pahina.",
+    "Hoàn tất hoặc thử lại thao tác chứng nhận hiện tại trước khi chuyển trang."
+  ],
+  "There are unsaved project, calculator, library or certification edits. Close without saving discards these edits. Keep editing to save them first.": [
+    "저장하지 않은 프로젝트, 계산기, 라이브러리 또는 인증 수정 사항이 있습니다. 저장하지 않고 닫으면 변경 내용이 삭제됩니다. 계속 편집하여 먼저 저장하세요.",
+    "May hindi pa naka-save na pagbabago sa proyekto, calculator, library o sertipikasyon. Mawawala ang mga ito kapag isinara nang hindi sine-save. Magpatuloy sa pag-edit upang i-save muna.",
+    "Có chỉnh sửa dự án, công cụ tính, thư viện hoặc chứng nhận chưa lưu. Đóng mà không lưu sẽ loại bỏ các chỉnh sửa này. Tiếp tục chỉnh sửa để lưu trước."
+  ],
+  "Certification is strictly limited to passive fire protection works completed by {0}, in accordance with:": [
+    "인증은 다음에 따라 {0}이 완료한 수동 방화 공사로 엄격히 한정됩니다:",
+    "Ang sertipikasyon ay mahigpit na limitado sa mga gawaing passive fire protection na natapos ng {0}, alinsunod sa:",
+    "Chứng nhận chỉ giới hạn nghiêm ngặt ở các công việc bảo vệ chống cháy thụ động do {0} hoàn thành, theo:"
+  ],
+  "{0} are approved by the manufacturers listed above to supply and install passive fire products in accordance with tested and certified systems. I am a properly qualified person and have a good working knowledge of the relevant codes and standards referenced above. The information contained in this statement is true and accurate to the best of my knowledge.": [
+    "{0}은 위에 명시된 제조업체로부터 시험 및 인증된 시스템에 따라 수동 방화 제품을 공급하고 설치하도록 승인받았습니다. 본인은 적절한 자격을 갖추고 있으며 위에서 참조한 관련 법규와 표준에 대한 충분한 실무 지식을 보유하고 있습니다. 이 진술서의 정보는 본인이 아는 한 사실이며 정확합니다.",
+    "Ang {0} ay inaprubahan ng mga tagagawang nakalista sa itaas na magsuplay at mag-install ng mga produktong passive fire protection alinsunod sa mga sistemang nasubukan at sertipikado. Ako ay isang taong may naaangkop na kwalipikasyon at may mahusay na praktikal na kaalaman sa mga kaugnay na code at pamantayang binanggit sa itaas. Ang impormasyong nakapaloob sa pahayag na ito ay totoo at tama sa abot ng aking kaalaman.",
+    "{0} được các nhà sản xuất nêu trên chấp thuận cung cấp và lắp đặt sản phẩm bảo vệ chống cháy thụ động theo các hệ thống đã được thử nghiệm và chứng nhận. Tôi là người có trình độ phù hợp và có kiến thức thực tiễn tốt về các quy chuẩn và tiêu chuẩn liên quan được dẫn chiếu ở trên. Theo hiểu biết của tôi, thông tin trong tuyên bố này là đúng sự thật và chính xác."
+  ]
+}

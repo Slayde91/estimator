@@ -202,7 +202,8 @@ class TakeoffHTTP:
             allowed = {'scope', 'expected_revision', 'confirmation'} if format in ('xlsx', 'register-xlsx') else ({'scope', 'expected_revision'} if format == 'pdf' else {'scope'})
             if not isinstance(body, dict) or set(body) - allowed:
                 raise ValidationError('Draft physical export accepts only its workspace scope and supported document selection.')
-            payload, kind, filename = self.service.export_physical(session_id, format, body.get('scope', 'defect_reports'), body.get('expected_revision'), body.get('confirmation'))
+            payload, kind, filename = self.service.export_physical(session_id, format, body.get('scope', 'defect_reports'), body.get('expected_revision'), body.get('confirmation'),
+                                                                  company=handler.company_details())
             handler.send_download(payload, kind, filename, destination) if destination is not None else handler.send_download(payload, kind, filename)
             return True
         elif action == 'transfer-preview':

@@ -15,12 +15,12 @@ excluded = config['excluded_modules'] + [
     'PyQt5', 'PyQt6', 'PySide2', 'PySide6', 'cefpython3', 'gi', 'gtk',
     'webview.platforms.cef', 'webview.platforms.qt', 'webview.platforms.gtk',
     'webview.platforms.cocoa', 'webview.platforms.android', 'tkinter',
-    'pypdf', 'fitz', 'pymupdf', 'pypdfium2', 'numpy', 'pandas', 'matplotlib',
+    'fitz', 'pymupdf', 'pypdfium2', 'numpy', 'pandas', 'matplotlib',
 ]
 a = Analysis(
     [str(root / 'scripts' / 'desktop_entry.py')], pathex=[str(root)],
     binaries=[], datas=datas,
-    hiddenimports=['webview.platforms.winforms', 'webview.platforms.edgechromium'],
+    hiddenimports=['webview.platforms.winforms', 'webview.platforms.edgechromium', 'pypdf'],
     hookspath=[], hooksconfig={}, runtime_hooks=[], excludes=excluded,
     noarchive=False, optimize=0,
 )

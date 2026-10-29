@@ -2519,7 +2519,18 @@
   window.CeasefireTakeoffNavigation = { show() { return showView("takeoffs"); } };
   window.CeasefirePenetrationNavigation = {
     show() { return showView("calculators", undefined, "penetration"); },
-    showSchedule() { return showView("calculators", undefined, "penetration"); },
+    showSchedule() {
+      const quoteContext = state.quoteContext;
+      const opened = showView("calculators", undefined, "penetration");
+      // Retain schedule navigation's calculation contract after moving its
+      // visible table into Calculators. A blocked or superseded navigation
+      // must not start work in another view or a replacement project.
+      if (!opened) return opened;
+      return Promise.resolve(opened).then(() => {
+        if (quoteContext !== state.quoteContext || state.currentView !== "calculators" || state.calculatorKind !== "penetration") return;
+        return window.CeasefirePenetrations?.openSchedule?.();
+      });
+    },
     confirm: confirmReplace,
     confirmDelete() { return confirmReplace(uiCopy("Delete item?"), uiCopy("Are you sure you want to delete this item?"), uiCopy("Yes"), uiCopy("Cancel")); },
     message(text, error = false, args = []) { message(uiCopy(text, args), error); },

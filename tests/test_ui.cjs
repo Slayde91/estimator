@@ -855,12 +855,25 @@ let passed=0;
   assert.deepEqual(copy({inputs:audit.state.inputs,draft:audit.state.draft}),protectedState);assert.equal(byId('estimator-penetration').getAttribute('aria-labelledby'),'penetration-heading');
   context.window.CeasefirePenetrations=priorPenetrations;context.window.CeasefireLibraries=priorLibraries;delete context.window.CeasefireLibraryEditor;passed++;
 
-  // Schedule links now open the retained Calculators Firestopping workspace.
+  // Schedule links retain their schedule recalculation contract while opening
+  // the retained Calculators workspace and respecting navigation guards.
   setup();const workspaceOpens=[];
-  context.window.CeasefirePenetrations={open(){workspaceOpens.push('item');},openSchedule(){workspaceOpens.push('schedule');}};
-  context.window.CeasefirePenetrationNavigation.showSchedule();assert.equal(audit.state.estimatorKind,'penetration');assert.equal(audit.state.currentView,'calculators');assert.equal(byId('estimator-main').hidden,true);
+  context.window.CeasefirePenetrations={open(){workspaceOpens.push('item');return Promise.resolve();},openSchedule(){workspaceOpens.push('schedule');return Promise.resolve();}};
+  await context.window.CeasefirePenetrationNavigation.showSchedule();assert.equal(audit.state.estimatorKind,'penetration');assert.equal(audit.state.currentView,'calculators');assert.equal(byId('estimator-main').hidden,true);
   context.window.CeasefirePenetrationNavigation.show();assert.equal(audit.state.estimatorKind,'penetration');
-  assert.deepEqual(workspaceOpens,['item','item']);context.window.CeasefirePenetrations=priorPenetrations;passed++;
+  assert.deepEqual(workspaceOpens,['item','schedule','item']);passed++;
+  audit.showView('home');const priorCertification=context.window.CeasefireCertification;
+  context.window.CeasefireCertification={hasPendingOperation:()=>true};
+  await context.window.CeasefirePenetrationNavigation.showSchedule();
+  assert.equal(audit.state.currentView,'home');assert.deepEqual(workspaceOpens,['item','schedule','item']);
+  context.window.CeasefireCertification=priorCertification;passed++;
+  for(const replacement of ['view','project']){
+    const ready=deferred();context.window.CeasefirePenetrations={open:()=>ready.promise,openSchedule:()=>workspaceOpens.push('unexpected schedule')};
+    const opening=context.window.CeasefirePenetrationNavigation.showSchedule();
+    if(replacement==='view')audit.showView('home');else audit.state.quoteContext++;
+    ready.resolve();await opening;assert.deepEqual(workspaceOpens,['item','schedule','item']);passed++;
+  }
+  context.window.CeasefirePenetrations=priorPenetrations;
 
   const markup=englishMarkup(fs.readFileSync('static/index.html','utf8'));
   const actionCss=fs.readFileSync('static/styles.css','utf8');

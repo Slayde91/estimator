@@ -18,7 +18,7 @@ class TechnicalVariantIntegrationTests(unittest.TestCase):
     setUp = fixtures.ReferenceLibraryTests.setUp
     write = fixtures.ReferenceLibraryTests.write
 
-    def prepare(self):
+    def prepare(self, *, caption=None):
         source = self.data['libraries']['technical']['items'][0]
         source['fields'] += [
             {'label': 'Service', 'value': 'Copper pipe'},
@@ -26,6 +26,8 @@ class TechnicalVariantIntegrationTests(unittest.TestCase):
             {'label': 'Barrier Construction', 'value': '', 'table': {
                 'columns': ['Barrier Construction', 'FRL'],
                 'rows': [['Concrete wall 100 mm', '-/60/60'], ['AAC wall 150 mm', '-/90/90']]}}]
+        if caption is not None:
+            source['fields'][-1]['table_captions'] = [caption]
         self.write(self.data)
         before = self.library._load(); key = source['id']
         public = before['_technical_public_records'][key]; discovery = before['_technical_discovery'][key]
@@ -81,6 +83,34 @@ class TechnicalVariantIntegrationTests(unittest.TestCase):
         self.save_plan(changed)
         with self.assertRaises(ValidationError):
             self.library.listing('technical')
+
+    def test_only_reviewed_response_and_exports_show_selected_caption_while_identities_stay_exact(self):
+        from estimator.technical_item_exports import prepare_technical_item
+        caption = ('Complete source substrate alternatives; each rating and limit applies to its own '
+                   'source row and installation conditions. The entry selection remains separate.'
+                   ' No matching source substrate row has been established for this entry.'
+                   ' Source: Example.pdf, page 2. Keep all fixing and aperture conditions.')
+        source, before, plan = self.prepare(caption=caption)
+        key = source['id']; index_bytes = (self.root / 'library.json').read_bytes()
+        unreviewed = self.library.detail('technical', key)
+        self.assertEqual(next(field for field in unreviewed['fields'] if field['label'] == 'Barrier Construction')['table_captions'], [caption])
+        self.save_plan(plan)
+        data = self.library._load(); retained = deepcopy(data['_technical_public_records'])
+        identities = deepcopy((data['_technical_variant_lineage'], data['_technical_variant_sources']))
+        for identifier in (key, variant_id(key, 'row-1')):
+            actual = self.library.detail('technical', identifier)
+            field = next(field for field in actual['fields'] if field['label'] == 'Barrier Construction')
+            self.assertTrue(field['table_captions'][0].startswith('Selected reviewed substrate configuration;'))
+            self.assertNotIn('No matching source substrate row', field['table_captions'][0])
+            self.assertIn('Keep all fixing and aperture conditions.', field['table_captions'][0])
+            exported = prepare_technical_item({'id': identifier}, library=self.library)
+            table = next(table for table in exported['tables'] if table['label'] == 'Barrier Construction')
+            self.assertEqual(table['caption'], field['table_captions'][0])
+            self.assertEqual(table['rows'], field['table']['rows'])
+        self.assertEqual(data['_technical_public_records'], retained)
+        self.assertEqual((data['_technical_variant_lineage'], data['_technical_variant_sources']), identities)
+        self.assertEqual((self.root / 'library.json').read_bytes(), index_bytes)
+        self.assertEqual(next(field for field in retained[key]['fields'] if field['label'] == 'Barrier Construction')['table_captions'], [caption])
 
     def test_imported_capability_and_manual_runtime_markers_are_rejected(self):
         _, _, plan = self.prepare()

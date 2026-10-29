@@ -357,7 +357,11 @@ def technical_signature(record, facets, assets):
     return source_fingerprint({'fields': sorted(fields, key=lambda field: field['label']),
                                'images': images(record.get('images', [])),
                                'documents': documents,
-                               'facets': {key: sorted(set(values)) for key, values in facets.items()}})
+                               # This hidden supplier-selector grouping is
+                               # provenance, distinct from the public Category.
+                               # Source/discovery bindings still retain it.
+                               'facets': {key: sorted(set(values)) for key, values in facets.items()
+                                          if key != 'trafalgar_category'}})
 
 
 def _field(record, label):

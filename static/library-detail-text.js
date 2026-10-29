@@ -14,6 +14,9 @@
   const referenceNumber = "\\d+(?:\\s*[A-Za-z]\\b)?(?:\\s*(?:[-\u2013\u2014/,;&]|\\band\\b|\\bor\\b|\\bto\\b)\\s*\\d+(?:\\s*[A-Za-z]\\b)?)*";
   const sourceLocator = new RegExp("\\b(?:(?:see|refer\\s+to|as\\s+per)\\s+)?(?:tables?|items?|figures?|figs?\\.?)\\s+" + referenceNumber, "gi");
   const generatedTable = new RegExp("^\\s*(?:Service Size\\s*/\\s*Configuration|Barrier Construction)\\s+table\\s+" + referenceNumber + "\\s*[;,]?\\s*", "i");
+  const pagePointer = new RegExp("\\(\\s*(?:(?:see|refer\\s+to|as\\s+per|per|p/)\\s+)?(?:source\\s+)?pages?\\s+" + referenceNumber + "\\s*\\)", "gi");
+  const pageDetails = new RegExp("(?<!\\w)(?:See|Refer\\s+to)\\s+(?:source\\s+)?pages?\\s+" + referenceNumber + "\\s+for\\s+(?:further\\s+)?details\\.?", "gi");
+  const sentenceStopPair = /(?<=[A-Za-z)\]])\.[ \t]+\.(?![ \t]*\.)(?=[ \t]*(?:$|[A-Za-z]))/gm;
   const diameterNumber = "(?:[0-9]+(?:\\.[0-9]*)?|\\.[0-9]+)", diameterValue = `(${diameterNumber})[ \\t]*(?:mm)?`;
   const equalDiameters = new RegExp("^([ \\t]*)Diameter[ \\t]+range[ \\t]*\\([ \\t]*mm[ \\t]*\\)[ \\t]*:[ \\t]*" + diameterValue
     + "(?:[ \\t]*(?:[-\u2013\u2014]|to)[ \\t]*" + diameterValue + ")?[ \\t]*\\r?\\n"
@@ -113,13 +116,20 @@
   ];
 
   function compact(value) {
-    const text = String(value ?? "").replace(/^[ \t]*(?:Source[ \t]+)?Pages?[ \t]+\d+(?:[ \t]*(?:,|&|and|[-–—])[ \t]*\d+)*[ \t]*:[ \t]*/gim, ""), protectedText = /https?:\/\/[^\s<>]+|[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}|\b[\w.-]+\.(?:pdf|xlsx?|docx?|png|jpe?g|json)\b/gi;
-    const prose = part => compactRules.reduce((text, [expression, replacement]) => text.replace(expression, replacement), withoutCrossReferences(singleDiameter(part)));
+    const text = String(value ?? "").replace(/(^[ \t]*|(?<=[.!?])[ \t]+)(?:Source[ \t]+)?Pages?[ \t]+\d+(?:[ \t]*(?:,|&|and|[-–—])[ \t]*\d+)*[ \t]*:[ \t]*/gim, "$1"), protectedText = /https?:\/\/[^\s<>]+|[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}|\b[\w.-]+\.(?:pdf|xlsx?|docx?|png|jpe?g|json)\b/gi;
+    const prose = part => {
+      // Match the export formatter's narrow sentence-stop repair. Keep numeric
+      // ranges, decimals and adjacent/spaced ellipses; links are protected below.
+      const cleaned = part.replace(pagePointer, "").replace(pageDetails, "")
+        .replace(sentenceStopPair, ".").replace(/[ \t]+([,;:])/g, "$1")
+        .replace(/(?<=[A-Za-z)\]])[ \t]+\.(?![\d.]|[ \t]*\.)/g, ".");
+      return compactRules.reduce((text, [expression, replacement]) => text.replace(expression, replacement), withoutCrossReferences(singleDiameter(cleaned)));
+    };
     let result = "", cursor = 0;
     for (const match of text.matchAll(protectedText)) {
       result += prose(text.slice(cursor, match.index)) + match[0]; cursor = match.index + match[0].length;
     }
-    let shortened = result + prose(text.slice(cursor));
+    let shortened = (result + prose(text.slice(cursor))).replace(/[ \t]+$/gm, "");
     const protectedRanges = [...shortened.matchAll(protectedText)].map(match => [match.index, match.index + match[0].length]);
     const leadingLetter = /^([\s"'\u2018\u201c(\[]*)([A-Za-z])/;
     const originalStart = leadingLetter.exec(text), shortenedStart = leadingLetter.exec(shortened);

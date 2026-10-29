@@ -109,7 +109,10 @@ class TechnicalVariantTests(unittest.TestCase):
     def test_alias_signature_keeps_differing_substrate_frl_category_services_and_images_separate(self):
         signature = technical_signature(self.record, self.facets, self.assets)
         for facet, value in [('substrate', ['Hebel wall']), ('frl', ['-/60/60']),
-                             ('category', ['Mechanical']), ('services', ['Steel Pipes'])]:
+                             ('category', ['Mechanical']), ('services', ['Steel Pipes']),
+                             ('manufacturer', ['Other']), ('type', ['Oversized core hole']),
+                             ('orientation', ['Horizontal']), ('report', ['R2']),
+                             ('unknown_scope', ['Different'])]:
             changed = {**self.facets, facet: value}
             self.assertNotEqual(signature, technical_signature(self.record, changed, self.assets), facet)
         changed_assets = deepcopy(self.assets); changed_assets['diagram']['sha256'] = 'e' * 64
@@ -117,6 +120,45 @@ class TechnicalVariantTests(unittest.TestCase):
         changed = deepcopy(self.record); changed['id'] = 'different'; changed['sources'][0]['page'] = 2
         changed['fields'][0]['value'] = 'different-ID'
         self.assertEqual(signature, technical_signature(changed, self.facets, self.assets))
+
+    def test_hidden_selector_group_is_provenance_but_engineering_cells_still_differ(self):
+        signature = technical_signature(self.record, self.facets, self.assets)
+        for group in ('Service Penetrations', 'Fire Collars'):
+            self.assertEqual(signature, technical_signature(
+                self.record, {**self.facets, 'trafalgar_category': [group]}, self.assets))
+        changed = deepcopy(self.record)
+        changed['fields'][-1]['table']['rows'][0][0] = 'Concrete wall 150 mm'
+        self.assertNotEqual(signature, technical_signature(changed, self.facets, self.assets))
+
+    def test_provenance_only_alias_remains_explicit_and_source_bound(self):
+        self.facets['trafalgar_category'] = ['Service Penetrations']
+        self.plan['families'][0]['discovery_sha256'] = discovery_fingerprint(self.facets)
+        other_raw = {**deepcopy(self.raw), 'id': 'source-b'}
+        other_record = {**deepcopy(self.record), 'id': 'source-b'}
+        other_facets = {**deepcopy(self.facets), 'trafalgar_category': ['Fire Collars']}
+        other_family = deepcopy(self.plan['families'][0])
+        other_family.update(source_id='source-b', item_sha256=source_fingerprint(other_raw),
+                            projection_sha256=projection_fingerprint(other_record),
+                            discovery_sha256=discovery_fingerprint(other_facets))
+        other_family['variants'][0]['existing_id'] = 'source-b'
+        self.plan['families'].append(other_family)
+        self.data['libraries']['technical']['items'].append(other_raw)
+        records = {'source-a': self.record, 'source-b': other_record}
+        facets = {'source-a': self.facets, 'source-b': other_facets}
+        originals = {'source-a': self.raw, 'source-b': other_raw}
+        def apply():
+            return project(records, facets, validate_plan(self.data, 'd' * 64, self.plan),
+                           source_records=originals, assets=self.assets)
+        self.assertEqual(apply().aliases, {})
+        self.plan['aliases'] = [{'alias_id': 'source-b', 'canonical_id': 'source-a'}]
+        self.assertEqual(apply().aliases, {'source-b': 'source-a'})
+        other_facets['trafalgar_category'] = ['Changed since review']
+        with self.assertRaisesRegex(ValueError, 'projection or discovery'):
+            apply()
+        other_facets['trafalgar_category'] = ['Fire Collars']
+        other_raw['filter_values'] = {'trafalgar_category': ['Changed source grouping']}
+        with self.assertRaisesRegex(ValueError, 'Variant source'):
+            apply()
 
     def test_explicit_identical_aliases_resolve_to_retained_original(self):
         family = self.plan['families'][0]

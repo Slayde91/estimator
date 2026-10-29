@@ -25,6 +25,19 @@ test('Standard Help omits unsupported tools and icons', () => {
   assert.ok(rows.some(row => row.name === 'Save'));
 });
 
+test('navigation glossary artwork points to an actual header control with a glyph', () => {
+  const html = fs.readFileSync(path.join(__dirname, '../static/index.html'), 'utf8');
+  const header = html.match(/<header\b[^>]*>[\s\S]*?<\/header>/)?.[0];
+  assert.ok(header, 'The real application header is present');
+  for (const row of glossary.catalogue(registry).filter(row => row.group === 'Navigation')) {
+    const view = row.icon.selector?.match(/^\.app-header \[data-view="([a-z]+)"\]$/)?.[1];
+    if (!view) continue; // Theme uses its own persistent control ID.
+    const buttons = [...header.matchAll(new RegExp(`<button\\b[^>]*data-view="${view}"[^>]*>([\\s\\S]*?)<\\/button>`, 'g'))];
+    assert.equal(buttons.length, 1, `${row.name} resolves to one actual header control`);
+    assert.match(buttons[0][1], /<svg\b|<img\b|class="[^"]*button-symbol/, `${row.name} can clone the real control glyph`);
+  }
+});
+
 test('PDF graphics and the icon-bearing Tools menu keep their actual artwork and shortcuts', () => {
   const rows = glossary.catalogue(registry), graphics = require('../static/takeoff-graphics.js');
   for (const kind of ['cloud','textbox','stamp','polyline','arrow','rectangle','circle','polygon']) {

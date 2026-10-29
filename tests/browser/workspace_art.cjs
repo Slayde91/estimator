@@ -102,7 +102,7 @@ async function followupBanners(themes=['ceasefire','midnight','ocean','forest','
  for(const themeId of themes){
   await theme(themeId,'estimate');await chooseEstimate();
   for(const workspace of ['estimate','projects','technical','penetration','pricing']){
-   if(workspace==='projects'){await page.locator('nav [data-view="projects"]').click();if(await page.locator('#view-projects').isVisible())await page.locator('[data-project-section="quotes"]').click();await idle();}
+   if(workspace==='projects'){await page.locator('nav [data-view="projects"]').click();if(await page.locator('#view-projects').isVisible())await page.locator('#view-projects [data-project-section="quotes"]').click();await idle();}
    else if(['technical','penetration','pricing'].includes(workspace)){await chooseLibrary(page,workspace);await idle();}
    const heading=page.locator(workspace==='estimate'?'.estimate-banner-heading':workspace==='projects'?'.project-banner-heading':`#library-${workspace} > .page-heading`);
    for(const width of widths){
@@ -125,7 +125,7 @@ async function followupBanners(themes=['ceasefire','midnight','ocean','forest','
    }
   }
  }
- await page.locator('nav [data-view="projects"]').click();if(await page.locator('#view-projects').isVisible())await page.locator('[data-project-section="quotes"]').click();await idle();await page.emulateMedia({media:'print'});await expect(page.locator('.project-evidence-art')).toBeHidden();await expect(page.locator('.project-heading-art-slot')).toBeHidden();await page.emulateMedia({media:'screen'});
+ await page.locator('nav [data-view="projects"]').click();if(await page.locator('#view-projects').isVisible())await page.locator('#view-projects [data-project-section="quotes"]').click();await idle();await page.emulateMedia({media:'print'});await expect(page.locator('.project-evidence-art')).toBeHidden();await expect(page.locator('.project-heading-art-slot')).toBeHidden();await page.emulateMedia({media:'screen'});
  await theme('ceasefire','estimate');await page.setViewportSize({width:1384,height:764});
 }
 async function calculatorFraming(kind,name,themes=['ceasefire','midnight','ocean','forest','slate'],widths=[1384,1146,825,390]){

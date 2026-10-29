@@ -3,6 +3,10 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const detail = require("../static/library-detail-text.js");
+for (const entry of require('./fixtures/technical-page-display.json')) {
+  assert.equal(detail.compact(entry.source), entry.display, entry.source);
+  assert.equal(detail.compact(entry.display), entry.display, 'Page locator cleanup is stable');
+}
 for (const entry of require('./fixtures/technical-diameter-display.json')) {
   assert.equal(detail.compact(entry.source), entry.display, entry.source);
   assert.equal(detail.compact(entry.display), entry.display, 'Repeated diameter cleanup is stable');

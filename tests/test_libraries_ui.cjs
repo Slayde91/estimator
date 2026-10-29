@@ -495,8 +495,8 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     for(const kind of ['technical','penetration'])for(const manufacturer of ['Promat','Trafalgar','BOSS','Firefly','Other']) {
       const id='sys_var_123_au',fields=[{label:' ID ',value:id},{label:'Manufacturer',value:manufacturer},{label:'Report ID',value:'Reference 123'}],before=copy(fields);
       h.setRoute(path=>path==='/api/libraries'?meta():({...detail(kind,'display-id'),title:'Original '+id,fields,images:[]}));await h.api.open(kind,'display-id');
-      const pane=h.pane(kind),labels=walk(pane.detailPanel).filter(n=>n.tagName==='dt').map(n=>n.textContent);
-      assert.equal(labels.includes(' ID '),!(kind==='technical'&&['Promat','Trafalgar'].includes(manufacturer)));
+      const pane=h.pane(kind),labels=walk(pane.detailPanel).filter(n=>n.tagName==='dt').map(n=>n.textContent.trim());
+      assert.equal(labels.includes('ID'),!(kind==='technical'&&['Promat','Trafalgar'].includes(manufacturer)));
       assert.ok(labels.includes('Report ID'));assert.equal(walk(pane.detailPanel).find(n=>n.tagName==='h3').textContent,'Original '+id);
       assert.deepEqual(fields,before);assert.equal(pane.detail.fields[0].value,id);assert.equal(pane.detail.id,'display-id');
     }

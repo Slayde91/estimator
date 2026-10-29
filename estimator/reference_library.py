@@ -41,7 +41,8 @@ from .technical_service_review import (REVIEW_KEY as SERVICE_REVIEW_KEY,
     load_review as load_service_review, project as project_service_review)
 from .technical_variants import (REVIEW_KEY as VARIANT_REVIEW_KEY,
     ValidatedReview as ValidatedVariantReview, plan_stamp as variant_plan_stamp,
-    load_review as load_variant_review, project as project_variants)
+    load_review as load_variant_review, project as project_variants,
+    present_reviewed_table_captions)
 
 KINDS = {'penetration': 'Firestopping Library', 'technical': 'Technical Library'}
 IDENTIFIER = re.compile(r'[a-z0-9][a-z0-9_-]{0,119}\Z')
@@ -511,6 +512,8 @@ class ReferenceLibrary:
         data['_technical_reviewed_substrates'] = reviewed_substrates
         data['_technical_variant_lineage'] = (validated_source['_technical_variant_lineage'] if reuse_technical else variant_projection.lineage)
         data['_technical_variant_sources'] = (validated_source['_technical_variant_sources'] if reuse_technical else variant_projection.sources)
+        data['_technical_variant_table_scopes'] = (validated_source.get('_technical_variant_table_scopes', {})
+                                                   if reuse_technical else variant_projection.table_scopes)
         data['_records'], data['_searches'], data['_filters'], data['_links'], data['_assets'] = records, searches, filters, links, assets
 
     @staticmethod
@@ -615,6 +618,8 @@ class ReferenceLibrary:
             item = deepcopy(data['_technical_public_records'][key] if kind == 'technical' else data['_records'][kind][key])
             if kind == 'technical':
                 item = present_technical(item)
+                if key not in data.get('_manual_technical_sources', {}):
+                    item = present_reviewed_table_captions(item, data.get('_technical_variant_table_scopes', {}).get(key, {}))
             item.pop('filter_values', None)
             item['links'] = deepcopy(data['_links'][kind][key])
             if kind == 'technical' and key in data['_technical_related_records']:

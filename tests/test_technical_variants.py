@@ -9,6 +9,7 @@ from estimator.technical_variants import (
     PLAN_NAME, MAX_PLAN_BYTES, assets_fingerprint, discovery_fingerprint,
     load_review, plan_stamp, project, projection_fingerprint, registered_assets,
     source_fingerprint, technical_signature, validate_plan, variant_id,
+    present_reviewed_table_captions,
 )
 
 
@@ -125,6 +126,7 @@ class TechnicalVariantTests(unittest.TestCase):
         self.plan['aliases'] = [{'alias_id': child, 'canonical_id': 'source-a'}]
         result = self.project()
         self.assertEqual(result.aliases, {child: 'source-a'})
+        self.assertEqual(result.table_scopes[child], result.table_scopes['source-a'])
         self.plan['aliases'][0]['alias_id'] = variant_id('source-a', 'configuration-1')
         with self.assertRaisesRegex(ValueError, 'different technical facts'):
             self.project()
@@ -190,6 +192,52 @@ class TechnicalVariantTests(unittest.TestCase):
         self.assertEqual(len(result['fields'][-1]['tables'][0]['rows']), 2)
         self.assertEqual(result['fields'][-1]['table_captions'], ['Construction', 'Cumulative fixings'])
         self.assertEqual(result['fields'][5]['table_links'], [{'field': 'Barrier Construction', 'table_index': 1}])
+
+    def test_caption_presentation_requires_a_selected_single_row_and_retains_conditions(self):
+        caption = ('Complete source substrate alternatives; each rating and limit applies to its own '
+                   'source row and installation conditions. The entry selection remains separate.'
+                   ' No matching source substrate row has been established for this entry.'
+                   ' Source: Example.pdf, page 2. Keep the 50 mm fillet and adjacent-wall condition.')
+        self.record['fields'][-1]['table_captions'] = [caption, caption]
+        self.record['fields'][-1]['tables'] = [{'columns': ['Fixing'], 'rows': [['Retain this unselected ancillary row']]}]
+        self.record['fields'].append({'label': 'Source Issues', 'value': 'Unresolved material warning remains literal.'})
+        family = self.plan['families'][0]
+        family['projection_sha256'] = projection_fingerprint(self.record)
+        projected = self.project()
+        source = projected.records['source-a']
+        before = deepcopy(source)
+        shown = present_reviewed_table_captions(source, projected.table_scopes['source-a'])
+        selected = next(field for field in shown['fields'] if field['label'] == 'Barrier Construction')
+        self.assertTrue(selected['table_captions'][0].startswith('Selected reviewed substrate configuration;'))
+        self.assertNotIn('No matching source substrate row', selected['table_captions'][0])
+        self.assertIn('Source: Example.pdf, page 2. Keep the 50 mm fillet and adjacent-wall condition.', selected['table_captions'][0])
+        self.assertEqual(selected['table_captions'][1], caption)
+        self.assertEqual(shown['fields'][-1], before['fields'][-1])
+        self.assertEqual(source, before)
+        self.assertEqual(technical_signature(source, projected.discovery['source-a'], self.assets),
+                         technical_signature(shown, projected.discovery['source-a'], self.assets))
+        self.assertEqual(present_reviewed_table_captions(source, {}), source)
+        self.assertEqual(present_reviewed_table_captions(self.record, {'Barrier Construction': [0]}), self.record)
+
+    def test_caption_scope_positions_follow_removed_tables_without_changing_lineage(self):
+        field = self.record['fields'][-1]
+        original = deepcopy(field['table'])
+        field['table'] = {'columns': ['Other'], 'rows': [['Not retained']]}
+        field['tables'] = [original]
+        field['table_captions'] = ['Unselected', 'Source inventory']
+        family = self.plan['families'][0]
+        family['projection_sha256'] = projection_fingerprint(self.record)
+        family['tables'] = [{'field': 'Barrier Construction', 'table_index': index, 'sha256': source_fingerprint(table)}
+                            for index, table in enumerate([field['table'], original])]
+        for index, variant in enumerate(family['variants']):
+            variant['selections'] = [
+                {'field': 'Barrier Construction', 'table_index': 0, 'row_indices': [], 'columns': None},
+                {'field': 'Barrier Construction', 'table_index': 1, 'row_index': index, 'columns': None}]
+        projected = self.project()
+        for key, value in projected.records.items():
+            self.assertEqual(projected.table_scopes[key], {'Barrier Construction': [0]})
+            self.assertEqual(projected.lineage[key]['variant_sha256'],
+                             source_fingerprint([value, projected.discovery[key]]))
 
     def test_capability_cannot_be_forged_and_new_services_are_rejected(self):
         with self.assertRaisesRegex(ValueError, 'capability'):

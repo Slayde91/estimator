@@ -5,7 +5,7 @@ and discovery assignments for every variant. All source/projection dependencies
 are checked before any public record changes.
 """
 from copy import deepcopy
-from dataclasses import dataclass
+from dataclasses import dataclass, field as dataclass_field
 import hashlib
 import json
 from pathlib import Path
@@ -46,6 +46,7 @@ class Projection:
     sources: dict
     aliases: dict
     groups: dict
+    table_scopes: dict = dataclass_field(default_factory=dict)
 
 
 def projection_fingerprint(record):
@@ -430,6 +431,38 @@ def _scope(record, selections):
             else:
                 field.pop('table_links')
     validate_table_navigation(record.get('fields', []))
+    return remaps
+
+
+def present_reviewed_table_captions(record, table_scopes):
+    """Present scoped captions without changing reviewed records or identities.
+
+    Only explicit selections from the validated variant review qualify. Held
+    records, unselected ancillary tables and technical warnings remain literal.
+    The complete original captions stay in the retained source/projection.
+    """
+    result = deepcopy(record)
+    prefix = ('Complete source substrate alternatives; each rating and limit applies to its own '
+              'source row and installation conditions. The entry selection remains separate.')
+    selected_prefix = ('Selected reviewed substrate configuration; the stated rating and limits '
+                       'apply to this row and its installation conditions.')
+    for field in result.get('fields', []):
+        indices = table_scopes.get(field['label'], [])
+        captions = field.get('table_captions', [])
+        tables = field_tables(field)
+        for index in indices:
+            if (index >= len(captions) or index >= len(tables)
+                    or len(tables[index]['rows']) != 1 or not captions[index].startswith(prefix)):
+                continue
+            caption = selected_prefix + captions[index][len(prefix):]
+            caption = caption.replace(' No matching source substrate row has been established for this entry.', '')
+            caption = caption.replace(
+                'All four source ceiling constructions retained with their complete FRL and RISF qualifications; '
+                'each row applies to the illustrated installation.',
+                'The selected source ceiling construction retains its complete FRL and RISF qualifications '
+                'for the illustrated installation.')
+            captions[index] = caption
+    return result
 
 
 def project(public_records, discovery, review, *, source_records, assets):
@@ -446,7 +479,7 @@ def project(public_records, discovery, review, *, source_records, assets):
                 or discovery_fingerprint(discovery[key]) != binding['discovery_sha256']):
             raise ValueError('Variant public projection or discovery changed; review must be updated')
     records, facets = dict(public_records), deepcopy(discovery)
-    lineage, sources, assigned = {}, {}, set()
+    lineage, sources, assigned, table_scopes = {}, {}, set(), {}
     for family in plan['families']:
         parent = family['source_id']; base = present_technical(public_records[parent])
         for reference in family['tables']:
@@ -480,7 +513,7 @@ def project(public_records, discovery, review, *, source_records, assets):
             if key in assigned or (key in public_records and key not in binding_ids):
                 raise ValueError('Variant ID collision or unbound existing target')
             assigned.add(key)
-            item = deepcopy(base); _scope(item, variant['selections'])
+            item = deepcopy(base); remaps = _scope(item, variant['selections'])
             selected_ratings = set()
             for selection in variant['selections']:
                 table = field_tables(_field(base, selection['field']))[selection['table_index']]
@@ -540,6 +573,12 @@ def project(public_records, discovery, review, *, source_records, assets):
                 item = deepcopy(public_records[key])
                 own_facets = deepcopy(discovery[key])
             item['id'] = key
+            selected_tables = {}
+            for selection in variant['selections']:
+                label, index = selection['field'], selection['table_index']
+                if index in remaps[label]:
+                    selected_tables.setdefault(label, []).append(remaps[label][index])
+            table_scopes[key] = selected_tables
             record_hash = source_fingerprint([item, own_facets])
             lineage[key] = {'parent_id': parent, 'parent_sha256': family['item_sha256'],
                             'variant_key': variant['key'], 'variant_sha256': record_hash}
@@ -555,9 +594,15 @@ def project(public_records, discovery, review, *, source_records, assets):
             raise ValueError('Unbound or repeated variant alias')
         if technical_signature(records[left], facets[left], assets) != technical_signature(records[right], facets[right], assets):
             raise ValueError('Variant aliases have different technical facts or assignments')
+        # A reviewed alias has the same substantive table inventory and order.
+        # Carry only its response-presentation scope onto the canonical target;
+        # source records, lineage hashes and synthetic descriptors stay exact.
+        for label, indices in table_scopes.get(left, {}).items():
+            target = table_scopes.setdefault(right, {}).setdefault(label, [])
+            target[:] = sorted(set(target) | set(indices))
         aliases[left] = right
     if any(value in aliases for value in aliases.values()):
         raise ValueError('Variant aliases must resolve directly without cycles or chains')
     for alias, canonical in aliases.items():
         members = groups.setdefault(canonical, [canonical]); members.append(alias)
-    return Projection(records, facets, lineage, sources, aliases, groups)
+    return Projection(records, facets, lineage, sources, aliases, groups, table_scopes)

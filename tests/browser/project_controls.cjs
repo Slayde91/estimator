@@ -23,8 +23,9 @@ const ready = new Promise((resolve,reject) => {
 const errors = [], requests = [], evidence = {};
 async function idle() { await page.waitForFunction(() => { const state = window.CeasefireDesktop?.status(); return state?.ready && !state.busy; }); }
 async function enter(name) {
-  await page.getByRole('button',{name,exact:true}).click();
-  await expect(page.locator(`.nav-button[data-view="${name === 'Projects' ? 'quotes' : {Home:'home',Estimates:'estimate',Calculators:'calculators',Takeoffs:'takeoffs',Libraries:'pricing',Help:'help'}[name]}"]`)).toHaveAttribute('aria-current','page');
+  await page.locator('nav[aria-label="Main navigation"]').getByRole('button',{name,exact:true}).click();
+  if(name==='Projects'&&await page.locator('#view-projects').isVisible())await page.locator('#view-projects [data-project-section="quotes"]').click();
+  await expect(page.locator(`.nav-button[data-view="${name === 'Projects' ? 'projects' : {Home:'home',Estimates:'estimate',Calculators:'calculators',Takeoffs:'takeoffs',Libraries:'pricing',Help:'help'}[name]}"]`)).toHaveAttribute('aria-current','page');
 }
 async function snapshot() {
   return page.evaluate(() => ({

@@ -9,12 +9,14 @@ from reportlab.lib.utils import ImageReader
 from .catalog import ROOT, ValidationError
 
 DEFAULTS = {'name': 'CEASEFIRE', 'abn': '50 612 231 562',
-            'phone': '1300 92 62 88', 'email': 'sales@ceasefire.com.au', 'logo': None}
+            'phone': '1300 92 62 88', 'email': 'sales@ceasefire.com.au', 'logo': None,
+            'cover_pdf': None, 'cover_pdf_name': ''}
 MAX_LOGO_BYTES = 2 * 1024 * 1024
 
 
 def validate_company_settings(value):
-    if not isinstance(value, dict) or set(value) != set(DEFAULTS):
+    legacy = {'name', 'abn', 'phone', 'email', 'logo'}
+    if not isinstance(value, dict) or not legacy <= set(value) or set(value) - set(DEFAULTS):
         raise ValidationError('Enter the company name, ABN, phone, email and logo settings.')
     result = {}
     for key in ('name', 'abn', 'phone', 'email'):
@@ -44,6 +46,8 @@ def validate_company_settings(value):
         except (ValueError, OSError, binascii.Error, Image.DecompressionBombError) as error:
             raise ValidationError('The logo must be a valid PNG or JPEG, up to 2 MB and 4 million pixels.') from error
     result['logo'] = logo
+    from .pdf_cover import validate_cover_pdf
+    result['cover_pdf'], result['cover_pdf_name'] = validate_cover_pdf(value.get('cover_pdf'), value.get('cover_pdf_name', ''))
     return result
 
 

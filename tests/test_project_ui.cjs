@@ -70,7 +70,7 @@ vm.createContext(context);
   assert.ok(appEnd.test(appSource), 'Estimator test hook must replace bootstrap only');
   appSource = appSource.replace(appEnd, `
     globalThis.appAudit = {state, saveProject, loadProject, openNativeProject, newQuote, projectStamp, saveQuote, openQuote, calculate, reportPayload, projectEstimate, downloadFullReport,
-      applyProjectPricing,savePricing,switchPricingScope,useCurrentPricing,loadProjects,linkProjectFolder,openProjectFile,openProjectBrowser,loadProjectFiles,openProjectFolderFile,closeProjectBrowser,projectPricingChanged,resetProjectPricing,pricingInputProblem,updateProjectStatus,showView,requestCalculatorNavigation,uploadProjectFiles,reviewDesktopClose,
+      applyProjectPricing,savePricing,switchPricingScope,useCurrentPricing,loadProjects,linkProjectFolder,openProjectFile,openProjectBrowser,loadProjectFiles,openProjectFolderFile,closeProjectBrowser,projectPricingChanged,resetProjectPricing,pricingInputProblem,updateProjectStatus,showView,requestViewNavigation,requestCalculatorNavigation,uploadProjectFiles,reviewDesktopClose,
       renderInputs, selectMainSection, setRequest(fn) { request = fn; }};
   })();`);
   vm.runInContext(appSource, context);
@@ -1048,6 +1048,25 @@ async function penetrationCheck(name, fn) {
     let revision=0;const pending=deferred(),closed=[];h.context.window.CeasefireTakeoffs={projectFingerprint:()=>String(revision),hasUnsavedChanges:()=>true,prepareProject:()=>pending.promise,discardPreparedSession:async id=>closed.push(id)};
     h.app.setRequest(async()=>({...project(),takeoffs:{version:1},takeoffs_session_id:'prepared-session'}));h.chooseFile();const loading=h.app.loadProject();await flush();revision++;pending.resolve({session:{session_id:'prepared-session'}});await loading;
     assert.match(h.byId('app-message').textContent,/draft changed/);assert.deepEqual(closed,['prepared-session']);assert.equal(h.app.state.inputs.B15,123);
+  });
+  await check('Projects first opens its two-section hub and remembers Certification on return', async h => {
+    const before=h.snapshot();let opened=0;h.context.window.CeasefireCertification={open:async()=>{opened++;},hasPendingOperation:()=>false};
+    await h.app.requestViewNavigation('projects');assert.equal(h.app.state.currentView,'projects');assert.equal(h.app.state.projectsSection,null);
+    await h.app.requestViewNavigation('certification');assert.equal(h.app.state.currentView,'certification');assert.equal(opened,1);
+    await h.app.requestViewNavigation('home');await h.app.requestViewNavigation('projects');assert.equal(h.app.state.currentView,'certification');assert.equal(opened,2);
+    assert.deepEqual(h.snapshot(),before);
+  });
+  await check('Projects hub remains reachable without replacing the most recent section', async h => {
+    h.app.setRequest(async()=>({files:[]}));await h.app.requestViewNavigation('quotes');await flush();
+    assert.equal(h.app.state.projectsSection,'quotes');await h.app.requestViewNavigation('projects',undefined,true);
+    assert.equal(h.app.state.currentView,'projects');assert.equal(h.app.state.projectsSection,'quotes');
+    await h.app.requestViewNavigation('home');await h.app.requestViewNavigation('projects');assert.equal(h.app.state.currentView,'quotes');
+  });
+  await check('Pending certification operation blocks navigation without touching project inputs', async h => {
+    const before=h.snapshot();h.app.state.currentView='certification';
+    h.context.window.CeasefireCertification={hasPendingOperation:()=>true};await h.app.requestViewNavigation('home');
+    assert.equal(h.app.state.currentView,'certification');assert.match(h.byId('app-message').textContent,/certification operation/);
+    assert.deepEqual(h.snapshot(),before);
   });
   console.log(`${passed} project UI regression checks passed.`);
 })().catch(error => { console.error(error); process.exitCode = 1; });

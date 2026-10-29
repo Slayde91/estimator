@@ -166,11 +166,12 @@
     workflow: "", defaultWorkflow: "Intumescent spray to ductwork", inputErrors: new Map(), inputDrafts: new Map(), inputRevision: 0, projectBusy: false,
     pricingScope: "library", libraryDraft: null, projectPricingDraft: null, pricingRevision: 0,
     projectFile: null, projectsRevision: 0, initialized: false, currentView: "home", projectsOffset: 0, projectsTimer: null, desktopRequests: 0,
-    projectBrowserProject: null, projectBrowserPath: "", projectBrowserRevision: 0,
+    projectBrowserProject: null, projectBrowserPath: "", projectBrowserRevision: 0, projectsSection: null,
     pricingRender: null, estimatorKind: "estimate", calculatorKind: "steel", libraryKind: "pricing",
     workItems: [], workItemErrors: new Map(), workItemDrafts: new Map(), nextWorkItem: 1,
     pricingUsage: { firestopping: { label: "Firestopping Estimator", keywords: [], groups: [] } }, takeoffsEnabled: true,
   };
+  try { const section = window.localStorage.getItem("ceasefire.projects.section"); if (["quotes", "certification"].includes(section)) state.projectsSection = section; } catch { /* Navigation still works when browser storage is unavailable. */ }
   const money = new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" });
   const quantity = new Intl.NumberFormat("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const controlNumber = new Intl.NumberFormat("en-AU", { useGrouping: false, minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -986,10 +987,12 @@
   }
 
   function showView(view, librarySelection, calculatorId) {
+    if (view !== state.currentView && window.CeasefireCertification?.hasPendingOperation?.()) { message(uiCopy("Finish or retry the current certification operation before changing views."), true); return; }
     if (window.CeasefirePenetrations?.hasTakeoffReservation?.() || window.CeasefireTakeoffs?.hasLinkedRecovery?.()) { message(uiCopy("Finish or recover the confirmed Takeoff library link before changing views."), true); return; }
     if (view === "takeoffs" && !state.takeoffsEnabled) { message(uiCopy("TAKEOFFS is not included in this edition."), true); return; }
     if (view !== state.currentView && $("app-message").hidden) releaseMessageSpace();
     state.currentView = view;
+    if (["quotes", "certification"].includes(view)) { state.projectsSection = view; try { window.localStorage.setItem("ceasefire.projects.section", view); } catch { /* Remember within this window when storage is unavailable. */ } }
     $("project-tools").hidden = view !== "quotes";
     closeNavigationMenus({ estimate: "estimate-navigation", calculators: "calculator-navigation", pricing: "library-navigation", takeoffs: "takeoff-navigation" }[view]);
     document.body.classList.toggle("takeoffs-active", view === "takeoffs");
@@ -997,13 +1000,14 @@
     for (const section of document.querySelectorAll(".view")) section.hidden = section.id !== `view-${view}`;
     window.CeasefirePlay?.setVisible(view === "play");
     for (const button of document.querySelectorAll("[data-view]")) {
-      const active = button.dataset.view === view || (view === "play" && button.dataset.view === "settings");
+      const active = button.dataset.view === view || (view === "play" && button.dataset.view === "settings") || (["quotes", "certification"].includes(view) && button.dataset.view === "projects");
       button.classList.toggle("active", active);
       if (active) button.setAttribute("aria-current", "page"); else button.removeAttribute("aria-current");
     }
     if (view === "quotes") loadProjects();
     if (view === "pricing") selectLibrary(state.libraryKind, librarySelection);
     let estimatorReady;
+    if (view === "certification") estimatorReady = window.CeasefireCertification?.open().catch(error => message(error.message, true));
     if (view === "calculators") {
       calculatorId ||= state.calculatorKind;
       state.calculatorKind = calculatorId;
@@ -1048,7 +1052,8 @@
     }
     return true;
   }
-  async function requestViewNavigation(view, librarySelection) {
+  async function requestViewNavigation(view, librarySelection, projectsHub = false) {
+    if (view === "projects" && !projectsHub) view = state.projectsSection || "projects";
     if (view !== state.currentView && !await confirmLeavePricingLibrary()) return false;
     await showView(view, librarySelection);
     if (state.currentView === view) window.CeasefireHeaderTagline?.next();
@@ -2309,6 +2314,8 @@
   }
 
   for (const button of document.querySelectorAll("[data-view]")) button.addEventListener("click", () => button.id === "calculator-navigation-toggle" ? requestCalculatorNavigation() : requestViewNavigation(button.dataset.view));
+  for (const card of document.querySelectorAll("[data-project-section]")) card.addEventListener("click", () => requestViewNavigation(card.dataset.projectSection));
+  for (const button of document.querySelectorAll("[data-projects-hub]")) button.addEventListener("click", () => requestViewNavigation("projects", undefined, true));
   for (const card of document.querySelectorAll("[data-steel-calculator]")) card.addEventListener("click", () => requestCalculatorNavigation(card.dataset.steelCalculator));
   setupCalculatorNavigation();
   for (const button of document.querySelectorAll("[data-home-view]")) button.addEventListener("click", () => requestViewNavigation(button.dataset.homeView));
@@ -2373,7 +2380,7 @@
   });
   window.addEventListener("beforeunload", (event) => {
     const pricingChanged = sharedPricingChanged();
-    if (projectHasChanges() || pricingChanged || window.CeasefireLibraryEditor?.hasUnsavedChanges()) {
+    if (projectHasChanges() || pricingChanged || window.CeasefireLibraryEditor?.hasUnsavedChanges() || window.CeasefireCertification?.hasUnsavedChanges?.()) {
       event.preventDefault(); event.returnValue = pricingChanged ? pricingUnsavedPrompt : "";
     }
   });
@@ -2382,20 +2389,20 @@
   let desktopInputRevision = 0, desktopClosePending = false;
   window.addEventListener("input", () => { desktopInputRevision++; }, true);
   window.addEventListener("change", () => { desktopInputRevision++; }, true);
-  function desktopCloseStamp() { return JSON.stringify({ project: projectStamp(), input: desktopInputRevision, pricing: sharedPricingDraft(), pricingRevision: state.pricingRevision, libraryDirty: !!window.CeasefireLibraryEditor?.hasUnsavedChanges() }); }
-  function desktopBusy() { return state.projectBusy || state.desktopRequests > 0 || !!document.querySelector('dialog[open], [aria-busy="true"]') || !state.initialized || !!window.CeasefireCalculators?.hasPendingOperation?.() || !!window.CeasefirePenetrations?.hasPendingOperation?.() || !!window.CeasefireTakeoffs?.hasPendingOperation?.() || !!window.CeasefireLibraryEditor?.hasPendingOperation?.(); }
+  function desktopCloseStamp() { return JSON.stringify({ project: projectStamp(), input: desktopInputRevision, pricing: sharedPricingDraft(), pricingRevision: state.pricingRevision, libraryDirty: !!window.CeasefireLibraryEditor?.hasUnsavedChanges(), certification: window.CeasefireCertification?.fingerprint?.() }); }
+  function desktopBusy() { return state.projectBusy || state.desktopRequests > 0 || !!document.querySelector('dialog[open], [aria-busy="true"]') || !state.initialized || !!window.CeasefireCalculators?.hasPendingOperation?.() || !!window.CeasefirePenetrations?.hasPendingOperation?.() || !!window.CeasefireTakeoffs?.hasPendingOperation?.() || !!window.CeasefireLibraryEditor?.hasPendingOperation?.() || !!window.CeasefireCertification?.hasPendingOperation?.(); }
   async function reviewDesktopClose() {
     if (desktopBusy()) { message(uiCopy("Finish the current operation or dialog before closing ESTIMATOR."), true); return false; }
     const captured = desktopCloseStamp();
-    if (projectHasChanges() || sharedPricingChanged() || window.CeasefireLibraryEditor?.hasUnsavedChanges()) {
-      if (!await confirmReplace(uiCopy("Close ESTIMATOR?"), uiCopy("There are unsaved project, calculator or library edits. Close without saving discards these edits. Keep editing to save them first."), uiCopy("Close without saving"))) return false;
+    if (projectHasChanges() || sharedPricingChanged() || window.CeasefireLibraryEditor?.hasUnsavedChanges() || window.CeasefireCertification?.hasUnsavedChanges?.()) {
+      if (!await confirmReplace(uiCopy("Close ESTIMATOR?"), uiCopy("There are unsaved project, calculator, library or certification edits. Close without saving discards these edits. Keep editing to save them first."), uiCopy("Close without saving"))) return false;
     }
     if (desktopBusy() || captured !== desktopCloseStamp()) { message(uiCopy("Your draft changed during the close review. Close again when ready to keep your latest edits safe."), true); return false; }
     return true;
   }
   window.CeasefireDesktop = {
     showHome() { showView("home"); },
-    status() { return { ready: state.initialized, takeoffs: state.takeoffsEnabled, dirty: !!(projectHasChanges() || sharedPricingChanged() || window.CeasefireLibraryEditor?.hasUnsavedChanges()), busy: desktopBusy() }; },
+    status() { return { ready: state.initialized, takeoffs: state.takeoffsEnabled, dirty: !!(projectHasChanges() || sharedPricingChanged() || window.CeasefireLibraryEditor?.hasUnsavedChanges() || window.CeasefireCertification?.hasUnsavedChanges?.()), busy: desktopBusy() }; },
     async requestClose(nonce) {
       const host = window.chrome?.webview;
       if (!host || !/^[a-f0-9]{64}$/.test(nonce || "")) return;

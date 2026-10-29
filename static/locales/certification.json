@@ -1,0 +1,415 @@
+{
+  "PDF cover sheet (PDF, up to 10 MB and 25 pages)": [
+    "PDF封面（PDF，最大10 MB、25页）",
+    "PDF कवर शीट (PDF, अधिकतम 10 MB और 25 पृष्ठ)",
+    "Portada PDF (PDF, hasta 10 MB y 25 páginas)",
+    "صفحة غلاف PDF (حتى 10 ميغابايت و25 صفحة)",
+    "ใบปะหน้า PDF (PDF ขนาดไม่เกิน 10 MB และ 25 หน้า)"
+  ],
+  "Remove cover sheet": [
+    "移除封面",
+    "कवर शीट हटाएँ",
+    "Quitar portada",
+    "إزالة صفحة الغلاف",
+    "นำใบปะหน้าออก"
+  ],
+  "Prepended to new PDF exports. Saved certificate revisions retain their original cover.": [
+    "添加到新导出PDF的开头。已保存的证书版本保留原封面。",
+    "नए PDF निर्यात के आरंभ में जोड़ी जाती है। सहेजे गए प्रमाणपत्र संशोधन अपना मूल कवर बनाए रखते हैं।",
+    "Se añade al principio de las nuevas exportaciones PDF. Las revisiones guardadas conservan su portada original.",
+    "تُضاف في بداية ملفات PDF الجديدة المصدّرة. تحتفظ مراجعات الشهادات المحفوظة بغلافها الأصلي.",
+    "เพิ่มไว้ด้านหน้าของ PDF ที่ส่งออกใหม่ ฉบับแก้ไขใบรับรองที่บันทึกแล้วจะเก็บใบปะหน้าเดิมไว้"
+  ],
+  "Find, open and manage saved project files.": [
+    "查找、打开和管理已保存的项目文件。",
+    "सहेजी गई परियोजना फ़ाइलें खोजें, खोलें और प्रबंधित करें।",
+    "Buscar, abrir y gestionar archivos de proyecto guardados.",
+    "ابحث عن ملفات المشاريع المحفوظة وافتحها وأدرها.",
+    "ค้นหา เปิด และจัดการไฟล์โครงการที่บันทึกไว้"
+  ],
+  "Certification": [
+    "认证",
+    "प्रमाणन",
+    "Certificación",
+    "الشهادات",
+    "การรับรอง"
+  ],
+  "Prepare installation certificates and view their saved revisions.": [
+    "编制安装证书并查看已保存的修订版本。",
+    "स्थापना प्रमाणपत्र तैयार करें और उनके सहेजे गए संशोधन देखें।",
+    "Preparar certificados de instalación y consultar sus revisiones guardadas.",
+    "أعدّ شهادات التركيب واعرض مراجعاتها المحفوظة.",
+    "จัดทำใบรับรองการติดตั้งและดูฉบับแก้ไขที่บันทึกไว้"
+  ],
+  "Projects and Certification": [
+    "项目和认证",
+    "परियोजनाएँ और प्रमाणन",
+    "Proyectos y certificación",
+    "المشاريع والشهادات",
+    "โครงการและการรับรอง"
+  ],
+  "PROJECTS": [
+    "项目",
+    "परियोजनाएँ",
+    "PROYECTOS",
+    "المشاريع",
+    "โครงการ"
+  ],
+  "Saved certification": [
+    "已保存的认证",
+    "सहेजा गया प्रमाणन",
+    "Certificación guardada",
+    "الشهادة المحفوظة",
+    "การรับรองที่บันทึกไว้"
+  ],
+  "New certificate": [
+    "新建证书",
+    "नया प्रमाणपत्र",
+    "Nuevo certificado",
+    "شهادة جديدة",
+    "ใบรับรองใหม่"
+  ],
+  "Reload saved details": [
+    "重新加载已保存的详情",
+    "सहेजे गए विवरण पुनः लोड करें",
+    "Volver a cargar los datos guardados",
+    "إعادة تحميل التفاصيل المحفوظة",
+    "โหลดรายละเอียดที่บันทึกไว้อีกครั้ง"
+  ],
+  "Project": [
+    "项目",
+    "परियोजना",
+    "Proyecto",
+    "المشروع",
+    "โครงการ"
+  ],
+  "Address": [
+    "地址",
+    "पता",
+    "Dirección",
+    "العنوان",
+    "ที่อยู่"
+  ],
+  "Location/Area": [
+    "位置/区域",
+    "स्थान/क्षेत्र",
+    "Ubicación/Área",
+    "الموقع/المنطقة",
+    "ตำแหน่ง/พื้นที่"
+  ],
+  "Statement of Compliance": [
+    "合规声明",
+    "अनुपालन का विवरण",
+    "Declaración de conformidad",
+    "بيان الامتثال",
+    "คำแถลงการปฏิบัติตามข้อกำหนด"
+  ],
+  "The relevant Australian Standards listed in the NCC as follows:": [
+    "NCC列明的相关澳大利亚标准如下：",
+    "NCC में सूचीबद्ध प्रासंगिक ऑस्ट्रेलियाई मानक इस प्रकार हैं:",
+    "Las normas australianas pertinentes incluidas en el NCC son las siguientes:",
+    "المعايير الأسترالية ذات الصلة المدرجة في NCC كما يلي:",
+    "มาตรฐานออสเตรเลียที่เกี่ยวข้องซึ่งระบุไว้ใน NCC มีดังต่อไปนี้:"
+  ],
+  "The relevant clauses of the NCC, as follows:": [
+    "NCC的相关条款如下：",
+    "NCC के प्रासंगिक खंड इस प्रकार हैं:",
+    "Las cláusulas pertinentes del NCC son las siguientes:",
+    "بنود NCC ذات الصلة كما يلي:",
+    "ข้อกำหนดของ NCC ที่เกี่ยวข้องมีดังต่อไปนี้:"
+  ],
+  "The design detail submitted at the construction approval stage:": [
+    "施工审批阶段提交的设计详图：",
+    "निर्माण स्वीकृति चरण में प्रस्तुत डिज़ाइन विवरण:",
+    "El detalle de diseño presentado en la fase de aprobación de la construcción:",
+    "تفاصيل التصميم المقدمة في مرحلة اعتماد البناء:",
+    "รายละเอียดการออกแบบที่ยื่นในขั้นตอนอนุมัติการก่อสร้าง:"
+  ],
+  "The following additional Australian Standards (if applicable)": [
+    "以下附加澳大利亚标准（如适用）",
+    "निम्नलिखित अतिरिक्त ऑस्ट्रेलियाई मानक (यदि लागू हों)",
+    "Las siguientes normas australianas adicionales (si procede)",
+    "المعايير الأسترالية الإضافية التالية (إن انطبقت)",
+    "มาตรฐานออสเตรเลียเพิ่มเติมดังต่อไปนี้ (หากมี)"
+  ],
+  "Other practices, standards, or reports (such as Fire Safety or Disabled Access reports) relied upon or that modify the BCA or Australian standards for this certification": [
+    "本认证所依据或用于修改BCA或澳大利亚标准要求的其他惯例、标准或报告（如消防安全或无障碍通行报告）",
+    "इस प्रमाणन के लिए आधार बनाए गए या BCA अथवा ऑस्ट्रेलियाई मानकों में संशोधन करने वाले अन्य अभ्यास, मानक या रिपोर्ट (जैसे अग्नि सुरक्षा या दिव्यांग पहुँच रिपोर्ट)",
+    "Otras prácticas, normas o informes (como informes de seguridad contra incendios o accesibilidad) utilizados como referencia o que modifican el BCA o las normas australianas para esta certificación",
+    "الممارسات أو المعايير أو التقارير الأخرى (مثل تقارير السلامة من الحريق أو إتاحة الوصول لذوي الإعاقة) المعتمد عليها أو التي تعدّل BCA أو المعايير الأسترالية لهذه الشهادة",
+    "แนวปฏิบัติ มาตรฐาน หรือรายงานอื่น ๆ (เช่น รายงานความปลอดภัยจากอัคคีภัยหรือการเข้าถึงสำหรับผู้พิการ) ที่ใช้อ้างอิงหรือปรับเปลี่ยน BCA หรือมาตรฐานออสเตรเลียสำหรับการรับรองนี้"
+  ],
+  "Exclusions": [
+    "除外事项",
+    "बहिष्करण",
+    "Exclusiones",
+    "الاستثناءات",
+    "ข้อยกเว้น"
+  ],
+  "Materials/Manufacturers:": [
+    "材料/制造商：",
+    "सामग्री/निर्माता:",
+    "Materiales/Fabricantes:",
+    "المواد/الشركات المصنّعة:",
+    "วัสดุ/ผู้ผลิต:"
+  ],
+  "Fire Resistance Level:": [
+    "耐火等级：",
+    "अग्नि प्रतिरोध स्तर:",
+    "Nivel de resistencia al fuego:",
+    "مستوى مقاومة الحريق:",
+    "ระดับการทนไฟ:"
+  ],
+  "Name": [
+    "姓名",
+    "नाम",
+    "Nombre",
+    "الاسم",
+    "ชื่อ"
+  ],
+  "Position": [
+    "职位",
+    "पद",
+    "Cargo",
+    "المنصب",
+    "ตำแหน่ง"
+  ],
+  "Qualification": [
+    "资格",
+    "योग्यता",
+    "Titulación",
+    "المؤهل",
+    "คุณวุฒิ"
+  ],
+  "Accreditation": [
+    "认可资质",
+    "प्रत्यायन",
+    "Acreditación",
+    "الاعتماد",
+    "การรับรองคุณสมบัติ"
+  ],
+  "Certificate revisions": [
+    "证书修订版本",
+    "प्रमाणपत्र संशोधन",
+    "Revisiones del certificado",
+    "مراجعات الشهادة",
+    "ฉบับแก้ไขใบรับรอง"
+  ],
+  "Every generated certificate is saved as a separate revision. Earlier PDFs retain the details and cover sheet used when they were created.": [
+    "每次生成的证书均保存为独立版本。较早的PDF保留其创建时使用的详情和封面。",
+    "हर बनाया गया प्रमाणपत्र अलग संशोधन के रूप में सहेजा जाता है। पुराने PDF अपने बनाए जाने के समय के विवरण और कवर शीट बनाए रखते हैं।",
+    "Cada certificado generado se guarda como una revisión independiente. Los PDF anteriores conservan los datos y la portada utilizados al crearlos.",
+    "تُحفظ كل شهادة يتم إنشاؤها كمراجعة مستقلة. تحتفظ ملفات PDF السابقة بالتفاصيل وصفحة الغلاف المستخدمتين عند إنشائها.",
+    "ใบรับรองที่สร้างแต่ละครั้งจะบันทึกเป็นฉบับแก้ไขแยกกัน PDF ก่อนหน้าจะเก็บรายละเอียดและใบปะหน้าที่ใช้ขณะสร้างไว้"
+  ],
+  "Save certification details": [
+    "保存认证详情",
+    "प्रमाणन विवरण सहेजें",
+    "Guardar datos de certificación",
+    "حفظ تفاصيل الشهادة",
+    "บันทึกรายละเอียดการรับรอง"
+  ],
+  "Generate Certificate": [
+    "生成证书",
+    "प्रमाणपत्र बनाएँ",
+    "Generar certificado",
+    "إنشاء شهادة",
+    "สร้างใบรับรอง"
+  ],
+  "Cover sheet: {0}": [
+    "封面：{0}",
+    "कवर शीट: {0}",
+    "Portada: {0}",
+    "صفحة الغلاف: {0}",
+    "ใบปะหน้า: {0}"
+  ],
+  "No cover sheet selected.": [
+    "未选择封面。",
+    "कोई कवर शीट नहीं चुनी गई।",
+    "No se ha seleccionado ninguna portada.",
+    "لم يتم اختيار صفحة غلاف.",
+    "ยังไม่ได้เลือกใบปะหน้า"
+  ],
+  "Choose a PDF cover sheet smaller than 10 MB.": [
+    "请选择小于10 MB的PDF封面。",
+    "10 MB से छोटी PDF कवर शीट चुनें।",
+    "Elija una portada PDF de menos de 10 MB.",
+    "اختر صفحة غلاف PDF بحجم أقل من 10 ميغابايت.",
+    "เลือกใบปะหน้า PDF ที่มีขนาดน้อยกว่า 10 MB"
+  ],
+  "The PDF cover sheet could not be read.": [
+    "无法读取PDF封面。",
+    "PDF कवर शीट पढ़ी नहीं जा सकी।",
+    "No se ha podido leer la portada PDF.",
+    "تعذرت قراءة صفحة غلاف PDF.",
+    "ไม่สามารถอ่านใบปะหน้า PDF ได้"
+  ],
+  "The operation result could not be confirmed. Retry the same operation.": [
+    "无法确认操作结果。请重试同一操作。",
+    "कार्यवाही के परिणाम की पुष्टि नहीं हो सकी। वही कार्यवाही फिर से करें।",
+    "No se ha podido confirmar el resultado. Vuelva a intentar la misma operación.",
+    "تعذر تأكيد نتيجة العملية. أعد محاولة العملية نفسها.",
+    "ไม่สามารถยืนยันผลการดำเนินการได้ โปรดลองดำเนินการเดิมอีกครั้ง"
+  ],
+  "Certification details could not be saved.": [
+    "无法保存认证详情。",
+    "प्रमाणन विवरण सहेजे नहीं जा सके।",
+    "No se han podido guardar los datos de certificación.",
+    "تعذر حفظ تفاصيل الشهادة.",
+    "ไม่สามารถบันทึกรายละเอียดการรับรองได้"
+  ],
+  "No certificates have been generated yet.": [
+    "尚未生成任何证书。",
+    "अभी तक कोई प्रमाणपत्र नहीं बनाया गया है।",
+    "Todavía no se ha generado ningún certificado.",
+    "لم يتم إنشاء أي شهادات بعد.",
+    "ยังไม่มีใบรับรองที่สร้างไว้"
+  ],
+  "Revision": [
+    "修订版本",
+    "संशोधन",
+    "Revisión",
+    "المراجعة",
+    "ฉบับแก้ไข"
+  ],
+  "Generated": [
+    "生成时间",
+    "बनाया गया",
+    "Generado",
+    "تم الإنشاء",
+    "สร้างเมื่อ"
+  ],
+  "Certificate": [
+    "证书",
+    "प्रमाणपत्र",
+    "Certificado",
+    "الشهادة",
+    "ใบรับรอง"
+  ],
+  "The saved certificate link is invalid.": [
+    "已保存的证书链接无效。",
+    "सहेजे गए प्रमाणपत्र का लिंक अमान्य है।",
+    "El enlace al certificado guardado no es válido.",
+    "رابط الشهادة المحفوظة غير صالح.",
+    "ลิงก์ใบรับรองที่บันทึกไว้ไม่ถูกต้อง"
+  ],
+  "Open revision {0}": [
+    "打开版本{0}",
+    "संशोधन {0} खोलें",
+    "Abrir revisión {0}",
+    "فتح المراجعة {0}",
+    "เปิดฉบับแก้ไข {0}"
+  ],
+  "Unsaved certification details": [
+    "未保存的认证详情",
+    "प्रमाणन के असहेजे विवरण",
+    "Datos de certificación sin guardar",
+    "تفاصيل شهادة غير محفوظة",
+    "รายละเอียดการรับรองที่ยังไม่ได้บันทึก"
+  ],
+  "Continue without saving these certification details?": [
+    "是否继续而不保存这些认证详情？",
+    "क्या ये प्रमाणन विवरण सहेजे बिना आगे बढ़ें?",
+    "¿Continuar sin guardar estos datos de certificación?",
+    "هل تريد المتابعة دون حفظ تفاصيل الشهادة هذه؟",
+    "ดำเนินการต่อโดยไม่บันทึกรายละเอียดการรับรองนี้หรือไม่?"
+  ],
+  "Continue without saving": [
+    "继续而不保存",
+    "सहेजे बिना जारी रखें",
+    "Continuar sin guardar",
+    "المتابعة دون حفظ",
+    "ดำเนินการต่อโดยไม่บันทึก"
+  ],
+  "Certification details changed during the confirmation. Review the current fields first.": [
+    "确认期间认证详情已更改。请先检查当前字段。",
+    "पुष्टि के दौरान प्रमाणन विवरण बदल गए। पहले वर्तमान फ़ील्ड देखें।",
+    "Los datos cambiaron durante la confirmación. Revise primero los campos actuales.",
+    "تغيرت تفاصيل الشهادة أثناء التأكيد. راجع الحقول الحالية أولاً.",
+    "รายละเอียดการรับรองเปลี่ยนแปลงระหว่างการยืนยัน โปรดตรวจสอบข้อมูลปัจจุบันก่อน"
+  ],
+  "Enter the certification details.": [
+    "请输入认证详情。",
+    "प्रमाणन विवरण दर्ज करें।",
+    "Introduzca los datos de certificación.",
+    "أدخل تفاصيل الشهادة.",
+    "ป้อนรายละเอียดการรับรอง"
+  ],
+  "Loading certification…": [
+    "正在加载认证…",
+    "प्रमाणन लोड हो रहा है…",
+    "Cargando certificación…",
+    "جارٍ تحميل الشهادة…",
+    "กำลังโหลดการรับรอง…"
+  ],
+  "Saved certification details": [
+    "已保存的认证详情",
+    "सहेजे गए प्रमाणन विवरण",
+    "Datos de certificación guardados",
+    "تفاصيل الشهادة المحفوظة",
+    "รายละเอียดการรับรองที่บันทึกไว้"
+  ],
+  "Generating and saving certificate revision…": [
+    "正在生成并保存证书版本…",
+    "प्रमाणपत्र संशोधन बनाया और सहेजा जा रहा है…",
+    "Generando y guardando revisión del certificado…",
+    "جارٍ إنشاء مراجعة الشهادة وحفظها…",
+    "กำลังสร้างและบันทึกฉบับแก้ไขใบรับรอง…"
+  ],
+  "Saving certification details…": [
+    "正在保存认证详情…",
+    "प्रमाणन विवरण सहेजे जा रहे हैं…",
+    "Guardando datos de certificación…",
+    "جارٍ حفظ تفاصيل الشهادة…",
+    "กำลังบันทึกรายละเอียดการรับรอง…"
+  ],
+  "Certification details saved.": [
+    "认证详情已保存。",
+    "प्रमाणन विवरण सहेजे गए।",
+    "Datos de certificación guardados.",
+    "تم حفظ تفاصيل الشهادة.",
+    "บันทึกรายละเอียดการรับรองแล้ว"
+  ],
+  "Revision {0} saved. Open it in Certificate revisions.": [
+    "版本{0}已保存。请在“证书修订版本”中打开。",
+    "संशोधन {0} सहेजा गया। इसे प्रमाणपत्र संशोधन में खोलें।",
+    "Revisión {0} guardada. Ábrala en Revisiones del certificado.",
+    "تم حفظ المراجعة {0}. افتحها ضمن مراجعات الشهادة.",
+    "บันทึกฉบับแก้ไข {0} แล้ว เปิดได้ในฉบับแก้ไขใบรับรอง"
+  ],
+  "The operation result could not be confirmed. Retry the same button to recover it without creating another revision.": [
+    "无法确认操作结果。请再次点击同一按钮恢复结果，不会创建另一个版本。",
+    "कार्यवाही के परिणाम की पुष्टि नहीं हो सकी। दूसरा संशोधन बनाए बिना परिणाम पाने के लिए वही बटन फिर दबाएँ।",
+    "No se ha podido confirmar el resultado. Vuelva a pulsar el mismo botón para recuperarlo sin crear otra revisión.",
+    "تعذر تأكيد نتيجة العملية. أعد الضغط على الزر نفسه لاستعادتها دون إنشاء مراجعة أخرى.",
+    "ไม่สามารถยืนยันผลการดำเนินการได้ กดปุ่มเดิมอีกครั้งเพื่อกู้คืนผลโดยไม่สร้างฉบับแก้ไขเพิ่ม"
+  ],
+  "Finish or retry the current certification operation before changing views.": [
+    "请完成或重试当前认证操作后再切换页面。",
+    "दृश्य बदलने से पहले वर्तमान प्रमाणन कार्यवाही पूरी करें या फिर से करें।",
+    "Termine o reintente la operación de certificación actual antes de cambiar de vista.",
+    "أكمل عملية الشهادة الحالية أو أعد محاولتها قبل تغيير العرض.",
+    "ดำเนินการรับรองปัจจุบันให้เสร็จหรือทดลองใหม่ก่อนเปลี่ยนหน้า"
+  ],
+  "There are unsaved project, calculator, library or certification edits. Close without saving discards these edits. Keep editing to save them first.": [
+    "存在未保存的项目、计算器、资料库或认证修改。不保存而关闭将丢弃这些修改。请继续编辑并先保存。",
+    "परियोजना, कैलकुलेटर, लाइब्रेरी या प्रमाणन के संपादन सहेजे नहीं गए हैं। बिना सहेजे बंद करने पर ये संपादन हट जाएँगे। पहले सहेजने के लिए संपादन जारी रखें।",
+    "Hay cambios sin guardar en proyectos, calculadoras, bibliotecas o certificaciones. Cerrar sin guardar descarta estos cambios. Siga editando para guardarlos primero.",
+    "توجد تعديلات غير محفوظة في المشروع أو الحاسبة أو المكتبة أو الشهادة. سيؤدي الإغلاق دون حفظ إلى فقدانها. واصل التحرير لحفظها أولاً.",
+    "มีการแก้ไขโครงการ เครื่องคำนวณ คลังข้อมูล หรือการรับรองที่ยังไม่ได้บันทึก การปิดโดยไม่บันทึกจะทิ้งการแก้ไขเหล่านี้ โปรดแก้ไขต่อเพื่อบันทึกก่อน"
+  ],
+  "Certification is strictly limited to passive fire protection works completed by {0}, in accordance with:": [
+    "本认证严格限于{0}完成的被动防火工程，并依据：",
+    "प्रमाणन निम्न के अनुसार {0} द्वारा पूरे किए गए निष्क्रिय अग्नि सुरक्षा कार्यों तक सख्ती से सीमित है:",
+    "La certificación se limita estrictamente a los trabajos de protección pasiva contra incendios realizados por {0}, de conformidad con:",
+    "تقتصر الشهادة حصراً على أعمال الحماية السلبية من الحريق التي أنجزتها {0}، وفقاً لما يلي:",
+    "การรับรองจำกัดเฉพาะงานป้องกันอัคคีภัยเชิงรับที่ดำเนินการแล้วเสร็จโดย {0} ตาม:"
+  ],
+  "{0} are approved by the manufacturers listed above to supply and install passive fire products in accordance with tested and certified systems. I am a properly qualified person and have a good working knowledge of the relevant codes and standards referenced above. The information contained in this statement is true and accurate to the best of my knowledge.": [
+    "{0}获上述制造商批准，可按照经测试和认证的系统供应及安装被动防火产品。本人具备适当资格，并熟悉上述相关规范和标准。据本人所知，本声明中的信息真实准确。",
+    "{0} को ऊपर सूचीबद्ध निर्माताओं द्वारा परीक्षित और प्रमाणित प्रणालियों के अनुसार निष्क्रिय अग्नि सुरक्षा उत्पादों की आपूर्ति और स्थापना की स्वीकृति प्राप्त है। मैं उचित रूप से योग्य व्यक्ति हूँ और मुझे ऊपर संदर्भित प्रासंगिक संहिताओं और मानकों का अच्छा व्यावहारिक ज्ञान है। मेरी जानकारी के अनुसार इस विवरण में दी गई जानकारी सत्य और सटीक है।",
+    "{0} cuenta con la aprobación de los fabricantes indicados anteriormente para suministrar e instalar productos de protección pasiva contra incendios conforme a sistemas ensayados y certificados. Soy una persona debidamente cualificada y tengo un buen conocimiento práctico de los códigos y normas pertinentes citados anteriormente. Según mi leal saber y entender, la información de esta declaración es verdadera y exacta.",
+    "تحظى {0} بموافقة الشركات المصنّعة المذكورة أعلاه لتوريد منتجات الحماية السلبية من الحريق وتركيبها وفق أنظمة مختبرة ومعتمدة. أنا شخص مؤهل تأهيلاً مناسباً ولدي معرفة عملية جيدة بالأكواد والمعايير ذات الصلة المشار إليها أعلاه. المعلومات الواردة في هذا البيان صحيحة ودقيقة حسب علمي.",
+    "{0} ได้รับการอนุมัติจากผู้ผลิตที่ระบุข้างต้นให้จัดหาและติดตั้งผลิตภัณฑ์ป้องกันอัคคีภัยเชิงรับตามระบบที่ผ่านการทดสอบและรับรองแล้ว ข้าพเจ้าเป็นผู้มีคุณสมบัติเหมาะสมและมีความรู้ในการปฏิบัติงานเกี่ยวกับข้อกำหนดและมาตรฐานที่เกี่ยวข้องซึ่งอ้างถึงข้างต้นเป็นอย่างดี ข้อมูลในคำแถลงนี้เป็นจริงและถูกต้องตามที่ข้าพเจ้าทราบ"
+  ]
+}

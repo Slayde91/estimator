@@ -554,7 +554,7 @@ class TakeoffService:
             self.documents.assert_documents([document], owner=session_id)
             return self._images().rendition(descriptor, document, asset_id, owner=session_id)
 
-    def export_physical(self, session_id, format, scope='defect_reports', expected_revision=None, confirmation=None):
+    def export_physical(self, session_id, format, scope='defect_reports', expected_revision=None, confirmation=None, *, company=None):
         from .takeoff_physical_exports import export_physical_graph
         with self._lock:
             snapshot = self._session(session_id)['snapshot']
@@ -574,7 +574,8 @@ class TakeoffService:
                 return export_physical_register(graph, confirmation='all' if confirmation is None else confirmation,
                                                 references=references)
             return export_physical_graph(current_graph(snapshot, scope), format,
-                                         {document['id']: document['name'] for document in snapshot['documents']}, confirmation=confirmation, company=self.store.company_settings())
+                                         {document['id']: document['name'] for document in snapshot['documents']}, confirmation=confirmation,
+                                         company=company if company is not None else self.store.company_settings())
 
     @staticmethod
     def _physical_editable(snapshot, scope='defect_reports'):

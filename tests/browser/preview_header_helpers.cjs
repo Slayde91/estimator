@@ -1,7 +1,7 @@
 const {expect}=require('@playwright/test');
 const assert=require('node:assert/strict');
 const icons=require('./preview_header_icons.json');
-const views=['home','estimate','calculators','takeoffs','pricing','quotes','help','settings'];
+const views=['home','estimate','calculators','takeoffs','pricing','projects','help','settings'];
 async function assertPreviewHeaderIcons(page){
   await expect(page.locator('nav[aria-label="Main navigation"] .nav-icon')).toHaveCount(8);
   for(const [index,view] of views.entries()){

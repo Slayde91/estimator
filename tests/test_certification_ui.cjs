@@ -364,6 +364,11 @@ async function check(name,fn,{open=true}={}){const h=harness();if(open)await h.a
     await h.scope([]);assert.equal(h.byId('certification-scopes-summary').textContent,'Choose…');
   });
   const html=fs.readFileSync('static/index.html','utf8'),app=fs.readFileSync('static/app.js','utf8');
+  for(const choiceClass of ['section-navigation-choice','projects-section-card']) {
+    const choices=[...html.matchAll(/<button\b[^>]*data-project-section="([^"]+)"[^>]*>/g)].filter(match=>match[0].includes('class="'+choiceClass+'"')).map(match=>match[1]);
+    assert.deepEqual(choices,['quotes','certification']);
+  }
+  assert.ok(html.includes('data-project-section="quotes"'));assert.ok(html.includes('data-project-section="certification"'));
   const projectsHub=html.match(/<section id="view-projects"[^>]*>[\s\S]*?<\/section>/)?.[0];
   const projectsMenu=html.match(/<div id="projects-navigation-menu"[^>]*>[\s\S]*?<\/div>/)?.[0];
   for(const [name,markup] of [['Projects hub',projectsHub],['Projects navigation menu',projectsMenu]]){

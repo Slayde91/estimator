@@ -23,7 +23,26 @@ const ready = new Promise((resolve, reject) => {
 });
 const panel = () => page.locator("#takeoff-markup-settings"), signature = id => page.locator(`.takeoff-signature[data-signature-id="${id}"]`);
 const idle = () => settingsSettled(page);
-async function snapshot() { await idle(); return page.evaluate(() => window.CeasefireTakeoffs.projectSnapshot()); }
+async function snapshot() {
+  let captured, failure;
+  await expect.poll(async () => {
+    try {
+      captured = await page.evaluate(() => {
+        try { return { snapshot: window.CeasefireTakeoffs.projectSnapshot() }; }
+        catch (error) {
+          if (error.message === "Finish the current takeoff operation before saving.") return { pending: true };
+          throw error;
+        }
+      });
+      return !captured.pending;
+    } catch (error) {
+      // End polling and preserve unexpected application/transport errors.
+      failure = error; return true;
+    }
+  }).toBe(true);
+  if (failure) throw failure;
+  return captured.snapshot;
+}
 async function command(action, op) {
   const pending = page.waitForResponse(reply => reply.url().endsWith("/commands") && reply.request().postDataJSON()?.op === op); pending.catch(() => {});
   await action(); const reply = await pending, value = await reply.json(); assert.equal(reply.status(), 200, JSON.stringify(value)); await idle(); return value;

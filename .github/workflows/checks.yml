@@ -143,6 +143,7 @@ jobs:
       - run: npm run test:takeoffs-measure-icon
       - run: node tests/browser/navigation_icons.cjs
       - run: node tests/browser/laser_accent_parity.cjs
+      - run: node --test tests/test_signature_snapshot_readiness.cjs
       - run: npm run test:takeoffs-signatures
       - run: node tests/browser/signature_chooser_layout.cjs
       - run: npm run test:takeoffs-graphics

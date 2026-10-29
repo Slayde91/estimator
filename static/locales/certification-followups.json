@@ -1,0 +1,205 @@
+{
+  "Certification scope": [
+    "认证范围",
+    "प्रमाणन का दायरा",
+    "Alcance de la certificación",
+    "نطاق الشهادة",
+    "ขอบเขตการรับรอง"
+  ],
+  "Structural steel": [
+    "结构钢",
+    "संरचनात्मक इस्पात",
+    "Acero estructural",
+    "الفولاذ الإنشائي",
+    "เหล็กโครงสร้าง"
+  ],
+  "Structural steel incl. columns": [
+    "结构钢（含柱）",
+    "स्तंभों सहित संरचनात्मक इस्पात",
+    "Acero estructural, incluidas columnas",
+    "الفولاذ الإنشائي، بما في ذلك الأعمدة",
+    "เหล็กโครงสร้างรวมเสา"
+  ],
+  "Service penetrations": [
+    "设备管线贯穿部位",
+    "सेवा लाइनों के आर-पार जाने के स्थान",
+    "Pasos de instalaciones",
+    "اختراقات تمديدات الخدمات",
+    "จุดทะลุผ่านของงานระบบ"
+  ],
+  "Selections add editable standards and NCC clauses. Your additional text is retained.": [
+    "所选范围会添加可编辑的标准和NCC条款。您添加的文字会保留。",
+    "चयन से संपादन योग्य मानक और NCC के खंड जुड़ते हैं। आपका अतिरिक्त पाठ बना रहता है।",
+    "Las selecciones añaden normas y cláusulas del NCC editables. Se conserva el texto adicional que haya escrito.",
+    "تضيف الاختيارات معايير وبنود NCC قابلة للتحرير. يُحتفظ بالنص الإضافي الذي أدخلته.",
+    "ตัวเลือกจะเพิ่มมาตรฐานและข้อกำหนด NCC ที่แก้ไขได้ ข้อความเพิ่มเติมของคุณจะยังคงอยู่"
+  ],
+  "Cover page": [
+    "封面页",
+    "मुखपृष्ठ",
+    "Portada",
+    "صفحة الغلاف",
+    "หน้าปก"
+  ],
+  "This cover applies to this certification. Without a selected cover, the company cover sheet is used when available.": [
+    "此封面仅用于本认证。未选择封面时，将使用可用的公司封面。",
+    "यह कवर इस प्रमाणन पर लागू होता है। कोई कवर नहीं चुनने पर उपलब्ध कंपनी कवर शीट का उपयोग किया जाता है।",
+    "Esta portada se aplica a esta certificación. Si no se selecciona una, se utiliza la portada de la empresa cuando esté disponible.",
+    "ينطبق هذا الغلاف على هذه الشهادة. إذا لم يُحدد غلاف، تُستخدم صفحة غلاف الشركة عند توفرها.",
+    "หน้าปกนี้ใช้กับการรับรองฉบับนี้ หากไม่ได้เลือกหน้าปก ระบบจะใช้ใบปะหน้าของบริษัทเมื่อมีให้ใช้งาน"
+  ],
+  "Cover sheet.pdf": [
+    "封面.pdf",
+    "कवर शीट.pdf",
+    "Portada.pdf",
+    "صفحة الغلاف.pdf",
+    "ใบปะหน้า.pdf"
+  ],
+  "Company cover sheet will be used: {0}": [
+    "将使用公司封面：{0}",
+    "कंपनी कवर शीट का उपयोग होगा: {0}",
+    "Se utilizará la portada de la empresa: {0}",
+    "ستُستخدم صفحة غلاف الشركة: {0}",
+    "ระบบจะใช้ใบปะหน้าของบริษัท: {0}"
+  ],
+  "Current certificate": [
+    "当前证书",
+    "वर्तमान प्रमाणपत्र",
+    "Certificado actual",
+    "الشهادة الحالية",
+    "ใบรับรองปัจจุบัน"
+  ],
+  "Signer details are saved for future certificates when edited.": [
+    "编辑签署人信息后，将保存供后续证书使用。",
+    "हस्ताक्षरकर्ता का विवरण संपादित करने पर भविष्य के प्रमाणपत्रों के लिए सहेजा जाता है।",
+    "Los datos del firmante se guardan para futuros certificados cuando se editan.",
+    "تُحفظ بيانات الموقّع للشهادات المستقبلية عند تعديلها.",
+    "เมื่อแก้ไขข้อมูลผู้ลงนาม ระบบจะบันทึกไว้สำหรับใบรับรองครั้งต่อไป"
+  ],
+  "Signer details saved for future certificates.": [
+    "签署人信息已保存，供后续证书使用。",
+    "हस्ताक्षरकर्ता का विवरण भविष्य के प्रमाणपत्रों के लिए सहेजा गया।",
+    "Datos del firmante guardados para futuros certificados.",
+    "حُفظت بيانات الموقّع للشهادات المستقبلية.",
+    "บันทึกข้อมูลผู้ลงนามไว้สำหรับใบรับรองครั้งต่อไปแล้ว"
+  ],
+  "Saving signer details…": [
+    "正在保存签署人信息…",
+    "हस्ताक्षरकर्ता का विवरण सहेजा जा रहा है…",
+    "Guardando datos del firmante…",
+    "جارٍ حفظ بيانات الموقّع…",
+    "กำลังบันทึกข้อมูลผู้ลงนาม…"
+  ],
+  "Signer details changed": [
+    "签署人信息已更改",
+    "हस्ताक्षरकर्ता का विवरण बदला गया",
+    "Datos del firmante modificados",
+    "تغيّرت بيانات الموقّع",
+    "ข้อมูลผู้ลงนามมีการเปลี่ยนแปลง"
+  ],
+  "Signer details were changed in another window. Use the entered details for future certificates?": [
+    "签署人信息已在另一窗口更改。是否将当前输入的信息用于后续证书？",
+    "हस्ताक्षरकर्ता का विवरण दूसरी विंडो में बदल गया है। क्या दर्ज विवरण को भविष्य के प्रमाणपत्रों के लिए उपयोग करना है?",
+    "Los datos del firmante se modificaron en otra ventana. ¿Usar los datos introducidos para futuros certificados?",
+    "عُدّلت بيانات الموقّع في نافذة أخرى. هل تريد استخدام البيانات التي أدخلتها للشهادات المستقبلية؟",
+    "ข้อมูลผู้ลงนามถูกเปลี่ยนในหน้าต่างอื่น ต้องการใช้ข้อมูลที่ป้อนสำหรับใบรับรองครั้งต่อไปหรือไม่?"
+  ],
+  "Use entered details": [
+    "使用已输入的信息",
+    "दर्ज विवरण का उपयोग करें",
+    "Usar datos introducidos",
+    "استخدام البيانات المدخلة",
+    "ใช้ข้อมูลที่ป้อน"
+  ],
+  "Signer details changed in another window. Your entries are kept. Save again to review and retry.": [
+    "签署人信息已在另一窗口更改。您输入的内容已保留。请再次保存以查看并重试。",
+    "हस्ताक्षरकर्ता का विवरण दूसरी विंडो में बदल गया है। आपकी प्रविष्टियाँ सुरक्षित हैं। समीक्षा और दोबारा प्रयास के लिए फिर सहेजें।",
+    "Los datos del firmante cambiaron en otra ventana. Se conservan sus entradas. Vuelva a guardar para revisar y reintentar.",
+    "تغيّرت بيانات الموقّع في نافذة أخرى. تم الاحتفاظ بما أدخلته. احفظ مرة أخرى للمراجعة وإعادة المحاولة.",
+    "ข้อมูลผู้ลงนามเปลี่ยนในหน้าต่างอื่น ข้อมูลที่คุณป้อนยังคงอยู่ บันทึกอีกครั้งเพื่อตรวจสอบและลองใหม่"
+  ],
+  "Signer details could not be saved. Your entries are kept; save again to retry.": [
+    "无法保存签署人信息。您输入的内容已保留；请再次保存以重试。",
+    "हस्ताक्षरकर्ता का विवरण सहेजा नहीं जा सका। आपकी प्रविष्टियाँ सुरक्षित हैं; दोबारा प्रयास के लिए फिर सहेजें।",
+    "No se pudieron guardar los datos del firmante. Se conservan sus entradas; vuelva a guardar para reintentar.",
+    "تعذر حفظ بيانات الموقّع. تم الاحتفاظ بما أدخلته؛ احفظ مرة أخرى لإعادة المحاولة.",
+    "บันทึกข้อมูลผู้ลงนามไม่สำเร็จ ข้อมูลที่ป้อนยังคงอยู่ บันทึกอีกครั้งเพื่อลองใหม่"
+  ],
+  "Signer details are still unsaved. Your certification details are kept.": [
+    "签署人信息仍未保存。您的认证内容已保留。",
+    "हस्ताक्षरकर्ता का विवरण अभी सहेजा नहीं गया है। आपका प्रमाणन विवरण सुरक्षित है।",
+    "Los datos del firmante siguen sin guardarse. Se conservan los datos de su certificación.",
+    "لم تُحفظ بيانات الموقّع بعد. تم الاحتفاظ بتفاصيل شهادتك.",
+    "ข้อมูลผู้ลงนามยังไม่ได้บันทึก รายละเอียดการรับรองของคุณยังคงอยู่"
+  ],
+  "The saved certification scope is invalid.": [
+    "已保存的认证范围无效。",
+    "सहेजा गया प्रमाणन दायरा अमान्य है।",
+    "El alcance de certificación guardado no es válido.",
+    "نطاق الشهادة المحفوظ غير صالح.",
+    "ขอบเขตการรับรองที่บันทึกไว้ไม่ถูกต้อง"
+  ],
+  "{0}": [
+    "{0}",
+    "{0}",
+    "{0}",
+    "{0}",
+    "{0}"
+  ],
+  "Some DFT values exceed the 10,000 µm colour scale. Available thickness colours were applied; original colours were retained for unavailable or out-of-range values.": [
+    "部分DFT值超过10,000 µm色标范围。已对可用厚度值应用颜色；对于不可用或超出范围的值，保留原有颜色。",
+    "कुछ DFT मान 10,000 µm की रंग सीमा से अधिक हैं। उपलब्ध मोटाई मानों के रंग लागू किए गए; अनुपलब्ध या सीमा से बाहर के मानों के लिए मूल रंग बनाए रखे गए।",
+    "Algunos valores DFT superan la escala de colores de 10,000 µm. Se aplicaron los colores de los espesores disponibles; se conservaron los colores originales para los valores no disponibles o fuera de rango.",
+    "تتجاوز بعض قيم DFT مقياس الألوان البالغ 10,000 µm. طُبقت ألوان السماكات المتاحة؛ واحتُفظ بالألوان الأصلية للقيم غير المتاحة أو الخارجة عن النطاق.",
+    "ค่า DFT บางค่าเกินช่วงสเกลสี 10,000 µm ระบบใช้สีของค่าความหนาที่มีข้อมูลแล้ว และคงสีเดิมไว้สำหรับค่าที่ไม่มีข้อมูลหรืออยู่นอกช่วง"
+  ],
+  "Include the certificate cover, cover filename and selected scopes only.": [
+    "仅提供证书封面、封面文件名和所选范围。",
+    "केवल प्रमाणपत्र का कवर, कवर का फ़ाइल नाम और चुने गए दायरे शामिल करें।",
+    "Incluya únicamente la portada del certificado, su nombre de archivo y los alcances seleccionados.",
+    "أدرج غلاف الشهادة واسم ملف الغلاف والنطاقات المحددة فقط.",
+    "ระบุเฉพาะหน้าปกใบรับรอง ชื่อไฟล์หน้าปก และขอบเขตที่เลือกเท่านั้น"
+  ],
+  "The certificate cover filename is invalid.": [
+    "证书封面文件名无效。",
+    "प्रमाणपत्र के कवर का फ़ाइल नाम अमान्य है।",
+    "El nombre del archivo de portada del certificado no es válido.",
+    "اسم ملف غلاف الشهادة غير صالح.",
+    "ชื่อไฟล์หน้าปกใบรับรองไม่ถูกต้อง"
+  ],
+  "Choose each supported certification scope at most once.": [
+    "每个支持的认证范围最多选择一次。",
+    "प्रत्येक समर्थित प्रमाणन दायरे को अधिकतम एक बार चुनें।",
+    "Seleccione cada alcance de certificación admitido como máximo una vez.",
+    "اختر كل نطاق شهادة مدعوم مرة واحدة على الأكثر.",
+    "เลือกขอบเขตการรับรองที่รองรับแต่ละรายการได้ไม่เกินหนึ่งครั้ง"
+  ],
+  "Include name, position, qualification and accreditation only.": [
+    "仅提供姓名、职位、资格和认可资质。",
+    "केवल नाम, पद, योग्यता और प्रत्यायन शामिल करें।",
+    "Incluya únicamente el nombre, cargo, titulación y acreditación.",
+    "أدرج الاسم والمنصب والمؤهل والاعتماد فقط.",
+    "ระบุเฉพาะชื่อ ตำแหน่ง คุณวุฒิ และการรับรองคุณสมบัติเท่านั้น"
+  ],
+  "The saved signer details changed in another window. Reload them before saving again.": [
+    "已保存的签署人信息已在另一窗口更改。请重新加载后再保存。",
+    "सहेजा गया हस्ताक्षरकर्ता विवरण दूसरी विंडो में बदल गया है। फिर सहेजने से पहले उसे पुनः लोड करें।",
+    "Los datos guardados del firmante cambiaron en otra ventana. Vuelva a cargarlos antes de guardar de nuevo.",
+    "تغيّرت بيانات الموقّع المحفوظة في نافذة أخرى. أعد تحميلها قبل الحفظ مرة أخرى.",
+    "ข้อมูลผู้ลงนามที่บันทึกไว้เปลี่ยนในหน้าต่างอื่น โปรดโหลดข้อมูลใหม่ก่อนบันทึกอีกครั้ง"
+  ],
+  "Include the signer details and current defaults version.": [
+    "请提供签署人信息和当前默认信息版本。",
+    "हस्ताक्षरकर्ता का विवरण और वर्तमान डिफ़ॉल्ट विवरण का संस्करण शामिल करें।",
+    "Incluya los datos del firmante y la versión actual de los valores predeterminados.",
+    "أدرج بيانات الموقّع والإصدار الحالي للبيانات الافتراضية.",
+    "ระบุข้อมูลผู้ลงนามและเวอร์ชันปัจจุบันของค่าเริ่มต้น"
+  ],
+  "Unsupported thickness colour palette version.": [
+    "不支持此厚度配色表版本。",
+    "मोटाई के रंग पैलेट का यह संस्करण समर्थित नहीं है।",
+    "Versión de la paleta de colores de espesor no compatible.",
+    "إصدار لوحة ألوان السماكة غير مدعوم.",
+    "ไม่รองรับเวอร์ชันชุดสีความหนานี้"
+  ]
+}

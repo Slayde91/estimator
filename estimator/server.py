@@ -216,6 +216,8 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     self.send_payload(200, self.company_details())
                 elif route == '/api/certifications':
                     self.send_payload(200, certifications.list_documents())
+                elif route == '/api/certifications/defaults':
+                    self.send_payload(200, certifications.get_defaults())
                 elif re.fullmatch(r'/api/certifications/[a-z0-9-]{1,64}/revisions/[1-9][0-9]{0,9}\.pdf', route):
                     certificate_id, revision = route.split('/')[3], int(route.rsplit('/', 1)[1][:-4])
                     payload = certifications.revision_pdf(certificate_id, revision)
@@ -341,25 +343,35 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     if self.command != 'POST':
                         self.send_payload(405, {'error': 'Method not allowed.'})
                         return
-                    if set(body) - {'fields', 'request_id'}:
+                    if set(body) - {'fields', 'request_id', 'options'}:
                         raise ValidationError('Unknown certification fields.')
-                    self.send_payload(201, certifications.create(body.get('fields', {}), body.get('request_id')))
+                    options = {'options': body['options']} if 'options' in body else {}
+                    self.send_payload(201, certifications.create(body.get('fields', {}), body.get('request_id'), **options))
+                elif route == '/api/certifications/defaults':
+                    if self.command != 'POST':
+                        self.send_payload(405, {'error': 'Method not allowed.'})
+                        return
+                    if set(body) != {'fields', 'expected_version'}:
+                        raise ValidationError('Include the signer details and current defaults version.')
+                    self.send_payload(200, certifications.save_defaults(body['fields'], body['expected_version']))
                 elif re.fullmatch(r'/api/certifications/[a-z0-9-]{1,64}/revisions', route):
                     if self.command != 'POST':
                         self.send_payload(405, {'error': 'Method not allowed.'})
                         return
-                    if set(body) != {'fields', 'expected_version', 'request_id'}:
+                    if not {'fields', 'expected_version', 'request_id'} <= set(body) <= {'fields', 'expected_version', 'request_id', 'options'}:
                         raise ValidationError('Include the certificate details, current version and generation request.')
+                    options = {'options': body['options']} if 'options' in body else {}
                     result = certifications.generate(route.split('/')[3], body['fields'], body['expected_version'],
-                                                     body['request_id'], self.company_details())
+                                                     body['request_id'], self.company_details(), **options)
                     self.send_payload(201, result)
                 elif re.fullmatch(r'/api/certifications/[a-z0-9-]{1,64}', route):
                     if self.command != 'POST':
                         self.send_payload(405, {'error': 'Method not allowed.'})
                         return
-                    if set(body) != {'fields', 'expected_version'}:
+                    if not {'fields', 'expected_version'} <= set(body) <= {'fields', 'expected_version', 'options'}:
                         raise ValidationError('Include the certificate details and current version.')
-                    self.send_payload(200, certifications.save(route.rsplit('/', 1)[1], body['fields'], body['expected_version']))
+                    options = {'options': body['options']} if 'options' in body else {}
+                    self.send_payload(200, certifications.save(route.rsplit('/', 1)[1], body['fields'], body['expected_version'], **options))
                 elif route == '/api/libraries/penetration':
                     if self.command != 'POST':
                         self.send_payload(405, {'error': 'Method not allowed.'})

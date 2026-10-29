@@ -103,7 +103,7 @@ class IntumescentTakeoffTests(unittest.TestCase):
                 self.assertNotEqual(result['intumescent_thickness_mm'], wet / 1000)
                 self.assertEqual(result['calculator_source_sha256'], binding['source_sha256'])
                 self.assertRegex(result['calculator_draft_sha256'], r'^[0-9a-f]{64}$')
-                self.assertIn('mm DFT', linked_result_text([result]))
+                self.assertIn('µm DFT', linked_result_text([result]))
                 self.assertEqual(self.case.service.get(self.case.sid)['snapshot'], before)
                 self.assertEqual(drafts, original)
 
@@ -236,7 +236,8 @@ class IntumescentTakeoffTests(unittest.TestCase):
         self.assertEqual(original['calculator_id'], 'steel_intumescent')
         self.assertEqual(effective_appearance(drawing, drawing['items'][0], linked)['stroke_color'], original['colour'])
         legend = {'document_id': self.case.doc['id'], 'page': 1, 'mode': 'steel'}
-        self.assertIn(f'{DFT/1000:g} mm', legend_rows(drawing, legend, {}, linked)[0]['text'])
+        self.assertIn(f'{DFT} µm', legend_rows(drawing, legend, {}, linked)[0]['text'])
+        self.assertIn(f'{DFT} µm DFT', linked_result_text(linked[identity]))
         self.assertEqual(drawing['items'], before['items'])
         self.assertEqual(drawing['transfers'], before['transfers'])
         self.assertEqual(self.case.service.get(self.case.sid)['snapshot'], before)

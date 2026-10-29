@@ -1,5 +1,6 @@
 """Audited drawing presentation, independent of quantities and confirmations."""
 from copy import deepcopy
+from decimal import Decimal, ROUND_CEILING
 import math
 
 from .catalog import ValidationError
@@ -24,11 +25,19 @@ PALETTE = [
     ('Sage green', '#A7BB91'), ('Taupe', '#9A7A65'), ('Petrol blue', '#236778'),
     ('Pine green', '#184B3E')]
 COLOURS = ('stroke_color', 'fill_color', 'font_color')
+CURRENT_PALETTE_VERSION = 2
 
 
-def thickness_colour(value):
+def thickness_colour(value, calculator=None, *, palette_version=1):
     if type(value) not in (int, float) or not math.isfinite(value) or value <= 0:
         return None
+    if palette_version >= 2 and calculator == 'steel_intumescent':
+        if value > 10:
+            return None
+        # The native millimetre value is retained. Decimal comparisons keep a
+        # value just above a quarter-mm boundary in the following 250 µm bin.
+        index = int((Decimal(str(value)) / Decimal('.25')).to_integral_value(rounding=ROUND_CEILING)) - 1
+        return PALETTE[index][1]
     # Positive halves round up, matching Math.round; exact values remain native.
     rounded = max(1, math.floor(value + .5))
     return PALETTE[min(39, (rounded - 1) // 2)][1]
@@ -39,7 +48,26 @@ def thickness_value(records, calculator):
            'ductwork': 'duct_thickness_mm'}.get(calculator)
     result = next((row for row in records if row['calculator_id'] == calculator and row['status'] == 'Current'), {})
     value = result.get(key)
-    return value if thickness_colour(value) else None
+    return value if type(value) in (int, float) and math.isfinite(value) and value > 0 else None
+
+
+def dft_micron_text(value, native_microns=None):
+    """Convert display units only; prefer the calculator's exact native DFT."""
+    microns = (Decimal(str(native_microns)) if type(native_microns) in (int, float)
+               and math.isfinite(native_microns) and native_microns > 0 else Decimal(str(value)) * 1000)
+    text = format(microns, 'f')
+    return text.rstrip('0').rstrip('.') if '.' in text else text
+
+
+def thickness_label(value, calculator, *, native_microns=None, palette_version=2):
+    if value is None:
+        return 'Thickness missing/unavailable'
+    if calculator == 'steel_intumescent':
+        text = dft_micron_text(value, native_microns) + ' µm'
+        if palette_version >= 2 and value > 10:
+            text += ' (outside 0–10,000 µm colour scale)'
+        return text
+    return f'{value:g} mm'
 
 
 def validate_presentation(snapshot):
@@ -53,7 +81,9 @@ def validate_presentation(snapshot):
         raise ValidationError('Too many document colour modes.')
     seen = set(); retained_count = 0
     for mode in state['colour_modes']:
-        object_fields(mode, {'document_id', 'calculator_id', 'originals'}, 'Thickness colour mode', {'document_id', 'calculator_id', 'originals'})
+        object_fields(mode, {'document_id', 'calculator_id', 'originals', 'palette_version'}, 'Thickness colour mode', {'document_id', 'calculator_id', 'originals'})
+        if type(mode.get('palette_version', 1)) is not int or mode.get('palette_version', 1) not in (1, 2):
+            raise ValidationError('Unsupported thickness colour palette version.')
         page_metadata(snapshot, mode['document_id'], 1)
         if mode['document_id'] in seen or mode['calculator_id'] not in ('steel_vermiculite', 'steel_intumescent', 'steel_board'):
             raise ValidationError('Use one Steel colour mode per source document.')
@@ -76,7 +106,7 @@ def validate_presentation(snapshot):
             ids.add(row['item_id'])
             if row['thickness_mm'] is not None:
                 number(row['thickness_mm'], 'Thickness', positive=True)
-            if row['colour'] != thickness_colour(row['thickness_mm']):
+            if row['colour'] != thickness_colour(row['thickness_mm'], row['calculator_id'], palette_version=mode.get('palette_version', 1)):
                 raise ValidationError('The thickness colour does not match the reference palette.')
             if not isinstance(row['item_digest'], str) or len(row['item_digest']) != 64 or any(value not in '0123456789abcdef' for value in row['item_digest']):
                 raise ValidationError('Retain the original markup fingerprint.')
@@ -139,10 +169,11 @@ def apply_presentation(snapshot, request, linked=None):
         native = next((key for key in (calculator, *('steel_board', 'steel_vermiculite', 'steel_intumescent')) if thickness_value(records, key) is not None), calculator)
         value = thickness_value(records, native)
         rows.append({'item_id': item['id'], 'item_version': item['version'], 'colours': {key: appearance.get(key, appearance['stroke_color']) for key in COLOURS},
-                     'thickness_mm': value, 'colour': thickness_colour(value), 'item_digest': item_digest(item, snapshot), 'calculator_id': native})
+                     'thickness_mm': value, 'colour': thickness_colour(value, native, palette_version=CURRENT_PALETTE_VERSION), 'item_digest': item_digest(item, snapshot), 'calculator_id': native})
     if not rows:
         raise ValidationError('The selected document has no Steel Length or Count markups.')
-    state['colour_modes'].append({'document_id': document_id, 'calculator_id': calculator, 'originals': rows})
+    state['colour_modes'].append({'document_id': document_id, 'calculator_id': calculator,
+                                 'palette_version': CURRENT_PALETTE_VERSION, 'originals': rows})
 
 
 def effective_appearance(snapshot, item, linked=None):
@@ -165,15 +196,24 @@ def legend_rows(snapshot, legend, results, linked, *, viewer=False, calculator_i
         if item['mode'] != legend['mode'] or not geometry or geometry['document_id'] != legend['document_id'] or geometry['page'] != legend['page']:
             continue
         field = item['fields']; records = linked.get(item['id'], [])
-        original = next((row for mode in snapshot.get('drawing_presentation', {}).get('colour_modes', []) if mode['document_id'] == legend['document_id'] for row in mode['originals'] if row['item_id'] == item['id']), None)
+        mode = next((mode for mode in snapshot.get('drawing_presentation', {}).get('colour_modes', []) if mode['document_id'] == legend['document_id']), None)
+        original = next((row for row in mode['originals'] if row['item_id'] == item['id']), None) if mode else None
         calculator = 'ductwork' if item['mode'] == 'duct' else next((value['calculator_id'] for value in snapshot.get('drawing_presentation', {}).get('colour_modes', []) if value['document_id'] == legend['document_id']), None)
         if viewer and calculator_id:
             calculator = calculator_id
         if not calculator:
             calculator = next((value['calculator_id'] for value in records if value['status'] == 'Current'), 'steel_vermiculite')
-        thickness = thickness_value(records, original['calculator_id'] if original else calculator)
+        calculator = original['calculator_id'] if original else calculator
+        thickness = thickness_value(records, calculator)
         if item['mode'] == 'steel' and thickness is None and original is None:
-            thickness = next((value for key in ('steel_vermiculite', 'steel_board', 'steel_intumescent') if (value := thickness_value(records, key)) is not None), None)
+            for key in ('steel_vermiculite', 'steel_board', 'steel_intumescent'):
+                thickness = thickness_value(records, key)
+                if thickness is not None:
+                    calculator = key
+                    break
+        record = next((row for row in records if row['calculator_id'] == calculator and row['status'] == 'Current'), {})
+        label = thickness_label(thickness, calculator, native_microns=record.get('intumescent_dft_um'),
+                                palette_version=mode.get('palette_version', 1) if mode else CURRENT_PALETTE_VERSION)
         colour = effective_appearance(snapshot, item, linked)['stroke_color']
         description = field.get('mark') or item['id'][:8]
         if item['mode'] == 'steel':
@@ -184,7 +224,7 @@ def legend_rows(snapshot, legend, results, linked, *, viewer=False, calculator_i
             description += f" | {field.get('width_mm', '?')} x {field.get('height_mm', '?')} mm"
             total = results.get(item['id'], {}).get('total_length_m')
             description += f" | {total:g} m" if total is not None else ' | Length missing'
-        description += f" | {thickness:g} mm" if thickness is not None else ' | Thickness missing/unavailable'
+        description += ' | ' + label
         if viewer:
             from .takeoff_physical_markers import _number
             separator = ' · '
@@ -204,6 +244,6 @@ def legend_rows(snapshot, legend, results, linked, *, viewer=False, calculator_i
                         context.prec = max(28, number.adjusted()+8)
                         length = format(number.quantize(Decimal('.01'), rounding=ROUND_HALF_UP), ',f')
                 description += separator + size + ' mm' + separator + length + ' m'
-            description += separator + (_number(thickness) + ' mm' if thickness is not None else 'Thickness missing/unavailable')
+            description += separator + (label if calculator == 'steel_intumescent' or thickness is None else _number(thickness) + ' mm')
         rows.append({'colour': colour, 'text': description})
     return rows

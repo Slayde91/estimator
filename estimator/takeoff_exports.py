@@ -330,7 +330,8 @@ def linked_result_text(results):
             sections.append(f"Spray: {result['estimating_thickness_mm']:.2f} mm estimating"
                             + (f"; {published:.2f} mm published" if published is not None else '; published thickness unavailable'))
         elif result['calculator_id'] == 'steel_intumescent':
-            sections.append(f"Intumescent: {result['intumescent_thickness_mm']:g} mm DFT")
+            from .takeoff_presentation import dft_micron_text
+            sections.append('Intumescent: ' + dft_micron_text(result['intumescent_thickness_mm'], result.get('intumescent_dft_um')) + ' µm DFT')
         elif result['calculator_id'] == 'ductwork':
             sections.append(f"Ductwork: {result['duct_thickness_mm']:.2f} mm; {result['duct_thickness_basis']}")
         else:

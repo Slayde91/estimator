@@ -9,7 +9,7 @@ function harness() {
   const window = { CeasefireTakeoffGeometry: geometry, CeasefireTakeoffShortcuts: shortcuts };
   const context = { window, document: { createElement() { return { getContext() { return { measureText(value) { return { width: value.length * 6 }; } }; } }; } }, crypto, console, setTimeout, clearTimeout };
   if (context.window) context.window.CeasefireI18n = englishI18n(); vm.createContext(context);
-  let source = fs.readFileSync("static/takeoffs.js", "utf8").replace("  window.CeasefireTakeoffs = {", `  globalThis.audit = { state, eligibleLegendItems, canToggleLegend, updatePresentationTools, toggleLegend, syncToolShortcuts, setCommand(fn) { command = fn; }, setRenderer(fn) { renderOverlay = fn; } };\n  window.CeasefireTakeoffs = {`);
+  let source = fs.readFileSync("static/takeoffs.js", "utf8").replace("  window.CeasefireTakeoffs = {", `  globalThis.audit = { state, eligibleLegendItems, canToggleLegend, updatePresentationTools, toggleLegend, syncToolShortcuts, drawingLegendRows, thicknessContext, setLinked(value) { linkedThickness = value; }, setCommand(fn) { command = fn; }, setRenderer(fn) { renderOverlay = fn; } };\n  window.CeasefireTakeoffs = {`);
   vm.runInContext(source, context);
   const state = context.audit.state;
   state.active = true; state.document = "doc"; state.viewport = { transform: [1, 0, 0, 1, 0, 0], width: 600, height: 800 };
@@ -92,6 +92,31 @@ async function check(label, run) { await run(); passed++; console.log(`ok - ${la
     const h = harness(); h.snapshot.items = [line()]; const original = copy(h.snapshot.items);
     h.setCommand(async (_op, _body, guard) => { h.state.hidden.add("length"); guard(); });
     await assert.rejects(h.toggleLegend(), /eligible Length or Count/); assert.deepEqual(copy(h.snapshot.items), original); assert.equal(h.snapshot.drawing_presentation, undefined);
+  });
+  await check("Current native DFT legends use exact micron text with and without a native micron field", () => {
+    const h = harness(), item = { ...line(), version: 1 }, before = copy(item);
+    h.state.ui.target.value = 'steel_intumescent'; h.context.window.CeasefireCalculators = { projectFingerprint: () => 'current-draft' };
+    h.snapshot.items = [item]; h.snapshot.drawing_presentation = { version: 1, colour_modes: [{ document_id: 'doc', calculator_id: 'steel_intumescent', palette_version: 2,
+      originals: [{ item_id: item.id, item_version: 1, calculator_id: 'steel_intumescent', thickness_mm: 1.007, colour: '#A0A0A0' }] }], legends: [] };
+    const record = { calculator_id: 'steel_intumescent', status: 'Current', intumescent_thickness_mm: 1.007 };
+    h.setLinked({ key: h.thicknessContext().key, pending: false, results: { [item.id]: [record] } });
+    const legend = { mode: 'steel', document_id: 'doc', page: 1 };
+    assert.ok(h.drawingLegendRows(legend)[0].text.endsWith('1007 µm'));
+    assert.equal(h.drawingLegendRows(legend)[0].colour, '#A0A0A0');
+    record.intumescent_dft_um = 1007.1234567890123;
+    assert.ok(h.drawingLegendRows(legend)[0].text.endsWith('1007.1234567890123 µm'));
+    delete record.intumescent_dft_um; record.intumescent_thickness_mm = 1e-7;
+    assert.ok(h.drawingLegendRows(legend)[0].text.endsWith('0.0001 µm'));
+    record.status = 'Unavailable'; assert.ok(h.drawingLegendRows(legend)[0].text.endsWith('Thickness missing/unavailable'));
+    assert.equal(h.drawingLegendRows(legend)[0].colour, '#FF3300');
+    record.status = 'Current'; record.intumescent_thickness_mm = 10.000125;
+    const retained = h.snapshot.drawing_presentation.colour_modes[0].originals[0]; retained.thickness_mm = 10.000125; retained.colour = null;
+    assert.ok(h.drawingLegendRows(legend)[0].text.endsWith('10000.125 µm (outside 0–10,000 µm colour scale)'));
+    assert.equal(h.drawingLegendRows(legend)[0].colour, '#FF3300');
+    delete h.snapshot.drawing_presentation.colour_modes[0].palette_version; retained.colour = '#A0A0A0';
+    assert.ok(h.drawingLegendRows(legend)[0].text.endsWith('10000.125 µm'));
+    assert.equal(h.drawingLegendRows(legend)[0].colour, '#A0A0A0');
+    assert.deepEqual(copy(item), before);
   });
   await check("Call-out asset is the exact original additional attachment", () => {
     const bytes = fs.readFileSync("static/icons/takeoff-callout.png"); assert.equal(bytes.length, 3650); assert.equal(crypto.createHash("sha256").update(bytes).digest("hex"), "068c58a46525a2618709cb4c77056214a9b1f4ff289d4785e1db8b7f50c9c8dd");

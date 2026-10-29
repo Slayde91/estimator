@@ -12,7 +12,7 @@ from unittest.mock import patch
 from pypdf import PdfReader
 from reportlab.pdfgen.canvas import Canvas
 
-from estimator.certification import FIELDS
+from estimator.certification import FIELDS, SIGNER_FIELDS
 from estimator.company_settings import DEFAULTS
 from estimator.server import create_server
 from estimator.storage import Store
@@ -152,6 +152,59 @@ class CertificationHTTPTests(unittest.TestCase):
                          headers={'Origin':'https://untrusted.example'})[0],403)
         self.assertEqual(self.request('GET','/api/certifications/36a7dfcb-d73e-4536-aa24-df04827c63f3')[0],404)
         self.assertEqual(self.json('GET','/api/certifications'),{'items':[]})
+
+    def test_certificate_options_cover_override_and_frozen_retry_contract(self):
+        self.json('POST', '/api/company-settings', {**DEFAULTS, 'cover_pdf': cover('GLOBAL COVER'),
+                  'cover_pdf_name': 'Global.pdf'})
+        selected = {'cover_pdf': cover('LOCAL COVER'), 'cover_pdf_name': 'Local.pdf',
+                    'scopes': ['service_penetrations', 'ductwork']}
+        doc = self.json('POST', '/api/certifications', {'fields': self.fields, 'options': selected,
+                        'request_id': '3bad93f1-a4bb-4d95-98e1-bdfd0331ad52'}, expected=201)
+        path = '/api/certifications/' + doc['id']
+        self.assertEqual(doc['options'], selected)
+        self.assertEqual(self.json('GET', path)['options'], selected)
+        revised = {**selected, 'scopes': ['structural_steel_columns']}
+        saved = self.json('POST', path, {'fields': self.fields, 'options': revised, 'expected_version': 1})
+        self.assertEqual(saved['version'], 2)
+        self.assertEqual(saved['revisions'], [])
+        self.json('POST', path, {'fields': self.fields, 'options': selected, 'expected_version': 1}, expected=409)
+        request = {'fields': self.fields, 'options': revised, 'expected_version': 2,
+                   'request_id': '540b3ba2-5bca-4c5f-a2d1-d9bad6c03f70'}
+        with patch('estimator.certification_report.render_certificate_pdf', return_value=pdf('CERTIFICATE BODY')):
+            generated = self.json('POST', path+'/revisions', request, expected=201)
+        first = self.request('GET', generated['revision']['pdf_url'])[2]
+        self.assertEqual(len(texts(first)), 2)
+        self.assertIn('LOCAL COVER', texts(first)[0])
+        self.assertNotIn('GLOBAL COVER', ' '.join(texts(first)))
+        self.json('POST', '/api/company-settings', {**DEFAULTS, 'cover_pdf': cover('CHANGED GLOBAL'),
+                  'cover_pdf_name': 'Changed.pdf'})
+        replay = self.json('POST', path+'/revisions', request, expected=201)
+        self.assertEqual(replay['revision'], generated['revision'])
+        self.assertEqual(replay['document']['options'], revised)
+        self.assertEqual(self.request('GET', generated['revision']['pdf_url'])[2], first)
+        for bad in ({**revised, 'scopes': ['unapproved']}, None, {**revised, 'extra': True}):
+            self.json('POST', path, {'fields': self.fields, 'options': bad, 'expected_version': 3}, expected=400)
+        self.assertEqual(self.json('GET', path), replay['document'])
+
+    def test_signer_defaults_endpoint_cas_validation_and_document_isolation(self):
+        initial = self.json('GET', '/api/certifications/defaults')
+        self.assertEqual(initial, {'fields': dict.fromkeys(SIGNER_FIELDS, ''), 'version': 1})
+        doc = self.json('POST', '/api/certifications', {'fields': self.fields}, expected=201)
+        entered = {'name': 'Saved signer', 'position': 'Entered position',
+                   'qualification': 'Entered qualification', 'accreditation': 'Entered accreditation'}
+        saved = self.json('POST', '/api/certifications/defaults', {'fields': entered, 'expected_version': 1})
+        self.assertEqual(saved, {'fields': entered, 'version': 2})
+        self.assertEqual(self.json('POST', '/api/certifications/defaults',
+                                  {'fields': entered, 'expected_version': 1}), saved)
+        self.json('POST', '/api/certifications/defaults', {'fields': {**entered, 'name': 'Other'},
+                  'expected_version': 1}, expected=409)
+        self.json('POST', '/api/certifications/defaults', {'fields': {**entered, 'client': 'Wrong field'},
+                  'expected_version': 2}, expected=400)
+        self.assertEqual(self.request('PUT', '/api/certifications/defaults',
+                         {'fields': entered, 'expected_version': 2})[0], 405)
+        self.assertEqual(self.request('POST', '/api/certifications/defaults',
+                         {'fields': entered, 'expected_version': 2}, headers={'Origin': 'https://untrusted.example'})[0], 403)
+        self.assertEqual(self.json('GET', '/api/certifications/'+doc['id']), doc)
 
 
 if __name__ == '__main__':

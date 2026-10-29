@@ -6,7 +6,7 @@ from xml.sax.saxutils import escape
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle
-from reportlab.platypus import LongTable, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+from reportlab.platypus import HRFlowable, Paragraph, SimpleDocTemplate, Spacer
 
 from .company_settings import company_logo
 from .report import _company_header, _register_fonts
@@ -21,7 +21,6 @@ EXCLUSIONS_INTRO = ('Certification is strictly limited to passive fire protectio
 _RED = colors.HexColor('#BD0018')
 _LINE = colors.HexColor('#D7D7D7')
 _MARGIN = 36
-_WIDTH = A4[0] - 2 * _MARGIN
 
 
 def render_certificate_pdf(fields, *, company, certificate_id, revision, created_at):
@@ -35,24 +34,20 @@ def render_certificate_pdf(fields, *, company, certificate_id, revision, created
                                   leading=14, textColor=_RED, spaceBefore=10, spaceAfter=6, keepWithNext=True),
         'body': ParagraphStyle('CertificateBody', fontName='CeasefireVera', fontSize=8.5,
                                leading=12, spaceAfter=7, splitLongWords=True),
-        'label': ParagraphStyle('CertificateLabel', fontName='CeasefireVeraBold', fontSize=8,
-                                leading=11, splitLongWords=True),
-        'cell': ParagraphStyle('CertificateCell', fontName='CeasefireVera', fontSize=8.2,
-                               leading=11.5, splitLongWords=True),
-        'head': ParagraphStyle('CertificateHead', fontName='CeasefireVeraBold', fontSize=8,
-                               leading=11, textColor=colors.white, splitLongWords=True),
+        'label': ParagraphStyle('CertificateLabel', fontName='CeasefireVeraBold', fontSize=8.5,
+                                leading=12, spaceBefore=9, spaceAfter=3,
+                                keepWithNext=True, splitLongWords=True),
     }
-    def p(value, style='cell'):
+    def p(value, style='body'):
         return Paragraph(escape(value or '').replace('\n', '<br/>') or '&#160;', styles[style])
     def details(rows):
-        table = LongTable([[p(label, 'label'), p(value)] for label, value in rows],
-                          colWidths=[156, _WIDTH - 156], hAlign='LEFT', splitByRow=1, splitInRow=1)
-        table.setStyle(TableStyle([
-            ('VALIGN', (0,0), (-1,-1), 'TOP'), ('LEFTPADDING', (0,0), (-1,-1), 0),
-            ('RIGHTPADDING', (0,0), (-1,-1), 8), ('TOPPADDING', (0,0), (-1,-1), 7),
-            ('BOTTOMPADDING', (0,0), (-1,-1), 7), ('LINEBELOW', (0,0), (-1,-1), .4, _LINE),
-        ]))
-        return table
+        # Each value uses the whole text width. Independent paragraphs allow
+        # long user entries to continue naturally across certificate pages.
+        blocks = []
+        for label, value in rows:
+            blocks.extend((p(label, 'label'), p(value, 'body'),
+                           HRFlowable(width='100%', thickness=.4, color=_LINE)))
+        return blocks
     output = BytesIO()
     document = SimpleDocTemplate(output, pagesize=A4, leftMargin=_MARGIN, rightMargin=_MARGIN,
                                  topMargin=92, bottomMargin=44, title='Installation Certificate',
@@ -70,10 +65,10 @@ def render_certificate_pdf(fields, *, company, certificate_id, revision, created
         canvas.drawString(_MARGIN, 22, f'Certificate {short_id} | Revision {revision} | {timestamp}')
         canvas.drawRightString(A4[0] - _MARGIN, 22, f'Page {doc.page}')
         canvas.restoreState()
-    story = [p('Installation Certificate', 'title'), details([
+    story = [p('Installation Certificate', 'title'), *details([
         ('Client', fields['client']), ('Project', fields['project']), ('Address', fields['address']),
         ('Location/Area', fields['location_area']),
-    ]), p('Statement of Compliance', 'heading'), p(fields['statement_of_compliance'], 'body'), details([
+    ]), p('Statement of Compliance', 'heading'), p(fields['statement_of_compliance'], 'body'), *details([
         ('The relevant Australian Standards listed in the NCC as follows:', fields['australian_standards']),
         ('The relevant clauses of the NCC, as follows:', fields['ncc_clauses']),
         ('The design detail submitted at the construction approval stage:', fields['approved_design']),
@@ -84,16 +79,8 @@ def render_certificate_pdf(fields, *, company, certificate_id, revision, created
         ('Materials/Manufacturers:', fields['materials_manufacturers']),
         ('Fire Resistance Level:', fields['fire_resistance_level']),
     ]), Spacer(1, 12), p(ATTESTATION.format(company=company_name), 'body'), Spacer(1, 5)]
-    signatories = LongTable([[p(label,'head') for label in ('Name','Position','Qualification','Accreditation')],
-                            [p(fields[key]) for key in ('name','position','qualification','accreditation')]],
-                           colWidths=[_WIDTH*.2,_WIDTH*.2,_WIDTH*.3,_WIDTH*.3], repeatRows=1,
-                           hAlign='LEFT', splitByRow=1, splitInRow=1)
-    signatories.setStyle(TableStyle([
-        ('BACKGROUND',(0,0),(-1,0),_RED),('VALIGN',(0,0),(-1,-1),'TOP'),
-        ('GRID',(0,0),(-1,-1),.4,_RED),('LEFTPADDING',(0,0),(-1,-1),6),
-        ('RIGHTPADDING',(0,0),(-1,-1),6),('TOPPADDING',(0,0),(-1,-1),6),
-        ('BOTTOMPADDING',(0,0),(-1,-1),6),
-    ]))
-    story.append(signatories)
+    story.extend(details([(label, fields[key]) for label, key in (
+        ('Name', 'name'), ('Position', 'position'), ('Qualification', 'qualification'),
+        ('Accreditation', 'accreditation'))]))
     document.build(story, onFirstPage=page, onLaterPages=page)
     return output.getvalue()

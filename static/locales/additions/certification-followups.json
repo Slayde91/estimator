@@ -1,0 +1,147 @@
+{
+  "Certification scope": [
+    "인증 범위",
+    "Saklaw ng sertipikasyon",
+    "Phạm vi chứng nhận"
+  ],
+  "Structural steel": [
+    "구조용 강재",
+    "Bakal na pang-istruktura",
+    "Thép kết cấu"
+  ],
+  "Structural steel incl. columns": [
+    "기둥을 포함한 구조용 강재",
+    "Bakal na pang-istruktura, kasama ang mga haligi",
+    "Thép kết cấu, gồm cột"
+  ],
+  "Service penetrations": [
+    "설비 관통부",
+    "Mga butas na dinaraanan ng mga linya ng serbisyo",
+    "Lỗ xuyên của hệ thống kỹ thuật"
+  ],
+  "Selections add editable standards and NCC clauses. Your additional text is retained.": [
+    "선택한 범위에 따라 편집 가능한 표준과 NCC 조항이 추가됩니다. 직접 추가한 문구는 유지됩니다.",
+    "Nagdaragdag ang mga pagpili ng nae-edit na pamantayan at mga sugnay ng NCC. Pinapanatili ang karagdagang tekstong inilagay mo.",
+    "Lựa chọn sẽ thêm các tiêu chuẩn và điều khoản NCC có thể chỉnh sửa. Nội dung bạn thêm được giữ nguyên."
+  ],
+  "Cover page": [
+    "표지",
+    "Pahinang pabalat",
+    "Trang bìa"
+  ],
+  "This cover applies to this certification. Without a selected cover, the company cover sheet is used when available.": [
+    "이 표지는 이 인증서에 적용됩니다. 별도 표지를 선택하지 않으면 저장된 회사 표지가 있을 경우 사용됩니다.",
+    "Ang pabalat na ito ay para sa sertipikasyong ito. Kung walang napiling pabalat, gagamitin ang pabalat ng kumpanya kung mayroon.",
+    "Bìa này áp dụng cho chứng nhận này. Nếu không chọn bìa, bìa công ty sẽ được dùng khi có sẵn."
+  ],
+  "Cover sheet.pdf": [
+    "표지.pdf",
+    "Pabalat.pdf",
+    "Trang bìa.pdf"
+  ],
+  "Company cover sheet will be used: {0}": [
+    "회사 표지를 사용합니다: {0}",
+    "Gagamitin ang pabalat ng kumpanya: {0}",
+    "Sẽ dùng bìa công ty: {0}"
+  ],
+  "Current certificate": [
+    "현재 인증서",
+    "Kasalukuyang sertipiko",
+    "Chứng nhận hiện tại"
+  ],
+  "Signer details are saved for future certificates when edited.": [
+    "서명자 정보를 수정하면 이후 인증서에 사용할 수 있도록 저장됩니다.",
+    "Sine-save ang mga detalye ng lumalagda para sa mga susunod na sertipiko kapag in-edit.",
+    "Thông tin người ký được lưu cho các chứng nhận sau khi chỉnh sửa."
+  ],
+  "Signer details saved for future certificates.": [
+    "이후 인증서에 사용할 서명자 정보를 저장했습니다.",
+    "Na-save ang mga detalye ng lumalagda para sa mga susunod na sertipiko.",
+    "Đã lưu thông tin người ký cho các chứng nhận sau."
+  ],
+  "Saving signer details…": [
+    "서명자 정보 저장 중…",
+    "Sine-save ang mga detalye ng lumalagda…",
+    "Đang lưu thông tin người ký…"
+  ],
+  "Signer details changed": [
+    "서명자 정보 변경됨",
+    "Nagbago ang mga detalye ng lumalagda",
+    "Thông tin người ký đã thay đổi"
+  ],
+  "Signer details were changed in another window. Use the entered details for future certificates?": [
+    "다른 창에서 서명자 정보가 변경되었습니다. 입력한 정보를 이후 인증서에 사용할까요?",
+    "Binago ang mga detalye ng lumalagda sa ibang window. Gagamitin ba ang inilagay na detalye para sa mga susunod na sertipiko?",
+    "Thông tin người ký đã thay đổi trong cửa sổ khác. Dùng thông tin đã nhập cho các chứng nhận sau?"
+  ],
+  "Use entered details": [
+    "입력한 정보 사용",
+    "Gamitin ang inilagay na detalye",
+    "Dùng thông tin đã nhập"
+  ],
+  "Signer details changed in another window. Your entries are kept. Save again to review and retry.": [
+    "다른 창에서 서명자 정보가 변경되었습니다. 입력한 내용은 유지됩니다. 다시 저장하여 검토하고 재시도하세요.",
+    "Nagbago ang mga detalye ng lumalagda sa ibang window. Nananatili ang mga inilagay mo. I-save muli upang suriin at subukan ulit.",
+    "Thông tin người ký đã thay đổi trong cửa sổ khác. Nội dung bạn nhập được giữ nguyên. Lưu lại để xem xét và thử lại."
+  ],
+  "Signer details could not be saved. Your entries are kept; save again to retry.": [
+    "서명자 정보를 저장하지 못했습니다. 입력한 내용은 유지됩니다. 다시 저장하여 재시도하세요.",
+    "Hindi na-save ang mga detalye ng lumalagda. Nananatili ang mga inilagay mo; i-save muli upang subukan ulit.",
+    "Không thể lưu thông tin người ký. Nội dung bạn nhập được giữ nguyên; lưu lại để thử lại."
+  ],
+  "Signer details are still unsaved. Your certification details are kept.": [
+    "서명자 정보가 아직 저장되지 않았습니다. 인증서 내용은 유지됩니다.",
+    "Hindi pa naka-save ang mga detalye ng lumalagda. Nananatili ang mga detalye ng sertipikasyon mo.",
+    "Thông tin người ký vẫn chưa được lưu. Nội dung chứng nhận của bạn được giữ nguyên."
+  ],
+  "The saved certification scope is invalid.": [
+    "저장된 인증 범위가 올바르지 않습니다.",
+    "Hindi wasto ang naka-save na saklaw ng sertipikasyon.",
+    "Phạm vi chứng nhận đã lưu không hợp lệ."
+  ],
+  "{0}": [
+    "{0}",
+    "{0}",
+    "{0}"
+  ],
+  "Some DFT values exceed the 10,000 µm colour scale. Available thickness colours were applied; original colours were retained for unavailable or out-of-range values.": [
+    "일부 DFT 값이 10,000 µm 색상 범위를 초과합니다. 사용 가능한 두께 값의 색상을 적용했으며, 값이 없거나 범위를 벗어난 경우 기존 색상을 유지했습니다.",
+    "May ilang DFT na lumampas sa saklaw ng kulay na 10,000 µm. Nailapat ang mga kulay para sa mga makukuhang halaga ng kapal; pinanatili ang orihinal na kulay para sa mga halagang hindi makuha o wala sa saklaw.",
+    "Một số giá trị DFT vượt thang màu 10,000 µm. Đã áp dụng màu cho các giá trị độ dày có sẵn; màu gốc được giữ lại đối với các giá trị không có dữ liệu hoặc ngoài phạm vi."
+  ],
+  "Include the certificate cover, cover filename and selected scopes only.": [
+    "인증서 표지, 표지 파일명 및 선택한 범위만 포함하세요.",
+    "Isama lamang ang pabalat ng sertipiko, pangalan ng file nito at mga napiling saklaw.",
+    "Chỉ gửi bìa chứng nhận, tên tệp bìa và các phạm vi đã chọn."
+  ],
+  "The certificate cover filename is invalid.": [
+    "인증서 표지 파일명이 올바르지 않습니다.",
+    "Hindi wasto ang pangalan ng file ng pabalat ng sertipiko.",
+    "Tên tệp bìa chứng nhận không hợp lệ."
+  ],
+  "Choose each supported certification scope at most once.": [
+    "지원되는 각 인증 범위는 한 번만 선택하세요.",
+    "Piliin ang bawat suportadong saklaw ng sertipikasyon nang hindi hihigit sa isang beses.",
+    "Chỉ chọn mỗi phạm vi chứng nhận được hỗ trợ tối đa một lần."
+  ],
+  "Include name, position, qualification and accreditation only.": [
+    "이름, 직위, 자격 및 공인 자격만 포함하세요.",
+    "Isama lamang ang pangalan, posisyon, kwalipikasyon at akreditasyon.",
+    "Chỉ gửi họ tên, chức vụ, trình độ chuyên môn và chứng nhận năng lực."
+  ],
+  "The saved signer details changed in another window. Reload them before saving again.": [
+    "다른 창에서 저장된 서명자 정보가 변경되었습니다. 다시 저장하기 전에 불러오세요.",
+    "Nagbago sa ibang window ang naka-save na detalye ng lumalagda. I-load itong muli bago muling i-save.",
+    "Thông tin người ký đã lưu đã thay đổi trong cửa sổ khác. Hãy tải lại trước khi lưu lần nữa."
+  ],
+  "Include the signer details and current defaults version.": [
+    "서명자 정보와 현재 기본값 버전을 포함하세요.",
+    "Isama ang mga detalye ng lumalagda at ang kasalukuyang bersyon ng mga default.",
+    "Gửi thông tin người ký và phiên bản giá trị mặc định hiện tại."
+  ],
+  "Unsupported thickness colour palette version.": [
+    "지원되지 않는 두께 색상표 버전입니다.",
+    "Hindi sinusuportahan ang bersyon ng paleta ng kulay para sa kapal.",
+    "Phiên bản bảng màu độ dày không được hỗ trợ."
+  ]
+}

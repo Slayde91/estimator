@@ -1,0 +1,16 @@
+[
+  {"source":"Fit 30mm board. Page 1: Use 40mm strips. Page 2: Use 50 x 50mm SHS with 30mm cladding.","display":"Fit 30mm board. Use 40mm strips. Use 50 x 50mm SHS w/ 30mm cladding."},
+  {"source":"Page 1, 2, 3: Fix with M6 anchors at max. 300mm centres.\n\nPage 4: Do not exceed 25mm gaps.","display":"Fix w/ M6 anchors at max. 300mm centres.\n\nDo not exceed 25mm gaps."},
+  {"source":"Where required, wrap services to the correct length (as per Page 2).","display":"Where required, wrap services to the correct length."},
+  {"source":"Wrap for 450mm (SEE PAGES 2-3). Do not omit the 50mm overlap.","display":"Wrap for 450mm. Do not omit the 50mm overlap."},
+  {"source":"Use ties 50mm from each end at 150mm centres. See Pages 2-3 for details.","display":"Use ties 50mm from each end at 150mm centres."},
+  {"source":"See https://example.test/page2.pdf. Page 2: Keep 20mm sealant and 2 layers.","display":"See https://example.test/page2.pdf. Keep 20mm sealant and 2 layers."},
+  {"source":"Page 2 mm: retain this dimension. Install 2 items 4 mm thick.","display":"Page 2 mm: retain this dimension. Install 2 items 4 mm thick."},
+  {"source":"Use 30mm board (Page 2, minimum 50mm overlap).","display":"Use 30mm board (Page 2, min. 50mm overlap)."},
+  {"source":"See source page 2 for approved services. Do not install unapproved services.","display":"See source page 2 for approved services. Do not install unapproved services."},
+  {"source":"Sealant backed with foam backing rod. (Page 2).\nRetain the 25 mm depth.","display":"Sealant backed w/ foam backing rod.\nRetain the 25 mm depth."},
+  {"source":"System approved for both directions (AUSPEX PEX pipe). .\nHPE installed 13 mm deep.","display":"System approved for both directions (AUSPEX PEX pipe).\nHPE installed 13 mm deep."},
+  {"source":"Secure ties on both floor and ceiling sides. .\nFinish with a 30 mm fillet.","display":"Secure ties on both floor and ceiling sides.\nFinish w/ a 30 mm fillet."},
+  {"source":"Use 0.5 mm sheet, 1..2 mm gaps and 1 . . 2 mm test notation. Keep the 1–2 mm limit. Wait... Keep this . . . Notation. See https://example.test/a..b/page2.pdf.","display":"Use 0.5 mm sheet, 1..2 mm gaps and 1 . . 2 mm test notation. Keep the 1–2 mm limit. Wait... Keep this . . . Notation. See https://example.test/a..b/page2.pdf."},
+  {"source":"Seal the gap. (Page 2). Do not omit the 15 mm depth.\nKeep this ellipsis . . .\nWait...","display":"Seal gap. Do not omit the 15 mm depth.\nKeep this ellipsis . . .\nWait..."}
+]

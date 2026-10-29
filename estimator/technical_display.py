@@ -12,7 +12,10 @@ _BRACKETED = re.compile(r'\(([^()]*)\)')
 _REFERENCE_NUMBER = r'\d+(?:\s*[A-Za-z]\b)?(?:\s*(?:[-\u2013\u2014/,;&]|\band\b|\bor\b|\bto\b)\s*\d+(?:\s*[A-Za-z]\b)?)*'
 _LOCATOR = re.compile(r'\b(?:(?:see|refer\s+to|as\s+per)\s+)?(?:tables?|items?|figures?|figs?\.?)\s+' + _REFERENCE_NUMBER, re.I)
 _GENERATED_TABLE = re.compile(r'^\s*(?:Service Size\s*/\s*Configuration|Barrier Construction)\s+table\s+' + _REFERENCE_NUMBER + r'\s*[;,]?\s*', re.I)
-_PAGE_PREFIX = re.compile(r'^[ \t]*(?:Source[ \t]+)?Pages?[ \t]+\d+(?:[ \t]*(?:,|&|and|[-–—])[ \t]*\d+)*[ \t]*:[ \t]*', re.I | re.M)
+_PAGE_PREFIX = re.compile(r'(^[ \t]*|(?<=[.!?])[ \t]+)(?:Source[ \t]+)?Pages?[ \t]+\d+(?:[ \t]*(?:,|&|and|[-–—])[ \t]*\d+)*[ \t]*:[ \t]*', re.I | re.M)
+_PAGE_POINTER = re.compile(r'\(\s*(?:(?:see|refer\s+to|as\s+per|per|p/)\s+)?(?:source\s+)?pages?\s+' + _REFERENCE_NUMBER + r'\s*\)', re.I)
+_PAGE_DETAILS = re.compile(r'(?<!\w)(?:See|Refer\s+to)\s+(?:source\s+)?pages?\s+' + _REFERENCE_NUMBER + r'\s+for\s+(?:further\s+)?details\.?', re.I)
+_SENTENCE_STOP_PAIR = re.compile(r'(?<=[A-Za-z)\]])\.[ \t]+\.(?![ \t]*\.)(?=[ \t]*(?:$|[A-Za-z]))', re.M)
 _DIAMETER_NUMBER = r'(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)'
 _DIAMETER_VALUE = '(' + _DIAMETER_NUMBER + r')[ \t]*(?:mm)?'
 _EQUAL_DIAMETERS = re.compile(
@@ -173,11 +176,19 @@ def compact_technical_text(value):
     """Shorten display prose; retain original evidence and technical qualifiers."""
     if not isinstance(value, str):
         return value
-    # Imported page labels are provenance, not part of the installation step.
-    # Keep inline references, source captions and every requirement unchanged.
-    value = _PAGE_PREFIX.sub('', value)
+    # Remove only editorial page labels and content-free pointers. Requirements
+    # and conditional alternatives remain intact; original evidence is retained.
+    value = _PAGE_PREFIX.sub(r'\1', value)
 
     def compact(text):
+        text = _PAGE_POINTER.sub('', text)
+        text = _PAGE_DETAILS.sub('', text)
+        # A removed parenthetical may leave two sentence stops. Restrict the
+        # repair to a word/closing bracket and sentence boundary: numeric ranges,
+        # decimals and both adjacent and spaced ellipses keep their punctuation.
+        text = _SENTENCE_STOP_PAIR.sub('.', text)
+        text = re.sub(r'[ \t]+([,;:])', r'\1', text)
+        text = re.sub(r'(?<=[A-Za-z)\]])[ \t]+\.(?![\d.]|[ \t]*\.)', '.', text)
         text = _single_diameter(text)
         text = _without_cross_references(text)
         for expression, replacement in _RULES:
@@ -189,4 +200,4 @@ def compact_technical_text(value):
         pieces.extend((compact(value[cursor:match.start()]), match[0]))
         cursor = match.end()
     pieces.append(compact(value[cursor:]))
-    return _capitalise_sentences(''.join(pieces), value)
+    return _capitalise_sentences(re.sub(r'[ \t]+$', '', ''.join(pieces), flags=re.M), value)

@@ -181,6 +181,13 @@ async function check(name,fn,{open=true}={}){const h=harness();if(open)await h.a
     assert.deepEqual(choices,['quotes','certification']);
   }
   assert.ok(html.includes('data-project-section="quotes"'));assert.ok(html.includes('data-project-section="certification"'));
+  const projectsHub=html.match(/<section id="view-projects"[^>]*>[\s\S]*?<\/section>/)?.[0];
+  const projectsMenu=html.match(/<div id="projects-navigation-menu"[^>]*>[\s\S]*?<\/div>/)?.[0];
+  for(const [name,markup] of [['Projects hub',projectsHub],['Projects navigation menu',projectsMenu]]){
+    assert.ok(markup, name+' is present');
+    assert.deepEqual([...markup.matchAll(/data-project-section="([^"]+)"/g)].map(match=>match[1]),
+      ['quotes','certification'], name+' has exactly its Projects and Certification choices');
+  }
   for(const key of fieldNames)assert.ok(html.includes('id="certification-'+key+'"'));
   const form=html.slice(html.indexOf('<form id="certification-form">'),html.indexOf('</form>',html.indexOf('<form id="certification-form">')));
   assert.ok(form.lastIndexOf('<button')===form.indexOf('<button id="certification-generate"'));

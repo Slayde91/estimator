@@ -43,7 +43,14 @@ const finish = () => page.locator('.takeoff-viewport').press('Enter');
 const handle = (id, index, exclusion = '') => page.locator(`.takeoff-control-point[data-control-item-id="${id}"][data-point-index="${index}"][data-exclusion-id="${exclusion}"]`);
 async function select(id) { const all = page.getByRole('checkbox', { name: 'Select all matching items', exact: true }); await all.check(); await all.uncheck(); await page.locator(`tr[data-item-id="${id}"]`).getByRole('checkbox', { name: /^Select / }).check(); await page.getByRole('button', { name: 'Select', exact: true }).click(); }
 async function drag(id, index, destination, exclusion = '', during) {
-  const point = handle(id, index, exclusion); await point.scrollIntoViewIfNeeded(); const target = await screen(destination); await expect(point).toBeVisible(); let before; await expect.poll(async () => { before = await point.boundingBox(); return !!before; }).toBe(true);
+  // Linked-result display refreshes replace SVG handles. Scroll the stable
+  // overlay in screen(), then resolve the current point for this exact shape.
+  const target = await screen(destination), point = handle(id, index, exclusion);
+  await expect(point).toHaveCount(1);
+  await expect(point).toHaveAttribute('data-control-item-id', id);
+  await expect(point).toHaveAttribute('data-point-index', String(index));
+  await expect(point).toHaveAttribute('data-exclusion-id', exclusion);
+  await expect(point).toBeVisible(); let before; await expect.poll(async () => { before = await point.boundingBox(); return !!before; }).toBe(true);
   const origin = [before.x + before.width / 2, before.y + before.height / 2]; await page.mouse.move(...origin); await page.mouse.down();
   try { let midway; if (during) { await page.mouse.move((origin[0] + target[0]) / 2, (origin[1] + target[1]) / 2, { steps: 4 }); midway = await page.evaluate(() => window.CeasefireTakeoffs.projectFingerprint()); } await page.mouse.move(...target, { steps: 8 }); if (during) await during(midway); } finally { await page.mouse.up(); }
 }

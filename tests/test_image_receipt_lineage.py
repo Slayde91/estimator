@@ -6,7 +6,7 @@ import json
 import unittest
 
 from estimator.image_receipt_lineage import (
-    EVIDENCE_SCHEMA, FAMILY, QUALIFICATION, ReceiptError, read_native_attempt,
+    EVIDENCE_SCHEMA, FAMILY, QUALIFICATION, RUN17_FAMILY, RUN19_FAMILY, ReceiptError, read_native_attempt,
 )
 
 
@@ -417,6 +417,282 @@ class NativeReceiptTests(unittest.TestCase):
             f.binding['native_evidence'] = f.doc('duplicate-position', evidence)
             with self.assertRaises(ReceiptError):
                 f.run()
+
+
+
+
+
+
+PEER = '33333333-3333-4333-8333-333333333333'
+
+
+class LiteralFixture(Fixture):
+    def __init__(self, family=RUN17_FAMILY):
+        super().__init__(preparation='singleton')
+        self.family = family
+        self.binding['literal_family'] = family
+        self.job['references'] = [dict(kind='technical',record_id='record-a')]
+        before = self.documents['qualification']
+        before['complete_Q'] = self.job
+        self.replace_doc('qualification',before)
+        if family == RUN19_FAMILY:
+            reservation = dict(job=7, attempt=1, technical_approval=False, accepted=False, installed=False,
+                complete_Q=self.job, complete_direct_RAW={'record-a':dict(kind='technical',raw=self.raw)}, exact_arguments=self.args_pin,
+                exact_prompt=self.prompt_pin, ALL_ordered_references=self.refs,
+                one_builtin_call_reserved=True, call_dispatched=False)
+            other_args = dict(self.args, prompt='Other job prompt.')
+            self.other_args = other_args
+            other = dict(reservation, job=8, exact_arguments=self.doc('other-args',other_args),
+                         exact_prompt=self.put(self.base+'/other-prompt.txt',other_args['prompt'].encode()))
+            before = dict(result='ROOT_FINITE_SOURCE_ONLY_TWO_PRIVATE_CALL_QUALIFICATION_NOT_ACCEPTANCE_OR_INSTALL',
+                recorded_utc=self.time(1), owner_thread_id=ROOT, owner_execution_token='token', technical_approval=False,
+                targets=[7,8], maximum_new_canonical=12, reserved_distinct_jobs_after_dispatch=list(range(12)),
+                reserved_distinct_count=12, continuing_ten_distinct_jobs=[0,1,2,3,4,5,6,9,10,11],
+                reservations={'7':reservation,'8':other})
+            self.replace_doc('qualification',before)
+        dispatch = dict(job=7, attempt=1, recorded_utc=self.time(2), technical_approval=False,
+                        exact_arguments=self.args_pin)
+        if family == RUN17_FAMILY:
+            dispatch.update(actual_tool_requested_next='image_gen.imagegen',dispatch_request_reserved=True,
+                            qualification_sha256=self.binding['qualification']['sha256'])
+        else:
+            dispatch.update(qualification=self.binding['qualification'],exact_prompt=self.prompt_pin,
+                            ALL_ordered_references=self.refs)
+        self.replace_doc('dispatch',dispatch)
+        returned = dict(job=7,attempt=1,recorded_utc=self.time(7),technical_approval=False,
+                        accepted=False,selected=False,installed=False,exact_arguments=self.args_pin,
+                        provider_original=self.provider)
+        if family == RUN17_FAMILY:
+            returned.update(retained_private_copy=self.private,qualification=self.binding['qualification'],
+                returned_candidates=1,tool_observed_start_UTC='2026-01-01 00:00:03 UTC',
+                tool_observed_return_UTC='2026-01-01 00:00:04 UTC',clock_precision_seconds=1)
+        else:
+            returned.update(private_copy=self.private,actual_dispatch=self.binding['dispatch'],
+                            exact_prompt=self.prompt_pin,return_index=0)
+        self.replace_doc('returned',returned)
+        self.events['preparation']['payload']['item']['aggregated_output']=json.dumps(self.args)
+        self.events['session']['payload']['id']=ROOT
+        for role in ('preparation','generation','whole_view'):
+            self.events[role]['payload']['thread_id']=ROOT
+        self.events['whole_view']['payload']['item']['path']=self.private['path']
+        if family == RUN17_FAMILY:
+            initial=self.doc('initial-root',dict(job=7,attempt=1,candidate=self.private,
+                result='ORDINARY_QUALITY_PENDING_TWO_LAYER_VISIBILITY_AND_INDEPENDENT_REVIEW',
+                whole_image_viewed=True,source_original_whole_viewed=True,technical_approval=False,
+                recorded_utc=self.time(7)))
+            peer=dict(schema='INDEPENDENT_WHOLE_RETURN_ASSESSMENT_NOT_ACCEPTANCE',job=7,attempt=1,
+                recorded_utc=self.time(9),technical_approval=False,acceptance=False,selection=False,installation=False,
+                candidate=self.provider,qualification=self.binding['qualification'],actual_dispatch=self.binding['dispatch'],
+                exact_prompt=self.prompt_pin,exact_arguments=self.args_pin,ALL_ordered_references=self.refs,
+                complete_original_whole_viewed=True,candidate_whole_viewed=True,complete_Q_matches_current=True,
+                full_Q=self.job,full_RAW=self.raw)
+            self.replace_doc('independent_review',peer)
+            root=dict(job=7,attempt=1,candidate=self.private,recorded_utc=self.time(10),technical_approval=False,
+                result='PROVISIONAL_ILLUSTRATION_PASS_WITH_NATURAL_OCCLUSION_LIMITS_NOT_ACCEPTANCE',
+                dated_initial_root_review=initial,independent_review=self.binding['independent_review'])
+        else:
+            peer=dict(self.peer_row,recorded_utc=self.time(9),schema='INDEPENDENT_WHOLE_RETURN_ASSESSMENT_ONLY_V1',
+                root_owner_thread_id=ROOT,root_owner_execution_token='token',private_copy=self.private,
+                qualification=self.binding['qualification'],return_lineage=self.binding['returned'],historical_return_verbatim=returned)
+            self.replace_doc('independent_review',peer)
+            root=dict(job=7,attempt=1,recorded_utc=self.time(8),technical_approval=False,
+                whole_return_personally_viewed=True,exact_return=self.private,
+                owner_thread_id=ROOT,owner_execution_token='token')
+            self.events['preparation']['payload']['item']['aggregated_output']=json.dumps([
+                dict(job=7,args=self.args,dispatch=self.binding['dispatch']),
+                dict(job=8,args=self.other_args,dispatch=dict(self.binding['dispatch'],path=self.base+'/other.json'))])
+            self.events['preparation_store']=dict(type='response_item',timestamp=self.time(2),payload=dict(
+                type='custom_tool_call',name='exec',input='const r=await tools.exec_command({cmd:'+json.dumps(self.events['preparation']['payload']['item']['command'][-1])+'});if(r.exit_code!==0){text(r);exit();}const rows=JSON.parse(r.output);for(const row of rows)store("jobs"+row.job,row);text(rows.map(x=>({job:x.job,dispatch:x.dispatch})));'))
+            self.events['dispatch']=dict(type='response_item',timestamp=self.time(3),payload=dict(
+                type='custom_tool_call',name='exec',call_id='call-group',input='const started=Date.now();const calls=[tools.image_gen__imagegen(load("jobs7").args).then(result=>generatedImage(result)),tools.image_gen__imagegen(load("jobs8").args).then(result=>generatedImage(result))];store("client_dispatch_ms",started);await Promise.allSettled(calls).then(results=>text(results));'))
+            self.events['dispatch_return']=copy.deepcopy(self.events['whole_view_pixels'])
+            self.events['dispatch_return'].update(timestamp=self.time(5))
+            self.events['dispatch_return']['payload']['call_id']='call-group'
+        self.replace_doc('root_review',root)
+        self.events['peer_session']=dict(type='session_meta',payload=dict(id=PEER,
+            source=dict(subagent=dict(thread_spawn=dict(parent_thread_id=ROOT)))))
+        self.events['peer_whole_view']=self.event('ImageView',5,dict(path=self.provider['path']))
+        self.events['peer_whole_view']['payload']['thread_id']=PEER
+        self.events['peer_whole_view_pixels']=copy.deepcopy(self.events['whole_view_pixels'])
+        written=self.binding['independent_review'] if family==RUN17_FAMILY else {'job7':self.binding['independent_review']}
+        self.events['peer_review_write']=self.event('CommandExecution',10,dict(status='completed',exit_code=0,
+            aggregated_output=json.dumps(written)))
+        self.events['peer_review_write']['payload']['thread_id']=PEER
+        order=['session','preparation','generation','whole_view','whole_view_pixels'] if family==RUN17_FAMILY else [
+            'session','preparation_store','preparation','dispatch','generation','dispatch_return']
+        order+=['peer_session','peer_whole_view','peer_whole_view_pixels','peer_review_write']
+        self.events={k:self.events[k] for k in order}
+        self.rebuild_events()
+
+    def rebuild_events(self):
+        super().rebuild_events()
+        if hasattr(self,'family'):
+            native=self.documents['native'];native['literal_family']=self.family
+            self.binding['native_evidence']=self.doc('native',native)
+
+
+class LiteralFamilyTests(unittest.TestCase):
+    def test_both_actual_literal_shapes_preserve_every_RAW_object_and_absence(self):
+        for family in (RUN17_FAMILY,RUN19_FAMILY):
+            with self.subTest(family=family):
+                f=LiteralFixture(family);snapshot=copy.deepcopy(f.documents);result=f.run()
+                self.assertEqual(result['literal_family'],family)
+                self.assertEqual(result['literal_qualification'],snapshot['qualification'])
+                self.assertEqual(result['literal_dispatch'],snapshot['dispatch'])
+                self.assertEqual(result['literal_return'],snapshot['returned'])
+                self.assertEqual(result['complete_RAW_view'],{'record-a':f.raw})
+                self.assertEqual(f.documents,snapshot)
+                self.assertIs(result['accepted'],False);self.assertIs(result['installed'],False)
+                self.assertIs(result['technical_approval'],False)
+                if family==RUN17_FAMILY:
+                    self.assertNotIn('exact_prompt',result['literal_return'])
+                    self.assertEqual(result['initial_ROOT_review']['result'],'ORDINARY_QUALITY_PENDING_TWO_LAYER_VISIBILITY_AND_INDEPENDENT_REVIEW')
+                else:
+                    self.assertNotIn('job',result['literal_qualification'])
+                    self.assertEqual(result['literal_reservation'],snapshot['qualification']['reservations']['7'])
+                    self.assertEqual(result['root_presentation'],'native_inline_tool_result')
+
+    def test_unknown_selector_does_not_fall_back_to_default(self):
+        f=Fixture();f.binding['literal_family']='unknown'
+        with self.assertRaisesRegex(ReceiptError,'unknown literal'):f.run()
+
+    def test_each_generation_and_peer_scope_change_fails(self):
+        changes=[('root','other'),('token','other'),('job',8),('attempt',2),('held_jobs',[7]),
+                 ('current_records',{}),('current_job',{}),('provider_root','C:/other'),('session_directory','C:/other')]
+        for family in (RUN17_FAMILY,RUN19_FAMILY):
+            for key,value in changes:
+                with self.subTest(family=family,key=key):
+                    f=LiteralFixture(family);f.context[key]=value
+                    with self.assertRaises(ReceiptError):f.run()
+
+    def test_native_pixels_refs_prompt_and_presentation_cannot_be_crossed(self):
+        mutations=[('generation','result',base64.b64encode(PNG+b'wrong').decode()),
+            ('generation','revisedPrompt','wrong'),('generation','inputImages',[]),
+            ('generation','failure','failed'),('generation','savedPath','C:/wrong.png'),
+            ('peer_whole_view','path','C:/wrong.png'),('peer_review_write','exit_code',True)]
+        for family in (RUN17_FAMILY,RUN19_FAMILY):
+            for role,key,value in mutations:
+                with self.subTest(family=family,role=role,key=key):
+                    f=LiteralFixture(family);f.events[role]['payload']['item'][key]=value;f.rebuild_events()
+                    with self.assertRaises(ReceiptError):f.run()
+
+    def test_peer_own_session_pixels_and_write_are_not_replaceable_assertions(self):
+        for family in (RUN17_FAMILY,RUN19_FAMILY):
+            for role in ('peer_session','peer_whole_view_pixels','peer_review_write'):
+                with self.subTest(family=family,role=role):
+                    f=LiteralFixture(family)
+                    if role=='peer_session':f.events[role]['payload']['source']['subagent']['thread_spawn']['parent_thread_id']='other'
+                    elif role=='peer_whole_view_pixels':f.events[role]['payload']['output']='[]'
+                    else:f.events[role]['payload']['item']['aggregated_output']='{}'
+                    f.rebuild_events()
+                    with self.assertRaises(ReceiptError):f.run()
+
+    def test_clock_precision_and_observations_stay_literal(self):
+        for key,value in [('tool_observed_return_UTC','2026-01-01 00:00:03 UTC'),
+                          ('tool_observed_start_UTC','invented'),('clock_precision_seconds',True)]:
+            f=LiteralFixture();r=copy.deepcopy(f.documents['returned']);r[key]=value;f.replace_doc('returned',r)
+            with self.assertRaises(ReceiptError):f.run()
+
+    def test_grouped_job_store_call_and_return_mapping_is_exact(self):
+        changes=[('dispatch','input','tools.image_gen__imagegen(load("jobs8").args).then(result=>generatedImage(result))'),
+                 ('dispatch_return','call_id','other'),('preparation_store','input','store("jobs7", {});')]
+        for role,key,value in changes:
+            f=LiteralFixture(RUN19_FAMILY);f.events[role]['payload'][key]=value;f.rebuild_events()
+            with self.assertRaises(ReceiptError):f.run()
+        f=LiteralFixture(RUN19_FAMILY);f.events['dispatch_return']['payload']['output']='[]';f.rebuild_events()
+        with self.assertRaises(ReceiptError):f.run()
+
+    def test_duplicate_group_reservations_cannot_hide_budget_or_job_changes(self):
+        for key,value in [('reserved_distinct_count',True),('reserved_distinct_jobs_after_dispatch',[7,7]),
+                          ('targets',[7,7]),('maximum_new_canonical',13)]:
+            f=LiteralFixture(RUN19_FAMILY);q=copy.deepcopy(f.documents['qualification']);q[key]=value;f.replace_doc('qualification',q)
+            with self.assertRaises(ReceiptError):f.run()
+
+    def test_supplementary_review_never_retimes_initial_pending_review(self):
+        f=LiteralFixture();root=copy.deepcopy(f.documents['root_review']);root['recorded_utc']=f.time(5);f.replace_doc('root_review',root)
+        with self.assertRaises(ReceiptError):f.run()
+
+    def test_every_present_return_alias_and_disposition_is_checked(self):
+        for family in (RUN17_FAMILY,RUN19_FAMILY):
+            for key,value in [('provider',{'bad':True}),('private_copy',{'bad':True}),('retained_private_copy',{'bad':True}),('exact_prompt',{'bad':True}),('owner_execution_token','other'),('actual_return_count',True),('provider_operation_UUID','invented'),('accepted',True)]:
+                f=LiteralFixture(family);r=copy.deepcopy(f.documents['returned']);r[key]=value;f.replace_doc('returned',r)
+                with self.assertRaises(ReceiptError):f.run()
+
+
+    def test_all_present_argument_reference_tool_and_authority_aliases_checked(self):
+        changes=[('request_args',{'bad':True}),('arguments',{'bad':True}),('ALL_ordered_references',[]),
+                 ('ordered_ALL_references',[]),('actual_tool','other'),('actual_tool_requested_next','other'),
+                 ('acceptance_authorized',True),('installation_authorized',True)]
+        for family in (RUN17_FAMILY,RUN19_FAMILY):
+            for role in ('dispatch','returned'):
+                for key,value in changes:
+                    with self.subTest(family=family,role=role,key=key):
+                        f=LiteralFixture(family);d=copy.deepcopy(f.documents[role]);d[key]=value;f.replace_doc(role,d)
+                        with self.assertRaises(ReceiptError):f.run()
+
+    def test_grouped_RAW_is_exact_keyed_map_not_a_synthesized_singleton(self):
+        for value in [{},{'other':{'id':'other'}},{'record-a':{'id':'record-a','fields':[]}}]:
+            f=LiteralFixture(RUN19_FAMILY);q=copy.deepcopy(f.documents['qualification'])
+            q['reservations']['7']['complete_direct_RAW']=value;f.replace_doc('qualification',q)
+            with self.assertRaisesRegex(ReceiptError,'complete RAW changed'):f.run()
+
+    def test_every_group_native_phase_timestamp_and_root_view_chronology_checked(self):
+        for role,second in [('preparation_store',4),('dispatch',6),('dispatch_return',3)]:
+            f=LiteralFixture(RUN19_FAMILY);f.events[role]['timestamp']=f.time(second);f.rebuild_events()
+            with self.assertRaisesRegex(ReceiptError,'chronology'):f.run()
+        f=LiteralFixture();f.events['whole_view']['timestamp']=f.time(3);f.rebuild_events()
+        with self.assertRaisesRegex(ReceiptError,'predates native generation'):f.run()
+
+    def test_quoted_fake_store_recipe_does_not_replace_executed_outer_recipe(self):
+        f=LiteralFixture(RUN19_FAMILY)
+        f.events['preparation_store']['payload']['input']='const r=await tools.exec_command({cmd:'+json.dumps('const rows=JSON.parse(r.output);for(const row of rows)store("jobs"+row.job,row);text(rows.map(x=>({job:x.job,dispatch:x.dispatch})));')+'});'
+        f.rebuild_events()
+        with self.assertRaises(ReceiptError):f.run()
+
+
+
+    def test_all_group_reservation_identities_and_holds_are_checked(self):
+        f=LiteralFixture(RUN19_FAMILY);f.context['held_jobs']=[8]
+        with self.assertRaisesRegex(ReceiptError,'held grouped target'):f.run()
+        for key,value in [('job',7),('attempt',True),('accepted',True)]:
+            f=LiteralFixture(RUN19_FAMILY);q=copy.deepcopy(f.documents['qualification'])
+            q['reservations']['8'][key]=value;f.replace_doc('qualification',q)
+            with self.assertRaises(ReceiptError):f.run()
+
+    def test_other_prepared_row_must_bind_its_own_literal_args_without_source_admission(self):
+        f=LiteralFixture(RUN19_FAMILY)
+        item=f.events['preparation']['payload']['item'];rows=json.loads(item['aggregated_output'])
+        rows[1]['args']=copy.deepcopy(rows[0]['args']);item['aggregated_output']=json.dumps(rows);f.rebuild_events()
+        with self.assertRaisesRegex(ReceiptError,'own literal reservation arguments'):f.run()
+
+
+
+    def test_quoted_whole_preparation_tail_and_dispatch_are_inert_data(self):
+        f=LiteralFixture(RUN19_FAMILY)
+        for role in ('preparation_store','dispatch'):
+            bad=copy.deepcopy(f.events);code=f.events[role]['payload']['input']
+            f.events[role]['payload']['input']='const quotedOnly = '+json.dumps(code)+';';f.rebuild_events()
+            with self.assertRaises(ReceiptError):f.run()
+            f.events=bad;f.rebuild_events()
+        code=f.events['preparation_store']['payload']['input'];marker=code.index('if(r.exit_code')
+        f.events['preparation_store']['payload']['input']=code[:marker]+'const fake='+json.dumps(code[marker:])+';';f.rebuild_events()
+        with self.assertRaises(ReceiptError):f.run()
+
+    def test_unobserved_provider_UUID_cannot_be_in_before_or_dispatch(self):
+        for family in (RUN17_FAMILY,RUN19_FAMILY):
+            for role in ('qualification','dispatch'):
+                f=LiteralFixture(family);d=copy.deepcopy(f.documents[role]);d['provider_operation_UUID']='invented';f.replace_doc(role,d)
+                with self.assertRaisesRegex(ReceiptError,'unobserved provider'):f.run()
+
+
+
+    def test_grouped_literal_kind_wrapper_is_preserved_and_kind_must_match_job(self):
+        f=LiteralFixture(RUN19_FAMILY);result=f.run()
+        self.assertEqual(result['literal_reservation']['complete_direct_RAW'],{'record-a':{'kind':'technical','raw':f.raw}})
+        self.assertEqual(result['complete_RAW_view'],{'record-a':f.raw})
+        q=copy.deepcopy(f.documents['qualification']);q['reservations']['7']['complete_direct_RAW']['record-a']['kind']='wrong'
+        f.replace_doc('qualification',q)
+        with self.assertRaisesRegex(ReceiptError,'complete RAW changed'):f.run()
 
 
 if __name__ == '__main__':

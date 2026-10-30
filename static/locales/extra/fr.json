@@ -2680,5 +2680,6 @@
   "Older certificate": "Ancien certificat",
   "Add selected certificate": "Ajouter le certificat sélectionné",
   "No older certificates are available.": "Aucun ancien certificat n’est disponible.",
-  "The older certificate was added to this project. Its saved revisions are retained.": "L’ancien certificat a été ajouté à ce projet. Ses révisions enregistrées sont conservées."
+  "The older certificate was added to this project. Its saved revisions are retained.": "L’ancien certificat a été ajouté à ce projet. Ses révisions enregistrées sont conservées.",
+  "Manufacturer must contain at most 200 characters without control characters.": "Le fabricant doit contenir au maximum 200 caractères et aucun caractère de contrôle."
 }

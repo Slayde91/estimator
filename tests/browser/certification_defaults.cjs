@@ -1,5 +1,6 @@
 // Disposable lifecycle coverage. This fixture never generates a certificate PDF.
 const {chromium,expect}=require('@playwright/test');
+const {openProjectSection}=require('./project_actions.cjs');
 const {spawn,spawnSync}=require('node:child_process'),{randomUUID}=require('node:crypto');
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
 const root=path.resolve(__dirname,'../..');
@@ -13,7 +14,7 @@ const ready=new Promise((resolve,reject)=>{
 });
 const errors=[],generationRequests=[],pendingRequests=new Map(),evidence={checks:[],screenshots:[]};
 async function idle(){await page.waitForFunction(()=>{const status=window.CeasefireDesktop?.status();return status?.ready&&!status.busy;});}
-async function certification(){await page.locator('#projects-navigation-toggle').click();await page.locator('#view-projects [data-project-section="certification"]').click();await expect(page.locator('#certification-client')).toBeEnabled();}
+async function certification(){await openProjectSection(page,'certification');await expect(page.locator('#certification-client')).toBeEnabled();}
 async function fresh(){await page.locator('#certification-document').selectOption('');const confirm=page.getByRole('button',{name:'Continue without saving',exact:true});if(await confirm.isVisible())await confirm.click();await expect(page.locator('#certification-document')).toHaveValue('__draft__');}
 (async()=>{
   const info=await ready;assert.notEqual(info.port,8765);const base=`http://127.0.0.1:${info.port}`;
@@ -158,7 +159,7 @@ async function fresh(){await page.locator('#certification-document').selectOptio
     await page.locator('#certification-scope-service_penetrations').press('Escape');
   }
   await page.setViewportSize({width:1084,height:900});
-  await page.locator('nav .nav-button[data-view="projects"]').click();await page.locator('#view-projects [data-project-section="quotes"]').click();
+  await openProjectSection(page,'quotes');
   await page.locator('#new-quote').click();await page.getByRole('dialog').getByRole('button',{name:'New project',exact:true}).click();
   await expect(page.locator('#client')).toHaveValue('',{timeout:90000});await page.waitForFunction(token=>window.CeasefireCertification.sessionId()!==token,workspaceA);await idle();
   await certification();assert.notEqual(await page.evaluate(()=>window.CeasefireCertification.sessionId()),workspaceA);await expect(page.locator('#certification-document option[value="'+id+'"]')).toHaveCount(0);await fresh();await expect(page.locator('#certification-signature-preview')).toBeVisible();await expect(page.locator('#certification-name')).toHaveValue('Future certificate signer');

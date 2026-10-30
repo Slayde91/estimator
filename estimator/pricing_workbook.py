@@ -66,7 +66,11 @@ LEGACY_PRODUCT_SERVICE_VISIBLE_HEADERS = ("Item code", "Product/Service", "Suppl
 LEGACY_PRODUCT_SERVICE_HEADERS = (*LEGACY_PRODUCT_SERVICE_VISIBLE_HEADERS,
     "Product name", "Selection name", "Price source", "Sell rate", "Yield type", "Use yields",
     "Pricing mode", "Sales description", "Inventory ID", "Rate ID", "Use order", *PROPERTY_HEADERS, "Saved values")
-PRODUCT_SERVICE_VISIBLE_HEADERS = ("Item code", "Product/Service", "Supplier price", "Markup", "Sell price", "Group", "Firestopping groups", "Yield", "Yield unit")
+PRE_MANUFACTURER_PRODUCT_SERVICE_VISIBLE_HEADERS = ("Item code", "Product/Service", "Supplier price", "Markup", "Sell price", "Group", "Firestopping groups", "Yield", "Yield unit")
+PRE_MANUFACTURER_PRODUCT_SERVICE_HEADERS = (*PRE_MANUFACTURER_PRODUCT_SERVICE_VISIBLE_HEADERS,
+    "Product name", "Selection name", "Price source", "Sell rate", "Yield type", "Use yields",
+    "Pricing mode", "Sales description", "Inventory ID", "Rate ID", "Use order", *PROPERTY_HEADERS, "Saved values")
+PRODUCT_SERVICE_VISIBLE_HEADERS = (*PRE_MANUFACTURER_PRODUCT_SERVICE_VISIBLE_HEADERS, "Manufacturer")
 PRODUCT_SERVICE_HEADERS = (*PRODUCT_SERVICE_VISIBLE_HEADERS,
     "Product name", "Selection name", "Price source", "Sell rate", "Yield type", "Use yields",
     "Pricing mode", "Sales description", "Inventory ID", "Rate ID", "Use order", *PROPERTY_HEADERS, "Saved values")
@@ -481,15 +485,16 @@ def export_pricing_workbook(configuration):
         if len(saved) > 32767:
             raise ValidationError("A product's saved use data exceeds Excel's cell limit; reduce its number of uses before exporting.")
         values.update({"Product/Service": label, "Use yields": values["Yield"],
+                       "Manufacturer": (product if product is not None else records[0][2]).get("manufacturer", ""),
                        "Firestopping groups": _pack_uses(firestopping_group_keys(product)) if product else None,
                        "Yield": scalar_yield, "Sell price": sell_price, "Saved values": saved})
         sheet.append([values.get(header) for header in PRODUCT_SERVICE_HEADERS])
     widths = {get_column_letter(index): width for index, width in enumerate(
-        (16, 64, 18, 16, 18, 29, 34, 18, 18), 1)}
-    widths.update({get_column_letter(index): 24 for index in range(10, len(PRODUCT_SERVICE_HEADERS) + 1)})
+        (16, 64, 18, 16, 18, 29, 34, 18, 18, 27), 1)}
+    widths.update({get_column_letter(index): 24 for index in range(11, len(PRODUCT_SERVICE_HEADERS) + 1)})
     _format_sheet(sheet, PRODUCT_SERVICE_HEADERS, widths, numeric_columns=(3, 5, 8), percent_columns=(4,), freeze_panes="C2")
-    sheet.auto_filter.ref = f"A1:I{sheet.max_row}"
-    sheet.print_area = f"A1:I{sheet.max_row}"
+    sheet.auto_filter.ref = f"A1:J{sheet.max_row}"
+    sheet.print_area = f"A1:J{sheet.max_row}"
     editable, readonly = Protection(locked=False), Protection(locked=True)
     sheet.protection.sheet = True
     for flag in ("autoFilter", "sort", "insertRows", "deleteRows", "formatRows", "formatColumns", "selectLockedCells", "selectUnlockedCells"):
@@ -505,7 +510,7 @@ def export_pricing_workbook(configuration):
         # Stored snapshots do not affect the visible row height.
         lines = max(sum(max(1, math.ceil(len(line) / max(1, widths[cell.column_letter] - 3)))
                         for line in str(cell.value or "").splitlines() or [""])
-                    for cell in row[:9])
+                    for cell in row[:len(PRODUCT_SERVICE_VISIBLE_HEADERS)])
         sheet.row_dimensions[row[0].row].height = min(409, max(31, 16 * lines + 8))
     instructions = workbook["Instructions"]
     instructions.delete_rows(1, instructions.max_row)
@@ -513,6 +518,7 @@ def export_pricing_workbook(configuration):
         ["CEASEFIRE PRICING LIBRARY", "Edit products and services"],
         ["Save changes", "Import previews this complete library. Review the changes, then Save pricing. Saved projects retain their own prices."],
         ["Product/Service", "One editable description supplies the displayed product and Estimator selection label. Existing lookup identities are retained in hidden columns."],
+        ["Manufacturer", "Editable product metadata only. Linked uses follow their owning product. Clearing a previously entered manufacturer preserves an explicit blank; prices, quantities and yields are unchanged."],
         ["Prices", "Supplier price and Markup recalculate product Sell price. Manual products and standalone services use Sell price directly. Existing per-use overrides are retained in hidden columns."],
         ["Yield", "Enter one nonnegative number for every yield-bearing use of the product. Leave an unchanged blank, Empty text or Mixed value as exported to preserve existing behavior. Mixed indicates differing yields or incompatible units; a shared numeric edit is accepted only when all units match."],
         ["Yield unit", "Read-only calculation unit: m² / unit for area coverage and m / unit for mastic. Groups without a yield remain blank."],
@@ -720,7 +726,7 @@ def _pricing_rows(workbook, text_cells):
     sheet.reset_dimensions()
     sheet_text = text_cells.get(COMBINED_SHEET, {})
     headers = tuple(next(_text_rows(sheet, sheet_text), ()))
-    if headers in (PRODUCT_SERVICE_HEADERS, LEGACY_PRODUCT_SERVICE_HEADERS):
+    if headers in (PRODUCT_SERVICE_HEADERS, PRE_MANUFACTURER_PRODUCT_SERVICE_HEADERS, LEGACY_PRODUCT_SERVICE_HEADERS):
         return _product_service_rows(sheet, sheet_text, headers)
     if headers in (COMPACT_HEADERS, LEGACY_COMPACT_HEADERS):
         return _compact_rows(sheet, sheet_text, headers)
@@ -896,6 +902,12 @@ def _product_service_rows(sheet, text_cells, headers=PRODUCT_SERVICE_HEADERS):
         product_label = _text(row["Product/Service"] or product_service_name(source_product,
                     [use["rate"] for use in existing_uses]) or row["Product name"], f"{label} Product/Service")
         standalone = bool(existing_uses) and source_product is None
+        manufacturer = None
+        if "Manufacturer" in row:
+            entered_manufacturer = _text(row["Manufacturer"], f"{label} Manufacturer", optional=True, limit=200)
+            manufacturer_owner = source_product if source_product is not None else (existing_uses[0]["rate"] if existing_uses else {})
+            if entered_manufacturer or "manufacturer" in manufacturer_owner:
+                manufacturer = entered_manufacturer
         if standalone:
             # Its single visible price belongs to the rate, not to a new product.
             legacy["Sell price"] = None
@@ -976,7 +988,8 @@ def _product_service_rows(sheet, text_cells, headers=PRODUCT_SERVICE_HEADERS):
         metadata[number] = {"saved": saved, "product_label": product_label,
                             "rename": product_label != saved["label"], "standalone": standalone,
                             "yield_changed": not unchanged_yield, "yield": scalar, "sell_price": row["Sell price"],
-                            "firestopping_groups": firestopping_groups}
+                            "firestopping_groups": firestopping_groups, "manufacturer": manufacturer,
+                            "manufacturer_column": "Manufacturer" in row}
         prepared.append((number, legacy))
     inventory, rates = _expand_compact_rows(prepared)
     for number, item in inventory:
@@ -986,6 +999,9 @@ def _product_service_rows(sheet, text_cells, headers=PRODUCT_SERVICE_HEADERS):
         item["_product_service"] = (meta["product_label"] if meta["rename"] else
                                     (source or {}).get("product_service"))
         entered_groups = meta["firestopping_groups"]
+        if meta["manufacturer"] is not None:
+            item["_manufacturer"] = meta["manufacturer"]
+        item["_manufacturer_column"] = meta["manufacturer_column"]
         if entered_groups is not None and (source is None or list(firestopping_group_keys(source)) != entered_groups):
             item["_firestopping_groups"] = entered_groups
     for number, rate in rates:
@@ -993,6 +1009,10 @@ def _product_service_rows(sheet, text_cells, headers=PRODUCT_SERVICE_HEADERS):
         source = next((use for use in meta["saved"]["uses"] if use["rate"].get("id") == rate["Rate ID"]), None)
         rate["_original"] = source["rate"] if source else None
         rate["_original_product"] = meta["saved"]["product"]
+        if meta["standalone"] and meta["manufacturer"] is not None:
+            rate["_manufacturer"] = meta["manufacturer"]
+        if meta["standalone"]:
+            rate["_manufacturer_column"] = meta["manufacturer_column"]
         rate["_product_service"] = (meta["product_label"] if meta["standalone"] and meta["rename"] else
                                     (source["rate"] if source else {}).get("product_service"))
         if meta["yield_changed"] and rules[rate["Group"]]["yield_column"]:
@@ -1007,18 +1027,29 @@ def _product_service_rows(sheet, text_cells, headers=PRODUCT_SERVICE_HEADERS):
 def _inventory_comparison(item):
     return {key: item.get(key) for key in (
         "id", "item_code", "name", "sales_description", "pricing_mode", "supplier_price",
-        "markup", "sales_price", "properties", "product_service", "firestopping_groups",
+        "markup", "sales_price", "properties", "product_service", "firestopping_groups", "manufacturer",
     )}
 
 
 def _rate_comparison(group, item, configuration):
-    return {"group": group, **{key: item.get(key) for key in ("name", "inventory_id", "price", "yield", "product_service")},
+    return {"group": group, **{key: item.get(key) for key in ("name", "inventory_id", "price", "yield", "product_service", "manufacturer")},
             "price_mode": _rate_mode(item, configuration), "yield_unit": yield_unit(group, item)}
 
 
 def _changes(before, after):
     return {"added": len(after.keys() - before.keys()), "removed": len(before.keys() - after.keys()),
             "updated": sum(before[key] != after[key] for key in before.keys() & after.keys())}
+
+
+def _import_manufacturer(record, row, current):
+    if "_manufacturer" in row:
+        record["manufacturer"] = row["_manufacturer"]
+    elif ("_manufacturer_column" in row and "manufacturer" not in record
+          and current is not None and "manufacturer" in current):
+        # Historical templates/snapshots cannot express a manufacturer clear.
+        # Preserve the exact current identity's explicit metadata when the
+        # column is absent. A present, blank new column is authoritative.
+        record["manufacturer"] = "" if row["_manufacturer_column"] else current["manufacturer"]
 
 
 def import_pricing_workbook(payload, filename, current_configuration):
@@ -1081,6 +1112,7 @@ def import_pricing_workbook(payload, filename, current_configuration):
                     item["product_service"] = row["_product_service"]
             if "_firestopping_groups" in row:
                 item["firestopping_groups"] = row["_firestopping_groups"]
+            _import_manufacturer(item, row, previous_inventory.get(identity))
             entered_sell = _number(row["Sell price"], f"{label} Sell price", optional=mode == "supplier_markup")
             if old:
                 for field in ("supplier_price", "markup"):
@@ -1171,6 +1203,7 @@ def import_pricing_workbook(payload, filename, current_configuration):
                     rate.pop("product_service", None)
                 else:
                     rate["product_service"] = row["_product_service"]
+            _import_manufacturer(rate, row, old_pair[1] if old_pair else None)
             if not uses_yield:
                 # A use can move out of a yield category. Older descriptive
                 # metadata is then inapplicable, while numeric rules stay put.

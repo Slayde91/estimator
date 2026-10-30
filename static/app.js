@@ -209,10 +209,10 @@
     fields: [], currentFields: [], inputs: {}, catalog: { inventory: [], rate_groups: {} }, baseline: { inventory: [], rate_groups: {} },
     configuration: { inventory: {}, rates: {} }, draft: { inventory: {}, rates: {} },
     quote: null, quoteConfiguration: null, quoteContext: 0, quoteLoadRevision: 0, dirty: false, pricingDirty: false,
-    result: null, revision: 0, timer: null, pricingExpanded: new Set(), mainSection: "access-travel", mainOutputSection: "firestopping-breakdown", legacyTitle: "",
+    result: null, revision: 0, timer: null, pricingExpanded: new Set(), mainSection: "access-travel", mainOutputSection: "material-breakdown", legacyTitle: "",
     workflow: "", defaultWorkflow: "Intumescent spray to ductwork", inputErrors: new Map(), inputDrafts: new Map(), inputRevision: 0, projectBusy: false,
     pricingScope: "library", libraryDraft: null, projectPricingDraft: null, pricingRevision: 0,
-    projectFile: null, projectsRevision: 0, initialized: false, currentView: "home", projectsOffset: 0, projectsTimer: null, desktopRequests: 0,
+    projectFile: null, projectsRevision: 0, initialized: false, currentView: "home", lastProjectSection: null, projectsOffset: 0, projectsTimer: null, desktopRequests: 0,
     projectBrowserProject: null, projectBrowserPath: "", projectBrowserRevision: 0,
     pricingRender: null, estimatorKind: "estimate", calculatorKind: "steel", libraryKind: "pricing",
     workItems: [], workItemErrors: new Map(), workItemDrafts: new Map(), nextWorkItem: 1,
@@ -648,8 +648,8 @@
   }
 
   function mainSectionPanels(group = "input") {
-    if (group === "output") return [$("main-panel-firestopping-breakdown"),
-      $("main-panel-material-breakdown"), $("main-panel-labour-breakdown")].filter(section => section?.dataset.mainSection);
+    if (group === "output") return [$("main-panel-material-breakdown"),
+      $("main-panel-labour-breakdown")].filter(section => section?.dataset.mainSection);
     const cards = id => [...$(id).children].filter(section => section.dataset.mainSection);
     return [...cards("input-sections"), $("main-panel-materials"), ...cards("post-material-input-sections"),
       ...cards("adjustment-sections")].filter(section => section?.dataset.mainSection);
@@ -1056,6 +1056,7 @@
     if (view === "takeoffs" && !state.takeoffsEnabled) { message(uiCopy("TAKEOFFS is not included in this edition."), true); return; }
     if (view !== state.currentView && $("app-message").hidden) releaseMessageSpace();
     state.currentView = view;
+    if (["quotes", "certification"].includes(view)) state.lastProjectSection = view;
     $("project-tools").hidden = view !== "quotes";
     closeNavigationMenus({ estimate: "estimate-navigation", calculators: "calculator-navigation", pricing: "library-navigation", takeoffs: "takeoff-navigation" }[view]);
     document.body.classList.toggle("takeoffs-active", view === "takeoffs");
@@ -1122,6 +1123,9 @@
     await showView(view, librarySelection);
     if (state.currentView === view) window.CeasefireHeaderTagline?.next();
     return true;
+  }
+  function requestProjectsNavigation() {
+    return requestViewNavigation(state.lastProjectSection || "projects");
   }
   async function requestCalculatorNavigation(id = state.calculatorKind) {
     if (!["steel", "steel_vermiculite", "steel_intumescent", "steel_board", "steel_factors", "ductwork", "penetration"].includes(id)) return false;
@@ -1378,7 +1382,7 @@
     const baseValue = kind === "rates" && field === "price" ? rateDefaultPrice(item)
       : field === "supplier_price" ? (kind === "inventory" && item.pricing_mode === "manual" ? item.sales_price : item.supplier_price ?? item.price)
       : field === "markup" ? (kind === "inventory" && item.pricing_mode === "manual" ? 0 : item.markup ?? 0) : item[field];
-    if ((value === "" && !["yield", "pricing_yield"].includes(field)) || value === baseValue) delete state.draft[kind][item.id][field];
+    if ((value === "" && !["yield", "pricing_yield", "manufacturer"].includes(field)) || value === baseValue) delete state.draft[kind][item.id][field];
     else state.draft[kind][item.id][field] = value;
     if (!Object.keys(state.draft[kind][item.id]).length) delete state.draft[kind][item.id];
     markPricingDirty();
@@ -1657,6 +1661,11 @@
     if (!text.trim() || text.length > 1000 || /[\x00-\x08\x0b\x0c\x0e-\x1f]/.test(text)) throw new Error("Product/Service must contain 1 to 1,000 characters without unsupported control characters.");
     setOverride(record.kind, record.item, "product_service", text);
   }
+  function setManufacturer(record, text) {
+    const value = text.trim();
+    if (value.length > 200 || /[\x00-\x1f\x7f]/.test(value)) throw new Error(uiCopy("Manufacturer must contain at most 200 characters without control characters."));
+    setOverride(record.kind, record.item, "manufacturer", value);
+  }
   function sharedPricingYield(record) {
     const uses = record.uses.filter(({ item }) => item.uses_yield ?? !!item.source?.yield);
     const values = uses.map(({ item }) => Object.hasOwn(getOverride("rates", item.id), "yield") ? getOverride("rates", item.id).yield : item.yield);
@@ -1758,7 +1767,7 @@
       if (product) product.uses.push(use);
       else records.push({ kind: "rates", item, uses: [use], key: `rates:${item.id}` });
     }
-    const productText = (record) => `${productServiceName(record)} ${record.item.name} ${record.item.sales_description || ""} ${record.item.item_code || ""}`.toLocaleLowerCase();
+    const productText = (record) => `${productServiceName(record)} ${record.item.name} ${record.item.sales_description || ""} ${record.item.item_code || ""} ${getOverride(record.kind, record.item.id).manufacturer ?? record.item.manufacturer ?? ""}`.toLocaleLowerCase();
     const matches = records.filter((record) => {
       const firestopping = usedInFirestopping(record);
       const groupMatch = !selectedGroup || (selectedGroup === "main-estimator" ? record.uses.length > 0
@@ -1772,7 +1781,7 @@
     });
     window.CeasefireI18n.text($("pricing-count"), "{0} of {1} products and standalone rates", [matches.length, records.length]);
     const heading = node("tr");
-    for (const title of ["Product/Service", "Supplier price", "Markup %", "Sell price", "Main Estimator groups", "Firestopping Estimator groups", "Yield", "Actions"])
+    for (const title of ["Product/Service", "Manufacturer", "Supplier price", "Markup %", "Sell price", "Main Estimator groups", "Firestopping Estimator groups", "Yield", "Actions"])
       heading.append(uiNode("th", "", title));
     $("pricing-head").replaceChildren(heading);
     const refreshers = [], refreshPrices = () => refreshers.forEach((refresh) => refresh());
@@ -1784,6 +1793,10 @@
       const nameCell = node("td");
       nameCell.append(pricingFieldInput(record, "Product/Service", productServiceName(record), (text) => setProductService(record, text), "", true));
       row.append(nameCell);
+      const manufacturerCell = node("td");
+      const manufacturer = pricingFieldInput(record, "Manufacturer", getOverride(kind, item.id).manufacturer ?? item.manufacturer ?? "", (text) => setManufacturer(record, text));
+      manufacturer.maxLength = 200;
+      manufacturerCell.append(manufacturer); row.append(manufacturerCell);
       if (inventoryView) {
         const supplier = node("td");
         const markup = node("td");
@@ -1818,7 +1831,7 @@
       remove.addEventListener("click", () => removePricingItem(record)); reset.append(resetButton(kind, item), remove); row.append(reset);
       rows.push(row);
     }
-    if (!rows.length) { const row = node("tr"); const cell = uiNode("td", "empty-state", "No matching products or rates."); cell.colSpan = 8; row.append(cell); rows.push(row); }
+    if (!rows.length) { const row = node("tr"); const cell = uiNode("td", "empty-state", "No matching products or rates."); cell.colSpan = 9; row.append(cell); rows.push(row); }
     $("pricing-body").replaceChildren(...rows);
     refreshPrices();
     markPricingDirty();
@@ -2404,7 +2417,11 @@
     }
   }
 
-  for (const button of document.querySelectorAll("[data-view]")) button.addEventListener("click", () => button.id === "calculator-navigation-toggle" ? requestCalculatorNavigation() : requestViewNavigation(button.dataset.view));
+  for (const button of document.querySelectorAll("[data-view]")) button.addEventListener("click", () => {
+    if (button.id === "calculator-navigation-toggle") return requestCalculatorNavigation();
+    if (button.id === "projects-navigation-toggle") return requestProjectsNavigation();
+    return requestViewNavigation(button.dataset.view);
+  });
   for (const card of document.querySelectorAll(".projects-section-card[data-project-section]")) card.addEventListener("click", () => requestViewNavigation(card.dataset.projectSection));
   for (const card of document.querySelectorAll("[data-steel-calculator]")) card.addEventListener("click", () => requestCalculatorNavigation(card.dataset.steelCalculator));
   setupCalculatorNavigation();

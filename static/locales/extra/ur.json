@@ -2680,5 +2680,6 @@
   "Older certificate": "پرانا سرٹیفکیٹ",
   "Add selected certificate": "منتخب سرٹیفکیٹ شامل کریں",
   "No older certificates are available.": "کوئی پرانا سرٹیفکیٹ دستیاب نہیں ہے۔",
-  "The older certificate was added to this project. Its saved revisions are retained.": "پرانا سرٹیفکیٹ اس پروجیکٹ میں شامل کر دیا گیا ہے۔ اس کی محفوظ شدہ نظرثانیاں برقرار ہیں۔"
+  "The older certificate was added to this project. Its saved revisions are retained.": "پرانا سرٹیفکیٹ اس پروجیکٹ میں شامل کر دیا گیا ہے۔ اس کی محفوظ شدہ نظرثانیاں برقرار ہیں۔",
+  "Manufacturer must contain at most 200 characters without control characters.": "تیار کنندہ کا نام زیادہ سے زیادہ 200 حروف پر مشتمل ہونا چاہیے اور اس میں کنٹرول حروف نہیں ہونے چاہئیں۔"
 }

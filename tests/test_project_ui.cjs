@@ -70,7 +70,7 @@ vm.createContext(context);
   assert.ok(appEnd.test(appSource), 'Estimator test hook must replace bootstrap only');
   appSource = appSource.replace(appEnd, `
     globalThis.appAudit = {state, saveProject, loadProject, openNativeProject, newQuote, projectStamp, saveQuote, openQuote, calculate, reportPayload, projectEstimate, downloadFullReport,
-      applyProjectPricing,savePricing,switchPricingScope,useCurrentPricing,loadProjects,linkProjectFolder,openProjectFile,openProjectBrowser,loadProjectFiles,openProjectFolderFile,closeProjectBrowser,projectPricingChanged,resetProjectPricing,pricingInputProblem,updateProjectStatus,showView,requestViewNavigation,requestCalculatorNavigation,uploadProjectFiles,reviewDesktopClose,
+      applyProjectPricing,savePricing,switchPricingScope,useCurrentPricing,loadProjects,linkProjectFolder,openProjectFile,openProjectBrowser,loadProjectFiles,openProjectFolderFile,closeProjectBrowser,projectPricingChanged,resetProjectPricing,pricingInputProblem,updateProjectStatus,showView,requestViewNavigation,requestProjectsNavigation,requestCalculatorNavigation,uploadProjectFiles,reviewDesktopClose,
       renderInputs, selectMainSection, setRequest(fn) { request = fn; }};
   })();`);
   vm.runInContext(appSource, context);
@@ -705,7 +705,7 @@ async function penetrationCheck(name, fn) {
   });
   await check('Main input and output tabs retain independent selection, keyboard bounds and original controls', async h => {
     const inputContainers=['input-sections','post-material-input-sections','adjustment-sections'].map(h.byId);
-    const outputKeys=['firestopping-breakdown','material-breakdown','labour-breakdown'];
+    const outputKeys=['material-breakdown','labour-breakdown'];
     const outputs=outputKeys.map(key=>{const panel=h.byId(`main-panel-${key}`);panel.id=`main-panel-${key}`;panel.dataset.mainSection=key;panel.dataset.mainSectionTitle=key;return panel;});
     const materials=h.byId('main-panel-materials');materials.id='main-panel-materials';materials.dataset.mainSection='materials';
     h.app.state.fields=[['B2','Access'],['D2','Teams'],['D7','Masking teams'],['B9','Masking'],['B26','Global'],['E26','Addition'],['A50','Other']].map(([cell,label])=>({cell,label,type:cell==='D7'?'select':'number',options:cell==='D7'?['N/A','1']:undefined}));
@@ -717,7 +717,7 @@ async function penetrationCheck(name, fn) {
     const tabs=id=>h.byId(id).children,keys=id=>tabs(id).map(tab=>tab.dataset.mainSectionTab);
     h.app.renderInputs();const before=h.snapshot(),requests=h.calls.length,errors=[...h.app.state.inputErrors],drafts=[...h.app.state.inputDrafts];
     assert.deepEqual(keys('main-section-tabs'),['access-travel','teams-crews','materials','masking-cleaning','additions','other-inputs']);
-    assert.deepEqual(keys('main-output-tabs'),outputKeys);assert.deepEqual(visibleInputs(),['access-travel']);assert.deepEqual(visibleOutputs(),['firestopping-breakdown']);
+    assert.deepEqual(keys('main-output-tabs'),outputKeys);assert.deepEqual(visibleInputs(),['access-travel']);assert.deepEqual(visibleOutputs(),['material-breakdown']);
     h.app.selectMainSection('additions');const additions=inputCards().find(card=>card.dataset.mainSection==='additions');
     const fields=additions.children[1],controls=[...fields.children];
     for(const key of outputKeys){h.app.selectMainSection(key);assert.deepEqual(visibleInputs(),['additions']);assert.deepEqual(visibleOutputs(),[key]);assert.equal(h.app.state.mainSection,'additions');assert.equal(h.app.state.mainOutputSection,key);assert.deepEqual(fields.children,controls);}
@@ -726,12 +726,12 @@ async function penetrationCheck(name, fn) {
     await press(tabs('main-section-tabs')[0],'End');assert.equal(h.context.document.activeElement.dataset.mainSectionTab,'other-inputs');assert.deepEqual(visibleOutputs(),['labour-breakdown']);
     await press(tabs('main-section-tabs').at(-1),'ArrowRight');assert.equal(h.context.document.activeElement.dataset.mainSectionTab,'access-travel');
     await press(tabs('main-output-tabs')[0],'End');assert.equal(h.context.document.activeElement.dataset.mainSectionTab,'labour-breakdown');assert.deepEqual(visibleInputs(),['access-travel']);
-    await press(tabs('main-output-tabs').at(-1),'ArrowRight');assert.equal(h.context.document.activeElement.dataset.mainSectionTab,'firestopping-breakdown');
+    await press(tabs('main-output-tabs').at(-1),'ArrowRight');assert.equal(h.context.document.activeElement.dataset.mainSectionTab,'material-breakdown');
     await press(tabs('main-output-tabs')[0],'ArrowLeft');assert.equal(h.context.document.activeElement.dataset.mainSectionTab,'labour-breakdown');
-    await press(tabs('main-output-tabs').at(-1),'Home');assert.equal(h.context.document.activeElement.dataset.mainSectionTab,'firestopping-breakdown');
+    await press(tabs('main-output-tabs').at(-1),'Home');assert.equal(h.context.document.activeElement.dataset.mainSectionTab,'material-breakdown');
     for(const id of ['main-section-tabs','main-output-tabs'])assert.equal(tabs(id).filter(tab=>tab.tabIndex===0&&tab.getAttribute('aria-selected')==='true').length,1);
     for(const panel of [...inputCards(),...outputs])assert.equal(panel.getAttribute('aria-labelledby'),`main-tab-${panel.dataset.mainSection}`);
-    h.app.selectMainSection('unknown-section');assert.deepEqual(visibleInputs(),['access-travel']);assert.deepEqual(visibleOutputs(),['firestopping-breakdown']);
+    h.app.selectMainSection('unknown-section');assert.deepEqual(visibleInputs(),['access-travel']);assert.deepEqual(visibleOutputs(),['material-breakdown']);
     assert.deepEqual(h.snapshot(),before,'Tab navigation preserves project, prices, calculator drafts and exact precision');assert.equal(h.calls.length,requests,'Tab navigation makes no requests');
     assert.deepEqual([...h.app.state.inputErrors],errors);assert.deepEqual([...h.app.state.inputDrafts],drafts);
   });
@@ -1104,22 +1104,24 @@ async function penetrationCheck(name, fn) {
     h.app.setRequest(async()=>({...project(),takeoffs:{version:1},takeoffs_session_id:'prepared-session'}));h.chooseFile();const loading=h.app.loadProject();await flush();revision++;pending.resolve({session:{session_id:'prepared-session'}});await loading;
     assert.match(h.byId('app-message').textContent,/draft changed/);assert.deepEqual(closed,['prepared-session']);assert.equal(h.app.state.inputs.B15,123);
   });
-  await check('Projects always opens its two-section hub after visiting Certification', async h => {
+  await check('Projects header starts at the hub then returns to the most recent Certification page', async h => {
     const before=h.snapshot();let opened=0;h.context.window.CeasefireCertification={open:async()=>{opened++;},hasPendingOperation:()=>false};
-    await h.app.requestViewNavigation('projects');assert.equal(h.app.state.currentView,'projects');
+    await h.app.requestProjectsNavigation();assert.equal(h.app.state.currentView,'projects');
     await h.app.requestViewNavigation('certification');assert.equal(h.app.state.currentView,'certification');assert.equal(opened,1);
-    await h.app.requestViewNavigation('home');await h.app.requestViewNavigation('projects');assert.equal(h.app.state.currentView,'projects');assert.equal(opened,1);
+    await h.app.requestViewNavigation('home');await h.app.requestProjectsNavigation();assert.equal(h.app.state.currentView,'certification');assert.equal(opened,2);
+    await h.app.requestViewNavigation('projects');assert.equal(h.app.state.currentView,'projects');assert.equal(h.app.state.lastProjectSection,'certification');
     assert.deepEqual(h.snapshot(),before);
   });
-  await check('Projects always returns to its hub after visiting saved projects', async h => {
+  await check('Projects header returns to saved projects while direct hub navigation remains available', async h => {
     h.app.setRequest(async()=>({files:[]}));await h.app.requestViewNavigation('quotes');await flush();
     await h.app.requestViewNavigation('projects');assert.equal(h.app.state.currentView,'projects');
-    await h.app.requestViewNavigation('home');await h.app.requestViewNavigation('projects');assert.equal(h.app.state.currentView,'projects');
+    await h.app.requestViewNavigation('home');await h.app.requestProjectsNavigation();assert.equal(h.app.state.currentView,'quotes');
   });
   await check('Pending certification operation blocks navigation without touching project inputs', async h => {
-    const before=h.snapshot();h.app.state.currentView='certification';
+    const before=h.snapshot();h.app.state.currentView='certification';h.app.state.lastProjectSection='certification';
     h.context.window.CeasefireCertification={hasPendingOperation:()=>true};await h.app.requestViewNavigation('home');
     assert.equal(h.app.state.currentView,'certification');assert.match(h.byId('app-message').textContent,/certification operation/);
+    await h.app.requestViewNavigation('quotes');assert.equal(h.app.state.lastProjectSection,'certification');
     assert.deepEqual(h.snapshot(),before);
   });
   await check('Settings lazily opens global Cover sheets and preserves its draft across navigation',async h=>{

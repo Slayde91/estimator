@@ -1,0 +1,9 @@
+{
+  "Manufacturer must contain at most 200 characters without control characters.": [
+    "制造商名称不得超过 200 个字符，且不能包含控制字符。",
+    "निर्माता का नाम अधिकतम 200 अक्षरों का होना चाहिए और उसमें नियंत्रण वर्ण नहीं होने चाहिए।",
+    "El fabricante debe contener como máximo 200 caracteres y no incluir caracteres de control.",
+    "يجب ألا يتجاوز اسم الشركة المصنعة 200 حرف وألا يحتوي على أحرف تحكم.",
+    "ชื่อผู้ผลิตต้องมีความยาวไม่เกิน 200 อักขระและไม่มีอักขระควบคุม"
+  ]
+}

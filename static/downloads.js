@@ -75,7 +75,7 @@
 
   async function save(path, payload = {}, { button = document.activeElement } = {}) {
     const endActivity = window.CeasefireActivity?.begin();
-    let endSound, view, poll = null, finished = false, token = null;
+    let endSound, view, poll = null, finished = false, token = null, documentationHeaders = null, savedResult = null;
     try {
     view = progressView(button);
     endSound = window.CeasefireDownloadSound?.begin();
@@ -84,6 +84,7 @@
     // Open actions must not redirect a file that is already being prepared.
     const download = window.CeasefireProject?.downloadTarget?.() || { project_token: null };
     const body = JSON.stringify({ ...payload, download: { project_token: download.project_token ?? null } });
+    documentationHeaders = await window.CeasefireDocumentation?.downloadHeaders?.(path, payload) || {};
     const begin = await fetch('/api/download-progress', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
     const receipt = await begin.json();
     if (!begin.ok || typeof receipt?.token !== 'string') throw new Error(receipt?.error || 'Document progress could not be started.');
@@ -101,7 +102,7 @@
     };
     void readProgress();
     const response = await fetch(path, {
-      method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json", 'X-Estimator-Download-Progress': token }, body,
+      method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json", 'X-Estimator-Download-Progress': token, ...documentationHeaders }, body,
     });
     const json = String(response.headers.get("Content-Type") || "").split(";")[0].trim().toLowerCase() === "application/json";
     const result = json ? await response.json().catch(() => null) : null;
@@ -112,6 +113,7 @@
       throw new Error("The server did not confirm that the file was saved.");
     }
     finished = true; clearTimeout(poll);
+    savedResult = result;
     view.update(100, 'saved');
     // Show the confirmed completion briefly, then retire even in a hidden tab.
     setTimeout(() => view.remove(), 500);
@@ -120,6 +122,7 @@
       clearTimeout(poll); endSound?.(); endActivity?.();
       if (!finished) view?.remove();
       finished = true;
+      if (documentationHeaders) await window.CeasefireDocumentation?.downloadCompleted?.(documentationHeaders, savedResult);
     }
   }
 

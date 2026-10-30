@@ -12,7 +12,6 @@
   const selector = $('certification-document'), saveButton = $('certification-save'), generateButton = $('certification-generate');
   const signatureCanvas = $('certification-signature-canvas'), signatureDelete = $('certification-signature-delete');
   const signatureSave = $('certification-signature-save'), signatureClear = $('certification-signature-clear');
-  const legacyOpen=$('certification-legacy-open'),legacyDialog=$('certification-legacy-dialog'),legacySelector=$('certification-legacy-document'),legacyImport=$('certification-legacy-import');
   const drawing = {strokes:[], active:null, revision:0};
   const statement = "This is to certify that the fire rated materials have been installed according to the manufacturer's specifications to provide the nominated fire resistance level for the items listed in the relevant schedule. All materials have been installed at the above location and comply with:";
   // These are the user's exact editable presets, not a determination of compliance.
@@ -32,7 +31,7 @@
   const emptyOptions = () => ({cover_pdf:null, cover_pdf_name:'', scopes:[],signature_image:null,signature_name:''});
   const state = {id:null, version:null, baseline:null, busy:false, pending:null, loaded:false,
     items:[], listRevision:0, companyName:'', opening:null, conflicted:false,
-    workspaceId:null, projectId:null, workspaceOpening:null, projectBaseline:null, legacyOpen:false,
+    workspaceId:null, projectId:null, workspaceOpening:null, workspaceEpoch:0, projectBaseline:null,
     options:emptyOptions(), signatureRevision:0, readingSignature:false, signatureTouched:false, touched:new Set(),
     managed:{australian_standards:[], ncc_clauses:[]}, managedByDocument:new Map(),
     defaults:{fields:Object.fromEntries(signerNames.map(name=>[name,''])),signature_image:null,signature_name:'',version:1},
@@ -63,15 +62,14 @@
       !equal(state.options.scopes,state.baseline.options.scopes);
   }
   function updateControls() {
-    const locked = !state.loaded || !!state.opening || state.busy || !!state.pending || state.readingSignature || state.legacyOpen;
+    const locked = !state.loaded || !!state.opening || state.busy || !!state.pending || state.readingSignature;
     for (const control of [...Object.values(controls), ...scopeControls, selector]) control.disabled = locked;
     signatureCanvas.setAttribute('aria-disabled', String(locked));
     signatureSave.disabled = locked || !drawing.strokes.length || !!drawing.active;
     signatureClear.disabled = locked || !drawing.strokes.length && !drawing.active;
     signatureDelete.disabled = locked || !state.options.signature_image;
-    legacyOpen.disabled=locked;
-    saveButton.disabled = !state.loaded || !!state.opening || state.busy || state.readingSignature || state.legacyOpen || (!!state.pending && state.pending.kind !== 'save');
-    generateButton.disabled = !state.loaded || !!state.opening || state.busy || state.readingSignature || state.legacyOpen || (!!state.pending && state.pending.kind !== 'generate');
+    saveButton.disabled = !state.loaded || !!state.opening || state.busy || state.readingSignature || (!!state.pending && state.pending.kind !== 'save');
+    generateButton.disabled = !state.loaded || !!state.opening || state.busy || state.readingSignature || (!!state.pending && state.pending.kind !== 'generate');
     form.setAttribute('aria-busy', String(state.busy || !!state.opening || state.readingSignature));
   }
   function companyText(name) {
@@ -177,7 +175,7 @@
     drawing.strokes=[];drawing.active=null;drawing.revision++;drawSignature();updateControls();
     text($('certification-signature-drawing-status'),announce?'Signature drawing cleared.':'');
   }
-  function signatureLocked() {return !state.loaded||!!state.opening||state.busy||!!state.pending||state.readingSignature||state.legacyOpen;}
+  function signatureLocked() {return !state.loaded||!!state.opening||state.busy||!!state.pending||state.readingSignature;}
   function signaturePoint(event) {
     const bounds=signatureCanvas.getBoundingClientRect();
     return {x:Math.min(1,Math.max(0,(event.clientX-bounds.left)/bounds.width)),y:Math.min(1,Math.max(0,(event.clientY-bounds.top)/bounds.height))};
@@ -343,16 +341,36 @@
       documents:state.items.map(item=>({id:item.id,version:item.version,revision_count:item.revision_count??item.revisions?.length??0})).sort((a,b)=>a.id.localeCompare(b.id)),
       drawing_revision:drawing.strokes.length||drawing.active?drawing.revision:0});
   }
+  function workspaceIdentity(prepared) {
+    const identity = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if(!prepared||typeof prepared.workspace_id!=='string'||!identity.test(prepared.workspace_id)||
+       typeof prepared.project_id!=='string'||!identity.test(prepared.project_id)||!Array.isArray(prepared.items))
+      throw new Error('The current project certificate workspace is unavailable.');
+    return {workspace_id:prepared.workspace_id,project_id:prepared.project_id};
+  }
   async function ensureWorkspace() {
     if(state.workspaceId)return;
-    if(!state.workspaceOpening)state.workspaceOpening=post('/api/certifications/workspaces',{});
+    if(!state.workspaceOpening){
+      const epoch=state.workspaceEpoch;
+      state.workspaceOpening=post('/api/certifications/workspaces',{}).then(prepared=>{
+        workspaceIdentity(prepared);
+        // A prepared project can be adopted while a capability-only caller is
+        // waiting. Its older response must never replace the new project scope.
+        if(epoch!==state.workspaceEpoch)throw new Error('The current project certificate workspace is unavailable.');
+        state.workspaceId=prepared.workspace_id;state.projectId=prepared.project_id;state.items=prepared.items;
+      });
+    }
+    const opening=state.workspaceOpening;
     try{
-      const prepared=await state.workspaceOpening;
-      state.workspaceId=prepared.workspace_id;state.projectId=prepared.project_id;state.items=prepared.items||[];
-    }finally{state.workspaceOpening=null;}
+      await opening;
+    }finally{if(state.workspaceOpening===opening)state.workspaceOpening=null;}
+  }
+  async function projectWorkspace() {
+    await ensureWorkspace();
+    return {workspace_id:state.workspaceId,project_id:state.projectId};
   }
   async function completeProjectSnapshot() {
-    if(state.busy||state.pending||state.opening||state.workspaceOpening||state.legacyOpen)throw new Error('Finish the current certificate operation before saving the project.');
+    if(state.busy||state.pending||state.opening||state.workspaceOpening)throw new Error('Finish the current certificate operation before saving the project.');
     if(drawing.strokes.length||drawing.active)throw new Error('Save or clear the signature drawing before saving certification details.');
     if(!state.loaded)await open();
     if(!await flushSignerDefaults({interactive:true}))throw new Error('Signer details are still unsaved. Your certification details are kept.');
@@ -363,14 +381,15 @@
   async function prepareProject(manifest,workspaceId) {
     if(manifest&&!workspaceId)throw new Error('Load this saved project through Projects to restore its certificate evidence.');
     const prepared=workspaceId?await request('/api/certifications/workspaces/'+encodeURIComponent(workspaceId)):await post('/api/certifications/workspaces',{});
-    if(typeof prepared.workspace_id!=='string'||!prepared.workspace_id||!Array.isArray(prepared.items))throw new Error('The current project certificate workspace is unavailable.');
+    workspaceIdentity(prepared);
     if(prepared.draft?.id)prepared.current=await request(scoped('/api/certifications/'+encodeURIComponent(prepared.draft.id),prepared.workspace_id));
     if(prepared.draft)normalizeOptions(prepared.draft.options);
     return prepared;
   }
   function applyProject(prepared) {
-    if(state.busy||state.pending||state.opening||state.defaultsSaving||state.legacyOpen)throw new Error('Finish the current certificate operation before changing projects.');
-    ++state.listRevision;state.workspaceId=prepared.workspace_id;state.projectId=prepared.project_id;
+    if(state.busy||state.pending||state.opening||state.defaultsSaving)throw new Error('Finish the current certificate operation before changing projects.');
+    workspaceIdentity(prepared);
+    ++state.listRevision;++state.workspaceEpoch;state.workspaceId=prepared.workspace_id;state.projectId=prepared.project_id;
     state.items=prepared.items||[];state.id=state.version=null;state.conflicted=false;state.pending=null;state.managedByDocument.clear();state.loaded=true;
     freshFields();
     if(prepared.draft){
@@ -409,7 +428,7 @@
     try{return await state.opening;}finally{state.opening=null;updateControls();}
   }
   async function perform(kind) {
-    if(!state.loaded||state.opening||state.busy||state.readingSignature||state.legacyOpen||(state.pending&&state.pending.kind!==kind))return;
+    if(!state.loaded||state.opening||state.busy||state.readingSignature||(state.pending&&state.pending.kind!==kind))return;
     if(drawing.strokes.length||drawing.active){message('Save or clear the signature drawing before saving certification details.',true);return;}
     if(!state.pending){
       for(const name of requiredNames)controls[name].setCustomValidity(controls[name].value.trim()?'':window.CeasefireI18n?.translate?.('Complete all required certificate fields.')||'Complete all required certificate fields.');
@@ -435,6 +454,8 @@
         const saved=await post(scoped('/api/certifications/'+encodeURIComponent(action.id)+'/revisions',action.workspaceId),{fields:action.fields,options:action.options,expected_version:action.version,request_id:action.generationRequestId});
         state.pending=null;applyDocument(saved.document,{preserveManaged:acknowledgesAction(saved.document,action,action.version+1)});text($('certification-status'),'Revision {0} saved. Open it in Certificate revisions.',[saved.revision.revision]);
         $('certification-status').className='helper certification-save-status';
+        if(state.workspaceId===action.workspaceId)window.dispatchEvent(new CustomEvent('ceasefire:certification-revision-saved',
+          {detail:{workspace_id:action.workspaceId,project_id:state.projectId}}));
       }
     }catch(error){
       if(error.status&&!error.uncertain)state.pending=null;
@@ -447,32 +468,6 @@
     state.options.signature_image=null;state.options.signature_name='';state.signatureRevision++;state.signatureTouched=true;clearDrawing();
     renderSignature();queueSignerDefaults();updateControls();message(dirty()?'Unsaved certification details':'Saved certification details');
   });
-  legacyOpen.addEventListener('click',async()=>{
-    if(signatureLocked())return;
-    state.busy=true;updateControls();
-    try{
-      const data=await request('/api/certifications/legacy'),choose=node('option');choose.value='';text(choose,'Choose…');
-      legacySelector.replaceChildren(choose,...(data.items||[]).map(item=>{const option=node('option',label(item));option.value=item.id;return option;}));
-      legacySelector.value='';legacyImport.disabled=!(data.items||[]).length;
-      text($('certification-legacy-status'),data.items?.length?'':'No older certificates are available.');
-      state.legacyOpen=true;legacyDialog.showModal();
-    }catch(error){message(error.message,true);}
-    finally{state.busy=false;updateControls();}
-  });
-  legacyImport.addEventListener('click',async()=>{
-    if(state.busy||!state.legacyOpen||!legacySelector.reportValidity()||!legacySelector.value)return;
-    if(!await confirmDiscard())return;
-    state.busy=true;legacySelector.disabled=legacyImport.disabled=$('certification-legacy-cancel').disabled=true;updateControls();
-    try{
-      if(!await flushSignerDefaults({interactive:true}))return;
-      const result=await post('/api/certifications/workspaces/'+encodeURIComponent(state.workspaceId)+'/import',{document_id:legacySelector.value});
-      applyDocument(result.document);legacyDialog.close('imported');state.legacyOpen=false;
-      message('The older certificate was added to this project. Its saved revisions are retained.');
-    }catch(error){text($('certification-legacy-status'),error.message);}
-    finally{state.busy=false;legacySelector.disabled=legacyImport.disabled=$('certification-legacy-cancel').disabled=false;updateControls();}
-  });
-  legacyDialog.addEventListener('cancel',event=>{if(state.busy)event.preventDefault();});
-  legacyDialog.addEventListener('close',()=>{state.legacyOpen=false;updateControls();});
   scopeControls.forEach(control=>control.addEventListener('change',()=>{if(!state.busy&&!state.pending&&!state.opening&&!state.readingSignature)scopeChange();}));
   $('certification-scopes').addEventListener('keydown',event=>{
     if(event.key==='Escape'){$('certification-scopes').open=false;$('certification-scopes').querySelector('summary')?.focus();event.preventDefault();}
@@ -490,10 +485,10 @@
   selector.addEventListener('change',()=>{if(selector.value==='__draft__')return;return loadDocument(selector.value==='__reload__'?state.id:selector.value);});
   window.addEventListener('ceasefire:company-settings-saved',event=>{if(typeof event.detail?.name==='string')companyText(event.detail.name);});
   window.addEventListener('ceasefire:languagechange',renderScopes);
-  window.CeasefireCertification={open,completeProjectSnapshot,prepareProject,applyProject,markProjectSaved,discardPreparedSession,
+  window.CeasefireCertification={open,projectWorkspace,completeProjectSnapshot,prepareProject,applyProject,markProjectSaved,discardPreparedSession,
     sessionId:()=>state.workspaceId,projectFingerprint,hasProjectChanges:()=>state.loaded&&state.projectBaseline!==null&&state.projectBaseline!==projectFingerprint(),
     hasUnsavedChanges:()=>dirty()||!!state.pending,
-    hasPendingOperation:()=>!!state.opening||!!state.workspaceOpening||state.busy||state.readingSignature||state.legacyOpen||!!state.pending||!!state.defaultsSaving||!!state.defaultsTimer,
+    hasPendingOperation:()=>!!state.opening||!!state.workspaceOpening||state.busy||state.readingSignature||!!state.pending||!!state.defaultsSaving||!!state.defaultsTimer,
     fingerprint:()=>JSON.stringify({workspace_id:state.workspaceId,id:state.id,version:state.version,fields:fields(),options:{scopes:state.options.scopes,cover_pdf_name:state.options.cover_pdf_name,signature_name:state.options.signature_name,signature_revision:state.signatureRevision},drawing_revision:drawing.strokes.length||drawing.active?drawing.revision:0,pending:state.pending&&{kind:state.pending.kind,id:state.pending.id,version:state.pending.version,createRequestId:state.pending.createRequestId,generationRequestId:state.pending.generationRequestId},signerDefaultsPending:state.defaultsDesired&&{fields:state.defaultsDesired.fields,signature_name:state.defaultsDesired.signature_name,signature_revision:state.signatureRevision}})};
   requiredNames.forEach(name=>{controls[name].required=true;});
   renderRevisions([]);renderScopes();renderSignature();updateControls();

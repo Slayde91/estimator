@@ -655,11 +655,11 @@
     } catch (error) { if (current(captured) && revision === state.requestRevision) message("Library item was not saved. {0}", true, [() => window.CeasefireI18n?.translate(error.message) || error.message]); }
     finally { if (current(captured) && revision === state.requestRevision) { state.busy = false; status(); if (reschedule) scheduleCalculation(); } }
   }
-  async function downloadItem(kind) {
+  async function downloadItem(kind, button, strict = false) {
     document.activeElement?.blur?.();
-    if (!state.open || !state.record || state.busy || state.diagramReading || state.invalid.size) return;
+    if (!state.open || !state.record || state.busy || state.diagramReading || state.invalid.size) { if (strict) throw new Error("Choose a Firestopping Library item and finish its current edits or operation before downloading."); return; }
     if (!state.record.configuration || !state.draft?.rows || state.draft.rows.length !== 1) {
-      message("This library item has no captured pricing configuration to export.", true); return;
+      const error = new Error("This library item has no captured pricing configuration to export."); message(error.message, true); if (strict) throw error; return;
     }
     clearTimeout(state.timer);
     const captured = snapshot(true), item = clone(state.draft.rows[0]);
@@ -673,13 +673,15 @@
     const capturedStamp = stamp(), capturedDiagram = JSON.stringify(state.diagramChange);
     state.busy = true; state.downloadKind = kind; status(`Preparing Item Details ${kind.toUpperCase()}…`);
     try {
-      const saved = await window.CeasefireDownloads.save(`/api/penetration/item.${kind}`, payload);
-      if (!current(captured)) return;
+      const saved = await window.CeasefireDownloads.save(`/api/penetration/item.${kind}`, payload, { button: button || document.activeElement });
+      if (!current(captured)) return saved;
       const later = state.version !== captured.version || JSON.stringify(state.record.configuration) !== JSON.stringify(payload.configuration)
         || state.invalid.size > 0 || stamp() !== capturedStamp || JSON.stringify(state.diagramChange) !== capturedDiagram;
       message("Item Details {0} saved to {1} using the fields, prices and source diagram captured when you clicked.{2}", false, [kind.toUpperCase(), saved.path, later ? " Your later edits are still here and are not included." : ""]);
+      return saved;
     } catch (error) {
       if (current(captured)) message("Item Details were not downloaded. {0}", true, [() => window.CeasefireI18n?.translate(error.message) || error.message]);
+      if (strict) throw error;
     } finally {
       if (current(captured)) {
         state.busy = false; state.downloadKind = null; status();
@@ -708,7 +710,14 @@
     state.diagramChange = state.diagramChange !== undefined ? undefined : null;
     state.version++; renderDiagram(); status(); projectChanged(); message(state.diagramChange === null ? "The saved image will be removed when you save this library item." : "The current saved image is retained.");
   });
-  window.CeasefireLibraryEditor = { open, present, close, isOpen: () => state.open, hasUnsavedChanges, inputProblem };
+  async function documentationExport({ format } = {}, button) {
+    if (!["pdf", "xlsx"].includes(format)) throw new Error("Choose an existing Firestopping Library document format.");
+    if (state.open && state.record) return downloadItem(format, button, true);
+    if (!window.CeasefireLibraryNavigation?.open) throw new Error("The Firestopping Library selector is unavailable.");
+    await window.CeasefireLibraryNavigation.open("penetration");
+    return { selectionRequired: true };
+  }
+  window.CeasefireLibraryEditor = { open, present, close, isOpen: () => state.open, hasUnsavedChanges, inputProblem, documentationExport };
   Object.assign(window.CeasefireLibraryEditor, { projectSnapshot, projectFingerprint, hasProjectChanges, prepareProject, applyProject, completeProjectSnapshot, markProjectSaved,
     projectRecords: () => (projectSnapshot()?.records || []).map(({ id, title, library_id }) => ({ id, title, library_id })) });
   Object.assign(window.CeasefireLibraryEditor, { hasPendingOperation: () => !!(state.busy || state.diagramReading) });

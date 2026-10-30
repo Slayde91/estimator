@@ -120,6 +120,27 @@ async function penetrationCheck(name, fn) {
   await deadline(name,()=>fn(h));passed++;console.log(`ok - ${name}`);
 }
 (async () => {
+  await check('Project Save captures document history with the exact certificate workspace and acknowledges its original capture',async h=>{
+    projectCertificates(h);const captured={workspace_id:'project-A',expected_revision:2},acknowledged=[];let sent;
+    h.context.window.CeasefireDocumentation={hasPendingOperation:()=>false,projectFingerprint:()=> 'documents:2',
+      completeProjectSnapshot:async()=>captured,markProjectSaved:(manifest,value)=>acknowledged.push({manifest,value})};
+    h.app.setRequest(async(path,options)=>{sent=JSON.parse(options.body);return {file:{path:'C:/saved/A.cf.json',save_token:'saved-A'},
+      project:{...project(),estimate:sent.estimate,calculators:sent.calculators,certifications:{archive_sha256:'certificate-A'},documentation:{project_id:'A',revision_count:2}}};});
+    await h.app.saveProject();assert.deepEqual(sent.documentation,captured);assert.equal(sent.documentation.workspace_id,sent.certifications.workspace_id);
+    assert.equal(acknowledged.length,1);assert.equal(acknowledged[0].value,captured);assert.equal(acknowledged[0].manifest.revision_count,2);
+  });
+  await check('Document completion pending blocks Save, New and desktop close without changing current drafts',async h=>{
+    const before=h.snapshot();let writes=0;h.context.window.CeasefireDocumentation={hasPendingOperation:()=>true,projectFingerprint:()=> 'pending'};
+    h.app.setRequest(async()=>{writes++;});await h.app.saveProject();assert.match(h.byId('app-message').textContent,/document download/);
+    await h.app.newQuote();assert.equal(await h.app.reviewDesktopClose(),false);assert.equal(writes,0);assert.deepEqual(h.snapshot(),before);
+  });
+  await check('Document history changing during later project preparation stops a mixed Save',async h=>{
+    let revision=2,writes=0;const pending=deferred();
+    h.context.window.CeasefireDocumentation={hasPendingOperation:()=>false,projectFingerprint:()=>String(revision),completeProjectSnapshot:async()=>({workspace_id:'project-A',expected_revision:revision})};
+    h.context.window.CeasefireTakeoffs={hasUnsavedChanges:()=>true,completeProjectSnapshot:()=>pending.promise,projectSnapshot:()=>undefined};
+    h.app.setRequest(async()=>{writes++;});const saving=h.app.saveProject();await flush();revision++;pending.resolve(undefined);await saving;
+    assert.equal(writes,0);assert.match(h.byId('app-message').textContent,/Project documents changed/);
+  });
   await check('Project Save captures its scoped certificate draft and acknowledges the original capture only',async h=>{
     const cert=projectCertificates(h);let sent;
     h.app.setRequest(async(path,options)=>{sent=JSON.parse(options.body);assert.equal(sent.certifications.workspace_id,'project-A');return {file:{path:'C:/saved/A.cf.json',save_token:'saved-A'},project:{...project(),estimate:sent.estimate,calculators:sent.calculators,certifications:{archive_sha256:'frozen-A'}}};});

@@ -2890,34 +2890,36 @@ window.CeasefireScheduleColumns = (() => {
     finally { state.action = false; updateStatus(); }
   }
 
-  async function exportTemplate() {
-    const entry = current(); if (!entry || state.action) return;
-    const button = $("calculator-template");
+  async function exportTemplateFor(entry, button, strict = false) {
+    if (!entry || state.action) { if (strict) throw new Error("Finish the current calculator action before downloading."); return; }
     state.action = true; updateStatus();
     try {
       const saved = await window.CeasefireDownloads.save(endpoint(entry.definition.id, "template"), {}, { button });
       message(uiCopy("Schedule template saved to {0}. Complete its input columns, then use Import Schedule.", [saved.path]));
-    } catch (error) { message(uiCopy("Could not export the template. {0}", [error.message]), true); }
+      return saved;
+    } catch (error) { message(uiCopy("Could not export the template. {0}", [error.message]), true); if (strict) throw error; }
     finally { state.action = false; updateStatus(); }
   }
+  function exportTemplate() { return exportTemplateFor(current(), $("calculator-template")); }
 
-  async function downloadCalculatedFile({ action, buttonId, label, includeProjectDetails = false }) {
-    const entry = current(); if (!entry || entry.invalid.size || state.action) return;
+  async function downloadCalculatedFile({ action, buttonId, label, includeProjectDetails = false, entry = current(), button = $(buttonId), strict = false }) {
+    if (!entry || entry.invalid.size || state.action) { if (strict) throw new Error("Correct the calculator inputs or finish its current action before downloading."); return; }
     // Input events retain exact edits; blur completes dropdown validation before
     // the server calculates the captured draft for the downloaded file.
     const focused = document.activeElement;
     if ((focused?.dataset?.calculatorCell || focused?.dataset?.calculatorCustomCell) && focused.dataset.calculatorSheet === entry.sheet) focused.blur();
-    if (current() !== entry || entry.invalid.size) return;
+    if ((!strict && current() !== entry) || (strict && state.entries.get(entry.definition.id) !== entry) || entry.invalid.size) { if (strict) throw new Error("The calculator changed while preparing the download. Try again."); return; }
     const id = entry.definition.id, snapshot = clone(entry.inputs), revision = entry.revision;
     const projectDetails = includeProjectDetails ? clone(window.CeasefireProject?.details() || {}) : null;
-    const button = $(buttonId), previousLabel = button.getAttribute("aria-label") || label;
+    const previousLabel = button.getAttribute("aria-label") || label;
     state.action = true; updateStatus();
     window.CeasefireI18n.attr(button, "aria-label", "Preparing {0}…", [window.CeasefireI18n.term(label)]); button.setAttribute("aria-busy", "true");
     try {
       const saved = await window.CeasefireDownloads.save(endpoint(id, action), { inputs: snapshot, ...(projectDetails ? { project_details: projectDetails } : {}) }, { button });
-      const changed = current() !== entry || entry.revision !== revision || projectDetails && JSON.stringify(projectDetails) !== JSON.stringify(window.CeasefireProject?.details() || {});
+      const changed = (!strict && current() !== entry) || (strict && state.entries.get(id) !== entry) || entry.revision !== revision || projectDetails && JSON.stringify(projectDetails) !== JSON.stringify(window.CeasefireProject?.details() || {});
       message(uiCopy("{0} saved to {1} using the {2} draft captured when you clicked Download.{3}", [window.CeasefireI18n.term(label), saved.path, entry.definition.title, window.CeasefireI18n.term(changed ? " Your current draft was kept; later edits are not included." : "")]));
-    } catch (error) { message(uiCopy("Could not download the {0}. {1}", [window.CeasefireI18n.term(label), error.message]), true); }
+      return saved;
+    } catch (error) { message(uiCopy("Could not download the {0}. {1}", [window.CeasefireI18n.term(label), error.message]), true); if (strict) throw error; }
     finally { button.setAttribute("aria-label", previousLabel); button.removeAttribute("aria-busy"); state.action = false; updateStatus(); }
   }
 
@@ -3055,7 +3057,7 @@ window.CeasefireScheduleColumns = (() => {
   }
   function hasUnsavedChanges() { return [...state.entries.values()].some(entry => dirty(entry) || entry.invalid.size); }
 
-  async function completeProjectSnapshot() {
+  async function ensureProjectEntries() {
     const list = await calculatorList();
     const context = state.entries;
     const definitions = await Promise.all(list.filter(({ id }) => !context.has(id)).map(({ id }) => request(endpoint(id))));
@@ -3066,7 +3068,21 @@ window.CeasefireScheduleColumns = (() => {
       const inputs = clone(definition.inputs || {}), page = displayPages(definition)[0];
       context.set(definition.id, { definition, inputs, saved: JSON.stringify(inputs), scheduleRows: definition.schedule_rows && [...definition.schedule_rows], savedRows: JSON.stringify(definition.schedule_rows), revision: 0, page: page.id, sheet: page.sheet, needsRender: true, result: null, pendingResult: null, labels: {}, invalid: new Map() });
     }
-    return projectSnapshot();
+  }
+  async function completeProjectSnapshot() { await ensureProjectEntries(); return projectSnapshot(); }
+
+  async function documentationExport({ calculatorId, action } = {}, button) {
+    action = { schedule: "report.pdf", product_summary: "summary.pdf", register: "register.xlsx", template: "template" }[action] || action;
+    if (!["steel_vermiculite", "steel_intumescent", "steel_board", "ductwork"].includes(calculatorId)
+        || !["report.pdf", "register.xlsx", "summary.pdf", "template"].includes(action)) throw new Error("Choose an existing calculator document.");
+    if (state.action) throw new Error("Finish the current calculator action before downloading.");
+    const context = state.entries;
+    await ensureProjectEntries();
+    if (state.entries !== context) throw new Error("The project changed while preparing the calculator document. Try again.");
+    const entry = state.entries.get(calculatorId);
+    if (action === "template") return exportTemplateFor(entry, button || $("calculator-template"), true);
+    const buttonId = { "report.pdf": "calculator-pdf", "register.xlsx": "calculator-excel", "summary.pdf": "calculator-summary-pdf" }[action];
+    return downloadCalculatedFile({ action, entry, button: button || $(buttonId), buttonId, label: documentLabels(entry)[buttonId], includeProjectDetails: action !== "register.xlsx", strict: true });
   }
 
   // The public takeoff bridge captures a complete calculator draft. Only a
@@ -3155,6 +3171,7 @@ window.CeasefireScheduleColumns = (() => {
   }
 
   window.CeasefireCalculators = { open, projectSnapshot, projectFingerprint, prepareProject, applyProject };
+  Object.assign(window.CeasefireCalculators, { documentationExport });
   Object.assign(window.CeasefireCalculators, { select: selectCalculator, canSelect, refreshNavigation: renderChoices, hide() { ++state.loadRevision; scheduleColumnChooser?.close(); $("calculator-workspace").hidden = true; } });
   Object.assign(window.CeasefireCalculators, { prepareDefaults, markProjectSaved, hasUnsavedChanges, completeProjectSnapshot });
   Object.assign(window.CeasefireCalculators, { hasPendingOperation: () => !!state.action });

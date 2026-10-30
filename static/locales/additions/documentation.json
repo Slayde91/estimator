@@ -1,0 +1,347 @@
+{
+  "A project document revision has an invalid identity or link.": [
+    "프로젝트 문서 개정본의 식별 정보 또는 링크가 유효하지 않습니다.",
+    "May rebisyon ng dokumento ng proyekto na hindi wasto ang pagkakakilanlan o link.",
+    "Một bản sửa đổi tài liệu dự án có định danh hoặc liên kết không hợp lệ."
+  ],
+  "Choose a Firestopping Library item and finish its current edits or operation before downloading.": [
+    "방화 충전 라이브러리 항목을 선택하고 현재 편집 또는 작업을 완료한 후 다운로드하세요.",
+    "Pumili ng Firestopping Library item at tapusin ang kasalukuyang pag-edit o operasyon bago mag-download.",
+    "Chọn hạng mục trong Thư viện bịt kín chống cháy và hoàn tất chỉnh sửa hoặc thao tác hiện tại trước khi tải xuống."
+  ],
+  "Choose a supported Takeoff document selection.": [
+    "지원되는 물량 산출 문서 옵션을 선택하세요.",
+    "Pumili ng suportadong opsyon para sa dokumento ng pagsukat.",
+    "Chọn tùy chọn tài liệu đo bóc khối lượng được hỗ trợ."
+  ],
+  "Choose a supported project document.": [
+    "지원되는 프로젝트 문서를 선택하세요.",
+    "Pumili ng suportadong dokumento ng proyekto.",
+    "Chọn một tài liệu dự án được hỗ trợ."
+  ],
+  "Choose an existing Firestopping Library document format.": [
+    "방화 충전 라이브러리의 기존 문서 형식을 선택하세요.",
+    "Pumili ng umiiral na format ng dokumento sa Firestopping Library.",
+    "Chọn định dạng tài liệu hiện có của Thư viện bịt kín chống cháy."
+  ],
+  "Choose an existing Firestopping document.": [
+    "기존 방화 충전 문서를 선택하세요.",
+    "Pumili ng umiiral na dokumento ng firestopping.",
+    "Chọn một tài liệu bịt kín chống cháy hiện có."
+  ],
+  "Choose an existing PDF tool.": [
+    "기존 PDF 도구를 선택하세요.",
+    "Pumili ng umiiral na PDF tool.",
+    "Chọn một công cụ PDF hiện có."
+  ],
+  "Choose an existing Takeoff document.": [
+    "기존 물량 산출 문서를 선택하세요.",
+    "Pumili ng umiiral na dokumento ng pagsukat.",
+    "Chọn một tài liệu đo bóc khối lượng hiện có."
+  ],
+  "Choose an existing Technical Library document format.": [
+    "기술 라이브러리의 기존 문서 형식을 선택하세요.",
+    "Pumili ng umiiral na format ng dokumento sa Technical Library.",
+    "Chọn định dạng tài liệu hiện có của Thư viện kỹ thuật."
+  ],
+  "Choose an existing calculator document.": [
+    "기존 계산기 문서를 선택하세요.",
+    "Pumili ng umiiral na dokumento ng calculator.",
+    "Chọn một tài liệu máy tính hiện có."
+  ],
+  "Choose the current Technical Library item again or finish its pending download.": [
+    "현재 기술 라이브러리 항목을 다시 선택하거나 대기 중인 다운로드를 완료하세요.",
+    "Piliing muli ang kasalukuyang Technical Library item o tapusin ang nakabinbing download nito.",
+    "Chọn lại hạng mục hiện tại trong Thư viện kỹ thuật hoặc hoàn tất lượt tải xuống đang chờ."
+  ],
+  "Choose the matching Takeoff workspace.": [
+    "해당 물량 산출 작업 공간을 선택하세요.",
+    "Piliin ang katugmang workspace ng pagsukat.",
+    "Chọn không gian làm việc đo bóc khối lượng tương ứng."
+  ],
+  "Complete the document options in the selected workspace, then generate the file.": [
+    "선택한 작업 공간에서 문서 옵션을 설정한 다음 파일을 생성하세요.",
+    "Kumpletuhin ang mga opsyon ng dokumento sa napiling workspace, saka gawin ang file.",
+    "Hoàn tất tùy chọn tài liệu trong không gian làm việc đã chọn, sau đó tạo tệp."
+  ],
+  "Correct the Firestopping inputs or finish the current operation before downloading.": [
+    "방화 충전 입력값을 수정하거나 현재 작업을 완료한 후 다운로드하세요.",
+    "Itama ang mga input ng firestopping o tapusin ang kasalukuyang operasyon bago mag-download.",
+    "Sửa dữ liệu đầu vào bịt kín chống cháy hoặc hoàn tất thao tác hiện tại trước khi tải xuống."
+  ],
+  "Correct the calculator inputs or finish its current action before downloading.": [
+    "계산기 입력값을 수정하거나 현재 작업을 완료한 후 다운로드하세요.",
+    "Itama ang mga input ng calculator o tapusin ang kasalukuyang aksyon nito bago mag-download.",
+    "Sửa dữ liệu đầu vào máy tính hoặc hoàn tất thao tác hiện tại trước khi tải xuống."
+  ],
+  "Defect reports Takeoff register": [
+    "결함 보고서 물량 산출 대장",
+    "Rehistro ng pagsukat para sa ulat ng depekto",
+    "Sổ đo bóc khối lượng báo cáo khiếm khuyết"
+  ],
+  "Document saved. Its revision is available in this project.": [
+    "문서가 저장되었습니다. 이 프로젝트에서 개정본을 확인할 수 있습니다.",
+    "Na-save ang dokumento. Makikita ang rebisyon nito sa proyektong ito.",
+    "Đã lưu tài liệu. Bản sửa đổi có sẵn trong dự án này."
+  ],
+  "Document source": [
+    "문서 원본",
+    "Pinagmulan ng dokumento",
+    "Nguồn tài liệu"
+  ],
+  "Documentation": [
+    "문서",
+    "Mga dokumento",
+    "Tài liệu"
+  ],
+  "Download project documents and open their saved revisions.": [
+    "프로젝트 문서를 다운로드하고 저장된 개정본을 여세요.",
+    "I-download ang mga dokumento ng proyekto at buksan ang mga naka-save na rebisyon.",
+    "Tải tài liệu dự án xuống và mở các bản sửa đổi đã lưu."
+  ],
+  "Duct Takeoff register": [
+    "덕트 물량 산출 대장",
+    "Rehistro ng pagsukat para sa duct",
+    "Sổ đo bóc khối lượng ống gió"
+  ],
+  "Ductwork schedule template": [
+    "덕트 명세표 서식",
+    "Template ng talaan ng Ductwork",
+    "Mẫu bảng kê Ống gió"
+  ],
+  "Finish the current Firestopping download first.": [
+    "현재 방화 충전 다운로드를 먼저 완료하세요.",
+    "Tapusin muna ang kasalukuyang download ng firestopping.",
+    "Hoàn tất lượt tải xuống bịt kín chống cháy hiện tại trước."
+  ],
+  "Finish the current Takeoff operation before downloading.": [
+    "현재 물량 산출 작업을 완료한 후 다운로드하세요.",
+    "Tapusin ang kasalukuyang operasyon ng pagsukat bago mag-download.",
+    "Hoàn tất thao tác đo bóc khối lượng hiện tại trước khi tải xuống."
+  ],
+  "Finish the current calculator action before downloading.": [
+    "현재 계산기 작업을 완료한 후 다운로드하세요.",
+    "Tapusin ang kasalukuyang aksyon ng calculator bago mag-download.",
+    "Hoàn tất thao tác máy tính hiện tại trước khi tải xuống."
+  ],
+  "Finish the current document download before replacing a project.": [
+    "프로젝트를 바꾸기 전에 현재 문서 다운로드를 완료하세요.",
+    "Tapusin ang kasalukuyang download ng dokumento bago palitan ang proyekto.",
+    "Hoàn tất lượt tải tài liệu hiện tại trước khi thay thế dự án."
+  ],
+  "Finish the current document download before saving the project.": [
+    "프로젝트를 저장하기 전에 현재 문서 다운로드를 완료하세요.",
+    "Tapusin ang kasalukuyang download ng dokumento bago i-save ang proyekto.",
+    "Hoàn tất lượt tải tài liệu hiện tại trước khi lưu dự án."
+  ],
+  "Finish the current physical operation before downloading.": [
+    "현재 물리 객체 작업을 완료한 후 다운로드하세요.",
+    "Tapusin ang kasalukuyang operasyon ng mga pisikal na bagay bago mag-download.",
+    "Hoàn tất thao tác đối tượng vật lý hiện tại trước khi tải xuống."
+  ],
+  "Firestopping Item Details": [
+    "방화 충전 항목 세부 정보",
+    "Detalye ng firestopping item",
+    "Chi tiết hạng mục bịt kín chống cháy"
+  ],
+  "Full Product Summary": [
+    "전체 제품 요약",
+    "Buong buod ng mga produkto",
+    "Tổng hợp sản phẩm đầy đủ"
+  ],
+  "Full Schedule": [
+    "전체 명세표",
+    "Buong talaan",
+    "Bảng kê đầy đủ"
+  ],
+  "Installation Certificate": [
+    "시공 증명서",
+    "Sertipiko ng pagkakabit",
+    "Chứng nhận lắp đặt"
+  ],
+  "No revisions generated in this project.": [
+    "이 프로젝트에서 생성된 개정본이 없습니다.",
+    "Wala pang nagawang rebisyon sa proyektong ito.",
+    "Chưa có bản sửa đổi nào được tạo trong dự án này."
+  ],
+  "Only documents generated in the current project appear here. Save the project to retain its revision history with the project file.": [
+    "현재 프로젝트에서 생성된 문서만 표시됩니다. 개정 이력을 프로젝트 파일과 함께 보관하려면 프로젝트를 저장하세요.",
+    "Mga dokumentong ginawa sa kasalukuyang proyekto lamang ang makikita rito. I-save ang proyekto upang maisama ang kasaysayan ng rebisyon sa file ng proyekto.",
+    "Chỉ các tài liệu được tạo trong dự án hiện tại xuất hiện ở đây. Lưu dự án để giữ lịch sử sửa đổi cùng tệp dự án."
+  ],
+  "Open Takeoffs to choose the document source.": [
+    "문서 원본을 선택하려면 물량 산출을 여세요.",
+    "Buksan ang Pagsukat upang piliin ang pinagmulan ng dokumento.",
+    "Mở Đo bóc khối lượng để chọn nguồn tài liệu."
+  ],
+  "Preparing document…": [
+    "문서 준비 중…",
+    "Inihahanda ang dokumento…",
+    "Đang chuẩn bị tài liệu…"
+  ],
+  "Previous revisions": [
+    "이전 개정본",
+    "Mga nakaraang rebisyon",
+    "Các bản sửa đổi trước"
+  ],
+  "Project documents changed while preparing the file. Save again when ready.": [
+    "파일을 준비하는 동안 프로젝트 문서가 변경되었습니다. 준비가 되면 다시 저장하세요.",
+    "Nagbago ang mga dokumento ng proyekto habang inihahanda ang file. I-save muli kapag handa na.",
+    "Tài liệu dự án đã thay đổi khi chuẩn bị tệp. Lưu lại khi sẵn sàng."
+  ],
+  "Project documents could not be loaded.": [
+    "프로젝트 문서를 불러오지 못했습니다.",
+    "Hindi ma-load ang mga dokumento ng proyekto.",
+    "Không thể tải tài liệu dự án."
+  ],
+  "Revision {0}": [
+    "개정 {0}",
+    "Rebisyon {0}",
+    "Bản sửa đổi {0}"
+  ],
+  "Service plans Takeoff register": [
+    "설비 도면 물량 산출 대장",
+    "Rehistro ng pagsukat para sa plano ng serbisyo",
+    "Sổ đo bóc khối lượng bản vẽ hệ thống kỹ thuật"
+  ],
+  "Service plans matrix": [
+    "설비 도면 매트릭스",
+    "Matrix ng mga plano ng serbisyo",
+    "Ma trận bản vẽ hệ thống kỹ thuật"
+  ],
+  "Steel (board) product summary": [
+    "강재(보드) 제품 요약",
+    "Buod ng produkto para sa Bakal (board)",
+    "Tổng hợp sản phẩm Thép (tấm)"
+  ],
+  "Steel (board) schedule": [
+    "강재(보드) 명세표",
+    "Talaan ng Bakal (board)",
+    "Bảng kê Thép (tấm)"
+  ],
+  "Steel (board) schedule template": [
+    "강재(보드) 명세표 서식",
+    "Template ng talaan ng Bakal (board)",
+    "Mẫu bảng kê Thép (tấm)"
+  ],
+  "Steel (intumescent) product summary": [
+    "강재(팽창성 도료) 제품 요약",
+    "Buod ng produkto para sa Bakal (intumescent)",
+    "Tổng hợp sản phẩm Thép (sơn trương nở)"
+  ],
+  "Steel (intumescent) schedule": [
+    "강재(팽창성 도료) 명세표",
+    "Talaan ng Bakal (intumescent)",
+    "Bảng kê Thép (sơn trương nở)"
+  ],
+  "Steel (intumescent) schedule template": [
+    "강재(팽창성 도료) 명세표 서식",
+    "Template ng talaan ng Bakal (intumescent)",
+    "Mẫu bảng kê Thép (sơn trương nở)"
+  ],
+  "Steel (spray) product summary": [
+    "강재(분사) 제품 요약",
+    "Buod ng produkto para sa Bakal (spray)",
+    "Tổng hợp sản phẩm Thép (phun)"
+  ],
+  "Steel (spray) schedule": [
+    "강재(분사) 명세표",
+    "Talaan ng Bakal (spray)",
+    "Bảng kê Thép (phun)"
+  ],
+  "Steel (spray) schedule template": [
+    "강재(분사) 명세표 서식",
+    "Template ng talaan ng Bakal (spray)",
+    "Mẫu bảng kê Thép (phun)"
+  ],
+  "Steel Takeoff register": [
+    "강재 물량 산출 대장",
+    "Rehistro ng pagsukat para sa bakal",
+    "Sổ đo bóc khối lượng thép"
+  ],
+  "The Firestopping Library selector is unavailable.": [
+    "방화 충전 라이브러리 선택기를 사용할 수 없습니다.",
+    "Hindi available ang tagapili sa Firestopping Library.",
+    "Không thể sử dụng bộ chọn Thư viện bịt kín chống cháy."
+  ],
+  "The Source Document could not be opened.": [
+    "원본 문서를 열지 못했습니다.",
+    "Hindi mabuksan ang pinagmulang dokumento.",
+    "Không thể mở tài liệu nguồn."
+  ],
+  "The Takeoff workspace could not be selected. Finish its pending edits first.": [
+    "물량 산출 작업 공간을 선택하지 못했습니다. 대기 중인 편집을 먼저 완료하세요.",
+    "Hindi mapili ang workspace ng pagsukat. Tapusin muna ang mga nakabinbing pag-edit nito.",
+    "Không thể chọn không gian làm việc đo bóc khối lượng. Hoàn tất các chỉnh sửa đang chờ trước."
+  ],
+  "The Technical Library selector is unavailable.": [
+    "기술 라이브러리 선택기를 사용할 수 없습니다.",
+    "Hindi available ang tagapili sa Technical Library.",
+    "Không thể sử dụng bộ chọn Thư viện kỹ thuật."
+  ],
+  "The calculator changed while preparing the download. Try again.": [
+    "다운로드를 준비하는 동안 계산기가 변경되었습니다. 다시 시도하세요.",
+    "Nagbago ang calculator habang inihahanda ang download. Subukang muli.",
+    "Máy tính đã thay đổi khi chuẩn bị tải xuống. Thử lại."
+  ],
+  "The current project document workspace is invalid.": [
+    "현재 프로젝트 문서 작업 공간이 유효하지 않습니다.",
+    "Hindi wasto ang kasalukuyang workspace ng dokumento ng proyekto.",
+    "Không gian làm việc tài liệu dự án hiện tại không hợp lệ."
+  ],
+  "The document download list is invalid.": [
+    "문서 다운로드 목록이 유효하지 않습니다.",
+    "Hindi wasto ang listahan ng mga dokumentong ida-download.",
+    "Danh sách tải tài liệu xuống không hợp lệ."
+  ],
+  "The project changed while choosing the Takeoff document. Try again.": [
+    "물량 산출 문서를 선택하는 동안 프로젝트가 변경되었습니다. 다시 시도하세요.",
+    "Nagbago ang proyekto habang pinipili ang dokumento ng pagsukat. Subukang muli.",
+    "Dự án đã thay đổi khi chọn tài liệu đo bóc khối lượng. Thử lại."
+  ],
+  "The project changed while loading its documents. Open Documentation again.": [
+    "문서를 불러오는 동안 프로젝트가 변경되었습니다. 문서를 다시 여세요.",
+    "Nagbago ang proyekto habang nilo-load ang mga dokumento nito. Buksan muli ang Mga dokumento.",
+    "Dự án đã thay đổi khi tải tài liệu. Mở lại Tài liệu."
+  ],
+  "The project changed while preparing the calculator document. Try again.": [
+    "계산기 문서를 준비하는 동안 프로젝트가 변경되었습니다. 다시 시도하세요.",
+    "Nagbago ang proyekto habang inihahanda ang dokumento ng calculator. Subukang muli.",
+    "Dự án đã thay đổi khi chuẩn bị tài liệu máy tính. Thử lại."
+  ],
+  "The project changed while preparing the document.": [
+    "문서를 준비하는 동안 프로젝트가 변경되었습니다.",
+    "Nagbago ang proyekto habang inihahanda ang dokumento.",
+    "Dự án đã thay đổi khi chuẩn bị tài liệu."
+  ],
+  "The project changed. Open Tools again.": [
+    "프로젝트가 변경되었습니다. 도구를 다시 여세요.",
+    "Nagbago ang proyekto. Buksan muli ang Mga tool.",
+    "Dự án đã thay đổi. Mở lại Công cụ."
+  ],
+  "The project document history does not match the current project.": [
+    "문서 이력이 현재 프로젝트와 일치하지 않습니다.",
+    "Hindi tumutugma ang kasaysayan ng dokumento sa kasalukuyang proyekto.",
+    "Lịch sử tài liệu không khớp với dự án hiện tại."
+  ],
+  "The saved document history does not match this project.": [
+    "저장된 문서 이력이 이 프로젝트와 일치하지 않습니다.",
+    "Hindi tumutugma ang naka-save na kasaysayan ng dokumento sa proyektong ito.",
+    "Lịch sử tài liệu đã lưu không khớp với dự án này."
+  ],
+  "This download is not available in this edition.": [
+    "이 제품 버전에서는 이 다운로드를 사용할 수 없습니다.",
+    "Hindi available ang download na ito sa edisyong ito.",
+    "Bản ứng dụng này không hỗ trợ nội dung tải xuống này."
+  ],
+  "Upload source PDFs, then choose the markup document again.": [
+    "원본 PDF를 업로드한 다음 마크업 문서를 다시 선택하세요.",
+    "I-upload ang mga source PDF, saka piliing muli ang dokumentong may markup.",
+    "Tải các PDF nguồn lên, sau đó chọn lại tài liệu đánh dấu."
+  ],
+  "Walls and floors Takeoff register": [
+    "벽 및 바닥 물량 산출 대장",
+    "Rehistro ng pagsukat para sa dingding at sahig",
+    "Sổ đo bóc khối lượng tường và sàn"
+  ]
+}

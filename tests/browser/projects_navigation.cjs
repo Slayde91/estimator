@@ -20,7 +20,7 @@ const errors = [], evidence = {widths: [], checks: []};
 async function idle() { await page.waitForFunction(() => { const status = window.CeasefireDesktop?.status(); return status?.ready && !status.busy; }); }
 async function expectHub() {
   await expect(page.locator('#view-projects')).toBeVisible();
-  await expect(page.locator('#view-projects .projects-section-card')).toHaveCount(2);
+  await expect(page.locator('#view-projects .projects-section-card')).toHaveCount(3);
 }
 async function home() { await page.locator('nav .nav-button[data-view="home"]').click();await expect(page.locator('#view-home')).toBeVisible(); }
 async function headerDestination(section) {
@@ -52,12 +52,12 @@ async function snapshot() { return page.evaluate(()=>({configuration:window.Ceas
   await page.locator('#projects-navigation-toggle').hover();
   const menu = page.locator('#projects-navigation-menu');
   await expect(menu).toBeVisible();
-  assert.deepEqual(await menu.locator('button').allTextContents(), ['Projects', 'Certification']);
+  assert.deepEqual(await menu.locator('button').allTextContents(), ['Projects', 'Certification', 'Documentation']);
   await menu.locator('[data-project-section="quotes"]').click();
   await expect(page.locator('#view-quotes')).toBeVisible();
   await page.mouse.move(0, 0); await expect(menu).toBeHidden();
   await headerDestination('quotes');assert.deepEqual(await snapshot(),draftBefore);
-  // The explicit Home card still opens the two-card hub without replacing the
+  // The explicit Home card still opens the three-card hub without replacing the
   // remembered subsection used by the header button.
   await home();await page.locator('[data-home-view="projects"]').click();await expectHub();
   await headerDestination('quotes');
@@ -74,18 +74,20 @@ async function snapshot() { return page.evaluate(()=>({configuration:window.Ceas
   await page.locator('#projects-navigation-toggle').press('ArrowDown');
   await expect(menu.locator('[data-project-section="quotes"]')).toBeFocused();
   await page.keyboard.press('End');
-  await expect(menu.locator('[data-project-section="certification"]')).toBeFocused();
+  await expect(menu.locator('[data-project-section="documentation"]')).toBeFocused();
   await page.keyboard.press('Home');
   await page.keyboard.press('Enter');
   await expect(page.locator('#view-quotes')).toBeVisible();
   await headerDestination('quotes');
   await page.locator('#projects-navigation-toggle').press('ArrowUp');
-  await expect(menu.locator('[data-project-section="certification"]')).toBeFocused();
+  await expect(menu.locator('[data-project-section="documentation"]')).toBeFocused();
   await page.keyboard.press('Escape'); await expect(menu).toBeHidden();
   await expect(page.locator('#projects-navigation-toggle')).toBeFocused();
-  await page.locator('#projects-navigation-toggle').press('ArrowUp');await page.keyboard.press('Enter');await expect(page.locator('#view-certification')).toBeVisible();
+  await page.locator('#projects-navigation-toggle').press('ArrowUp');await page.keyboard.press('Enter');await expect(page.locator('#view-documentation')).toBeVisible();
+  await headerDestination('documentation');assert.deepEqual(await snapshot(),draftBefore);
+  await page.locator('#projects-navigation-toggle').press('ArrowUp');await page.keyboard.press('ArrowUp');await page.keyboard.press('Enter');await expect(page.locator('#view-certification')).toBeVisible();
   await headerDestination('certification');assert.deepEqual(await snapshot(),draftBefore);
-  evidence.checks.push('stale section preference ignored','first header visit opens hub','header returns to most recent Certification or saved Projects page','Home Projects card still opens hub','both cards work','hover choices update remembered page','shared helpers select explicit destinations','certification draft retained','return buttons removed','keyboard navigation and Escape');
+  evidence.checks.push('stale section preference ignored','first header visit opens hub','header returns to most recent Certification, Documentation or saved Projects page','Home Projects card still opens hub','all three menu destinations work','hover choices update remembered page','shared helpers select explicit destinations','certification draft retained','return buttons removed','keyboard navigation and Escape');
   for (const width of [390, 671, 1084]) {
     await page.setViewportSize({width, height: 900});
     await page.mouse.move(0, 0);
@@ -98,6 +100,7 @@ async function snapshot() { return page.evaluate(()=>({configuration:window.Ceas
     await page.keyboard.press('Escape');
     await openProjectSection(page,'quotes');await headerDestination('quotes');
     await openProjectSection(page,'certification');await headerDestination('certification');
+    await openProjectSection(page,'documentation');await idle();await headerDestination('documentation');await idle();
     assert.deepEqual(await snapshot(),draftBefore,'Responsive navigation retains exact certificate draft, estimate details and pricing');
   }
   await page.reload(); await idle(); await page.locator('#projects-navigation-toggle').click();await expectHub();

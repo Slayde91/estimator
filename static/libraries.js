@@ -714,13 +714,14 @@
     list.setAttribute("role", "group"); uiAttr(list, "aria-label", "Technical item downloads");
     toggle.setAttribute("aria-controls", list.id); toggle.setAttribute("aria-expanded", "false");
     const revision = pane.detailRevision, id = data.id, actions = [];
-    const current = () => state.current === "technical" && pane.selected === id && pane.detailRevision === revision && !pane.detailPanel.hidden;
+    const selected = () => pane.selected === id && pane.detailRevision === revision && !pane.detailPanel.hidden;
+    const current = () => state.current === "technical" && selected();
     function setOpen(open, focus = false) {
       list.hidden = !open; toggle.setAttribute("aria-expanded", String(open));
       if (focus) toggle.focus();
     }
-    async function download(format, button) {
-      if (!current() || pane.documentPending) return;
+    async function download(format, button, strict = false) {
+      if (!(strict ? selected() : current()) || pane.documentPending) { if (strict) throw new Error("Choose the current Technical Library item again or finish its pending download."); return; }
       setOpen(false);
       const token = { id, revision }; pane.documentPending = token;
       for (const control of pane.documentControls) control.disabled = true;
@@ -728,8 +729,10 @@
         if (!window.CeasefireDownloads?.save) throw new Error("Document downloads are unavailable. Reopen the application and try again.");
         const result = await window.CeasefireDownloads.save(`/api/technical/item.${format}`, { id }, { button });
         if (current()) message(pane, "Item Details saved: {0}", false, [result.filename]);
+        return result;
       } catch (error) {
         if (current()) message(pane, "Item Details were not downloaded. {0}", true, [() => window.CeasefireI18n?.translate(error.message) || error.message]);
+        if (strict) throw error;
       } finally {
         if (pane.documentPending === token) {
           pane.documentPending = null;
@@ -737,6 +740,7 @@
         }
       }
     }
+    pane.documentationDownload = download;
     for (const format of ["pdf", "xlsx"]) {
       const action = button("", () => download(format, action), `button ${format === "pdf" ? "pdf" : "excel"}-button calculator-document-action`);
       uiAttr(action, "aria-label", "Download Item Details {0}", [format.toUpperCase()]);
@@ -1003,5 +1007,13 @@
     pane.projectDrafts.append(choices);
   }
   function projectChanged() { for (const pane of state.panes.values()) renderProjectDrafts(pane); }
-  window.CeasefireLibraries = { open, invalidate, scheduleChanged, projectChanged, appendFilterOptions };
+  async function documentationExport({ format } = {}, button) {
+    if (!["pdf", "xlsx"].includes(format)) throw new Error("Choose an existing Technical Library document format.");
+    const pane = state.panes.get("technical");
+    if (pane?.selected && pane.detail && !pane.detailPanel.hidden && pane.documentationDownload) return pane.documentationDownload(format, button, true);
+    if (!window.CeasefireLibraryNavigation?.open) throw new Error("The Technical Library selector is unavailable.");
+    await window.CeasefireLibraryNavigation.open("technical");
+    return { selectionRequired: true };
+  }
+  window.CeasefireLibraries = { open, invalidate, scheduleChanged, projectChanged, appendFilterOptions, documentationExport };
 })();

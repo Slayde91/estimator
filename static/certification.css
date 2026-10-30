@@ -10,8 +10,8 @@
 .certification-history{overflow-x:auto}.certification-history table{width:100%;border-collapse:collapse}
 .certification-history th,.certification-history td{padding:.8rem;text-align:start;border-bottom:1px solid var(--border,#48525f);vertical-align:top}
 .certification-history td:last-child{white-space:nowrap}
-.certification-history a{overflow-wrap:anywhere}.certification-document-select{flex:1;min-width:min(100%,300px)}
-.certification-document-actions{display:flex;align-items:flex-end;gap:1rem;flex-wrap:wrap}
+.certification-history a{overflow-wrap:anywhere}.certification-document-select{width:100%;min-width:0}
+.certification-document-actions{display:block}
 .certification-bottom-actions{justify-content:space-between;align-items:center;gap:1rem;margin-block:1.5rem}
 .certification-bottom-actions .button{min-height:48px}.certification-save-status{min-height:1.6em}
 @media(max-width:700px){.projects-section-cards,.certification-fields{grid-template-columns:1fr}.certification-fields .field.certification-wide{grid-column:auto}.certification-bottom-actions{align-items:stretch;flex-direction:column}}

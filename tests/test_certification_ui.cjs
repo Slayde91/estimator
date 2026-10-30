@@ -23,7 +23,7 @@ function harness() {
     getContext(){return {clearRect(){},beginPath(){},arc(){},fill(){},moveTo(){},lineTo(){},stroke(){}};},
     toDataURL(){return canvasData;},setPointerCapture(id){this.captures.add(id);},releasePointerCapture(id){this.captures.delete(id);},hasPointerCapture(id){return this.captures.has(id);},
     showModal(){this.open=true;},close(value){this.open=false;this.returnValue=value;void this.emit('close');},
-    reportValidity(){if(this.id==='certification-legacy-document')return !!this.value;return fieldNames.every(key=>{const item=byId('certification-'+key);return !item.validationMessage&&(!item.required||item.value.trim());});}});
+    reportValidity(){return fieldNames.every(key=>{const item=byId('certification-'+key);return !item.validationMessage&&(!item.required||item.value.trim());});}});
   const byId = id => { if(!elements.has(id))elements.set(id,{...element('div'),id});return elements.get(id); };
   fieldNames.forEach(key=>byId('certification-'+key));
   const response = value => ({ok:true,status:200,json:async()=>copy(value)});
@@ -36,16 +36,11 @@ function harness() {
     if(routeOverride){const value=await routeOverride(path,body);if(value!==undefined)return value;}
     if(path==='/api/company-settings')return response({name:'EXAMPLE & Sons'});
     if(path==='/api/certifications/workspaces'){
-      const token='workspace-'+(++serial),value={workspace_id:token,project_id:'project-'+serial,items:[],draft:null,snapshot:{version:1},documents:new Map(),imports:new Map()};
+      const token='10000000-0000-4000-8000-'+String(++serial).padStart(12,'0'),value={workspace_id:token,project_id:'20000000-0000-4000-8000-'+String(serial).padStart(12,'0'),items:[],draft:null,snapshot:{version:1},documents:new Map()};
       workspaces.set(token,value);return response({...value,documents:undefined});
     }
     const workspaceRoute=path.match(/^\/api\/certifications\/workspaces\/([^/]+)(\/discard)?$/);
     if(workspaceRoute){const value=workspaces.get(workspaceRoute[1]);if(!value)return serverError(404,'Workspace not found');if(workspaceRoute[2]){workspaces.delete(workspaceRoute[1]);return response({discarded:true});}return response({...value,items:[...value.documents.values()],documents:undefined});}
-    if(path==='/api/certifications/legacy')return response({items:[...documents.values()]});
-    const importing=path.match(/^\/api\/certifications\/workspaces\/([^/]+)\/import$/);
-    if(importing){const value=workspaces.get(importing[1]),source=documents.get(body.document_id);if(!source)return serverError(404,'Not found');
-      if(value.imports.has(source.id))return response({document:value.documents.get(value.imports.get(source.id)),already_imported:true});
-      const doc={...copy(source),id:'imported-'+(++serial)};doc.revisions.forEach(revision=>{revision.pdf_url='/api/certifications/'+doc.id+'/revisions/'+revision.revision+'.pdf?workspace='+importing[1];});value.documents.set(doc.id,doc);value.imports.set(source.id,doc.id);return response({document:doc,already_imported:false});}
     if(path==='/api/certifications/defaults'){
       if(!body)return response(defaults);
       const image=Object.hasOwn(body,'signature_image')?body.signature_image:(defaults.signature_image||null),imageName=Object.hasOwn(body,'signature_name')?body.signature_name:(defaults.signature_name||'');
@@ -77,13 +72,14 @@ function harness() {
   };
   const window = {crypto:{randomUUID:()=> '00000000-0000-4000-8000-'+String(++serial).padStart(12,'0')},
     addEventListener(k,fn){(events[k]||=[]).push(fn);},CeasefireProject:{details:()=>copy(project)},
+    dispatchEvent(event){for(const fn of events[event.type]||[])fn(event);return true;},
     CeasefireDialogs:{confirm:async()=>approve},CeasefireActivity:{begin:()=>()=>{}}};
-  const context={setTimeout:fn=>{const id=++serial;timers.set(id,fn);return id;},clearTimeout:id=>timers.delete(id),window,document:{getElementById:byId,createElement:element},fetch,console,Date,JSON,Object,Array,Number,Error,encodeURIComponent};
+  const context={setTimeout:fn=>{const id=++serial;timers.set(id,fn);return id;},clearTimeout:id=>timers.delete(id),window,document:{getElementById:byId,createElement:element},fetch,console,Date,JSON,Object,Array,Number,Error,encodeURIComponent,CustomEvent:class{constructor(type,{detail}){this.type=type;this.detail=detail;}}};
   vm.createContext(context);vm.runInContext(fs.readFileSync('static/certification.js','utf8'),context);
   const api=window.CeasefireCertification;
   const fillRequired=()=>fieldNames.slice(0,13).forEach(key=>{const field=byId('certification-'+key);if(!field.value.trim()){field.value='Required fixture '+key;void field.emit('input');}});
   const draw=async()=>{const canvas=byId('certification-signature-canvas');await canvas.emit('pointerdown',{pointerId:7,clientX:30,clientY:50,button:0});await canvas.emit('pointermove',{pointerId:7,clientX:90,clientY:80});await canvas.emit('pointerup',{pointerId:7,clientX:150,clientY:30});};
-  return {api,byId,calls,get documents(){return workspaces.get(api.sessionId())?.documents||documents;},legacyDocuments:documents,workspaces,events,fillRequired,draw,canvasData:value=>{canvasData=value;},field:(key,value)=>{byId('certification-'+key).value=value;void byId('certification-'+key).emit('input');},
+  return {api,byId,calls,elements,get documents(){return workspaces.get(api.sessionId())?.documents||documents;},legacyDocuments:documents,workspaces,events,fillRequired,draw,canvasData:value=>{canvasData=value;},field:(key,value)=>{byId('certification-'+key).value=value;void byId('certification-'+key).emit('input');},
     project:value=>{project=copy(value);},defaults:()=>copy(defaults),setDefaults:value=>{defaults=copy(value);},window,
     autoSave:async()=>{for(const [id,fn]of timers){timers.delete(id);fn();}await flush();},
     scope:async(ids)=>{for(const id of ['structural_steel','structural_steel_columns','ductwork','service_penetrations'])byId('certification-scope-'+id).checked=ids.includes(id);await byId('certification-scope-'+(ids[0]||'structural_steel')).emit('change');},
@@ -438,25 +434,54 @@ async function check(name,fn,{open=true}={}){const h=harness();if(open)await h.a
     const saving=h.save();await flush();await assert.rejects(h.api.completeProjectSnapshot(),/Finish the current certificate/);
     pending.resolve(h.serverError(400,'Fixture stopped'));await saving;
   });
-  await check('Older certificate recovery requires explicit selection, preserves source revisions and deduplicates repeat imports',async h=>{
+  await check('Project-only certificate picker never offers or imports global older history',async h=>{
     const legacy={id:'old-global-document',version:2,fields:{...blank(),client:'Legacy recovery client'},options:{cover_pdf:null,cover_pdf_name:'',scopes:[]},revisions:[{revision:1,created_at:'2026-10-29T02:00:00Z',pdf_url:'/api/certifications/old-global-document/revisions/1.pdf'}]};
     h.legacyDocuments.set(legacy.id,legacy);const source=copy(legacy);await h.api.open();
     assert.equal(h.byId('certification-document').children.some(option=>option.value===legacy.id),false);
-    h.field('location_area','Current unsaved area');await h.byId('certification-legacy-open').emit('click');
-    assert.equal(h.byId('certification-legacy-dialog').open,true);assert.equal(h.api.hasPendingOperation(),true);
-    h.byId('certification-legacy-document').value=legacy.id;h.approve(false);await h.byId('certification-legacy-import').emit('click');
-    assert.equal(h.documents.size,0);assert.equal(h.byId('certification-location_area').value,'Current unsaved area');
-    h.approve(true);await h.byId('certification-legacy-import').emit('click');
-    assert.equal(h.documents.size,1);assert.equal(h.byId('certification-client').value,'Legacy recovery client');
-    assert.equal([...h.documents.values()][0].revisions.length,1);assert.deepEqual(legacy,source);
-    assert.equal(h.byId('certification-legacy-dialog').open,false);assert.equal(h.api.hasProjectChanges(),true);
-    await h.byId('certification-legacy-open').emit('click');h.byId('certification-legacy-document').value=legacy.id;
-    await h.byId('certification-legacy-import').emit('click');assert.equal(h.documents.size,1);assert.deepEqual(legacy,source);
+    assert.equal([...h.elements.keys()].some(id=>id.startsWith('certification-legacy-')),false);
+    h.field('location_area','Current unsaved area');await h.select(legacy.id);
+    assert.match(h.byId('certification-status').textContent,/Not found/);
+    assert.equal(h.byId('certification-location_area').value,'Current unsaved area');assert.equal(h.documents.size,0);
+    await h.save();assert.equal(h.documents.size,1);assert.deepEqual(legacy,source);
+    assert.ok(h.calls.filter(call=>call.path==='/api/certifications'||call.path==='/api/certifications/'+legacy.id).every(call=>call.workspace===h.api.sessionId()));
+    assert.equal(h.calls.some(call=>call.path==='/api/certifications/legacy'||/\/import$/.test(call.path)),false);
+  });
+  await check('Project workspace capability is available without opening or changing the certificate form',async h=>{
+    const fieldsBefore=fieldNames.map(name=>h.byId('certification-'+name).value);
+    const identity=await h.api.projectWorkspace();assert.match(identity.workspace_id,/^[0-9a-f-]{36}$/);assert.match(identity.project_id,/^[0-9a-f-]{36}$/);
+    assert.deepEqual(h.calls.map(call=>call.path),['/api/certifications/workspaces']);
+    assert.deepEqual(fieldNames.map(name=>h.byId('certification-'+name).value),fieldsBefore);
+    assert.equal(h.byId('certification-client').disabled,true);assert.equal(h.api.hasUnsavedChanges(),false);assert.equal(h.api.hasProjectChanges(),false);
+    assert.deepEqual(await h.api.projectWorkspace(),identity);identity.workspace_id='caller mutation';
+    assert.notEqual(h.api.sessionId(),identity.workspace_id);await h.api.open();
+    assert.equal(h.calls.filter(call=>call.path==='/api/certifications/workspaces').length,1);
+  },{open:false});
+  await check('Concurrent capability requests share creation and reject malformed scope replies before adoption',async h=>{
+    const held=deferred();h.override(path=>path==='/api/certifications/workspaces'?held.promise:undefined);
+    const first=h.api.projectWorkspace(),second=h.api.projectWorkspace();await flush();assert.equal(h.api.hasPendingOperation(),true);
+    assert.equal(h.calls.length,1);held.resolve(h.response({workspace_id:'not-a-capability',project_id:'not-a-project',items:[]}));
+    const failed=await Promise.allSettled([first,second]);assert.ok(failed.every(result=>result.status==='rejected'));
+    assert.equal(h.api.sessionId(),null);assert.equal(h.api.hasPendingOperation(),false);
+    h.override(null);const identity=await h.api.projectWorkspace();assert.equal(h.api.sessionId(),identity.workspace_id);
+  },{open:false});
+  await check('An older pending workspace response cannot replace an adopted project scope',async h=>{
+    const held=deferred();let first=true;h.override(path=>{if(path==='/api/certifications/workspaces'&&first){first=false;return held.promise;}});
+    const pending=h.api.projectWorkspace();await flush();const newer=await h.api.prepareProject();h.api.applyProject(newer);
+    held.resolve(h.response({workspace_id:'30000000-0000-4000-8000-000000000001',project_id:'40000000-0000-4000-8000-000000000001',items:[]}));
+    await assert.rejects(pending,/workspace is unavailable/);assert.equal(h.api.sessionId(),newer.workspace_id);
+    assert.deepEqual(copy(await h.api.projectWorkspace()),{workspace_id:newer.workspace_id,project_id:newer.project_id});
+  },{open:false});
+  await check('Only committed certificate revisions notify Documentation with the active project capability',async h=>{
+    const changes=[];h.window.addEventListener('ceasefire:certification-revision-saved',event=>changes.push(copy(event.detail)));
+    const identity=copy(await h.api.projectWorkspace());await h.save();assert.deepEqual(changes,[]);
+    await h.generate();assert.deepEqual(changes,[identity]);
+    h.override(path=>path.endsWith('/revisions')?h.serverError(409,'Other window changed this certificate'):undefined);
+    await h.generate();assert.deepEqual(changes,[identity]);
   });
   const html=fs.readFileSync('static/index.html','utf8'),app=fs.readFileSync('static/app.js','utf8');
   for(const choiceClass of ['section-navigation-choice','projects-section-card']) {
     const choices=[...html.matchAll(/<button\b[^>]*data-project-section="([^"]+)"[^>]*>/g)].filter(match=>match[0].includes('class="'+choiceClass+'"')).map(match=>match[1]);
-    assert.deepEqual(choices,['quotes','certification']);
+    assert.deepEqual(choices,['quotes','certification','documentation']);
   }
   assert.ok(html.includes('data-project-section="quotes"'));assert.ok(html.includes('data-project-section="certification"'));
   const projectsHub=html.match(/<section id="view-projects"[^>]*>[\s\S]*?<\/section>/)?.[0];
@@ -464,10 +489,11 @@ async function check(name,fn,{open=true}={}){const h=harness();if(open)await h.a
   for(const [name,markup] of [['Projects hub',projectsHub],['Projects navigation menu',projectsMenu]]){
     assert.ok(markup, name+' is present');
     assert.deepEqual([...markup.matchAll(/data-project-section="([^"]+)"/g)].map(match=>match[1]),
-      ['quotes','certification'], name+' has exactly its Projects and Certification choices');
+      ['quotes','certification','documentation'], name+' has exactly its Projects, Certification and Documentation choices');
   }
   for(const key of fieldNames)assert.ok(html.includes('id="certification-'+key+'"'));
   assert.ok(!html.includes('id="certification-new"'));assert.ok(!html.includes('id="certification-reload"'));
+  assert.ok(!html.includes('id="certification-legacy-open"'));assert.ok(!html.includes('id="certification-legacy-dialog"'));
   assert.ok(html.includes('<details id="certification-scopes"'));assert.ok(!html.includes('id="certification-cover-pdf"'));
   assert.ok(!html.includes('id="certification-signature-image"'));assert.ok(html.includes('id="certification-signature-canvas"'));assert.ok(html.includes('id="cover-sheets-settings"'));
   for(const key of ['approved_design','additional_standards','other_references','exclusions','materials_manufacturers','fire_resistance_level','name','position','qualification','accreditation'])assert.match(html,new RegExp('id="certification-'+key+'" name="'+key+'" rows="1"'));

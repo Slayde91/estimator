@@ -71,6 +71,7 @@ jobs:
       - run: node tests/test_project_ui.cjs
       - run: node tests/test_company_settings_ui.cjs
       - run: node tests/test_certification_ui.cjs
+      - run: node --check static/documentation.js && node tests/test_documentation_ui.cjs
       - run: node tests/test_cover_sheets_ui.cjs
       - run: node tests/test_downloads_ui.cjs
       - run: node tests/test_penetration_ui.cjs
@@ -119,6 +120,7 @@ jobs:
       - run: node tests/browser/calculation_queue.cjs
       - run: npm run test:project-library-drafts
       - run: node tests/browser/projects_navigation.cjs
+      - run: node tests/browser/project_documentation.cjs
       - run: node tests/browser/pricing_manufacturers.cjs
       - run: node tests/browser/certification_defaults.cjs
       - run: node tests/browser/certification_project_lifecycle.cjs

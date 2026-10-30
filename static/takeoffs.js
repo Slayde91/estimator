@@ -803,9 +803,15 @@
       await window.CeasefireTakeoffPDFTools.open({ operation, documents: clone(documents()), expectedRevision: revision, defaultAction: "download",
         requestPDF: async payload => {
           if (sessionId !== state.session?.session_id || revision !== state.session.revision) throw new Error("The project changed. Open Tools again.");
-          const response = await fetch(`/api/takeoffs/sessions/${sessionId}/pdf-tools`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-          if (!response.ok) { const error = await response.json(); throw new Error(error.error || "PDF Tools could not prepare this file."); }
-          const filename = response.headers.get("Content-Disposition")?.match(/filename="([^"]+)"/)?.[1] || `ceasefire-${operation}.pdf`; return { blob: await response.blob(), filename };
+          const path = `/api/takeoffs/sessions/${sessionId}/pdf-tools`, documentationHeaders = await window.CeasefireDocumentation?.downloadHeaders?.(path, payload) || {};
+          let completedResponse = null;
+          try {
+            if (sessionId !== state.session?.session_id || revision !== state.session.revision) throw new Error("The project changed. Open Tools again.");
+            const response = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json", ...documentationHeaders }, body: JSON.stringify(payload) });
+            if (!response.ok) { const error = await response.json(); throw new Error(error.error || "PDF Tools could not prepare this file."); }
+            completedResponse = response.clone();
+            const filename = response.headers.get("Content-Disposition")?.match(/filename="([^"]+)"/)?.[1] || `ceasefire-${operation}.pdf`; return { blob: await response.blob(), filename };
+          } finally { await window.CeasefireDocumentation?.downloadCompleted?.(documentationHeaders, completedResponse); }
         }, onResult: value => { result = value; } });
     } finally { setModal(false); window.CeasefireProject?.changed?.(); }
     if (!result) return;
@@ -971,6 +977,7 @@
     const saved = await window.CeasefireDownloads.save(`/api/takeoffs/sessions/${sessionId}/physical/export/${format === "xlsx" ? "register-xlsx" : format}`, { scope, ...(format === "pdf" || format === "xlsx" || confirmation !== null ? { expected_revision: revision } : {}), ...(confirmation !== null ? { confirmation } : {}) }, { button });
     if (sessionId !== state.session?.session_id || scope !== state.physicalScope || revision !== state.session?.revision) return saved;
     message(`Saved ${saved.filename} to ${saved.path}.`);
+    return saved;
   }
   function ensurePhysicalUI() {
     if (state.physicalUI) return;
@@ -5020,6 +5027,53 @@
     message(`Saved ${saved.filename} to ${saved.path}.`);
   }
   function downloadMarkup(kind, button = document.activeElement) { return downloadTakeoff("markup-pdf", "all", button, kind); }
+  async function documentationExport({ action, mode, scope, confirmation, markupKind, operation } = {}, button) {
+    if (!["register", "matrix", "markups", "pdf_tools"].includes(action)) throw new Error("Choose an existing Takeoff document.");
+    const workspaces = [["steel", "Steel"], ["duct", "Duct"], ["walls_floors", "Walls/Floors"], ["defect_reports", "Defect Reports"], ["service_plans", "Service Plans"]];
+    const requested = action === "matrix" ? scope : mode;
+    if (requested && !workspaces.some(([key]) => key === requested) || action === "matrix" && !["defect_reports", "service_plans"].includes(scope)) throw new Error("Choose the matching Takeoff workspace.");
+    requireFinishedEdits();
+    if (state.busy || state.modal) throw new Error("Finish the current Takeoff operation before downloading.");
+    await window.CeasefireTakeoffNavigation?.show?.();
+    if ($("view-takeoffs")?.hidden) throw new Error("Open Takeoffs to choose the document source.");
+    await ensureSession();
+    const sessionId = state.session.session_id, revision = state.session.revision;
+    const unchanged = () => { if (sessionId !== state.session?.session_id || revision !== state.session.revision) throw new Error("The project changed while choosing the Takeoff document. Try again."); };
+    if (action === "pdf_tools") {
+      const choice = await ask("Choose PDF tool", [["operation", "PDF operation", [["merge", "Merge PDF Files"], ["organise", "Organise Pages"], ["extract", "Extract Pages"]], operation || "merge", true]], "Choose the existing PDF tool, then select its Source Documents and pages.", "Open tool");
+      if (!choice) return { selectionRequired: true };
+      unchanged(); if (!["merge", "organise", "extract"].includes(choice.operation)) throw new Error("Choose an existing PDF tool.");
+      await openPDFTools(choice.operation); return { selectionRequired: true };
+    }
+    const current = state.mode === "physical" ? state.physicalScope : workspaceMode();
+    const choices = requested ? workspaces.filter(([key]) => key === requested) : workspaces;
+    const fields = [["workspace", "Takeoff workspace", choices, requested || current, true]];
+    if (action === "register") fields.push(["confirmation", "Items to include", [["confirmed", "Confirmed items"], ["unconfirmed", "Unconfirmed items"], ["all", "All items"]], confirmation || "all", true]);
+    if (action === "markups") fields.push(["kind", "Markup document", [["current-all", "Full current drawing"], ["current-marked", "Marked pages from current drawing"], ["all-all", "All drawings and markups"], ["all-marked", "Marked pages from all drawings"]], markupKind || "current-all", true]);
+    const selection = await ask("Choose Takeoff document", fields, "Confirm the workspace and document selection. The selected workspace will open before the existing exporter prepares the file.", "Continue");
+    if (!selection) return { selectionRequired: true };
+    unchanged();
+    if (!choices.some(([key]) => key === selection.workspace)
+        || action === "register" && !["confirmed", "unconfirmed", "all"].includes(selection.confirmation)
+        || action === "markups" && !["current-all", "current-marked", "all-all", "all-marked"].includes(selection.kind)) throw new Error("Choose a supported Takeoff document selection.");
+    const physical = ["defect_reports", "service_plans"].includes(selection.workspace);
+    if (!await selectWorkspace(physical ? "physical" : selection.workspace, physical ? selection.workspace : undefined)) throw new Error("The Takeoff workspace could not be selected. Finish its pending edits first.");
+    unchanged();
+    if (action === "markups") {
+      if (!documents().length) { message("Upload source PDFs, then choose the markup document again.", true); return { selectionRequired: true }; }
+      if (selection.kind.startsWith("current-")) {
+        const source = await ask("Choose markup Source Document", [["document_id", "Source Document", documents().map(doc => [doc.id, doc.name]), state.document || documents()[0].id, true]], "This chooses the source drawing for the existing markup export.", "Download");
+        if (!source) return { selectionRequired: true };
+        unchanged(); if (!await navigateDocument(source.document_id)) throw new Error("The Source Document could not be opened."); unchanged();
+      }
+      return downloadMarkup(selection.kind, button);
+    }
+    if (physical) {
+      requireFinishedEdits(); if (state.busy || state.modal) throw new Error("Finish the current physical operation before downloading.");
+      working(true); try { return await exportPhysical(action === "matrix" ? "pdf" : "xlsx", action === "matrix" ? null : selection.confirmation, button); } finally { working(false); }
+    }
+    return downloadTakeoff("schedule-xlsx", selection.confirmation, button);
+  }
   async function downloadTakeoff(format, confirmation = "all", button = document.activeElement, markupKind = null) {
     if (!["confirmed", "unconfirmed", "all"].includes(confirmation)) throw new Error("Choose confirmed, unconfirmed or all takeoff items.");
     requireFinishedEdits();
@@ -5122,7 +5176,7 @@
   }
   function scheduleBindings(calculatorId, row) { return (snapshot()?.transfers || []).filter(binding => binding.calculator_id === calculatorId && binding.row === row && binding.status !== "detached"); }
   async function showSource(itemId) { build(); await window.CeasefireTakeoffNavigation?.show?.(); if (!items().some(item => item.id === itemId)) { await safely(() => manageLinkedRows(itemId)); return; } await selectItem(itemId); }
-  window.CeasefireTakeoffs = { open, selectWorkspace, refreshNavigation, projectSnapshot, projectFingerprint, prepareProject, applyProject, prepareDefaults, markProjectSaved, hasUnsavedChanges, completeProjectSnapshot,
+  window.CeasefireTakeoffs = { open, selectWorkspace, refreshNavigation, projectSnapshot, projectFingerprint, prepareProject, applyProject, prepareDefaults, markProjectSaved, hasUnsavedChanges, completeProjectSnapshot, documentationExport,
     hasPendingOperation: () => !!(state.busy || state.linkedRecovery),
     hasLinkedRecovery: () => !!state.linkedRecovery,
     sessionId: () => state.session?.session_id, referenceRevision: () => state.session?.revision, scheduleBindings, showSource, discardPreparedSession, calculatorDraftChanged,

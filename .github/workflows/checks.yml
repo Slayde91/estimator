@@ -119,6 +119,7 @@ jobs:
       - run: node tests/browser/calculation_queue.cjs
       - run: npm run test:project-library-drafts
       - run: node tests/browser/projects_navigation.cjs
+      - run: node tests/browser/pricing_manufacturers.cjs
       - run: node tests/browser/certification_defaults.cjs
       - run: node tests/browser/certification_project_lifecycle.cjs
       - run: node tests/browser/pdf_render_gate.cjs

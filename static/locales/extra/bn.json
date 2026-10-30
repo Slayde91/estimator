@@ -2680,5 +2680,6 @@
   "Older certificate": "পুরোনো শংসাপত্র",
   "Add selected certificate": "নির্বাচিত শংসাপত্র যোগ করুন",
   "No older certificates are available.": "কোনো পুরোনো শংসাপত্র উপলব্ধ নেই।",
-  "The older certificate was added to this project. Its saved revisions are retained.": "পুরোনো শংসাপত্রটি এই প্রকল্পে যোগ করা হয়েছে। এর সংরক্ষিত সংশোধনগুলো রাখা হয়েছে।"
+  "The older certificate was added to this project. Its saved revisions are retained.": "পুরোনো শংসাপত্রটি এই প্রকল্পে যোগ করা হয়েছে। এর সংরক্ষিত সংশোধনগুলো রাখা হয়েছে।",
+  "Manufacturer must contain at most 200 characters without control characters.": "প্রস্তুতকারকের নাম সর্বাধিক ২০০ অক্ষরের হতে হবে এবং এতে নিয়ন্ত্রণ অক্ষর থাকা যাবে না।"
 }

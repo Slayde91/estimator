@@ -353,8 +353,8 @@ let passed=0;
 
   // One editable display label and scalar yield; distinct saved values survive viewing.
   const pricingFixture={inventory:[
-    {id:'coat',item_code:'P-1',name:'Coating <literal>',sales_description:'Coating',supplier_price:100.123456,markup:.2,sales_price:120.1481472,pricing_mode:'supplier_markup'},
-    {id:'unused',item_code:'P-2',name:'Fire collar product',sales_description:'Fire collar',supplier_price:20,markup:.1,sales_price:22,pricing_mode:'supplier_markup'},
+    {id:'coat',item_code:'P-1',name:'Coating <literal>',sales_description:'Coating',manufacturer:'Promat',supplier_price:100.123456,markup:.2,sales_price:120.1481472,pricing_mode:'supplier_markup'},
+    {id:'unused',item_code:'P-2',name:'Fire collar product',sales_description:'Fire collar',manufacturer:'Trafalgar',supplier_price:20,markup:.1,sales_price:22,pricing_mode:'supplier_markup'},
     {id:'manual',item_code:'P-3',name:'Manual inventory',sales_description:'Manual',supplier_price:null,markup:0,sales_price:400,pricing_mode:'manual'}],
     rate_groups:{primers:[{id:'primer',inventory_id:'coat',name:'Primer choice',price:120.1481472,yield:10.123456,uses_yield:true,price_mode:'inventory'}],
       topcoats:[{id:'topcoat',inventory_id:'coat',name:'Topcoat choice',price:180.123456,yield:8,uses_yield:true,price_mode:'override'}],
@@ -377,8 +377,8 @@ let passed=0;
   const originalPricing=JSON.stringify(pricingFixture);
   assert.deepEqual(productRows().map(row=>row.dataset.priceId),['coat','unused','manual','team','duplicate-name']);
   assert.equal(byId('pricing-body').children.length,5);assert.ok(!pricingNodes().some(node=>node.tagName==='details'));
-  assert.equal(byId('pricing-head').children[0].children.length,8);
-  assert.deepEqual(byId('pricing-head').children[0].children.map(cell=>cell.textContent),['Product/Service','Supplier price','Markup %','Sell price','Main Estimator groups','Firestopping Estimator groups','Yield','Actions']);
+  assert.equal(byId('pricing-head').children[0].children.length,9);
+  assert.deepEqual(byId('pricing-head').children[0].children.map(cell=>cell.textContent),['Product/Service','Manufacturer','Supplier price','Markup %','Sell price','Main Estimator groups','Firestopping Estimator groups','Yield','Actions']);
   assert.equal(productInput('coat','Product/Service').value,'Coating <literal>');assert.equal(productInput('coat','Selection name'),undefined);
   assert.equal(productInput('coat','Main Estimator groups').value,'Primers; Topcoats');
   const firestoppingRow=productRows().find(row=>row.dataset.priceId==='unused');
@@ -387,9 +387,26 @@ let passed=0;
   assert.equal(productInput('team','Firestopping Estimator groups').disabled,true);
   assert.equal(productInput('coat','Yield').value,'Mixed');assert.equal(productInput('coat','Yield unit'),undefined);assert.equal(productInput('coat','Yield').title,'m² / unit');
   assert.equal(productInput('coat','Sell rate override'),undefined);assert.equal(productInput('team','Yield').value,'');
-  assert.equal(productRows()[0].children[3].children.length,1);
+  assert.equal(productRows()[0].children[4].children.length,1);
   assert.ok(!pricingNodes().some(node=>node.className==='subtext pricing-rate-notice'));
   assert.equal(audit.state.pricingDirty,false);assert.equal(JSON.stringify(pricingFixture),originalPricing);passed++;
+
+  // Manufacturer edits are metadata, including a deliberate blank clear.
+  const unchangedSell=productRows()[0].children[4].children[0].textContent;
+  assert.equal(productInput('coat','Manufacturer').value,'Promat');assert.equal(productInput('coat','Manufacturer').maxLength,200);
+  await editList('coat','Manufacturer','Example Brand');
+  assert.deepEqual(copy(audit.state.draft),{inventory:{coat:{manufacturer:'Example Brand'}},rates:{}});
+  assert.equal(productRows()[0].children[4].children[0].textContent,unchangedSell);
+  await editList('coat','Manufacturer','');assert.equal(audit.state.draft.inventory.coat.manufacturer,'');assert.equal(productInput('coat','Manufacturer').value,'');
+  await productRows()[0].children.at(-1).children[0].emit('click');assert.equal(productInput('coat','Manufacturer').value,'Promat');
+  assert.deepEqual(copy(audit.state.draft),{inventory:{},rates:{}});assert.equal(JSON.stringify(pricingFixture),originalPricing);passed++;
+  await editList('team','Manufacturer','N/A');assert.equal(audit.state.draft.rates.team.manufacturer,'N/A');
+  await productRows().find(row=>row.dataset.priceId==='team').children.at(-1).children[0].emit('click');assert.equal(productInput('team','Manufacturer').value,'');
+  byId('pricing-search').value='promat';audit.renderPricing();assert.deepEqual(productRows().map(row=>row.dataset.priceId),['coat']);
+  byId('pricing-search').value='';audit.renderPricing();passed++;
+  await editList('coat','Manufacturer','X'.repeat(201));assert.equal(productInput('coat','Manufacturer').getAttribute('aria-invalid'),'true');
+  assert.deepEqual(copy(audit.state.draft),{inventory:{},rates:{}});await editList('coat','Manufacturer','Promat');
+  assert.equal(productInput('coat','Manufacturer').getAttribute('aria-invalid'),undefined);assert.equal(audit.state.pricingDirty,false);passed++;
 
   // New cost controls retain legacy values; blank unused yields can be saved and cleared.
   assert.equal(productInput('manual','supplier_price').value,'400.00');
@@ -682,7 +699,14 @@ let passed=0;
   assert.doesNotMatch(html,/firestopping-breakdown-part|Schedule breakdown/);
   assert.match(html,/<section id="main-panel-material-breakdown"[^>]*>\s*<div class="section-heading"><h2 id="breakdown-heading">Material Breakdown<\/h2><\/div>/);
   assert.match(html,/<section class="card labour-breakdown-section" id="labour-breakdown"[^>]*><div class="section-heading"><h2 id="labour-heading">Labour Breakdown<\/h2><\/div>/);
-  assert.ok(html.indexOf('id="penetration-schedule-breakdown-card"')<html.indexOf('id="breakdown-heading"'));
+  const estimateMarkup=html.slice(html.indexOf('id="view-estimate"'),html.indexOf('id="view-calculators"'));
+  assert.doesNotMatch(estimateMarkup,/penetration-schedule-breakdown|main-panel-firestopping-breakdown/);
+  assert.ok(html.indexOf('id="penetration-schedule-breakdown-card"')>html.indexOf('id="penetration-estimator-schedule-heading"'));
+  assert.match(html,/id="penetration-schedule-view-tabs"[^>]*role="tablist"/);
+  for(const view of ['schedule','breakdown']){
+    assert.match(html,new RegExp(`id="penetration-schedule-tab-${view}"[^>]*role="tab"[^>]*aria-controls="penetration-schedule-panel-${view}"`));
+    assert.match(html,new RegExp(`id="penetration-schedule-panel-${view}"[^>]*role="tabpanel"[^>]*aria-labelledby="penetration-schedule-tab-${view}"`));
+  }
   assert.match(html,/id="penetration-schedule-breakdown-card"[^>]*>\s*<div class="section-heading"><h2>Firestopping Breakdown<\/h2><\/div>\s*<div id="penetration-schedule-breakdown"/);
   assert.match(html,/<section class="penetration-schedule-summary-section"[^>]*>\s*<h3[^>]*>Summary<\/h3>/);
   assert.doesNotMatch(html,/<summary><h3[^>]*>Summary<\/h3><\/summary>/);
@@ -909,11 +933,16 @@ let passed=0;
   for(const [id,format,label] of [['penetration-excel','excel','Download Firestopping Schedule'],['penetration-pdf','pdf','Download Firestopping Schedule'],['penetration-item-excel','excel','Item Details'],['penetration-item-pdf','pdf','Item Details']])assert.match(markup,new RegExp(`id="${id}"[^>]*class="button ${format}-button calculator-document-action"[^>]*aria-label="${label}"[^>]*title="${label}"[\\s\\S]*?<span class="download-arrow">⇩<\\/span>`));
   const estimateHeading=markup.match(/<div class="page-heading workspace-banner-heading estimate-banner-heading">[^\n]*id="download-quote-pdf"[^\n]*<\/div>/)?.[0];
   assert.ok(estimateHeading,'Main heading contains the estimate PDF control');
-  assert.match(estimateHeading,/aria-controls="firestopping-document-actions"[\s\S]*id="firestopping-document-actions"[\s\S]*id="download-quote-pdf"[\s\S]*id="penetration-excel"[\s\S]*id="penetration-pdf"/);
+  assert.match(estimateHeading,/aria-controls="firestopping-document-actions"[\s\S]*id="firestopping-document-actions"[\s\S]*id="download-quote-pdf"/);
+  assert.doesNotMatch(estimateHeading,/id="penetration-(excel|pdf)"/);
+  const calculatorHeading=markup.match(/<section id="penetration-current-item-card"[^\n]*id="firestopping-item-document-actions"[^\n]*<\/section>/)?.[0];
+  assert.ok(calculatorHeading,'Calculator heading contains the Firestopping document control');
+  assert.match(calculatorHeading,/id="firestopping-item-document-actions"[\s\S]*id="penetration-item-excel"[\s\S]*id="penetration-item-pdf"[\s\S]*id="penetration-excel"[\s\S]*id="penetration-pdf"/);
+  assert.doesNotMatch(markup,/penetration-item-schedule-pdf/);
   const recalculateRows=markup.match(/<div class="penetration-row-tools penetration-schedule-recalculate-tools">[^\n]*<\/div>/g)||[];
   assert.equal(recalculateRows.length,2);
   for(const row of recalculateRows)assert.doesNotMatch(row,/calculator-document-menu|penetration-excel|penetration-pdf|data-document-menu/);
-  assert.ok(markup.indexOf('id="penetration-pdf"')<markup.indexOf('id="penetration-schedule-body"'));
+  assert.ok(markup.indexOf('id="penetration-pdf"')<markup.indexOf('id="penetration-estimator-schedule-body"'));
   assert.doesNotMatch(markup,/id="estimator-view-heading"|Build and review the project's material, labour and firestopping totals/);
   assert.doesNotMatch(markup,/id="calculators-heading"|Proposal Calculators/);
   assert.ok(markup.indexOf('id="calculator-template"')<markup.indexOf('id="calculator-reset"'));assert.ok(markup.indexOf('id="calculator-reset"')<markup.indexOf('id="calculator-recalculate"'));

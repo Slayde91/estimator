@@ -53,7 +53,7 @@ function harness() {
       append(...nodes){for(const child of nodes){child.parentNode=this;child.parentElement=this;this.children.push(child);}},replaceChildren(...nodes){this.children=[];this.append(...nodes);},
       closest(){return null;},remove(){if(this.parentNode)this.parentNode.children=this.parentNode.children.filter(child=>child!==this);this.parentNode=null;this.parentElement=null;},
       querySelectorAll(selector){return this.children.flatMap(child=>[...(matches(child,selector)?[child]:[]),...child.querySelectorAll(selector)]);},
-      addEventListener(name,fn){(this.listeners[name]||=[]).push(fn);},async emit(name){for(const fn of this.listeners[name]||[])await fn({target:this,currentTarget:this});},
+      addEventListener(name,fn){(this.listeners[name]||=[]).push(fn);},async emit(name,detail={}){for(const fn of this.listeners[name]||[])await fn({target:this,currentTarget:this,...detail});},
       focus(){document.activeElement=this;return this.emit('focus');},blur(){document.activeElement=null;return this.emit('blur');},select(){this.selectionStart=0;this.selectionEnd=this.value.length;},
     };
   }

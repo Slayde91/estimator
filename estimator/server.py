@@ -312,14 +312,14 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     self.send_payload(200, calculator_definition(calculator_id, state['inputs'], state['schedule_rows']))
                 elif route == "/api/bootstrap":
                     from .penetration_calculator import pricing_usage_metadata
-                    config = store.configuration()
+                    config = store.shared_configuration()
                     catalog = effective_catalog(config)
                     self.send_payload(200, {"fields": fields(catalog), "baseline": baseline(), "configuration": config,
                                             "catalog": configuration_catalog(config), "workflows": WORKFLOWS,
                                             "pricing_usage": pricing_usage_metadata(),
                                             "edition": edition, "features": capabilities})
                 elif route == "/api/configuration":
-                    self.send_payload(200, store.configuration())
+                    self.send_payload(200, store.shared_configuration())
                 elif route == "/api/projects":
                     query = parse_qs(urlsplit(self.path).query, keep_blank_values=True)
                     if set(query) - {'search', 'sort', 'offset', 'limit', 'refresh'} or any(len(values) != 1 for values in query.values()):
@@ -664,7 +664,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     if set(body) - {"configuration", "download"}:
                         raise ValidationError("Unknown pricing export fields.")
                     destination = self.capture_download(body['download']) if 'download' in body else None
-                    workbook = export_pricing_workbook(body.get("configuration", store.configuration()))
+                    workbook = export_pricing_workbook(body['configuration'] if 'configuration' in body else store.shared_configuration())
                     self.send_download(workbook, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 'ceasefire-pricing.xlsx', destination)
                 elif route == "/api/pricing/import" and self.command == "POST":
                     from .pricing_workbook import import_pricing_workbook
@@ -681,7 +681,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                         raise ValidationError("The Excel file upload is invalid.") from exc
                     if not payload or len(payload) > MAX_PRICING_FILE:
                         raise ValidationError("Choose a nonempty Excel file of at most 5 MB.")
-                    proposed = import_pricing_workbook(payload, filename, body.get("configuration", store.configuration()))
+                    proposed = import_pricing_workbook(payload, filename, body['configuration'] if 'configuration' in body else store.shared_configuration())
                     config = proposed["configuration"]
                     self.send_payload(200, {**proposed, "catalog": configuration_catalog(config),
                                             "fields": fields(effective_catalog(config))})

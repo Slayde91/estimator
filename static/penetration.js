@@ -17,7 +17,7 @@
   const cloneOptional = value => value === undefined ? undefined : clone(value);
   const state = { definition: null, draft: null, saved: null, selected: null, group: null, result: null,
     revision: 0, context: 0, requestRevision: 0, invalid: new Map(), removed: [], timer: null,
-    loading: false, calculating: false, downloading: false, downloadKind: null, page: 0, pendingFields: false,
+    loading: false, calculating: false, downloading: false, downloadKind: null, page: 0, pendingFields: false, scheduleView: "schedule",
     creatingLibrary: false, addingLibrary: false, addingSchedule: false, updatingSchedule: false, libraryCapture: null, edit: null, composerEpoch: 0,
     tabAdvisoryAcknowledgement: null, additionalLabourAdvisory: false, openSettingsBand: null, multiplierDefaults: new Map(), pendingDeletes: new Set(),
     diagramChange: undefined, diagramRead: 0, diagramReading: null, diagramVersion: 0, takeoffLease: null, takeoffApplying: false,
@@ -131,14 +131,14 @@
     $("penetration-update-schedule").disabled = blocked || scheduleBlocked || state.diagramChange !== undefined || state.updatingSchedule || !validEdit();
     $("penetration-cancel-edit").hidden = !state.edit;
     for (const id of ["penetration-schedule-recalculate", "penetration-estimator-schedule-recalculate"]) $(id).disabled = scheduleBlocked || state.schedule.calculating || state.downloading;
-    for (const id of ["penetration-pdf", "penetration-excel", "penetration-item-schedule-pdf"]) $(id).disabled = scheduleBlocked || state.downloading;
+    for (const id of ["penetration-pdf", "penetration-excel"]) $(id).disabled = scheduleBlocked || state.downloading;
     for (const id of ["penetration-item-pdf", "penetration-item-excel"]) $(id).disabled = blocked || state.downloading || state.loading || state.diagramReading !== null || state.creatingLibrary || state.addingLibrary || state.addingSchedule || state.updatingSchedule;
     buttonBusy("penetration-recalculate", state.calculating);
     buttonBusy("penetration-add-to-library", state.creatingLibrary);
     buttonBusy("penetration-add-to-schedule", state.addingSchedule);
     buttonBusy("penetration-update-schedule", state.updatingSchedule);
     for (const id of ["penetration-schedule-recalculate", "penetration-estimator-schedule-recalculate"]) buttonBusy(id, state.schedule.calculating);
-    for (const id of ["penetration-pdf", "penetration-item-pdf", "penetration-item-schedule-pdf"]) buttonBusy(id, state.downloading && state.downloadKind === "pdf");
+    for (const id of ["penetration-pdf", "penetration-item-pdf"]) buttonBusy(id, state.downloading && state.downloadKind === "pdf");
     for (const id of ["penetration-excel", "penetration-item-excel"]) buttonBusy(id, state.downloading && state.downloadKind === "xlsx");
     for (const id of ["penetration-undo", "penetration-estimator-undo"]) $(id).disabled = scheduleBlocked || !state.removed.length;
     for (const id of ["penetration-schedule-body", "penetration-estimator-schedule-body"]) for (const button of $(id).querySelectorAll("[data-penetration-remove]")) {
@@ -199,7 +199,7 @@
     const composer = clone(prepared.composer || prepared.definition.defaults);
     Object.assign(state, { definition: prepared.definition, draft: composer, saved: prepared.saved || stable(canonicalSnapshot({ draft: prepared.draft, composer }, prepared.definition)),
       selected: composer.rows[0].id, group: prepared.definition.groups[0], result: null, edit: null, diagramChange: undefined, diagramRead: state.diagramRead + 1, diagramReading: null, diagramVersion: 0,
-      revision: 0, invalid: new Map(), removed: [], page: 0, pendingFields: false, calculating: false, rowEpochs: new Map(), tabAdvisoryAcknowledgement: null, additionalLabourAdvisory: false, multiplierDefaults: new Map(), pendingDeletes: new Set() });
+      revision: 0, invalid: new Map(), removed: [], page: 0, pendingFields: false, calculating: false, rowEpochs: new Map(), tabAdvisoryAcknowledgement: null, additionalLabourAdvisory: false, multiplierDefaults: new Map(), pendingDeletes: new Set(), scheduleView: "schedule" });
     Object.assign(state.schedule, { draft: clone(prepared.draft), result: null, revision: 0, requestRevision: state.schedule.requestRevision + 1, invalid: new Map(), calculating: false });
     for (const row of state.schedule.draft.rows) state.rowEpochs.set(row.id, ++state.nextEpoch);
     render(); message(); message("", false, state.schedule);
@@ -1288,10 +1288,20 @@
     if (scope === state.schedule) $("penetration-schedule-breakdown").replaceChildren(window.CeasefirePenetrationBreakdown.renderSchedule(state.definition, scope.result));
     else $("penetration-breakdown").replaceChildren(window.CeasefirePenetrationBreakdown.render(state.definition, state.result?.rows.find(row => row.id === state.selected)));
   }
+  function selectScheduleView(view, { focus = false } = {}) {
+    if (!["schedule", "breakdown"].includes(view)) return;
+    state.scheduleView = view;
+    for (const key of ["schedule", "breakdown"]) {
+      const selected = key === view, tab = $("penetration-schedule-tab-" + key);
+      tab.setAttribute("aria-selected", String(selected)); tab.tabIndex = selected ? 0 : -1;
+      $("penetration-schedule-panel-" + key).hidden = !selected;
+      if (selected && focus) { tab.focus(); tab.scrollIntoView?.({ block: "nearest", inline: "nearest" }); }
+    }
+  }
   function render() {
     if (!state.draft) return;
     $("penetration-loading").hidden = true; $("penetration-workspace").hidden = false; $("penetration-schedule-workspace").hidden = false; $("penetration-schedule-breakdown-card").hidden = false;
-    renderSchedule(); renderFields(); renderScheduleGlobals();
+    renderSchedule(); renderFields(); renderScheduleGlobals(); selectScheduleView(state.scheduleView);
     for (const scope of [state, state.schedule]) { renderSummary(scope); renderBreakdown(scope); }
     status();
   }
@@ -1407,8 +1417,18 @@
   $("penetration-pdf").addEventListener("click", event => download("pdf", event.currentTarget));
   $("penetration-excel").addEventListener("click", event => download("xlsx", event.currentTarget));
   $("penetration-item-pdf").addEventListener("click", event => downloadItem("pdf", event.currentTarget));
-  $("penetration-item-schedule-pdf").addEventListener("click", event => download("pdf", event.currentTarget));
   $("penetration-item-excel").addEventListener("click", event => downloadItem("xlsx", event.currentTarget));
+  const scheduleViews = ["schedule", "breakdown"];
+  scheduleViews.forEach((view, index) => {
+    const tab = $("penetration-schedule-tab-" + view);
+    tab.addEventListener("click", () => selectScheduleView(view));
+    tab.addEventListener("keydown", event => {
+      const next = { ArrowRight: (index + 1) % 2, ArrowLeft: (index + 1) % 2, Home: 0, End: 1 }[event.key];
+      if (next === undefined) return;
+      event.preventDefault(); selectScheduleView(scheduleViews[next], { focus: true });
+    });
+  });
+  selectScheduleView(state.scheduleView);
   function assertTakeoffWritable() {
     if (state.takeoffLease && !state.takeoffApplying) throw new Error("A confirmed Takeoff library link is still applying. Recover its outcome before editing, saving or replacing the Firestopping Schedule.");
   }

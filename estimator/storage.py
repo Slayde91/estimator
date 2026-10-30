@@ -51,6 +51,15 @@ class Store:
             row = db.execute("SELECT data FROM settings WHERE id=1").fetchone()
         return json.loads(row[0]) if row else {"inventory": {}, "rates": {}}
 
+    def shared_configuration(self):
+        """Source-reviewed shared metadata, without rewriting stored settings.
+
+        Saved project/quote configurations never pass through this overlay.
+        Explicit Save pricing persists the reviewed values in the usual way.
+        """
+        from .pricing_manufacturers import with_manufacturer_defaults
+        return with_manufacturer_defaults(self.configuration())
+
     def company_settings(self):
         from .company_settings import DEFAULTS
         with self.connect() as db:
@@ -148,7 +157,9 @@ class Store:
         measurements = data.get("measurements", prior.get("measurements", ""))
         if not isinstance(measurements, str) or len(measurements) > 20000:
             raise ValidationError("Measurement notes must be text of at most 20000 characters.")
-        configuration = validate_configuration(data.get("configuration", previous["configuration"] if previous else self.configuration()))
+        selected_configuration = (data['configuration'] if 'configuration' in data else
+                                  previous['configuration'] if previous else self.shared_configuration())
+        configuration = validate_configuration(selected_configuration)
         pricing_changed = previous is None or configuration != previous["configuration"]
         # Freeze all effective lookup prices/yields, including unchanged defaults.
         # Storing only user overrides would let a future baseline price refresh
@@ -163,7 +174,9 @@ class Store:
         configuration["rates"] = {
             rate["id"]: {"price": rate["price"],
                          **({"yield": rate["yield"]} if has_yield(rate) else {}),
-                         **({"product_service": rate["product_service"]} if "product_service" in rate else {})}
+                         **({"product_service": rate["product_service"]} if "product_service" in rate else {}),
+                         **({"manufacturer": rate["manufacturer"]} if "manufacturer" in rate and
+                            (rate.get("inventory_id") is None or "manufacturer" in configuration["rates"].get(rate["id"], {})) else {})}
             for rates in catalog["rate_groups"].values() for rate in rates
         }
         configuration["catalog_signature"] = catalog_signature(catalog)

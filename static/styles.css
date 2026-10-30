@@ -231,9 +231,9 @@ td.numeric,.numeric{text-align:right;font-variant-numeric:tabular-nums}
 .pricing-controls .search-field{margin:0;min-width:0;width:100%;max-width:none}
 .pricing-document-menu{margin-right:auto}
 .pricing-document-menu .calculator-document-actions{left:0;right:auto}
-.pricing-table{width:100%;min-width:760px;table-layout:fixed;margin-top:15px}
-.pricing-table th:first-child{width:23%;min-width:0}
-.pricing-table th:nth-child(2){width:8%;min-width:0}
+.pricing-table{width:100%;min-width:1100px;table-layout:fixed;margin-top:15px}
+.pricing-table th:first-child{width:22%;min-width:0}
+.pricing-table th:nth-child(2){width:12%;min-width:0}
 .pricing-table input{width:100%;min-width:0;max-width:100%;font-size:12px;padding:7px}
 .pricing-table input[type=number]{min-width:0;max-width:100%;text-align:right}
 .pricing-table .item-name{min-width:0}
@@ -370,7 +370,7 @@ dialog .actions{justify-content:flex-end}
 .gear-symbol { color: #111; }
 
 /* Shared pricing columns stay readable without unused horizontal space. */
-.pricing-table th,.pricing-table td{padding:9px 6px;overflow-wrap:anywhere}.pricing-table th:nth-child(3){width:7%}.pricing-table th:nth-child(4){width:8%}.pricing-table th:nth-child(5),.pricing-table th:nth-child(6){width:19%}.pricing-table th:nth-child(7){width:8%}.pricing-table th:nth-child(8){width:8%}.pricing-table .pricing-row-actions{white-space:normal}.pricing-table .pricing-row-actions .reset-button{padding:5px 0}.pricing-table .pricing-row-actions .icon-only{width:28px;min-width:28px;height:28px;padding:5px}
+.pricing-table th,.pricing-table td{padding:9px 6px;overflow-wrap:anywhere}.pricing-table th:nth-child(3){width:8%}.pricing-table th:nth-child(4){width:6%}.pricing-table th:nth-child(5){width:8%}.pricing-table th:nth-child(6),.pricing-table th:nth-child(7){width:16%}.pricing-table th:nth-child(8),.pricing-table th:nth-child(9){width:6%}.pricing-table .pricing-row-actions{white-space:normal}.pricing-table .pricing-row-actions .reset-button{padding:5px 0}.pricing-table .pricing-row-actions .icon-only{width:28px;min-width:28px;height:28px;padding:5px}
 
 .calculator-status{display:inline-block;background:#fff1bf;color:#775300;width:fit-content}
 .company-logo-controls{display:flex;align-items:flex-end;gap:20px;flex-wrap:wrap;margin:20px 0}

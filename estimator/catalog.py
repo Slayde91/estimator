@@ -97,6 +97,13 @@ def _amount(value, label, blank=False, minimum=0):
     return value
 
 
+def manufacturer_text(value, label='Manufacturer'):
+    value = _text(value, label, 200, empty=True)
+    if any(0xD800 <= ord(character) <= 0xDFFF for character in value):
+        raise ValidationError(f"{label} contains an invalid Unicode character.")
+    return value
+
+
 def validate_catalog(value):
     """Validate a complete replacement without changing the workbook defaults.
 
@@ -143,7 +150,7 @@ def validate_catalog(value):
     inventory_ids = set()
     inventory_fields = {"id", "item_code", "name", "sales_description", "product_service", "supplier_price", "supplier_price_raw",
                         "sales_price", "calculated_sell_price", "pricing_mode", "markup", "status", "inventory_type", "properties", "source",
-                        "firestopping_groups", "pricing_yield"}
+                        "firestopping_groups", "pricing_yield", "manufacturer"}
     firestopping_keys = {group["key"] for group in FIRESTOPPING_GROUPS}
     for item in data["inventory"]:
         if not isinstance(item, dict) or set(item) - inventory_fields:
@@ -156,6 +163,8 @@ def validate_catalog(value):
             _text(item.get(field), f"Inventory {key} {field}", empty=field == "sales_description")
         if "product_service" in item:
             _text(item["product_service"], f"Inventory {key} Product/Service")
+        if "manufacturer" in item:
+            manufacturer_text(item["manufacturer"], f"Inventory {key} manufacturer")
         if "firestopping_groups" in item:
             assigned = item["firestopping_groups"]
             if not isinstance(assigned, list) or len(assigned) > len(FIRESTOPPING_GROUPS):
@@ -198,7 +207,7 @@ def validate_catalog(value):
         if not isinstance(item.setdefault("source", {}), dict):
             raise ValidationError(f"Inventory {key} source must be an object.")
     rate_ids = set()
-    rate_fields = {"id", "name", "display_name", "product_service", "price", "yield", "yield_unit", "inventory_id", "source", "uses_yield", "price_mode", "supplier_price", "markup", "pricing_yield"}
+    rate_fields = {"id", "name", "display_name", "product_service", "price", "yield", "yield_unit", "inventory_id", "source", "uses_yield", "price_mode", "supplier_price", "markup", "pricing_yield", "manufacturer"}
     for group, rows in groups.items():
         if not isinstance(rows, list):
             raise ValidationError(f"Rate group {group} must be a list.")
@@ -221,6 +230,8 @@ def validate_catalog(value):
                 _text(rate["display_name"], f"Rate {key} display name")
             if "product_service" in rate:
                 _text(rate["product_service"], f"Rate {key} Product/Service")
+            if "manufacturer" in rate:
+                manufacturer_text(rate["manufacturer"], f"Rate {key} manufacturer")
             linked = rate.get("inventory_id")
             if linked is not None and (not isinstance(linked, str) or linked not in inventory_ids):
                 raise ValidationError(f"Rate {key} refers to an unknown inventory product.")
@@ -287,8 +298,8 @@ def validate_configuration(value, data=None):
         edits = value.get(category, {})
         if not isinstance(edits, dict):
             raise ValidationError(f"{category} overrides must be an object.")
-        allowed = ({"supplier_price", "markup", "sales_price", "name", "sales_description", "product_service", "pricing_yield"}
-                   if category == "inventory" else {"price", "yield", "product_service", "supplier_price", "markup", "pricing_yield"})
+        allowed = ({"supplier_price", "markup", "sales_price", "name", "sales_description", "product_service", "pricing_yield", "manufacturer"}
+                   if category == "inventory" else {"price", "yield", "product_service", "supplier_price", "markup", "pricing_yield", "manufacturer"})
         for key, changes in edits.items():
             if key not in records[category] or not isinstance(changes, dict) or set(changes) - allowed:
                 raise ValidationError(f"Unknown {category} item or field: {key}.")
@@ -299,7 +310,9 @@ def validate_configuration(value, data=None):
             for field, field_value in changes.items():
                 if field == "yield" and not has_yield(record):
                     raise ValidationError(f"{key} does not use a material yield.")
-                if field in {"name", "sales_description", "product_service"}:
+                if field == "manufacturer":
+                    manufacturer_text(field_value, f"{key}.{field}")
+                elif field in {"name", "sales_description", "product_service"}:
                     _text(field_value, f"{key}.{field}")
                 else:
                     if field in {"yield", "pricing_yield"} and (field_value is None or field_value == ""):
@@ -343,6 +356,8 @@ def effective_catalog(configuration=None, data=None):
                 # Selection keys remain stable when the catalog display text is edited.
                 name_field = "sales_description" if data["rate_group_rules"][group]["name_column"] == "G" else "name"
                 rate["display_name"] = patch.get(name_field, rate.get("display_name", rate["name"]))
+                if "manufacturer" in linked:
+                    rate["manufacturer"] = linked["manufacturer"]
             rate_patch = edits["rates"].get(rate["id"], {})
             if {"supplier_price", "markup"} & rate_patch.keys():
                 rate.setdefault("supplier_price", rate["price"])

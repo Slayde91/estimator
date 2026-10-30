@@ -1,0 +1,4681 @@
+{
+  "schema_version": 1,
+  "reviewed_at": "2026-10-30T06:19:23.868396+00:00",
+  "assignments": [
+    {
+      "kind": "inventory",
+      "id": "0",
+      "name": "N/A",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 2; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "100",
+      "name": "Scissor - 6m electric daily hire rate",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 3; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "101",
+      "name": "Scissor - 8m diesel daily hire rate",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 4; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "102",
+      "name": "Scissor - 9m electric daily hire rate",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 5; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "103",
+      "name": "Scissor - 9m diesel daily hire rate",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 6; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "104",
+      "name": "Scissor - 12m electric daily hire rate",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 7; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "105",
+      "name": "Scissor - 13m diesel daily hire rate",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 8; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "106",
+      "name": "Scissor - 16m diesel daily hire rate",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 9; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "107",
+      "name": "Athena - 6m daily hire rate",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 10; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "108",
+      "name": "EWP - 12-13m electric daily hire rate",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 11; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "109",
+      "name": "EWP - 15m electric/diesel hybrid daily hire rate",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 12; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "110",
+      "name": "EWP - 18m electric/diesel hybrid daily hire rate",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 13; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "111",
+      "name": "EWP - 24m diesel daily hire rate",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 14; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "112",
+      "name": "Scissor - 6m electric weekly hire rate",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 15; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "113",
+      "name": "Scissor - 8m diesel weekly hire rate",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 16; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "114",
+      "name": "Scissor - 9m electric weekly hire rate",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 17; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "115",
+      "name": "Scissor - 9m diesel weekly hire rate",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 18; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "116",
+      "name": "Scissor - 12m electric weekly hire rate",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 19; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "117",
+      "name": "Scissor - 13m diesel weekly hire rate",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 20; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "118",
+      "name": "Scissor - 16m diesel weekly hire rate",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 21; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "119",
+      "name": "Athena - 6m diesel weekly hire rate",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 22; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "120",
+      "name": "EWP - 12-13m electric weekly hire rate",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 23; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "121",
+      "name": "EWP - 15m electric/diesel hybrid weekly hire rate",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 24; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "122",
+      "name": "EWP - 18m electric/diesel hybrid weekly hire rate",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 25; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "123",
+      "name": "EWP - 24m diesel weekly hire rate",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 26; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "124",
+      "name": "Scissor - 6-9m freight (both ways)",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 27; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "125",
+      "name": "Scissor - 12m freight (both ways)",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 28; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "126",
+      "name": "Scissor - 13m freight (both ways)",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 29; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "127",
+      "name": "Scissor - 16m freight (both ways)",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 30; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "128",
+      "name": "EWP - 12-13m freight (both ways)",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 31; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "129",
+      "name": "EWP - 15m freight (both ways)",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 32; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "130",
+      "name": "EWP - 18m freight (both ways)",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 33; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "131",
+      "name": "EWP - 24m freight (both ways)",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 34; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "200",
+      "name": "Promat Cafco 300",
+      "manufacturer": "Promat",
+      "evidence": [
+        {
+          "local_reference": "2026 Price List_Sprays_NSW Premium Q3 & Q4.pdf; SHA256=df4b17285a37166fa3664bd54f5bd8bbd16b799dafaa5eca2aa68491a1bce2fa; page 3",
+          "title": "2026 Price List_Sprays_NSW Premium Q3 & Q4.pdf",
+          "note": "4032216 CAFCO® 300 20kg bag 24"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "201",
+      "name": "Promat Fendolite MII",
+      "manufacturer": "Promat",
+      "evidence": [
+        {
+          "local_reference": "2026 Price List_Sprays_NSW Premium Q3 & Q4.pdf; SHA256=df4b17285a37166fa3664bd54f5bd8bbd16b799dafaa5eca2aa68491a1bce2fa; page 3",
+          "title": "2026 Price List_Sprays_NSW Premium Q3 & Q4.pdf",
+          "note": "4071264 Cafco FENDOLITE® MII 20kg bag 30"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "202",
+      "name": "Promat Mandolite",
+      "manufacturer": "Promat",
+      "evidence": [
+        {
+          "local_reference": "2026 Price List_Sprays_NSW Premium Q3 & Q4.pdf; SHA256=df4b17285a37166fa3664bd54f5bd8bbd16b799dafaa5eca2aa68491a1bce2fa; page 3",
+          "title": "2026 Price List_Sprays_NSW Premium Q3 & Q4.pdf",
+          "note": "4032242 Cafco MANDOLITE® CP2 20kg bag 20"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "203",
+      "name": "Promat Promamesh",
+      "manufacturer": "Promat",
+      "evidence": [
+        {
+          "local_reference": "2026 Price List_Sprays_NSW Premium Q3 & Q4.pdf; SHA256=df4b17285a37166fa3664bd54f5bd8bbd16b799dafaa5eca2aa68491a1bce2fa; page 3",
+          "title": "2026 Price List_Sprays_NSW Premium Q3 & Q4.pdf",
+          "note": "4032211 PromaMesh - 3 Dimensional Mesh 2000x1200x30mm N/A"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "204",
+      "name": "Promat SBR Latex",
+      "manufacturer": "Promat",
+      "evidence": [
+        {
+          "local_reference": "2026 Price List_Sprays_NSW Premium Q3 & Q4.pdf; SHA256=df4b17285a37166fa3664bd54f5bd8bbd16b799dafaa5eca2aa68491a1bce2fa; page 3",
+          "title": "2026 Price List_Sprays_NSW Premium Q3 & Q4.pdf",
+          "note": "92427 SBR Latex 20kgs N/A"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "205",
+      "name": "Promat PSK101",
+      "manufacturer": "Promat",
+      "evidence": [
+        {
+          "local_reference": "2026 Price List_Sprays_NSW Premium Q3 & Q4.pdf; SHA256=df4b17285a37166fa3664bd54f5bd8bbd16b799dafaa5eca2aa68491a1bce2fa; page 3",
+          "title": "2026 Price List_Sprays_NSW Premium Q3 & Q4.pdf",
+          "note": "159413 PSK101 25kgs N/A"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "206",
+      "name": "Promat Topcoat 200",
+      "manufacturer": "Promat",
+      "evidence": [
+        {
+          "local_reference": "2026 Price List_Sprays_NSW Premium Q3 & Q4.pdf; SHA256=df4b17285a37166fa3664bd54f5bd8bbd16b799dafaa5eca2aa68491a1bce2fa; page 3",
+          "title": "2026 Price List_Sprays_NSW Premium Q3 & Q4.pdf",
+          "note": "159409 TOPCOAT 200 - WHITE 20kgs N/A"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "207",
+      "name": "Promat Retrofit Collar 40",
+      "manufacturer": "Promat",
+      "evidence": [
+        {
+          "local_reference": "2026 Price List_Specialist Contractor.pdf; SHA256=6b0da6ebfdc401302a3fccaa6f1985cd45862278bf71612a0027c1b94bfe93da; page 3",
+          "title": "2026 Price List_Specialist Contractor.pdf",
+          "note": "PROMASEAL® Retrofit Collars (FC) FC40 78257 PROMASEAL® Retrofit Collar - Flanged 40mm 20"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "208",
+      "name": "Promat Retrofit Collar 50",
+      "manufacturer": "Promat",
+      "evidence": [
+        {
+          "local_reference": "2026 Price List_Specialist Contractor.pdf; SHA256=6b0da6ebfdc401302a3fccaa6f1985cd45862278bf71612a0027c1b94bfe93da; page 3",
+          "title": "2026 Price List_Specialist Contractor.pdf",
+          "note": "FC50 78258 PROMASEAL® Retrofit Collar - Flanged 50mm 20"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "209",
+      "name": "Promat Retrofit Collar 65",
+      "manufacturer": "Promat",
+      "evidence": [
+        {
+          "local_reference": "2026 Price List_Specialist Contractor.pdf; SHA256=6b0da6ebfdc401302a3fccaa6f1985cd45862278bf71612a0027c1b94bfe93da; page 3",
+          "title": "2026 Price List_Specialist Contractor.pdf",
+          "note": "FC65 78259 PROMASEAL® Retrofit Collar - Flanged 65mm 15"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "210",
+      "name": "Promat Retrofit Collar 80",
+      "manufacturer": "Promat",
+      "evidence": [
+        {
+          "local_reference": "2026 Price List_Specialist Contractor.pdf; SHA256=6b0da6ebfdc401302a3fccaa6f1985cd45862278bf71612a0027c1b94bfe93da; page 3",
+          "title": "2026 Price List_Specialist Contractor.pdf",
+          "note": "FC80 78260 PROMASEAL® Retrofit Collar - Flanged 80mm 20"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "211",
+      "name": "Promat Retrofit Collar 100",
+      "manufacturer": "Promat",
+      "evidence": [
+        {
+          "local_reference": "2026 Price List_Specialist Contractor.pdf; SHA256=6b0da6ebfdc401302a3fccaa6f1985cd45862278bf71612a0027c1b94bfe93da; page 3",
+          "title": "2026 Price List_Specialist Contractor.pdf",
+          "note": "FC100 78253 PROMASEAL® Retrofit Collar - Flanged 100mm 10"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "212",
+      "name": "Promat Retrofit Collar 150",
+      "manufacturer": "Promat",
+      "evidence": [
+        {
+          "local_reference": "2026 Price List_Specialist Contractor.pdf; SHA256=6b0da6ebfdc401302a3fccaa6f1985cd45862278bf71612a0027c1b94bfe93da; page 3",
+          "title": "2026 Price List_Specialist Contractor.pdf",
+          "note": "FC150 78254 PROMASEAL® Retrofit Collar - Flanged 150mm 5"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "213",
+      "name": "Promat Retrofit Collar 250",
+      "manufacturer": "Promat",
+      "evidence": [
+        {
+          "local_reference": "2026 Price List_Specialist Contractor.pdf; SHA256=6b0da6ebfdc401302a3fccaa6f1985cd45862278bf71612a0027c1b94bfe93da; page 3",
+          "title": "2026 Price List_Specialist Contractor.pdf",
+          "note": "FC250 78255 PROMASEAL® Retrofit Collar - Flanged 250mm 1"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "214",
+      "name": "Promat Retrofit Collar 300",
+      "manufacturer": "Promat",
+      "evidence": [
+        {
+          "local_reference": "2026 Price List_Specialist Contractor.pdf; SHA256=6b0da6ebfdc401302a3fccaa6f1985cd45862278bf71612a0027c1b94bfe93da; page 3",
+          "title": "2026 Price List_Specialist Contractor.pdf",
+          "note": "FC300 78256 PROMASEAL® Retrofit Collar - Flanged 300mm 2"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "215",
+      "name": "Promat Unicollar 2.25m",
+      "manufacturer": "Promat",
+      "evidence": [
+        {
+          "local_reference": "2026 Price List_Specialist Contractor.pdf; SHA256=6b0da6ebfdc401302a3fccaa6f1985cd45862278bf71612a0027c1b94bfe93da; page 3",
+          "title": "2026 Price List_Specialist Contractor.pdf",
+          "note": "PROMASTOP® UniCollar® UC 78342 PROMASTOP® UniCollar® 2250mm strip 8"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "216",
+      "name": "Promat Conduit Collar 32",
+      "manufacturer": "Promat",
+      "evidence": [
+        {
+          "local_reference": "2026 Price List_Specialist Contractor.pdf; SHA256=6b0da6ebfdc401302a3fccaa6f1985cd45862278bf71612a0027c1b94bfe93da; page 3",
+          "title": "2026 Price List_Specialist Contractor.pdf",
+          "note": "PROMASEAL® Conduit Collar CFC32 78230 PROMASEAL® Conduit Collar 32mm 10"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "217",
+      "name": "Promat Wall Collar 40",
+      "manufacturer": "Promat",
+      "evidence": [
+        {
+          "local_reference": "2026 Price List_Specialist Contractor.pdf; SHA256=6b0da6ebfdc401302a3fccaa6f1985cd45862278bf71612a0027c1b94bfe93da; page 3",
+          "title": "2026 Price List_Specialist Contractor.pdf",
+          "note": "PROMASEAL® Wall Collars FCW40 78271 PROMASEAL® Wall Collar 40mm 20"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "218",
+      "name": "Promat Wall Collar 50",
+      "manufacturer": "Promat",
+      "evidence": [
+        {
+          "local_reference": "2026 Price List_Specialist Contractor.pdf; SHA256=6b0da6ebfdc401302a3fccaa6f1985cd45862278bf71612a0027c1b94bfe93da; page 3",
+          "title": "2026 Price List_Specialist Contractor.pdf",
+          "note": "FCW50 78272 PROMASEAL® Wall Collar 50mm 12"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "219",
+      "name": "Promat Wall Collar 65",
+      "manufacturer": "Promat",
+      "evidence": [
+        {
+          "local_reference": "2026 Price List_Specialist Contractor.pdf; SHA256=6b0da6ebfdc401302a3fccaa6f1985cd45862278bf71612a0027c1b94bfe93da; page 3",
+          "title": "2026 Price List_Specialist Contractor.pdf",
+          "note": "FCW65 78273 PROMASEAL® Wall Collar 65mm 20"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "220",
+      "name": "Promat Wall Collar 100",
+      "manufacturer": "Promat",
+      "evidence": [
+        {
+          "local_reference": "2026 Price List_Specialist Contractor.pdf; SHA256=6b0da6ebfdc401302a3fccaa6f1985cd45862278bf71612a0027c1b94bfe93da; page 3",
+          "title": "2026 Price List_Specialist Contractor.pdf",
+          "note": "FCW100 78269 PROMASEAL® Wall Collar 100mm 10"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "221",
+      "name": "Promat Wall Collar 150",
+      "manufacturer": "Promat",
+      "evidence": [
+        {
+          "local_reference": "2026 Price List_Specialist Contractor.pdf; SHA256=6b0da6ebfdc401302a3fccaa6f1985cd45862278bf71612a0027c1b94bfe93da; page 3",
+          "title": "2026 Price List_Specialist Contractor.pdf",
+          "note": "FCW150 78270 PROMASEAL® Wall Collar 150mm 4"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "222",
+      "name": "Promat Floorwaste Collar",
+      "manufacturer": "Promat",
+      "evidence": [
+        {
+          "local_reference": "2026 Price List_Specialist Contractor.pdf; SHA256=6b0da6ebfdc401302a3fccaa6f1985cd45862278bf71612a0027c1b94bfe93da; page 3",
+          "title": "2026 Price List_Specialist Contractor.pdf",
+          "note": "Collar FWR100 78282 PROMASEAL® Retrofit Floorwaste Collar 7"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "223",
+      "name": "Promat Bulkhead Batt",
+      "manufacturer": "Promat",
+      "evidence": [
+        {
+          "local_reference": "2026 Price List_Specialist Contractor.pdf; SHA256=6b0da6ebfdc401302a3fccaa6f1985cd45862278bf71612a0027c1b94bfe93da; page 3",
+          "title": "2026 Price List_Specialist Contractor.pdf",
+          "note": "Accessories PABHB 317214 PROMASEAL® Bulkhead Batt1200x600x50mm 64"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "224",
+      "name": "Promat Pig Tail Screws",
+      "manufacturer": "Promat",
+      "evidence": [
+        {
+          "local_reference": "2026 Price List_Specialist Contractor.pdf; SHA256=6b0da6ebfdc401302a3fccaa6f1985cd45862278bf71612a0027c1b94bfe93da; page 3",
+          "title": "2026 Price List_Specialist Contractor.pdf",
+          "note": "PPTS 4069936 Promat Pig Tail Screw - Bag of 100 1"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "225",
+      "name": "Promat Pillow Small",
+      "manufacturer": "Promat",
+      "evidence": [
+        {
+          "local_reference": "2026 Price List_Specialist Contractor.pdf; SHA256=6b0da6ebfdc401302a3fccaa6f1985cd45862278bf71612a0027c1b94bfe93da; page 3",
+          "title": "2026 Price List_Specialist Contractor.pdf",
+          "note": "PROMASEAL® Pillows FPSP 78276 PROMASEAL® Pillow - Small 100x250x40mm 30"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "226",
+      "name": "Promat Pillow Medium",
+      "manufacturer": "Promat",
+      "evidence": [
+        {
+          "local_reference": "2026 Price List_Specialist Contractor.pdf; SHA256=6b0da6ebfdc401302a3fccaa6f1985cd45862278bf71612a0027c1b94bfe93da; page 3",
+          "title": "2026 Price List_Specialist Contractor.pdf",
+          "note": "FPMP 78275 PROMASEAL® Pillow - Medium 200x250x40mm 20"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "227",
+      "name": "Promat Pillow Large",
+      "manufacturer": "Promat",
+      "evidence": [
+        {
+          "local_reference": "2026 Price List_Specialist Contractor.pdf; SHA256=6b0da6ebfdc401302a3fccaa6f1985cd45862278bf71612a0027c1b94bfe93da; page 3",
+          "title": "2026 Price List_Specialist Contractor.pdf",
+          "note": "FPLP 78274 PROMASEAL® Pillow - Large 300x250x40mm 15"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "228",
+      "name": "Promat Pillow Extra Large",
+      "manufacturer": "Promat",
+      "evidence": [
+        {
+          "local_reference": "2026 Price List_Specialist Contractor.pdf; SHA256=6b0da6ebfdc401302a3fccaa6f1985cd45862278bf71612a0027c1b94bfe93da; page 3",
+          "title": "2026 Price List_Specialist Contractor.pdf",
+          "note": "FPXLP 84853 PROMASEAL® Pillow - Extra Large 600x250x40mm 15"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "229",
+      "name": "Promat Promaseal Mortar",
+      "manufacturer": "Promat",
+      "evidence": [
+        {
+          "local_reference": "2026 Price List_Specialist Contractor.pdf; SHA256=6b0da6ebfdc401302a3fccaa6f1985cd45862278bf71612a0027c1b94bfe93da; page 3",
+          "title": "2026 Price List_Specialist Contractor.pdf",
+          "note": "PROMASEAL® Mortar FMF20 4032219 PROMASEAL® Mortar 20kg 30"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "230",
+      "name": "Promat A Sealant 600ml",
+      "manufacturer": "Promat",
+      "evidence": [
+        {
+          "local_reference": "2026 Price List_Specialist Contractor.pdf; SHA256=6b0da6ebfdc401302a3fccaa6f1985cd45862278bf71612a0027c1b94bfe93da; page 4",
+          "title": "2026 Price List_Specialist Contractor.pdf",
+          "note": "PSAN600GY 4059534 PROMASEAL® A Sealant Grey 600ml sausage 12 PSAN600WH 4059533 PROMASEAL® A Sealant White 600ml sausage 12"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "231",
+      "name": "Promaseal HPE Sealant 600ml",
+      "manufacturer": "Promat",
+      "evidence": [
+        {
+          "local_reference": "2026 Price List_Specialist Contractor.pdf; SHA256=6b0da6ebfdc401302a3fccaa6f1985cd45862278bf71612a0027c1b94bfe93da; page 4",
+          "title": "2026 Price List_Specialist Contractor.pdf",
+          "note": "PHPE600 317230 PROMASEAL® HPE 600ml sausage 12"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "232",
+      "name": "Promat AG Sealant 600ml",
+      "manufacturer": "Promat",
+      "evidence": [
+        {
+          "local_reference": "2026 Price List_Specialist Contractor.pdf; SHA256=6b0da6ebfdc401302a3fccaa6f1985cd45862278bf71612a0027c1b94bfe93da; page 4",
+          "title": "2026 Price List_Specialist Contractor.pdf",
+          "note": "PROMASEAL® AG Intumescent PAGI600GY 4071212 PROMASEAL® AG Intumescent Sealant Grey 600ml sausage 20"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "233",
+      "name": "Promat Grafitex",
+      "manufacturer": "Promat",
+      "evidence": [
+        {
+          "local_reference": "2026 Price List_Specialist Contractor.pdf; SHA256=6b0da6ebfdc401302a3fccaa6f1985cd45862278bf71612a0027c1b94bfe93da; page 4",
+          "title": "2026 Price List_Specialist Contractor.pdf",
+          "note": "PROMASEAL® Grafitex GRAF4T 78284 PROMASEAL® Grafitex Trowel Grade 4 litres 5"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "234",
+      "name": "Promat Supawrap 600mm",
+      "manufacturer": "Promat",
+      "evidence": [
+        {
+          "local_reference": "2026 Price List_Specialist Contractor.pdf; SHA256=6b0da6ebfdc401302a3fccaa6f1985cd45862278bf71612a0027c1b94bfe93da; page 4",
+          "title": "2026 Price List_Specialist Contractor.pdf",
+          "note": "PROMASEAL® Supawrap 40 PSW 4070360 PROMASEAL® SupaWrap 600mm x 4000mm 34"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "235",
+      "name": "Promat Supawrap 300mm",
+      "manufacturer": "Promat",
+      "evidence": [
+        {
+          "local_reference": "2026 Price List_Specialist Contractor.pdf; SHA256=6b0da6ebfdc401302a3fccaa6f1985cd45862278bf71612a0027c1b94bfe93da; page 4",
+          "title": "2026 Price List_Specialist Contractor.pdf",
+          "note": "PSW300 4091363 PROMASEAL® SupaWrap 300mm x 4000mm 48"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "236",
+      "name": "Promat Foil Tape",
+      "manufacturer": "Promat",
+      "evidence": [
+        {
+          "local_reference": "2026 Price List_Specialist Contractor.pdf; SHA256=6b0da6ebfdc401302a3fccaa6f1985cd45862278bf71612a0027c1b94bfe93da; page 4",
+          "title": "2026 Price List_Specialist Contractor.pdf",
+          "note": "AFT 4071437 Promat Reinforced Aluminium Foil Tape 16"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "239",
+      "name": "Promat Promasil 600mm",
+      "manufacturer": "Promat",
+      "evidence": [
+        {
+          "local_reference": "2026 Price List_Specialist Contractor.pdf; SHA256=6b0da6ebfdc401302a3fccaa6f1985cd45862278bf71612a0027c1b94bfe93da; page 5",
+          "title": "2026 Price List_Specialist Contractor.pdf",
+          "note": "PROMASIL ® 1100 Super PSIL 1/4 145248 PROMASIL-1100 Super® - 1250x600x60mm 30 or 26"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "240",
+      "name": "Promat Promasil 1200mm",
+      "manufacturer": "Promat",
+      "evidence": [
+        {
+          "local_reference": "2026 Price List_Specialist Contractor.pdf; SHA256=6b0da6ebfdc401302a3fccaa6f1985cd45862278bf71612a0027c1b94bfe93da; page 5",
+          "title": "2026 Price List_Specialist Contractor.pdf",
+          "note": "PSIL 1/2 145246 PROMASIL-1100 Super® - 1250x1200x60mm 15 or 13"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "241",
+      "name": "Promat Promasil 2500mm",
+      "manufacturer": "Promat",
+      "evidence": [
+        {
+          "local_reference": "2026 Price List_Specialist Contractor.pdf; SHA256=6b0da6ebfdc401302a3fccaa6f1985cd45862278bf71612a0027c1b94bfe93da; page 5",
+          "title": "2026 Price List_Specialist Contractor.pdf",
+          "note": "PSIL 145243 PROMASIL-1100 Super® - 2500X1200X60mm 15 or 13"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "242",
+      "name": "Promat Promatect XS 2G",
+      "manufacturer": "Promat",
+      "evidence": [
+        {
+          "local_reference": "2026 Price List_Specialist Contractor.pdf; SHA256=6b0da6ebfdc401302a3fccaa6f1985cd45862278bf71612a0027c1b94bfe93da; page 5",
+          "title": "2026 Price List_Specialist Contractor.pdf",
+          "note": "PROMATECT® XS2 XS2/15 305473 PROMATECT® XS2 - 2500x1200x15mm 40"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "243",
+      "name": "Promat Promatect XS 2G",
+      "manufacturer": "Promat",
+      "evidence": [
+        {
+          "local_reference": "2026 Price List_Specialist Contractor.pdf; SHA256=6b0da6ebfdc401302a3fccaa6f1985cd45862278bf71612a0027c1b94bfe93da; page 5",
+          "title": "2026 Price List_Specialist Contractor.pdf",
+          "note": "XS2/20 305474 PROMATECT® XS2 - 2500x1200x20mm 30"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "244",
+      "name": "Promat Promatect XS 2G",
+      "manufacturer": "Promat",
+      "evidence": [
+        {
+          "local_reference": "2026 Price List_Specialist Contractor.pdf; SHA256=6b0da6ebfdc401302a3fccaa6f1985cd45862278bf71612a0027c1b94bfe93da; page 5",
+          "title": "2026 Price List_Specialist Contractor.pdf",
+          "note": "XS2/25 305475 PROMATECT® XS2 - 2500x1200x25mm 24"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "245",
+      "name": "PROMATECT® H 12mm",
+      "manufacturer": "Promat",
+      "evidence": [
+        {
+          "local_reference": "2026 Price List_Specialist Contractor.pdf; SHA256=6b0da6ebfdc401302a3fccaa6f1985cd45862278bf71612a0027c1b94bfe93da; page 5",
+          "title": "2026 Price List_Specialist Contractor.pdf",
+          "note": "PROMATECT® H PH12 103641 PROMATECT® H - 2440x1220x12mm 46"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "246",
+      "name": "PROMATECT® H 20mm",
+      "manufacturer": "Promat",
+      "evidence": [
+        {
+          "local_reference": "2026 Price List_Specialist Contractor.pdf; SHA256=6b0da6ebfdc401302a3fccaa6f1985cd45862278bf71612a0027c1b94bfe93da; page 5",
+          "title": "2026 Price List_Specialist Contractor.pdf",
+          "note": "PH20 314659 PROMATECT® H - 2440x1220x20mm 27"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "247",
+      "name": "PROMATECT® L",
+      "manufacturer": "Promat",
+      "evidence": [
+        {
+          "local_reference": "2026 Price List_Specialist Contractor.pdf; SHA256=6b0da6ebfdc401302a3fccaa6f1985cd45862278bf71612a0027c1b94bfe93da; page 5",
+          "title": "2026 Price List_Specialist Contractor.pdf",
+          "note": "PL30 79711 PROMATECT® L - 2500x1200x30mm 30 or 20"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "248",
+      "name": "PROMATECT® 100",
+      "manufacturer": "Promat",
+      "evidence": [
+        {
+          "local_reference": "2026 Price List_Specialist Contractor.pdf; SHA256=6b0da6ebfdc401302a3fccaa6f1985cd45862278bf71612a0027c1b94bfe93da; page 5",
+          "title": "2026 Price List_Specialist Contractor.pdf",
+          "note": "PROMATECT® 100 P100/15 RE 138791 PROMATECT® 100 - 2500x1200x15mm - Rebated 48 or 40"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "249",
+      "name": "PROMATECT® 100",
+      "manufacturer": "Promat",
+      "evidence": [
+        {
+          "local_reference": "2026 Price List_Specialist Contractor.pdf; SHA256=6b0da6ebfdc401302a3fccaa6f1985cd45862278bf71612a0027c1b94bfe93da; page 5",
+          "title": "2026 Price List_Specialist Contractor.pdf",
+          "note": "P100/20 RE 79716 PROMATECT® 100 - 2500x1200x20mm - Rebated 35 or 30"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "250",
+      "name": "PROMATECT® 250",
+      "manufacturer": "Promat",
+      "evidence": [
+        {
+          "local_reference": "2026 Price List_Specialist Contractor.pdf; SHA256=6b0da6ebfdc401302a3fccaa6f1985cd45862278bf71612a0027c1b94bfe93da; page 5",
+          "title": "2026 Price List_Specialist Contractor.pdf",
+          "note": "PROMATECT® 250 P250/30 84514 PROMATECT® 250 - 2500x1200x30mm 29 or 20"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "251",
+      "name": "PROMATECT® XS 2G",
+      "manufacturer": "Promat",
+      "evidence": [
+        {
+          "local_reference": "2026 Price List_Specialist Contractor.pdf; SHA256=6b0da6ebfdc401302a3fccaa6f1985cd45862278bf71612a0027c1b94bfe93da; page 5",
+          "title": "2026 Price List_Specialist Contractor.pdf",
+          "note": "PROMATECT® XS2 XS2/15 305473 PROMATECT® XS2 - 2500x1200x15mm 40"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "252",
+      "name": "PROMATECT® XS 2G",
+      "manufacturer": "Promat",
+      "evidence": [
+        {
+          "local_reference": "2026 Price List_Specialist Contractor.pdf; SHA256=6b0da6ebfdc401302a3fccaa6f1985cd45862278bf71612a0027c1b94bfe93da; page 5",
+          "title": "2026 Price List_Specialist Contractor.pdf",
+          "note": "XS2/20 305474 PROMATECT® XS2 - 2500x1200x20mm 30"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "253",
+      "name": "PROMATECT® XS 2G",
+      "manufacturer": "Promat",
+      "evidence": [
+        {
+          "local_reference": "2026 Price List_Specialist Contractor.pdf; SHA256=6b0da6ebfdc401302a3fccaa6f1985cd45862278bf71612a0027c1b94bfe93da; page 5",
+          "title": "2026 Price List_Specialist Contractor.pdf",
+          "note": "XS2/25 305475 PROMATECT® XS2 - 2500x1200x25mm 24"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "257",
+      "name": "PROMASIL ® 1100 Super",
+      "manufacturer": "Promat",
+      "evidence": [
+        {
+          "local_reference": "2026 Price List_Specialist Contractor.pdf; SHA256=6b0da6ebfdc401302a3fccaa6f1985cd45862278bf71612a0027c1b94bfe93da; page 5",
+          "title": "2026 Price List_Specialist Contractor.pdf",
+          "note": "PROMASIL ® 1100 Super PSIL 1/4 145248 PROMASIL-1100 Super® - 1250x600x60mm 30 or 26"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "258",
+      "name": "PROMASIL ® 1100 Super",
+      "manufacturer": "Promat",
+      "evidence": [
+        {
+          "local_reference": "2026 Price List_Specialist Contractor.pdf; SHA256=6b0da6ebfdc401302a3fccaa6f1985cd45862278bf71612a0027c1b94bfe93da; page 5",
+          "title": "2026 Price List_Specialist Contractor.pdf",
+          "note": "PSIL 1/2 145246 PROMASIL-1100 Super® - 1250x1200x60mm 15 or 13"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "259",
+      "name": "PROMASIL ® 1100 Super",
+      "manufacturer": "Promat",
+      "evidence": [
+        {
+          "local_reference": "2026 Price List_Specialist Contractor.pdf; SHA256=6b0da6ebfdc401302a3fccaa6f1985cd45862278bf71612a0027c1b94bfe93da; page 5",
+          "title": "2026 Price List_Specialist Contractor.pdf",
+          "note": "PSIL 145243 PROMASIL-1100 Super® - 2500X1200X60mm 15 or 13"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "260",
+      "name": "Promat SYSTEMPANELTM",
+      "manufacturer": "Promat",
+      "evidence": [
+        {
+          "local_reference": "2026 Price List_Specialist Contractor.pdf; SHA256=6b0da6ebfdc401302a3fccaa6f1985cd45862278bf71612a0027c1b94bfe93da; page 5",
+          "title": "2026 Price List_Specialist Contractor.pdf",
+          "note": "Promat SYSTEMPANEL® SYSP 159762 Promat SYSTEMPANEL® 2G - 2700X600X18mm 30"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "261",
+      "name": "KALSIFLOOR",
+      "manufacturer": "Etex Building Performance Indonesia (Kalsi)",
+      "evidence": [
+        {
+          "local_reference": "Trade Price List 2022 {SA_NSW_NT} - Valid 01_08_2022 - 31_12_2022.pdf; SHA256=85ba170a274fdbaef6c9353e64ec785e983f14fa9c6d132339515dfa883f81c6; page 11",
+          "title": "Trade Price List 2022 {SA_NSW_NT} - Valid 01_08_2022 - 31_12_2022.pdf",
+          "note": "Kalsifloor KALSIFLOOR - 1200x1800x18mm"
+        },
+        {
+          "url": "https://media.siniat.com/pi34807/original/-1003519987/sds-kalsi-matrerial-safety-datasheet-export-market-en-2020-12.pdf",
+          "title": "Kalsi Material Safety Data Sheet,10December2020",
+          "note": "Page 1. KalsiFloor is an explicit product synonym. Company and factory identified as PT.Etex Building Performance Indonesia, Gresik. Promat is the Australian supplier."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "262",
+      "name": "DURASTEEL®",
+      "manufacturer": "Promat",
+      "evidence": [
+        {
+          "local_reference": "2026 Price List_Specialist Contractor.pdf; SHA256=6b0da6ebfdc401302a3fccaa6f1985cd45862278bf71612a0027c1b94bfe93da; page 5",
+          "title": "2026 Price List_Specialist Contractor.pdf",
+          "note": "DURASTEEL® DURA 302017 DURASTEEL 2400X1200X9.5MM 25"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "300",
+      "name": "TBA Firefly Intubatt 1200x600x50",
+      "manufacturer": "TBA Firefly",
+      "evidence": [
+        {
+          "local_reference": "Ceasefire Price List March 2025.pdf; SHA256=ec9efbc5b3f8051c055421f15a40fdd26122c162c71a88eae6292e248b2ac681; page 1",
+          "title": "Ceasefire Price List March 2025.pdf",
+          "note": "FIREFLYBatt — 1200mm x 600mm x 50mm 2025 Firefly product catalogue; historical catalogue retains the TBA/INTU product aliases."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "301",
+      "name": "TBA Firefly Intumastic BG 5KG",
+      "manufacturer": "TBA Firefly",
+      "evidence": [
+        {
+          "local_reference": "Ceasefire Price List March 2025.pdf; SHA256=ec9efbc5b3f8051c055421f15a40fdd26122c162c71a88eae6292e248b2ac681; page 1",
+          "title": "Ceasefire Price List March 2025.pdf",
+          "note": "FIREFLYMastic BG 5L — FIREFLYMastic Brush Grade 5L 2025 Firefly product catalogue; historical catalogue retains the TBA/INTU product aliases."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "302",
+      "name": "TBA Firefly Intumastic 600ml",
+      "manufacturer": "TBA Firefly",
+      "evidence": [
+        {
+          "local_reference": "Ceasefire Price List March 2025.pdf; SHA256=ec9efbc5b3f8051c055421f15a40fdd26122c162c71a88eae6292e248b2ac681; page 1",
+          "title": "Ceasefire Price List March 2025.pdf",
+          "note": "FIREFLYMastic 600ml — FIREFLYMastic 600ml Sausage 2025 Firefly product catalogue; historical catalogue retains the TBA/INTU product aliases."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "303",
+      "name": "TBA Firefly Intumastic HP 600ml",
+      "manufacturer": "TBA Firefly",
+      "evidence": [
+        {
+          "local_reference": "Ceasefire Price List March 2025.pdf; SHA256=ec9efbc5b3f8051c055421f15a40fdd26122c162c71a88eae6292e248b2ac681; page 1",
+          "title": "Ceasefire Price List March 2025.pdf",
+          "note": "FIREFLYMastic HP 600ml — FIREFLYMastic HP 600ml Sausage 2025 Firefly product catalogue; historical catalogue retains the TBA/INTU product aliases."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "304",
+      "name": "TBA Firefly Mortar",
+      "manufacturer": "TBA Firefly",
+      "evidence": [
+        {
+          "local_reference": "Ceasefire Price List March 2025.pdf; SHA256=ec9efbc5b3f8051c055421f15a40fdd26122c162c71a88eae6292e248b2ac681; page 1",
+          "title": "Ceasefire Price List March 2025.pdf",
+          "note": "FIREFLYMortar — 20kg Bag of Fire-Rated Mortar 2025 Firefly product catalogue; historical catalogue retains the TBA/INTU product aliases."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "305",
+      "name": "TBA Firefly Intuspan 100mm",
+      "manufacturer": "TBA Firefly",
+      "evidence": [
+        {
+          "local_reference": "Ceasefire Price List March 2025.pdf; SHA256=ec9efbc5b3f8051c055421f15a40fdd26122c162c71a88eae6292e248b2ac681; page 1",
+          "title": "Ceasefire Price List March 2025.pdf",
+          "note": "FIREFLYSpan 100mm — 1m 100mm x 100mm Linear Gap Seals 2025 Firefly product catalogue; historical catalogue retains the TBA/INTU product aliases."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "306",
+      "name": "TBA Firefly Intuspan 75mm",
+      "manufacturer": "TBA Firefly",
+      "evidence": [
+        {
+          "local_reference": "Ceasefire Price List March 2025.pdf; SHA256=ec9efbc5b3f8051c055421f15a40fdd26122c162c71a88eae6292e248b2ac681; page 1",
+          "title": "Ceasefire Price List March 2025.pdf",
+          "note": "FIREFLYSpan 75mm — 1m 75mm x 75mm Linear Gap Seals 2025 Firefly product catalogue; historical catalogue retains the TBA/INTU product aliases."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "307",
+      "name": "TBA Firefly Intuspan 50mm",
+      "manufacturer": "TBA Firefly",
+      "evidence": [
+        {
+          "local_reference": "Ceasefire Price List March 2025.pdf; SHA256=ec9efbc5b3f8051c055421f15a40fdd26122c162c71a88eae6292e248b2ac681; page 1",
+          "title": "Ceasefire Price List March 2025.pdf",
+          "note": "FIREFLYSpan 50mm — 1m 50mm x 50mm Linear Gap Seals 2025 Firefly product catalogue; historical catalogue retains the TBA/INTU product aliases."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "308",
+      "name": "TBA Firefly Collar Roll",
+      "manufacturer": "TBA Firefly",
+      "evidence": [
+        {
+          "local_reference": "Ceasefire Price List March 2025.pdf; SHA256=ec9efbc5b3f8051c055421f15a40fdd26122c162c71a88eae6292e248b2ac681; page 1",
+          "title": "Ceasefire Price List March 2025.pdf",
+          "note": "FIREFLY Collar Roll — Green Sleeve for Timber Penetration 300mm x 10m 2025 Firefly product catalogue; historical catalogue retains the TBA/INTU product aliases."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "309",
+      "name": "TBA Firefly Timber Wrap",
+      "manufacturer": "TBA Firefly",
+      "evidence": [
+        {
+          "local_reference": "Ceasefire Price List March 2025.pdf; SHA256=ec9efbc5b3f8051c055421f15a40fdd26122c162c71a88eae6292e248b2ac681; page 1",
+          "title": "Ceasefire Price List March 2025.pdf",
+          "note": "FIREFLY PLUS 60 10m X 300mm — Plus 60 Wrap for Timber Penetration 300mm x 10m 2025 Firefly product catalogue; historical catalogue retains the TBA/INTU product aliases."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "310",
+      "name": "TBA Firefly Penowrap",
+      "manufacturer": "TBA Firefly",
+      "evidence": [
+        {
+          "local_reference": "Ceasefire Price List March 2025.pdf; SHA256=ec9efbc5b3f8051c055421f15a40fdd26122c162c71a88eae6292e248b2ac681; page 1",
+          "title": "Ceasefire Price List March 2025.pdf",
+          "note": "FIREFLY Penowrap — 10m x 300mm x 12mm Roll 2025 Firefly product catalogue; historical catalogue retains the TBA/INTU product aliases."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "311",
+      "name": "TBA Firefly FR MS Block 1000mm",
+      "manufacturer": "TBA Firefly",
+      "evidence": [
+        {
+          "local_reference": "Ceasefire Price List March 2025.pdf; SHA256=ec9efbc5b3f8051c055421f15a40fdd26122c162c71a88eae6292e248b2ac681; page 1",
+          "title": "Ceasefire Price List March 2025.pdf",
+          "note": "FR MS Block 1000mm — FR MS Block 126mm (H) X 100mm (D) X 1000mm (W) 2025 Firefly product catalogue; historical catalogue retains the TBA/INTU product aliases."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "312",
+      "name": "TBA Firefly Strap",
+      "manufacturer": "TBA Firefly",
+      "evidence": [
+        {
+          "local_reference": "Ceasefire Price List March 2025.pdf; SHA256=ec9efbc5b3f8051c055421f15a40fdd26122c162c71a88eae6292e248b2ac681; page 1",
+          "title": "Ceasefire Price List March 2025.pdf",
+          "note": "FIREFLYStrap — 40mm x 25m Roll 2025 Firefly product catalogue; historical catalogue retains the TBA/INTU product aliases."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "313",
+      "name": "TBA Firefly Party Wall Batt",
+      "manufacturer": "Bradford",
+      "evidence": [
+        {
+          "local_reference": "TBA - Ceasefire.pdf; SHA256=1dd8616beec76cd6292d7267466742b90aff5d90c2cfd15a617f9ce0d7277040; page 1",
+          "title": "TBA - Ceasefire.pdf",
+          "note": "BRADFORD-PARTY WALL 5 X 1200MM X 168MM X 100MM PACK"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "314",
+      "name": "TBA Firefly 40mm Fire Collar",
+      "manufacturer": "TBA Firefly",
+      "evidence": [
+        {
+          "local_reference": "Ceasefire Price List March 2025.pdf; SHA256=ec9efbc5b3f8051c055421f15a40fdd26122c162c71a88eae6292e248b2ac681; page 1",
+          "title": "Ceasefire Price List March 2025.pdf",
+          "note": "FRF 40 — 40mm FIRE COLLAR 2025 Firefly product catalogue; historical catalogue retains the TBA/INTU product aliases."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "315",
+      "name": "TBA Firefly 50mm Fire Collar",
+      "manufacturer": "TBA Firefly",
+      "evidence": [
+        {
+          "local_reference": "Ceasefire Price List March 2025.pdf; SHA256=ec9efbc5b3f8051c055421f15a40fdd26122c162c71a88eae6292e248b2ac681; page 1",
+          "title": "Ceasefire Price List March 2025.pdf",
+          "note": "FRF 50 — 50mm FIRE COLLAR 2025 Firefly product catalogue; historical catalogue retains the TBA/INTU product aliases."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "316",
+      "name": "TBA Firefly 65mm Fire Collar",
+      "manufacturer": "TBA Firefly",
+      "evidence": [
+        {
+          "local_reference": "Ceasefire Price List March 2025.pdf; SHA256=ec9efbc5b3f8051c055421f15a40fdd26122c162c71a88eae6292e248b2ac681; page 1",
+          "title": "Ceasefire Price List March 2025.pdf",
+          "note": "FRF 65 — 65mm FIRE COLLAR 2025 Firefly product catalogue; historical catalogue retains the TBA/INTU product aliases."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "317",
+      "name": "TBA Firefly 80mm Fire Collar",
+      "manufacturer": "TBA Firefly",
+      "evidence": [
+        {
+          "local_reference": "Ceasefire Price List March 2025.pdf; SHA256=ec9efbc5b3f8051c055421f15a40fdd26122c162c71a88eae6292e248b2ac681; page 1",
+          "title": "Ceasefire Price List March 2025.pdf",
+          "note": "FRF 80 — 80mm FIRE COLLAR 2025 Firefly product catalogue; historical catalogue retains the TBA/INTU product aliases."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "318",
+      "name": "TBA Firefly 100mm Fire Collar",
+      "manufacturer": "TBA Firefly",
+      "evidence": [
+        {
+          "local_reference": "Ceasefire Price List March 2025.pdf; SHA256=ec9efbc5b3f8051c055421f15a40fdd26122c162c71a88eae6292e248b2ac681; page 1",
+          "title": "Ceasefire Price List March 2025.pdf",
+          "note": "FRF 100 — 100mm FIRE COLLAR 2025 Firefly product catalogue; historical catalogue retains the TBA/INTU product aliases."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "319",
+      "name": "TBA Firefly 150mm Fire Collar",
+      "manufacturer": "TBA Firefly",
+      "evidence": [
+        {
+          "local_reference": "Ceasefire Price List March 2025.pdf; SHA256=ec9efbc5b3f8051c055421f15a40fdd26122c162c71a88eae6292e248b2ac681; page 1",
+          "title": "Ceasefire Price List March 2025.pdf",
+          "note": "FRF 150 — 150mm FIRE COLLAR 2025 Firefly product catalogue; historical catalogue retains the TBA/INTU product aliases."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "400",
+      "name": "Trafalgar FyreFLEX 300",
+      "manufacturer": "Trafalgar",
+      "evidence": [
+        {
+          "local_reference": "PRICE LIST - Effective 30.03.26.pdf; SHA256=676de61398c2a3ebd1e63964ad78e9d16ab6b5bec8371555ad471cb1137437e6; page 1",
+          "title": "PRICE LIST - Effective 30.03.26.pdf",
+          "note": "I00136 FYREFLEX 300G FyreFLEX 300ml Cartridge-Grey (Note: comes in 20 units per box) 1,920"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "401",
+      "name": "Trafalgar FyreFLEX 600",
+      "manufacturer": "Trafalgar",
+      "evidence": [
+        {
+          "local_reference": "PRICE LIST - Effective 30.03.26.pdf; SHA256=676de61398c2a3ebd1e63964ad78e9d16ab6b5bec8371555ad471cb1137437e6; page 1",
+          "title": "PRICE LIST - Effective 30.03.26.pdf",
+          "note": "I00138 FYREFLEX 600G FyreFLEX 600ml Sausage - Grey (Note: comes 20 units per box) 1,040"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "402",
+      "name": "Trafalgar FyreFLEX 10L",
+      "manufacturer": "Trafalgar",
+      "evidence": [
+        {
+          "local_reference": "PRICE LIST - Effective 30.03.26.pdf; SHA256=676de61398c2a3ebd1e63964ad78e9d16ab6b5bec8371555ad471cb1137437e6; page 1",
+          "title": "PRICE LIST - Effective 30.03.26.pdf",
+          "note": "I00135 FYREFLEX 10G FyreFLEX 10L Pail - Grey"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "403",
+      "name": "Trafalgar FyrePEX HP 310",
+      "manufacturer": "Trafalgar",
+      "evidence": [
+        {
+          "local_reference": "PRICE LIST - Effective 30.03.26.pdf; SHA256=676de61398c2a3ebd1e63964ad78e9d16ab6b5bec8371555ad471cb1137437e6; page 1",
+          "title": "PRICE LIST - Effective 30.03.26.pdf",
+          "note": "I00748 FYREPEX HP 310 (25) FyrePEX HP 310ml Cartridge (Note: comes in 25 units per box) 1,600"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "404",
+      "name": "Trafalgar FyrePEX Sheath 50",
+      "manufacturer": "Trafalgar",
+      "evidence": [
+        {
+          "local_reference": "PRICE LIST - Effective 30.03.26.pdf; SHA256=676de61398c2a3ebd1e63964ad78e9d16ab6b5bec8371555ad471cb1137437e6; page 1",
+          "title": "PRICE LIST - Effective 30.03.26.pdf",
+          "note": "I02524 FYRESHEATH 50MM KIT FyrePEX Sheath 50mm to suit single-layer plasterboard or undersized openings for FyrePex sealant"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "405",
+      "name": "Trafalgar FyrePEX Sheath 65",
+      "manufacturer": "Trafalgar",
+      "evidence": [
+        {
+          "local_reference": "PRICE LIST - Effective 30.03.26.pdf; SHA256=676de61398c2a3ebd1e63964ad78e9d16ab6b5bec8371555ad471cb1137437e6; page 1",
+          "title": "PRICE LIST - Effective 30.03.26.pdf",
+          "note": "I02525 FYRESHEATH 65MM KIT FyrePEX Sheath 65mm to suit single-layer plasterboard or undersized openings for FyrePex sealant"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "406",
+      "name": "Trafalgar FyreSTRAP320",
+      "manufacturer": "Trafalgar",
+      "evidence": [
+        {
+          "local_reference": "PRICE LIST - Effective 30.03.26.pdf; SHA256=676de61398c2a3ebd1e63964ad78e9d16ab6b5bec8371555ad471cb1137437e6; page 1",
+          "title": "PRICE LIST - Effective 30.03.26.pdf",
+          "note": "I02106 FYRESTRAP320 320mm Fire upgrade strip for use with FyrePEX for conduits and services hard up against floor slab"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "407",
+      "name": "Trafalgar FyreSET 10",
+      "manufacturer": "Trafalgar",
+      "evidence": [
+        {
+          "local_reference": "PRICE LIST - Effective 30.03.26.pdf; SHA256=676de61398c2a3ebd1e63964ad78e9d16ab6b5bec8371555ad471cb1137437e6; page 1",
+          "title": "PRICE LIST - Effective 30.03.26.pdf",
+          "note": "I00143 FYRESET 10 FyreSET Mortar (10KG) 64"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "410",
+      "name": "Trafalgar FyrePLUG Pillow Small",
+      "manufacturer": "Trafalgar",
+      "evidence": [
+        {
+          "local_reference": "PRICE LIST - Effective 30.03.26.pdf; SHA256=676de61398c2a3ebd1e63964ad78e9d16ab6b5bec8371555ad471cb1137437e6; page 1",
+          "title": "PRICE LIST - Effective 30.03.26.pdf",
+          "note": "I00142 FYREPLUG PILLOW SMALL Small Fire Pillow - 250 x 100 (Note: comes 30 units per box) 1,200"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "411",
+      "name": "Trafalgar FyrePLUG Pillow Medium",
+      "manufacturer": "Trafalgar",
+      "evidence": [
+        {
+          "local_reference": "PRICE LIST - Effective 30.03.26.pdf; SHA256=676de61398c2a3ebd1e63964ad78e9d16ab6b5bec8371555ad471cb1137437e6; page 1",
+          "title": "PRICE LIST - Effective 30.03.26.pdf",
+          "note": "I00141 FYREPLUG PILLOW MEDIUM Medium Fire Pillow - 250 x 200 (Note: comes 20 units per box) 800"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "412",
+      "name": "Trafalgar FyrePLUG Pillow Large",
+      "manufacturer": "Trafalgar",
+      "evidence": [
+        {
+          "local_reference": "PRICE LIST - Effective 30.03.26.pdf; SHA256=676de61398c2a3ebd1e63964ad78e9d16ab6b5bec8371555ad471cb1137437e6; page 1",
+          "title": "PRICE LIST - Effective 30.03.26.pdf",
+          "note": "I00140 FYREPLUG PILLOW LARGE Large Fire Pillow - 250 x 300 (Note: comes 15 units per box) 600"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "413",
+      "name": "Trafalgar FyreBATT 60",
+      "manufacturer": "Trafalgar",
+      "evidence": [
+        {
+          "local_reference": "PRICE LIST - Effective 30.03.26.pdf; SHA256=676de61398c2a3ebd1e63964ad78e9d16ab6b5bec8371555ad471cb1137437e6; page 1",
+          "title": "PRICE LIST - Effective 30.03.26.pdf",
+          "note": "I02010 FYREBATT-60-2S FyreBATT 60mm Ribbed Double Sided Coat (DC) 1200x600x60mm"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "414",
+      "name": "Trafalgar TWRAP 300",
+      "manufacturer": "Trafalgar",
+      "evidence": [
+        {
+          "local_reference": "PRICE LIST - Effective 30.03.26.pdf; SHA256=676de61398c2a3ebd1e63964ad78e9d16ab6b5bec8371555ad471cb1137437e6; page 2",
+          "title": "PRICE LIST - Effective 30.03.26.pdf",
+          "note": "I00765 TWRAP 300MM TWRAP penetration wrap - 25mm thick - 300 x 7620mm roll"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "415",
+      "name": "Trafalgar TWRAP 450",
+      "manufacturer": "Trafalgar",
+      "evidence": [
+        {
+          "local_reference": "PRICE LIST - Effective 30.03.26.pdf; SHA256=676de61398c2a3ebd1e63964ad78e9d16ab6b5bec8371555ad471cb1137437e6; page 2",
+          "title": "PRICE LIST - Effective 30.03.26.pdf",
+          "note": "I00738 TWRAP 450MM TWRAP penetration wrap - 25mm thick - 450 x 7620mm roll"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "416",
+      "name": "Trafalgar TWRAP 600",
+      "manufacturer": "Trafalgar",
+      "evidence": [
+        {
+          "local_reference": "PRICE LIST - Effective 30.03.26.pdf; SHA256=676de61398c2a3ebd1e63964ad78e9d16ab6b5bec8371555ad471cb1137437e6; page 2",
+          "title": "PRICE LIST - Effective 30.03.26.pdf",
+          "note": "I00752 TWRAP 600MM TWRAP penetration wrap - 25mm thick - 600 x 7620mm roll"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "419",
+      "name": "Trafalgar UniGUARD150",
+      "manufacturer": "Trafalgar",
+      "evidence": [
+        {
+          "local_reference": "PRICE LIST - Effective 30.03.26.pdf; SHA256=676de61398c2a3ebd1e63964ad78e9d16ab6b5bec8371555ad471cb1137437e6; page 2",
+          "title": "PRICE LIST - Effective 30.03.26.pdf",
+          "note": "I01653 UNIGUARD150 Flat-pack UniGUARD for treating heat rise through metal pipe penetrations. NOTE must be used with"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "420",
+      "name": "Trafalgar FyreCOLLAR-CC-25",
+      "manufacturer": "Trafalgar",
+      "evidence": [
+        {
+          "local_reference": "PRICE LIST - Effective 30.03.26.pdf; SHA256=676de61398c2a3ebd1e63964ad78e9d16ab6b5bec8371555ad471cb1137437e6; page 3",
+          "title": "PRICE LIST - Effective 30.03.26.pdf",
+          "note": "I00052 FYRECOLLAR-CC-25 FyreCOLLAR Conduit Collar 25mm"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "421",
+      "name": "Trafalgar FyreCOLLAR-CC-32",
+      "manufacturer": "Trafalgar",
+      "evidence": [
+        {
+          "local_reference": "PRICE LIST - Effective 30.03.26.pdf; SHA256=676de61398c2a3ebd1e63964ad78e9d16ab6b5bec8371555ad471cb1137437e6; page 3",
+          "title": "PRICE LIST - Effective 30.03.26.pdf",
+          "note": "I00053 FYRECOLLAR-CC-32 FyreCOLLAR Conduit Collar 32mm"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "422",
+      "name": "Trafalgar FyreCOLLAR-CC-40",
+      "manufacturer": "Trafalgar",
+      "evidence": [
+        {
+          "local_reference": "PRICE LIST - Effective 30.03.26.pdf; SHA256=676de61398c2a3ebd1e63964ad78e9d16ab6b5bec8371555ad471cb1137437e6; page 3",
+          "title": "PRICE LIST - Effective 30.03.26.pdf",
+          "note": "I00054 FYRECOLLAR-CC-40 FyreCOLLAR Conduit Collar 40mm"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "423",
+      "name": "Trafalgar FyreCOLLAR-PHRC-50",
+      "manufacturer": "Trafalgar",
+      "evidence": [
+        {
+          "local_reference": "PRICE LIST - Effective 30.03.26.pdf; SHA256=676de61398c2a3ebd1e63964ad78e9d16ab6b5bec8371555ad471cb1137437e6; page 3",
+          "title": "PRICE LIST - Effective 30.03.26.pdf",
+          "note": "I00058 FyreCOLLAR-PHRC-50 FyreCOLLAR Premium Hinged Retrofit Collar 50mm"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "424",
+      "name": "Trafalgar FyreCOLLAR-PHRC-65",
+      "manufacturer": "Trafalgar",
+      "evidence": [
+        {
+          "local_reference": "PRICE LIST - Effective 30.03.26.pdf; SHA256=676de61398c2a3ebd1e63964ad78e9d16ab6b5bec8371555ad471cb1137437e6; page 3",
+          "title": "PRICE LIST - Effective 30.03.26.pdf",
+          "note": "I00059 FyreCOLLAR-PHRC-65 FyreCOLLAR Premium Hinged Retrofit Collar 65mm"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "425",
+      "name": "Trafalgar FyreCOLLAR-PHRC-80",
+      "manufacturer": "Trafalgar",
+      "evidence": [
+        {
+          "local_reference": "PRICE LIST - Effective 30.03.26.pdf; SHA256=676de61398c2a3ebd1e63964ad78e9d16ab6b5bec8371555ad471cb1137437e6; page 3",
+          "title": "PRICE LIST - Effective 30.03.26.pdf",
+          "note": "I00060 FyreCOLLAR-PHRC-80 FyreCOLLAR Premium Hinged Retrofit Collar 80mm"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "426",
+      "name": "Trafalgar FyreCOLLAR-PHRC-100",
+      "manufacturer": "Trafalgar",
+      "evidence": [
+        {
+          "local_reference": "PRICE LIST - Effective 30.03.26.pdf; SHA256=676de61398c2a3ebd1e63964ad78e9d16ab6b5bec8371555ad471cb1137437e6; page 3",
+          "title": "PRICE LIST - Effective 30.03.26.pdf",
+          "note": "I00055 FyreCOLLAR-PHRC-100 FyreCOLLAR Premium Hinged Retrofit Collar 100mm"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "427",
+      "name": "Trafalgar FyreCOLLAR-PHRC-130",
+      "manufacturer": "Trafalgar",
+      "evidence": [
+        {
+          "local_reference": "PRICE LIST - Effective 30.03.26.pdf; SHA256=676de61398c2a3ebd1e63964ad78e9d16ab6b5bec8371555ad471cb1137437e6; page 3",
+          "title": "PRICE LIST - Effective 30.03.26.pdf",
+          "note": "I00056 FyreCOLLAR-PHRC-130 FyreCOLLAR Premium Hinged Retrofit Collar 130mm"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "428",
+      "name": "Trafalgar FyreCOLLAR-PHRC-150",
+      "manufacturer": "Trafalgar",
+      "evidence": [
+        {
+          "local_reference": "PRICE LIST - Effective 30.03.26.pdf; SHA256=676de61398c2a3ebd1e63964ad78e9d16ab6b5bec8371555ad471cb1137437e6; page 3",
+          "title": "PRICE LIST - Effective 30.03.26.pdf",
+          "note": "I00057 FyreCOLLAR-PHRC-150 FyreCOLLAR Premium Hinged Retrofit Collar 150mm"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "429",
+      "name": "Trafalgar FyreCOLLAR-SSHRC-50",
+      "manufacturer": "Trafalgar",
+      "evidence": [
+        {
+          "local_reference": "PRICE LIST - Effective 30.03.26.pdf; SHA256=676de61398c2a3ebd1e63964ad78e9d16ab6b5bec8371555ad471cb1137437e6; page 3",
+          "title": "PRICE LIST - Effective 30.03.26.pdf",
+          "note": "I02487 FYRECOLLAR-SSHRC-50 FyreCOLLAR SS-50mm Stainless Steel Hinged Retrofit Collar 50mm"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "430",
+      "name": "Trafalgar FyreCOLLAR-SSHRC-65",
+      "manufacturer": "Trafalgar",
+      "evidence": [
+        {
+          "local_reference": "PRICE LIST - Effective 30.03.26.pdf; SHA256=676de61398c2a3ebd1e63964ad78e9d16ab6b5bec8371555ad471cb1137437e6; page 3",
+          "title": "PRICE LIST - Effective 30.03.26.pdf",
+          "note": "I02497 FYRECOLLAR-SSHRC-65 FyreCOLLAR SS-65mm Stainless Steel Hinged Retrofit Collar 65mm"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "431",
+      "name": "Trafalgar FyreCOLLAR-SSHRC-80",
+      "manufacturer": "Trafalgar",
+      "evidence": [
+        {
+          "local_reference": "PRICE LIST - Effective 30.03.26.pdf; SHA256=676de61398c2a3ebd1e63964ad78e9d16ab6b5bec8371555ad471cb1137437e6; page 3",
+          "title": "PRICE LIST - Effective 30.03.26.pdf",
+          "note": "I02552 FYRECOLLAR-SSHRC-80 FyreCOLLAR SS-80mm Stainless Steel Hinged Retrofit Collar 80mm"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "432",
+      "name": "Trafalgar FyreCOLLAR-SSHRC-100",
+      "manufacturer": "Trafalgar",
+      "evidence": [
+        {
+          "local_reference": "PRICE LIST - Effective 30.03.26.pdf; SHA256=676de61398c2a3ebd1e63964ad78e9d16ab6b5bec8371555ad471cb1137437e6; page 3",
+          "title": "PRICE LIST - Effective 30.03.26.pdf",
+          "note": "I02553 FYRECOLLAR-SSHRC-100 FyreCOLLAR SS-100mm Stainless Steel Hinged Retrofit Collar 100mm"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "433",
+      "name": "Trafalgar FyreCOLLAR-SSHRC-130",
+      "manufacturer": "Trafalgar",
+      "evidence": [
+        {
+          "local_reference": "PRICE LIST - Effective 30.03.26.pdf; SHA256=676de61398c2a3ebd1e63964ad78e9d16ab6b5bec8371555ad471cb1137437e6; page 3",
+          "title": "PRICE LIST - Effective 30.03.26.pdf",
+          "note": "I02554 FYRECOLLAR-SSHRC-130 FyreCOLLAR SS-130mm Stainless Steel Hinged Retrofit Collar 130mm"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "434",
+      "name": "Trafalgar FyreCOLLAR-SSHRC-150",
+      "manufacturer": "Trafalgar",
+      "evidence": [
+        {
+          "local_reference": "PRICE LIST - Effective 30.03.26.pdf; SHA256=676de61398c2a3ebd1e63964ad78e9d16ab6b5bec8371555ad471cb1137437e6; page 3",
+          "title": "PRICE LIST - Effective 30.03.26.pdf",
+          "note": "I02488 FYRECOLLAR-SSHRC-150 FyreCOLLAR SS-150mm Stainless Steel Hinged Retrofit Collar 150mm"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "435",
+      "name": "Trafalgar UniCORN Fire Collar 50mm x 2.3m roll",
+      "manufacturer": "Trafalgar",
+      "evidence": [
+        {
+          "local_reference": "PRICE LIST - Effective 30.03.26.pdf; SHA256=676de61398c2a3ebd1e63964ad78e9d16ab6b5bec8371555ad471cb1137437e6; page 3",
+          "title": "PRICE LIST - Effective 30.03.26.pdf",
+          "note": "I02309 UNICORN UniCORN Continuous fire collar - 50mm x 2300mm roll, 20 mounting brackets"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "436",
+      "name": "Trafalgar BladeRUNNER-MINI 40-65",
+      "manufacturer": "Trafalgar",
+      "evidence": [
+        {
+          "local_reference": "PRICE LIST - Effective 30.03.26.pdf; SHA256=676de61398c2a3ebd1e63964ad78e9d16ab6b5bec8371555ad471cb1137437e6; page 3",
+          "title": "PRICE LIST - Effective 30.03.26.pdf",
+          "note": "I02354 BLADERUNNER-MINI Floor Waste & Stack slimline retrofit collar for 40-65mm pipes"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "437",
+      "name": "Trafalgar BladeRUNNER 80-100",
+      "manufacturer": "Trafalgar",
+      "evidence": [
+        {
+          "local_reference": "PRICE LIST - Effective 30.03.26.pdf; SHA256=676de61398c2a3ebd1e63964ad78e9d16ab6b5bec8371555ad471cb1137437e6; page 3",
+          "title": "PRICE LIST - Effective 30.03.26.pdf",
+          "note": "I02208 BLADERUNNER Floor Waste & Stack slimline retrofit collar for 80-100mm pipes"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "438",
+      "name": "Trafalgar Corex-12.5",
+      "manufacturer": "Dalsan",
+      "evidence": [
+        {
+          "local_reference": "PRICE LIST - Effective 30.03.26.pdf; SHA256=676de61398c2a3ebd1e63964ad78e9d16ab6b5bec8371555ad471cb1137437e6; page 4",
+          "title": "PRICE LIST - Effective 30.03.26.pdf",
+          "note": "I01845 COREX-12.5 Corex Board - 2000mm x 1200mm x 12.5mm - 40 boards per pallet 40"
+        },
+        {
+          "url": "https://docapi.tfire.com.au/exfiles/TFire_Technical_Manual_Corex_280521.pdf",
+          "title": "Trafalgar Corex Technical Manual, 030521",
+          "note": "Page 31. Corex MSDS explicitly identifies Dalsan as manufacturer; p3 lists 2000 x 1200mm boards in the four exact catalog thicknesses. Trafalgar is the local supplier."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "439",
+      "name": "Trafalgar Corex-15",
+      "manufacturer": "Dalsan",
+      "evidence": [
+        {
+          "local_reference": "PRICE LIST - Effective 30.03.26.pdf; SHA256=676de61398c2a3ebd1e63964ad78e9d16ab6b5bec8371555ad471cb1137437e6; page 4",
+          "title": "PRICE LIST - Effective 30.03.26.pdf",
+          "note": "I01679 COREX-15 Corex Board - 2000mm x 1200mm x 15mm - 32 boards per pallet 32"
+        },
+        {
+          "url": "https://docapi.tfire.com.au/exfiles/TFire_Technical_Manual_Corex_280521.pdf",
+          "title": "Trafalgar Corex Technical Manual, 030521",
+          "note": "Page 31. Corex MSDS explicitly identifies Dalsan as manufacturer; p3 lists 2000 x 1200mm boards in the four exact catalog thicknesses. Trafalgar is the local supplier."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "440",
+      "name": "Trafalgar Corex-20",
+      "manufacturer": "Dalsan",
+      "evidence": [
+        {
+          "local_reference": "PRICE LIST - Effective 30.03.26.pdf; SHA256=676de61398c2a3ebd1e63964ad78e9d16ab6b5bec8371555ad471cb1137437e6; page 4",
+          "title": "PRICE LIST - Effective 30.03.26.pdf",
+          "note": "I01680 COREX-20 Corex Board - 2000mm x 1200mm x 20mm - 24 boards per pallet 24"
+        },
+        {
+          "url": "https://docapi.tfire.com.au/exfiles/TFire_Technical_Manual_Corex_280521.pdf",
+          "title": "Trafalgar Corex Technical Manual, 030521",
+          "note": "Page 31. Corex MSDS explicitly identifies Dalsan as manufacturer; p3 lists 2000 x 1200mm boards in the four exact catalog thicknesses. Trafalgar is the local supplier."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "441",
+      "name": "Trafalgar Corex-25",
+      "manufacturer": "Dalsan",
+      "evidence": [
+        {
+          "local_reference": "PRICE LIST - Effective 30.03.26.pdf; SHA256=676de61398c2a3ebd1e63964ad78e9d16ab6b5bec8371555ad471cb1137437e6; page 4",
+          "title": "PRICE LIST - Effective 30.03.26.pdf",
+          "note": "I01846 COREX-25 Corex Board - 2000mm x 1200mm x 25mm - 18 boards per pallet 18"
+        },
+        {
+          "url": "https://docapi.tfire.com.au/exfiles/TFire_Technical_Manual_Corex_280521.pdf",
+          "title": "Trafalgar Corex Technical Manual, 030521",
+          "note": "Page 31. Corex MSDS explicitly identifies Dalsan as manufacturer; p3 lists 2000 x 1200mm boards in the four exact catalog thicknesses. Trafalgar is the local supplier."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "442",
+      "name": "Trafalgar Maxilite Blue 30",
+      "manufacturer": "Trafalgar",
+      "evidence": [
+        {
+          "local_reference": "PRICE LIST - Effective 30.03.26.pdf; SHA256=676de61398c2a3ebd1e63964ad78e9d16ab6b5bec8371555ad471cb1137437e6; page 4",
+          "title": "PRICE LIST - Effective 30.03.26.pdf",
+          "note": "I00178 MAXILITE BLUE 30 Maxilite Board L 2040x1220x30mm 35"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "443",
+      "name": "Trafalgar Maxilite Blue 40",
+      "manufacturer": "Trafalgar",
+      "evidence": [
+        {
+          "local_reference": "PRICE LIST - Effective 30.03.26.pdf; SHA256=676de61398c2a3ebd1e63964ad78e9d16ab6b5bec8371555ad471cb1137437e6; page 4",
+          "title": "PRICE LIST - Effective 30.03.26.pdf",
+          "note": "I00179 MAXILITE BLUE 40 Maxilite Board L 2040x1220x40mm 26"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "444",
+      "name": "Trafalgar Maxilite Blue 60",
+      "manufacturer": "Trafalgar",
+      "evidence": [
+        {
+          "local_reference": "PRICE LIST - Effective 30.03.26.pdf; SHA256=676de61398c2a3ebd1e63964ad78e9d16ab6b5bec8371555ad471cb1137437e6; page 4",
+          "title": "PRICE LIST - Effective 30.03.26.pdf",
+          "note": "I00180 MAXILITE BLUE 60 Maxilite Board L 2040x1220x60mm 17"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "445",
+      "name": "Trafalgar Maxilite White 30",
+      "manufacturer": "Trafalgar",
+      "evidence": [
+        {
+          "local_reference": "PRICE LIST - Effective 30.03.26.pdf; SHA256=676de61398c2a3ebd1e63964ad78e9d16ab6b5bec8371555ad471cb1137437e6; page 4",
+          "title": "PRICE LIST - Effective 30.03.26.pdf",
+          "note": "I00181 MAXILITE WHITE 30 Maxilite Board 1525x1000x30mm 30"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "446",
+      "name": "Trafalgar Maxilite White 40",
+      "manufacturer": "Trafalgar",
+      "evidence": [
+        {
+          "local_reference": "PRICE LIST - Effective 30.03.26.pdf; SHA256=676de61398c2a3ebd1e63964ad78e9d16ab6b5bec8371555ad471cb1137437e6; page 4",
+          "title": "PRICE LIST - Effective 30.03.26.pdf",
+          "note": "I00182 MAXILITE WHITE 40 Maxilite Board 1525x1000x40mm 22"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "447",
+      "name": "Trafalgar Maxilite White 60",
+      "manufacturer": "Trafalgar",
+      "evidence": [
+        {
+          "local_reference": "PRICE LIST - Effective 30.03.26.pdf; SHA256=676de61398c2a3ebd1e63964ad78e9d16ab6b5bec8371555ad471cb1137437e6; page 4",
+          "title": "PRICE LIST - Effective 30.03.26.pdf",
+          "note": "I00183 MAXILITE WHITE 60 Maxilite Board 1525x1000x60mm 15"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "449",
+      "name": "Trafalgar FyreWRAP 610",
+      "manufacturer": "Unifrax (Alkegen)",
+      "evidence": [
+        {
+          "local_reference": "PRICE LIST - Effective 30.03.26.pdf; SHA256=676de61398c2a3ebd1e63964ad78e9d16ab6b5bec8371555ad471cb1137437e6; page 5",
+          "title": "PRICE LIST - Effective 30.03.26.pdf",
+          "note": "I00144 FYREWRAP ELITE 610 FyreWRAP Roll - Length 7620mm x Width 610mm x Thickness 38mm (12 rolls per pallet)"
+        },
+        {
+          "url": "https://www.alkegen.com/wp-content/uploads/2024/04/FyreWrap-Elite-Air-Distribution-Product-Information-Sheet.pdf",
+          "title": "Alkegen FyreWrap Elite 1.5 Product Information Sheet",
+          "note": "Page 1. Alkegen product sheet identifies its FyreWrap Elite 1.5 insulation with matching 1.5-inch x 24/48-inch x 25-foot forms. Trafalgar manual identifies FyreWrap as Unifrax trademark."
+        },
+        {
+          "url": "https://docadmin.tfire.com.au/exfiles/Technical%20Manuals%20NEW/FyreWrap_Hangers_111024.pdf",
+          "title": "Trafalgar FyreWrap Hydrant Pipe Protection Systems, 111024",
+          "note": "Page 1. The front page explicitly identifies FyreWrap as a registered trademark of Unifrax. Trafalgar is the Australian system supplier."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "450",
+      "name": "Trafalgar FyreWRAP 1220",
+      "manufacturer": "Unifrax (Alkegen)",
+      "evidence": [
+        {
+          "local_reference": "PRICE LIST - Effective 30.03.26.pdf; SHA256=676de61398c2a3ebd1e63964ad78e9d16ab6b5bec8371555ad471cb1137437e6; page 5",
+          "title": "PRICE LIST - Effective 30.03.26.pdf",
+          "note": "I00145 FYREWRAP ELITE 1220 FyreWRAP Roll - Length 7620mm x Width 1220mm x Thickness 38mm (6 rolls per pallet)"
+        },
+        {
+          "url": "https://www.alkegen.com/wp-content/uploads/2024/04/FyreWrap-Elite-Air-Distribution-Product-Information-Sheet.pdf",
+          "title": "Alkegen FyreWrap Elite 1.5 Product Information Sheet",
+          "note": "Page 1. Alkegen product sheet identifies its FyreWrap Elite 1.5 insulation with matching 1.5-inch x 24/48-inch x 25-foot forms. Trafalgar manual identifies FyreWrap as Unifrax trademark."
+        },
+        {
+          "url": "https://docadmin.tfire.com.au/exfiles/Technical%20Manuals%20NEW/FyreWrap_Hangers_111024.pdf",
+          "title": "Trafalgar FyreWrap Hydrant Pipe Protection Systems, 111024",
+          "note": "Page 1. The front page explicitly identifies FyreWrap as a registered trademark of Unifrax. Trafalgar is the Australian system supplier."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "453",
+      "name": "Trafalgar FyreWRAP AP0",
+      "manufacturer": "Trafalgar",
+      "evidence": [
+        {
+          "local_reference": "PRICE LIST - Effective 30.03.26.pdf; SHA256=676de61398c2a3ebd1e63964ad78e9d16ab6b5bec8371555ad471cb1137437e6; page 5",
+          "title": "PRICE LIST - Effective 30.03.26.pdf",
+          "note": "I00114 FD-AP-2L-AP0 2 Layer, FyreWRAP Access Panel to Suit AP0 , Internal Dimensions 708 x 558mm"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "454",
+      "name": "Trafalgar FyreWRAP AP1",
+      "manufacturer": "Trafalgar",
+      "evidence": [
+        {
+          "local_reference": "PRICE LIST - Effective 30.03.26.pdf; SHA256=676de61398c2a3ebd1e63964ad78e9d16ab6b5bec8371555ad471cb1137437e6; page 5",
+          "title": "PRICE LIST - Effective 30.03.26.pdf",
+          "note": "I00115 FD-AP-2L-AP1 2 Layer, FyreWRAP Access Panel to Suit AP1 , Internal Dimensions 558 x 433mm"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "455",
+      "name": "Trafalgar FyreWRAP AP2",
+      "manufacturer": "Trafalgar",
+      "evidence": [
+        {
+          "local_reference": "PRICE LIST - Effective 30.03.26.pdf; SHA256=676de61398c2a3ebd1e63964ad78e9d16ab6b5bec8371555ad471cb1137437e6; page 5",
+          "title": "PRICE LIST - Effective 30.03.26.pdf",
+          "note": "I00116 FD-AP-2L-AP2 2 Layer, FyreWRAP Access Panel to Suit AP2 , Internal Dimensions 433 x 301mm"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "456",
+      "name": "Trafalgar FyreWRAP AP3",
+      "manufacturer": "Trafalgar",
+      "evidence": [
+        {
+          "local_reference": "PRICE LIST - Effective 30.03.26.pdf; SHA256=676de61398c2a3ebd1e63964ad78e9d16ab6b5bec8371555ad471cb1137437e6; page 5",
+          "title": "PRICE LIST - Effective 30.03.26.pdf",
+          "note": "I00117 FD-AP-2L-AP3 2 Layer, FyreWRAP Access Panel to Suit AP3 , Internal Dimensions 304 x 214mm"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "457",
+      "name": "Trafalgar Maxilite Strips 100",
+      "manufacturer": "Trafalgar",
+      "evidence": [
+        {
+          "local_reference": "PRICE LIST - Effective 30.03.26.pdf; SHA256=676de61398c2a3ebd1e63964ad78e9d16ab6b5bec8371555ad471cb1137437e6; page 5",
+          "title": "PRICE LIST - Effective 30.03.26.pdf",
+          "note": "I00186 MAXILITE STRIPS 100X1000X60 Maxilite Strips (White) 100x1000x60 to be used with FyreWRAP"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "458",
+      "name": "Trafalgar Maxilite Strips 150",
+      "manufacturer": "Trafalgar",
+      "evidence": [
+        {
+          "local_reference": "PRICE LIST - Effective 30.03.26.pdf; SHA256=676de61398c2a3ebd1e63964ad78e9d16ab6b5bec8371555ad471cb1137437e6; page 5",
+          "title": "PRICE LIST - Effective 30.03.26.pdf",
+          "note": "I00187 MAXILITE STRIPS 150X1000X60 Maxilite Strips (White) 150x1000x60 to be used with FyreWRAP"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "461",
+      "name": "Trafalgar SUPERSTOPPER-MS-65",
+      "manufacturer": "Trafalgar",
+      "evidence": [
+        {
+          "local_reference": "PRICE LIST - Effective 30.03.26.pdf; SHA256=676de61398c2a3ebd1e63964ad78e9d16ab6b5bec8371555ad471cb1137437e6; page 6",
+          "title": "PRICE LIST - Effective 30.03.26.pdf",
+          "note": "I00127 SUPERSTOPPER-MS-65 SuperSTOPPER Square Mini - 65 Square x 250mm Depth. Including pair of FyreFLANGES"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "462",
+      "name": "Trafalgar SUPERSTOPPER-MS-100",
+      "manufacturer": "Trafalgar",
+      "evidence": [
+        {
+          "local_reference": "PRICE LIST - Effective 30.03.26.pdf; SHA256=676de61398c2a3ebd1e63964ad78e9d16ab6b5bec8371555ad471cb1137437e6; page 6",
+          "title": "PRICE LIST - Effective 30.03.26.pdf",
+          "note": "I00126 SUPERSTOPPER-MS-100 SuperSTOPPER Square Mini - 100 Square x 250mm Depth. Including pair of FyreFLANGES"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "463",
+      "name": "Trafalgar SUPERSTOPPER-C-50",
+      "manufacturer": "Trafalgar",
+      "evidence": [
+        {
+          "local_reference": "PRICE LIST - Effective 30.03.26.pdf; SHA256=676de61398c2a3ebd1e63964ad78e9d16ab6b5bec8371555ad471cb1137437e6; page 6",
+          "title": "PRICE LIST - Effective 30.03.26.pdf",
+          "note": "I00125 SUPERSTOPPER-C-50 SuperSTOPPER Circular - 50 Round Diam x 250 Depth. Including pair of FyreFLANGES"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "464",
+      "name": "Trafalgar SUPERSTOPPER-C-100",
+      "manufacturer": "Trafalgar",
+      "evidence": [
+        {
+          "local_reference": "PRICE LIST - Effective 30.03.26.pdf; SHA256=676de61398c2a3ebd1e63964ad78e9d16ab6b5bec8371555ad471cb1137437e6; page 6",
+          "title": "PRICE LIST - Effective 30.03.26.pdf",
+          "note": "I00123 SUPERSTOPPER-C-100 SuperSTOPPER Circular - 100 Round Diam x 250 Depth. Including pair of FyreFLANGES"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "465",
+      "name": "Trafalgar SUPERSTOPPER-C-150",
+      "manufacturer": "Trafalgar",
+      "evidence": [
+        {
+          "local_reference": "PRICE LIST - Effective 30.03.26.pdf; SHA256=676de61398c2a3ebd1e63964ad78e9d16ab6b5bec8371555ad471cb1137437e6; page 6",
+          "title": "PRICE LIST - Effective 30.03.26.pdf",
+          "note": "I00124 SUPERSTOPPER-C-150 SuperSTOPPER Circular - 150 Round Diam x 250 Depth. Including pair of FyreFLANGES"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "466",
+      "name": "Trafalgar SUPERSTOPPER-Maxi-350",
+      "manufacturer": "Trafalgar",
+      "evidence": [
+        {
+          "local_reference": "PRICE LIST - Effective 30.03.26.pdf; SHA256=676de61398c2a3ebd1e63964ad78e9d16ab6b5bec8371555ad471cb1137437e6; page 6",
+          "title": "PRICE LIST - Effective 30.03.26.pdf",
+          "note": "I00130 SUPERSTOPPER-MAXI-350 SuperSTOPPER - Maxi - 350 L x 250 D x 125 H mm, Including pair of SuperSTOPPER Flanges"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "467",
+      "name": "Trafalgar SUPERSTOPPER-Maxi-550",
+      "manufacturer": "Trafalgar",
+      "evidence": [
+        {
+          "local_reference": "PRICE LIST - Effective 30.03.26.pdf; SHA256=676de61398c2a3ebd1e63964ad78e9d16ab6b5bec8371555ad471cb1137437e6; page 6",
+          "title": "PRICE LIST - Effective 30.03.26.pdf",
+          "note": "I00131 SUPERSTOPPER-MAXI-550 SuperSTOPPER - Maxi - 550 L x 250 D x 125 H mm, Including pair of SuperSTOPPER Flanges"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "468",
+      "name": "Trafalgar SUPERSTOPPER-Maxi-650",
+      "manufacturer": "Trafalgar",
+      "evidence": [
+        {
+          "local_reference": "PRICE LIST - Effective 30.03.26.pdf; SHA256=676de61398c2a3ebd1e63964ad78e9d16ab6b5bec8371555ad471cb1137437e6; page 6",
+          "title": "PRICE LIST - Effective 30.03.26.pdf",
+          "note": "I00132 SUPERSTOPPER-MAXI-650 SuperSTOPPER - Maxi - 650 L x 250 D x 125 H mm, Including pair of SuperSTOPPER Flanges"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "469",
+      "name": "Trafalgar SUPERSTOPPER-Maxi-750",
+      "manufacturer": "Trafalgar",
+      "evidence": [
+        {
+          "local_reference": "PRICE LIST - Effective 30.03.26.pdf; SHA256=676de61398c2a3ebd1e63964ad78e9d16ab6b5bec8371555ad471cb1137437e6; page 6",
+          "title": "PRICE LIST - Effective 30.03.26.pdf",
+          "note": "I00133 SUPERSTOPPER-MAXI-750 SuperSTOPPER - Maxi - 750 L x 250 D x 125 H mm, Including pair of SuperSTOPPER Flanges"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "470",
+      "name": "Trafalgar SUPERSTOPPER-Maxi-1100",
+      "manufacturer": "Trafalgar",
+      "evidence": [
+        {
+          "local_reference": "PRICE LIST - Effective 30.03.26.pdf; SHA256=676de61398c2a3ebd1e63964ad78e9d16ab6b5bec8371555ad471cb1137437e6; page 6",
+          "title": "PRICE LIST - Effective 30.03.26.pdf",
+          "note": "I00129 SUPERSTOPPER-MAXI-1100 SuperSTOPPER - Maxi - 1100 L x 250 D x 125H mm, Including pair of SuperSTOPPER Flanges"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "471",
+      "name": "Trafalgar - Monokote MK6/HY",
+      "manufacturer": "GCP Applied Technologies",
+      "evidence": [
+        {
+          "url": "https://beta.gcpat.com/sites/gcpat.com/files/pdf/current/resource/GCPAT_contractor_monokote_resources_us_61971.pdf",
+          "title": "GCP Applied Technologies contractor MONOKOTE resources",
+          "note": "Page 1. GCP product index lists the exact MK-6/HY, Z-106/HY and Z-146T products. Trafalgar catalog name is retained as a supplier alias."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "472",
+      "name": "Trafalgar - Monokote Z106/HY",
+      "manufacturer": "GCP Applied Technologies",
+      "evidence": [
+        {
+          "url": "https://beta.gcpat.com/sites/gcpat.com/files/pdf/current/resource/GCPAT_contractor_monokote_resources_us_61971.pdf",
+          "title": "GCP Applied Technologies contractor MONOKOTE resources",
+          "note": "Page 1. GCP product index lists the exact MK-6/HY, Z-106/HY and Z-146T products. Trafalgar catalog name is retained as a supplier alias."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "473",
+      "name": "Trafalgar - Monokote Z146/T",
+      "manufacturer": "GCP Applied Technologies",
+      "evidence": [
+        {
+          "url": "https://beta.gcpat.com/sites/gcpat.com/files/pdf/current/resource/GCPAT_contractor_monokote_resources_us_61971.pdf",
+          "title": "GCP Applied Technologies contractor MONOKOTE resources",
+          "note": "Page 1. GCP product index lists the exact MK-6/HY, Z-106/HY and Z-146T products. Trafalgar catalog name is retained as a supplier alias."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "474",
+      "name": "Trafalgar FyreSHIELD-PLUS-300",
+      "manufacturer": "Trafalgar",
+      "evidence": [
+        {
+          "local_reference": "PRICE LIST - Effective 30.03.26.pdf; SHA256=676de61398c2a3ebd1e63964ad78e9d16ab6b5bec8371555ad471cb1137437e6; page 7",
+          "title": "PRICE LIST - Effective 30.03.26.pdf",
+          "note": "I01223 FYRESHIELD-PLUS-300-FE FyreSHIELD Plus fire rated panel, for ceilings (or walls), flanged edge, 300x300mm, budget lock, fully"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "475",
+      "name": "Trafalgar FyreSHIELD-PLUS-400",
+      "manufacturer": "Trafalgar",
+      "evidence": [
+        {
+          "local_reference": "PRICE LIST - Effective 30.03.26.pdf; SHA256=676de61398c2a3ebd1e63964ad78e9d16ab6b5bec8371555ad471cb1137437e6; page 7",
+          "title": "PRICE LIST - Effective 30.03.26.pdf",
+          "note": "I01224 FYRESHIELD-PLUS-400-FE FyreSHIELD Plus fire rated panel, for ceilings (or walls), flanged edge, 400x400mm, budget lock, fully"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "476",
+      "name": "Trafalgar FyreSHIELD-PLUS-450",
+      "manufacturer": "Trafalgar",
+      "evidence": [
+        {
+          "local_reference": "PRICE LIST - Effective 30.03.26.pdf; SHA256=676de61398c2a3ebd1e63964ad78e9d16ab6b5bec8371555ad471cb1137437e6; page 7",
+          "title": "PRICE LIST - Effective 30.03.26.pdf",
+          "note": "I01225 FYRESHIELD-PLUS-450-FE FyreSHIELD Plus fire rated panel, for ceilings (or walls), flanged edge, 450x450mm, budget lock, fully"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "477",
+      "name": "Trafalgar FyreSHIELD-PLUS-600",
+      "manufacturer": "Trafalgar",
+      "evidence": [
+        {
+          "local_reference": "PRICE LIST - Effective 30.03.26.pdf; SHA256=676de61398c2a3ebd1e63964ad78e9d16ab6b5bec8371555ad471cb1137437e6; page 7",
+          "title": "PRICE LIST - Effective 30.03.26.pdf",
+          "note": "I01220 FYRESHIELD-PLUS-600-FE FyreSHIELD Plus fire rated panel, for ceilings (or walls), flanged edge, 600x600mm, budget lock, fully"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "478",
+      "name": "Trafalgar Downlight Box",
+      "manufacturer": "Trafalgar",
+      "evidence": [
+        {
+          "local_reference": "PRICE LIST - Effective 30.03.26.pdf; SHA256=676de61398c2a3ebd1e63964ad78e9d16ab6b5bec8371555ad471cb1137437e6; page 2",
+          "title": "PRICE LIST - Effective 30.03.26.pdf",
+          "note": "I02324 DLB - DOWNLIGHT BOX Downlight Box, 30mm (B) Internal L120 x W120 x H120mm, External L240 x W240 x H180mm"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "479",
+      "name": "Trafalgar FyreHAT",
+      "manufacturer": "Trafalgar",
+      "evidence": [
+        {
+          "local_reference": "PRICE LIST - Effective 30.03.26.pdf; SHA256=676de61398c2a3ebd1e63964ad78e9d16ab6b5bec8371555ad471cb1137437e6; page 2",
+          "title": "PRICE LIST - Effective 30.03.26.pdf",
+          "note": "I02470 FYREHAT FyreHAT Downlight Cover"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "480",
+      "name": "Trafalgar FyreCAP",
+      "manufacturer": "Trafalgar",
+      "evidence": [
+        {
+          "local_reference": "PRICE LIST - Effective 30.03.26.pdf; SHA256=676de61398c2a3ebd1e63964ad78e9d16ab6b5bec8371555ad471cb1137437e6; page 2",
+          "title": "PRICE LIST - Effective 30.03.26.pdf",
+          "note": "I02564 FYRECAP 75 FyreCAP for junction boxes, 75 x 75 x 50mm (no sealant required)"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "500",
+      "name": "BOSS Batt FR Mineral Fibre Coated Board",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 1",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "BB-50 BOSSBatt FR Mineral Fibre Coated Board 1200x600x50mm 1"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "501",
+      "name": "BOSS Ablative Coating 5kg",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 1",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "AC-5 Ablative Coating 5kg Pail Brush Grade 5kg 1"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "503",
+      "name": "BOSS Cable Transit 50mm round",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 1",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "CT120-50R Cable Transit - 50mm round 50mm ø 6"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "504",
+      "name": "BOSS Cable Transit 65mm square",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 1",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "CT120-65 Cable Transit - 65mm square 65mm x 65mm 6"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "505",
+      "name": "BOSS Cable Transit 100mm square",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 1",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "CT120-100 Cable Transit - 100mm square 100mm x 100mm 6"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "506",
+      "name": "BOSS Cable Transit 100mm round",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 1",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "CT120-100R Cable Transit - 100mm round 100mm ø 6"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "507",
+      "name": "BOSS Cable Transit - 150mm round",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 1",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "CT120-150R Cable Transit - 150mm round 150mm ø 5"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "508",
+      "name": "BOSS Fire Clamp (cable tray) 250mm",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 1",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "CT240-250 Fire Clamp (cable tray) - 250mm 250mm x 125mm 1"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "509",
+      "name": "BOSS Fire Clamp (cable tray) 350mm",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 1",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "CT240-350 Fire Clamp (cable tray) - 350mm 350mm x 125mm 1"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "510",
+      "name": "BOSS Fire Clamp (cable tray) 550mm",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 1",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "CT240-550 Fire Clamp (cable tray) - 550mm 550mm x 125mm 1"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "511",
+      "name": "BOSS Fire Clamp (cable tray) 1100mm",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 1",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "CT240-1100 Fire Clamp (cable tray) - 1100mm 1100mm x 125mm 1"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "512",
+      "name": "BOSS Duplex Flange 65mm x 130mm",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 1",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "CTF-65DX Duplex Flange only - 65mm x 130mm (set 2 flanges) 65mm x 130mm 1"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "513",
+      "name": "BOSS Triplex Flange 65mm x 195mm",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 1",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "CTF-65TX Triplex Flange only - 65mm x 195mm (set 2 flanges) 65mm x 195mm 1"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "514",
+      "name": "BOSS Sixplex Flange 130mm x 195mm",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 1",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "CTF-65SX Sixplex Flange only - 130mm x 195mm (set 2 flanges) 130mm x 195mm 1"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "515",
+      "name": "BOSS Duplex Flange 100mm x 200mm",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 1",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "CTF-100DX Duplex Flange only - 100mm x 200mm (set 2 flanges) 100mm x 200mm 1"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "516",
+      "name": "BOSS Triplex Flange 100mm x 300mm",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 1",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "CTF-100TX Triplex Flange only - 100mm x 300mm (set 2 flanges) 100mm x 300mm 1"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "517",
+      "name": "BOSS Sixplex Flange 200mm x 300mm",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 1",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "CTF-100SX Sixplex Flange only - 200mm x 300mm (set 2 flanges) 200mm x 300mm 1"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "518",
+      "name": "BOSS Pipe Collar 2hr 25mm SS",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 1",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "RFC-25 Pipe Collar 2hr 25mm - Stainless Steel 25mm ø ID 1"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "519",
+      "name": "BOSS Pipe collar 2hr 32mm SS",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 1",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "RFC-32 Pipe collar 2hr 32mm - Stainless Steel 32mm ø ID 1"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "520",
+      "name": "BOSS Pipe collar 2hr 40mm SS",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 1",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "RFC-40 Pipe collar 2hr 40mm - Stainless Steel 40mm ø ID 1"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "521",
+      "name": "BOSS Pipe collar 2hr 50mm Galvanised",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 1",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "RFC-50 Pipe collar 2hr 50mm - Galvanised 50mm ø ID 1"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "522",
+      "name": "BOSS Pipe collar 2hr 65mm Galvanised",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 1",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "RFC-65 Pipe collar 2hr 65mm - Galvanised 65mm ø ID 1"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "523",
+      "name": "BOSS Pipe collar 2hr 80mm Galvanised",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 1",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "RFC-80 Pipe collar 2hr 80mm - Galvanised 80mm ø ID 1"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "524",
+      "name": "BOSS Pipe collar 2hr 100mm Galvanised",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 1",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "RFC-100 Pipe collar 2hr 100mm - Galvanised 100mm ø ID 1"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "525",
+      "name": "BOSS Pipe collar 2hr 150mm Galvinised",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 1",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "RFC-150 Pipe collar 2hr 150mm - Galvinised 150mm ø ID 1"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "526",
+      "name": "BOSS Maxi Pipe Collar 4hr 25mm",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 1",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "MC-25 Maxi Pipe Collar 4hr - 25mm 25mm ø ID 1"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "527",
+      "name": "BOSS Maxi Pipe Collar 4hr 32mm",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 1",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "MC-32 Maxi Pipe Collar 4hr - 32mm 32mm ø ID 1"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "528",
+      "name": "BOSS Maxi Pipe Collar 4hr 40mm",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 1",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "MC-40 Maxi Pipe Collar 4hr - 40mm 40mm ø ID 1"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "529",
+      "name": "BOSS Maxi Pipe Collar 4hr 50mm",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 1",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "MC-50 Maxi Pipe Collar 4hr - 50mm 50mm ø ID 1"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "530",
+      "name": "BOSS Maxi Pipe Collar 4hr 65mm",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 1",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "MC-65 Maxi Pipe Collar 4hr - 65mm 65mm ø ID 1"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "531",
+      "name": "BOSS Maxi Pipe Collar 4hr 75mm",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 1",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "MC-75 Maxi Pipe Collar 4hr - 75mm 75mm ø ID 1"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "532",
+      "name": "BOSS Maxi Pipe Collar 4hr 80mm",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 1",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "MC-80 Maxi Pipe Collar 4hr - 80mm 80mm ø ID 1"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "533",
+      "name": "BOSS Maxi Pipe Collar 4hr 90mm",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 1",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "MC-90 Maxi Pipe Collar 4hr - 90mm 90mm 1"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "534",
+      "name": "BOSS Maxi Pipe Collar 4hr 100mm",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 1",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "MC-100 Maxi Pipe Collar 4hr - 100mm 100mm ø ID 1"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "535",
+      "name": "BOSS Maxi Pipe Collar 4hr 125mm",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 1",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "MC-125 Maxi Pipe Collar 4hr - 125mm 125mm ø ID 1"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "536",
+      "name": "BOSS Maxi Pipe Collar 4hr 150mm",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 1",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "MC-150 Maxi Pipe Collar 4hr - 150mm 150mm ø ID 1"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "537",
+      "name": "BOSS Maxi Pipe Collar 4hr 200mm",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 1",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "MC-200 Maxi Pipe Collar 4hr - 200mm 200mm ø ID 1"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "538",
+      "name": "BOSS Maxi Pipe Collar 4hr 250mm",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 1",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "MC-250 Maxi Pipe Collar 4hr - 250mm 250mm ø ID 1"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "539",
+      "name": "BOSS Pipe Wrap 2hr 32mm",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 2",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "PW2-32 Pipe Wrap 2hr 32mm 32mm ø ID 20"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "540",
+      "name": "BOSS Pipe Wrap 2hr 40mm",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 2",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "PW2-40 Pipe Wrap 2hr 40mm 40mm ø ID 20"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "541",
+      "name": "BOSS Pipe Wrap 2hr 50mm",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 2",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "PW2-50 Pipe Wrap 2hr 50mm 50mm ø ID 20"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "542",
+      "name": "BOSS Pipe Wrap 2hr 65mm",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 2",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "PW2-65 Pipe Wrap 2hr 65mm 65mm ø ID 20"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "543",
+      "name": "BOSS Pipe Wrap 2hr 80mm",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 2",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "PW2-80 Pipe Wrap 2hr 80mm 80mm ø ID 20"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "544",
+      "name": "BOSS Pipe Wrap 2hr 100mm",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 2",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "PW2-100 Pipe Wrap 2hr 100mm 100mm ø ID 20"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "545",
+      "name": "BOSS Pipe Wrap 2hr 150mm",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 2",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "PW2-150 Pipe Wrap 2hr 150mm 150mm ø ID 20"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "546",
+      "name": "BOSS Pipe Wrap 2hr 200mm",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 2",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "PW2-200 Pipe Wrap 2hr 200mm 200mm ø ID 20"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "547",
+      "name": "BOSS UniWra Peno Wrap Strip 25m roll",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 2",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "UW-25 UniWrap - Peno Wrap Strip - 25m roll 25m x 40mm x 2mm 1"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "548",
+      "name": "BOSS Fire Rated Downlight Cover - Medium",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 2",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "DLC-200 Fire Rated Downlight Cover - Medium 200mm 48"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "549",
+      "name": "BOSS Fire Rated Downlight Cover - Large",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 2",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "DLC-250 Fire Rated Downlight Cover - Large 250mm 36"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "563",
+      "name": "BOSS Batwing Seal 12mm S Door (Head) 1m",
+      "manufacturer": "Lorient",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 2",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "LAS1212-1000 Batwing Seal 12mm Single Door - (Head) 1m 12mm x12mm x 1m 1"
+        },
+        {
+          "url": "https://www.lorient.com.au/en/product-assets/fire-hot-temperature-smoke-seals/las1202-intumescent-fire-seal/assets/documents/general/Lorient%20Architectural%2C%20Acoustic%2C%20Smoke%20and%20Fire%20Containment%20Systems%20brochure.pdf",
+          "title": "Lorient Architectural, Acoustic, Smoke and Fire Containment Systems",
+          "note": "Page 17. Printed p15 identifies LAS1212 and LAS1515 Batwing; lengths and single/double door sets match the BOSS source codes. BOSS is seller."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "564",
+      "name": "BOSS Batwing Seal 12mm S Door (Stile) 2.1m",
+      "manufacturer": "Lorient",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 2",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "LAS1212-2100 Batwing Seal 12mm Single Door - (Stile) 2.1m 12mm x12mm x 2.1m 1"
+        },
+        {
+          "url": "https://www.lorient.com.au/en/product-assets/fire-hot-temperature-smoke-seals/las1202-intumescent-fire-seal/assets/documents/general/Lorient%20Architectural%2C%20Acoustic%2C%20Smoke%20and%20Fire%20Containment%20Systems%20brochure.pdf",
+          "title": "Lorient Architectural, Acoustic, Smoke and Fire Containment Systems",
+          "note": "Page 17. Printed p15 identifies LAS1212 and LAS1515 Batwing; lengths and single/double door sets match the BOSS source codes. BOSS is seller."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "565",
+      "name": "BOSS Batwing Seal 12mm S Door (Stile) 2.4m",
+      "manufacturer": "Lorient",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 2",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "LAS1212-2400 Batwing Seal 12mm Single Door - (Stile) 2.4m 12mm x12mm x 2.4m"
+        },
+        {
+          "url": "https://www.lorient.com.au/en/product-assets/fire-hot-temperature-smoke-seals/las1202-intumescent-fire-seal/assets/documents/general/Lorient%20Architectural%2C%20Acoustic%2C%20Smoke%20and%20Fire%20Containment%20Systems%20brochure.pdf",
+          "title": "Lorient Architectural, Acoustic, Smoke and Fire Containment Systems",
+          "note": "Page 17. Printed p15 identifies LAS1212 and LAS1515 Batwing; lengths and single/double door sets match the BOSS source codes. BOSS is seller."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "566",
+      "name": "BOSS Batwing Seal 12mm S Door Set 5.2m",
+      "manufacturer": "Lorient",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 2",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "LAS1212-SDS Batwing Seal 12mm Single Door Set - 5.2m 2.1m x 2.1m x 1m 1"
+        },
+        {
+          "url": "https://www.lorient.com.au/en/product-assets/fire-hot-temperature-smoke-seals/las1202-intumescent-fire-seal/assets/documents/general/Lorient%20Architectural%2C%20Acoustic%2C%20Smoke%20and%20Fire%20Containment%20Systems%20brochure.pdf",
+          "title": "Lorient Architectural, Acoustic, Smoke and Fire Containment Systems",
+          "note": "Page 17. Printed p15 identifies LAS1212 and LAS1515 Batwing; lengths and single/double door sets match the BOSS source codes. BOSS is seller."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "567",
+      "name": "BOSS Batwing Seal 12mm D Door Set 6.3m",
+      "manufacturer": "Lorient",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 2",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "LAS1212-DDS Batwing Seal 12mm Double Door Set - 6.3m 2.1m x 2.1m x 2.1m 1"
+        },
+        {
+          "url": "https://www.lorient.com.au/en/product-assets/fire-hot-temperature-smoke-seals/las1202-intumescent-fire-seal/assets/documents/general/Lorient%20Architectural%2C%20Acoustic%2C%20Smoke%20and%20Fire%20Containment%20Systems%20brochure.pdf",
+          "title": "Lorient Architectural, Acoustic, Smoke and Fire Containment Systems",
+          "note": "Page 17. Printed p15 identifies LAS1212 and LAS1515 Batwing; lengths and single/double door sets match the BOSS source codes. BOSS is seller."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "568",
+      "name": "BOSS Batwing Seal 15mm S Door (Head) 1m",
+      "manufacturer": "Lorient",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 2",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "LAS1515-1000 Batwing Seal 15mm Single Door - (Head) 1m 15mm x15mm x 1m 1"
+        },
+        {
+          "url": "https://www.lorient.com.au/en/product-assets/fire-hot-temperature-smoke-seals/las1202-intumescent-fire-seal/assets/documents/general/Lorient%20Architectural%2C%20Acoustic%2C%20Smoke%20and%20Fire%20Containment%20Systems%20brochure.pdf",
+          "title": "Lorient Architectural, Acoustic, Smoke and Fire Containment Systems",
+          "note": "Page 17. Printed p15 identifies LAS1212 and LAS1515 Batwing; lengths and single/double door sets match the BOSS source codes. BOSS is seller."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "569",
+      "name": "BOSS Batwing Seal 15mm S Door (Stile) 2.1m",
+      "manufacturer": "Lorient",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 2",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "LAS1515-2100 Batwing Seal 15mm Single Door - (Stile) 2.1m 15mm x15mm x 2.1m 1"
+        },
+        {
+          "url": "https://www.lorient.com.au/en/product-assets/fire-hot-temperature-smoke-seals/las1202-intumescent-fire-seal/assets/documents/general/Lorient%20Architectural%2C%20Acoustic%2C%20Smoke%20and%20Fire%20Containment%20Systems%20brochure.pdf",
+          "title": "Lorient Architectural, Acoustic, Smoke and Fire Containment Systems",
+          "note": "Page 17. Printed p15 identifies LAS1212 and LAS1515 Batwing; lengths and single/double door sets match the BOSS source codes. BOSS is seller."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "570",
+      "name": "BOSS Batwing Seal 15mm S Door (Stile) 2.4m",
+      "manufacturer": "Lorient",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 2",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "LAS1515-2400 Batwing Seal 15mm Single Door - (Stile) 2.4m 15mm x15mm x 2.4m"
+        },
+        {
+          "url": "https://www.lorient.com.au/en/product-assets/fire-hot-temperature-smoke-seals/las1202-intumescent-fire-seal/assets/documents/general/Lorient%20Architectural%2C%20Acoustic%2C%20Smoke%20and%20Fire%20Containment%20Systems%20brochure.pdf",
+          "title": "Lorient Architectural, Acoustic, Smoke and Fire Containment Systems",
+          "note": "Page 17. Printed p15 identifies LAS1212 and LAS1515 Batwing; lengths and single/double door sets match the BOSS source codes. BOSS is seller."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "571",
+      "name": "BOSS Batwing Seal 15mm S Door Set 5.2m",
+      "manufacturer": "Lorient",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 2",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "LAS1515-SDS Batwing Seal 15mm Single Door Set - 5.2m 2.1m x 2.1m x 1m 1"
+        },
+        {
+          "url": "https://www.lorient.com.au/en/product-assets/fire-hot-temperature-smoke-seals/las1202-intumescent-fire-seal/assets/documents/general/Lorient%20Architectural%2C%20Acoustic%2C%20Smoke%20and%20Fire%20Containment%20Systems%20brochure.pdf",
+          "title": "Lorient Architectural, Acoustic, Smoke and Fire Containment Systems",
+          "note": "Page 17. Printed p15 identifies LAS1212 and LAS1515 Batwing; lengths and single/double door sets match the BOSS source codes. BOSS is seller."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "572",
+      "name": "BOSS Batwing Seal 15mm D Door Set 6.3m",
+      "manufacturer": "Lorient",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 2",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "LAS1515-DDS Batwing Seal 15mm Double Door Set - 6.3m 2.1m x 2.1m x 2.1m 1"
+        },
+        {
+          "url": "https://www.lorient.com.au/en/product-assets/fire-hot-temperature-smoke-seals/las1202-intumescent-fire-seal/assets/documents/general/Lorient%20Architectural%2C%20Acoustic%2C%20Smoke%20and%20Fire%20Containment%20Systems%20brochure.pdf",
+          "title": "Lorient Architectural, Acoustic, Smoke and Fire Containment Systems",
+          "note": "Page 17. Printed p15 identifies LAS1212 and LAS1515 Batwing; lengths and single/double door sets match the BOSS source codes. BOSS is seller."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "573",
+      "name": "BOSS Fire Door Build-Up Kit - 820",
+      "manufacturer": "Kilargo",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 2",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "FDBU20-820 Fire Door Build-Up Kit - 820 20mm x 820mm 1"
+        },
+        {
+          "url": "https://kilargo.com.au/wp-content/uploads/2024/07/20190909-FS-FDBU20-1.pdf",
+          "title": "Kilargo FDBU20 Product Sheet, 09/09/2019",
+          "note": "Page 1. Kilargo explicitly identifies and manufactures FDBU20. Standard lengths include820,920,1220mm. The local BOSS row also has a1070mm variant; manufacturer family is identified, custom/legacy length is not altered."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "574",
+      "name": "BOSS Fire Door Build-Up Kit - 920",
+      "manufacturer": "Kilargo",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 2",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "FDBU20-920 Fire Door Build-Up Kit - 920 20mm x 920mm 1"
+        },
+        {
+          "url": "https://kilargo.com.au/wp-content/uploads/2024/07/20190909-FS-FDBU20-1.pdf",
+          "title": "Kilargo FDBU20 Product Sheet, 09/09/2019",
+          "note": "Page 1. Kilargo explicitly identifies and manufactures FDBU20. Standard lengths include820,920,1220mm. The local BOSS row also has a1070mm variant; manufacturer family is identified, custom/legacy length is not altered."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "576",
+      "name": "BOSS Fire Door Build-Up Kit - 1220",
+      "manufacturer": "Kilargo",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 2",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "FDBU20-1220 Fire Door Build-Up Kit - 1220 20mm x 1220mm 1"
+        },
+        {
+          "url": "https://kilargo.com.au/wp-content/uploads/2024/07/20190909-FS-FDBU20-1.pdf",
+          "title": "Kilargo FDBU20 Product Sheet, 09/09/2019",
+          "note": "Page 1. Kilargo explicitly identifies and manufactures FDBU20. Standard lengths include820,920,1220mm. The local BOSS row also has a1070mm variant; manufacturer family is identified, custom/legacy length is not altered."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "587",
+      "name": "BOSS Intumesent Fire Strip for 10mm",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 3",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "ALX-10 Intumesent Fire Strip 1m long for 10mm gap 12mm x 12mm x 1m n/a"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "588",
+      "name": "BOSS Intumesent Fire Strip for 20mm",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 3",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "ALX-20 Intumesent Fire Strip 1m long for 20mm gap 29mm x 12mm x 1m n/a"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "589",
+      "name": "BOSS Intumesent Fire Strip for 25mm",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 3",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "ALX-25 Intumesent Fire Strip 1m long for 25mm gap 32mm x 20mm x 1m n/a"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "590",
+      "name": "BOSS Intumesent Fire Strip for 35mm",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 3",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "ALX-35 Intumesent Fire Strip 1m long for 35mm gap 53mm x 20mm x 1m n/a"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "591",
+      "name": "BOSS Intumesent Fire Strip for 50mm",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 3",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "ALX-50 Intumesent Fire Strip 1m long for 50mm gap 61mm x 35mm x 1m n/a"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "592",
+      "name": "BOSS Intumesent Fire Strip for 65mm",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 3",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "ALX-65 Intumesent Fire Strip 1m long for 65mm gap 85mm x 40mm x 1m n/a"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "593",
+      "name": "BOSS  Intumesent Fire Strip for 75mm",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 3",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "ALX-75 Intumesent Fire Strip 1m long for 75mm gap 90mm x 50mm x 1m n/a"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "594",
+      "name": "BOSS Intumesent Fire Strip for 100mm",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 3",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "ALX-100 Intumesent Fire Strip 1m long for 100mm gap 126mm x 100mm x 1m n/a"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "595",
+      "name": "BOSS Intumesent Fire Strip for 125mm",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 3",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "ALX-125 Intumesent Fire Strip 1m long for 125mm gap 147mm x 125mm x 1m n/a"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "596",
+      "name": "BOSS Intumesent Fire Strip for 150mm",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 3",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "ALX-150 Intumesent Fire Strip 1m long for 150mm gap 170mm x 100mm x 1m n/a"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "597",
+      "name": "BOSS Fire Transit Box 150mm",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 3",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "BFB-150 BOSS Fire Transit Box 150mm 150 x 150 x 270mm 2"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "598",
+      "name": "BOSS Fire Transit Box Junior 200mm",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 3",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "BFB-200 BOSS Fire Transit Box Junior 200mm 200 x 80 x 130mm 1"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "599",
+      "name": "BOSS Fire Transit Box 300mm",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 3",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "BFB-300 BOSS Fire Transit Box 300mm 300 x 150 x 270mm 1"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "600",
+      "name": "BOSS Fire Transit Box 450mm Low Profile",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 3",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "BFB-450 BOSS Fire Transit Box 450mm Low Profile 450 x 100 x 270mm 1"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "601",
+      "name": "BOSS Fire Transit Box 550mm",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 3",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "BFB-550 BOSS Fire Transit Box 550mm 550 x 150 x 270mm 1"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "602",
+      "name": "BOSS Fire Transit Box 600mm",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 3",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "BFB-600 BOSS Fire Transit Box 600mm 600 x 150 x 270mm 1"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "603",
+      "name": "BOSS Fire Transit Box 750mm",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 3",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "BFB-750 BOSS Fire Transit Box 750mm 750 x 150 x 270mm 1"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "604",
+      "name": "BOSS Fire Transit Box 900mm",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 3",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "BFB-900 BOSS Fire Transit Box 900mm 900 x 150 x 270mm 1"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "605",
+      "name": "BOSS FireMortar-360",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 3",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "FM360 FireMortar-360, Load-Bearing 6hr Fire Rated 20kg bag 1"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "606",
+      "name": "BOSS PenoPatch - FR Putty Disc - 60mm",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 3",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "PP-60 PenoPatch - FR Putty Disc - 60mm 60mm ø OD 20"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "607",
+      "name": "BOSS PenoPatch - FR Putty Disc - 100mm",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 3",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "PP-100 PenoPatch - FR Putty Disc - 100mm 100mm ø OD 20"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "608",
+      "name": "BOSS FireMastic-300 Cartridge White",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 3",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "FM300-3W FireMastic-300 Cartridge White 310mL 12"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "609",
+      "name": "BOSS FireMastic-300 Cartridge Grey",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 3",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "FM300-3G FireMastic-300 Cartridge Grey 310mL 12"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "610",
+      "name": "BOSS FireMastic-300 Sausage White",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 3",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "FM300-6W FireMastic-300 Sausage White 600mL 12"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "611",
+      "name": "BOSS FireMastic-300 Sausage Grey",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 3",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "FM300-6G FireMastic-300 Sausage Grey 600mL 12"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "612",
+      "name": "BOSS FireMastic-HPE Cartridge",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 3",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "FMHPE-3 FireMastic-HPE Cartridge 310mL 12"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "613",
+      "name": "BOSS FireMastic-HPE Foil Sausage",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 3",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "FMHPE-6 FireMastic-HPE Foil Sausage 600mL 12"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "614",
+      "name": "BOSS FireSilicone-EMA Cartridge",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 3",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "FSIL-3 FireSilicone-EMA Cartridge 310mL 12"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "615",
+      "name": "BOSS Pyrogard Expanding PU Fire-Foam",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 3",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "FOAM750 Pyrogard Expanding PU Fire-Foam Pressurised Can 750mL 12"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "616",
+      "name": "BOSS FlexiCoat-MAK Small Pail 5KG",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 3",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "FCMAK-5 FlexiCoat-MAK Small Pail 5kg 1"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "617",
+      "name": "BOSS Fire Pillow Small",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 3",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "FP-100 Fire Pillow Small 200 x 100 x 40mm 125"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "618",
+      "name": "BOSS Fire Pillow Medium",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 3",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "FP-200 Fire Pillow Medium 200 x 200 x 40mm 50"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "619",
+      "name": "BOSS Fire Pillow Large",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 3",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "FP-300 Fire Pillow Large 200 x 300 x 40mm 30"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "620",
+      "name": "BOSS P40 FoilFaced Rockwool Blanket 1m",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 3",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "P40MAK P40 MAK-Wrap FoilFaced Rockwool Blanket 1m 300mm x 38mm x 1m 6"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "621",
+      "name": "BOSS P40 FoilFaced Rockwool Blanket 4.5m",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 3",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "P40MAK-45 P40 MAK-Wrap FoilFaced Rockwool Blanket 4.5m Roll 300mm x 38mm x 4.5m 1"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "622",
+      "name": "BOSS Thermal Defence Wrap PW 10x300 Roll",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 3",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "TD-300 Thermal Defence Wrap PW - 10m Roll x 300mm 300mm x 5mm x 10m 2"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "623",
+      "name": "BOSS Thermal Defence Wrap PW 10x610 Roll",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 3",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "TD-600 Thermal Defence Wrap PW - 10m Roll x 610mm 610mm x 5mm x 10m 1"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "624",
+      "name": "BOSS Thermal Defence Wrap CW 10x150 Roll",
+      "manufacturer": "BOSS",
+      "evidence": [
+        {
+          "local_reference": "BOSS Fire - Passive Specialist Price List 1May2022.pdf; SHA256=5dbc7db77e7541c3aa4c659930d63309f41304dc86d0eb9d168d6b890b384063; page 3",
+          "title": "BOSS Fire - Passive Specialist Price List 1May2022.pdf",
+          "note": "TD-150 Thermal Defence Wrap 'Collar Roll' - 10m x 150mm 150mm x 5mm x 10m 4"
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "700",
+      "name": "Dulux Firetex 6010",
+      "manufacturer": "Sherwin-Williams",
+      "evidence": [
+        {
+          "url": "https://www.duluxprotectivecoatings.com.au/media/k40bdpfq/dlx4196-dulux-firetex-solvent-based-application-guide_v2.pdf",
+          "title": "Dulux FIRETEX Application Guide, November2024",
+          "note": "Page 12. Dulux explicitly identifies FIRETEX as manufactured by Sherwin-Williams Protective & Marine Coatings. Dulux is the Australian co-brand/supplier; product names stay unchanged."
+        },
+        {
+          "url": "https://industrial.sherwin-williams.com/content/dam/pcg/sherwin-williams/protective-marine/emeai/gb/en-gb/pdfs/certifications/european-technical-assessment/firetex-fx6010-eta.pdf",
+          "title": "FIRETEX FX6010 ETA22/0571,28January2026",
+          "note": "Page 1. Manufacturer is explicitly Sherwin-Williams UK Ltd; manufacturing plant Sherwin-Williams Protective & Marine Division, Bolton."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "701",
+      "name": "Dulux Firetex 5090",
+      "manufacturer": "Sherwin-Williams",
+      "evidence": [
+        {
+          "url": "https://www.duluxprotectivecoatings.com.au/media/k40bdpfq/dlx4196-dulux-firetex-solvent-based-application-guide_v2.pdf",
+          "title": "Dulux FIRETEX Application Guide, November2024",
+          "note": "Page 12. Dulux explicitly identifies FIRETEX as manufactured by Sherwin-Williams Protective & Marine Coatings. Dulux is the Australian co-brand/supplier; product names stay unchanged."
+        },
+        {
+          "url": "https://www.paintdocs.com/docs/webPDF.jsp?SITEID=SWPROTECT&cntry=US&doctype=SDS&lang=E&prodno=B59W05090",
+          "title": "FIRETEX FX5090 Safety Data Sheet",
+          "note": "Page 1. Exact FX5090 product SDS names The Sherwin-Williams Company as manufacturer."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "702",
+      "name": "Dulux Sprayfilm WB3",
+      "manufacturer": "Promat",
+      "evidence": [
+        {
+          "url": "https://www.duluxprotectivecoatings.com.au/media/1154/cafco-sprayfilm-wb3-intumescent-coating-data-sheet-0612.pdf",
+          "title": "Promat CAFCO SPRAYFILM WB3 Technical Data Sheet,2021-11,hosted by Dulux",
+          "note": "Page 5. Promat technical publication identifies CAFCO SPRAYFILM WB3 as supplied by licensed manufacturers of Promat Australia; p6 carries Promat identity. Dulux is catalog seller alias."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "703",
+      "name": "Dulux Duremax GPE ZP (4L- 125µm)",
+      "manufacturer": "Dulux",
+      "evidence": [
+        {
+          "url": "https://www.duluxprotectivecoatings.com.au/media/3201/dulux_pc_datasheet_duremax_gpe_zp_sep_2022.pdf",
+          "title": "Dulux DUREMAX GPE ZP Product Data Sheet,September2022",
+          "note": "Page 3. Company information identifies DuluxGroup (Australia) Pty Ltd; exact DUREMAX GPE ZP product."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "704",
+      "name": "Dulux Luxepoxy 4 (4L- 50µm)",
+      "manufacturer": "Dulux",
+      "evidence": [
+        {
+          "url": "https://www.duluxprotectivecoatings.com.au/media/2636/luxepoxy_4_white_primer_june_2021.pdf",
+          "title": "Dulux Luxepoxy4 White Primer Product Data Sheet,June2021",
+          "note": "Page 2. Dulux company information identifies DuluxGroup (Australia) Pty Ltd and the Luxepoxy trademark; exact Luxepoxy4 product,4litre pack."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "705",
+      "name": "Dulux Metalshield HB ZP (4L- 50µm)",
+      "manufacturer": "Dulux",
+      "evidence": [
+        {
+          "url": "https://www.duluxprotectivecoatings.com.au/media/3340/dlx3697-duluxpc_metalshield_productguide_v7.pdf",
+          "title": "Dulux Metalshield Product Guide",
+          "note": "Dulux product guide explicitly identifies its Metalshield High Build ZP Primer and branded packaging."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "706",
+      "name": "Dulux Durepon EZP (4L- 75µm)",
+      "manufacturer": "Dulux",
+      "evidence": [
+        {
+          "url": "https://www.duluxprotectivecoatings.com.au/media/3093/bpir-durepon-ezp.pdf",
+          "title": "Dulux Durepon EZP Building Product Information Sheet",
+          "note": "Page 1. Legal manufacturer explicitly DuluxGroup (Australia) Pty Ltd."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "707",
+      "name": "Dulux Zincanode 402 (10L- 75µm)",
+      "manufacturer": "Dulux",
+      "evidence": [
+        {
+          "url": "https://www.duluxprotectivecoatings.com.au/media/3074/bpir-zincanode-402.pdf",
+          "title": "Dulux Zincanode402 Building Product Information Sheet",
+          "note": "Page 1. Exact Zincanode402 product; legal manufacturer explicitly DuluxGroup (Australia) Pty Ltd."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "708",
+      "name": "Dulux Weathermax HBR (4L- 100µm)",
+      "manufacturer": "Dulux",
+      "evidence": [
+        {
+          "url": "https://www.duluxprotectivecoatings.com.au/media/3073/bpir-weathermax-hbr.pdf",
+          "title": "Dulux Weathermax HBR Building Product Information Sheet",
+          "note": "Page 1. Legal manufacturer explicitly DuluxGroup (Australia) Pty Ltd."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "709",
+      "name": "Dulux Luxathane SPX (20L- 50µm)",
+      "manufacturer": "Dulux",
+      "evidence": [
+        {
+          "url": "https://www.duluxprotectivecoatings.com.au/media/ocllgcgs/dulux_pc_datasheet_luxathane_spx_jul_2025.pdf",
+          "title": "Dulux LuxathaneSPX Product Data Sheet,July2025",
+          "note": "Page 3. Dulux-authored exact LuxathaneSPX product sheet identifies DuluxGroup company and trademark."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "710",
+      "name": "Dulux Duration T74 (4L- 50µm)",
+      "manufacturer": "Dulux",
+      "evidence": [
+        {
+          "url": "https://www.duluxprotectivecoatings.com.au/media/1470/dulux_protective_coatings_duration_product_guide_fa2_web.pdf",
+          "title": "Dulux Duration Product Guide",
+          "note": "Page 3. Dulux product guide identifies both DurationT74 andT80, with branded pails and product descriptions."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "711",
+      "name": "Dulux Duration T80 (4L- 50µm)",
+      "manufacturer": "Dulux",
+      "evidence": [
+        {
+          "url": "https://www.duluxprotectivecoatings.com.au/media/1470/dulux_protective_coatings_duration_product_guide_fa2_web.pdf",
+          "title": "Dulux Duration Product Guide",
+          "note": "Page 3. Dulux product guide identifies both DurationT74 andT80, with branded pails and product descriptions."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "712",
+      "name": "Nullifire SC902",
+      "manufacturer": "Nullifire",
+      "evidence": [
+        {
+          "url": "https://www.tremco.com.au/TremcoAustralia/media/SiteAssets/Datasheets/Nullifire-SC902-Data-Sheet.pdf?ext=.pdf",
+          "title": "Nullifire SC902 Product Data Sheet, Tremco",
+          "note": "Page 1. Exact Nullifire SC902 product identity; Tremco CPG is the manufacturer group behind the Nullifire brand."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "714",
+      "name": "Perlifoc HP ECO +",
+      "manufacturer": "Perlita y Vermiculita",
+      "evidence": [
+        {
+          "url": "https://www.eota.eu/etassessments/18720",
+          "title": "EOTA European Technical Assessment20/0894,version2,14June2024",
+          "note": "Primary assessment registry identifies PERLIFOC HP ECO+ holder/manufacturer as Perlita y Vermiculita S.L.,Spain. Tremco is the local supplier."
+        },
+        {
+          "url": "https://www.perlitayvermiculita.com/pdf/Perlifoc-HP-Eco%2B_Ficha-T%C3%A9cnica4.pdf",
+          "title": "Perlita y Vermiculita PERLIFOC HP Eco+ Technical Data Sheet",
+          "note": "Page 2. Manufacturer-authored exact product data sheet identifies Perlita y Vermiculita SLU technical support."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "800",
+      "name": "Standard masking",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 349; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "801",
+      "name": "Extensive masking",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 350; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "819",
+      "name": "Travel - 3 hours round trip",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 368; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "820",
+      "name": "Travel - 4 hours round trip",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 369; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "821",
+      "name": "Travel - 6 hours round trip",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 370; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "822",
+      "name": "Travel - 8 hours round trip",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 371; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "823",
+      "name": "Travel - 10 hours round trip",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 372; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "824",
+      "name": "Travel - 24 hours round trip",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 373; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "825",
+      "name": "Travel - 48 hours round trip",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 374; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "826",
+      "name": "Accommodation & LAFHA",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 375; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "827",
+      "name": "Freight - 6 pallets",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 376; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "828",
+      "name": "Freight - 12 pallets",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 377; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "829",
+      "name": "Freight - 24 pallets",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 378; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "830",
+      "name": "Freight - 44 pallets",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 379; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "900",
+      "name": "Supply and Installation",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 380; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "901",
+      "name": "Site mobilisation fee",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 381; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "902",
+      "name": "Administration fee",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 382; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "903",
+      "name": "Tradesman x 1 - (1x - normal time)",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 383; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "904",
+      "name": "Tradesman x 1 - (1.5x - time and a half)",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 384; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "905",
+      "name": "Tradesman x 1 - (2x - double time)",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 385; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "906",
+      "name": "Tradesmen x 2 - (1x - normal time)",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 386; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "907",
+      "name": "Tradesmen x 2 - (1.5x - time and a half)",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 387; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "908",
+      "name": "Tradesmen x 2 - (2x - double time)",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 388; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "909",
+      "name": "Tradesmen x 3 - (1x - normal time)",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 389; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "910",
+      "name": "Tradesmen x 3 - (1.5x - time and a half)",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 390; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "911",
+      "name": "Tradesmen x 3 - (2x - double time)",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 391; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "912",
+      "name": "Tradesmen x 4 - (1x - normal time)",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 392; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "913",
+      "name": "Tradesmen x 4 - (1.5x - time and a half)",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 393; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "914",
+      "name": "Tradesmen x 4 - (2x - double time)",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 394; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "915",
+      "name": "1 Team - 1x",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 395; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "916",
+      "name": "2 Teams - 1x",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 396; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "917",
+      "name": "3 Teams - 1x",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 397; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "918",
+      "name": "4 Teams - 1x",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 398; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "919",
+      "name": "1 Team - 1.5x",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 399; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "920",
+      "name": "2 Teams - 1.5x",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 400; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "921",
+      "name": "3 Teams - 1.5x",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 401; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "922",
+      "name": "4 Teams - 1.5x",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 402; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "923",
+      "name": "1 Team - 2x",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 403; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "924",
+      "name": "2 Teams - 2x",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 404; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "925",
+      "name": "3 Teams - 2x",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 405; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "926",
+      "name": "4 Teams - 2x",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 406; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "927",
+      "name": "1 Team (sheeting) - 1x ",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 407; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "928",
+      "name": "2 Teams (sheeting) - 1x ",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 408; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "929",
+      "name": "3 Teams (sheeting) - 1x ",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 409; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "930",
+      "name": "4 Teams (sheeting) - 1x ",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 410; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "931",
+      "name": "1 Team (sheeting) - 1.5x",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 411; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "932",
+      "name": "2 Teams (sheeting) - 1.5x",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 412; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "933",
+      "name": "3 Teams (sheeting) - 1.5x",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 413; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "934",
+      "name": "4 Teams (sheeting) - 1.5x",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 414; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "935",
+      "name": "1 Team (sheeting) - 2x",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 415; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "936",
+      "name": "2 Teams (sheeting) - 2x",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 416; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "937",
+      "name": "3 Teams (sheeting) - 2x",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 417; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    },
+    {
+      "kind": "inventory",
+      "id": "938",
+      "name": "4 Teams (sheeting) - 2x",
+      "manufacturer": "N/A",
+      "evidence": [
+        {
+          "local_reference": "Inventory_list.xlsm; INVENTORY, row 418; source SHA256=1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1",
+          "title": "Current inventory workbook provenance",
+          "note": "Exact current catalog row is a placeholder or service rate; there is no manufactured product to identify."
+        }
+      ]
+    }
+  ]
+}

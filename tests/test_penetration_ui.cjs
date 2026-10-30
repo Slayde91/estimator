@@ -671,7 +671,7 @@ async function check(name,fn){const h=harness();h.api.applyProject(await h.api.p
     await h.audit.addToSchedule();const before=copy(h.api.projectSnapshot()),calls=[],save=h.context.window.CeasefireDownloads.save;
     h.context.window.CeasefireDownloads.save=(path,payload,options)=>{calls.push({path,button:options.button});return save(path,payload,options);};
     h.context.fetch=async()=>({ok:true,headers:{get:()=> 'application/json'},json:async()=>({saved:true,path:'C:/Fixture/file',filename:'file',destination:'project'})});
-    for(const[id,path]of[['penetration-pdf','/api/penetration/report.pdf'],['penetration-excel','/api/penetration/register.xlsx'],['penetration-item-pdf','/api/penetration/item.pdf'],['penetration-item-schedule-pdf','/api/penetration/report.pdf'],['penetration-item-excel','/api/penetration/item.xlsx']]){await h.byId(id).emit('click');assert.deepEqual(calls.at(-1),{path,button:h.byId(id)});assert.deepEqual(copy(h.api.projectSnapshot()),before);}
+    for(const[id,path]of[['penetration-pdf','/api/penetration/report.pdf'],['penetration-excel','/api/penetration/register.xlsx'],['penetration-item-pdf','/api/penetration/item.pdf'],['penetration-item-excel','/api/penetration/item.xlsx']]){await h.byId(id).emit('click');assert.deepEqual(calls.at(-1),{path,button:h.byId(id)});assert.deepEqual(copy(h.api.projectSnapshot()),before);}
   });
   for(const kind of ['pdf','xlsx'])await check(`${kind} exports schedule only and captures precision, prices, details and destination before later edits`,async h=>{
     h.control('O').value='123.456789012345';await h.control('O').emit('input');await h.audit.addToSchedule();h.control('O').value='99';await h.control('O').emit('input');const pending=deferred();let sent;h.context.fetch=(path,options)=>{sent={path,body:JSON.parse(options.body)};return pending.promise;};const saving=h.audit.download(kind);await flush();
@@ -682,12 +682,24 @@ async function check(name,fn){const h=harness();h.api.applyProject(await h.api.p
   await check('The composer Firestopping Schedule action exports the independent schedule even with invalid composer fields',async h=>{
     h.audit.state.draft.rows[0].inputs.T='SCHEDULE ONLY';h.audit.state.draft.rows[0].inputs.O=4.123456789012345;await h.audit.addToSchedule();
     h.audit.state.draft.rows[0].inputs.T='COMPOSER ONLY';h.audit.state.invalid.set('composer-only','invalid');h.audit.queueDiagram('composer.png','Y29tcG9zZXI=');h.audit.render();
-    assert.equal(h.byId('penetration-item-pdf').disabled,true);assert.equal(h.byId('penetration-item-schedule-pdf').disabled,false);
+    assert.equal(h.byId('penetration-item-pdf').disabled,true);assert.equal(h.byId('penetration-pdf').disabled,false);
     const before=copy(h.api.projectSnapshot());let sent;h.context.fetch=async(path,options)=>{sent={path,body:JSON.parse(options.body)};return{ok:true,headers:{get:()=> 'application/json'},json:async()=>({saved:true,path:'C:/Fixture/schedule.pdf',filename:'schedule.pdf',destination:'project'})};};
-    await h.byId('penetration-item-schedule-pdf').emit('click');assert.equal(sent.path,'/api/penetration/report.pdf');
+    await h.byId('penetration-pdf').emit('click');assert.equal(sent.path,'/api/penetration/report.pdf');
     assert.deepEqual(sent.body.draft,before.draft);assert.equal(sent.body.draft.rows[0].inputs.O,4.123456789012345);assert.equal(sent.body.item,undefined);assert.equal(sent.body.diagram,undefined);
     assert.deepEqual(sent.body.configuration,h.pricing);assert.deepEqual(copy(h.api.projectSnapshot()),before);assert.equal(h.audit.state.invalid.size,1);
-    h.audit.state.schedule.invalid.set(JSON.stringify([h.audit.state.schedule.draft.rows[0].id,'O']),'invalid');h.audit.render();assert.equal(h.byId('penetration-item-schedule-pdf').disabled,true);
+    h.audit.state.schedule.invalid.set(JSON.stringify([h.audit.state.schedule.draft.rows[0].id,'O']),'invalid');h.audit.render();assert.equal(h.byId('penetration-pdf').disabled,true);
+  });
+  await check('Calculator Schedule and Breakdown tabs retain exact results, controls, drafts and prices without calculating',async h=>{
+    h.control('O').value='4.123456789012345';await h.control('O').emit('input');await h.audit.addToSchedule();
+    const before=copy(h.api.projectSnapshot()),fingerprint=h.api.projectFingerprint(),dirty=h.api.hasUnsavedChanges(),prices=copy(h.pricing),calls=h.calls.length;
+    const resultBefore=copy(h.audit.state.schedule.result),breakdown=h.byId('penetration-schedule-breakdown'),original=[...breakdown.children];
+    const schedule=h.byId('penetration-schedule-tab-schedule'),detail=h.byId('penetration-schedule-tab-breakdown');
+    const assertView=view=>{for(const key of ['schedule','breakdown']){assert.equal(h.byId('penetration-schedule-panel-'+key).hidden,key!==view);assert.equal(h.byId('penetration-schedule-tab-'+key).getAttribute('aria-selected'),String(key===view));assert.equal(h.byId('penetration-schedule-tab-'+key).tabIndex,key===view?0:-1);}};
+    assertView('schedule');await detail.emit('click');assertView('breakdown');
+    for(const [tab,key,view] of [[detail,'ArrowRight','schedule'],[schedule,'ArrowLeft','breakdown'],[detail,'Home','schedule'],[schedule,'End','breakdown']]){let prevented=false;await tab.emit('keydown',{key,preventDefault(){prevented=true;}});assert.equal(prevented,true);assertView(view);assert.equal(h.context.document.activeElement,h.byId('penetration-schedule-tab-'+view));}
+    assert.deepEqual(breakdown.children,original,'Tabs preserve the rendered table nodes');assert.deepEqual(copy(h.audit.state.schedule.result),resultBefore);assert.deepEqual(copy(h.api.projectSnapshot()),before);assert.equal(h.api.projectFingerprint(),fingerprint);assert.equal(h.api.hasUnsavedChanges(),dirty);assert.deepEqual(h.pricing,prices);assert.equal(h.calls.length,calls);
+    await h.audit.calculateSchedule();assertView('breakdown');assert.deepEqual(copy(h.api.projectSnapshot()),before);assert.deepEqual(copy(h.audit.state.schedule.result),resultBefore);
+    h.api.applyProject(await h.api.prepareProject(before));assertView('schedule');assert.deepEqual(copy(h.api.projectSnapshot()),before);
   });
   for(const kind of ['pdf','xlsx'])await check(`Current Item ${kind.toUpperCase()} captures only the unsaved composer and diagram, never Schedule rows`,async h=>{
     h.audit.state.draft.rows[0].inputs.T='SCHEDULE ONLY';await h.audit.addToSchedule();

@@ -9,6 +9,11 @@
 .penetration-group{flex:0 0 auto;padding:16px 18px 13px;border:0;border-bottom:4px solid transparent;border-radius:10px 10px 0 0;background:transparent;color:#66565f;font-size:12px;font-weight:750;text-transform:uppercase;white-space:nowrap}
 .penetration-group:hover{background:#fff8f3;color:var(--accent-dark)}
 .penetration-group[aria-pressed=true],.penetration-group[aria-selected=true]{background:#fff5ee;color:var(--accent-dark);border-bottom-color:#ef3028}
+.penetration-schedule-view-tabs{margin-block:0 18px}
+.penetration-schedule-view-tabs .penetration-group{flex:0 1 auto;min-width:0;min-height:44px;white-space:normal;cursor:pointer}
+.penetration-schedule-view-tabs .penetration-group:focus-visible{outline:3px solid var(--accent);outline-offset:-3px}
+.penetration-schedule-view-panel[hidden]{display:none!important}
+.penetration-schedule-view-panel>.firestopping-breakdown{margin:0;padding:0;border:0;box-shadow:none;background:transparent}
 .penetration-settings-toggle[aria-pressed=true]{background:var(--accent);color:#fff;border-color:var(--accent)}
 .button.penetration-header-action{background:#fff;border-color:#dcd3d7;color:#51414a;box-shadow:none}
 .button.penetration-header-action.icon-only{display:grid;place-items:center;width:48px;height:48px;padding:0}

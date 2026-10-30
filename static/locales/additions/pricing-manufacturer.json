@@ -1,0 +1,7 @@
+{
+  "Manufacturer must contain at most 200 characters without control characters.": [
+    "제조업체 이름은 제어 문자 없이 최대 200자여야 합니다.",
+    "Dapat hindi lalampas sa 200 character ang tagagawa at walang mga control character.",
+    "Tên nhà sản xuất không được vượt quá 200 ký tự và không chứa ký tự điều khiển."
+  ]
+}

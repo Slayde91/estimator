@@ -1,5 +1,6 @@
 // Disposable project-file and recovery coverage. No PDF revision is generated.
 const {chromium,expect}=require('@playwright/test');
+const {openProjectSection}=require('./project_actions.cjs');
 const {spawn}=require('node:child_process'),{randomUUID,createHash}=require('node:crypto');
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
 const root=path.resolve(__dirname,'../..'),output=path.join(root,'.runtime/browser-qa',`certification-project-${Date.now()}`);
@@ -12,8 +13,8 @@ const ready=new Promise((resolve,reject)=>{let data='';const timer=setTimeout(()
 const errors=[],generations=[],checks=[];
 const digest=value=>createHash('sha256').update(value).digest('hex');
 async function idle(){await page.waitForFunction(()=>{const status=window.CeasefireDesktop?.status();return status?.ready&&!status.busy;},null,{timeout:120000});}
-async function certification(){await page.locator('#projects-navigation-toggle').click();await page.locator('#view-projects [data-project-section="certification"]').click();await expect(page.locator('#certification-client')).toBeEnabled({timeout:30000});}
-async function projects(){await page.locator('#projects-navigation-toggle').click();await page.locator('#view-projects [data-project-section="quotes"]').click();}
+async function certification(){await openProjectSection(page,'certification');await expect(page.locator('#certification-client')).toBeEnabled({timeout:30000});}
+async function projects(){await openProjectSection(page,'quotes');}
 async function legacy(id){await page.locator('#certification-legacy-open').click();await expect(page.locator('#certification-legacy-dialog')).toBeVisible();await page.locator('#certification-legacy-document').selectOption(id);await page.locator('#certification-legacy-import').click();}
 async function continueDiscard(){await page.locator('#discard-dialog [value="confirm"]').click();}
 (async()=>{

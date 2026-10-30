@@ -1,5 +1,6 @@
 // Real rendered language switching uses only a disposable, isolated fixture.
 const {chromium,expect}=require('@playwright/test');
+const {openProjectSection}=require('./project_actions.cjs');
 const {spawn}=require('node:child_process');
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
 const {chooseTakeoff}=require('./section_navigation.cjs');
@@ -30,8 +31,7 @@ async function snapshot(){await idle();return page.evaluate(()=>({project:window
  await page.locator('nav [data-view="estimate"]').click();await idle();
  await page.locator('#project-no').fill('CF-LANGUAGE');await page.locator('#client').fill('Home');await page.locator('#site-address').fill('原始ข้อมูล العربية हिन्दी <literal>');await page.locator('#site-address').blur();await idle();
  const baseline=await snapshot();
- await page.locator('#projects-navigation-toggle').click();
- await page.locator('#view-projects [data-project-section="certification"]').click();
+ await openProjectSection(page,'certification');
  await expect(page.locator('#certification-client')).toBeEnabled();
  await page.locator('#certification-client').fill('Original client বাংলা اردو <literal>');
  await page.locator('#certification-fire_resistance_level').fill('-/120/120');
@@ -66,11 +66,13 @@ async function snapshot(){await idle();return page.evaluate(()=>({project:window
    await expect(page.locator('#view-estimate .calculator-document-toggle')).toContainText('文件');
    await expect(page.locator('#main-panel-materials > p.helper')).toHaveCount(0);
    const previousOutput=await page.locator('#main-output-tabs [aria-selected="true"]').getAttribute('id');
-   await page.locator('#main-tab-firestopping-breakdown').click();
+   await page.evaluate(()=>window.CeasefirePenetrationNavigation.showSchedule());
+   await page.locator('#penetration-schedule-tab-breakdown').click();
    const breakdown=page.locator('#penetration-schedule-breakdown');
    for(const label of ['板材','防火圈','密封胶','框架','防火包裹材料','其他','附加人工','登记工时预留'])await expect(breakdown.getByText(label,{exact:true})).toBeVisible();
    await expect(breakdown.locator('.penetration-breakdown-note')).toHaveCount(0);
    await page.screenshot({path:path.join(output,'zh-estimate-tables.png')});
+   await page.locator('nav [data-view="estimate"]').click();await idle();
    if(previousOutput)await page.locator('#'+previousOutput).click();
    assert.deepEqual(await snapshot(),baseline,'Mandarin table labels preserve project values and totals');
    evidence.mandarinTables={taskRows:true,documentButton:true,notesRemoved:true,canonicalStateUnchanged:true};

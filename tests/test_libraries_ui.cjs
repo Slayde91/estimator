@@ -398,6 +398,24 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     assert.doesNotMatch(text(panel),/Source option|Source Configuration|private-option|retained for audit/);
     assertSourceHtmlSafe(nodes);assert.deepEqual(source,before);
   });
+  await check('Repeated single-condition barrier summaries keep construction text without the duplicate table',async h=>{
+    const fields=[
+      {label:'Barrier Construction',value:'',table:{columns:['Max Aperture Size','Separating Element','FRL'],rows:[['600 mm high × 1200 mm wide','Min. 51 mm thick Speedpanel wall','-/60/60']]}},
+      {label:'Blank Seal FRL',value:'-/60/60',table_links:[{field:'Barrier Construction',table_index:0}]},
+      {label:'Maximum Opening Size',value:'600 mm high × 1200 mm wide',table_links:[{field:'Barrier Construction',table_index:0}]}
+    ],source={...detail('technical','single-barrier'),images:[],fields},before=copy(source);
+    h.setRoute(path=>path==='/api/libraries'?meta():source);await h.api.open('technical',source.id);
+    const nodes=walk(h.pane('technical').detailPanel),barrier=nodes.find(n=>n.className==='library-record-field'&&n.children[0].textContent==='Barrier Construction');
+    assert.equal(barrier.children[1].textContent,'Min. 51 mm thick Speedpanel wall');
+    assert.equal(nodes.filter(n=>n.tagName==='table').length,0);assert.equal(nodes.filter(n=>n.className==='library-configuration-link').length,0);
+    assert.match(text(h.pane('technical').detailPanel),/600 mm high × 1200 mm wide/);assert.match(text(h.pane('technical').detailPanel),/-\/60\/60/);
+    assert.deepEqual(source,before,'Presentation keeps the retained source table unchanged.');
+  });
+  await check('Barrier conditions stay tabular unless both exact scalar summaries retain the complete single row',async h=>{
+    const original=[{label:'Barrier Construction',value:'',table:{columns:['Max Aperture Size','Separating Element','FRL'],rows:[['600 × 600 mm','Speedpanel wall','-/60/60']]}},{label:'Blank Seal FRL',value:'-/60/60'},{label:'Maximum Opening Size',value:'600 × 600 mm'}];
+    const cases=[f=>f[0].table.rows.push(['800 × 800 mm','Masonry wall','-/90/90']),f=>f[1].value='-/90/90',f=>f[2].value='800 × 800 mm',f=>f.splice(2,1),f=>f[0].value='Additional source condition.',f=>f[0].table.columns[0]='Service Size',f=>f[0].table.rows[0][2]='Up to -/60/60',f=>f[0].table.rows[0].push('Extra condition')];
+    for(const change of cases){const fields=copy(original);change(fields);const source={...detail('technical','retain-barrier'),images:[],fields},before=copy(source);h.setRoute(path=>path==='/api/libraries'?meta():source);await h.api.open('technical',source.id);const nodes=walk(h.pane('technical').detailPanel);assert.equal(nodes.filter(n=>n.tagName==='table').length,1);assert.match(text(h.pane('technical').detailPanel),/Speedpanel wall/);assert.deepEqual(source,before);}
+  });
   await check('Empty and single-row tables retain every source cell without redundant configuration links',async h=>{
     for(const owner of ['Service Size / Configuration','Barrier Construction']) {
       const source={...detail('technical','one-condition'),images:[],fields:[

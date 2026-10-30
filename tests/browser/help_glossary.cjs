@@ -128,7 +128,10 @@ async function theme(id) { for (let index = 0; index < 5 && await page.locator('
   assert.equal(file.saved, true); assert.equal(file.destination, 'project');
   const relative = path.relative(output, file.path); assert.ok(relative && !relative.startsWith('..') && !path.isAbsolute(relative));
   assert.equal(fs.readFileSync(file.path).subarray(0, 5).toString(), '%PDF-'); await idle(); await expect(menu).toBeHidden(); await expect(summary).toHaveAttribute('aria-label', 'Estimate Summary');
-  assert.deepEqual(await snapshot(), before, 'Real summary download preserves current drafts and pricing'); assert.deepEqual(fs.readFileSync(projectFile), savedBytes, 'Download leaves the saved project untouched');
+  // A newly retained document revision belongs to the unsaved project workspace.
+  // Its dirty marker changes; calculators, pricing and saved project bytes do not.
+  assert.equal(await page.evaluate(() => window.CeasefireDocumentation.hasProjectChanges()), true);
+  assert.deepEqual(await snapshot(), { ...before, dirty: true }, 'Summary export adds an unsaved document revision while preserving drafts and pricing'); assert.deepEqual(fs.readFileSync(projectFile), savedBytes, 'Download leaves the saved project untouched');
   evidence.summaryExport = { endpoint: new URL(response.url()).pathname, filename: file.filename, pdf: true };
   csp.push(...await page.evaluate(() => window.qaCsp)); assert.deepEqual(errors, []); assert.deepEqual(failed, []); assert.deepEqual(csp, []);
   fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ completed: true, ...evidence, errors, failed, csp, draftsUnchanged: true, savedProjectUnchanged: true }, null, 2));

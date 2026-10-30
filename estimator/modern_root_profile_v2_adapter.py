@@ -384,6 +384,9 @@ def validate_standard_release(q,io,original,release):
          'EXTERNAL_EXACT_STANDARD_RELEASE_REQUIRED')
     h,c,a = q['helpers'],q['context']['config'],q['admission']
     approval = h['document'](release['approval'],io)
+    need(approval.get('owner_thread_id') == q['context']['root'] and
+         approval.get('owner_execution_token') == q['context']['token'],
+         'STANDARD_RELEASE_CURRENT_ROOT_IDENTITY')
     need(a.get(STANDARD_RELEASE_ROLE) == c.get(STANDARD_RELEASE_ROLE) ==
          a['evidence_roles'].get(STANDARD_RELEASE_ROLE) == release['approval'], 'STANDARD_RELEASE_ROLE_BINDING')
     need(approval['schema']=='ROOT_APPROVED_KNOWN_STANDARD_NATIVE_READER_RELEASE_V1' and

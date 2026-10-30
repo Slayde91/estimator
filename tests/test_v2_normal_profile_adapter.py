@@ -391,6 +391,7 @@ class StandardReleaseFixture:
             image_selection_acceptance_installation=0,technical_approval=False))
         self.release=dict(reader=self.pin,old_archive=self.old,merge=self.merge,activation=self.activation,ast_proof=self.proof)
         approval=dict(schema='ROOT_APPROVED_KNOWN_STANDARD_NATIVE_READER_RELEASE_V1',root_code_release_admitted=True,
+            owner_thread_id='receiver',owner_execution_token='current-token',
             future_code_releases_authorized=False,technical_approval=False,**self.release)
         self.release['approval']=m.doc('standard-approval',approval)
         history=dict(schema='standard-history-schema',targets=[23],entries={'23':dict(run_accounting=m.doc('standard-accounting',
@@ -411,6 +412,19 @@ class StandardReleaseTests(unittest.TestCase):
     def test_known_release_validates_without_changing_default_reader(self):
         f=StandardReleaseFixture()
         self.assertEqual(adapter.validate_standard_release(f.q,f.io,f.original,f.release),f.pin)
+    def test_standard_release_requires_current_root_and_execution_token(self):
+        for field in ('owner_thread_id','owner_execution_token'):
+            for value in (None,'another-owner-or-execution'):
+                with self.subTest(field=field,value=value):
+                    f=StandardReleaseFixture();approval=copy.deepcopy(f.m.docs['standard-approval'])
+                    if value is None:approval.pop(field)
+                    else:approval[field]=value
+                    f.release['approval']=f.m.doc('standard-approval',approval)
+                    f.q['context']['config'][adapter.STANDARD_RELEASE_ROLE]=f.release['approval']
+                    f.q['admission'][adapter.STANDARD_RELEASE_ROLE]=f.release['approval']
+                    f.q['admission']['evidence_roles'][adapter.STANDARD_RELEASE_ROLE]=f.release['approval']
+                    with self.assertRaisesRegex(ValueError,'STANDARD_RELEASE_CURRENT_ROOT_IDENTITY'):
+                        adapter.validate_standard_release(f.q,f.io,f.original,f.release)
     def test_standard_lineage_keeps_original_closed_budget_owner_guard(self):
         f=StandardReleaseFixture()
         with self.assertRaisesRegex(ValueError,'NATIVE_CLOSED_BUDGET_OWNER'):

@@ -149,7 +149,7 @@ def render_item_pdf(snapshot, *, company=None):
     if diagram is None:
         report.story.append(report.p('No source diagram is attached to this current item.', 'body'))
     else:
-        scale = min(content / diagram['width'], 230 / diagram['height'])
+        scale = min(content / diagram['width'], 230 / diagram['height']) * (2 / 3)
         report.story.append(Image(BytesIO(diagram['image_data']), width=diagram['width'] * scale, height=diagram['height'] * scale))
     report.story.append(Spacer(1, 10))
     grouped = {}

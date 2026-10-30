@@ -96,8 +96,9 @@ class Capability:
 
 
 class Chain:
-    def __init__(self):
-        self.m=FullMemory(recovery=True);self.generation=0;self.current_core=core
+    def __init__(self, memory_factory=FullMemory, typed_bytes=None):
+        self.m=memory_factory(recovery=True);self.generation=0;self.current_core=core
+        self.typed_bytes=typed_bytes or (lambda raw:(json.loads(raw),None))
         cap=Capability(self.m,core,'first');self.first_written=cap.write()
         self.publish(self.first_written,'first')
 
@@ -144,7 +145,7 @@ class Chain:
         self.reader_trusted=dict(root='root',token='token',owner_path=m.owner['path'],owner_pin=m.owner,current_pointer=m.pointer,
             leaf=written['receipt_version'],native_completion=native,root_outer0=outer,publication_CAS=cas,
             current_context=ctx,current_facts=facts_pin,approved_dependencies={'typed_reader':m.typed},source_membership=list(m.membership))
-        m.io.update(approved_dependencies={'typed_reader':m.typed},typed_bytes=lambda raw:(json.loads(raw),None))
+        m.io.update(approved_dependencies={'typed_reader':m.typed},typed_bytes=self.typed_bytes)
         self.facts=facts;self.leaf=leaf;self.written=written
 
     def history(self,**kw):
@@ -246,9 +247,10 @@ class Chain:
     def write_next(self):
         return Capability(self.m,self.current_core,self.next_label).write()
 
-    def full_read(self):
+    def full_read(self, expected_database_transition_approval=None):
         pin=self.m.put(str(Path(reader.__file__).resolve()),Path(reader.__file__).read_bytes())
-        current=recurring.create_recurring_reader(reader,approved_reader_pin=pin)
+        current=recurring.create_recurring_reader(reader,approved_reader_pin=pin,
+            expected_database_transition_approval=expected_database_transition_approval)
         return current.read_completed_base_v2(self.written['receipt_version'],self.m.io,trusted=self.reader_trusted,env={'CODEX_THREAD_ID':'root'})
 
     def rebind_synthetic_proposal(self,written):

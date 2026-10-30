@@ -338,11 +338,7 @@ def _phase_current_scope(leaf_pin, leaf, trusted, pointer, o, env, helpers, read
     reader['need'](automation['kind'] == 'heartbeat' and automation['status'] == 'ACTIVE' and (automation['target_thread_id'] == trusted['root']) and (owner['existing_automation_target_thread_id'] == trusted['root']) and (owner['automation_remains_ACTIVE'] is True), 'CURRENT_AUTOMATION')
     reader['need'](trusted['approved_dependencies'] == o.io['approved_dependencies'] and set(trusted['approved_dependencies']) == {'typed_reader'}, 'APPROVED_READER_DEPENDENCIES')
     o.pinned(trusted['approved_dependencies']['typed_reader'])
-    db = facts['current_DB']
-    reader['need'](db == old['current_DB'], 'DATABASE_REQUIRES_SEPARATE_FINITE_CONSUMER')
-    reader['need'](all((not o.io['exists'](db['path'] + suffix) for suffix in ('-wal', '-shm', '-journal'))), 'DB_SIDECARS')
-    state, unused_folder = o.io['typed_bytes'](o.pinned(db))
-    reader['need'](state == facts['current_typed_database_state'] == old['current_typed_database_state'] and len(state['tables']) == facts['current_typed_tables'] and (sum((row['rows'] for row in state['tables'].values())) == facts['current_typed_rows']), 'FULL_TYPED_DATABASE')
+    state = reader['read_current_database_state'](context, facts, old, trusted, o)
 
     def fence():
         reader['need'](o.io['git']() == expected_git, 'END_GIT')

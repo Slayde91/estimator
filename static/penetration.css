@@ -152,7 +152,7 @@
 .penetration-diagram{margin-top:22px;padding:16px 18px 18px;border:1px solid var(--line);border-top:3px solid var(--red);border-radius:10px;background:#fffdfd}
 .penetration-diagram h4{margin:0 0 12px}
 .penetration-diagram figure{margin:0 0 14px}
-.penetration-diagram img{display:block;width:100%;max-width:620px;max-height:380px;object-fit:contain;border:1px solid var(--line);border-radius:8px;background:#fff}
+.penetration-diagram img{display:block;width:66.666667%;max-width:413.333333px;max-height:253.333333px;object-fit:contain;border:1px solid var(--line);border-radius:8px;background:#fff}
 .penetration-diagram figcaption{margin-top:8px}
 .penetration-image-field{max-width:620px}
 .penetration-diagram .actions{margin-top:10px}

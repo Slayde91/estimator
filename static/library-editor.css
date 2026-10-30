@@ -10,7 +10,7 @@
 .library-editor-diagram{margin-top:18px;padding:16px;border:1px solid var(--line);border-radius:10px;background:#fffdfd}
 .library-editor-diagram h4{margin:0 0 12px}
 .library-editor-diagram figure{margin:0 0 14px}
-.library-editor-diagram img{display:block;width:100%;max-width:520px;max-height:360px;object-fit:contain;border:1px solid var(--line);border-radius:8px;background:#fff}
+.library-editor-diagram img{display:block;width:66.666667%;max-width:346.666667px;max-height:240px;object-fit:contain;border:1px solid var(--line);border-radius:8px;background:#fff}
 .library-editor-diagram figcaption{margin-top:8px}
 .library-editor-image-field{max-width:520px}
 .library-editor-diagram .actions{margin-top:10px}

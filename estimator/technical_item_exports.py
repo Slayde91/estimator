@@ -258,7 +258,7 @@ def render_technical_item_pdf(snapshot, *, company=None):
     if not snapshot['images']:
         report.story.extend([report.p('Diagram', 'subheading'), report.p('No diagram is recorded.')])
     for index, image in enumerate(snapshot['images']):
-        scale = min(content / image['width'], 330 / image['height'])
+        scale = min(content / image['width'], 330 / image['height']) * (2 / 3)
         diagram = ([report.p('Source diagram', 'subheading')] if index == 0 else []) + [
             Image(BytesIO(image['image_data']), width=image['width'] * scale, height=image['height'] * scale), Spacer(1, 10)]
         report.story.append(KeepTogether(diagram))

@@ -10,6 +10,20 @@ planned search/call-out extension are documented in
 Publication and activation are established by current release receipts, not older
 checkpoint prose. The local-server and immutable workbook boundaries still apply.
 
+## Library illustrations in downloads - 31 October 2026
+
+`ReferenceLibrary.asset()` remains the fingerprinted original-evidence reader,
+including sources retained in `images_old`. `display_asset()` selects a registered,
+visually reviewed replica when one exists and verifies both original and replica
+bytes. Otherwise it returns the original. A published but missing or changed
+replica fails explicitly rather than silently exporting an old image.
+Technical item PDF/XLSX exports and Firestopping managed diagrams share this
+selection. Firestopping item PDFs, schedule thumbnails and project draft captures
+therefore use the current illustration. Saved custom and explicit unsaved item
+images retain priority; explicit image removal remains authoritative. Thumbnail
+caches include the selected image hash. This changes new exports only; stored
+Documentation revision bytes and source evidence remain immutable.
+
 ## Verified starting point
 
 GitHub `Slayde91/estimator` contained only README.md at `18d5058` (Initial commit). `C:\ESTIMATOR` contained the two workbooks and an Excel lock file, with no Git checkout or application files. A clean clone was created at `C:\ESTIMATOR\app`; source workbooks were preserved outside the repository. No local commits or divergent implementation existed to reconcile.

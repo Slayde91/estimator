@@ -659,6 +659,19 @@ class ReferenceLibrary:
         self.asset(key, False)
         return asset(self.directory, entry)
 
+    def display_asset(self, key):
+        """Use the reviewed illustration shown in the library, or its source.
+
+        Keep asset() as the original-evidence reader. A published replacement
+        must pass both source and derivative checks; never silently export an
+        old source if that replacement is missing or has changed.
+        """
+        with self._lock:
+            identifier(key)
+            if key in self.image_replicas():
+                return self.replica_asset(key)
+            return self.asset(key, False)
+
     def asset(self, key, pdf=True):
         with self._lock:
             identifier(key)

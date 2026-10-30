@@ -1,7 +1,7 @@
 """Read-only Technical Library item exports from canonical, refetched evidence.
 
-Only a library ID is accepted. Images use the library's registered, hash-checked
-asset reader; report links use the shared whitelist. No caller text, paths,
+Only a library ID is accepted. Images use the library's current, hash-checked
+display reader; report links use the shared whitelist. No caller text, paths,
 URLs, calculator inputs or library mutations enter these downloads.
 """
 
@@ -107,7 +107,7 @@ def prepare_technical_item(body, *, library):
         raise ValidationError('This technical item has too many source diagrams for one download.')
     images, image_bytes, pixels = [], 0, 0
     for image_id, ref in image_refs.items():
-        payload, mime, filename = library.asset(image_id, pdf=False)
+        payload, mime, filename = library.display_asset(image_id)
         image_bytes += len(payload)
         if mime not in {'image/png', 'image/jpeg'} or not 0 < len(payload) <= MAX_DIAGRAM_BYTES or image_bytes > MAX_IMAGE_BYTES:
             raise ValidationError('Technical source diagrams must be bounded registered PNG or JPEG images.')

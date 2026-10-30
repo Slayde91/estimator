@@ -8,9 +8,11 @@ Run from PowerShell:
 
 Or double-click `C:\ESTIMATOR\app\scripts\next_sketch_filenames.cmd`.
 
-The first run includes `fas190234-p57-t0-c17.png`. Every subsequent run
+The first run includes `fas190234-p57-t0-c17`. Every subsequent run
 returns the next ten existing image filenames in numeric page/component order,
-prints one line such as `"image1.png" "image2.png"`, and copies it to the clipboard.
+prints one line such as `"image1" "image2"`, and copies it to the clipboard.
+All output omits file extensions, including when using `-FullPaths`; source files
+and the saved queue retain their actual names with extensions for validation.
 In the attachment picker, open `C:\ESTIMATOR\app\.runtime\reference-library\images`,
 paste into **File name**, and confirm. A final batch may contain fewer than ten;
 after the last batch, the script produces no output and leaves the clipboard alone.

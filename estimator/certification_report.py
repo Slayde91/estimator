@@ -42,16 +42,18 @@ def render_certificate_pdf(fields, *, company, certificate_id, revision, created
     _register_fonts()
     company_name = company.get('name', '')
     styles = {
-        'title': ParagraphStyle('CertificateTitle', fontName='CeasefireVera', fontSize=15,
+        'title': ParagraphStyle('CertificateTitle', fontName='CeasefireVeraBold', fontSize=15,
                                 leading=19, textColor=_RED, spaceAfter=9, keepWithNext=True),
-        'heading': ParagraphStyle('CertificateHeading', fontName='CeasefireVera', fontSize=10.5,
+        'heading': ParagraphStyle('CertificateHeading', fontName='CeasefireVeraBold', fontSize=10.5,
                                   leading=14, textColor=_RED, spaceBefore=8, spaceAfter=5, keepWithNext=True),
         'body': ParagraphStyle('CertificateBody', fontName='CeasefireVera', fontSize=8.5,
                                leading=11.5, spaceAfter=5, splitLongWords=True),
+        'declaration': ParagraphStyle('CertificateDeclaration', fontName='CeasefireVeraBold', fontSize=8.5,
+                                      leading=11.5, spaceAfter=5, splitLongWords=True),
         'label': ParagraphStyle('CertificateLabel', fontName='CeasefireVera', fontSize=8.5,
                                 leading=11.5, textColor=_RED, spaceBefore=6, spaceAfter=2,
                                 keepWithNext=True, splitLongWords=True),
-        'cell_label': ParagraphStyle('CertificateCellLabel', fontName='CeasefireVera', fontSize=8,
+        'cell_label': ParagraphStyle('CertificateCellLabel', fontName='CeasefireVeraBold', fontSize=8,
                                     leading=11, textColor=_RED, spaceAfter=5, splitLongWords=True),
         'cell': ParagraphStyle('CertificateCell', fontName='CeasefireVera', fontSize=8.2,
                               leading=11.5, splitLongWords=True),
@@ -101,7 +103,7 @@ def render_certificate_pdf(fields, *, company, certificate_id, revision, created
         ('TOPPADDING', (0, 0), (-1, -1), 7), ('BOTTOMPADDING', (0, 0), (-1, -1), 7),
     ]))
     story = [p('Installation Certificate', 'title'), identity,
-        p('Statement of Compliance', 'heading'), p(fields['statement_of_compliance'], 'body'), *details([
+        p('Statement of Compliance', 'heading'), p(fields['statement_of_compliance'], 'declaration'), *details([
         ('The relevant Australian Standards listed in the NCC as follows:', fields['australian_standards']),
         ('The relevant clauses of the NCC, as follows:', fields['ncc_clauses']),
         ('The design detail submitted at the construction approval stage:', fields['approved_design']),
@@ -111,7 +113,7 @@ def render_certificate_pdf(fields, *, company, certificate_id, revision, created
         ('Exclusions - ' + EXCLUSIONS_INTRO.format(company=company_name), fields['exclusions']),
         ('Materials/Manufacturers:', fields['materials_manufacturers']),
         ('Fire Resistance Level:', fields['fire_resistance_level']),
-    ]), Spacer(1, 12), p(ATTESTATION.format(company=company_name), 'body'), Spacer(1, 5)]
+    ]), Spacer(1, 12), p(ATTESTATION.format(company=company_name), 'declaration'), Spacer(1, 5)]
     signer_values = [p(fields[key], 'cell') for key in ('name', 'position', 'qualification', 'accreditation')]
     if signature:
         from .certification_signature import signature_reader

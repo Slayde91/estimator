@@ -653,6 +653,27 @@
   const displayedColumns = table => table.columns.map((label, index) => ({ label, index })).filter(column => !["id", "configuration", "source configuration"].includes(String(column.label).trim().replace(/\s+/g, " ").toLowerCase()));
   const frlLabel = label => /\bfrl\b/i.test(String(label).replace(/_/g, " "));
   const validFieldTable = table => table && Array.isArray(table.columns) && Array.isArray(table.rows) && table.rows.every(Array.isArray);
+  function compactBarrierField(field, fields) {
+    // Remove a repeated summary only when both scalar fields retain the exact
+    // row's aperture and rating. Alternatives and qualified rows stay tabular.
+    if (field.label !== "Barrier Construction") return field;
+    const tables = fieldTables(field);
+    if (tables.length !== 1 || !validFieldTable(tables[0])) return field;
+    const table = tables[0], columns = displayedColumns(table);
+    if (table.rows.length !== 1 || columns.length !== 3 || table.rows[0].length !== table.columns.length) return field;
+    const key = value => frlKey(value).replace(/[×✕]/g, "x");
+    const index = label => columns.find(column => key(column.label) === label)?.index;
+    const aperture = index("max aperture size"), construction = index("separating element"), rating = index("frl");
+    if ([aperture, construction, rating].some(index => index === undefined)) return field;
+    const row = table.rows[0], text = String(row[construction] ?? "").trim();
+    if (!text || String(field.value ?? "").trim() && key(field.value) !== key(text)) return field;
+    const repeated = (labels, cell) => {
+      const matches = fields.filter(item => labels.includes(key(item.label)));
+      return matches.length === 1 && !fieldTables(matches[0]).length && key(matches[0].value) === key(cell) && key(cell) !== "";
+    };
+    if (!bareFrlRatings(row[rating]) || !repeated(["blank seal frl"], row[rating]) || !repeated(["maximum opening size", "max. opening size", "max opening size"], row[aperture])) return field;
+    return { ...field, value: text, table: null, tables: [] };
+  }
   // Encode every code point so imported labels/IDs cannot create selectors or fragment URLs.
   const anchorPart = value => Array.from(String(value), char => char.codePointAt(0).toString(16)).join("-");
   const tableAnchor = (kind, id, label, index) => `library-table-${kind}-${anchorPart(id)}-${anchorPart(label)}-${index}`;
@@ -830,7 +851,8 @@
     const fields = node("dl", "library-record-fields");
     // Omit only supplier selector numbers. Real technical IDs remain visible;
     // all original fields and durable reference targets retain their exact IDs.
-    const visibleFields = (data.fields || []).filter(field => window.LibraryDetailText.visibleField(data, field, pane.kind));
+    const sourceFields = data.fields || [];
+    const visibleFields = sourceFields.filter(field => window.LibraryDetailText.visibleField(data, field, pane.kind)).map(field => pane.kind === "technical" ? compactBarrierField(field, sourceFields) : field);
     const tablesByField = new Map(visibleFields.map(field => [field, fieldTables(field).map((table, index, tables) => {
       if (!validFieldTable(table) || !displayedColumns(table).length) return null;
       const target = fieldTable({ ...field, table }, index, tables.length, pane.kind);

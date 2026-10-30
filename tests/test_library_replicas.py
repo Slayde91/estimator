@@ -67,6 +67,18 @@ class ReplicaTests(unittest.TestCase):
         (self.folder / 'index.json').unlink()
         self.assertEqual(self.library.image_replicas(), {})
 
+    def test_archived_source_remains_verified_when_images_contains_sketch(self):
+        archive = self.root / 'images_old'
+        archive.mkdir()
+        original = self.root / 'images/diagram-a.png'
+        original.rename(archive / original.name)
+        original.write_bytes(self.replica)
+        self.assertEqual(self.library.asset('diagram-a', False)[0], self.source)
+        self.assertEqual(self.library.replica_asset('diagram-a')[0], self.replica)
+        (archive / original.name).write_bytes(self.source + b'changed')
+        with self.assertRaisesRegex(ValidationError, 'source has changed'):
+            self.library.replica_asset('diagram-a')
+
     def test_batch_installer_reuses_outputs_and_rejects_changed_sources_before_writing(self):
         from scripts.install_library_replicas import install
         manifest = self.root.parent / 'batch.json'

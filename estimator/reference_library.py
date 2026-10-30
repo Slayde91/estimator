@@ -667,6 +667,11 @@ class ReferenceLibrary:
                 raise ReferenceNotFound()
             asset = data['_assets'][key]
             path = self.directory / ('documents' if pdf else 'images') / (key + asset['extension'])
+            if not pdf:
+                archived = self.directory / 'images_old' / (key + asset['extension'])
+                if archived.is_file():
+                    # Replacements are illustrations; retain fingerprinted source evidence.
+                    path = archived
             if not path.resolve().is_relative_to(self.directory.resolve()):
                 raise ValidationError('The library asset is outside its registered folder.')
             try:

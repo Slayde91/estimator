@@ -71,7 +71,7 @@ try {
         $path
     }
     $selected = if ($FullPaths) { @($paths) } else { $batch }
-    $pickerText = ($selected | ForEach-Object { '"' + $_ + '"' }) -join ' '
+    $pickerText = ($selected | ForEach-Object { '"' + ($_ -replace '\.[^\\/.]+$', '') + '"' }) -join ' '
     if (-not $Preview) {
         # A clipboard failure must not silently consume a batch. -NoClipboard is for terminals/headless runs.
         if (-not $NoClipboard) { Set-Clipboard -Value $pickerText }

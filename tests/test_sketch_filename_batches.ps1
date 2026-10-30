@@ -9,7 +9,7 @@ function Assert-Equal($actual, $expected, $label) {
     if ($actual -cne $expected) { throw "$label failed: expected [$expected], received [$actual]" }
 }
 function Expected($numbers) {
-    ($numbers | ForEach-Object { '"fas190234-p' + $_ + '-t0-c9.png"' }) -join ' '
+    ($numbers | ForEach-Object { '"fas190234-p' + $_ + '-t0-c9"' }) -join ' '
 }
 function Run-Batch {
     & $script -Source $source -StateDirectory $state -NoClipboard @args
@@ -43,7 +43,7 @@ try {
     Assert-Equal (Get-Content (Join-Path $state 'state.json') -Raw) $before 'clipboard failure preserves cursor'
     Remove-Item Function:\Set-Clipboard
     Assert-Equal (Run-Batch) (Expected (12..21)) 'removed processed file does not skip next'
-    $expectedPaths = (22..25 + @(100) | ForEach-Object { '"' + (Join-Path $source "fas190234-p$($_)-t0-c9.png") + '"' }) -join ' '
+    $expectedPaths = (22..25 + @(100) | ForEach-Object { '"' + (Join-Path $source "fas190234-p$($_)-t0-c9") + '"' }) -join ' '
     Assert-Equal (Run-Batch -FullPaths) $expectedPaths 'final partial batch and paths with spaces'
     Assert-Equal (Run-Batch) $null 'exhaustion'
     Assert-Equal (Run-Batch -Repeat) (Expected (22..25 + @(100))) 'repeat after exhaustion'

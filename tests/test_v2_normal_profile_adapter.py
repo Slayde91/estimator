@@ -55,8 +55,8 @@ class Published(PublishedMemory):
 
 
 class Fixture:
-    def __init__(self):
-        self.m=Published();m=self.m;self.calls=[];self.failures=set();self.installed=False;self.strict0=True
+    def __init__(self, memory_factory=Published):
+        self.m=memory_factory();m=self.m;self.calls=[];self.failures=set();self.installed=False;self.strict0=True
         self.before=copy.deepcopy(m.controls);self.after=None;self.backups={};self.phase_nonce='one'
         self.selected=m.put('/selected-private.png',b'prospective selected candidate')
         self.newpath=str(PureWindowsPath('C:/ESTIMATOR/app/.runtime/reference-library/replicas')/(self.selected['sha256']+'.png'))
@@ -151,9 +151,9 @@ class Fixture:
         for path,pin in added.items():adapter.need(io['version'](path)==pin,'EXACT_NEW_RUNTIME')
         return {'protected':'checked'}
 
-    def qualify(self):
+    def qualify(self, approved_reader=reader):
         return adapter.qualify_optional_v2(self.context,self.admission,self.admission,self.m.io,self.helpers,
-            original=self.original,reader=reader,binding=self.binding,env={'CODEX_THREAD_ID':'receiver'})
+            original=self.original,reader=approved_reader,binding=self.binding,env={'CODEX_THREAD_ID':'receiver'})
 
     def revise_admission(self,change):
         self.a=copy.deepcopy(self.a);change(self.a);self.admission=self.m.doc('admission-next',self.a)
@@ -334,6 +334,19 @@ class NormalProfileTests(unittest.TestCase):
         f.name='_current_scope';f.args.args=f.args.args[:-3]
         class Reverse(ast.NodeTransformer):
             inventory=0
+            def visit_Assign(self,node):
+                if (isinstance(node.value,ast.Call) and isinstance(node.value.func,ast.Subscript)
+                    and isinstance(node.value.func.slice,ast.Constant)
+                    and node.value.func.slice.value=='read_current_database_state'):
+                    return ast.parse("""db = facts['current_DB']
+need(db == old['current_DB'], 'DATABASE_REQUIRES_SEPARATE_FINITE_CONSUMER')
+need(all(not o.io['exists'](db['path'] + suffix) for suffix in ('-wal', '-shm', '-journal')), 'DB_SIDECARS')
+state, unused_folder = o.io['typed_bytes'](o.pinned(db))
+need(state == facts['current_typed_database_state'] == old['current_typed_database_state']
+     and len(state['tables']) == facts['current_typed_tables']
+     and sum(row['rows'] for row in state['tables'].values()) == facts['current_typed_rows'], 'FULL_TYPED_DATABASE')
+""").body
+                return self.generic_visit(node)
             def visit_Subscript(self,node):
                 if isinstance(node.value,ast.Name) and node.value.id=='reader' and isinstance(node.slice,ast.Constant):
                     return ast.copy_location(ast.Name(id=node.slice.value,ctx=ast.Load()),node)

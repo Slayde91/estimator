@@ -532,23 +532,38 @@ def create_recurring_core(original_core, approved_reader, *, original_core_pin, 
     return SimpleNamespace(**exports)
 
 
-def create_recurring_reader(approved_reader, *, approved_reader_pin):
+def create_recurring_reader(approved_reader, *, approved_reader_pin,
+                            expected_database_transition_approval=None):
     """Versioned registration. The frozen V1/first-V2 routes are unchanged."""
     r = ns(approved_reader)
     need(approved_reader_pin['path'] == r['__file__'], 'APPROVED_BASE_READER_PATH')
+    # Caller SOURCE policy supplies this fullpin, never config/admission DATA.
+    expected_approval = copy.deepcopy(expected_database_transition_approval)
+    if expected_approval is not None:
+        r['pin_shape'](expected_approval)
+        need(callable(r.get('read_current_database_state')), 'APPROVED_CURRENT_DATABASE_API')
+
+    def current_database(context, facts, old, trusted, observation):
+        observation.pinned(approved_reader_pin)
+        result = r['read_current_database_state'](context, facts, old, trusted, observation,
+            expected_approval=expected_approval)
+        observation.pinned(approved_reader_pin)
+        return result
 
     def read_v2(leaf_pin, io, *, trusted, env=None):
         dep = r['Observation'](io); dep.pinned(approved_reader_pin)
         leaf = dep.document(leaf_pin)
         if 'completed_parent_v2' not in leaf:
-            result = r['read_completed_base_v2'](leaf_pin,io,trusted=trusted,env=env)
+            options = {} if expected_approval is None else dict(expected_database_transition_approval=expected_approval)
+            result = r['read_completed_base_v2'](leaf_pin,io,trusted=trusted,env=env,**options)
             dep.fence()
             return result
         history = read_published_v2_history(leaf_pin,io,trusted=trusted,approved_reader=approved_reader,env=env)
         # The immutable descriptor honestly names its immediate V2 parent in
         # the existing equality-only parent roles. Original CP74 is separate.
+        options = {} if expected_approval is None else dict(expected_database_transition_approval=expected_approval)
         facts,state,current_fence = r['_current_scope'](leaf_pin,leaf,trusted,history['pointer_document'],
-            dep,os.environ if env is None else env)
+            dep,os.environ if env is None else env,**options)
         need(all(facts['protected_fullpins'].get(path) == pin for path,pin in history['cumulative_new_runtime_creation_versions'].items()),
              'ALL_ANCESTRAL_RUNTIME_STILL_PROTECTED')
         current_fence();fence_published_history(history);dep.fence()
@@ -582,4 +597,6 @@ def create_recurring_reader(approved_reader, *, approved_reader_pin):
 
     exports = dict(r)
     exports.update(__file__=__file__,read_completed_base_v2=read_v2,read_completed_base=dispatch)
+    if callable(r.get('read_current_database_state')):
+        exports['read_current_database_state'] = current_database
     return SimpleNamespace(**exports)

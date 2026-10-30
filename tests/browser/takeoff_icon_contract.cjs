@@ -69,7 +69,7 @@ let browser;
     const elements=[viewport,...viewport.querySelectorAll('.takeoff-page,canvas,.takeoff-overlay,.takeoff-overlay *')];
     return ['select','signature','initial-pages','graphic-cloud','graphic-textbox','graphic-callout','graphic-stamp'].map(tool=>{viewport.dataset.tool=tool;return {tool,values:elements.map(el=>({tag:el.tagName,classes:el.className.baseVal??el.className,cursor:getComputedStyle(el).cursor}))};});
   });
-  for(const state of cursors){const role=state.tool==='select'?'pointer':state.tool==='signature'?'handwriting':'precision';for(const value of state.values)assert.match(value.cursor,new RegExp('cursors/'+role+'\\.png'),`${state.tool}: ${value.tag} ${value.classes}`);}
+  for(const state of cursors){const role=state.tool==='select'?'pointer':state.tool==='signature'?'handwriting':'precision';for(const value of state.values)assert.match(value.cursor,new RegExp('^'+(role==='pointer'?'default':'crosshair')+'$'),`${state.tool}: ${value.tag} ${value.classes}`);}
   await page.evaluate(()=>{const img=document.createElement('img');img.src='/icons/takeoff-set-default.png';img.width=256;img.height=256;img.style.background='white';img.setAttribute('aria-label','Original supplied Set as default icon on white');document.body.prepend(img);});
   await page.getByRole('img',{name:'Original supplied Set as default icon on white'}).evaluate(async img=>img.decode());
   const originalPreview=path.join(out,'original-supplied-set-default-on-white.png');await page.getByRole('img',{name:'Original supplied Set as default icon on white'}).screenshot({path:originalPreview});

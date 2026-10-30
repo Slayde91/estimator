@@ -92,23 +92,23 @@ async function mapsSettingsHidden(){await expect(page.locator('#view-settings [a
  await expect(page.locator('#project-travel')).toHaveCount(0);assert.deepEqual(await costInputs(),costsBefore);assert.deepEqual(await snapshot(),before);assert.deepEqual(routeRequests,[]);
  evidence.travelLanguages=8;evidence.googleMapsSettingsHidden=true;evidence.googleMapsStatusApiRetained=true;evidence.projectTravelRemoved=true;evidence.existingTravelCostInputsPreserved=true;evidence.inputRerenderPreserved=true;evidence.routeRequests=routeRequests.length;
  await chooseTakeoff(page,'Steel');await renderDrawing(page,()=>page.locator('#takeoff-upload').setInputFiles(info.fixture));
- await expect(page.locator('#view-takeoffs')).toHaveCSS('cursor',/cursors\/pointer\.png/);
- await expect(page.locator('main')).toHaveCSS('cursor',/cursors\/pointer\.png/);
- await expect(page.locator('#takeoffs-workspace > .takeoff-workspace-heading')).toHaveCSS('cursor',/cursors\/pointer\.png/);
- await expect(page.locator('.takeoff-workspace-heading .calculator-document-toggle').first()).toHaveCSS('cursor',/cursors\/link\.png/);
- await expect(page.locator('#view-takeoffs input[type="checkbox"]').first()).toHaveCSS('cursor',/cursors\/link\.png/);
- await expect(page.locator('#view-takeoffs input[type="search"]').first()).toHaveCSS('cursor',/cursors\/text\.png/);
+ await expect(page.locator('#view-takeoffs')).toHaveCSS('cursor',/^default$/);
+ await expect(page.locator('main')).toHaveCSS('cursor',/^default$/);
+ await expect(page.locator('#takeoffs-workspace > .takeoff-workspace-heading')).toHaveCSS('cursor',/^default$/);
+ await expect(page.locator('.takeoff-workspace-heading .calculator-document-toggle').first()).toHaveCSS('cursor',/^pointer$/);
+ await expect(page.locator('#view-takeoffs input[type="checkbox"]').first()).toHaveCSS('cursor',/^pointer$/);
+ await expect(page.locator('#view-takeoffs input[type="search"]').first()).toHaveCSS('cursor',/^text$/);
  await page.getByRole('button',{name:'Filter Confirmation',exact:true}).click();
  const filterDialog=page.getByRole('dialog',{name:'Filter Confirmation',exact:true});
- await expect(filterDialog).toHaveCSS('cursor',/cursors\/pointer\.png/);
- await expect(filterDialog.getByRole('button',{name:'Apply filter',exact:true})).toHaveCSS('cursor',/cursors\/link\.png/);
- await expect(filterDialog.getByRole('searchbox')).toHaveCSS('cursor',/cursors\/text\.png/);
- await expect(filterDialog.getByRole('checkbox',{name:'Select all values',exact:true})).toHaveCSS('cursor',/cursors\/unavailable\.png/);
+ await expect(filterDialog).toHaveCSS('cursor',/^default$/);
+ await expect(filterDialog.getByRole('button',{name:'Apply filter',exact:true})).toHaveCSS('cursor',/^pointer$/);
+ await expect(filterDialog.getByRole('searchbox')).toHaveCSS('cursor',/^text$/);
+ await expect(filterDialog.getByRole('checkbox',{name:'Select all values',exact:true})).toHaveCSS('cursor',/^not-allowed$/);
  await filterDialog.getByRole('button',{name:'Cancel',exact:true}).click();await expect(page.locator('.click-smoke-layer')).toHaveCount(0);
  const drawing=page.locator('#takeoff-viewport'),box=await drawing.boundingBox();await page.mouse.click(box.x+70,box.y+140);await expect(page.locator('.click-smoke-puff')).toHaveCount(0);
- await expect(drawing).toHaveCSS('cursor',/cursors\/pointer\.png.*6 2, default/);
- for(const [name,asset]of[['Pan','move'],['Select PDF text','text']]){await page.getByRole('button',{name,exact:true}).click();await expect(drawing).toHaveCSS('cursor',new RegExp('cursors/'+asset+'\\.png'));await expect(page.locator('.click-smoke-puff')).toHaveCount(0);}
- await page.locator('.takeoff-markup-rail').getByRole('button',{name:'Rectangle',exact:true}).click();await expect(drawing).toHaveCSS('cursor',/cursors\/precision\.png/);await expect(page.locator('.takeoff-overlay')).toHaveCSS('cursor',/cursors\/precision\.png/);await page.screenshot({path:path.join(output,'pdf-cursor-tools.png')});
+ await expect(drawing).toHaveCSS('cursor',/^default$/);
+ for(const [name,asset]of[['Pan','move'],['Select PDF text','text']]){await page.getByRole('button',{name,exact:true}).click();await expect(drawing).toHaveCSS('cursor',new RegExp('^'+(asset==='move'?'grab':'text')+'$'));await expect(page.locator('.click-smoke-puff')).toHaveCount(0);}
+ await page.locator('.takeoff-markup-rail').getByRole('button',{name:'Rectangle',exact:true}).click();await expect(drawing).toHaveCSS('cursor',/^crosshair$/);await expect(page.locator('.takeoff-overlay')).toHaveCSS('cursor',/^crosshair$/);await page.screenshot({path:path.join(output,'pdf-cursor-tools.png')});
  await page.getByRole('button',{name:'Home',exact:true}).click();await expect(page.locator('.click-smoke-puff')).toHaveCount(0);
  await page.getByRole('button',{name:'Home',exact:true}).click();await expect(page.locator('.click-smoke-puff')).toHaveCount(4);await expect(page.locator('.click-smoke-layer')).toHaveCount(0);
  assert.deepEqual(errors,[]);evidence.googleRequests='Synthetic API checks only';evidence.projectSnapshotsUnchanged=true;evidence.pdfSmokeDisabled=true;evidence.rolesAndHotspotsVerified=true;

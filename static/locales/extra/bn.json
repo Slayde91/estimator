@@ -2750,5 +2750,6 @@
   "This download is not available in this edition.": "এই সংস্করণে এই ডাউনলোডটি নেই।",
   "Upload source PDFs, then choose the markup document again.": "মূল PDF আপলোড করে আবার মার্কআপের নথি বেছে নিন।",
   "Walls and floors Takeoff register": "দেয়াল ও মেঝে পরিমাণ নিরূপণ রেজিস্টার",
-  "Document source": "নথির উৎস"
+  "Document source": "নথির উৎস",
+  "Download": "ডাউনলোড"
 }

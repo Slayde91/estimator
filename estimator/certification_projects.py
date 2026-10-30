@@ -174,6 +174,10 @@ class CertificationProjects:
     def service(self, token):
         return self._workspace(token)['service']
 
+    def project_id(self, token):
+        """Return the portable identity only for a verified project capability."""
+        return self._workspace(token)['project_id']
+
     def response(self, token, value):
         self._workspace(token)
         return _scope_links(value, token)

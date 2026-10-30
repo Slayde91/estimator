@@ -2776,6 +2776,24 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
   }
   context.window.CeasefireI18n = englishI18n;
 
+  // Documentation exports an explicit calculator without navigating or reading
+  // the selected workbook's unrelated invalid fields.
+  {
+  entry=setup({CALCULATOR:{B9:1.234567890123}});entry.invalid.set('unrelated','Invalid current workbook');
+  const target={...entry,definition:{...entry.definition,id:'ductwork',title:'Duct'},inputs:{CALCULATOR:{B9:9.876543210987}},invalid:new Map()};
+  audit.state.entries.set('ductwork',target);audit.state.list.push({id:'ductwork',title:'Duct'});
+  const previousDownloads=context.window.CeasefireDownloads.save,captured=[];
+  const receipt={saved:true,path:'C:/Fixture/duct.pdf',filename:'duct.pdf',destination:'project'};
+  context.window.CeasefireDownloads.save=async(path,payload,options)=>{captured.push({path,payload:copy(payload),button:options.button});return receipt;};
+  const snapshotBefore=JSON.stringify([...audit.state.entries].map(([id,row])=>[id,row.inputs,row.page,row.sheet])),selected=audit.state.current;
+  const documentButton=element('button');documentButton.setAttribute('aria-label','Generate PDF');
+  assert.equal(await context.window.CeasefireCalculators.documentationExport({calculatorId:'ductwork',action:'product_summary'},documentButton),receipt);
+  assert.equal(captured[0].path,'/api/calculators/ductwork/summary.pdf');assert.equal(captured[0].payload.inputs.CALCULATOR.B9,9.876543210987);assert.equal(captured[0].button,documentButton);
+  assert.equal(audit.state.current,selected);assert.equal(JSON.stringify([...audit.state.entries].map(([id,row])=>[id,row.inputs,row.page,row.sheet])),snapshotBefore);
+  target.invalid.set('target','Invalid target');await assert.rejects(context.window.CeasefireCalculators.documentationExport({calculatorId:'ductwork',action:'register'},documentButton),/Correct the calculator/);assert.equal(captured.length,1);
+  await assert.rejects(context.window.CeasefireCalculators.documentationExport({calculatorId:'steel_factors',action:'schedule'},documentButton),/existing calculator/);
+  context.window.CeasefireDownloads.save=previousDownloads;passed++;
+  }
   assert.match(fs.readFileSync('static/app.js', 'utf8'), /view === "calculators"[\s\S]*?CeasefireCalculators\?\.open/);
   console.log(`Calculator UI checks passed: ${passed}`);
 })().catch(error => { console.error(error); process.exitCode = 1; }).finally(() => clearTimeout(deadline));

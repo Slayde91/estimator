@@ -209,7 +209,11 @@ class WorkbookCalculatorApiTests(unittest.TestCase):
         self.assertEqual(self.cell(page, "F11")["value"], 0)
         self.assertIsNone(self.cell(page, "G11")["value"])
         self.assertEqual(self.json_request("GET", "/api/quotes"), {"quotes": []})
-        self.assertEqual(self.json_request("GET", "/api/configuration"), {"inventory": {}, "rates": {}})
+        # Shared manufacturer metadata is projected on reads; calculator saves
+        # must still leave the underlying pricing settings untouched.
+        pricing_store = Store(self.database)
+        self.assertEqual(pricing_store.configuration(), {"inventory": {}, "rates": {}})
+        self.assertEqual(self.json_request("GET", "/api/configuration"), pricing_store.shared_configuration())
 
     def test_saved_states_are_separate_for_all_calculators(self):
         supplied = {"ductwork": {"CALCULATOR": {"D11": 1.25}},

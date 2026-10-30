@@ -1358,8 +1358,8 @@
   }
   function open() { return openScope(state); }
   function openSchedule() { return openScope(state.schedule); }
-  async function download(kind, button = $(kind === "pdf" ? "penetration-pdf" : "penetration-excel")) {
-    if (state.downloading) return;
+  async function download(kind, button = $(kind === "pdf" ? "penetration-pdf" : "penetration-excel"), strict = false) {
+    if (state.downloading) { if (strict) throw new Error("Finish the current Firestopping download first."); return; }
     document.activeElement?.blur?.();
     try {
       if (!state.schedule.draft || state.schedule.invalid.size) throw new Error("Correct the schedule input marked invalid before downloading.");
@@ -1371,11 +1371,12 @@
       const saved = await window.CeasefireDownloads.save(`/api/penetration/${kind === "pdf" ? "report.pdf" : "register.xlsx"}`, { draft: snapshot.draft, configuration: pricing, project_details: details, ...(takeoffSession ? { takeoff_session_id: takeoffSession } : {}) }, { button });
       const changed = captured !== projectFingerprint() || pricingKey !== configStamp() || JSON.stringify(details) !== JSON.stringify(window.CeasefireProject?.details?.() || {});
       message("File saved to {0}.{1}", false, state.schedule, true, [saved.path, changed ? " It uses the inputs and prices captured when you clicked Download; later changes are not included." : ""]);
-    } catch (error) { message("The schedule file was not saved. {0}", true, state.schedule, true, [() => window.CeasefireI18n?.translate(error.message) || error.message]); }
+      return saved;
+    } catch (error) { message("The schedule file was not saved. {0}", true, state.schedule, true, [() => window.CeasefireI18n?.translate(error.message) || error.message]); if (strict) throw error; }
     finally { state.downloading = false; state.downloadKind = null; status(); }
   }
-  async function downloadItem(kind, button = $(kind === "pdf" ? "penetration-item-pdf" : "penetration-item-excel")) {
-    if (state.downloading) return;
+  async function downloadItem(kind, button = $(kind === "pdf" ? "penetration-item-pdf" : "penetration-item-excel"), strict = false) {
+    if (state.downloading) { if (strict) throw new Error("Finish the current Firestopping download first."); return; }
     document.activeElement?.blur?.();
     try {
       if (!state.draft || state.invalid.size || state.takeoffLease || state.loading || state.diagramReading !== null || state.creatingLibrary || state.addingLibrary || state.addingSchedule || state.updatingSchedule) throw new Error("Finish the current item input or operation before downloading.");
@@ -1392,8 +1393,16 @@
       const current = { item: selected(), globals: state.draft?.globals, configuration: configuration(), ...(currentSession ? { takeoff_session_id: currentSession } : {}),
         ...(state.diagramChange === undefined ? {} : { diagram: state.diagramChange }) };
       message("File saved to {0}.{1}", false, state, true, [saved.path, captured !== stable(current) ? " It uses the item, image/diagram and prices captured when you clicked Download; later changes are not included." : ""]);
-    } catch (error) { message("The current item file was not saved. {0}", true, state, true, [() => window.CeasefireI18n?.translate(error.message) || error.message]); }
+      return saved;
+    } catch (error) { message("The current item file was not saved. {0}", true, state, true, [() => window.CeasefireI18n?.translate(error.message) || error.message]); if (strict) throw error; }
     finally { state.downloading = false; state.downloadKind = null; status(); }
+  }
+  async function documentationExport({ scope, format } = {}, button) {
+    if (!["schedule", "current_item"].includes(scope) || !["pdf", "xlsx"].includes(format)) throw new Error("Choose an existing Firestopping document.");
+    await initialize();
+    const source = $(scope === "schedule" ? format === "pdf" ? "penetration-pdf" : "penetration-excel" : format === "pdf" ? "penetration-item-pdf" : "penetration-item-excel");
+    if (source.disabled) throw new Error("Correct the Firestopping inputs or finish the current operation before downloading.");
+    return (scope === "schedule" ? download : downloadItem)(format, button || source, true);
   }
   for (const id of ["penetration-add", "penetration-estimator-add"]) $(id).addEventListener("click", addRow);
   for (const id of ["penetration-undo", "penetration-estimator-undo"]) $(id).addEventListener("click", undoRemove);
@@ -1464,7 +1473,7 @@
     status();if(!reservation.recalculated){reservation.recalculated=true;void calculate(state.schedule);}
   }
   async function editScheduleRow(id,libraryId){assertTakeoffWritable();await initialize();const row=scheduleRow(id);if(!row||row.library_item_id!==libraryId)throw new Error("The retained linked schedule row was removed or replaced. Review its association before opening another item.");return selectRow(id);}
-  window.CeasefirePenetrations = { open, openSchedule, projectSnapshot, projectFingerprint, quoteSnapshot, quoteFingerprint, scheduleProblem, completeProjectSnapshot, prepareProject, prepareDefaults, applyProject, markProjectSaved, hasUnsavedChanges, pricingChanged, inputProblem, addLibraryItem, libraryQuantity, libraryDiagramChanged, applyTechnicalReference,
+  window.CeasefirePenetrations = { open, openSchedule, projectSnapshot, projectFingerprint, quoteSnapshot, quoteFingerprint, scheduleProblem, completeProjectSnapshot, prepareProject, prepareDefaults, applyProject, markProjectSaved, hasUnsavedChanges, pricingChanged, inputProblem, addLibraryItem, libraryQuantity, libraryDiagramChanged, applyTechnicalReference, documentationExport,
     captureTakeoffSchedule,reserveTakeoffSchedule,validateTakeoffScheduleReservation,applyTakeoffSchedule,releaseTakeoffSchedule,editScheduleRow,hasTakeoffReservation:()=>!!state.takeoffLease,hasUnfinishedChanges:()=>!!state.takeoffLease };
   Object.assign(window.CeasefirePenetrations, { hasPendingOperation: () => !!(state.takeoffLease || state.creatingLibrary || state.addingSchedule || state.updatingSchedule || state.addingLibrary || state.loading || state.downloading || scheduleReferences.picker) });
 })();

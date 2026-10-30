@@ -893,5 +893,13 @@ async function check(name,fn){const h=harness();h.api.applyProject(await h.api.p
     await actions.children[0].emit('click');assert.equal(calls,0);assert.equal(Object.hasOwn(h.audit.state.schedule.draft.rows[0],'technical_reference_ids'),false);assert.match(dialog.children[3].textContent,/schedule changed/);
     await actions.children[1].emit('click');assert.equal((await pending).applied,false);
   });
+  await check('Documentation Schedule returns the real receipt and preserves an independently invalid composer',async h=>{
+    h.control('O').value='4.123456789012345';await h.control('O').emit('input');await h.audit.addToSchedule();h.audit.state.invalid.set('composer','Invalid composer');h.audit.render();
+    const before=copy(h.api.projectSnapshot()),receipt={saved:true,path:'C:/Fixture/schedule.xlsx',filename:'schedule.xlsx',destination:'project'},button=h.element('button');let captured;
+    h.context.window.CeasefireDownloads.save=async(path,payload,options)=>{captured={path,payload:copy(payload),button:options.button};return receipt;};
+    assert.equal(await h.api.documentationExport({scope:'schedule',format:'xlsx'},button),receipt);assert.equal(captured.path,'/api/penetration/register.xlsx');assert.equal(captured.button,button);assert.deepEqual(captured.payload.draft,before.draft);assert.deepEqual(copy(h.api.projectSnapshot()),before);
+    await assert.rejects(h.api.documentationExport({scope:'current_item',format:'pdf'},button),/Correct the Firestopping/);
+    h.context.window.CeasefireDownloads.save=async()=>{throw Error('Actual export failure');};await assert.rejects(h.api.documentationExport({scope:'schedule',format:'pdf'},button),/Actual export failure/);assert.equal(h.audit.state.downloading,false);
+  });
   console.log(`${passed} penetration UI regression checks passed.`);
 })().catch(error=>{console.error(error);process.exitCode=1;});

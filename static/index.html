@@ -36,6 +36,8 @@
   <script src="/searchable-choice.js" defer></script>
   <script src="/theme.js" defer></script>
   <script src="/downloads.js" defer></script>
+  <script src="/documentation.js" defer></script>
+  <link rel="stylesheet" href="/documentation.css">
   <script src="/main-layout.js" defer></script>
   <script src="/header-tagline-media.js" defer></script>
   <script src="/header-menu-sounds.js" defer></script>
@@ -187,6 +189,7 @@ SOFTWARE. -->
         <div id="projects-navigation-menu" class="section-navigation-menu" role="group" aria-label="Projects" data-i18n-aria-label="Projects" hidden>
           <button type="button" class="section-navigation-choice" data-project-section="quotes" aria-pressed="false" data-i18n="Projects">Projects</button>
           <button type="button" class="section-navigation-choice" data-project-section="certification" aria-pressed="false" data-i18n="Certification">Certification</button>
+          <button type="button" class="section-navigation-choice" data-project-section="documentation" aria-pressed="false" data-i18n="Documentation">Documentation</button>
         </div>
       </div>
       <button type="button" class="nav-button nav-icon" data-view="help" aria-label="Help" title="Help" data-i18n-title="Help" data-i18n-aria-label="Help"><svg aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="circle-help" class="lucide lucide-circle-help"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><path d="M12 17h.01"></path></svg><span class="nav-page-label" data-i18n="Help">Help</span></button>
@@ -380,6 +383,7 @@ SOFTWARE. -->
       <div class="projects-section-cards">
         <button type="button" class="projects-section-card" data-project-section="quotes"><strong data-i18n="Projects">Projects</strong><span data-i18n="Find, open and manage saved project files.">Find, open and manage saved project files.</span></button>
         <button type="button" class="projects-section-card" data-project-section="certification"><strong data-i18n="Certification">Certification</strong><span data-i18n="Prepare installation certificates and view their saved revisions.">Prepare installation certificates and view their saved revisions.</span></button>
+        <button type="button" class="projects-section-card" data-project-section="documentation"><strong data-i18n="Documentation">Documentation</strong><span data-i18n="Download project documents and open their saved revisions.">Download project documents and open their saved revisions.</span></button>
       </div>
     </section>
     <section id="view-quotes" class="view" aria-labelledby="quotes-heading" hidden>
@@ -395,7 +399,7 @@ SOFTWARE. -->
     <section id="view-certification" class="view" aria-labelledby="certification-heading" hidden>
       <div class="page-heading"><div><p class="eyebrow" data-i18n="PROJECTS">PROJECTS</p><h1 id="certification-heading" data-i18n="Certification">Certification</h1></div></div>
 
-      <section class="card"><div class="certification-document-actions"><label class="field certification-document-select"><span data-i18n="Saved certification">Saved certification</span><select id="certification-document"><option value="" data-i18n="New certificate">New certificate</option></select></label><button id="certification-legacy-open" type="button" class="button secondary" data-i18n="Add older certificate…">Add older certificate…</button></div>
+      <section class="card"><div class="certification-document-actions"><label class="field certification-document-select"><span data-i18n="Saved certification">Saved certification</span><select id="certification-document"><option value="" data-i18n="New certificate">New certificate</option></select></label></div>
         <div class="field certification-scope-field"><span id="certification-scopes-label" data-i18n="Certification scope">Certification scope</span><details id="certification-scopes" class="certification-scope-dropdown"><summary aria-labelledby="certification-scopes-label certification-scopes-summary"><span id="certification-scopes-summary">Choose…</span></summary><div class="certification-scope-choices" role="group" aria-labelledby="certification-scopes-label">
           <label><input id="certification-scope-structural_steel" type="checkbox" value="structural_steel"><span data-i18n="Structural steel">Structural steel</span></label>
           <label><input id="certification-scope-structural_steel_columns" type="checkbox" value="structural_steel_columns"><span data-i18n="Structural steel incl. columns">Structural steel incl. columns</span></label>
@@ -410,7 +414,13 @@ SOFTWARE. -->
         <section class="card" aria-labelledby="certification-revisions-heading"><h2 id="certification-revisions-heading" data-i18n="Certificate revisions">Certificate revisions</h2><p class="helper" data-i18n="Every generated certificate is saved as a separate revision. Earlier PDFs retain the details and cover sheet used when they were created.">Every generated certificate is saved as a separate revision. Earlier PDFs retain the details and cover sheet used when they were created.</p><div id="certification-revisions" class="certification-history"></div></section>
         <div class="actions certification-bottom-actions"><button id="certification-save" type="button" class="button secondary" data-i18n="Save certification details">Save certification details</button><button id="certification-generate" type="button" class="button pdf-button" data-i18n="Generate Certificate">Generate Certificate</button></div>
       </form>
-      <dialog id="certification-legacy-dialog" aria-labelledby="certification-legacy-heading"><form method="dialog"><h2 id="certification-legacy-heading" data-i18n="Add an older certificate to this project">Add an older certificate to this project</h2><label class="field"><span data-i18n="Older certificate">Older certificate</span><select id="certification-legacy-document" required></select></label><p id="certification-legacy-status" class="helper" role="status" aria-live="polite"></p><div class="actions"><button id="certification-legacy-cancel" type="submit" value="cancel" formnovalidate class="button secondary" data-i18n="Cancel">Cancel</button><button id="certification-legacy-import" type="button" class="button primary" data-i18n="Add selected certificate">Add selected certificate</button></div></form></dialog>
+    </section>
+    <section id="view-documentation" class="view" aria-labelledby="documentation-heading" hidden>
+      <div class="page-heading"><div><p class="eyebrow" data-i18n="PROJECTS">PROJECTS</p><h1 id="documentation-heading" data-i18n="Documentation">Documentation</h1></div></div>
+      <p class="helper" data-i18n="Only documents generated in the current project appear here. Save the project to retain its revision history with the project file.">Only documents generated in the current project appear here. Save the project to retain its revision history with the project file.</p>
+      <p id="documentation-status" class="helper" role="status" aria-live="polite"></p>
+      <section class="card documentation-section" aria-labelledby="documentation-pdf-heading"><h2 id="documentation-pdf-heading">PDF</h2><div class="table-scroll"><table class="documentation-table"><thead><tr><th scope="col" data-i18n="Download">Download</th><th scope="col" data-i18n="Previous revisions">Previous revisions</th></tr></thead><tbody id="documentation-pdf-rows"></tbody></table></div></section>
+      <section class="card documentation-section" aria-labelledby="documentation-xlsx-heading"><h2 id="documentation-xlsx-heading">XLSX</h2><div class="table-scroll"><table class="documentation-table"><thead><tr><th scope="col" data-i18n="Download">Download</th><th scope="col" data-i18n="Previous revisions">Previous revisions</th></tr></thead><tbody id="documentation-xlsx-rows"></tbody></table></div></section>
     </section>
     <section id="view-help" class="view" aria-labelledby="help-heading" hidden>
       <div class="page-heading"><div><p class="eyebrow" data-i18n="HELP">HELP</p><h1 id="help-heading" data-i18n="Using the Ceasefire Estimator">Using the Ceasefire Estimator</h1><p class="subtitle" data-i18n="A plain-English guide to finding your way around and producing an estimate.">A plain-English guide to finding your way around and producing an estimate.</p></div></div>

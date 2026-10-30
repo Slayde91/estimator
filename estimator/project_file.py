@@ -198,7 +198,7 @@ def _portable_penetration(value, *, saved=False):
 def export_project(store, request, *, edition='full'):
     """Return a portable project snapshot with verified evidence manifests."""
     require_project_edition(request, edition)
-    if not isinstance(request, dict) or set(request) - {"estimate", "calculators", "penetration", "takeoffs", "library_drafts", "certifications"} or "estimate" not in request:
+    if not isinstance(request, dict) or set(request) - {"estimate", "calculators", "penetration", "takeoffs", "library_drafts", "certifications", "documentation"} or "estimate" not in request:
         raise ValidationError("Include the current estimate and optional calculator drafts to save a project.")
     _check_tree(request)
     estimate = request["estimate"]
@@ -247,6 +247,11 @@ def export_project(store, request, *, edition='full'):
     if "certifications" in request:
         from .certification_projects import validate_manifest
         snapshot["certifications"] = validate_manifest(request["certifications"])
+    if "documentation" in request:
+        from .project_documentation import validate_manifest
+        snapshot["documentation"] = validate_manifest(request["documentation"])
+        if snapshot.get('certifications', {}).get('project_id') != snapshot['documentation']['project_id']:
+            raise ValidationError('Saved project documents require the same explicit project identity as their project workspace.')
     if "takeoffs" in request:
         from .takeoff_model import validate_snapshot
         snapshot["takeoffs"] = validate_snapshot(request["takeoffs"])
@@ -285,7 +290,7 @@ def load_project_bytes(store, payload, *, edition='full'):
     require_project_edition(snapshot, edition)
     _check_tree(snapshot)
     required = {"format", "version", "estimate", "calculators"}
-    if not isinstance(snapshot, dict) or not required <= set(snapshot) or set(snapshot) - required - {"penetration", "takeoffs", "library_drafts", "certifications"}:
+    if not isinstance(snapshot, dict) or not required <= set(snapshot) or set(snapshot) - required - {"penetration", "takeoffs", "library_drafts", "certifications", "documentation"}:
         raise ValidationError("The project file contains missing or unsupported fields.")
     if snapshot["format"] != PROJECT_FORMAT or type(snapshot["version"]) is not int or snapshot["version"] not in {PROJECT_VERSION, TAKEOFF_PROJECT_VERSION}:
         raise ValidationError("This project file format or version is not supported.")
@@ -339,6 +344,11 @@ def load_project_bytes(store, payload, *, edition='full'):
     if "certifications" in snapshot:
         from .certification_projects import validate_manifest
         result["certifications"] = validate_manifest(snapshot["certifications"])
+    if "documentation" in snapshot:
+        from .project_documentation import validate_manifest
+        result["documentation"] = validate_manifest(snapshot["documentation"])
+        if result.get('certifications', {}).get('project_id') != result['documentation']['project_id']:
+            raise ValidationError('Saved project documents do not match this project workspace identity.')
     if "takeoffs" in snapshot:
         from .takeoff_model import validate_snapshot
         result["takeoffs"] = validate_snapshot(snapshot["takeoffs"])

@@ -430,5 +430,12 @@ async function check(name,fn){const h=harness();h.projectApi.applyProject(await 
     h.api.present(fixture());const before=copy(h.audit.state.draft);await h.byId('library-editor-item-pdf').emit('click');assert.equal(count,1);
     assert.deepEqual(copy(h.audit.state.draft),before);assert.match(h.byId('library-editor-message').textContent,/Fixture failure/);assert.equal(h.audit.state.busy,false);assert.equal(h.calls.length,0);
   });
+  await check('Documentation retains frozen library pricing and propagates actual export failures without saving the item',async h=>{
+    const opened=[];h.context.window.CeasefireLibraryNavigation={open:async kind=>opened.push(kind)};assert.deepEqual(copy(await h.api.documentationExport({format:'pdf'})),{selectionRequired:true});assert.deepEqual(opened,['penetration']);
+    h.api.present(fixture());const before=copy(h.audit.state.draft),receipt={saved:true,path:'C:/Fixture/item.xlsx',filename:'item.xlsx',destination:'project'},button=h.element('button');let captured;
+    h.context.window.CeasefireDownloads.save=async(path,payload,options)=>{captured={path,payload:copy(payload),button:options.button};return receipt;};
+    assert.equal(await h.api.documentationExport({format:'xlsx'},button),receipt);assert.equal(captured.path,'/api/penetration/item.xlsx');assert.deepEqual(captured.payload.configuration,h.audit.state.record.configuration);assert.equal(captured.button,button);assert.deepEqual(copy(h.audit.state.draft),before);assert.equal(h.calls.length,0);
+    h.context.window.CeasefireDownloads.save=async()=>{throw Error('Actual source failure');};await assert.rejects(h.api.documentationExport({format:'pdf'},button),/Actual source failure/);assert.equal(h.audit.state.busy,false);
+  });
   console.log(`${passed} library editor UI regression checks passed.`);
 })().catch(error=>{console.error(error);process.exitCode=1;});

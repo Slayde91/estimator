@@ -3,6 +3,7 @@
 import argparse
 import base64
 import binascii
+from hashlib import sha256
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from .calculation_work import CalculationBusy
 import json
@@ -56,6 +57,11 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
     from .certification_projects import CertificationProjects
     certification_projects = CertificationProjects(certifications)
     projects.certifications = certification_projects
+    from .documentation_catalog import document_catalog, export_identity, PDF, XLSX
+    from .project_documentation import ProjectDocumentation, DocumentationConflict, DocumentationNotFound
+    document_types = document_catalog(edition)
+    documentation = ProjectDocumentation(certification_projects, kinds={row['id']:row['label'] for row in document_catalog('full')})
+    projects.documentation = documentation
     from .pdf_download_covers import PdfCoverConflict
     pdf_covers = certifications.covers
     if takeoffs is not None:
@@ -72,6 +78,16 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
 
     def certificate_response(token, value):
         return certification_projects.response(token, value) if token is not None else value
+
+    def documentation_workspace(path):
+        query = parse_qs(urlsplit(path).query, keep_blank_values=True)
+        if set(query) != {'workspace'} or len(query['workspace']) != 1 or not query['workspace'][0]:
+            raise ValidationError('Choose exactly one current project document workspace.')
+        return query['workspace'][0]
+
+    class DocumentationReplay(Exception):
+        def __init__(self, receipt, destination):
+            self.receipt, self.destination = receipt, destination
 
     def reference_download_body(body, key):
         """Capture legacy Takeoffs links into this download, without saving edits."""
@@ -138,10 +154,24 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                 from .pdf_cover import prepend_cover_pdf
                 company = self.pdf_company_details(pdf_kind)
                 payload = prepend_cover_pdf(payload, company, self._pdf_cover_settings_snapshot[pdf_kind])
+            retained = self._documentation_receipt
+            if self._documentation_context is not None and retained is None:
+                workspace, request_id = self._documentation_context
+                kind, logical_key = self._documentation_identity
+                if content_type not in {PDF, XLSX}:
+                    raise ValidationError('Only authored PDF and XLSX files belong in Documentation.')
+                retained = documentation.record(workspace, kind, logical_key, filename, content_type,
+                                                payload, request_id, self._documentation_fingerprint)
+                self._documentation_receipt = retained
+                if retained['replayed']:
+                    existing = documentation.read(workspace, retained['item']['id'])
+                    payload, content_type, filename = existing['payload'], existing['item']['media_type'], existing['item']['filename']
             token = getattr(self, '_download_progress_token', None)
             download_progress.update(token, 90, 'saving')
             if destination is not None:
                 receipt = projects.write_download(destination, filename, payload)
+                if retained is not None:
+                    receipt['documentation'] = retained
                 download_progress.update(token, 100, 'saved')
                 self.send_payload(200, receipt)
             else:
@@ -209,6 +239,20 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                 raise ValidationError("Request body must contain valid JSON.") from exc
             if not isinstance(value, dict):
                 raise ValidationError("Request body must be a JSON object.")
+            if self._documentation_context is not None:
+                route = urlsplit(self.path).path
+                identity = export_identity(route, value)
+                if identity is None or identity[0] not in {row['id'] for row in document_types}:
+                    raise ValidationError('This action does not generate a supported project document.')
+                self._documentation_identity = identity
+                semantic_body = {key:item for key,item in value.items() if key != 'download'}
+                self._documentation_fingerprint = sha256(json.dumps({'route':route,'body':semantic_body}, ensure_ascii=True,
+                    sort_keys=True, separators=(',', ':'), allow_nan=False).encode('utf-8')).hexdigest()
+                workspace, request_id = self._documentation_context
+                retained = documentation.replay(workspace, request_id, self._documentation_fingerprint)
+                if retained is not None:
+                    destination = self.capture_download(value['download']) if 'download' in value else None
+                    raise DocumentationReplay(retained, destination)
             return value
 
         def dispatch(self):
@@ -228,6 +272,19 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                 download_progress.claim(progress_token)
                 self._download_progress_token = progress_token
             route = urlsplit(self.path).path
+            workspace = self.headers.get('X-Estimator-Documentation-Workspace')
+            request_id = self.headers.get('X-Estimator-Documentation-Request')
+            if workspace is not None or request_id is not None:
+                import uuid
+                if self.command != 'POST' or not workspace or not request_id:
+                    raise ValidationError('Document history requires its current workspace and generation request.')
+                try:
+                    if str(uuid.UUID(request_id)) != request_id:
+                        raise ValueError()
+                except (ValueError, AttributeError):
+                    raise ValidationError('The document generation request identity is invalid.')
+                certification_projects.project_id(workspace)
+                self._documentation_context = workspace, request_id
             if excluded_route(route, edition):
                 self.send_payload(404, {'error': 'Not found.'})
                 return
@@ -242,6 +299,17 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     self.send_payload(200, self.company_details())
                 elif route == '/api/pdf-covers':
                     self.send_payload(200, pdf_covers.list())
+                elif route == '/api/documentation/catalog':
+                    self.send_payload(200, {'documents':document_types})
+                elif route == '/api/documentation':
+                    self.send_payload(200, documentation.view(documentation_workspace(self.path)))
+                elif re.fullmatch(r'/api/documentation/[a-z0-9-]{36}', route):
+                    result = documentation.read(documentation_workspace(self.path), route.rsplit('/',1)[1])
+                    from .project_file import project_download_header
+                    disposition = project_download_header(result['item']['filename'])
+                    if result['item']['media_type'] == PDF:
+                        disposition = disposition.replace('attachment;', 'inline;', 1)
+                    self.send_payload(200, result['payload'], result['item']['media_type'], {'Content-Disposition':disposition})
                 elif route == '/api/certifications':
                     service, token = certificate_context(self.path)
                     self.send_payload(200, certificate_response(token, service.list_documents()))
@@ -331,7 +399,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     self.send_report(store.quote(route[len("/api/quotes/"):-len("/report.pdf")]), "Saved quote")
                 elif route.startswith("/api/quotes/"):
                     self.send_quote(200, store.quote(route.removeprefix("/api/quotes/")))
-                elif route in {'/certification.js', '/certification.css', '/cover-sheets.js'}:
+                elif route in {'/certification.js', '/certification.css', '/cover-sheets.js', '/documentation.js', '/documentation.css'}:
                     kind = 'text/javascript; charset=utf-8' if route.endswith('.js') else 'text/css; charset=utf-8'
                     self.send_payload(200, (ROOT / 'static' / route[1:]).read_bytes(), kind)
                 elif route in {'/games/play.js', '/games/play.css', '/games/fireline-art.js', '/games/fireline.js', '/penetration-references.js', '/sounds/type.mp3', '/sounds/gameover.mp3', '/sounds/flame-whoosh.wav', '/takeoff-visual-search-icon.png', '/takeoff-ocr-icon.png', '/header-steel-intumescent.png', '/sounds/checkpoint.ogg', '/sounds/loading.mp3', '/sounds/new-explosion.mp3', '/sounds/hover.mp3', '/sounds/select.mp3', '/sounds/select-2.mp3', '/sounds/mixkit-vintage-dot-printing-1371.wav', '/takeoff-visual-search.js', '/takeoff-visual-search.css', '/takeoff-ocr-layer.js', '/takeoff-ocr-layer.css', '/header-menu-sounds.js', '/sounds/mgs1-menu-move.mp3', '/sounds/mgs-confirm2.mp3', '/brand-boot.js', '/brand-boot.css', '/classifire-app.ico', '/register-references.js', '/travel.js', '/travel.css', '/maps-setup.html', '/pdf-cursors.css', '/cursors/pointer.png', '/cursors/precision.png', '/cursors/move.png', '/cursors/text.png', '/cursors/handwriting.png', '/cursors/link.png', '/cursors/resize-nwse.png', '/cursors/resize-nesw.png', '/cursors/resize-horizontal.png', '/cursors/resize-vertical.png', '/cursors/unavailable.png', '/cursors/busy.png', "/", "/index.html", "/company-settings.js", "/classifire-logo.png", "/main-layout.js", "/downloads.css", "/activity.js", "/calculation-queue.js", "/searchable-choice.js", "/penetration-presentation.js", "/icons/navigation-takeoffs.svg", "/icons/navigation-takeoffs.jpg", "/icons/navigation-help.jpg", "/theme.js", "/language.js", "/language-catalog.js", "/language.css", "/theme.css", "/laser.css", "/laser-steel.svg", "/home-steel-frame.png", "/header-layout.css", "/workspace-art.css", "/pointer-effects.css", "/pointer-effects.js", "/laser-reticle.svg", "/takeoff-header-steel.png", "/takeoff-header-ductwork.png", "/takeoff-header-physical.png", "/takeoff-header-service-plans.png", "/header-steel-spray.png", "/header-steel-board.png", "/header-ductwork.png", "/header-firestopping.png", "/header-estimate.png", "/header-projects.png", "/projects-evidence-banner.png", "/header-firestopping-library.png", "/header-technical-library.png", "/app.js", "/downloads.js", "/styles.css", "/calculators.js", "/calculators.css", "/penetration-breakdown.js", "/penetration.js", "/penetration.css", "/libraries.js", "/library-detail-text.js", "/libraries.css", "/library-editor.js", "/library-editor.css", "/icons/navigation-home.png", "/icons/document.png", "/icons/schedule-add.png", "/icons/navigation-help.png", "/icons/navigation-takeoffs.png", "/icons/takeoff-visibility.jpg", "/icons/takeoff-colour-wheel.png", "/icons/takeoff-legend.png", "/ceasefire-logo.png", "/ceasefire-app.ico", "/fonts/Montserrat-Variable.ttf", "/fonts/Vera.ttf", "/fonts/VeraBd.ttf", "/fonts/Montserrat-Italic-Variable.ttf", "/takeoffs.js", "/takeoffs.css", "/takeoff-geometry.js", "/takeoff-physical.js", "/takeoff-annotations.js", "/takeoff-signatures.js", "/takeoff-graphics.js", "/takeoff-graphics-ui.js", "/takeoff-pane-resize.js", "/takeoff-initial-pages.js", "/takeoff-pdf-tools.js", "/takeoff-pdf-tools.css", "/icons/default-memory.svg", "/icons/takeoff-set-default.png", "/icons/signature.svg", "/help-glossary.js", "/help-glossary.css", "/takeoff-search.js", "/takeoff-shortcuts.js", "/icons/takeoff-callout.png", "/takeoff-pdf-worker.mjs", "/takeoff-library-links.js", "/icons/takeoff-visibility.png", "/icons/takeoff-bullet-list.png", "/icons/takeoff-numbered-list.png", "/icons/takeoff-add-service.png", "/icons/takeoff-add-barrier.png", "/icons/takeoff-transfer.png", "/icons/takeoff-measure.png", "/header-tagline-media.js", "/header-tagline-character.gif", "/header-tagline-character-still.png"}:
@@ -551,7 +619,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                 elif route == '/api/project/export' and self.command == 'POST':
                     from .project_file import export_project, project_filename, project_download_header
                     require_project_edition(body, edition)
-                    if 'takeoffs' in body or 'certifications' in body:
+                    if 'takeoffs' in body or 'certifications' in body or 'documentation' in body:
                         raise ValidationError('Use Save As to save the project together with its evidence and certificate companion folders.')
                     project = export_project(store, body, edition=edition)
                     filename = project_filename(json.loads(project)['estimate']['title'])
@@ -591,9 +659,14 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     project = import_project(store, body['filename'], body['content_base64'], edition=edition)
                     workspace = certification_projects.restore(project.get('certifications'))
                     project['certification_workspace_id'] = workspace['workspace_id']
-                    if 'takeoffs' in project:
-                        session = takeoffs.open(project['takeoffs'])
-                        project.update(takeoffs=session['snapshot'], takeoffs_session_id=session['session_id'], takeoffs_issues=session.get('issues', []))
+                    try:
+                        documentation.restore(project.get('documentation'), workspace['workspace_id'])
+                        if 'takeoffs' in project:
+                            session = takeoffs.open(project['takeoffs'])
+                            project.update(takeoffs=session['snapshot'], takeoffs_session_id=session['session_id'], takeoffs_issues=session.get('issues', []))
+                    except Exception:
+                        certification_projects.discard(workspace['workspace_id'])
+                        raise
                     self.send_payload(200, project)
                 elif route.startswith('/api/quotes/') and route.endswith('/report.pdf') and self.command == 'POST':
                     if set(body) - {'download'}:
@@ -719,9 +792,27 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
             self._download_progress_token = None
             self._company_settings_snapshot = None
             self._pdf_cover_settings_snapshot = {}
+            self._documentation_context = None
+            self._documentation_identity = None
+            self._documentation_fingerprint = None
+            self._documentation_receipt = None
             self.connection.settimeout(15)
             try:
                 self.dispatch()
+            except DocumentationReplay as replay:
+                try:
+                    self._documentation_receipt = replay.receipt
+                    workspace, _ = self._documentation_context
+                    existing = documentation.read(workspace, replay.receipt['item']['id'])
+                    self.send_download(existing['payload'], existing['item']['media_type'], existing['item']['filename'], replay.destination, frozen_pdf=True)
+                except (DocumentationNotFound, CertificationNotFound) as exc:
+                    self.send_payload(404, {'error':str(exc)})
+                except ValidationError as exc:
+                    self.send_payload(400, {'error':str(exc)})
+            except DocumentationConflict as exc:
+                self.send_payload(409, {'error':str(exc)})
+            except DocumentationNotFound as exc:
+                self.send_payload(404, {'error':str(exc)})
             except LibraryConflict as exc:
                 self.send_payload(409, {"error": str(exc)})
             except CertificationConflict as exc:

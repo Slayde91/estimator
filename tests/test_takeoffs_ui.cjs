@@ -38,7 +38,7 @@ function harness(storage) {
   source=source.replace('setApi(fn){api=fn;}', 'currentVisibilityControl,physicalDrawingOwner,setRegisterRenderer(fn){renderRegister=fn;},setApi(fn){api=fn;}');
   source=source.replace('setApi(fn){api=fn;}', 'workspaceMode,inWorkspace,selectedItems,registerFilters,registerColumnValues,registerFilterValue,registerDocumentMenu,setDiscardEditor(fn){discardEditor=fn;},setApi(fn){api=fn;}');
   source=source.replace('setApi(fn){api=fn;}', 'selectedAnnotation,selectFreeCallout,openAnnotationMenu,appendAppearanceFields,setApi(fn){api=fn;}');
-  source=source.replace('setApi(fn){api=fn;}', 'registerDeleteCell,deleteItems,renderDeletedHistory,undoLastEdit,setModal,setConfirm(fn){confirm=fn;},setLinkedCalculatorOperation(fn){linkedCalculatorOperation=fn;},setApi(fn){api=fn;}');
+  source=source.replace('setApi(fn){api=fn;}', 'registerDeleteCell,deleteItems,renderDeletedHistory,undoLastEdit,setModal,openPDFTools,setConfirm(fn){confirm=fn;},setLinkedCalculatorOperation(fn){linkedCalculatorOperation=fn;},setApi(fn){api=fn;}');
   vm.runInContext(source,context);
   return {context,audit:context.audit,api:context.window.CeasefireTakeoffs};
 }
@@ -1424,6 +1424,28 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
     const deleted=copy(value);deleted.calibrations.push({...deleted.calibrations[1],id:'deleted-detail',supersedes_id:'detail',deleted:true});h.audit.accept(response(deleted));h.audit.renderCalibrations();assert.equal(dom.ui.calibration.value,'');assert.equal(dom.ui.scaleStatus.textContent,'No Scale Selected');assert.equal(h.audit.state.viewportSelection,'');assert.deepEqual(copy(h.audit.activePageCalibrations()).map(value=>value.id),['page-scale']);
     await h.audit.navigatePage(2);await h.audit.navigatePage(1);assert.equal(dom.ui.calibration.value,'','Returning to the page preserves the cleared selection despite its sole page scale');h.audit.accept(response(value));h.audit.renderCalibrations();assert.equal(dom.ui.calibration.value,'','Undo restores retained calibrations without reviving a cleared viewport selection');
     await h.audit.chooseCalibration('detail');await h.audit.navigatePage(2);await h.audit.navigatePage(1);assert.equal(dom.ui.calibration.value,'detail','A fresh explicit choice can be remembered again');assert.deepEqual(copy(h.audit.state.session.snapshot),value);
+  });
+  await check('Documentation workspace selection is explicit and cancelled or stale choices cannot change mode or export',async()=>{
+    const h=harness();h.audit.accept(response(blank()));attachMinimalDom(h);let asked=0,requests=0;h.context.window.CeasefireTakeoffNavigation={show:async()=>{}};h.context.fetch=async()=>{requests++;throw Error('No export expected');};
+    h.audit.setAsk(async(_title,fields)=>{asked++;assert.equal(fields[0][0],'workspace');assert.deepEqual(copy(fields[0][2]),[['duct','Duct']]);return null;});
+    const before=copy(h.audit.state.session.snapshot);assert.deepEqual(copy(await h.api.documentationExport({action:'register',mode:'duct'})),{selectionRequired:true});assert.equal(asked,1);assert.equal(h.audit.state.mode,'steel');assert.deepEqual(copy(h.audit.state.session.snapshot),before);assert.equal(requests,0);
+    h.audit.setAsk(async()=>({workspace:'steel',confirmation:'all'}));await assert.rejects(h.api.documentationExport({action:'register',mode:'duct'}),/supported Takeoff document/);assert.equal(h.audit.state.mode,'steel');assert.equal(requests,0);
+    h.audit.setAsk(async()=>{h.audit.state.session.revision++;return{workspace:'duct',confirmation:'all'};});await assert.rejects(h.api.documentationExport({action:'register',mode:'duct'}),/project changed/);assert.equal(h.audit.state.mode,'steel');assert.equal(requests,0);
+    await assert.rejects(h.api.documentationExport({action:'matrix',scope:'steel'}),/matching Takeoff/);
+  });
+  await check('PDF Tools always releases its captured Documentation operation on HTTP, network, stale-session and body-read failures',async()=>{
+    for(const failure of ['http','network','stale','body',null]){
+      const h=harness(),snapshot=blank();snapshot.documents=[{id:'doc',name:'Synthetic.pdf',pages:[{page:1}]}];h.audit.accept(response(snapshot));attachMinimalDom(h);h.audit.setFlushSettings(async()=>{});
+      const headers={'X-Estimator-Documentation-Workspace':'workspace','X-Estimator-Documentation-Request':'request'},completions=[];let fetched=0,requestResult;
+      h.context.window.CeasefireDocumentation={downloadHeaders:async()=>{if(failure==='stale')h.audit.state.session.revision++;return headers;},downloadCompleted:async(...args)=>completions.push(args)};
+      h.context.window.CeasefireTakeoffPDFTools={open:async options=>{requestResult=await options.requestPDF({operation:'merge'});}};
+      const frozen={frozen:true};h.context.fetch=async(_path,options)=>{fetched++;assert.deepEqual(copy(options.headers),{'Content-Type':'application/json',...headers});
+        if(failure==='network')throw Error('Fixture network failure');return {ok:failure!=='http',json:async()=>({error:'Fixture HTTP failure'}),
+          clone:()=>frozen,headers:{get:()=> 'attachment; filename="Synthetic.pdf"'},blob:async()=>{if(failure==='body')throw Error('Fixture body failure');return 'PDF bytes';}};};
+      if(failure)await assert.rejects(h.audit.openPDFTools('merge'),failure==='stale'?/project changed/:/Fixture/);else await h.audit.openPDFTools('merge');
+      assert.equal(completions.length,1);assert.equal(completions[0][0],headers);assert.equal(completions[0][1],['body',null].includes(failure)?frozen:null);
+      assert.equal(fetched,failure==='stale'?0:1);assert.equal(h.audit.state.modal,false);if(!failure)assert.deepEqual(copy(requestResult),{blob:'PDF bytes',filename:'Synthetic.pdf'});
+    }
   });
   console.log(`${passed} takeoff UI and geometry checks passed.`);
 })().catch(error=>{console.error(error);process.exitCode=1;});

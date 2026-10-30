@@ -1,0 +1,485 @@
+{
+  "A project document revision has an invalid identity or link.": [
+    "某个项目文档修订版本的标识或链接无效。",
+    "परियोजना दस्तावेज़ के किसी संशोधन की पहचान या लिंक अमान्य है।",
+    "Una revisión de documento del proyecto tiene un identificador o enlace no válido.",
+    "أحد إصدارات مستندات المشروع له هوية أو رابط غير صالح.",
+    "ฉบับแก้ไขของเอกสารโครงการมีรหัสหรือลิงก์ไม่ถูกต้อง"
+  ],
+  "Choose a Firestopping Library item and finish its current edits or operation before downloading.": [
+    "请先选择防火封堵库项目并完成当前编辑或操作，再下载。",
+    "डाउनलोड करने से पहले अग्निरोधी सीलिंग लाइब्रेरी का आइटम चुनें और उसके वर्तमान संपादन या कार्य पूरे करें।",
+    "Seleccione un elemento de la Biblioteca de sellado cortafuegos y termine sus cambios u operación actuales antes de descargar.",
+    "اختر عنصرًا من مكتبة الإغلاق المقاوم للحريق وأكمل تعديلاته أو عمليته الحالية قبل التنزيل.",
+    "เลือกรายการในคลังอุดช่องเปิดกันไฟและแก้ไขหรือดำเนินการปัจจุบันให้เสร็จก่อนดาวน์โหลด"
+  ],
+  "Choose a supported Takeoff document selection.": [
+    "请选择支持的算量文档选项。",
+    "मात्रा मापन दस्तावेज़ का कोई समर्थित विकल्प चुनें।",
+    "Seleccione una opción compatible de documento de mediciones.",
+    "اختر خيارًا مدعومًا لمستند حصر الكميات.",
+    "เลือกตัวเลือกเอกสารถอดปริมาณที่รองรับ"
+  ],
+  "Choose a supported project document.": [
+    "请选择支持的项目文档。",
+    "कोई समर्थित परियोजना दस्तावेज़ चुनें।",
+    "Seleccione un documento de proyecto compatible.",
+    "اختر مستند مشروع مدعومًا.",
+    "เลือกเอกสารโครงการที่รองรับ"
+  ],
+  "Choose an existing Firestopping Library document format.": [
+    "请选择防火封堵库现有的文档格式。",
+    "अग्निरोधी सीलिंग लाइब्रेरी का कोई मौजूदा दस्तावेज़ प्रारूप चुनें।",
+    "Seleccione un formato existente de documento de la Biblioteca de sellado cortafuegos.",
+    "اختر تنسيق مستند موجودًا في مكتبة الإغلاق المقاوم للحريق.",
+    "เลือกรูปแบบเอกสารที่มีอยู่ในคลังอุดช่องเปิดกันไฟ"
+  ],
+  "Choose an existing Firestopping document.": [
+    "请选择现有的防火封堵文档。",
+    "कोई मौजूदा अग्निरोधी सीलिंग दस्तावेज़ चुनें।",
+    "Seleccione un documento de sellado cortafuegos existente.",
+    "اختر مستند الإغلاق المقاوم للحريق موجودًا.",
+    "เลือกเอกสารอุดช่องเปิดกันไฟที่มีอยู่"
+  ],
+  "Choose an existing PDF tool.": [
+    "请选择现有的 PDF 工具。",
+    "कोई मौजूदा PDF टूल चुनें।",
+    "Seleccione una herramienta PDF existente.",
+    "اختر أداة PDF موجودة.",
+    "เลือกเครื่องมือ PDF ที่มีอยู่"
+  ],
+  "Choose an existing Takeoff document.": [
+    "请选择现有的算量文档。",
+    "कोई मौजूदा मात्रा मापन दस्तावेज़ चुनें।",
+    "Seleccione un documento de mediciones existente.",
+    "اختر مستند حصر الكميات موجودًا.",
+    "เลือกเอกสารถอดปริมาณที่มีอยู่"
+  ],
+  "Choose an existing Technical Library document format.": [
+    "请选择技术库现有的文档格式。",
+    "तकनीकी लाइब्रेरी का कोई मौजूदा दस्तावेज़ प्रारूप चुनें।",
+    "Seleccione un formato existente de documento de la Biblioteca técnica.",
+    "اختر تنسيق مستند موجودًا في المكتبة الفنية.",
+    "เลือกรูปแบบเอกสารที่มีอยู่ในคลังเทคนิค"
+  ],
+  "Choose an existing calculator document.": [
+    "请选择现有的计算器文档。",
+    "कोई मौजूदा कैलकुलेटर दस्तावेज़ चुनें।",
+    "Seleccione un documento de calculadora existente.",
+    "اختر مستند الحاسبة موجودًا.",
+    "เลือกเอกสารเครื่องคำนวณที่มีอยู่"
+  ],
+  "Choose the current Technical Library item again or finish its pending download.": [
+    "请重新选择当前技术库项目，或先完成待处理的下载。",
+    "वर्तमान तकनीकी लाइब्रेरी आइटम दोबारा चुनें या उसका लंबित डाउनलोड पूरा करें।",
+    "Vuelva a seleccionar el elemento actual de la Biblioteca técnica o termine su descarga pendiente.",
+    "اختر عنصر المكتبة الفنية الحالي مجددًا أو أكمل تنزيله المعلّق.",
+    "เลือกรายการปัจจุบันในคลังเทคนิคอีกครั้ง หรือดาวน์โหลดที่ค้างอยู่ให้เสร็จ"
+  ],
+  "Choose the matching Takeoff workspace.": [
+    "请选择对应的算量工作区。",
+    "संबंधित मात्रा मापन कार्यक्षेत्र चुनें।",
+    "Seleccione el espacio de mediciones correspondiente.",
+    "اختر مساحة عمل حصر الكميات المطابقة.",
+    "เลือกพื้นที่ทำงานถอดปริมาณที่ตรงกัน"
+  ],
+  "Complete the document options in the selected workspace, then generate the file.": [
+    "请在所选工作区中完成文档选项设置，然后生成文件。",
+    "चुने गए कार्यक्षेत्र में दस्तावेज़ विकल्प पूरे करें, फिर फ़ाइल बनाएँ।",
+    "Complete las opciones del documento en el espacio seleccionado y luego genere el archivo.",
+    "أكمل خيارات المستند في مساحة العمل المحددة، ثم أنشئ الملف.",
+    "กำหนดตัวเลือกเอกสารในพื้นที่ทำงานที่เลือกให้ครบ แล้วสร้างไฟล์"
+  ],
+  "Correct the Firestopping inputs or finish the current operation before downloading.": [
+    "请先更正防火封堵输入或完成当前操作，再下载。",
+    "डाउनलोड करने से पहले अग्निरोधी सीलिंग के इनपुट ठीक करें या वर्तमान कार्य पूरा करें।",
+    "Corrija los datos de sellado cortafuegos o termine la operación actual antes de descargar.",
+    "صحّح مدخلات الإغلاق المقاوم للحريق أو أكمل العملية الحالية قبل التنزيل.",
+    "แก้ไขข้อมูลอุดช่องเปิดกันไฟ หรือดำเนินการปัจจุบันให้เสร็จก่อนดาวน์โหลด"
+  ],
+  "Correct the calculator inputs or finish its current action before downloading.": [
+    "请先更正计算器输入或完成其当前操作，再下载。",
+    "डाउनलोड करने से पहले कैलकुलेटर के इनपुट ठीक करें या उसका वर्तमान कार्य पूरा करें।",
+    "Corrija los datos de la calculadora o termine su acción actual antes de descargar.",
+    "صحّح مدخلات الحاسبة أو أكمل إجراءها الحالي قبل التنزيل.",
+    "แก้ไขข้อมูลเครื่องคำนวณ หรือดำเนินการปัจจุบันให้เสร็จก่อนดาวน์โหลด"
+  ],
+  "Defect reports Takeoff register": [
+    "缺陷报告算量登记表",
+    "दोष रिपोर्ट मात्रा मापन रजिस्टर",
+    "Registro de mediciones de informes de defectos",
+    "سجل حصر كميات تقارير العيوب",
+    "ทะเบียนถอดปริมาณรายงานข้อบกพร่อง"
+  ],
+  "Document saved. Its revision is available in this project.": [
+    "文档已保存。可在此项目中查看其修订版本。",
+    "दस्तावेज़ सहेजा गया। इसका संशोधन इस परियोजना में उपलब्ध है।",
+    "Documento guardado. Su revisión está disponible en este proyecto.",
+    "تم حفظ المستند. إصداره متاح في هذا المشروع.",
+    "บันทึกเอกสารแล้ว ฉบับแก้ไขพร้อมใช้งานในโครงการนี้"
+  ],
+  "Document source": [
+    "文档来源",
+    "दस्तावेज़ का स्रोत",
+    "Origen del documento",
+    "مصدر المستند",
+    "แหล่งเอกสาร"
+  ],
+  "Documentation": [
+    "项目文档",
+    "दस्तावेज़",
+    "Documentación",
+    "المستندات",
+    "เอกสาร"
+  ],
+  "Download project documents and open their saved revisions.": [
+    "下载项目文档并打开已保存的修订版本。",
+    "परियोजना दस्तावेज़ डाउनलोड करें और उनके सहेजे गए संशोधन खोलें।",
+    "Descargue documentos del proyecto y abra sus revisiones guardadas.",
+    "نزّل مستندات المشروع وافتح إصداراتها المحفوظة.",
+    "ดาวน์โหลดเอกสารโครงการและเปิดฉบับแก้ไขที่บันทึกไว้"
+  ],
+  "Duct Takeoff register": [
+    "风管算量登记表",
+    "डक्ट मात्रा मापन रजिस्टर",
+    "Registro de mediciones de conductos",
+    "سجل حصر كميات مجاري الهواء",
+    "ทะเบียนถอดปริมาณท่อลม"
+  ],
+  "Ductwork schedule template": [
+    "风管明细表模板",
+    "डक्टवर्क अनुसूची टेम्पलेट",
+    "Plantilla de cuadro de Conductos",
+    "قالب جدول مجاري الهواء",
+    "แม่แบบตารางรายการงานท่อลม"
+  ],
+  "Finish the current Firestopping download first.": [
+    "请先完成当前防火封堵下载。",
+    "पहले वर्तमान अग्निरोधी सीलिंग डाउनलोड पूरा करें।",
+    "Termine primero la descarga actual de sellado cortafuegos.",
+    "أكمل تنزيل الإغلاق المقاوم للحريق الحالي أولًا.",
+    "ดาวน์โหลดงานอุดช่องเปิดกันไฟปัจจุบันให้เสร็จก่อน"
+  ],
+  "Finish the current Takeoff operation before downloading.": [
+    "请先完成当前算量操作，再下载。",
+    "डाउनलोड करने से पहले वर्तमान मात्रा मापन कार्य पूरा करें।",
+    "Termine la operación actual de mediciones antes de descargar.",
+    "أكمل عملية حصر الكميات الحالية قبل التنزيل.",
+    "ดำเนินการถอดปริมาณปัจจุบันให้เสร็จก่อนดาวน์โหลด"
+  ],
+  "Finish the current calculator action before downloading.": [
+    "请先完成当前计算器操作，再下载。",
+    "डाउनलोड करने से पहले वर्तमान कैलकुलेटर कार्य पूरा करें।",
+    "Termine la acción actual de la calculadora antes de descargar.",
+    "أكمل إجراء الحاسبة الحالي قبل التنزيل.",
+    "ดำเนินการเครื่องคำนวณปัจจุบันให้เสร็จก่อนดาวน์โหลด"
+  ],
+  "Finish the current document download before replacing a project.": [
+    "请先完成当前文档下载，再替换项目。",
+    "परियोजना बदलने से पहले वर्तमान दस्तावेज़ डाउनलोड पूरा करें।",
+    "Termine la descarga del documento actual antes de reemplazar un proyecto.",
+    "أكمل تنزيل المستند الحالي قبل استبدال المشروع.",
+    "ดาวน์โหลดเอกสารปัจจุบันให้เสร็จก่อนเปลี่ยนโครงการ"
+  ],
+  "Finish the current document download before saving the project.": [
+    "请先完成当前文档下载，再保存项目。",
+    "परियोजना सहेजने से पहले वर्तमान दस्तावेज़ डाउनलोड पूरा करें।",
+    "Termine la descarga del documento actual antes de guardar el proyecto.",
+    "أكمل تنزيل المستند الحالي قبل حفظ المشروع.",
+    "ดาวน์โหลดเอกสารปัจจุบันให้เสร็จก่อนบันทึกโครงการ"
+  ],
+  "Finish the current physical operation before downloading.": [
+    "请先完成当前实体对象操作，再下载。",
+    "डाउनलोड करने से पहले भौतिक वस्तुओं का वर्तमान कार्य पूरा करें।",
+    "Termine la operación actual de elementos físicos antes de descargar.",
+    "أكمل العملية الحالية للعناصر المادية قبل التنزيل.",
+    "ดำเนินการวัตถุจริงปัจจุบันให้เสร็จก่อนดาวน์โหลด"
+  ],
+  "Firestopping Item Details": [
+    "防火封堵项目详情",
+    "अग्निरोधी सीलिंग आइटम का विवरण",
+    "Detalles del elemento de sellado cortafuegos",
+    "تفاصيل عنصر الإغلاق المقاوم للحريق",
+    "รายละเอียดรายการอุดช่องเปิดกันไฟ"
+  ],
+  "Full Product Summary": [
+    "完整产品汇总",
+    "पूरे उत्पादों का सारांश",
+    "Resumen completo de productos",
+    "ملخص المنتجات الكامل",
+    "สรุปผลิตภัณฑ์ทั้งหมด"
+  ],
+  "Full Schedule": [
+    "完整明细表",
+    "पूरी अनुसूची",
+    "Cuadro completo",
+    "الجدول الكامل",
+    "ตารางรายการทั้งหมด"
+  ],
+  "Installation Certificate": [
+    "安装证明",
+    "स्थापना प्रमाणपत्र",
+    "Certificado de instalación",
+    "شهادة التركيب",
+    "ใบรับรองการติดตั้ง"
+  ],
+  "No revisions generated in this project.": [
+    "此项目尚未生成修订版本。",
+    "इस परियोजना में कोई संशोधन नहीं बनाया गया है।",
+    "No se han generado revisiones en este proyecto.",
+    "لم تُنشأ إصدارات في هذا المشروع.",
+    "ยังไม่มีฉบับแก้ไขที่สร้างในโครงการนี้"
+  ],
+  "Only documents generated in the current project appear here. Save the project to retain its revision history with the project file.": [
+    "此处仅显示当前项目中生成的文档。请保存项目，以便随项目文件保留修订历史。",
+    "यहाँ केवल वर्तमान परियोजना में बनाए गए दस्तावेज़ दिखते हैं। संशोधन इतिहास को परियोजना फ़ाइल के साथ रखने के लिए परियोजना सहेजें।",
+    "Aquí solo aparecen los documentos generados en el proyecto actual. Guarde el proyecto para conservar su historial de revisiones con el archivo del proyecto.",
+    "تظهر هنا المستندات التي أُنشئت في المشروع الحالي فقط. احفظ المشروع للاحتفاظ بسجل إصداراته مع ملف المشروع.",
+    "แสดงเฉพาะเอกสารที่สร้างในโครงการปัจจุบัน บันทึกโครงการเพื่อเก็บประวัติฉบับแก้ไขไว้กับไฟล์โครงการ"
+  ],
+  "Open Takeoffs to choose the document source.": [
+    "请打开“算量”以选择文档来源。",
+    "दस्तावेज़ का स्रोत चुनने के लिए मात्रा मापन खोलें।",
+    "Abra Mediciones para elegir el origen del documento.",
+    "افتح حصر الكميات لاختيار مصدر المستند.",
+    "เปิดถอดปริมาณเพื่อเลือกแหล่งเอกสาร"
+  ],
+  "Preparing document…": [
+    "正在准备文档…",
+    "दस्तावेज़ तैयार हो रहा है…",
+    "Preparando documento…",
+    "جارٍ تجهيز المستند…",
+    "กำลังเตรียมเอกสาร…"
+  ],
+  "Previous revisions": [
+    "历史修订版本",
+    "पिछले संशोधन",
+    "Revisiones anteriores",
+    "الإصدارات السابقة",
+    "ฉบับแก้ไขก่อนหน้า"
+  ],
+  "Project documents changed while preparing the file. Save again when ready.": [
+    "准备文件时项目文档已更改。准备就绪后请重新保存。",
+    "फ़ाइल तैयार करते समय परियोजना दस्तावेज़ बदल गए। तैयार होने पर फिर सहेजें।",
+    "Los documentos del proyecto cambiaron mientras se preparaba el archivo. Guarde de nuevo cuando esté listo.",
+    "تغيّرت مستندات المشروع أثناء تجهيز الملف. احفظ مجددًا عندما تكون جاهزًا.",
+    "เอกสารโครงการเปลี่ยนแปลงระหว่างเตรียมไฟล์ บันทึกอีกครั้งเมื่อพร้อม"
+  ],
+  "Project documents could not be loaded.": [
+    "无法加载项目文档。",
+    "परियोजना दस्तावेज़ लोड नहीं हो सके।",
+    "No se pudieron cargar los documentos del proyecto.",
+    "تعذّر تحميل مستندات المشروع.",
+    "ไม่สามารถโหลดเอกสารโครงการได้"
+  ],
+  "Revision {0}": [
+    "修订版本 {0}",
+    "संशोधन {0}",
+    "Revisión {0}",
+    "الإصدار {0}",
+    "ฉบับแก้ไข {0}"
+  ],
+  "Service plans Takeoff register": [
+    "管线平面图算量登记表",
+    "सेवा योजनाएँ मात्रा मापन रजिस्टर",
+    "Registro de mediciones de planos de instalaciones",
+    "سجل حصر كميات مخططات الخدمات",
+    "ทะเบียนถอดปริมาณแผนผังงานระบบ"
+  ],
+  "Service plans matrix": [
+    "管线平面图矩阵",
+    "सेवा योजनाओं की मैट्रिक्स",
+    "Matriz de planos de instalaciones",
+    "مصفوفة مخططات الخدمات",
+    "ตารางเมทริกซ์แผนผังงานระบบ"
+  ],
+  "Steel (board) product summary": [
+    "钢结构（板材）产品汇总",
+    "स्टील (बोर्ड) उत्पाद सारांश",
+    "Resumen de productos de Acero (placas)",
+    "ملخص منتجات الفولاذ (ألواح)",
+    "สรุปผลิตภัณฑ์เหล็ก (แผ่นบอร์ด)"
+  ],
+  "Steel (board) schedule": [
+    "钢结构（板材）明细表",
+    "स्टील (बोर्ड) अनुसूची",
+    "Cuadro de Acero (placas)",
+    "جدول الفولاذ (ألواح)",
+    "ตารางรายการเหล็ก (แผ่นบอร์ด)"
+  ],
+  "Steel (board) schedule template": [
+    "钢结构（板材）明细表模板",
+    "स्टील (बोर्ड) अनुसूची टेम्पलेट",
+    "Plantilla de cuadro de Acero (placas)",
+    "قالب جدول الفولاذ (ألواح)",
+    "แม่แบบตารางรายการเหล็ก (แผ่นบอร์ด)"
+  ],
+  "Steel (intumescent) product summary": [
+    "钢结构（膨胀型涂层）产品汇总",
+    "स्टील (अग्नि में फूलने वाली परत) उत्पाद सारांश",
+    "Resumen de productos de Acero (intumescente)",
+    "ملخص منتجات الفولاذ (طلاء انتفاخي)",
+    "สรุปผลิตภัณฑ์เหล็ก (สีทนไฟชนิดพองตัว)"
+  ],
+  "Steel (intumescent) schedule": [
+    "钢结构（膨胀型涂层）明细表",
+    "स्टील (अग्नि में फूलने वाली परत) अनुसूची",
+    "Cuadro de Acero (intumescente)",
+    "جدول الفولاذ (طلاء انتفاخي)",
+    "ตารางรายการเหล็ก (สีทนไฟชนิดพองตัว)"
+  ],
+  "Steel (intumescent) schedule template": [
+    "钢结构（膨胀型涂层）明细表模板",
+    "स्टील (अग्नि में फूलने वाली परत) अनुसूची टेम्पलेट",
+    "Plantilla de cuadro de Acero (intumescente)",
+    "قالب جدول الفولاذ (طلاء انتفاخي)",
+    "แม่แบบตารางรายการเหล็ก (สีทนไฟชนิดพองตัว)"
+  ],
+  "Steel (spray) product summary": [
+    "钢结构（喷涂）产品汇总",
+    "स्टील (स्प्रे) उत्पाद सारांश",
+    "Resumen de productos de Acero (proyectado)",
+    "ملخص منتجات الفولاذ (رش)",
+    "สรุปผลิตภัณฑ์เหล็ก (พ่น)"
+  ],
+  "Steel (spray) schedule": [
+    "钢结构（喷涂）明细表",
+    "स्टील (स्प्रे) अनुसूची",
+    "Cuadro de Acero (proyectado)",
+    "جدول الفولاذ (رش)",
+    "ตารางรายการเหล็ก (พ่น)"
+  ],
+  "Steel (spray) schedule template": [
+    "钢结构（喷涂）明细表模板",
+    "स्टील (स्प्रे) अनुसूची टेम्पलेट",
+    "Plantilla de cuadro de Acero (proyectado)",
+    "قالب جدول الفولاذ (رش)",
+    "แม่แบบตารางรายการเหล็ก (พ่น)"
+  ],
+  "Steel Takeoff register": [
+    "钢结构算量登记表",
+    "स्टील मात्रा मापन रजिस्टर",
+    "Registro de mediciones de acero",
+    "سجل حصر كميات الفولاذ",
+    "ทะเบียนถอดปริมาณเหล็ก"
+  ],
+  "The Firestopping Library selector is unavailable.": [
+    "防火封堵库选择器不可用。",
+    "अग्निरोधी सीलिंग लाइब्रेरी का चयन उपलब्ध नहीं है।",
+    "El selector de la Biblioteca de sellado cortafuegos no está disponible.",
+    "محدد مكتبة الإغلاق المقاوم للحريق غير متاح.",
+    "ตัวเลือกคลังอุดช่องเปิดกันไฟไม่พร้อมใช้งาน"
+  ],
+  "The Source Document could not be opened.": [
+    "无法打开源文档。",
+    "स्रोत दस्तावेज़ खोला नहीं जा सका।",
+    "No se pudo abrir el documento de origen.",
+    "تعذّر فتح المستند المصدر.",
+    "ไม่สามารถเปิดเอกสารต้นฉบับได้"
+  ],
+  "The Takeoff workspace could not be selected. Finish its pending edits first.": [
+    "无法选择算量工作区。请先完成待处理的编辑。",
+    "मात्रा मापन कार्यक्षेत्र नहीं चुना जा सका। पहले उसके लंबित संपादन पूरे करें।",
+    "No se pudo seleccionar el espacio de mediciones. Termine primero sus cambios pendientes.",
+    "تعذّر اختيار مساحة عمل حصر الكميات. أكمل تعديلاتها المعلّقة أولًا.",
+    "ไม่สามารถเลือกพื้นที่ทำงานถอดปริมาณได้ แก้ไขที่ค้างอยู่ให้เสร็จก่อน"
+  ],
+  "The Technical Library selector is unavailable.": [
+    "技术库选择器不可用。",
+    "तकनीकी लाइब्रेरी का चयन उपलब्ध नहीं है।",
+    "El selector de la Biblioteca técnica no está disponible.",
+    "محدد المكتبة الفنية غير متاح.",
+    "ตัวเลือกคลังเทคนิคไม่พร้อมใช้งาน"
+  ],
+  "The calculator changed while preparing the download. Try again.": [
+    "准备下载时计算器已更改。请重试。",
+    "डाउनलोड तैयार करते समय कैलकुलेटर बदल गया। फिर कोशिश करें।",
+    "La calculadora cambió mientras se preparaba la descarga. Inténtelo de nuevo.",
+    "تغيّرت الحاسبة أثناء تجهيز التنزيل. حاول مجددًا.",
+    "เครื่องคำนวณเปลี่ยนแปลงระหว่างเตรียมดาวน์โหลด ลองอีกครั้ง"
+  ],
+  "The current project document workspace is invalid.": [
+    "当前项目文档工作区无效。",
+    "वर्तमान परियोजना दस्तावेज़ कार्यक्षेत्र अमान्य है।",
+    "El espacio actual de documentos del proyecto no es válido.",
+    "مساحة مستندات المشروع الحالي غير صالحة.",
+    "พื้นที่ทำงานเอกสารโครงการปัจจุบันไม่ถูกต้อง"
+  ],
+  "The document download list is invalid.": [
+    "文档下载列表无效。",
+    "दस्तावेज़ डाउनलोड सूची अमान्य है।",
+    "La lista de descargas de documentos no es válida.",
+    "قائمة تنزيل المستندات غير صالحة.",
+    "รายการดาวน์โหลดเอกสารไม่ถูกต้อง"
+  ],
+  "The project changed while choosing the Takeoff document. Try again.": [
+    "选择算量文档时项目已更改。请重试。",
+    "मात्रा मापन दस्तावेज़ चुनते समय परियोजना बदल गई। फिर कोशिश करें।",
+    "El proyecto cambió mientras se elegía el documento de mediciones. Inténtelo de nuevo.",
+    "تغيّر المشروع أثناء اختيار مستند حصر الكميات. حاول مجددًا.",
+    "โครงการเปลี่ยนแปลงระหว่างเลือกเอกสารถอดปริมาณ ลองอีกครั้ง"
+  ],
+  "The project changed while loading its documents. Open Documentation again.": [
+    "加载文档时项目已更改。请重新打开“项目文档”。",
+    "दस्तावेज़ लोड करते समय परियोजना बदल गई। दस्तावेज़ अनुभाग फिर खोलें।",
+    "El proyecto cambió mientras se cargaban sus documentos. Abra Documentación de nuevo.",
+    "تغيّر المشروع أثناء تحميل مستنداته. افتح المستندات مجددًا.",
+    "โครงการเปลี่ยนแปลงระหว่างโหลดเอกสาร เปิดเอกสารอีกครั้ง"
+  ],
+  "The project changed while preparing the calculator document. Try again.": [
+    "准备计算器文档时项目已更改。请重试。",
+    "कैलकुलेटर दस्तावेज़ तैयार करते समय परियोजना बदल गई। फिर कोशिश करें।",
+    "El proyecto cambió mientras se preparaba el documento de la calculadora. Inténtelo de nuevo.",
+    "تغيّر المشروع أثناء تجهيز مستند الحاسبة. حاول مجددًا.",
+    "โครงการเปลี่ยนแปลงระหว่างเตรียมเอกสารเครื่องคำนวณ ลองอีกครั้ง"
+  ],
+  "The project changed while preparing the document.": [
+    "准备文档时项目已更改。",
+    "दस्तावेज़ तैयार करते समय परियोजना बदल गई।",
+    "El proyecto cambió mientras se preparaba el documento.",
+    "تغيّر المشروع أثناء تجهيز المستند.",
+    "โครงการเปลี่ยนแปลงระหว่างเตรียมเอกสาร"
+  ],
+  "The project changed. Open Tools again.": [
+    "项目已更改。请重新打开“工具”。",
+    "परियोजना बदल गई। टूल फिर खोलें।",
+    "El proyecto cambió. Abra Herramientas de nuevo.",
+    "تغيّر المشروع. افتح الأدوات مجددًا.",
+    "โครงการเปลี่ยนแปลง เปิดเครื่องมืออีกครั้ง"
+  ],
+  "The project document history does not match the current project.": [
+    "文档历史与当前项目不匹配。",
+    "दस्तावेज़ इतिहास वर्तमान परियोजना से मेल नहीं खाता।",
+    "El historial de documentos no corresponde al proyecto actual.",
+    "سجل المستندات لا يطابق المشروع الحالي.",
+    "ประวัติเอกสารไม่ตรงกับโครงการปัจจุบัน"
+  ],
+  "The saved document history does not match this project.": [
+    "已保存的文档历史与此项目不匹配。",
+    "सहेजा गया दस्तावेज़ इतिहास इस परियोजना से मेल नहीं खाता।",
+    "El historial guardado de documentos no corresponde a este proyecto.",
+    "سجل المستندات المحفوظ لا يطابق هذا المشروع.",
+    "ประวัติเอกสารที่บันทึกไว้ไม่ตรงกับโครงการนี้"
+  ],
+  "This download is not available in this edition.": [
+    "此版本不提供该下载。",
+    "इस संस्करण में यह डाउनलोड उपलब्ध नहीं है।",
+    "Esta descarga no está disponible en esta edición.",
+    "هذا التنزيل غير متاح في هذا الإصدار من التطبيق.",
+    "การดาวน์โหลดนี้ไม่มีในรุ่นนี้"
+  ],
+  "Upload source PDFs, then choose the markup document again.": [
+    "请上传源 PDF，然后重新选择标注文档。",
+    "स्रोत PDF अपलोड करें, फिर मार्कअप दस्तावेज़ दोबारा चुनें।",
+    "Suba los PDF de origen y vuelva a elegir el documento con anotaciones.",
+    "ارفع ملفات PDF المصدر، ثم اختر مستند العلامات مجددًا.",
+    "อัปโหลด PDF ต้นฉบับ แล้วเลือกเอกสารมาร์กอัปอีกครั้ง"
+  ],
+  "Walls and floors Takeoff register": [
+    "墙体与楼板算量登记表",
+    "दीवारें और फ़र्श मात्रा मापन रजिस्टर",
+    "Registro de mediciones de paredes y suelos",
+    "سجل حصر كميات الجدران والأرضيات",
+    "ทะเบียนถอดปริมาณผนังและพื้น"
+  ]
+}

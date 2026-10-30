@@ -905,5 +905,12 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     assert.ok(walk(form).some(node=>node.tagName==='optgroup'&&node.getAttribute('label')==='Plastic Pipes'));
     await form.emit('submit');assert.equal(captured.title,'My technical item');assert.equal(captured.fields[0].value,'Full literal installation text');assert.deepEqual(captured.facets.services,['services-one']);assert.equal(captured.report.url,'https://example.test/report.pdf');assert.equal(captured.request_key,'0123456789abcdef0123456789abcdef');assert.equal(pane.technicalEditorPanel.hidden,true);
   });
+  await check('Documentation uses the selected Technical item or explicitly opens its selector without a false receipt',async h=>{
+    assert.deepEqual(copy(await h.api.documentationExport({format:'pdf'})),{selectionRequired:true});await h.api.open('technical','technical-1');
+    const pane=h.pane('technical'),before=copy(pane.detail),receipt={saved:true,path:'C:/Fixture/item.pdf',filename:'item.pdf',destination:'project'};let captured;
+    h.context.window.CeasefireDownloads={save:async(path,payload,options)=>{captured={path,payload:copy(payload),button:options.button};return receipt;}};
+    await h.api.open('penetration');const button=h.byId('documentation-export');assert.equal(await h.api.documentationExport({format:'pdf'},button),receipt);assert.deepEqual(captured,{path:'/api/technical/item.pdf',payload:{id:'technical-1'},button});assert.deepEqual(copy(pane.detail),before);
+    h.context.window.CeasefireDownloads.save=async()=>{throw Error('Actual source error');};await assert.rejects(h.api.documentationExport({format:'xlsx'},button),/Actual source error/);assert.equal(pane.documentPending,null);
+  });
   console.log(`${passed} library UI regression checks passed.`);
 })().catch(error=>{console.error(error);process.exitCode=1;});

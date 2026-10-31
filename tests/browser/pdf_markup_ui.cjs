@@ -10,7 +10,8 @@ const { spawn, spawnSync } = require("node:child_process");
 const fs = require("node:fs"), path = require("node:path"), crypto = require("node:crypto"), assert = require("node:assert/strict");
 const { sources, feedbackSources, printingSource } = require("../../static/header-menu-sounds.js");
 const { verifiedPreloadCancellation } = require("../helpers/media_preload_guard.cjs");
-const preloadPaths = [...Object.values(sources), ...Object.values(feedbackSources), printingSource];
+// app.js also creates the native intelligence-phrase player at startup.
+const preloadPaths = [...Object.values(sources), ...Object.values(feedbackSources), printingSource, "/sounds/gameover.mp3"];
 // Chromium may cancel any decoded startup media preload. Every allowed asset
 // still requires exact identity, delivered bytes and trusted native decoding.
 const cancellablePreloadPaths = preloadPaths;
@@ -302,7 +303,9 @@ async function standardCalculatorButton() {
   assert.equal(generated.status, 0, generated.stderr); const pdfBefore = hash(pdf);
   browser = await chromium.launch({ headless: true }); page = await browser.newPage({ viewport: { width: 1384, height: 764 } }); page.setDefaultTimeout(30000);
   page.on("pageerror", error => errors.push(error.message)); page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
-  page.on("requestfailed", request => networkFailures.push({ stage, url: request.url(), method: request.method(), resourceType: request.resourceType(), observedAt: new Date().toISOString(), failure: request.failure() }));
+  const requestStages = new WeakMap();
+  page.on("request", request => requestStages.set(request, stage));
+  page.on("requestfailed", request => networkFailures.push({ stage: requestStages.get(request) || stage, failedAtStage: stage, url: request.url(), method: request.method(), resourceType: request.resourceType(), observedAt: new Date().toISOString(), failure: request.failure() }));
   page.on("request", request => { if (request.method() === "POST") requests.push(new URL(request.url()).pathname); });
   await page.addInitScript(paths => {
     window.uiCsp = []; document.addEventListener("securitypolicyviolation", event => window.uiCsp.push(event.effectiveDirective));

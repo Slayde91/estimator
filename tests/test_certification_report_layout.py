@@ -43,7 +43,7 @@ class CertificateLayoutTests(unittest.TestCase):
                 self.assertGreaterEqual(by_text[label]['top'], red[-1]['top'])
                 self.assertLessEqual(by_text[label]['bottom'], red[-1]['bottom'])
 
-    def test_titles_are_regular_red_and_small_duplicate_header_is_removed(self):
+    def test_requested_titles_are_bold_red_and_small_duplicate_header_is_removed(self):
         payload = self.render(client='BODYCLIENT', australian_standards='BODYSTANDARD', name='BODYSIGNER')
         with pdfplumber.open(BytesIO(payload)) as document:
             words = [word for page in document.pages
@@ -52,7 +52,10 @@ class CertificateLayoutTests(unittest.TestCase):
             for label in ('Installation', 'Statement',
                           'Exclusions', 'Materials/Manufacturers:', 'Date:'):
                 word = by_text[label]
-                self.assertNotIn('Bold', word['fontname'])
+                if label in ('Installation', 'Statement', 'Client', 'Project', 'Address', 'Location/Area'):
+                    self.assertIn('Bold', word['fontname'])
+                else:
+                    self.assertNotIn('Bold', word['fontname'])
                 self.assertAlmostEqual(word['non_stroking_color'][0], 189/255, delta=.001)
                 self.assertEqual(word['non_stroking_color'][1], 0)
             for label in ('Client', 'Project', 'Address', 'Location/Area', 'Name', 'Signature', 'Position', 'Qualification', 'Accreditation'):
@@ -60,10 +63,24 @@ class CertificateLayoutTests(unittest.TestCase):
                 self.assertNotIn('Bold', by_text[label]['fontname'])
             for value in ('BODYCLIENT', 'BODYSTANDARD', 'BODYSIGNER'):
                 self.assertEqual(tuple(by_text[value]['non_stroking_color']), (0, 0, 0))
+                self.assertNotIn('Bold', by_text[value]['fontname'])
             text = '\n'.join(page.extract_text() for page in document.pages)
             self.assertIn('INSTALLATION CERTIFICATE | Revision 2', text)
             self.assertIn('Installation Certificate', text)
             self.assertIn('Exclusions - Certification is strictly limited to works completed by Layout Company, as per:', text)
+
+    def test_compliance_and_attestation_are_entirely_bold_black(self):
+        statement = 'COMPLIANCESTART Manufacturer requirements remain explicit. COMPLIANCEEND'
+        payload = self.render(statement_of_compliance=statement)
+        with pdfplumber.open(BytesIO(payload)) as document:
+            lines = [line for page in document.pages for line in page.extract_text_lines()]
+            compliance = next(line for line in lines if 'COMPLIANCESTART' in line['text'])
+            start = next(index for index, line in enumerate(lines) if 'are approved by the manufacturers' in line['text'])
+            end = next(index for index in range(start, len(lines)) if 'best of my knowledge.' in lines[index]['text'])
+            for line in [compliance, *lines[start:end+1]]:
+                for char in line['chars']:
+                    self.assertIn('Bold', char['fontname'])
+                    self.assertEqual(tuple(char['non_stroking_color']), (0, 0, 0))
 
     def test_signer_date_is_frozen_in_sydney_and_footer_remains_utc(self):
         cases = [('2026-10-29T13:30:00Z', '30 October 2026', '29 Oct 2026, 13:30 UTC'),

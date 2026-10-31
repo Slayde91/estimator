@@ -78,16 +78,20 @@ function checkCompanions(project,folder){
   choose('project-a.cf.json');await save();console.log('Project A saved on disposable storage.');const baseline=await snapshots();
   await documentation();const catalog=(await api('/api/documentation/catalog')).documents;
   const omittedPdfRows=new Set(['firestopping.current_item.pdf','library.technical.item.pdf','takeoff.pdf_tools.pdf','takeoff.defect_reports.matrix.pdf','takeoff.service_plans.matrix.pdf']);
+  const omittedXlsxRows=new Set(['firestopping.current_item.xlsx','library.technical.item.xlsx','pricing.library.xlsx',
+    ...['steel_vermiculite','steel_intumescent','steel_board','ductwork'].map(id=>`calculator.${id}.template.xlsx`),
+    ...['steel','duct','walls_floors','defect_reports','service_plans'].map(id=>`takeoff.${id}.register.xlsx`)]);
   await expect(page.locator('#documentation-pdf-rows tr[data-document-kind]')).toHaveCount(catalog.filter(row=>row.format==='pdf'&&!omittedPdfRows.has(row.id)).length);
   await expect(page.locator('#documentation-pdf-rows .documentation-group-heading')).toHaveText(['Schedules','Product summaries','Other documents']);
   for(const kind of omittedPdfRows)await expect(page.locator(`tr[data-document-kind="${kind}"]`)).toHaveCount(0);
-  await expect(page.locator('#documentation-xlsx-rows tr')).toHaveCount(catalog.filter(row=>row.format==='xlsx').length);
+  await expect(page.locator('#documentation-xlsx-rows tr')).toHaveCount(catalog.filter(row=>row.format==='xlsx'&&!omittedXlsxRows.has(row.id)).length);
+  for(const kind of omittedXlsxRows){assert.ok(catalog.some(row=>row.id===kind),'Source export identity remains in the catalog');await expect(page.locator(`tr[data-document-kind="${kind}"]`)).toHaveCount(0);}
   assert.ok(catalog.some(row=>row.id==='firestopping.current_item.pdf'));assert.ok(!catalog.some(row=>row.id==='library.firestopping.item.pdf'));
-  await expect(page.locator('#documentation-pdf-rows a,#documentation-xlsx-rows a')).toHaveCount(0);checks.push('PDF rows omit the three removed downloads while XLSX rows and server export identities remain available');
+  await expect(page.locator('#documentation-pdf-rows a,#documentation-xlsx-rows a')).toHaveCount(0);checks.push('Requested PDF/XLSX rows are omitted while their server export identities and history remain available');
   const a=await page.evaluate(()=>window.CeasefireCertification.sessionId());
   const estimateOne=await download('estimate.summary.pdf','/api/quote-report',{reviewPending:true});const firstBytes=await oldFile(estimateOne,a);
   const estimateTwo=await download('estimate.summary.pdf','/api/quote-report');assert.equal(estimateOne.revision,1);assert.equal(estimateTwo.revision,2);assert.notEqual(estimateOne.id,estimateTwo.id);
-  const template=await download('calculator.steel_board.template.xlsx','/api/calculators/steel_board/template');assert.equal(template.revision,1);
+  const register=await download('calculator.steel_board.register.xlsx','/api/calculators/steel_board/register.xlsx');assert.equal(register.revision,1);assert.equal(register.filename,'STEEL_SCHEDULE_BOARD-R1.xlsx');
   assert.deepEqual(await snapshots(),baseline);checks.push('Two real PDF revisions and one real XLSX use original validated exporters with all calculation data unchanged');
 
   // Certification is an existing validated preparation workflow, not a second
@@ -124,7 +128,7 @@ function checkCompanions(project,folder){
   await load('moved/project-copy.cf.json');await expect(page.locator('#client')).toHaveValue('SYNTHETIC DOCUMENTATION QA');await documentation();
   const restored=await page.evaluate(()=>window.CeasefireCertification.sessionId());assert.notEqual(restored,a);assert.notEqual(restored,b);
   const after=await api('/api/documentation?workspace='+restored);assert.equal(after.project_id,historyA.project_id);assert.deepEqual(publicHistory(after),readBefore);
-  await expect(page.locator('tr[data-document-kind="estimate.summary.pdf"] a')).toHaveCount(2);await expect(page.locator('tr[data-document-kind="calculator.steel_board.template.xlsx"] a')).toHaveCount(1);
+  await expect(page.locator('tr[data-document-kind="estimate.summary.pdf"] a')).toHaveCount(2);await expect(page.locator('tr[data-document-kind="calculator.steel_board.register.xlsx"] a')).toHaveCount(1);
   for(const item of after.items)await oldFile(item,restored);assert.deepEqual(await oldFile(estimateOne,restored),firstBytes);
   await openProjectSection(page,'certification');await expect(page.locator('#certification-document')).toHaveValue(certificateId);await expect(page.locator('#certification-revisions a')).toHaveCount(1);
   await documentation();assert.equal((await api('/api/documentation?workspace='+restored)).workspace_revision,3);assert.equal(digest(fs.readFileSync(path.join(moved,'project-copy.cf.json'))),copiedHash);
@@ -134,7 +138,7 @@ function checkCompanions(project,folder){
   // Cold calculator loads are allowed; each authored document invokes exactly
   // its existing source export once, and old-history reads invoke none.
   assert.equal(sourceRequests.filter(request=>request.path==='/api/quote-report').length,2);
-  assert.equal(sourceRequests.filter(request=>request.path==='/api/calculators/steel_board/template').length,1);
+  assert.equal(sourceRequests.filter(request=>request.path==='/api/calculators/steel_board/register.xlsx').length,1);
   assert.equal(sourceRequests.filter(request=>/^\/api\/certifications\/.+\/revisions$/.test(request.path)).length,1);
   assert.deepEqual(Object.fromEntries(sourceFiles.map(file=>[file,digest(fs.readFileSync(path.join(root,file)))])),sourceHashes,'Production sources stayed fixed for this browser receipt');
   assert.deepEqual(errors,[]);assert.deepEqual(consoleErrors,[]);

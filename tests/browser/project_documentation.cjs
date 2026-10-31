@@ -77,10 +77,12 @@ function checkCompanions(project,folder){
   await page.locator('#client').fill('SYNTHETIC DOCUMENTATION QA');await page.locator('#project-no').fill('DOC-PROJECT-A');await page.locator('#site-address').fill('Synthetic test address - no installation claim');
   choose('project-a.cf.json');await save();console.log('Project A saved on disposable storage.');const baseline=await snapshots();
   await documentation();const catalog=(await api('/api/documentation/catalog')).documents;
-  await expect(page.locator('#documentation-pdf-rows tr')).toHaveCount(catalog.filter(row=>row.format==='pdf').length);
+  const omittedPdfRows=new Set(['firestopping.current_item.pdf','library.technical.item.pdf','takeoff.pdf_tools.pdf']);
+  await expect(page.locator('#documentation-pdf-rows tr')).toHaveCount(catalog.filter(row=>row.format==='pdf'&&!omittedPdfRows.has(row.id)).length);
+  for(const kind of omittedPdfRows)await expect(page.locator(`tr[data-document-kind="${kind}"]`)).toHaveCount(0);
   await expect(page.locator('#documentation-xlsx-rows tr')).toHaveCount(catalog.filter(row=>row.format==='xlsx').length);
   assert.ok(catalog.some(row=>row.id==='firestopping.current_item.pdf'));assert.ok(!catalog.some(row=>row.id==='library.firestopping.item.pdf'));
-  await expect(page.locator('#documentation-pdf-rows a,#documentation-xlsx-rows a')).toHaveCount(0);checks.push('Every edition-available export has one catalog row with separate PDF/XLSX tables');
+  await expect(page.locator('#documentation-pdf-rows a,#documentation-xlsx-rows a')).toHaveCount(0);checks.push('PDF rows omit the three removed downloads while XLSX rows and server export identities remain available');
   const a=await page.evaluate(()=>window.CeasefireCertification.sessionId());
   const estimateOne=await download('estimate.summary.pdf','/api/quote-report',{reviewPending:true});const firstBytes=await oldFile(estimateOne,a);
   const estimateTwo=await download('estimate.summary.pdf','/api/quote-report');assert.equal(estimateOne.revision,1);assert.equal(estimateTwo.revision,2);assert.notEqual(estimateOne.id,estimateTwo.id);

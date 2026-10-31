@@ -44,7 +44,7 @@
     add("Projects and files", "Refresh", "Read the linked project folder again.", { selector: "#refresh-quotes" });
     add("Projects and files", "Project files", "Attach files beside a saved project. You can also drag files onto this button.", { selector: "#project-attachment-zone" });
     add("Documents", "Document", "Open the imports, templates and downloads available in the current workspace.", { asset: "document.png" }, { keys: ["↑ / ↓", "Home / End", "Esc"] });
-    add("Documents", "Estimate Summary", "Download the estimate PDF using the inputs and prices captured when you click.", { format: "PDF", symbol: "Σ" });
+    add("Documents", "Breakdown", "Download the estimate PDF using the inputs and prices captured when you click.", { format: "PDF", symbol: "Σ" });
     add("Documents", "Download Firestopping Schedule", "Save the complete current Firestopping Schedule as XLSX or PDF.", { format: "XLSX / PDF" });
     add("Documents", "Item Details", "Download the current Firestopping composer or Library Editor item's captured fields and prices as XLSX or PDF; the PDF includes its source diagram.", { format: "XLSX / PDF" });
     add("Documents", "Steel / Duct Schedule and Product Summary", "Download the selected calculator's schedule as XLSX or PDF, or its Product Summary PDF.", { format: "XLSX / PDF" });

@@ -13,7 +13,7 @@ test('documented tool shortcuts come from the actual dispatch registry', () => {
   }
   const signature = rows.find(row => row.name === 'Signatures');
   assert.deepEqual(signature.keys, ['Ctrl+Shift+S']);
-  assert.ok(rows.find(row => row.name === 'Estimate Summary'));
+  assert.ok(rows.find(row => row.name === 'Breakdown'));
 });
 
 test('Standard Help omits unsupported tools and icons', () => {

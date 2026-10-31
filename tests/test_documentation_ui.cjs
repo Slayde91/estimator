@@ -10,7 +10,7 @@ const PDF='application/pdf',XLSX='application/vnd.openxmlformats-officedocument.
 const model=(n,items=[],revision=items.length)=>({workspace_id:token(n),project_id:project(n),workspace_revision:revision,items});
 const item=(n,scope=1,values={})=>({id:identity(n),kind:'estimate.summary.pdf',label:'Estimate Summary',filename:'Estimate-Revision-'+n+'.pdf',revision:n,
   media_type:PDF,created_at:'2026-10-30T01:00:00Z',url:'/api/documentation/'+identity(n)+'?workspace='+token(scope),...values});
-const catalog=[{id:'estimate.summary.pdf',label:'Estimate Summary',format:'pdf',adapter:'estimate',spec:{action:'summary'}},
+const catalog=[{id:'estimate.summary.pdf',label:'Breakdown',format:'pdf',adapter:'estimate',spec:{action:'summary'}},
   {id:'calculator.ductwork.register.xlsx',label:'Ductwork Register',format:'xlsx',adapter:'calculator',spec:{calculatorId:'ductwork',action:'register'}},
   {id:'firestopping.current_item.pdf',label:'Firestopping Item Details',format:'pdf',adapter:'firestopping',spec:{scope:'current_item',format:'pdf'}},
   {id:'firestopping.current_item.xlsx',label:'Firestopping Item Details',format:'xlsx',adapter:'firestopping',spec:{scope:'current_item',format:'xlsx'}},
@@ -53,6 +53,24 @@ function harness(){
 let passed=0;
 async function check(name,fn){await fn(harness());passed++;console.log('ok - '+name);}
 (async()=>{
+  await check('PDF schedules and product summaries are grouped without changing export identities or frozen history',async h=>{
+    const rows=[catalog[0],
+      {id:'calculator.ductwork.product_summary.pdf',label:'Ductwork product summary',format:'pdf',adapter:'calculator',spec:{calculatorId:'ductwork',action:'product_summary'}},
+      {id:'project.full_schedule.pdf',label:'Full Schedule',format:'pdf',adapter:'estimate',spec:{action:'full_schedule'}},
+      {id:'certification',label:'Installation Certificate',format:'pdf',adapter:'certification',spec:{}},
+      {id:'project.full_product_summary.pdf',label:'Full Product Summary',format:'pdf',adapter:'estimate',spec:{action:'full_product_summary'}},
+      {id:'firestopping.schedule.pdf',label:'Firestopping Schedule',format:'pdf',adapter:'firestopping',spec:{scope:'schedule',format:'pdf'}}];
+    h.override(path=>path==='/api/documentation/catalog'?h.response({documents:rows}):undefined);
+    const legacy=item(1,1,{kind:'calculator.legacy.schedule.pdf',label:'Legacy schedule'});h.models.set(token(1),model(1,[legacy]));
+    await h.api.open();
+    const rendered=h.byId('documentation-pdf-rows').children;
+    assert.deepEqual(rendered.filter(row=>row.children[0].tagName==='TH').map(row=>row.children[0].children[0].textContent),['Schedules','Product summaries','Other documents']);
+    assert.deepEqual(rendered.filter(row=>row.dataset.documentKind).map(row=>row.dataset.documentKind),['estimate.summary.pdf','project.full_schedule.pdf','firestopping.schedule.pdf','calculator.legacy.schedule.pdf','calculator.ductwork.product_summary.pdf','project.full_product_summary.pdf','certification']);
+    assert.deepEqual(h.links().map(link=>link.href),[legacy.url]);assert.equal(h.buttons()[0].textContent,'Breakdown');
+    assert.equal(h.buttons().find(button=>button.dataset.documentKind===legacy.kind).disabled,true);
+    await h.buttons().find(button=>button.dataset.documentKind==='project.full_product_summary.pdf').emit('click');
+    assert.equal(h.adapters[0].owner,'estimate');assert.deepEqual(h.adapters[0].spec,{action:'full_product_summary'});
+  });
   await check('Catalog separates PDF and XLSX and displays exact project-scoped immutable revision links',async h=>{
     h.models.set(token(1),model(1,[item(1),item(2,1,{kind:'calculator.ductwork.register.xlsx',media_type:XLSX,filename:'Ductwork.xlsx'})]));
     await h.api.open();assert.equal(h.byId('documentation-pdf-rows').children.length,1);assert.equal(h.byId('documentation-xlsx-rows').children.length,3);

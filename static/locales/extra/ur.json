@@ -2751,5 +2751,11 @@
   "Upload source PDFs, then choose the markup document again.": "اصل PDF اپ لوڈ کریں، پھر مارک اپ دستاویز دوبارہ منتخب کریں۔",
   "Walls and floors Takeoff register": "دیواریں اور فرش مقدار پیمائش رجسٹر",
   "Document source": "دستاویز کا ماخذ",
-  "Download": "ڈاؤن لوڈ"
+  "Download": "ڈاؤن لوڈ",
+  "Breakdown": "تفصیل",
+  "Schedules": "جدول",
+  "Product summaries": "مصنوعات کے خلاصے",
+  "Other documents": "دیگر دستاویزات",
+  "the inputs and pricing captured when you clicked Breakdown": "تفصیل کلک کرتے وقت محفوظ اندراجات اور قیمتیں",
+  "The schedule shown below the item is the same schedule shown in Quote. Edit, remove, undo or recalculate in either location. Only scheduled items contribute to quote totals. Open Document in Main to download the Breakdown PDF or the complete current Firestopping Schedule as XLSX or PDF. Use Document in the current item to download that item’s details; its PDF also includes the source diagram when attached.": "آئٹم کے نیچے والا جدول وہی ہے جو کوٹیشن میں ہے۔ کسی بھی جگہ ترمیم، ہٹانا، واپسی یا دوبارہ حساب کر سکتے ہیں۔ صرف جدول کے آئٹمز کوٹیشن کے کل میں شامل ہیں۔ تفصیل PDF یا مکمل موجودہ فائر اسٹاپنگ جدول XLSX/PDF میں پانے کے لیے مرکزی حصے میں دستاویز کھولیں۔ موجودہ آئٹم کی تفصیلات کے لیے اسی کی دستاویز استعمال کریں؛ منسلک ماخذ خاکہ بھی اس کے PDF میں شامل ہے۔"
 }

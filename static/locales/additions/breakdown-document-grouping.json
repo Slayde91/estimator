@@ -1,0 +1,32 @@
+{
+  "Breakdown": [
+    "세부 내역",
+    "Detalye",
+    "Chi tiết"
+  ],
+  "Schedules": [
+    "일람표",
+    "Mga talaan",
+    "Các bảng kê"
+  ],
+  "Product summaries": [
+    "제품 요약",
+    "Mga buod ng produkto",
+    "Tóm tắt sản phẩm"
+  ],
+  "Other documents": [
+    "기타 문서",
+    "Iba pang dokumento",
+    "Tài liệu khác"
+  ],
+  "the inputs and pricing captured when you clicked Breakdown": [
+    "세부 내역을 클릭할 때 캡처한 입력과 가격",
+    "ang mga input at presyong nakuha nang i-click mo ang Detalye",
+    "dữ liệu nhập và đơn giá ghi nhận lúc nhấp Chi tiết"
+  ],
+  "The schedule shown below the item is the same schedule shown in Quote. Edit, remove, undo or recalculate in either location. Only scheduled items contribute to quote totals. Open Document in Main to download the Breakdown PDF or the complete current Firestopping Schedule as XLSX or PDF. Use Document in the current item to download that item’s details; its PDF also includes the source diagram when attached.": [
+    "항목 아래의 일람표는 견적에 표시되는 일람표와 같습니다. 어느 곳에서든 편집, 제거, 실행 취소 또는 다시 계산할 수 있습니다. 일람표에 추가된 항목만 견적 합계에 포함됩니다. 기본 화면의 문서를 열면 세부 내역 PDF 또는 현재 방화 관통부 밀봉 일람표 전체를 XLSX나 PDF로 다운로드할 수 있습니다. 현재 항목의 문서에서는 해당 항목의 상세 정보를 다운로드하며, 첨부된 원본 도해도 PDF에 포함됩니다.",
+    "Ang talaan sa ilalim ng item ay ang parehong talaan sa sipi. Maaaring mag-edit, mag-alis, mag-undo o muling magkalkula sa alinman. Ang nasa talaan lamang ang kasama sa kabuuan ng sipi. Buksan ang Dokumento sa Pangunahin upang i-download ang PDF ng Detalye o ang buong kasalukuyang talaan ng pagseselyong panlaban sa sunog bilang XLSX o PDF. Gamitin ang Dokumento ng kasalukuyang item upang i-download ang mga detalye nito; kasama rin sa PDF ang diyagram ng pinagmulan kung nakalakip.",
+    "Bảng kê bên dưới hạng mục cũng là bảng kê hiển thị trong Báo giá. Có thể sửa, xóa, hoàn tác hoặc tính lại ở cả hai nơi. Chỉ hạng mục có trong bảng kê mới góp vào tổng báo giá. Mở Tài liệu ở phần Chính để tải PDF Chi tiết hoặc toàn bộ bảng kê bịt kín chống cháy hiện tại dưới dạng XLSX hoặc PDF. Dùng Tài liệu của hạng mục hiện tại để tải chi tiết; PDF cũng gồm sơ đồ nguồn nếu đã đính kèm."
+  ]
+}

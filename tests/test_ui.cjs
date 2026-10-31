@@ -221,7 +221,7 @@ let passed=0;
     audit.setFetch((path,options)=>{reportPath=path;reportOptions=options;return pending.promise;});
     const download=audit.downloadQuotePdf();
     assert.equal(byId('download-quote-pdf').disabled,true);assert.equal(byId('download-quote-pdf').getAttribute('aria-busy'),'true');
-    assert.equal(byId('download-quote-pdf').getAttribute('aria-label'),'Preparing Estimate Summary…');
+    assert.equal(byId('download-quote-pdf').getAttribute('aria-label'),'Preparing document…');
     audit.state.inputs.B12='Later workbook note';byId('measurements').value='Later general note';audit.state.dirty=true;
     audit.state.projectFile={save_token:'new-target'};
     pending.resolve(savedResponse());
@@ -240,7 +240,7 @@ let passed=0;
     assert.deepEqual(copy(audit.state.quoteConfiguration||audit.state.configuration),beforeConfig);assert.equal(audit.state.dirty,true);
     assert.match(byId('app-message').textContent,/Later edits are not included/);
     assert.equal(byId('download-quote-pdf').disabled,false);assert.equal(byId('download-quote-pdf').getAttribute('aria-busy'),undefined);
-    assert.equal(byId('download-quote-pdf').getAttribute('aria-label'),'Estimate Summary');
+    assert.equal(byId('download-quote-pdf').getAttribute('aria-label'),'Breakdown');
   }passed++;
 
   // Failed writes never claim success or mutate the current draft, and release
@@ -903,8 +903,8 @@ let passed=0;
   const actionCss=fs.readFileSync('static/styles.css','utf8');
   assert.doesNotMatch(markup,/id="save-quote"/);assert.doesNotMatch(markup,/id="save-project"/);
   assert.match(markup,/id="save-current-project"[^>]*class="button save-button icon-only"[^>]*aria-label="Save"[^>]*title="Save"/);
-  assert.match(markup,/id="firestopping-document-actions"[^>]*>[\s\S]*?id="download-quote-pdf"[^>]*class="[^"]*pdf-button[^"]*calculator-document-action[^"]*"[^>]*aria-label="Estimate Summary"[^>]*title="Estimate Summary"/);
-  assert.match(markup,/<span>Estimate Summary<\/span>/);
+  assert.match(markup,/id="firestopping-document-actions"[^>]*>[\s\S]*?id="download-quote-pdf"[^>]*class="[^"]*pdf-button[^"]*calculator-document-action[^"]*"[^>]*aria-label="Breakdown"[^>]*title="Breakdown"/);
+  assert.match(markup,/<span>Breakdown<\/span>/);
   assert.match(markup,/id="download-quote-pdf"[\s\S]*?<span class="download-arrow">Σ<\/span>/);
   assert.ok(actionCss.includes('.button.save-button{color:#332600;background:#ffdb66;'));
   assert.ok(actionCss.includes('.button.pdf-button{color:#fff;background:#c5221f;'));

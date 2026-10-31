@@ -165,7 +165,7 @@ class PenetrationReferenceTests(unittest.TestCase):
         value = self.resolve(library_item_id='pkb-001', takeoff_reference_ids=['report-a-v2'])
         self.assertEqual(value['systems'][0]['id'], 'report-a-v2')
         self.assertEqual(value['basis'], 'takeoff')
-        self.assertEqual(value['reports'][0]['url'], '/api/libraries/documents/report-a.pdf')
+        self.assertIsNone(value['reports'][0]['url'])
         value = self.resolve(library_item_id='pkb-001', takeoff_reference_ids=['report-a-v2'], technical_reference_ids=['report-a-v1'])
         self.assertEqual(value['systems'][0]['id'], 'report-a-v1')
         self.assertEqual(value['basis'], 'selected')
@@ -310,7 +310,7 @@ class PenetrationReferenceTests(unittest.TestCase):
         self.assertNotIn('Cell', cells)
         self.assertFalse(any('report-a-v1' in value for value in cells))
 
-    def test_local_report_assets_are_links_in_individual_and_combined_pdf_schedules(self):
+    def test_local_report_assets_remain_plain_captions_in_all_pdf_schedules(self):
         from estimator.project_reports import build_project_report
         draft=deepcopy(self.draft);draft['rows'][0]['takeoff_reference_ids']=['report-a-v2']
         result=calculate(draft);origin='http://127.0.0.1:8765'
@@ -318,7 +318,8 @@ class PenetrationReferenceTests(unittest.TestCase):
                   build_project_report({},draft,{}, {},library=self.library,report_origin=origin)]
         for payload in payloads:
             uris=[annotation.get_object().get('/A',{}).get('/URI') for page in PdfReader(BytesIO(payload)).pages for annotation in page.get('/Annots',[])]
-            self.assertIn(origin+'/api/libraries/documents/report-a.pdf',uris)
+            self.assertFalse(any('/api/libraries/documents/' in (uri or '') for uri in uris))
+            self.assertIn('TEST-200 Rev B', '\n'.join(page.extract_text() for page in PdfReader(BytesIO(payload)).pages))
 
     def test_excel_rejects_report_lists_that_would_be_silently_truncated(self):
         records = self.data['libraries']['technical']['items']

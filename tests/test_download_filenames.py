@@ -35,10 +35,10 @@ class DownloadNameTests(unittest.TestCase):
         header=project_download_header('CEASEFIRE-工程.pdf')
         self.assertEqual(download_header(header),project_download_header('工程.pdf'))
 
-    def test_pdf_report_links_allow_only_known_local_asset_routes_and_valid_public_urls(self):
+    def test_pdf_report_links_never_publish_internal_asset_routes(self):
         route='/api/libraries/documents/report-a.pdf'
-        self.assertEqual(pdf_report_href(route,'http://127.0.0.1:8765'),'http://127.0.0.1:8765'+route)
-        self.assertEqual(pdf_report_href(route),route)
+        self.assertIsNone(pdf_report_href(route,'http://127.0.0.1:8765'))
+        self.assertIsNone(pdf_report_href(route))
         for value in ['/api/libraries/documents/../secret.pdf','//example.com/report.pdf','javascript:alert(1)','/api/documentation/secret',None]:
             self.assertIsNone(pdf_report_href(value))
 

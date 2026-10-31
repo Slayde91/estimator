@@ -38,10 +38,10 @@ class CertificateLayoutTests(unittest.TestCase):
                    and rect['non_stroking_color'][0] > .7
                    and rect['non_stroking_color'][1] < .05
                    and rect['non_stroking_color'][2] < .15]
-            self.assertEqual(len(red), 1)
+            self.assertEqual(len(red), 2)
             for label in ('Name', 'Position', 'Qualification', 'Accreditation'):
-                self.assertGreaterEqual(by_text[label]['top'], red[0]['top'])
-                self.assertLessEqual(by_text[label]['bottom'], red[0]['bottom'])
+                self.assertGreaterEqual(by_text[label]['top'], red[-1]['top'])
+                self.assertLessEqual(by_text[label]['bottom'], red[-1]['bottom'])
 
     def test_titles_are_regular_red_and_small_duplicate_header_is_removed(self):
         payload = self.render(client='BODYCLIENT', australian_standards='BODYSTANDARD', name='BODYSIGNER')
@@ -49,19 +49,19 @@ class CertificateLayoutTests(unittest.TestCase):
             words = [word for page in document.pages
                      for word in page.extract_words(extra_attrs=['fontname', 'non_stroking_color'])]
             by_text = {word['text']: word for word in words}
-            for label in ('Installation', 'Statement', 'Client', 'Project', 'Address', 'Location/Area',
+            for label in ('Installation', 'Statement',
                           'Exclusions', 'Materials/Manufacturers:', 'Date:'):
                 word = by_text[label]
                 self.assertNotIn('Bold', word['fontname'])
                 self.assertAlmostEqual(word['non_stroking_color'][0], 189/255, delta=.001)
                 self.assertEqual(word['non_stroking_color'][1], 0)
-            for label in ('Name', 'Position', 'Qualification', 'Accreditation'):
+            for label in ('Client', 'Project', 'Address', 'Location/Area', 'Name', 'Signature', 'Position', 'Qualification', 'Accreditation'):
                 self.assertEqual(tuple(by_text[label]['non_stroking_color']), (1, 1, 1))
                 self.assertNotIn('Bold', by_text[label]['fontname'])
             for value in ('BODYCLIENT', 'BODYSTANDARD', 'BODYSIGNER'):
                 self.assertEqual(tuple(by_text[value]['non_stroking_color']), (0, 0, 0))
             text = '\n'.join(page.extract_text() for page in document.pages)
-            self.assertNotIn('INSTALLATION CERTIFICATE', text)
+            self.assertIn('INSTALLATION CERTIFICATE | Revision 2', text)
             self.assertIn('Installation Certificate', text)
             self.assertIn('Exclusions - Certification is strictly limited to works completed by Layout Company, as per:', text)
 
@@ -97,8 +97,8 @@ class CertificateLayoutTests(unittest.TestCase):
             page, artwork = signatures[0]
             signer = next(word for word in page.extract_words() if word['text']=='SIGNERART')
             position = next(word for word in page.extract_words() if word['text']=='POSITIONART')
-            self.assertGreater(artwork['top'], signer['bottom'])
-            self.assertGreaterEqual(artwork['x0'], signer['x0']-.1)
+            self.assertAlmostEqual(artwork['top'], signer['top'], delta=3)
+            self.assertGreater(artwork['x0'], signer['x1'])
             self.assertLess(artwork['x1'], position['x0'])
 
     def test_complete_multiline_signed_certificate_keeps_name_signature_and_date_on_one_page(self):
@@ -121,7 +121,7 @@ class CertificateLayoutTests(unittest.TestCase):
             page = document.pages[0]
             words = {word['text']: word for word in page.extract_words()}
             image = next(image for image in page.images if image['srcsize'] == (480, 140))
-            self.assertGreater(image['top'], words['EXAMPLESIGNER']['bottom'])
+            self.assertGreater(image['x0'], words['EXAMPLESIGNER']['x1'])
             self.assertGreater(words['Date:']['top'], image['bottom'])
             self.assertLess(words['Date:']['bottom'], page.height - 44)
 
@@ -149,7 +149,7 @@ class CertificateLayoutTests(unittest.TestCase):
                 self.assertLess(by_text[label]['bottom'], by_text[value]['top'])
                 self.assertAlmostEqual(by_text[label]['x0'], by_text[value]['x0'], delta=1)
             first = by_text['STANDARDVALUE']
-            self.assertLess(first['x0'], 50)
+            self.assertAlmostEqual(first['x0'], 54, delta=1)
             line = [word for word in words if abs(word['top']-first['top'])<1]
             self.assertGreater(max(word['x1'] for word in line), 500)
             for page in document.pages:

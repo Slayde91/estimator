@@ -887,7 +887,7 @@
       const validReports = reportLinks.length > 0 && reportLinks.length <= 20 && new Set(reportLabels).size === reportLabels.length && reportLinks.every((link, i) => {
         if (reportPositions[i] < 0 || i > 0 && reportPositions[i] <= reportPositions[i - 1] || typeof link.url !== "string" || /[\s<>"\\\x00-\x1f\x7f]/.test(link.url)) return false;
         if (data.user_authored === true) { try { const url = new URL(link.url); return ["http:", "https:"].includes(url.protocol) && !!url.hostname && !url.username && !url.password; } catch { return false; } }
-        if (link.url === "https://systems.tbafirefly.com.au/reports") return true;
+        if (["https://systems.tbafirefly.com.au/", "https://systems.tbafirefly.com.au/reports"].includes(link.url)) return true;
         try { const u = new URL(link.url); return u.protocol === "https:" && !u.username && !u.password && (
           ["media.promat.com", "etex.azureedge.net"].includes(u.host) && /\.pdf$/i.test(u.pathname) ||
           u.host === "tfire.com.au" && /^https:\/\/tfire\.com\.au\/documents\/[A-Za-z0-9][A-Za-z0-9_.()=-]*$/.test(link.url) ||

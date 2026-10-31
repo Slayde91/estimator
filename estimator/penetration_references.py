@@ -4,9 +4,8 @@ import json
 import re
 
 from .catalog import ValidationError
-from .library_report_links import FIREFLY_REPORTS_URL, valid_report_url
+from .library_report_links import report_href
 from .register_references import ReferenceIndex, criteria_for, physical_contexts, token
-from .technical_catalog_policy import assigned_report_url
 
 MAX_SELECTIONS = 128
 REFERENCE_FIELDS = ('technical_reference_ids', 'takeoff_reference_ids')
@@ -49,29 +48,10 @@ def _takeoff_context(row, snapshot):
 
 def _reports(ids, index, data):
     reports, _ = index._reports(ids)
-    local_links, public_links = {}, {}
-    for key in ids:
-        for field in index.records[key].get('fields', []):
-            if field.get('label') == 'Report Number':
-                for link in field.get('report_links', []):
-                    if valid_report_url(link.get('url')):
-                        public_links.setdefault(token(link['label']), set()).add(link['url'])
-        captions, _ = index._reports([key])
-        documents = {source['document_id'] for source in index.records[key].get('sources', [])
-                     if source.get('document_id') in (data or {}).get('_assets', {})
-                     and data['_assets'][source['document_id']].get('pdf')}
-        if len(captions) == 1:
-            local_links.setdefault(token(captions[0]['label']), set()).update(documents)
     for report in reports:
-        # A catalog-assigned supplier report is not the individual source
-        # diagram PDF. Different diagram assets cannot cancel that exact link.
-        if report['url'] and report['url'] == assigned_report_url(report['label']):
-            continue
-        documents = local_links.get(token(report['label']), set())
-        if len(documents) > 1 or len(public_links.get(token(report['label']), set())) > 1:
-            report['url'] = None
-        elif len(documents) == 1 and report['url'] in (None, FIREFLY_REPORTS_URL):
-            report['url'] = '/api/libraries/documents/' + next(iter(documents)) + '.pdf'
+        # The index already distinguishes reviewed catalog links from explicit
+        # user-authored ones. Recheck the outbound boundary, never local assets.
+        report['url'] = report_href(report['label'], report['url'], user_authored=True)
     return reports
 
 

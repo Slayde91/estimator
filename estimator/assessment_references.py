@@ -9,6 +9,7 @@ import json
 import re
 
 from .catalog import ROOT
+from .library_report_links import report_href
 
 
 _PUBLIC = {
@@ -40,7 +41,8 @@ def _links():
 def _references(labels):
     # Exact editions stay distinct: only a source evaluated under the reviewed
     # current report gets its URL. Historic captions are never silently relabelled.
-    return [{'label': label, 'url': _links().get(label)} for label in dict.fromkeys(labels)]
+    return [{'label': label, 'url': report_href(label, _links().get(label), user_authored=True)}
+            for label in dict.fromkeys(labels)]
 
 
 def schedule_report_references(calculator_id, engine, row):

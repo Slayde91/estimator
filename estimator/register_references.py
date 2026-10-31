@@ -13,7 +13,7 @@ import re
 
 from .catalog import ValidationError
 from .firestopping_taxonomy import category_service, canonical_opening_type
-from .library_report_links import valid_report_url
+from .library_report_links import report_href
 
 _DASHES = str.maketrans({value: '-' for value in '‐‑‒–—−'})
 MAX_RESPONSE_BYTES = 8 * 1024 * 1024
@@ -290,12 +290,14 @@ class ReferenceIndex:
                     continue
                 links = defaultdict(list)
                 for link in field.get('report_links', []):
-                    if valid_report_url(link.get('url')):
-                        links[token(link['label'])].append(link['url'])
+                    url = report_href(link.get('label', ''), link.get('url'),
+                                      user_authored=self.records[identifier].get('user_authored') is True)
+                    if url:
+                        links[token(link['label'])].append(url)
                 for label in literal(field.get('value')).splitlines():
                     label = label.strip()
                     if label:
-                        for url in links.get(token(label), [None]):
+                        for url in links.get(token(label), [report_href(label)]):
                             key = token(label)
                             existing = reports.get(key)
                             old_size = len(_encoded({'label': existing['label'], 'url': next(iter(existing['urls'])) if len(existing['urls']) == 1 else None})) if existing else 0

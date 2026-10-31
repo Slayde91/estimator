@@ -62,12 +62,12 @@ async function checkDocuments(scope, ids) {
   const active = [...(graph.defects || []), ...graph.barriers, ...graph.services].filter(entry => !entry.deleted).map(entry => entry.id);
   const root = page.locator('.takeoff-physical-register'), documentMenu = page.locator('.takeoff-workspace-heading .takeoff-physical-document-host'), toggle = documentMenu.getByRole('button', { name: 'Document', exact: true }), list = documentMenu.locator('.calculator-document-actions');
   await toggle.press('ArrowDown'); await expect(list).toBeVisible(); await expect(list.getByRole('button', { name: 'Confirmed items', exact: true })).toBeFocused();
-  await page.keyboard.press('End'); await expect(list.getByRole('button', { name: 'All items', exact: true })).toBeFocused();
+  await page.keyboard.press('End'); await expect(list.getByRole('button', { name: 'Markups', exact: true })).toBeFocused();
   await page.keyboard.press('Escape'); await expect(list).toBeHidden(); await expect(toggle).toBeFocused();
   await setFilter('Category', ['Mechanical']); // Export selection is independent of the visible register filter.
   const confirmed=scope==='service_plans'?[ids.b1,ids.s1,ids.s2]:[ids.d1,ids.b1,ids.b3,ids.s1,ids.s2];
   for (const [selection, expected] of [['confirmed', confirmed], ['unconfirmed', active.filter(id => !confirmed.includes(id))], ['all', active]]) {
-    await toggle.click(); const action = list.getByRole('button', { name: `Download ${selection} items`, exact: true });
+    await toggle.click(); const action = list.getByRole('button', { name: `${selection[0].toUpperCase()}${selection.slice(1)} items`, exact: true });
     const position = await action.evaluate(el => ({ icon: el.firstElementChild.getBoundingClientRect().x, label: el.lastElementChild.getBoundingClientRect().x })); assert.ok(position.icon < position.label);
     const downloadWait = waitForTakeoffDownload(page), responseWait = page.waitForResponse(reply => reply.url().endsWith('/physical/export/register-xlsx'));
     await action.click(); const reply = await responseWait; assert.equal(reply.status(), 200, await reply.text()); assert.deepEqual(reply.request().postDataJSON(), { scope, expected_revision: before.revision, confirmation: selection, download: { project_token: null } });

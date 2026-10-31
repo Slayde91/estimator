@@ -87,10 +87,10 @@ async function reset(label) { await finishMenu(await menu(label), 'Reset filter'
     const geometry=await actions.evaluateAll(buttons=>buttons.map(button=>{const r=button.getBoundingClientRect(),hit=document.elementFromPoint(r.x+r.width/2,r.y+r.height/2);return{x:r.x,y:r.y,width:r.width,height:r.height,hit:button===hit||button.contains(hit)};}));
     assert.ok(geometry.every(box=>box.x>=0&&box.y>=0&&box.x+box.width<=width&&box.y+box.height<=764&&box.hit),JSON.stringify({width,geometry}));
     await page.screenshot({path:path.join(output,`document-menu-${width}.png`)});
-    await documentToggle.press('ArrowUp');await expect(documentMenu.getByRole('button',{name:'All items',exact:true})).toBeFocused();
-    await documentMenu.getByRole('button',{name:'All items',exact:true}).press('Home');await expect(documentMenu.getByRole('button',{name:'Confirmed items',exact:true})).toBeFocused();
-    await documentMenu.getByRole('button',{name:'Confirmed items',exact:true}).press('End');await expect(documentMenu.getByRole('button',{name:'All items',exact:true})).toBeFocused();
-    await documentMenu.getByRole('button',{name:'All items',exact:true}).press('Escape');await expect(documentToggle).toBeFocused();await expect(documentMenu.locator('.calculator-document-actions')).toBeHidden();
+    await documentToggle.press('ArrowUp');await expect(documentMenu.getByRole('button',{name:'Markups',exact:true})).toBeFocused();
+    await documentMenu.getByRole('button',{name:'Markups',exact:true}).press('Home');await expect(documentMenu.getByRole('button',{name:'Confirmed items',exact:true})).toBeFocused();
+    await documentMenu.getByRole('button',{name:'Confirmed items',exact:true}).press('End');await expect(documentMenu.getByRole('button',{name:'Markups',exact:true})).toBeFocused();
+    await documentMenu.getByRole('button',{name:'Markups',exact:true}).press('Escape');await expect(documentToggle).toBeFocused();await expect(documentMenu.locator('.calculator-document-actions')).toBeHidden();
     await documentToggle.click();await page.locator('.takeoff-register h2').click();await expect(documentMenu.locator('.calculator-document-actions')).toBeHidden();
     documentLayout.push({width,geometry,iconLoaded:true,keyboardHomeEndEscape:true,outsideDismissal:true});
   }
@@ -98,7 +98,7 @@ async function reset(label) { await finishMenu(await menu(label), 'Reset filter'
   const downloadResults={};
   for(const [category,count] of [['confirmed',2],['unconfirmed',202],['all',204]]) {
     await documentToggle.click();const requested=page.waitForRequest(request=>request.url().endsWith('/export/register-xlsx')),download=waitForTakeoffDownload(page);
-    await documentMenu.getByRole('button',{name:`Download ${category==='all'?'all':category} items`,exact:true}).click();const body=(await requested).postDataJSON();assert.equal(body.mode,'walls_floors');assert.equal(body.confirmation,category);assert.equal(body.item_ids.length,204);
+    await documentMenu.getByRole('button',{name:`${category[0].toUpperCase()}${category.slice(1)} items`,exact:true}).click();const body=(await requested).postDataJSON();assert.equal(body.mode,'walls_floors');assert.equal(body.confirmation,category);assert.equal(body.item_ids.length,204);
     const target=path.join(output,`${category}-walls-floors.xlsx`);await(await download).saveAs(target);
     const result=require('node:child_process').spawnSync(process.env.CEASEFIRE_PYTHON||'python',['-B','-c',"import json,sys\nfrom openpyxl import load_workbook\nw=load_workbook(sys.argv[1]);r=list(w.active.values);print(json.dumps({'sheets':w.sheetnames,'headers':r[0],'rows':[dict(zip(r[0],v)) for v in r[1:]]}))",target],{cwd:root,windowsHide:true,encoding:'utf8'});assert.equal(result.status,0,result.stderr);const workbook=JSON.parse(result.stdout),exported=workbook.rows;assert.equal(exported.length,count);assert.deepEqual([...new Set(exported.map(row=>row['Surface type']))],['Wall','Floor']);assert.deepEqual(workbook.sheets,['Current Takeoffs']);
     const registerHeaders=['Confirmation','Surface ID','Surface type','Level','Surface basis','Substrate','Treatment','Protection system','Protection product','FRL / fire rating','Number of layers','Gross (m²)','Excluded (m²)','Net (m²)','Total (m²)','Evidence / issues'];

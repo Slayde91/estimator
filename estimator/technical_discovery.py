@@ -138,6 +138,9 @@ def project_smoke_sampling_services(records, discovery, *, explicit_ids=(), line
 def present_technical(item, *, source_ratings=None):
     """Return a display copy; retained technical_basis and sources stay verbatim."""
     result = deepcopy(item)
+    # Compare literal source values before FRL display aliases can make two
+    # distinct source ratings look equal.
+    compact_repeated_fields(result.get('fields', []))
     if 'substrate' in result.get('filter_values', {}):
         result['filter_values']['substrate'] = list(dict.fromkeys(canonical_substrate(value)
             for value in result['filter_values']['substrate']))
@@ -153,5 +156,4 @@ def present_technical(item, *, source_ratings=None):
                        if re.search(r'\bfrl\b', label.replace('_', ' '), re.I)}
             table['rows'] = [[present_frl_text(value, rating=True) if index in columns else value
                               for index, value in enumerate(row)] for row in table['rows']]
-    compact_repeated_fields(result.get('fields', []))
     return result

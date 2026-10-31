@@ -44,6 +44,12 @@ class RepeatedLibraryFieldsTests(unittest.TestCase):
     def test_alternatives_and_ambiguous_fields_remain(self):
         item = self.service(); item['fields'][-1]['table']['rows'].append(['Aluminium Cables', 'Other bundle', '400mm', '-/120/120'])
         self.assertIn('table', present_technical(item)['fields'][-1])
+
+    def test_display_rating_aliases_cannot_hide_distinct_source_ratings(self):
+        item = self.service()
+        item['fields'][2]['value'] = '-/30/30'
+        item['fields'][-1]['table']['rows'][0][-1] = '-/45/45'
+        self.assertIn('table', present_technical(item)['fields'][-1])
         item = self.service(); item['fields'].insert(0, field('Service', 'Aluminium Cables'))
         self.assertIn('table', present_technical(item)['fields'][-1])
 

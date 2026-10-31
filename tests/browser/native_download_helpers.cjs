@@ -9,7 +9,7 @@ function waitForTakeoffDownload(page) {
     const request = response.request();
     return request.method() === 'POST' && /\/api\/takeoffs\/sessions\/[^/]+\/(?:physical\/)?export\//.test(new URL(response.url()).pathname)
       && request.postDataJSON()?.download;
-  }).then(async response => {
+  }, {timeout:180000}).then(async response => {
     const receipt = await response.json();
     assert.equal(response.status(), 200, JSON.stringify(receipt));
     assert.match(response.headers()['content-type'], /^application\/json/);

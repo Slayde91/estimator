@@ -3,6 +3,9 @@
   const $ = id => document.getElementById(id), copy = value => JSON.parse(JSON.stringify(value));
   const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
   const PDF = "application/pdf", XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+  // These exports remain available in their source workspaces and keep their
+  // saved history, but do not have rows in the Documentation PDF list.
+  const omittedRows = new Set(['firestopping.current_item.pdf','library.technical.item.pdf','takeoff.pdf_tools.pdf']);
   const state = { epoch:0, scope:null, model:null, baseline:0, opening:null, catalog:null, catalogLoading:null,
     refreshRevision:0, action:null, uncertain:false, pending:new Map(), sources:new Map() };
   const captures = new WeakMap();
@@ -87,7 +90,7 @@
     }
     for(const format of ['pdf','xlsx']) {
       const host=$("documentation-"+format+"-rows");if(!host)continue;
-      host.replaceChildren(...rows.filter(row=>row.format===format).map(row=>{
+      host.replaceChildren(...rows.filter(row=>row.format===format&&!omittedRows.has(row.id)).map(row=>{
         const tr=node('tr'), action=node('td'), history=node('td'), controls=node('div','documentation-download');
         tr.dataset.documentKind=row.id;
         const button=node('button','button secondary',row.label);button.type='button';button.dataset.documentKind=row.id;

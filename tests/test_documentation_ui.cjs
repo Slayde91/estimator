@@ -12,7 +12,11 @@ const item=(n,scope=1,values={})=>({id:identity(n),kind:'estimate.summary.pdf',l
   media_type:PDF,created_at:'2026-10-30T01:00:00Z',url:'/api/documentation/'+identity(n)+'?workspace='+token(scope),...values});
 const catalog=[{id:'estimate.summary.pdf',label:'Estimate Summary',format:'pdf',adapter:'estimate',spec:{action:'summary'}},
   {id:'calculator.ductwork.register.xlsx',label:'Ductwork Register',format:'xlsx',adapter:'calculator',spec:{calculatorId:'ductwork',action:'register'}},
-  {id:'firestopping.current_item.pdf',label:'Firestopping Item Details',format:'pdf',adapter:'firestopping',spec:{scope:'current_item',format:'pdf'}}];
+  {id:'firestopping.current_item.pdf',label:'Firestopping Item Details',format:'pdf',adapter:'firestopping',spec:{scope:'current_item',format:'pdf'}},
+  {id:'firestopping.current_item.xlsx',label:'Firestopping Item Details',format:'xlsx',adapter:'firestopping',spec:{scope:'current_item',format:'xlsx'}},
+  {id:'library.technical.item.pdf',label:'Technical Library item',format:'pdf',adapter:'library',spec:{source:'technical',format:'pdf'}},
+  {id:'library.technical.item.xlsx',label:'Technical Library item',format:'xlsx',adapter:'library',spec:{source:'technical',format:'xlsx'}},
+  {id:'takeoff.pdf_tools.pdf',label:'PDF tools',format:'pdf',adapter:'takeoff',spec:{action:'pdf_tools'}}];
 function harness(){
   const elements=new Map(),calls=[],events={},adapters=[];let selected=1,serial=20,changed=0,override=null,adapterOverride=null;
   const models=new Map([[token(1),model(1)],[token(2),model(2)]]);
@@ -43,7 +47,7 @@ function harness(){
     override:fn=>{override=fn;},adapterOverride:fn=>{adapterOverride=fn;},scope:n=>{selected=n;},changed:()=>changed,
     links:()=>['pdf','xlsx'].flatMap(fmt=>descendants(byId('documentation-'+fmt+'-rows'),e=>e.tagName==='A')),
     buttons:()=>['pdf','xlsx'].flatMap(fmt=>descendants(byId('documentation-'+fmt+'-rows'),e=>e.tagName==='BUTTON')),
-    select:()=>descendants(byId('documentation-pdf-rows'),e=>e.tagName==='SELECT')[0],
+    select:()=>descendants(byId('documentation-xlsx-rows'),e=>e.tagName==='SELECT')[0],
     adopt:n=>{selected=n;window.CeasefireDocumentation.applyProject({scope:{workspace_id:token(n),project_id:project(n)},model:copy(models.get(token(n)))});}};
 }
 let passed=0;
@@ -51,9 +55,21 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
 (async()=>{
   await check('Catalog separates PDF and XLSX and displays exact project-scoped immutable revision links',async h=>{
     h.models.set(token(1),model(1,[item(1),item(2,1,{kind:'calculator.ductwork.register.xlsx',media_type:XLSX,filename:'Ductwork.xlsx'})]));
-    await h.api.open();assert.equal(h.byId('documentation-pdf-rows').children.length,2);assert.equal(h.byId('documentation-xlsx-rows').children.length,1);
+    await h.api.open();assert.equal(h.byId('documentation-pdf-rows').children.length,1);assert.equal(h.byId('documentation-xlsx-rows').children.length,3);
     assert.deepEqual(h.links().map(link=>link.href),[item(1).url,item(2).url]);assert.ok(h.links().every(link=>link.target==='_blank'&&link.rel==='noopener'));
     assert.equal(h.api.hasProjectChanges(),false);assert.equal(h.api.hasPendingOperation(),false);
+  });
+  await check('Removed PDF rows stay absent with saved revisions while XLSX choices and project history survive',async h=>{
+    const kinds=['firestopping.current_item.pdf','library.technical.item.pdf','takeoff.pdf_tools.pdf'];
+    const history=kinds.map((kind,index)=>item(index+1,1,{kind}));
+    h.models.set(token(1),model(1,history));await h.api.open();
+    const rows=h.byId('documentation-pdf-rows').children.map(row=>row.dataset.documentKind);
+    assert.deepEqual(rows,['estimate.summary.pdf']);assert.deepEqual(h.links(),[]);
+    assert.ok(h.buttons().some(button=>button.dataset.documentKind==='firestopping.current_item.xlsx'));
+    assert.ok(h.buttons().some(button=>button.dataset.documentKind==='library.technical.item.xlsx'));
+    const prepared=await h.api.prepareProject(null,token(1));
+    assert.deepEqual(copy(prepared.model.items),history);
+    const snapshot=await h.api.completeProjectSnapshot();assert.equal(snapshot.expected_revision,3);
   });
   await check('Malformed revision identities and URLs cannot become links or replace a prepared project',async h=>{
     await h.api.open();const before=h.api.projectFingerprint();
@@ -141,8 +157,8 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
   });
   await check('Documentation uses the selected existing adapter and retains explicit source preparation',async h=>{
     await h.api.open();h.adapterOverride(()=>({selectionRequired:true}));const select=h.select();select.value='library';await select.emit('change');
-    await h.buttons().find(button=>button.dataset.documentKind==='firestopping.current_item.pdf').emit('click');await flush();
-    assert.equal(h.adapters[0].owner,'library-editor');assert.deepEqual(h.adapters[0].spec,{format:'pdf'});
+    await h.buttons().find(button=>button.dataset.documentKind==='firestopping.current_item.xlsx').emit('click');await flush();
+    assert.equal(h.adapters[0].owner,'library-editor');assert.deepEqual(h.adapters[0].spec,{format:'xlsx'});
     assert.match(h.byId('documentation-status').textContent,/Complete the document options/);assert.equal(h.api.hasPendingOperation(),false);
   });
   await check('Failed source export is visible without claiming a saved revision or leaving a pending action',async h=>{

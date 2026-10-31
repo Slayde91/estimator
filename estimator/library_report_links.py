@@ -5,16 +5,18 @@ from urllib.parse import urlsplit
 
 REPORT_HOSTS = {'media.promat.com', 'etex.azureedge.net'}
 TRAFALGAR_REPORT_PATH = re.compile(r'/documents/[A-Za-z0-9][A-Za-z0-9_.()=-]*')
-FIREFLY_REPORTS_URL = 'https://systems.tbafirefly.com.au/'
-_LEGACY_FIREFLY_URL = 'https://systems.tbafirefly.com.au/reports'
+# Retained source-review projections bind this historical value. Navigation
+# uses FIREFLY_PUBLIC_URL only after those evidence fingerprints are checked.
+FIREFLY_REPORTS_URL = 'https://systems.tbafirefly.com.au/reports'
+FIREFLY_PUBLIC_URL = 'https://systems.tbafirefly.com.au/'
 
 
 def report_href(label, value=None, *, user_authored=False):
     """Display policy only: never promote an internal source copy to a report."""
     if re.match(r'^FAS\s*19023[456](?=\b|[_/])', str(label).strip(), re.I):
-        return FIREFLY_REPORTS_URL
-    if value == _LEGACY_FIREFLY_URL:
-        return FIREFLY_REPORTS_URL
+        return FIREFLY_PUBLIC_URL
+    if value == FIREFLY_REPORTS_URL:
+        return FIREFLY_PUBLIC_URL
     if isinstance(value, str):
         try:
             if urlsplit(value).path.startswith('/api/libraries/documents/'):
@@ -49,7 +51,7 @@ def valid_report_url(value):
         return False
     if re.search(r'[\s<>"\\\x00-\x1f\x7f]', value):
         return False
-    if value in (FIREFLY_REPORTS_URL, _LEGACY_FIREFLY_URL):
+    if value in (FIREFLY_REPORTS_URL, FIREFLY_PUBLIC_URL):
         return True
     try:
         url = urlsplit(value)

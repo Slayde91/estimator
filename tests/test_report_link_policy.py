@@ -1,6 +1,6 @@
 """Public report navigation never exposes internal source copies."""
 import unittest
-from estimator.library_report_links import report_href, pdf_report_href, FIREFLY_REPORTS_URL
+from estimator.library_report_links import report_href, pdf_report_href, FIREFLY_PUBLIC_URL
 
 
 class ReportLinkPolicyTests(unittest.TestCase):
@@ -25,7 +25,7 @@ class ReportLinkPolicyTests(unittest.TestCase):
         self.assertIsNone(report_href('REPORT-123'))
 
     def test_legacy_firefly_url_normalizes_without_rewriting_evidence(self):
-        self.assertEqual(pdf_report_href('https://systems.tbafirefly.com.au/reports'), FIREFLY_REPORTS_URL)
+        self.assertEqual(pdf_report_href('https://systems.tbafirefly.com.au/reports'), FIREFLY_PUBLIC_URL)
 
 
 if __name__ == '__main__':

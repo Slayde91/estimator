@@ -20,7 +20,7 @@ from estimator.firefly_technical_review import (
     projection_fingerprint, validate_plan,
 )
 from estimator.firestopping_library import FirestoppingLibrary
-from estimator.library_report_links import FIREFLY_REPORTS_URL
+from estimator.library_report_links import FIREFLY_REPORTS_URL, FIREFLY_PUBLIC_URL
 from estimator.reference_library import ReferenceLibrary
 from estimator.register_references import ReferenceIndex
 from estimator.storage import Store
@@ -244,7 +244,7 @@ class FireflyTechnicalReviewTests(unittest.TestCase):
             index = ReferenceIndex(data, 'synthetic-revision')
             reports, _ = index._reports([key])
             self.assertEqual([report['label'] for report in reports], ['FAS190234', 'FAS190235'])
-            self.assertTrue(all(report['url'] == FIREFLY_REPORTS_URL for report in reports))
+            self.assertTrue(all(report['url'] == FIREFLY_PUBLIC_URL for report in reports))
             option = next(field for field in library.listing('technical')['filters'] if field['key'] == 'report')
             self.assertTrue(all(name in [row['value'] for row in option['options']] for name in ('FAS190234', 'FAS190235')))
             snapshot = prepare_technical_item({'id': key}, library=library)
@@ -261,7 +261,7 @@ class FireflyTechnicalReviewTests(unittest.TestCase):
                 self.assertNotIn(value, text + xml)
             workbook = load_workbook(BytesIO(payload))
             links = [(cell.value, cell.hyperlink.target) for sheet in workbook for row in sheet for cell in row if cell.hyperlink]
-            self.assertEqual(links, [(name, FIREFLY_REPORTS_URL) for name in ('FAS190234', 'FAS190235')])
+            self.assertEqual(links, [(name, FIREFLY_PUBLIC_URL) for name in ('FAS190234', 'FAS190235')])
 
     def test_existing_plain_report_filter_includes_all_service_records_without_revision_options(self):
         with tempfile.TemporaryDirectory() as temporary:

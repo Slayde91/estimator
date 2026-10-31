@@ -365,16 +365,6 @@ class ReferenceLibrary:
                                     {'label': label.strip(), 'url': FIREFLY_REPORTS_URL}
                                     for label in field['value'].splitlines() if label.strip()]
                                 validate_report_links(field)
-                    for field in item.get('fields', []):
-                        if field.get('label') == 'Report Number':
-                            old_links = {link['label']: link['url'] for link in field.get('report_links', [])}
-                            field['report_links'] = [
-                                {'label': label.strip(), 'url': url}
-                                for label in field.get('value', '').splitlines() if label.strip()
-                                if (url := report_href(label.strip(), old_links.get(label.strip()),
-                                                       user_authored=item.get('user_authored') is True))]
-                            if not field['report_links']:
-                                field.pop('report_links', None)
                 values['substrate'] = classify_substrates(
                     source_item, item, selector_capture=selector_context,
                     source_documents=assets)
@@ -525,6 +515,23 @@ class ReferenceLibrary:
                 entry['title'] = public_technical[entry['id']]['title']
         data['_aliases'], data['_groups'], data['_visible'] = aliases, groups, visible
         data['_technical_discovery'] = discovery
+        # Outbound navigation is presentation, after every source-bound review
+        # has validated its unchanged projection. Never rewrite _records or a
+        # fingerprinted capability to change a public hyperlink.
+        if not reuse_technical:
+            public_technical = deepcopy(public_technical)
+            for item in public_technical.values():
+                for field in item.get('fields', []):
+                    if field.get('label') == 'Report Number':
+                        old_links = {link['label']: link['url'] for link in field.get('report_links', [])}
+                        outbound_links = [{'label': label.strip(), 'url': url}
+                                 for label in field.get('value', '').splitlines() if label.strip()
+                                 if (url := report_href(label.strip(), old_links.get(label.strip()),
+                                                        user_authored=item.get('user_authored') is True))]
+                        if outbound_links:
+                            field['report_links'] = outbound_links
+                        else:
+                            field.pop('report_links', None)
         data['_technical_public_records'] = public_technical
         data['_technical_related_records'] = technical_related
         data['_technical_reviewed_substrates'] = reviewed_substrates

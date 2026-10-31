@@ -124,7 +124,7 @@ async function physicalThemeLabels(kind) {
   await details().getByLabel('Defect Ref.', { exact: true }).fill('UPDATED-FRAMED-DEFECT'); await details().getByLabel('Defect Ref.', { exact: true }).press('Tab'); await expect(callout()).toContainText('UPDATED-FRAMED-DEFECT'); await snapshot(); await textFits();
   await page.getByRole('button', { name: 'Close Item Details', exact: true }).click(); await fit(); const savedGraph = structuredClone((await snapshot()).physical);
   const download = waitForTakeoffDownload(page); await page.evaluate(() => window.CeasefireTakeoffs.downloadDrawing()); const pdf = await download; await pdf.saveAs(path.join(output, 'defect-callout.pdf')); assert.ok(fs.statSync(path.join(output, 'defect-callout.pdf')).size > 1000); assert.deepEqual((await snapshot()).physical, savedGraph);
-  await response(() => clickProjectControl(page, 'Save'), '/api/project/save-as'); const saved = JSON.parse(fs.readFileSync(info.project, 'utf8')); assert.deepEqual(saved.takeoffs.physical, savedGraph);
+  await response(() => clickProjectControl(page, 'Save'), '/api/project/save'); const saved = JSON.parse(fs.readFileSync(info.project, 'utf8')); assert.deepEqual(saved.takeoffs.physical, savedGraph);
   // Reopen retains the old canvas while its new worker reads the PDF. Delay
   // that read and its render-proof reply independently so navigation must wait
   // for both, rather than editing a page field an older render can replace.

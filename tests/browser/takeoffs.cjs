@@ -397,7 +397,7 @@ async function boardJourney(info) {
   await chooseTakeoff(page, 'duct');
   await viewRegisterItem(page, ductId);
   // Project Save As commits the companion bundle before the complete JSON.
-  const savedResponse = page.waitForResponse(r => r.url().endsWith('/api/project/save-as'));
+  const savedResponse = page.waitForResponse(r => r.url().endsWith('/api/project/save'));
   await clickProjectControl(page, 'Save');
   const saved = await savedResponse; assert.equal(saved.status(), 200, await saved.text());
   await expect(page.locator('#project-save-state')).toHaveText('Saved project');

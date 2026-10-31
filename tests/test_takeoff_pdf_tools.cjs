@@ -53,6 +53,17 @@ function harness() {
 }
 const pdf=()=>new Blob(["%PDF-1.7\nDisposable bytes"],{type:"application/pdf"});
 function open(h,operation="organise",options={}){return h.api.open({operation,documents:copy(documents),expectedRevision:7,requestPDF:async()=>pdf(),...options});}
+test("Application downloads use a native save receipt without making a browser Blob download", async () => {
+  const h=harness(),calls=[],outputs=[],promise=open(h,"extract",{requestPDF:async()=>{throw Error('No binary preparation for native downloads');},
+    savePDF:async(body,button)=>{calls.push(copy(body));assert.equal(button,h.button('Create PDF'));return {saved:true,path:'C:/Project/Extract.pdf',filename:'Extract.pdf',destination:'project'};},onResult:value=>outputs.push(value)});
+  await h.dispatch(h.button('Create PDF'));const result=await promise;assert.equal(result.saved,true);assert.equal(result.action,'download');
+  assert.equal(calls.length,1);assert.equal(outputs.length,1);assert.deepEqual(h.downloads,[]);assert.equal(result.blob,undefined);
+});
+test("An unsuccessful native PDF save retains the dialog for retry and never claims a saved output", async () => {
+  const h=harness(),outputs=[],promise=open(h,"extract",{savePDF:async()=>({saved:false}),onResult:value=>outputs.push(value)});
+  await h.dispatch(h.button('Create PDF'));assert.match(h.status().textContent,/could not be confirmed/);assert.equal(h.api.hasOpenDialog(),true);assert.equal(outputs.length,0);
+  await h.dispatch(h.button('Cancel'));assert.equal(await promise,null);
+});
 test("Organise defaults to download, applies ranges/deletion and never mutates source metadata", async () => {
   const h=harness(),before=copy(documents),requests=[],outputs=[],promise=open(h,"organise",{requestPDF:async body=>{requests.push(copy(body));return pdf();},onResult:async value=>outputs.push(value)});
   assert.equal(h.output().value,"download"); h.input("Page order").value="4, 1-3";await h.dispatch(h.button("Apply page order"));

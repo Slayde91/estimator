@@ -90,7 +90,7 @@ async function download(name, expectedIds, mode, scope = null) {
   assert.equal(inspected.status,0,inspected.stderr);const proof=JSON.parse(inspected.stdout);pdfExports.push({file:target,body,proof});return proof;
 }
 async function saveLoad(info) {
-  const before=await snapshot(),saving=page.waitForResponse(v=>v.url().endsWith("/api/project/save-as"));saving.catch(()=>{});
+  const before=await snapshot(),saving=page.waitForResponse(v=>v.url().endsWith("/api/project/save"));saving.catch(()=>{});
   await clickProjectControl(page,"Save");assert.equal((await saving).status(),200);await expect(page.locator("#project-save-state")).toHaveText("Saved project");
   assert.deepEqual(JSON.parse(fs.readFileSync(info.project,"utf8")).takeoffs.graphics,before.graphics);
   const opening=page.waitForResponse(v=>v.url().endsWith("/api/project/open"));opening.catch(()=>{});await clickProjectControl(page,"Load");assert.equal((await opening).status(),200);

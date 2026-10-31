@@ -96,7 +96,7 @@ function inspectPdf(file) {
   const result = spawnSync(python, ["-c", script, file], { cwd: root, windowsHide: true, encoding: "utf8" }); assert.equal(result.status, 0, result.stderr); return JSON.parse(result.stdout);
 }
 async function saveLoad(info) {
-  const saving = page.waitForResponse(value => value.url().endsWith("/api/project/save-as")); saving.catch(() => {}); await clickProjectControl(page, "Save"); assert.equal((await saving).status(), 200);
+  const saving = page.waitForResponse(value => value.url().endsWith("/api/project/save")); saving.catch(() => {}); await clickProjectControl(page, "Save"); assert.equal((await saving).status(), 200);
   await expect(page.locator("#project-save-state")).toHaveText("Saved project"); const saved = JSON.parse(fs.readFileSync(info.project, "utf8"));
   const opening = page.waitForResponse(value => value.url().endsWith("/api/project/open")); opening.catch(() => {}); await clickProjectControl(page, "Load"); assert.equal((await opening).status(), 200);
   await page.getByRole("dialog").getByRole("button", { name: "Load Project", exact: true }).click(); await expect(page.locator("#project-save-state")).toHaveText("Saved project");

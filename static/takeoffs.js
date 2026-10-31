@@ -802,6 +802,10 @@
     setModal(true);
     try {
       await window.CeasefireTakeoffPDFTools.open({ operation, documents: clone(documents()), expectedRevision: revision, defaultAction: "download",
+        savePDF: async (payload, button) => {
+          if (sessionId !== state.session?.session_id || revision !== state.session.revision) throw new Error("The project changed. Open Tools again.");
+          return window.CeasefireDownloads.save(`/api/takeoffs/sessions/${sessionId}/pdf-tools`, payload, { button });
+        },
         requestPDF: async payload => {
           if (sessionId !== state.session?.session_id || revision !== state.session.revision) throw new Error("The project changed. Open Tools again.");
           const path = `/api/takeoffs/sessions/${sessionId}/pdf-tools`, documentationHeaders = await window.CeasefireDocumentation?.downloadHeaders?.(path, payload) || {};
@@ -818,7 +822,8 @@
     if (!result) return;
     if (sessionId !== state.session?.session_id || revision !== state.session.revision) throw new Error("The project changed. Open Tools again.");
     if (result.action === "add-source") { await upload([new File([result.blob], result.filename, { type: "application/pdf" })]); }
-    else { const url = URL.createObjectURL(result.blob), link = node("a"); link.href = url; link.download = result.filename; document.body.append(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 60000); message("PDF copy downloaded."); }
+    else if (result.saved) message(`PDF copy saved to ${result.path}.`);
+    else throw new Error("The PDF file save could not be confirmed.");
   }
   async function open() { build(); state.active = true; await ensureSession(); renderData(); scheduleLinkedThickness(true); if (state.document) await renderPage(); }
   function refreshNavigation() {

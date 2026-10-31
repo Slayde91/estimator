@@ -95,7 +95,7 @@ async function screen([x, y]) {
 }
 let savedOnce = false;
 async function saveAndLoad(info) {
-  await response(() => clickProjectControl(page, 'Save'), savedOnce ? '/api/project/save' : '/api/project/save-as');
+  await response(() => clickProjectControl(page, 'Save'), savedOnce ? '/api/project/save' : '/api/project/save');
   savedOnce = true;
   await expect(page.locator('#project-save-state')).toHaveText('Saved project'); const saved = JSON.parse(fs.readFileSync(info.project, 'utf8'));
   await response(() => clickProjectControl(page, 'Load'), '/api/project/open');

@@ -92,7 +92,7 @@ async function technicalDetails(mark, rows) {
 }
 let savedOnce = false;
 async function saveAndLoad(info) {
-  const save = page.waitForResponse(response => response.url().endsWith(savedOnce ? '/api/project/save' : '/api/project/save-as'));
+  const save = page.waitForResponse(response => response.url().endsWith(savedOnce ? '/api/project/save' : '/api/project/save'));
   await clickProjectControl(page, 'Save'); assert.equal((await save).status(), 200);
   savedOnce = true;
   await expect(page.locator('#project-save-state')).toHaveText('Saved project');

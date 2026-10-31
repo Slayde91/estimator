@@ -246,7 +246,7 @@ async function editSprayLength(binding, value) {
   await page.screenshot({path:path.join(output,'duct-refreshed-from-calculator.png')});await page.getByRole('button',{name:'Confirm',exact:true}).click();await response(()=>page.getByRole('dialog').getByRole('button',{name:'Confirm items',exact:true}).click(),'/commands');await expect(thickness(ductId)).toHaveText('38');evidence.calculatorRefreshPreservesEvidenceAndQuantities=true;
   await chooseTakeoff(page, 'steel'); await idle(); await page.getByLabel('Destination schedule', { exact: true }).selectOption('steel_vermiculite'); await expect(thickness(sprayId)).toHaveText(String(sprayValue));
   const savedBefore = await snapshot(), calculatorsBeforeSave = await calculators();
-  await response(() => clickProjectControl(page, 'Save'), '/api/project/save-as');
+  await response(() => clickProjectControl(page, 'Save'), '/api/project/save');
   await response(() => clickProjectControl(page, 'Load'), '/api/project/open'); await page.getByRole('dialog').getByRole('button', { name: 'Load Project', exact: true }).click();
   await expect(page.locator('#project-save-state')).toHaveText('Saved project'); await page.getByRole('button', { name: 'Takeoffs', exact: true }).click();
   await expect(thickness(sprayId)).toHaveText(String(sprayValue)); assert.deepEqual((await snapshot()).transfers, savedBefore.transfers); assert.deepEqual(await calculators(), calculatorsBeforeSave); evidence.saveReopenRetainsProvenance = true;

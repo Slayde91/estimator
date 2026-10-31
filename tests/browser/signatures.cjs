@@ -119,7 +119,7 @@ async function download(name, expectedIds, physicalScope = null) {
   assert.equal(inspected.status, 0, inspected.stderr); const proof = JSON.parse(inspected.stdout); pdfExports.push({ file: target, body, proof }); return proof;
 }
 async function saveLoad(info) {
-  const before = await snapshot(), saving = page.waitForResponse(reply => reply.url().endsWith("/api/project/save-as")); saving.catch(() => {});
+  const before = await snapshot(), saving = page.waitForResponse(reply => reply.url().endsWith("/api/project/save")); saving.catch(() => {});
   await clickProjectControl(page, "Save"); assert.equal((await saving).status(), 200); await expect(page.locator("#project-save-state")).toHaveText("Saved project");
   const saved = JSON.parse(fs.readFileSync(info.project, "utf8")); assert.deepEqual(saved.takeoffs.signatures, before.signatures);
   const opening = page.waitForResponse(reply => reply.url().endsWith("/api/project/open")); opening.catch(() => {}); await clickProjectControl(page, "Load");

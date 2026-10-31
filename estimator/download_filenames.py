@@ -8,12 +8,17 @@ DOCUMENT_FILENAMES = {
     'project.full_schedule.pdf': 'FULL_SCHEDULE.pdf',
     'project.full_product_summary.pdf': 'FULL_PRODUCT_SUMMARY.pdf',
     'firestopping.schedule.pdf': 'FIRESTOPPING_SCHEDULE.pdf',
+    'firestopping.schedule.xlsx': 'FIRESTOPPING_SCHEDULE.xlsx',
     'certification': 'INSTALLATION_CERTIFICATE.pdf',
 }
 for _identity, _prefix in [('steel_vermiculite','SPRAY'),('steel_intumescent','PAINT'),
                            ('steel_board','BOARD'),('ductwork','DUCT')]:
     DOCUMENT_FILENAMES[f'calculator.{_identity}.schedule.pdf'] = _prefix + '_SCHEDULE.pdf'
     DOCUMENT_FILENAMES[f'calculator.{_identity}.product_summary.pdf'] = _prefix + '_PRODUCT_SUMMARY.pdf'
+    DOCUMENT_FILENAMES[f'calculator.{_identity}.register.xlsx'] = ('STEEL_SCHEDULE_' + _prefix if _identity != 'ductwork' else 'DUCT_SCHEDULE') + '.xlsx'
+for _format in ('pdf', 'xlsx'):
+    DOCUMENT_FILENAMES[f'firestopping.current_item.{_format}'] = 'FIRESTOPPING_ITEM.' + _format
+    DOCUMENT_FILENAMES[f'library.technical.item.{_format}'] = 'TECHNICAL_ITEM.' + _format
 
 
 def document_filename(kind, filename, revision=None):

@@ -254,6 +254,10 @@
     for (const [confirmation, label] of [["confirmed", "Confirmed items"], ["unconfirmed", "Unconfirmed items"], ["all", "All items"]]) {
       const action = button(label, () => { close(false); return downloadTakeoff("schedule-xlsx", confirmation, action); }, "button secondary calculator-document-action"), symbol = node("span", "download-format-icon"); symbol.setAttribute("aria-hidden", "true"); symbol.append(node("span", "download-arrow", "⇩"), node("span", "download-format", "XLSX")); action.replaceChildren(symbol, uiNode("span", "", label)); list.append(action);
     }
+    const markups = button("Markups", () => { close(false); return documentationExport({ action: "markups" }, markups); }, "button secondary calculator-document-action");
+    const icon = node("span", "download-format-icon"); icon.setAttribute("aria-hidden", "true");
+    icon.append(node("span", "download-arrow", "⇩"), node("span", "download-format", "PDF"));
+    markups.replaceChildren(icon, uiNode("span", "", "Markups")); list.append(markups);
     return { root, toggle, list, close };
   }
   function currentVisibilityControl(kind, id) {
@@ -1069,7 +1073,7 @@
         return { ...reply, snapshot: physicalSnapshot(reply.snapshot) };
       },
       drawingPdf: () => uiButton("Download PDF", () => downloadTakeoff("marked-pdf")),
-      export: exportPhysical, downloadMarkup, undo: async () => { const reply = await command("undo"); return { ...reply, snapshot: physicalSnapshot(reply.snapshot) }; }, history: showAudit,
+      export: exportPhysical, downloadMarkup, documentationExport, undo: async () => { const reply = await command("undo"); return { ...reply, snapshot: physicalSnapshot(reply.snapshot) }; }, history: showAudit,
       selection: async (ids, reference, focus, openDetails = true) => { state.physicalSelected = new Set(ids); if (ids.length) { state.signatureSelected = null; state.graphicSelected = null; state.settingsOpen = false; state.settingsEditor = null; renderSettingsPanel(); } if (openDetails && ids.length && state.mode === "physical") { setPhysicalDetailsOpen(true); state.ui.physicalDetails.scrollTop = 0; } if (reference && focus) await physicalSource(reference); else renderOverlay(); },
       hover: hoverPhysical,
       placeMarker: id => armPhysicalMarker(id),

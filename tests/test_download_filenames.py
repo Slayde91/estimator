@@ -9,11 +9,15 @@ class DownloadNameTests(unittest.TestCase):
                   'BOARD_SCHEDULE.pdf','DUCT_SCHEDULE.pdf','FIRESTOPPING_SCHEDULE.pdf',
                   'FULL_PRODUCT_SUMMARY.pdf','SPRAY_PRODUCT_SUMMARY.pdf','PAINT_PRODUCT_SUMMARY.pdf',
                   'BOARD_PRODUCT_SUMMARY.pdf','DUCT_PRODUCT_SUMMARY.pdf','INSTALLATION_CERTIFICATE.pdf'}
+        expected.update({'STEEL_SCHEDULE_SPRAY.xlsx','STEEL_SCHEDULE_PAINT.xlsx','STEEL_SCHEDULE_BOARD.xlsx',
+                         'DUCT_SCHEDULE.xlsx','FIRESTOPPING_SCHEDULE.xlsx','FIRESTOPPING_ITEM.pdf',
+                         'FIRESTOPPING_ITEM.xlsx','TECHNICAL_ITEM.pdf','TECHNICAL_ITEM.xlsx'})
         self.assertEqual(set(DOCUMENT_FILENAMES.values()),expected)
         for kind,name in DOCUMENT_FILENAMES.items():
             self.assertEqual(document_filename(kind,'old name.pdf'),name)
             for revision in [1,2,12]:
-                result=name[:-4]+f'-R{revision}.pdf'
+                stem,extension=name.rsplit('.',1)
+                result=stem+f'-R{revision}.'+extension
                 self.assertEqual(document_filename(kind,'old name.pdf',revision),result)
                 self.assertEqual(document_filename(kind,result,revision),result)
         self.assertEqual(document_filename('other','CEASEFIRE-Export-R2.xlsx',3),'Export-R3.xlsx')

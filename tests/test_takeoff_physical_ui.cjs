@@ -176,18 +176,19 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
     for(const scope of ['defect_reports','service_plans']){
       const h=component(scope==='service_plans'?servicePlanGraph():graph(),{scope:()=>scope});await flush();const before=copy(h.current);
       const toggle=h.button('Document'),list=h.all().find(element=>element.id===toggle.attributes['aria-controls']);
-      assert.equal(list.children.length,3);assert.ok(list.children.every(control=>!/Markup|Matrix|PDF|Download/i.test(control.attributes['aria-label'])));
+      assert.equal(list.children.length,4);assert.ok(list.children.every(control=>!/Matrix|Download/i.test(control.attributes['aria-label'])));assert.equal(h.button('Markups').parentElement,list);
       assert.deepEqual(h.current,before);h.controller.destroy();
     }
   });
   await check('Physical Document menu exposes only three scoped XLSX exports without mutating records',async()=>{
-    const h=component(),before=copy(h.current);await flush();const toggle=h.button('Document'),list=h.all().find(element=>element.id===toggle.attributes['aria-controls']);
+    const markupCalls=[];const h=component(graph(),{documentationExport:async(spec)=>markupCalls.push(copy(spec))}),before=copy(h.current);await flush();const toggle=h.button('Document'),list=h.all().find(element=>element.id===toggle.attributes['aria-controls']);
     const icon=toggle.children[0];assert.equal(icon.tagName,'IMG');assert.equal(icon.src,'/icons/document.png');assert.equal(icon.alt,'');assert.equal(icon.attributes['aria-hidden'],'true');
     const tools=h.input('Filter physical hierarchy').parentElement,actions=toggle.parentElement.parentElement;assert.notEqual(actions,tools);assert.equal(h.button('Select filtered records').parentElement,tools);assert.equal(h.button('Undo last edit').parentElement,tools);assert.equal(tools.children[tools.children.indexOf(h.button('Undo last edit'))+1].textContent,'Show deleted records');assert.equal(tools.parentElement.children[tools.parentElement.children.indexOf(tools)+1],actions);assert.deepEqual(actions.children.map(control=>control.attributes['aria-label']||control.className),['Transfer to Firestopping Schedule','Update linked rows','Unlink from Firestopping Schedule','calculator-document-menu takeoff-document-menu takeoff-physical-document-menu']);
     assert.ok(list.hidden);toggle.emit('click');assert.equal(list.hidden,false);assert.equal(toggle.attributes['aria-expanded'],'true');
     for(const [label,format,confirmation] of [['Confirmed items','xlsx','confirmed'],['Unconfirmed items','xlsx','unconfirmed'],['All items','xlsx','all']]){
       assert.equal(h.button(label).parentElement,list);await h.click(label);assert.ok(list.hidden);assert.deepEqual(h.calls.exports.at(-1),{format,confirmation});
     }
+    await h.click('Markups');assert.deepEqual(markupCalls,[{action:'markups'}]);assert.ok(list.hidden);
     assert.deepEqual(h.current,before);assert.equal(h.calls.previews.length,0);assert.equal(h.calls.applied.length,0);h.controller.destroy();assert.equal(h.dom.container.ownerDocument.body.events.pointerdown.length,0);
   });
   await check('Physical Document in a separate heading closes on graph changes and removes its node and listener on destroy',async()=>{

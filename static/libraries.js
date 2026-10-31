@@ -725,30 +725,42 @@
     return nav;
   }
   function technicalDocumentMenu(pane, data) {
+    const technical = pane.kind === "technical";
     const wrapper = node("div", "calculator-document-menu library-document-menu");
     const toggle = button("", () => { if (!toggle.disabled) setOpen(list.hidden); }, "button secondary calculator-document-toggle");
-    const icon = node("img", "calculator-document-icon"); icon.src = "/icons/document.png"; icon.alt = ""; icon.width = icon.height = 24;
+    const icon = node("img", "calculator-document-icon"); icon.src = "/icons/document.png"; icon.alt = ""; icon.width = icon.height = 24; icon.setAttribute("aria-hidden", "true");
     const chevron = node("span", "calculator-document-chevron"); chevron.setAttribute("aria-hidden", "true");
     chevron.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="m6 9 6 6 6-6"></path></svg>';
     toggle.append(icon, uiNode("span", "", "Document"), chevron);
-    const list = node("div", "calculator-document-actions"); list.id = "technical-item-document-actions"; list.hidden = true;
-    list.setAttribute("role", "group"); uiAttr(list, "aria-label", "Technical item downloads");
+    const list = node("div", "calculator-document-actions"); list.id = technical ? "technical-item-document-actions" : "firestopping-item-document-actions"; list.hidden = true;
+    list.setAttribute("role", "group"); uiAttr(list, "aria-label", technical ? "Technical item downloads" : "Firestopping item downloads");
     toggle.setAttribute("aria-controls", list.id); toggle.setAttribute("aria-expanded", "false");
     const revision = pane.detailRevision, id = data.id, actions = [];
     const selected = () => pane.selected === id && pane.detailRevision === revision && !pane.detailPanel.hidden;
-    const current = () => state.current === "technical" && selected();
+    const current = () => state.current === pane.kind && selected();
     function setOpen(open, focus = false) {
       list.hidden = !open; toggle.setAttribute("aria-expanded", String(open));
       if (focus) toggle.focus();
     }
     async function download(format, button, strict = false) {
-      if (!(strict ? selected() : current()) || pane.documentPending) { if (strict) throw new Error("Choose the current Technical Library item again or finish its pending download."); return; }
+      if (!(strict ? selected() : current()) || pane.documentPending) { if (strict) throw new Error("Choose the current Library item again or finish its pending download."); return; }
       setOpen(false);
       const token = { id, revision }; pane.documentPending = token;
       for (const control of pane.documentControls) control.disabled = true;
       try {
         if (!window.CeasefireDownloads?.save) throw new Error("Document downloads are unavailable. Reopen the application and try again.");
-        const result = await window.CeasefireDownloads.save(`/api/technical/item.${format}`, { id }, { button });
+        let path = `/api/technical/item.${format}`, payload = { id };
+        if (!technical) {
+          // Refetch the selected saved record's own inputs and captured pricing.
+          // Do not open or overwrite a calculator/editor draft to download it.
+          const record = await request(`/api/libraries/penetration/${encodeURIComponent(id)}/edit`);
+          if (!(strict ? selected() : current())) throw new Error("The selected Library item changed. Choose it again before downloading.");
+          if (record.id !== id || record.draft?.rows?.length !== 1 || !record.configuration) throw new Error("This library item has no captured inputs and pricing to export.");
+          path = `/api/penetration/item.${format}`;
+          payload = { item: { ...clone(record.draft.rows[0]), library_item_id: id }, globals: clone(record.draft.globals), configuration: clone(record.configuration),
+            ...(record.diagram?.available ? {} : { diagram: null }) };
+        }
+        const result = await window.CeasefireDownloads.save(path, payload, { button });
         if (current()) message(pane, "Item Details saved: {0}", false, [result.filename]);
         return result;
       } catch (error) {
@@ -835,7 +847,9 @@
     heading.id = `${pane.kind}-library-detail-heading`; heading.tabIndex = -1; pane.detailPanel.setAttribute("aria-labelledby", heading.id);
     for (const key of pane.quantityBadges.keys()) if (key.startsWith("detail:")) pane.quantityBadges.delete(key);
     const title = node("div", `library-record-heading${pane.kind === "technical" ? " library-technical-heading" : ""}`);
-    title.append(heading, pane.kind === "penetration" ? quantityBadge(pane, data.id, "detail") : technicalDocumentMenu(pane, data));
+    title.append(heading);
+    if (pane.kind === "penetration") title.append(quantityBadge(pane, data.id, "detail"));
+    title.append(technicalDocumentMenu(pane, data));
     const content = [detailNavigation(pane), title];
     const subtitle = window.LibraryDetailText.displaySubtitle(data);
     if (subtitle) content.push(node("p", "library-subtitle library-frl-value", display(subtitle)));

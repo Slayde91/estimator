@@ -4,9 +4,12 @@
   const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
   const PDF = "application/pdf", XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
   // These exports remain available in their source workspaces and keep their
-  // saved history, but do not have rows in the Documentation PDF list.
+  // saved history, but do not have rows in the Documentation list.
   const omittedRows = new Set(['firestopping.current_item.pdf','library.technical.item.pdf','takeoff.pdf_tools.pdf',
-    'takeoff.defect_reports.matrix.pdf','takeoff.service_plans.matrix.pdf']);
+    'takeoff.defect_reports.matrix.pdf','takeoff.service_plans.matrix.pdf',
+    'firestopping.current_item.xlsx','library.technical.item.xlsx','pricing.library.xlsx',
+    ...['steel_vermiculite','steel_intumescent','steel_board','ductwork'].map(id=>`calculator.${id}.template.xlsx`),
+    ...['steel','duct','walls_floors','defect_reports','service_plans'].map(id=>`takeoff.${id}.register.xlsx`)]);
   const state = { epoch:0, scope:null, model:null, baseline:0, opening:null, catalog:null, catalogLoading:null,
     refreshRevision:0, action:null, uncertain:false, pending:new Map(), sources:new Map() };
   const captures = new WeakMap();

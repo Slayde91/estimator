@@ -291,7 +291,7 @@ class TechnicalItemHTTPTests(unittest.TestCase):
             status, mime, disposition, output = self.request('/api/technical/item.' + extension, {'id': 'report-a-v1'})
             self.assertEqual(status, 200)
             self.assertTrue(output.startswith(magic))
-            self.assertIn('Technical-Item.' + extension, disposition)
+            self.assertIn('TECHNICAL_ITEM.' + extension, disposition)
             self.assertIn('application/', mime)
         self.assertEqual(inventory(self.library), files)
         self.assertEqual(logical_database(self.database), database)

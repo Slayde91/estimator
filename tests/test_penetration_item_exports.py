@@ -214,7 +214,7 @@ class CurrentItemHTTPTests(unittest.TestCase):
                 status, mime, disposition, content = self.request('/api/penetration/item.' + extension, body())
                 self.assertEqual(status, 200)
                 self.assertTrue(content.startswith(magic))
-                self.assertIn('Firestopping-Item.' + extension, disposition)
+                self.assertIn('FIRESTOPPING_ITEM.' + extension, disposition)
                 status, _, _, _ = self.request('/api/penetration/item.' + extension, {'draft': {'rows': [body()['item']]}})
                 self.assertEqual(status, 400)
 

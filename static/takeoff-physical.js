@@ -1415,6 +1415,10 @@
       root.CeasefireI18n.attr(control, "aria-label", label); const icon = node("span", "download-format-icon"); icon.setAttribute("aria-hidden", "true"); icon.append(node("span", "download-arrow", "↓"), node("span", "download-format", format.toUpperCase())); control.replaceChildren(icon, uiNode("span", "", label));
       documents.add(control);
     }
+    const markups = button("Markups", () => { ensureAvailable(); return bridge.documentationExport({ action: "markups" }, markups); }, "button secondary calculator-document-action");
+    root.CeasefireI18n.attr(markups, "aria-label", "Markups");
+    const markupIcon = node("span", "download-format-icon"); markupIcon.setAttribute("aria-hidden", "true"); markupIcon.append(node("span", "download-arrow", "↓"), node("span", "download-format", "PDF"));
+    markups.replaceChildren(markupIcon, uiNode("span", "", "Markups")); documents.add(markups);
     const search = node("input"); search.type = "search"; root.CeasefireI18n.attr(search, "placeholder", "Filter physical records…"); root.CeasefireI18n.attr(search, "aria-label", "Filter physical hierarchy"); search.addEventListener("input", () => { if (state.pending.size || state.busy) return; state.filter = search.value; state.offset = 0; renderTable(); });
     const deleted = node("label", "takeoff-check"), show = node("input"); show.type = "checkbox"; show.addEventListener("change", () => void safe(() => { ensureAvailable(); state.showDeleted = show.checked; state.offset = 0; renderTable(); })); deleted.append(show, uiNode("span", "", "Show deleted records"));
     ui.discard = uiButton("Discard unfinished physical edits", () => { if (state.busy) throw new Error("Finish the current review first."); resetPending(); renderData(); bridge.notify("Unfinished physical field edits discarded. Recorded draft values are unchanged.", false); }, "button secondary takeoff-physical-discard"); root.CeasefireI18n.attr(ui.discard, "aria-label", "Discard unfinished physical edits"); root.CeasefireI18n.attr(ui.discard, "title", "Discard unfinished physical edits"); ui.discard.replaceChildren(discardIcon());

@@ -15,7 +15,7 @@ from .report import _Report, _company_header, _register_fonts, _number, _numeric
 from .reference_library import ReferenceNotFound
 from .service_dimensions import service_size_evidence
 from .penetration_references import resolve_schedule_references
-from .library_report_links import valid_report_url
+from .library_report_links import valid_report_url, pdf_report_href
 from .catalog import ValidationError
 
 
@@ -95,7 +95,7 @@ def _excel_format(field):
     return {'percent': '0.00%', 'currency': '$#,##0.00'}.get(field.get('format'), '#,##0.00')
 
 
-def render_penetration_pdf(result, definition, project_details, *, library=None, company=None, include_project_details=True, project_report_title=None):
+def render_penetration_pdf(result, definition, project_details, *, library=None, company=None, include_project_details=True, project_report_title=None, report_origin=None):
     """Show the technical schedule without prices, using captured inputs."""
     _register_fonts()
     report = _Report({})
@@ -145,7 +145,8 @@ def render_penetration_pdf(result, definition, project_details, *, library=None,
         captions = []
         for reference in references[row['id']]['reports']:
             label, url = escape(reference['label']), reference.get('url')
-            captions.append(f'<link href={quoteattr(url)}>{label}</link>' if valid_report_url(url) else label)
+            href = pdf_report_href(url, report_origin)
+            captions.append(f'<link href={quoteattr(href)}><font color="#0645ad"><u>{label}</u></font></link>' if href else label)
         schedule_rows.append([report.p(str(index), 'cell'), thumbnail] +
             [report.p(_display(_value(row, col), fields_by_column.get(col)), 'cell') for _, col in SCHEDULE] +
             [report.rich(' | '.join(captions), 'cell')])

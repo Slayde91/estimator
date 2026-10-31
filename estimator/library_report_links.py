@@ -8,6 +8,15 @@ TRAFALGAR_REPORT_PATH = re.compile(r'/documents/[A-Za-z0-9][A-Za-z0-9_.()=-]*')
 FIREFLY_REPORTS_URL = 'https://systems.tbafirefly.com.au/reports'
 
 
+def pdf_report_href(value, origin=None):
+    """Publish validated public links or exact local report-asset routes only."""
+    if valid_report_url(value):
+        return value
+    if isinstance(value, str) and re.fullmatch(r'/api/libraries/documents/[a-z0-9][a-z0-9_-]{0,119}\.pdf', value):
+        return origin.rstrip('/') + value if origin else value
+    return None
+
+
 def valid_report_url(value):
     if not isinstance(value, str) or not 1 <= len(value) <= 4000:
         return False

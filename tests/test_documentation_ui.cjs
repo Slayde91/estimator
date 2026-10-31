@@ -16,7 +16,9 @@ const catalog=[{id:'estimate.summary.pdf',label:'Breakdown',format:'pdf',adapter
   {id:'firestopping.current_item.xlsx',label:'Firestopping Item Details',format:'xlsx',adapter:'firestopping',spec:{scope:'current_item',format:'xlsx'}},
   {id:'library.technical.item.pdf',label:'Technical Library item',format:'pdf',adapter:'library',spec:{source:'technical',format:'pdf'}},
   {id:'library.technical.item.xlsx',label:'Technical Library item',format:'xlsx',adapter:'library',spec:{source:'technical',format:'xlsx'}},
-  {id:'takeoff.pdf_tools.pdf',label:'PDF tools',format:'pdf',adapter:'takeoff',spec:{action:'pdf_tools'}}];
+  {id:'takeoff.pdf_tools.pdf',label:'PDF tools',format:'pdf',adapter:'takeoff',spec:{action:'pdf_tools'}},
+  {id:'takeoff.defect_reports.matrix.pdf',label:'Passive fire matrix',format:'pdf',adapter:'takeoff',spec:{action:'matrix',scope:'defect_reports'}},
+  {id:'takeoff.service_plans.matrix.pdf',label:'Service plans matrix',format:'pdf',adapter:'takeoff',spec:{action:'matrix',scope:'service_plans'}}];
 function harness(){
   const elements=new Map(),calls=[],events={},adapters=[];let selected=1,serial=20,changed=0,override=null,adapterOverride=null;
   const models=new Map([[token(1),model(1)],[token(2),model(2)]]);
@@ -78,7 +80,7 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     assert.equal(h.api.hasProjectChanges(),false);assert.equal(h.api.hasPendingOperation(),false);
   });
   await check('Removed PDF rows stay absent with saved revisions while XLSX choices and project history survive',async h=>{
-    const kinds=['firestopping.current_item.pdf','library.technical.item.pdf','takeoff.pdf_tools.pdf'];
+    const kinds=['firestopping.current_item.pdf','library.technical.item.pdf','takeoff.pdf_tools.pdf','takeoff.defect_reports.matrix.pdf','takeoff.service_plans.matrix.pdf'];
     const history=kinds.map((kind,index)=>item(index+1,1,{kind}));
     h.models.set(token(1),model(1,history));await h.api.open();
     const rows=h.byId('documentation-pdf-rows').children.map(row=>row.dataset.documentKind);
@@ -87,7 +89,12 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     assert.ok(h.buttons().some(button=>button.dataset.documentKind==='library.technical.item.xlsx'));
     const prepared=await h.api.prepareProject(null,token(1));
     assert.deepEqual(copy(prepared.model.items),history);
-    const snapshot=await h.api.completeProjectSnapshot();assert.equal(snapshot.expected_revision,3);
+    const snapshot=await h.api.completeProjectSnapshot();assert.equal(snapshot.expected_revision,5);
+  });
+  await check('Legacy filenames omit brand text in the display but retained revision metadata stays exact',async h=>{
+    h.models.set(token(1),model(1,[item(1,1,{filename:'CEASEFIRE-Estimate.pdf'})]));await h.api.open();
+    assert.equal(h.links()[0].title,'Estimate.pdf');
+    const prepared=await h.api.prepareProject(null,token(1));assert.equal(prepared.model.items[0].filename,'CEASEFIRE-Estimate.pdf');
   });
   await check('Malformed revision identities and URLs cannot become links or replace a prepared project',async h=>{
     await h.api.open();const before=h.api.projectFingerprint();

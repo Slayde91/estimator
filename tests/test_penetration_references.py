@@ -310,6 +310,16 @@ class PenetrationReferenceTests(unittest.TestCase):
         self.assertNotIn('Cell', cells)
         self.assertFalse(any('report-a-v1' in value for value in cells))
 
+    def test_local_report_assets_are_links_in_individual_and_combined_pdf_schedules(self):
+        from estimator.project_reports import build_project_report
+        draft=deepcopy(self.draft);draft['rows'][0]['takeoff_reference_ids']=['report-a-v2']
+        result=calculate(draft);origin='http://127.0.0.1:8765'
+        payloads=[render_penetration_pdf(result,result['definition'],{},library=self.library,report_origin=origin),
+                  build_project_report({},draft,{}, {},library=self.library,report_origin=origin)]
+        for payload in payloads:
+            uris=[annotation.get_object().get('/A',{}).get('/URI') for page in PdfReader(BytesIO(payload)).pages for annotation in page.get('/Annots',[])]
+            self.assertIn(origin+'/api/libraries/documents/report-a.pdf',uris)
+
     def test_excel_rejects_report_lists_that_would_be_silently_truncated(self):
         records = self.data['libraries']['technical']['items']
         template = deepcopy(records[0])

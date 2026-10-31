@@ -490,6 +490,8 @@ class CalculatorReportTests(unittest.TestCase):
                 row['values'] = {column: historical.value(table['sheet'], column + str(row['row']))
                                  for column in table['columns']}
         historical_data['incomplete_rows'] = 0
+        for row in historical_data['rows']:
+            row['complete'] = True
         self.assertEqual(historical_data['summaries'][0]['rows'][0]['values']['G'], 219)
         for data in (historical_data, deepcopy(default_projection('steel_vermiculite')),
                      project_calculator_report('steel_vermiculite', scenario_inputs(scenario))):
@@ -506,10 +508,10 @@ class CalculatorReportTests(unittest.TestCase):
                     self.assertIn('219.00', lines)
                     self.assertNotIn('218.38', lines)
                 else:
-                    # A product with partially quantified lines must retain
-                    # the source's withheld order quantity, not its net bags.
+                    # Retain the source's withheld order while marking known
+                    # PDF quantities as incomplete beside their numeric value.
                     self.assertEqual(data['summaries'][0]['rows'][0]['values']['G'], 'INCOMPLETE')
-                    self.assertIn('INCOMPLETE', lines)
+                    self.assertTrue(any(line.endswith(' INCOMPLETE') for line in lines))
                     self.assertNotIn('5.54', lines)
                     self.assertIn('Unresolved material requirements:', text)
                     assert_missing_promat_projection(self, data)

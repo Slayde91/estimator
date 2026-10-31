@@ -1,8 +1,9 @@
 """Full calculator schedule PDFs from one immutable input snapshot.
 
-The projection selects original output cells; it never derives thicknesses,
-rerounds purchasing quantities, changes source data, or saves calculator state.
-Only explicitly named display totals sum already-calculated numeric outputs.
+The projection retains original output cells and never derives thicknesses,
+changes source orders, or saves calculator state. Incomplete material summaries
+may display known partial whole-unit quantities using the existing pooled rule;
+these are explicitly marked INCOMPLETE and never replace retained orders.
 """
 
 from copy import deepcopy
@@ -23,6 +24,7 @@ from .workbook_calculators import (FYREWRAP_DIRECTION_NOTE, calculator_engine,
                                    normalize_calculator_inputs, source_model)
 from .board_steel_area import board_net_steel_areas, steel_area_display
 from .download_disclosure import calculator_download_data
+from .summary_quantities import mark_incomplete_quantities, QUANTITY_COLUMNS
 
 
 _WIDTH, _HEIGHT = landscape(A4)
@@ -235,7 +237,8 @@ def project_calculator_report(calculator_id, inputs=None):
         for index, (name, total) in enumerate(pools.items(), 7):
             summary['rows'].append({'row': index, 'values': dict(zip('ABCDEFGHI',
                 [name, total['area'], total['kg'], total['litres'], total['net'], total['waste'],
-                 total['whole'], total['order_litres'], total['status']]))})
+                 total['whole'], total['order_litres'], total['status']])),
+                 'quantity_pack_litres': total['kit_litres']})
             estimate_label = 'Estimated ' if name == 'FIRETEX FX6010' else ''
             components = '; '.join(estimate_label + 'Part ' + part.upper() + ': ' + _number(total.get('part_' + part), blank='Unavailable') + ' kg'
                                    for part in ('a', 'b', 'c') if total.get('part_' + part) not in (None, ''))
@@ -381,6 +384,7 @@ class _ScheduleReport(_Report):
     def __init__(self, data, project_details=None, page_size=landscape(A4)):
         super().__init__({})
         self.data = calculator_download_data(data)
+        mark_incomplete_quantities(self.data)
         self.project_details = project_details or {}
         self.width, self.height = page_size
         self.content_width = self.width - 2 * _MARGIN
@@ -409,7 +413,7 @@ class _ScheduleReport(_Report):
         parts = []
         for reference in references:
             label = escape(reference['label'])
-            parts.append(f'<link href="{escape(reference["url"], {chr(34): "&quot;"})}">{label}</link>'
+            parts.append(f'<link href="{escape(reference["url"], {chr(34): "&quot;"})}"><font color="#0645ad"><u>{label}</u></font></link>'
                          if reference.get('url') else label)
         return Paragraph(' | '.join(parts), self.styles['cell'])
 
@@ -581,6 +585,8 @@ class _ScheduleReport(_Report):
             products = '; '.join(f'{product} ({count} schedule item(s))' for product, count in unresolved.items())
             self.story.append(self.p('Unresolved material requirements: ' + products +
                                      '. Review the schedule statuses for the missing quantities.', 'alert'))
+        if any(item.get('quantity_incomplete') for summary, items in summaries for item in items):
+            self.story.append(self.p('Quantities marked INCOMPLETE include only quantified requirements; unresolved items may increase them.', 'small'))
         if not summaries:
             self.story.append(self.p('No quantified material requirements are available.' if unresolved or data['extra_rows'] else
                                      'No materials are required by the current inputs.'))
@@ -610,7 +616,14 @@ class _ScheduleReport(_Report):
                     value = summary_display_value(data, summary, item, column)
                     if data['id'] == 'ductwork' and summary['title'] == 'Product totals' and ((item['row'] < 11 and column in 'EFG') or (item['row'] == 11 and column == 'D')):
                         value = 'N/A'
-                    formatted.append(self.numeric(value, blank='-', percent=data['id'] in {'steel_vermiculite', 'steel_intumescent'} and column == 'F') if _numeric(value) else self.p(self.display(value, blank='-'), 'cell'))
+                    incomplete = item.get('quantity_incomplete') and column in QUANTITY_COLUMNS[data['id']] and value != 'N/A'
+                    if incomplete:
+                        value = item['available_quantities'].get(column, value)
+                        if isinstance(value, str) and value.upper().startswith('INCOMPLETE'):
+                            value = None
+                        formatted.append(self.rich(escape(self.display(value, blank='-')) + ' <font size="5.5">INCOMPLETE</font>', 'numeric'))
+                    else:
+                        formatted.append(self.numeric(value, blank='-', percent=data['id'] in {'steel_vermiculite', 'steel_intumescent'} and column == 'F') if _numeric(value) else self.p(self.display(value, blank='-'), 'cell'))
                 rows.append(formatted)
             material_table = self.table([labels[column] for column in columns], rows, widths, compact=True)
             # Keep the steel counting basis with its table instead of orphaning

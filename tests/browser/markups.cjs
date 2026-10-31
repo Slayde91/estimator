@@ -1,4 +1,4 @@
-const { waitForTakeoffDownload } = require('./native_download_helpers.cjs');
+const { waitForTakeoffDownload, ensureSavedProject } = require('./native_download_helpers.cjs');
 const { clickProjectControl } = require('./project_actions.cjs');
 const { renderDrawing } = require('./viewer_helpers.cjs');
 // Real selection, appearance, movement and draft drawing/report exports on disposable sources.
@@ -47,7 +47,7 @@ async function load(){const pending=page.waitForResponse(r=>r.url().endsWith('/a
   await page.addInitScript(()=>{window.qaCsp=[];document.addEventListener('securitypolicyviolation',event=>window.qaCsp.push({directive:event.effectiveDirective,blocked:event.blockedURI}));
     window.qaDrawingFontLoads=[];const load=document.fonts.load.bind(document.fonts);document.fonts.load=(...args)=>{const promise=load(...args);if(String(args[0]).includes('CeasefireDrawing')){const entry={font:args[0],resolved:false};window.qaDrawingFontLoads.push(entry);promise.then(faces=>{entry.resolved=true;entry.faces=faces.map(face=>({family:face.family,weight:face.weight,status:face.status}));},error=>{entry.error=error.message;});}return promise;};
   });
-  const response=await page.goto(`http://127.0.0.1:${info.port}/`);assert.ok(!response.headers()['content-security-policy'].includes('unsafe-inline'));
+  const response=await page.goto(`http://127.0.0.1:${info.port}/`);await ensureSavedProject(page);assert.ok(!response.headers()['content-security-policy'].includes('unsafe-inline'));
   await page.waitForFunction(()=>window.CeasefireDesktop?.status().ready);
   await page.getByRole('button',{name:'Takeoffs',exact:true}).click();
   await renderDrawing(page, () => page.locator('#takeoff-upload').setInputFiles(info.fixture), 1);

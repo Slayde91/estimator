@@ -62,7 +62,7 @@ async function noDownloadAudio() {
     if (url.origin === origin && url.pathname === "/api/project/save-as" && request.method() === "POST") {
       saveRequests++; savedCertificateWorkspaces.push(request.postDataJSON().certifications?.workspace_id);
     }
-    if (url.origin === origin && !["GET", "HEAD"].includes(request.method()) && !certificateWorkspaceCreation && !/^\/api\/(?:calculate|download-progress|project\/save-as|penetration\/(?:definition|calculate|references)|calculators\/[^/]+\/(?:worksheet|calculate))$/.test(url.pathname)) {
+    if (url.origin === origin && !["GET", "HEAD"].includes(request.method()) && !certificateWorkspaceCreation && !/^\/api\/(?:calculate|download-progress|project\/save(?:-as)?|penetration\/(?:definition|calculate|references)|calculators\/[^/]+\/(?:worksheet|calculate))$/.test(url.pathname)) {
       evidence.blocked_requests.push({ method: request.method(), path: url.pathname }); await route.abort(); return;
     }
     await route.continue();
@@ -166,6 +166,7 @@ async function noDownloadAudio() {
   assert.deepEqual(await page.evaluate(start => window.qaMenuAudio.calls.slice(start).filter(row => row.event === "click").map(row => row.source), beforeSaveCalls), ["/sounds/checkpoint.ogg"]);
   evidence.checks.globalSaveCheckpointWithoutGenericOverlap = true;
   evidence.checks.cancelledSaveUsesProjectCertificateWorkspace = { creationRequests: certificateWorkspaceRequests.length, matchedCurrentWorkspace: true };
+  await require('./native_download_helpers.cjs').ensureSavedProject(page);
   // These owned lightweight controls isolate delegated routing from Takeoff
   // document/session operations, which have their own browser acceptance gates.
   await page.evaluate(() => {

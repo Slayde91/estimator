@@ -53,6 +53,7 @@ const newFields=[{cell:'D15',label:'Spray material',type:'select',default:'New s
 const oldConfig={inventory:{},rates:{},version:'old'};
 const newConfig={inventory:{},rates:{},version:'new'};
 function setup(){
+  if(audit.state.projectFile?.path)context.window.CeasefireDownloads.projectSaved(context.window.CeasefireProject.downloadTarget());
   Object.assign(audit.state,{configuration:copy(oldConfig),draft:copy(newConfig),fields:copy(oldFields),currentFields:copy(oldFields),baseline:{inventory:[],rate_groups:{}},quote:null,quoteConfiguration:null,inputs:{D15:'Old spray'},workItems:[],workItemErrors:new Map(),workItemDrafts:new Map(),nextWorkItem:1,dirty:false,quoteLoadRevision:0,legacyTitle:'',workflow:'workflow',defaultWorkflow:'Intumescent spray to ductwork',inputErrors:new Map(),inputDrafts:new Map(),inputRevision:0,projectPricingDraft:null,libraryDraft:null,pricingScope:'library',pricingRevision:0,projectFile:null,projectBusy:false,initialized:false});
   for(const id of ['project-no','client','site-address','measurements'])byId(id).value='';
 }
@@ -193,7 +194,7 @@ let passed=0;
   assert.equal(audit.state.currentFields[0].options[0],'Old spray');passed++;
 
   // Export downloads the captured draft, preserving concurrent edits locally.
-  setup();const exported=deferred();let exportBody;
+  setup();audit.state.projectFile={save_token:'original-target',path:'C:/Projects/Original/current.cf.json'};const exported=deferred();let exportBody;
   context.URL={createObjectURL:()=> 'blob:audit',revokeObjectURL(){}};
   audit.setFetch((path,options)=>{exportBody=JSON.parse(options.body);return exported.promise;});
   const exportRun=audit.exportPricing();
@@ -205,16 +206,16 @@ let passed=0;
   assert.match(byId('app-message').textContent,/Later edits are not included/);passed++;
 
   // Only a selected project capability determines the download destination.
-  setup();assert.deepEqual(copy(context.window.CeasefireProject.downloadTarget()),{project_token:null});
+  setup();assert.throws(()=>context.window.CeasefireProject.downloadTarget(),/Save the current project/);
   audit.state.projectFile={path:'C:/Projects/One.json',save_token:'original-target'};
-  const originalTarget=context.window.CeasefireProject.downloadTarget();audit.state.projectFile={save_token:'new-target'};
+  const originalTarget=context.window.CeasefireProject.downloadTarget();audit.state.projectFile={save_token:'new-target',path:'C:/Projects/One.json'};
   assert.equal(originalTarget.project_token,'original-target');assert.equal(context.window.CeasefireProject.downloadTarget().project_token,'new-target');
-  audit.state.projectFile={name:'browser-import.json'};assert.equal(context.window.CeasefireProject.downloadTarget().project_token,null);passed++;
+  audit.state.projectFile={name:'browser-import.json'};assert.throws(()=>context.window.CeasefireProject.downloadTarget(),/Save the current project/);passed++;
 
   // Both draft and saved downloads retain snapshots and later edits with the common filename.
   for(const saved of [false,true]) {
     setup();audit.state.quote=saved?{id:'saved-report'}:null;audit.state.quoteConfiguration=saved?copy(oldConfig):null;
-    audit.state.projectFile={save_token:'original-target'};
+    audit.state.projectFile={save_token:'original-target',path:'C:/Projects/Original/current.cf.json'};
     audit.state.inputs.B12='Preserved workbook note';byId('measurements').value='Captured general note';
     const beforeInputs=copy(audit.state.inputs),beforeConfig=copy(audit.state.quoteConfiguration||audit.state.configuration);
     const pending=deferred();let reportPath,reportOptions;
@@ -223,7 +224,7 @@ let passed=0;
     assert.equal(byId('download-quote-pdf').disabled,true);assert.equal(byId('download-quote-pdf').getAttribute('aria-busy'),'true');
     assert.equal(byId('download-quote-pdf').getAttribute('aria-label'),'Preparing document…');
     audit.state.inputs.B12='Later workbook note';byId('measurements').value='Later general note';audit.state.dirty=true;
-    audit.state.projectFile={save_token:'new-target'};
+    audit.state.projectFile={save_token:'new-target',path:'C:/Projects/Original/current.cf.json'};
     pending.resolve(savedResponse());
     await download;
     assert.equal(reportPath,saved?'/api/quotes/saved-report/report.pdf':'/api/quote-report');
@@ -245,7 +246,7 @@ let passed=0;
 
   // Failed writes never claim success or mutate the current draft, and release
   // the download control so users can retry after resolving folder access.
-  setup();const failedInputs=copy(audit.state.inputs);
+  setup();audit.state.projectFile={save_token:'original-target',path:'C:/Projects/Original/current.cf.json'};const failedInputs=copy(audit.state.inputs);
   audit.setFetch(async()=>({ok:false,status:400,headers:{get:()=> 'application/json'},json:async()=>({error:'Folder is not writable.'})}));
   await audit.downloadQuotePdf();assert.match(byId('app-message').textContent,/not downloaded.*Folder is not writable/);
   assert.deepEqual(copy(audit.state.inputs),failedInputs);assert.equal(byId('download-quote-pdf').disabled,false);assert.equal(byId('download-quote-pdf').getAttribute('aria-busy'),undefined);passed++;
@@ -556,7 +557,7 @@ let passed=0;
   // Export includes every product and use, irrespective of current search; the saved configuration is untouched.
   productInput('manual','supplier_price').value='450';await productInput('manual','supplier_price').emit('input');productInput('team','supplier_price').value='1050';await productInput('team','supplier_price').emit('input');
   byId('pricing-search').value='Topcoat;';await byId('pricing-search').emit('input');let unifiedExport;
-  audit.setFetch(async(path,options)=>{unifiedExport=JSON.parse(options.body).configuration;return savedResponse('ceasefire-pricing.xlsx');});await audit.exportPricing();
+  audit.state.projectFile={save_token:'original-target',path:'C:/Projects/Original/current.cf.json'};audit.setFetch(async(path,options)=>{unifiedExport=JSON.parse(options.body).configuration;return savedResponse('ceasefire-pricing.xlsx');});await audit.exportPricing();
   assert.equal(unifiedExport.inventory.manual.supplier_price,450);assert.equal(unifiedExport.rates.team.supplier_price,1050);
   assert.equal(unifiedExport.catalog.rate_groups.topcoats[0].yield_unit,undefined);assert.equal(audit.state.configuration.inventory.manual,undefined);
   assert.equal(JSON.stringify(pricingFixture),originalPricing);assert.match(byId('app-message').textContent,/all inventory and rate groups/);passed++;

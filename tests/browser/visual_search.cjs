@@ -3,7 +3,7 @@ const { chromium, expect } = require('@playwright/test');
 const { chooseTakeoff } = require('./section_navigation.cjs');
 const { clickProjectControl } = require('./project_actions.cjs');
 const { settingsSettled } = require('./settings_helpers.cjs');
-const { waitForTakeoffDownload } = require('./native_download_helpers.cjs');
+const { waitForTakeoffDownload, ensureSavedProject } = require('./native_download_helpers.cjs');
 const { spawn, spawnSync } = require('node:child_process');
 const { createHash } = require('node:crypto');
 const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
@@ -27,7 +27,7 @@ function contrast(a,b){const luminance=rgb=>{const c=rgb.match(/[\d.]+/g).slice(
   const info=await ready;assert.notEqual(info.port,8765);evidence.fixturePort=info.port;
   browser=await chromium.launch({headless:true});page=await browser.newPage({viewport:{width:1500,height:1050}});page.setDefaultTimeout(30000);
   page.on('pageerror',error=>errors.push(error.message));await page.addInitScript(()=>{window.visualCsp=[];document.addEventListener('securitypolicyviolation',event=>window.visualCsp.push(event.effectiveDirective));});
-  await page.goto(`http://127.0.0.1:${info.port}/`);await page.waitForFunction(()=>window.CeasefireDesktop?.status().ready);
+  await page.goto(`http://127.0.0.1:${info.port}/`);await ensureSavedProject(page);await page.waitForFunction(()=>window.CeasefireDesktop?.status().ready);
   await chooseTakeoff(page,'Steel');await expect(page.getByRole('button',{name:'Visual Search',exact:true})).toBeHidden();
   await chooseTakeoff(page,'Defect Reports');await expect(page.getByRole('button',{name:'Visual Search',exact:true})).toBeHidden();
   await chooseTakeoff(page,'Service Plans');await expect(page.getByRole('button',{name:'Visual Search',exact:true})).toBeDisabled();

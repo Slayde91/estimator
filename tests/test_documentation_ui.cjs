@@ -71,7 +71,10 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     const rendered=h.byId('documentation-pdf-rows').children;
     assert.deepEqual(rendered.filter(row=>row.children[0].tagName==='TH').map(row=>row.children[0].children[0].textContent),['Schedules','Product summaries','Other documents']);
     assert.deepEqual(rendered.filter(row=>row.dataset.documentKind).map(row=>row.dataset.documentKind),['estimate.summary.pdf','project.full_schedule.pdf','firestopping.schedule.pdf','calculator.legacy.schedule.pdf','calculator.ductwork.product_summary.pdf','project.full_product_summary.pdf','certification']);
-    assert.deepEqual(h.links().map(link=>link.href),[legacy.url]);assert.equal(h.buttons()[0].textContent,'Breakdown');
+    assert.deepEqual(h.links().map(link=>link.href),[legacy.url]);assert.equal(h.buttons()[0].attributes['aria-label'],'Download Breakdown');
+    const first=rendered[0];assert.equal(first.children.length,3);assert.equal(first.children[0].textContent,'Breakdown');
+    assert.equal(h.buttons()[0].children[0].textContent,'⇩');assert.equal(h.buttons()[0].children[0].attributes['aria-hidden'],'true');
+    assert.ok(rendered.filter(row=>row.children[0].tagName==='TH').every(row=>row.children[0].colSpan===3));
     assert.equal(h.buttons().find(button=>button.dataset.documentKind===legacy.kind).disabled,true);
     await h.buttons().find(button=>button.dataset.documentKind==='project.full_product_summary.pdf').emit('click');
     assert.equal(h.adapters[0].owner,'estimate');assert.deepEqual(h.adapters[0].spec,{action:'full_product_summary'});
@@ -79,7 +82,7 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
   await check('Catalog separates PDF and XLSX and displays exact project-scoped immutable revision links',async h=>{
     h.models.set(token(1),model(1,[item(1),item(2,1,{kind:'calculator.ductwork.register.xlsx',media_type:XLSX,filename:'Ductwork.xlsx'})]));
     await h.api.open();assert.equal(h.byId('documentation-pdf-rows').children.length,1);assert.equal(h.byId('documentation-xlsx-rows').children.length,1);
-    assert.deepEqual(h.links().map(link=>link.href),[item(1).url,item(2).url]);assert.ok(h.links().every(link=>link.target==='_blank'&&link.rel==='noopener'));
+    assert.deepEqual(h.links().map(link=>link.href),[item(1).url,item(2).url]);assert.ok(h.links().every(link=>link.listeners.click?.length===1));
     assert.equal(h.api.hasProjectChanges(),false);assert.equal(h.api.hasPendingOperation(),false);
   });
   await check('Removed PDF rows stay absent with saved revisions while XLSX choices and project history survive',async h=>{
@@ -180,8 +183,15 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
   });
   await check('Reviewing old revisions only renders frozen links and performs no generation or mutation requests',async h=>{
     h.models.set(token(1),model(1,[item(1)]));await h.api.open();const before=h.api.projectFingerprint();await h.api.open();
-    const link=h.links()[0];assert.equal(link.href,item(1).url);assert.equal(Object.keys(link.listeners).length,0);
+    const link=h.links()[0];assert.equal(link.href,item(1).url);assert.equal(link.listeners.click.length,1);
     assert.equal(h.adapters.length,0);assert.ok(h.calls.every(call=>!call.options.method||call.options.method==='GET'));assert.equal(h.api.projectFingerprint(),before);
+  });
+  await check('Clicking a retained revision copies frozen bytes through the saved-project broker without generating a revision',async h=>{
+    h.models.set(token(1),model(1,[item(1)]));await h.api.open();const saved=[];
+    h.window.CeasefireDownloads={save:async(path,body)=>{saved.push({path,body});return {saved:true};}};
+    let prevented=false;await h.links()[0].emit('click',{preventDefault(){prevented=true;}});await flush();
+    assert.equal(prevented,true);assert.deepEqual(copy(saved),[{path:item(1).url,body:{}}]);assert.equal(h.adapters.length,0);
+    assert.equal(h.api.hasPendingOperation(),false);assert.equal(h.api.hasProjectChanges(),false);
   });
   await check('Documentation uses a retained source adapter and retains explicit source preparation',async h=>{
     await h.api.open();h.adapterOverride(()=>({selectionRequired:true}));

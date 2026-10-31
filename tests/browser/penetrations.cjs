@@ -1,4 +1,4 @@
-const { waitForTakeoffDownload } = require('./native_download_helpers.cjs');
+const { waitForTakeoffDownload, ensureSavedProject } = require('./native_download_helpers.cjs');
 const { chooseTakeoff } = require('./section_navigation.cjs');
 const { chooseNewDefect, startDefect } = require('./physical_dialogs.cjs');
 const { clickProjectControl } = require('./project_actions.cjs');
@@ -123,7 +123,7 @@ async function associateImage(id, image) {
   page.on('pageerror', error => errors.push(error.message));
   page.on('request', request => { const url = new URL(request.url()); if (url.pathname.endsWith('/images') && request.method() === 'GET') inventoryRequests.push({ extraction: url.searchParams.get('extraction_id'), limit: url.searchParams.get('limit') }); if (/\/physical\/(preview|apply)$/.test(url.pathname)) physicalRequests.push({ path: url.pathname, body: request.postDataJSON() }); });
   await page.addInitScript(() => { window.qaCsp = []; document.addEventListener('securitypolicyviolation', event => window.qaCsp.push({ directive: event.effectiveDirective, blocked: event.blockedURI })); });
-  const initial = await page.goto(`http://127.0.0.1:${info.port}/`); assert.ok(!initial.headers()['content-security-policy'].includes('unsafe-inline'));
+  const initial = await page.goto(`http://127.0.0.1:${info.port}/`);await ensureSavedProject(page); assert.ok(!initial.headers()['content-security-policy'].includes('unsafe-inline'));
   await page.waitForFunction(() => window.CeasefireDesktop?.status().ready); await expect.poll(() => page.evaluate(() => window.CeasefireDesktop?.status().ready)).toBe(true); const calculators = await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot());
   const definitionReply=await page.request.post(`http://127.0.0.1:${info.port}/api/penetration/definition`,{data:{configuration:await page.evaluate(()=>window.CeasefireProject.configuration())}});assert.equal(definitionReply.status(),200);
   const definition=await definitionReply.json();physicalChoices=Object.fromEntries(Object.entries({orientation:'M',frl:'N'}).map(([key,column])=>[key,definition.row_fields.find(field=>field.column===column).options]));

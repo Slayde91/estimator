@@ -699,12 +699,12 @@ class ProjectLibrary:
 
     def capture_download(self, request):
         """Bind an export to its requesting window's selected file, not global state."""
-        from .download_files import DownloadDestination, standard_downloads_directory
+        from .download_files import DownloadDestination
         if not isinstance(request, dict) or set(request) != {'project_token'}:
             raise ValidationError('Download options must contain the current project token only.')
         token = request['project_token']
         if token is None:
-            return DownloadDestination(standard_downloads_directory(), 'downloads')
+            raise ValidationError('Save the current project before downloading. Files save beside its project file.')
         if not isinstance(token, str) or not 1 <= len(token) <= 200:
             raise ValidationError('The download project selection is invalid. Reload the project or use Save As.')
         with self._lock:

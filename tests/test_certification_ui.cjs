@@ -71,7 +71,8 @@ function harness() {
     return response(doc);
   };
   const window = {crypto:{randomUUID:()=> '00000000-0000-4000-8000-'+String(++serial).padStart(12,'0')},
-    addEventListener(k,fn){(events[k]||=[]).push(fn);},CeasefireProject:{details:()=>copy(project)},
+    addEventListener(k,fn){(events[k]||=[]).push(fn);},CeasefireProject:{details:()=>copy(project),downloadTarget:()=>({project_token:'saved-project'})},
+    CeasefireDownloads:{save:async path=>({saved:true,path:'C:/Projects/INSTALLATION_CERTIFICATE-R1.pdf'})},
     dispatchEvent(event){for(const fn of events[event.type]||[])fn(event);return true;},
     CeasefireDialogs:{confirm:async()=>approve},CeasefireActivity:{begin:()=>()=>{}}};
   const context={setTimeout:fn=>{const id=++serial;timers.set(id,fn);return id;},clearTimeout:id=>timers.delete(id),window,document:{getElementById:byId,createElement:element},fetch,console,Date,JSON,Object,Array,Number,Error,encodeURIComponent,CustomEvent:class{constructor(type,{detail}){this.type=type;this.detail=detail;}}};
@@ -103,7 +104,7 @@ async function check(name,fn,{open=true}={}){const h=harness();if(open)await h.a
     assert.deepEqual(Object.keys(doc.fields),fieldNames);assert.equal(h.api.hasUnsavedChanges(),false);
     assert.match(h.byId('certification-status').textContent,/Revision 1 saved/);
     const links=h.byId('certification-revisions').children[0].children[1].children[0].children[2].children;
-    assert.equal(links[0].href,'/api/certifications/'+doc.id+'/revisions/1.pdf?workspace='+h.api.sessionId());assert.equal(links[0].target,'_blank');
+    assert.equal(links[0].href,'/api/certifications/'+doc.id+'/revisions/1.pdf?workspace='+h.api.sessionId());assert.equal(links[0].listeners.click.length,1);
   });
   await check('Saving a draft does not create a certificate revision',async h=>{
     h.field('project','Draft project');await h.save();assert.equal(h.documents.size,1);

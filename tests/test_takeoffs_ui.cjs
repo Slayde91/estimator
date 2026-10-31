@@ -105,6 +105,7 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
     value.documents=[{id:'doc',name:'Fixture drawing',pages:[{page:1,view:[0,0,200,200]}]}];h.audit.accept(response(value));
     Object.assign(h.audit.state,{mode:'steel',document:'doc',page:1,ui:null});
     h.context.window.CeasefireDownloadSound=feedback.sound;h.context.document.fonts.load=()=>fonts.promise;
+    h.context.window.CeasefireProject.downloadTarget=()=>({project_token:'saved-project'});
     let captures=0,requests=0;
     h.context.window.CeasefireCalculators={captureTakeoffTarget(){captures++;return captures===1?capture.promise:Promise.resolve({inputs:{},schedule_rows:[],fingerprint:'stable'});},projectFingerprint:()=> 'stable'};
     vm.runInContext(fs.readFileSync('static/downloads.js','utf8'),h.context);
@@ -115,7 +116,7 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
     fonts.resolve([]);await flush();assert.equal(captures,1);assert.equal(requests,0);assert.equal(feedback.audioAttempts,0);
     capture.resolve({inputs:{},schedule_rows:[],fingerprint:'stable'});for(let step=0;step<20&&!requests;step++)await flush();
     assert.ok(captures>1);assert.equal(requests,1);assert.equal(feedback.audioAttempts,0);
-    artifact.resolve(json({saved:true,path:'fixture/drawing.pdf',filename:'drawing.pdf',destination:'downloads'}));
+    artifact.resolve(json({saved:true,path:'fixture/drawing.pdf',filename:'drawing.pdf',destination:'project'}));
     assert.equal((await operation).saved,true);assert.equal(feedback.audioAttempts,0);assert.equal(h.audit.state.busy,false);
   });
   await check('Takeoff preparation failure remains silent and clears its busy state before a document request exists',async()=>{

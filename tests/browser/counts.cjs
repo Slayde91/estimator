@@ -1,4 +1,4 @@
-const { waitForTakeoffDownload } = require('./native_download_helpers.cjs');
+const { waitForTakeoffDownload, ensureSavedProject } = require('./native_download_helpers.cjs');
 const { clickProjectControl } = require('./project_actions.cjs');
 const { checkSteelDialog } = require('./steel_dialog_layout.cjs');
 const { renderDrawing } = require('./viewer_helpers.cjs');
@@ -202,7 +202,7 @@ function pythonJson(script, ...args) {
   browser = await chromium.launch({ headless: true }); page = await browser.newPage({ viewport: { width: 1600, height: 1100 }, deviceScaleFactor: 2 }); page.setDefaultTimeout(30000);
   page.on('pageerror', error => errors.push(error.message)); page.on('request', request => { if (request.url().endsWith('/commands')) requests.push(request.postDataJSON()); });
   await page.addInitScript(() => { window.qaCsp = []; document.addEventListener('securitypolicyviolation', event => window.qaCsp.push({ directive: event.effectiveDirective, blocked: event.blockedURI })); });
-  const response = await page.goto(`http://127.0.0.1:${info.port}/`); assert.ok(!response.headers()['content-security-policy'].includes('unsafe-inline'));
+  const response = await page.goto(`http://127.0.0.1:${info.port}/`);await ensureSavedProject(page); assert.ok(!response.headers()['content-security-policy'].includes('unsafe-inline'));
   await page.waitForFunction(()=>window.CeasefireDesktop?.status().ready);
   await page.getByRole('button',{name:'Takeoffs',exact:true}).click();
   // A document tile precedes upload's asynchronous page-one fit. Wait for its

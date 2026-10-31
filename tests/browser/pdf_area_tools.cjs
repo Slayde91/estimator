@@ -1,4 +1,4 @@
-const { waitForTakeoffDownload } = require('./native_download_helpers.cjs');
+const { waitForTakeoffDownload, ensureSavedProject } = require('./native_download_helpers.cjs');
 "use strict";
 // PDF-only Area and exclusions against synthetic source files and a disposable server.
 const { chromium, expect } = require("@playwright/test");
@@ -45,7 +45,7 @@ async function tools() {
     window.qaCsp = []; document.addEventListener("securitypolicyviolation", event => window.qaCsp.push(event.effectiveDirective));
     document.addEventListener("click", event => { const overlay = event.target.closest?.(".takeoff-overlay"); if (overlay) { const box = overlay.getBoundingClientRect(); window.qaClickSourcePoint = [(event.clientX-box.left)/box.width*842, (1-(event.clientY-box.top)/box.height)*595]; } }, true);
   });
-  await page.goto(`http://127.0.0.1:${info.port}/`); await page.waitForFunction(() => window.CeasefireDesktop?.status().ready);
+  await page.goto(`http://127.0.0.1:${info.port}/`);await ensureSavedProject(page); await page.waitForFunction(() => window.CeasefireDesktop?.status().ready);
   await page.getByRole("button", { name: "Takeoffs", exact: true }).click(); await renderDrawing(page, () => page.locator("#takeoff-upload").setInputFiles(info.fixture), 1);
   await page.evaluate(async () => {
     const app = window.CeasefireTakeoffs, current = app.projectSnapshot(), sid = app.sessionId(), doc = current.documents[0];

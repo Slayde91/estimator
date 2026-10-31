@@ -249,7 +249,12 @@
       const when=node('td',Number.isNaN(date.getTime())?revision.created_at:date.toLocaleString('en-AU')),cell=node('td'),link=node('a');
       const expected=scoped('/api/certifications/'+encodeURIComponent(state.id)+'/revisions/'+revision.revision+'.pdf');
       if(!Number.isInteger(revision.revision)||revision.revision<1||revision.pdf_url!==expected)throw new Error('The saved certificate link is invalid.');
-      link.href=expected;link.target='_blank';link.rel='noopener';text(link,'Open revision {0}',[revision.revision]);cell.append(link);row.append(number,when,cell);body.append(row);
+      link.href=expected;text(link,'Download revision {0}',[revision.revision]);
+      link.addEventListener('click',async event=>{
+        event.preventDefault();if(state.busy||state.pending)return;state.busy=true;updateControls();
+        try{const saved=await window.CeasefireDownloads.save(expected,{}, {button:link});text($('certification-status'),'Certificate saved to {0}.',[saved.path]);}
+        catch(error){message(error.message,true);}finally{state.busy=false;updateControls();}
+      });cell.append(link);row.append(number,when,cell);body.append(row);
     }
     table.append(head,body);host.replaceChildren(table);
   }
@@ -429,6 +434,9 @@
   }
   async function perform(kind) {
     if(!state.loaded||state.opening||state.busy||state.readingSignature||(state.pending&&state.pending.kind!==kind))return;
+    if(kind==='generate') {
+      try{window.CeasefireProject.downloadTarget();}catch(error){message(error.message,true);return;}
+    }
     if(drawing.strokes.length||drawing.active){message('Save or clear the signature drawing before saving certification details.',true);return;}
     if(!state.pending){
       for(const name of requiredNames)controls[name].setCustomValidity(controls[name].value.trim()?'':window.CeasefireI18n?.translate?.('Complete all required certificate fields.')||'Complete all required certificate fields.');
@@ -456,6 +464,8 @@
         $('certification-status').className='helper certification-save-status';
         if(state.workspaceId===action.workspaceId)window.dispatchEvent(new CustomEvent('ceasefire:certification-revision-saved',
           {detail:{workspace_id:action.workspaceId,project_id:state.projectId}}));
+        const file=await window.CeasefireDownloads.save(saved.revision.pdf_url,{}, {button:generateButton});
+        text($('certification-status'),'Revision {0} saved to {1}.',[saved.revision.revision,file.path]);
       }
     }catch(error){
       if(error.status&&!error.uncertain)state.pending=null;

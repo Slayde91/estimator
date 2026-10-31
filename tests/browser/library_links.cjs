@@ -1,4 +1,4 @@
-const { waitForTakeoffDownload } = require('./native_download_helpers.cjs');
+const { waitForTakeoffDownload, ensureSavedProject } = require('./native_download_helpers.cjs');
 "use strict";
 // Explicit manual commercial linking against a disposable library/database.
 const {chromium,expect}=require('@playwright/test');
@@ -34,7 +34,7 @@ async function schedule(){return page.evaluate(()=>window.CeasefirePenetrations.
 (async()=>{
   info=await ready;assert.notEqual(info.port,8765);const source=path.join(output,'reference-library/library.json'),beforeSource=hash(source),beforePDF=hash(info.fixture);
   browser=await chromium.launch({headless:true});page=await browser.newPage({viewport:{width:1220,height:900}});page.setDefaultTimeout(30000);page.on('pageerror',error=>errors.push(error.message));
-  await page.goto(`http://127.0.0.1:${info.port}/`);await page.waitForFunction(()=>window.CeasefireDesktop?.status().ready&&!window.CeasefireDesktop.status().busy);
+  await page.goto(`http://127.0.0.1:${info.port}/`);await ensureSavedProject(page);await page.waitForFunction(()=>window.CeasefireDesktop?.status().ready&&!window.CeasefireDesktop.status().busy);
   await page.getByRole('button',{name:'Takeoffs',exact:true}).click();await renderDrawing(page,()=>page.locator('#takeoff-upload').setInputFiles(info.fixture),1);await chooseTakeoff(page,'PENETRATIONS');await idle();
   const originalPen=await page.evaluate(async()=>{await window.CeasefirePenetrations.completeProjectSnapshot();return window.CeasefirePenetrations.projectSnapshot();});
   const calculators=await page.evaluate(()=>window.CeasefireCalculators.completeProjectSnapshot());

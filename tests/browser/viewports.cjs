@@ -1,4 +1,4 @@
-const { waitForTakeoffDownload } = require('./native_download_helpers.cjs');
+const { waitForTakeoffDownload, ensureSavedProject } = require('./native_download_helpers.cjs');
 const { chooseTakeoff, takeoffChoice } = require('./section_navigation.cjs');
 const { clickProjectControl } = require('./project_actions.cjs');
 const { renderDrawing, viewRegisterItem } = require('./viewer_helpers.cjs');
@@ -184,7 +184,7 @@ function closePoint(actual, expected, tolerance = 0.9) { actual.forEach((n, i) =
   page.on('pageerror', error => errors.push(error.message));
   page.on('request', request => { if (request.url().endsWith('/commands')) operations.push(request.postDataJSON()?.op); });
   await page.addInitScript(() => { window.qaCsp = []; document.addEventListener('securitypolicyviolation', e => window.qaCsp.push({ directive: e.effectiveDirective, blocked: e.blockedURI })); });
-  const response = await page.goto(`http://127.0.0.1:${info.port}/`);
+  const response = await page.goto(`http://127.0.0.1:${info.port}/`);await ensureSavedProject(page);
   assert.ok(!response.headers()['content-security-policy'].includes('unsafe-inline'));
   await page.waitForFunction(() => window.CeasefireDesktop?.status().ready);
   await page.waitForFunction(()=>window.CeasefireDesktop?.status().ready);

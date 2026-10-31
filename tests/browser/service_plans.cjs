@@ -1,4 +1,4 @@
-const { waitForTakeoffDownload } = require('./native_download_helpers.cjs');
+const { waitForTakeoffDownload, ensureSavedProject } = require('./native_download_helpers.cjs');
 const { chooseTakeoff, takeoffChoice } = require('./section_navigation.cjs');
 const { clickProjectControl } = require('./project_actions.cjs');
 const { chooseNewPhysicalItem, startDefect } = require('./physical_dialogs.cjs');
@@ -173,7 +173,7 @@ async function controls() {
       if (box) window.qaDrawingEvents.push({ type, x: event.clientX, y: event.clientY, box: { x: box.x, y: box.y, width: box.width, height: box.height } });
     }, true);
   });
-  const initial = await page.goto(origin); assert.ok(!initial.headers()['content-security-policy'].includes('unsafe-inline'));
+  const initial = await page.goto(origin);await ensureSavedProject(page); assert.ok(!initial.headers()['content-security-policy'].includes('unsafe-inline'));
   await expect.poll(() => page.evaluate(() => window.CeasefireDesktop?.status().ready)).toBe(true);
   const calculatorBefore = await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot());
   const definitionReply = await page.request.post(`${origin}/api/penetration/definition`, { data: { configuration: await page.evaluate(() => window.CeasefireProject.configuration()) } });

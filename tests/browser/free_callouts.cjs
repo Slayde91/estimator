@@ -1,4 +1,4 @@
-const { waitForTakeoffDownload } = require('./native_download_helpers.cjs');
+const { waitForTakeoffDownload, ensureSavedProject } = require('./native_download_helpers.cjs');
 "use strict";
 // Native Call-out creation, rich editing and drawing gestures on disposable PDFs.
 const { chromium, expect } = require("@playwright/test");
@@ -114,7 +114,7 @@ async function saveLoad(info) {
   browser = await chromium.launch({ headless: true }); page = await browser.newPage({ viewport, deviceScaleFactor: 2 }); page.setDefaultTimeout(30000);
   page.on("pageerror", error => errors.push(error.message)); page.on("request", value => { if (value.url().endsWith("/commands") || /\/physical\/(preview|apply)$/.test(value.url())) requests.push({ endpoint: new URL(value.url()).pathname, body: value.postDataJSON() }); });
   await page.addInitScript(() => { window.qaCsp = []; document.addEventListener("securitypolicyviolation", event => window.qaCsp.push(event.effectiveDirective)); });
-  const response = await page.goto(`http://127.0.0.1:${info.port}/`); assert.ok(!response.headers()["content-security-policy"].includes("unsafe-inline"));
+  const response = await page.goto(`http://127.0.0.1:${info.port}/`);await ensureSavedProject(page); assert.ok(!response.headers()["content-security-policy"].includes("unsafe-inline"));
   const iconResponse = await page.request.get(`http://127.0.0.1:${info.port}/icons/takeoff-callout.png`); assert.equal(iconResponse.status(), 200); assert.equal(createHash("sha256").update(await iconResponse.body()).digest("hex"), iconHash);
   await page.waitForFunction(() => window.CeasefireDesktop?.status().ready); await page.getByRole("button", { name: "Takeoffs", exact: true }).click();
   await renderDrawing(page, () => page.locator("#takeoff-upload").setInputFiles(info.fixture), 1);

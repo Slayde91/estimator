@@ -35,8 +35,8 @@ async function holdFinalHistory(trigger){
   });
   try{await trigger();await Promise.race([arrival,new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('The source export did not refresh its captured history.')),60000);})]);
     assert.equal(await page.evaluate(()=>window.CeasefireDocumentation.hasPendingOperation()),true);const mutations=projectMutations.length,scope=await page.evaluate(()=>window.CeasefireCertification.sessionId());
-    await page.locator('#save-current-project').click();await expect(page.locator('#app-message')).toHaveText('Finish the current document download before saving the project.');
-    await openProjectSection(page,'quotes');await page.locator('#new-quote').click();await expect(page.locator('#app-message')).toHaveText('Finish the current document download before replacing a project.');
+    await page.locator('#save-current-project').click();await expect(page.locator('#app-message')).toHaveText('Finish the current file operation before saving the project.');
+    await openProjectSection(page,'quotes');await page.locator('#new-quote').click();await expect(page.locator('#app-message')).toHaveText('Finish the download and its project save before replacing a project.');
     assert.equal(await page.evaluate(()=>window.CeasefireCertification.sessionId()),scope);assert.equal(projectMutations.length,mutations);await expect(page.locator('#client')).toHaveValue('SYNTHETIC DOCUMENTATION QA');
     checks.push('Save and New are blocked while the final captured history response is still pending, without replacing the project');
   }finally{clearTimeout(timer);release();await heldRequest;await page.unroute(matcher);}
@@ -51,7 +51,9 @@ async function download(kind,endpoint,{reviewPending=false}={}){await documentat
   assert.equal(bytes.subarray(0,kind.endsWith('.xlsx')?2:5).toString(),kind.endsWith('.xlsx')?'PK':'%PDF-');
   await expect(page.locator(`tr[data-document-kind="${kind}"] a`)).toHaveCount(item.revision,{timeout:30000});await idle();
   assert.deepEqual(await snapshots(),before,'An export retains all calculator inputs, price snapshots, schedule data and project details');
-  assert.equal(digest(fs.readFileSync(info.project)),digest(savedBefore),'Generating a document does not silently overwrite the saved project');
+  assert.equal(saved.destination,'project');assert.equal(path.dirname(saved.path),path.dirname(info.project));
+  assert.notEqual(digest(fs.readFileSync(info.project)),digest(savedBefore),'A successful download saves its updated project history afterwards');
+  const persisted=JSON.parse(fs.readFileSync(info.project));assert.equal(persisted.documentation.revision_count,(await api('/api/documentation?workspace='+saved.documentation.workspace_id)).workspace_revision);
   assert.deepEqual(await oldFile(item,saved.documentation.workspace_id),bytes);exportReceipts.push({kind,revision:item.revision,path:saved.path,sha256:item.sha256});return item;}
 async function confirmIfNeeded(){const dialog=page.locator('#discard-dialog');if(await dialog.isVisible())await dialog.locator('[value="confirm"]').click();}
 async function load(file){choose(file);await openProjectSection(page,'quotes');const waiting=page.waitForResponse(response=>new URL(response.url()).pathname==='/api/project/open',{timeout:180000});waiting.catch(()=>{});
@@ -77,6 +79,9 @@ function checkCompanions(project,folder){
   await page.locator('#client').fill('SYNTHETIC DOCUMENTATION QA');await page.locator('#project-no').fill('DOC-PROJECT-A');await page.locator('#site-address').fill('Synthetic test address - no installation claim');
   choose('project-a.cf.json');await save();console.log('Project A saved on disposable storage.');const baseline=await snapshots();
   await documentation();const catalog=(await api('/api/documentation/catalog')).documents;
+  await expect(page.locator('#view-documentation .documentation-table thead tr').first().locator('th')).toHaveText(['Document','Download','Previous revisions']);
+  const breakdown=page.locator('tr[data-document-kind="estimate.summary.pdf"]');await expect(breakdown.locator('td').first()).toHaveText('Breakdown');
+  await expect(breakdown.locator('button')).toHaveAccessibleName('Download Breakdown');await expect(breakdown.locator('button')).toHaveText('⇩');
   const omittedPdfRows=new Set(['firestopping.current_item.pdf','library.technical.item.pdf','takeoff.pdf_tools.pdf','takeoff.defect_reports.matrix.pdf','takeoff.service_plans.matrix.pdf']);
   const omittedXlsxRows=new Set(['firestopping.current_item.xlsx','library.technical.item.xlsx','pricing.library.xlsx',
     ...['steel_vermiculite','steel_intumescent','steel_board','ductwork'].map(id=>`calculator.${id}.template.xlsx`),

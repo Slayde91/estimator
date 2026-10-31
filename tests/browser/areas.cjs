@@ -1,4 +1,4 @@
-const { waitForTakeoffDownload } = require('./native_download_helpers.cjs');
+const { waitForTakeoffDownload, ensureSavedProject } = require('./native_download_helpers.cjs');
 const { cycleTheme } = require('./theme_navigation.cjs');
 const { chooseTakeoff } = require('./section_navigation.cjs');
 const { clickProjectControl } = require('./project_actions.cjs');
@@ -226,7 +226,7 @@ async function surface(mode, rotated = false) {
   page.setDefaultTimeout(30000);
   page.on('pageerror', error => errors.push(error.message));
   await page.addInitScript(() => { window.qaCsp = []; document.addEventListener('securitypolicyviolation', e => window.qaCsp.push({ directive: e.effectiveDirective, blocked: e.blockedURI })); });
-  const response = await page.goto(`http://127.0.0.1:${info.port}/`);
+  const response = await page.goto(`http://127.0.0.1:${info.port}/`);await ensureSavedProject(page);
   assert.ok(!response.headers()['content-security-policy'].includes('unsafe-inline'));
   await page.waitForFunction(() => window.CeasefireDesktop?.status().ready);
   const calculatorsBefore = await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot());

@@ -5,7 +5,7 @@ const fs = require('node:fs'), path = require('node:path'), assert = require('no
 const { chooseTakeoff } = require('./section_navigation.cjs');
 const { renderDrawing } = require('./viewer_helpers.cjs');
 const { settingsSettled } = require('./settings_helpers.cjs');
-const { waitForTakeoffDownload } = require('./native_download_helpers.cjs');
+const { waitForTakeoffDownload, ensureSavedProject } = require('./native_download_helpers.cjs');
 const { clickProjectControl, openProjectSection } = require('./project_actions.cjs');
 const root = path.resolve(__dirname, '../..'), output = path.join(root, '.runtime/browser-qa', `markup-downloads-${Date.now()}`);
 fs.mkdirSync(output, { recursive: true });
@@ -102,7 +102,7 @@ async function download(kind, label, scope, held=false, workspace=scope){
   info=await ready;origin=`http://127.0.0.1:${info.port}`;evidence.port=info.port;
   browser=await chromium.launch({headless:true});page=await browser.newPage({viewport:{width:1384,height:1000}});page.setDefaultTimeout(30000);
   page.on('pageerror',error=>errors.push(error.message));
-  await page.addInitScript(()=>{window.__markupDownloadCsp=[];document.addEventListener('securitypolicyviolation',event=>window.__markupDownloadCsp.push({directive:event.effectiveDirective,blocked:event.blockedURI}));});await page.goto(origin);
+  await page.addInitScript(()=>{window.__markupDownloadCsp=[];document.addEventListener('securitypolicyviolation',event=>window.__markupDownloadCsp.push({directive:event.effectiveDirective,blocked:event.blockedURI}));});await page.goto(origin);await ensureSavedProject(page);
   await chooseTakeoff(page,'Steel');await renderDrawing(page,()=>page.locator('#takeoff-upload').setInputFiles(info.fixture),1);await idle();
   const sid=await page.evaluate(()=>window.CeasefireTakeoffs.sessionId());current=await(await page.request.get(`${origin}/api/takeoffs/sessions/${sid}`)).json();
   const doc=current.snapshot.documents[0], originalHash=hash(info.fixture);evidence.original=originalHash;

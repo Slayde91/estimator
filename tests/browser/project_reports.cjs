@@ -30,21 +30,14 @@ async function themeColors(selector, token) {return page.locator(selector).first
   // load that saved calculator into a fresh browser. No real project is touched.
   const seeded=await page.request.put(`http://127.0.0.1:${fixture.port}/api/calculators/steel_board/state`,{data:{inputs:{CALCULATOR:{A9:'REPORT-FIXTURE'}}}});assert.equal(seeded.status(),200);
   page.on('dialog',dialog=>dialog.accept());await page.reload({waitUntil:'networkidle'});await idle();
+  await require('./native_download_helpers.cjs').ensureSavedProject(page);
   await page.locator('nav [data-view="estimate"]').click();await page.locator('nav [data-view="estimate"]').press('Escape');
-  // Keep the application's complete request path, but save the fixture bytes
-  // into this test directory instead of the machine's Downloads folder.
-  await page.route('**/api/project/full-*.pdf',async route=>{
-    const payload=route.request().postDataJSON();delete payload.download;
-    const response=await page.request.post(route.request().url(),{data:payload});
-    if(!response.ok()){await route.fulfill({response});return;}
-    const filename=route.request().url().split('/').at(-1), target=path.join(output,filename);
-    fs.writeFileSync(target,await response.body());evidence.downloads.push({filename,calculators:payload.calculators});
-    await route.fulfill({json:{saved:true,path:target,filename,destination:'downloads'}});
-  });
+  // Use the actual native broker and fixture-owned saved project destination.
   for(const [id, filename] of [['download-full-schedule','full-schedule.pdf'],['download-full-product-summary','full-product-summary.pdf']]){
     await page.locator('[aria-controls="firestopping-document-actions"]').click();
-    const done=page.waitForResponse(response=>response.url().endsWith(filename));await page.locator(`#${id}`).click();assert.equal((await done).status(),200);await idle();
-    const text=spawnSync(python,['-c',"from pypdf import PdfReader;import sys;r=PdfReader(sys.argv[1]);assert [o.title for o in r.outline]==['Steel board'];print(len(r.pages))",path.join(output,filename)],{cwd:root,encoding:'utf8',windowsHide:true});assert.equal(text.status,0,text.stderr);
+    const done=page.waitForResponse(response=>response.url().endsWith(filename));await page.locator(`#${id}`).click();const reply=await done;assert.equal(reply.status(),200);const saved=await reply.json();assert.equal(saved.destination,'project');assert.equal(path.dirname(saved.path),path.dirname(fixture.project));await idle();
+    evidence.downloads.push({filename:saved.filename,calculators:reply.request().postDataJSON().calculators});
+    const text=spawnSync(python,['-c',"from pypdf import PdfReader;import sys;r=PdfReader(sys.argv[1]);assert [o.title for o in r.outline]==['Steel board'];print(len(r.pages))",saved.path],{cwd:root,encoding:'utf8',windowsHide:true});assert.equal(text.status,0,text.stderr);
   }
   for(const theme of ['ceasefire','midnight','ocean','forest','slate']){
     while(await page.locator('html').getAttribute('data-theme')!==theme)await cycleTheme(page);

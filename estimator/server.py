@@ -425,6 +425,20 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     if body:
                         raise ValidationError('Document progress does not accept extra options.')
                     self.send_payload(200, download_progress.begin())
+                elif re.fullmatch(r'/api/documentation/[a-z0-9-]{36}', route) and self.command == 'POST':
+                    if not isinstance(body, dict) or set(body) != {'download'}:
+                        raise ValidationError('Include the current saved project destination only.')
+                    destination = self.capture_download(body['download'])
+                    result = documentation.read(documentation_workspace(self.path), route.rsplit('/', 1)[1])
+                    self.send_download(result['payload'], result['item']['media_type'], result['item']['filename'], destination, frozen_pdf=True)
+                elif re.fullmatch(r'/api/certifications/[a-z0-9-]{1,64}/revisions/[1-9][0-9]{0,9}\.pdf', route) and self.command == 'POST':
+                    if not isinstance(body, dict) or set(body) != {'download'}:
+                        raise ValidationError('Include the current saved project destination only.')
+                    destination = self.capture_download(body['download'])
+                    certificate_id, revision = route.split('/')[3], int(route.rsplit('/', 1)[1][:-4])
+                    service, _ = certificate_context(self.path)
+                    self.send_download(service.revision_pdf(certificate_id, revision), 'application/pdf',
+                                       document_filename('certification', '', revision), destination, frozen_pdf=True)
                 elif route in {'/api/project/full-schedule.pdf', '/api/project/full-product-summary.pdf'} and self.command == 'POST':
                     from .project_file import CALCULATOR_IDS, project_details
                     from .project_reports import build_project_report

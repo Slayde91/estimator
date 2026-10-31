@@ -1,4 +1,4 @@
-const { waitForTakeoffDownload } = require('./native_download_helpers.cjs');
+const { waitForTakeoffDownload, ensureSavedProject } = require('./native_download_helpers.cjs');
 "use strict";
 const { assertParentControls, clickInspectorAdd } = require('./parent_controls_helpers.cjs');
 // Native explicit append under one retained Defect. All storage is disposable.
@@ -55,7 +55,7 @@ async function facets(locator){return locator.locator('select[data-library-filte
 (async()=>{
   info=await ready;assert.notEqual(info.port,8765);const source=path.join(output,'reference-library/library.json'),sourceHash=hash(source),pdfHash=hash(info.fixture);
   browser=await chromium.launch({headless:true});page=await browser.newPage({viewport:{width:1360,height:1000}});page.setDefaultTimeout(30000);page.on('pageerror',error=>errors.push(error.message));
-  await page.goto(`http://127.0.0.1:${info.port}/`);await page.waitForFunction(()=>window.CeasefireDesktop?.status().ready&&!window.CeasefireDesktop.status().busy);
+  await page.goto(`http://127.0.0.1:${info.port}/`);await ensureSavedProject(page);await page.waitForFunction(()=>window.CeasefireDesktop?.status().ready&&!window.CeasefireDesktop.status().busy);
   await chooseLibrary(page,'penetration');
   // The Library browser is a section, not a landmark on older installations.
   const nativeFilters=page.locator('.library-browser').filter({has:page.locator('[data-library-results="penetration"]')});await expect(nativeFilters.locator('select[data-library-filter="substrate"]')).toBeVisible();const expectedFacets=(await facets(nativeFilters)).filter(value=>value.key!=='technical_reference');

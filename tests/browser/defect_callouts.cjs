@@ -1,4 +1,4 @@
-const { waitForTakeoffDownload } = require('./native_download_helpers.cjs');
+const { waitForTakeoffDownload, ensureSavedProject } = require('./native_download_helpers.cjs');
 const { cycleTheme } = require('./theme_navigation.cjs');
 const { chooseTakeoff } = require('./section_navigation.cjs');
 const { clickInspectorAdd } = require('./parent_controls_helpers.cjs');
@@ -84,7 +84,7 @@ async function physicalThemeLabels(kind) {
   const info = await ready; assert.notEqual(info.port, 8765); const sourceHash = hash(info.fixture);
   browser = await chromium.launch({ headless: true }); page = await browser.newPage({ viewport: { width: 1146, height: 900 } }); page.setDefaultTimeout(30000);
   page.on('pageerror', error => errors.push(error.message)); page.on('request', request => { if (/\/physical\/(preview|apply)$/.test(request.url())) requests.push({ endpoint: new URL(request.url()).pathname, body: request.postDataJSON() }); });
-  await page.goto(`http://127.0.0.1:${info.port}/`); await page.waitForFunction(() => { const value = window.CeasefireDesktop?.status(); return value?.ready && !value.busy; });
+  await page.goto(`http://127.0.0.1:${info.port}/`);await ensureSavedProject(page); await page.waitForFunction(() => { const value = window.CeasefireDesktop?.status(); return value?.ready && !value.busy; });
   await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); await renderDrawing(page, () => page.locator('#takeoff-upload').setInputFiles(info.fixture), 1);
   await renderDrawing(page, async () => { await page.getByLabel('Page number', { exact: true }).fill('3'); await page.getByLabel('Page number', { exact: true }).press('Tab'); }, 3);
   const calculators = await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot());

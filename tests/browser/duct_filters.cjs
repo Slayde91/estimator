@@ -1,4 +1,4 @@
-const { waitForTakeoffDownload } = require('./native_download_helpers.cjs');
+const { waitForTakeoffDownload, ensureSavedProject } = require('./native_download_helpers.cjs');
 const { chooseTakeoff } = require('./section_navigation.cjs');
 // Steel and Duct column filters against disposable, source-backed 102-row registers.
 const { chromium, expect } = require('@playwright/test');
@@ -51,7 +51,7 @@ async function reset(label) { await finishMenu(await menu(label), 'Reset filter'
   browser = await chromium.launch({ headless: true }); page = await browser.newPage({ viewport: { width: 1146, height: 764 } }); page.setDefaultTimeout(30000);
   page.on('pageerror', error => errors.push(error.message)); page.on('request', request => { if (request.url().endsWith('/commands')) commands.push(request.postDataJSON()); });
   await page.addInitScript(() => { window.qaCsp = []; document.addEventListener('securitypolicyviolation', event => window.qaCsp.push(event.effectiveDirective)); });
-  await page.goto(`http://127.0.0.1:${info.port}/`);
+  await page.goto(`http://127.0.0.1:${info.port}/`);await ensureSavedProject(page);
   // Bootstrap selects its initial view; navigate only after it has completed.
   await page.waitForFunction(() => window.CeasefireDesktop?.status().ready);
   await page.getByRole('button', { name: 'Takeoffs', exact: true }).click();

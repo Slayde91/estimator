@@ -1,4 +1,4 @@
-const { waitForTakeoffDownload } = require('./native_download_helpers.cjs');
+const { waitForTakeoffDownload, ensureSavedProject } = require('./native_download_helpers.cjs');
 const { chooseTakeoff } = require('./section_navigation.cjs');
 // Real combined Wall/Floor filters and classified exports against disposable source-backed projects.
 const { chromium, expect } = require('@playwright/test');
@@ -41,7 +41,7 @@ async function reset(label) { await finishMenu(await menu(label), 'Reset filter'
   page.on('pageerror', error => errors.push(error.message)); page.on('request', request => { if (request.url().endsWith('/commands')) commands.push(request.postDataJSON()); });
   page.on('response', response => { const pathname = new URL(response.url()).pathname; if (['/takeoffs.js', '/takeoffs.css', '/icons/document.png', '/icons/takeoff-transfer.png'].includes(pathname)) assetTasks.push(response.body().then(bytes => { assets[pathname] = { bytes: bytes.length, sha256: createHash('sha256').update(bytes).digest('hex') }; })); });
   await page.addInitScript(() => { window.qaCsp = []; document.addEventListener('securitypolicyviolation', event => window.qaCsp.push(event.effectiveDirective)); });
-  await page.goto(`http://127.0.0.1:${info.port}/`); await page.waitForFunction(() => window.CeasefireDesktop?.status().ready);
+  await page.goto(`http://127.0.0.1:${info.port}/`);await ensureSavedProject(page); await page.waitForFunction(() => window.CeasefireDesktop?.status().ready);
   await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); await page.locator('#takeoff-upload').setInputFiles(info.area_fixture);
   await page.waitForFunction(() => { try { return window.CeasefireTakeoffs.projectSnapshot().render_checks.some(check => check.page === 1 && check.success); } catch { return false; } });
   const seeded = await page.evaluate(async () => {

@@ -1,4 +1,4 @@
-const { waitForTakeoffDownload } = require('./native_download_helpers.cjs');
+const { waitForTakeoffDownload, ensureSavedProject } = require('./native_download_helpers.cjs');
 const { chooseTakeoff } = require('./section_navigation.cjs');
 const { clickProjectControl } = require('./project_actions.cjs');
 const { renderDrawing } = require('./viewer_helpers.cjs');
@@ -110,7 +110,7 @@ async function layout(width) {
   page.on('pageerror', error => errors.push(error.message)); page.on('request', request => { if (request.url().endsWith('/commands')) requests.push(request.postDataJSON()); });
   page.on('response', response => { const pathname = new URL(response.url()).pathname; if (['/takeoffs.js', '/takeoff-geometry.js', '/takeoffs.css'].includes(pathname)) assetTasks.push(response.body().then(bytes => { assets[pathname] = { size: bytes.length, sha256: createHash('sha256').update(bytes).digest('hex') }; })); });
   await page.addInitScript(() => { window.qaCsp = []; document.addEventListener('securitypolicyviolation', event => window.qaCsp.push({ directive: event.effectiveDirective, blocked: event.blockedURI })); });
-  const response = await page.goto(`http://127.0.0.1:${info.port}/`); assert.ok(!response.headers()['content-security-policy'].includes('unsafe-inline'));
+  const response = await page.goto(`http://127.0.0.1:${info.port}/`);await ensureSavedProject(page); assert.ok(!response.headers()['content-security-policy'].includes('unsafe-inline'));
   await page.waitForFunction(()=>window.CeasefireDesktop?.status().ready);
   await page.getByRole('button',{name:'Takeoffs',exact:true}).click(); await page.locator('#takeoff-upload').setInputFiles([info.fixture, info.area_fixture]); await expect(page.locator('.takeoff-document')).toHaveCount(2, { timeout: 60000 }); await idle();
   await expect(page.locator('.takeoff-viewport canvas')).toBeVisible(); await idle();

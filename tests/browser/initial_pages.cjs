@@ -1,4 +1,4 @@
-const { waitForTakeoffDownload } = require('./native_download_helpers.cjs');
+const { waitForTakeoffDownload, ensureSavedProject } = require('./native_download_helpers.cjs');
 "use strict";
 // Generated PDFs, projects, image stamps and signatures are disposable. This
 // journey never operates the live application or any existing browser draft.
@@ -44,7 +44,7 @@ async function resizeStamp(id,image=false){
   browser=await chromium.launch({headless:true});page=await browser.newPage({viewport:{width:1600,height:1100}});page.setDefaultTimeout(30000);
   page.on("pageerror",e=>errors.push(e.message));page.on("request",r=>{if(r.url().endsWith("/commands"))requests.push(r.postDataJSON());});
   await page.addInitScript(()=>{window.qaCsp=[];document.addEventListener("securitypolicyviolation",e=>window.qaCsp.push(e.effectiveDirective));});
-  await page.goto(`http://127.0.0.1:${info.port}/`);await page.waitForFunction(()=>window.CeasefireDesktop?.status().ready);await page.getByRole("button",{name:"Takeoffs",exact:true}).click();await chooseTakeoff(page,"wall");
+  await page.goto(`http://127.0.0.1:${info.port}/`);await ensureSavedProject(page);await page.waitForFunction(()=>window.CeasefireDesktop?.status().ready);await page.getByRole("button",{name:"Takeoffs",exact:true}).click();await chooseTakeoff(page,"wall");
   await renderDrawing(page,()=>page.locator("#takeoff-upload").setInputFiles(info.area_fixture),1);await idle();const baseline=await snapshot(),pageCount=baseline.documents[0].pages.length;
   for(const [label,kind] of [["Cloud","cloud"],["Textbox","textbox"],["Stamp","stamp"],["Line/Polyline","polyline"],["Arrow","arrow"],["Rectangle","rectangle"],["Circle","circle"],["Polygon","polygon"]]){const control=page.locator(".takeoff-markup-rail").getByRole("button",{name:label,exact:true});await control.click();await expect(viewport()).toHaveAttribute("data-tool",`graphic-${kind}`);assert.match(await viewport().evaluate(el=>getComputedStyle(el).cursor),/cursors\/precision\.png/);assert.match(await page.locator(".takeoff-overlay").evaluate(el=>getComputedStyle(el).cursor),/cursors\/precision\.png/);await control.click();await expect(viewport()).toHaveAttribute("data-tool","select");await control.click();await expect(viewport()).toHaveAttribute("data-tool",`graphic-${kind}`);await cancelAt();}
   assert.deepEqual(await snapshot(),baseline);check("All graphic tools use crosshair and cancel by repeated button or native right-click without creating records");

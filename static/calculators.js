@@ -1388,8 +1388,8 @@ window.CeasefireScheduleColumns = (() => {
   }
   function documentLabels(entry = current()) {
     const schedule = entry?.definition.id === "ductwork" ? "Duct Schedule" : "Steel Schedule";
-    return { "calculator-import": "Import Schedule", "calculator-excel": `${schedule} XLSX`,
-      "calculator-pdf": `${schedule} PDF`, "calculator-summary-pdf": "Product Summary PDF", "calculator-template": "Export Template" };
+    return { "calculator-import": "Import Schedule", "calculator-excel": schedule,
+      "calculator-pdf": schedule, "calculator-summary-pdf": "Product Summary", "calculator-template": "Export Template" };
   }
   function renderDocumentLabels(entry = current()) {
     for (const [id, label] of Object.entries(documentLabels(entry))) {

@@ -20,7 +20,7 @@ from .quote_details import compile_work_summary
 from .storage import Store, WORKFLOWS
 from .edition import excluded_route, features, render_index, require_project_edition, validate_edition
 from .travel import TravelService, TravelError
-from .download_filenames import download_filename, download_header
+from .download_filenames import download_filename, download_header, document_filename
 
 MAX_BODY = 24 * 1_048_576
 MAX_PRICING_FILE = 5 * 1_048_576
@@ -151,12 +151,15 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                 self.wfile.write(body)
 
         def send_download(self, payload, content_type, filename, destination=None, *, frozen_pdf=False, pdf_kind=None):
-            filename = download_filename(filename)
+            identity = self._documentation_identity or export_identity(urlsplit(self.path).path, {})
+            filename = document_filename(identity[0] if identity else None, filename)
             if content_type.split(';', 1)[0].strip() == 'application/pdf' and not frozen_pdf:
                 from .pdf_cover import prepend_cover_pdf
                 company = self.pdf_company_details(pdf_kind)
                 payload = prepend_cover_pdf(payload, company, self._pdf_cover_settings_snapshot[pdf_kind])
             retained = self._documentation_receipt
+            if retained is not None:
+                filename = retained['item']['filename']
             if self._documentation_context is not None and retained is None:
                 workspace, request_id = self._documentation_context
                 kind, logical_key = self._documentation_identity
@@ -165,6 +168,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                 retained = documentation.record(workspace, kind, logical_key, filename, content_type,
                                                 payload, request_id, self._documentation_fingerprint)
                 self._documentation_receipt = retained
+                filename = retained['item']['filename']
                 if retained['replayed']:
                     existing = documentation.read(workspace, retained['item']['id'])
                     payload, content_type, filename = existing['payload'], existing['item']['media_type'], download_filename(existing['item']['filename'])
@@ -327,7 +331,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     payload = service.revision_pdf(certificate_id, revision)
                     # Immutable revisions already contain their original cover.
                     self.send_payload(200, payload, 'application/pdf',
-                                      {'Content-Disposition': f'inline; filename="Installation-Certificate-Revision-{revision}.pdf"'})
+                                      {'Content-Disposition': f'inline; filename="{document_filename("certification", "", revision)}"'})
                 elif re.fullmatch(r'/api/certifications/[a-z0-9-]{1,64}', route):
                     service, token = certificate_context(self.path)
                     self.send_payload(200, certificate_response(token, service.get(route.rsplit('/', 1)[1])))

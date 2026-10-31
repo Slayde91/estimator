@@ -1410,14 +1410,10 @@
     ui.readOnlyNotice = uiNode("p", "takeoff-warning takeoff-physical-legacy-notice", "Legacy hierarchy — read-only until its relationships are assigned. Original records, fields and evidence are preserved for inspection and export."); ui.root.append(ui.readOnlyNotice);
     const tools = node("div", "takeoff-register-controls takeoff-physical-filter-row"), actions = node("div", "takeoff-register-controls takeoff-physical-actions-row");
     const documents = actionDisclosure("Document", "Document actions", "takeoff-document-menu takeoff-physical-document-menu", false, "/icons/document.png");
-    for (const [format, confirmation, label] of [["xlsx", "confirmed", "Download confirmed items"], ["xlsx", "unconfirmed", "Download unconfirmed items"], ["xlsx", "all", "Download all items"], ["pdf", null, "Download Passive Fire Matrix PDF"]]) {
+    for (const [format, confirmation, label] of [["xlsx", "confirmed", "Confirmed items"], ["xlsx", "unconfirmed", "Unconfirmed items"], ["xlsx", "all", "All items"]]) {
       const control = button(label, () => runBridge(() => bridge.export(format, confirmation, control)), "button secondary calculator-document-action");
       root.CeasefireI18n.attr(control, "aria-label", label); const icon = node("span", "download-format-icon"); icon.setAttribute("aria-hidden", "true"); icon.append(node("span", "download-arrow", "↓"), node("span", "download-format", format.toUpperCase())); control.replaceChildren(icon, uiNode("span", "", label));
       documents.add(control);
-    }
-    for (const [kind, label] of [["current-all", "Download Full Markup"], ["current-marked", "Download Markups Only"], ["all-all", "Download All Markups"], ["all-marked", "Download Full Markups Only"]]) {
-      const control = button(label, () => downloadMarkup(kind, control), "button secondary calculator-document-action");
-      root.CeasefireI18n.attr(control, "aria-label", label); const icon = node("span", "download-format-icon"); icon.setAttribute("aria-hidden", "true"); icon.append(node("span", "download-arrow", "↓"), node("span", "download-format", "PDF")); control.replaceChildren(icon, uiNode("span", "", label)); documents.add(control);
     }
     const search = node("input"); search.type = "search"; root.CeasefireI18n.attr(search, "placeholder", "Filter physical records…"); root.CeasefireI18n.attr(search, "aria-label", "Filter physical hierarchy"); search.addEventListener("input", () => { if (state.pending.size || state.busy) return; state.filter = search.value; state.offset = 0; renderTable(); });
     const deleted = node("label", "takeoff-check"), show = node("input"); show.type = "checkbox"; show.addEventListener("change", () => void safe(() => { ensureAvailable(); state.showDeleted = show.checked; state.offset = 0; renderTable(); })); deleted.append(show, uiNode("span", "", "Show deleted records"));

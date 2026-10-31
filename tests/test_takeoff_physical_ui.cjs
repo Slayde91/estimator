@@ -172,23 +172,20 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
     }
     const retained={notes:'\r\n literal source \t '};assert.equal(physical.fieldsFromValues('service',{size:'125'},retained).notes,retained.notes);assert.equal(physical.fieldsFromValues('service',{notes:''},retained).notes,undefined,'An explicit existing bulk/API clear remains available');
   });
-  await check('Physical markup menu passes each export scope and the actual clicked progress control',async()=>{
-    const sent=[],h=component(graph(),{downloadMarkup:async(kind,control)=>{assert.equal(h.controller.hasUnfinishedChanges(),false,'Shared downloader preflight sees only genuine edits, not its own bridge lock');sent.push({kind,control});}});await flush();const before=copy(h.current);
-    for(const[kind,label]of[['current-all','Download Full Markup'],['current-marked','Download Markups Only'],['all-all','Download All Markups'],['all-marked','Download Full Markups Only']]){const control=h.button(label);await h.click(label);assert.deepEqual(sent.at(-1),{kind,control});}assert.deepEqual(h.current,before);h.controller.destroy();
+  await check('Physical Document omits markup and matrix choices without altering retained records',async()=>{
+    for(const scope of ['defect_reports','service_plans']){
+      const h=component(scope==='service_plans'?servicePlanGraph():graph(),{scope:()=>scope});await flush();const before=copy(h.current);
+      const toggle=h.button('Document'),list=h.all().find(element=>element.id===toggle.attributes['aria-controls']);
+      assert.equal(list.children.length,3);assert.ok(list.children.every(control=>!/Markup|Matrix|PDF|Download/i.test(control.attributes['aria-label'])));
+      assert.deepEqual(h.current,before);h.controller.destroy();
+    }
   });
-  await check('Physical markup download locks all physical actions after clean preflight and preserves pending-field guards',async()=>{
-    const gate=defer(),sent=[],h=component(graph(),{downloadMarkup:(kind,control)=>{assert.equal(h.controller.hasUnfinishedChanges(),false);sent.push({kind,control});return gate.promise;}});await flush();const before=copy(h.current);
-    h.button('Download Full Markup').emit('click');await flush();assert.equal(sent.length,1);assert.equal(h.controller.hasUnfinishedChanges(),true);assert.equal(h.button('Document').disabled,true);
-    h.button('Download All Markups').emit('click');await flush();assert.equal(sent.length,1);gate.resolve();await flush();assert.equal(h.controller.hasUnfinishedChanges(),false);assert.equal(h.button('Document').disabled,false);
-    await h.controller.select(uuid(5));const field=h.input('Explicit service quantity');field.value='-1';field.emit('input');await flush();assert.equal(h.controller.hasUnfinishedChanges(),true);
-    h.button('Download Full Markup').emit('click');await flush();assert.equal(sent.length,1);assert.equal(field.value,'-1');assert.ok(h.calls.notifications.some(value=>value.error&&/quantity/i.test(value.text)));assert.deepEqual(h.current,before);h.controller.destroy();
-  });
-  await check('Physical Document menu exposes three scoped XLSX exports and the existing matrix PDF without mutating records',async()=>{
+  await check('Physical Document menu exposes only three scoped XLSX exports without mutating records',async()=>{
     const h=component(),before=copy(h.current);await flush();const toggle=h.button('Document'),list=h.all().find(element=>element.id===toggle.attributes['aria-controls']);
     const icon=toggle.children[0];assert.equal(icon.tagName,'IMG');assert.equal(icon.src,'/icons/document.png');assert.equal(icon.alt,'');assert.equal(icon.attributes['aria-hidden'],'true');
     const tools=h.input('Filter physical hierarchy').parentElement,actions=toggle.parentElement.parentElement;assert.notEqual(actions,tools);assert.equal(h.button('Select filtered records').parentElement,tools);assert.equal(h.button('Undo last edit').parentElement,tools);assert.equal(tools.children[tools.children.indexOf(h.button('Undo last edit'))+1].textContent,'Show deleted records');assert.equal(tools.parentElement.children[tools.parentElement.children.indexOf(tools)+1],actions);assert.deepEqual(actions.children.map(control=>control.attributes['aria-label']||control.className),['Transfer to Firestopping Schedule','Update linked rows','Unlink from Firestopping Schedule','calculator-document-menu takeoff-document-menu takeoff-physical-document-menu']);
     assert.ok(list.hidden);toggle.emit('click');assert.equal(list.hidden,false);assert.equal(toggle.attributes['aria-expanded'],'true');
-    for(const [label,format,confirmation] of [['Download confirmed items','xlsx','confirmed'],['Download unconfirmed items','xlsx','unconfirmed'],['Download all items','xlsx','all'],['Download Passive Fire Matrix PDF','pdf',null]]){
+    for(const [label,format,confirmation] of [['Confirmed items','xlsx','confirmed'],['Unconfirmed items','xlsx','unconfirmed'],['All items','xlsx','all']]){
       assert.equal(h.button(label).parentElement,list);await h.click(label);assert.ok(list.hidden);assert.deepEqual(h.calls.exports.at(-1),{format,confirmation});
     }
     assert.deepEqual(h.current,before);assert.equal(h.calls.previews.length,0);assert.equal(h.calls.applied.length,0);h.controller.destroy();assert.equal(h.dom.container.ownerDocument.body.events.pointerdown.length,0);
@@ -201,9 +198,9 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
   });
   await check('Relocated physical Document participates in busy locking and its existing export guard prevents a second request',async()=>{
     const pending=defer(),requests=[],h=component(graph(),{documentMenuContainer:true,export:async(format,confirmation)=>{requests.push({format,confirmation});return pending.promise;}});await flush();const before=copy(h.current),toggle=h.button('Document');
-    await h.click('Download confirmed items');assert.deepEqual(requests,[{format:'xlsx',confirmation:'confirmed'}]);assert.equal(toggle.disabled,true);assert.equal(toggle.parentElement.attributes['aria-busy'],'true');for(const name of ['Download confirmed items','Download unconfirmed items','Download all items','Download Passive Fire Matrix PDF'])assert.equal(h.button(name).disabled,true);
+    await h.click('Confirmed items');assert.deepEqual(requests,[{format:'xlsx',confirmation:'confirmed'}]);assert.equal(toggle.disabled,true);assert.equal(toggle.parentElement.attributes['aria-busy'],'true');for(const name of ['Confirmed items','Unconfirmed items','All items'])assert.equal(h.button(name).disabled,true);
     // A scripted invocation still cannot bypass the component's settled-work guard.
-    await h.click('Download all items');assert.equal(requests.length,1);assert.match(h.calls.notifications.at(-1).text,/Finish the current physical edit first/);
+    await h.click('All items');assert.equal(requests.length,1);assert.match(h.calls.notifications.at(-1).text,/Finish the current physical edit first/);
     pending.resolve();await flush();assert.equal(toggle.disabled,false);assert.equal(toggle.parentElement.attributes['aria-busy'],'false');assert.deepEqual(h.current,before);assert.equal(h.calls.previews.length,0);assert.equal(h.calls.applied.length,0);h.controller.destroy();
   });
   await check('Manual Defect creation first offers Search Item or New Item without consuming its field answer',async()=>{

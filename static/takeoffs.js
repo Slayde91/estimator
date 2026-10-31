@@ -251,11 +251,8 @@
     });
     root.addEventListener("focusout", event => { if (!root.contains(event.relatedTarget)) close(false); });
     document.body.addEventListener("pointerdown", event => { if (!root.contains(event.target)) close(false); });
-    for (const [confirmation, label] of [["confirmed", "Download confirmed items"], ["unconfirmed", "Download unconfirmed items"], ["all", "Download all items"]]) {
+    for (const [confirmation, label] of [["confirmed", "Confirmed items"], ["unconfirmed", "Unconfirmed items"], ["all", "All items"]]) {
       const action = button(label, () => { close(false); return downloadTakeoff("schedule-xlsx", confirmation, action); }, "button secondary calculator-document-action"), symbol = node("span", "download-format-icon"); symbol.setAttribute("aria-hidden", "true"); symbol.append(node("span", "download-arrow", "⇩"), node("span", "download-format", "XLSX")); action.replaceChildren(symbol, uiNode("span", "", label)); list.append(action);
-    }
-    for (const [kind, label] of [["current-all", "Download Full Markup"], ["current-marked", "Download Markups Only"], ["all-all", "Download All Markups"], ["all-marked", "Download Full Markups Only"]]) {
-      const action = button(label, () => { close(false); return downloadMarkup(kind, action); }, "button secondary calculator-document-action"), symbol = node("span", "download-format-icon"); symbol.setAttribute("aria-hidden", "true"); symbol.append(node("span", "download-arrow", "⇩"), node("span", "download-format", "PDF")); action.replaceChildren(symbol, uiNode("span", "", label)); list.append(action);
     }
     return { root, toggle, list, close };
   }

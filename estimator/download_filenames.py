@@ -3,6 +3,34 @@ from email.message import Message
 from email.utils import collapse_rfc2231_value
 import re
 
+DOCUMENT_FILENAMES = {
+    'estimate.summary.pdf': 'BREAKDOWN.pdf',
+    'project.full_schedule.pdf': 'FULL_SCHEDULE.pdf',
+    'project.full_product_summary.pdf': 'FULL_PRODUCT_SUMMARY.pdf',
+    'firestopping.schedule.pdf': 'FIRESTOPPING_SCHEDULE.pdf',
+    'certification': 'INSTALLATION_CERTIFICATE.pdf',
+}
+for _identity, _prefix in [('steel_vermiculite','SPRAY'),('steel_intumescent','PAINT'),
+                           ('steel_board','BOARD'),('ductwork','DUCT')]:
+    DOCUMENT_FILENAMES[f'calculator.{_identity}.schedule.pdf'] = _prefix + '_SCHEDULE.pdf'
+    DOCUMENT_FILENAMES[f'calculator.{_identity}.product_summary.pdf'] = _prefix + '_PRODUCT_SUMMARY.pdf'
+
+
+def document_filename(kind, filename, revision=None):
+    """Public name from authored kind and the owner's recorded revision."""
+    name = DOCUMENT_FILENAMES.get(kind, download_filename(filename))
+    if revision is None:
+        return name
+    if type(revision) is not int or revision < 1:
+        raise ValueError('A download revision must be a positive integer.')
+    stem, dot, suffix = name.rpartition('.')
+    if not dot:
+        stem, suffix = name, ''
+    stem = re.sub(r'-R[1-9][0-9]*$', '', stem)
+    tag=f'-R{revision}'; extension=dot+suffix if dot else ''
+    stem=stem[:200-len(tag)-len(extension)].rstrip(' .')
+    return stem + tag + extension
+
 
 def download_filename(filename):
     if not isinstance(filename, str) or 'ceasefire' not in filename.casefold():

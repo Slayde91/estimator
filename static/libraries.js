@@ -764,7 +764,8 @@
     pane.documentationDownload = download;
     for (const format of ["pdf", "xlsx"]) {
       const action = button("", () => download(format, action), `button ${format === "pdf" ? "pdf" : "excel"}-button calculator-document-action`);
-      uiAttr(action, "aria-label", "Download Item Details {0}", [format.toUpperCase()]);
+      uiAttr(action, "aria-label", "Item Details");
+      action.setAttribute('aria-description',format.toUpperCase());
       const mark = node("span", "download-format-icon"); mark.setAttribute("aria-hidden", "true");
       mark.append(node("span", "download-arrow", "⇩"), node("span", "download-format", format.toUpperCase()));
       action.append(mark, uiNode("span", "", "Item Details")); actions.push(action); list.append(action);

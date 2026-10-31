@@ -2757,5 +2757,11 @@
   "Product summaries": "Récapitulatifs des produits",
   "Other documents": "Autres documents",
   "the inputs and pricing captured when you clicked Breakdown": "les données et les prix relevés au clic sur Détail",
-  "The schedule shown below the item is the same schedule shown in Quote. Edit, remove, undo or recalculate in either location. Only scheduled items contribute to quote totals. Open Document in Main to download the Breakdown PDF or the complete current Firestopping Schedule as XLSX or PDF. Use Document in the current item to download that item’s details; its PDF also includes the source diagram when attached.": "Le tableau affiché sous l’élément est le même que celui du devis. Vous pouvez modifier, supprimer, annuler ou recalculer aux deux endroits. Seuls les éléments du tableau contribuent aux totaux du devis. Ouvrez Document dans Principal pour télécharger le Détail en PDF ou le tableau coupe-feu complet actuel en XLSX ou PDF. Utilisez Document dans l’élément actuel pour télécharger ses détails ; son PDF inclut aussi le schéma source lorsqu’il est joint."
+  "The schedule shown below the item is the same schedule shown in Quote. Edit, remove, undo or recalculate in either location. Only scheduled items contribute to quote totals. Open Document in Main to download the Breakdown PDF or the complete current Firestopping Schedule as XLSX or PDF. Use Document in the current item to download that item’s details; its PDF also includes the source diagram when attached.": "Le tableau affiché sous l’élément est le même que celui du devis. Vous pouvez modifier, supprimer, annuler ou recalculer aux deux endroits. Seuls les éléments du tableau contribuent aux totaux du devis. Ouvrez Document dans Principal pour télécharger le Détail en PDF ou le tableau coupe-feu complet actuel en XLSX ou PDF. Utilisez Document dans l’élément actuel pour télécharger ses détails ; son PDF inclut aussi le schéma source lorsqu’il est joint.",
+  "Steel Schedule": "Bordereau acier",
+  "Duct Schedule": "Bordereau des conduits",
+  "Product Summary": "Récapitulatif des produits",
+  "Confirmed items": "Éléments confirmés",
+  "Unconfirmed items": "Éléments non confirmés",
+  "All items": "Tous les éléments"
 }

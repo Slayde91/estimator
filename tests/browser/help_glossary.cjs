@@ -103,7 +103,7 @@ async function theme(id) { for (let index = 0; index < 5 && await page.locator('
       const menuRequestCount = requests.length;
       await toggle.focus(); await toggle.press('ArrowDown'); await expect(summary).toBeFocused(); await expect(summary).toHaveAccessibleName('Breakdown');
       await expect(menu.getByRole('button')).toHaveCount(3); await expect(summary.locator('span').last()).toHaveText('Breakdown');
-      for (const label of ['Download Full Schedule', 'Download Full Product Summary']) await expect(menu.getByRole('button', { name: label, exact: true })).toBeVisible();
+      for (const label of ['Full Schedule', 'Full Product Summary']) await expect(menu.getByRole('button', { name: label, exact: true })).toBeVisible();
       const styles = await menu.locator('.calculator-document-action').evaluateAll(actions => actions.map(el => { const s = getComputedStyle(el); return { color: s.color, background: s.backgroundColor }; }));
       assert.deepEqual(styles[0], styles[1], 'Breakdown shares the existing menu-entry presentation');
       assert.equal(styles[0].background, themeId === 'ceasefire' ? 'rgb(21, 26, 33)' : 'rgb(255, 255, 255)', `${themeId}/${width}: Document uses the selected palette`);

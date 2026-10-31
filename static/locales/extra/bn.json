@@ -2757,5 +2757,11 @@
   "Product summaries": "পণ্যের সারাংশ",
   "Other documents": "অন্যান্য নথি",
   "the inputs and pricing captured when you clicked Breakdown": "বিস্তারিতে ক্লিক করার সময় নেওয়া ইনপুট ও মূল্য",
-  "The schedule shown below the item is the same schedule shown in Quote. Edit, remove, undo or recalculate in either location. Only scheduled items contribute to quote totals. Open Document in Main to download the Breakdown PDF or the complete current Firestopping Schedule as XLSX or PDF. Use Document in the current item to download that item’s details; its PDF also includes the source diagram when attached.": "আইটেমের নিচের তালিকা কোটেশনে দেখানো একই তালিকা। যেকোনো অবস্থান থেকে সম্পাদনা, সরানো, পূর্বাবস্থা ফেরানো বা পুনরায় হিসাব করুন। শুধু তালিকার আইটেম কোটেশনের মোটে অবদান রাখে। বিস্তারিতের PDF অথবা সম্পূর্ণ বর্তমান ফায়ারস্টপিং তালিকা XLSX বা PDF হিসেবে ডাউনলোড করতে মূল বিভাগে নথি খুলুন। বর্তমান আইটেমের বিবরণ ডাউনলোড করতে সেখানকার নথি ব্যবহার করুন; সংযুক্ত থাকলে তার PDF-এ মূল চিত্রও থাকে।"
+  "The schedule shown below the item is the same schedule shown in Quote. Edit, remove, undo or recalculate in either location. Only scheduled items contribute to quote totals. Open Document in Main to download the Breakdown PDF or the complete current Firestopping Schedule as XLSX or PDF. Use Document in the current item to download that item’s details; its PDF also includes the source diagram when attached.": "আইটেমের নিচের তালিকা কোটেশনে দেখানো একই তালিকা। যেকোনো অবস্থান থেকে সম্পাদনা, সরানো, পূর্বাবস্থা ফেরানো বা পুনরায় হিসাব করুন। শুধু তালিকার আইটেম কোটেশনের মোটে অবদান রাখে। বিস্তারিতের PDF অথবা সম্পূর্ণ বর্তমান ফায়ারস্টপিং তালিকা XLSX বা PDF হিসেবে ডাউনলোড করতে মূল বিভাগে নথি খুলুন। বর্তমান আইটেমের বিবরণ ডাউনলোড করতে সেখানকার নথি ব্যবহার করুন; সংযুক্ত থাকলে তার PDF-এ মূল চিত্রও থাকে।",
+  "Steel Schedule": "ইস্পাতের তফসিল",
+  "Duct Schedule": "বায়ুনালীর তফসিল",
+  "Product Summary": "পণ্যের সারসংক্ষেপ",
+  "Confirmed items": "নিশ্চিত আইটেম",
+  "Unconfirmed items": "অনিশ্চিত আইটেম",
+  "All items": "সব আইটেম"
 }

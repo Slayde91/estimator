@@ -82,15 +82,15 @@ async function reset(label) { await finishMenu(await menu(label), 'Reset filter'
     await page.setViewportSize({width,height:764});await documentToggle.scrollIntoViewIfNeeded();
     await documentToggle.evaluate(el=>window.scrollTo(0,window.scrollY+el.getBoundingClientRect().top-170));
     await documentToggle.click();const actions=documentMenu.locator('.calculator-document-actions button');
-    assert.deepEqual(await actions.allTextContents(),['⇩XLSXDownload confirmed items','⇩XLSXDownload unconfirmed items','⇩XLSXDownload all items','⇩PDFDownload Full Markup','⇩PDFDownload Markups Only','⇩PDFDownload All Markups','⇩PDFDownload Full Markups Only']);
+    assert.deepEqual(await actions.allTextContents(),['⇩XLSXConfirmed items','⇩XLSXUnconfirmed items','⇩XLSXAll items','⇩PDFDownload Full Markup','⇩PDFDownload Markups Only','⇩PDFDownload All Markups','⇩PDFAll items']);
     assert.ok(await documentToggle.locator('img').evaluate(img=>img.complete&&img.naturalWidth>0));
     const geometry=await actions.evaluateAll(buttons=>buttons.map(button=>{const r=button.getBoundingClientRect(),hit=document.elementFromPoint(r.x+r.width/2,r.y+r.height/2);return{x:r.x,y:r.y,width:r.width,height:r.height,hit:button===hit||button.contains(hit)};}));
     assert.ok(geometry.every(box=>box.x>=0&&box.y>=0&&box.x+box.width<=width&&box.y+box.height<=764&&box.hit),JSON.stringify({width,geometry}));
     await page.screenshot({path:path.join(output,`document-menu-${width}.png`)});
-    await documentToggle.press('ArrowUp');await expect(documentMenu.getByRole('button',{name:'Download Full Markups Only',exact:true})).toBeFocused();
-    await documentMenu.getByRole('button',{name:'Download all items',exact:true}).press('Home');await expect(documentMenu.getByRole('button',{name:'Download confirmed items',exact:true})).toBeFocused();
-    await documentMenu.getByRole('button',{name:'Download confirmed items',exact:true}).press('End');await expect(documentMenu.getByRole('button',{name:'Download Full Markups Only',exact:true})).toBeFocused();
-    await documentMenu.getByRole('button',{name:'Download Full Markups Only',exact:true}).press('Escape');await expect(documentToggle).toBeFocused();await expect(documentMenu.locator('.calculator-document-actions')).toBeHidden();
+    await documentToggle.press('ArrowUp');await expect(documentMenu.getByRole('button',{name:'All items',exact:true})).toBeFocused();
+    await documentMenu.getByRole('button',{name:'All items',exact:true}).press('Home');await expect(documentMenu.getByRole('button',{name:'Confirmed items',exact:true})).toBeFocused();
+    await documentMenu.getByRole('button',{name:'Confirmed items',exact:true}).press('End');await expect(documentMenu.getByRole('button',{name:'All items',exact:true})).toBeFocused();
+    await documentMenu.getByRole('button',{name:'All items',exact:true}).press('Escape');await expect(documentToggle).toBeFocused();await expect(documentMenu.locator('.calculator-document-actions')).toBeHidden();
     await documentToggle.click();await page.locator('.takeoff-register h2').click();await expect(documentMenu.locator('.calculator-document-actions')).toBeHidden();
     documentLayout.push({width,geometry,iconLoaded:true,keyboardHomeEndEscape:true,outsideDismissal:true});
   }

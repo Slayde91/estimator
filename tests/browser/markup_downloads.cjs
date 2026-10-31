@@ -127,8 +127,13 @@ async function download(kind, label, scope, held=false, workspace=scope){
     await chooseTakeoff(page,scope.startsWith('physical-')?(scope.endsWith('service_plans')?'Service Plans':'Defect Reports'):scope);await idle();
     const toggle=page.locator('.takeoff-workspace-heading').getByRole('button',{name:scope.startsWith('physical-')?'Document':'Takeoff register document actions',exact:true});
     await toggle.click();const menu=page.locator('.takeoff-workspace-heading .calculator-document-actions').filter({visible:true});
-    await expect(menu.getByRole('button')).toHaveCount(3);for(const[,label]of kinds)await expect(page.getByRole('button',{name:label,exact:true})).toHaveCount(0);
-    await page.keyboard.press('End');await expect(menu.getByRole('button',{name:'All items',exact:true})).toBeFocused();await page.keyboard.press('Escape');evidence.menus.push({scope,markupActionsRemoved:true,documentationExportsRetained:true,keyboard:true});
+    await expect(menu.getByRole('button')).toHaveCount(4);for(const[,label]of kinds)await expect(page.getByRole('button',{name:label,exact:true})).toHaveCount(0);
+    await page.keyboard.press('End');await expect(menu.getByRole('button',{name:'Markups',exact:true})).toBeFocused();await page.keyboard.press('Escape');
+    await toggle.click();await menu.getByRole('button',{name:'Markups',exact:true}).click();
+    const chooser=page.getByRole('dialog',{name:'Choose Takeoff document',exact:true});await expect(chooser).toBeVisible();
+    await expect(chooser.getByLabel('Takeoff workspace',{exact:true})).toHaveValue(scope==='wall'?'walls_floors':scope.startsWith('physical-')?scope.slice(9):scope);
+    await expect(chooser.getByLabel('Markup document',{exact:true})).toHaveValue('current-all');await chooser.getByRole('button',{name:'Cancel',exact:true}).click();
+    evidence.menus.push({scope,individualMarkupActionsRemoved:true,consolidatedChooser:true,documentationExportsRetained:true,keyboard:true});
     for(const[kind,label]of kinds){const result=await download(kind,label,scope,scope==='steel'&&kind==='current-all');const expected=kind==='current-all'?4:kind==='current-marked'?1:kind==='all-all'?20:5;
       assert.equal(result.content.pages,expected);const text=result.content.text.join('').replace(/\s/g,'');
       for(const marker of(kind.startsWith('all-')?['STEEL-COPY','DUCT-COPY','WALL-COPY','FLOOR-COPY','defect_reports','service_plans']:[scope==='steel'?'STEEL-COPY':scope==='duct'?'DUCT-COPY':scope==='wall'?'WALL-COPY':scope.slice(9)]))assert.ok(text.includes(marker),marker);

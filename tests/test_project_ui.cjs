@@ -120,6 +120,14 @@ async function penetrationCheck(name, fn) {
   await deadline(name,()=>fn(h));passed++;console.log(`ok - ${name}`);
 }
 (async () => {
+  await check('Unsaved project identity remains readable for schedule rendering and deletion guards',async h=>{
+    h.app.state.projectFile=null;
+    const target=h.context.window.CeasefireProject.downloadTarget();
+    assert.equal(target.project_token,null);assert.equal(target.project_path,null);
+    assert.equal(target.project_context,h.app.state.quoteContext);
+    h.app.state.projectBusy=true;
+    assert.deepEqual(h.context.window.CeasefireProject.downloadTarget(),target);
+  });
   await check('Project Save captures document history with the exact certificate workspace and acknowledges its original capture',async h=>{
     projectCertificates(h);const captured={workspace_id:'project-A',expected_revision:2},acknowledged=[];let sent;
     h.context.window.CeasefireDocumentation={hasPendingOperation:()=>false,projectFingerprint:()=> 'documents:2',

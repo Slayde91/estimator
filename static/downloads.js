@@ -121,6 +121,8 @@
     download = window.CeasefireProject?.downloadTarget?.();
     if (typeof download?.project_token !== 'string' || !download.project_token)
       throw new Error('Save the current project before downloading. Files save beside its project file.');
+    if (window.CeasefireProject?.hasPendingOperation?.())
+      throw new Error('Finish the current project save before downloading.');
     active++; tracked = true;
     view = progressView(button);
     endSound = window.CeasefireDownloadSound?.begin();

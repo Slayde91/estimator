@@ -2575,9 +2575,9 @@
     hasPendingOperation: () => state.projectBusy,
     isCurrentDownloadTarget,
     downloadTarget() {
-      if (!state.projectFile?.save_token) throw new Error("Save the current project before downloading. Files save beside its project file.");
-      if (state.projectBusy) throw new Error("Finish the current project save before downloading.");
-      return { project_token: state.projectFile.save_token, project_context: state.quoteContext, project_path: state.projectFile.path };
+      // Schedules also read this identity to guard deletion reviews. Reading
+      // an unsaved project's identity must not prevent worksheet rendering.
+      return { project_token: state.projectFile?.save_token || null, project_context: state.quoteContext, project_path: state.projectFile?.path || null };
     },
     saveAfterDownload: target => saveProject({ automatic: true, downloadTarget: target }),
     downloadSaveFailed(target, result, error) {

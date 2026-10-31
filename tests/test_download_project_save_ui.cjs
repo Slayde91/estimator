@@ -28,6 +28,11 @@ function harness(){
   assert.equal(h.calls.length,0);assert.equal(h.saves.length,0);assert.equal(h.api.hasPendingOperation(),false);checks++;
  }
  {
+  const h=harness();h.project.hasPendingOperation=()=>true;
+  await assert.rejects(h.api.save('/api/quote-report'),/Finish the current project save/);await h.tick();
+  assert.equal(h.calls.length,0);assert.equal(h.saves.length,0);checks++;
+ }
+ {
   const h=harness(),done=deferred();h.setComplete(done);h.setBusy(true);const operation=h.api.save('/api/quote-report');await flush();
   assert.equal(h.api.hasInFlight(),true);await h.tick(100);assert.equal(h.saves.length,0);
   done.resolve();await operation;assert.equal(h.api.hasUnsavedProjectSave(),true);await h.tick(100);assert.equal(h.saves.length,0);

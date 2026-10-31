@@ -28,6 +28,16 @@ def money_text(amount):
 
 
 class ReportTests(unittest.TestCase):
+    def test_breakdown_label_is_in_the_bottom_left_footer_on_every_page(self):
+        self.assertGreater(len(self.reader.pages), 1)
+        for number, page in enumerate(self.reader.pages, 1):
+            positions = []
+            text = page.extract_text(visitor_text=lambda text, cm, tm, font, size: positions.append((text, tm[4], tm[5])))
+            labels = [(x, y) for value, x, y in positions if 'ESTIMATE | COMPLETE BREAKDOWN' in value]
+            self.assertEqual(labels, [(36, 22)])
+            self.assertNotIn('CLASSIFIRE ESTIMATOR |', text)
+            self.assertIn(f'Page {number}', text)
+
     def test_pdf_table_headers_text_and_numbers_are_centered(self):
         report = _Report({})
         table = report.table(['Description', 'Amount'], [[report.p('Material', 'cell'), report.p('123.45', 'numeric')]], [200, 100])

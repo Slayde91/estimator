@@ -17,7 +17,7 @@ def document_catalog(edition='full'):
     rows = []
     def add(kind, label, file_format, adapter, **spec):
         rows.append({'id':kind, 'label':label, 'format':file_format, 'adapter':adapter, 'spec':spec})
-    add('estimate.summary.pdf','Estimate Summary','pdf','estimate',action='summary')
+    add('estimate.summary.pdf','Breakdown','pdf','estimate',action='summary')
     add('project.full_schedule.pdf','Full Schedule','pdf','estimate',action='full_schedule')
     add('project.full_product_summary.pdf','Full Product Summary','pdf','estimate',action='full_product_summary')
     for calculator_id, title in CALCULATORS.items():

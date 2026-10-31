@@ -2418,17 +2418,17 @@
     const savedReportId = state.quote && !state.dirty ? state.quote.id : null;
     const reportPath = savedReportId ? `/api/quotes/${encodeURIComponent(savedReportId)}/report.pdf` : "/api/quote-report";
     button.disabled = true;
-    window.CeasefireI18n.attr(button, "aria-label", "Preparing Estimate Summary…");
+    window.CeasefireI18n.attr(button, "aria-label", "Preparing document…");
     button.setAttribute("aria-busy", "true");
     try {
       const saved = await window.CeasefireDownloads.save(reportPath, savedReportId ? {} : payload, { button });
       const estimateChanged = quoteContext !== state.quoteContext || capturedPayload !== JSON.stringify(reportPayload()) || window.CeasefirePenetrations?.quoteFingerprint?.() !== penetrationStamp;
-      message(estimateChanged ? uiCopy("PDF saved to {0} for “{1}” using {2}. Later edits are not included.", [saved.path, payload.title, window.CeasefireI18n.term(savedReportId ? "its saved result and pricing snapshot" : "the inputs and pricing captured when you clicked Estimate Summary")]) : uiCopy("PDF saved to {0} for “{1}”.", [saved.path, payload.title]));
+      message(estimateChanged ? uiCopy("PDF saved to {0} for “{1}” using {2}. Later edits are not included.", [saved.path, payload.title, window.CeasefireI18n.term(savedReportId ? "its saved result and pricing snapshot" : "the inputs and pricing captured when you clicked Breakdown")]) : uiCopy("PDF saved to {0} for “{1}”.", [saved.path, payload.title]));
       return saved;
     } catch (error) { message(uiCopy("PDF for “{0}” was not downloaded. {1}", [payload.title, error.message]), true); }
     finally {
       button.disabled = false;
-      window.CeasefireI18n.attr(button, "aria-label", "Estimate Summary");
+      window.CeasefireI18n.attr(button, "aria-label", "Breakdown");
       button.removeAttribute("aria-busy");
     }
   }

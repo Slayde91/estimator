@@ -82,6 +82,17 @@
     state.model=model;state.uncertain=false;render();window.CeasefireProject?.changed?.();
     return model;
   }
+  function groupedPdfRows(rows) {
+    const primary=[],schedules=[],summaries=[],other=[];
+    for(const row of rows) {
+      if(row.id==='estimate.summary.pdf')primary.push(row);
+      else if(row.id==='project.full_schedule.pdf'||row.id==='firestopping.schedule.pdf'||/^calculator\.[^.]+\.schedule\.pdf$/.test(row.id))schedules.push(row);
+      else if(row.id==='project.full_product_summary.pdf'||/^calculator\.[^.]+\.product_summary\.pdf$/.test(row.id))summaries.push(row);
+      else other.push(row);
+    }
+    const section=(label,items)=>items.length?[{groupHeading:label},...items]:[];
+    return [...primary,...section('Schedules',schedules),...section('Product summaries',summaries),...section('Other documents',other)];
+  }
   function render() {
     if(!state.catalog)return;
     const rows=[...state.catalog], known=new Set(rows.map(row=>row.id));
@@ -90,7 +101,12 @@
     }
     for(const format of ['pdf','xlsx']) {
       const host=$("documentation-"+format+"-rows");if(!host)continue;
-      host.replaceChildren(...rows.filter(row=>row.format===format&&!omittedRows.has(row.id)).map(row=>{
+      const documents=rows.filter(row=>row.format===format&&!omittedRows.has(row.id));
+      host.replaceChildren(...(format==='pdf'?groupedPdfRows(documents):documents).map(row=>{
+        if(row.groupHeading) {
+          const tr=node('tr','documentation-group'),cell=node('th');cell.colSpan=2;
+          cell.append(node('h3','documentation-group-heading',row.groupHeading));tr.append(cell);return tr;
+        }
         const tr=node('tr'), action=node('td'), history=node('td'), controls=node('div','documentation-download');
         tr.dataset.documentKind=row.id;
         const button=node('button','button secondary',row.label);button.type='button';button.dataset.documentKind=row.id;

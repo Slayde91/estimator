@@ -598,13 +598,13 @@ def render_quote_pdf(quote: dict, *, company=None) -> bytes:
     def decorate(canvas, doc):
         canvas.saveState()
         _company_header(canvas, logo, _PAGE_WIDTH, _PAGE_HEIGHT, _MARGIN,
-                        "ESTIMATE | COMPLETE BREAKDOWN", company=company)
+                        "", company=company)
         canvas.setStrokeColor(_LINE)
         canvas.setLineWidth(.5)
         canvas.line(_MARGIN, 34, _PAGE_WIDTH - _MARGIN, 34)
         canvas.setFont("CeasefireVera", 7)
         canvas.setFillColor(_MUTED)
-        canvas.drawString(_MARGIN, 22, "CLASSIFIRE ESTIMATOR | " + _text(quote.get("report_kind", "Saved quote")))
+        canvas.drawString(_MARGIN, 22, "ESTIMATE | COMPLETE BREAKDOWN")
         canvas.drawRightString(_PAGE_WIDTH - _MARGIN, 22, f"Page {doc.page}")
         canvas.restoreState()
 

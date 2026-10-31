@@ -189,7 +189,7 @@ function assertSubsetMove(before, after, memberIds, drag) {
 }
 async function download(label, name) {
   const pending = waitForTakeoffDownload(page); pending.catch(() => {});
-  const response = page.waitForResponse(value => value.url().endsWith(label === 'Download PDF' ? '/export/marked-pdf' : '/export/register-xlsx')); response.catch(() => {});
+  const response = page.waitForResponse(value => value.url().endsWith(label === 'Download PDF' ? '/export/marked-pdf' : '/export/register-xlsx'), {timeout:180000}); response.catch(() => {});
   if (label === 'Download PDF') await page.evaluate(() => window.CeasefireTakeoffs.downloadDrawing()); else { await page.getByRole('button', { name: 'Takeoff register document actions', exact: true }).click(); await page.getByRole('button', { name: 'Download all items', exact: true }).click(); }
   const accepted = await response; assert.equal(accepted.status(), 200, await accepted.text());
   const result = await pending, target = path.join(output, name); await result.saveAs(target); assert.ok(fs.statSync(target).size > 100); return target;

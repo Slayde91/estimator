@@ -1,0 +1,44 @@
+{
+  "Breakdown": [
+    "明细",
+    "विवरण",
+    "Desglose",
+    "التفصيل",
+    "รายละเอียด"
+  ],
+  "Schedules": [
+    "明细表",
+    "अनुसूचियाँ",
+    "Listados",
+    "الجداول",
+    "ตารางรายการ"
+  ],
+  "Product summaries": [
+    "产品汇总",
+    "उत्पाद सारांश",
+    "Resúmenes de productos",
+    "ملخصات المنتجات",
+    "สรุปผลิตภัณฑ์"
+  ],
+  "Other documents": [
+    "其他文件",
+    "अन्य दस्तावेज़",
+    "Otros documentos",
+    "مستندات أخرى",
+    "เอกสารอื่น"
+  ],
+  "the inputs and pricing captured when you clicked Breakdown": [
+    "点击明细时捕获的输入和定价",
+    "विवरण पर क्लिक करते समय के इनपुट और मूल्य",
+    "los datos y precios capturados al pulsar Desglose",
+    "المدخلات والتسعير عند النقر على التفصيل",
+    "ข้อมูลและราคาขณะคลิกรายละเอียด"
+  ],
+  "The schedule shown below the item is the same schedule shown in Quote. Edit, remove, undo or recalculate in either location. Only scheduled items contribute to quote totals. Open Document in Main to download the Breakdown PDF or the complete current Firestopping Schedule as XLSX or PDF. Use Document in the current item to download that item’s details; its PDF also includes the source diagram when attached.": [
+    "项目下方与报价中显示的是同一明细表，可在任一位置编辑、删除、撤销或重算。仅明细表项目计入报价总额。在主估算中打开“文件”下载明细 PDF 或完整防火封堵 XLSX/PDF；在当前项目中打开“文件”下载项目详情，PDF 包含已附来源图。",
+    "मद के नीचे और कोटेशन में एक ही अनुसूची है। दोनों जगह संपादन, हटाना, पूर्ववत या पुनर्गणना कर सकते हैं। केवल अनुसूची की मदें योग में हैं। मुख्य के दस्तावेज़ से विवरण PDF या पूरी अग्निरोधी अनुसूची XLSX/PDF डाउनलोड करें। वर्तमान मद के दस्तावेज़ से विवरण लें; संलग्न स्रोत आरेख भी PDF में आता है।",
+    "El listado bajo la partida es el mismo de la cotización. Edite, elimine, deshaga o recalcule en ambos sitios. Solo sus partidas se suman al total. En Documento de Principal descargue el desglose PDF o el listado completo XLSX/PDF. En la partida descargue sus detalles; el PDF incluye el diagrama adjunto.",
+    "الجدول أسفل البند هو نفسه في العرض. يمكن تعديله أو إزالة بنوده أو التراجع أو إعادة حسابه من الموضعين. تدخل بنوده فقط في الإجمالي. من مستند القسم الرئيسي نزّل ملف التفصيل بصيغة PDF أو الجدول الكامل XLSX/PDF. ومن مستند البند نزّل تفاصيله مع رسم المصدر المرفق في PDF.",
+    "ตารางใต้รายการเป็นตารางเดียวกับใบเสนอราคา แก้ไข ลบ เลิกทำ หรือคำนวณใหม่ได้ทั้งสองที่ เฉพาะรายการในตารางรวมในยอด เปิดเอกสารในหน้าหลักเพื่อดาวน์โหลดรายละเอียด PDF หรือตารางงานกันไฟ XLSX/PDF เปิดเอกสารในรายการเพื่อดาวน์โหลดรายละเอียดและแผนภาพที่แนบใน PDF"
+  ]
+}

@@ -257,7 +257,7 @@ class WorkbookCalculatorApiTests(unittest.TestCase):
         status, headers, payload = self.request("POST", "/api/calculators/ductwork/template", {})
         self.assertEqual(status, 200)
         self.assertEqual(headers["Content-Type"], "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-        self.assertEqual(headers["Content-Disposition"], 'attachment; filename="ceasefire-ductwork-schedule.xlsx"')
+        self.assertEqual(headers["Content-Disposition"], 'attachment; filename="ductwork-schedule.xlsx"')
         self.assertEqual(headers["Cache-Control"], "no-store")
         self.assertEqual(int(headers["Content-Length"]), len(payload))
         workbook = load_workbook(BytesIO(payload))

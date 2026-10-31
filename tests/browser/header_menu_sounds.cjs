@@ -311,7 +311,15 @@ async function noDownloadAudio() {
   evidence.checks.logoClickTrimmedFlameWhoosh = { ...logoOnset, sameClickEvent: true, leadingSecondsRemoved: 38118 / 44100 };
   // A trusted navigation starts the supplied printing loop only for its active phrase.
   prior = await page.evaluate(() => window.qaMenuAudio.playing.filter(row => row.source.endsWith('type.mp3')).length);
-  await home.click(); await played('/sounds/type.mp3', prior); await idle();
+  const phraseLabel=page.locator('#header-tagline-label'),previousPhrase=await phraseLabel.innerText();
+  await home.click();await expect(phraseLabel).not.toHaveText(previousPhrase);
+  if(await phraseLabel.innerText()==='CLASSIFIRE: Passive Fire Intelligence'){
+    // This intentional special phrase uses gameover.mp3, not the typing loop.
+    // The next navigation cannot repeat it, so test the ordinary typing branch.
+    await home.click();await expect(phraseLabel).not.toHaveText('CLASSIFIRE: Passive Fire Intelligence');
+    evidence.checks.typingBranchAfterSpecialPhrase=true;
+  }
+  await played('/sounds/type.mp3', prior); await idle();
   const printingObservation = await page.waitForFunction(() => {
     const typed = document.getElementById("header-tagline-typed").textContent;
     const label = document.getElementById("header-tagline-label").textContent;

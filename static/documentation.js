@@ -5,10 +5,16 @@
   const PDF = "application/pdf", XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
   // These exports remain available in their source workspaces and keep their
   // saved history, but do not have rows in the Documentation PDF list.
-  const omittedRows = new Set(['firestopping.current_item.pdf','library.technical.item.pdf','takeoff.pdf_tools.pdf']);
+  const omittedRows = new Set(['firestopping.current_item.pdf','library.technical.item.pdf','takeoff.pdf_tools.pdf',
+    'takeoff.defect_reports.matrix.pdf','takeoff.service_plans.matrix.pdf']);
   const state = { epoch:0, scope:null, model:null, baseline:0, opening:null, catalog:null, catalogLoading:null,
     refreshRevision:0, action:null, uncertain:false, pending:new Map(), sources:new Map() };
   const captures = new WeakMap();
+  function publicFilename(value) {
+    if(!/ceasefire/i.test(value))return value;
+    const dot=value.lastIndexOf('.'),stem=dot<0?value:value.slice(0,dot),suffix=dot<0?'':value.slice(dot);
+    return (stem.replace(/ceasefire/ig,'').replace(/([ _-])[ _-]+/g,'$1').replace(/^[ ._-]+|[ ._-]+$/g,'')||'Download')+suffix;
+  }
   function text(element, value, args = []) {
     if (window.CeasefireI18n) return window.CeasefireI18n.text(element,value,args);
     element.textContent=String(value).replace(/\{(\d+)\}/g,(match,index)=>args[index] ?? match); return element;
@@ -129,7 +135,9 @@
           for(const item of items) {
             const line=node('li','documentation-revision'), link=node('a','',"Revision {0}",[item.revision]);
             link.href=item.url;link.target='_blank';link.rel='noopener';link.title=item.filename;
-            const name=node('small');name.textContent=item.filename;line.append(link,name);
+            const filename=publicFilename(item.filename);
+            link.title=filename;
+            const name=node('small');name.textContent=filename;line.append(link,name);
             const date=new Date(item.created_at);
             if(!Number.isNaN(date.getTime())) { const time=node('time');time.dateTime=date.toISOString();time.textContent=date.toLocaleString('en-AU');line.append(time); }
             list.append(line);

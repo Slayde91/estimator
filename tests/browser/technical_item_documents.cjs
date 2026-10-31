@@ -33,7 +33,7 @@ async function contrast(selector){return page.locator(selector).first().evaluate
 async function exported(extension){
   const response=page.waitForResponse(r=>new URL(r.url()).pathname===`/api/technical/item.${extension}`);
   await page.locator('.library-document-menu').getByRole('button',{name:'Document',exact:true}).click();
-  await page.getByRole('button',{name:`Download Item Details ${extension.toUpperCase()}`,exact:true}).click();
+  await page.locator(`#technical-item-document-actions .${extension==='pdf'?'pdf':'excel'}-button`).click();
   const reply=await response;assert.equal(reply.status(),200);const body=await reply.json();assert.equal(body.saved,true);
   const relative=path.relative(output,body.path);assert.ok(relative&&!relative.startsWith('..')&&!path.isAbsolute(relative));
   assert.equal(fs.readFileSync(body.path).subarray(0,extension==='pdf'?5:2).toString(),extension==='pdf'?'%PDF-':'PK');

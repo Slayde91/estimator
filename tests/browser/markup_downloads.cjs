@@ -6,7 +6,7 @@ const { chooseTakeoff } = require('./section_navigation.cjs');
 const { renderDrawing } = require('./viewer_helpers.cjs');
 const { settingsSettled } = require('./settings_helpers.cjs');
 const { waitForTakeoffDownload } = require('./native_download_helpers.cjs');
-const { clickProjectControl } = require('./project_actions.cjs');
+const { clickProjectControl, openProjectSection } = require('./project_actions.cjs');
 const root = path.resolve(__dirname, '../..'), output = path.join(root, '.runtime/browser-qa', `markup-downloads-${Date.now()}`);
 fs.mkdirSync(output, { recursive: true });
 const hash = file => createHash('sha256').update(fs.readFileSync(file)).digest('hex');
@@ -25,7 +25,14 @@ const ready = new Promise((resolve,reject)=>{ let text='';const timer=setTimeout
   server.stdout.on('data',value=>{text+=value;if(text.includes('\n')){clearTimeout(timer);try{resolve(JSON.parse(text.split('\n')[0]));}catch(error){reject(error);}}});
   server.once('error',reject);server.once('exit',code=>{clearTimeout(timer);reject(new Error(`Fixture exited ${code}: ${logs}`));}); });
 const errors=[], evidence={exports:[],menus:[],checks:[]};
-async function idle(){await expect.poll(()=>page.evaluate(()=>window.CeasefireActivity.active)).toBe(false);await settingsSettled(page);}
+async function idle(){
+  // A native saved-file response can arrive before the application's owned
+  // download and revision-history refresh have released their activity tokens.
+  // Keep checking real completion; a busy or stuck operation must still fail.
+  await expect.poll(()=>page.evaluate(()=>window.CeasefireActivity.active||window.CeasefireDocumentation.hasPendingOperation()),
+    {timeout:60000,message:'Native export and document revision refresh finish before the next snapshot'}).toBe(false);
+  await settingsSettled(page);
+}
 async function snapshot(){await idle();return page.evaluate(()=>window.CeasefireTakeoffs.projectSnapshot());}
 async function command(op, values={}){
   const sid=await page.evaluate(()=>window.CeasefireTakeoffs.sessionId()), reply=await page.request.post(`${origin}/api/takeoffs/sessions/${sid}/commands`,{data:{op,request_id:randomUUID(),expected_revision:current.revision,...values}});
@@ -54,10 +61,17 @@ async function zoomTo(target, metadata){
   }
   assert.ok(Math.abs(await actual()-target)<1e-8,'Native Ctrl+wheel installs the requested displayed zoom');
 }
-async function download(kind, label, scope, held=false){
+async function download(kind, label, scope, held=false, workspace=scope){
   const before=await snapshot(), pending=waitForTakeoffDownload(page);
-  const menu=page.locator('.takeoff-workspace-heading').getByRole('button',{name:scope.startsWith('physical-')?'Document':'Takeoff register document actions',exact:true});
-  await menu.click();const control=page.getByRole('button',{name:label,exact:true});
+  await openProjectSection(page,'documentation');
+  const control=page.locator('button[data-document-kind="takeoff.markups.pdf"]');
+  const trigger=async()=>{
+    await control.click();const dialog=page.getByRole('dialog');
+    await dialog.getByLabel('Takeoff workspace',{exact:true}).selectOption(workspace.startsWith('physical-')?workspace.slice(9):workspace==='wall'?'walls_floors':workspace);
+    await dialog.getByLabel('Markup document',{exact:true}).selectOption(kind);
+    await dialog.getByRole('button',{name:'Continue',exact:true}).click();
+    if(kind.startsWith('current-')){await expect(dialog.getByRole('heading')).toHaveText('Choose markup Source Document');await dialog.getByRole('button',{name:'Download',exact:true}).click();}
+  };
   let release, arrived, responseSeen;
   if(held){const gate=new Promise(resolve=>{release=resolve;});let rejectArrival;
     const reached=new Promise((resolve,reject)=>{arrived=resolve;rejectArrival=reject;});reached.catch(()=>{});
@@ -67,15 +81,16 @@ async function download(kind, label, scope, held=false){
     };
     await page.route('**/export/markup-pdf',holdRoute);
     try{
-      await control.click();await Promise.race([reached,pending]);
+      await trigger();await Promise.race([reached,pending]);
       assert.equal(responseSeen.saved,true);assert.ok(fs.statSync(responseSeen.path).size>0);
-      const progress=page.locator('.takeoff-workspace-heading .document-download-progress progress');await expect(progress).toBeVisible();
+      const progress=page.locator('#view-documentation .document-download-progress progress');await expect(progress).toHaveCount(1);
+      assert.equal(await page.evaluate(()=>window.CeasefireDocumentation.hasPendingOperation()),true);
       assert.ok(await progress.evaluate(el=>el.value)<100,'UI100 requires receipt delivery, even after server file save');
       release();await Promise.all(tasks);
     }finally{
       release();await Promise.allSettled(tasks);await page.unroute('**/export/markup-pdf',holdRoute);
     }
-  }else await control.click();
+  }else await trigger();
   const result=await pending, request=result.response.request().postDataJSON();assert.equal(request.kind,kind);
   assert.ok(path.resolve(result.receipt.path).startsWith(path.resolve(output)+path.sep),'All actual native files stay in the disposable fixture');
   const file=path.join(output,`${scope}-${kind}.pdf`);await result.saveAs(file);const content=await inspect(file);
@@ -111,8 +126,9 @@ async function download(kind, label, scope, held=false){
   for(const scope of['steel','duct','wall','physical-defect_reports','physical-service_plans']){
     await chooseTakeoff(page,scope.startsWith('physical-')?(scope.endsWith('service_plans')?'Service Plans':'Defect Reports'):scope);await idle();
     const toggle=page.locator('.takeoff-workspace-heading').getByRole('button',{name:scope.startsWith('physical-')?'Document':'Takeoff register document actions',exact:true});
-    await toggle.click();for(const[,label]of kinds)await expect(page.getByRole('button',{name:label,exact:true})).toBeVisible();
-    await page.keyboard.press('End');await expect(page.getByRole('button',{name:kinds.at(-1)[1],exact:true})).toBeFocused();await page.keyboard.press('Escape');evidence.menus.push({scope,allFour:true,keyboard:true});
+    await toggle.click();const menu=page.locator('.takeoff-workspace-heading .calculator-document-actions').filter({visible:true});
+    await expect(menu.getByRole('button')).toHaveCount(3);for(const[,label]of kinds)await expect(page.getByRole('button',{name:label,exact:true})).toHaveCount(0);
+    await page.keyboard.press('End');await expect(menu.getByRole('button',{name:'All items',exact:true})).toBeFocused();await page.keyboard.press('Escape');evidence.menus.push({scope,markupActionsRemoved:true,documentationExportsRetained:true,keyboard:true});
     for(const[kind,label]of kinds){const result=await download(kind,label,scope,scope==='steel'&&kind==='current-all');const expected=kind==='current-all'?4:kind==='current-marked'?1:kind==='all-all'?20:5;
       assert.equal(result.content.pages,expected);const text=result.content.text.join('').replace(/\s/g,'');
       for(const marker of(kind.startsWith('all-')?['STEEL-COPY','DUCT-COPY','WALL-COPY','FLOOR-COPY','defect_reports','service_plans']:[scope==='steel'?'STEEL-COPY':scope==='duct'?'DUCT-COPY':scope==='wall'?'WALL-COPY':scope.slice(9)]))assert.ok(text.includes(marker),marker);
@@ -125,7 +141,7 @@ async function download(kind, label, scope, held=false){
     assert.ok(labels.length>=7);for(const label of labels){assert.ok(label.font.includes('CeasefireDrawing'));assert.equal(label.weight,'700');}
     await expect(page.locator('[data-addition-arrow="riser"]')).toHaveCount(6);await expect(page.locator('[data-addition-arrow="drop"]')).toHaveCount(4);
     await page.locator('.takeoff-rise-drop').first().scrollIntoViewIfNeeded();await page.screenshot({path:path.join(output,`viewer-labels-${zoom}.png`)});
-    const result=await download('current-all','Download Full Markup',`steel-zoom-${zoom}`);const actualZoom=result.request.rendering[doc.id].zoom;
+    const result=await download('current-all','Download Full Markup',`steel-zoom-${zoom}`,false,'steel');const actualZoom=result.request.rendering[doc.id].zoom;
     const physicalWidth=(doc.pages[0].view[2]-doc.pages[0].view[0])*doc.pages[0].user_unit;
     assert.ok(Math.abs(actualZoom-zoom)*physicalWidth<.01,'Native wheel zoom agrees with the rendered page within0.01CSSpx');
     evidence.checks.push({zoom:actualZoom,requestedZoom:zoom,fontAssets:{regular:beforeHashes['static/fonts/Vera.ttf'],bold:beforeHashes['static/fonts/VeraBd.ttf']},labels,pdf:result.path});

@@ -18,7 +18,7 @@ TITLES = {'steel_vermiculite': 'Steel spray', 'steel_board': 'Steel board',
           'ductwork': 'Ductwork', 'steel_intumescent': 'Steel intumescent'}
 
 
-def build_project_report(calculators, penetration, configuration, project_details, *, materials=False, library=None, company=None, saved_calculators=None):
+def build_project_report(calculators, penetration, configuration, project_details, *, materials=False, library=None, company=None, saved_calculators=None, report_origin=None):
     """Include entered schedules, even partial ones; never include source examples."""
     if not isinstance(calculators, dict) or set(calculators) - set(CALCULATORS):
         raise ValidationError('Choose the available project calculators.')
@@ -42,6 +42,8 @@ def build_project_report(calculators, penetration, configuration, project_detail
             options = {'include_project_details': not parts, 'project_report_title': report_title if not parts else None}
             if materials:
                 options['include_prices'] = False
+            else:
+                options['report_origin'] = report_origin
             parts.append(('Firestopping', fire_builder(result, definition(configuration), project_details, library=library, company=company, **options)))
     if not parts:
         raise ValidationError('Enter at least one schedule row before downloading this report.')

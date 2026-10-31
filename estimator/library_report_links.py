@@ -5,7 +5,43 @@ from urllib.parse import urlsplit
 
 REPORT_HOSTS = {'media.promat.com', 'etex.azureedge.net'}
 TRAFALGAR_REPORT_PATH = re.compile(r'/documents/[A-Za-z0-9][A-Za-z0-9_.()=-]*')
-FIREFLY_REPORTS_URL = 'https://systems.tbafirefly.com.au/reports'
+FIREFLY_REPORTS_URL = 'https://systems.tbafirefly.com.au/'
+_LEGACY_FIREFLY_URL = 'https://systems.tbafirefly.com.au/reports'
+
+
+def report_href(label, value=None, *, user_authored=False):
+    """Display policy only: never promote an internal source copy to a report."""
+    if re.match(r'^FAS\s*19023[456](?=\b|[_/])', str(label).strip(), re.I):
+        return FIREFLY_REPORTS_URL
+    if value == _LEGACY_FIREFLY_URL:
+        return FIREFLY_REPORTS_URL
+    if isinstance(value, str):
+        try:
+            if urlsplit(value).path.startswith('/api/libraries/documents/'):
+                return None
+        except ValueError:
+            return None
+    if valid_report_url(value):
+        return value
+    if user_authored and valid_manual_report_url(value):
+        from ipaddress import ip_address
+        host = urlsplit(value).hostname
+        if host.lower() == 'localhost':
+            return None
+        try:
+            if not ip_address(host).is_global:
+                return None
+        except ValueError:
+            if '.' not in host or host.lower().endswith(('.localhost', '.local', '.internal')):
+                return None
+        return value
+    return None
+
+
+def pdf_report_href(value, origin=None):
+    """Only approved public report links, regardless of the local app origin."""
+    # Its callers pass links resolved by the catalog or explicitly by the user.
+    return report_href('', value, user_authored=True)
 
 
 def valid_report_url(value):
@@ -13,7 +49,7 @@ def valid_report_url(value):
         return False
     if re.search(r'[\s<>"\\\x00-\x1f\x7f]', value):
         return False
-    if value == FIREFLY_REPORTS_URL:
+    if value in (FIREFLY_REPORTS_URL, _LEGACY_FIREFLY_URL):
         return True
     try:
         url = urlsplit(value)

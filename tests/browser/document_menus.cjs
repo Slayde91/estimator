@@ -17,7 +17,7 @@ const ready = new Promise((resolve, reject) => {
 });
 const errors = [], calculatorRequests = [], evidence = { calculators: [], viewports: [1440, 825, 390] };
 const actionIds = ['calculator-import', 'calculator-excel', 'calculator-pdf', 'calculator-summary-pdf', 'calculator-template'];
-const actionNames = ['Import Schedule', 'Steel Schedule XLSX', 'Steel Schedule PDF', 'Product Summary PDF', 'Export Template'];
+const actionNames = ['Import Schedule', 'Steel Schedule', 'Steel Schedule', 'Product Summary', 'Export Template'];
 function contrast(foreground, background) {
   const luminance = value => {
     const channels = value.match(/^rgb\((\d+), (\d+), (\d+)\)$/);

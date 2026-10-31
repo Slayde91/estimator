@@ -23,7 +23,7 @@ from .library_opening_types import opening_type
 from .library_display import display_subtitle, remove_resolved_source_notices
 from .technical_brand_presentation import present_manufacturer_fields
 from .library_diagram_names import validate_drawing_name, drawing_source_names, apply_drawing_names
-from .library_report_links import FIREFLY_REPORTS_URL, validate_report_links
+from .library_report_links import FIREFLY_REPORTS_URL, validate_report_links, report_href
 from .library_facets import FACETS, classify_facets, facet_options
 from .library_filter_groups import grouped_filter_options
 from .technical_service_options import options as technical_service_options
@@ -365,6 +365,16 @@ class ReferenceLibrary:
                                     {'label': label.strip(), 'url': FIREFLY_REPORTS_URL}
                                     for label in field['value'].splitlines() if label.strip()]
                                 validate_report_links(field)
+                    for field in item.get('fields', []):
+                        if field.get('label') == 'Report Number':
+                            old_links = {link['label']: link['url'] for link in field.get('report_links', [])}
+                            field['report_links'] = [
+                                {'label': label.strip(), 'url': url}
+                                for label in field.get('value', '').splitlines() if label.strip()
+                                if (url := report_href(label.strip(), old_links.get(label.strip()),
+                                                       user_authored=item.get('user_authored') is True))]
+                            if not field['report_links']:
+                                field.pop('report_links', None)
                 values['substrate'] = classify_substrates(
                     source_item, item, selector_capture=selector_context,
                     source_documents=assets)

@@ -1,7 +1,7 @@
 // Real current-unsaved-item downloads never read the independently retained Schedule.
 const { chromium, expect } = require('@playwright/test');
 const { chooseCalculator } = require('./calculator_actions.cjs');
-const { clickProjectControl } = require('./project_actions.cjs');
+const { clickProjectControl, openProjectSection } = require('./project_actions.cjs');
 const { spawn, spawnSync } = require('node:child_process');
 const fs = require('node:fs'), path = require('node:path'), crypto = require('node:crypto'), assert = require('node:assert/strict');
 const root = path.resolve(__dirname, '../..'), output = path.join(root, '.runtime/browser-qa', `penetration-item-exports-${Date.now()}`);
@@ -84,8 +84,8 @@ async function fill(column, value) { const field = page.locator(`[data-penetrati
   assert.equal(calculationRequests.length,requestsBeforeTabs,'Tab/collapse/navigation presentation never recalculates');assert.deepEqual(await snapshot(),before);
   await scheduleNodes.dispose();await breakdownNode.dispose();await page.setViewportSize({width:1146,height:900});
   const toggle = page.locator('[aria-controls="firestopping-item-document-actions"]'), menu = page.locator('#firestopping-item-document-actions');
-  await expect(menu.getByRole('button',{includeHidden:true})).toHaveCount(4);
-  await expect(menu.locator('.download-format')).toHaveText(['XLSX','PDF','XLSX','PDF']);
+  await expect(menu.getByRole('button',{includeHidden:true})).toHaveCount(2);
+  await expect(menu.locator('.download-format')).toHaveText(['XLSX','PDF']);
   for (const [extension, id] of [['pdf','penetration-item-pdf'],['xlsx','penetration-item-excel']]) {
     await toggle.click(); await expect(menu).toBeVisible(); await expect(page.locator(`#${id}`)).toHaveAccessibleName('Item Details');
     const pending = page.waitForResponse(r => new URL(r.url()).pathname === `/api/penetration/item.${extension}` && r.request().method() === 'POST');
@@ -99,23 +99,23 @@ async function fill(column, value) { const field = page.locator(`[data-penetrati
     await expect(menu).toBeHidden(); await expect(page.locator(`#${id}`)).toHaveAttribute('aria-busy', 'false');
     assert.deepEqual(await snapshot(), before, 'Downloading preserves unsaved Item, Schedule, pricing, settings and calculator drafts');
   }
-  await toggle.click();await expect(page.locator('#penetration-pdf')).toHaveAccessibleName('Download Firestopping Schedule');
+  await openProjectSection(page,'documentation');
   const scheduleReply=page.waitForResponse(reply=>new URL(reply.url()).pathname==='/api/penetration/report.pdf'&&reply.request().method()==='POST');
-  await page.locator('#penetration-pdf').click();const response=await scheduleReply;assert.equal(response.status(),200,await response.text());
+  await page.locator('button[data-document-kind="firestopping.schedule.pdf"]').click();const response=await scheduleReply;assert.equal(response.status(),200,await response.text());
   const scheduleCapture=response.request().postDataJSON(),scheduleFile=await response.json();assert.equal(scheduleFile.saved,true);
   assert.deepEqual(scheduleCapture.draft,before.penetration.draft);assert.deepEqual(scheduleCapture.configuration,before.pricing);assert.equal(scheduleCapture.item,undefined);assert.equal(scheduleCapture.diagram,undefined);
   const scheduleRelative=path.relative(output,scheduleFile.path);assert.ok(scheduleRelative&&!scheduleRelative.startsWith('..')&&!path.isAbsolute(scheduleRelative));
   const scheduleContent=spawnSync(python,['-c',"from pypdf import PdfReader; import sys; r=PdfReader(sys.argv[1]); t='\\n'.join(p.extract_text() for p in r.pages); assert 'Schedule' in t and 'Copper Pipes' in t and '4.00' in t; assert '2.12' not in t; assert 'CURRENT UNSAVED - EXPORT THIS ITEM ONLY' not in t; assert all(i.image.size!=(320,160) for p in r.pages for i in p.images); print('Independent Schedule PDF content passed')",scheduleFile.path],{cwd:root,windowsHide:true,encoding:'utf8'});assert.equal(scheduleContent.status,0,`${scheduleContent.stdout}\n${scheduleContent.stderr}`);
   assert.deepEqual(await snapshot(),before,'New Schedule entry preserves current unsaved item and independent Schedule');
   const scheduleExport={path:scheduleFile.path,sha256:hash(fs.readFileSync(scheduleFile.path)),capture:scheduleCapture,independentContent:true};
-  await toggle.click();await expect(page.locator('#penetration-excel')).toHaveAccessibleName('Download Firestopping Schedule');
   const scheduleWorkbookReply=page.waitForResponse(reply=>new URL(reply.url()).pathname==='/api/penetration/register.xlsx'&&reply.request().method()==='POST');
-  await page.locator('#penetration-excel').click();const workbookResponse=await scheduleWorkbookReply;assert.equal(workbookResponse.status(),200,await workbookResponse.text());
+  await page.locator('button[data-document-kind="firestopping.schedule.xlsx"]').click();const workbookResponse=await scheduleWorkbookReply;assert.equal(workbookResponse.status(),200,await workbookResponse.text());
   const workbookCapture=workbookResponse.request().postDataJSON(),workbookFile=await workbookResponse.json();assert.equal(workbookFile.saved,true);assert.deepEqual(workbookCapture.draft,before.penetration.draft);assert.deepEqual(workbookCapture.configuration,before.pricing);assert.equal(workbookCapture.item,undefined);assert.equal(workbookCapture.diagram,undefined);
   const workbookRelative=path.relative(output,workbookFile.path);assert.ok(workbookRelative&&!workbookRelative.startsWith('..')&&!path.isAbsolute(workbookRelative));assert.equal(fs.readFileSync(workbookFile.path).subarray(0,2).toString(),'PK');
   assert.deepEqual(await snapshot(),before,'Moved Schedule XLSX preserves every draft and exact pricing');
   const content = spawnSync(python, [path.join(__dirname, 'penetration_item_export_content.py'), '--directory', output], { cwd: root, windowsHide: true, encoding: 'utf8' }); assert.equal(content.status, 0, `${content.stdout}\n${content.stderr}`);
-  await toggle.focus(); await toggle.press('ArrowDown'); await expect(page.locator('#penetration-item-excel')).toBeFocused(); await page.keyboard.press('End'); await expect(page.locator('#penetration-pdf')).toBeFocused(); await page.keyboard.press('Escape'); await expect(menu).toBeHidden(); await expect(toggle).toBeFocused();
+  await chooseCalculator(page,'Firestopping');await settled();
+  await toggle.focus(); await toggle.press('ArrowDown'); await expect(page.locator('#penetration-item-excel')).toBeFocused(); await page.keyboard.press('End'); await expect(page.locator('#penetration-item-pdf')).toBeFocused(); await page.keyboard.press('Escape'); await expect(menu).toBeHidden(); await expect(toggle).toBeFocused();
   for (const width of [1146, 390]) { await page.setViewportSize({ width, height: 900 }); await toggle.click(); await expect(menu).toBeVisible(); await page.screenshot({ path: path.join(output, `item-document-${width}.png`) }); await page.keyboard.press('Escape'); }
   assert.deepEqual(fs.readFileSync(info.project), projectBytes); assert.deepEqual(errors, []);
   for (const [name, expected] of Object.entries(sourceHashes)) assert.equal(hash(fs.readFileSync(path.join(root,name))), expected, `Source unchanged: ${name}`);

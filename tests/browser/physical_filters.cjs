@@ -61,8 +61,8 @@ async function checkDocuments(scope, ids) {
   const exportHeaders = dataHeaders.filter(header => header !== 'System');
   const active = [...(graph.defects || []), ...graph.barriers, ...graph.services].filter(entry => !entry.deleted).map(entry => entry.id);
   const root = page.locator('.takeoff-physical-register'), documentMenu = page.locator('.takeoff-workspace-heading .takeoff-physical-document-host'), toggle = documentMenu.getByRole('button', { name: 'Document', exact: true }), list = documentMenu.locator('.calculator-document-actions');
-  await toggle.press('ArrowDown'); await expect(list).toBeVisible(); await expect(list.getByRole('button', { name: 'Download confirmed items', exact: true })).toBeFocused();
-  await page.keyboard.press('End'); await expect(list.getByRole('button', { name: 'Download Full Markups Only', exact: true })).toBeFocused();
+  await toggle.press('ArrowDown'); await expect(list).toBeVisible(); await expect(list.getByRole('button', { name: 'Confirmed items', exact: true })).toBeFocused();
+  await page.keyboard.press('End'); await expect(list.getByRole('button', { name: 'All items', exact: true })).toBeFocused();
   await page.keyboard.press('Escape'); await expect(list).toBeHidden(); await expect(toggle).toBeFocused();
   await setFilter('Category', ['Mechanical']); // Export selection is independent of the visible register filter.
   const confirmed=scope==='service_plans'?[ids.b1,ids.s1,ids.s2]:[ids.d1,ids.b1,ids.b3,ids.s1,ids.s2];

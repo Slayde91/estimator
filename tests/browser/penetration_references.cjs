@@ -52,7 +52,8 @@ async function itemColumn(body, theme, width, entry='calculator') {
     await expect(row('line-1', body).locator('.register-report-references')).toHaveText('SYN-00 Rev A | SYN-01 Rev A');
     await expect(row('line-1', body).locator('[data-technical-reference]')).toHaveCount(2);
     assert.deepEqual(await row('line-1', body).locator('[data-technical-reference]').allTextContents(), ['1', '2']);
-    await expect(row('line-1', body).locator('.register-report-references a').first()).toHaveAttribute('href', '/api/libraries/documents/report-a.pdf');
+    await expect(row('line-1', body).locator('.register-report-references a')).toHaveCount(0);
+    await expect(row('line-1', body).locator('.register-report-references')).toContainText('SYN-00 Rev A');
   }
   evidence.sharedScheduleAndInheritedLinks = true;
   const original = await snapshot(); await choose('line-2'); assert.ok(requests.some(query => query.includes('orientation=Vertical')), 'Recorded orientation automatically filters the picker');

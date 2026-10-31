@@ -2447,7 +2447,7 @@
   $("measurements").addEventListener("input", () => updateDirty());
   $("new-quote").addEventListener("click", async () => { if (await confirmLeavePricingLibrary()) newQuote(); });
   $("download-quote-pdf").addEventListener("click", () => downloadQuotePdf());
-  for (const [id, label, materials] of [["download-full-schedule", "Download Full Schedule", false], ["download-full-product-summary", "Download Full Product Summary", true]]) {
+  for (const [id, label, materials] of [["download-full-schedule", "Full Schedule", false], ["download-full-product-summary", "Full Product Summary", true]]) {
     const button = node("button", "button pdf-button calculator-document-action"); button.id = id; button.type = "button";
     const icon = node("span", "download-format-icon"); icon.setAttribute("aria-hidden", "true");
     icon.append(node("span", "download-arrow", "⇩"), node("span", "download-format", "PDF"));

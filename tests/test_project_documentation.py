@@ -84,7 +84,7 @@ class ProjectDocumentationTests(unittest.TestCase):
         self.assertEqual([first['item']['revision'], second['item']['revision'], spreadsheet['item']['revision'], other['item']['revision']], [1, 2, 1, 1])
         self.assertEqual(second['workspace_revision'], 2)
         self.assertEqual(self.docs.read(self.workspace, first['item']['id'])['payload'], self.body)
-        self.assertEqual(self.docs.read(self.workspace, second['item']['id'])['item']['filename'], 'Renamed.pdf')
+        self.assertEqual(self.docs.read(self.workspace, second['item']['id'])['item']['filename'], 'Renamed-R2.pdf')
 
     def test_actual_server_catalog_kinds_support_both_editions_and_project_main_key(self):
         for edition in ('full', 'standard'):
@@ -99,6 +99,23 @@ class ProjectDocumentationTests(unittest.TestCase):
         for kind in ('../escape', '.leading', 'trailing.', 'doubled..part', 'a' * 81, 'Uppercase'):
             with self.subTest(kind=kind), self.assertRaises(ValidationError):
                 ProjectDocumentation(self.certificates, kinds={kind: 'Invalid'})
+
+    def test_legacy_public_revision_names_leave_stored_metadata_and_pdf_bytes_exact(self):
+        registry={row['id']:row['label'] for row in document_catalog('full')}
+        documents=ProjectDocumentation(self.certificates,kinds=registry,root=self.root/'legacy-names')
+        request_id=str(uuid.uuid4());stamp=fingerprint('unchanged source inputs')
+        receipt=documents.record(self.workspace,'estimate.summary.pdf','','Old.pdf',PDF,self.body,request_id,stamp)
+        item=receipt['item'];self.assertEqual(item['filename'],'BREAKDOWN-R1.pdf')
+        current=documents._workspace(self.workspace)
+        with documents._connect(current) as db:
+            db.execute('UPDATE documentation_revisions SET filename=? WHERE id=?',('CEASEFIRE-Estimate.pdf',item['id']))
+        before=documents._history(current)
+        self.assertEqual(documents.view(self.workspace)['items'][0]['filename'],'BREAKDOWN-R1.pdf')
+        self.assertEqual(documents.replay(self.workspace,request_id,stamp)['item']['filename'],'BREAKDOWN-R1.pdf')
+        self.assertEqual(documents.read(self.workspace,item['id'])['payload'],self.body)
+        self.assertEqual(documents._history(current),before)
+        next_item=documents.record(self.workspace,'estimate.summary.pdf','','Changed caller name.pdf',PDF,self.body,str(uuid.uuid4()),fingerprint('next'))['item']
+        self.assertEqual(next_item['filename'],'BREAKDOWN-R2.pdf')
 
     def test_frozen_full_edition_history_can_be_read_with_standard_generation_catalog(self):
         registry = {row['id']: row['label'] for row in document_catalog('full')}

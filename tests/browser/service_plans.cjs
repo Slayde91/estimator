@@ -350,8 +350,12 @@ async function controls() {
   const viewerLines=await page.locator('.takeoff-physical-callout tspan').allTextContents();
   const csv = await exportDraft('CSV'), xlsx = await exportDraft('XLSX'), pdf = await downloadDrawing();
   await page.locator('.takeoff-workspace-heading .takeoff-physical-document-host').getByRole('button',{name:'Document',exact:true}).click();
-  const matrixWait=waitForTakeoffDownload(page);await page.getByRole('button',{name:'Download Passive Fire Matrix PDF',exact:true}).click();
-  const matrixDownload=await matrixWait,matrix=path.join(output,matrixDownload.suggestedFilename());await matrixDownload.saveAs(matrix);
+  await expect(page.getByRole('button',{name:'Download Passive Fire Matrix PDF',exact:true})).toHaveCount(0);
+  // The source endpoint remains available; only its dropdown choice was removed.
+  const matrixSession=await page.evaluate(()=>window.CeasefireTakeoffs.sessionId());
+  const matrixResponse=await page.request.post(`${origin}/api/takeoffs/sessions/${matrixSession}/physical/export/pdf`,{data:{scope:'service_plans',expected_revision:state.revision}});
+  assert.equal(matrixResponse.status(),200,await matrixResponse.text());
+  const matrix=path.join(output,'service-plans-matrix.pdf');fs.writeFileSync(matrix,await matrixResponse.body());
   const csvText = fs.readFileSync(csv, 'utf8'); assert.ok(csvText.includes(barrier)); assert.ok(csvText.includes(service)); assert.ok(!csvText.includes(defect)); assert.ok(!csvText.includes(reportBarrier)); assert.ok(!csvText.split('\n')[0].includes('defect'));
   const workbook = pythonJson("import json,sys\nfrom openpyxl import load_workbook\nw=load_workbook(sys.argv[1],data_only=False)\ns=w.active;v=list(s.values)\nprint(json.dumps({'sheets':w.sheetnames,'headers':v[0],'rows':v[1:],'string_cells':[{'coordinate':c.coordinate,'value':c.value,'type':c.data_type} for sh in w for r in sh for c in r if isinstance(c.value,str)],'formulas':[c.coordinate for sh in w for r in sh for c in r if c.data_type=='f']}))\nw.close()", xlsx);
   const registerHeaders = ['Barrier ID', 'Service ID', 'Confirmation', 'Location', 'FRL', 'Substrate', 'Orientation', 'Category', 'Service type', 'Service quantity', 'Service Size (mm)', 'Report', 'System', 'Source evidence'];

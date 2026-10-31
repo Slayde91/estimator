@@ -73,7 +73,7 @@ async function snapshot() { await idle(); return page.evaluate(() => ({ calculat
   assert.equal(await scheduleToggle.evaluate(e=>e.closest('.page-heading')?.querySelector('#download-quote-pdf')!==null),true);
   assert.equal(await scheduleToggle.evaluate(e=>document.querySelector('#download-quote-pdf').parentElement===document.getElementById(e.getAttribute('aria-controls'))),true,'Estimate Summary belongs to the existing Document list');
   await scheduleToggle.click();
-  await expect(scheduleMenu.getByRole('button',{name:'Download Firestopping Schedule',exact:true})).toHaveCount(0);
+  await expect(scheduleMenu.getByRole('button',{name:'Firestopping Schedule',exact:true})).toHaveCount(0);
   await expect(scheduleMenu.locator('.download-format')).toHaveText(['PDF','PDF','PDF']);
   await page.keyboard.press('Escape'); await expect(scheduleMenu).toBeHidden();
   assert.equal(await page.locator('.penetration-schedule-recalculate-tools .calculator-document-menu').count(),0);

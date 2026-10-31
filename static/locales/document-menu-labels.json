@@ -1,0 +1,44 @@
+{
+  "Steel Schedule": [
+    "钢结构明细表",
+    "स्टील अनुसूची",
+    "Listado de acero",
+    "جدول الفولاذ",
+    "ตารางเหล็ก"
+  ],
+  "Duct Schedule": [
+    "风管明细表",
+    "डक्ट अनुसूची",
+    "Listado de conductos",
+    "جدول مجاري الهواء",
+    "ตารางท่อลม"
+  ],
+  "Product Summary": [
+    "产品汇总",
+    "उत्पाद सारांश",
+    "Resumen de productos",
+    "ملخص المنتجات",
+    "สรุปผลิตภัณฑ์"
+  ],
+  "Confirmed items": [
+    "已确认项目",
+    "पुष्ट मदें",
+    "Elementos confirmados",
+    "العناصر المؤكدة",
+    "รายการที่ยืนยันแล้ว"
+  ],
+  "Unconfirmed items": [
+    "未确认项目",
+    "अपुष्ट मदें",
+    "Elementos sin confirmar",
+    "العناصر غير المؤكدة",
+    "รายการที่ยังไม่ยืนยัน"
+  ],
+  "All items": [
+    "所有项目",
+    "सभी मदें",
+    "Todos los elementos",
+    "جميع العناصر",
+    "ทุกรายการ"
+  ]
+}

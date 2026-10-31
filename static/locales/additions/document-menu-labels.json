@@ -1,0 +1,32 @@
+{
+  "Steel Schedule": [
+    "강재 명세서",
+    "Iskedyul ng bakal",
+    "Bảng kê thép"
+  ],
+  "Duct Schedule": [
+    "덕트 명세서",
+    "Iskedyul ng duct",
+    "Bảng kê ống gió"
+  ],
+  "Product Summary": [
+    "제품 요약",
+    "Buod ng produkto",
+    "Tổng hợp sản phẩm"
+  ],
+  "Confirmed items": [
+    "확인된 항목",
+    "Mga nakumpirmang item",
+    "Mục đã xác nhận"
+  ],
+  "Unconfirmed items": [
+    "미확인 항목",
+    "Mga hindi kumpirmadong item",
+    "Mục chưa xác nhận"
+  ],
+  "All items": [
+    "모든 항목",
+    "Lahat ng item",
+    "Tất cả các mục"
+  ]
+}

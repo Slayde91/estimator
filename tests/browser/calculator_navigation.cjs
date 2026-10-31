@@ -207,18 +207,16 @@ async function workbook(title) {
   await description.fill('REFILLED LINKED SOURCE');await description.press('Tab');await quantity.fill('4.987654321');await quantity.press('Tab');await page.locator('#penetration-update-schedule').click();await expect(page.locator('#penetration-update-schedule')).toBeHidden();await expect(page.locator('#penetration-update-schedule')).toHaveAttribute('aria-busy','false');
   const linkedUpdated=await snapshots();assert.deepEqual(linkedUpdated.penetration.draft.rows.at(-1),{id:linkedRow.id,inputs:{T:'REFILLED LINKED SOURCE',O:4.987654321},library_item_id:libraryItem.id});assert.deepEqual(linkedUpdated.penetration.draft.rows.slice(0,-1),linkedBefore.penetration.draft.rows.slice(0,-1));assert.deepEqual(linkedUpdated.penetration.draft.globals,linkedBefore.penetration.draft.globals);assert.deepEqual(linkedUpdated.pricing,linkedBefore.pricing);assert.deepEqual(linkedUpdated.calculators,linkedBefore.calculators);evidence.clearLinkedEditRetainsLibraryAndRowIdentity=true;
   evidence.firestoppingDocuments = [];
-  for (const prefix of ['penetration-item', 'penetration']) {
-    if(prefix==='penetration'){await expect(page.locator('#main-tab-firestopping-schedule')).toHaveCount(0);await expect(page.locator('#main-panel-firestopping-schedule')).toBeHidden();}
+  for (const prefix of ['penetration-item']) {
     const schedule = page.locator('details[aria-labelledby="penetration-estimator-schedule-heading"]');
-    if (prefix!=='penetration'&&!await schedule.evaluate(element => element.open)) await schedule.locator(':scope > summary').click();
-    const itemOnly=prefix==='penetration-item',actionsId='firestopping-item-document-actions';
+    if (!await schedule.evaluate(element => element.open)) await schedule.locator(':scope > summary').click();
+    const actionsId='firestopping-item-document-actions';
     const documentToggle=page.locator(`[aria-controls="${actionsId}"]`),documentActions=page.locator(`#${actionsId}`);
-    if(!itemOnly){await expect(page.locator('#firestopping-document-actions #penetration-pdf,#firestopping-document-actions #penetration-excel')).toHaveCount(0);assert.equal(await schedule.locator('.calculator-document-menu').count(),0);assert.equal(await page.locator('.penetration-schedule-recalculate-tools .calculator-document-menu').count(),0);}
     await expect(documentToggle.locator('.calculator-document-icon')).toBeVisible();
     await expect(documentActions).toBeHidden(); await documentToggle.click(); await expect(documentActions).toBeVisible();
-    await expect(documentActions.getByRole('button',{name:itemOnly?'Item Details':'Download Firestopping Schedule',exact:true})).toHaveCount(2);
-    await expect(documentActions.locator('.download-format')).toHaveText(['XLSX','PDF','XLSX','PDF']);
-    assert.equal(await documentActions.getByRole('button').count(), 4);
+    await expect(documentActions.getByRole('button',{name:'Item Details',exact:true})).toHaveCount(2);
+    await expect(documentActions.locator('.download-format')).toHaveText(['XLSX','PDF']);
+    assert.equal(await documentActions.getByRole('button').count(), 2);
     for (const width of [390, 570, 825, 1146]) {
       await page.setViewportSize({ width, height: 1000 }); const bounds = await documentActions.boundingBox();
       assert.ok(bounds.x >= 0 && bounds.x + bounds.width <= width + 1, `Firestopping Document menu stays within ${width}px viewport`);
@@ -228,12 +226,13 @@ async function workbook(title) {
     await page.keyboard.press('Escape'); await expect(documentToggle).toBeFocused(); await expect(documentActions).toBeHidden();
     for (const [suffix, magic] of [['excel', 'PK'], ['pdf', '%PDF']]) {
       await documentToggle.click(); const action = page.locator(`#${prefix}-${suffix}`); await expect(action).toBeVisible();
-      const endpoint = `/api/penetration/${itemOnly?(suffix==='pdf'?'item.pdf':'item.xlsx'):(suffix==='pdf'?'report.pdf':'register.xlsx')}`;
+      const endpoint = `/api/penetration/${suffix==='pdf'?'item.pdf':'item.xlsx'}`;
       const download = page.waitForResponse(reply => new URL(reply.url()).pathname === endpoint && reply.request().method() === 'POST');
       await action.click(); const reply = await download; assert.equal(reply.status(), 200); const file = await reply.json();
       const downloaded=reply.request().postDataJSON();
-      if(itemOnly){assert.deepEqual(downloaded.item,linkedUpdated.penetration.composer.rows[0]);assert.deepEqual(downloaded.globals,linkedUpdated.penetration.composer.globals);assert.equal(downloaded.draft,undefined);assert.equal(downloaded.rows,undefined);assert.equal(downloaded.diagram,undefined);assert.equal(file.filename,`CEASEFIRE-Firestopping-Item.${suffix==='pdf'?'pdf':'xlsx'}`);}
-      else{assert.deepEqual(downloaded.draft,linkedUpdated.penetration.draft);assert.equal(downloaded.item,undefined);assert.equal(file.filename,suffix==='pdf'?'CEASEFIRE-Firestopping-Estimate.pdf':'CEASEFIRE-Firestopping-Schedule.xlsx');}
+      assert.deepEqual(downloaded.item,linkedUpdated.penetration.composer.rows[0]);assert.deepEqual(downloaded.globals,linkedUpdated.penetration.composer.globals);assert.equal(downloaded.draft,undefined);assert.equal(downloaded.rows,undefined);assert.equal(downloaded.diagram,undefined);
+      // Each format is its own document kind; these are its first saved revisions.
+      assert.equal(file.filename,`Firestopping-Item-R1.${suffix==='pdf'?'pdf':'xlsx'}`);
       assert.deepEqual(downloaded.configuration,linkedUpdated.pricing);
       assert.equal(file.saved, true); assert.equal(file.destination, 'project');
       const relative = path.relative(output, file.path); assert.ok(relative && !relative.startsWith('..') && !path.isAbsolute(relative));

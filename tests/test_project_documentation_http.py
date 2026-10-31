@@ -79,14 +79,16 @@ class DocumentationHTTPTests(unittest.TestCase):
         self.json('POST','/api/pdf-covers/estimate',{'cover_pdf':cover('ORIGINAL SPECIFIC'),'cover_pdf_name':'Specific.pdf','expected_version':1})
         body={'inputs':{}}
         with patch('estimator.report.render_quote_pdf',return_value=pdf('ORIGINAL BODY')):
-            status,_,payload=self.request('POST','/api/quote-report',body,self.headers(workspace,operation))
+            status,headers,payload=self.request('POST','/api/quote-report',body,self.headers(workspace,operation))
         self.assertEqual(status,200,payload)
+        self.assertIn('BREAKDOWN-R1.pdf',headers['Content-Disposition'])
         self.assertEqual([value.strip() for value in texts(payload)],['ORIGINAL MAIN','ORIGINAL SPECIFIC','ORIGINAL BODY'])
         first=self.retained(workspace)['items'][0]
         self.json('POST','/api/company-settings',{**DEFAULTS,'cover_pdf':cover('CHANGED MAIN'),'cover_pdf_name':'New.pdf'})
         with patch('estimator.report.render_quote_pdf',side_effect=AssertionError('An exact replay must not render again.')):
-            status,_,replayed=self.request('POST','/api/quote-report',body,self.headers(workspace,operation))
+            status,replay_headers,replayed=self.request('POST','/api/quote-report',body,self.headers(workspace,operation))
         self.assertEqual(status,200,replayed)
+        self.assertEqual(replay_headers['Content-Disposition'],headers['Content-Disposition'])
         self.assertEqual(replayed,payload)
         self.assertEqual(self.retained(workspace)['workspace_revision'],1)
         self.assertEqual(self.request('GET',first['url'])[2],payload)

@@ -166,7 +166,12 @@ async function noDownloadAudio() {
   assert.deepEqual(await page.evaluate(start => window.qaMenuAudio.calls.slice(start).filter(row => row.event === "click").map(row => row.source), beforeSaveCalls), ["/sounds/checkpoint.ogg"]);
   evidence.checks.globalSaveCheckpointWithoutGenericOverlap = true;
   evidence.checks.cancelledSaveUsesProjectCertificateWorkspace = { creationRequests: certificateWorkspaceRequests.length, matchedCurrentWorkspace: true };
+  assert.deepEqual(await snapshot(), before, 'Menu audio and cancelled Save preserve the original draft');
   await require('./native_download_helpers.cjs').ensureSavedProject(page);
+  const downloadBaseline=await snapshot();
+  for(const key of ['calculators','penetration','details'])assert.deepEqual(downloadBaseline[key],before[key], 'The explicit fixture Save retains '+key);
+  const savedProject=JSON.parse(fs.readFileSync(path.join(output,'audio-project.cf.json'),'utf8'));
+  assert.deepEqual(downloadBaseline.pricing,savedProject.estimate.configuration, 'Save resolves the project pricing snapshot through the existing normalization');
   // These owned lightweight controls isolate delegated routing from Takeoff
   // document/session operations, which have their own browser acceptance gates.
   await page.evaluate(() => {
@@ -348,7 +353,7 @@ async function noDownloadAudio() {
     .every(row => ["pointerenter", "pointerover", "click"].includes(row.event)), "Button playback attempts occur in their input event");
   await page.mouse.move(0, 0);
   await page.screenshot({ path: path.join(output, "header-menu-audio.png") });
-  assert.deepEqual(await snapshot(), before, "Menu audio preserves the entire initialized calculator, pricing and project draft");
+  assert.deepEqual(await snapshot(), downloadBaseline, "Menu audio and download saves preserve the initialized calculator, saved pricing and project draft");
   evidence.checks.draftsPreserved = true;
   evidence.audio_events = await page.evaluate(() => ({ calls: window.qaMenuAudio.calls, playing: window.qaMenuAudio.playing, csp: window.qaMenuAudio.csp }));
   await noDownloadAudio();

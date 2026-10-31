@@ -12,7 +12,7 @@ from estimator.desktop_seed import initialize_data, verified_manifest
 from estimator.firefly_reference_review import PLAN_NAME as REFERENCE_PLAN_NAME, REPORTS, fingerprint
 from estimator.firefly_technical_review import PLAN_NAME as TECHNICAL_PLAN_NAME
 from estimator.reference_library import ReferenceLibrary
-from estimator.technical_service_review import PLAN_NAME, REVIEW_KEY, projection_fingerprint
+from estimator.technical_service_review import PLAN_NAME, REVIEW_KEY, projection_fingerprint, project as project_services
 from scripts.install_reference_library import install
 from scripts.prepare_desktop_seed import prepare
 from tests.test_reference_library import sample_library
@@ -84,7 +84,17 @@ class ServicesReviewLifecycleTests(unittest.TestCase):
                      if key in {'schema_version', 'review_id', 'index_sha256', 'reports'}}
         reference['items'] = []
         (technical_path.parent / REFERENCE_PLAN_NAME).write_text(json.dumps(reference, indent=2) + '\n', encoding='utf-8')
-        public = ReferenceLibrary(self.source)._load()['_technical_public_records'][raw['id']]
+        # Bind the review to the projection actually checked by the review
+        # preflight, before outbound report links receive their public URLs.
+        reviewed_public = {}
+
+        def capture_review_input(records, discovery, review):
+            reviewed_public.update(deepcopy(records))
+            return project_services(records, discovery, review)
+
+        with patch('estimator.reference_library.project_service_review', side_effect=capture_review_input):
+            ReferenceLibrary(self.source)._load()
+        public = reviewed_public[raw['id']]
         write_services_plan(self.source, raw, public, ['Copper Pipes'])
         return raw['id']
 

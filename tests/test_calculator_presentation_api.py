@@ -492,6 +492,9 @@ class CalculatorPresentationApiTests(unittest.TestCase):
         self.assertEqual(self.stored_rows(), before)
 
     def test_all_excel_registers_use_the_current_draft_without_saving(self):
+        filenames = {'steel_vermiculite': 'STEEL_SCHEDULE_SPRAY.xlsx',
+                     'ductwork': 'DUCT_SCHEDULE.xlsx',
+                     'steel_board': 'STEEL_SCHEDULE_BOARD.xlsx'}
         for identity in EXTENTS:
             with self.subTest(identity=identity):
                 draft = self.single_row_draft(identity, f'CURRENT REGISTER {identity}')
@@ -503,7 +506,7 @@ class CalculatorPresentationApiTests(unittest.TestCase):
                 status, headers, payload = self.request('POST', f'/api/calculators/{identity}/register.xlsx', {'inputs': draft})
                 self.assertEqual(status, 200, payload[:300])
                 self.assertEqual(headers['Content-Type'], 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-                self.assertEqual(headers['Content-Disposition'], 'attachment; filename="APPENDIX A.xlsx"')
+                self.assertEqual(headers['Content-Disposition'], f'attachment; filename="{filenames[identity]}"')
                 self.assertEqual(headers['Cache-Control'], 'no-store')
                 self.assertEqual(int(headers['Content-Length']), len(payload))
                 workbook = load_workbook(BytesIO(payload))
@@ -522,7 +525,7 @@ class CalculatorPresentationApiTests(unittest.TestCase):
         before = self.stored_rows()
         status, headers, payload = self.request('POST', '/api/calculators/ductwork/register.xlsx', {})
         self.assertEqual(status, 200, payload[:300])
-        self.assertEqual(headers['Content-Disposition'], 'attachment; filename="APPENDIX A.xlsx"')
+        self.assertEqual(headers['Content-Disposition'], 'attachment; filename="DUCT_SCHEDULE.xlsx"')
         workbook = load_workbook(BytesIO(payload))
         self.assertEqual(workbook['Schedule']['C6'].value, '700x500')
         self.assertEqual(workbook['Schedule']['D6'].value, 5)

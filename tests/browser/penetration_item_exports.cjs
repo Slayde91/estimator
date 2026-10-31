@@ -47,7 +47,12 @@ async function fill(column, value) { const field = page.locator(`[data-penetrati
   const scheduled = (await snapshot()).penetration.draft.rows; assert.equal(scheduled.length, 1);
   await page.locator('#penetration-input-groups').getByRole('tab', { name:'Products and labour', exact:true }).click();
   const crew=page.locator('#penetration-row-fields [data-penetration-field="W"]'); await crew.selectOption(await crew.locator('option').evaluateAll(options=>options.find(o=>o.value&&!o.disabled).value)); await settled(); await detailsTab();
-  await fill('T', 'CURRENT UNSAVED - EXPORT THIS ITEM ONLY'); await fill('U', 'Current unsaved system and item detail'); await fill('O', '2.123456789');
+  await fill('T', 'CURRENT UNSAVED - EXPORT THIS ITEM ONLY'); await fill('U', 'Current unsaved system and item detail');
+  // aria-busy can still be false during the 350 ms edit debounce. Finish the
+  // final input calculation before measuring requests caused by navigation.
+  const finalCalculation=page.waitForResponse(response=>response.request().method()==='POST'&&new URL(response.url()).pathname==='/api/penetration/calculate'
+    &&response.request().postDataJSON().draft?.rows?.some(row=>row.inputs?.T==='CURRENT UNSAVED - EXPORT THIS ITEM ONLY'&&Number(row.inputs?.O)===2.123456789),{timeout:60000});
+  finalCalculation.catch(()=>{});await fill('O', '2.123456789');assert.equal((await finalCalculation).status(),200);await settled();
   const generated = spawnSync(python, ['-c', "from PIL import Image; from io import BytesIO; import sys; im=Image.new('RGB',(320,160),'white'); im.paste((180,25,20),(40,25,150,110)); im.save(sys.stdout.buffer,format='PNG')"], { cwd: root, windowsHide: true }); assert.equal(generated.status, 0, generated.stderr.toString());
   await page.locator('#penetration-diagram-file').setInputFiles({ name: 'Current source.png', mimeType: 'image/png', buffer: generated.stdout });
   await expect(page.locator('#penetration-diagram-image')).toBeVisible(); await expect(page.locator('#penetration-diagram-remove')).toBeVisible();

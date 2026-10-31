@@ -49,8 +49,12 @@ class RepeatedLibraryFieldsTests(unittest.TestCase):
 
     def test_equal_barrier_removed_but_qualified_or_additional_columns_retained(self):
         item = {'fields': [field('Barrier Construction', '2x13mm FR Plasterboard Wall',
-            table={'columns': ['Substrate', 'FRL'], 'rows': [['2x13mm FR Plasterboard Wall', '-/120/120']]}), field('FRL', '-/120/120')]}
-        self.assertNotIn('table', present_technical(item)['fields'][0])
+            table={'columns': ['Substrate', 'FRL'], 'rows': [['2x13mm FR Plasterboard Wall', '-/120/120']]}), field('FRL', '-/120/120'),
+            field('Source Options', 'Alternatives in Barrier Construction table 1 do not make arrangements interchangeable.')]}
+        result = present_technical(item)
+        self.assertNotIn('table', result['fields'][0])
+        self.assertEqual(result['fields'][-1]['value'], 'Alternatives in Barrier Construction do not make arrangements interchangeable.')
+        self.assertIn('table 1', item['fields'][-1]['value'])
         item['fields'][0]['table']['rows'][0][1] += ' subject to ceiling reinforcement'
         self.assertIn('table', present_technical(item)['fields'][0])
 

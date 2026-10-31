@@ -65,6 +65,11 @@ def compact_repeated_fields(fields):
             field.pop(name, None)
         removed.add(label)
     for field in fields:
+        for label in removed:
+            # A removed single table is now the named scalar field. Keep the
+            # condition but retire its obsolete table locator in display prose.
+            field['value'] = re.sub(re.escape(label) + r' table 1\b', label,
+                                    field['value'], flags=re.I)
         if 'table_links' in field:
             links = [link for link in field['table_links'] if link['field'] not in removed]
             if links:

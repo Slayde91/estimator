@@ -54,13 +54,13 @@ async function zoomTo(target, metadata){
   }
   assert.ok(Math.abs(await actual()-target)<1e-8,'Native Ctrl+wheel installs the requested displayed zoom');
 }
-async function download(kind, label, scope, held=false){
+async function download(kind, label, scope, held=false, workspace=scope){
   const before=await snapshot(), pending=waitForTakeoffDownload(page);
   await openProjectSection(page,'documentation');
   const control=page.locator('button[data-document-kind="takeoff.markups.pdf"]');
   const trigger=async()=>{
     await control.click();const dialog=page.getByRole('dialog');
-    await dialog.getByLabel('Takeoff workspace',{exact:true}).selectOption(scope.startsWith('physical-')?scope.slice(9):scope==='wall'?'walls_floors':scope);
+    await dialog.getByLabel('Takeoff workspace',{exact:true}).selectOption(workspace.startsWith('physical-')?workspace.slice(9):workspace==='wall'?'walls_floors':workspace);
     await dialog.getByLabel('Markup document',{exact:true}).selectOption(kind);
     await dialog.getByRole('button',{name:'Continue',exact:true}).click();
     if(kind.startsWith('current-')){await expect(dialog.getByRole('heading')).toHaveText('Choose markup Source Document');await dialog.getByRole('button',{name:'Download',exact:true}).click();}
@@ -134,7 +134,7 @@ async function download(kind, label, scope, held=false){
     assert.ok(labels.length>=7);for(const label of labels){assert.ok(label.font.includes('CeasefireDrawing'));assert.equal(label.weight,'700');}
     await expect(page.locator('[data-addition-arrow="riser"]')).toHaveCount(6);await expect(page.locator('[data-addition-arrow="drop"]')).toHaveCount(4);
     await page.locator('.takeoff-rise-drop').first().scrollIntoViewIfNeeded();await page.screenshot({path:path.join(output,`viewer-labels-${zoom}.png`)});
-    const result=await download('current-all','Download Full Markup',`steel-zoom-${zoom}`);const actualZoom=result.request.rendering[doc.id].zoom;
+    const result=await download('current-all','Download Full Markup',`steel-zoom-${zoom}`,false,'steel');const actualZoom=result.request.rendering[doc.id].zoom;
     const physicalWidth=(doc.pages[0].view[2]-doc.pages[0].view[0])*doc.pages[0].user_unit;
     assert.ok(Math.abs(actualZoom-zoom)*physicalWidth<.01,'Native wheel zoom agrees with the rendered page within0.01CSSpx');
     evidence.checks.push({zoom:actualZoom,requestedZoom:zoom,fontAssets:{regular:beforeHashes['static/fonts/Vera.ttf'],bold:beforeHashes['static/fonts/VeraBd.ttf']},labels,pdf:result.path});

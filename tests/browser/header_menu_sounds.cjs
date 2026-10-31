@@ -223,6 +223,7 @@ async function noDownloadAudio() {
   await expect(page.locator(".document-download-progress")).toHaveCount(0);
   await noDownloadAudio();
   evidence.checks.realDocumentDownloadSilentUntilNativeSave = { filename: templateReceipt.filename, destination: templateReceipt.destination, ordinaryClickPreserved: true, visualProgressPreserved: true };
+  await idle(); // The successful export also completes its project Save.
   // Independent Document consumers share the same downloader. Native owned
   // controls trigger two real requests; successful and cancelled preparations
   // stay silent and retain their independent progress and receipt handling.

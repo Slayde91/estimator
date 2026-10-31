@@ -378,7 +378,7 @@ class CalculatorPresentationApiTests(unittest.TestCase):
                 marker = "333x222" if identity == "ductwork" else f"CURRENT DRAFT {identity}"
                 project_details = {"project_no": "CF-908", "client": "Draft client", "site_address": "8 Current Street"}
                 for route, filename in (("report.pdf", "APPENDIX A.pdf"),
-                                        ("summary.pdf", f"ceasefire-{identity}-materials-summary.pdf")):
+                                        ("summary.pdf", f"{identity}-materials-summary.pdf")):
                     with self.subTest(route=route):
                         status, headers, payload = self.request("POST", f"/api/calculators/{identity}/{route}",
                                                                 {"inputs": draft, "project_details": project_details})
@@ -457,7 +457,7 @@ class CalculatorPresentationApiTests(unittest.TestCase):
             with self.subTest(route=route):
                 status, headers, payload = self.request('POST', f'/api/calculators/ductwork/{route}', {})
                 self.assertEqual(status, 200, payload[:300])
-                filename = 'APPENDIX A.pdf' if route == 'report.pdf' else 'ceasefire-ductwork-materials-summary.pdf'
+                filename = 'APPENDIX A.pdf' if route == 'report.pdf' else 'ductwork-materials-summary.pdf'
                 self.assertEqual(headers['Content-Disposition'], f'attachment; filename="{filename}"')
                 saved_text = ' '.join(page.extract_text() for page in PdfReader(BytesIO(payload)).pages)
                 # The schedule shows length; its summary shows surface area.

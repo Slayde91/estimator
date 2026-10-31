@@ -230,7 +230,9 @@ async function workbook(title) {
       const download = page.waitForResponse(reply => new URL(reply.url()).pathname === endpoint && reply.request().method() === 'POST');
       await action.click(); const reply = await download; assert.equal(reply.status(), 200); const file = await reply.json();
       const downloaded=reply.request().postDataJSON();
-      assert.deepEqual(downloaded.item,linkedUpdated.penetration.composer.rows[0]);assert.deepEqual(downloaded.globals,linkedUpdated.penetration.composer.globals);assert.equal(downloaded.draft,undefined);assert.equal(downloaded.rows,undefined);assert.equal(downloaded.diagram,undefined);assert.equal(file.filename,`Firestopping-Item.${suffix==='pdf'?'pdf':'xlsx'}`);
+      assert.deepEqual(downloaded.item,linkedUpdated.penetration.composer.rows[0]);assert.deepEqual(downloaded.globals,linkedUpdated.penetration.composer.globals);assert.equal(downloaded.draft,undefined);assert.equal(downloaded.rows,undefined);assert.equal(downloaded.diagram,undefined);
+      // Each format is its own document kind; these are its first saved revisions.
+      assert.equal(file.filename,`Firestopping-Item-R1.${suffix==='pdf'?'pdf':'xlsx'}`);
       assert.deepEqual(downloaded.configuration,linkedUpdated.pricing);
       assert.equal(file.saved, true); assert.equal(file.destination, 'project');
       const relative = path.relative(output, file.path); assert.ok(relative && !relative.startsWith('..') && !path.isAbsolute(relative));

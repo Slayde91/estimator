@@ -31,6 +31,15 @@ bytes. Missing or invalid optional metadata leaves original retrieval available.
 An image load failure falls back to the original. Reopening a library detail
 reads the latest registered batch without restarting the application.
 
+Installation also archives the exact original in `images_old` and synchronizes
+the approved presentation into `images`. A generated PNG keeps its `.png`
+extension even when its source was JPEG. Previous presentation bytes are retained
+in `replicas/previous` if a replacement differs. The source index and fingerprinted
+original bytes do not change. To repair older registry-only publications, run
+`python scripts/install_library_replicas.py --sync-published --library-directory PATH`.
+This validates the complete selected batch before moving originals, publishes
+only already reviewed registry entries, and can be safely repeated.
+
 Use Nano Banana Pro for every new illustration containing a collar. Plastic-pipe
 collars must not acquire zip ties. Their mounting backs and existing tabs sit
 flush outside the opposing substrate faces, with the collar bodies projecting

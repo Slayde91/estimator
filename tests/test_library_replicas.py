@@ -89,6 +89,9 @@ class ReplicaTests(unittest.TestCase):
         manifest.write_text(json.dumps({'jobs': [job]}), encoding='utf-8')
         before = (self.root / 'library.json').read_bytes()
         first = install(manifest, self.root)
+        self.assertEqual((self.root / 'images/diagram-a.png').read_bytes(), self.replica)
+        self.assertEqual((self.root / 'images_old/diagram-a.png').read_bytes(), self.source)
+        self.assertEqual(self.library.asset('diagram-a', False)[0], self.source)
         self.assertEqual(install(manifest, self.root), first)
         self.assertEqual(first, {'registered_source_ids': 1, 'unique_replica_files': 1})
         self.assertEqual((self.root / 'library.json').read_bytes(), before)
@@ -107,3 +110,60 @@ class ReplicaTests(unittest.TestCase):
         with self.assertRaisesRegex(ValidationError, 'source changed'):
             install(manifest, self.root)
         self.assertEqual((self.folder / 'index.json').read_bytes(), registry_before)
+
+    def test_sync_published_backfills_images_without_new_approval_or_evidence_change(self):
+        from scripts.install_library_replicas import synchronize_images
+        before = (self.root / 'library.json').read_bytes()
+        registry_before = (self.folder / 'index.json').read_bytes()
+        result = synchronize_images(self.root)
+        self.assertEqual(result['images_updated'], 1)
+        self.assertEqual(result['originals_archived'], 1)
+        self.assertEqual((self.root / 'images/diagram-a.png').read_bytes(), self.replica)
+        self.assertEqual(self.library.asset('diagram-a', False)[0], self.source)
+        self.assertEqual(synchronize_images(self.root)['already_current'], 1)
+        self.assertEqual((self.root / 'library.json').read_bytes(), before)
+        self.assertEqual((self.folder / 'index.json').read_bytes(), registry_before)
+
+    def test_sync_rejects_changed_output_before_moving_any_original(self):
+        from scripts.install_library_replicas import synchronize_images
+        self.file.write_bytes(self.replica + b'corrupt')
+        with self.assertRaisesRegex(ValidationError, 'changed after visual review'):
+            synchronize_images(self.root)
+        self.assertFalse((self.root / 'images_old').exists())
+        self.assertEqual((self.root / 'images/diagram-a.png').read_bytes(), self.source)
+
+    def test_sync_jpeg_source_keeps_png_output_extension(self):
+        from scripts.install_library_replicas import synchronize_images
+        jpeg = b'\xff\xd8\xffSynthetic original JPEG'
+        (self.root / 'images/diagram-a.png').unlink()
+        (self.root / 'images/diagram-a.jpg').write_bytes(jpeg)
+        fingerprint = hashlib.sha256(jpeg).hexdigest()
+        self.data['images'][0].update(extension='.jpg', filename='image1.jpg', sha256=fingerprint)
+        (self.root / 'library.json').write_text(json.dumps(self.data), encoding='utf-8')
+        self.entry['source_sha256'] = fingerprint
+        self.write()
+        synchronize_images(self.root)
+        self.assertEqual((self.root / 'images_old/diagram-a.jpg').read_bytes(), jpeg)
+        self.assertFalse((self.root / 'images/diagram-a.jpg').exists())
+        self.assertEqual((self.root / 'images/diagram-a.png').read_bytes(), self.replica)
+        self.assertEqual(self.library.asset('diagram-a', False)[:2], (jpeg, 'image/jpeg'))
+
+    def test_sync_rejects_changed_original_before_publishing(self):
+        from scripts.install_library_replicas import synchronize_images
+        changed = self.source + b'changed'
+        (self.root / 'images/diagram-a.png').write_bytes(changed)
+        with self.assertRaisesRegex(ValidationError, 'original image changed'):
+            synchronize_images(self.root)
+        self.assertFalse((self.root / 'images_old').exists())
+        self.assertEqual((self.root / 'images/diagram-a.png').read_bytes(), changed)
+
+    def test_sync_keeps_previous_presentation_and_verified_original(self):
+        from scripts.install_library_replicas import synchronize_images
+        synchronize_images(self.root)
+        old = self.replica + b'previous presentation'
+        (self.root / 'images/diagram-a.png').write_bytes(old)
+        result = synchronize_images(self.root)
+        self.assertEqual(result['previous_preserved'], 1)
+        self.assertEqual((self.root / 'images/diagram-a.png').read_bytes(), self.replica)
+        self.assertEqual((self.root / 'replicas/previous' / (hashlib.sha256(old).hexdigest() + '.png')).read_bytes(), old)
+        self.assertEqual(self.library.asset('diagram-a', False)[0], self.source)

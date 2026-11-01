@@ -11,6 +11,78 @@ from estimator.library_replicas import IMAGE_LIMIT
 from estimator.reference_library import ReferenceLibrary
 
 
+def synchronize_images(directory, keys=None):
+    """Mirror published illustrations into images, retaining exact originals."""
+    from estimator.library_replicas import asset as replica_asset
+    directory = Path(directory).resolve()
+    library = ReferenceLibrary(directory)
+    entries = library.image_replicas()
+    registered = json.loads((directory / 'replicas/index.json').read_text(encoding='utf-8'))
+    if registered != {'version': 1, 'images': entries}:
+        raise ValidationError('The replica registry requires repair before synchronizing images.')
+    selected = sorted(entries if keys is None else set(keys))
+    assets = library._load()['_assets']
+    plans, checked_outputs = [], set()
+    for key in selected:
+        if key not in entries:
+            raise ValidationError('Only published reviewed images can be synchronized.')
+        entry = entries[key]
+        source = directory / 'images' / (key + assets[key]['extension'])
+        archive = directory / 'images_old' / source.name
+        output = directory / 'replicas' / entry['file']
+        target = directory / 'images' / (key + output.suffix)
+        for path in (source, archive, output, target):
+            if not path.resolve().is_relative_to(directory):
+                raise ValidationError('An image synchronization path is outside the library.')
+        original = archive if archive.exists() else source
+        if not original.is_file() or hashlib.sha256(original.read_bytes()).hexdigest() != entry['source_sha256']:
+            raise ValidationError('An original image changed before synchronization.')
+        if source != target and source.exists() and hashlib.sha256(source.read_bytes()).hexdigest() != entry['source_sha256']:
+            raise ValidationError('An unexpected file occupies the original image path.')
+        if entry['file'] not in checked_outputs:
+            replica_asset(directory, entry)
+            checked_outputs.add(entry['file'])
+        previous = None
+        if archive.exists() and target.exists() and target.read_bytes() != output.read_bytes():
+            digest = hashlib.sha256(target.read_bytes()).hexdigest()
+            previous = directory / 'replicas/previous' / (digest + target.suffix)
+            if not previous.resolve().is_relative_to(directory):
+                raise ValidationError('The previous image path is outside the library.')
+            if previous.exists() and previous.read_bytes() != target.read_bytes():
+                raise ValidationError('A previous image backup has changed.')
+        plans.append((source, archive, output, target, previous, entry))
+    result = dict(images_updated=0, originals_archived=0, already_current=0, previous_preserved=0)
+    # Complete validation before moving any source. An interrupted run is safe
+    # to repeat: the evidence reader prefers images_old and replicas stay valid.
+    for source, archive, output, target, previous, entry in plans:
+        archive.parent.mkdir(exist_ok=True)
+        if not archive.exists():
+            if hashlib.sha256(source.read_bytes()).hexdigest() != entry['source_sha256']:
+                raise ValidationError('An original image changed during synchronization.')
+            source.rename(archive)
+            result['originals_archived'] += 1
+        elif source != target and source.exists():
+            # Remove only a verified duplicate of the intact archived original.
+            if source.read_bytes() != archive.read_bytes():
+                raise ValidationError('An original image changed during synchronization.')
+            source.unlink()
+        if previous:
+            previous.parent.mkdir(exist_ok=True)
+            previous.write_bytes(target.read_bytes())
+            result['previous_preserved'] += 1
+        payload = output.read_bytes()
+        if hashlib.sha256(payload).hexdigest() != entry['sha256']:
+            raise ValidationError('A published image changed during synchronization.')
+        if target.exists() and target.read_bytes() == payload:
+            result['already_current'] += 1
+        else:
+            staged = target.with_suffix(target.suffix + '.pending')
+            staged.write_bytes(payload)
+            staged.replace(target)
+            result['images_updated'] += 1
+    return result
+
+
 def install(manifest, directory):
     directory = Path(directory)
     library = ReferenceLibrary(directory)
@@ -64,12 +136,18 @@ def install(manifest, directory):
     staged = destination / 'index.json.pending'
     staged.write_text(json.dumps({'version': 1, 'images': entries}, sort_keys=True, indent=2) + '\n', encoding='utf-8')
     staged.replace(index_path)
+    synchronize_images(directory, [key for job in jobs['jobs']
+                                   if job['status'] in ('generated_visual_review_passed', 'reused_visual_review_passed')
+                                   for key in job['aliases']])
     return {'registered_source_ids': len(entries), 'unique_replica_files': len({entry['file'] for entry in entries.values()})}
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--manifest', required=True)
+    mode = parser.add_mutually_exclusive_group(required=True)
+    mode.add_argument('--manifest')
+    mode.add_argument('--sync-published', action='store_true', help='Synchronize all already approved images without generating or approving anything.')
     parser.add_argument('--library-directory', required=True)
     arguments = parser.parse_args()
-    print(json.dumps(install(arguments.manifest, arguments.library_directory)))
+    print(json.dumps(synchronize_images(arguments.library_directory) if arguments.sync_published
+                     else install(arguments.manifest, arguments.library_directory)))

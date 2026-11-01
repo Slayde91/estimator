@@ -102,6 +102,17 @@ async function importWorkbook(file,accept){
   await page.setViewportSize({width:1146,height:900});
   await page.locator('[aria-controls="pricing-document-actions"]').click();const exporting=page.waitForResponse(reply=>new URL(reply.url()).pathname==='/api/pricing/export');await page.locator('#export-pricing').click();const exportReply=await exporting;assert.equal(exportReply.status(),200,await exportReply.text());
   const saved=await exportReply.json();assert.equal(saved.saved,true);const relative=path.relative(output,saved.path);assert.ok(relative&&!relative.startsWith('..')&&!path.isAbsolute(relative));assert.equal(fs.readFileSync(saved.path).subarray(0,2).toString(),'PK');
+  // Export now saves its project history automatically. Wait for that receipt,
+  // verify the frozen inputs/prices remain exact, then use the saved file as the
+  // baseline for later global-only manufacturer edits and import previews.
+  await page.waitForFunction(()=>!window.CeasefireDownloads.hasPendingOperation());
+  await expect(page.locator('#project-save-state')).toHaveText('Saved project');
+  assert.deepEqual(await projectState(),frozen);
+  const beforeExportProject=JSON.parse(projectBytes),afterExportProject=JSON.parse(fs.readFileSync(info.project));
+  for(const module of ['estimate','calculators','penetration','library_drafts','takeoffs','certifications'])
+    assert.deepEqual(afterExportProject[module],beforeExportProject[module],`Pricing export retains frozen project ${module}`);
+  projectBytes=fs.readFileSync(info.project);
+  evidence.exportAutomaticSave={saved:true,destination:saved.destination,frozenProjectModulesUnchanged:true};
   const changed=path.join(output,'manufacturer-roundtrip.xlsx');
   const editedBook=spawnSync(python,['-c',`import csv,json,sys
 from openpyxl import load_workbook

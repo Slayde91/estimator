@@ -43,13 +43,14 @@ class CertificateLayoutTests(unittest.TestCase):
                 self.assertGreaterEqual(by_text[label]['top'], red[0]['top'])
                 self.assertLessEqual(by_text[label]['bottom'], red[0]['bottom'])
 
-    def test_titles_are_regular_red_and_small_duplicate_header_is_removed(self):
-        payload = self.render(client='BODYCLIENT', australian_standards='BODYSTANDARD', name='BODYSIGNER')
+    def test_title_is_centered_uppercase_and_bottom_attestation_stays_regular(self):
+        payload = self.render(client='BODYCLIENT', australian_standards='BODYSTANDARD', name='BODYSIGNER',
+                              statement_of_compliance='INTRODUCTIONTOKEN remains bold.')
         with pdfplumber.open(BytesIO(payload)) as document:
             words = [word for page in document.pages
                      for word in page.extract_words(extra_attrs=['fontname', 'non_stroking_color'])]
             by_text = {word['text']: word for word in words}
-            for label in ('Installation', 'Statement', 'Client', 'Project', 'Address', 'Location/Area',
+            for label in ('Statement', 'Client', 'Project', 'Address', 'Location/Area',
                           'Exclusions', 'Materials/Manufacturers:', 'Date:'):
                 word = by_text[label]
                 self.assertNotIn('Bold', word['fontname'])
@@ -61,8 +62,15 @@ class CertificateLayoutTests(unittest.TestCase):
             for value in ('BODYCLIENT', 'BODYSTANDARD', 'BODYSIGNER'):
                 self.assertEqual(tuple(by_text[value]['non_stroking_color']), (0, 0, 0))
             text = '\n'.join(page.extract_text() for page in document.pages)
-            self.assertNotIn('INSTALLATION CERTIFICATE', text)
-            self.assertIn('Installation Certificate', text)
+            self.assertIn('INSTALLATION CERTIFICATE', text)
+            self.assertNotIn('Installation Certificate', text)
+            title = [by_text[word] for word in ('INSTALLATION', 'CERTIFICATE')]
+            self.assertAlmostEqual((min(w['x0'] for w in title)+max(w['x1'] for w in title))/2, document.pages[0].width/2, delta=.1)
+            self.assertTrue(all('Bold' in word['fontname'] for word in title))
+            self.assertIn('Bold', by_text['INTRODUCTIONTOKEN']['fontname'])
+            for word in words:
+                if word['text'] in ('approved', 'properly', 'knowledge.'):
+                    self.assertNotIn('Bold', word['fontname'])
             self.assertIn('Exclusions - Certification is strictly limited to works completed by Layout Company, as per:', text)
 
     def test_signer_date_is_frozen_in_sydney_and_footer_remains_utc(self):

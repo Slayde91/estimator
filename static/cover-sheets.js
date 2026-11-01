@@ -13,7 +13,7 @@
   };
   const term=source=>()=>window.CeasefireI18n?.translate?.(source)||source;
   const node=tag=>document.createElement(tag);
-  function message(element,source,error=false){text(element,source);element.className=error?'message error':'helper';}
+  function message(element,source,error=false){text(element,source);element.className=error?'message error':'helper';window.CeasefireNotifications?.show(element);}
   async function request(path,body){
     const response=await fetch(path,body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{});
     let value;

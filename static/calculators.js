@@ -1232,6 +1232,7 @@ window.CeasefireScheduleColumns = (() => {
     uiText(box, text); box.hidden = !text;
     box.className = `message${error ? " error" : ""}`;
     box.setAttribute("role", error ? "alert" : "status");
+    window.CeasefireNotifications?.show(box);
   }
 
   async function request(path, options = {}) {

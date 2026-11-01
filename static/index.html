@@ -32,6 +32,8 @@
   <script src="/language-catalog.js" defer></script>
   <script src="/language.js" defer></script>
   <script src="/activity.js" defer></script>
+  <link rel="stylesheet" href="/notifications.css">
+  <script src="/notifications.js" defer></script>
   <script src="/calculation-queue.js" defer></script>
   <script src="/searchable-choice.js" defer></script>
   <script src="/theme.js" defer></script>
@@ -197,7 +199,7 @@ SOFTWARE. -->
     </nav>
 
     </div>
-    <div class="header-project-identity"><span id="header-project-name" class="header-project-name" hidden></span><span id="project-save-state" class="status-label unsaved" role="status" data-i18n="Not saved to a file">Not saved to a file</span><span id="cursor-position" class="cursor-position" title="Cursor position in app window (px)" data-i18n-title="Cursor position in app window (px)">—</span></div>
+    <div class="header-project-identity"><span id="header-project-name" class="header-project-name" hidden></span><span id="project-save-state" class="status-label unsaved" role="status" data-i18n="Not saved to a file">Not saved to a file</span></div>
     </div>
   </header>
     <div id="header-project-actions" class="actions header-project-actions" role="group" aria-label="Project actions" hidden data-i18n-aria-label="Project actions">
@@ -419,8 +421,8 @@ SOFTWARE. -->
       <div class="page-heading"><div><p class="eyebrow" data-i18n="PROJECTS">PROJECTS</p><h1 id="documentation-heading" data-i18n="Documentation">Documentation</h1></div></div>
       <p class="helper" data-i18n="Only documents generated in the current project appear here. Save the project to retain its revision history with the project file.">Only documents generated in the current project appear here. Save the project to retain its revision history with the project file.</p>
       <p id="documentation-status" class="helper" role="status" aria-live="polite"></p>
-      <section class="card documentation-section" aria-labelledby="documentation-pdf-heading"><h2 id="documentation-pdf-heading">PDF</h2><div class="table-scroll"><table class="documentation-table"><thead><tr><th scope="col" data-i18n="Download">Download</th><th scope="col" data-i18n="Previous revisions">Previous revisions</th></tr></thead><tbody id="documentation-pdf-rows"></tbody></table></div></section>
-      <section class="card documentation-section" aria-labelledby="documentation-xlsx-heading"><h2 id="documentation-xlsx-heading">XLSX</h2><div class="table-scroll"><table class="documentation-table"><thead><tr><th scope="col" data-i18n="Download">Download</th><th scope="col" data-i18n="Previous revisions">Previous revisions</th></tr></thead><tbody id="documentation-xlsx-rows"></tbody></table></div></section>
+      <section class="card documentation-section" aria-labelledby="documentation-pdf-heading"><h2 id="documentation-pdf-heading">PDF</h2><div class="table-scroll"><table class="documentation-table"><thead><tr><th scope="col" data-i18n="Document">Document</th><th scope="col" data-i18n="Previous revisions">Previous revisions</th><th scope="col" data-i18n="Download">Download</th></tr></thead><tbody id="documentation-pdf-rows"></tbody></table></div></section>
+      <section class="card documentation-section" aria-labelledby="documentation-xlsx-heading"><h2 id="documentation-xlsx-heading">XLSX</h2><div class="table-scroll"><table class="documentation-table"><thead><tr><th scope="col" data-i18n="Document">Document</th><th scope="col" data-i18n="Previous revisions">Previous revisions</th><th scope="col" data-i18n="Download">Download</th></tr></thead><tbody id="documentation-xlsx-rows"></tbody></table></div></section>
     </section>
     <section id="view-help" class="view" aria-labelledby="help-heading" hidden>
       <div class="page-heading"><div><p class="eyebrow" data-i18n="HELP">HELP</p><h1 id="help-heading" data-i18n="Using the Ceasefire Estimator">Using the Ceasefire Estimator</h1><p class="subtitle" data-i18n="A plain-English guide to finding your way around and producing an estimate.">A plain-English guide to finding your way around and producing an estimate.</p></div></div>

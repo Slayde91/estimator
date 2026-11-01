@@ -86,6 +86,27 @@ class ProjectDocumentationTests(unittest.TestCase):
         self.assertEqual(self.docs.read(self.workspace, first['item']['id'])['payload'], self.body)
         self.assertEqual(self.docs.read(self.workspace, second['item']['id'])['item']['filename'], 'Renamed.pdf')
 
+    def test_requested_pdf_names_keep_the_existing_export_identities_and_xlsx_labels(self):
+        names = {
+            'calculator.steel_vermiculite.schedule.pdf': 'Steel | Spray | Full Schedule',
+            'calculator.steel_intumescent.schedule.pdf': 'Steel | Paint | Full Schedule',
+            'calculator.steel_board.schedule.pdf': 'Steel | Board | Full Schedule',
+            'calculator.ductwork.schedule.pdf': 'Duct | Full Schedule',
+            'firestopping.schedule.pdf': 'Firestopping | Full Schedule',
+            'calculator.steel_vermiculite.product_summary.pdf': 'Steel | Spray | Product Summary',
+            'calculator.steel_intumescent.product_summary.pdf': 'Steel | Paint | Product Summary',
+            'calculator.steel_board.product_summary.pdf': 'Steel | Board | Product Summary',
+            'calculator.ductwork.product_summary.pdf': 'Duct | Spray / Wrap | Product Summary',
+        }
+        for edition in ('full', 'standard'):
+            rows = {row['id']: row for row in document_catalog(edition)}
+            self.assertEqual({key: rows[key]['label'] for key in names}, names)
+            for key in names:
+                self.assertEqual(rows[key]['format'], 'pdf')
+            self.assertEqual(rows['calculator.steel_vermiculite.register.xlsx']['label'], 'Steel (spray) schedule')
+            self.assertEqual(rows['calculator.steel_intumescent.product_summary.pdf']['spec'],
+                             {'calculatorId': 'steel_intumescent', 'action': 'product_summary'})
+
     def test_actual_server_catalog_kinds_support_both_editions_and_project_main_key(self):
         for edition in ('full', 'standard'):
             rows = document_catalog(edition)

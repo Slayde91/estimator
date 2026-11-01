@@ -50,10 +50,12 @@
   function message(source, error = false) {
     text($('certification-status'), source);
     $('certification-status').className = error ? 'message error certification-save-status' : 'helper certification-save-status';
+    window.CeasefireNotifications?.show($('certification-status'));
   }
   function signerMessage(source, error=false) {
     text($('certification-signer-status'), source);
     $('certification-signer-status').className = error ? 'message error' : 'helper';
+    window.CeasefireNotifications?.show($('certification-signer-status'));
   }
   function dirty() {
     return !!drawing.strokes.length || !!drawing.active || state.conflicted || !!state.defaultsDesired || !equal(fields(),state.baseline.fields) ||
@@ -455,6 +457,7 @@
         const saved=await post(scoped('/api/certifications/'+encodeURIComponent(action.id)+'/revisions',action.workspaceId),{fields:action.fields,options:action.options,expected_version:action.version,request_id:action.generationRequestId});
         state.pending=null;applyDocument(saved.document,{preserveManaged:acknowledgesAction(saved.document,action,action.version+1)});text($('certification-status'),'Revision {0} saved. Open it in Certificate revisions.',[saved.revision.revision]);
         $('certification-status').className='helper certification-save-status';
+        window.CeasefireNotifications?.show($('certification-status'));
         if(state.workspaceId===action.workspaceId)window.dispatchEvent(new CustomEvent('ceasefire:certification-revision-saved',
           {detail:{workspace_id:action.workspaceId,project_id:state.projectId}}));
       }

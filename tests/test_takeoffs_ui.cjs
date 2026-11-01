@@ -127,18 +127,13 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
     fonts.reject(new Error('Fixture drawing fonts cancelled'));await assert.rejects(operation,/fonts cancelled/);
     assert.equal(feedback.audioAttempts,0);assert.equal(requests,0);assert.equal(h.audit.state.busy,false);
   });
-  await check('Takeoff notices and ordinary alerts expire after five seconds; protected recovery notices remain visible',()=>{
+  await check('Takeoff notices and alerts do not expire; recovery and render state remain protected',()=>{
     const h=harness(),dom=attachMinimalDom(h),timers=[];h.context.setTimeout=(callback,delay)=>{timers.push({callback,delay});return timers.length;};h.context.clearTimeout=()=>{};
-    dom.ui.messageSlot=dom.element();dom.ui.messageSlot.style={};let height=70.59375;dom.ui.messageSlot.getBoundingClientRect=()=>({height});
-    h.audit.message('Saved fixture');assert.equal(timers[0].delay,5000);assert.equal(dom.ui.message.hidden,false);
-    h.audit.message('Source unavailable',true);timers[0].callback();assert.equal(dom.ui.message.hidden,false);assert.equal(dom.ui.message.textContent,'Source unavailable');assert.equal(dom.ui.message.getAttribute('role'),'alert');
-    assert.equal(timers.at(-1).delay,5000);timers.at(-1).callback();assert.equal(dom.ui.message.hidden,true);
-    h.audit.message('Current status');const current=timers.at(-1);current.callback();assert.equal(dom.ui.message.hidden,true);assert.equal(dom.ui.message.textContent,'');
-    assert.equal(dom.ui.messageSlot.style.minHeight,'70.59375px','Retirement preserves the exact rendered flow height, including the margin');
-    h.audit.message('New wrapped status');assert.equal(dom.ui.messageSlot.style.minHeight,'','A new notice uses its current width instead of a stale reserve');height=121.25;timers.at(-1).callback();assert.equal(dom.ui.messageSlot.style.minHeight,'121.25px');
-    h.audit.state.linkedRecovery={operation:'retained'};const count=timers.length;h.audit.message('Recover linked change');assert.equal(dom.ui.message.hidden,false);assert.equal(timers.length,count);
-    assert.equal(dom.ui.messageSlot.style.minHeight,'');
-    h.audit.state.linkedRecovery=null;h.audit.state.pageError={notice:'Render blocked'};const renderCount=timers.length;h.audit.message('Render blocked',true);assert.equal(timers.length,renderCount);assert.equal(dom.ui.message.hidden,false);
+    dom.ui.messageSlot=dom.element();dom.ui.messageSlot.style={};
+    h.audit.message('Saved fixture');assert.equal(timers.length,0);assert.equal(dom.ui.message.hidden,false);
+    h.audit.message('Source unavailable',true);assert.equal(timers.length,0);assert.equal(dom.ui.message.hidden,false);assert.equal(dom.ui.message.textContent,'Source unavailable');assert.equal(dom.ui.message.getAttribute('role'),'alert');
+    h.audit.state.linkedRecovery={operation:'retained'};h.audit.message('Recover linked change');assert.equal(dom.ui.message.hidden,false);assert.equal(timers.length,0);
+    h.audit.state.linkedRecovery=null;h.audit.state.pageError={notice:'Render blocked'};h.audit.message('Render blocked',true);assert.equal(timers.length,0);assert.equal(dom.ui.message.hidden,false);
   });
   await check('Project replacement retires only its exact old render alert without recording render success',()=>{
     for(const transition of ['replacement','defaults','unrelated alert','same-text status','linked recovery']){

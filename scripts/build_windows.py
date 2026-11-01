@@ -27,6 +27,7 @@ DATA_FILES = (
     'calculators/steel_board.json.gz', 'calculators/steel_vermiculite.json.gz',
 )
 STATIC_FILES = (
+    'notifications.js', 'notifications.css',
     'travel.js', 'travel.css', 'maps-setup.html',
     'pointer-effects.js', 'pointer-effects.css', 'pdf-cursors.css', 'laser-reticle.svg',
     'cursors/busy.png', 'cursors/handwriting.png', 'cursors/link.png', 'cursors/move.png',

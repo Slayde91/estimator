@@ -156,7 +156,7 @@ let passed = 0;
   assert.equal(calls.at(-1).body.download.project_token,null);assert.equal(fallback.destination,'downloads');assert.match(fallback.path,/Redirected Downloads/);passed++;
 
   delete context.window.CeasefireProject;next=response({...receipt,destination:'downloads'});
-  await context.window.CeasefireDownloads.save('/api/pricing/export',{});assert.equal(calls.at(-1).body.download.project_token,null);passed++;
+  await context.window.CeasefireDownloads.save('/api/quote-report',{});assert.equal(calls.at(-1).body.download.project_token,null);passed++;
 
   for(const [value,extra,pattern] of [
     [{error:'Project access expired. Reopen it.'},{ok:false,status:400},/Project access expired/],

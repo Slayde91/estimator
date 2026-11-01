@@ -380,6 +380,8 @@ class DesktopPackagingTests(unittest.TestCase):
         self.assertIn('calculators/steel_vermiculite.json.gz',DATA_FILES)
         self.assertIn('penetration.json.gz',DATA_FILES)
         self.assertIn('fonts/Montserrat-Variable.ttf',STATIC_FILES)
+        self.assertIn('notifications.js', STATIC_FILES)
+        self.assertIn('notifications.css', STATIC_FILES)
         self.assertIn('ceasefire-app.ico',STATIC_FILES)
         for asset in ('classifire-logo.png', 'downloads.css', 'main-layout.js'):
             self.assertIn(asset, STATIC_FILES)

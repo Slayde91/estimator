@@ -18,7 +18,7 @@
     if(value!==undefined)text(element,value,args); return element;
   }
   function status(value,error=false,args=[]) { const host=$("documentation-status"); if(!host)return;
-    text(host,value,args);host.classList.toggle("error",error); }
+    text(host,value,args);host.classList.toggle("error",error);window.CeasefireNotifications?.show(host); }
   async function request(path) {
     const response=await fetch(path), value=await response.json();
     if(!response.ok)throw new Error(value?.error||"Project documents could not be loaded.");return value;
@@ -104,12 +104,17 @@
       const documents=rows.filter(row=>row.format===format&&!omittedRows.has(row.id));
       host.replaceChildren(...(format==='pdf'?groupedPdfRows(documents):documents).map(row=>{
         if(row.groupHeading) {
-          const tr=node('tr','documentation-group'),cell=node('th');cell.colSpan=2;
+          const tr=node('tr','documentation-group'),cell=node('th');cell.colSpan=3;
           cell.append(node('h3','documentation-group-heading',row.groupHeading));tr.append(cell);return tr;
         }
-        const tr=node('tr'), action=node('td'), history=node('td'), controls=node('div','documentation-download');
+        const tr=node('tr'), name=node('td','documentation-name',row.label), action=node('td','documentation-action'), history=node('td'), controls=node('div','documentation-download');
         tr.dataset.documentKind=row.id;
-        const button=node('button','button secondary',row.label);button.type='button';button.dataset.documentKind=row.id;
+        const button=node('button','button secondary documentation-download-button');button.type='button';button.dataset.documentKind=row.id;
+        const icon=node('span','documentation-download-icon','⇩');icon.setAttribute('aria-hidden','true');button.append(icon);
+        if(window.CeasefireI18n) {
+          window.CeasefireI18n.attr(button,'aria-label','Download {0}',[row.label]);
+          window.CeasefireI18n.attr(button,'title','Download {0}',[row.label]);
+        } else {button.setAttribute('aria-label',`Download ${row.label}`);button.title=`Download ${row.label}`;}
         button.disabled=!!state.action||row.historyOnly;button.addEventListener('click',()=>run(row,button));controls.append(button);
         if(row.adapter==='firestopping'&&row.spec.scope==='current_item') {
           const select=node('select');
@@ -136,7 +141,7 @@
           }
           history.append(list);
         }
-        tr.append(action,history);return tr;
+        tr.append(name,history,action);return tr;
       }));
     }
   }

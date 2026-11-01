@@ -1,10 +1,12 @@
 """Offline application languages stay separate from project and source data."""
+import ast
 import hashlib
 from html.parser import HTMLParser
 import http.client
 import json
 from pathlib import Path
 import runpy
+import re
 import tempfile
 import threading
 import unittest
@@ -111,8 +113,32 @@ class LanguageAssetsTests(unittest.TestCase):
                     status, _, body = get('/')
                     self.assertEqual(status, 200)
                     self.assertIn(b'id="application-language"', body)
-                    for locale in ['en', 'zh-Hans', 'hi', 'es', 'ar', 'th', 'ko', 'tl', 'vi', 'fr', 'bn', 'ur']:
-                        self.assertIn(f'value="{locale}"'.encode(), body)
+                    class Picker(HTMLParser):
+                        def __init__(inner):
+                            super().__init__()
+                            inner.inside = False
+                            inner.options = []
+                        def handle_starttag(inner, tag, attrs):
+                            attrs = dict(attrs)
+                            if tag == 'select':
+                                inner.inside = attrs.get('id') == 'application-language'
+                            elif tag == 'option' and inner.inside:
+                                inner.options.append(attrs)
+                        def handle_endtag(inner, tag):
+                            if tag == 'select':
+                                inner.inside = False
+                    picker = Picker(); picker.feed(body.decode('utf-8'))
+                    runtime = (ROOT / 'static/language.js').read_text(encoding='utf-8')
+                    runtime_locales = ast.literal_eval(re.search(r'const languages = Object.freeze\((\[[^\n]+\])\)', runtime)[1])
+                    builder = runpy.run_path(str(ROOT / 'scripts/build_language_catalog.py'))
+                    expected = ['en', *builder['LANGUAGES']]
+                    self.assertEqual(runtime_locales, expected, 'Runtime indexes must match the compiled translation order')
+                    self.assertEqual([option['value'] for option in picker.options], expected,
+                                     'Every supported translation must be selectable in both editions')
+                    for code in ('fr', 'bn', 'ur'):
+                        option = next(option for option in picker.options if option['value'] == code)
+                        self.assertEqual(option['lang'], code)
+                        self.assertEqual(option.get('dir', 'ltr'), 'rtl' if code == 'ur' else 'ltr')
                     if edition == 'standard': self.assertNotIn(b'/takeoffs.js', body)
                     self.assertEqual(before, hashlib.sha256(database.read_bytes()).hexdigest())
                 finally:

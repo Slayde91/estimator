@@ -165,6 +165,7 @@
       return;
     }
     uiText(element, text, args); element.hidden = !text; element.className = `message${error ? " error" : ""}`;
+    window.CeasefireNotifications?.show(element);
   }
   const diagramMime = filename => /\.png$/i.test(filename) ? "image/png" : /\.webp$/i.test(filename) ? "image/webp" : "image/jpeg";
   function renderDiagram() {
@@ -677,7 +678,8 @@
       if (!current(captured)) return saved;
       const later = state.version !== captured.version || JSON.stringify(state.record.configuration) !== JSON.stringify(payload.configuration)
         || state.invalid.size > 0 || stamp() !== capturedStamp || JSON.stringify(state.diagramChange) !== capturedDiagram;
-      message("Item Details {0} saved to {1} using the fields, prices and source diagram captured when you clicked.{2}", false, [kind.toUpperCase(), saved.path, later ? " Your later edits are still here and are not included." : ""]);
+      message(saved.preview ? "Item Details {0} opened for viewing. Use the viewer's Save button to keep a copy.{1}" : "Item Details {0} download prepared.{1}", false,
+        [kind.toUpperCase(), later ? " Your later edits are still here and are not included." : ""]);
       return saved;
     } catch (error) {
       if (current(captured)) message("Item Details were not downloaded. {0}", true, [() => window.CeasefireI18n?.translate(error.message) || error.message]);

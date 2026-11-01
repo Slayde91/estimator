@@ -438,10 +438,10 @@ class _ScheduleReport(_Report):
         else:
             title = report_label(data['id'], True) if materials else data['title']
             style = self.styles['title']
-            # Long uppercase scope names must not push a short summary's final
-            # qualifications onto an otherwise empty continuation page.
+            # Fit the uppercase scope inside the document frame, including its
+            # standard six-point padding on each side.
             if materials:
-                size = min(style.fontSize, self.content_width / max(1, stringWidth(title, style.fontName, 1)))
+                size = min(style.fontSize, (self.content_width - 12.1) / max(1, stringWidth(title, style.fontName, 1)))
                 style = style.clone('scope-title', fontSize=size, leading=size * 1.2)
             self.story += [self.p('Current calculator snapshot', 'small'),
                            Paragraph(escape(title), style)]

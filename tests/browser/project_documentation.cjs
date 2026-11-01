@@ -34,6 +34,9 @@ async function holdFinalHistory(trigger){
     if(first)heldRequest=handling;return handling;
   });
   try{await trigger();await Promise.race([arrival,new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('The source export did not refresh its captured history.')),60000);})]);
+    const busy=page.locator('.documentation-download-button[aria-busy="true"]');await expect(busy).toHaveCount(1);
+    assert.equal(await busy.evaluate(button=>getComputedStyle(button,'::after').content),'none');
+    checks.push('The busy download button retains its download icon without a circular spinner');
     assert.equal(await page.evaluate(()=>window.CeasefireDocumentation.hasPendingOperation()),true);const mutations=projectMutations.length,scope=await page.evaluate(()=>window.CeasefireCertification.sessionId());
     await page.locator('#save-current-project').click();await expect(page.locator('#app-message')).toHaveText('Finish the current file operation before saving the project.');
     await openProjectSection(page,'quotes');await page.locator('#new-quote').click();await expect(page.locator('#app-message')).toHaveText('Finish the download and its project save before replacing a project.');
@@ -109,6 +112,13 @@ function checkCompanions(project,folder){
   await documentation();await expect(page.locator('tr[data-document-kind="certification"] a')).toHaveCount(1);const historyA=await api('/api/documentation?workspace='+a);
   assert.equal(historyA.workspace_revision,3);assert.equal(historyA.items.length,4);assert.equal(historyA.items.filter(item=>item.kind==='certification').length,1);
   const readBefore=publicHistory(historyA);for(const item of historyA.items)await oldFile(item,a);
+  const revisionLink=page.locator(`tr[data-document-kind="estimate.summary.pdf"] a[href="${estimateOne.url}"]`);
+  await expect(revisionLink).toHaveAttribute('target','_blank');await expect(revisionLink).toHaveAttribute('rel','noopener noreferrer');
+  const mutationsBeforePreview=projectMutations.length;
+  const popupPromise=page.waitForEvent('popup');await revisionLink.click();const preview=await popupPromise;
+  await expect(preview).toHaveURL(base+estimateOne.url);await preview.close();
+  assert.equal(projectMutations.length,mutationsBeforePreview);
+  checks.push('Clicking a frozen PDF revision opens its exact scoped URL in a new tab without writing the project or appending history');
   assert.deepEqual(publicHistory(await api('/api/documentation?workspace='+a)),readBefore);assert.deepEqual(await oldFile(estimateOne,a),firstBytes);
   checks.push('Current-project certificate appears without copying it into a second store; opening old PDFs/XLSX adds no revision');
 

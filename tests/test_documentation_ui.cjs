@@ -82,7 +82,9 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
   await check('Catalog separates PDF and XLSX and displays exact project-scoped immutable revision links',async h=>{
     h.models.set(token(1),model(1,[item(1),item(2,1,{kind:'calculator.ductwork.register.xlsx',media_type:XLSX,filename:'Ductwork.xlsx'})]));
     await h.api.open();assert.equal(h.byId('documentation-pdf-rows').children.length,1);assert.equal(h.byId('documentation-xlsx-rows').children.length,1);
-    assert.deepEqual(h.links().map(link=>link.href),[item(1).url,item(2).url]);assert.ok(h.links().every(link=>link.listeners.click?.length===1));
+    assert.deepEqual(h.links().map(link=>link.href),[item(1).url,item(2).url]);
+    assert.equal(h.links()[0].target,'_blank');assert.equal(h.links()[0].listeners.click,undefined);
+    assert.equal(h.links()[1].listeners.click.length,1);
     assert.equal(h.api.hasProjectChanges(),false);assert.equal(h.api.hasPendingOperation(),false);
   });
   await check('Removed PDF rows stay absent with saved revisions while XLSX choices and project history survive',async h=>{
@@ -183,14 +185,24 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
   });
   await check('Reviewing old revisions only renders frozen links and performs no generation or mutation requests',async h=>{
     h.models.set(token(1),model(1,[item(1)]));await h.api.open();const before=h.api.projectFingerprint();await h.api.open();
-    const link=h.links()[0];assert.equal(link.href,item(1).url);assert.equal(link.listeners.click.length,1);
+    const link=h.links()[0];assert.equal(link.href,item(1).url);assert.equal(link.target,'_blank');assert.equal(link.rel,'noopener noreferrer');
+    assert.equal(link.listeners.click,undefined);
     assert.equal(h.adapters.length,0);assert.ok(h.calls.every(call=>!call.options.method||call.options.method==='GET'));assert.equal(h.api.projectFingerprint(),before);
   });
-  await check('Clicking a retained revision copies frozen bytes through the saved-project broker without generating a revision',async h=>{
+  await check('Retained revision links open frozen documents in a new tab without invoking a download or generating a revision',async h=>{
     h.models.set(token(1),model(1,[item(1)]));await h.api.open();const saved=[];
     h.window.CeasefireDownloads={save:async(path,body)=>{saved.push({path,body});return {saved:true};}};
+    const link=h.links()[0];let prevented=false;await link.emit('click',{preventDefault(){prevented=true;}});await flush();
+    assert.equal(link.href,item(1).url);assert.equal(link.target,'_blank');assert.equal(link.rel,'noopener noreferrer');
+    assert.equal(prevented,false);assert.deepEqual(saved,[]);assert.equal(h.adapters.length,0);
+    assert.equal(h.api.hasPendingOperation(),false);assert.equal(h.api.hasProjectChanges(),false);
+  });
+  await check('Spreadsheet revision copies retain the selected project destination without creating another revision',async h=>{
+    const revision=item(1,1,{kind:'calculator.ductwork.register.xlsx',media_type:XLSX,filename:'Ductwork.xlsx'});
+    h.models.set(token(1),model(1,[revision]));await h.api.open();const saved=[];
+    h.window.CeasefireDownloads={save:async(path,body)=>{saved.push({path,body});return {saved:true};}};
     let prevented=false;await h.links()[0].emit('click',{preventDefault(){prevented=true;}});await flush();
-    assert.equal(prevented,true);assert.deepEqual(copy(saved),[{path:item(1).url,body:{}}]);assert.equal(h.adapters.length,0);
+    assert.equal(prevented,true);assert.deepEqual(copy(saved),[{path:revision.url,body:{}}]);
     assert.equal(h.api.hasPendingOperation(),false);assert.equal(h.api.hasProjectChanges(),false);
   });
   await check('Documentation uses a retained source adapter and retains explicit source preparation',async h=>{

@@ -143,7 +143,8 @@
           for(const item of items) {
             const line=node('li','documentation-revision'), link=node('a','',"Revision {0}",[item.revision]);
             link.href=item.url;link.title=item.filename;
-            link.addEventListener('click',event=>{event.preventDefault();void downloadRevision(item,link);});
+            if(item.media_type===PDF){link.target='_blank';link.rel='noopener noreferrer';}
+            else link.addEventListener('click',event=>{event.preventDefault();void downloadRevision(item,link);});
             const filename=publicFilename(item.filename);
             link.title=filename;
             const name=node('small');name.textContent=filename;line.append(link,name);
@@ -156,17 +157,6 @@
         tr.append(name,action,history);return tr;
       }));
     }
-  }
-  async function downloadRevision(item,link) {
-    if(state.action||hasPendingOperation())return;
-    const scope=await ensureWorkspace(),epoch=state.epoch;
-    if(!current(scope,epoch))return;
-    state.action=item.id;link.setAttribute('aria-busy','true');status('Preparing document…');
-    try {
-      const saved=await window.CeasefireDownloads.save(item.url,{}, {button:link});
-      if(current(scope,epoch)&&saved?.saved)status('Document saved. Its revision is available in this project.');
-    } catch(error) {if(current(scope,epoch))status(error.message,true);}
-    finally {if(epoch===state.epoch){state.action=null;link.removeAttribute('aria-busy');render();}}
   }
   async function run(row,button) {
     if(state.action||hasPendingOperation())return;
@@ -189,6 +179,17 @@
       else status("");
     } catch(error) {if(current(scope,epoch))status(error.message,true);}
     finally {if(epoch===state.epoch){state.action=null;button.removeAttribute('aria-busy');render();}}
+  }
+  async function downloadRevision(item,link) {
+    if(state.action||hasPendingOperation()||item.media_type===PDF)return;
+    const scope=await ensureWorkspace(),epoch=state.epoch;
+    if(!current(scope,epoch))return;
+    state.action=item.id;link.setAttribute('aria-busy','true');status('Preparing document…');
+    try {
+      const saved=await window.CeasefireDownloads.save(item.url,{}, {button:link});
+      if(current(scope,epoch)&&saved?.saved)status('Document saved. Its revision is available in this project.');
+    } catch(error) {if(current(scope,epoch))status(error.message,true);}
+    finally {if(epoch===state.epoch){state.action=null;link.removeAttribute('aria-busy');render();}}
   }
   async function open() {await catalog();await ensureWorkspace();await refresh();render();}
   async function prepareProject(manifest,workspaceId) {

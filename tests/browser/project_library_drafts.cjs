@@ -139,7 +139,11 @@ async function editorExport(kind,scope,configuration,diagram) {
     assert.equal(source_sha256,seed.calculators[id].source_sha256,'Save retains the fixture source fingerprint');
     assert.deepEqual(draft,before.calculators[id],'Save retains every calculator input and schedule row');
   }
-  assert.deepEqual(stored.penetration,before.penetration);
+  const {source_sha256:penetrationSource,...persistedPenetration}=stored.penetration;
+  const {library_tracking_version,...runtimePenetration}=before.penetration;
+  assert.equal(penetrationSource,seed.penetration.source_sha256);
+  assert.equal(library_tracking_version,1);
+  assert.deepEqual(persistedPenetration,runtimePenetration,'Save retains the composer, draft rows and all Firestopping inputs');
   assert.equal(path.dirname(saved.path),path.dirname(info.project));assert.deepEqual(sharedDatabase(),database);
   assert.ok(requests.slice(requestIndex).some(request=>request.method==='POST'&&request.path==='/api/project/save'));
   assert.equal(requests.slice(requestIndex).some(request=>request.method==='POST'&&/\/refresh-pricing$/.test(request.path)),false);

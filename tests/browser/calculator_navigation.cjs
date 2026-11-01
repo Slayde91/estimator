@@ -41,6 +41,7 @@ async function workbook(title) {
   await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()); await idle();
   const saveReply = page.waitForResponse(reply => new URL(reply.url()).pathname === '/api/project/save-as' && reply.request().method() === 'POST');
   await clickProjectControl(page, 'Save'); assert.equal((await saveReply).status(), 200); await idle();
+  const initialSavedProject = JSON.parse(fs.readFileSync(info.project, 'utf8'));
   await page.getByRole('button', { name: 'Calculators', exact: true }).click(); await expect(page.locator('#calculator-steel-hub')).toBeVisible(); await expect(page.locator('#calculator-workspace')).toBeHidden(); await expect(page.locator('#calculator-steel-hub [data-steel-calculator]')).toHaveCount(4);
   await page.getByRole('button', { name: 'Home', exact: true }).click();
   evidence.initialCalculator = 'Steel landing page';
@@ -134,8 +135,14 @@ async function workbook(title) {
   // Menu navigation uses the established library confirmation, including its
   // cancellation behavior. An explicit Continue retains the unsaved prices.
   await page.getByRole('button', { name: 'Libraries', exact: true }).click(); await chooseLibrary(page, 'pricing'); await page.locator('#pricing-scope').selectOption('library');
-  const price = page.locator('#pricing-body [data-price-field="supplier_price"]').first(); await price.fill('789.12345'); await price.press('Tab');
+  const sharedPricingReply = await page.request.get(`http://127.0.0.1:${info.port}/api/bootstrap`); assert.equal(sharedPricingReply.status(), 200);
+  const sharedPricing = await sharedPricingReply.json();
+  const price = page.locator('#pricing-body [data-price-field="supplier_price"]').first();
+  const priceIdentity = await price.evaluate(control => ({ id: control.closest('tr').dataset.priceId, kind: control.closest('tr').dataset.priceKind }));
+  assert.equal(priceIdentity.kind, 'inventory', 'The synthetic price edit targets an inventory product');
+  await price.fill('789.12345'); await price.press('Tab');
   const priceDisplay = await price.inputValue(); assert.equal(priceDisplay, '789.12');
+  assert.equal(await price.evaluate(control => Number(control.closest('tr').querySelector('[data-sell-preview]').textContent.replace(/[^0-9.-]/g, ''))), 789.12);
   const guarded = await snapshots(); await chooseCalculator(page, 'Steel (board)');
   const dialog = page.getByRole('dialog'); await expect(dialog).toBeVisible(); await expect(dialog.getByRole('heading')).toHaveText('Unsaved Pricing Library');
   await dialog.getByRole('button', { name: 'Cancel', exact: true }).click(); await expect(page.locator('#view-pricing')).toBeVisible(); await expect(price).toHaveValue(priceDisplay); assert.deepEqual(await snapshots(), guarded);
@@ -206,6 +213,21 @@ async function workbook(title) {
   assert.deepEqual(linkedCleared.penetration.draft,linkedBefore.penetration.draft);assert.deepEqual(linkedCleared.penetration.composer.rows,[{id:linkedRow.id,inputs:{},library_item_id:libraryItem.id}]);assert.deepEqual(linkedCleared.pricing,linkedBefore.pricing);assert.deepEqual(linkedCleared.calculators,linkedBefore.calculators);await expect(page.locator('#penetration-update-schedule')).toBeEnabled();
   await description.fill('REFILLED LINKED SOURCE');await description.press('Tab');await quantity.fill('4.987654321');await quantity.press('Tab');await page.locator('#penetration-update-schedule').click();await expect(page.locator('#penetration-update-schedule')).toBeHidden();await expect(page.locator('#penetration-update-schedule')).toHaveAttribute('aria-busy','false');
   const linkedUpdated=await snapshots();assert.deepEqual(linkedUpdated.penetration.draft.rows.at(-1),{id:linkedRow.id,inputs:{T:'REFILLED LINKED SOURCE',O:4.987654321},library_item_id:libraryItem.id});assert.deepEqual(linkedUpdated.penetration.draft.rows.slice(0,-1),linkedBefore.penetration.draft.rows.slice(0,-1));assert.deepEqual(linkedUpdated.penetration.draft.globals,linkedBefore.penetration.draft.globals);assert.deepEqual(linkedUpdated.pricing,linkedBefore.pricing);assert.deepEqual(linkedUpdated.calculators,linkedBefore.calculators);evidence.clearLinkedEditRetainsLibraryAndRowIdentity=true;
+  // The first download runs ordinary project Save, which adopts the pending
+  // library draft for this project only. Derive its exact frozen-price delta
+  // from the fixture's inventory links; do not ignore arbitrary price changes.
+  const expectedLibraryDraft = structuredClone(sharedPricing.configuration);
+  expectedLibraryDraft.inventory[priceIdentity.id] = { ...expectedLibraryDraft.inventory[priceIdentity.id], supplier_price: 789.12 };
+  const expectedSavedPricing = structuredClone(linkedUpdated.pricing);
+  expectedSavedPricing.inventory[priceIdentity.id] = { ...expectedSavedPricing.inventory[priceIdentity.id], supplier_price: 789.12 };
+  const linkedPriceIds = Object.values(sharedPricing.catalog.rate_groups).flat()
+    .filter(rate => rate.inventory_id === priceIdentity.id && (rate.price_mode || 'inventory') === 'inventory').map(rate => rate.id);
+  assert.ok(linkedPriceIds.length > 0, 'The fixture product has linked rates to verify');
+  for (const id of linkedPriceIds) {
+    assert.ok(Object.hasOwn(expectedSavedPricing.rates, id));
+    expectedSavedPricing.rates[id] = { ...expectedSavedPricing.rates[id], price: 789.12 };
+  }
+  let exportBaseline = linkedUpdated, adoptsLibraryDraft = true;
   evidence.firestoppingDocuments = [];
   for (const prefix of ['penetration-item']) {
     const schedule = page.locator('details[aria-labelledby="penetration-estimator-schedule-heading"]');
@@ -228,16 +250,42 @@ async function workbook(title) {
       await documentToggle.click(); const action = page.locator(`#${prefix}-${suffix}`); await expect(action).toBeVisible();
       const endpoint = `/api/penetration/${suffix==='pdf'?'item.pdf':'item.xlsx'}`;
       const download = page.waitForResponse(reply => new URL(reply.url()).pathname === endpoint && reply.request().method() === 'POST');
+      const projectSave = page.waitForResponse(reply => new URL(reply.url()).pathname === '/api/project/save' && reply.request().method() === 'POST');
+      projectSave.catch(() => {});
       await action.click(); const reply = await download; assert.equal(reply.status(), 200); const file = await reply.json();
       const downloaded=reply.request().postDataJSON();
       assert.deepEqual(downloaded.item,linkedUpdated.penetration.composer.rows[0]);assert.deepEqual(downloaded.globals,linkedUpdated.penetration.composer.globals);assert.equal(downloaded.draft,undefined);assert.equal(downloaded.rows,undefined);assert.equal(downloaded.diagram,undefined);
       // Each format is its own document kind; these are its first saved revisions.
       assert.equal(file.filename,`FIRESTOPPING_ITEM-R1.${suffix==='pdf'?'pdf':'xlsx'}`);
-      assert.deepEqual(downloaded.configuration,linkedUpdated.pricing);
+      assert.deepEqual(downloaded.configuration,exportBaseline.pricing, 'Each file uses the exact prices captured at its click');
       assert.equal(file.saved, true); assert.equal(file.destination, 'project');
       const relative = path.relative(output, file.path); assert.ok(relative && !relative.startsWith('..') && !path.isAbsolute(relative));
       assert.equal(fs.readFileSync(file.path).subarray(0, magic.length).toString(), magic);
-      await expect(documentActions).toBeHidden(); await idle(); assert.deepEqual(await snapshots(), linkedUpdated);
+      const savedReply = await projectSave; assert.equal(savedReply.status(), 200);
+      assert.deepEqual(savedReply.request().postDataJSON().estimate.configuration, adoptsLibraryDraft ? expectedLibraryDraft : expectedSavedPricing);
+      await expect.poll(() => page.evaluate(() => Boolean(window.CeasefireDownloads.hasPendingOperation() || window.CeasefireDocumentation.hasPendingOperation() || window.CeasefireProject.hasPendingOperation())), { timeout: 60000 }).toBe(false);
+      await expect(page.locator('#project-save-state')).toHaveText('Saved project');
+      await expect(documentActions).toBeHidden(); await idle();
+      const expectedAfterSave = { ...linkedUpdated, pricing: expectedSavedPricing }, after = await snapshots();
+      assert.deepEqual(after, expectedAfterSave, 'Save adopts only the deliberately edited price and its linked rates; every other draft/detail stays exact');
+      const stored = JSON.parse(fs.readFileSync(info.project, 'utf8'));
+      assert.deepEqual(stored.estimate.configuration, expectedSavedPricing, 'The exact expected frozen prices reach disk');
+      // The portable file stores a workbook hash; the UI stores its tracking
+      // version. Verify both identities and compare every other field exactly.
+      const { source_sha256: penetrationSource, ...storedPenetration } = stored.penetration;
+      const { library_tracking_version: trackingVersion, ...uiPenetration } = after.penetration;
+      assert.equal(penetrationSource, initialSavedProject.penetration.source_sha256); assert.equal(trackingVersion, 1);
+      assert.deepEqual(storedPenetration, uiPenetration, 'The actual exported item and retained schedule reach disk unchanged');
+      assert.deepEqual(Object.keys(stored.calculators).sort(), Object.keys(after.calculators).sort());
+      for (const [id, value] of Object.entries(stored.calculators)) {
+        const { source_sha256, ...draft } = value;
+        assert.equal(source_sha256, initialSavedProject.calculators[id].source_sha256, 'Every saved calculator retains its original source hash');
+        assert.deepEqual(draft, after.calculators[id], 'Every saved calculator input and row stays exact');
+      }
+      const sharedAfterReply = await page.request.get(`http://127.0.0.1:${info.port}/api/configuration`); assert.equal(sharedAfterReply.status(), 200);
+      assert.deepEqual(await sharedAfterReply.json(), sharedPricing.configuration, 'Automatic Save never writes the shared Pricing Library');
+      exportBaseline = expectedAfterSave; adoptsLibraryDraft = false;
+      evidence.pricingSavedAfterDownload = { priceIdentity, amount: 789.12, linkedPriceIds, allOtherDraftsExact: true, sharedLibraryUnchanged: true };
       evidence.firestoppingDocuments.push(`${prefix}-${suffix}`);
     }
   }

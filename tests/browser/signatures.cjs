@@ -15,7 +15,7 @@ const hashes = () => Object.fromEntries(assets.map(name => [name, hash(path.join
 const sourceBefore = hashes(), checks = [], errors = [], requests = [], projectWrites = [], pdfExports = [];
 const check = name => { checks.push(name); console.log(`ok - ${name}`); };
 const server = spawn(python, [path.join(__dirname, "fixtures.py"), "--directory", output], { cwd: root, windowsHide: true });
-let browser, page, logs = ""; server.stderr.on("data", value => { logs += value; });
+let browser, page, projectFile, logs = ""; server.stderr.on("data", value => { logs += value; });
 const ready = new Promise((resolve, reject) => {
   let stdout = ""; const timer = setTimeout(() => reject(new Error(`Fixture startup timeout: ${logs}`)), 120000);
   server.stdout.on("data", value => { stdout += value; if (stdout.includes("\n")) { clearTimeout(timer); try { resolve(JSON.parse(stdout.split("\n")[0])); } catch (error) { reject(error); } } });
@@ -100,7 +100,13 @@ async function download(name, expectedIds, physicalScope = null) {
   assert.equal(await file.failure(), null); await file.saveAs(target); const body = (await request).postDataJSON(); await idle();
   assert.deepEqual(body.signature_ids, expectedIds); if (physicalScope) { assert.equal(body.mode, "penetrations"); assert.equal(body.physical_scope, physicalScope); }
   else assert.equal(body.mode, "walls_floors");
-  assert.deepEqual(await snapshot(), before, "PDF export is read-only");
+  await expect.poll(() => page.evaluate(() => window.CeasefireActivity.active || window.CeasefireDocumentation.hasPendingOperation()),
+    { timeout: 60000, message: "Export and its automatic project Save finish before comparison" }).toBe(false);
+  await expect(page.locator("#project-save-state")).toHaveText("Saved project");
+  const after = await snapshot(), companionFolder = `.ceasefire-evidence/${before.project_id}`;
+  if (Object.hasOwn(before, "companion_folder")) assert.equal(before.companion_folder, companionFolder);
+  assert.deepEqual(after, { ...before, companion_folder: companionFolder }, "PDF export preserves every source, signature, numeric and audit value exactly");
+  assert.deepEqual(JSON.parse(fs.readFileSync(projectFile, "utf8")).takeoffs, after, "Automatic Save persists the exact signature/source snapshot");
   const records = before.signatures.records.filter(value => expectedIds.includes(value.id));
   const spec = path.join(output, `${name}.json`); fs.writeFileSync(spec, JSON.stringify({ records, document: before.documents.find(doc => doc.id === body.document_id), physical: !!physicalScope }));
   const pythonScript = [
@@ -128,7 +134,7 @@ async function saveLoad(info) {
   await chooseTakeoff(page, "wall"); const after = await snapshot(); assert.deepEqual(after.signatures, before.signatures); invariant(after, before); return after;
 }
 async function armedPlacementGuards() {
-  const before = await snapshot(), commandCount = requests.length;
+  const before = await snapshot(), commandCount = requests.length, projectWriteCount = projectWrites.length;
   await page.getByRole("button", { name: "Signatures", exact: true }).click(); await padDraw();
   await expect(page.locator(".takeoff-viewport")).toHaveAttribute("data-tool", "signature");
   const fingerprint = () => page.evaluate(() => JSON.parse(window.CeasefireTakeoffs.projectFingerprint()));
@@ -139,7 +145,7 @@ async function armedPlacementGuards() {
   // Save validates pricing and all calculator drafts before the drawing guard.
   await expect(page.getByRole("button", { name: "Save", exact: true })).toBeEnabled({ timeout: 30000 });
   await expect(page.locator("#app-message")).toContainText("Project was not saved.");
-  assert.equal(projectWrites.length, 0, "An armed signature cannot issue any project save request");
+  assert.equal(projectWrites.length, projectWriteCount, "An armed signature cannot issue any additional project save request after fixture setup");
   assert.deepEqual((await fingerprint()).signatureDraft, armed);
   const modal = page.getByRole("dialog", { name: "Discard unfinished edits?", exact: true });
   await page.getByRole("button", { name: "Page ›", exact: true }).click(); await expect(modal).toBeVisible();
@@ -157,7 +163,7 @@ async function armedPlacementGuards() {
   check("armed signature blocks Save; Cancel navigation retains its draft and explicit discard cancels placement without a record");
 }
 (async () => {
-  const info = await ready; assert.notEqual(info.port, 8765); const originalHash = hash(info.area_fixture);
+  const info = await ready; projectFile = info.project; assert.notEqual(info.port, 8765); const originalHash = hash(info.area_fixture);
   browser = await chromium.launch({ headless: true }); page = await browser.newPage({ viewport: { width: 1600, height: 1100 }, deviceScaleFactor: 2 }); page.setDefaultTimeout(30000);
   page.on("pageerror", error => errors.push(error.message)); page.on("request", request => {
     if (request.url().endsWith("/commands")) requests.push(request.postDataJSON());

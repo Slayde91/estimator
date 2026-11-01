@@ -115,8 +115,17 @@ function checkCompanions(project,folder){
   const revisionLink=page.locator(`tr[data-document-kind="estimate.summary.pdf"] a[href="${estimateOne.url}"]`);
   await expect(revisionLink).toHaveAttribute('target','_blank');await expect(revisionLink).toHaveAttribute('rel','noopener noreferrer');
   const mutationsBeforePreview=projectMutations.length;
-  const popupPromise=page.waitForEvent('popup');await revisionLink.click();const preview=await popupPromise;
-  await expect(preview).toHaveURL(base+estimateOne.url);await preview.close();
+  const popupPromise=page.waitForEvent('popup');
+  const previewRequest=page.context().waitForEvent('request',request=>request.url()===base+estimateOne.url);
+  await revisionLink.click();const preview=await popupPromise;
+  // Headless Chromium may hand the PDF to a download and leave its new tab at
+  // about:blank. Verify the real navigation response rather than its PDF UI.
+  const navigation=await previewRequest;assert.equal(navigation.isNavigationRequest(),true);
+  const previewResponse=await navigation.response();assert.ok(previewResponse);
+  assert.equal(previewResponse.status(),200);
+  assert.match(previewResponse.headers()['content-type'],/^application\/pdf/);
+  assert.match(previewResponse.headers()['content-disposition'],/^inline;/);
+  await preview.close();
   assert.equal(projectMutations.length,mutationsBeforePreview);
   checks.push('Clicking a frozen PDF revision opens its exact scoped URL in a new tab without writing the project or appending history');
   assert.deepEqual(publicHistory(await api('/api/documentation?workspace='+a)),readBefore);assert.deepEqual(await oldFile(estimateOne,a),firstBytes);

@@ -301,11 +301,13 @@ class PerlifocAssessmentTests(unittest.TestCase):
                 self.assertEqual(evidence[policy.DATASET_ID]['available'], available)
                 self.assertTrue(evidence[monokote.DATASET_ID]['available'])
                 self.assertEqual(data['rows'][0]['complete'], available)
+                self.assertEqual(data['rows'][0]['report_references'],
+                                 [{'label': 'FC21278-01-1', 'url': None}])
                 self.assertTrue(data['rows'][1]['complete'])
                 self.assertEqual(data['rows'][1]['values']['P'], 41.94)
                 workbook = load_workbook(BytesIO(build_calculator_register('steel_vermiculite', inputs)))
                 text = '\n'.join(str(cell.value) for sheet in workbook for row in sheet for cell in row)
-                self.assertEqual('FC21278-01-1' in text, available)
+                self.assertIn('FC21278-01-1', text)
                 self.assertIn('FAR4856', text)
                 private_details = (monokote_digest, sha256(self.payload).hexdigest(), 'data is not installed')
                 for detail in private_details:
@@ -313,7 +315,9 @@ class PerlifocAssessmentTests(unittest.TestCase):
                 for build in (build_calculator_report, build_calculator_summary_report):
                     pdf = PdfReader(BytesIO(build('steel_vermiculite', inputs)))
                     text = '\n'.join(page.extract_text() for page in pdf.pages).replace('\n', '')
-                    self.assertEqual('FC21278-01-1' in text, available)
+                    # Downloads identify the governing report even
+                    # when its unavailable dataset withholds numeric results.
+                    self.assertIn('FC21278-01-1', text)
                     self.assertIn('FAR4856', text)
                     for detail in private_details:
                         self.assertNotIn(detail, text)

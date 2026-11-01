@@ -31,6 +31,20 @@ bytes. Missing or invalid optional metadata leaves original retrieval available.
 An image load failure falls back to the original. Reopening a library detail
 reads the latest registered batch without restarting the application.
 
+Use Nano Banana Pro for every new illustration containing a collar. Plastic-pipe
+collars must not acquire zip ties. Their mounting backs and existing tabs sit
+flush outside the opposing substrate faces, with the collar bodies projecting
+outward. Preserve the source collar construction and visible fixings; add no
+retaining band, tab, screw or flange. Wrap ties remain smooth, unperforated,
+self-locking stainless steel zip ties on the wrap only. Never replace a zip tie
+with a hose clamp or add a worm-drive housing or perforated band.
+
+Publish each visually accepted image through the installer, then verify that
+the live replica route returns its reviewed bytes and the original route returns
+the fingerprinted source. Keep failed or rejected candidates outside the registry;
+generation completion alone is not approval. Preserve the source viewing geometry,
+visible quantities and uniform final horizontal flip during review.
+
 Manual Takeoff Services transfer as separate editable Firestopping rows only
 after their owning physical record is confirmed and quantity is explicit.
 Known category, service type, FRL, substrate, orientation and typed dimensions are

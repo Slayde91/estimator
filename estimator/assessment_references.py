@@ -53,6 +53,12 @@ def schedule_report_references(calculator_id, engine, row):
     if calculator_id == 'steel_intumescent':
         product = product or str(engine.value('SETTINGS', 'D6') or '')
     source = str(value('X' if sheet == 'SCHEDULE' else 'AQ' if calculator_id == 'ductwork' else 'AT') or '')
+    # Identify the current Perlifoc authority even when an unsupported lookup
+    # leaves X blank. This caption never authorises a thickness or quantity.
+    # The publisher lists FC21278-01-1 but offers no public report download;
+    # retain plain text rather than linking an internal copy or another edition.
+    if calculator_id == 'steel_vermiculite' and product.casefold() == 'perlifoc hp eco+':
+        return _references(['FC21278-01-1'])
     if not product or not source:
         return []
     if calculator_id == 'ductwork' and product.casefold() == 'fyrewrap':

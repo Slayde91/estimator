@@ -5,6 +5,8 @@ const { chooseCalculator } = require('./calculator_actions.cjs');
 const { clickProjectControl } = require('./project_actions.cjs');
 const { spawn } = require('node:child_process');
 const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
+const { createHash } = require('node:crypto');
+const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 const root = path.resolve(__dirname, '../..'), output = path.join(root, '.runtime/browser-qa', `document-menus-${Date.now()}`);
 fs.mkdirSync(output, { recursive: true });
 const server = spawn(process.env.CEASEFIRE_PYTHON || 'python', [path.join(__dirname, 'fixtures.py'), '--directory', output], { cwd: root, windowsHide: true });
@@ -16,6 +18,7 @@ const ready = new Promise((resolve, reject) => {
   server.once('error', reject); server.once('exit', code => { clearTimeout(timer); reject(new Error(`Fixture exited ${code}`)); });
 });
 const errors = [], calculatorRequests = [], evidence = { calculators: [], viewports: [1440, 825, 390] };
+const expectedDocuments = [];
 const actionIds = ['calculator-import', 'calculator-excel', 'calculator-pdf', 'calculator-summary-pdf', 'calculator-template'];
 const actionNames = ['Import Schedule', 'Steel Schedule', 'Steel Schedule', 'Product Summary', 'Export Template'];
 function contrast(foreground, background) {
@@ -49,6 +52,7 @@ async function responseTo(action, suffix) {
   fs.writeFileSync(info.project,JSON.stringify(importedProject));await clickProjectControl(page,'Load');
   const review=page.getByRole('dialog');await expect(review.getByRole('heading')).toHaveText('Load this project?');await review.getByRole('button',{name:'Load Project',exact:true}).click();await expect(review).toBeHidden();await idle();
   const before = await snapshot(), savedProject = fs.readFileSync(info.project);assert.equal(before.calculators.steel_board.inputs.CALCULATOR.L9,0.123456789012345);
+  fs.writeFileSync(path.join(output, 'before-downloads.cf.json'), savedProject);
   evidence.importedWasteRetained=0.123456789012345;
   await chooseCalculator(page,'Steel (spray)');await idle();
   await page.locator('#calculator-document-toggle').click();
@@ -97,10 +101,19 @@ async function responseTo(action, suffix) {
     const downloads = [];
     for (const [actionId, suffix, magic] of [['calculator-excel', 'register.xlsx', 'PK'], ['calculator-pdf', 'report.pdf', '%PDF-'], ['calculator-summary-pdf', 'summary.pdf', '%PDF-'], ['calculator-template', 'template', 'PK']]) {
       await toggle.click();
+      const projectSave = page.waitForResponse(reply => new URL(reply.url()).pathname === '/api/project/save' && reply.request().method() === 'POST');
+      projectSave.catch(() => {});
       const file = await responseTo(() => page.locator(`#${actionId}`).click(), `/api/calculators/${id}/${suffix}`);
       assert.equal(file.saved, true); assert.equal(file.destination, 'project');
       const relative = path.relative(output, file.path); assert.ok(relative && !relative.startsWith('..') && !path.isAbsolute(relative), 'Generated file stays within the disposable fixture');
-      assert.equal(fs.readFileSync(file.path).subarray(0, magic.length).toString(), magic);
+      const bytes = fs.readFileSync(file.path);
+      assert.equal(bytes.subarray(0, magic.length).toString(), magic);
+      const kind = { 'register.xlsx': 'register.xlsx', 'report.pdf': 'schedule.pdf', 'summary.pdf': 'product_summary.pdf', template: 'template.xlsx' }[suffix];
+      expectedDocuments.push({ filename: path.basename(file.path), kind: `calculator.${id}.${kind}`, revision: 1, sequence: expectedDocuments.length + 1,
+        sha256: hash(bytes), size: bytes.length, media_type: magic === 'PK' ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' : 'application/pdf' });
+      assert.equal((await projectSave).status(), 200);
+      await expect.poll(() => page.evaluate(() => Boolean(window.CeasefireDownloads.hasPendingOperation() || window.CeasefireDocumentation.hasPendingOperation() || window.CeasefireProject.hasPendingOperation())), { timeout: 60000 }).toBe(false);
+      await expect(page.locator('#project-save-state')).toHaveText('Saved project');
       await expect(menu).toBeHidden(); await idle(); downloads.push({ action: suffix, file: path.basename(file.path) });
       if (actionId === 'calculator-template') {
         await toggle.click();
@@ -142,9 +155,27 @@ async function responseTo(action, suffix) {
     assert.deepEqual(await snapshot(), before, `${title}: document access, generated files and cancelled import preserve all calculator drafts and prices`);
     evidence.calculators.push({ id, title, keyboard: true, outsideDismissal: true, menuRequestedCalculation: false, downloads, importTemplateCancelled: true });
   }
-  assert.deepEqual(fs.readFileSync(info.project), savedProject, 'Document actions do not rewrite the saved project');
+  const stored = JSON.parse(fs.readFileSync(info.project, 'utf8')), initial = JSON.parse(savedProject);
+  assert.equal(initial.documentation.revision_count, 0);
+  assert.equal(expectedDocuments.length, 12);
+  const folder = path.join(output, initial.documentation.companion_folder);
+  const manifestBytes = fs.readFileSync(path.join(folder, `${stored.documentation.manifest_sha256}.json`));
+  const manifest = JSON.parse(manifestBytes);
+  assert.deepEqual(Object.keys(manifest).sort(), ['project_id', 'revisions', 'version', 'workspace_revision']);
+  assert.equal(manifest.project_id, initial.documentation.project_id); assert.equal(manifest.version, 1); assert.equal(manifest.workspace_revision, 12);
+  assert.deepEqual(manifest.revisions.map(row => Object.fromEntries(Object.keys(expectedDocuments[0]).map(key => [key, row[key]]))), expectedDocuments,
+    'Every frozen revision records the exact downloaded bytes, filename, kind and sequence');
+  const unique = new Map(expectedDocuments.map(row => [row.sha256, row.size]));
+  for (const [sha256, size] of unique) {
+    const extension = expectedDocuments.find(row => row.sha256 === sha256).media_type === 'application/pdf' ? '.pdf' : '.xlsx';
+    const blob = fs.readFileSync(path.join(folder, 'blobs', sha256 + extension));
+    assert.equal(blob.length, size); assert.equal(hash(blob), sha256, 'Frozen document blobs retain the native download bytes');
+  }
+  const expectedProject = { ...initial, documentation: { ...initial.documentation, manifest_sha256: hash(manifestBytes), manifest_size: manifestBytes.length,
+    revision_count: expectedDocuments.length, unique_bytes: [...unique.values()].reduce((sum, size) => sum + size, 0) } };
+  assert.deepEqual(stored, expectedProject, 'Automatic Save changes only independently verified document-history metadata; all other saved project fields remain exact');
   assert.deepEqual(errors, []); assert.deepEqual(await page.evaluate(() => window.qaCsp), []);
-  fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ completed: true, ...evidence, errors, csp: [], draftsUnchanged: true, savedProjectUnchanged: true }, null, 2));
-  console.log(`PASS Document menus in all three workbook calculators: keyboard, dismissal, responsive rows, 12 real files and three cancelled template imports preserve drafts, saved project and prices. Evidence: ${output}`);
+  fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ completed: true, ...evidence, errors, csp: [], draftsUnchanged: true, savedProjectMatchesAutomaticSave: true, verifiedFrozenRevisions: expectedDocuments.length }, null, 2));
+  console.log(`PASS Document menus in all three workbook calculators: keyboard, dismissal, responsive rows, 12 real files and three cancelled template imports preserve drafts and prices; automatic Save persists exact frozen document history. Evidence: ${output}`);
 })().catch(async error => { console.error(error); console.error(logs.slice(-5000)); if (page) await page.screenshot({ path: path.join(output, 'failure.png'), fullPage: true }).catch(() => {}); process.exitCode = 1;
 }).finally(async () => { fs.writeFileSync(path.join(output, 'server.log'), logs); if (browser) await browser.close(); server.kill(); });

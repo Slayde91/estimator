@@ -16,7 +16,9 @@ New generations must use OpenArt. Record the model, history ID, completed output
 URL, generation time, original source hash, downloaded output hash and approval.
 Provider names or file modification dates alone do not establish provenance.
 Preserve explicit user approvals; do not regenerate or reject those exact versions
-again. When retiring older or unverified derivatives, remove their registry entries
+again. A later explicit user revocation overrides the earlier approval; keep the
+revoked version out of publication and retain its audit history. When retiring
+older or unverified derivatives, remove their registry entries
 and restore fingerprinted originals for display; quarantine derivatives outside
 the active `replicas` folder. Keep the source index and project data unchanged.
 
@@ -55,6 +57,17 @@ outward. Preserve the source collar construction and visible fixings; add no
 retaining band, tab, screw or flange. Wrap ties remain smooth, unperforated,
 self-locking stainless steel zip ties on the wrap only. Never replace a zip tie
 with a hose clamp or add a worm-drive housing or perforated band.
+
+For images without collars, start with GPT Image 2 at low quality and 1K.
+Record any user-authorised alternate-model retry and its reason, including
+provider failures and rejected visual details, without replacing source evidence.
+
+Flexible insulation on structural steel follows the actual flanges, recessed
+webs, return lips and inside corners. Do not bridge an open I/H/C/Z profile with
+a rectangular enclosure or change the steel section. Preserve the original bare
+ends, wrap extent, floor packing and seals. Cable-tray insulation also remains
+flexible wrap, with the source side fixing angles visible; do not substitute rigid
+board. These illustration corrections do not alter the assessed construction.
 
 Publish each visually accepted image through the installer, then verify that
 the live replica route returns its reviewed bytes and the original route returns

@@ -276,6 +276,12 @@ async function openProjectCopy() {
   await page.locator('#library-editor-diagram-file').setInputFiles(uploadPath);await libraryIdle();await picture();
   await reply(()=>clickProjectControl(page,'Save'),'/api/project/save');
   await expect(page.locator('#project-save-state')).toHaveText('Saved project');
+  const restoredDiagram=JSON.parse(fs.readFileSync(info.project,'utf8')).library_drafts.records[0].diagram;
+  // A portable project record validates but preserves its uploaded image bytes.
+  // Unlike capturing a shared record, restoring its PNG does not convert to JPEG.
+  assert.deepEqual(restoredDiagram,pendingDiagram);
+  const restoredSource=await picture();
+  assert.equal(restoredSource,`data:image/png;base64,${restoredDiagram.content_base64}`);
   await page.screenshot({ path: path.join(output, 'project-library-copy-saved.png') });
   await page.locator('#library-editor-cancel').click();
 
@@ -291,7 +297,7 @@ async function openProjectCopy() {
   await openProjectCopy();
   await expect(description).toHaveValue('Project-only edited library item');
   await quantity.focus(); await expect(quantity).toHaveValue('2.125');
-  assert.match(await picture(), /^data:image\/jpeg;base64,/);
+  assert.equal(await picture(),restoredSource,'Reopening retains the exact restored portable diagram');
   assert.equal(requests.filter(request => request.path === `/api/libraries/penetration/${info.item_id}/edit`).length, sharedReads);
   assert.deepEqual(await independentDrafts(), retained);
   assert.deepEqual(sharedDatabase(), afterDelete);

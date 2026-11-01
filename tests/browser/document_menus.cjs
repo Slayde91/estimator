@@ -129,7 +129,7 @@ async function responseTo(action, suffix) {
         assert.ok(contrast(rowLabel.foreground, rowLabel.background) >= 4.5, `${theme}/${width}: schedule row label remains readable`);
         const attachment=page.locator('#project-attachment-zone');await expect(attachment).toBeVisible();
         const colors=await attachment.evaluate(button=>{const css=getComputedStyle(button);return{foreground:css.color,background:css.backgroundColor,icon:getComputedStyle(button.querySelector('svg')).color};});
-        assert.deepEqual(colors,{foreground:'rgb(255, 255, 255)',background:'rgb(107, 114, 128)',icon:'rgb(255, 255, 255)'});
+        assert.deepEqual(colors,{foreground:'rgb(17, 24, 39)',background:'rgb(255, 255, 255)',icon:'rgb(17, 24, 39)'});
         await toggle.click();const action=menu.locator('#calculator-pdf');await expect(action).toBeVisible();
         const actionColours = await action.evaluate(button=>({foreground:getComputedStyle(button).color,background:getComputedStyle(button).backgroundColor}));
         assert.ok(contrast(actionColours.foreground, actionColours.background) >= 4.5, `${theme}/${width}: Document action remains readable in the selected palette`);

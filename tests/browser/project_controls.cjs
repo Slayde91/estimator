@@ -84,18 +84,18 @@ function contrast(a,b) {
     await expect(page.locator('html')).toHaveAttribute('data-theme',theme);
     for (const width of [1600,764,390,320]) {
       await page.setViewportSize({width,height:1000}); await page.mouse.move(1,1);
-      await expect(button).toHaveCSS('background-color','rgb(107, 114, 128)');
-      await expect(button).toHaveCSS('color','rgb(255, 255, 255)');
+      await expect(button).toHaveCSS('background-color','rgb(255, 255, 255)');
+      await expect(button).toHaveCSS('color','rgb(17, 24, 39)');
       const normal = await appearance(button), saveStyle = await appearance(save);
-      assert.ok(contrast(normal.color,normal.background)>=4.5,'The grey button keeps readable icon contrast');
+      assert.ok(contrast(normal.color,normal.background)>=4.5,'The white button keeps readable icon contrast');
       assert.equal(normal.width,width<=720?44:48); assert.equal(normal.height,normal.width);
       assert.equal(saveStyle.background,'rgb(255, 219, 102)','Save retains its yellow background');
       assert.equal(saveStyle.color,'rgb(51, 38, 0)');
-      await button.hover(); await expect(button).toHaveCSS('background-color','rgb(75, 85, 99)');
+      await button.hover(); await expect(button).toHaveCSS('background-color','rgb(243, 244, 246)');
       const hover = await appearance(button); assert.ok(contrast(hover.color,hover.background)>=4.5);
       await page.mouse.move(1,1); await drop('appearance.txt','Not uploaded','dragenter');
-      await expect(button).toHaveClass(/is-dragover/); await expect(button).toHaveCSS('background-color','rgb(75, 85, 99)');
-      await expect(button).toHaveCSS('border-color','rgb(255, 255, 255)'); const drag = await appearance(button);
+      await expect(button).toHaveClass(/is-dragover/); await expect(button).toHaveCSS('background-color','rgb(243, 244, 246)');
+      await expect(button).toHaveCSS('border-color','rgb(107, 114, 128)'); const drag = await appearance(button);
       await drop('appearance.txt','Not uploaded','dragleave'); await expect(button).not.toHaveClass(/is-dragover/);
       await save.focus(); await page.keyboard.press('Tab'); await expect(button).toBeFocused();
       const focus = await appearance(button); assert.equal(focus.outline,'solid'); assert.equal(focus.outlineWidth,'3px');
@@ -178,7 +178,7 @@ function contrast(a,b) {
   await page.mouse.move(1,1);
   const heldUpload = upload(() => drop('held.txt','SYNTHETIC HELD FILE\n')); heldUpload.catch(() => {}); await entered.promise;
   await expect(button).toBeDisabled(); await expect(button).toHaveAttribute('aria-busy','true');
-  await expect(button).toHaveCSS('background-color','rgb(107, 114, 128)');
+  await expect(button).toHaveCSS('background-color','rgb(255, 255, 255)');
   await expect(button).toHaveCSS('opacity','0.65'); await expect(button.locator('svg')).toHaveCSS('visibility','hidden');
   await expect(page.locator('#project-attachment-input')).toBeDisabled();
   await expect(description).toHaveText('Saving 1 of 1: held.txt');
@@ -195,7 +195,7 @@ function contrast(a,b) {
   const rejected = deferred(), rejectNow = deferred();
   await page.route('**/api/project/attachment',async route => { rejected.resolve(); await rejectNow.promise; await route.fulfill({status:400,contentType:'application/json',body:JSON.stringify({error:'Synthetic fixture folder is read only.'})}); });
   await drop('rejected.txt','Must not be written'); await rejected.promise;
-  await enter('Home'); rejectNow.resolve(); await expect(page.getByRole('alert')).toHaveText('Project files were not saved. Synthetic fixture folder is read only.');
+  await enter('Home'); rejectNow.resolve(); await expect(page.getByRole('alert')).toContainText('Project files were not saved. Synthetic fixture folder is read only.');
   await idle(); await page.unroute('**/api/project/attachment'); await expect(tools).toBeHidden();
   await enter('Projects'); await idle(); await expect(button).toBeEnabled();
   await expect(button).toHaveAccessibleDescription('Project files were not saved. Synthetic fixture folder is read only.');

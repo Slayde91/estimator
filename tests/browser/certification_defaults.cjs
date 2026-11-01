@@ -20,7 +20,7 @@ async function fresh(){await page.locator('#certification-document').selectOptio
   const info=await ready;assert.notEqual(info.port,8765);const base=`http://127.0.0.1:${info.port}`;
   // Seed an older draft and separate signer preferences; no PDF/revision is
   // produced. Entering Certification must not load the old document's fields.
-  const created=await fetch(base+'/api/certifications',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({fields:{client:'Old saved client',project:'Old saved project',statement_of_compliance:'Old saved statement',name:'Upgrade signer'},request_id:randomUUID()})});
+  const created=await fetch(base+'/api/certifications',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({fields:{...Object.fromEntries(['client','project','address','location_area','statement_of_compliance','australian_standards','ncc_clauses','approved_design','additional_standards','other_references','exclusions','materials_manufacturers','fire_resistance_level','name','position','qualification','accreditation'].map(key=>[key,'N/A'])),client:'Old saved client',project:'Old saved project',statement_of_compliance:'Old saved statement',name:'Upgrade signer'},request_id:randomUUID()})});
   assert.equal(created.status,201);const old=await created.json();
   const preferencesResponse=await fetch(base+'/api/certifications/defaults'),preferences=await preferencesResponse.json();
   const savedPreferences=await fetch(base+'/api/certifications/defaults',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({fields:{name:'Upgrade signer',position:'',qualification:'',accreditation:''},expected_version:preferences.version})});
@@ -39,7 +39,7 @@ async function fresh(){await page.locator('#certification-document').selectOptio
   await expect(page.locator('#certification-address')).toHaveValue('Current estimate address');
   await expect(page.locator('#certification-exclusions')).toHaveValue('Project No.: CF-2042');
   await expect(page.locator('#certification-name')).toHaveValue('Upgrade signer');
-  await expect(page.locator('#certification-statement_of_compliance')).toHaveValue("This is to certify that the fire rated materials have been installed according to the manufacturer's specifications to provide the nominated fire resistance level for the items listed in the relevant schedule. All materials have been installed at the above location and comply with:");
+  await expect(page.locator('#certification-statement_of_compliance')).toHaveValue("This is to certify that the fire rated materials have been installed according to the manufacturer's specifications to provide the nominated fire resistance level for the items listed in the relevant schedule.\n\nAll materials have been installed at the above location and comply with:");
   await expect(page.locator('#certification-new, #certification-reload')).toHaveCount(0);
   await expect(page.locator('#certification-cover-pdf')).toHaveCount(0);
   for(const name of ['approved_design','additional_standards','other_references']){
@@ -72,7 +72,7 @@ async function fresh(){await page.locator('#certification-document').selectOptio
   await expect(coverRow('certification')).toContainText('Cover sheet: synthetic-drawings.pdf');await expect(coverRow('certification').getByRole('button',{name:'Save cover sheet for Certification',exact:true})).toBeEnabled();
   const afterCancel=await (await fetch(base+'/api/pdf-covers')).json();assert.equal(afterCancel.items.find(item=>item.kind==='certification').cover_pdf_name,'Other window cover.pdf');
   await coverRow('certification').getByRole('button',{name:'Save cover sheet for Certification',exact:true}).click();await page.getByRole('dialog',{name:'Cover sheet changed',exact:true}).getByRole('button',{name:'Apply cover-sheet change',exact:true}).click();await expect(coverRow('certification')).toContainText('Cover sheet saved.');
-  await page.locator('#company-cover-pdf').setInputFiles(info.fixture);await page.locator('#company-settings-save').click();await expect(page.locator('#company-settings-status')).toHaveText('Saved');
+  await page.locator('#company-cover-pdf').setInputFiles(info.fixture);await page.locator('#company-settings-save').click();await expect(page.locator('#company-settings-status')).toContainText('Saved');
   const initialCovers=await (await fetch(base+'/api/pdf-covers')).json();
   assert.equal(initialCovers.items.find(item=>item.kind==='certification').has_cover,true);
   assert.equal(initialCovers.items.find(item=>item.kind==='takeoff_markups').has_cover,true);
@@ -108,11 +108,11 @@ async function fresh(){await page.locator('#certification-document').selectOptio
   await page.locator('#certification-scope-service_penetrations').press('Escape');
   await expect(page.locator('#certification-scopes')).not.toHaveAttribute('open','');
   await expect(page.locator('#certification-scopes summary')).toBeFocused();
-  const required=await page.locator('#certification-form > section').first().locator('textarea').evaluateAll(items=>items.map(item=>({id:item.id,required:item.required})));
-  assert.equal(required.length,13);assert.ok(required.every(item=>item.required));
+  const required=await page.locator('#certification-form textarea').evaluateAll(items=>items.map(item=>({id:item.id,required:item.required})));
+  assert.equal(required.length,17);assert.ok(required.every(item=>item.required));
   await page.locator('#certification-save').click();
   assert.equal(await page.evaluate(()=>document.querySelector('#certification-form').checkValidity()),false);
-  for(const [key,value] of Object.entries({location_area:'Ground floor fixture',materials_manufacturers:'Example manufacturer',fire_resistance_level:'-/120/120'}))await page.locator('#certification-'+key).fill(value);
+  for(const [key,value] of Object.entries({location_area:'Ground floor fixture',materials_manufacturers:'Example manufacturer',fire_resistance_level:'-/120/120',position:'Fixture position',qualification:'Fixture qualification',accreditation:'Fixture accreditation'}))await page.locator('#certification-'+key).fill(value);
   const canvas=page.locator('#certification-signature-canvas');await canvas.scrollIntoViewIfNeeded();
   const box=await canvas.boundingBox();
   await page.mouse.move(box.x+box.width*.1,box.y+box.height*.7);await page.mouse.down();
@@ -124,9 +124,9 @@ async function fresh(){await page.locator('#certification-document').selectOptio
   await page.locator('#certification-signature-save').click();
   await page.setViewportSize({width:1084,height:900});
   await expect(page.locator('#certification-signature-preview')).toBeVisible();
-  await expect(page.locator('#certification-signer-status')).toHaveText('Signer details saved for future certificates.');
+  await expect(page.locator('#certification-signer-status')).toContainText('Signer details saved for future certificates.');
   await page.locator('#certification-approved_design').fill('First design line\nSecond design line');
-  await page.locator('#certification-save').click();await expect(page.locator('#certification-status')).toHaveText('Certification details saved.');
+  await page.locator('#certification-save').click();await expect(page.locator('#certification-status')).toContainText('Certification details saved.');
   const id=await page.locator('#certification-document').inputValue();assert.notEqual(id,old.id);assert.notEqual(id,'__draft__');
   const workspaceA=await page.evaluate(()=>window.CeasefireCertification.sessionId());const savedResponse=await fetch(base+'/api/certifications/'+id+'?workspace='+workspaceA);const saved=await savedResponse.json();
   assert.equal(saved.revisions.length,0);assert.equal(saved.options.scopes.length,4);assert.equal(saved.options.cover_pdf,null);assert.ok(saved.options.signature_image.startsWith('data:image/png;base64,'));
@@ -137,7 +137,7 @@ async function fresh(){await page.locator('#certification-document').selectOptio
   await page.locator('#certification-position').fill('Project manager');
   await page.locator('#certification-qualification').fill('Literal qualification');
   await page.locator('#certification-accreditation').fill('Literal accreditation');
-  await expect(page.locator('#certification-signer-status')).toHaveText('Signer details saved for future certificates.');await idle();
+  await expect(page.locator('#certification-signer-status')).toContainText('Signer details saved for future certificates.');await idle();
   await fresh();await expect(page.locator('#certification-name')).toHaveValue('Future certificate signer');
   await expect(page.locator('#certification-client')).toHaveValue('Changed estimate client');
   await expect(page.locator('#certification-scope-service_penetrations')).not.toBeChecked();

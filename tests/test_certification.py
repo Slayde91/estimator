@@ -20,7 +20,7 @@ from estimator.storage import Store
 
 
 def fields(**values):
-    return {**dict.fromkeys(FIELDS, ''), **dict.fromkeys(FIELDS[:13], 'N/A'), **values}
+    return {**dict.fromkeys(FIELDS, ''), **dict.fromkeys(FIELDS, 'N/A'), **values}
 
 
 def pdf(text='CERTIFICATE', **kwargs):

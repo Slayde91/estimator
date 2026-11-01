@@ -132,7 +132,14 @@ async function editorExport(kind,scope,configuration,diagram) {
   const retained=stored.library_drafts.records.find(record=>record.id===info.item_id);
   assert.deepEqual(retained.draft.rows[0].inputs,capture.item.inputs,'Automatic Save retains the actual exported library inputs');
   assert.equal(stored.estimate.client,before.details.client);
-  assert.deepEqual(stored.calculators,before.calculators);assert.deepEqual(stored.penetration,before.penetration);
+  assert.deepEqual(Object.keys(stored.calculators).sort(),Object.keys(before.calculators).sort());
+  const seed=JSON.parse(fs.readFileSync(info.seed,'utf8'));
+  for(const [id,value]of Object.entries(stored.calculators)){
+    const {source_sha256,...draft}=value;
+    assert.equal(source_sha256,seed.calculators[id].source_sha256,'Save retains the fixture source fingerprint');
+    assert.deepEqual(draft,before.calculators[id],'Save retains every calculator input and schedule row');
+  }
+  assert.deepEqual(stored.penetration,before.penetration);
   assert.equal(path.dirname(saved.path),path.dirname(info.project));assert.deepEqual(sharedDatabase(),database);
   assert.ok(requests.slice(requestIndex).some(request=>request.method==='POST'&&request.path==='/api/project/save'));
   assert.equal(requests.slice(requestIndex).some(request=>request.method==='POST'&&/\/refresh-pricing$/.test(request.path)),false);

@@ -4,6 +4,7 @@
 .documentation-table thead th:first-child{width:34%}
 .documentation-table thead th:nth-child(2){width:78px;text-align:center}
 .documentation-table td{vertical-align:top;overflow-wrap:anywhere}
+.documentation-table tbody tr[data-document-kind]>td:first-child{padding-inline-start:28px}
 .documentation-download{display:flex;justify-content:center;align-items:center;gap:12px;flex-wrap:wrap}
 .documentation-action{text-align:center}
 .documentation-download .documentation-download-button{width:44px;min-width:44px;height:44px;padding:0;display:inline-flex;align-items:center;justify-content:center}

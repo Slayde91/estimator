@@ -5,6 +5,8 @@ const { chooseLibrary } = require('./section_navigation.cjs');
 const { clickProjectControl } = require('./project_actions.cjs');
 const { spawn } = require('node:child_process');
 const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
+const { createHash } = require('node:crypto');
+const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 const root = path.resolve(__dirname, '../..');
 const output = path.join(root, '.runtime/browser-qa', `library-documents-${Date.now()}`);
 fs.mkdirSync(output, { recursive: true });
@@ -27,6 +29,7 @@ async function snapshot() { await idle(); return page.evaluate(() => ({ calculat
   const saved = page.waitForResponse(r => new URL(r.url()).pathname === '/api/project/save-as');
   await clickProjectControl(page, 'Save'); assert.equal((await saved).status(), 200); await idle();
   const projectBytes = fs.readFileSync(info.project);
+  fs.writeFileSync(path.join(output, 'before-downloads.cf.json'), projectBytes);
   await chooseLibrary(page, 'pricing'); await expect(page.locator('#library-pricing')).toBeVisible();
   const before = await snapshot();
   const toggle = page.locator('.pricing-document-menu [data-document-menu-toggle]'), menu = page.locator('#pricing-document-actions');
@@ -61,10 +64,17 @@ async function snapshot() { await idle(); return page.evaluate(() => ({ calculat
   await page.setViewportSize({width:1146,height:900});
   await toggle.click();
   const exported = page.waitForResponse(r => new URL(r.url()).pathname === '/api/pricing/export');
+  const projectSave = page.waitForResponse(r => new URL(r.url()).pathname === '/api/project/save' && r.request().method() === 'POST');
+  projectSave.catch(() => {});
   await page.locator('#export-pricing').click(); const response=await exported; assert.equal(response.status(),200);
   const file=await response.json(); assert.equal(file.saved,true);
   const relative=path.relative(output,file.path); assert.ok(relative&&!relative.startsWith('..')&&!path.isAbsolute(relative));
-  assert.equal(fs.readFileSync(file.path).subarray(0,2).toString(),'PK'); await expect(menu).toBeHidden(); await idle();
+  const exportedBytes = fs.readFileSync(file.path);
+  assert.equal(exportedBytes.subarray(0,2).toString(),'PK');
+  assert.equal((await projectSave).status(), 200);
+  await expect.poll(() => page.evaluate(() => Boolean(window.CeasefireDownloads.hasPendingOperation() || window.CeasefireDocumentation.hasPendingOperation() || window.CeasefireProject.hasPendingOperation())), { timeout: 60000 }).toBe(false);
+  await expect(page.locator('#project-save-state')).toHaveText('Saved project');
+  await expect(menu).toBeHidden(); await idle();
   await toggle.click(); const chooser=page.waitForEvent('filechooser'); await page.locator('#import-pricing').click();
   const selected=await chooser; assert.equal(selected.isMultiple(),false); await expect(menu).toBeHidden();
   assert.deepEqual(await snapshot(),before,'Menu actions and export preserve pricing, calculator and composer drafts');
@@ -77,8 +87,22 @@ async function snapshot() { await idle(); return page.evaluate(() => ({ calculat
   await expect(scheduleMenu.locator('.download-format')).toHaveText(['PDF','PDF','PDF']);
   await page.keyboard.press('Escape'); await expect(scheduleMenu).toBeHidden();
   assert.equal(await page.locator('.penetration-schedule-recalculate-tools .calculator-document-menu').count(),0);
-  assert.deepEqual(fs.readFileSync(info.project),projectBytes,'Document access never rewrites the saved project'); assert.deepEqual(errors,[]);
-  fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({completed:true,layouts:evidence,exported:path.basename(file.path),keyboard:true,importChooser:true,draftsPreserved:true,savedProjectPreserved:true,errors},null,2));
-  console.log(`PASS pricing Document keyboard, native export/import chooser, adjacent scope and 15 theme/viewport layouts; Firestopping heading menu and saved drafts preserved. Evidence: ${output}`);
+  const initial = JSON.parse(projectBytes), stored = JSON.parse(fs.readFileSync(info.project, 'utf8'));
+  assert.equal(initial.documentation.revision_count, 0);
+  const folder = path.join(output, initial.documentation.companion_folder);
+  const manifestBytes = fs.readFileSync(path.join(folder, `${stored.documentation.manifest_sha256}.json`)), manifest = JSON.parse(manifestBytes);
+  assert.deepEqual(Object.keys(manifest).sort(), ['project_id', 'revisions', 'version', 'workspace_revision']);
+  assert.equal(manifest.project_id, initial.documentation.project_id); assert.equal(manifest.version, 1); assert.equal(manifest.workspace_revision, 1);
+  const frozen = { filename: path.basename(file.path), kind: 'pricing.library.xlsx', revision: 1, sequence: 1,
+    sha256: hash(exportedBytes), size: exportedBytes.length, media_type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' };
+  assert.deepEqual(manifest.revisions.map(row => Object.fromEntries(Object.keys(frozen).map(key => [key, row[key]]))), [frozen]);
+  const blob = fs.readFileSync(path.join(folder, 'blobs', frozen.sha256 + '.xlsx'));
+  assert.equal(blob.length, frozen.size); assert.equal(hash(blob), frozen.sha256, 'The frozen revision preserves the exact native Pricing export');
+  const expected = { ...initial, documentation: { ...initial.documentation, manifest_sha256: hash(manifestBytes), manifest_size: manifestBytes.length,
+    revision_count: 1, unique_bytes: exportedBytes.length } };
+  assert.deepEqual(stored, expected, 'Automatic Save changes only the verified document-history metadata; every other saved project field stays exact');
+  assert.deepEqual(errors,[]);
+  fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({completed:true,layouts:evidence,exported:path.basename(file.path),keyboard:true,importChooser:true,draftsPreserved:true,savedProjectMatchesAutomaticSave:true,verifiedFrozenRevisions:1,errors},null,2));
+  console.log(`PASS pricing Document keyboard, native export/import chooser, adjacent scope and 15 theme/viewport layouts; exact frozen history is automatically saved while all other project fields and drafts stay unchanged. Evidence: ${output}`);
 })().catch(async error=>{console.error(error);console.error(logs.slice(-4000));if(page)await page.screenshot({path:path.join(output,'failure.png'),fullPage:true}).catch(()=>{});process.exitCode=1;})
 .finally(async()=>{fs.writeFileSync(path.join(output,'server.log'),logs);if(browser)await browser.close();server.kill();});

@@ -199,6 +199,5 @@
   .estimate-heading-art-slot .workspace-banner-image { left:auto; right:0; top:0; width:calc(100% / .55); height:100%; object-fit:cover; object-position:right center; }
 }
 @media print {
-  .cursor-position { display:none!important; }
   .workspace-header-art,.penetration-workspace-art,.home-laser-art,.takeoff-heading-art-slot,.calculator-heading-art-slot,.library-heading-art-slot,.project-heading-art-slot,.project-evidence-art { display:none!important; }
 }

@@ -80,7 +80,7 @@
       return;
     }
     const ids = scope === state ? ["penetration-message"] : ["penetration-schedule-message", "penetration-estimator-schedule-message"];
-    for (const id of ids) { const el = $(id); uiText(el, text, args); el.hidden = !text; el.className = `message${error ? " error" : ""}`; }
+    for (const id of ids) { const el = $(id); uiText(el, text, args); el.hidden = !text; el.className = `message${error ? " error" : ""}`; window.CeasefireNotifications?.show(el); }
   }
   function buttonBusy(id, value) { $(id).setAttribute("aria-busy", String(value)); }
   const requiredItemFields = () => state.definition?.required_item_fields || [

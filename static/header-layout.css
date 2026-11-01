@@ -53,7 +53,6 @@
     background: #e6f4ec; color: #1b653c;
   }
   .app-header .header-project-identity .status-label.unsaved { background: #fff1bf; color: #775300; }
-  .app-header .cursor-position { font-size:11px; line-height:16px; font-variant-numeric:tabular-nums; white-space:nowrap; color:#ff0000; }
   .app-header nav {
     display: flex;
     flex-wrap: nowrap;

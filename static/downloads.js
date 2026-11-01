@@ -73,7 +73,64 @@
     };
   }
 
+  const referenceExports = new Map([
+    ['/api/technical/item.pdf', ['application/pdf', 'CLASSIFIRE-Technical-Item.pdf']],
+    ['/api/technical/item.xlsx', ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'CLASSIFIRE-Technical-Item.xlsx']],
+    ['/api/penetration/item.pdf', ['application/pdf', 'CLASSIFIRE-Firestopping-Item.pdf']],
+    ['/api/penetration/item.xlsx', ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'CLASSIFIRE-Firestopping-Item.xlsx']],
+    ['/api/pricing/export', ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'CLASSIFIRE-Pricing.xlsx']],
+  ]);
+
+  async function referenceExport(path, payload, button) {
+    const [mediaType, filename] = referenceExports.get(path);
+    const pdf = mediaType === 'application/pdf';
+    // Reserve the viewer during the user's click, before preparation can yield.
+    // The file lives in browser memory and is never registered as a project revision.
+    const viewer = pdf ? window.open('about:blank', '_blank') : null;
+    if (pdf && !viewer) throw new Error('Allow a new PDF tab, then try opening Item Details again.');
+    if (viewer) viewer.opener = null;
+    const endActivity = window.CeasefireActivity?.begin();
+    const endSound = window.CeasefireDownloadSound?.begin();
+    const view = progressView(button);
+    let url = null;
+    try {
+      view.update(0, 'preparing');
+      const { download, ...snapshot } = payload;
+      const response = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(snapshot) });
+      if (!response.ok) {
+        const error = await response.json().catch(() => null);
+        throw new Error(error?.error || window.CeasefireI18n?.translate('The file could not be prepared ({0}).', [response.status]) || `The file could not be prepared (${response.status}).`);
+      }
+      if (String(response.headers.get('Content-Type') || '').split(';')[0].trim().toLowerCase() !== mediaType)
+        throw new Error('The server returned an unexpected file type.');
+      const blob = await response.blob();
+      if (!blob.size) throw new Error('The prepared file is empty.');
+      url = URL.createObjectURL(blob);
+      if (pdf) {
+        if (viewer.closed) throw new Error('The PDF tab was closed before the file was ready. Open Item Details again.');
+        viewer.location.replace(url);
+        const retainedUrl = url;
+        const release = setInterval(() => {
+          if (viewer.closed) { clearInterval(release); URL.revokeObjectURL(retainedUrl); }
+        }, 1000);
+      } else {
+        const link = document.createElement('a');
+        link.href = url; link.download = filename;
+        document.body.append(link); link.click(); link.remove();
+        const retainedUrl = url;
+        setTimeout(() => URL.revokeObjectURL(retainedUrl), 60000);
+      }
+      url = null;
+      return { preview: pdf, filename, destination: pdf ? 'temporary' : 'browser' };
+    } catch (error) {
+      if (url) URL.revokeObjectURL(url);
+      viewer?.close();
+      throw error;
+    } finally { view.remove(); endSound?.(); endActivity?.(); }
+  }
+
   async function save(path, payload = {}, { button = document.activeElement } = {}) {
+    if (referenceExports.has(path)) return referenceExport(path, payload, button);
     const endActivity = window.CeasefireActivity?.begin();
     let endSound, view, poll = null, finished = false, token = null, documentationHeaders = null, savedResult = null;
     try {

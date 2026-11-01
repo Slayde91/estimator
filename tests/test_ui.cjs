@@ -63,19 +63,15 @@ async function openOlder(id, button) {
 }
 let passed=0;
 (async()=>{
-  // Both timed expiry and stale Save receipts retire without moving the form.
+  // Ordinary status notices and errors remain until navigation or dismissal.
   const originalTimeout=context.setTimeout, timers=[];
   context.setTimeout=(callback,delay)=>{timers.push({callback,delay});return timers.length;};
-  const noticeSlot=byId('app-message-slot');noticeSlot.style={};let noticeHeight=89.1875;
-  noticeSlot.getBoundingClientRect=()=>({height:noticeHeight});
-  audit.message('Ordinary status');assert.equal(timers.at(-1).delay,5000);
-  const stale=timers.at(-1);audit.message('Durable error',true);stale.callback();
+  const noticeSlot=byId('app-message-slot');noticeSlot.style={};
+  audit.message('Ordinary status');assert.equal(timers.length,0);
+  assert.equal(byId('app-message').hidden,false);
+  audit.message('Durable error',true);assert.equal(timers.length,0);
   assert.equal(byId('app-message').hidden,false);assert.equal(byId('app-message').textContent,'Durable error');
-  audit.message('Saved fixture',false,'project-saved');audit.retireMessage();
-  assert.equal(byId('app-message').hidden,true);assert.equal(byId('app-message').textContent,'Saved fixture');
-  assert.equal(noticeSlot.style.minHeight,'89.1875px');timers.at(-1).callback();assert.equal(noticeSlot.style.minHeight,'89.1875px');
-  audit.message('Wrapped replacement');assert.equal(noticeSlot.style.minHeight,'');noticeHeight=121.25;timers.at(-1).callback();
-  assert.equal(noticeSlot.style.minHeight,'121.25px');assert.equal(byId('app-message').hidden,true);assert.equal(byId('app-message').textContent,'Wrapped replacement');
+  audit.message('Saved fixture',false,'project-saved');assert.equal(timers.length,0);
   audit.message('');assert.equal(noticeSlot.style.minHeight,'');context.setTimeout=originalTimeout;passed++;
   setup();
   const put=deferred(),meta=deferred();
@@ -198,7 +194,7 @@ let passed=0;
   audit.setFetch((path,options)=>{exportBody=JSON.parse(options.body);return exported.promise;});
   const exportRun=audit.exportPricing();
   audit.state.draft.rates.concurrent={price:45};
-  exported.resolve(savedResponse('ceasefire-pricing.xlsx'));
+  exported.resolve({ok:true,headers:{get:()=> 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'},blob:async()=>({size:20})});
   await exportRun;
   assert.equal(exportBody.configuration.rates.concurrent,undefined);
   assert.equal(audit.state.draft.rates.concurrent.price,45);
@@ -556,7 +552,7 @@ let passed=0;
   // Export includes every product and use, irrespective of current search; the saved configuration is untouched.
   productInput('manual','supplier_price').value='450';await productInput('manual','supplier_price').emit('input');productInput('team','supplier_price').value='1050';await productInput('team','supplier_price').emit('input');
   byId('pricing-search').value='Topcoat;';await byId('pricing-search').emit('input');let unifiedExport;
-  audit.setFetch(async(path,options)=>{unifiedExport=JSON.parse(options.body).configuration;return savedResponse('ceasefire-pricing.xlsx');});await audit.exportPricing();
+  audit.setFetch(async(path,options)=>{unifiedExport=JSON.parse(options.body).configuration;return {ok:true,headers:{get:()=> 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'},blob:async()=>({size:20})};});await audit.exportPricing();
   assert.equal(unifiedExport.inventory.manual.supplier_price,450);assert.equal(unifiedExport.rates.team.supplier_price,1050);
   assert.equal(unifiedExport.catalog.rate_groups.topcoats[0].yield_unit,undefined);assert.equal(audit.state.configuration.inventory.manual,undefined);
   assert.equal(JSON.stringify(pricingFixture),originalPricing);assert.match(byId('app-message').textContent,/all inventory and rate groups/);passed++;

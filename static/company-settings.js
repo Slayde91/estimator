@@ -22,7 +22,7 @@
   const save = document.getElementById('company-settings-save');
   let current = null, logo = null, removed = false, coverPdf = null, coverPdfName = '', reading = false, saving = false;
   const fields = ['name', 'abn', 'phone', 'email'];
-  const message = (text, error = false) => { uiText(status, text); status.className = error ? 'message error' : 'status-label calculator-status'; };
+  const message = (text, error = false) => { uiText(status, text); status.className = error ? 'message error' : 'status-label calculator-status'; window.CeasefireNotifications?.show(status); };
   const renderLogo = () => {
     preview.hidden = removed;
     if (removed) preview.removeAttribute('src');

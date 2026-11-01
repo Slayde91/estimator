@@ -145,6 +145,8 @@ class ServerTests(unittest.TestCase):
     def test_help_and_signature_assets_have_exact_bytes_and_content_types(self):
         for path, content_type in (
             ('/help-glossary.js', 'text/javascript; charset=utf-8'),
+            ('/notifications.js', 'text/javascript; charset=utf-8'),
+            ('/notifications.css', 'text/css; charset=utf-8'),
             ('/help-glossary.css', 'text/css; charset=utf-8'),
             ('/takeoff-signatures.js', 'text/javascript; charset=utf-8'),
             ('/takeoff-graphics.js', 'text/javascript; charset=utf-8'),

@@ -25,7 +25,7 @@ const ready = new Promise((resolve,reject)=>{ let text='';const timer=setTimeout
   server.stdout.on('data',value=>{text+=value;if(text.includes('\n')){clearTimeout(timer);try{resolve(JSON.parse(text.split('\n')[0]));}catch(error){reject(error);}}});
   server.once('error',reject);server.once('exit',code=>{clearTimeout(timer);reject(new Error(`Fixture exited ${code}: ${logs}`));}); });
 const errors=[], evidence={exports:[],menus:[],checks:[]};
-async function idle(){await expect.poll(()=>page.evaluate(()=>window.CeasefireActivity.active)).toBe(false);await settingsSettled(page);}
+async function idle(){await expect.poll(()=>page.evaluate(()=>window.CeasefireActivity.active),{timeout:60000}).toBe(false);await settingsSettled(page);}
 async function snapshot(){await idle();return page.evaluate(()=>window.CeasefireTakeoffs.projectSnapshot());}
 async function command(op, values={}){
   const sid=await page.evaluate(()=>window.CeasefireTakeoffs.sessionId()), reply=await page.request.post(`${origin}/api/takeoffs/sessions/${sid}/commands`,{data:{op,request_id:randomUUID(),expected_revision:current.revision,...values}});

@@ -280,20 +280,10 @@
   }
   function message(text = "", error = false) {
     if (!state.ui) return;
-    clearTimeout(state.messageTimer);
     releaseMessageSpace();
-    const version = state.messageVersion = (state.messageVersion || 0) + 1;
     const notice = state.ui.message; notice.textContent = ""; window.CeasefireI18n.nodeText(notice, text); notice.hidden = !text; notice.className = `message${error ? " error" : ""}`; notice.setAttribute("role", error ? "alert" : "status");
     if (state.linkedRecovery) notice.append(uiButton("Retry linked change", recoverLinkedOperation));
-    if (text && !state.linkedRecovery && !state.pageError) state.messageTimer = setTimeout(() => {
-      if (state.messageVersion === version && state.ui?.message === notice && !state.linkedRecovery && !state.pageError) {
-        // Retire the notice without moving the PDF under an active pointer.
-        // The flow-root includes its bottom margin and current wrapped height.
-        const slot = state.ui.messageSlot, height = slot?.getBoundingClientRect?.().height;
-        if (slot?.style && Number.isFinite(height) && height > 0) slot.style.minHeight = `${height}px`;
-        notice.textContent = ""; notice.hidden = true;
-      }
-    }, 5000);
+    window.CeasefireNotifications?.show(notice, { persistent: !!(state.linkedRecovery || state.pageError) });
     if (error && text && notice.getClientRects?.().length) {
       const reveal = () => {
         if (notice.hidden || notice.getAttribute("role") !== "alert" || window.CeasefireI18n.source(notice) !== text) return;

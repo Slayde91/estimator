@@ -1,0 +1,45 @@
+const assert = require('node:assert/strict'), fs = require('node:fs'), vm = require('node:vm');
+const elements = [], events = {}, microtasks = [];
+class Element {
+  constructor(tag = 'div') { this.tagName = tag; this.attrs = {}; this.children = []; this.hidden = false; this.isConnected = true; this.listeners = {}; this._text = ''; }
+  get textContent() { return this._text + this.children.map(node => node.textContent).join(''); }
+  set textContent(value) { this._text = value; for (const child of this.children) child.parentNode = null; this.children = []; }
+  append(child) { child.parentNode = this; this.children.push(child); }
+  setAttribute(name, value) { this.attrs[name] = String(value); }
+  getAttribute(name) { return this.attrs[name] ?? null; }
+  matches(selector) { return selector === '.message' && this.className === 'message'; }
+  closest(selector) { return selector === '[role="tab"]' && this.attrs.role === 'tab' ? this : null; }
+  addEventListener(name, callback) { this.listeners[name] = callback; }
+}
+const document = { body: new Element('body'), hidden: false,
+  querySelectorAll: selector => selector === '.message' ? elements.filter(element => element.matches(selector)) : [],
+  createElement: tag => new Element(tag), addEventListener: (name, callback) => { events[name] = callback; } };
+let observer;
+const window = { MutationObserver: class { constructor(callback) { observer = callback; } observe() {} } };
+const context = { window, document, MutationObserver: window.MutationObserver, queueMicrotask: callback => microtasks.push(callback), Map };
+vm.createContext(context); vm.runInContext(fs.readFileSync('static/notifications.js', 'utf8'), context);
+const api = window.CeasefireNotifications;
+const notice = text => { const element = new Element(); element.className = 'message'; element.textContent = text; elements.push(element); return element; };
+const first = notice('Saved successfully'); api.show(first);
+assert.equal(first.hidden, false); assert.equal(first.children.length, 1);
+assert.equal(first.children[0].type, 'button'); assert.equal(first.children[0].getAttribute('aria-label'), 'Close');
+observer(); observer(); assert.equal(first.children.length, 1, 'Observer does not duplicate dismiss controls');
+assert.equal(first.hidden, false, 'No elapsed-time timer retires notices');
+first.children[0].listeners.click(); assert.equal(first.hidden, true, 'Dismiss works with an ordinary native button');
+api.navigate('estimate'); api.show(first); api.navigate('pricing'); assert.equal(first.hidden, true);
+api.navigate('estimate'); assert.equal(first.hidden, true, 'Returning does not restore a stale notice');
+first.textContent = 'The current input is invalid'; api.show(first); assert.equal(first.hidden, false, 'A fresh condition may explain why a notice is needed');
+const protectedNotice = notice('Retry linked change'); api.show(protectedNotice, { persistent: true });
+api.navigate('takeoffs'); assert.equal(first.hidden, true); assert.equal(protectedNotice.hidden, false, 'Pending recovery retains its required action');
+protectedNotice.children[0].listeners.click(); assert.equal(protectedNotice.hidden, true, 'Persistent conditions may still be dismissed manually');
+const tab = new Element('button'); tab.setAttribute('role', 'tab'); tab.setAttribute('aria-selected', 'false');
+first.textContent = 'Old tab notice'; api.show(first); events.click({ target: tab });
+tab.setAttribute('aria-selected', 'true'); first.textContent = 'New tab validation'; api.show(first); microtasks.shift()();
+assert.equal(first.hidden, false, 'A notice raised by the new tab is not erased by the old tab departure');
+tab.setAttribute('aria-selected', 'false'); events.click({ target: tab }); microtasks.shift()(); assert.equal(first.hidden, false, 'A refused tab transition leaves the notice visible');
+events.click({ target: tab }); tab.setAttribute('aria-selected', 'true'); microtasks.shift()(); assert.equal(first.hidden, true);
+const progress = new Element(); progress.className = 'document-download-progress'; elements.push(progress); observer();
+assert.equal(progress.children.length, 0, 'Measured download progress remains outside notice dismissal');
+api.show(first); document.hidden = true; events.visibilitychange(); assert.equal(first.hidden, true, 'Leaving the browser tab clears old transient notices');
+first.textContent = 'Translated notification'; first.hidden = false; observer(); assert.equal(first.children.length, 1, 'Translation refresh restores the close button without changing message content');
+console.log('Notification persistence, navigation, dismissal, recovery and progress checks passed.');

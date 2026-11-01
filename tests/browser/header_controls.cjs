@@ -63,10 +63,8 @@ async function inspectHeader(width) {
       assert.ok(b.width >= 40 && b.height >= 40, `Usable navigation target at ${width}`);
       assert.ok(b.x >= nav.x && b.x + b.width <= nav.x + nav.width + 1 && b.y >= nav.y && b.y + b.height <= nav.y + nav.height + 1, `Individual navigation button fits at ${width}`);
     }
-    const coordinates=await box(page.locator('#cursor-position'));
-    assert.ok(coordinates.x>=header.x&&coordinates.x+coordinates.width<=header.x+header.width&&coordinates.y+coordinates.height<=header.y+header.height,'Coordinates remain inside the header');
-    // The new coordinate row adds 16px plus the existing 4px identity gap.
-    assert.ok(header.height <= (width > 1150 ? 180 : width > 720 ? 235 : 300)+20, `Header avoids excessive height at ${width}: ${header.height}`);
+    await expect(page.locator('#cursor-position')).toHaveCount(0);
+    assert.ok(header.height <= (width > 1150 ? 180 : width > 720 ? 235 : 300), `Header avoids excessive height at ${width}: ${header.height}`);
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), `Long quote name does not cause overflow at ${width}`);
     const screenshot = path.join(output, `header-${width}-long-name.png`);
     await page.screenshot({ path: screenshot });
@@ -83,19 +81,9 @@ async function inspectHeader(width) {
   await page.goto(`http://127.0.0.1:${info.port}/`); await idle(); await page.evaluate(() => document.fonts.ready);
   await expect(page.locator('#header-project-name')).toBeHidden();
   evidence.pointerEffects = await checkPointerEffects(page, output);
-  const coordinates = page.locator('#cursor-position');
-  await expect(coordinates).toBeVisible();
   await page.mouse.move(241, 173, { steps: 8 });
-  await expect(coordinates).toHaveText('X241Y173');
-  await page.mouse.move(501, 319, { steps: 8 });
-  await expect(coordinates).toHaveText('X501Y319');
-  await page.evaluate(() => scrollTo(0, 200));
-  await page.mouse.move(310, 250);
-  await expect(coordinates).toHaveText('X310Y250');
-  await page.evaluate(() => scrollTo(0, 0));
-  await page.mouse.move(-10, -10);
-  await expect(coordinates).toHaveText('—');
-  evidence.cursorCoordinates = { realPointerMoves: true, windowPixelsAfterScroll: true, clearedOnLeave: true };
+  await expect(page.locator('#cursor-position')).toHaveCount(0);
+  evidence.cursorCoordinates = { removed: true };
   await page.getByRole('button',{name:'Settings',exact:true}).click(); await idle();
   for(const theme of ['ceasefire','midnight','ocean','forest','slate']) {
     await expect(page.locator('html')).toHaveAttribute('data-theme',theme);

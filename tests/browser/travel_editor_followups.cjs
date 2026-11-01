@@ -46,7 +46,7 @@ async function mapsSettingsHidden(){await expect(page.locator('#view-settings [a
   for(const heading of await headings.all()){await expect(heading).toHaveCSS('background-color','rgb(255, 224, 102)');await expect(heading).toHaveCSS('color','rgb(0, 0, 0)');}
  }
  await page.locator('html').evaluate(el=>el.dataset.theme='ceasefire');await page.locator('#penetration-settings').click();
- await page.mouse.move(241,173);await expect(page.locator('#cursor-position')).toHaveText('X241Y173');await expect(page.locator('#cursor-position')).toHaveCSS('color','rgb(255, 0, 0)');
+ await page.mouse.move(241,173);await expect(page.locator('#cursor-position')).toHaveCount(0);
  await page.screenshot({path:path.join(output,'firestopping-first-row.png')});
  await page.locator('nav [data-view="settings"]').click();await idle();
  await mapsSettingsHidden();

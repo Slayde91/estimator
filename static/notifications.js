@@ -38,7 +38,12 @@
   }
   function scan() {
     for (const element of document.querySelectorAll('.message')) if (candidate(element)) decorate(element);
-    for (const [element] of records) if (element.isConnected === false) records.delete(element);
+    for (const [element] of records) {
+      if (element.isConnected === false) records.delete(element);
+      // Helper/status notices can replace their text without using .message.
+      // Restore their control after refreshes while respecting a prior dismissal.
+      else decorate(element);
+    }
   }
   window.CeasefireNotifications = { show, navigate, clear };
   // Only selection tabs participate. Action buttons and download progress keep

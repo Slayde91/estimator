@@ -991,7 +991,14 @@ def render_batch(manifest, output, progress_path):
         completed += 1
         temporary = Path(progress_path).with_suffix('.next')
         temporary.write_text(json.dumps({'completed': completed, 'total': total}), encoding='utf-8')
-        temporary.replace(progress_path)
+        try:
+            temporary.replace(progress_path)
+        except PermissionError:
+            # Windows can hold the previous progress file open while the parent
+            # reads it. Keep that complete update and try again on the next page.
+            # Progress is advisory; the final PDF receipt still verifies every
+            # page and its exact bytes before the parent reports completion.
+            pass
     for value in copies:
         with _verified_source(value['source'], value['spec']) as source:
             render_document(source, value['spec'], None, writer=writer, progress=progress)

@@ -103,7 +103,10 @@ async function check(name,fn,{open=true}={}){const h=harness();if(open)await h.a
     assert.deepEqual(Object.keys(doc.fields),fieldNames);assert.equal(h.api.hasUnsavedChanges(),false);
     assert.match(h.byId('certification-status').textContent,/Revision 1 saved/);
     const links=h.byId('certification-revisions').children[0].children[1].children[0].children[2].children;
-    assert.equal(links[0].href,'/api/certifications/'+doc.id+'/revisions/1.pdf?workspace='+h.api.sessionId());assert.equal(links[0].target,'_blank');
+    assert.equal(links[0].href,'/api/certifications/'+doc.id+'/revisions/1.pdf?workspace='+h.api.sessionId());
+    assert.equal(links[0].target,'_blank');assert.equal(links[0].rel,'noopener');
+    assert.equal(links[0].textContent,'Open revision 1');
+    assert.equal(links[0].listeners.click,undefined,'Opening an immutable revision must not require saving the project or intercept navigation');assert.equal(links[0].target,'_blank');
   });
   await check('Saving a draft does not create a certificate revision',async h=>{
     h.field('project','Draft project');await h.save();assert.equal(h.documents.size,1);

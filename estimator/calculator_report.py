@@ -14,6 +14,7 @@ import re
 from xml.sax.saxutils import escape
 
 from reportlab.lib.pagesizes import A3, A4, landscape
+from reportlab.pdfbase.pdfmetrics import stringWidth
 from reportlab.platypus import PageBreak, SimpleDocTemplate, Spacer, TableStyle, Paragraph
 from .assessment_references import schedule_report_references
 
@@ -23,6 +24,19 @@ from .workbook_calculators import (FYREWRAP_DIRECTION_NOTE, calculator_engine,
                                    normalize_calculator_inputs, source_model)
 from .board_steel_area import board_net_steel_areas, steel_area_display
 from .download_disclosure import calculator_download_data
+
+
+REPORT_SCOPES = {
+    'steel_vermiculite': 'STRUCTURAL STEEL | SPRAY',
+    'steel_intumescent': 'STRUCTURAL STEEL | INTUMESCENT PAINT',
+    'steel_board': 'STRUCTURAL STEEL | BOARD',
+    'ductwork': 'DUCTWORK | WRAP / SPRAY',
+}
+
+
+def report_label(calculator_id, materials=False):
+    scope = 'DUCT | SPRAY / WRAP' if materials and calculator_id == 'ductwork' else REPORT_SCOPES[calculator_id]
+    return scope + (' | PRODUCT SUMMARY' if materials else ' | FULL SCHEDULE')
 
 
 _WIDTH, _HEIGHT = landscape(A4)
@@ -422,7 +436,15 @@ class _ScheduleReport(_Report):
         if project_report_title:
             self.story.append(self.p(project_report_title, 'title'))
         else:
-            self.story += [self.p('Current calculator snapshot', 'small'), self.p(data['title'], 'title')]
+            title = report_label(data['id'], True) if materials else data['title']
+            style = self.styles['title']
+            # Fit the uppercase scope inside the document frame, including its
+            # standard six-point padding on each side.
+            if materials:
+                size = min(style.fontSize, (self.content_width - 12.1) / max(1, stringWidth(title, style.fontName, 1)))
+                style = style.clone('scope-title', fontSize=size, leading=size * 1.2)
+            self.story += [self.p('Current calculator snapshot', 'small'),
+                           Paragraph(escape(title), style)]
         details = [[self.p(label, 'cell'), self.p(self.project_details.get(key) or 'Not recorded', 'cell')]
                    for key, label in (('project_no', 'Project No.'), ('client', 'Client'),
                                       ('site_address', 'Site Address'))]
@@ -431,7 +453,7 @@ class _ScheduleReport(_Report):
                                          [self.content_width * .20, self.content_width * .80]))
             self.story.append(Spacer(1, 10))
         if project_report_title:
-            self.story.append(self.p(data['title'], 'section'))
+            self.story.append(self.p(REPORT_SCOPES[data['id']] if materials else data['title'], 'section'))
         if materials and data['id'] != 'ductwork':
             basis = data['basis']
             if data['id'] == 'steel_vermiculite':
@@ -632,20 +654,20 @@ class _ScheduleReport(_Report):
             else:
                 self.story.append(self.p(f"{data['incomplete_rows']} schedule item(s) have incomplete or unavailable primary quantities. Displayed product quantities retain the source workbook's exclusions; review the item statuses in the calculator before ordering.", 'small'))
 
-def build_calculator_report(calculator_id, inputs=None, *, project_details=None, company=None, include_project_details=True, project_report_title=None):
+def build_calculator_report(calculator_id, inputs=None, *, project_details=None, company=None, include_project_details=True, project_report_title=None, report_footer=None):
     """Return the full schedule only; reading a draft never saves it."""
     return _build_calculator_pdf(calculator_id, inputs, materials=False, project_details=project_details, company=company,
-                                 include_project_details=include_project_details, project_report_title=project_report_title)
+                                 include_project_details=include_project_details, project_report_title=project_report_title, report_footer=report_footer)
 
 
-def build_calculator_summary_report(calculator_id, inputs=None, *, project_details=None, company=None, include_project_details=True, project_report_title=None, include_references=True):
+def build_calculator_summary_report(calculator_id, inputs=None, *, project_details=None, company=None, include_project_details=True, project_report_title=None, include_references=True, report_footer=None):
     """Return material quantities, pooled summaries and extra-board allowances."""
     return _build_calculator_pdf(calculator_id, inputs, materials=True, project_details=project_details, company=company,
                                  include_project_details=include_project_details, project_report_title=project_report_title,
-                                 include_references=include_references)
+                                 include_references=include_references, report_footer=report_footer)
 
 
-def _build_calculator_pdf(calculator_id, inputs, *, materials, project_details=None, company=None, include_project_details=True, project_report_title=None, include_references=True):
+def _build_calculator_pdf(calculator_id, inputs, *, materials, project_details=None, company=None, include_project_details=True, project_report_title=None, include_references=True, report_footer=None):
     data = project_calculator_report(calculator_id, inputs)
     _register_fonts()
     logo = company_logo(company)
@@ -678,13 +700,13 @@ def _build_calculator_pdf(calculator_id, inputs, *, materials, project_details=N
     def decorate(canvas, doc):
         canvas.saveState()
         _company_header(canvas, logo, width, height, _MARGIN,
-                        'CALCULATORS | ' + ('MATERIALS & SUMMARY' if materials else 'FULL SCHEDULE'),
+                        '',
                         label_below_logo=True, company=company)
         canvas.setStrokeColor(_LINE)
         canvas.line(_MARGIN, 32, width - _MARGIN, 32)
         canvas.setFont('CeasefireVera', 7)
         canvas.setFillColor(_MUTED)
-        canvas.drawString(_MARGIN, 20, 'CLASSIFIRE ESTIMATOR | ' + data['title'])
+        canvas.drawString(_MARGIN, 20, report_footer or report_label(calculator_id, materials))
         canvas.drawRightString(width - _MARGIN, 20, f'Page {doc.page}')
         canvas.restoreState()
 

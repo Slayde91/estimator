@@ -53,11 +53,17 @@ class ProjectReportTests(unittest.TestCase):
                                       if 43 < tm[4] * cm[1] + tm[5] * cm[3] + cm[5] < 500 else None)
                     self.assertTrue(''.join(body).strip(), 'Every combined PDF page includes report content')
                 self.assertIn('FULL-TEST', text)
-                self.assertEqual(reader.metadata.title, 'Full Product Summary' if materials else 'Fire Protection Schedule')
+                self.assertNotIn('CLASSIFIRE ESTIMATOR |', text)
+                for page in reader.pages:
+                    footer = 'FULL PRODUCT SUMMARY' if materials else 'CALCULATORS | FULL SCHEDULE'
+                    positions = []
+                    page.extract_text(visitor_text=lambda value, cm, tm, font, size: positions.append((tm[4], tm[5])) if footer in value and size == 7 else None)
+                    self.assertEqual(positions, [(32.0, 20.0)])
+                self.assertEqual(reader.metadata.title, 'FULL PRODUCT SUMMARY' if materials else 'Fire Protection Schedule')
                 self.assertIn(reader.metadata.title, reader.pages[0].extract_text())
                 self.assertEqual(text.count('FULL-TEST'), 1)
                 self.assertEqual(text.count('Project details'), 1)
-                self.assertIn('Firestopping product summary' if materials else 'Firestopping schedule', text)
+                self.assertIn('FIRESTOPPING PRODUCT SUMMARY' if materials else 'FIRESTOPPING SCHEDULE', text)
                 self.assertIn('Nullifire SC902', text)
                 if not materials:
                     self.assertIn('Captured SC902 fixture', ' '.join(text.split()))

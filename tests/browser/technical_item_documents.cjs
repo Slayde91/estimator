@@ -1,3 +1,4 @@
+const { referenceExport } = require('./reference_export.cjs');
 const { cycleTheme } = require('./theme_navigation.cjs');
 // Native Technical Library documents and contrast against disposable evidence only.
 const {chromium, expect} = require('@playwright/test');
@@ -31,13 +32,11 @@ async function contrast(selector){return page.locator(selector).first().evaluate
   const a=luminance(style.color),b=luminance(background);return {color:style.color,background,ratio:(Math.max(a,b)+.05)/(Math.min(a,b)+.05)};
 });}
 async function exported(extension){
-  const response=page.waitForResponse(r=>new URL(r.url()).pathname===`/api/technical/item.${extension}`);
+  const target=path.join(output,`technical-item.${extension}`);
   await page.locator('.library-document-menu').getByRole('button',{name:'Document',exact:true}).click();
-  await page.getByRole('button',{name:`Download Item Details ${extension.toUpperCase()}`,exact:true}).click();
-  const reply=await response;assert.equal(reply.status(),200);const body=await reply.json();assert.equal(body.saved,true);
-  const relative=path.relative(output,body.path);assert.ok(relative&&!relative.startsWith('..')&&!path.isAbsolute(relative));
-  assert.equal(fs.readFileSync(body.path).subarray(0,extension==='pdf'?5:2).toString(),extension==='pdf'?'%PDF-':'PK');
-  return body.path;
+  await referenceExport(page,{extension,endpoint:`/api/technical/item.${extension}`,target,
+    action:()=>page.getByRole('button',{name:`Download Item Details ${extension.toUpperCase()}`,exact:true}).click()});
+  return target;
 }
 (async()=>{
   const info=await ready;assert.notEqual(info.port,8765);

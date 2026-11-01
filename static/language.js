@@ -7,6 +7,7 @@
   const languageCodes = Object.freeze({en: 'EN', 'zh-Hans': '中文', hi: 'HI', es: 'ES', ar: 'AR', th: 'TH', ko: 'KO', tl: 'TL', vi: 'VI', fr: 'FR', bn: 'BN', ur: 'UR'});
   const messages = window.CeasefireMessages || {};
   const bindings = new Map();
+  const accessories = new WeakSet();
   const termToken = Symbol('owned UI term');
   let language = 'en';
   try { const saved = localStorage.getItem(key); if (languages.includes(saved)) language = saved; } catch (_) {}
@@ -53,7 +54,7 @@
     if (!element) return '';
     const binding = bindings.get(element)?.get(attribute || '');
     if (binding && current(binding)) return format(binding.source, binding.args);
-    if (!attribute && element.childNodes?.length) return [...element.childNodes].map(child => source(child)).join('');
+    if (!attribute && element.childNodes?.length) return [...element.childNodes].filter(child => !accessories.has(child)).map(child => source(child)).join('');
     return read(element, attribute);
   }
   function refresh() {
@@ -105,6 +106,15 @@
   }
   window.CeasefireI18n = Object.freeze({
     text: (element, text, args) => bind(element, null, text, args),
+    accessory: (element, control) => {
+      const binding = bindings.get(element)?.get('');
+      const owned = binding && current(binding);
+      accessories.add(control); element.append(control);
+      // App-owned controls must not invalidate the message they accompany.
+      // Never adopt an unrelated literal/user update into an older UI binding.
+      if (owned) { binding.last = read(element, null); binding.children = [...element.childNodes]; }
+      return control;
+    },
     nodeText: (element, text, args = []) => {
       if (element.tagName === 'OPTION' && !element.hasAttribute('value')) element.value = format(text, args);
       const node = document.createTextNode(''); element.append(node);
@@ -164,7 +174,7 @@
       button.addEventListener('click', () => {
         setLanguage(button.dataset.languageCode);
         const status = document.getElementById('language-status');
-        if (status) bind(status, null, 'Application language updated.');
+        if (status) { bind(status, null, 'Application language updated.'); window.CeasefireNotifications?.show(status); }
         close(true);
       });
       button.addEventListener('keydown', event => {
@@ -195,7 +205,7 @@
   document.getElementById('application-language')?.addEventListener('change', event => {
     setLanguage(event.target.value);
     const status = document.getElementById('language-status');
-    if (status) bind(status, null, 'Application language updated.');
+    if (status) { bind(status, null, 'Application language updated.'); window.CeasefireNotifications?.show(status); }
   });
   window.addEventListener('storage', event => {
     if (event.key === key) setLanguage(languages.includes(event.newValue) ? event.newValue : 'en', false);

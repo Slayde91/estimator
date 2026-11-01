@@ -1,3 +1,4 @@
+const { referenceExport } = require('./reference_export.cjs');
 const { cycleTheme } = require('./theme_navigation.cjs');
 const { chooseLibrary } = require('./section_navigation.cjs');
 const { clickProjectControl } = require('./project_actions.cjs');
@@ -107,15 +108,13 @@ async function editorExport(kind,scope,configuration,diagram) {
     evidence.recalculationKeepsDocumentMenuOpen=true;
   }
   await captureExportReadiness('before-click',kind,scope);
-  const id=kind==='pdf'?'library-editor-item-pdf':'library-editor-item-excel',pending=page.waitForResponse(reply=>new URL(reply.url()).pathname===`/api/penetration/item.${kind}`&&reply.request().method()==='POST');
-  pending.catch(()=>{}); // Preserve the click failure and its diagnostic capture if no request is sent.
-  await page.locator(`#${id}`).click();await captureExportReadiness('after-click',kind,scope);const reply=await pending;assert.equal(reply.status(),200,await reply.text());
-  const capture=reply.request().postDataJSON(),saved=await reply.json();assert.equal(saved.saved,true);
+  const id=kind==='pdf'?'library-editor-item-pdf':'library-editor-item-excel';
+  const target=path.join(output,`${scope}-item.${kind}`),capturePath=path.join(output,`${scope}-item-${kind}-capture.json`);
+  const {capture}=await referenceExport(page,{extension:kind,endpoint:`/api/penetration/item.${kind}`,target,
+    action:async()=>{await page.locator(`#${id}`).click();await captureExportReadiness('after-click',kind,scope);}});
   assert.deepEqual(capture.configuration,configuration,'Library exports retain their captured prices');assert.deepEqual(capture.diagram,diagram);
   assert.equal(capture.draft,undefined);assert.equal(capture.item.inputs.T,'Project-only edited library item');assert.equal(capture.item.inputs.O,2.125);
-  const relative=path.relative(output,saved.path);assert.ok(relative&&!relative.startsWith('..')&&!path.isAbsolute(relative));
-  const target=path.join(output,`${scope}-item.${kind}`),capturePath=path.join(output,`${scope}-item-${kind}-capture.json`);
-  fs.copyFileSync(saved.path,target);fs.writeFileSync(capturePath,JSON.stringify(capture,null,2));
+  fs.writeFileSync(capturePath,JSON.stringify(capture,null,2));
   const content=spawnSync(python,[path.join(__dirname,'library_item_export_content.py'),'--capture',capturePath,'--file',target],{cwd:root,windowsHide:true,encoding:'utf8'});assert.equal(content.status,0,`${content.stdout}\n${content.stderr}`);
   await expect(menu).toBeHidden();await expect(page.locator(`#${id}`)).toHaveAttribute('aria-busy','false');
   assert.deepEqual(await editorSnapshot(),before,'Exports preserve unsaved library/editor, composer, calculator and pricing drafts');

@@ -35,7 +35,10 @@
     root.setAttribute('data-theme', theme.id);
     uiAttr(button, 'aria-label', "Theme: {0}. Next theme: {1}.", [() => window.CeasefireI18n?.translate(theme.name) || theme.name, () => window.CeasefireI18n?.translate(next.name) || next.name]);
     uiAttr(button, 'title', "Theme: {0}. Next theme: {1}.", [() => window.CeasefireI18n?.translate(theme.name) || theme.name, () => window.CeasefireI18n?.translate(next.name) || next.name]);
-    if (announce && status) uiText(status, "{0} theme selected.", [() => window.CeasefireI18n?.translate(theme.name) || theme.name]);
+    if (announce && status) {
+      uiText(status, "{0} theme selected.", [() => window.CeasefireI18n?.translate(theme.name) || theme.name]);
+      window.CeasefireNotifications?.show(status);
+    }
   }
   apply(false);
   button.dataset.themeReady = 'true';

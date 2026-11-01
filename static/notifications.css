@@ -3,3 +3,4 @@
 [data-notification="true"]>.notification-dismiss{position:absolute;inset-block-start:4px;inset-inline-end:4px;display:grid;place-items:center;width:28px;height:28px;min-width:28px;min-height:28px;padding:0;border:0;background:transparent;color:inherit;font:20px/1 Arial,sans-serif;cursor:pointer;border-radius:3px}
 [data-notification="true"]>.notification-dismiss:hover{background:color-mix(in srgb,currentColor 12%,transparent)}
 [data-notification="true"]>.notification-dismiss:focus-visible{outline:2px solid currentColor;outline-offset:-2px}
+[data-notification="true"] .notification-dismiss-glyph::before{content:"×"}

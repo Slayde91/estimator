@@ -1,3 +1,4 @@
+const { referenceExport } = require('./reference_export.cjs');
 const { cycleTheme } = require('./theme_navigation.cjs');
 // Document controls exercise real handlers against fixture-owned project/storage.
 const { chromium, expect } = require('@playwright/test');
@@ -60,11 +61,10 @@ async function snapshot() { await idle(); return page.evaluate(() => ({ calculat
   }
   await page.setViewportSize({width:1146,height:900});
   await toggle.click();
-  const exported = page.waitForResponse(r => new URL(r.url()).pathname === '/api/pricing/export');
-  await page.locator('#export-pricing').click(); const response=await exported; assert.equal(response.status(),200);
-  const file=await response.json(); assert.equal(file.saved,true);
-  const relative=path.relative(output,file.path); assert.ok(relative&&!relative.startsWith('..')&&!path.isAbsolute(relative));
-  assert.equal(fs.readFileSync(file.path).subarray(0,2).toString(),'PK'); await expect(menu).toBeHidden(); await idle();
+  const target=path.join(output,'CLASSIFIRE-Pricing.xlsx');
+  await referenceExport(page,{extension:'xlsx',endpoint:'/api/pricing/export',target,
+    action:()=>page.locator('#export-pricing').click()});
+  await expect(menu).toBeHidden(); await idle();
   await toggle.click(); const chooser=page.waitForEvent('filechooser'); await page.locator('#import-pricing').click();
   const selected=await chooser; assert.equal(selected.isMultiple(),false); await expect(menu).toBeHidden();
   assert.deepEqual(await snapshot(),before,'Menu actions and export preserve pricing, calculator and composer drafts');
@@ -78,7 +78,7 @@ async function snapshot() { await idle(); return page.evaluate(() => ({ calculat
   await page.keyboard.press('Escape'); await expect(scheduleMenu).toBeHidden();
   assert.equal(await page.locator('.penetration-schedule-recalculate-tools .calculator-document-menu').count(),0);
   assert.deepEqual(fs.readFileSync(info.project),projectBytes,'Document access never rewrites the saved project'); assert.deepEqual(errors,[]);
-  fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({completed:true,layouts:evidence,exported:path.basename(file.path),keyboard:true,importChooser:true,draftsPreserved:true,savedProjectPreserved:true,errors},null,2));
+  fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({completed:true,layouts:evidence,exported:path.basename(target),keyboard:true,importChooser:true,draftsPreserved:true,savedProjectPreserved:true,errors},null,2));
   console.log(`PASS pricing Document keyboard, native export/import chooser, adjacent scope and 15 theme/viewport layouts; Firestopping heading menu and saved drafts preserved. Evidence: ${output}`);
 })().catch(async error=>{console.error(error);console.error(logs.slice(-4000));if(page)await page.screenshot({path:path.join(output,'failure.png'),fullPage:true}).catch(()=>{});process.exitCode=1;})
 .finally(async()=>{fs.writeFileSync(path.join(output,'server.log'),logs);if(browser)await browser.close();server.kill();});

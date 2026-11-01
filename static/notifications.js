@@ -11,11 +11,13 @@
     if (record.button?.parentNode === element) return;
     const button = document.createElement('button');
     button.type = 'button'; button.className = 'notification-dismiss';
-    const glyph = document.createElement('span'); glyph.textContent = '×'; glyph.setAttribute('aria-hidden', 'true'); button.append(glyph);
+    const glyph = document.createElement('span'); glyph.className = 'notification-dismiss-glyph'; glyph.setAttribute('aria-hidden', 'true'); button.append(glyph);
     if (window.CeasefireI18n) window.CeasefireI18n.attr(button, 'aria-label', 'Close');
     else button.setAttribute('aria-label', 'Close');
     button.addEventListener('click', () => { element.hidden = true; });
-    element.append(button); record.button = button;
+    if (window.CeasefireI18n?.accessory) window.CeasefireI18n.accessory(element, button);
+    else element.append(button);
+    record.button = button;
   }
   function show(element, { persistent = false } = {}) {
     if (!element) return;

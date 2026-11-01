@@ -157,6 +157,23 @@ class ReplicaTests(unittest.TestCase):
         self.assertFalse((self.root / 'images_old').exists())
         self.assertEqual((self.root / 'images/diagram-a.png').read_bytes(), changed)
 
+    def test_installer_preserves_approved_jpeg_bytes_without_reencoding(self):
+        from scripts.install_library_replicas import install
+        jpeg = b'\xff\xd8\xffSynthetic approved JPEG render'
+        output = self.root.parent / 'approved.jpg'
+        output.write_bytes(jpeg)
+        manifest = self.root.parent / 'approved-jpeg.json'
+        manifest.write_text(json.dumps({'jobs': [{
+            'status': 'generated_visual_review_passed', 'aliases': ['diagram-a'],
+            'source_sha256': self.entry['source_sha256'],
+            'output': {'path': str(output), 'sha256': hashlib.sha256(jpeg).hexdigest()},
+            'review': {'result': 'visual_review_passed', 'technical_approval': False,
+                       'no_text': True, 'no_branding': True}}]}), encoding='utf-8')
+        install(manifest, self.root)
+        self.assertEqual((self.root / 'images/diagram-a.jpg').read_bytes(), jpeg)
+        self.assertEqual((self.root / 'images_old/diagram-a.png').read_bytes(), self.source)
+        self.assertEqual(self.library.replica_asset('diagram-a')[:2], (jpeg, 'image/jpeg'))
+
     def test_sync_keeps_previous_presentation_and_verified_original(self):
         from scripts.install_library_replicas import synchronize_images
         synchronize_images(self.root)

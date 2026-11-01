@@ -112,9 +112,11 @@ def install(manifest, directory):
         with path.open('rb') as stream:
             payload = stream.read(IMAGE_LIMIT + 1)
         fingerprint = hashlib.sha256(payload).hexdigest()
-        if len(payload) > IMAGE_LIMIT or fingerprint != output['sha256'] or not payload.startswith(b'\x89PNG\r\n\x1a\n'):
-            raise ValidationError('The reviewed PNG output changed or is invalid.')
-        filename = fingerprint + '.png'
+        png = payload.startswith(b'\x89PNG\r\n\x1a\n')
+        jpeg = payload.startswith(b'\xff\xd8\xff')
+        if len(payload) > IMAGE_LIMIT or fingerprint != output['sha256'] or not (png or jpeg):
+            raise ValidationError('The reviewed image output changed or is invalid.')
+        filename = fingerprint + ('.png' if png else '.jpg')
         for key in job['aliases']:
             source, _, _ = library.asset(key, False)
             if hashlib.sha256(source).hexdigest() != job['source_sha256']:

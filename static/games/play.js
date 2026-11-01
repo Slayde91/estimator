@@ -47,14 +47,13 @@
     art.drawPortrait(c, 555, 205, 2, "drone", 0.6);
     art.drawPortrait(c, 770, 198, 2.35, "boss", 0.5);
     c.font = "700 13px sans-serif"; c.textAlign = "center";
-    c.fillStyle = "#c7f4f5"; c.fillText("YOU / CLASSIFIRE OPERATIVE", 180, 328);
     c.fillStyle = "#f4b9d8"; c.fillText("PINK FOAM MONSTER", 770, 328);
   }
   let storage;
   try { storage = root.localStorage; } catch { /* Private browser mode can deny storage. */ }
   if (!storage) $("play-storage-note").textContent = "Scores are available for this visit. This browser cannot save them.";
   let scores = readScores(storage), game = null, gameId = "", visible = false, paused = false;
-  let frame = 0, previousTime = 0, hudTime = 0, lastActions = "", lastStats = "", lastMessages = "", lastPhase = "", resultRecorded = false;
+  let frame = 0, previousTime = 0, hudTime = 0, lastActions = "", lastStats = "", lastPhase = "", resultRecorded = false;
   const input = { keys: new Set(), pressed: new Set(), pointer: { x: 480, y: 300, down: false, clicked: false, inside: false } };
   function clearInput() { input.keys.clear(); input.pressed.clear(); input.pointer.down = false; input.pointer.clicked = false; }
   function stopFrame() { root.cancelAnimationFrame(frame); frame = 0; previousTime = 0; clearInput(); }
@@ -98,8 +97,6 @@
         return button;
       }));
     }
-    const messages = JSON.stringify(state.messages);
-    if (messages !== lastMessages) { lastMessages = messages; $("play-messages").replaceChildren(...state.messages.map(text => node("li", "", text))); }
     if (state.phase !== lastPhase) { lastPhase = state.phase; $("play-status").textContent = state.title + ". " + state.subtitle; }
     $("play-session").dataset.phase = state.phase;
     $("play-result").hidden = !state.result;
@@ -146,11 +143,10 @@
     gameId = id; game = factory.create({ seed: 1977 }); paused = false; resultRecorded = false;
     document.body.classList.add("play-game-active");
     $("play-session").dataset.game = id; $("play-session").dataset.paused = "false";
-    lastActions = lastStats = lastMessages = lastPhase = "";
+    lastActions = lastStats = lastPhase = "";
     $("play-hub").hidden = true; $("play-session").hidden = false; $("play-pause-overlay").hidden = true;
     $("play-pause").textContent = "Pause"; $("play-pause").setAttribute("aria-pressed", "false");
     $("play-keys").textContent = "WASD move · Mouse aim · Hold left click to fire or clear pink foam · Space dash · Q suppression foam · E firestop · R Overdrive · Esc pause";
-    $("play-feed-title").textContent = "Site radio";
     syncHud(); game.draw(context); focusArena(); startFrame();
   }
   function showHub() {

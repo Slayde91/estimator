@@ -2778,5 +2778,9 @@
   "The prepared file is empty.": "تیار کی گئی فائل خالی ہے۔",
   "The server returned an unexpected file type.": "سرور نے غیر متوقع قسم کی فائل واپس کی۔",
   "Pricing Library download prepared: {0}. Later edits are not included.": "قیمتوں کی لائبریری کا ڈاؤن لوڈ تیار ہے: {0}۔ بعد کی تبدیلیاں شامل نہیں ہیں۔",
-  "Pricing Library download prepared: {0}. It includes all inventory and rate groups, including your unsaved pricing edits.": "قیمتوں کی لائبریری کا ڈاؤن لوڈ تیار ہے: {0}۔ اس میں انوینٹری اور شرحوں کے تمام گروپس، بشمول آپ کی غیر محفوظ قیمتوں کی ترامیم، شامل ہیں۔"
+  "Pricing Library download prepared: {0}. It includes all inventory and rate groups, including your unsaved pricing edits.": "قیمتوں کی لائبریری کا ڈاؤن لوڈ تیار ہے: {0}۔ اس میں انوینٹری اور شرحوں کے تمام گروپس، بشمول آپ کی غیر محفوظ قیمتوں کی ترامیم، شامل ہیں۔",
+  "Steel Schedule | Spray": "اسٹیل جدول | اسپرے",
+  "Steel Schedule | Paint": "اسٹیل جدول | پینٹ",
+  "Steel Schedule | Board": "اسٹیل جدول | بورڈ",
+  "Duct Schedule": "ڈکٹ جدول"
 }

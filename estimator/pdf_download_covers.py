@@ -7,28 +7,32 @@ from .pdf_cover import validate_cover_pdf
 
 KINDS = (
     ('certification', 'Certification'),
-    ('estimate', 'Estimate'),
-    ('full_schedule', 'Full project schedule'),
-    ('full_product_summary', 'Full project product summary'),
+    ('estimate', 'Breakdown'),
+    ('full_schedule', 'Full Schedule'),
+    ('full_product_summary', 'Full Product Summary'),
     ('technical_library_item', 'Technical Library item'),
     ('firestopping_library_item', 'Firestopping Library item'),
-    ('firestopping_schedule', 'Firestopping schedule'),
-    ('steel_vermiculite_schedule', 'Steel spray schedule'),
+    ('firestopping_schedule', 'Firestopping Schedule'),
+    ('steel_vermiculite_schedule', 'Steel Schedule | Spray'),
     ('steel_vermiculite_product_summary', 'Steel spray product summary'),
-    ('steel_intumescent_schedule', 'Steel intumescent schedule'),
+    ('steel_intumescent_schedule', 'Steel Schedule | Paint'),
     ('steel_intumescent_product_summary', 'Steel intumescent product summary'),
-    ('steel_board_schedule', 'Steel board schedule'),
+    ('steel_board_schedule', 'Steel Schedule | Board'),
     ('steel_board_product_summary', 'Steel board product summary'),
-    ('ductwork_schedule', 'Ductwork schedule'),
+    ('ductwork_schedule', 'Duct Schedule'),
     ('ductwork_product_summary', 'Ductwork product summary'),
-    ('takeoff_markups', 'Takeoff markups'),
+    ('takeoff_markups', 'Markups'),
     ('physical_matrix', 'Passive fire matrix'),
     ('pdf_tools', 'PDF tools'),
 )
 LABELS = dict(KINDS)
-# PDF tools keeps its existing stored cover and export behavior, but no longer
-# appears as an editable Settings row. Never delete a previously saved asset.
-SETTINGS_KINDS = tuple(item for item in KINDS if item[0] != 'pdf_tools')
+# Retain stored covers and export identities; Settings shows only authored schedules.
+HIDDEN_SETTINGS_KINDS = frozenset((
+    'pdf_tools', 'technical_library_item', 'firestopping_library_item',
+    'steel_vermiculite_product_summary', 'steel_intumescent_product_summary',
+    'steel_board_product_summary', 'ductwork_product_summary', 'physical_matrix',
+))
+SETTINGS_KINDS = tuple(item for item in KINDS if item[0] not in HIDDEN_SETTINGS_KINDS)
 
 
 class PdfCoverConflict(ValidationError):

@@ -2778,5 +2778,9 @@
   "The prepared file is empty.": "Le fichier préparé est vide.",
   "The server returned an unexpected file type.": "Le serveur a renvoyé un type de fichier inattendu.",
   "Pricing Library download prepared: {0}. Later edits are not included.": "Téléchargement de la bibliothèque tarifaire prêt : {0}. Les modifications ultérieures ne sont pas incluses.",
-  "Pricing Library download prepared: {0}. It includes all inventory and rate groups, including your unsaved pricing edits.": "Téléchargement de la bibliothèque tarifaire prêt : {0}. Il inclut tous les groupes de stock et de tarifs, ainsi que vos modifications tarifaires non enregistrées."
+  "Pricing Library download prepared: {0}. It includes all inventory and rate groups, including your unsaved pricing edits.": "Téléchargement de la bibliothèque tarifaire prêt : {0}. Il inclut tous les groupes de stock et de tarifs, ainsi que vos modifications tarifaires non enregistrées.",
+  "Steel Schedule | Spray": "Tableau acier | Projection",
+  "Steel Schedule | Paint": "Tableau acier | Peinture",
+  "Steel Schedule | Board": "Tableau acier | Plaques",
+  "Duct Schedule": "Tableau des conduits"
 }

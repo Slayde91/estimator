@@ -2778,5 +2778,9 @@
   "The prepared file is empty.": "প্রস্তুত করা ফাইলটি খালি।",
   "The server returned an unexpected file type.": "সার্ভার অপ্রত্যাশিত ধরনের ফাইল পাঠিয়েছে।",
   "Pricing Library download prepared: {0}. Later edits are not included.": "মূল্য লাইব্রেরি ডাউনলোড প্রস্তুত: {0}। পরের সম্পাদনাগুলি অন্তর্ভুক্ত নয়।",
-  "Pricing Library download prepared: {0}. It includes all inventory and rate groups, including your unsaved pricing edits.": "মূল্য লাইব্রেরি ডাউনলোড প্রস্তুত: {0}। এতে সমস্ত ইনভেন্টরি ও রেট গ্রুপ এবং আপনার অসংরক্ষিত মূল্যের সম্পাদনাগুলি রয়েছে।"
+  "Pricing Library download prepared: {0}. It includes all inventory and rate groups, including your unsaved pricing edits.": "মূল্য লাইব্রেরি ডাউনলোড প্রস্তুত: {0}। এতে সমস্ত ইনভেন্টরি ও রেট গ্রুপ এবং আপনার অসংরক্ষিত মূল্যের সম্পাদনাগুলি রয়েছে।",
+  "Steel Schedule | Spray": "স্টিল তালিকা | স্প্রে",
+  "Steel Schedule | Paint": "স্টিল তালিকা | রং",
+  "Steel Schedule | Board": "স্টিল তালিকা | বোর্ড",
+  "Duct Schedule": "ডাক্ট তালিকা"
 }

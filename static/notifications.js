@@ -3,6 +3,26 @@
   const records = new Map();
   let navigationKey = null;
   const candidate = element => element?.matches?.('.message') && element.id !== 'project-folder' && !element.closest?.('noscript');
+  function revealError(element, record, force = false) {
+    const error = /(?:^|\s)error(?:\s|$)/.test(element.className) || element.getAttribute('role') === 'alert';
+    if (!error || element.hidden) { record.errorText = null; return; }
+    const source = window.CeasefireI18n?.source(element) || element.textContent;
+    if (!source?.trim() || !element.getBoundingClientRect || !element.getClientRects().length) return;
+    if (!force && record.errorText === source) return;
+    record.errorText = source;
+    const version = record.version;
+    const reveal = () => {
+      if (element.hidden || record.version !== version || record.errorText !== source || !element.getClientRects().length) return;
+      const top = Math.max(0, document.querySelector?.('.app-header')?.getBoundingClientRect().bottom || 0) + 12;
+      const bounds = element.getBoundingClientRect();
+      if (bounds.top < top || bounds.bottom > window.innerHeight)
+        window.scrollBy?.({ top: bounds.top - top, behavior: 'instant' });
+    };
+    reveal();
+    // Field validation can run before Tab's native focus scroll. Reveal once
+    // more after that action, without stealing keyboard focus or polling.
+    window.requestAnimationFrame?.(() => window.requestAnimationFrame(reveal));
+  }
   function decorate(element) {
     if (!element || element.hidden || !element.textContent?.trim()) return;
     let record = records.get(element);
@@ -26,6 +46,7 @@
     record.version++; record.persistent = persistent;
     element.hidden = !element.textContent?.trim();
     decorate(element);
+    revealError(element, record, true);
   }
   function clear(captured = [...records].map(([element, record]) => [element, record.version])) {
     for (const [element, version] of captured) {
@@ -44,7 +65,7 @@
       if (element.isConnected === false) records.delete(element);
       // Helper/status notices can replace their text without using .message.
       // Restore their control after refreshes while respecting a prior dismissal.
-      else decorate(element);
+      else { decorate(element); revealError(element, records.get(element)); }
     }
   }
   window.CeasefireNotifications = { show, navigate, clear };

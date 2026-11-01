@@ -902,7 +902,7 @@ let passed=0;
   assert.match(markup,/id="firestopping-document-actions"[^>]*>[\s\S]*?id="download-quote-pdf"[^>]*class="[^"]*pdf-button[^"]*calculator-document-action[^"]*"[^>]*aria-label="Breakdown"[^>]*title="Breakdown"/);
   assert.match(markup,/<span>Breakdown<\/span>/);
   assert.match(markup,/id="download-quote-pdf"[\s\S]*?<span class="download-arrow">Σ<\/span>/);
-  assert.ok(actionCss.includes('.button.save-button{color:#332600;background:#ffdb66;'));
+  assert.ok(actionCss.includes('.button.save-button{color:#fff;background:#d0001b;'));
   assert.ok(actionCss.includes('.button.pdf-button{color:#fff;background:#c5221f;'));
   assert.ok(actionCss.includes('.button[aria-busy=true]::after'));
   // Responsive geometry and reachable dropdowns are verified by the native header fixture.

@@ -53,7 +53,7 @@ async function fresh(){await page.locator('#certification-document').selectOptio
 
   await page.getByRole('button',{name:'Settings',exact:true}).click();
   const coverRow=kind=>page.locator('#cover-sheets-rows tr[data-cover-kind="'+kind+'"]');
-  await expect(page.locator('#cover-sheets-rows tr')).toHaveCount(17);
+  await expect(page.locator('#cover-sheets-rows tr')).toHaveCount(10);
   const kindsResponse=await fetch(base+'/api/pdf-covers'),kinds=await kindsResponse.json();
   assert.ok(kinds.items.every(item=>!Object.hasOwn(item,'cover_pdf')&&typeof item.has_cover==='boolean'));
   await expect(coverRow('certification').getByRole('button',{name:'Save cover sheet for Certification',exact:true})).toBeDisabled();
@@ -62,7 +62,7 @@ async function fresh(){await page.locator('#certification-document').selectOptio
   await coverRow('certification').getByRole('button',{name:'Save cover sheet for Certification',exact:true}).click();
   await expect(coverRow('certification')).toContainText('Cover sheet saved.');
   await coverRow('takeoff_markups').locator('input').setInputFiles(info.board_fixture);
-  await coverRow('takeoff_markups').getByRole('button',{name:'Save cover sheet for Takeoff markups',exact:true}).click();
+  await coverRow('takeoff_markups').getByRole('button',{name:'Save cover sheet for Markups',exact:true}).click();
   await expect(coverRow('takeoff_markups')).toContainText('Cover sheet saved.');
   const beforeConflict=await (await fetch(base+'/api/pdf-covers')).json(),certificationCover=beforeConflict.items.find(item=>item.kind==='certification');
   const otherWindow=await fetch(base+'/api/pdf-covers/certification',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({cover_pdf:'data:application/pdf;base64,'+fs.readFileSync(info.fixture).toString('base64'),cover_pdf_name:'Other window cover.pdf',expected_version:certificationCover.version})});
@@ -76,7 +76,7 @@ async function fresh(){await page.locator('#certification-document').selectOptio
   const initialCovers=await (await fetch(base+'/api/pdf-covers')).json();
   assert.equal(initialCovers.items.find(item=>item.kind==='certification').has_cover,true);
   assert.equal(initialCovers.items.find(item=>item.kind==='takeoff_markups').has_cover,true);
-  evidence.checks.push('17 independent Settings cover rows','saved cover metadata excludes PDF bytes','main and specific covers saved independently','stale cover Save blocks silent overwrite','cancelled conflicted Trash retains selected file','explicit approved conflict retry uses current version');
+  evidence.checks.push('10 independent Settings cover rows','saved cover metadata excludes PDF bytes','main and specific covers saved independently','stale cover Save blocks silent overwrite','cancelled conflicted Trash retains selected file','explicit approved conflict retry uses current version');
   await certification();
 
   await page.locator('#certification-client').fill('Custom certificate client');

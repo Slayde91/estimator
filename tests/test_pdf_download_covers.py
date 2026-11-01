@@ -50,13 +50,21 @@ class PdfDownloadCoverTests(unittest.TestCase):
 
     def test_catalog_is_finite_ordered_persistent_and_defaults_empty(self):
         items=self.covers.list()['items']
-        self.assertEqual(len(items),17)
+        self.assertEqual(len(items),10)
         self.assertEqual([(row['kind'],row['label']) for row in items],list(SETTINGS_KINDS))
         self.assertNotIn('pdf_tools', {row['kind'] for row in items})
         self.assertIsNone(self.covers.get('pdf_tools')['cover_pdf'])
         self.assertTrue(all(not row['has_cover'] and 'cover_pdf' not in row and row['cover_pdf_name']=='' and row['version']==1 for row in items))
         self.assertEqual(PdfDownloadCovers(Store(self.store.path)).list(),self.covers.list())
         self.assertEqual(self.store.company_settings(),DEFAULTS)
+
+    def test_hidden_settings_rows_retain_saved_covers_and_export_access(self):
+        from estimator.pdf_download_covers import HIDDEN_SETTINGS_KINDS
+        for kind in HIDDEN_SETTINGS_KINDS:
+            saved=self.covers.save(kind,cover('RETAINED '+kind),kind+'.pdf',1)
+            self.assertEqual(PdfDownloadCovers(self.store).get(kind),saved)
+            self.assertNotIn(kind,{row['kind'] for row in self.covers.list()['items']})
+            self.assertEqual(text_pages(prepend_cover_pdf(pdf('BODY'),{},saved)),['RETAINED '+kind,'BODY'])
 
     def test_main_then_specific_then_content_with_identical_covers_kept_twice(self):
         main={'cover_pdf':cover('MAIN')};specific={'cover_pdf':cover('SPECIFIC')};body=pdf('BODY')
@@ -97,7 +105,7 @@ class PdfDownloadCoverTests(unittest.TestCase):
 
     def test_legacy_cover_seeds_once_without_rewriting_documents_or_pdf(self):
         selected={'cover_pdf':cover('LEGACY'),'cover_pdf_name':'Legacy.pdf','scopes':[]}
-        old=self.service.create({**dict.fromkeys(FIELDS[:13], 'N/A'),'name':'Entered signer'},options=selected)
+        old=self.service.create({**dict.fromkeys(FIELDS, 'N/A'),'name':'Entered signer'},options=selected)
         generated=self.service.generate(old['id'],old['fields'],1,str(uuid.uuid4()),DEFAULTS)
         frozen=self.service.revision_pdf(old['id'],1)
         self.service.create({'project':'Newer saved document with no local cover'})
@@ -157,7 +165,7 @@ class PdfDownloadCoverTests(unittest.TestCase):
         self.assertEqual(old_client['signature_image'],image)
         with self.assertRaises(CertificationConflict):self.service.save_defaults(entered,1,signature_image=None,signature_name='')
         selected={'cover_pdf':None,'cover_pdf_name':'','scopes':[],'signature_image':image,'signature_name':'Signer.png'}
-        document=self.service.create({**dict.fromkeys(FIELDS[:13], 'N/A'),'name':'Signer'},str(uuid.uuid4()),options=selected)
+        document=self.service.create({**dict.fromkeys(FIELDS, 'N/A'),'name':'Signer'},str(uuid.uuid4()),options=selected)
         captured=[]
         def render(*args,**kwargs):captured.append(kwargs.get('signature'));return pdf('SIGNED BODY')
         service=CertificationService(self.store,renderer=render)

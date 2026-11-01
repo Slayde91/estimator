@@ -107,10 +107,10 @@
   :root[data-theme]:not([data-theme="ceasefire"]) :is(.takeoff-register th,.takeoff-column-filter-menu) { background:var(--theme-soft); color:var(--ink); }
   :root[data-theme="midnight"] :is(.gear-symbol,.calculator-symbol-button,.penetration-group,.library-summary-table th,.library-summary-table td) { color:var(--ink); }
   :root[data-theme="midnight"] .header-tagline-character { filter:url(#header-character-white); }
-  /* Tint only the CLASSI word through the original logo's alpha mask. The FIRE
-     lettering, mark, source artwork and print version retain their own colors. */
+  /* White CLASSI and dark mark squares through the original alpha mask.
+     The notch excludes the red square; FIRE and the print artwork retain red. */
   :root[data-theme="midnight"] .app-header .brand { position:relative; }
-  :root[data-theme="midnight"] .app-header .brand::after { content:''; position:absolute; inset:0; pointer-events:none; background:#fff; mask:url('/classifire-logo.png') center / contain no-repeat; clip-path:inset(0 32% 0 20%); }
+  :root[data-theme="midnight"] .app-header .brand::after { content:''; position:absolute; inset:0; pointer-events:none; background:#fff; mask:url('/classifire-logo.png') center / contain no-repeat; clip-path:polygon(0 0,12.8% 0,12.8% 40%,19% 40%,19% 0,68% 0,68% 100%,0 100%); }
   :root[data-theme="midnight"] footer { color:var(--muted); }
   /* Tint only application controls; retained drawing pixels and artwork bytes stay unchanged. */
   :root[data-theme="midnight"] :is(.takeoff-icon-button img,.takeoff-transfer-icon,.calculator-document-icon) { filter:brightness(0) invert(1); }

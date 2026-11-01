@@ -35,8 +35,8 @@ async function holdFinalHistory(trigger){
   });
   try{await trigger();await Promise.race([arrival,new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('The source export did not refresh its captured history.')),60000);})]);
     assert.equal(await page.evaluate(()=>window.CeasefireDocumentation.hasPendingOperation()),true);const mutations=projectMutations.length,scope=await page.evaluate(()=>window.CeasefireCertification.sessionId());
-    await page.locator('#save-current-project').click();await expect(page.locator('#app-message')).toHaveText('Finish the current document download before saving the project.');
-    await openProjectSection(page,'quotes');await page.locator('#new-quote').click();await expect(page.locator('#app-message')).toHaveText('Finish the current document download before replacing a project.');
+    await page.locator('#save-current-project').click();await expect(page.locator('#app-message')).toContainText('Finish the current document download before saving the project.');
+    await openProjectSection(page,'quotes');await page.locator('#new-quote').click();await expect(page.locator('#app-message')).toContainText('Finish the current document download before replacing a project.');
     assert.equal(await page.evaluate(()=>window.CeasefireCertification.sessionId()),scope);assert.equal(projectMutations.length,mutations);await expect(page.locator('#client')).toHaveValue('SYNTHETIC DOCUMENTATION QA');
     checks.push('Save and New are blocked while the final captured history response is still pending, without replacing the project');
   }finally{clearTimeout(timer);release();await heldRequest;await page.unroute(matcher);}

@@ -89,8 +89,8 @@ function contrast(a,b) {
       const normal = await appearance(button), saveStyle = await appearance(save);
       assert.ok(contrast(normal.color,normal.background)>=4.5,'The white button keeps readable icon contrast');
       assert.equal(normal.width,width<=720?44:48); assert.equal(normal.height,normal.width);
-      assert.equal(saveStyle.background,'rgb(255, 219, 102)','Save retains its yellow background');
-      assert.equal(saveStyle.color,'rgb(51, 38, 0)');
+      assert.equal(saveStyle.background,'rgb(208, 0, 27)','Save uses its red background');
+      assert.equal(saveStyle.color,'rgb(255, 255, 255)');
       await button.hover(); await expect(button).toHaveCSS('background-color','rgb(243, 244, 246)');
       const hover = await appearance(button); assert.ok(contrast(hover.color,hover.background)>=4.5);
       await page.mouse.move(1,1); await drop('appearance.txt','Not uploaded','dragenter');

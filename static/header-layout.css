@@ -120,9 +120,9 @@
     padding: 11px;
   }
   #header-project-actions .button.save-button {
-    color: #332600;
-    background: #ffdb66;
-    border-color: #d0a72c;
+    color: #fff;
+    background: #d0001b;
+    border-color: #a80016;
   }
   #header-project-actions .button.project-attachment-zone {
     color: #111827;

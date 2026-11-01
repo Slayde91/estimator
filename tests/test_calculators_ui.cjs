@@ -2136,7 +2136,7 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
   assert.match(registerMarkup,/id="calculator-import"[^>]*class="[^"]*excel-button[^"]*calculator-document-action[^"]*"/);
   assert.doesNotMatch(registerMarkup,/id="calculator-save"/);
   assert.ok(sharedButtonCss.includes('.button.excel-button{color:#fff;background:var(--navy);'));
-  assert.ok(sharedButtonCss.includes('.button.save-button{color:#332600;background:#ffdb66;'));
+  assert.ok(sharedButtonCss.includes('.button.save-button{color:#fff;background:#d0001b;'));
   assert.ok(toolbarCss.includes(':hover:not(:disabled)'));assert.ok(toolbarCss.includes(':focus-visible'));assert.ok(toolbarCss.includes(':disabled{opacity:.5;filter:none;cursor:not-allowed}'));
   for(const id of ['calculator-excel','calculator-pdf','calculator-summary-pdf','calculator-reset','calculator-recalculate'])assert.equal(byId(id).listeners.click.length,1);passed++;
 

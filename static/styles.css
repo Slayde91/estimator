@@ -121,7 +121,7 @@ main{max-width:1660px;margin:auto;padding:38px 30px 65px;min-height:calc(100vh -
 .secondary{color:#51414a;background:white;border:1px solid #dcd3d7}
 .secondary:hover{color:var(--accent);background:#fff7f5;border-color:#ddabad}
 .button.excel-button{color:#fff;background:var(--navy);border:1px solid #171217}
-.button.save-button{color:#332600;background:#ffdb66;border:1px solid #d0a72c}
+.button.save-button{color:#fff;background:#d0001b;border:1px solid #a80016}
 .button.pdf-button{color:#fff;background:#c5221f;border:1px solid #a11b18}
 .button:is(.excel-button,.save-button,.pdf-button):hover:not(:disabled){filter:brightness(.92)}
 .button:is(.excel-button,.save-button,.pdf-button):focus-visible{outline:3px solid #222;outline-offset:3px}
@@ -373,12 +373,16 @@ dialog .actions{justify-content:flex-end}
 .pricing-table th,.pricing-table td{padding:9px 6px;overflow-wrap:anywhere}.pricing-table th:nth-child(3){width:8%}.pricing-table th:nth-child(4){width:6%}.pricing-table th:nth-child(5){width:8%}.pricing-table th:nth-child(6),.pricing-table th:nth-child(7){width:16%}.pricing-table th:nth-child(8),.pricing-table th:nth-child(9){width:6%}.pricing-table .pricing-row-actions{white-space:normal}.pricing-table .pricing-row-actions .reset-button{padding:5px 0}.pricing-table .pricing-row-actions .icon-only{width:28px;min-width:28px;height:28px;padding:5px}
 
 .calculator-status{display:inline-block;background:#fff1bf;color:#775300;width:fit-content}
-.company-logo-controls{display:flex;align-items:flex-end;gap:20px;flex-wrap:wrap;margin:20px 0}
-.company-logo-upload-row{display:flex;align-items:flex-end;gap:12px;flex:1 1 280px;min-width:0}
+.company-branding-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px 24px;margin:20px 0}
+.company-logo-controls{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-column:1/-1;align-items:end;gap:24px;min-width:0}
+.company-logo-upload-row{display:flex;align-items:flex-end;gap:12px;min-width:0}
 .company-logo-upload-row>.field{flex:1 1 auto;min-width:0}
-.company-logo-upload-row input[type=file]{height:48px;min-width:0}
-.company-logo-upload-row>#company-logo-delete{flex:0 0 48px;width:48px;height:48px;min-height:48px}
-#company-logo-preview{width:200px;height:80px;object-fit:contain;background:#e5e7eb}
+.company-logo-upload-row input[type=file]{height:48px;min-width:0;width:100%}
+.company-logo-upload-row>.icon-only{flex:0 0 48px;width:48px;height:48px;min-height:48px}
+.company-cover-controls{grid-column:1;min-width:0}
+#company-logo-preview{width:200px;max-width:100%;height:80px;object-fit:contain;background:#e5e7eb}
+@media(max-width:650px){.company-branding-fields,.company-logo-controls{grid-template-columns:1fr}.company-logo-controls{gap:12px}}
+
 #company-settings-form{max-width:850px}
 [data-price-id]{scroll-margin-top:200px}
 

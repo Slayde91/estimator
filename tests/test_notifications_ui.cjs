@@ -7,7 +7,7 @@ class Element {
   append(child) { child.parentNode = this; this.children.push(child); }
   setAttribute(name, value) { this.attrs[name] = String(value); }
   getAttribute(name) { return this.attrs[name] ?? null; }
-  matches(selector) { return selector === '.message' && this.className === 'message'; }
+  matches(selector) { return selector === '.message' && String(this.className).split(/\s+/).includes('message'); }
   closest(selector) { return selector === '[role="tab"]' && this.attrs.role === 'tab' ? this : null; }
   addEventListener(name, callback) { this.listeners[name] = callback; }
 }
@@ -52,3 +52,24 @@ helper.textContent = 'Translated revision saved'; observer();
 assert.equal(helper.hidden, true, 'Refreshing a dismissed helper-status does not show it again');
 assert.equal(helper.children.length, 0, 'A dismissed helper receives no hidden interactive control');
 console.log('Notification persistence, navigation, dismissal, recovery and progress checks passed.');
+
+// Reveal fresh errors below sticky chrome without refocusing the user's field.
+const scrolls=[],frames=[];let errorTop=950;
+window.innerHeight=800;window.scrollBy=value=>scrolls.push(value);
+window.requestAnimationFrame=callback=>frames.push(callback);
+document.querySelector=selector=>selector==='.app-header'?{getBoundingClientRect:()=>({bottom:100})}:null;
+const error=notice('Invalid current item');error.className='message error';error.setAttribute('role','alert');
+error.getClientRects=()=>error.hidden?[]:[{}];error.getBoundingClientRect=()=>({top:errorTop,bottom:errorTop+40});
+api.show(error);assert.deepEqual(scrolls.map(value=>value.top),[838]);
+observer();assert.equal(scrolls.length,1,'Decorating the close control does not repeat the error scroll');
+errorTop=50;while(frames.length)frames.shift()();
+assert.deepEqual(scrolls.map(value=>value.top),[838,-62],'Error is revealed again after native Tab focus scrolling');
+errorTop=200;api.show(error);while(frames.length)frames.shift()();assert.equal(scrolls.length,2,'An error already in view does not move the page');
+error.textContent='Saved';error.className='helper';error.setAttribute('role','status');errorTop=950;
+api.show(error);while(frames.length)frames.shift()();assert.equal(scrolls.length,2,'Success and helper notifications never scroll');
+error.textContent='New error';error.className='message error';api.show(error);const count=scrolls.length;
+error.children[0].listeners.click();while(frames.length)frames.shift()();assert.equal(scrolls.length,count,'Dismissing an error cancels its pending reveal');
+const external=notice('Error created outside the notification API');external.className='message error';
+external.getClientRects=()=>[{}];external.getBoundingClientRect=()=>({top:950,bottom:990});
+observer();assert.equal(scrolls.length,count+1,'Fresh application errors discovered by the observer are revealed too');
+console.log('Error reveal, sticky header clearance, Tab scrolling, dismissal and success isolation passed.');

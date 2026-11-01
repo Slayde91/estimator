@@ -121,6 +121,16 @@ async function download(kind, label, scope, held=false, workspace=scope){
     await command('create_graphic',{graphic:{mode:scope,document_id:doc.id,source_sha256:doc.sha256,page:4,kind:'textbox',geometry:{quad_pdf:[[40,120],[260,120],[260,40],[40,40]]},text:scope,appearance:{}}});
   }
   const seeded=current.snapshot;await renderDrawing(page,()=>page.evaluate(async value=>{const t=window.CeasefireTakeoffs;t.applyProject(await t.prepareProject(value,t.sessionId()));await t.open();},seeded),1);await idle();
+  // Persist the newly attached drawing before taking export baselines. The
+  // first real Save assigns its evidence companion folder; subsequent automatic
+  // saves must preserve the entire source/markup snapshot exactly as before.
+  const beforeSourceSave=await snapshot(), sourceSave=page.waitForResponse(response=>response.url().endsWith('/api/project/save'));
+  await clickProjectControl(page,'Save');const sourceSaveResponse=await sourceSave;
+  assert.equal(sourceSaveResponse.status(),200);const sourceSaved=await sourceSaveResponse.json();
+  await expect(page.locator('#project-save-state')).toHaveText('Saved project');
+  const companionFolder=sourceSaved.project.takeoffs.companion_folder;
+  assert.match(companionFolder,/^\.ceasefire-evidence\/[0-9a-f-]+$/);
+  assert.deepEqual(await snapshot(),{...beforeSourceSave,companion_folder:companionFolder},'Initial source Save adds only its evidence location');
   const calculatorsBefore=await page.evaluate(()=>window.CeasefireCalculators.completeProjectSnapshot());
   const kinds=[['current-all','Download Full Markup'],['current-marked','Download Markups Only'],['all-all','Download All Markups'],['all-marked','Download Full Markups Only']];
   for(const scope of['steel','duct','wall','physical-defect_reports','physical-service_plans']){

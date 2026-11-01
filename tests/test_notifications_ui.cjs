@@ -22,6 +22,7 @@ const api = window.CeasefireNotifications;
 const notice = text => { const element = new Element(); element.className = 'message'; element.textContent = text; elements.push(element); return element; };
 const first = notice('Saved successfully'); api.show(first);
 assert.equal(first.hidden, false); assert.equal(first.children.length, 1);
+assert.equal(first.textContent, 'Saved successfully', 'The decorative close glyph does not become notification text or status data');
 assert.equal(first.children[0].type, 'button'); assert.equal(first.children[0].getAttribute('aria-label'), 'Close');
 observer(); observer(); assert.equal(first.children.length, 1, 'Observer does not duplicate dismiss controls');
 assert.equal(first.hidden, false, 'No elapsed-time timer retires notices');

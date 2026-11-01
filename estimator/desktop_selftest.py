@@ -84,6 +84,13 @@ class NativeProbe:
             stream.Dispose()
 
 
+def notification_text(selector):
+    """Read a notice's visible copy without its separate dismiss control."""
+    return ('[...document.querySelector(' + json.dumps(selector) + ').childNodes]'
+            '.filter(node => !node.classList?.contains("notification-dismiss"))'
+            '.map(node => node.textContent).join("")')
+
+
 def self_test(data_directory, output_report):
     """Only new directories are accepted; production user state is never reused."""
     from .desktop import run
@@ -235,7 +242,8 @@ def self_test(data_directory, output_report):
                 report['checks'].append('Native preview SVG navigation icons render 20% larger than the previous 65% scale of their original 26 pixels, decorative, consistently stroked and centred above visible page names')
                 probe.script('window.nativeQaCsp=[]; document.addEventListener("securitypolicyviolation",event=>window.nativeQaCsp.push(event.effectiveDirective));')
                 probe.click('[data-view="settings"]')
-                probe.wait('!document.querySelector("#view-settings").hidden && !document.querySelector("#company-settings-save").disabled && document.querySelector("#company-settings-status").firstChild?.textContent === "Saved" && document.querySelector("#theme-toggle").dataset.themeReady === "true"')
+                probe.wait('!document.querySelector("#view-settings").hidden && !document.querySelector("#company-settings-save").disabled && '
+                           + notification_text('#company-settings-status') + ' === "Saved" && document.querySelector("#theme-toggle").dataset.themeReady === "true"')
                 assert probe.script('!!document.querySelector("#company-name").value')
                 probe.click('#theme-toggle')
                 probe.wait('document.documentElement.dataset.theme === "midnight"')

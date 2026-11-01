@@ -1,4 +1,4 @@
-const { captureReferenceExport, observeReferenceExports } = require('./reference_export_capture.cjs');
+const { referenceExport } = require('./reference_export.cjs');
 const { cycleTheme } = require('./theme_navigation.cjs');
 // Native Technical Library documents and contrast against disposable evidence only.
 const {chromium, expect} = require('@playwright/test');
@@ -32,15 +32,15 @@ async function contrast(selector){return page.locator(selector).first().evaluate
   const a=luminance(style.color),b=luminance(background);return {color:style.color,background,ratio:(Math.max(a,b)+.05)/(Math.min(a,b)+.05)};
 });}
 async function exported(extension){
-  const response=page.waitForResponse(r=>new URL(r.url()).pathname===`/api/technical/item.${extension}`);
+  const target=path.join(output,`technical-item.${extension}`);
   await page.locator('.library-document-menu').getByRole('button',{name:'Document',exact:true}).click();
-  await page.getByRole('button',{name:`Download Item Details ${extension.toUpperCase()}`,exact:true}).click();
-  return captureReferenceExport(await response,path.join(output,`technical-item.${extension}`));
+  await referenceExport(page,{extension,endpoint:`/api/technical/item.${extension}`,target,
+    action:()=>page.getByRole('button',{name:`Download Item Details ${extension.toUpperCase()}`,exact:true}).click()});
+  return target;
 }
 (async()=>{
   const info=await ready;assert.notEqual(info.port,8765);
   browser=await chromium.launch({headless:true});page=await browser.newPage({viewport:{width:1146,height:900},reducedMotion:'reduce'});
-  await observeReferenceExports(page);
   page.on('pageerror',error=>errors.push(error.message));
   await page.addInitScript(()=>document.addEventListener('securitypolicyviolation',e=>{window.__technicalCsp??=[];window.__technicalCsp.push({directive:e.violatedDirective,blocked:e.blockedURI});}));
   await page.goto(`http://127.0.0.1:${info.port}/`);await idle();

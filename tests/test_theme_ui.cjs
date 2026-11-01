@@ -8,19 +8,20 @@ const source = fs.readFileSync(path.join(root, 'static/theme.js'), 'utf8');
 const css = fs.readFileSync(path.join(root, 'static/theme.css'), 'utf8');
 const key = 'ceasefire.ui.theme.v1';
 function harness({ stored = null, getDenied = false, setDenied = false, absent = false } = {}) {
-  const attrs = {}, buttonAttrs = {}, listeners = {}, writes = [], status = { textContent: '' };
+  const attrs = {}, buttonAttrs = {}, listeners = {}, writes = [], notices = [], status = { textContent: '' };
   const button = { dataset: {}, setAttribute(name, value) { buttonAttrs[name] = value; }, addEventListener(name, fn) { assert.equal(name, 'click'); assert.equal(listeners[name], undefined); listeners[name] = fn; } };
   const forbidden = () => { throw Error('Themes must not touch project, calculator, events or requests'); };
   const context = { document: { documentElement: { setAttribute(name, value) { assert.equal(name, 'data-theme'); attrs[name] = value; } }, getElementById(id) { return id === 'theme-toggle' ? absent ? null : button : id === 'theme-status' ? status : null; }, dispatchEvent: forbidden },
-    window: { localStorage: { getItem(name) { assert.equal(name, key); if (getDenied) throw Error('Denied'); return stored; }, setItem(name, value) { if (setDenied) throw Error('Denied'); writes.push([name, value]); } }, fetch: forbidden, dispatchEvent: forbidden,
+    window: { CeasefireNotifications: {show:element=>notices.push(element)}, localStorage: { getItem(name) { assert.equal(name, key); if (getDenied) throw Error('Denied'); return stored; }, setItem(name, value) { if (setDenied) throw Error('Denied'); writes.push([name, value]); } }, fetch: forbidden, dispatchEvent: forbidden,
       CeasefireProject: new Proxy({}, { get: forbidden }), CeasefireCalculators: new Proxy({}, { get: forbidden }), CeasefireTakeoffs: new Proxy({}, { get: forbidden }), CeasefireDesktop: new Proxy({}, { get: forbidden }) }, fetch: forbidden };
   vm.createContext(context);
   const run = () => vm.runInContext(source, context);
   run();
-  return { attrs, buttonAttrs, writes, status, run, click: () => listeners.click() };
+  return { attrs, buttonAttrs, writes, notices, status, run, click: () => listeners.click() };
 }
 test('five distinct themes cycle once per activation, wrap, announce and store only their own preference', () => {
   const h = harness();
+  assert.equal(h.notices.length,0);
   assert.equal(h.attrs['data-theme'], 'ceasefire'); assert.equal(h.status.textContent, ''); assert.equal(h.writes.length, 0);
   assert.equal(h.buttonAttrs['aria-label'], 'Theme: CLASSIFIRE. Next theme: Midnight.');
   for (const [id, name, next] of [['midnight','Midnight','Ocean'], ['ocean','Ocean','Forest'], ['forest','Forest','Slate'], ['slate','Slate','CLASSIFIRE'], ['ceasefire','CLASSIFIRE','Midnight']]) {
@@ -93,4 +94,9 @@ test('control is native, outside navigation/project actions and independent of T
   assert.match(html, /<button id="theme-toggle" type="button"/); assert.match(html, /<script src="\/theme.js" defer>/); assert.match(html, /<link rel="stylesheet" href="\/theme.css">/);
   const nav = html.slice(html.indexOf('<nav aria-label="Main navigation">'), html.indexOf('</nav>')); assert.doesNotMatch(nav, /theme-toggle/);
   for (const block of html.matchAll(/<!-- TAKEOFFS:START -->([\s\S]*?)<!-- TAKEOFFS:END -->/g)) assert.doesNotMatch(block[1], /theme-toggle|theme\.js|theme\.css/);
+});
+
+test('theme announcements are registered as dismissible notices only after user activation',()=>{
+  const h=harness();assert.equal(h.notices.length,0);h.click();
+  assert.equal(h.notices.length,1);assert.equal(h.notices[0],h.status);
 });

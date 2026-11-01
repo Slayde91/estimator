@@ -22,15 +22,34 @@ function harness(saved=null,denied=false,messages=null){
   const root=new Element('HTML'),select=new Element('SELECT'),status=new Element(),events=[],writes=[],listeners={};let observer;
   const store={getItem(){if(denied)throw Error('denied');return saved;},setItem(k,v){if(denied)throw Error('denied');writes.push([k,v]);}};
   const document={documentElement:root,body:new Element(),querySelectorAll(){return[];},getElementById(id){return id==='application-language'?select:id==='language-status'?status:null;},createTextNode(text){return new Element('#text',text);},createElement(tag){return new Element(tag.toUpperCase());}};
-  const window={CeasefireMessages:{Home:['主页','मुखपृष्ठ','Inicio','الرئيسية','หน้าหลัก'],'Open {0}':['打开 {0}','{0} खोलें','Abrir {0}','فتح {0}','เปิด {0}']},addEventListener(k,fn){listeners[k]=fn;},dispatchEvent(e){events.push(e);}};
+  const notices=[];
+  const window={CeasefireNotifications:{show:element=>notices.push(element)},CeasefireMessages:{Home:['主页','मुखपृष्ठ','Inicio','الرئيسية','หน้าหลัก'],'Open {0}':['打开 {0}','{0} खोलें','Abrir {0}','فتح {0}','เปิด {0}']},addEventListener(k,fn){listeners[k]=fn;},dispatchEvent(e){events.push(e);}};
   if(messages)window.CeasefireMessages=messages;
   const context={window,document,localStorage:store,CustomEvent:class{constructor(type,options){this.type=type;this.detail=options.detail;}},MutationObserver:class{constructor(fn){observer=fn;}observe(){}}};
-  vm.createContext(context);vm.runInContext(runtime,context);return {ui:window.CeasefireI18n,context,root,select,status,events,writes,listeners,observe:n=>observer([{addedNodes:[n]}])};
+  vm.createContext(context);vm.runInContext(runtime,context);return {ui:window.CeasefireI18n,context,root,select,status,events,writes,listeners,notices,observe:n=>observer([{addedNodes:[n]}])};
 }
 function catalogs(){const extra=['fr','bn','ur'].map(locale=>JSON.parse(fs.readFileSync(path.join(__dirname,`../static/locales/extra/${locale}.json`),'utf8')));return Object.assign({},...fs.readdirSync(path.join(__dirname,'../static/locales')).filter(name=>name.endsWith('.json')).sort().map(name=>{
   const base=JSON.parse(fs.readFileSync(path.join(__dirname,'../static/locales',name),'utf8')), additions=JSON.parse(fs.readFileSync(path.join(__dirname,'../static/locales/additions',name),'utf8'));
   return Object.fromEntries(Object.entries(base).map(([source,translations])=>[source,translations.concat(additions[source],extra.map(catalog=>catalog[source]))]));
 }));}
+test('notification controls preserve the current message translation without adopting literal updates',()=>{
+  const h=harness(),notice=new Element(),close=new Element('BUTTON','×');
+  h.ui.text(notice,'Home');h.ui.accessory(notice,close);
+  assert.equal(notice.textContent,'Home×');assert.equal(h.ui.source(notice),'Home');
+  h.ui.setLanguage('es');assert.equal(notice.textContent,'Inicio');
+  const replacement=new Element('BUTTON','×');h.ui.accessory(notice,replacement);
+  assert.equal(h.ui.source(notice),'Home');h.ui.setLanguage('zh-Hans');assert.equal(notice.textContent,'主页');
+  notice.replaceChildren(new Element('#text','Literal project-owned update'));
+  h.ui.accessory(notice,new Element('BUTTON','×'));
+  assert.equal(h.ui.source(notice),'Literal project-owned update');
+  h.ui.setLanguage('fr');assert.equal(notice.textContent,'Literal project-owned update×');
+});
+test('language announcements use the shared dismissible notification lifecycle',()=>{
+  const h=harness();assert.equal(h.notices.length,0);
+  h.select.listeners.change({target:{value:'fr'}});
+  assert.equal(h.notices.length,1);assert.equal(h.notices[0],h.status);
+  assert.equal(h.ui.source(h.status),'Application language updated.');
+});
 test('twelve locales persist independently and invalid preference falls back to English',()=>{
   const h=harness('invalid');assert.equal(h.ui.language,'en');assert.equal(h.root.lang,'en-AU');assert.equal(h.writes.length,0);
   for(const locale of ['zh-Hans','hi','es','ar','th','ko','tl','vi','fr','bn','ur','en']){assert.equal(h.ui.setLanguage(locale),true);assert.equal(h.select.value,locale);assert.equal(h.root.dir,['ar','ur'].includes(locale)?'rtl':'ltr');assert.equal(h.writes.at(-1)[0],'ceasefire.ui.language.v1');}

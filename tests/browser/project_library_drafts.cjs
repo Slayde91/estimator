@@ -1,4 +1,4 @@
-const { captureReferenceExport, observeReferenceExports } = require('./reference_export_capture.cjs');
+const { referenceExport } = require('./reference_export.cjs');
 const { cycleTheme } = require('./theme_navigation.cjs');
 const { chooseLibrary } = require('./section_navigation.cjs');
 const { clickProjectControl } = require('./project_actions.cjs');
@@ -102,20 +102,19 @@ async function editorExport(kind,scope,configuration,diagram) {
       await expect(page.locator('#library-editor-item-pdf')).toBeDisabled();
     } finally {
       await page.locator('#library-editor-recalculate').evaluate(control=>delete control.dataset.qaBusyMenuCalculation);
-      release();await page.unroute(endpoint);
+      release();await page.unrouteAll({behavior:'wait'});
     }
     await libraryIdle();await expect(menu).toBeVisible();await expect(toggle).toBeFocused();
     evidence.recalculationKeepsDocumentMenuOpen=true;
   }
   await captureExportReadiness('before-click',kind,scope);
-  const id=kind==='pdf'?'library-editor-item-pdf':'library-editor-item-excel',pending=page.waitForResponse(reply=>new URL(reply.url()).pathname===`/api/penetration/item.${kind}`&&reply.request().method()==='POST');
-  pending.catch(()=>{}); // Preserve the click failure and its diagnostic capture if no request is sent.
-  await page.locator(`#${id}`).click();await captureExportReadiness('after-click',kind,scope);const reply=await pending;assert.equal(reply.status(),200,await reply.text());
-  const capture=reply.request().postDataJSON();
+  const id=kind==='pdf'?'library-editor-item-pdf':'library-editor-item-excel';
+  const target=path.join(output,`${scope}-item.${kind}`),capturePath=path.join(output,`${scope}-item-${kind}-capture.json`);
+  const {capture}=await referenceExport(page,{extension:kind,endpoint:`/api/penetration/item.${kind}`,target,
+    action:async()=>{await page.locator(`#${id}`).click();await captureExportReadiness('after-click',kind,scope);}});
   assert.deepEqual(capture.configuration,configuration,'Library exports retain their captured prices');assert.deepEqual(capture.diagram,diagram);
   assert.equal(capture.draft,undefined);assert.equal(capture.item.inputs.T,'Project-only edited library item');assert.equal(capture.item.inputs.O,2.125);
-  const target=path.join(output,`${scope}-item.${kind}`),capturePath=path.join(output,`${scope}-item-${kind}-capture.json`);
-  await captureReferenceExport(reply,target);fs.writeFileSync(capturePath,JSON.stringify(capture,null,2));
+  fs.writeFileSync(capturePath,JSON.stringify(capture,null,2));
   const content=spawnSync(python,[path.join(__dirname,'library_item_export_content.py'),'--capture',capturePath,'--file',target],{cwd:root,windowsHide:true,encoding:'utf8'});assert.equal(content.status,0,`${content.stdout}\n${content.stderr}`);
   await expect(menu).toBeHidden();await expect(page.locator(`#${id}`)).toHaveAttribute('aria-busy','false');
   assert.deepEqual(await editorSnapshot(),before,'Exports preserve unsaved library/editor, composer, calculator and pricing drafts');
@@ -139,7 +138,6 @@ async function openProjectCopy() {
   info = await ready; assert.notEqual(info.port, 8765);
   browser = await chromium.launch({ headless: true });
   page = await browser.newPage({ viewport: { width: 1440, height: 1000 }, deviceScaleFactor: 1 }); page.setDefaultTimeout(60000);
-  await observeReferenceExports(page);
   page.on('pageerror', error => errors.push(error.message));
   page.on('request', request => requests.push({ method: request.method(), path: new URL(request.url()).pathname }));
   await page.addInitScript(() => {
